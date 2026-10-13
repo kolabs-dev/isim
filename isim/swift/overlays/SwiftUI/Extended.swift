@@ -137,7 +137,22 @@ extension EnvironmentValues {
 }
 
 /// Environment values that come from the device / app state, set by the graph at each render.
+/// iOS 17: an environment key bridged to a UIKit trait. A hosting controller's views read it from the hosting view's
+/// traits until a view sets it in the environment (isim: UIKit to SwiftUI only; `write(to:value:)` is not called)
+public protocol UITraitBridgedEnvironmentKey: EnvironmentKey {
+    static func read(from traitCollection: UITraitCollection) -> Self.Value
+    static func write(to mutableTraits: inout any UIMutableTraits, value: Self.Value)
+}
+func _bridgedTraitValue<K: EnvironmentKey>(_ key: K.Type, _ traits: AnyObject?) -> K.Value? {
+    guard let t = traits as? UITraitCollection, let b = key as? any UITraitBridgedEnvironmentKey.Type else { return nil }
+    return b._isimRead(t) as? K.Value
+}
+extension UITraitBridgedEnvironmentKey {
+    static func _isimRead(_ t: UITraitCollection) -> Any { read(from: t) }
+}
+
 @MainActor func _systemEnvironment(_ env: inout EnvironmentValues, traits: UITraitCollection) {
+    env._traits = traits
     env.horizontalSizeClass = traits.horizontalSizeClass == .regular ? .regular : .compact
     env.verticalSizeClass = traits.verticalSizeClass == .compact ? .compact : .regular
     env.displayScale = UIScreen.main.scale

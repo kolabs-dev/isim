@@ -145,6 +145,7 @@ static char kTitleAttrs;
     case UIBarButtonSystemItemRewind: n = @"backward.fill"; break;
     case UIBarButtonSystemItemFastForward: n = @"forward.fill"; break;
     case UIBarButtonSystemItemClose: n = @"xmark.circle.fill"; break;
+    case UIBarButtonSystemItemWritingTools: n = @"apple.writing.tools"; break;
     default: break;
     }
     return n ? [UIImage systemImageNamed:n] : nil;
@@ -327,7 +328,8 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
             v = [__IsimBarButton buttonFor:it host:host];
             if ([host isKindOfClass:[UINavigationBar class]]) {
                 UINavigationBarAppearance *ap = [(UINavigationBar *)host _isim_appearance];
-                ((__IsimBarButton *)v).appearance = it.style == UIBarButtonItemStyleDone ? ap.doneButtonAppearance : ap.buttonAppearance;
+                ((__IsimBarButton *)v).appearance = it.style == UIBarButtonItemStyleDone ? ap.doneButtonAppearance
+                    : it.style == UIBarButtonItemStyleProminent ? ap.prominentButtonAppearance : ap.buttonAppearance;
             }
         }
         CGSize s = it.customView ? (CGSizeEqualToSize(v.bounds.size, CGSizeZero) ? [v sizeThatFits:CGSizeMake(200, h)] : v.bounds.size) : [v sizeThatFits:CGSizeMake(200, h)];
@@ -448,10 +450,13 @@ static char kButtonGroup, kOwnerItem;
 }
 @end
 
-static char kLeadingGroups, kCenterGroups, kTrailingGroups, kItemStyle;
+static char kLeadingGroups, kCenterGroups, kTrailingGroups, kItemStyle, kOverflowSource;
+@interface UIBarButtonItemGroup (IsimCustomization)
+- (BOOL)_isim_leftOutOfCustomization;
+@end
 static NSArray<UIBarButtonItem *> *group_items(NSArray<UIBarButtonItemGroup *> *groups) {
     NSMutableArray *out = [NSMutableArray array];
-    for (UIBarButtonItemGroup *g in groups) if (!g.hidden) [out addObjectsFromArray:g.barButtonItems];
+    for (UIBarButtonItemGroup *g in groups) if (!g.hidden && ![g _isim_leftOutOfCustomization]) [out addObjectsFromArray:g.barButtonItems];
     return out;
 }
 @implementation UINavigationItem (UIBarButtonItemGroups)
@@ -529,6 +534,8 @@ static NSArray<UIBarButtonItem *> *group_items(NSArray<UIBarButtonItemGroup *> *
 - (instancetype)initWithCoder:(NSCoder *)c { return [self init]; }
 @end
 
+static char kProminentAppearance;
+void isim_ui_copy_bar_extras(id to, id from);
 @implementation UIBarAppearance { int _kind; }   /* 0 default (material), 1 opaque, 2 transparent */
 - (instancetype)init { return [self initWithIdiom:UIDevice.currentDevice.userInterfaceIdiom]; }
 - (instancetype)initWithIdiom:(UIUserInterfaceIdiom)idiom {
@@ -544,6 +551,9 @@ static NSArray<UIBarButtonItem *> *group_items(NSArray<UIBarButtonItemGroup *> *
     _kind = a->_kind; self.backgroundEffect = a.backgroundEffect; self.backgroundColor = a.backgroundColor;
     self.backgroundImage = a.backgroundImage; self.backgroundImageContentMode = a.backgroundImageContentMode;
     self.shadowColor = a.shadowColor; self.shadowImage = a.shadowImage;
+    UIBarButtonItemAppearance *p = objc_getAssociatedObject(a, &kProminentAppearance);
+    objc_setAssociatedObject(self, &kProminentAppearance, [p copy], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    isim_ui_copy_bar_extras(self, a);          /* UITabBarAppearance's item appearances and indicator (below) */
 }
 - (id)copyWithZone:(NSZone *)z {
     UIBarAppearance *c = [[[self class] alloc] initWithIdiom:_idiom];
@@ -663,6 +673,12 @@ static NSArray<UIBarButtonItem *> *group_items(NSArray<UIBarButtonItemGroup *> *
 }
 @end
 
+static UIImage *tiled(UIImage *i);
+@interface UINavigationBar (IsimExtras)
+- (CGFloat)_isim_titleVerticalAdjustment;
+- (UIImage *)_isim_legacyBackgroundImage;
+- (void)_isim_layoutTitleMenu:(UINavigationItem *)item title:(CGRect)title textWidth:(CGFloat)tw;
+@end
 @interface UINavigationBar ()
 @property (nonatomic) CGFloat _isim_safeTop, _isim_largeExtra, _isim_searchExtra;
 @property (nonatomic) BOOL _isim_scrolledEdge;
@@ -712,7 +728,11 @@ int search_spot(UINavigationItem *it, UINavigationController *nav, UIView *v) {
     UIResponder *r = self.superview.nextResponder;
     return [r isKindOfClass:[UINavigationController class]] ? (UINavigationController *)r : nil;
 }
-- (void)_isim_backTapped { if (self._isim_back) self._isim_back(); else [self popNavigationItemAnimated:YES]; }
+- (void)_isim_backTapped {
+    UIAction *a = self.topItem.backAction;              /* iOS 16: the item's back action replaces the pop */
+    if (a) { UIActionHandler h = [a valueForKey:@"handler"]; if (h) h(a); return; }
+    if (self._isim_back) self._isim_back(); else [self popNavigationItemAnimated:YES];
+}
 - (UINavigationItem *)topItem { return _stack.lastObject; }
 - (UINavigationItem *)backItem { return _stack.count > 1 ? _stack[_stack.count - 2] : nil; }
 - (NSArray *)items { return [_stack copy]; }
@@ -736,6 +756,14 @@ int search_spot(UINavigationItem *it, UINavigationController *nav, UIView *v) {
 /* the appearance in effect: the top item's, else the bar's; at the scroll edge the scroll-edge one (else the standard
    one made transparent); in compact height (iPhone landscape) the compact ones first */
 - (UINavigationBarAppearance *)_isim_appearance {
+    UINavigationBarAppearance *a = [self _isim_itemAppearance];
+    UIImage *bg = [self _isim_legacyBackgroundImage];
+    if (!bg) return a;
+    UINavigationBarAppearance *o = [a copy];
+    o.backgroundEffect = nil; o.backgroundColor = nil; o.backgroundImage = tiled(bg); o.backgroundImageContentMode = UIViewContentModeScaleToFill;
+    return o;
+}
+- (UINavigationBarAppearance *)_isim_itemAppearance {
     UINavigationItem *it = self.topItem;
     BOOL compact = self.traitCollection.verticalSizeClass == UIUserInterfaceSizeClassCompact;
     BOOL edge = !self._isim_scrolledEdge && self._isim_back != nil;      /* (a standalone bar has no scroll edge: standard) */
@@ -747,6 +775,8 @@ int search_spot(UINavigationItem *it, UINavigationController *nav, UIView *v) {
     [t configureWithTransparentBackground];
     return t;
 }
+/* the legacy black style: the bar takes the dark style (white title and items over a dark material) */
+- (void)setBarStyle:(UIBarStyle)st { _barStyle = st; self.overrideUserInterfaceStyle = st == UIBarStyleDefault ? UIUserInterfaceStyleUnspecified : UIUserInterfaceStyleDark; [self setNeedsLayout]; }
 - (void)setPrefersLargeTitles:(BOOL)p { _prefersLargeTitles = p; [self setNeedsLayout]; [self.superview setNeedsLayout]; }
 /* large titles: Always/Never on the item, Automatic inherits from the item below (the root follows prefersLargeTitles) */
 - (BOOL)_isim_topIsLarge {
@@ -793,6 +823,7 @@ int search_spot(UINavigationItem *it, UINavigationController *nav, UIView *v) {
         NSString *t = @"";                                       /* the first non-empty name */
         for (NSString *c in @[it.title ?: @"", it.primaryAction.title ?: @"", it.accessibilityLabel ?: @"", it.accessibilityIdentifier ?: @""]) if (c.length) { t = c; break; }
         UIImage *img = it.image ?: it.primaryAction.image;
+        if (it.menuRepresentation) { [els addObject:it.menuRepresentation]; continue; }        /* iOS 16: the item's own element */
         if (it.menu && !it.primaryAction && !it.action) { [els addObject:[UIMenu menuWithTitle:t image:img identifier:nil options:0 children:it.menu.children]]; continue; }
         UIAction *a = [UIAction actionWithTitle:t image:img identifier:nil handler:^(UIAction *x) { [it _isim_performFrom:ws]; }];
         if (!it.enabled) a.attributes = UIMenuElementAttributesDisabled;
@@ -800,6 +831,7 @@ int search_spot(UINavigationItem *it, UINavigationController *nav, UIView *v) {
     }
     UIBarButtonItem *o = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:isim_ui_glass() ? @"ellipsis" : @"ellipsis.circle"] menu:[UIMenu menuWithChildren:els]];
     o.accessibilityIdentifier = @"nav-overflow"; o.accessibilityLabel = @"More";
+    if (self.topItem) objc_setAssociatedObject(self.topItem, &kOverflowSource, o, OBJC_ASSOCIATION_RETAIN_NONATOMIC);   /* overflowPresentationSource */
     return o;
 }
 /* iOS 26 subtitles: secondary label colour, 13 pt inline and 15 pt under a large title, unless the appearance says otherwise */
@@ -847,8 +879,11 @@ static void set_label_text(UILabel *l, NSString *plain, NSAttributedString *attr
     BOOL showBack = prev && !item.hidesBackButton && (!item.leftBarButtonItems.count || item.leftItemsSupplementBackButton);
     _back.hidden = !showBack;
     if (showBack) {
-        NSString *t = item.backButtonTitle ?: prev.backButtonTitle ?: prev.backBarButtonItem.title ?: prev.title ?: @"Back";
-        if (isim_ui_measure(t, [UIFont systemFontOfSize:17], 1000, 1).width > W / 3) t = @"Back";
+        NSString *t = item.backAction.title.length ? item.backAction.title : item.backButtonTitle ?: prev.backButtonTitle ?: prev.backBarButtonItem.title ?: prev.title ?: @"Back";
+        UINavigationItemBackButtonDisplayMode mode = prev.backButtonDisplayMode ?: item.backButtonDisplayMode;
+        if (mode == UINavigationItemBackButtonDisplayModeGeneric || isim_ui_measure(t, [UIFont systemFontOfSize:17], 1000, 1).width > W / 3) t = @"Back";
+        if (mode == UINavigationItemBackButtonDisplayModeMinimal) t = @"";
+        _back.accessibilityLabel = t.length ? t : @"Back";
         _back.text = t; _back.tintColor = self.tintColor;
         _back.appearance = ap.backButtonAppearance; _back.indicator = ap.backIndicatorImage;
         CGSize bs = [_back sizeThatFits:CGSizeZero];
@@ -860,6 +895,8 @@ static void set_label_text(UILabel *l, NSString *plain, NSAttributedString *attr
     /* an integrated search (inline / iOS 26 integrated placements) in the bar row: a search button, or a field */
     int spot = search_spot(item, [self _isim_navigationController], self);
     NSArray *right = item.rightBarButtonItems ?: @[];
+    UIBarButtonItemGroup *pinned = item.pinnedTrailingGroup;           /* iOS 26: at the trailing edge, after the trailing groups */
+    if (pinned && !pinned.hidden) right = [pinned.barButtonItems.reverseObjectEnumerator.allObjects arrayByAddingObjectsFromArray:right];
     /* iOS 16 center groups: before the trailing items (browser / editor styles) or in the overflow menu (navigator) */
     NSArray<UIBarButtonItem *> *center = [item _isim_centerItems];
     if (center.count && item.style == UINavigationItemStyleNavigator) right = [@[[self _isim_overflowItemFor:center]] arrayByAddingObjectsFromArray:right];
@@ -884,6 +921,7 @@ static void set_label_text(UILabel *l, NSString *plain, NSAttributedString *attr
     if (_largeSubHost != item.largeSubtitleView && _largeSubHost != item.subtitleView) [_largeSubHost removeFromSuperview];
     _subtitleHost = nil; _largeSubHost = nil; _subtitle.hidden = YES; _largeSub.hidden = YES;
     CGFloat side = fmax(leftEnd, W - rightStart);
+    [self _isim_layoutTitleMenu:nil title:CGRectNull textWidth:0];
     if (item.titleView) {
         UIView *tv = item.titleView;
         CGSize ts = CGSizeEqualToSize(tv.bounds.size, CGSizeZero) ? [tv sizeThatFits:CGSizeMake(W - 2 * side, 44)] : tv.bounds.size;
@@ -916,10 +954,11 @@ static void set_label_text(UILabel *l, NSString *plain, NSAttributedString *attr
         _title.textAlignment = spot == SEARCH_FIELD_CENTERED ? NSTextAlignmentLeft : NSTextAlignmentCenter;
         if (spot == SEARCH_FIELD_CENTERED) { x0 = leftEnd; x1 = fmax(leftEnd, CGRectGetMinX(field.frame) - 8); }
         if (tw > x1 - x0) { CGFloat l = leftEnd, r = rightStart; x0 = fmax(l, fmin((W - tw) / 2, r - tw)); x1 = fmin(r, x0 + tw); }
-        CGFloat tx = x0 + ap.titlePositionAdjustment.horizontal, ty = y + ap.titlePositionAdjustment.vertical;
+        CGFloat tx = x0 + ap.titlePositionAdjustment.horizontal, ty = y + ap.titlePositionAdjustment.vertical + [self _isim_titleVerticalAdjustment];
         CGFloat alpha = large ? (extra < 6 ? 1 : 0) : 1;
         _title.frame = sub ? CGRectMake(tx, ty + 4, fmax(0, x1 - x0), 20) : CGRectMake(tx, ty, fmax(0, x1 - x0), 44);
         _title.alpha = alpha;
+        [self _isim_layoutTitleMenu:item title:_title.frame textWidth:fmin(tw, x1 - x0)];
         _subtitle.hidden = !sub || item.subtitleView;
         if (sub && item.subtitleView) {
             UIView *sv = item.subtitleView;
@@ -1022,7 +1061,7 @@ static void set_bar_image(UIToolbar *t, NSMutableDictionary *dict, NSNumber *k, 
     [t setNeedsLayout];
 }
 /* like UIKit, a bar image that is not resizable is tiled (an empty one draws nothing) */
-static UIImage *tiled(UIImage *i) {
+static UIImage *tiled(UIImage *i) {   /* (declared above) */
     if (!i || i.resizingMode == UIImageResizingModeStretch || !UIEdgeInsetsEqualToEdgeInsets(i.capInsets, UIEdgeInsetsZero) || i.size.width <= 0 || i.size.height <= 0) return i;
     return [i resizableImageWithCapInsets:UIEdgeInsetsZero resizingMode:UIImageResizingModeTile];
 }
@@ -1117,13 +1156,44 @@ static UIImage *tiled(UIImage *i) {
 @property (nonatomic) BOOL prominent;         /* iOS 27: the prominent tab on its own circle */
 @property (nonatomic) int mode;                /* tabbar_mode() */
 @property (nonatomic, strong) UIColor *onColor, *offColor;
+@property (nonatomic, strong) UITabBarItemAppearance *itemAppearance;    /* the bar appearance's for this layout */
+@property (nonatomic, strong) UIImage *indicatorImage;                   /* classic bar: behind the selected tab */
+@property (nonatomic, strong) UIColor *indicatorTint;
 @end
 @interface UIBarItem (IsimAttrs)
 - (NSDictionary *)_isim_attrs:(UIControlState)s;
 @end
 @implementation __IsimTabButton
-- (UIFont *)_f:(UIFont *)def { UIFont *f = [self.item _isim_attrs:self.on ? UIControlStateSelected : UIControlStateNormal][NSFontAttributeName]; return [f isKindOfClass:[UIFont class]] ? f : def; }
-- (UIColor *)_c:(UIColor *)def { UIColor *c = [self.item _isim_attrs:self.on ? UIControlStateSelected : UIControlStateNormal][NSForegroundColorAttributeName]; return [c isKindOfClass:[UIColor class]] ? c : def; }
+/* the item appearance's state: disabled, selected or normal */
+- (UITabBarItemStateAppearance *)_st {
+    UITabBarItemAppearance *a = self.itemAppearance;
+    return !a ? nil : !self.item.enabled ? a.disabled : self.on ? a.selected : a.normal;
+}
+- (UIFont *)_f:(UIFont *)def {
+    UIFont *f = [self.item _isim_attrs:self.on ? UIControlStateSelected : UIControlStateNormal][NSFontAttributeName] ?: [self _st].titleTextAttributes[NSFontAttributeName];
+    return [f isKindOfClass:[UIFont class]] ? f : def;
+}
+- (UIColor *)_c:(UIColor *)def {
+    UIColor *c = [self.item _isim_attrs:self.on ? UIControlStateSelected : UIControlStateNormal][NSForegroundColorAttributeName] ?: [self _st].titleTextAttributes[NSForegroundColorAttributeName];
+    return [c isKindOfClass:[UIColor class]] ? c : def;
+}
+- (UIColor *)_icon:(UIColor *)def { return [self _st].iconColor ?: def; }
+- (CGRect)_title:(CGRect)r { UIOffset o = [self _st].titlePositionAdjustment; return CGRectOffset(r, o.horizontal, o.vertical); }
+/* the badge at the icon's top trailing corner: the appearance's colours and offsets, the item's badge colour and text
+   attributes */
+- (void)_isim_drawBadgeAtY:(double)y {
+    NSString *b = self.item.badgeValue;
+    if (!b) return;
+    UITabBarItemStateAppearance *st = [self _st];
+    NSDictionary *ta = [self.item badgeTextAttributesForState:self.on ? UIControlStateSelected : UIControlStateNormal] ?: st.badgeTextAttributes;
+    UIFont *bf = [ta[NSFontAttributeName] isKindOfClass:[UIFont class]] ? ta[NSFontAttributeName] : [UIFont systemFontOfSize:13];
+    UIColor *tc = [ta[NSForegroundColorAttributeName] isKindOfClass:[UIColor class]] ? ta[NSForegroundColorAttributeName] : UIColor.whiteColor;
+    double bw = fmax(18, isim_ui_measure(b, bf, 100, 1).width + 10), bh = 18;
+    double bx = self.bounds.size.width / 2 + 6 + st.badgePositionAdjustment.horizontal; y += st.badgePositionAdjustment.vertical;
+    double rgba[4]; isim_ui_rgba(st.badgeBackgroundColor ?: self.item.badgeColor ?: UIColor.systemRedColor, rgba);
+    isim_gfx_fill_rounded(bx, y, bw, bh, bh / 2, rgba);
+    if (b.length) isim_ui_draw_text(b, bf, tc, CGRectMake(bx + st.badgeTitlePositionAdjustment.horizontal, y + 1 + st.badgeTitlePositionAdjustment.vertical, bw, 16), NSTextAlignmentCenter, 1, 1);
+}
 - (void)_isim_drawContent {
     CGSize s = self.bounds.size; UIColor *c = self.on ? self.onColor : self.offColor; double a = self.highlighted ? 0.5 : 1;
     UIImage *img = self.on && self.item.selectedImage ? self.item.selectedImage : self.item.image;
@@ -1134,7 +1204,7 @@ static UIImage *tiled(UIImage *i) {
         }
         UIFont *f = [self _f:[UIFont systemFontOfSize:15 weight:self.on ? UIFontWeightSemibold : UIFontWeightMedium]];
         CGSize ts = isim_ui_measure(self.item.title ?: @"", f, s.width - 8, 1);
-        isim_ui_draw_text(self.item.title ?: @"", f, [self _c:self.on ? self.onColor : UIColor.labelColor], CGRectMake(4, (s.height - ts.height) / 2, s.width - 8, ts.height), NSTextAlignmentCenter, 1, a);
+        isim_ui_draw_text(self.item.title ?: @"", f, [self _c:self.on ? self.onColor : UIColor.labelColor], [self _title:CGRectMake(4, (s.height - ts.height) / 2, s.width - 8, ts.height)], NSTextAlignmentCenter, 1, a);
         return;
     }
     if (self.mode == 1) {                     /* iOS 26 floating tab bar: the selected tab sits on a lighter pill */
@@ -1144,33 +1214,22 @@ static UIImage *tiled(UIImage *i) {
         double iy = self.compact ? (s.height - 24) / 2 : 5;
         if (img) {
             CGSize i = img.size; double k = 24 / fmax(1, fmax(i.width, i.height));
-            [img _isim_drawInRect:CGRectMake((s.width - i.width * k) / 2, iy + (24 - i.height * k) / 2, i.width * k, i.height * k) tint:c alpha:a];
+            [img _isim_drawInRect:CGRectMake((s.width - i.width * k) / 2, iy + (24 - i.height * k) / 2, i.width * k, i.height * k) tint:[self _icon:c] alpha:a];
         }
         if (self.compact) return;
         UIFont *f = [self _f:[UIFont systemFontOfSize:10 weight:UIFontWeightSemibold]];
-        isim_ui_draw_text(self.item.title ?: @"", f, [self _c:c], CGRectMake(2, 32, s.width - 4, 13), NSTextAlignmentCenter, 1, a);
-        if (self.item.badgeValue) {
-            UIFont *bf = [UIFont systemFontOfSize:13]; NSString *b = self.item.badgeValue;
-            double bw = fmax(18, isim_ui_measure(b, bf, 100, 1).width + 10), bx = s.width / 2 + 6;
-            double rgba[4]; isim_ui_rgba(self.item.badgeColor ?: UIColor.systemRedColor, rgba);
-            isim_gfx_fill_rounded(bx, 1, bw, 18, 9, rgba);
-            isim_ui_draw_text(b, bf, UIColor.whiteColor, CGRectMake(bx, 1 + (18 - 16) / 2.0, bw, 16), NSTextAlignmentCenter, 1, 1);
-        }
+        isim_ui_draw_text(self.item.title ?: @"", f, [self _c:c], [self _title:CGRectMake(2, 32, s.width - 4, 13)], NSTextAlignmentCenter, 1, a);
+        [self _isim_drawBadgeAtY:1];
         return;
     }
+    if (self.on && self.indicatorImage) [self.indicatorImage _isim_drawInRect:CGRectMake(0, 0, s.width, 49) tint:self.indicatorTint alpha:1];
     if (img) {
         CGSize i = img.size; double k = 24 / fmax(1, fmax(i.width, i.height));
-        [img _isim_drawInRect:CGRectMake((s.width - i.width * k) / 2, 7 + (25 - i.height * k) / 2, i.width * k, i.height * k) tint:c alpha:a];
+        [img _isim_drawInRect:CGRectMake((s.width - i.width * k) / 2, 7 + (25 - i.height * k) / 2, i.width * k, i.height * k) tint:[self _icon:c] alpha:a];
     }
     UIFont *f = [self _f:[UIFont systemFontOfSize:10 weight:UIFontWeightMedium]];
-    isim_ui_draw_text(self.item.title ?: @"", f, [self _c:c], CGRectMake(2, 34, s.width - 4, 13), NSTextAlignmentCenter, 1, a);
-    if (self.item.badgeValue) {
-        UIFont *bf = [UIFont systemFontOfSize:13]; NSString *b = self.item.badgeValue;
-        double bw = fmax(18, isim_ui_measure(b, bf, 100, 1).width + 10), bx = s.width / 2 + 6;
-        double rgba[4]; isim_ui_rgba(self.item.badgeColor ?: UIColor.systemRedColor, rgba);
-        isim_gfx_fill_rounded(bx, 3, bw, 18, 9, rgba);
-        isim_ui_draw_text(b, bf, UIColor.whiteColor, CGRectMake(bx, 3 + (18 - 16) / 2.0, bw, 16), NSTextAlignmentCenter, 1, 1);
-    }
+    isim_ui_draw_text(self.item.title ?: @"", f, [self _c:c], [self _title:CGRectMake(2, 34, s.width - 4, 13)], NSTextAlignmentCenter, 1, a);
+    [self _isim_drawBadgeAtY:3];
 }
 @end
 
@@ -1178,6 +1237,12 @@ static UIImage *tiled(UIImage *i) {
 @property (nonatomic, weak) UITabBarItem *_isim_prominentItem;   /* iOS 27: on its own glass circle at the trailing end */
 @property (nonatomic) BOOL _isim_minimized;              /* iOS 26 tabBarMinimizeBehavior: only the selected tab, on a circle */
 @property (nonatomic, copy) void (^_isim_expand)(void);  /* tapping the minimized bar's tab expands it */
+@end
+@interface UITabBar (IsimItemLayout)
+- (UITabBarItemAppearance *)_isim_itemAppearance:(int)mode;
+- (UIImage *)_isim_indicatorImage;
+- (BOOL)_isim_centered;
+- (CGRect)_isim_centeredFrame:(NSUInteger)i of:(NSUInteger)n;
 @end
 @implementation UITabBar { __IsimBarBackground *_bg; NSMutableArray<__IsimTabButton *> *_buttons; }
 - (instancetype)initWithFrame:(CGRect)f {
@@ -1198,7 +1263,7 @@ static UIImage *tiled(UIImage *i) {
     [super layoutSubviews];
     _bg.frame = self.bounds; [_bg apply:_standardAppearance];
     if (_barTintColor) { UITabBarAppearance *o = [_standardAppearance copy]; o.backgroundColor = _barTintColor; [_bg apply:o]; }
-    NSArray *items = _items.count > 5 ? [_items subarrayWithRange:NSMakeRange(0, 5)] : _items;   /* isim: no "More" tab yet */
+    NSArray *items = _items.count > 5 ? [_items subarrayWithRange:NSMakeRange(0, 5)] : _items;   /* (the controller puts More fifth) */
     while (_buttons.count < items.count) {
         __IsimTabButton *b = [[__IsimTabButton alloc] initWithFrame:CGRectZero];
         [b addTarget:self action:@selector(_isim_tapped:) forControlEvents:UIControlEventTouchUpInside];
@@ -1217,11 +1282,13 @@ static UIImage *tiled(UIImage *i) {
         __IsimTabButton *b = _buttons[i];
         isim_ui_apply_bar_item_appearance(items[i], self);    /* UITabBarItem.appearance() */
         b.item = items[i]; b.on = items[i] == _selectedItem; b.mode = mode;
+        b.itemAppearance = [self _isim_itemAppearance:mode]; b.indicatorImage = [self _isim_indicatorImage]; b.indicatorTint = _standardAppearance.selectionIndicatorTintColor;
         b.onColor = self.tintColor ?: UIColor.systemBlueColor; b.offColor = _unselectedItemTintColor ?: UIColor.systemGrayColor;
         b.prominent = i == prominent;
         b.compact = (mini && b.on) || b.prominent; b.hidden = mini && !b.on && !b.prominent;
         if (b.prominent) b.frame = CGRectInset([self _isim_prominentCircle], 4, 4);
         else if (mini) b.frame = b.on ? area : b.frame;
+        else if (!mode && [self _isim_centered]) b.frame = [self _isim_centeredFrame:i of:items.count];
         else { b.frame = mode ? CGRectMake(area.origin.x + slot * w, area.origin.y, w, area.size.height) : CGRectMake(i * w, 0, w, 49); slot++; }
         b.accessibilityIdentifier = [@"tab-" stringByAppendingString:((UITabBarItem *)items[i]).title ?: [@(i) stringValue]];
         [b setNeedsDisplay];
@@ -1320,6 +1387,10 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
 - (void)layoutSubviews { [super layoutSubviews]; [(id)self.owner _isim_layoutContainer]; }
 @end
 
+@interface UINavigationController (IsimBarHiding)
+- (void)_isim_installBarHiding:(UIView *)v;
+- (void)_isim_applyCompactHiding;
+@end
 @implementation UINavigationController { NSMutableArray<UIViewController *> *_stack; UINavigationBar *_bar; UIToolbar *_toolbar;
     UIPanGestureRecognizer *_popPan; BOOL _transitioning, _swiping; __weak UIScrollView *_tracked; UIView *_dim;
     NSUInteger _transitionGen; __weak UIViewController *_transitionFrom;
@@ -1333,6 +1404,7 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
         __weak UINavigationController *ws = self;
         _bar._isim_back = ^{ [ws popViewControllerAnimated:YES]; };
         [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(_isim_scrolled:) name:@"_IsimScrollViewDidScroll" object:nil];
+        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(_isim_keyboardWillShow:) name:UIKeyboardWillShowNotification object:nil];
     }
     return self;
 }
@@ -1353,9 +1425,11 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     _popPan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(_isim_swipe:)];
     _popPan.cancelsTouchesInView = NO;
     [v addGestureRecognizer:_popPan];
+    [self _isim_installBarHiding:v];                    /* UINavigationExtras: hidesBarsOnTap / OnSwipe */
     if (self.topViewController) [self _isim_install:self.topViewController];
 }
 - (UIGestureRecognizer *)interactivePopGestureRecognizer { return _popPan; }
+- (void)setHidesBarsOnSwipe:(BOOL)h { _hidesBarsOnSwipe = h; self.barHideOnSwipeGestureRecognizer.enabled = h; }
 - (UINavigationBar *)navigationBar { return _bar; }
 - (UIToolbar *)toolbar { return _toolbar; }
 - (NSArray *)viewControllers { return [_stack copy]; }
@@ -1446,7 +1520,8 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     UIView *host = self.viewIfLoaded; if (!host) return;
     NSMutableArray *items = [NSMutableArray array]; for (UIViewController *vc in _stack) [items addObject:vc.navigationItem];
     _bar.items = items;
-    _tracked = self.topViewController ? [self _isim_findScroll:self.topViewController.viewIfLoaded depth:0] : nil;
+    [self _isim_applyCompactHiding];
+    _tracked = self.topViewController ? ([self.topViewController contentScrollViewForEdge:NSDirectionalRectEdgeTop] ?: [self _isim_findScroll:self.topViewController.viewIfLoaded depth:0]) : nil;
     [self _isim_updateInsets];
     [self _isim_layoutBar];
     CGFloat H = host.bounds.size.height, W = host.bounds.size.width;
@@ -1685,7 +1760,7 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
 - (UIViewController *)viewController {
     UIViewController *own = [super viewController];
     if (own) return own;
-    UITab *child = _selectedChild ?: _children.firstObject;
+    UITab *child = _selectedChild ?: (self.defaultChildIdentifier ? [self tabForIdentifier:self.defaultChildIdentifier] : nil) ?: _children.firstObject;
     if (!child) return nil;
     if (!_managingNavigationController) { _managingNavigationController = [[UINavigationController alloc] initWithRootViewController:child.viewController]; _managingNavigationController.tabBarItem = self._isim_item; }
     else if (_managingNavigationController.viewControllers.firstObject != child.viewController) [_managingNavigationController setViewControllers:@[child.viewController] animated:NO];
@@ -1722,24 +1797,33 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
 /* the sidebar (iPad, UITabBarController.Mode.tabSidebar): the tabs, groups with their children indented */
 @interface __IsimSidebarRow : UIControl
 @property (nonatomic, strong) UITab *tab;
+@property (nonatomic, strong) UIAction *action;             /* a group's sidebar action */
+@property (nonatomic, copy) NSString *title;                /* a sidebar item's content: replaces the tab's */
+@property (nonatomic, strong) UIImage *image;
+@property (nonatomic, strong) UIColor *fill;                /* its background colour */
 @property (nonatomic) BOOL header, on;
+@end
+@interface UITabSidebarItemRequest (Isim)
++ (instancetype)_isim_requestForTab:(UITab *)tab action:(UIAction *)action;
 @end
 @implementation __IsimSidebarRow
 - (void)_isim_drawContent {
     CGSize s = self.bounds.size;
-    if (self.on || self.highlighted) {
-        double c[4]; isim_ui_rgba(self.on ? self.tintColor : UIColor.tertiarySystemFillColor, c);
+    if (self.on || self.highlighted || self.fill) {
+        double c[4]; isim_ui_rgba(self.on ? self.tintColor : self.highlighted ? UIColor.tertiarySystemFillColor : self.fill, c);
         isim_gfx_fill_rounded(8, 2, s.width - 16, s.height - 4, 10, c);
     }
     UIColor *fg = self.on ? UIColor.whiteColor : self.header ? UIColor.secondaryLabelColor : UIColor.labelColor;
-    CGFloat x = self.tab.parent && !self.header ? 40 : 20;
-    if (self.tab.image && !self.header) {
-        [self.tab.image _isim_drawInRect:CGRectMake(x, (s.height - 20) / 2, 20, 20) tint:self.on ? UIColor.whiteColor : self.tintColor alpha:1];
+    CGFloat x = (self.tab.parent || self.action) && !self.header ? 40 : 20;
+    UIImage *img = self.image ?: self.tab ? self.tab.image : self.action.image;
+    NSString *title = self.title ?: self.tab ? self.tab.title : self.action.title;
+    if (img && !self.header) {
+        [img _isim_drawInRect:CGRectMake(x, (s.height - 20) / 2, 20, 20) tint:self.on ? UIColor.whiteColor : self.tintColor alpha:1];
         x += 32;
     }
     UIFont *f = self.header ? [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold] : [UIFont systemFontOfSize:17];
-    CGSize ts = isim_ui_measure(self.tab.title ?: @"", f, s.width - x - 50, 1);
-    isim_ui_draw_text(self.tab.title ?: @"", f, fg, CGRectMake(x, (s.height - ts.height) / 2, s.width - x - 50, ts.height), NSTextAlignmentLeft, 1, 1);
+    CGSize ts = isim_ui_measure(title ?: @"", f, s.width - x - 50, 1);
+    isim_ui_draw_text(title ?: @"", f, self.action && !self.on ? self.tintColor : fg, CGRectMake(x, (s.height - ts.height) / 2, s.width - x - 50, ts.height), NSTextAlignmentLeft, 1, 1);
     if (self.tab.badgeValue.length && !self.header) {
         UIFont *bf = [UIFont systemFontOfSize:15]; CGSize bs = isim_ui_measure(self.tab.badgeValue, bf, 80, 1);
         isim_ui_draw_text(self.tab.badgeValue, bf, self.on ? UIColor.whiteColor : UIColor.secondaryLabelColor, CGRectMake(s.width - 24 - bs.width, (s.height - bs.height) / 2, bs.width, bs.height), NSTextAlignmentRight, 1, 1);
@@ -1759,6 +1843,48 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
 }
 @end
 /* ================= UITabBarController ================= */
+static char kMoreNav, kMoreBorrowed;
+@interface UITabBarController (IsimMore)
+- (NSArray<UIViewController *> *)_isim_moreControllers;
+- (void)_isim_moreChose:(UIViewController *)vc;
+- (void)_isim_moreListShown;
+@end
+/* the More tab's list: the view controllers after the fourth, with their tab icons and titles */
+@interface __IsimMoreList : UIViewController <UITableViewDataSource, UITableViewDelegate>
+@property (nonatomic, weak) UITabBarController *owner;
+@property (nonatomic, strong) UITableView *table;
+@end
+@implementation __IsimMoreList
+- (void)loadView {
+    self.title = @"More";
+    _table = [[UITableView alloc] initWithFrame:UIScreen.mainScreen.bounds style:UITableViewStylePlain];
+    _table.dataSource = self; _table.delegate = self; _table.accessibilityIdentifier = @"more-list";
+    [_table registerClass:[UITableViewCell class] forCellReuseIdentifier:@"more"];
+    self.view = _table;
+}
+- (void)_isim_reloadMore { [_table reloadData]; }
+- (void)viewDidAppear:(BOOL)animated { [super viewDidAppear:animated]; [self.owner _isim_moreListShown]; }
+- (NSInteger)tableView:(UITableView *)tv numberOfRowsInSection:(NSInteger)section { return (NSInteger)self.owner._isim_moreControllers.count; }
+- (UITableViewCell *)tableView:(UITableView *)tv cellForRowAtIndexPath:(NSIndexPath *)ip {
+    UITableViewCell *c = [tv dequeueReusableCellWithIdentifier:@"more" forIndexPath:ip];
+    UIViewController *vc = self.owner._isim_moreControllers[(NSUInteger)ip.row];
+    c.textLabel.text = vc.tabBarItem.title ?: vc.title; c.imageView.image = vc.tabBarItem.image;
+    c.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+    c.accessibilityIdentifier = [@"more-" stringByAppendingString:vc.tabBarItem.title ?: vc.title ?: @(ip.row).stringValue];
+    return c;
+}
+- (void)tableView:(UITableView *)tv didSelectRowAtIndexPath:(NSIndexPath *)ip {
+    [tv deselectRowAtIndexPath:ip animated:YES];
+    NSArray *vcs = self.owner._isim_moreControllers;
+    if ((NSUInteger)ip.row < vcs.count) [self.owner _isim_moreChose:vcs[(NSUInteger)ip.row]];
+}
+@end
+@interface UIViewController (IsimMoreReload)
+- (void)_isim_reloadMore;
+@end
+@implementation UIViewController (IsimMoreReload)
+- (void)_isim_reloadMore {}
+@end
 /* ---- iOS 26 bottom accessory: a glass capsule holding the app's content view ---- */
 @implementation UITabAccessory
 - (instancetype)initWithContentView:(UIView *)contentView { if ((self = [super init])) _contentView = contentView; return self; }
@@ -1777,7 +1903,7 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     BOOL _tabBarHiddenFlag, _settingTabs; UITabBarControllerMode _mode;
     NSInteger _batching; BOOL _batchPending, _lastSidebarAvailable;      /* iOS 27: performBatchUpdates, sidebar availability */
     UITabAccessory *_bottomAccessory; __IsimTabAccessoryView *_accessoryView; BOOL _minimized; NSMapTable<UIScrollView *, NSNumber *> *_lastScroll;
-    UILayoutGuide *_contentLayoutGuide; }
+    UILayoutGuide *_contentLayoutGuide; BOOL _moreList; }
 - (instancetype)initWithNibName:(NSString *)n bundle:(NSBundle *)b {
     if ((self = [super initWithNibName:n bundle:b])) {
         _bar = [[UITabBar alloc] initWithFrame:CGRectZero]; _bar.delegate = self; _vcs = @[];
@@ -1893,20 +2019,108 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     _vcs = [vcs copy] ?: @[];
     for (UIViewController *n in _vcs) if (n.parentViewController != self) { [self addChildViewController:n]; [n didMoveToParentViewController:self]; }
     NSMutableArray *items = [NSMutableArray array]; for (UIViewController *c in _vcs) [items addObject:c.tabBarItem];
+    BOOL more = [self _isim_usesMore];
+    if (more) { [items removeObjectsInRange:NSMakeRange(4, items.count - 4)]; [items addObject:self.moreNavigationController.tabBarItem]; }
+    else if (_moreList || [self _isim_moreBorrowed]) { [self _isim_moreRestore]; _moreList = NO; [self.moreNavigationController.viewIfLoaded removeFromSuperview]; }
     _bar.items = items;
     if (_sel >= _vcs.count) _sel = 0;
-    _bar.selectedItem = _vcs.count ? ((UIViewController *)_vcs[_sel]).tabBarItem : nil;
+    _bar.selectedItem = [self _isim_moreSelected] ? self.moreNavigationController.tabBarItem : _vcs.count ? ((UIViewController *)_vcs[_sel]).tabBarItem : nil;
+    [self.moreNavigationController.viewControllers.firstObject _isim_reloadMore];
     [self _isim_showSelected];
 }
-- (UIViewController *)selectedViewController { return _sel < _vcs.count ? _vcs[_sel] : nil; }
-- (void)setSelectedViewController:(UIViewController *)vc { NSUInteger i = [_vcs indexOfObjectIdenticalTo:vc]; if (i != NSNotFound) self.selectedIndex = i; }
-- (NSUInteger)selectedIndex { return _sel; }
-- (void)setSelectedIndex:(NSUInteger)i {
-    if (i < _barTabs.count && _selectedTab.parent != _barTabs[i] && _selectedTab != _barTabs[i]) _selectedTab = _barTabs[i];
-    if (i >= _vcs.count || i == _sel) { _sel = MIN(i, _vcs.count ? _vcs.count - 1 : 0); [self _isim_layoutSidebar]; return; }
+/* in the tab bar or the sidebar (UITab.hasVisiblePlacement) */
+- (BOOL)_isim_tabIsPlaced:(UITab *)t {
+    if (t.hidden || t.hiddenByDefault) return NO;
+    if ([_barTabs indexOfObjectIdenticalTo:t] != NSNotFound) return YES;
+    return [self _isim_sidebarShown] && (!t.parent || !t.parent.hidden);
+}
+/* ---- the More tab: more than five view controllers on iPhone (classic API) ---- */
+- (BOOL)_isim_usesMore { return _vcs.count > 5 && tabbar_mode() < 2 && !_tabs.count; }
+- (BOOL)_isim_moreSelected { return [self _isim_usesMore] && (_moreList || _sel >= 4); }
+- (NSArray<UIViewController *> *)_isim_moreControllers { return [self _isim_usesMore] ? [_vcs subarrayWithRange:NSMakeRange(4, _vcs.count - 4)] : @[]; }
+- (BOOL)_isim_moreBorrowed { return objc_getAssociatedObject(self, &kMoreBorrowed) != nil; }
+/* a navigation controller chosen in More lends its stack to the More navigation controller; it gets it back when
+   the list shows again or another one is chosen */
+- (void)_isim_moreRestore {
+    NSArray *b = objc_getAssociatedObject(self, &kMoreBorrowed);
+    if (!b) return;
+    objc_setAssociatedObject(self, &kMoreBorrowed, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    UINavigationController *more = self.moreNavigationController;
+    if (more.viewControllers.count > 1) [more setViewControllers:@[more.viewControllers.firstObject] animated:NO];
+    [(UINavigationController *)b[0] setViewControllers:b[1] animated:NO];
+}
+- (void)_isim_morePush:(UIViewController *)vc animated:(BOOL)animated {
+    UINavigationController *more = self.moreNavigationController;
+    [self _isim_moreRestore];
+    UIViewController *list = more.viewControllers.firstObject;
+    NSArray *stack = @[vc];
+    if ([vc isKindOfClass:[UINavigationController class]]) {
+        UINavigationController *nav = (UINavigationController *)vc;
+        stack = nav.viewControllers;
+        objc_setAssociatedObject(self, &kMoreBorrowed, @[nav, stack], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [nav setViewControllers:@[] animated:NO];
+    }
+    [more setViewControllers:[@[list] arrayByAddingObjectsFromArray:stack] animated:animated];
+}
+/* the More list root reappeared (popped back to it) */
+- (void)_isim_moreListShown {
+    if (![self _isim_moreSelected]) return;
+    [self _isim_moreRestore];
+    _moreList = YES;
+}
+/* a row of the More list */
+- (void)_isim_moreChose:(UIViewController *)vc {
+    NSUInteger i = [_vcs indexOfObjectIdenticalTo:vc];
+    if (i == NSNotFound) return;
+    id<UITabBarControllerDelegate> d = self.delegate;
+    if ([d respondsToSelector:@selector(tabBarController:shouldSelectViewController:)] && ![d tabBarController:self shouldSelectViewController:vc]) return;
+    _sel = i; _moreList = NO;
+    [self _isim_morePush:vc animated:YES];
+    if ([d respondsToSelector:@selector(tabBarController:didSelectViewController:)]) [d tabBarController:self didSelectViewController:vc];
+}
+/* show the More navigation controller (its list, or with vc pushed) in place of the shown controller */
+- (void)_isim_showMoreWith:(UIViewController *)vc {
     UIViewController *old = self.selectedViewController;
     BOOL visible = [self _isim_isVisible];
-    _sel = i;
+    UINavigationController *more = self.moreNavigationController;
+    if (vc) { _sel = [_vcs indexOfObjectIdenticalTo:vc]; _moreList = NO; [self _isim_morePush:vc animated:NO]; }
+    else { _moreList = YES; [self _isim_moreRestore]; }
+    _bar.selectedItem = more.tabBarItem;
+    if (old == more) return;
+    if (visible) [old _isim_appear:NO];
+    [old.viewIfLoaded removeFromSuperview];
+    [self _isim_showSelected];
+    if (visible) { [more _isim_appear:YES]; [more _isim_didAppear]; }
+}
+- (UINavigationController *)moreNavigationController {
+    UINavigationController *m = objc_getAssociatedObject(self, &kMoreNav);
+    if (!m) {
+        __IsimMoreList *list = [__IsimMoreList new]; list.owner = self;
+        m = [[UINavigationController alloc] initWithRootViewController:list];
+        m.tabBarItem = [[UITabBarItem alloc] initWithTabBarSystemItem:UITabBarSystemItemMore tag:0];
+        objc_setAssociatedObject(self, &kMoreNav, m, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [self addChildViewController:m]; [m didMoveToParentViewController:self];
+    }
+    return m;
+}
+- (UIViewController *)selectedViewController {
+    if ([self _isim_moreSelected]) return self.moreNavigationController;
+    return _sel < _vcs.count ? _vcs[_sel] : nil;
+}
+- (void)setSelectedViewController:(UIViewController *)vc {
+    if (vc == objc_getAssociatedObject(self, &kMoreNav) && [self _isim_usesMore]) { [self _isim_showMoreWith:nil]; return; }
+    NSUInteger i = [_vcs indexOfObjectIdenticalTo:vc]; if (i != NSNotFound) self.selectedIndex = i;
+}
+- (NSUInteger)selectedIndex { return _moreList && [self _isim_usesMore] ? NSNotFound : _sel; }
+- (void)setSelectedIndex:(NSUInteger)i {
+    if (i < _barTabs.count && _selectedTab.parent != _barTabs[i] && _selectedTab != _barTabs[i]) _selectedTab = _barTabs[i];
+    BOOL inMore = [self _isim_usesMore] && i >= 4 && i < _vcs.count;
+    if (inMore) { if (i != _sel || _moreList || ![self _isim_moreBorrowed]) [self _isim_showMoreWith:_vcs[i]]; return; }
+    BOOL wasMore = [self _isim_moreSelected];
+    if (i >= _vcs.count || (i == _sel && !wasMore)) { _sel = MIN(i, _vcs.count ? _vcs.count - 1 : 0); [self _isim_layoutSidebar]; return; }
+    UIViewController *old = self.selectedViewController;
+    BOOL visible = [self _isim_isVisible];
+    _sel = i; _moreList = NO;
     _bar.selectedItem = ((UIViewController *)_vcs[i]).tabBarItem;
     if (visible) [old _isim_appear:NO];
     [old.viewIfLoaded removeFromSuperview];
@@ -1914,6 +2128,20 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     if (visible) { [self.selectedViewController _isim_appear:YES]; [self.selectedViewController _isim_didAppear]; }
 }
 - (void)tabBar:(UITabBar *)tb didSelectItem:(UITabBarItem *)item {
+    UINavigationController *more = objc_getAssociatedObject(self, &kMoreNav);
+    if (more && item == more.tabBarItem && [self _isim_usesMore]) {
+        id<UITabBarControllerDelegate> d = self.delegate;
+        if ([d respondsToSelector:@selector(tabBarController:shouldSelectViewController:)] && ![d tabBarController:self shouldSelectViewController:more]) {
+            _bar.selectedItem = self.selectedViewController.tabBarItem; return;
+        }
+        if ([self _isim_moreSelected]) {                                                  /* tap again: back to the list */
+            if ([self _isim_moreBorrowed]) [self _isim_moreRestore]; else [more popToRootViewControllerAnimated:YES];
+            _moreList = YES;
+        }
+        else [self _isim_showMoreWith:nil];
+        if ([d respondsToSelector:@selector(tabBarController:didSelectViewController:)]) [d tabBarController:self didSelectViewController:more];
+        return;
+    }
     NSUInteger i = 0;
     for (; i < _vcs.count; i++) if (((UIViewController *)_vcs[i]).tabBarItem == item) break;
     if (i >= _vcs.count) return;
@@ -1989,14 +2217,21 @@ static void adopt_tab(UITab *t, UITabBarController *c, UITabGroup *parent) {
     if (!_tabs) return;
     if (_batching) { _batchPending = YES; return; }
     NSMutableArray *bar = [NSMutableArray array], *vcs = [NSMutableArray array];
-    for (UITab *t in _tabs) {
-        if (t.hidden || t.preferredPlacement == UITabPlacementSidebarOnly) continue;
+    NSArray<UITab *> *top = _tabs;
+    NSArray<NSString *> *compactIds = self.compactTabIdentifiers;       /* iOS 18: the compact bar's own tabs */
+    if (compactIds && tabbar_mode() < 2) {
+        NSMutableArray *c = [NSMutableArray array];
+        for (NSString *i in compactIds) { UITab *t = [self tabForIdentifier:i]; if (t && ![c containsObject:t]) [c addObject:t]; }
+        top = c;
+    }
+    for (UITab *t in top) {
+        if (t.hidden || t.hiddenByDefault || t.preferredPlacement == UITabPlacementSidebarOnly) continue;
         UIViewController *vc = t.viewController ?: [UIViewController new];
         vc.tabBarItem = t._isim_item;
         [bar addObject:t]; [vcs addObject:vc];
     }
-    UITab *top = _selectedTab.parent ?: _selectedTab;
-    NSUInteger sel = top ? [bar indexOfObjectIdenticalTo:top] : 0;
+    NSUInteger sel = _selectedTab ? [bar indexOfObjectIdenticalTo:_selectedTab] : 0;
+    if (sel == NSNotFound && _selectedTab.parent) sel = [bar indexOfObjectIdenticalTo:_selectedTab.parent];
     _barTabs = bar;
     _settingTabs = YES;
     _sel = sel == NSNotFound ? 0 : sel;
@@ -2013,7 +2248,8 @@ static void adopt_tab(UITab *t, UITabBarController *c, UITabGroup *parent) {
     _selectedTab = t;
     if (t.parent) { [t.parent _isim_setSelectedChildQuiet:t]; [self _isim_groupSelectionChanged:t.parent]; }
     UITab *top = t.parent ?: t;
-    NSUInteger i = [_barTabs indexOfObjectIdenticalTo:top];
+    NSUInteger i = [_barTabs indexOfObjectIdenticalTo:t];             /* (a compact tab may be a group's child) */
+    if (i == NSNotFound) i = [_barTabs indexOfObjectIdenticalTo:top];
     if (i != NSNotFound) self.selectedIndex = i;
     [self _isim_layoutSidebar];
 }
@@ -2071,26 +2307,57 @@ static void adopt_tab(UITab *t, UITabBarController *c, UITabGroup *parent) {
     _sidebarView.backgroundColor = nil;
     for (UIView *s in _sidebarView.subviews) [s removeFromSuperview];
     __block CGFloat y = glass ? 12 : safeTop + 12; CGFloat w = _sidebarView.bounds.size.width;
-    void (^row)(UITab *, BOOL) = ^(UITab *t, BOOL header) {
+    UITabBarControllerSidebar *sb = self.sidebar;
+    id<UITabBarControllerSidebarDelegate> sd = sb.delegate;
+    /* iOS 18 sidebar items: the delegate's item for a tab or an action; its list content's text and image are drawn */
+    void (^row)(UITab *, UIAction *, BOOL) = ^(UITab *t, UIAction *action, BOOL header) {
         __IsimSidebarRow *r = [[__IsimSidebarRow alloc] initWithFrame:CGRectMake(0, y, w, header ? 36 : 44)];
-        r.tab = t; r.header = header; r.on = !header && (t == self->_selectedTab || (!t.parent && t == self->_selectedTab.parent && ![t isKindOfClass:[UITabGroup class]]));
-        r.accessibilityIdentifier = [@"sidebar-" stringByAppendingString:t.identifier];
-        r.accessibilityLabel = t.title;
+        r.tab = t; r.action = action; r.header = header;
+        r.on = t && !header && (t == self->_selectedTab || (!t.parent && t == self->_selectedTab.parent && ![t isKindOfClass:[UITabGroup class]]));
+        if (!header && [sd respondsToSelector:@selector(tabBarController:sidebar:itemForRequest:)]) {
+            UITabSidebarItem *item = [sd tabBarController:self sidebar:sb itemForRequest:[UITabSidebarItemRequest _isim_requestForTab:t action:action]];
+            id cc = item.contentConfiguration;
+            if ([cc isKindOfClass:[UIListContentConfiguration class]]) { r.title = [cc text]; r.image = [cc image]; }
+            r.fill = item.backgroundConfiguration.backgroundColor;
+        }
+        r.accessibilityIdentifier = [@"sidebar-" stringByAppendingString:t ? t.identifier : action.identifier ?: action.title ?: @""];
+        r.accessibilityLabel = r.title ?: t ? t.title : action.title;
         [r addTarget:self action:@selector(_isim_sidebarTapped:) forControlEvents:UIControlEventTouchUpInside];
         [self->_sidebarView addSubview:r];
         y += r.frame.size.height;
     };
+    UILabel *(^note)(id) = ^UILabel *(id cfg) {      /* the header / footer content (a list configuration's text) */
+        if (![cfg isKindOfClass:[UIListContentConfiguration class]] || ![cfg text].length) return nil;
+        UILabel *l = [[UILabel alloc] initWithFrame:CGRectMake(20, y, w - 40, 22)];
+        l.text = [cfg text]; l.font = [UIFont systemFontOfSize:13]; l.textColor = UIColor.secondaryLabelColor;
+        [self->_sidebarView addSubview:l]; y += 30;
+        return l;
+    };
+    note(sb.headerContentConfiguration).accessibilityIdentifier = @"sidebar-header";
     for (UITab *t in _tabs) {
-        if (t.hidden) continue;
+        if (t.hidden || t.hiddenByDefault) continue;
         if ([t isKindOfClass:[UITabGroup class]]) {
-            y += 8; row(t, YES);
-            for (UITab *c in ((UITabGroup *)t).children) if (!c.hidden) row(c, NO);
-        } else row(t, NO);
+            UITabGroup *g = (UITabGroup *)t;
+            y += 8; row(t, nil, YES);
+            for (UITab *c in g.displayOrder) if (!c.hidden && !c.hiddenByDefault) row(c, nil, NO);
+            for (UIAction *a in g.sidebarActions) row(nil, a, NO);
+        } else row(t, nil, NO);
+    }
+    note(sb.footerContentConfiguration).accessibilityIdentifier = @"sidebar-footer";
+    UIView *bottom = sb.bottomBarView;
+    if (bottom) {
+        CGFloat bh = bottom.bounds.size.height > 0 ? bottom.bounds.size.height : 44;
+        bottom.frame = CGRectMake(0, _sidebarView.bounds.size.height - bh - 8, w, bh);
+        [_sidebarView addSubview:bottom];
     }
     if (glass) isim_ui_set_needs_display();
 }
 - (void)_isim_sidebarTapped:(__IsimSidebarRow *)r {
-    if (r.header) { if ([r.tab isKindOfClass:[UITabGroup class]] && [r.tab viewController]) [self _isim_userSelectedTab:r.tab]; return; }
+    if (r.action) { [r.action setSender:r]; UIActionHandler h = [r.action valueForKey:@"handler"]; if (h) h(r.action); return; }
+    if (r.header) {
+        if ([r.tab isKindOfClass:[UITabGroup class]] && (((UITabGroup *)r.tab).isSidebarDestination || [r.tab viewController])) [self _isim_userSelectedTab:r.tab];
+        return;
+    }
     [self _isim_userSelectedTab:r.tab];
 }
 - (void)_isim_showSelected {
@@ -2111,7 +2378,9 @@ static void adopt_tab(UITab *t, UITabBarController *c, UITabGroup *parent) {
     _bar.hidden = hide;
     int mode = tabbar_mode();                 /* iPad top bar (iOS 18+): sits in the navigation bar row, no bottom inset */
     CGFloat accessory = _bottomAccessory && !hide && isim_ui_glass() ? 56 : 0;   /* iOS 26: the accessory above the bar */
-    for (UIViewController *c in _vcs) c.additionalSafeAreaInsets = UIEdgeInsetsMake(0, 0, (hide || mode >= 2 ? 0 : 49) + accessory, 0);
+    NSArray *all = _vcs; UIViewController *more = objc_getAssociatedObject(self, &kMoreNav);
+    if (more) all = [all arrayByAddingObject:more];
+    for (UIViewController *c in all) c.additionalSafeAreaInsets = UIEdgeInsetsMake(0, 0, (hide || mode >= 2 ? 0 : 49) + accessory, 0);
     [self.viewIfLoaded setNeedsLayout];
 }
 - (void)_isim_layoutContainer {
@@ -2134,4 +2403,530 @@ static void adopt_tab(UITab *t, UITabBarController *c, UITabGroup *parent) {
 }
 /* the sidebar's frame in window coordinates when shown (UIBackgroundExtensionView reaches under it) */
 - (CGRect)_isim_sidebarFrameInWindow { return _sidebarView.window ? [_sidebarView convertRect:_sidebarView.bounds toView:nil] : CGRectNull; }
+@end
+
+/* ======== UINavigationExtras.h: members from the documentation sweep (#9) ======== */
+static char kLandscapeImage, kLandscapeInsets, kLargeImage, kLargeInsets, kImageInsets;
+static id assoc(id o, const void *k) { return objc_getAssociatedObject(o, k); }
+static void set_assoc(id o, const void *k, id v) { objc_setAssociatedObject(o, k, v, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+static UIEdgeInsets insets_of(id o, const void *k) { NSValue *v = assoc(o, k); return v ? v.UIEdgeInsetsValue : UIEdgeInsetsZero; }
+@implementation UIBarItem (UIBarItemExtras)
+- (UIImage *)landscapeImagePhone { return assoc(self, &kLandscapeImage); }
+- (void)setLandscapeImagePhone:(UIImage *)i { set_assoc(self, &kLandscapeImage, i); }
+- (UIEdgeInsets)landscapeImagePhoneInsets { return insets_of(self, &kLandscapeInsets); }
+- (void)setLandscapeImagePhoneInsets:(UIEdgeInsets)i { set_assoc(self, &kLandscapeInsets, [NSValue valueWithUIEdgeInsets:i]); }
+- (UIImage *)largeContentSizeImage { return assoc(self, &kLargeImage); }
+- (void)setLargeContentSizeImage:(UIImage *)i { set_assoc(self, &kLargeImage, i); }
+- (UIEdgeInsets)largeContentSizeImageInsets { return insets_of(self, &kLargeInsets); }
+- (void)setLargeContentSizeImageInsets:(UIEdgeInsets)i { set_assoc(self, &kLargeInsets, [NSValue valueWithUIEdgeInsets:i]); }
+- (UIEdgeInsets)imageInsets { return insets_of(self, &kImageInsets); }
+- (void)setImageInsets:(UIEdgeInsets)i { set_assoc(self, &kImageInsets, [NSValue valueWithUIEdgeInsets:i]); }
+@end
+
+/* per state / metrics values, keyed "<what>.<state>.<metrics>" */
+static char kMetrics, kPossibleTitles, kSymbolAnimation, kMenuRepresentation, kPaddingRemoved;
+static NSMutableDictionary *metrics_of(id o) {
+    NSMutableDictionary *d = assoc(o, &kMetrics);
+    if (!d) { d = [NSMutableDictionary dictionary]; set_assoc(o, &kMetrics, d); }
+    return d;
+}
+static NSString *metrics_key(NSString *what, NSUInteger state, NSInteger m) { return [NSString stringWithFormat:@"%@.%lu.%ld", what, (unsigned long)state, (long)m]; }
+/* a bar button item as a popover anchor: its button (or custom view) on screen */
+@implementation UIBarButtonItem (UIPopoverPresentationControllerSourceItem)
+- (CGRect)frameInView:(UIView *)ref {
+    if (self.customView.window) return [self.customView convertRect:self.customView.bounds toView:ref];
+    NSMutableArray *stack = [NSMutableArray arrayWithObject:ref.window ?: ref];
+    while (stack.count) {
+        UIView *v = stack.lastObject; [stack removeLastObject];
+        if ([v isKindOfClass:[__IsimBarButton class]] && ((__IsimBarButton *)v).item == self) return [v convertRect:v.bounds toView:ref];
+        [stack addObjectsFromArray:v.subviews];
+    }
+    return CGRectNull;
+}
+@end
+@implementation UIBarButtonItem (UIBarButtonItemExtras)
++ (instancetype)fixedSpaceItem { return [self fixedSpaceItemOfWidth:0]; }
+- (UIBarButtonItemGroup *)creatingFixedGroup { return [UIBarButtonItemGroup fixedGroupWithRepresentativeItem:nil items:@[self]]; }
+- (UIBarButtonItemGroup *)creatingMovableGroupWithCustomizationIdentifier:(NSString *)i {
+    return [UIBarButtonItemGroup movableGroupWithCustomizationIdentifier:i representativeItem:nil items:@[self]];
+}
+- (UIBarButtonItemGroup *)creatingOptionalGroupWithCustomizationIdentifier:(NSString *)i inDefaultCustomization:(BOOL)d {
+    return [UIBarButtonItemGroup optionalGroupWithCustomizationIdentifier:i inDefaultCustomization:d representativeItem:nil items:@[self]];
+}
+- (NSSet<NSString *> *)possibleTitles { return assoc(self, &kPossibleTitles); }
+- (void)setPossibleTitles:(NSSet<NSString *> *)t { set_assoc(self, &kPossibleTitles, [t copy]); }
+- (void)setBackButtonBackgroundImage:(UIImage *)i forState:(UIControlState)s barMetrics:(UIBarMetrics)m { metrics_of(self)[metrics_key(@"backbg", s, m)] = i ?: NSNull.null; }
+- (UIImage *)backButtonBackgroundImageForState:(UIControlState)s barMetrics:(UIBarMetrics)m {
+    id i = metrics_of(self)[metrics_key(@"backbg", s, m)]; return [i isKindOfClass:[UIImage class]] ? i : nil;
+}
+- (void)setBackButtonTitlePositionAdjustment:(UIOffset)a forBarMetrics:(UIBarMetrics)m { metrics_of(self)[metrics_key(@"backtitle", 0, m)] = [NSValue valueWithUIOffset:a]; }
+- (UIOffset)backButtonTitlePositionAdjustmentForBarMetrics:(UIBarMetrics)m { NSValue *v = metrics_of(self)[metrics_key(@"backtitle", 0, m)]; return v ? v.UIOffsetValue : UIOffsetZero; }
+- (void)setBackButtonBackgroundVerticalPositionAdjustment:(CGFloat)a forBarMetrics:(UIBarMetrics)m { metrics_of(self)[metrics_key(@"backbgy", 0, m)] = @(a); }
+- (CGFloat)backButtonBackgroundVerticalPositionAdjustmentForBarMetrics:(UIBarMetrics)m { return [metrics_of(self)[metrics_key(@"backbgy", 0, m)] doubleValue]; }
+- (void)setBackgroundVerticalPositionAdjustment:(CGFloat)a forBarMetrics:(UIBarMetrics)m { metrics_of(self)[metrics_key(@"bgy", 0, m)] = @(a); }
+- (CGFloat)backgroundVerticalPositionAdjustmentForBarMetrics:(UIBarMetrics)m { return [metrics_of(self)[metrics_key(@"bgy", 0, m)] doubleValue]; }
+- (void)setTitlePositionAdjustment:(UIOffset)a forBarMetrics:(UIBarMetrics)m { metrics_of(self)[metrics_key(@"title", 0, m)] = [NSValue valueWithUIOffset:a]; }
+- (UIOffset)titlePositionAdjustmentForBarMetrics:(UIBarMetrics)m { NSValue *v = metrics_of(self)[metrics_key(@"title", 0, m)]; return v ? v.UIOffsetValue : UIOffsetZero; }
+- (BOOL)isSymbolAnimationEnabled { NSNumber *n = assoc(self, &kSymbolAnimation); return n ? n.boolValue : YES; }
+- (void)setSymbolAnimationEnabled:(BOOL)e { set_assoc(self, &kSymbolAnimation, @(e)); }
+- (UIMenuElement *)menuRepresentation { return assoc(self, &kMenuRepresentation); }
+- (void)setMenuRepresentation:(UIMenuElement *)m { set_assoc(self, &kMenuRepresentation, [m copy]); }
+- (BOOL)isPaddingRemoved { return [assoc(self, &kPaddingRemoved) boolValue]; }
+- (void)setPaddingRemoved:(BOOL)r { set_assoc(self, &kPaddingRemoved, @(r)); bar_item_changed(self); }
+@end
+
+/* customizable groups: 0 plain, 1 fixed, 2 movable, 3 optional; an optional group left out of the default
+   customization is not shown */
+static char kGroupKind, kGroupIdentifier, kGroupInDefault, kAlwaysAvailable;
+@implementation UIBarButtonItemGroup (UIBarButtonItemGroupExtras)
++ (UIBarButtonItemGroup *)_isim_group:(int)kind identifier:(NSString *)i inDefault:(BOOL)d representative:(UIBarButtonItem *)r items:(NSArray *)items {
+    UIBarButtonItemGroup *g = [[UIBarButtonItemGroup alloc] initWithBarButtonItems:items representativeItem:r];
+    set_assoc(g, &kGroupKind, @(kind)); set_assoc(g, &kGroupIdentifier, [i copy]); set_assoc(g, &kGroupInDefault, @(d));
+    return g;
+}
++ (UIBarButtonItemGroup *)fixedGroupWithRepresentativeItem:(UIBarButtonItem *)r items:(NSArray<UIBarButtonItem *> *)items {
+    return [self _isim_group:1 identifier:nil inDefault:YES representative:r items:items];
+}
++ (UIBarButtonItemGroup *)movableGroupWithCustomizationIdentifier:(NSString *)i representativeItem:(UIBarButtonItem *)r items:(NSArray<UIBarButtonItem *> *)items {
+    return [self _isim_group:2 identifier:i inDefault:YES representative:r items:items];
+}
++ (UIBarButtonItemGroup *)optionalGroupWithCustomizationIdentifier:(NSString *)i inDefaultCustomization:(BOOL)d representativeItem:(UIBarButtonItem *)r
+                                                              items:(NSArray<UIBarButtonItem *> *)items {
+    return [self _isim_group:3 identifier:i inDefault:d representative:r items:items];
+}
++ (UIBarButtonItemGroup *)groupWithFixedSpace { return [self fixedGroupWithRepresentativeItem:nil items:@[[UIBarButtonItem fixedSpaceItem]]]; }
+- (BOOL)_isim_leftOutOfCustomization { return [assoc(self, &kGroupKind) intValue] == 3 && ![assoc(self, &kGroupInDefault) boolValue]; }
+- (BOOL)alwaysAvailable { return [assoc(self, &kAlwaysAvailable) boolValue]; }
+- (void)setAlwaysAvailable:(BOOL)a { set_assoc(self, &kAlwaysAvailable, @(a)); }
+- (UIMenuElement *)menuRepresentation { return assoc(self, &kMenuRepresentation); }
+- (void)setMenuRepresentation:(UIMenuElement *)m { set_assoc(self, &kMenuRepresentation, [m copy]); }
+@end
+
+/* ---- the navigation bar ---- */
+static char kPreferredBehavioral, kTitleMenuViews, kRenameField;
+@interface __IsimRenameField : UITextField <UITextFieldDelegate>
+@property (nonatomic, weak) UINavigationItem *item;
+@property (nonatomic, weak) UINavigationBar *bar;
+@end
+@implementation UINavigationBar (UINavigationBarExtras)
+- (UIBehavioralStyle)preferredBehavioralStyle { return [assoc(self, &kPreferredBehavioral) unsignedIntegerValue]; }
+- (void)setPreferredBehavioralStyle:(UIBehavioralStyle)s { set_assoc(self, &kPreferredBehavioral, @(s)); }
+- (UIBehavioralStyle)behavioralStyle { return UIBehavioralStylePad; }
+- (UINavigationBarNSToolbarSection)currentNSToolbarSection { return UINavigationBarNSToolbarSectionNone; }
+- (UIBarMetrics)_isim_metrics { return self.traitCollection.verticalSizeClass == UIUserInterfaceSizeClassCompact ? UIBarMetricsCompact : UIBarMetricsDefault; }
+- (void)setTitleVerticalPositionAdjustment:(CGFloat)a forBarMetrics:(UIBarMetrics)m { metrics_of(self)[metrics_key(@"titley", 0, m)] = @(a); [self setNeedsLayout]; }
+- (CGFloat)titleVerticalPositionAdjustmentForBarMetrics:(UIBarMetrics)m { return [metrics_of(self)[metrics_key(@"titley", 0, m)] doubleValue]; }
+- (CGFloat)_isim_titleVerticalAdjustment {
+    NSNumber *n = metrics_of(self)[metrics_key(@"titley", 0, [self _isim_metrics])] ?: metrics_of(self)[metrics_key(@"titley", 0, UIBarMetricsDefault)];
+    return n.doubleValue;
+}
+- (void)setBackgroundImage:(UIImage *)i forBarMetrics:(UIBarMetrics)m { [self setBackgroundImage:i forBarPosition:UIBarPositionAny barMetrics:m]; }
+- (UIImage *)backgroundImageForBarMetrics:(UIBarMetrics)m { return [self backgroundImageForBarPosition:UIBarPositionAny barMetrics:m]; }
+- (void)setBackgroundImage:(UIImage *)i forBarPosition:(UIBarPosition)p barMetrics:(UIBarMetrics)m {
+    NSString *k = metrics_key(@"bg", p, m);
+    if (i) metrics_of(self)[k] = i; else [metrics_of(self) removeObjectForKey:k];
+    [self setNeedsLayout];
+}
+- (UIImage *)backgroundImageForBarPosition:(UIBarPosition)p barMetrics:(UIBarMetrics)m { return metrics_of(self)[metrics_key(@"bg", p, m)]; }
+/* the image for the bar's place (top attached under the status bar in a navigation controller), else for any place;
+   compact metrics fall back to the default ones */
+- (UIImage *)_isim_legacyBackgroundImage {
+    NSMutableDictionary *d = assoc(self, &kMetrics);
+    if (!d.count) return nil;
+    UIBarPosition p = self._isim_back ? UIBarPositionTopAttached : UIBarPositionTop;
+    UIBarMetrics m = [self _isim_metrics];
+    UIImage *bg = nil;
+    for (int i = 0; i < 4 && !bg; i++) bg = d[metrics_key(@"bg", i & 1 ? UIBarPositionAny : p, i < 2 ? m : UIBarMetricsDefault)];
+    return bg;
+}
+/* the title menu: a chevron after the title, and a control over the title that opens the provider's menu */
+- (void)_isim_layoutTitleMenu:(UINavigationItem *)item title:(CGRect)title textWidth:(CGFloat)tw {
+    for (UIView *v in assoc(self, &kTitleMenuViews)) [v removeFromSuperview];
+    set_assoc(self, &kTitleMenuViews, nil);
+    __IsimRenameField *field = assoc(self, &kRenameField);
+    if (!item) return;
+    if (field.item == item) {
+        field.frame = CGRectMake(CGRectGetMidX(title) - fmax(tw, 160) / 2 - 8, CGRectGetMidY(title) - 16, fmax(tw, 160) + 16, 32);
+        if (field.superview != self) [self addSubview:field];
+        [self _isim_titleLabel].alpha = 0;
+        return;
+    }
+    if (!item.titleMenuProvider) return;
+    UIImage *chev = [UIImage systemImageNamed:@"chevron.down.circle.fill"];
+    UIImageView *iv = [[UIImageView alloc] initWithImage:chev];
+    iv.tintColor = UIColor.secondaryLabelColor;
+    CGFloat cx = CGRectGetMidX(title) + tw / 2 + 4;
+    iv.frame = CGRectMake(cx, CGRectGetMidY(title) - 8, 16, 16);
+    iv.accessibilityIdentifier = @"nav-title-chevron";
+    UIControl *hit = [[UIControl alloc] initWithFrame:CGRectMake(CGRectGetMidX(title) - tw / 2 - 4, CGRectGetMinY(title), tw + 28, CGRectGetHeight(title))];
+    hit.accessibilityIdentifier = @"nav-title-menu"; hit.accessibilityLabel = item.title;
+    [hit addTarget:self action:@selector(_isim_titleMenuTapped:) forControlEvents:UIControlEventTouchUpInside];
+    [self addSubview:iv]; [self addSubview:hit];
+    set_assoc(self, &kTitleMenuViews, @[iv, hit]);
+}
+- (UILabel *)_isim_titleLabel { return _title; }
+- (void)_isim_titleMenuTapped:(UIControl *)sender {
+    UINavigationItem *item = self.topItem;
+    if (!item.titleMenuProvider) return;
+    NSMutableArray<UIMenuElement *> *suggested = [NSMutableArray array];
+    if (item.renameDelegate) {
+        __weak UINavigationBar *ws = self;
+        [suggested addObject:[UIAction actionWithTitle:@"Rename" image:[UIImage systemImageNamed:@"pencil"] identifier:@"com.apple.menu.rename"
+                                               handler:^(UIAction *a) { [ws _isim_beginRenaming:item]; }]];
+    }
+    UIMenu *menu = item.titleMenuProvider(suggested);
+    if (menu) [sender _isim_presentMenu:menu fromRect:sender.bounds];
+}
+- (void)_isim_beginRenaming:(UINavigationItem *)item {
+    id<UINavigationItemRenameDelegate> d = item.renameDelegate;
+    if (!d || ([d respondsToSelector:@selector(navigationItemShouldBeginRenaming:)] && ![d navigationItemShouldBeginRenaming:item])) return;
+    NSString *t = item.title ?: @"";
+    NSRange sel = NSMakeRange(0, t.length);
+    if ([d respondsToSelector:@selector(navigationItem:willBeginRenamingWithSuggestedTitle:selectedRange:)]) t = [d navigationItem:item willBeginRenamingWithSuggestedTitle:t selectedRange:&sel] ?: t;
+    __IsimRenameField *f = [__IsimRenameField new];
+    f.item = item; f.bar = self; f.delegate = f; f.text = t;
+    f.borderStyle = UITextBorderStyleRoundedRect; f.textAlignment = NSTextAlignmentCenter;
+    f.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold]; f.returnKeyType = UIReturnKeyDone;
+    f.accessibilityIdentifier = @"nav-rename";
+    set_assoc(self, &kRenameField, f);
+    NSLog(@"isim: renaming the title began");
+    [self setNeedsLayout]; [self layoutIfNeeded];
+    [f becomeFirstResponder];
+    /* the suggested range is selected (the whole title unless the delegate says otherwise): typing replaces it */
+    sel = NSIntersectionRange(sel, NSMakeRange(0, t.length));
+    UITextPosition *a = [f positionFromPosition:f.beginningOfDocument offset:(NSInteger)sel.location];
+    UITextPosition *b = [f positionFromPosition:f.beginningOfDocument offset:(NSInteger)NSMaxRange(sel)];
+    if (a && b) f.selectedTextRange = [f textRangeFromPosition:a toPosition:b];
+}
+- (void)_isim_endRenaming:(__IsimRenameField *)f commit:(BOOL)commit {
+    if (assoc(self, &kRenameField) != f) return;
+    UINavigationItem *item = f.item; id<UINavigationItemRenameDelegate> d = item.renameDelegate;
+    NSString *t = f.text ?: @"";
+    if (commit && [d respondsToSelector:@selector(navigationItem:shouldEndRenamingWithTitle:)] && ![d navigationItem:item shouldEndRenamingWithTitle:t]) return;
+    set_assoc(self, &kRenameField, nil);
+    [f resignFirstResponder]; [f removeFromSuperview];
+    [self _isim_titleLabel].alpha = 1;
+    if (commit) { item.title = t; [d navigationItem:item didEndRenamingWithTitle:t]; }
+    [self setNeedsLayout];
+}
+@end
+@implementation __IsimRenameField
+- (BOOL)textFieldShouldReturn:(UITextField *)tf { [self.bar _isim_endRenaming:self commit:YES]; return NO; }
+@end
+
+@implementation UINavigationBarAppearance (UINavigationBarAppearanceExtras)
+- (UIBarButtonItemAppearance *)prominentButtonAppearance {
+    UIBarButtonItemAppearance *a = assoc(self, &kProminentAppearance);
+    if (!a) { a = [[UIBarButtonItemAppearance alloc] initWithStyle:UIBarButtonItemStyleProminent]; set_assoc(self, &kProminentAppearance, a); }
+    return a;
+}
+- (void)setProminentButtonAppearance:(UIBarButtonItemAppearance *)a { set_assoc(self, &kProminentAppearance, [a copy]); }
+@end
+@implementation UIToolbarAppearance (UIToolbarAppearanceExtras)
+- (UIBarButtonItemAppearance *)prominentButtonAppearance {
+    UIBarButtonItemAppearance *a = assoc(self, &kProminentAppearance);
+    if (!a) { a = [[UIBarButtonItemAppearance alloc] initWithStyle:UIBarButtonItemStyleProminent]; set_assoc(self, &kProminentAppearance, a); }
+    return a;
+}
+- (void)setProminentButtonAppearance:(UIBarButtonItemAppearance *)a { set_assoc(self, &kProminentAppearance, [a copy]); }
+@end
+
+@implementation UIDocumentProperties { NSURL *_url; }
+- (instancetype)initWithMetadata:(LPLinkMetadata *)metadata { if ((self = [super init])) _metadata = [(id)metadata copy]; return self; }
+- (instancetype)initWithURL:(NSURL *)url { if ((self = [super init])) _url = [url copy]; return self; }
+@end
+
+/* ---- the navigation item ---- */
+static char kBackDisplayMode, kBackAction, kPinnedGroup, kCustomizationId, kTitleMenuProvider, kDocumentProperties, kRenameDelegate;
+@implementation UINavigationItem (UINavigationItemExtras)
+- (UINavigationItemBackButtonDisplayMode)backButtonDisplayMode { return [assoc(self, &kBackDisplayMode) integerValue]; }
+- (void)setBackButtonDisplayMode:(UINavigationItemBackButtonDisplayMode)m { set_assoc(self, &kBackDisplayMode, @(m)); bar_item_changed(self); }
+- (void)setHidesBackButton:(BOOL)h animated:(BOOL)a { self.hidesBackButton = h; }
+- (UIAction *)backAction { return assoc(self, &kBackAction); }
+- (id<UIPopoverPresentationControllerSourceItem>)overflowPresentationSource { return assoc(self, &kOverflowSource); }
+- (void)setBackAction:(UIAction *)a { set_assoc(self, &kBackAction, [a copy]); bar_item_changed(self); }
+- (UIBarButtonItemGroup *)pinnedTrailingGroup { return assoc(self, &kPinnedGroup); }
+- (void)setPinnedTrailingGroup:(UIBarButtonItemGroup *)g { set_assoc(self, &kPinnedGroup, g); bar_item_changed(self); }
+- (NSString *)customizationIdentifier { return assoc(self, &kCustomizationId); }
+- (void)setCustomizationIdentifier:(NSString *)i { set_assoc(self, &kCustomizationId, [i copy]); }
+- (UIMenu *(^)(NSArray<UIMenuElement *> *))titleMenuProvider { return assoc(self, &kTitleMenuProvider); }
+- (void)setTitleMenuProvider:(UIMenu *(^)(NSArray<UIMenuElement *> *))p { set_assoc(self, &kTitleMenuProvider, [p copy]); bar_item_changed(self); }
+- (UIDocumentProperties *)documentProperties { return assoc(self, &kDocumentProperties); }
+- (void)setDocumentProperties:(UIDocumentProperties *)p { set_assoc(self, &kDocumentProperties, p); }
+- (id<UINavigationItemRenameDelegate>)renameDelegate { return ((__IsimWeakBox *)assoc(self, &kRenameDelegate)).value; }
+- (void)setRenameDelegate:(id<UINavigationItemRenameDelegate>)d { __IsimWeakBox *b = [__IsimWeakBox new]; b.value = d; set_assoc(self, &kRenameDelegate, b); }
+@end
+
+/* ---- the navigation controller: hiding the bars ---- */
+const CGFloat UINavigationControllerHideShowBarDuration = 0.2;
+static char kHidesOnTap, kHidesOnKeyboard, kHidesCompact, kTapHide, kSwipeHide, kHidToolbar, kWasCompact;
+@implementation UINavigationController (UINavigationControllerExtras)
+- (UIGestureRecognizer *)interactiveContentPopGestureRecognizer { return self.interactivePopGestureRecognizer; }
+- (BOOL)hidesBarsOnTap { return [assoc(self, &kHidesOnTap) boolValue]; }
+- (void)setHidesBarsOnTap:(BOOL)h { set_assoc(self, &kHidesOnTap, @(h)); self.barHideOnTapGestureRecognizer.enabled = h; }
+- (BOOL)hidesBarsWhenKeyboardAppears { return [assoc(self, &kHidesOnKeyboard) boolValue]; }
+- (void)setHidesBarsWhenKeyboardAppears:(BOOL)h { set_assoc(self, &kHidesOnKeyboard, @(h)); }
+- (BOOL)hidesBarsWhenVerticallyCompact { return [assoc(self, &kHidesCompact) boolValue]; }
+- (void)setHidesBarsWhenVerticallyCompact:(BOOL)h { set_assoc(self, &kHidesCompact, @(h)); set_assoc(self, &kWasCompact, nil); [self.viewIfLoaded setNeedsLayout]; }
+- (UITapGestureRecognizer *)barHideOnTapGestureRecognizer {
+    UITapGestureRecognizer *t = assoc(self, &kTapHide);
+    if (!t) {
+        t = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(_isim_barHideTap:)];
+        t.cancelsTouchesInView = NO; t.enabled = self.hidesBarsOnTap;
+        set_assoc(self, &kTapHide, t);
+    }
+    return t;
+}
+- (UIPanGestureRecognizer *)barHideOnSwipeGestureRecognizer {
+    UIPanGestureRecognizer *p = assoc(self, &kSwipeHide);
+    if (!p) {
+        p = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(_isim_barHideSwipe:)];
+        p.cancelsTouchesInView = NO; p.enabled = self.hidesBarsOnSwipe;
+        set_assoc(self, &kSwipeHide, p);
+    }
+    return p;
+}
+@end
+@implementation UINavigationController (IsimBarHiding)
+- (void)_isim_installBarHiding:(UIView *)v {
+    [v addGestureRecognizer:self.barHideOnTapGestureRecognizer];
+    [v addGestureRecognizer:self.barHideOnSwipeGestureRecognizer];
+}
+/* hide or show the navigation bar, and the toolbar when it was showing */
+- (void)_isim_setBarsHidden:(BOOL)hidden {
+    if (hidden == self.navigationBarHidden) return;
+    NSLog(@"isim: navigation bars %@", hidden ? @"hidden" : @"shown");
+    [self setNavigationBarHidden:hidden animated:YES];
+    if (hidden && !self.toolbarHidden) { set_assoc(self, &kHidToolbar, @YES); [self setToolbarHidden:YES animated:YES]; }
+    else if (!hidden && [assoc(self, &kHidToolbar) boolValue]) { set_assoc(self, &kHidToolbar, nil); [self setToolbarHidden:NO animated:YES]; }
+}
+/* a tap in the content (not on a bar or a control) toggles the bars */
+- (void)_isim_barHideTap:(UITapGestureRecognizer *)g {
+    if (!self.hidesBarsOnTap || g.state != UIGestureRecognizerStateEnded) return;
+    UIView *host = self.view, *hit = [host hitTest:[g locationInView:host] withEvent:nil];
+    for (UIView *v = hit; v && v != host; v = v.superview)
+        if ([v isKindOfClass:[UIControl class]] || v == self.navigationBar || v == self.toolbar) return;
+    [self _isim_setBarsHidden:!self.navigationBarHidden];
+}
+/* a swipe up hides the bars, a swipe down shows them */
+- (void)_isim_barHideSwipe:(UIPanGestureRecognizer *)g {
+    if (!self.hidesBarsOnSwipe || (g.state != UIGestureRecognizerStateChanged && g.state != UIGestureRecognizerStateEnded)) return;
+    CGPoint t = [g translationInView:self.view];
+    if (fabs(t.y) < 24 || fabs(t.y) < fabs(t.x)) return;
+    [self _isim_setBarsHidden:t.y < 0];
+}
+- (void)_isim_keyboardWillShow:(NSNotification *)n {
+    if (self.hidesBarsWhenKeyboardAppears && self.viewIfLoaded.window) [self _isim_setBarsHidden:YES];
+}
+/* compact height hides the bars, back to regular shows them (on the change only, so the app can still show them) */
+- (void)_isim_applyCompactHiding {
+    if (!self.hidesBarsWhenVerticallyCompact || !self.viewIfLoaded.window) return;
+    BOOL compact = self.traitCollection.verticalSizeClass == UIUserInterfaceSizeClassCompact;
+    NSNumber *was = assoc(self, &kWasCompact);
+    if (was && was.boolValue == compact) return;
+    set_assoc(self, &kWasCompact, @(compact));
+    if (was || compact) [self _isim_setBarsHidden:compact];
+}
+@end
+
+/* ======== UITabBarExtras.h ======== */
+@implementation UITabBarItemStateAppearance
+- (instancetype)init { if ((self = [super init])) { _titleTextAttributes = @{}; _badgeTextAttributes = @{}; } return self; }
+- (void)_isim_copyFrom:(UITabBarItemStateAppearance *)o {
+    _titleTextAttributes = [o.titleTextAttributes copy] ?: @{}; _titlePositionAdjustment = o.titlePositionAdjustment; _iconColor = o.iconColor;
+    _badgePositionAdjustment = o.badgePositionAdjustment; _badgeBackgroundColor = o.badgeBackgroundColor;
+    _badgeTextAttributes = [o.badgeTextAttributes copy] ?: @{}; _badgeTitlePositionAdjustment = o.badgeTitlePositionAdjustment;
+}
+@end
+@implementation UITabBarItemAppearance
+- (instancetype)init { return [self initWithStyle:UITabBarItemAppearanceStyleStacked]; }
+- (instancetype)initWithStyle:(UITabBarItemAppearanceStyle)style {
+    if ((self = [super init])) { _normal = [UITabBarItemStateAppearance new]; _selected = [UITabBarItemStateAppearance new]; _disabled = [UITabBarItemStateAppearance new]; _focused = [UITabBarItemStateAppearance new]; }
+    return self;
+}
+- (instancetype)initWithCoder:(NSCoder *)c { return [self initWithStyle:UITabBarItemAppearanceStyleStacked]; }
+- (void)encodeWithCoder:(NSCoder *)c {}
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)configureWithDefaultForStyle:(UITabBarItemAppearanceStyle)style {
+    UITabBarItemStateAppearance *blank = [UITabBarItemStateAppearance new];
+    for (UITabBarItemStateAppearance *s in @[_normal, _selected, _disabled, _focused]) [s _isim_copyFrom:blank];
+}
+- (id)copyWithZone:(NSZone *)z {
+    UITabBarItemAppearance *c = [UITabBarItemAppearance new];
+    [c.normal _isim_copyFrom:_normal]; [c.selected _isim_copyFrom:_selected]; [c.disabled _isim_copyFrom:_disabled]; [c.focused _isim_copyFrom:_focused];
+    return c;
+}
+@end
+
+/* a bar appearance's extra values: one dictionary, copied with the appearance (UIBarAppearance _isim_copyFrom:) */
+static char kBarExtras;
+static NSMutableDictionary *bar_extras(id a) {
+    NSMutableDictionary *d = objc_getAssociatedObject(a, &kBarExtras);
+    if (!d) { d = [NSMutableDictionary dictionary]; objc_setAssociatedObject(a, &kBarExtras, d, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+    return d;
+}
+void isim_ui_copy_bar_extras(id to, id from) {
+    NSDictionary *d = objc_getAssociatedObject(from, &kBarExtras);
+    NSMutableDictionary *c = [NSMutableDictionary dictionary];
+    for (id k in d) c[k] = [d[k] conformsToProtocol:@protocol(NSCopying)] && ![d[k] isKindOfClass:[UIImage class]] ? [d[k] copy] : d[k];
+    objc_setAssociatedObject(to, &kBarExtras, d ? c : nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+@implementation UITabBarAppearance (UITabBarAppearanceExtras)
+- (UITabBarItemAppearance *)_isim_layout:(NSString *)k style:(UITabBarItemAppearanceStyle)st {
+    UITabBarItemAppearance *a = bar_extras(self)[k];
+    if (!a) { a = [[UITabBarItemAppearance alloc] initWithStyle:st]; bar_extras(self)[k] = a; }
+    return a;
+}
+- (UITabBarItemAppearance *)stackedLayoutAppearance { return [self _isim_layout:@"stacked" style:UITabBarItemAppearanceStyleStacked]; }
+- (void)setStackedLayoutAppearance:(UITabBarItemAppearance *)a { bar_extras(self)[@"stacked"] = [a copy]; }
+- (UITabBarItemAppearance *)inlineLayoutAppearance { return [self _isim_layout:@"inline" style:UITabBarItemAppearanceStyleInline]; }
+- (void)setInlineLayoutAppearance:(UITabBarItemAppearance *)a { bar_extras(self)[@"inline"] = [a copy]; }
+- (UITabBarItemAppearance *)compactInlineLayoutAppearance { return [self _isim_layout:@"compact" style:UITabBarItemAppearanceStyleCompactInline]; }
+- (void)setCompactInlineLayoutAppearance:(UITabBarItemAppearance *)a { bar_extras(self)[@"compact"] = [a copy]; }
+- (UITabBarItemPositioning)stackedItemPositioning { return [bar_extras(self)[@"positioning"] integerValue]; }
+- (void)setStackedItemPositioning:(UITabBarItemPositioning)p { bar_extras(self)[@"positioning"] = @(p); }
+- (CGFloat)stackedItemSpacing { return [bar_extras(self)[@"spacing"] doubleValue]; }
+- (void)setStackedItemSpacing:(CGFloat)v { bar_extras(self)[@"spacing"] = @(v); }
+- (CGFloat)stackedItemWidth { return [bar_extras(self)[@"width"] doubleValue]; }
+- (void)setStackedItemWidth:(CGFloat)v { bar_extras(self)[@"width"] = @(v); }
+- (UIColor *)selectionIndicatorTintColor { return bar_extras(self)[@"indicatorTint"]; }
+- (void)setSelectionIndicatorTintColor:(UIColor *)c { if (c) bar_extras(self)[@"indicatorTint"] = c; else [bar_extras(self) removeObjectForKey:@"indicatorTint"]; }
+- (UIImage *)selectionIndicatorImage { return bar_extras(self)[@"indicator"]; }
+- (void)setSelectionIndicatorImage:(UIImage *)i { if (i) bar_extras(self)[@"indicator"] = i; else [bar_extras(self) removeObjectForKey:@"indicator"]; }
+@end
+
+static char kBadgeAttrs;
+@implementation UITabBarItem (UITabBarItemExtras)
+- (void)setBadgeTextAttributes:(NSDictionary<NSAttributedStringKey, id> *)a forState:(UIControlState)s {
+    NSMutableDictionary *d = assoc(self, &kBadgeAttrs);
+    if (!d) { d = [NSMutableDictionary dictionary]; set_assoc(self, &kBadgeAttrs, d); }
+    if (a) d[@(s)] = [a copy]; else [d removeObjectForKey:@(s)];
+    bar_item_changed(self);
+}
+- (NSDictionary<NSAttributedStringKey, id> *)badgeTextAttributesForState:(UIControlState)s {
+    NSDictionary *d = assoc(self, &kBadgeAttrs);
+    return d[@(s)] ?: (s != UIControlStateNormal ? d[@(UIControlStateNormal)] : nil);
+}
+@end
+
+static char kItemPositioning, kItemSpacing, kItemWidth, kIndicatorImage, kCustomizing;
+@implementation UITabBar (UITabBarExtras)
+- (UITabBarItemPositioning)itemPositioning { return [assoc(self, &kItemPositioning) integerValue]; }
+- (void)setItemPositioning:(UITabBarItemPositioning)p { set_assoc(self, &kItemPositioning, @(p)); [self setNeedsLayout]; }
+- (CGFloat)itemSpacing { return [assoc(self, &kItemSpacing) doubleValue]; }
+- (void)setItemSpacing:(CGFloat)v { set_assoc(self, &kItemSpacing, @(v)); [self setNeedsLayout]; }
+- (CGFloat)itemWidth { return [assoc(self, &kItemWidth) doubleValue]; }
+- (void)setItemWidth:(CGFloat)v { set_assoc(self, &kItemWidth, @(v)); [self setNeedsLayout]; }
+- (UIImage *)selectionIndicatorImage { return assoc(self, &kIndicatorImage); }
+- (void)setSelectionIndicatorImage:(UIImage *)i { set_assoc(self, &kIndicatorImage, i); [self setNeedsLayout]; isim_ui_set_needs_display(); }
+- (BOOL)isCustomizing { return [assoc(self, &kCustomizing) boolValue]; }
+- (void)beginCustomizingItems:(NSArray<UITabBarItem *> *)items {
+    id<UITabBarDelegate> d = self.delegate;
+    if ([d respondsToSelector:@selector(tabBar:willBeginCustomizingItems:)]) [d tabBar:self willBeginCustomizingItems:items];
+    set_assoc(self, &kCustomizing, @YES);
+    if ([d respondsToSelector:@selector(tabBar:didBeginCustomizingItems:)]) [d tabBar:self didBeginCustomizingItems:items];
+}
+- (BOOL)endCustomizingAnimated:(BOOL)animated {
+    if (!self.isCustomizing) return NO;
+    id<UITabBarDelegate> d = self.delegate; NSArray *items = self.items ?: @[];
+    if ([d respondsToSelector:@selector(tabBar:willEndCustomizingItems:changed:)]) [d tabBar:self willEndCustomizingItems:items changed:NO];
+    set_assoc(self, &kCustomizing, nil);
+    if ([d respondsToSelector:@selector(tabBar:didEndCustomizingItems:changed:)]) [d tabBar:self didEndCustomizingItems:items changed:NO];
+    return YES;
+}
+/* the item appearance for the bar's layout: inline on iPad (top bar), compact inline in iPhone landscape, else stacked */
+- (UITabBarItemAppearance *)_isim_itemAppearance:(int)mode {
+    UITabBarAppearance *a = self.standardAppearance;
+    if (!objc_getAssociatedObject(a, &kBarExtras)) return nil;
+    if (mode >= 2) return bar_extras(a)[@"inline"];
+    if (self.traitCollection.verticalSizeClass == UIUserInterfaceSizeClassCompact) return bar_extras(a)[@"compact"] ?: bar_extras(a)[@"inline"];
+    return bar_extras(a)[@"stacked"];
+}
+- (UIImage *)_isim_indicatorImage { return self.selectionIndicatorImage ?: self.standardAppearance.selectionIndicatorImage; }
+/* centred items (classic bar): the bar's positioning, else the appearance's stacked positioning */
+- (UITabBarItemPositioning)_isim_positioning { return self.itemPositioning ?: self.standardAppearance.stackedItemPositioning; }
+- (BOOL)_isim_centered { return [self _isim_positioning] == UITabBarItemPositioningCentered; }
+- (CGRect)_isim_centeredFrame:(NSUInteger)i of:(NSUInteger)n {
+    UITabBarAppearance *a = self.standardAppearance;
+    CGFloat w = self.itemWidth > 0 ? self.itemWidth : a.stackedItemWidth > 0 ? a.stackedItemWidth : 76;
+    CGFloat gap = self.itemSpacing > 0 ? self.itemSpacing : a.stackedItemSpacing > 0 ? a.stackedItemSpacing : 34;
+    CGFloat total = n * w + (n > 1 ? (n - 1) * gap : 0), x0 = round((self.bounds.size.width - total) / 2);
+    return CGRectMake(x0 + i * (w + gap), 0, w, 49);
+}
+@end
+
+/* ---- tabs ---- */
+static char kHiddenByDefault, kDefaultChild, kSidebarAppearance, kSidebarActions, kCollapsed, kSidebarDestination;
+@interface UITabBarController (IsimTabVisibility)
+- (BOOL)_isim_tabIsPlaced:(UITab *)t;
+@end
+@implementation UITab (UITabExtras)
+- (BOOL)isHiddenByDefault { return [assoc(self, &kHiddenByDefault) boolValue]; }
+- (void)setHiddenByDefault:(BOOL)h { set_assoc(self, &kHiddenByDefault, @(h)); [self.tabBarController _isim_tabsChanged]; }
+- (BOOL)hasVisiblePlacement { return [self.tabBarController _isim_tabIsPlaced:self]; }
+@end
+@implementation UITabGroup (UITabGroupExtras)
+- (NSString *)defaultChildIdentifier { return assoc(self, &kDefaultChild); }
+- (void)setDefaultChildIdentifier:(NSString *)i { set_assoc(self, &kDefaultChild, [i copy]); }
+- (UITabGroupSidebarAppearance)sidebarAppearance { return [assoc(self, &kSidebarAppearance) integerValue]; }
+- (void)setSidebarAppearance:(UITabGroupSidebarAppearance)a { set_assoc(self, &kSidebarAppearance, @(a)); }
+- (NSArray<UITab *> *)displayOrder {
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *i in self.displayOrderIdentifiers) for (UITab *c in self.children) if ([c.identifier isEqualToString:i] && ![out containsObject:c]) [out addObject:c];
+    for (UITab *c in self.children) if (![out containsObject:c]) [out addObject:c];
+    return out;
+}
+- (NSArray<UIAction *> *)sidebarActions { return assoc(self, &kSidebarActions) ?: @[]; }
+- (void)setSidebarActions:(NSArray<UIAction *> *)a { set_assoc(self, &kSidebarActions, [a copy]); [self.tabBarController _isim_tabsChanged]; }
+- (BOOL)isCollapsedByDefault { return [assoc(self, &kCollapsed) boolValue]; }
+- (void)setCollapsedByDefault:(BOOL)c { set_assoc(self, &kCollapsed, @(c)); }
+- (BOOL)isSidebarDestination { return [assoc(self, &kSidebarDestination) boolValue]; }
+- (void)setSidebarDestination:(BOOL)d { set_assoc(self, &kSidebarDestination, @(d)); }
+@end
+
+@implementation UITabSidebarItemRequest { UITab *_tab; UIAction *_action; }
++ (instancetype)_isim_requestForTab:(UITab *)tab action:(UIAction *)action { UITabSidebarItemRequest *r = [super new]; r->_tab = tab; r->_action = action; return r; }
+- (UITab *)tab { return _tab; }
+- (UIAction *)action { return _action; }
+@end
+@implementation UITabSidebarItem { UITab *_tab; UIAction *_action; }
++ (instancetype)itemFromRequest:(UITabSidebarItemRequest *)request { UITabSidebarItem *i = [super new]; i->_tab = request.tab; i->_action = request.action; return i; }
+- (UITab *)tab { return _tab; }
+- (UIAction *)action { return _action; }
+- (UIListContentConfiguration *)defaultContentConfiguration {
+    UIListContentConfiguration *c = [UIListContentConfiguration sidebarCellConfiguration];
+    c.text = _tab ? _tab.title : _action.title; c.image = _tab ? _tab.image : _action.image;
+    return c;
+}
+- (UIBackgroundConfiguration *)defaultBackgroundConfiguration { return [UIBackgroundConfiguration clearConfiguration]; }
+- (void)setNeedsUpdateConfiguration { [_tab.tabBarController _isim_tabsChanged]; }
+- (id)copyWithZone:(NSZone *)z {
+    UITabSidebarItem *c = [UITabSidebarItem new]; c->_tab = _tab; c->_action = _action;
+    c.contentConfiguration = self.contentConfiguration; c.backgroundConfiguration = self.backgroundConfiguration;
+    return c;
+}
+@end
+
+static char kSidebarLayout, kSidebarHeader, kSidebarFooter, kSidebarBottom;
+@implementation UITabBarControllerSidebar (UITabBarControllerSidebarExtras)
+- (UITabBarControllerSidebarLayout)preferredLayout { return [assoc(self, &kSidebarLayout) integerValue]; }
+- (void)setPreferredLayout:(UITabBarControllerSidebarLayout)l { set_assoc(self, &kSidebarLayout, @(l)); }
+- (void)reconfigureItemForTab:(UITab *)tab { [self.tabBarController _isim_sidebarChanged]; }
+- (id<UIContentConfiguration>)headerContentConfiguration { return assoc(self, &kSidebarHeader); }
+- (void)setHeaderContentConfiguration:(id<UIContentConfiguration>)c { set_assoc(self, &kSidebarHeader, [(id)c copy]); [self.tabBarController _isim_sidebarChanged]; }
+- (id<UIContentConfiguration>)footerContentConfiguration { return assoc(self, &kSidebarFooter); }
+- (void)setFooterContentConfiguration:(id<UIContentConfiguration>)c { set_assoc(self, &kSidebarFooter, [(id)c copy]); [self.tabBarController _isim_sidebarChanged]; }
+- (UIView *)bottomBarView { return assoc(self, &kSidebarBottom); }
+- (void)setBottomBarView:(UIView *)v { [self.bottomBarView removeFromSuperview]; set_assoc(self, &kSidebarBottom, v); [self.tabBarController _isim_sidebarChanged]; }
+@end
+
+static char kCompactTabs, kTabCustomizationId, kCustomizable;
+@implementation UITabBarController (UITabBarControllerExtras)
+- (instancetype)initWithTabs:(NSArray<UITab *> *)tabs { if ((self = [self initWithNibName:nil bundle:nil])) self.tabs = tabs; return self; }
+- (NSArray<NSString *> *)compactTabIdentifiers { return assoc(self, &kCompactTabs); }
+- (void)setCompactTabIdentifiers:(NSArray<NSString *> *)ids { set_assoc(self, &kCompactTabs, [ids copy]); [self _isim_tabsChanged]; }
+- (NSString *)customizationIdentifier { return assoc(self, &kTabCustomizationId); }
+- (void)setCustomizationIdentifier:(NSString *)i { set_assoc(self, &kTabCustomizationId, [i copy]); }
+- (NSArray<UIViewController *> *)customizableViewControllers { NSArray *a = assoc(self, &kCustomizable); return a ? (a == (id)NSNull.null ? nil : a) : self.viewControllers; }
+- (void)setCustomizableViewControllers:(NSArray<UIViewController *> *)a { set_assoc(self, &kCustomizable, a ? [a copy] : NSNull.null); }
 @end

@@ -18,6 +18,9 @@ NS_SWIFT_NAME(UIFontPickerViewController.Configuration)
 @property (nonatomic) UIFontDescriptorSymbolicTraits filteredTraits;
 @property (nullable, nonatomic, copy) NSPredicate *filteredLanguagesPredicate;
 + (nullable NSPredicate *)filterPredicateForFilteredLanguages:(NSArray<NSString *> *)filteredLanguages;
+/* isim: what the overlay's languageFilter (iOS 18, Predicate<[String]>) evaluates against a family's languages */
+@property (nullable, nonatomic, copy) BOOL (^_isimLanguageFilter)(NSArray<NSString *> *languages) NS_SWIFT_NAME(__isimLanguageFilter);
+@property (nullable, nonatomic, strong) id _isimLanguageFilterValue NS_SWIFT_NAME(__isimLanguageFilterValue);
 @end
 
 NS_SWIFT_UI_ACTOR

@@ -36,6 +36,12 @@
 #define NS_REQUIRES_NIL_TERMINATION __attribute__((sentinel(0, 1)))
 #define NS_FORMAT_FUNCTION(F, A) __attribute__((format(__NSString__, F, A)))
 #define NS_SWIFT_NAME(_name) __attribute__((swift_name(#_name)))
+#ifndef NS_SWIFT_ASYNC_NAME
+#define NS_SWIFT_ASYNC_NAME(_name) __attribute__((swift_async_name(#_name)))
+#endif
+#ifndef NS_SWIFT_BRIDGED_TYPEDEF
+#define NS_SWIFT_BRIDGED_TYPEDEF __attribute__((swift_bridged_typedef))
+#endif
 #define NS_SWIFT_UI_ACTOR
 /* as in Apple's NSObjCRuntime.h: a block (or typedef) marked NS_SWIFT_SENDABLE imports into Swift as @Sendable */
 #define NS_SWIFT_SENDABLE __attribute__((swift_attr("@Sendable")))

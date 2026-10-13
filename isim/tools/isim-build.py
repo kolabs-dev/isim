@@ -232,6 +232,18 @@ def compile_xcassets(path, bundle):
                         return int(v, 16) / 255 if v.startswith('0x') else (float(v) / 255 if float(v) > 1 else float(v))
                     variants[appearance] = [comp('red', '0'), comp('green', '0'), comp('blue', '0'), comp('alpha')]
                 index['colors'][name] = variants
+            elif kind == '.dataset':
+                # NSDataAsset(name:): the data file and its type identifier
+                for item in meta.get('data', []):
+                    fn = item.get('filename')
+                    if not fn:
+                        continue
+                    os.makedirs(outdir, exist_ok=True)
+                    dst = f'{name}-{fn}'
+                    shutil.copy2(os.path.join(full, fn), os.path.join(outdir, dst))
+                    index.setdefault('data', {})[name] = {'file': f'isim-assets/{dst}',
+                                                          'uti': item.get('universal-type-identifier', 'public.data')}
+                    break
             elif kind in ('.imageset', '.appiconset'):
                 files = []
                 for img in meta.get('images', []):

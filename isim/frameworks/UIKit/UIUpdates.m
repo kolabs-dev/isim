@@ -3,7 +3,8 @@
  *
  * UIUpdateLink: per-frame callbacks for a view (while it is in a visible window) or a window scene, run with the
  * display links before each frame is drawn; requiresContinuousUpdates keeps frames coming, otherwise a link runs on
- * the frames that are drawn anyway (adapted: one action phase per frame, the phases are run in their order).
+ * the frames that are drawn anyway (adapted: the phases run in Apple's order around the display links and the frame's
+ * drawing; the low-latency phases never run).
  *
  * Observation tracking: UIKit runs layoutSubviews, updateProperties, viewWillLayoutSubviews / viewDidLayoutSubviews
  * and view controllers' updateProperties inside Observation's withObservationTracking when the class overrides them
@@ -79,6 +80,8 @@ static void set_needs_props(id o, BOOL v) { objc_setAssociatedObject(o, &k_needs
 @end
 
 /* ================= UIUpdateLink (iOS 18) ================= */
+/* Apple's phases in update order; the low-latency ones run only when low-latency event dispatch is confirmed, which
+   isim never does (adapted). eventDispatch is isim's old name for beforeEventDispatch (kept for apps built with it). */
 @implementation UIUpdateActionPhase { NSInteger _order; NSString *_name; }
 static UIUpdateActionPhase *phase(NSInteger order, NSString *name) {
     static NSMutableDictionary *phases;
@@ -87,19 +90,34 @@ static UIUpdateActionPhase *phase(NSInteger order, NSString *name) {
     if (!p) { p = [UIUpdateActionPhase new]; p->_order = order; p->_name = name; phases[@(order)] = p; }
     return p;
 }
-+ (UIUpdateActionPhase *)eventDispatch { return phase(0, @"eventDispatch"); }
-+ (UIUpdateActionPhase *)afterEventDispatch { return phase(1, @"afterEventDispatch"); }
-+ (UIUpdateActionPhase *)beforeCADisplayLinkDispatch { return phase(2, @"beforeCADisplayLinkDispatch"); }
-+ (UIUpdateActionPhase *)afterCADisplayLinkDispatch { return phase(3, @"afterCADisplayLinkDispatch"); }
-+ (UIUpdateActionPhase *)beforeCATransactionCommit { return phase(4, @"beforeCATransactionCommit"); }
-+ (UIUpdateActionPhase *)afterCATransactionCommit { return phase(5, @"afterCATransactionCommit"); }
+enum { PH_SCHEDULED, PH_BEFORE_EVENTS, PH_AFTER_EVENTS, PH_BEFORE_LL_EVENTS, PH_AFTER_LL_EVENTS, PH_BEFORE_LINKS, PH_AFTER_LINKS,
+       PH_BEFORE_LL_COMMIT, PH_AFTER_LL_COMMIT, PH_BEFORE_COMMIT, PH_AFTER_COMMIT, PH_COMPLETE };
++ (UIUpdateActionPhase *)afterUpdateScheduled { return phase(PH_SCHEDULED, @"afterUpdateScheduled"); }
++ (UIUpdateActionPhase *)beforeEventDispatch { return phase(PH_BEFORE_EVENTS, @"beforeEventDispatch"); }
++ (UIUpdateActionPhase *)eventDispatch { return self.beforeEventDispatch; }
++ (UIUpdateActionPhase *)afterEventDispatch { return phase(PH_AFTER_EVENTS, @"afterEventDispatch"); }
++ (UIUpdateActionPhase *)beforeLowLatencyEventDispatch { return phase(PH_BEFORE_LL_EVENTS, @"beforeLowLatencyEventDispatch"); }
++ (UIUpdateActionPhase *)afterLowLatencyEventDispatch { return phase(PH_AFTER_LL_EVENTS, @"afterLowLatencyEventDispatch"); }
++ (UIUpdateActionPhase *)beforeCADisplayLinkDispatch { return phase(PH_BEFORE_LINKS, @"beforeCADisplayLinkDispatch"); }
++ (UIUpdateActionPhase *)afterCADisplayLinkDispatch { return phase(PH_AFTER_LINKS, @"afterCADisplayLinkDispatch"); }
++ (UIUpdateActionPhase *)beforeLowLatencyCATransactionCommit { return phase(PH_BEFORE_LL_COMMIT, @"beforeLowLatencyCATransactionCommit"); }
++ (UIUpdateActionPhase *)afterLowLatencyCATransactionCommit { return phase(PH_AFTER_LL_COMMIT, @"afterLowLatencyCATransactionCommit"); }
++ (UIUpdateActionPhase *)beforeCATransactionCommit { return phase(PH_BEFORE_COMMIT, @"beforeCATransactionCommit"); }
++ (UIUpdateActionPhase *)afterCATransactionCommit { return phase(PH_AFTER_COMMIT, @"afterCATransactionCommit"); }
++ (UIUpdateActionPhase *)afterUpdateComplete { return phase(PH_COMPLETE, @"afterUpdateComplete"); }
 - (NSInteger)_isim_order { return _order; }
 - (NSString *)description { return [NSString stringWithFormat:@"<UIUpdateActionPhase %@>", _name]; }
 @end
+
 @interface UIUpdateInfo ()
 @property (nonatomic, readwrite) CFTimeInterval modelTime, completionDeadlineTime;
 @end
+static UIUpdateInfo *frame_info;      /* the UI update in progress (render_frame), else nil */
 @implementation UIUpdateInfo
++ (instancetype)currentUpdateInfoForWindowScene:(UIWindowScene *)scene {
+    return frame_info && scene.activationState != UISceneActivationStateBackground ? (id)frame_info : nil;
+}
++ (instancetype)currentUpdateInfoForView:(UIView *)view { return frame_info && view.window ? (id)frame_info : nil; }
 - (CFTimeInterval)estimatedPresentationTime { return self.completionDeadlineTime; }
 - (BOOL)isImmediatePresentationExpected { return NO; }
 - (BOOL)isLowLatencyEventDispatchConfirmed { return NO; }
@@ -148,10 +166,12 @@ static NSHashTable<UIUpdateLink *> *update_links;
     for (UIView *x = v; x; x = x.superview) if (x.hidden || x.alpha <= 0.01) return NO;
     return YES;
 }
-- (void)_isim_fire:(CFTimeInterval)now {
-    UIUpdateInfo *info = [UIUpdateInfo new]; info.modelTime = now; info.completionDeadlineTime = now + 1.0 / 60;
+- (void)_isim_fire:(UIUpdateInfo *)info from:(NSInteger)first to:(NSInteger)last {
     self.currentUpdateInfo = info;
     for (__IsimUpdateAction *a in [_actions copy]) {
+        NSInteger o = [a.phase _isim_order];
+        if (o < first || o > last) continue;
+        if (o == PH_BEFORE_LL_EVENTS || o == PH_AFTER_LL_EVENTS || o == PH_BEFORE_LL_COMMIT || o == PH_AFTER_LL_COMMIT) continue;
         if (a.handler) a.handler(self, info);
         else if (a.target && a.selector) {
             id t = a.target; NSUInteger n = [NSStringFromSelector(a.selector) componentsSeparatedByString:@":"].count - 1;
@@ -163,12 +183,21 @@ static NSHashTable<UIUpdateLink *> *update_links;
     self.currentUpdateInfo = nil;
 }
 @end
-/* every frame (UIApplication.m render_frame) */
-void isim_ui_update_links_fire(void) {
-    if (!update_links.count) return;
-    CFTimeInterval now = isim_time();
-    for (UIUpdateLink *l in update_links.allObjects) if ([l _isim_live]) [l _isim_fire:now];
+/* a frame (UIApplication.m render_frame) runs the phases in three stages: before the display links (stage 0: update
+   scheduled, event dispatch, before display links), after them (stage 1: after display links, before the commit) and
+   after the frame is drawn (stage 2: after the commit, update complete). UIUpdateInfo.current(for:) is the frame's
+   info from stage 0 to stage 2. */
+static void fire_stage(int stage) {
+    static const NSInteger first[] = { PH_SCHEDULED, PH_AFTER_LINKS, PH_AFTER_COMMIT }, last[] = { PH_BEFORE_LINKS, PH_BEFORE_COMMIT, PH_COMPLETE };
+    if (stage == 0) {
+        CFTimeInterval now = isim_time();
+        frame_info = [UIUpdateInfo new]; frame_info.modelTime = now; frame_info.completionDeadlineTime = now + 1.0 / 60;
+    }
+    if (update_links.count) for (UIUpdateLink *l in update_links.allObjects) if ([l _isim_live]) [l _isim_fire:frame_info from:first[stage] to:last[stage]];
+    if (stage == 2) frame_info = nil;
 }
+void isim_ui_update_links_fire(void) { fire_stage(0); }
+void isim_ui_update_links_stage(int stage) { fire_stage(stage); }
 BOOL isim_ui_update_links_active(void) {
     for (UIUpdateLink *l in update_links.allObjects) if (l.requiresContinuousUpdates && [l _isim_live]) return YES;
     return NO;

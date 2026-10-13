@@ -100,6 +100,12 @@ static double now(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts
 double isim_time(void) { return now() - t0; }
 #include "host_input.inc"             /* second finger, hover, IME composition, voiceover script commands */
 
+/* script commands passed to the app as they are ("VERB ARGS"): its UIKit handles them (isim_sys_event) */
+static int is_app_verb(const char *cmd) {
+    static const char *verbs[] = { "attributions", "fullpage", "tilt", "guidedaccess", "accessibility", "takescreenshot", NULL };
+    for (int i = 0; verbs[i]; i++) if (!strcmp(cmd, verbs[i])) return 1;
+    return 0;
+}
 /* device presets (points, scale, safe areas, display corner radius, cutout: 0 none, 1 Dynamic Island, 2 notch) */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"     /* orientation fields default to 0 */
@@ -1336,15 +1342,17 @@ static int script_step(struct isim_event *ev) {
         else fprintf(stderr, "isim host: unknown key '%s'\n", arg);
     } else if ((!strcmp(cmd, "keydown") || !strcmp(cmd, "keyup")) && sscanf(args, " %63[^; ]", arg) == 1) {
         /* hardware key press/release by name (GameController's GCKeyboard): a-z, 0-9, space, return, escape, tab,
-           backspace, up, down, left, right, shift, ctrl, alt, cmd. pad = USB HID usage, key = SDL keycode */
+           backspace, up, down, left, right, home, end, pageup, pagedown, f1-f12, shift, ctrl, alt, cmd. pad = USB HID usage, key = SDL keycode */
         static const struct { const char *n; int hid, key; } names[] = {
             { "space", 44, ' ' }, { "return", 40, 13 }, { "escape", 41, 27 }, { "tab", 43, 9 }, { "backspace", 42, 8 },
             { "right", 79, 0x4000004f }, { "left", 80, 0x40000050 }, { "down", 81, 0x40000051 }, { "up", 82, 0x40000052 },
+            { "home", 74, 0x4000004a }, { "pageup", 75, 0x4000004b }, { "end", 77, 0x4000004d }, { "pagedown", 78, 0x4000004e },
             { "ctrl", 224, 0x400000e0 }, { "shift", 225, 0x400000e1 }, { "alt", 226, 0x400000e2 }, { "cmd", 227, 0x400000e3 } };
         int hid = 0, key = 0;
         if (!arg[1] && arg[0] >= 'a' && arg[0] <= 'z') { hid = 4 + arg[0] - 'a'; key = arg[0]; }
         else if (!arg[1] && arg[0] >= '1' && arg[0] <= '9') { hid = 30 + arg[0] - '1'; key = arg[0]; }
         else if (!strcmp(arg, "0")) { hid = 39; key = '0'; }
+        else if ((arg[0] == 'f' || arg[0] == 'F') && atoi(arg + 1) >= 1 && atoi(arg + 1) <= 12) { hid = 0x3A + atoi(arg + 1) - 1; key = 0x4000003A + atoi(arg + 1) - 1; }
         else for (size_t i = 0; i < sizeof names / sizeof *names; i++) if (!strcmp(arg, names[i].n)) { hid = names[i].hid; key = names[i].key; }
         if (hid) pending[npending++] = (struct isim_event){ .type = cmd[3] == 'd' ? EV_KEY : EV_KEY_UP, .pad = hid, .key = key };
         else fprintf(stderr, "isim host: unknown key '%s'\n", arg);
@@ -1368,6 +1376,15 @@ static int script_step(struct isim_event *ev) {
            Control Center), applied live; the app (or the home screen) writes it and every app follows */
         pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s %s", cmd, arg);
         script_resume = now() + 0.3;
+    } else if (is_app_verb(cmd)) {               /* commands the app handles itself (UISystemIntegration.m isim_sys_event) */
+        size_t n = strcspn(args, ";");
+        char cwd[512]; const char *a1 = args; while (*a1 == ' ') a1++;
+        pending[npending++] = (struct isim_event){ .type = EV_SYSTEM };
+        if (!strcmp(cmd, "fullpage") && *a1 && *a1 != '/' && getcwd(cwd, sizeof cwd))     /* a relative PATH is resolved here */
+            snprintf(pending[npending - 1].text, sizeof pending->text, "%s %s/%.*s", cmd, cwd, (int)strcspn(a1, ";"), a1);
+        else snprintf(pending[npending - 1].text, sizeof pending->text, "%s%.*s", cmd, (int)n, args);
+        for (char *e = pending[npending - 1].text + strlen(pending[npending - 1].text) - 1; e >= pending[npending - 1].text && *e == ' '; e--) *e = 0;
+        script_resume = now() + 0.2;
     } else if (!strcmp(cmd, "memorywarning")) {  /* Debug > Simulate Memory Warning: "memorywarning [warn|critical|normal]" */
         if (sscanf(args, " %63[^; ]", arg) != 1) strcpy(arg, "warn");
         pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "memory-warning %s", arg);
@@ -1381,6 +1398,10 @@ static int script_step(struct isim_event *ev) {
         if (!strncmp(arg, "shot ", 5) && arg[5] != '/' && getcwd(cwd, sizeof cwd)) snprintf(pending[npending - 1].text, sizeof pending->text, "display shot %s/%s", cwd, arg + 5);
         else snprintf(pending[npending - 1].text, sizeof pending->text, "display %s", arg);
         script_resume = now() + 0.3;
+    } else if (!strcmp(cmd, "mainmenu")) {       /* the app's main menu: "mainmenu" logs it, "mainmenu show|hide" the keyboard shortcuts (iPad: hold Command) */
+        if (sscanf(args, " %63[^; ]", arg) != 1) arg[0] = 0;
+        pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "mainmenu %s", arg);
+        script_resume = now() + 0.2;
     } else if (!strcmp(cmd, "closescene")) {     /* the user closes a window (iPad, multiple scenes): "closescene [SESSION-ID]" */
         if (sscanf(args, " %63[^; ]", arg) != 1) arg[0] = 0;
         pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "closescene %s", arg);
@@ -1631,6 +1652,15 @@ void isim_text_measure_markup(const char *markup, double maxw, int lines, int al
     *w = ceil((double)log.width / PANGO_SCALE); *h = ceil((double)log.height / PANGO_SCALE);
     g_object_unref(l);
 }
+/* how far the glyphs' ink reaches above the layout's top and below its bottom (tall scripts, stacked marks) */
+void isim_text_ink_markup(const char *markup, double maxw, int lines, int align, double spacing, double *above, double *below) {
+    measure_context();
+    PangoLayout *l = layout_markup(markup, maxw, lines, align, spacing);
+    PangoRectangle ink, log; pango_layout_get_extents(l, &ink, &log);
+    *above = fmax(0, ceil((double)(log.y - ink.y) / PANGO_SCALE));
+    *below = fmax(0, ceil((double)((ink.y + ink.height) - (log.y + log.height)) / PANGO_SCALE));
+    g_object_unref(l);
+}
 void isim_text_draw_markup(const char *markup, double x, double y, double w, int lines, int align, double spacing, const double *rgba) {
     PangoLayout *l = layout_markup(markup, w, lines, align, spacing);
     pango_cairo_update_context(cr, pctx);
@@ -1670,6 +1700,20 @@ void *isim_tl_create(const char *markup, double maxw, int align, double spacing,
         pango_attr_list_unref(al);
     }
     return l;
+}
+/* tab stops (NSTextTab): n positions from the layout's left edge, each aligned 0 left, 1 right, 2 center, 3 decimal;
+   Pango spaces the stops after the last one like the last two */
+void isim_tl_set_tabs(void *t, int n, const double *pos, const int *align) {
+    if (n <= 0) return;
+    PangoTabArray *ta = pango_tab_array_new(n, FALSE);
+    for (int i = 0; i < n; i++) {
+        int a = align[i];
+        pango_tab_array_set_tab(ta, i, a == 1 ? PANGO_TAB_RIGHT : a == 2 ? PANGO_TAB_CENTER : a == 3 ? PANGO_TAB_DECIMAL : PANGO_TAB_LEFT,
+                                (int)(fmax(0, pos[i]) * PANGO_SCALE));
+        if (a == 3) pango_tab_array_set_decimal_point(ta, i, '.');
+    }
+    pango_layout_set_tabs((PangoLayout *)t, ta);
+    pango_tab_array_free(ta);
 }
 void isim_tl_free(void *t) { if (t) g_object_unref((PangoLayout *)t); }
 void isim_tl_size(void *t, double *w, double *h) {
@@ -1930,7 +1974,7 @@ static const struct shim isim_table[] = {
     H(isim_pki_encrypt), H(isim_pki_decrypt), H(isim_pki_ecdh), H(isim_pki_cert_parse), H(isim_pki_key_der), H(isim_pki_trust), H(isim_pki_pkcs12),
     H(isim_set_orientation), H(isim_device_orientation),
     H(isim_gfx_offscreen_begin), H(isim_gfx_offscreen_snapshot), H(isim_gfx_offscreen_end), H(isim_gfx_offscreen_depth),
-    H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_tl_create), H(isim_tl_free), H(isim_tl_size), H(isim_tl_line_count), H(isim_tl_line), H(isim_tl_index_rect), H(isim_tl_index_at), H(isim_tl_draw), H(isim_text_draw_markup),
+    H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_text_ink_markup), H(isim_tl_create), H(isim_tl_free), H(isim_tl_size), H(isim_tl_line_count), H(isim_tl_line), H(isim_tl_index_rect), H(isim_tl_index_at), H(isim_tl_draw), H(isim_tl_set_tabs), H(isim_text_draw_markup),
     H(isim_regex_compile), H(isim_regex_free), H(isim_regex_capture_count), H(isim_regex_group_number), H(isim_regex_error_message), H(isim_regex_match),
     H(isim_media_probe), H(isim_media_open), H(isim_media_open_rate), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
     H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize), H(isim_tts_available), H(isim_tts_render),

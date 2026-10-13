@@ -17,5 +17,9 @@ NS_SWIFT_UI_ACTOR
 @property (readonly) id<UICoordinateSpace> coordinateSpace;
 @end
 UIKIT_EXTERN NSNotificationName const UIScreenBrightnessDidChangeNotification;
+/* isim: never posted (no screen recording or mirroring, the device screen has one mode) */
+UIKIT_EXTERN NSNotificationName const UIScreenModeDidChangeNotification;
+UIKIT_EXTERN NSNotificationName const UIScreenCapturedDidChangeNotification API_AVAILABLE(ios(11.0));
+UIKIT_EXTERN NSNotificationName const UIScreenReferenceDisplayModeStatusDidChangeNotification API_AVAILABLE(ios(17.0));
 UIKIT_EXTERN NSNotificationName const UIScreenDidConnectNotification, UIScreenDidDisconnectNotification;
 NS_ASSUME_NONNULL_END

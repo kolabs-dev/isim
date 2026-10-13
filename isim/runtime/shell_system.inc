@@ -37,6 +37,7 @@ static void sys_send_text(int i, const char *fmt, ...) {
     shell_forward(i, &e);
 }
 
+static void sys_protected_data(int available);
 /* start (or wake) an app in the background; url: an isim-private marker such as isim-bgtask:ID */
 static void sys_launch_background(const char *bundle, const char *exe, const char *url) {
     int i = shell_find(bundle);
@@ -1283,7 +1284,7 @@ static void nx_respond(const char *action, const char *text, int foreground) {
     fprintf(stderr, "isim shell: notification action %s on %s%s%s\n", action, it.id, text ? " with text: " : "", text ? text : "");
     nx.on = 0; nx_free_image();
     ov = OV_NONE;
-    if (foreground && locked) { locked = 0; fprintf(stderr, "isim shell: unlocked\n"); }
+    if (foreground && locked) { locked = 0; fprintf(stderr, "isim shell: unlocked\n"); sys_protected_data(1); }
     if (locked) ov = OV_LOCK;
     char msg[1024]; snprintf(msg, sizeof msg, "%s\x1f%s\x1f%s\x1f%s", it.record, it.id, action, text ? text : "");
     int i = shell_find(it.path);
@@ -1528,10 +1529,15 @@ static void sys_close(void) {
     }
     shell_show(active >= 0 ? active : 0);
 }
+/* protected data (UIApplication.isProtectedDataAvailable): unavailable while the device is locked */
+static void sys_protected_data(int available) {
+    for (int i = 1; i < nclients; i++) if (clients[i].alive) sys_send_text(i, "protected-data %d", available);
+}
 static void sys_lock(void) {
     if (locked) return;
     locked = 1; ov = OV_LOCK; ov_t0 = now(); nb.on = 0;
     if (active >= 0) shell_send(active, EV_BACKGROUND);       /* like iOS: the foreground app resigns and goes to the background */
+    sys_protected_data(0);
     fprintf(stderr, "isim shell: locked (iOS %d look)\n", sys_os());
     if (win_orient != 1) shell_apply_orient(1);
     sys_draw();
@@ -1542,6 +1548,7 @@ static void sys_unlock(void) {
     if (standby) { standby = 0; sb_clear(); shell_apply_orient(1); fprintf(stderr, "isim shell: StandBy off\n"); sys_send_text(0, "standby off"); }
     locked = 0; ov = OV_NONE;
     fprintf(stderr, "isim shell: unlocked\n");
+    sys_protected_data(1);
     if (active >= 0) shell_send(active, EV_FOREGROUND);
     shell_show(active >= 0 ? active : 0);
 }
@@ -1572,7 +1579,7 @@ static void nc_open(int idx) {
     memmove(&ncl[idx], &ncl[idx + 1], (nnc - idx - 1) * sizeof *ncl); nnc--;
     int i = shell_find(n.path);
     fprintf(stderr, "isim shell: opened notification %s from %s\n", n.id, locked ? "the lock screen" : ov == OV_NX ? "an expanded notification" : "Notification Center");
-    if (locked) { locked = 0; fprintf(stderr, "isim shell: unlocked\n"); }
+    if (locked) { locked = 0; fprintf(stderr, "isim shell: unlocked\n"); sys_protected_data(1); }
     ov = OV_NONE; nx.on = 0;
     if (i < 0 && n.exe[0]) {                                   /* not running: launch it with the response (or the remote notification) */
         char url[1300];

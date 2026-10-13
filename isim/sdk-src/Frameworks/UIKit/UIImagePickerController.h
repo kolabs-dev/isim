@@ -78,4 +78,23 @@ UIKIT_EXTERN BOOL UIVideoAtPathIsCompatibleWithSavedPhotosAlbum(NSString *videoP
 /* completionSelector: - (void)video:(NSString *)videoPath didFinishSavingWithError:(NSError *)error contextInfo:(void *)contextInfo */
 UIKIT_EXTERN void UISaveVideoAtPathToSavedPhotosAlbum(NSString *videoPath, id _Nullable completionTarget, SEL _Nullable completionSelector, void *_Nullable contextInfo);
 
+/* the video trimmer (iOS 3.1). isim (adapted): no trimming or re-encoding; the editor shows the movie's name with
+   Cancel and Save, and Save hands back a copy of the movie in the temporary directory */
+@class UIVideoEditorController;
+NS_SWIFT_UI_ACTOR
+@protocol UIVideoEditorControllerDelegate <NSObject>
+@optional
+- (void)videoEditorController:(UIVideoEditorController *)editor didSaveEditedVideoToPath:(NSString *)editedVideoPath;
+- (void)videoEditorController:(UIVideoEditorController *)editor didFailWithError:(NSError *)error;
+- (void)videoEditorControllerDidCancel:(UIVideoEditorController *)editor;
+@end
+NS_SWIFT_UI_ACTOR
+@interface UIVideoEditorController : UINavigationController
+/* a movie file isim can hand back (mov, mp4, m4v) */
++ (BOOL)canEditVideoAtPath:(NSString *)videoPath;
+@property (nullable, nonatomic, weak) id<UINavigationControllerDelegate, UIVideoEditorControllerDelegate> delegate;
+@property (nonatomic, copy) NSString *videoPath;
+@property (nonatomic) NSTimeInterval videoMaximumDuration;            /* default 600 (stored) */
+@property (nonatomic) UIImagePickerControllerQualityType videoQuality;  /* default medium (stored) */
+@end
 NS_ASSUME_NONNULL_END

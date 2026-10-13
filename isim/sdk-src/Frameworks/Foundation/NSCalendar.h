@@ -52,6 +52,22 @@ typedef NS_OPTIONS(NSUInteger, NSCalendarUnit) {
 @property (readonly, copy) NSString *PMSymbol;
 @end
 
+/* a span of time: a start date and a duration (Swift: DateInterval) */
+@interface NSDateInterval : NSObject <NSCopying, NSSecureCoding>
+@property (readonly, copy) NSDate *startDate;
+@property (readonly, copy) NSDate *endDate;
+@property (readonly) NSTimeInterval duration;
+- (instancetype)init;
+- (instancetype)initWithStartDate:(NSDate *)startDate duration:(NSTimeInterval)duration NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithStartDate:(NSDate *)startDate endDate:(NSDate *)endDate;
+- (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
+- (NSComparisonResult)compare:(NSDateInterval *)dateInterval;
+- (BOOL)isEqualToDateInterval:(NSDateInterval *)dateInterval;
+- (BOOL)intersectsDateInterval:(NSDateInterval *)dateInterval;
+- (nullable NSDateInterval *)intersectionWithDateInterval:(NSDateInterval *)dateInterval;
+- (BOOL)containsDate:(NSDate *)date;
+@end
+
 enum { NSDateComponentUndefined = NSIntegerMax };
 @interface NSDateComponents : NSObject <NSCopying>
 @property (nullable, copy) NSCalendar *calendar;

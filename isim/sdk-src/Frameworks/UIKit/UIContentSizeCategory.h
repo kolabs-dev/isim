@@ -50,16 +50,23 @@ NS_SWIFT_UI_ACTOR
 @end
 
 @protocol UILargeContentViewerInteractionDelegate;
+@class UIViewController, UIGestureRecognizer;
 NS_SWIFT_UI_ACTOR
 @interface UILargeContentViewerInteraction : NSObject <UIInteraction>
 - (instancetype)initWithDelegate:(nullable id<UILargeContentViewerInteractionDelegate>)delegate;
 @property (nonatomic, nullable, weak, readonly) id<UILargeContentViewerInteractionDelegate> delegate;
 @property (class, nonatomic, readonly, getter=isEnabled) BOOL enabled;
+/* the long press that shows the viewer (for failure / simultaneous recognition with other recognizers) */
+@property (nonatomic, readonly) UIGestureRecognizer *gestureRecognizerForExclusionRelationship;
 @end
+/* posted when the viewer turns on or off (the text size enters or leaves the accessibility sizes) */
+UIKIT_EXTERN NSNotificationName const UILargeContentViewerInteractionEnabledStatusDidChangeNotification NS_SWIFT_NAME(UILargeContentViewerInteraction.enabledStatusDidChangeNotification);
 NS_SWIFT_UI_ACTOR
 @protocol UILargeContentViewerInteractionDelegate <NSObject>
 @optional
 - (void)largeContentViewerInteraction:(UILargeContentViewerInteraction *)interaction didEndOnItem:(nullable id<UILargeContentViewerItem>)item atPoint:(CGPoint)point;
 - (nullable id<UILargeContentViewerItem>)largeContentViewerInteraction:(UILargeContentViewerInteraction *)interaction itemAtPoint:(CGPoint)point;
+/* the view controller whose view shows the viewer (centred); default: a system window over the app */
+- (UIViewController *)viewControllerForLargeContentViewerInteraction:(UILargeContentViewerInteraction *)interaction NS_SWIFT_NAME(viewController(for:));
 @end
 NS_ASSUME_NONNULL_END

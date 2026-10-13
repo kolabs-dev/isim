@@ -148,7 +148,103 @@ static NSData *box(vfl_pred p) { return [NSData dataWithBytes:&p length:sizeof p
 @end
 
 /* ================= keyboard layout guide ================= */
-@implementation UITrackingLayoutGuide @end
+/* tracked constraints: the keyboard guide is near the bottom edge (the keyboard is docked) and away from the others */
+@implementation UITrackingLayoutGuide {
+    NSMutableArray<NSArray *> *_tracked;      /* [constraints, @(edge), @(near)] */
+}
+- (NSDirectionalRectEdge)_isimNearEdges { return NSDirectionalRectEdgeBottom; }
+- (BOOL)_isimActive:(NSDirectionalRectEdge)edge near:(BOOL)near {
+    NSDirectionalRectEdge n = [self _isimNearEdges], a = NSDirectionalRectEdgeAll & ~n;
+    return edge && ((near ? n : a) & edge) == edge;
+}
+- (void)_isimTrack:(NSArray<NSLayoutConstraint *> *)cs edge:(NSDirectionalRectEdge)edge near:(BOOL)near {
+    if (!_tracked) _tracked = [NSMutableArray array];
+    for (NSInteger i = (NSInteger)_tracked.count - 1; i >= 0; i--) {          /* replaces the constraints for that edge */
+        NSArray *t = _tracked[i];
+        if ([t[1] unsignedIntegerValue] == edge && [t[2] boolValue] == near) { [NSLayoutConstraint deactivateConstraints:t[0]]; [_tracked removeObjectAtIndex:i]; }
+    }
+    if (!cs.count) return;
+    [_tracked addObject:@[ [cs copy], @(edge), @(near) ]];
+    for (NSLayoutConstraint *c in cs) c.active = [self _isimActive:edge near:near];
+}
+- (NSArray *)_isimTracked:(NSDirectionalRectEdge)edge near:(BOOL)near {
+    for (NSArray *t in _tracked) if ([t[1] unsignedIntegerValue] == edge && [t[2] boolValue] == near) return t[0];
+    return @[];
+}
+- (void)setConstraints:(NSArray<NSLayoutConstraint *> *)cs activeWhenNearEdge:(NSDirectionalRectEdge)edge { [self _isimTrack:cs edge:edge near:YES]; }
+- (void)setConstraints:(NSArray<NSLayoutConstraint *> *)cs activeWhenAwayFromEdge:(NSDirectionalRectEdge)edge { [self _isimTrack:cs edge:edge near:NO]; }
+- (NSArray<NSLayoutConstraint *> *)constraintsActiveWhenNearEdge:(NSDirectionalRectEdge)edge { return [self _isimTracked:edge near:YES]; }
+- (NSArray<NSLayoutConstraint *> *)constraintsActiveWhenAwayFromEdge:(NSDirectionalRectEdge)edge { return [self _isimTracked:edge near:NO]; }
+- (void)removeAllTrackedConstraints {
+    for (NSArray *t in _tracked) [NSLayoutConstraint deactivateConstraints:t[0]];
+    [_tracked removeAllObjects];
+}
+@end
+
+/* ================= anchors, constraints and guides ================= */
+@interface NSLayoutConstraint (IsimActive)
++ (NSArray<NSLayoutConstraint *> *)_isim_active;
+@end
+static char kArchived;
+@implementation NSLayoutConstraint (NSLayoutConstraintArchiving)
+- (BOOL)shouldBeArchived { return [objc_getAssociatedObject(self, &kArchived) boolValue]; }
+- (void)setShouldBeArchived:(BOOL)b { objc_setAssociatedObject(self, &kArchived, @(b), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+@end
+/* the standard spacing between two anchors (8 points, as constraintEqualToSystemSpacing… uses) */
+static NSLayoutConstraint *spacing(NSLayoutAnchor *a, NSLayoutAnchor *b, NSLayoutRelation r, CGFloat m) {
+    return [NSLayoutConstraint constraintWithItem:a.item attribute:[[a valueForKey:@"attr"] integerValue] relatedBy:r toItem:b.item
+                                       attribute:[[b valueForKey:@"attr"] integerValue] multiplier:1 constant:8 * m];
+}
+static UIView *view_of(id item) { return [item isKindOfClass:[UIView class]] ? item : [item isKindOfClass:[UILayoutGuide class]] ? [item owningView] : nil; }
+/* the nearest view holding both items (a view and its subview: the view) */
+static UIView *common_view(id a, id b) {
+    UIView *va = view_of(a), *vb = view_of(b);
+    if (!va) return vb.superview ?: vb; if (!vb) return va.superview ?: va;
+    for (UIView *x = va; x; x = x.superview) if ([vb isDescendantOfView:x]) return x;
+    return va.superview;
+}
+/* a spacer guide from one anchor to the other; its width (height) is the offset */
+static NSLayoutDimension *offset(NSLayoutAnchor *a, NSLayoutAnchor *b, BOOL x) {
+    UIView *host = common_view(a.item, b.item);
+    UILayoutGuide *g = [UILayoutGuide new];
+    g.identifier = @"isim-anchor-offset";
+    [host addLayoutGuide:g];
+    NSLayoutAttribute start = x ? NSLayoutAttributeLeft : NSLayoutAttributeTop, end = x ? NSLayoutAttributeRight : NSLayoutAttributeBottom;
+    [NSLayoutConstraint activateConstraints:@[
+        [NSLayoutConstraint constraintWithItem:g attribute:start relatedBy:NSLayoutRelationEqual toItem:a.item attribute:[[a valueForKey:@"attr"] integerValue] multiplier:1 constant:0],
+        [NSLayoutConstraint constraintWithItem:g attribute:end relatedBy:NSLayoutRelationEqual toItem:b.item attribute:[[b valueForKey:@"attr"] integerValue] multiplier:1 constant:0],
+        /* the cross axis follows the host (the guide must be placed in both axes) */
+        [NSLayoutConstraint constraintWithItem:g attribute:x ? NSLayoutAttributeTop : NSLayoutAttributeLeft relatedBy:NSLayoutRelationEqual toItem:host attribute:x ? NSLayoutAttributeTop : NSLayoutAttributeLeft multiplier:1 constant:0],
+        [NSLayoutConstraint constraintWithItem:g attribute:x ? NSLayoutAttributeHeight : NSLayoutAttributeWidth relatedBy:NSLayoutRelationEqual toItem:nil attribute:NSLayoutAttributeNotAnAttribute multiplier:1 constant:0] ]];
+    return x ? g.widthAnchor : g.heightAnchor;
+}
+@implementation NSLayoutXAxisAnchor (NSLayoutAnchorExtras)
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToSystemSpacingAfterAnchor:(NSLayoutXAxisAnchor *)a multiplier:(CGFloat)m { return spacing(self, a, NSLayoutRelationGreaterThanOrEqual, m); }
+- (NSLayoutConstraint *)constraintLessThanOrEqualToSystemSpacingAfterAnchor:(NSLayoutXAxisAnchor *)a multiplier:(CGFloat)m { return spacing(self, a, NSLayoutRelationLessThanOrEqual, m); }
+- (NSLayoutDimension *)anchorWithOffsetToAnchor:(NSLayoutXAxisAnchor *)o { return offset(self, o, YES); }
+@end
+@implementation NSLayoutYAxisAnchor (NSLayoutAnchorExtras)
+- (NSLayoutConstraint *)constraintGreaterThanOrEqualToSystemSpacingBelowAnchor:(NSLayoutYAxisAnchor *)a multiplier:(CGFloat)m { return spacing(self, a, NSLayoutRelationGreaterThanOrEqual, m); }
+- (NSLayoutConstraint *)constraintLessThanOrEqualToSystemSpacingBelowAnchor:(NSLayoutYAxisAnchor *)a multiplier:(CGFloat)m { return spacing(self, a, NSLayoutRelationLessThanOrEqual, m); }
+- (NSLayoutDimension *)anchorWithOffsetToAnchor:(NSLayoutYAxisAnchor *)o { return offset(self, o, NO); }
+@end
+@implementation UILayoutGuide (UILayoutGuideDebugging)
+- (NSArray<NSLayoutConstraint *> *)constraintsAffectingLayoutForAxis:(UILayoutConstraintAxis)axis {
+    NSMutableArray *out = [NSMutableArray array];
+    BOOL (^horizontal)(NSLayoutAttribute) = ^BOOL(NSLayoutAttribute a) {
+        return a == NSLayoutAttributeLeft || a == NSLayoutAttributeRight || a == NSLayoutAttributeLeading || a == NSLayoutAttributeTrailing
+            || a == NSLayoutAttributeWidth || a == NSLayoutAttributeCenterX || a == NSLayoutAttributeLeftMargin || a == NSLayoutAttributeRightMargin
+            || a == NSLayoutAttributeLeadingMargin || a == NSLayoutAttributeTrailingMargin || a == NSLayoutAttributeCenterXWithinMargins;
+    };
+    for (NSLayoutConstraint *c in [NSLayoutConstraint _isim_active]) {
+        NSLayoutAttribute at = c.firstItem == self ? c.firstAttribute : c.secondItem == self ? c.secondAttribute : NSLayoutAttributeNotAnAttribute;
+        if (at == NSLayoutAttributeNotAnAttribute) continue;
+        if (horizontal(at) == (axis == UILayoutConstraintAxisHorizontal)) [out addObject:c];
+    }
+    return out;
+}
+- (BOOL)hasAmbiguousLayout { return NO; }        /* isim's solver settles every guide */
+@end
 @implementation UIKeyboardLayoutGuide
 - (instancetype)init { if ((self = [super init])) { _usesBottomSafeArea = YES; } return self; }
 @end

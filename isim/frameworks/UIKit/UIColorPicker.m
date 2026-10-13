@@ -11,6 +11,7 @@
  * color, a long press removes it. UIColorWell draws the rainbow ring around its color, presents a picker when tapped
  * and sends .valueChanged as the color changes. */
 #import "UIKitPrivate.h"
+#import <objc/runtime.h>
 #import <UIKit/UIColorPickerViewController.h>
 #include <math.h>
 
@@ -178,6 +179,7 @@ static UIColor *spectrum_at(double x, double y) {            /* unit coordinates
     _title.frame = CGRectMake(60, 14, W - 120, 24);
     _close.frame = CGRectMake(W - m - 30, 11, 30, 30);
     _eyedropper.frame = CGRectMake(m - 6, 7, 38, 38);
+    _eyedropper.hidden = !self.supportsEyedropper;          /* iOS 26 */
     _scroll.frame = CGRectMake(0, 52, W, MAX(0, b.height - 52));
     CGFloat y = 4;
     _mode.frame = CGRectMake(m, y, cw, 32); y += 32 + 16;
@@ -381,6 +383,7 @@ static UIColor *color_from_saved(NSString *s) {
     UIColorPickerViewController *p = [UIColorPickerViewController new];
     p.title = _title;
     p.supportsAlpha = _supportsAlpha;
+    p.supportsEyedropper = self.supportsEyedropper; p.maximumLinearExposure = self.maximumLinearExposure;
     if (_selectedColor) p.selectedColor = _selectedColor;
     p.delegate = self;
     [[self _isim_presenter] presentViewController:p animated:YES completion:nil];
@@ -389,4 +392,18 @@ static UIColor *color_from_saved(NSString *s) {
     self.selectedColor = c;
     [self sendActionsForControlEvents:UIControlEventValueChanged];
 }
+@end
+
+/* iOS 26 eyedropper switch and maximum exposure (stored outside the instances) */
+static char kNoEyedropper, kExposure;
+#define COLOR_EXTRAS \
+- (BOOL)supportsEyedropper { return ![objc_getAssociatedObject(self, &kNoEyedropper) boolValue]; } \
+- (void)setSupportsEyedropper:(BOOL)s { objc_setAssociatedObject(self, &kNoEyedropper, @(!s), OBJC_ASSOCIATION_RETAIN_NONATOMIC); if ([self respondsToSelector:@selector(viewIfLoaded)]) [[(id)self viewIfLoaded] setNeedsLayout]; } \
+- (CGFloat)maximumLinearExposure { NSNumber *n = objc_getAssociatedObject(self, &kExposure); return n ? n.doubleValue : 1; } \
+- (void)setMaximumLinearExposure:(CGFloat)e { objc_setAssociatedObject(self, &kExposure, @(fmax(1, e)), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+@implementation UIColorPickerViewController (UIColorPickerViewControllerExtras)
+COLOR_EXTRAS
+@end
+@implementation UIColorWell (UIColorWellExtras)
+COLOR_EXTRAS
 @end

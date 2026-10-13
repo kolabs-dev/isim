@@ -173,7 +173,9 @@ static void adjust_fonts(UIView *v) {
 /* ================= stored accessibility properties (the basic ones live in UIInput.m) ================= */
 static char k_frame, k_path, k_act, k_lang, k_group, k_responds, k_nav, k_inputlabels, k_elements, k_actions, k_rotors;
 @implementation NSObject (UIAccessibilityExtras)
+/* an iOS 17 block (UIAccessibilityExtras.m) answers before the stored value */
 - (CGRect)accessibilityFrame {
+    AXRectReturnBlock b = self.accessibilityFrameBlock; if (b) return b();
     NSValue *v = objc_getAssociatedObject(self, &k_frame);
     if (v) return v.CGRectValue;
     if ([self isKindOfClass:[UIView class]]) {
@@ -186,40 +188,41 @@ static char k_frame, k_path, k_act, k_lang, k_group, k_responds, k_nav, k_inputl
     return CGRectZero;
 }
 - (void)setAccessibilityFrame:(CGRect)r { objc_setAssociatedObject(self, &k_frame, [NSValue valueWithCGRect:r], OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
-- (UIBezierPath *)accessibilityPath { return objc_getAssociatedObject(self, &k_path); }
+- (UIBezierPath *)accessibilityPath { AXPathReturnBlock b = self.accessibilityPathBlock; return b ? b() : objc_getAssociatedObject(self, &k_path); }
 - (void)setAccessibilityPath:(UIBezierPath *)p { objc_setAssociatedObject(self, &k_path, p, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 - (CGPoint)accessibilityActivationPoint {
+    AXPointReturnBlock b = self.accessibilityActivationPointBlock; if (b) return b();
     NSValue *v = objc_getAssociatedObject(self, &k_act);
     if (v) return v.CGPointValue;
     CGRect f = self.accessibilityFrame; return CGPointMake(CGRectGetMidX(f), CGRectGetMidY(f));
 }
 - (void)setAccessibilityActivationPoint:(CGPoint)p { objc_setAssociatedObject(self, &k_act, [NSValue valueWithCGPoint:p], OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
-- (NSString *)accessibilityLanguage { return objc_getAssociatedObject(self, &k_lang); }
+- (NSString *)accessibilityLanguage { AXStringReturnBlock b = self.accessibilityLanguageBlock; return b ? b() : objc_getAssociatedObject(self, &k_lang); }
 - (void)setAccessibilityLanguage:(NSString *)l { objc_setAssociatedObject(self, &k_lang, l, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
-- (BOOL)shouldGroupAccessibilityChildren { return [objc_getAssociatedObject(self, &k_group) boolValue]; }
+- (BOOL)shouldGroupAccessibilityChildren { AXBoolReturnBlock b = self.accessibilityShouldGroupAccessibilityChildrenBlock; return b ? b() : [objc_getAssociatedObject(self, &k_group) boolValue]; }
 - (void)setShouldGroupAccessibilityChildren:(BOOL)b { objc_setAssociatedObject(self, &k_group, @(b), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
-- (BOOL)accessibilityRespondsToUserInteraction { NSNumber *n = objc_getAssociatedObject(self, &k_responds); return n ? n.boolValue : [self isKindOfClass:[UIControl class]]; }
+- (BOOL)accessibilityRespondsToUserInteraction { AXBoolReturnBlock b = self.accessibilityRespondsToUserInteractionBlock; if (b) return b(); NSNumber *n = objc_getAssociatedObject(self, &k_responds); return n ? n.boolValue : [self isKindOfClass:[UIControl class]]; }
 - (void)setAccessibilityRespondsToUserInteraction:(BOOL)b { objc_setAssociatedObject(self, &k_responds, @(b), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
-- (UIAccessibilityNavigationStyle)accessibilityNavigationStyle { return [objc_getAssociatedObject(self, &k_nav) integerValue]; }
+- (UIAccessibilityNavigationStyle)accessibilityNavigationStyle { AXNavigationStyleReturnBlock b = self.accessibilityNavigationStyleBlock; return b ? b() : [objc_getAssociatedObject(self, &k_nav) integerValue]; }
 - (void)setAccessibilityNavigationStyle:(UIAccessibilityNavigationStyle)s { objc_setAssociatedObject(self, &k_nav, @(s), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
-- (NSArray<NSString *> *)accessibilityUserInputLabels { return objc_getAssociatedObject(self, &k_inputlabels); }
+- (NSArray<NSString *> *)accessibilityUserInputLabels { AXStringArrayReturnBlock b = self.accessibilityUserInputLabelsBlock; return b ? b() : objc_getAssociatedObject(self, &k_inputlabels); }
 - (void)setAccessibilityUserInputLabels:(NSArray<NSString *> *)a { objc_setAssociatedObject(self, &k_inputlabels, a, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 /* containers */
-- (NSArray *)accessibilityElements { return objc_getAssociatedObject(self, &k_elements); }
+- (NSArray *)accessibilityElements { AXArrayReturnBlock b = self.accessibilityElementsBlock; return b ? b() : objc_getAssociatedObject(self, &k_elements); }
 - (void)setAccessibilityElements:(NSArray *)a { objc_setAssociatedObject(self, &k_elements, a, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 - (NSInteger)accessibilityElementCount { return (NSInteger)self.accessibilityElements.count; }
 - (id)accessibilityElementAtIndex:(NSInteger)i { NSArray *a = self.accessibilityElements; return i >= 0 && i < (NSInteger)a.count ? a[(NSUInteger)i] : nil; }
 - (NSInteger)indexOfAccessibilityElement:(id)e { NSUInteger i = [self.accessibilityElements indexOfObject:e]; return i == NSNotFound ? NSNotFound : (NSInteger)i; }
 /* actions */
-- (BOOL)accessibilityActivate { return NO; }
-- (void)accessibilityIncrement {}
-- (void)accessibilityDecrement {}
+- (BOOL)accessibilityActivate { AXBoolReturnBlock b = self.accessibilityActivateBlock; return b ? b() : NO; }
+- (void)accessibilityIncrement { AXVoidReturnBlock b = self.accessibilityIncrementBlock; if (b) b(); }
+- (void)accessibilityDecrement { AXVoidReturnBlock b = self.accessibilityDecrementBlock; if (b) b(); }
 - (BOOL)accessibilityScroll:(UIAccessibilityScrollDirection)d { return NO; }
-- (BOOL)accessibilityPerformEscape { return NO; }
-- (BOOL)accessibilityPerformMagicTap { return NO; }
-- (NSArray *)accessibilityCustomActions { return objc_getAssociatedObject(self, &k_actions); }
+- (BOOL)accessibilityPerformEscape { AXBoolReturnBlock b = self.accessibilityPerformEscapeBlock; return b ? b() : NO; }
+- (BOOL)accessibilityPerformMagicTap { AXBoolReturnBlock b = self.accessibilityMagicTapBlock; return b ? b() : NO; }
+- (NSArray *)accessibilityCustomActions { AXCustomActionsReturnBlock b = self.accessibilityCustomActionsBlock; return b ? b() : objc_getAssociatedObject(self, &k_actions); }
 - (void)setAccessibilityCustomActions:(NSArray *)a { objc_setAssociatedObject(self, &k_actions, a, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
-- (NSArray *)accessibilityCustomRotors { return objc_getAssociatedObject(self, &k_rotors); }
+- (NSArray *)accessibilityCustomRotors { AXCustomRotorsReturnBlock b = self.accessibilityCustomRotorsBlock; return b ? b() : objc_getAssociatedObject(self, &k_rotors); }
 - (void)setAccessibilityCustomRotors:(NSArray *)a { objc_setAssociatedObject(self, &k_rotors, a, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 - (void)accessibilityElementDidBecomeFocused {}
 - (void)accessibilityElementDidLoseFocus {}
@@ -280,9 +283,19 @@ static BOOL is_element(id e) {
     return [super accessibilityFrame];
 }
 @end
-@implementation UIAccessibilityCustomAction
+@implementation UIAccessibilityCustomAction { NSAttributedString *_isimAttributedName; }
+@synthesize image = _image, category = _category;
 - (instancetype)initWithName:(NSString *)n target:(id)t selector:(SEL)s { if ((self = [super init])) { _name = [n copy]; _target = t; _selector = s; } return self; }
 - (instancetype)initWithName:(NSString *)n actionHandler:(UIAccessibilityCustomActionHandler)h { if ((self = [super init])) { _name = [n copy]; _actionHandler = [h copy]; } return self; }
+- (instancetype)initWithAttributedName:(NSAttributedString *)a target:(id)t selector:(SEL)s { if ((self = [self initWithName:a.string target:t selector:s])) _isimAttributedName = [a copy]; return self; }
+- (instancetype)initWithAttributedName:(NSAttributedString *)a actionHandler:(UIAccessibilityCustomActionHandler)h { if ((self = [self initWithName:a.string actionHandler:h])) _isimAttributedName = [a copy]; return self; }
+- (instancetype)initWithName:(NSString *)n image:(UIImage *)i target:(id)t selector:(SEL)s { if ((self = [self initWithName:n target:t selector:s])) _image = i; return self; }
+- (instancetype)initWithName:(NSString *)n image:(UIImage *)i actionHandler:(UIAccessibilityCustomActionHandler)h { if ((self = [self initWithName:n actionHandler:h])) _image = i; return self; }
+- (instancetype)initWithAttributedName:(NSAttributedString *)a image:(UIImage *)i target:(id)t selector:(SEL)s { if ((self = [self initWithAttributedName:a target:t selector:s])) _image = i; return self; }
+- (instancetype)initWithAttributedName:(NSAttributedString *)a image:(UIImage *)i actionHandler:(UIAccessibilityCustomActionHandler)h { if ((self = [self initWithAttributedName:a actionHandler:h])) _image = i; return self; }
+/* the attributed name and the name are one value */
+- (NSAttributedString *)attributedName { return _isimAttributedName && [_isimAttributedName.string isEqualToString:_name ?: @""] ? _isimAttributedName : [[NSAttributedString alloc] initWithString:_name ?: @""]; }
+- (void)setAttributedName:(NSAttributedString *)a { _isimAttributedName = [a copy]; _name = [a.string copy]; }
 - (BOOL)_isim_perform {
     if (_actionHandler) return _actionHandler(self);
     id t = _target;
@@ -296,8 +309,22 @@ static BOOL is_element(id e) {
 @implementation UIAccessibilityCustomRotorItemResult
 - (instancetype)initWithTargetElement:(id<NSObject>)e targetRange:(UITextRange *)r { if ((self = [super init])) { _targetElement = e; _targetRange = r; } return self; }
 @end
-@implementation UIAccessibilityCustomRotor
+static NSString *system_rotor_name(UIAccessibilityCustomSystemRotorType t) {
+    static NSString *const names[] = { nil, @"Links", @"Visited Links", @"Headings", @"Headings Level 1", @"Headings Level 2", @"Headings Level 3",
+        @"Headings Level 4", @"Headings Level 5", @"Headings Level 6", @"Bold Text", @"Italic Text", @"Underlined Text", @"Misspelled Words",
+        @"Images", @"Text Fields", @"Tables", @"Lists", @"Landmarks" };
+    return t > 0 && t <= UIAccessibilityCustomSystemRotorTypeLandmark ? names[t] : nil;
+}
+@implementation UIAccessibilityCustomRotor { NSAttributedString *_isimAttributedName; }
 - (instancetype)initWithName:(NSString *)n itemSearchBlock:(UIAccessibilityCustomRotorSearch)b { if ((self = [super init])) { _name = [n copy]; _itemSearchBlock = [b copy]; } return self; }
+- (instancetype)initWithAttributedName:(NSAttributedString *)a itemSearchBlock:(UIAccessibilityCustomRotorSearch)b { if ((self = [self initWithName:a.string itemSearchBlock:b])) _isimAttributedName = [a copy]; return self; }
+/* a system type rotor stands in for VoiceOver's own one: it has that rotor's name */
+- (instancetype)initWithSystemType:(UIAccessibilityCustomSystemRotorType)t itemSearchBlock:(UIAccessibilityCustomRotorSearch)b {
+    if ((self = [self initWithName:system_rotor_name(t) ?: @"" itemSearchBlock:b])) _systemRotorType = t;
+    return self;
+}
+- (NSAttributedString *)attributedName { return _isimAttributedName && [_isimAttributedName.string isEqualToString:_name ?: @""] ? _isimAttributedName : [[NSAttributedString alloc] initWithString:_name ?: @""]; }
+- (void)setAttributedName:(NSAttributedString *)a { _isimAttributedName = [a copy]; _name = [a.string copy]; }
 @end
 
 /* ================= the accessibility tree ================= */
@@ -366,17 +393,45 @@ static NSString *trait_words(id e, UIAccessibilityTraits t) {
     if (t & UIAccessibilityTraitToggleButton) [w addObject:@"Switch button"];
     else if (t & UIAccessibilityTraitButton) [w addObject:@"Button"];
     if (t & UIAccessibilityTraitLink) [w addObject:@"Link"];
-    if (t & UIAccessibilityTraitHeader) [w addObject:@"Heading"];
+    if (t & UIAccessibilityTraitHeader) {
+        /* a heading level from the attributed label (UIAccessibilityTextAttributeHeadingLevel) */
+        NSAttributedString *a = [e accessibilityAttributedLabel];
+        id lvl = a.length ? [a attribute:UIAccessibilityTextAttributeHeadingLevel atIndex:0 effectiveRange:NULL] : nil;
+        [w addObject:[lvl integerValue] > 0 ? [NSString stringWithFormat:@"Heading level %ld", (long)[lvl integerValue]] : @"Heading"];
+    }
     if (t & UIAccessibilityTraitSearchField) [w addObject:@"Search Field"];
     else if ([e isKindOfClass:[UITextField class]] || [e isKindOfClass:[UITextView class]]) [w addObject:@"Text Field"];
     if (t & UIAccessibilityTraitImage) [w addObject:@"Image"];
     if (t & UIAccessibilityTraitAdjustable) [w addObject:@"Adjustable"];
     if (t & UIAccessibilityTraitTabBar) [w addObject:@"Tab Bar"];
     if (t & UIAccessibilityTraitNotEnabled) [w addObject:@"Dimmed"];
+    if (@available(iOS 18.0, *)) {
+        UIAccessibilityExpandedStatus x = [e accessibilityExpandedStatus];
+        if (x == UIAccessibilityExpandedStatusExpanded) [w addObject:@"Expanded"]; else if (x == UIAccessibilityExpandedStatusCollapsed) [w addObject:@"Collapsed"];
+    }
+    if ([e conformsToProtocol:@protocol(UIAccessibilityContainerDataTableCell)] || ([e respondsToSelector:@selector(accessibilityRowRange)] && [e respondsToSelector:@selector(accessibilityColumnRange)])) {
+        NSRange r = [(id<UIAccessibilityContainerDataTableCell>)e accessibilityRowRange], c = [(id<UIAccessibilityContainerDataTableCell>)e accessibilityColumnRange];
+        if (r.location != NSNotFound && c.location != NSNotFound) [w addObject:[NSString stringWithFormat:@"Row %lu, Column %lu", (unsigned long)r.location + 1, (unsigned long)c.location + 1]];
+    }
     return [w componentsJoinedByString:@", "];
+}
+/* UIAccessibilitySpeechAttributeSpellOut: the range is read letter by letter */
+static NSString *spoken(NSAttributedString *a) {
+    if (!a.length) return a.string;
+    NSMutableString *out = [NSMutableString string];
+    [a enumerateAttribute:UIAccessibilitySpeechAttributeSpellOut inRange:NSMakeRange(0, a.length) options:0 usingBlock:^(id v, NSRange r, BOOL *stop) {
+        NSString *part = [a.string substringWithRange:r];
+        if (![v boolValue]) { [out appendString:part]; return; }
+        NSMutableArray *letters = [NSMutableArray array];
+        [part enumerateSubstringsInRange:NSMakeRange(0, part.length) options:NSStringEnumerationByComposedCharacterSequences usingBlock:^(NSString *c, NSRange cr, NSRange er, BOOL *st) {
+            if (![c isEqualToString:@" "]) [letters addObject:c]; }];
+        [out appendString:[letters componentsJoinedByString:@" "]];
+    }];
+    return out;
 }
 static NSString *label_of(id e) {
     NSString *l = [e accessibilityLabel];
+    if (l.length && [e respondsToSelector:@selector(accessibilityAttributedLabel)]) l = spoken([e accessibilityAttributedLabel]) ?: l;
     if (!l.length && [e isKindOfClass:[UITextField class]]) l = ((UITextField *)e).placeholder;
     if (!l.length && [e isKindOfClass:[UIImageView class]]) l = nil;
     return l;
@@ -445,6 +500,7 @@ static __weak id vo_focus;
 static __strong id vo_focus_strong __attribute__((unused));      /* non-view elements (UIAccessibilityElement) are owned by their containers */
 static BOOL vo_was_running;
 
+id isim_ui_voiceover_focus(void) { return vo_focus; }
 @implementation NSObject (UIAccessibilityFocusState)
 - (BOOL)accessibilityElementIsFocused { return UIAccessibilityIsVoiceOverRunning() && vo_focus == self; }
 @end
@@ -489,12 +545,18 @@ static void set_running(BOOL on) {
     else { focus(nil, NO); vo_window.hidden = YES; NSLog(@"isim: VoiceOver off"); isim_ui_set_needs_display(); }
 }
 extern void isim_ui_synthesize_tap(CGPoint screenPoint);
+/* an element's iOS 17 action blocks answer before its class's methods */
+static BOOL do_activate(id e) { AXBoolReturnBlock b = [e accessibilityActivateBlock]; return b ? b() : [e accessibilityActivate]; }
+static void do_adjust(id e, BOOL up) {
+    AXVoidReturnBlock b = up ? [e accessibilityIncrementBlock] : [e accessibilityDecrementBlock];
+    if (b) b(); else if (up) [e accessibilityIncrement]; else [e accessibilityDecrement];
+}
 static void activate(void) {
     id e = vo_focus;
     if (!e) return;
     BOOL (^handler)(void) = objc_getAssociatedObject(e, &k_act_handler);
     if (handler && handler()) { NSLog(@"isim: VoiceOver activated %@ (action)", label_of(e) ?: NSStringFromClass([e class])); }
-    else if ([e accessibilityActivate]) { NSLog(@"isim: VoiceOver activated %@ (accessibilityActivate)", label_of(e) ?: NSStringFromClass([e class])); }
+    else if (do_activate(e)) { NSLog(@"isim: VoiceOver activated %@ (accessibilityActivate)", label_of(e) ?: NSStringFromClass([e class])); }
     else {
         CGPoint p = [e accessibilityActivationPoint];
         NSLog(@"isim: VoiceOver activated %@ (tap at %.0f,%.0f)", label_of(e) ?: NSStringFromClass([e class]), p.x, p.y);
@@ -520,7 +582,9 @@ static NSArray *rotor_customs(void) {
 }
 static NSArray *rotor_entries(void) {              /* UIAccessibilityCustomRotor or a built-in name */
     NSMutableArray *a = [NSMutableArray arrayWithArray:rotor_customs()];
-    [a addObject:@"Headings"];
+    BOOL headings = YES;          /* a custom rotor of the Heading system type takes the place of the built-in one */
+    for (UIAccessibilityCustomRotor *r in a) if (r.systemRotorType == UIAccessibilityCustomSystemRotorTypeHeading) headings = NO;
+    if (headings) [a addObject:@"Headings"];
     if ([[vo_focus accessibilityCustomActions] count]) [a addObject:@"Actions"];
     if (effective_traits(vo_focus) & UIAccessibilityTraitAdjustable) [a addObject:@"Adjust Value"];
     return a;
@@ -578,6 +642,7 @@ static void rotor_move(int dir) {
 static __IsimSwitchWindow *sc_window;
 static __weak id sc_item;
 static NSTimer *sc_timer;
+id isim_ui_switch_control_item(void) { return sc_item; }
 static void sc_draw(void) {
     if (!UIAccessibilityIsSwitchControlRunning()) { sc_window.hidden = YES; return; }
     if (!sc_window) { sc_window = [[__IsimSwitchWindow alloc] initWithFrame:UIScreen.mainScreen.bounds]; sc_window.windowLevel = 16900000; sc_window.backgroundColor = UIColor.clearColor; sc_window.accessibilityIdentifier = @"isim-switch-control"; }
@@ -600,7 +665,7 @@ static void sc_select(void) {
     BOOL (^handler)(void) = objc_getAssociatedObject(e, &k_act_handler);
     NSLog(@"isim: Switch Control selected %@", label_of(e) ?: NSStringFromClass([e class]));
     if (handler && handler()) return;
-    if ([e accessibilityActivate]) return;
+    if (do_activate(e)) return;
     isim_ui_synthesize_tap([e accessibilityActivationPoint]);
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (sc_item && [isim_ui_accessibility_elements() indexOfObjectIdenticalTo:sc_item] == NSNotFound) sc_item = nil;   /* the screen changed */
@@ -736,6 +801,48 @@ static void voice_command(NSString *phrase) {
     NSLog(@"isim: Voice Control: not a command");
 }
 
+/* three-finger swipes: `voiceover scroll up|down|left|right|next|prev`. The focused element or a container answering
+   accessibilityScroll: handles it; else the nearest scroll view moves a page. VoiceOver then says the scroll status
+   (a UIScrollViewAccessibilityDelegate's, else "Page N of M"). */
+static void scroll_command(NSString *d) {
+    NSDictionary *dirs = @{ @"right": @(UIAccessibilityScrollDirectionRight), @"left": @(UIAccessibilityScrollDirectionLeft), @"up": @(UIAccessibilityScrollDirectionUp),
+                            @"down": @(UIAccessibilityScrollDirectionDown), @"next": @(UIAccessibilityScrollDirectionNext), @"prev": @(UIAccessibilityScrollDirectionPrevious) };
+    NSNumber *n = dirs[d];
+    if (!n) { NSLog(@"isim: voiceover scroll up|down|left|right|next|prev"); return; }
+    UIAccessibilityScrollDirection dir = n.integerValue;
+    UIScrollView *sv = nil;
+    for (id r = vo_focus; r; r = [r isKindOfClass:[UIView class]] ? [(UIView *)r superview] : [r respondsToSelector:@selector(accessibilityContainer)] ? [r accessibilityContainer] : nil) {
+        if ([r accessibilityScroll:dir]) { NSLog(@"isim: VoiceOver scroll %@ handled by %@", d, NSStringFromClass([r class])); return; }
+        if (!sv && [r isKindOfClass:[UIScrollView class]] && ((UIScrollView *)r).scrollEnabled) sv = r;
+    }
+    if (!sv) { NSLog(@"isim: VoiceOver scroll %@: nothing to scroll", d); speak(@"Unable to scroll"); return; }
+    /* swipe up shows the next page (the content moves up) */
+    CGPoint o = sv.contentOffset; UIEdgeInsets in = sv.adjustedContentInset; CGSize b = sv.bounds.size, cs = sv.contentSize;
+    BOOL vertical = cs.height > b.height || !(cs.width > b.width);
+    switch (dir) {
+        case UIAccessibilityScrollDirectionUp: o.y += b.height; break;
+        case UIAccessibilityScrollDirectionDown: o.y -= b.height; break;
+        case UIAccessibilityScrollDirectionLeft: o.x += b.width; break;
+        case UIAccessibilityScrollDirectionRight: o.x -= b.width; break;
+        case UIAccessibilityScrollDirectionNext: if (vertical) o.y += b.height; else o.x += b.width; break;
+        case UIAccessibilityScrollDirectionPrevious: if (vertical) o.y -= b.height; else o.x -= b.width; break;
+    }
+    o.x = fmax(-in.left, fmin(o.x, fmax(-in.left, cs.width + in.right - b.width)));
+    o.y = fmax(-in.top, fmin(o.y, fmax(-in.top, cs.height + in.bottom - b.height)));
+    if (CGPointEqualToPoint(o, sv.contentOffset)) { speak(@"Unable to scroll"); return; }
+    [sv setContentOffset:o animated:NO];
+    id<UIScrollViewAccessibilityDelegate> del = (id)sv.delegate;
+    NSString *status = nil;
+    if ([del respondsToSelector:@selector(accessibilityAttributedScrollStatusForScrollView:)]) status = spoken([del accessibilityAttributedScrollStatusForScrollView:sv]);
+    if (!status && [del respondsToSelector:@selector(accessibilityScrollStatusForScrollView:)]) status = [del accessibilityScrollStatusForScrollView:sv];
+    if (!status) {
+        double page = vertical ? b.height : b.width, pos = vertical ? o.y + in.top : o.x + in.left, total = vertical ? cs.height + in.top + in.bottom : cs.width + in.left + in.right;
+        long pages = page > 0 ? MAX(1, (long)ceil(total / page - 0.01)) : 1;
+        status = [NSString stringWithFormat:@"Page %ld of %ld", MIN(pages, (long)floor(pos / page + 0.5) + 1), pages];
+    }
+    NSLog(@"isim: VoiceOver scrolled %@: %@", d, status);
+    speak(status);
+}
 void isim_ui_voiceover_command(NSString *c) {
     if ([c hasPrefix:@"switch:"]) { switch_command([c substringFromIndex:7]); return; }
     if ([c hasPrefix:@"voice:"]) { voice_command([c substringFromIndex:6]); return; }
@@ -762,7 +869,7 @@ void isim_ui_voiceover_command(NSString *c) {
         if (!(effective_traits(e) & UIAccessibilityTraitAdjustable)) { NSLog(@"isim: VoiceOver: not adjustable"); return; }
         void (^adj)(NSInteger) = objc_getAssociatedObject(e, &k_adj_handler);
         if (adj) adj([c isEqualToString:@"increment"] ? 1 : -1);
-        else if ([c isEqualToString:@"increment"]) [e accessibilityIncrement]; else [e accessibilityDecrement];
+        else do_adjust(e, [c isEqualToString:@"increment"]);
         NSString *v = [e accessibilityValue] ?: default_value(e);
         speak(v);
         draw_cursor();
@@ -774,13 +881,23 @@ void isim_ui_voiceover_command(NSString *c) {
         [a _isim_perform];
     } else if ([c isEqualToString:@"escape"]) {
         BOOL done = NO;
-        for (id r = vo_focus; r && !done; r = [r isKindOfClass:[UIResponder class]] ? [(UIResponder *)r nextResponder] : nil) done = [r accessibilityPerformEscape];
+        for (id r = vo_focus; r && !done; r = [r isKindOfClass:[UIResponder class]] ? [(UIResponder *)r nextResponder] : nil) { AXBoolReturnBlock b = [r accessibilityPerformEscapeBlock]; done = b ? b() : [r accessibilityPerformEscape]; }
         NSLog(@"isim: VoiceOver escape %@", done ? @"handled" : @"not handled");
     } else if ([c isEqualToString:@"magictap"]) {
         BOOL done = NO;
-        for (id r = vo_focus; r && !done; r = [r isKindOfClass:[UIResponder class]] ? [(UIResponder *)r nextResponder] : nil) done = [r accessibilityPerformMagicTap];
+        for (id r = vo_focus; r && !done; r = [r isKindOfClass:[UIResponder class]] ? [(UIResponder *)r nextResponder] : nil) { AXBoolReturnBlock b = [r accessibilityMagicTapBlock]; done = b ? b() : [r accessibilityPerformMagicTap]; }
+        NSLog(@"isim: VoiceOver magic tap %@", done ? @"handled" : @"not handled");
     } else if ([c isEqualToString:@"read"]) {
-        for (id e in isim_ui_accessibility_elements()) focus(e, YES);
+        /* elements with UIAccessibilityReadingContent are read as their page content */
+        for (id e in isim_ui_accessibility_elements()) {
+            if ([e respondsToSelector:@selector(accessibilityPageContent)]) {
+                focus(e, NO);
+                NSAttributedString *a = [e respondsToSelector:@selector(accessibilityAttributedPageContent)] ? [e accessibilityAttributedPageContent] : nil;
+                speak(a ? spoken(a) : [e accessibilityPageContent]);
+            } else focus(e, YES);
+        }
+    } else if ([c hasPrefix:@"scroll"]) {
+        scroll_command([[c substringFromIndex:6] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet]);
     } else NSLog(@"isim: unknown voiceover command '%@'", c);
 }
 /* VoiceOver gestures: tap focuses, double tap activates, horizontal swipe moves */
@@ -811,9 +928,16 @@ void UIAccessibilityPostNotification(UIAccessibilityNotifications n, id arg) {
                    : n == UIAccessibilityLayoutChangedNotification ? @"layoutChanged" : n == UIAccessibilityPageScrolledNotification ? @"pageScrolled" : [NSString stringWithFormat:@"%u", n];
     NSString *desc = [arg isKindOfClass:[NSString class]] ? [NSString stringWithFormat:@"\"%@\"", arg] : [arg isKindOfClass:[NSAttributedString class]] ? [NSString stringWithFormat:@"\"%@\"", [arg string]]
                    : arg ? NSStringFromClass([arg class]) : @"nil";
+    if ([arg isKindOfClass:[NSAttributedString class]] && [arg length]) {
+        /* iOS 17 announcement priority and queueing (logged; isim speaks each announcement in turn) */
+        NSString *prio = [arg attribute:UIAccessibilitySpeechAttributeAnnouncementPriority atIndex:0 effectiveRange:NULL];
+        BOOL queued = [[arg attribute:UIAccessibilitySpeechAttributeQueueAnnouncement atIndex:0 effectiveRange:NULL] boolValue];
+        if (prio) desc = [desc stringByAppendingFormat:@" priority %@", [prio isEqualToString:UIAccessibilityPriorityHigh] ? @"high" : [prio isEqualToString:UIAccessibilityPriorityLow] ? @"low" : @"default"];
+        if (queued) desc = [desc stringByAppendingString:@" queued"];
+    }
     NSLog(@"isim: accessibility notification %@ %@", name, desc);
     if (!UIAccessibilityIsVoiceOverRunning()) return;
-    NSString *text = [arg isKindOfClass:[NSString class]] ? arg : [arg isKindOfClass:[NSAttributedString class]] ? [arg string] : nil;
+    NSString *text = [arg isKindOfClass:[NSString class]] ? arg : [arg isKindOfClass:[NSAttributedString class]] ? spoken(arg) : nil;
     if (n == UIAccessibilityAnnouncementNotification || n == UIAccessibilityPageScrolledNotification) {
         speak(text);
         if (n == UIAccessibilityAnnouncementNotification)
@@ -832,10 +956,12 @@ void UIAccessibilityPostNotification(UIAccessibilityNotifications n, id arg) {
 
 /* ================= settings changes ================= */
 static NSDictionary *last_settings;
+extern NSDictionary *isim_ui_accessibility_extra_settings(void);       /* UIAccessibilityExtras.m: notification -> value */
 static NSDictionary *snapshot(void) {
     return @{ @"vo": @(UIAccessibilityIsVoiceOverRunning()), @"sc": @(UIAccessibilityIsSwitchControlRunning()), @"cat": settings_category(), @"bold": @(UIAccessibilityIsBoldTextEnabled()),
               @"motion": @(UIAccessibilityIsReduceMotionEnabled()), @"transp": @(UIAccessibilityIsReduceTransparencyEnabled()),
-              @"contrast": @(UIAccessibilityIsDarkerSystemColorsEnabled()), @"color": @(UIAccessibilityShouldDifferentiateWithoutColor()) };
+              @"contrast": @(UIAccessibilityIsDarkerSystemColorsEnabled()), @"color": @(UIAccessibilityShouldDifferentiateWithoutColor()),
+              @"extra": isim_ui_accessibility_extra_settings() };
 }
 void isim_ui_accessibility_reload_settings(void) {
     NSDictionary *now = snapshot(), *old = last_settings ?: now;
@@ -849,11 +975,18 @@ void isim_ui_accessibility_reload_settings(void) {
         NSLog(@"isim: content size category %@", now[@"cat"]);
         [nc postNotificationName:UIContentSizeCategoryDidChangeNotification object:UIApplication.sharedApplication userInfo:@{ UIContentSizeCategoryNewValueKey: now[@"cat"] }];
     }
+    if (UIContentSizeCategoryIsAccessibilityCategory(now[@"cat"]) != UIContentSizeCategoryIsAccessibilityCategory(old[@"cat"]))
+        [nc postNotificationName:UILargeContentViewerInteractionEnabledStatusDidChangeNotification object:nil];
     if (![now[@"bold"] isEqual:old[@"bold"]]) [nc postNotificationName:UIAccessibilityBoldTextStatusDidChangeNotification object:nil];
     if (![now[@"motion"] isEqual:old[@"motion"]]) [nc postNotificationName:UIAccessibilityReduceMotionStatusDidChangeNotification object:nil];
     if (![now[@"transp"] isEqual:old[@"transp"]]) [nc postNotificationName:UIAccessibilityReduceTransparencyStatusDidChangeNotification object:nil];
     if (![now[@"contrast"] isEqual:old[@"contrast"]]) [nc postNotificationName:UIAccessibilityDarkerSystemColorsStatusDidChangeNotification object:nil];
-    if (![now[@"color"] isEqual:old[@"color"]]) [nc postNotificationName:UIAccessibilityDifferentiateWithoutColorDidChangeNotification object:nil];
+    if (![now[@"color"] isEqual:old[@"color"]]) {
+        [nc postNotificationName:UIAccessibilityShouldDifferentiateWithoutColorDidChangeNotification object:nil];
+        [nc postNotificationName:UIAccessibilityDifferentiateWithoutColorDidChangeNotification object:nil];      /* isim's older name */
+    }
+    NSDictionary *xn = now[@"extra"], *xo = old[@"extra"];
+    for (NSString *note in xn) if (![xn[note] isEqual:xo[note]]) [nc postNotificationName:note object:nil];
     if ([now[@"vo"] boolValue] != vo_was_running) set_running([now[@"vo"] boolValue]);
     if (![now[@"sc"] isEqual:old[@"sc"]]) sc_set_running([now[@"sc"] boolValue]);
 }
@@ -873,7 +1006,8 @@ void isim_ui_accessibility_frame_tick(void) {
 }
 
 /* ================= Large Content Viewer ================= */
-static char k_lcv_shows, k_lcv_title, k_lcv_image;
+static char k_lcv_shows, k_lcv_title, k_lcv_image, k_lcv_insets, k_lcv_scales;
+NSNotificationName const UILargeContentViewerInteractionEnabledStatusDidChangeNotification = @"UILargeContentViewerInteractionEnabledStatusDidChangeNotification";
 @implementation UIView (UILargeContentViewer)
 - (BOOL)showsLargeContentViewer { return [objc_getAssociatedObject(self, &k_lcv_shows) boolValue]; }
 - (void)setShowsLargeContentViewer:(BOOL)b { objc_setAssociatedObject(self, &k_lcv_shows, @(b), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
@@ -887,6 +1021,10 @@ static char k_lcv_shows, k_lcv_title, k_lcv_image;
 - (void)setLargeContentTitle:(NSString *)t { objc_setAssociatedObject(self, &k_lcv_title, t, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 - (UIImage *)largeContentImage { return objc_getAssociatedObject(self, &k_lcv_image) ?: ([self isKindOfClass:[UIButton class]] ? ((UIButton *)self).currentImage : nil); }
 - (void)setLargeContentImage:(UIImage *)i { objc_setAssociatedObject(self, &k_lcv_image, i, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+- (UIEdgeInsets)largeContentImageInsets { NSValue *v = objc_getAssociatedObject(self, &k_lcv_insets); return v ? v.UIEdgeInsetsValue : UIEdgeInsetsZero; }
+- (void)setLargeContentImageInsets:(UIEdgeInsets)i { objc_setAssociatedObject(self, &k_lcv_insets, [NSValue valueWithUIEdgeInsets:i], OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+- (BOOL)scalesLargeContentImage { return [objc_getAssociatedObject(self, &k_lcv_scales) boolValue]; }
+- (void)setScalesLargeContentImage:(BOOL)b { objc_setAssociatedObject(self, &k_lcv_scales, @(b), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 @end
 @interface __IsimLargeContentWindow : UIWindow
 @property (nonatomic, strong) UIView *hud;
@@ -899,16 +1037,23 @@ static char k_lcv_shows, k_lcv_title, k_lcv_image;
 static __IsimLargeContentWindow *lcv_window;
 @implementation UILargeContentViewerInteraction { __weak UIView *_view; __weak id<UILargeContentViewerInteractionDelegate> _delegate; UILongPressGestureRecognizer *_press; id _item; }
 + (BOOL)isEnabled { return UIContentSizeCategoryIsAccessibilityCategory(settings_category()); }
-- (instancetype)initWithDelegate:(id<UILargeContentViewerInteractionDelegate>)d { if ((self = [super init])) _delegate = d; return self; }
+- (instancetype)initWithDelegate:(id<UILargeContentViewerInteractionDelegate>)d {
+    if ((self = [super init])) {
+        _delegate = d;
+        _press = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(_pressed:)];
+        _press.minimumPressDuration = 0.5; _press.cancelsTouchesInView = NO;
+    }
+    return self;
+}
+- (instancetype)init { return [self initWithDelegate:nil]; }
+/* the long press that shows the viewer, for require(toFail:) / simultaneous recognition with the app's recognizers */
+- (UIGestureRecognizer *)gestureRecognizerForExclusionRelationship { return _press; }
 - (id<UILargeContentViewerInteractionDelegate>)delegate { return _delegate; }
 - (UIView *)view { return _view; }
 - (void)willMoveToView:(UIView *)v { if (_press) [_view removeGestureRecognizer:_press]; }
 - (void)didMoveToView:(UIView *)v {
     _view = v;
-    if (!v) return;
-    _press = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(_pressed:)];
-    _press.minimumPressDuration = 0.5; _press.cancelsTouchesInView = NO;
-    [v addGestureRecognizer:_press];
+    if (v) [v addGestureRecognizer:_press];
 }
 - (id)_itemAt:(CGPoint)p {
     id<UILargeContentViewerInteractionDelegate> d = _delegate;
@@ -927,17 +1072,32 @@ static __IsimLargeContentWindow *lcv_window;
         [lcv_window.hud removeFromSuperview];
         if (!item) { lcv_window.hidden = YES; return; }
         if (!lcv_window) { lcv_window = [[__IsimLargeContentWindow alloc] initWithFrame:UIScreen.mainScreen.bounds]; lcv_window.windowLevel = 16500000; lcv_window.backgroundColor = UIColor.clearColor; }
-        CGSize s = UIScreen.mainScreen.bounds.size;
+        /* the delegate may name the view controller that shows the viewer (centred in its view), else a system window */
+        id<UILargeContentViewerInteractionDelegate> d = _delegate;
+        UIViewController *host = [d respondsToSelector:@selector(viewControllerForLargeContentViewerInteraction:)] ? [d viewControllerForLargeContentViewerInteraction:self] : nil;
+        UIView *container = host.viewIfLoaded.window ? host.view : lcv_window;
+        CGSize s = container.bounds.size;
         UIView *hud = [[UIView alloc] initWithFrame:CGRectMake(s.width / 2 - 120, s.height / 2 - 120, 240, 240)];
         hud.backgroundColor = [UIColor colorWithWhite:0.15 alpha:0.92]; hud.layer.cornerRadius = 18; hud.layer.cornerCurve = kCACornerCurveContinuous;
         hud.accessibilityIdentifier = @"isim-large-content";
         UIImage *img = [item largeContentImage];
-        if (img) { UIImageView *iv = [[UIImageView alloc] initWithFrame:CGRectMake(70, 40, 100, 100)]; iv.image = img; iv.tintColor = UIColor.whiteColor; iv.contentMode = UIViewContentModeScaleAspectFit; [hud addSubview:iv]; }
+        if (img) {
+            /* scalesLargeContentImage (or a symbol image): fitted to the image area; else drawn at its own size;
+               largeContentImageInsets move it (visual centring) */
+            UIEdgeInsets in = [item respondsToSelector:@selector(largeContentImageInsets)] ? [item largeContentImageInsets] : UIEdgeInsetsZero;
+            BOOL scales = img.isSymbolImage || ([item respondsToSelector:@selector(scalesLargeContentImage)] && [item scalesLargeContentImage]);
+            CGRect area = UIEdgeInsetsInsetRect(CGRectMake(70, 40, 100, 100), in);
+            UIImageView *iv = [[UIImageView alloc] initWithFrame:area]; iv.image = img; iv.tintColor = UIColor.whiteColor;
+            iv.contentMode = scales ? UIViewContentModeScaleAspectFit : UIViewContentModeCenter; iv.clipsToBounds = YES;
+            iv.accessibilityIdentifier = @"isim-large-content-image";
+            [hud addSubview:iv];
+        }
         UILabel *l = [[UILabel alloc] initWithFrame:CGRectMake(10, img ? 150 : 60, 220, img ? 70 : 120)];
         l.text = [item largeContentTitle]; l.textColor = UIColor.whiteColor; l.font = [UIFont systemFontOfSize:30 weight:UIFontWeightSemibold];
         l.textAlignment = NSTextAlignmentCenter; l.numberOfLines = 2;
         [hud addSubview:l];
-        lcv_window.hud = hud; [lcv_window addSubview:hud]; lcv_window.hidden = NO;
+        lcv_window.hud = hud; [container addSubview:hud]; lcv_window.hidden = container != lcv_window;
+        if (host) NSLog(@"isim: large content viewer in %@", NSStringFromClass(host.class));
         NSLog(@"isim: large content viewer \"%@\"", [item largeContentTitle] ?: @"");
     } else if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled) {
         id item = _item; _item = nil;

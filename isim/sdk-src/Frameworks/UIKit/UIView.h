@@ -33,7 +33,10 @@ typedef NS_OPTIONS(NSUInteger, UIViewAnimationOptions) {
     UIViewAnimationOptionTransitionFlipFromRight = 2 << 20, UIViewAnimationOptionTransitionCurlUp = 3 << 20,
     UIViewAnimationOptionTransitionCurlDown = 4 << 20, UIViewAnimationOptionTransitionCrossDissolve = 5 << 20,
     UIViewAnimationOptionTransitionFlipFromTop = 6 << 20, UIViewAnimationOptionTransitionFlipFromBottom = 7 << 20,
-    UIViewAnimationOptionPreferredFramesPerSecondDefault = 0 << 24, UIViewAnimationOptionPreferredFramesPerSecond60 = 3 << 24
+    UIViewAnimationOptionPreferredFramesPerSecondDefault = 0 << 24, UIViewAnimationOptionPreferredFramesPerSecond60 = 3 << 24,
+    UIViewAnimationOptionPreferredFramesPerSecond30 = 7 << 24,
+    /* iOS 26: pending trait, property and layout updates are applied before the animations and, animated, after them */
+    UIViewAnimationOptionFlushUpdates API_AVAILABLE(ios(26.0)) = 1 << 29,
 };
 typedef NS_ENUM(NSInteger, UILayoutConstraintAxis) { UILayoutConstraintAxisHorizontal = 0, UILayoutConstraintAxisVertical = 1 };
 typedef float UILayoutPriority NS_TYPED_EXTENSIBLE_ENUM;
@@ -50,8 +53,12 @@ NS_SWIFT_UI_ACTOR
 @protocol UICoordinateSpace <NSObject>
 - (CGPoint)convertPoint:(CGPoint)point toCoordinateSpace:(id<UICoordinateSpace>)coordinateSpace;
 - (CGPoint)convertPoint:(CGPoint)point fromCoordinateSpace:(id<UICoordinateSpace>)coordinateSpace;
+- (CGRect)convertRect:(CGRect)rect toCoordinateSpace:(id<UICoordinateSpace>)coordinateSpace;
+- (CGRect)convertRect:(CGRect)rect fromCoordinateSpace:(id<UICoordinateSpace>)coordinateSpace;
 @property (readonly, nonatomic) CGRect bounds;
 @end
+/* isim: a rect converted through its corners (UICoordinateSpace implementations) */
+CGRect isim_ui_space_convert_rect(id<UICoordinateSpace> space, CGRect rect, id<UICoordinateSpace> other, BOOL to);
 
 @interface UIView : UIResponder <NSCoding, UITraitEnvironment, UICoordinateSpace>
 @property (class, nonatomic, readonly) Class layerClass;
@@ -172,7 +179,8 @@ NS_SWIFT_UI_ACTOR
 + (void)animateWithSpringDuration:(NSTimeInterval)duration bounce:(CGFloat)bounce initialSpringVelocity:(CGFloat)velocity delay:(NSTimeInterval)delay options:(UIViewAnimationOptions)options animations:(void (^)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion
     NS_SWIFT_NAME(animate(springDuration:bounce:initialSpringVelocity:delay:options:animations:completion:)) API_AVAILABLE(ios(17.0));
 + (void)transitionWithView:(UIView *)view duration:(NSTimeInterval)duration options:(UIViewAnimationOptions)options animations:(void (^ _Nullable)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion;
-@property (class, nonatomic, getter=areAnimationsEnabled) BOOL animationsEnabled;
+@property (class, nonatomic, readonly) BOOL areAnimationsEnabled;
++ (void)setAnimationsEnabled:(BOOL)enabled;
 @property (class, nonatomic, readonly) NSTimeInterval inheritedAnimationDuration;
 @end
 /* snapshots: draws the view and its subviews into the current graphics context (UIGraphicsImageRenderer) */
@@ -196,6 +204,10 @@ API_AVAILABLE(ios(26.0)) NS_REFINED_FOR_SWIFT
 + (instancetype)containerConcentricRadius;
 + (instancetype)containerConcentricRadiusWithMinimum:(CGFloat)minimum;
 @end
+/* how a corner is rounded: circular arcs or continuous (squircle) curves; automatic: continuous where iOS uses it */
+typedef NS_ENUM(NSInteger, UICornerCurve) {
+    UICornerCurveAutomatic = 0, UICornerCurveCircular, UICornerCurveContinuous,
+} API_AVAILABLE(ios(17.0));
 API_AVAILABLE(ios(26.0)) NS_REFINED_FOR_SWIFT
 @interface UICornerConfiguration : NSObject <NSCopying>
 + (instancetype)configurationWithRadius:(UICornerRadius *)radius;

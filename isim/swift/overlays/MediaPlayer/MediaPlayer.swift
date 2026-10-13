@@ -190,6 +190,8 @@ open class MPRemoteCommandCenter: NSObject {
 
     func _startPolling() {
         guard timer == nil else { return }
+        // the command center takes the remote commands (UIKit's remoteControlReceived(with:) no longer gets them)
+        NotificationCenter.default.post(name: Notification.Name("_IsimRemoteCommandCenterActive"), object: nil)
         timer = Timer._isimScheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in self?._poll() }
     }
     func _poll() {

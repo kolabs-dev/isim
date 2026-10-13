@@ -81,6 +81,8 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, getter=isInterruptible) BOOL interruptible;
 @property (nonatomic) BOOL scrubsLinearly;
 @property (nonatomic) BOOL pausesOnCompletion;
+/* iOS 26: pending trait, property and layout updates are applied before each animation block and, animated, after it */
+@property (nonatomic) BOOL flushUpdates API_AVAILABLE(ios(26.0));
 - (instancetype)initWithDuration:(NSTimeInterval)duration timingParameters:(id<UITimingCurveProvider>)parameters NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithDuration:(NSTimeInterval)duration curve:(UIViewAnimationCurve)curve animations:(void (^ _Nullable)(void))animations;
 - (instancetype)initWithDuration:(NSTimeInterval)duration controlPoint1:(CGPoint)point1 controlPoint2:(CGPoint)point2 animations:(void (^ _Nullable)(void))animations;

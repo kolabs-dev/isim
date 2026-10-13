@@ -30,6 +30,15 @@
 #define K_ACTIVE @"UITraitActiveAppearance"
 #define K_LIST @"UITraitListEnvironment"
 #define K_TABACC @"UITraitTabAccessoryEnvironment"
+#define K_SPLITENV @"UITraitSplitViewControllerLayoutEnvironment"
+#define K_IMAGERANGE @"UITraitImageDynamicRange"
+#define K_TYPESET @"UITraitTypesettingLanguage"
+#define K_CAPTURE @"UITraitSceneCaptureState"
+#define K_TOOLBARSIZE @"UITraitToolbarItemPresentationSize"
+#define K_HEADROOM @"UITraitHDRHeadroomUsageLimit"
+#define K_NATURAL @"UITraitResolvesNaturalAlignmentWithBaseWritingDirection"
+#define K_REDUCED @"UITraitSystemPrefersReducedResourceUsage"
+#define K_NAVTITLE @"UITraitNavigationTitleAlignment"
 
 static NSDictionary<NSString *, id> *builtin_defaults(void) {
     static NSDictionary *d;
@@ -38,7 +47,10 @@ static NSDictionary<NSString *, id> *builtin_defaults(void) {
                    K_FORCE: @(UIForceTouchCapabilityUnknown), K_CATEGORY: @"_UICTContentSizeCategoryUnspecified", K_GAMUT: @(UIDisplayGamutUnspecified),
                    K_CONTRAST: @(UIAccessibilityContrastUnspecified), K_LEVEL: @(UIUserInterfaceLevelUnspecified),
                    K_LEGIBILITY: @(UILegibilityWeightUnspecified), K_ACTIVE: @(UIUserInterfaceActiveAppearanceUnspecified), K_LIST: @(UIListEnvironmentUnspecified),
-                   K_TABACC: @(UITabAccessoryEnvironmentUnspecified) };
+                   K_TABACC: @(UITabAccessoryEnvironmentUnspecified), K_SPLITENV: @(UISplitViewControllerLayoutEnvironmentNone),
+                   K_IMAGERANGE: @(UIImageDynamicRangeUnspecified), K_CAPTURE: @(UISceneCaptureStateUnspecified),
+                   K_TOOLBARSIZE: @(UINSToolbarItemPresentationSizeUnspecified), K_HEADROOM: @(UIHDRHeadroomUsageLimitUnspecified),
+                   K_NATURAL: @NO, K_REDUCED: @NO, K_NAVTITLE: @(UINavigationItemTitleAlignmentAutomatic) };
     return d;
 }
 /* traits whose change alters how dynamic colors resolve; Swift custom traits register here (affectsColorAppearance) */
@@ -97,6 +109,15 @@ TRAIT_CLASS(UITraitLegibilityWeight, @"LegibilityWeight", NO)
 TRAIT_CLASS(UITraitActiveAppearance, @"ActiveAppearance", YES)
 TRAIT_CLASS(UITraitListEnvironment, @"ListEnvironment", NO)
 TRAIT_CLASS(UITraitTabAccessoryEnvironment, @"TabAccessoryEnvironment", NO)
+TRAIT_CLASS(UITraitSplitViewControllerLayoutEnvironment, @"SplitViewControllerLayoutEnvironment", NO)
+TRAIT_CLASS(UITraitImageDynamicRange, @"ImageDynamicRange", NO)
+TRAIT_CLASS(UITraitTypesettingLanguage, @"TypesettingLanguage", NO)
+TRAIT_CLASS(UITraitSceneCaptureState, @"SceneCaptureState", NO)
+TRAIT_CLASS(UITraitToolbarItemPresentationSize, @"ToolbarItemPresentationSize", NO)
+TRAIT_CLASS(UITraitHDRHeadroomUsageLimit, @"HDRHeadroomUsageLimit", NO)
+TRAIT_CLASS(UITraitResolvesNaturalAlignmentWithBaseWritingDirection, @"ResolvesNaturalAlignmentWithBaseWritingDirection", NO)
+TRAIT_CLASS(UITraitSystemPrefersReducedResourceUsage, @"SystemPrefersReducedResourceUsage", NO)
+TRAIT_CLASS(UITraitNavigationTitleAlignment, @"NavigationTitleAlignment", NO)
 
 /* ================= mutable traits / trait overrides ================= */
 @interface __IsimMutableTraits : NSObject <UITraitOverrides>
@@ -135,6 +156,16 @@ MT_INT(userInterfaceLevel, setUserInterfaceLevel, UIUserInterfaceLevel, K_LEVEL)
 MT_INT(legibilityWeight, setLegibilityWeight, UILegibilityWeight, K_LEGIBILITY)
 MT_INT(activeAppearance, setActiveAppearance, UIUserInterfaceActiveAppearance, K_ACTIVE)
 MT_INT(tabAccessoryEnvironment, setTabAccessoryEnvironment, UITabAccessoryEnvironment, K_TABACC)
+MT_INT(splitViewControllerLayoutEnvironment, setSplitViewControllerLayoutEnvironment, UISplitViewControllerLayoutEnvironment, K_SPLITENV)
+MT_INT(listEnvironment, setListEnvironment, UIListEnvironment, K_LIST)
+MT_INT(imageDynamicRange, setImageDynamicRange, UIImageDynamicRange, K_IMAGERANGE)
+MT_INT(sceneCaptureState, setSceneCaptureState, UISceneCaptureState, K_CAPTURE)
+MT_INT(toolbarItemPresentationSize, setToolbarItemPresentationSize, UINSToolbarItemPresentationSize, K_TOOLBARSIZE)
+MT_INT(hdrHeadroomUsageLimit, setHdrHeadroomUsageLimit, UIHDRHeadroomUsageLimit, K_HEADROOM)
+MT_INT(resolvesNaturalAlignmentWithBaseWritingDirection, setResolvesNaturalAlignmentWithBaseWritingDirection, BOOL, K_NATURAL)
+MT_INT(navigationTitleAlignment, setNavigationTitleAlignment, UINavigationItemTitleAlignment, K_NAVTITLE)
+- (NSString *)typesettingLanguage { id v = _d[K_TYPESET]; return v == [NSNull null] ? nil : v; }
+- (void)setTypesettingLanguage:(NSString *)l { [self _set:[l copy] key:K_TYPESET]; }
 - (CGFloat)displayScale { return [(_d[K_SCALE] ?: @0) doubleValue]; }
 - (void)setDisplayScale:(CGFloat)s { [self _set:@(s) key:K_SCALE]; }
 - (UIContentSizeCategory)preferredContentSizeCategory { return _d[K_CATEGORY] ?: UIContentSizeCategoryUnspecified; }
@@ -182,6 +213,24 @@ static UITraitCollection *with(NSString *k, id v) { return [[UITraitCollection a
 - (UIUserInterfaceActiveAppearance)activeAppearance { return (UIUserInterfaceActiveAppearance)[self _int:K_ACTIVE]; }
 - (UIListEnvironment)listEnvironment { return (UIListEnvironment)[self _int:K_LIST]; }
 - (UITabAccessoryEnvironment)tabAccessoryEnvironment { return (UITabAccessoryEnvironment)[self _int:K_TABACC]; }
+- (UISplitViewControllerLayoutEnvironment)splitViewControllerLayoutEnvironment { return (UISplitViewControllerLayoutEnvironment)[self _int:K_SPLITENV]; }
+- (UIImageDynamicRange)imageDynamicRange { return (UIImageDynamicRange)[self _int:K_IMAGERANGE]; }
+- (NSString *)typesettingLanguage { id v = _t[K_TYPESET]; return [v isKindOfClass:[NSString class]] ? v : nil; }
+- (UISceneCaptureState)sceneCaptureState { return (UISceneCaptureState)[self _int:K_CAPTURE]; }
+- (UINSToolbarItemPresentationSize)toolbarItemPresentationSize { return (UINSToolbarItemPresentationSize)[self _int:K_TOOLBARSIZE]; }
+- (UIHDRHeadroomUsageLimit)hdrHeadroomUsageLimit { return (UIHDRHeadroomUsageLimit)[self _int:K_HEADROOM]; }
+- (BOOL)resolvesNaturalAlignmentWithBaseWritingDirection { return [self _int:K_NATURAL] != 0; }
+- (BOOL)systemPrefersReducedResourceUsage { return [self _int:K_REDUCED] != 0; }
+- (UINavigationItemTitleAlignment)navigationTitleAlignment { return (UINavigationItemTitleAlignment)[self _int:K_NAVTITLE]; }
+- (UIImageConfiguration *)imageConfiguration { return [UIImageConfiguration configurationWithTraitCollection:self]; }
++ (UITraitCollection *)traitCollectionWithForceTouchCapability:(UIForceTouchCapability)c { return with(K_FORCE, @(c)); }
++ (UITraitCollection *)traitCollectionWithListEnvironment:(UIListEnvironment)e { return with(K_LIST, @(e)); }
++ (UITraitCollection *)traitCollectionWithTabAccessoryEnvironment:(UITabAccessoryEnvironment)e { return with(K_TABACC, @(e)); }
++ (UITraitCollection *)traitCollectionWithImageDynamicRange:(UIImageDynamicRange)r { return with(K_IMAGERANGE, @(r)); }
++ (UITraitCollection *)traitCollectionWithTypesettingLanguage:(NSString *)l { return with(K_TYPESET, [l copy] ?: [NSNull null]); }
++ (UITraitCollection *)traitCollectionWithSceneCaptureState:(UISceneCaptureState)c { return with(K_CAPTURE, @(c)); }
++ (UITraitCollection *)traitCollectionWithToolbarItemPresentationSize:(UINSToolbarItemPresentationSize)s { return with(K_TOOLBARSIZE, @(s)); }
++ (UITraitCollection *)traitCollectionWithHDRHeadroomUsageLimit:(UIHDRHeadroomUsageLimit)l { return with(K_HEADROOM, @(l)); }
 - (UIContentSizeCategory)preferredContentSizeCategory { return _t[K_CATEGORY] ?: UIContentSizeCategoryUnspecified; }
 - (UIAccessibilityContrast)accessibilityContrast { return (UIAccessibilityContrast)[self _int:K_CONTRAST]; }
 - (UILegibilityWeight)legibilityWeight { return (UILegibilityWeight)[self _int:K_LEGIBILITY]; }
@@ -299,6 +348,9 @@ UITraitCollection *isim_ui_screen_traits(void) {
     t[K_LEVEL] = @(UIUserInterfaceLevelBase);
     t[K_LEGIBILITY] = @(UIAccessibilityIsBoldTextEnabled() ? UILegibilityWeightBold : UILegibilityWeightRegular);
     t[K_ACTIVE] = @(UIUserInterfaceActiveAppearanceActive);
+    t[K_IMAGERANGE] = @(UIImageDynamicRangeStandard);              /* a standard dynamic range display */
+    t[K_CAPTURE] = @(UISceneCaptureStateInactive);                 /* not mirrored or recorded */
+    t[K_HEADROOM] = @(UIHDRHeadroomUsageLimitActive);
     screen_traits = [[UITraitCollection alloc] initWithIsimTraits:t];
     return screen_traits;
 }

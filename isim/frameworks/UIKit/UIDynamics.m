@@ -5,6 +5,7 @@
  * friction), writes the items' centers and transforms and runs behavior actions. */
 #import "CAPrivate.h"
 #import <UIKit/UIDynamicAnimator.h>
+#import <UIKit/UICollectionView.h>
 #include <math.h>
 
 const UIFloatRange UIFloatRangeZero = { 0, 0 }, UIFloatRangeInfinite = { -INFINITY, INFINITY };
@@ -141,7 +142,27 @@ ITEMS_IMPL
 - (void)setPushDirection:(CGVector)d { _pushDirection = d; _fired = NO; [self _isim_changed]; }
 @end
 
-@implementation UIAttachmentBehavior { @public id<UIDynamicItem> _a, _b; UIOffset _oa, _ob; }
+/* kinds: 0 spring / rigid length, 1 sliding, 2 fixed, 3 limit (rope), 4 pin */
+@implementation UIAttachmentBehavior { @public id<UIDynamicItem> _a, _b; UIOffset _oa, _ob; int _kind; CGVector _axis; CGPoint _rel; double _relAngle; }
++ (instancetype)slidingAttachmentWithItem:(id<UIDynamicItem>)item attachmentAnchor:(CGPoint)p axisOfTranslation:(CGVector)axis {
+    UIAttachmentBehavior *b = [[self alloc] initWithItem:item attachedToAnchor:p]; b->_kind = 1; b->_axis = axis; return b;
+}
++ (instancetype)slidingAttachmentWithItem:(id<UIDynamicItem>)i1 attachedToItem:(id<UIDynamicItem>)i2 attachmentAnchor:(CGPoint)p axisOfTranslation:(CGVector)axis {
+    UIAttachmentBehavior *b = [[self alloc] initWithItem:i1 attachedToItem:i2]; b->_kind = 1; b->_axis = axis; b.anchorPoint = p;
+    CGPoint c1 = i1.center, c2 = i2.center; b->_rel = CGPointMake(c2.x - c1.x, c2.y - c1.y); return b;
+}
++ (instancetype)fixedAttachmentWithItem:(id<UIDynamicItem>)i1 attachedToItem:(id<UIDynamicItem>)i2 attachmentAnchor:(CGPoint)p {
+    UIAttachmentBehavior *b = [[self alloc] initWithItem:i1 attachedToItem:i2]; b->_kind = 2; b.anchorPoint = p;
+    CGPoint c1 = i1.center, c2 = i2.center; b->_rel = CGPointMake(c2.x - c1.x, c2.y - c1.y); return b;
+}
++ (instancetype)limitAttachmentWithItem:(id<UIDynamicItem>)i1 offsetFromCenter:(UIOffset)o1 attachedToItem:(id<UIDynamicItem>)i2 offsetFromCenter:(UIOffset)o2 {
+    UIAttachmentBehavior *b = [[self alloc] initWithItem:i1 offsetFromCenter:o1 attachedToItem:i2 offsetFromCenter:o2]; b->_kind = 3; return b;
+}
++ (instancetype)pinAttachmentWithItem:(id<UIDynamicItem>)i1 attachedToItem:(id<UIDynamicItem>)i2 attachmentAnchor:(CGPoint)p {
+    CGPoint c1 = i1.center, c2 = i2.center;
+    UIAttachmentBehavior *b = [[self alloc] initWithItem:i1 offsetFromCenter:UIOffsetMake(p.x - c1.x, p.y - c1.y) attachedToItem:i2 offsetFromCenter:UIOffsetMake(p.x - c2.x, p.y - c2.y)];
+    b->_kind = 4; b.length = 0; b.anchorPoint = p; return b;
+}
 - (instancetype)initWithItem:(id<UIDynamicItem>)item attachedToAnchor:(CGPoint)p { return [self initWithItem:item offsetFromCenter:UIOffsetMake(0, 0) attachedToAnchor:p]; }
 - (instancetype)initWithItem:(id<UIDynamicItem>)item offsetFromCenter:(UIOffset)o attachedToAnchor:(CGPoint)p {
     if ((self = [super init])) {
@@ -198,16 +219,128 @@ ITEMS_IMPL
 @end
 
 /* ================= animator ================= */
-@interface __IsimBody : NSObject { @public double vx, vy, w, angle, mass, e, friction, resistance, angRes; BOOL anchored, rotates; double rest; }
+@interface __IsimBody : NSObject { @public double vx, vy, w, angle, mass, e, friction, resistance, angRes, charge; BOOL anchored, rotates; double rest; }
 @end
 @implementation __IsimBody @end
+@interface UIDynamicAnimator (IsimBodies)
+- (__IsimBody *)_body:(id)item;
+@end
+
+/* ================= regions and fields (iOS 9) ================= */
+/* kinds: 0 infinite, 1 circle, 2 rectangle (centred on the field's position), 3 inverse, 4 union, 5 difference, 6 intersection */
+@implementation UIRegion { @public int _k; double _r; CGSize _s; UIRegion *_a, *_b; }
++ (UIRegion *)infiniteRegion { return [self new]; }
+- (instancetype)initWithRadius:(CGFloat)r { if ((self = [super init])) { _k = 1; _r = r; } return self; }
+- (instancetype)initWithSize:(CGSize)s { if ((self = [super init])) { _k = 2; _s = s; } return self; }
+- (instancetype)initWithCoder:(NSCoder *)c { return [self init]; }
+- (void)encodeWithCoder:(NSCoder *)c {}
+- (id)copyWithZone:(NSZone *)z { return self; }
+static UIRegion *combine(int k, UIRegion *a, UIRegion *b) { UIRegion *r = [UIRegion new]; r->_k = k; r->_a = a; r->_b = b; return r; }
+- (instancetype)inverseRegion { return combine(3, self, nil); }
+- (instancetype)regionByUnionWithRegion:(UIRegion *)o { return combine(4, self, o); }
+- (instancetype)regionByDifferenceFromRegion:(UIRegion *)o { return combine(5, self, o); }
+- (instancetype)regionByIntersectionWithRegion:(UIRegion *)o { return combine(6, self, o); }
+- (BOOL)containsPoint:(CGPoint)p {
+    switch (_k) {
+    case 0: return YES;
+    case 1: return hypot(p.x, p.y) <= _r;
+    case 2: return fabs(p.x) <= _s.width / 2 && fabs(p.y) <= _s.height / 2;
+    case 3: return ![_a containsPoint:p];
+    case 4: return [_a containsPoint:p] || [_b containsPoint:p];
+    case 5: return [_a containsPoint:p] && ![_b containsPoint:p];
+    default: return [_a containsPoint:p] && [_b containsPoint:p];
+    }
+}
+@end
+/* a smooth pseudo-random value in -1..1 (value noise, cosine-interpolated) */
+static double noise2(double x, double y, int seed) {
+    double xi = floor(x), yi = floor(y), fx = x - xi, fy = y - yi;
+    double (^h)(double, double) = ^double(double a, double b) { double v = sin(a * 127.1 + b * 311.7 + seed * 74.7) * 43758.5453; return (v - floor(v)) * 2 - 1; };
+    double sx = (1 - cos(fx * M_PI)) / 2, sy = (1 - cos(fy * M_PI)) / 2;
+    double a = h(xi, yi) + (h(xi + 1, yi) - h(xi, yi)) * sx, b = h(xi, yi + 1) + (h(xi + 1, yi + 1) - h(xi, yi + 1)) * sx;
+    return a + (b - a) * sy;
+}
+/* kinds: 0 drag, 1 vortex, 2 radial gravity, 3 linear gravity, 4 velocity, 5 noise, 6 turbulence, 7 spring, 8 electric, 9 magnetic, 10 custom */
+@implementation UIFieldBehavior { NSMutableArray *_itemList; int _k; UIFieldCustomEvaluator _block; double _time; }
++ (instancetype)_isim:(int)k { UIFieldBehavior *f = [[self alloc] initIsimField]; f->_k = k; return f; }
+- (instancetype)initIsimField {
+    if ((self = [super init])) { _itemList = [NSMutableArray array]; _region = UIRegion.infiniteRegion; _strength = 1; _falloff = 0; _minimumRadius = 0; _smoothness = 0; _animationSpeed = 1; }
+    return self;
+}
+- (NSArray *)items { return [_itemList copy]; }
+- (NSArray *)_isim_items { return _itemList; }
+- (void)addItem:(id<UIDynamicItem>)i { if (i && [_itemList indexOfObjectIdenticalTo:i] == NSNotFound) [_itemList addObject:i]; [self _isim_changed]; }
+- (void)removeItem:(id<UIDynamicItem>)i { [_itemList removeObjectIdenticalTo:i]; [self _isim_changed]; }
++ (instancetype)dragField { return [self _isim:0]; }
++ (instancetype)vortexField { return [self _isim:1]; }
++ (instancetype)radialGravityFieldWithPosition:(CGPoint)p { UIFieldBehavior *f = [self _isim:2]; f.position = p; return f; }
++ (instancetype)linearGravityFieldWithVector:(CGVector)d { UIFieldBehavior *f = [self _isim:3]; f.direction = d; return f; }
++ (instancetype)velocityFieldWithVector:(CGVector)d { UIFieldBehavior *f = [self _isim:4]; f.direction = d; return f; }
++ (instancetype)noiseFieldWithSmoothness:(CGFloat)s animationSpeed:(CGFloat)sp { UIFieldBehavior *f = [self _isim:5]; f.smoothness = s; f.animationSpeed = sp; return f; }
++ (instancetype)turbulenceFieldWithSmoothness:(CGFloat)s animationSpeed:(CGFloat)sp { UIFieldBehavior *f = [self _isim:6]; f.smoothness = s; f.animationSpeed = sp; return f; }
++ (instancetype)springField { return [self _isim:7]; }
++ (instancetype)electricField { return [self _isim:8]; }
++ (instancetype)magneticField { return [self _isim:9]; }
++ (instancetype)fieldWithEvaluationBlock:(UIFieldCustomEvaluator)b { UIFieldBehavior *f = [self _isim:10]; f->_block = [b copy]; return f; }
+- (void)setPosition:(CGPoint)p { _position = p; [self _isim_changed]; }
+- (void)setStrength:(CGFloat)v { _strength = v; [self _isim_changed]; }
+- (void)setDirection:(CGVector)d { _direction = d; [self _isim_changed]; }
+/* accelerations (pt/s^2) on the field's items inside its region */
+- (void)_isim_apply:(UIDynamicAnimator *)an dt:(double)dt {
+    _time += dt;
+    for (id<UIDynamicItem> i in _itemList) {
+        __IsimBody *b = [an _body:i];
+        if (b->anchored) continue;
+        CGPoint c = i.center; double rx = c.x - _position.x, ry = c.y - _position.y;
+        if (![_region containsPoint:CGPointMake(rx, ry)]) continue;
+        double r = fmax(hypot(rx, ry), fmax(_minimumRadius, 1)), fall = _falloff > 0 ? pow(100 / r, _falloff) : 1;
+        double ax = 0, ay = 0, m = fmax(b->mass, 1e-3);
+        switch (_k) {
+        case 0: ax = -_strength * b->vx; ay = -_strength * b->vy; break;                                    /* drag */
+        case 1: ax = -ry / r * _strength * 1000 * fall / m; ay = rx / r * _strength * 1000 * fall / m; break;  /* vortex */
+        case 2: ax = -rx / r * _strength * 1000 * fall; ay = -ry / r * _strength * 1000 * fall; break;         /* radial gravity */
+        case 3: ax = _direction.dx * _strength * 1000; ay = _direction.dy * _strength * 1000; break;          /* linear gravity */
+        case 4: ax = (_direction.dx * _strength - b->vx) * 10; ay = (_direction.dy * _strength - b->vy) * 10; break;   /* velocity */
+        case 5: case 6: {                                                                                         /* noise, turbulence */
+            double sc = 0.004 + 0.02 * (1 - fmin(1, fmax(0, _smoothness))), t = _time * _animationSpeed;
+            ax = noise2(c.x * sc + t, c.y * sc, 1) * _strength * 1000; ay = noise2(c.x * sc, c.y * sc + t, 2) * _strength * 1000;
+            if (_k == 6) { double v = hypot(b->vx, b->vy) / 100; ax *= v; ay *= v; }
+            break; }
+        case 7: ax = -rx * _strength * 10 * fall / m; ay = -ry * _strength * 10 * fall / m; break;        /* spring (Hooke) */
+        case 8: ax = rx / r * _strength * b->charge * 1000 * fall / m; ay = ry / r * _strength * b->charge * 1000 * fall / m; break;   /* electric */
+        case 9: ax = -b->vy * _strength * b->charge * fall / m; ay = b->vx * _strength * b->charge * fall / m; break;   /* magnetic: v x B */
+        case 10: if (_block) {
+            CGVector f = _block(self, c, CGVectorMake(b->vx, b->vy), m, b->charge, dt);
+            ax = f.dx * 100 / m; ay = f.dy * 100 / m;       /* UIKit newtons, as for pushes */
+        } break;
+        }
+        b->vx += ax * dt; b->vy += ay * dt;
+    }
+}
+@end
 
 @implementation UIDynamicAnimator {
     NSMutableArray<UIDynamicBehavior *> *_behaviors;
     NSMapTable<id, __IsimBody *> *_bodies;
     double _last, _restTime, _elapsed;
     BOOL _ticking;
+    __weak UICollectionViewLayout *_cvLayout;       /* an animator of a collection view layout's attributes */
 }
+- (instancetype)initWithCollectionViewLayout:(UICollectionViewLayout *)layout {
+    if ((self = [self initWithReferenceView:(UIView *)layout.collectionView])) _cvLayout = layout;
+    return self;
+}
+- (UICollectionViewLayoutAttributes *)_isim_attributes:(UICollectionElementCategory)cat kind:(NSString *)kind at:(NSIndexPath *)ip {
+    for (id i in [self _allItems])
+        if ([i isKindOfClass:[UICollectionViewLayoutAttributes class]]) {
+            UICollectionViewLayoutAttributes *a = i;
+            if (a.representedElementCategory == cat && [a.indexPath isEqual:ip] && (!kind || [a.representedElementKind isEqualToString:kind])) return a;
+        }
+    return nil;
+}
+- (UICollectionViewLayoutAttributes *)layoutAttributesForCellAtIndexPath:(NSIndexPath *)ip { return [self _isim_attributes:UICollectionElementCategoryCell kind:nil at:ip]; }
+- (UICollectionViewLayoutAttributes *)layoutAttributesForSupplementaryViewOfKind:(NSString *)k atIndexPath:(NSIndexPath *)ip { return [self _isim_attributes:UICollectionElementCategorySupplementaryView kind:k at:ip]; }
+- (UICollectionViewLayoutAttributes *)layoutAttributesForDecorationViewOfKind:(NSString *)k atIndexPath:(NSIndexPath *)ip { return [self _isim_attributes:UICollectionElementCategoryDecorationView kind:k at:ip]; }
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wnonnull"
 - (instancetype)init { return [self initWithReferenceView:nil]; }
@@ -395,6 +528,44 @@ static BOOL shape_pair(Shape p, Shape q, double *nx, double *ny, double *depth, 
             double k = 300, damp = 2 * sqrt(k) * (0.35 + fmin(1, fmax(0, s.damping)));
             b->vx += (k * (s.snapPoint.x - c.x) - damp * b->vx) * dt; b->vy += (k * (s.snapPoint.y - c.y) - damp * b->vy) * dt;
             b->w = 0; b->angle += (0 - b->angle) * fmin(1, 10 * dt);
+        } else if ([bh isKindOfClass:[UIFieldBehavior class]]) {
+            [(UIFieldBehavior *)bh _isim_apply:self dt:dt];
+        } else if ([bh isKindOfClass:[UIAttachmentBehavior class]] && ((UIAttachmentBehavior *)bh)->_kind == 1) {
+            /* sliding: no motion across the axis (relative to the anchor line, or to the other item) */
+            UIAttachmentBehavior *at = (UIAttachmentBehavior *)bh;
+            id a = at->_a, o = at->_b; if (!a) continue;
+            double len = hypot(at->_axis.dx, at->_axis.dy); if (len < 1e-9) continue;
+            double ux = at->_axis.dx / len, uy = at->_axis.dy / len, nx = -uy, ny = ux;
+            __IsimBody *ba = [self _body:a], *bo = o ? [self _body:o] : nil;
+            CGPoint ca = [a center];
+            if (!o) {
+                double off = (ca.x - at.anchorPoint.x) * nx + (ca.y - at.anchorPoint.y) * ny;
+                if (!ba->anchored) { [a setCenter:CGPointMake(ca.x - nx * off, ca.y - ny * off)]; double vn = ba->vx * nx + ba->vy * ny; ba->vx -= nx * vn; ba->vy -= ny * vn; ba->w = 0; }
+            } else {
+                CGPoint cb = [o center];
+                double off = ((cb.x - ca.x) - at->_rel.x) * nx + ((cb.y - ca.y) - at->_rel.y) * ny;
+                double wa = ba->anchored ? 0 : 1, wb = bo->anchored ? 0 : 1, sum = wa + wb; if (sum <= 0) continue;
+                if (wa > 0) [a setCenter:CGPointMake(ca.x + nx * off * wa / sum, ca.y + ny * off * wa / sum)];
+                if (wb > 0) [o setCenter:CGPointMake(cb.x - nx * off * wb / sum, cb.y - ny * off * wb / sum)];
+                double rv = (bo->vx - ba->vx) * nx + (bo->vy - ba->vy) * ny;
+                if (wa > 0) { ba->vx += nx * rv * wa / sum; ba->vy += ny * rv * wa / sum; }
+                if (wb > 0) { bo->vx -= nx * rv * wb / sum; bo->vy -= ny * rv * wb / sum; }
+                ba->w = 0; bo->w = 0;
+            }
+        } else if ([bh isKindOfClass:[UIAttachmentBehavior class]] && ((UIAttachmentBehavior *)bh)->_kind == 2) {
+            /* fixed: the items move as one (shared velocity, kept offset, no rotation) */
+            UIAttachmentBehavior *at = (UIAttachmentBehavior *)bh;
+            id a = at->_a, o = at->_b; if (!a || !o) continue;
+            __IsimBody *ba = [self _body:a], *bo = [self _body:o];
+            double ma = ba->anchored ? 1e9 : ba->mass, mo = bo->anchored ? 1e9 : bo->mass, m = ma + mo;
+            double vx = (ba->vx * ma + bo->vx * mo) / m, vy = (ba->vy * ma + bo->vy * mo) / m;
+            if (!ba->anchored) { ba->vx = vx; ba->vy = vy; } if (!bo->anchored) { bo->vx = vx; bo->vy = vy; }
+            ba->w = bo->w = 0;
+            CGPoint ca = [a center], cb = [o center];
+            double ex = (cb.x - ca.x) - at->_rel.x, ey = (cb.y - ca.y) - at->_rel.y, wa = ba->anchored ? 0 : mo / m, wb = bo->anchored ? 0 : ma / m;
+            if (wa + wb > 0) { wa /= (wa + wb); wb = 1 - wa; }
+            if (!ba->anchored) [a setCenter:CGPointMake(ca.x + ex * wa, ca.y + ey * wa)];
+            if (!bo->anchored) [o setCenter:CGPointMake(cb.x - ex * wb, cb.y - ey * wb)];
         } else if ([bh isKindOfClass:[UIAttachmentBehavior class]]) {
             UIAttachmentBehavior *at = (UIAttachmentBehavior *)bh;
             id a = at->_a, o = at->_b; if (!a) continue;
@@ -404,7 +575,8 @@ static BOOL shape_pair(Shape p, Shape q, double *nx, double *ny, double *depth, 
             double dx = pb.x - pa.x, dy = pb.y - pa.y, d = hypot(dx, dy);
             if (d < 1e-9) continue;
             double ux = dx / d, uy = dy / d, stretch = d - at.length;
-            if (at.frequency > 0) {
+            if (at->_kind == 3 && stretch <= 0) continue;              /* a rope: slack until it is taut */
+            if (at.frequency > 0 && at->_kind == 0) {
                 double wn = 2 * M_PI * at.frequency, k = wn * wn, c = 2 * at.damping * wn;
                 double rv = ((bo ? bo->vx : 0) - ba->vx) * ux + ((bo ? bo->vy : 0) - ba->vy) * uy;
                 double acc = (k * stretch + c * rv) * dt;
@@ -515,7 +687,7 @@ static BOOL shape_pair(Shape p, Shape q, double *nx, double *ny, double *depth, 
     /* item properties: defaults, then UIDynamicItemBehaviors in order */
     for (id i in items) {
         __IsimBody *b = [self _body:i]; CGSize s = [i bounds].size;
-        b->mass = s.width * s.height / 10000.0; b->e = 0; b->friction = 0; b->resistance = 0; b->angRes = 0; b->anchored = NO; b->rotates = YES;
+        b->mass = s.width * s.height / 10000.0; b->e = 0; b->friction = 0; b->resistance = 0; b->angRes = 0; b->anchored = NO; b->rotates = YES; b->charge = 0;
     }
     for (UIDynamicBehavior *bh in bs) {
         if (![bh isKindOfClass:[UIDynamicItemBehavior class]]) continue;
@@ -523,7 +695,7 @@ static BOOL shape_pair(Shape p, Shape q, double *nx, double *ny, double *depth, 
         for (id i in [ib _isim_items]) {
             __IsimBody *b = [self _body:i]; CGSize s = [i bounds].size;
             b->mass = fmax(1e-3, ib.density) * s.width * s.height / 10000.0; b->e = ib.elasticity; b->friction = ib.friction;
-            b->resistance = ib.resistance; b->angRes = ib.angularResistance; b->anchored = ib.anchored; b->rotates = ib.allowsRotation;
+            b->resistance = ib.resistance; b->angRes = ib.angularResistance; b->anchored = ib.anchored; b->rotates = ib.allowsRotation; b->charge = ib.charge;
             NSValue *v = [ib->_addV objectForKey:i]; if (v) { b->vx += v.CGPointValue.x; b->vy += v.CGPointValue.y; [ib->_addV removeObjectForKey:i]; }
             NSNumber *w = [ib->_addW objectForKey:i]; if (w) { b->w += w.doubleValue; [ib->_addW removeObjectForKey:i]; }
         }
@@ -539,6 +711,7 @@ static BOOL shape_pair(Shape p, Shape q, double *nx, double *ny, double *depth, 
     }
     _elapsed += dt;
     for (UIDynamicBehavior *bh in bs) if (bh.action) bh.action();
+    [_cvLayout invalidateLayout];                    /* the layout asks again for the attributes moved */
     /* rest detection: nothing moves for 0.25 s */
     double moved = 0, speed = 0;
     for (id i in items) {

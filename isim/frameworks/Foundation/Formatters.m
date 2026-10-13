@@ -708,6 +708,39 @@ static NSString *count_unit(NSString *lang, double n, int unit, int width, BOOL 
 @end
 
 /* ================= NSDateComponents (minimal value holder for the formatters) ================= */
+/* ================= NSDateInterval ================= */
+@implementation NSDateInterval
++ (BOOL)supportsSecureCoding { return YES; }
+- (instancetype)init { return [self initWithStartDate:[NSDate date] duration:0]; }
+- (instancetype)initWithStartDate:(NSDate *)start duration:(NSTimeInterval)d {
+    if ((self = [super init])) { _startDate = [start copy]; _duration = d < 0 ? 0 : d; }
+    return self;
+}
+- (instancetype)initWithStartDate:(NSDate *)start endDate:(NSDate *)end { return [self initWithStartDate:start duration:[end timeIntervalSinceDate:start]]; }
+- (instancetype)initWithCoder:(NSCoder *)c {
+    NSDate *s = [c decodeObjectOfClass:[NSDate class] forKey:@"NS.startDate"] ?: [NSDate date];
+    return [self initWithStartDate:s duration:[c decodeDoubleForKey:@"NS.duration"]];
+}
+- (void)encodeWithCoder:(NSCoder *)c { [c encodeObject:_startDate forKey:@"NS.startDate"]; [c encodeDouble:_duration forKey:@"NS.duration"]; }
+- (id)copyWithZone:(NSZone *)z { return self; }       /* immutable */
+- (NSDate *)endDate { return [_startDate dateByAddingTimeInterval:_duration]; }
+- (NSComparisonResult)compare:(NSDateInterval *)o {
+    NSComparisonResult r = [_startDate compare:o.startDate];
+    return r != NSOrderedSame ? r : _duration < o.duration ? NSOrderedAscending : _duration > o.duration ? NSOrderedDescending : NSOrderedSame;
+}
+- (BOOL)isEqualToDateInterval:(NSDateInterval *)o { return [_startDate isEqualToDate:o.startDate] && _duration == o.duration; }
+- (BOOL)isEqual:(id)o { return o == self || ([o isKindOfClass:[NSDateInterval class]] && [self isEqualToDateInterval:o]); }
+- (NSUInteger)hash { return _startDate.hash ^ (NSUInteger)_duration; }
+- (BOOL)intersectsDateInterval:(NSDateInterval *)o { return [_startDate compare:o.endDate] != NSOrderedDescending && [o.startDate compare:self.endDate] != NSOrderedDescending; }
+- (NSDateInterval *)intersectionWithDateInterval:(NSDateInterval *)o {
+    if (![self intersectsDateInterval:o]) return nil;
+    NSDate *s = [_startDate laterDate:o.startDate], *e = [self.endDate earlierDate:o.endDate];
+    return [[NSDateInterval alloc] initWithStartDate:s endDate:e];
+}
+- (BOOL)containsDate:(NSDate *)d { return [_startDate compare:d] != NSOrderedDescending && [d compare:self.endDate] != NSOrderedDescending; }
+- (NSString *)description { return [NSString stringWithFormat:@"%@ to %@", _startDate, self.endDate]; }
+@end
+
 @implementation NSDateComponents
 - (instancetype)init {
     if ((self = [super init])) { _era = _year = _month = _day = _hour = _minute = _second = _nanosecond = _weekday = _weekdayOrdinal = _quarter = _weekOfMonth = _weekOfYear = _yearForWeekOfYear = NSDateComponentUndefined; }

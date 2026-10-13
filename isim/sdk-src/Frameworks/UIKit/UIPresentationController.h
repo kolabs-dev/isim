@@ -106,6 +106,8 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)animateAlongsideTransitionInView:(nullable UIView *)view
                                animation:(void (^ _Nullable)(id<UIViewControllerTransitionCoordinatorContext> context))animation
                               completion:(void (^ _Nullable)(id<UIViewControllerTransitionCoordinatorContext> context))completion;
+/* isim's transitions are not interruptible: the handler is kept and never called */
+- (void)notifyWhenInteractionChangesUsingBlock:(void (^)(id<UIViewControllerTransitionCoordinatorContext> context))handler API_AVAILABLE(ios(10.0));
 @end
 
 /* ---- presentation controllers ---- */
@@ -181,6 +183,8 @@ NS_SWIFT_UI_ACTOR
 
 /* isim: iPhone sheets (detents, grabber, dimming above largestUndimmedDetentIdentifier, card stack at the large
    detent, drag between detents / to dismiss); on iPad (regular width) sheets stay centered cards without detents */
+typedef NS_ENUM(NSInteger, UISheetPresentationControllerPlacement) { UISheetPresentationControllerPlacementAutomatic = 0, UISheetPresentationControllerPlacementCenter,
+    UISheetPresentationControllerPlacementLeading, UISheetPresentationControllerPlacementTrailing } NS_SWIFT_NAME(UISheetPresentationController.Placement) API_AVAILABLE(ios(27.0));
 NS_SWIFT_UI_ACTOR
 @interface UISheetPresentationController : UIPresentationController
 @property (nullable, nonatomic, weak) id<UISheetPresentationControllerDelegate> delegate;
@@ -197,8 +201,24 @@ NS_SWIFT_UI_ACTOR
 - (void)animateChanges:(void (NS_NOESCAPE ^)(void))changes;
 - (void)invalidateDetents;
 @end
+@interface UISheetPresentationController (UISheetPresentationControllerPlacement)
+/* iOS 27: where a sheet sits in regular width: centred, or at the leading / trailing edge */
+@property (nonatomic) UISheetPresentationControllerPlacement preferredPlacement API_AVAILABLE(ios(27.0));
+@end
 
 /* popovers */
+@class UIView;
+/* what a popover can point at (iOS 16): views and bar button items are source items */
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(16.0))
+@protocol UIPopoverPresentationControllerSourceItem <NSObject>
+@optional
+/* the item's frame in the reference view (iOS 17; isim's Swift signature returns CGRect, CGRectNull for none,
+   where Apple's returns CGRect?) */
+- (CGRect)frameInView:(UIView *)referenceView API_AVAILABLE(ios(17.0));
+@end
+@interface UIView (UIPopoverPresentationControllerSourceItem) <UIPopoverPresentationControllerSourceItem>
+@end
+@protocol UIPopoverBackgroundViewMethods;
 typedef NS_OPTIONS(NSUInteger, UIPopoverArrowDirection) {
     UIPopoverArrowDirectionUp = 1UL << 0, UIPopoverArrowDirectionDown = 1UL << 1, UIPopoverArrowDirectionLeft = 1UL << 2,
     UIPopoverArrowDirectionRight = 1UL << 3,
@@ -224,6 +244,28 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, copy) NSArray<UIView *> *passthroughViews;
 @property (nullable, nonatomic, copy) UIColor *backgroundColor;
 @property (nonatomic) BOOL canOverlapSourceViewRect;
+/* iOS 16: any anchor (a view, a bar button item, or another source item's frame) */
+@property (nullable, nonatomic, strong) id<UIPopoverPresentationControllerSourceItem> sourceItem API_AVAILABLE(ios(16.0));
+/* the popover keeps this far from the screen edges (default 10) */
+@property (nonatomic) UIEdgeInsets popoverLayoutMargins;
+/* a custom background (and arrow) drawn by this class instead of the system card */
+@property (nullable, nonatomic, strong) Class<UIPopoverBackgroundViewMethods> popoverBackgroundViewClass;
+/* the sheet used when the popover adapts to a sheet (compact width): its detents, grabber, … */
+@property (nonatomic, readonly) UISheetPresentationController *adaptiveSheetPresentationController API_AVAILABLE(ios(15.0));
+@end
+/* a custom popover background: the class gives the arrow's size and the content insets; the instance is told the
+   arrow's direction and its offset from the centre of the edge */
+NS_SWIFT_UI_ACTOR
+@protocol UIPopoverBackgroundViewMethods
++ (CGFloat)arrowBase;
++ (UIEdgeInsets)contentViewInsets;
++ (CGFloat)arrowHeight;
+@end
+NS_SWIFT_UI_ACTOR
+@interface UIPopoverBackgroundView : UIView <UIPopoverBackgroundViewMethods>
+@property (nonatomic, readwrite) CGFloat arrowOffset;
+@property (nonatomic, readwrite) UIPopoverArrowDirection arrowDirection;
+@property (class, nonatomic, readonly) BOOL wantsDefaultContentAppearance;
 @end
 
 @interface UIViewController (UIPresentation)

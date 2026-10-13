@@ -71,6 +71,9 @@ NSString *const UIKeyInputPageDown = @"UIKeyInputPageDown";
 NSString *const UIKeyInputHome = @"UIKeyInputHome";
 NSString *const UIKeyInputEnd = @"UIKeyInputEnd";
 NSString *const UIKeyInputDelete = @"UIKeyInputDelete";
+NSString *const UIKeyInputF1 = @"UIKeyInputF1", *const UIKeyInputF2 = @"UIKeyInputF2", *const UIKeyInputF3 = @"UIKeyInputF3", *const UIKeyInputF4 = @"UIKeyInputF4",
+    *const UIKeyInputF5 = @"UIKeyInputF5", *const UIKeyInputF6 = @"UIKeyInputF6", *const UIKeyInputF7 = @"UIKeyInputF7", *const UIKeyInputF8 = @"UIKeyInputF8",
+    *const UIKeyInputF9 = @"UIKeyInputF9", *const UIKeyInputF10 = @"UIKeyInputF10", *const UIKeyInputF11 = @"UIKeyInputF11", *const UIKeyInputF12 = @"UIKeyInputF12";
 
 @interface UIKey ()
 @property (nonatomic, readwrite, copy) NSString *characters, *charactersIgnoringModifiers;
@@ -98,6 +101,7 @@ NSString *const UIKeyInputDelete = @"UIKeyInputDelete";
 @implementation UIPressesEvent
 - (NSSet<UIPress *> *)allPresses { return _isimPresses ?: [NSSet set]; }
 - (UIEventType)type { return UIEventTypePresses; }
+- (NSSet<UIPress *> *)pressesForGestureRecognizer:(UIGestureRecognizer *)g { return [NSSet set]; }   /* recognizers get no presses */
 @end
 @interface __IsimMotionEvent : UIEvent
 @end
@@ -108,18 +112,31 @@ NSString *const UIKeyInputDelete = @"UIKeyInputDelete";
 @end
 
 @implementation UIKeyCommand
+@dynamic title, discoverabilityTitle;
 + (instancetype)keyCommandWithInput:(NSString *)input modifierFlags:(UIKeyModifierFlags)flags action:(SEL)action {
-    UIKeyCommand *c = [self new]; c->_input = [input copy]; c->_modifierFlags = flags; c->_action = action; c->_title = @""; return c;
+    UIKeyCommand *c = [self new]; c->_input = [input copy]; c->_modifierFlags = flags; [c _isim_setAction:action propertyList:nil alternates:nil];
+    c->_allowsAutomaticLocalization = YES; c->_allowsAutomaticMirroring = YES;
+    return c;
 }
 + (instancetype)commandWithTitle:(NSString *)title image:(UIImage *)image action:(SEL)action input:(NSString *)input modifierFlags:(UIKeyModifierFlags)flags propertyList:(id)plist {
-    UIKeyCommand *c = [self keyCommandWithInput:input modifierFlags:flags action:action]; c.title = title ?: @""; c->_propertyList = plist; return c;
+    return [self commandWithTitle:title image:image action:action input:input modifierFlags:flags propertyList:plist alternates:@[]];
 }
-- (id)copyWithZone:(NSZone *)z { return self; }
++ (instancetype)commandWithTitle:(NSString *)title image:(UIImage *)image action:(SEL)action input:(NSString *)input modifierFlags:(UIKeyModifierFlags)flags
+                    propertyList:(id)plist alternates:(NSArray *)alternates {
+    UIKeyCommand *c = [self keyCommandWithInput:input modifierFlags:flags action:action];
+    c.title = title ?: @""; c.image = image; [c _isim_setAction:action propertyList:plist alternates:alternates]; return c;
+}
 @end
 
 @implementation UIResponder (UIKeyboardAndMotion)
 - (NSArray<UIKeyCommand *> *)keyCommands { return nil; }
-- (void)pressesBegan:(NSSet *)p withEvent:(UIPressesEvent *)e { [self.nextResponder pressesBegan:p withEvent:e]; }
+- (void)pressesBegan:(NSSet *)p withEvent:(UIPressesEvent *)e {
+    UIResponder *n = self.nextResponder;
+    if (n) { [n pressesBegan:p withEvent:e]; return; }
+    /* nobody handled the key: arrows, Page Up / Down, Space, Home and End scroll the main scroll view (not while typing) */
+    if ([isim_ui_first_responder() respondsToSelector:@selector(insertText:)]) return;
+    for (UIPress *press in p) if (press.key) isim_ui_keyboard_scroll(UIApplication.sharedApplication.keyWindow, (int)press.key.keyCode, (press.key.modifierFlags & UIKeyModifierShift) != 0);
+}
 - (void)pressesChanged:(NSSet *)p withEvent:(UIPressesEvent *)e { [self.nextResponder pressesChanged:p withEvent:e]; }
 - (void)pressesEnded:(NSSet *)p withEvent:(UIPressesEvent *)e { [self.nextResponder pressesEnded:p withEvent:e]; }
 - (void)pressesCancelled:(NSSet *)p withEvent:(UIPressesEvent *)e { [self.nextResponder pressesCancelled:p withEvent:e]; }
@@ -157,10 +174,13 @@ static UIViewController *visible_controller(UIViewController *vc) {
 static UIResponder *focus_responder(void) {
     UIResponder *fr = isim_ui_first_responder();
     if (fr) return fr;
+    UIView *focused = isim_ui_focused_view();             /* iPad keyboard focus (UIFocus.m) */
+    if (focused) return focused;
     UIWindow *w = UIApplication.sharedApplication.keyWindow ?: UIApplication.sharedApplication.windows.firstObject;
     UIViewController *vc = visible_controller(w.rootViewController);
     return vc ?: (UIResponder *)w;
 }
+UIResponder *isim_ui_focus_responder(void) { return focus_responder(); }
 
 static UIKeyModifierFlags held_mods;
 static UIKeyModifierFlags mods_from_host(int sdl) {
@@ -185,6 +205,9 @@ static NSString *special_input(int hid) {
     switch (hid) {
     case 0x52: return UIKeyInputUpArrow; case 0x51: return UIKeyInputDownArrow; case 0x50: return UIKeyInputLeftArrow; case 0x4F: return UIKeyInputRightArrow;
     case 0x29: return UIKeyInputEscape; case 0x4B: return UIKeyInputPageUp; case 0x4E: return UIKeyInputPageDown; case 0x4A: return UIKeyInputHome;
+    case 0x3A: return UIKeyInputF1; case 0x3B: return UIKeyInputF2; case 0x3C: return UIKeyInputF3; case 0x3D: return UIKeyInputF4;
+    case 0x3E: return UIKeyInputF5; case 0x3F: return UIKeyInputF6; case 0x40: return UIKeyInputF7; case 0x41: return UIKeyInputF8;
+    case 0x42: return UIKeyInputF9; case 0x43: return UIKeyInputF10; case 0x44: return UIKeyInputF11; case 0x45: return UIKeyInputF12;
     case 0x4D: return UIKeyInputEnd; case 0x4C: return UIKeyInputDelete; case 0x28: return @"\r"; case 0x2B: return @"\t"; case 0x2C: return @" "; case 0x2A: return @"\b";
     default: return nil;
     }
@@ -214,6 +237,8 @@ BOOL isim_ui_hardware_key(int hid, int keycode, int hostmods, BOOL down) {
     press.type = hid == 0x52 ? UIPressTypeUpArrow : hid == 0x51 ? UIPressTypeDownArrow : hid == 0x50 ? UIPressTypeLeftArrow : hid == 0x4F ? UIPressTypeRightArrow
                : hid == 0x28 ? UIPressTypeSelect : hid == 0x29 ? UIPressTypeMenu : (UIPressType)-1;
     if (!active_presses) active_presses = [NSMutableDictionary dictionary];
+    BOOL isRepeat = down && active_presses[@(hid)] != nil;          /* the host repeats a held key */
+    isim_ui_main_menu_modifier(mflag, down, !mflag);                /* iPad: Command held shows the keyboard shortcuts */
     UIResponder *start = focus_responder();
     if (down && !mflag && !(mods & (UIKeyModifierCommand | UIKeyModifierControl)) && isim_ui_menu_key(hid, key.characters)) return YES;   /* an open menu first */
     /* key commands first (key down, modifiers themselves never match) */
@@ -225,12 +250,17 @@ BOOL isim_ui_hardware_key(int hid, int keycode, int hostmods, BOOL down) {
                 if (!c.action || !c.input) continue;
                 BOOL inputMatch = [c.input caseInsensitiveCompare:base] == NSOrderedSame || [c.input isEqualToString:key.characters];
                 if (!inputMatch || (c.modifierFlags & cmpMask) != (mods & cmpMask)) continue;
+                if (isRepeat && c.repeatBehavior == UIMenuElementRepeatBehaviorNonRepeatable) { consumed = YES; break; }
                 id target = [start targetForAction:c.action withSender:c];
                 if (!target) continue;
+                [target validateCommand:c];
+                if (c.attributes & UIMenuElementAttributesDisabled) continue;
                 ((void (*)(id, SEL, id))[target methodForSelector:c.action])(target, c.action, c);
                 consumed = YES; break;
             }
         }
+        if (!consumed) consumed = isim_ui_main_menu_key(base, key.characters, mods, isRepeat);   /* the app's main menu commands */
+        if (!consumed) consumed = isim_ui_focus_key(hid, mods);                              /* iPad keyboard focus (UIFocus.m) */
     }
     UIPressesEvent *e = [UIPressesEvent new];
     if (down) {
@@ -250,6 +280,9 @@ void isim_ui_shake(void) {
     __IsimMotionEvent *e = [__IsimMotionEvent new];
     [r motionBegan:UIEventSubtypeMotionShake withEvent:e];
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [focus_responder() motionEnded:UIEventSubtypeMotionShake withEvent:e];
+        UIResponder *r2 = focus_responder();
+        [r2 motionEnded:UIEventSubtypeMotionShake withEvent:e];
+        extern void isim_ui_shake_to_edit(UIResponder *);
+        isim_ui_shake_to_edit(r2);                       /* Shake to Undo (UISceneExtras.m) */
     });
 }

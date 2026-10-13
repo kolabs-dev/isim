@@ -3,6 +3,7 @@
  * (wider glass card with large corners, leading-aligned text, capsule buttons; the preferred action filled with
  * the tint) and glass action sheet cards. */
 #import "UIKitPrivate.h"
+#import <objc/runtime.h>
 
 @class __IsimAlertButton;
 @interface UIAlertAction ()
@@ -323,6 +324,11 @@ static UIColor *card_color(void) {
 }
 @end
 
+static char kSeverity;
+@implementation UIAlertController (UIAlertControllerSeverity)
+- (UIAlertControllerSeverity)severity { return [objc_getAssociatedObject(self, &kSeverity) integerValue]; }
+- (void)setSeverity:(UIAlertControllerSeverity)s { objc_setAssociatedObject(self, &kSeverity, @(s), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+@end
 /* system alerts (permission prompts: notifications, camera, photos, location, paste, ...): on iOS SpringBoard shows
  * them, not the app; isim presents them in the app (adapted) and marks them so XCUITest finds them under
  * XCUIApplication(bundleIdentifier: "com.apple.springboard") instead of the app (UIAXSnapshot.m) */

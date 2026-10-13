@@ -13,6 +13,7 @@
 #import "UIKitPrivate.h"
 #import <UIKit/UIPickerView.h>
 #import <UIKit/UIDatePicker.h>
+#import <objc/runtime.h>
 #include <math.h>
 #include <time.h>
 
@@ -37,7 +38,14 @@ typedef struct {
 - (void)_isim_setCyclic:(BOOL)c forComponent:(NSInteger)k;
 - (void)_isim_setAlignment:(NSTextAlignment)a forComponent:(NSInteger)k;
 @property (nonatomic, copy) void (^_isim_onSelect)(NSInteger row, NSInteger component);   /* internal clients (UIDatePicker) */
+- (NSString *)_isim_titleFor:(NSInteger)row comp:(NSInteger)k;
+- (CGRect)_isim_compRect:(NSInteger)k;
+- (void)_isim_axStep:(NSInteger)d component:(NSInteger)k;
 @property (nonatomic, strong) UIFont *_isim_font;
+@end
+@interface __IsimPickerComponentElement : UIAccessibilityElement
+- (instancetype)initWithPicker:(UIPickerView *)p component:(NSInteger)k;
+@property (nonatomic, readonly) NSInteger component;
 @end
 
 @implementation UIPickerView {
@@ -308,4 +316,65 @@ typedef struct {
     if (!_w[k].cyclic && (target < 0 || target > _w[k].rows - 1)) return;
     [self _isim_pkAnimate:k to:target duration:0.3 notify:YES];
 }
+/* ---- accessibility: one adjustable element per wheel (label and hint from a UIPickerViewAccessibilityDelegate, value the
+   selected row's title; increment / decrement turn the wheel one row) ---- */
+- (NSArray *)accessibilityElements {
+    NSArray *a = [super accessibilityElements];
+    if (a) return a;
+    NSMutableArray *els = objc_getAssociatedObject(self, @selector(accessibilityElements));
+    if (els.count != (NSUInteger)_n) {
+        els = [NSMutableArray array];
+        for (NSInteger k = 0; k < _n; k++) [els addObject:[[__IsimPickerComponentElement alloc] initWithPicker:self component:k]];
+        objc_setAssociatedObject(self, @selector(accessibilityElements), els, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    for (__IsimPickerComponentElement *e in els) e.accessibilityFrameInContainerSpace = [self _isim_compRect:e.component];
+    return els;
+}
+- (void)_isim_axStep:(NSInteger)d component:(NSInteger)k {
+    if (k < 0 || k >= _n || !_w[k].rows) return;
+    NSInteger row = _w[k].selected + d;
+    if (!_w[k].cyclic && (row < 0 || row >= _w[k].rows)) return;
+    [self selectRow:row inComponent:k animated:NO];
+    row = _w[k].selected;
+    if (self._isim_onSelect) self._isim_onSelect(row, k);
+    else if ([_delegate respondsToSelector:@selector(pickerView:didSelectRow:inComponent:)]) [_delegate pickerView:self didSelectRow:row inComponent:k];
+}
+@end
+@implementation __IsimPickerComponentElement { __weak UIPickerView *_picker; }
+- (instancetype)initWithPicker:(UIPickerView *)p component:(NSInteger)k {
+    if ((self = [super initWithAccessibilityContainer:p])) { _picker = p; _component = k; }
+    return self;
+}
+- (id<UIPickerViewAccessibilityDelegate>)_ad { id d = _picker.delegate; return [d conformsToProtocol:@protocol(UIPickerViewAccessibilityDelegate)] || [d respondsToSelector:@selector(pickerView:accessibilityLabelForComponent:)] ? d : nil; }
+- (NSString *)accessibilityLabel {
+    id d = [self _ad];
+    if ([d respondsToSelector:@selector(pickerView:accessibilityAttributedLabelForComponent:)]) { NSAttributedString *a = [d pickerView:_picker accessibilityAttributedLabelForComponent:_component]; if (a) return a.string; }
+    if ([d respondsToSelector:@selector(pickerView:accessibilityLabelForComponent:)]) return [d pickerView:_picker accessibilityLabelForComponent:_component];
+    return [super accessibilityLabel];
+}
+- (NSString *)accessibilityHint {
+    id d = [self _ad];
+    if ([d respondsToSelector:@selector(pickerView:accessibilityAttributedHintForComponent:)]) { NSAttributedString *a = [d pickerView:_picker accessibilityAttributedHintForComponent:_component]; if (a) return a.string; }
+    if ([d respondsToSelector:@selector(pickerView:accessibilityHintForComponent:)]) return [d pickerView:_picker accessibilityHintForComponent:_component];
+    return [super accessibilityHint];
+}
+- (NSArray<NSString *> *)accessibilityUserInputLabels {
+    id d = [self _ad];
+    if ([d respondsToSelector:@selector(pickerView:accessibilityAttributedUserInputLabelsForComponent:)]) {
+        NSMutableArray *m = [NSMutableArray array]; for (NSAttributedString *a in [d pickerView:_picker accessibilityAttributedUserInputLabelsForComponent:_component]) [m addObject:a.string];
+        return m;
+    }
+    if ([d respondsToSelector:@selector(pickerView:accessibilityUserInputLabelsForComponent:)]) return [d pickerView:_picker accessibilityUserInputLabelsForComponent:_component];
+    return [super accessibilityUserInputLabels];
+}
+- (NSString *)accessibilityValue {
+    UIPickerView *p = _picker;
+    NSInteger row = [p selectedRowInComponent:_component];
+    if (row < 0) return nil;
+    NSInteger n = [p numberOfRowsInComponent:_component];
+    return [NSString stringWithFormat:@"%@, %ld of %ld", [p _isim_titleFor:row comp:_component], (long)row + 1, (long)n];
+}
+- (UIAccessibilityTraits)accessibilityTraits { return UIAccessibilityTraitAdjustable; }
+- (void)accessibilityIncrement { [_picker _isim_axStep:1 component:_component]; }
+- (void)accessibilityDecrement { [_picker _isim_axStep:-1 component:_component]; }
 @end

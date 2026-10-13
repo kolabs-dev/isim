@@ -17,10 +17,26 @@
  * willTransitionTo / didFinishAnimating; presentationCount/Index show page dots. Page curl is shown as scroll
  * (adapted). */
 #import "UIKitPrivate.h"
+#import <objc/runtime.h>
 #import <UIKit/UISplitViewController.h>
 #include <math.h>
 
 /* ================= UISplitViewController ================= */
+NSNotificationName const UIViewControllerShowDetailTargetDidChangeNotification = @"UIViewControllerShowDetailTargetDidChangeNotification";
+static char kEdgeActive;
+@interface UISplitViewController (IsimInspector)
+- (void)_isim_setInspector:(UIViewController *)vc;
+- (UIViewController *)_isim_inspectorController;
+- (void)_isim_buildInspector;
+- (UIView *)_isim_inspectorShownView;
+- (CGFloat)_isim_inspectorWidth;
+- (UIView *)_isim_inspectorSeparator;
+- (void)_isim_showInspector:(BOOL)show;
+@end
+@interface UISplitViewController ()
+- (BOOL)_isim_collapsedShows:(UISplitViewControllerColumn)column;
+@end
+static NSArray *unwrapped(UIViewController *vc);
 @implementation UISplitViewController {
     UIViewController *_cols[4];               /* primary, supplementary, secondary, compact (as given) */
     UINavigationController *_nav[3];          /* column navigation controllers (wrapping plain controllers) */
@@ -119,9 +135,16 @@ static NSString *mode_name(UISplitViewControllerDisplayMode m) {
 }
 - (void)_isim_toggle:(id)sender { [self _isim_setMode:[self _isim_toggleTarget]]; }
 - (void)_isim_edge:(UIScreenEdgePanGestureRecognizer *)g {
+    id<UISplitViewControllerDelegate> d = _delegate;
     if (g.state == UIGestureRecognizerStateBegan && self.displayMode == UISplitViewControllerDisplayModeSecondaryOnly) {
         NSLog(@"isim: split view edge swipe");
+        if ([d respondsToSelector:@selector(splitViewControllerInteractivePresentationGestureWillBegin:)]) [d splitViewControllerInteractivePresentationGestureWillBegin:self];
+        objc_setAssociatedObject(self, &kEdgeActive, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         [self _isim_toggle:g];
+    }
+    if ((g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled) && objc_getAssociatedObject(self, &kEdgeActive)) {
+        objc_setAssociatedObject(self, &kEdgeActive, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        if ([d respondsToSelector:@selector(splitViewControllerInteractivePresentationGestureDidEnd:)]) [d splitViewControllerInteractivePresentationGestureDidEnd:self];
     }
 }
 - (void)_isim_dimTapped { if (self.displayMode != UISplitViewControllerDisplayModeOneBesideSecondary && self.displayMode != UISplitViewControllerDisplayModeTwoBesideSecondary) [self _isim_setMode:UISplitViewControllerDisplayModeSecondaryOnly]; }
@@ -133,6 +156,7 @@ static NSString *mode_name(UISplitViewControllerDisplayMode m) {
     }
     _buttonItemOwner = nil;
     _edge.enabled = _presentsWithGesture && !_compactNav;
+    _edge.edges = self.primaryEdge == UISplitViewControllerPrimaryEdgeTrailing ? UIRectEdgeRight : UIRectEdgeLeft;
     if (_style == UISplitViewControllerStyleUnspecified || _compactNav || _displayModeButtonVisibility == UISplitViewControllerDisplayModeButtonVisibilityNever) return;
     BOOL hidden = self.displayMode == UISplitViewControllerDisplayModeSecondaryOnly;
     if (_displayModeButtonVisibility != UISplitViewControllerDisplayModeButtonVisibilityAlways && !(hidden && _presentsWithGesture)) return;
@@ -152,6 +176,8 @@ static NSString *mode_name(UISplitViewControllerDisplayMode m) {
 - (CGFloat)supplementaryColumnWidth {
     CGFloat W = self.viewIfLoaded.bounds.size.width ?: isim_ui_device()->width;
     CGFloat w = _preferredSupplementaryColumnWidth > 0 ? _preferredSupplementaryColumnWidth : _preferredSupplementaryColumnWidthFraction > 0 ? W * _preferredSupplementaryColumnWidthFraction : 320;
+    if (self.minimumSupplementaryColumnWidth > 0) w = fmax(w, self.minimumSupplementaryColumnWidth);
+    if (self.maximumSupplementaryColumnWidth > 0) w = fmin(w, self.maximumSupplementaryColumnWidth);
     return fmin(w, W / 2);
 }
 - (UIBarButtonItem *)displayModeButtonItem {
@@ -163,15 +189,30 @@ static NSString *mode_name(UISplitViewControllerDisplayMode m) {
     return _modeItem;
 }
 
+/* collapsed: the column whose level of the one stack is on top (primary, then supplementary, then secondary); a
+   dedicated compact column always shows */
+- (BOOL)_isim_collapsedShows:(UISplitViewControllerColumn)column {
+    if (_cols[3]) return column == UISplitViewControllerColumnCompact;
+    if (column == UISplitViewControllerColumnCompact || !_compactNav) return NO;
+    NSUInteger top = _compactNav.viewControllers.count, supp = _cols[1] ? unwrapped(_cols[1]).count : 0;
+    if (!top) return NO;
+    top -= 1;
+    if (column == UISplitViewControllerColumnPrimary) return top < _primaryCount;
+    if (column == UISplitViewControllerColumnSupplementary) return _cols[1] && top >= _primaryCount && top < _primaryCount + supp;
+    return top >= _primaryCount + supp;
+}
+
 /* ---- columns ---- */
 static NSInteger col_index(UISplitViewControllerColumn c) { return c == UISplitViewControllerColumnPrimary ? 0 : c == UISplitViewControllerColumnSupplementary ? 1 : c == UISplitViewControllerColumnSecondary ? 2 : 3; }
 - (void)setViewController:(UIViewController *)vc forColumn:(UISplitViewControllerColumn)column {
+    if (column == UISplitViewControllerColumnInspector) { [self _isim_setInspector:vc]; return; }
     NSInteger i = col_index(column);
     _cols[i] = vc;
     if (i < 3) _nav[i] = nil;
     [self _isim_rebuild];
 }
 - (UIViewController *)viewControllerForColumn:(UISplitViewControllerColumn)column {
+    if (column == UISplitViewControllerColumnInspector) return [self _isim_inspectorController];
     NSInteger i = col_index(column);
     if (i == 3) return _cols[3];
     return _nav[i] ?: _cols[i];
@@ -230,6 +271,10 @@ static NSInteger col_index(UISplitViewControllerColumn c) { return c == UISplitV
         if (_style == UISplitViewControllerStyleUnspecified && [d respondsToSelector:@selector(splitViewController:separateSecondaryViewControllerFromPrimaryViewController:)])
             separated = [d splitViewController:self separateSecondaryViewControllerFromPrimaryViewController:_cols[0]];
         if (separated) { _cols[2] = separated; _nav[2] = nil; }
+        if (_style == UISplitViewControllerStyleUnspecified && [d respondsToSelector:@selector(primaryViewControllerForExpandingSplitViewController:)]) {
+            UIViewController *p = [d primaryViewControllerForExpandingSplitViewController:self];   /* the primary after expanding */
+            if (p) { _cols[0] = p; _nav[0] = nil; }
+        }
         else if (extra.count && ![extra containsObject:unwrapped(_cols[2]).firstObject]) {
             if ([_cols[2] isKindOfClass:[UINavigationController class]]) [(UINavigationController *)_cols[2] setViewControllers:extra animated:NO];
             else { _cols[2] = extra.count == 1 ? extra[0] : [[UINavigationController alloc] init]; _nav[2] = nil;
@@ -243,11 +288,14 @@ static NSInteger col_index(UISplitViewControllerColumn c) { return c == UISplitV
         }
         NSLog(@"isim: split view expanded (%@)", mode_name(self.displayMode));
         if ([d respondsToSelector:@selector(splitViewControllerDidExpand:)]) [d splitViewControllerDidExpand:self];
+        [NSNotificationCenter.defaultCenter postNotificationName:UIViewControllerShowDetailTargetDidChangeNotification object:self];
         return;
     }
     [self _isim_rebuild];
 }
 - (void)_isim_adopt:(UIViewController *)c {
+    [c.traitOverrides setNSIntegerValue:_wasCompact > 0 ? UISplitViewControllerLayoutEnvironmentCollapsed : UISplitViewControllerLayoutEnvironmentExpanded
+                                forTrait:[UITraitSplitViewControllerLayoutEnvironment class]];
     [self addChildViewController:c];
     c.view.autoresizingMask = UIViewAutoresizingNone;
     [self.view addSubview:c.view];
@@ -273,6 +321,10 @@ static NSArray *unwrapped(UIViewController *vc) {
         top = [d splitViewController:self topColumnForCollapsingToProposedTopColumn:UISplitViewControllerColumnSecondary];
     if (_style == UISplitViewControllerStyleUnspecified && _cols[2] && [d respondsToSelector:@selector(splitViewController:collapseSecondaryViewController:ontoPrimaryViewController:)]
         && [d splitViewController:self collapseSecondaryViewController:_cols[2] ontoPrimaryViewController:_cols[0]]) top = UISplitViewControllerColumnPrimary;
+    if (_style == UISplitViewControllerStyleUnspecified && [d respondsToSelector:@selector(primaryViewControllerForCollapsingSplitViewController:)]) {
+        UIViewController *p = [d primaryViewControllerForCollapsingSplitViewController:self];      /* the primary to collapse into */
+        if (p && p != _cols[0]) { _cols[0] = p; _nav[0] = nil; nav = [self _isim_navFor:0]; }
+    }
     NSMutableArray *stack = [unwrapped(_cols[0]) mutableCopy];
     if (top != UISplitViewControllerColumnPrimary && _cols[1]) for (UIViewController *v in unwrapped(_cols[1])) if (![stack containsObject:v]) [stack addObject:v];
     if (top == UISplitViewControllerColumnSecondary && _cols[2]) for (UIViewController *v in unwrapped(_cols[2])) if (![stack containsObject:v]) [stack addObject:v];
@@ -282,6 +334,7 @@ static NSArray *unwrapped(UIViewController *vc) {
     [nav setViewControllers:stack animated:NO];
     NSLog(@"isim: split view collapsed, top column %ld, %lu controllers", (long)top, (unsigned long)stack.count);
     if ([d respondsToSelector:@selector(splitViewControllerDidCollapse:)]) [d splitViewControllerDidCollapse:self];
+    [NSNotificationCenter.defaultCenter postNotificationName:UIViewControllerShowDetailTargetDidChangeNotification object:self];
 }
 - (void)_isim_buildColumns {
     for (int i = 0; i < 3; i++) {
@@ -300,6 +353,7 @@ static NSArray *unwrapped(UIViewController *vc) {
     [_dim addTarget:self action:@selector(_isim_dimTapped) forControlEvents:UIControlEventTouchUpInside];
     _dim.hidden = YES;
     [self.view addSubview:_dim];
+    [self _isim_buildInspector];
 }
 - (void)viewWillLayoutSubviews {
     [super viewWillLayoutSubviews];
@@ -309,6 +363,19 @@ static NSArray *unwrapped(UIViewController *vc) {
     UIView *pv = (_nav[0] ?: _cols[0]).view, *sv = (_nav[1] ?: _cols[1]).view, *dv = (_nav[2] ?: _cols[2]).view;
     CGFloat W = b.size.width, H = b.size.height, pw = self.primaryColumnWidth, swd = self.supplementaryColumnWidth;
     UISplitViewControllerDisplayMode m = self.displayMode;
+    /* iOS 26: the inspector column at the trailing edge takes its width from the secondary */
+    UIView *iv = [self _isim_inspectorShownView];
+    CGFloat iw = iv ? [self _isim_inspectorWidth] : 0;
+    W -= iw;
+    /* the secondary keeps its minimum width: the leading columns give way (tiled) */
+    CGFloat minSecondary = self.minimumSecondaryColumnWidth;
+    if (minSecondary > 0) {
+        CGFloat lead0 = (m == UISplitViewControllerDisplayModeSecondaryOnly ? 0 : triple(self) ? swd + (m == UISplitViewControllerDisplayModeTwoBesideSecondary ? pw : 0) : pw);
+        CGFloat over = lead0 + minSecondary - W;
+        if (over > 0 && triple(self) && m == UISplitViewControllerDisplayModeTwoBesideSecondary) { CGFloat cut = fmin(over, fmax(0, swd - self.minimumSupplementaryColumnWidth)); swd -= cut; over -= cut; }
+        if (over > 0 && !(triple(self) && m != UISplitViewControllerDisplayModeTwoBesideSecondary)) pw = fmax(self.minimumPrimaryColumnWidth, pw - over);
+        else if (over > 0) swd = fmax(self.minimumSupplementaryColumnWidth, swd - over);
+    }
     BOOL two = m == UISplitViewControllerDisplayModeTwoBesideSecondary || m == UISplitViewControllerDisplayModeTwoOverSecondary || m == UISplitViewControllerDisplayModeTwoDisplaceSecondary;
     BOOL over = m == UISplitViewControllerDisplayModeOneOverSecondary || m == UISplitViewControllerDisplayModeTwoOverSecondary;
     BOOL displace = m == UISplitViewControllerDisplayModeTwoDisplaceSecondary, hidden = m == UISplitViewControllerDisplayModeSecondaryOnly;
@@ -339,6 +406,19 @@ static NSArray *unwrapped(UIViewController *vc) {
     _separator.frame = CGRectMake(triple(self) && !two ? swd : pw, 0, 0.5, H);
     _separator2.frame = CGRectMake(pw + 0.5 + swd, 0, 0.5, H);
     [self.view bringSubviewToFront:_separator]; [self.view bringSubviewToFront:_separator2];
+    if (iv) {
+        iv.frame = CGRectMake(W + 0.5, 0, iw - 0.5, H);
+        [self _isim_inspectorSeparator].frame = CGRectMake(W, 0, 0.5, H);
+        [self.view bringSubviewToFront:iv]; [self.view bringSubviewToFront:[self _isim_inspectorSeparator]];
+    }
+    /* the primary edge on the trailing side: the whole arrangement mirrored */
+    if (self.primaryEdge == UISplitViewControllerPrimaryEdgeTrailing) {
+        CGFloat full = b.size.width;
+        for (UIView *v in @[pv ?: NSNull.null, sv ?: NSNull.null, dv ?: NSNull.null, _dim, _separator, _separator2, iv ?: NSNull.null, [self _isim_inspectorSeparator]]) {
+            if ((id)v == NSNull.null) continue;
+            CGRect f = v.frame; f.origin.x = full - CGRectGetMaxX(f); v.frame = f;
+        }
+    }
 }
 
 /* ---- showing ---- */
@@ -366,6 +446,7 @@ static NSArray *unwrapped(UIViewController *vc) {
 - (void)showColumn:(UISplitViewControllerColumn)column {
     id<UISplitViewControllerDelegate> d = _delegate;
     if ([d respondsToSelector:@selector(splitViewController:willShowColumn:)]) [d splitViewController:self willShowColumn:column];
+    if (column == UISplitViewControllerColumnInspector) { [self _isim_showInspector:YES]; return; }
     if (!_compactNav) {
         UISplitViewControllerDisplayMode m = self.displayMode;
         if (column == UISplitViewControllerColumnPrimary && (m == UISplitViewControllerDisplayModeSecondaryOnly || (triple(self) && m == UISplitViewControllerDisplayModeOneBesideSecondary)))
@@ -384,6 +465,7 @@ static NSArray *unwrapped(UIViewController *vc) {
 - (void)hideColumn:(UISplitViewControllerColumn)column {
     id<UISplitViewControllerDelegate> d = _delegate;
     if ([d respondsToSelector:@selector(splitViewController:willHideColumn:)]) [d splitViewController:self willHideColumn:column];
+    if (column == UISplitViewControllerColumnInspector) { [self _isim_showInspector:NO]; return; }
     if (!_compactNav) {
         if (column == UISplitViewControllerColumnPrimary && triple(self) && self.displayMode != UISplitViewControllerDisplayModeSecondaryOnly)
             [self _isim_setMode:UISplitViewControllerDisplayModeOneBesideSecondary];
@@ -393,6 +475,119 @@ static NSArray *unwrapped(UIViewController *vc) {
     UIViewController *first = unwrapped(_cols[col_index(column)]).firstObject;
     NSUInteger i = [_compactNav.viewControllers indexOfObjectIdenticalTo:first];
     if (i != NSNotFound && i > 0) [_compactNav popToViewController:_compactNav.viewControllers[i - 1] animated:YES];
+}
+@end
+
+/* ---- members from the documentation sweep (#9) ---- */
+CGFloat const UISplitViewControllerAutomaticDimension = -1;   /* (the widths treat values <= 0 as automatic) */
+static char kSuppMin, kSuppMax, kSecPref, kSecFrac, kSecMin, kInsPref, kInsFrac, kInsMin, kInsMax, kPrimaryEdge, kBackgroundStyle;
+static char kInspector, kInspectorNav, kInspectorShown, kInspectorSeparator;
+#define SPLIT_CGFLOAT(get, set, key, relayout) \
+    - (CGFloat)get { return [objc_getAssociatedObject(self, &key) doubleValue]; } \
+    - (void)set:(CGFloat)v { objc_setAssociatedObject(self, &key, @(v), OBJC_ASSOCIATION_RETAIN_NONATOMIC); if (relayout) [self.viewIfLoaded setNeedsLayout]; }
+@implementation UISplitViewController (UISplitViewControllerExtras)
+SPLIT_CGFLOAT(minimumSupplementaryColumnWidth, setMinimumSupplementaryColumnWidth, kSuppMin, YES)
+SPLIT_CGFLOAT(maximumSupplementaryColumnWidth, setMaximumSupplementaryColumnWidth, kSuppMax, YES)
+SPLIT_CGFLOAT(preferredSecondaryColumnWidth, setPreferredSecondaryColumnWidth, kSecPref, NO)
+SPLIT_CGFLOAT(preferredSecondaryColumnWidthFraction, setPreferredSecondaryColumnWidthFraction, kSecFrac, NO)
+SPLIT_CGFLOAT(minimumSecondaryColumnWidth, setMinimumSecondaryColumnWidth, kSecMin, YES)
+SPLIT_CGFLOAT(preferredInspectorColumnWidth, setPreferredInspectorColumnWidth, kInsPref, YES)
+SPLIT_CGFLOAT(preferredInspectorColumnWidthFraction, setPreferredInspectorColumnWidthFraction, kInsFrac, YES)
+SPLIT_CGFLOAT(minimumInspectorColumnWidth, setMinimumInspectorColumnWidth, kInsMin, YES)
+SPLIT_CGFLOAT(maximumInspectorColumnWidth, setMaximumInspectorColumnWidth, kInsMax, YES)
+- (UISplitViewControllerPrimaryEdge)primaryEdge { return [objc_getAssociatedObject(self, &kPrimaryEdge) integerValue]; }
+- (void)setPrimaryEdge:(UISplitViewControllerPrimaryEdge)e {
+    objc_setAssociatedObject(self, &kPrimaryEdge, @(e), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    [self _isim_updateButton]; [self.viewIfLoaded setNeedsLayout];
+}
+- (UISplitViewControllerBackgroundStyle)primaryBackgroundStyle { return [objc_getAssociatedObject(self, &kBackgroundStyle) integerValue]; }
+- (void)setPrimaryBackgroundStyle:(UISplitViewControllerBackgroundStyle)s { objc_setAssociatedObject(self, &kBackgroundStyle, @(s), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+- (BOOL)isShowingColumn:(UISplitViewControllerColumn)column {
+    if (column == UISplitViewControllerColumnInspector) return [objc_getAssociatedObject(self, &kInspectorShown) boolValue] && [self _isim_inspectorController];
+    UIViewController *col = [self viewControllerForColumn:column];
+    if (!col) return NO;
+    if (self.isCollapsed) return [self _isim_collapsedShows:column];
+    if (column == UISplitViewControllerColumnCompact) return NO;
+    UISplitViewControllerDisplayMode m = self.displayMode;
+    if (column == UISplitViewControllerColumnSecondary) return YES;
+    if (m == UISplitViewControllerDisplayModeSecondaryOnly) return NO;
+    BOOL two = m == UISplitViewControllerDisplayModeTwoBesideSecondary || m == UISplitViewControllerDisplayModeTwoOverSecondary || m == UISplitViewControllerDisplayModeTwoDisplaceSecondary;
+    if (column == UISplitViewControllerColumnPrimary) return [self viewControllerForColumn:UISplitViewControllerColumnSupplementary] ? two : YES;
+    return YES;                                               /* the supplementary: one or two shown */
+}
+@end
+/* ---- iOS 26 inspector column: at the trailing edge when shown (expanded); a page sheet when collapsed ---- */
+@implementation UISplitViewController (IsimInspector)
+- (UIViewController *)_isim_inspectorController {
+    UIViewController *vc = objc_getAssociatedObject(self, &kInspector);
+    return objc_getAssociatedObject(self, &kInspectorNav) ?: vc;
+}
+- (UINavigationController *)_isim_inspectorNav {
+    UIViewController *vc = objc_getAssociatedObject(self, &kInspector);
+    if (!vc) return nil;
+    if ([vc isKindOfClass:[UINavigationController class]]) return (UINavigationController *)vc;
+    UINavigationController *n = objc_getAssociatedObject(self, &kInspectorNav);
+    if (!n) { n = [[UINavigationController alloc] initWithRootViewController:vc]; objc_setAssociatedObject(self, &kInspectorNav, n, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+    return n;
+}
+- (void)_isim_setInspector:(UIViewController *)vc {
+    UINavigationController *old = [self _isim_inspectorNav];
+    if (old.presentingViewController) [old dismissViewControllerAnimated:NO completion:nil];
+    objc_setAssociatedObject(self, &kInspectorNav, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(self, &kInspector, vc, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    [self _isim_rebuild];
+}
+- (UIView *)_isim_inspectorSeparator {
+    UIView *s = objc_getAssociatedObject(self, &kInspectorSeparator);
+    if (!s) { s = [UIView new]; s.backgroundColor = UIColor.separatorColor; objc_setAssociatedObject(self, &kInspectorSeparator, s, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+    return s;
+}
+- (BOOL)_isim_inspectorWanted { return [objc_getAssociatedObject(self, &kInspectorShown) boolValue] && objc_getAssociatedObject(self, &kInspector); }
+/* (columns rebuilt) the inspector joins them while it is shown */
+- (void)_isim_buildInspector {
+    [[self _isim_inspectorSeparator] removeFromSuperview];
+    if (![self _isim_inspectorWanted] || self.isCollapsed) return;
+    UINavigationController *n = [self _isim_inspectorNav];
+    if (n.presentingViewController) [n dismissViewControllerAnimated:NO completion:nil];
+    [self _isim_adopt:n];
+    [self.view addSubview:[self _isim_inspectorSeparator]];
+}
+- (UIView *)_isim_inspectorShownView {
+    UINavigationController *n = [self _isim_inspectorWanted] ? [self _isim_inspectorNav] : nil;
+    return n.parentViewController == self ? n.viewIfLoaded : nil;
+}
+- (CGFloat)_isim_inspectorWidth {
+    CGFloat W = self.viewIfLoaded.bounds.size.width ?: isim_ui_device()->width;
+    CGFloat w = self.preferredInspectorColumnWidth > 0 ? self.preferredInspectorColumnWidth : self.preferredInspectorColumnWidthFraction > 0 ? W * self.preferredInspectorColumnWidthFraction : 320;
+    if (self.minimumInspectorColumnWidth > 0) w = fmax(w, self.minimumInspectorColumnWidth);
+    if (self.maximumInspectorColumnWidth > 0) w = fmin(w, self.maximumInspectorColumnWidth);
+    return fmin(w, W / 3);
+}
+- (void)_isim_showInspector:(BOOL)show {
+    if (!objc_getAssociatedObject(self, &kInspector) || show == [self _isim_inspectorWanted]) return;
+    objc_setAssociatedObject(self, &kInspectorShown, @(show), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    NSLog(@"isim: split view inspector %@", show ? @"shown" : @"hidden");
+    UINavigationController *n = [self _isim_inspectorNav];
+    if (self.isCollapsed) {                                   /* compact: a sheet */
+        if (show) { n.modalPresentationStyle = UIModalPresentationPageSheet; [self presentViewController:n animated:YES completion:nil]; }
+        else if (n.presentingViewController) [n dismissViewControllerAnimated:YES completion:nil];
+        return;
+    }
+    [self _isim_rebuild];
+    if (self.view.window) [UIView animateWithDuration:0.3 animations:^{ [self.view layoutIfNeeded]; }];
+}
+@end
+/* the delegate answers for the orientations, else the secondary column */
+@implementation UISplitViewController (UIRotation)
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations {
+    id d = self.delegate;
+    if ([d respondsToSelector:@selector(splitViewControllerSupportedInterfaceOrientations:)]) return [d splitViewControllerSupportedInterfaceOrientations:self];
+    return [super supportedInterfaceOrientations];
+}
+- (UIInterfaceOrientation)preferredInterfaceOrientationForPresentation {
+    id d = self.delegate;
+    if ([d respondsToSelector:@selector(splitViewControllerPreferredInterfaceOrientationForPresentation:)]) return [d splitViewControllerPreferredInterfaceOrientationForPresentation:self];
+    return [super preferredInterfaceOrientationForPresentation];
 }
 @end
 
@@ -573,5 +768,19 @@ UIPageViewControllerOptionsKey const UIPageViewControllerOptionInterPageSpacingK
     }
     if ((notified || completed) && [d respondsToSelector:@selector(pageViewController:didFinishAnimating:previousViewControllers:transitionCompleted:)])
         [d pageViewController:self didFinishAnimating:YES previousViewControllers:old ? @[old] : @[] transitionCompleted:completed];
+}
+@end
+
+/* the page view controller's delegate answers for the orientations */
+@implementation UIPageViewController (UIRotation)
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations {
+    id d = self.delegate;
+    if ([d respondsToSelector:@selector(pageViewControllerSupportedInterfaceOrientations:)]) return [d pageViewControllerSupportedInterfaceOrientations:self];
+    return [super supportedInterfaceOrientations];
+}
+- (UIInterfaceOrientation)preferredInterfaceOrientationForPresentation {
+    id d = self.delegate;
+    if ([d respondsToSelector:@selector(pageViewControllerPreferredInterfaceOrientationForPresentation:)]) return [d pageViewControllerPreferredInterfaceOrientationForPresentation:self];
+    return [super preferredInterfaceOrientationForPresentation];
 }
 @end

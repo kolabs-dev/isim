@@ -1,5 +1,7 @@
 #pragma once
+#import <UIKit/NSItemProvider+UIKitAdditions.h>
 #import <UIKit/UIView.h>
+#import <UIKit/UIAccessibility.h>
 #import <UIKit/UIFont.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UIColor, UITraitCollection;
@@ -53,6 +55,7 @@ typedef NS_ENUM(NSInteger, UIImageOrientation) {
     UIImageOrientationUpMirrored, UIImageOrientationDownMirrored, UIImageOrientationLeftMirrored, UIImageOrientationRightMirrored
 };
 typedef NS_ENUM(NSInteger, UIImageResizingMode) { UIImageResizingModeTile = 0, UIImageResizingModeStretch = 1 };
+/* (isim: UIImage also answers preferredPresentationSizeForItemProvider, its size) */
 @interface UIImage : NSObject <NSSecureCoding, NSItemProviderReading, NSItemProviderWriting>
 + (UIImage *)imageWithCGImage:(CGImageRef)cgImage;
 + (UIImage *)imageWithCGImage:(CGImageRef)cgImage scale:(CGFloat)scale orientation:(UIImageOrientation)orientation;
@@ -102,8 +105,97 @@ typedef NS_ENUM(NSInteger, UIImageResizingMode) { UIImageResizingModeTile = 0, U
 @end
 UIKIT_EXTERN NSData *_Nullable UIImagePNGRepresentation(UIImage *image) NS_SWIFT_NAME(UIImage.pngData(self:));
 UIKIT_EXTERN NSData *_Nullable UIImageJPEGRepresentation(UIImage *image, CGFloat compressionQuality) NS_SWIFT_NAME(UIImage.jpegData(self:compressionQuality:));
+/* symbol rendering (iOS 26): gradients are drawn flat in isim; variable values are drawn by colour */
+typedef NS_ENUM(NSInteger, UIImageSymbolColorRenderingMode) {
+    UIImageSymbolColorRenderingModeAutomatic = 0, UIImageSymbolColorRenderingModeFlat, UIImageSymbolColorRenderingModeGradient,
+} NS_SWIFT_NAME(UIImage.SymbolColorRenderingMode) API_AVAILABLE(ios(26.0));
+typedef NS_ENUM(NSInteger, UIImageSymbolVariableValueMode) {
+    UIImageSymbolVariableValueModeAutomatic = 0, UIImageSymbolVariableValueModeColor, UIImageSymbolVariableValueModeDraw,
+} NS_SWIFT_NAME(UIImage.SymbolVariableValueMode) API_AVAILABLE(ios(26.0));
+@interface UIImageConfiguration (UIImageConfigurationExtras)
+/* the locale symbols are localized for (isim keeps it; its symbols have one form) */
+@property (nullable, nonatomic, readonly) NSLocale *locale API_AVAILABLE(ios(17.0));
++ (instancetype)configurationWithLocale:(nullable NSLocale *)locale API_AVAILABLE(ios(17.0));
+- (instancetype)configurationWithLocale:(nullable NSLocale *)locale API_AVAILABLE(ios(17.0)) NS_SWIFT_NAME(withLocale(_:));
+@end
+@interface UIImageSymbolConfiguration (UIImageSymbolConfigurationExtras)
++ (instancetype)configurationWithColorRenderingMode:(UIImageSymbolColorRenderingMode)mode API_AVAILABLE(ios(26.0));
++ (instancetype)configurationWithVariableValueMode:(UIImageSymbolVariableValueMode)mode API_AVAILABLE(ios(26.0));
+- (instancetype)configurationWithoutTextStyle;
+- (instancetype)configurationWithoutScale;
+- (instancetype)configurationWithoutWeight;
+- (instancetype)configurationWithoutPointSizeAndWeight;
+- (BOOL)isEqualToConfiguration:(nullable UIImageSymbolConfiguration *)otherConfiguration NS_SWIFT_NAME(isEqual(to:));
+@end
+
+@class UIGraphicsImageRendererFormat;
+@interface UIImage (UIImageExtras)
+/* decoding ahead of drawing: isim decodes when it loads, so these are the image itself (a thumbnail: scaled down to fit) */
+- (nullable UIImage *)imageByPreparingForDisplay API_AVAILABLE(ios(15.0));
+- (void)prepareForDisplayWithCompletionHandler:(void (^)(UIImage *_Nullable))completionHandler
+    NS_SWIFT_ASYNC_NAME(byPreparingForDisplay()) API_AVAILABLE(ios(15.0));
+- (nullable UIImage *)imageByPreparingThumbnailOfSize:(CGSize)size API_AVAILABLE(ios(15.0));
+- (void)prepareThumbnailOfSize:(CGSize)size completionHandler:(void (^)(UIImage *_Nullable))completionHandler
+    NS_SWIFT_ASYNC_NAME(byPreparingThumbnail(ofSize:)) API_AVAILABLE(ios(15.0));
++ (nullable UIImage *)animatedResizableImageNamed:(NSString *)name capInsets:(UIEdgeInsets)capInsets duration:(NSTimeInterval)duration;
++ (nullable UIImage *)animatedResizableImageNamed:(NSString *)name capInsets:(UIEdgeInsets)capInsets resizingMode:(UIImageResizingMode)resizingMode
+                                         duration:(NSTimeInterval)duration;
+/* insets that the alignment rect (Auto Layout, image views) leaves out of the image */
+@property (nonatomic, readonly) UIEdgeInsets alignmentRectInsets;
+- (UIImage *)imageWithAlignmentRectInsets:(UIEdgeInsets)alignmentInsets NS_SWIFT_NAME(withAlignmentRectInsets(_:));
+/* a baseline for text-aligned layout (symbols have one: their font's descent) */
+@property (nonatomic, readonly) BOOL hasBaseline NS_REFINED_FOR_SWIFT;
+@property (nonatomic, readonly) CGFloat baselineOffsetFromBottom NS_REFINED_FOR_SWIFT;
+- (UIImage *)imageWithBaselineOffsetFromBottom:(CGFloat)baselineOffset NS_SWIFT_NAME(withBaselineOffset(fromBottom:));
+- (UIImage *)imageWithoutBaseline;
+/* standard images (iOS 13) */
+@property (class, nonatomic, readonly) UIImage *addImage NS_SWIFT_NAME(add);
+@property (class, nonatomic, readonly) UIImage *removeImage NS_SWIFT_NAME(remove);
+@property (class, nonatomic, readonly) UIImage *actionsImage NS_SWIFT_NAME(actions);
+@property (class, nonatomic, readonly) UIImage *checkmarkImage NS_SWIFT_NAME(checkmark);
+@property (class, nonatomic, readonly) UIImage *strokedCheckmarkImage NS_SWIFT_NAME(strokedCheckmark);
+/* HDR: isim decodes and draws standard dynamic range, so images are never high dynamic range */
+@property (nonatomic, readonly) BOOL isHighDynamicRange API_AVAILABLE(ios(17.0));
+- (UIImage *)imageRestrictedToStandardDynamicRange API_AVAILABLE(ios(17.0));
+/* a renderer format for drawing an image like this one (its scale, opaque when it has no alpha) */
+@property (nonatomic, readonly) UIGraphicsImageRendererFormat *imageRendererFormat API_AVAILABLE(ios(10.0));
+/* tiles the image across the rect (from the context's origin) */
+- (void)drawAsPatternInRect:(CGRect)rect;
+@end
 UIKIT_EXTERN NSData *_Nullable UIImageHEICRepresentation(UIImage *image) NS_SWIFT_NAME(UIImage.heicData(self:)) API_AVAILABLE(ios(17.0));
-@interface UIImageView : UIView
+
+/* a data set of the app's asset catalog (Name.dataset): its data and type identifier */
+typedef NSString *NSDataAssetName NS_SWIFT_BRIDGED_TYPEDEF API_AVAILABLE(ios(9.0));
+API_AVAILABLE(ios(9.0))
+@interface NSDataAsset : NSObject <NSCopying>
+- (instancetype)init NS_UNAVAILABLE;
+- (nullable instancetype)initWithName:(NSDataAssetName)name;
+- (nullable instancetype)initWithName:(NSDataAssetName)name bundle:(NSBundle *)bundle NS_DESIGNATED_INITIALIZER;
+@property (nonatomic, readonly, copy) NSDataAssetName name;
+@property (nonatomic, readonly, copy) NSData *data;
+@property (nonatomic, readonly, copy) NSString *typeIdentifier;
+@end
+
+/* reading images with options (iOS 17; Swift: the UIImageReader struct) */
+NS_SWIFT_NAME(__UIImageReaderConfiguration) API_AVAILABLE(ios(17.0))
+@interface UIImageReaderConfiguration : NSObject <NSCopying>
+@property (nonatomic) BOOL prefersHighDynamicRange;
+@property (nonatomic) BOOL preparesImagesForDisplay;
+@property (nonatomic) CGSize preferredThumbnailSize;
+@property (nonatomic) CGFloat pixelsPerInch;
+@end
+NS_SWIFT_NAME(__UIImageReader) API_AVAILABLE(ios(17.0))
+@interface UIImageReader : NSObject
+@property (class, nonatomic, readonly) UIImageReader *defaultReader;
++ (instancetype)readerWithConfiguration:(UIImageReaderConfiguration *)configuration;
+@property (nonatomic, readonly, copy) UIImageReaderConfiguration *configuration;
+- (nullable UIImage *)imageWithContentsOfFileURL:(NSURL *)url;
+- (nullable UIImage *)imageWithData:(NSData *)data;
+- (void)imageWithContentsOfFileURL:(NSURL *)url completion:(void (^)(UIImage *_Nullable))completion;
+- (void)imageWithData:(NSData *)data completionHandler:(void (^)(UIImage *_Nullable))completion;
+@end
+
+@interface UIImageView : UIView <UIAccessibilityContentSizeCategoryImageAdjusting>
 - (instancetype)initWithImage:(nullable UIImage *)image;
 - (instancetype)initWithImage:(nullable UIImage *)image highlightedImage:(nullable UIImage *)highlightedImage;
 @property (nullable, nonatomic, strong) UIImage *highlightedImage;
@@ -118,5 +210,9 @@ UIKIT_EXTERN NSData *_Nullable UIImageHEICRepresentation(UIImage *image) NS_SWIF
 @property (nonatomic, readonly, getter=isAnimating) BOOL animating;
 @property (nullable, nonatomic, strong) UIImage *image;
 @property (nullable, nonatomic, copy) UIImageSymbolConfiguration *preferredSymbolConfiguration;
+/* HDR: the range the view would like (unspecified: the trait collection's) and the one it draws with (isim renders
+   standard dynamic range, so .standard) */
+@property (nonatomic) UIImageDynamicRange preferredImageDynamicRange API_AVAILABLE(ios(17.0));
+@property (nonatomic, readonly) UIImageDynamicRange imageDynamicRange API_AVAILABLE(ios(17.0));
 @end
 NS_ASSUME_NONNULL_END

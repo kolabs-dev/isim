@@ -4,6 +4,7 @@
 #import <Foundation/Foundation.h>
 #import <Foundation/NSItemProvider.h>
 #include <dlfcn.h>
+#include <objc/message.h>
 #include <dispatch/dispatch.h>
 
 NSString *const NSItemProviderErrorDomain = @"NSItemProviderErrorDomain";
@@ -123,7 +124,34 @@ static NSString *extension_for(NSString *type) {
     if ((self = [self init])) [self registerObject:object visibility:NSItemProviderRepresentationVisibilityAll];
     return self;
 }
+/* UIKit's reading augmentation: a class designating an augmenter (UIItemProviderReadingAugmentationDesignating) also
+   reads the augmenter's leading and trailing types, which the augmenter turns into objects */
+static Class augmenter(Class cls) {
+    SEL sel = NSSelectorFromString(@"_ui_augmentingNSItemProviderReadingClass");
+    return [cls respondsToSelector:sel] ? ((Class (*)(id, SEL))objc_msgSend)(cls, sel) : Nil;
+}
+static NSArray<NSString *> *readable_types(Class cls) {
+    Class a = augmenter(cls);
+    NSMutableArray *ts = [NSMutableArray array];
+    SEL lead = NSSelectorFromString(@"additionalLeadingReadableTypeIdentifiersForItemProvider"), trail = NSSelectorFromString(@"additionalTrailingReadableTypeIdentifiersForItemProvider");
+    if (a && [a respondsToSelector:lead]) [ts addObjectsFromArray:((NSArray *(*)(id, SEL))objc_msgSend)(a, lead)];
+    [ts addObjectsFromArray:[cls readableTypeIdentifiersForItemProvider]];
+    if (a && [a respondsToSelector:trail]) [ts addObjectsFromArray:((NSArray *(*)(id, SEL))objc_msgSend)(a, trail)];
+    return ts;
+}
+static id object_from(Class cls, NSData *d, NSString *type, NSError **err) {
+    Class a = augmenter(cls);
+    if (a && ![[cls readableTypeIdentifiersForItemProvider] containsObject:type]) {
+        SEL sel = NSSelectorFromString(@"objectWithItemProviderData:typeIdentifier:requestedClass:error:");
+        if ([a respondsToSelector:sel]) return ((id (*)(id, SEL, NSData *, NSString *, Class, NSError **))objc_msgSend)(a, sel, d, type, cls, err);
+    }
+    return [cls objectWithItemProviderData:d typeIdentifier:type error:err];
+}
 - (void)registerObject:(id<NSItemProviderWriting>)object visibility:(NSItemProviderRepresentationVisibility)v {
+    /* UIItemProviderPresentationSizeProviding (UIKit): the object's preferred presentation size */
+    SEL ps = NSSelectorFromString(@"preferredPresentationSizeForItemProvider");
+    if (CGSizeEqualToSize(self.preferredPresentationSize, CGSizeZero) && [(id)object respondsToSelector:ps])
+        self.preferredPresentationSize = ((CGSize (*)(id, SEL))objc_msgSend)(object, ps);
     NSArray *types = [object respondsToSelector:@selector(writableTypeIdentifiersForItemProvider)] ? [(id)object writableTypeIdentifiersForItemProvider]
                                                                                                      : [[object class] writableTypeIdentifiersForItemProvider];
     for (NSString *t in types)
@@ -171,7 +199,7 @@ static NSString *extension_for(NSString *type) {
     return NO;
 }
 - (BOOL)canLoadObjectOfClass:(Class<NSItemProviderReading>)cls {
-    for (NSString *t in [cls readableTypeIdentifiersForItemProvider]) if ([self hasItemConformingToTypeIdentifier:t]) return YES;
+    for (NSString *t in readable_types(cls)) if ([self hasItemConformingToTypeIdentifier:t]) return YES;
     return NO;
 }
 
@@ -235,7 +263,7 @@ static void rep_data(__IsimRep *r, void (^done)(NSData *, NSError *)) {
 }
 - (NSProgress *)loadObjectOfClass:(Class<NSItemProviderReading>)cls completionHandler:(void (^)(id<NSItemProviderReading>, NSError *))done {
     NSString *type = nil;
-    for (NSString *t in [cls readableTypeIdentifiersForItemProvider]) if ([self hasItemConformingToTypeIdentifier:t]) { type = t; break; }
+    for (NSString *t in readable_types(cls)) if ([self hasItemConformingToTypeIdentifier:t]) { type = t; break; }
     if (!type) { async(^{ done(nil, unavailable(NSStringFromClass(cls))); }); return [NSProgress progressWithTotalUnitCount:1]; }
     /* an object registered as itself and of that class comes back as is */
     __IsimRep *r = [self _isim_rep:type];
@@ -243,7 +271,7 @@ static void rep_data(__IsimRep *r, void (^done)(NSData *, NSError *)) {
     return [self loadDataRepresentationForTypeIdentifier:type completionHandler:^(NSData *d, NSError *e) {
         if (!d) { done(nil, e); return; }
         NSError *err = nil;
-        id o = [cls objectWithItemProviderData:d typeIdentifier:type error:&err];
+        id o = object_from(cls, d, type, &err);
         done(o, o ? nil : (err ?: [NSError errorWithDomain:NSItemProviderErrorDomain code:NSItemProviderUnavailableCoercionError userInfo:nil]));
     }];
 }

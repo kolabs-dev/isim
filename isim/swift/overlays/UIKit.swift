@@ -95,19 +95,32 @@ extension UIApplication.LaunchOptionsKey {
     public static var userActivityType: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsUserActivityTypeKey") }
     public static var remoteNotification: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsRemoteNotificationKey") }
     public static var location: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsLocationKey") }
+    public static var eventAttribution: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsEventAttributionKey") }
 }
 extension UIApplication.OpenURLOptionsKey {
     public static var sourceApplication: UIApplication.OpenURLOptionsKey { UIApplication.OpenURLOptionsKey(rawValue: "UIApplicationOpenURLOptionsSourceApplicationKey") }
     public static var openInPlace: UIApplication.OpenURLOptionsKey { UIApplication.OpenURLOptionsKey(rawValue: "UIApplicationOpenURLOptionsOpenInPlaceKey") }
+    public static var eventAttribution: UIApplication.OpenURLOptionsKey { UIApplication.OpenURLOptionsKey(rawValue: "UIApplicationOpenURLOptionsEventAttributionKey") }
 }
 extension UIApplication.OpenExternalURLOptionsKey {
     public static var universalLinksOnly: UIApplication.OpenExternalURLOptionsKey { UIApplication.OpenExternalURLOptionsKey(rawValue: "UIApplicationOpenURLOptionUniversalLinksOnly") }
+    public static var eventAttribution: UIApplication.OpenExternalURLOptionsKey { UIApplication.OpenExternalURLOptionsKey(rawValue: "UIApplicationOpenExternalURLOptionsEventAttributionKey") }
 }
 
 // MARK: - Geometry conveniences (UIKit Swift overlay API)
 extension UIEdgeInsets: Equatable {
     public static var zero: UIEdgeInsets { UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0) }
     public static func == (a: UIEdgeInsets, b: UIEdgeInsets) -> Bool { a.top == b.top && a.left == b.left && a.bottom == b.bottom && a.right == b.right }
+}
+// the string forms of Foundation's geometry (NSStringFromCGPoint / Size / Rect) under their UIKit Swift names
+extension NSCoder {
+    public static func string(for point: CGPoint) -> String { NSStringFromCGPoint(point) }
+    public static func string(for size: CGSize) -> String { NSStringFromCGSize(size) }
+    public static func string(for rect: CGRect) -> String { NSStringFromCGRect(rect) }
+}
+extension UIOffset: Equatable {
+    public static var zero: UIOffset { UIOffset(horizontal: 0, vertical: 0) }
+    public static func == (a: UIOffset, b: UIOffset) -> Bool { a.horizontal == b.horizontal && a.vertical == b.vertical }
 }
 extension NSDirectionalEdgeInsets: Equatable {
     public static var zero: NSDirectionalEdgeInsets { NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0) }
@@ -121,19 +134,71 @@ extension CGRect {
 
 // MARK: - Menus (Swift conveniences from Apple's UIKit overlay)
 extension UIAction {
-    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, identifier: String? = nil,
+    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, identifier: UIAction.Identifier? = nil,
                             discoverabilityTitle: String? = nil, attributes: UIMenuElement.Attributes = [],
                             state: UIMenuElement.State = .off, handler: @escaping UIActionHandler) {
         self.init(__title: title, image: image, identifier: identifier, discoverabilityTitle: discoverabilityTitle,
                   attributes: attributes, state: state, handler: handler)
         self.subtitle = subtitle
     }
+    // isim before 0.16 typed identifiers as String (kept for apps built then)
+    @_disfavoredOverload @available(*, deprecated, message: "identifiers are UIAction.Identifier, as on iOS")
+    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, identifier: String? = nil,
+                            discoverabilityTitle: String? = nil, attributes: UIMenuElement.Attributes = [],
+                            state: UIMenuElement.State = .off, handler: @escaping UIActionHandler) {
+        self.init(title: title, subtitle: subtitle, image: image, identifier: identifier.map(UIAction.Identifier.init(rawValue:)),
+                  discoverabilityTitle: discoverabilityTitle, attributes: attributes, state: state, handler: handler)
+    }
 }
 extension UIMenu {
-    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, identifier: String? = nil,
+    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, identifier: UIMenu.Identifier? = nil,
                             options: UIMenu.Options = [], children: [UIMenuElement] = []) {
         self.init(__title: title, image: image, identifier: identifier, options: options, children: children)
         self.subtitle = subtitle
+    }
+    // isim before 0.16 typed identifiers as String (kept for apps built then)
+    @_disfavoredOverload @available(*, deprecated, message: "identifiers are UIMenu.Identifier, as on iOS")
+    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, identifier: String? = nil,
+                            options: UIMenu.Options = [], children: [UIMenuElement] = []) {
+        self.init(title: title, subtitle: subtitle, image: image, identifier: identifier.map(UIMenu.Identifier.init(rawValue:)), options: options, children: children)
+    }
+}
+extension UICommand {
+    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, action: Selector, propertyList: Any? = nil,
+                            alternates: [UICommandAlternate] = [], discoverabilityTitle: String? = nil, attributes: UIMenuElement.Attributes = [],
+                            state: UIMenuElement.State = .off) {
+        self.init(__title: title, image: image, action: action, propertyList: propertyList, alternates: alternates)
+        self.subtitle = subtitle
+        self.discoverabilityTitle = discoverabilityTitle
+        self.attributes = attributes
+        self.state = state
+    }
+}
+extension UIKeyCommand {
+    public convenience init(title: String = "", subtitle: String? = nil, image: UIImage? = nil, action: Selector, input: String,
+                            modifierFlags: UIKeyModifierFlags = [], propertyList: Any? = nil, alternates: [UICommandAlternate] = [],
+                            discoverabilityTitle: String? = nil, attributes: UIMenuElement.Attributes = [], state: UIMenuElement.State = .off) {
+        self.init(__title: title, image: image, action: action, input: input, modifierFlags: modifierFlags, propertyList: propertyList, alternates: alternates)
+        self.subtitle = subtitle
+        self.discoverabilityTitle = discoverabilityTitle
+        self.attributes = attributes
+        self.state = state
+    }
+}
+extension UIMenuBuilder {
+    @available(iOS 26.0, *)
+    public func insertElements(_ insertedElements: [UIMenuElement], beforeCommand siblingAction: Selector, propertyList siblingPropertyList: Any? = nil) {
+        __insertElements(insertedElements, beforeCommand: siblingAction, propertyList: siblingPropertyList)
+    }
+    @available(iOS 26.0, *)
+    public func insertElements(_ insertedElements: [UIMenuElement], afterCommand siblingAction: Selector, propertyList siblingPropertyList: Any? = nil) {
+        __insertElements(insertedElements, afterCommand: siblingAction, propertyList: siblingPropertyList)
+    }
+}
+@available(iOS 26.0, *)
+extension UIMainMenuSystem {
+    public func setBuildConfiguration(_ configuration: UIMainMenuSystem.Configuration, buildHandler: ((any UIMenuBuilder) -> Void)? = nil) {
+        __setBuildConfiguration(configuration, buildHandler: buildHandler)
     }
 }
 
@@ -162,6 +227,7 @@ public struct NSDiffableDataSourceSnapshot<SectionIdentifierType: Hashable, Item
     var _sections: [SectionIdentifierType] = []
     var _items: [SectionIdentifierType: [ItemIdentifierType]] = [:]
     var _reloaded: Set<ItemIdentifierType> = []
+    var _reloadedSections: [SectionIdentifierType] = []
     public init() {}
     public var numberOfSections: Int { _sections.count }
     public var numberOfItems: Int { _sections.reduce(0) { $0 + (_items[$1]?.count ?? 0) } }
@@ -169,6 +235,8 @@ public struct NSDiffableDataSourceSnapshot<SectionIdentifierType: Hashable, Item
     public var itemIdentifiers: [ItemIdentifierType] { _sections.flatMap { _items[$0] ?? [] } }
     public var reloadedItemIdentifiers: [ItemIdentifierType] { Array(_reloaded) }
     public var reconfiguredItemIdentifiers: [ItemIdentifierType] { Array(_reloaded) }
+    /// the sections reloadSections(_:) / reconfigureSections(_:) marked
+    public var reloadedSectionIdentifiers: [SectionIdentifierType] { _reloadedSections }
     public func numberOfItems(inSection id: SectionIdentifierType) -> Int { _items[id]?.count ?? 0 }
     public func itemIdentifiers(inSection id: SectionIdentifierType) -> [ItemIdentifierType] { _items[id] ?? [] }
     public func sectionIdentifier(containingItem item: ItemIdentifierType) -> SectionIdentifierType? { _sections.first { _items[$0]?.contains(item) == true } }
@@ -191,7 +259,9 @@ public struct NSDiffableDataSourceSnapshot<SectionIdentifierType: Hashable, Item
     public mutating func moveSection(_ id: SectionIdentifierType, afterSection to: SectionIdentifierType) {
         _sections.removeAll { $0 == id }; _sections.insert(id, at: _sections.firstIndex(of: to)! + 1)
     }
-    public mutating func reloadSections(_ ids: [SectionIdentifierType]) { for s in ids { _reloaded.formUnion(_items[s] ?? []) } }
+    public mutating func reloadSections(_ ids: [SectionIdentifierType]) {
+        for s in ids { _reloaded.formUnion(_items[s] ?? []); if !_reloadedSections.contains(s) { _reloadedSections.append(s) } }
+    }
     public mutating func reconfigureSections(_ ids: [SectionIdentifierType]) { reloadSections(ids) }
 
     public mutating func appendItems(_ items: [ItemIdentifierType], toSection id: SectionIdentifierType? = nil) {
@@ -212,7 +282,7 @@ public struct NSDiffableDataSourceSnapshot<SectionIdentifierType: Hashable, Item
         for s in _sections { _items[s]!.removeAll { gone.contains($0) } }
         _reloaded.subtract(gone)
     }
-    public mutating func deleteAllItems() { _sections = []; _items = [:]; _reloaded = [] }
+    public mutating func deleteAllItems() { _sections = []; _items = [:]; _reloaded = []; _reloadedSections = [] }
     public mutating func moveItem(_ item: ItemIdentifierType, beforeItem to: ItemIdentifierType) {
         deleteItems([item]); insertItems([item], beforeItem: to)
     }
@@ -359,7 +429,32 @@ public struct UICellAccessory {
         public init(isHidden: Bool? = nil, reservedLayoutWidth: LayoutDimension? = nil, tintColor: UIColor? = nil, backgroundColor: UIColor? = nil, font: UIFont? = nil) {
             self.isHidden = isHidden; self.reservedLayoutWidth = reservedLayoutWidth; self.tintColor = tintColor; self.backgroundColor = backgroundColor; self.font = font
         }
+        /// the reorder grip's line next to the content (isim: stored)
+        public var showsVerticalSeparator: Bool = true
     }
+    public typealias InsertOptions = _Options
+    public typealias MultiselectOptions = _Options
+    public typealias PopUpMenuOptions = _Options
+    public typealias ActionHandler = () -> Void
+    public typealias MenuSelectedElementDidChangeHandler = (UIMenu) -> Void
+    /// what kind of accessory it is
+    public enum AccessoryType: Hashable { case disclosureIndicator, outlineDisclosure, checkmark, delete, insert, reorder, multiselect, detail, popUpMenu, label, customView }
+    public var accessoryType: AccessoryType {
+        switch object {
+        case is __UICellAccessoryDisclosureIndicator: return .disclosureIndicator
+        case is __UICellAccessoryOutlineDisclosure: return .outlineDisclosure
+        case is __UICellAccessoryCheckmark: return .checkmark
+        case is __UICellAccessoryDelete: return .delete
+        case is __UICellAccessoryInsert: return .insert
+        case is __UICellAccessoryReorder: return .reorder
+        case is __UICellAccessoryMultiselect: return .multiselect
+        case is __UICellAccessoryDetail: return .detail
+        case is __UICellAccessoryPopUpMenu: return .popUpMenu
+        case is __UICellAccessoryLabel: return .label
+        default: return .customView
+        }
+    }
+    public var displayedState: DisplayedState { object.displayedState }
     public typealias DisclosureIndicatorOptions = _Options
     public typealias CheckmarkOptions = _Options
     public typealias DetailOptions = _Options
@@ -406,6 +501,17 @@ public struct UICellAccessory {
     }
     public static func outlineDisclosure(displayed: DisplayedState = .always, options: OutlineDisclosureOptions = .init(), actionHandler: (() -> Void)? = nil) -> UICellAccessory {
         let o = __UICellAccessoryOutlineDisclosure(); o.actionHandler = actionHandler; return make(o, displayed, options)
+    }
+    public static func insert(displayed: DisplayedState = .whenEditing, options: InsertOptions = .init(), actionHandler: ActionHandler? = nil) -> UICellAccessory {
+        let o = __UICellAccessoryInsert(); o.actionHandler = actionHandler; o.backgroundColor = options.backgroundColor; return make(o, displayed, options)
+    }
+    public static func multiselect(displayed: DisplayedState = .whenEditing, options: MultiselectOptions = .init()) -> UICellAccessory {
+        let o = __UICellAccessoryMultiselect(); o.backgroundColor = options.backgroundColor; return make(o, displayed, options)
+    }
+    /// the selected item of a menu, with up / down chevrons; a tap shows the menu, choosing an item selects it
+    public static func popUpMenu(_ menu: UIMenu, displayed: DisplayedState = .always, options: PopUpMenuOptions = .init(),
+                                 selectedElementDidChangeHandler: MenuSelectedElementDidChangeHandler? = nil) -> UICellAccessory {
+        let o = __UICellAccessoryPopUpMenu(menu: menu); o.selectedElementDidChangeHandler = selectedElementDidChangeHandler; return make(o, displayed, options)
     }
     public static func label(text: String, displayed: DisplayedState = .always, options: LabelOptions = .init()) -> UICellAccessory {
         make(__UICellAccessoryLabel(text: text), displayed, options)
@@ -593,6 +699,79 @@ open class UICollectionViewDiffableDataSource<SectionIdentifierType: Hashable, I
 extension UIWindowScene.GeometryPreferences {
     /// `UIWindowScene.GeometryPreferences.iOS(interfaceOrientations:)` (the importer cannot nest this class two levels deep)
     public typealias iOS = UIWindowSceneGeometryPreferencesIOS
+    /// Mac preferences (requesting them on iOS fails with UISceneError.geometryRequestUnsupported)
+    public typealias Mac = UIWindowSceneGeometryPreferencesMac
+}
+/// the scene errors as a Swift error type (`catch let e as UISceneError`, `e.code == .multipleScenesNotSupported`)
+public struct UISceneError: CustomNSError, Hashable, _ObjectiveCBridgeableError {
+    public typealias Code = UISceneErrorCode
+    public let code: Code
+    public init(_ code: Code) { self.code = code }
+    public init?(_bridgedNSError e: __shared NSError) {
+        guard e.domain == UISceneErrorDomain, let c = Code(rawValue: e.code) else { return nil }
+        self.init(c)
+    }
+    public static var errorDomain: String { UISceneErrorDomain }
+    public var errorCode: Int { code.rawValue }
+    public static var multipleScenesNotSupported: Code { .multipleScenesNotSupported }
+    public static var requestDenied: Code { .requestDenied }
+    public static var geometryRequestUnsupported: Code { .geometryRequestUnsupported }
+    public static var geometryRequestDenied: Code { .geometryRequestDenied }
+}
+extension UIApplication {
+    /// errors of `isDefault(_:)`
+    @available(iOS 18.2, *)
+    public struct CategoryDefaultError: CustomNSError, Hashable, _ObjectiveCBridgeableError {
+        public typealias Code = UIApplicationCategoryDefaultErrorCode
+        public let code: Code
+        public init(_ code: Code) { self.code = code }
+        public init?(_bridgedNSError e: __shared NSError) {
+            guard e.domain == UIApplicationCategoryDefaultErrorDomain, let c = Code(rawValue: e.code) else { return nil }
+            self.init(c)
+        }
+        public static var errorDomain: String { UIApplicationCategoryDefaultErrorDomain }
+        public var errorCode: Int { code.rawValue }
+        public static var rateLimited: Code { .rateLimited }
+        public nonisolated static let statusLastProvidedDateErrorKey: String = UIApplicationCategoryDefaultStatusLastProvidedDateErrorKey
+        public nonisolated static let retryAvailableDateErrorKey: String = UIApplicationCategoryDefaultRetryAvailabilityDateErrorKey
+    }
+}
+@available(iOS 17.0, *)
+extension UIWindowScene.ActivationAction {
+    /// the identifier and the alternate action are optional (Apple's defaults)
+    public convenience init(alternate: UIAction? = nil, configuration: @escaping UIWindowScene.ActivationAction.ConfigurationProvider) {
+        self.init(identifier: nil, alternate: alternate, configuration: configuration)
+    }
+    public convenience init(alternate: UIAction? = nil, configuration: @escaping UIWindowScene.ActivationAction.ConfigurationProvider, errorHandler: ((any Error) -> Void)?) {
+        self.init(identifier: nil, alternate: alternate, configuration: configuration, errorHandler: errorHandler)
+    }
+}
+/// where a new window scene appears (iPadOS 17): prominent takes the screen, standard goes beside the others
+@available(iOS 17.0, *)
+public protocol UIWindowScenePlacement: Hashable {}
+@available(iOS 17.0, *)
+public struct UIWindowSceneStandardPlacement: UIWindowScenePlacement { public init() {} }
+@available(iOS 17.0, *)
+public struct UIWindowSceneProminentPlacement: UIWindowScenePlacement { public init() {} }
+@available(iOS 17.0, *)
+extension UIWindowScenePlacement where Self == UIWindowSceneStandardPlacement { public static var standard: Self { .init() } }
+@available(iOS 17.0, *)
+extension UIWindowScenePlacement where Self == UIWindowSceneProminentPlacement { public static var prominent: Self { .init() } }
+@available(iOS 17.0, *)
+extension UIWindowScene.ActivationRequestOptions {
+    /// isim: the placement is the presentation style (prominent: the whole screen; standard: side by side)
+    public var placement: (any UIWindowScenePlacement)? {
+        get {
+            switch preferredPresentationStyle {
+            case .prominent: return UIWindowSceneProminentPlacement()
+            case .standard: return UIWindowSceneStandardPlacement()
+            default: return nil
+            }
+        }
+        set {
+            preferredPresentationStyle = newValue is UIWindowSceneProminentPlacement ? .prominent : newValue is UIWindowSceneStandardPlacement ? .standard : .automatic
+        }
+    }
 }
 extension UIDeviceOrientation {
     public var isPortrait: Bool { self == .portrait || self == .portraitUpsideDown }
@@ -806,3 +985,299 @@ extension UIWindowScene {
         return link
     }
 }
+
+// MARK: - UIViewController.ViewLoading and the content scroll view for all edges
+extension UIViewController {
+    /// A property loaded with the view: reading or writing it loads the view first (`@ViewLoading var label: UILabel`).
+    @propertyWrapper
+    public struct ViewLoading<Value> {
+        private var stored: Value?
+        public init() { stored = nil }
+        @available(*, unavailable, message: "@ViewLoading is only available on UIViewController properties")
+        public var wrappedValue: Value {
+            get { fatalError() }
+            set { fatalError() }
+        }
+        @MainActor public static subscript<T: UIViewController>(
+            _enclosingInstance instance: T,
+            wrapped wrappedKeyPath: ReferenceWritableKeyPath<T, Value>,
+            storage storageKeyPath: ReferenceWritableKeyPath<T, ViewLoading<Value>>
+        ) -> Value {
+            get {
+                instance.loadViewIfNeeded()
+                guard let v = instance[keyPath: storageKeyPath].stored else {
+                    fatalError("@ViewLoading property read before it was set while loading the view")
+                }
+                return v
+            }
+            set {
+                instance.loadViewIfNeeded()
+                instance[keyPath: storageKeyPath].stored = newValue
+            }
+        }
+    }
+    /// the scroll view the bars follow at every edge
+    @available(iOS 15.0, *)
+    public func setContentScrollView(_ scrollView: UIScrollView?) { setContentScrollView(scrollView, for: .all) }
+}
+
+// Customizable bar button item groups (iOS 16): the defaults of Apple's Swift signatures
+@available(iOS 16.0, *)
+extension UIBarButtonItem {
+    public func creatingOptionalGroup(customizationIdentifier: String, isInDefaultCustomization: Bool = true) -> UIBarButtonItemGroup {
+        __creatingOptionalGroup(customizationIdentifier: customizationIdentifier, isInDefaultCustomization: isInDefaultCustomization)
+    }
+}
+@available(iOS 16.0, *)
+extension UIBarButtonItemGroup {
+    public class func fixedGroup(representativeItem: UIBarButtonItem? = nil, items: [UIBarButtonItem]) -> UIBarButtonItemGroup {
+        __fixedGroup(representativeItem: representativeItem, items: items)
+    }
+    public class func movableGroup(customizationIdentifier: String, representativeItem: UIBarButtonItem? = nil, items: [UIBarButtonItem]) -> UIBarButtonItemGroup {
+        __movableGroup(customizationIdentifier: customizationIdentifier, representativeItem: representativeItem, items: items)
+    }
+    public class func optionalGroup(customizationIdentifier: String, isInDefaultCustomization: Bool = true, representativeItem: UIBarButtonItem? = nil,
+                                    items: [UIBarButtonItem]) -> UIBarButtonItemGroup {
+        __optionalGroup(customizationIdentifier: customizationIdentifier, isInDefaultCustomization: isInDefaultCustomization,
+                        representativeItem: representativeItem, items: items)
+    }
+}
+
+// UIFontPickerViewController.Configuration.languageFilter (iOS 18): the families whose languages match
+@available(iOS 18.0, *)
+extension UIFontPickerViewController.Configuration {
+    public var languageFilter: Predicate<[String]>? {
+        get { __isimLanguageFilterValue as? Predicate<[String]> }
+        set {
+            __isimLanguageFilterValue = newValue
+            __isimLanguageFilter = newValue.map { p in { languages in (try? p.evaluate(languages)) ?? false } }
+        }
+    }
+}
+
+/// the document browser's errors as a Swift error type (`catch let e as UIDocumentBrowserError`)
+public struct UIDocumentBrowserError: CustomNSError, Hashable, _ObjectiveCBridgeableError {
+    public typealias Code = UIDocumentBrowserErrorCode
+    public let code: Code
+    public init(_ code: Code) { self.code = code }
+    public init?(_bridgedNSError e: __shared NSError) {
+        guard e.domain == UIDocumentBrowserErrorDomain, let c = Code(rawValue: e.code) else { return nil }
+        self.init(c)
+    }
+    public static var errorDomain: String { UIDocumentBrowserErrorDomain }
+    public var errorCode: Int { code.rawValue }
+    public static var generic: Code { .generic }
+    public static var noLocationAvailable: Code { .noLocationAvailable }
+}
+
+// MARK: - UIView.Invalidating: a property whose change invalidates an aspect of its view (iOS 15)
+/// An aspect of a view that a change makes invalid (`.layout`, `.display`, `.constraints`, `.intrinsicContentSize`,
+/// `.configuration`).
+public protocol UIViewInvalidating {
+    @MainActor func invalidate(view: UIView)
+}
+extension UIView {
+    public enum Invalidations {
+        public struct Layout: UIViewInvalidating { public init() {}; @MainActor public func invalidate(view: UIView) { view.setNeedsLayout() } }
+        public struct Display: UIViewInvalidating { public init() {}; @MainActor public func invalidate(view: UIView) { view.setNeedsDisplay() } }
+        public struct Constraints: UIViewInvalidating { public init() {}; @MainActor public func invalidate(view: UIView) { view.setNeedsUpdateConstraints() } }
+        public struct IntrinsicContentSize: UIViewInvalidating { public init() {}; @MainActor public func invalidate(view: UIView) { view.invalidateIntrinsicContentSize() } }
+        /// cells, buttons and other views with configurations update them
+        public struct Configuration: UIViewInvalidating {
+            public init() {}
+            @MainActor public func invalidate(view: UIView) {
+                let sel = NSSelectorFromString("setNeedsUpdateConfiguration")
+                if view.responds(to: sel) { _ = view.perform(sel) }
+            }
+        }
+        public struct Tuple<Invalidation1: UIViewInvalidating, Invalidation2: UIViewInvalidating>: UIViewInvalidating {
+            let first: Invalidation1, second: Invalidation2
+            public init(_ first: Invalidation1, _ second: Invalidation2) { self.first = first; self.second = second }
+            @MainActor public func invalidate(view: UIView) { first.invalidate(view: view); second.invalidate(view: view) }
+        }
+    }
+    /// `@UIView.Invalidating(.layout, .display) var spacing: CGFloat = 8`: setting a different value invalidates them
+    @propertyWrapper
+    public struct Invalidating<Value: Equatable, InvalidationType: UIViewInvalidating> {
+        private var value: Value
+        private let invalidation: InvalidationType
+        public init(wrappedValue: Value, _ invalidation: InvalidationType) { value = wrappedValue; self.invalidation = invalidation }
+        public init<I1, I2>(wrappedValue: Value, _ i1: I1, _ i2: I2) where InvalidationType == Invalidations.Tuple<I1, I2> {
+            self.init(wrappedValue: wrappedValue, Invalidations.Tuple(i1, i2))
+        }
+        public init<I1, I2, I3>(wrappedValue: Value, _ i1: I1, _ i2: I2, _ i3: I3) where InvalidationType == Invalidations.Tuple<Invalidations.Tuple<I1, I2>, I3> {
+            self.init(wrappedValue: wrappedValue, Invalidations.Tuple(Invalidations.Tuple(i1, i2), i3))
+        }
+        public init<I1, I2, I3, I4>(wrappedValue: Value, _ i1: I1, _ i2: I2, _ i3: I3, _ i4: I4)
+            where InvalidationType == Invalidations.Tuple<Invalidations.Tuple<Invalidations.Tuple<I1, I2>, I3>, I4> {
+            self.init(wrappedValue: wrappedValue, Invalidations.Tuple(Invalidations.Tuple(Invalidations.Tuple(i1, i2), i3), i4))
+        }
+        @available(*, unavailable, message: "@Invalidating is only available on UIView properties")
+        public var wrappedValue: Value {
+            get { fatalError() }
+            set { fatalError() }
+        }
+        @MainActor public static subscript<T: UIView>(
+            _enclosingInstance view: T,
+            wrapped wrappedKeyPath: ReferenceWritableKeyPath<T, Value>,
+            storage storageKeyPath: ReferenceWritableKeyPath<T, Invalidating<Value, InvalidationType>>
+        ) -> Value {
+            get { view[keyPath: storageKeyPath].value }
+            set {
+                let old = view[keyPath: storageKeyPath].value
+                view[keyPath: storageKeyPath].value = newValue
+                if old != newValue { view[keyPath: storageKeyPath].invalidation.invalidate(view: view) }
+            }
+        }
+    }
+}
+extension UIViewInvalidating where Self == UIView.Invalidations.Layout { public static var layout: Self { .init() } }
+extension UIViewInvalidating where Self == UIView.Invalidations.Display { public static var display: Self { .init() } }
+extension UIViewInvalidating where Self == UIView.Invalidations.Constraints { public static var constraints: Self { .init() } }
+extension UIViewInvalidating where Self == UIView.Invalidations.IntrinsicContentSize { public static var intrinsicContentSize: Self { .init() } }
+extension UIViewInvalidating where Self == UIView.Invalidations.Configuration { public static var configuration: Self { .init() } }
+
+// MARK: - Configuration transformers (Apple's Swift value types over the Objective-C blocks)
+@available(iOS 15.0, *)
+public struct UIConfigurationTextAttributesTransformer {
+    public let transform: (AttributeContainer) -> AttributeContainer
+    public init(_ transform: @escaping (AttributeContainer) -> AttributeContainer) { self.transform = transform }
+    public func callAsFunction(_ input: AttributeContainer) -> AttributeContainer { transform(input) }
+    init(_isim block: @escaping __UIConfigurationTextAttributesTransformer) {
+        transform = { c in AttributeContainer(block(_isimTextAttributes(c))) }
+    }
+    var _isimBlock: __UIConfigurationTextAttributesTransformer {
+        let t = transform
+        return { d in _isimTextAttributes(t(AttributeContainer(d))) }
+    }
+}
+private func _isimTextAttributes(_ c: AttributeContainer) -> [NSAttributedString.Key: Any] {
+    let s = NSAttributedString(AttributedString(" ", attributes: c))
+    return s.attributes(at: 0, effectiveRange: nil)
+}
+@available(iOS 14.0, *)
+public struct UIConfigurationColorTransformer {
+    public let transform: (UIColor) -> UIColor
+    public init(_ transform: @escaping (UIColor) -> UIColor) { self.transform = transform }
+    public func callAsFunction(_ input: UIColor) -> UIColor { transform(input) }
+    public static let grayscale = UIConfigurationColorTransformer(__UIConfigurationColorTransformerGrayscale)
+    public static let preferredTint = UIConfigurationColorTransformer(__UIConfigurationColorTransformerPreferredTint)
+    public static let monochromeTint = UIConfigurationColorTransformer(__UIConfigurationColorTransformerMonochromeTint)
+}
+extension UIButton.Configuration {
+    @available(iOS 15.0, *)
+    public var titleTextAttributesTransformer: UIConfigurationTextAttributesTransformer? {
+        get { __titleTextAttributesTransformer.map { UIConfigurationTextAttributesTransformer(_isim: $0) } }
+        set { __titleTextAttributesTransformer = newValue?._isimBlock }
+    }
+    @available(iOS 15.0, *)
+    public var subtitleTextAttributesTransformer: UIConfigurationTextAttributesTransformer? {
+        get { __subtitleTextAttributesTransformer.map { UIConfigurationTextAttributesTransformer(_isim: $0) } }
+        set { __subtitleTextAttributesTransformer = newValue?._isimBlock }
+    }
+    public var imageColorTransformer: UIConfigurationColorTransformer? {
+        get { __imageColorTransformer.map { UIConfigurationColorTransformer($0) } }
+        set { __imageColorTransformer = newValue.map { t in { t($0) } } }
+    }
+    public var indicatorColorTransformer: UIConfigurationColorTransformer? {
+        get { __indicatorColorTransformer.map { UIConfigurationColorTransformer($0) } }
+        set { __indicatorColorTransformer = newValue.map { t in { t($0) } } }
+    }
+    public var activityIndicatorColorTransformer: UIConfigurationColorTransformer? {
+        get { __activityIndicatorColorTransformer.map { UIConfigurationColorTransformer($0) } }
+        set { __activityIndicatorColorTransformer = newValue.map { t in { t($0) } } }
+    }
+}
+
+// MARK: - Control event handlers (Apple's Swift signature)
+extension UIControl {
+    @available(iOS 14.0, *)
+    public func enumerateEventHandlers(_ iterator: (_ actionHandler: UIAction?, _ targetAction: (Any?, Selector)?, _ controlEvents: UIControl.Event, _ stop: inout Bool) -> Void) {
+        withoutActuallyEscaping(iterator) { it in
+            __enumerateEventHandlers { action, target, sel, events, stop in
+                var s = false
+                it(action, sel.map { (target, $0) }, events, &s)
+                if s { stop.pointee = true }
+            }
+        }
+    }
+}
+
+// MARK: - Calendar view decorations (Apple's Swift spellings, with their default arguments)
+@available(iOS 16.0, *)
+extension UICalendarView.Decoration {
+    public class func `default`(color: UIColor? = nil, size: UICalendarView.DecorationSize = .medium) -> Self { __default(color: color, size: size) }
+    public class func image(_ image: UIImage?, color: UIColor? = nil, size: UICalendarView.DecorationSize = .medium) -> Self { __image(image, color: color, size: size) }
+}
+
+
+// MARK: - Configuration colour transformers and states (Apple's Swift spellings)
+extension UIListContentConfiguration.TextProperties {
+    public var colorTransformer: UIConfigurationColorTransformer? {
+        get { __colorTransformer.map { UIConfigurationColorTransformer($0) } }
+        set { __colorTransformer = newValue.map { t in { t($0) } } }
+    }
+}
+extension UIListContentConfiguration.ImageProperties {
+    public var tintColorTransformer: UIConfigurationColorTransformer? {
+        get { __tintColorTransformer.map { UIConfigurationColorTransformer($0) } }
+        set { __tintColorTransformer = newValue.map { t in { t($0) } } }
+    }
+    @available(iOS 18.0, *)
+    public var strokeColorTransformer: UIConfigurationColorTransformer? {
+        get { __strokeColorTransformer.map { UIConfigurationColorTransformer($0) } }
+        set { __strokeColorTransformer = newValue.map { t in { t($0) } } }
+    }
+}
+extension UIBackgroundConfiguration {
+    public var backgroundColorTransformer: UIConfigurationColorTransformer? {
+        get { __backgroundColorTransformer.map { UIConfigurationColorTransformer($0) } }
+        set { __backgroundColorTransformer = newValue.map { t in { t($0) } } }
+    }
+    public var strokeColorTransformer: UIConfigurationColorTransformer? {
+        get { __strokeColorTransformer.map { UIConfigurationColorTransformer($0) } }
+        set { __strokeColorTransformer = newValue.map { t in { t($0) } } }
+    }
+}
+extension UIContentUnavailableConfiguration {
+    public typealias ButtonProperties = UIContentUnavailableButtonProperties
+    public typealias TextProperties = UIContentUnavailableTextProperties
+    public typealias ImageProperties = UIContentUnavailableImageProperties
+}
+/// a key for an app's own values in a configuration state (`state[key]`)
+public struct UIConfigurationStateCustomKey: Hashable, RawRepresentable, Sendable {
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+    public init(_ rawValue: String) { self.rawValue = rawValue }
+}
+
+// MARK: - UITextView multiple selection (iOS 26; isim keeps one range)
+@available(iOS 26.0, *)
+extension UITextView {
+    public var selectedRanges: [NSRange] {
+        get { __selectedRanges.map { $0.rangeValue } }
+        set { __selectedRanges = newValue.map { NSValue(range: $0) } }
+    }
+}
+
+// MARK: - Text highlights (iOS 18): the style and colour scheme values (nested in NSAttributedString's types)
+@available(iOS 18.0, *)
+extension NSAttributedString.TextHighlightStyle {
+    public static var `default`: Self { Self(rawValue: "NSTextHighlightStyleDefault") }
+}
+@available(iOS 18.0, *)
+extension NSAttributedString.TextHighlightColorScheme {
+    public static var `default`: Self { Self(rawValue: "NSTextHighlightColorSchemeDefault") }
+    public static var purple: Self { Self(rawValue: "NSTextHighlightColorSchemePurple") }
+    public static var pink: Self { Self(rawValue: "NSTextHighlightColorSchemePink") }
+    public static var orange: Self { Self(rawValue: "NSTextHighlightColorSchemeOrange") }
+    public static var mint: Self { Self(rawValue: "NSTextHighlightColorSchemeMint") }
+    public static var blue: Self { Self(rawValue: "NSTextHighlightColorSchemeBlue") }
+}
+
+// MARK: - Find (iOS 16): the searchable protocol and its aggregator under their Swift names (isim: the Objective-C
+// protocols; document identifiers are Any?, not a generic DocumentIdentifier)
+@available(iOS 16.0, *)
+public typealias UITextSearching = __UITextSearching
+@available(iOS 16.0, *)
+public typealias UITextSearchAggregator = __UITextSearchAggregator

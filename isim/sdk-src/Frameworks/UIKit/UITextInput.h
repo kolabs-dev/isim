@@ -4,7 +4,7 @@
 #include <CoreGraphics/CoreGraphics.h>
 #import <UIKit/NSAttributedString.h>     /* NSWritingDirection */
 NS_ASSUME_NONNULL_BEGIN
-@class UIResponder, UIView;
+@class UIResponder, UIView, UIConversationContext;
 typedef NS_ENUM(NSInteger, UITextAutocapitalizationType) { UITextAutocapitalizationTypeNone, UITextAutocapitalizationTypeWords, UITextAutocapitalizationTypeSentences, UITextAutocapitalizationTypeAllCharacters };
 typedef NS_ENUM(NSInteger, UITextAutocorrectionType) { UITextAutocorrectionTypeDefault, UITextAutocorrectionTypeNo, UITextAutocorrectionTypeYes };
 typedef NS_ENUM(NSInteger, UITextSpellCheckingType) { UITextSpellCheckingTypeDefault, UITextSpellCheckingTypeNo, UITextSpellCheckingTypeYes };
@@ -15,9 +15,26 @@ typedef NS_ENUM(NSInteger, UITextInlinePredictionType) { UITextInlinePredictionT
 typedef NS_ENUM(NSInteger, UIKeyboardType) {
     UIKeyboardTypeDefault, UIKeyboardTypeASCIICapable, UIKeyboardTypeNumbersAndPunctuation, UIKeyboardTypeURL, UIKeyboardTypeNumberPad,
     UIKeyboardTypePhonePad, UIKeyboardTypeNamePhonePad, UIKeyboardTypeEmailAddress, UIKeyboardTypeDecimalPad, UIKeyboardTypeTwitter,
-    UIKeyboardTypeWebSearch, UIKeyboardTypeASCIICapableNumberPad
+    UIKeyboardTypeWebSearch, UIKeyboardTypeASCIICapableNumberPad,
+    UIKeyboardTypeAlphabet = UIKeyboardTypeASCIICapable
 };
-typedef NS_ENUM(NSInteger, UIKeyboardAppearance) { UIKeyboardAppearanceDefault, UIKeyboardAppearanceDark, UIKeyboardAppearanceLight };
+typedef NS_ENUM(NSInteger, UIKeyboardAppearance) { UIKeyboardAppearanceDefault, UIKeyboardAppearanceDark, UIKeyboardAppearanceLight,
+    UIKeyboardAppearanceAlert = UIKeyboardAppearanceDark };
+/* Writing Tools (UIWritingToolsCoordinator.h; isim has no Apple Intelligence: never shown) */
+typedef NS_ENUM(NSInteger, UIWritingToolsBehavior) {
+    UIWritingToolsBehaviorNone = -1, UIWritingToolsBehaviorDefault = 0, UIWritingToolsBehaviorComplete, UIWritingToolsBehaviorLimited,
+} API_AVAILABLE(ios(18.0));
+typedef NS_OPTIONS(NSUInteger, UIWritingToolsResultOptions) {
+    UIWritingToolsResultDefault = 0, UIWritingToolsResultPlainText = 1 << 0, UIWritingToolsResultRichText = 1 << 1,
+    UIWritingToolsResultList = 1 << 2, UIWritingToolsResultTable = 1 << 3,
+    UIWritingToolsResultPresentationIntent API_AVAILABLE(ios(26.0)) = 1 << 4,
+} API_AVAILABLE(ios(18.0));
+
+/* grammar checking (isim checks spelling only: stored) and math completion (iOS 18: "12*3=" offers its result in
+   the predictions bar) */
+typedef NS_ENUM(NSInteger, UITextGrammarCheckingType) { UITextGrammarCheckingTypeDefault = 0, UITextGrammarCheckingTypeNo, UITextGrammarCheckingTypeYes } API_AVAILABLE(ios(26.0));
+typedef NS_ENUM(NSInteger, UITextMathExpressionCompletionType) {
+    UITextMathExpressionCompletionTypeDefault = 0, UITextMathExpressionCompletionTypeNo, UITextMathExpressionCompletionTypeYes } API_AVAILABLE(ios(18.0));
 typedef NS_ENUM(NSInteger, UIReturnKeyType) { UIReturnKeyDefault, UIReturnKeyGo, UIReturnKeyGoogle, UIReturnKeyJoin, UIReturnKeyNext, UIReturnKeyRoute, UIReturnKeySearch, UIReturnKeySend, UIReturnKeyYahoo, UIReturnKeyDone, UIReturnKeyEmergencyCall, UIReturnKeyContinue };
 typedef NSString *UITextContentType NS_TYPED_ENUM;
 /* textContentType values. isim's AutoFill (UITextServices.m) acts on Username, EmailAddress, Password, NewPassword and
@@ -67,6 +84,9 @@ UIKIT_EXTERN UITextContentType const UITextContentTypeCreditCardExpirationYear;
 UIKIT_EXTERN UITextContentType const UITextContentTypeCreditCardType;
 UIKIT_EXTERN UITextContentType const UITextContentTypeCellularEID;
 UIKIT_EXTERN UITextContentType const UITextContentTypeCellularIMEI;
+UIKIT_EXTERN UITextContentType const UITextContentTypeCellularIMEI1 API_AVAILABLE(ios(26.0));
+UIKIT_EXTERN UITextContentType const UITextContentTypeCellularIMEI2 API_AVAILABLE(ios(26.0));
+UIKIT_EXTERN UITextContentType const UITextContentTypeCellularNAL API_AVAILABLE(ios(26.0));
 /* Password rules for strong-password suggestions ("required: lower; required: digit; minlength: 20; ...") */
 NS_SWIFT_UI_ACTOR
 @interface UITextInputPasswordRules : NSObject <NSSecureCoding, NSCopying>
@@ -93,6 +113,13 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, getter=isSecureTextEntry) BOOL secureTextEntry;
 @property (null_unspecified, nonatomic, copy) UITextContentType textContentType;
 @property (nullable, nonatomic, copy) UITextInputPasswordRules *passwordRules;
+@property (nonatomic) UITextMathExpressionCompletionType mathExpressionCompletionType API_AVAILABLE(ios(18.0));
+@property (nonatomic) UITextGrammarCheckingType grammarCheckingType API_AVAILABLE(ios(26.0));
+/* iPad: a number pad shown as a popover keyboard (isim shows the number pad keyboard: stored) */
+@property (nonatomic) BOOL allowsNumberPadPopover API_AVAILABLE(ios(18.0));
+@property (nonatomic) UIWritingToolsBehavior writingToolsBehavior API_AVAILABLE(ios(18.0));
+@property (nonatomic) UIWritingToolsResultOptions allowedWritingToolsResultOptions API_AVAILABLE(ios(18.0));
+@property (nullable, nonatomic, strong) UIConversationContext *conversationContext API_AVAILABLE(ios(18.4));
 @end
 NS_SWIFT_UI_ACTOR
 @protocol UIKeyInput <UITextInputTraits>
@@ -125,7 +152,8 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) BOOL isVertical;
 @end
 
-@protocol UITextInput, UITextInputTokenizer;
+@protocol UITextInput, UITextInputTokenizer, UIEditMenuInteractionAnimating;
+@class UITextPlaceholder, UIInputSuggestion, NSAdaptiveImageGlyph, UIMenu, UIMenuElement, UIConversationContext;
 /* Dictation (isim: the text comes from the script command `dictate TEXT`; there is no speech recognition) */
 NS_SWIFT_UI_ACTOR
 @interface UIDictationPhrase : NSObject
@@ -138,6 +166,9 @@ NS_SWIFT_UI_ACTOR
 - (void)selectionDidChange:(nullable id <UITextInput>)textInput;
 - (void)textWillChange:(nullable id <UITextInput>)textInput;
 - (void)textDidChange:(nullable id <UITextInput>)textInput;
+@optional
+/* the text input's conversationContext changed (the keyboard re-reads it) */
+- (void)conversationContext:(nullable UIConversationContext *)context didChange:(nullable id <UITextInput>)textInput API_AVAILABLE(ios(18.4));
 @end
 
 /* isim: UITextField and UITextView implement UITextInput over character offsets; the host IME's composition
@@ -188,6 +219,40 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) id insertDictationResultPlaceholder;
 - (CGRect)frameForDictationResultPlaceholder:(id)placeholder;
 - (void)removeDictationResultPlaceholder:(id)placeholder willInsertResult:(BOOL)willInsertResult;
+/* iOS 13-18 */
+@property (nonatomic) UITextStorageDirection selectionAffinity;
+- (CGAffineTransform)caretTransformForPosition:(UITextPosition *)position API_AVAILABLE(ios(17.0));
+- (UITextPlaceholder *)insertTextPlaceholderWithSize:(CGSize)size API_AVAILABLE(ios(13.0));
+- (void)removeTextPlaceholder:(UITextPlaceholder *)textPlaceholder NS_SWIFT_NAME(remove(_:)) API_AVAILABLE(ios(13.0));
+- (nullable UIMenu *)editMenuForTextRange:(UITextRange *)textRange suggestedActions:(NSArray<UIMenuElement *> *)suggestedActions API_AVAILABLE(ios(16.0));
+- (void)willPresentEditMenuWithAnimator:(id<UIEditMenuInteractionAnimating>)animator API_AVAILABLE(ios(16.0));
+- (void)willDismissEditMenuWithAnimator:(id<UIEditMenuInteractionAnimating>)animator API_AVAILABLE(ios(16.0));
+- (void)insertInputSuggestion:(UIInputSuggestion *)inputSuggestion NS_SWIFT_NAME(insert(_:)) API_AVAILABLE(ios(18.0));
+- (void)insertAdaptiveImageGlyph:(NSAdaptiveImageGlyph *)adaptiveImageGlyph replacementRange:(UITextRange *)replacementRange
+    NS_SWIFT_NAME(insert(_:replacementRange:)) API_AVAILABLE(ios(18.0));
+@property (nonatomic, readonly) CGRect unobscuredContentRect API_AVAILABLE(ios(18.0));
+- (NSAttributedString *)attributedTextInRange:(UITextRange *)range NS_SWIFT_NAME(attributedText(in:)) API_AVAILABLE(ios(18.0));
+- (void)insertAttributedText:(NSAttributedString *)string API_AVAILABLE(ios(18.0));
+- (void)willPresentWritingTools API_AVAILABLE(ios(18.0));
+- (void)didDismissWritingTools API_AVAILABLE(ios(18.0));
+@end
+/* a placeholder in the text (a rect where content will go: dictation, an image being inserted) */
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(13.0))
+@interface UITextPlaceholder : NSObject
+@property (nonatomic, readonly) NSArray<UITextSelectionRect *> *rects;
+@end
+/* what the current text input expects (an input method's hint) */
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.0))
+@interface UITextInputContext : NSObject
++ (instancetype)current;
+@property (nonatomic, getter=isPencilInputExpected) BOOL pencilInputExpected;
+@property (nonatomic, getter=isDictationInputExpected) BOOL dictationInputExpected;
+@property (nonatomic, getter=isHardwareKeyboardInputExpected) BOOL hardwareKeyboardInputExpected;
+@end
+/* visionOS look to dictate (iOS: never enabled) */
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.0))
+@protocol UILookToDictateCapable <NSObject>
+@property (nonatomic, getter=isLookToDictateEnabled) BOOL lookToDictateEnabled;
 @end
 
 /* ---- tokenizers ---- */

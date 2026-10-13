@@ -6,12 +6,14 @@
 #import <UIKit/UIDevice.h>
 #import <UIKit/UIView.h>
 NS_ASSUME_NONNULL_BEGIN
-@class UIWindow, UIScreen, UISceneSession, UISceneConnectionOptions;
+@class UIWindow, UIScreen, UISceneSession, UISceneConnectionOptions, UISceneWindowingControlStyle;
 typedef NSString *UISceneSessionRole NS_TYPED_EXTENSIBLE_ENUM;
 UIKIT_EXTERN UISceneSessionRole const UIWindowSceneSessionRoleApplication NS_SWIFT_NAME(windowApplication);
 typedef NS_ENUM(NSInteger, UISceneActivationState) { UISceneActivationStateUnattached = -1, UISceneActivationStateForegroundActive, UISceneActivationStateForegroundInactive, UISceneActivationStateBackground };
 UIKIT_EXTERN NSNotificationName const UISceneWillConnectNotification, UISceneDidActivateNotification, UISceneDidDisconnectNotification,
     UISceneWillDeactivateNotification, UISceneWillEnterForegroundNotification, UISceneDidEnterBackgroundNotification;
+/* iOS 18 locked / hidden apps: isim never posts it (apps can't be locked) */
+UIKIT_EXTERN NSNotificationName const UISceneSystemProtectionDidChangeNotification API_AVAILABLE(ios(18.0));
 UIKIT_EXTERN UISceneSessionRole const UIWindowSceneSessionRoleExternalDisplayNonInteractive NS_SWIFT_NAME(windowExternalDisplayNonInteractive);
 /* iOS 27.1: the role of scenes made for a camera capture scene accessory (set by the system) */
 UIKIT_EXTERN UISceneSessionRole const UIWindowSceneSessionRoleCameraCaptureAccessory NS_SWIFT_NAME(windowCameraCaptureAccessory) API_AVAILABLE(ios(27.1));
@@ -53,9 +55,11 @@ NS_SWIFT_UI_ACTOR
 - (void)extendStateRestoration API_AVAILABLE(ios(15.0));
 - (void)completeStateRestoration API_AVAILABLE(ios(15.0));
 @end
+@class UIEventAttribution;
 NS_SWIFT_NAME(UIScene.OpenExternalURLOptions)
 @interface UISceneOpenExternalURLOptions : NSObject
 @property (nonatomic) BOOL universalLinksOnly;
+@property (nonatomic, copy, nullable) UIEventAttribution *eventAttribution API_AVAILABLE(ios(14.5));
 @end
 
 /* ---- multiple windows (iPad): activation and destruction requests ---- */
@@ -88,6 +92,9 @@ NS_SWIFT_UI_ACTOR
 - (void)windowScene:(UIWindowScene *)windowScene performActionForShortcutItem:(UIApplicationShortcutItem *)shortcutItem completionHandler:(void (^)(BOOL succeeded))completionHandler;
 /* the scene's size or orientation changed (split view, rotation) */
 - (void)windowScene:(UIWindowScene *)windowScene didUpdateCoordinateSpace:(id<UICoordinateSpace>)previousCoordinateSpace interfaceOrientation:(UIInterfaceOrientation)previousInterfaceOrientation traitCollection:(UITraitCollection *)previousTraitCollection;
+/* iOS 26: replaces UISupportedInterfaceOrientations for this scene */
+- (UIInterfaceOrientationMask)supportedInterfaceOrientationsForWindowScene:(UIWindowScene *)windowScene API_AVAILABLE(ios(26.0));
+- (UISceneWindowingControlStyle *)preferredWindowingControlStyleForScene:(UIWindowScene *)windowScene NS_SWIFT_NAME(preferredWindowingControlStyle(for:)) API_AVAILABLE(ios(26.0));
 @end
 
 /* iPad: the smallest / largest size the scene accepts (split view widths honour minimumSize) */

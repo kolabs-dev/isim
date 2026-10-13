@@ -301,12 +301,54 @@ API_AVAILABLE(ios(15.0))
 - (NSTextSelection *)textSelectionWithTextRanges:(NSArray<NSTextRange *> *)textRanges;
 @end
 
-/* the data a selection navigation works on (NSTextLayoutManager adopts it); isim: the navigation itself (moving
-   and extending selections) is not implemented yet (#9) */
+/* ---------------- selection navigation ---------------- */
+typedef NS_ENUM(NSInteger, NSTextSelectionNavigationDirection) {
+    NSTextSelectionNavigationDirectionForward, NSTextSelectionNavigationDirectionBackward, NSTextSelectionNavigationDirectionRight,
+    NSTextSelectionNavigationDirectionLeft, NSTextSelectionNavigationDirectionUp, NSTextSelectionNavigationDirectionDown,
+} NS_SWIFT_NAME(NSTextSelectionNavigation.Direction) API_AVAILABLE(ios(15.0));
+typedef NS_ENUM(NSInteger, NSTextSelectionNavigationDestination) {
+    NSTextSelectionNavigationDestinationCharacter, NSTextSelectionNavigationDestinationWord, NSTextSelectionNavigationDestinationLine,
+    NSTextSelectionNavigationDestinationSentence, NSTextSelectionNavigationDestinationParagraph, NSTextSelectionNavigationDestinationContainer,
+    NSTextSelectionNavigationDestinationDocument,
+} NS_SWIFT_NAME(NSTextSelectionNavigation.Destination) API_AVAILABLE(ios(15.0));
+typedef NS_OPTIONS(NSUInteger, NSTextSelectionNavigationModifier) {
+    NSTextSelectionNavigationModifierExtend = (1 << 0), NSTextSelectionNavigationModifierVisual = (1 << 1),
+    NSTextSelectionNavigationModifierMultiple = (1 << 2),
+} NS_SWIFT_NAME(NSTextSelectionNavigation.Modifier) API_AVAILABLE(ios(15.0));
+typedef NS_ENUM(NSInteger, NSTextSelectionNavigationWritingDirection) {
+    NSTextSelectionNavigationWritingDirectionLeftToRight = 0, NSTextSelectionNavigationWritingDirectionRightToLeft = 1,
+} NS_SWIFT_NAME(NSTextSelectionNavigation.WritingDirection) API_AVAILABLE(ios(15.0));
+typedef NS_ENUM(NSInteger, NSTextSelectionNavigationLayoutOrientation) {
+    NSTextSelectionNavigationLayoutOrientationHorizontal = 0, NSTextSelectionNavigationLayoutOrientationVertical = 1,
+} NS_SWIFT_NAME(NSTextSelectionNavigation.LayoutOrientation) API_AVAILABLE(ios(15.0));
+
+/* the text and line geometry a selection navigation works on (NSTextLayoutManager adopts it) */
 API_AVAILABLE(ios(15.0))
 @protocol NSTextSelectionDataSource <NSObject>
+@required
 @property (strong, readonly) NSTextRange *documentRange;
+- (void)enumerateSubstringsFromLocation:(id<NSTextLocation>)location options:(NSStringEnumerationOptions)options
+    usingBlock:(void (NS_NOESCAPE ^)(NSString *_Nullable substring, NSTextRange *substringRange, NSTextRange *_Nullable enclosingRange, BOOL *stop))block
+    NS_SWIFT_NAME(enumerateSubstrings(from:options:using:));
+- (nullable NSTextRange *)textRangeForSelectionGranularity:(NSTextSelectionGranularity)selectionGranularity enclosingLocation:(id<NSTextLocation>)location
+    NS_SWIFT_NAME(textRange(for:enclosing:));
+- (nullable id<NSTextLocation>)locationFromLocation:(id<NSTextLocation>)location withOffset:(NSInteger)offset NS_SWIFT_NAME(location(_:offsetBy:));
+- (NSInteger)offsetFromLocation:(id<NSTextLocation>)from toLocation:(id<NSTextLocation>)to NS_SWIFT_NAME(offset(from:to:));
+- (NSTextSelectionNavigationWritingDirection)baseWritingDirectionAtLocation:(id<NSTextLocation>)location NS_SWIFT_NAME(baseWritingDirection(at:));
+- (void)enumerateCaretOffsetsInLineFragmentAtLocation:(id<NSTextLocation>)location
+    usingBlock:(void (NS_NOESCAPE ^)(CGFloat caretOffset, id<NSTextLocation> location, BOOL leadingEdge, BOOL *stop))block
+    NS_SWIFT_NAME(enumerateCaretOffsetsInLineFragment(at:using:));
+- (nullable NSTextRange *)lineFragmentRangeForPoint:(CGPoint)point inContainerAtLocation:(id<NSTextLocation>)location
+    NS_SWIFT_NAME(lineFragmentRange(for:inContainerAt:));
+@optional
+- (void)enumerateContainerBoundariesFromLocation:(id<NSTextLocation>)location reverse:(BOOL)reverse
+    usingBlock:(void (NS_NOESCAPE ^)(id<NSTextLocation> boundaryLocation, BOOL *stop))block NS_SWIFT_NAME(enumerateContainerBoundaries(from:reverse:using:));
+- (NSTextSelectionNavigationLayoutOrientation)textLayoutOrientationAtLocation:(id<NSTextLocation>)location NS_SWIFT_NAME(textLayoutOrientation(at:));
+- (CGPoint)convertInteractionPoint:(CGPoint)point toContainerAtLocation:(id<NSTextLocation>)containerLocation API_AVAILABLE(ios(26.0));
 @end
+
+/* moves, extends and deletes selections the way the keyboard and the pointer do (adapted: logical order, one
+   container; Visual and Multiple act like the logical, single-selection case) */
 API_AVAILABLE(ios(15.0))
 @interface NSTextSelectionNavigation : NSObject
 - (instancetype)initWithDataSource:(id<NSTextSelectionDataSource>)dataSource NS_DESIGNATED_INITIALIZER;
@@ -315,5 +357,46 @@ API_AVAILABLE(ios(15.0))
 @property BOOL allowsNonContiguousRanges;
 @property BOOL rotatesCoordinateSystemForLayoutOrientation;
 - (void)flushLayoutCache;
+/* the selection after moving (or extending) by one destination unit; nil when it cannot move */
+- (nullable NSTextSelection *)destinationSelectionForTextSelection:(NSTextSelection *)textSelection direction:(NSTextSelectionNavigationDirection)direction
+    destination:(NSTextSelectionNavigationDestination)destination extending:(BOOL)extending confined:(BOOL)confined
+    NS_SWIFT_NAME(destinationSelection(for:direction:destination:extending:confined:));
+/* a tap or drag at a point: a caret there, or (selecting / Extend) the anchors extended to it */
+- (NSArray<NSTextSelection *> *)textSelectionsInteractingAtPoint:(CGPoint)point inContainerAtLocation:(id<NSTextLocation>)containerLocation
+    anchors:(NSArray<NSTextSelection *> *)anchors modifiers:(NSTextSelectionNavigationModifier)modifiers selecting:(BOOL)selecting bounds:(CGRect)bounds
+    NS_SWIFT_NAME(textSelections(interactingAt:inContainerAt:anchors:modifiers:selecting:bounds:));
+/* the word / sentence / paragraph / line around a selection or a point */
+- (nullable NSTextSelection *)textSelectionForSelectionGranularity:(NSTextSelectionGranularity)selectionGranularity enclosingTextSelection:(NSTextSelection *)textSelection
+    NS_SWIFT_NAME(textSelection(for:enclosing:));
+- (nullable NSTextSelection *)textSelectionForSelectionGranularity:(NSTextSelectionGranularity)selectionGranularity enclosingPoint:(CGPoint)point
+    inContainerAtLocation:(id<NSTextLocation>)location NS_SWIFT_NAME(textSelection(for:enclosing:inContainerAt:));
+/* where typing goes: a caret's location, a range's start (left to right) or end */
+- (nullable id<NSTextLocation>)resolvedInsertionLocationForTextSelection:(NSTextSelection *)textSelection
+    writingDirection:(NSTextSelectionNavigationWritingDirection)writingDirection NS_SWIFT_NAME(resolvedInsertionLocation(for:writingDirection:));
+/* what Delete removes: a range's text, else the unit before (backward) or after the caret */
+- (NSArray<NSTextRange *> *)deletionRangesForTextSelection:(NSTextSelection *)textSelection direction:(NSTextSelectionNavigationDirection)direction
+    destination:(NSTextSelectionNavigationDestination)destination allowsDecomposition:(BOOL)allowsDecomposition
+    NS_SWIFT_NAME(deletionRanges(for:direction:destination:allowsDecomposition:));
+@end
+
+/* ---------------- text lists ---------------- */
+@class NSTextList;
+/* a list item (and its nested items) in TextKit 2: its string is the tab-separated marker, then its contents */
+API_AVAILABLE(ios(17.0))
+@interface NSTextListElement : NSTextParagraph
+- (instancetype)initWithParentElement:(nullable NSTextListElement *)parent textList:(NSTextList *)textList contents:(nullable NSAttributedString *)contents
+    markerAttributes:(nullable NSDictionary<NSAttributedStringKey, id> *)markerAttributes childElements:(nullable NSArray<NSTextListElement *> *)children
+    NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(parent:textList:contents:markerAttributes:children:));
+- (instancetype)initWithAttributedString:(nullable NSAttributedString *)attributedString NS_UNAVAILABLE;
++ (instancetype)textListElementWithContents:(NSAttributedString *)contents markerAttributes:(nullable NSDictionary<NSAttributedStringKey, id> *)markerAttributes
+    textList:(NSTextList *)textList childElements:(nullable NSArray<NSTextListElement *> *)children NS_SWIFT_NAME(init(contents:markerAttributes:textList:children:));
++ (instancetype)textListElementWithChildElements:(NSArray<NSTextListElement *> *)children textList:(NSTextList *)textList nestingLevel:(NSInteger)nestingLevel
+    NS_SWIFT_NAME(init(children:textList:nestingLevel:));
+@property (readonly, strong) NSTextList *textList;
+@property (nullable, readonly, strong) NSAttributedString *contents;
+@property (nullable, readonly, strong) NSDictionary<NSAttributedStringKey, id> *markerAttributes;
+@property (readonly, strong) NSAttributedString *attributedString;
+@property (readonly, copy) NSArray<NSTextListElement *> *childElements;
+@property (nullable, readonly, weak) NSTextListElement *parentElement;
 @end
 NS_ASSUME_NONNULL_END

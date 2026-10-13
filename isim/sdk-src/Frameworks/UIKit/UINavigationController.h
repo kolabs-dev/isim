@@ -3,6 +3,7 @@
    UINavigationController and UITabBarController. */
 #import <UIKit/UIViewController.h>
 #import <UIKit/UIControl.h>
+#import <UIKit/UIDevice.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UIImage, UIColor, UIMenu, UIGestureRecognizer, UIFont, UIBlurEffect, UISearchController, UINavigationBarAppearance, NSAttributedString, UILayoutGuide;
 
@@ -14,6 +15,7 @@ typedef NS_ENUM(NSInteger, UIBarButtonSystemItem) {
     UIBarButtonSystemItemRefresh, UIBarButtonSystemItemStop, UIBarButtonSystemItemCamera, UIBarButtonSystemItemTrash,
     UIBarButtonSystemItemPlay, UIBarButtonSystemItemPause, UIBarButtonSystemItemRewind, UIBarButtonSystemItemFastForward,
     UIBarButtonSystemItemUndo, UIBarButtonSystemItemRedo, UIBarButtonSystemItemPageCurl, UIBarButtonSystemItemClose,
+    UIBarButtonSystemItemWritingTools API_AVAILABLE(ios(18.0)),
 };
 NS_SWIFT_UI_ACTOR
 @interface UIBarItem : NSObject
@@ -41,8 +43,8 @@ NS_SWIFT_UI_ACTOR
 - (instancetype)initWithImage:(nullable UIImage *)image menu:(nullable UIMenu *)menu;
 - (instancetype)initWithTitle:(nullable NSString *)title image:(nullable UIImage *)image primaryAction:(nullable UIAction *)primaryAction menu:(nullable UIMenu *)menu
     NS_SWIFT_NAME(init(__title:image:primaryAction:menu:));
-+ (instancetype)fixedSpaceItemOfWidth:(CGFloat)width;
-+ (instancetype)flexibleSpaceItem;
++ (instancetype)fixedSpaceItemOfWidth:(CGFloat)width NS_SWIFT_NAME(fixedSpace(_:));
++ (instancetype)flexibleSpaceItem NS_SWIFT_NAME(flexibleSpace());
 @property (nonatomic) UIBarButtonItemStyle style;
 @property (nonatomic) CGFloat width;
 @property (nullable, nonatomic, strong) UIView *customView;
@@ -242,6 +244,12 @@ NS_SWIFT_UI_ACTOR
 - (UIBarPosition)positionForBar:(id<UIBarPositioning>)bar NS_SWIFT_NAME(position(for:));
 @end
 
+typedef NS_ENUM(NSInteger, UIBarStyle) { UIBarStyleDefault = 0, UIBarStyleBlack = 1,
+    UIBarStyleBlackOpaque API_DEPRECATED_WITH_REPLACEMENT("UIBarStyleBlack", ios(2.0, 13.0)) = 1,
+    UIBarStyleBlackTranslucent API_DEPRECATED("Use UIBarStyleBlack and set the translucent property to YES", ios(2.0, 13.0)) = 2 };
+/* the NSToolbar section a bar's items go to under Mac Catalyst (UINavigationExtras.h; on iOS always none) */
+typedef NS_ENUM(NSInteger, UINavigationBarNSToolbarSection) { UINavigationBarNSToolbarSectionNone = 0, UINavigationBarNSToolbarSectionSidebar,
+    UINavigationBarNSToolbarSectionSupplementary, UINavigationBarNSToolbarSectionContent } NS_SWIFT_NAME(UINavigationBar.NSToolbarSection) API_AVAILABLE(ios(16.0));
 @class UINavigationBar;
 /* a standalone bar's delegate (a navigation controller's bar answers these itself) */
 NS_SWIFT_UI_ACTOR
@@ -251,6 +259,7 @@ NS_SWIFT_UI_ACTOR
 - (void)navigationBar:(UINavigationBar *)navigationBar didPushItem:(UINavigationItem *)item;
 - (BOOL)navigationBar:(UINavigationBar *)navigationBar shouldPopItem:(UINavigationItem *)item;
 - (void)navigationBar:(UINavigationBar *)navigationBar didPopItem:(UINavigationItem *)item;
+- (UINavigationBarNSToolbarSection)navigationBarNSToolbarSection:(UINavigationBar *)navigationBar API_AVAILABLE(ios(16.0));   /* Catalyst only: not asked */
 @end
 
 NS_SWIFT_UI_ACTOR
@@ -259,7 +268,7 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) BOOL prefersLargeTitles;
 @property (nonatomic, getter=isTranslucent) BOOL translucent;
 @property (nullable, nonatomic, strong) UIColor *barTintColor;
-@property (nonatomic) NSInteger barStyle;
+@property (nonatomic) UIBarStyle barStyle;      /* black: the bar takes the dark style */
 @property (nullable, nonatomic, readonly, strong) UINavigationItem *topItem;
 @property (nullable, nonatomic, readonly, strong) UINavigationItem *backItem;
 @property (nullable, nonatomic, copy) NSArray<UINavigationItem *> *items;
@@ -315,6 +324,10 @@ NS_SWIFT_UI_ACTOR
 @protocol UITabBarDelegate <NSObject>
 @optional
 - (void)tabBar:(UITabBar *)tabBar didSelectItem:(UITabBarItem *)item;
+- (void)tabBar:(UITabBar *)tabBar willBeginCustomizingItems:(NSArray<UITabBarItem *> *)items;
+- (void)tabBar:(UITabBar *)tabBar didBeginCustomizingItems:(NSArray<UITabBarItem *> *)items;
+- (void)tabBar:(UITabBar *)tabBar willEndCustomizingItems:(NSArray<UITabBarItem *> *)items changed:(BOOL)changed;
+- (void)tabBar:(UITabBar *)tabBar didEndCustomizingItems:(NSArray<UITabBarItem *> *)items changed:(BOOL)changed;
 @end
 NS_SWIFT_UI_ACTOR
 @interface UITabBar : UIView
@@ -336,6 +349,7 @@ typedef NS_ENUM(NSInteger, UINavigationControllerOperation) { UINavigationContro
 - (void)navigationController:(UINavigationController *)navigationController willShowViewController:(UIViewController *)viewController animated:(BOOL)animated;
 - (void)navigationController:(UINavigationController *)navigationController didShowViewController:(UIViewController *)viewController animated:(BOOL)animated;
 - (NSUInteger)navigationControllerSupportedInterfaceOrientations:(UINavigationController *)navigationController;   /* UIInterfaceOrientationMask */
+- (UIInterfaceOrientation)navigationControllerPreferredInterfaceOrientationForPresentation:(UINavigationController *)navigationController;
 @end
 NS_SWIFT_UI_ACTOR
 @interface UINavigationController : UIViewController
@@ -403,7 +417,7 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
 @property (nullable, nonatomic, readonly, strong) UINavigationController *managingNavigationController;
 - (nullable UITab *)tabForIdentifier:(NSString *)identifier;
 @end
-@class UITabBarControllerSidebar;
+@class UITabBarControllerSidebar, UITabSidebarItem, UITabSidebarItemRequest;
 @protocol UITabBarControllerSidebarDelegate;
 typedef NS_ENUM(NSInteger, UITabBarControllerMode) { UITabBarControllerModeAutomatic = 0, UITabBarControllerModeTabBar = 1,
     UITabBarControllerModeTabSidebar = 2 } NS_SWIFT_NAME(UITabBarController.Mode) API_AVAILABLE(ios(18.0));
@@ -427,6 +441,8 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))   /* Swift: UITabBarController.Sideba
 @optional
 - (void)tabBarController:(UITabBarController *)tabBarController sidebarVisibilityWillChange:(UITabBarControllerSidebar *)sidebar animator:(id<UITabBarControllerSidebarAnimating>)animator;
 - (void)tabBarController:(UITabBarController *)tabBarController sidebarAvailabilityDidChange:(UITabBarControllerSidebar *)sidebar API_AVAILABLE(ios(27.0));
+/* the row for a tab or a sidebar action (UITabBarExtras.h) */
+- (UITabSidebarItem *)tabBarController:(UITabBarController *)tabBarController sidebar:(UITabBarControllerSidebar *)sidebar itemForRequest:(UITabSidebarItemRequest *)request API_AVAILABLE(ios(18.0));
 @end
 
 @protocol UITabBarControllerDelegate <NSObject>
@@ -435,6 +451,11 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))   /* Swift: UITabBarController.Sideba
 - (void)tabBarController:(UITabBarController *)tabBarController didSelectViewController:(UIViewController *)viewController;
 - (BOOL)tabBarController:(UITabBarController *)tabBarController shouldSelectTab:(UITab *)tab NS_SWIFT_NAME(tabBarController(_:shouldSelectTab:)) API_AVAILABLE(ios(18.0));
 - (void)tabBarController:(UITabBarController *)tabBarController didSelectTab:(UITab *)selectedTab previousTab:(nullable UITab *)previousTab NS_SWIFT_NAME(tabBarController(_:didSelectTab:previousTab:)) API_AVAILABLE(ios(18.0));
+- (UIInterfaceOrientationMask)tabBarControllerSupportedInterfaceOrientations:(UITabBarController *)tabBarController;
+- (UIInterfaceOrientation)tabBarControllerPreferredInterfaceOrientationForPresentation:(UITabBarController *)tabBarController;
+/* customizing (isim has no customization UI: not sent) */
+- (void)tabBarControllerWillBeginEditing:(UITabBarController *)tabBarController API_AVAILABLE(ios(18.0));
+- (void)tabBarControllerDidEndEditing:(UITabBarController *)tabBarController API_AVAILABLE(ios(18.0));
 @end
 /* iOS 26: the floating tab bar shrinks to the selected tab while the selected tab's content scrolls (iPhone), and an
    accessory (a glass capsule) sits above it, or beside it while it is minimized */

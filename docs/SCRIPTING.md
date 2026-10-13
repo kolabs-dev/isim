@@ -44,13 +44,14 @@ Coordinates are in points of the device screen, with the origin at the top left.
 | `appearance light\|dark` | switch the device appearance (like Settings > Display & Brightness); running apps get a trait change (`traitCollectionDidChange`, `registerForTraitChanges`) |
 | `contrast on\|off` | Increase Contrast (`accessibilityContrast`): high-contrast system and asset colors |
 | `boldtext on\|off` | Bold Text (`legibilityWeight`) |
+| `takescreenshot` | the user takes a screenshot (the Simulator's Device ▸ Trigger Screenshot): the app gets `UIApplication.userDidTakeScreenshotNotification` |
 | `memorywarning [warn\|critical\|normal]` | simulate a memory warning (like the Simulator's Debug menu): memory-pressure dispatch sources get the level (default `warn`); `warn` and `critical` then reach the app delegate, `didReceiveMemoryWarningNotification` and every loaded view controller |
 
 ## System UI (`isim boot`)
 
 | Command | What it does |
 |---|---|
-| `lock` / `unlock` | lock the device (the foreground app goes to the background; the lock screen shows the clock, notifications and Live Activities) / unlock |
+| `lock` / `unlock` | lock the device (the foreground app goes to the background; the lock screen shows the clock, notifications and Live Activities) / unlock (apps lose protected data while locked: `isProtectedDataAvailable`, the delegate calls and notifications) |
 | `switcher` | the app switcher (cards of running apps; `swipeid switcher-NAME 0 -300 0.3` closes an app, `tapid switcher-NAME` switches) |
 | `notifications` | Notification Center (`tapid nc-item-ID` opens a notification, `holdid nc-item-ID 0.8` expands it, `tapid nc-clear` clears) |
 | `controlcenter` | Control Center (`tapid cc-wifi`, `cc-airplane`, `cc-dark`, `cc-orientation`, `cc-focus`, …; Now Playing: `cc-nowplaying` (its text is the title — artist), `cc-np-previous`, `cc-np-play`, `cc-np-next`; `tapid cc-background` closes). `cc-focus` toggles the last Focus, `cc-focus-modes` opens the Focus list (`cc-focus-dnd`, `cc-focus-personal`, `cc-focus-work`, `cc-focus-sleep`; `cc-page-background` goes back). iOS 18+: `cc-edit` is edit mode (`cc-remove-NAME`, `cc-resize-KIND` for app controls, `cc-add-control` opens the gallery: `cc-gallery-KIND` adds an app's ControlWidget, `cc-gallery-system-NAME` a system control, `cc-gallery-close`; `cc-edit-background` ends edit mode); added controls are `cc-control-KIND` (text: title and value) and run their intent when tapped. The lock screen's player has `lock-nowplaying`, `lock-np-previous`, `lock-np-play`, `lock-np-next` |
@@ -144,14 +145,14 @@ activity with a push token. `start` needs the push-to-start token the app read f
 
 | Command | What it does |
 |---|---|
-| `tap X Y` | tap a point |
+| `tap X Y` | tap a point (a tap on the status bar, e.g. `tap 200 20`, scrolls the scroll view with `scrollsToTop` to the top, as on iOS; with none, the tap reaches the app) |
 | `tapid ID` | tap the view whose `accessibilityIdentifier` is ID; a view below the fold of a scroll view (a long list) is scrolled into view first, like XCUITest (logs `isim: scrolled 'ID' into view`) |
 | `taptext TEXT` | tap the view that shows TEXT |
 | `holdid ID S` | press and hold a view for S seconds |
 | `drag X1 Y1 X2 Y2 [S [HOLD [PRESS]]]` | drag between two points, optionally over S seconds, then held HOLD seconds before lifting (e.g. at the screen edge to turn a home-screen page in edit mode); PRESS: pressed that many seconds at the start before moving (XCUITest's `press(forDuration:thenDragTo:)`) |
 | `swipeid ID DX DY S` | drag from a view's centre by (DX, DY) over S seconds |
-| `longdrag X1 Y1 X2 Y2 HOLD S` | press, hold HOLD seconds (to start drag and drop), then move over S seconds |
-| `pointerdrag X1 Y1 X2 Y2 HOLD S` | the same with the iPad pointer: the touches are `UITouch.TouchType.indirectPointer` (a trackpad or mouse click) |
+| `longdrag X1 Y1 X2 Y2 HOLD S [REST]` | press, hold HOLD seconds (to start drag and drop), then move over S seconds; REST: rest that long at the end before lifting (spring-loaded controls activate under a resting drag) |
+| `pointerdrag X1 Y1 X2 Y2 HOLD S [REST]` | the same with the iPad pointer: the touches are `UITouch.TouchType.indirectPointer` (a trackpad or mouse click) |
 | `pinch X Y SCALE S` | two-finger pinch around (X, Y) to SCALE over S seconds |
 | `rotate2 X Y DEGREES S` | two-finger rotation around (X, Y) |
 | `twofinger X Y DX DY S` | two fingers moving together by (DX, DY) |
@@ -166,7 +167,7 @@ activity with a push token. `start` needs the push-to-start token the app read f
 |---|---|
 | `type TEXT` | type text into the focused field: the rest of the command; write `;` as `\;` (a bare `;` ends the command) |
 | `key NAME` | press a key: `backspace`, `return`, `tab`, `escape`, arrows, letters, digits, … |
-| `keydown NAME` / `keyup NAME` | press or release a hardware key (for `pressesBegan`, `GCKeyboard`) |
+| `keydown NAME` / `keyup NAME` | press or release a hardware key (for `pressesBegan`, `GCKeyboard`): letters, digits, `space`, `return`, `escape`, `tab`, `backspace`, arrows (`up`, `down`, `left`, `right`), `home`, `end`, `pageup`, `pagedown`, `f1`…`f12`, modifiers (`shift`, `ctrl`, `alt`, `cmd`). A key nobody handles scrolls the main scroll view (`allowsKeyboardScrolling`) |
 | `compose TEXT` | marked (composing) text, as from an input method |
 | `dictate TEXT` · `dictate fail` | dictation: TEXT is what was said into the keyboard's mic (it starts listening if needed; "comma", "period", "new line", … become punctuation); `fail` reports a recognition failure |
 | `scribble X Y TEXT` | Scribble (iPad): handwrite TEXT with Apple Pencil at (X, Y), into the text input there |
@@ -177,19 +178,26 @@ activity with a push token. `start` needs the push-to-start token the app read f
 | Command | What it does |
 |---|---|
 | `rotate portrait\|upsidedown\|landscapeleft\|landscaperight\|left\|right` | turn the device |
-| `shake` | Device ▸ Shake |
+| `shake` | Device ▸ Shake (Shake to Undo offers to undo the first responder's last change when `applicationSupportsShakeToEdit` is on) |
 | `location LAT LON` / `location none` | Features ▸ Location |
 | `remote NAME [ARG]` | `MPRemoteCommandCenter` command: `play`, `pause`, `toggle`, `next`, `previous`, `skipforward`, `skipback`, `seek S`, `rate R`; with `isim boot` it goes to the app that publishes Now Playing, like Control Center's controls |
 | `volume up\|down\|V` | the device volume (the side buttons: steps of 1/16; or V from 0 to 1): `AVAudioSession.outputVolume`, `MPVolumeView`, the mixer's master gain; remembered in the device data |
 | `audio interrupt begin` · `audio interrupt end [resume]` · `audio route NAME` · `audio silence begin\|end` · `audio reset` | `AVAudioSession` events: an interruption (like a phone call; it pauses `AVAudioPlayer`s, `resume` sets `.shouldResume`), a route change to `headphones`, `headset`, `bluetooth`, `carplay`, `airplay`, `usb`, `hdmi`, `receiver` or `speaker`, the secondary-audio hint, media services reset |
 | `gamepad connect [NAME]` · `gamepad button NAME 0\|1` · `gamepad axis NAME VALUE` · `gamepad disconnect` | a virtual game controller |
 | `display connect [WxH]` · `display shot PATH` · `display disconnect` | a simulated external display (default 1920x1080): the app's external display scene (a scene accessory, or the manifest's `UIWindowSceneSessionRoleExternalDisplayNonInteractive` configuration) or the mirrored device; `display shot` saves what it shows as a PNG |
+| `mainmenu [show\|hide]` | the app's main menu: logs its tree (`isim: main menu …` lines, shortcuts included, then `isim: main menu end`); `show` / `hide` shows or hides the keyboard shortcuts overlay (iPad: what holding Command shows) |
 | `closescene [SESSION_ID]` | the user closes a window (iPad apps with multiple scenes; the key scene by default): the scene's `closureConfirmation` is shown first when it has one |
 | `metrickit` | Debug ▸ Simulate MetricKit Payloads |
-| `voiceover on\|off\|next\|prev\|activate\|increment\|decrement\|action\|escape\|read` | drive the simulated VoiceOver |
+| `voiceover on\|off\|next\|prev\|activate\|increment\|decrement\|action\|escape\|magictap\|read` | drive the simulated VoiceOver (`read` reads `UIAccessibilityReadingContent` elements as their page content) |
+| `voiceover scroll up\|down\|left\|right\|next\|prev` | a three-finger swipe: the focused element or a container's `accessibilityScroll(_:)`, else the nearest scroll view moves a page; VoiceOver says the scroll status (`UIScrollViewAccessibilityDelegate`, else "Page N of M") |
 | `voiceover rotor [prev]`, `voiceover up\|down` | turn the VoiceOver rotor (custom rotors, Headings, Actions, Adjust Value) / move by its item (like swiping up / down) |
 | `switchcontrol on\|off\|next\|select\|autoSECS\|stop` | simulated Switch Control: item scanning (`auto0.5` moves the highlight every 0.5 s), select activates |
 | `voicecontrol PHRASE` | simulated Voice Control: `tap NAME` (label or `accessibilityUserInputLabels`), `show numbers` / `show names` / `hide numbers`, `tap N`, `scroll down\|up\|left\|right`, `go back` |
+| `accessibility SETTING on\|off` | a Settings ▸ Accessibility switch: `monoaudio`, `speakscreen`, `speakselection`, `assistivetouch`, `shaketoundo`, `buttonshapes`, `onofflabels`, `differentiate`, `reducemotion`, `reducetransparency`; the app gets the matching `UIAccessibility…DidChangeNotification` |
+| `guidedaccess on\|off` · `guidedaccess restrict ID allow\|deny` | start / end a Guided Access session (the app delegate's `UIGuidedAccessRestrictionDelegate` restrictions are logged) / switch one of its restrictions, as in the Guided Access options |
+| `tilt H V` | tilt the device (each −1…1) for `UIInterpolatingMotionEffect`s; `tilt 0 0` levels it |
+| `attributions` | list the private click measurement clicks (`UIEventAttribution`) the app recorded |
+| `fullpage PATH` | a full-page screenshot: the scene's `UIScreenshotServiceDelegate` PDF, written to PATH |
 
 **Picture in Picture**: while an app shows a video in Picture in Picture (`isim boot`), the shell's floating window is
 `pip-window` (its text is the title and `playing` / `paused`); `tapid pip-window` shows its controls: `pip-close`,

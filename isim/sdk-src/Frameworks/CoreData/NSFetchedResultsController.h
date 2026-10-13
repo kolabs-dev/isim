@@ -6,25 +6,9 @@ NS_ASSUME_NONNULL_BEGIN
 @class NSManagedObjectContext, NSManagedObjectID;
 @protocol NSFetchedResultsControllerDelegate, NSFetchedResultsSectionInfo;
 
-/// A diffable data source snapshot as an object: section identifiers (NSString section names) and item
-/// identifiers (NSManagedObjectID). Swift: bridges to NSDiffableDataSourceSnapshot<String, NSManagedObjectID>
-/// with `as` (isim's CoreData overlay adds the bridge).
-@interface NSDiffableDataSourceSnapshotReference : NSObject <NSCopying>
-- (instancetype)init;
-@property (nonatomic, readonly) NSInteger numberOfItems;
-@property (nonatomic, readonly) NSInteger numberOfSections;
-@property (nonatomic, readonly) NSArray *sectionIdentifiers;
-@property (nonatomic, readonly) NSArray *itemIdentifiers;
-- (NSInteger)numberOfItemsInSection:(id)sectionIdentifier;
-- (NSArray *)itemIdentifiersInSectionWithIdentifier:(id)sectionIdentifier;
-- (nullable id)sectionIdentifierForSectionContainingItemIdentifier:(id)itemIdentifier;
-- (NSInteger)indexOfItemIdentifier:(id)itemIdentifier;
-- (NSInteger)indexOfSectionIdentifier:(id)sectionIdentifier;
-- (void)appendSectionsWithIdentifiers:(NSArray *)sectionIdentifiers;
-- (void)appendItemsWithIdentifiers:(NSArray *)identifiers intoSectionWithIdentifier:(id)sectionIdentifier;
-@property (nonatomic, readonly) NSArray *reloadedItemIdentifiers;
-@property (nonatomic, readonly) NSArray *reconfiguredItemIdentifiers;
-@end
+/// The snapshot the delegate gets (controller(_:didChangeContentWith:)) is UIKit's NSDiffableDataSourceSnapshotReference
+/// (UIDiffableDataSourceReference.h; Swift: bridges to NSDiffableDataSourceSnapshot<String, NSManagedObjectID> with `as`).
+@class NSDiffableDataSourceSnapshotReference;
 
 @interface NSFetchedResultsController<ResultType : id<NSFetchRequestResult>> : NSObject
 - (instancetype)initWithFetchRequest:(NSFetchRequest<ResultType> *)fetchRequest managedObjectContext:(NSManagedObjectContext *)context sectionNameKeyPath:(nullable NSString *)sectionNameKeyPath cacheName:(nullable NSString *)name;

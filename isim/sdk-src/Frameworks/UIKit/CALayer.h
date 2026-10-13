@@ -44,6 +44,12 @@ UIKIT_EXTERN CGAffineTransform CATransform3DGetAffineTransform(CATransform3D t);
 + (NSValue *)valueWithCGVector:(CGVector)vector;
 @property (nonatomic, readonly) CGAffineTransform CGAffineTransformValue;
 @property (nonatomic, readonly) CGVector CGVectorValue;
++ (NSValue *)valueWithUIEdgeInsets:(UIEdgeInsets)insets;
++ (NSValue *)valueWithDirectionalEdgeInsets:(NSDirectionalEdgeInsets)insets API_AVAILABLE(ios(11.0));
++ (NSValue *)valueWithUIOffset:(UIOffset)offset;
+@property (nonatomic, readonly) UIEdgeInsets UIEdgeInsetsValue;
+@property (nonatomic, readonly) NSDirectionalEdgeInsets directionalEdgeInsetsValue API_AVAILABLE(ios(11.0));
+@property (nonatomic, readonly) UIOffset UIOffsetValue;
 @end
 
 typedef double CFTimeInterval;

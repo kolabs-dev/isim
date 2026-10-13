@@ -301,3 +301,11 @@ System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTParagra
 System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTParagraphStyle._spacing
 System/Library/Frameworks/CoreText.framework/CoreText _OBJC_IVAR_$___NSCTRun._line
 System/Library/Frameworks/CoreText.framework/CoreText _OBJC_METACLASS_$___NSCTLayout
+# 0.16 (#9): NSDiffableDataSourceSnapshotReference moved from CoreData to UIKit, where iOS declares it (UIKit's diffable
+# data sources take it). Not a break: the loader resolves the class and metaclass of apps built earlier in UIKit
+# (aliases in runtime/loader.c); the ivars were private to the implementation.
+System/Library/Frameworks/CoreData.framework/CoreData _OBJC_CLASS_$_NSDiffableDataSourceSnapshotReference
+System/Library/Frameworks/CoreData.framework/CoreData _OBJC_METACLASS_$_NSDiffableDataSourceSnapshotReference
+System/Library/Frameworks/CoreData.framework/CoreData _OBJC_IVAR_$_NSDiffableDataSourceSnapshotReference._items
+System/Library/Frameworks/CoreData.framework/CoreData _OBJC_IVAR_$_NSDiffableDataSourceSnapshotReference._reloaded
+System/Library/Frameworks/CoreData.framework/CoreData _OBJC_IVAR_$_NSDiffableDataSourceSnapshotReference._sections

@@ -258,6 +258,8 @@ static BOOL rule_accepts(id rule, NSArray *items) {
     else if ([first isKindOfClass:[NSString class]]) { title = first; subtitle = @"Plain Text"; }
     else if ([first isKindOfClass:[UIImage class]]) { title = @"Image"; subtitle = @"Photo"; symbol = @"photo"; }
     if (_items.count > 1) subtitle = [NSString stringWithFormat:@"%lu items", (unsigned long)_items.count];
+    NSString *configTitle = objc_getAssociatedObject(self, "_isim_title");          /* an activity items configuration's title */
+    if (configTitle.length) title = configTitle;
     _icon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:symbol]];
     _icon.tintColor = UIColor.secondaryLabelColor; _icon.contentMode = UIViewContentModeCenter;
     _icon.backgroundColor = UIColor.tertiarySystemFillColor; _icon.layer.cornerRadius = 10; _icon.clipsToBounds = YES;
@@ -434,4 +436,114 @@ static BOOL rule_accepts(id rule, NSArray *items) {
     if (self.presentedViewController) [self dismissViewControllerAnimated:NO completion:nil];
     [self _isim_finish:a.activityType completed:completed];
 }
+@end
+
+/* ======== activity items configurations, item providers (#9) ======== */
+UIActivityItemsConfigurationMetadataKey const UIActivityItemsConfigurationMetadataKeyTitle = @"title";
+UIActivityItemsConfigurationMetadataKey const UIActivityItemsConfigurationMetadataKeyMessageBody = @"messageBody";
+UIActivityItemsConfigurationMetadataKey const UIActivityItemsConfigurationMetadataKeyLinkPresentationMetadata = @"linkPresentationMetadata";
+UIActivityItemsConfigurationMetadataKey const UIActivityItemsConfigurationMetadataKeyShareRecipients = @"shareRecipients";
+UIActivityItemsConfigurationMetadataKey const UIActivityItemsConfigurationMetadataKeyCollaborationModeRestrictions = @"collaborationModeRestrictions";
+UIActivityItemsConfigurationPreviewIntent const UIActivityItemsConfigurationPreviewIntentFullSize = @"fullSize";
+UIActivityItemsConfigurationPreviewIntent const UIActivityItemsConfigurationPreviewIntentThumbnail = @"thumbnail";
+UIActivityItemsConfigurationInteraction const UIActivityItemsConfigurationInteractionShare = @"share";
+UIActivityItemsConfigurationInteraction const UIActivityItemsConfigurationInteractionCopy = @"copy";
+
+@implementation UIActivityItemProvider { id _placeholder; UIActivityType _type; }
+- (instancetype)initWithPlaceholderItem:(id)p { if ((self = [super init])) _placeholder = p; return self; }
+- (id)placeholderItem { return _placeholder; }
+- (UIActivityType)activityType { return _type; }
+- (id)item { return _placeholder; }                       /* subclasses make the real item */
+- (void)main { (void)[self item]; }
+- (id)activityViewControllerPlaceholderItem:(UIActivityViewController *)c { return _placeholder; }
+- (id)activityViewController:(UIActivityViewController *)c itemForActivityType:(UIActivityType)t { _type = [t copy]; id i = [self item]; _type = nil; return i; }
+@end
+
+@implementation UIActivityItemsConfiguration { NSArray<NSItemProvider *> *_providers; }
++ (instancetype)activityItemsConfigurationWithObjects:(NSArray<id<NSItemProviderWriting>> *)objects { return [[self alloc] initWithObjects:objects]; }
++ (instancetype)activityItemsConfigurationWithItemProviders:(NSArray<NSItemProvider *> *)p { return [[self alloc] initWithItemProviders:p]; }
+- (instancetype)initWithObjects:(NSArray<id<NSItemProviderWriting>> *)objects {
+    NSMutableArray *a = [NSMutableArray array];
+    for (id o in objects) [a addObject:[[NSItemProvider alloc] initWithObject:o]];
+    if ((self = [self initWithItemProviders:a])) objc_setAssociatedObject(self, "_isim_objects", [objects copy], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    return self;
+}
+- (instancetype)initWithItemProviders:(NSArray<NSItemProvider *> *)p {
+    if ((self = [super init])) { _providers = [p copy] ?: @[]; _supportedInteractions = @[UIActivityItemsConfigurationInteractionShare, UIActivityItemsConfigurationInteractionCopy]; }
+    return self;
+}
+- (NSArray<NSItemProvider *> *)itemProvidersForActivityItemsConfiguration { return _providers; }
+- (BOOL)activityItemsConfigurationSupportsInteraction:(UIActivityItemsConfigurationInteraction)i { return [_supportedInteractions containsObject:i]; }
+- (id)activityItemsConfigurationMetadataForKey:(UIActivityItemsConfigurationMetadataKey)k { return _metadataProvider ? _metadataProvider(k) : nil; }
+- (id)activityItemsConfigurationMetadataForItemAtIndex:(NSInteger)i key:(UIActivityItemsConfigurationMetadataKey)k { return _perItemMetadataProvider ? _perItemMetadataProvider(i, k) : nil; }
+- (NSItemProvider *)activityItemsConfigurationPreviewForItemAtIndex:(NSInteger)i intent:(UIActivityItemsConfigurationPreviewIntent)intent suggestedSize:(CGSize)s {
+    return _previewProvider ? _previewProvider(i, intent, s) : nil;
+}
+- (NSArray<UIActivity *> *)applicationActivitiesForActivityItemsConfiguration { return _applicationActivitiesProvider ? _applicationActivitiesProvider() : @[]; }
+- (NSArray *)_isim_objects { return objc_getAssociatedObject(self, "_isim_objects"); }
+@end
+
+static char kResponderConfig, kSceneConfigSource, kSectionTypes;
+@implementation UIResponder (UIActivityItemsConfiguration)
+- (id<UIActivityItemsConfigurationReading>)activityItemsConfiguration { return objc_getAssociatedObject(self, &kResponderConfig); }
+- (void)setActivityItemsConfiguration:(id<UIActivityItemsConfigurationReading>)c { objc_setAssociatedObject(self, &kResponderConfig, c, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+@end
+@interface __IsimWeakBox : NSObject                  /* UIPresentation.m */
+@property (nonatomic, weak) id value;
+@end
+@implementation UIWindowScene (UIActivityItemsConfiguration)
+- (id<UIActivityItemsConfigurationProviding>)activityItemsConfigurationSource { return ((__IsimWeakBox *)objc_getAssociatedObject(self, &kSceneConfigSource)).value; }
+- (void)setActivityItemsConfigurationSource:(id<UIActivityItemsConfigurationProviding>)s {
+    __IsimWeakBox *b = [__IsimWeakBox new]; b.value = s; objc_setAssociatedObject(self, &kSceneConfigSource, b, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+@end
+
+@interface UIActivityCollaborationModeRestriction ()
+- (instancetype)initWithIsimMode:(UIActivityCollaborationMode)m title:(nullable NSString *)t message:(nullable NSString *)msg dismiss:(nullable NSString *)d
+                             recovery:(nullable NSString *)rt url:(nullable NSURL *)u NS_DESIGNATED_INITIALIZER;
+@end
+@implementation UIActivityCollaborationModeRestriction
+- (instancetype)initWithIsimMode:(UIActivityCollaborationMode)m title:(NSString *)t message:(NSString *)msg dismiss:(NSString *)d recovery:(NSString *)rt url:(NSURL *)u {
+    if ((self = [super init])) { _disabledMode = m; _alertTitle = [t copy]; _alertMessage = [msg copy]; _alertDismissButtonTitle = [d copy];
+                                 _alertRecoverySuggestionButtonTitle = [rt copy]; _alertRecoverySuggestionButtonLaunchURL = [u copy]; }
+    return self;
+}
+- (instancetype)initWithDisabledMode:(UIActivityCollaborationMode)m { return [self initWithIsimMode:m title:nil message:nil dismiss:nil recovery:nil url:nil]; }
+- (instancetype)initWithDisabledMode:(UIActivityCollaborationMode)m alertTitle:(NSString *)t alertMessage:(NSString *)msg {
+    return [self initWithIsimMode:m title:t message:msg dismiss:nil recovery:nil url:nil];
+}
+- (instancetype)initWithDisabledMode:(UIActivityCollaborationMode)m alertTitle:(NSString *)t alertMessage:(NSString *)msg alertDismissButtonTitle:(NSString *)d {
+    return [self initWithIsimMode:m title:t message:msg dismiss:d recovery:nil url:nil];
+}
+- (instancetype)initWithDisabledMode:(UIActivityCollaborationMode)m alertTitle:(NSString *)t alertMessage:(NSString *)msg alertDismissButtonTitle:(NSString *)d
+      alertRecoverySuggestionButtonTitle:(NSString *)rt alertRecoverySuggestionButtonLaunchURL:(NSURL *)u {
+    return [self initWithIsimMode:m title:t message:msg dismiss:d recovery:rt url:u];
+}
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)c {
+    [c encodeInteger:_disabledMode forKey:@"disabledMode"];
+    if (_alertTitle) [c encodeObject:_alertTitle forKey:@"alertTitle"];
+    if (_alertMessage) [c encodeObject:_alertMessage forKey:@"alertMessage"];
+}
+- (instancetype)initWithCoder:(NSCoder *)c {
+    return [self initWithIsimMode:[c decodeIntegerForKey:@"disabledMode"] title:[c decodeObjectOfClass:[NSString class] forKey:@"alertTitle"]
+                            message:[c decodeObjectOfClass:[NSString class] forKey:@"alertMessage"] dismiss:nil recovery:nil url:nil];
+}
+- (id)copyWithZone:(NSZone *)z { return self; }
+@end
+
+@implementation UIActivityViewController (UIActivityItemsConfiguration)
+/* the configuration's objects when it was made from objects (the sheet previews and copies them), else its item
+   providers; its title is the preview's title */
+- (instancetype)initWithActivityItemsConfiguration:(id<UIActivityItemsConfigurationReading>)c {
+    NSArray *items = [(id)c respondsToSelector:@selector(_isim_objects)] ? [(id)c _isim_objects] : nil;
+    NSArray *acts = [c respondsToSelector:@selector(applicationActivitiesForActivityItemsConfiguration)] ? c.applicationActivitiesForActivityItemsConfiguration : nil;
+    if ((self = [self initWithActivityItems:items ?: c.itemProvidersForActivityItemsConfiguration applicationActivities:acts])) {
+        id title = [c respondsToSelector:@selector(activityItemsConfigurationMetadataForKey:)] ? [c activityItemsConfigurationMetadataForKey:UIActivityItemsConfigurationMetadataKeyTitle] : nil;
+        if ([title isKindOfClass:[NSString class]]) objc_setAssociatedObject(self, "_isim_title", title, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    return self;
+}
+- (UIActivitySectionTypes)excludedActivitySectionTypes { return [objc_getAssociatedObject(self, &kSectionTypes) unsignedIntegerValue]; }
+- (void)setExcludedActivitySectionTypes:(UIActivitySectionTypes)t { objc_setAssociatedObject(self, &kSectionTypes, @(t), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 @end

@@ -75,6 +75,12 @@ API_AVAILABLE(ios(15.0))
 typedef NS_ENUM(NSInteger, NSTextLayoutOrientation) {
     NSTextLayoutOrientationHorizontal = 0, NSTextLayoutOrientationVertical = 1,
 } NS_SWIFT_NAME(NSLayoutManager.TextLayoutOrientation);
+/* an object with a text orientation (text containers: horizontal) */
+@protocol NSTextLayoutOrientationProvider
+@property (readonly) NSTextLayoutOrientation layoutOrientation API_AVAILABLE(ios(7.0));
+@end
+@interface NSTextContainer (NSTextLayoutOrientationProvider) <NSTextLayoutOrientationProvider>
+@end
 typedef NS_OPTIONS(NSInteger, NSGlyphProperty) {
     NSGlyphPropertyNull = (1 << 0), NSGlyphPropertyControlCharacter = (1 << 1), NSGlyphPropertyElastic = (1 << 2), NSGlyphPropertyNonBaseCharacter = (1 << 3)
 } NS_SWIFT_NAME(NSLayoutManager.GlyphProperty);
@@ -136,8 +142,8 @@ typedef NS_OPTIONS(NSInteger, NSControlCharacterAction) {
 
 /* glyphs (one per UTF-16 unit) */
 @property (readonly) NSUInteger numberOfGlyphs;
-- (CGGlyph)CGGlyphAtIndex:(NSUInteger)glyphIndex isValidIndex:(nullable BOOL *)isValidIndex;
-- (CGGlyph)CGGlyphAtIndex:(NSUInteger)glyphIndex;
+- (CGGlyph)CGGlyphAtIndex:(NSUInteger)glyphIndex isValidIndex:(nullable BOOL *)isValidIndex NS_SWIFT_NAME(glyph(at:isValidIndex:));
+- (CGGlyph)CGGlyphAtIndex:(NSUInteger)glyphIndex NS_SWIFT_NAME(glyph(at:));
 - (BOOL)isValidGlyphIndex:(NSUInteger)glyphIndex;
 - (NSGlyphProperty)propertyForGlyphAtIndex:(NSUInteger)glyphIndex;
 - (NSUInteger)getGlyphsInRange:(NSRange)glyphRange glyphs:(nullable CGGlyph *)glyphBuffer properties:(nullable NSGlyphProperty *)props

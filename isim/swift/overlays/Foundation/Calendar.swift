@@ -450,6 +450,15 @@ public struct DateInterval: Hashable, Comparable, Sendable, Codable {
     public static func < (a: DateInterval, b: DateInterval) -> Bool { a.start < b.start || (a.start == b.start && a.duration < b.duration) }
 }
 
+extension DateInterval: _ObjectiveCBridgeable {
+    public func _bridgeToObjectiveC() -> NSDateInterval { NSDateInterval(start: start, duration: duration) }
+    public static func _forceBridgeFromObjectiveC(_ x: NSDateInterval, result: inout DateInterval?) { result = DateInterval(start: x.startDate, duration: x.duration) }
+    public static func _conditionallyBridgeFromObjectiveC(_ x: NSDateInterval, result: inout DateInterval?) -> Bool { _forceBridgeFromObjectiveC(x, result: &result); return true }
+    public static func _unconditionallyBridgeFromObjectiveC(_ s: NSDateInterval?) -> DateInterval {
+        var r: DateInterval?; if let s { _forceBridgeFromObjectiveC(s, result: &r) }; return r ?? DateInterval()
+    }
+}
+
 extension Date: Codable {
     public init(from decoder: Decoder) throws { self.init(timeIntervalSinceReferenceDate: try decoder.singleValueContainer().decode(Double.self)) }
     public func encode(to encoder: Encoder) throws { var c = encoder.singleValueContainer(); try c.encode(timeIntervalSinceReferenceDate) }

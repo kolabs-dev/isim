@@ -186,7 +186,7 @@ open class MFMailComposeViewController: UINavigationController {
         navigationItem.rightBarButtonItem = UIBarButtonItem(customView: send)
         toRow.field.keyboardType = .emailAddress
         subjectRow.field.addTarget(self, action: #selector(subjectChanged), for: .editingChanged)
-        toRow.field.addTarget(self, action: #selector(validate), for: .editingChanged)
+        toRow.field.addTarget(self, action: #selector(validateFields), for: .editingChanged)
         bodyView.font = .systemFont(ofSize: 16)
         bodyView.accessibilityIdentifier = "mail-body"
         attachmentsLabel.font = .systemFont(ofSize: 13); attachmentsLabel.textColor = .secondaryLabel
@@ -214,10 +214,10 @@ open class MFMailComposeViewController: UINavigationController {
         subjectRow.field.text = o.subject
         bodyView.text = o.isHTML ? o.body.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression) : o.body
         attachmentsLabel.text = o.attachments.isEmpty ? nil : "📎 " + o.attachments.map(\.2).joined(separator: ", ")
-        validate()
+        validateFields()
     }
     @objc func subjectChanged() { title = (subjectRow.field.text ?? "").isEmpty ? "New Message" : subjectRow.field.text }
-    @objc func validate() { send.isEnabled = !(toRow.field.text ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
+    @objc func validateFields() { send.isEnabled = !(toRow.field.text ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
     func collect() {
         guard let o = owner else { return }
         func split(_ s: String?) -> [String] { (s ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
@@ -316,7 +316,7 @@ open class MFMessageComposeViewController: UINavigationController {
         input.placeholder = "iMessage"
         input.font = .systemFont(ofSize: 17)
         input.accessibilityIdentifier = "message-body"
-        input.addTarget(self, action: #selector(validate), for: .editingChanged)
+        input.addTarget(self, action: #selector(validateFields), for: .editingChanged)
         bubble.layer.cornerRadius = 18
         bubble.layer.borderWidth = 1
         bubble.layer.borderColor = UIColor.systemGray4.cgColor
@@ -342,9 +342,9 @@ open class MFMessageComposeViewController: UINavigationController {
         filled = true
         toRow.field.text = (o.recipients ?? []).joined(separator: ", ")
         input.text = o.body
-        validate()
+        validateFields()
     }
-    @objc func validate() {
+    @objc func validateFields() {
         send.isEnabled = !(input.text ?? "").isEmpty || !(owner?.attachments.isEmpty ?? true)
         // iMessage-style: a phone number or address in "To:" sends as iMessage, plain text otherwise
         send.color = (toRow.field.text ?? "").contains("@") ? .systemBlue : .systemGreen

@@ -87,6 +87,7 @@ void isim_ui_draw_text(NSString *text, UIFont *font, UIColor *color, CGRect rect
 /* attributed text (Pango markup); font/color are the defaults where the string has none */
 NSString *isim_ui_markup(NSAttributedString *s, UIFont *_Nullable font, UIColor *_Nullable color, NSTextAlignment *_Nullable align, CGFloat *_Nullable spacing);
 CGSize isim_ui_measure_attributed(NSAttributedString *s, UIFont *_Nullable font, UIColor *_Nullable color, CGFloat maxWidth, NSInteger lines);
+UIEdgeInsets isim_ui_ink_overhang(NSAttributedString *s, UIFont *_Nullable font, UIColor *_Nullable color, CGFloat maxWidth, NSInteger lines);
 void isim_ui_draw_attributed(NSAttributedString *s, UIFont *_Nullable font, UIColor *_Nullable color, CGRect rect, NSTextAlignment align, NSInteger lines, CGFloat alpha);
 
 @interface UIFont (IsimPrivate)
@@ -145,6 +146,72 @@ void isim_ui_draw_attributed(NSAttributedString *s, UIFont *_Nullable font, UICo
 
 @interface UIControl (IsimPrivate)
 - (void)_isim_sendEvents:(UIControlEvents)events withEvent:(UIEvent *)event;
+- (NSMutableArray *)_isim_handlers;                 /* the actions and target-action pairs (UIControls.m) */
+- (void)_isim_touchUpInside;                        /* the control's own response to a tap (a toggle, a menu) */
+@end
+/* control extras (UIControlExtras.m, drawn in UIControls.m / UIMoreControls.m) */
+@interface UIButton (IsimExtrasPrivate)
+- (nullable UIImageSymbolConfiguration *)_isim_symbolConfigurationForState:(UIControlState)state;
+- (UIFont *)_isim_subtitleFont;
+@end
+@interface UIButtonConfiguration (IsimExtrasPrivate)
+- (void)_isim_copyExtrasTo:(UIButtonConfiguration *)c;
+- (NSDirectionalEdgeInsets)_isim_defaultContentInsets;
+@end
+@interface UISegmentedControl (IsimExtrasPrivate)
+- (void)_isim_segmentInsertedAt:(NSUInteger)i;
+- (void)_isim_segmentRemovedAt:(NSUInteger)i;
+- (void)_isim_segmentsRemoved;
+- (void)_isim_runSegmentAction;
+- (CGFloat)_isim_explicitWidthForSegment:(NSUInteger)i;
+@end
+void isim_ui_set_hovered_view(UIView *_Nullable v);
+void isim_ui_menu_chose(UIView *_Nullable source, UIAction *action);
+/* table and collection view extras (UIListExtras.m, UICollectionLayoutExtras.m) */
+@interface UICollectionView (IsimListPrivate)
+- (NSDictionary<NSString *, UICollectionReusableView *> *)_isim_supplementaryViews;
+- (void)_isim_interactiveMoveFrom:(NSIndexPath *)from to:(NSIndexPath *)to;
+@end
+@interface UICollectionViewUpdateItem (IsimPrivate)
+- (instancetype)initWithIsimAction:(UICollectionUpdateAction)action before:(nullable NSIndexPath *)before after:(nullable NSIndexPath *)after;
+@end
+@interface UICollectionViewLayout (IsimListPrivate)
+- (void)_isim_invalidate;
+@end
+void isim_ui_collection_place_moving(UICollectionView *cv, UICollectionViewCell *cell, NSIndexPath *ip);
+void isim_ui_collection_controller_movement(UICollectionViewController *vc);
+UICollectionViewLayoutInvalidationContext *isim_ui_everything_context(UICollectionViewLayout *layout);
+void isim_ui_add_item_supplementaries(NSCollectionLayoutItem *item, CGRect frame, NSIndexPath *ip, Class attributesClass, NSMutableArray *out);
+void isim_ui_split_supplementaries(NSMutableArray *cells, NSMutableArray *supps);
+NSDirectionalEdgeInsets isim_ui_reference_insets(NSDirectionalEdgeInsets in, NSCollectionLayoutSection *sec, UICollectionViewCompositionalLayoutConfiguration *config, UICollectionView *cv);
+UIEdgeInsets isim_ui_flow_reference_insets(UIEdgeInsets in, UICollectionViewFlowLayout *layout, UICollectionView *cv);
+void isim_ui_apply_ortho_properties(UIScrollView *band, NSCollectionLayoutSection *_Nullable sec);
+/* configuration extras (UIConfigurationExtras.m) */
+void isim_ui_copy_extras(id from, id to);
+void isim_ui_list_label(UILabel *label, NSAttributedString *_Nullable attributed, NSString *_Nullable shown, UIListContentTextProperties *properties);
+CGSize isim_ui_list_measure(NSAttributedString *_Nullable attributed, NSString *_Nullable shown, UIFont *font, CGFloat width, NSInteger lines);
+BOOL isim_ui_draw_background_configuration(UIBackgroundConfiguration *cfg, UIView *view, UIColor *_Nullable fallback);
+UIListSeparatorConfiguration *_Nullable isim_ui_row_separator(UICollectionLayoutListConfiguration *_Nullable lc, NSIndexPath *_Nullable ip);
+CGFloat isim_ui_separator_guide_x(UICollectionViewListCell *cell);
+void isim_ui_list_popup_chose(UICollectionViewListCell *cell, UIAction *action);
+@interface UIListContentConfiguration (IsimShown)
+- (nullable NSString *)_isim_shownText;
+- (nullable NSString *)_isim_shownSecondaryText;
+@end
+@interface UIListContentView (IsimParts)
+- (nullable UIView *)_isim_contentPart:(NSString *)name;
+@end
+@interface UICellAccessoryPopUpMenu (IsimPrivate)
+- (void)_isim_setMenu:(UIMenu *)menu;
+@end
+@interface UIPageControl (IsimExtrasPrivate)
+- (void)_isim_setInteractionState:(UIPageControlInteractionState)state;
+@end
+@interface UIPageControlProgress (IsimPrivate)
+- (nullable UIPageControl *)_isim_pageControl;
+- (void)_isim_setPageControl:(nullable UIPageControl *)pageControl;
+- (void)_isim_pageChanged;
+- (void)_isim_visibilityChanged;
 @end
 
 @interface UITouch (IsimPrivate)
@@ -211,7 +278,39 @@ BOOL isim_al_add(isim_al *al, id a, NSLayoutAttribute aa, NSLayoutRelation rel, 
 void isim_ui_gesture_recognized(UIGestureRecognizer *g);
 UIResponder *isim_ui_first_responder(void);
 BOOL isim_ui_hardware_key(int hid, int keycode, int hostmods, BOOL down);
-BOOL isim_ui_menu_key(int hid, NSString *characters);     /* an open menu's keyboard navigation (UIMoreControls.m); YES if taken */
+BOOL isim_ui_menu_key(int hid, NSString *characters);
+/* menus and commands (UIMenuSystem.m) */
+UIMenuElementAttributes isim_ui_element_attributes(UIMenuElement *e);
+UIMenuElementState isim_ui_element_state(UIMenuElement *e);
+BOOL isim_ui_command_available(UICommand *c, UIView *_Nullable source);      /* validated; NO: nothing performs it */
+void isim_ui_perform_leaf(UIMenuElement *e, UIView *_Nullable source);
+NSString *isim_ui_shortcut_text(UIKeyCommand *c);
+void isim_ui_menu_will_show(UIMenu *m);                                      /* uncached deferred elements ask again */
+UIMenu *isim_ui_main_menu(void);
+BOOL isim_ui_main_menu_key(NSString *base, NSString *characters, UIKeyModifierFlags mods, BOOL isRepeat);
+void isim_ui_main_menu_modifier(UIKeyModifierFlags flag, BOOL down, BOOL otherKey);
+void isim_ui_main_menu_event(NSString *args);
+UIResponder *_Nullable isim_ui_focus_responder(void);
+BOOL isim_ui_focus_key(int hid, UIKeyModifierFlags mods);
+/* responder members (UIResponderExtras.m) and the keyboard (UIKeyboard.m) */
+id _Nullable isim_ui_keyboard_target(void);
+NSString *isim_ui_keyboard_current_language(void);
+void isim_ui_keyboard_reload(id responder);
+void isim_ui_keyboard_assistant_changed(void);
+NSString *_Nullable isim_ui_keyboard_for_context(NSString *_Nullable identifier);
+void isim_ui_keyboard_remember_context(NSString *_Nullable identifier, NSString *_Nullable keyboard);
+BOOL isim_ui_receiving_remote_events(void);
+void isim_ui_remote_events_started(void);        /* UIFocus.m: Tab, arrows, Return / Space on iPad */
+UIView *_Nullable isim_ui_focused_view(void);
+@interface UICommand (IsimPrivate)
+- (void)_isim_setAction:(SEL)action propertyList:(nullable id)plist alternates:(nullable NSArray *)alternates;
+@end
+@interface UIMenu (IsimPrivate)
+- (void)_isim_setIdentifier:(nullable NSString *)identifier;
+@end
+@interface UIDeferredMenuElement (IsimPrivate)
+- (nullable NSArray *)_isim_elementsReloading:(void (^)(void))reload;
+@end     /* an open menu's keyboard navigation (UIMoreControls.m); YES if taken */
 void isim_ui_menu_set_type_select(BOOL allowed);   /* presses + key commands; YES if a key command took it */
 void isim_ui_shake(void);
 /* system keyboard (UIKeyboard.m) */
@@ -257,7 +356,12 @@ NSString *isim_ui_installed_apps_dir(void);
 @end
 @interface UIScrollView (IsimPrivate)
 - (void)_isim_markContentFromLayout;
+- (void)_isim_stopZoomAnimation;                    /* UIScrollViewZoom.m */
 @end
+BOOL isim_ui_status_bar_tap(UIWindow *w);           /* UIScrollView.m: scroll to top */
+BOOL isim_ui_keyboard_scroll(UIWindow *w, int hid, BOOL shift);
+BOOL isim_ui_scroll_may_take(UIScrollView *s, UIView *_Nullable hit, BOOL dflt);
+UIView *isim_ui_scroll_touch_target(UIView *hit, UITouch *t);
 @interface UIInputViewController (IsimPrivate)
 - (void)_isim_setTextInput:(nullable id<UIKeyInput>)input;
 @end

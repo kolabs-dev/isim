@@ -55,6 +55,9 @@ static UIViewController *top_controller(void) {
 - (UIInterfaceOrientationMask)supportedInterfaceOrientationsForWindow:(UIWindow *)window {
     id<UIApplicationDelegate> d = self.delegate;
     if ([d respondsToSelector:@selector(application:supportedInterfaceOrientationsForWindow:)]) return [d application:self supportedInterfaceOrientationsForWindow:window];
+    /* iOS 26: the window scene's delegate replaces the Info.plist value for its scene */
+    id<UIWindowSceneDelegate> sd = (id)(window ?: self.keyWindow).windowScene.delegate;
+    if ([sd respondsToSelector:@selector(supportedInterfaceOrientationsForWindowScene:)]) return [sd supportedInterfaceOrientationsForWindowScene:(window ?: self.keyWindow).windowScene];
     return plist_mask();
 }
 @end
@@ -103,6 +106,7 @@ static UIInterfaceOrientation choose(UIDeviceOrientation dev, UIInterfaceOrienta
     if (c) [_completions addObject:[c copy]];
     return YES;
 }
+- (void)notifyWhenInteractionChangesUsingBlock:(void (^)(id<UIViewControllerTransitionCoordinatorContext>))handler {}
 - (BOOL)animateAlongsideTransitionInView:(UIView *)v animation:(void (^)(id<UIViewControllerTransitionCoordinatorContext>))a completion:(void (^)(id<UIViewControllerTransitionCoordinatorContext>))c {
     return [self animateAlongsideTransition:a completion:c];
 }
@@ -145,11 +149,25 @@ void isim_ui_coordinator_finish(id coordinator) {
     return top ? top.supportedInterfaceOrientations : [super supportedInterfaceOrientations];
 }
 - (BOOL)shouldAutorotate { UIViewController *top = self.topViewController; return top ? top.shouldAutorotate : YES; }
+- (UIInterfaceOrientation)preferredInterfaceOrientationForPresentation {
+    id d = self.delegate;
+    if ([d respondsToSelector:@selector(navigationControllerPreferredInterfaceOrientationForPresentation:)]) return [d navigationControllerPreferredInterfaceOrientationForPresentation:self];
+    UIViewController *top = self.topViewController;
+    return top ? top.preferredInterfaceOrientationForPresentation : [super preferredInterfaceOrientationForPresentation];
+}
 @end
 @implementation UITabBarController (UIRotation)
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations {
+    id d = self.delegate;
+    if ([d respondsToSelector:@selector(tabBarControllerSupportedInterfaceOrientations:)]) return [d tabBarControllerSupportedInterfaceOrientations:self];
     UIViewController *s = self.selectedViewController;
     return s ? s.supportedInterfaceOrientations : [super supportedInterfaceOrientations];
+}
+- (UIInterfaceOrientation)preferredInterfaceOrientationForPresentation {
+    id d = self.delegate;
+    if ([d respondsToSelector:@selector(tabBarControllerPreferredInterfaceOrientationForPresentation:)]) return [d tabBarControllerPreferredInterfaceOrientationForPresentation:self];
+    UIViewController *s = self.selectedViewController;
+    return s ? s.preferredInterfaceOrientationForPresentation : [super preferredInterfaceOrientationForPresentation];
 }
 @end
 
@@ -213,6 +231,8 @@ void isim_ui_device_orientation_changed(int o) {
     }
     UIViewController *top = top_controller();
     if (top && !top.shouldAutorotate && o > 0) return;
+    UIViewController *lock = top; while (lock.childViewControllerForInterfaceOrientationLock) lock = lock.childViewControllerForInterfaceOrientationLock;
+    if (lock && o > 0 && lock.prefersInterfaceOrientationLocked && (allowed_mask() & (1u << interface_orientation))) return;   /* iOS 26 orientation lock */
     rotate_interface(choose(current_device_orientation(), allowed_mask()), YES);
 }
 
@@ -224,7 +244,11 @@ void isim_ui_device_orientation_changed(int o) {
 @implementation UIWindowScene (UIRotation)
 - (UIInterfaceOrientation)interfaceOrientation { return interface_orientation; }
 - (void)requestGeometryUpdateWithPreferences:(UIWindowSceneGeometryPreferences *)p errorHandler:(void (^)(NSError *))errorHandler {
-    UIInterfaceOrientationMask want = [p isKindOfClass:[UIWindowSceneGeometryPreferencesIOS class]] ? ((UIWindowSceneGeometryPreferencesIOS *)p).interfaceOrientations : 0;
+    if (![p isKindOfClass:[UIWindowSceneGeometryPreferencesIOS class]]) {          /* Mac (or other) preferences on iOS */
+        if (errorHandler) errorHandler([NSError errorWithDomain:@"UISceneErrorDomain" code:100 userInfo:@{ NSLocalizedDescriptionKey: @"The geometry preferences are not supported on this platform." }]);
+        return;
+    }
+    UIInterfaceOrientationMask want = ((UIWindowSceneGeometryPreferencesIOS *)p).interfaceOrientations;
     UIInterfaceOrientationMask allowed = want & allowed_mask();
     if (!allowed) {
         if (errorHandler) errorHandler([NSError errorWithDomain:@"UISceneErrorDomain" code:101

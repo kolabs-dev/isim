@@ -11,7 +11,7 @@
  *   pinch X Y SCALE SECS          two fingers around (X, Y), 100 pt apart, spread to 100*SCALE pt
  *   rotate2 X Y DEGREES SECS      two fingers 120 pt apart around (X, Y), turned by DEGREES (clockwise > 0)
  *   twofinger X Y DX DY SECS      two fingers 60 pt apart, moved together by (DX, DY)
- *   longdrag X1 Y1 X2 Y2 HOLD SECS  one finger down, held HOLD s (a long press), then moved over SECS and lifted
+ *   longdrag X1 Y1 X2 Y2 HOLD SECS [REST]  one finger down, held HOLD s (a long press), then moved over SECS, rested REST s and lifted
  *   pointerdrag X1 Y1 X2 Y2 HOLD SECS  the same with the iPad pointer (a trackpad / mouse click: UITouchTypeIndirectPointer)
  *   hover X Y | hover off         pointer at (X, Y) without touching / pointer leaves
  *   pencil X1 Y1 X2 Y2 SECS [FORCE] [ALTITUDE]  an Apple Pencil stroke (force 0...4.17, default 1; altitude radians)
@@ -60,7 +60,7 @@ static void mt_tick(void) {
     if (p >= 1) { mt_push(EV_TOUCH_UP, pt); mt.on = 0; }
 }
 /* longdrag: press, hold, then a timed move */
-static struct { int on; double x1, y1, x2, y2, hold_until, t0, dur, last; char tag[64]; } ld;   /* tag: the events' text (a Pencil) */
+static struct { int on; double x1, y1, x2, y2, hold_until, t0, dur, last, rest, rest_until; char tag[64]; } ld;   /* tag: the events' text (a Pencil) */
 static void ld_tick(void) {
     double t = now();
     if (t < ld.hold_until || t - ld.last < 0.016) return;
@@ -69,7 +69,8 @@ static void ld_tick(void) {
     double p = fmin(1, (t - ld.t0) / ld.dur);
     pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = ld.x1 + (ld.x2 - ld.x1) * p, .y = ld.y1 + (ld.y2 - ld.y1) * p };
     snprintf(pending[npending - 1].text, sizeof pending->text, "%s", ld.tag);
-    if (p >= 1) { pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = ld.x2, .y = ld.y2 }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", ld.tag); ld.on = 0; }
+    if (p >= 1 && ld.rest > 0 && !ld.rest_until) { ld.rest_until = t + ld.rest; return; }     /* resting at the end (spring loading) */
+    if (p >= 1 && (!ld.rest_until || t >= ld.rest_until)) { pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = ld.x2, .y = ld.y2 }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", ld.tag); ld.on = 0; }
 }
 /* script commands of this file; returns 1 if `cmd` was one */
 static int input_script_cmd(const char *cmd, const char *args) {
@@ -79,11 +80,13 @@ static int input_script_cmd(const char *cmd, const char *args) {
     if (!strcmp(cmd, "twofinger") && sscanf(args, "%lf %lf %lf %lf %lf", &a, &b, &c, &d, &e) == 5) { mt_start(a, b, c, d, 30, 30, 0, 0, e); return 1; }
     double f;
     if ((!strcmp(cmd, "longdrag") || !strcmp(cmd, "pointerdrag")) && sscanf(args, "%lf %lf %lf %lf %lf %lf", &a, &b, &c, &d, &e, &f) == 6) {
+        double rest = 0; sscanf(args, "%*f %*f %*f %*f %*f %*f %lf", &rest);
         ld.on = 1; ld.x1 = a; ld.y1 = b; ld.x2 = c; ld.y2 = d; ld.hold_until = now() + e; ld.t0 = 0; ld.dur = f > 0.02 ? f : 0.02; ld.last = 0;
+        ld.rest = rest > 0 ? rest : 0; ld.rest_until = 0;
         snprintf(ld.tag, sizeof ld.tag, "%s", cmd[0] == 'p' ? "pointer" : "");
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
         snprintf(pending[npending - 1].text, sizeof pending->text, "%s", ld.tag);
-        script_resume = now() + e + ld.dur + 0.1;
+        script_resume = now() + e + ld.dur + ld.rest + 0.1;
         return 1;
     }
     if (!strcmp(cmd, "pencil")) {

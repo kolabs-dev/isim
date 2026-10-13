@@ -372,6 +372,17 @@ static void slide_ivars(Class c) {
     uint32_t start = (sro->instance_size + 7) & ~7u;
     if (start <= ro->instance_start) return;
     uint32_t diff = start - ro->instance_start;
+    /* keep the ivars' alignment (a Swift SIMD property is 16-byte aligned): slide by a multiple of the largest one */
+    uint32_t align = 8;
+    if (ro->ivars) {
+        uint32_t es = ro->ivars->entsize_flags & ~3u;
+        for (uint32_t i = 0; i < ro->ivars->count; i++) {
+            struct ivar_t *iv = (void *)((uint8_t *)(ro->ivars + 1) + i * es);
+            uint32_t a = iv->alignment_raw == ~0u ? 8 : 1u << iv->alignment_raw;
+            if (a > align && a <= 64) align = a;
+        }
+    }
+    diff = (diff + align - 1) & ~(align - 1);
     if (ro->ivars) {
         uint32_t es = ro->ivars->entsize_flags & ~3u;
         for (uint32_t i = 0; i < ro->ivars->count; i++) {
@@ -881,19 +892,29 @@ id objc_initWeak(id *loc, id val) { *loc = NULL; return objc_storeWeak(loc, val)
 void objc_destroyWeak(id *loc) { objc_storeWeak(loc, NULL); }
 id objc_retain(id o);
 id objc_autorelease(id o);
+/* does the object count its references in the side table (NSObject's -retain)? Swift objects and classes with their
+   own -retain don't: those are retained by message */
+static int uses_root_retain(id o) {
+    static IMP root;
+    if (!root) { Class ns = objc_getClass("NSObject"); root = ns ? objc_rt_lookup((id)ns, ns, s_retain) : NULL; }
+    return root && objc_rt_lookup(o, o->isa, s_retain) == root;
+}
 id objc_loadWeakRetained(id *loc) {
+    int by_message = 0;
     pthread_mutex_lock(&rr_lock);
     id o = *loc;
     if (o) {
         struct rcent *e = rc_find(o, 0);
         if (e && e->deallocating) o = NULL;
-        else if (!is_class_object(o)) rc_find(o, 1)->extra++;   /* inline root retain under the lock */
+        else if (is_class_object(o)) {}
+        else if (uses_root_retain(o)) rc_find(o, 1)->extra++;   /* inline root retain under the lock */
+        else by_message = 1;
     }
     pthread_mutex_unlock(&rr_lock);
-    return o;
+    return by_message ? objc_retain(o) : o;
 }
 id objc_loadWeak(id *loc) { return objc_autorelease(objc_loadWeakRetained(loc)); }
-void objc_copyWeak(id *dst, id *src) { id o = objc_loadWeakRetained(src); objc_initWeak(dst, o); if (o) _objc_rootRelease(o); }
+void objc_copyWeak(id *dst, id *src) { id o = objc_loadWeakRetained(src); objc_initWeak(dst, o); objc_release(o); }
 void objc_moveWeak(id *dst, id *src) { objc_copyWeak(dst, src); objc_destroyWeak(src); }
 
 void *objc_destructInstance(id o) {

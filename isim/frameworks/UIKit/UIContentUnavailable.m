@@ -61,6 +61,7 @@
     c.directionalLayoutMargins = _directionalLayoutMargins; c.backgroundColor = _backgroundColor; c._isim_loading = __isim_loading;
     c.imageToTextPadding = _imageToTextPadding; c.textToSecondaryTextPadding = _textToSecondaryTextPadding;
     c.textToButtonPadding = _textToButtonPadding; c.buttonToSecondaryButtonPadding = _buttonToSecondaryButtonPadding;
+    isim_ui_copy_extras(self, c);
     return c;
 }
 - (UIView *)makeContentView { return [[UIContentUnavailableView alloc] initWithConfiguration:self]; }
@@ -90,14 +91,15 @@
         _image.tintColor = _configuration.imageProperties.tintColor; _image.contentMode = UIViewContentModeScaleAspectFit;
         [self addSubview:_image];
     }
-    UILabel *(^label)(NSString *, UIContentUnavailableTextProperties *) = ^UILabel *(NSString *t, UIContentUnavailableTextProperties *p) {
-        if (!t.length) return nil;
+    UILabel *(^label)(NSString *, NSAttributedString *, UIContentUnavailableTextProperties *) = ^UILabel *(NSString *t, NSAttributedString *at, UIContentUnavailableTextProperties *p) {
+        if (!t.length && !at.length) return nil;
         UILabel *l = [UILabel new]; l.text = t; l.font = p.font; l.textColor = p.color; l.textAlignment = p.alignment; l.numberOfLines = p.numberOfLines;
+        if (at.length) l.attributedText = at;                   /* attributed texts win */
         [self addSubview:l];
         return l;
     };
-    _text = label(_configuration.text, _configuration.textProperties);
-    _secondary = label(_configuration.secondaryText, _configuration.secondaryTextProperties);
+    _text = label(_configuration.text, _configuration.attributedText, _configuration.textProperties);
+    _secondary = label(_configuration.secondaryText, _configuration.secondaryAttributedText, _configuration.secondaryTextProperties);
     UIButton *(^button)(UIButtonConfiguration *, UIContentUnavailableButtonProperties *) = ^UIButton *(UIButtonConfiguration *bc, UIContentUnavailableButtonProperties *p) {
         if (!bc) return nil;
         UIButton *b = [UIButton buttonWithConfiguration:bc primaryAction:p.primaryAction];

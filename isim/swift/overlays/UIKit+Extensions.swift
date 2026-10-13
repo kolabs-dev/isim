@@ -32,3 +32,59 @@ public func _isimItemProviders(_ raw: NSArray) -> NSArray {
     }
     return out as NSArray
 }
+
+// MARK: - band selection (iOS 15): the band rect is optional in Swift
+@available(iOS 15.0, *)
+extension UIBandSelectionInteraction {
+    public var selectionRect: CGRect? { let r = __selectionRect; return r.isNull ? nil : r }
+}
+
+// MARK: - UIImage baselines and UIImageReader (part 10 of #9)
+extension UIImage {
+    /// the baseline's offset from the bottom, if the image has a baseline (symbols do)
+    public var baselineOffsetFromBottom: CGFloat? { __hasBaseline ? __baselineOffsetFromBottom : nil }
+}
+
+/// reads images with options (iOS 17): HDR (isim: standard dynamic range), preparing for display, thumbnails, pixel density
+@available(iOS 17.0, *)
+public struct UIImageReader: Sendable {
+    public struct Configuration: Sendable {
+        public var prefersHighDynamicRange = false
+        public var preparesImagesForDisplay = true
+        public var preferredThumbnailSize = CGSize.zero
+        public var pixelsPerInch: CGFloat = 0
+        public init() {}
+    }
+    public let configuration: Configuration
+    public static let `default` = UIImageReader(configuration: Configuration())
+    public init(configuration: Configuration) { self.configuration = configuration }
+    private func reader() -> __UIImageReader {
+        let c = __UIImageReaderConfiguration()
+        c.prefersHighDynamicRange = configuration.prefersHighDynamicRange
+        c.preparesImagesForDisplay = configuration.preparesImagesForDisplay
+        c.preferredThumbnailSize = configuration.preferredThumbnailSize
+        c.pixelsPerInch = configuration.pixelsPerInch
+        return __UIImageReader(configuration: c)
+    }
+    public func image(contentsOf url: URL) -> UIImage? { reader().image(withContentsOfFileURL: url) }
+    public func image(data: Data) -> UIImage? { reader().image(with: data) }
+    public func image(contentsOf url: URL) async -> UIImage? { await reader().image(withContentsOfFileURL: url) }
+    public func image(data: Data) async -> UIImage? { await reader().image(with: data) }
+}
+
+/// printing errors as a Swift error type (`catch let e as UIPrintError`, `e.code == .jobFailed`)
+public struct UIPrintError: CustomNSError, Hashable, _ObjectiveCBridgeableError {
+    public typealias Code = UIPrintErrorCode
+    public let code: Code
+    public init(_ code: Code) { self.code = code }
+    public init?(_bridgedNSError e: __shared NSError) {
+        guard e.domain == UIPrintErrorDomain, let c = Code(rawValue: e.code) else { return nil }
+        self.init(c)
+    }
+    public static var errorDomain: String { UIPrintErrorDomain }
+    public var errorCode: Int { code.rawValue }
+    public static var notAvailable: Code { .notAvailable }
+    public static var noContent: Code { .noContent }
+    public static var unknownImageFormat: Code { .unknownImageFormat }
+    public static var jobFailed: Code { .jobFailed }
+}

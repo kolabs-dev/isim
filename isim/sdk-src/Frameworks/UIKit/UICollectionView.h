@@ -7,7 +7,9 @@
 #import <UIKit/UIScrollView.h>
 #import <UIKit/UIViewController.h>
 #import <UIKit/UITableView.h>
+#import <UIKit/UIDynamicAnimator.h>
 NS_ASSUME_NONNULL_BEGIN
+@class UICollectionViewFocusUpdateContext, UIFocusAnimationCoordinator;
 @class UICollectionView, UICollectionViewLayout, UICollectionViewLayoutAttributes, UIColor;
 
 UIKIT_EXTERN NSString *const UICollectionElementKindSectionHeader;
@@ -23,7 +25,7 @@ typedef NS_OPTIONS(NSUInteger, UICollectionViewScrollPosition) {
 
 /* ---- reusable views and cells ---- */
 NS_SWIFT_UI_ACTOR
-@interface UICollectionViewLayoutAttributes : NSObject <NSCopying>
+@interface UICollectionViewLayoutAttributes : NSObject <NSCopying, UIDynamicItem>
 + (instancetype)layoutAttributesForCellWithIndexPath:(NSIndexPath *)indexPath;
 + (instancetype)layoutAttributesForSupplementaryViewOfKind:(NSString *)elementKind withIndexPath:(NSIndexPath *)indexPath;
 + (instancetype)layoutAttributesForDecorationViewOfKind:(NSString *)decorationViewKind withIndexPath:(NSIndexPath *)indexPath NS_SWIFT_NAME(init(forDecorationViewOfKind:with:));
@@ -335,6 +337,9 @@ NS_SWIFT_UI_ACTOR
 - (UICollectionReusableView *)collectionView:(UICollectionView *)collectionView viewForSupplementaryElementOfKind:(NSString *)kind atIndexPath:(NSIndexPath *)indexPath;
 - (BOOL)collectionView:(UICollectionView *)collectionView canMoveItemAtIndexPath:(NSIndexPath *)indexPath;
 - (void)collectionView:(UICollectionView *)collectionView moveItemAtIndexPath:(NSIndexPath *)sourceIndexPath toIndexPath:(NSIndexPath *)destinationIndexPath;
+/* index titles (tvOS shows them; isim: asked for, not drawn) */
+- (nullable NSArray<NSString *> *)indexTitlesForCollectionView:(UICollectionView *)collectionView API_AVAILABLE(ios(14.0));
+- (NSIndexPath *)collectionView:(UICollectionView *)collectionView indexPathForIndexTitle:(NSString *)title atIndex:(NSInteger)index API_AVAILABLE(ios(14.0));
 @end
 @class UIContextMenuConfiguration;
 @protocol UIContextMenuInteractionAnimating, UIContextMenuInteractionCommitAnimating;
@@ -358,6 +363,14 @@ NS_SWIFT_UI_ACTOR
 - (void)collectionView:(UICollectionView *)collectionView willPerformPreviewActionForMenuWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(id<UIContextMenuInteractionCommitAnimating>)animator;
 - (void)collectionView:(UICollectionView *)collectionView willDisplayContextMenuWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator;
 - (void)collectionView:(UICollectionView *)collectionView willEndContextMenuInteractionWithConfiguration:(UIContextMenuConfiguration *)configuration animator:(nullable id<UIContextMenuInteractionAnimating>)animator;
+/* multiple selection with a two-finger pan (isim: not called) and the focus engine's preferred item  */
+- (void)collectionViewDidEndMultipleSelectionInteraction:(UICollectionView *)collectionView API_AVAILABLE(ios(13.0));
+- (nullable NSIndexPath *)indexPathForPreferredFocusedViewInCollectionView:(UICollectionView *)collectionView;
+/* keyboard focus (iPad, UIFocus.h): whether a item takes focus, and the focus updates inside the list */
+- (BOOL)collectionView:(UICollectionView *)collectionView canFocusItemAtIndexPath:(NSIndexPath *)indexPath API_AVAILABLE(ios(9.0));
+- (BOOL)collectionView:(UICollectionView *)collectionView shouldUpdateFocusInContext:(UICollectionViewFocusUpdateContext *)context API_AVAILABLE(ios(9.0));
+- (void)collectionView:(UICollectionView *)collectionView didUpdateFocusInContext:(UICollectionViewFocusUpdateContext *)context withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator API_AVAILABLE(ios(9.0));
+- (BOOL)collectionView:(UICollectionView *)collectionView selectionFollowsFocusForItemAtIndexPath:(NSIndexPath *)indexPath API_AVAILABLE(ios(15.0));
 @end
 /* prefetching (iOS 10): the items about to scroll into view, before their cells are asked for */
 @protocol UICollectionViewDataSourcePrefetching <NSObject>

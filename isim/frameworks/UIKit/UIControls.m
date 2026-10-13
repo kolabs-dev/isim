@@ -6,6 +6,7 @@
 
 /* ================= UILabel ================= */
 @implementation UILabel
+@synthesize sizingRule = _sizingRule;     /* UILetterformAwareAdjusting (iOS 17) */
 - (instancetype)initWithFrame:(CGRect)f {
     if ((self = [super initWithFrame:f])) {
         _font = [UIFont systemFontOfSize:17]; _textColor = UIColor.labelColor; _numberOfLines = 1; _enabled = YES;
@@ -25,10 +26,35 @@
     if (!_text) return nil;
     return [[NSAttributedString alloc] initWithString:_text attributes:@{ NSFontAttributeName: _font, NSForegroundColorAttributeName: _textColor }];
 }
-/* the label's text measured with its attributes when it has some */
-- (CGSize)_isim_measure:(CGFloat)maxw lines:(NSInteger)lines font:(UIFont *)f {
-    return _attributedText ? isim_ui_measure_attributed(_attributedText, f, _textColor, maxw, lines) : isim_ui_measure(_text, f, maxw, lines);
+/* the label's text measured with its attributes when it has some; with the oversize sizing rule (iOS 17) the ink of
+   tall scripts that reaches outside the line boxes is added */
+- (UIEdgeInsets)_isim_overhang:(CGFloat)maxw lines:(NSInteger)lines font:(UIFont *)f {
+    if (_sizingRule != UILetterformAwareSizingRuleOversize || !_text.length) return UIEdgeInsetsZero;
+    return isim_ui_ink_overhang(self.attributedText, f, _textColor, maxw, lines);
 }
+- (CGSize)_isim_measure:(CGFloat)maxw lines:(NSInteger)lines font:(UIFont *)f {
+    CGSize s = _attributedText ? isim_ui_measure_attributed(_attributedText, f, _textColor, maxw, lines) : isim_ui_measure(_text, f, maxw, lines);
+    UIEdgeInsets o = [self _isim_overhang:maxw lines:lines font:f];
+    s.height += o.top + o.bottom;
+    return s;
+}
+- (void)setSizingRule:(UILetterformAwareSizingRule)r { _sizingRule = r; [self _changed]; }
+- (void)setBaselineAdjustment:(UIBaselineAdjustment)b { _baselineAdjustment = b; isim_ui_set_needs_display(); }
+/* a truncated label shows its full text as a tooltip on iPad (UIToolTipInteraction, UIHover.m) */
+- (void)setShowsExpansionTextWhenTruncated:(BOOL)b { _showsExpansionTextWhenTruncated = b; [self _isim_updateExpansion]; }
+- (BOOL)_isim_truncated {
+    if (!_text.length || self.bounds.size.width <= 0) return NO;
+    CGSize full = [self _isim_measure:_numberOfLines == 1 ? 0 : self.bounds.size.width lines:0 font:[self _effectiveFont]];
+    return full.width > self.bounds.size.width + 0.5 || full.height > self.bounds.size.height + 0.5;
+}
+- (void)_isim_updateExpansion {
+    static char k;
+    UIToolTipInteraction *i = objc_getAssociatedObject(self, &k);
+    BOOL want = _showsExpansionTextWhenTruncated && [self _isim_truncated];
+    if (want && !i) { i = [[UIToolTipInteraction alloc] init]; objc_setAssociatedObject(self, &k, i, OBJC_ASSOCIATION_RETAIN_NONATOMIC); [self addInteraction:i]; self.userInteractionEnabled = YES; }
+    i.defaultToolTip = want ? _text : nil;
+}
+- (void)layoutSubviews { [super layoutSubviews]; if (_showsExpansionTextWhenTruncated) [self _isim_updateExpansion]; }
 - (void)setFont:(UIFont *)f { _font = f ?: [UIFont systemFontOfSize:17]; [self _changed]; }
 - (void)setTextColor:(UIColor *)c { _textColor = c ?: UIColor.labelColor; isim_ui_set_needs_display(); }
 - (void)setTextAlignment:(NSTextAlignment)a { _textAlignment = a; isim_ui_set_needs_display(); }
@@ -84,8 +110,17 @@
 }
 - (void)drawTextInRect:(CGRect)r {
     UIColor *c = _highlighted && _highlightedTextColor ? _highlightedTextColor : _textColor;
-    NSAttributedString *tight = [self _isim_tightened:r.size.width font:[self _effectiveFont] color:c];
-    if (tight) { isim_ui_draw_attributed(tight, [self _effectiveFont], c, r, _textAlignment, _numberOfLines, _enabled ? 1 : 0.4); return; }
+    UIFont *ef = [self _effectiveFont];
+    UIEdgeInsets o = [self _isim_overhang:_numberOfLines == 1 ? 0 : r.size.width lines:_numberOfLines font:ef];
+    r = UIEdgeInsetsInsetRect(r, o);
+    if (ef != _font && _baselineAdjustment != UIBaselineAdjustmentAlignCenters) {
+        /* shrunk text: keep the original line's baseline, or its top (the drawing centres the rect it is given) */
+        CGFloat h0 = ceil(_font.lineHeight), h1 = ceil(ef.lineHeight), top0 = r.origin.y + (r.size.height - h0) / 2;
+        CGFloat top1 = _baselineAdjustment == UIBaselineAdjustmentAlignBaselines ? top0 + _font.ascender - ef.ascender : top0;
+        r = CGRectMake(r.origin.x, top1, r.size.width, h1);
+    }
+    NSAttributedString *tight = [self _isim_tightened:r.size.width font:ef color:c];
+    if (tight) { isim_ui_draw_attributed(tight, ef, c, r, _textAlignment, _numberOfLines, _enabled ? 1 : 0.4); return; }
     if (_attributedText) { isim_ui_draw_attributed(_attributedText, [self _effectiveFont], c, r, _textAlignment, _numberOfLines, _enabled ? 1 : 0.4); return; }
     isim_ui_draw_text(_text, [self _effectiveFont], c, r, _textAlignment, _numberOfLines, _enabled ? 1 : 0.4);
 }
@@ -109,7 +144,7 @@
 }
 + (instancetype)actionWithTitle:(NSString *)t image:(UIImage *)i identifier:(NSString *)ident discoverabilityTitle:(NSString *)d
                      attributes:(UIMenuElementAttributes)attr state:(UIMenuElementState)st handler:(UIActionHandler)h {
-    UIAction *a = [self actionWithTitle:t image:i identifier:ident handler:h]; a.attributes = attr; a.state = st; return a;
+    UIAction *a = [self actionWithTitle:t image:i identifier:ident handler:h]; a.attributes = attr; a.state = st; a.discoverabilityTitle = d; return a;
 }
 @end
 
@@ -202,6 +237,7 @@
     [self _isim_sendEvents:UIControlEventTouchCancel withEvent:e];
 }
 - (void)_isim_touchUpInside {}
+- (NSMutableArray *)_isim_handlers { return _ta; }
 @end
 
 /* ================= UISymbolContentTransition (iOS 26) ================= */
@@ -240,16 +276,40 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     c.attributedTitle = _attributedTitle; c.attributedSubtitle = _attributedSubtitle; c.showsActivityIndicator = _showsActivityIndicator;
     c.imagePlacement = _imagePlacement; c.titlePadding = _titlePadding; c.titleAlignment = _titleAlignment;
     c.symbolContentTransition = _symbolContentTransition;
+    [self _isim_copyExtrasTo:c];
     return c;
 }
+- (NSDirectionalEdgeInsets)_isim_defaultContentInsets { return _style >= IsimGlass ? NSDirectionalEdgeInsetsMake(10, 16, 10, 16) : NSDirectionalEdgeInsetsMake(7, 12, 7, 12); }
 @end
 
 /* ================= UIButton ================= */
+/* the menu (of a menu tree) holding an action */
+static UIMenu *menu_holding(UIMenu *m, UIAction *a) {
+    for (UIMenuElement *e in m.children) {
+        if (e == a) return m;
+        if ([e isKindOfClass:[UIMenu class]]) { UIMenu *f = menu_holding((UIMenu *)e, a); if (f) return f; }
+    }
+    return nil;
+}
+static void leaves(UIMenu *m, NSMutableArray *out) { for (UIMenuElement *e in m.children) { if ([e isKindOfClass:[UIMenu class]]) leaves((UIMenu *)e, out); else if ([e isKindOfClass:[UIAction class]]) [out addObject:e]; } }
+/* an action chosen from a menu: in a single-selection menu (or a pop-up button's menu) it becomes the checked one */
+void isim_ui_menu_chose(UIView *source, UIAction *a) {
+    if ([source isKindOfClass:[UICollectionViewListCell class]]) { isim_ui_list_popup_chose((UICollectionViewListCell *)source, a); return; }
+    if (![source isKindOfClass:[UIButton class]]) return;
+    UIButton *b = (UIButton *)source;
+    UIMenu *holder = menu_holding(b.menu, a);
+    BOOL popup = b.changesSelectionAsPrimaryAction && b.showsMenuAsPrimaryAction;
+    if (!holder || (!popup && !(holder.options & UIMenuOptionsSingleSelection))) return;
+    NSMutableArray *all = [NSMutableArray array]; leaves(popup ? b.menu : holder, all);
+    for (UIAction *x in all) x.state = x == a ? UIMenuElementStateOn : UIMenuElementStateOff;
+    if (popup) { NSLog(@"isim: pop-up button shows %@", a.title); [b invalidateIntrinsicContentSize]; [b setNeedsUpdateConfiguration]; isim_ui_set_needs_display(); }
+}
 @implementation UIButton { NSMutableDictionary<NSNumber *, NSString *> *_titles; NSMutableDictionary<NSNumber *, UIColor *> *_colors; UILabel *_label;
     NSMutableDictionary<NSNumber *, UIImage *> *_images; NSMutableDictionary<NSNumber *, UIImageSymbolConfiguration *> *_symbolConfigs;
     NSMutableDictionary<NSNumber *, UIImage *> *_backgrounds; NSMutableDictionary<NSNumber *, UIColor *> *_shadowColors;
     BOOL _needsConfigUpdate, _configShown; UIActivityIndicatorView *_spinner;
     UIImage *_transFrom, *_configImage; double _transStart; CADisplayLink *_transLink; }
+@dynamic adjustsImageSizeForAccessibilityContentSizeCategory;      /* UIAccessibilityExtras.m */
 /* configuration updates: state changes, setNeedsUpdateConfiguration, and the first time the button shows */
 - (void)updateConfiguration { if (_configurationUpdateHandler) _configurationUpdateHandler(self); }
 - (void)setNeedsUpdateConfiguration {
@@ -269,11 +329,11 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     if (spin && !_spinner) { _spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium]; _spinner.userInteractionEnabled = NO; _spinner.accessibilityIdentifier = @"isim-button-activity"; [self addSubview:_spinner]; }
     if (_spinner) {
         _spinner.hidden = !spin;
-        if (spin) { _spinner.color = [self _fg]; CGRect r = [self _isim_imageRect]; _spinner.frame = r; [_spinner startAnimating]; } else [_spinner stopAnimating];
+        if (spin) { UIConfigurationColorTransformer ct = _configuration.activityIndicatorColorTransformer; _spinner.color = ct ? ct([self _fg]) : [self _fg]; CGRect r = [self _isim_imageRect]; _spinner.frame = r; [_spinner startAnimating]; } else [_spinner stopAnimating];
     }
 }
 - (void)_isim_touchUpInside {
-    if (self.changesSelectionAsPrimaryAction) self.selected = !self.selected;      /* toggle buttons (iOS 15) */
+    if (self.changesSelectionAsPrimaryAction && !(self.showsMenuAsPrimaryAction && self.menu)) self.selected = !self.selected;      /* toggle buttons (iOS 15) */
     if (self.showsMenuAsPrimaryAction && self.menu) [self _isim_presentMenu:self.menu fromRect:self.bounds];
 }
 + (instancetype)buttonWithType:(UIButtonType)t { UIButton *b = [[self alloc] initWithFrame:CGRectZero]; b->_buttonType = t; [b _isim_applyType]; return b; }
@@ -381,9 +441,12 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     if (c) _symbolConfigs[@(s)] = c; else [_symbolConfigs removeObjectForKey:@(s)];
     [self invalidateIntrinsicContentSize]; isim_ui_set_needs_display();
 }
+- (UIImageSymbolConfiguration *)_isim_symbolConfigurationForState:(UIControlState)s { return _symbolConfigs[@(s)] ?: _symbolConfigs[@(UIControlStateNormal)]; }
+/* setting a menu turns on the context menu interaction (a long press shows it) */
+- (void)setMenu:(UIMenu *)m { _menu = [m copy]; self.contextMenuInteractionEnabled = m != nil; }
 - (UIImage *)currentImage {
     UIImage *i = _configuration.image ?: [self imageForState:self.state];
-    UIImageSymbolConfiguration *c = _symbolConfigs[@(self.state)] ?: _symbolConfigs[@(UIControlStateNormal)];
+    UIImageSymbolConfiguration *c = [self _isim_symbolConfigurationForState:self.state] ?: _configuration.preferredSymbolConfigurationForImage;
     if (c && i.symbolImage) i = [i imageByApplyingSymbolConfiguration:c];
     else if (i.symbolImage && !i.symbolConfiguration) i = [i imageByApplyingSymbolConfiguration:[UIImageSymbolConfiguration configurationWithFont:[self _font]]];
     return i;
@@ -395,7 +458,17 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     if (_buttonType == UIButtonTypeSystem) return (s & UIControlStateDisabled) ? UIColor.tertiaryLabelColor : self.tintColor;
     return UIColor.whiteColor;
 }
-- (NSString *)currentTitle { return _configuration.attributedTitle.string ?: _configuration.title ?: [self titleForState:self.state]; }
+- (NSString *)currentTitle { return _configuration.attributedTitle.string ?: _configuration.title ?: [self _isim_popupTitle] ?: self.currentAttributedTitle.string ?: [self titleForState:self.state]; }
+/* a pop-up button (a menu as its primary action that changes selection) shows its selected item's title (the first
+   item's when none is selected) */
+- (NSString *)_isim_popupTitle {
+    if (!self.menu || !self.showsMenuAsPrimaryAction || !self.changesSelectionAsPrimaryAction) return nil;
+    NSMutableArray<UIAction *> *all = [NSMutableArray array]; leaves(self.menu, all);
+    for (UIAction *x in all) if (x.state == UIMenuElementStateOn) return x.title;
+    return all.firstObject.title;
+}
+/* the attributed title drawn: the configuration's, else (without a configuration) the state's */
+- (NSAttributedString *)_isim_attributedTitle { return _configuration ? _configuration.attributedTitle : self.currentAttributedTitle; }
 - (UIColor *)currentTitleColor { return [self titleColorForState:self.state]; }
 - (void)tintColorDidChange { isim_ui_set_needs_display(); }
 
@@ -404,12 +477,43 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 - (UIEdgeInsets)_insets {
     if (!_configuration) return _contentEdgeInsets;
     NSDirectionalEdgeInsets d = _configuration.contentInsets;
-    return UIEdgeInsetsMake(d.top, d.leading, d.bottom, d.trailing);
+    UIImage *ind = [self _isim_indicatorImage];
+    return UIEdgeInsetsMake(d.top, d.leading, d.bottom, d.trailing + (ind ? ind.size.width + 6 : 0));
+}
+/* the pop-up indicator after the title: asked for, or automatic for a menu button that changes its selection */
+- (UIImage *)_isim_indicatorImage {
+    UIButtonConfigurationIndicator k = _configuration.indicator;
+    BOOL show = k == UIButtonConfigurationIndicatorPopup || (k == UIButtonConfigurationIndicatorAutomatic && self.menu && self.showsMenuAsPrimaryAction && self.changesSelectionAsPrimaryAction);
+    if (!_configuration || !show) return nil;
+    return [UIImage systemImageNamed:@"chevron.up.chevron.down" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:[self _font].pointSize * 0.75 weight:UIImageSymbolWeightSemibold]];
+}
+/* the configuration's title / subtitle attributes, through its transformers */
+- (NSDictionary *)_isim_textAttributes:(BOOL)subtitle {
+    NSDictionary *a = @{ NSFontAttributeName: subtitle ? [self _isim_subtitleFont] : [self _font], NSForegroundColorAttributeName: [self _fg] };
+    UIConfigurationTextAttributesTransformer t = subtitle ? _configuration.subtitleTextAttributesTransformer : _configuration.titleTextAttributesTransformer;
+    return t ? (t(a) ?: a) : a;
+}
+- (UIFont *)_isim_titleFont { if (!_configuration.titleTextAttributesTransformer) return [self _font]; UIFont *f = [self _isim_textAttributes:NO][NSFontAttributeName]; return [f isKindOfClass:[UIFont class]] ? f : [self _font]; }
+- (UIColor *)_isim_titleColor { if (!_configuration.titleTextAttributesTransformer) return [self _fg]; UIColor *c = [self _isim_textAttributes:NO][NSForegroundColorAttributeName]; return [c isKindOfClass:[UIColor class]] ? c : [self _fg]; }
+- (UIFont *)_isim_subtitleFont { return [UIFont systemFontOfSize:fmax(9, [self _font].pointSize - 2)]; }
+- (BOOL)_isim_hasSubtitle { return _configuration && (_configuration.attributedSubtitle.length || _configuration.subtitle.length); }
+- (CGSize)_isim_subtitleSize {
+    if (_configuration.attributedSubtitle.length) return isim_ui_measure_attributed(_configuration.attributedSubtitle, [self _isim_subtitleFont], [self _fg], 0, 1);
+    NSDictionary *a = [self _isim_textAttributes:YES];
+    return isim_ui_measure(_configuration.subtitle, a[NSFontAttributeName], 0, 1);
+}
+- (CGFloat)_isim_subtitleGap { return _configuration.titlePadding > 0 ? _configuration.titlePadding : 2; }
+- (UIColor *)_isim_imageTint { UIConfigurationColorTransformer t = _configuration.imageColorTransformer; return t ? t([self _fg]) : [self _fg]; }
+/* a selected toggle looks tinted (plain, gray), or filled (tinted) */
+- (BOOL)_isim_selectionLook {
+    IsimButtonStyle s = _configuration.style;
+    return _configuration && self.selected && _configuration.automaticallyUpdateForSelection && (s == IsimPlain || s == IsimGray || s == IsimTinted || s == IsimBordered);
 }
 - (UIColor *)_fg {
     if (!_configuration) return self.currentTitleColor;
     if (!self.enabled) return UIColor.tertiaryLabelColor;
     if (_configuration.baseForegroundColor) return _configuration.baseForegroundColor;
+    if ([self _isim_selectionLook]) return _configuration.style == IsimTinted ? UIColor.whiteColor : self.tintColor;
     if (_configuration.style == IsimGlass || _configuration.style == IsimClearGlass) return UIColor.labelColor;   /* glass glyphs are monochrome */
     return _configuration.style == IsimFilled || _configuration.style == IsimProminentGlass || _configuration.style == IsimProminentClearGlass ? UIColor.whiteColor : self.tintColor;
 }
@@ -417,6 +521,7 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 - (UIColor *)_bg {
     if (!_configuration) return nil;
     UIColor *base = _configuration.baseBackgroundColor;
+    if ([self _isim_selectionLook]) return _configuration.style == IsimTinted ? (base ?: self.tintColor) : [(base ?: self.tintColor) colorWithAlphaComponent:0.15];
     switch (_configuration.style) {
     case IsimFilled: return self.enabled ? (base ?: self.tintColor) : UIColor.tertiarySystemFillColor;
     case IsimTinted: return [(base ?: self.tintColor) colorWithAlphaComponent:0.15];
@@ -437,10 +542,21 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
 - (CGFloat)_imagePadding { return _configuration ? (_configuration.imagePadding ?: 6) : 0; }
 - (CGSize)_isim_titleSize {
     NSString *t = self.currentTitle;
-    if (_configuration.attributedTitle) return isim_ui_measure_attributed(_configuration.attributedTitle, [self _font], [self _fg], 0, 1);
-    return t.length || !self.currentImage ? isim_ui_measure(t ?: @"", [self _font], 0, 1) : CGSizeZero;
+    NSAttributedString *at = [self _isim_attributedTitle];
+    CGSize s = at ? isim_ui_measure_attributed(at, [self _isim_titleFont], [self _isim_titleColor], 0, 1)
+        : t.length || !self.currentImage ? isim_ui_measure(t ?: @"", [self _isim_titleFont], 0, 1) : CGSizeZero;
+    if ([self _isim_hasSubtitle]) {               /* the subtitle under the title */
+        CGSize ss = [self _isim_subtitleSize];
+        s = CGSizeMake(fmax(s.width, ss.width), s.height + [self _isim_subtitleGap] + ss.height);
+    }
+    return s;
 }
-- (CGSize)_isim_imageSize { return _configuration.showsActivityIndicator ? CGSizeMake(20, 20) : self.currentImage.size; }
+- (CGSize)_isim_imageSize {
+    if (_configuration.showsActivityIndicator) return CGSizeMake(20, 20);
+    CGSize s = self.currentImage.size; CGFloat r = _configuration.imageReservation;
+    if (r > 0 && self.currentImage) { if ([self _isim_vertical]) s.height = fmax(s.height, r); else s.width = fmax(s.width, r); }   /* (the image centred in its reserved room) */
+    return s;
+}
 - (BOOL)_isim_vertical { return _configuration && (_configuration.imagePlacement == NSDirectionalRectEdgeTop || _configuration.imagePlacement == NSDirectionalRectEdgeBottom); }
 /* where the image (or activity indicator) goes, for the configuration's placement */
 - (CGRect)_isim_imageRect {
@@ -493,15 +609,25 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
     }
     NSString *t = self.currentTitle;
     UIImage *img = _configuration.showsActivityIndicator ? nil : self.currentImage;
+    double fgAlpha = (bg && _configuration) ? 1 : hl;
+    if (self.highlighted && _buttonType == UIButtonTypeCustom && !_configuration) fgAlpha = 1;
+    UIImage *ind = [self _isim_indicatorImage];
+    if (ind) {                                     /* the pop-up indicator, at the trailing edge */
+        CGSize is = ind.size; UIConfigurationColorTransformer ct = _configuration.indicatorColorTransformer;
+        CGRect r = CGRectMake(round(b.size.width - _configuration.contentInsets.trailing - is.width), round((b.size.height - is.height) / 2), is.width, is.height);
+        [ind _isim_drawInRect:r tint:ct ? ct([self _fg]) : [self _fg] alpha:fgAlpha];
+    }
     if (!t.length && !img) return;
     UIEdgeInsets in = [self _insets];
     CGRect tr = UIEdgeInsetsInsetRect(b, in);
-    double fgAlpha = (bg && _configuration) ? 1 : hl;
-    if (self.highlighted && _buttonType == UIButtonTypeCustom && !_configuration) fgAlpha = 1;
-    if (_configuration && (_configuration.attributedTitle || _configuration.showsActivityIndicator || [self _isim_vertical] || _configuration.imagePlacement == NSDirectionalRectEdgeTrailing)) {
-        /* configuration layout: image / activity indicator at its placement, then the (attributed) title */
+    if (_configuration && (_configuration.attributedTitle || _configuration.showsActivityIndicator || [self _isim_vertical] || _configuration.imagePlacement == NSDirectionalRectEdgeTrailing
+                           || [self _isim_hasSubtitle] || _configuration.imageReservation > 0 || _configuration.imageColorTransformer || _configuration.titleAlignment != UIButtonConfigurationTitleAlignmentAutomatic)) {
+        /* configuration layout: image / activity indicator at its placement, then the (attributed) title and subtitle */
         CGRect ir = [self _isim_imageRect];
-        if (img) [self _isim_drawImage:img inRect:ir tint:[self _fg] alpha:fgAlpha];
+        if (img) {
+            CGSize is = img.size;
+            [self _isim_drawImage:img inRect:CGRectMake(round(CGRectGetMidX(ir) - is.width / 2), round(CGRectGetMidY(ir) - is.height / 2), is.width, is.height) tint:[self _isim_imageTint] alpha:fgAlpha];
+        }
         if (!t.length) return;
         CGSize ts = [self _isim_titleSize]; CGFloat pad = (img || _configuration.showsActivityIndicator) ? [self _imagePadding] : 0;
         BOOL hasImage = img || _configuration.showsActivityIndicator;
@@ -513,26 +639,41 @@ typedef NS_ENUM(NSInteger, IsimButtonStyle) { IsimPlain, IsimTinted, IsimGray, I
             CGFloat x = !hasImage ? tr.origin.x + (tr.size.width - ceil(ts.width)) / 2 : _configuration.imagePlacement == NSDirectionalRectEdgeTrailing ? ir.origin.x - pad - ceil(ts.width) : CGRectGetMaxX(ir) + pad;
             title = CGRectMake(x, tr.origin.y + (tr.size.height - ts.height) / 2, ceil(ts.width) + 1, ts.height);
         }
-        NSTextAlignment al = [self _isim_vertical] ? NSTextAlignmentCenter : NSTextAlignmentLeft;
-        if (_configuration.attributedTitle) isim_ui_draw_attributed(_configuration.attributedTitle, [self _font], [self _fg], title, al, 1, fgAlpha);
-        else isim_ui_draw_text(t, [self _font], [self _fg], title, al, 1, fgAlpha);
+        UIButtonConfigurationTitleAlignment ta = _configuration.titleAlignment;
+        NSTextAlignment al = ta == UIButtonConfigurationTitleAlignmentLeading ? NSTextAlignmentLeft : ta == UIButtonConfigurationTitleAlignmentTrailing ? NSTextAlignmentRight
+            : ta == UIButtonConfigurationTitleAlignmentCenter || [self _isim_vertical] || !hasImage ? NSTextAlignmentCenter : NSTextAlignmentLeft;
+        if (ta != UIButtonConfigurationTitleAlignmentAutomatic && !hasImage) title = CGRectMake(tr.origin.x, title.origin.y, tr.size.width, title.size.height);
+        CGSize ss = [self _isim_hasSubtitle] ? [self _isim_subtitleSize] : CGSizeZero;
+        CGRect line = title; line.size.height -= ss.height ? ss.height + [self _isim_subtitleGap] : 0;
+        if (_configuration.attributedTitle) isim_ui_draw_attributed(_configuration.attributedTitle, [self _isim_titleFont], [self _isim_titleColor], line, al, 1, fgAlpha);
+        else isim_ui_draw_text(t, [self _isim_titleFont], [self _isim_titleColor], line, al, 1, fgAlpha);
+        if (ss.height) {
+            CGRect sub = CGRectMake(title.origin.x, CGRectGetMaxY(title) - ss.height, title.size.width, ss.height);
+            if (_configuration.attributedSubtitle.length) isim_ui_draw_attributed(_configuration.attributedSubtitle, [self _isim_subtitleFont], [self _fg], sub, al, 1, fgAlpha);
+            else { NSDictionary *a = [self _isim_textAttributes:YES]; UIColor *c = a[NSForegroundColorAttributeName];
+                   isim_ui_draw_text(_configuration.subtitle, a[NSFontAttributeName], [c isKindOfClass:[UIColor class]] ? c : [self _fg], sub, al, 1, fgAlpha * 0.85); }
+        }
         return;
     }
     if (img) {
         CGSize is = img.size;
-        CGFloat tw = t.length ? ceil(isim_ui_measure(t, [self _font], 0, 1).width) + [self _imagePadding] : 0;
+        NSAttributedString *at = [self _isim_attributedTitle];
+        CGFloat tw = t.length ? ceil(at ? isim_ui_measure_attributed(at, [self _isim_titleFont], [self _isim_titleColor], 0, 1).width : isim_ui_measure(t, [self _isim_titleFont], 0, 1).width) + [self _imagePadding] : 0;
         CGFloat x = tr.origin.x + (tr.size.width - is.width - tw) / 2;
         CGRect ir = CGRectMake(round(x), round(tr.origin.y + (tr.size.height - is.height) / 2), is.width, is.height);
         UIColor *tint = _configuration || _buttonType == UIButtonTypeSystem ? [self _fg] : self.tintColor;
         [self _isim_drawImage:img inRect:ir tint:tint alpha:fgAlpha];
         if (!t.length) return;
         tr = CGRectMake(ir.origin.x + is.width + [self _imagePadding], tr.origin.y, tw - [self _imagePadding], tr.size.height);
-        isim_ui_draw_text(t, [self _font], [self _fg], tr, NSTextAlignmentLeft, 1, fgAlpha);
+        if (at) isim_ui_draw_attributed(at, [self _isim_titleFont], [self _isim_titleColor], tr, NSTextAlignmentLeft, 1, fgAlpha);
+        else isim_ui_draw_text(t, [self _isim_titleFont], [self _isim_titleColor], tr, NSTextAlignmentLeft, 1, fgAlpha);
         return;
     }
     NSTextAlignment align = self.contentHorizontalAlignment == UIControlContentHorizontalAlignmentLeft || self.contentHorizontalAlignment == UIControlContentHorizontalAlignmentLeading ? NSTextAlignmentLeft
         : self.contentHorizontalAlignment == UIControlContentHorizontalAlignmentRight || self.contentHorizontalAlignment == UIControlContentHorizontalAlignmentTrailing ? NSTextAlignmentRight : NSTextAlignmentCenter;
-    isim_ui_draw_text(t, [self _font], [self _fg], tr, align, 1, fgAlpha);
+    NSAttributedString *at = [self _isim_attributedTitle];
+    if (at) isim_ui_draw_attributed(at, [self _isim_titleFont], [self _isim_titleColor], tr, align, 1, fgAlpha);
+    else isim_ui_draw_text(t, [self _isim_titleFont], [self _isim_titleColor], tr, align, 1, fgAlpha);
 }
 @end
 
@@ -588,6 +729,8 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 - (void)setAlignment:(UIStackViewAlignment)a { _alignment = a; isim_ui_constraints_changed(); [self setNeedsLayout]; }
 - (void)setDistribution:(UIStackViewDistribution)d { _distribution = d; isim_ui_constraints_changed(); [self setNeedsLayout]; }
 - (void)setCustomSpacing:(CGFloat)s afterView:(UIView *)v { _customSpacing[[NSValue valueWithNonretainedObject:v]] = @(s); [self invalidateIntrinsicContentSize]; [self setNeedsLayout]; }
+- (CGFloat)customSpacingAfterView:(UIView *)v { NSNumber *n = _customSpacing[[NSValue valueWithNonretainedObject:v]]; return n ? n.doubleValue : UIStackViewSpacingUseDefault; }
+- (void)setBaselineRelativeArrangement:(BOOL)b { _baselineRelativeArrangement = b; isim_ui_constraints_changed(); [self setNeedsLayout]; }
 - (CGFloat)_spacingAfter:(UIView *)v {
     NSNumber *n = _customSpacing[[NSValue valueWithNonretainedObject:v]];
     CGFloat sp = n ? n.doubleValue : _spacing;
@@ -619,7 +762,9 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     CGFloat gaps = 0;
     for (NSUInteger i = 0; i + 1 < n; i++) {
         CGFloat sp = [self _spacingAfter:vs[i]]; gaps += sp;
-        isim_al_add(al, vs[i + 1], mMin, spaced ? GE : EQ, vs[i], mMax, 1, sp, R);
+        if (_baselineRelativeArrangement && !h)      /* vertical: spacing from one view's last baseline to the next's first */
+            isim_al_add(al, vs[i + 1], NSLayoutAttributeFirstBaseline, spaced ? GE : EQ, vs[i], NSLayoutAttributeLastBaseline, 1, sp, R);
+        else isim_al_add(al, vs[i + 1], mMin, spaced ? GE : EQ, vs[i], mMax, 1, sp, R);
     }
     isim_al_add(al, vs[n - 1], mMax, EQ, self, mMax, 1, -mTrail, R);
     switch (_distribution) {
@@ -706,10 +851,14 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 @property (nonatomic, strong) NSMutableArray<UITouch *> *isimTouches;   /* touches down on it (multi-touch aware recognizers) */
 @property (nonatomic) BOOL isimHeldBegan;                               /* a continuous recognizer waiting for failures */
 @property (nonatomic) double isimHeldSince;
+@property (nonatomic, copy) NSArray<NSNumber *> *isimAllowedTouchTypes, *isimAllowedPressTypes;
+@property (nonatomic, weak) UIEvent *isimLastEvent;                      /* the event being handled (modifierFlags, buttonMask) */
 @end
 @implementation UIView (UIGestureRecognizerShouldBegin)
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)g { return YES; }
 @end
+/* a recognizer recognized during (or just before) a touch sequence started at `start` (never recognized: 0) */
+static BOOL recognized_since(UIGestureRecognizer *o, double start);
 @implementation UIGestureRecognizer
 - (instancetype)init { return [self initWithTarget:nil action:NULL]; }
 - (instancetype)initWithTarget:(id)target action:(SEL)action {
@@ -776,11 +925,12 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     }
     return out;
 }
+static BOOL recognized_since(UIGestureRecognizer *o, double start) { return o.isimRecognizedAt > 0 && o.isimRecognizedAt >= start - 0.1; }
 /* 0: nothing to wait for (or they failed), 1: still deciding, 2: one of them recognized (this one fails) */
 - (int)_isim_failureStatusSince:(double)start {
     BOOL pending = NO, down = self.isimTouches.count > 0 || self.isimTracking;      /* while the touch is down, the others still see it */
     for (UIGestureRecognizer *o in [self _isim_failureRequirements]) {
-        if (o.isimRecognizedAt >= start - 0.1 || o.state == UIGestureRecognizerStateBegan || o.state == UIGestureRecognizerStateChanged) return 2;
+        if (recognized_since(o, start) || o.state == UIGestureRecognizerStateBegan || o.state == UIGestureRecognizerStateChanged) return 2;
         if (o.state == UIGestureRecognizerStatePossible && (o.isimTracking || down)) pending = YES;
     }
     return pending ? 1 : 0;
@@ -790,12 +940,12 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     NSArray *waiting = [self _isim_failureRequirements];
     if (!waiting.count) return NO;
     double start = isim_time();
-    for (UIGestureRecognizer *o in waiting) if (o.isimRecognizedAt >= start - 0.1) return YES;      /* it just won: we fail */
+    for (UIGestureRecognizer *o in waiting) if (recognized_since(o, start)) return YES;      /* it just won: we fail */
     __weak UIGestureRecognizer *ws = self;
     __block NSTimer *t = isim_scheduled_common_timer(0.03, YES, ^(NSTimer *timer) {
         BOOL won = NO, pending = NO;
         for (UIGestureRecognizer *o in waiting) {
-            if (o.isimRecognizedAt >= start - 0.1) won = YES;
+            if (recognized_since(o, start)) won = YES;
             else if (o.state == UIGestureRecognizerStateBegan || o.state == UIGestureRecognizerStateChanged || (o.isimTracking && o.state == UIGestureRecognizerStatePossible)) pending = YES;
         }
         if (won) { [timer invalidate]; return; }
@@ -807,6 +957,21 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
     return YES;
 }
 - (void)ignoreTouch:(UITouch *)touch forEvent:(UIEvent *)event {}
+- (void)ignorePress:(UIPress *)press forEvent:(UIPressesEvent *)event {}
+- (void)touchesEstimatedPropertiesUpdated:(NSSet *)touches {}
+/* touch types: all by default; the touch dispatch (UIApplication.m) skips recognizers that don't allow a touch's type */
+- (NSArray<NSNumber *> *)allowedTouchTypes { return _isimAllowedTouchTypes ?: @[@(UITouchTypeDirect), @(UITouchTypeIndirect), @(UITouchTypePencil), @(UITouchTypeIndirectPointer)]; }
+- (void)setAllowedTouchTypes:(NSArray<NSNumber *> *)a { _isimAllowedTouchTypes = [a copy]; }
+- (NSArray<NSNumber *> *)allowedPressTypes { return _isimAllowedPressTypes ?: @[@(UIPressTypeUpArrow), @(UIPressTypeDownArrow), @(UIPressTypeLeftArrow), @(UIPressTypeRightArrow), @(UIPressTypeSelect), @(UIPressTypeMenu), @(UIPressTypePlayPause)]; }
+- (void)setAllowedPressTypes:(NSArray<NSNumber *> *)a { _isimAllowedPressTypes = [a copy]; }
+- (BOOL)_isim_allowsTouch:(UITouch *)t { return [self.allowedTouchTypes containsObject:@(t.type)]; }
+- (void)_isim_setLastEvent:(UIEvent *)e { self.isimLastEvent = e; }
+- (BOOL)shouldReceiveEvent:(UIEvent *)e {
+    id<UIGestureRecognizerDelegate> d = _delegate;
+    return ![d respondsToSelector:@selector(gestureRecognizer:shouldReceiveEvent:)] || [d gestureRecognizer:self shouldReceiveEvent:e];
+}
+- (UIKeyModifierFlags)modifierFlags { return self.isimLastEvent.modifierFlags; }
+- (UIEventButtonMask)buttonMask { return self.isimLastEvent.buttonMask; }
 - (void)reset {}
 /* custom subclasses: touches go to touchesBegan/Moved/Ended; setting `state` sends the actions */
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {}
@@ -864,10 +1029,14 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 }
 @end
 @implementation UITapGestureRecognizer
-- (instancetype)initWithTarget:(id)t action:(SEL)a { if ((self = [super initWithTarget:t action:a])) { _numberOfTapsRequired = 1; _numberOfTouchesRequired = 1; } return self; }
+- (instancetype)initWithTarget:(id)t action:(SEL)a { if ((self = [super initWithTarget:t action:a])) { _numberOfTapsRequired = 1; _numberOfTouchesRequired = 1; _buttonMaskRequired = UIEventButtonMaskPrimary; } return self; }
 - (void)_isim_touch:(UITouch *)touch phase:(UITouchPhase)phase event:(UIEvent *)event {
     CGPoint p = [touch locationInView:self.view];
-    if (phase == UITouchPhaseBegan) { self.startPoint = p; self.startTime = touch.timestamp; self.state = UIGestureRecognizerStatePossible; }
+    if (phase == UITouchPhaseBegan) {
+        self.startPoint = p; self.startTime = touch.timestamp; self.state = UIGestureRecognizerStatePossible;
+        /* a pointer click is the primary button: a recognizer requiring another one fails (isim has no secondary click) */
+        if (touch.type == UITouchTypeIndirectPointer && (event.buttonMask & _buttonMaskRequired) != _buttonMaskRequired) self.state = UIGestureRecognizerStateFailed;
+    }
     else if (phase == UITouchPhaseMoved) { if (hypot(p.x - self.startPoint.x, p.y - self.startPoint.y) > 10) self.state = UIGestureRecognizerStateFailed; }
     else if (phase == UITouchPhaseEnded && self.state == UIGestureRecognizerStatePossible && touch.timestamp - self.startTime < 0.75 && touch.tapCount >= _numberOfTapsRequired) {
         self.lastPoint = p;
@@ -960,6 +1129,7 @@ const CGFloat UIStackViewSpacingUseSystem = 1.1754943508222875e-38;
 - (CGPoint)locationInView:(UIView *)v { return [self.view.window convertPoint:self.lastPoint toView:v]; }
 - (CGPoint)_isim_downLocationInView:(UIView *)v { return [self.view.window convertPoint:_down toView:v]; }
 - (CGPoint)translationInView:(UIView *)v { return CGPointMake(self.lastPoint.x - self.startPoint.x, self.lastPoint.y - self.startPoint.y); }
+- (CGPoint)_isim_downPoint { return _down; }          /* where the touches went down (before the movement threshold) */
 - (void)setTranslation:(CGPoint)t inView:(UIView *)v { self.startPoint = CGPointMake(self.lastPoint.x - t.x, self.lastPoint.y - t.y); }
 /* points per second over the last ~100 ms of movement */
 - (CGPoint)velocityInView:(UIView *)v {

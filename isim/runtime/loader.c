@@ -209,6 +209,9 @@ static int image_export(struct image *im, const char *sym, uint64_t *addr, int d
 /* Symbols that alias another symbol (Apple ships these as aliases/"class-ified" data). */
 static const char *const aliases[][2] = {
     { "___CFConstantStringClassReference", "_OBJC_CLASS_$___NSCFConstantString" },
+    /* moved from CoreData to UIKit in 0.16 (where iOS has it): apps built earlier find it there */
+    { "_OBJC_CLASS_$_NSDiffableDataSourceSnapshotReference", "_OBJC_CLASS_$_NSDiffableDataSourceSnapshotReference" },
+    { "_OBJC_METACLASS_$_NSDiffableDataSourceSnapshotReference", "_OBJC_METACLASS_$_NSDiffableDataSourceSnapshotReference" },
 };
 
 void *isim_lookup_symbol(const char *sym) {

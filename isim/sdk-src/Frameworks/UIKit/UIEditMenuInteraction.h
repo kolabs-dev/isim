@@ -8,6 +8,8 @@
 NS_ASSUME_NONNULL_BEGIN
 @class UIEditMenuInteraction, UIEditMenuConfiguration;
 
+/* changes text attributes (updateTextAttributes(conversionHandler:)): the new attributes from the old */
+typedef NSDictionary<NSAttributedStringKey, id> *_Nonnull (^UITextAttributesConversionHandler)(NSDictionary<NSAttributedStringKey, id> *_Nonnull) API_AVAILABLE(ios(13.0));
 NS_SWIFT_UI_ACTOR
 @protocol UIResponderStandardEditActions <NSObject>
 @optional
@@ -24,6 +26,25 @@ NS_SWIFT_UI_ACTOR
 - (void)toggleUnderline:(nullable id)sender;
 - (void)increaseSize:(nullable id)sender;
 - (void)decreaseSize:(nullable id)sender;
+/* iOS 13-26 (text views perform the paste, find and alignment ones) */
+- (void)pasteAndMatchStyle:(nullable id)sender API_AVAILABLE(ios(15.0));
+- (void)pasteAndGo:(nullable id)sender API_AVAILABLE(ios(15.0));
+- (void)pasteAndSearch:(nullable id)sender API_AVAILABLE(ios(15.0));
+- (void)find:(nullable id)sender API_AVAILABLE(ios(16.0));
+- (void)findNext:(nullable id)sender API_AVAILABLE(ios(16.0));
+- (void)findPrevious:(nullable id)sender API_AVAILABLE(ios(16.0));
+- (void)findAndReplace:(nullable id)sender API_AVAILABLE(ios(16.0));
+- (void)useSelectionForFind:(nullable id)sender API_AVAILABLE(ios(16.0));
+- (void)updateTextAttributesWithConversionHandler:(NS_NOESCAPE UITextAttributesConversionHandler)conversionHandler
+    NS_SWIFT_NAME(updateTextAttributes(conversionHandler:)) API_AVAILABLE(ios(13.0));
+- (void)alignLeft:(nullable id)sender API_AVAILABLE(ios(26.0));
+- (void)alignCenter:(nullable id)sender API_AVAILABLE(ios(26.0));
+- (void)alignRight:(nullable id)sender API_AVAILABLE(ios(26.0));
+- (void)alignJustified:(nullable id)sender API_AVAILABLE(ios(26.0));
+- (void)newFromPasteboard:(nullable id)sender API_AVAILABLE(ios(26.0));
+- (void)performClose:(nullable id)sender API_AVAILABLE(ios(26.0));
+- (void)showWritingTools:(id)sender API_AVAILABLE(ios(18.2));
+- (void)toggleInspector:(nullable id)sender API_AVAILABLE(ios(26.0));
 @end
 @interface UIResponder (UIResponderStandardEditActions) <UIResponderStandardEditActions>
 @end

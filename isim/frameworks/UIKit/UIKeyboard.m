@@ -173,6 +173,7 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
 @property (nonatomic, readonly) BOOL showsPredictions;
 - (void)_updateSuggestions;
 - (void)_clearInline;
+- (void)_layoutBar;
 @end
 @implementation __IsimKeyboardKeys {
     int _layer; BOOL _shift, _caps, _dictatingKey; NSUInteger _emojiPage;
@@ -655,6 +656,8 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     _bar.hidden = !show;
     if (!show) { _suggestions = @[]; return; }
     if (_autofill.count) { _suggestions = @[]; [self _layoutBar]; return; }
+    NSString *math = [self _mathResult];
+    if (math) { _suggestions = @[ math ]; [self _layoutBar]; NSLog(@"isim: math completion %@", math); return; }
     NSString *word = nil; [self _currentWord:&word];
     NSMutableArray *s = [NSMutableArray array];
     UITextChecker *chk = [UITextChecker new];
@@ -674,6 +677,52 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     }
     _suggestions = s;
     [self _layoutBar];
+}
+/* ---- math expression completion (iOS 18): "12*3=" offers 36 ---- */
+static double math_expr(const char **p, BOOL *ok);
+static void math_ws(const char **p) { while (**p == ' ') (*p)++; }
+static double math_atom(const char **p, BOOL *ok) {
+    math_ws(p);
+    if (**p == '(') { (*p)++; double v = math_expr(p, ok); math_ws(p); if (**p == ')') (*p)++; else *ok = NO; return v; }
+    if (**p == '-') { (*p)++; return -math_atom(p, ok); }
+    char *end; double v = strtod(*p, &end);
+    if (end == *p) { *ok = NO; return 0; }
+    *p = end; return v;
+}
+static double math_term(const char **p, BOOL *ok) {
+    double v = math_atom(p, ok);
+    for (;;) {
+        math_ws(p);
+        if (**p == '*' || **p == 'x') { (*p)++; v *= math_atom(p, ok); }
+        else if (**p == '/') { (*p)++; double d = math_atom(p, ok); if (d == 0) *ok = NO; else v /= d; }
+        else return v;
+    }
+}
+static double math_expr(const char **p, BOOL *ok) {
+    double v = math_term(p, ok);
+    for (;;) {
+        math_ws(p);
+        if (**p == '+') { (*p)++; v += math_term(p, ok); }
+        else if (**p == '-') { (*p)++; v -= math_term(p, ok); }
+        else return v;
+    }
+}
+- (NSString *)_mathResult {
+    id t = self.target;
+    if (![t respondsToSelector:@selector(mathExpressionCompletionType)] || [t mathExpressionCompletionType] != UITextMathExpressionCompletionTypeYes) return nil;
+    NSString *before = [self _textBeforeCaret];
+    if (![before hasSuffix:@"="]) return nil;
+    NSString *line = [[before substringToIndex:before.length - 1] componentsSeparatedByString:@"\n"].lastObject;
+    NSUInteger start = line.length;                    /* the expression: the trailing run of digits, operators and parentheses */
+    NSCharacterSet *ok = [NSCharacterSet characterSetWithCharactersInString:@"0123456789.+-*/x×÷() "];
+    while (start > 0 && [ok characterIsMember:[line characterAtIndex:start - 1]]) start--;
+    NSString *expr = [[[line substringFromIndex:start] stringByReplacingOccurrencesOfString:@"×" withString:@"*"] stringByReplacingOccurrencesOfString:@"÷" withString:@"/"];
+    if ([expr rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:@"+-*/x"]].location == NSNotFound) return nil;
+    const char *c = expr.UTF8String; BOOL good = YES;
+    double v = math_expr(&c, &good); math_ws(&c);
+    if (!good || *c || !isfinite(v)) return nil;
+    NSString *r = [NSString stringWithFormat:@"%.10g", v];
+    return r;
 }
 /* ---- inline predictions (iOS 17): the likeliest completion in grey after the caret; space accepts it ---- */
 - (BOOL)_inlineEnabled {
@@ -738,19 +787,52 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
         }
         return;
     }
+    /* iPad: the responder's input assistant item puts its bar button groups at the ends (the shortcuts bar) */
+    CGFloat x0 = 0;
+    if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad && [(id)self.target isKindOfClass:[UIResponder class]]) {
+        UITextInputAssistantItem *ai = [(UIResponder *)self.target inputAssistantItem];
+        CGFloat lead = [self _placeGroups:ai.leadingBarButtonGroups from:8 leading:YES], trail = [self _placeGroups:ai.trailingBarButtonGroups from:W - 8 leading:NO];
+        x0 = lead; W -= lead + trail; w = W / 3;
+    }
     for (NSUInteger i = 0; i < 3; i++) {
         NSString *t = i < _suggestions.count ? _suggestions[i] : @"";
         UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
         [b setTitle:t forState:UIControlStateNormal];
         [b setTitleColor:UIColor.labelColor forState:UIControlStateNormal];
         b.titleLabel.font = [UIFont systemFontOfSize:17];
-        b.frame = CGRectMake(i * w, 2, w, 40);
+        b.frame = CGRectMake(x0 + i * w, 2, w, 40);
         b.tag = (NSInteger)i;
         b.accessibilityIdentifier = [NSString stringWithFormat:@"isim-kb-suggestion-%lu", (unsigned long)i];
         [b addTarget:self action:@selector(_pickSuggestion:) forControlEvents:UIControlEventTouchUpInside];
         [_bar addSubview:b];
-        if (i) { UIView *sep = [[UIView alloc] initWithFrame:CGRectMake(i * w, 12, 1, 20)]; sep.backgroundColor = UIColor.separatorColor; [_bar addSubview:sep]; }
+        if (i) { UIView *sep = [[UIView alloc] initWithFrame:CGRectMake(x0 + i * w, 12, 1, 20)]; sep.backgroundColor = UIColor.separatorColor; [_bar addSubview:sep]; }
     }
+}
+/* bar button groups as 44 pt buttons from an edge; returns the width they take */
+- (CGFloat)_placeGroups:(NSArray<UIBarButtonItemGroup *> *)groups from:(CGFloat)edge leading:(BOOL)leading {
+    NSMutableArray<UIBarButtonItem *> *items = [NSMutableArray array];
+    for (UIBarButtonItemGroup *g in groups) if (!g.hidden) [items addObjectsFromArray:g.barButtonItems];
+    if (!leading) items = [[[items reverseObjectEnumerator] allObjects] mutableCopy];
+    CGFloat x = edge;
+    for (UIBarButtonItem *it in items) {
+        UIButton *b = [UIButton buttonWithType:UIButtonTypeSystem];
+        if (it.image) [b setImage:it.image forState:UIControlStateNormal]; else [b setTitle:it.title forState:UIControlStateNormal];
+        b.tintColor = UIColor.labelColor;
+        CGFloat bw = it.image ? 44 : fmax(44, [b sizeThatFits:CGSizeMake(200, 40)].width + 12);
+        b.frame = CGRectMake(leading ? x : x - bw, 2, bw, 40);
+        x = leading ? x + bw : x - bw;
+        b.accessibilityIdentifier = [@"isim-kb-assistant-" stringByAppendingString:it.accessibilityIdentifier ?: it.title ?: @"item"];
+        b.enabled = it.enabled;
+        __weak UIBarButtonItem *wi = it;
+        [b addAction:[UIAction actionWithHandler:^(UIAction *a) {
+            UIBarButtonItem *i = wi; if (!i) return;
+            NSLog(@"isim: shortcuts bar item %@", i.title ?: i.accessibilityIdentifier ?: @"");
+            if (i.primaryAction) [i.primaryAction performWithSender:i target:nil];
+            else if (i.action) [UIApplication.sharedApplication sendAction:i.action to:i.target from:i forEvent:nil];
+        }] forControlEvents:UIControlEventTouchUpInside];
+        [_bar addSubview:b];
+    }
+    return fabs(x - edge) + (items.count ? 8 : 0);
 }
 - (void)_pickAutoFill:(UIButton *)b {
     if ((NSUInteger)b.tag >= _autofill.count) return;
@@ -765,6 +847,12 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     NSString *s = _suggestions[(NSUInteger)b.tag], *word = nil;
     NSRange r = [self _currentWord:&word];
     id t = _target;
+    if ([s isEqualToString:[self _mathResult] ?: @""]) {      /* a math result goes after the = as it is */
+        NSLog(@"isim: math result \"%@\" inserted", s);
+        [t insertText:s];
+        [self _updateSuggestions];
+        return;
+    }
     if ([s hasPrefix:@"“"]) {                       /* keeping what was typed: the keyboard learns the word */
         s = word;
         if (word.length > 1 && ![UITextChecker hasLearnedWord:word]) { [UITextChecker learnWord:word]; NSLog(@"isim: learned the word \"%@\"", word); }
@@ -1163,6 +1251,9 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     /* a responder's inputView replaces the keyboard (any responder may have one); inputAccessoryView sits above */
     UIView *custom = [responder isKindOfClass:[UIResponder class]] && [responder respondsToSelector:@selector(inputView)] ? [responder inputView] : nil;
     UIView *acc = [responder isKindOfClass:[UIResponder class]] && [responder respondsToSelector:@selector(inputAccessoryView)] ? [responder inputAccessoryView] : nil;
+    /* else their controllers' (inputViewController, inputAccessoryViewController) */
+    if (!custom && [responder isKindOfClass:[UIResponder class]]) { UIInputViewController *c = [responder inputViewController]; custom = c ? (c.inputView ?: c.view) : nil; }
+    if (!acc && [responder isKindOfClass:[UIResponder class]]) { UIInputViewController *c = [responder inputAccessoryViewController]; acc = c ? (c.inputView ?: c.view) : nil; }
     if (custom) { [self _showCustom:custom accessory:acc for:responder]; return; }
     if (wants && isim_ui_scribble_focusing) {          /* writing with the Pencil: no on-screen keyboard */
         [self _hide];
@@ -1203,6 +1294,11 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     id old = _target;
     if (old != t) { [self _setDictating:NO]; [_keys _clearInline]; }
     _target = t;
+    if (old != t && [(id)t isKindOfClass:[UIResponder class]]) {        /* the keyboard last used in this context comes back */
+        NSString *k = isim_ui_keyboard_for_context([(UIResponder *)t textInputContextIdentifier]);
+        NSUInteger i = k ? [_order indexOfObject:k] : NSNotFound;
+        if (i != NSNotFound) _current = (NSInteger)i;
+    }
     _keys.showGlobe = ![self _barVisible] && _order.count > 1;
     _keys.emojiKey = kb_ipad() && [self _emojiKeyOnly];
     _keys.target = t;
@@ -1291,6 +1387,7 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     } else [_content addSubview:_keys];
     [self _relayout];
     if (newVC && _shown) [newVC viewDidAppear:NO];
+    if ([_target isKindOfClass:[UIResponder class]]) isim_ui_keyboard_remember_context([(UIResponder *)_target textInputContextIdentifier], _order[(NSUInteger)idx]);
     [NSNotificationCenter.defaultCenter postNotificationName:UITextInputCurrentInputModeDidChangeNotification object:nil];
 }
 - (void)_next {
@@ -1344,6 +1441,7 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     if ([self _contentHeight] != before) [self _relayout];
 }
 - (NSArray<NSString *> *)_activeLanguages { [self _discover]; return _order; }
+- (void)_assistantChanged { if (_shown && !_hostedView) [_keys _layoutBar]; }
 @end
 
 /* custom keyboards ask this through needsInputModeSwitchKey */
@@ -1357,4 +1455,6 @@ NSArray<NSString *> *isim_ui_keyboard_enabled(void) { return [[__IsimKeyboardCon
 id isim_ui_keyboard_target(void) { return [[__IsimKeyboardController shared] _shownTarget]; }
 BOOL isim_ui_keyboard_dictating(void) { return [[__IsimKeyboardController shared] _dictating]; }
 void isim_ui_keyboard_set_dictating(BOOL on) { [[__IsimKeyboardController shared] _setDictating:on]; }
+void isim_ui_keyboard_assistant_changed(void) { [[__IsimKeyboardController shared] _assistantChanged]; }
+void isim_ui_keyboard_reload(id responder) { [[__IsimKeyboardController shared] _responderChanged:responder]; }
 void isim_ui_keyboard_responder_check(void) { [[__IsimKeyboardController shared] _responderCheck]; }

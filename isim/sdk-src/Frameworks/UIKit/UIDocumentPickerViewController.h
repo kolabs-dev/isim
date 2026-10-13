@@ -5,6 +5,7 @@
  * No iCloud Drive or other file providers (like a Simulator without an Apple Account). The Swift initializers that take
  * UTType (init(forOpeningContentTypes:asCopy:), init(forOpening:)) come from isim's UIKit overlay. */
 #import <UIKit/UIViewController.h>
+#import <UIKit/UIPresentationController.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UIDocumentPickerViewController, UIDocumentBrowserViewController, UIBarButtonItem;
 
@@ -65,5 +66,36 @@ NS_SWIFT_UI_ACTOR
 - (void)revealDocumentAtURL:(NSURL *)url importIfNeeded:(BOOL)importIfNeeded completion:(nullable void (^)(NSURL *_Nullable revealedDocumentURL, NSError *_Nullable error))completion;
 - (void)importDocumentAtURL:(NSURL *)documentURL nextToDocumentAtURL:(NSURL *)neighbourURL mode:(UIDocumentBrowserImportMode)importMode
           completionHandler:(void (^)(NSURL *_Nullable, NSError *_Nullable))completion;
+@end
+
+/* custom actions (iOS 11): in a document's menu (long press) and, while selecting, in the toolbar; the handler gets
+   the documents' URLs */
+typedef NS_OPTIONS(NSInteger, UIDocumentBrowserActionAvailability) { UIDocumentBrowserActionAvailabilityMenu = 1,
+    UIDocumentBrowserActionAvailabilityNavigationBar = 1 << 1 } NS_SWIFT_NAME(UIDocumentBrowserAction.Availability);
+NS_SWIFT_UI_ACTOR
+@interface UIDocumentBrowserAction : NSObject
+- (instancetype)init NS_UNAVAILABLE;
+- (instancetype)initWithIdentifier:(NSString *)identifier localizedTitle:(NSString *)localizedTitle availability:(UIDocumentBrowserActionAvailability)availability
+                           handler:(void (^)(NSArray<NSURL *> *urls))handler NS_DESIGNATED_INITIALIZER;
+@property (nonatomic, readonly) NSString *identifier;
+@property (nonatomic, readonly) NSString *localizedTitle;
+@property (nonatomic, readonly) UIDocumentBrowserActionAvailability availability;
+@property (nullable, nonatomic, strong) UIImage *image;
+@property (nonatomic, copy) NSArray<NSString *> *supportedContentTypes;      /* default: public.content */
+@property (nonatomic) BOOL supportsMultipleItems;                            /* default YES */
+@end
+/* the transition from a document's thumbnail to the app's document view (adapted: a cross-fade) */
+NS_SWIFT_UI_ACTOR
+@interface UIDocumentBrowserTransitionController : NSObject <UIViewControllerAnimatedTransitioning>
+- (instancetype)init NS_UNAVAILABLE;
+@property (nullable, nonatomic, strong) NSProgress *loadingProgress;
+@property (nullable, nonatomic, weak) UIView *targetView;
+@end
+@interface UIDocumentBrowserViewController (UIDocumentBrowserExtras)
+@property (nonatomic, copy) NSArray<UIDocumentBrowserAction *> *customActions;
+/* renames the file in place (a free name is used when the proposed one is taken) */
+- (void)renameDocumentAtURL:(NSURL *)documentURL proposedName:(NSString *)proposedName
+          completionHandler:(void (^)(NSURL *_Nullable finalURL, NSError *_Nullable error))completionHandler API_AVAILABLE(ios(15.0));
+- (UIDocumentBrowserTransitionController *)transitionControllerForDocumentAtURL:(NSURL *)documentURL NS_SWIFT_NAME(transitionController(forDocumentAt:)) API_AVAILABLE(ios(12.0));
 @end
 NS_ASSUME_NONNULL_END

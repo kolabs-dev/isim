@@ -19,6 +19,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface UIGestureRecognizer (IsimInput)
 - (BOOL)_isim_acceptsExtraTouches;            /* gets the second finger too */
 - (void)_isim_beginTouchSequence;             /* a new touch sequence starts (no finger is down) */
+- (BOOL)_isim_allowsTouch:(UITouch *)touch;     /* allowedTouchTypes */
+- (void)_isim_setLastEvent:(UIEvent *)event;   /* the event being handled (modifierFlags, buttonMask) */
 - (CGPoint)_isim_centroidInView:(nullable UIView *)v;
 @end
 NSSet<UITouch *> *isim_ui_active_touches(void);

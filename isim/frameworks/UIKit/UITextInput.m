@@ -285,6 +285,9 @@ void isim_ti_cut(id<IsimEditableText> v) {
     replace(v, [v _isim_selectedRange], @"");
 }
 void isim_ti_paste(id<IsimEditableText> v) {
+    /* a paste delegate (UITextPasteConfigurationSupporting, the UIKit overlay) takes over */
+    SEL hook = NSSelectorFromString(@"_isim_textPaste");
+    if ([(id)v respondsToSelector:hook] && ((BOOL (*)(id, SEL))objc_msgSend)(v, hook)) return;
     NSString *t = UIPasteboard.generalPasteboard.string;
     if (!t.length || ![v _isim_isEditable]) return;
     NSLog(@"isim: pasted \"%@\"", t);
@@ -536,7 +539,15 @@ void isim_ui_show_edit_menu(CGRect rect, NSArray<UIMenuElement *> *elements, voi
     for (UIMenuElement *e in flatten(elements)) [titles addObject:e.title ?: @""];
     NSLog(@"isim: edit menu shown: %@", [titles componentsJoinedByString:@", "]);
 }
+/* the visible menu points at another rect (UIEditMenuInteraction.updateVisibleMenuPosition) */
+static void move_edit_menu(CGRect rect, BOOL animated) {
+    if (!isim_ui_edit_menu_visible()) return;
+    menu_target = rect;
+    if (animated) [UIView animateWithDuration:0.2 animations:^{ menu_build(); }]; else menu_build();
+}
 
+BOOL isim_ti_can_style(id<IsimEditableText> v);
+void isim_ui_present_text_formatting(UITextView *tv);     /* UITextFormattingViewController.m */
 /* the standard edit menu of a text view: its suggested actions (and the delegate's say) */
 static NSString *loc(NSString *s) { return [[NSBundle bundleForClass:[UIView class]] localizedStringForKey:s value:s table:nil]; }
 static UIAction *edit_action(id<IsimEditableText> v, NSString *title, SEL sel) {
@@ -554,6 +565,13 @@ NSArray<UIMenuElement *> *isim_ui_text_suggested_actions(id<IsimEditableText> v)
     for (size_t i = 0; i < sizeof std / sizeof *std; i++) {
         if (std[i].s == @selector(delete:)) continue;            /* (iOS shows Delete only for some selections) */
         if ([r canPerformAction:std[i].s withSender:nil]) [a addObject:edit_action(v, std[i].t, std[i].s)];
+    }
+    /* iOS 18: Format opens the text formatting panel for text views that allow editing attributes */
+    if ([(id)v isKindOfClass:[UITextView class]] && isim_ti_can_style(v) && isim_ui_os_major() >= 18) {
+        __weak UITextView *wt = (UITextView *)v;
+        [a addObject:[UIAction actionWithTitle:loc(@"Format") image:nil identifier:@"isim-format" handler:^(UIAction *x) {
+            UITextView *t = wt; if (t) isim_ui_present_text_formatting(t);
+        }]];
     }
     SEL rep = NSSelectorFromString(@"_isim_promptForReplace:");
     if ([r canPerformAction:rep withSender:nil]) {
@@ -591,6 +609,12 @@ void isim_ui_show_text_menu(id<IsimEditableText> v) {
         UIMenu *m = ((UIMenu *(*)(id, SEL, id, NSRange, id))objc_msgSend)(d, dsel, view, sel, suggested);
         if (m) items = m.children;
     }
+    /* a subclass's UITextInput editMenu(for:suggestedActions:) (iOS 16) */
+    SEL own = @selector(editMenuForTextRange:suggestedActions:);
+    if ([view respondsToSelector:own] && [view methodForSelector:own] != [UIView instanceMethodForSelector:own]) {
+        UIMenu *m = [(id<UITextInput>)view editMenuForTextRange:isim_ti_range(sel) suggestedActions:items];
+        if (m) items = m.children;
+    }
     /* UIMenuController items added by the app */
     for (UIMenuItem *mi in UIMenuController.sharedMenuController.menuItems) {
         if (![(UIResponder *)v canPerformAction:mi.action withSender:UIMenuController.sharedMenuController] &&
@@ -602,7 +626,19 @@ void isim_ui_show_text_menu(id<IsimEditableText> v) {
             if (t) ((void (*)(id, SEL, id))[t methodForSelector:s])(t, s, UIMenuController.sharedMenuController);
         }]];
     }
-    isim_ui_show_edit_menu(r, items, nil);
+    /* willPresentEditMenu(animator:) / willDismissEditMenu(animator:) */
+    id<UITextInput> ti = (id<UITextInput>)view;
+    if ([view respondsToSelector:@selector(willPresentEditMenuWithAnimator:)]) {
+        id a = [NSClassFromString(@"__IsimEditMenuAnimator") new];
+        [ti willPresentEditMenuWithAnimator:a]; [a performSelector:@selector(_run)];
+    }
+    __weak UIView *wv = view;
+    isim_ui_show_edit_menu(r, items, ^{
+        UIView *v2 = wv;
+        if (![v2 respondsToSelector:@selector(willDismissEditMenuWithAnimator:)]) return;
+        id a = [NSClassFromString(@"__IsimEditMenuAnimator") new];
+        [(id<UITextInput>)v2 willDismissEditMenuWithAnimator:a]; [a performSelector:@selector(_run)];
+    });
 }
 
 /* ================= UIEditMenuInteraction ================= */
@@ -632,11 +668,7 @@ void isim_ui_show_text_menu(id<IsimEditableText> v) {
     if (!v.window) return;
     id<UIEditMenuInteractionDelegate> d = _delegate;
     _loc = c.sourcePoint;
-    CGRect target = CGRectMake(c.sourcePoint.x, c.sourcePoint.y, 0, 0);
-    if ([d respondsToSelector:@selector(editMenuInteraction:targetRectForConfiguration:)]) {
-        CGRect t = [d editMenuInteraction:self targetRectForConfiguration:c];
-        if (!CGRectIsNull(t)) target = t;
-    }
+    CGRect target = [self _isim_targetRect:c];
     /* suggested actions: the standard edit actions the responder chain can perform */
     NSMutableArray *suggested = [NSMutableArray array];
     struct { NSString *t; SEL s; } std[] = { { @"Cut", @selector(cut:) }, { @"Copy", @selector(copy:) }, { @"Paste", @selector(paste:) },
@@ -661,8 +693,7 @@ void isim_ui_show_text_menu(id<IsimEditableText> v) {
         [d editMenuInteraction:self willPresentMenuForConfiguration:c animator:a]; [a _run];
     }
     _shown = c;
-    CGRect r = [v convertRect:target toView:nil];
-    r.origin = [v.window convertPoint:r.origin toView:nil];
+    CGRect r = [self _isim_screenRect:target];
     __weak UIEditMenuInteraction *ws = self;
     isim_ui_show_edit_menu(r, items, ^{
         UIEditMenuInteraction *s = ws; if (!s) return;
@@ -673,6 +704,29 @@ void isim_ui_show_text_menu(id<IsimEditableText> v) {
             [dd editMenuInteraction:s willDismissMenuForConfiguration:cfg animator:a]; [a _run];
         }
     });
+}
+- (CGRect)_isim_targetRect:(UIEditMenuConfiguration *)c {
+    CGRect target = CGRectMake(c.sourcePoint.x, c.sourcePoint.y, 0, 0);
+    id<UIEditMenuInteractionDelegate> d = _delegate;
+    if ([d respondsToSelector:@selector(editMenuInteraction:targetRectForConfiguration:)]) {
+        CGRect t = [d editMenuInteraction:self targetRectForConfiguration:c];
+        if (!CGRectIsNull(t)) target = t;
+    }
+    return target;
+}
+- (CGRect)_isim_screenRect:(CGRect)target {
+    UIView *v = _view;
+    CGRect r = [v convertRect:target toView:nil];
+    r.origin = [v.window convertPoint:r.origin toView:nil];
+    return r;
+}
+/* the delegate's target rect again (the content under the menu moved) */
+- (void)updateVisibleMenuPositionAnimated:(BOOL)animated {
+    UIEditMenuConfiguration *c = _shown;
+    if (!c || !_view.window) return;
+    CGRect r = [self _isim_screenRect:[self _isim_targetRect:c]];
+    move_edit_menu(r, animated);
+    NSLog(@"isim: edit menu moved to %.0f,%.0f", r.origin.x, r.origin.y);
 }
 - (void)dismissMenu { if (_shown) isim_ui_hide_edit_menu(); }
 - (void)reloadVisibleMenu { UIEditMenuConfiguration *c = _shown; if (c) [self presentEditMenuWithConfiguration:c]; }
@@ -772,12 +826,15 @@ static void show_loupe(UIView *v, CGPoint windowPoint) {
     isim_ui_set_needs_display();
 }
 static void hide_loupe(void) { if (loupe && !loupe.hidden) { loupe.hidden = YES; isim_ui_set_needs_display(); } }
+void isim_ui_show_loupe(UIView *v, CGPoint windowPoint) { show_loupe(v, windowPoint); }
+void isim_ui_hide_loupe(void) { hide_loupe(); }
 
 /* ================= selection interaction ================= */
 enum { TI_NONE, TI_PENDING, TI_LOUPE, TI_HANDLE_START, TI_HANDLE_END };
 @interface UIView (IsimTextItems)                   /* UITextView: detected items */
 - (BOOL)_isim_tapItemAt:(CGPoint)p;
 - (BOOL)_isim_longPressItemAt:(CGPoint)p;
+- (BOOL)_isim_textDragBeginsAt:(CGPoint)p;       /* the Swift overlay: a long press on the selection lifts it */
 @end
 @interface __IsimTextInteraction : UIGestureRecognizer
 @property (nonatomic) int mode;
@@ -810,6 +867,9 @@ enum { TI_NONE, TI_PENDING, TI_LOUPE, TI_HANDLE_START, TI_HANDLE_END };
             id<IsimEditableText> t = [s _text];
             UIView *tv = s.view;
             if (![t _isim_isEditable] && !(([tv respondsToSelector:@selector(isSelectable)] && [(id)tv isSelectable]))) return;
+            if ([tv respondsToSelector:@selector(_isim_textDragBeginsAt:)] && [(id)tv _isim_textDragBeginsAt:s.downAt]) {
+                s.mode = TI_NONE; s.state = UIGestureRecognizerStateFailed; return;   /* the text drag interaction lifts it */
+            }
             if (![t _isim_isEditable] && [tv respondsToSelector:@selector(_isim_longPressItemAt:)] && [(id)tv _isim_longPressItemAt:s.downAt]) {
                 s.mode = TI_NONE; return;                   /* a detected item's menu (UITextView) */
             }
@@ -985,4 +1045,48 @@ BOOL isim_ui_text_handle_key(id<IsimEditableText> v, int hid, int hostmods) {
     if (shift) isim_ti_set_selection(v, n < anchor ? NSMakeRange(n, anchor - n) : NSMakeRange(anchor, n - anchor));
     else { isim_ti_set_selection(v, NSMakeRange(n, 0)); anchor = n; }
     return YES;
+}
+
+/* ================= text attribute edits (allowsEditingTextAttributes) ================= */
+BOOL isim_ti_can_style(id<IsimEditableText> v) {
+    return [v _isim_isEditable] && [(id)v respondsToSelector:@selector(allowsEditingTextAttributes)] && [(id)v allowsEditingTextAttributes];
+}
+/* a text view's selected paragraphs (all of them without a selection in an empty text: the typing attributes) */
+void isim_ti_align(id<IsimEditableText> v, NSTextAlignment al) {
+    if ([(id)v isKindOfClass:[UITextView class]]) {
+        UITextView *tv = (UITextView *)v;
+        NSTextStorage *ts = tv.textStorage;
+        NSRange pr = [ts.string paragraphRangeForRange:tv.selectedRange];
+        if (pr.length) {
+            [ts beginEditing];
+            [ts enumerateAttribute:NSParagraphStyleAttributeName inRange:pr options:0 usingBlock:^(NSParagraphStyle *ps, NSRange r, BOOL *stop) {
+                NSMutableParagraphStyle *m = [ps mutableCopy] ?: [NSMutableParagraphStyle new]; m.alignment = al;
+                [ts addAttribute:NSParagraphStyleAttributeName value:m range:r];
+            }];
+            [ts endEditing];
+        }
+        NSMutableDictionary *t = [tv.typingAttributes mutableCopy];
+        NSMutableParagraphStyle *m = [t[NSParagraphStyleAttributeName] mutableCopy] ?: [NSMutableParagraphStyle new]; m.alignment = al;
+        t[NSParagraphStyleAttributeName] = m; tv.typingAttributes = t;
+    } else if ([(id)v isKindOfClass:[UITextField class]]) ((UITextField *)v).textAlignment = al;
+    NSLog(@"isim: text aligned %ld", (long)al);
+    isim_ui_set_needs_display();
+}
+void isim_ti_update_attributes(id<IsimEditableText> v, UITextAttributesConversionHandler h) {
+    if (!h) return;
+    if ([(id)v isKindOfClass:[UITextView class]]) {
+        UITextView *tv = (UITextView *)v;
+        NSTextStorage *ts = tv.textStorage;
+        NSRange sel = tv.selectedRange;
+        if (sel.length && NSMaxRange(sel) <= ts.length) {
+            [ts beginEditing];
+            [ts enumerateAttributesInRange:sel options:0 usingBlock:^(NSDictionary *attrs, NSRange r, BOOL *stop) { [ts setAttributes:h(attrs) range:r]; }];
+            [ts endEditing];
+        }
+        tv.typingAttributes = h(tv.typingAttributes ?: @{});
+    } else if ([(id)v isKindOfClass:[UITextField class]]) {
+        UITextField *tf = (UITextField *)v;
+        tf.defaultTextAttributes = h(tf.defaultTextAttributes);
+    }
+    isim_ui_set_needs_display();
 }

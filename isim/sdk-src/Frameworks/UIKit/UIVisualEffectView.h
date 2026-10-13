@@ -47,6 +47,12 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0))
 @interface UIGlassContainerEffect : UIVisualEffect
 @property (nonatomic) CGFloat spacing;
 @end
+/* a solid colour background (iOS 26.1 API; the class is older) */
+NS_SWIFT_UI_ACTOR
+@interface UIColorEffect : UIVisualEffect
++ (instancetype)colorEffectWithColor:(nullable UIColor *)color NS_SWIFT_NAME(init(color:)) API_AVAILABLE(ios(26.1));
+@property (nonatomic, readonly, nullable) UIColor *_isimColor NS_SWIFT_NAME(__isimColor);
+@end
 NS_SWIFT_UI_ACTOR
 @interface UIVisualEffectView : UIView
 - (instancetype)initWithEffect:(nullable UIVisualEffect *)effect NS_DESIGNATED_INITIALIZER;

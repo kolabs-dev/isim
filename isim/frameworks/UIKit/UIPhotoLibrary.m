@@ -427,3 +427,62 @@ static NSURL *movie_copy(NSString *src) {
     self.viewControllers = @[g];
 }
 @end
+
+/* ================= UIVideoEditorController (adapted: no trimming) ================= */
+@interface __IsimVideoEditorRoot : UIViewController
+@property (nonatomic, weak) UIVideoEditorController *editor;
+@end
+@implementation UIVideoEditorController
+@dynamic delegate;
++ (BOOL)canEditVideoAtPath:(NSString *)path {
+    NSString *ext = path.pathExtension.lowercaseString;
+    return [NSFileManager.defaultManager fileExistsAtPath:path] && [@[@"mov", @"mp4", @"m4v", @"qt"] containsObject:ext];
+}
+- (instancetype)initWithNibName:(NSString *)n bundle:(NSBundle *)b {
+    if ((self = [super initWithNibName:n bundle:b])) {
+        _videoMaximumDuration = 600; _videoQuality = UIImagePickerControllerQualityTypeMedium; _videoPath = @"";
+        __IsimVideoEditorRoot *root = [__IsimVideoEditorRoot new]; root.editor = self;
+        [self setViewControllers:@[root] animated:NO];
+    }
+    return self;
+}
+- (void)_isim_cancel {
+    id<UIVideoEditorControllerDelegate> d = (id)self.delegate;
+    NSLog(@"isim: video editor cancelled");
+    if ([d respondsToSelector:@selector(videoEditorControllerDidCancel:)]) [d videoEditorControllerDidCancel:self];
+    else [self dismissViewControllerAnimated:YES completion:nil];
+}
+- (void)_isim_save {
+    id<UIVideoEditorControllerDelegate> d = (id)self.delegate;
+    NSString *ext = self.videoPath.pathExtension.length ? self.videoPath.pathExtension : @"mov";
+    NSString *out = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"trim.%@.%@", NSUUID.UUID.UUIDString, ext]];
+    NSError *e = nil;
+    if (![NSFileManager.defaultManager copyItemAtPath:self.videoPath toPath:out error:&e]) {
+        NSLog(@"isim: video editor could not save: %@", e.localizedDescription);
+        if ([d respondsToSelector:@selector(videoEditorController:didFailWithError:)]) [d videoEditorController:self didFailWithError:e ?: [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileReadNoSuchFileError userInfo:nil]];
+        return;
+    }
+    NSLog(@"isim: video editor saved %@", out.lastPathComponent);
+    if ([d respondsToSelector:@selector(videoEditorController:didSaveEditedVideoToPath:)]) [d videoEditorController:self didSaveEditedVideoToPath:out];
+}
+@end
+@implementation __IsimVideoEditorRoot
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.title = @"Trim Video";
+    self.view.backgroundColor = UIColor.blackColor;
+    self.view.accessibilityIdentifier = @"video-editor";
+    self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel target:self action:@selector(_cancel)];
+    self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithTitle:@"Save" style:UIBarButtonItemStyleDone target:self action:@selector(_save)];
+    self.navigationItem.leftBarButtonItem.accessibilityIdentifier = @"video-editor-cancel";
+    self.navigationItem.rightBarButtonItem.accessibilityIdentifier = @"video-editor-save";
+    UILabel *l = [UILabel new];
+    l.text = self.editor.videoPath.lastPathComponent; l.textColor = UIColor.whiteColor; l.textAlignment = NSTextAlignmentCenter;
+    l.accessibilityIdentifier = @"video-editor-name";
+    l.frame = CGRectMake(0, CGRectGetMidY(self.view.bounds) - 12, self.view.bounds.size.width, 24);
+    l.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin;
+    [self.view addSubview:l];
+}
+- (void)_cancel { [self.editor _isim_cancel]; }
+- (void)_save { [self.editor _isim_save]; }
+@end

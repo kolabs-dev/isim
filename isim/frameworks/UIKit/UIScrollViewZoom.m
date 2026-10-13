@@ -31,6 +31,8 @@ static char k_zoom;
 - (void)setBouncesZoom:(BOOL)b { [self _isim_zoom].bouncesZoom = b; }
 - (BOOL)isZooming { return [self _isim_zoom].zooming; }
 - (BOOL)isZoomBouncing { return [self _isim_zoom].zoomBouncing; }
+- (BOOL)isZoomAnimating { return [self _isim_zoom].anim != nil; }
+- (void)_isim_stopZoomAnimation { __IsimZoomState *z = objc_getAssociatedObject(self, &k_zoom); [z.anim invalidate]; z.anim = nil; z.zoomBouncing = NO; }
 - (CGFloat)zoomScale { return [self _isim_zoom].scale; }
 - (UIPinchGestureRecognizer *)pinchGestureRecognizer { return [self _isim_zoom].pinch; }
 /* the pinch recognizer exists while zooming is possible (minimum != maximum) */

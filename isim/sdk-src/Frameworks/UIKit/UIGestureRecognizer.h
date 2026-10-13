@@ -1,9 +1,10 @@
 #pragma once
 #import <UIKit/UIKitDefines.h>
 #import <UIKit/UIView.h>
+#import <UIKit/UIEvent.h>          /* UIKeyModifierFlags, UIEventButtonMask */
 NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSInteger, UIGestureRecognizerState) { UIGestureRecognizerStatePossible, UIGestureRecognizerStateBegan, UIGestureRecognizerStateChanged, UIGestureRecognizerStateEnded, UIGestureRecognizerStateCancelled, UIGestureRecognizerStateFailed, UIGestureRecognizerStateRecognized = UIGestureRecognizerStateEnded };
-@class UIGestureRecognizer, UITouch;
+@class UIGestureRecognizer, UITouch, UIPress, UIPressesEvent;
 NS_SWIFT_UI_ACTOR
 @protocol UIGestureRecognizerDelegate <NSObject>
 @optional
@@ -13,6 +14,9 @@ NS_SWIFT_UI_ACTOR
 /* failure requirements decided while the touch is in progress (iOS 7) */
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRequireFailureOfGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer;
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer;
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceivePress:(UIPress *)press;
+/* asked before a recognizer gets any part of an event (iOS 13.4) */
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveEvent:(UIEvent *)event API_AVAILABLE(ios(13.4));
 @end
 NS_SWIFT_UI_ACTOR
 @interface UIGestureRecognizer : NSObject
@@ -33,6 +37,15 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) BOOL delaysTouchesEnded;
 @property (nonatomic) BOOL requiresExclusiveTouchType;
 - (void)requireGestureRecognizerToFail:(UIGestureRecognizer *)otherGestureRecognizer;
+/* the touch types (UITouchType numbers) the recognizer gets; default: all of them */
+@property (nonatomic, copy) NSArray<NSNumber *> *allowedTouchTypes;
+/* the press types (UIPressType numbers) it gets (isim delivers no presses to recognizers) */
+@property (nonatomic, copy) NSArray<NSNumber *> *allowedPressTypes;
+/* the keyboard modifiers and pointer buttons of the event it is handling (iOS 13.4) */
+@property (nonatomic, readonly) UIKeyModifierFlags modifierFlags API_AVAILABLE(ios(13.4));
+@property (nonatomic, readonly) UIEventButtonMask buttonMask API_AVAILABLE(ios(13.4));
+/* asks the delegate's gestureRecognizer(_:shouldReceive:) (event) */
+- (BOOL)shouldReceiveEvent:(UIEvent *)event NS_SWIFT_NAME(shouldReceive(_:)) API_AVAILABLE(ios(13.4));
 /* isim (SwiftUI high-priority and simultaneous gestures): a tap recognizer that still takes taps on the controls
    inside its view (UIKit's rule lets a control's tap win over its superviews' tap recognizers) */
 @property (nonatomic, setter=_isim_setTakesControlTaps:) BOOL _isim_takesControlTaps;
@@ -40,14 +53,24 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)_isim_exclusive;
 - (void)_isim_setExclusive:(BOOL)exclusive;
 @end
+
 @interface UIView (UIGestureRecognizerShouldBegin)
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer;
 @end
 @interface UITapGestureRecognizer : UIGestureRecognizer
 @property (nonatomic) NSUInteger numberOfTapsRequired;
 @property (nonatomic) NSUInteger numberOfTouchesRequired;
+/* the pointer buttons a pointer click must use (default primary); finger taps always count */
+@property (nonatomic) UIEventButtonMask buttonMaskRequired API_AVAILABLE(ios(13.4));
 @end
+/* trackpad / mouse wheel scrolling (UIEventTypeScroll): continuous (trackpad) and discrete (wheel) */
+typedef NS_ENUM(NSInteger, UIScrollType) { UIScrollTypeDiscrete, UIScrollTypeContinuous } API_AVAILABLE(ios(13.4));
+typedef NS_OPTIONS(NSInteger, UIScrollTypeMask) {
+    UIScrollTypeMaskDiscrete = 1 << UIScrollTypeDiscrete, UIScrollTypeMaskContinuous = 1 << UIScrollTypeContinuous,
+    UIScrollTypeMaskAll = UIScrollTypeMaskDiscrete | UIScrollTypeMaskContinuous } API_AVAILABLE(ios(13.4));
 @interface UIPanGestureRecognizer : UIGestureRecognizer
+/* scroll events it turns into pans (default none; a scroll view's pan takes all) */
+@property (nonatomic) UIScrollTypeMask allowedScrollTypesMask API_AVAILABLE(ios(13.4));
 @property (nonatomic) NSUInteger minimumNumberOfTouches;
 @property (nonatomic) NSUInteger maximumNumberOfTouches;
 - (CGPoint)translationInView:(nullable UIView *)view;

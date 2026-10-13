@@ -82,6 +82,9 @@ ISIM_ANIMATIONS=0 ISIM_SKIP_LAUNCH_SCREEN=1 isim run build/MyApp.app --headless 
 - `tapid`, `taptext`, `type`, `key`, `drag`, `swipeid` act like a finger and a keyboard; `appearance dark`,
   `rotate landscapeleft`, `location LAT LON`, `push …`, `openurl …` change the device. The full list is in
   [SCRIPTING.md](SCRIPTING.md).
+- Accessibility can be checked the same way: `voiceover on; voiceover next; …` logs what VoiceOver says
+  (`isim: VoiceOver: "…"`), and `accessibility SETTING on|off`, `contrast on`, `boldtext on` and
+  `guidedaccess on` switch the Settings ▸ Accessibility features an app reacts to.
 - App Intents and SiriKit are tried under `isim boot` (the home screen is the system): `siri "Order a latte in
   MyApp"` says an App Shortcut phrase, `siri intent SendMessage recipients=Anna content=Hi` builds a SiriKit intent,
   and `siri ANSWER` / `tapid siri-option-N` / `tapid siri-confirm` answer Siri's questions; `dump` shows what Siri

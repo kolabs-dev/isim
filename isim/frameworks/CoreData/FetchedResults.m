@@ -1,6 +1,6 @@
 /* isim Core Data (ARC): NSFetchedResultsController (sections by key path, change tracking from the context's
  * ObjectsDidChange notifications with per-object/per-section delegate callbacks, or a diffable snapshot) and
- * NSDiffableDataSourceSnapshotReference. */
+ * a diffable snapshot (UIKit's NSDiffableDataSourceSnapshotReference). */
 #import "CoreDataPrivate.h"
 
 /* UIKit's NSIndexPath (section, item) additions, without linking UIKit */
@@ -8,38 +8,11 @@ static NSIndexPath *IP(NSUInteger item, NSUInteger section) { NSUInteger ix[2] =
 static NSInteger SEC(NSIndexPath *p) { return (NSInteger)[p indexAtPosition:0]; }
 static NSInteger ITEM(NSIndexPath *p) { return (NSInteger)[p indexAtPosition:1]; }
 
-@implementation NSDiffableDataSourceSnapshotReference {
-    @public NSMutableArray *_sections; NSMutableArray<NSMutableArray *> *_items; NSMutableArray *_reloaded;
-}
-- (instancetype)init { if ((self = [super init])) { _sections = [NSMutableArray array]; _items = [NSMutableArray array]; _reloaded = [NSMutableArray array]; } return self; }
-- (NSInteger)numberOfItems { NSInteger n = 0; for (NSArray *a in _items) n += a.count; return n; }
-- (NSInteger)numberOfSections { return _sections.count; }
-- (NSArray *)sectionIdentifiers { return [_sections copy]; }
-- (NSArray *)itemIdentifiers { NSMutableArray *all = [NSMutableArray array]; for (NSArray *a in _items) [all addObjectsFromArray:a]; return all; }
-- (NSInteger)numberOfItemsInSection:(id)s { NSUInteger i = [_sections indexOfObject:s]; return i == NSNotFound ? 0 : _items[i].count; }
-- (NSArray *)itemIdentifiersInSectionWithIdentifier:(id)s { NSUInteger i = [_sections indexOfObject:s]; return i == NSNotFound ? @[] : [_items[i] copy]; }
-- (id)sectionIdentifierForSectionContainingItemIdentifier:(id)item {
-    for (NSUInteger i = 0; i < _items.count; i++) if ([_items[i] containsObject:item]) return _sections[i];
-    return nil;
-}
-- (NSInteger)indexOfItemIdentifier:(id)item { NSUInteger i = [self.itemIdentifiers indexOfObject:item]; return i == NSNotFound ? NSNotFound : (NSInteger)i; }
-- (NSInteger)indexOfSectionIdentifier:(id)s { NSUInteger i = [_sections indexOfObject:s]; return i == NSNotFound ? NSNotFound : (NSInteger)i; }
-- (void)appendSectionsWithIdentifiers:(NSArray *)ids { for (id s in ids) { [_sections addObject:s]; [_items addObject:[NSMutableArray array]]; } }
-- (void)appendItemsWithIdentifiers:(NSArray *)ids intoSectionWithIdentifier:(id)s {
-    NSUInteger i = [_sections indexOfObject:s];
-    if (i == NSNotFound) { [self appendSectionsWithIdentifiers:@[s]]; i = _sections.count - 1; }
-    [_items[i] addObjectsFromArray:ids];
-}
-- (NSArray *)reloadedItemIdentifiers { return [_reloaded copy]; }
-- (NSArray *)reconfiguredItemIdentifiers { return [_reloaded copy]; }
-- (id)copyWithZone:(NSZone *)zone {
-    NSDiffableDataSourceSnapshotReference *c = [[NSDiffableDataSourceSnapshotReference alloc] init];
-    [c->_sections addObjectsFromArray:_sections];
-    for (NSArray *a in _items) [c->_items addObject:[a mutableCopy]];
-    [c->_reloaded addObjectsFromArray:_reloaded];
-    return c;
-}
-- (NSString *)description { return [NSString stringWithFormat:@"<NSDiffableDataSourceSnapshotReference: %p> sections %@ items %ld", self, _sections, (long)self.numberOfItems]; }
+/* the snapshot handed to the delegate: UIKit's NSDiffableDataSourceSnapshotReference (looked up at run time: Core Data
+   does not link UIKit) */
+@protocol IsimSnapshotReference <NSObject>
+- (void)appendItemsWithIdentifiers:(NSArray *)identifiers intoSectionWithIdentifier:(id)sectionIdentifier;
+- (void)reloadItemsWithIdentifiers:(NSArray *)identifiers;
 @end
 
 @interface CDSectionInfo : NSObject <NSFetchedResultsSectionInfo>
@@ -161,14 +134,17 @@ static NSInteger ITEM(NSIndexPath *p) { return (NSInteger)[p indexAtPosition:1];
     id<NSFetchedResultsControllerDelegate> d = _delegate;
     if (!d) return;
     if ([d respondsToSelector:@selector(controller:didChangeContentWithSnapshot:)]) {
-        NSDiffableDataSourceSnapshotReference *snap = [[NSDiffableDataSourceSnapshotReference alloc] init];
+        id<IsimSnapshotReference> snap = [[NSClassFromString(@"NSDiffableDataSourceSnapshotReference") alloc] init];
+        if (!snap) return;
         for (CDSectionInfo *s in _sections) {
             NSMutableArray *ids = [NSMutableArray array];
             for (NSManagedObject *o in s.objectList) [ids addObject:o.objectID];
             [snap appendItemsWithIdentifiers:ids intoSectionWithIdentifier:s.name];
         }
-        for (NSManagedObject *o in updated) if ([r containsObject:o] && [oldObjects containsObject:o]) [snap->_reloaded addObject:o.objectID];
-        [d controller:self didChangeContentWithSnapshot:snap];
+        NSMutableArray *reloaded = [NSMutableArray array];
+        for (NSManagedObject *o in updated) if ([r containsObject:o] && [oldObjects containsObject:o]) [reloaded addObject:o.objectID];
+        if (reloaded.count) [snap reloadItemsWithIdentifiers:reloaded];
+        [d controller:self didChangeContentWithSnapshot:(NSDiffableDataSourceSnapshotReference *)snap];
         return;
     }
     BOOL objCB = [d respondsToSelector:@selector(controller:didChangeObject:atIndexPath:forChangeType:newIndexPath:)];

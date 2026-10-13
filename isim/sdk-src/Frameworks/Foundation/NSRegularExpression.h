@@ -57,7 +57,11 @@ FOUNDATION_EXPORT NSTextCheckingKey const NSTextCheckingNameKey, NSTextCheckingJ
 + (NSTextCheckingResult *)replacementCheckingResultWithRange:(NSRange)range replacementString:(NSString *)replacementString;
 + (NSTextCheckingResult *)addressCheckingResultWithRange:(NSRange)range components:(NSDictionary<NSTextCheckingKey, NSString *> *)components;
 + (NSTextCheckingResult *)transitInformationCheckingResultWithRange:(NSRange)range components:(NSDictionary<NSTextCheckingKey, NSString *> *)components;
+/* grammar results: the problems in the range (dictionaries with NSGrammarRange, NSGrammarUserDescription, NSGrammarCorrections) */
+@property (nullable, readonly, copy) NSArray<NSDictionary<NSString *, id> *> *grammarDetails;
++ (NSTextCheckingResult *)grammarCheckingResultWithRange:(NSRange)range details:(NSArray<NSDictionary<NSString *, id> *> *)details;
 @end
+FOUNDATION_EXPORT NSString *const NSGrammarRange, *const NSGrammarUserDescription, *const NSGrammarCorrections;
 
 @interface NSRegularExpression : NSObject <NSCopying, NSSecureCoding>
 + (nullable NSRegularExpression *)regularExpressionWithPattern:(NSString *)pattern options:(NSRegularExpressionOptions)options error:(NSError **)error;

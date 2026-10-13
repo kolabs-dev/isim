@@ -36,6 +36,7 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
     CGFloat _measuredWidth;
     NSArray<NSTextCheckingResult *> *_items; NSString *_itemsText; UIDataDetectorTypes _itemsTypes;
 }
+@synthesize sizingRule = _sizingRule;     /* UILetterformAwareAdjusting (iOS 17) */
 @dynamic delegate;
 @synthesize autocapitalizationType = _autocapitalizationType, autocorrectionType = _autocorrectionType, spellCheckingType = _spellCheckingType,
     keyboardType = _keyboardType, keyboardAppearance = _keyboardAppearance, returnKeyType = _returnKeyType,
@@ -476,9 +477,56 @@ ISIM_TEXT_INPUT_METHODS
         }];
 }
 
+/* ---- border, text highlights, selected ranges (stored outside the instance) ---- */
+static char kBorderStyle, kHighlightAttrs;
+- (UITextViewBorderStyle)borderStyle { return [objc_getAssociatedObject(self, &kBorderStyle) integerValue]; }
+- (void)setBorderStyle:(UITextViewBorderStyle)b { objc_setAssociatedObject(self, &kBorderStyle, @(b), OBJC_ASSOCIATION_RETAIN_NONATOMIC); isim_ui_set_needs_display(); }
+- (NSDictionary *)textHighlightAttributes { return objc_getAssociatedObject(self, &kHighlightAttrs) ?: @{}; }
+- (void)setTextHighlightAttributes:(NSDictionary *)a { objc_setAssociatedObject(self, &kHighlightAttrs, [a copy], OBJC_ASSOCIATION_RETAIN_NONATOMIC); isim_ui_set_needs_display(); }
+- (NSArray<NSValue *> *)selectedRanges { return @[ [NSValue valueWithRange:_selectedRange] ]; }
+- (void)setSelectedRanges:(NSArray<NSValue *> *)r { if (r.count) self.selectedRange = r.firstObject.rangeValue; }
+static UIColor *highlight_color(NSString *scheme, UIColor *tint) {
+    NSDictionary *colors = @{ NSTextHighlightColorSchemePurple: UIColor.systemPurpleColor, NSTextHighlightColorSchemePink: UIColor.systemPinkColor,
+                              NSTextHighlightColorSchemeOrange: UIColor.systemOrangeColor, NSTextHighlightColorSchemeMint: UIColor.systemMintColor,
+                              NSTextHighlightColorSchemeBlue: UIColor.systemBlueColor };
+    return [colors[scheme] ?: tint colorWithAlphaComponent:0.25];
+}
+/* one highlighted range: rounded rects behind its line pieces (the origin: where the text is drawn) */
+- (void)drawTextHighlightBackgroundForTextRange:(UITextRange *)range origin:(CGPoint)origin {
+    NSInteger a = [self offsetFromPosition:self.beginningOfDocument toPosition:range.start], b = [self offsetFromPosition:self.beginningOfDocument toPosition:range.end];
+    if (a < 0 || b <= a || (NSUInteger)b > _ts.length) return;
+    NSRange r = NSMakeRange((NSUInteger)a, (NSUInteger)(b - a));
+    UIColor *c = self.textHighlightAttributes[NSBackgroundColorAttributeName];
+    if (!c) c = highlight_color([_ts attribute:NSTextHighlightColorSchemeAttributeName atIndex:r.location effectiveRange:NULL], self.tintColor);
+    double rgba[4]; isim_ui_rgba(c, rgba);
+    CGPoint off = self.contentOffset;
+    for (NSValue *v in [self _isim_selectionRectsForRange:r]) {
+        CGRect x = CGRectOffset(v.CGRectValue, -off.x, -off.y);
+        isim_gfx_fill_rounded(x.origin.x - 1, x.origin.y, x.size.width + 2, x.size.height, 4, rgba);
+    }
+}
+- (void)_isim_drawHighlights {
+    if (!_ts.length) return;
+    CGPoint o = [self _isim_tvTextOrigin];
+    [_ts enumerateAttribute:NSTextHighlightStyleAttributeName inRange:NSMakeRange(0, _ts.length) options:0 usingBlock:^(id style, NSRange r, BOOL *stop) {
+        if (!style || !r.length) return;
+        UITextPosition *p0 = [self positionFromPosition:self.beginningOfDocument offset:(NSInteger)r.location];
+        UITextPosition *p1 = [self positionFromPosition:self.beginningOfDocument offset:(NSInteger)NSMaxRange(r)];
+        UITextRange *tr = p0 && p1 ? [self textRangeFromPosition:p0 toPosition:p1] : nil;
+        if (tr) [self drawTextHighlightBackgroundForTextRange:tr origin:o];
+    }];
+}
+
 /* ---- drawing (content coordinates are shifted by the scroll offset) ---- */
 - (void)_isim_drawContent {
     CGPoint off = self.contentOffset, o = [self _isim_tvTextOrigin];
+    if (self.borderStyle == UITextViewBorderStyleRoundedRect) {
+        CGSize sz = self.bounds.size; double line[4]; isim_ui_rgba(UIColor.separatorColor, line);
+        isim_gfx_stroke_rounded(0.25, 0.25, sz.width - 0.5, sz.height - 0.5, 5, 0.5, line);
+    }
+    [self _isim_drawHighlights];
+    extern void isim_ui_text_view_draw_find(UITextView *tv);
+    isim_ui_text_view_draw_find(self);                   /* find results (UIFindInteraction.m) */
     isim_gfx_save(); isim_gfx_translate(-off.x, -off.y);
     isim_ui_text_draw_selection_rects(self);
     isim_gfx_restore();

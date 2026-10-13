@@ -20,6 +20,8 @@ UIKIT_EXTERN const UIWindowLevel UIWindowLevelNormal, UIWindowLevelAlert, UIWind
 - (void)sendEvent:(UIEvent *)event;
 @end
 /* software keyboard (isim system keyboard window) */
+UIKIT_EXTERN NSNotificationName const UIWindowDidBecomeVisibleNotification, UIWindowDidBecomeHiddenNotification,
+    UIWindowDidBecomeKeyNotification, UIWindowDidResignKeyNotification;
 UIKIT_EXTERN NSNotificationName const UIKeyboardWillShowNotification, UIKeyboardDidShowNotification, UIKeyboardWillHideNotification,
     UIKeyboardDidHideNotification, UIKeyboardWillChangeFrameNotification, UIKeyboardDidChangeFrameNotification;
 UIKIT_EXTERN NSString *const UIKeyboardFrameBeginUserInfoKey, *const UIKeyboardFrameEndUserInfoKey,

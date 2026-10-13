@@ -79,7 +79,16 @@ void isim_ui_hide_edit_menu(void);
 - (BOOL)canPerformAction:(SEL)a withSender:(id)sender { \
     if (a == @selector(cut:) || a == @selector(copy:) || a == @selector(paste:) || a == @selector(select:) || a == @selector(selectAll:) || a == @selector(delete:) || a == NSSelectorFromString(@"_isim_promptForReplace:")) \
         return isim_ti_can_perform(self, a); \
+    if (a == @selector(pasteAndMatchStyle:)) return isim_ti_can_perform(self, @selector(paste:)); \
+    if (a == @selector(alignLeft:) || a == @selector(alignCenter:) || a == @selector(alignRight:) || a == @selector(alignJustified:)) return isim_ti_can_style(self); \
+    if (a == @selector(find:) || a == @selector(findNext:) || a == @selector(findPrevious:) || a == @selector(findAndReplace:) || a == @selector(useSelectionForFind:)) return isim_ti_can_find(self, a); \
     return [super canPerformAction:a withSender:sender]; } \
+- (void)pasteAndMatchStyle:(id)sender { isim_ti_paste(self); } \
+- (void)alignLeft:(id)sender { isim_ti_align(self, NSTextAlignmentLeft); } \
+- (void)alignCenter:(id)sender { isim_ti_align(self, NSTextAlignmentCenter); } \
+- (void)alignRight:(id)sender { isim_ti_align(self, NSTextAlignmentRight); } \
+- (void)alignJustified:(id)sender { isim_ti_align(self, NSTextAlignmentJustified); } \
+- (void)updateTextAttributesWithConversionHandler:(UITextAttributesConversionHandler)h { isim_ti_update_attributes(self, h); } \
 - (void)cut:(id)sender { isim_ti_cut(self); } \
 - (void)copy:(id)sender { isim_ti_copy(self); } \
 - (void)paste:(id)sender { isim_ti_paste(self); } \
@@ -89,3 +98,9 @@ void isim_ui_hide_edit_menu(void);
 - (void)_isim_promptForReplace:(id)sender { isim_ui_show_text_menu(self); }
 
 NSArray<UITextSelectionRect *> *isim_ti_selection_rect_objects(id<IsimEditableText> v, NSRange r);
+/* text attribute edits (allowsEditingTextAttributes): paragraph alignment, attribute conversion */
+BOOL isim_ti_can_style(id<IsimEditableText> v);
+BOOL isim_ti_can_find(id v, SEL action);                 /* UIFindInteraction.m */
+void isim_ti_align(id<IsimEditableText> v, NSTextAlignment alignment);
+void isim_ti_update_attributes(id<IsimEditableText> v, UITextAttributesConversionHandler handler);
+void isim_ui_present_text_formatting(UITextView *tv);     /* UITextFormattingViewController.m */

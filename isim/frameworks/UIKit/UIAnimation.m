@@ -259,6 +259,12 @@ static NSMutableSet *live_animators;               /* running animators stay ali
     if (!live_animators) live_animators = [NSMutableSet set];
     [live_animators addObject:self];
     NSArray *blocks = [_pending copy]; [_pending removeAllObjects];
+    if (_flushUpdates) {                                   /* iOS 26: pending updates before and (animated) after the blocks */
+        extern void (^isim_ui_flushing_block(void (^)(void)))(void);
+        NSMutableArray *fb = [NSMutableArray array];
+        for (void (^b)(void) in blocks) [fb addObject:[isim_ui_flushing_block(b) copy]];
+        blocks = fb;
+    }
     for (void (^b)(void) in blocks) isim_ui_timeline_capture(_tl, _effDuration, _delay, _curve, _bz, _damping, _velocity, b, nil);
     if (_storedFraction > 0) isim_ui_timeline_set(_tl, _delay + _storedFraction * _effDuration, YES, 1);
 }
@@ -349,6 +355,7 @@ static NSMutableSet *live_animators;               /* running animators stay ali
     if (_state != UIViewAnimatingStateActive) return;
     double now = isim_ui_timeline_time(_tl), remaining = fmax(0.0001, [self _isim_end] - fmax(now, _delay));
     double startAt = fmax(now, _delay) + fmin(1, fmax(0, k)) * remaining;
+    if (_flushUpdates) { extern void (^isim_ui_flushing_block(void (^)(void)))(void); a = isim_ui_flushing_block(a); }
     isim_ui_timeline_capture(_tl, [self _isim_end] - startAt, startAt - now, _curve, _bz, _damping, _velocity, a, nil);
 }
 - (void)addCompletion:(void (^)(UIViewAnimatingPosition))c { if (c) [_completions addObject:[c copy]]; }

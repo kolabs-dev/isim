@@ -1,8 +1,10 @@
 #pragma once
 #import <UIKit/UIKitDefines.h>
 #import <UIKit/UIView.h>
+#import <UIKit/UIInteraction.h>
+#import <UIKit/UIGestureRecognizer.h>
 NS_ASSUME_NONNULL_BEGIN
-@class UIScrollView, UIPanGestureRecognizer, UIPinchGestureRecognizer, UILayoutGuide;
+@class UIScrollView, UIPanGestureRecognizer, UIPinchGestureRecognizer, UILayoutGuide, UIGestureRecognizer, UITouch, UIEvent;
 typedef NS_ENUM(NSInteger, UIScrollViewContentInsetAdjustmentBehavior) {
     UIScrollViewContentInsetAdjustmentAutomatic, UIScrollViewContentInsetAdjustmentScrollableAxes,
     UIScrollViewContentInsetAdjustmentNever, UIScrollViewContentInsetAdjustmentAlways
@@ -26,6 +28,16 @@ NS_SWIFT_UI_ACTOR
 - (void)scrollViewWillBeginZooming:(UIScrollView *)scrollView withView:(nullable UIView *)view;
 - (void)scrollViewDidZoom:(UIScrollView *)scrollView;
 - (void)scrollViewDidEndZooming:(UIScrollView *)scrollView withView:(nullable UIView *)view atScale:(CGFloat)scale;
+/* a tap on the status bar scrolls the one visible scroll view with scrollsToTop to its top */
+- (BOOL)scrollViewShouldScrollToTop:(UIScrollView *)scrollView NS_SWIFT_NAME(scrollViewShouldScrollToTop(_:));
+- (void)scrollViewDidScrollToTop:(UIScrollView *)scrollView NS_SWIFT_NAME(scrollViewDidScrollToTop(_:));
+@end
+/* VoiceOver speaks the scroll status after a three-finger scroll (accessibilityScroll) or a page scrolled notification */
+NS_SWIFT_UI_ACTOR
+@protocol UIScrollViewAccessibilityDelegate <UIScrollViewDelegate>
+@optional
+- (nullable NSString *)accessibilityScrollStatusForScrollView:(UIScrollView *)scrollView;
+- (nullable NSAttributedString *)accessibilityAttributedScrollStatusForScrollView:(UIScrollView *)scrollView API_AVAILABLE(ios(11.0));
 @end
 /* isim: scrolling with rubber-banding, deceleration and paging; pinch zooming (UIScrollViewZoom.m). */
 @interface UIScrollView : UIView
@@ -72,6 +84,54 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0))
 @property (nonatomic, readonly, strong) UIScrollEdgeEffect *leftEdgeEffect API_AVAILABLE(ios(26.0));
 @property (nonatomic, readonly, strong) UIScrollEdgeEffect *bottomEdgeEffect API_AVAILABLE(ios(26.0));
 @property (nonatomic, readonly, strong) UIScrollEdgeEffect *rightEdgeEffect API_AVAILABLE(ios(26.0));
+@end
+typedef NS_ENUM(NSInteger, UIScrollViewIndicatorStyle) { UIScrollViewIndicatorStyleDefault, UIScrollViewIndicatorStyleBlack, UIScrollViewIndicatorStyleWhite } NS_SWIFT_NAME(UIScrollView.IndicatorStyle);
+/* table and collection view section indexes (tvOS shows them only when asked) */
+typedef NS_ENUM(NSInteger, UIScrollViewIndexDisplayMode) { UIScrollViewIndexDisplayModeAutomatic, UIScrollViewIndexDisplayModeAlwaysHidden } NS_SWIFT_NAME(UIScrollView.IndexDisplayMode);
+/* isim: scroll view members from the documentation sweep (#9). UIScrollView.m (stored outside the instances) */
+@interface UIScrollView (UIScrollViewExtras)
+/* called when adjustedContentInset changes (before the delegate's scrollViewDidChangeAdjustedContentInset:) */
+- (void)adjustedContentInsetDidChange NS_REQUIRES_SUPER;
+/* a drag that starts mostly along one axis scrolls only along it */
+@property (nonatomic, getter=isDirectionalLockEnabled) BOOL directionalLockEnabled;
+/* rubber-banding per axis (with bounces) */
+@property (nonatomic) BOOL bouncesHorizontally API_AVAILABLE(ios(17.4));
+@property (nonatomic) BOOL bouncesVertically API_AVAILABLE(ios(17.4));
+/* an animated setContentOffset / scroll to top, an animated zoom */
+@property (nonatomic, readonly, getter=isScrollAnimating) BOOL scrollAnimating API_AVAILABLE(ios(17.4));
+@property (nonatomic, readonly, getter=isZoomAnimating) BOOL zoomAnimating API_AVAILABLE(ios(17.4));
+/* stops dragging, deceleration, scrolling and zooming animations where they are */
+- (void)stopScrollingAndZooming API_AVAILABLE(ios(17.4));
+@property (nonatomic) UIScrollViewIndicatorStyle indicatorStyle;
+/* the indicators keep out of the safe area (NO: only scrollIndicatorInsets move them) */
+@property (nonatomic) BOOL automaticallyAdjustsScrollIndicatorInsets API_AVAILABLE(ios(13.0));
+/* both indicators' insets (setting it sets vertical and horizontal) */
+@property (nonatomic) UIEdgeInsets scrollIndicatorInsets;
+/* the indicators show while the block changes the content offset */
+- (void)withScrollIndicatorsShownForContentOffsetChanges:(void (NS_NOESCAPE ^)(void))changes NS_SWIFT_NAME(withScrollIndicatorsShown(forContentOffsetChanges:)) API_AVAILABLE(ios(17.4));
+/* content touches: whether the content view gets a touch (NO: the scroll view keeps it), and whether a drag that starts
+   on content may scroll (default: not on a control that tracks drags); canCancelContentTouches NO: a drag that starts
+   on a control does not scroll. isim delivers touches at once (delaysContentTouches is stored) */
+- (BOOL)touchesShouldBegin:(NSSet<UITouch *> *)touches withEvent:(nullable UIEvent *)event inContentView:(UIView *)view NS_SWIFT_NAME(touchesShouldBegin(_:with:in:));
+- (BOOL)touchesShouldCancelInContentView:(UIView *)view NS_SWIFT_NAME(touchesShouldCancel(in:));
+@property (nonatomic) BOOL canCancelContentTouches;
+@property (nonatomic) BOOL delaysContentTouches;
+/* arrow keys and remote presses (tvOS; isim: a disabled recognizer) */
+@property (nonatomic, readonly) UIGestureRecognizer *directionalPressGestureRecognizer;
+/* where content smaller than the scroll view rests (0,0: top left; 1,1: bottom right) */
+@property (nonatomic) CGPoint contentAlignmentPoint API_AVAILABLE(ios(17.4));
+/* scrolling past the edge hands the drag to a parent scroll view (isim: stored; the innermost scroll view scrolls) */
+@property (nonatomic) BOOL transfersHorizontalScrollingToParent API_AVAILABLE(ios(17.4));
+@property (nonatomic) BOOL transfersVerticalScrollingToParent API_AVAILABLE(ios(17.4));
+/* hardware keyboard: arrows, Page Up / Down, Space, Home and End scroll the main scroll view */
+@property (nonatomic) BOOL allowsKeyboardScrolling API_AVAILABLE(ios(17.0));
+@end
+/* iOS 26: a container of elements over a scroll view's edge (floating buttons, a custom bar); isim: stored (the bars of
+   navigation controllers draw the edge effect) */
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0))
+@interface UIScrollEdgeElementContainerInteraction : NSObject <UIInteraction>
+@property (nonatomic, weak, nullable) UIScrollView *scrollView;
+@property (nonatomic) UIRectEdge edge;
 @end
 @interface UIScrollView (UIZooming)
 /* zooming: the delegate's viewForZoomingInScrollView: scales between the minimum and maximum zoom scales */

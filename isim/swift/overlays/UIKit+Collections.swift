@@ -12,13 +12,30 @@ public protocol UIConfigurationState {
 public struct UIViewConfigurationState: UIConfigurationState, Hashable {
     public var traitCollection: UITraitCollection
     public var isDisabled = false, isHighlighted = false, isSelected = false, isFocused = false, isPinned = false
+    var _custom: [UIConfigurationStateCustomKey: AnyHashable] = [:]
     public init(traitCollection: UITraitCollection) { self.traitCollection = traitCollection }
+    /// an app's own value in the state
+    public subscript(key: UIConfigurationStateCustomKey) -> AnyHashable? {
+        get { _custom[key] }
+        set { _custom[key] = newValue }
+    }
 }
 public struct UICellConfigurationState: UIConfigurationState, Hashable {
     public var traitCollection: UITraitCollection
     public var isDisabled = false, isHighlighted = false, isSelected = false, isFocused = false, isPinned = false
     public var isEditing = false, isSwiped = false, isExpanded = false, isReordering = false
+    /// the cell being lifted or dragged (drag and drop), and whether a drop targets it
+    public enum DragState: Hashable, Sendable { case none, lifting, dragging }
+    public enum DropState: Hashable, Sendable { case none, notTargeted, targeted }
+    public var cellDragState: DragState = .none
+    public var cellDropState: DropState = .none
+    var _custom: [UIConfigurationStateCustomKey: AnyHashable] = [:]
     public init(traitCollection: UITraitCollection) { self.traitCollection = traitCollection }
+    /// an app's own value in the state
+    public subscript(key: UIConfigurationStateCustomKey) -> AnyHashable? {
+        get { _custom[key] }
+        set { _custom[key] = newValue }
+    }
     init(_isim d: [String: Any]) {
         traitCollection = d["traits"] as? UITraitCollection ?? UITraitCollection.current
         isSelected = d["selected"] as? Bool ?? false; isHighlighted = d["highlighted"] as? Bool ?? false
@@ -151,6 +168,8 @@ public struct NSDiffableDataSourceSectionSnapshot<ItemIdentifierType: Hashable> 
     public func level(of item: ItemIdentifierType) -> Int { var l = 0, i = item; while let p = _parent[i] { l += 1; i = p }; return l }
     public func index(of item: ItemIdentifierType) -> Int? { items.firstIndex(of: item) }
     public func isExpanded(_ item: ItemIdentifierType) -> Bool { _expanded.contains(item) }
+    /// the expanded parents, in outline order
+    public var expandedItems: [ItemIdentifierType] { items.filter { _expanded.contains($0) } }
     public func isVisible(_ item: ItemIdentifierType) -> Bool {
         guard contains(item) else { return false }
         var i = item; while let p = _parent[i] { if !_expanded.contains(p) { return false }; i = p }
