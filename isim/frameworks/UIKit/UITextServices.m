@@ -274,7 +274,7 @@ NSArray<__IsimAutoFillSuggestion *> *isim_ui_autofill_suggestions(id target) {
         for (NSDictionary *d in assisted_provider()) {
             if (out.count == 3) break;
             __IsimAutoFillSuggestion *s = [__IsimAutoFillSuggestion new];
-            s.title = d[@"title"]; s.subtitle = d[@"subtitle"]; s.symbol = @"person.badge.key.fill";
+            s.title = d[@"title"]; s.subtitle = d[@"subtitle"]; s.symbol = @"key.fill";
             s.action = d[@"action"];
             [out addObject:s];
         }

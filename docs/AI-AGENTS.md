@@ -130,6 +130,10 @@ Everything goes to the terminal:
 - the `signposts` script command summarizes the app's signpost intervals (Points of Interest);
 - `ISIM_OBJC_EXCEPTION_LOG=1` logs every Objective-C exception when it is thrown.
 
+A server that checks DeviceCheck tokens or App Attest attestations can be tested locally: `isim devicecheck validate
+TOKEN` (and `query` / `update TOKEN BIT0 BIT1`) answers like Apple's DeviceCheck server, and `isim appattest root`
+prints the device data's App Attest root certificate, which the server trusts in place of Apple's.
+
 ### 4. Test
 
 ```bash

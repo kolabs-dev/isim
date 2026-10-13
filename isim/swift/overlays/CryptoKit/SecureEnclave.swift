@@ -52,6 +52,13 @@ public enum SecureEnclave {
                     self.d = d; q = try _EC.publicKey(256, d); flags = f; context = authenticationContext
                     self.dataRepresentation = dataRepresentation
                 }
+                // the initializers of isim's earlier stub (apps built with isim 0.19 or older call them)
+                @usableFromInline init(compactRepresentable: Bool) throws {
+                    try self.init(compactRepresentable: compactRepresentable, accessControl: SecureEnclave.defaultAccessControl, authenticationContext: nil)
+                }
+                @usableFromInline init<D: ContiguousBytes>(dataRepresentation: D) throws {
+                    try self.init(dataRepresentation: dataRepresentation.withUnsafeBytes { Data($0) }, authenticationContext: nil)
+                }
                 public var publicKey: CryptoKit.P256.Signing.PublicKey { CryptoKit.P256.Signing.PublicKey(q: q) }
                 public func signature<D: Digest>(for digest: D) throws -> CryptoKit.P256.Signing.ECDSASignature {
                     try SecureEnclave.authorize(flags, context, "use a key to sign")
@@ -77,6 +84,13 @@ public enum SecureEnclave {
                     let (d, f) = try SecureEnclave.open([UInt8](dataRepresentation))
                     self.d = d; q = try _EC.publicKey(256, d); flags = f; context = authenticationContext
                     self.dataRepresentation = dataRepresentation
+                }
+                // the initializers of isim's earlier stub (apps built with isim 0.19 or older call them)
+                @usableFromInline init(compactRepresentable: Bool) throws {
+                    try self.init(compactRepresentable: compactRepresentable, accessControl: SecureEnclave.defaultAccessControl, authenticationContext: nil)
+                }
+                @usableFromInline init<D: ContiguousBytes>(dataRepresentation: D) throws {
+                    try self.init(dataRepresentation: dataRepresentation.withUnsafeBytes { Data($0) }, authenticationContext: nil)
                 }
                 public var publicKey: CryptoKit.P256.KeyAgreement.PublicKey { CryptoKit.P256.KeyAgreement.PublicKey(q: q) }
                 public func sharedSecretFromKeyAgreement(with publicKeyShare: CryptoKit.P256.KeyAgreement.PublicKey) throws -> SharedSecret {

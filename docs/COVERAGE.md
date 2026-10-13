@@ -79,7 +79,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | StoreKit | 29 | 0 | 0 | 0 | 29 | 100% |
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 2 | 0 | 3 | 1 | 6 | 33% |
 | Data & persistence | 23 | 0 | 0 | 0 | 23 | 100% |
-| Identity & security | 9 | 2 | 2 | 0 | 13 | 77% |
+| Identity & security | 13 | 0 | 0 | 0 | 13 | 100% |
 | Notifications & background work | 13 | 0 | 0 | 0 | 13 | 100% |
 | App extensions & system integration | 9 | 1 | 0 | 0 | 10 | 95% |
 | Location & maps | 7 | 0 | 0 | 0 | 7 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 16 | 0 | 1 | 0 | 17 | 94% |
 | Logging & diagnostics | 9 | 0 | 0 | 0 | 9 | 100% |
 | Platform & tooling | 42 | 5 | 0 | 3 | 50 | 89% |
-| **All areas** | **1055** | **34** | **10** | **14** | **1113** | **96%** |
+| **All areas** | **1059** | **32** | **8** | **14** | **1113** | **97%** |
 
 ### Per iOS version
 
@@ -113,7 +113,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | StoreKit | 100% (29) | 100% (29) | 100% (29) | 100% (29) |
 | Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 33% (6) | 33% (6) | 33% (6) | 33% (6) |
 | Data & persistence | 100% (23) | 100% (23) | 100% (23) | 100% (23) |
-| Identity & security | 77% (13) | 77% (13) | 77% (13) | 77% (13) |
+| Identity & security | 100% (13) | 100% (13) | 100% (13) | 100% (13) |
 | Notifications & background work | 100% (13) | 100% (13) | 100% (13) | 100% (13) |
 | App extensions & system integration | 95% (10) | 95% (10) | 95% (10) | 95% (10) |
 | Location & maps | 100% (7) | 100% (7) | 100% (7) | 100% (7) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 94% (16) | 94% (16) | 94% (17) | 94% (17) |
 | Logging & diagnostics | 100% (9) | 100% (9) | 100% (9) | 100% (9) |
 | Platform & tooling | 89% (48) | 89% (49) | 89% (50) | 89% (50) |
-| **All areas** | **96%** (1047) | **96%** (1063) | **96%** (1092) | **96%** (1113) |
+| **All areas** | **96%** (1047) | **97%** (1063) | **97%** (1092) | **97%** (1113) |
 
 ---
 
@@ -1449,16 +1449,16 @@ id>/ledger.json`, kept when the app is deleted); `isim storekit <app> ...` is th
 | Sign in with Apple (`ASAuthorizationAppleIDProvider`, `ASAuthorizationController`, `ASAuthorizationAppleIDButton`, `SignInWithAppleButton`) | ✅ | ≤17 | **local simulation, no Apple servers**: iOS-style sheet (Apple ID / Apple Account wording by `ISIM_OS_VERSION`, name, Share/Hide My Email, Continue/close) for a fake account in the device data; returning users get the short sheet without name/email. `identityToken` is an **unsigned JWT (`alg: none`, issuer `isim-local-simulation`)** and `authorizationCode` a random local string — servers that verify Apple signatures reject them. `getCredentialState` authorized/revoked/notFound per app; `isim appleid <app> revoke` posts `credentialRevokedNotification` to the running app. Buttons: black/white/whiteOutline, sign in/continue/sign up, isim-drawn logo. Tested: HelloSignIn |
 | `ASWebAuthenticationSession` (OAuth) | ✅ | ≤17 | iOS's “Wants to Use … to Sign In” alert (skipped when ephemeral), the page in a browser sheet on isim's WKWebView (real WebKit), callback by custom scheme or (iOS 17.4) https host+path — links, forms and server redirects; Cancel → `canceledLogin`; `presentationContextProvider` errors; SwiftUI `webAuthenticationSession` environment action. Tested against a local OAuth page (HelloSafari). Non-ephemeral sessions share SFSafariViewController's in-memory data, not Safari's |
 | Passkeys (`ASAuthorizationPlatformPublicKeyCredentialProvider` registration + assertion) | ✅ | ≤17 | real WebAuthn data: P-256 key (CryptoKit), CBOR attestation object with format `none` (AAGUID zero, COSE key), clientDataJSON with origin `https://<rp>`, assertion signature over authData ‖ SHA-256(clientDataJSON) that verifies. Keys kept unencrypted in the device data (not synced). iOS-style save/sign-in sheets; no passkey → canceled (no nearby-device QR); `preferImmediatelyAvailableCredentials` → `notInteractive`. Security keys (`ASAuthorizationSecurityKey…`), PRF/large blob missing. Tested: HelloSignIn |
-| Password sign-in (`ASAuthorizationPasswordProvider`, `ASPasswordCredential`) | 🟡 | ≤17 | offers the app's own internet passwords from isim's keychain in a chooser sheet; no iCloud Keychain/Passwords app, no QuickType AutoFill bar, `performAutoFillAssistedRequests` behaves like `preferImmediatelyAvailableCredentials`. Tested: HelloSignIn |
+| Password sign-in (`ASAuthorizationPasswordProvider`, `ASPasswordCredential`), AutoFill-assisted requests | ✅ | ≤17 | adapted: the chooser sheet offers the app's internet passwords from isim's keychain and the device's Passwords store (filled by UIKit's QuickType AutoFill bar and "Save Password?", for the app's `webcredentials:` domains); `performAutoFillAssistedRequests` shows no sheet and offers the relying party's passkeys in the QuickType bar of `.username` fields, picking one completes the request (passkey assertion requests only, like iOS). No iCloud Keychain sync. Tested: HelloSignIn, test_text_services |
 | LocalAuthentication (Face ID / Touch ID, `LAContext`) | ✅ | `canEvaluatePolicy`/`evaluatePolicy` (+ async), `LAError`, `biometryType` from the device (Face ID; Touch ID on iPhone SE and non-Pro iPads). Face ID permission alert (`NSFaceIDUsageDescription`, remembered), simulated scan alert (Matching / Non-matching / Cancel), passcode fallback; `ISIM_BIOMETRY=match\|nomatch\|cancel`, `ISIM_BIOMETRY_ENROLLED=0`. Reply on a background queue like iOS |
 | CryptoKit (SHA-2, HMAC, AES-GCM, ChaChaPoly, P256, Curve25519) | ✅ | ≤17 | also P384/P521, `Insecure.MD5/SHA1`, HKDF, `SharedSecret` HKDF/X9.63 KDFs, ECDSA DER, public keys raw/X9.63/compressed/DER/PEM. AES/ChaCha/EC on the host's OpenSSL `libcrypto.so.3`. Byte inputs are `ContiguousBytes` (isim's Foundation has no `DataProtocol`). Known-answer tests from the RFCs/NIST |
 | CryptoKit: HPKE (RFC 9180, all modes; P-256/384/521 and X25519 KEMs; AES-GCM, ChaChaPoly, export-only), `AES.KeyWrap`, compact representations, private-key PKCS#8 DER/PEM (reads SEC1 too) | ✅ | ≤17 | HPKE opens messages sealed by OpenSSL's independent implementation; RFC 3394 vector. Tested: SecurityTest |
-| CryptoKit: Secure Enclave | 🧩 | ≤17 | `SecureEnclave.isAvailable` is false and keys throw, like a Simulator without one |
+| CryptoKit: Secure Enclave (`SecureEnclave.P256.Signing` / `.KeyAgreement`) | ✅ | ≤17 | adapted, simulated: `isAvailable` is true (`ISIM_SECURE_ENCLAVE=0`: false, like the Simulator); P-256 keys whose private part never leaves isim's store: `dataRepresentation` is the key sealed (AES-GCM) with this device data's key, so it only opens on the same device data and tampering is detected; `accessControl` with `.userPresence` / `.biometry*` / `.devicePasscode` asks for Face ID / Touch ID / the passcode on each use, or not when an `authenticationContext` already authenticated. Not hardware-backed: the device key is a file in the device data. Tested: SecurityTest, HelloAttest |
 | CommonCrypto (`CC_SHA*`, `CC_MD5`, `CCHmac`, `CCCrypt`/`CCCryptor`, `CCKeyDerivationPBKDF`, `CCRandomGenerateBytes`) | ✅ | ≤17 | in libSystem like iOS; contexts copyable; AES (ECB/CBC/CTR/CFB/OFB) and 3DES via the host's OpenSSL, other ciphers `kCCUnimplemented`. Known-answer tests |
 | Security: `SecRandomCopyBytes`, `SecCopyErrorMessageString` | ✅ | ≤17 | |
-| Security: `SecKey` (RSA 1024-8192, EC P-256/384/521: create, import/export in Apple's formats, sign/verify incl. PSS and RFC 4754, RSA PKCS#1/OAEP encryption, ECDH + X9.63 KDF, attributes) | ✅ | ≤17 | host OpenSSL; no Secure Enclave (`kSecAttrTokenIDSecureEnclave` fails with `errSecUnimplemented`); ECIES algorithms unsupported. Tested: SecurityTest (interoperates with CryptoKit) |
-| Security: certificates and trust (`SecCertificate`, `SecPolicy`, `SecTrust` create/anchors/verify date/evaluate (sync, async), chain, exceptions, `SecPKCS12Import`, `SecIdentity`) | 🟡 | ≤17 | host OpenSSL; system anchors are the host's CA store (Apple's trust policies — CT, key-size rules, revocation — are not applied); a URLSession challenge's trust holds the server's certificate chain (pinning; see Authentication challenges); `URLCredential(identity:certificates:persistence:)` for client certificates. Tested: SecurityTest (test CA, wildcard host, expired, self-signed, wrong password) |
-| DeviceCheck / App Attest | 🧩 | ≤17 | `isSupported` is false and calls fail with `DCError.featureUnsupported`, like the Simulator |
+| Security: `SecKey` (RSA 1024-8192, EC P-256/384/521: create, import/export in Apple's formats, sign/verify incl. PSS and RFC 4754, RSA PKCS#1/OAEP encryption, ECDH + X9.63 KDF, attributes) | ✅ | ≤17 | host OpenSSL; `kSecAttrTokenIDSecureEnclave` P-256 keys in the simulated Secure Enclave (not exportable, keychain items with `kSecAttrTokenID`, `kSecAttrAccessControl` asks for Face ID on use, `kSecUseAuthenticationContext`); ECIES algorithms unsupported. Tested: SecurityTest (interoperates with CryptoKit) |
+| Security: certificates and trust (`SecCertificate`, `SecPolicy`, `SecTrust` create/anchors/verify date/evaluate (sync, async), chain, exceptions, revocation (`SecPolicyCreateRevocation`, `SecTrustSetOCSPResponse`, `SecTrustSetNetworkFetchAllowed`), `SecTrustSetSignedCertificateTimestamps`, `SecPKCS12Import`, `SecIdentity`) | ✅ | ≤17 | chain building on the host's OpenSSL, then Apple's rules (adapted): SSL policies need RSA ≥ 2048 bits, no SHA-1, the host in subjectAltName, the serverAuth EKU and ≤ 825 days (issued from July 2019), and, for chains to a system root, ≤ 398 days (from September 2020) and Certificate Transparency (2 SCTs, embedded or given; counted, not checked against CT logs); OCSP revocation from stapled responses or the certificate's responder (`errSecCertificateRevoked`, soft-fail unless `kSecRevocationRequirePositiveResponse`: `errSecIncompleteCertRevocationCheck`); no CRL fetching. System anchors are the host's CA store, not Apple's. A URLSession challenge's trust holds the server's certificate chain (pinning; see Authentication challenges); `URLCredential(identity:certificates:persistence:)` for client certificates. Tested: SecurityTest (test CA, wildcard host, expired, self-signed, a certificate breaking each rule, OCSP good/revoked stapled and from a local responder, wrong password) |
+| DeviceCheck / App Attest (`DCDevice`, `DCAppAttestService`) | ✅ | ≤17 | adapted, local, no Apple servers (`ISIM_APP_ATTEST=0`: unsupported, like the Simulator). `generateToken`: an opaque token signed with the device data's key; `isim devicecheck validate\|query\|update TOKEN` plays Apple's DeviceCheck server (the two bits per device and app). App Attest in Apple's formats: keys in the simulated Secure Enclave, key id = SHA-256 of the public key, the attestation object (CBOR `apple-appattest`, authData with the app id hash, AAGUID `appattestdevelop` / `appattest` by the environment entitlement, COSE key; x5c certificate with the nonce extension 1.2.840.113635.100.8.2) and assertions (signature over the nonce, increasing counter); the chain ends at the device data's isim App Attest root (`isim appattest root`), not Apple's, so servers trusting Apple's root reject it; the receipt is a local placeholder. Tested: HelloAttest (verified with openssl) |
 
 ## Notifications & background work
 
