@@ -229,6 +229,13 @@ open class SKFieldNode: SKNode {
         let rm = max(_len(_sub(p, placement.0)) / _ptm, CGFloat(minimumRadius) / _ptm, 0.01)
         return CGFloat(strength) * (falloff != 0 ? 1 / pow(rm, CGFloat(falloff)) : 1)
     }
+    /// a magnetic field's turning rate times mass (kg rad/s) on a charge at a point, 0 outside its region: the force
+    /// s q (v.y, -v.x) turns the velocity clockwise at s q / m
+    func _magneticRate(at p: CGPoint, charge: CGFloat) -> CGFloat {
+        guard kind == .magnetic, regionContains(p) else { return 0 }
+        let rm = max(_len(_sub(p, placement.0)) / _ptm, CGFloat(minimumRadius) / _ptm, 0.01)
+        return CGFloat(strength) * charge * (falloff != 0 ? 1 / pow(rm, CGFloat(falloff)) : 1)
+    }
     /// field origin and rotation in scene space
     var placement: (CGPoint, CGFloat) {
         guard let p = parent else { return (position, zRotation) }

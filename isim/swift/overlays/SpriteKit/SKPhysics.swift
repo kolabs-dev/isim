@@ -686,17 +686,28 @@ open class SKPhysicsWorld: NSObject {
                 let ex = acting.filter { $0.isExclusive && $0.regionContains(b.com) }
                 if !ex.isEmpty { acting = ex }
                 // drag is applied implicitly (stable for light bodies): v / (1 + h c / m)
-                var drag: CGFloat = 0
+                // and a magnetic field turns the velocity exactly (its force is always across it; stepping it
+                // explicitly would make a light charged body speed up without bound)
+                var drag: CGFloat = 0, turn: CGFloat = 0
                 for fl in acting {
-                    if fl.kind == .drag { drag += fl._dragCoefficient(at: b.com) } else { f = _add(f, fl.force(on: b)) }
+                    switch fl.kind {
+                    case .drag: drag += fl._dragCoefficient(at: b.com)
+                    case .magnetic: turn += fl._magneticRate(at: b.com, charge: b.charge)
+                    default: f = _add(f, fl.force(on: b))
+                    }
                 }
                 if b.invMass > 0 { a = _add(a, _mul(f, b.invMass)) }
                 b.velocity.dx += a.x * h; b.velocity.dy += a.y * h
+                if turn != 0 && b.invMass > 0 {
+                    let w = -turn * b.invMass * h, c = cos(w), sn = sin(w)
+                    b.velocity = CGVector(dx: b.velocity.dx * c - b.velocity.dy * sn, dy: b.velocity.dx * sn + b.velocity.dy * c)
+                }
                 b.velocity.dx /= 1 + h * b.linearDamping; b.velocity.dy /= 1 + h * b.linearDamping
                 if drag > 0 && b.invMass > 0 { let k = 1 + h * drag * b.invMass; b.velocity.dx /= k; b.velocity.dy /= k }
                 if b.invI > 0 { b.angularVelocity += b.torque * b.invI * h }
                 b.angularVelocity /= 1 + h * b.angularDamping
-                if b.invMass == 0 { b.velocity = .zero }
+                if b.invMass == 0 || !(b.velocity.dx.isFinite && b.velocity.dy.isFinite) { b.velocity = .zero }
+                if !b.angularVelocity.isFinite { b.angularVelocity = 0 }
                 if b.invI == 0 && !(b.pinned && b.allowsRotation) { b.angularVelocity = 0 }
             }
         }
