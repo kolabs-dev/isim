@@ -668,17 +668,6 @@ extension UIDragItem {
     public func setNeedsDropPreviewUpdate() { print("isim: drop preview update requested") }
 }
 
-/// a drag that moves a window scene (iPadOS 26 windowing): the gesture other recognizers can require to fail. isim
-/// shows one window per scene, so a scene drag never starts.
-@available(iOS 26.0, *)
-@MainActor open class UIWindowSceneDragInteraction: NSObject, UIInteraction {
-    open private(set) weak var view: UIView?
-    public let gestureForFailureRelationships: UIGestureRecognizer = UIPanGestureRecognizer()
-    public override init() { super.init(); gestureForFailureRelationships.isEnabled = false }
-    open func willMove(to view: UIView?) {}
-    open func didMove(to view: UIView?) { self.view = view }
-}
-
 // MARK: - drop placeholders in table and collection views
 /// a row that shows while a dropped item's data loads (configured by cellUpdateHandler)
 @MainActor open class UITableViewPlaceholder: NSObject {
