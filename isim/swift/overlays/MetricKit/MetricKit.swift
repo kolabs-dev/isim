@@ -959,7 +959,8 @@ final class _MXRecorder: @unchecked Sendable {
         let dt = max(0, now - lastTick); lastTick = now
         cur.end = now
         cur.cpu = u[0] + u[1]; cur.peakKB = u[2]; cur.writes = u[3]
-        if cur.launchMs.isEmpty, u[5] > 0 { cur.launchMs = [u[5]] }
+        var launched = false
+        if cur.launchMs.isEmpty, u[5] > 0 { cur.launchMs = [u[5]]; launched = true }
         if cur.background {
             cur.bg += dt
             if isim_audio_active() != 0 { cur.bgAudio += dt }
@@ -974,7 +975,7 @@ final class _MXRecorder: @unchecked Sendable {
         readSignposts()
         readHangs()
         checkExceptions(now: now, cpu: u[0] + u[1], writes: u[3], launchMs: u[5])
-        if now - lastSave > 5 { save() }
+        if launched || now - lastSave >= 1 { save() }          // a crash loses at most a second
     }
     /// MetricKit's signposts from the log store: events and intervals on its log handles
     private func readSignposts() {
@@ -1089,10 +1090,16 @@ final class _MXRecorder: @unchecked Sendable {
     }
 
     // MARK: windows and saving
-    func takeNewDiagnostics() -> [_MXDiagData] { lock.lock(); defer { lock.unlock() }; let d = newDiags; newDiags = []; return d }
+    func takeNewDiagnostics() -> [_MXDiagData] {
+        lock.lock(); let d = newDiags; newDiags = []; lock.unlock()
+        if !d.isEmpty { save() }
+        return d
+    }
     func takeStartup() -> ([_MXPayloadData], [_MXDiagData]) {
-        lock.lock(); defer { lock.unlock() }
+        lock.lock()
         let r = (startupMetrics, startupDiags); startupMetrics = []; startupDiags = []
+        lock.unlock()
+        save()                                                // delivered: no longer pending
         return r
     }
     /// this run since the last delivery

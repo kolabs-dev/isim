@@ -1251,6 +1251,13 @@ static void write_crash_report(int sig, siginfo_t *si, ucontext_t *uc) {
     }
 }
 
+/* a crash report from here (the uncaught-exception path, which aborts with the default SIGABRT action) */
+void isim_write_crash_report_here(int sig) {
+    ucontext_t uc; getcontext(&uc);
+    siginfo_t si; memset(&si, 0, sizeof si); si.si_signo = sig;
+    write_crash_report(sig, &si, &uc);
+}
+
 static void install_crash_handler(void) {
     install_stack_dumper();
     if (getenv("ISIM_NO_CRASH_HANDLER")) return;

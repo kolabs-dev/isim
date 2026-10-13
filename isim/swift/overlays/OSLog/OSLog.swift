@@ -123,6 +123,10 @@ open class OSLogEntry: NSObject, @unchecked Sendable {
     @objc public let storeCategory: StoreCategory
     init(date: Date, message: String, store: StoreCategory) { self.date = date; composedMessage = message; storeCategory = store }
     open override var description: String { composedMessage }
+    /// for predicates (keys of macOS's log tool): the kind of entry ("logEvent", "signpostEvent", ...) and a log
+    /// message's type ("default", "info", "debug", "error", "fault"; "" for other entries)
+    @objc open var eventType: String { "logEvent" }
+    @objc open var messageType: String { "" }
 }
 
 open class OSLogEntryLog: OSLogEntry, OSLogEntryFromProcess, OSLogEntryWithPayload, @unchecked Sendable {
@@ -151,7 +155,7 @@ open class OSLogEntryLog: OSLogEntry, OSLogEntryFromProcess, OSLogEntryWithPaylo
     /// the message's pieces: each placeholder of the format with the text that stands for it in the message
     @objc public var components: [OSLogMessageComponent] { OSLogMessageComponent.split(format: formatString, message: composedMessage) }
     /// for predicates: "messageType" == "error" and the like, as on macOS's log tool
-    @objc public var messageType: String { ["undefined", "debug", "info", "default", "error", "fault"][level.rawValue] }
+    @objc open override var messageType: String { ["undefined", "debug", "info", "default", "error", "fault"][level.rawValue] }
 }
 
 open class OSLogEntrySignpost: OSLogEntry, OSLogEntryFromProcess, OSLogEntryWithPayload, @unchecked Sendable {
@@ -175,6 +179,7 @@ open class OSLogEntrySignpost: OSLogEntry, OSLogEntryFromProcess, OSLogEntryWith
         super.init(date: date, message: message, store: .longTermAuto)
     }
     @objc public var components: [OSLogMessageComponent] { OSLogMessageComponent.split(format: formatString, message: composedMessage) }
+    @objc open override var eventType: String { "signpostEvent" }
 }
 
 /// activities and boundaries are never recorded on isim (no os_activity); the classes exist for type checks

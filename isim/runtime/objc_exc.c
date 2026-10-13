@@ -404,6 +404,7 @@ __attribute__((noreturn)) static void terminate_uncaught(id obj) {
     if (uncaught_handler) uncaught_handler(obj);
     fflush(NULL);
     fprintf(stderr, "libc++abi: terminating due to uncaught exception of type %s\n", isNS ? "NSException" : cname);
+    void isim_write_crash_report_here(int sig); isim_write_crash_report_here(SIGABRT);   /* loader.c */
     signal(SIGABRT, SIG_DFL);
     abort();
 }

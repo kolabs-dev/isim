@@ -64,7 +64,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, MXMetricManagerSubs
     }
     func signposts() {
         let sp = OSSignposter(subsystem: subsystem, category: .pointsOfInterest)
-        sp.withIntervalSignpost("Load") { usleep(50_000) }
+        sp.withIntervalSignpost("Load") { _ = usleep(50_000) }
         let id = sp.makeSignpostID()
         let state = sp.beginInterval("Fetch", id: id, "url \("https://example.com", privacy: .public)")
         usleep(20_000)
@@ -90,7 +90,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, MXMetricManagerSubs
             let c = logs.first { $0.category == "c" }
             print("diag store c=\"\(c?.composedMessage ?? "-")\" legacy=\(logs.contains { $0.category == "legacy" && $0.composedMessage == "legacy value" })")
             let ns = try store.getEntries(matching: NSPredicate(format: "composedMessage CONTAINS %@", "nslog marker")).map { $0 }
-            let rev = try store.getEntries(with: .reverse, at: since, matching: NSPredicate(format: "subsystem == %@", subsystem)).map { $0 }
+            // reverse from the end (a position would be where the backward walk starts)
+            let rev = try store.getEntries(with: .reverse, matching: NSPredicate(format: "subsystem == %@", subsystem)).map { $0 }
             let errors = try store.getEntries(matching: NSPredicate(format: "subsystem == %@ AND messageType == %@", subsystem, "error")).map { $0 }
             print("diag store nslog=\(ns.count) reverse=\(rev.first?.date ?? .distantPast >= rev.last?.date ?? .distantFuture) errors=\(errors.count) pid=\(info?.processIdentifier == getpid())")
         } catch { print("diag store error \(error)") }

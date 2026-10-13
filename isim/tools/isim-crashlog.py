@@ -90,8 +90,8 @@ def show(path, as_json):
         print("\n".join(frame_lines(body["lastExceptionBacktrace"], images)))
     for i, th in enumerate(body.get("threads", [])):
         print()
-        q = f":  Dispatch queue: {th['queue']}" if th.get("queue") else ""
-        print(f"Thread {body.get('faultingThread', 0) if th.get('triggered') else i} Crashed{q}:" if th.get("triggered") else f"Thread {i}:")
+        q = f"::  Dispatch queue: {th['queue']}" if th.get("queue") else ":"
+        print(f"Thread {body.get('faultingThread', 0)} Crashed{q}" if th.get("triggered") else f"Thread {i}{q}")
         print("\n".join(frame_lines(th.get("frames", []), images)))
     print()
     print("Binary Images:")
