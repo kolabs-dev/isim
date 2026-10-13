@@ -42,6 +42,8 @@ extension UIPointerAccessory {
     public static func arrow(_ position: Position) -> UIPointerAccessory { __arrowAccessory(with: position) }
 }
 extension UIPointerAccessoryPosition {
+    /// the distance accessories sit from the pointer's edge by default
+    public static let defaultOffset: CGFloat = 8
     public static var top: Self { UIPointerAccessoryPositionTop }
     public static var topRight: Self { UIPointerAccessoryPositionTopRight }
     public static var right: Self { UIPointerAccessoryPositionRight }

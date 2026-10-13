@@ -290,9 +290,11 @@ public struct EnvironmentValues: CustomStringConvertible {
     /// changes with every write: equal revisions are equal environments (Subview placement)
     var _rev = 0
     nonisolated(unsafe) static var _nextRev = 0
+    /// the hosting view's traits (a UITraitCollection), which UITraitBridgedEnvironmentKey keys read (Extended.swift)
+    var _traits: AnyObject?
     public init() {}
     public subscript<K: EnvironmentKey>(key: K.Type) -> K.Value {
-        get { values[ObjectIdentifier(key)] as? K.Value ?? K.defaultValue }
+        get { values[ObjectIdentifier(key)] as? K.Value ?? _bridgedTraitValue(key, _traits) ?? K.defaultValue }
         set { values[ObjectIdentifier(key)] = newValue; EnvironmentValues._nextRev &+= 1; _rev = EnvironmentValues._nextRev }
     }
     public var description: String { "EnvironmentValues(\(values.count) values)" }

@@ -11,9 +11,6 @@ NS_ASSUME_NONNULL_BEGIN
 /* the behaviour a control takes; on iOS always the iPad style (the Mac style is for Mac Catalyst) */
 typedef NS_ENUM(NSUInteger, UIBehavioralStyle) { UIBehavioralStyleAutomatic = 0, UIBehavioralStylePad, UIBehavioralStyleMac } API_AVAILABLE(ios(15.0));
 /* the size of a bar item in a Mac Catalyst NSToolbar (not used on iOS) */
-typedef NS_ENUM(NSInteger, UINSToolbarItemPresentationSize) { UINSToolbarItemPresentationSizeUnspecified = -1, UINSToolbarItemPresentationSizeRegular = 0,
-    UINSToolbarItemPresentationSizeSmall = 1, UINSToolbarItemPresentationSizeLarge = 2 } API_AVAILABLE(ios(17.0));
-
 /* legacy images for landscape iPhone bars and the large content viewer, and image insets (stored: isim's bars use
    the image, laid out by the bar) */
 @interface UIBarItem (UIBarItemExtras)
@@ -111,9 +108,6 @@ typedef NS_ENUM(NSInteger, UINavigationItemBackButtonDisplayMode) {
     UINavigationItemBackButtonDisplayModeMinimal = 2,    /* the chevron alone */
 } NS_SWIFT_NAME(UINavigationItem.BackButtonDisplayMode) API_AVAILABLE(ios(14.0));
 /* iOS 27.2 (beta) title alignment values */
-typedef NS_ENUM(NSInteger, UINavigationItemTitleAlignment) { UINavigationItemTitleAlignmentAutomatic = 0, UINavigationItemTitleAlignmentCenter,
-    UINavigationItemTitleAlignmentLeading } NS_SWIFT_NAME(UINavigationItem.TitleAlignment) API_AVAILABLE(ios(27.2));
-
 @protocol UINavigationItemRenameDelegate;
 @interface UINavigationItem (UINavigationItemExtras)
 /* how the back button to the previous item reads (the previous item's mode, else this item's) */

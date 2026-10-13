@@ -265,6 +265,8 @@ final class _IsimTableDropCoordinator: UITableViewDropCoordinator {
     let tableProposal: UITableViewDropProposal
     let collectionProposal: UICollectionViewDropProposal
     let session: UIDropSession
+    weak var tableView: UITableView?
+    weak var collectionView: UICollectionView?
     init(items: [_IsimListDropItem], destination: IndexPath?, operation: UIDropOperation, session: UIDropSession) {
         listItems = items; destinationIndexPath = destination; self.session = session
         tableProposal = UITableViewDropProposal(operation: operation, intent: .insertAtDestinationIndexPath)
@@ -366,8 +368,9 @@ final class _IsimDragWindow: UIWindow {
 enum _IsimDropTarget {
     case interaction(UIDropInteraction)
     case list(UIScrollView)
-    var view: UIView? { switch self { case .interaction(let i): return i.view; case .list(let v): return v } }
-    var identity: AnyObject? { switch self { case .interaction(let i): return i; case .list(let v): return v } }
+    case text(UIView)                 // a text view or field (UITextDroppable)
+    var view: UIView? { switch self { case .interaction(let i): return i.view; case .list(let v): return v; case .text(let v): return v } }
+    var identity: AnyObject? { switch self { case .interaction(let i): return i; case .list(let v): return v; case .text(let v): return v } }
 }
 final class _IsimDragController {
     enum Source { case interaction(UIDragInteraction), list(UIView) }
@@ -382,6 +385,8 @@ final class _IsimDragController {
     var target: _IsimDropTarget?
     var operation: UIDropOperation = .cancel
     var listDestination: IndexPath?
+    var textProposal: UITextDropProposal?
+    var textTarget: UIView? { if case .text(let v) = target { return v }; return nil }
     weak var gapList: UIScrollView?                 // the list whose cells make room for the drop
     var gapDestination: IndexPath?
     weak var pinnedScroll: UIScrollView?
@@ -478,19 +483,24 @@ final class _IsimDragController {
     @MainActor func move(to p: CGPoint) {
         if let s = pinnedScroll, s.contentOffset != pinnedOffset { s.contentOffset = pinnedOffset }
         session.windowPoint = p
+        _IsimSpringLoading.update(at: p, in: session.window)
         preview?.center = CGPoint(x: p.x - grabOffset.x, y: p.y - grabOffset.y)
         if case .interaction(let i) = source { i.delegate?.dragInteraction(i, sessionDidMove: session) }
         let t = findTarget(at: p)
         if t?.identity !== target?.identity {
             if let old = target, case .interaction(let i) = old { i.delegate?.dropInteraction(i, sessionDidExit: session) }
+            if let old = target, case .text(let v) = old, let tv = v as? (UIView & UITextDroppable) { tv.textDropDelegate?.textDroppableView(tv, dropSessionDidExit: session) }
             target = t
             if let t, case .interaction(let i) = t { i.delegate?.dropInteraction(i, sessionDidEnter: session) }
+            if let t, case .text(let v) = t, let tv = v as? (UIView & UITextDroppable) { tv.textDropDelegate?.textDroppableView(tv, dropSessionDidEnter: session) }
         }
         operation = .cancel; listDestination = nil
         guard let t else { return }
         switch t {
         case .interaction(let i):
             operation = i.delegate?.dropInteraction(i, sessionDidUpdate: session).operation ?? .cancel
+        case .text(let v):
+            if let tv = v as? (UIView & UITextDroppable) { (operation, textProposal) = _IsimTextDrop.update(tv, session: session) }
         case .list(let lv):
             let lp = lv.convert(p, from: session.window)
             if let tv = lv as? UITableView, let d = tv.dropDelegate {
@@ -558,6 +568,7 @@ final class _IsimDragController {
             for x in v.interactions { if let d = x as? UIDropInteraction, d.delegate?.dropInteraction(d, canHandle: session) ?? false { found = .interaction(d) } }
             if let tv = v as? UITableView, let d = tv.dropDelegate, d.tableView(tv, canHandle: session) { found = .list(tv) }
             if let cv = v as? UICollectionView, let d = cv.dropDelegate, d.collectionView(cv, canHandle: session) { found = .list(cv) }
+            if _IsimTextDrop.accepts(v, session: session) { found = .text(v) }
             for s in v.subviews { visit(s) }
         }
         visit(w)
@@ -565,6 +576,7 @@ final class _IsimDragController {
     }
     @MainActor func end(at p: CGPoint, cancelled: Bool) {
         if !cancelled { move(to: p) }
+        _IsimSpringLoading.cancel()
         if let g = gapList {                                  // the cells go back before the data source changes
             UIView.performWithoutAnimation { for v in ((g as? UICollectionView)?.visibleCells ?? []) as [UIView] + ((g as? UITableView)?.visibleCells ?? []) { v.transform = .identity; v.alpha = 1 } }
             gapList = nil; gapDestination = nil
@@ -578,10 +590,13 @@ final class _IsimDragController {
                 print("isim: drop on \(type(of: i.view!)) (\(op == .move ? "move" : "copy"))")
                 i.delegate?.dropInteraction(i, performDrop: session)
                 i.delegate?.dropInteraction(i, concludeDrop: session)
+            case .text(let v):
+                if let tv = v as? (UIView & UITextDroppable) { _IsimTextDrop.perform(tv, session: session, proposal: textProposal) }
             case .list(let lv):
                 let local = sourceList === lv
                 let items = session.items.map { _IsimListDropItem(dragItem: $0, sourceIndexPath: local ? sourceIndexPath : nil, previewSize: preview?.bounds.size ?? .zero) }
                 let coordinator = _IsimTableDropCoordinator(items: items, destination: listDestination, operation: op, session: session)
+                coordinator.tableView = lv as? UITableView; coordinator.collectionView = lv as? UICollectionView
                 print("isim: drop on \(type(of: lv)) at \(listDestination.map { "\($0.section)/\($0.item)" } ?? "end")")
                 if let tv = lv as? UITableView, let d = tv.dropDelegate {
                     if local, op == .move, let s = sourceIndexPath, var dest = listDestination, let ds = tv.dataSource, ds.responds(to: #selector(UITableViewDataSource.tableView(_:moveRowAt:to:))) {
@@ -602,6 +617,7 @@ final class _IsimDragController {
             print("isim: drag cancelled")
         }
         if let t = target, case .interaction(let i) = t { i.delegate?.dropInteraction(i, sessionDidEnd: session) }
+        if let t = target, case .text(let v) = t, let tv = v as? (UIView & UITextDroppable) { tv.textDropDelegate?.textDroppableView(tv, dropSessionDidEnd: session) }
         if case .interaction(let i) = source { i.delegate?.dragInteraction(i, session: session, didEndWith: op) }
         if let tv = sourceList as? UITableView { tv.dragDelegate?.tableView(tv, dragSessionDidEnd: session) }
         let w = window
@@ -619,4 +635,157 @@ struct _IsimCollectionCoordinator: UICollectionViewDropCoordinator {
     var proposal: UICollectionViewDropProposal { base.collectionProposal }
     var session: UIDropSession { base.session }
     func drop(_ dragItem: UIDragItem, toItemAt indexPath: IndexPath) -> UIDragAnimating { _IsimDragAnimator() }
+}
+
+// MARK: - preview targets, link previews, drop preview updates (part 11 of #9)
+/// where a dropped item's preview lands (a container and a point in it, as UIPreviewTarget)
+@MainActor open class UIDragPreviewTarget: UIPreviewTarget {}
+extension UIDragPreview {
+    /// a preview of a link: its title (else the URL's host or path) in a rounded platter
+    public convenience init(for url: URL, title: String?) {
+        let label = UILabel()
+        label.text = title ?? url.host ?? url.absoluteString
+        label.font = .systemFont(ofSize: 15, weight: .semibold)
+        let platter = UIView(frame: CGRect(x: 0, y: 0, width: min(280, label.intrinsicContentSize.width + 24), height: 36))
+        platter.backgroundColor = .secondarySystemBackground
+        platter.layer.cornerRadius = 10
+        label.frame = platter.bounds.insetBy(dx: 12, dy: 0)
+        platter.addSubview(label)
+        platter.accessibilityIdentifier = "isim-drag-link-preview"
+        self.init(view: platter)
+    }
+    public convenience init(for url: URL) { self.init(for: url, title: nil) }
+}
+extension UITargetedDragPreview {
+    public convenience init(for url: URL, title: String?, target: UIDragPreviewTarget) {
+        let p = UIDragPreview(for: url, title: title)
+        self.init(view: p.view, parameters: p.parameters, target: target)
+    }
+    public convenience init(for url: URL, target: UIDragPreviewTarget) { self.init(for: url, title: nil, target: target) }
+}
+extension UIDragItem {
+    /// asks for the item's drop preview again (isim draws no drop previews: logged)
+    public func setNeedsDropPreviewUpdate() { print("isim: drop preview update requested") }
+}
+
+/// a drag that moves a window scene (iPadOS 26 windowing): the gesture other recognizers can require to fail. isim
+/// shows one window per scene, so a scene drag never starts.
+@available(iOS 26.0, *)
+@MainActor open class UIWindowSceneDragInteraction: NSObject, UIInteraction {
+    open private(set) weak var view: UIView?
+    public let gestureForFailureRelationships: UIGestureRecognizer = UIPanGestureRecognizer()
+    public override init() { super.init(); gestureForFailureRelationships.isEnabled = false }
+    open func willMove(to view: UIView?) {}
+    open func didMove(to view: UIView?) { self.view = view }
+}
+
+// MARK: - drop placeholders in table and collection views
+/// a row that shows while a dropped item's data loads (configured by cellUpdateHandler)
+@MainActor open class UITableViewPlaceholder: NSObject {
+    public let insertionIndexPath: IndexPath
+    public let reuseIdentifier: String
+    public let rowHeight: CGFloat
+    open var cellUpdateHandler: ((UITableViewCell) -> Void)?
+    public init(insertionIndexPath: IndexPath, reuseIdentifier: String, rowHeight: CGFloat) {
+        self.insertionIndexPath = insertionIndexPath; self.reuseIdentifier = reuseIdentifier; self.rowHeight = rowHeight
+    }
+}
+@MainActor open class UITableViewDropPlaceholder: UITableViewPlaceholder {
+    open var previewParametersProvider: ((UITableViewCell) -> UIDragPreviewParameters?)?
+}
+@MainActor open class UICollectionViewPlaceholder: NSObject {
+    public let insertionIndexPath: IndexPath
+    public let reuseIdentifier: String
+    open var cellUpdateHandler: ((UICollectionViewCell) -> Void)?
+    public init(insertionIndexPath: IndexPath, reuseIdentifier: String) { self.insertionIndexPath = insertionIndexPath; self.reuseIdentifier = reuseIdentifier }
+}
+@MainActor open class UICollectionViewDropPlaceholder: UICollectionViewPlaceholder {
+    open var previewParametersProvider: ((UICollectionViewCell) -> UIDragPreviewParameters?)?
+}
+@MainActor public protocol UITableViewDropPlaceholderContext: UIDragAnimating {
+    var dragItem: UIDragItem { get }
+    func commitInsertion(dataSourceUpdates: (IndexPath) -> Void) -> Bool
+    func deletePlaceholder() -> Bool
+}
+@MainActor public protocol UICollectionViewDropPlaceholderContext: UIDragAnimating {
+    var dragItem: UIDragItem { get }
+    func commitInsertion(dataSourceUpdates: (IndexPath) -> Void) -> Bool
+    func deletePlaceholder() -> Bool
+    func setNeedsCellUpdate()
+}
+/// adapted: the placeholder is a cell laid over the list at its index path, the later cells moved aside, until the
+/// insertion is committed (the data source updates, the list reloads) or the placeholder deleted
+@MainActor final class _IsimPlaceholderContext: NSObject, @preconcurrency UITableViewDropPlaceholderContext, @preconcurrency UICollectionViewDropPlaceholderContext {
+    let dragItem: UIDragItem
+    weak var list: UIScrollView?
+    let indexPath: IndexPath
+    var cell: UIView?
+    var moved: [UIView] = []
+    var update: (() -> Void)?
+    var done = false
+    let animator = _IsimDragAnimator()
+    init(item: UIDragItem, list: UIScrollView, indexPath: IndexPath) { dragItem = item; self.list = list; self.indexPath = indexPath }
+    func addAnimations(_ a: @escaping () -> Void) { animator.addAnimations(a) }
+    func addCompletion(_ c: @escaping (UIViewAnimatingPosition) -> Void) { animator.addCompletion(c) }
+    func show(cell c: UIView, frame: CGRect, shift: CGPoint, later: [UIView]) {
+        cell = c; c.frame = frame; c.accessibilityIdentifier = c.accessibilityIdentifier ?? "isim-drop-placeholder"
+        list?.addSubview(c)
+        moved = later
+        for v in later { v.transform = CGAffineTransform(translationX: shift.x, y: shift.y) }
+        update?()
+        print("isim: drop placeholder at \(indexPath.section)/\(indexPath.item)")
+        animator.run()
+    }
+    private func remove() { cell?.removeFromSuperview(); cell = nil; for v in moved { v.transform = .identity }; moved = [] }
+    func commitInsertion(dataSourceUpdates: (IndexPath) -> Void) -> Bool {
+        guard !done else { return false }
+        done = true; remove()
+        dataSourceUpdates(indexPath)
+        (list as? UITableView)?.reloadData(); (list as? UICollectionView)?.reloadData()
+        print("isim: drop placeholder committed at \(indexPath.section)/\(indexPath.item)")
+        return true
+    }
+    func deletePlaceholder() -> Bool {
+        guard !done else { return false }
+        done = true; remove(); print("isim: drop placeholder deleted"); return true
+    }
+    func setNeedsCellUpdate() { update?() }
+}
+extension UITableViewDropCoordinator {
+    /// drops the item into a row (onto its content); isim animates nothing
+    @discardableResult public func drop(_ dragItem: UIDragItem, intoRowAt indexPath: IndexPath, rect: CGRect) -> UIDragAnimating { _IsimDragAnimator() }
+    @discardableResult public func drop(_ dragItem: UIDragItem, to target: UIDragPreviewTarget) -> UIDragAnimating { _IsimDragAnimator() }
+    /// shows a placeholder row where the item will go
+    @MainActor @discardableResult public func drop(_ dragItem: UIDragItem, to placeholder: UITableViewDropPlaceholder) -> UITableViewDropPlaceholderContext {
+        let tv = (self as? _IsimTableDropCoordinator)?.tableView
+        let ctx = _IsimPlaceholderContext(item: dragItem, list: tv ?? UIScrollView(), indexPath: placeholder.insertionIndexPath)
+        guard let tv else { return ctx }
+        let cell = tv.dequeueReusableCell(withIdentifier: placeholder.reuseIdentifier) ?? UITableViewCell(style: .default, reuseIdentifier: placeholder.reuseIdentifier)
+        ctx.update = { [weak cell] in if let c = cell { placeholder.cellUpdateHandler?(c) } }
+        let ip = placeholder.insertionIndexPath
+        let rows = tv.numberOfRows(inSection: ip.section)
+        let y = ip.row < rows ? tv.rectForRow(at: ip).minY : (rows > 0 ? tv.rectForRow(at: IndexPath(row: rows - 1, section: ip.section)).maxY : 0)
+        let later = tv.visibleCells.filter { c in (tv.indexPath(for: c).map { $0.section == ip.section && $0.row >= ip.row } ?? false) }
+        ctx.show(cell: cell, frame: CGRect(x: 0, y: y, width: tv.bounds.width, height: placeholder.rowHeight), shift: CGPoint(x: 0, y: placeholder.rowHeight), later: later)
+        return ctx
+    }
+}
+extension UICollectionViewDropCoordinator {
+    @discardableResult public func drop(_ dragItem: UIDragItem, intoItemAt indexPath: IndexPath, rect: CGRect) -> UIDragAnimating { _IsimDragAnimator() }
+    @discardableResult public func drop(_ dragItem: UIDragItem, to target: UIDragPreviewTarget) -> UIDragAnimating { _IsimDragAnimator() }
+    @MainActor @discardableResult public func drop(_ dragItem: UIDragItem, to placeholder: UICollectionViewDropPlaceholder) -> UICollectionViewDropPlaceholderContext {
+        let cv = (self as? _IsimCollectionCoordinator)?.base.collectionView
+        let ctx = _IsimPlaceholderContext(item: dragItem, list: cv ?? UIScrollView(), indexPath: placeholder.insertionIndexPath)
+        guard let cv else { return ctx }
+        let ip = placeholder.insertionIndexPath
+        let n = cv.numberOfItems(inSection: ip.section)
+        let at = ip.item < n ? cv.layoutAttributesForItem(at: ip) : (n > 0 ? cv.layoutAttributesForItem(at: IndexPath(item: n - 1, section: ip.section)) : nil)
+        var frame = at?.frame ?? CGRect(x: 0, y: 0, width: 50, height: 50)
+        if ip.item >= n, n > 0 { frame.origin.x += frame.width + 10 }
+        let cell = UICollectionViewCell(frame: frame)
+        ctx.update = { [weak cell] in if let c = cell { placeholder.cellUpdateHandler?(c) } }
+        let later = cv.visibleCells.filter { c in (cv.indexPath(for: c).map { $0.section == ip.section && $0.item >= ip.item } ?? false) }
+        ctx.show(cell: cell, frame: frame, shift: CGPoint(x: frame.width + 10, y: 0), later: later)
+        return ctx
+    }
 }

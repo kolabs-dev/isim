@@ -105,9 +105,6 @@ typedef NS_ENUM(NSInteger, UIImageResizingMode) { UIImageResizingModeTile = 0, U
 @end
 UIKIT_EXTERN NSData *_Nullable UIImagePNGRepresentation(UIImage *image) NS_SWIFT_NAME(UIImage.pngData(self:));
 UIKIT_EXTERN NSData *_Nullable UIImageJPEGRepresentation(UIImage *image, CGFloat compressionQuality) NS_SWIFT_NAME(UIImage.jpegData(self:compressionQuality:));
-typedef NS_ENUM(NSInteger, UIImageDynamicRange) {
-    UIImageDynamicRangeUnspecified = -1, UIImageDynamicRangeStandard = 0, UIImageDynamicRangeConstrainedHigh = 1, UIImageDynamicRangeHigh = 2
-} NS_SWIFT_NAME(UIImage.DynamicRange) API_AVAILABLE(ios(17.0));
 /* symbol rendering (iOS 26): gradients are drawn flat in isim; variable values are drawn by colour */
 typedef NS_ENUM(NSInteger, UIImageSymbolColorRenderingMode) {
     UIImageSymbolColorRenderingModeAutomatic = 0, UIImageSymbolColorRenderingModeFlat, UIImageSymbolColorRenderingModeGradient,

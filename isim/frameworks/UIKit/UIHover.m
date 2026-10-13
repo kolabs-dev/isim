@@ -500,6 +500,14 @@ static void update_pointer(CGPoint p, UIView *hit, BOOL exited) {
     }
     UIPointerRegion *region = nil;
     UIPointerStyle *style = nil;
+    extern UIPointerStyle *isim_ui_hover_pointer_style(UIView *v);      /* UIHoverStyle.m */
+    for (UIView *v = exited || target ? nil : hit; v; v = v.superview) {       /* a view's hoverStyle (iOS 17) */
+        UIPointerStyle *hs = isim_ui_hover_pointer_style(v);
+        if (!hs) continue;
+        target = v; style = hs;
+        region = [UIPointerRegion regionWithRect:v.bounds identifier:@"isim.hoverStyle"];
+        break;
+    }
     if (!target && !exited) {                                   /* editable text: the I-beam, as tall as a line of its font */
         for (UIView *v = hit; v; v = v.superview) {
             BOOL editable = ([v isKindOfClass:[UITextField class]] && ((UITextField *)v).enabled) || ([v isKindOfClass:[UITextView class]] && ((UITextView *)v).editable);

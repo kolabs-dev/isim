@@ -47,12 +47,74 @@ extension UITraitListEnvironment: UITraitDefinition { public static var defaultV
 extension UITraitTabAccessoryEnvironment: UITraitDefinition { public static var defaultValue: UITabAccessory.Environment { .unspecified } }
 @available(iOS 17.0, *)
 extension UITraitSplitViewControllerLayoutEnvironment: UITraitDefinition { public static var defaultValue: UISplitViewController.LayoutEnvironment { .none } }
+@available(iOS 17.0, *)
+extension UITraitImageDynamicRange: UITraitDefinition { public static var defaultValue: UIImage.DynamicRange { .unspecified } }
+@available(iOS 17.0, *)
+extension UITraitTypesettingLanguage: UITraitDefinition { public static var defaultValue: Locale.Language? { nil } }
+@available(iOS 17.0, *)
+extension UITraitSceneCaptureState: UITraitDefinition { public static var defaultValue: UISceneCaptureState { .unspecified } }
+@available(iOS 17.0, *)
+extension UITraitToolbarItemPresentationSize: UITraitDefinition { public static var defaultValue: UINSToolbarItemPresentationSize { .unspecified } }
+@available(iOS 26.0, *)
+extension UITraitHDRHeadroomUsageLimit: UITraitDefinition { public static var defaultValue: UIHDRHeadroomUsageLimit { .unspecified } }
+@available(iOS 26.0, *)
+extension UITraitResolvesNaturalAlignmentWithBaseWritingDirection: UITraitDefinition { public static var defaultValue: Bool { false } }
+@available(iOS 26.0, *)
+extension UITraitSystemPrefersReducedResourceUsage: UITraitDefinition { public static var defaultValue: Bool { false } }
+@available(iOS 27.2, *)
+extension UITraitNavigationTitleAlignment: UITraitDefinition { public static var defaultValue: UINavigationItem.TitleAlignment { .automatic } }
+
+// the typesetting language as a Locale.Language (stored as its identifier)
+@available(iOS 17.0, *)
+extension UITraitCollection {
+    public var typesettingLanguage: Locale.Language? { __typesettingLanguage.map { Locale.Language(identifier: $0) } }
+    public convenience init(typesettingLanguage: Locale.Language) { self.init(traitsFrom: [UITraitCollection.__withTypesettingLanguage(typesettingLanguage.minimalIdentifier)]) }
+    /// the system traits whose values differ from another collection's (custom traits: those used with this process)
+    public func changedTraits(from traitCollection: UITraitCollection?) -> [UITrait] {
+        _isim_changedTraitIdentifiers(from: traitCollection).compactMap { _isimTraitTypes[$0 as String] }
+    }
+    public typealias TraitMutations = (inout any UIMutableTraits) -> Void
+}
+@available(iOS 17.0, *)
+extension UIMutableTraits {
+    public var typesettingLanguage: Locale.Language? {
+        get { __typesettingLanguage.map { Locale.Language(identifier: $0) } }
+        set { __typesettingLanguage = newValue?.minimalIdentifier }
+    }
+}
+/// the trait types by storage key (system traits, and Swift traits once used)
+nonisolated(unsafe) var _isimTraitTypes: [String: UITrait] = {
+    var d: [String: UITrait] = [:]
+    var system: [UITrait] = [UITraitUserInterfaceStyle.self, UITraitHorizontalSizeClass.self, UITraitVerticalSizeClass.self, UITraitUserInterfaceIdiom.self,
+        UITraitDisplayScale.self, UITraitLayoutDirection.self, UITraitForceTouchCapability.self, UITraitPreferredContentSizeCategory.self, UITraitDisplayGamut.self,
+        UITraitAccessibilityContrast.self, UITraitUserInterfaceLevel.self, UITraitLegibilityWeight.self, UITraitActiveAppearance.self,
+        UITraitSplitViewControllerLayoutEnvironment.self, UITraitImageDynamicRange.self, UITraitTypesettingLanguage.self,
+        UITraitSceneCaptureState.self, UITraitToolbarItemPresentationSize.self]
+    if #available(iOS 18.0, *) { system.append(UITraitListEnvironment.self) }
+    if #available(iOS 26.0, *) {
+        system += [UITraitTabAccessoryEnvironment.self, UITraitHDRHeadroomUsageLimit.self, UITraitResolvesNaturalAlignmentWithBaseWritingDirection.self,
+                   UITraitSystemPrefersReducedResourceUsage.self]
+    }
+    if #available(iOS 27.2, *) { system.append(UITraitNavigationTitleAlignment.self) }
+    for t in system { if let c = t as? NSObject.Type { d[UITraitCollection._isim_identifier(forTrait: c)] = t } }
+    return d
+}()
+/// what trait change registrations hand their handlers (the environment and its previous traits)
+@available(iOS 17.0, *)
+public protocol UITraitChangeObservable {
+    typealias TraitChangeHandler<TraitEnvironment: UITraitEnvironment> = (TraitEnvironment, UITraitCollection) -> Void
+}
+@available(iOS 17.0, *) extension UIView: UITraitChangeObservable {}
+@available(iOS 17.0, *) extension UIViewController: UITraitChangeObservable {}
+@available(iOS 17.0, *) extension UIWindowScene: UITraitChangeObservable {}
+@available(iOS 17.0, *) extension UIPresentationController: UITraitChangeObservable {}
 
 // MARK: - Bridging trait keys and values
 /// the key Objective-C stores a trait under: the class's identifier for trait classes, the Swift identifier otherwise
 @usableFromInline internal func _isimTraitKey(_ t: any UITraitDefinition.Type) -> String {
-    if let c = t as? AnyClass { return UITraitCollection._isim_identifier(forTrait: c) }
+    if let c = t as? NSObject.Type { return UITraitCollection._isim_identifier(forTrait: c) }
     UITraitCollection._isim_registerTraitIdentifier(t.identifier, affectsColorAppearance: t.affectsColorAppearance)
+    if _isimTraitTypes[t.identifier] == nil { _isimTraitTypes[t.identifier] = t }
     return t.identifier
 }
 /// what registrations pass to Objective-C: the traits' storage keys
@@ -101,17 +163,41 @@ func _isimTraitNumber(_ v: Any) -> NSNumber? {
     }
     return _IsimTraitBox(v, number: _isimTraitNumber(v))
 }
-@usableFromInline internal func _isimUnboxTrait<V>(_ o: Any?, _ fallback: V) -> V {
+/// the system traits' value types (imported NS_ENUMs: their RawRepresentable conformance is not found by dynamic casts)
+nonisolated(unsafe) let _isimSystemEnums: [ObjectIdentifier: (Int) -> Any?] = {
+    var d: [ObjectIdentifier: (Int) -> Any?] = [:]
+    func add<E: RawRepresentable>(_ t: E.Type) where E.RawValue: BinaryInteger { d[ObjectIdentifier(t)] = { (i: Int) in E(rawValue: E.RawValue(truncatingIfNeeded: i)) } }
+    add(UIUserInterfaceStyle.self); add(UIUserInterfaceSizeClass.self); add(UIUserInterfaceIdiom.self); add(UITraitEnvironmentLayoutDirection.self)
+    add(UIForceTouchCapability.self); add(UIDisplayGamut.self); add(UIAccessibilityContrast.self); add(UIUserInterfaceLevel.self)
+    add(UILegibilityWeight.self); add(UIUserInterfaceActiveAppearance.self)
+    add(UISplitViewController.LayoutEnvironment.self); add(UIImage.DynamicRange.self); add(UISceneCaptureState.self)
+    add(UINSToolbarItemPresentationSize.self)
+    if #available(iOS 18.0, *) { add(UIListEnvironment.self) }
+    if #available(iOS 26.0, *) { add(UITabAccessory.Environment.self); add(UIHDRHeadroomUsageLimit.self) }
+    if #available(iOS 27.2, *) { add(UINavigationItem.TitleAlignment.self) }
+    return d
+}()
+/// an Int-backed enum from its number (imported NS_ENUMs and Swift enums)
+func _isimEnum<R: RawRepresentable>(_ t: R.Type, _ n: NSNumber) -> R? {
+    if let raw = n.integerValue as? R.RawValue { return R(rawValue: raw) }
+    if let raw = n.uintValue as? R.RawValue { return R(rawValue: raw) }
+    return nil
+}
+/// (the two-argument form, kept for apps built with earlier releases)
+@usableFromInline internal func _isimUnboxTrait<V>(_ o: Any?, _ fallback: V) -> V { _isimUnboxTrait(o, fallback, system: false) }
+@usableFromInline internal func _isimUnboxTrait<V>(_ o: Any?, _ fallback: V, system: Bool) -> V {
     guard let o else { return fallback }
     if o is NSNull { if let O = V.self as? _IsimOptionalTrait.Type, let none = O._isimNone as? V { return none }; return fallback }
     if let b = o as? _IsimTraitBox { return b.value as? V ?? fallback }
     if let n = o as? NSNumber {
         if V.self == CGFloat.self { return CGFloat(n.doubleValue) as! V }
         if V.self == Double.self { return n.doubleValue as! V }
-        if V.self == Int.self { return n.intValue as! V }
+        if V.self == Int.self { return n.integerValue as! V }
         if V.self == Bool.self { return n.boolValue as! V }
         // imported Int-backed enums (the system traits' values)
-        if V.self is any RawRepresentable.Type && MemoryLayout<V>.size == MemoryLayout<Int>.size && _isPOD(V.self) { return unsafeBitCast(n.intValue, to: V.self) }
+        if let r = V.self as? any RawRepresentable.Type, let v = _isimEnum(r, n) as? V { return v }
+        // the system traits' imported NS_ENUMs (their RawRepresentable conformance is not found dynamically)
+        if system, let make = _isimSystemEnums[ObjectIdentifier(V.self)], let v = make(n.integerValue) as? V { return v }
     }
     if let s = o as? NSString {
         if V.self == UIContentSizeCategory.self { return UIContentSizeCategory(rawValue: s as String) as! V }
@@ -126,7 +212,8 @@ func _isimTraitNumber(_ v: Any) -> NSNumber? {
 extension UITraitCollection {
     /// the trait's value, or its default when this collection does not specify it
     public subscript<T: UITraitDefinition>(trait: T.Type) -> T.Value {
-        _isimUnboxTrait(_isim_object(forTraitIdentifier: _isimTraitKey(trait)), T.defaultValue)
+        let o = _isim_object(forTraitIdentifier: _isimTraitKey(trait))
+        return _isimUnboxTrait(o, T.defaultValue, system: trait is NSObject.Type)
     }
     public convenience init(mutations: (inout any UIMutableTraits) -> Void) {
         self.init(traitsFrom: [UITraitCollection._isim_traitCollection(traits: { m in var mm: any UIMutableTraits = m; mutations(&mm) })])
@@ -145,8 +232,8 @@ extension UITraitCollection {
 @available(iOS 17.0, *)
 extension UIMutableTraits {
     public subscript<T: UITraitDefinition>(trait: T.Type) -> T.Value {
-        get { _isimUnboxTrait(_isim_object(forTraitIdentifier: _isimTraitKey(trait)), T.defaultValue) }
-        set { _isim_setObject(_isimBoxTrait(newValue, system: trait is AnyClass), forTraitIdentifier: _isimTraitKey(trait)) }
+        get { _isimUnboxTrait(_isim_object(forTraitIdentifier: _isimTraitKey(trait)), T.defaultValue, system: trait is NSObject.Type) }
+        set { _isim_setObject(_isimBoxTrait(newValue, system: trait is NSObject.Type), forTraitIdentifier: _isimTraitKey(trait)) }
     }
 }
 @available(iOS 17.0, *)

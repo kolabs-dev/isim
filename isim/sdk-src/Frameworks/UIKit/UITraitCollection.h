@@ -26,6 +26,18 @@ typedef NS_ENUM(NSInteger, UITabAccessoryEnvironment) { UITabAccessoryEnvironmen
     UITabAccessoryEnvironmentRegular = 2, UITabAccessoryEnvironmentInline = 3 } NS_SWIFT_NAME(UITabAccessory.Environment) API_AVAILABLE(ios(26.0));
 typedef NS_ENUM(NSInteger, UISplitViewControllerLayoutEnvironment) { UISplitViewControllerLayoutEnvironmentNone = 0, UISplitViewControllerLayoutEnvironmentExpanded,
     UISplitViewControllerLayoutEnvironmentCollapsed } NS_SWIFT_NAME(UISplitViewController.LayoutEnvironment) API_AVAILABLE(ios(17.0));
+@class UIImage, UINavigationItem, UIImageConfiguration;
+/* trait values whose types belong to images, views and navigation items */
+typedef NS_ENUM(NSInteger, UIImageDynamicRange) {
+    UIImageDynamicRangeUnspecified = -1, UIImageDynamicRangeStandard = 0, UIImageDynamicRangeConstrainedHigh = 1, UIImageDynamicRangeHigh = 2
+} NS_SWIFT_NAME(UIImage.DynamicRange) API_AVAILABLE(ios(17.0));
+typedef NS_ENUM(NSInteger, UIHDRHeadroomUsageLimit) {
+    UIHDRHeadroomUsageLimitUnspecified = -1, UIHDRHeadroomUsageLimitActive = 0, UIHDRHeadroomUsageLimitInactive = 1,
+} API_AVAILABLE(ios(26.0));
+typedef NS_ENUM(NSInteger, UINSToolbarItemPresentationSize) { UINSToolbarItemPresentationSizeUnspecified = -1, UINSToolbarItemPresentationSizeRegular = 0,
+    UINSToolbarItemPresentationSizeSmall = 1, UINSToolbarItemPresentationSizeLarge = 2 } API_AVAILABLE(ios(17.0));
+typedef NS_ENUM(NSInteger, UINavigationItemTitleAlignment) { UINavigationItemTitleAlignmentAutomatic = 0, UINavigationItemTitleAlignmentCenter,
+    UINavigationItemTitleAlignmentLeading } NS_SWIFT_NAME(UINavigationItem.TitleAlignment) API_AVAILABLE(ios(27.2));
 typedef NSString *UIContentSizeCategory NS_TYPED_ENUM;
 typedef NS_ENUM(NSInteger, UIAccessibilityContrast) { UIAccessibilityContrastUnspecified = -1, UIAccessibilityContrastNormal, UIAccessibilityContrastHigh };
 typedef NS_ENUM(NSInteger, UILegibilityWeight) { UILegibilityWeightUnspecified = -1, UILegibilityWeightRegular, UILegibilityWeightBold };
@@ -69,6 +81,18 @@ API_AVAILABLE(ios(17.0)) @interface UITraitActiveAppearance : NSObject <UITraitD
 API_AVAILABLE(ios(18.0)) @interface UITraitListEnvironment : NSObject <UITraitDefinition> @end
 API_AVAILABLE(ios(26.0)) @interface UITraitTabAccessoryEnvironment : NSObject <UITraitDefinition> @end
 API_AVAILABLE(ios(17.0)) @interface UITraitSplitViewControllerLayoutEnvironment : NSObject <UITraitDefinition> @end
+API_AVAILABLE(ios(17.0)) @interface UITraitImageDynamicRange : NSObject <UITraitDefinition> @end
+API_AVAILABLE(ios(17.0)) @interface UITraitTypesettingLanguage : NSObject <UITraitDefinition> @end
+API_AVAILABLE(ios(17.0)) @interface UITraitSceneCaptureState : NSObject <UITraitDefinition> @end
+API_AVAILABLE(ios(17.0)) @interface UITraitToolbarItemPresentationSize : NSObject <UITraitDefinition> @end
+API_AVAILABLE(ios(26.0)) @interface UITraitHDRHeadroomUsageLimit : NSObject <UITraitDefinition> @end
+API_AVAILABLE(ios(26.0)) @interface UITraitResolvesNaturalAlignmentWithBaseWritingDirection : NSObject <UITraitDefinition> @end
+API_AVAILABLE(ios(26.0)) @interface UITraitSystemPrefersReducedResourceUsage : NSObject <UITraitDefinition> @end
+API_AVAILABLE(ios(27.2)) @interface UITraitNavigationTitleAlignment : NSObject <UITraitDefinition> @end
+/* whether the scene is being captured: mirrored or recorded (isim: inactive) */
+typedef NS_ENUM(NSInteger, UISceneCaptureState) {
+    UISceneCaptureStateUnspecified = -1, UISceneCaptureStateInactive = 0, UISceneCaptureStateActive = 1,
+} API_AVAILABLE(ios(17.0));
 
 /* writable traits: the block of +traitCollectionWithTraits: and traitOverrides */
 NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.0))
@@ -91,6 +115,14 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.0))
 @property (nonatomic) UIUserInterfaceActiveAppearance activeAppearance;
 @property (nonatomic) UITabAccessoryEnvironment tabAccessoryEnvironment API_AVAILABLE(ios(26.0));
 @property (nonatomic) UISplitViewControllerLayoutEnvironment splitViewControllerLayoutEnvironment API_AVAILABLE(ios(17.0));
+@property (nonatomic) UIListEnvironment listEnvironment API_AVAILABLE(ios(18.0));
+@property (nonatomic) UIImageDynamicRange imageDynamicRange API_AVAILABLE(ios(17.0));
+@property (nonatomic, copy, nullable) NSString *typesettingLanguage API_AVAILABLE(ios(17.0)) NS_REFINED_FOR_SWIFT;
+@property (nonatomic) UISceneCaptureState sceneCaptureState API_AVAILABLE(ios(17.0));
+@property (nonatomic) UINSToolbarItemPresentationSize toolbarItemPresentationSize API_AVAILABLE(ios(17.0));
+@property (nonatomic) UIHDRHeadroomUsageLimit hdrHeadroomUsageLimit NS_SWIFT_NAME(headroomUsageLimit) API_AVAILABLE(ios(26.0));
+@property (nonatomic) BOOL resolvesNaturalAlignmentWithBaseWritingDirection API_AVAILABLE(ios(26.0));
+@property (nonatomic) UINavigationItemTitleAlignment navigationTitleAlignment API_AVAILABLE(ios(27.2));
 /* isim: storage for Swift custom traits (keyed by the trait's identifier); used by the UIKit overlay */
 - (void)_isim_setObject:(nullable id)object forTraitIdentifier:(NSString *)identifier;
 - (nullable id)_isim_objectForTraitIdentifier:(NSString *)identifier;
@@ -122,6 +154,26 @@ typedef NS_ENUM(NSInteger, UIVerticalBarEdge) { UIVerticalBarEdgeUnspecified = 0
 @property (nonatomic, readonly) UITabAccessoryEnvironment tabAccessoryEnvironment API_AVAILABLE(ios(26.0));
 /* inside a split view controller's columns: expanded (columns side by side) or collapsed (one stack); else none */
 @property (nonatomic, readonly) UISplitViewControllerLayoutEnvironment splitViewControllerLayoutEnvironment API_AVAILABLE(ios(17.0));
+/* HDR (isim draws standard dynamic range: unspecified unless set), the typesetting language, capture state (isim:
+   inactive), the toolbar item size (Mac Catalyst), natural alignment, reduced resources, the navigation title's alignment */
+@property (nonatomic, readonly) UIImageDynamicRange imageDynamicRange API_AVAILABLE(ios(17.0));
+@property (nonatomic, readonly, copy, nullable) NSString *typesettingLanguage API_AVAILABLE(ios(17.0)) NS_REFINED_FOR_SWIFT;
+@property (nonatomic, readonly) UISceneCaptureState sceneCaptureState API_AVAILABLE(ios(17.0));
+@property (nonatomic, readonly) UINSToolbarItemPresentationSize toolbarItemPresentationSize API_AVAILABLE(ios(17.0));
+@property (nonatomic, readonly) UIHDRHeadroomUsageLimit hdrHeadroomUsageLimit API_AVAILABLE(ios(26.0));
+@property (nonatomic, readonly) BOOL resolvesNaturalAlignmentWithBaseWritingDirection API_AVAILABLE(ios(26.0));
+@property (nonatomic, readonly) BOOL systemPrefersReducedResourceUsage API_AVAILABLE(ios(26.0));
+@property (nonatomic, readonly) UINavigationItemTitleAlignment navigationTitleAlignment API_AVAILABLE(ios(27.2));
+/* an image configuration with these traits */
+@property (nonatomic, readonly, strong) UIImageConfiguration *imageConfiguration API_AVAILABLE(ios(13.0));
++ (UITraitCollection *)traitCollectionWithForceTouchCapability:(UIForceTouchCapability)capability;
++ (UITraitCollection *)traitCollectionWithListEnvironment:(UIListEnvironment)listEnvironment API_AVAILABLE(ios(18.0));
++ (UITraitCollection *)traitCollectionWithTabAccessoryEnvironment:(UITabAccessoryEnvironment)environment API_AVAILABLE(ios(26.0));
++ (UITraitCollection *)traitCollectionWithImageDynamicRange:(UIImageDynamicRange)imageDynamicRange API_AVAILABLE(ios(17.0));
++ (UITraitCollection *)traitCollectionWithTypesettingLanguage:(NSString *)language API_AVAILABLE(ios(17.0)) NS_SWIFT_NAME(__withTypesettingLanguage(_:));
++ (UITraitCollection *)traitCollectionWithSceneCaptureState:(UISceneCaptureState)sceneCaptureState API_AVAILABLE(ios(17.0));
++ (UITraitCollection *)traitCollectionWithToolbarItemPresentationSize:(UINSToolbarItemPresentationSize)size API_AVAILABLE(ios(17.0));
++ (UITraitCollection *)traitCollectionWithHDRHeadroomUsageLimit:(UIHDRHeadroomUsageLimit)limit API_AVAILABLE(ios(26.0));
 + (UITraitCollection *)traitCollectionWithUserInterfaceStyle:(UIUserInterfaceStyle)style;
 + (UITraitCollection *)traitCollectionWithUserInterfaceIdiom:(UIUserInterfaceIdiom)idiom;
 + (UITraitCollection *)traitCollectionWithHorizontalSizeClass:(UIUserInterfaceSizeClass)horizontalSizeClass;

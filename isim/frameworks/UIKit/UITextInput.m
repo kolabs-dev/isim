@@ -285,6 +285,9 @@ void isim_ti_cut(id<IsimEditableText> v) {
     replace(v, [v _isim_selectedRange], @"");
 }
 void isim_ti_paste(id<IsimEditableText> v) {
+    /* a paste delegate (UITextPasteConfigurationSupporting, the UIKit overlay) takes over */
+    SEL hook = NSSelectorFromString(@"_isim_textPaste");
+    if ([(id)v respondsToSelector:hook] && ((BOOL (*)(id, SEL))objc_msgSend)(v, hook)) return;
     NSString *t = UIPasteboard.generalPasteboard.string;
     if (!t.length || ![v _isim_isEditable]) return;
     NSLog(@"isim: pasted \"%@\"", t);
@@ -831,6 +834,7 @@ enum { TI_NONE, TI_PENDING, TI_LOUPE, TI_HANDLE_START, TI_HANDLE_END };
 @interface UIView (IsimTextItems)                   /* UITextView: detected items */
 - (BOOL)_isim_tapItemAt:(CGPoint)p;
 - (BOOL)_isim_longPressItemAt:(CGPoint)p;
+- (BOOL)_isim_textDragBeginsAt:(CGPoint)p;       /* the Swift overlay: a long press on the selection lifts it */
 @end
 @interface __IsimTextInteraction : UIGestureRecognizer
 @property (nonatomic) int mode;
@@ -863,6 +867,9 @@ enum { TI_NONE, TI_PENDING, TI_LOUPE, TI_HANDLE_START, TI_HANDLE_END };
             id<IsimEditableText> t = [s _text];
             UIView *tv = s.view;
             if (![t _isim_isEditable] && !(([tv respondsToSelector:@selector(isSelectable)] && [(id)tv isSelectable]))) return;
+            if ([tv respondsToSelector:@selector(_isim_textDragBeginsAt:)] && [(id)tv _isim_textDragBeginsAt:s.downAt]) {
+                s.mode = TI_NONE; s.state = UIGestureRecognizerStateFailed; return;   /* the text drag interaction lifts it */
+            }
             if (![t _isim_isEditable] && [tv respondsToSelector:@selector(_isim_longPressItemAt:)] && [(id)tv _isim_longPressItemAt:s.downAt]) {
                 s.mode = TI_NONE; return;                   /* a detected item's menu (UITextView) */
             }

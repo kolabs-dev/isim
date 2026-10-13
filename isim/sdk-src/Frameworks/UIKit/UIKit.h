@@ -120,4 +120,5 @@
 #import <UIKit/UIFindInteraction.h>
 #import <UIKit/UIWritingToolsCoordinator.h>
 #import <UIKit/UIConversationContext.h>
+#import <UIKit/UIHoverStyle.h>
 #import <UIKit/UITextFormattingViewController.h>
