@@ -52,7 +52,7 @@ def test_push_running(launch):
     push(dev, "slow.apns")
     dev.wait_log(r"delivered “slow-1” after serviceExtensionTimeWillExpire")
     dev.send("notifications")
-    dev.wait_dump(r"id=nc-item-msg-1")
+    dev.nc_item("msg-1")
     dev.send("holdid nc-item-msg-1 0.8")
     dev.wait_log(r"SpringBoard: expanded notification msg-1 \(")
     expanded = dev.wait_shot(lambda s: count_px(s, (10, 90, 380, 150), ORANGE) > 5000,
@@ -65,7 +65,7 @@ def test_push_running(launch):
     dev.send("key return")
     dev.wait_log(r"response reply to “Hello” id=msg-1 text=Hi there")
     dev.send("notifications")
-    dev.wait_dump(r"id=nc-item-svc-1")
+    dev.nc_item("svc-1")
     dev.send("holdid nc-item-svc-1 0.8")
     dev.wait_log(r"SpringBoard: expanded notification svc-1 \(")      # the content extension has rendered
     dev.wait_dump(r"id=nx-background")
@@ -130,7 +130,7 @@ def test_push_not_running(launch, device_data):
     dev.wait_dump(r"IsimNotificationBanner .*id=isim-notification-banner notification=msg-1 text=Hello body=From isim push$")
     dev.screenshot("system-banner")
     dev.send("notifications")
-    dev.wait_dump(r"id=nc-item-msg-1")
+    dev.nc_item("msg-1")
     dev.tap_id("nc-item-msg-1")
     dev.wait_log(r"response com.apple.UNNotificationDefaultActionIdentifier")
     dev.send("home")

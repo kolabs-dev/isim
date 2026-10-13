@@ -83,7 +83,12 @@ typedef NSString *UNNotificationSoundName NS_SWIFT_NAME(UNNotificationSoundName)
 @interface UNNotificationSound : NSObject <NSCopying>
 @property (class, nonatomic, readonly, copy) UNNotificationSound *defaultSound NS_SWIFT_NAME(default);
 @property (class, nonatomic, readonly, copy) UNNotificationSound *defaultCriticalSound;
+@property (class, nonatomic, readonly, copy) UNNotificationSound *defaultRingtoneSound API_AVAILABLE(ios(15.2));
 + (instancetype)soundNamed:(UNNotificationSoundName)name;
++ (instancetype)defaultCriticalSoundWithAudioVolume:(float)volume API_AVAILABLE(ios(12.0));
++ (instancetype)criticalSoundNamed:(UNNotificationSoundName)name API_AVAILABLE(ios(12.0));
++ (instancetype)criticalSoundNamed:(UNNotificationSoundName)name withAudioVolume:(float)volume API_AVAILABLE(ios(12.0));
++ (instancetype)ringtoneSoundNamed:(UNNotificationSoundName)name API_AVAILABLE(ios(15.2));
 - (instancetype)init NS_UNAVAILABLE;
 @end
 

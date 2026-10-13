@@ -633,7 +633,7 @@ def xcstrings(a, bundle, catalogs):
 @app("system/SpringBoard", products=["SpringBoard.app"], swift=False, dest="out/sdk/Applications")
 def _(a):   # the home screen (ObjC)
     b = a.objc_app(a.files("*.m"), "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "CoreGraphics",
-                                                   "-lisim_host"], minos="17.0", flags=())
+                                                   "-framework", "UserNotifications", "-lisim_host"], minos="17.0", flags=())
     xcstrings(a, b, a.files("*.xcstrings"))
     wallpaper = shutil.which("magick") and a.run(
         "magick", "-size", "393x852", "gradient:#3a2c8f-#0e7c9a", "(", "-size", "393x852", "radial-gradient:#ff7eb3-none",

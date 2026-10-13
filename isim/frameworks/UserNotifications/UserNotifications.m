@@ -24,6 +24,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <math.h>
 
 NSString * const UNErrorDomain = @"UNErrorDomain";
 NSString * const UNNotificationDefaultActionIdentifier = @"com.apple.UNNotificationDefaultActionIdentifier";
@@ -47,15 +48,42 @@ NSString *isim_data_dir(void);
 
 @interface UNNotificationSound ()
 @property (nonatomic, copy, nullable) NSString *isimName;
-@property (nonatomic) BOOL isimCritical;
+@property (nonatomic) BOOL isimCritical, isimRingtone;
+@property (nonatomic) float isimVolume;              /* critical alerts: 0...1 (0: the default) */
 @end
 @implementation UNNotificationSound
 + (UNNotificationSound *)defaultSound { return [super new]; }
 + (UNNotificationSound *)defaultCriticalSound { UNNotificationSound *s = [super new]; s.isimCritical = YES; return s; }
++ (UNNotificationSound *)defaultRingtoneSound { UNNotificationSound *s = [super new]; s.isimRingtone = YES; return s; }
 + (instancetype)soundNamed:(UNNotificationSoundName)name { UNNotificationSound *s = [super new]; s.isimName = name; return s; }
++ (instancetype)defaultCriticalSoundWithAudioVolume:(float)volume { UNNotificationSound *s = [self defaultCriticalSound]; s.isimVolume = volume; return s; }
++ (instancetype)criticalSoundNamed:(UNNotificationSoundName)name { UNNotificationSound *s = [self soundNamed:name]; s.isimCritical = YES; return s; }
++ (instancetype)criticalSoundNamed:(UNNotificationSoundName)name withAudioVolume:(float)volume { UNNotificationSound *s = [self criticalSoundNamed:name]; s.isimVolume = volume; return s; }
++ (instancetype)ringtoneSoundNamed:(UNNotificationSoundName)name { UNNotificationSound *s = [self soundNamed:name]; s.isimRingtone = YES; return s; }
 - (id)copyWithZone:(NSZone *)zone { return self; }
-- (NSString *)description { return [NSString stringWithFormat:@"<UNNotificationSound: %@>", _isimName ?: @"default"]; }
+- (NSString *)description { return [NSString stringWithFormat:@"<UNNotificationSound: %@%@>", _isimName ?: @"default", _isimCritical ? @" (critical)" : @""]; }
 @end
+/* a sound as plist: { name?, critical?, volume?, ringtone? } (no name: the default sound) */
+static NSDictionary *encode_sound(UNNotificationSound *s) {
+    if (!s) return nil;
+    NSMutableDictionary *d = [NSMutableDictionary dictionary];
+    if (s.isimName.length) d[@"name"] = s.isimName;
+    if (s.isimCritical) d[@"critical"] = @YES;
+    if (s.isimRingtone) d[@"ringtone"] = @YES;
+    if (s.isimVolume > 0) d[@"volume"] = @(s.isimVolume);
+    return d;
+}
+static UNNotificationSound *decode_sound(id v) {
+    if ([v isKindOfClass:[NSString class]]) {                     /* older records: a name, "" or "default" */
+        if ([v isEqualToString:@"critical"]) return UNNotificationSound.defaultCriticalSound;
+        return [v length] && ![v isEqualToString:@"default"] ? [UNNotificationSound soundNamed:v] : UNNotificationSound.defaultSound;
+    }
+    if (![v isKindOfClass:[NSDictionary class]]) return nil;
+    NSDictionary *d = v;
+    UNNotificationSound *s = [d[@"name"] length] ? [UNNotificationSound soundNamed:d[@"name"]] : UNNotificationSound.defaultSound;
+    s.isimCritical = [d[@"critical"] boolValue]; s.isimRingtone = [d[@"ringtone"] boolValue]; s.isimVolume = [d[@"volume"] floatValue];
+    return s;
+}
 
 /* attachments: a file URL of a supported type, copied into the attachment store (<isim data>/Library/UserNotifications/Attachments) */
 static NSString *attachment_type(NSString *ext, NSString *hint) {
@@ -377,34 +405,6 @@ static id plist_safe(id v) {
     }
     return nil;
 }
-static NSDictionary *encode_request(UNNotificationRequest *r, double fire) {
-    UNNotificationContent *c = r.content;
-    NSMutableDictionary *d = [@{ @"id": r.identifier, @"title": c.title, @"subtitle": c.subtitle, @"body": c.body,
-                                 @"category": c.categoryIdentifier, @"thread": c.threadIdentifier, @"userInfo": plist_safe(c.userInfo) ?: @{} } mutableCopy];
-    if (c.badge) d[@"badge"] = c.badge;
-    if (c.sound) d[@"sound"] = c.sound.isimName ?: @"";
-    UNNotificationTrigger *t = r.trigger;
-    if ([t isKindOfClass:[UNTimeIntervalNotificationTrigger class]])
-        d[@"trigger"] = @{ @"type": @"interval", @"interval": @(((UNTimeIntervalNotificationTrigger *)t).timeInterval), @"repeats": @(t.repeats), @"fire": @(fire) };
-    else if ([t isKindOfClass:[UNCalendarNotificationTrigger class]])
-        d[@"trigger"] = @{ @"type": @"calendar", @"components": ((UNCalendarNotificationTrigger *)t).componentValues, @"repeats": @(t.repeats) };
-    return d;
-}
-static UNNotificationRequest *decode_request(NSDictionary *d, double *fire) {
-    UNMutableNotificationContent *c = [[UNMutableNotificationContent alloc] init];
-    c.title = d[@"title"]; c.subtitle = d[@"subtitle"]; c.body = d[@"body"]; c.categoryIdentifier = d[@"category"];
-    c.threadIdentifier = d[@"thread"]; c.userInfo = d[@"userInfo"]; c.badge = d[@"badge"];
-    if (d[@"sound"]) c.sound = [d[@"sound"] length] ? [UNNotificationSound soundNamed:d[@"sound"]] : [UNNotificationSound defaultSound];
-    NSDictionary *t = d[@"trigger"]; UNNotificationTrigger *trigger = nil;
-    if ([t[@"type"] isEqual:@"interval"]) {
-        trigger = [UNTimeIntervalNotificationTrigger triggerWithTimeInterval:[t[@"interval"] doubleValue] repeats:[t[@"repeats"] boolValue]];
-        *fire = [t[@"fire"] doubleValue];
-    } else if ([t[@"type"] isEqual:@"calendar"]) {
-        trigger = [[UNCalendarNotificationTrigger alloc] initWithComponentValues:t[@"components"] repeats:[t[@"repeats"] boolValue]];
-    }
-    return [UNNotificationRequest requestWithIdentifier:d[@"id"] content:c trigger:trigger];
-}
-
 /* attachments <-> plist */
 static NSArray *encode_attachments(NSArray<UNNotificationAttachment *> *atts) {
     NSMutableArray *a = [NSMutableArray array];
@@ -418,34 +418,96 @@ static NSArray *decode_attachments(NSArray *plist) {
     return a;
 }
 
+/* a content as plist: requests, notification records, a service extension's result */
+static NSMutableDictionary *encode_content(UNNotificationContent *c) {
+    NSMutableDictionary *d = [@{ @"title": c.title ?: @"", @"subtitle": c.subtitle ?: @"", @"body": c.body ?: @"", @"category": c.categoryIdentifier ?: @"",
+        @"thread": c.threadIdentifier ?: @"", @"userInfo": plist_safe(c.userInfo) ?: @{}, @"attachments": encode_attachments(c.attachments) } mutableCopy];
+    if (c.badge) d[@"badge"] = c.badge;
+    if (c.sound) d[@"sound"] = encode_sound(c.sound);
+    if (c.targetContentIdentifier) d[@"targetContentIdentifier"] = c.targetContentIdentifier;
+    if (c.launchImageName.length) d[@"launchImage"] = c.launchImageName;
+    if (c.summaryArgument.length) d[@"summaryArgument"] = c.summaryArgument;
+    if (c.summaryArgumentCount) d[@"summaryArgumentCount"] = @(c.summaryArgumentCount);
+    if (c.interruptionLevel != UNNotificationInterruptionLevelActive) d[@"level"] = @(c.interruptionLevel);
+    if (c.relevanceScore != 0) d[@"relevance"] = @(c.relevanceScore);
+    if (c.filterCriteria) d[@"filterCriteria"] = c.filterCriteria;
+    return d;
+}
+static void apply_content(UNMutableNotificationContent *c, NSDictionary *d) {
+    c.title = d[@"title"]; c.subtitle = d[@"subtitle"]; c.body = d[@"body"]; c.categoryIdentifier = d[@"category"]; c.threadIdentifier = d[@"thread"];
+    if ([d[@"userInfo"] isKindOfClass:[NSDictionary class]]) c.userInfo = d[@"userInfo"];
+    if ([d[@"badge"] isKindOfClass:[NSNumber class]]) c.badge = d[@"badge"];
+    if (d[@"sound"]) c.sound = decode_sound(d[@"sound"]);
+    if ([d[@"attachments"] isKindOfClass:[NSArray class]]) c.attachments = decode_attachments(d[@"attachments"]);
+    if (d[@"targetContentIdentifier"]) c.targetContentIdentifier = d[@"targetContentIdentifier"];
+    if (d[@"launchImage"]) c.launchImageName = d[@"launchImage"];
+    if (d[@"summaryArgument"]) c.summaryArgument = d[@"summaryArgument"];
+    c.summaryArgumentCount = [d[@"summaryArgumentCount"] unsignedIntegerValue];
+    if (d[@"level"]) c.interruptionLevel = (UNNotificationInterruptionLevel)[d[@"level"] unsignedIntegerValue];
+    c.relevanceScore = [d[@"relevance"] doubleValue];
+    if (d[@"filterCriteria"]) c.filterCriteria = d[@"filterCriteria"];
+}
+/* a pending request as plist; fire: when it is next due (seconds since 1970; the home screen delivers it then when
+   the app is not running) */
+static NSDictionary *encode_request(UNNotificationRequest *r, double fire) {
+    NSMutableDictionary *d = encode_content(r.content);
+    d[@"id"] = r.identifier;
+    UNNotificationTrigger *t = r.trigger;
+    if ([t isKindOfClass:[UNTimeIntervalNotificationTrigger class]])
+        d[@"trigger"] = @{ @"type": @"interval", @"interval": @(((UNTimeIntervalNotificationTrigger *)t).timeInterval), @"repeats": @(t.repeats), @"fire": @(fire) };
+    else if ([t isKindOfClass:[UNCalendarNotificationTrigger class]])
+        d[@"trigger"] = @{ @"type": @"calendar", @"components": ((UNCalendarNotificationTrigger *)t).componentValues, @"repeats": @(t.repeats), @"fire": @(fire) };
+    return d;
+}
+static UNNotificationRequest *decode_request(NSDictionary *d, double *fire) {
+    UNMutableNotificationContent *c = [[UNMutableNotificationContent alloc] init];
+    apply_content(c, d);
+    NSDictionary *t = d[@"trigger"]; UNNotificationTrigger *trigger = nil;
+    if ([t[@"type"] isEqual:@"interval"]) {
+        trigger = [UNTimeIntervalNotificationTrigger triggerWithTimeInterval:[t[@"interval"] doubleValue] repeats:[t[@"repeats"] boolValue]];
+        *fire = [t[@"fire"] doubleValue];
+    } else if ([t[@"type"] isEqual:@"calendar"]) {
+        trigger = [[UNCalendarNotificationTrigger alloc] initWithComponentValues:t[@"components"] repeats:[t[@"repeats"] boolValue]];
+        *fire = [t[@"fire"] doubleValue];
+    }
+    return [UNNotificationRequest requestWithIdentifier:d[@"id"] content:c trigger:trigger];
+}
+
 /* the notification record (Library/isim/Notifications/<id>.plist in the app container) */
 static NSString *record_path_in(NSString *home, NSString *ident) {
     NSString *safe = [[ident ?: @"" componentsSeparatedByString:@"/"] componentsJoinedByString:@"_"];
     return [[home stringByAppendingPathComponent:@"Library/isim/Notifications"] stringByAppendingPathComponent:[safe stringByAppendingPathExtension:@"plist"]];
 }
-static NSDictionary *record_of(UNNotification *n, BOOL push) {
-    UNNotificationContent *c = n.request.content;
-    NSMutableDictionary *d = [@{ @"id": n.request.identifier ?: @"", @"title": c.title, @"subtitle": c.subtitle, @"body": c.body,
-        @"category": c.categoryIdentifier, @"thread": c.threadIdentifier, @"userInfo": plist_safe(c.userInfo) ?: @{},
-        @"date": n.date ?: [NSDate date], @"attachments": encode_attachments(c.attachments), @"push": @(push),
-        @"app": NSBundle.mainBundle.bundleIdentifier ?: @"" } mutableCopy];
-    if (c.badge) d[@"badge"] = c.badge;
-    if (c.targetContentIdentifier) d[@"targetContentIdentifier"] = c.targetContentIdentifier;
+/* listed: the notification is in Notification Center (delivered and not yet opened or removed): getDeliveredNotifications
+   reads it back after a relaunch, also for notifications the system delivered while the app was not running */
+static NSDictionary *record_of(UNNotification *n, BOOL push, BOOL listed) {
+    NSMutableDictionary *d = encode_content(n.request.content);
+    d[@"id"] = n.request.identifier ?: @""; d[@"date"] = n.date ?: [NSDate date]; d[@"push"] = @(push); d[@"listed"] = @(listed);
+    d[@"app"] = NSBundle.mainBundle.bundleIdentifier ?: @"";
     return d;
 }
-static NSString *write_record(UNNotification *n, BOOL push) {
+void isim_un_write_record_sidecar(NSDictionary *rec, NSString *recordPath, NSString *appPath, NSString *container);
+static NSString *write_record(UNNotification *n, BOOL push, BOOL listed) {
     NSString *p = record_path_in(NSHomeDirectory(), n.request.identifier);
     [NSFileManager.defaultManager createDirectoryAtPath:p.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:NULL];
-    [record_of(n, push) writeToFile:p atomically:YES];
+    NSDictionary *rec = record_of(n, push, listed);
+    [rec writeToFile:p atomically:YES];
+    isim_un_write_record_sidecar(rec, p, NSBundle.mainBundle.bundlePath, NSHomeDirectory());
     return p;
+}
+/* the notification left Notification Center (opened, removed): it is no longer delivered */
+static void unlist_record(NSString *ident) {
+    NSString *p = record_path_in(NSHomeDirectory(), ident);
+    NSMutableDictionary *d = [[NSDictionary dictionaryWithContentsOfFile:p] mutableCopy];
+    if (![d[@"listed"] boolValue]) return;
+    d[@"listed"] = @NO;
+    [d writeToFile:p atomically:YES];
 }
 /* a notification rebuilt from its record (a response after a relaunch, the content extension host) */
 static UNNotification *notification_from_record(NSDictionary *d) {
     if (![d isKindOfClass:[NSDictionary class]] || !d[@"id"]) return nil;
     UNMutableNotificationContent *c = [[UNMutableNotificationContent alloc] init];
-    c.title = d[@"title"]; c.subtitle = d[@"subtitle"]; c.body = d[@"body"]; c.categoryIdentifier = d[@"category"];
-    c.threadIdentifier = d[@"thread"]; c.userInfo = d[@"userInfo"]; c.badge = d[@"badge"]; c.targetContentIdentifier = d[@"targetContentIdentifier"];
-    c.attachments = decode_attachments(d[@"attachments"]);
+    apply_content(c, d);
     UNNotificationTrigger *trigger = [d[@"push"] boolValue] ? [[UNPushNotificationTrigger alloc] initISIMBase] : nil;
     UNNotificationRequest *r = [UNNotificationRequest requestWithIdentifier:d[@"id"] content:c trigger:trigger];
     return [UNNotification isim_notificationWithRequest:r date:[d[@"date"] isKindOfClass:[NSDate class]] ? d[@"date"] : [NSDate date]];
@@ -463,7 +525,56 @@ static NSDictionary *encode_category(UNNotificationCategory *c) {
         if (a.icon) d[@"icon"] = [a.icon isim_name] ?: @"";
         [acts addObject:d];
     }
-    return @{ @"id": c.identifier ?: @"", @"options": @(c.options), @"actions": acts, @"placeholder": c.hiddenPreviewsBodyPlaceholder ?: @"" };
+    return @{ @"id": c.identifier ?: @"", @"options": @(c.options), @"actions": acts, @"placeholder": c.hiddenPreviewsBodyPlaceholder ?: @"",
+              @"summary": c.categorySummaryFormat ?: @"" };
+}
+
+/* what the shell needs to present a delivered notification, next to its record (<record>.txt, key=value lines): the
+   thread it is grouped by, the sound to play (its file resolved in the app bundle or Library/Sounds; "default";
+   empty: none), the interruption level as the app may use it, and the stack summary (the category's
+   categorySummaryFormat, the summary argument and count). The app's notification settings decide sound and level, so
+   the home screen writes the same file for notifications it delivers (remote ones, local ones of apps not running). */
+static NSString *sidecar_line(NSString *s) { return [[[s ?: @"" componentsSeparatedByString:@"\n"] componentsJoinedByString:@" "] stringByReplacingOccurrencesOfString:@"\r" withString:@""]; }
+void isim_un_write_record_sidecar(NSDictionary *rec, NSString *recordPath, NSString *appPath, NSString *container) {
+    if (!recordPath) return;
+    NSString *bundleID = [NSDictionary dictionaryWithContentsOfFile:[appPath stringByAppendingPathComponent:@"Info.plist"]][@"CFBundleIdentifier"] ?: rec[@"app"] ?: @"";
+    NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:[container stringByAppendingPathComponent:[NSString stringWithFormat:@"Library/Preferences/%@.plist", bundleID]]];
+    NSInteger status = [prefs[@"_ISIMNotificationAuthorization"] integerValue], opts = [prefs[@"_ISIMNotificationOptions"] integerValue];
+    BOOL provisional = status == UNAuthorizationStatusProvisional;
+    NSDictionary *ent = [NSDictionary dictionaryWithContentsOfFile:[appPath stringByAppendingPathComponent:@"archived-expanded-entitlements.xcent"]];
+    /* the level the app may use: critical needs the entitlement and the person's permission, time sensitive the entitlement */
+    NSUInteger level = rec[@"level"] ? [rec[@"level"] unsignedIntegerValue] : UNNotificationInterruptionLevelActive;
+    UNNotificationSound *sound = rec[@"sound"] ? decode_sound(rec[@"sound"]) : nil;
+    BOOL criticalOK = [ent[@"com.apple.developer.usernotifications.critical-alerts"] boolValue] && (opts & UNAuthorizationOptionCriticalAlert);
+    if ((level == UNNotificationInterruptionLevelCritical || sound.isimCritical) && !criticalOK) {
+        NSLog(@"isim UserNotifications: critical alert “%@” without the critical-alerts entitlement and permission (delivered as active)", rec[@"id"]);
+        if (level == UNNotificationInterruptionLevelCritical) level = UNNotificationInterruptionLevelActive;
+        sound.isimCritical = NO;
+    }
+    if (level == UNNotificationInterruptionLevelTimeSensitive && ![ent[@"com.apple.developer.usernotifications.time-sensitive"] boolValue]) level = UNNotificationInterruptionLevelActive;
+    NSString *soundSpec = @"";
+    if (sound && level != UNNotificationInterruptionLevelPassive && !provisional && ((opts & UNAuthorizationOptionSound) || sound.isimCritical)) {
+        NSString *file = nil;
+        if (sound.isimName.length) {
+            NSFileManager *fm = NSFileManager.defaultManager;
+            for (NSString *dir in @[ appPath ?: @"", [container stringByAppendingPathComponent:@"Library/Sounds"] ]) {
+                NSString *f = [dir stringByAppendingPathComponent:sound.isimName];
+                if (dir.length && [fm fileExistsAtPath:f]) { file = f; break; }
+            }
+            if (!file) NSLog(@"isim UserNotifications: sound “%@” is not in the app bundle or Library/Sounds (the default sound plays)", sound.isimName);
+        }
+        soundSpec = [NSString stringWithFormat:@"%@%@", sound.isimCritical ? @"critical:" : @"", file ?: (sound.isimRingtone ? @"ringtone" : @"default")];
+    }
+    NSString *summary = @"";
+    NSString *category = rec[@"category"] ?: @"";
+    if (category.length)
+        for (NSDictionary *c in [NSDictionary dictionaryWithContentsOfFile:[container stringByAppendingPathComponent:@"Library/isim/NotificationCategories.plist"]][@"categories"])
+            if ([c[@"id"] isEqual:category] && [c[@"summary"] length]) summary = c[@"summary"];
+    static const char *const levels[] = { "passive", "active", "timesensitive", "critical" };
+    NSString *txt = [NSString stringWithFormat:@"thread=%@\nsound=%@\nlevel=%s\nsummary=%@\nsumarg=%@\nsumcount=%lu\n",
+        sidecar_line(rec[@"thread"]), soundSpec, levels[MIN(level, (NSUInteger)3)], sidecar_line(summary), sidecar_line(rec[@"summaryArgument"]),
+        (unsigned long)MAX((NSUInteger)1, [rec[@"summaryArgumentCount"] unsignedIntegerValue])];
+    [txt writeToFile:[recordPath.stringByDeletingPathExtension stringByAppendingPathExtension:@"txt"] atomically:YES encoding:NSUTF8StringEncoding error:NULL];
 }
 
 /* ---------------- payloads (aps dictionaries) ---------------- */
@@ -523,16 +634,6 @@ static UNMutableNotificationContent *content_from_payload(NSDictionary *payload,
     return c;
 }
 static BOOL content_has_alert(UNNotificationContent *c) { return c.title.length || c.subtitle.length || c.body.length; }
-/* a content (a service extension's result) as plist */
-static NSDictionary *encode_content(UNNotificationContent *c) {
-    NSMutableDictionary *d = [@{ @"title": c.title ?: @"", @"subtitle": c.subtitle ?: @"", @"body": c.body ?: @"", @"category": c.categoryIdentifier ?: @"",
-        @"thread": c.threadIdentifier ?: @"", @"userInfo": plist_safe(c.userInfo) ?: @{}, @"attachments": encode_attachments(c.attachments) } mutableCopy];
-    if (c.badge) d[@"badge"] = c.badge;
-    if (c.sound) d[@"sound"] = c.sound.isimCritical ? @"critical" : (c.sound.isimName ?: @"default");
-    if (c.targetContentIdentifier) d[@"targetContentIdentifier"] = c.targetContentIdentifier;
-    return d;
-}
-
 /* ---------------- banner ---------------- */
 
 static NSString *app_name(void) {
@@ -674,6 +775,49 @@ static UIWindow *bannerWindow; static UIView *bannerCard; static void (^bannerTa
 }
 @end
 
+/* ---------------- sounds ----------------
+ * The sound a delivered notification plays (its record's sidecar: a file, "default", "ringtone", critical:...). Under
+ * `isim boot` the shell plays it (it knows Silent Mode and Focus); the app alone plays it itself. The default sound is
+ * synthesized (a short rising three-note chime): isim has no copy of Apple's sounds. */
+static void play_pcm(const float *pcm, long frames, int channels, double rate, double volume) {
+    int buf = isim_audio_buffer_create(pcm, frames, channels, rate);
+    if (buf) { isim_audio_play(buf, volume, 0); isim_audio_buffer_release(buf); }
+}
+static void play_spec(NSString *spec) {
+    BOOL critical = [spec hasPrefix:@"critical:"];
+    NSString *what = critical ? [spec substringFromIndex:9] : spec;
+    if (!isim_audio_available()) { NSLog(@"isim UserNotifications: sound %@ (no audio device)", what); return; }
+    if ([what hasPrefix:@"/"]) {
+        float *pcm = NULL; long frames = 0; int ch = 0; double rate = 0;
+        if (isim_audio_decode_file(what.fileSystemRepresentation, &pcm, &frames, &ch, &rate)) { play_pcm(pcm, frames, ch, rate, 1); isim_audio_free(pcm); }
+        NSLog(@"isim UserNotifications: sound %@ played", what.lastPathComponent);
+        return;
+    }
+    enum { RATE = 44100 };
+    static const double notes[3] = { 1046.5, 1318.5, 1568.0 };            /* C6 E6 G6 */
+    long frames = (long)(RATE * 0.48);
+    float *pcm = calloc((size_t)frames, sizeof(float));
+    for (long i = 0; i < frames; i++) {
+        double t = (double)i / RATE; int k = (int)(t / 0.16); double tt = t - k * 0.16;
+        pcm[i] = (float)(0.28 * sin(2 * M_PI * notes[k > 2 ? 2 : k] * tt) * exp(-tt * 14));
+    }
+    play_pcm(pcm, frames, 1, RATE, 1);
+    free(pcm);
+    NSLog(@"isim UserNotifications: sound %@ played", what);
+}
+/* the record's sound (none when the app may not play sounds) */
+static NSString *record_sound(NSString *record) {
+    NSString *txt = [NSString stringWithContentsOfFile:[record.stringByDeletingPathExtension stringByAppendingPathExtension:@"txt"] encoding:NSUTF8StringEncoding error:NULL];
+    for (NSString *l in [txt componentsSeparatedByString:@"\n"]) if ([l hasPrefix:@"sound="]) return [l substringFromIndex:6];
+    return @"";
+}
+static void play_sound(NSString *record) {
+    NSString *spec = record ? record_sound(record) : @"";
+    if (!spec.length) return;
+    if (isim_shell_present()) isim_shell_request(ISIM_SHELL_SYSTEM, "notif-sound", spec.UTF8String, NULL);
+    else play_spec(spec);
+}
+
 /* ---------------- center ---------------- */
 
 @implementation UNUserNotificationCenter {
@@ -700,6 +844,7 @@ static UIWindow *bannerWindow; static UIView *bannerCard; static void (^bannerTa
             if (!r.identifier) continue;
             [_pending addObject:r]; if (fire > 0) _fire[r.identifier] = @(fire);
         }
+        [self loadDelivered];
         dispatch_async(dispatch_get_main_queue(), ^{ for (UNNotificationRequest *r in [self->_pending copy]) [self schedule:r]; });
         /* the shell's banner (or Notification Center item) for a notification was tapped */
         [NSNotificationCenter.defaultCenter addObserverForName:@"_IsimNotificationResponse" object:nil queue:nil usingBlock:^(NSNotification *note) {
@@ -711,6 +856,21 @@ static UIWindow *bannerWindow; static UIView *bannerCard; static void (^bannerTa
     return self;
 }
 - (BOOL)supportsContentExtensions { return YES; }
+/* the notifications still in Notification Center, from their records: delivered in an earlier run, or by the system
+   while the app was not running */
+- (void)loadDelivered {
+    NSString *dir = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/isim/Notifications"];
+    NSMutableArray *found = [NSMutableArray array];
+    for (NSString *f in [NSFileManager.defaultManager contentsOfDirectoryAtPath:dir error:NULL]) {
+        if (![f.pathExtension isEqualToString:@"plist"]) continue;
+        NSDictionary *d = [NSDictionary dictionaryWithContentsOfFile:[dir stringByAppendingPathComponent:f]];
+        if (![d[@"listed"] boolValue]) continue;
+        UNNotification *n = notification_from_record(d);
+        if (n) [found addObject:n];
+    }
+    [found sortUsingComparator:^NSComparisonResult(UNNotification *a, UNNotification *b) { return [a.date compare:b.date]; }];
+    _delivered = found;
+}
 
 static void on_background(void (^b)(void)) { dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), b); }
 
@@ -805,7 +965,7 @@ static BOOL appclip_ephemeral(void) {
 
 - (void)save {
     NSMutableArray *out = [NSMutableArray array];
-    for (UNNotificationRequest *r in _pending) [out addObject:encode_request(r, _fire[r.identifier].doubleValue)];
+    for (UNNotificationRequest *r in _pending) [out addObject:encode_request(r, [self nextFire:r])];
     [NSUserDefaults.standardUserDefaults setObject:out forKey:kPendingKey];
     [NSUserDefaults.standardUserDefaults synchronize];
     [self reportWake];
@@ -882,16 +1042,18 @@ static BOOL appclip_ephemeral(void) {
     if (![self authorized]) { NSLog(@"isim UserNotifications: “%@” not shown (notifications are not allowed for %@)", r.identifier, app_name()); return; }
     for (NSUInteger i = 0; i < _delivered.count; i++)
         if ([_delivered[i].request.identifier isEqualToString:r.identifier]) { [_delivered removeObjectAtIndex:i]; break; }
-    [_delivered addObject:n];
-    NSString *record = write_record(n, push);
-    NSString *thumb = thumbnail_path(r.content) ?: @"";
     UIApplication *app = UIApplication.sharedApplication;
     UNAuthorizationOptions granted0 = [self grantedOptions];
-    if (app.applicationState == UIApplicationStateBackground) {
+    BOOL mayList = (granted0 & UNAuthorizationOptionAlert) || [self status] == UNAuthorizationStatusProvisional;
+    BOOL background = app.applicationState == UIApplicationStateBackground;
+    NSString *record = write_record(n, push, background && mayList);
+    if (!background || mayList) [_delivered addObject:n];
+    NSString *thumb = thumbnail_path(r.content) ?: @"";
+    if (background) {
         NSLog(@"isim UserNotifications: delivered “%@” in the background", r.identifier);
         if (r.content.badge && (granted0 & UNAuthorizationOptionBadge)) app.applicationIconBadgeNumber = r.content.badge.integerValue;
-        if (r.content.sound && (granted0 & UNAuthorizationOptionSound)) NSLog(@"isim UserNotifications: sound “%@” (not played)", r.content.sound.isimName ?: @"default");
-        if (isim_shell_present() && ((granted0 & UNAuthorizationOptionAlert) || [self status] == UNAuthorizationStatusProvisional)) {
+        if (!isim_shell_present()) play_sound(record);             /* under the shell, the shell plays it with the banner */
+        if (isim_shell_present() && mayList) {
             NSString *a = [NSString stringWithFormat:@"%@\x1f%@\x1f%@\x1f%@\x1f%@", r.identifier, app_icon_path() ?: @"", record ?: @"", thumb, focus_flags(r.content)];
             NSString *body = r.content.subtitle.length ? [NSString stringWithFormat:@"%@\n%@", r.content.subtitle, r.content.body] : r.content.body;
             isim_shell_request(ISIM_SHELL_NOTIFY, a.UTF8String, (r.content.title.length ? r.content.title : app_name()).UTF8String, body.UTF8String);
@@ -904,10 +1066,11 @@ static BOOL appclip_ephemeral(void) {
             UNAuthorizationOptions granted = [self grantedOptions];
             if ((o & UNNotificationPresentationOptionBadge) && r.content.badge && (granted & UNAuthorizationOptionBadge))
                 app.applicationIconBadgeNumber = r.content.badge.integerValue;
-            if ((o & UNNotificationPresentationOptionSound) && r.content.sound && (granted & UNAuthorizationOptionSound))
-                NSLog(@"isim UserNotifications: sound “%@” (not played)", r.content.sound.isimName ?: @"default");
+            if ((o & UNNotificationPresentationOptionSound) && r.content.sound) play_sound(record);   /* the sidecar checked the permission */
             BOOL banner = (o & (UNNotificationPresentationOptionBanner | UNNotificationPresentationOptionAlert)) != 0;
             NSLog(@"isim UserNotifications: delivered “%@” in the foreground (%@)", r.identifier, banner ? @"banner" : @"not presented");
+            if (((o & UNNotificationPresentationOptionList) || banner) && record) write_record(n, push, YES);
+            else for (NSUInteger i = 0; i < self->_delivered.count; i++) if (self->_delivered[i] == n) { [self->_delivered removeObjectAtIndex:i]; break; }
             if ((o & UNNotificationPresentationOptionList) || banner) {      /* the shell's Notification Center lists it */
                 NSString *a = [NSString stringWithFormat:@"%@\x1f%@\x1f%@\x1f%@", r.identifier, app_icon_path() ?: @"", record ?: @"", thumb];
                 NSString *tb = [NSString stringWithFormat:@"%@\x1f%@", r.content.title.length ? r.content.title : app_name(), r.content.body ?: @""];
@@ -924,6 +1087,7 @@ static BOOL appclip_ephemeral(void) {
 
 - (void)respond:(UNNotification *)n action:(NSString *)action { [self respond:n action:action text:nil]; }
 - (void)respond:(UNNotification *)n action:(NSString *)action text:(NSString *)text {
+    unlist_record(n.request.identifier);                  /* opened or dismissed: no longer in Notification Center */
     if ([action isEqualToString:UNNotificationDefaultActionIdentifier]) NSLog(@"isim UserNotifications: opened “%@”", n.request.identifier);
     else NSLog(@"isim UserNotifications: action %@ on “%@”%@", action, n.request.identifier, text ? [NSString stringWithFormat:@" with text “%@”", text] : @"");
     id<UNUserNotificationCenterDelegate> d = self.delegate;
@@ -959,12 +1123,9 @@ static BOOL appclip_ephemeral(void) {
     NSString *ident = wrapper[@"id"] ?: NSUUID.UUID.UUIDString;
     UNMutableNotificationContent *c = content_from_payload(payload, wrapper[@"attachments"]);
     if ([wrapper[@"content"] isKindOfClass:[NSDictionary class]]) {      /* the Notification Service extension's content */
-        NSDictionary *m = wrapper[@"content"];
-        c.title = m[@"title"]; c.subtitle = m[@"subtitle"]; c.body = m[@"body"]; c.categoryIdentifier = m[@"category"]; c.threadIdentifier = m[@"thread"];
-        if (m[@"badge"]) c.badge = m[@"badge"];
-        if ([m[@"userInfo"] isKindOfClass:[NSDictionary class]] && [m[@"userInfo"] count]) c.userInfo = m[@"userInfo"];
-        c.attachments = decode_attachments(m[@"attachments"]);
-        if (m[@"targetContentIdentifier"]) c.targetContentIdentifier = m[@"targetContentIdentifier"];
+        NSDictionary *m = wrapper[@"content"], *payloadInfo = c.userInfo;
+        apply_content(c, m);
+        if (![m[@"userInfo"] isKindOfClass:[NSDictionary class]] || ![m[@"userInfo"] count]) c.userInfo = payloadInfo;
     }
     UNNotificationRequest *r = [UNNotificationRequest requestWithIdentifier:ident content:c trigger:[[UNPushNotificationTrigger alloc] initISIMBase]];
     UNNotification *n = [UNNotification isim_notificationWithRequest:r date:[NSDate date]];
@@ -1012,12 +1173,16 @@ static BOOL appclip_ephemeral(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
         NSMutableArray *keep = [NSMutableArray array];
         for (UNNotification *n in self->_delivered) if (![ids containsObject:n.request.identifier]) [keep addObject:n];
+        for (NSString *i in ids) unlist_record(i);
         self->_delivered = keep;
         isim_shell_request(ISIM_SHELL_SYSTEM, "nc-remove", NULL, [ids componentsJoinedByString:@"\x1f"].UTF8String);
     });
 }
 - (void)removeAllDeliveredNotifications {
-    dispatch_async(dispatch_get_main_queue(), ^{ [self->_delivered removeAllObjects]; isim_shell_request(ISIM_SHELL_SYSTEM, "nc-remove", NULL, NULL); });
+    dispatch_async(dispatch_get_main_queue(), ^{
+        for (UNNotification *n in self->_delivered) unlist_record(n.request.identifier);
+        [self->_delivered removeAllObjects]; isim_shell_request(ISIM_SHELL_SYSTEM, "nc-remove", NULL, NULL);
+    });
 }
 - (void)setBadgeCount:(NSInteger)count withCompletionHandler:(void (^)(NSError *))completion {
     void (^done)(NSError *) = [completion copy];

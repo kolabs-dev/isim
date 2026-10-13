@@ -225,11 +225,6 @@ static void nb_show(int i, const char *path, const char *id, const char *icon, c
     nb.r = (struct rectf){ (dev.width - w) / 2, fmax(dev.safe_top, 20) + 2, w, 76 };
     fprintf(stderr, "isim shell: notification banner from %s: %s\n", path, nb.title);
 }
-static void nb_post(int i, const struct shell_msg *m) {
-    char id[512], icon[512], thumb[512];
-    field(m->a, 0, id, sizeof id); field(m->a, 1, icon, sizeof icon); field(m->a, 3, thumb, sizeof thumb);
-    nb_show(i, clients[i].bundle, id, icon, m->b, m->c, thumb);
-}
 static void nb_thumb(cairo_t *c, const char *path, double x, double y, double s);   /* shell_system.inc */
 static void nb_text(cairo_t *c, const char *utf8, double x, double y, double w, double size, int bold, int lines, double gray, int center) {
     PangoLayout *l = pango_cairo_create_layout(c);
