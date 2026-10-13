@@ -16,3 +16,8 @@ usr/lib/swift/libswiftCoreGraphics.dylib 0.12.0
 # linked them must be rebuilt with 0.20 against the real SDKs (isim build fetches their packages).
 usr/lib/swift/libswiftGoogleMobileAds.dylib 0.20.0
 usr/lib/swift/libswiftUserMessagingPlatform.dylib 0.20.0
+# 0.20.0 (issue #200): WebKit for Objective-C. The overlay's classes took Apple's Objective-C names and their members are
+# dispatched through objc_msgSend (`@objc dynamic`, or final), so Objective-C code and binary SDKs can subclass them (an
+# Objective-C subclass has no Swift vtable); the delegate methods use Apple's selectors (webView:didFinishNavigation:...).
+# Swift apps that use WebKit must be rebuilt with 0.20 (the old class symbols are kept as aliases, the vtable thunks are not).
+usr/lib/swift/libswiftWebKit.dylib 0.20.0

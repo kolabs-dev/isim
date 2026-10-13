@@ -499,6 +499,8 @@ class Swift:
                            order_only=c.header_stamps + ["tbds"])
         base = [mod("Swift"), mod("_Concurrency")] + ([mod("_StringProcessing")] if os.path.isdir(os.path.join(
             c.root, f"{c.tp}/swift-experimental-string-processing/Sources")) else [])
+        from .graph import SWIFT_FRAMEWORKS, swift_framework
+        objc_frameworks = dict(SWIFT_FRAMEWORKS)
         outs = []
         for line in OVERLAYS.strip().splitlines():
             line = line.split("#")[0].split()
@@ -529,9 +531,10 @@ class Swift:
                         srcs, implicit=base + implicit, keep=[obj, mod(m)], desc=f"SWIFT {m}")
             objs = [obj] + [a for a in args if a.endswith(".o")]
             link_args = ["-lSystem", "-lobjc", "-lswiftCore"] + [a for a in args if not a.endswith(".o")]
-            if m == "Foundation":
-                link_args += foundation_objc_aliases()
+            link_args += objc_aliases(m)
             outs += [mod(m), self.link(f"swift{m}", objs, link_args, minos="17.0")]
+            if m in objc_frameworks:
+                outs += swift_framework(c, m, objc_frameworks[m])
         # MapKit's offline basemap: land shapes from Natural Earth (public domain; tools/make-land.py)
         for f in ("land-50m.bin", "land-10m.bin"):
             act.copy_if_changed(os.path.join(c.root, "data/maps", f), os.path.join(c.root, SDK, "usr/share/isim/maps", f))
@@ -614,9 +617,10 @@ def generate(c):
 
 # Swift modules for the SDK's frameworks: Module [link arguments...] (each module also imports the ones it links)
 
-# Foundation overlay classes that took Apple's Objective-C names (NSURLSession...: ObjCNetworking.swift) keep their old
-# Objective-C class symbols as aliases, for apps linked against them
-FOUNDATION_OBJC_NAMES = {
+# overlay classes that took Apple's Objective-C names (NSURLSession...: ObjCNetworking.swift; WKWebView...) keep their old
+# Objective-C class symbols as aliases, for apps linked against them: module -> {Swift class: Objective-C name}
+OBJC_NAMES = {}
+OBJC_NAMES["Foundation"] = {
     "URLSessionConfiguration": "NSURLSessionConfiguration", "URLSession": "NSURLSession", "URLSessionTask": "NSURLSessionTask",
     "URLSessionDataTask": "NSURLSessionDataTask", "URLSessionUploadTask": "NSURLSessionUploadTask",
     "URLSessionDownloadTask": "NSURLSessionDownloadTask", "URLCredential": "NSURLCredential", "URLProtectionSpace": "NSURLProtectionSpace",
@@ -626,11 +630,18 @@ FOUNDATION_OBJC_NAMES = {
 }
 
 
-def foundation_objc_aliases():
+OBJC_NAMES["WebKit"] = {c: c for c in """WKFrameInfo WKFindResult WKNavigation WKUserScript WKPreferences WKProcessPool WKContentWorld
+    WKScriptMessage WKSecurityOrigin WKWindowFeatures WKBackForwardList WKContentRuleList WKHTTPCookieStore WKNavigationAction
+    WKPDFConfiguration WKWebsiteDataStore WKFindConfiguration WKWebsiteDataRecord WKNavigationResponse WKWebpagePreferences
+    WKBackForwardListItem WKContentRuleListStore WKWebViewConfiguration WKSnapshotConfiguration WKUserContentController
+    WKContextMenuElementInfo WKWebView""".split()}
+
+
+def objc_aliases(module):
     out = []
-    for swift, objc in FOUNDATION_OBJC_NAMES.items():
+    for swift, objc in OBJC_NAMES.get(module, {}).items():
         for kind in ("OBJC_CLASS", "OBJC_METACLASS"):
-            out += ["-alias", f"_{kind}_$_{objc}", f"_{kind}_$__TtC10Foundation{len(swift)}{swift}"]
+            out += ["-alias", f"_{kind}_$_{objc}", f"_{kind}_$__TtC{len(module)}{module}{len(swift)}{swift}"]
     return out
 
 OVERLAYS = """

@@ -65,10 +65,12 @@ struct rt_class {
     struct protocol_list_t **cat_protos; int ncatp;
     void **cat_props; int ncatprops;           /* categories' instance property lists (class_getProperty) */
     IMP cxx_destruct;
+    int swift_inited;                          /* RO_HAS_SWIFT_INITIALIZER: the Swift metadata initializer ran */
 };
 
 #define FAST_DATA_MASK 0x00007ffffffffff8ull
 #define RO_META 0x1
+#define RO_HAS_SWIFT_INITIALIZER 0x40            /* class_ro_t is followed by the Swift metadata initializer */
 #define SMALL_METHOD_LIST 0x80000000u
 #define ENTSIZE_MASK 0x0000fffcu
 
@@ -192,12 +194,28 @@ static IMP lookup_nofail(Class cls, SEL sel) {
 /* ================= +initialize ================= */
 static SEL s_initialize, s_load, s_alloc, s_init, s_new, s_retain, s_release, s_autorelease, s_dealloc,
            s_class, s_isKindOfClass, s_respondsToSelector, s_copy, s_mutableCopy, s_cxx_destruct;
+static void slide_ivars(Class c);
+/* A Swift class whose metadata is completed at run time (resilient layout: library evolution) carries its Swift
+ * metadata initializer after its class_ro_t (RO_HAS_SWIFT_INITIALIZER). Swift runs it through the class's metadata
+ * accessor; when Objective-C reaches the class first (an Objective-C app or binary SDK messaging WKWebView, or a
+ * subclass of it), the runtime runs it, like libobjc's realizeSwiftClass: it fills in the field offsets and the
+ * instance size and hands the class back through _objc_realizeClassFromSwift. Objective-C subclasses then slide their
+ * ivars past the class's real size. */
+static void swift_initialize(Class c) {
+    if (!c->rt || c->rt->swift_inited || !(ro_of(c)->flags & RO_HAS_SWIFT_INITIALIZER)) return;
+    c->rt->swift_inited = 1;
+    Class (*init)(Class, void *) = *(Class (**)(Class, void *))((uint8_t *)ro_of(c) + sizeof(struct class_ro_t));
+    if (init) init(c, NULL);
+}
+
 static void ensure_initialized(Class c) {
     if (!c || !c->rt || __atomic_load_n(&c->rt->init_state, __ATOMIC_ACQUIRE) == 2) return;
     pthread_mutex_lock(&init_lock);
     if (c->rt->init_state == 0) {
         c->rt->init_state = 1;
         ensure_initialized(c->superclass);
+        swift_initialize(c);
+        if (!(c->data & 3)) slide_ivars(c);      /* an Objective-C class (not Swift: FAST_IS_SWIFT_*) past a superclass that grew */
         IMP imp = lookup_nofail(c->isa, s_initialize);
         if (imp) ((void (*)(Class, SEL))imp)(c, s_initialize);
         __atomic_store_n(&c->rt->init_state, 2, __ATOMIC_RELEASE);
