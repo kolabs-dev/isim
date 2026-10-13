@@ -20,20 +20,21 @@ public struct SKANError: Error, CustomNSError, Hashable, Sendable {
     public static let invalidConversionValue = Code.invalidConversionValue
 }
 
-open class SKAdImpression: NSObject, @unchecked Sendable {
-    open var sourceAppStoreItemIdentifier: NSNumber = 0
-    open var advertisedAppStoreItemIdentifier: NSNumber = 0
-    open var adNetworkIdentifier = ""
-    open var adCampaignIdentifier: NSNumber = 0
-    open var sourceIdentifier: NSNumber = 0
-    open var adImpressionIdentifier = ""
-    open var adType: String?
-    open var adDescription: String?
-    open var adPurchaserName: String?
-    open var timestamp: NSNumber = 0
-    open var signature = ""
-    open var version = ""
+@objc(SKAdImpression) open class SKAdImpression: NSObject, @unchecked Sendable {
+    @objc open var sourceAppStoreItemIdentifier: NSNumber = 0
+    @objc open var advertisedAppStoreItemIdentifier: NSNumber = 0
+    @objc open var adNetworkIdentifier = ""
+    @objc open var adCampaignIdentifier: NSNumber = 0
+    @objc open var sourceIdentifier: NSNumber = 0
+    @objc open var adImpressionIdentifier = ""
+    @objc open var adType: String?
+    @objc open var adDescription: String?
+    @objc open var adPurchaserName: String?
+    @objc open var timestamp: NSNumber = 0
+    @objc open var signature = ""
+    @objc open var version = ""
     public override init() { super.init() }
+    @objc(initWithSourceAppStoreItemIdentifier:advertisedAppStoreItemIdentifier:adNetworkIdentifier:adCampaignIdentifier:adImpressionIdentifier:timestamp:signature:version:)
     public init(sourceAppStoreItemIdentifier: NSNumber, advertisedAppStoreItemIdentifier: NSNumber, adNetworkIdentifier: String,
                 adCampaignIdentifier: NSNumber, adImpressionIdentifier: String, timestamp: NSNumber, signature: String, version: String) {
         self.sourceAppStoreItemIdentifier = sourceAppStoreItemIdentifier; self.advertisedAppStoreItemIdentifier = advertisedAppStoreItemIdentifier
@@ -43,7 +44,7 @@ open class SKAdImpression: NSObject, @unchecked Sendable {
     }
 }
 
-open class SKAdNetwork: NSObject {
+@objc(SKAdNetwork) open class SKAdNetwork: NSObject {
     public struct CoarseConversionValue: RawRepresentable, Hashable, Sendable {
         public let rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -68,7 +69,7 @@ open class SKAdNetwork: NSObject {
     }
 
     /// view-through attribution: the impression is shown
-    open class func startImpression(_ impression: SKAdImpression, completionHandler: ((Error?) -> Void)? = nil) {
+    @objc(startImpression:completionHandler:) open class func startImpression(_ impression: SKAdImpression, completionHandler: ((Error?) -> Void)? = nil) {
         if let e = check(impression) { done(completionHandler, e); return }
         lock.lock(); started[impression.adImpressionIdentifier] = Date(); lock.unlock()
         print("isim: SKAdNetwork impression started (\(impression.adNetworkIdentifier), advertised \(impression.advertisedAppStoreItemIdentifier))")
@@ -79,7 +80,7 @@ open class SKAdNetwork: NSObject {
             startImpression(impression) { e in e.map { k.resume(throwing: $0) } ?? k.resume() }
         }
     }
-    open class func endImpression(_ impression: SKAdImpression, completionHandler: ((Error?) -> Void)? = nil) {
+    @objc(endImpression:completionHandler:) open class func endImpression(_ impression: SKAdImpression, completionHandler: ((Error?) -> Void)? = nil) {
         lock.lock(); let start = started.removeValue(forKey: impression.adImpressionIdentifier); lock.unlock()
         guard let start else { done(completionHandler, SKANError(.impressionNotFound)); return }
         let seconds = Date().timeIntervalSince(start)
@@ -96,11 +97,12 @@ open class SKAdNetwork: NSObject {
     }
 
     @available(iOS, deprecated: 15.4)
-    open class func registerAppForAdNetworkAttribution() { _IsimAttribution.update(api: "SKAdNetwork", fine: 0, coarse: nil, lockWindow: false) }
+    @objc open class func registerAppForAdNetworkAttribution() { _IsimAttribution.update(api: "SKAdNetwork", fine: 0, coarse: nil, lockWindow: false) }
     @available(iOS, deprecated: 15.4)
-    open class func updateConversionValue(_ conversionValue: Int) {
+    @objc(updateConversionValue:) open class func updateConversionValue(_ conversionValue: Int) {
         _IsimAttribution.update(api: "SKAdNetwork", fine: conversionValue, coarse: nil, lockWindow: false)
     }
+    @objc(updatePostbackConversionValue:completionHandler:)
     open class func updatePostbackConversionValue(_ conversionValue: Int, completionHandler: ((Error?) -> Void)? = nil) {
         let ok = _IsimAttribution.update(api: "SKAdNetwork", fine: conversionValue, coarse: nil, lockWindow: false)
         done(completionHandler, ok ? nil : SKANError(.invalidConversionValue))
@@ -125,5 +127,17 @@ open class SKAdNetwork: NSObject {
         try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
             updatePostbackConversionValue(fineValue, coarseValue: coarseValue, lockWindow: lockWindow) { e in e.map { k.resume(throwing: $0) } ?? k.resume() }
         }
+    }
+}
+
+// Objective-C: the coarse value is an NSString (SKAdNetworkCoarseConversionValue)
+extension SKAdNetwork {
+    @objc(updatePostbackConversionValue:coarseValue:completionHandler:)
+    class func _objc_update(_ fine: Int, coarse: String, completionHandler: ((Error?) -> Void)?) {
+        updatePostbackConversionValue(fine, coarseValue: CoarseConversionValue(rawValue: coarse), lockWindow: false, completionHandler: completionHandler)
+    }
+    @objc(updatePostbackConversionValue:coarseValue:lockWindow:completionHandler:)
+    class func _objc_update(_ fine: Int, coarse: String, lockWindow: Bool, completionHandler: ((Error?) -> Void)?) {
+        updatePostbackConversionValue(fine, coarseValue: CoarseConversionValue(rawValue: coarse), lockWindow: lockWindow, completionHandler: completionHandler)
     }
 }

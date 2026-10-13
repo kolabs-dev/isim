@@ -248,6 +248,11 @@ void dispatch_assert_queue(dispatch_queue_t q) {
 void dispatch_assert_queue_not(dispatch_queue_t q) {
     if (on_queue(q)) { fprintf(stderr, "BUG IN CLIENT OF LIBDISPATCH: Block was expected not to execute on queue [%s]\n", q->label); abort(); }
 }
+/* Apple's <dispatch/queue.h> binds these to their $V2 symbols for newer deployment targets */
+void dispatch_assert_queue_V2(dispatch_queue_t q) __asm__("_dispatch_assert_queue$V2");
+void dispatch_assert_queue_V2(dispatch_queue_t q) { dispatch_assert_queue(q); }
+void dispatch_assert_queue_not_V2(dispatch_queue_t q) __asm__("_dispatch_assert_queue_not$V2");
+void dispatch_assert_queue_not_V2(dispatch_queue_t q) { dispatch_assert_queue_not(q); }
 
 typedef struct { dispatch_queue_t q; dispatch_function_t f; void *ctx; } qjob;
 static void run_on(dispatch_queue_t q, dispatch_function_t f, void *ctx) {

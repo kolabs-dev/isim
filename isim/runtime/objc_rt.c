@@ -474,12 +474,45 @@ static struct class_ro_t protocol_meta_ro = { RO_META, 40, 40, 0, NULL, "Protoco
 static struct class_ro_t protocol_ro = { 0, 8, 8, 0, NULL, "Protocol", NULL, NULL, NULL, NULL, NULL };
 static struct objc_class protocol_meta, protocol_class;
 
+/* Protocol objects live as long as their image: memory management is a no-op, as for Apple's (an NSObject subclass), so
+   ARC code and collections can hold them; equality is by name (one protocol may have a copy in several images) */
+int class_addMethod(Class c, SEL sel, IMP imp, const char *types);
+int protocol_conformsToProtocol(struct protocol_t *p, struct protocol_t *other);
+static id proto_self(id self, SEL _cmd) { return self; }
+static void proto_nothing(id self, SEL _cmd) {}
+static uintptr_t proto_retain_count(id self, SEL _cmd) { return UINTPTR_MAX; }
+static int proto_is_equal(id self, SEL _cmd, id other) {
+    return self == other || (other && other->isa == &protocol_class && !strcmp(((struct protocol_t *)self)->name, ((struct protocol_t *)other)->name));
+}
+static uintptr_t proto_hash(id self, SEL _cmd) {
+    uintptr_t h = 5381;
+    for (const char *c = ((struct protocol_t *)self)->name; c && *c; c++) h = h * 33 + (unsigned char)*c;
+    return h;
+}
+static Class proto_class(id self, SEL _cmd) { return &protocol_class; }
+static const char *proto_name(id self, SEL _cmd) { return ((struct protocol_t *)self)->name; }
+static int proto_conforms_to(id self, SEL _cmd, id other) { return protocol_conformsToProtocol((struct protocol_t *)self, (struct protocol_t *)other); }
+static int proto_is_kind(id self, SEL _cmd, Class c) { return c == &protocol_class; }
+static int proto_responds(id self, SEL _cmd, SEL sel) { return find_own(&protocol_class, sel) != NULL; }
+
 static void protocol_class_init(void) {
     protocol_meta = (struct objc_class){ &protocol_meta, NULL, NULL, NULL, (uintptr_t)&protocol_meta_ro };
     protocol_class = (struct objc_class){ &protocol_meta, NULL, NULL, NULL, (uintptr_t)&protocol_ro };
     rt_attach(&protocol_class, &protocol_class)->realized = 1;
     rt_attach(&protocol_meta, &protocol_class)->realized = 1;
     protocol_class.rt->init_state = protocol_meta.rt->init_state = 2;
+    static const struct { const char *sel; IMP imp; const char *types; } m[] = {
+        { "retain", (IMP)proto_self, "@16@0:8" }, { "autorelease", (IMP)proto_self, "@16@0:8" },
+        { "self", (IMP)proto_self, "@16@0:8" }, { "copy", (IMP)proto_self, "@16@0:8" },
+        { "copyWithZone:", (IMP)proto_self, "@24@0:8^v16" }, { "release", (IMP)proto_nothing, "v16@0:8" },
+        { "retainCount", (IMP)proto_retain_count, "Q16@0:8" }, { "isEqual:", (IMP)proto_is_equal, "B24@0:8@16" },
+        { "hash", (IMP)proto_hash, "Q16@0:8" }, { "class", (IMP)proto_class, "#16@0:8" },
+        { "name", (IMP)proto_name, "*16@0:8" }, { "conformsTo:", (IMP)proto_conforms_to, "B24@0:8@16" },
+        { "isKindOfClass:", (IMP)proto_is_kind, "B24@0:8#16" }, { "respondsToSelector:", (IMP)proto_responds, "B24@0:8:16" },
+        { "_tryRetain", (IMP)proto_self, "B16@0:8" }, { "allowsWeakReference", (IMP)proto_self, "B16@0:8" },
+        { "retainWeakReference", (IMP)proto_self, "B16@0:8" },
+    };
+    for (size_t i = 0; i < sizeof m / sizeof *m; i++) class_addMethod(&protocol_class, sel_intern(m[i].sel), m[i].imp, m[i].types);
 }
 
 static void rt_init_once(void) {
@@ -662,6 +695,66 @@ static const char *proto_method_types(struct protocol_t *p, SEL sel, int req, in
 struct objc_method_description protocol_getMethodDescription(struct protocol_t *p, SEL sel, int req, int inst) {
     const char *t = sel ? proto_method_types(p, sel, req & 1, inst & 1, 0) : NULL;
     return (struct objc_method_description){ t ? sel : NULL, t };
+}
+/* the protocol's own methods (not its parents'), like Apple's */
+struct objc_method_description *protocol_copyMethodDescriptionList(struct protocol_t *p, int req, int inst, unsigned *outCount) {
+    const struct method_list_t *ml = !p ? NULL : req ? (inst ? p->inst : p->cls) : (inst ? p->opt_inst : p->opt_cls);
+    unsigned n = ml ? ml->count : 0;
+    struct objc_method_description *out = n ? calloc(n + 1, sizeof *out) : NULL;
+    for (unsigned i = 0; i < n; i++) {
+        const uint8_t *e = m_entry(ml, i);
+        out[i].name = m_name(ml, i);
+        out[i].types = ml->entsize_flags & SMALL_METHOD_LIST ? (const char *)(e + 4 + rel32(e + 4)) : ((const struct method_t *)e)->types;
+    }
+    if (outCount) *outCount = n;
+    return out;
+}
+static struct protocol_t **copy_proto_lists(struct protocol_list_t **lists, int nlists, unsigned *outCount) {
+    unsigned n = 0; struct protocol_t **out = NULL;
+    for (int k = 0; k < nlists; k++) n += lists[k] ? (unsigned)lists[k]->count : 0;
+    if (n) {
+        out = calloc(n + 1, sizeof *out); n = 0;
+        for (int k = 0; k < nlists; k++) for (uintptr_t i = 0; lists[k] && i < lists[k]->count; i++) out[n++] = lists[k]->list[i];
+    }
+    if (outCount) *outCount = n;
+    return out;
+}
+struct protocol_t **protocol_copyProtocolList(struct protocol_t *p, unsigned *outCount) {
+    struct protocol_list_t *l = p ? p->protocols : NULL;
+    return copy_proto_lists(&l, 1, outCount);
+}
+struct protocol_t **class_copyProtocolList(Class c, unsigned *outCount) {
+    if (!c) { if (outCount) *outCount = 0; return NULL; }
+    struct rt_class *r = R(c);
+    int nl = 1 + (r ? r->ncatp : 0);
+    struct protocol_list_t **lists = calloc(nl, sizeof *lists);
+    lists[0] = ro_of(c)->base_protocols;
+    for (int i = 1; i < nl; i++) lists[i] = r->cat_protos[i - 1];
+    struct protocol_t **out = copy_proto_lists(lists, nl, outCount);
+    free(lists);
+    return out;
+}
+/* the protocol's own required instance properties */
+struct property_t **protocol_copyPropertyList(struct protocol_t *p, unsigned *outCount) {
+    struct property_list_t *pl = p ? p->props : NULL;
+    unsigned n = pl ? pl->count : 0;
+    struct property_t **out = n ? calloc(n + 1, sizeof *out) : NULL;
+    for (unsigned i = 0; i < n; i++) out[i] = (struct property_t *)((uint8_t *)(pl + 1) + i * pl->entsize);
+    if (outCount) *outCount = n;
+    return out;
+}
+/* one attribute of "T@\"NSString\",&,N,V_name" by its letter (malloc'd; "" for a flag) */
+char *property_copyAttributeValue(struct property_t *prop, const char *name) {
+    if (!prop || !prop->attributes || !name || !*name) return NULL;
+    size_t nl = strlen(name);
+    for (const char *a = prop->attributes; *a; ) {
+        const char *end = a;
+        int quoted = 0;
+        while (*end && (quoted || *end != ',')) { if (*end == '"') quoted = !quoted; end++; }
+        if ((size_t)(end - a) >= nl && !strncmp(a, name, nl)) return strndup(a + nl, end - a - nl);
+        a = *end ? end + 1 : end;
+    }
+    return NULL;
 }
 static struct rt_method *method_for(Class cls, SEL sel, int create_on_owner) {
     for (Class c = cls; c; c = c->superclass) {
@@ -1138,7 +1231,8 @@ static const struct shim objc_table[] = {
     I(objc_getClass), I(objc_lookUpClass), I(objc_getMetaClass), I(class_getName), I(class_getSuperclass), I(class_isMetaClass),
     I(class_getInstanceSize), I(object_getClass), I(object_setClass), I(object_getClassName), I(class_respondsToSelector),
     I(class_getMethodImplementation), I(class_getMethodImplementation_stret), I(class_createInstance), I(object_dispose), I(objc_destructInstance),
-    I(objc_getProtocol), I(protocol_getMethodDescription), I(protocol_getName), I(protocol_conformsToProtocol), I(class_conformsToProtocol),
+    I(objc_getProtocol), I(protocol_getMethodDescription), I(protocol_copyMethodDescriptionList), I(protocol_copyProtocolList),
+    I(class_copyProtocolList), I(protocol_copyPropertyList), I(property_copyAttributeValue), I(protocol_getName), I(protocol_conformsToProtocol), I(class_conformsToProtocol),
     I(_objc_rootRetain), I(_objc_rootRelease), I(_objc_rootReleaseWasZero), I(_objc_rootRetainCount), I(_objc_rootAutorelease),
     I(_objc_rootIsDeallocating), I(_objc_realizeClassFromSwift),
     I(objc_retain), I(objc_release), I(objc_autorelease), I(objc_retainAutorelease), I(objc_retainAutoreleaseReturnValue),
@@ -1164,4 +1258,4 @@ static const struct shim objc_table[] = {
     J("__NSConcreteStackBlock", _NSConcreteStackBlock), J("__NSConcreteMallocBlock", _NSConcreteMallocBlock),
     J("__NSConcreteGlobalBlock", _NSConcreteGlobalBlock),
 };
-const struct host_lib host_libobjc = { "/usr/lib/libobjc.A.dylib", objc_table, sizeof objc_table / sizeof *objc_table };
+const struct host_lib host_libobjc = { "/usr/lib/libobjc.A.dylib", objc_table, sizeof objc_table / sizeof *objc_table, NULL };

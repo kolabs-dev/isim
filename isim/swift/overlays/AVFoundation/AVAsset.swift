@@ -37,7 +37,7 @@ public protocol AVAsynchronousKeyValueLoading {
     func loadValuesAsynchronously(forKeys keys: [String], completionHandler handler: (@Sendable () -> Void)?)
 }
 
-open class AVAsset: NSObject, AVAsynchronousKeyValueLoading, @unchecked Sendable {
+@objc(AVAsset) open class AVAsset: NSObject, AVAsynchronousKeyValueLoading, @unchecked Sendable {
     let _url: URL?
     private var _info: _AVMediaInfo?
     private let _lock = NSLock()
@@ -106,15 +106,15 @@ func _avLoadError(_ a: AVAsset) -> NSError {
 }
 public let NSLocalizedFailureReasonErrorKey = "NSLocalizedFailureReason"
 
-open class AVURLAsset: AVAsset, @unchecked Sendable {
-    public let url: URL
-    public init(url URL: URL, options: [String: Any]? = nil) { url = URL; super.init(_url: URL) }
+@objc(AVURLAsset) open class AVURLAsset: AVAsset, @unchecked Sendable {
+    @objc(URL) public let url: URL
+    @objc(initWithURL:options:) public init(url URL: URL, options: [String: Any]? = nil) { url = URL; super.init(_url: URL) }
     public static func audiovisualTypes() -> [String] { ["public.mpeg-4", "com.apple.quicktime-movie", "public.mp3", "com.apple.m4a-audio", "com.apple.m4v-video"] }
     public static func audiovisualMIMETypes() -> [String] { ["video/mp4", "video/quicktime", "audio/mpeg", "audio/mp4"] }
     public static func isPlayableExtendedMIMEType(_ t: String) -> Bool { t.hasPrefix("video/") || t.hasPrefix("audio/") }
 }
 
-open class AVAssetTrack: NSObject, AVAsynchronousKeyValueLoading, @unchecked Sendable {
+@objc(AVAssetTrack) open class AVAssetTrack: NSObject, AVAsynchronousKeyValueLoading, @unchecked Sendable {
     public private(set) weak var asset: AVAsset?
     public let trackID: CMPersistentTrackID
     public let mediaType: AVMediaType

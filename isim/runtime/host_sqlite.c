@@ -39,4 +39,4 @@ void host_sqlite_load(void) {
         if (p) sqlite_table[i].addr = p;
     }
 }
-const struct host_lib host_sqlite = { "/usr/lib/libsqlite3.dylib", sqlite_table, sizeof sqlite_table / sizeof *sqlite_table };
+const struct host_lib host_sqlite = { "/usr/lib/libsqlite3.dylib", sqlite_table, sizeof sqlite_table / sizeof *sqlite_table, host_sqlite_load };

@@ -134,7 +134,9 @@ def sdk_headers(c):
     # stubs for the host libraries, generated from the runtime's export tables
     tbds = []
     for name, lib in (("libSystem", "/usr/lib/libSystem.B.dylib"), ("libobjc", "/usr/lib/libobjc.A.dylib"),
-                      ("libisim_host", "/usr/lib/libisim_host.dylib"), ("libsqlite3", "/usr/lib/libsqlite3.dylib")):
+                      ("libisim_host", "/usr/lib/libisim_host.dylib"), ("libsqlite3", "/usr/lib/libsqlite3.dylib"),
+                      ("libz", "/usr/lib/libz.1.dylib"), ("libcompression", "/usr/lib/libcompression.dylib"),
+                      ("libisim_jsc", "/usr/lib/libisim_jsc.dylib")):
         tbds += c.n.build(f"{SDK}/usr/lib/{name}.tbd", c.act("tbd", f"{OUT}/bin/isim-runtime", lib, f"{SDK}/usr/lib/{name}.tbd"),
                           implicit=[f"{OUT}/bin/isim-runtime"], desc=f"TBD {name}")
     c.n.phony("tbds", tbds)
@@ -159,14 +161,28 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
     ("XCTest", "-framework Foundation -framework UIKit -framework CoreGraphics -lisim_host"),
     ("Intents", "-framework Foundation -framework UIKit -framework CoreGraphics"),
     ("IntentsUI", "-framework Foundation -framework UIKit -framework CoreGraphics -framework Intents"),
+    ("SystemConfiguration", "-framework Foundation -lisim_host"),
+    ("CoreTelephony", "-framework Foundation"),
+    # the Objective-C API over JavaScriptCore's C API, which the host's JavaScriptCore (libisim_jsc) implements
+    ("JavaScriptCore", "-framework Foundation -framework CoreGraphics -reexport-lisim_jsc"),
 ]
 
 # Objective-C frameworks whose classes are a Swift overlay's (`@objc(WKWebView)`...): headers in sdk-src/Frameworks/<Name>
 # (hidden from Swift, which uses the overlay), a binary that re-exports libswift<Name>.dylib, so Objective-C code and
 # binary SDKs link the classes (_OBJC_CLASS_$_WKWebView) and subclass them, plus C constants from frameworks/<Name>/*.m.
-# They link after the overlays (swift.py): name, link arguments of the C/Objective-C part
+# They link after the overlays (swift.py): name, link arguments of the C/Objective-C part[, the overlay if not <name>]
 SWIFT_FRAMEWORKS = [
     ("WebKit", "-framework Foundation -framework UIKit"),
+    ("AdSupport", "-framework Foundation"),
+    ("CoreMotion", "-framework Foundation"),
+    ("MessageUI", "-framework Foundation -framework UIKit"),
+    ("StoreKit", "-framework Foundation -framework UIKit"),
+    ("MarketplaceKit", []),
+    ("Security", "-framework Foundation"),
+    ("Network", []),
+    ("MobileCoreServices", "-framework Foundation", "UniformTypeIdentifiers"),
+    ("CoreMedia", []),
+    ("AVFoundation", "-framework Foundation -framework UIKit -framework CoreMedia"),
 ]
 
 GUEST_CFLAGS = ["-target", f"x86_64-apple-ios{MINOS}-simulator", "-nostdlibinc", "-isystem", f"{SDK}/usr/include",
@@ -186,7 +202,8 @@ def link_deps(args):
             deps.append(f"{SDK}/usr/lib/swift/lib{name}.dylib" if name.startswith("swift") else
                         f"{SDK}/usr/lib/libc++.1.dylib" if name == "c++" else f"{SDK}/usr/lib/lib{name}.tbd")
         elif a.startswith("-reexport-l"):
-            deps.append(f"{SDK}/usr/lib/swift/lib{a[11:]}.dylib")
+            name = a[11:]
+            deps.append(f"{SDK}/usr/lib/swift/lib{name}.dylib" if name.startswith("swift") else f"{SDK}/usr/lib/lib{name}.tbd")
         prev = a
     return deps
 
@@ -201,20 +218,22 @@ def framework_objs(c, name):
     return objs
 
 
-def swift_framework(c, name, link):
-    """<name>.framework for a Swift overlay with an Objective-C interface (SWIFT_FRAMEWORKS): re-exports libswift<name>"""
+def swift_framework(c, name, link, overlay_name=None):
+    """<name>.framework for a Swift overlay with an Objective-C interface (SWIFT_FRAMEWORKS): re-exports libswift<name>
+    (or the overlay named third in the entry: MobileCoreServices re-exports UniformTypeIdentifiers)"""
     link = link.split() if isinstance(link, str) else link
-    lib, overlay = f"{FW}/{name}.framework/{name}", f"{SDK}/usr/lib/swift/libswift{name}.dylib"
+    lib, overlay = f"{FW}/{name}.framework/{name}", f"{SDK}/usr/lib/swift/libswift{overlay_name or name}.dylib"
     objs = framework_objs(c, name)
     return c.n.build(lib, [c.ld, "-arch", "x86_64", "-platform_version", "ios-simulator", "17.0", "0", "-dylib",   # like the overlays
                            "-install_name", f"/System/Library/Frameworks/{name}.framework/{name}", "-o", lib, *objs,
+                           "-syslibroot", SDK,   # finds what a linked framework re-exports (CoreMedia: libswiftCoreMedia)
                            f"-L{SDK}/usr/lib", f"-F{FW}", "-lSystem", "-lobjc", *link, "-reexport_library", overlay],
                      inputs=objs, implicit=[overlay, *link_deps(["-lSystem", "-lobjc", *link])], desc=f"LINK {name}.framework")
 
 
 def frameworks(c):
     n, dylibs = c.n, []
-    for name, link in FRAMEWORKS + SWIFT_FRAMEWORKS:
+    for name, *_ in FRAMEWORKS + SWIFT_FRAMEWORKS:
         fw = f"{FW}/{name}.framework"
         stamp = c.sync(f"{OUT}/stamps/headers-{name}", ["--tree", f"sdk-src/Frameworks/{name}", f"{fw}/Headers"], f"headers {name}")
         c.fw_header_stamp[name] = stamp

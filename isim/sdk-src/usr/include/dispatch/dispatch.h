@@ -11,7 +11,11 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #ifndef FOUNDATION_EXPORT
+#if defined(__cplusplus)
+#define FOUNDATION_EXPORT extern "C" __attribute__((visibility("default")))
+#else
 #define FOUNDATION_EXPORT extern __attribute__((visibility("default")))
+#endif
 #endif
 #ifndef NS_NOESCAPE
 #define NS_NOESCAPE __attribute__((noescape))

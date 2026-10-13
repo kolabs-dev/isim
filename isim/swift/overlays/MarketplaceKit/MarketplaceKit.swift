@@ -36,3 +36,17 @@ extension UIScene.ConnectionOptions {
         MarketplaceDisplayOption._isimParse(value(forKey: "_isim_launchMarker") as? String)
     }
 }
+
+/// where the running app was installed from (iOS 17.4). Adapted: apps run on isim are installed by `isim install` / `isim
+/// run`, like an app Xcode installs on a device, which reports .other.
+@available(iOS 17.4, *)
+public enum AppDistributor: Sendable, Hashable {
+    case appStore
+    case testFlight
+    case marketplace(String)
+    case web
+    case other
+    public static var current: AppDistributor {
+        get async throws { .other }
+    }
+}

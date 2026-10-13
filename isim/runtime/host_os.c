@@ -354,4 +354,4 @@ static const struct shim os_table[] = {
     { "__os_log_error_impl", (void *)os_log_impl, "isim" }, { "__os_log_fault_impl", (void *)os_log_impl, "isim" },
     { "__os_log_default", &_os_log_default, "isim" }, { "__os_log_disabled", &_os_log_disabled, "isim" },
 };
-const struct host_lib host_libsystem_os = { "/usr/lib/system/libsystem_platform.dylib", os_table, sizeof os_table / sizeof *os_table };
+const struct host_lib host_libsystem_os = { "/usr/lib/system/libsystem_platform.dylib", os_table, sizeof os_table / sizeof *os_table, NULL };

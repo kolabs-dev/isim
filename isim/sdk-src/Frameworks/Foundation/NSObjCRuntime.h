@@ -24,7 +24,11 @@
 #include <CoreGraphics/CGBase.h>
 #include <CoreGraphics/CGGeometry.h>
 
+#if defined(__cplusplus)
+#define FOUNDATION_EXPORT extern "C" __attribute__((visibility("default")))
+#else
 #define FOUNDATION_EXPORT extern __attribute__((visibility("default")))
+#endif
 #define FOUNDATION_EXTERN FOUNDATION_EXPORT
 #define NS_INLINE static inline
 #define NS_ASSUME_NONNULL_BEGIN _Pragma("clang assume_nonnull begin")
@@ -58,7 +62,11 @@
 #define NS_NOESCAPE __attribute__((noescape))
 #define NS_RETURNS_INNER_POINTER __attribute__((objc_returns_inner_pointer))
 #define NS_ENUM(_type, _name) enum __attribute__((enum_extensibility(open))) _name : _type _name; enum _name : _type
+#if defined(__cplusplus)   /* like Apple's: in C++ the options are an integer typedef, so a | b stays that type */
+#define NS_OPTIONS(_type, _name) __attribute__((availability(swift, unavailable))) _type _name; enum __attribute__((flag_enum, enum_extensibility(open))) : _name
+#else
 #define NS_OPTIONS(_type, _name) enum __attribute__((flag_enum, enum_extensibility(open))) _name : _type _name; enum _name : _type
+#endif
 #define NS_CLOSED_ENUM(_type, _name) enum __attribute__((enum_extensibility(closed))) _name : _type _name; enum _name : _type
 #define NS_TYPED_ENUM __attribute__((swift_wrapper(struct)))
 #define NS_TYPED_EXTENSIBLE_ENUM __attribute__((swift_wrapper(struct)))
@@ -116,6 +124,7 @@ FOUNDATION_EXPORT SEL NSSelectorFromString(NSString *aSelectorName);
 FOUNDATION_EXPORT NSString *NSStringFromClass(Class aClass);
 FOUNDATION_EXPORT Class _Nullable NSClassFromString(NSString *aClassName);
 FOUNDATION_EXPORT NSString *NSStringFromProtocol(Protocol *proto);
+FOUNDATION_EXPORT Protocol * _Nullable NSProtocolFromString(NSString *namestr);
 FOUNDATION_EXPORT NSString *NSStringFromRange(NSRange range);
 FOUNDATION_EXPORT NSString *NSStringFromCGPoint(CGPoint p);
 FOUNDATION_EXPORT NSString *NSStringFromCGSize(CGSize s);

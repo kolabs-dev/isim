@@ -198,12 +198,14 @@ class Swift:
 
     def libcxx(self):
         """libc++.1.dylib: libc++ and libc++abi with C++ exceptions and RTTI (__cxa_throw, __gxx_personality_v0, typeinfo,
-        __cxa_demangle); unwinding is the host's (isim's libSystem exports _Unwind_*)"""
+        __cxa_demangle), iostreams and locales (over libSystem's Darwin <xlocale.h> functions); unwinding is the host's
+        (isim's libSystem exports _Unwind_*)"""
         L = f"{self.c.tp}/llvm-project"
         srcs = [f"libcxx/src/{s}.cpp" for s in (
-            "algorithm any atomic bind call_once chrono condition_variable condition_variable_destructor error_category exception "
-            "expected functional future hash memory mutex mutex_destructor new_helpers optional stdexcept string system_error "
-            "thread variant vector verbose_abort").split()]
+            "algorithm any atomic barrier bind call_once chrono condition_variable condition_variable_destructor "
+            "error_category exception expected fstream functional future hash ios ios.instantiations iostream locale memory "
+            "memory_resource mutex mutex_destructor new_helpers optional ostream print random_shuffle regex shared_mutex "
+            "stdexcept string strstream system_error thread valarray variant vector verbose_abort").split()]
         srcs += [f"libcxxabi/src/{s}.cpp" for s in (
             "abort_message cxa_aux_runtime cxa_default_handlers cxa_demangle cxa_exception cxa_exception_storage cxa_guard "
             "cxa_handlers cxa_personality cxa_vector cxa_virtual fallback_malloc private_typeinfo stdlib_exception "
@@ -268,6 +270,8 @@ class Swift:
         libcxx = self.libcxx()
         robjs = self.runtime()
         # libswiftCore: the stdlib object + runtime objects; weak imports isim does not provide fall back at run time
+        robjs.append(self.c.compile("swift/force_load.c", f"{SW}/obj/runtime/force_load.o",
+                                    [self.c.cc, "-target", TRIPLE, "-isysroot", SDK, "-O2"], order_only=self.c.header_stamps))
         core = self.link("swiftCore", [f"{SW}/full/swiftCore.o", *robjs],
                          ["-lSystem", "-lobjc", "-lc++", "-framework", "Foundation", "-U", "__objc_realizeClassFromSwift"],
                          implicit=[libcxx])
@@ -500,7 +504,9 @@ class Swift:
         base = [mod("Swift"), mod("_Concurrency")] + ([mod("_StringProcessing")] if os.path.isdir(os.path.join(
             c.root, f"{c.tp}/swift-experimental-string-processing/Sources")) else [])
         from .graph import SWIFT_FRAMEWORKS, swift_framework
-        objc_frameworks = dict(SWIFT_FRAMEWORKS)
+        objc_frameworks = {}                                     # overlay -> [(framework, link args)]
+        for name, link, *overlay in SWIFT_FRAMEWORKS:
+            objc_frameworks.setdefault(overlay[0] if overlay else name, []).append((name, link))
         outs = []
         for line in OVERLAYS.strip().splitlines():
             line = line.split("#")[0].split()
@@ -533,8 +539,8 @@ class Swift:
             link_args = ["-lSystem", "-lobjc", "-lswiftCore"] + [a for a in args if not a.endswith(".o")]
             link_args += objc_aliases(m)
             outs += [mod(m), self.link(f"swift{m}", objs, link_args, minos="17.0")]
-            if m in objc_frameworks:
-                outs += swift_framework(c, m, objc_frameworks[m])
+            for fw, fw_link in objc_frameworks.get(m, []):
+                outs += swift_framework(c, fw, fw_link, overlay_name=m)
         # MapKit's offline basemap: land shapes from Natural Earth (public domain; tools/make-land.py)
         for f in ("land-50m.bin", "land-10m.bin"):
             act.copy_if_changed(os.path.join(c.root, "data/maps", f), os.path.join(c.root, SDK, "usr/share/isim/maps", f))
@@ -637,11 +643,23 @@ OBJC_NAMES["WebKit"] = {c: c for c in """WKFrameInfo WKFindResult WKNavigation W
     WKContextMenuElementInfo WKWebView""".split()}
 
 
+OBJC_NAMES["AdSupport"] = {"ASIdentifierManager": "ASIdentifierManager"}
+OBJC_NAMES["StoreKit"] = {**{c: c for c in "SKAdImpression SKAdNetwork SKOverlay SKPaymentQueue SKStoreProductViewController SKStorefront".split()},
+                          "SKOverlay.Configuration": "SKOverlayConfiguration", "SKOverlay.AppConfiguration": "SKOverlayAppConfiguration",
+                          "SKOverlay.AppClipConfiguration": "SKOverlayAppClipConfiguration", "SKOverlay.TransitionContext": "SKOverlayTransitionContext"}
+OBJC_NAMES["AVFoundation"] = {c: c for c in """AVAudioSession AVAudioSessionPortDescription AVAudioSessionRouteDescription AVAsset AVURLAsset
+    AVAssetTrack AVPlayerItem AVPlayerItemTrack AVPlayer AVQueuePlayer AVPlayerLayer""".split()}
+OBJC_NAMES["MessageUI"] = {c: c for c in ("MFMailComposeViewController", "MFMessageComposeViewController")}
+OBJC_NAMES["CoreMotion"] = {c: c for c in "CMLogItem CMAccelerometerData CMGyroData CMMagnetometerData CMAttitude CMDeviceMotion CMMotionManager".split()}
+
+
 def objc_aliases(module):
     out = []
     for swift, objc in OBJC_NAMES.get(module, {}).items():
+        parts = swift.split(".")                                   # a nested class: _TtCC8StoreKit9SKOverlay16AppConfiguration
+        old = "_TtC" + "C" * (len(parts) - 1) + f"{len(module)}{module}" + "".join(f"{len(p)}{p}" for p in parts)
         for kind in ("OBJC_CLASS", "OBJC_METACLASS"):
-            out += ["-alias", f"_{kind}_$_{objc}", f"_{kind}_$__TtC{len(module)}{module}{len(swift)}{swift}"]
+            out += ["-alias", f"_{kind}_$_{objc}", f"_{kind}_$_{old}"]
     return out
 
 OVERLAYS = """

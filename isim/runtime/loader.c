@@ -67,7 +67,7 @@ static const char *sysroot;
 static int unresolved_count;
 int isim_verbose;
 
-static const struct host_lib *const host_libs[] = { &host_libsystem, &host_libobjc, &host_isim, &host_sqlite };
+static const struct host_lib *const host_libs[] = { &host_libsystem, &host_libobjc, &host_isim, &host_sqlite, &host_libz, &host_libcompression, &host_jsc };
 
 /* while dlopen maps images, a fatal loading error fails that dlopen (dlerror) instead of ending the process */
 static __thread jmp_buf *dl_fail;
@@ -96,7 +96,7 @@ static const struct shim dyld_table[];
 static const size_t dyld_table_count;
 const struct shim *host_lib_lookup(const struct host_lib *lib, const char *name) {
     for (size_t i = 0; i < lib->count; i++)
-        if (!strcmp(lib->table[i].name, name)) { if (lib == &host_sqlite) host_sqlite_load(); return &lib->table[i]; }
+        if (!strcmp(lib->table[i].name, name)) { if (lib->load) lib->load(); return &lib->table[i]; }
     if (lib == &host_libsystem)            /* libdyld lives inside the libSystem umbrella on Darwin */
         for (size_t i = 0; i < dyld_table_count; i++) if (!strcmp(dyld_table[i].name, name)) return &dyld_table[i];
     if (lib == &host_libsystem) {

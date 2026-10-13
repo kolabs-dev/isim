@@ -79,6 +79,11 @@ OBJC_EXPORT IMP _Nullable class_getMethodImplementation_stret(Class _Nullable cl
 struct objc_method_description { SEL _Nullable name; char * _Nullable types; };
 OBJC_EXPORT struct objc_method_description protocol_getMethodDescription(Protocol * _Nonnull proto, SEL _Nonnull aSel, BOOL isRequiredMethod, BOOL isInstanceMethod);
 OBJC_EXPORT BOOL class_conformsToProtocol(Class _Nullable cls, Protocol * _Nullable protocol);
+OBJC_EXPORT struct objc_method_description * _Nullable protocol_copyMethodDescriptionList(Protocol * _Nonnull proto, BOOL isRequiredMethod, BOOL isInstanceMethod, unsigned int * _Nullable outCount);
+OBJC_EXPORT Protocol * __unsafe_unretained _Nonnull * _Nullable protocol_copyProtocolList(Protocol * _Nonnull proto, unsigned int * _Nullable outCount);
+OBJC_EXPORT objc_property_t _Nonnull * _Nullable protocol_copyPropertyList(Protocol * _Nonnull proto, unsigned int * _Nullable outCount);
+OBJC_EXPORT Protocol * __unsafe_unretained _Nonnull * _Nullable class_copyProtocolList(Class _Nullable cls, unsigned int * _Nullable outCount);
+OBJC_EXPORT char * _Nullable property_copyAttributeValue(objc_property_t _Nonnull property, const char * _Nonnull attributeName);
 OBJC_EXPORT Protocol * _Nullable objc_getProtocol(const char * _Nonnull name);
 OBJC_EXPORT const char * _Nonnull protocol_getName(Protocol * _Nonnull proto);
 OBJC_EXPORT BOOL protocol_conformsToProtocol(Protocol * _Nullable proto, Protocol * _Nullable other);

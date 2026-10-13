@@ -354,3 +354,19 @@ TRAIT_REG_IMPL
 @implementation UIPresentationController (UITraitChangeObservable)
 TRAIT_REG_IMPL
 @end
+
+
+/* NSDictionaryOfVariableBindings(a, b): the variable names (comma-separated, as written) mapped to their values */
+NSDictionary<NSString *, id> *_NSDictionaryOfVariableBindings(NSString *keys, id first, ...) {
+    NSMutableDictionary *d = [NSMutableDictionary dictionary];
+    va_list ap; va_start(ap, first);
+    id v = first;
+    for (NSString *k in [keys componentsSeparatedByString:@","]) {
+        NSString *name = [k stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        if (!v) break;
+        if (name.length) d[name] = v;
+        v = va_arg(ap, id);
+    }
+    va_end(ap);
+    return d;
+}

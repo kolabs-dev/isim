@@ -11,32 +11,32 @@ import isim_host
 
 // MARK: - AVPlayerItem
 
-open class AVPlayerItem: NSObject, @unchecked Sendable {
+@objc(AVPlayerItem) open class AVPlayerItem: NSObject, @unchecked Sendable {
     @objc public enum Status: Int, Sendable { case unknown = 0, readyToPlay, failed }
     public let asset: AVAsset
     public let automaticallyLoadedAssetKeys: [String]
     @objc open private(set) dynamic var status: Status = .unknown
-    open private(set) var error: Error?
+    @objc open private(set) var error: Error?
     open override class func automaticallyNotifiesObservers(forKey key: String) -> Bool { false }
     open var forwardPlaybackEndTime: CMTime = .invalid
     open var reversePlaybackEndTime: CMTime = .invalid
-    open var preferredForwardBufferDuration: TimeInterval = 0
-    open var preferredPeakBitRate: Double = 0
-    open var canUseNetworkResourcesForLiveStreamingWhilePaused = false
+    @objc open var preferredForwardBufferDuration: TimeInterval = 0
+    @objc open var preferredPeakBitRate: Double = 0
+    @objc open var canUseNetworkResourcesForLiveStreamingWhilePaused = false
     open var audioTimePitchAlgorithm: String?
     /// playback position while this item is not playing (seconds)
     var _position: Double = 0
     weak var _player: AVPlayer?
     var _info: _AVMediaInfo?
 
-    public init(asset: AVAsset, automaticallyLoadedAssetKeys: [String]? = nil) {
+    @objc(initWithAsset:automaticallyLoadedAssetKeys:) public init(asset: AVAsset, automaticallyLoadedAssetKeys: [String]? = nil) {
         self.asset = asset
         self.automaticallyLoadedAssetKeys = automaticallyLoadedAssetKeys ?? []
         super.init()
         _load()
     }
-    public convenience init(asset: AVAsset) { self.init(asset: asset, automaticallyLoadedAssetKeys: nil) }
-    public convenience init(url URL: URL) { self.init(asset: AVURLAsset(url: URL), automaticallyLoadedAssetKeys: nil) }
+    @objc(initWithAsset:) public convenience init(asset: AVAsset) { self.init(asset: asset, automaticallyLoadedAssetKeys: nil) }
+    @objc(initWithURL:) public convenience init(url URL: URL) { self.init(asset: AVURLAsset(url: URL), automaticallyLoadedAssetKeys: nil) }
 
     /// Probes the asset off the main thread, then becomes ready (or fails) on the main queue, like iOS.
     func _load() {
@@ -79,17 +79,17 @@ open class AVPlayerItem: NSObject, @unchecked Sendable {
         return (self.currentTime().seconds, self._player?.currentItem === self ? Double(self._player?.rate ?? 0) : 0)
     })
     open var currentDate: Date? { nil }
-    open var isPlaybackLikelyToKeepUp: Bool { status == .readyToPlay }
-    open var isPlaybackBufferFull: Bool { false }
-    open var isPlaybackBufferEmpty: Bool { status != .readyToPlay }
-    open var loadedTimeRanges: [NSValue] { status == .readyToPlay ? [NSValue(timeRange: CMTimeRange(start: .zero, duration: duration))] : [] }
-    open var seekableTimeRanges: [NSValue] { loadedTimeRanges }
+    @objc open var isPlaybackLikelyToKeepUp: Bool { status == .readyToPlay }
+    @objc open var isPlaybackBufferFull: Bool { false }
+    @objc open var isPlaybackBufferEmpty: Bool { status != .readyToPlay }
+    @objc open var loadedTimeRanges: [NSValue] { status == .readyToPlay ? [NSValue(timeRange: CMTimeRange(start: .zero, duration: duration))] : [] }
+    @objc open var seekableTimeRanges: [NSValue] { loadedTimeRanges }
     open var canPlayFastForward: Bool { true }
     open var canPlaySlowForward: Bool { true }
     open var canPlayReverse: Bool { false }
     open var canStepForward: Bool { true }
     open var canStepBackward: Bool { true }
-    open var tracks: [AVPlayerItemTrack] { asset.tracks.map { AVPlayerItemTrack(assetTrack: $0) } }
+    @objc open var tracks: [AVPlayerItemTrack] { asset.tracks.map { AVPlayerItemTrack(assetTrack: $0) } }
 
     open func seek(to time: CMTime, completionHandler: ((Bool) -> Void)? = nil) {
         if let p = _player, p.currentItem === self { p.seek(to: time, completionHandler: completionHandler ?? { _ in }) }
@@ -127,7 +127,7 @@ extension Notification.Name {
     public static let AVPlayerItemNewErrorLogEntry = AVPlayerItem.newErrorLogEntryNotification
 }
 
-open class AVPlayerItemTrack: NSObject {
+@objc(AVPlayerItemTrack) open class AVPlayerItemTrack: NSObject {
     public let assetTrack: AVAssetTrack?
     open var isEnabled = true
     open var currentVideoFrameRate: Float { assetTrack?.nominalFrameRate ?? 0 }
@@ -156,7 +156,7 @@ final class _AVTicker: NSObject {
     @objc func tick() { for p in Array(players.values) { p._tick() } }
 }
 
-open class AVPlayer: NSObject, @unchecked Sendable {
+@objc(AVPlayer) open class AVPlayer: NSObject, @unchecked Sendable {
     @objc public enum Status: Int, Sendable { case unknown = 0, readyToPlay, failed }
     @objc public enum TimeControlStatus: Int, Sendable { case paused = 0, waitingToPlayAtSpecifiedRate, playing }
     @objc public enum ActionAtItemEnd: Int, Sendable { case advance = 0, pause, none }
@@ -170,20 +170,20 @@ open class AVPlayer: NSObject, @unchecked Sendable {
 
     @objc open private(set) dynamic var currentItem: AVPlayerItem?
     @objc open private(set) dynamic var status: Status = .readyToPlay
-    open private(set) var error: Error?
+    @objc open private(set) var error: Error?
     @objc open private(set) dynamic var timeControlStatus: TimeControlStatus = .paused
     open override class func automaticallyNotifiesObservers(forKey key: String) -> Bool { false }
     open private(set) var reasonForWaitingToPlay: WaitingReason?
-    open var actionAtItemEnd: ActionAtItemEnd = .pause
-    open var automaticallyWaitsToMinimizeStalling = true
-    open var preventsDisplaySleepDuringVideoPlayback = true
-    open var allowsExternalPlayback = true
-    open var isExternalPlaybackActive: Bool { false }
+    @objc open var actionAtItemEnd: ActionAtItemEnd = .pause
+    @objc open var automaticallyWaitsToMinimizeStalling = true
+    @objc open var preventsDisplaySleepDuringVideoPlayback = true
+    @objc open var allowsExternalPlayback = true
+    @objc open var isExternalPlaybackActive: Bool { false }
     open var appliesMediaSelectionCriteriaAutomatically = true
     open var audiovisualBackgroundPlaybackPolicy: Int = 0
-    open var defaultRate: Float = 1
-    open var volume: Float = 1 { didSet { _applyAudio() } }
-    open var isMuted = false { didSet { _applyAudio() } }
+    @objc open var defaultRate: Float = 1
+    @objc open var volume: Float = 1 { didSet { _applyAudio() } }
+    @objc open var isMuted = false { didSet { _applyAudio() } }
 
     /// rate: 0 = paused. Setting it starts or stops playback, like on iOS.
     @objc open var rate: Float {
@@ -217,17 +217,17 @@ open class AVPlayer: NSObject, @unchecked Sendable {
     var _ended = false
 
     public override init() { super.init() }
-    public init(playerItem item: AVPlayerItem?) {
+    @objc(initWithPlayerItem:) public init(playerItem item: AVPlayerItem?) {
         super.init()
         if let item { _setItem(item) }
     }
-    public convenience init(url URL: URL) { self.init(playerItem: AVPlayerItem(url: URL)) }
+    @objc(initWithURL:) public convenience init(url URL: URL) { self.init(playerItem: AVPlayerItem(url: URL)) }
     deinit { _closeMedia() }
 
-    open func play() { rate = defaultRate > 0 ? defaultRate : 1 }
-    open func pause() { rate = 0 }
-    open func playImmediately(atRate r: Float) { rate = r }
-    open func replaceCurrentItem(with item: AVPlayerItem?) {
+    @objc open func play() { rate = defaultRate > 0 ? defaultRate : 1 }
+    @objc open func pause() { rate = 0 }
+    @objc(playImmediatelyAtRate:) open func playImmediately(atRate r: Float) { rate = r }
+    @objc(replaceCurrentItemWithPlayerItem:) open func replaceCurrentItem(with item: AVPlayerItem?) {
         if let cur = currentItem, cur !== item { cur._position = _now(); cur._player = nil }
         _setItem(item)
     }
@@ -295,7 +295,7 @@ open class AVPlayer: NSObject, @unchecked Sendable {
         _boundary.append(o)
         return o
     }
-    open func removeTimeObserver(_ observer: Any) {
+    @objc(removeTimeObserver:) open func removeTimeObserver(_ observer: Any) {
         let o = observer as AnyObject
         _periodic.removeAll { $0 === o }
         _boundary.removeAll { $0 === o }
@@ -434,7 +434,7 @@ final class _AVBoundaryObserver: NSObject {
 
 // MARK: - AVQueuePlayer, AVPlayerLooper
 
-open class AVQueuePlayer: AVPlayer, @unchecked Sendable {
+@objc(AVQueuePlayer) open class AVQueuePlayer: AVPlayer, @unchecked Sendable {
     var _queue: [AVPlayerItem] = []
     public override init() { super.init(); actionAtItemEnd = .advance }
     public init(items: [AVPlayerItem]) {
@@ -524,11 +524,12 @@ public struct AVLayerVideoGravity: RawRepresentable, Hashable, Sendable {
 }
 
 /// Draws the player's current video frame (isim: a CALayer drawn by UIKit's renderer each frame).
-open class AVPlayerLayer: CALayer {
+@objc(AVPlayerLayer) open class AVPlayerLayer: CALayer {
     public override init() { super.init() }
     public required init?(coder: NSCoder) { super.init(coder: coder) }
     public convenience init(player: AVPlayer?) { self.init(); self.player = player }
-    open var player: AVPlayer? {
+    @objc(playerLayerWithPlayer:) open class func _objc_layer(_ player: AVPlayer?) -> AVPlayerLayer { AVPlayerLayer(player: player) }
+    @objc open var player: AVPlayer? {
         didSet {
             guard oldValue !== player else { return }
             oldValue?._detach(self); player?._attach(self)

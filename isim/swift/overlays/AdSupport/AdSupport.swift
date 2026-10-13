@@ -5,9 +5,9 @@
 // (`isim reset`) makes a new one. Nothing is sent anywhere.
 import Foundation
 
-open class ASIdentifierManager: NSObject {
+@objc(ASIdentifierManager) open class ASIdentifierManager: NSObject {
     nonisolated(unsafe) static let _shared = ASIdentifierManager()
-    open class func shared() -> ASIdentifierManager { _shared }
+    @objc(sharedManager) open class func shared() -> ASIdentifierManager { _shared }
 
     /// AppTrackingTransparency's stored answer (ATTrackingManager.AuthorizationStatus.authorized == 3)
     static var trackingAuthorized: Bool {
@@ -15,14 +15,14 @@ open class ASIdentifierManager: NSObject {
     }
 
     /// all zeros unless tracking is authorized for this app
-    open var advertisingIdentifier: UUID {
+    @objc open var advertisingIdentifier: UUID {
         guard ASIdentifierManager.trackingAuthorized else { return UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)) }
         return ASIdentifierManager.deviceIdentifier()
     }
 
     /// deprecated in iOS 14: true only when the user authorized tracking for this app
     @available(iOS, deprecated: 14.0)
-    open var isAdvertisingTrackingEnabled: Bool { ASIdentifierManager.trackingAuthorized }
+    @objc open var isAdvertisingTrackingEnabled: Bool { ASIdentifierManager.trackingAuthorized }
 
     static func deviceIdentifier() -> UUID {
         let env = ProcessInfo.processInfo.environment

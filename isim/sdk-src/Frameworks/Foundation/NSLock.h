@@ -24,4 +24,15 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)broadcast;
 @property (nullable, copy) NSString *name;
 @end
+@interface NSConditionLock : NSObject <NSLocking>
+- (instancetype)initWithCondition:(NSInteger)condition NS_DESIGNATED_INITIALIZER;
+@property (readonly) NSInteger condition;
+- (void)lockWhenCondition:(NSInteger)condition;
+- (BOOL)tryLock;
+- (BOOL)tryLockWhenCondition:(NSInteger)condition;
+- (void)unlockWithCondition:(NSInteger)condition;
+- (BOOL)lockBeforeDate:(NSDate *)limit;
+- (BOOL)lockWhenCondition:(NSInteger)condition beforeDate:(NSDate *)limit;
+@property (nullable, copy) NSString *name;
+@end
 NS_ASSUME_NONNULL_END

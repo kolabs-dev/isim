@@ -23,6 +23,8 @@ typedef NS_OPTIONS(NSUInteger, NSLayoutFormatOptions) {
 + (NSArray<NSLayoutConstraint *> *)constraintsWithVisualFormat:(NSString *)format options:(NSLayoutFormatOptions)opts
                                                        metrics:(nullable NSDictionary<NSString *, id> *)metrics views:(NSDictionary<NSString *, id> *)views;
 @end
+UIKIT_EXTERN NSDictionary<NSString *, id> *_NSDictionaryOfVariableBindings(NSString *commaSeparatedKeysString, _Nullable id firstValue, ...);
+#define NSDictionaryOfVariableBindings(...) _NSDictionaryOfVariableBindings(@"" # __VA_ARGS__, __VA_ARGS__, nil)
 
 @interface NSLayoutConstraint (NSLayoutConstraintArchiving)
 /* whether archiving a view keeps the constraint (Interface Builder's constraints are archived; isim keeps the flag) */

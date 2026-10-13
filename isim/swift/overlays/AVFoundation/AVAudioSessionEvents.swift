@@ -59,17 +59,17 @@ public let AVAudioSessionRouteChangeReasonKey = "AVAudioSessionRouteChangeReason
 public let AVAudioSessionRouteChangePreviousRouteKey = "AVAudioSessionRouteChangePreviousRouteKey"
 public let AVAudioSessionSilenceSecondaryAudioHintTypeKey = "AVAudioSessionSilenceSecondaryAudioHintTypeKey"
 
-open class AVAudioSessionPortDescription: NSObject, @unchecked Sendable {
+@objc(AVAudioSessionPortDescription) open class AVAudioSessionPortDescription: NSObject, @unchecked Sendable {
     public let portType: AVAudioSession.Port
-    public let portName: String
-    public let uid: String
+    @objc public let portName: String
+    @objc(UID) public let uid: String
     public var channels: [AnyObject]? { nil }
     public var hasHardwareVoiceCallProcessing: Bool { portType == .builtInMic }
     init(_ t: AVAudioSession.Port, _ name: String) { portType = t; portName = name; uid = t.rawValue }
 }
-open class AVAudioSessionRouteDescription: NSObject, @unchecked Sendable {
-    public let inputs: [AVAudioSessionPortDescription]
-    public let outputs: [AVAudioSessionPortDescription]
+@objc(AVAudioSessionRouteDescription) open class AVAudioSessionRouteDescription: NSObject, @unchecked Sendable {
+    @objc public let inputs: [AVAudioSessionPortDescription]
+    @objc public let outputs: [AVAudioSessionPortDescription]
     init(inputs: [AVAudioSessionPortDescription], outputs: [AVAudioSessionPortDescription]) { self.inputs = inputs; self.outputs = outputs }
     open override var description: String { "<AVAudioSessionRouteDescription inputs=\(inputs.map(\.portType.rawValue)) outputs=\(outputs.map(\.portType.rawValue))>" }
 }

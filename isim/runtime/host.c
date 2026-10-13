@@ -2090,4 +2090,4 @@ static const struct shim isim_table[] = {
     H(isim_icu_number_pattern), H(isim_icu_number_symbol), H(isim_icu_currency), H(isim_icu_relative), H(isim_icu_interval),
     H(isim_icu_list), H(isim_icu_plural), H(isim_icu_display_name), H(isim_icu_case),
 };
-const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table };
+const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table, NULL };

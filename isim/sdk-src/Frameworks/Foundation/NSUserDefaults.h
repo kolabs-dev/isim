@@ -23,4 +23,7 @@ FOUNDATION_EXPORT NSString *const NSGlobalDomain;
 - (void)registerDefaults:(NSDictionary<NSString *, id> *)registrationDictionary NS_SWIFT_NAME(register(defaults:));
 - (BOOL)synchronize;
 @end
+#if !defined(__swift__)          /* Swift: UserDefaults.didChangeNotification (overlay) */
+FOUNDATION_EXPORT NSNotificationName const NSUserDefaultsDidChangeNotification;
+#endif
 NS_ASSUME_NONNULL_END

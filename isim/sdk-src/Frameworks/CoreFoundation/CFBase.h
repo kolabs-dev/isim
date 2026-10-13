@@ -4,11 +4,19 @@
 #include <stdint.h>
 #include <stddef.h>
 __BEGIN_DECLS
+#if defined(__cplusplus)
+#define CF_EXPORT extern "C" __attribute__((visibility("default")))
+#else
 #define CF_EXPORT extern __attribute__((visibility("default")))
+#endif
 #define CF_INLINE static inline
 #ifndef CF_ENUM
 #define CF_ENUM(_type, _name) enum __attribute__((enum_extensibility(open))) _name : _type _name; enum _name : _type
+#if defined(__cplusplus)   /* like Apple's: in C++ the options are an integer typedef, so a | b stays that type */
+#define CF_OPTIONS(_type, _name) __attribute__((availability(swift, unavailable))) _type _name; enum __attribute__((flag_enum, enum_extensibility(open))) : _name
+#else
 #define CF_OPTIONS(_type, _name) enum __attribute__((flag_enum, enum_extensibility(open))) _name : _type _name; enum _name : _type
+#endif
 #endif
 #define CF_RETURNS_RETAINED __attribute__((cf_returns_retained))
 #define CF_IMPLICIT_BRIDGING_ENABLED
@@ -16,6 +24,8 @@ __BEGIN_DECLS
 typedef unsigned char Boolean;
 typedef unsigned char UInt8;
 typedef unsigned short UInt16;
+typedef unsigned int UInt32;
+typedef signed int SInt32;
 typedef UInt16 UniChar;
 typedef signed long CFIndex;
 typedef unsigned long CFTypeID;
