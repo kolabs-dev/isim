@@ -239,6 +239,12 @@ def _(a):
     a.icon(f"{b}/AppIcon60x60@3x.png", "#ff3b30", "#c41d14", "P")
 
 
+@app("samples/HelloCalls")
+def _(a):
+    b = a.swift_app(srcs=["HelloCalls.swift"])
+    a.icon(f"{b}/AppIcon60x60@3x.png", "#34c759", "#248a3d", "C")
+
+
 @app("samples/HelloShare")
 def _(a):
     b = a.swift_app(srcs=["HelloShare.swift"])

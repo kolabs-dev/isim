@@ -598,7 +598,7 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
         if (!isim_next_event(&ev, anim.kind != ANIM_NONE ? 0.004 : 0.008)) continue;
         if (ev.type == EV_TOUCH_DOWN || ev.type == EV_TOUCH_MOVE || ev.type == EV_KEY || ev.type == EV_TEXT || ev.type == EV_ID_DOWN || ev.type == EV_TEXT_DOWN) sys_input_seen();
         if (ev.type == EV_QUIT) { shell_quit(); return 0; }
-        if (ev.type == EV_HOME) { shell_home(); continue; }
+        if (ev.type == EV_HOME) { if (!calls_home()) shell_home(); continue; }
         if (ev.type == EV_LAUNCH_ID) { shell_forward(0, &ev); continue; }        /* the home screen resolves bundle ids */
         if (ev.type == EV_SHELL_CMD) { sys_command(ev.text); continue; }
         if (ev.type == EV_REDRAW) { shell_send(active, EV_REDRAW); continue; }

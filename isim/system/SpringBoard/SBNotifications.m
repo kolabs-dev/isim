@@ -15,6 +15,8 @@
 // due ones ("local-due"); the shell shows them only when the app is not running (a running app delivers its own) and
 // answers "local-shown", and the home screen then takes the request off the app's pending list (or moves a repeating
 // one to its next time) and records the delivered notification in the app's container.
+// VoIP pushes (a top-level "apns-push-type": "voip", standing in for that APNs header) go to apps with
+// UIBackgroundModes voip, launched in the background if needed; UIKit hands them to PushKit.
 #import "SpringBoard.h"
 #import <UserNotifications/UserNotifications.h>
 
@@ -143,10 +145,13 @@ static void collect_icons(UIView *v, NSMutableArray *out) {
     [payload removeObjectForKey:@"Simulator Target Bundle"];
     if (!bundle.length) bundle = [target isKindOfClass:[NSString class]] ? target : nil;
     if (!bundle.length) { NSLog(@"SpringBoard: push: no bundle identifier (give one, or add \"Simulator Target Bundle\" to the payload)"); return; }
-    if (![payload[@"aps"] isKindOfClass:[NSDictionary class]]) { NSLog(@"SpringBoard: push: the payload has no \"aps\" dictionary"); return; }
+    NSString *pushType = [payload[@"apns-push-type"] isKindOfClass:[NSString class]] ? payload[@"apns-push-type"] : nil;
+    [payload removeObjectForKey:@"apns-push-type"];
+    if (![pushType isEqual:@"voip"] && ![payload[@"aps"] isKindOfClass:[NSDictionary class]]) { NSLog(@"SpringBoard: push: the payload has no \"aps\" dictionary"); return; }
     HSApp *a = nil;
     for (HSApp *x in self.apps) if ([x.bundleID isEqualToString:bundle]) a = x;
     if (!a) { NSLog(@"SpringBoard: push: no installed app '%@'", bundle); return; }
+    if ([pushType isEqual:@"voip"]) { [self deliverVoIPPush:payload app:a]; return; }
     if ([self deliverLiveActivityPush:payload app:a]) return;         /* a liveactivity payload (aps.event): SBLiveActivities.m */
     NSDictionary *aps = payload[@"aps"];
     /* the APNs apns-collapse-id header becomes the request identifier on iOS; a payload file has no headers, so isim reads
@@ -173,6 +178,26 @@ static void collect_icons(UIView *v, NSMutableArray *out) {
         return;
     }
     [self finishPush:payload id:ident app:a content:nil];
+}
+/* a PushKit VoIP push ("apns-push-type": "voip"): to the running app, else the app is launched in the background for
+   it; only for apps with UIBackgroundModes voip (iOS delivers no VoIP pushes to others) */
+- (void)deliverVoIPPush:(NSDictionary *)payload app:(HSApp *)a {
+    NSArray *modes = a.info[@"UIBackgroundModes"];
+    if (![modes isKindOfClass:[NSArray class]] || ![modes containsObject:@"voip"]) { NSLog(@"SpringBoard: VoIP push for %@ dropped (no UIBackgroundModes voip)", a.name); return; }
+    NSString *collapse = [payload[@"apns-collapse-id"] isKindOfClass:[NSString class]] ? payload[@"apns-collapse-id"] : nil;
+    NSMutableDictionary *p = [payload mutableCopy];
+    [p removeObjectForKey:@"apns-collapse-id"];
+    NSString *ident = collapse.length ? collapse : NSUUID.UUID.UUIDString;
+    NSDictionary *w = @{ @"id": ident, @"payload": p, @"pushType": @"voip" };
+    NSString *file = [push_dir() stringByAppendingPathComponent:[ident stringByAppendingPathExtension:@"json"]];
+    if ([NSJSONSerialization isValidJSONObject:w]) [[NSJSONSerialization dataWithJSONObject:w options:0 error:NULL] writeToFile:file atomically:YES];
+    else { file = [file.stringByDeletingPathExtension stringByAppendingPathExtension:@"plist"]; [w writeToFile:file atomically:YES]; }
+    NSLog(@"SpringBoard: VoIP push %@ for %@", ident, a.name);
+    NSString *side = [push_dir() stringByAppendingPathComponent:[ident stringByAppendingPathExtension:@"txt"]];
+    NSString *sidecar = [NSString stringWithFormat:@"file=%@\nflags=c\nid=%@\ntitle=\nbody=\nicon=%@\nrecord=\nthumb=\n", file, ident, a.iconPath ?: @""];
+    [sidecar writeToFile:side atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+    NSString *c = [NSString stringWithFormat:@"%@\x1f%@", a.executable, side];
+    isim_shell_request(ISIM_SHELL_SYSTEM, "push-deliver", a.path.UTF8String, c.UTF8String);
 }
 - (void)finishPush:(NSDictionary *)payload id:(NSString *)ident app:(HSApp *)a content:(NSDictionary *)content {
     NSDictionary *aps = payload[@"aps"];

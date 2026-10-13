@@ -490,9 +490,33 @@ static NSDictionary *read_push(NSString *file) {
 }
 static NSDictionary *launch_push;               /* ISIM_LAUNCH_URL isim-push:FILE / isim-push-open:FILE */
 static BOOL launch_push_open;
+/* VoIP pushes ("pushType": "voip", routed by the home screen) go to PushKit: the _IsimPushKitPayload notification, which
+   a PKPushRegistry that wants them marks "handled"; until one does (the app sets desiredPushTypes) they wait, and
+   _IsimPushKitReady hands them over */
+static NSMutableArray *pushkit_waiting;
+static void deliver_pushkit(NSDictionary *w) {
+    NSMutableDictionary *m = [w mutableCopy];
+    [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimPushKitPayload" object:m];
+    if ([m[@"handled"] boolValue]) return;
+    if (!pushkit_waiting) {
+        pushkit_waiting = [NSMutableArray array];
+        [NSNotificationCenter.defaultCenter addObserverForName:@"_IsimPushKitReady" object:nil queue:nil usingBlock:^(NSNotification *n) {
+            NSArray *q = [pushkit_waiting copy];
+            [pushkit_waiting removeAllObjects];
+            for (NSDictionary *x in q) deliver_pushkit(x);
+        }];
+    }
+    NSLog(@"isim: VoIP push %@ waits for a PKPushRegistry that wants VoIP pushes", w[@"id"]);
+    [pushkit_waiting addObject:w];
+}
 /* mode 0: the running app got it, 1: launched in the background for it, 2: launched by tapping it */
 static void deliver_remote(NSDictionary *w, int mode) {
     if (!w) return;
+    if ([w[@"pushType"] isEqual:@"voip"]) {
+        NSLog(@"isim: VoIP push %@ (%@)", w[@"id"], mode == 1 ? @"launched in the background for it" : @"app running");
+        deliver_pushkit(w);
+        return;
+    }
     NSDictionary *payload = w[@"payload"];
     NSDictionary *aps = [payload[@"aps"] isKindOfClass:[NSDictionary class]] ? payload[@"aps"] : @{};
     UIApplication *app = UIApplication.sharedApplication;
@@ -562,6 +586,7 @@ void isim_sys_report_background(void) {
     if (isim_sys_background_audio() && isim_audio_active() > 0) [r addObject:@"audio"];
     if ([q[@"location"] boolValue]) [r addObject:[q[@"locationIndicator"] boolValue] ? @"location-indicator" : @"location"];
     if ([q[@"transfer"] boolValue]) [r addObject:@"transfer"];
+    if ([q[@"call"] boolValue]) [r addObject:@"call"];                    /* a CallKit call (VoIP apps keep running during calls) */
     NSString *s = [r componentsJoinedByString:@","];
     if ([s isEqualToString:last_reasons]) return;
     last_reasons = s;
