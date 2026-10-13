@@ -30,6 +30,8 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "macho.h"
@@ -889,8 +891,10 @@ void isim_print_backtrace(void *frame) {
         fp = next;
     }
 }
+static void write_crash_report(int sig, siginfo_t *si, ucontext_t *uc);
 static void crash_handler(int sig, siginfo_t *si, void *ctx) {
     ucontext_t *uc = ctx;
+    write_crash_report(sig, si, uc);
     uintptr_t pc = uc->uc_mcontext.gregs[REG_RIP], fp = uc->uc_mcontext.gregs[REG_RBP], sp = uc->uc_mcontext.gregs[REG_RSP];
     fprintf(stderr, "\nisim: guest crashed: %s at address %p\n", strsignal(sig), si->si_addr);
     print_frame(0, pc);
@@ -945,11 +949,37 @@ static void dump_frame(char *buf, size_t cap, int i, uintptr_t pc) {
         snprintf(buf, cap, "  #%-2d 0x%012lx [host] %s+0x%lx\n", i, (unsigned long)pc, base ? base + 1 : hi.dli_fname, (unsigned long)(pc - (uintptr_t)hi.dli_fbase));
     } else snprintf(buf, cap, "  #%-2d 0x%012lx ?\n", i, (unsigned long)pc);
 }
+/* a thread's pcs from its signal context: the frame-pointer chain (guest code always keeps frame pointers). No DWARF
+   unwinding here: the unwinder takes the dynamic loader's lock, which the interrupted thread may hold (a hang inside
+   dlopen would never end). Memory is read through the pipe (safe_word) when `safe` */
+static int collect_pcs(ucontext_t *uc, uintptr_t *pcs, int max, int safe) {
+    uintptr_t pc = uc->uc_mcontext.gregs[REG_RIP], fp = uc->uc_mcontext.gregs[REG_RBP], sp = uc->uc_mcontext.gregs[REG_RSP], w;
+    int n = 0;
+    pcs[n++] = pc;
+    #define READW(a, o) (safe ? safe_word((a), (o)) : ((a) && !((a) & 7) ? (*(o) = *(uintptr_t *)(a), 1) : 0))
+    if (READW(sp, &w) && image_for_address((void *)w) && n < max) pcs[n++] = w;
+    for (int i = 0; i < 64 && n < max; i++) {
+        uintptr_t next, ret;
+        if (!READW(fp, &next) || !READW(fp + 8, &ret) || !ret) break;
+        pcs[n++] = ret;
+        if (next <= fp) break;
+        fp = next;
+    }
+    #undef READW
+    return n;
+}
+static volatile int capture_tid, capture_n;
+static uintptr_t capture_pcs[64];
 static void dump_handler(int sig, siginfo_t *si, void *ctx) {
     int saved = errno;
     if (si->si_pid != getpid()) { sem_post(&dump_sem); errno = saved; return; }     /* from outside: dump everything */
     ucontext_t *uc = ctx;
     int tid = (int)syscall(SYS_gettid);
+    if (__atomic_load_n(&capture_tid, __ATOMIC_ACQUIRE) == tid) {   /* isim_sample_thread: just the pcs */
+        int n = collect_pcs(uc, capture_pcs, 64, 1);
+        __atomic_store_n(&capture_n, n, __ATOMIC_RELEASE);
+        errno = saved; return;
+    }
     char out[16384], name[32] = "?", path[64]; size_t len = 0;
     snprintf(path, sizeof path, "/proc/self/task/%d/comm", tid);
     int fd = open(path, O_RDONLY);
@@ -1017,6 +1047,209 @@ static void install_stack_dumper(void) {
     pthread_t t;
     if (pthread_create(&t, NULL, dump_thread, NULL)) { dump_sig = 0; return; }
     pthread_detach(t);
+}
+
+/* one thread's stack (MetricKit hang diagnostics): signal it and take the pcs its handler collects */
+int isim_sample_thread(int tid, uintptr_t *pcs, int max) {
+    static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+    if (!dump_sig) return 0;
+    pthread_mutex_lock(&m);
+    __atomic_store_n(&capture_n, -1, __ATOMIC_RELEASE);
+    __atomic_store_n(&capture_tid, tid, __ATOMIC_RELEASE);
+    int n = 0;
+    if (!syscall(SYS_tgkill, getpid(), tid, dump_sig)) {
+        for (int k = 0; k < 200 && __atomic_load_n(&capture_n, __ATOMIC_ACQUIRE) < 0; k++) usleep(1000);
+        n = __atomic_load_n(&capture_n, __ATOMIC_ACQUIRE);
+        if (n < 0) n = 0;
+        if (n > max) n = max;
+        memcpy(pcs, capture_pcs, (size_t)n * sizeof *pcs);
+    }
+    __atomic_store_n(&capture_tid, 0, __ATOMIC_RELEASE);
+    pthread_mutex_unlock(&m);
+    return n;
+}
+/* a pc: its image's file name, the symbol, the offset into the image (from its Mach-O header) and into the symbol */
+int isim_symbolize(uintptr_t pc, char *image, size_t icap, char *sym, size_t scap, uint64_t *image_offset,
+                   uint64_t *sym_offset, uint64_t *image_base) {
+    d_dl_info di; Dl_info hi;
+    image[0] = sym[0] = 0; *image_offset = *sym_offset = *image_base = 0;
+    if (d_dladdr((void *)pc, &di)) {
+        const char *base = strrchr(di.dli_fname, '/');
+        snprintf(image, icap, "%s", base ? base + 1 : di.dli_fname);
+        snprintf(sym, scap, "%s", di.dli_sname ? di.dli_sname : "");
+        *image_base = (uint64_t)(uintptr_t)di.dli_fbase; *image_offset = pc - (uintptr_t)di.dli_fbase;
+        *sym_offset = di.dli_saddr ? pc - (uintptr_t)di.dli_saddr : 0;
+        return 1;
+    }
+    if (dladdr((void *)pc, &hi) && hi.dli_fname) {
+        const char *base = strrchr(hi.dli_fname, '/');
+        snprintf(image, icap, "%s", base ? base + 1 : hi.dli_fname);
+        snprintf(sym, scap, "%s", hi.dli_sname ? hi.dli_sname : "");
+        *image_base = (uint64_t)(uintptr_t)hi.dli_fbase; *image_offset = pc - (uintptr_t)hi.dli_fbase;
+        *sym_offset = hi.dli_saddr ? pc - (uintptr_t)hi.dli_saddr : 0;
+        return 2;
+    }
+    snprintf(image, icap, "???");
+    return 0;
+}
+
+/* ---- crash reports: an Apple-style .ips file (a JSON header line, then the JSON report) in
+ * $ISIM_DATA/Library/Logs/DiagnosticReports/<Process>-<date>.ips, like the Simulator's crash logs in
+ * ~/Library/Logs/DiagnosticReports. Written from the crash signal handler (the process is dying anyway): the
+ * exception and termination, the crashed thread's frames symbolized against the images, the guest images (with
+ * their LC_UUID), and for an uncaught Objective-C exception its name, reason and backtrace. `isim crashlog` lists
+ * and prints them; MetricKit turns them into MXCrashDiagnostic on the app's next launch. ---- */
+static char exc_name[256], exc_reason[1024], exc_class[128];
+static uintptr_t exc_pcs[64]; static int exc_n;
+void isim_crash_set_exception(const char *name, const char *reason, const char *cls, void *frame) {
+    snprintf(exc_name, sizeof exc_name, "%s", name ? name : "");
+    snprintf(exc_reason, sizeof exc_reason, "%s", reason ? reason : "");
+    snprintf(exc_class, sizeof exc_class, "%s", cls ? cls : "");
+    uintptr_t fp = (uintptr_t)frame; exc_n = 0;
+    for (int i = 0; i < 64 && fp && !(fp & 7); i++) {
+        uintptr_t next = ((uintptr_t *)fp)[0], ret = ((uintptr_t *)fp)[1];
+        if (!ret) break;
+        exc_pcs[exc_n++] = ret;
+        if (next <= fp) break;
+        fp = next;
+    }
+}
+static char *rep; static size_t rep_len, rep_cap;
+static void put(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+static void put(const char *fmt, ...) {
+    if (!rep || rep_len >= rep_cap) return;
+    va_list ap; va_start(ap, fmt);
+    int n = vsnprintf(rep + rep_len, rep_cap - rep_len, fmt, ap);
+    va_end(ap);
+    if (n > 0) rep_len = rep_len + (size_t)n < rep_cap ? rep_len + (size_t)n : rep_cap;
+}
+static void put_str(const char *s) {                       /* a JSON string */
+    put("\"");
+    for (const unsigned char *p = (const unsigned char *)(s ? s : ""); *p; p++) {
+        if (*p == '"' || *p == '\\') put("\\%c", *p);
+        else if (*p == '\n') put("\\n");
+        else if (*p < 0x20) put("\\u%04x", *p);
+        else put("%c", *p);
+    }
+    put("\"");
+}
+static void image_uuid(const struct image *im, char *out) {
+    strcpy(out, "00000000-0000-0000-0000-000000000000");
+    const uint8_t *lc = im->file + sizeof *im->mh;
+    for (uint32_t i = 0; i < im->mh->ncmds; i++, lc += ((const struct load_command *)lc)->cmdsize) {
+        if (((const struct load_command *)lc)->cmd != 0x1b) continue;          /* LC_UUID */
+        const uint8_t *u = lc + 8;
+        sprintf(out, "%02X%02X%02X%02X-%02X%02X-%02X%02X-%02X%02X-%02X%02X%02X%02X%02X%02X", u[0], u[1], u[2], u[3], u[4],
+                u[5], u[6], u[7], u[8], u[9], u[10], u[11], u[12], u[13], u[14], u[15]);
+        return;
+    }
+}
+static void put_frames(const uintptr_t *pcs, int n) {
+    put("[");
+    for (int i = 0; i < n; i++) {
+        int index = -1;
+        for (int k = 0; k < nimages; k++) {
+            uintptr_t lo = (uintptr_t)images[k]->base;
+            if (pcs[i] >= lo && pcs[i] < lo + images[k]->span) { index = k; break; }
+        }
+        char image[256], sym[256]; uint64_t ioff, soff, base;
+        isim_symbolize(pcs[i], image, sizeof image, sym, sizeof sym, &ioff, &soff, &base);
+        put("%s{\"imageOffset\":%llu,", i ? "," : "", (unsigned long long)ioff);
+        if (sym[0]) { put("\"symbol\":"); put_str(sym); put(",\"symbolLocation\":%llu,", (unsigned long long)soff); }
+        if (index >= 0) put("\"imageIndex\":%d}", index);
+        else { put("\"imageName\":"); put_str(image); put("}"); }
+    }
+    put("]");
+}
+static void write_crash_report(int sig, siginfo_t *si, ucontext_t *uc) {
+    static int writing;
+    if (writing++ || getenv("ISIM_NO_CRASH_REPORT")) return;
+    const char *data = getenv("ISIM_DATA"), *home = getenv("HOME");
+    char dir[1024], path[1200];
+    if (data && *data) snprintf(dir, sizeof dir, "%s/Library/Logs/DiagnosticReports", data);
+    else snprintf(dir, sizeof dir, "%s/.local/share/isim/Library/Logs/DiagnosticReports", home ? home : "/tmp");
+    for (char *p = dir + 1; *p; p++) if (*p == '/') { *p = 0; mkdir(dir, 0755); *p = '/'; }
+    mkdir(dir, 0755);
+    const char *exe = isim_main_executable_path(), *proc = exe ? strrchr(exe, '/') : NULL;
+    proc = proc ? proc + 1 : exe ? exe : "app";
+    struct timeval tv; gettimeofday(&tv, NULL);
+    time_t t = tv.tv_sec; struct tm tm; localtime_r(&t, &tm);
+    char stamp[64], when[64], tz[16];
+    strftime(stamp, sizeof stamp, "%Y-%m-%d-%H%M%S", &tm);
+    strftime(tz, sizeof tz, "%z", &tm);
+    strftime(when, sizeof when, "%Y-%m-%d %H:%M:%S", &tm);
+    snprintf(path, sizeof path, "%s/%s-%s.ips", dir, proc, stamp);
+    static char buf[256 * 1024]; rep = buf; rep_len = 0; rep_cap = sizeof buf;
+    const char *bundle = isim_diag_app(0), *version = isim_diag_app(1), *build = isim_diag_app(2);
+    const char *osv = getenv("ISIM_OS_VERSION");
+    char incident[40]; unsigned r = (unsigned)tv.tv_usec ^ (unsigned)getpid() * 2654435761u;
+    snprintf(incident, sizeof incident, "%08X-%04X-4%03X-8%03X-%08X%04X", r, (unsigned)tv.tv_sec & 0xffff, r & 0xfff,
+             (r >> 12) & 0xfff, (unsigned)tv.tv_sec, (unsigned)getpid() & 0xffff);
+    const char *type = "EXC_CRASH", *signame = "SIGABRT", *indicator = "Abort trap: 6";
+    int exc_type = 10, code = sig;
+    switch (sig) {
+    case SIGSEGV: type = "EXC_BAD_ACCESS"; signame = "SIGSEGV"; indicator = "Segmentation fault: 11"; exc_type = 1; break;
+    case SIGBUS: type = "EXC_BAD_ACCESS"; signame = "SIGBUS"; indicator = "Bus error: 10"; exc_type = 1; break;
+    case SIGILL: type = "EXC_BAD_INSTRUCTION"; signame = "SIGILL"; indicator = "Illegal instruction: 4"; exc_type = 2; break;
+    case SIGFPE: type = "EXC_ARITHMETIC"; signame = "SIGFPE"; indicator = "Floating point exception: 8"; exc_type = 3; break;
+    case SIGTRAP: type = "EXC_BREAKPOINT"; signame = "SIGTRAP"; indicator = "Trace/BPT trap: 5"; exc_type = 6; break;
+    }
+    /* header line */
+    put("{\"app_name\":"); put_str(proc); put(",\"timestamp\":\"%s.%02ld %s\",\"app_version\":", when, (long)(tv.tv_usec / 10000), tz);
+    put_str(version); put(",\"build_version\":"); put_str(build); put(",\"bundleID\":"); put_str(bundle);
+    put(",\"platform\":7,\"share_with_app_devs\":0,\"is_first_party\":0,\"bug_type\":\"309\",\"os_version\":\"iPhone OS %s (isim)\","
+        "\"incident_id\":\"%s\",\"name\":", osv && *osv ? osv : "18.0", incident);
+    put_str(proc); put("}\n");
+    /* the report */
+    put("{\n  \"uptime\" : %.0f,\n  \"procRole\" : \"Foreground\",\n  \"version\" : 2,\n  \"userID\" : %d,\n",
+        tv.tv_sec + tv.tv_usec / 1e6 - isim_diag_process_start(), (int)getuid());
+    put("  \"modelCode\" : "); put_str(getenv("ISIM_DEVICE") ? getenv("ISIM_DEVICE") : "iphone16pro");
+    put(",\n  \"captureTime\" : \"%s.%04ld %s\",\n  \"incident\" : \"%s\",\n  \"pid\" : %d,\n  \"cpuType\" : \"X86-64\",\n",
+        when, (long)(tv.tv_usec / 100), tz, incident, getpid());
+    put("  \"procName\" : "); put_str(proc); put(",\n  \"procPath\" : "); put_str(exe ? exe : "");
+    put(",\n  \"bundleInfo\" : {\"CFBundleShortVersionString\":"); put_str(version); put(",\"CFBundleVersion\":"); put_str(build);
+    put(",\"CFBundleIdentifier\":"); put_str(bundle); put("},\n  \"parentProc\" : \"isim\",\n");
+    put("  \"osVersion\" : {\"train\":\"iPhone OS %s\",\"build\":\"isim\",\"releaseType\":\"User\"},\n", osv && *osv ? osv : "18.0");
+    put("  \"exception\" : {\"codes\":\"0x%016llx, 0x%016llx\",\"rawCodes\":[%d,%llu],\"type\":\"%s\",\"signal\":\"%s\"",
+        (unsigned long long)(sig == SIGSEGV || sig == SIGBUS ? 1 : 0), (unsigned long long)(uintptr_t)si->si_addr,
+        sig == SIGSEGV || sig == SIGBUS ? 1 : 0, (unsigned long long)(uintptr_t)si->si_addr, type, signame);
+    if (sig == SIGSEGV || sig == SIGBUS) put(",\"subtype\":\"KERN_INVALID_ADDRESS at 0x%016llx\"", (unsigned long long)(uintptr_t)si->si_addr);
+    put("},\n  \"termination\" : {\"flags\":0,\"code\":%d,\"namespace\":\"SIGNAL\",\"indicator\":\"%s\",\"byProc\":", code, indicator);
+    put_str(proc); put(",\"byPid\":%d},\n", getpid());
+    put("  \"isimExceptionType\" : %d,\n", exc_type);
+    if (exc_name[0]) {
+        put("  \"asi\" : {\"CoreFoundation\":[");
+        char line[1600]; snprintf(line, sizeof line, "*** Terminating app due to uncaught exception '%s', reason: '%s'", exc_name, exc_reason);
+        put_str(line); put("]},\n  \"exceptionReason\" : {\"name\":"); put_str(exc_name); put(",\"reason\":"); put_str(exc_reason);
+        put(",\"className\":"); put_str(exc_class[0] ? exc_class : "NSException"); put("},\n");
+        put("  \"lastExceptionBacktrace\" : "); put_frames(exc_pcs, exc_n); put(",\n");
+    }
+    uintptr_t pcs[64]; int n = collect_pcs(uc, pcs, 64, dump_pipe[0] >= 0);
+    put("  \"faultingThread\" : 0,\n  \"threads\" : [{\"triggered\":true,\"id\":%ld,%s\"frames\":", (long)syscall(SYS_gettid),
+        syscall(SYS_gettid) == getpid() ? "\"queue\":\"com.apple.main-thread\"," : "");
+    put_frames(pcs, n);
+    put("}],\n  \"usedImages\" : [");
+    for (int k = 0; k < nimages; k++) {
+        char uuid[40]; image_uuid(images[k], uuid);
+        const char *b = strrchr(images[k]->path, '/');
+        put("%s\n    {\"source\":\"P\",\"arch\":\"x86_64\",\"base\":%llu,\"size\":%llu,\"uuid\":\"%s\",\"path\":", k ? "," : "",
+            (unsigned long long)(uintptr_t)images[k]->base, (unsigned long long)images[k]->span, uuid);
+        put_str(images[k]->path); put(",\"name\":"); put_str(b ? b + 1 : images[k]->path); put("}");
+    }
+    put("\n  ]\n}\n");
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd >= 0) {
+        for (size_t o = 0; o < rep_len;) { ssize_t w = write(fd, rep + o, rep_len - o); if (w <= 0) break; o += (size_t)w; }
+        close(fd);
+        fprintf(stderr, "isim: crash report written to %s\n", path);
+    }
+}
+
+/* a crash report from here (the uncaught-exception path, which aborts with the default SIGABRT action) */
+void isim_write_crash_report_here(int sig) {
+    ucontext_t uc; getcontext(&uc);
+    siginfo_t si; memset(&si, 0, sizeof si); si.si_signo = sig;
+    write_crash_report(sig, &si, &uc);
 }
 
 static void install_crash_handler(void) {

@@ -51,7 +51,7 @@ def package(root, version, ctx):
     subprocess.run(["docker", "run", "--rm", "-u", f"{os.getuid()}:{os.getgid()}", "-v", f"{root}:/isim", "-w", "/isim",
                     image, "bash", "-c", BUNDLE.format(name=name, srcs=" ".join(host_sources(ctx)))], check=True)
     for t in ("tools/isim", "tools/isim-build.py", "tools/xcodeproj.py", "VERSION", "tools/isim-services.py", "tools/momc.py",
-              "tools/ibtool.py", "tools/isim-test.py"):
+              "tools/ibtool.py", "tools/isim-test.py", "tools/isim-crashlog.py"):
         shutil.copy(os.path.join(root, t), os.path.join(stage, "bin"))
     shutil.copy(os.path.join(root, "..", "install.sh"), os.path.join(stage, "bin", "isim-install.sh"))   # `isim update`
     shutil.copytree(os.path.join(root, "out/sdk"), os.path.join(stage, "sdk"), symlinks=True)

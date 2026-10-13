@@ -1,5 +1,5 @@
 // isim os: unified logging for Swift (Logger, OSLog, os_log, OSLogMessage interpolation with privacy) and
-// signposts (accepted, not recorded). Self-authored, iOS API names.
+// signposts (OSSignposter, os_signpost). Self-authored, iOS API names.
 //
 // Messages go to stderr in the compact `log stream` style, so `isim run` shows them:
 //   2026-10-05 12:00:00.123 Df MyApp[4242:1a2b] [com.example.app:network] Loaded 3 items for <private>
@@ -7,8 +7,11 @@
 // Privacy follows iOS: dynamic strings and objects are <private> unless marked .public; integers, floats and
 // booleans are public by default. ISIM_LOG_PRIVATE=1 shows private values (like a debugger-attached run).
 // ISIM_LOG_LEVEL=debug|info|default|error|fault hides messages below that level (default: debug, all shown).
+// Every message and signpost is also kept in the process's log store (isim's host, shared with C os_log and NSLog),
+// which OSLogStore reads back (the OSLog module). Signposts print only with ISIM_LOG_SIGNPOSTS=1.
 @_exported import os
 import Foundation
+import isim_host
 
 // MARK: - Types
 
@@ -44,7 +47,7 @@ public final class OSLog: NSObject, @unchecked Sendable {
     public static let `default` = OSLog(subsystem: "", category: "", disabled: false)
     public static let disabled = OSLog(subsystem: "", category: "", disabled: true)
     public func isEnabled(type: OSLogType) -> Bool { !disabled && type.rank >= _OSLogOutput.minimumRank }
-    public var signpostsEnabled: Bool { false }
+    public var signpostsEnabled: Bool { !disabled }
 }
 
 // MARK: - Privacy and formatting options
@@ -190,6 +193,25 @@ public struct OSLogMessage: ExpressibleByStringInterpolation, ExpressibleByStrin
     public init(stringInterpolation: OSLogInterpolation) { interpolation = stringInterpolation }
     public init(stringLiteral value: String) { var i = OSLogInterpolation(literalCapacity: value.count, interpolationCount: 0); i.appendLiteral(value); interpolation = i }
 
+    /// the message's format string, as OSLogEntryLog.formatString shows it: the literals with a %@ (privacy
+    /// decorated) for each interpolated value
+    var formatString: String {
+        var out = ""
+        for p in interpolation.pieces {
+            switch p {
+            case .literal(let s): out += s.replacingOccurrences(of: "%", with: "%%")
+            case .value(_, let privacy, _):
+                switch privacy.kind {
+                case .public: out += "%{public}@"
+                case .private: out += "%{private}@"
+                case .sensitive: out += "%{sensitive}@"
+                case .auto: out += "%@"
+                }
+            }
+        }
+        return out
+    }
+
     func render() -> String {
         var out = ""
         for p in interpolation.pieces {
@@ -238,8 +260,10 @@ enum _OSLogOutput {
         return "<private>"
     }
 
-    static func emit(_ log: OSLog, _ type: OSLogType, _ message: @autoclosure () -> String) {
+    static func emit(_ log: OSLog, _ type: OSLogType, _ message: @autoclosure () -> String, format: String = "") {
         guard log.isEnabled(type: type) else { return }
+        let text = message()
+        isim_log_record(0, Int32(type.rawValue), log.subsystem, log.category, text, format, 0, 0, "")
         let now = Date().timeIntervalSince1970
         var t = time_t(now), tm = tm()
         localtime_r(&t, &tm)
@@ -248,7 +272,7 @@ enum _OSLogOutput {
         let stamp = String(cString: buf) + String(format: ".%03d", Int((now - now.rounded(.down)) * 1000))
         let scope = log.subsystem.isEmpty && log.category.isEmpty ? "" : " [\(log.subsystem):\(log.category)]"
         let tid = String(UInt(bitPattern: Int(bitPattern: UnsafeRawPointer(pthread_self()))) & 0xffffff, radix: 16)
-        let line = "\(stamp) \(type.code) \(process)[\(getpid()):\(tid)]\(scope) \(message())\n"
+        let line = "\(stamp) \(type.code) \(process)[\(getpid()):\(tid)]\(scope) \(text)\n"
         lock.lock()
         var bytes = Array(line.utf8)
         bytes.withUnsafeMutableBytes { var p = $0.baseAddress!, n = $0.count; while n > 0 { let w = write(2, p, n); if w <= 0 { break }; p += w; n -= w } }
@@ -264,32 +288,32 @@ public struct Logger: @unchecked Sendable {
     public init(_ logObj: OSLog) { logObject = logObj }
     public init() { logObject = .default }
 
-    public func log(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .default, message.render()) }
-    public func log(level: OSLogType, _ message: OSLogMessage) { _OSLogOutput.emit(logObject, level, message.render()) }
-    public func trace(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .debug, message.render()) }
-    public func debug(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .debug, message.render()) }
-    public func info(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .info, message.render()) }
-    public func notice(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .default, message.render()) }
-    public func warning(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .error, message.render()) }
-    public func error(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .error, message.render()) }
-    public func critical(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .fault, message.render()) }
-    public func fault(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .fault, message.render()) }
+    public func log(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .default, message.render(), format: message.formatString) }
+    public func log(level: OSLogType, _ message: OSLogMessage) { _OSLogOutput.emit(logObject, level, message.render(), format: message.formatString) }
+    public func trace(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .debug, message.render(), format: message.formatString) }
+    public func debug(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .debug, message.render(), format: message.formatString) }
+    public func info(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .info, message.render(), format: message.formatString) }
+    public func notice(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .default, message.render(), format: message.formatString) }
+    public func warning(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .error, message.render(), format: message.formatString) }
+    public func error(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .error, message.render(), format: message.formatString) }
+    public func critical(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .fault, message.render(), format: message.formatString) }
+    public func fault(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .fault, message.render(), format: message.formatString) }
 }
 
 // MARK: - os_log
 
 /// printf-style os_log (format specifiers may carry {public}/{private}/{sensitive} like on iOS)
 public func os_log(_ message: StaticString, dso: UnsafeRawPointer? = #dsohandle, log: OSLog = .default, type: OSLogType = .default, _ args: CVarArg...) {
-    _OSLogOutput.emit(log, type, _formatOSLog(message.description, args))
+    _OSLogOutput.emit(log, type, _formatOSLog(message.description, args), format: message.description)
 }
 public func os_log(_ type: OSLogType, dso: UnsafeRawPointer? = #dsohandle, log: OSLog = .default, _ message: StaticString, _ args: CVarArg...) {
-    _OSLogOutput.emit(log, type, _formatOSLog(message.description, args))
+    _OSLogOutput.emit(log, type, _formatOSLog(message.description, args), format: message.description)
 }
 public func os_log(_ type: OSLogType, dso: UnsafeRawPointer = #dsohandle, log: OSLog = .default, _ message: OSLogMessage) {
-    _OSLogOutput.emit(log, type, message.render())
+    _OSLogOutput.emit(log, type, message.render(), format: message.formatString)
 }
 public func os_log(_ message: OSLogMessage, dso: UnsafeRawPointer = #dsohandle, log: OSLog = .default) {
-    _OSLogOutput.emit(log, .default, message.render())
+    _OSLogOutput.emit(log, .default, message.render(), format: message.formatString)
 }
 
 func _formatOSLog(_ format: String, _ args: [CVarArg]) -> String {
@@ -327,7 +351,7 @@ func _formatOSLog(_ format: String, _ args: [CVarArg]) -> String {
     return out
 }
 
-// MARK: - Signposts (accepted, not recorded)
+// MARK: - Signposts (recorded in the log store; ISIM_LOG_SIGNPOSTS=1 prints them)
 
 public struct OSSignpostID: Equatable, Hashable, Comparable, Sendable {
     public let rawValue: UInt64
@@ -352,8 +376,23 @@ public struct OSSignpostType: Equatable, RawRepresentable, Sendable {
     public static let begin = OSSignpostType(rawValue: 1)
     public static let end = OSSignpostType(rawValue: 2)
 }
-public func os_signpost(_ type: OSSignpostType, dso: UnsafeRawPointer = #dsohandle, log: OSLog, name: StaticString, signpostID: OSSignpostID = .exclusive) {}
-public func os_signpost(_ type: OSSignpostType, dso: UnsafeRawPointer = #dsohandle, log: OSLog, name: StaticString, signpostID: OSSignpostID = .exclusive, _ format: StaticString, _ arguments: CVarArg...) {}
+
+enum _Signposts {
+    /// one signpost into the log store (OSLogEntrySignpost); a null or invalid id, or a disabled log, records nothing
+    static func emit(_ log: OSLog, _ type: OSSignpostType, _ id: OSSignpostID, _ name: StaticString, _ message: String = "", format: String = "") {
+        guard !log.disabled, id != .null, id != .invalid else { return }
+        let n = name.description
+        isim_log_record(1, 0, log.subsystem, log.category, message, format, Int32(type.rawValue), id.rawValue, n)
+        isim_signpost_print(log.subsystem, log.category, Int32(type.rawValue), id.rawValue, n, message)
+    }
+}
+
+public func os_signpost(_ type: OSSignpostType, dso: UnsafeRawPointer = #dsohandle, log: OSLog, name: StaticString, signpostID: OSSignpostID = .exclusive) {
+    _Signposts.emit(log, type, signpostID, name)
+}
+public func os_signpost(_ type: OSSignpostType, dso: UnsafeRawPointer = #dsohandle, log: OSLog, name: StaticString, signpostID: OSSignpostID = .exclusive, _ format: StaticString, _ arguments: CVarArg...) {
+    _Signposts.emit(log, type, signpostID, name, _formatOSLog(format.description, arguments), format: format.description)
+}
 
 public struct OSSignpostIntervalState: Sendable {
     public let signpostID: OSSignpostID
@@ -367,18 +406,36 @@ public struct OSSignposter: @unchecked Sendable {
     public init(logHandle: OSLog) { self.logHandle = logHandle }
     public init() { logHandle = .default }
     public static let disabled = OSSignposter(logHandle: .disabled)
-    public var isEnabled: Bool { false }
+    public var isEnabled: Bool { logHandle.signpostsEnabled }
     public func makeSignpostID() -> OSSignpostID { OSSignpostID(log: logHandle) }
     public func makeSignpostID(from object: AnyObject) -> OSSignpostID { OSSignpostID(log: logHandle, object: object) }
-    public func emitEvent(_ name: StaticString, id: OSSignpostID = .exclusive) {}
-    public func emitEvent(_ name: StaticString, id: OSSignpostID = .exclusive, _ message: OSLogMessage) {}
-    public func beginInterval(_ name: StaticString, id: OSSignpostID = .exclusive) -> OSSignpostIntervalState { .beginState(id: id) }
-    public func beginInterval(_ name: StaticString, id: OSSignpostID = .exclusive, _ message: OSLogMessage) -> OSSignpostIntervalState { .beginState(id: id) }
-    public func beginAnimationInterval(_ name: StaticString, id: OSSignpostID = .exclusive, _ message: OSLogMessage) -> OSSignpostIntervalState { .beginState(id: id) }
-    public func endInterval(_ name: StaticString, _ state: OSSignpostIntervalState) {}
-    public func endInterval(_ name: StaticString, _ state: OSSignpostIntervalState, _ message: OSLogMessage) {}
-    public func withIntervalSignpost<T>(_ name: StaticString, id: OSSignpostID = .exclusive, around task: () throws -> T) rethrows -> T { try task() }
-    public func withIntervalSignpost<T>(_ name: StaticString, id: OSSignpostID = .exclusive, _ message: OSLogMessage, around task: () throws -> T) rethrows -> T { try task() }
+    public func emitEvent(_ name: StaticString, id: OSSignpostID = .exclusive) { _Signposts.emit(logHandle, .event, id, name) }
+    public func emitEvent(_ name: StaticString, id: OSSignpostID = .exclusive, _ message: OSLogMessage) {
+        _Signposts.emit(logHandle, .event, id, name, message.render(), format: message.formatString)
+    }
+    public func beginInterval(_ name: StaticString, id: OSSignpostID = .exclusive) -> OSSignpostIntervalState {
+        _Signposts.emit(logHandle, .begin, id, name); return .beginState(id: id)
+    }
+    public func beginInterval(_ name: StaticString, id: OSSignpostID = .exclusive, _ message: OSLogMessage) -> OSSignpostIntervalState {
+        _Signposts.emit(logHandle, .begin, id, name, message.render(), format: message.formatString); return .beginState(id: id)
+    }
+    public func beginAnimationInterval(_ name: StaticString, id: OSSignpostID = .exclusive, _ message: OSLogMessage) -> OSSignpostIntervalState {
+        _Signposts.emit(logHandle, .begin, id, name, message.render(), format: message.formatString + " isAnimation=YES"); return .beginState(id: id)
+    }
+    public func endInterval(_ name: StaticString, _ state: OSSignpostIntervalState) { _Signposts.emit(logHandle, .end, state.signpostID, name) }
+    public func endInterval(_ name: StaticString, _ state: OSSignpostIntervalState, _ message: OSLogMessage) {
+        _Signposts.emit(logHandle, .end, state.signpostID, name, message.render(), format: message.formatString)
+    }
+    public func withIntervalSignpost<T>(_ name: StaticString, id: OSSignpostID = .exclusive, around task: () throws -> T) rethrows -> T {
+        let state = beginInterval(name, id: id)
+        defer { endInterval(name, state) }
+        return try task()
+    }
+    public func withIntervalSignpost<T>(_ name: StaticString, id: OSSignpostID = .exclusive, _ message: OSLogMessage, around task: () throws -> T) rethrows -> T {
+        let state = beginInterval(name, id: id, message)
+        defer { endInterval(name, state) }
+        return try task()
+    }
 }
 
 // MARK: - Locks

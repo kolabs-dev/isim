@@ -414,4 +414,21 @@ int isim_icu_list(const char *_Nullable locale, const char *items, int type, int
 int isim_icu_plural(const char *_Nullable locale, double n, int ordinal, char *out, int cap);
 int isim_icu_display_name(const char *_Nullable displayLocale, const char *code, int kind, char *out, int cap);
 int isim_icu_case(const char *_Nullable locale, const char *s, int kind, char *out, int cap);
+/* diagnostics (unified logging, signposts, MetricKit, crash reports): see runtime/host_os.c and host_diag.c */
+void isim_log_record(int kind, int type, const char *subsystem, const char *category, const char *message,
+                     const char *format, int sptype, uint64_t spid, const char *name);
+long isim_log_range(long *_Nullable first);
+int isim_log_get(long seq, double *date, int *meta, uint64_t *ids, char *_Nullable *_Nonnull strs);
+void isim_signpost_print(const char *subsystem, const char *category, int sptype, uint64_t spid, const char *name, const char *msg);
+void isim_metric_add(const char *key, double v);
+void isim_metric_max(const char *key, double v);
+double isim_metric_get(const char *key);
+int isim_resource_usage(double *out);
+int isim_hang_count(void);
+int isim_hang_get(int i, double *start, double *duration, char *stack, int cap);
+void isim_diag_set_app(const char *bundle_id, const char *version, const char *build, const char *name, const char *path);
+const char *isim_diag_app(int which);
+double isim_diag_process_start(void);
+int isim_sample_main_stack(char *out, int cap);    /* "image\toffset\taddress\tsymbol" lines */
+int isim_launch_stack(char *out, int cap);
 __END_DECLS

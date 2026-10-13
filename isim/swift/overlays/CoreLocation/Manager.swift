@@ -1,5 +1,6 @@
 // CLLocationManager, its delegate, the permission flow and the simulated location source.
 import UIKit
+import isim_host
 
 @objc public protocol CLLocationManagerDelegate: NSObjectProtocol {
     @objc optional func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation])
@@ -164,12 +165,28 @@ open class CLLocationManager: NSObject, @unchecked Sendable {
         }
     }
 
+    /// MetricKit's location activity: the time this manager updated locations, by its desired accuracy (and in the
+    /// background)
+    private var lastAccounted: Date?
+    private func accountActivity() {
+        let now = Date()
+        defer { lastAccounted = updating && _CLAuth.authorized ? now : nil }
+        guard updating, _CLAuth.authorized, let last = lastAccounted else { return }
+        let dt = min(now.timeIntervalSince(last), 5)
+        let a = desiredAccuracy
+        let key = a == kCLLocationAccuracyBestForNavigation ? "loc.nav" : a <= kCLLocationAccuracyBest ? "loc.best"
+            : a <= 10 ? "loc.10" : a <= 100 ? "loc.100" : a <= 1000 ? "loc.1k" : "loc.3k"
+        isim_metric_add(key, dt)
+        if _CLSim.inBackground { isim_metric_add("loc.bg", dt) }
+    }
+
     var active: Bool { updating || once || significant || visits || !monitoredRegions.isEmpty || !rangedBeaconConstraints.isEmpty || !rangedLegacy.isEmpty }
 
     /// delivers `fix` (nil: no location available) — main thread
     func deliver(_ fix: CLLocation?) {
         // in the background only managers allowed to update there get locations (iOS stops the others)
         if _CLSim.inBackground && !(allowsBackgroundLocationUpdates && _CLSim.backgroundMode) && !significant && monitoredRegions.isEmpty { return }
+        accountActivity()
         guard _CLAuth.authorized else {
             if _CLAuth.status == .denied || _CLAuth.status == .restricted, updating || once || significant {
                 once = false

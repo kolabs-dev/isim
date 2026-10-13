@@ -126,3 +126,9 @@ App `Logger` / `os_log` lines go to the terminal. Private values show as `<priva
 |---|---|
 | `ISIM_LOG_PRIVATE=1` | reveal private values |
 | `ISIM_LOG_LEVEL=info\|default\|error` | minimum level shown |
+| `ISIM_LOG_SIGNPOSTS=1` | also print signposts (`Sp` lines: begin / end / event, name, id); they are recorded in the log store either way |
+| `ISIM_NO_CRASH_REPORT=1` | no crash report files (`$ISIM_DATA/Library/Logs/DiagnosticReports/*.ips`) |
+| `ISIM_NO_HANG_WATCHDOG=1` | no hang detection (MetricKit's hang metrics and diagnostics) |
+
+Every message (Swift `Logger` / `os_log`, C `os_log`, `NSLog`) and signpost is also kept in memory for the app's process
+(the last 50,000), as shown: `OSLogStore(scope: .currentProcessIdentifier)` reads them back.
