@@ -1,6 +1,7 @@
 // Sample: Core Location on isim — the location permission alert (Allow Once / While Using / Don't Allow, then the
 // Always upgrade), CLLocationManager updates from the simulated location, requestLocation, distance, offline
-// geocoding, circular region monitoring and CLLocationUpdate.liveUpdates().
+// geocoding, circular region monitoring and CLLocationUpdate.liveUpdates(); simulated iBeacons (ranging, beacon
+// regions), visits and CLMonitor (iOS 17) with circular and beacon conditions.
 import SwiftUI
 import CoreLocation
 
@@ -11,6 +12,7 @@ struct HelloLocationApp: App {
 }
 
 let applePark = CLLocation(latitude: 37.334900, longitude: -122.009020)
+let beaconUUID = UUID(uuidString: "E2C56DB5-DFFB-48D2-B060-D0F5A71096E0")!
 
 final class LocationModel: NSObject, ObservableObject, CLLocationManagerDelegate {
     let manager = CLLocationManager()
@@ -20,6 +22,8 @@ final class LocationModel: NSObject, ObservableObject, CLLocationManagerDelegate
     @Published var placemark = ""
     @Published var events: [String] = []
     var liveTask: Task<Void, Never>?
+    var monitorTask: Task<Void, Never>?
+    var rangedOnce = false
 
     override init() {
         super.init()
@@ -58,6 +62,41 @@ final class LocationModel: NSObject, ObservableObject, CLLocationManagerDelegate
     func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) { log("region exit \(region.identifier)") }
     func locationManager(_ manager: CLLocationManager, didDetermineState state: CLRegionState, for region: CLRegion) {
         log("region state \(state == .inside ? "inside" : state == .outside ? "outside" : "unknown") \(region.identifier)")
+    }
+
+    // beacons (simulated: script `beacon`, ISIM_BEACONS)
+    func locationManager(_ manager: CLLocationManager, didRange beacons: [CLBeacon], satisfying c: CLBeaconIdentityConstraint) {
+        let list = beacons.map { "\($0.major).\($0.minor) \($0.proximity == .immediate ? "immediate" : $0.proximity == .near ? "near" : $0.proximity == .far ? "far" : "unknown") \($0.rssi)" }
+        print("ranged \(beacons.count) \(list.joined(separator: ", "))")
+    }
+    func locationManager(_ manager: CLLocationManager, didFailRangingFor c: CLBeaconIdentityConstraint, error: Error) {
+        print("ranging failed \((error as? CLError)?.code.rawValue ?? -1)")
+    }
+    func locationManager(_ manager: CLLocationManager, didVisit visit: CLVisit) {
+        print(String(format: "visit %@ %.4f %.4f", visit.departureDate == .distantFuture ? "arrival" : "departure", visit.coordinate.latitude, visit.coordinate.longitude))
+    }
+    func rangeBeacons() {
+        print("ranging available \(CLLocationManager.isRangingAvailable()) beacon regions \(CLLocationManager.isMonitoringAvailable(for: CLBeaconRegion.self))")
+        manager.startRangingBeacons(satisfying: CLBeaconIdentityConstraint(uuid: beaconUUID))
+        let region = CLBeaconRegion(uuid: beaconUUID, major: 1, identifier: "Lobby")
+        manager.startMonitoring(for: region)
+    }
+    func visits() { manager.startMonitoringVisits(); print("visits on") }
+    func monitor() {
+        monitorTask?.cancel()
+        monitorTask = Task {
+            let m = await CLMonitor("hello")
+            await m.add(CLMonitor.CircularGeographicCondition(center: applePark.coordinate, radius: 300), identifier: "park")
+            await m.add(CLMonitor.BeaconIdentityCondition(uuid: beaconUUID, major: 1), identifier: "lobby", assuming: .unsatisfied)
+            print("monitor ids \(await m.identifiers.sorted().joined(separator: ","))")
+            for await e in m.events {
+                let state = e.state == .satisfied ? "satisfied" : e.state == .unsatisfied ? "unsatisfied" : e.state == .unmonitored ? "unmonitored" : "unknown"
+                var extra = ""
+                if let r = e.refinement as? CLMonitor.BeaconIdentityCondition { extra = " beacon \(r.major ?? 0).\(r.minor ?? 0)" }
+                print("monitor event \(e.identifier) \(state)\(extra)")
+                if let rec = await m.record(for: e.identifier) { print("monitor record \(e.identifier) \(rec.lastEvent.state == e.state)") }
+            }
+        }
     }
 
     func reverseGeocode() {
@@ -127,6 +166,9 @@ struct ContentView: View {
                 }
                 Section("Regions") {
                     Button("Monitor Apple Park") { model.monitorApplePark() }.accessibilityIdentifier("region")
+                    Button("Range Beacons") { model.rangeBeacons() }.accessibilityIdentifier("beacons")
+                    Button("Monitor Visits") { model.visits() }.accessibilityIdentifier("visits")
+                    Button("CLMonitor") { model.monitor() }.accessibilityIdentifier("clmonitor")
                     ForEach(model.events, id: \.self) { Text($0) }
                 }
             }

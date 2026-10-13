@@ -45,6 +45,8 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | Variable | Effect |
 |---|---|
 | `ISIM_LOCATION=lat,lon` | simulated location (default: Apple Park); `lat,lon;lat,lon;...@speed` follows a route, `none` has no fix |
+| `ISIM_BEACONS=UUID:MAJOR:MINOR[:PROX[:RSSI]];…` | iBeacons in range at launch (proximity `immediate`, `near`, `far`; the `beacon` script command changes them while running) |
+| `ISIM_VISIT_SECONDS=N` | how long a stay within 50 m must last to be a `CLVisit` arrival (default 120) |
 | `ISIM_AUDIO_INPUT=file.wav` / `=mic` | microphone input for `AVAudioRecorder` / `inputNode` / input `AudioQueue`s: a file played in real time, or the host microphone |
 | `ISIM_CAMERA=picture.png` / `=video.mp4` / `=webcam[:/dev/videoN]` | the simulated camera: a still image as a live feed, a video looped in real time, or the host webcam through ffmpeg (opened only when this is set). The device then has a dual-camera iPhone's cameras (back wide, ultra wide, dual wide with depth; front wide, TrueDepth); zoom, torch and exposure change the picture. Unset: no camera, like the Simulator |
 | `ISIM_CAMERA_FRONT=picture.png` / `=video.mp4` | what the front cameras show (default: the same as `ISIM_CAMERA`) |
@@ -71,6 +73,8 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_LANGUAGES=ru,en` | preferred languages for one run (overrides Settings > Language & Region): localized strings and plural rules |
 | `ISIM_GEOCODER=offline` | every `CLGeocoder` request fails with `CLError.network` (default: an offline gazetteer answers) |
 | `ISIM_MAP_TILES=DIR` | draw maps from a local `{z}/{x}/{y}.png` tile cache (nothing is ever downloaded) |
+| `ISIM_ROUTING_URL=URL` | `MKDirections` asks this OSRM server (`/route/v1/{driving,walking,cycling}/…`; one you run, e.g. `http://localhost:5000`) for routes and ETAs; unset: `directionsNotFound`, isim never picks a server |
+| `ISIM_LOOKAROUND=DIR` | Look Around panoramas: equirectangular images named `LAT,LON.jpg`/`.png` (centre facing north); also read from `$ISIM_DATA/Library/Maps/LookAround`. A scene request finds the nearest within 50 m |
 
 ## Appearance, accessibility and region
 

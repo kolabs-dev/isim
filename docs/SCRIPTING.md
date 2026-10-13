@@ -192,6 +192,7 @@ activity with a push token. `start` needs the push-to-start token the app read f
 | `rotate portrait\|upsidedown\|landscapeleft\|landscaperight\|left\|right` | turn the device |
 | `shake` | Device ▸ Shake (Shake to Undo offers to undo the first responder's last change when `applicationSupportsShakeToEdit` is on) |
 | `location LAT LON` / `location none` | Features ▸ Location |
+| `beacon UUID MAJOR MINOR [immediate\|near\|far] [RSSI]` · `beacon off UUID MAJOR MINOR` · `beacon none` | an iBeacon comes into range (default `near`, RSSI from the proximity), leaves, or all leave: Core Location ranging, beacon regions and `CLMonitor` beacon conditions see it |
 | `remote NAME [ARG]` | `MPRemoteCommandCenter` command: `play`, `pause`, `toggle`, `next`, `previous`, `skipforward`, `skipback`, `seek S`, `rate R`; with `isim boot` it goes to the app that publishes Now Playing, like Control Center's controls |
 | `volume up\|down\|V` | the device volume (the side buttons: steps of 1/16; or V from 0 to 1): `AVAudioSession.outputVolume`, `MPVolumeView`, the mixer's master gain; remembered in the device data |
 | `audio interrupt begin` · `audio interrupt end [resume]` · `audio route NAME` · `audio silence begin\|end` · `audio reset` | `AVAudioSession` events: an interruption (like a phone call; it pauses `AVAudioPlayer`s, `resume` sets `.shouldResume`), a route change to `headphones`, `headset`, `bluetooth`, `carplay`, `airplay`, `usb`, `hdmi`, `receiver` or `speaker`, the secondary-audio hint, media services reset |

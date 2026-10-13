@@ -81,7 +81,8 @@ ISIM_ANIMATIONS=0 ISIM_SKIP_LAUNCH_SCREEN=1 isim run build/MyApp.app --headless 
   that read images can check layout, colours and dark mode with it.
 - `tapid`, `taptext`, `type`, `key`, `drag`, `swipeid` act like a finger and a keyboard (`scroll` like a trackpad or
   mouse wheel, `pencil` like an Apple Pencil); `appearance dark`,
-  `rotate landscapeleft`, `location LAT LON`, `push …`, `openurl …` change the device. The full list is in
+  `rotate landscapeleft`, `location LAT LON`, `beacon UUID MAJOR MINOR`, `push …`, `openurl …` change the device; on a
+  map, `pinch`, `rotate2` and `twofinger` zoom, turn and tilt it (`dump` shows its centre, span, heading and pitch). The full list is in
   [SCRIPTING.md](SCRIPTING.md).
 - Accessibility can be checked the same way: `voiceover on; voiceover next; …` logs what VoiceOver says
   (`isim: VoiceOver: "…"`), and `accessibility SETTING on|off`, `contrast on`, `boldtext on` and

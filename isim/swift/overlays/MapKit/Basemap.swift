@@ -3,9 +3,9 @@
 // isim has no map data service. The map shows, in this order of preference:
 //  1. raster tiles from a local slippy-map cache, if one exists: $ISIM_MAP_TILES or $ISIM_DATA/Library/Maps/Tiles,
 //     laid out as {z}/{x}/{y}.png (e.g. tiles you exported yourself; isim never downloads tiles);
-//  2. otherwise a styled offline basemap: land-coloured background, a latitude/longitude graticule with
-//     coordinate labels, and labels for a small built-in list of world cities and landmarks (no coastlines, roads
-//     or water). The bottom-left corner says which one is shown.
+//  2. otherwise a styled offline basemap: water and land (coastlines from Natural Earth, Land.swift), a
+//     latitude/longitude graticule with coordinate labels, and labels for a small built-in list of world cities and
+//     landmarks (no roads, buildings or rivers). The bottom-left corner says which one is shown.
 import UIKit
 
 struct _MKPlace { let name: String; let lat: Double; let lon: Double; let rank: Int }
@@ -43,22 +43,22 @@ enum _MKBasemap {
     ]
 
     struct Style {
-        let land: UIColor, grid: UIColor, gridMajor: UIColor, label: UIColor, halo: UIColor, dot: UIColor
+        let land: UIColor, water: UIColor, grid: UIColor, gridMajor: UIColor, label: UIColor, halo: UIColor, dot: UIColor
     }
     static func style(_ type: MKMapType, dark: Bool) -> Style {
         switch type {
         case .satellite, .satelliteFlyover, .hybrid, .hybridFlyover:
-            return Style(land: UIColor(red: 0.20, green: 0.27, blue: 0.20, alpha: 1), grid: UIColor(white: 1, alpha: 0.10), gridMajor: UIColor(white: 1, alpha: 0.22),
+            return Style(land: UIColor(red: 0.20, green: 0.27, blue: 0.20, alpha: 1), water: UIColor(red: 0.04, green: 0.10, blue: 0.20, alpha: 1), grid: UIColor(white: 1, alpha: 0.10), gridMajor: UIColor(white: 1, alpha: 0.22),
                          label: .white, halo: UIColor(white: 0, alpha: 0.6), dot: .white)
         case .mutedStandard:
-            return dark ? Style(land: UIColor(white: 0.16, alpha: 1), grid: UIColor(white: 1, alpha: 0.05), gridMajor: UIColor(white: 1, alpha: 0.10),
+            return dark ? Style(land: UIColor(white: 0.16, alpha: 1), water: UIColor(red: 0.11, green: 0.13, blue: 0.16, alpha: 1), grid: UIColor(white: 1, alpha: 0.05), gridMajor: UIColor(white: 1, alpha: 0.10),
                                 label: UIColor(white: 0.6, alpha: 1), halo: UIColor(white: 0.1, alpha: 1), dot: UIColor(white: 0.6, alpha: 1))
-                        : Style(land: UIColor(red: 0.96, green: 0.96, blue: 0.95, alpha: 1), grid: UIColor(white: 0, alpha: 0.04), gridMajor: UIColor(white: 0, alpha: 0.08),
+                        : Style(land: UIColor(red: 0.96, green: 0.96, blue: 0.95, alpha: 1), water: UIColor(red: 0.80, green: 0.86, blue: 0.92, alpha: 1), grid: UIColor(white: 0, alpha: 0.04), gridMajor: UIColor(white: 0, alpha: 0.08),
                                 label: UIColor(white: 0.45, alpha: 1), halo: .white, dot: UIColor(white: 0.5, alpha: 1))
         default:
-            return dark ? Style(land: UIColor(red: 0.17, green: 0.17, blue: 0.18, alpha: 1), grid: UIColor(white: 1, alpha: 0.07), gridMajor: UIColor(white: 1, alpha: 0.14),
+            return dark ? Style(land: UIColor(red: 0.17, green: 0.17, blue: 0.18, alpha: 1), water: UIColor(red: 0.10, green: 0.17, blue: 0.27, alpha: 1), grid: UIColor(white: 1, alpha: 0.07), gridMajor: UIColor(white: 1, alpha: 0.14),
                                 label: UIColor(white: 0.85, alpha: 1), halo: UIColor(white: 0.1, alpha: 1), dot: UIColor(white: 0.8, alpha: 1))
-                        : Style(land: UIColor(red: 0.973, green: 0.961, blue: 0.937, alpha: 1), grid: UIColor(red: 0.88, green: 0.86, blue: 0.82, alpha: 1),
+                        : Style(land: UIColor(red: 0.973, green: 0.961, blue: 0.937, alpha: 1), water: UIColor(red: 0.62, green: 0.80, blue: 0.96, alpha: 1), grid: UIColor(red: 0.88, green: 0.86, blue: 0.82, alpha: 1),
                                 gridMajor: UIColor(red: 0.80, green: 0.78, blue: 0.74, alpha: 1), label: UIColor(white: 0.25, alpha: 1), halo: .white,
                                 dot: UIColor(white: 0.35, alpha: 1))
         }
@@ -89,15 +89,22 @@ enum _MKBasemap {
     static var usesTiles: Bool { tileDir != nil }
 
     // MARK: drawing
-    /// draws the basemap for `visible` (map points) into `rect` (view points); scale = map points per view point
-    static func draw(visible: MKMapRect, scale: Double, rect: CGRect, type: MKMapType, dark: Bool, showsLabels: Bool, toView: (MKMapPoint) -> CGPoint) {
+    /// draws the basemap for `visible` (map points) into `rect` (view points); scale = map points per view point.
+    /// `visible`'s corner is drawn at `rect`'s; gridLabels: the graticule's coordinate labels (off on a rotated map)
+    static func draw(visible: MKMapRect, scale: Double, rect: CGRect, type: MKMapType, dark: Bool, showsLabels: Bool, gridLabels: Bool = true,
+                     toView: (MKMapPoint) -> CGPoint) {
         let st = style(type, dark: dark)
-        st.land.setFill()
+        let land = _MKLand.available
+        (land ? st.water : st.land).setFill()
         UIBezierPath(rect: rect).fill()
+        if land {
+            let origin = MKMapPoint(x: visible.minX - Double(rect.minX) * scale, y: visible.minY - Double(rect.minY) * scale)
+            _MKLand.draw(visible: visible, scale: scale, origin: origin, rect: rect, color: st.land)
+        }
         if usesTiles {
             _MKTiles.draw(visible: visible, scale: CGFloat(scale), toView: toView, minZ: 0, maxZ: 19, alpha: 1) { cachedTile($0) }
         }
-        drawGraticule(visible: visible, scale: scale, rect: rect, st: st, toView: toView, labels: !usesTiles)
+        drawGraticule(visible: visible, scale: scale, rect: rect, st: st, toView: toView, labels: gridLabels && !usesTiles)
         if showsLabels && !usesTiles { drawPlaces(visible: visible, scale: scale, rect: rect, st: st, toView: toView) }
     }
 

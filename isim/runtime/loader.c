@@ -1093,6 +1093,7 @@ int main(int argc, char **argv, char **envp) {
             extern int isim_shell_main(const char *self, const char *root, const char *bundle, const char *exe, char **open);
             if (!sysroot) sysroot = default_root();
             char *rr = realpath(sysroot, NULL); if (rr) sysroot = rr;
+            setenv("ISIM_ROOT", sysroot, 1);
             char self[PATH_MAX]; ssize_t n = readlink("/proc/self/exe", self, sizeof self - 1); if (n > 0) self[n] = 0;
             char **open = ai + 5 < argc && !strcmp(argv[ai + 3], "--open") ? argv + ai + 4 : NULL;
             extern int isim_os_select(void); if (isim_os_select()) return 2;
@@ -1107,6 +1108,7 @@ int main(int argc, char **argv, char **envp) {
     }
     if (!sysroot) sysroot = default_root();
     char *rr = realpath(sysroot, NULL); if (rr) sysroot = rr;
+    setenv("ISIM_ROOT", sysroot, 1);             /* the SDK root, for frameworks' data files (MapKit's land shapes) */
 
     { extern int isim_os_select(void); if (isim_os_select()) return 2; }   /* the iOS version this run reports (host.c) */
     if (!load_image(argv[ai], MH_EXECUTE)) isim_fatal("cannot open %s", argv[ai]);

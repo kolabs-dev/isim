@@ -521,6 +521,9 @@ class Swift:
             outs += [mod(m), self.link(f"swift{m}", objs, link_args, minos="17.0")]
         # stand-ins for remote Swift packages that isim cannot fetch or run (isim build reads this)
         act.write_if_changed(os.path.join(c.root, SDK, "usr/share/isim/package-standins.json"), STANDINS)
+        # MapKit's offline basemap: land shapes from Natural Earth (public domain; tools/make-land.py)
+        for f in ("land-50m.bin", "land-10m.bin"):
+            act.copy_if_changed(os.path.join(c.root, "data/maps", f), os.path.join(c.root, SDK, "usr/share/isim/maps", f))
         n.phony("overlays", outs)
         return outs
 

@@ -173,11 +173,26 @@ open class CLHeading: NSObject, @unchecked Sendable {
     open private(set) var timestamp = Date()
 }
 
-open class CLVisit: NSObject, @unchecked Sendable {
+open class CLVisit: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
     open private(set) var arrivalDate = Date.distantPast
     open private(set) var departureDate = Date.distantFuture
     open private(set) var coordinate = kCLLocationCoordinate2DInvalid
     open private(set) var horizontalAccuracy: CLLocationAccuracy = -1
+    init(coordinate: CLLocationCoordinate2D, arrival: Date, departure: Date) {
+        self.coordinate = coordinate; arrivalDate = arrival; departureDate = departure; horizontalAccuracy = 50
+    }
+    public static var supportsSecureCoding: Bool { true }
+    public required init?(coder: NSCoder) {
+        arrivalDate = coder.decodeObject(of: NSDate.self, forKey: "arrival") as Date? ?? .distantPast
+        departureDate = coder.decodeObject(of: NSDate.self, forKey: "departure") as Date? ?? .distantFuture
+        coordinate = CLLocationCoordinate2D(latitude: coder.decodeDouble(forKey: "lat"), longitude: coder.decodeDouble(forKey: "lon"))
+        horizontalAccuracy = coder.decodeDouble(forKey: "accuracy")
+    }
+    open func encode(with coder: NSCoder) {
+        coder.encode(arrivalDate as NSDate, forKey: "arrival"); coder.encode(departureDate as NSDate, forKey: "departure")
+        coder.encode(coordinate.latitude, forKey: "lat"); coder.encode(coordinate.longitude, forKey: "lon"); coder.encode(horizontalAccuracy, forKey: "accuracy")
+    }
+    open func copy(with zone: NSZone? = nil) -> Any { self }
 }
 
 // MARK: - Regions
@@ -205,16 +220,47 @@ open class CLCircularRegion: CLRegion, @unchecked Sendable {
     }
 }
 
-/// iBeacon regions exist so apps compile; the simulated device has no Bluetooth LE, so ranging is unavailable (like the Simulator)
+/// a region of iBeacons. isim's device sees the simulated beacons (script `beacon`, ISIM_BEACONS; Beacons.swift):
+/// regions of them are monitored like circular regions, entered while a matching beacon is in range (adapted)
 open class CLBeaconRegion: CLRegion, @unchecked Sendable {
-    open private(set) var uuid: UUID
-    open private(set) var major: NSNumber?
-    open private(set) var minor: NSNumber?
+    open private(set) var beaconIdentityConstraint: CLBeaconIdentityConstraint
+    open var uuid: UUID { beaconIdentityConstraint.uuid }
+    open var proximityUUID: UUID { beaconIdentityConstraint.uuid }
+    open var major: NSNumber? { beaconIdentityConstraint.major }
+    open var minor: NSNumber? { beaconIdentityConstraint.minor }
     open var notifyEntryStateOnDisplay = false
-    public init(uuid: UUID, identifier: String) { self.uuid = uuid; super.init(identifier: identifier) }
-    public init(uuid: UUID, major: UInt16, identifier: String) { self.uuid = uuid; self.major = NSNumber(value: major); super.init(identifier: identifier) }
-    public init(uuid: UUID, major: UInt16, minor: UInt16, identifier: String) {
-        self.uuid = uuid; self.major = NSNumber(value: major); self.minor = NSNumber(value: minor); super.init(identifier: identifier)
+    public init(beaconIdentityConstraint: CLBeaconIdentityConstraint, identifier: String) {
+        self.beaconIdentityConstraint = beaconIdentityConstraint; super.init(identifier: identifier)
+    }
+    // designated, as in earlier isim releases (ABI)
+    public init(uuid: UUID, identifier: String) {
+        beaconIdentityConstraint = CLBeaconIdentityConstraint(uuid: uuid); super.init(identifier: identifier)
+    }
+    public init(uuid: UUID, major: CLBeaconMajorValue, identifier: String) {
+        beaconIdentityConstraint = CLBeaconIdentityConstraint(uuid: uuid, major: major); super.init(identifier: identifier)
+    }
+    public init(uuid: UUID, major: CLBeaconMajorValue, minor: CLBeaconMinorValue, identifier: String) {
+        beaconIdentityConstraint = CLBeaconIdentityConstraint(uuid: uuid, major: major, minor: minor); super.init(identifier: identifier)
+    }
+    @available(*, deprecated, renamed: "init(uuid:identifier:)")
+    public convenience init(proximityUUID: UUID, identifier: String) { self.init(uuid: proximityUUID, identifier: identifier) }
+    @available(*, deprecated, renamed: "init(uuid:major:identifier:)")
+    public convenience init(proximityUUID: UUID, major: CLBeaconMajorValue, identifier: String) { self.init(uuid: proximityUUID, major: major, identifier: identifier) }
+    @available(*, deprecated, renamed: "init(uuid:major:minor:identifier:)")
+    public convenience init(proximityUUID: UUID, major: CLBeaconMajorValue, minor: CLBeaconMinorValue, identifier: String) {
+        self.init(uuid: proximityUUID, major: major, minor: minor, identifier: identifier)
+    }
+    /// advertising data for this device as a beacon (CoreBluetooth's CBPeripheralManager takes it; isim's has no radio)
+    open func peripheralData(withMeasuredPower measuredPower: NSNumber?) -> NSMutableDictionary {
+        let d = NSMutableDictionary()
+        d.setObject(NSData(data: _CLBeacons.advertisement(uuid: uuid, major: UInt16(truncatingIfNeeded: major?.integerValue ?? 0), minor: UInt16(truncatingIfNeeded: minor?.integerValue ?? 0),
+                                                                              power: Int8(truncatingIfNeeded: measuredPower?.integerValue ?? -59))),
+                    forKey: "kCBAdvDataAppleBeaconKey" as NSString)
+        return d
+    }
+    override func _contains(_ c: CLLocationCoordinate2D) -> Bool { !_CLBeacons.inRange(beaconIdentityConstraint).isEmpty }
+    open override var description: String {
+        "CLBeaconRegion (identifier:'\(identifier)', uuid:\(uuid.uuidString), major:\(major.map { "\($0)" } ?? "*"), minor:\(minor.map { "\($0)" } ?? "*"))"
     }
 }
 
