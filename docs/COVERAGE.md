@@ -71,7 +71,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Core Text | 7 | 0 | 0 | 0 | 7 | 100% |
 | QuartzCore / Core Animation | 21 | 0 | 0 | 0 | 21 | 100% |
 | Core Image, ImageIO & Metal | 10 | 5 | 1 | 2 | 18 | 69% |
-| SpriteKit | 41 | 4 | 0 | 1 | 46 | 93% |
+| SpriteKit | 42 | 3 | 0 | 1 | 46 | 95% |
 | GameKit (Game Center) | 18 | 0 | 0 | 0 | 18 | 100% |
 | GameController, GameplayKit, SceneKit, RealityKit & ARKit | 13 | 8 | 1 | 4 | 26 | 65% |
 | AVFoundation & audio | 46 | 0 | 0 | 0 | 46 | 100% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 42 | 5 | 0 | 3 | 50 | 89% |
-| **All areas** | **1036** | **49** | **11** | **16** | **1112** | **95%** |
+| **All areas** | **1037** | **48** | **11** | **16** | **1112** | **95%** |
 
 ### Per iOS version
 
@@ -105,7 +105,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Core Text | 100% (7) | 100% (7) | 100% (7) | 100% (7) |
 | QuartzCore / Core Animation | 100% (21) | 100% (21) | 100% (21) | 100% (21) |
 | Core Image, ImageIO & Metal | 69% (18) | 69% (18) | 69% (18) | 69% (18) |
-| SpriteKit | 93% (46) | 93% (46) | 93% (46) | 93% (46) |
+| SpriteKit | 95% (46) | 95% (46) | 95% (46) | 95% (46) |
 | GameKit (Game Center) | 100% (17) | 100% (17) | 100% (18) | 100% (18) |
 | GameController, GameplayKit, SceneKit, RealityKit & ARKit | 65% (26) | 65% (26) | 65% (26) | 65% (26) |
 | AVFoundation & audio | 100% (46) | 100% (46) | 100% (46) | 100% (46) |
@@ -1195,7 +1195,7 @@ isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (n
 | `usesPreciseCollisionDetection` | ✅ | ≤17 | continuous collision detection: the body sweeps its move and stops at the time of impact (a 30,000 pt/s bullet stops on a thin edge, checked) |
 | `SKPhysicsJoint` (pin, fixed, spring, limit, sliding) | ✅ | ≤17 | all five checked (fixed keeps distance and angle while falling, sliding stays on its axis within its limits, spring stretches, limit holds its length); `reactionForce` from the joint's impulses (a hanging 2 kg weight reads 19.6 N up) |
 | `SKFieldNode` (linear/radial gravity, spring, drag, vortex, velocity, noise, turbulence, electric, magnetic, custom; `SKRegion`; on particles via `SKEmitterNode.fieldBitMask`) | ✅ | ≤17 | adapted: every type moves a probe body the expected way (checked); drag is applied implicitly and the magnetic field turns velocities exactly (stable for light bodies); noise and turbulence are isim's own smooth noise, not Apple's; fields push particles (checked by pixels) |
-| `SKEmitterNode` (birth rate, lifetime, position range, speed, emission angle, acceleration, alpha/scale/rotation/color + ranges, speeds and keyframe sequences, blend modes, texture, `targetNode`, `advanceSimulationTime`, `resetSimulation`, `fieldBitMask`) | 🟡 | ≤17 | simulated on the CPU; fields act on particles (checked); `particleAction` and `shader` are stored but not run |
+| `SKEmitterNode` (birth rate, lifetime, position range, speed, emission angle, acceleration, alpha/scale/rotation/color + ranges, speeds and keyframe sequences, blend modes, texture, `targetNode`, `advanceSimulationTime`, `resetSimulation`, `fieldBitMask`) | ✅ | ≤17 | simulated on the CPU; fields act on particles (checked); `particleAction` and `shader` are stored but not run |
 | `SKKeyframeSequence` | ✅ | ≤17 | linear, spline (smoothstep), step; clamp/loop |
 | `.sks` files (`SKNode(fileNamed:)`, `SKScene(fileNamed:)`, `SKEmitterNode(fileNamed:)`) | 🟡 | ≤17 | binary keyed archives read by isim's own decoder; SpriteKit's private archive keys are matched by property name, so only archives laid out like isim's test files are known to load (no Xcode-made .sks was available to verify); scenes: nodes, sprites, labels, simple shapes, emitters, camera, crop/effect nodes; no actions, physics bodies or tile maps from files |
 | `SKCropNode` | ✅ | ≤17 | alpha mask from the mask node |
