@@ -153,13 +153,21 @@ enum _SKSound {
     }
 }
 
+/// A sound in the scene, played by an AVAudioPlayerNode in the scene's audioEngine (adapted: isim's AVAudioEngine).
+/// Positional nodes go through an AVAudioEnvironmentNode: each frame the source is placed where the node is relative
+/// to the scene's listener (150 points per meter, like physics), which pans it and attenuates it with distance;
+/// obstruction and occlusion attenuate it, reverbBlend feeds the environment's reverb. Others go to the main mixer.
 open class SKAudioNode: SKNode {
     open var autoplayLooped = true
     open var isPositional = true
-    var player: AVAudioPlayer?
     var url: URL?
+    var buffer: AVAudioPCMBuffer?
     open var avAudioNode: AVAudioNode?
-    var volume: Float = 1 { didSet { player?.volume = volume } }
+    weak var _engine: AVAudioEngine?
+    var _positional = false
+    var mixing: AVAudioMixing? { avAudioNode as? AVAudioMixing }
+    var volume: Float { get { mixing?.volume ?? 1 } set { mixing?.volume = max(0, newValue) } }
+    var player: AVAudioPlayerNode? { avAudioNode as? AVAudioPlayerNode }
 
     public init(fileNamed name: String) {
         super.init()
@@ -172,14 +180,79 @@ open class SKAudioNode: SKNode {
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
         if let c = coder as? _SKCoder, let n = c.string("fileName") ?? c.string("soundFileName") { url = _SKSound.url(for: n); load() }
-        if let c = coder as? _SKCoder { autoplayLooped = c.bool("autoplayLooped") ?? true }
+        if let c = coder as? _SKCoder { autoplayLooped = c.bool("autoplayLooped") ?? true; isPositional = c.bool("positional") ?? c.bool("isPositional") ?? true }
     }
     func load() {
         guard let url else { return }
-        do { player = try AVAudioPlayer(contentsOf: url); player?.numberOfLoops = -1 }
-        catch { NSLog("isim SpriteKit: SKAudioNode cannot load %@: %@", url.lastPathComponent, "\(error)") }
+        do {
+            let file = try AVAudioFile(forReading: url)
+            guard let b = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)) else { return }
+            try file.read(into: b)
+            buffer = b
+            avAudioNode = AVAudioPlayerNode()
+        } catch { NSLog("isim SpriteKit: SKAudioNode cannot load %@: %@", url.lastPathComponent, "\(error)") }
+    }
+    /// the buffer as mono (positional sources are mono, like SpriteKit's)
+    func monoBuffer() -> AVAudioPCMBuffer? {
+        guard let b = buffer else { return nil }
+        if b.format.channelCount == 1 { return b }
+        guard let fmt = AVAudioFormat(standardFormatWithSampleRate: b.format.sampleRate, channels: 1),
+              let m = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: b.frameLength), let src = b.floatChannelData, let dst = m.floatChannelData else { return b }
+        m.frameLength = b.frameLength
+        let n = Int(b.format.channelCount)
+        for i in 0..<Int(b.frameLength) { var s: Float = 0; for c in 0..<n { s += src[c][i] }; dst[0][i] = s / Float(n) }
+        return m
+    }
+    /// connects the node to the scene's engine (once), starts the engine; with autoplayLooped, plays looping
+    func _attach(_ scene: SKScene) {
+        guard let node = avAudioNode else { return }
+        let engine = scene.audioEngine
+        if _engine !== engine || node.engine == nil {
+            if node.engine == nil { engine.attach(node) }
+            _positional = isPositional
+            let b = isPositional ? monoBuffer() : buffer
+            if isPositional {
+                engine.connect(node, to: scene._audioEnvironment, format: b?.format)
+            } else {
+                engine.connect(node, to: engine.mainMixerNode, format: b?.format)
+            }
+            _engine = engine
+            if let p = player, let b, autoplayLooped { p.scheduleBuffer(b, at: nil, options: .loops) }
+        }
+        if !engine.isRunning { do { try engine.start() } catch { NSLog("isim SpriteKit: the scene's audio engine did not start: %@", "\(error)") } }
+        if autoplayLooped, let p = player, !p.isPlaying { p.play() }
+    }
+    /// play from an action (schedules the sound when nothing is scheduled)
+    func _play() {
+        guard let scene, let p = player else { return }
+        if _engine == nil { _attach(scene) }
+        if !p.isPlaying {
+            if !autoplayLooped, let b = _positional ? monoBuffer() : buffer { p.scheduleBuffer(b, at: nil, options: []) }
+            p.play()
+        }
+    }
+    /// the source relative to the listener (positional nodes, every frame)
+    func _place(_ scene: SKScene) {
+        guard _positional, let m = mixing else { return }
+        let here = scene.convert(.zero, from: self)
+        let ear = scene.listener.map { scene.convert(.zero, from: $0) } ?? (scene.camera.map { scene.convert(.zero, from: $0) } ?? CGPoint(x: scene.frame.midX, y: scene.frame.midY))
+        m.position = AVAudio3DPoint(x: Float((here.x - ear.x) / _ptm), y: Float((here.y - ear.y) / _ptm), z: 0)
     }
     /// looping playback starts on the first frame the node is in a presented scene (SKScene.advanceNodes)
     var autoStarted = false
     override func didDetach() { super.didDetach(); if autoplayLooped { player?.stop(); autoStarted = false } }
+}
+
+nonisolated(unsafe) private var _skEnvKey: UInt8 = 0
+extension SKScene {
+    /// the environment node positional audio nodes go through (created with the scene's engine)
+    var _audioEnvironment: AVAudioEnvironmentNode {
+        if let e = objc_getAssociatedObject(self, &_skEnvKey) as? AVAudioEnvironmentNode { return e }
+        let env = AVAudioEnvironmentNode()
+        audioEngine.attach(env)
+        audioEngine.connect(env, to: audioEngine.mainMixerNode, format: nil)
+        env.listenerPosition = AVAudio3DPoint(x: 0, y: 0, z: 0)
+        objc_setAssociatedObject(self, &_skEnvKey, env, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+        return env
+    }
 }

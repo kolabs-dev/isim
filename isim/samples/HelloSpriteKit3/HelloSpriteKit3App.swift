@@ -4,7 +4,9 @@
 //              shape fill and stroke shaders (v_path_distance), fill textures, line caps and joins;
 //   effects  — SKEffectNode with Core Image filters, shouldRasterize, noise textures, a normal map, a texture
 //              rendered from nodes (SKView.texture(from:));
-//   transition — an SKTransition(ciFilter:) from a red scene to a blue one.
+//   transition — an SKTransition(ciFilter:) from a red scene to a blue one;
+//   physics  — physics, fields, joints, physics actions and positional audio (Physics.swift);
+//   nodes    — inverse kinematics, constraints, tile maps, reference nodes, the statistics overlay (Nodes.swift).
 // The checks (logged as "sk3 …", then "sk3 checks done") run on every page: Checks.swift.
 import UIKit
 import SpriteKit
@@ -34,6 +36,8 @@ final class GameViewController: UIViewController {
         switch page {
         case "shaders": scene = ShaderScene(size: size)
         case "effects": scene = EffectScene(size: size)
+        case "physics": scene = PhysicsScene(size: size)
+        case "nodes": scene = NodesScene(size: size)
         case "transition": scene = SolidScene(size: size, color: .red)
         default: scene = LightScene(size: size)
         }

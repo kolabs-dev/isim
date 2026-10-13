@@ -241,7 +241,9 @@ def _(a):
 
 @app("samples/HelloSpriteKit3")
 def _(a):
-    a.swift_app()
+    b = a.swift_app()
+    a.isim_build().compile_xcassets(os.path.join(a.d, "Assets.xcassets"), b)    # Monsters.spriteatlas
+    a.run("python3", "make-assets.py", b)                                         # tone.wav, Badge.sks
 
 
 @app("samples/HelloAlerts")

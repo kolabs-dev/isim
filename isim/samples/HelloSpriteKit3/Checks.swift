@@ -43,6 +43,9 @@ enum Checks {
         let strided = SKTexture(data: Data(padded), size: CGSize(width: 2, height: 2), rowLength: 3, alignment: 16)
         log("sk3 texture data bottom \(texel(up, 0.25, 0.25)) top \(texel(up, 0.25, 0.75)) flipped bottom \(texel(flipped, 0.25, 0.25)) " +
             "strided bottom \(texel(strided, 0.25, 0.25)) top \(texel(strided, 0.25, 0.75))")
+        // a sprite atlas from the asset catalog (Assets.xcassets/Monsters.spriteatlas)
+        let atlas = SKTextureAtlas(named: "Monsters")
+        log("sk3 sprite atlas \(atlas.textureNames.sorted()) red \(texel(atlas.textureNamed("monster-red"), 0.5, 0.5)) by name \(texel(SKTexture(imageNamed: "monster-green"), 0.5, 0.5)) size \(atlas.textureNamed("monster-green").size())")
         let cg = up.cgImage()
         log("sk3 texture cgImage \(cg.map { "\($0.width)x\($0.height)" } ?? "nil") sub \(SKTexture(rect: CGRect(x: 0, y: 0.5, width: 1, height: 0.5), in: up).cgImage().map { "\($0.width)x\($0.height) \(pixel($0, 0, 0))" } ?? "nil")")
         // noise: gray levels equal; smoother noise varies less between neighbours; vector noise is unit vectors

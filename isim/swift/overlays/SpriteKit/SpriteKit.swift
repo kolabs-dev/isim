@@ -586,7 +586,12 @@ open class SKScene: SKNode {
     open var anchorPoint: CGPoint = .zero
     open private(set) weak var view: SKView?
     open var delegate: SKSceneDelegate?
-    open var camera: SKNode?
+    open var camera: SKCameraNode?
+    // isim ABI: until 0.18 this property was typed SKNode?; keep its getter/setter entry points for apps built then
+    @usableFromInline @_silgen_name("$s9SpriteKit7SKSceneC6cameraAA6SKNodeCSgvgTj")
+    final func _abi_cameraNode() -> SKNode? { camera }
+    @usableFromInline @_silgen_name("$s9SpriteKit7SKSceneC6cameraAA6SKNodeCSgvsTj")
+    final func _abi_setCameraNode(_ n: __owned SKNode?) { camera = n as? SKCameraNode }
     open var listener: SKNode?
     public let physicsWorld = SKPhysicsWorld()
     open private(set) lazy var audioEngine = AVAudioEngine()
@@ -609,7 +614,7 @@ open class SKScene: SKNode {
             if let col = c.color("backgroundColor") { backgroundColor = col }
             if let m = c.int("scaleMode").flatMap(SKSceneScaleMode.init(rawValue:)) { scaleMode = m }
             if let g = c.vector("gravity") ?? c.coder(forKey: "physicsWorld")?.vector("gravity") { physicsWorld.gravity = g }
-            if let u = c.coder(forKey: "camera")?.uid { camera = c.node(uid: u) }
+            if let u = c.coder(forKey: "camera")?.uid { camera = c.node(uid: u) as? SKCameraNode }
         }
         if _skDecodingScene == 0 { sceneDidLoad() }
     }
@@ -664,7 +669,10 @@ open class SKScene: SKNode {
         for c in n.children {
             if let e = c as? SKEmitterNode, !e.isPaused { e.simulate(step * Double(e.speed)) }
             else if let t = c as? SKTileMapNode { t.elapsed += CGFloat(step) }
-            else if let a = c as? SKAudioNode, a.autoplayLooped, !a.autoStarted, let p = a.player { a.autoStarted = true; if !p.isPlaying { p.play() } }
+            else if let a = c as? SKAudioNode {
+                if a.autoplayLooped, !a.autoStarted, view != nil { a.autoStarted = true; a._attach(self) }
+                a._place(self)
+            }
             advanceNodes(c, step)
         }
     }
@@ -855,6 +863,32 @@ open class SKView: UIView {
 
     struct Item { let node: SKNode; let z: CGFloat; let order: Int; let t: CGAffineTransform; let alpha: CGFloat }
     var drawnNodes = 0
+    /// isim's estimate of SpriteKit's draw passes and quads this frame (showsDrawCount / showsQuadCount): sprites in a
+    /// row sharing a texture and blend mode (no shader, no lighting) batch into one draw; a tile map or an emitter is
+    /// one draw of a quad per tile or particle; a label one draw; a shape one per fill and stroke
+    var drawCount = 0, quadCount = 0
+    private var lastBatch: String?
+    func _count(_ n: SKNode) {
+        var key: String?
+        var draws = 0, quads = 0
+        switch n {
+        case let sp as SKSpriteNode:
+            draws = 1; quads = 1
+            if sp.shader == nil, sp.lightingBitMask == 0 { key = "s\(sp.texture?.handle ?? 0)/\(sp.blendMode.rawValue)" }
+        case let tm as SKTileMapNode: draws = 1; quads = tm.cells.reduce(0) { $0 + ($1 == nil ? 0 : 1) }
+        case let em as SKEmitterNode: draws = em.particles.isEmpty ? 0 : 1; quads = em.particles.count
+        case is SKLabelNode: draws = 1; quads = 1
+        case let sh as SKShapeNode:
+            draws = (_rgba(sh.fillColor)[3] > 0 ? 1 : 0) + (_rgba(sh.strokeColor)[3] > 0 && sh.lineWidth > 0 ? 1 : 0)
+        case is SKCropNode, is SKEffectNode: draws = 1; quads = 1
+        default: break
+        }
+        if draws == 0 { return }
+        quadCount += quads
+        if let key, key == lastBatch { return }
+        drawCount += draws
+        lastBatch = key
+    }
 
     /// draws a node's children (and, with `includeRoot`, the node itself), sorted by global z
     func renderTree(_ root: SKNode, _ t: CGAffineTransform, _ alpha: CGFloat, includeRoot: Bool = false) {
@@ -871,6 +905,7 @@ open class SKView: UIView {
         items.sort { $0.z != $1.z ? $0.z < $1.z : $0.order < $1.order }
         drawnNodes += items.count
         for it in items {
+            _count(it.node)
             if let crop = it.node as? SKCropNode {
                 isim_gfx_push_group()
                 renderTree(crop, it.t, 1)
@@ -917,6 +952,7 @@ open class SKView: UIView {
         isim_gfx_clip_rounded(0, 0, bounds.width, bounds.height, 0)
         renderTree(s, sceneToView(for: s), s.alpha)
         if showsPhysics { drawPhysics(s) }
+        if showsFields { drawFields(s) }
         if alpha < 0.999 { isim_gfx_pop_group(Double(max(0, alpha))) }
         isim_gfx_restore()
     }
@@ -944,7 +980,7 @@ open class SKView: UIView {
 
     open override func draw(_ rect: CGRect) {
         guard let s = scene else { return }
-        drawnNodes = 0
+        drawnNodes = 0; drawCount = 0; quadCount = 0; lastBatch = nil
         _skFrame += 1
         _skDrawing = true
         defer { _skDrawing = false }
@@ -994,13 +1030,19 @@ open class SKView: UIView {
         } else {
             drawScene(s)
         }
-        if showsFPS || showsNodeCount || showsDrawCount {
+        if showsFPS || showsNodeCount || showsDrawCount || showsQuadCount {
+            // SpriteKit's statistics: one line at the bottom right of the view, white on a dark plate
             var parts: [String] = []
-            if showsNodeCount { parts.append("nodes: \(drawnNodes)") }
-            if showsDrawCount { parts.append("draws: \(drawnNodes)") }
+            if showsNodeCount { parts.append("nodes:\(drawnNodes)") }
+            if showsDrawCount { parts.append("draws:\(drawCount)") }
+            if showsQuadCount { parts.append("quads:\(quadCount)") }
             if showsFPS { parts.append(String(format: "%.1f fps", fps)) }
-            let c: [Double] = [1, 1, 1, 0.9]
-            c.withUnsafeBufferPointer { isim_text_draw(parts.joined(separator: "  "), 6, bounds.height - 18, 0, 11, 0, 1, 0, 1, $0.baseAddress) }
+            let text = parts.joined(separator: "  ")
+            let w = CGFloat(text.count) * 6.7 + 10, h: CGFloat = 18
+            let x = bounds.width - w - 4, y = bounds.height - h - max(4, safeAreaInsets.bottom)
+            let plate: [Double] = [0, 0, 0, 0.55], c: [Double] = [1, 1, 1, 1]
+            plate.withUnsafeBufferPointer { isim_gfx_fill_rounded(x, y, w, h, 3, $0.baseAddress) }
+            c.withUnsafeBufferPointer { isim_text_draw(text, x, y + 3, w, 11, 0, 1, 1, 1, $0.baseAddress) }
         }
     }
 
@@ -1253,7 +1295,7 @@ open class SKAction: NSObject {
         }
     }
     // audio node actions
-    open class func play() -> SKAction { instant { ($0 as? SKAudioNode)?.player?.play() } }
+    open class func play() -> SKAction { instant { ($0 as? SKAudioNode)?._play() } }
     open class func pause() -> SKAction { instant { ($0 as? SKAudioNode)?.player?.pause() } }
     open class func stop() -> SKAction { instant { ($0 as? SKAudioNode)?.player?.stop() } }
     open class func changeVolume(to v: Float, duration d: TimeInterval) -> SKAction {
@@ -1270,14 +1312,24 @@ open class SKAction: NSObject {
             return { f in a.volume = s + v * Float(f) }
         }.rev { changeVolume(by: -v, duration: d) }
     }
-    /// playback rate, stereo panning, obstruction, occlusion and reverb are accepted; isim plays at normal rate
-    open class func changePlaybackRate(to v: Float, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
-    open class func changePlaybackRate(by v: Float, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
-    open class func stereoPan(to v: Float, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
-    open class func stereoPan(by v: Float, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
-    open class func changeObstruction(to v: Float, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
-    open class func changeOcclusion(to v: Float, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
-    open class func changeReverb(to v: Float, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
+    /// playback rate, stereo pan, obstruction, occlusion and reverb blend of an audio node's player (AVAudioMixing)
+    static func mix(_ d: TimeInterval, _ get: @escaping (AVAudioMixing) -> Float, _ set: @escaping (AVAudioMixing, Float) -> Void, to v: Float?, by dv: Float?) -> SKAction {
+        timed(d) { n in
+            guard let m = (n as? SKAudioNode)?.mixing else { return { _ in } }
+            let s = get(m), target = v ?? s + (dv ?? 0)
+            return { f in set(m, s + (target - s) * Float(f)) }
+        }
+    }
+    open class func changePlaybackRate(to v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.rate }, { $0.rate = $1 }, to: v, by: nil) }
+    open class func changePlaybackRate(by v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.rate }, { $0.rate = $1 }, to: nil, by: v).rev { changePlaybackRate(by: -v, duration: d) } }
+    open class func stereoPan(to v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.pan }, { $0.pan = $1 }, to: v, by: nil) }
+    open class func stereoPan(by v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.pan }, { $0.pan = $1 }, to: nil, by: v).rev { stereoPan(by: -v, duration: d) } }
+    open class func changeObstruction(to v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.obstruction }, { $0.obstruction = $1 }, to: v, by: nil) }
+    open class func changeObstruction(by v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.obstruction }, { $0.obstruction = $1 }, to: nil, by: v) }
+    open class func changeOcclusion(to v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.occlusion }, { $0.occlusion = $1 }, to: v, by: nil) }
+    open class func changeOcclusion(by v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.occlusion }, { $0.occlusion = $1 }, to: nil, by: v) }
+    open class func changeReverb(to v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.reverbBlend }, { $0.reverbBlend = $1 }, to: v, by: nil) }
+    open class func changeReverb(by v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.reverbBlend }, { $0.reverbBlend = $1 }, to: nil, by: v) }
 
     // physics
     open class func applyForce(_ f: CGVector, duration d: TimeInterval) -> SKAction {
@@ -1331,9 +1383,11 @@ open class SKAction: NSObject {
         for sp in _pathPoints(path) { for i in 1..<sp.count { length += _len(_sub(sp[i], sp[i - 1])) } }
         return follow(path, asOffset: asOffset, orientToPath: orientToPath, duration: speed > 0 ? TimeInterval(length / speed) : 0)
     }
-    /// inverse kinematics is not simulated on isim: reach actions only wait
-    open class func reach(to p: CGPoint, rootNode: SKNode, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
-    open class func reach(to node: SKNode, rootNode: SKNode, duration d: TimeInterval) -> SKAction { wait(forDuration: d) }
+    /// inverse kinematics: the node's ancestors up to rootNode turn so that it reaches a scene point (SKInverseKinematics.swift)
+    open class func reach(to p: CGPoint, rootNode: SKNode, duration d: TimeInterval) -> SKAction { _reach(.point(p), rootNode, duration: d, velocity: nil) }
+    open class func reach(to p: CGPoint, rootNode: SKNode, velocity v: CGFloat) -> SKAction { _reach(.point(p), rootNode, duration: nil, velocity: v) }
+    open class func reach(to node: SKNode, rootNode: SKNode, duration d: TimeInterval) -> SKAction { _reach(.node(node), rootNode, duration: d, velocity: nil) }
+    open class func reach(to node: SKNode, rootNode: SKNode, velocity v: CGFloat) -> SKAction { _reach(.node(node), rootNode, duration: nil, velocity: v) }
 }
 
 // MARK: - Action runners

@@ -176,7 +176,8 @@ final class _Tap {
 }
 
 open class AVAudioNode: NSObject {
-    weak var engine: AVAudioEngine?
+    /// the engine the node is attached to
+    public internal(set) weak var engine: AVAudioEngine?
     var _tap: _Tap?
     var _lastRender: AVAudioTime?
     var _defaultFormat: AVAudioFormat { AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2)! }

@@ -36,6 +36,8 @@ public struct SpriteView: UIViewRepresentable {
         v.isPaused = isPaused
         v.showsPhysics = debug.contains(.showsPhysics)
         v.showsDrawCount = debug.contains(.showsDrawCount)
+        v.showsQuadCount = debug.contains(.showsQuadCount)
+        v.showsFields = debug.contains(.showsFields)
         // present when SwiftUI passes a different scene (scenes the game presents itself stay)
         if v.swiftUIScene !== scene {
             v.swiftUIScene = scene
