@@ -509,6 +509,8 @@ class Swift:
             srcs += c.glob(f"swift/overlays/{m}+*.swift")
             if m in PRIVACY:
                 srcs += c.glob("swift/overlays/_Privacy/*.swift")
+            if m in ADS:
+                srcs += c.glob("swift/overlays/_Ads/*.swift")
             deps, fws, prev = [], [], None
             for a in args:
                 if a.startswith("-lswift") or a.startswith("-reexport-lswift"):
@@ -726,16 +728,18 @@ QuartzCore CoreHaptics CoreVideo CoreML Vision NaturalLanguage Speech VisionKit 
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer".split())
+# ad SDK stand-ins that also compile overlays/_Ads (isim's local test ads)
+ADS = set("GoogleMobileAds".split())
 # overlays that declare macros of isim's compiler plugins (host_plugins): they compile after the plugin is built
 MACRO_PLUGINS = {"UIKit": ["PreviewsMacros"], "SwiftUI": ["PreviewsMacros", "SwiftUIMacros"], "SwiftData": ["SwiftDataMacros"]}
 
 STANDINS = """{
   "https://github.com/googleads/swift-package-manager-google-mobile-ads.git": {
-    "kind": "stub", "note": "Google Mobile Ads is not run on isim; ad loads fail, no ads are shown",
+    "kind": "adapted", "note": "test ads drawn by isim (like the Simulator, a test device); nothing is requested from Google",
     "products": { "GoogleMobileAds": ["GoogleMobileAds"] }
   },
   "https://github.com/googleads/swift-package-manager-google-user-messaging-platform.git": {
-    "kind": "stub", "note": "no consent form on isim; canRequestAds is false",
+    "kind": "adapted", "note": "isim's consent form for the EEA / US-state messages; IAB TCF keys in UserDefaults",
     "products": { "GoogleUserMessagingPlatform": ["UserMessagingPlatform"] }
   }
 }

@@ -398,3 +398,11 @@ usr/lib/swift/libswiftMultipeerConnectivity.dylib _$s21MultipeerConnectivity21MC
 usr/lib/swift/libswiftMultipeerConnectivity.dylib _$s21MultipeerConnectivity21MCAdvertiserAssistantC8delegateyXlSgvgTq
 usr/lib/swift/libswiftMultipeerConnectivity.dylib _$s21MultipeerConnectivity21MCAdvertiserAssistantC8delegateyXlSgvpMV
 usr/lib/swift/libswiftMultipeerConnectivity.dylib _$s21MultipeerConnectivity21MCAdvertiserAssistantC8delegateyXlSgvsTq
+# 0.20 (issue #25): the Google Mobile Ads and UMP stand-ins serve test ads and a consent flow and take the SDKs' types:
+# AdReward.amount is an NSDecimalNumber (was the placeholder NSDecimalNumberStandIn) and DebugSettings.geography a
+# DebugGeography (was Int). The old getters (and geography's setter) stay exported under their old names; the
+# property descriptors and geography's modify coroutine cannot be declared next to the new properties. Apps that
+# use a key path to these properties must be rebuilt with 0.20.
+usr/lib/swift/libswiftGoogleMobileAds.dylib _$s15GoogleMobileAds8AdRewardC6amountAA22NSDecimalNumberStandInCvpMV
+usr/lib/swift/libswiftUserMessagingPlatform.dylib _$s21UserMessagingPlatform13DebugSettingsC9geographySivM
+usr/lib/swift/libswiftUserMessagingPlatform.dylib _$s21UserMessagingPlatform13DebugSettingsC9geographySivpMV
