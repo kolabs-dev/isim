@@ -17,6 +17,10 @@ import UIKit
     @objc optional func locationManagerDidResumeLocationUpdates(_ manager: CLLocationManager)
     @objc optional func locationManager(_ manager: CLLocationManager, didFinishDeferredUpdatesWithError error: Error?)
     @objc optional func locationManager(_ manager: CLLocationManager, didVisit visit: CLVisit)
+    @objc optional func locationManager(_ manager: CLLocationManager, didRange beacons: [CLBeacon], satisfying beaconConstraint: CLBeaconIdentityConstraint)
+    @objc optional func locationManager(_ manager: CLLocationManager, didFailRangingFor beaconConstraint: CLBeaconIdentityConstraint, error: Error)
+    @objc optional func locationManager(_ manager: CLLocationManager, didRangeBeacons beacons: [CLBeacon], in region: CLBeaconRegion)
+    @objc optional func locationManager(_ manager: CLLocationManager, rangingBeaconsDidFailFor region: CLBeaconRegion, withError error: Error)
 }
 
 open class CLLocationManager: NSObject, @unchecked Sendable {
@@ -40,7 +44,13 @@ open class CLLocationManager: NSObject, @unchecked Sendable {
     open var heading: CLHeading? { nil }
     open var maximumRegionMonitoringDistance: CLLocationDistance { 200_000 }
     open private(set) var monitoredRegions: Set<CLRegion> = []
-    open var rangedRegions: Set<CLRegion> { [] }
+    /// beacon ranging (simulated beacons, Beacons.swift)
+    open private(set) var rangedBeaconConstraints: Set<CLBeaconIdentityConstraint> = []
+    @available(*, deprecated, message: "Use rangedBeaconConstraints")
+    open var rangedRegions: Set<CLRegion> { Set(rangedLegacy) }
+    var rangedLegacy: [CLBeaconRegion] = []
+    var lastRanging = Date.distantPast
+    var visits = false
     open var isAuthorizedForWidgetUpdates: Bool { false }
 
     var updating = false, once = false, significant = false
@@ -63,8 +73,9 @@ open class CLLocationManager: NSObject, @unchecked Sendable {
     open class func locationServicesEnabled() -> Bool { true }
     open class func headingAvailable() -> Bool { false }          // the Simulator has no compass
     open class func significantLocationChangeMonitoringAvailable() -> Bool { true }
-    open class func isMonitoringAvailable(for regionClass: AnyClass) -> Bool { regionClass is CLCircularRegion.Type }
-    open class func isRangingAvailable() -> Bool { false }
+    open class func isMonitoringAvailable(for regionClass: AnyClass) -> Bool { regionClass is CLCircularRegion.Type || regionClass is CLBeaconRegion.Type }
+    /// adapted: the simulated beacons (script `beacon`, ISIM_BEACONS) can be ranged
+    open class func isRangingAvailable() -> Bool { true }
     @available(*, deprecated) open class func regionMonitoringAvailable() -> Bool { true }
 
     open func requestWhenInUseAuthorization() { _CLAuth.request(always: false) }
@@ -95,14 +106,37 @@ open class CLLocationManager: NSObject, @unchecked Sendable {
     open func startUpdatingHeading() {}                          // no heading: headingAvailable() is false
     open func stopUpdatingHeading() {}
     open func dismissHeadingCalibrationDisplay() {}
-    open func startMonitoringVisits() {}                         // no visits are detected on a simulated device
-    open func stopMonitoringVisits() {}
+    /// visits: places the simulated location stays at (adapted: _CLVisits below)
+    open func startMonitoringVisits() { visits = true; _CLSim.shared.kick() }
+    open func stopMonitoringVisits() { visits = false; _CLSim.shared.relax() }
+
+    // MARK: beacons
+    open func startRangingBeacons(satisfying constraint: CLBeaconIdentityConstraint) {
+        rangedBeaconConstraints.insert(constraint); lastRanging = .distantPast
+        if _CLAuth.status == .denied || _CLAuth.status == .restricted {
+            DispatchQueue.main.async { self.delegate?.locationManager?(self, didFailRangingFor: constraint, error: CLError(.denied)) }
+            return
+        }
+        _CLSim.shared.kick()
+    }
+    open func stopRangingBeacons(satisfying constraint: CLBeaconIdentityConstraint) { rangedBeaconConstraints.remove(constraint); _CLSim.shared.relax() }
+    @available(*, deprecated, renamed: "startRangingBeacons(satisfying:)")
+    open func startRangingBeacons(in region: CLBeaconRegion) {
+        rangedLegacy.removeAll { $0.identifier == region.identifier }; rangedLegacy.append(region); lastRanging = .distantPast
+        if _CLAuth.status == .denied || _CLAuth.status == .restricted {
+            DispatchQueue.main.async { self.delegate?.locationManager?(self, rangingBeaconsDidFailFor: region, withError: CLError(.denied)) }
+            return
+        }
+        _CLSim.shared.kick()
+    }
+    @available(*, deprecated, renamed: "stopRangingBeacons(satisfying:)")
+    open func stopRangingBeacons(in region: CLBeaconRegion) { rangedLegacy.removeAll { $0.identifier == region.identifier }; _CLSim.shared.relax() }
     open func allowDeferredLocationUpdates(untilTraveled distance: CLLocationDistance, timeout: TimeInterval) {}
     open func disallowDeferredLocationUpdates() {}
 
     // MARK: regions
     open func startMonitoring(for region: CLRegion) {
-        guard region is CLCircularRegion else {
+        guard region is CLCircularRegion || region is CLBeaconRegion else {
             DispatchQueue.main.async { self.delegate?.locationManager?(self, monitoringDidFailFor: region, withError: CLError(.regionMonitoringFailure)) }
             return
         }
@@ -123,14 +157,14 @@ open class CLLocationManager: NSObject, @unchecked Sendable {
     }
     open func requestState(for region: CLRegion) {
         DispatchQueue.main.async {
-            guard let fix = _CLSim.shared.current(), _CLAuth.authorized else {
+            guard _CLAuth.authorized, let fix = _CLSim.shared.current() ?? (region is CLBeaconRegion ? _CLSim.nowhere : nil) else {
                 self.delegate?.locationManager?(self, didDetermineState: .unknown, for: region); return
             }
             self.delegate?.locationManager?(self, didDetermineState: region._contains(fix.coordinate) ? .inside : .outside, for: region)
         }
     }
 
-    var active: Bool { updating || once || significant || !monitoredRegions.isEmpty }
+    var active: Bool { updating || once || significant || visits || !monitoredRegions.isEmpty || !rangedBeaconConstraints.isEmpty || !rangedLegacy.isEmpty }
 
     /// delivers `fix` (nil: no location available) — main thread
     func deliver(_ fix: CLLocation?) {
@@ -156,8 +190,14 @@ open class CLLocationManager: NSObject, @unchecked Sendable {
                 delegate?.locationManager?(self, didFailWithError: CLError(.locationUnknown))
             }
         }
-        guard let fix else { return }
+        // beacons are ranged about once a second (iOS reports every second, also when none is in range)
+        if !rangedBeaconConstraints.isEmpty || !rangedLegacy.isEmpty, Date().timeIntervalSince(lastRanging) >= 0.95 {
+            lastRanging = Date()
+            for c in rangedBeaconConstraints { delegate?.locationManager?(self, didRange: _CLBeacons.inRange(c), satisfying: c) }
+            for r in rangedLegacy { delegate?.locationManager?(self, didRangeBeacons: _CLBeacons.inRange(r.beaconIdentityConstraint), in: r) }
+        }
         for r in monitoredRegions {
+            guard let fix = fix ?? (r is CLBeaconRegion ? _CLSim.nowhere : nil) else { continue }
             let now = r._contains(fix.coordinate)
             let before = inside[r.identifier]
             inside[r.identifier] = now
@@ -357,13 +397,25 @@ final class _CLSim: @unchecked Sendable {
     }
     func relax() {
         _Privacy.onMain {
-            if !self.managers.contains(where: { $0.m?.active == true }) && self.listeners.isEmpty { self.timer?.invalidate(); self.timer = nil }
+            if !self.managers.contains(where: { $0.m?.active == true }) && self.listeners.isEmpty && !_CLMonitorEngine.shared.active {
+                self.timer?.invalidate(); self.timer = nil
+            }
         }
     }
+    /// a placeholder fix for regions that do not depend on the location (beacon regions)
+    static let nowhere = CLLocation(latitude: 0, longitude: 0)
+    let visitDetector = _CLVisits()
     func tick() {
         let fix = current()
         if let fix { lastFix = fix }
         for w in managers { if let m = w.m, m.active { m.deliver(fix) } }
+        let watching = managers.contains { $0.m?.visits == true }
+        if !watching { visitDetector.reset() }                 /* stays count from when visits are monitored */
+        if watching, let v = visitDetector.update(fix), _CLAuth.authorized {
+            NSLog("isim CoreLocation: visit %@ at %.5f,%.5f", v.departureDate == .distantFuture ? "arrival" : "departure", v.coordinate.latitude, v.coordinate.longitude)
+            for w in managers { if let m = w.m, m.visits { m.delegate?.locationManager?(m, didVisit: v) } }
+        }
+        _CLMonitorEngine.shared.evaluate(fix)                     /* CLMonitor (Monitor.swift) */
         if _CLAuth.authorized { for l in listeners.values { l.fix(fix) } }
         relax()
     }
@@ -479,4 +531,40 @@ extension CLLocationManager {
     /// isim-private: the device's simulated location right now, without asking for permission (nil: Location ▸ None).
     /// AppClip's location confirmation uses it: the system checks the location, the App Clip only learns yes or no.
     @_spi(isim) public static func _isimSimulatedLocation() -> CLLocation? { _CLSim.shared.current() }
+}
+
+// MARK: - Visits (adapted)
+
+/// A visit is a stay: the simulated location keeping within 50 m of a place for ISIM_VISIT_SECONDS (default 120; iOS
+/// takes several minutes). The arrival is reported then (departure date distantFuture), the departure when the
+/// location moves more than 100 m away. Location ▸ None ends nothing.
+final class _CLVisits {
+    private var anchor: CLLocationCoordinate2D?
+    private var since = Date()
+    private var arrived: CLVisit?
+    static var dwell: TimeInterval { _Privacy.env("ISIM_VISIT_SECONDS").flatMap(Double.init) ?? 120 }
+    func reset() { anchor = nil; arrived = nil }
+    func update(_ fix: CLLocation?) -> CLVisit? {
+        guard let fix else { return nil }
+        let c = fix.coordinate
+        if let a = anchor {
+            let d = _CLGeo.distance(a, c)
+            if let v = arrived {
+                if d > 100 {
+                    arrived = nil; anchor = c; since = Date()
+                    return CLVisit(coordinate: v.coordinate, arrival: v.arrivalDate, departure: Date())
+                }
+                return nil
+            }
+            if d > 50 { anchor = c; since = Date(); return nil }
+            if Date().timeIntervalSince(since) >= _CLVisits.dwell {
+                let v = CLVisit(coordinate: a, arrival: since, departure: .distantFuture)
+                arrived = v
+                return v
+            }
+            return nil
+        }
+        anchor = c; since = Date()
+        return nil
+    }
 }
