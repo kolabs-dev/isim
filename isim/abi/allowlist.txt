@@ -349,11 +349,11 @@ System/Library/Frameworks/CoreImage.framework/CoreImage _OBJC_METACLASS_$___CIGe
 System/Library/Frameworks/CoreImage.framework/CoreImage _OBJC_METACLASS_$___CIMap
 System/Library/Frameworks/CoreImage.framework/CoreImage _OBJC_METACLASS_$___CIPositional
 System/Library/Frameworks/CoreImage.framework/CoreImage _OBJC_METACLASS_$___CITransform
-# 0.19 (issue #32): MCAdvertiserAssistant.delegate was typed `AnyObject?` (iOS types it MCAdvertiserAssistantDelegate?,
+# 0.20 (issue #32): MCAdvertiserAssistant.delegate was typed `AnyObject?` (iOS types it MCAdvertiserAssistantDelegate?,
 # which isim had not declared). Its getter and setter dispatch thunks are still exported under the old names
 # (MultipeerConnectivity.swift); the modify coroutine, the remaining thunks and the descriptors (subclass overrides,
 # key paths) cannot be declared next to the protocol-typed property. Apps that subclass MCAdvertiserAssistant and
-# override `delegate`, or use a key path to it, must be rebuilt with 0.19.
+# override `delegate`, or use a key path to it, must be rebuilt with 0.20.
 usr/lib/swift/libswiftMultipeerConnectivity.dylib _$s21MultipeerConnectivity21MCAdvertiserAssistantC8delegateyXlSgvMTj
 usr/lib/swift/libswiftMultipeerConnectivity.dylib _$s21MultipeerConnectivity21MCAdvertiserAssistantC8delegateyXlSgvMTq
 usr/lib/swift/libswiftMultipeerConnectivity.dylib _$s21MultipeerConnectivity21MCAdvertiserAssistantC8delegateyXlSgvgTq

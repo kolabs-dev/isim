@@ -591,7 +591,7 @@ open class MCAdvertiserAssistant: NSObject, MCNearbyServiceAdvertiserDelegate {
     public let discoveryInfo: [String: String]?
     public let serviceType: String
     open weak var delegate: MCAdvertiserAssistantDelegate?
-    // isim ABI: until 0.18 this property was typed AnyObject?; keep its getter/setter entry points for apps built then
+    // isim ABI: until 0.19 this property was typed AnyObject?; keep its getter/setter entry points for apps built then
     @usableFromInline @_silgen_name("$s21MultipeerConnectivity21MCAdvertiserAssistantC8delegateyXlSgvgTj")
     final func _abi_delegateAnyObject() -> AnyObject? { delegate }
     @usableFromInline @_silgen_name("$s21MultipeerConnectivity21MCAdvertiserAssistantC8delegateyXlSgvsTj")
