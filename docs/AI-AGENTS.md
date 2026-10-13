@@ -172,7 +172,10 @@ isim send "lockscreen customize"                       # widgets: the Lock Scree
 Widgets and Live Activities can be checked the same way: the log says what the widget extension rendered
 (`isim WidgetKit: rendered KIND (FAMILY…)`), `dump` lists the widgets and the Dynamic Island, and a Live Activity's
 push token is in the log (`isim ActivityKit: push token for ID: HEX`) for `isim push` liveactivity payloads (see
-[SCRIPTING.md](SCRIPTING.md), Widgets and Live Activities).
+[SCRIPTING.md](SCRIPTING.md), Widgets and Live Activities). Notifications and calls too: Notification Center
+(`notifications`) lists stacks as `nc-group-ID`, a VoIP app's token is in the log (`isim: PushKit: VoIP push token
+HEX`), a payload with `"apns-push-type": "voip"` rings the app's CallKit call, and the call UI's buttons are `call-…`
+ids in `dump` (`call-accept`, `call-end`, …).
 
 Each device reads these from a control FIFO of its own; `--control FIFO` names one yourself (then `echo "…" > FIFO`
 works too). The FIFO only goes one way: commands get no reply. To read a result, write it to a file

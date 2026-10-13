@@ -10,7 +10,17 @@
 // showing the alert itself when the app may show alerts. The badge is applied here when the app may badge.
 // Expanded notifications ("nc-expand"): the category's actions from the app's NotificationCategories.plist and the
 // view of the app's Notification Content extension for that category ("ext-run" in content mode).
+// Local notifications of apps that are not running: like iOS, the system delivers them. The home screen reads each app's
+// pending requests (its preferences, kept by UserNotifications with the next fire time) and asks the shell to show the
+// due ones ("local-due"); the shell shows them only when the app is not running (a running app delivers its own) and
+// answers "local-shown", and the home screen then takes the request off the app's pending list (or moves a repeating
+// one to its next time) and records the delivered notification in the app's container.
+// VoIP pushes (a top-level "apns-push-type": "voip", standing in for that APNs header) go to apps with
+// UIBackgroundModes voip, launched in the background if needed; UIKit hands them to PushKit.
 #import "SpringBoard.h"
+#import <UserNotifications/UserNotifications.h>
+
+void isim_un_write_record_sidecar(NSDictionary *rec, NSString *recordPath, NSString *appPath, NSString *container);   /* UserNotifications */
 
 static NSString *push_dir(void) {
     NSString *d = [isim_data_dir() stringByAppendingPathComponent:@"Library/isim/Push"];
@@ -55,8 +65,21 @@ static void run_extension(NSDictionary *ext, NSDictionary *request, void (^done)
     NSMutableDictionary *r = [request mutableCopy]; r[@"out"] = out;
     [r writeToFile:req atomically:YES];
     if (!ext_pending) ext_pending = [NSMutableDictionary dictionary];
-    ext_pending[req] = ^(NSDictionary *unused) { done([NSDictionary dictionaryWithContentsOfFile:out]); };
+    ext_pending[req] = ^(NSDictionary *unused) {
+        NSMutableDictionary *res = [[NSDictionary dictionaryWithContentsOfFile:out] mutableCopy];
+        if (res) res[@"request"] = req;                       /* its control FIFO is <request>.ctl (the shell makes it) */
+        done(res);
+    };
     isim_shell_request(ISIM_SHELL_SYSTEM, "ext-run", [ext[@"exe"] UTF8String], req.UTF8String);
+    if (request[@"session"]) {                               /* a Content extension session keeps running: its first result */
+        [NSTimer scheduledTimerWithTimeInterval:0.1 repeats:YES block:^(NSTimer *t) {
+            void (^d)(NSDictionary *) = ext_pending[req];
+            if (!d) { [t invalidate]; return; }
+            if (![NSFileManager.defaultManager fileExistsAtPath:out]) return;
+            [t invalidate]; [ext_pending removeObjectForKey:req];
+            d(nil);
+        }];
+    }
 }
 NSInteger HSBadgeCount(HSApp *a) {
     if (a.system) return 0;
@@ -89,7 +112,10 @@ static void collect_icons(UIView *v, NSMutableArray *out) {
             void (^done)(NSDictionary *) = ext_pending[req];
             if (done) { [ext_pending removeObjectForKey:req]; done(nil); }
         } else if ([verb isEqualToString:@"nc-expand"]) [self expandNotification:args];
+        else if ([verb isEqualToString:@"local-shown"]) [self localNotificationShown:args];
     }];
+    /* the system scheduler for the local notifications of apps that are not running */
+    [NSTimer scheduledTimerWithTimeInterval:1 repeats:YES block:^(NSTimer *timer) { [self scanLocalNotifications]; }];
     /* `isim push` drops payloads here */
     [NSTimer scheduledTimerWithTimeInterval:0.3 repeats:YES block:^(NSTimer *timer) { [self scanPushQueue]; }];
 }
@@ -119,10 +145,13 @@ static void collect_icons(UIView *v, NSMutableArray *out) {
     [payload removeObjectForKey:@"Simulator Target Bundle"];
     if (!bundle.length) bundle = [target isKindOfClass:[NSString class]] ? target : nil;
     if (!bundle.length) { NSLog(@"SpringBoard: push: no bundle identifier (give one, or add \"Simulator Target Bundle\" to the payload)"); return; }
-    if (![payload[@"aps"] isKindOfClass:[NSDictionary class]]) { NSLog(@"SpringBoard: push: the payload has no \"aps\" dictionary"); return; }
+    NSString *pushType = [payload[@"apns-push-type"] isKindOfClass:[NSString class]] ? payload[@"apns-push-type"] : nil;
+    [payload removeObjectForKey:@"apns-push-type"];
+    if (![pushType isEqual:@"voip"] && ![payload[@"aps"] isKindOfClass:[NSDictionary class]]) { NSLog(@"SpringBoard: push: the payload has no \"aps\" dictionary"); return; }
     HSApp *a = nil;
     for (HSApp *x in self.apps) if ([x.bundleID isEqualToString:bundle]) a = x;
     if (!a) { NSLog(@"SpringBoard: push: no installed app '%@'", bundle); return; }
+    if ([pushType isEqual:@"voip"]) { [self deliverVoIPPush:payload app:a]; return; }
     if ([self deliverLiveActivityPush:payload app:a]) return;         /* a liveactivity payload (aps.event): SBLiveActivities.m */
     NSDictionary *aps = payload[@"aps"];
     /* the APNs apns-collapse-id header becomes the request identifier on iOS; a payload file has no headers, so isim reads
@@ -149,6 +178,26 @@ static void collect_icons(UIView *v, NSMutableArray *out) {
         return;
     }
     [self finishPush:payload id:ident app:a content:nil];
+}
+/* a PushKit VoIP push ("apns-push-type": "voip"): to the running app, else the app is launched in the background for
+   it; only for apps with UIBackgroundModes voip (iOS delivers no VoIP pushes to others) */
+- (void)deliverVoIPPush:(NSDictionary *)payload app:(HSApp *)a {
+    NSArray *modes = a.info[@"UIBackgroundModes"];
+    if (![modes isKindOfClass:[NSArray class]] || ![modes containsObject:@"voip"]) { NSLog(@"SpringBoard: VoIP push for %@ dropped (no UIBackgroundModes voip)", a.name); return; }
+    NSString *collapse = [payload[@"apns-collapse-id"] isKindOfClass:[NSString class]] ? payload[@"apns-collapse-id"] : nil;
+    NSMutableDictionary *p = [payload mutableCopy];
+    [p removeObjectForKey:@"apns-collapse-id"];
+    NSString *ident = collapse.length ? collapse : NSUUID.UUID.UUIDString;
+    NSDictionary *w = @{ @"id": ident, @"payload": p, @"pushType": @"voip" };
+    NSString *file = [push_dir() stringByAppendingPathComponent:[ident stringByAppendingPathExtension:@"json"]];
+    if ([NSJSONSerialization isValidJSONObject:w]) [[NSJSONSerialization dataWithJSONObject:w options:0 error:NULL] writeToFile:file atomically:YES];
+    else { file = [file.stringByDeletingPathExtension stringByAppendingPathExtension:@"plist"]; [w writeToFile:file atomically:YES]; }
+    NSLog(@"SpringBoard: VoIP push %@ for %@", ident, a.name);
+    NSString *side = [push_dir() stringByAppendingPathComponent:[ident stringByAppendingPathExtension:@"txt"]];
+    NSString *sidecar = [NSString stringWithFormat:@"file=%@\nflags=c\nid=%@\ntitle=\nbody=\nicon=%@\nrecord=\nthumb=\n", file, ident, a.iconPath ?: @""];
+    [sidecar writeToFile:side atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+    NSString *c = [NSString stringWithFormat:@"%@\x1f%@", a.executable, side];
+    isim_shell_request(ISIM_SHELL_SYSTEM, "push-deliver", a.path.UTF8String, c.UTF8String);
 }
 - (void)finishPush:(NSDictionary *)payload id:(NSString *)ident app:(HSApp *)a content:(NSDictionary *)content {
     NSDictionary *aps = payload[@"aps"];
@@ -191,7 +240,25 @@ static void collect_icons(UIView *v, NSMutableArray *out) {
         @"thread": content[@"thread"] ?: aps[@"thread-id"] ?: @"", @"userInfo": content[@"userInfo"] ?: payload, @"date": [NSDate date],
         @"attachments": attachments, @"push": @YES, @"app": a.bundleID } mutableCopy];
     if (badge) rec[@"badge"] = badge;
+    rec[@"listed"] = @(hasAlert && mayAlert);
+    if (content[@"sound"]) rec[@"sound"] = content[@"sound"];
+    else if (aps[@"sound"]) {                                  /* "default", a file name or { name, critical, volume } */
+        id snd = aps[@"sound"];
+        if ([snd isKindOfClass:[NSString class]]) rec[@"sound"] = [snd isEqual:@"default"] ? @{} : @{ @"name": snd };
+        else if ([snd isKindOfClass:[NSDictionary class]]) {
+            NSMutableDictionary *sd = [NSMutableDictionary dictionary];
+            if ([snd[@"name"] isKindOfClass:[NSString class]] && ![snd[@"name"] isEqual:@"default"]) sd[@"name"] = snd[@"name"];
+            if ([snd[@"critical"] intValue]) sd[@"critical"] = @YES;
+            if ([snd[@"volume"] isKindOfClass:[NSNumber class]]) sd[@"volume"] = snd[@"volume"];
+            rec[@"sound"] = sd;
+        }
+    }
+    NSString *lvl = aps[@"interruption-level"];
+    if ([lvl isKindOfClass:[NSString class]]) rec[@"level"] = @([lvl isEqual:@"passive"] ? 0 : [lvl isEqual:@"time-sensitive"] ? 2 : [lvl isEqual:@"critical"] ? 3 : 1);
+    if ([aps[@"summary-arg"] isKindOfClass:[NSString class]]) rec[@"summaryArgument"] = aps[@"summary-arg"];
+    if ([aps[@"summary-arg-count"] isKindOfClass:[NSNumber class]]) rec[@"summaryArgumentCount"] = aps[@"summary-arg-count"];
     if (![rec writeToFile:record atomically:YES]) { rec[@"userInfo"] = @{}; [rec writeToFile:record atomically:YES]; }
+    isim_un_write_record_sidecar(rec, record, a.path, a.containerPath);
     NSString *thumb = @"";
     for (NSDictionary *x in attachments) if ([@[@"public.png", @"public.jpeg", @"com.compuserve.gif", @"public.heic"] containsObject:x[@"type"] ?: @""]) { thumb = x[@"path"]; break; }
     /* t: time sensitive (breaks through a Focus): the interruption level and the app's entitlement */
@@ -205,6 +272,105 @@ static void collect_icons(UIView *v, NSMutableArray *out) {
     [sidecar writeToFile:side atomically:YES encoding:NSUTF8StringEncoding error:NULL];
     NSString *c = [NSString stringWithFormat:@"%@\x1f%@", a.executable, side];
     isim_shell_request(ISIM_SHELL_SYSTEM, "push-deliver", a.path.UTF8String, c.UTF8String);
+}
+/* ---- local notifications of apps that are not running ---- */
+static NSMutableDictionary<NSString *, NSArray *> *sched_cache;        /* prefs path -> [mtime, pending] */
+static NSMutableSet<NSString *> *sched_sent;                         /* "bundle\x1fid\x1ffire" asked for already */
+static NSString *prefs_path(HSApp *a) { return [a.containerPath stringByAppendingPathComponent:[NSString stringWithFormat:@"Library/Preferences/%@.plist", a.bundleID]]; }
+- (void)scanLocalNotifications {
+    if (!sched_cache) { sched_cache = [NSMutableDictionary dictionary]; sched_sent = [NSMutableSet set]; }
+    double now = [NSDate date].timeIntervalSince1970;
+    for (HSApp *a in self.apps) {
+        if (a.system || !a.bundleID.length) continue;
+        NSString *pf = prefs_path(a);
+        NSDate *m = [[NSFileManager.defaultManager attributesOfItemAtPath:pf error:NULL] fileModificationDate];
+        if (!m) continue;
+        NSArray *c = sched_cache[pf];
+        if (!c || ![c[0] isEqual:m]) {
+            NSArray *pending = [NSDictionary dictionaryWithContentsOfFile:pf][@"_ISIMPendingNotifications"];
+            c = @[ m, [pending isKindOfClass:[NSArray class]] ? pending : @[] ];
+            sched_cache[pf] = c;
+        }
+        for (NSDictionary *d in c[1]) {
+            if (![d isKindOfClass:[NSDictionary class]]) continue;
+            double fire = [d[@"trigger"][@"fire"] doubleValue];
+            if (fire <= 0 || fire > now) continue;
+            NSString *key = [NSString stringWithFormat:@"%@\x1f%@\x1f%.3f", a.bundleID, d[@"id"], fire];
+            if ([sched_sent containsObject:key]) continue;
+            [sched_sent addObject:key];
+            [self localNotificationDue:d app:a fire:fire];
+        }
+    }
+}
+/* a due request: its record and what the shell shows when the app is not running */
+- (void)localNotificationDue:(NSDictionary *)d app:(HSApp *)a fire:(double)fire {
+    NSString *ident = d[@"id"] ?: @"";
+    NSInteger status = auth_status(a), opts = auth_options(a);
+    BOOL authorized = status == 2 || status == 3 || status == 4;
+    BOOL mayAlert = authorized && ((opts & 4) || status == 3);
+    NSString *title = d[@"title"] ?: @"", *subtitle = d[@"subtitle"] ?: @"", *body = d[@"body"] ?: @"";
+    BOOL hasAlert = title.length || subtitle.length || body.length;
+    NSString *safe = [[ident componentsSeparatedByString:@"/"] componentsJoinedByString:@"_"];
+    NSString *record = [[a.containerPath stringByAppendingPathComponent:@"Library/isim/Notifications"] stringByAppendingPathComponent:[safe stringByAppendingPathExtension:@"plist"]];
+    [NSFileManager.defaultManager createDirectoryAtPath:record.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:NULL];
+    NSMutableDictionary *rec = [d mutableCopy];
+    [rec removeObjectForKey:@"trigger"];
+    rec[@"date"] = [NSDate date]; rec[@"push"] = @NO; rec[@"listed"] = @(hasAlert && mayAlert); rec[@"app"] = a.bundleID;
+    [rec writeToFile:record atomically:YES];
+    isim_un_write_record_sidecar(rec, record, a.path, a.containerPath);
+    NSString *thumb = @"";
+    for (NSDictionary *x in d[@"attachments"]) if ([@[@"public.png", @"public.jpeg", @"com.compuserve.gif", @"public.heic"] containsObject:x[@"type"] ?: @""]) { thumb = x[@"path"]; break; }
+    BOOL timeSensitive = [d[@"level"] integerValue] == 2 &&
+        [[NSDictionary dictionaryWithContentsOfFile:[a.path stringByAppendingPathComponent:@"archived-expanded-entitlements.xcent"]][@"com.apple.developer.usernotifications.time-sensitive"] boolValue];
+    NSString *flags = [NSString stringWithFormat:@"%@%@", hasAlert && mayAlert ? @"a" : @"", timeSensitive ? @"t" : @""];
+    NSString *bodyText = subtitle.length ? [NSString stringWithFormat:@"%@\n%@", subtitle, body] : body;
+    NSString *side = [push_dir() stringByAppendingPathComponent:[NSString stringWithFormat:@"local-%@-%u.txt", safe, arc4random()]];
+    NSString *sidecar = [NSString stringWithFormat:@"file=\nflags=%@\nid=%@\ntitle=%@\nbody=%@\nicon=%@\nrecord=%@\nthumb=%@\nfire=%.3f\nbundle=%@\n",
+                         flags, ident, flat(title.length ? title : a.name), flat(bodyText), a.iconPath ?: @"", record, thumb, fire, a.bundleID];
+    [sidecar writeToFile:side atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+    NSString *c = [NSString stringWithFormat:@"%@\x1f%@", a.executable, side];
+    isim_shell_request(ISIM_SHELL_SYSTEM, "local-due", a.path.UTF8String, c.UTF8String);
+}
+/* "BUNDLE\x1fID\x1fFIRE": the shell showed it (the app was not running): the request leaves the pending list, a
+   repeating one moves to its next time; the badge is the system's to set */
+- (void)localNotificationShown:(NSString *)args {
+    NSArray *p = [args componentsSeparatedByString:@"\x1f"];
+    if (p.count < 3) return;
+    HSApp *a = nil;
+    for (HSApp *x in self.apps) if ([x.bundleID isEqualToString:p[0]]) a = x;
+    if (!a) return;
+    NSString *pf = prefs_path(a);
+    NSMutableDictionary *prefs = [[NSDictionary dictionaryWithContentsOfFile:pf] mutableCopy];
+    NSMutableArray *pending = [prefs[@"_ISIMPendingNotifications"] mutableCopy];
+    double now = [NSDate date].timeIntervalSince1970, fire = [p[2] doubleValue];
+    NSDictionary *shown = nil;
+    for (NSUInteger i = 0; i < pending.count; i++) {
+        NSDictionary *d = pending[i];
+        if (![d[@"id"] isEqual:p[1]] || fabs([d[@"trigger"][@"fire"] doubleValue] - fire) > 0.01) continue;
+        shown = d;
+        NSDictionary *t = d[@"trigger"];
+        if (![t[@"repeats"] boolValue]) { [pending removeObjectAtIndex:i]; break; }
+        double next = 0;
+        if ([t[@"type"] isEqual:@"interval"]) { double iv = MAX(60, [t[@"interval"] doubleValue]); next = fire + iv * ceil((now - fire + 0.001) / iv); }
+        else if ([t[@"type"] isEqual:@"calendar"])
+            next = [[[UNCalendarNotificationTrigger alloc] initWithComponentValues:t[@"components"] repeats:YES] nextTriggerDate].timeIntervalSince1970;
+        NSMutableDictionary *nd = [d mutableCopy], *nt = [t mutableCopy];
+        nt[@"fire"] = @(next); nd[@"trigger"] = nt;
+        pending[i] = nd;
+        break;
+    }
+    if (!shown) return;
+    prefs[@"_ISIMPendingNotifications"] = pending;
+    [prefs writeToFile:pf atomically:YES];
+    NSInteger status = auth_status(a), opts = auth_options(a);
+    if (shown[@"badge"] && (status == 2 || status == 4) && (opts & 1)) {
+        NSString *bf = [a.containerPath stringByAppendingPathComponent:@"Library/isim/Badge.plist"];
+        [NSFileManager.defaultManager createDirectoryAtPath:bf.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:NULL];
+        [@{ @"count": shown[@"badge"] } writeToFile:bf atomically:YES];
+        [self showBadge:[shown[@"badge"] integerValue] forPath:a.path];
+    }
+    NSLog(@"SpringBoard: delivered the local notification %@ of %@ (not running)%@", p[1], a.name,
+          [shown[@"trigger"][@"repeats"] boolValue] ? @"; it repeats" : @"");
 }
 - (void)showBadge:(NSInteger)n forPath:(NSString *)path {
     NSMutableArray *icons = [NSMutableArray array];
@@ -227,7 +393,9 @@ static void collect_icons(UIView *v, NSMutableArray *out) {
     NSDictionary *ext = a && category.length && rec ? app_extension(a, @"com.apple.usernotifications.content-extension", category) : nil;
     void (^answer)(NSDictionary *) = ^(NSDictionary *result) {
         NSMutableString *s = [NSMutableString string];
-        if (result[@"image"]) [s appendFormat:@"image=%@\nheight=%@\nhidden=%d\n", result[@"image"], result[@"height"], [result[@"defaultContentHidden"] boolValue]];
+        if (result[@"image"]) [s appendFormat:@"image=%@\nheight=%@\nhidden=%d\nwidth=%@\n", result[@"image"], result[@"height"], [result[@"defaultContentHidden"] boolValue], result[@"width"] ?: @0];
+        if (result[@"session"]) [s appendFormat:@"session=%@\ncontrol=%@.ctl\ninteractive=%d\nresponds=%d\n", result[@"session"], result[@"request"],
+                                 [result[@"interactive"] boolValue], [result[@"responds"] boolValue]];
         [s appendFormat:@"dismiss=%d\n", ([cat[@"options"] integerValue] & 1) != 0];
         for (NSDictionary *x in cat[@"actions"])
             [s appendFormat:@"action=%@\x1e%@\x1e%@\x1e%d\x1e%@\x1e%@\n", flat(x[@"id"]), flat(x[@"title"]), x[@"options"] ?: @0, [x[@"textInput"] boolValue], flat(x[@"button"]), flat(x[@"placeholder"])];
@@ -240,6 +408,8 @@ static void collect_icons(UIView *v, NSMutableArray *out) {
     if (!ext) { answer(nil); return; }
     NSLog(@"SpringBoard: running the Notification Content extension %@", ext[@"name"]);
     CGFloat width = MIN(self.view.bounds.size.width - 16, 400);
-    run_extension(ext, @{ @"mode": @"content", @"record": recordPath, @"width": @(width) }, ^(NSDictionary *result) { answer(result[@"image"] ? result : nil); });
+    NSString *session = [isim_data_dir() stringByAppendingPathComponent:[NSString stringWithFormat:@"Library/SpringBoard/Notifications/session-%u", arc4random()]];
+    [NSFileManager.defaultManager createDirectoryAtPath:session withIntermediateDirectories:YES attributes:nil error:NULL];
+    run_extension(ext, @{ @"mode": @"content", @"record": recordPath, @"width": @(width), @"session": session }, ^(NSDictionary *result) { answer(result[@"image"] ? result : nil); });
 }
 @end

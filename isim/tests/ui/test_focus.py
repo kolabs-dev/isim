@@ -66,7 +66,7 @@ def test_focus(launch, device_data):
     dev.wait_log(r"time-sensitive notification from HelloFocusControls\.app breaks through Focus Do Not Disturb")
     dev.wait_log(r"notification banner from .*HelloFocusControls\.app")
     dev.send("notifications")
-    dev.wait_dump(r"id=nc-item-home")
+    dev.nc_item("home")
     keep(dev.wait_shot_still(), "focus-silenced")
     dev.send("home")
     dev.send("lock")

@@ -225,11 +225,6 @@ static void nb_show(int i, const char *path, const char *id, const char *icon, c
     nb.r = (struct rectf){ (dev.width - w) / 2, fmax(dev.safe_top, 20) + 2, w, 76 };
     fprintf(stderr, "isim shell: notification banner from %s: %s\n", path, nb.title);
 }
-static void nb_post(int i, const struct shell_msg *m) {
-    char id[512], icon[512], thumb[512];
-    field(m->a, 0, id, sizeof id); field(m->a, 1, icon, sizeof icon); field(m->a, 3, thumb, sizeof thumb);
-    nb_show(i, clients[i].bundle, id, icon, m->b, m->c, thumb);
-}
 static void nb_thumb(cairo_t *c, const char *path, double x, double y, double s);   /* shell_system.inc */
 static void nb_text(cairo_t *c, const char *utf8, double x, double y, double w, double size, int bold, int lines, double gray, int center) {
     PangoLayout *l = pango_cairo_create_layout(c);
@@ -603,7 +598,11 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
         if (!isim_next_event(&ev, anim.kind != ANIM_NONE ? 0.004 : 0.008)) continue;
         if (ev.type == EV_TOUCH_DOWN || ev.type == EV_TOUCH_MOVE || ev.type == EV_KEY || ev.type == EV_TEXT || ev.type == EV_ID_DOWN || ev.type == EV_TEXT_DOWN) sys_input_seen();
         if (ev.type == EV_QUIT) { shell_quit(); return 0; }
-        if (ev.type == EV_HOME) { shell_home(); continue; }
+        if (ev.type == EV_HOME) {                     /* Home also closes Notification / Control Center, the switcher */
+            if (calls_home()) continue;
+            if (ov != OV_NONE && !locked) sys_close();
+            shell_home(); continue;
+        }
         if (ev.type == EV_LAUNCH_ID) { shell_forward(0, &ev); continue; }        /* the home screen resolves bundle ids */
         if (ev.type == EV_SHELL_CMD) { sys_command(ev.text); continue; }
         if (ev.type == EV_REDRAW) { shell_send(active, EV_REDRAW); continue; }
