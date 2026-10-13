@@ -92,6 +92,10 @@ ISIM_ANIMATIONS=0 ISIM_SKIP_LAUNCH_SCREEN=1 isim run build/MyApp.app --headless 
   devices see them; `ISIM_MDNS=0` keeps them on this device), and universal links follow the domain's
   apple-app-site-association — put a test copy in `$ISIM_DATA/Library/isim/AASA/<domain>.json` to try path rules
   offline (see [SYSTEM-PROMPTS.md](SYSTEM-PROMPTS.md)).
+- Privacy and ad attribution: `isim privacy-report App.app` checks the app's privacy manifests (missing required-reason
+  declarations, bad reasons, tracking domains) and prints a report like Xcode's; `isim adattribution add BUNDLE_ID URL`,
+  `list`, `transmit` and `clear` test AdAttributionKit / SKAdNetwork development postbacks against a server of yours.
+  Third-party SDKs (ads, analytics) are not part of isim: they come from their own packages.
 - Accessibility can be checked the same way: `voiceover on; voiceover next; …` logs what VoiceOver says
   (`isim: VoiceOver: "…"`), and `accessibility SETTING on|off`, `contrast on`, `boldtext on` and
   `guidedaccess on` switch the Settings ▸ Accessibility features an app reacts to.
