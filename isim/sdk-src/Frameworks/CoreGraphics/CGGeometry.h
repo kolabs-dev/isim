@@ -36,6 +36,7 @@ CG_EXTERN bool CGRectEqualToRect(CGRect a, CGRect b);
 CG_EXTERN CGRect CGRectStandardize(CGRect r);
 CG_EXTERN bool CGRectIsEmpty(CGRect r);
 CG_EXTERN bool CGRectIsNull(CGRect r);
+CG_EXTERN bool CGRectIsInfinite(CGRect r);
 CG_EXTERN CGRect CGRectInset(CGRect r, CGFloat dx, CGFloat dy);
 CG_EXTERN CGRect CGRectOffset(CGRect r, CGFloat dx, CGFloat dy);
 CG_EXTERN CGRect CGRectIntegral(CGRect r);

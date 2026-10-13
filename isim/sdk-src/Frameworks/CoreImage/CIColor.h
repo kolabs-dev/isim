@@ -3,15 +3,19 @@
 #include <CoreGraphics/CoreGraphics.h>
 NS_ASSUME_NONNULL_BEGIN
 @class UIColor;
-/* isim: colors are kept as sRGB components */
-@interface CIColor : NSObject <NSCopying>
+/* A color with its color space (sRGB unless given); components outside 0...1 are kept (extended range). */
+@interface CIColor : NSObject <NSSecureCoding, NSCopying>
 + (instancetype)colorWithCGColor:(CGColorRef)c;
 + (instancetype)colorWithRed:(CGFloat)r green:(CGFloat)g blue:(CGFloat)b alpha:(CGFloat)a;
 + (instancetype)colorWithRed:(CGFloat)r green:(CGFloat)g blue:(CGFloat)b;
-+ (nullable instancetype)colorWithString:(NSString *)representation;
++ (nullable instancetype)colorWithRed:(CGFloat)r green:(CGFloat)g blue:(CGFloat)b alpha:(CGFloat)a colorSpace:(CGColorSpaceRef)colorSpace;
++ (nullable instancetype)colorWithRed:(CGFloat)r green:(CGFloat)g blue:(CGFloat)b colorSpace:(CGColorSpaceRef)colorSpace;
++ (instancetype)colorWithString:(NSString *)representation;
 - (instancetype)initWithCGColor:(CGColorRef)c NS_SWIFT_NAME(init(cgColor:));
 - (instancetype)initWithRed:(CGFloat)r green:(CGFloat)g blue:(CGFloat)b alpha:(CGFloat)a;
 - (instancetype)initWithRed:(CGFloat)r green:(CGFloat)g blue:(CGFloat)b;
+- (nullable instancetype)initWithRed:(CGFloat)r green:(CGFloat)g blue:(CGFloat)b alpha:(CGFloat)a colorSpace:(CGColorSpaceRef)colorSpace;
+- (nullable instancetype)initWithRed:(CGFloat)r green:(CGFloat)g blue:(CGFloat)b colorSpace:(CGColorSpaceRef)colorSpace;
 /* UIKit additions */
 - (instancetype)initWithColor:(UIColor *)color;
 @property (readonly) size_t numberOfComponents;

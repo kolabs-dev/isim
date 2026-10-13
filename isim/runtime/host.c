@@ -1875,6 +1875,10 @@ char *isim_vision_barcodes(const unsigned char *bgra, int w, int h, int stride);
 char *isim_vision_barcodes_ex(const unsigned char *bgra, int w, int h, int stride, int extended);
 char *isim_vision_text(const unsigned char *bgra, int w, int h, int stride, const char *langs);
 char *isim_vision_text_languages(void);
+int isim_raw_available(void);
+char *isim_raw_identify(const char *path);
+int isim_raw_decode(const char *path, int half, int highlight, int *w, int *h, unsigned short **rgb);
+char *isim_raw_camera_list(void);
 int isim_speech_available(void);
 char *isim_speech_transcribe(const float *pcm, long frames, const char *lang);
 int isim_audio_session_poll(char *buf, int len);
@@ -1987,7 +1991,7 @@ static const struct shim isim_table[] = {
     H(isim_audio_set_pan), H(isim_image_read_bgra),
     H(isim_camera_source), H(isim_camera_open), H(isim_camera_frame), H(isim_camera_preview), H(isim_camera_close), H(isim_camera_source_at), H(isim_camera_open_at), H(isim_camera_set_effects), H(isim_vision_barcodes_ex), H(isim_heif_can_encode), H(isim_heif_encode_bgra), H(isim_heif_decode),
     H(isim_ffmpeg_run), H(isim_media_reader_open), H(isim_media_reader_read), H(isim_media_reader_close),
-    H(isim_vision_available), H(isim_vision_barcodes), H(isim_vision_text), H(isim_vision_text_languages),
+    H(isim_vision_available), H(isim_vision_barcodes), H(isim_vision_text), H(isim_vision_text_languages), H(isim_raw_available), H(isim_raw_identify), H(isim_raw_decode), H(isim_raw_camera_list),
     H(isim_speech_available), H(isim_speech_transcribe), H(isim_audio_session_poll),
     H(isim_audio_stream_open), H(isim_audio_stream_write), H(isim_audio_stream_control), H(isim_audio_stream_close),
     H(isim_acodec_open), H(isim_acodec_frame_size), H(isim_acodec_send_pcm), H(isim_acodec_receive_packet), H(isim_acodec_send_packet),

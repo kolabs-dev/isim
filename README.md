@@ -34,7 +34,7 @@ running device to the front. `--no-desktop` (`… | bash -s -- --no-desktop`) sk
 isim install ~/.local/lib/isim/current/apps/*.app
 ```
 
-**Updating:** `isim update` installs the newest release and makes it active (`isim update 0.16.0` for a given one);
+**Updating:** `isim update` installs the newest release and makes it active (`isim update 0.17.0` for a given one);
 `isim versions` lists the installed releases and `isim use VERSION` switches between them. Device data
 (`~/.local/share/isim`) is shared by all versions. You can also download a tarball from
 [Releases](https://github.com/kolabs-dev/isim/releases) and run `bin/isim` from it directly.
@@ -102,7 +102,7 @@ gdk-pixbuf, fontconfig, ImageMagick and Docker (Swift compiles in the `swift:6.2
 in [isim/ci/Dockerfile](isim/ci/Dockerfile), which CI builds on; on Arch/CachyOS: `clang lld llvm sdl3 cairo pango
 librsvg python imagemagick docker`.
 Optional at run time: `webkitgtk-6.0` + `gtk4` (`gtk4-broadwayd`) for WKWebView / SFSafariViewController / ASWebAuthenticationSession (real WebKit, rendered off screen), `openssl` 3 (`libssl.so.3`) for TLS NWConnections, `libcurl` for URLSession, ICU (`libicuuc` / `libicui18n`, any version from 50) for locale data beyond the built-in languages (collation, non-Gregorian calendars, every locale's formats).
-Media and ML (each used only when an app needs it): `ffmpeg` (video, export, asset reader/writer, the simulated camera `ISIM_CAMERA`), `zbar` (QR/barcodes in capture and Vision), `tesseract` (Vision text recognition), whisper.cpp or Vosk (Speech recognition). Tests that need a missing tool skip it.
+Media and ML (each used only when an app needs it): `ffmpeg` (video, export, asset reader/writer, the simulated camera `ISIM_CAMERA`), `zbar` (QR/barcodes in capture and Vision), `tesseract` (Vision and Core Image text recognition), `zxing-cpp` (Aztec / Data Matrix reading; Core Image's PDF417 generator), `opencv-data` (Core Image face detection), LibRaw's `libraw-bin` (CIRAWFilter), whisper.cpp or Vosk (Speech recognition). Tests that need a missing tool skip it.
 
 ```bash
 isim/build.py fetch
@@ -125,7 +125,7 @@ Tools are installed in `isim/out/bin`. To package a release into `isim/dist/` (t
 22.04 container):
 
 ```bash
-isim/build.py package 0.16.0
+isim/build.py package 0.17.0
 ```
 
 ## Status

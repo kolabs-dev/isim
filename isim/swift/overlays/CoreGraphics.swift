@@ -43,6 +43,7 @@ extension CGRect: Equatable, Hashable, CustomStringConvertible {
     public var maxY: CGFloat { CGRectGetMaxY(self) }
     public var isEmpty: Bool { CGRectIsEmpty(self) }
     public var isNull: Bool { CGRectIsNull(self) }
+    public var isInfinite: Bool { CGRectIsInfinite(self) }
     public var standardized: CGRect { CGRectStandardize(self) }
     public var integral: CGRect { CGRectIntegral(self) }
     public func insetBy(dx: CGFloat, dy: CGFloat) -> CGRect { CGRectInset(self, dx, dy) }

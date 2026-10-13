@@ -24,6 +24,8 @@ What it does per target (dependencies first, also across the projects of a works
     .xcassets -> <bundle>/isim-assets.json + images (isim's asset format; NOT Apple's Assets.car),
     .storyboard / .xib -> <Name>.storyboardc / <Name>.nib (isim's IB archive format, NOT Apple's compiled
     nibs; see isim/tools/ibtool.py), Settings.bundle and other folders copied, .xcprivacy and other files copied
+  * Metal sources (.metal, Core Image kernels) -> <bundle>/default.metallib holding the sources (isim's format,
+    "ISIMMETALLIB 1"; NOT Apple's GPU binary): isim runs Core Image's Metal kernels from their source
   * Core Data models: .xcdatamodeld/.xcdatamodel -> <Name>.momd (isim's own model format, NOT Apple's binary
     .mom; see isim/tools/momc.py) plus the Swift classes Xcode's Class Definition / Category codegen makes
   * embeds app extensions into <App>.app/PlugIns/, App Clips (product type ...application.on-demand-install-capable)
@@ -274,6 +276,23 @@ def compile_xcassets(path, bundle):
     with open(os.path.join(bundle, 'isim-assets.plist'), 'wb') as f:
         plistlib.dump(json.loads(json.dumps(index)), f, fmt=plistlib.FMT_XML)
     return index
+
+
+def compile_metal(sources, bundle):
+    """Metal sources -> <bundle>/default.metallib: isim's library format, the sources after an "ISIMMETALLIB 1" line.
+    isim's Core Image interprets the kernels in it (CIKernel(functionName:fromMetalLibraryData:)); it is not GPU code."""
+    if not sources:
+        return None
+    parts = ['ISIMMETALLIB 1\n']
+    for f in sorted(sources):
+        with open(f, encoding='utf-8') as fh:
+            parts.append(f'// file: {os.path.basename(f)}\n' + fh.read() + '\n')
+    os.makedirs(bundle, exist_ok=True)
+    out = os.path.join(bundle, 'default.metallib')
+    with open(out, 'w', encoding='utf-8') as fh:
+        fh.write(''.join(parts))
+    log(f'{len(sources)} Metal source(s) -> {os.path.relpath(out, os.path.dirname(bundle))} (isim metallib: the sources)')
+    return out
 
 
 def copy_resource(path, bundle):
@@ -997,7 +1016,8 @@ class Packages:
         # resources -> <Package>_<Target>.bundle with a generated Bundle.module accessor
         bundle_name = f'{m["name"]}_{tname}.bundle'
         auto = [f for f in files if f.endswith(('.xcassets', '.xcstrings', '.xcdatamodeld', '.storyboard', '.xib'))]
-        if t.get('resources') or auto:
+        metal = [f for f in files if f.endswith('.metal')]
+        if t.get('resources') or auto or metal:
             bundle = os.path.join(self.b.outdir, bundle_name)
             shutil.rmtree(bundle, ignore_errors=True)
             os.makedirs(bundle)
@@ -1018,6 +1038,7 @@ class Packages:
                         for f in fs:
                             if not f.startswith('.'):
                                 self.b.install_resource(os.path.join(dp, f), bundle)
+            compile_metal(metal, bundle)
             with open(os.path.join(bundle, 'Info.plist'), 'wb') as f:
                 plistlib.dump({'CFBundleIdentifier': f'{m["name"]}.{tname}.resources', 'CFBundleName': bundle_name[:-7],
                                'CFBundlePackageType': 'BNDL', 'CFBundleInfoDictionaryVersion': '6.0'}, f)
@@ -1508,6 +1529,10 @@ class Builder:
 
         # script phases placed before Headers / Compile Sources (code generators); their outputs with source
         # extensions are compiled, like Xcode's build rules do for script outputs
+        # Metal sources (Compile Sources) -> default.metallib in the product (isim's format: the sources)
+        metal = [f for f in sources if f.endswith('.metal')]
+        if metal and kind not in ('static', 'dylib'):
+            compile_metal(metal, os.path.join(path, 'Resources') if kind in ('framework', 'staticframework') and os.path.isdir(os.path.join(path, 'Resources')) else path)
         for f in self.run_script_phases(target, s, 'compile', kind, path):
             if f.endswith('.swift') and f not in swift:
                 swift.append(f)
