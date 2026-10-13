@@ -27,7 +27,9 @@
 #   isim push [BUNDLE_ID] <payload.apns|->   send a remote notification payload (JSON with an "aps" dictionary; without
 #                                BUNDLE_ID its "Simulator Target Bundle" key names the app), like `xcrun simctl push`
 #   isim appleid <app> list|revoke|reset         local Sign in with Apple state (revoke = Stop Using Apple ID)
-#   isim metrickit               deliver sample MetricKit payloads to running apps (Debug > Simulate MetricKit Payloads)
+#   isim metrickit [deliver]     deliver sample MetricKit payloads to running apps (Debug > Simulate MetricKit Payloads);
+#                                deliver: the payloads MetricKit measured so far, now (iOS delivers them about daily)
+#   isim crashlog [list|show [N|FILE] [--json]|path|clear]   the crash reports (.ips) the device's apps wrote
 #   isim version                 print the isim version and the iOS versions it supports
 #   isim devices                 list device presets with the iOS versions each can run
 #   isim update [VERSION]        install the latest (or given) release and make it active (keeps the others)
@@ -430,8 +432,16 @@ PY
   storekit|gamecenter|appleid)
     ISIM_DATA=$DATA exec python3 "$BIN/isim-services.py" "$cmd" "$@" ;;
   metrickit)   # Debug > Simulate MetricKit Payloads: running apps' MXMetricManager subscribers get sample payloads
-    mkdir -p "$DATA/Library/isim"; date +%s.%N > "$DATA/Library/isim/MetricKitTrigger"
-    echo "isim: simulated MetricKit payloads requested (apps with a subscriber get them within 0.5 s)" ;;
+    mkdir -p "$DATA/Library/isim"
+    if [ "${1:-}" = deliver ]; then
+      echo "deliver $(date +%s.%N)" > "$DATA/Library/isim/MetricKitTrigger"
+      echo "isim: measured MetricKit payloads requested (apps with a subscriber get them within 0.5 s)"
+    else
+      date +%s.%N > "$DATA/Library/isim/MetricKitTrigger"
+      echo "isim: simulated MetricKit payloads requested (apps with a subscriber get them within 0.5 s)"
+    fi ;;
+  crashlog)    # the crash reports (.ips) in the device data, like ~/Library/Logs/DiagnosticReports for the Simulator
+    ISIM_DATA=$DATA exec python3 "$BIN/isim-crashlog.py" "$@" ;;
   info)
     f=${1:?usage: isim info <App.app|binary>}
     [ -d "$f" ] && f=$f/$(python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb"))["CFBundleExecutable"])' "$f/Info.plist")

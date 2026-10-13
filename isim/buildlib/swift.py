@@ -661,8 +661,8 @@ GameplayKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -ls
 GameController -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 CryptoKit -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 Security -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
-os -lswiftObjectiveC -lswiftFoundation -framework Foundation
-OSLog -lswiftos -lswiftObjectiveC -lswiftFoundation -framework Foundation
+os -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
+OSLog -lswiftos -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 LocalAuthentication -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 DeviceCheck -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
 BackgroundTasks -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
@@ -679,7 +679,7 @@ MusicKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency
 CoreData -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreData
 SwiftData -lswiftObjectiveC -lswiftFoundation -lswiftSwiftUI -lswiftCombine -lswiftObservation -lswift_Concurrency -framework Foundation
 StoreKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCryptoKit -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
-CoreLocation -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
+CoreLocation -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 QuartzCore -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit
 CoreHaptics -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation
 CoreMotion -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
@@ -698,7 +698,7 @@ SafariServices -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftWebKit -l
 AdSupport -lswiftObjectiveC -lswiftFoundation -framework Foundation
 AdServices -lswiftObjectiveC -lswiftFoundation -framework Foundation
 AdAttributionKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit
-MetricKit -lswiftos -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation
+MetricKit -lswiftos -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation -lisim_host
 CloudKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreLocation -lswift_Concurrency -framework Foundation -framework UIKit
 AuthenticationServices -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftWebKit -lswiftSafariServices -lswiftSwiftUI -lswiftCryptoKit -lswiftSecurity -lswiftDispatch -lswiftCoreGraphics -lswiftCombine -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics
 MessageUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit

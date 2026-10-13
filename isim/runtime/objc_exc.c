@@ -384,6 +384,7 @@ static id msg0(id o, const char *s) { SEL sel = sel_registerName(s); return ((id
 static const char *utf8_of(id str) { return str ? (const char *)msg0(str, "UTF8String") : NULL; }
 static int responds(id o, const char *s) { return o && class_respondsToSelector(o->isa, sel_registerName(s)); }
 
+void isim_crash_set_exception(const char *name, const char *reason, const char *cls, void *frame);   /* loader.c */
 __attribute__((noreturn)) static void terminate_uncaught(id obj) {
     fflush(NULL);
     const char *cname = obj ? class_getName(obj->isa) : "nil";
@@ -391,14 +392,19 @@ __attribute__((noreturn)) static void terminate_uncaught(id obj) {
     if (obj && responds(obj, "name") && responds(obj, "reason")) {
         const char *n = utf8_of(msg0(obj, "name")), *r = utf8_of(msg0(obj, "reason"));
         fprintf(stderr, "*** Terminating app due to uncaught exception '%s', reason: '%s'\n", n ? n : "(null)", r ? r : "(null)");
+        isim_crash_set_exception(n ? n : "(null)", r ? r : "(null)", cname, __builtin_frame_address(0));   /* the crash report */
         isNS = 1;
-    } else fprintf(stderr, "*** Terminating app due to uncaught exception of class '%s'\n", cname);
+    } else {
+        fprintf(stderr, "*** Terminating app due to uncaught exception of class '%s'\n", cname);
+        isim_crash_set_exception(cname, "", cname, __builtin_frame_address(0));
+    }
     fprintf(stderr, "*** First throw call stack:\n");
     isim_print_backtrace(__builtin_frame_address(0));
     fflush(stderr);
     if (uncaught_handler) uncaught_handler(obj);
     fflush(NULL);
     fprintf(stderr, "libc++abi: terminating due to uncaught exception of type %s\n", isNS ? "NSException" : cname);
+    void isim_write_crash_report_here(int sig); isim_write_crash_report_here(SIGABRT);   /* loader.c */
     signal(SIGABRT, SIG_DFL);
     abort();
 }

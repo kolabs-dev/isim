@@ -2079,6 +2079,11 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         isim_main_wakeup_hook = isim_post_wakeup;
         isim_runloop_add_common_mode(NSRunLoop.mainRunLoop, UITrackingRunLoopMode);
         NSLog(@"isim: launching %@ (%@) on %s", title, bundle.bundleIdentifier ?: @"no bundle id", isim_ui_device()->name);
+        {   /* crash reports name the app */
+            extern void isim_diag_set_app(const char *, const char *, const char *, const char *, const char *);
+            NSString *v = [info[@"CFBundleShortVersionString"] description] ?: @"", *b = [info[@"CFBundleVersion"] description] ?: @"";
+            isim_diag_set_app((bundle.bundleIdentifier ?: @"").UTF8String, v.UTF8String, b.UTF8String, title.UTF8String, bundle.bundlePath.UTF8String ?: "");
+        }
 
         id<UIApplicationDelegate> d = app.delegate;
         NSDictionary *launchOptions = isim_sys_launch_options();

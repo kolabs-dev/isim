@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Diagnostics</string>
+	<key>CFBundleExecutable</key>
+	<string>HelloDiagnostics</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.isim.samples.HelloDiagnostics</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>2.1</string>
+	<key>CFBundleVersion</key>
+	<string>21</string>
+</dict>
+</plist>

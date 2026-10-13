@@ -245,6 +245,11 @@ def _(a):
     a.icon(f"{b}/AppIcon60x60@3x.png", "#ff3b30", "#c41d14", "P")
 
 
+@app("samples/HelloDiagnostics")
+def _(a):
+    a.swift_app(objc=["CDiag.c"])                                   # C os_log / os_signpost, a crash in C
+
+
 @app("samples/HelloSpriteKit3")
 def _(a):
     b = a.swift_app()

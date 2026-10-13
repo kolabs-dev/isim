@@ -398,3 +398,10 @@ usr/lib/swift/libswiftMultipeerConnectivity.dylib _$s21MultipeerConnectivity21MC
 usr/lib/swift/libswiftMultipeerConnectivity.dylib _$s21MultipeerConnectivity21MCAdvertiserAssistantC8delegateyXlSgvgTq
 usr/lib/swift/libswiftMultipeerConnectivity.dylib _$s21MultipeerConnectivity21MCAdvertiserAssistantC8delegateyXlSgvpMV
 usr/lib/swift/libswiftMultipeerConnectivity.dylib _$s21MultipeerConnectivity21MCAdvertiserAssistantC8delegateyXlSgvsTq
+# 0.20.0 (issue #33): MXMetricPayload.displayMetrics (was MXMetric?), MXDiagnostic.signpostData (was [Any]?) and
+# MXCellularConditionMetric.histogrammedCellularConditionTime (was MXHistogram<Unit>) have their iOS types now
+# (MXDisplayMetric?, [MXSignpostRecord]?, MXHistogram<MXUnitSignalBars>). Their 0.19 getters are still exported
+# (MetricKit.swift); only key paths to these properties need a rebuild.
+usr/lib/swift/libswiftMetricKit.dylib _$s9MetricKit019MXCellularConditionA0C020histogrammedCellularD4TimeAA11MXHistogramCySo6NSUnitCGvpMV
+usr/lib/swift/libswiftMetricKit.dylib _$s9MetricKit12MXDiagnosticC12signpostDataSayypGSgvpMV
+usr/lib/swift/libswiftMetricKit.dylib _$s9MetricKit15MXMetricPayloadC14displayMetricsAA0C0CSgvpMV

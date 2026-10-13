@@ -4,7 +4,18 @@
  *
  * Also the C side of unified logging (libsystem_trace): os_log_create, os_log_type_enabled and _os_log_impl,
  * which the os_log() macros call with clang's __builtin_os_log_format buffer. Lines go to stderr in the same
- * format as isim's Swift Logger; private arguments print <private> (ISIM_LOG_PRIVATE=1 shows them). */
+ * format as isim's Swift Logger; private arguments print <private> (ISIM_LOG_PRIVATE=1 shows them).
+ *
+ * The log store (OSLogStore): every message (C os_log, Swift Logger / os_log, NSLog) and every signpost is also kept
+ * in memory for this process, as on iOS where an app reads back its own process's entries
+ * (OSLogStore(scope: .currentProcessIdentifier)). The store keeps the last 50,000 entries; messages are kept as
+ * shown (private values redacted unless ISIM_LOG_PRIVATE=1).
+ *
+ * Signposts (C): os_signpost_id_generate / _make_with_pointer, os_signpost_enabled and _os_signpost_emit_with_name_impl
+ * (the os_signpost_* macros). Recorded in the store; ISIM_LOG_SIGNPOSTS=1 also prints them.
+ *
+ * Metrics (MetricKit): a small table of named accumulators other parts of isim add to (isim_metric_add), read
+ * back by MetricKit (isim_metric_get). */
 #define _GNU_SOURCE
 #include <linux/futex.h>
 #include <errno.h>
@@ -185,10 +196,74 @@ static void format_message(char *out, size_t cap, const char *fmt, const uint8_t
         strncat(out, tmp, cap - strlen(out) - 1);
     }
 }
+/* ---------------- the log store ---------------- */
+struct log_rec { double date; int kind, type, sptype; uint64_t spid, tid; char *s[5]; };   /* subsystem, category, message, format, name */
+#define LOG_MAX 50000
+static struct log_rec *recs;                            /* ring of LOG_MAX; entry seq lives at recs[seq % LOG_MAX] */
+static long rec_end;                                    /* the next sequence number */
+static pthread_mutex_t store_lock = PTHREAD_MUTEX_INITIALIZER;
+static char *dupz(const char *s) { return strdup(s ? s : ""); }
+/* kind 0 log message, 1 signpost (sptype 0 event, 1 begin, 2 end) */
+void isim_log_record(int kind, int type, const char *subsystem, const char *category, const char *message,
+                     const char *format, int sptype, uint64_t spid, const char *name) {
+    struct timeval tv; gettimeofday(&tv, NULL);
+    pthread_mutex_lock(&store_lock);
+    if (!recs) recs = calloc(LOG_MAX, sizeof *recs);
+    if (recs) {
+        struct log_rec *r = &recs[rec_end % LOG_MAX];
+        for (int i = 0; i < 5; i++) free(r->s[i]);
+        r->date = tv.tv_sec + tv.tv_usec / 1e6; r->kind = kind; r->type = type; r->sptype = sptype; r->spid = spid;
+        r->tid = (uint64_t)syscall(SYS_gettid);
+        r->s[0] = dupz(subsystem); r->s[1] = dupz(category); r->s[2] = dupz(message); r->s[3] = dupz(format); r->s[4] = dupz(name);
+        rec_end++;
+    }
+    pthread_mutex_unlock(&store_lock);
+}
+/* the range of sequence numbers held: [*first, end) */
+long isim_log_range(long *first) {
+    pthread_mutex_lock(&store_lock);
+    long end = rec_end; if (first) *first = end > LOG_MAX ? end - LOG_MAX : 0;
+    pthread_mutex_unlock(&store_lock);
+    return end;
+}
+/* one entry: meta = kind, type, sptype; ids = signpost id, thread id; strs = 5 malloc'd copies (free them) */
+int isim_log_get(long seq, double *date, int meta[3], uint64_t ids[2], char *strs[5]) {
+    pthread_mutex_lock(&store_lock);
+    long first = rec_end > LOG_MAX ? rec_end - LOG_MAX : 0;
+    if (!recs || seq < first || seq >= rec_end) { pthread_mutex_unlock(&store_lock); return 0; }
+    struct log_rec *r = &recs[seq % LOG_MAX];
+    *date = r->date; meta[0] = r->kind; meta[1] = r->type; meta[2] = r->sptype; ids[0] = r->spid; ids[1] = r->tid;
+    for (int i = 0; i < 5; i++) strs[i] = strdup(r->s[i]);
+    pthread_mutex_unlock(&store_lock);
+    return 1;
+}
+
+/* ---------------- metrics (MetricKit) ---------------- */
+struct metric { char key[48]; double v; };
+static struct metric metrics[128]; static int nmetrics;
+static pthread_mutex_t metric_lock = PTHREAD_MUTEX_INITIALIZER;
+static struct metric *metric_slot(const char *key) {
+    for (int i = 0; i < nmetrics; i++) if (!strcmp(metrics[i].key, key)) return &metrics[i];
+    if (nmetrics >= 128) return NULL;
+    struct metric *m = &metrics[nmetrics++]; snprintf(m->key, sizeof m->key, "%s", key); m->v = 0; return m;
+}
+void isim_metric_add(const char *key, double v) {
+    pthread_mutex_lock(&metric_lock); struct metric *m = metric_slot(key); if (m) m->v += v; pthread_mutex_unlock(&metric_lock);
+}
+void isim_metric_max(const char *key, double v) {
+    pthread_mutex_lock(&metric_lock); struct metric *m = metric_slot(key); if (m && v > m->v) m->v = v; pthread_mutex_unlock(&metric_lock);
+}
+double isim_metric_get(const char *key) {
+    pthread_mutex_lock(&metric_lock); double v = 0;
+    for (int i = 0; i < nmetrics; i++) if (!strcmp(metrics[i].key, key)) { v = metrics[i].v; break; }
+    pthread_mutex_unlock(&metric_lock); return v;
+}
+
 static pthread_mutex_t log_lock = PTHREAD_MUTEX_INITIALIZER;
 static void os_log_impl(void *dso, struct os_log_s *l, uint8_t type, const char *fmt, const uint8_t *buf, uint32_t size) {
     if (!log_type_enabled(l, type) || !fmt) return;
     char msg[4096]; format_message(msg, sizeof msg, fmt, buf, size);
+    isim_log_record(0, type, l->subsystem, l->category, msg, fmt, 0, 0, "");
     struct timeval tv; gettimeofday(&tv, NULL);
     time_t t = tv.tv_sec; struct tm tm; localtime_r(&t, &tm);
     char ts[32]; strftime(ts, sizeof ts, "%Y-%m-%d %H:%M:%S", &tm);
@@ -203,7 +278,74 @@ static void os_log_impl(void *dso, struct os_log_s *l, uint8_t type, const char 
     pthread_mutex_unlock(&log_lock);
 }
 
+/* the `signposts` script command (Instruments' Points of Interest, as text): per subsystem, category and name, the
+   events and the intervals with their total, average and longest duration; optional filter: a subsystem or category */
+void isim_signposts_summary(const char *filter) {
+    struct sp_sum { char key[600]; int events, intervals, open; double total, max; };
+    struct sp_open { char key[600]; uint64_t id; double begin; };
+    static struct sp_sum sums[256]; static struct sp_open opens[512];
+    int nsums = 0, nopens = 0;
+    pthread_mutex_lock(&store_lock);
+    long first = rec_end > LOG_MAX ? rec_end - LOG_MAX : 0;
+    for (long seq = first; recs && seq < rec_end; seq++) {
+        struct log_rec *r = &recs[seq % LOG_MAX];
+        if (r->kind != 1) continue;
+        if (filter && *filter && strcmp(filter, r->s[0]) && strcmp(filter, r->s[1])) continue;
+        char key[600]; snprintf(key, sizeof key, "%s:%s %s", r->s[0], r->s[1], r->s[4]);
+        int k = 0; while (k < nsums && strcmp(sums[k].key, key)) k++;
+        if (k == nsums) { if (nsums == 256) continue; memset(&sums[k], 0, sizeof sums[k]); snprintf(sums[k].key, sizeof sums[k].key, "%s", key); nsums++; }
+        if (r->sptype == 0) sums[k].events++;
+        else if (r->sptype == 1) {
+            if (nopens < 512) { snprintf(opens[nopens].key, sizeof opens[nopens].key, "%s", key); opens[nopens].id = r->spid; opens[nopens].begin = r->date; nopens++; }
+            sums[k].open++;
+        } else {
+            for (int o = nopens - 1; o >= 0; o--) if (opens[o].id == r->spid && !strcmp(opens[o].key, key)) {
+                double d = (r->date - opens[o].begin) * 1000;
+                sums[k].intervals++; sums[k].open--; sums[k].total += d; if (d > sums[k].max) sums[k].max = d;
+                opens[o] = opens[--nopens]; break;
+            }
+        }
+    }
+    pthread_mutex_unlock(&store_lock);
+    pthread_mutex_lock(&log_lock);
+    fprintf(stderr, "isim signposts: %d name(s)%s%s\n", nsums, filter && *filter ? " in " : "", filter && *filter ? filter : "");
+    for (int k = 0; k < nsums; k++)
+        fprintf(stderr, "isim signposts: %s events %d intervals %d open %d total %.1f ms avg %.1f ms max %.1f ms\n", sums[k].key,
+                sums[k].events, sums[k].intervals, sums[k].open, sums[k].total, sums[k].intervals ? sums[k].total / sums[k].intervals : 0, sums[k].max);
+    fflush(stderr);
+    pthread_mutex_unlock(&log_lock);
+}
+
+/* ---------------- signposts (C) ---------------- */
+static uint64_t sp_counter = 1;
+static uint64_t sp_generate(struct os_log_s *l) { (void)l; return __atomic_add_fetch(&sp_counter, 1, __ATOMIC_RELAXED) + 0x1000; }
+static uint64_t sp_with_pointer(struct os_log_s *l, const void *p) { (void)l; return (uint64_t)(uintptr_t)p; }
+static bool sp_enabled(struct os_log_s *l) { return l && !l->disabled; }
+void isim_signpost_print(const char *subsystem, const char *category, int sptype, uint64_t spid, const char *name, const char *msg) {
+    const char *e = getenv("ISIM_LOG_SIGNPOSTS");
+    if (!e || strcmp(e, "1")) return;
+    struct timeval tv; gettimeofday(&tv, NULL);
+    time_t t = tv.tv_sec; struct tm tm; localtime_r(&t, &tm);
+    char ts[32]; strftime(ts, sizeof ts, "%Y-%m-%d %H:%M:%S", &tm);
+    char exe[512]; snprintf(exe, sizeof exe, "%s", isim_main_executable_path() ? isim_main_executable_path() : "app");
+    pthread_mutex_lock(&log_lock);
+    fprintf(stderr, "%s.%03ld Sp %s[%d:%lx] [%s:%s] %s %s id=%llu%s%s\n", ts, (long)(tv.tv_usec / 1000), basename(exe), getpid(),
+            (unsigned long)(uintptr_t)pthread_self() & 0xffffff, subsystem, category,
+            sptype == 1 ? "begin" : sptype == 2 ? "end" : "event", name, (unsigned long long)spid, msg && *msg ? " " : "", msg ? msg : "");
+    fflush(stderr);
+    pthread_mutex_unlock(&log_lock);
+}
+static void sp_emit(void *dso, struct os_log_s *l, uint8_t type, uint64_t spid, const char *name, const char *fmt, const uint8_t *buf, uint32_t size) {
+    (void)dso;
+    if (!sp_enabled(l) || spid == 0 || spid == ~0ULL) return;
+    char msg[4096] = ""; if (fmt && *fmt) format_message(msg, sizeof msg, fmt, buf, size);
+    isim_log_record(1, 0, l->subsystem, l->category, msg, fmt ? fmt : "", type, spid, name ? name : "");
+    isim_signpost_print(l->subsystem, l->category, type, spid, name ? name : "", msg);
+}
+
 static const struct shim os_table[] = {
+    { "_os_signpost_id_generate", (void *)sp_generate, "isim" }, { "_os_signpost_id_make_with_pointer", (void *)sp_with_pointer, "isim" },
+    { "_os_signpost_enabled", (void *)sp_enabled, "isim" }, { "__os_signpost_emit_with_name_impl", (void *)sp_emit, "isim" },
     { "_os_unfair_lock_lock", (void *)ul_lock, "isim" }, { "_os_unfair_lock_trylock", (void *)ul_trylock, "isim" },
     { "_os_unfair_lock_unlock", (void *)ul_unlock, "isim" }, { "_os_unfair_lock_assert_owner", (void *)ul_assert_owner, "isim" },
     { "_os_unfair_lock_assert_not_owner", (void *)ul_assert_not_owner, "isim" },

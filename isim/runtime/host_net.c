@@ -8,6 +8,7 @@
  * NSURLErrorNotConnectedToInternet), for testing an app's offline handling. */
 #define _GNU_SOURCE
 #include <dlfcn.h>
+#include "runtime.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -242,6 +243,7 @@ struct isim_http *isim_http_start_tls(const char *method, const char *url, const
                                       const void *client_pem, long client_pem_len);
 struct isim_http *isim_http_start(const char *method, const char *url, const char *headers, const void *body, long body_len,
                                   double timeout, double resource_timeout, int flags) {
+    if (body_len > 0) isim_metric_add("net.up", (double)body_len);              /* MetricKit network transfer */
     return isim_http_start_tls(method, url, headers, body, body_len, timeout, resource_timeout, flags, NULL, NULL, 0);
 }
 /* isim_http_start with TLS options: pinned_key ("sha256//<base64>", or NULL) is the only server key accepted;
@@ -298,6 +300,7 @@ long isim_http_read(struct isim_http *h, void *out, long cap) {
     if (h->bpos < h->blen) {
         n = (long)(h->blen - h->bpos); if (n > cap) n = cap;
         memcpy(out, h->buf + h->bpos, n); h->bpos += n;
+        isim_metric_add("net.down", (double)n);                                 /* MetricKit network transfer */
     } else if (h->error) n = h->error;
     pthread_mutex_unlock(&h->mu);
     return n;
@@ -583,6 +586,7 @@ struct isim_ws *isim_ws_open_ex(const char *url, const char *headers, double tim
 
 /* kind: 1 text, 2 binary, 8 close, 9 ping, 10 pong. Returns 0 or an NSURLError code. */
 int isim_ws_send(struct isim_ws *w, int kind, const void *data, long len) {
+    if (len > 0) isim_metric_add("net.up", (double)len);
     if (w->closed || (w->close_sent && kind != 8)) return -1005;
     int op = kind == 1 ? 1 : kind == 2 ? 2 : kind == 8 ? 8 : kind == 9 ? 9 : 10;
     if (op >= 8 && len > 125) len = 125;                     /* control frames carry at most 125 bytes */
@@ -620,6 +624,7 @@ int isim_ws_recv(struct isim_ws *w, int *kind, unsigned char **data, long *len) 
         if (r == -2) { struct pollfd pf = { w->sock, POLLIN, 0 }; poll(&pf, 1, 100); continue; }
         if (r <= 0) { free(msg); return w->closed ? -999 : -1005; }
         w->in_len += (size_t)r;
+        isim_metric_add("net.down", (double)r);                                 /* MetricKit network transfer */
     }
     if (!msg) msg = malloc(1);
     msg[mlen] = 0;

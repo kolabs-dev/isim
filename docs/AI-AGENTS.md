@@ -129,7 +129,9 @@ Everything goes to the terminal:
 
 - the app's `Logger` / `os_log` / `print` output (`ISIM_LOG_LEVEL=info` shows more; `ISIM_LOG_PRIVATE=1` shows
   private values);
-- a crash prints the signal and a symbolized backtrace;
+- a crash prints the signal and a symbolized backtrace, and writes a crash report: `isim crashlog` lists them,
+  `isim crashlog show [N]` prints one like Xcode's crash log view (`--json`: the `.ips` file);
+- the `signposts` script command summarizes the app's signpost intervals (Points of Interest);
 - `ISIM_OBJC_EXCEPTION_LOG=1` logs every Objective-C exception when it is thrown.
 
 ### 4. Test

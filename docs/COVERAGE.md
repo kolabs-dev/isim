@@ -85,9 +85,9 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Location & maps | 7 | 0 | 0 | 0 | 7 | 100% |
 | Personal data & device sensors | 6 | 0 | 0 | 0 | 6 | 100% |
 | Web & communication | 16 | 0 | 1 | 1 | 18 | 89% |
-| Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
+| Logging & diagnostics | 9 | 0 | 0 | 0 | 9 | 100% |
 | Platform & tooling | 42 | 5 | 0 | 3 | 50 | 89% |
-| **All areas** | **1055** | **36** | **9** | **14** | **1114** | **96%** |
+| **All areas** | **1059** | **34** | **7** | **14** | **1114** | **97%** |
 
 ### Per iOS version
 
@@ -119,9 +119,9 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Location & maps | 100% (7) | 100% (7) | 100% (7) | 100% (7) |
 | Personal data & device sensors | 100% (6) | 100% (6) | 100% (6) | 100% (6) |
 | Web & communication | 88% (17) | 88% (17) | 89% (18) | 89% (18) |
-| Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
+| Logging & diagnostics | 100% (9) | 100% (9) | 100% (9) | 100% (9) |
 | Platform & tooling | 89% (48) | 89% (49) | 89% (50) | 89% (50) |
-| **All areas** | **96%** (1048) | **96%** (1064) | **96%** (1093) | **96%** (1114) |
+| **All areas** | **96%** (1048) | **97%** (1064) | **97%** (1093) | **97%** (1114) |
 
 ---
 
@@ -1550,11 +1550,11 @@ are not part of isim. Apps get them from their own packages, which `isim build` 
 | `print`, `NSLog`, `debugPrint` | ✅ | ≤17 | to the terminal running isim |
 | `os.Logger`, `os_log`, `OSLog` (Swift) | ✅ | ≤17 | levels, `OSLogMessage` interpolation with privacy (strings/objects `<private>` unless `.public`; `.private(mask: .hash)`), number/bool formatting, printf-style `os_log` with `%{public}`; stderr in `log stream` compact style. `ISIM_LOG_PRIVATE=1` shows private values, `ISIM_LOG_LEVEL` filters |
 | `os_log` C macros (Objective-C), `os_log_create` | ✅ | ≤17 | clang's `__builtin_os_log_format` buffers decoded by isim's libSystem; same output and privacy rules as Swift |
-| Signposts (`OSSignposter`, `os_signpost`) | 🧩 | ≤17 | accepted, not recorded |
-| `OSLogStore` (reading logs back) | 🧩 | ≤17 | throws |
+| Signposts (`OSSignposter`, `os_signpost`, C `os_signpost_*` macros, `os_signpost_id_generate`) | ✅ | ≤17 | adapted: recorded in the process's log store (events, interval begin / end with ids and messages; `OSLogEntrySignpost`); `ISIM_LOG_SIGNPOSTS=1` prints them; the `signposts` script command summarizes intervals (count, total / average / longest duration) like Instruments' Points of Interest. Tested: test_diagnostics |
+| `OSLogStore` (reading logs back: `OSLogEntryLog`, `OSLogEntrySignpost`, positions, `getEntries(with:at:matching:)`, components) | ✅ | ≤17 | adapted: `.currentProcessIdentifier` reads this process's messages and signposts (Swift and C `os_log`, `Logger`, `NSLog`; the last 50,000, as shown: private values redacted); NSPredicate over entry properties (`subsystem`, `category`, `composedMessage`, `messageType`, `date`, …), reverse order, positions by date / interval; `formatString` uses `%@` for every interpolated value; the system scope and `local()` throw as on iOS. Tested: test_diagnostics |
 | `os_unfair_lock`, `OSAllocatedUnfairLock` | ✅ | ≤17 | futex-backed, with owner checks |
-| MetricKit (`MXMetricManager`, subscribers, `MXMetricPayload`/`MXDiagnosticPayload`, metrics, diagnostics, `jsonRepresentation`) | 🟡 | ≤17 | like the Simulator, nothing is measured and nothing arrives by itself; the `metrickit` script/control command or `isim metrickit` (Xcode's Debug > Simulate MetricKit Payloads) delivers one fixed sample metric payload and one diagnostic payload (crash, hang, CPU, disk-write, launch) to running apps' subscribers within 0.5 s. `pastPayloads` empty; display metrics nil. Tested: HelloCloudKit |
-| Crash reporting (crash logs, `NSSetUncaughtExceptionHandler` reports) | 🟡 | ≤17 | uncaught exceptions print the iOS report ("*** Terminating app due to uncaught exception …", first throw call stack) and abort; `NSSetUncaughtExceptionHandler` runs first; tested (objc-runtime). No crash log files |
+| MetricKit (`MXMetricManager`, subscribers, `MXMetricPayload`/`MXDiagnosticPayload`, metrics, diagnostics, `mxSignpost`, `MXSignpostRecord`, extended launch, `jsonRepresentation`) | ✅ | ≤17 | adapted: measured from the app's process once it uses `MXMetricManager.shared`: CPU time, peak and suspended memory, logical writes, time to first draw, resume time, extended launch, hangs (main thread away from its event loop ≥ 250 ms), foreground / background (audio, location) time, network bytes (as Wi-Fi), location time by accuracy, frame hitches (per foreground second, all animations), average pixel luminance, exits (from crash reports), `mxSignpost` intervals; GPU time 0 (CPU drawing), instructions not counted, no cellular metrics. Metric payloads: each run's, at the next launch (iOS: daily); `metrickit deliver` / `isim metrickit deliver` now. Diagnostics as they happen: hangs (sampled stack), slow launch (≥ 2 s), CPU (80 % over 3 min), disk writes (1 GiB); crashes at the next launch. `metrickit` alone: Xcode's fixed sample payloads. `pastPayloads` since `shared` was first used. Tested: test_diagnostics, HelloCloudKit |
+| Crash reporting (crash logs, `NSSetUncaughtExceptionHandler` reports) | ✅ | ≤17 | uncaught exceptions print the iOS report ("*** Terminating app due to uncaught exception …", first throw call stack) and abort; `NSSetUncaughtExceptionHandler` runs first (objc-runtime). Crashes (signals and uncaught exceptions) write an Apple-style `.ips` report to `$ISIM_DATA/Library/Logs/DiagnosticReports`: exception type and signal, termination, the crashed thread symbolized, last exception backtrace, binary images with UUIDs; `isim crashlog` lists / shows / clears them; MetricKit turns them into `MXCrashDiagnostic`s. Tested: test_diagnostics |
 | `assert`, `precondition`, `fatalError` messages | ✅ | ≤17 | |
 
 ---
