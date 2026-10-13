@@ -81,7 +81,8 @@ ISIM_ANIMATIONS=0 ISIM_SKIP_LAUNCH_SCREEN=1 isim run build/MyApp.app --headless 
   that read images can check layout, colours and dark mode with it.
 - `tapid`, `taptext`, `type`, `key`, `drag`, `swipeid` act like a finger and a keyboard (`scroll` like a trackpad or
   mouse wheel, `pencil` like an Apple Pencil); `appearance dark`,
-  `rotate landscapeleft`, `location LAT LON`, `push …`, `openurl …` change the device. The full list is in
+  `rotate landscapeleft`, `location LAT LON`, `beacon UUID MAJOR MINOR`, `push …`, `openurl …` change the device; on a
+  map, `pinch`, `rotate2` and `twofinger` zoom, turn and tilt it (`dump` shows its centre, span, heading and pitch). The full list is in
   [SCRIPTING.md](SCRIPTING.md).
 - Accessibility can be checked the same way: `voiceover on; voiceover next; …` logs what VoiceOver says
   (`isim: VoiceOver: "…"`), and `accessibility SETTING on|off`, `contrast on`, `boldtext on` and
@@ -191,7 +192,10 @@ headless run with a device data of your own for checks that should not disturb i
   belongs in isim, not in the app. Do not work around it: report it (below), and never fake SDK or Xcode metadata.
 - The look follows the chosen iOS version and device, but screenshots from isim are not Apple's. Check important
   screens on Apple's simulator or a device before release.
-- Uploading to the App Store from Linux is blocked on purpose: see [DISTRIBUTION.md](DISTRIBUTION.md).
+- Uploading to the App Store from Linux is blocked on purpose: see [DISTRIBUTION.md](DISTRIBUTION.md). To ship, add a
+  GitHub Actions workflow that builds the same Xcode project on a macOS runner with
+  [kolabs-dev/mobile-actions](https://github.com/kolabs-dev/mobile-actions)' `ios-upload`
+  ([example](DISTRIBUTION.md#shipping-today-xcode-on-a-macos-ci-runner)); the person adds the signing secrets.
 - Signing keys, certificates and API credentials stay on your machine. Do not paste them into prompts, scripts or
   logs.
 

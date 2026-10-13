@@ -1221,6 +1221,39 @@ static void set_simulated_location(const char *arg) {
     fclose(f);
     fprintf(stderr, "isim host: simulated location %s\n", line);
 }
+/* simulated iBeacons in range (Core Location ranging, beacon regions, CLMonitor): "beacon UUID MAJOR MINOR
+   [immediate|near|far] [RSSI]" adds or updates one, "beacon off UUID MAJOR MINOR" removes it, "beacon none" removes
+   all. The app reads $ISIM_DATA/Library/isim/SimulatedBeacons (one beacon a line) */
+static void set_simulated_beacon(const char *arg) {
+    char path[1024], tmp[1100]; const char *data = getenv("ISIM_DATA"), *home = getenv("HOME");
+    if (data && *data) snprintf(path, sizeof path, "%s/Library", data);
+    else snprintf(path, sizeof path, "%s/.local/share/isim/Library", home ? home : "");
+    mkdir(path, 0755); strncat(path, "/isim", sizeof path - strlen(path) - 1); mkdir(path, 0755);
+    strncat(path, "/SimulatedBeacons", sizeof path - strlen(path) - 1);
+    char lines[32][160]; int n = 0;
+    FILE *f = fopen(path, "r");
+    if (f) { char l[160]; while (n < 32 && fgets(l, sizeof l, f)) { l[strcspn(l, "\n")] = 0; if (strlen(l) > 30) snprintf(lines[n++], sizeof lines[0], "%s", l); } fclose(f); }
+    char uuid[64], prox[16] = "near"; unsigned major, minor; int rssi = 0, off = 0;
+    if (!strncmp(arg, "none", 4)) n = 0;
+    else {
+        if (!strncmp(arg, "off ", 4)) { off = 1; arg += 4; }
+        if (sscanf(arg, "%63s %u %u %15s %d", uuid, &major, &minor, prox, &rssi) < 3) {
+            fprintf(stderr, "isim host: beacon expects UUID MAJOR MINOR [immediate|near|far] [RSSI], off UUID MAJOR MINOR, or none\n"); return;
+        }
+        char key[96]; snprintf(key, sizeof key, "%s %u %u ", uuid, major, minor);
+        for (int i = 0; i < n; i++) if (!strncasecmp(lines[i], key, strlen(key))) { memmove(lines[i], lines[i + 1], (size_t)(n - i - 1) * sizeof lines[0]); n--; i--; }
+        if (!off && n < 32) {
+            if (!rssi) rssi = !strcmp(prox, "immediate") ? -40 : !strcmp(prox, "far") ? -85 : -65;
+            snprintf(lines[n++], sizeof lines[0], "%s %u %u %s %d", uuid, major, minor, prox, rssi);
+        }
+    }
+    snprintf(tmp, sizeof tmp, "%s.tmp", path);
+    if (!(f = fopen(tmp, "w"))) { fprintf(stderr, "isim host: cannot write %s\n", path); return; }
+    for (int i = 0; i < n; i++) fprintf(f, "%s\n", lines[i]);
+    fprintf(f, "# %.3f\n", isim_time());                     /* every command is a change */
+    fclose(f); rename(tmp, path);
+    fprintf(stderr, "isim host: %d simulated beacon(s) in range\n", n);
+}
 /* Debug > Simulate MetricKit Payloads: apps with an MXMetricManager subscriber watch this file (isim's MetricKit) */
 static void simulate_metrickit(void) {
     char path[1024]; const char *data = getenv("ISIM_DATA"), *home = getenv("HOME");
@@ -1375,6 +1408,8 @@ static int script_step(struct isim_event *ev) {
         script_resume = now() + 0.3;
     } else if (!strcmp(cmd, "location") && sscanf(args, " %511[^;]", arg) == 1) {
         set_simulated_location(arg);             /* Features > Location: "location LAT LON" or "location none" */
+    } else if (!strcmp(cmd, "beacon") && sscanf(args, " %511[^;]", arg) == 1) {
+        set_simulated_beacon(arg);               /* simulated iBeacons in range (Core Location) */
     } else if (!strcmp(cmd, "metrickit")) {
         simulate_metrickit();                    /* Debug > Simulate MetricKit Payloads */
     } else if ((!strcmp(cmd, "appearance") || !strcmp(cmd, "contrast") || !strcmp(cmd, "boldtext")) && sscanf(args, " %63[^; ]", arg) == 1) {

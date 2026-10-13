@@ -34,7 +34,7 @@ running device to the front. `--no-desktop` (`… | bash -s -- --no-desktop`) sk
 isim install ~/.local/lib/isim/current/apps/*.app
 ```
 
-**Updating:** `isim update` installs the newest release and makes it active (`isim update 0.18.0` for a given one);
+**Updating:** `isim update` installs the newest release and makes it active (`isim update 0.19.0` for a given one);
 `isim versions` lists the installed releases and `isim use VERSION` switches between them. Device data
 (`~/.local/share/isim`) is shared by all versions. You can also download a tarball from
 [Releases](https://github.com/kolabs-dev/isim/releases) and run `bin/isim` from it directly.
@@ -92,7 +92,7 @@ and logs can be answered or configured with environment variables: see [docs/SYS
 - [iOS versions](docs/IOS-VERSIONS.md): `--os 17|18|26|27`, device pairing, `#available`, what changes per version (Liquid Glass)
 - [API coverage](docs/COVERAGE.md): what is implemented, per framework and per iOS version
 - [Core Data](docs/COREDATA.md) · [Game Center](docs/GAMECENTER.md): isim's model and configuration formats
-- [App Store distribution](docs/DISTRIBUTION.md): why upload from Linux is blocked
+- [App Store distribution](docs/DISTRIBUTION.md): why upload from Linux is blocked, and shipping from a macOS CI runner
 - [Building](docs/BUILD.md) · [Testing](docs/TESTING.md): build.py, the Ninja graph, adding samples/frameworks/overlays; pytest and CI
 
 ## Build from source
@@ -125,7 +125,7 @@ Tools are installed in `isim/out/bin`. To package a release into `isim/dist/` (t
 22.04 container):
 
 ```bash
-isim/build.py package 0.18.0
+isim/build.py package 0.19.0
 ```
 
 ## Status
@@ -141,13 +141,13 @@ rows). ✅ done · 🟡 partial · ⬜ not started · ⛔ blocked
 | Device | ✅ | home screen (pages, folders, App Library, Spotlight, widgets), lock screen, Notification Center, Control Center, app switcher, Settings; 12 iPhones and 4 iPads; iOS 17, 18, 26 and 27 |
 | Linux releases | ✅ | `install.sh`, `isim update` |
 | Device build, signing, .ipa | ❌ | blocked: isim's frameworks are simulator-only and Apple's device SDK cannot be used on Linux ([DISTRIBUTION.md](docs/DISTRIBUTION.md)); arm64 code without frameworks links |
-| Upload + TestFlight | ⛔ | see below |
+| Upload + TestFlight | ⛔ | not from Linux (see below); ship the same Xcode project from a macOS CI runner with [mobile-actions](https://github.com/kolabs-dev/mobile-actions) |
 
 ## Rules and limits
 
 - **No Apple SDK or binaries.** isim ships a self-authored SDK, because the Xcode/SDK license restricts its use to Apple hardware.
 - **No faked metadata.** Builds never claim Xcode or Apple SDK versions. Binaries are never retargeted to macOS or Linux and reported as iOS compatibility.
-- **Upload is blocked.** The App Store requires builds made with a current Xcode/iOS SDK, which a Linux build cannot honestly claim. See [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
+- **Upload is blocked.** The App Store requires builds made with a current Xcode/iOS SDK, which a Linux build cannot honestly claim. To ship, build the same Xcode project with Xcode on a macOS CI runner, e.g. with [kolabs-dev/mobile-actions](https://github.com/kolabs-dev/mobile-actions)'s `ios-upload`. See [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md#shipping-today-xcode-on-a-macos-ci-runner).
 - **Keys stay local.** Signing keys and API credentials stay on the machine, out of the repo.
 
 ## Repository layout

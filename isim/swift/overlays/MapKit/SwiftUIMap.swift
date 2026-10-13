@@ -90,6 +90,8 @@ public struct PointOfInterestCategories: Sendable {
     public static func excluding(_ c: [MKPointOfInterestCategory]) -> PointOfInterestCategories { PointOfInterestCategories() }
 }
 
+/// map controls: placed in .mapControls { } they are drawn by the map (see MKMapView's controls); on their own,
+/// outside a map, they draw nothing (adapted: no mapScope linking)
 public protocol _MapControl {}
 public struct MapUserLocationButton: View, _MapControl { public init(scope: Namespace.ID? = nil) {}; public var body: some View { EmptyView() } }
 public struct MapCompass: View, _MapControl { public init(scope: Namespace.ID? = nil) {}; public var body: some View { EmptyView() } }
@@ -101,11 +103,13 @@ public struct MapPitchToggle: View, _MapControl { public init(scope: Namespace.I
 
 struct _MapStyleKey: EnvironmentKey { static let defaultValue: MapStyle? = nil }
 struct _MapCameraChangeKey: EnvironmentKey { static let defaultValue: [(MapCameraUpdateFrequency, (MapCameraUpdateContext) -> Void)] = [] }
-struct _MapControlsKey: EnvironmentKey { static let defaultValue: Bool = false }
+/// which controls the map shows: by default the compass (while turned); .mapControls { } names them
+struct _MapControls: Sendable { var compass = true, scale = false, user = false, pitch = false }
+struct _MapControlsKey: EnvironmentKey { static let defaultValue = _MapControls() }
 extension EnvironmentValues {
     var _mapStyle: MapStyle? { get { self[_MapStyleKey.self] } set { self[_MapStyleKey.self] = newValue } }
     var _mapCameraChange: [(MapCameraUpdateFrequency, (MapCameraUpdateContext) -> Void)] { get { self[_MapCameraChangeKey.self] } set { self[_MapCameraChangeKey.self] = newValue } }
-    var _mapUserButton: Bool { get { self[_MapControlsKey.self] } set { self[_MapControlsKey.self] = newValue } }
+    var _mapControls: _MapControls { get { self[_MapControlsKey.self] } set { self[_MapControlsKey.self] = newValue } }
 }
 extension View {
     public func mapStyle(_ style: MapStyle) -> some View { environment(\._mapStyle, style) }
@@ -115,8 +119,21 @@ extension View {
     public func onMapCameraChange(frequency: MapCameraUpdateFrequency = .onEnd, _ action: @escaping (MapCameraUpdateContext) -> Void) -> some View {
         transformEnvironment(\._mapCameraChange) { $0.append((frequency, action)) }
     }
-    /// map controls are accepted; isim shows the attribution only (the user-location button is not drawn)
-    public func mapControls<C: View>(@ViewBuilder _ content: () -> C) -> some View { self }
+    /// the controls the map draws: MapCompass, MapScaleView, MapUserLocationButton, MapPitchToggle (found in the content)
+    public func mapControls<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        var c = _MapControls(compass: false)
+        func walk(_ v: Any, _ depth: Int) {
+            switch v {
+            case is MapCompass: c.compass = true
+            case is MapScaleView: c.scale = true
+            case is MapUserLocationButton: c.user = true
+            case is MapPitchToggle: c.pitch = true
+            default: if depth < 8 { for child in Mirror(reflecting: v).children { walk(child.value, depth + 1) } }
+            }
+        }
+        walk(content(), 0)
+        return environment(\._mapControls, c)
+    }
     public func mapControlVisibility(_ visibility: Visibility) -> some View { self }
 }
 
@@ -126,6 +143,7 @@ public protocol MapContent {}
 enum _MapItem {
     case marker(title: String, coordinate: CLLocationCoordinate2D, tint: UIColor?, glyph: String?, image: String?, tag: AnyHashable?)
     case annotation(title: String, coordinate: CLLocationCoordinate2D, anchor: UnitPoint, view: AnyView, tag: AnyHashable?)
+    case pin(coordinate: CLLocationCoordinate2D, tint: UIColor?)
     case polyline(points: [MKMapPoint], stroke: UIColor, width: CGFloat)
     case polygon(points: [MKMapPoint], fill: UIColor?, stroke: UIColor?, width: CGFloat)
     case circle(center: CLLocationCoordinate2D, radius: Double, fill: UIColor?, stroke: UIColor?, width: CGFloat)
@@ -134,6 +152,7 @@ enum _MapItem {
         switch self {
         case .marker(let t, let c, let tint, let g, let i, let tag): return "m|\(t)|\(c.latitude),\(c.longitude)|\(tint.map { "\($0)" } ?? "")|\(g ?? "")|\(i ?? "")|\(tag.map { "\($0)" } ?? "")"
         case .annotation(let t, let c, _, _, let tag): return "a|\(t)|\(c.latitude),\(c.longitude)|\(tag.map { "\($0)" } ?? "")"
+        case .pin(let c, let tint): return "p|\(c.latitude),\(c.longitude)|\(tint.map { "\($0)" } ?? "")"
         case .polyline(let p, let s, let w): return "l|\(p.count)|\(p.first?.x ?? 0)|\(p.last?.y ?? 0)|\(s)|\(w)"
         case .polygon(let p, let f, let s, let w): return "g|\(p.count)|\(p.first?.x ?? 0)|\(f.map { "\($0)" } ?? "")|\(s.map { "\($0)" } ?? "")|\(w)"
         case .circle(let c, let r, let f, let s, let w): return "c|\(c.latitude),\(c.longitude)|\(r)|\(f.map { "\($0)" } ?? "")|\(s.map { "\($0)" } ?? "")|\(w)"
@@ -247,7 +266,7 @@ public struct MapMarker: MapAnnotationProtocol {
 public struct MapPin: MapAnnotationProtocol {
     let coordinate: CLLocationCoordinate2D, tint: Color?
     public init(coordinate: CLLocationCoordinate2D, tint: Color? = nil) { self.coordinate = coordinate; self.tint = tint }
-    public var _legacy: _MapLegacyItem { _MapLegacyItem(item: .marker(title: "", coordinate: coordinate, tint: tint?.uiColor, glyph: nil, image: nil, tag: nil)) }
+    public var _legacy: _MapLegacyItem { _MapLegacyItem(item: .pin(coordinate: coordinate, tint: tint?.uiColor)) }
 }
 public struct MapAnnotation<Content: View>: MapAnnotationProtocol {
     let coordinate: CLLocationCoordinate2D, anchor: UnitPoint, content: Content
@@ -267,6 +286,7 @@ public struct Map: View {
     let modes: MapInteractionModes
     let selection: Binding<AnyHashable?>?
     var legacyUser = false
+    var legacyTracking: Binding<MapUserTrackingMode>?
 
     public init(position: Binding<MapCameraPosition>, bounds: MapCameraBounds? = nil, interactionModes: MapInteractionModes = .all, scope: Namespace.ID? = nil,
                 @MapContentBuilder content: () -> _MapContentList) {
@@ -300,6 +320,7 @@ public struct Map: View {
     public init(coordinateRegion: Binding<MKCoordinateRegion>, interactionModes: MapInteractionModes = .all, showsUserLocation: Bool = false,
                 userTrackingMode: Binding<MapUserTrackingMode>? = nil) {
         camera = .legacy(coordinateRegion); items = showsUserLocation ? [.user] : []; bounds = nil; modes = interactionModes; selection = nil
+        legacyTracking = userTrackingMode
     }
     public init<Items: RandomAccessCollection, A: MapAnnotationProtocol>(coordinateRegion: Binding<MKCoordinateRegion>, interactionModes: MapInteractionModes = .all,
                 showsUserLocation: Bool = false, userTrackingMode: Binding<MapUserTrackingMode>? = nil, annotationItems: Items,
@@ -307,6 +328,7 @@ public struct Map: View {
         camera = .legacy(coordinateRegion)
         items = (showsUserLocation ? [_MapItem.user] : []) + annotationItems.map { annotationContent($0)._legacy.item }
         bounds = nil; modes = interactionModes; selection = nil
+        legacyTracking = userTrackingMode
     }
     public var body: some View { _MapRepresentable(map: self) }
 }
@@ -315,6 +337,7 @@ public enum MapUserTrackingMode: Sendable { case none, follow }
 final class _MapMarkerAnnotation: MKPointAnnotation, @unchecked Sendable {
     var tint: UIColor?, glyph: String?, image: String?, tagValue: AnyHashable?
 }
+final class _MapPinAnnotation: MKPointAnnotation, @unchecked Sendable { var tint: UIColor? }
 final class _MapHostAnnotation: MKPointAnnotation, @unchecked Sendable {
     var view: AnyView = AnyView(EmptyView()), anchor = UnitPoint.bottom, tagValue: AnyHashable?
 }
@@ -358,6 +381,11 @@ struct _MapRepresentable: UIViewRepresentable {
                 if let i = m.image { v.glyphImage = UIImage(systemName: i) ?? UIImage(named: i) }
                 return v
             }
+            if let p = annotation as? _MapPinAnnotation {
+                let v = MKPinAnnotationView(annotation: p, reuseIdentifier: nil)
+                v.pinTintColor = p.tint ?? MKPinAnnotationView.redPinColor()
+                return v
+            }
             if let h = annotation as? _MapHostAnnotation {
                 let v = _MapHostingAnnotationView(annotation: h, reuseIdentifier: nil)
                 v.setContent(h.view, anchor: h.anchor)
@@ -396,6 +424,12 @@ struct _MapRepresentable: UIViewRepresentable {
             for (f, a) in envActions where final || f == .continuous { a(ctx) }
         }
         var envActions: [(MapCameraUpdateFrequency, (MapCameraUpdateContext) -> Void)] = []
+        func mapView(_ mapView: MKMapView, didChange mode: MKUserTrackingMode, animated: Bool) {
+            if let t = parent.map.legacyTracking {
+                let v: MapUserTrackingMode = mode == .none ? .none : .follow
+                DispatchQueue.main.async { if t.wrappedValue != v { t.wrappedValue = v } }
+            }
+        }
         func mapView(_ mapView: MKMapView, didSelect annotation: MKAnnotation) {
             let tag = (annotation as? _MapMarkerAnnotation)?.tagValue ?? (annotation as? _MapHostAnnotation)?.tagValue
             if let s = parent.map.selection, let tag { DispatchQueue.main.async { s.wrappedValue = tag } }
@@ -418,6 +452,15 @@ struct _MapRepresentable: UIViewRepresentable {
         c.envActions = context.environment._mapCameraChange
         m.mapType = context.environment._mapStyle?.type ?? .standard
         m.isScrollEnabled = map.modes.contains(.pan); m.isZoomEnabled = map.modes.contains(.zoom)
+        m.isRotateEnabled = map.modes.contains(.rotate); m.isPitchEnabled = map.modes.contains(.pitch)
+        let controls = context.environment._mapControls
+        m.showsCompass = controls.compass; m.showsScale = controls.scale
+        m.showsUserTrackingButton = controls.user; m._showsPitchButton = controls.pitch
+        if controls.user && !m.showsUserLocation { m.showsUserLocation = true }
+        if let t = map.legacyTracking {
+            let want: MKUserTrackingMode = t.wrappedValue == .follow ? .follow : .none
+            if m.userTrackingMode != want { m.userTrackingMode = want }
+        }
         if let b = map.bounds {
             if let r = b.rect { m.cameraBoundary = MKMapCameraBoundary(mapRect: r) }
             m.cameraZoomRange = MKMapCameraZoomRange(minCenterCoordinateDistance: b.minDistance ?? 0, maxCenterCoordinateDistance: b.maxDistance ?? .greatestFiniteMagnitude)
@@ -447,6 +490,9 @@ struct _MapRepresentable: UIViewRepresentable {
                     let o = MKPolygon(); o._points = p; c.overlayStyles[ObjectIdentifier(o)] = _MapStyledOverlay(f, s, w); ovs.append(o)
                 case .circle(let ce, let r, let f, let s, let w):
                     let o = MKCircle(center: ce, radius: r); c.overlayStyles[ObjectIdentifier(o)] = _MapStyledOverlay(f, s, w); ovs.append(o)
+                case .pin(let co, let tint):
+                    let a = _MapPinAnnotation(coordinate: co, title: nil, subtitle: nil); a.tint = tint
+                    anns.append(a)
                 case .user: user = true
                 }
             }
@@ -495,7 +541,7 @@ struct _MapRepresentable: UIViewRepresentable {
             var r = MKMapRect.null
             for it in items {
                 switch it {
-                case .marker(_, let co, _, _, _, _), .annotation(_, let co, _, _, _): let q = MKMapPoint(co); r = r.union(MKMapRect(x: q.x, y: q.y, width: 0, height: 0))
+                case .marker(_, let co, _, _, _, _), .annotation(_, let co, _, _, _), .pin(let co, _): let q = MKMapPoint(co); r = r.union(MKMapRect(x: q.x, y: q.y, width: 0, height: 0))
                 case .polyline(let pts, _, _), .polygon(let pts, _, _, _): for q in pts { r = r.union(MKMapRect(x: q.x, y: q.y, width: 0, height: 0)) }
                 case .circle(let ce, let rad, _, _, _): r = r.union(MKCircle(center: ce, radius: rad).boundingMapRect)
                 case .user: break

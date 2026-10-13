@@ -104,3 +104,45 @@ def test_missing_usage_description(launch, tmp_path):
     app.sleep(0.8)                                                       # no alert may come
     assert "text=Allow Once" not in app.view_dump(), "missing usage description: no alert"
     app.quit()
+
+
+BEACON = "E2C56DB5-DFFB-48D2-B060-D0F5A71096E0"
+
+
+def test_beacons_visits_monitor(launch):
+    """Simulated iBeacons (ISIM_BEACONS, script `beacon`): ranging about once a second and a beacon region's exit and
+    entry; visits (a stay of ISIM_VISIT_SECONDS, then the departure); CLMonitor's circular and beacon conditions, and
+    its records kept for the next launch."""
+    env = {"ISIM_LOCATION_PERMISSION": "wheninuse", "ISIM_VISIT_SECONDS": "1", "ISIM_BEACONS": f"{BEACON}:1:7:immediate"}
+    app = launch("HelloLocation", env=env)
+    app.wait_tap_id("requestWhenInUse")
+    app.wait_log(r"^auth authorizedWhenInUse")
+    app.tap_id("beacons")
+    app.wait_log(r"^ranging available true beacon regions true$")
+    app.wait_log(r"^ranged 1 1\.7 immediate -40$")
+    app.wait_log(r"^monitoring Lobby$")
+    app.send("beacon none")
+    app.wait_log(r"^ranged 0 $")                                          # ranging goes on with no beacon in range
+    app.wait_log(r"^region exit Lobby$")
+    app.send(f"beacon {BEACON} 1 9 far")
+    app.wait_log(r"^ranged 1 1\.9 far -85$")
+    app.wait_log(r"^region enter Lobby$")
+
+    app.tap_id("visits")
+    app.wait_log(r"^visit arrival 37\.3349 -122\.0090$")                  # staying at Apple Park
+    app.tap_id("clmonitor")
+    app.wait_log(r"^monitor ids lobby,park$")
+    app.wait_log(r"^monitor event park satisfied$")                       # added as unknown: its state at once
+    app.wait_log(r"^monitor event lobby satisfied beacon 1\.9$")          # assumed unsatisfied, the beacon is there
+    app.wait_log(r"^monitor record park true$")
+    app.send("location 37.787994 -122.407437")
+    app.wait_log(r"^visit departure 37\.3349 -122\.0090$")
+    app.wait_log(r"^monitor event park unsatisfied$")
+    app.send("beacon none")
+    app.wait_log(r"^monitor event lobby unsatisfied$")
+    assert app.quit() == 0
+
+    again = launch("HelloLocation", env=env)                              # the same device data
+    again.wait_tap_id("clmonitor")
+    again.wait_log(r'CLMonitor "hello" with 2 condition\(s\)')            # the records persist per monitor name
+    again.wait_log(r"^monitor ids lobby,park$")

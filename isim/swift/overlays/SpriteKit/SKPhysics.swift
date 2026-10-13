@@ -494,7 +494,7 @@ open class SKPhysicsWorld: NSObject {
     open var gravity = CGVector(dx: 0, dy: -9.8)
     open var speed: CGFloat = 1
     open weak var contactDelegate: SKPhysicsContactDelegate?
-    // isim ABI: until 0.18 this property was typed AnyObject?; keep its getter/setter entry points for apps built then
+    // isim ABI: until 0.19 this property was typed AnyObject?; keep its getter/setter entry points for apps built then
     @usableFromInline @_silgen_name("$s9SpriteKit14SKPhysicsWorldC15contactDelegateyXlSgvgTj")
     final func _abi_contactDelegateObject() -> AnyObject? { contactDelegate }
     @usableFromInline @_silgen_name("$s9SpriteKit14SKPhysicsWorldC15contactDelegateyXlSgvsTj")

@@ -263,18 +263,38 @@ open class MKOverlayRenderer: NSObject {
         let p = mapPoint(for: rect.origin); return MKMapRect(x: p.x, y: p.y, width: Double(rect.width), height: Double(rect.height))
     }
     open func canDraw(_ mapRect: MKMapRect, zoomScale: MKZoomScale) -> Bool { true }
+    /// subclasses draw here, as on iOS: the context's units are this renderer's coordinates (map points from the
+    /// overlay's corner, point(for:)), scaled by zoomScale (view points per map point) to the screen
     open func draw(_ mapRect: MKMapRect, zoomScale: MKZoomScale, in context: CGContext) {}
     open func setNeedsDisplay() { _onChange?() }
     open func setNeedsDisplay(_ mapRect: MKMapRect) { _onChange?() }
+    open func setNeedsDisplay(_ mapRect: MKMapRect, zoomScale: MKZoomScale) { _onChange?() }
     var _onChange: (() -> Void)?
-    /// isim: draw into the map's overlay view; `toView` maps map points to view points
-    func _draw(toView: (MKMapPoint) -> CGPoint, scale: CGFloat, visible: MKMapRect) {}
+    /// isim: draws into the map's overlay layer, where `toView` maps map points to view points (an offset and a scale
+    /// of 1/scale). adapted: iOS draws in tiles, each its own draw(_:zoomScale:in:) call; isim makes one call for the
+    /// visible part of the overlay
+    func _draw(toView: (MKMapPoint) -> CGPoint, scale: CGFloat, visible: MKMapRect) {
+        guard let ctx = UIGraphicsGetCurrentContext() else { return }
+        let box = overlay.boundingMapRect
+        let rect = box.isNull || box.width.isInfinite ? visible : visible.intersection(box.insetBy(dx: -Double(scale) * 50, dy: -Double(scale) * 50))
+        let zoom = MKZoomScale(1 / scale)
+        guard !rect.isNull, rect.width > 0 || rect.height > 0, canDraw(rect, zoomScale: zoom) else { return }
+        let o = toView(box.isNull ? MKMapPoint(x: 0, y: 0) : box.origin)
+        ctx.saveGState()
+        ctx.translateBy(x: o.x, y: o.y)
+        ctx.scaleBy(x: zoom, y: zoom)
+        ctx.setAlpha(alpha)
+        draw(rect, zoomScale: zoom, in: ctx)
+        ctx.restoreGState()
+    }
 }
 
+/// adapted from iOS: draw(_:zoomScale:in:) makes the path once (createPath), then fills it (applyFillProperties,
+/// fillPath) and strokes it (applyStrokeProperties, strokePath). Line widths and dash lengths are in view points.
 open class MKOverlayPathRenderer: MKOverlayRenderer {
-    open var fillColor: UIColor?
-    open var strokeColor: UIColor?
-    open var lineWidth: CGFloat = 0
+    open var fillColor: UIColor? { didSet { setNeedsDisplay() } }
+    open var strokeColor: UIColor? { didSet { setNeedsDisplay() } }
+    open var lineWidth: CGFloat = 0 { didSet { setNeedsDisplay() } }
     open var lineJoin: CGLineJoin = .round
     open var lineCap: CGLineCap = .round
     open var miterLimit: CGFloat = 10
@@ -282,24 +302,64 @@ open class MKOverlayPathRenderer: MKOverlayRenderer {
     open var lineDashPattern: [NSNumber]?
     open var shouldRasterize = false
     open var path: CGPath!
-    open func createPath() { }
+    open func createPath() {}
     open func invalidatePath() { path = nil; setNeedsDisplay() }
-    open func applyStrokeProperties(to context: CGContext, atZoomScale zoomScale: MKZoomScale) {}
-    open func applyFillProperties(to context: CGContext, atZoomScale zoomScale: MKZoomScale) {}
-    open func strokePath(_ path: CGPath, in context: CGContext) {}
-    open func fillPath(_ path: CGPath, in context: CGContext) {}
-    /// the shape in view coordinates (isim draws with UIBezierPath)
-    func _viewPath(_ toView: (MKMapPoint) -> CGPoint, _ scale: CGFloat) -> UIBezierPath? { nil }
-    var _closed: Bool { true }
-    override func _draw(toView: (MKMapPoint) -> CGPoint, scale: CGFloat, visible: MKMapRect) {
-        guard let p = _viewPath(toView, scale) else { return }
-        if _closed, let f = fillColor { f.withAlphaComponent(_alphaOf(f) * alpha).setFill(); p.fill() }
-        if let s = strokeColor, lineWidth > 0 {
-            s.withAlphaComponent(_alphaOf(s) * alpha).setStroke()
-            p.lineWidth = lineWidth
-            /* isim: lineDashPattern is not drawn (solid lines) */
-            p.stroke()
+    open func applyStrokeProperties(to context: CGContext, atZoomScale zoomScale: MKZoomScale) {
+        let s = 1 / max(zoomScale, 1e-12)
+        context.setStrokeColor((strokeColor ?? .clear).cgColor)
+        context.setLineWidth(lineWidth * s)
+        context.setLineJoin(lineJoin)
+        context.setLineCap(lineCap)
+        context.setMiterLimit(miterLimit)
+        if let d = lineDashPattern, !d.isEmpty {
+            context.setLineDash(phase: lineDashPhase * s, lengths: d.map { CGFloat($0.doubleValue) * s })
         }
+    }
+    open func applyFillProperties(to context: CGContext, atZoomScale zoomScale: MKZoomScale) {
+        context.setFillColor((fillColor ?? .clear).cgColor)
+    }
+    open func strokePath(_ path: CGPath, in context: CGContext) {
+        context.addPath(path)
+        context.strokePath()
+    }
+    open func fillPath(_ path: CGPath, in context: CGContext) {
+        context.addPath(path)
+        context.fillPath(using: .evenOdd)   /* interior polygons are holes */
+    }
+    open override func draw(_ mapRect: MKMapRect, zoomScale: MKZoomScale, in context: CGContext) {
+        if path == nil { createPath() }
+        guard let p = path else { return }
+        if fillColor != nil && _fills {
+            context.saveGState(); applyFillProperties(to: context, atZoomScale: zoomScale); fillPath(p, in: context); context.restoreGState()
+        }
+        if strokeColor != nil, lineWidth > 0 {
+            context.saveGState(); applyStrokeProperties(to: context, atZoomScale: zoomScale); strokePath(_strokedPath(p), in: context); context.restoreGState()
+        }
+    }
+    var _fills: Bool { true }
+    /// the part of the path stroked (strokeStart / strokeEnd of polylines and circles)
+    func _strokedPath(_ p: CGPath) -> CGPath { p }
+    /// a polyline's points in renderer coordinates, trimmed to the fractions [start, end] of its length
+    func _line(_ pts: [MKMapPoint], from start: CGFloat = 0, to end: CGFloat = 1) -> [CGPoint] {
+        let q = pts.map { point(for: $0) }
+        guard q.count > 1, start > 0 || end < 1 else { return q }
+        var lens: [CGFloat] = [0]
+        for i in 1..<q.count { lens.append(lens[i - 1] + hypot(q[i].x - q[i - 1].x, q[i].y - q[i - 1].y)) }
+        let total = lens.last!, a = max(0, min(1, start)) * total, b = max(0, min(1, end)) * total
+        guard b > a else { return [] }
+        func at(_ d: CGFloat) -> CGPoint {
+            let i = max(1, lens.firstIndex { $0 >= d } ?? q.count - 1)
+            let seg = lens[i] - lens[i - 1], t = seg > 0 ? (d - lens[i - 1]) / seg : 0
+            return CGPoint(x: q[i - 1].x + (q[i].x - q[i - 1].x) * t, y: q[i - 1].y + (q[i].y - q[i - 1].y) * t)
+        }
+        var out = [at(a)]
+        for i in 0..<q.count where lens[i] > a && lens[i] < b { out.append(q[i]) }
+        out.append(at(b))
+        return out
+    }
+    func _addRing(_ pts: [MKMapPoint], to p: CGMutablePath) {
+        guard pts.count > 2 else { return }
+        p.addLines(between: pts.map { point(for: $0) }); p.closeSubpath()
     }
 }
 
@@ -307,37 +367,80 @@ open class MKPolylineRenderer: MKOverlayPathRenderer {
     public init(polyline: MKPolyline) { super.init(overlay: polyline) }
     public override init(overlay: MKOverlay) { super.init(overlay: overlay) }
     open var polyline: MKPolyline { overlay as! MKPolyline }
-    open var strokeStart: CGFloat = 0
-    open var strokeEnd: CGFloat = 1
-    override var _closed: Bool { false }
-    override func _viewPath(_ toView: (MKMapPoint) -> CGPoint, _ scale: CGFloat) -> UIBezierPath? {
-        let pts = polyline._points
-        guard pts.count > 1 else { return nil }
-        let p = UIBezierPath()
-        p.move(to: toView(pts[0]))
-        for q in pts.dropFirst() { p.addLine(to: toView(q)) }
-        return p
+    open var strokeStart: CGFloat = 0 { didSet { setNeedsDisplay() } }
+    open var strokeEnd: CGFloat = 1 { didSet { setNeedsDisplay() } }
+    open override func createPath() {
+        let p = CGMutablePath()
+        let pts = _line(polyline._points)
+        if pts.count > 1 { p.addLines(between: pts) }
+        path = p
     }
+    override func _strokedPath(_ p: CGPath) -> CGPath {
+        guard strokeStart > 0 || strokeEnd < 1 else { return p }
+        let t = CGMutablePath(), pts = _line(polyline._points, from: strokeStart, to: strokeEnd)
+        if pts.count > 1 { t.addLines(between: pts) }
+        return t
+    }
+    override var _fills: Bool { false }   /* a line has no inside */
 }
+/// adapted: the line is stroked segment by segment, each in the colour at its middle (colours blend between locations)
 open class MKGradientPolylineRenderer: MKPolylineRenderer {
-    var colors: [UIColor] = [], locations: [CGFloat] = []
-    open func setColors(_ colors: [UIColor], locations: [CGFloat]) { self.colors = colors; self.locations = locations; if strokeColor == nil { strokeColor = colors.first } }
+    open private(set) var colors: [UIColor] = []
+    open private(set) var locations: [CGFloat] = []
+    open func setColors(_ colors: [UIColor], locations: [CGFloat]) {
+        self.colors = colors
+        self.locations = locations.count == colors.count ? locations : colors.indices.map { colors.count > 1 ? CGFloat($0) / CGFloat(colors.count - 1) : 0 }
+        setNeedsDisplay()
+    }
+    func _color(at t: CGFloat) -> UIColor {
+        guard let first = colors.first else { return strokeColor ?? .clear }
+        guard t > locations[0] else { return first }
+        for i in 1..<colors.count where t <= locations[i] {
+            let u = (t - locations[i - 1]) / max(1e-9, locations[i] - locations[i - 1])
+            var r0: CGFloat = 0, g0: CGFloat = 0, b0: CGFloat = 0, a0: CGFloat = 0, r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+            colors[i - 1].getRed(&r0, green: &g0, blue: &b0, alpha: &a0); colors[i].getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+            return UIColor(red: r0 + (r1 - r0) * u, green: g0 + (g1 - g0) * u, blue: b0 + (b1 - b0) * u, alpha: a0 + (a1 - a0) * u)
+        }
+        return colors.last!
+    }
+    open override func draw(_ mapRect: MKMapRect, zoomScale: MKZoomScale, in context: CGContext) {
+        guard !colors.isEmpty, lineWidth > 0 else { super.draw(mapRect, zoomScale: zoomScale, in: context); return }
+        let all = _line(polyline._points), pts = _line(polyline._points, from: strokeStart, to: strokeEnd)
+        guard pts.count > 1 else { return }
+        var total: CGFloat = 0
+        for i in 1..<all.count { total += hypot(all[i].x - all[i - 1].x, all[i].y - all[i - 1].y) }
+        let start = max(0, min(1, strokeStart)) * total
+        var run: CGFloat = 0
+        context.saveGState()
+        applyStrokeProperties(to: context, atZoomScale: zoomScale)
+        context.setLineCap(.butt)   /* pieces meet edge to edge (adapted: no round caps at the ends) */
+        for i in 1..<pts.count {
+            let a = pts[i - 1], b = pts[i], len = hypot(b.x - a.x, b.y - a.y)
+            let n = max(1, min(256, Int((len / max(total, 1e-9) * 128).rounded(.up))))   /* long segments in short pieces */
+            for k in 0..<n {
+                let t0 = CGFloat(k) / CGFloat(n), t1 = CGFloat(k + 1) / CGFloat(n)
+                context.setStrokeColor(_color(at: total > 0 ? (start + run + len * (t0 + t1) / 2) / total : 0).cgColor)
+                context.move(to: CGPoint(x: a.x + (b.x - a.x) * t0, y: a.y + (b.y - a.y) * t0))
+                context.addLine(to: CGPoint(x: a.x + (b.x - a.x) * t1, y: a.y + (b.y - a.y) * t1))
+                context.strokePath()
+            }
+            run += len
+        }
+        context.restoreGState()
+    }
 }
 
 open class MKPolygonRenderer: MKOverlayPathRenderer {
     public init(polygon: MKPolygon) { super.init(overlay: polygon) }
     public override init(overlay: MKOverlay) { super.init(overlay: overlay) }
     open var polygon: MKPolygon { overlay as! MKPolygon }
-    override func _viewPath(_ toView: (MKMapPoint) -> CGPoint, _ scale: CGFloat) -> UIBezierPath? {
-        func ring(_ pts: [MKMapPoint], into p: UIBezierPath) {
-            guard pts.count > 2 else { return }
-            p.move(to: toView(pts[0])); for q in pts.dropFirst() { p.addLine(to: toView(q)) }; p.close()
-        }
-        let p = UIBezierPath()
-        ring(polygon._points, into: p)
-        for hole in polygon.interiorPolygons ?? [] { ring(hole._points, into: p) }
-        /* isim: interior polygons are outlined but not cut out of the fill */
-        return p
+    open var strokeStart: CGFloat = 0
+    open var strokeEnd: CGFloat = 1
+    open override func createPath() {
+        let p = CGMutablePath()
+        _addRing(polygon._points, to: p)
+        for hole in polygon.interiorPolygons ?? [] { _addRing(hole._points, to: p) }   /* cut out by the even-odd fill */
+        path = p
     }
 }
 
@@ -345,34 +448,45 @@ open class MKCircleRenderer: MKOverlayPathRenderer {
     public init(circle: MKCircle) { super.init(overlay: circle) }
     public override init(overlay: MKOverlay) { super.init(overlay: overlay) }
     open var circle: MKCircle { overlay as! MKCircle }
-    open var strokeStart: CGFloat = 0
-    open var strokeEnd: CGFloat = 1
-    override func _viewPath(_ toView: (MKMapPoint) -> CGPoint, _ scale: CGFloat) -> UIBezierPath? {
-        let c = toView(MKMapPoint(circle.coordinate))
-        let r = CGFloat(circle.radius * MKMapPointsPerMeterAtLatitude(circle.coordinate.latitude)) / scale
-        return UIBezierPath(ovalIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r))
+    open var strokeStart: CGFloat = 0 { didSet { setNeedsDisplay() } }
+    open var strokeEnd: CGFloat = 1 { didSet { setNeedsDisplay() } }
+    var _circleGeometry: (CGPoint, CGFloat) {
+        (point(for: MKMapPoint(circle.coordinate)), CGFloat(circle.radius * MKMapPointsPerMeterAtLatitude(circle.coordinate.latitude)))
+    }
+    open override func createPath() {
+        let (c, r) = _circleGeometry
+        path = CGPath(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r), transform: nil)
+    }
+    override func _strokedPath(_ p: CGPath) -> CGPath {
+        guard strokeStart > 0 || strokeEnd < 1 else { return p }
+        // from the top, clockwise (as iOS draws the circle)
+        let (c, r) = _circleGeometry, t = CGMutablePath()
+        let a = max(0, min(1, strokeStart)), b = max(a, min(1, strokeEnd))
+        t.addArc(center: c, radius: r, startAngle: -.pi / 2 + a * 2 * .pi, endAngle: -.pi / 2 + b * 2 * .pi, clockwise: false)
+        return t
     }
 }
 
 open class MKMultiPolylineRenderer: MKOverlayPathRenderer {
     public init(multiPolyline: MKMultiPolyline) { super.init(overlay: multiPolyline) }
-    override var _closed: Bool { false }
-    override func _viewPath(_ toView: (MKMapPoint) -> CGPoint, _ scale: CGFloat) -> UIBezierPath? {
-        let p = UIBezierPath()
-        for l in (overlay as! MKMultiPolyline).polylines where l._points.count > 1 {
-            p.move(to: toView(l._points[0])); for q in l._points.dropFirst() { p.addLine(to: toView(q)) }
-        }
-        return p
+    open var multiPolyline: MKMultiPolyline { overlay as! MKMultiPolyline }
+    open override func createPath() {
+        let p = CGMutablePath()
+        for l in multiPolyline.polylines where l._points.count > 1 { p.addLines(between: _line(l._points)) }
+        path = p
     }
+    override var _fills: Bool { false }
 }
 open class MKMultiPolygonRenderer: MKOverlayPathRenderer {
     public init(multiPolygon: MKMultiPolygon) { super.init(overlay: multiPolygon) }
-    override func _viewPath(_ toView: (MKMapPoint) -> CGPoint, _ scale: CGFloat) -> UIBezierPath? {
-        let p = UIBezierPath()
-        for g in (overlay as! MKMultiPolygon).polygons where g._points.count > 2 {
-            p.move(to: toView(g._points[0])); for q in g._points.dropFirst() { p.addLine(to: toView(q)) }; p.close()
+    open var multiPolygon: MKMultiPolygon { overlay as! MKMultiPolygon }
+    open override func createPath() {
+        let p = CGMutablePath()
+        for g in multiPolygon.polygons {
+            _addRing(g._points, to: p)
+            for hole in g.interiorPolygons ?? [] { _addRing(hole._points, to: p) }
         }
-        return p
+        path = p
     }
 }
 

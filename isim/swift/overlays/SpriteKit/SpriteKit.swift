@@ -587,7 +587,7 @@ open class SKScene: SKNode {
     open private(set) weak var view: SKView?
     open var delegate: SKSceneDelegate?
     open var camera: SKCameraNode?
-    // isim ABI: until 0.18 this property was typed SKNode?; keep its getter/setter entry points for apps built then
+    // isim ABI: until 0.19 this property was typed SKNode?; keep its getter/setter entry points for apps built then
     @usableFromInline @_silgen_name("$s9SpriteKit7SKSceneC6cameraAA6SKNodeCSgvgTj")
     final func _abi_cameraNode() -> SKNode? { camera }
     @usableFromInline @_silgen_name("$s9SpriteKit7SKSceneC6cameraAA6SKNodeCSgvsTj")

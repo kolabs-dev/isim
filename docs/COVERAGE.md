@@ -39,10 +39,10 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | &nbsp;&nbsp;↳ Accessibility | 14 | 0 | 0 | 0 | 14 | 100% |
 | &nbsp;&nbsp;↳ Drag & drop | 8 | 0 | 0 | 0 | 8 | 100% |
 | &nbsp;&nbsp;↳ Appearance & dark mode | 15 | 0 | 0 | 1 | 16 | 94% |
-| **SwiftUI** | 237 | 2 | 0 | 2 | 241 | 99% |
+| **SwiftUI** | 238 | 1 | 0 | 2 | 241 | 99% |
 | &nbsp;&nbsp;↳ App & scenes | 11 | 0 | 0 | 0 | 11 | 100% |
 | &nbsp;&nbsp;↳ State & data flow | 17 | 0 | 0 | 0 | 17 | 100% |
-| &nbsp;&nbsp;↳ Views & controls | 38 | 2 | 0 | 1 | 41 | 95% |
+| &nbsp;&nbsp;↳ Views & controls | 39 | 1 | 0 | 1 | 41 | 96% |
 | &nbsp;&nbsp;↳ Containers & layout | 28 | 0 | 0 | 0 | 28 | 100% |
 | &nbsp;&nbsp;↳ Navigation & presentation | 37 | 0 | 0 | 0 | 37 | 100% |
 | &nbsp;&nbsp;↳ Modifiers & visual effects | 36 | 0 | 0 | 0 | 36 | 100% |
@@ -82,12 +82,12 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Identity & security | 9 | 2 | 2 | 0 | 13 | 77% |
 | Notifications & background work | 13 | 0 | 0 | 0 | 13 | 100% |
 | App extensions & system integration | 9 | 1 | 0 | 0 | 10 | 95% |
-| Location & maps | 2 | 5 | 0 | 0 | 7 | 64% |
+| Location & maps | 7 | 0 | 0 | 0 | 7 | 100% |
 | Personal data & device sensors | 6 | 0 | 0 | 0 | 6 | 100% |
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 42 | 5 | 0 | 3 | 50 | 89% |
-| **All areas** | **1037** | **48** | **11** | **16** | **1112** | **95%** |
+| **All areas** | **1043** | **42** | **11** | **16** | **1112** | **96%** |
 
 ### Per iOS version
 
@@ -116,12 +116,12 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Identity & security | 77% (13) | 77% (13) | 77% (13) | 77% (13) |
 | Notifications & background work | 100% (13) | 100% (13) | 100% (13) | 100% (13) |
 | App extensions & system integration | 95% (10) | 95% (10) | 95% (10) | 95% (10) |
-| Location & maps | 64% (7) | 64% (7) | 64% (7) | 64% (7) |
+| Location & maps | 100% (7) | 100% (7) | 100% (7) | 100% (7) |
 | Personal data & device sensors | 100% (6) | 100% (6) | 100% (6) | 100% (6) |
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 89% (48) | 89% (49) | 89% (50) | 89% (50) |
-| **All areas** | **95%** (1046) | **95%** (1062) | **95%** (1091) | **95%** (1112) |
+| **All areas** | **96%** (1046) | **96%** (1062) | **96%** (1091) | **96%** (1112) |
 
 ---
 
@@ -585,7 +585,7 @@ are laid out with SwiftUI-style proposals, and render as UIKit views.
 | `ControlGroup`, `GroupBox`, `DisclosureGroup`, `OutlineGroup` | ✅ | ≤17 | disclosure rows expand/collapse (own state or `isExpanded:` binding; in a List the content follows as indented rows); `OutlineGroup` and `List(_:children:)` build the tree; control groups share one bordered row (`controlGroupStyle` ignored); tested (HelloPickers) |
 | `EditButton`, `PasteButton`, `RenameButton` | ✅ | ≤17 | `EditButton` toggles `\.editMode` (tested, HelloLists); `PasteButton` is UIKit's paste control: enabled while the pasteboard has an accepted type, a tap pastes without the "Allow Paste" prompt and delivers `Transferable` payloads or item providers (tested, HelloSwiftUIControls); `RenameButton` runs `.renameAction { }` or focuses `.renameAction($focus)` (tested) |
 | `VideoPlayer` (AVKit) | ✅ | ≤17 | with `videoOverlay`: see AVKit (tested there) |
-| `Map` (MapKit) | 🟡 | ≤17 | iOS 17 MapContent + iOS 14 `coordinateRegion` API on isim's MKMapView: tested (HelloMaps); `mapControls` are accepted but not drawn: see the MapKit row |
+| `Map` (MapKit) | ✅ | ≤17 | iOS 17 MapContent + iOS 14 `coordinateRegion` API on isim's MKMapView, with map controls: see the MapKit rows; tested (HelloMaps) |
 | `SceneView` (SceneKit) | ❌ | ≤17 | needs SceneKit, a 3D renderer isim does not have (see the SceneKit row); not part of SwiftUI itself |
 | `SpriteView` | ✅ | ≤17 | see SpriteKit |
 
@@ -1187,8 +1187,8 @@ isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (n
 | Touch handling in scenes/nodes | ✅ | ≤17 | via SKView |
 | `SKTransition` / `presentScene(_:transition:)` | ✅ | ≤17 | crossFade, fade (with color), push, moveIn, reveal, doorway, doors open/close, flips; pauses incoming/outgoing scenes. `SKTransition(ciFilter:duration:)`: both scenes rendered offscreen into the filter's input and target images with `inputTime` 0…1 (a dissolve's mixed frame checked by pixels) |
 | `SpriteView` (SwiftUI) | ✅ | ≤17 | scene, transition, paused, options, debug options |
-| `SKCameraNode` (position/rotation/scale drive the view, children as HUD, `contains`, `containedNodeSet`) | ✅ | ≤17 | `SKScene.camera` is typed `SKCameraNode?` as on iOS (since 0.19) |
-| `SKPhysicsWorld` (gravity, speed, `contactDelegate`, joints, `body(at:)`, `body(in:)`, ray casts, `sampleFields(at:)`) | ✅ | ≤17 | `contactDelegate` is typed `SKPhysicsContactDelegate?` as on iOS (since 0.19); `sampleFields` gives the fields' force on a unit mass and charge (exclusive fields checked) |
+| `SKCameraNode` (position/rotation/scale drive the view, children as HUD, `contains`, `containedNodeSet`) | ✅ | ≤17 | `SKScene.camera` is typed `SKCameraNode?` as on iOS (since 0.20) |
+| `SKPhysicsWorld` (gravity, speed, `contactDelegate`, joints, `body(at:)`, `body(in:)`, ray casts, `sampleFields(at:)`) | ✅ | ≤17 | `contactDelegate` is typed `SKPhysicsContactDelegate?` as on iOS (since 0.20); `sampleFields` gives the fields' force on a unit mass and charge (exclusive fields checked) |
 | `SKPhysicsBody` shapes (circle, rectangle, polygon, edge, edge chain/loop, compound, `init(texture:size:)`, `init(texture:alphaThreshold:size:)`) | ✅ | ≤17 | adapted: concave polygons are split into convex pieces (a ball rests inside a U, checked); texture bodies are traced from the alpha (outline simplified, holes and empty corners kept empty, checked) |
 | `SKPhysicsBody` dynamics (mass/density/area, friction, restitution, damping, velocity, forces, impulses, torque, `allowsRotation`, `pinned`, `affectedByGravity`, `isResting`) | ✅ | ≤17 | 150 points per meter like SpriteKit; sequential impulses without warm starting (tall stacks settle less firmly than Box2D) |
 | Category / collision / contact bit masks, `SKPhysicsContact`, `didBegin` / `didEnd` | ✅ | ≤17 | collision response is per body, as in SpriteKit; static bodies moved by actions push dynamic ones |
@@ -1204,7 +1204,7 @@ isim's SpriteKit is its own Swift implementation, drawn with cairo on the CPU (n
 | `SKLightNode` | ✅ | ≤17 | adapted: per-pixel diffuse light (light color, ambient, falloff) with normal maps, and shadows cast by `shadowCastBitMask` sprites (lit side, unlit sprite, shadow and normals checked by pixels) |
 | `SKConstraint`, `SKRange` (position, distance, orientation, rotation, scale) | ✅ | ≤17 | distance, orientation and position (in a reference node's space) checked |
 | `SKReachConstraints`, inverse kinematics (`reach(to:rootNode:duration:)`, `…velocity:`, to a node) | ✅ | ≤17 | adapted: cyclic coordinate descent on the joints from the effector's parent up to the root, within each joint's angle limits; a moving target node is followed (all checked) |
-| `SKTileMapNode`, `SKTileSet`, `SKTileGroup`, `SKTileGroupRule`, `SKTileDefinition`, `SKTileAdjacencyMask` | 🟡 | ≤17 | maps built in code: fill, set/get, automapping (rules picked by which neighbours share the group: an exact mask, else the closest superset; grid and hex neighbours), grid / isometric / hexagonal flat and pointy layouts (tile centers and indices round-trip), animated definitions (checked); no tile sets from files (`SKTileSet(named:)` returns nil); `SKTileAdjacencyMask` is an OptionSet as on iOS (since 0.19) |
+| `SKTileMapNode`, `SKTileSet`, `SKTileGroup`, `SKTileGroupRule`, `SKTileDefinition`, `SKTileAdjacencyMask` | 🟡 | ≤17 | maps built in code: fill, set/get, automapping (rules picked by which neighbours share the group: an exact mask, else the closest superset; grid and hex neighbours), grid / isometric / hexagonal flat and pointy layouts (tile centers and indices round-trip), animated definitions (checked); no tile sets from files (`SKTileSet(named:)` returns nil); `SKTileAdjacencyMask` is an OptionSet as on iOS (since 0.20) |
 | `SKReferenceNode` (`init(fileNamed:)`, `init(url:)`, `resolve`, `didLoad`) | 🟡 | ≤17 | loads an .sks file's children by name or URL (checked with an archive laid out like isim's test files; see the .sks row) |
 | `SKView` debug overlays (`showsFPS`, `showsNodeCount`, `showsDrawCount`, `showsQuadCount`, `showsPhysics`, `showsFields`) | ✅ | ≤17 | statistics at the bottom right (draws and quads are isim's estimate of SpriteKit's batches); `showsPhysics` outlines bodies, `showsFields` draws each field's force on a grid of arrows (all checked by pixels) |
 | `SKView.texture(from:)`, `texture(from:crop:)` | ✅ | ≤17 | renders the node tree offscreen at the screen's scale (pixels and crop checked) |
@@ -1498,12 +1498,12 @@ id>/ledger.json`, kept when the app is deleted); `isim storekit <app> ...` is th
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | CoreLocation (`CLLocationManager`, authorization, updates, geocoding) | ✅ | ≤17 | permission alert (Allow Once / While Using / Don't Allow, Always upgrade) remembered per app; simulated location (adapted): Apple Park by default, `ISIM_LOCATION=lat,lon` or a looping route, `location LAT LON`/`location none` script commands; `requestLocation`, `CLLocationUpdate.liveUpdates`, `CLServiceSession`; `CLGeocoder` answers offline from a small built-in gazetteer (other places: `geocodeFoundNoResult`); no heading (like the Simulator); missing usage string: request ignored + logged |
-| Region monitoring, beacons, visits | 🟡 | ≤17 | `CLCircularRegion` monitoring (enter/exit, `requestState`) tested; beacons ranging unavailable and no visits, like the Simulator; `CLMonitor` (iOS 17) missing |
-| MapKit `MKMapView` (region, camera, map types, gestures, conversion) | 🟡 | ≤17 | adapted offline basemap: land colour, lat/lon graticule with labels and a built-in list of world cities/landmarks, or raster tiles from a local cache (`ISIM_MAP_TILES` or `$ISIM_DATA/Library/Maps/Tiles/{z}/{x}/{y}.png`, never downloaded); no coastlines/roads; north-up and flat (heading/pitch stored only); drag to pan, double-tap zoom (no pinch), changes not animated; zoom range/boundary honoured. Tested (HelloMaps) |
+| Region monitoring, beacons, visits | ✅ | ≤17 | `CLCircularRegion` monitoring (enter/exit, `requestState`); `CLMonitor` (iOS 17 actor: circular-geographic and beacon-identity conditions, `events`, records kept in `ISIM_DATA`, 20 conditions); iBeacons from the simulated radio (`beacon UUID MAJOR MINOR [immediate\|near\|far] [RSSI]` script command or `ISIM_BEACONS`): ranging (`startRangingBeacons(satisfying:)` and the deprecated region forms), beacon regions, `CLBeaconRegion.peripheralData`; `CLVisit` arrivals and departures detected from the simulated location (adapted: a stay within 50 m for `ISIM_VISIT_SECONDS`, default 120 s). Tested (`test_location.py`: circular regions, `test_beacons_visits_monitor`) |
+| MapKit `MKMapView` (region, camera, map types, gestures, conversion) | ✅ | ≤17 | adapted offline basemap: water and land (coastlines from Natural Earth's public-domain land polygons, 1:50m / 1:10m, in the SDK), a lat/lon graticule and a built-in list of world cities/landmarks; no roads or buildings (isim has no map data service) unless raster tiles come from a local cache (`ISIM_MAP_TILES` or `$ISIM_DATA/Library/Maps/Tiles/{z}/{x}/{y}.png`, never downloaded). Heading (the map turned, compass shown while turned; a tap turns back to north) and pitch (perspective tilt up to 60°; adapted: iOS's limit varies with zoom), pan, pinch, two-finger rotate and tilt, double-tap zoom; animated region/camera changes (0.35 s, visible-region updates per frame); zoom range/boundary honoured; `showsCompass`, `showsScale`, `showsUserTrackingButton`. Tested (HelloMaps: `test_mapkit`, `test_map_camera`) |
 | MapKit annotations (`MKAnnotation`, `MKPointAnnotation`, `MKMarkerAnnotationView`, `MKAnnotationView`, user location, selection, callouts) | ✅ | ≤17 | iOS-style balloon markers (tint, glyph text/image, title, bigger when selected), image views, reuse/registration, callouts with accessory controls, `didSelect`/`didDeselect`, blue user-location dot from the simulated Core Location. `MKAnnotation`/delegates are Swift protocols (title defaults to nil). Clustering and dragging not supported. Tested |
-| MapKit overlays (`MKPolyline`, `MKPolygon`, `MKCircle`, renderers, `MKTileOverlay`) | 🟡 | ≤17 | path renderers (fill/stroke/width), geodesic polylines, tile overlays (file URLs; others through URLSession); dash patterns and polygon holes are not drawn; custom `draw(_:zoomScale:in:)` renderers are not called. Tested (polyline, circle, polygon) |
-| MapKit search, directions, Look Around, snapshots | 🟡 | ≤17 | `MKLocalSearch`/`MKLocalSearchCompleter` answer offline from Core Location's gazetteer + the basemap's cities (else `placemarkNotFound`); `MKDirections` fails with `directionsNotFound` (no routing data); Look Around finds no scene; `MKMapSnapshotter` renders the offline basemap. Search, directions, snapshot tested; completer unverified |
-| SwiftUI `Map` (`Marker`, `Annotation`, `MapPolyline`, `MapPolygon`, `MapCircle`, `UserAnnotation`, `MapCameraPosition`, selection, `mapStyle`, `onMapCameraChange`) | 🟡 | ≤17 | on MKMapView; Annotation content is SwiftUI in a hosted view; `mapControls` accepted but not drawn; legacy `Map(coordinateRegion:annotationItems:)` with `MapMarker`/`MapPin`/`MapAnnotation` unverified. Tested (markers, annotation, overlays, selection, position, camera change) |
+| MapKit overlays (`MKPolyline`, `MKPolygon`, `MKCircle`, renderers, `MKTileOverlay`) | ✅ | ≤17 | renderers draw through `draw(_:zoomScale:in:)` in renderer coordinates as on iOS (adapted: one call for the visible part, not per tile), so subclasses can draw themselves; path renderers: `createPath`, fill/stroke properties and paths overridable, line join/cap/miter, `lineDashPattern`/`lineDashPhase`, `interiorPolygons` cut out, `strokeStart`/`strokeEnd`; `MKGradientPolylineRenderer` colours along the line; geodesic polylines; tile overlays (file URLs; others through URLSession). Tested (`test_mapkit`, `test_map_overlay_renderers`) |
+| MapKit search, directions, Look Around, snapshots | ✅ | ≤17 | adapted, offline: `MKLocalSearch`/`MKLocalSearchCompleter` answer from Core Location's gazetteer + the basemap's cities (else `placemarkNotFound`); `MKDirections` routes and ETAs come from an OSRM server you run (`ISIM_ROUTING_URL`; without it `directionsNotFound`, isim never picks a server); Look Around scenes come from equirectangular panoramas you supply (`ISIM_LOOKAROUND` or `$ISIM_DATA/Library/Maps/LookAround/LAT,LON.jpg`; a cylindrical view turned by dragging, `MKLookAroundSnapshotter`), none elsewhere; `MKMapSnapshotter` renders the offline basemap for a region or a camera (heading; pitch not drawn). Tested (`test_mapkit`, `test_map_services`) |
+| SwiftUI `Map` (`Marker`, `Annotation`, `MapPolyline`, `MapPolygon`, `MapCircle`, `UserAnnotation`, `MapCameraPosition`, selection, `mapStyle`, `onMapCameraChange`) | ✅ | ≤17 | on MKMapView; Annotation content is SwiftUI in a hosted view; `mapControls` draws `MapCompass`, `MapScaleView`, `MapUserLocationButton`, `MapPitchToggle` on the map (adapted: standalone controls outside a map draw nothing); legacy `Map(coordinateRegion:showsUserLocation:userTrackingMode:annotationItems:)` with `MapMarker`, `MapPin`, `MapAnnotation`. Tested (`test_swiftui_map`, `test_swiftui_map_legacy`) |
 
 ## Personal data & device sensors
 

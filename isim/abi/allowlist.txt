@@ -349,8 +349,8 @@ System/Library/Frameworks/CoreImage.framework/CoreImage _OBJC_METACLASS_$___CIGe
 System/Library/Frameworks/CoreImage.framework/CoreImage _OBJC_METACLASS_$___CIMap
 System/Library/Frameworks/CoreImage.framework/CoreImage _OBJC_METACLASS_$___CIPositional
 System/Library/Frameworks/CoreImage.framework/CoreImage _OBJC_METACLASS_$___CITransform
-# 0.19 (issue #19): SKScene.camera was typed SKNode? and SKPhysicsWorld.contactDelegate AnyObject? (iOS: SKCameraNode?
-# and SKPhysicsContactDelegate?). Their getter and setter dispatch thunks are still exported under the 0.18 names
+# 0.20.0 (issue #19): SKScene.camera was typed SKNode? and SKPhysicsWorld.contactDelegate AnyObject? (iOS: SKCameraNode?
+# and SKPhysicsContactDelegate?). Their getter and setter dispatch thunks are still exported under the 0.19 names
 # (SpriteKit.swift, SKPhysics.swift), so apps that read or set them keep working; the modify coroutines and the
 # method/property descriptors (subclass overrides of these properties, key paths to them) cannot be declared next to
 # the retyped properties. Apps that override them or use key paths to them must be rebuilt.
@@ -364,7 +364,7 @@ usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit7SKSceneC6cameraAA6SKNodeCSgv
 usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit7SKSceneC6cameraAA6SKNodeCSgvgTq
 usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit7SKSceneC6cameraAA6SKNodeCSgvpMV
 usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit7SKSceneC6cameraAA6SKNodeCSgvsTq
-# 0.19 (issue #19): SKTileAdjacencyMask was an enum; it is an OptionSet as on iOS (struct, rawValue UInt, the adjacency
+# 0.20.0 (issue #19): SKTileAdjacencyMask was an enum; it is an OptionSet as on iOS (struct, rawValue UInt, the adjacency
 # constants as static members), which tile automapping needs to combine and compare masks. Apps that use
 # SKTileAdjacencyMask or SKTileGroupRule(adjacency:tileDefinitions:) / SKTileGroupRule.adjacency must be rebuilt.
 usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit15SKTileGroupRuleC9adjacency15tileDefinitionsAcA0C13AdjacencyMaskO_SayAA0C10DefinitionCGtcfC
