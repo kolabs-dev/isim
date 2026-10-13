@@ -126,8 +126,37 @@ static long penalty(struct qr *q) {
     return p;
 }
 
-/* encodes bytes; out gets size*size modules (1 = dark). Returns the size, or 0 if the message is too long. */
-int isim_qr_encode(const uint8_t *msg, int len, int ecl, uint8_t *out) {
+/* places codewords (interleaved data + check) into a symbol of version v with the given mask (-1: the best by the
+   standard's penalty); returns the mask used */
+static int place(struct qr *q, const uint8_t *all, int raw, int v, int ecl, int mask) {
+    q->size = v * 4 + 17;
+    function_patterns(q, v, ecl);
+    long i = 0; int s = q->size;
+    for (int right = s - 1; right >= 1; right -= 2) {
+        if (right == 6) right = 5;
+        for (int vert = 0; vert < s; vert++)
+            for (int j = 0; j < 2; j++) {
+                int x = right - j, up = ((right + 1) & 2) == 0, y = up ? s - 1 - vert : vert;
+                if (!F(q, x, y) && i < (long)raw * 8) { M(q, x, y) = (all[i >> 3] >> (7 - (i & 7))) & 1; i++; }
+            }
+    }
+    int best = mask;
+    if (best < 0) {
+        long bestp = -1;
+        for (int m = 0; m < 8; m++) {
+            apply_mask(q, m); format_bits(q, ecl, m);
+            long p = penalty(q);
+            if (bestp < 0 || p < bestp) { bestp = p; best = m; }
+            apply_mask(q, m);
+        }
+    }
+    apply_mask(q, best); format_bits(q, ecl, best);
+    return best;
+}
+
+/* encodes bytes; out gets size*size modules (1 = dark). Returns the size, or 0 if the message is too long. The
+   descriptor fields (version, the level used, mask, interleaved codewords) are returned when asked for. */
+int isim_qr_encode_ex(const uint8_t *msg, int len, int ecl, uint8_t *out, int *outVersion, int *outEcl, int *outMask, uint8_t *codewords, int *ncodewords) {
     if (ecl < 0 || ecl > 3 || len < 0) return 0;
     int v;
     for (v = 1; v <= 40; v++) if (4 + (v < 10 ? 8 : 16) + 8 * len <= data_codewords(v, ecl) * 8) break;
@@ -151,35 +180,31 @@ int isim_qr_encode(const uint8_t *msg, int len, int ecl, uint8_t *out) {
         uint8_t *b = blocks + (size_t)i * (shortlen + 1);
         memcpy(b, data + k, (size_t)dl); k += dl;
         uint8_t rem[30]; rs_remainder(b, dl, div, ecc, rem);
-        if (i < nshort) { memmove(b + dl + 1, b + dl, 0); memcpy(b + dl + 1, rem, (size_t)ecc); }   /* short blocks: a gap at dl */
+        if (i < nshort) memcpy(b + dl + 1, rem, (size_t)ecc);      /* short blocks: a gap at dl */
         else memcpy(b + dl, rem, (size_t)ecc);
     }
     for (int i = 0, n = 0; i <= shortlen; i++)
         for (int j = 0; j < nb; j++)
             if (i != shortlen - ecc || j >= nshort) all[n++] = blocks[(size_t)j * (shortlen + 1) + i];
     free(blocks); free(data);
-    /* modules */
     struct qr *q = calloc(1, sizeof *q);
-    q->size = v * 4 + 17;
-    function_patterns(q, v, ecl);
-    long i = 0; int s = q->size;
-    for (int right = s - 1; right >= 1; right -= 2) {
-        if (right == 6) right = 5;
-        for (int vert = 0; vert < s; vert++)
-            for (int j = 0; j < 2; j++) {
-                int x = right - j, up = ((right + 1) & 2) == 0, y = up ? s - 1 - vert : vert;
-                if (!F(q, x, y) && i < (long)raw * 8) { M(q, x, y) = (all[i >> 3] >> (7 - (i & 7))) & 1; i++; }
-            }
-    }
-    free(all);
-    int best = 0; long bestp = -1;
-    for (int mask = 0; mask < 8; mask++) {
-        apply_mask(q, mask); format_bits(q, ecl, mask);
-        long p = penalty(q);
-        if (bestp < 0 || p < bestp) { bestp = p; best = mask; }
-        apply_mask(q, mask);
-    }
-    apply_mask(q, best); format_bits(q, ecl, best);
+    int mask = place(q, all, raw, v, ecl, -1);
+    int s = q->size;
+    memcpy(out, q->m, (size_t)s * s);
+    if (outVersion) *outVersion = v;
+    if (outEcl) *outEcl = ecl;
+    if (outMask) *outMask = mask;
+    if (codewords && ncodewords) { int m = raw < *ncodewords ? raw : *ncodewords; memcpy(codewords, all, (size_t)m); *ncodewords = m; }
+    free(all); free(q);
+    return s;
+}
+int isim_qr_encode(const uint8_t *msg, int len, int ecl, uint8_t *out) { return isim_qr_encode_ex(msg, len, ecl, out, NULL, NULL, NULL, NULL, NULL); }
+/* a symbol from a descriptor: the codewords must fill the version's capacity */
+int isim_qr_from_codewords(const uint8_t *cw, int n, int v, int ecl, int mask, uint8_t *out) {
+    if (v < 1 || v > 40 || ecl < 0 || ecl > 3 || mask < 0 || mask > 7 || n != raw_modules(v) / 8) return 0;
+    struct qr *q = calloc(1, sizeof *q);
+    place(q, cw, n, v, ecl, mask);
+    int s = q->size;
     memcpy(out, q->m, (size_t)s * s);
     free(q);
     return s;
