@@ -1155,3 +1155,26 @@ final class _MXRecorder: @unchecked Sendable {
         else if let d = try? JSONEncoder().encode(pending) { try? d.write(to: Self.pendingFile, options: .atomic) }
     }
 }
+
+// MARK: - isim ABI: getters under their 0.19 types (apps built then keep reading these properties)
+
+extension MXCellularConditionMetric {
+    // until 0.19 the histogram's unit was Unit (iOS: MXUnitSignalBars)
+    @usableFromInline @_silgen_name("$s9MetricKit019MXCellularConditionA0C020histogrammedCellularD4TimeAA11MXHistogramCySo6NSUnitCGvg")
+    final func _abi_histogrammedCellularConditionTime() -> MXHistogram<Unit> {
+        MXHistogram<Unit>(histogrammedCellularConditionTime.buckets.map {
+            MXHistogramBucket<Unit>(Measurement(value: $0.bucketStart.value, unit: $0.bucketStart.unit as Unit),
+                                    Measurement(value: $0.bucketEnd.value, unit: $0.bucketEnd.unit as Unit), $0.bucketCount)
+        })
+    }
+}
+extension MXDiagnostic {
+    // until 0.19 typed [Any]? (iOS 17: [MXSignpostRecord]?)
+    @usableFromInline @_silgen_name("$s9MetricKit12MXDiagnosticC12signpostDataSayypGSgvg")
+    final func _abi_signpostData() -> [Any]? { signpostData }
+}
+extension MXMetricPayload {
+    // until 0.19 typed MXMetric? (iOS: MXDisplayMetric?)
+    @usableFromInline @_silgen_name("$s9MetricKit15MXMetricPayloadC14displayMetricsAA0C0CSgvg")
+    final func _abi_displayMetrics() -> MXMetric? { displayMetrics }
+}
