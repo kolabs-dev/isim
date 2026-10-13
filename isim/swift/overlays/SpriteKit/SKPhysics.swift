@@ -156,10 +156,10 @@ open class SKPhysicsBody: NSObject {
         let w = s.width / 2, h = s.height / 2
         self.init(shapes: [.polygon([CGPoint(x: c.x - w, y: c.y - h), CGPoint(x: c.x + w, y: c.y - h), CGPoint(x: c.x + w, y: c.y + h), CGPoint(x: c.x - w, y: c.y + h)])], edge: false)
     }
-    /// A convex polygon from a path (concave paths use their convex hull, as an approximation).
+    /// A polygon from a path; concave ones are split into convex pieces (SKPhysics2.swift).
     public convenience init(polygonFrom path: CGPath) {
-        let hull = _convexHull(_pathPoints(path).flatMap { $0 })
-        if hull.count >= 3 { self.init(shapes: [.polygon(hull)], edge: false) }
+        let pts = _pathPoints(path).first ?? []
+        if pts.count >= 3 { self.init(shapes: SKPhysicsBody._pieces(pts, fallback: path.boundingBox), edge: false) }
         else { let b = path.boundingBox; self.init(rectangleOf: b.size, center: CGPoint(x: b.midX, y: b.midY)) }
     }
     public convenience init(edgeFrom p1: CGPoint, to p2: CGPoint) { self.init(shapes: [.segment(p1, p2)], edge: true) }
@@ -177,9 +177,13 @@ open class SKPhysicsBody: NSObject {
         self.init(shapes: segs, edge: true)
     }
     public convenience init(edgeLoopFrom r: CGRect) { self.init(edgeLoopFrom: CGPath(rect: r, transform: nil)) }
-    /// Texture outlines are approximated by the texture's opaque bounding rectangle (isim does not trace alpha).
-    public convenience init(texture: SKTexture, size: CGSize) { self.init(rectangleOf: size) }
-    public convenience init(texture: SKTexture, alphaThreshold: Float, size: CGSize) { self.init(rectangleOf: size) }
+    /// The outline of the texture's opaque pixels (traced from its alpha), scaled to size and centered on the node.
+    public convenience init(texture: SKTexture, size: CGSize) { self.init(texture: texture, alphaThreshold: 0, size: size) }
+    public convenience init(texture: SKTexture, alphaThreshold: Float, size: CGSize) {
+        let box = CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height)
+        if let outline = _alphaOutline(texture, threshold: alphaThreshold, size: size) { self.init(shapes: SKPhysicsBody._pieces(outline, fallback: box), edge: false) }
+        else { self.init(rectangleOf: size) }
+    }
     public convenience init(bodies: [SKPhysicsBody]) {
         self.init(shapes: bodies.flatMap { $0.shapes }, edge: bodies.allSatisfy { $0.isEdge } && !bodies.isEmpty)
     }
@@ -489,7 +493,12 @@ enum _Collide {
 open class SKPhysicsWorld: NSObject {
     open var gravity = CGVector(dx: 0, dy: -9.8)
     open var speed: CGFloat = 1
-    open weak var contactDelegate: AnyObject?
+    open weak var contactDelegate: SKPhysicsContactDelegate?
+    // isim ABI: until 0.19 this property was typed AnyObject?; keep its getter/setter entry points for apps built then
+    @usableFromInline @_silgen_name("$s9SpriteKit14SKPhysicsWorldC15contactDelegateyXlSgvgTj")
+    final func _abi_contactDelegateObject() -> AnyObject? { contactDelegate }
+    @usableFromInline @_silgen_name("$s9SpriteKit14SKPhysicsWorldC15contactDelegateyXlSgvsTj")
+    final func _abi_setContactDelegateObject(_ d: __owned AnyObject?) { contactDelegate = d as? SKPhysicsContactDelegate }
     var jointList: [SKPhysicsJoint] = []
     var lastBodies: [SKPhysicsBody] = []
     var touchingPairs: [_PairKey: (SKPhysicsBody, SKPhysicsBody)] = [:]
@@ -628,7 +637,8 @@ open class SKPhysicsWorld: NSObject {
             var n = 1
             for b in bodies where b.isDynamic {
                 let v = (b.velocity.dx * b.velocity.dx + b.velocity.dy * b.velocity.dy).squareRoot()
-                let k = Int((v * dt / (b.minExtent * (b.usesPreciseCollisionDetection ? 0.25 : 0.5))).rounded(.up))
+                guard v.isFinite else { b.velocity = .zero; b.angularVelocity = 0; continue }
+                let k = Int(min(64, (v * dt / (b.minExtent * (b.usesPreciseCollisionDetection ? 0.25 : 0.5))).rounded(.up)))
                 n = max(n, k)
             }
             n = max(2, min(n, 16))
@@ -650,7 +660,7 @@ open class SKPhysicsWorld: NSObject {
         }
         for (_, v) in touchedNow { v.0.touching.insert(ObjectIdentifier(v.1)); v.1.touching.insert(ObjectIdentifier(v.0)) }
         // contact delegate: begin for new touching pairs, end for pairs that separated
-        let delegate = contactDelegate as? SKPhysicsContactDelegate
+        let delegate = contactDelegate
         var began: [SKPhysicsContact] = [], ended: [SKPhysicsContact] = []
         for (k, v) in touchedNow where touchingPairs[k] == nil {
             if _wantsContact(v.0, v.1) { began.append(SKPhysicsContact(a: v.0, b: v.1, point: v.2, normal: CGVector(dx: v.3.x, dy: v.3.y), impulse: v.4 / _ptm)) }
@@ -671,19 +681,33 @@ open class SKPhysicsWorld: NSObject {
             for b in bodies where b.invMass > 0 || b.invI > 0 {
                 var a = b.affectedByGravity ? g : .zero
                 var f = b.force
-                for fl in fields where fl.isEnabled && (fl.categoryBitMask & b.fieldBitMask) != 0 { f = _add(f, fl.force(on: b)) }
-                if fields.contains(where: { $0.isEnabled && $0.isExclusive && ($0.categoryBitMask & b.fieldBitMask) != 0 && $0.regionContains(b.com) }) {
-                    // an exclusive field suppresses the others where it applies
-                    let ex = fields.filter { $0.isEnabled && $0.isExclusive && ($0.categoryBitMask & b.fieldBitMask) != 0 && $0.regionContains(b.com) }
-                    f = b.force
-                    for fl in ex { f = _add(f, fl.force(on: b)) }
+                var acting = fields.filter { $0.isEnabled && ($0.categoryBitMask & b.fieldBitMask) != 0 }
+                // an exclusive field suppresses the others where it applies
+                let ex = acting.filter { $0.isExclusive && $0.regionContains(b.com) }
+                if !ex.isEmpty { acting = ex }
+                // drag is applied implicitly (stable for light bodies): v / (1 + h c / m)
+                // and a magnetic field turns the velocity exactly (its force is always across it; stepping it
+                // explicitly would make a light charged body speed up without bound)
+                var drag: CGFloat = 0, turn: CGFloat = 0
+                for fl in acting {
+                    switch fl.kind {
+                    case .drag: drag += fl._dragCoefficient(at: b.com)
+                    case .magnetic: turn += fl._magneticRate(at: b.com, charge: b.charge)
+                    default: f = _add(f, fl.force(on: b))
+                    }
                 }
                 if b.invMass > 0 { a = _add(a, _mul(f, b.invMass)) }
                 b.velocity.dx += a.x * h; b.velocity.dy += a.y * h
+                if turn != 0 && b.invMass > 0 {
+                    let w = -turn * b.invMass * h, c = cos(w), sn = sin(w)
+                    b.velocity = CGVector(dx: b.velocity.dx * c - b.velocity.dy * sn, dy: b.velocity.dx * sn + b.velocity.dy * c)
+                }
                 b.velocity.dx /= 1 + h * b.linearDamping; b.velocity.dy /= 1 + h * b.linearDamping
+                if drag > 0 && b.invMass > 0 { let k = 1 + h * drag * b.invMass; b.velocity.dx /= k; b.velocity.dy /= k }
                 if b.invI > 0 { b.angularVelocity += b.torque * b.invI * h }
                 b.angularVelocity /= 1 + h * b.angularDamping
-                if b.invMass == 0 { b.velocity = .zero }
+                if b.invMass == 0 || !(b.velocity.dx.isFinite && b.velocity.dy.isFinite) { b.velocity = .zero }
+                if !b.angularVelocity.isFinite { b.angularVelocity = 0 }
                 if b.invI == 0 && !(b.pinned && b.allowsRotation) { b.angularVelocity = 0 }
             }
         }
@@ -779,8 +803,12 @@ open class SKPhysicsWorld: NSObject {
             let k = _PairKey(m.a, m.b)
             if var e = touched[k] { e.4 = max(e.4, m.contacts.reduce(0) { $0 + $1.jn }); touched[k] = e }
         }
-        // integrate positions
+        // integrate positions (precise bodies stop at their time of impact: SKPhysics2.swift)
         for b in bodies where b.invMass > 0 || b.invI > 0 || (b.pinned && b.allowsRotation && b.isDynamic) {
+            if b.usesPreciseCollisionDetection && b.invMass > 0 {
+                _ = _sweep(b, CGPoint(x: b.velocity.dx * h, y: b.velocity.dy * h), b.angularVelocity * h, bodies)
+                continue
+            }
             b.com.x += b.velocity.dx * h; b.com.y += b.velocity.dy * h
             b.angle += b.angularVelocity * h
             b.updateWorldShapes()
@@ -1051,6 +1079,7 @@ open class SKPhysicsJointSliding: SKPhysicsJoint {
             guard k > 0 else { continue }
             let imp = -_dot(relVel(a, b, rA, rB), dir) / k
             applyImpulse(a, b, _mul(dir, imp), rA, rB)
+            lastImpulse = _add(lastImpulse, _mul(dir, imp))
         }
     }
     override func solvePosition() {

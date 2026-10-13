@@ -101,6 +101,67 @@ public func simd_mul(_ a: simd_float3x3, _ b: simd_float3x3) -> simd_float3x3 { 
 public func simd_mul(_ m: simd_float3x3, _ v: SIMD3<Float>) -> SIMD3<Float> { m * v }
 public func simd_transpose(_ m: simd_float3x3) -> simd_float3x3 { m.transpose }
 
+/// A 2x2 matrix of Floats, stored as two columns.
+public struct simd_float2x2: Equatable, Sendable {
+    public var columns: (SIMD2<Float>, SIMD2<Float>)
+    public init() { columns = (.zero, .zero) }
+    public init(_ scalar: Float) { columns = (SIMD2(scalar, 0), SIMD2(0, scalar)) }
+    public init(diagonal d: SIMD2<Float>) { columns = (SIMD2(d.x, 0), SIMD2(0, d.y)) }
+    public init(_ c0: SIMD2<Float>, _ c1: SIMD2<Float>) { columns = (c0, c1) }
+    public init(_ columns: [SIMD2<Float>]) { precondition(columns.count == 2); self.columns = (columns[0], columns[1]) }
+    public init(rows r: [SIMD2<Float>]) { precondition(r.count == 2); columns = (SIMD2(r[0].x, r[1].x), SIMD2(r[0].y, r[1].y)) }
+    public subscript(column: Int) -> SIMD2<Float> {
+        get { column == 0 ? columns.0 : columns.1 }
+        set { if column == 0 { columns.0 = newValue } else { columns.1 = newValue } }
+    }
+    public subscript(column: Int, row: Int) -> Float {
+        get { self[column][row] }
+        set { var c = self[column]; c[row] = newValue; self[column] = c }
+    }
+    public var transpose: simd_float2x2 { simd_float2x2(rows: [columns.0, columns.1]) }
+    public static func == (a: simd_float2x2, b: simd_float2x2) -> Bool { a.columns.0 == b.columns.0 && a.columns.1 == b.columns.1 }
+    public static func * (m: simd_float2x2, v: SIMD2<Float>) -> SIMD2<Float> { m.columns.0 * v.x + m.columns.1 * v.y }
+    public static func * (a: simd_float2x2, b: simd_float2x2) -> simd_float2x2 { simd_float2x2(a * b.columns.0, a * b.columns.1) }
+}
+public typealias matrix_float2x2 = simd_float2x2
+public let matrix_identity_float2x2 = simd_float2x2(diagonal: SIMD2<Float>(1, 1))
+extension simd_float3x3 {
+    public init(_ scalar: Float) { self.init(diagonal: SIMD3(scalar, scalar, scalar)) }
+}
+
+/// A 4x4 matrix of Floats, stored as four columns.
+public struct simd_float4x4: Equatable, Sendable {
+    public var columns: (SIMD4<Float>, SIMD4<Float>, SIMD4<Float>, SIMD4<Float>)
+    public init() { columns = (.zero, .zero, .zero, .zero) }
+    public init(_ scalar: Float) { self.init(diagonal: SIMD4(scalar, scalar, scalar, scalar)) }
+    public init(diagonal d: SIMD4<Float>) { columns = (SIMD4(d.x, 0, 0, 0), SIMD4(0, d.y, 0, 0), SIMD4(0, 0, d.z, 0), SIMD4(0, 0, 0, d.w)) }
+    public init(_ c0: SIMD4<Float>, _ c1: SIMD4<Float>, _ c2: SIMD4<Float>, _ c3: SIMD4<Float>) { columns = (c0, c1, c2, c3) }
+    public init(_ columns: [SIMD4<Float>]) { precondition(columns.count == 4); self.columns = (columns[0], columns[1], columns[2], columns[3]) }
+    public init(rows r: [SIMD4<Float>]) {
+        precondition(r.count == 4)
+        columns = (SIMD4(r[0].x, r[1].x, r[2].x, r[3].x), SIMD4(r[0].y, r[1].y, r[2].y, r[3].y),
+                   SIMD4(r[0].z, r[1].z, r[2].z, r[3].z), SIMD4(r[0].w, r[1].w, r[2].w, r[3].w))
+    }
+    public subscript(column: Int) -> SIMD4<Float> {
+        get { column == 0 ? columns.0 : column == 1 ? columns.1 : column == 2 ? columns.2 : columns.3 }
+        set { if column == 0 { columns.0 = newValue } else if column == 1 { columns.1 = newValue } else if column == 2 { columns.2 = newValue } else { columns.3 = newValue } }
+    }
+    public subscript(column: Int, row: Int) -> Float {
+        get { self[column][row] }
+        set { var c = self[column]; c[row] = newValue; self[column] = c }
+    }
+    public var transpose: simd_float4x4 { simd_float4x4(rows: [columns.0, columns.1, columns.2, columns.3]) }
+    public static func == (a: simd_float4x4, b: simd_float4x4) -> Bool { a.columns.0 == b.columns.0 && a.columns.1 == b.columns.1 && a.columns.2 == b.columns.2 && a.columns.3 == b.columns.3 }
+    public static func * (m: simd_float4x4, v: SIMD4<Float>) -> SIMD4<Float> { m.columns.0 * v.x + m.columns.1 * v.y + m.columns.2 * v.z + m.columns.3 * v.w }
+    public static func * (a: simd_float4x4, b: simd_float4x4) -> simd_float4x4 { simd_float4x4(a * b.columns.0, a * b.columns.1, a * b.columns.2, a * b.columns.3) }
+}
+public typealias matrix_float4x4 = simd_float4x4
+public let matrix_identity_float4x4 = simd_float4x4(diagonal: SIMD4<Float>(1, 1, 1, 1))
+public func simd_mul(_ a: simd_float2x2, _ b: simd_float2x2) -> simd_float2x2 { a * b }
+public func simd_mul(_ a: simd_float4x4, _ b: simd_float4x4) -> simd_float4x4 { a * b }
+public func simd_transpose(_ m: simd_float2x2) -> simd_float2x2 { m.transpose }
+public func simd_transpose(_ m: simd_float4x4) -> simd_float4x4 { m.transpose }
+
 /// A quaternion of Floats: vector = (ix, iy, iz, r).
 public struct simd_quatf: Equatable, Sendable {
     public var vector: SIMD4<Float>

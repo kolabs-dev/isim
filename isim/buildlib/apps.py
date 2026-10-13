@@ -239,6 +239,13 @@ def _(a):
     a.icon(f"{b}/AppIcon60x60@3x.png", "#ff3b30", "#c41d14", "P")
 
 
+@app("samples/HelloSpriteKit3")
+def _(a):
+    b = a.swift_app()
+    a.isim_build().compile_xcassets(os.path.join(a.d, "Assets.xcassets"), b)    # Monsters.spriteatlas
+    a.run("python3", "make-assets.py", b)                                         # tone.wav, Badge.sks
+
+
 @app("samples/HelloAlerts")
 def _(a):
     b = a.swift_app(srcs=["HelloAlerts.swift"])

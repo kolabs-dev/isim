@@ -221,13 +221,16 @@ open class SKEmitterNode: SKNode {
         guard h > 0 else { return }
         let tid = targetNode.map { ObjectIdentifier($0) }
         if tid != simTargetID { particles.removeAll(); simTargetID = tid }
-        // age and move
+        // age and move; the scene's fields push particles when fieldBitMask matches them (SKPhysics2.swift)
+        let fields = _sceneFields()
+        let particleSpace = fields.isEmpty ? .identity : (targetNode ?? self).sceneTransform
         var i = 0
         while i < particles.count {
             var p = particles[i]
             p.age += h
             if p.age >= p.life { particles.remove(at: i); continue }
             p.vel.x += xAcceleration * h; p.vel.y += yAcceleration * h
+            if !fields.isEmpty { let fa = _fieldAcceleration(particleSpace, fields, p.pos, p.vel); p.vel.x += fa.x * h; p.vel.y += fa.y * h }
             p.pos.x += p.vel.x * h; p.pos.y += p.vel.y * h
             p.rot += p.rotSpeed * h
             p.scale += p.scaleSpeed * h
