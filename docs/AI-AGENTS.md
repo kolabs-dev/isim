@@ -188,7 +188,10 @@ headless run with a device data of your own for checks that should not disturb i
   belongs in isim, not in the app. Do not work around it: report it (below), and never fake SDK or Xcode metadata.
 - The look follows the chosen iOS version and device, but screenshots from isim are not Apple's. Check important
   screens on Apple's simulator or a device before release.
-- Uploading to the App Store from Linux is blocked on purpose: see [DISTRIBUTION.md](DISTRIBUTION.md).
+- Uploading to the App Store from Linux is blocked on purpose: see [DISTRIBUTION.md](DISTRIBUTION.md). To ship, add a
+  GitHub Actions workflow that builds the same Xcode project on a macOS runner with
+  [kolabs-dev/mobile-actions](https://github.com/kolabs-dev/mobile-actions)' `ios-upload`
+  ([example](DISTRIBUTION.md#shipping-today-xcode-on-a-macos-ci-runner)); the person adds the signing secrets.
 - Signing keys, certificates and API credentials stay on your machine. Do not paste them into prompts, scripts or
   logs.
 
