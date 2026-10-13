@@ -239,6 +239,22 @@ def _(a):
     a.icon(f"{b}/AppIcon60x60@3x.png", "#ff3b30", "#c41d14", "P")
 
 
+@app("samples/HelloAlerts")
+def _(a):
+    b = a.swift_app(srcs=["HelloAlerts.swift"])
+    a.copy("HelloAlerts.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # critical alerts, time sensitive
+    a.copy("ping.wav", f"{b}/ping.wav")
+    a.appex(b, "AlertsPoll", ["Poll/PollViewController.swift"], "Poll/Info.plist",
+            link=["-framework", "UserNotifications", "-framework", "UserNotificationsUI"])
+    a.icon(f"{b}/AppIcon60x60@3x.png", "#5856d6", "#3634a3", "A")
+
+
+@app("samples/HelloCalls")
+def _(a):
+    b = a.swift_app(srcs=["HelloCalls.swift"])
+    a.icon(f"{b}/AppIcon60x60@3x.png", "#34c759", "#248a3d", "C")
+
+
 @app("samples/HelloShare")
 def _(a):
     b = a.swift_app(srcs=["HelloShare.swift"])
@@ -633,7 +649,7 @@ def xcstrings(a, bundle, catalogs):
 @app("system/SpringBoard", products=["SpringBoard.app"], swift=False, dest="out/sdk/Applications")
 def _(a):   # the home screen (ObjC)
     b = a.objc_app(a.files("*.m"), "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "CoreGraphics",
-                                                   "-lisim_host"], minos="17.0", flags=())
+                                                   "-framework", "UserNotifications", "-lisim_host"], minos="17.0", flags=())
     xcstrings(a, b, a.files("*.xcstrings"))
     wallpaper = shutil.which("magick") and a.run(
         "magick", "-size", "393x852", "gradient:#3a2c8f-#0e7c9a", "(", "-size", "393x852", "radial-gradient:#ff7eb3-none",

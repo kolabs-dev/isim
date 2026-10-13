@@ -418,6 +418,24 @@ class App:
             if time.monotonic() > end:
                 raise self._timeout(f"no {pattern!r} in a dump after {timeout:g} s\n" + "\n".join(self._lines[-40:]))
 
+    def nc_item(self, ident: str, timeout: float = TIMEOUT) -> re.Match:
+        """Notification Center or the lock screen (`isim boot`): wait until the notification `ident` is listed on its
+        own (`nc-item-ID`), expanding the stack it is in: like iOS, notifications of one app and thread are stacked,
+        newest on top (`nc-group-TOPID`, a tap expands it). Returns the match of the item."""
+        end = time.monotonic() + timeout
+        tapped = set()
+        while True:
+            m = self.wait_dump(rf"id=nc-item-{re.escape(ident)}(?=[ \n]|$)|id=nc-group-(\S+)", max(0.5, end - time.monotonic()))
+            if m.group(0).startswith("id=nc-item-"):
+                return m
+            if m.group(1) not in tapped:
+                tapped.add(m.group(1))
+                self.tap_id(f"nc-group-{m.group(1)}")
+            elif time.monotonic() > end:
+                raise self._timeout(f"no notification {ident!r} in Notification Center after {timeout:g} s")
+            else:
+                time.sleep(0.2)
+
     def wait_still(self, quiet: float = 0.4, timeout: float = TIMEOUT) -> str:
         """Wait until the view tree has not changed for `quiet` seconds (scrolling decelerated, a transition ended:
         UIKit transitions move layers, not frames, so their end shows only as their temporary views going away).

@@ -571,7 +571,7 @@ static int ctl_from_arg(const char *arg, struct ctl_placed *out) {
 static int has_action_button(void) {
     return !strncmp(dev.name, "iPhone 15 Pro", 13) || !strncmp(dev.name, "iPhone 16", 9) || !strncmp(dev.name, "iPhone 17", 9) || !strncmp(dev.name, "iPhone Air", 10);
 }
-/* script commands: focus, actionbutton, lockcontrol */
+/* script commands: focus, silent, actionbutton, lockcontrol */
 static int ctl_command(const char *verb, const char *args) {
     if (!strcmp(verb, "focus")) {
         focus_load();
@@ -579,6 +579,12 @@ static int ctl_command(const char *verb, const char *args) {
         int m = focus_from_id(args);
         if (m < 0) { fprintf(stderr, "isim shell: focus: unknown Focus '%s' (dnd, personal, work, sleep, off)\n", args); return 1; }
         focus_set(m);
+        return 1;
+    }
+    if (!strcmp(verb, "silent")) {                         /* the Ring/Silent switch (or the Action button's Silent Mode) */
+        int on = !strcmp(args, "on") ? 1 : !strcmp(args, "off") ? 0 : -1;
+        if (on >= 0 && on != ctl_silent) { ctl_silent = on; if (ov != OV_NONE) sys_draw(); }
+        fprintf(stderr, "isim shell: Silent Mode %s\n", ctl_silent ? "on" : "off");
         return 1;
     }
     if (!strcmp(verb, "actionbutton")) {

@@ -1,0 +1,7 @@
+{
+  "apns-push-type": "voip",
+  "uuid": "6F1C3A52-2B8E-4C59-9D34-1A2B3C4D5E02",
+  "caller": "Bob",
+  "handle": "+15551234567",
+  "video": true
+}

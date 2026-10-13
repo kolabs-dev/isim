@@ -61,11 +61,14 @@ static double ov_t0;                                  /* when the overlay opened
 static double last_active_t[32];                      /* app switcher order (most recent first) */
 static int seen_active = -1;
 
-struct nc_item { char path[512], id[256], title[256], body[512], icon[512], record[512], thumb[512], exe[512], file[512]; time_t t; };
+struct nc_item { char path[512], id[256], title[256], body[512], icon[512], record[512], thumb[512], exe[512], file[512]; time_t t;
+                 /* from the record's sidecar (<record>.txt): the thread it is grouped by, its sound, interruption level
+                    (0 passive, 1 active, 2 time sensitive, 3 critical) and the stack summary */
+                 char thread[160], sound[512], summary[160], sumarg[128]; int level, sumcount; };
 static struct nc_item ncl[64]; static int nnc;
 
 struct sys_el { char id[128], text[192]; struct rectf r; int kind, arg; };
-enum { EL_NONE, EL_CARD, EL_NC_ITEM, EL_NC_CLEAR, EL_CC_TOGGLE, EL_CC_SLIDER, EL_BG, EL_NX_CONTENT, EL_NX_ACTION, EL_NX_SEND, EL_LA, EL_LW, EL_SIRI, EL_CC_X /* shell_controls.inc */, EL_NP };
+enum { EL_NONE, EL_CARD, EL_NC_ITEM, EL_NC_GROUP, EL_NC_LESS, EL_NX_EXT, EL_NX_MEDIA, EL_NC_CLEAR, EL_CC_TOGGLE, EL_CC_SLIDER, EL_BG, EL_NX_CONTENT, EL_NX_ACTION, EL_NX_SEND, EL_LA, EL_LW, EL_SIRI, EL_CC_X /* shell_controls.inc */, EL_NP, EL_CALL /* shell_calls.inc */ };
 static struct sys_el els[96]; static int nels;
 
 /* Control Center state */
@@ -98,10 +101,13 @@ static void sys_volume_changed(double v, int except) {
 
 static int siri_visible(void); static void siri_draw(cairo_t *c); static int siri_input(const struct isim_event *ev); static void siri_tick(void);
 static void siri_load(const char *file);                                       /* shell_siri.inc */
-static int sys_visible(void) { return ov != OV_NONE || siri_visible(); }
+static int calls_visible(void); static void calls_draw(cairo_t *c); static int calls_input(const struct isim_event *ev); static void calls_tick(void); static int calls_home(void); static int calls_fullscreen(void);
+static int calls_handle_msg(int from, const struct shell_msg *m);             /* shell_calls.inc */
+static int sys_visible(void) { return ov != OV_NONE || siri_visible() || calls_visible(); }
 static int sys_hides_banners(void) { return locked || ov != OV_NONE; }      /* Focus: focus_silences (shell_controls.inc) */
 static void shell_launch(const char *bundle, const char *exe, const char *url);
 static void sys_push_deliver(const char *path, const char *exe, const char *sidecar);
+static void sys_local_deliver(const char *path, const char *exe, const char *sidecar);
 static void nx_close(void);
 
 static const char *app_label(int i) {
@@ -273,6 +279,125 @@ static struct nc_item *nc_add(const char *path, const char *id, const char *icon
     if (i >= 0) snprintf(n->exe, sizeof n->exe, "%s", clients[i].exe);
     return n;
 }
+static int focus_silences(const char *path, const char *flags, const char *title);   /* shell_controls.inc */
+static int ctl_silent;                                                                 /* Silent Mode (shell_controls.inc) */
+/* the record's sidecar, written by UserNotifications (or the home screen) next to the record */
+static void nc_load_sidecar(struct nc_item *n) {
+    n->level = 1; n->sumcount = 1;
+    if (!n->record[0]) return;
+    char p[600]; snprintf(p, sizeof p, "%s", n->record);
+    char *dot = strrchr(p, '.'); if (dot && !strchr(dot, '/')) strcpy(dot, ".txt"); else strncat(p, ".txt", sizeof p - strlen(p) - 1);
+    FILE *f = fopen(p, "r");
+    if (!f) return;
+    char line[700];
+    while (fgets(line, sizeof line, f)) {
+        line[strcspn(line, "\n")] = 0;
+        char *v = strchr(line, '='); if (!v) continue; *v++ = 0;
+        if (!strcmp(line, "thread")) snprintf(n->thread, sizeof n->thread, "%s", v);
+        else if (!strcmp(line, "sound")) snprintf(n->sound, sizeof n->sound, "%s", v);
+        else if (!strcmp(line, "summary")) snprintf(n->summary, sizeof n->summary, "%s", v);
+        else if (!strcmp(line, "sumarg")) snprintf(n->sumarg, sizeof n->sumarg, "%s", v);
+        else if (!strcmp(line, "sumcount")) n->sumcount = atoi(v) > 0 ? atoi(v) : 1;
+        else if (!strcmp(line, "level")) n->level = !strcmp(v, "passive") ? 0 : !strcmp(v, "timesensitive") ? 2 : !strcmp(v, "critical") ? 3 : 1;
+    }
+    fclose(f);
+}
+
+/* ---- notification sounds: the record's sound (a file, "default", "ringtone", "critical:..."), played by the shell
+   at the device volume; Silent Mode mutes all but critical alerts (which play at full volume). The default sound is
+   synthesized (a short rising three-note chime; isim has no copy of Apple's sounds). ---- */
+static void sys_play_sound(const char *spec, const char *app) {
+    if (!spec || !spec[0]) return;
+    int critical = !strncmp(spec, "critical:", 9);
+    const char *what = critical ? spec + 9 : spec;
+    const char *name = strrchr(what, '/'); name = name ? name + 1 : what;
+    const char *a = strrchr(app, '/'); a = a ? a + 1 : app;
+    if (ctl_silent && !critical) { fprintf(stderr, "isim shell: notification sound %s from %s not played (Silent Mode)\n", name, a); return; }
+    if (!isim_audio_available()) { fprintf(stderr, "isim shell: notification sound %s from %s (no audio device)%s\n", name, a, critical ? " (critical alert)" : ""); return; }
+    double vol = critical ? 1.0 : cc_volume;
+    if (what[0] == '/') {
+        float *pcm = NULL; long frames = 0; int ch = 0; double rate = 0;
+        if (isim_audio_decode_file(what, &pcm, &frames, &ch, &rate)) {
+            int buf = isim_audio_buffer_create(pcm, frames, ch, rate);
+            if (buf) { isim_audio_play(buf, vol, 0); isim_audio_buffer_release(buf); }
+            isim_audio_free(pcm);
+        }
+    } else {
+        enum { RATE = 44100 };
+        static const double notes[3] = { 1046.5, 1318.5, 1568.0 };
+        int ring = !strcmp(what, "ringtone");
+        long frames = (long)(RATE * (ring ? 1.2 : 0.48));
+        float *pcm = calloc((size_t)frames, sizeof(float));
+        for (long i = 0; i < frames; i++) {
+            double t = (double)i / RATE, step = ring ? 0.1 : 0.16; int k = (int)(t / step); double tt = t - k * step;
+            pcm[i] = (float)(0.28 * sin(2 * M_PI * notes[ring ? k % 2 * 2 : (k > 2 ? 2 : k)] * tt) * exp(-tt * (ring ? 8 : 14)));
+        }
+        int buf = isim_audio_buffer_create(pcm, frames, 1, RATE);
+        if (buf) { isim_audio_play(buf, vol, 0); isim_audio_buffer_release(buf); }
+        free(pcm);
+    }
+    fprintf(stderr, "isim shell: notification sound %s from %s played%s\n", name, a, critical ? " (critical alert)" : "");
+}
+
+/* a notification that was just listed: its sound and banner, as Focus, Silent Mode, the lock screen and its
+   interruption level allow (passive: listed quietly; critical: breaks through Focus and Silent Mode) */
+static void sys_alert(int client, struct nc_item *n, const char *flags) {
+    const char *app = n->path;
+    if (n->level == 0) {
+        fprintf(stderr, "isim shell: passive notification from %s listed quietly: %s\n", app, n->title);
+        if (ov != OV_NONE) sys_draw();
+        return;
+    }
+    if (n->level == 3) fprintf(stderr, "isim shell: critical alert from %s\n", app);
+    else if (focus_silences(app, flags, n->title)) { if (ov != OV_NONE) sys_draw(); return; }
+    sys_play_sound(n->sound, app);
+    if (sys_hides_banners()) {
+        fprintf(stderr, "isim shell: notification from %s listed%s: %s\n", app, locked ? " on the lock screen" : "", n->title);
+        if (ov != OV_NONE) sys_draw();
+        return;
+    }
+    nb_show(client, n->path, n->id, n->icon, n->title, n->body, n->thumb);
+}
+
+/* stacks: notifications of one app and thread (no thread: the app's) are grouped, newest on top; a tap expands the
+   stack. The summary under it: the category's summary format ("%u more messages from %@"), else "N more notifications" */
+static char ncx_open[16][700]; static int nncx;              /* expanded stacks (app\x1fthread) */
+static void nc_group_key(const struct nc_item *n, char *out, size_t sz) { snprintf(out, sz, "%s\x1f%s", n->path, n->thread); }
+static int nc_group_open(const char *key) { for (int k = 0; k < nncx; k++) if (!strcmp(ncx_open[k], key)) return 1; return 0; }
+static void nc_summary(const char *fmt, int count, const char *arg, char *out, size_t sz) {
+    char f[200];
+    if (fmt && fmt[0]) snprintf(f, sizeof f, "%s", fmt);
+    else snprintf(f, sizeof f, count == 1 ? "%%u more notification" : "%%u more notifications");
+    size_t o = 0; out[0] = 0;
+    for (const char *p = f; *p && o + 1 < sz; p++) {
+        if (*p == '%' && p[1]) {
+            const char *q = p + 1;
+            while ((*q >= '0' && *q <= '9') || *q == '$') q++;
+            while (*q == 'l' || *q == 'z') q++;
+            if (*q == 'u' || *q == 'd' || *q == 'i') { o += (size_t)snprintf(out + o, sz - o, "%d", count); p = q; continue; }
+            if (*q == '@') { o += (size_t)snprintf(out + o, sz - o, "%s", arg ? arg : ""); p = q; continue; }
+            if (*q == '%') { out[o++] = '%'; out[o] = 0; p = q; continue; }
+        }
+        out[o++] = *p; out[o] = 0;
+    }
+}
+static double nc_draw_card(cairo_t *c, struct nc_item *n, int i, double x, double y, double w, const char *summary) {
+    struct rectf r = { x, y, w, summary ? 94 : 76 };
+    sys_round(c, r.x, r.y, r.w, r.h, 22);
+    cairo_set_source_rgba(c, 0.95, 0.95, 0.97, 0.88); cairo_fill(c);
+    sys_icon(c, n->icon, r.x + 12, r.y + 19, 38);
+    sys_text(c, n->title, r.x + 60, r.y + 12, r.w - 130, 15, PANGO_WEIGHT_SEMIBOLD, 0, 1, 0, 0, 0, 1);
+    long ago = (long)(time(NULL) - n->t) / 60; char when[32];
+    if (ago < 1) snprintf(when, sizeof when, "now"); else snprintf(when, sizeof when, "%ldm ago", ago);
+    sys_text(c, when, r.x + r.w - 70, r.y + 13, 56, 13, PANGO_WEIGHT_NORMAL, 2, 1, 0.45, 0.45, 0.45, 1);
+    sys_text(c, n->body, r.x + 60, r.y + 33, r.w - 74 - (n->thumb[0] ? 46 : 0), 15, PANGO_WEIGHT_NORMAL, 0, summary ? 1 : 2, 0, 0, 0, 1);
+    if (n->thumb[0]) nb_thumb(c, n->thumb, r.x + r.w - 14 - 38, r.y + 76 - 14 - 38, 38);
+    if (summary) sys_text(c, summary, r.x + 60, r.y + 68, r.w - 74, 13, PANGO_WEIGHT_NORMAL, 0, 1, 0.42, 0.42, 0.45, 1);
+    char id[300]; snprintf(id, sizeof id, summary ? "nc-group-%s" : "nc-item-%s", n->id);
+    char text[400]; snprintf(text, sizeof text, summary ? "%s (%s)" : "%s", n->title, summary);   /* a stack: and its summary */
+    el_add(id, text, r, summary ? EL_NC_GROUP : EL_NC_ITEM, i);
+    return r.h;
+}
 static void nc_draw_list(cairo_t *c, double top, int lock_style) {
     double w = fmin(dev.width - 16, 400), x = (dev.width - w) / 2, y = top;
     if (!lock_style) {
@@ -290,21 +415,43 @@ static void nc_draw_list(cairo_t *c, double top, int lock_style) {
         if (!lock_style) sys_text(c, "No Older Notifications", 0, y + 20, dev.width, 15, PANGO_WEIGHT_SEMIBOLD, 1, 1, 1, 1, 1, 0.75);
         return;
     }
+    int done[64] = { 0 };
     for (int i = nnc - 1; i >= 0 && y < dev.height - 120; i--) {
-        struct nc_item *n = &ncl[i];
-        struct rectf r = { x, y, w, 76 };
-        sys_round(c, r.x, r.y, r.w, r.h, 22);
-        cairo_set_source_rgba(c, 0.95, 0.95, 0.97, 0.88); cairo_fill(c);
-        sys_icon(c, n->icon, r.x + 12, r.y + 19, 38);
-        sys_text(c, n->title, r.x + 60, r.y + 12, r.w - 130, 15, PANGO_WEIGHT_SEMIBOLD, 0, 1, 0, 0, 0, 1);
-        long ago = (long)(time(NULL) - n->t) / 60; char when[32];
-        if (ago < 1) snprintf(when, sizeof when, "now"); else snprintf(when, sizeof when, "%ldm ago", ago);
-        sys_text(c, when, r.x + r.w - 70, r.y + 13, 56, 13, PANGO_WEIGHT_NORMAL, 2, 1, 0.45, 0.45, 0.45, 1);
-        sys_text(c, n->body, r.x + 60, r.y + 33, r.w - 74 - (n->thumb[0] ? 46 : 0), 15, PANGO_WEIGHT_NORMAL, 0, 2, 0, 0, 0, 1);
-        if (n->thumb[0]) nb_thumb(c, n->thumb, r.x + r.w - 14 - 38, r.y + r.h - 14 - 38, 38);
-        char id[300]; snprintf(id, sizeof id, "nc-item-%s", n->id);
-        el_add(id, n->title, r, EL_NC_ITEM, i);
-        y += r.h + 8;
+        if (done[i]) continue;
+        char key[700]; nc_group_key(&ncl[i], key, sizeof key);
+        int members[64], nm = 0;
+        for (int j = i; j >= 0; j--) { char k2[700]; nc_group_key(&ncl[j], k2, sizeof k2); if (!strcmp(k2, key)) { members[nm++] = j; done[j] = 1; } }
+        if (nm == 1) { y += nc_draw_card(c, &ncl[i], i, x, y, w, NULL) + 8; continue; }
+        if (nc_group_open(key)) {                       /* an expanded stack: its header ("Show Less") and every notification */
+            struct sys_appinfo *ai = sys_info(ncl[i].path);
+            sys_text(c, ai && ai->name[0] ? ai->name : "App", x + 6, y + 4, w - 120, 17, PANGO_WEIGHT_SEMIBOLD, 0, 1, 1, 1, 1, 1);
+            struct rectf less = { x + w - 104, y, 100, 26 };
+            sys_round(c, less.x, less.y, less.w, less.h, 13); cairo_set_source_rgba(c, 1, 1, 1, 0.25); cairo_fill(c);
+            sys_text(c, "Show Less", less.x, less.y + 5, less.w, 13, PANGO_WEIGHT_SEMIBOLD, 1, 1, 1, 1, 1, 1);
+            char id[300]; snprintf(id, sizeof id, "nc-less-%s", ncl[i].id);
+            el_add(id, "Show Less", less, EL_NC_LESS, i);
+            y += 34;
+            for (int k = 0; k < nm && y < dev.height - 120; k++) y += nc_draw_card(c, &ncl[members[k]], members[k], x, y, w, NULL) + 8;
+            continue;
+        }
+        /* a stack: plates under the newest notification and the summary of the others */
+        int hidden = 0; char args[128] = "";
+        for (int k = 1; k < nm; k++) {
+            struct nc_item *m = &ncl[members[k]];
+            hidden += m->sumcount > 0 ? m->sumcount : 1;
+            if (m->sumarg[0] && !strstr(args, m->sumarg)) { if (args[0]) strncat(args, ", ", sizeof args - strlen(args) - 1); strncat(args, m->sumarg, sizeof args - strlen(args) - 1); }
+        }
+        char summary[200]; nc_summary(ncl[i].summary, hidden, args, summary, sizeof summary);
+        cairo_save(c);                                  /* the plates peek out under the card (not through it) */
+        cairo_new_path(c); cairo_rectangle(c, 0, 0, dev.width, dev.height); sys_round(c, x, y, w, 94, 22);
+        cairo_set_fill_rule(c, CAIRO_FILL_RULE_EVEN_ODD); cairo_clip(c);
+        for (int k = nm >= 3 ? 2 : 1; k >= 1; k--) {
+            double inset = 10 * k;
+            cairo_new_path(c); sys_round(c, x + inset, y + 94 - 70 + 7 * k, w - 2 * inset, 70, 20);
+            cairo_set_source_rgba(c, 0.92, 0.92, 0.95, 0.75 - 0.2 * k); cairo_fill(c);
+        }
+        cairo_restore(c);
+        y += nc_draw_card(c, &ncl[i], i, x, y, w, summary) + 8 + (nm >= 3 ? 14 : 7);
     }
 }
 
@@ -956,6 +1103,9 @@ static void standby_set(int on) {
 
 /* ---- widget extension helpers (WidgetKit): short-lived processes the home screen asks for ---- */
 static struct { pid_t pid; char req[512]; int ext; } helpers[16];
+/* a notification extension's control FIFO (<request>.ctl, its ISIM_CONTROL): the shell drives an interactive Content
+   extension session through it (taps, and system events: "sysevent nx-...") */
+static void helper_ctl_path(const char *req, char *out, size_t n) { snprintf(out, n, "%s.ctl", req); }
 static void sys_run_helper_kind(const char *exe, const char *req, int ext);
 static void sys_run_helper(const char *exe, const char *req) { sys_run_helper_kind(exe, req, 0); }
 /* ext: a notification extension (ISIM_EXTENSION_REQUEST; "ext-done" when it exits), else a widget extension */
@@ -963,6 +1113,8 @@ static void sys_run_helper_kind(const char *exe, const char *req, int ext) {
     int slot = -1;
     for (int i = 0; i < 16; i++) if (!helpers[i].pid) { slot = i; break; }
     if (slot < 0) { fprintf(stderr, "isim shell: too many widget extension processes\n"); return; }
+    char ctl[600] = "";
+    if (ext) { helper_ctl_path(req, ctl, sizeof ctl); unlink(ctl); if (mkfifo(ctl, 0600) != 0) ctl[0] = 0; }
     pid_t shell_pid = getpid(), pid = fork();
     if (pid < 0) return;
     if (pid == 0) {
@@ -972,6 +1124,7 @@ static void sys_run_helper_kind(const char *exe, const char *req, int ext) {
         unsetenv("ISIM_CLIENT_SOCK"); unsetenv("ISIM_CLIENT_SURFACE"); unsetenv("ISIM_SCRIPT"); unsetenv("ISIM_CONTROL");
         unsetenv("ISIM_LAUNCH_URL"); unsetenv("ISIM_LAUNCH_BACKGROUND");
         setenv("ISIM_HEADLESS", "1", 1); setenv(ext ? "ISIM_EXTENSION_REQUEST" : "ISIM_WIDGET_REQUEST", req, 1); setenv("ISIM_MUTE", "1", 1);
+        if (ctl[0]) setenv("ISIM_CONTROL", ctl, 1);
         execl(shell_self, shell_self, "--root", shell_root, exe, (char *)NULL);
         _exit(127);
     }
@@ -980,6 +1133,7 @@ static void sys_run_helper_kind(const char *exe, const char *req, int ext) {
 static void sys_reaped(pid_t pid, int status) {
     for (int i = 0; i < 16; i++) if (helpers[i].pid == pid) {
         helpers[i].pid = 0;
+        if (helpers[i].ext) { char ctl[600]; helper_ctl_path(helpers[i].req, ctl, sizeof ctl); unlink(ctl); }
         sys_send_text(0, "%s %d %s", helpers[i].ext ? "ext-done" : "widget-done", WIFEXITED(status) ? WEXITSTATUS(status) : 128, helpers[i].req);
     }
 }
@@ -1220,7 +1374,26 @@ struct nx_action { char id[128], title[128], button[64], placeholder[128]; int o
 static struct {
     int on, loading, hidden, dismiss, nact, reply;          /* reply: index of the text input action being answered + 1 */
     struct nc_item it; cairo_surface_t *img; double img_h; struct nx_action act[8]; char text[512];
+    /* an interactive Content extension session: its directory (state, frames) and control FIFO; interactive: taps on
+       the view go to it (UNNotificationExtensionUserInteractionEnabled); responds: it answers actions first */
+    char session[512], ctl[600], frame[600]; int interactive, responds, seq, answer_seq, media, playing, waiting; double ext_w, media_r[4];
+    struct timespec state_mtime; char wait_action[128], wait_text[512]; int wait_fg;
 } nx;
+static void nx_send(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+static void nx_send(const char *fmt, ...) {
+    if (!nx.ctl[0]) return;
+    int fd = open(nx.ctl, O_WRONLY | O_NONBLOCK);
+    if (fd < 0) return;
+    char line[1200]; va_list ap; va_start(ap, fmt); int n = vsnprintf(line, sizeof line - 1, fmt, ap); va_end(ap);
+    if (n > (int)sizeof line - 2) n = (int)sizeof line - 2;
+    line[n++] = '\n';
+    if (write(fd, line, (size_t)n) < 0) {}
+    close(fd);
+}
+static void nx_end_session(void) {
+    if (nx.session[0]) { nx_send("sysevent nx-close"); fprintf(stderr, "isim shell: content extension session ended\n"); }
+    nx.session[0] = nx.ctl[0] = nx.frame[0] = 0; nx.interactive = nx.responds = nx.media = nx.waiting = 0;
+}
 static void nx_free_image(void) { if (nx.img) { cairo_surface_destroy(nx.img); nx.img = NULL; } }
 static int nc_find(const char *path, const char *id) {
     for (int k = 0; k < nnc; k++) if (!strcmp(ncl[k].path, path) && !strcmp(ncl[k].id, id)) return k;
@@ -1230,7 +1403,9 @@ static void nx_open_item(int idx) {
     if (idx < 0 || idx >= nnc) return;
     nx_free_image();
     memset(&nx.act, 0, sizeof nx.act);
+    nx_end_session();
     nx.on = 1; nx.loading = 1; nx.hidden = nx.dismiss = nx.nact = nx.reply = 0; nx.text[0] = 0; nx.img_h = 0;
+    nx.seq = nx.answer_seq = nx.playing = 0; memset(&nx.state_mtime, 0, sizeof nx.state_mtime);
     nx.it = ncl[idx];
     if (anim.kind != ANIM_NONE) anim.kind = ANIM_NONE;
     if (win_orient != 1) shell_apply_orient(1);
@@ -1253,6 +1428,11 @@ static void nx_loaded(const char *record, const char *sidecar) {
             nx.img = cairo_image_surface_create_from_png(line + 6);
             if (cairo_surface_status(nx.img) != CAIRO_STATUS_SUCCESS) nx_free_image();
         } else if (!strncmp(line, "height=", 7)) nx.img_h = atof(line + 7);
+        else if (!strncmp(line, "session=", 8)) snprintf(nx.session, sizeof nx.session, "%s", line + 8);
+        else if (!strncmp(line, "control=", 8)) snprintf(nx.ctl, sizeof nx.ctl, "%s", line + 8);
+        else if (!strncmp(line, "interactive=", 12)) nx.interactive = atoi(line + 12);
+        else if (!strncmp(line, "responds=", 9)) nx.responds = atoi(line + 9);
+        else if (!strncmp(line, "width=", 6)) nx.ext_w = atof(line + 6);
         else if (!strncmp(line, "hidden=", 7)) nx.hidden = atoi(line + 7);
         else if (!strncmp(line, "dismiss=", 8)) nx.dismiss = atoi(line + 8);
         else if (!strncmp(line, "action=", 7) && nx.nact < 8) {
@@ -1268,10 +1448,12 @@ static void nx_loaded(const char *record, const char *sidecar) {
         }
     }
     fclose(f);
-    fprintf(stderr, "isim shell: expanded notification %s: %d action(s)%s\n", nx.it.id, nx.nact, nx.img ? ", content extension view" : "");
+    fprintf(stderr, "isim shell: expanded notification %s: %d action(s)%s%s\n", nx.it.id, nx.nact, nx.img ? ", content extension view" : "",
+            nx.session[0] ? (nx.interactive ? " (interactive session)" : " (session)") : "");
     sys_draw();
 }
 static void nx_close(void) {
+    nx_end_session();
     nx.on = 0; nx_free_image();
     if (ov == OV_NX) ov = locked ? OV_LOCK : OV_NONE;
     shell_show(active >= 0 ? active : 0);
@@ -1282,6 +1464,7 @@ static void nx_respond(const char *action, const char *text, int foreground) {
     int k = nc_find(it.path, it.id);
     if (k >= 0 && strcmp(action, "com.apple.UNNotificationDismissActionIdentifier")) { memmove(&ncl[k], &ncl[k + 1], (nnc - k - 1) * sizeof *ncl); nnc--; }
     fprintf(stderr, "isim shell: notification action %s on %s%s%s\n", action, it.id, text ? " with text: " : "", text ? text : "");
+    nx_end_session();
     nx.on = 0; nx_free_image();
     ov = OV_NONE;
     if (foreground && locked) { locked = 0; fprintf(stderr, "isim shell: unlocked\n"); sys_protected_data(1); }
@@ -1341,6 +1524,21 @@ static void nx_draw(cairo_t *c) {
         g_object_unref(tl);
     }
     el_add("nx-content", nx.it.title, card, EL_NX_CONTENT, 0);
+    if (nx.img && nx.session[0]) {
+        struct rectf ir = { x, y + 46, iw, ih };
+        double k = iw / (nx.ext_w > 0 ? nx.ext_w : iw);
+        if (nx.interactive) el_add("nx-extension", "", ir, EL_NX_EXT, 0);    /* taps go to the extension's view */
+        if (nx.media) {                                           /* the play / pause button the system draws over it */
+            struct rectf mr = { ir.x + nx.media_r[0] * k, ir.y + nx.media_r[1] * k, nx.media_r[2] * k, nx.media_r[3] * k };
+            double cx = mr.x + mr.w / 2, cyy = mr.y + mr.h / 2, rad = fmin(mr.w, mr.h) / 2;
+            cairo_set_source_rgba(c, 1, 1, 1, nx.media == 2 ? 0.55 : 0.92); cairo_arc(c, cx, cyy, rad, 0, 2 * M_PI); cairo_fill(c);
+            cairo_set_source_rgb(c, 0.1, 0.1, 0.12);
+            if (nx.playing) { cairo_rectangle(c, cx - rad * 0.32, cyy - rad * 0.38, rad * 0.22, rad * 0.76); cairo_rectangle(c, cx + rad * 0.1, cyy - rad * 0.38, rad * 0.22, rad * 0.76); }
+            else { cairo_move_to(c, cx - rad * 0.25, cyy - rad * 0.4); cairo_line_to(c, cx + rad * 0.42, cyy); cairo_line_to(c, cx - rad * 0.25, cyy + rad * 0.4); cairo_close_path(c); }
+            cairo_fill(c);
+            el_add("nx-media", nx.playing ? "Pause" : "Play", mr, EL_NX_MEDIA, 0);
+        }
+    }
     /* the actions */
     double ay = card.y + card.h + 10;
     if (nx.nact) {
@@ -1370,6 +1568,75 @@ static void nx_draw(cairo_t *c) {
         el_add("nx-reply-send", a->button, send, EL_NX_SEND, 0);
     }
 }
+/* an action chosen under the expanded notification: an extension that handles responses answers first (keep the
+   notification open, dismiss it, or forward the action to the app), else the action goes to the app */
+static void nx_choose(const char *action, const char *text, int foreground) {
+    if (nx.session[0] && nx.responds) {
+        snprintf(nx.wait_action, sizeof nx.wait_action, "%s", action); snprintf(nx.wait_text, sizeof nx.wait_text, "%s", text ? text : "");
+        nx.wait_fg = foreground; nx.waiting = 1; nx.reply = 0;
+        fprintf(stderr, "isim shell: action %s goes to the content extension first\n", action);
+        nx_send("sysevent nx-action %s\x1f%s", action, text ? text : "");
+        sys_draw();
+        return;
+    }
+    nx_respond(action, text, foreground);
+}
+static void nx_answer(const char *a) {
+    fprintf(stderr, "isim shell: content extension answered %s\n", a);
+    nx.waiting = 0;
+    if (!strcmp(a, "keep")) { sys_draw(); return; }
+    if (!strcmp(a, "dismiss")) { nx_close(); return; }
+    if (strncmp(a, "forward ", 8)) return;
+    char action[128], text[512]; int fg, has_text = 0;
+    snprintf(action, sizeof action, "%s", a + 8);
+    if (!strcmp(action, nx.wait_action)) { fg = nx.wait_fg; snprintf(text, sizeof text, "%s", nx.wait_text); has_text = text[0] != 0; }
+    else fg = !strcmp(action, "com.apple.UNNotificationDefaultActionIdentifier");
+    nx.wait_action[0] = 0;
+    nx_respond(action, has_text ? text : NULL, fg);
+}
+/* the session's state file: a new frame, the play / pause button, the actions (notificationActions), an answer */
+static void nx_poll(void) {
+    if (!nx.on || !nx.session[0]) return;
+    char p[600]; snprintf(p, sizeof p, "%s/state", nx.session);
+    struct stat st;
+    if (stat(p, &st) != 0 || (st.st_mtim.tv_sec == nx.state_mtime.tv_sec && st.st_mtim.tv_nsec == nx.state_mtime.tv_nsec)) return;
+    nx.state_mtime = st.st_mtim;
+    FILE *f = fopen(p, "r");
+    if (!f) return;
+    int seq = nx.seq, aseq = 0, nact = 0, actions = 0, media = 0, playing = 0; double h = nx.img_h, mr[4] = { 0 };
+    char frame[600] = "", answer[300] = "", line[2048];
+    struct nx_action act[8]; memset(act, 0, sizeof act);
+    while (fgets(line, sizeof line, f)) {
+        line[strcspn(line, "\n")] = 0;
+        if (!strncmp(line, "seq=", 4)) seq = atoi(line + 4);
+        else if (!strncmp(line, "frame=", 6)) snprintf(frame, sizeof frame, "%s", line + 6);
+        else if (!strncmp(line, "height=", 7)) h = atof(line + 7);
+        else if (!strncmp(line, "media=", 6)) sscanf(line + 6, "%d %lf %lf %lf %lf %d", &media, &mr[0], &mr[1], &mr[2], &mr[3], &playing);
+        else if (!strncmp(line, "actions=", 8)) actions = 1;
+        else if (!strncmp(line, "answer=", 7)) sscanf(line + 7, "%d %299[^\n]", &aseq, answer);
+        else if (!strncmp(line, "action=", 7) && nact < 8) {
+            struct nx_action *ac = &act[nact++];
+            char *q = line + 7, *parts[6] = { 0 }; int n = 0;
+            parts[n++] = q;
+            for (char *r = q; *r && n < 6; r++) if (*r == '\x1e') { *r = 0; parts[n++] = r + 1; }
+            snprintf(ac->id, sizeof ac->id, "%s", parts[0] ? parts[0] : ""); snprintf(ac->title, sizeof ac->title, "%s", parts[1] ? parts[1] : "");
+            ac->opts = parts[2] ? atoi(parts[2]) : 0; ac->text = parts[3] ? atoi(parts[3]) : 0;
+            snprintf(ac->button, sizeof ac->button, "%s", parts[4] && *parts[4] ? parts[4] : "Send"); snprintf(ac->placeholder, sizeof ac->placeholder, "%s", parts[5] ? parts[5] : "");
+        }
+    }
+    fclose(f);
+    nx.media = media; nx.playing = playing; memcpy(nx.media_r, mr, sizeof mr);
+    if (actions) { memcpy(nx.act, act, sizeof act); nx.nact = nact; }
+    if (seq != nx.seq && frame[0] && strcmp(frame, nx.frame)) {
+        cairo_surface_t *img = cairo_image_surface_create_from_png(frame);
+        if (cairo_surface_status(img) == CAIRO_STATUS_SUCCESS) {
+            nx_free_image(); nx.img = img; nx.img_h = h; nx.seq = seq; snprintf(nx.frame, sizeof nx.frame, "%s", frame);
+            fprintf(stderr, "isim shell: content extension frame %d\n", seq);
+        } else cairo_surface_destroy(img);
+    }
+    if (ov == OV_NX) sys_draw();
+    if (aseq > nx.answer_seq) { nx.answer_seq = aseq; nx_answer(answer); }
+}
 /* text typed into the reply field */
 static int nx_text_input(const struct isim_event *ev) {
     if (ov != OV_NX || !nx.reply) return 0;
@@ -1377,7 +1644,7 @@ static int nx_text_input(const struct isim_event *ev) {
     if (ev->type == EV_KEY && ev->key == 8) { size_t l = strlen(nx.text); while (l > 0 && (nx.text[l - 1] & 0xC0) == 0x80) l--; if (l) nx.text[l - 1] = 0; sys_draw(); return 1; }
     if (ev->type == EV_KEY && ev->key == 13) {
         struct nx_action *a = &nx.act[nx.reply - 1]; char t[512]; snprintf(t, sizeof t, "%s", nx.text);
-        nx_respond(a->id, t, (a->opts & 4) != 0); return 1;
+        nx_choose(a->id, t, (a->opts & 4) != 0); return 1;
     }
     return 0;
 }
@@ -1499,6 +1766,8 @@ static void sys_draw(void) {
     }
     cairo_surface_destroy(bs); cairo_surface_destroy(home);
     if (ov != OV_NONE && !(standby && ov == OV_LOCK)) sys_chrome(c, ov == OV_CC ? e : 1);   /* StandBy: no status bar */
+    if (calls_visible()) { cairo_save(c); cairo_identity_matrix(c); cairo_scale(c, px_scale, px_scale); calls_draw(c); cairo_restore(c); }
+    if (calls_fullscreen() && !(standby && ov == OV_LOCK)) sys_chrome(c, 1);    /* the status bar over the call screens */
     if (siri_visible()) { cairo_save(c); cairo_identity_matrix(c); cairo_scale(c, px_scale, px_scale); siri_draw(c); cairo_restore(c); }
     if (cc_brightness < 0.999) { cairo_identity_matrix(c); cairo_set_source_rgba(c, 0, 0, 0, (1 - cc_brightness) * 0.7); cairo_paint(c); }
     cairo_destroy(c);
@@ -1514,7 +1783,7 @@ static void sys_open(int which) {
         sw_collect(); sw_scroll = 0; memset(sw_kill_dy, 0, sizeof sw_kill_dy);
         if (active > 0) shell_send(active, EV_BACKGROUND);
         fprintf(stderr, "isim shell: app switcher (%d app%s)\n", sw_n, sw_n == 1 ? "" : "s");
-    } else if (which == OV_NC) fprintf(stderr, "isim shell: Notification Center (%d notification%s)\n", nnc, nnc == 1 ? "" : "s");
+    } else if (which == OV_NC) { nncx = 0; fprintf(stderr, "isim shell: Notification Center (%d notification%s)\n", nnc, nnc == 1 ? "" : "s"); }
     else if (which == OV_CC) { cc_page = CC_PAGE_MAIN; fprintf(stderr, "isim shell: Control Center (iOS %d look)\n", sys_os()); }
     sys_draw();
 }
@@ -1580,6 +1849,7 @@ static void nc_open(int idx) {
     int i = shell_find(n.path);
     fprintf(stderr, "isim shell: opened notification %s from %s\n", n.id, locked ? "the lock screen" : ov == OV_NX ? "an expanded notification" : "Notification Center");
     if (locked) { locked = 0; fprintf(stderr, "isim shell: unlocked\n"); sys_protected_data(1); }
+    if (nx.on) nx_end_session();
     ov = OV_NONE; nx.on = 0;
     if (i < 0 && n.exe[0]) {                                   /* not running: launch it with the response (or the remote notification) */
         char url[1300];
@@ -1624,6 +1894,7 @@ static struct sys_el *el_named(const char *id) {
     for (int k = nels - 1; k >= 0; k--) if (!strcmp(els[k].id, id)) return &els[k];
     return NULL;
 }
+static double el_tap_x;                                      /* the x of the tap el_tap handles */
 static void el_tap(struct sys_el *e, double y) {
     if (!e) return;
     switch (e->kind) {
@@ -1632,13 +1903,32 @@ static void el_tap(struct sys_el *e, double y) {
         struct rectf r = sw_card_rect(k, &rad);
         sw_activate(e->arg, r, rad); break; }
     case EL_NC_ITEM: nc_open(e->arg); break;
+    case EL_NC_GROUP: case EL_NC_LESS: {                           /* expand / collapse a stack */
+        char key[700]; nc_group_key(&ncl[e->arg], key, sizeof key);
+        if (e->kind == EL_NC_GROUP && nncx < 16 && !nc_group_open(key)) { snprintf(ncx_open[nncx++], sizeof ncx_open[0], "%s", key); fprintf(stderr, "isim shell: expanded the stack of %s\n", ncl[e->arg].path); }
+        else if (e->kind == EL_NC_LESS) {
+            for (int k = 0; k < nncx; k++) if (!strcmp(ncx_open[k], key)) { memmove(ncx_open[k], ncx_open[k + 1], sizeof ncx_open[0] * (size_t)(nncx - k - 1)); nncx--; break; }
+            fprintf(stderr, "isim shell: collapsed the stack of %s\n", ncl[e->arg].path);
+        }
+        sys_draw(); break; }
     case EL_NX_CONTENT: { int k = nc_find(nx.it.path, nx.it.id); if (k >= 0) nc_open(k); else nx_close(); break; }
     case EL_NX_ACTION: {
         struct nx_action *a = &nx.act[e->arg];
         if (a->text) { nx.reply = e->arg + 1; nx.text[0] = 0; fprintf(stderr, "isim shell: reply field for %s\n", a->id); sys_draw(); }
-        else nx_respond(a->id, NULL, (a->opts & 4) != 0);
+        else nx_choose(a->id, NULL, (a->opts & 4) != 0);
         break; }
-    case EL_NX_SEND: if (nx.reply) { struct nx_action *a = &nx.act[nx.reply - 1]; char t[512]; snprintf(t, sizeof t, "%s", nx.text); nx_respond(a->id, t, (a->opts & 4) != 0); } break;
+    case EL_NX_SEND: if (nx.reply) { struct nx_action *a = &nx.act[nx.reply - 1]; char t[512]; snprintf(t, sizeof t, "%s", nx.text); nx_choose(a->id, t, (a->opts & 4) != 0); } break;
+    case EL_NX_EXT: {                                            /* a tap on the extension's view: to the extension, in its points */
+        double k = nx.ext_w > 0 ? nx.ext_w / e->r.w : 1;
+        double px = (el_tap_x - e->r.x) * k, py = (y - e->r.y) * k;
+        fprintf(stderr, "isim shell: tap %.0f,%.0f in the content extension\n", px, py);
+        nx_send("tap %.1f %.1f", px, py);
+        break; }
+    case EL_NX_MEDIA:
+        nx.playing = !nx.playing;
+        fprintf(stderr, "isim shell: content extension media %s\n", nx.playing ? "play" : "pause");
+        nx_send("sysevent nx-media %s", nx.playing ? "play" : "pause");
+        sys_draw(); break;
     case EL_NC_CLEAR: fprintf(stderr, "isim shell: cleared %d notification(s)\n", nnc); nnc = 0; sys_draw(); break;
     case EL_CC_TOGGLE: cc_toggle(e->arg); break;
     case EL_NP:
@@ -1664,9 +1954,10 @@ static void sys_dump(void) {
     static const char *const names[] = { "", "IsimAppSwitcher", "IsimLockScreen", "IsimNotificationCenter", "IsimControlCenter", "IsimExpandedNotification", "IsimAppClipCard" };
     fprintf(stderr, "%s (0 0; %g x %g)\n", names[ov], dev.width, dev.height);
     for (int k = 0; k < nels; k++)
-        fprintf(stderr, "  %s (%g %g; %g x %g) id=%s%s%s\n", els[k].kind == EL_CARD ? "IsimAppCard" : els[k].kind == EL_NC_ITEM ? "IsimNotification" :
+        fprintf(stderr, "  %s (%g %g; %g x %g) id=%s%s%s\n", els[k].kind == EL_CARD ? "IsimAppCard" : els[k].kind == EL_NC_ITEM ? "IsimNotification" : els[k].kind == EL_NC_GROUP ? "IsimNotificationStack" :
                 els[k].kind == EL_NX_ACTION ? "IsimNotificationAction" : els[k].kind == EL_NX_CONTENT ? "IsimNotificationContent" :
-                els[k].kind == EL_CC_TOGGLE || (els[k].kind == EL_CC_X && els[k].arg / 1000 == X_MODULE) || els[k].kind == EL_NP ? "IsimControlButton" : els[k].kind == EL_CC_SLIDER ? "IsimControlSlider" : els[k].kind == EL_LA ? "IsimLiveActivity" : els[k].kind == EL_LW ? "IsimLockScreenWidget" : els[k].kind >= EL_AC_OPEN ? "IsimAppClipButton" : "IsimSystemView",
+                els[k].kind == EL_NX_EXT ? "IsimNotificationExtensionView" : els[k].kind == EL_NX_MEDIA ? "IsimNotificationMediaButton" :
+                els[k].kind == EL_CC_TOGGLE || (els[k].kind == EL_CC_X && els[k].arg / 1000 == X_MODULE) || els[k].kind == EL_NP ? "IsimControlButton" : els[k].kind == EL_CC_SLIDER ? "IsimControlSlider" : els[k].kind == EL_CALL ? "IsimCallButton" : els[k].kind == EL_LA ? "IsimLiveActivity" : els[k].kind == EL_LW ? "IsimLockScreenWidget" : els[k].kind >= EL_AC_OPEN ? "IsimAppClipButton" : "IsimSystemView",
                 els[k].r.x, els[k].r.y, els[k].r.w, els[k].r.h, els[k].id, els[k].text[0] ? " text=" : "", els[k].text);
 }
 
@@ -1675,6 +1966,7 @@ static struct { int on, sys; double x0, y0, t0; } top_drag;     /* a touch that 
 static double last_home_key;
 static int sys_input(const struct isim_event *ev) {
     if (siri_input(ev)) return 1;
+    if (calls_input(ev)) return 1;
     if (ev->type == EV_KEY && (ev->mods & SDL_KMOD_CTRL) && !(ev->mods & SDL_KMOD_SHIFT) && (ev->key == 'l' || ev->key == 'L')) {
         if (locked) sys_unlock(); else sys_lock(); return 1;
     }
@@ -1750,7 +2042,7 @@ static int sys_input(const struct isim_event *ev) {
         struct sys_el *e = el_named(ev->text);
         if (!e) { fprintf(stderr, "isim shell: no system element '%s'\n", ev->text); return 1; }
         if (ev->type == EV_ID_DOWN && ev->mods != 1) { id_down_t = now(); snprintf(id_down, sizeof id_down, "%s", ev->text); }
-        if (ev->type == EV_ID_UP && e->kind == EL_NC_ITEM && !strcmp(id_down, ev->text) && now() - id_down_t >= 0.5) {   /* holdid: expand */
+        if (ev->type == EV_ID_UP && (e->kind == EL_NC_ITEM || e->kind == EL_NC_GROUP) && !strcmp(id_down, ev->text) && now() - id_down_t >= 0.5) {   /* holdid: expand */
             id_down[0] = 0; nx_open_item(e->arg); return 1;
         }
         if (ev->type == EV_ID_UP && ov == OV_LOCK && !standby && !strcmp(ev->text, "lock-clock") && !strcmp(id_down, ev->text) && now() - id_down_t >= 0.5) {
@@ -1762,7 +2054,7 @@ static int sys_input(const struct isim_event *ev) {
             else if (e->kind == EL_BG && ev->y < -50) { if (ov == OV_LOCK) sys_unlock(); else sys_close(); }
             return 1;
         }
-        if (ev->type == EV_ID_UP) el_tap(e, e->r.y + e->r.h / 2);
+        if (ev->type == EV_ID_UP) { el_tap_x = e->r.x + e->r.w / 2; el_tap(e, e->r.y + e->r.h / 2); }
         return 1;
     }
     if (ev->type == EV_TOUCH_DOWN) {
@@ -1779,7 +2071,7 @@ static int sys_input(const struct isim_event *ev) {
             sys_draw();
         } else if (ov == OV_CC) {
             struct sys_el *e = el_at(sw_drag.x0, sw_drag.y0);
-            if (e && e->kind == EL_CC_SLIDER) el_tap(e, ev->y);
+            if (e && e->kind == EL_CC_SLIDER) { el_tap_x = ev->x; el_tap(e, ev->y); }
         }
         return 1;
     }
@@ -1792,9 +2084,9 @@ static int sys_input(const struct isim_event *ev) {
         if (ov == OV_LOCK && sw_drag.y0 > dev.height - 120 && dy < -80) { sys_unlock(); return 1; }
         if ((ov == OV_NC || ov == OV_CC) && dy < -60) { sys_close(); return 1; }
         struct sys_el *te = moved ? NULL : el_at(ev->x, ev->y);
-        if (te && te->kind == EL_NC_ITEM && now() - sw_drag.t0 >= 0.5) { nx_open_item(te->arg); return 1; }   /* long press: expand */
+        if (te && (te->kind == EL_NC_ITEM || te->kind == EL_NC_GROUP) && now() - sw_drag.t0 >= 0.5) { nx_open_item(te->arg); return 1; }   /* long press: expand */
         if (ov == OV_LOCK && !standby && !moved && now() - sw_drag.t0 >= 0.6 && (!te || te->kind == EL_NONE)) { lock_customize(); return 1; }   /* long press: customize */
-        if (!moved) el_tap(te, ev->y);
+        if (!moved) { el_tap_x = ev->x; el_tap(te, ev->y); }
         else if (ov == OV_SWITCHER) sys_draw();
         return 1;
     }
@@ -1825,6 +2117,8 @@ static void sys_tick(void) {
     }
     la_tick();
     siri_tick();
+    calls_tick();
+    nx_poll();
     if (ov == OV_NONE) return;
     static double last_draw;
     double t = now();
@@ -1834,6 +2128,7 @@ static void sys_tick(void) {
 static void sys_handle_msg(int from, const struct shell_msg *m) {
     const char *verb = m->a;
     if (ctl_handle_msg(from, m)) return;                         /* Focus and controls (shell_controls.inc) */
+    if (calls_handle_msg(from, m)) return;                       /* CallKit calls (shell_calls.inc) */
     if (!strcmp(verb, "appinfo")) {
         struct sys_appinfo *ai = sys_info(m->b);
         if (!ai) { if (nappinfo >= 128) return; ai = &appinfo[nappinfo++]; snprintf(ai->path, sizeof ai->path, "%s", m->b); }
@@ -1845,7 +2140,13 @@ static void sys_handle_msg(int from, const struct shell_msg *m) {
         field(m->b, 0, id, sizeof id); field(m->b, 1, icon, sizeof icon); field(m->c, 0, title, sizeof title); field(m->c, 1, body, sizeof body);
         struct nc_item *n = nc_add(clients[from].bundle, id, icon, title, body);
         field(m->b, 2, n->record, sizeof n->record); field(m->b, 3, n->thumb, sizeof n->thumb);
+        nc_load_sidecar(n);
         if (ov != OV_NONE) sys_draw();
+    } else if (!strcmp(verb, "notif-sound")) {             /* a notification the foreground app presented with .sound */
+        sys_play_sound(m->b, clients[from].bundle);
+    } else if (!strcmp(verb, "local-due")) {               /* the home screen's scheduler: a local notification of an app */
+        char exe[512], side[512]; field(m->c, 0, exe, sizeof exe); field(m->c, 1, side, sizeof side);
+        sys_local_deliver(m->b, exe, side);
     } else if (!strcmp(verb, "bg-assert")) {               /* what keeps the app running in the background */
         struct shell_client *c = &clients[from];
         if (strcmp(c->reasons, m->b)) fprintf(stderr, "isim shell: %s in the background: %s\n", short_name(from), m->b[0] ? m->b : "can be suspended");
@@ -1981,9 +2282,40 @@ static void sys_push_deliver(const char *path, const char *exe, const char *side
     struct nc_item *n = nc_add(path, id, icon, title, body);
     snprintf(n->record, sizeof n->record, "%s", record); snprintf(n->thumb, sizeof n->thumb, "%s", thumb);
     snprintf(n->exe, sizeof n->exe, "%s", exe); snprintf(n->file, sizeof n->file, "%s", file);
-    if (sys_hides_banners()) { fprintf(stderr, "isim shell: notification from %s listed%s: %s\n", path, locked ? " on the lock screen" : "", title); if (ov != OV_NONE) sys_draw(); return; }
-    if (focus_silences(path, flags, title)) return;
-    nb_show(-1, path, id, icon, title, body, thumb);
+    nc_load_sidecar(n);
+    sys_alert(-1, n, flags);
+}
+
+/* a local notification the home screen's scheduler found due (the sidecar: flags=, id=, title=, body=, icon=, record=,
+   thumb=, fire=, bundle=). A running app delivers its own (a suspended one is woken for it: bg-wake); for an app that
+   is not running the system shows it, like a remote one (tapping it launches the app with the response), and tells the
+   home screen ("local-shown"), which updates the app's pending requests. */
+static void sys_local_deliver(const char *path, const char *exe, const char *sidecar) {
+    char flags[32] = "", id[256] = "", title[256] = "", body[512] = "", icon[512] = "", record[512] = "", thumb[512] = "", fire[64] = "", bundle[256] = "", line[1200];
+    FILE *f = fopen(sidecar, "r");
+    if (!f) { fprintf(stderr, "isim shell: local notification: cannot read %s\n", sidecar); return; }
+    while (fgets(line, sizeof line, f)) {
+        line[strcspn(line, "\n")] = 0;
+        char *v = strchr(line, '='); if (!v) continue; *v++ = 0;
+        for (char *q = v; *q; q++) if (*q == '\x1e') *q = '\n';
+        if (!strcmp(line, "flags")) snprintf(flags, sizeof flags, "%s", v); else if (!strcmp(line, "id")) snprintf(id, sizeof id, "%s", v);
+        else if (!strcmp(line, "title")) snprintf(title, sizeof title, "%s", v); else if (!strcmp(line, "body")) snprintf(body, sizeof body, "%s", v);
+        else if (!strcmp(line, "icon")) snprintf(icon, sizeof icon, "%s", v); else if (!strcmp(line, "record")) snprintf(record, sizeof record, "%s", v);
+        else if (!strcmp(line, "thumb")) snprintf(thumb, sizeof thumb, "%s", v); else if (!strcmp(line, "fire")) snprintf(fire, sizeof fire, "%s", v);
+        else if (!strcmp(line, "bundle")) snprintf(bundle, sizeof bundle, "%s", v);
+    }
+    fclose(f);
+    unlink(sidecar);
+    int i = shell_find(path);
+    if (i >= 0) { fprintf(stderr, "isim shell: local notification %s is due in the running %s (the app delivers it)\n", id, short_name(i)); return; }
+    fprintf(stderr, "isim shell: local notification %s for %s, which is not running: the system delivers it\n", id, path);
+    sys_send_text(0, "local-shown %s\x1f%s\x1f%s", bundle, id, fire);
+    if (!strchr(flags, 'a')) { fprintf(stderr, "isim shell: local notification %s for %s not shown (the app may not show alerts)\n", id, path); return; }
+    struct nc_item *n = nc_add(path, id, icon, title, body);
+    snprintf(n->record, sizeof n->record, "%s", record); snprintf(n->thumb, sizeof n->thumb, "%s", thumb);
+    snprintf(n->exe, sizeof n->exe, "%s", exe);
+    nc_load_sidecar(n);
+    sys_alert(-1, n, flags);
 }
 
 /* script commands for the system (EV_SHELL_CMD); returns 1 when handled */
@@ -2043,7 +2375,7 @@ static int sys_command(const char *text) {
     if (!strcmp(verb, "homepage")) { if (!locked && active == 0) sys_send_text(0, "homepage %s", args); return 1; }
     if (!strcmp(verb, "iconstyle")) { sys_send_text(0, "iconstyle %s", args); return 1; }   /* Home Screen > Edit > Customize */
     if (!strcmp(verb, "spotlight")) { if (!locked && active == 0) sys_send_text(0, "spotlight"); return 1; }
-    if (ctl_command(verb, args)) return 1;                       /* focus, actionbutton, lockcontrol */
+    if (ctl_command(verb, args)) return 1;                       /* focus, silent, actionbutton, lockcontrol */
     if (!strcmp(verb, "siri")) { sys_send_text(0, "siri %d %s", locked, args); return 1; }   /* the simulated Siri (SBSiri.m) */
     fprintf(stderr, "isim shell: '%s' is not available\n", verb);
     return 1;
@@ -2056,14 +2388,10 @@ static void sys_notify(int i, const struct shell_msg *m) {
     field(m->a, 0, id, sizeof id); field(m->a, 1, icon, sizeof icon);
     struct nc_item *n = nc_add(clients[i].bundle, id, icon, m->b, m->c);
     field(m->a, 2, n->record, sizeof n->record); field(m->a, 3, n->thumb, sizeof n->thumb);
-    if (sys_hides_banners()) {
-        fprintf(stderr, "isim shell: notification from %s listed%s: %s\n", clients[i].bundle, locked ? " on the lock screen" : "", m->b);
-        if (ov != OV_NONE) sys_draw();
-        return;
-    }
+    nc_load_sidecar(n);
     char flags[16]; field(m->a, 4, flags, sizeof flags);
-    if (focus_silences(clients[i].bundle, flags, m->b)) return;
-    nb_post(i, m);
+    sys_alert(i, n, flags);
 }
 
 #include "shell_siri.inc"
+#include "shell_calls.inc"
