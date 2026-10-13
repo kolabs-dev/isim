@@ -21,7 +21,7 @@ def localhost_cert(d: Path):
         return None
     cert, key = d / "localhost.pem", d / "localhost.key"
     r = subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", "/CN=localhost",
-                        "-addext", "subjectAltName=DNS:localhost", "-keyout", str(key), "-out", str(cert)],
+                        "-addext", "subjectAltName=DNS:localhost", "-addext", "extendedKeyUsage=serverAuth", "-keyout", str(key), "-out", str(cert)],
                        capture_output=True)
     return (cert, key) if r.returncode == 0 else None
 

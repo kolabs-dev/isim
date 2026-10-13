@@ -560,7 +560,9 @@ int isim_pki_trust_ex(const uint8_t *certs, const size_t *lens, int ncerts, cons
     if (!good) snprintf(err, errcap, "%s", P.X509_verify_cert_error_string(P.X509_STORE_CTX_get_error(c)));
     if (good && n > 0) {
         X509 *leaf = P.OPENSSL_sk_value(chain, 0), *top = P.OPENSSL_sk_value(chain, n - 1);
-        int custom = 0;                                   /* anchored at a certificate the app gave (not a system root) */
+        /* anchored at a certificate the app gave, or a self-signed leaf trusted directly (a locally installed trust:
+           public CAs never issue those), not a public CA: no CT / 398-day rules */
+        int custom = n == 1;
         for (int i = 0; i < na && !custom; i++) {
             unsigned char *a = NULL, *b = NULL; int al = P.i2d_X509(as[i], &a), bl = P.i2d_X509(top, &b);
             if (al == bl && al > 0 && !memcmp(a, b, (size_t)al)) custom = 1;

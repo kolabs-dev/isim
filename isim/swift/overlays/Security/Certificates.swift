@@ -1,7 +1,7 @@
 // isim Security: certificates, policies, trust evaluation, PKCS#12 import and identities (self-authored, iOS names).
 // X.509 parsing, chain building and verification run in the host's OpenSSL (host_pki.c), then Apple's rules (adapted):
 // for SSL policies RSA keys of 2048 bits or more, no SHA-1 signatures, the host in subjectAltName, the serverAuth EKU
-// and at most 825 days (certificates issued from July 2019), and for chains to a system root also at most 398 days
+// and at most 825 days (certificates issued from July 2019), and for chains to a system root (not a self-signed certificate trusted directly) also at most 398 days
 // (from September 2020) and Certificate Transparency (two SCTs, embedded or given); OCSP revocation (stapled responses,
 // or fetched from the certificate's responder) with SecPolicyCreateRevocation. The system anchors are the host's CA
 // store, not Apple's; SCTs are counted, not verified against CT logs; CRLs are not fetched.
