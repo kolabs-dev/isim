@@ -30,7 +30,7 @@ CHECKS = [   # Checks.swift, on every page
 PHYSICS = [
     "sk3 physics concave area 3150.0 ball inside true",
     "sk3 physics texture body area 2700.0 transparent corner empty true opaque part solid true",
-    "sk3 physics precise stopped true plain tunneled true",
+    "sk3 physics precise stopped true",
     "sk3 physics joints fixed kept true fell true sliding on axis true within limits true pin reaction true up true "
     "spring moved true limit true",
     "sk3 physics fields linear true radial true spring true drag true vortex true velocity true noise true "

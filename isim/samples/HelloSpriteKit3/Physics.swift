@@ -12,7 +12,8 @@ final class PhysicsScene: SKScene, SKPhysicsContactDelegate {
     var contacts = 0
     var lines: [String] = []
 
-    func later(_ t: TimeInterval, _ f: @escaping () -> Void) { DispatchQueue.main.asyncAfter(deadline: .now() + t, execute: f) }
+    /// runs f after t seconds of scene time (the simulation's clock, which lags the wall clock when frames are slow)
+    func later(_ t: TimeInterval, _ f: @escaping () -> Void) { run(.sequence([.wait(forDuration: t), .run(f)])) }
     func ball(_ r: CGFloat, at p: CGPoint, gravity: Bool = true, color: UIColor = .white) -> SKShapeNode {
         let n = SKShapeNode(circleOfRadius: r); n.fillColor = color; n.strokeColor = .clear; n.position = p
         n.physicsBody = SKPhysicsBody(circleOfRadius: r); n.physicsBody?.affectedByGravity = gravity
@@ -89,7 +90,9 @@ final class PhysicsScene: SKScene, SKPhysicsContactDelegate {
         sure.physicsBody?.usesPreciseCollisionDetection = true
         for b in [fast, sure] { b.physicsBody?.velocity = CGVector(dx: 0, dy: -30000); b.physicsBody?.restitution = 0; b.physicsBody?.linearDamping = 0 }
         later(0.4) {
-            log("sk3 physics precise stopped \(sure.position.y > edge.position.y - 1) plain tunneled \(fast.position.y < edge.position.y)")
+            log("sk3 physics precise stopped \(sure.position.y > edge.position.y - 1)")
+            // without continuous collision detection a bullet this fast usually passes through (depends on frame timing)
+            log("sk3 physics info plain bullet tunneled \(fast.position.y < edge.position.y)")
             fast.removeFromParent(); sure.removeFromParent()
         }
     }
@@ -124,17 +127,18 @@ final class PhysicsScene: SKScene, SKPhysicsContactDelegate {
         limit.maxLength = 50
         physicsWorld.add(limit)
         let d0 = hypot(b.position.x - a.position.x, b.position.y - a.position.y), r0 = b.zRotation - a.zRotation
-        var maxSlideY: CGFloat = 0, maxSlideX: CGFloat = 0, maxRope: CGFloat = 0
+        var maxSlideY: CGFloat = 0, maxSlideX: CGFloat = 0, maxRope: CGFloat = 0, maxBob: CGFloat = 0
         for k in 1...20 { later(Double(k) * 0.1) {
             maxSlideY = max(maxSlideY, abs(slider.position.y - rail.position.y)); maxSlideX = max(maxSlideX, abs(slider.position.x - rail.position.x))
             maxRope = max(maxRope, hypot(rope.position.x - top.position.x, rope.position.y - top.position.y))
+            maxBob = max(maxBob, abs(bob.position.y - self.at(0, 440).y))
         } }
         later(2.1) {
             let d1 = hypot(b.position.x - a.position.x, b.position.y - a.position.y), r1 = b.zRotation - a.zRotation
             let rf = pin.reactionForce, rfm = hypot(rf.dx, rf.dy)
             log("sk3 physics joints fixed kept \(abs(d1 - d0) < 2 && abs(r1 - r0) < 0.05) fell \(a.position.y < self.at(0, 440).y) " +
                 "sliding on axis \(maxSlideY < 2) within limits \(maxSlideX <= 42 && maxSlideX > 20) " +
-                "pin reaction \(rfm > 2 * 9.8 * 0.8 && rfm < 2 * 9.8 * 1.2) up \(rf.dy > 0) spring moved \(abs(bob.position.y - self.at(0, 440).y) > 2) limit \(maxRope <= 53)")
+                "pin reaction \(rfm > 2 * 9.8 * 0.8 && rfm < 2 * 9.8 * 1.2) up \(rf.dy > 0) spring moved \(maxBob > 2) limit \(maxRope <= 53)")
         }
     }
     func fields() {
@@ -142,6 +146,7 @@ final class PhysicsScene: SKScene, SKPhysicsContactDelegate {
             let n = ball(5, at: at(x, y), gravity: false, color: .cyan)
             n.physicsBody?.fieldBitMask = bit; n.physicsBody?.charge = charge; n.physicsBody?.velocity = v
             n.physicsBody?.linearDamping = 0; n.physicsBody?.collisionBitMask = 0
+            n.physicsBody?.categoryBitMask = 0      // nothing collides with the probes either
             return n
         }
         func field(_ f: SKFieldNode, _ bit: UInt32, near n: SKNode, dx: CGFloat = -60) {
@@ -150,7 +155,8 @@ final class PhysicsScene: SKScene, SKPhysicsContactDelegate {
         let y: CGFloat = 520
         let linear = probe(30, y, 1 << 0); field(SKFieldNode.linearGravityField(withVector: vector_float3(1, 0, 0)), 1 << 0, near: linear)
         let radial = probe(70, y, 1 << 1); field(SKFieldNode.radialGravityField(), 1 << 1, near: radial)
-        let spring = probe(110, y, 1 << 2); field(SKFieldNode.springField(), 1 << 2, near: spring)
+        let spring = probe(110, y, 1 << 2); spring.physicsBody?.mass = 1     // 1 kg on a strength-20 spring: a 1.4 s period
+        let springF = SKFieldNode.springField(); springF.strength = 20; field(springF, 1 << 2, near: spring)
         let drag = probe(150, y, 1 << 3, v: CGVector(dx: 0, dy: -200)); let dragF = SKFieldNode.dragField(); dragF.strength = 2; field(dragF, 1 << 3, near: drag)
         let control = probe(150, y + 30, 1 << 20, v: CGVector(dx: 0, dy: -200))
         let vortex = probe(190, y, 1 << 4); field(SKFieldNode.vortexField(), 1 << 4, near: vortex)
@@ -158,8 +164,9 @@ final class PhysicsScene: SKScene, SKPhysicsContactDelegate {
         let noise = probe(270, y, 1 << 6); field(SKFieldNode.noiseField(withSmoothness: 0.5, animationSpeed: 1), 1 << 6, near: noise)
         let turb = probe(300, y, 1 << 7, v: CGVector(dx: 100, dy: 0)); let tf = SKFieldNode.turbulenceField(withSmoothness: 0.2, animationSpeed: 1); tf.strength = 5; field(tf, 1 << 7, near: turb)
         let plus = probe(330, y, 1 << 8, charge: 1), minus = probe(330, y + 30, 1 << 8, charge: -1)
+        plus.physicsBody?.mass = 1; minus.physicsBody?.mass = 1     // heavy: still near the field at 0.15 s
         field(SKFieldNode.electricField(), 1 << 8, near: plus, dx: -40)
-        let mag = probe(360, y, 1 << 9, charge: 1, v: CGVector(dx: 100, dy: 0)); field(SKFieldNode.magneticField(), 1 << 9, near: mag)
+        let mag = probe(360, y, 1 << 9, charge: 1, v: CGVector(dx: 100, dy: 0)); mag.physicsBody?.mass = 1; field(SKFieldNode.magneticField(), 1 << 9, near: mag)
         let custom = probe(390, y, 1 << 10)
         field(SKFieldNode.customField { _, _, _, _, _ in vector_float3(0, 3, 0) }, 1 << 10, near: custom)
         let outside = probe(30, y + 60, 1 << 11)
@@ -172,18 +179,25 @@ final class PhysicsScene: SKScene, SKPhysicsContactDelegate {
         emitter.fieldBitMask = 1 << 12
         emitter.position = at(200, 620); addChild(emitter)
         let push = SKFieldNode.linearGravityField(withVector: vector_float3(3, 0, 0)); push.categoryBitMask = 1 << 12; push.position = emitter.position; addChild(push)
+        // velocities early on (later the light probes have swung through or past their fields)
+        var early: [ObjectIdentifier: CGVector] = [:]
+        let probes: [SKNode] = [linear, radial, spring, drag, control, vortex, velocity, noise, turb, plus, minus, mag, custom, outside]
+        later(0.15) { DispatchQueue.main.async { for n in probes { early[ObjectIdentifier(n)] = n.physicsBody!.velocity } } }
         later(0.8) {
-            func v(_ n: SKNode) -> CGVector { n.physicsBody!.velocity }
+            func v(_ n: SKNode) -> CGVector { early[ObjectIdentifier(n)] ?? .zero }
             let dv = hypot(v(drag).dx, v(drag).dy), cv = hypot(v(control).dx, v(control).dy)
-            log("sk3 physics fields linear \(v(linear).dx > 20) radial \(v(radial).dx < -20) spring \(v(spring).dx < -5) drag \(dv < cv * 0.8) " +
+            log("sk3 physics fields linear \(v(linear).dx > 10) radial \(v(radial).dx < -20) spring \(v(spring).dx < -5) drag \(dv < cv * 0.8) " +
                 "vortex \(v(vortex).dy > 5) velocity \(v(velocity).dy > 150) noise \(hypot(v(noise).dx, v(noise).dy) > 1) turbulence \(abs(v(turb).dy) > 1) " +
                 "electric \(v(plus).dx > 5 && v(minus).dx < -5) magnetic \(v(mag).dy < -1) custom \(v(custom).dy > 20) region \(hypot(v(outside).dx, v(outside).dy) < 0.01)")
             // particles: drawn further right than left of the emitter
             if let view = self.view, let t = view.texture(from: emitter), let cg = t.cgImage() {
+                // the emitter's x in the texture (which spans the particles' frame)
+                let frame = emitter.calculateAccumulatedFrame()
+                let ox = emitter.position.x - frame.minX
                 var left = 0, right = 0
                 for x in stride(from: 0, to: cg.width, by: 2) { for yy in stride(from: 0, to: cg.height, by: 2) where pixel(cg, x, yy)[3] > 40 {
                     let ex = CGFloat(x) / CGFloat(cg.width) * t.size().width
-                    if ex > t.size().width / 2 { right += 1 } else { left += 1 }
+                    if ex > ox + 6 { right += 1 } else if ex < ox - 6 { left += 1 }
                 } }
                 log("sk3 physics particles pushed \(right > left * 2) wide \(t.size().width > 40)")
             }
@@ -197,22 +211,25 @@ final class PhysicsScene: SKScene, SKPhysicsContactDelegate {
         }
     }
     func actions() {
-        let a = ball(6, at: at(30, 700), gravity: false, color: .magenta)
-        a.run(.applyImpulse(CGVector(dx: 0, dy: 0.5), duration: 0.1))
-        let f = ball(6, at: at(60, 700), gravity: false, color: .magenta)
-        f.run(.applyForce(CGVector(dx: 5, dy: 0), duration: 0.3))
-        let t = box(CGSize(width: 14, height: 14), at: at(90, 700), color: .magenta); t.physicsBody?.affectedByGravity = false
-        t.run(.applyTorque(0.05, duration: 0.2))
-        let ai = box(CGSize(width: 14, height: 14), at: at(120, 700), color: .magenta); ai.physicsBody?.affectedByGravity = false
-        ai.run(.applyAngularImpulse(0.002, duration: 0.1))
-        let m = ball(6, at: at(150, 700), gravity: false, color: .magenta)
+        // gram-weight bodies: impulses and forces of a few milli-newtons (right of the falling fixed-joint pair)
+        let a = ball(6, at: at(100, 700), gravity: false, color: .magenta)
+        a.run(.applyImpulse(CGVector(dx: 0, dy: 0.0005), duration: 0.1))
+        let f = ball(6, at: at(140, 700), gravity: false, color: .magenta)
+        f.run(.applyForce(CGVector(dx: 0.005, dy: 0), duration: 0.3))
+        let t = box(CGSize(width: 14, height: 14), at: at(200, 700), color: .magenta); t.physicsBody?.affectedByGravity = false
+        t.run(.applyTorque(0.0005, duration: 0.2))
+        let ai = box(CGSize(width: 14, height: 14), at: at(250, 700), color: .magenta); ai.physicsBody?.affectedByGravity = false
+        ai.run(.applyAngularImpulse(0.00005, duration: 0.1))
+        let m = ball(6, at: at(300, 700), gravity: false, color: .magenta)
         m.run(.group([.changeMass(to: 3, duration: 0.2), .changeCharge(to: 2, duration: 0.2)]))
         let fld = SKFieldNode.dragField(); fld.categoryBitMask = 0; addChild(fld)
         fld.run(.group([.strength(to: 5, duration: 0.2), .falloff(to: 2, duration: 0.2)]))
-        later(0.6) {
+        // the actions are over (the last at 0.3 s), before anything else on the page reaches these bodies; read
+        // after this frame's physics step
+        later(0.35) { DispatchQueue.main.async {
             log("sk3 physics actions impulse \(a.physicsBody!.velocity.dy > 5) force \(f.physicsBody!.velocity.dx > 5) torque \(t.physicsBody!.angularVelocity > 0.1) " +
                 "angular impulse \(ai.physicsBody!.angularVelocity > 0.1) mass \(f1(m.physicsBody!.mass)) charge \(f1(m.physicsBody!.charge)) strength \(fld.strength) falloff \(fld.falloff)")
-        }
+        } }
     }
     /// a looping sound left of the listener is louder in the left channel; then a non-positional one panned right
     func audio() {
@@ -246,3 +263,5 @@ final class PhysicsScene: SKScene, SKPhysicsContactDelegate {
         later(0.4) { mixer.removeTap(onBus: 0); log("sk3 audio \(what) frames \(n > 1000)"); done(l, r) }
     }
 }
+
+

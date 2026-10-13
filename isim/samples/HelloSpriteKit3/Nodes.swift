@@ -19,7 +19,8 @@ func tileGroup(_ rules: [(SKTileAdjacencyMask, String, UIColor)]) -> SKTileGroup
 }
 
 final class NodesScene: SKScene {
-    func later(_ t: TimeInterval, _ f: @escaping () -> Void) { DispatchQueue.main.asyncAfter(deadline: .now() + t, execute: f) }
+    /// runs f after t seconds of scene time (the simulation's clock, which lags the wall clock when frames are slow)
+    func later(_ t: TimeInterval, _ f: @escaping () -> Void) { run(.sequence([.wait(forDuration: t), .run(f)])) }
     var pending = 0
     func finished() { pending -= 1; if pending == 0 { log("sk3 nodes done") } }
 

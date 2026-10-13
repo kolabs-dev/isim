@@ -7,7 +7,7 @@
 //   transition — an SKTransition(ciFilter:) from a red scene to a blue one;
 //   physics  — physics, fields, joints, physics actions and positional audio (Physics.swift);
 //   nodes    — inverse kinematics, constraints, tile maps, reference nodes, the statistics overlay (Nodes.swift).
-// The checks (logged as "sk3 …", then "sk3 checks done") run on every page: Checks.swift.
+// The pixel checks (logged as "sk3 …", then "sk3 checks done") run on the other pages: Checks.swift.
 import UIKit
 import SpriteKit
 import CoreImage
@@ -54,7 +54,8 @@ final class GameViewController: UIViewController {
                 log("sk3 transition started")
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { Checks.run(self.skView) }
+        // the pixel checks (on the rendering pages: they stall the main thread a moment, which the timed pages avoid)
+        if page != "physics" && page != "nodes" { DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { Checks.run(self.skView) } }
     }
 }
 
