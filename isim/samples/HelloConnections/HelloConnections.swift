@@ -86,6 +86,7 @@ final class Runner: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate
     var listeners: [NWListener] = []
 
     func runAll() async {
+        if ProcessInfo.processInfo.arguments.contains("-mdns") { await mdns(); report("done", "mdns"); return }
         await tcpEcho()
         await udpEcho()
         await refused()
@@ -206,6 +207,42 @@ final class Runner: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate
             report("bonjour", "found \(found.endpoint) txt v=\(txt) reply=\(d.map { String(decoding: $0, as: UTF8.self) } ?? "nil")")
             c.cancel(); l.cancel()
         } catch { report("bonjour", "\(error)") }
+    }
+
+    /// -mdns (with ISIM_MDNS=1): Bonjour on the network — another machine (samples/HelloConnections/mdns_peer.py)
+    /// finds this app's service by multicast DNS and talks to it; the app finds the peer's service and talks to it
+    func mdns() async {
+        do {
+            let l = try NWListener(using: .tcp)
+            l.service = NWListener.Service(name: "isim App", type: "_isimapp._tcp", txtRecord: NWTXTRecord(["from": "isim"]))
+            l.serviceRegistrationUpdateHandler = { change in if case .add(let ep) = change { log("mdns: registered \(ep)") } }
+            l.newConnectionHandler = { c in
+                c.start(queue: .global())
+                c.receive(minimumIncompleteLength: 1, maximumLength: 4096) { d, _, _, _ in
+                    let text = d.map { String(decoding: $0, as: UTF8.self) } ?? ""
+                    log("mdns: app service got \(text)")
+                    c.send(content: Data("isim:\(text)".utf8), contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { _ in })
+                }
+            }
+            l.start(queue: .global())
+            listeners.append(l)
+            let b = NWBrowser(for: .bonjourWithTXTRecord(type: "_isimpy._tcp", domain: nil), using: .tcp)
+            let found: NWBrowser.Result? = await withCheckedContinuation { k in
+                let once = Once()
+                b.browseResultsChangedHandler = { results, _ in if let r = results.first { once.run { k.resume(returning: r) } } }
+                b.start(queue: .global())
+                DispatchQueue.global().asyncAfter(deadline: .now() + 15) { once.run { k.resume(returning: nil) } }
+            }
+            b.cancel()
+            guard let found else { report("mdns", "no peer found"); return }
+            var txt = "-"; if case .bonjour(let t) = found.metadata { txt = t["from"] ?? "-" }
+            let c = NWConnection(to: found.endpoint, using: .tcp)
+            _ = await c.waitReady()
+            _ = await c.sendAsync(Data("hello from isim".utf8))
+            let (d, _, _) = await c.receiveAsync(22)
+            report("mdns", "found \(found.endpoint) from=\(txt) reply=\(d.map { String(decoding: $0, as: UTF8.self) } ?? "nil")")
+            c.cancel()
+        } catch { report("mdns", "\(error)") }
     }
 
     // MARK: MultipeerConnectivity

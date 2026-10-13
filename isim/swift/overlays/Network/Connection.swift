@@ -5,9 +5,8 @@
 // queue passed to start(queue:). TLS and DTLS use the host's OpenSSL (host_tls.c): clients check the host's CA
 // store and the host name, or the app's sec_protocol_options verify block decides with the peer's chain in a
 // sec_trust_t; listeners need a server identity (sec_protocol_options_set_local_identity) and may ask for client
-// certificates. Adapted: Bonjour is a local registry shared by the apps of this isim device
-// ($ISIM_DATA/Library/isim/Bonjour), not multicast DNS — services are found by apps on the same simulated device
-// only. Not provided: QUIC (the host's OpenSSL 3.0 has none). WebSocket and framer message protocols:
+// certificates. Bonjour: a local registry shared by the apps of this isim device ($ISIM_DATA/Library/isim/Bonjour)
+// plus multicast DNS on the host's network (MDNS.swift). Not provided: QUIC (the host's OpenSSL 3.0 has none). WebSocket and framer message protocols:
 // Protocols.swift; multicast and connection groups: Group.swift; identities and certificates: SecProtocol.swift.
 @_exported import Foundation
 import Security
@@ -373,7 +372,7 @@ public final class NWParameters: CustomDebugStringConvertible, @unchecked Sendab
 // MARK: - sockets helpers
 
 enum _NWSock {
-    /// resolves an endpoint to socket addresses (Bonjour services through the local registry)
+    /// resolves an endpoint to socket addresses (Bonjour services through the local registry, else multicast DNS)
     static func resolve(_ e: NWEndpoint, udp: Bool) -> Result<[(Data, Int32)], NWError> {
         switch e {
         case .hostPort(let host, let port):
@@ -399,8 +398,11 @@ enum _NWSock {
             out.sort { $0.1 == AF_INET && $1.1 != AF_INET }
             return out.isEmpty ? .failure(.dns(-65554)) : .success(out)
         case .service(let name, let type, _, _):
-            guard let s = _NWBonjour.lookup(name: name, type: type) else { return .failure(.dns(-65554)) }
-            return resolve(.hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: s.port) ?? .any), udp: udp)
+            if let s = _NWBonjour.lookup(name: name, type: type) {
+                return resolve(.hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: s.port) ?? .any), udp: udp)
+            }
+            guard _NWMDNS.enabled, let (addr, port) = _NWMDNS.shared.resolve(name: name, type: type) else { return .failure(.dns(-65554)) }
+            return resolve(.hostPort(host: NWEndpoint.Host(addr), port: NWEndpoint.Port(rawValue: port) ?? .any), udp: udp)
         case .url(let u):
             let port = u.port.map { UInt16($0) } ?? (u.scheme == "https" || u.scheme == "wss" ? 443 : 80)
             return resolve(.hostPort(host: NWEndpoint.Host(u.host ?? "localhost"), port: NWEndpoint.Port(rawValue: port)!), udp: udp)

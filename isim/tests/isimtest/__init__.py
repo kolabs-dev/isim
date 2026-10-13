@@ -213,6 +213,8 @@ class App:
         e = dict(os.environ, ISIM_DATA=str(self.data), ISIM_HEADLESS="1", ISIM_SHOT_SCALE="1",
                  ISIM_DEVICE=device or DEFAULT_DEVICE, ISIM_SCRIPT="wait 0", ISIM_GAMECENTER=str(self.data.parent / "gamecenter"))
         e.setdefault("ISIM_DICTIONARIES", "none")           # the built-in word lists only, whatever the host has installed
+        e.setdefault("ISIM_MDNS", "0")                      # Bonjour in the local registry only: tests running in parallel
+                                                            # must not find each other's services over multicast DNS
         if os_version:
             e["ISIM_OS_VERSION"] = str(os_version)
         if not launch_screen:
@@ -640,6 +642,7 @@ def run_app(name: str, *, script: str | None = None, timeout: float = 120, data:
     assert bundle.is_dir(), f"{bundle} is not built"
     target = bundle / name if executable else bundle
     e = dict(os.environ)
+    e.setdefault("ISIM_MDNS", "0")                          # see App
     if data is not None:
         e["ISIM_DATA"] = str(data)
         e["ISIM_GAMECENTER"] = str(Path(data).parent / "gamecenter")

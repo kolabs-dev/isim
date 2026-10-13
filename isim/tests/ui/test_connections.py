@@ -56,3 +56,19 @@ def test_connections(launch, servers):
         "URLSessionTaskMetrics over a redirect + task progress"
     assert "GET /slowbytes/800000" in server_log.read_text(), "the resumed download asked the server again"
     assert app.quit() == 0
+
+
+def test_connections_mdns(launch, tmp_path):
+    """Bonjour over multicast DNS (ISIM_MDNS=1): mdns_peer.py plays another machine on the network. The app's
+    NWBrowser finds the peer's service (PTR/SRV/TXT/A answers to its queries) and connects to it; the peer finds the
+    app's NWListener service with a legacy unicast query and connects to it."""
+    log = tmp_path / "peer.log"
+    with local_server(ROOT / "samples/HelloConnections/mdns_peer.py", log):
+        app = launch("HelloConnections", args=["-mdns"], env={"ISIM_MDNS": "1"})
+        app.wait_log(r"HelloConnections: done: mdns", timeout=30)
+        assert "HelloConnections: mdns: found Python Peer._isimpy._tcplocal. from=python reply=python:hello from isim" in app.log
+        app.wait_log(r"HelloConnections: mdns: app service got hello from python", timeout=20)
+        peer = log.read_text()
+        assert "peer: answer for isim App" in peer and "(id ok=True)" in peer, peer
+        assert re.search(r"peer: found isim App port [0-9]+ txt=b'\\tfrom=isim' addresses=\S+ reply=isim:hello from python", peer), peer
+        assert app.quit() == 0

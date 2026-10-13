@@ -1,5 +1,5 @@
 // isim Network framework: NWListener (TCP, UDP), Bonjour service advertising and NWBrowser over isim's local
-// service registry (see Connection.swift).
+// service registry (apps of this isim device) and multicast DNS (the host's network, MDNS.swift).
 @_exported import Foundation
 
 // MARK: - TXT records
@@ -63,6 +63,11 @@ enum _NWBonjour {
         }
     }
     static func lookup(name: String, type: String) -> _NWService? { services(type: type).first { $0.name == name } }
+    /// stops advertising: the local registry entry and the multicast DNS records
+    static func withdraw(_ s: _NWService) {
+        unregister(s)
+        if _NWMDNS.enabled { _NWMDNS.shared.unpublish(s) }
+    }
 }
 
 // MARK: - NWListener
@@ -151,11 +156,12 @@ public final class NWListener: CustomDebugStringConvertible, @unchecked Sendable
         if parameters.isUDP { loop.async { self.udpLoop() } } else { loop.async { self.acceptLoop() } }
     }
     func advertise() {
-        if let old = registered { _NWBonjour.unregister(old); registered = nil }
+        if let old = registered { _NWBonjour.withdraw(old); registered = nil }
         guard let svc = service, let p = port else { return }
         let name = svc.name ?? (ProcessInfo.processInfo.hostName.isEmpty ? "isim" : "iPhone")
-        let s = _NWService(name: name, type: _NWBonjour.normType(svc.type), domain: svc.domain ?? "local.", port: p.rawValue, pid: getpid(),
+        var s = _NWService(name: name, type: _NWBonjour.normType(svc.type), domain: svc.domain ?? "local.", port: p.rawValue, pid: getpid(),
                            txt: svc.txtRecordObject?.dictionary ?? [:])
+        if _NWMDNS.enabled { s = _NWMDNS.shared.publish(s) }      /* on the network too (renamed if the name is taken there) */
         _NWBonjour.register(s)
         registered = s
         let ep = NWEndpoint.service(name: name, type: s.type, domain: s.domain, interface: nil)
@@ -226,14 +232,14 @@ public final class NWListener: CustomDebugStringConvertible, @unchecked Sendable
         let h = stateUpdateHandler, q = queue, f = fd
         lock.unlock()
         if let r = registered {
-            _NWBonjour.unregister(r); registered = nil
+            _NWBonjour.withdraw(r); registered = nil
             let ep = NWEndpoint.service(name: r.name, type: r.type, domain: r.domain, interface: nil)
             if let rh = serviceRegistrationUpdateHandler { (q ?? .main).async { rh(.remove(ep)) } }
         }
         if f >= 0 { shutdown(f, SHUT_RDWR); close(f) }
         if let h { (q ?? .main).async { h(.cancelled) } }
     }
-    deinit { if let r = registered { _NWBonjour.unregister(r) } }
+    deinit { if let r = registered { _NWBonjour.withdraw(r) } }
 }
 
 // MARK: - NWBrowser
@@ -279,6 +285,7 @@ public final class NWBrowser: CustomDebugStringConvertible, @unchecked Sendable 
         self.queue = queue
         state = .ready
         if let h = stateUpdateHandler { queue.async { h(.ready) } }
+        if _NWMDNS.enabled { _NWMDNS.shared.browse(descriptor.type) }
         let t = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "isim.NWBrowser"))
         t.schedule(deadline: .now(), repeating: 0.5)
         t.setEventHandler { [weak self] in self?.poll() }
@@ -287,10 +294,17 @@ public final class NWBrowser: CustomDebugStringConvertible, @unchecked Sendable 
     }
     func poll() {
         let withTXT: Bool = { if case .bonjourWithTXTRecord = descriptor { return true }; return false }()
-        let now = Set(_NWBonjour.services(type: descriptor.type).map {
+        var now = Set(_NWBonjour.services(type: descriptor.type).map {
             Result(endpoint: .service(name: $0.name, type: $0.type, domain: $0.domain, interface: nil),
                    metadata: withTXT ? .bonjour(NWTXTRecord($0.txt)) : .none, interfaces: [])
         })
+        if _NWMDNS.enabled {                                   /* other machines and isim devices, over multicast DNS */
+            for r in _NWMDNS.shared.services(type: descriptor.type) where !now.contains(where: {
+                if case .service(let n, _, _, _) = $0.endpoint { return n == r.name }; return false }) {
+                now.insert(Result(endpoint: .service(name: r.name, type: r.type, domain: r.domain, interface: nil),
+                                  metadata: withTXT ? .bonjour(NWTXTRecord(r.txt)) : .none, interfaces: []))
+            }
+        }
         lock.lock()
         let old = results
         guard now != old else { lock.unlock(); return }
@@ -303,6 +317,7 @@ public final class NWBrowser: CustomDebugStringConvertible, @unchecked Sendable 
         if let h = browseResultsChangedHandler, let q = queue { q.async { h(now, changes) } }
     }
     public func cancel() {
+        if timer != nil, _NWMDNS.enabled { _NWMDNS.shared.stopBrowsing(descriptor.type) }
         timer?.cancel(); timer = nil
         state = .cancelled
         if let h = stateUpdateHandler { (queue ?? .main).async { h(.cancelled) } }
