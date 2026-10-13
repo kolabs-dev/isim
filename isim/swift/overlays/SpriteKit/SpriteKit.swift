@@ -3,10 +3,12 @@
 // second. Physics (SKPhysics.swift), particles (SKEmitter.swift), more node types and constraints (SKNodes.swift),
 // atlases and audio (SKAtlasAudio.swift), .sks files (SKArchive.swift).
 // More nodes (SKVideoNode, SKTransformNode), warp geometry and mutable textures: SKExtras.swift.
-// Not implemented: Core Image filters, running SKShader programs, lighting.
+// Core Image filters and transitions: SKEffects.swift; shaders: SKShading.swift; lighting, 9-slice, texture pixels:
+// SKImaging.swift.
 @_exported import UIKit
 @_exported import simd
 import AVFoundation
+import CoreImage
 import isim_host
 
 public typealias SKColor = UIColor
@@ -61,7 +63,7 @@ open class SKTexture: NSObject {
     }
     open func size() -> CGSize { CGSize(width: pixels.width / pointScale, height: pixels.height / pointScale) }
     open func textureRect() -> CGRect { unitRect }
-    open func cgImage() -> CGImage? { nil }
+    open func cgImage() -> CGImage? { _cgImage() }
     open func preload(completionHandler: @escaping () -> Void) { DispatchQueue.main.async(execute: completionHandler) }
     open class func preload(_ textures: [SKTexture], withCompletionHandler h: @escaping () -> Void) { DispatchQueue.main.async(execute: h) }
     open override var description: String { "<SKTexture> \(size())" }
@@ -296,6 +298,15 @@ open class SKSpriteNode: SKNode {
         guard size.width != 0, size.height != 0 else { return }
         let r = contentRect
         if let grid = warpGeometry as? SKWarpGeometryGrid, !grid.isIdentity { drawWarped(grid, alpha: a); return }
+        if let sh = shader, _drawShaded(sh, r, alpha: a) { return }
+        if _isLit && _drawLit(r, alpha: a) { return }
+        if let t = texture, t.handle > 0, _isNineSlice {
+            isim_gfx_save()
+            if blendMode != .alpha { isim_gfx_set_blend(_hostBlend(blendMode)) }
+            _drawNineSlice(t, r, alpha: a, blend: colorBlendFactor > 0 ? _rgba(color) : nil, factor: Double(colorBlendFactor))
+            isim_gfx_restore()
+            return
+        }
         if let t = texture, t.handle > 0 {
             var blend = [0.0, 0, 0, 1]
             let factor = Double(colorBlendFactor)
@@ -418,8 +429,11 @@ open class SKShapeNode: SKNode {
         ctx.addPath(path)
         isim_gfx_save()
         if blendMode != .alpha { isim_gfx_set_blend(_hostBlend(blendMode)) }
+        _applyLineStyle()
         var f = _rgba(fillColor); f[3] *= Double(a)
-        if f[3] > 0 { f.withUnsafeBufferPointer { isim_path_fill($0.baseAddress) } }
+        if _drawFillSpecial(a) { isim_path_begin(); ctx.addPath(path) }
+        else if f[3] > 0 { f.withUnsafeBufferPointer { isim_path_fill($0.baseAddress) } }
+        if _drawStrokeSpecial(a) { isim_path_begin(); isim_gfx_restore(); return }
         var s = _rgba(strokeColor); s[3] *= Double(a)
         if s[3] > 0 && glowWidth > 0 {   // glow: soft, wider strokes under the line
             for k in stride(from: 3, through: 1, by: -1) {
@@ -688,12 +702,15 @@ extension UITouch {
 // MARK: - View
 
 open class SKTransition: NSObject {
-    enum Kind: Int { case crossFade, fade, push, moveIn, reveal, doorway, doorsOpenH, doorsOpenV, doorsCloseH, doorsCloseV, flipH, flipV }
+    enum Kind: Int { case crossFade, fade, push, moveIn, reveal, doorway, doorsOpenH, doorsOpenV, doorsCloseH, doorsCloseV, flipH, flipV, ciFilter }
     let duration: TimeInterval
     var kind: Kind = .crossFade
     var direction: SKTransitionDirection = .left
     var color: UIColor = .black
+    var ciFilter: CIFilter?
     init(duration: TimeInterval) { self.duration = duration }
+    /// a Core Image transition filter (inputImage: the outgoing scene, inputTargetImage: the incoming one, inputTime)
+    public convenience init(ciFilter filter: CIFilter, duration sec: TimeInterval) { self.init(.ciFilter, sec); ciFilter = filter }
     convenience init(_ kind: Kind, _ d: TimeInterval, _ dir: SKTransitionDirection = .left, _ color: UIColor = .black) {
         self.init(duration: d); self.kind = kind; direction = dir; self.color = color
     }
@@ -832,9 +849,9 @@ open class SKView: UIView {
     }
     open func convert(_ p: CGPoint, to scene: SKScene) -> CGPoint { p.applying(sceneToView(for: scene).inverted()) }
     open func convert(_ p: CGPoint, from scene: SKScene) -> CGPoint { p.applying(sceneToView(for: scene)) }
-    /// isim cannot render nodes into textures (no offscreen GPU target); returns nil
-    open func texture(from node: SKNode) -> SKTexture? { nil }
-    open func texture(from node: SKNode, crop: CGRect) -> SKTexture? { nil }
+    /// renders the node and its children into a texture (SKImaging.swift)
+    open func texture(from node: SKNode) -> SKTexture? { _texture(from: node, crop: nil) }
+    open func texture(from node: SKNode, crop: CGRect) -> SKTexture? { _texture(from: node, crop: crop) }
 
     struct Item { let node: SKNode; let z: CGFloat; let order: Int; let t: CGAffineTransform; let alpha: CGFloat }
     var drawnNodes = 0
@@ -864,6 +881,8 @@ open class SKView: UIView {
                 } else {
                     isim_gfx_pop_group(Double(it.alpha))
                 }
+            } else if let fx = it.node as? SKEffectNode, fx._hasEffect {
+                fx._drawFiltered(self, it.t, alpha: it.alpha)
             } else if let fx = it.node as? SKEffectNode {
                 isim_gfx_save()
                 isim_gfx_set_blend(_hostBlend(fx.blendMode))
@@ -926,6 +945,9 @@ open class SKView: UIView {
     open override func draw(_ rect: CGRect) {
         guard let s = scene else { return }
         drawnNodes = 0
+        _skFrame += 1
+        _skDrawing = true
+        defer { _skDrawing = false }
         let W = bounds.width, H = bounds.height
         if let tr = transitioning {
             let p = min(1, max(0, (ProcessInfo.processInfo.systemUptime - tr.start) / tr.transition.duration))
@@ -937,6 +959,8 @@ open class SKView: UIView {
             black.withUnsafeBufferPointer { isim_gfx_fill_rounded(0, 0, W, H, 0, $0.baseAddress) }
             switch t.kind {
             case .crossFade: drawScene(old); drawScene(s, alpha: f)
+            case .ciFilter:
+                if let filter = t.ciFilter { _drawCITransition(filter, from: old, to: s, progress: f) } else { drawScene(s) }
             case .fade:
                 drawScene(f < 0.5 ? old : s)
                 var c = _rgba(t.color); c[3] = Double(f < 0.5 ? f * 2 : (1 - f) * 2)

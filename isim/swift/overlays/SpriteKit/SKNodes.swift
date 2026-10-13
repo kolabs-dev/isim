@@ -1,6 +1,7 @@
-// isim SpriteKit: more node types (camera, crop, effect, field, tile map, reference, light), shaders (stored, not
-// run: isim renders without Metal), constraints and ranges.
+// isim SpriteKit: more node types (camera, crop, effect, field, tile map, reference, light), shaders and uniforms
+// (run by SKShading.swift), constraints and ranges.
 import Foundation
+import CoreImage
 import isim_host
 
 // MARK: - Camera
@@ -36,6 +37,8 @@ open class SKEffectNode: SKNode {
     open var shouldCenterFilter = true
     open var blendMode: SKBlendMode = .alpha
     open var shader: SKShader?
+    /// a Core Image filter applied to the children (with shouldEnableEffects; SKEffects.swift)
+    open var filter: CIFilter?
     public override init() { super.init() }
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
@@ -66,7 +69,22 @@ open class SKUniform: NSObject {
     open var vectorFloat2Value: vector_float2 = .zero
     open var vectorFloat3Value: vector_float3 = .zero
     open var vectorFloat4Value: vector_float4 = .zero
+    open var matrixFloat2x2Value = matrix_float2x2(1)
+    open var matrixFloat3x3Value = matrix_float3x3(1)
+    open var matrixFloat4x4Value = matrix_float4x4(1)
+    /// column-major values of the matrix uniform (for the shader)
+    var _matrixValues: [Float] {
+        switch uniformType {
+        case .floatMatrix2: let m = matrixFloat2x2Value; return [m[0][0], m[0][1], m[1][0], m[1][1]]
+        case .floatMatrix3: let m = matrixFloat3x3Value; return (0..<3).flatMap { c in (0..<3).map { m[c][$0] } }
+        case .floatMatrix4: let m = matrixFloat4x4Value; return (0..<4).flatMap { c in (0..<4).map { m[c][$0] } }
+        default: return []
+        }
+    }
     public init(name: String) { self.name = name }
+    public convenience init(name: String, matrixFloat2x2 v: matrix_float2x2) { self.init(name: name); matrixFloat2x2Value = v; uniformType = .floatMatrix2 }
+    public convenience init(name: String, matrixFloat3x3 v: matrix_float3x3) { self.init(name: name); matrixFloat3x3Value = v; uniformType = .floatMatrix3 }
+    public convenience init(name: String, matrixFloat4x4 v: matrix_float4x4) { self.init(name: name); matrixFloat4x4Value = v; uniformType = .floatMatrix4 }
     public convenience init(name: String, float value: Float) { self.init(name: name); floatValue = value; uniformType = .float }
     public convenience init(name: String, texture: SKTexture?) { self.init(name: name); textureValue = texture; uniformType = .texture }
     public convenience init(name: String, vectorFloat2 v: vector_float2) { self.init(name: name); vectorFloat2Value = v; uniformType = .floatVector2 }
@@ -92,13 +110,13 @@ open class SKAttributeValue: NSObject {
     public convenience init(vectorFloat4 v: vector_float4) { self.init(); vectorFloat4Value = v }
 }
 
-/// Custom fragment shaders are accepted and stored but not executed: isim draws SpriteKit with cairo, not Metal.
+/// Custom fragment shaders, run on the CPU through Core Image's kernel interpreter (SKShading.swift).
 open class SKShader: NSObject {
     open var source: String?
     open var uniforms: [SKUniform] = []
     open var attributes: [SKAttribute] = []
     public override init() { super.init() }
-    public convenience init(source: String) { self.init(); self.source = source; Self.note() }
+    public convenience init(source: String) { self.init(); self.source = source }
     public convenience init(source: String, uniforms: [SKUniform]) { self.init(source: source); self.uniforms = uniforms }
     public convenience init(fileNamed name: String) {
         self.init()
@@ -106,10 +124,8 @@ open class SKShader: NSObject {
         if let p = Bundle.main.path(forResource: n.deletingPathExtension, ofType: n.pathExtension.isEmpty ? "fsh" : n.pathExtension) {
             source = try? String(contentsOfFile: p, encoding: .utf8)
         }
-        Self.note()
     }
-    static var noted = false
-    static func note() { if !noted { noted = true; NSLog("isim SpriteKit: SKShader programs are not run on isim (no GPU rendering); nodes draw without them") } }
+    public convenience init(source: String, uniforms: [SKUniform], attributes: [SKAttribute]) { self.init(source: source, uniforms: uniforms); self.attributes = attributes }
     open func addUniform(_ u: SKUniform) { uniforms.append(u) }
     open func uniformNamed(_ name: String) -> SKUniform? { uniforms.first { $0.name == name } }
     open func removeUniformNamed(_ name: String) { uniforms.removeAll { $0.name == name } }
