@@ -145,7 +145,8 @@ def test_web_interact(launch, web):
     app.wait_view(r"id=menu-Banana")
     app.tap_id("menu-Banana")
     app.wait_log(r"^HelloWeb: page says select banana")
-    app.tap(100, 423)                                                     # <select multiple>: the menu stays up
+    app.tap(100, 413)                                                     # <select multiple> (on its Red row: the tap only opens
+                                                                          # the menu, it does not pick Red): the menu stays up
     app.wait_view(r"id=menu-Blue")
     app.tap_id("menu-Blue")
     app.wait_view(r"id=menu-Red")

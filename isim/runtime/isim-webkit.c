@@ -690,7 +690,8 @@ static const char *tap_js =
     "if(phase==='down'){window.__isimDown=e;fire('pointerdown',PointerEvent);"
     "try{var tch=new Touch({identifier:1,target:e,clientX:x,clientY:y,pageX:x+scrollX,pageY:y+scrollY});"
     "e.dispatchEvent(new TouchEvent('touchstart',{bubbles:true,cancelable:true,composed:true,touches:[tch],targetTouches:[tch],changedTouches:[tch]}))}catch(_){}"
-    "fire('mousedown',MouseEvent);return}"
+    /* not into a <select>: WebKit's list box would pick the option under the finger, iOS only opens the picker */
+    "if(!(e.closest&&e.closest('select')))fire('mousedown',MouseEvent);return}"
     "if(phase==='cancel'){fire('pointercancel',PointerEvent);window.__isimDown=null;return}"
     "var sl=e.closest&&e.closest('select');"
     "if(sl&&!sl.disabled){fire('pointerup',PointerEvent);fire('mouseup',MouseEvent);sl.focus();window.__isimSel=sl;var r=sl.getBoundingClientRect(),os=[];"
