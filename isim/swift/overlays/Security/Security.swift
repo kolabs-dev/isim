@@ -5,8 +5,8 @@
 // Items live in the device data directory, one file per access group: $ISIM_DATA/Library/Keychains/<group>.keychain
 // (mode 0600, JSON; not encrypted — the host user can read it). An app's default access group is its bundle
 // identifier; items survive app deletion like on iOS and are erased by `isim reset`. Access control flags
-// (biometry, passcode) are stored but not enforced. Keys, certificates and identities are not supported
-// (errSecUnimplemented).
+// (biometry, passcode) are stored with password items but not enforced for them; Secure Enclave keys enforce them
+// (SecKey.swift). Keys, certificates and identities: SecKey.swift, Keychain.swift and Certificates.swift.
 import Foundation
 import isim_host
 
@@ -154,9 +154,19 @@ public final class SecAccessControl: NSObject {
         let dir = (data as NSString).appendingPathComponent("Library/isim/SecureEnclave"), path = (dir as NSString).appendingPathComponent("device.key")
         if let d = FileManager.default.contents(atPath: path), d.count == 32 { return [UInt8](d) }
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        var k = [UInt8](repeating: 0, count: 32); arc4random_buf(&k, 32)
-        guard FileManager.default.createFile(atPath: path, contents: Data(k), attributes: [.posixPermissions: 0o600]) else { return nil }
-        return [UInt8](FileManager.default.contents(atPath: path) ?? Data(k))
+        // made once: O_EXCL, so two first uses (threads or processes) cannot each write a different key
+        let fd = open(path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
+        if fd >= 0 {
+            var k = [UInt8](repeating: 0, count: 32); arc4random_buf(&k, 32)
+            let n = write(fd, k, 32); close(fd)
+            if n == 32 { return k }
+            unlink(path); return nil
+        }
+        for _ in 0..<100 {                                   // another writer is finishing it
+            if let d = FileManager.default.contents(atPath: path), d.count == 32 { return [UInt8](d) }
+            usleep(10_000)
+        }
+        return nil
     }
     /// flags: bit 0 the key asks for the device owner, bit 1 biometry only
     public static func wrap(_ d: [UInt8], flags: UInt8) -> Data? {
