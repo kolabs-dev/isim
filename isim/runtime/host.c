@@ -1353,7 +1353,8 @@ static int script_step(struct isim_event *ev) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
         for (int i = 1; i <= 5; i++) pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = a + (c - a) * i / 5, .y = b + (d - b) * i / 5 };
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = c, .y = d };
-    } else if (!strcmp(cmd, "tapid") && sscanf(args, " %63[^; ]", arg) == 1) {
+    } else if (!strcmp(cmd, "tapid") && sscanf(args, " %63[^;]", arg) == 1) {
+        for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;   /* the rest: ids may have spaces */
         pending[npending++] = (struct isim_event){ .type = EV_ID_DOWN }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         pending[npending++] = (struct isim_event){ .type = EV_ID_UP }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         script_resume = now() + 0.05;
@@ -1933,6 +1934,7 @@ int isim_acodec_receive_pcm(struct isim_acodec *h, float *out, int cap, int *cha
 int isim_web_available(char *why, int cap); void isim_web_send(const char *line); char *isim_web_next(double timeout);
 void isim_web_free(char *s); int isim_web_frame(int view, int *w, int *h); void isim_web_release(int view);
 struct isim_tls; struct isim_tls *isim_tls_connect(int fd, const char *host, int verify, const char *alpn, int min_version, char *err, int errlen, int *code);
+struct isim_tls *isim_tls_start(int, int, int, const char *, int, const char *, int, const char *, char *, int, int *); int isim_tls_peer_chain(struct isim_tls *, unsigned char *, long, long *, int);
 long isim_tls_read(struct isim_tls *t, void *buf, long n); long isim_tls_write(struct isim_tls *t, const void *buf, long n);
 void isim_tls_info(struct isim_tls *t, char *version, int vlen, char *alpn, int alen); void isim_tls_close(struct isim_tls *t);
 long isim_tls_read_nb(struct isim_tls *t, void *buf, long n); long isim_tls_write_nb(struct isim_tls *t, const void *buf, long n);
@@ -2036,7 +2038,7 @@ static const struct shim isim_table[] = {
     H(isim_acodec_receive_pcm), H(isim_acodec_close), H(isim_device_volume), H(isim_device_volume_set), H(isim_media_remote_post),
     ISIM_CG_EXPORTS(H),
     H(isim_web_available), H(isim_web_send), H(isim_web_next), H(isim_web_free), H(isim_web_frame), H(isim_web_release),
-    H(isim_tls_connect), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close), H(isim_tls_read_nb), H(isim_tls_write_nb), H(isim_tls_probe),
+    H(isim_tls_connect), H(isim_tls_start), H(isim_tls_peer_chain), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close), H(isim_tls_read_nb), H(isim_tls_write_nb), H(isim_tls_probe),
     H(isim_xcui_launch), H(isim_xcui_running), H(isim_xcui_send), H(isim_xcui_snapshot), H(isim_xcui_free), H(isim_xcui_terminate),
     H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_image_create_bgra), H(isim_image_update_bgra),
     H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_glass), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),

@@ -617,7 +617,7 @@ def _(a):   # deployment target iOS 18 (Synchronization is iOS 18+)
 
 @app("tests/swift-network", products=["SwiftNetworkTest.app"])
 def _(a):
-    a.swift_app("SwiftNetworkTest", srcs=["main.swift"])
+    a.swift_app("SwiftNetworkTest", srcs=["main.swift", "NWProtocols.swift"])
 
 
 def selftest(d, name, *flags):

@@ -7,6 +7,7 @@
 import UIKit
 import Network
 import MultipeerConnectivity
+import Security
 
 func log(_ s: String) { FileHandle.standardError.write(Data(("HelloConnections: " + s + "\n").utf8)) }   // unbuffered
 
@@ -23,7 +24,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = UINavigationController(rootViewController: ResultsViewController())
+        let mcui = ProcessInfo.processInfo.arguments.contains("-mcui")
+        window?.rootViewController = UINavigationController(rootViewController: mcui ? MCUIViewController() : ResultsViewController())
         window?.makeKeyAndVisible()
         return true
     }
@@ -86,6 +88,7 @@ final class Runner: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate
     var listeners: [NWListener] = []
 
     func runAll() async {
+        if ProcessInfo.processInfo.arguments.contains("-mdns") { await mdns(); report("done", "mdns"); return }
         await tcpEcho()
         await udpEcho()
         await refused()
@@ -93,6 +96,7 @@ final class Runner: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate
         await tlsTests()
         await bonjour()
         await multipeer()
+        await multipeerIdentities()
         await basicAuth()
         await digestAuth()
         await serverTrust()
@@ -208,6 +212,42 @@ final class Runner: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate
         } catch { report("bonjour", "\(error)") }
     }
 
+    /// -mdns (with ISIM_MDNS=1): Bonjour on the network — another machine (samples/HelloConnections/mdns_peer.py)
+    /// finds this app's service by multicast DNS and talks to it; the app finds the peer's service and talks to it
+    func mdns() async {
+        do {
+            let l = try NWListener(using: .tcp)
+            l.service = NWListener.Service(name: "isim App", type: "_isimapp._tcp", txtRecord: NWTXTRecord(["from": "isim"]))
+            l.serviceRegistrationUpdateHandler = { change in if case .add(let ep) = change { log("mdns: registered \(ep)") } }
+            l.newConnectionHandler = { c in
+                c.start(queue: .global())
+                c.receive(minimumIncompleteLength: 1, maximumLength: 4096) { d, _, _, _ in
+                    let text = d.map { String(decoding: $0, as: UTF8.self) } ?? ""
+                    log("mdns: app service got \(text)")
+                    c.send(content: Data("isim:\(text)".utf8), contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { _ in })
+                }
+            }
+            l.start(queue: .global())
+            listeners.append(l)
+            let b = NWBrowser(for: .bonjourWithTXTRecord(type: "_isimpy._tcp", domain: nil), using: .tcp)
+            let found: NWBrowser.Result? = await withCheckedContinuation { k in
+                let once = Once()
+                b.browseResultsChangedHandler = { results, _ in if let r = results.first { once.run { k.resume(returning: r) } } }
+                b.start(queue: .global())
+                DispatchQueue.global().asyncAfter(deadline: .now() + 15) { once.run { k.resume(returning: nil) } }
+            }
+            b.cancel()
+            guard let found else { report("mdns", "no peer found"); return }
+            var txt = "-"; if case .bonjour(let t) = found.metadata { txt = t["from"] ?? "-" }
+            let c = NWConnection(to: found.endpoint, using: .tcp)
+            _ = await c.waitReady()
+            _ = await c.sendAsync(Data("hello from isim".utf8))
+            let (d, _, _) = await c.receiveAsync(22)
+            report("mdns", "found \(found.endpoint) from=\(txt) reply=\(d.map { String(decoding: $0, as: UTF8.self) } ?? "nil")")
+            c.cancel()
+        } catch { report("mdns", "\(error)") }
+    }
+
     // MARK: MultipeerConnectivity
     let alice = MCPeerID(displayName: "Alice"), bob = MCPeerID(displayName: "Bob")
     lazy var aliceSession = MCSession(peer: alice, securityIdentity: nil, encryptionPreference: .required)
@@ -261,12 +301,42 @@ final class Runner: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate
         DispatchQueue.main.async {
             self.mcEvents.append("\(session.myPeerID.displayName) got \(s) from \(peerID.displayName)")
             if s == "ping" { try? session.send(Data("pong".utf8), toPeers: [peerID], with: .reliable) }
-            if s == "pong" { self.finishMC("ok") }
+            if s == "pong" {                                      // then a byte stream Alice -> Bob
+                guard let out = try? session.startStream(withName: "chunks", toPeer: peerID) else { self.finishMC("no stream"); return }
+                out.open()
+                for part in ["streamed ", "bytes"] { _ = Array(part.utf8).withUnsafeBufferPointer { out.write($0.baseAddress!, maxLength: $0.count) } }
+                out.close()
+            }
         }
     }
-    func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {}
+    func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {
+        let me = session.myPeerID.displayName
+        Thread.detachNewThread {
+            stream.open()
+            var all = [UInt8](), buf = [UInt8](repeating: 0, count: 64)
+            while true { let n = stream.read(&buf, maxLength: buf.count); if n <= 0 { break }; all += buf[0..<n] }
+            stream.close()
+            DispatchQueue.main.async {
+                self.mcEvents.append("\(me) stream \(streamName) from \(peerID.displayName): \(String(decoding: all, as: UTF8.self))")
+                self.finishMC("ok")
+            }
+        }
+    }
     func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) {}
     func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {}
+
+    /// sessions with security identities (-p12 FILE, password "isim"): Carol and Dave exchange and accept each
+    /// other's certificates; Dave refuses Eve, who has none
+    let identities = IdentityPeers()
+    func multipeerIdentities() async {
+        guard let path = arg("-p12"), let p12 = FileManager.default.contents(atPath: path) else { report("multipeer identities", "skipped (no -p12)"); return }
+        var items: CFArray?
+        _ = SecPKCS12Import(p12 as CFData, [kSecImportExportPassphrase as String: "isim"] as CFDictionary, &items)
+        guard let item = (items as? [[String: Any]])?.first, let id = item[kSecImportItemIdentity as String] as? SecIdentity else {
+            report("multipeer identities", "no identity in the p12"); return
+        }
+        report("multipeer identities", await identities.run(id))
+    }
 
     // MARK: URLSession authentication
     var credentialAnswer: URLCredential?
@@ -396,4 +466,100 @@ final class Runner: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate
         report("resume", "partial=\(partial > 0 && partial < Int64(total)) resumedAt=\(resumedAt == partial) size=\(downloadedSize) intact=\(downloaded != nil) error=\(downloadError.map { "\($0)" } ?? "none")")
         s.finishTasksAndInvalidate()
     }
+}
+
+final class IdentityPeers: NSObject, MCSessionDelegate, MCNearbyServiceAdvertiserDelegate, MCNearbyServiceBrowserDelegate, @unchecked Sendable {
+    let carol = MCPeerID(displayName: "Carol"), dave = MCPeerID(displayName: "Dave"), eve = MCPeerID(displayName: "Eve")
+    var carolSession: MCSession!, daveSession: MCSession!, eveSession: MCSession!
+    var advertiser: MCNearbyServiceAdvertiser?, browsers: [MCNearbyServiceBrowser] = []
+    var events: [String] = [], done: CheckedContinuation<String, Never>?
+    let lock = NSLock()
+    func note(_ e: String) {
+        lock.lock(); events.append(e); let all = events, k = done
+        let finished = all.contains("Carol connected to Dave") && all.contains("Eve not connected to Dave")
+        if finished { done = nil }
+        lock.unlock()
+        if finished { k?.resume(returning: all.sorted().joined(separator: "; ")) }
+    }
+    func run(_ id: SecIdentity) async -> String {
+        carolSession = MCSession(peer: carol, securityIdentity: [id], encryptionPreference: .required)
+        daveSession = MCSession(peer: dave, securityIdentity: [id], encryptionPreference: .required)
+        eveSession = MCSession(peer: eve, securityIdentity: nil, encryptionPreference: .required)
+        for s in [carolSession!, daveSession!, eveSession!] { s.delegate = self }
+        advertiser = MCNearbyServiceAdvertiser(peer: dave, discoveryInfo: nil, serviceType: "isim-secure")
+        advertiser?.delegate = self
+        advertiser?.startAdvertisingPeer()
+        return await withCheckedContinuation { k in
+            lock.lock(); done = k; lock.unlock()
+            DispatchQueue.main.async {
+                for p in [self.carol, self.eve] {
+                    let b = MCNearbyServiceBrowser(peer: p, serviceType: "isim-secure")
+                    b.delegate = self; b.startBrowsingForPeers(); self.browsers.append(b)
+                }
+            }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 8) { [weak self] in
+                guard let self else { return }
+                self.lock.lock(); let k = self.done; self.done = nil; let all = self.events; self.lock.unlock()
+                k?.resume(returning: all.sorted().joined(separator: "; ") + " (timeout)")
+            }
+        }
+    }
+    func browser(_ browser: MCNearbyServiceBrowser, foundPeer peerID: MCPeerID, withDiscoveryInfo info: [String: String]?) {
+        browser.invitePeer(peerID, to: browser.myPeerID == carol ? carolSession : eveSession, withContext: nil, timeout: 5)
+    }
+    func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) {}
+    func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?,
+                    invitationHandler: @escaping (Bool, MCSession?) -> Void) { invitationHandler(true, daveSession) }
+    func session(_ session: MCSession, didReceiveCertificate certificate: [Any]?, fromPeer peerID: MCPeerID, certificateHandler: @escaping (Bool) -> Void) {
+        let cn = (certificate?.first as? SecCertificate).flatMap { SecCertificateCopySubjectSummary($0) as String? } ?? "none"
+        note("\(session.myPeerID.displayName) got certificate \(cn) from \(peerID.displayName)")
+        certificateHandler(cn != "none")                          // only peers with a certificate
+    }
+    func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
+        if state == .connected, session === carolSession { note("Carol connected to Dave") }
+        if state == .notConnected, session === eveSession { note("Eve not connected to Dave") }
+    }
+    func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {}
+    func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {}
+    func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) {}
+    func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {}
+}
+
+/// -mcui: the system UI of MultipeerConnectivity in one app — Bob advertises with MCAdvertiserAssistant (its
+/// invitation alert), Alice picks him in MCBrowserViewController
+final class MCUIViewController: UIViewController, MCBrowserViewControllerDelegate, MCAdvertiserAssistantDelegate, MCSessionDelegate {
+    let alice = MCSession(peer: MCPeerID(displayName: "Alice")), bob = MCSession(peer: MCPeerID(displayName: "Bob"))
+    var assistant: MCAdvertiserAssistant?
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Multipeer"
+        view.backgroundColor = .systemBackground
+        alice.delegate = self; bob.delegate = self
+        assistant = MCAdvertiserAssistant(serviceType: "isim-ui", discoveryInfo: nil, session: bob)
+        assistant?.delegate = self
+        assistant?.start()
+        let b = UIButton(type: .system, primaryAction: UIAction(title: "Browse for Peers") { [weak self] _ in
+            guard let self else { return }
+            let vc = MCBrowserViewController(serviceType: "isim-ui", session: self.alice)
+            vc.delegate = self
+            self.present(vc, animated: true)
+        })
+        b.accessibilityIdentifier = "mc-browse"
+        b.frame = CGRect(x: 40, y: 200, width: view.bounds.width - 80, height: 44)
+        view.addSubview(b)
+    }
+    func browserViewControllerDidFinish(_ vc: MCBrowserViewController) {
+        log("mcui: browser finished peers=\(alice.connectedPeers.map(\.displayName).joined(separator: ","))")
+        vc.dismiss(animated: true)
+    }
+    func browserViewControllerWasCancelled(_ vc: MCBrowserViewController) { log("mcui: browser cancelled"); vc.dismiss(animated: true) }
+    func advertiserAssistantWillPresentInvitation(_ a: MCAdvertiserAssistant) { log("mcui: assistant will present invitation") }
+    func advertiserAssistantDidDismissInvitation(_ a: MCAdvertiserAssistant) { log("mcui: assistant dismissed invitation") }
+    func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
+        log("mcui: \(session.myPeerID.displayName) \(state) \(peerID.displayName)")
+    }
+    func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {}
+    func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {}
+    func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) {}
+    func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {}
 }

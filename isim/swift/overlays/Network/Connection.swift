@@ -2,12 +2,14 @@
 // NWListener (TCP and UDP), Bonjour advertising/browsing (NWListener.service, NWBrowser) and NWError.
 //
 // Connections are BSD sockets of the host (isim's libSystem) driven on background queues; handlers run on the
-// queue passed to start(queue:). TLS client connections use the host's OpenSSL (host_tls.c): the host's CA
-// store and host-name check, or the app's sec_protocol_options verify block. Adapted: Bonjour is a local
-// registry shared by the apps of this isim device ($ISIM_DATA/Library/isim/Bonjour), not multicast DNS — services
-// are found by apps on the same simulated device only. Not provided: TLS listeners (server identities), DTLS,
-// QUIC, NWProtocolWebSocket/NWProtocolFramer, multicast groups.
+// queue passed to start(queue:). TLS and DTLS use the host's OpenSSL (host_tls.c): clients check the host's CA
+// store and the host name, or the app's sec_protocol_options verify block decides with the peer's chain in a
+// sec_trust_t; listeners need a server identity (sec_protocol_options_set_local_identity) and may ask for client
+// certificates. Bonjour: a local registry shared by the apps of this isim device ($ISIM_DATA/Library/isim/Bonjour)
+// plus multicast DNS on the host's network (MDNS.swift). Not provided: QUIC (the host's OpenSSL 3.0 has none). WebSocket and framer message protocols:
+// Protocols.swift; multicast and connection groups: Group.swift; identities and certificates: SecProtocol.swift.
 @_exported import Foundation
+import Security
 import isim_host
 
 // MARK: - errors
@@ -17,6 +19,7 @@ public enum POSIXErrorCode: Int32, Sendable {
     case EPERM = 1, ENOENT = 2, EINTR = 4, EIO = 5, EBADF = 9, EAGAIN = 35, ENOMEM = 12, EACCES = 13, EINVAL = 22, EPIPE = 32
     case EADDRINUSE = 48, EADDRNOTAVAIL = 49, ENETDOWN = 50, ENETUNREACH = 51, ECONNABORTED = 53, ECONNRESET = 54, ENOBUFS = 55
     case EISCONN = 56, ENOTCONN = 57, ETIMEDOUT = 60, ECONNREFUSED = 61, EHOSTUNREACH = 65, ECANCELED = 89, EMSGSIZE = 40, ENOTSUP = 45
+    case EPROTO = 100
 }
 
 public enum NWError: Error, Equatable, CustomDebugStringConvertible, Sendable {
@@ -143,7 +146,11 @@ public class NWProtocolDefinition: Equatable, CustomDebugStringConvertible, @unc
     public var debugDescription: String { name }
 }
 public class NWProtocolOptions: @unchecked Sendable { init() {} }
-public class NWProtocolMetadata: @unchecked Sendable { init() {} }
+public class NWProtocolMetadata: @unchecked Sendable {
+    /// the protocol this metadata belongs to (ContentContext.protocolMetadata(definition:))
+    var _definition: NWProtocolDefinition?
+    init() {}
+}
 public enum NWProtocolIP {
     public static let definition = NWProtocolDefinition("ip")
     public final class Options: NWProtocolOptions, @unchecked Sendable {
@@ -204,13 +211,25 @@ public final class sec_protocol_options_t: @unchecked Sendable {
     var minVersion: tls_protocol_version_t = .TLSv12
     var serverName: String?
     var peerAuthenticationRequired = true
+    var peerAuthenticationSet = false                   /* servers ask for client certificates only when told to */
+    var identity: sec_identity_t?
+    var maxVersion: tls_protocol_version_t?
+    var challengeBlock: ((sec_protocol_metadata_t, @escaping (sec_identity_t?) -> Void) -> Void)?
+    var challengeQueue: DispatchQueue?
     init() {}
 }
 public final class sec_protocol_metadata_t: @unchecked Sendable {
     var version = "", alpn = "", serverName: String?
+    var peerCertificates: [Data] = []                   /* DER, leaf first */
     init() {}
 }
-public final class sec_trust_t: @unchecked Sendable { let host: String?; init(host: String?) { self.host = host } }
+/// the peer's certificate chain (sec_trust_copy_ref makes a SecTrust of it: SecProtocol.swift)
+public final class sec_trust_t: @unchecked Sendable {
+    let host: String?
+    var certificates: [Data] = []
+    var trust: SecTrust?
+    init(host: String?) { self.host = host }
+}
 public typealias sec_protocol_verify_complete_t = (Bool) -> Void
 public enum tls_protocol_version_t: UInt16, Sendable { case TLSv10 = 0x0301, TLSv11 = 0x0302, TLSv12 = 0x0303, TLSv13 = 0x0304, DTLSv10 = 0xfeff, DTLSv12 = 0xfefd }
 public func sec_protocol_options_set_verify_block(_ options: sec_protocol_options_t, _ verifyBlock: @escaping (sec_protocol_metadata_t, sec_trust_t, @escaping sec_protocol_verify_complete_t) -> Void, _ queue: DispatchQueue) {
@@ -221,15 +240,59 @@ public func sec_protocol_options_add_tls_application_protocol(_ options: sec_pro
 }
 public func sec_protocol_options_set_min_tls_protocol_version(_ options: sec_protocol_options_t, _ version: tls_protocol_version_t) { options.minVersion = version }
 public func sec_protocol_options_set_tls_server_name(_ options: sec_protocol_options_t, _ serverName: UnsafePointer<CChar>) { options.serverName = String(cString: serverName) }
-public func sec_protocol_options_set_peer_authentication_required(_ options: sec_protocol_options_t, _ required: Bool) { options.peerAuthenticationRequired = required }
+public func sec_protocol_options_set_peer_authentication_required(_ options: sec_protocol_options_t, _ required: Bool) {
+    options.peerAuthenticationRequired = required; options.peerAuthenticationSet = true
+}
 public func sec_protocol_metadata_get_negotiated_protocol(_ metadata: sec_protocol_metadata_t) -> UnsafePointer<CChar>? {
     metadata.alpn.isEmpty ? nil : UnsafePointer(strdup(metadata.alpn))
 }
 public func sec_protocol_metadata_get_negotiated_tls_protocol_version(_ metadata: sec_protocol_metadata_t) -> tls_protocol_version_t {
-    metadata.version == "TLSv1.3" ? .TLSv13 : metadata.version == "TLSv1.2" ? .TLSv12 : metadata.version == "TLSv1.1" ? .TLSv11 : .TLSv10
+    switch metadata.version {
+    case "TLSv1.3": return .TLSv13
+    case "TLSv1.2": return .TLSv12
+    case "TLSv1.1": return .TLSv11
+    case "DTLSv1.2": return .DTLSv12
+    case "DTLSv1": return .DTLSv10
+    default: return .TLSv10
+    }
 }
 public func sec_protocol_metadata_get_server_name(_ metadata: sec_protocol_metadata_t) -> UnsafePointer<CChar>? {
     metadata.serverName.map { UnsafePointer(strdup($0)) }
+}
+
+/// QUIC options and metadata (iOS 15), for apps to build against: isim has no QUIC, connections fail with ENOTSUP
+public enum NWProtocolQUIC {
+    public static let definition = NWProtocolDefinition("quic")
+    public final class Options: NWProtocolOptions, @unchecked Sendable {
+        public let securityProtocolOptions = sec_protocol_options_t()
+        public var alpn: [String]
+        public var direction: NWProtocolQUIC.Direction = .bidirectional
+        public var isDatagram = false
+        public var idleTimeout = 30_000
+        public var maxUDPPayloadSize = 1452
+        public var initialMaxData = 1_048_576
+        public var initialMaxStreamDataBidirectionalLocal = 262_144
+        public var initialMaxStreamDataBidirectionalRemote = 262_144
+        public var initialMaxStreamDataUnidirectional = 262_144
+        public var initialMaxStreamsBidirectional = 100
+        public var initialMaxStreamsUnidirectional = 100
+        public var maxDatagramFrameSize = 0
+        public override init() { alpn = []; super.init() }
+        public init(alpn: [String]) { self.alpn = alpn; super.init() }
+    }
+    public enum Direction: Sendable { case bidirectional, unidirectional }
+    public final class Metadata: NWProtocolMetadata, @unchecked Sendable {
+        public internal(set) var streamIdentifier: UInt64 = 0
+        public var streamApplicationError: UInt64?
+        public var applicationError: (error: UInt64, reason: String?)?
+        public internal(set) var keepAlive = false
+        public var remoteMaxStreamsBidirectional: UInt64 = 0
+        public var remoteMaxStreamsUnidirectional: UInt64 = 0
+        public var remoteIdleTimeout: UInt64 = 0
+        public var maxDatagramSize: Int = 0
+        public var securityProtocolMetadata: sec_protocol_metadata_t { sec_protocol_metadata_t() }
+        override init() { super.init(); _definition = NWProtocolQUIC.definition }
+    }
 }
 
 public enum NWProtocolTLS {
@@ -283,6 +346,13 @@ public final class NWParameters: CustomDebugStringConvertible, @unchecked Sendab
         tls = dtls; isUDP = true
         defaultProtocolStack.transportProtocol = udp
     }
+    /// QUIC (iOS 15): accepted, but connections fail with ENOTSUP: isim has no QUIC (the host's OpenSSL 3.0 has none)
+    public init(quic: NWProtocolQUIC.Options) {
+        tls = nil; isUDP = true
+        defaultProtocolStack.transportProtocol = quic
+        quicOptions = quic
+    }
+    var quicOptions: NWProtocolQUIC.Options?
     public static var tcp: NWParameters { NWParameters(tls: nil) }
     public static var udp: NWParameters { NWParameters(dtls: nil) }
     public static var tls: NWParameters { NWParameters(tls: NWProtocolTLS.Options()) }
@@ -292,16 +362,17 @@ public final class NWParameters: CustomDebugStringConvertible, @unchecked Sendab
                       : NWParameters(tls: tls, tcp: (defaultProtocolStack.transportProtocol as? NWProtocolTCP.Options) ?? NWProtocolTCP.Options())
         p.allowLocalEndpointReuse = allowLocalEndpointReuse; p.requiredLocalEndpoint = requiredLocalEndpoint; p.includePeerToPeer = includePeerToPeer
         p.acceptLocalOnly = acceptLocalOnly; p.serviceClass = serviceClass
+        p.defaultProtocolStack.applicationProtocols = defaultProtocolStack.applicationProtocols
         return p
     }
     var tcpOptions: NWProtocolTCP.Options? { defaultProtocolStack.transportProtocol as? NWProtocolTCP.Options }
-    public var debugDescription: String { isUDP ? (tls == nil ? "udp" : "dtls") : (tls == nil ? "tcp" : "tls") }
+    public var debugDescription: String { quicOptions != nil ? "quic" : isUDP ? (tls == nil ? "udp" : "dtls") : (tls == nil ? "tcp" : "tls") }
 }
 
 // MARK: - sockets helpers
 
 enum _NWSock {
-    /// resolves an endpoint to socket addresses (Bonjour services through the local registry)
+    /// resolves an endpoint to socket addresses (Bonjour services through the local registry, else multicast DNS)
     static func resolve(_ e: NWEndpoint, udp: Bool) -> Result<[(Data, Int32)], NWError> {
         switch e {
         case .hostPort(let host, let port):
@@ -327,10 +398,13 @@ enum _NWSock {
             out.sort { $0.1 == AF_INET && $1.1 != AF_INET }
             return out.isEmpty ? .failure(.dns(-65554)) : .success(out)
         case .service(let name, let type, _, _):
-            guard let s = _NWBonjour.lookup(name: name, type: type) else { return .failure(.dns(-65554)) }
-            return resolve(.hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: s.port) ?? .any), udp: udp)
+            if let s = _NWBonjour.lookup(name: name, type: type) {
+                return resolve(.hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: s.port) ?? .any), udp: udp)
+            }
+            guard _NWMDNS.enabled, let (addr, port) = _NWMDNS.shared.resolve(name: name, type: type) else { return .failure(.dns(-65554)) }
+            return resolve(.hostPort(host: NWEndpoint.Host(addr), port: NWEndpoint.Port(rawValue: port) ?? .any), udp: udp)
         case .url(let u):
-            let port = u.port.map { UInt16($0) } ?? (u.scheme == "https" ? 443 : 80)
+            let port = u.port.map { UInt16($0) } ?? (u.scheme == "https" || u.scheme == "wss" ? 443 : 80)
             return resolve(.hostPort(host: NWEndpoint.Host(u.host ?? "localhost"), port: NWEndpoint.Port(rawValue: port)!), udp: udp)
         default:
             return .failure(.posix(.EINVAL))
@@ -388,7 +462,7 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         public static let defaultMessage = ContentContext(identifier: "default_message")
         public static let finalMessage = ContentContext(identifier: "final_message", isFinal: true)
         public static let defaultStream = ContentContext(identifier: "default_stream")
-        public func protocolMetadata(definition: NWProtocolDefinition) -> NWProtocolMetadata? { nil }
+        public func protocolMetadata(definition: NWProtocolDefinition) -> NWProtocolMetadata? { protocolMetadata.first { $0._definition == definition } }
     }
 
     public let endpoint: NWEndpoint
@@ -424,6 +498,8 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
     /// datagram connections from an NWListener (UDP): sends go through the listener's socket
     var udpPeer: (send: (Data) -> Int, inbox: _NWInbox)?
     var acceptedFD: Int32 = -1
+    /// a message protocol over the byte stream (WebSocket, a framer): Protocols.swift
+    var layer: _NWMessageLayer?
 
     public init(to endpoint: NWEndpoint, using parameters: NWParameters) {
         NWConnection.counter += 1; id = NWConnection.counter
@@ -457,7 +533,14 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         lock.unlock()
         setState(.preparing)
         if udpPeer != nil { setState(.ready); return }
-        if acceptedFD >= 0 { fd = acceptedFD; setState(.ready); return }
+        if acceptedFD >= 0 {
+            fd = acceptedFD
+            layer = NWConnection._messageLayer(parameters, server: true)
+            ioQueue.async {
+                if let t = self.parameters.tls { self.startTLS(t.securityProtocolOptions) } else { self.transportReady() }
+            }
+            return
+        }
         ioQueue.async { self.connect() }
     }
     public func restart() {
@@ -467,8 +550,11 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
     }
 
     func connect() {
+        if parameters.quicOptions != nil {
+            print("isim: NWConnection: QUIC is not available (isim has no QUIC implementation)")
+            setState(.failed(.posix(.ENOTSUP))); return
+        }
         let udp = parameters.isUDP
-        if udp && parameters.tls != nil { setState(.failed(.posix(.ENOTSUP))); return }   /* DTLS is not provided */
         switch _NWSock.resolve(endpoint, udp: udp) {
         case .failure(let e): setState(.waiting(e)); return
         case .success(let addrs):
@@ -487,7 +573,7 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
                     lock.lock(); let cancelled = _state == .cancelled; if !cancelled { fd = s }; lock.unlock()
                     if cancelled { close(s); return }
                     if let tlsOpts = parameters.tls { startTLS(tlsOpts.securityProtocolOptions); return }
-                    setState(.ready)
+                    transportReady()
                     return
                 }
                 lastErr = errno
@@ -497,16 +583,32 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         }
     }
 
+    /// the TLS (DTLS for UDP) handshake: as the client, or as the server of a listener's connection
     func startTLS(_ o: sec_protocol_options_t) {
+        let server = acceptedFD >= 0, dtls = parameters.isUDP
         var host: String? = o.serverName
-        if host == nil, case .hostPort(let h, _) = endpoint, case .name(let n, _) = h { host = n }
+        if host == nil, !server, case .hostPort(let h, _) = endpoint, case .name(let n, _) = h { host = n }
+        if host == nil, !server, case .url(let u) = endpoint { host = u.host }
         let verifyByApp = o.verifyBlock != nil
+        // a client certificate the app hands over when asked (adapted: asked before the handshake)
+        var identity = o.identity
+        if identity == nil, !server, let cb = o.challengeBlock {
+            let sem = DispatchSemaphore(value: 0)
+            nonisolated(unsafe) var chosen: sec_identity_t?
+            (o.challengeQueue ?? .global()).async { cb(sec_protocol_metadata_t()) { chosen = $0; sem.signal() } }
+            sem.wait()
+            identity = chosen
+        }
+        let verify: Int32 = server ? (o.peerAuthenticationSet && o.peerAuthenticationRequired ? 1 : 0)
+                                   : (verifyByApp || !o.peerAuthenticationRequired ? 0 : 1)
         var err = [CChar](repeating: 0, count: 300)
         var code: Int32 = 0
         let alpn = o.alpn.joined(separator: ",")
-        let t = isim_tls_connect(fd, host, verifyByApp || !o.peerAuthenticationRequired ? 0 : 1, alpn.isEmpty ? nil : alpn, Int32(o.minVersion.rawValue), &err, Int32(err.count), &code)
+        let pem = identity?.pem
+        if identity != nil && pem == nil { print("isim: NWConnection TLS: the identity's private key cannot be exported"); setState(.failed(.tls(-9813))); return }
+        let t = isim_tls_start(fd, server ? 1 : 0, dtls ? 1 : 0, host, verify, alpn.isEmpty ? nil : alpn, Int32(o.minVersion.rawValue), pem, &err, Int32(err.count), &code)
         guard let t else {
-            print("isim: NWConnection TLS: \(String(cString: err))")
+            print("isim: NWConnection \(dtls ? "DTLS" : "TLS"): \(String(cString: err))")
             setState(.failed(.tls(code)))
             return
         }
@@ -515,19 +617,65 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         var v = [CChar](repeating: 0, count: 32), a = [CChar](repeating: 0, count: 64)
         isim_tls_info(t, &v, 32, &a, 64)
         meta.version = String(cString: v); meta.alpn = String(cString: a); meta.serverName = host
+        var chain = [UInt8](repeating: 0, count: 65536), lens = [Int](repeating: 0, count: 10)
+        let n = Int(isim_tls_peer_chain(t, &chain, chain.count, &lens, 10))
+        var off = 0
+        for i in 0..<n { meta.peerCertificates.append(Data(chain[off..<off + lens[i]])); off += lens[i] }
         tlsMeta = meta
-        if let block = o.verifyBlock {
+        if let block = o.verifyBlock, !(server && meta.peerCertificates.isEmpty) {
+            let trust = sec_trust_t(host: host)
+            trust.certificates = meta.peerCertificates
             let sem = DispatchSemaphore(value: 0)
-            var ok = false
-            (o.verifyQueue ?? .global()).async { block(meta, sec_trust_t(host: host)) { ok = $0; sem.signal() } }
+            nonisolated(unsafe) var ok = false
+            (o.verifyQueue ?? .global()).async { block(meta, trust) { ok = $0; sem.signal() } }
             sem.wait()
             guard ok else { setState(.failed(.tls(-9807))); return }
         }
+        transportReady()
+    }
+
+    /// the byte stream is up: run the message protocol's handshake, if there is one, then the connection is ready
+    func transportReady() {
+        if layer == nil && acceptedFD < 0 { layer = NWConnection._messageLayer(parameters, server: false) }
+        if let l = layer, let e = l.start(self) { setState(.failed(e)); return }
         setState(.ready)
+    }
+    /// writes all of d to the transport (TLS or the socket)
+    func _transportWrite(_ d: Data) -> NWError? {
+        guard !d.isEmpty else { return nil }
+        var off = 0
+        let ok: Bool = d.withUnsafeBytes { raw in
+            while off < d.count {
+                let n: Int
+                if let t = tls { n = isim_tls_write(t, raw.baseAddress! + off, d.count - off) }
+                else { n = Darwin_send(fd, raw.baseAddress! + off, d.count - off) }
+                if n <= 0 { return false }
+                off += n
+            }
+            return true
+        }
+        return ok ? nil : _NWErrno.posix(errno == 0 ? EPIPE : errno)
+    }
+    /// one read from the transport, whatever the connection's state: (data, end of stream, error)
+    func _transportRead(max: Int) -> (Data?, Bool, NWError?) {
+        var buf = [UInt8](repeating: 0, count: max)
+        while true {
+            let n: Int = buf.withUnsafeMutableBytes { b in
+                if let t = tls { return isim_tls_read(t, b.baseAddress!, max) }
+                return Darwin_recv(fd, b.baseAddress!, max)
+            }
+            if n > 0 { return (Data(buf[0..<n]), false, nil) }
+            if n == 0 { return (nil, true, nil) }
+            if state == .cancelled { return (nil, false, .posix(.ECANCELED)) }
+            let e = errno
+            if e == EINTR || e == EAGAIN { continue }
+            return (nil, false, _NWErrno.posix(e == 0 ? ECONNRESET : e))
+        }
     }
 
     public func metadata(definition: NWProtocolDefinition) -> NWProtocolMetadata? {
         if definition == NWProtocolTLS.definition, let m = tlsMeta { return NWProtocolTLS.Metadata(m) }
+        if let l = layer, definition == l.definition { return l.metadata() }
         if definition == NWProtocolTCP.definition, !parameters.isUDP { return NWProtocolTCP.Metadata() }
         return nil
     }
@@ -539,6 +687,7 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         }
         ioQueue.async { [self] in
             guard state == .ready else { done(.posix(state == .cancelled ? .ECANCELED : .ENOTCONN)); return }
+            if let l = layer { done(l.send(self, content, contentContext, isComplete)); return }
             if let d = content, !d.isEmpty {
                 if let peer = udpPeer {
                     done(peer.send(d) < 0 ? _NWErrno.posix(errno) : nil); return
@@ -567,12 +716,14 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
     public func receive(minimumIncompleteLength: Int, maximumLength: Int,
                         completion: @escaping @Sendable (Data?, ContentContext?, Bool, NWError?) -> Void) {
         readQueue.async { [self] in
+            if let r = layerReceive() { (queue ?? .main).async { completion(r.0, r.1, r.2, r.3) }; return }
             let r = readSome(min: max(1, minimumIncompleteLength), max: max(1, maximumLength))
             (queue ?? .main).async { completion(r.0, r.0 == nil && !r.1 ? nil : .defaultStream, r.1, r.2) }
         }
     }
     public func receiveMessage(completion: @escaping @Sendable (Data?, ContentContext?, Bool, NWError?) -> Void) {
         readQueue.async { [self] in
+            if let r = layerReceive() { (queue ?? .main).async { completion(r.0, r.1, r.2, r.3) }; return }
             if parameters.isUDP {
                 let r = readSome(min: 1, max: 65536)
                 (queue ?? .main).async { completion(r.0, .defaultMessage, true, r.2) }
@@ -586,6 +737,13 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
                 if r.1 { (queue ?? .main).async { completion(all.isEmpty ? nil : all, .finalMessage, true, nil) }; return }
             }
         }
+    }
+    /// a whole message from the message protocol (nil when the connection has none)
+    func layerReceive() -> (Data?, ContentContext?, Bool, NWError?)? {
+        guard let l = layer else { return nil }
+        while state == .preparing || state == .setup { usleep(5000) }
+        guard state == .ready else { return (nil, nil, false, .posix(state == .cancelled ? .ECANCELED : .ENOTCONN)) }
+        return l.receive(self)
     }
     /// blocking read: (data, complete (EOF / datagram), error)
     func readSome(min: Int, max: Int) -> (Data?, Bool, NWError?) {
@@ -621,9 +779,11 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         lock.lock()
         if _state == .cancelled { lock.unlock(); return }
         let h = _stateHandler, q = queue
+        let prior = _state
         _state = .cancelled
         let f = fd, t = tls
         lock.unlock()
+        if let l = layer, f >= 0, case .ready = prior { l.stop(self) }   /* a close frame, the framer's stop */
         if f >= 0 { shutdown(f, SHUT_RDWR) }
         udpPeer?.inbox.close()
         ioQueue.async {

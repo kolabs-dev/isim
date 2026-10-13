@@ -78,24 +78,14 @@ NSArray<NSDictionary *> *HSQuickActions(HSApp *app) {
     return out.count > 4 ? [out subarrayWithRange:NSMakeRange(0, 4)] : out;
 }
 
-/* associated domains: <App>.app/archived-expanded-entitlements.xcent (like Xcode simulator builds; isim build writes
-   it from CODE_SIGN_ENTITLEMENTS); "applinks:host" entries make https://host/... universal links for that app. isim does not
-   fetch apple-app-site-association files (offline), so every path on the domain opens the app. */
-static BOOL app_claims_host(HSApp *a, NSString *host) {
-    NSDictionary *ent = [NSDictionary dictionaryWithContentsOfFile:[a.path stringByAppendingPathComponent:@"archived-expanded-entitlements.xcent"]];
-    for (NSString *d in ent[@"com.apple.developer.associated-domains"]) {
-        if (![d hasPrefix:@"applinks:"]) continue;
-        NSString *h = [[d substringFromIndex:9] componentsSeparatedByString:@"?"].firstObject.lowercaseString;
-        if ([h hasPrefix:@"*."] ? ([host hasSuffix:[h substringFromIndex:1]] || [host isEqualToString:[h substringFromIndex:2]]) : [h isEqualToString:host]) return YES;
-    }
-    return NO;
-}
+/* associated domains (<App>.app/archived-expanded-entitlements.xcent, "applinks:host") and the domain's
+   apple-app-site-association decide which app a https link opens: UIKit's UIUniversalLinks.m */
+BOOL isim_ui_app_claims_link(NSString *appPath, NSURL *url);
 HSApp *HSAppForURL(NSArray<HSApp *> *apps, NSURL *url, BOOL *universal) {
     NSString *scheme = url.scheme.lowercaseString ?: @"";
     *universal = NO;
     if ([scheme isEqualToString:@"https"] || [scheme isEqualToString:@"http"]) {
-        NSString *host = url.host.lowercaseString ?: @"";
-        for (HSApp *a in apps) if ([scheme isEqualToString:@"https"] && app_claims_host(a, host)) { *universal = YES; return a; }
+        for (HSApp *a in apps) if ([scheme isEqualToString:@"https"] && isim_ui_app_claims_link(a.path, url)) { *universal = YES; return a; }
         return nil;
     }
     for (HSApp *a in apps) for (NSDictionary *t in a.info[@"CFBundleURLTypes"])

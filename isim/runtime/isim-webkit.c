@@ -28,6 +28,8 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <dlfcn.h>
+#include <cairo-pdf.h>
 
 #define PROTO_FD 3
 static GString *inbuf;
@@ -486,7 +488,52 @@ static const char *isim_world_script =
     "function fc(){var a=document.activeElement;post({t:'focus',editable:ed(a),type:a&&a.type||'',kind:a&&a.getAttribute&&(a.getAttribute('inputmode')||'')||''})}"
     "document.addEventListener('focusin',fc,true);document.addEventListener('focusout',function(){setTimeout(fc,0)},true);"
     "if(typeof ResizeObserver!=='undefined'){var ro=new ResizeObserver(sc);document.addEventListener('DOMContentLoaded',function(){ro.observe(document.documentElement)})}"
-    "window.__isimEd=ed;"
+    "window.__isimEd=ed;window.__isimPost=post;"
+    /* tools the web view calls (WKWebView: long press, selection, <select>, pinch zoom, find) */
+    "var T=window.__isimTools={};"
+    "function rc(e){var r=e.getBoundingClientRect();return{x:r.left,y:r.top,w:r.width,h:r.height}}"
+    "T.hit=function(x,y){var e=document.elementFromPoint(x,y);if(!e)return{kind:'none'};"
+    "var a=e.closest('a[href]'),im=e.closest('img'),o;"
+    "if(a){o=rc(a);o.kind='link';o.href=a.href;o.title=(a.textContent||'').trim().slice(0,200);o.image=im?(im.currentSrc||im.src):'';return o}"
+    "if(im){o=rc(im);o.kind='image';o.src=im.currentSrc||im.src;o.alt=im.alt||'';return o}"
+    "return{kind:ed(e)?'editable':'text'}};"
+    "T.sel=function(){var s=getSelection();if(!s||!s.rangeCount||s.isCollapsed)return null;var g=s.getRangeAt(0),r=g.getBoundingClientRect();"
+    "var rs=Array.prototype.map.call(g.getClientRects(),function(c){return[c.left,c.top,c.width,c.height]}).filter(function(c){return c[2]>0&&c[3]>0});"
+    "return{text:s.toString(),x:r.left,y:r.top,w:r.width,h:r.height,rects:rs}};"
+    "T.word=function(x,y){var r=document.caretRangeFromPoint(x,y),s=getSelection();if(!r)return null;s.removeAllRanges();s.addRange(r);"
+    "s.modify('move','forward','word');s.modify('extend','backward','word');return T.sel()};"
+    "T.extend=function(x,y){var r=document.caretRangeFromPoint(x,y),s=getSelection();if(r&&s.rangeCount)s.extend(r.startContainer,r.startOffset);return T.sel()};"
+    "T.all=function(){document.execCommand('selectAll');return T.sel()};"
+    "T.clear=function(){var s=getSelection();if(s)s.removeAllRanges()};"
+    "T.choose=function(idx){var e=window.__isimSel;if(!e)return false;"
+    "if(e.multiple){for(var i=0;i<e.options.length;i++)e.options[i].selected=idx.indexOf(i)>=0}else if(idx.length)e.selectedIndex=idx[0];"
+    "e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));return true};"
+    "T.viewport=function(){var m=document.querySelector('meta[name=viewport]'),c=m?(m.content||'').toLowerCase():'',o={};"
+    "c.split(/[,;]/).forEach(function(p){var kv=p.split('=');if(kv.length==2)o[kv[0].trim()]=kv[1].trim()});"
+    "return{scalable:!(o['user-scalable']==='no'||o['user-scalable']==='0'),max:parseFloat(o['maximum-scale'])||5,min:parseFloat(o['minimum-scale'])||1}};"
+    /* pinch zoom: the root scaled from its corner, no relayout; the page scroll pans the magnified page */
+    "T.z=1;T.zoom=function(z,fx,fy){var d=document.documentElement,old=T.z;"
+    "if(Math.abs(z-1)<0.001){z=1;d.style.removeProperty('transform');d.style.removeProperty('transform-origin')}"
+    "else{d.style.setProperty('transform-origin','0 0');d.style.setProperty('transform','scale('+z+')')}"
+    "T.z=z;window.scrollTo((scrollX+fx)*z/old-fx,(scrollY+fy)*z/old-fy);sc();return z};"
+    /* find: matches inside text nodes (not across elements), painted with the CSS Custom Highlight API */
+    "T.found=[];T.findStyle=function(){if(document.getElementById('__isim_find'))return;var st=document.createElement('style');st.id='__isim_find';"
+    "st.textContent='::highlight(isim-find){background-color:rgba(255,230,0,0.55)}::highlight(isim-find-current){background-color:#ffc400}';"
+    "(document.head||document.documentElement).appendChild(st)};"
+    "T.paint=function(cur){if(!(window.CSS&&CSS.highlights&&window.Highlight)){if(cur>=0){var s=getSelection();s.removeAllRanges();s.addRange(T.found[cur])}return}"
+    "T.findStyle();CSS.highlights.set('isim-find',new Highlight(...T.found.filter(function(_,i){return i!==cur})));"
+    "if(cur>=0)CSS.highlights.set('isim-find-current',new Highlight(T.found[cur]));else CSS.highlights.delete('isim-find-current')};"
+    "T.find=function(q,cs,mode){T.unfind();if(!q)return 0;var ql=cs?q:q.toLowerCase(),out=[],n;"
+    "var w=document.createTreeWalker(document.body||document.documentElement,NodeFilter.SHOW_TEXT,{acceptNode:function(n){var p=n.parentElement;"
+    "if(!p||/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(p.tagName))return 2;var cs2=getComputedStyle(p);return cs2.display==='none'||cs2.visibility==='hidden'?2:1}});"
+    "while((n=w.nextNode())){var t=cs?n.data:n.data.toLowerCase(),i=0;while((i=t.indexOf(ql,i))>=0){var ok=true;"
+    "if(mode){ok=!/[0-9A-Za-z_\\u00C0-\\uFFFF]/.test(n.data.charAt(i-1)||' ');if(mode==2)ok=ok&&!/[0-9A-Za-z_\\u00C0-\\uFFFF]/.test(n.data.charAt(i+ql.length)||' ')}"
+    "if(ok){var r=document.createRange();r.setStart(n,i);r.setEnd(n,i+ql.length);out.push(r)}i+=Math.max(1,ql.length)}}"
+    "T.found=out;T.paint(-1);return out.length};"
+    "T.show=function(i){var r=T.found[i];if(!r)return null;T.paint(i);var b=r.getBoundingClientRect();"
+    "if(b.top<0||b.bottom>innerHeight||b.left<0||b.right>innerWidth)window.scrollBy(b.left<0||b.right>innerWidth?b.left-innerWidth/2:0,b.top-innerHeight/3);"
+    "b=r.getBoundingClientRect();return{x:b.left,y:b.top,w:b.width,h:b.height}};"
+    "T.unfind=function(){T.found=[];if(window.CSS&&CSS.highlights){CSS.highlights.delete('isim-find');CSS.highlights.delete('isim-find-current')}};"
     "})();";
 
 static void view_new(int id, double w, double h, double scale, int ephem, const char *datadir, const char *ua, int js, const char *bg) {
@@ -643,8 +690,15 @@ static const char *tap_js =
     "if(phase==='down'){window.__isimDown=e;fire('pointerdown',PointerEvent);"
     "try{var tch=new Touch({identifier:1,target:e,clientX:x,clientY:y,pageX:x+scrollX,pageY:y+scrollY});"
     "e.dispatchEvent(new TouchEvent('touchstart',{bubbles:true,cancelable:true,composed:true,touches:[tch],targetTouches:[tch],changedTouches:[tch]}))}catch(_){}"
-    "fire('mousedown',MouseEvent);return}"
+    /* not into a <select>: WebKit's list box would pick the option under the finger, iOS only opens the picker */
+    "if(!(e.closest&&e.closest('select')))fire('mousedown',MouseEvent);return}"
     "if(phase==='cancel'){fire('pointercancel',PointerEvent);window.__isimDown=null;return}"
+    "var sl=e.closest&&e.closest('select');"
+    "if(sl&&!sl.disabled){fire('pointerup',PointerEvent);fire('mouseup',MouseEvent);sl.focus();window.__isimSel=sl;var r=sl.getBoundingClientRect(),os=[];"
+    "for(var i=0;i<sl.options.length;i++){var op=sl.options[i],g=op.parentNode&&op.parentNode.tagName==='OPTGROUP'?op.parentNode:null;"
+    "os.push({t:op.label||op.text,s:op.selected,d:op.disabled||!!(g&&g.disabled),g:g?g.label:''})}"
+    "if(window.__isimPost)window.__isimPost({t:'select',multiple:sl.multiple,options:os,x:r.left,y:r.top,w:r.width,h:r.height});"
+    "window.__isimDown=null;return}"
     "fire('pointerup',PointerEvent);"
     "try{var t2=new Touch({identifier:1,target:e,clientX:x,clientY:y,pageX:x+scrollX,pageY:y+scrollY});"
     "e.dispatchEvent(new TouchEvent('touchend',{bubbles:true,cancelable:true,composed:true,touches:[],targetTouches:[],changedTouches:[t2]}))}catch(_){}"
@@ -713,6 +767,106 @@ static void clear_done(GObject *o, GAsyncResult *r, gpointer data) {
     webkit_website_data_manager_clear_finish(WEBKIT_WEBSITE_DATA_MANAGER(o), r, NULL);
     SEND(q->view, "done", itoa_(q->req), "");
     g_free(q);
+}
+
+/* ---------------- PDF and web archives ---------------- */
+struct outreq { int view; int req; char *path; int failed; double crop[5]; };   /* crop: x y w h, cropped */
+static void send_file(struct outreq *q, int ok) {
+    gchar *data = NULL; gsize len = 0;
+    if (ok && q->path && g_file_get_contents(q->path, &data, &len, NULL) && len > 0) {
+        char *b64 = g_base64_encode((const guchar *)data, len);
+        SEND(q->view, "done", itoa_(q->req), b64);
+        g_free(b64);
+    } else SEND(q->view, "done", itoa_(q->req), "");
+    g_free(data);
+    if (q->path) { unlink(q->path); g_free(q->path); }
+    g_free(q);
+}
+/* WebKit prints a CSS pixel as 3/4 point (and lays the page out at the paper's width): the printed page is drawn again
+   through poppler (when the host has poppler-glib), scaled by 4/3 so a point is a CSS pixel as on iOS, and cropped to
+   r (WKPDFConfiguration.rect, CSS px), still vector */
+static int crop_pdf(const char *path, const double *r) {
+    static void *h; static int tried;
+    static void *(*doc_new)(const char *, const char *, GError **); static void *(*get_page)(void *, int); static void (*render)(void *, cairo_t *);
+    if (!tried) {
+        tried = 1;
+        h = dlopen("libpoppler-glib.so.8", RTLD_NOW | RTLD_LOCAL);
+        if (h) { doc_new = dlsym(h, "poppler_document_new_from_file"); get_page = dlsym(h, "poppler_document_get_page"); render = dlsym(h, "poppler_page_render"); }
+    }
+    if (!doc_new || !get_page || !render) { fprintf(stderr, "isim-webkit: cropping a PDF needs the host's poppler-glib\n"); return 0; }
+    char *uri = g_filename_to_uri(path, NULL, NULL), *out = g_strconcat(path, ".crop", NULL);
+    void *doc = doc_new(uri, NULL, NULL), *page = doc ? get_page(doc, 0) : NULL;
+    int ok = 0;
+    if (page) {
+        cairo_surface_t *sf = cairo_pdf_surface_create(out, r[2], r[3]);
+        cairo_t *cr = cairo_create(sf);
+        cairo_translate(cr, -r[0], -r[1]);
+        cairo_scale(cr, 4.0 / 3.0, 4.0 / 3.0);
+        render(page, cr);
+        cairo_show_page(cr);
+        cairo_destroy(cr); cairo_surface_finish(sf);
+        ok = cairo_surface_status(sf) == CAIRO_STATUS_SUCCESS && rename(out, path) == 0;
+        cairo_surface_destroy(sf);
+        g_object_unref(page);
+    }
+    if (doc) g_object_unref(doc);
+    unlink(out); g_free(out); g_free(uri);
+    return ok;
+}
+static void pdf_finished(WebKitPrintOperation *op, gpointer data) {
+    struct outreq *q = data;
+    if (!q->failed && !crop_pdf(q->path, q->crop) && q->crop[4] > 0) q->failed = 1;   /* no poppler: the 3/4-scale page */
+    send_file(q, !q->failed);
+    g_object_unref(op);
+}
+static void pdf_failed(WebKitPrintOperation *op, GError *e, gpointer data) {   /* "finished" follows and answers */
+    struct outreq *q = data;
+    q->failed = 1;
+    fprintf(stderr, "isim-webkit: PDF export failed: %s\n", e ? e->message : "?");
+}
+/* a PDF of the page at its layout size: one page w x h points (the view's width; the page's height), vector text */
+/* w x h: the page in CSS px; crop (CSS px; w 0 = the whole page) */
+static void make_pdf(struct view *v, int req, double w, double h, const double *crop) {
+    struct outreq *q = g_new0(struct outreq, 1); q->view = v->id; q->req = req;
+    int cropped = crop[2] > 0 && crop[3] > 0;
+    q->crop[0] = cropped ? crop[0] : 0; q->crop[1] = cropped ? crop[1] : 0;
+    q->crop[2] = cropped ? crop[2] : w; q->crop[3] = cropped ? crop[3] : h; q->crop[4] = cropped;
+    int fd; GError *e = NULL;
+    fd = g_file_open_tmp("isim-pdf-XXXXXX.pdf", &q->path, &e);
+    if (fd < 0) { g_clear_error(&e); send_file(q, 0); return; }
+    close(fd);
+    char *uri = g_filename_to_uri(q->path, NULL, NULL);
+    GtkPrintSettings *ps = gtk_print_settings_new();
+    gtk_print_settings_set_printer(ps, "Print to File");
+    gtk_print_settings_set(ps, GTK_PRINT_SETTINGS_OUTPUT_FILE_FORMAT, "pdf");
+    gtk_print_settings_set(ps, GTK_PRINT_SETTINGS_OUTPUT_URI, uri);
+    GtkPageSetup *setup = gtk_page_setup_new();
+    GtkPaperSize *paper = gtk_paper_size_new_custom("isim-page", "isim page", w * 0.75, h * 0.75, GTK_UNIT_POINTS);   /* the screen's layout width */
+    gtk_page_setup_set_paper_size(setup, paper);
+    gtk_page_setup_set_orientation(setup, GTK_PAGE_ORIENTATION_PORTRAIT);
+    gtk_page_setup_set_top_margin(setup, 0, GTK_UNIT_POINTS); gtk_page_setup_set_bottom_margin(setup, 0, GTK_UNIT_POINTS);
+    gtk_page_setup_set_left_margin(setup, 0, GTK_UNIT_POINTS); gtk_page_setup_set_right_margin(setup, 0, GTK_UNIT_POINTS);
+    WebKitPrintOperation *op = webkit_print_operation_new(v->wv);
+    webkit_print_operation_set_print_settings(op, ps);
+    webkit_print_operation_set_page_setup(op, setup);
+    g_signal_connect(op, "finished", G_CALLBACK(pdf_finished), q);
+    g_signal_connect(op, "failed", G_CALLBACK(pdf_failed), q);
+    webkit_print_operation_print(op);
+    gtk_paper_size_free(paper); g_object_unref(setup); g_object_unref(ps); g_free(uri);
+    hot(v);
+}
+static void archive_done(GObject *o, GAsyncResult *r, gpointer data) {
+    struct outreq *q = data;
+    GError *e = NULL;
+    GInputStream *in = webkit_web_view_save_finish(WEBKIT_WEB_VIEW(o), r, &e);
+    if (!in) { fprintf(stderr, "isim-webkit: saving the page failed: %s\n", e ? e->message : "?"); g_clear_error(&e); send_file(q, 0); return; }
+    GByteArray *all = g_byte_array_new();
+    guint8 buf[65536]; gssize n;
+    while ((n = g_input_stream_read(in, buf, sizeof buf, NULL, NULL)) > 0) g_byte_array_append(all, buf, (guint)n);
+    g_object_unref(in);
+    char *b64 = g_base64_encode(all->data, all->len);
+    SEND(q->view, "done", itoa_(q->req), b64);
+    g_free(b64); g_byte_array_free(all, TRUE); g_free(q);
 }
 
 /* ---------------- commands ---------------- */
@@ -885,6 +1039,15 @@ static void cmd(char **f, int n) {
     else if (!strcmp(c, "key")) { char *lit = js_string(ARG(2)), *s = g_strdup_printf("%s(%s)", key_js, lit); input_js(v, s); g_free(s); g_free(lit); }
     else if (!strcmp(c, "blur")) input_js(v, "if(document.activeElement&&document.activeElement.blur)document.activeElement.blur()");
     else if (!strcmp(c, "ua")) webkit_settings_set_user_agent(webkit_web_view_get_settings(v->wv), *ARG(2) ? ARG(2) : NULL);
+    else if (!strcmp(c, "pdf")) {             /* req width height [crop x y w h] (points) */
+        double crop[4] = { g_ascii_strtod(ARG(5), NULL), g_ascii_strtod(ARG(6), NULL), g_ascii_strtod(ARG(7), NULL), g_ascii_strtod(ARG(8), NULL) };
+        make_pdf(v, atoi(ARG(2)), g_ascii_strtod(ARG(3), NULL), g_ascii_strtod(ARG(4), NULL), crop);
+    }
+    else if (!strcmp(c, "archive")) {          /* req: the page as MHTML (the overlay turns it into a .webarchive) */
+        struct outreq *q = g_new0(struct outreq, 1); q->view = v->id; q->req = atoi(ARG(2));
+        webkit_web_view_save(v->wv, WEBKIT_SAVE_MODE_MHTML, NULL, archive_done, q);
+        hot(v);
+    }
     else if (!strcmp(c, "zoom")) { v->zoom = g_ascii_strtod(ARG(2), NULL) > 0 ? g_ascii_strtod(ARG(2), NULL) : 1; webkit_web_view_set_zoom_level(v->wv, v->scale * v->zoom); }
     else if (!strcmp(c, "js-enabled")) webkit_settings_set_enable_javascript(webkit_web_view_get_settings(v->wv), atoi(ARG(2)));
     else if (!strcmp(c, "bg")) { GdkRGBA col; if (gdk_rgba_parse(&col, ARG(2))) webkit_web_view_set_background_color(v->wv, &col); }

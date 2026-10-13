@@ -1,7 +1,8 @@
 """Swift networking self-test: sockets, URLSession, cookies, cache, NWPathMonitor (in-process server), and
 URLSessionWebSocketTask against ws_server.py: ws://, and wss:// with a throwaway certificate for localhost that only
 this run trusts (SSL_CERT_FILE; skipped without the openssl command). With that certificate, https_server.py serves
-the server-trust (pinning) and client-certificate checks: a throwaway client CA and a PKCS#12 client identity."""
+the server-trust (pinning) and client-certificate checks: a throwaway client CA and a PKCS#12 client identity. The
+same certificate is the server identity of the app's own TLS and DTLS NWListeners."""
 import base64
 import shutil
 import ssl
@@ -56,4 +57,8 @@ def test_swift_network(device_data, tmp_path):
                 local_server(HERE / "https_server.py", tmp_path / "mtls.log", args=("0", *tls, str(ca)))))
             env["ISIM_TEST_HTTPS_CERT"] = base64.b64encode(ssl.PEM_cert_to_DER_cert(tls[0].read_text())).decode()
             env["ISIM_TEST_CLIENT_P12"] = str(p12)
+            server_p12 = tmp_path / "localhost.p12"           # the localhost certificate as a server identity (NWListener TLS)
+            subprocess.run(["openssl", "pkcs12", "-export", "-inkey", str(tls[1]), "-in", str(tls[0]), "-out", str(server_p12),
+                            "-passout", "pass:isim"], capture_output=True, check=True)
+            env["ISIM_TEST_SERVER_P12"] = str(server_p12)
         selftest("SwiftNetworkTest", data=device_data, executable=True, timeout=90, env=env)

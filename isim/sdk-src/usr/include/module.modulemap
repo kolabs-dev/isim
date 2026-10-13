@@ -24,6 +24,7 @@ module Darwin [system] [extern_c] {
     header "sys/time.h"
     header "sys/stat.h"
     header "sys/file.h"
+    header "sys/param.h"
     export *
   }
   module Networking {

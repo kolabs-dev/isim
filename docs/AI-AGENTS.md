@@ -84,6 +84,14 @@ ISIM_ANIMATIONS=0 ISIM_SKIP_LAUNCH_SCREEN=1 isim run build/MyApp.app --headless 
   `rotate landscapeleft`, `location LAT LON`, `beacon UUID MAJOR MINOR`, `push …`, `openurl …` change the device; on a
   map, `pinch`, `rotate2` and `twofinger` zoom, turn and tilt it (`dump` shows its centre, span, heading and pitch). The full list is in
   [SCRIPTING.md](SCRIPTING.md).
+- In a `WKWebView`, a long press (`drag X Y X Y 0.05 0 0.9`) selects a word or opens a link's context menu, a tap on a
+  `<select>` opens its menu (`tapid menu-<Option>`), `pinch` zooms the page, and the find navigator
+  (`findInteraction`) takes `type`; `isim: WKWebView …` lines log the selection, menus, zoom and find results.
+  Menu items whose titles have spaces are tapped by their whole id (`tapid menu-Copy Link`).
+- Networking stays on the computer: Bonjour services are also announced over multicast DNS (other machines and isim
+  devices see them; `ISIM_MDNS=0` keeps them on this device), and universal links follow the domain's
+  apple-app-site-association — put a test copy in `$ISIM_DATA/Library/isim/AASA/<domain>.json` to try path rules
+  offline (see [SYSTEM-PROMPTS.md](SYSTEM-PROMPTS.md)).
 - Accessibility can be checked the same way: `voiceover on; voiceover next; …` logs what VoiceOver says
   (`isim: VoiceOver: "…"`), and `accessibility SETTING on|off`, `contrast on`, `boldtext on` and
   `guidedaccess on` switch the Settings ▸ Accessibility features an app reacts to.

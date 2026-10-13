@@ -113,3 +113,76 @@ def test_web(launch, web):
     assert "didFailProvisional" not in log, "the cancelled link does not fail a navigation"
     assert "GET /page3" in server_log.read_text(), "the server served page3"
     assert app.quit() == 0
+
+
+def test_web_interact(launch, web):
+    """HelloWeb -interact: the page's own interactions drawn by isim as on iOS — a long press selects a word (edit menu
+    with Copy), a long press on a link opens a context menu (WKUIDelegate will-present / did-end), <select> elements
+    become menus (single and multiple choice), pinch zoom follows scrollView.zoomScale, the find navigator
+    (UIFindInteraction) counts matches, createPDF (whole page and a rect) and createWebArchiveData."""
+    port, _ = web
+    app = launch("HelloWeb", args=["-interact", "-server", f"http://127.0.0.1:{port}"])
+    ios_green = lambda c: c[1] > 170 and c[0] < 90 and c[2] < 120                  # #34c759
+    app.wait_until(lambda: ios_green(rgb(app.screenshot("interact"), 100, 520)), what="the interact page is drawn")
+
+    app.send("drag 60 130 60 130 0.05 0 0.9")                             # long press on "quick"
+    app.wait_log(r'^isim: WKWebView selected "quick"')
+    app.wait_view(r"id=isim-menu-Copy")
+    app.tap_id("isim-menu-Copy")
+    app.wait_log(r'^isim: WKWebView copied "quick"')
+    app.tap_id("paste")
+    app.wait_log(r"^HelloWeb: pasteboard url=- string=quick zoom=1\.0")
+
+    app.send("drag 100 210 100 210 0.05 0 0.9")                           # long press on the link
+    app.wait_log(rf"^HelloWeb: context menu for http://127\.0\.0\.1:{port}/page3")
+    app.wait_tap_id("menu-Copy Link")                                     # Open, Copy Link, Share…
+    app.wait_log(r"^HelloWeb: context menu ended")
+    app.tap_id("paste")
+    app.wait_log(rf"^HelloWeb: pasteboard url=http://127\.0\.0\.1:{port}/page3")
+
+    app.tap(100, 363)                                                     # <select> fruit
+    app.wait_log(r"^isim: WKWebView <select> with [0-9]+ option\(s\)")
+    app.wait_view(r"id=menu-Banana")
+    app.tap_id("menu-Banana")
+    app.wait_log(r"^HelloWeb: page says select banana")
+    app.tap(100, 413)                                                     # <select multiple> (on its Red row: the tap only opens
+                                                                          # the menu, it does not pick Red): the menu stays up
+    app.wait_view(r"id=menu-Blue")
+    app.tap_id("menu-Blue")
+    app.wait_view(r"id=menu-Red")
+    app.tap_id("menu-Red")
+    app.wait_log(r"^HelloWeb: page says many red,green,blue")
+    app.tap(200, 700)                                                     # dismiss the menu
+
+    app.wait_tap_id("find")
+    app.wait_log(r"keyboard shown")
+    app.type("isim")
+    app.wait_log(r'^isim: WKWebView find "isim": 4 result\(s\)')
+    app.wait_view(r"text=1 of 4")
+
+    app.wait_tap_id("pdf")
+    app.wait_log(r"^HelloWeb: pdf [0-9]+ bytes PDF 1 page\(s\) [34][0-9][0-9]x[0-9]+")
+    app.wait_log(r"^HelloWeb: pdf cropped 1 page\(s\) 200x100")
+    app.tap_id("archive")
+    app.wait_log(rf"^HelloWeb: archive text/html http://127\.0\.0\.1:{port}/ html=true subresources=1")
+
+    app.send("pinch 200 500 2.0 0.6")
+    app.wait_log(r"^isim: WKWebView zoom 2\.00")
+    app.tap_id("paste")
+    app.wait_log(r"^HelloWeb: pasteboard .* zoom=2\.0")
+    assert app.quit() == 0
+
+
+def test_web_webpage(launch, web):
+    """SwiftUI WebView showing a WebPage (iOS 26): navigation events from load(html:baseURL:), the observable title,
+    url and isLoading, callJavaScript with arguments."""
+    port, _ = web
+    app = launch("HelloWeb", os_version="26", args=["-webpage", "-server", f"http://127.0.0.1:{port}"])
+    app.wait_log(r"^HelloWeb: navigation startedProvisionalNavigation")
+    app.wait_log(r"^HelloWeb: navigation committed")
+    app.wait_log(r"^HelloWeb: navigation finished")
+    app.wait_log(rf"^HelloWeb: loaded title=Interact loading=false url=http://127\.0\.0\.1:{port}/")
+    app.wait_view(r"id=page-title\n\s*UILabel .*text=Interact$")
+    app.wait_tap_id("page-js")
+    app.wait_log(r"^HelloWeb: callJavaScript Interact 5")
+    assert app.quit() == 0

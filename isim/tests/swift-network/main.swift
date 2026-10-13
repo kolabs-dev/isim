@@ -268,6 +268,13 @@ func tlsChecks(env: [String: String]) async {
     let (_, noneCode) = await get("https://localhost:\(mtls)/", none)
     check(none.clientChallenges == 1 && noneCode == NSURLErrorClientCertificateRequired,
           "client certificate: without one the server's refusal is clientCertificateRequired (\(noneCode))")
+    if let identity, let sp = env["ISIM_TEST_SERVER_P12"].flatMap({ FileManager.default.contents(atPath: $0) }) {
+        var sitems: CFArray?
+        _ = SecPKCS12Import(sp as CFData, [kSecImportExportPassphrase as String: "isim"] as CFDictionary, &sitems)
+        if let server = ((sitems as? [[String: Any]])?.first?[kSecImportItemIdentity as String]).map({ $0 as! SecIdentity }) {
+            nwTLSChecks(server: server, client: identity, serverDER: der)
+        } else { check(false, "server identity from PKCS#12 (ISIM_TEST_SERVER_P12)") }
+    }
 }
 
 @main struct Main {
@@ -618,12 +625,18 @@ func tlsChecks(env: [String: String]) async {
         let env = ProcessInfo.processInfo.environment
         if let port = env["ISIM_TEST_WS_PORT"] {
             await webSocketChecks(base: "ws://127.0.0.1:\(port)", what: "ws")
+            nwWebSocketClientChecks(port: port)
         } else { check(false, "WebSocket server port (ISIM_TEST_WS_PORT; run through test_swift_network.py)") }
         if let port = env["ISIM_TEST_WSS_PORT"] {                  // TLS: a throwaway certificate for localhost (SSL_CERT_FILE)
             await webSocketChecks(base: "wss://localhost:\(port)", what: "wss")
             await tlsChecks(env: env)
         }
         if let port = env["ISIM_TEST_WSS_PORT"], let p = Int(port) { tlsStreamCheck(port: p) }
+        // MARK: Network framework message protocols and groups (NWProtocols.swift)
+        nwWebSocketServerChecks()
+        nwFramerChecks()
+        nwConnectionGroupChecks()
+        nwQUICChecks()
 
         print("network test: \(checks - failures)/\(checks) passed")
         exit(failures == 0 ? 0 : 1)

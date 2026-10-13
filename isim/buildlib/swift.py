@@ -271,6 +271,7 @@ class Swift:
         core = self.link("swiftCore", [f"{SW}/full/swiftCore.o", *robjs],
                          ["-lSystem", "-lobjc", "-lc++", "-framework", "Foundation", "-U", "__objc_realizeClassFromSwift"],
                          implicit=[libcxx])
+        darwin = self.darwin()
         concurrency = self.concurrency()
         observation = self.observation()
         sync = self.synchronization()
@@ -279,7 +280,7 @@ class Swift:
         regex = self.string_processing()
         cxx = self.cxx_interop()
         plugins = self.host_plugins()
-        n.phony("swift-core", [*emb, *full, support, res, libcxx, core, *concurrency, *observation, *sync, *distributed,
+        n.phony("swift-core", [*emb, *full, support, res, libcxx, core, *darwin, *concurrency, *observation, *sync, *distributed,
                                *onone, *regex, *cxx, *plugins])
 
     def isim_module(self, name, srcs, flags, link_args=(), extra_objs=(), implicit=(), link_name=None, objdir=None,
@@ -297,6 +298,15 @@ class Swift:
                     srcs, implicit=base + list(implicit), keep=[obj, mod(name)], desc=f"SWIFT {name}")
         lib = self.link(link_name, [obj, *extra_objs], link_args, minos=minos)
         return [mod(name), lib]
+
+    def darwin(self):
+        """the Swift Darwin overlay (isim's own: errno, the variadic open/fcntl/ioctl): like Apple's, built after the
+        core library and before _Concurrency, which imports Darwin"""
+        flags = ["-swift-version", "5", "-O", "-wmo", "-enable-library-evolution", "-library-level", "api",
+                 "-Xfrontend", "-disable-implicit-concurrency-module-import", "-Xfrontend", "-disable-implicit-string-processing-module-import",
+                 "-Xfrontend", "-require-explicit-availability=ignore", *self.avail()]
+        return self.isim_module("Darwin", self.c.glob("swift/overlays/Darwin/*.swift"), flags, concurrency=False,
+                                link_args=["-lSystem", "-lswiftCore"])
 
     def concurrency(self):
         S, C = self.src, f"{self.src}/stdlib/public/Concurrency"
@@ -336,7 +346,8 @@ class Swift:
         objs = self.cxx_objs(cxx, f"{SW}/obj/concurrency", flags=cflags, name_of=lambda f: os.path.relpath(f, S).replace("/", "_"))
         out = self.isim_module("_Concurrency", files, flags, link_name="swift_Concurrency", objdir=f"{SW}/obj/concurrency",
                                extra_outs=[mod("_Concurrency", "swiftinterface")],
-                               extra_objs=objs, link_args=["-lSystem", "-lobjc", "-lc++", "-lswiftCore", "-framework", "Foundation"])
+                               extra_objs=objs, implicit=[mod("Darwin")],
+                               link_args=["-lSystem", "-lobjc", "-lc++", "-lswiftCore", "-lswiftDarwin", "-framework", "Foundation"])
         return out + [mod("_Concurrency", "swiftinterface")]
 
     def observation(self):
@@ -683,8 +694,8 @@ EventKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswif
 EventKitUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftEventKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 Photos -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics
 PhotosUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftPhotos -lswiftUniformTypeIdentifiers -lswiftCoreTransferable -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics
-Network -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation -lisim_host
-WebKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
+Network -lswiftObjectiveC -lswiftFoundation -lswiftSecurity -lswiftDispatch -lswift_Concurrency -framework Foundation -lisim_host
+WebKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftObservation -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 SafariServices -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftWebKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit
 AdSupport -lswiftObjectiveC -lswiftFoundation -framework Foundation
 MetricKit -lswiftos -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation
