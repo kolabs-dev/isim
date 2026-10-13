@@ -29,6 +29,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (UIColor *)resolvedColorWithTraitCollection:(UITraitCollection *)traitCollection;
 - (BOOL)getRed:(nullable CGFloat *)red green:(nullable CGFloat *)green blue:(nullable CGFloat *)blue alpha:(nullable CGFloat *)alpha;
 - (BOOL)getWhite:(nullable CGFloat *)white alpha:(nullable CGFloat *)alpha;
+- (BOOL)getHue:(nullable CGFloat *)hue saturation:(nullable CGFloat *)saturation brightness:(nullable CGFloat *)brightness alpha:(nullable CGFloat *)alpha;
 - (void)set;
 - (void)setFill;
 - (void)setStroke;
@@ -49,7 +50,6 @@ typedef NS_ENUM(NSInteger, UIColorProminence) {
 + (UIColor *)colorWithCIColor:(CIColor *)ciColor;
 - (instancetype)initWithCIColor:(CIColor *)ciColor;
 @property (nonatomic, readonly) CIColor *CIColor;
-- (BOOL)getHue:(nullable CGFloat *)hue saturation:(nullable CGFloat *)saturation brightness:(nullable CGFloat *)brightness alpha:(nullable CGFloat *)alpha;
 /* a short description for VoiceOver ("dark blue", "light gray"; adapted: isim's own names from hue and lightness) */
 @property (nonatomic, readonly) NSString *accessibilityName API_AVAILABLE(ios(14.0));
 /* prominence (iOS 18): less prominent colors draw with the opacity of the matching label colour */

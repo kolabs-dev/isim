@@ -123,6 +123,7 @@ static void collect_icons(UIView *v, NSMutableArray *out) {
     HSApp *a = nil;
     for (HSApp *x in self.apps) if ([x.bundleID isEqualToString:bundle]) a = x;
     if (!a) { NSLog(@"SpringBoard: push: no installed app '%@'", bundle); return; }
+    if ([self deliverLiveActivityPush:payload app:a]) return;         /* a liveactivity payload (aps.event): SBLiveActivities.m */
     NSDictionary *aps = payload[@"aps"];
     /* the APNs apns-collapse-id header becomes the request identifier on iOS; a payload file has no headers, so isim reads
        it from a top-level "apns-collapse-id" key */
@@ -193,7 +194,10 @@ static void collect_icons(UIView *v, NSMutableArray *out) {
     if (![rec writeToFile:record atomically:YES]) { rec[@"userInfo"] = @{}; [rec writeToFile:record atomically:YES]; }
     NSString *thumb = @"";
     for (NSDictionary *x in attachments) if ([@[@"public.png", @"public.jpeg", @"com.compuserve.gif", @"public.heic"] containsObject:x[@"type"] ?: @""]) { thumb = x[@"path"]; break; }
-    NSString *flags = [NSString stringWithFormat:@"%@%@", hasAlert && mayAlert ? @"a" : @"", launch ? @"c" : @""];
+    /* t: time sensitive (breaks through a Focus): the interruption level and the app's entitlement */
+    BOOL timeSensitive = [aps[@"interruption-level"] isEqual:@"time-sensitive"] &&
+        [[NSDictionary dictionaryWithContentsOfFile:[a.path stringByAppendingPathComponent:@"archived-expanded-entitlements.xcent"]][@"com.apple.developer.usernotifications.time-sensitive"] boolValue];
+    NSString *flags = [NSString stringWithFormat:@"%@%@%@", hasAlert && mayAlert ? @"a" : @"", launch ? @"c" : @"", timeSensitive ? @"t" : @""];
     NSString *bodyText = subtitle.length ? [NSString stringWithFormat:@"%@\n%@", subtitle, body] : body;
     NSString *side = [push_dir() stringByAppendingPathComponent:[ident stringByAppendingPathExtension:@"txt"]];
     NSString *sidecar = [NSString stringWithFormat:@"file=%@\nflags=%@\nid=%@\ntitle=%@\nbody=%@\nicon=%@\nrecord=%@\nthumb=%@\n",

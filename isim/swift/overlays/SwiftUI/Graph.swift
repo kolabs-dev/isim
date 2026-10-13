@@ -69,9 +69,8 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
                     guard let self = self else { return }
                     let hs = self.activityHandlers.values.filter { $0.type == act.activityType }
                     if !hs.isEmpty { for e in hs { e.h(act) } }
-                    else if let u = act.webpageURL {
-                        if self.urlHandlers.isEmpty { self.pendingURLs.append(u) } else { for h in self.urlHandlers.values { h(u) } }
-                    } else { self.pendingActivities.append(act) }     /* e.g. a launch from Spotlight: the handler registers when the view renders */
+                    else if let u = act.webpageURL, !self.urlHandlers.isEmpty { for h in self.urlHandlers.values { h(u) } }
+                    else { self.pendingActivities.append(act) }     /* e.g. a launch from Spotlight or an App Clip invocation: the handler registers when the view renders */
                 }
             })
         }
@@ -84,6 +83,16 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     }
     func registerURLHandler(_ path: String, _ h: @escaping (URL) -> Void) {
         urlHandlers[path] = h
+        // web activities (universal links) that arrived before any handler: after the render (when every handler is
+        // registered) onOpenURL gets those no onContinueUserActivity handler of their type took
+        if pendingActivities.contains(where: { $0.webpageURL != nil }) {
+            postRender.append { [weak self] in
+                guard let self else { return }
+                let web = self.pendingActivities.filter { a in a.webpageURL != nil && !self.activityHandlers.values.contains { $0.type == a.activityType } }
+                self.pendingActivities.removeAll { a in web.contains { $0 === a } }
+                for a in web { for h in self.urlHandlers.values { h(a.webpageURL!) } }
+            }
+        }
         if !pendingURLs.isEmpty { let urls = pendingURLs; pendingURLs = []; postRender.append { for u in urls { h(u) } } }
     }
     var subscriptions: [String: (id: ObjectIdentifier, c: AnyCancellable)] = [:]
@@ -719,6 +728,7 @@ final class _BackgroundNode: _WrapperNode {
         let v = g.view(viewKey) { _PassthroughView() }
         v.backgroundColor = color?.uiColor
         v.layer.cornerRadius = cornerRadius
+        v.clipsToBounds = cornerRadius > 0                         /* .cornerRadius clips its content, like SwiftUI */
         return v
     }
     override func mountChildren(_ g: _Graph, in view: UIView) {

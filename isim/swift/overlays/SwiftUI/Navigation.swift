@@ -62,7 +62,7 @@ final class _SectionNode: _Node {
     var spacing: CGFloat?                      // listSectionSpacing set on the section
     var expansion: Binding<Bool>?
     var topSeparatorHidden = false, bottomSeparatorHidden = false, separatorTint: Color?
-    var containerValues: [(inout ContainerValues) -> Void] = []      // Subviews.swift
+    var containerValues: [_ContainerValueApply] = []      // Subviews.swift
     init(path: String, header: _Node?, footer: _Node?, rows: [_Node]) {
         self.header = header; self.footer = footer; self.rows = rows
         super.init(path: path, children: rows)

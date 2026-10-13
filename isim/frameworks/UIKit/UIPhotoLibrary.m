@@ -152,6 +152,7 @@ static void request_add_access(void (^done)(BOOL)) {
                                                                message:purpose preferredStyle:UIAlertControllerStyleAlert];
     [a addAction:[UIAlertAction actionWithTitle:@"Don’t Allow" style:UIAlertActionStyleDefault handler:^(UIAlertAction *x) { answer(NO); }]];
     [a addAction:[UIAlertAction actionWithTitle:@"Allow" style:UIAlertActionStyleDefault handler:^(UIAlertAction *x) { answer(YES); }]];
+    [a _isim_markSystemAlert];
     [top presentViewController:a animated:YES completion:nil];
 }
 

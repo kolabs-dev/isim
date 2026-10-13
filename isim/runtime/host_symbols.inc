@@ -144,6 +144,14 @@ static const struct glyph glyphs[] = {
     { "gamecontroller", "B:M 28 26 L 72 26 C 86 26 94 40 94 60 C 94 76 86 82 78 78 C 70 74 66 66 60 66 L 40 66 C 34 66 30 74 22 78 C 14 82 6 76 6 60 C 6 40 14 26 28 26 Z|D:M 20 46 L 36 46|D:M 28 38 L 28 54|d:O 66 42 4.5 O 76 52 4.5" },
     { "music.note", "F:E 34 78 15 11|S:M 48 78 L 48 10 C 56 26 74 24 76 44" },
     { "headphones", "S:M 14 66 L 14 50 C 14 28 30 12 50 12 C 70 12 86 28 86 50 L 86 66|B:R 8 56 20 34 8|B:R 72 56 20 34 8" },
+    /* media (AVKit, MediaPlayer) */
+    { "airplayaudio", "S:A 50 56 40 200 340|S:A 50 56 25 205 335|F:M 50 60 L 74 92 L 26 92 Z" },
+    { "airplayvideo", "S:M 28 70 L 14 70 C 9 70 6 67 6 62 L 6 20 C 6 15 9 12 14 12 L 86 12 C 91 12 94 15 94 20 L 94 62 C 94 67 91 70 86 70 L 72 70|F:M 50 58 L 76 92 L 24 92 Z" },
+    { "pip", "S:R 6 16 88 68 9|F:R 50 48 36 28 4" }, { "pip.enter", "S:R 6 16 88 68 9|F:R 50 48 36 28 4|S:M 22 30 L 40 46|S:K 40 46 45 14" },
+    { "pip.exit", "S:R 6 16 88 68 9|F:R 50 48 36 28 4|S:M 40 46 L 22 30|S:K 22 30 225 14" },
+    { "arrow.up.left.and.arrow.down.right", "S:M 14 40 L 14 14 L 40 14|S:M 14 14 L 42 42|S:M 86 60 L 86 86 L 60 86|S:M 86 86 L 58 58" },
+    { "arrow.down.right.and.arrow.up.left", "S:M 42 16 L 42 42 L 16 42|S:M 42 42 L 12 12|S:M 58 84 L 58 58 L 84 58|S:M 58 58 L 88 88" },
+    { "hifispeaker", "B:R 22 6 56 88 10|S:O 50 64 16|F:O 50 26 7" },
     { "wifi", "S:A 50 84 66 228 312|S:A 50 84 44 228 312|S:A 50 84 22 228 312|F:O 50 84 7" },
     { "battery.100", "B:R 6 30 80 40 9|S:M 94 42 L 94 58|F:R 15 39 62 22 3" }, { "battery.75", "B:R 6 30 80 40 9|S:M 94 42 L 94 58|F:R 15 39 46 22 3" },
     { "battery.50", "B:R 6 30 80 40 9|S:M 94 42 L 94 58|F:R 15 39 31 22 3" }, { "battery.25", "B:R 6 30 80 40 9|S:M 94 42 L 94 58|F:R 15 39 16 22 3" },
@@ -181,6 +189,11 @@ static const struct glyph glyphs[] = {
     { "highlighter", "B:M 26 66 L 60 14 L 82 28 L 48 80 Z|B:M 26 66 L 16 84 L 36 86 L 48 80|S:M 8 94 L 92 94" },
     { "arrow.down.and.line.horizontal.and.arrow.up", "S:M 8 50 L 92 50|S:M 50 6 L 50 36|S:K 50 36 90 16|S:M 50 94 L 50 64|S:K 50 64 270 16" },
     { "arrow.up.and.line.horizontal.and.arrow.down", "S:M 8 50 L 92 50|S:M 50 38 L 50 8|S:K 50 8 270 16|S:M 50 62 L 50 92|S:K 50 92 90 16" },
+    /* Focus modes and controls (Control Center) */
+    { "bed.double", "B:R 8 44 84 30 6|S:M 8 30 L 8 88 M 92 74 L 92 88|B:R 20 32 24 12 5|B:R 56 32 24 12 5" },
+    { "person.lanyardcard", "B:R 14 26 72 64 9|S:M 50 8 L 50 26|h:O 38 52 8|S:M 26 76 C 26 66 32 62 38 62 C 44 62 50 66 50 76 M 60 50 L 76 50 M 60 62 L 72 62" },
+    { "briefcase", "B:R 8 30 84 58 8|S:M 36 30 L 36 20 C 36 16 38 14 42 14 L 58 14 C 62 14 64 16 64 20 L 64 30|D:M 8 54 L 92 54" },
+    { "lightbulb", "B:M 50 6 C 30 6 18 20 18 38 C 18 52 28 60 32 68 L 68 68 C 72 60 82 52 82 38 C 82 20 70 6 50 6 Z|S:M 34 80 L 66 80 M 38 92 L 62 92" },
 };
 
 #pragma GCC diagnostic pop

@@ -15,7 +15,8 @@ public struct Message: Hashable, Sendable {
         public static let generic = Reason(rawValue: "generic")
         public static let priceIncreaseConsent = Reason(rawValue: "priceIncreaseConsent")
         public static let billingIssue = Reason(rawValue: "billingIssue")
-        public static let winBackOffer = Reason(rawValue: "winBackOffer")
+        @available(iOS 18.0, *) public static let winBackOffer = Reason(rawValue: "winBackOffer")
+        static let _winBackOffer = Reason(rawValue: "winBackOffer")     // winBackOffer, for isim's own code
         public var description: String { rawValue }
     }
     public let reason: Reason
@@ -74,7 +75,7 @@ extension EnvironmentValues {
                     guard let item = items.first(where: { $0.id == t.productID && !$0.winBacks.isEmpty }) ?? items.first(where: { !$0.winBacks.isEmpty }),
                           let offer = item.winBacks.first?.offer else { continue }
                     let key = "winback:\(g):\(t.id)"
-                    if !sent.contains(key) { out.append(Message(reason: .winBackOffer, key: key, groupID: g, productID: item.id, offerID: offer.id)) }
+                    if !sent.contains(key) { out.append(Message(reason: ._winBackOffer, key: key, groupID: g, productID: item.id, offerID: offer.id)) }
                 }
             }
             return out
@@ -112,7 +113,7 @@ extension EnvironmentValues {
                 }
                 showing = false
             }
-        case .winBackOffer:
+        case ._winBackOffer:
             guard let item = _SKConfig.load().item(m.productID), let offer = item.winBacks.first(where: { $0.offer.id == m.offerID })?.offer else { return }
             showing = true
             Task { @MainActor in
@@ -121,7 +122,7 @@ extension EnvironmentValues {
                 if subscribe {
                     do {
                         // bought from the App Store's sheet, not by the app: the app hears of it in Transaction.updates
-                        if case .success(let r) = try await Product(item)._purchase(options: [.winBackOffer(offer)], api: nil) {
+                        if case .success(let r) = try await Product(item)._purchase(options: [._winBackOffer(offer)], api: nil) {
                             NSLog("isim StoreKit: win-back offer %@ redeemed: %@", offer.id ?? "", item.id)
                             _SKUpdates.transactions.yield(r)
                         }

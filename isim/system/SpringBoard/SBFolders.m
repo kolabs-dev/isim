@@ -6,14 +6,14 @@
     if ((self = [super initWithFrame:CGRectZero])) {
         _folder = folder;
         _box = [[UIView alloc] initWithFrame:CGRectMake(0, 0, s, s)];
-        _box.backgroundColor = [UIColor colorWithWhite:1 alpha:0.32];
+        _box.backgroundColor = HSIconStyle() == 1 ? [UIColor colorWithWhite:0 alpha:0.35] : [UIColor colorWithWhite:1 alpha:0.32];   /* dark: a dark folder */
         _box.layer.cornerRadius = s * 0.225; _box.clipsToBounds = YES; _box.userInteractionEnabled = NO;
         CGFloat pad = s * 0.12, cell = (s - 2 * pad) / 3, mini = cell * 0.78;
         for (NSUInteger i = 0; i < MIN((NSUInteger)9, apps.count); i++) {
             HSApp *a = apps[i];
             UIImageView *iv = [[UIImageView alloc] initWithFrame:CGRectMake(pad + (i % 3) * cell + (cell - mini) / 2, pad + (i / 3) * cell + (cell - mini) / 2, mini, mini)];
             iv.layer.cornerRadius = mini * 0.225; iv.clipsToBounds = YES;
-            UIImage *img = a.iconPath ? [UIImage imageWithContentsOfFile:a.iconPath] : nil;
+            UIImage *img = HSStyledIconImage(a, HSIconStyle());
             NSUInteger h = a.bundleID.hash;
             if (img) iv.image = img; else iv.backgroundColor = [UIColor colorWithRed:0.25 + (h % 7) / 12.0 green:0.35 + (h / 7 % 5) / 10.0 blue:0.55 + (h / 35 % 4) / 10.0 alpha:1];
             [_box addSubview:iv];

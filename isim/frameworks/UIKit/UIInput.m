@@ -353,6 +353,19 @@ int NSExtensionMain(int argc, char *argv[]) {
         NSLog(@"isim: notification extension: the UserNotifications framework is not available");
         return 1;
     }
+    if ([point isEqualToString:@"com.apple.intents-service"] || [point isEqualToString:@"com.apple.intents-ui-service"]) {
+        /* SiriKit: Intents / Intents UI extensions are helper processes the simulated Siri starts (INSiriRunner.m, IntentsUI.m) */
+        extern void *dlsym(void *, const char *);
+        extern void *dlopen(const char *, int);
+        BOOL ui = [point isEqualToString:@"com.apple.intents-ui-service"];
+        const char *sym = ui ? "isim_inui_extension_main" : "isim_in_extension_main";
+        int (*in_main)(int, char **) = (int (*)(int, char **))dlsym((void *)-2, sym);
+        if (!in_main && dlopen(ui ? "/System/Library/Frameworks/IntentsUI.framework/IntentsUI" : "/System/Library/Frameworks/Intents.framework/Intents", 2))
+            in_main = (int (*)(int, char **))dlsym((void *)-2, sym);
+        if (in_main) return in_main(argc, argv);
+        NSLog(@"isim: Intents extension: the %@ framework is not available", ui ? @"IntentsUI" : @"Intents");
+        return 1;
+    }
     if ([point isEqualToString:@"com.apple.share-services"] || [point isEqualToString:@"com.apple.ui-services"]) {
         NSLog(@"isim: '%@' extensions run inside their host app (share them from an app's UIActivityViewController)", point);
         return 1;

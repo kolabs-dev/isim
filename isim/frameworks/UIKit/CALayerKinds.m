@@ -1,6 +1,6 @@
 /* isim Core Animation layer classes: CAShapeLayer (fill/stroke, dashes, strokeStart/strokeEnd trimming),
  * CAGradientLayer (axial/radial/conic through the host gradient painter), CATextLayer, CAReplicatorLayer
- * (instance transform/delay/colour offsets), CAEmitterLayer (2D particle simulation), CATransformLayer,
+ * (instance transform/delay/colour offsets), CAEmitterLayer (particle simulation with sub-cells), CATransformLayer (CoreAnimation.m),
  * CAScrollLayer. Each class draws from its presentation copy and adds its animatable key paths. */
 #import "CAPrivate.h"
 #pragma clang diagnostic ignored "-Watomic-property-with-user-defined-accessor"
@@ -212,7 +212,10 @@ CAGradientLayerType const kCAGradientLayerAxial = @"axial", kCAGradientLayerRadi
 CATextLayerTruncationMode const kCATruncationNone = @"none", kCATruncationStart = @"start", kCATruncationEnd = @"end", kCATruncationMiddle = @"middle";
 CATextLayerAlignmentMode const kCAAlignmentNatural = @"natural", kCAAlignmentLeft = @"left", kCAAlignmentRight = @"right",
     kCAAlignmentCenter = @"center", kCAAlignmentJustified = @"justified";
-@implementation CATextLayer
+@implementation CATextLayer {
+    id _drawn;                                  /* (on the model layer) the string as last drawn */
+}
+- (id)_isim_drawnString { return _drawn; }
 - (instancetype)init {
     if ((self = [super init])) { _fontSize = 36; _foregroundColor = CGColorCreateSRGB(1, 1, 1, 1); _truncationMode = kCATruncationNone; _alignmentMode = kCAAlignmentNatural; }
     return self;
@@ -246,6 +249,43 @@ CATextLayerAlignmentMode const kCAAlignmentNatural = @"natural", kCAAlignmentLef
     NSString *name = [f isKindOfClass:[NSString class]] ? f : [f respondsToSelector:@selector(fontName)] ? [f fontName] : nil;
     return (name ? [UIFont fontWithName:name size:size] : nil) ?: [UIFont systemFontOfSize:size];
 }
+/* truncationMode: the string shortened with an ellipsis at the start, middle or end so that it fits the bounds (one
+   line in their width, or wrapped, their height); kCATruncationNone draws it whole, clipped to the bounds */
+static id truncated_string(id str, NSString *mode, UIFont *font, UIColor *color, CGSize box, BOOL wrapped) {
+    if (!mode || [mode isEqual:kCATruncationNone]) return str;
+    BOOL attr = [str isKindOfClass:[NSAttributedString class]];
+    NSString *plain = attr ? [(NSAttributedString *)str string] : [str description];
+    BOOL (^fits)(id) = ^BOOL(id x) {
+        CGSize z = attr ? isim_ui_measure_attributed(x, font, color, wrapped ? box.width : 0, wrapped ? 0 : 1)
+                        : isim_ui_measure(x, font, wrapped ? box.width : 0, wrapped ? 0 : 1);
+        return wrapped ? z.height <= box.height + 0.5 : z.width <= box.width + 0.5;
+    };
+    if (box.width <= 0 || fits(str)) return str;
+    NSUInteger n = plain.length;
+    BOOL head = [mode isEqual:kCATruncationStart], middle = [mode isEqual:kCATruncationMiddle];
+    /* the first `keep` characters and the last ones around the ellipsis, on composed-character boundaries */
+    id (^build)(NSUInteger) = ^id(NSUInteger keep) {
+        NSUInteger pre = head ? 0 : middle ? (keep + 1) / 2 : keep, suf = head ? keep : middle ? keep / 2 : 0;
+        NSRange a = NSMakeRange(0, pre ? NSMaxRange([plain rangeOfComposedCharacterSequenceAtIndex:pre - 1]) : 0);
+        NSUInteger from = suf ? [plain rangeOfComposedCharacterSequenceAtIndex:n - suf].location : n;
+        NSRange b = NSMakeRange(from, n - from);
+        if (NSMaxRange(a) > b.location) b = NSMakeRange(NSMaxRange(a), n - NSMaxRange(a));
+        if (!attr) return [NSString stringWithFormat:@"%@\u2026%@", [plain substringWithRange:a], [plain substringWithRange:b]];
+        NSAttributedString *as = str;
+        NSMutableAttributedString *out = [[as attributedSubstringFromRange:a] mutableCopy];
+        NSDictionary *at = n ? [as attributesAtIndex:MIN(a.length ? NSMaxRange(a) - 1 : b.location, n - 1) effectiveRange:NULL] : @{};
+        [out appendAttributedString:[[NSAttributedString alloc] initWithString:@"\u2026" attributes:at]];
+        [out appendAttributedString:[as attributedSubstringFromRange:b]];
+        return out;
+    };
+    NSUInteger lo = 0, hi = n; id best = build(0);
+    while (lo <= hi) {
+        NSUInteger keep = (lo + hi) / 2;
+        id cand = build(keep);
+        if (fits(cand)) { best = cand; lo = keep + 1; } else { if (keep == 0) break; hi = keep - 1; }
+    }
+    return best;
+}
 - (void)_isim_drawContentWithModel:(CALayer *)model {
     [super _isim_drawContentWithModel:model];
     if (!_string) return;
@@ -255,14 +295,18 @@ CATextLayerAlignmentMode const kCAAlignmentNatural = @"natural", kCAAlignmentLef
     UIColor *color = [UIColor colorWithRed:c[0] green:c[1] blue:c[2] alpha:c[3]];
     NSTextAlignment al = [_alignmentMode isEqual:kCAAlignmentCenter] ? NSTextAlignmentCenter : [_alignmentMode isEqual:kCAAlignmentRight] ? NSTextAlignmentRight : NSTextAlignmentLeft;
     NSInteger lines = _wrapped ? 0 : 1;
+    id str = truncated_string(_string, _truncationMode, font, color, b.size, _wrapped);
+    if ([model isKindOfClass:[CATextLayer class]]) ((CATextLayer *)model)->_drawn = str;
     isim_gfx_save();
-    if ([_string isKindOfClass:[NSAttributedString class]]) {
-        CGSize sz = isim_ui_measure_attributed(_string, font, color, b.size.width, lines);
-        isim_ui_draw_attributed(_string, font, color, CGRectMake(b.origin.x, b.origin.y, b.size.width, fmin(sz.height, b.size.height)), al, lines, 1);
+    /* the text is drawn into the layer's bounds: what does not fit is cut off */
+    isim_path_begin(); isim_path_rect(b.origin.x, b.origin.y, b.size.width, b.size.height, 0); isim_gfx_clip_path();
+    if ([str isKindOfClass:[NSAttributedString class]]) {
+        CGSize sz = isim_ui_measure_attributed(str, font, color, b.size.width, lines);
+        isim_ui_draw_attributed(str, font, color, CGRectMake(b.origin.x, b.origin.y, _wrapped ? b.size.width : fmax(b.size.width, sz.width), sz.height), al, lines, 1);
     } else {
-        NSString *s = [_string description];
+        NSString *s = [str description];
         CGSize sz = isim_ui_measure(s, font, _wrapped ? b.size.width : 0, lines);
-        isim_ui_draw_text(s, font, color, CGRectMake(b.origin.x, b.origin.y, b.size.width, fmin(sz.height, b.size.height)), al, lines, 1);
+        isim_ui_draw_text(s, font, color, CGRectMake(b.origin.x, b.origin.y, _wrapped ? b.size.width : fmax(b.size.width, sz.width), sz.height), al, lines, 1);
     }
     isim_gfx_restore();
 }
@@ -360,6 +404,28 @@ CAScrollLayerScrollMode const kCAScrollNone = @"none", kCAScrollVertically = @"v
     [self scrollToPoint:o];
 }
 @end
+static CAScrollLayer *scroll_ancestor(CALayer *l) {
+    for (CALayer *s = l.superlayer; s; s = s.superlayer) if ([s isKindOfClass:[CAScrollLayer class]]) return (CAScrollLayer *)s;
+    return nil;
+}
+@implementation CALayer (CALayerScrolling)
+- (void)scrollPoint:(CGPoint)p {
+    CAScrollLayer *s = scroll_ancestor(self);
+    if (s) [s scrollToPoint:[self convertPoint:p toLayer:s]];
+}
+- (void)scrollRectToVisible:(CGRect)r {
+    CAScrollLayer *s = scroll_ancestor(self);
+    if (s) [s scrollToRect:[self convertRect:r toLayer:s]];
+}
+- (CGRect)visibleRect {
+    CGRect b = self.bounds;
+    CAScrollLayer *s = scroll_ancestor(self);
+    if (!s) return b;
+    CGRect shown = [s convertRect:s.bounds toLayer:self];
+    CGRect v = CGRectIntersection(b, shown);
+    return CGRectIsNull(v) ? CGRectZero : v;
+}
+@end
 
 /* ================= CAEmitterLayer ================= */
 CAEmitterLayerEmitterShape const kCAEmitterLayerPoint = @"point", kCAEmitterLayerLine = @"line", kCAEmitterLayerRectangle = @"rectangle",
@@ -386,10 +452,21 @@ CAEmitterLayerRenderMode const kCAEmitterLayerUnordered = @"unordered", kCAEmitt
 - (void)setColor:(CGColorRef)c { retain_color(&_color, c); }
 @end
 
-typedef struct { double x, y, vx, vy, ax, ay, age, life, scale, scaleSpeed, angle, spin, c[4], cs[4]; int cell; } particle;
+/* a particle: position and velocity in 3D (z is projected away: isim draws the emitter's plane, orthographically),
+   its cell (an index into the flattened cell tree, sub-cells after their parents) */
+typedef struct { double x, y, z, vx, vy, vz, ax, ay, az, age, life, scale, scaleSpeed, angle, spin, c[4], cs[4]; int cell; } particle;
+/* the cell tree flattened depth first: each cell with the index of its parent cell (-1: the layer's own cells) */
+static void flatten_cells(NSArray<CAEmitterCell *> *cells, int parent, NSMutableArray *out, NSMutableArray<NSNumber *> *parents) {
+    for (CAEmitterCell *c in cells) {
+        int me = (int)out.count;
+        [out addObject:c]; [parents addObject:@(parent)];
+        if (c.emitterCells.count && out.count < 256) flatten_cells(c.emitterCells, me, out, parents);
+    }
+}
 @implementation CAEmitterLayer {
     particle *_ps; int _np, _cap;
     double _lastStep, *_carry; int _ncarry;
+    NSArray<CAEmitterCell *> *_flat; NSArray<NSNumber *> *_flatParent;
     unsigned _rng;
     BOOL _ticking;
 }
@@ -406,6 +483,7 @@ typedef struct { double x, y, vx, vy, ax, ay, age, life, scale, scaleSpeed, angl
         CAEmitterLayer *o = layer;
         _emitterCells = o.emitterCells; _birthRate = o.birthRate; _lifetime = o.lifetime; _velocity = o.velocity; _scale = o.scale; _spin = o.spin;
         _emitterPosition = o.emitterPosition; _emitterSize = o.emitterSize; _emitterShape = o.emitterShape; _emitterMode = o.emitterMode; _renderMode = o.renderMode;
+        _emitterZPosition = o.emitterZPosition; _emitterDepth = o.emitterDepth; _preservesDepth = o.preservesDepth;
     }
     return self;
 }
@@ -440,6 +518,11 @@ typedef struct { double x, y, vx, vy, ax, ay, age, life, scale, scaleSpeed, angl
 - (void)_isim_startTicking { if (!_ticking && _emitterCells.count && _birthRate > 0) { _ticking = YES; _lastStep = 0; ca_driver_add_ticker(self); } }
 static double rnd(unsigned *s) { *s = *s * 1103515245u + 12345u; return ((*s >> 8) & 0xFFFFFF) / (double)0xFFFFFF; }
 static double spread(unsigned *s, double range) { return range == 0 ? 0 : (rnd(s) * 2 - 1) * range; }
+/* z of a newborn: emitterZPosition, spread over emitterDepth for the cuboid and sphere shapes */
+- (double)_isim_spawnZ {
+    BOOL deep = [_emitterShape isEqual:kCAEmitterLayerCuboid] || [_emitterShape isEqual:kCAEmitterLayerSphere];
+    return _emitterZPosition + (deep ? (rnd(&_rng) - 0.5) * _emitterDepth : 0);
+}
 - (CGPoint)_isim_spawnPoint {
     CGPoint c = _emitterPosition; CGSize z = _emitterSize;
     if ([_emitterShape isEqual:kCAEmitterLayerLine]) return CGPointMake(c.x + (rnd(&_rng) - 0.5) * z.width, c.y);
@@ -452,71 +535,112 @@ static double spread(unsigned *s, double range) { return range == 0 ? 0 : (rnd(s
     }
     return c;
 }
-/* advances the simulation to `now`; YES while particles live or are being born */
+/* a newborn particle of flat cell `fi`: at (x, y, z), heading `heading` + the cell's longitude (and latitude out of
+   the plane), its scale and colour multiplied by `pscale` / `pc` (a parent particle's, for sub-cells) */
+- (void)_isim_spawn:(int)fi at:(double)x :(double)y :(double)z heading:(double)heading scale:(double)pscale color:(const double *)pc pre:(double)pre {
+    CAEmitterCell *cell = _flat[fi];
+    if (_np == _cap) { _cap = _cap ? _cap * 2 : 256; _ps = realloc(_ps, _cap * sizeof(particle)); }
+    particle *p = &_ps[_np++];
+    memset(p, 0, sizeof *p);
+    p->x = x; p->y = y; p->z = z; p->cell = fi;
+    p->life = fmax(0.01, (cell.lifetime + spread(&_rng, cell.lifetimeRange)) * _lifetime);
+    double v = (cell.velocity + spread(&_rng, cell.velocityRange)) * _velocity;
+    double lon = heading + cell.emissionLongitude + spread(&_rng, cell.emissionRange), lat = cell.emissionLatitude;
+    p->vx = v * cos(lat) * cos(lon); p->vy = v * cos(lat) * sin(lon); p->vz = v * sin(lat);
+    p->ax = cell.xAcceleration; p->ay = cell.yAcceleration; p->az = cell.zAcceleration;
+    p->scale = fmax(0, (cell.scale + spread(&_rng, cell.scaleRange)) * _scale * pscale); p->scaleSpeed = cell.scaleSpeed;
+    p->spin = (cell.spin + spread(&_rng, cell.spinRange)) * _spin;
+    double c[4]; ca_rgba(cell.color, c);
+    double rg[4] = { cell.redRange, cell.greenRange, cell.blueRange, cell.alphaRange };
+    for (int k = 0; k < 4; k++) p->c[k] = fmin(1, fmax(0, (c[k] + spread(&_rng, rg[k])) * (pc ? pc[k] : 1)));
+    p->cs[0] = cell.redSpeed; p->cs[1] = cell.greenSpeed; p->cs[2] = cell.blueSpeed; p->cs[3] = cell.alphaSpeed;
+    /* aged by a random part of the step so a burst does not move in lockstep */
+    p->x += p->vx * pre; p->y += p->vy * pre; p->z += p->vz * pre; p->age = pre;
+}
+/* advances the simulation to `now`; YES while particles live or are being born. The layer's cells emit from the
+   emitter shape; a cell's emitterCells are emitted by each of its particles, from the particle's position, at angles
+   relative to its direction, inheriting its scale and colour (like Core Animation) */
 - (BOOL)_isim_tick:(double)now {
     if (!_rng) _rng = _seed ? _seed : 0x1234567u;
     double dt = _lastStep > 0 ? fmin(0.1, now - _lastStep) : 0;
     _lastStep = now;
-    NSArray *cells = _emitterCells;
-    if ((int)cells.count > _ncarry) { _carry = realloc(_carry, cells.count * sizeof(double)); for (int i = _ncarry; i < (int)cells.count; i++) _carry[i] = 0; _ncarry = (int)cells.count; }
+    NSMutableArray *flat = [NSMutableArray array]; NSMutableArray<NSNumber *> *parents = [NSMutableArray array];
+    flatten_cells(_emitterCells, -1, flat, parents);
+    _flat = flat; _flatParent = parents;
+    int nflat = (int)flat.count;
+    if (nflat > _ncarry) { _carry = realloc(_carry, nflat * sizeof(double)); for (int i = _ncarry; i < nflat; i++) _carry[i] = 0; _ncarry = nflat; }
     /* age and move */
     int w = 0;
     for (int i = 0; i < _np; i++) {
         particle *p = &_ps[i];
         p->age += dt;
-        if (p->age >= p->life) continue;
-        p->vx += p->ax * dt; p->vy += p->ay * dt; p->x += p->vx * dt; p->y += p->vy * dt;
+        if (p->age >= p->life || p->cell >= nflat) continue;
+        p->vx += p->ax * dt; p->vy += p->ay * dt; p->vz += p->az * dt; p->x += p->vx * dt; p->y += p->vy * dt; p->z += p->vz * dt;
         p->scale = fmax(0, p->scale + p->scaleSpeed * dt); p->angle += p->spin * dt;
         for (int k = 0; k < 4; k++) p->c[k] = fmin(1, fmax(0, p->c[k] + p->cs[k] * dt));
         _ps[w++] = *p;
     }
     _np = w;
-    /* births */
     BOOL emitting = NO;
-    for (int ci = 0; ci < (int)cells.count; ci++) {
-        CAEmitterCell *cell = cells[ci];
+    /* sub-cells: every live particle of a parent cell emits (rate per particle, randomly rounded per step) */
+    int alive = _np;
+    for (int i = 0; i < alive && dt > 0; i++) {
+        int pcell = _ps[i].cell;
+        for (int fi = pcell + 1; fi < nflat; fi++) {
+            if (parents[fi].intValue != pcell) continue;
+            CAEmitterCell *sub = flat[fi];
+            double rate = sub.birthRate * _birthRate;
+            if (!sub.enabled || rate <= 0 || sub.lifetime * _lifetime <= 0) continue;
+            emitting = YES;
+            int born = (int)floor(rate * dt + rnd(&_rng));
+            for (int b = 0; b < born && _np < 20000; b++) {
+                particle par = _ps[i];                                    /* (_ps may move as it grows) */
+                double heading = (par.vx != 0 || par.vy != 0) ? atan2(par.vy, par.vx) : 0;
+                [self _isim_spawn:fi at:par.x :par.y :par.z heading:heading scale:par.scale color:par.c pre:rnd(&_rng) * dt];
+            }
+        }
+    }
+    /* the layer's own cells */
+    for (int fi = 0; fi < nflat; fi++) {
+        if (parents[fi].intValue != -1) continue;
+        CAEmitterCell *cell = flat[fi];
         if (!cell.enabled) continue;
         double rate = cell.birthRate * _birthRate;
         if (rate <= 0 || cell.lifetime * _lifetime <= 0) continue;
         emitting = YES;
-        _carry[ci] += rate * dt;
-        int born = (int)floor(_carry[ci]); _carry[ci] -= born;
+        _carry[fi] += rate * dt;
+        int born = (int)floor(_carry[fi]); _carry[fi] -= born;
         if (born > 2000) born = 2000;
         for (int b = 0; b < born; b++) {
-            if (_np == _cap) { _cap = _cap ? _cap * 2 : 256; _ps = realloc(_ps, _cap * sizeof(particle)); }
-            particle *p = &_ps[_np++];
-            memset(p, 0, sizeof *p);
             CGPoint at = [self _isim_spawnPoint];
-            p->x = at.x; p->y = at.y; p->cell = ci;
-            p->life = fmax(0.01, (cell.lifetime + spread(&_rng, cell.lifetimeRange)) * _lifetime);
-            double v = (cell.velocity + spread(&_rng, cell.velocityRange)) * _velocity;
-            double ang = cell.emissionLongitude + spread(&_rng, cell.emissionRange);
-            p->vx = v * cos(ang); p->vy = v * sin(ang);
-            p->ax = cell.xAcceleration; p->ay = cell.yAcceleration;
-            p->scale = fmax(0, (cell.scale + spread(&_rng, cell.scaleRange)) * _scale); p->scaleSpeed = cell.scaleSpeed;
-            p->spin = (cell.spin + spread(&_rng, cell.spinRange)) * _spin;
-            double c[4]; ca_rgba(cell.color, c);
-            double rg[4] = { cell.redRange, cell.greenRange, cell.blueRange, cell.alphaRange };
-            for (int k = 0; k < 4; k++) p->c[k] = fmin(1, fmax(0, c[k] + spread(&_rng, rg[k])));
-            p->cs[0] = cell.redSpeed; p->cs[1] = cell.greenSpeed; p->cs[2] = cell.blueSpeed; p->cs[3] = cell.alphaSpeed;
-            /* age the newborn by a random part of the step so a burst does not move in lockstep */
-            double pre = rnd(&_rng) * dt; p->x += p->vx * pre; p->y += p->vy * pre; p->age = pre;
+            [self _isim_spawn:fi at:at.x :at.y :[self _isim_spawnZ] heading:0 scale:1 color:NULL pre:rnd(&_rng) * dt];
         }
     }
     isim_ui_set_needs_display();
     if (!emitting && _np == 0) { _ticking = NO; return NO; }
     return YES;
 }
+/* (tests) live particles of the cell named `name`, at any depth of the tree */
+- (NSInteger)_isim_particleCountOfCell:(NSString *)name {
+    NSInteger n = 0;
+    for (int i = 0; i < _np; i++) if (_ps[i].cell < (int)_flat.count && [_flat[_ps[i].cell].name isEqual:name]) n++;
+    return n;
+}
 - (void)_isim_drawContentWithModel:(CALayer *)model {
     [super _isim_drawContentWithModel:model];
     CAEmitterLayer *m = (CAEmitterLayer *)model;     /* particles live on the model */
     if (![m isKindOfClass:[CAEmitterLayer class]] || !m->_np) return;
-    NSArray *cells = m->_emitterCells;
+    NSArray *cells = m->_flat;
     BOOL additive = [_renderMode isEqual:kCAEmitterLayerAdditive];
+    /* drawing order: birth order (oldest first, the default), newest first (oldestLast) or by depth (backToFront) */
+    int n = m->_np, *order = malloc(sizeof(int) * (size_t)n);
+    for (int i = 0; i < n; i++) order[i] = [_renderMode isEqual:kCAEmitterLayerOldestLast] ? n - 1 - i : i;
+    if ([_renderMode isEqual:kCAEmitterLayerBackToFront])                 /* far (low z) first: insertion sort, stable */
+        for (int i = 1; i < n; i++) { int k = order[i], j = i - 1; while (j >= 0 && m->_ps[order[j]].z > m->_ps[k].z) { order[j + 1] = order[j]; j--; } order[j + 1] = k; }
     isim_gfx_save();
     if (additive) isim_gfx_set_blend(1);
-    for (int i = 0; i < m->_np; i++) {
-        particle *p = &m->_ps[i];
+    for (int oi = 0; oi < n; oi++) {
+        particle *p = &m->_ps[order[oi]];
         if (p->cell >= (int)cells.count || p->c[3] <= 0.004 || p->scale <= 0) continue;
         CAEmitterCell *cell = cells[p->cell];
         id c = cell.contents; CGImageRef img = NULL; double imgScale = cell.contentsScale > 0 ? cell.contentsScale : 1;
@@ -536,5 +660,6 @@ static double spread(unsigned *s, double range) { return range == 0 ? 0 : (rnd(s
         isim_gfx_restore();
     }
     isim_gfx_restore();
+    free(order);
 }
 @end

@@ -10,6 +10,7 @@ NSString *isim_data_dir(void);
 @property (nonatomic, copy) NSString *path, *executable, *name, *bundleID, *iconPath, *category;
 @property (nonatomic, copy) NSDictionary *info;
 @property (nonatomic) BOOL system;
+@property (nonatomic) BOOL appClip;                            /* an App Clip (Info.plist NSAppClip): not on the home screen */
 @property (nonatomic, readonly) NSString *containerPath;       /* <isim data>/Containers/<bundle id> */
 @end
 
@@ -19,6 +20,15 @@ NSString *HSIconPath(NSString *appPath, NSDictionary *info, NSString *bundleID);
 NSArray<NSDictionary *> *HSQuickActions(HSApp *app);
 /* the app that handles a URL (custom scheme, or an https universal link via applinks: associated domains) */
 HSApp *HSAppForURL(NSArray<HSApp *> *apps, NSURL *url, BOOL *universal);
+
+/* the Home Screen icon appearance (main.m): the chosen name (automatic|light|dark|tinted|clear), the resolved style
+   (0 light, 1 dark, 2 tinted, 3 clear), the tint (#RRGGBB), large icons; an app's icon in a style */
+NSString *HSIconAppearanceName(void);
+int HSIconStyle(void);
+NSString *HSIconTintHex(void);
+BOOL HSLargeIcons(void);
+UIImage *HSStyledIconImage(HSApp *app, int style);
+UIImage *HSRestyleIcon(UIImage *img, int style, BOOL ownVariant);
 
 /* an app icon with its label (and the remove badge in edit mode) */
 @interface HSIcon : UIControl
@@ -103,6 +113,10 @@ NSString *HSCategoryName(NSString *category);
 - (void)showWidgetGallery;
 - (void)discoverWidgets;
 @end
+@interface HomeViewController (Controls)
+- (void)installControlObservers;         /* Control Center controls, Focus filters (SBControls.m) */
+- (void)discoverControls;
+@end
 @interface HomeViewController (Layout)
 - (NSMutableArray *)_layoutItems;
 - (void)_layoutChanged;
@@ -111,7 +125,46 @@ NSString *HSCategoryName(NSString *category);
 @interface HomeViewController (Notifications)
 - (void)installNotificationObservers;    /* remote notifications (push routing), badges, expanded notifications */
 @end
+@interface HomeViewController (AppClips)                    /* SBAppClips.m */
+- (void)setInstalledAppClips:(NSArray<HSApp *> *)clips;     /* from reload: App Clips are kept off the home screen */
+- (NSArray<HSApp *> *)recentAppClips;                       /* the App Library's Recently Added (most recent first) */
+- (BOOL)openAppClipURL:(NSURL *)url source:(NSString *)source;   /* an App Clip invocation; NO: no App Clip has the URL */
+- (void)appClipCommand:(NSString *)args;                    /* script `appclip ...` */
+- (void)appClipCardAnswer:(NSString *)verb args:(NSString *)args;   /* the shell's card: appclip-open / appclip-dismissed */
+- (NSString *)appClipRelaunchURL:(HSApp *)clip;             /* launching a clip from the App Library: its last invocation */
+@end
 @interface HomeViewController (Spotlight)
 - (void)showSpotlight;
 - (void)hideSpotlight;
 @end
+
+/* widget extensions (SBWidgets.m): the app's widget extension { path, exe }, the directory its renders go to, and a
+   request to it (a helper process the shell starts; "widget-done" comes back to -widgetDone:) */
+NSDictionary *HSWidgetExtension(HSApp *app);
+NSString *HSWidgetsDir(NSString *bundle);
+void HSRunWidgetExtension(NSDictionary *ext, NSString *bundle, NSDictionary *request);
+/* the point size of a widget family on this device (WidgetKit renders at these sizes) */
+CGSize HSWidgetFamilySize(NSString *family);
+BOOL HSLockEditorShown(void);                                 /* the Lock Screen editor is up (no status bar) */
+@interface HomeViewController (LockScreen)                    /* SBLockScreen.m: Lock Screen widgets, their editor, StandBy */
+- (void)installLockScreenObservers;
+- (void)lockWidgetRendered:(NSDictionary *)request;           /* a render for the Lock Screen or StandBy finished */
+@end
+@interface HomeViewController (LiveActivities)                /* SBLiveActivities.m: rendering, stale dates, pushes */
+- (void)liveActivity:(NSString *)args;                        /* "update|update-alert|end PATH" from ActivityKit */
+- (void)liveActivityRendered:(NSDictionary *)request;
+- (BOOL)deliverLiveActivityPush:(NSDictionary *)payload app:(HSApp *)app;   /* aps.event payloads (YES: handled) */
+@end
+@interface HomeViewController (Siri)
+- (void)installSiriObservers;            /* Siri, App Shortcuts metadata, intent runs (SBSiri.m) */
+- (void)refreshAppIntents:(void (^)(void))done;
+- (NSArray<NSDictionary *> *)allAppShortcuts;                           /* { app, shortcut, phrases, meta } */
+- (NSArray<NSDictionary *> *)appShortcutsMatching:(NSString *)query;
+- (void)runAppShortcut:(NSDictionary *)entry source:(NSString *)source;
+- (void)runAppIntent:(NSString *)intent shortcut:(NSNumber *)shortcut params:(NSDictionary *)params app:(HSApp *)a source:(NSString *)source;
+@end
+/* an app's cached App Intents metadata (nil until it was read from the app); a phrase with the app's name */
+NSDictionary *HSAppIntentsMetadata(HSApp *app);
+NSString *HSPhraseText(NSString *phraseTemplate, HSApp *app);
+/* run an App Intent of an installed app with the system's UI for its questions and result (other system features) */
+void HSRunIntentRequest(HomeViewController *home, NSString *bundleID, NSString *intentType, NSDictionary *params, NSString *source);

@@ -64,7 +64,7 @@ static void shell_forward(int i, const struct isim_event *ev) {
 }
 static int nb_visible(void); static void nb_draw(void);
 static int sys_visible(void); static void sys_draw(void); static int sys_hides_banners(void);   /* shell_system.inc */
-static int la_island_visible(void); static int pill_visible(void);
+static int la_island_visible(void); static int pill_visible(void); static int pip_visible(void);
 static struct rectf client_rect(int i) {
     if (i < 0 || !clients[i].phone_compat) return (struct rectf){ 0, 0, dev.width, dev.height };
     int pw, ph; client_dims(i, &pw, &ph);
@@ -81,7 +81,7 @@ static void paint_client(cairo_t *c, int i) {
 }
 static void shell_show(int i) {
     if (i < 0 || !clients[i].alive) return;
-    if (sys_visible() || la_island_visible() || pill_visible()) { sys_draw(); return; }  /* lock screen, app switcher, Notification/Control Center, Dynamic Island, location indicator */
+    if (sys_visible() || la_island_visible() || pill_visible() || pip_visible()) { sys_draw(); return; }  /* lock screen, app switcher, Notification/Control Center, Dynamic Island, location indicator, Picture in Picture */
     shell_apply_orient(clients[i].orient);
     if (i == active && nb_visible()) { nb_draw(); return; }       /* a notification banner is on top */
     if (clients[i].phone_compat) {
@@ -551,6 +551,10 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
     { const char *d = getenv("ISIM_DATA"); char p[1024];        /* `isim push` checks that a device is running */
       if (d && *d) { snprintf(p, sizeof p, "%s/Library/isim", d); mkdir(p, 0755); snprintf(p, sizeof p, "%s/Library/isim/shell.pid", d);
                      FILE *f = fopen(p, "w"); if (f) { fprintf(f, "%d\n", (int)getpid()); fclose(f); } } }
+    { const char *d = getenv("ISIM_DATA"); char p[1024];      /* the device volume: 60 % on a new device */
+      snprintf(p, sizeof p, "%s/Library/isim/Volume", d && *d ? d : "/nonexistent");
+      if (d && *d && access(p, F_OK) != 0) isim_device_volume_set(0.6, 1);
+      cc_volume = isim_device_volume(); }
     if (shell_spawn(springboard_bundle, springboard_exe, NULL) != 0) return 1;
     active = 0;
     if (open_args) {                       /* isim run: open the app over the home screen, like Xcode */

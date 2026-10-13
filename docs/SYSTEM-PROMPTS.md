@@ -33,11 +33,12 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | Variable | Values |
 |---|---|
 | `ISIM_NOTIFICATION_PERMISSION` | `allow`, `deny` |
+| `ISIM_FOCUS_STATUS_PERMISSION` | `allow`, `deny` (Intents `INFocusStatusCenter`: sharing the Focus status) |
 | `ISIM_LOCATION_PERMISSION` | `once`, `wheninuse`, `always`, `deny` |
 | `ISIM_PHOTOS_PERMISSION` | `allow`, `limited`, `deny` |
 | `ISIM_PASTE_PERMISSION` | `ask`, `allow`, `deny` (Paste from Other Apps; otherwise the app's setting in Settings, Ask by default) |
 | `ISIM_GAMECENTER_FRIENDS_PERMISSION` | `allow`, `deny` (Game Center's friends-list prompt) |
-| `ISIM_CONTACTS_PERMISSION`, `ISIM_CALENDAR_PERMISSION`, `ISIM_REMINDERS_PERMISSION`, `ISIM_HEALTH_PERMISSION`, `ISIM_CAMERA_PERMISSION`, `ISIM_MICROPHONE_PERMISSION`, `ISIM_SPEECH_PERMISSION` | `allow`, `deny` |
+| `ISIM_CONTACTS_PERMISSION`, `ISIM_CALENDAR_PERMISSION`, `ISIM_REMINDERS_PERMISSION`, `ISIM_HEALTH_PERMISSION`, `ISIM_CAMERA_PERMISSION`, `ISIM_MICROPHONE_PERMISSION`, `ISIM_SPEECH_PERMISSION`, `ISIM_MEDIALIBRARY_PERMISSION` | `allow`, `deny` |
 
 ## Simulated hardware and services
 
@@ -45,11 +46,17 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 |---|---|
 | `ISIM_LOCATION=lat,lon` | simulated location (default: Apple Park); `lat,lon;lat,lon;...@speed` follows a route, `none` has no fix |
 | `ISIM_AUDIO_INPUT=file.wav` / `=mic` | microphone input for `AVAudioRecorder` / `inputNode` / input `AudioQueue`s: a file played in real time, or the host microphone |
-| `ISIM_CAMERA=picture.png` / `=video.mp4` / `=webcam[:/dev/videoN]` | the simulated camera (`AVCaptureDevice`: a back and a front camera): a still image as a live feed, a video looped in real time, or the host webcam through ffmpeg (opened only when this is set). Unset: no camera, like the Simulator |
+| `ISIM_CAMERA=picture.png` / `=video.mp4` / `=webcam[:/dev/videoN]` | the simulated camera: a still image as a live feed, a video looped in real time, or the host webcam through ffmpeg (opened only when this is set). The device then has a dual-camera iPhone's cameras (back wide, ultra wide, dual wide with depth; front wide, TrueDepth); zoom, torch and exposure change the picture. Unset: no camera, like the Simulator |
+| `ISIM_CAMERA_FRONT=picture.png` / `=video.mp4` | what the front cameras show (default: the same as `ISIM_CAMERA`) |
+| `ISIM_CAMERA_DEPTH=depth.png` | the scene's depth for depth-capable cameras (`AVDepthData`): grey levels from black (5 m) to white (0.5 m), linear in disparity; unset: a flat wall 1 m away |
+| `ISIM_CAMERA_OBJECTS=face:x,y,w,h;humanBody:x,y,w,h` | what the camera sees besides codes (normalized rectangles): `face`, `humanBody`, `humanFullBody`, `catBody`, `dogBody`, `catHead`, `dogHead`, `salientObject`, reported by `AVCaptureMetadataOutput` (there is no detector on the host) |
+| `ISIM_MUSICKIT_DEVELOPER_TOKEN=…` | MusicKit catalog requests go to the Apple Music API with this developer token (yours; iOS gets one for a registered app, isim cannot). Optional: `ISIM_MUSICKIT_USER_TOKEN`, `ISIM_MUSICKIT_STOREFRONT` (default `us`), `ISIM_MUSICKIT_API` (another server, for tests). Never commit tokens |
 | `ISIM_WHISPER_MODEL=model.bin` | speech recognition (`SFSpeechRecognizer`) with whisper.cpp's `whisper-cli` and this ggml model |
 | `ISIM_VOSK_MODEL=DIR` | speech recognition with `vosk-transcriber` and this Vosk model (when whisper.cpp is not set up) |
 | `ISIM_AUDIO=1` (headless) | open an audio device in headless runs too (tests pair it with `SDL_AUDIO_DRIVER=dummy` for a silent, real-time device) |
 | `ISIM_AUDIO_TAP=file.f32` | write a copy of the mixed audio output (raw 32-bit float, stereo, 48 kHz) for tests |
+| `$ISIM_DATA/Media/Music` | the simulated music library (`MPMediaLibrary`, MusicKit): six generated songs at first; audio files copied in join it (tags read by ffprobe) |
+| `$ISIM_DATA/Library/isim/Volume` | the device volume (0...1; default 0.6), set with the `volume` script command or Control Center |
 | `ISIM_NETWORK=offline` | no network (`NWPathMonitor` unsatisfied, URLSession fails); Control Center's Wi-Fi off / Airplane Mode does the same while it is set |
 | `ISIM_SUSPEND=0` | never suspend apps in the background (default: under `isim boot` an app in the background is suspended — its process stopped — unless a background task, background audio or background location updates keep it running) |
 | `ISIM_SUSPEND_SECONDS=S` | how long an app runs in the background before it is suspended (default 5) |

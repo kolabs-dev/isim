@@ -6,6 +6,13 @@
 #include <isim_host.h>
 #include "Cassowary.h"
 
+/* system (SpringBoard) alerts: permission prompts shown in the app; XCUITest lists them under the springboard
+   application (UIAlertController.m, UIAXSnapshot.m) */
+@interface UIAlertController (IsimSystemAlert)
+- (void)_isim_markSystemAlert;
+- (BOOL)_isim_isSystemAlert;
+@end
+
 /* frame scheduling */
 void isim_ui_set_needs_display(void);
 void isim_ui_set_needs_layout(void);
@@ -431,6 +438,12 @@ UITableViewCell *isim_ib_dequeue_table_cell(UITableView *tv, NSString *rid);
 UIView *isim_ib_dequeue_table_header(UITableView *tv, NSString *rid);
 UIView *isim_ib_dequeue_collection(UICollectionView *cv, NSString *key, NSString *rid);
 void isim_ib_cell_selected(UIView *cell);              /* a cell's selection segue */
+/* static table view cells (dataMode="static"), used by UITableViewController's data source / delegate methods:
+   -1 / nil / UITableViewAutomaticDimension when the table has no static content */
+NSInteger isim_ib_static_count(UITableView *tv, NSInteger section);   /* section < 0: the number of sections */
+UITableViewCell *isim_ib_static_cell(UITableView *tv, NSIndexPath *ip);
+NSString *isim_ib_static_title(UITableView *tv, NSInteger section, BOOL footer);
+CGFloat isim_ib_static_height(UITableView *tv, NSIndexPath *ip);
 void isim_ib_show_launch_screen(void);                            /* UILaunchScreen / UILaunchStoryboardName (UILaunchScreen.m) */
 void isim_ib_hide_launch_screen(void);
 /* UIMainStoryboardFile / UISceneStoryboardFile: a window (kept alive; given to the delegate's `window`) showing the

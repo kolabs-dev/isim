@@ -20,6 +20,7 @@
 #import <UserNotifications/UserNotifications.h>
 #import <UIKit/UIKit.h>
 #include <isim_host.h>
+#include <objc/message.h>
 #include <time.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -570,6 +571,27 @@ static NSString *thumbnail_path(UNNotificationContent *c) {
     return nil;
 }
 
+/* what the system needs for Focus: t = time sensitive (the interruption level and the Time Sensitive Notifications
+   entitlement), q = quiet (the app's Focus filter predicate, AppIntents' FocusFilterAppContext, does not match the
+   notification's filterCriteria) */
+static NSString *focus_flags(UNNotificationContent *c) {
+    NSMutableString *f = [NSMutableString string];
+    if (c.interruptionLevel == UNNotificationInterruptionLevelTimeSensitive) {
+        NSDictionary *ent = [NSDictionary dictionaryWithContentsOfFile:[NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"archived-expanded-entitlements.xcent"]];
+        if ([ent[@"com.apple.developer.usernotifications.time-sensitive"] boolValue]) [f appendString:@"t"];
+        else NSLog(@"isim UserNotifications: time-sensitive without the com.apple.developer.usernotifications.time-sensitive entitlement (delivered as active)");
+    }
+    NSString *format = [NSUserDefaults.standardUserDefaults stringForKey:@"_ISIMFocusNotificationFilter"];
+    if (format.length) {
+        NSPredicate *p = nil;
+        @try { p = [NSPredicate predicateWithFormat:format]; } @catch (NSException *e) { p = nil; }
+        BOOL match = NO;
+        @try { match = p && c.filterCriteria && [p evaluateWithObject:c.filterCriteria]; } @catch (NSException *e) { match = NO; }
+        if (p && !match) [f appendString:@"q"];
+    }
+    return f;
+}
+
 @interface ISIMNotificationBanner : NSObject
 + (void)show:(UNNotification *)n onTap:(void (^)(void))tap;
 @end
@@ -692,9 +714,29 @@ static UIWindow *bannerWindow; static UIView *bannerCard; static void (^bannerTa
 
 static void on_background(void (^b)(void)) { dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), b); }
 
-- (UNAuthorizationStatus)status { return (UNAuthorizationStatus)[NSUserDefaults.standardUserDefaults integerForKey:kAuthKey]; }
-- (UNAuthorizationOptions)grantedOptions { return (UNAuthorizationOptions)[NSUserDefaults.standardUserDefaults integerForKey:kOptsKey]; }
-- (BOOL)authorized { UNAuthorizationStatus s = [self status]; return s == UNAuthorizationStatusAuthorized || s == UNAuthorizationStatusProvisional; }
+/* App Clips (Info.plist NSAppClip > NSAppClipRequestEphemeralUserNotification): notifications are allowed for 8 hours
+   after each launch, without a prompt, unless the person turned the note off on the App Clip card or answered an explicit
+   request. The home screen records the launch and the card's choice in the container (Library/isim/AppClip.plist);
+   ISIM_APPCLIP_EPHEMERAL_SECONDS shortens the 8 hours (28800 s) for tests. */
+static BOOL appclip_ephemeral(void) {
+    NSDictionary *clip = NSBundle.mainBundle.infoDictionary[@"NSAppClip"];
+    if (![clip isKindOfClass:[NSDictionary class]] || ![clip[@"NSAppClipRequestEphemeralUserNotification"] boolValue]) return NO;
+    NSDictionary *st = [NSDictionary dictionaryWithContentsOfFile:[NSHomeDirectory() stringByAppendingPathComponent:@"Library/isim/AppClip.plist"]];
+    if (st[@"notifications"] && ![st[@"notifications"] boolValue]) return NO;
+    double launched = [st[@"lastLaunch"] doubleValue];
+    const char *e = getenv("ISIM_APPCLIP_EPHEMERAL_SECONDS");
+    double window = e && atof(e) > 0 ? atof(e) : 8 * 3600;
+    return launched > 0 && [NSDate date].timeIntervalSince1970 - launched < window;
+}
+- (UNAuthorizationStatus)status {
+    UNAuthorizationStatus s = (UNAuthorizationStatus)[NSUserDefaults.standardUserDefaults integerForKey:kAuthKey];
+    return s == UNAuthorizationStatusNotDetermined && appclip_ephemeral() ? UNAuthorizationStatusEphemeral : s;
+}
+- (UNAuthorizationOptions)grantedOptions {
+    UNAuthorizationOptions o = (UNAuthorizationOptions)[NSUserDefaults.standardUserDefaults integerForKey:kOptsKey];
+    return !o && [self status] == UNAuthorizationStatusEphemeral ? UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge : o;
+}
+- (BOOL)authorized { UNAuthorizationStatus s = [self status]; return s == UNAuthorizationStatusAuthorized || s == UNAuthorizationStatusProvisional || s == UNAuthorizationStatusEphemeral; }
 - (void)setStatus:(UNAuthorizationStatus)s options:(UNAuthorizationOptions)o {
     [NSUserDefaults.standardUserDefaults setInteger:s forKey:kAuthKey];
     [NSUserDefaults.standardUserDefaults setInteger:o forKey:kOptsKey];
@@ -733,6 +775,8 @@ static void on_background(void (^b)(void)) { dispatch_async(dispatch_get_global_
             message:@"Notifications may include alerts, sounds, and icon badges. These can be configured in Settings." preferredStyle:UIAlertControllerStyleAlert];
         [alert addAction:[UIAlertAction actionWithTitle:@"Don’t Allow" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) { answer(NO); }]];
         [alert addAction:[UIAlertAction actionWithTitle:@"Allow" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) { answer(YES); }]];
+        SEL mark = NSSelectorFromString(@"_isim_markSystemAlert");          /* a SpringBoard alert on iOS (XCUITest) */
+        if ([alert respondsToSelector:mark]) ((void (*)(id, SEL))objc_msgSend)(alert, mark);
         [top presentViewController:alert animated:YES completion:nil];
     });
 }
@@ -848,7 +892,7 @@ static void on_background(void (^b)(void)) { dispatch_async(dispatch_get_global_
         if (r.content.badge && (granted0 & UNAuthorizationOptionBadge)) app.applicationIconBadgeNumber = r.content.badge.integerValue;
         if (r.content.sound && (granted0 & UNAuthorizationOptionSound)) NSLog(@"isim UserNotifications: sound “%@” (not played)", r.content.sound.isimName ?: @"default");
         if (isim_shell_present() && ((granted0 & UNAuthorizationOptionAlert) || [self status] == UNAuthorizationStatusProvisional)) {
-            NSString *a = [NSString stringWithFormat:@"%@\x1f%@\x1f%@\x1f%@", r.identifier, app_icon_path() ?: @"", record ?: @"", thumb];
+            NSString *a = [NSString stringWithFormat:@"%@\x1f%@\x1f%@\x1f%@\x1f%@", r.identifier, app_icon_path() ?: @"", record ?: @"", thumb, focus_flags(r.content)];
             NSString *body = r.content.subtitle.length ? [NSString stringWithFormat:@"%@\n%@", r.content.subtitle, r.content.body] : r.content.body;
             isim_shell_request(ISIM_SHELL_NOTIFY, a.UTF8String, (r.content.title.length ? r.content.title : app_name()).UTF8String, body.UTF8String);
         }

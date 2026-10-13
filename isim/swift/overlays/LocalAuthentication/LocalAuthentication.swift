@@ -17,8 +17,8 @@ public enum LAPolicy: Int, Sendable {
     case deviceOwnerAuthenticationWithWatch = 3
     case deviceOwnerAuthenticationWithBiometricsOrWatch = 4
     case deviceOwnerAuthenticationWithWristDetection = 5
-    case deviceOwnerAuthenticationWithCompanion = 6
-    case deviceOwnerAuthenticationWithBiometricsOrCompanion = 7
+    @available(iOS 18.0, *) case deviceOwnerAuthenticationWithCompanion = 6
+    @available(iOS 18.0, *) case deviceOwnerAuthenticationWithBiometricsOrCompanion = 7
 }
 
 public enum LABiometryType: Int, Sendable {
@@ -44,7 +44,7 @@ public struct LAError: CustomNSError, LocalizedError, Hashable, Sendable {
         case biometryLockout = -8
         case appCancel = -9
         case invalidContext = -10
-        case companionNotAvailable = -11
+        @available(iOS 18.0, *) case companionNotAvailable = -11
         case biometryNotPaired = -12
         case biometryDisconnected = -13
         case invalidDimensions = -14
@@ -117,15 +117,15 @@ open class LAContext: NSObject, @unchecked Sendable {
     }
     func availabilityError(_ policy: LAPolicy) -> LAError? {
         if invalidated { return LAError(.invalidContext) }
-        switch policy {
-        case .deviceOwnerAuthentication: return nil
-        case .deviceOwnerAuthenticationWithBiometrics, .deviceOwnerAuthenticationWithBiometricsOrWatch, .deviceOwnerAuthenticationWithBiometricsOrCompanion:
+        switch policy.rawValue {     // raw values: the companion policies are iOS 18 cases
+        case LAPolicy.deviceOwnerAuthentication.rawValue: return nil
+        case LAPolicy.deviceOwnerAuthenticationWithBiometrics.rawValue, LAPolicy.deviceOwnerAuthenticationWithBiometricsOrWatch.rawValue, 7 /* biometrics or companion */:
             if _LADevice.biometry == .faceID && _LADevice.permission == false {
                 return LAError(.biometryNotAvailable, message: "User has denied the use of biometry for this app.")
             }
             if !_LADevice.enrolled { return LAError(.biometryNotEnrolled) }
             return nil
-        default: return LAError(.companionNotAvailable, message: "No paired companion device is nearby.")
+        default: return LAError(LAError.Code(rawValue: -11)! /* companionNotAvailable */, message: "No paired companion device is nearby.")
         }
     }
 

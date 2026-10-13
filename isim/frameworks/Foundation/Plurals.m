@@ -4,20 +4,60 @@
  * String(format:), String(localized:)) picks each variable's rule text by the CLDR plural category of its
  * argument, rewrites the rule's format specifiers to the argument's position and formats the result.
  * Apple marks the returned string itself; isim's strings bridge to Swift by copying, so the entry is found by the
- * format text (the last entry loaded for a given text wins).
- * Plural categories: CLDR integer rules for the common languages (zero/one/two/few/many/other); fractional
- * values use the language's rule for v>0 where it differs, else "other". */
+ * format text (adapted). Entries are kept by identity: the first entry seen with a given format text gets the text
+ * as is; another entry with the same text (a String Catalog makes "%#@value@" for every plural key) gets the text
+ * followed by an invisible tag (U+2063, default-ignorable zero-width characters encoding its index, U+2063), which
+ * survives copying and is removed when the string is formatted.
+ * Plural categories: CLDR cardinal rules from the host's ICU for every language (the number's visible fraction
+ * digits: 1.5 has v = 1, f = 5), else isim's table of CLDR rules for the common languages. Like Apple's, a "zero"
+ * rule is used for 0 in every language. */
 #import "isim_foundation.h"
+#import "isim_locale.h"
+#include <math.h>
 
-static NSMutableDictionary<NSString *, NSArray *> *registry;   /* format -> @[entry, language] */
+static NSMutableDictionary<NSString *, NSArray *> *registry;     /* format (tagged when needed) -> @[entry, language] */
+static NSMutableDictionary<NSString *, NSMutableArray *> *variants;   /* plain format -> [@[entry, language], ...] */
+
+enum { TAG_MARK = 0x2063 };                                          /* INVISIBLE SEPARATOR */
+static const unichar TAG_DIGITS[4] = { 0x200B, 0x200C, 0x200D, 0x2060 };
+static int tag_digit(unichar c) { for (int i = 0; i < 4; i++) if (TAG_DIGITS[i] == c) return i; return -1; }
+
+static NSString *tagged(NSString *fmt, NSUInteger idx) {
+    NSMutableString *t = [NSMutableString stringWithString:fmt];
+    unichar mark = TAG_MARK;
+    [t appendString:[NSString stringWithCharacters:&mark length:1]];
+    NSMutableString *digits = [NSMutableString string];
+    do { unichar d = TAG_DIGITS[idx % 4]; [digits insertString:[NSString stringWithCharacters:&d length:1] atIndex:0]; idx /= 4; } while (idx);
+    [t appendString:digits];
+    [t appendString:[NSString stringWithCharacters:&mark length:1]];
+    return t;
+}
+/* the format without its identity tag */
+static NSString *untagged(NSString *s) {
+    NSUInteger n = s.length;
+    if (n < 3 || [s characterAtIndex:n - 1] != TAG_MARK) return s;
+    NSUInteger j = n - 1;
+    while (j > 0 && tag_digit([s characterAtIndex:j - 1]) >= 0) j--;
+    if (j == n - 1 || j == 0 || [s characterAtIndex:j - 1] != TAG_MARK) return s;
+    return [s substringToIndex:j - 1];
+}
 
 NSString *isim_plural_format(NSDictionary *entry, NSString *language) {
     NSString *fmt = entry[@"NSStringLocalizedFormatKey"];
+    NSString *lang = language.length ? language : @"en";
     @synchronized ([NSString class]) {
-        if (!registry) registry = [NSMutableDictionary new];
-        registry[fmt] = @[entry, language ?: @"en"];
+        if (!registry) { registry = [NSMutableDictionary new]; variants = [NSMutableDictionary new]; }
+        NSMutableArray *list = variants[fmt] ?: (variants[fmt] = [NSMutableArray array]);
+        NSUInteger idx = NSNotFound;
+        for (NSUInteger i = 0; i < list.count && idx == NSNotFound; i++) {
+            NSArray *v = list[i];
+            if ((v[0] == entry || [v[0] isEqual:entry]) && [v[1] isEqualToString:lang]) idx = i;
+        }
+        if (idx == NSNotFound) { [list addObject:@[entry, lang]]; idx = list.count - 1; }
+        NSString *key = idx ? tagged(fmt, idx) : fmt;
+        registry[key] = list[idx];
+        return key;
     }
-    return fmt;
 }
 static NSArray *lookup(NSString *fmt) {
     @synchronized ([NSString class]) { return registry[fmt]; }
@@ -63,7 +103,25 @@ static NSString *base_language(NSString *lang) {
     return (r.location == NSNotFound ? lang : [lang substringToIndex:r.location]).lowercaseString;
 }
 
+/* ICU's identifier for a localization name ("pt-PT" -> "pt_PT", "Base" -> the preferred language) */
+static NSString *icu_language(NSString *lang) {
+    if (!lang.length || [lang isEqualToString:@"Base"]) lang = isim_preferred_languages().firstObject ?: @"en";
+    return [lang stringByReplacingOccurrencesOfString:@"-" withString:@"_"];
+}
+
+/* isim's table of CLDR cardinal rules (without ICU on the host) */
+static NSString *table_category(NSString *language, double n);
+
 NSString *isim_plural_category(NSString *language, double n) {
+    if (!isfinite(n)) return @"other";
+    if (isim_icu_on()) {
+        NSString *c = isim_icu_plural_category(icu_language(language), n, NO);
+        if (c.length) return c;
+    }
+    return table_category(language, n);
+}
+
+static NSString *table_category(NSString *language, double n) {
     NSString *l = base_language(language);
     double a = n < 0 ? -n : n;
     BOOL integral = a == (double)(long long)a;
@@ -71,8 +129,26 @@ NSString *isim_plural_category(NSString *language, double n) {
     long long m10 = i % 10, m100 = i % 100;
     #define IS(...) ([@[__VA_ARGS__] containsObject:l])
     if (IS(@"ja", @"zh", @"ko", @"th", @"vi", @"id", @"ms", @"lo", @"my", @"km", @"yue")) return @"other";
+    BOOL million = integral && i != 0 && i % 1000000 == 0;                  /* "many" of fr, es, it, pt, ca (CLDR 38) */
     if (IS(@"fr", @"pt") && ![language hasPrefix:@"pt-PT"] && ![language hasPrefix:@"pt_PT"])
-        return i <= 1 ? @"one" : @"other";                                  /* i = 0,1 */
+        return i <= 1 ? @"one" : million ? @"many" : @"other";              /* i = 0,1 */
+    if (IS(@"sl")) {
+        if (!integral) return @"few";
+        if (m100 == 1) return @"one";
+        if (m100 == 2) return @"two";
+        if (m100 == 3 || m100 == 4) return @"few";
+        return @"other";
+    }
+    if (IS(@"lt")) {
+        if (!integral) return @"many";
+        if (m10 == 1 && !(m100 >= 11 && m100 <= 19)) return @"one";
+        if (m10 >= 2 && !(m100 >= 11 && m100 <= 19)) return @"few";
+        return @"other";
+    }
+    if (IS(@"cy")) {
+        if (!integral) return @"other";
+        return i == 0 ? @"zero" : i == 1 ? @"one" : i == 2 ? @"two" : i == 3 ? @"few" : i == 6 ? @"many" : @"other";
+    }
     if (IS(@"ru", @"uk", @"be")) {
         if (!integral) return @"other";
         if (m10 == 1 && m100 != 11) return @"one";
@@ -118,9 +194,10 @@ NSString *isim_plural_category(NSString *language, double n) {
         if (i == 0 || (m100 >= 2 && m100 <= 19)) return @"few";
         return @"other";
     }
-    #undef IS
     /* en, de, nl, sv, da, nb, fi, it, es, el, hu, tr, ca, pt-PT, ...: one = 1 (integer) */
-    return integral && i == 1 ? @"one" : @"other";
+    if (integral && i == 1) return @"one";
+    return million && IS(@"es", @"it", @"pt", @"ca") ? @"many" : @"other";
+    #undef IS
 }
 
 /* scans "%[n$]#@name@" at s[i] (s[i] == '%'); returns the end index or 0 */
@@ -151,6 +228,7 @@ NSString *isim_plural_typed(NSString *fmt) {
     NSArray *reg = lookup(fmt);
     if (!reg) return nil;
     NSDictionary *entry = reg[0];
+    fmt = untagged(fmt);
     NSMutableString *out = [NSMutableString string];
     NSUInteger n = fmt.length;
     for (NSUInteger i = 0; i < n;) {
@@ -174,6 +252,7 @@ NSString *isim_plural_expand(NSString *fmt, double (^value)(int position), BOOL 
     NSArray *reg = lookup(fmt);
     if (!reg) return fmt;
     NSDictionary *entry = reg[0]; NSString *lang = reg[1];
+    fmt = untagged(fmt);
     NSMutableString *out = [NSMutableString string];
     NSUInteger n = fmt.length; int seq = 0;
     for (NSUInteger i = 0; i < n;) {

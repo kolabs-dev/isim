@@ -343,6 +343,21 @@ NSData *UIImageJPEGRepresentation(UIImage *img, CGFloat q) {
     isim_image_bytes_free(bytes);
     return d;
 }
+/* iOS 17: HEIC through host_heif.c (ffmpeg's libx265); nil without the encoder */
+NSData *UIImageHEICRepresentation(UIImage *img) {
+    if (!img) return nil;
+    CGSize s = img.size; CGFloat sc = img.scale > 0 ? img.scale : 1;
+    if (s.width <= 0 || s.height <= 0) return nil;
+    UIGraphicsBeginImageContextWithOptions(s, YES, sc);
+    [img drawInRect:CGRectMake(0, 0, s.width, s.height)];
+    int h = isim_gfx_offscreen_snapshot();
+    UIGraphicsEndImageContext();
+    unsigned char *bytes = NULL; long n = h ? isim_image_encode(h, 3, 0.8, &bytes) : 0;
+    if (h) isim_image_free(h);
+    NSData *d = n > 0 ? [NSData dataWithBytes:bytes length:(NSUInteger)n] : nil;
+    isim_image_bytes_free(bytes);
+    return d;
+}
 
 /* ================= UIGraphicsImageRenderer ================= */
 @interface UIGraphicsRendererFormat ()

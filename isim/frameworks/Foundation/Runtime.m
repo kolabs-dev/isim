@@ -286,7 +286,9 @@ static NSError *bundle_error(NSBundle *b, NSInteger code, NSString *why, NSStrin
     for (NSString *l in self.localizations) if (![l isEqualToString:@"Base"]) [avail addObject:l];
     NSArray *pref = [NSBundle preferredLocalizationsFromArray:avail];
     if (pref.count) return pref;
-    return avail.count ? @[[avail containsObject:self.developmentLocalization] ? self.developmentLocalization : avail.firstObject] : @[self.developmentLocalization];
+    /* no match: the development language; Base.lproj holds it when the bundle uses base internationalization */
+    BOOL base = [self.localizations containsObject:@"Base"];
+    return avail.count && !base ? @[[avail containsObject:self.developmentLocalization] ? self.developmentLocalization : avail.firstObject] : @[self.developmentLocalization];
 }
 - (NSString *)pathForResource:(NSString *)name ofType:(NSString *)ext inDirectory:(NSString *)sub forLocalization:(NSString *)loc {
     NSString *file = ext.length ? [name stringByAppendingPathExtension:ext] : name;
@@ -502,6 +504,7 @@ NSDictionary *isim_global_preferences(void) {
     pthread_mutex_unlock(&lk);
     return d;
 }
+BOOL isim_app_group_entitled(NSString *group);   /* Ubiquity.m */
 static void mkdir_p(NSString *dir) {
     char buf[4096]; snprintf(buf, sizeof buf, "%s", dir.UTF8String);
     for (char *p = buf + 1; *p; p++) if (*p == '/') { *p = 0; mkdir(buf, 0755); *p = '/'; }
@@ -522,13 +525,18 @@ static void mkdir_p(NSString *dir) {
     }
     return self;
 }
-/* suites: ".GlobalPreferences" / NSGlobalDomain is the system domain; other names are shared (app group) domains */
+/* suites: ".GlobalPreferences" / NSGlobalDomain is the system domain; an app group of the app's
+ * com.apple.security.application-groups entitlement is shared (the group container); any other name is a domain of the
+ * app's own (Library/Preferences/<suite>.plist), as on iOS */
 - (instancetype)initWithSuiteName:(NSString *)suite {
     if (!suite.length || [suite isEqualToString:NSBundle.mainBundle.bundleIdentifier]) return [self init];
+    if ([suite containsString:@"/"]) return nil;
     if ((self = [super init])) {
         _global = [suite isEqualToString:@".GlobalPreferences"] || [suite isEqualToString:NSGlobalDomain];
+        BOOL shared = !_global && isim_app_group_entitled(suite);
         _file = _global ? global_prefs_path()
-                        : [NSString stringWithFormat:@"%@/Shared/AppGroup/%@/Library/Preferences/%@.plist", isim_data_dir(), suite, suite];
+              : shared  ? [NSString stringWithFormat:@"%@/Shared/AppGroup/%@/Library/Preferences/%@.plist", isim_data_dir(), suite, suite]
+                        : [NSString stringWithFormat:@"%@/Library/Preferences/%@.plist", NSHomeDirectory(), suite];
         mkdir_p(_file.stringByDeletingLastPathComponent);
         _d = [[NSDictionary dictionaryWithContentsOfFile:_file] mutableCopy] ?: [NSMutableDictionary dictionary];
     }

@@ -40,7 +40,7 @@ UIKIT_EXTERN NSNotificationName const UIApplicationUserDidTakeScreenshotNotifica
 UIKIT_EXTERN NSNotificationName const UIApplicationProtectedDataWillBecomeUnavailable NS_SWIFT_NAME(UIApplication.protectedDataWillBecomeUnavailableNotification);
 UIKIT_EXTERN NSNotificationName const UIApplicationProtectedDataDidBecomeAvailable NS_SWIFT_NAME(UIApplication.protectedDataDidBecomeAvailableNotification);
 
-@class NSUserActivity;
+@class NSUserActivity, INIntent, INIntentResponse;
 NS_SWIFT_UI_ACTOR
 @protocol UIUserActivityRestoring <NSObject>
 - (void)restoreUserActivityState:(NSUserActivity *)userActivity;
@@ -75,6 +75,10 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)application:(UIApplication *)application continueUserActivity:(NSUserActivity *)userActivity restorationHandler:(void (^)(NSArray<id<UIUserActivityRestoring>> * _Nullable restorableObjects))restorationHandler;
 - (void)application:(UIApplication *)application didFailToContinueUserActivityWithType:(NSString *)userActivityType error:(NSError *)error;
 - (void)application:(UIApplication *)application didUpdateUserActivity:(NSUserActivity *)userActivity;
+/* SiriKit (Intents): Siri asks the app for the handler of an intent it lists in INIntentsSupported (run in the
+   background, isim's simulated Siri); handleIntent is for media intents answered with .handleInApp */
+- (nullable id)application:(UIApplication *)application handlerForIntent:(INIntent *)intent API_AVAILABLE(ios(14.0));
+- (void)application:(UIApplication *)application handleIntent:(INIntent *)intent completionHandler:(void (^)(INIntentResponse *intentResponse))completionHandler;
 - (void)application:(UIApplication *)application performFetchWithCompletionHandler:(void (^)(UIBackgroundFetchResult result))completionHandler;
 - (void)application:(UIApplication *)application handleEventsForBackgroundURLSession:(NSString *)identifier completionHandler:(void (^)(void))completionHandler;
 - (BOOL)application:(UIApplication *)application shouldSaveSecureApplicationState:(NSCoder *)coder;

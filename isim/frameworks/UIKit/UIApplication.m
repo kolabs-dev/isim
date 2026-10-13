@@ -811,6 +811,7 @@ static BOOL idle_timer_disabled;
     return YES;
 }
 + (NSString *)openSettingsURLString { return @"app-settings:"; }
++ (NSString *)openNotificationSettingsURLString { return @"app-settings:notifications"; }   /* the app's notification settings */
 BOOL isim_sys_can_open_url(NSURL *url);
 BOOL isim_sys_route_url(NSURL *url, NSDictionary *options, void (^completion)(BOOL));
 - (BOOL)canOpenURL:(NSURL *)url { NSString *s = url.scheme.lowercaseString; return [@[@"http", @"https", @"mailto", @"tel", @"sms", @"app-settings"] containsObject:s ?: @""] || isim_sys_can_open_url(url); }
@@ -820,7 +821,8 @@ BOOL isim_sys_route_url(NSURL *url, NSDictionary *options, void (^completion)(BO
     NSString *scheme = url.scheme.lowercaseString ?: @"";
     if ([scheme isEqualToString:@"app-settings"] && isim_shell_present()) {
         NSString *settings = [isim_ui_system_apps_dir() stringByAppendingPathComponent:@"Settings.app"];
-        NSString *target = [NSString stringWithFormat:@"app-settings:%@", NSBundle.mainBundle.bundleIdentifier ?: @""];
+        NSString *target = [NSString stringWithFormat:@"app-settings:%@%@", NSBundle.mainBundle.bundleIdentifier ?: @"",
+                            [url.absoluteString isEqualToString:@"app-settings:notifications"] ? @"/notifications" : @""];
         isim_shell_request(ISIM_SHELL_LAUNCH, settings.UTF8String, [settings stringByAppendingPathComponent:@"Settings"].UTF8String, target.UTF8String);
         NSLog(@"isim: open URL %@ -> Settings", url.absoluteString);
         if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion(YES); });
@@ -1128,6 +1130,22 @@ static void handle_id_touch(const struct isim_event *ev) {
     for (UIWindow *w in windows.reverseObjectEnumerator)
         if (!w.hidden && !isim_ui_window_external(w) && (found = byText ? find_text(w, ident, w.bounds) : find_identified(w, ident))) break;
     if (!found) { NSLog(byText ? @"isim: no visible view showing text '%@'" : @"isim: no visible view with accessibilityIdentifier '%@'", ident); return; }
+    if ((ev->type == ISIM_EV_ID_DOWN || ev->type == ISIM_EV_TEXT_DOWN) && ev->mods != 1) {
+        /* like XCUITest before a tap: scroll the enclosing scroll views (innermost first) until the view is visible, so
+           `tapid` reaches a row below the fold (a no-op for a view already on screen) */
+        BOOL scrolled = NO;
+        for (UIView *v = found.superview; v; v = v.superview) {
+            if (![v isKindOfClass:[UIScrollView class]] || !((UIScrollView *)v).scrollEnabled) continue;
+            UIScrollView *sv = (UIScrollView *)v;
+            CGRect r = [found convertRect:found.bounds toView:sv];
+            UIEdgeInsets in = sv.adjustedContentInset;
+            CGRect visible = UIEdgeInsetsInsetRect(sv.bounds, in);
+            if (CGRectContainsRect(visible, r)) continue;
+            [sv scrollRectToVisible:r animated:NO];
+            scrolled = YES;
+        }
+        if (scrolled) { [found.window layoutIfNeeded]; NSLog(@"isim: scrolled '%@' into view", ident); }
+    }
     CGRect b = found.bounds;
     CGPoint p = [found convertPoint:CGPointMake(CGRectGetMidX(b), CGRectGetMidY(b)) toView:nil];
     p = [found.window convertPoint:p toView:nil];
@@ -1872,7 +1890,11 @@ void isim_ui_run_until(BOOL (^done)(void)) {
 @end
 
 int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSString *delegateClassName) {
+    /* the AppIntents overlay (Focus filters): 0 before launching (non-zero: a headless request was answered), 1 after */
+    int (*appintents)(int) = (int (*)(int))dlsym(RTLD_DEFAULT, "isim_appintents_launch");
+    if (appintents && appintents(0)) { fflush(NULL); exit(0); }
     @autoreleasepool {
+        { extern int isim_sys_intents_metadata_main(void); int r = isim_sys_intents_metadata_main(); if (r >= 0) return r; }   /* App Intents metadata (the home screen asks) */
         NSBundle *bundle = NSBundle.mainBundle;
         NSDictionary *info = bundle.infoDictionary;
         NSArray *families = [info[@"UIDeviceFamily"] isKindOfClass:[NSArray class]] ? info[@"UIDeviceFamily"] : nil;
@@ -1948,6 +1970,7 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         }
         if (background) isim_sys_after_background_launch();
         else if (!isim_sys_deliver_launch() && getenv("ISIM_LAUNCH_URL")) { NSString *u = @(getenv("ISIM_LAUNCH_URL")); dispatch_async(dispatch_get_main_queue(), ^{ deliver_url(u); }); }
+        if (appintents) appintents(1);
         if (!background) {
             if ([d respondsToSelector:@selector(applicationDidBecomeActive:)]) [d applicationDidBecomeActive:app];
             [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidBecomeActiveNotification object:app];

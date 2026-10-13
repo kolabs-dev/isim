@@ -29,7 +29,7 @@ def problems(img, device, osv, overlay):
         out.append(f"no notch: {rgb(img, w / 2, 16)}")
     # the battery's fill: the status bar is drawn, sharp
     cy = top - 4 if overlay == "cc" and cutout else 29 if cutout else top / 2
-    rx = w - 30 if overlay == "cc" and cutout else w - 34 if cutout else w - 10
+    rx = w - 30 if overlay == "cc" and cutout else w - 34 if cutout else w - 20 if w >= 700 else w - 10   # iPad: 20 pt inset
     if not bright(rgb(img, rx - 25 + 8, cy)):
         out.append(f"no battery at ({rx - 25 + 8}, {cy}): {rgb(img, rx - 25 + 8, cy)}")
     # the left of the status bar: the clock (switcher), the carrier name (iOS 17 / 18, Control Center), or nothing

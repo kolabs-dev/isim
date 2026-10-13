@@ -12,8 +12,10 @@
  *    com.apple.keyboard-service). isim loads the extension executable into the app process
  *    (iOS runs it out of process) and hosts its UIInputViewController. All embedded keyboards
  *    count as enabled (iOS needs Settings > Keyboards); ISIM_KEYBOARDS=none disables them;
- *  - Face ID devices get the bottom bar with the globe key (tap: next keyboard, hold: list);
- *    custom keyboards then report needsInputModeSwitchKey = NO, as on iOS.
+ *  - Face ID iPhones get the bottom bar with the globe key (tap: next keyboard, hold: list);
+ *    custom keyboards then report needsInputModeSwitchKey = NO, as on iOS;
+ *  - iPads get the iPadOS layout (ipad_rows below): delete and return at the row ends, shift on both sides, the
+ *    globe / emoji, mic and hide-keyboard keys in the bottom row, flick characters on the letter keys, no bar.
  * Key views carry accessibility identifiers (isim-kb-q, isim-kb-space, isim-kb-globe, ...).
  * ISIM_SOFTWARE_KEYBOARD=0 disables the on-screen keyboard (hardware typing still works). */
 #import "UIKitInputPrivate.h"
@@ -71,6 +73,55 @@ static NSArray *rows_for(int layer, NSString *lang) {
     default: return letter_rows(lang);
     }
 }
+/* ---- iPad (adapted): the iPadOS keyboard of iPads with the standard layout (iPad mini, Air, Pro 11"). Four rows:
+ *   q w e r t y u i o p  delete  /  a s d f g h j k l  return  /  shift z x c v b n m , .  shift  /
+ *   .?123  globe or emoji  mic  space  .?123  hide-keyboard
+ * every letter key of the English layout shows the character of the numbers plane above its letter (small, grey) and
+ * types it on a downward swipe ("flick", iPadOS 11 and later; tap: the letter). No bar under the keys (the globe and
+ * the mic are in the bottom row), number / phone pads show the numbers plane (iPadOS has no 3 x 4 pad on iPad).
+ * Row contents follow iPadOS (en_US); the symbols plane's third row, the key proportions and sizes are estimated from
+ * screenshots, not measured (see ipad_metrics). Other languages use their letter rows in the same frame, with the flick
+ * characters only on the punctuation keys. The 12.9" / 13" iPad Pro's extended layout (a number row, tab, caps lock)
+ * and the floating / split keyboards are not implemented: the 13" gets this layout, larger. */
+static BOOL kb_ipad(void) { return UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad; }
+static NSArray *ipad_rows(int layer, NSString *lang) {
+    switch (layer) {
+    case L_NUMBERS: return @[@[@"1", @"2", @"3", @"4", @"5", @"6", @"7", @"8", @"9", @"0"],
+                             @[@"@", @"#", [lang hasPrefix:@"en"] || [lang hasPrefix:@"pt"] ? @"$" : @"€", @"&", @"*", @"(", @")", @"'", @"\""],
+                             @[@"%", @"-", @"+", @"=", @"/", @";", @":", @",", @"."]];
+    case L_SYMBOLS: return @[@[@"[", @"]", @"{", @"}", @"#", @"%", @"^", @"*", @"+", @"="],
+                             @[@"_", @"\\", @"|", @"~", @"<", @">", @"€", @"£", @"¥", @"•"],
+                             @[@"…", @"¿", @"¡", @"§", @"°", @"`", @"¶", @",", @"."]];      /* estimated */
+    default: {
+        NSArray *r = letter_rows(lang);
+        NSMutableArray *third = [r[2] mutableCopy];
+        [third addObjectsFromArray:@[@",", @"."]];
+        return @[r[0], r[1], third];
+    }
+    }
+}
+/* the flick character above a key of the letters plane (the numbers plane at the same place, iPadOS en_US) */
+static NSString *ipad_flick(NSString *k, NSString *lang) {
+    if ([k isEqualToString:@","]) return @"!";
+    if ([k isEqualToString:@"."]) return @"?";
+    if (![lang hasPrefix:@"en"]) return nil;
+    static NSDictionary *t;
+    if (!t) t = @{ @"q": @"1", @"w": @"2", @"e": @"3", @"r": @"4", @"t": @"5", @"y": @"6", @"u": @"7", @"i": @"8", @"o": @"9", @"p": @"0",
+                   @"a": @"@", @"s": @"#", @"d": @"$", @"f": @"&", @"g": @"*", @"h": @"(", @"j": @")", @"k": @"'", @"l": @"\"",
+                   @"z": @"%", @"x": @"-", @"c": @"+", @"v": @"=", @"b": @"/", @"n": @";", @"m": @":" };
+    return t[k];
+}
+/* the keys' area (without the predictive bar and the home indicator's band) and the gaps, in points. Estimated from
+ * iPadOS screenshots: about 264 pt in portrait on the 11" class (the height iPads without the predictive bar had),
+ * 352 pt in landscape; the 13" iPad Pro somewhat taller. Keys are near-square in portrait. */
+struct ipad_metrics { CGFloat height, side, gap, vgap, top; };
+static struct ipad_metrics ipad_metrics(void) {
+    const struct isim_device *d = isim_ui_device();
+    BOOL landscape = d->width > d->height, big = MIN(d->width, d->height) >= 1000;
+    struct ipad_metrics m = { landscape ? (big ? 384 : 352) : (big ? 290 : 264), 6, landscape ? 14 : 12, 9, 7 };
+    return m;
+}
+
 static NSArray<NSString *> *accents_for(NSString *k, NSString *lang) {
     static NSDictionary *t;
     if (!t) t = @{ @"a": @[@"à", @"á", @"â", @"ä", @"æ", @"ã", @"å", @"ā"], @"e": @[@"è", @"é", @"ê", @"ë", @"ē", @"ė", @"ę"],
@@ -93,8 +144,27 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
 @interface UITextChecker (IsimKnown)
 - (BOOL)_isim_known:(NSString *)w language:(NSString *)language;
 @end
+/* an iPad key with a flick character: a downward swipe on it types that character instead of the key's own */
+@interface __IsimFlickKey : UIButton
+@property (nonatomic, copy) NSString *flick;
+@property (nonatomic, readonly) BOOL flicked;          /* the last touch swiped down */
+@end
+@implementation __IsimFlickKey { CGPoint _down; }
+- (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)e { _down = [touches.anyObject locationInView:self]; _flicked = NO; [super touchesBegan:touches withEvent:e]; }
+- (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)e {
+    CGPoint p = [touches.anyObject locationInView:self];
+    _flicked = _flick.length && p.y - _down.y >= fmax(16, self.bounds.size.height * 0.3) && fabs(p.x - _down.x) < self.bounds.size.width;
+    [super touchesEnded:touches withEvent:e];
+}
+@end
+
 @interface __IsimKeyboardKeys : UIView
 @property (nonatomic, weak) id<UIKeyInput> target;
+@property (nonatomic) BOOL emojiKey;                  /* iPad: the bottom row's key shows the emoji face (English + Emoji only) */
+@property (nonatomic, copy) void (^onDismiss)(void);  /* iPad: the hide-keyboard key */
+@property (nonatomic, copy) void (^onDictation)(void);/* iPad: the mic key of the bottom row */
+- (void)_setDictating:(BOOL)on;
+- (CGRect)_spaceFrameIn:(UIView *)v;
 - (BOOL)_pad;                                         /* a number / decimal / phone pad */
 @property (nonatomic) BOOL showGlobe;                 /* devices without the bottom bar */
 @property (nonatomic, copy) NSString *language;       /* en_US, pt_BR, es_ES, fr_FR, de_DE, emoji */
@@ -106,7 +176,7 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
 - (void)_layoutBar;
 @end
 @implementation __IsimKeyboardKeys {
-    int _layer; BOOL _shift, _caps; NSUInteger _emojiPage;
+    int _layer; BOOL _shift, _caps, _dictatingKey; NSUInteger _emojiPage;
     NSMutableArray<UIButton *> *_keys;
     NSTimer *_repeat;
     UIView *_bar, *_popup; NSArray<UIButton *> *_popupKeys; BOOL _suppressTap;
@@ -120,9 +190,13 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
 }
 - (BOOL)_emoji { return [_language isEqualToString:@"emoji"]; }
 - (UIKeyboardType)_kbType { id t = _target; return [t respondsToSelector:@selector(keyboardType)] ? [(id<UITextInputTraits>)t keyboardType] : UIKeyboardTypeDefault; }
+- (BOOL)_numberType {
+    UIKeyboardType k = [self _kbType];
+    return k == UIKeyboardTypeNumberPad || k == UIKeyboardTypeDecimalPad || k == UIKeyboardTypePhonePad || k == UIKeyboardTypeASCIICapableNumberPad;
+}
 - (BOOL)_pad {
     UIKeyboardType k = [self _kbType];
-    return ![self _emoji] && (k == UIKeyboardTypeNumberPad || k == UIKeyboardTypeDecimalPad || k == UIKeyboardTypePhonePad || k == UIKeyboardTypeASCIICapableNumberPad);
+    return !kb_ipad() && ![self _emoji] && (k == UIKeyboardTypeNumberPad || k == UIKeyboardTypeDecimalPad || k == UIKeyboardTypePhonePad || k == UIKeyboardTypeASCIICapableNumberPad);
 }
 - (NSArray<__IsimAutoFillSuggestion *> *)_autofillSuggestions { id t = _target; return t && ![self _emoji] ? isim_ui_autofill_suggestions(t) : @[]; }
 - (BOOL)showsPredictions {
@@ -135,7 +209,10 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
 }
 - (CGFloat)_top { return self.showsPredictions ? 44 : 0; }
 - (UIButton *)_key:(NSString *)title ident:(NSString *)ident special:(BOOL)special action:(SEL)sel {
-    UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
+    return [self _key:title ident:ident special:special action:sel class:[UIButton class]];
+}
+- (UIButton *)_key:(NSString *)title ident:(NSString *)ident special:(BOOL)special action:(SEL)sel class:(Class)cls {
+    UIButton *b = [cls buttonWithType:UIButtonTypeCustom];
     [b setTitle:title forState:UIControlStateNormal];
     [b setTitleColor:UIColor.labelColor forState:UIControlStateNormal];
     b.tintColor = UIColor.labelColor;
@@ -166,6 +243,7 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     }
     _bar.hidden = !self.showsPredictions;
     if ([self _emoji]) { [self _rebuildEmoji]; return; }
+    if (kb_ipad()) { [self _rebuildIPad]; return; }
     if ([self _pad]) { [self _rebuildPad]; return; }
     NSArray *rows = rows_for(_layer, _language);
     for (NSUInteger r = 0; r < rows.count; r++)
@@ -256,6 +334,156 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     if (self.bounds.size.width > 0) [self layoutSubviews];
     isim_ui_set_needs_display();
 }
+/* ---- iPad (see ipad_rows) ---- */
+- (void)_rebuildIPad {
+    NSArray *rows = ipad_rows(_layer, _language);
+    for (NSUInteger r = 0; r < rows.count; r++)
+        for (NSString *k in rows[r]) {
+            NSString *flick = _layer == L_LETTERS ? ipad_flick(k, _language) : nil;
+            UIButton *b = [self _key:[self _upper] ? k.uppercaseString : k ident:[@"isim-kb-" stringByAppendingString:k] special:NO action:@selector(_char:)
+                               class:flick ? [__IsimFlickKey class] : [UIButton class]];
+            b.tag = (NSInteger)r;
+            if (flick) {
+                ((__IsimFlickKey *)b).flick = flick;
+                UILabel *l = [UILabel new]; l.text = flick; l.tag = 98;
+                l.textAlignment = NSTextAlignmentCenter; l.textColor = UIColor.secondaryLabelColor;
+                [b addSubview:l];
+            }
+            if (accents_for(k, _language).count) {
+                UILongPressGestureRecognizer *lp = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(_accentHold:)];
+                lp.minimumPressDuration = 0.45; lp.cancelsTouchesInView = NO;
+                [b addGestureRecognizer:lp];
+            }
+        }
+    BOOL letters = _layer == L_LETTERS, up = _shift || _caps;
+    NSString *shiftTitle = letters ? (_caps ? @"⇪" : @"⇧") : _layer == L_NUMBERS ? @"#+=" : @"123";
+    for (int side = 0; side < 2; side++) {                         /* shift on both ends of the third row */
+        UIButton *sh = [self _key:shiftTitle ident:side ? @"isim-kb-shift-right" : @"isim-kb-shift" special:letters ? !up : YES action:@selector(_shift:)];
+        if (letters && up) sh.backgroundColor = dyn(1, 0.42);
+        sh.tag = side ? 107 : 100;
+    }
+    UIButton *del = [self _key:@"⌫" ident:@"isim-kb-delete" special:YES action:@selector(_noop)];
+    [del addTarget:self action:@selector(_deleteDown) forControlEvents:UIControlEventTouchDown];
+    [del addTarget:self action:@selector(_deleteUp) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside | UIControlEventTouchCancel];
+    del.tag = 101;
+    UIButton *ret = [self _key:[self _returnTitle] ident:@"isim-kb-return" special:YES action:@selector(_return)];
+    if ([self _returnIsBlue]) { ret.backgroundColor = UIColor.systemBlueColor; [ret setTitleColor:UIColor.whiteColor forState:UIControlStateNormal]; }
+    ret.tag = 105;
+    /* the bottom row */
+    for (int side = 0; side < 2; side++) {
+        UIButton *mode = [self _key:letters ? @".?123" : @"ABC" ident:[NSString stringWithFormat:@"isim-kb-%@%@", letters ? @"123" : @"abc", side ? @"-right" : @""]
+                            special:YES action:@selector(_mode:)];
+        mode.tag = side ? 108 : 102;
+    }
+    if (_showGlobe) {
+        UIButton *g = [self _key:@"" ident:_emojiKey ? @"isim-kb-emoji" : @"isim-kb-globe" special:YES action:@selector(_globe)];
+        [g setImage:[UIImage systemImageNamed:_emojiKey ? @"face.smiling" : @"globe" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:20]] forState:UIControlStateNormal];
+        g.tag = 103;
+    }
+    if (pref_on(@"KeyboardDictation")) {
+        UIButton *mic = [self _key:@"" ident:@"isim-kb-dictation" special:YES action:@selector(_dictation)];
+        mic.tag = 109;
+        [self _styleMic:mic on:_dictatingKey];
+    }
+    UIButton *space = [self _key:@"" ident:@"isim-kb-space" special:NO action:@selector(_space)];      /* iPadOS: no title */
+    space.tag = 104;
+    UIKeyboardType kt = [self _kbType];                          /* the "." is on the third row already */
+    NSArray *extras = !letters ? nil : kt == UIKeyboardTypeEmailAddress ? @[@"@"] : kt == UIKeyboardTypeURL ? @[@"/", @".com"]
+                    : kt == UIKeyboardTypeTwitter ? @[@"@", @"#"] : nil;
+    if (kt == UIKeyboardTypeURL && letters) [space removeFromSuperview], [_keys removeObject:space];
+    for (NSString *e in extras) {
+        UIButton *b = [self _key:e ident:[@"isim-kb-" stringByAppendingString:[e isEqualToString:@".com"] ? @"dotcom" : e] special:NO action:@selector(_char:)];
+        b.tag = 106;
+    }
+    UIButton *hide = [self _key:@"" ident:@"isim-kb-dismiss" special:YES action:@selector(_dismiss)];
+    [hide setImage:[UIImage systemImageNamed:@"keyboard.chevron.compact.down" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:20]] forState:UIControlStateNormal];
+    hide.tag = 110;
+    [self _updateSuggestions];
+    [self setNeedsLayout];
+    if (self.bounds.size.width > 0) [self layoutSubviews];
+    isim_ui_set_needs_display();
+}
+- (void)_styleMic:(UIButton *)mic on:(BOOL)on {
+    [mic setImage:[UIImage systemImageNamed:on ? @"mic.fill" : @"mic" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:20]] forState:UIControlStateNormal];
+    mic.tintColor = on ? UIColor.systemBlueColor : UIColor.labelColor;
+    mic.accessibilityLabel = on ? @"Stop Dictation" : @"Dictate";
+}
+- (void)_setDictating:(BOOL)on {
+    _dictatingKey = on;
+    for (UIButton *b in _keys) if (b.tag == 109) [self _styleMic:b on:on];
+    isim_ui_set_needs_display();
+}
+- (void)_dictation { if (_onDictation) _onDictation(); }
+- (CGRect)_spaceFrameIn:(UIView *)v {
+    for (UIButton *b in _keys) if (b.tag == 104 && b.superview) return CGRectInset([self convertRect:b.frame toView:v], 2, 2);
+    return CGRectZero;
+}
+- (void)_dismiss { NSLog(@"isim: hide keyboard key"); if (_onDismiss) _onDismiss(); }
+- (void)_layoutIPad {
+    struct ipad_metrics m = ipad_metrics();
+    CGFloat W = self.bounds.size.width, top = m.top + [self _top], g = m.gap, side = m.side, IW = W - 2 * side;
+    CGFloat keyH = floor((m.height - 2 * m.top - 3 * m.vgap) / 4);
+    NSMutableArray *rk[3] = { [NSMutableArray array], [NSMutableArray array], [NSMutableArray array] };
+    for (UIButton *b in _keys) if (b.tag >= 0 && b.tag < 3) [rk[b.tag] addObject:b];
+    NSUInteger n1 = MAX((NSUInteger)1, [rk[0] count]), n2 = [rk[1] count], n3 = [rk[2] count];
+    CGFloat u = (IW - n1 * g) / (n1 + 1.5);                      /* a letter key; delete is 1.5 keys wide */
+    UIFont *letterFont = [UIFont systemFontOfSize:round(keyH * 0.42)], *specialFont = [UIFont systemFontOfSize:round(keyH * 0.31)];
+    UIFont *flickFont = [UIFont systemFontOfSize:round(keyH * 0.26)], *glyphFont = [UIFont systemFontOfSize:round(keyH * 0.4)];
+    CGFloat y[4]; for (int r = 0; r < 4; r++) y[r] = top + r * (keyH + m.vgap);
+    CGFloat right = W - side;
+    void (^place)(UIButton *, CGFloat, CGFloat, CGFloat) = ^(UIButton *b, CGFloat x, CGFloat yy, CGFloat w) {
+        b.frame = CGRectMake(round(x), yy, round(x + w) - round(x), keyH);
+        b.layer.cornerRadius = 6;
+        UILabel *l = (UILabel *)[b viewWithTag:98];
+        b.titleLabel.font = b.tag < 3 || b.tag == 106 ? ([b.currentTitle length] > 1 ? specialFont : letterFont) : specialFont;
+        if (b.tag == 101 || ((b.tag == 100 || b.tag == 107) && b.currentTitle.length == 1)) b.titleLabel.font = glyphFont;   /* ⌫ ⇧ */
+        if (l) {                                                  /* the flick character above, the key's own below */
+            l.font = flickFont;
+            l.frame = CGRectMake(0, keyH * 0.1, b.frame.size.width, keyH * 0.32);
+            b.contentEdgeInsets = UIEdgeInsetsMake(keyH * 0.34, 0, 0, 0);
+            b.titleLabel.font = [UIFont systemFontOfSize:round(keyH * 0.36)];
+        }
+    };
+    /* row 1: the letters, delete to the right edge */
+    CGFloat x = side;
+    for (UIButton *b in rk[0]) { place(b, x, y[0], u); x += u + g; }
+    /* row 2: indented by half a key per key fewer than row 1, return to the right edge */
+    CGFloat x2 = side + (n1 > n2 ? (n1 - n2) * 0.5 * u : 0);
+    for (UIButton *b in rk[1]) { place(b, x2, y[1], u); x2 += u + g; }
+    /* row 3: shift, the letters and , . , shift: both shifts share what is left */
+    CGFloat shiftW = (IW - n3 * u - (n3 + 1) * g) / 2, x3 = side + shiftW + g;
+    for (UIButton *b in rk[2]) { place(b, x3, y[2], u); x3 += u + g; }
+    /* row 4: .?123, globe / emoji, mic, space (and the keyboard type's keys), .?123, hide keyboard */
+    CGFloat modeW = u * 1.6, smallW = u, hideW = shiftW;
+    CGFloat x4 = side, r4 = right;
+    for (UIButton *b in _keys) {
+        switch (b.tag) {
+        case 100: place(b, side, y[2], shiftW); break;
+        case 107: place(b, right - shiftW, y[2], shiftW); break;
+        case 101: place(b, x, y[0], right - x); break;
+        case 105: place(b, x2, y[1], right - x2); break;
+        case 110: place(b, right - hideW, y[3], hideW); r4 = right - hideW - g; break;
+        default: break;
+        }
+    }
+    for (UIButton *b in _keys) if (b.tag == 108) { place(b, r4 - modeW, y[3], modeW); r4 -= modeW + g; }
+    for (UIButton *b in _keys) if (b.tag == 102) { place(b, x4, y[3], modeW); x4 += modeW + g; }
+    for (UIButton *b in _keys) if (b.tag == 103) { place(b, x4, y[3], smallW); x4 += smallW + g; }
+    for (UIButton *b in _keys) if (b.tag == 109) { place(b, x4, y[3], smallW); x4 += smallW + g; }
+    NSMutableArray *ex = [NSMutableArray array]; UIButton *spaceKey = nil;
+    for (UIButton *b in _keys) { if (b.tag == 106) [ex addObject:b]; if (b.tag == 104) spaceKey = b; }
+    CGFloat exW = 0;
+    for (UIButton *b in ex) exW += ([b.currentTitle isEqualToString:@".com"] ? round(u * 1.5) : round(u)) + g;
+    if (!spaceKey && ex.count) {
+        CGFloat each = (r4 - x4 + g - ex.count * g) / ex.count;
+        for (UIButton *b in ex) { place(b, x4, y[3], each); x4 += each + g; }
+    } else {
+        CGFloat sw = r4 - x4 - exW;
+        if (spaceKey) place(spaceKey, x4, y[3], sw);
+        x4 += sw + g;
+        for (UIButton *b in ex) { CGFloat w = [b.currentTitle isEqualToString:@".com"] ? round(u * 1.5) : round(u); place(b, x4, y[3], w); x4 += w + g; }
+    }
+}
 - (void)_padSymbols { _layer = _layer == L_SYMBOLS ? L_NUMBERS : L_SYMBOLS; [self _rebuild]; }
 - (void)_layoutPad {
     CGFloat W = self.bounds.size.width, side = 6, gap = 6, top = 6 + [self _top], keyH = 46;
@@ -321,6 +549,7 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     CGFloat W = self.bounds.size.width, gap = 6, side = 3, keyH = 42, rowH = 54, top = 8 + [self _top];
     _bar.frame = CGRectMake(0, 0, W, 44);
     [self _layoutBar];
+    if (kb_ipad() && ![self _emoji]) { [self _layoutIPad]; return; }
     if ([self _pad]) { [self _layoutPad]; return; }
     if ([self _emoji]) {
         CGFloat cw = (W - 2 * side) / 8, ch = 40;
@@ -380,10 +609,11 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
 - (void)setTarget:(id<UIKeyInput>)t {
     _target = t; _caps = NO;
     UIKeyboardType k = [self _kbType];
-    _layer = k == UIKeyboardTypeNumbersAndPunctuation || k == UIKeyboardTypePhonePad || [self _pad] ? L_NUMBERS : L_LETTERS;
+    _layer = k == UIKeyboardTypeNumbersAndPunctuation || k == UIKeyboardTypePhonePad || [self _pad] || [self _numberType] ? L_NUMBERS : L_LETTERS;
     [self _updateAutoShift]; [self _rebuild];
 }
 - (void)setShowGlobe:(BOOL)g { if (g == _showGlobe) return; _showGlobe = g; [self _rebuild]; }
+- (void)setEmojiKey:(BOOL)e { if (e == _emojiKey) return; _emojiKey = e; if (kb_ipad()) [self _rebuild]; }
 - (void)setLanguage:(NSString *)l { if ([l isEqualToString:_language]) return; _language = [l copy]; _layer = L_LETTERS; [self _updateAutoShift]; [self _rebuild]; }
 /* text before the caret (UITextInput), or the whole text */
 - (NSString *)_textBeforeCaret {
@@ -672,6 +902,11 @@ static double math_expr(const char **p, BOOL *ok) {
 - (void)_char:(UIButton *)b {
     if (_suppressTap) { _suppressTap = NO; return; }
     [_popup removeFromSuperview]; _popup = nil;
+    if ([b isKindOfClass:[__IsimFlickKey class]] && ((__IsimFlickKey *)b).flicked) {
+        NSLog(@"isim: flick key %@: %@", b.currentTitle, ((__IsimFlickKey *)b).flick);
+        [self _type:((__IsimFlickKey *)b).flick];
+        return;
+    }
     [self _type:b.currentTitle];
 }
 /* ---- accent popup ---- */
@@ -730,7 +965,7 @@ static double math_expr(const char **p, BOOL *ok) {
     [_popup removeFromSuperview]; _popup = nil;
     [self _type:@" "];
     /* back to letters after a space, except on the numbers and punctuation keyboard */
-    if (_layer != L_LETTERS && [self _kbType] != UIKeyboardTypeNumbersAndPunctuation) { _layer = L_LETTERS; [self _updateAutoShift]; [self _rebuild]; }
+    if (_layer != L_LETTERS && [self _kbType] != UIKeyboardTypeNumbersAndPunctuation && ![self _numberType]) { _layer = L_LETTERS; [self _updateAutoShift]; [self _rebuild]; }
 }
 - (void)_return { [self _type:@"\n"]; }
 - (void)_shift:(UIButton *)b {
@@ -802,7 +1037,8 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
         [[__IsimKeyboardController shared] _settingsChanged];
     }];
 }
-- (BOOL)_barVisible { return isim_ui_device()->safe_bottom > 0 && !_inputOverride; }
+/* the bar under the keys with the globe and the mic: Face ID iPhones (iPads have both keys in the bottom row) */
+- (BOOL)_barVisible { return isim_ui_device()->safe_bottom > 0 && !_inputOverride && !kb_ipad(); }
 - (CGFloat)_accessoryHeight {
     if (!_accessory) return 0;
     CGFloat h = _accessory.frame.size.height;
@@ -889,6 +1125,8 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     __weak __IsimKeyboardController *w = self;
     _keys.onGlobe = ^{ [w _next]; };
     _keys.onLeaveEmoji = ^{ [w _leaveEmoji]; };
+    _keys.onDictation = ^{ [w _dictation]; };
+    _keys.onDismiss = ^{ [w _dismissKey]; };
     _bar = [UIView new]; [_window addSubview:_bar];
     UIButton *globe = [UIButton buttonWithType:UIButtonTypeCustom];
     globe.tintColor = UIColor.secondaryLabelColor;
@@ -920,6 +1158,12 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     _barGlobe.hidden = [_keys _pad];                   /* number / phone pads: no keyboard switching, as on iOS */
 }
 - (void)_barTapped { [self _next]; }
+/* iPad: the hide-keyboard key ends editing (the responder resigns, as when iPadOS hides the keyboard) */
+- (void)_dismissKey {
+    id t = _target;
+    if ([t isKindOfClass:[UIResponder class]] && [(UIResponder *)t isFirstResponder]) [(UIResponder *)t resignFirstResponder];
+    else [self _hide];
+}
 /* dictation (adapted): the mic key starts and stops listening; what is "said" comes from `dictate TEXT` (UITextServices.m) */
 - (void)_dictation {
     if (!pref_on(@"KeyboardDictation")) { NSLog(@"isim: dictation is off (Settings > General > Keyboard > Enable Dictation)"); return; }
@@ -934,6 +1178,7 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     [mic setImage:[UIImage systemImageNamed:on ? @"mic.fill" : @"mic" withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:22]] forState:UIControlStateNormal];
     mic.tintColor = on ? UIColor.systemBlueColor : UIColor.secondaryLabelColor;
     mic.accessibilityLabel = on ? @"Stop Dictation" : @"Dictate";
+    [_keys _setDictating:on];                                  /* iPad: the mic key of the bottom row */
     [_listening removeFromSuperview]; _listening = nil;
     if (on) {
         UILabel *l = [UILabel new];
@@ -943,7 +1188,10 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
         l.textAlignment = NSTextAlignmentCenter;
         l.accessibilityIdentifier = @"isim-dictation-listening";
         _listening = l;
-        [_bar addSubview:l];
+        if (kb_ipad()) {                                        /* no bar on iPad: over the space bar (adapted) */
+            l.backgroundColor = kb_background();
+            [_window addSubview:l];
+        } else [_bar addSubview:l];
     }
     [self _relayout];
     [NSNotificationCenter.defaultCenter postNotificationName:UITextInputCurrentInputModeDidChangeNotification object:nil];
@@ -961,6 +1209,8 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
         if (h <= 0) h = _inputOverride.intrinsicContentSize.height;
         return (h > 0 ? h : 216) + isim_ui_device()->safe_bottom;
     }
+    if (kb_ipad() && (is_system([self _ident]) || !_hostedView))      /* the keys, over the home indicator's band */
+        return ipad_metrics().height + ([_keys showsPredictions] ? 44 : 0) + isim_ui_device()->safe_bottom;
     if (is_system([self _ident]) || !_hostedView) return 216 + ([_keys showsPredictions] ? 44 : 0);
     UIView *v = _hostedView;
     CGFloat W = isim_ui_device()->width;
@@ -980,9 +1230,11 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     _bar.frame = CGRectMake(0, accH + contentH, d->width, barH);
     _bar.hidden = barH == 0;
     for (UIView *b in _bar.subviews) if (b.tag == 77) { b.frame = CGRectMake(d->width - 56, 2, 44, 40); b.hidden = !pref_on(@"KeyboardDictation"); }
-    _listening.frame = CGRectMake(70, 2, d->width - 140, 40);
+    _listening.frame = kb_ipad() ? [_keys _spaceFrameIn:_window] : CGRectMake(70, 2, d->width - 140, 40);
     if (_hostedView) _hostedView.frame = _content.bounds;
-    _keys.frame = _content.bounds;
+    CGRect kf = _content.bounds;
+    if (kb_ipad() && !_hostedView) kf.size.height = MAX(0, kf.size.height - d->safe_bottom);   /* keys above the home indicator */
+    _keys.frame = kf;
     if (_shown && !CGRectEqualToRect(old, f)) [self _post:UIKeyboardWillChangeFrameNotification from:old to:f], keyboard_frame = f, [self _post:UIKeyboardDidChangeFrameNotification from:old to:f];
     isim_ui_set_needs_layout();
 }
@@ -1048,6 +1300,7 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
         if (i != NSNotFound) _current = (NSInteger)i;
     }
     _keys.showGlobe = ![self _barVisible] && _order.count > 1;
+    _keys.emojiKey = kb_ipad() && [self _emojiKeyOnly];
     _keys.target = t;
     [self _updateBarButton];                          /* (after the target: pads hide the globe) */
     [self _activate:_current];
@@ -1192,7 +1445,7 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
 @end
 
 /* custom keyboards ask this through needsInputModeSwitchKey */
-BOOL isim_ui_keyboard_needs_switch_key(void) { return isim_ui_device()->safe_bottom <= 0; }
+BOOL isim_ui_keyboard_needs_switch_key(void) { return isim_ui_device()->safe_bottom <= 0 || kb_ipad(); }
 void isim_ui_keyboard_advance(void) { [[__IsimKeyboardController shared] _next]; }
 void isim_ui_keyboard_check(void) { [[__IsimKeyboardController shared] _check]; }
 void isim_ui_keyboard_install(void) { [__IsimKeyboardController load_isim]; }

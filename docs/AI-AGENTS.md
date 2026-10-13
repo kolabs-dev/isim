@@ -28,7 +28,7 @@ This page is for people building **their own apps** with an agent. Working on is
    ## Running the app (isim, iOS simulator for Linux)
    - Always `export ISIM_DATA=$PWD/.isim-data` first for your own runs. The default device data is mine: never boot,
      install into or reset it.
-   - Build: `isim build -project MyApp.xcodeproj -scheme MyApp -o build/isim` (last line: `done: <path to .app>`).
+   - Build: `isim build -project MyApp.xcodeproj -scheme MyApp` (products in `./build`, last line: `done: <path to .app>`).
    - Test: `isim test -project MyApp.xcodeproj -scheme MyApp` (exit 65 on failures).
    - Look at it: `ISIM_ANIMATIONS=0 isim run <the .app from the done: line> --headless --script "wait 2; dump; shot /tmp/s.png; quit"`,
      then read the dump and the screenshot. Script commands: docs/SCRIPTING.md in the isim repository.
@@ -45,19 +45,33 @@ This page is for people building **their own apps** with an agent. Working on is
 ### 1. Build
 
 ```bash
-isim build -project MyApp.xcodeproj -scheme MyApp -o build/isim
+isim build -project MyApp.xcodeproj -scheme MyApp            # -> build/MyApp.app
 ```
 
 A failed build exits non-zero and shows the compiler's errors. The last line of a good build is
-`done: /…/MyApp.app`, the bundle to run. Workspaces (`-workspace`), local Swift packages, `.xcconfig` files and
-`.xcframework`s work too; see the README's usage table.
+`done: /…/MyApp.app`, the bundle to run. Workspaces (`-workspace`), Swift packages, `.xcconfig` files,
+`.xcframework`s, shell script phases and CocoaPods workspaces work too; see the README's usage table.
+
+To find your way around a project without Xcode's navigator:
+
+```bash
+isim build -project MyApp.xcodeproj -list -json                  # targets, build configurations, schemes
+isim build -project MyApp.xcodeproj -scheme MyApp -showBuildSettings -json   # the settings isim build resolves
+isim project MyApp.xcodeproj                                      # targets -> build phases -> files, packages
+```
+
+- Shell script build phases run like Xcode's, in their place among the build phases, and are skipped when their
+  outputs are up to date; `-skip-script-phases` skips them (for scripts that need macOS tools).
+- Remote Swift packages are fetched with `git` into `~/.cache/isim/packages` (`-package-cache DIR` changes it) at the
+  versions pinned in `Package.resolved`; unpinned ones are resolved from the repository's tags and pinned.
+  `-onlyUsePackageVersionsFromResolvedFile` refuses to resolve; `-resolvePackageDependencies` only fetches.
 
 ### 2. Run and look
 
 A headless run is the agent's main tool: it starts the app with no window, runs the script and exits.
 
 ```bash
-ISIM_ANIMATIONS=0 ISIM_SKIP_LAUNCH_SCREEN=1 isim run build/isim/MyApp.app --headless \
+ISIM_ANIMATIONS=0 ISIM_SKIP_LAUNCH_SCREEN=1 isim run build/MyApp.app --headless \
   --script "wait 2; dump; shot /tmp/home.png; tapid loginButton; wait 1; dump; shot /tmp/login.png; quit"
 ```
 
@@ -71,16 +85,27 @@ ISIM_ANIMATIONS=0 ISIM_SKIP_LAUNCH_SCREEN=1 isim run build/isim/MyApp.app --head
 - Accessibility can be checked the same way: `voiceover on; voiceover next; …` logs what VoiceOver says
   (`isim: VoiceOver: "…"`), and `accessibility SETTING on|off`, `contrast on`, `boldtext on` and
   `guidedaccess on` switch the Settings ▸ Accessibility features an app reacts to.
+- App Intents and SiriKit are tried under `isim boot` (the home screen is the system): `siri "Order a latte in
+  MyApp"` says an App Shortcut phrase, `siri intent SendMessage recipients=Anna content=Hi` builds a SiriKit intent,
+  and `siri ANSWER` / `tapid siri-option-N` / `tapid siri-confirm` answer Siri's questions; `dump` shows what Siri
+  says (`siri-card`) and the output logs it (`SpringBoard: Siri says “…”`). `launch dev.isim.shortcuts` lists and runs
+  the app's App Shortcuts. `ISIM_SIRI_PERMISSION=allow` answers `INPreferences.requestSiriAuthorization`.
 - `ISIM_ANIMATIONS=0` finishes animations at once and `ISIM_SKIP_LAUNCH_SCREEN=1` skips the launch screen, so the
   waits can be short. `ISIM_WAIT_SCALE=2` doubles every `wait` on a slow machine.
 - End the script with `quit`.
+
+An App Clip runs alone like Xcode runs it, with its invocation URL in `_XCAppClipURL` (it is launched with an
+`NSUserActivity` of type `NSUserActivityTypeBrowsingWeb` for it, no App Clip card):
+`_XCAppClipURL=https://example.com/shop/1 isim run build/isim/MyApp.app/AppClips/MyAppClip.app --headless --script "…"`.
+To see the App Clip card and the whole invocation, `isim install` the App Clip and `isim boot`, then send
+`appclip https://example.com/shop/1` and `tapid appclip-open` (see [SCRIPTING.md](SCRIPTING.md)).
 
 Choose the device and iOS version like a person would: `--device iphonese` (Home button), `--device iphone16pro`
 (Dynamic Island), `--device ipadair11`; `--os 17|18|26|27` (Liquid Glass from 26). Checking a screen on a small
 iPhone, a large one and an iPad catches most layout bugs. `isim devices` lists the presets.
 
 To look at one view without navigating to it, render its `#Preview` (like Xcode's canvas, one preview at a time):
-`isim preview build/isim/MyApp.app --list` lists the previews, `isim preview build/isim/MyApp.app "Detail" -o
+`isim preview build/MyApp.app --list` lists the previews, `isim preview build/MyApp.app "Detail" -o
 /tmp/detail.png` (a name or an index; `--device`, `--os`, `--dark`) saves a screenshot of it, laid out by its traits
 (the device, `.sizeThatFitsLayout` or `.fixedLayout` on a grey canvas).
 
@@ -102,6 +127,9 @@ isim test -project MyApp.xcodeproj -scheme MyApp [-only-testing:MyAppTests/Login
 XCTest, Swift Testing and XCUITest run as with `xcodebuild test`: the output follows Xcode's format, ends with
 `** TEST SUCCEEDED **` or `** TEST FAILED **`, and the exit status is 65 when a test fails.
 `-resultBundlePath DIR` keeps the results.
+In UI tests, permission prompts are system alerts as on iOS: find them under
+`XCUIApplication(bundleIdentifier: "com.apple.springboard")` (or answer them with `addUIInterruptionMonitor`), not
+`app.alerts`; `XCUIDevice.shared.press(.home)` sends the app to the background and `app.activate()` brings it back.
 
 ## Answering system prompts without a person
 
@@ -113,7 +141,8 @@ ISIM_LOCATION_PERMISSION=wheninuse ISIM_NOTIFICATION_PERMISSION=allow ISIM_PHOTO
 ISIM_BIOMETRY=match ISIM_LOCATION=-23.55,-46.63 isim run MyApp.app --headless --script "…"
 ```
 
-The simulated camera (`ISIM_CAMERA=picture.png`), microphone (`ISIM_AUDIO_INPUT=file.wav`), network
+The simulated camera (`ISIM_CAMERA=picture.png`, with `ISIM_CAMERA_FRONT`, `ISIM_CAMERA_DEPTH` and
+`ISIM_CAMERA_OBJECTS` describing the scene), microphone (`ISIM_AUDIO_INPUT=file.wav`), network
 (`ISIM_NETWORK=offline`), language (`ISIM_LANGUAGES=pt-BR`), Dynamic Type (`ISIM_CONTENT_SIZE=…`) and dark mode
 (`--dark`) are set the same way.
 
@@ -123,7 +152,7 @@ A developer often keeps the device window open while the agent works, started fr
 launcher (isim Simulator, see the README):
 
 ```bash
-isim run build/isim/MyApp.app      # a window, on the home screen with MyApp open
+isim run build/MyApp.app      # a window, on the home screen with MyApp open
 ```
 
 The agent (or a terminal) then sends it the same script commands with `isim send`, using the same `ISIM_DATA` as the
@@ -135,7 +164,13 @@ rm -f /tmp/v.txt; isim send "dump views /tmp/v.txt"     # then wait until /tmp/v
 isim send "shot /tmp/s.png"
 isim openurl myapp://settings
 isim push dev.example.myapp payload.apns
+isim send "lockscreen customize"                       # widgets: the Lock Screen editor; "standby on" for StandBy
 ```
+
+Widgets and Live Activities can be checked the same way: the log says what the widget extension rendered
+(`isim WidgetKit: rendered KIND (FAMILY…)`), `dump` lists the widgets and the Dynamic Island, and a Live Activity's
+push token is in the log (`isim ActivityKit: push token for ID: HEX`) for `isim push` liveactivity payloads (see
+[SCRIPTING.md](SCRIPTING.md), Widgets and Live Activities).
 
 Each device reads these from a control FIFO of its own; `--control FIFO` names one yourself (then `echo "…" > FIFO`
 works too). The FIFO only goes one way: commands get no reply. To read a result, write it to a file

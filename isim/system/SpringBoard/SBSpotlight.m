@@ -1,5 +1,5 @@
 // isim home screen: Spotlight (pull down on the home screen, the Search button, or the script command `spotlight`).
-// Searches installed apps and what apps indexed in <isim data>/Library/Spotlight/<bundle id>.plist (CoreSpotlight
+// Searches installed apps, their App Shortcuts (SBSiri.m) and what apps indexed in <isim data>/Library/Spotlight/<bundle id>.plist (CoreSpotlight
 // CSSearchableItems and NSUserActivity with isEligibleForSearch). Choosing an indexed item continues it in its app
 // as an NSUserActivity (CSSearchableItemActionType for CoreSpotlight items), like iOS.
 #import "SpringBoard.h"
@@ -97,6 +97,27 @@ static BOOL matches(NSString *q, NSArray *texts) {
             y += 62; nApps++;
         }
     }
+    /* App Shortcuts (AppShortcutsProvider) of the apps, like iOS's Spotlight shows them */
+    NSUInteger nShortcuts = 0;
+    NSArray *shortcuts = [self appShortcutsMatching:q];
+    if (shortcuts.count) {
+        [self spotHeader:NSLocalizedString(@"Shortcuts", nil) y:y]; y += 32;
+        for (NSDictionary *e in shortcuts) {
+            HSApp *a = e[@"app"]; NSDictionary *sc = e[@"shortcut"];
+            UIControl *r = [self spotRow:sc[@"shortTitle"] ?: sc[@"title"] ?: @"" subtitle:a.name app:a
+                                   ident:[NSString stringWithFormat:@"spotlight-shortcut-%@-%@", a.bundleID, sc[@"index"]] y:y];
+            if ([sc[@"image"] length]) {                         /* the shortcut's symbol on the app's icon */
+                UIImageView *sym = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:sc[@"image"]]];
+                sym.tintColor = UIColor.whiteColor; sym.contentMode = UIViewContentModeScaleAspectFit;
+                sym.frame = CGRectMake(30, 30, 20, 20); sym.backgroundColor = [UIColor colorWithRed:0.25 green:0.4 blue:1 alpha:1];
+                sym.layer.cornerRadius = 6; sym.clipsToBounds = YES; sym.userInteractionEnabled = NO;
+                [r addSubview:sym];
+            }
+            r.accessibilityValue = [NSString stringWithFormat:@"shortcut:%@\x1f%@", a.bundleID, sc[@"index"]];
+            [r addTarget:self action:@selector(spotlightChose:) forControlEvents:UIControlEventTouchUpInside];
+            y += 62; nShortcuts++;
+        }
+    }
     /* what apps indexed */
     NSString *dir = [isim_data_dir() stringByAppendingPathComponent:@"Library/Spotlight"];
     for (NSString *f in [[NSFileManager.defaultManager contentsOfDirectoryAtPath:dir error:NULL] sortedArrayUsingSelector:@selector(compare:)]) {
@@ -123,9 +144,10 @@ static BOOL matches(NSString *q, NSArray *texts) {
             y += 62; nItems++;
         }
     }
-    if (!nApps && !nItems) { UILabel *l = [self spotHeader:NSLocalizedString(@"No Results", nil) y:y + 40]; l.textAlignment = NSTextAlignmentCenter; }
+    if (!nApps && !nItems && !nShortcuts) { UILabel *l = [self spotHeader:NSLocalizedString(@"No Results", nil) y:y + 40]; l.textAlignment = NSTextAlignmentCenter; }
     spot_results.contentSize = CGSizeMake(spot_results.bounds.size.width, y + 20);
-    NSLog(@"SpringBoard: Spotlight “%@”: %lu app(s), %lu item(s)", q, (unsigned long)nApps, (unsigned long)nItems);
+    NSLog(@"SpringBoard: Spotlight “%@”: %lu app(s), %lu item(s)%@", q, (unsigned long)nApps, (unsigned long)nItems,
+          nShortcuts ? [NSString stringWithFormat:@", %lu shortcut(s)", (unsigned long)nShortcuts] : @"");
 }
 - (void)spotlightChose:(UIControl *)row {
     NSString *v = row.accessibilityValue;
@@ -133,6 +155,15 @@ static BOOL matches(NSString *q, NSArray *texts) {
         HSApp *a = [self appWithIdentifier:[v substringFromIndex:4]];
         [self hideSpotlight];
         if (a) [self launch:a];
+        return;
+    }
+    if ([v hasPrefix:@"shortcut:"]) {                         /* an App Shortcut: it runs, with the system's run UI */
+        NSArray *p = [[v substringFromIndex:9] componentsSeparatedByString:@"\x1f"];
+        [self hideSpotlight];
+        for (NSDictionary *e in [self allAppShortcuts]) if (p.count == 2 && [[e[@"app"] bundleID] isEqual:p[0]] && [[e[@"shortcut"][@"index"] description] isEqual:p[1]]) {
+            NSLog(@"SpringBoard: Spotlight runs the App Shortcut “%@”", e[@"shortcut"][@"shortTitle"] ?: e[@"shortcut"][@"title"]);
+            [self runAppShortcut:e source:@"spotlight"];
+        }
         return;
     }
     NSArray *parts = [[v substringFromIndex:5] componentsSeparatedByString:@"\x1f"];

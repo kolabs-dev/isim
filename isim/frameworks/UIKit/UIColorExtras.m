@@ -50,6 +50,7 @@ static void release_pattern(void *info) { CFRelease(info); }
 }
 /* no RGB components, as on iOS */
 - (BOOL)getRed:(CGFloat *)r green:(CGFloat *)g blue:(CGFloat *)b alpha:(CGFloat *)a { return NO; }
+- (BOOL)getHue:(CGFloat *)h saturation:(CGFloat *)s brightness:(CGFloat *)v alpha:(CGFloat *)a { return NO; }
 - (BOOL)isEqual:(id)o { return [o isKindOfClass:[__IsimPatternColor class]] && ((__IsimPatternColor *)o).patternImage == _patternImage; }
 - (NSUInteger)hash { return (NSUInteger)(__bridge void *)_patternImage; }
 - (NSString *)description { return [NSString stringWithFormat:@"UIPatternColor %gx%g", _patternImage.size.width, _patternImage.size.height]; }
@@ -77,17 +78,6 @@ static UIColor *with_exposure(UIColor *c, CGFloat linear) { objc_setAssociatedOb
     Class k = NSClassFromString(@"CIColor");
     CGFloat r = 0, g = 0, b = 0, a = 0; [self getRed:&r green:&g blue:&b alpha:&a];
     return k ? ((id (*)(id, SEL, CGFloat, CGFloat, CGFloat, CGFloat))objc_msgSend)(k, NSSelectorFromString(@"colorWithRed:green:blue:alpha:"), r, g, b, a) : nil;
-}
-- (BOOL)getHue:(CGFloat *)hue saturation:(CGFloat *)sat brightness:(CGFloat *)bri alpha:(CGFloat *)alpha {
-    CGFloat r, g, b, a;
-    if (![self getRed:&r green:&g blue:&b alpha:&a]) return NO;
-    CGFloat mx = MAX(r, MAX(g, b)), mn = MIN(r, MIN(g, b)), d = mx - mn, h = 0;
-    if (d > 0) {
-        if (mx == r) h = fmod((g - b) / d, 6); else if (mx == g) h = (b - r) / d + 2; else h = (r - g) / d + 4;
-        h /= 6; if (h < 0) h += 1;
-    }
-    if (hue) *hue = h; if (sat) *sat = mx > 0 ? d / mx : 0; if (bri) *bri = mx; if (alpha) *alpha = a;
-    return YES;
 }
 - (NSString *)accessibilityName {
     CGFloat h, s, v, a;

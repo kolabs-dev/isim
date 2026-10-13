@@ -1,0 +1,70 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		FE7E8077F7772DCCB132B48F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151D4DAC33A0480273FA00DE; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0AFA84BFFD121239B2A88D68 /* codegen-inputs.xcfilelist */ = {isa = PBXFileReference; lastKnownFileType = text.xcfilelist; path = "codegen-inputs.xcfilelist"; sourceTree = "<group>"; };
+		151D4DAC33A0480273FA00DE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		8985023F8E7AD21E0DC18319 /* postbuild-outputs.xcfilelist */ = {isa = PBXFileReference; lastKnownFileType = text.xcfilelist; path = "postbuild-outputs.xcfilelist"; sourceTree = "<group>"; };
+		9E63FC9509E084FAC447CA8D /* BuildPhases.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BuildPhases.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C065B0A0E9979F5D533249F1 /* greeting.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = greeting.txt; sourceTree = "<group>"; };
+		C267456BBB576E993F8410ED /* flavors.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = flavors.txt; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B3CF95B60EDDF222BCFEA516 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2C4F3435C0864331A8FF1DCA /* Config */ = {isa = PBXGroup; children = (C267456BBB576E993F8410ED, C065B0A0E9979F5D533249F1, 0AFA84BFFD121239B2A88D68, 8985023F8E7AD21E0DC18319, ); path = Config; sourceTree = "<group>"; };
+		3DEA60298453E559792EBFAE /*  */ = {isa = PBXGroup; children = (F4ABBD0EA78487656A8289E2, 2C4F3435C0864331A8FF1DCA, B8B4788A7C808699B76E2937, ); name = ""; sourceTree = "<group>"; };
+		B8B4788A7C808699B76E2937 /* Products */ = {isa = PBXGroup; children = (9E63FC9509E084FAC447CA8D, ); name = Products; sourceTree = "<group>"; };
+		F4ABBD0EA78487656A8289E2 /* App */ = {isa = PBXGroup; children = (151D4DAC33A0480273FA00DE, ); path = App; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		66B17206EC5DC70BB203E93B /* BuildPhases */ = {isa = PBXNativeTarget; buildConfigurationList = FE8434D80BD84B6407387954; buildPhases = (B3DC421A33F90A3A6796A62A, 4EFE30DDAF7DB1B2710190BA, B90BFF3D546C365EC0FA5CF5, B3CF95B60EDDF222BCFEA516, F14D40A436C5B11A6655F8EA, C492EAE6ED6838EF73ED41DF, CC0E466322188341C4CD3FFD, ); buildRules = (); dependencies = (); name = BuildPhases; productName = BuildPhases; productReference = 9E63FC9509E084FAC447CA8D; productType = "com.apple.product-type.application"; };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		803F8302DA3755BE8CA24C7C /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 1600; }; buildConfigurationList = F48AC6C295BB839F7FBA9F0F; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base, ); mainGroup = 3DEA60298453E559792EBFAE; productRefGroup = B8B4788A7C808699B76E2937; projectDirPath = ""; projectRoot = ""; targets = (66B17206EC5DC70BB203E93B, ); };
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F14D40A436C5B11A6655F8EA /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		B3DC421A33F90A3A6796A62A /* Generate Constants */ = {isa = PBXShellScriptBuildPhase; buildActionMask = 2147483647; files = (); inputFileListPaths = ("$(SRCROOT)/Config/codegen-inputs.xcfilelist", ); inputPaths = ("$(SRCROOT)/Config/flavors.txt", ); name = "Generate Constants"; outputFileListPaths = (); outputPaths = ("$(DERIVED_FILE_DIR)/Generated.swift", ); runOnlyForDeploymentPostprocessing = 0; shellPath = /bin/sh; shellScript = "set -e\nif [ \"${FIXTURE_FAIL:-NO}\" = YES ]; then\n  echo \"error: codegen refused (FIXTURE_FAIL=YES)\" >&2\n  exit 3\nfi\necho \"codegen in=$SCRIPT_INPUT_FILE_COUNT lists=$SCRIPT_INPUT_FILE_LIST_COUNT out=$SCRIPT_OUTPUT_FILE_COUNT\" >> \"$PROJECT_TEMP_DIR/phases.log\"\ngreeting=$(cat $(cat \"$SCRIPT_INPUT_FILE_LIST_0\"))\nflavors=$(tr '\\n' ',' < \"$SCRIPT_INPUT_FILE_0\" | sed 's/,$//')\nmkdir -p \"$DERIVED_FILE_DIR\"\ncat > \"$SCRIPT_OUTPUT_FILE_0\" <<EOF\nenum Generated {\n    static let greeting = \"$greeting\"\n    static let flavors = \"$flavors\"\n    static let configuration = \"$CONFIGURATION\"\n}\nEOF\n"; };
+		B90BFF3D546C365EC0FA5CF5 /* Check Before Link */ = {isa = PBXShellScriptBuildPhase; buildActionMask = 2147483647; files = (); alwaysOutOfDate = 1; inputFileListPaths = (); inputPaths = (); name = "Check Before Link"; outputFileListPaths = (); outputPaths = (); runOnlyForDeploymentPostprocessing = 0; shellPath = /bin/sh; shellScript = "linked=no\n[ -e \"$TARGET_BUILD_DIR/$EXECUTABLE_PATH\" ] && linked=yes\necho \"check linked=$linked\" >> \"$PROJECT_TEMP_DIR/phases.log\"\n"; };
+		C492EAE6ED6838EF73ED41DF /* Write Build Info */ = {isa = PBXShellScriptBuildPhase; buildActionMask = 2147483647; files = (); inputFileListPaths = (); inputPaths = ("$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)", ); name = "Write Build Info"; outputFileListPaths = ("$(SRCROOT)/Config/postbuild-outputs.xcfilelist", ); outputPaths = (); runOnlyForDeploymentPostprocessing = 0; shellPath = /bin/sh; shellScript = "set -e\nplist=no; [ -f \"$TARGET_BUILD_DIR/$INFOPLIST_PATH\" ] && plist=yes\nexe=no; [ -f \"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/$EXECUTABLE_NAME\" ] && exe=yes\necho \"postbuild infoplist=$plist exe=$exe\" >> \"$PROJECT_TEMP_DIR/phases.log\"\nout=$(head -n 1 \"$SCRIPT_OUTPUT_FILE_LIST_0\")\n{\n  for v in SRCROOT PROJECT_DIR BUILT_PRODUCTS_DIR TARGET_BUILD_DIR CONFIGURATION PRODUCT_NAME TARGET_NAME INFOPLIST_PATH \\\n           EXECUTABLE_NAME CONTENTS_FOLDER_PATH UNLOCALIZED_RESOURCES_FOLDER_PATH DERIVED_FILE_DIR ACTION \\\n           SCRIPT_INPUT_FILE_COUNT SCRIPT_INPUT_FILE_0 SCRIPT_OUTPUT_FILE_LIST_COUNT; do\n    eval \"echo $v=\\$$v\"\n  done\n} > \"$out\"\n"; };
+		CC0E466322188341C4CD3FFD /* Install Only */ = {isa = PBXShellScriptBuildPhase; buildActionMask = 2147483647; files = (); inputFileListPaths = (); inputPaths = (); name = "Install Only"; outputFileListPaths = (); outputPaths = (); runOnlyForDeploymentPostprocessing = 1; shellPath = /bin/sh; shellScript = "echo \"deploy\" >> \"$PROJECT_TEMP_DIR/phases.log\"\n"; };
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4EFE30DDAF7DB1B2710190BA /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (FE7E8077F7772DCCB132B48F, ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1F884221F424EC2922308C13 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; PRODUCT_BUNDLE_IDENTIFIER = dev.isim.fixtures.BuildPhases; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
+		2D29865DE88733CD42B8575E /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; }; name = Debug; };
+		5FAE5CD889893D5DC40E3B69 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; PRODUCT_BUNDLE_IDENTIFIER = dev.isim.fixtures.BuildPhases; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Release; };
+		CFF413C3E17C2F9932E82D93 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F48AC6C295BB839F7FBA9F0F /* Build configuration list for PBXProject */ = {isa = XCConfigurationList; buildConfigurations = (2D29865DE88733CD42B8575E, CFF413C3E17C2F9932E82D93, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		FE8434D80BD84B6407387954 /* Build configuration list for PBXNativeTarget "BuildPhases" */ = {isa = XCConfigurationList; buildConfigurations = (1F884221F424EC2922308C13, 5FAE5CD889893D5DC40E3B69, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+
+	};
+	rootObject = 803F8302DA3755BE8CA24C7C /* Project object */;
+}

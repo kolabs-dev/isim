@@ -1,0 +1,4 @@
+module Vendor {
+    header "vendor.h"
+    export *
+}

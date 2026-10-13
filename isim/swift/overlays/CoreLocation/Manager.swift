@@ -381,14 +381,14 @@ final class _CLSim: @unchecked Sendable {
 public struct CLLocationUpdate: Sendable {
     public let location: CLLocation?
     public let isStationary: Bool
-    public var authorizationDenied: Bool { _denied }
-    public var authorizationDeniedGlobally: Bool { false }
-    public var authorizationRestricted: Bool { false }
-    public var authorizationRequestInProgress: Bool { _inProgress }
-    public var insufficientlyInUse: Bool { false }
-    public var locationUnavailable: Bool { _unavailable }
-    public var accuracyLimited: Bool { false }
-    public var serviceSessionRequired: Bool { false }
+    @available(iOS 18.0, *) public var authorizationDenied: Bool { _denied }
+    @available(iOS 18.0, *) public var authorizationDeniedGlobally: Bool { false }
+    @available(iOS 18.0, *) public var authorizationRestricted: Bool { false }
+    @available(iOS 18.0, *) public var authorizationRequestInProgress: Bool { _inProgress }
+    @available(iOS 18.0, *) public var insufficientlyInUse: Bool { false }
+    @available(iOS 18.0, *) public var locationUnavailable: Bool { _unavailable }
+    @available(iOS 18.0, *) public var accuracyLimited: Bool { false }
+    @available(iOS 18.0, *) public var serviceSessionRequired: Bool { false }
     @available(*, deprecated, renamed: "isStationary") public var stationary: Bool { isStationary }
     let _denied: Bool, _inProgress: Bool, _unavailable: Bool
 
@@ -462,6 +462,7 @@ open class CLBackgroundActivitySession: NSObject, @unchecked Sendable {
     deinit { invalidate() }
 }
 
+@available(iOS 18.0, *)
 open class CLServiceSession: NSObject, @unchecked Sendable {
     public enum AuthorizationRequirement: Sendable { case none, whenInUse, always }
     public let authorizationRequirement: AuthorizationRequirement
@@ -472,4 +473,10 @@ open class CLServiceSession: NSObject, @unchecked Sendable {
     }
     public convenience init(authorization: AuthorizationRequirement, fullAccuracyPurposeKey: String) { self.init(authorization: authorization) }
     open func invalidate() {}
+}
+
+extension CLLocationManager {
+    /// isim-private: the device's simulated location right now, without asking for permission (nil: Location ▸ None).
+    /// AppClip's location confirmation uses it: the system checks the location, the App Clip only learns yes or no.
+    @_spi(isim) public static func _isimSimulatedLocation() -> CLLocation? { _CLSim.shared.current() }
 }

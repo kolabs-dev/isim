@@ -329,3 +329,11 @@ static char kSeverity;
 - (UIAlertControllerSeverity)severity { return [objc_getAssociatedObject(self, &kSeverity) integerValue]; }
 - (void)setSeverity:(UIAlertControllerSeverity)s { objc_setAssociatedObject(self, &kSeverity, @(s), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 @end
+/* system alerts (permission prompts: notifications, camera, photos, location, paste, ...): on iOS SpringBoard shows
+ * them, not the app; isim presents them in the app (adapted) and marks them so XCUITest finds them under
+ * XCUIApplication(bundleIdentifier: "com.apple.springboard") instead of the app (UIAXSnapshot.m) */
+@implementation UIAlertController (IsimSystemAlert)
+static char system_alert_key;
+- (void)_isim_markSystemAlert { objc_setAssociatedObject(self, &system_alert_key, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+- (BOOL)_isim_isSystemAlert { return [objc_getAssociatedObject(self, &system_alert_key) boolValue]; }
+@end

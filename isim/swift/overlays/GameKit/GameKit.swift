@@ -595,10 +595,10 @@ open class GKAccessPoint: NSObject {
     open func trigger(state: GKGameCenterViewControllerState, handler: @escaping () -> Void) {
         DispatchQueue.main.async { MainActor.assumeIsolated { self.present(GKGameCenterViewController(state: state), handler) } }
     }
-    open func trigger(leaderboardID: String, playerScope: GKLeaderboard.PlayerScope, timeScope: GKLeaderboard.TimeScope, handler: @escaping () -> Void) {
+    @available(iOS 18.0, *) open func trigger(leaderboardID: String, playerScope: GKLeaderboard.PlayerScope, timeScope: GKLeaderboard.TimeScope, handler: @escaping () -> Void) {
         DispatchQueue.main.async { MainActor.assumeIsolated { self.present(GKGameCenterViewController(leaderboardID: leaderboardID, playerScope: playerScope, timeScope: timeScope), handler) } }
     }
-    open func trigger(achievementID: String, handler: @escaping () -> Void) {
+    @available(iOS 18.0, *) open func trigger(achievementID: String, handler: @escaping () -> Void) {
         DispatchQueue.main.async { MainActor.assumeIsolated { self.present(GKGameCenterViewController(achievementID: achievementID), handler) } }
     }
     @MainActor func present(_ vc: GKGameCenterViewController, _ handler: @escaping () -> Void) {

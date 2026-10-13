@@ -1,4 +1,4 @@
-"""The apps: samples/*, the self-test apps in tests/* and the system apps (home screen, Settings).
+"""The apps: samples/*, the self-test apps in tests/* and the system apps (home screen, Settings, Safari, Shortcuts).
 
 A sample whose directory has Swift files and an Info.plist needs no entry here: it builds as <Dir>.app from its
 top-level *.swift files. Everything else is described below by a function that builds the app (it runs as one Ninja
@@ -242,7 +242,27 @@ def _(a):
 @app("samples/HelloWidgets")
 def _(a):
     b = a.swift_app(srcs=["HelloWidgetsApp.swift", "Shared.swift"])
-    a.appex(b, "HelloWidgetsExtension", ["Extension/Widgets.swift", "Shared.swift"], "Extension/Info.plist", extension=False)
+    x = a.appex(b, "HelloWidgetsExtension", ["Extension/Widgets.swift", "Shared.swift"], "Extension/Info.plist", extension=False)
+    for d in (b, x):                                           # the app group both share
+        a.copy("HelloWidgets.entitlements", f"{d}/archived-expanded-entitlements.xcent")
+
+
+@app("samples/HelloFocusControls")
+def _(a):
+    b = a.swift_app(srcs=["HelloFocusControlsApp.swift", "Shared.swift"])
+    x = a.appex(b, "HelloFocusControlsExtension", ["Extension/Controls.swift", "Shared.swift"], "Extension/Info.plist", extension=False)
+    for d in (b, x):                                           # the app group (and, for the app, time-sensitive notifications)
+        a.copy("HelloFocusControls.entitlements", f"{d}/archived-expanded-entitlements.xcent")
+
+
+@app("samples/HelloSiri")
+def _(a):   # App Intents + SiriKit: the app, its Intents extension and its Intents UI extension
+    b = a.swift_app(srcs=["HelloSiriApp.swift", "Shared.swift"], link=["-framework", "Intents", "-framework", "IntentsUI"])
+    exts = [a.appex(b, "HelloSiriIntents", ["Intents/IntentHandler.swift", "Shared.swift"], "Intents/Info.plist", link=["-framework", "Intents"]),
+            a.appex(b, "HelloSiriIntentsUI", ["IntentsUI/MessageViewController.swift"], "IntentsUI/Info.plist", link=["-framework", "Intents", "-framework", "IntentsUI"])]
+    for d in [b] + exts:                                       # Siri, and the app group the app and its extension share
+        a.copy("HelloSiri.entitlements", f"{d}/archived-expanded-entitlements.xcent")
+    a.icon(f"{b}/AppIcon60x60@3x.png", "#a0522d", "#5c2e12", "C")
 
 
 @app("samples/HelloKeyboard", products=["HelloKeyboard.appex"])
@@ -278,8 +298,9 @@ def _(a):
 @app("samples/HelloSharedData")
 def _(a):
     b = a.swift_app()
-    for d in ("en.lproj", "ru.lproj"):
-        shutil.copytree(os.path.join(a.d, d), os.path.join(b, d))
+    a.copy("HelloSharedData.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # its app group
+    for d in ("en.lproj", "ru.lproj", "sl.lproj", "lt.lproj", "cy.lproj", "ar.lproj", "fr.lproj"):
+        shutil.copytree(os.path.join(a.d, d), os.path.join(b, d), dirs_exist_ok=True)
     os.chdir(a.d)
     print("localizations:", a.isim_build().compile_xcstrings("Localizable.xcstrings", b))
 
@@ -324,6 +345,9 @@ def _(a):
              "-f", "lavfi", "-i", "color=c=blue:s=320x180:r=25:d=1", "-f", "lavfi", "-i", "sine=frequency=440:duration=3",
              "-filter_complex", "[0:v][1:v][2:v]concat=n=3:v=1:a=0,format=yuv420p[v]", "-map", "[v]", "-map", "3:a",
              "-c:v", "libx264", "-preset", "veryfast", "-c:a", "aac", "-b:a", "64k", "-shortest", f"{b}/clip.mp4")
+    # a 12 s test pattern with a tone, for Picture in Picture
+    a.ffmpeg("-f", "lavfi", "-i", "testsrc2=s=320x180:r=25:d=12", "-f", "lavfi", "-i", "sine=frequency=330:duration=12",
+             "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "64k", "-shortest", f"{b}/long.mp4")
 
 
 @app("samples/HelloMedia", needs=("ffmpeg",))
@@ -338,6 +362,11 @@ def _(a):
 @app("samples/HelloStoryboards", products=["HelloStoryboards.app", "HelloStoryboardsClassic.app"])
 def _(a):
     a.xcode_project("-project", "HelloStoryboards.xcodeproj", targets=["HelloStoryboards", "HelloStoryboardsClassic"])
+
+
+@app("samples/HelloAppClip")
+def _(a):   # the full app with its App Clip embedded in AppClips/ (the App Clip target is a dependency)
+    a.xcode_project("-project", "HelloAppClip.xcodeproj", targets=["HelloAppClip"])
 
 
 @app("samples/HelloCoreData")
@@ -400,7 +429,8 @@ def _(a):
 # ---- self-test apps (tests/*) ----
 @app("tests/foundation", products=["FoundationTest.app"], swift=False)
 def _(a):
-    a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation"], name="FoundationTest")
+    b = a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation"], name="FoundationTest")
+    a.copy("FoundationTest.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # its iCloud container
 
 
 @app("tests/objc-runtime", products=["ObjCRuntimeTest.app", "ObjCUncaught.app", "SwiftUncaught.app"])
@@ -531,6 +561,7 @@ def _(a):
 @app("tests/security", products=["SecurityTest.app"])
 def _(a):
     b = a.swift_app("SecurityTest", objc=["OSLogC.m"], link=["-framework", "Foundation"])
+    a.copy("SecurityTest.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # keychain-access-groups
     for f in ("ca.der", "leaf.der", "expired.der", "selfsigned.der", "identity.p12", "ca.key"):   # test PKI (pki/make_fixtures.py)
         a.copy(f"pki/{f}", b)
 
@@ -565,6 +596,8 @@ def selftest(d, name, *flags):
         obj = os.path.join(OUT, "swift", f"{os.path.basename(d)}-test.o")
         a.run(ISIM, "swiftc", *SWIFT_WERROR, "-parse-as-library", *flags, "-c", "main.swift", "-o", obj)
         a.cc(obj, "-o", f"{b}/{name}")
+        if os.path.exists(os.path.join(a.d, f"{name}.entitlements")):
+            a.copy(f"{name}.entitlements", f"{b}/archived-expanded-entitlements.xcent")
 
 
 selftest("tests/swift-full", "SwiftFullTest")
@@ -628,11 +661,31 @@ def _(a):   # the web browser (WKWebView)
 def _(a):
     b = a.swift_app("Settings", link=["-lisim_host"])
     xcstrings(a, b, a.files("*.xcstrings"))
-    gear = "/usr/share/icons/Adwaita/symbolic/legacy/emblem-system-symbolic.svg"
-    if shutil.which("magick"):
-        a.run("magick", "-size", "180x180", "gradient:#a6acb6-#6b717c", "(", "-background", "none", "-density", "900", gear,
-              "-resize", "120x120", "-fill", "white", "-colorize", "100", ")", "-gravity", "center", "-compose", "over", "-composite",
-              f"{b}/icon.png", check=False, quiet=True)
+    if shutil.which("magick"):   # iOS's Settings gear, drawn here (no host icon theme): grey, a toothed outer gear ring
+        a.run("magick", "-size", "180x180", "gradient:#c9cdd3-#8a9099", "-draw", settings_gear(), f"{b}/icon.png", check=False, quiet=True)
+
+
+def settings_gear():
+    """ImageMagick -draw primitives for the Settings icon (180 px): a dark gear with 36 fine teeth, a light ring, an inner
+    gear with 12 teeth and six spokes round a hub, like iOS's (isim's own drawing, not Apple artwork)"""
+    dark, light = "#45484d", "#dcdfe3"
+    tooth = lambda n, step, w, r0, r1: [f"push graphic-context translate 90,90 rotate {i * step} rectangle -{w},-{r1} {w},-{r0} "   # noqa: E731
+                                        "pop graphic-context" for i in range(n)]
+    d = [f"fill {dark}"] + tooth(36, 10, 3, 54, 68) + ["circle 90,90 90,30"]               # the outer gear (r 60)
+    d += [f"fill {light}", "circle 90,90 90,38"]                                           # the ring (r 52)
+    d += [f"fill {dark}"] + tooth(12, 30, 4, 36, 47) + ["circle 90,90 90,50"]              # the inner gear (r 40)
+    d += [f"fill {light}", "circle 90,90 90,57"]                                           # its opening (r 33)
+    d += [f"fill {dark}"] + tooth(6, 60, 4, 0, 36) + ["circle 90,90 90,77"]                # spokes, the hub (r 13)
+    d += [f"fill {light}", "circle 90,90 90,85"]                                           # the axle (r 5)
+    return " ".join(d)
+
+
+@app("system/Shortcuts", products=["Shortcuts.app"], dest="out/sdk/Applications")
+def _(a):   # App Shortcuts, actions, voice shortcuts and Siri Suggestions of the installed apps
+    b = a.swift_app("Shortcuts", link=["-lisim_host"])
+    if shutil.which("magick"):   # two overlapping rounded squares on a blue-to-pink gradient
+        a.run("magick", "-size", "180x180", "gradient:#3d5afe-#e040fb", "-fill", "#ffffffcc", "-draw", "roundrectangle 40,40 112,112 18,18",
+              "-fill", "#ffffff", "-draw", "roundrectangle 68,68 140,140 18,18", f"{b}/icon.png", check=False, quiet=True)
 
 
 # ---- the graph ----
@@ -669,7 +722,9 @@ def generate(c, have_swift):
         # the compiled module files only: .swiftdoc / .swiftsourceinfo change with comments and line numbers
         paths += [f"{S}/usr/lib/swift/*.swiftmodule/*.swiftmodule", f"{S}/usr/lib/swift/*.swiftmodule/*.swiftinterface",
                   f"{O}/swift/host/plugins/*.so"]          # isim's macro plugins: their expansions are in the apps
-    n.build(iface, c.act("stamp", iface, *paths), implicit=["sdk-c"] + (["swift"] if have_swift else []), desc="SDK interface")
+    # the installed tools too: apps are built with out/bin's copies (isim build imports ibtool / xcodeproj from there)
+    installed = [f"{O}/bin/{t}" for t in ("isim", "isim-build.py", "xcodeproj.py", "ibtool.py")]
+    n.build(iface, c.act("stamp", iface, *paths), implicit=["sdk-c"] + installed + (["swift"] if have_swift else []), desc="SDK interface")
     srcs = [f"samples/HelloToolchain/Vendor/Sum/{f}" for f in ("sum.c", "sum.h", "module.modulemap")]
     n.build([f"{XCF}/{f}" for f in XCF_FILES], ["python3", "-m", "buildlib.apps", "--xcframework"], inputs=srcs,
             implicit=["out/bin/isim", "buildlib/apps.py"], order_only=["sdk-c"], desc="XCFRAMEWORK Sum")

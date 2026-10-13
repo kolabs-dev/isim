@@ -48,7 +48,7 @@ extension AVAudioSession {
     }
     public var maximumOutputNumberOfChannels: Int { 2 }
     public var outputNumberOfChannels: Int { 2 }
-    public var preferredSampleRate: Double { 48000 }
+    public var preferredSampleRate: Double { _AVSessionPrefs.sampleRate }
     public var allowHapticsAndSystemSoundsDuringRecording: Bool { false }
 }
 public let AVAudioSessionInterruptionTypeKey = "AVAudioSessionInterruptionTypeKey"

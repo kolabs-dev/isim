@@ -95,7 +95,6 @@ void isim_ui_image_copy_extras(UIImage *from, UIImage *to) {
     if (c) CGContextRestoreGState(c); else isim_gfx_restore();
 }
 @end
-NSData *UIImageHEICRepresentation(UIImage *image) { return nil; }
 
 static char kLocale;
 @implementation UIImageConfiguration (UIImageConfigurationExtras)

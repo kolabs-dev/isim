@@ -1,7 +1,9 @@
 /* isim XCUITest: XCUIApplication / XCUIElement / XCUIElementQuery / XCUIDevice.
  * The app under test runs as its own isim process (isim_xcui_launch); every element access takes a fresh
  * accessibility snapshot of it (script command "dump FILE", written by UIKit's UIAXSnapshot.m) and resolves the
- * query against it; actions are script commands (tap X Y, drag ..., type TEXT, key return, rotate ...). */
+ * query against it; actions are script commands (tap X Y, drag ..., type TEXT, key return, rotate ...).
+ * System alerts (permission prompts, which iOS's SpringBoard shows) are presented inside the app by isim; they are
+ * marked in the snapshot and belong to XCUIApplication(bundleIdentifier: "com.apple.springboard"), not the app. */
 #import <XCTest/XCTest.h>
 #import <objc/runtime.h>
 #include <isim_host.h>
@@ -16,7 +18,8 @@ static void xcui_sleep(double s) { struct timespec ts = { (time_t)s, (long)((s -
 @property XCUIElementType type;
 @property CGRect frame;
 @property (copy) NSString *identifier, *label, *value, *placeholder, *typeName;
-@property BOOL enabled, selected, focused, hittable;
+@property BOOL enabled, selected, focused, hittable, system, background;
+@property NSInteger orientation;                 /* the application row: UIDeviceOrientation */
 @property (weak) _XCUINode *parent;
 @property (strong) NSMutableArray<_XCUINode *> *children;
 @end
@@ -87,6 +90,8 @@ static _XCUINode *parse_snapshot(const char *text) {
         NSString *flags = f[10];
         n.enabled = [flags containsString:@"e"]; n.selected = [flags containsString:@"s"];
         n.focused = [flags containsString:@"f"]; n.hittable = [flags containsString:@"h"];
+        n.system = [flags containsString:@"y"]; n.background = [flags containsString:@"b"];
+        if (f.count > 11) n.orientation = [f[11] integerValue];
         if (!root) { root = n; [stack addObject:n]; continue; }
         while ((int)stack.count > depth) [stack removeLastObject];
         _XCUINode *parent = stack.lastObject ?: root;
@@ -101,10 +106,13 @@ static _XCUINode *parse_snapshot(const char *text) {
 @interface XCUIApplication ()
 @property (copy) NSString *appPath;
 @property int handle;
+@property BOOL springboard;                     /* com.apple.springboard: the system alerts of the foreground app */
+- (_XCUINode *)_isim_rawSnapshot;
 - (_XCUINode *)_isim_snapshotQuiet:(BOOL)quiet;
 - (void)_isim_send:(NSString *)cmd;
 @end
 static __weak XCUIApplication *last_app;
+static void handle_interruptions(XCUIApplication *app);     /* UI interruption monitors (system alerts) */
 
 /* ---------------- queries ---------------- */
 typedef BOOL (^XCUIFilter)(_XCUINode *n);
@@ -319,6 +327,7 @@ TYPEQ(keyboards, XCUIElementTypeKeyboard) TYPEQ(keys, XCUIElementTypeKey) TYPEQ(
 
 static CGPoint center_of(_XCUINode *n) { return CGPointMake(CGRectGetMidX(n.frame), CGRectGetMidY(n.frame)); }
 - (void)_isim_do:(NSString *)action with:(void (^)(_XCUINode *n, XCUIApplication *app))f {
+    handle_interruptions([self _isim_app]);
     _XCUINode *n = [self _isim_resolveFor:action];
     if (!n) return;
     XCUIApplication *app = [self _isim_app];
@@ -356,6 +365,7 @@ static CGPoint center_of(_XCUINode *n) { return CGPointMake(CGRectGetMidX(n.fram
         xcui_sleep(300 / 1000.0); }];
 }
 - (void)typeText:(NSString *)text {
+    handle_interruptions([self _isim_app]);
     _XCUINode *n = [self _isim_resolveFor:@"type text"];
     if (!n) return;
     BOOL focus = n.focused;
@@ -366,8 +376,7 @@ static CGPoint center_of(_XCUINode *n) { return CGPointMake(CGRectGetMidX(n.fram
     NSArray *parts = [text componentsSeparatedByString:@"\n"];
     for (NSUInteger i = 0; i < parts.count; i++) {
         NSString *p = parts[i];
-        if ([p containsString:@";"]) _XCTIsimRecordFailure(@"typeText: ';' cannot be typed through isim's control channel (it separates commands)", nil, 0, YES);
-        p = [p stringByReplacingOccurrencesOfString:@";" withString:@""];
+        p = [p stringByReplacingOccurrencesOfString:@";" withString:@"\\;"];    /* `type`: "\;" is a literal ';' */
         if (p.length) [app _isim_send:[@"type " stringByAppendingString:p]];
         if (i + 1 < parts.count) [app _isim_send:@"key return"];
     }
@@ -419,16 +428,19 @@ static void describe_tree(NSMutableString *s, _XCUINode *n, int depth) {
     return c;
 }
 - (XCUIApplication *)_isim_app { return _referencedElement.binding == XCUIBindApp ? (XCUIApplication *)_referencedElement : _referencedElement.ownerApp ?: last_app; }
-- (void)tap { CGPoint p = self.screenPoint; [[self _isim_app] _isim_send:[NSString stringWithFormat:@"tap %g %g", p.x, p.y]]; xcui_sleep(kSettle); }
+- (void)tap { handle_interruptions([self _isim_app]); CGPoint p = self.screenPoint; [[self _isim_app] _isim_send:[NSString stringWithFormat:@"tap %g %g", p.x, p.y]]; xcui_sleep(kSettle); }
 - (void)doubleTap { [self tap]; [self tap]; }
 - (void)pressForDuration:(NSTimeInterval)d {
+    handle_interruptions([self _isim_app]);
     CGPoint p = self.screenPoint;
     [[self _isim_app] _isim_send:[NSString stringWithFormat:@"drag %g %g %g %g %g", p.x, p.y, p.x, p.y, d]];
     xcui_sleep((d + kSettle));
 }
 - (void)pressForDuration:(NSTimeInterval)d thenDragToCoordinate:(XCUICoordinate *)other {
+    handle_interruptions([self _isim_app]);
     CGPoint a = self.screenPoint, b = other.screenPoint;
-    [[self _isim_app] _isim_send:[NSString stringWithFormat:@"drag %g %g %g %g %g", a.x, a.y, b.x, b.y, fmax(0.2, d + 0.3)]];
+    /* pressed at the start for d seconds, then dragged over 0.3 s (and lifted) */
+    [[self _isim_app] _isim_send:[NSString stringWithFormat:@"drag %g %g %g %g 0.3 0 %g", a.x, a.y, b.x, b.y, fmax(0, d)]];
     xcui_sleep((d + 0.3 + kSettle));
 }
 @end
@@ -447,6 +459,10 @@ static NSString *app_for_bundle_id(NSString *bid) {
     return nil;
 }
 
+/* the application whose process gets the system alerts and the device buttons: the one the test launched last */
+static XCUIApplication *foreground_app(void) { XCUIApplication *a = last_app; return a && isim_xcui_running(a.handle) ? a : nil; }
+static NSString *const kSpringboard = @"com.apple.springboard";
+
 @implementation XCUIApplication
 - (instancetype)init {
     if ((self = [super init])) {
@@ -461,11 +477,26 @@ static NSString *app_for_bundle_id(NSString *bid) {
     return self;
 }
 - (instancetype)initWithBundleIdentifier:(NSString *)bid {
-    if ((self = [self init])) { _bundleIdentifier = [bid copy]; _appPath = app_for_bundle_id(bid); XCUIApplication *prev = last_app; _handle = prev && [prev.bundleIdentifier isEqualToString:bid] ? prev.handle : -1; }
+    if ((self = [self init])) {
+        _bundleIdentifier = [bid copy];
+        _springboard = [bid isEqualToString:kSpringboard];
+        _appPath = _springboard ? nil : app_for_bundle_id(bid);
+        XCUIApplication *prev = last_app;
+        _handle = prev && [prev.bundleIdentifier isEqualToString:bid] ? prev.handle : -1;
+    }
     return self;
 }
-- (XCUIApplicationState)state { return isim_xcui_running(_handle) ? XCUIApplicationStateRunningForeground : XCUIApplicationStateNotRunning; }
+/* SpringBoard (adapted): isim has no SpringBoard process under `isim test`; its elements are the system alerts the
+   foreground app shows, and its actions go to that app's process */
+- (int)_isim_target { if (!_springboard) return _handle; XCUIApplication *a = foreground_app(); return a ? a.handle : -1; }
+- (XCUIApplicationState)state {
+    if (_springboard) return XCUIApplicationStateRunningForeground;          /* the system is always running */
+    if (!isim_xcui_running(_handle)) return XCUIApplicationStateNotRunning;
+    _XCUINode *root = [self _isim_rawSnapshot];
+    return root.background ? XCUIApplicationStateRunningBackground : XCUIApplicationStateRunningForeground;
+}
 - (void)launch {
+    if (_springboard) { [self activate]; return; }
     if (!_appPath) { _XCTIsimRecordFailure(@"Failed to launch: no target application (isim test sets it from the UI-test target's TEST_TARGET_NAME)", nil, 0, YES); return; }
     if (isim_xcui_running(_handle)) isim_xcui_terminate(_handle);
     NSDictionary *info = [NSDictionary dictionaryWithContentsOfFile:[_appPath stringByAppendingPathComponent:@"Info.plist"]];
@@ -491,37 +522,144 @@ static NSString *app_for_bundle_id(NSString *bid) {
     _XCTIsimRecordFailure([NSString stringWithFormat:@"Failed to launch %@: %@", _appPath.lastPathComponent,
         isim_xcui_running(_handle) ? @"the app did not show a window within 30 seconds" : @"the app exited"], nil, 0, YES);
 }
-- (void)activate { if (!isim_xcui_running(_handle)) [self launch]; }
-- (void)terminate { isim_xcui_terminate(_handle); }
+/* waits until the app is in the foreground (YES) or in the background (NO) */
+- (BOOL)_isim_waitForeground:(BOOL)fg timeout:(double)t {
+    double end = xcui_now() + t;
+    do {
+        _XCUINode *root = [self _isim_rawSnapshot];
+        if (root && root.background != fg) return YES;
+        xcui_sleep(50 / 1000.0);
+    } while (xcui_now() < end && isim_xcui_running(_handle));
+    return NO;
+}
+- (void)activate {
+    if (_springboard) {                       /* SpringBoard to the front: the foreground app goes to the background */
+        XCUIApplication *a = foreground_app();
+        if (a) { [a _isim_send:@"home"]; [a _isim_waitForeground:NO timeout:5]; }
+        return;
+    }
+    if (!isim_xcui_running(_handle)) { [self launch]; return; }
+    last_app = self;
+    if ([self _isim_rawSnapshot].background) {
+        [self _isim_send:@"activate"];        /* back from the background, like tapping its icon */
+        if (![self _isim_waitForeground:YES timeout:5]) _XCTIsimRecordFailure(@"Failed to activate the application: it stayed in the background", nil, 0, YES);
+        xcui_sleep(kSettle);
+    }
+}
+- (void)terminate { if (!_springboard) isim_xcui_terminate(_handle); }
 - (BOOL)waitForState:(XCUIApplicationState)st timeout:(NSTimeInterval)t {
     double end = xcui_now() + t;
     do { if (self.state == st) return YES; xcui_sleep(50 / 1000.0); } while (xcui_now() < end);
     return self.state == st;
 }
-- (void)_isim_send:(NSString *)cmd { if (isim_xcui_send(_handle, cmd.UTF8String) != 0) _XCTIsimRecordFailure(@"The application is not running", nil, 0, YES); }
-- (_XCUINode *)_isim_snapshotQuiet:(BOOL)quiet {
-    char *text = isim_xcui_snapshot(_handle, 10);
-    if (getenv("ISIM_XCUI_DEBUG")) fprintf(stderr, "xcui snapshot (handle %d):\n%s\n", _handle, text ?: "(none)");
+- (void)_isim_send:(NSString *)cmd { if (isim_xcui_send([self _isim_target], cmd.UTF8String) != 0) _XCTIsimRecordFailure(@"The application is not running", nil, 0, YES); }
+- (_XCUINode *)_isim_rawSnapshot {
+    int h = [self _isim_target];
+    char *text = isim_xcui_snapshot(h, 10);
+    if (getenv("ISIM_XCUI_DEBUG")) fprintf(stderr, "xcui snapshot (handle %d):\n%s\n", h, text ?: "(none)");
     if (!text) return nil;
     _XCUINode *root = parse_snapshot(text);
     isim_xcui_free(text);
     return root;
 }
+static void collect_system(_XCUINode *n, NSMutableArray *out) {
+    for (_XCUINode *c in n.children) { if (c.system) [out addObject:c]; else collect_system(c, out); }
+}
+static void prune_system(_XCUINode *n) {
+    for (_XCUINode *c in [n.children copy]) { if (c.system) [n.children removeObject:c]; else prune_system(c); }
+}
+- (_XCUINode *)_isim_snapshotQuiet:(BOOL)quiet {
+    _XCUINode *root = [self _isim_rawSnapshot];
+    if (!root) {
+        if (!_springboard) return nil;
+        root = [_XCUINode new];               /* no app running: SpringBoard with nothing on it */
+        root.frame = CGRectZero;
+    }
+    if (!_springboard) { prune_system(root); return root; }
+    _XCUINode *sb = [_XCUINode new];
+    sb.type = XCUIElementTypeApplication; sb.typeName = @"application"; sb.frame = root.frame;
+    sb.identifier = kSpringboard; sb.label = @"SpringBoard"; sb.enabled = YES; sb.hittable = YES; sb.orientation = root.orientation;
+    NSMutableArray *alerts = [NSMutableArray array];
+    collect_system(root, alerts);
+    for (_XCUINode *a in alerts) { a.parent = sb; [sb.children addObject:a]; }
+    return sb;
+}
 - (NSString *)description { return [NSString stringWithFormat:@"Application '%@'", _bundleIdentifier]; }
 @end
 
+/* ---------------- UI interruption monitors ---------------- */
+/* Like XCUITest: before an action on the app, a system alert (SpringBoard) that is up interrupts it; the monitors
+   (most recently added first) get the alert until one returns true. */
+@interface _XCUIInterruptionMonitor : NSObject
+@property (copy) NSString *desc;
+@property (copy) BOOL (^handler)(XCUIElement *);
+@end
+@implementation _XCUIInterruptionMonitor
+- (NSString *)description { return [NSString stringWithFormat:@"UI interruption monitor “%@”", _desc]; }
+@end
+static NSMutableArray<_XCUIInterruptionMonitor *> *monitors;
+
+@implementation XCTestCase (XCUIInterruptionMonitor)
+- (id<NSObject>)addUIInterruptionMonitorWithDescription:(NSString *)description handler:(BOOL (^)(XCUIElement *))handler {
+    if (!monitors) monitors = [NSMutableArray array];
+    _XCUIInterruptionMonitor *m = [_XCUIInterruptionMonitor new];
+    m.desc = description; m.handler = handler;
+    [monitors addObject:m];
+    [self addTeardownBlock:^{ [monitors removeObject:m]; }];        /* monitors live for the test that adds them */
+    return m;
+}
+- (void)removeUIInterruptionMonitor:(id<NSObject>)monitor { [monitors removeObject:(id)monitor]; }
+@end
+
+static void handle_interruptions(XCUIApplication *app) {
+    if (!monitors.count || !app || app.springboard) return;
+    static BOOL busy;                         /* a handler's own actions do not re-enter */
+    if (busy) return;
+    XCUIApplication *sb = [[XCUIApplication alloc] initWithBundleIdentifier:kSpringboard];
+    XCUIElement *alert = sb.alerts.firstMatch;
+    if (!alert.exists) return;
+    busy = YES;
+    for (_XCUIInterruptionMonitor *m in monitors.reverseObjectEnumerator.allObjects) {
+        fprintf(stderr, "    t = interrupting element %s, invoking %s\n", alert.label.UTF8String, m.description.UTF8String);
+        if (m.handler(alert)) break;
+    }
+    busy = NO;
+    [alert waitForNonExistenceWithTimeout:3];
+}
+
 /* ---------------- XCUIDevice ---------------- */
 @implementation XCUIDevice
+@synthesize orientation = _orientation;
 + (XCUIDevice *)sharedDevice { static XCUIDevice *d; static dispatch_once_t o; dispatch_once(&o, ^{ d = [XCUIDevice new]; d->_orientation = UIDeviceOrientationPortrait; }); return d; }
+/* the device orientation the app under test reports (UIDevice.orientation), or the last one set */
+- (UIDeviceOrientation)orientation {
+    XCUIApplication *app = foreground_app();
+    _XCUINode *root = app ? [app _isim_rawSnapshot] : nil;
+    if (root.orientation > 0) _orientation = (UIDeviceOrientation)root.orientation;
+    return _orientation;
+}
 - (void)setOrientation:(UIDeviceOrientation)o {
     _orientation = o;
     NSString *name = o == UIDeviceOrientationLandscapeLeft ? @"landscapeleft" : o == UIDeviceOrientationLandscapeRight ? @"landscaperight"
-        : o == UIDeviceOrientationPortraitUpsideDown ? @"upsidedown" : @"portrait";
-    XCUIApplication *app = last_app;
-    if (app) { [app _isim_send:[@"rotate " stringByAppendingString:name]]; xcui_sleep(700 / 1000.0); }
+        : o == UIDeviceOrientationPortraitUpsideDown ? @"upsidedown" : o == UIDeviceOrientationPortrait ? @"portrait" : nil;
+    XCUIApplication *app = foreground_app();
+    if (!name) { fprintf(stderr, "XCUIDevice: orientation %ld (face up/down) is not simulated; the device keeps its orientation\n", (long)o); return; }
+    if (!app) return;
+    [app _isim_send:[@"rotate " stringByAppendingString:name]];
+    double end = xcui_now() + 5;              /* the app has turned, then the rotation animation */
+    while (xcui_now() < end && [app _isim_rawSnapshot].orientation != o) xcui_sleep(50 / 1000.0);
+    xcui_sleep(500 / 1000.0);
 }
 - (void)pressButton:(XCUIDeviceButton)b {
-    XCUIApplication *app = last_app;
-    if (b == XCUIDeviceButtonHome && app) { [app _isim_send:@"home"]; xcui_sleep(400 / 1000.0); }
+    XCUIApplication *app = foreground_app();
+    if (b == XCUIDeviceButtonHome) {          /* the foreground app goes to the background (no home screen under isim test) */
+        if (!app) return;
+        [app _isim_send:@"home"];
+        [app _isim_waitForeground:NO timeout:5];
+        xcui_sleep(kSettle);
+        return;
+    }
+    /* stub: Apple's Simulator has no volume buttons (XCUIDevice.Button.volumeUp/Down are device-only) */
+    fprintf(stderr, "XCUIDevice: the volume buttons exist only on devices (as with Apple's Simulator); press ignored\n");
 }
 @end

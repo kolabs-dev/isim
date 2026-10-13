@@ -11,8 +11,10 @@
  *   ISIM_SCRIPT    "wait S; tap X Y; drag X1 Y1 X2 Y2; shot FILE.png; quit" (points)
  *                  "tapid ID; holdid ID S" (view by accessibilityIdentifier), "type TEXT", "key backspace|return|tab|escape", "dump" (view tree), "taptext TEXT" (view showing that text)
  *                  shell only: "home", "launch BUNDLE-ID", "lock", "unlock", "switcher", "notifications", "controlcenter",
- *                  "spotlight", "island", "bgtask BUNDLE-ID TASK-ID", "openurl URL", "homepage N|library", "swipehome left|right",
- *                  "push BUNDLE-ID FILE", "handoff TYPE [URL] [TITLE]", "terminate BUNDLE-ID"
+ *                  "spotlight", "siri [PHRASE]", "island", "bgtask BUNDLE-ID TASK-ID", "openurl URL", "homepage N|library", "iconstyle STYLE [#RRGGBB] [small|large]", "swipehome left|right",
+ *                  "push BUNDLE-ID FILE", "handoff TYPE [URL] [TITLE]", "terminate BUNDLE-ID", "appclip URL|register|unregister|expire|list ...",
+ *                  "focus [dnd|personal|work|sleep|off]", "actionbutton [assign CONTROL]", "lockcontrol left|right CONTROL",
+ *                  "standby on|off", "lockscreen customize|done"
  *
  * Shell mode (`isim boot`): isim_shell_main() owns the window; every app (home screen, Settings,
  * installed apps) is a child process ("client") that renders into a shared-memory surface and
@@ -1013,24 +1015,42 @@ static void load_clock_prefs(void) {
 enum { SB_APP, SB_LOCK, SB_CC };
 #define SB_CARRIER "Carrier"                                    /* the carrier name Apple's Simulator shows */
 static const double sb_battery = 0.8;                           /* the charge the battery icon shows */
+static int la_detached_shown(void);                       /* shell_system.inc: the island reaches the cellular bars */
+static int sb_cell_covered;                               /* an app under the shell: told by "statusbar-cellular 0|1" */
 static void draw_status_bar(int style, const double *fg) {
     double c = fg[0];
     if ((dev.orientation == 3 || dev.orientation == 4) && portrait_dev.width < 700) return;  /* iPhones hide it in landscape */
     double sb = dev.safe_top >= 44 ? 54 : dev.safe_top;   /* status bar band height */
     double cy = dev.has_island ? 18 + 11 : sb / 2;          /* text baseline centre */
     double lx = dev.has_island ? 51 + 26 : -1;               /* centre of the left ear (-1: left-aligned) */
-    double rx = dev.width - (dev.has_island ? 34 : 10), left0 = 8;
+    /* iPads (the 24 pt band): the time and the date at the leading edge, Wi-Fi and the battery at the trailing edge, no
+       cellular bars (the presets are Wi-Fi models). The 20 pt edge insets and the 14 pt text are estimated from iPadOS
+       screenshots, not measured. */
+    int pad = portrait_dev.width >= 700;
+    double rx = dev.width - (dev.has_island ? 34 : pad ? 20 : 10), left0 = pad ? 20 : 8;
     if (style == SB_CC && dev.has_island) { cy = dev.safe_top - 4; lx = -1; left0 = 30; rx = dev.width - 30; }
-    char left[16] = ""; double lsize = 17;
+    char left[16] = "", date[32] = ""; double lsize = 17;
     if (style == SB_APP) {
         load_clock_prefs();
         time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
         if (clock_prefs.hour24) snprintf(left, sizeof left, "%02d:%02d", tm.tm_hour, tm.tm_min);
-        else snprintf(left, sizeof left, "%d:%02d", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min);
+        else snprintf(left, sizeof left, "%d:%02d%s", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min,
+                      pad ? (tm.tm_hour < 12 ? " AM" : " PM") : "");   /* iPadOS keeps AM / PM; iPhones drop it */
+        if (pad) {                         /* "9:41 AM  Mon Jun 10": short weekday, short month, day (English names) */
+            static const char *wd[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+            static const char *mo[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+            snprintf(date, sizeof date, "%s %s %d", wd[tm.tm_wday % 7], mo[tm.tm_mon % 12], tm.tm_mday);
+            lsize = 14;
+        }
     } else if (style == SB_CC || isim_os_version() / 10000 <= 18) { snprintf(left, sizeof left, SB_CARRIER); lsize = 15; }
     if (*left) {
         double tw, th; isim_text_measure(left, lsize, 0.3, 0, 0, 1, &tw, &th);
-        isim_text_draw(left, lx >= 0 ? lx - tw / 2 : left0, cy - th / 2, 0, lsize, 0.3, 0, 0, 1, fg);
+        double x0 = lx >= 0 ? lx - tw / 2 : left0;
+        isim_text_draw(left, x0, cy - th / 2, 0, lsize, 0.3, 0, 0, 1, fg);
+        if (*date) {                                         /* the date after the time, in the same weight */
+            double dw, dh; isim_text_measure(date, lsize, 0.3, 0, 0, 1, &dw, &dh);
+            isim_text_draw(date, x0 + tw + 6, cy - dh / 2, 0, lsize, 0.3, 0, 0, 1, fg);
+        }
     }
     /* battery */
     double bw = 25, bh = 12, bx = rx - bw, by = cy - bh / 2;
@@ -1053,9 +1073,10 @@ static void draw_status_bar(int style, const double *fg) {
         cairo_arc(cr, wx, wy, 3 + i * 3.6, -M_PI * 0.75, -M_PI * 0.25);
         cairo_set_line_width(cr, 2.0); cairo_stroke(cr);
     }
-    /* cellular bars */
+    /* cellular bars (not on the Wi-Fi iPads) */
     double cx0 = wx - 30;
-    for (int i = 0; i < 4; i++) isim_gfx_fill_rounded(cx0 + i * 4.5, cy + 5 - (4 + i * 2.6), 3, 4 + i * 2.6, 1, fg);
+    int covered = style == SB_APP && dev.has_island == 1 && (sb_cell_covered || la_detached_shown());   /* under the island's compact / detached parts */
+    for (int i = 0; i < 4 && !pad && !covered; i++) isim_gfx_fill_rounded(cx0 + i * 4.5, cy + 5 - (4 + i * 2.6), 3, 4 + i * 2.6, 1, fg);
 }
 
 /* the hardware: the Dynamic Island or the notch, and (home) the home indicator */
@@ -1235,7 +1256,7 @@ static int script_step(struct isim_event *ev) {
     }
     if (sdrag.on && !npending) {
         double t = now();
-        if (t - sdrag.last >= 0.016) {
+        if (t >= sdrag.t0 && t - sdrag.last >= 0.016) {      /* (before t0: pressed at the start, not moving yet) */
             double p = fmin(1, (t - sdrag.t0) / sdrag.dur);
             sdrag.last = t;
             int was_holding = sdrag.hold_end > 0;
@@ -1267,7 +1288,8 @@ static int script_step(struct isim_event *ev) {
     char *cmd_start = script_pos;
     sscanf(script_pos, "%15[^;\n ]%n", cmd, &n);
     char *args = script_pos + n;
-    char *end = strpbrk(script_pos, ";\n");
+    char *end = script_pos;                 /* the separator: ';' or a newline; "\;" is a literal ';' (in `type`) */
+    while ((end = strpbrk(end, ";\n")) && *end == ';' && end > script_pos && end[-1] == '\\') end++;
     if (end) *end = 0;                      /* arguments end at the separator */
     script_pos = end ? end + 1 : script_pos + strlen(script_pos);
     if (!strcmp(cmd, "wait") && sscanf(args, "%lf", &a) == 1) {
@@ -1281,11 +1303,13 @@ static int script_step(struct isim_event *ev) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = a, .y = b };
         script_resume = now() + 0.05;
     } else if (!strcmp(cmd, "drag") && sscanf(args, "%lf %lf %lf %lf %lf", &a, &b, &c, &d, &sdrag.dur) == 5 && sdrag.dur > 0) {
-        /* "drag x1 y1 x2 y2 secs [hold]": a timed drag, optionally held at the end for hold seconds before lifting */
-        double h = 0; sscanf(args, "%*f %*f %*f %*f %*f %lf", &h);
+        /* "drag x1 y1 x2 y2 secs [hold [press]]": a timed drag, optionally held at the end for hold seconds before
+           lifting, and pressed at the start for press seconds before moving (XCUITest's press(forDuration:thenDragTo:)) */
+        double h = 0, pr = 0; sscanf(args, "%*f %*f %*f %*f %*f %lf %lf", &h, &pr);
+        if (pr < 0) pr = 0;
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
-        sdrag.on = 1; sdrag.a = a; sdrag.b = b; sdrag.c = c; sdrag.d = d; sdrag.p = 0; sdrag.t0 = sdrag.last = now(); sdrag.hold = h > 0 ? h : 0; sdrag.hold_end = 0;
-        script_resume = now() + sdrag.dur + sdrag.hold + 0.02;
+        sdrag.on = 1; sdrag.a = a; sdrag.b = b; sdrag.c = c; sdrag.d = d; sdrag.p = 0; sdrag.t0 = sdrag.last = now() + pr; sdrag.hold = h > 0 ? h : 0; sdrag.hold_end = 0;
+        script_resume = now() + pr + sdrag.dur + sdrag.hold + 0.02;
     } else if (!strcmp(cmd, "drag") && sscanf(args, "%lf %lf %lf %lf", &a, &b, &c, &d) == 4) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
         for (int i = 1; i <= 5; i++) pending[npending++] = (struct isim_event){ .type = EV_TOUCH_MOVE, .x = a + (c - a) * i / 5, .y = b + (d - b) * i / 5 };
@@ -1302,7 +1326,11 @@ static int script_step(struct isim_event *ev) {
     } else if (!strcmp(cmd, "holdid") && sscanf(args, " %63[^; ] %lf", arg, &a) == 2) {
         pending[npending++] = (struct isim_event){ .type = EV_ID_DOWN }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         snprintf(held_id, sizeof held_id, "%s", arg); held_until = now() + a; script_resume = held_until + 0.05;
-    } else if (!strcmp(cmd, "type") && sscanf(args, " %511[^;]", arg) == 1) {
+    } else if (!strcmp(cmd, "type") && (args += strspn(args, " \t"), *args)) {
+        /* "type TEXT": the rest of the command; "\;" types ';' (a bare ';' ends the command) */
+        size_t k = 0;
+        for (const char *s = args; *s && k < sizeof arg - 1; s++) { if (s[0] == '\\' && s[1] == ';') s++; arg[k++] = *s; }
+        arg[k] = 0;
         for (char *t = arg; *t && npending < 8; t += strlen(pending[npending - 1].text)) {
             pending[npending++] = (struct isim_event){ .type = EV_TEXT };
             snprintf(pending[npending - 1].text, 32, "%s", t);       /* 31-byte chunks (ASCII-safe) */
@@ -1391,21 +1419,45 @@ static int script_step(struct isim_event *ev) {
         pending[npending++] = (struct isim_event){ .type = EV_TEXT_DOWN }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         pending[npending++] = (struct isim_event){ .type = EV_TEXT_UP }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         script_resume = now() + 0.05;
-    } else if (!strcmp(cmd, "home")) { pending[npending++] = (struct isim_event){ .type = EV_HOME }; script_resume = now() + 0.3; }
+    } else if (!strcmp(cmd, "home")) {
+        /* under the shell (isim boot): the home screen. The app alone (isim run, XCUITest): it goes to the
+           background (no home screen to show); `activate` brings it back, like tapping its icon */
+        pending[npending++] = (struct isim_event){ .type = shell_mode ? EV_HOME : EV_BACKGROUND }; script_resume = now() + 0.3;
+    } else if (!strcmp(cmd, "activate") && !shell_mode) {
+        pending[npending++] = (struct isim_event){ .type = EV_FOREGROUND }; script_resume = now() + 0.3;
+    }
     else if (!strcmp(cmd, "launch") && sscanf(args, " %63[^; ]", arg) == 1) {
         pending[npending++] = (struct isim_event){ .type = EV_LAUNCH_ID }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         script_resume = now() + 0.5;
-    } else if (!strcmp(cmd, "remote") && sscanf(args, " %63[^;]", arg) == 1) {    /* MPRemoteCommandCenter: remote play|pause|toggle|next|previous|seek S|skipforward|skipback */
+    } else if (!strcmp(cmd, "remote") && !shell_mode && sscanf(args, " %63[^;]", arg) == 1) {    /* MPRemoteCommandCenter: remote play|pause|toggle|next|previous|seek S|skipforward|skipback */
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         void isim_media_remote_post(const char *cmd);
         isim_media_remote_post(arg);
+    } else if (!strcmp(cmd, "volume") && !shell_mode && sscanf(args, " %63[^;]", arg) == 1) {    /* the volume buttons (the app alone): up|down|0...1 */
+        double isim_device_volume(void); void isim_device_volume_set(double v, int save);
+        double v = isim_device_volume();
+        if (!strncmp(arg, "up", 2)) v += 1.0 / 16; else if (!strncmp(arg, "down", 4)) v -= 1.0 / 16; else v = atof(arg);
+        v = fmin(1, fmax(0, round(v * 16) / 16));
+        isim_device_volume_set(v, 1);
+        fprintf(stderr, "isim: volume %d%%\n", (int)lround(v * 100));
+        pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "volume %.4f", v);
     } else if (!strcmp(cmd, "audio") && sscanf(args, " %63[^;]", arg) == 1) {     /* AVAudioSession: audio interrupt begin|end [resume], audio route NAME */
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         void isim_audio_session_post(const char *ev);
         isim_audio_session_post(arg);
+    } else if ((!strcmp(cmd, "standby") || !strcmp(cmd, "lockscreen")) && shell_mode) {
+        /* WidgetKit system UI (shell_system.inc): "standby on|off" (StandBy: charging, landscape), "lockscreen customize|done"
+           (the Lock Screen editor: accessory widgets) */
+        for (char *e = args + strlen(args) - 1; e >= args && *e == ' '; e--) *e = 0;
+        while (*args == ' ') args++;
+        pending[npending++] = (struct isim_event){ .type = EV_SHELL_CMD };
+        snprintf(pending[npending - 1].text, sizeof pending->text, "%s%s%s", cmd, *args ? " " : "", args);
+        script_resume = now() + 0.4;
     } else if (!strcmp(cmd, "lock") || !strcmp(cmd, "unlock") || !strcmp(cmd, "switcher") || !strcmp(cmd, "notifications") || !strcmp(cmd, "controlcenter")
-               || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || (!strcmp(cmd, "handoff") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage")
-               || (!strcmp(cmd, "push") && shell_mode) || (!strcmp(cmd, "terminate") && shell_mode)) {
+               || !strcmp(cmd, "remote") || !strcmp(cmd, "volume") || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || (!strcmp(cmd, "handoff") && shell_mode) || (!strcmp(cmd, "appclip") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage") || !strcmp(cmd, "iconstyle")
+               || (!strcmp(cmd, "focus") && shell_mode && args[strspn(args, " ")] && args[strspn(args, " ")] != ';')   /* `focus MODE`; bare `focus`: the window */
+               || !strcmp(cmd, "actionbutton") || !strcmp(cmd, "lockcontrol")
+               || (!strcmp(cmd, "push") && shell_mode) || (!strcmp(cmd, "terminate") && shell_mode) || (!strcmp(cmd, "siri") && shell_mode)) {
         /* system UI and integration (shell_system.inc): lock/unlock, app switcher, Notification Center, Control Center,
            "bgtask BUNDLE-ID TASK-ID" (like Xcode's _simulateLaunchForTaskWithIdentifier), "island" (expand),
            "push BUNDLE-ID FILE" (a remote notification payload, like `xcrun simctl push`);
@@ -1489,6 +1541,10 @@ static int next_event(struct isim_event *ev, double timeout) {
         ssize_t n = recv(client_sock, &m, sizeof m, 0);
         if (n <= 0) { ev->type = EV_QUIT; return 1; }        /* the shell went away */
         *ev = m.ev; ev->timestamp = isim_time();
+        if (ev->type == EV_SYSTEM && !strncmp(ev->text, "statusbar-cellular ", 19)) {   /* the status bar we draw */
+            sb_cell_covered = atoi(ev->text + 19) != 0;
+            memset(ev, 0, sizeof *ev); ev->type = EV_REDRAW;
+        }
         return 1;
     }
     for (;;) {
@@ -1783,6 +1839,9 @@ int isim_media_thumbnail_png(const char *url, double t, double max_side, void **
 int isim_media_transcode(const char *in, const char *out);
 void isim_media_free(void *p);
 int isim_tts_synthesize(const char *text, const char *voice, double wpm, double pitch, float **out, long *frames, double *rate);
+struct isim_tts_event; int isim_tts_available(void);
+int isim_tts_render(const char *text, int ssml, const char *voice, double wpm, double pitch, double volume, float **out, long *frames, double *rate,
+                    struct isim_tts_event **events, int *nevents);
 int isim_audio_input_start(void);
 long isim_audio_input_read(float *out, long max_frames);
 void isim_audio_input_stop(void);
@@ -1793,6 +1852,12 @@ int isim_image_read_bgra(int hd, int x, int y, int w, int h, unsigned char *out)
 /* host_capture.c */
 int isim_camera_source(char *desc, int len);
 int isim_camera_open(int max_side, double fps, int *w, int *h);
+void isim_camera_set_effects(int h, double zoom, double gain);
+int isim_camera_source_at(int position, char *desc, int len);
+int isim_heif_can_encode(void);
+long isim_heif_encode_bgra(const unsigned char *bgra, int w, int h, int stride, double quality, unsigned char **out);
+int isim_heif_decode(const void *data, long len, int *w, int *h, unsigned char **rgba);
+int isim_camera_open_at(int position, int max_side, double fps, int *w, int *h);
 long isim_camera_frame(int h, unsigned char *out, long seq, double timeout);
 int isim_camera_preview(int h);
 void isim_camera_close(int h);
@@ -1802,6 +1867,7 @@ long isim_media_reader_read(int hd, void *buf, long n);
 void isim_media_reader_close(int hd);
 int isim_vision_available(int kind);
 char *isim_vision_barcodes(const unsigned char *bgra, int w, int h, int stride);
+char *isim_vision_barcodes_ex(const unsigned char *bgra, int w, int h, int stride, int extended);
 char *isim_vision_text(const unsigned char *bgra, int w, int h, int stride, const char *langs);
 char *isim_vision_text_languages(void);
 int isim_speech_available(void);
@@ -1811,6 +1877,12 @@ int isim_audio_stream_open(double volume);
 long isim_audio_stream_write(int s, const float *pcm, long frames);
 void isim_audio_stream_control(int s, int paused, double volume);
 void isim_audio_stream_close(int s);
+double isim_device_volume(void); void isim_device_volume_set(double v, int save);
+int isim_media_open_rate(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume, double rate);
+struct isim_acodec; struct isim_acodec *isim_acodec_open(int encode, const char *name, double rate, int channels, long bitrate);
+int isim_acodec_frame_size(struct isim_acodec *h); int isim_acodec_send_pcm(struct isim_acodec *h, const float *pcm, int frames);
+int isim_acodec_receive_packet(struct isim_acodec *h, unsigned char *out, int cap); int isim_acodec_send_packet(struct isim_acodec *h, const unsigned char *d, int n);
+int isim_acodec_receive_pcm(struct isim_acodec *h, float *out, int cap, int *channels, double *rate); void isim_acodec_close(struct isim_acodec *h);
 int isim_web_available(char *why, int cap); void isim_web_send(const char *line); char *isim_web_next(double timeout);
 void isim_web_free(char *s); int isim_web_frame(int view, int *w, int *h); void isim_web_release(int view);
 struct isim_tls; struct isim_tls *isim_tls_connect(int fd, const char *host, int verify, const char *alpn, int min_version, char *err, int errlen, int *code);
@@ -1904,15 +1976,17 @@ static const struct shim isim_table[] = {
     H(isim_gfx_offscreen_begin), H(isim_gfx_offscreen_snapshot), H(isim_gfx_offscreen_end), H(isim_gfx_offscreen_depth),
     H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_text_ink_markup), H(isim_tl_create), H(isim_tl_free), H(isim_tl_size), H(isim_tl_line_count), H(isim_tl_line), H(isim_tl_index_rect), H(isim_tl_index_at), H(isim_tl_draw), H(isim_tl_set_tabs), H(isim_text_draw_markup),
     H(isim_regex_compile), H(isim_regex_free), H(isim_regex_capture_count), H(isim_regex_group_number), H(isim_regex_error_message), H(isim_regex_match),
-    H(isim_media_probe), H(isim_media_open), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
-    H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize),
+    H(isim_media_probe), H(isim_media_open), H(isim_media_open_rate), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
+    H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize), H(isim_tts_available), H(isim_tts_render),
     H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
     H(isim_audio_set_pan), H(isim_image_read_bgra),
-    H(isim_camera_source), H(isim_camera_open), H(isim_camera_frame), H(isim_camera_preview), H(isim_camera_close),
+    H(isim_camera_source), H(isim_camera_open), H(isim_camera_frame), H(isim_camera_preview), H(isim_camera_close), H(isim_camera_source_at), H(isim_camera_open_at), H(isim_camera_set_effects), H(isim_vision_barcodes_ex), H(isim_heif_can_encode), H(isim_heif_encode_bgra), H(isim_heif_decode),
     H(isim_ffmpeg_run), H(isim_media_reader_open), H(isim_media_reader_read), H(isim_media_reader_close),
     H(isim_vision_available), H(isim_vision_barcodes), H(isim_vision_text), H(isim_vision_text_languages),
     H(isim_speech_available), H(isim_speech_transcribe), H(isim_audio_session_poll),
     H(isim_audio_stream_open), H(isim_audio_stream_write), H(isim_audio_stream_control), H(isim_audio_stream_close),
+    H(isim_acodec_open), H(isim_acodec_frame_size), H(isim_acodec_send_pcm), H(isim_acodec_receive_packet), H(isim_acodec_send_packet),
+    H(isim_acodec_receive_pcm), H(isim_acodec_close), H(isim_device_volume), H(isim_device_volume_set), H(isim_media_remote_post),
     ISIM_CG_EXPORTS(H),
     H(isim_web_available), H(isim_web_send), H(isim_web_next), H(isim_web_free), H(isim_web_frame), H(isim_web_release),
     H(isim_tls_connect), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close), H(isim_tls_read_nb), H(isim_tls_write_nb), H(isim_tls_probe),

@@ -1,0 +1,66 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		4B6B24B507515517926A28C4 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 5E6F6E1090893578FB25E164; };
+		61AD1B35C5BEBF6ECE478A3A /* Foo.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F2924CA20AA911307555EFA8; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		C2318527F8A5EFE9C3AB8E03 /* Foo.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = F2924CA20AA911307555EFA8; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		8E296268D80116A83FEC6CED /* Embed Frameworks */ = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; files = (61AD1B35C5BEBF6ECE478A3A, ); runOnlyForDeploymentPostprocessing = 0; dstPath = ""; dstSubfolderSpec = 10; name = "Embed Frameworks"; };
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		5E6F6E1090893578FB25E164 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		B08901B78A96AC3D4471331D /* CarthageApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CarthageApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F2924CA20AA911307555EFA8 /* Foo.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Foo.xcframework; path = Carthage/Build/Foo.xcframework; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		9CBBB7975B4A4345619CEAFB /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (C2318527F8A5EFE9C3AB8E03, ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		10C5C634EF849027DAA1BAE8 /*  */ = {isa = PBXGroup; children = (728D775628278431385A031D, 20EB771A81F87F93D7B55665, 1A02E591B2CAE0AC66EF6F33, ); name = ""; sourceTree = "<group>"; };
+		1A02E591B2CAE0AC66EF6F33 /* Products */ = {isa = PBXGroup; children = (B08901B78A96AC3D4471331D, ); name = Products; sourceTree = "<group>"; };
+		20EB771A81F87F93D7B55665 /* Frameworks */ = {isa = PBXGroup; children = (F2924CA20AA911307555EFA8, ); name = Frameworks; sourceTree = "<group>"; };
+		728D775628278431385A031D /* App */ = {isa = PBXGroup; children = (5E6F6E1090893578FB25E164, ); path = App; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		745CA21D724D48086E15DA38 /* CarthageApp */ = {isa = PBXNativeTarget; buildConfigurationList = B6D9FAC653FA865EA9D1F6D5; buildPhases = (D22A207B2EFAF591CED20F52, 9CBBB7975B4A4345619CEAFB, 1EC4299CADBDE9FA774563FC, 8E296268D80116A83FEC6CED, ); buildRules = (); dependencies = (); name = CarthageApp; productName = CarthageApp; productReference = B08901B78A96AC3D4471331D; productType = "com.apple.product-type.application"; };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		3F499DDB7F77ADF943916A1D /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 1600; }; buildConfigurationList = CC9731DF6A943165998016A4; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base, ); mainGroup = 10C5C634EF849027DAA1BAE8; productRefGroup = 1A02E591B2CAE0AC66EF6F33; projectDirPath = ""; projectRoot = ""; targets = (745CA21D724D48086E15DA38, ); };
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1EC4299CADBDE9FA774563FC /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D22A207B2EFAF591CED20F52 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (4B6B24B507515517926A28C4, ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		3CD7480F7DDFEEF7C8D323E6 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; }; name = Debug; };
+		520DDA434793280A3CA66A03 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", ); PRODUCT_BUNDLE_IDENTIFIER = dev.isim.fixtures.CarthageApp; PRODUCT_NAME = "$(TARGET_NAME)"; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
+		B07F4975746C64FE33956BAE /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; }; name = Release; };
+		FE58F429E2457F8C0E046F10 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", ); PRODUCT_BUNDLE_IDENTIFIER = dev.isim.fixtures.CarthageApp; PRODUCT_NAME = "$(TARGET_NAME)"; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		B6D9FAC653FA865EA9D1F6D5 /* Build configuration list for PBXNativeTarget "CarthageApp" */ = {isa = XCConfigurationList; buildConfigurations = (520DDA434793280A3CA66A03, FE58F429E2457F8C0E046F10, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		CC9731DF6A943165998016A4 /* Build configuration list for PBXProject */ = {isa = XCConfigurationList; buildConfigurations = (3CD7480F7DDFEEF7C8D323E6, B07F4975746C64FE33956BAE, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+
+	};
+	rootObject = 3F499DDB7F77ADF943916A1D /* Project object */;
+}

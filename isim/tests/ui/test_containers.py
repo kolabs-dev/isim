@@ -239,6 +239,8 @@ def test_scroll_indicators_and_bounce(launch):
 
 @pytest.mark.os_matrix
 def test_custom_containers(launch, ios):
+    if int(str(ios[0] or 18)) < 18:
+        pytest.skip("custom containers (Group(subviews:), ForEach(sections:), container values) are iOS 18")
     app = launch("HelloContainers", env={"PAGE": "subviews"})
     app.wait_view(r"id=section-count-2")
     app.wait_still()

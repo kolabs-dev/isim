@@ -115,11 +115,13 @@ final class PencilViewController: UIViewController, UIPencilInteractionDelegate,
         if g.state == .began || g.state == .changed { print(String(format: "hover z %.2f", g.zOffset)) }
     }
     // Apple Pencil double-tap and squeeze (iOS 17.5 API)
+    @available(iOS 17.5, *)
     func pencilInteraction(_ interaction: UIPencilInteraction, didReceiveTap tap: UIPencilInteraction.Tap) {
         canvas.eraser.toggle()
         tool.text = canvas.eraser ? "Tool: eraser" : "Tool: pen"
         print("pencil double-tap: \(tool.text!) (hovering \(tap.hoverPose != nil))")
     }
+    @available(iOS 17.5, *)
     func pencilInteraction(_ interaction: UIPencilInteraction, didReceiveSqueeze squeeze: UIPencilInteraction.Squeeze) {
         print("pencil squeeze phase \(squeeze.phase.rawValue)")
     }

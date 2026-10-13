@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Shortcuts</string>
+	<key>CFBundleExecutable</key>
+	<string>Shortcuts</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.isim.shortcuts</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>dev.isim.shortcuts</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>shortcuts</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

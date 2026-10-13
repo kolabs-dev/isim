@@ -162,7 +162,6 @@ typedef NS_ENUM(NSInteger, UIImageSymbolVariableValueMode) {
 /* tiles the image across the rect (from the context's origin) */
 - (void)drawAsPatternInRect:(CGRect)rect;
 @end
-/* HEIC data: isim has no HEIC encoder, so nil (as when encoding is unavailable) */
 UIKIT_EXTERN NSData *_Nullable UIImageHEICRepresentation(UIImage *image) NS_SWIFT_NAME(UIImage.heicData(self:)) API_AVAILABLE(ios(17.0));
 
 /* a data set of the app's asset catalog (Name.dataset): its data and type identifier */

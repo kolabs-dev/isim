@@ -3,8 +3,9 @@
 // timeControlStatus, readyForDisplay (Foundation KVO: the observable properties are @objc and these classes post
 // will/didChangeValue(forKey:) themselves — automaticallyNotifiesObservers(forKey:) is false).
 // Decoding runs in the host's ffmpeg (host_media.c): frames stream into an image that AVPlayerLayer draws, the
-// soundtrack streams into the audio mixer. The clock is the host's monotonic clock; only rate 1 plays sound
-// (other positive rates play video only); reverse playback is not supported.
+// soundtrack streams into the audio mixer. The clock is the host's monotonic clock; at rates other than 1 the
+// soundtrack is time-stretched (pitch kept, like AVAudioTimePitchAlgorithm.spectral); reverse playback is not
+// supported.
 import UIKit
 import isim_host
 
@@ -72,6 +73,11 @@ open class AVPlayerItem: NSObject, @unchecked Sendable {
     }
     @objc open var presentationSize: CGSize { guard let i = _info, i.hasVideo else { return .zero }; return CGSize(width: i.width, height: i.height) }
     open func currentTime() -> CMTime { CMTime(seconds: _player?.currentItem === self ? _player!._now() : _position, preferredTimescale: 600) }
+    /// the item's playback time as a timebase (read-only: it follows the player's time and rate)
+    open lazy var timebase: CMTimebase? = CMTimebase(_isimProvider: { [weak self] in
+        guard let self else { return (0, 0) }
+        return (self.currentTime().seconds, self._player?.currentItem === self ? Double(self._player?.rate ?? 0) : 0)
+    })
     open var currentDate: Date? { nil }
     open var isPlaybackLikelyToKeepUp: Bool { status == .readyToPlay }
     open var isPlaybackBufferFull: Bool { false }
@@ -196,6 +202,7 @@ open class AVPlayer: NSObject, @unchecked Sendable {
         }
     }
     var _rate: Float = 0
+    var _mediaRate: Float = 1
     var _anchor: Double = 0          // media time at _anchorWall
     var _anchorWall: Double = 0
     var _media: Int32 = 0            // host playback session
@@ -319,7 +326,8 @@ open class AVPlayer: NSObject, @unchecked Sendable {
     }
     func _applyAudio() {
         guard _media != 0 else { return }
-        let paused = timeControlStatus != .playing || _rate != 1
+        if timeControlStatus == .playing, _rate > 0, _rate != _mediaRate { _openMedia(at: _now()); return }   // a new rate: a new soundtrack
+        let paused = timeControlStatus != .playing || _rate <= 0
         isim_media_set_audio(_media, paused ? 1 : 0, isMuted ? 0 : Double(volume))
     }
     func _updateTicking() {
@@ -332,8 +340,10 @@ open class AVPlayer: NSObject, @unchecked Sendable {
         _closeMedia()
         guard let item = currentItem, let info = item._info, info.ok, let url = item.asset._url else { return }
         let path = url.isFileURL ? url.path : url.absoluteString
-        _media = isim_media_open(path, t, info.width, info.height, info.fps, info.hasVideo ? 1 : 0, info.hasAudio ? 1 : 0, isMuted ? 0 : Double(volume))
+        let r = _rate > 0 ? _rate : 1
+        _media = isim_media_open_rate(path, t, info.width, info.height, info.fps, info.hasVideo ? 1 : 0, info.hasAudio ? 1 : 0, isMuted ? 0 : Double(volume), Double(r))
         _mediaStart = t
+        _mediaRate = r
         _needsFrame = info.hasVideo && _media != 0
         _applyAudio()
         _updateTicking()
@@ -543,7 +553,22 @@ open class AVPlayerLayer: CALayer {
         guard let size = player?.currentItem?.presentationSize, size.width > 0, size.height > 0 else { return .zero }
         return AVMakeRect(aspectRatio: size, gravity: videoGravity, in: bounds)
     }
+    /// isim (AVKit): while the video plays in Picture in Picture, the layer shows iOS's placeholder instead
+    public var _isimPictureInPicture = false { didSet { setNeedsDisplay() } }
     open override func draw(in ctx: CGContext) {
+        if _isimPictureInPicture {
+            let b = bounds
+            ctx.setFillColor(UIColor(white: 0.08, alpha: 1).cgColor); ctx.fill(b)
+            UIGraphicsPushContext(ctx)
+            let s = min(48, b.height * 0.3)
+            UIImage(systemName: "pip")?.withTintColor(UIColor(white: 0.55, alpha: 1)).draw(in: CGRect(x: b.midX - s / 2, y: b.midY - s * 0.9, width: s, height: s))
+            let text = "This video is playing in Picture in Picture." as NSString
+            let style = NSMutableParagraphStyle(); style.alignment = .center
+            let attrs: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 13), .foregroundColor: UIColor(white: 0.55, alpha: 1), .paragraphStyle: style]
+            text.draw(in: CGRect(x: b.minX + 16, y: b.midY + s * 0.25, width: b.width - 32, height: 40), withAttributes: attrs)
+            UIGraphicsPopContext()
+            return
+        }
         guard let p = player, p._frame != 0, let size = p.currentItem?.presentationSize, size.width > 0 else { return }
         let b = bounds
         let r = AVMakeRect(aspectRatio: size, gravity: videoGravity, in: b)
@@ -569,4 +594,9 @@ public func AVMakeRect(aspectRatio: CGSize, insideRect boundingRect: CGRect) -> 
 extension AVPlayer {
     /// isim: host image handle of the current video frame (0 before the first frame); SpriteKit's SKVideoNode draws it
     public var _isimVideoFrame: Int32 { _frame }
+    /// isim (AVKit's Picture in Picture): the current item's file or URL, video size and frame rate
+    public var _isimMedia: (url: String, width: Double, height: Double, fps: Double)? {
+        guard let item = currentItem, let info = item._info, info.ok, info.hasVideo, let url = item.asset._url else { return nil }
+        return (url.isFileURL ? url.path : url.absoluteString, info.width, info.height, info.fps)
+    }
 }

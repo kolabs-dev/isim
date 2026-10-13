@@ -1,11 +1,11 @@
 """WidgetKit and ActivityKit under `isim boot` (HelloWidgets): the widget extension lists its widgets, the gallery
-adds them (Edit Home Screen > +), timelines render and switch entries by date and reload at the end, tapping the
+adds them (Edit Home Screen > Edit > Add Widget; iOS 17: +), timelines render and switch entries by date and reload at the end, tapping the
 interactive widget's Button(intent:) runs the AppIntent in the extension and re-renders, the app's
 WidgetCenter.reloadTimelines reloads it; a Live Activity in the Dynamic Island (compact, expanded with
 contentMargins) and on the lock screen, updated and ended by the app. Port of tests/ui/widgets.sh."""
 import re
 
-from isimtest import mean_rgb
+from isimtest import mean_rgb, screen_frames
 
 APP = "dev.isim.samples.HelloWidgets"
 
@@ -20,6 +20,19 @@ def margins(shot):
         and not green((371, 122, 3, 4))
 
 
+def open_gallery(dev):
+    """The widget gallery from edit mode: Edit > Add Widget (iOS 18+), or + (iOS 17)."""
+    tree = dev.wait_view(r"id=home-(edit|add-widget)\b")
+    if "id=home-edit" in tree:
+        dev.tap_id("home-edit")
+        dev.wait_view(r"id=menu-Customize")
+        dev.wait_still()
+        x, y, w, h = screen_frames(dev.view_dump())["menu-Customize"]
+        dev.tap(x + w / 2, y - h / 2)                                   # Add Widget, the row above
+    else:
+        dev.tap_id("home-add-widget")
+
+
 def test_widgets(launch):
     dev = launch(None, install=["HelloWidgets"])
     dev.wait_log(r"isim WidgetKit: \d+ widget kind")
@@ -27,7 +40,7 @@ def test_widgets(launch):
     dev.wait_still()
     dev.send(f"holdid app-{APP} 0.8")
     dev.wait_tap_id("menu-edit")
-    dev.wait_tap_id("home-add-widget")
+    open_gallery(dev)
     gallery = dev.wait_view(r"id=widget-add-Ticker-systemMedium")
     dev.wait_still()
     dev.screenshot("gallery")
@@ -35,7 +48,7 @@ def test_widgets(launch):
     dev.wait_log(r"rendered Counter \(systemSmall\)")
     dev.wait_view(r"id=widget-add-", gone=True)
     dev.wait_still()
-    dev.wait_tap_id("home-add-widget")
+    open_gallery(dev)
     dev.wait_tap_id("widget-add-Ticker-systemMedium")
     dev.wait_log(r"added widget Ticker")
     dev.wait_view(r"id=widget-add-", gone=True)
@@ -45,6 +58,14 @@ def test_widgets(launch):
     dev.wait_still()
     widgets = dev.wait_shot(lambda s: (c := mean_rgb(s, (50, 290, 20, 20)))[2] > 0.9 * 255 and c[0] < 0.2 * 255,
                             "widget pixels: blue counter")
+    # the Counter's "+1" button: .background(Color.white).cornerRadius(17) clips the white to a rounded rectangle
+    wx, wy, ww, wh = screen_frames(home)["widget-Counter-systemSmall"]
+    white = lambda c: min(c) > 235                                       # noqa: E731
+    pts = [(x, y) for x in range(int(wx), int(wx + ww)) for y in range(int(wy + wh / 2), int(wy + wh)) if white(widgets.getpixel((x, y)))]
+    assert pts, "the white +1 button"
+    bx0, bx1, by0, by1 = min(p[0] for p in pts), max(p[0] for p in pts), min(p[1] for p in pts), max(p[1] for p in pts)
+    corner, middle = widgets.getpixel((bx0 + 1, by0 + 1)), widgets.getpixel(((bx0 + bx1) // 2, by0 + 2))
+    assert not white(corner) and white(middle), f"rounded button corners (corner {corner}, edge {middle})"
     dev.tap(114, 400)                                                   # the interactive Counter widget
     dev.wait_log(r"counter timeline \(systemSmall\), count 1")
     dev.screenshot("tapped")
@@ -57,7 +78,10 @@ def test_widgets(launch):
     dev.wait_log(r"Live Activity from .*HelloWidgets.app shown")
     dev.send("home")
     dev.wait_dump(r"IsimDynamicIsland .*text=compact")
-    dev.screenshot("island")
+    # compact again (an update's alert expands the island for a moment): wallpaper under the island, the island black
+    shot = dev.wait_shot(lambda s: sum(s.getpixel((201, 120))) > 120 and sum(s.getpixel((201, 15))) < 60, "compact island")
+    bars = sum(1 for x in range(303, 314) for y in range(14, 36) if min(shot.getpixel((x, y))) > 200)
+    assert bars == 0, f"the compact island reaches the cellular bars: the status bar leaves them out ({bars} px)"
     dev.send("island")
     dev.wait_log(r"Dynamic Island expanded")
     expanded = dev.wait_shot(lambda s: sum(mean_rgb(s, (20, 130, 30, 20))) < 0.1 * 255,
@@ -95,7 +119,7 @@ def test_widgets(launch):
 
     def has(p):
         return re.search(p, log, re.M)
-    assert has(r"isim WidgetKit: 2 widget kind\(s\), 1 Live Activity configuration\(s\)") and \
+    assert has(r"isim WidgetKit: 3 widget kind\(s\), 1 Live Activity configuration\(s\)") and \
         "id=widget-add-Counter-systemSmall" in gallery and "id=widget-add-Ticker-systemMedium" in gallery, \
         "the extension lists its widgets; the gallery offers them"
     assert has(r"added widget Counter \(systemSmall\)") and \
@@ -113,9 +137,9 @@ def test_widgets(launch):
         has(r"counter timeline \(systemSmall\), count 2"), "the app sees the app-group count; reloadTimelines"
     assert has(r"requested Live Activity") and has(r"rendered Live Activity DeliveryAttributes") and \
         has(r"Live Activity from .*HelloWidgets.app shown"), "Live Activity rendered by the extension"
-    assert has(r"IsimDynamicIsland \(74.5 11; 253 x 37\) id=dynamic-island text=compact") and \
+    assert has(r"IsimDynamicIsland \(100 11; 202 x 37\) id=dynamic-island text=compact") and \
         has(r"Dynamic Island expanded") and sum(mean_rgb(expanded, (20, 130, 30, 20))) < 0.1 * 255, \
-        "Dynamic Island: compact outside the app, expanded"
+        "Dynamic Island: compact outside the app (clear of the status bar's time: from x 100 on a 402 pt iPhone), expanded"
     assert margins(island), "Dynamic Island: contentMargins for the expanded presentation"
     assert has(r"id=live-activity") and mean_rgb(lock, (30, 280, 30, 20))[0] > 0.9 * 255, \
         "lock screen shows the Live Activity"

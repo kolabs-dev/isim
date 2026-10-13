@@ -66,10 +66,27 @@ static cairo_status_t png_read(void *closure, unsigned char *buf, unsigned int n
     return CAIRO_STATUS_SUCCESS;
 }
 /* Returns a handle (>0) or 0. Size is in pixels of the source (the caller applies @2x/@3x). */
+int isim_image_create_bgra(int w, int h);
+void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
 int isim_image_load_data(const void *data, unsigned long len, double *w, double *h) {
     if (len > 5 && (!memcmp(data, "<?xml", 5) || !memcmp(data, "<svg", 4))) {
         RsvgHandle *svg = rsvg_handle_new_from_data(data, len, NULL);
         return svg ? load_svg(svg, w, h) : 0;
+    }
+    /* HEIF (HEIC) through isim's container reader and ffmpeg's HEVC decoder (host_heif.c) */
+    if (len > 12 && !memcmp((const char *)data + 4, "ftyp", 4) &&
+        (!memcmp((const char *)data + 8, "heic", 4) || !memcmp((const char *)data + 8, "heix", 4) || !memcmp((const char *)data + 8, "mif1", 4) ||
+         !memcmp((const char *)data + 8, "heim", 4) || !memcmp((const char *)data + 8, "heis", 4) || !memcmp((const char *)data + 8, "msf1", 4))) {
+        extern int isim_heif_decode(const void *data, long len, int *w, int *h, unsigned char **rgba);
+        int iw, ih; unsigned char *px;
+        if (isim_heif_decode(data, (long)len, &iw, &ih, &px)) {
+            int hd = isim_image_create_bgra(iw, ih);
+            for (long i = 0; i < (long)iw * ih; i++) { unsigned char t = px[i * 4]; px[i * 4] = px[i * 4 + 2]; px[i * 4 + 2] = t; }   /* RGBA -> BGRA */
+            isim_image_update_bgra(hd, px, iw, ih);
+            free(px);
+            *w = iw; *h = ih;
+            return hd;
+        }
     }
     /* PNG through cairo (no gdk-pixbuf loader modules needed); other formats through gdk-pixbuf */
     if (len > 8 && !memcmp(data, "\x89PNG\r\n\x1a\n", 8)) {
@@ -432,6 +449,15 @@ void isim_image_draw_symbol_layered(int hd, double x, double y, double w, double
 /* Draws the source rectangle (sx, sy, sw, sh in image pixels) of a raster image into (x, y, w, h).
  * nearest: pixel-art filtering. blend: mix the color into the image's opaque pixels by factor (SpriteKit's
  * colorBlendFactor). Vector/procedural images are drawn whole. */
+/* the part (sx, sy, sw, sh) of an image as a source surface, placed at (*ox, *oy) relative to the part's origin: a
+   sub-surface when it is less than the whole image, so that filtering at its edges does not pick up the pixels around
+   it (a sprite in an atlas, one slice of a 9-slice) */
+static cairo_surface_t *part_surface(struct img *im, double sx, double sy, double sw, double sh, double *ox, double *oy) {
+    double x0 = sx < 0 ? 0 : sx, y0 = sy < 0 ? 0 : sy, x1 = sx + sw > im->w ? im->w : sx + sw, y1 = sy + sh > im->h ? im->h : sy + sh;
+    if ((x0 <= 0 && y0 <= 0 && x1 >= im->w && y1 >= im->h) || x1 <= x0 || y1 <= y0) { *ox = -sx; *oy = -sy; return cairo_surface_reference(im->surf); }
+    *ox = x0 - sx; *oy = y0 - sy;
+    return cairo_surface_create_for_rectangle(im->surf, x0, y0, x1 - x0, y1 - y0);
+}
 void isim_image_draw_part(int hd, double sx, double sy, double sw, double sh, double x, double y, double w, double h,
                           int nearest, const double *blend, double factor, double alpha) {
     struct img *im = get(hd); cairo_t *c = isim_host_cairo();
@@ -439,25 +465,30 @@ void isim_image_draw_part(int hd, double sx, double sy, double sw, double sh, do
     if (im->kind != IMG_RASTER) { isim_image_draw(hd, x, y, w, h, NULL, alpha); return; }
     cairo_save(c);
     cairo_translate(c, x, y);
+    cairo_new_path(c);                               /* (not a path left behind by an earlier fill: it would join the clip) */
     cairo_rectangle(c, 0, 0, w, h);
     cairo_clip(c);
     if (!blend || factor <= 0) {                     /* fast path: no group */
         cairo_scale(c, w / sw, h / sh);
-        cairo_set_source_surface(c, im->surf, -sx, -sy);
+        double ox, oy; cairo_surface_t *src = part_surface(im, sx, sy, sw, sh, &ox, &oy);
+        cairo_set_source_surface(c, src, ox, oy);
         cairo_pattern_set_filter(cairo_get_source(c), nearest ? CAIRO_FILTER_NEAREST : CAIRO_FILTER_GOOD);
         cairo_pattern_set_extend(cairo_get_source(c), CAIRO_EXTEND_PAD);
         if (alpha >= 0.999) cairo_paint(c); else cairo_paint_with_alpha(c, alpha);
         cairo_restore(c);
+        cairo_surface_destroy(src);
         return;
     }
     cairo_push_group(c);
     cairo_save(c);
     cairo_scale(c, w / sw, h / sh);
-    cairo_set_source_surface(c, im->surf, -sx, -sy);
+    double ox, oy; cairo_surface_t *src = part_surface(im, sx, sy, sw, sh, &ox, &oy);
+    cairo_set_source_surface(c, src, ox, oy);
     cairo_pattern_set_filter(cairo_get_source(c), nearest ? CAIRO_FILTER_NEAREST : CAIRO_FILTER_GOOD);
     cairo_pattern_set_extend(cairo_get_source(c), CAIRO_EXTEND_PAD);
     cairo_paint(c);
     cairo_restore(c);
+    cairo_surface_destroy(src);
     if (blend && factor > 0) {
         cairo_set_operator(c, CAIRO_OPERATOR_ATOP);
         cairo_set_source_rgba(c, blend[0], blend[1], blend[2], factor > 1 ? 1 : factor);
@@ -509,6 +540,13 @@ long isim_image_encode(int hd, int fmt, double quality, unsigned char **out) {
     GByteArray *a = g_byte_array_new();
     if (fmt == 0) {
         if (cairo_surface_write_to_png_stream(im->surf, png_write, a) != CAIRO_STATUS_SUCCESS) { g_byte_array_free(a, TRUE); return 0; }
+    } else if (fmt == 3) {                          /* HEIC (host_heif.c; needs ffmpeg's libx265), opaque like JPEG */
+        extern long isim_heif_encode_bgra(const unsigned char *bgra, int w, int h, int stride, double quality, unsigned char **out);
+        unsigned char *heic = NULL;
+        long n = isim_heif_encode_bgra(cairo_image_surface_get_data(im->surf), cairo_image_surface_get_width(im->surf),
+                                       cairo_image_surface_get_height(im->surf), cairo_image_surface_get_stride(im->surf), quality, &heic);
+        if (n <= 0) { g_byte_array_free(a, TRUE); return 0; }
+        g_byte_array_append(a, heic, (guint)n); free(heic);
     } else {
         int w = cairo_image_surface_get_width(im->surf), h = cairo_image_surface_get_height(im->surf), ss = cairo_image_surface_get_stride(im->surf);
         const unsigned char *src = cairo_image_surface_get_data(im->surf);

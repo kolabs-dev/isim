@@ -1,0 +1,360 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A1C100000000000000000032 /* HelloAppClipClip.app in Embed App Clips */ = {isa = PBXBuildFile; fileRef = A1C10000000000000000000B /* HelloAppClipClip.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A1C100000000000000000033 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A1C100000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A1C10000000000000000001F;
+			remoteInfo = HelloAppClipClip;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A1C10000000000000000002B /* Embed App Clips */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/AppClips";
+			dstSubfolderSpec = 16;
+			files = (
+				A1C100000000000000000032 /* HelloAppClipClip.app in Embed App Clips */,
+			);
+			name = "Embed App Clips";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		A1C10000000000000000000A /* HelloAppClip.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HelloAppClip.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1C10000000000000000000B /* HelloAppClipClip.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HelloAppClipClip.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A1C100000000000000000017 /* Exceptions for "HelloAppClip" folder in "HelloAppClip" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A1C10000000000000000001E /* HelloAppClip */;
+		};
+		A1C100000000000000000018 /* Exceptions for "HelloAppClipClip" folder in "HelloAppClipClip" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A1C10000000000000000001F /* HelloAppClipClip */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		A1C100000000000000000014 /* HelloAppClip */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (A1C100000000000000000017 /* Exceptions for "HelloAppClip" folder in "HelloAppClip" target */, ); path = HelloAppClip; sourceTree = "<group>"; };
+		A1C100000000000000000015 /* HelloAppClipClip */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (A1C100000000000000000018 /* Exceptions for "HelloAppClipClip" folder in "HelloAppClipClip" target */, ); path = HelloAppClipClip; sourceTree = "<group>"; };
+		A1C100000000000000000016 /* Shared */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Shared; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A1C100000000000000000029 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1C10000000000000000002D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A1C100000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				A1C100000000000000000014 /* HelloAppClip */,
+				A1C100000000000000000015 /* HelloAppClipClip */,
+				A1C100000000000000000016 /* Shared */,
+				A1C100000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A1C100000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A1C10000000000000000000A /* HelloAppClip.app */,
+				A1C10000000000000000000B /* HelloAppClipClip.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A1C10000000000000000001E /* HelloAppClip */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1C10000000000000000003D /* Build configuration list for PBXNativeTarget "HelloAppClip" */;
+			buildPhases = (
+				A1C100000000000000000028 /* Sources */,
+				A1C100000000000000000029 /* Frameworks */,
+				A1C10000000000000000002A /* Resources */,
+				A1C10000000000000000002B /* Embed App Clips */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A1C100000000000000000034 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A1C100000000000000000014 /* HelloAppClip */,
+				A1C100000000000000000016 /* Shared */,
+			);
+			name = HelloAppClip;
+			productName = HelloAppClip;
+			productReference = A1C10000000000000000000A /* HelloAppClip.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A1C10000000000000000001F /* HelloAppClipClip */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1C10000000000000000003E /* Build configuration list for PBXNativeTarget "HelloAppClipClip" */;
+			buildPhases = (
+				A1C10000000000000000002C /* Sources */,
+				A1C10000000000000000002D /* Frameworks */,
+				A1C10000000000000000002E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A1C100000000000000000015 /* HelloAppClipClip */,
+				A1C100000000000000000016 /* Shared */,
+			);
+			name = HelloAppClipClip;
+			productName = HelloAppClipClip;
+			productReference = A1C10000000000000000000B /* HelloAppClipClip.app */;
+			productType = "com.apple.product-type.application.on-demand-install-capable";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A1C100000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					A1C10000000000000000001E = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					A1C10000000000000000001F = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = A1C10000000000000000003C /* Build configuration list for PBXProject "HelloAppClip" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A1C100000000000000000002;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = A1C100000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A1C10000000000000000001E /* HelloAppClip */,
+				A1C10000000000000000001F /* HelloAppClipClip */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A1C10000000000000000002A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1C10000000000000000002E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A1C100000000000000000028 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1C10000000000000000002C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A1C100000000000000000034 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A1C10000000000000000001F /* HelloAppClipClip */;
+			targetProxy = A1C100000000000000000033 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		A1C100000000000000000046 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A1C100000000000000000047 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+			};
+			name = Release;
+		};
+		A1C100000000000000000048 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = HelloAppClip/HelloAppClip.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = HelloAppClip/Info.plist;
+				MARKETING_VERSION = 1.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloAppClip;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A1C100000000000000000049 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = HelloAppClip/HelloAppClip.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = HelloAppClip/Info.plist;
+				MARKETING_VERSION = 1.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloAppClip;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		A1C10000000000000000004A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = HelloAppClipClip/HelloAppClipClip.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = HelloAppClipClip/Info.plist;
+				MARKETING_VERSION = 1.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloAppClip.Clip;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A1C10000000000000000004B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = HelloAppClipClip/HelloAppClipClip.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = HelloAppClipClip/Info.plist;
+				MARKETING_VERSION = 1.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloAppClip.Clip;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A1C10000000000000000003C /* Build configuration list for PBXProject "HelloAppClip" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1C100000000000000000046 /* Debug */,
+				A1C100000000000000000047 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1C10000000000000000003D /* Build configuration list for PBXNativeTarget "HelloAppClip" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1C100000000000000000048 /* Debug */,
+				A1C100000000000000000049 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1C10000000000000000003E /* Build configuration list for PBXNativeTarget "HelloAppClipClip" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1C10000000000000000004A /* Debug */,
+				A1C10000000000000000004B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A1C100000000000000000001 /* Project object */;
+}

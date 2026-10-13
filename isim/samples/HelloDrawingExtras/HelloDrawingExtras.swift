@@ -73,7 +73,7 @@ final class DrawingViewController: UIViewController {
         log("thumbnail \(Int(thumb?.size.width ?? 0))x\(Int(thumb?.size.height ?? 0)) prepared \(wide.preparingForDisplay() != nil)")
         log("standard add \(UIImage.add.isSymbolImage) remove \(UIImage.remove.isSymbolImage) actions \(UIImage.actions.isSymbolImage) check \(UIImage.checkmark.isSymbolImage) \(UIImage.strokedCheckmark.isSymbolImage)")
         if #available(iOS 17.0, *) {
-            log("hdr \(wide.isHighDynamicRange) restricted \(wide.imageRestrictedToStandardDynamicRange().size == wide.size) heic \(wide.heicData() == nil)")
+            log("hdr \(wide.isHighDynamicRange) restricted \(wide.imageRestrictedToStandardDynamicRange().size == wide.size) heic \(wide.heicData() != nil)")
             var config = UIImageReader.Configuration(); config.pixelsPerInch = 144
             let png = checker(.green, .black).pngData()!
             let read = UIImageReader(configuration: config).image(data: png)

@@ -94,8 +94,8 @@ def test_camera_picture(launch, ios, tmp_path, media):
     assert has(r"first frame 640x480 format=BGRA corner=red") and re.search(r"id=frames text=[0-9]+ frames", frames), \
         "video data output: BGRA frames"
     assert has(r"photo 640x480 jpeg=ffd8 cg=640") and is_(photo, 25, 505, "red"), "photo output: JPEG shown on screen"
-    assert has(r"recording started") and has(r"recorded error=none duration=(0.9|1.0|1.1) size=640x480"), \
-        "movie file output records 1 s"
+    assert has(r"recording started") and has(r"recorded error=-11810 finished=true duration=(0.9|1.0|1.1) size=640x480"), \
+        "movie file output records 1 s (ends with maximumDurationReached, successfully finished, like iOS)"
     assert has(r"session stopped running=false"), "stopRunning"
     if qr:
         assert has(r"metadata types available qr=true") and \

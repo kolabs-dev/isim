@@ -227,15 +227,19 @@ CGImageRef CGImageSourceCreateThumbnailAtIndex(CGImageSourceRef src, size_t i, C
 @end
 static __CGImageDestination *DST(CGImageDestinationRef d) { return (__bridge __CGImageDestination *)d; }
 CFTypeID CGImageDestinationGetTypeID(void) { return 0x4944; }
-CFArrayRef CGImageDestinationCopyTypeIdentifiers(void) { return (CFArrayRef)CFBridgingRetain(@[ @"public.png", @"public.jpeg", @"com.compuserve.gif" ]); }
+CFArrayRef CGImageDestinationCopyTypeIdentifiers(void) {
+    NSArray *t = @[ @"public.png", @"public.jpeg", @"com.compuserve.gif" ];
+    return (CFArrayRef)CFBridgingRetain(isim_heif_can_encode() ? [t arrayByAddingObject:@"public.heic"] : t);
+}
 static int fmt_of(NSString *t) {
     if ([t isEqualToString:@"public.png"]) return 0;
     if ([t isEqualToString:@"public.jpeg"] || [t isEqualToString:@"public.jpg"]) return 1;
     if ([t isEqualToString:@"com.compuserve.gif"]) return 2;
+    if ([t isEqualToString:@"public.heic"] && isim_heif_can_encode()) return 3;     /* needs ffmpeg's libx265 */
     return -1;
 }
 static CGImageDestinationRef dest(NSString *type, size_t count) {
-    if (fmt_of(type) < 0) { NSLog(@"isim: CGImageDestination: unsupported type %@ (isim writes public.png, public.jpeg, com.compuserve.gif)", type); return NULL; }
+    if (fmt_of(type) < 0) { NSLog(@"isim: CGImageDestination: unsupported type %@ (isim writes public.png, public.jpeg, com.compuserve.gif, and public.heic with ffmpeg's libx265)", type); return NULL; }
     __CGImageDestination *d = [__CGImageDestination new];
     d->_type = [type copy]; d->_count = count; d->_images = [NSMutableArray array]; d->_delays = [NSMutableArray array]; d->_quality = 0.9; d->_loops = 0;
     return (CGImageDestinationRef)CFBridgingRetain(d);

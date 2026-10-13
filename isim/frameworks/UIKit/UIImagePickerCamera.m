@@ -42,6 +42,7 @@ void isim_ui_camera_request_access(UIViewController *presenter, void (^done)(BOO
                                                                message:purpose preferredStyle:UIAlertControllerStyleAlert];
     [a addAction:[UIAlertAction actionWithTitle:@"Don’t Allow" style:UIAlertActionStyleDefault handler:^(UIAlertAction *x) { answer(NO); }]];
     [a addAction:[UIAlertAction actionWithTitle:(osv && atoi(osv) < 17) ? @"OK" : @"Allow" style:UIAlertActionStyleDefault handler:^(UIAlertAction *x) { answer(YES); }]];
+    [a _isim_markSystemAlert];
     [presenter presentViewController:a animated:YES completion:nil];
 }
 

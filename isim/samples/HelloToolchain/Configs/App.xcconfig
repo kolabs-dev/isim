@@ -4,3 +4,7 @@
 INFOPLIST_KEY_ToolchainGreeting = $(TOOLCHAIN_GREETING_WORD)
 INFOPLIST_KEY_CFBundleDisplayName = Toolchain
 PRODUCT_BUNDLE_IDENTIFIER[sdk=iphonesimulator*] = dev.isim.samples.HelloToolchain
+// the camera permission prompt (UI tests: a system alert, handled by a UI interruption monitor)
+INFOPLIST_KEY_NSCameraUsageDescription = Toolchain shows the camera permission prompt in its UI tests.
+// iPhone orientations (UI tests rotate the device)
+INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
