@@ -694,7 +694,7 @@ EventKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswif
 EventKitUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftEventKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 Photos -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics
 PhotosUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftPhotos -lswiftUniformTypeIdentifiers -lswiftCoreTransferable -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics
-Network -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation -lisim_host
+Network -lswiftObjectiveC -lswiftFoundation -lswiftSecurity -lswiftDispatch -lswift_Concurrency -framework Foundation -lisim_host
 WebKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 SafariServices -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftWebKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit
 AdSupport -lswiftObjectiveC -lswiftFoundation -framework Foundation

@@ -107,10 +107,6 @@ public final class NWListener: CustomDebugStringConvertible, @unchecked Sendable
     public init(using parameters: NWParameters, on port: NWEndpoint.Port) throws {
         self.parameters = parameters
         requested = port.rawValue
-        if parameters.tls != nil {
-            // TLS listeners need a server identity (sec_identity); isim provides TLS client connections only
-            throw NWError.posix(.ENOTSUP)
-        }
         try open()
     }
     public convenience init(using parameters: NWParameters) throws { try self.init(using: parameters, on: .any) }
@@ -124,6 +120,8 @@ public final class NWListener: CustomDebugStringConvertible, @unchecked Sendable
         guard s >= 0 else { throw _NWErrno.posix(errno) }
         var one: Int32 = 1
         if parameters.allowLocalEndpointReuse || !udp { setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &one, 4) }
+        // DTLS: each peer gets its own socket on this port, connected to it (see dtlsPeer)
+        if udp && parameters.tls != nil { setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &one, 4); setsockopt(s, SOL_SOCKET, SO_REUSEPORT, &one, 4) }
         var a = sockaddr_in()
         a.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         a.sin_family = sa_family_t(AF_INET)
@@ -186,6 +184,10 @@ public final class NWListener: CustomDebugStringConvertible, @unchecked Sendable
             let key = withUnsafeBytes(of: &ss) { Data($0.prefix(Int(len))) }
             let d = Data(buf[0..<n])
             lock.lock(); var conn = udpPeers[key]; lock.unlock()
+            if conn == nil, parameters.tls != nil {
+                dtlsPeer(ss, len, key)
+                continue
+            }
             if conn == nil {
                 let peer = withUnsafeBytes(of: &ss) { _NWSock.endpoint($0.baseAddress!, Int(len)) }
                 let c = NWConnection(accepted: -1, peer: peer, parameters: parameters)
@@ -198,6 +200,24 @@ public final class NWListener: CustomDebugStringConvertible, @unchecked Sendable
             }
             conn?.udpPeer?.inbox.put(d)
         }
+    }
+    /// a DTLS peer: a socket bound to the listener's port and connected to the peer takes its datagrams from now on;
+    /// the peer's first ClientHello went to the listener's socket, so the handshake starts with its retransmission
+    func dtlsPeer(_ ss: sockaddr_storage, _ len: socklen_t, _ key: Data) {
+        var ss = ss
+        let s = socket(AF_INET, SOCK_DGRAM, 0)
+        guard s >= 0 else { return }
+        var one: Int32 = 1
+        setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &one, 4); setsockopt(s, SOL_SOCKET, SO_REUSEPORT, &one, 4)
+        var a = sockaddr_in()
+        a.sin_len = UInt8(MemoryLayout<sockaddr_in>.size); a.sin_family = sa_family_t(AF_INET); a.sin_port = (port?.rawValue ?? requested).bigEndian
+        let b = withUnsafePointer(to: &a) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(s, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }
+        let c = withUnsafePointer(to: &ss) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin_connect(s, $0, len) } }
+        guard b == 0, c == 0 else { close(s); return }
+        let peer = withUnsafeBytes(of: &ss) { _NWSock.endpoint($0.baseAddress!, Int(len)) }
+        let conn = NWConnection(accepted: s, peer: peer, parameters: parameters)
+        lock.lock(); udpPeers[key] = conn; lock.unlock()
+        if let h = newConnectionHandler { (queue ?? .main).async { h(conn) } } else { close(s) }
     }
     public func cancel() {
         lock.lock()

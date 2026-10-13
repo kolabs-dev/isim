@@ -2,12 +2,15 @@
 // NWListener (TCP and UDP), Bonjour advertising/browsing (NWListener.service, NWBrowser) and NWError.
 //
 // Connections are BSD sockets of the host (isim's libSystem) driven on background queues; handlers run on the
-// queue passed to start(queue:). TLS client connections use the host's OpenSSL (host_tls.c): the host's CA
-// store and host-name check, or the app's sec_protocol_options verify block. Adapted: Bonjour is a local
-// registry shared by the apps of this isim device ($ISIM_DATA/Library/isim/Bonjour), not multicast DNS — services
-// are found by apps on the same simulated device only. Not provided: TLS listeners (server identities), DTLS,
-// QUIC. WebSocket and framer message protocols: Protocols.swift; multicast and connection groups: Group.swift.
+// queue passed to start(queue:). TLS and DTLS use the host's OpenSSL (host_tls.c): clients check the host's CA
+// store and the host name, or the app's sec_protocol_options verify block decides with the peer's chain in a
+// sec_trust_t; listeners need a server identity (sec_protocol_options_set_local_identity) and may ask for client
+// certificates. Adapted: Bonjour is a local registry shared by the apps of this isim device
+// ($ISIM_DATA/Library/isim/Bonjour), not multicast DNS — services are found by apps on the same simulated device
+// only. Not provided: QUIC (the host's OpenSSL 3.0 has none). WebSocket and framer message protocols:
+// Protocols.swift; multicast and connection groups: Group.swift; identities and certificates: SecProtocol.swift.
 @_exported import Foundation
+import Security
 import isim_host
 
 // MARK: - errors
@@ -209,13 +212,25 @@ public final class sec_protocol_options_t: @unchecked Sendable {
     var minVersion: tls_protocol_version_t = .TLSv12
     var serverName: String?
     var peerAuthenticationRequired = true
+    var peerAuthenticationSet = false                   /* servers ask for client certificates only when told to */
+    var identity: sec_identity_t?
+    var maxVersion: tls_protocol_version_t?
+    var challengeBlock: ((sec_protocol_metadata_t, @escaping (sec_identity_t?) -> Void) -> Void)?
+    var challengeQueue: DispatchQueue?
     init() {}
 }
 public final class sec_protocol_metadata_t: @unchecked Sendable {
     var version = "", alpn = "", serverName: String?
+    var peerCertificates: [Data] = []                   /* DER, leaf first */
     init() {}
 }
-public final class sec_trust_t: @unchecked Sendable { let host: String?; init(host: String?) { self.host = host } }
+/// the peer's certificate chain (sec_trust_copy_ref makes a SecTrust of it: SecProtocol.swift)
+public final class sec_trust_t: @unchecked Sendable {
+    let host: String?
+    var certificates: [Data] = []
+    var trust: SecTrust?
+    init(host: String?) { self.host = host }
+}
 public typealias sec_protocol_verify_complete_t = (Bool) -> Void
 public enum tls_protocol_version_t: UInt16, Sendable { case TLSv10 = 0x0301, TLSv11 = 0x0302, TLSv12 = 0x0303, TLSv13 = 0x0304, DTLSv10 = 0xfeff, DTLSv12 = 0xfefd }
 public func sec_protocol_options_set_verify_block(_ options: sec_protocol_options_t, _ verifyBlock: @escaping (sec_protocol_metadata_t, sec_trust_t, @escaping sec_protocol_verify_complete_t) -> Void, _ queue: DispatchQueue) {
@@ -226,15 +241,59 @@ public func sec_protocol_options_add_tls_application_protocol(_ options: sec_pro
 }
 public func sec_protocol_options_set_min_tls_protocol_version(_ options: sec_protocol_options_t, _ version: tls_protocol_version_t) { options.minVersion = version }
 public func sec_protocol_options_set_tls_server_name(_ options: sec_protocol_options_t, _ serverName: UnsafePointer<CChar>) { options.serverName = String(cString: serverName) }
-public func sec_protocol_options_set_peer_authentication_required(_ options: sec_protocol_options_t, _ required: Bool) { options.peerAuthenticationRequired = required }
+public func sec_protocol_options_set_peer_authentication_required(_ options: sec_protocol_options_t, _ required: Bool) {
+    options.peerAuthenticationRequired = required; options.peerAuthenticationSet = true
+}
 public func sec_protocol_metadata_get_negotiated_protocol(_ metadata: sec_protocol_metadata_t) -> UnsafePointer<CChar>? {
     metadata.alpn.isEmpty ? nil : UnsafePointer(strdup(metadata.alpn))
 }
 public func sec_protocol_metadata_get_negotiated_tls_protocol_version(_ metadata: sec_protocol_metadata_t) -> tls_protocol_version_t {
-    metadata.version == "TLSv1.3" ? .TLSv13 : metadata.version == "TLSv1.2" ? .TLSv12 : metadata.version == "TLSv1.1" ? .TLSv11 : .TLSv10
+    switch metadata.version {
+    case "TLSv1.3": return .TLSv13
+    case "TLSv1.2": return .TLSv12
+    case "TLSv1.1": return .TLSv11
+    case "DTLSv1.2": return .DTLSv12
+    case "DTLSv1": return .DTLSv10
+    default: return .TLSv10
+    }
 }
 public func sec_protocol_metadata_get_server_name(_ metadata: sec_protocol_metadata_t) -> UnsafePointer<CChar>? {
     metadata.serverName.map { UnsafePointer(strdup($0)) }
+}
+
+/// QUIC options and metadata (iOS 15), for apps to build against: isim has no QUIC, connections fail with ENOTSUP
+public enum NWProtocolQUIC {
+    public static let definition = NWProtocolDefinition("quic")
+    public final class Options: NWProtocolOptions, @unchecked Sendable {
+        public let securityProtocolOptions = sec_protocol_options_t()
+        public var alpn: [String]
+        public var direction: NWProtocolQUIC.Direction = .bidirectional
+        public var isDatagram = false
+        public var idleTimeout = 30_000
+        public var maxUDPPayloadSize = 1452
+        public var initialMaxData = 1_048_576
+        public var initialMaxStreamDataBidirectionalLocal = 262_144
+        public var initialMaxStreamDataBidirectionalRemote = 262_144
+        public var initialMaxStreamDataUnidirectional = 262_144
+        public var initialMaxStreamsBidirectional = 100
+        public var initialMaxStreamsUnidirectional = 100
+        public var maxDatagramFrameSize = 0
+        public override init() { alpn = []; super.init() }
+        public init(alpn: [String]) { self.alpn = alpn; super.init() }
+    }
+    public enum Direction: Sendable { case bidirectional, unidirectional }
+    public final class Metadata: NWProtocolMetadata, @unchecked Sendable {
+        public internal(set) var streamIdentifier: UInt64 = 0
+        public var streamApplicationError: UInt64?
+        public var applicationError: (error: UInt64, reason: String?)?
+        public internal(set) var keepAlive = false
+        public var remoteMaxStreamsBidirectional: UInt64 = 0
+        public var remoteMaxStreamsUnidirectional: UInt64 = 0
+        public var remoteIdleTimeout: UInt64 = 0
+        public var maxDatagramSize: Int = 0
+        public var securityProtocolMetadata: sec_protocol_metadata_t { sec_protocol_metadata_t() }
+        override init() { super.init(); _definition = NWProtocolQUIC.definition }
+    }
 }
 
 public enum NWProtocolTLS {
@@ -288,6 +347,13 @@ public final class NWParameters: CustomDebugStringConvertible, @unchecked Sendab
         tls = dtls; isUDP = true
         defaultProtocolStack.transportProtocol = udp
     }
+    /// QUIC (iOS 15): accepted, but connections fail with ENOTSUP: isim has no QUIC (the host's OpenSSL 3.0 has none)
+    public init(quic: NWProtocolQUIC.Options) {
+        tls = nil; isUDP = true
+        defaultProtocolStack.transportProtocol = quic
+        quicOptions = quic
+    }
+    var quicOptions: NWProtocolQUIC.Options?
     public static var tcp: NWParameters { NWParameters(tls: nil) }
     public static var udp: NWParameters { NWParameters(dtls: nil) }
     public static var tls: NWParameters { NWParameters(tls: NWProtocolTLS.Options()) }
@@ -301,7 +367,7 @@ public final class NWParameters: CustomDebugStringConvertible, @unchecked Sendab
         return p
     }
     var tcpOptions: NWProtocolTCP.Options? { defaultProtocolStack.transportProtocol as? NWProtocolTCP.Options }
-    public var debugDescription: String { isUDP ? (tls == nil ? "udp" : "dtls") : (tls == nil ? "tcp" : "tls") }
+    public var debugDescription: String { quicOptions != nil ? "quic" : isUDP ? (tls == nil ? "udp" : "dtls") : (tls == nil ? "tcp" : "tls") }
 }
 
 // MARK: - sockets helpers
@@ -468,7 +534,9 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         if acceptedFD >= 0 {
             fd = acceptedFD
             layer = NWConnection._messageLayer(parameters, server: true)
-            ioQueue.async { self.transportReady() }
+            ioQueue.async {
+                if let t = self.parameters.tls { self.startTLS(t.securityProtocolOptions) } else { self.transportReady() }
+            }
             return
         }
         ioQueue.async { self.connect() }
@@ -480,8 +548,11 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
     }
 
     func connect() {
+        if parameters.quicOptions != nil {
+            print("isim: NWConnection: QUIC is not available (isim has no QUIC implementation)")
+            setState(.failed(.posix(.ENOTSUP))); return
+        }
         let udp = parameters.isUDP
-        if udp && parameters.tls != nil { setState(.failed(.posix(.ENOTSUP))); return }   /* DTLS is not provided */
         switch _NWSock.resolve(endpoint, udp: udp) {
         case .failure(let e): setState(.waiting(e)); return
         case .success(let addrs):
@@ -510,16 +581,32 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         }
     }
 
+    /// the TLS (DTLS for UDP) handshake: as the client, or as the server of a listener's connection
     func startTLS(_ o: sec_protocol_options_t) {
+        let server = acceptedFD >= 0, dtls = parameters.isUDP
         var host: String? = o.serverName
-        if host == nil, case .hostPort(let h, _) = endpoint, case .name(let n, _) = h { host = n }
+        if host == nil, !server, case .hostPort(let h, _) = endpoint, case .name(let n, _) = h { host = n }
+        if host == nil, !server, case .url(let u) = endpoint { host = u.host }
         let verifyByApp = o.verifyBlock != nil
+        // a client certificate the app hands over when asked (adapted: asked before the handshake)
+        var identity = o.identity
+        if identity == nil, !server, let cb = o.challengeBlock {
+            let sem = DispatchSemaphore(value: 0)
+            nonisolated(unsafe) var chosen: sec_identity_t?
+            (o.challengeQueue ?? .global()).async { cb(sec_protocol_metadata_t()) { chosen = $0; sem.signal() } }
+            sem.wait()
+            identity = chosen
+        }
+        let verify: Int32 = server ? (o.peerAuthenticationSet && o.peerAuthenticationRequired ? 1 : 0)
+                                   : (verifyByApp || !o.peerAuthenticationRequired ? 0 : 1)
         var err = [CChar](repeating: 0, count: 300)
         var code: Int32 = 0
         let alpn = o.alpn.joined(separator: ",")
-        let t = isim_tls_connect(fd, host, verifyByApp || !o.peerAuthenticationRequired ? 0 : 1, alpn.isEmpty ? nil : alpn, Int32(o.minVersion.rawValue), &err, Int32(err.count), &code)
+        let pem = identity?.pem
+        if identity != nil && pem == nil { print("isim: NWConnection TLS: the identity's private key cannot be exported"); setState(.failed(.tls(-9813))); return }
+        let t = isim_tls_start(fd, server ? 1 : 0, dtls ? 1 : 0, host, verify, alpn.isEmpty ? nil : alpn, Int32(o.minVersion.rawValue), pem, &err, Int32(err.count), &code)
         guard let t else {
-            print("isim: NWConnection TLS: \(String(cString: err))")
+            print("isim: NWConnection \(dtls ? "DTLS" : "TLS"): \(String(cString: err))")
             setState(.failed(.tls(code)))
             return
         }
@@ -528,11 +615,17 @@ public final class NWConnection: CustomDebugStringConvertible, @unchecked Sendab
         var v = [CChar](repeating: 0, count: 32), a = [CChar](repeating: 0, count: 64)
         isim_tls_info(t, &v, 32, &a, 64)
         meta.version = String(cString: v); meta.alpn = String(cString: a); meta.serverName = host
+        var chain = [UInt8](repeating: 0, count: 65536), lens = [Int](repeating: 0, count: 10)
+        let n = Int(isim_tls_peer_chain(t, &chain, chain.count, &lens, 10))
+        var off = 0
+        for i in 0..<n { meta.peerCertificates.append(Data(chain[off..<off + lens[i]])); off += lens[i] }
         tlsMeta = meta
-        if let block = o.verifyBlock {
+        if let block = o.verifyBlock, !(server && meta.peerCertificates.isEmpty) {
+            let trust = sec_trust_t(host: host)
+            trust.certificates = meta.peerCertificates
             let sem = DispatchSemaphore(value: 0)
-            var ok = false
-            (o.verifyQueue ?? .global()).async { block(meta, sec_trust_t(host: host)) { ok = $0; sem.signal() } }
+            nonisolated(unsafe) var ok = false
+            (o.verifyQueue ?? .global()).async { block(meta, trust) { ok = $0; sem.signal() } }
             sem.wait()
             guard ok else { setState(.failed(.tls(-9807))); return }
         }

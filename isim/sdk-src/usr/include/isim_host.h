@@ -371,6 +371,9 @@ void isim_web_release(int view);
 struct isim_tls;
 struct isim_tls *_Nullable isim_tls_connect(int fd, const char *_Nullable host, int verify, const char *_Nullable alpn, int min_version,
                                             char *err, int errlen, int *_Nullable code);
+struct isim_tls *_Nullable isim_tls_start(int fd, int server, int dtls, const char *_Nullable host, int verify, const char *_Nullable alpn,
+                                          int min_version, const char *_Nullable identity, char *err, int errlen, int *code);
+int isim_tls_peer_chain(struct isim_tls *t, unsigned char *out, long cap, long *lens, int max);
 long isim_tls_read(struct isim_tls *t, void *buf, long n);
 long isim_tls_write(struct isim_tls *t, const void *buf, long n);
 /* non-blocking socket (one session read and written from two threads, each call under the caller's lock): bytes,

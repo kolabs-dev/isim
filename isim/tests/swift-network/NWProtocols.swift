@@ -3,6 +3,7 @@
 // handshake of its own on both ends) and NWConnectionGroup (UDP multicast, two group members in this process).
 import Foundation
 import Network
+import Security
 
 /// waits for a connection or listener to become ready (or fail)
 func waitReady(_ c: NWConnection, _ what: String) -> Bool {
@@ -285,4 +286,124 @@ func nwConnectionGroupChecks() {
     _ = replied
     a.cancel(); b.cancel()
     check(a.state == .cancelled, "NWConnectionGroup.cancel")
+}
+
+// MARK: - TLS and DTLS listeners (server identities), client certificates, the peer's chain in sec_trust_t
+
+func nwTLSChecks(server: SecIdentity, client: SecIdentity, serverDER: Data) {
+    // the server: its identity, ALPN, client certificates required (its verify block sees the client's chain)
+    nonisolated(unsafe) var clientSubject = ""
+    func serverOptions() -> NWProtocolTLS.Options {
+        let o = NWProtocolTLS.Options()
+        sec_protocol_options_set_local_identity(o.securityProtocolOptions, sec_identity_create(server)!)
+        sec_protocol_options_add_tls_application_protocol(o.securityProtocolOptions, "isim/1")
+        sec_protocol_options_set_peer_authentication_required(o.securityProtocolOptions, true)
+        sec_protocol_options_set_verify_block(o.securityProtocolOptions, { meta, _, done in
+            sec_protocol_metadata_access_peer_certificate_chain(meta) { c in
+                if clientSubject.isEmpty { clientSubject = (SecCertificateCopySubjectSummary(sec_certificate_copy_ref(c).takeRetainedValue()) as String?) ?? "" }
+            }
+            done(clientSubject == "isim-client")
+        }, DispatchQueue(label: "server-verify"))
+        return o
+    }
+    // the client: pins the server's certificate from the trust object, presents its own identity
+    nonisolated(unsafe) var pinned = false
+    func clientOptions() -> NWProtocolTLS.Options {
+        let o = NWProtocolTLS.Options()
+        sec_protocol_options_add_tls_application_protocol(o.securityProtocolOptions, "isim/1")
+        sec_protocol_options_set_local_identity(o.securityProtocolOptions, sec_identity_create(client)!)
+        sec_protocol_options_set_verify_block(o.securityProtocolOptions, { _, trust, done in
+            let t = sec_trust_copy_ref(trust).takeRetainedValue()
+            let leaf = (SecTrustCopyCertificateChain(t) as? [SecCertificate])?.first
+            pinned = leaf.map { SecCertificateCopyData($0) as Data } == serverDER
+            done(pinned)
+        }, DispatchQueue(label: "client-verify"))
+        return o
+    }
+    func echoListener(_ params: NWParameters, _ what: String) -> NWListener? {
+        guard let l = try? NWListener(using: params, on: .any) else { check(false, "\(what): NWListener with a server identity"); return nil }
+        let ready = DispatchSemaphore(value: 0)
+        l.stateUpdateHandler = { if case .ready = $0 { ready.signal() } }
+        l.newConnectionHandler = { conn in
+            conn.start(queue: DispatchQueue(label: "\(what)-conn"))
+            conn.receive(minimumIncompleteLength: 1, maximumLength: 4096) { d, _, _, _ in
+                guard let d else { return }
+                conn.send(content: Data("echo ".utf8) + d, completion: .idempotent)
+            }
+        }
+        l.start(queue: DispatchQueue(label: what))
+        _ = ready.wait(timeout: .now() + 5)
+        return l
+    }
+
+    // TLS over TCP
+    if let l = echoListener(NWParameters(tls: serverOptions()), "tls"), let port = l.port {
+        let c = NWConnection(host: "localhost", port: port, using: NWParameters(tls: clientOptions()))
+        check(waitReady(c, "tls-client"), "TLS listener: a server identity (sec_identity_create) and the handshake")
+        check(pinned, "TLS: the client's verify block pins the server's certificate from sec_trust_copy_ref")
+        let meta = c.metadata(definition: NWProtocolTLS.definition) as? NWProtocolTLS.Metadata
+        let alpn = meta.flatMap { sec_protocol_metadata_get_negotiated_protocol($0.securityProtocolMetadata) }.map { String(cString: $0) }
+        check(alpn == "isim/1", "TLS: ALPN chosen by the server (\(alpn ?? "nil"))")
+        c.send(content: Data("over tls".utf8), completion: .idempotent)
+        let sem = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) var got = ""
+        c.receive(minimumIncompleteLength: 1, maximumLength: 4096) { d, _, _, _ in got = d.map { String(decoding: $0, as: UTF8.self) } ?? ""; sem.signal() }
+        _ = sem.wait(timeout: .now() + 5)
+        check(got == "echo over tls", "TLS listener: data both ways (\(got))")
+        // (TLS 1.3: the server checks the client's certificate after the client's side of the handshake is done)
+        check(clientSubject == "isim-client", "TLS listener: a required client certificate, seen by the server's verify block (\(clientSubject))")
+        c.cancel()
+        // a client without a certificate is refused when the server requires one
+        let anon = NWProtocolTLS.Options()
+        sec_protocol_options_set_verify_block(anon.securityProtocolOptions, { _, _, done in done(true) }, DispatchQueue(label: "anon"))
+        let c2 = NWConnection(host: "localhost", port: port, using: NWParameters(tls: anon))
+        let anonOK = waitReady(c2, "tls-anon")
+        nonisolated(unsafe) var refused = !anonOK
+        if anonOK {   /* TLS 1.3: the server's refusal arrives after the client's handshake ends */
+            let s2 = DispatchSemaphore(value: 0)
+            c2.send(content: Data("x".utf8), completion: .idempotent)
+            c2.receive(minimumIncompleteLength: 1, maximumLength: 10) { d, _, done, e in refused = d == nil && (done || e != nil); s2.signal() }
+            _ = s2.wait(timeout: .now() + 5)
+        }
+        check(refused, "TLS listener: a client without the required certificate is refused")
+        c2.cancel()
+        l.cancel()
+    }
+
+    // DTLS over UDP
+    let dtlsServer = NWProtocolTLS.Options()
+    sec_protocol_options_set_local_identity(dtlsServer.securityProtocolOptions, sec_identity_create(server)!)
+    if let l = echoListener(NWParameters(dtls: dtlsServer), "dtls"), let port = l.port {
+        let o = NWProtocolTLS.Options()
+        nonisolated(unsafe) var dtlsPinned = false
+        sec_protocol_options_set_verify_block(o.securityProtocolOptions, { _, trust, done in
+            let t = sec_trust_copy_ref(trust).takeRetainedValue()
+            dtlsPinned = (SecTrustCopyCertificateChain(t) as? [SecCertificate])?.first.map { SecCertificateCopyData($0) as Data } == serverDER
+            done(dtlsPinned)
+        }, DispatchQueue(label: "dtls-verify"))
+        let c = NWConnection(host: "127.0.0.1", port: port, using: NWParameters(dtls: o))
+        check(waitReady(c, "dtls-client") && dtlsPinned, "DTLS: a handshake with the listener's identity over UDP, the server's certificate in sec_trust_t")
+        let meta = c.metadata(definition: NWProtocolTLS.definition) as? NWProtocolTLS.Metadata
+        let version = meta.map { sec_protocol_metadata_get_negotiated_tls_protocol_version($0.securityProtocolMetadata) }
+        c.send(content: Data("over dtls".utf8), completion: .idempotent)
+        let sem = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) var got = ""
+        c.receiveMessage { d, _, _, _ in got = d.map { String(decoding: $0, as: UTF8.self) } ?? ""; sem.signal() }
+        _ = sem.wait(timeout: .now() + 10)
+        check(got == "echo over dtls" && version == .DTLSv12, "DTLS: datagrams both ways (\(got)), DTLS 1.2 negotiated (\(String(describing: version)))")
+        c.cancel()
+        l.cancel()
+    }
+}
+
+/// QUIC is declared for apps to build against; isim has none, so a QUIC connection fails with ENOTSUP
+func nwQUICChecks() {
+    let c = NWConnection(host: "127.0.0.1", port: 443, using: NWParameters(quic: NWProtocolQUIC.Options(alpn: ["h3"])))
+    let sem = DispatchSemaphore(value: 0)
+    nonisolated(unsafe) var err: NWError?
+    c.stateUpdateHandler = { if case .failed(let e) = $0 { err = e; sem.signal() } }
+    c.start(queue: DispatchQueue(label: "quic"))
+    _ = sem.wait(timeout: .now() + 5)
+    check(err == .posix(.ENOTSUP), "NWProtocolQUIC: not available, a QUIC connection fails with ENOTSUP (\(String(describing: err)))")
+    c.cancel()
 }

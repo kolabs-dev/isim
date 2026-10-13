@@ -268,6 +268,13 @@ func tlsChecks(env: [String: String]) async {
     let (_, noneCode) = await get("https://localhost:\(mtls)/", none)
     check(none.clientChallenges == 1 && noneCode == NSURLErrorClientCertificateRequired,
           "client certificate: without one the server's refusal is clientCertificateRequired (\(noneCode))")
+    if let identity, let sp = env["ISIM_TEST_SERVER_P12"].flatMap({ FileManager.default.contents(atPath: $0) }) {
+        var sitems: CFArray?
+        _ = SecPKCS12Import(sp as CFData, [kSecImportExportPassphrase as String: "isim"] as CFDictionary, &sitems)
+        if let server = ((sitems as? [[String: Any]])?.first?[kSecImportItemIdentity as String]).map({ $0 as! SecIdentity }) {
+            nwTLSChecks(server: server, client: identity, serverDER: der)
+        } else { check(false, "server identity from PKCS#12 (ISIM_TEST_SERVER_P12)") }
+    }
 }
 
 @main struct Main {
@@ -629,6 +636,7 @@ func tlsChecks(env: [String: String]) async {
         nwWebSocketServerChecks()
         nwFramerChecks()
         nwConnectionGroupChecks()
+        nwQUICChecks()
 
         print("network test: \(checks - failures)/\(checks) passed")
         exit(failures == 0 ? 0 : 1)
