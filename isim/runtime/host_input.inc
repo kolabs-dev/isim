@@ -14,6 +14,8 @@
  *   longdrag X1 Y1 X2 Y2 HOLD SECS [REST]  one finger down, held HOLD s (a long press), then moved over SECS, rested REST s and lifted
  *   pointerdrag X1 Y1 X2 Y2 HOLD SECS  the same with the iPad pointer (a trackpad / mouse click: UITouchTypeIndirectPointer)
  *   hover X Y | hover off         pointer at (X, Y) without touching / pointer leaves
+ *   scroll X Y DX DY [SECS] [wheel]  the pointer at (X, Y) scrolls by (DX, DY) points (the content follows, like a pan's
+ *                                 translation): a trackpad swipe over SECS (default 0.3), or one mouse wheel step
  *   pencil X1 Y1 X2 Y2 SECS [FORCE] [ALTITUDE]  an Apple Pencil stroke (force 0...4.17, default 1; altitude radians)
  *   pencil tap | pencil squeeze   the Pencil's double-tap / squeeze (UIPencilInteraction)
  *   pencil hover X Y [Z]          the Pencil hovering Z (0...1, default 0.5) above (X, Y)
@@ -25,7 +27,9 @@
  *   switchcontrol on|off|next|select|auto   Switch Control: item scanning (auto: a timer moves the highlight)
  *   voicecontrol PHRASE          Voice Control: "tap Done", "show numbers", "tap 3", "scroll down", "go back", …
  */
-enum { EV_HOVER = 40, EV_TEXT_EDITING = 41, EV_VOICEOVER = 42 };
+enum { EV_HOVER = 40, EV_TEXT_EDITING = 41, EV_VOICEOVER = 42, EV_SCROLL = 44 };
+/* EV_SCROLL (UIEventTypeScroll): x, y the pointer; text "DX DY" (points, the content's movement); pad 0 discrete (a wheel
+   step), 1 continuous (a trackpad); mods 3 ends the scroll now (else UIKit ends a continuous one after a pause) */
 
 static int button_down;                      /* (tentative definition; also declared where host.c uses it) */
 static int mt_host_fingers;                  /* window input: 2 while an Option-drag is in progress */
@@ -72,6 +76,21 @@ static void ld_tick(void) {
     if (p >= 1 && ld.rest > 0 && !ld.rest_until) { ld.rest_until = t + ld.rest; return; }     /* resting at the end (spring loading) */
     if (p >= 1 && (!ld.rest_until || t >= ld.rest_until)) { pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = ld.x2, .y = ld.y2 }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", ld.tag); ld.on = 0; }
 }
+/* scripted trackpad scroll: (dx, dy) spread over dur seconds, one event a frame, the last one ending it */
+static struct { int on; double x, y, dx, dy, t0, dur, last, sent; } sc;
+static void sc_push(double ddx, double ddy, int type, int end) {
+    pending[npending++] = (struct isim_event){ .type = EV_SCROLL, .x = sc.x, .y = sc.y, .pad = type, .mods = end ? 3 : 0 };
+    snprintf(pending[npending - 1].text, sizeof pending->text, "%g %g", ddx, ddy);
+}
+static void sc_tick(void) {
+    double t = now();
+    if (t - sc.last < 0.016) return;
+    sc.last = t;
+    double p = fmin(1, (t - sc.t0) / sc.dur), q = p - sc.sent;
+    sc.sent = p;
+    sc_push(sc.dx * q, sc.dy * q, 1, p >= 1);
+    if (p >= 1) sc.on = 0;
+}
 /* script commands of this file; returns 1 if `cmd` was one */
 static int input_script_cmd(const char *cmd, const char *args) {
     double a, b, c, d, e; char arg[512] = {0};
@@ -113,6 +132,16 @@ static int input_script_cmd(const char *cmd, const char *args) {
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_DOWN, .x = a, .y = b };
         snprintf(pending[npending - 1].text, sizeof pending->text, "%s", ld.tag);
         script_resume = now() + ld.dur + 0.1;
+        return 1;
+    }
+    if (!strcmp(cmd, "scroll") && sscanf(args, "%lf %lf %lf %lf", &a, &b, &c, &d) == 4) {
+        double secs = 0.3; char kind[16] = {0};
+        int n = sscanf(args, "%*f %*f %*f %*f %lf %15s", &secs, kind);
+        if (n < 1) { secs = 0.3; sscanf(args, "%*f %*f %*f %*f %15s", kind); }
+        sc.x = a; sc.y = b;
+        if (!strcmp(kind, "wheel")) { sc_push(c, d, 0, 1); script_resume = now() + 0.05; return 1; }
+        sc.on = 1; sc.dx = c; sc.dy = d; sc.dur = secs > 0.02 ? secs : 0.02; sc.t0 = sc.last = now(); sc.sent = 0;
+        script_resume = now() + sc.dur + 0.1;
         return 1;
     }
     if (!strcmp(cmd, "hover")) {
@@ -228,6 +257,15 @@ static int input_sdl_event(const SDL_Event *e, struct isim_event *ev) {
         *ev = (struct isim_event){ .type = EV_TOUCH_UP, .x = x, .y = y, .timestamp = isim_time() };
         pending[npending++] = (struct isim_event){ .type = EV_TOUCH_UP, .x = x2, .y = y2, .pad = 1 };
         reblit();
+        return 1; }
+    case SDL_EVENT_MOUSE_WHEEL: {                /* a mouse wheel (whole steps: discrete) or a trackpad (fractions: continuous) */
+        if (button_down) return 0;
+        double wx = e->wheel.x, wy = e->wheel.y, k = 30;            /* points per wheel step */
+        if (e->wheel.direction == SDL_MOUSEWHEEL_FLIPPED) { wx = -wx; wy = -wy; }
+        int continuous = wx != floor(wx) || wy != floor(wy);
+        *ev = (struct isim_event){ .type = EV_SCROLL, .x = e->wheel.mouse_x / zoom, .y = e->wheel.mouse_y / zoom, .pad = continuous,
+                                   .mods = continuous ? 0 : 3, .timestamp = isim_time() };
+        snprintf(ev->text, sizeof ev->text, "%g %g", -wx * k, wy * k);       /* wheel up: the content moves down */
         return 1; }
     case SDL_EVENT_WINDOW_MOUSE_LEAVE:
         mouse_x = mouse_y = -1;

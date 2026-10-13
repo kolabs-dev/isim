@@ -79,7 +79,8 @@ ISIM_ANIMATIONS=0 ISIM_SKIP_LAUNCH_SCREEN=1 isim run build/MyApp.app --headless 
   It is the fastest way for an agent to check what is on screen. `dump views FILE` writes it to a file.
 - `shot FILE.png` saves a screenshot at the device's pixel scale (`ISIM_SHOT_SCALE=1` makes it smaller). Agents
   that read images can check layout, colours and dark mode with it.
-- `tapid`, `taptext`, `type`, `key`, `drag`, `swipeid` act like a finger and a keyboard; `appearance dark`,
+- `tapid`, `taptext`, `type`, `key`, `drag`, `swipeid` act like a finger and a keyboard (`scroll` like a trackpad or
+  mouse wheel, `pencil` like an Apple Pencil); `appearance dark`,
   `rotate landscapeleft`, `location LAT LON`, `push …`, `openurl …` change the device. The full list is in
   [SCRIPTING.md](SCRIPTING.md).
 - Accessibility can be checked the same way: `voiceover on; voiceover next; …` logs what VoiceOver says

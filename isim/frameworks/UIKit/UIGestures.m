@@ -213,6 +213,27 @@ static NSString *special_input(int hid) {
     }
 }
 
+/* automatic key command localization (iOS 15): the app delegate's applicationShouldAutomaticallyLocalizeKeyCommands:
+   (asked once; YES when not implemented). isim's hardware keyboard is US English, so localizing is mirroring: in a
+   right-to-left layout, the left and right arrows of key commands that allow automatic mirroring swap */
+static BOOL app_localizes_key_commands(void) {
+    static int asked = -1;
+    if (asked < 0) {
+        UIApplication *app = UIApplication.sharedApplication; id<UIApplicationDelegate> d = app.delegate;
+        asked = [d respondsToSelector:@selector(applicationShouldAutomaticallyLocalizeKeyCommands:)] ? [d applicationShouldAutomaticallyLocalizeKeyCommands:app] : 1;
+        NSLog(@"isim: key commands %@ automatically localized", asked ? @"are" : @"are not");
+    }
+    return asked;
+}
+/* the key a command answers to (mirrored arrows, see above) */
+NSString *isim_ui_key_command_input(UIKeyCommand *c) {
+    NSString *in = c.input;
+    if (!in || !c.allowsAutomaticLocalization || !c.allowsAutomaticMirroring) return in;
+    if (UIApplication.sharedApplication.userInterfaceLayoutDirection != UIUserInterfaceLayoutDirectionRightToLeft || !app_localizes_key_commands()) return in;
+    if ([in isEqualToString:UIKeyInputLeftArrow]) return UIKeyInputRightArrow;
+    if ([in isEqualToString:UIKeyInputRightArrow]) return UIKeyInputLeftArrow;
+    return in;
+}
 /* modifiers held now (script keydown shift, or the host's modifier state) — text navigation uses them */
 UIKeyModifierFlags isim_ui_current_modifiers(int hostmods) { return held_mods | mods_from_host(hostmods); }
 static NSMutableDictionary<NSNumber *, UIPress *> *active_presses;
@@ -248,7 +269,8 @@ BOOL isim_ui_hardware_key(int hid, int keycode, int hostmods, BOOL down) {
         for (UIResponder *r = start; r && !consumed; r = r.nextResponder) {
             for (UIKeyCommand *c in r.keyCommands) {
                 if (!c.action || !c.input) continue;
-                BOOL inputMatch = [c.input caseInsensitiveCompare:base] == NSOrderedSame || [c.input isEqualToString:key.characters];
+                NSString *input = isim_ui_key_command_input(c);
+                BOOL inputMatch = [input caseInsensitiveCompare:base] == NSOrderedSame || [input isEqualToString:key.characters];
                 if (!inputMatch || (c.modifierFlags & cmpMask) != (mods & cmpMask)) continue;
                 if (isRepeat && c.repeatBehavior == UIMenuElementRepeatBehaviorNonRepeatable) { consumed = YES; break; }
                 id target = [start targetForAction:c.action withSender:c];

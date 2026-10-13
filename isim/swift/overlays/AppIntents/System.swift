@@ -356,6 +356,8 @@ enum _IsimValues {
                 _ = p._isimSet(v)
                 NSLog("isim AppIntents: %@ = %@", name, _IsimValues.describe(v))
             }
+            _ = _IsimSceneIntents.route(intent)                      /* intents directed to scenes (Scenes.swift) */
+            defer { _IsimSceneIntents.current = nil }
             var performed: (any IntentResult)?
             var attempts = 0
             while performed == nil {

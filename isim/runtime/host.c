@@ -1250,6 +1250,11 @@ static int script_step(struct isim_event *ev) {
         if (npending) { *ev = pending[0]; memmove(pending, pending + 1, --npending * sizeof *pending); ev->timestamp = isim_time(); return 1; }
         return 0;
     }
+    if (sc.on && !npending) {                 /* scripted trackpad scroll (host_input.inc) */
+        sc_tick();
+        if (npending) { *ev = pending[0]; memmove(pending, pending + 1, --npending * sizeof *pending); ev->timestamp = isim_time(); return 1; }
+        return 0;
+    }
     if (mt.on && !npending) {                 /* scripted two-finger gesture (host_input.inc) */
         mt_tick();
         if (npending) { *ev = pending[0]; memmove(pending, pending + 1, --npending * sizeof *pending); ev->timestamp = isim_time(); return 1; }

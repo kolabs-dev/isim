@@ -130,8 +130,9 @@ UITraitCollection *isim_ui_clamp_content_size(UIView *v, UITraitCollection *t) {
     }
     return out;
 }
-- (BOOL)hasAmbiguousLayout { return NO; }
-- (void)exerciseAmbiguityInLayout {}
+/* a second solve pulls the view towards another frame: it is ambiguous when its constraints let it go there (UIView.m) */
+- (BOOL)hasAmbiguousLayout { extern BOOL isim_ui_has_ambiguous_layout(UIView *); return isim_ui_has_ambiguous_layout(self); }
+- (void)exerciseAmbiguityInLayout { extern void isim_ui_exercise_ambiguity(UIView *); isim_ui_exercise_ambiguity(self); }
 - (BOOL)canBecomeFocused { return NO; }
 - (UIFocusGroupPriority)focusGroupPriority { return [get(self, &kFocusPriority) integerValue]; }
 - (void)setFocusGroupPriority:(UIFocusGroupPriority)p { put(self, &kFocusPriority, @(p)); }

@@ -717,6 +717,7 @@ int isim_sys_intents_metadata_main(void) {
 
 /* the launch payload (ISIM_LAUNCH_URL), parsed once */
 static NSString *launch_intent;
+static NSString *launch_marker;                 /* any isim-... marker (the launch scene's connection options carry it) */
 static NSString *launch_url;
 static UIApplicationShortcutItem *launch_shortcut;
 static NSUserActivity *launch_activity;
@@ -747,6 +748,7 @@ static void parse_launch(void) {
     appclip_launch(u && *u);
     if (!u || !*u) return;
     NSString *s = @(u);
+    if ([s hasPrefix:@"isim-"]) launch_marker = s;
     if ([s hasPrefix:@"isim-shortcut:"]) launch_shortcut = shortcut_item_of_type([s substringFromIndex:14]);
     else if ([s hasPrefix:@"isim-activity:"] || [s hasPrefix:@"isim-universal:"]) launch_activity = activity_from_marker(s);
     else if ([s hasPrefix:@"isim-push:"]) launch_push = read_push([s substringFromIndex:10]);
@@ -774,12 +776,15 @@ static NSString *scene_state_file(void) { return [isim_dir() stringByAppendingPa
 static NSUserActivity *saved_scene_activity(void) {
     return [NSUserActivity _isim_activityWithPlist:[NSDictionary dictionaryWithContentsOfFile:scene_state_file()][@"activity"]];
 }
+/* a scene destroyed by its destruction conditions keeps no state to restore */
+void isim_sys_forget_scene_state(void) { [NSFileManager.defaultManager removeItemAtPath:scene_state_file() error:NULL]; }
 void isim_sys_configure_connection(UISceneConnectionOptions *options, UISceneSession *session) {
     parse_launch();
     scene_based = YES;
     if (launch_shortcut) options.shortcutItem = launch_shortcut;
     if (launch_activity) { options.userActivities = [NSSet setWithObject:launch_activity]; options.handoffUserActivityType = launch_activity.activityType; }
     if (launch_url) { NSURL *url = [NSURL URLWithString:launch_url]; if (url) options.URLContexts = [NSSet setWithObject:url_context(url)]; }
+    if (launch_marker) objc_setAssociatedObject(options, "_isim_launchMarker", launch_marker, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     session.stateRestorationActivity = saved_scene_activity();
     if (session.stateRestorationActivity) NSLog(@"isim: restoring scene state (%@)", session.stateRestorationActivity.activityType);
 }
@@ -845,6 +850,14 @@ void isim_sys_continue_activity(NSUserActivity *a) { continue_activity(a, NO); }
    should not deliver ISIM_LAUNCH_URL itself. */
 BOOL isim_sys_deliver_launch(void) {
     parse_launch();
+    if ([launch_marker hasPrefix:@"isim-health-authorization"]) {   /* an app extension asked for HealthKit access (HealthKit Store.swift) */
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UIApplication *app = UIApplication.sharedApplication; id<UIApplicationDelegate> d = app.delegate;
+            NSLog(@"isim: an app extension requests HealthKit authorization%@", [d respondsToSelector:@selector(applicationShouldRequestHealthAuthorization:)] ? @"" : @" (the app delegate does not handle it)");
+            if ([d respondsToSelector:@selector(applicationShouldRequestHealthAuthorization:)]) [d applicationShouldRequestHealthAuthorization:app];
+        });
+        return YES;
+    }
     if (launch_shortcut) { UIApplicationShortcutItem *i = launch_shortcut; dispatch_async(dispatch_get_main_queue(), ^{ perform_shortcut(i, YES); }); return YES; }
     if (launch_activity) { NSUserActivity *a = launch_activity; dispatch_async(dispatch_get_main_queue(), ^{ continue_activity(a, YES); }); return YES; }
     if (launch_push) { NSDictionary *w = launch_push; int m = launch_push_open ? 2 : 0; dispatch_async(dispatch_get_main_queue(), ^{ deliver_remote(w, m); }); return YES; }
