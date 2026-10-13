@@ -5,7 +5,8 @@
 // - layout: the page is laid out at the view's width in CSS pixels (= points); WebKitGTK has no
 //   mobile 980-px virtual viewport, so pages without <meta name=viewport> are not zoomed out;
 // - input: taps, typing and scrolling reach the page as DOM events made from an isolated JavaScript
-//   world (`isTrusted` is false); select pop-ups, text selection, long-press menus and pinch zoom are absent;
+//   world (`isTrusted` is false); long-press menus, text selection, <select> menus, pinch zoom and the find
+//   navigator: Interaction.swift;
 // - scroll view: `scrollView` mirrors the page scroll (contentSize, contentOffset); dragging it scrolls
 //   the page; nested scrollable elements are not scrolled by drags;
 // - `load(_:)` performs GET requests (the request's headers are sent; method and body are not).
@@ -46,6 +47,13 @@ import isim_host
                                            initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void)
     @MainActor @objc(webView:runJavaScriptTextInputPanelWithPrompt:defaultText:initiatedByFrame:asyncCompletionHandler:) optional func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?,
                                            initiatedByFrame frame: WKFrameInfo) async -> String?
+    // context menus for links and images (iOS 13)
+    @MainActor @objc(webView:contextMenuConfigurationForElement:completionHandler:) optional func webView(_ webView: WKWebView, contextMenuConfigurationForElement elementInfo: WKContextMenuElementInfo,
+                                           completionHandler: @escaping (UIContextMenuConfiguration?) -> Void)
+    @MainActor @objc optional func webView(_ webView: WKWebView, contextMenuWillPresentForElement elementInfo: WKContextMenuElementInfo)
+    @MainActor @objc optional func webView(_ webView: WKWebView, contextMenuForElement elementInfo: WKContextMenuElementInfo,
+                                           willCommitWithAnimator animator: UIContextMenuInteractionCommitAnimating)
+    @MainActor @objc optional func webView(_ webView: WKWebView, contextMenuDidEndForElement elementInfo: WKContextMenuElementInfo)
 }
 
 // MARK: - scroll view
@@ -92,6 +100,7 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
     /// the page moved itself (script, anchor, focus): follow it unless the user is scrolling
     func pageScrolled(x: Double, y: Double, width: Double, height: Double) {
         guard let w = web else { return }
+        defer { w._refreshSelection() }
         let z = w.pageZoom
         applyingPage = true
         let cs = CGSize(width: max(bounds.width, width * z), height: max(bounds.height, height * z))
@@ -110,7 +119,13 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let t = touches.first, let w = web else { return }
         touchDown = true
+        w._touchDown(at: pagePoint(t))
         w._tap(pagePoint(t), phase: "down")
+    }
+    /// pinch zoom (Interaction.swift) as UIScrollView reports it
+    override var zoomScale: CGFloat {
+        get { web?._pinchZoom ?? 1 }
+        set { web?._applyPinch(newValue, focus: .zero) }
     }
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let t = touches.first, let w = web, touchDown else { return }
@@ -150,7 +165,25 @@ open class WKWebView: UIView, UIKeyInput {
     open var allowsLinkPreview = true
     open var allowsMagnification = false
     open var isInspectable = false
-    open var isFindInteractionEnabled = false
+    open var isFindInteractionEnabled = false {
+        didSet {
+            guard isFindInteractionEnabled != oldValue else { return }
+            if isFindInteractionEnabled { let f = UIFindInteraction(sessionDelegate: self); _findInteraction = f; addInteraction(f) }
+            else if let f = _findInteraction { removeInteraction(f); _findInteraction = nil }
+        }
+    }
+    /// the find navigator (iOS 16), while isFindInteractionEnabled
+    open var findInteraction: UIFindInteraction? { _findInteraction }
+    var _findInteraction: UIFindInteraction?
+    // Interaction.swift: menus, selection, pinch zoom
+    var _interactions: _WKContextMenus?
+    var _hit = _WKHit()
+    var _hasSelection = false
+    var _selectedText = ""
+    var _selectionRect = CGRect.zero
+    var _selectionOverlay: UIView?
+    var _pinchZoom: CGFloat = 1
+    var _magnificationAllowed = true                 /* SwiftUI webViewMagnificationGestures */
     open var interactionState: Any?
     open var mediaType: String?
     open var pageZoom: CGFloat = 1 { didSet { _send(["zoom", _WKProto.num(Double(pageZoom))]) } }
@@ -198,6 +231,7 @@ open class WKWebView: UIView, UIKeyInput {
         _scroll.web = self
         _scroll.frame = bounds
         addSubview(_scroll)
+        _setupInteractions()
         configuration.userContentController._attach(self)
         configuration.websiteDataStore._views.append(_WKWeakView(self))
         _startEngine()
@@ -436,6 +470,11 @@ open class WKWebView: UIView, UIKeyInput {
     private func _evaluate(_ script: String, world: WKContentWorld, _ done: @escaping (Result<Any?, Error>) -> Void) {
         _runJS("js", script, world: world, done)
     }
+    /// a call into isim's private world (Interaction.swift)
+    func _runJSTool(_ script: String, _ done: @escaping (Any?) -> Void) {
+        guard _engineID != 0 else { return }
+        _runJS("js", script, world: ._isim) { r in done(try? r.get()) }
+    }
     private func _runJS(_ kind: String, _ script: String, world: WKContentWorld, _ done: @escaping (Result<Any?, Error>) -> Void) {
         guard _engineID != 0 else {
             DispatchQueue.main.async { done(.failure(WKError(.webViewInvalidated, userInfo: [NSLocalizedDescriptionKey: "isim has no web engine"]))) }
@@ -486,11 +525,49 @@ open class WKWebView: UIView, UIKeyInput {
     open func find(_ string: String, configuration: WKFindConfiguration = WKFindConfiguration()) async throws -> WKFindResult {
         await withCheckedContinuation { c in find(string, configuration: configuration) { c.resume(returning: $0) } }
     }
+    /// a PDF of the page: one page as wide as the view and as tall as the page (vector text, printed by WebKit;
+    /// adapted: print styles apply), cropped to configuration.rect when it is set (through the host's poppler-glib)
     open func createPDF(configuration: WKPDFConfiguration = WKPDFConfiguration(), completionHandler: @escaping (Result<Data, Error>) -> Void) {
-        DispatchQueue.main.async { completionHandler(.failure(WKError(.unknown, userInfo: [NSLocalizedDescriptionKey: "PDF export is not supported on isim"]))) }
+        guard _engineID != 0, _engineReady else {
+            DispatchQueue.main.async { completionHandler(.failure(WKError(.unknown, userInfo: [NSLocalizedDescriptionKey: "no page"]))) }
+            return
+        }
+        let width = _engineSize.width, height = max(_engineSize.height, _scroll.contentSize.height / max(pageZoom, 0.01))   /* points = CSS px */
+        let r = configuration.rect.isNull ? CGRect.zero : configuration.rect
+        _engineRequest(["pdf", _WKProto.num(Double(width)), _WKProto.num(Double(height)),
+                        _WKProto.num(Double(r.minX)), _WKProto.num(Double(r.minY)), _WKProto.num(Double(r.width)), _WKProto.num(Double(r.height))]) { b64 in
+            guard let b64, let pdf = Data(base64Encoded: b64), !pdf.isEmpty else {
+                completionHandler(.failure(WKError(.unknown, userInfo: [NSLocalizedDescriptionKey: "the page could not be printed to PDF"]))); return
+            }
+            completionHandler(.success(pdf))
+        }
     }
+    open func createPDF(configuration: WKPDFConfiguration = WKPDFConfiguration()) async throws -> Data {
+        try await withCheckedThrowingContinuation { c in createPDF(configuration: configuration) { c.resume(with: $0) } }
+    }
+    /// the page and its resources as a .webarchive (a binary property list: WebMainResource, WebSubresources), from
+    /// WebKit's MHTML of the page
     open func createWebArchiveData(completionHandler: @escaping (Result<Data, Error>) -> Void) {
-        DispatchQueue.main.async { completionHandler(.failure(WKError(.unknown, userInfo: [NSLocalizedDescriptionKey: "web archives are not supported on isim"]))) }
+        guard _engineID != 0, _engineReady else {
+            DispatchQueue.main.async { completionHandler(.failure(WKError(.unknown, userInfo: [NSLocalizedDescriptionKey: "no page"]))) }
+            return
+        }
+        let main = url
+        _engineRequest(["archive"]) { b64 in
+            guard let b64, let mhtml = Data(base64Encoded: b64), let archive = _wkWebArchive(fromMHTML: mhtml, mainURL: main) else {
+                completionHandler(.failure(WKError(.unknown, userInfo: [NSLocalizedDescriptionKey: "the page could not be archived"]))); return
+            }
+            completionHandler(.success(archive))
+        }
+    }
+    open func webArchiveData() async throws -> Data {
+        try await withCheckedThrowingContinuation { c in createWebArchiveData { c.resume(with: $0) } }
+    }
+    /// a command with a request id whose "done" payload is the answer
+    func _engineRequest(_ cmd: [String], _ reply: @escaping (String?) -> Void) {
+        let req = _WKEngine.shared.newRequestID()
+        _WKEngine.shared.storeCallbacks[req] = { v in reply(v) }
+        _WKEngine.shared.send([cmd[0], String(_engineID), String(req)] + cmd.dropFirst())
     }
     open class func handlesURLScheme(_ urlScheme: String) -> Bool {
         ["http", "https", "file", "data", "about", "blob", "javascript", "ws", "wss"].contains(urlScheme.lowercased())
@@ -726,6 +803,7 @@ open class WKWebView: UIView, UIKeyInput {
         switch o["t"] as? String {
         case "scroll":
             _scroll.pageScrolled(x: o["x"] as? Double ?? 0, y: o["y"] as? Double ?? 0, width: o["w"] as? Double ?? 0, height: o["h"] as? Double ?? 0)
+        case "select": _showSelect(o)
         case "focus":
             let editable = o["editable"] as? Bool ?? false
             let type = (o["type"] as? String ?? "").lowercased(), mode = (o["kind"] as? String ?? "").lowercased()

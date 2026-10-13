@@ -2,17 +2,25 @@
 // navigation delegate (async action policy, response policy, start/commit/finish/fail), UI delegate (alert,
 // confirm, prompt as UIAlertControllers), script messages (with and without reply), user scripts in the page
 // and an isolated world, evaluateJavaScript / callAsyncJavaScript, KVO on title/URL/progress/canGoBack,
-// back/forward, typing into a page field, scrolling, cookies and snapshots.
+// back/forward, typing into a page field, scrolling, cookies and snapshots. With -interact: long-press context
+// menus and text selection, <select> menus, pinch zoom, the find navigator, createPDF and web archives. With -webpage
+// (iOS 26): SwiftUI's WebView showing a WebPage, its navigation events, title and callJavaScript.
 //   isim run out/apps/HelloWeb.app -server http://127.0.0.1:8765   (samples/HelloWeb/server.py)
 import UIKit
 import WebKit
+import SwiftUI
 
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = UINavigationController(rootViewController: WebViewController())
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-webpage"), #available(iOS 26.0, *) {
+            window?.rootViewController = UIHostingController(rootView: WebPageScreen())
+        } else {
+            window?.rootViewController = UINavigationController(rootViewController: args.contains("-interact") ? InteractViewController() : WebViewController())
+        }
         window?.makeKeyAndVisible()
         return true
     }
@@ -263,6 +271,114 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         web.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
             let s = cookies.map { "\($0.name)=\($0.value)@\($0.domain)" }.sorted().joined(separator: ",")
             log("cookies: \(s)")
+        }
+    }
+}
+
+// MARK: - -interact: touch interactions, find, PDF and web archives
+
+let interactHTML = """
+<!doctype html><html><head><meta name="viewport" content="width=device-width"><title>Interact</title>
+<style>body{margin:0;font:18px sans-serif;color:#111} .p{position:absolute;left:16px;right:16px}</style></head><body>
+<p class="p" id="text" style="top:0">The quick brown fox jumps over the lazy dog. isim finds isim and ISIM.</p>
+<a class="p" id="link" href="SERVER/page3" style="top:90px;font-size:22px;color:#007aff">A link to page three</a>
+<img id="pic" style="position:absolute;left:16px;top:140px;width:80px;height:80px" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='%23ff9500'/%3E%3C/svg%3E">
+<select id="fruit" style="position:absolute;left:16px;top:240px;width:200px;height:40px;font-size:17px" onchange="say('select '+this.value)">
+<option value="apple">Apple</option><option value="banana">Banana</option>
+<optgroup label="Berries"><option value="cherry">Cherry</option><option value="grape" disabled>Grape</option></optgroup></select>
+<select id="many" multiple size="1" style="position:absolute;left:16px;top:300px;width:200px;height:40px" onchange="say('many '+Array.from(this.selectedOptions).map(function(o){return o.value}).join(','))">
+<option value="red">Red</option><option value="green" selected>Green</option><option value="blue">Blue</option></select>
+<div class="p" style="top:360px;height:120px;background:#34c759"></div>
+<p class="p" style="top:500px">More text for the PDF: isim.</p>
+<script>function say(s){window.webkit.messageHandlers.native.postMessage(s)}</script>
+</body></html>
+"""
+
+final class InteractViewController: UIViewController, WKUIDelegate, WKScriptMessageHandler {
+    var web: WKWebView!
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Interact"
+        view.backgroundColor = .systemBackground
+        let cfg = WKWebViewConfiguration()
+        cfg.userContentController.add(self, name: "native")
+        web = WKWebView(frame: view.bounds, configuration: cfg)
+        web.translatesAutoresizingMaskIntoConstraints = false
+        web.uiDelegate = self
+        web.isFindInteractionEnabled = true
+        web.accessibilityIdentifier = "web"
+        view.addSubview(web)
+        NSLayoutConstraint.activate([web.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor), web.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+                                     web.leadingAnchor.constraint(equalTo: view.leadingAnchor), web.trailingAnchor.constraint(equalTo: view.trailingAnchor)])
+        web.loadHTMLString(interactHTML.replacingOccurrences(of: "SERVER", with: serverURL), baseURL: URL(string: serverURL + "/"))
+        navigationItem.rightBarButtonItems = [
+            UIBarButtonItem(title: "Find", primaryAction: UIAction { [weak self] _ in self?.web.findInteraction?.presentFindNavigator(showingReplace: false) }),
+            UIBarButtonItem(title: "PDF", primaryAction: UIAction { [weak self] _ in self?.pdf() }),
+            UIBarButtonItem(title: "Archive", primaryAction: UIAction { [weak self] _ in self?.archive() }),
+        ]
+        navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Paste", primaryAction: UIAction { [weak self] _ in
+            log("pasteboard url=\(UIPasteboard.general.url?.absoluteString ?? "-") string=\(UIPasteboard.general.string ?? "-") zoom=\(self?.web.scrollView.zoomScale ?? 0)")
+        })
+        for (i, item) in (navigationItem.rightBarButtonItems ?? []).enumerated() { item.accessibilityIdentifier = ["find", "pdf", "archive"][i] }
+        navigationItem.leftBarButtonItem?.accessibilityIdentifier = "paste"
+    }
+    func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) { log("page says \(message.body)") }
+    func webView(_ webView: WKWebView, contextMenuWillPresentForElement elementInfo: WKContextMenuElementInfo) {
+        log("context menu for \(elementInfo.linkURL?.absoluteString.prefix(60) ?? "-")")
+    }
+    func webView(_ webView: WKWebView, contextMenuDidEndForElement elementInfo: WKContextMenuElementInfo) { log("context menu ended") }
+    func pdf() {
+        func size(_ d: Data) -> String {
+            guard let doc = CGPDFDocument(CGDataProvider(data: d as CFData)!), let p = doc.page(at: 1) else { return "?" }
+            let b = p.getBoxRect(.mediaBox)
+            return "\(doc.numberOfPages) page(s) \(Int(b.width.rounded()))x\(Int(b.height.rounded()))"
+        }
+        web.createPDF(configuration: WKPDFConfiguration()) { r in
+            guard case .success(let d) = r else { log("pdf failed"); return }
+            log("pdf \(d.count) bytes \(d.prefix(4) == Data("%PDF".utf8) ? "PDF" : "?") \(size(d))")
+            let cropped = WKPDFConfiguration(); cropped.rect = CGRect(x: 0, y: 0, width: 200, height: 100)
+            self.web.createPDF(configuration: cropped) { r2 in
+                if case .success(let d2) = r2 { log("pdf cropped \(size(d2))") } else { log("pdf cropped failed") }
+            }
+        }
+    }
+    func archive() {
+        web.createWebArchiveData { r in
+            guard case .success(let d) = r, let plist = try? PropertyListSerialization.propertyList(from: d, format: nil) as? [String: Any],
+                  let main = plist["WebMainResource"] as? [String: Any] else { log("archive failed"); return }
+            let html = String(decoding: main["WebResourceData"] as? Data ?? Data(), as: UTF8.self)
+            let subs = plist["WebSubresources"] as? [[String: Any]] ?? []
+            log("archive \(main["WebResourceMIMEType"] as? String ?? "?") \(main["WebResourceURL"] as? String ?? "?") html=\(html.contains("quick brown fox")) subresources=\(subs.count)")
+        }
+    }
+}
+
+// MARK: - -webpage: SwiftUI WebView and WebPage (iOS 26)
+
+@available(iOS 26.0, *)
+struct WebPageScreen: View {
+    @State private var page = WebPage()
+    @State private var events: [String] = []
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(page.title.isEmpty ? "untitled" : page.title).font(.headline).padding(8).accessibilityIdentifier("page-title")
+            WebView(page).webViewMagnificationGestures(.enabled)
+            Text(events.joined(separator: " ")).font(.footnote).padding(6).accessibilityIdentifier("page-events")
+            Button("Run JavaScript") {
+                Task {
+                    let v = try? await page.callJavaScript("return document.title + ' ' + (a + b)", arguments: ["a": 2, "b": 3])
+                    log("callJavaScript \(v.map { "\($0)" } ?? "nil")")
+                }
+            }.padding(8).accessibilityIdentifier("page-js")
+        }
+        .task {
+            do {
+                for try await e in page.load(html: interactHTML.replacingOccurrences(of: "SERVER", with: serverURL), baseURL: URL(string: serverURL + "/")!) {
+                    events.append("\(e)")
+                    log("navigation \(e)")
+                }
+                log("loaded title=\(page.title) loading=\(page.isLoading) url=\(page.url?.absoluteString ?? "-")")
+            } catch { log("load failed \(error)") }
         }
     }
 }
