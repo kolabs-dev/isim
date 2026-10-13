@@ -1116,11 +1116,30 @@ static void apply_corner_mask(void) {
     cairo_restore(cr);
 }
 
+/* MetricKit's display metric: the screen's average pixel luminance (APL, 0-100), sampled about once a second */
+static void sample_luminance(void) {
+    static double last;
+    double t = now();
+    if (t - last < 1) return;
+    last = t;
+    const uint8_t *px = cairo_image_surface_get_data(surf);
+    int stride = cairo_image_surface_get_stride(surf);
+    if (!px || surf_w <= 0 || surf_h <= 0) return;
+    double sum = 0; int n = 0;
+    for (int y = surf_h / 64; y < surf_h; y += surf_h / 32 + 1)
+        for (int x = surf_w / 64; x < surf_w; x += surf_w / 32 + 1) {
+            const uint8_t *p = px + (size_t)y * stride + (size_t)x * 4;          /* BGRA */
+            sum += (0.2126 * p[2] + 0.7152 * p[1] + 0.0722 * p[0]) / 255.0; n++;
+        }
+    if (n) { isim_metric_add("apl.sum", 100 * sum / n); isim_metric_add("apl.n", 1); }
+}
 void isim_frame_end(void) {
     cairo_identity_matrix(cr); cairo_reset_clip(cr); cairo_scale(cr, px_scale, px_scale);
     draw_chrome();
     apply_corner_mask();
     cairo_surface_flush(surf);
+    isim_diag_frame();
+    sample_luminance();
     if (client_sock >= 0) {
         memcpy(client_pixels, cairo_image_surface_get_data(surf), (size_t)surf_w * surf_h * 4);
         struct shell_msg m = { .type = SM_FRAME }; send(client_sock, &m, sizeof m, MSG_NOSIGNAL); return;
@@ -1255,7 +1274,9 @@ static void set_simulated_beacon(const char *arg) {
     fprintf(stderr, "isim host: %d simulated beacon(s) in range\n", n);
 }
 /* Debug > Simulate MetricKit Payloads: apps with an MXMetricManager subscriber watch this file (isim's MetricKit) */
-static void simulate_metrickit(void) {
+/* "metrickit": Debug > Simulate MetricKit Payloads (sample data); "metrickit deliver": the payloads MetricKit has
+   measured so far, now (what iOS delivers about once a day) */
+static void simulate_metrickit(int deliver) {
     char path[1024]; const char *data = getenv("ISIM_DATA"), *home = getenv("HOME");
     if (data && *data) snprintf(path, sizeof path, "%s/Library", data);
     else snprintf(path, sizeof path, "%s/.local/share/isim/Library", home ? home : "");
@@ -1263,8 +1284,8 @@ static void simulate_metrickit(void) {
     strncat(path, "/MetricKitTrigger", sizeof path - strlen(path) - 1);
     FILE *f = fopen(path, "w");
     if (!f) { fprintf(stderr, "isim host: cannot write %s\n", path); return; }
-    fprintf(f, "%.6f\n", isim_time()); fclose(f);
-    fprintf(stderr, "isim host: simulate MetricKit payloads\n");
+    fprintf(f, "%s%.6f\n", deliver ? "deliver " : "", isim_time()); fclose(f);
+    fprintf(stderr, deliver ? "isim host: deliver measured MetricKit payloads\n" : "isim host: simulate MetricKit payloads\n");
 }
 /* "drag x1 y1 x2 y2 seconds": a timed drag, one move per ~16 ms */
 static struct { int on; double a, b, c, d, t0, dur, last, hold, hold_end, p; } sdrag;   /* hold: seconds held at the end before lifting */
@@ -1412,7 +1433,13 @@ static int script_step(struct isim_event *ev) {
     } else if (!strcmp(cmd, "beacon") && sscanf(args, " %511[^;]", arg) == 1) {
         set_simulated_beacon(arg);               /* simulated iBeacons in range (Core Location) */
     } else if (!strcmp(cmd, "metrickit")) {
-        simulate_metrickit();                    /* Debug > Simulate MetricKit Payloads */
+        char mode[32] = "";
+        sscanf(args, " %31[^; ]", mode);
+        simulate_metrickit(!strcmp(mode, "deliver"));   /* Debug > Simulate MetricKit Payloads; "deliver": measured */
+    } else if (!strcmp(cmd, "signposts")) {           /* signposts [SUBSYSTEM|CATEGORY]: Points of Interest as text */
+        char filter[256] = "";
+        sscanf(args, " %255[^; ]", filter);
+        void isim_signposts_summary(const char *); isim_signposts_summary(filter);
     } else if ((!strcmp(cmd, "appearance") || !strcmp(cmd, "contrast") || !strcmp(cmd, "boldtext")) && sscanf(args, " %63[^; ]", arg) == 1) {
         /* "appearance light|dark", "contrast on|off", "boldtext on|off": the device setting (like Settings or
            Control Center), applied live; the app (or the home screen) writes it and every app follows */
@@ -1569,7 +1596,9 @@ int isim_next_event(struct isim_event *ev, double timeout) {
         memset(ev, 0, sizeof *ev); ev->type = EV_REDRAW; home_drawn = 0; return 1;
     }
     if (home_autohide && home_drawn && timeout > 0) timeout = fmin(timeout, fmax(0, home_touch_t + 2.06 - now()));
+    isim_diag_beat(1);                                      /* the hang watchdog: the main thread is waiting */
     int r = next_event(ev, timeout);
+    isim_diag_beat(0);
     if (r && (ev->type == EV_TOUCH_DOWN || ev->type == EV_ID_DOWN)) home_touch_t = now();
     return r;
 }
@@ -2000,8 +2029,20 @@ int isim_fs_stats(const char *path, unsigned long long out[4]) {
     return 0;
 }
 
+long isim_log_range(long *first);
+int isim_log_get(long seq, double *date, int meta[3], uint64_t ids[2], char *strs[5]);
+void isim_signpost_print(const char *subsystem, const char *category, int sptype, uint64_t spid, const char *name, const char *msg);
+int isim_resource_usage(double out[8]);
+int isim_hang_count(void);
+int isim_hang_get(int i, double *start, double *duration, char *stack, int cap);
+void isim_diag_set_app(const char *bundle_id, const char *version, const char *build, const char *name, const char *path);
+int isim_sample_main_stack(char *out, int cap);
+int isim_launch_stack(char *out, int cap);
 #define H(n) { "_" #n, (void *)n, "isim" }
 static const struct shim isim_table[] = {
+    H(isim_log_record), H(isim_log_range), H(isim_log_get), H(isim_signpost_print), H(isim_metric_add), H(isim_metric_max),
+    H(isim_metric_get), H(isim_resource_usage), H(isim_hang_count), H(isim_hang_get), H(isim_diag_set_app), H(isim_diag_app),
+    H(isim_diag_process_start), H(isim_sample_thread), H(isim_sample_main_stack), H(isim_launch_stack),
     H(isim_device_metrics), H(isim_set_phone_compatibility_mode), H(isim_os_version), H(isim_display_open), H(isim_frame_begin), H(isim_frame_end), H(isim_time),
     H(isim_gfx_save), H(isim_gfx_restore), H(isim_gfx_translate), H(isim_gfx_scale), H(isim_gfx_clip_rounded),
     H(isim_gfx_fill_rounded), H(isim_gfx_stroke_rounded), H(isim_gfx_fill_ellipse), H(isim_gfx_push_group), H(isim_gfx_pop_group),

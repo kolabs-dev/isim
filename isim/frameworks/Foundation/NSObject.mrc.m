@@ -125,8 +125,11 @@
 
 /* ---- functions ---- */
 static pthread_mutex_t log_lock = PTHREAD_MUTEX_INITIALIZER;
+extern void isim_log_record(int kind, int type, const char *subsystem, const char *category, const char *message,
+                            const char *format, int sptype, uint64_t spid, const char *name);   /* the log store (host) */
 void NSLogv(NSString *format, va_list args) {
     NSString *msg = [[NSString alloc] initWithFormat:format arguments:args];
+    isim_log_record(0, 0, "", "", [msg UTF8String], [format UTF8String], 0, 0, "");
     time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
     char ts[32]; strftime(ts, sizeof ts, "%Y-%m-%d %H:%M:%S", &tm);
     struct timespec now; clock_gettime(CLOCK_REALTIME, &now);

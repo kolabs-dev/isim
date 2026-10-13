@@ -22,6 +22,21 @@ void *isim_lookup_symbol(const char *mangled_name); /* flat lookup over images +
 const char *isim_main_executable_path(void);
 const char *isim_image_path_for_address(const void *addr);
 void isim_fatal(const char *fmt, ...) __attribute__((noreturn, format(printf, 1, 2)));
+/* stacks and symbols (loader.c): a thread's stack sampled from a signal; a pc as its image, symbol and offsets */
+int isim_sample_thread(int tid, uintptr_t *pcs, int max);
+int isim_symbolize(uintptr_t pc, char *image, size_t icap, char *sym, size_t scap, uint64_t *image_offset,
+                   uint64_t *sym_offset, uint64_t *image_base);
+
+/* diagnostics (host_os.c, host_diag.c) */
+void isim_log_record(int kind, int type, const char *subsystem, const char *category, const char *message,
+                     const char *format, int sptype, uint64_t spid, const char *name);
+void isim_metric_add(const char *key, double v);
+void isim_metric_max(const char *key, double v);
+double isim_metric_get(const char *key);
+const char *isim_diag_app(int which);              /* 0 bundle id, 1 version, 2 build, 3 name, 4 bundle path */
+double isim_diag_process_start(void);
+void isim_diag_frame(void);
+void isim_diag_beat(int waiting);
 extern int isim_verbose;
 
 /* ObjC runtime hooks (objc_rt.c) */
