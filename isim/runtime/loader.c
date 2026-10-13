@@ -949,18 +949,12 @@ static void dump_frame(char *buf, size_t cap, int i, uintptr_t pc) {
         snprintf(buf, cap, "  #%-2d 0x%012lx [host] %s+0x%lx\n", i, (unsigned long)pc, base ? base + 1 : hi.dli_fname, (unsigned long)(pc - (uintptr_t)hi.dli_fbase));
     } else snprintf(buf, cap, "  #%-2d 0x%012lx ?\n", i, (unsigned long)pc);
 }
-/* a thread's pcs from its signal context: DWARF unwind (guest images are registered), else the frame-pointer chain;
-   safe: memory is read through the pipe (safe_word) when `safe` */
+/* a thread's pcs from its signal context: the frame-pointer chain (guest code always keeps frame pointers). No DWARF
+   unwinding here: the unwinder takes the dynamic loader's lock, which the interrupted thread may hold (a hang inside
+   dlopen would never end). Memory is read through the pipe (safe_word) when `safe` */
 static int collect_pcs(ucontext_t *uc, uintptr_t *pcs, int max, int safe) {
     uintptr_t pc = uc->uc_mcontext.gregs[REG_RIP], fp = uc->uc_mcontext.gregs[REG_RBP], sp = uc->uc_mcontext.gregs[REG_RSP], w;
-    struct dump_pcs d = { .n = 0 };
-    isim_unwind_backtrace(dump_collect, &d);
-    int first = -1, n = 0;
-    for (int i = 0; i < d.n; i++) if (d.pc[i] == pc || d.pc[i] == pc + 1) { first = i; break; }
-    if (first >= 0 && d.n - first > 2) {
-        for (int i = first; i < d.n && n < max; i++) pcs[n++] = i == first ? pc : d.pc[i] - 1;
-        return n;
-    }
+    int n = 0;
     pcs[n++] = pc;
     #define READW(a, o) (safe ? safe_word((a), (o)) : ((a) && !((a) & 7) ? (*(o) = *(uintptr_t *)(a), 1) : 0))
     if (READW(sp, &w) && image_for_address((void *)w) && n < max) pcs[n++] = w;
@@ -1230,7 +1224,7 @@ static void write_crash_report(int sig, siginfo_t *si, ucontext_t *uc) {
         put(",\"className\":"); put_str(exc_class[0] ? exc_class : "NSException"); put("},\n");
         put("  \"lastExceptionBacktrace\" : "); put_frames(exc_pcs, exc_n); put(",\n");
     }
-    uintptr_t pcs[64]; int n = collect_pcs(uc, pcs, 64, 0);
+    uintptr_t pcs[64]; int n = collect_pcs(uc, pcs, 64, dump_pipe[0] >= 0);
     put("  \"faultingThread\" : 0,\n  \"threads\" : [{\"triggered\":true,\"id\":%ld,%s\"frames\":", (long)syscall(SYS_gettid),
         syscall(SYS_gettid) == getpid() ? "\"queue\":\"com.apple.main-thread\"," : "");
     put_frames(pcs, n);
