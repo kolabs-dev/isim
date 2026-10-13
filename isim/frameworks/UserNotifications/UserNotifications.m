@@ -1225,8 +1225,14 @@ void isim_un_notification_action(NSString *record, NSString *ident, NSString *ac
 @interface __IsimNotificationExtensionHost : UIResponder <UIApplicationDelegate>
 @property (nonatomic, strong) UIWindow *window;
 @end
+@interface NSExtensionContext (ISIMHost)
+- (instancetype)initISIMWithInputItems:(NSArray *)items handler:(void (^)(NSArray *returnedItems, NSError *error, BOOL completed))handler;
+@end
 @implementation __IsimNotificationExtensionHost {
     NSDictionary *_req; NSString *_out; id _instance; BOOL _done;
+    /* a content extension session */
+    UNNotification *_notification; NSString *_session, *_framePath, *_answer; NSData *_lastFrame; NSArray *_actions;
+    CGFloat _width, _height, _frameHeight; NSUInteger _frameSeq, _answerSeq; BOOL _hidden, _interactive, _playing;
 }
 static void finish_extension(NSDictionary *result, NSString *out) {
     [result writeToFile:out atomically:YES];
@@ -1291,6 +1297,22 @@ static void finish_extension(NSDictionary *result, NSString *out) {
         });
     });
 }
+/* Content extensions: the view is rendered to a PNG (frame-N.png in the session directory) and, while the notification
+   stays expanded, the process keeps running as an interactive session: the shell sends taps through the control FIFO
+   (ISIM_CONTROL: `tap X Y` in the view's points) and the expanded notification's events as system events ("nx-action
+   ID\x1fTEXT", "nx-media play|pause", "nx-close"); the view is rendered again whenever it changes, and <session>/state
+   tells the shell the frame, its height, the play/pause button, the actions (notificationActions) and the extension's
+   answer to an action (didReceiveNotificationResponse:completionHandler:, performNotificationDefaultAction,
+   dismissNotificationContentExtension). Without a session (older home screens) one frame is rendered and the process exits. */
+static NSData *png_of_view(UIView *v, CGFloat width, CGFloat h) {
+    CGFloat scale = UIScreen.mainScreen.scale ?: 2;
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(width, h), YES, scale);
+    [[UIColor colorWithWhite:0.96 alpha:1] setFill]; UIRectFill(CGRectMake(0, 0, width, h));
+    [v drawViewHierarchyInRect:CGRectMake(0, 0, width, h) afterScreenUpdates:YES];
+    UIImage *img = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return UIImagePNGRepresentation(img);
+}
 - (void)runContent:(NSDictionary *)ext {
     UNNotification *n = notification_from_record([NSDictionary dictionaryWithContentsOfFile:_req[@"record"] ?: @""]);
     UIViewController *vc = [self makeViewController:ext];
@@ -1307,27 +1329,126 @@ static void finish_extension(NSDictionary *result, NSString *out) {
     [_window makeKeyAndVisible];
     vc.view.frame = CGRectMake(0, 0, width, height);
     _instance = vc;
+    _notification = n;
+    NSExtensionContext *ctx = [[NSExtensionContext alloc] initISIMWithInputItems:@[] handler:nil];
+    SEL setCtx = NSSelectorFromString(@"_isim_setExtensionContext:");
+    if ([vc respondsToSelector:setCtx]) ((void (*)(id, SEL, id))objc_msgSend)(vc, setCtx, ctx);
     if ([vc respondsToSelector:@selector(didReceiveNotification:)]) [(id<ISIMContentExtension>)vc didReceiveNotification:n];
     else NSLog(@"isim: Notification Content extension: %@ does not implement didReceiveNotification:", NSStringFromClass(vc.class));
     NSLog(@"isim: Notification Content extension %@ didReceive “%@”", NSStringFromClass(vc.class), n.request.identifier);
-    NSString *out = _out;
-    UIWindow *w = _window;
+    _session = _req[@"session"];
+    _width = width; _height = height;
+    _hidden = [attrs[@"UNNotificationExtensionDefaultContentHidden"] boolValue];
+    _interactive = [attrs[@"UNNotificationExtensionUserInteractionEnabled"] boolValue];
+    if (_session.length) {
+        [NSNotificationCenter.defaultCenter addObserverForName:@"_IsimSystemEvent" object:nil queue:nil usingBlock:^(NSNotification *note) { [self sessionEvent:note.object]; }];
+        [NSNotificationCenter.defaultCenter addObserverForName:@"_IsimContentExtensionEvent" object:nil queue:nil usingBlock:^(NSNotification *note) { [self contextEvent:note.userInfo]; }];
+        /* a session ends with the expanded notification; this is a backstop */
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(600 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ NSLog(@"isim: Notification Content extension session timed out"); exit(0); });
+    }
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        CGFloat h = vc.preferredContentSize.height > 0 ? vc.preferredContentSize.height : height;
-        w.frame = CGRectMake(0, 0, width, h); vc.view.frame = w.bounds;
-        [vc.view setNeedsLayout]; [vc.view layoutIfNeeded];
-        CGFloat scale = UIScreen.mainScreen.scale ?: 2;
-        UIGraphicsBeginImageContextWithOptions(CGSizeMake(width, h), YES, scale);
-        [[UIColor colorWithWhite:0.96 alpha:1] setFill]; UIRectFill(CGRectMake(0, 0, width, h));
-        [vc.view drawViewHierarchyInRect:CGRectMake(0, 0, width, h) afterScreenUpdates:YES];
-        UIImage *img = UIGraphicsGetImageFromCurrentImageContext();
-        UIGraphicsEndImageContext();
-        NSString *png = [out.stringByDeletingPathExtension stringByAppendingPathExtension:@"png"];
-        [UIImagePNGRepresentation(img) writeToFile:png atomically:YES];
-        NSLog(@"isim: Notification Content extension rendered %.0f x %.0f", width, h);
-        finish_extension(@{ @"image": png, @"width": @(width), @"height": @(h),
-                            @"defaultContentHidden": @([attrs[@"UNNotificationExtensionDefaultContentHidden"] boolValue]) }, out);
+        NSData *png = [self renderFrame];
+        if (!self->_session.length) {                           /* one frame */
+            NSString *file = [self->_out.stringByDeletingPathExtension stringByAppendingPathExtension:@"png"];
+            [png writeToFile:file atomically:YES];
+            finish_extension(@{ @"image": file, @"width": @(self->_width), @"height": @(self->_frameHeight),
+                                @"defaultContentHidden": @(self->_hidden) }, self->_out);
+            return;
+        }
+        [self writeFrame:png];
+        NSMutableDictionary *r = [@{ @"image": self->_framePath, @"width": @(self->_width), @"height": @(self->_frameHeight),
+            @"defaultContentHidden": @(self->_hidden), @"session": self->_session, @"interactive": @(self->_interactive),
+            @"responds": @([vc respondsToSelector:@selector(didReceiveNotificationResponse:completionHandler:)]) } mutableCopy];
+        [r writeToFile:self->_out atomically:YES];
+        /* the view changes as the person uses it (or by itself): a new frame whenever it does */
+        [NSTimer scheduledTimerWithTimeInterval:0.25 repeats:YES block:^(NSTimer *t) {
+            NSData *next = [self renderFrame];
+            if (![next isEqualToData:self->_lastFrame]) [self writeFrame:next];
+        }];
     });
+}
+- (NSData *)renderFrame {
+    UIViewController *vc = _instance;
+    CGFloat h = vc.preferredContentSize.height > 0 ? vc.preferredContentSize.height : _height;
+    if (fabs(_window.frame.size.height - h) > 0.5) { _window.frame = CGRectMake(0, 0, _width, h); vc.view.frame = _window.bounds; }
+    [vc.view setNeedsLayout]; [vc.view layoutIfNeeded];
+    _frameHeight = h;
+    return png_of_view(vc.view, _width, h);
+}
+- (void)writeFrame:(NSData *)png {
+    _lastFrame = png;
+    _frameSeq++;
+    NSString *old = _framePath;
+    _framePath = [_session stringByAppendingPathComponent:[NSString stringWithFormat:@"frame-%lu.png", (unsigned long)_frameSeq]];
+    [png writeToFile:_framePath atomically:YES];
+    if (old && _frameSeq > 2) [NSFileManager.defaultManager removeItemAtPath:[_session stringByAppendingPathComponent:[NSString stringWithFormat:@"frame-%lu.png", (unsigned long)_frameSeq - 2]] error:NULL];
+    NSLog(@"isim: Notification Content extension rendered %.0f x %.0f (frame %lu)", _width, _frameHeight, (unsigned long)_frameSeq);
+    [self writeState];
+}
+/* <session>/state for the shell (key=value lines; rewritten atomically) */
+- (void)writeState {
+    if (!_session.length) return;
+    NSMutableString *st = [NSMutableString stringWithFormat:@"seq=%lu\nframe=%@\nheight=%g\n", (unsigned long)_frameSeq, _framePath ?: @"", _frameHeight];
+    UIViewController *vc = _instance;
+    if ([vc respondsToSelector:@selector(mediaPlayPauseButtonType)]) {
+        NSUInteger type = ((NSUInteger (*)(id, SEL))objc_msgSend)(vc, @selector(mediaPlayPauseButtonType));
+        if (type) {
+            CGRect f = [vc respondsToSelector:@selector(mediaPlayPauseButtonFrame)] ? ((CGRect (*)(id, SEL))objc_msgSend)(vc, @selector(mediaPlayPauseButtonFrame)) : CGRectZero;
+            if (CGRectIsEmpty(f)) f = CGRectMake((_width - 50) / 2, (_frameHeight - 50) / 2, 50, 50);
+            [st appendFormat:@"media=%lu %g %g %g %g %d\n", (unsigned long)type, f.origin.x, f.origin.y, f.size.width, f.size.height, _playing];
+        }
+    }
+    if (_actions) {
+        [st appendString:@"actions=1\n"];
+        for (NSDictionary *x in _actions)
+            [st appendFormat:@"action=%@\x1e%@\x1e%@\x1e%d\x1e%@\x1e%@\n", x[@"id"], x[@"title"], x[@"options"] ?: @0, [x[@"textInput"] boolValue], x[@"button"] ?: @"", x[@"placeholder"] ?: @""];
+    }
+    if (_answer.length) [st appendFormat:@"answer=%lu %@\n", (unsigned long)_answerSeq, _answer];
+    [st writeToFile:[_session stringByAppendingPathComponent:@"state"] atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+}
+- (void)answer:(NSString *)a {
+    _answerSeq++; _answer = [a copy];
+    NSLog(@"isim: Notification Content extension answers: %@", a);
+    [self writeState];
+}
+/* the expanded notification's events (from the shell, as system events) */
+- (void)sessionEvent:(NSString *)t {
+    if (![t hasPrefix:@"nx-"]) return;
+    UIViewController *vc = _instance;
+    if ([t isEqualToString:@"nx-close"]) { NSLog(@"isim: Notification Content extension session ended"); exit(0); }
+    if ([t hasPrefix:@"nx-media "]) {
+        BOOL play = [t hasSuffix:@"play"];
+        SEL sel = play ? @selector(mediaPlay) : @selector(mediaPause);
+        _playing = play;
+        if ([vc respondsToSelector:sel]) ((void (*)(id, SEL))objc_msgSend)(vc, sel);
+        NSLog(@"isim: Notification Content extension %@", play ? @"mediaPlay" : @"mediaPause");
+        [self writeState];
+        return;
+    }
+    if ([t hasPrefix:@"nx-action "]) {
+        NSArray *p = [[t substringFromIndex:10] componentsSeparatedByString:@"\x1f"];
+        NSString *action = p[0], *text = p.count > 1 ? p[1] : nil;
+        UNNotificationResponse *resp = text.length ? [UNTextInputNotificationResponse isim_responseWithNotification:_notification action:action text:text]
+                                                   : [UNNotificationResponse isim_responseWithNotification:_notification action:action];
+        if (![vc respondsToSelector:@selector(didReceiveNotificationResponse:completionHandler:)]) { [self answer:[@"forward " stringByAppendingString:action]]; return; }
+        NSLog(@"isim: Notification Content extension didReceive response %@", action);
+        __block BOOL answered = NO;
+        ((void (*)(id, SEL, id, id))objc_msgSend)(vc, @selector(didReceiveNotificationResponse:completionHandler:), resp, ^(NSUInteger option) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (answered) return;
+                answered = YES;
+                [self answer:option == 0 ? @"keep" : option == 1 ? @"dismiss" : [@"forward " stringByAppendingString:action]];
+            });
+        });
+    }
+}
+/* NSExtensionContext (UNNotificationContentExtension) calls, from UserNotificationsUI */
+- (void)contextEvent:(NSDictionary *)e {
+    NSString *what = e[@"event"];
+    if ([what isEqual:@"actions"]) { _actions = e[@"actions"]; [self writeState]; }
+    else if ([what isEqual:@"media-started"] || [what isEqual:@"media-paused"]) { _playing = [what isEqual:@"media-started"]; [self writeState]; }
+    else if ([what isEqual:@"default"]) [self answer:@"forward com.apple.UNNotificationDefaultActionIdentifier"];
+    else if ([what isEqual:@"dismiss"]) [self answer:@"dismiss"];
 }
 @end
 

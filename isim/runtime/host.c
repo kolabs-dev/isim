@@ -1385,6 +1385,8 @@ static int script_step(struct isim_event *ev) {
         else snprintf(pending[npending - 1].text, sizeof pending->text, "%s%.*s", cmd, (int)n, args);
         for (char *e = pending[npending - 1].text + strlen(pending[npending - 1].text) - 1; e >= pending[npending - 1].text && *e == ' '; e--) *e = 0;
         script_resume = now() + 0.2;
+    } else if (!strcmp(cmd, "sysevent") && sscanf(args, " %511[^;]", arg) == 1) {   /* a system event for the app (its text; the shell drives extension helpers with it) */
+        pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
     } else if (!strcmp(cmd, "memorywarning")) {  /* Debug > Simulate Memory Warning: "memorywarning [warn|critical|normal]" */
         if (sscanf(args, " %63[^; ]", arg) != 1) strcpy(arg, "warn");
         pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "memory-warning %s", arg);

@@ -63,8 +63,21 @@ static void run_extension(NSDictionary *ext, NSDictionary *request, void (^done)
     NSMutableDictionary *r = [request mutableCopy]; r[@"out"] = out;
     [r writeToFile:req atomically:YES];
     if (!ext_pending) ext_pending = [NSMutableDictionary dictionary];
-    ext_pending[req] = ^(NSDictionary *unused) { done([NSDictionary dictionaryWithContentsOfFile:out]); };
+    ext_pending[req] = ^(NSDictionary *unused) {
+        NSMutableDictionary *res = [[NSDictionary dictionaryWithContentsOfFile:out] mutableCopy];
+        if (res) res[@"request"] = req;                       /* its control FIFO is <request>.ctl (the shell makes it) */
+        done(res);
+    };
     isim_shell_request(ISIM_SHELL_SYSTEM, "ext-run", [ext[@"exe"] UTF8String], req.UTF8String);
+    if (request[@"session"]) {                               /* a Content extension session keeps running: its first result */
+        [NSTimer scheduledTimerWithTimeInterval:0.1 repeats:YES block:^(NSTimer *t) {
+            void (^d)(NSDictionary *) = ext_pending[req];
+            if (!d) { [t invalidate]; return; }
+            if (![NSFileManager.defaultManager fileExistsAtPath:out]) return;
+            [t invalidate]; [ext_pending removeObjectForKey:req];
+            d(nil);
+        }];
+    }
 }
 NSInteger HSBadgeCount(HSApp *a) {
     if (a.system) return 0;
@@ -355,7 +368,9 @@ static NSString *prefs_path(HSApp *a) { return [a.containerPath stringByAppendin
     NSDictionary *ext = a && category.length && rec ? app_extension(a, @"com.apple.usernotifications.content-extension", category) : nil;
     void (^answer)(NSDictionary *) = ^(NSDictionary *result) {
         NSMutableString *s = [NSMutableString string];
-        if (result[@"image"]) [s appendFormat:@"image=%@\nheight=%@\nhidden=%d\n", result[@"image"], result[@"height"], [result[@"defaultContentHidden"] boolValue]];
+        if (result[@"image"]) [s appendFormat:@"image=%@\nheight=%@\nhidden=%d\nwidth=%@\n", result[@"image"], result[@"height"], [result[@"defaultContentHidden"] boolValue], result[@"width"] ?: @0];
+        if (result[@"session"]) [s appendFormat:@"session=%@\ncontrol=%@.ctl\ninteractive=%d\nresponds=%d\n", result[@"session"], result[@"request"],
+                                 [result[@"interactive"] boolValue], [result[@"responds"] boolValue]];
         [s appendFormat:@"dismiss=%d\n", ([cat[@"options"] integerValue] & 1) != 0];
         for (NSDictionary *x in cat[@"actions"])
             [s appendFormat:@"action=%@\x1e%@\x1e%@\x1e%d\x1e%@\x1e%@\n", flat(x[@"id"]), flat(x[@"title"]), x[@"options"] ?: @0, [x[@"textInput"] boolValue], flat(x[@"button"]), flat(x[@"placeholder"])];
@@ -368,6 +383,8 @@ static NSString *prefs_path(HSApp *a) { return [a.containerPath stringByAppendin
     if (!ext) { answer(nil); return; }
     NSLog(@"SpringBoard: running the Notification Content extension %@", ext[@"name"]);
     CGFloat width = MIN(self.view.bounds.size.width - 16, 400);
-    run_extension(ext, @{ @"mode": @"content", @"record": recordPath, @"width": @(width) }, ^(NSDictionary *result) { answer(result[@"image"] ? result : nil); });
+    NSString *session = [isim_data_dir() stringByAppendingPathComponent:[NSString stringWithFormat:@"Library/SpringBoard/Notifications/session-%u", arc4random()]];
+    [NSFileManager.defaultManager createDirectoryAtPath:session withIntermediateDirectories:YES attributes:nil error:NULL];
+    run_extension(ext, @{ @"mode": @"content", @"record": recordPath, @"width": @(width), @"session": session }, ^(NSDictionary *result) { answer(result[@"image"] ? result : nil); });
 }
 @end
