@@ -4,6 +4,7 @@ session without the alert, cancelled; SwiftUI webAuthenticationSession), Message
 ISIM_MAIL=1/ISIM_MESSAGES=1: composers, sent mail/message files, saved draft, cancel), universal links via the
 `openurl` script command and a custom URL scheme. Local server only (samples/HelloWeb/server.py).
 Port of tests/ui/safari.sh."""
+import json
 import re
 
 import pytest
@@ -29,8 +30,20 @@ def sign_in_page(app, requests, n):
     app.wait_shot(allow_shown, "the sign-in page from the local server", timeout=20)
 
 
+AASA = {"applinks": {"substitutionVariables": {"kind": ["items", "deals"]}, "details": [
+    {"appIDs": ["OTHERTEAM.dev.example.other"], "components": [{"/": "/*"}]},
+    {"appIDs": ["ABCDE12345.dev.isim.samples.HelloSafari"], "components": [
+        {"/": "/items/private/*", "exclude": True},
+        {"/": "/$(kind)/*"},
+        {"/": "/promo", "?": {"ref": "isim*"}},
+    ]}]}}
+
+
 def test_safari(launch, device_data):
     log_file = device_data / "server.log"
+    aasa = device_data / "Library/isim/AASA/links.isim.example.json"   # the domain's apple-app-site-association
+    aasa.parent.mkdir(parents=True)
+    aasa.write_text(json.dumps(AASA))
     with local_server(ROOT / "samples/HelloWeb/server.py", log_file) as port:
         server = ["-server", f"http://127.0.0.1:{port}"]
         app = launch("HelloSafari", args=server, env={"ISIM_MAIL": "1", "ISIM_MESSAGES": "1"})
@@ -100,11 +113,20 @@ def test_safari(launch, device_data):
         app.wait_log(r"mail result=1")
         app.send("openurl https://links.isim.example/items/42")
         app.wait_log(r"universal link links.isim.example")
+        for url in ("https://links.isim.example/items/private/1", "https://links.isim.example/about",
+                    "https://links.isim.example/promo?ref=other"):           # excluded, not listed, query does not match
+            app.send(f"openurl {url}")
+            app.wait_log(rf"{re.escape(url)} is not a universal link of this app")
+        app.send("openurl https://links.isim.example/promo?ref=isim-news")
+        app.wait_log(r"universal link links.isim.example path=/promo")
+        app.send("openurl https://links.isim.example/deals/7")          # a substitution variable
+        app.wait_log(r"universal link links.isim.example path=/deals/7")
         app.send("openurl hellosafari://open/x")
         app.wait_log(r"open url hellosafari://open/x")
         app.send("openurl https://www.apple.com/")
         app.wait_log(r"is not a universal link of this app")
         app.send("openurl https://a.shop.isim.example/cart")
+        app.wait_log(r"no apple-app-site-association for shop\.isim\.example \(offline\): every path of it opens the app")
         app.wait_log(r"universal link a.shop.isim.example")
         assert app.quit() == 0, "exits cleanly"
         log = app.log

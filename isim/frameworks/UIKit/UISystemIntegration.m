@@ -1088,7 +1088,7 @@ void isim_sys_event(const char *text) {
 NSString *isim_ui_installed_apps_dir(void);
 NSString *isim_ui_system_apps_dir(void);
 static BOOL installed_app_handles(NSURL *url, BOOL *universal) {
-    NSString *scheme = url.scheme.lowercaseString ?: @"", *host = url.host.lowercaseString ?: @"";
+    NSString *scheme = url.scheme.lowercaseString ?: @"";
     *universal = NO;
     NSString *me = NSBundle.mainBundle.bundleIdentifier;
     for (NSString *dir in @[isim_ui_installed_apps_dir(), isim_ui_system_apps_dir()])
@@ -1098,12 +1098,8 @@ static BOOL installed_app_handles(NSURL *url, BOOL *universal) {
             NSDictionary *info = [NSDictionary dictionaryWithContentsOfFile:[app stringByAppendingPathComponent:@"Info.plist"]];
             if ([scheme isEqualToString:@"https"]) {
                 if ([info[@"CFBundleIdentifier"] isEqual:me]) continue;       /* a universal link to the app itself opens in the browser */
-                NSDictionary *ent = [NSDictionary dictionaryWithContentsOfFile:[app stringByAppendingPathComponent:@"archived-expanded-entitlements.xcent"]];
-                for (NSString *d in ent[@"com.apple.developer.associated-domains"]) {
-                    if (![d hasPrefix:@"applinks:"]) continue;
-                    NSString *h = [[d substringFromIndex:9] componentsSeparatedByString:@"?"].firstObject.lowercaseString;
-                    if ([h hasPrefix:@"*."] ? ([host hasSuffix:[h substringFromIndex:1]] || [host isEqualToString:[h substringFromIndex:2]]) : [h isEqualToString:host]) { *universal = YES; return YES; }
-                }
+                extern BOOL isim_ui_app_claims_link(NSString *appPath, NSURL *url);   /* associated domain + AASA */
+                if (isim_ui_app_claims_link(app, url)) { *universal = YES; return YES; }
                 continue;
             }
             for (NSDictionary *t in info[@"CFBundleURLTypes"]) for (NSString *s in t[@"CFBundleURLSchemes"]) if ([s.lowercaseString isEqualToString:scheme]) return YES;

@@ -15,7 +15,10 @@ def yellow(img):
     return count_px(img, (36, 71, 70, 70), lambda c: math.dist(c, (255, 214, 10)) / math.sqrt(3) <= 0.15 * 255)
 
 
-def test_system(launch):
+def test_system(launch, device_data):
+    aasa = device_data / "Library/isim/AASA/hello.isim.dev.json"         # the domain gives HelloSystem /items/* only
+    aasa.parent.mkdir(parents=True)
+    aasa.write_text('{"applinks": {"details": [{"appIDs": ["TEAM123456.dev.isim.samples.HelloSystem"], "components": [{"/": "/items/*"}]}]}}')
     dev = launch(None, install=["HelloSystem"], env={"ISIM_BACKGROUND_TASK_SECONDS": "30"})
     dev.wait_view(visible(ICON))
     dev.send(f"holdid {ICON} 0.8")
@@ -65,6 +68,8 @@ def test_system(launch):
     dev.send("openurl https://hello.isim.dev/items/7")
     dev.wait_log(r"SpringBoard: System opens https://hello\.isim\.dev/items/7 \(universal link\)")
     dev.wait_log(r"continue NSUserActivityTypeBrowsingWeb https://hello\.isim\.dev/items/7")   # universal link
+    dev.send("openurl https://hello.isim.dev/blog/1")                   # not in the domain's AASA: Safari
+    dev.wait_log(r"SpringBoard: Safari opens https://hello\.isim\.dev/blog/1$")
     dev.send("openurl hellosystem://open?x=1")
     dev.wait_log(r"openURLContexts hellosystem://open\?x=1")             # custom URL scheme via openurl
     dev.send("openurl nothing://here")

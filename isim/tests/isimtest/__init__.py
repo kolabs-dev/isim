@@ -215,6 +215,7 @@ class App:
         e.setdefault("ISIM_DICTIONARIES", "none")           # the built-in word lists only, whatever the host has installed
         e.setdefault("ISIM_MDNS", "0")                      # Bonjour in the local registry only: tests running in parallel
                                                             # must not find each other's services over multicast DNS
+        e.setdefault("ISIM_AASA_FETCH", "0")                # apple-app-site-association files from the device data only
         if os_version:
             e["ISIM_OS_VERSION"] = str(os_version)
         if not launch_screen:
@@ -643,6 +644,7 @@ def run_app(name: str, *, script: str | None = None, timeout: float = 120, data:
     target = bundle / name if executable else bundle
     e = dict(os.environ)
     e.setdefault("ISIM_MDNS", "0")                          # see App
+    e.setdefault("ISIM_AASA_FETCH", "0")
     if data is not None:
         e["ISIM_DATA"] = str(data)
         e["ISIM_GAMECENTER"] = str(Path(data).parent / "gamecenter")
