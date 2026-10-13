@@ -17,6 +17,7 @@
 #   isim test -project X.xcodeproj -scheme S [-only-testing:T/C/m] [-resultBundlePath D]   build + run XCTest/XCUITest/Swift Testing
 #   isim info <App.app|binary>   show Mach-O platform / dependencies
 #   isim preview <App.app> [NAME|INDEX|--list] [-o FILE.png]   render a #Preview to a PNG (Xcode's canvas, one preview)
+#   isim privacy-report <App.app> [-o FILE] [--json] [--strict]   the app's privacy manifests, checked (Xcode's privacy report)
 #   isim storekit <app> list|refund|expire|cancel|resume|billing-issue|resolve|clear ...   local StoreKit Transaction Manager
 #   isim storekit certificate|offer-key   the device's StoreKit testing certificate and subscription offers key
 #   isim gamecenter [<app>] players|friends|score|challenge|activity|saved-games|...   local Game Center network
@@ -366,6 +367,8 @@ case "$cmd" in
       '') exec python3 "$BIN/isim-build.py" -tree "$@" ;;
       *) exec python3 "$BIN/isim-build.py" -project "$p" -tree "$@" ;;
     esac ;;
+  privacy-report)   # isim privacy-report <App.app> [-o FILE] [--json] [--strict]
+    exec python3 "$BIN/isim-privacy.py" "$@" ;;
   preview)   # isim preview <App.app> [NAME|INDEX|--list] [-o FILE.png] [--device D] [--os N] [--dark]
     exec python3 "$BIN/isim-preview.py" "$@" ;;
   push)      # isim push [BUNDLE_ID] payload.apns|-: queue a payload for the device's home screen (like `xcrun simctl push booted`)

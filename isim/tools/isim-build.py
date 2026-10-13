@@ -24,6 +24,7 @@ What it does per target (dependencies first, also across the projects of a works
     .xcassets -> <bundle>/isim-assets.json + images (isim's asset format; NOT Apple's Assets.car),
     .storyboard / .xib -> <Name>.storyboardc / <Name>.nib (isim's IB archive format, NOT Apple's compiled
     nibs; see isim/tools/ibtool.py), Settings.bundle and other folders copied, .xcprivacy and other files copied
+    (the app's privacy manifests are checked like App Store Connect does: see isim privacy-report)
   * Metal sources (.metal, Core Image kernels) -> <bundle>/default.metallib holding the sources (isim's format,
     "ISIMMETALLIB 1"; NOT Apple's GPU binary): isim runs Core Image's Metal kernels from their source
   * Core Data models: .xcdatamodeld/.xcdatamodel -> <Name>.momd (isim's own model format, NOT Apple's binary
@@ -375,6 +376,15 @@ def dump_package(path, cache_dir):
     with open(cache, 'w') as f:
         f.write(r.stdout)
     return json.loads(r.stdout)
+
+
+def privacy_check(app, log):
+    """the privacy manifest checks of isim privacy-report (isim-privacy.py), as build warnings"""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('isim_privacy', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'isim-privacy.py'))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.check(app, log)
 
 
 def load_standins():
@@ -1780,6 +1790,8 @@ class Builder:
             shutil.rmtree(dst, ignore_errors=True)
             shutil.copytree(path, dst)
         self.run_script_phases(target, s, 'end', kind, path)
+        if kind == 'app':
+            privacy_check(path, lambda m: log(f'{name}: {m}'))
         return {'kind': kind, 'path': path, 'exe': exe, 'module': module, 'target': name, 'settings': s,
                 'link_result': link_result, 'test_host': test_host}
 

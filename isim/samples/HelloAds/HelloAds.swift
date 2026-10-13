@@ -6,6 +6,7 @@
 import UIKit
 import GoogleMobileAds
 import UserMessagingPlatform
+import AppTrackingTransparency
 
 func log(_ s: String) { FileHandle.standardError.write(Data(("HelloAds: " + s + "\n").utf8)) }   // unbuffered
 func arg(_ name: String) -> String? {
@@ -48,7 +49,8 @@ final class AdsViewController: UIViewController, BannerViewDelegate, FullScreenC
         for (title, id, action) in [("Interstitial", "interstitial", #selector(showInterstitial)), ("Rewarded", "rewarded", #selector(showRewarded)),
                                     ("Rewarded Interstitial", "rewardedInterstitial", #selector(showRewardedInterstitial)),
                                     ("App Open", "appOpen", #selector(showAppOpen)), ("Native", "native", #selector(loadNative)),
-                                    ("Privacy Settings", "privacy", #selector(privacy))] {
+                                    ("Privacy Settings", "privacy", #selector(privacy)), ("Ping Tracker", "track", #selector(ping)),
+                                    ("Allow Tracking", "att", #selector(allowTracking))] {
             let b = UIButton(type: .system)
             b.setTitle(title, for: .normal)
             b.contentHorizontalAlignment = .leading
@@ -204,6 +206,17 @@ final class AdsViewController: UIViewController, BannerViewDelegate, FullScreenC
     func adLoader(_ adLoader: AdLoader, didFailToReceiveAdWithError error: Error) { log("native failed: \((error as NSError).code)") }
     func nativeAdDidRecordImpression(_ nativeAd: NativeAd) { log("native impression") }
     func nativeAdDidRecordClick(_ nativeAd: NativeAd) { log("native click") }
+
+    // MARK: tracking domains (PrivacyInfo.xcprivacy lists localhost) and App Tracking Transparency
+    @objc func ping() {
+        let url = URL(string: (arg("-tracker") ?? "http://localhost:8765") + "/")!
+        URLSession.shared.dataTask(with: url) { _, response, error in
+            log("tracker ping: status=\((response as? HTTPURLResponse)?.statusCode ?? 0) error=\(error.map { "\(($0 as NSError).code)" } ?? "none")")
+        }.resume()
+    }
+    @objc func allowTracking() {
+        ATTrackingManager.requestTrackingAuthorization { status in log("tracking authorization: \(status.rawValue)") }
+    }
 
     // MARK: privacy options
     @objc func privacy() {

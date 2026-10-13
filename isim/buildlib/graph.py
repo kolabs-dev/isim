@@ -214,7 +214,8 @@ def frameworks(c):
 
 
 TOOLS = [("isim", True), ("isim-build.py", True), ("isim-services.py", True), ("xcodeproj.py", False), ("momc.py", True),
-         ("ibtool.py", True), ("isim-test.py", True), ("isim-preview.py", True)]
+         ("ibtool.py", True), ("isim-test.py", True), ("isim-preview.py", True),
+         ("isim-privacy.py", True)]
 
 
 def tools(c):
