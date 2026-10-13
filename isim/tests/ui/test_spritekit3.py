@@ -70,6 +70,13 @@ def test_spritekit3_physics(launch):
     app = launch("HelloSpriteKit3", env={"HELLOSK3_PAGE": "physics"})
     app.wait_log(r"sk3 physics done", timeout=120)
     assert not missing(app.log, PHYSICS), f"missing: {missing(app.log, PHYSICS)}"
+    # SKView.showsFields (orange arrows on a grid) and showsPhysics (light cyan body outlines)
+    img = app.screenshot("physics")
+    px, (w, h) = img.load(), img.size
+    arrows = sum(1 for y in range(0, h) for x in range(0, w) if px[x, y][0] > 180 and 90 < px[x, y][1] < 170 and px[x, y][2] < 100)
+    outlines = sum(1 for y in range(0, h) for x in range(0, w) if 70 < px[x, y][0] < 140 and px[x, y][1] > 190 and px[x, y][2] > 220)
+    assert arrows > 1000, f"showsFields draws the field arrows ({arrows} px)"
+    assert outlines > 200, f"showsPhysics outlines the bodies ({outlines} px)"
 
 
 def test_spritekit3_nodes(launch):

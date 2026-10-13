@@ -1038,7 +1038,9 @@ open class SKView: UIView {
             if showsQuadCount { parts.append("quads:\(quadCount)") }
             if showsFPS { parts.append(String(format: "%.1f fps", fps)) }
             let text = parts.joined(separator: "  ")
-            let w = CGFloat(text.count) * 6.7 + 10, h: CGFloat = 18
+            var tw = 0.0, th = 0.0
+            isim_text_measure(text, 11, 0, 1, 0, 1, &tw, &th)
+            let w = CGFloat(tw) + 10, h: CGFloat = 18
             let x = bounds.width - w - 4, y = bounds.height - h - max(4, safeAreaInsets.bottom)
             let plate: [Double] = [0, 0, 0, 0.55], c: [Double] = [1, 1, 1, 1]
             plate.withUnsafeBufferPointer { isim_gfx_fill_rounded(x, y, w, h, 3, $0.baseAddress) }
