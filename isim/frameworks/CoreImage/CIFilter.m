@@ -73,7 +73,7 @@ CGAffineTransform ci_xform(id v) {
 }
 CIColor *ci_colorv(id v, CIColor *d) {
     if ([v isKindOfClass:[CIColor class]]) return v;
-    if (v && CFGetTypeID((__bridge CFTypeRef)v) == CGColorGetTypeID()) return [CIColor colorWithCGColor:(__bridge CGColorRef)v];
+    if (ci_is_cgcolor(v)) return [CIColor colorWithCGColor:(__bridge CGColorRef)v];
     if ([v respondsToSelector:@selector(CGColor)]) return [CIColor colorWithCGColor:[v CGColor]];
     return d;
 }
@@ -290,7 +290,7 @@ static Class class_for_spec(const ci_filter_spec *s) {
     [c encodeObject:self.name forKey:@"name"];
     for (NSString *k in _in) {
         id v = _in[k];
-        if (CFGetTypeID((__bridge CFTypeRef)v) == CGColorSpaceGetTypeID()) {
+        if (ci_is_cgspace(v)) {
             CFStringRef n = CGColorSpaceGetName((__bridge CGColorSpaceRef)v);
             if (n) [c encodeObject:@{ @"colorSpace": (__bridge NSString *)n } forKey:k];
             continue;

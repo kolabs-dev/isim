@@ -35,7 +35,12 @@ ci_space ci_space_of(CGColorSpaceRef cs) {
     return r;
 }
 BOOL ci_is_null(id o) { return o && [o isKindOfClass:[NSNull class]]; }
-BOOL ci_is_cgspace(id o) { return o && !ci_is_null(o) && CFGetTypeID((__bridge CFTypeRef)o) == CGColorSpaceGetTypeID(); }
+/* Core Graphics objects answer -_isimCFTypeID (Foundation's Runtime.m) with their CG...GetTypeID value */
+@interface NSObject (IsimCFTypeID)
+- (unsigned long)_isimCFTypeID;
+@end
+BOOL ci_is_cgspace(id o) { return o && [o respondsToSelector:@selector(_isimCFTypeID)] && [o _isimCFTypeID] == CGColorSpaceGetTypeID(); }
+BOOL ci_is_cgcolor(id o) { static Class k; if (!k) k = NSClassFromString(@"__NSCGColor"); return o && k && [o isKindOfClass:k]; }
 int ci_space_eq(ci_space a, ci_space b) { return a.prim == b.prim && a.trc == b.trc && a.gray == b.gray; }
 static float srgb_dec(float v) { return v <= 0.04045f ? v / 12.92f : powf((v + 0.055f) / 1.055f, 2.4f); }
 static float srgb_enc(float v) { return v <= 0.0031308f ? v * 12.92f : 1.055f * powf(v, 1 / 2.4f) - 0.055f; }
@@ -752,8 +757,9 @@ SOLID(yellowImage, 1, 1, 0, 1) SOLID(clearImage, 0, 0, 0, 0)
 - (instancetype)initWithImage:(id)image options:(NSDictionary *)o {
     if (![image isKindOfClass:[UIImage class]]) return nil;
     UIImage *ui = image;
+    if (ui.CIImage) return ui.CIImage;          /* a UIImage made from a CIImage (on isim it also has a CGImage) */
     CGImageRef cg = ui.CGImage;
-    if (!cg) return ui.CIImage;
+    if (!cg) return nil;
     CIImage *r = [self initWithCGImage:cg options:o];
     /* like iOS: the CIImage holds the stored pixels; kCIImageApplyOrientationProperty applies the UIImage's
        orientation (UIImageOrientation -> EXIF) */

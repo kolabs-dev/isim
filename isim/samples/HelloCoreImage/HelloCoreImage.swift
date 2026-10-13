@@ -66,7 +66,7 @@ final class GalleryViewController: UIViewController {
         v.contentMode = .scaleAspectFit
         v.backgroundColor = UIColor(white: 0.94, alpha: 1)
         v.accessibilityIdentifier = name
-        if nearest { v.layer.magnificationFilter = .nearest }
+        if nearest { v.layer.magnificationFilter = .nearest; v.contentMode = .center }    // barcodes: whole pixels per module
         if let image, !image.extent.isInfinite, let cg = context.createCGImage(image, from: image.extent) { v.image = UIImage(cgImage: cg) }
         view.addSubview(v)
         let l = UILabel(frame: CGRect(x: x, y: y + w + 2, width: w, height: 16))
@@ -117,8 +117,8 @@ final class GalleryViewController: UIViewController {
     func generators() {
         let qr = CIFilter.qrCodeGenerator(); qr.message = Data("https://isim.dev".utf8); qr.correctionLevel = "M"
         let az = CIFilter.aztecCodeGenerator(); az.message = Data("isim aztec".utf8)
-        let c128 = CIFilter.code128BarcodeGenerator(); c128.message = Data("ISIM-128".utf8); c128.barcodeHeight = 32
-        let pdf = CIFilter.pdf417BarcodeGenerator(); pdf.message = Data("isim pdf417".utf8)
+        let c128 = CIFilter.code128BarcodeGenerator(); c128.message = Data("isim".utf8); c128.barcodeHeight = 32
+        let pdf = CIFilter.pdf417BarcodeGenerator(); pdf.message = Data("isim417".utf8)
         let check = CIFilter.checkerboardGenerator(); check.width = 14; check.center = CGPoint(x: 0, y: 0)
         let lin = CIFilter.linearGradient(); lin.point0 = CGPoint(x: 0, y: 0); lin.point1 = CGPoint(x: 116, y: 116)
         lin.color0 = CIColor(red: 1, green: 0.2, blue: 0.4); lin.color1 = CIColor(red: 0.2, green: 0.3, blue: 1)
@@ -297,7 +297,7 @@ struct Checks {
         let p3 = CIContext(options: [.outputColorSpace: CGColorSpace(name: CGColorSpace.displayP3)!])
         let red = CIImage(color: CIColor(red: 1, green: 0, blue: 0)).cropped(to: CGRect(x: 0, y: 0, width: 4, height: 4))
         var p3px = [UInt8](repeating: 0, count: 4)
-        p3.render(red, toBitmap: &p3px, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8, colorSpace: nil)
+        p3.render(red, toBitmap: &p3px, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8, colorSpace: CGColorSpace(name: CGColorSpace.displayP3)!)
         let darker = gray.applyingFilter("CIExposureAdjust", parameters: [kCIInputEVKey: -1])
         log("cm gray srgb \(px(gray, 1, 1)) linear \(pxf(gray, 1, 1)) unmanaged \(px(gray, 1, 1, raw)) p3 red \(p3px.map { Int($0) }) ev-1 \(px(darker, 1, 1)) ev-1 unmanaged \(px(darker, 1, 1, raw))")
         let lin = gray.matchedToWorkingSpace(from: linear)!
@@ -337,6 +337,9 @@ struct Checks {
         log("roundtrip png \(back.map { ext($0.extent) } ?? "nil") \(back.map { px($0, 4, 4) } ?? []) \(back.map { px($0, 60, 4) } ?? []) tiff \(CIImage(contentsOf: t).map { px($0, 60, 60) } ?? [])")
         let ui = UIImage(ciImage: halves)
         let r = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64)).image { _ in ui.draw(in: CGRect(x: 0, y: 0, width: 64, height: 64)) }
+        let fromUI = CIImage(image: UIImage(cgImage: context.createCGImage(halves, from: halves.extent)!))
+        let uiColor = CIColor(color: UIColor(red: 1, green: 0.5, blue: 0, alpha: 1))
+        log("uikit image \(fromUI.map { ext($0.extent) } ?? "nil") \(fromUI.map { px($0, 60, 4) } ?? []) same \(CIImage(image: ui) === halves) color \(uiColor.red) \(uiColor.green) \(uiColor.blue)")
         log("uiimage ciImage \(ui.ciImage != nil) size \(Int(ui.size.width))x\(Int(ui.size.height)) drawn \(r.cgImage.map { CIImage(cgImage: $0) }.map { px($0, 2, 2) } ?? [])")
     }
 
@@ -455,14 +458,14 @@ struct Checks {
         let straighten = CIFilter(name: "CIStraightenFilter", parameters: [kCIInputAngleKey: 0.1])!
         let data = CIFilter.serializedXMP(from: [sepia, straighten], inputImageExtent: face.extent)
         let back = data.map { CIFilter.filterArray(fromSerializedXMP: $0, inputImageExtent: face.extent, error: nil) } ?? []
-        log("xmp bytes \(data != nil) back \(back.map { $0.name }) intensity \(back.first?.value(forKey: kCIInputIntensityKey) ?? "nil")")
+        log("xmp bytes \(data != nil) back \(back.map { $0.name }) intensity \((back.first?.value(forKey: kCIInputIntensityKey) as? Double).map(f3) ?? "nil")")
     }
 
     func raw() {
         guard let url = bundle.url(forResource: "fixture", withExtension: "dng"), let f = CIRAWFilter(imageURL: url) else { log("raw unavailable"); return }
         let out = f.outputImage!
         let tiff = f.properties["{TIFF}"] as? [String: Any] ?? [:], exif = f.properties["{Exif}"] as? [String: Any] ?? [:]
-        log("raw size \(Int(f.nativeSize.width))x\(Int(f.nativeSize.height)) extent \(ext(out.extent)) make \(tiff["Make"] ?? "") model \(tiff["Model"] ?? "") exposure \(exif["ExposureTime"] ?? "") fnumber \(exif["FNumber"] ?? "") decoders \(f.supportedDecoderVersions) cameras \(CIRAWFilter.supportedCameraModels.count > 100)")
+        log("raw size \(Int(f.nativeSize.width))x\(Int(f.nativeSize.height)) extent \(ext(out.extent)) make \(tiff["Make"] ?? "") model \(tiff["Model"] ?? "") exposure \((exif["ExposureTime"] as? Double).map(f3) ?? "") fnumber \((exif["FNumber"] as? Double).map(f1) ?? "") decoders \(f.supportedDecoderVersions.map { $0.rawValue }) cameras \(CIRAWFilter.supportedCameraModels.count > 100)")
         let white = px(out, 6, 58), bar = px(out, 70, 56)
         log("raw temperature \(Int(f.neutralTemperature / 100) * 100) tint \(Int(f.neutralTint.rounded())) white \(white) red bar \(bar) supports nr \(f.isLuminanceNoiseReductionSupported) lens \(f.isLensCorrectionSupported)")
         f.exposure = 1
@@ -482,7 +485,7 @@ struct Checks {
         f.isDraftModeEnabled = false; f.orientation = .right
         log("raw scaled \(ext(half)) draft \(ext(draft)) oriented \(ext(f.outputImage!.extent)) preview \(f.previewImage.map { ext($0.extent) } ?? "nil")")
         let old = CIFilter(imageURL: url, options: [.allowDraftMode: false, CIRAWFilterOption(rawValue: kCIInputEVKey): 0.5])
-        log("raw deprecated \(old != nil) native \(old?.value(forKey: CIRAWFilterOption.outputNativeSize.rawValue) ?? "nil") ev \(old?.value(forKey: kCIInputEVKey) ?? "nil") output \(old?.outputImage.map { ext($0.extent) } ?? "nil")")
+        log("raw deprecated \(old != nil) native \((old?.value(forKey: CIRAWFilterOption.outputNativeSize.rawValue) as? CIVector).map { "\(Int($0.x))x\(Int($0.y))" } ?? "nil") ev \(old?.value(forKey: kCIInputEVKey) ?? "nil") output \(old?.outputImage.map { ext($0.extent) } ?? "nil")")
     }
 
     func pixelBuffers() {

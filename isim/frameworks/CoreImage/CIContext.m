@@ -137,8 +137,8 @@ CGImageRef ci_cgimage_from(const float *px, int w, int h, CGColorSpaceRef space)
 - (void)render:(CIImage *)image toBitmap:(void *)data rowBytes:(ptrdiff_t)rb bounds:(CGRect)r format:(CIFormat)fmt colorSpace:(CGColorSpaceRef)cs {
     if (!image || !data || ci_infinite(r)) return;
     r = CGRectIntegral(r);
-    /* nil: the context's output space; an output space of NSNull: no color matching */
-    BOOL match = cs || _outObj != [NSNull null];
+    /* nil: no color matching (the working space's values, as on iOS) */
+    BOOL match = cs != NULL;
     float *px = render_ex(self, image, r, cs ?: [self _outSpace:NULL], match);
     if (!px) return;
     int W = (int)r.size.width, H = (int)r.size.height;

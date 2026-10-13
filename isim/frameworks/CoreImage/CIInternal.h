@@ -25,7 +25,8 @@ CI_HIDDEN extern const ci_space ci_space_srgb, ci_space_linear;
 CI_HIDDEN ci_space ci_space_of(CGColorSpaceRef _Nullable cs);
 /* option values: NSNull (any instance) and CGColorSpace objects, checked by type */
 CI_HIDDEN BOOL ci_is_null(id _Nullable o);
-CI_HIDDEN BOOL ci_is_cgspace(id _Nullable o);           /* NULL: sRGB */
+CI_HIDDEN BOOL ci_is_cgspace(id _Nullable o);
+CI_HIDDEN BOOL ci_is_cgcolor(id _Nullable o);           /* NULL: sRGB */
 CI_HIDDEN CGColorSpaceRef _Nonnull ci_cgspace_named(CFStringRef _Nonnull name);  /* cached, not retained */
 CI_HIDDEN int ci_space_eq(ci_space a, ci_space b);
 CI_HIDDEN float ci_trc_decode(int trc, float v);                        /* encoded -> linear (sign-extended) */

@@ -32,6 +32,7 @@ extern CIContextOption const kCIContextMemoryLimit;
     CF_RETURNS_RETAINED NS_SWIFT_NAME(createCGImage(_:from:format:colorSpace:));
 - (nullable CGImageRef)createCGImage:(CIImage *)image fromRect:(CGRect)fromRect format:(CIFormat)format colorSpace:(nullable CGColorSpaceRef)colorSpace
     deferred:(BOOL)deferred CF_RETURNS_RETAINED NS_SWIFT_NAME(createCGImage(_:from:format:colorSpace:deferred:));
+/* colorSpace nil: the bitmap gets the working space's values (no color matching) */
 - (void)render:(CIImage *)image toBitmap:(void *)data rowBytes:(ptrdiff_t)rowBytes bounds:(CGRect)bounds format:(CIFormat)format colorSpace:(nullable CGColorSpaceRef)colorSpace;
 - (void)clearCaches;
 - (void)reclaimResources;

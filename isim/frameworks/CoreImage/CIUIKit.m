@@ -28,3 +28,4 @@ static char ci_key;
 }
 - (CIImage *)CIImage { return objc_getAssociatedObject(self, &ci_key); }
 @end
+

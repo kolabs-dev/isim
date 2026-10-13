@@ -23,6 +23,13 @@ extension CIImage {
         }
     }
     static func _isimIsFloat(_ f: CIFormat) -> Bool { f == .Lh || f == .Lf }
+    /// isim's Core Graphics objects answer _isimCFTypeID with their CG...GetTypeID value
+    static func _isimIsColorSpace(_ o: AnyObject) -> Bool {
+        let sel = NSSelectorFromString("_isimCFTypeID")
+        guard o.responds(to: sel) else { return false }
+        let r: Unmanaged<AnyObject>? = o.perform(sel)
+        return r.map { UInt(bitPattern: $0.toOpaque()) } == UInt(CGColorSpaceGetTypeID())
+    }
 
     public convenience init(cvPixelBuffer pixelBuffer: CVPixelBuffer) { self.init(cvPixelBuffer: pixelBuffer, options: nil) }
     public convenience init(cvPixelBuffer pixelBuffer: CVPixelBuffer, options: [CIImageOption: Any]?) {
@@ -38,7 +45,7 @@ extension CIImage {
         }
         var space: CGColorSpace? = CIImage._isimIsFloat(format) ? nil : CGColorSpace(name: CGColorSpace.sRGB)
         if let o = options?[.colorSpace] {
-            if o is NSNull { space = nil } else if CFGetTypeID(o as CFTypeRef) == CGColorSpaceGetTypeID() { space = (o as! CGColorSpace) }
+            if o is NSNull { space = nil } else if CIImage._isimIsColorSpace(o as AnyObject) { space = unsafeBitCast(o as AnyObject, to: CGColorSpace.self) }
         }
         self.init(bitmapData: data, bytesPerRow: bpr, size: CGSize(width: w, height: h), format: format, colorSpace: space)
         self.setValue(pixelBuffer, forKey: "isimPixelBuffer")
@@ -118,7 +125,7 @@ extension CIContext {
     }
     public func render(_ image: CIImage, to buffer: CVPixelBuffer, bounds: CGRect, colorSpace: CGColorSpace?) {
         let t = _ISIMTarget(buffer)
-        let space = colorSpace ?? (CIImage._isimIsFloat(t.format) ? CGColorSpace(name: CGColorSpace.linearSRGB) : nil)
+        let space = colorSpace ?? (CIImage._isimIsFloat(t.format) ? nil : CGColorSpace(name: CGColorSpace.sRGB))   // float (depth) buffers: not color matched
         withExtendedLifetime(t) {
             render(image, toBitmap: t.base, rowBytes: t.bytesPerRow, bounds: bounds, format: t.format, colorSpace: space)
             t.finish?()
