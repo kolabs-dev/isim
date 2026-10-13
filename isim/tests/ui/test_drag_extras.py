@@ -41,6 +41,9 @@ def test_drag_extras(launch):
     # hover styles: the pointer's highlight platter behind the view
     app.send("hover 120 540")
     app.wait_for(id="isim-pointer-effect")
+    # the pointer's shape lies on the view (its own coordinates), not offset by the view's origin a second time
+    white = lambda p: all(c > 240 for c in p[:3])
+    app.wait_shot(lambda s: not white(s.getpixel((120, 540))) and white(s.getpixel((160, 1040))), "the hover shape on the view")
     app.send("hover")
 
     # the paste delegate transforms what is pasted

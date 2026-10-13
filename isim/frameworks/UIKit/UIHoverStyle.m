@@ -148,8 +148,8 @@ UIPointerStyle *isim_ui_hover_pointer_style(UIView *v) {
     UIPointerShape *shape = nil;
     if (h.shape) {
         UIResolvedShape *r = [h.shape _isimResolvedInRect:v.bounds];
-        CGRect wr = [v convertRect:r.boundingRect toView:nil];
-        shape = [UIPointerShape shapeWithRoundedRect:wr cornerRadius:[h.shape _isimCornerRadiusIn:r.boundingRect]];
+        /* the pointer shape is in the view's own coordinates (UIHover.m converts it to the window) */
+        shape = [UIPointerShape shapeWithRoundedRect:r.boundingRect cornerRadius:[h.shape _isimCornerRadiusIn:r.boundingRect]];
     }
     return [UIPointerStyle styleWithEffect:e shape:shape];
 }
