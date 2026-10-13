@@ -604,7 +604,9 @@ def _(a):
 def _(a):
     b = a.swift_app("SecurityTest", objc=["OSLogC.m"], link=["-framework", "Foundation"])
     a.copy("SecurityTest.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # keychain-access-groups
-    for f in ("ca.der", "leaf.der", "expired.der", "selfsigned.der", "identity.p12", "ca.key"):   # test PKI (pki/make_fixtures.py)
+    for f in ("ca.der", "leaf.der", "expired.der", "selfsigned.der", "identity.p12", "ca.key",   # test PKI (pki/make_fixtures.py)
+              "server.der", "noeku.der", "nosan.der", "rsa1024.der", "ocsp-good.der", "ocsp-revoked.der",   # make_trust_fixtures.py
+              "ocsp-good.resp", "ocsp-revoked.resp"):
         a.copy(f"pki/{f}", b)
 
 

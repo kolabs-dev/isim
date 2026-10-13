@@ -1,8 +1,10 @@
 // isim Security: SecKey — RSA (1024-8192 bits) and NIST EC (P-256/P-384/P-521) keys, created, imported, exported,
 // used for signatures, RSA encryption and ECDH key exchange through the host's OpenSSL (host_pki.c).
 // Self-authored with iOS names and constants. Keys use Apple's external representations (PKCS#1 for RSA, X9.63 for
-// EC), so data exchanged with real devices or servers round-trips. There is no Secure Enclave on isim
-// (kSecAttrTokenIDSecureEnclave fails with errSecUnimplemented, like a Mac without one).
+// EC), so data exchanged with real devices or servers round-trips. Secure Enclave keys (kSecAttrTokenIDSecureEnclave:
+// P-256 only) live in isim's simulated enclave (Security.swift's _SecureEnclaveStore): their private key cannot be
+// exported, the keychain keeps them sealed with the device's key, and their access control (biometry / user
+// presence) asks for the device owner when they sign or agree on a key.
 import Foundation
 internal import CommonCrypto
 import isim_host
@@ -167,6 +169,11 @@ public final class SecKey: CustomStringConvertible, Hashable {
     let raw: [UInt8]
     let bits: Int
     var attributes: [String: Any]
+    /// a Secure Enclave key: its sealed form (what the keychain stores) and whether using it asks for the device owner
+    var seBlob: [UInt8]?
+    var seFlags: UInt8 = 0
+    /// kSecUseAuthenticationContext: an LAContext that may already have authenticated
+    var authContext: AnyObject?
     init(type: Int32, isPrivate: Bool, raw: [UInt8], bits: Int, attributes: [String: Any] = [:]) {
         self.type = type; self.isPrivate = isPrivate; self.raw = raw; self.bits = bits; self.attributes = attributes
     }
@@ -231,9 +238,7 @@ func _boolAttr(_ v: Any?) -> Bool { (v as? Bool) ?? (v as? NSNumber)?.boolValue 
 
 public func SecKeyCreateRandomKey(_ parameters: CFDictionary, _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> SecKey? {
     let p = (parameters as NSDictionary as? [String: Any]) ?? [:]
-    if (_attr(p, kSecAttrTokenID) as? String) == "com.apple.setoken" {
-        return _secFail(error, errSecUnimplemented, "The Secure Enclave is not available on isim (like the Simulator).")
-    }
+    if (_attr(p, kSecAttrTokenID) as? String) == "com.apple.setoken" { return _secureEnclaveKey(p, error) }
     let typeStr = (_attr(p, kSecAttrKeyType) as? String) ?? ""
     guard typeStr == "42" || typeStr == "73" else { return _secFail(error, errSecParam, "Unsupported key type \(typeStr) (isim supports RSA and EC keys)") }
     let type: Int32 = typeStr == "42" ? 0 : 1
@@ -261,7 +266,41 @@ public func SecKeyCopyPublicKey(_ key: SecKey) -> SecKey? {
     return SecKey(type: key.type, isPrivate: false, raw: pub, bits: key.bits)
 }
 public func SecKeyCopyExternalRepresentation(_ key: SecKey, _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> CFData? {
-    Data(key.raw) as CFData
+    if key.seBlob != nil && key.isPrivate { return _secFail(error, errSecUnimplemented, "Export of Secure Enclave private keys is not allowed") }
+    return Data(key.raw) as CFData
+}
+/// SecKeyCreateRandomKey for kSecAttrTokenIDSecureEnclave: a P-256 key made in the simulated enclave
+func _secureEnclaveKey(_ p: [String: Any], _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> SecKey? {
+    guard _SecureEnclaveStore.isAvailable else { return _secFail(error, errSecUnimplemented, "The Secure Enclave is not available (ISIM_SECURE_ENCLAVE=0)") }
+    guard (_attr(p, kSecAttrKeyType) as? String) == "73", (_intAttr(_attr(p, kSecAttrKeySizeInBits)) ?? 256) == 256 else {
+        return _secFail(error, errSecParam, "The Secure Enclave makes 256-bit EC keys (kSecAttrKeyTypeECSECPrimeRandom, 256 bits) only")
+    }
+    var d = [UInt8](repeating: 0, count: 32), q = [UInt8](repeating: 0, count: 65)
+    guard isim_crypto_ec_generate(256, &d) == 1, isim_crypto_ec_public(256, d, &q) == 1 else { return _secFail(error, errSecInternalError, "The key could not be made") }
+    let privAttrs = (_attr(p, kSecPrivateKeyAttrs) as? [String: Any]) ?? [:]
+    let ac = (privAttrs["accc"] ?? p["accc"]) as? SecAccessControl
+    let flags: UInt8 = ac.map { ($0._requiresOwner ? 1 : 0) | ($0._biometryOnly ? 2 : 0) } ?? 0
+    guard let blob = _SecureEnclaveStore.wrap(d, flags: flags) else { return _secFail(error, errSecInternalError, "The device key could not be made") }
+    let key = SecKey(type: 1, isPrivate: true, raw: q + d, bits: 256)
+    key.seBlob = Array(blob); key.seFlags = flags
+    key.authContext = (p["u_AuthCtx"] ?? privAttrs["u_AuthCtx"]) as AnyObject?
+    var merged = p; merged.removeValue(forKey: "private"); merged.removeValue(forKey: "public")
+    for (k, v) in privAttrs { merged[k] = v }
+    key.attributes = merged.filter { ["atag", "labl", "perm", "agrp", "pdmn", "tkid"].contains($0.key) }
+    key.attributes["tkid"] = "com.apple.setoken"
+    if _boolAttr(merged["perm"]) {
+        var item: [String: Any] = merged.filter { ["atag", "labl", "agrp", "pdmn", "accc"].contains($0.key) }
+        item["class"] = "keys"; item["v_Ref"] = key
+        let st = _Keychain.shared.add(item, nil)
+        if st != errSecSuccess { return _secFail(error, st, "The key could not be stored in the keychain (\(st))") }
+    }
+    return key
+}
+/// a Secure Enclave key's access control: the device owner (LocalAuthentication) before it is used
+func _seAuthorize(_ key: SecKey, _ what: String, _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> Bool {
+    guard key.seBlob != nil, key.seFlags & 1 != 0 else { return true }
+    if _SecureEnclaveStore.authenticate(flags: key.seFlags, reason: what, context: key.authContext) { return true }
+    let _: Bool? = _secFail(error, errSecUserCanceled, "Authentication canceled"); return false
 }
 public func SecKeyCreateWithData(_ keyData: CFData, _ attributes: CFDictionary, _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> SecKey? {
     let a = (attributes as NSDictionary as? [String: Any]) ?? [:]
@@ -286,6 +325,10 @@ public func SecKeyCopyAttributes(_ key: SecKey) -> CFDictionary? {
     d["decr"] = key.isPrivate && key.type == 0; d["encr"] = !key.isPrivate && key.type == 0
     d["drve"] = key.isPrivate && key.type == 1
     d["perm"] = _boolAttr(key.attributes["perm"])
+    if let blob = key.seBlob {
+        d["tkid"] = "com.apple.setoken"; d["toid"] = Data(blob)                // kSecAttrTokenOID: the sealed key
+        if key.isPrivate { d.removeValue(forKey: "v_Data"); d["extr"] = false }
+    }
     return d as NSDictionary as CFDictionary
 }
 public func SecKeyGetBlockSize(_ key: SecKey) -> Int { key.type == 0 ? key.bits / 8 : (key.bits + 7) / 8 * 2 + 8 }
@@ -306,6 +349,7 @@ public func SecKeyCreateSignature(_ key: SecKey, _ algorithm: SecKeyAlgorithm, _
     guard SecKeyIsAlgorithmSupported(key, .sign, algorithm), let plan = algorithm.plan else {
         return _secFail(error, errSecParam, "\(algorithm.rawValue) is not supported for this key")
     }
+    guard _seAuthorize(key, "use a key to sign", error) else { return nil }
     let data = Array(dataToSign as Data)
     var sig = [UInt8](repeating: 0, count: 1200), n = sig.count
     let ok = key.raw.withUnsafeBufferPointer { k in data.withUnsafeBufferPointer { d in sig.withUnsafeMutableBufferPointer { s in
@@ -354,6 +398,7 @@ public func SecKeyCopyKeyExchangeResult(_ privateKey: SecKey, _ algorithm: SecKe
     guard SecKeyIsAlgorithmSupported(privateKey, .keyExchange, algorithm), let plan = algorithm.plan, publicKey.type == 1 else {
         return _secFail(error, errSecParam, "\(algorithm.rawValue) is not supported for these keys")
     }
+    guard _seAuthorize(privateKey, "use a key to agree on a secret", error) else { return nil }
     let pub = publicKey.publicRaw ?? publicKey.raw
     var out = [UInt8](repeating: 0, count: 80), n = out.count
     let ok = privateKey.raw.withUnsafeBufferPointer { k in pub.withUnsafeBufferPointer { p in out.withUnsafeMutableBufferPointer { o in

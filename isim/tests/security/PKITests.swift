@@ -1,6 +1,6 @@
 // SecKey (RSA / EC through the host's OpenSSL), keys in the keychain, certificates / policies / trust, PKCS#12 and
 // identities, CryptoKit extras (AES Key Wrap, compact and PKCS#8 keys, HPKE against OpenSSL-made messages),
-// Secure Enclave reported unavailable.
+// the simulated Secure Enclave, Apple's TLS trust rules and OCSP revocation.
 import Foundation
 import Security
 import CryptoKit
@@ -82,9 +82,7 @@ func secKeyTests() {
         let ok = k.map { verify(SecKeyCopyPublicKey($0)!, .ecdsaSignatureMessageX962SHA512, message, sign($0, .ecdsaSignatureMessageX962SHA512, message)) } ?? false
         check(ok, "EC P-\(bits) keys sign and verify")
     }
-    check(SecKeyCreateRandomKey([kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom, kSecAttrKeySizeInBits: 256, kSecAttrTokenID: kSecAttrTokenIDSecureEnclave] as CFDictionary, &error) == nil
-          && errorCode(error) == Int(errSecUnimplemented), "Secure Enclave keys fail (no Secure Enclave on isim)")
-    check(!SecureEnclave.isAvailable && (try? SecureEnclave.P256.Signing.PrivateKey()) == nil, "CryptoKit SecureEnclave.isAvailable is false")
+    secureEnclaveTests()
 
     // keys in the keychain
     let tag = Data("dev.isim.test.signing".utf8)
@@ -142,11 +140,12 @@ func certificateTests() {
         return (ok, errorCode(e), SecTrustGetCertificateCount(trust))
     }
     let atDate = Date(timeIntervalSince1970: 1_790_000_000)   // 2026-09 (valid for leaf, after the expired one)
-    let good = evaluate([leaf], policy: SecPolicyCreateSSL(true, "test.isim.dev" as CFString), anchors: [ca], date: atDate)
-    check(good.0 && good.2 == 2, "trust: leaf + custom anchor (SSL policy, matching host) evaluates; chain of 2")
-    let wildcard = evaluate([leaf], policy: SecPolicyCreateSSL(true, "api.test.isim.dev" as CFString), anchors: [ca], date: atDate)
+    guard let server = fixture("server.der").flatMap({ SecCertificateCreateWithData(nil, $0 as CFData) }) else { check(false, "server.der"); return }
+    let good = evaluate([server], policy: SecPolicyCreateSSL(true, "test.isim.dev" as CFString), anchors: [ca], date: atDate)
+    check(good.0 && good.2 == 2, "trust: server certificate + custom anchor (SSL policy, matching host) evaluates; chain of 2")
+    let wildcard = evaluate([server], policy: SecPolicyCreateSSL(true, "api.test.isim.dev" as CFString), anchors: [ca], date: atDate)
     check(wildcard.0, "trust: wildcard subjectAltName matches api.test.isim.dev")
-    let wrongHost = evaluate([leaf], policy: SecPolicyCreateSSL(true, "other.example" as CFString), anchors: [ca], date: atDate)
+    let wrongHost = evaluate([server], policy: SecPolicyCreateSSL(true, "other.example" as CFString), anchors: [ca], date: atDate)
     check(!wrongHost.0 && wrongHost.1 == Int(errSecHostNameMismatch), "trust: host name mismatch (\(wrongHost.1))")
     let noAnchor = evaluate([leaf], policy: SecPolicyCreateBasicX509(), anchors: nil, date: atDate)
     check(!noAnchor.0 && noAnchor.1 == Int(errSecNotTrusted), "trust: test CA is not in the system anchors -> not trusted")
@@ -156,6 +155,7 @@ func certificateTests() {
     check(before.0, "trust: SecTrustSetVerifyDate inside the validity period")
     let selfTrust = evaluate([selfSigned], policy: SecPolicyCreateBasicX509(), anchors: [ca], date: atDate)
     check(!selfTrust.0, "trust: self-signed certificate rejected")
+    appleTrustRuleTests(ca: ca, leaf: leaf, at: atDate, evaluate: evaluate)
     var t: SecTrust?
     _ = SecTrustCreateWithCertificates([selfSigned] as CFArray, SecPolicyCreateBasicX509(), &t)
     if let t {
@@ -214,6 +214,99 @@ func certificateTests() {
     let hidesKey = (attrsOut as? [String: Any]).map { !$0.keys.contains { $0.hasPrefix("_") } } ?? false
     check(addId == errSecSuccess && idQ == errSecSuccess && (idOut as! SecIdentity?) == identity && hidesKey,
           "keychain identities: SecItemAdd(kSecValueRef: identity), read back as SecIdentity")
+}
+
+/// Apple's TLS rules (each fixture breaks one: SSL policy rejects it, basic X.509 accepts it) and OCSP revocation:
+/// stapled responses, and the responder named in the certificate (the test serves it on 127.0.0.1:47821).
+func appleTrustRuleTests(ca: SecCertificate, leaf: SecCertificate, at: Date,
+                         evaluate: ([SecCertificate], SecPolicy, [SecCertificate]?, Date?) -> (Bool, Int, Int)) {
+    let ssl = SecPolicyCreateSSL(true, "test.isim.dev" as CFString)
+    for (name, rule) in [("leaf.der", "validity over 825 days"), ("noeku.der", "no serverAuth EKU"), ("nosan.der", "no subjectAltName"),
+                         ("rsa1024.der", "RSA key under 2048 bits")] {
+        guard let c = fixture(name).flatMap({ SecCertificateCreateWithData(nil, $0 as CFData) }) else { check(false, name); continue }
+        let r = evaluate([c], ssl, [ca], at), basic = evaluate([c], SecPolicyCreateBasicX509(), [ca], at)
+        check(!r.0 && r.1 == Int(errSecNotTrusted) && basic.0, "trust: Apple's TLS rules reject \(rule) (\(r.1)); basic X.509 accepts it")
+    }
+    guard let good = fixture("ocsp-good.der").flatMap({ SecCertificateCreateWithData(nil, $0 as CFData) }),
+          let revoked = fixture("ocsp-revoked.der").flatMap({ SecCertificateCreateWithData(nil, $0 as CFData) }),
+          let goodResp = fixture("ocsp-good.resp"), let revokedResp = fixture("ocsp-revoked.resp") else { check(false, "OCSP fixtures"); return }
+    func revocation(_ cert: SecCertificate, flags: CFOptionFlags?, stapled: Data? = nil, network: Bool = true) -> (Bool, Int) {
+        var trust: SecTrust?
+        var policies: [SecPolicy] = [ssl]
+        if let flags, let p = SecPolicyCreateRevocation(flags) { policies.append(p) }
+        _ = SecTrustCreateWithCertificates(cert, policies as CFArray, &trust)
+        guard let trust else { return (false, -1) }
+        _ = SecTrustSetAnchorCertificates(trust, [ca] as CFArray)
+        _ = SecTrustSetVerifyDate(trust, at as CFDate)
+        if let stapled { _ = SecTrustSetOCSPResponse(trust, stapled as CFData) }
+        _ = SecTrustSetNetworkFetchAllowed(trust, network)
+        var e: Unmanaged<CFError>?
+        let ok = SecTrustEvaluateWithError(trust, &e)
+        return (ok, errorCode(e))
+    }
+    var fetch = false
+    var t: SecTrust?
+    _ = SecTrustCreateWithCertificates(good, ssl, &t)
+    if let t { _ = SecTrustGetNetworkFetchAllowed(t, &fetch) }
+    check(fetch, "SecTrustGetNetworkFetchAllowed is true by default")
+    check(SecPolicyCopyProperties(SecPolicyCreateRevocation(kSecRevocationUseAnyAvailableMethod)!).map { ($0 as NSDictionary)["SecPolicyOid"] as? String }
+          == "1.2.840.113635.100.1.21", "SecPolicyCreateRevocation: the revocation policy OID")
+    check(revocation(revoked, flags: nil).0, "trust: no revocation policy and nothing stapled -> revocation is not checked")
+    let stapledGood = revocation(good, flags: nil, stapled: goodResp), stapledRevoked = revocation(revoked, flags: nil, stapled: revokedResp)
+    check(stapledGood.0 && !stapledRevoked.0 && stapledRevoked.1 == Int(errSecCertificateRevoked),
+          "trust: stapled OCSP responses (SecTrustSetOCSPResponse): good passes, revoked -> errSecCertificateRevoked (\(stapledRevoked.1))")
+    let wrongStaple = revocation(good, flags: kSecRevocationRequirePositiveResponse | kSecRevocationOCSPMethod, stapled: revokedResp, network: false)
+    check(!wrongStaple.0 && wrongStaple.1 == Int(errSecIncompleteCertRevocationCheck),
+          "trust: a stapled response for another certificate, positive answer required, no network -> errSecIncompleteCertRevocationCheck (\(wrongStaple.1))")
+    let fetchedGood = revocation(good, flags: kSecRevocationOCSPMethod | kSecRevocationRequirePositiveResponse)
+    let fetchedRevoked = revocation(revoked, flags: kSecRevocationUseAnyAvailableMethod)
+    check(fetchedGood.0 && !fetchedRevoked.0 && fetchedRevoked.1 == Int(errSecCertificateRevoked),
+          "trust: OCSP from the certificate's responder: good passes, revoked -> errSecCertificateRevoked (\(fetchedGood.1), \(fetchedRevoked.1))")
+    let offline = revocation(revoked, flags: kSecRevocationOCSPMethod | kSecRevocationNetworkAccessDisabled)
+    check(offline.0, "trust: kSecRevocationNetworkAccessDisabled, no positive answer required -> soft-fail passes")
+}
+
+/// The simulated Secure Enclave: P-256 keys sealed with the device's key, usable but not exportable, in the keychain
+/// as token items; CryptoKit's SecureEnclave keys round-trip through dataRepresentation (access control is in HelloSecurity).
+func secureEnclaveTests() {
+    let message = Data("signed in the enclave".utf8)
+    var error: Unmanaged<CFError>?
+    check(SecKeyCreateRandomKey([kSecAttrKeyType: kSecAttrKeyTypeRSA, kSecAttrKeySizeInBits: 2048, kSecAttrTokenID: kSecAttrTokenIDSecureEnclave] as CFDictionary, &error) == nil
+          && errorCode(error) != 0, "Secure Enclave: RSA keys are refused (P-256 only)")
+    let tag = Data("dev.isim.test.enclave".utf8)
+    _ = SecItemDelete([kSecClass: kSecClassKey, kSecAttrApplicationTag: tag] as CFDictionary)
+    guard let se = SecKeyCreateRandomKey([kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom, kSecAttrKeySizeInBits: 256, kSecAttrTokenID: kSecAttrTokenIDSecureEnclave,
+                                          kSecPrivateKeyAttrs: [kSecAttrIsPermanent: true, kSecAttrApplicationTag: tag]] as CFDictionary, &error),
+          let pub = SecKeyCopyPublicKey(se) else { check(false, "Secure Enclave: SecKeyCreateRandomKey (\(errorCode(error)))"); return }
+    let attrs = SecKeyCopyAttributes(se) as NSDictionary? as? [String: Any]
+    check(attrs?[kSecAttrTokenID as String] as? String == kSecAttrTokenIDSecureEnclave as String, "Secure Enclave: the key's kSecAttrTokenID")
+    var exportError: Unmanaged<CFError>?
+    check(SecKeyCopyExternalRepresentation(se, &exportError) == nil && external(pub)?.count == 65, "Secure Enclave: the private key cannot be exported; the public key can")
+    check(verify(pub, .ecdsaSignatureMessageX962SHA256, message, sign(se, .ecdsaSignatureMessageX962SHA256, message)), "Secure Enclave: SecKeyCreateSignature verifies")
+    var found: CFTypeRef?
+    let q = SecItemCopyMatching([kSecClass: kSecClassKey, kSecAttrApplicationTag: tag, kSecReturnRef: true] as CFDictionary, &found)
+    let again = found.map { $0 as! SecKey }
+    check(q == errSecSuccess && again.map { verify(pub, .ecdsaSignatureMessageX962SHA256, message, sign($0, .ecdsaSignatureMessageX962SHA256, message)) } == true,
+          "Secure Enclave: the keychain item (kSecReturnRef) signs with the same key")
+    _ = SecItemDelete([kSecClass: kSecClassKey, kSecAttrApplicationTag: tag] as CFDictionary)
+
+    check(SecureEnclave.isAvailable, "CryptoKit: SecureEnclave.isAvailable")
+    do {
+        let key = try SecureEnclave.P256.Signing.PrivateKey()
+        let sig = try key.signature(for: message)
+        let restored = try SecureEnclave.P256.Signing.PrivateKey(dataRepresentation: key.dataRepresentation)
+        let sig2 = try restored.signature(for: message)
+        check(key.publicKey.isValidSignature(sig, for: message) && restored.publicKey.rawRepresentation == key.publicKey.rawRepresentation
+              && restored.publicKey.isValidSignature(sig2, for: message),
+              "CryptoKit: SecureEnclave.P256.Signing key signs; dataRepresentation restores it")
+        check(!key.dataRepresentation.isEmpty && key.dataRepresentation.count != 32, "CryptoKit: dataRepresentation is a sealed blob, not the raw key")
+        let ka = try SecureEnclave.P256.KeyAgreement.PrivateKey(), peer = P256.KeyAgreement.PrivateKey()
+        let s1 = try ka.sharedSecretFromKeyAgreement(with: peer.publicKey), s2 = try peer.sharedSecretFromKeyAgreement(with: ka.publicKey)
+        check(s1 == s2, "CryptoKit: SecureEnclave.P256.KeyAgreement shared secret matches a software key's")
+    } catch { check(false, "CryptoKit Secure Enclave keys: \(error)") }
+    var tampered = (try? SecureEnclave.P256.Signing.PrivateKey().dataRepresentation) ?? Data()
+    if !tampered.isEmpty { tampered[tampered.count - 1] ^= 1 }
+    check((try? SecureEnclave.P256.Signing.PrivateKey(dataRepresentation: tampered)) == nil, "CryptoKit: a tampered dataRepresentation is rejected")
 }
 
 func cryptoKitExtrasTests() {

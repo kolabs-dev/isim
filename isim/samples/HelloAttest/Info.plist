@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Attest</string>
+	<key>CFBundleExecutable</key>
+	<string>HelloAttest</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.isim.samples.HelloAttest</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Use your Secure Enclave key with Face ID (isim sample).</string>
+</dict>
+</plist>

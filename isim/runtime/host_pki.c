@@ -15,6 +15,10 @@
 #include <string.h>
 #include <time.h>
 #include "runtime.h"
+struct isim_http;
+struct isim_http *isim_http_start(const char *method, const char *url, const char *headers, const void *body, long body_len, double timeout, double resource_timeout, int flags);
+long isim_http_read(struct isim_http *h, void *out, long cap);
+void isim_http_close(struct isim_http *h);
 
 typedef struct evp_pkey_st EVP_PKEY; typedef struct evp_pkey_ctx_st EVP_PKEY_CTX; typedef struct evp_md_ctx_st EVP_MD_CTX;
 typedef struct evp_md_st EVP_MD; typedef struct ec_key_st EC_KEY; typedef struct ec_group_st EC_GROUP; typedef struct ec_point_st EC_POINT;
@@ -22,6 +26,8 @@ typedef struct bignum_st BIGNUM; typedef struct ecdsa_sig_st ECDSA_SIG; typedef 
 typedef struct x509_name_entry_st X509_NAME_ENTRY; typedef struct asn1_string_st ASN1_STRING; typedef struct asn1_object_st ASN1_OBJECT;
 typedef struct x509_store_st X509_STORE; typedef struct x509_store_ctx_st X509_STORE_CTX; typedef struct X509_VERIFY_PARAM_st X509_VERIFY_PARAM;
 typedef struct stack_st OPENSSL_STACK; typedef struct pkcs12_st PKCS12;
+typedef struct X509_extension_st X509_EXTENSION; typedef struct ocsp_cert_id_st OCSP_CERTID; typedef struct ocsp_request_st OCSP_REQUEST;
+typedef struct ocsp_one_request_st OCSP_ONEREQ; typedef struct ocsp_response_st OCSP_RESPONSE; typedef struct ocsp_basic_response_st OCSP_BASICRESP;
 struct tm;
 
 #define PKI_FUNCS(X) \
@@ -86,7 +92,21 @@ struct tm;
     X(int, X509_verify_cert, (X509_STORE_CTX *)) X(int, X509_STORE_CTX_get_error, (const X509_STORE_CTX *)) \
     X(const char *, X509_verify_cert_error_string, (long)) X(OPENSSL_STACK *, X509_STORE_CTX_get0_chain, (const X509_STORE_CTX *)) \
     X(PKCS12 *, d2i_PKCS12, (PKCS12 **, const unsigned char **, long)) X(void, PKCS12_free, (PKCS12 *)) \
-    X(int, PKCS12_parse, (PKCS12 *, const char *, EVP_PKEY **, X509 **, OPENSSL_STACK **))
+    X(int, PKCS12_parse, (PKCS12 *, const char *, EVP_PKEY **, X509 **, OPENSSL_STACK **)) \
+    X(int, X509_get_signature_nid, (const X509 *)) X(int, X509_get_ext_by_NID, (const X509 *, int, int)) \
+    X(X509_EXTENSION *, X509_get_ext, (const X509 *, int)) X(ASN1_STRING *, X509_EXTENSION_get_data, (X509_EXTENSION *)) \
+    X(const unsigned char *, ASN1_STRING_get0_data, (const ASN1_STRING *)) X(int, ASN1_STRING_length, (const ASN1_STRING *)) \
+    X(uint32_t, X509_get_extension_flags, (X509 *)) X(uint32_t, X509_get_extended_key_usage, (X509 *)) \
+    X(OPENSSL_STACK *, X509_get1_ocsp, (X509 *)) X(void *, X509_get_ext_d2i, (const X509 *, int, int *, int *)) X(void, GENERAL_NAMES_free, (void *)) \
+    X(OCSP_CERTID *, OCSP_cert_to_id, (const EVP_MD *, const X509 *, const X509 *)) X(void, OCSP_CERTID_free, (OCSP_CERTID *)) \
+    X(OCSP_CERTID *, OCSP_CERTID_dup, (const OCSP_CERTID *)) \
+    X(OCSP_REQUEST *, OCSP_REQUEST_new, (void)) X(void, OCSP_REQUEST_free, (OCSP_REQUEST *)) \
+    X(OCSP_ONEREQ *, OCSP_request_add0_id, (OCSP_REQUEST *, OCSP_CERTID *)) X(int, i2d_OCSP_REQUEST, (const OCSP_REQUEST *, unsigned char **)) \
+    X(OCSP_RESPONSE *, d2i_OCSP_RESPONSE, (OCSP_RESPONSE **, const unsigned char **, long)) X(void, OCSP_RESPONSE_free, (OCSP_RESPONSE *)) \
+    X(int, OCSP_response_status, (OCSP_RESPONSE *)) X(OCSP_BASICRESP *, OCSP_response_get1_basic, (OCSP_RESPONSE *)) \
+    X(void, OCSP_BASICRESP_free, (OCSP_BASICRESP *)) X(int, OCSP_basic_verify, (OCSP_BASICRESP *, OPENSSL_STACK *, X509_STORE *, unsigned long)) \
+    X(int, OCSP_resp_find_status, (OCSP_BASICRESP *, OCSP_CERTID *, int *, int *, ASN1_STRING **, ASN1_STRING **, ASN1_STRING **)) \
+    X(int, OCSP_check_validity, (ASN1_STRING *, ASN1_STRING *, long, long))
 
 #define DECL(ret, name, args) ret (*name) args;
 static struct { PKI_FUNCS(DECL) } P;
@@ -411,7 +431,7 @@ int isim_pki_trust(const uint8_t *certs, const size_t *lens, int ncerts, const u
         X509_STORE_CTX *c = P.X509_STORE_CTX_new();
         P.X509_STORE_CTX_init(c, st, xs[0], untrusted);
         if (when > 0) P.X509_STORE_CTX_set_time(c, 0, (time_t)when);
-        if (sslServer) P.X509_STORE_CTX_set_purpose(c, 1 /* X509_PURPOSE_SSL_SERVER */);
+        if (sslServer) P.X509_STORE_CTX_set_purpose(c, 2 /* X509_PURPOSE_SSL_SERVER */);
         if (hostname && *hostname) P.X509_VERIFY_PARAM_set1_host(P.X509_STORE_CTX_get0_param(c), hostname, 0);
         good = P.X509_verify_cert(c) == 1;
         OPENSSL_STACK *chain = P.X509_STORE_CTX_get0_chain(c);
@@ -419,6 +439,171 @@ int isim_pki_trust(const uint8_t *certs, const size_t *lens, int ncerts, const u
         if (!good) snprintf(err, errcap, "%s", P.X509_verify_cert_error_string(P.X509_STORE_CTX_get_error(c)));
         P.X509_STORE_CTX_free(c); P.OPENSSL_sk_free(untrusted); P.X509_STORE_free(st);
     }
+    for (int i = 0; i < nx; i++) P.X509_free(xs[i]);
+    for (int i = 0; i < na; i++) P.X509_free(as[i]);
+    return good;
+}
+
+/* ---- Apple's trust policies (iOS 13+ "Requirements for trusted certificates", Apple's 398-day rule, Certificate
+ * Transparency) on a chain OpenSSL verified, and OCSP revocation. Apple statuses: -67843 errSecNotTrusted,
+ * -67820 errSecCertificateRevoked, -67635 errSecIncompleteCertRevocationCheck. ---- */
+static time_t utc(int y, int m, int d) { struct tm tm = { .tm_year = y - 1900, .tm_mon = m - 1, .tm_mday = d }; return timegm(&tm); }
+/* the number of SCTs embedded in a certificate (extension 1.3.6.1.4.1.11129.2.4.2: an OCTET STRING holding a TLS
+   list: 2-byte length, then 2-byte length + SCT entries) */
+static int embedded_scts(X509 *x) {
+    int i = P.X509_get_ext_by_NID(x, 951 /* NID_ct_precert_scts */, -1);
+    if (i < 0) return 0;
+    ASN1_STRING *v = P.X509_EXTENSION_get_data(P.X509_get_ext(x, i));
+    const unsigned char *d = P.ASN1_STRING_get0_data(v); int n = P.ASN1_STRING_length(v);
+    if (n > 2 && d[0] == 0x04) {                          /* the value is itself an OCTET STRING (DER) */
+        int off = 2, len = d[1];
+        if (d[1] & 0x80) { int k = d[1] & 0x7f; len = 0; for (int j = 0; j < k && 2 + j < n; j++) len = len << 8 | d[2 + j]; off = 2 + k; }
+        d += off; n = len < n - off ? len : n - off;
+    }
+    if (n < 2) return 0;
+    int total = d[0] << 8 | d[1], count = 0, p = 2;
+    if (total + 2 > n) return 0;
+    while (p + 2 <= 2 + total) { int l = d[p] << 8 | d[p + 1]; p += 2 + l; if (p > 2 + total) break; count++; }
+    return count;
+}
+/* the server certificate names its host in subjectAltName: a dNSName, or an iPAddress for a server reached by address */
+static int has_dns_san(X509 *x) {
+    OPENSSL_STACK *names = P.X509_get_ext_d2i(x, 85 /* NID_subject_alt_name */, NULL, NULL);
+    int found = 0;
+    for (int i = 0, n = names ? P.OPENSSL_sk_num(names) : 0; i < n; i++) {
+        int type = *(int *)P.OPENSSL_sk_value(names, i);                  /* GENERAL_NAME's first member */
+        if (type == 2 /* GEN_DNS */ || type == 7 /* GEN_IPADD */) found = 1;
+    }
+    if (names) P.GENERAL_NAMES_free(names);
+    return found;
+}
+/* OCSP for cert (issued by issuer): the stapled response, else one fetched from the AIA responder (when the network
+   is allowed). 1 good, 0 revoked, -1 unknown / no answer */
+static int ocsp_status(X509 *cert, X509 *issuer, X509_STORE *store, const uint8_t *stapled, size_t stapledlen, int network, char *why, size_t whycap) {
+    OCSP_CERTID *id = P.OCSP_cert_to_id(NULL, cert, issuer);
+    if (!id) { snprintf(why, whycap, "no OCSP id"); return -1; }
+    unsigned char *resp = NULL; long resplen = 0; int fetched = 0;
+    if (stapled && stapledlen) { resp = (unsigned char *)stapled; resplen = (long)stapledlen; }
+    else if (network) {
+        OPENSSL_STACK *urls = P.X509_get1_ocsp(cert);
+        const char *url = urls && P.OPENSSL_sk_num(urls) > 0 ? P.OPENSSL_sk_value(urls, 0) : NULL;
+        if (url) {
+            OCSP_REQUEST *req = P.OCSP_REQUEST_new();
+            P.OCSP_request_add0_id(req, P.OCSP_CERTID_dup(id));
+            unsigned char *der = NULL; int dl = P.i2d_OCSP_REQUEST(req, &der);
+            struct isim_http *h = isim_http_start("POST", url, "Content-Type: application/ocsp-request\nAccept: application/ocsp-response", der, dl, 10, 15, 0);
+            ossl_free(der); P.OCSP_REQUEST_free(req);
+            if (h) {
+                size_t cap = 65536; resp = malloc(cap);
+                long r;
+                while (resp && (r = isim_http_read(h, resp + resplen, (long)(cap - (size_t)resplen))) > 0) {
+                    resplen += r;
+                    if ((size_t)resplen == cap) { cap *= 2; resp = realloc(resp, cap); }
+                }
+                isim_http_close(h);
+                fetched = 1;
+            }
+        } else snprintf(why, whycap, "the certificate names no OCSP responder");
+        if (urls) P.X509_email_free(urls);
+    } else snprintf(why, whycap, "network fetching is not allowed");
+    int result = -1;
+    const unsigned char *p = resp;
+    OCSP_RESPONSE *r = resp && resplen > 0 ? P.d2i_OCSP_RESPONSE(NULL, &p, resplen) : NULL;
+    if (r && P.OCSP_response_status(r) == 0) {
+        OCSP_BASICRESP *b = P.OCSP_response_get1_basic(r);
+        OPENSSL_STACK *issuers = P.OPENSSL_sk_new_null(); P.OPENSSL_sk_push(issuers, issuer);
+        if (b && P.OCSP_basic_verify(b, issuers, store, 0) == 1) {
+            int status = -1, reason = 0; ASN1_STRING *rev = NULL, *thisupd = NULL, *nextupd = NULL;
+            if (P.OCSP_resp_find_status(b, id, &status, &reason, &rev, &thisupd, &nextupd) && P.OCSP_check_validity(thisupd, nextupd, 300, -1)) {
+                result = status == 0 ? 1 : status == 1 ? 0 : -1;               /* V_OCSP_CERTSTATUS_GOOD / REVOKED / UNKNOWN */
+                if (result < 0) snprintf(why, whycap, "the responder does not know the certificate");
+            } else snprintf(why, whycap, "the OCSP response does not cover the certificate or is out of date");
+        } else snprintf(why, whycap, "the OCSP response's signature does not verify");
+        P.OPENSSL_sk_free(issuers);
+        if (b) P.OCSP_BASICRESP_free(b);
+    } else if (resp) snprintf(why, whycap, "no usable OCSP response");
+    if (r) P.OCSP_RESPONSE_free(r);
+    if (fetched) free(resp);
+    P.OCSP_CERTID_free(id);
+    return result;
+}
+
+/* isim_pki_trust with Apple's rules: flags bit 0 the SSL server rules, bit 1 check revocation (OCSP), bit 2 require a
+   positive revocation answer, bit 3 network fetching allowed. ocsp / ocsplen: a stapled OCSP response for the leaf
+   (or NULL). *status: Apple's OSStatus when a rule fails (0 when OpenSSL's own verification failed) */
+int isim_pki_trust_ex(const uint8_t *certs, const size_t *lens, int ncerts, const uint8_t *anchors, const size_t *alens, int nanchors,
+                      int useSystemAnchors, int sslServer, const char *hostname, double when, int flags, const uint8_t *ocsp, size_t ocsplen,
+                      int scts, char *err, size_t errcap, int *chainlen, int *status) {
+    *status = 0;
+    if (!ok() || ncerts < 1) { snprintf(err, errcap, "%s", ncerts < 1 ? "no certificates" : pki_err); return 0; }
+    X509 *xs[32]; int nx = 0; X509 *as[64]; int na = 0;
+    const uint8_t *p = certs;
+    for (int i = 0; i < ncerts && i < 32; i++) { X509 *x = load_cert(p, lens[i]); p += lens[i]; if (x) xs[nx++] = x; }
+    p = anchors;
+    for (int i = 0; i < nanchors && i < 64; i++) { X509 *x = load_cert(p, alens[i]); p += alens[i]; if (x) as[na++] = x; }
+    int good = 0;
+    if (nx == 0) { snprintf(err, errcap, "the leaf certificate cannot be parsed"); goto out; }
+    X509_STORE *st = P.X509_STORE_new();
+    for (int i = 0; i < na; i++) P.X509_STORE_add_cert(st, as[i]);
+    if (useSystemAnchors) P.X509_STORE_set_default_paths(st);
+    OPENSSL_STACK *untrusted = P.OPENSSL_sk_new_null();
+    for (int i = 1; i < nx; i++) P.OPENSSL_sk_push(untrusted, xs[i]);
+    X509_STORE_CTX *c = P.X509_STORE_CTX_new();
+    P.X509_STORE_CTX_init(c, st, xs[0], untrusted);
+    if (when > 0) P.X509_STORE_CTX_set_time(c, 0, (time_t)when);
+    if (sslServer) P.X509_STORE_CTX_set_purpose(c, 2 /* X509_PURPOSE_SSL_SERVER */);
+    if (hostname && *hostname) P.X509_VERIFY_PARAM_set1_host(P.X509_STORE_CTX_get0_param(c), hostname, 0);
+    good = P.X509_verify_cert(c) == 1;
+    OPENSSL_STACK *chain = P.X509_STORE_CTX_get0_chain(c);
+    int n = chain ? P.OPENSSL_sk_num(chain) : 0;
+    *chainlen = n;
+    if (!good) snprintf(err, errcap, "%s", P.X509_verify_cert_error_string(P.X509_STORE_CTX_get_error(c)));
+    if (good && n > 0) {
+        X509 *leaf = P.OPENSSL_sk_value(chain, 0), *top = P.OPENSSL_sk_value(chain, n - 1);
+        /* anchored at a certificate the app gave, or a self-signed leaf trusted directly (a locally installed trust:
+           public CAs never issue those), not a public CA: no CT / 398-day rules */
+        int custom = n == 1;
+        for (int i = 0; i < na && !custom; i++) {
+            unsigned char *a = NULL, *b = NULL; int al = P.i2d_X509(as[i], &a), bl = P.i2d_X509(top, &b);
+            if (al == bl && al > 0 && !memcmp(a, b, (size_t)al)) custom = 1;
+            ossl_free(a); ossl_free(b);
+        }
+        for (int i = 0; good && (flags & 1) && i < n; i++) {   /* every certificate: key size and SHA-1 */
+            X509 *x = P.OPENSSL_sk_value(chain, i);
+            EVP_PKEY *k = P.X509_get0_pubkey(x);
+            if (k && P.EVP_PKEY_get_base_id(k) == PK_RSA && P.EVP_PKEY_get_bits(k) < 2048) {
+                snprintf(err, errcap, "an RSA key is smaller than 2048 bits"); good = 0; *status = -67843;
+            }
+            int sn = P.X509_get_signature_nid(x);
+            if (good && i < n - 1 && (sn == 65 || sn == 416 || sn == 113)) {     /* sha1WithRSA, ecdsa-with-SHA1, dsaWithSHA1 */
+                snprintf(err, errcap, "a certificate is signed with SHA-1"); good = 0; *status = -67843;
+            }
+        }
+        if (good && (flags & 1) && sslServer) {           /* the server certificate */
+            time_t nb = (time_t)asn1_time(P.X509_get0_notBefore(leaf)), na_ = (time_t)asn1_time(P.X509_get0_notAfter(leaf));
+            double days = difftime(na_, nb) / 86400;
+            if (!has_dns_san(leaf)) { snprintf(err, errcap, "the server certificate has no DNS name in its subjectAltName"); good = 0; }
+            else if (nb >= utc(2019, 7, 1) && !(P.X509_get_extension_flags(leaf) & 0x0004 /* EXFLAG_XKUSAGE */ && P.X509_get_extended_key_usage(leaf) & 0x0001 /* XKU_SSL_SERVER */)) {
+                snprintf(err, errcap, "the server certificate lacks the serverAuth extended key usage"); good = 0;
+            } else if (nb >= utc(2019, 7, 1) && days > 825) {
+                snprintf(err, errcap, "the server certificate is valid for %.0f days (over 825)", days); good = 0;
+            } else if (!custom && nb >= utc(2020, 9, 1) && days > 398) {
+                snprintf(err, errcap, "the server certificate is valid for %.0f days (over 398, from a public CA)", days); good = 0;
+            } else if (!custom && nb >= utc(2018, 10, 15) && embedded_scts(leaf) + scts < 2) {
+                snprintf(err, errcap, "the server certificate is not Certificate Transparency qualified (%d SCTs)", embedded_scts(leaf) + scts); good = 0;
+            }
+            if (!good) *status = -67843;
+        }
+        for (int i = 0; good && (flags & 2) && i + 1 < n; i++) {   /* revocation: each certificate but the root */
+            char why[160] = "";
+            int r = ocsp_status(P.OPENSSL_sk_value(chain, i), P.OPENSSL_sk_value(chain, i + 1), st, i == 0 ? ocsp : NULL, i == 0 ? ocsplen : 0,
+                                flags & 8, why, sizeof why);
+            if (r == 0) { snprintf(err, errcap, "a certificate is revoked"); good = 0; *status = -67820; }
+            else if (r < 0 && (flags & 4)) { snprintf(err, errcap, "no positive revocation answer (%s)", why); good = 0; *status = -67635; }
+        }
+    }
+    P.X509_STORE_CTX_free(c); P.OPENSSL_sk_free(untrusted); P.X509_STORE_free(st);
+out:
     for (int i = 0; i < nx; i++) P.X509_free(xs[i]);
     for (int i = 0; i < na; i++) P.X509_free(as[i]);
     return good;

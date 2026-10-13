@@ -1,7 +1,7 @@
 """isim's local AuthenticationServices + AdSupport (HelloSignIn). Run 1: quick sign-in without saved credentials,
 a passkey sign-in with no passkey (canceled), Sign in with Apple from the SwiftUI button (sheet, Hide My Email,
 unsigned identity token), credential state, passkey registration and sign-in (the app verifies the ECDSA signature
-with CryptoKit), password sign-in from the keychain, IDFA zero until ATT "Allow". Run 2 (iOS 17 wording): the stored
+with CryptoKit; again from the QuickType bar with performAutoFillAssistedRequests), password sign-in from the keychain, IDFA zero until ATT "Allow". Run 2 (iOS 17 wording): the stored
 user is authorized, `isim appleid <app> revoke` while the app runs posts credentialRevokedNotification, the state
 becomes revoked, the UIKit button shows the first-time sheet again, cancel; the IDFA is stable per device.
 Port of tests/ui/signin.sh."""
@@ -54,6 +54,17 @@ def test_signin(launch, device_data):
     app.wait_log(r"passkey assertion verified")
     app.wait_view(r"id=signin-title", gone=True)
     app.wait_still()
+    # AutoFill-assisted: no sheet; the passkey is offered in the QuickType bar of the username field
+    app.tap_id("passkey-autofill")
+    app.wait_log(r"AutoFill-assisted requests: 1 passkey\(s\) offered in the QuickType bar")
+    app.wait_tap_id("username")
+    app.wait_for(id="isim-kb-autofill-0", label="taylor")
+    app.wait_still()
+    app.screenshot("passkey-autofill")
+    app.wait_tap_id("isim-kb-autofill-0")
+    app.wait_log(r"AutoFill passkey taylor for login.example.com")
+    app.wait_log(r"passkey assertion verified: true", count=2)
+    app.wait_still()
     app.tap_id("save-password")
     app.wait_log(r"password saved: ")
     app.tap_id("password-signin")
@@ -104,6 +115,7 @@ def test_signin(launch, device_data):
         "text=Passkey for login.example.com" in chooser, "passkey sign-in sheet lists the passkey"
     assert "passkey assertion verified: true tampered rejected: true clientData=true user=user-42" in log1, \
         "passkey assertion: ECDSA signature verifies"
+    assert log1.count("sign-in sheet with") == 2, "AutoFill-assisted requests show no sheet (only the passkey and password sign-ins)"
     assert "password saved: true" in log1 and \
         "password credential: pat@example.com / ••••••••••••• matches=true" in log1, "password sign-in from the keychain"
     assert "idfa: 00000000-0000-0000-0000-000000000000 zero=true enabled=false" in log1 and \

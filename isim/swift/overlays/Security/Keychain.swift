@@ -1,5 +1,6 @@
 // isim Security: the keychain store behind SecItem*. See Security.swift for the storage location and limits.
 import Foundation
+import isim_host
 
 enum _KCValue: Codable, Equatable {
     case string(String), data([UInt8]), int(Int), double(Double), bool(Bool), date(Double)
@@ -326,12 +327,13 @@ extension _Keychain {
                 if let d = tag as? Data { a["atag"] = .data(Array(d)) } else if let s = tag as? String { a["atag"] = .data(Array(s.utf8)) }
             }
             if let l = key.attributes["labl"] as? String { a["labl"] = .string(l) }
+            if let blob = key.seBlob { a["tkid"] = .string("com.apple.setoken"); return (blob, a) }    // sealed: the enclave's key
             return (key.raw, a)
         }
         return _certificateRefAttributes(ref, cls: cls)
     }
     static func refData(_ ref: Any) -> [UInt8]? {
-        if let key = ref as? SecKey { return key.raw }
+        if let key = ref as? SecKey { return key.seBlob ?? key.raw }
         if let c = ref as? SecCertificate { return c.der }
         if let i = ref as? SecIdentity { return i.certificate.der }
         return nil
@@ -341,6 +343,17 @@ extension _Keychain {
             var priv = false, type: Int32 = 0
             if case .string(let c) = item.attrs["kcls"] ?? .string("1") { priv = c == "1" }
             if case .string(let t) = item.attrs["type"] ?? .string("42") { type = t == "73" ? 1 : 0 }
+            if case .string("com.apple.setoken") = item.attrs["tkid"] {                // a Secure Enclave key: open the sealed form
+                guard priv, let (d, flags) = _SecureEnclaveStore.unwrap(data) else { return nil }
+                var q = [UInt8](repeating: 0, count: 65)
+                guard isim_crypto_ec_public(256, d, &q) == 1 else { return nil }
+                let key = SecKey(type: 1, isPrivate: true, raw: q + d, bits: 256)
+                key.seBlob = data; key.seFlags = flags
+                key.attributes["tkid"] = "com.apple.setoken"; key.attributes["perm"] = true
+                if case .data(let tag) = item.attrs["atag"] { key.attributes["atag"] = Data(tag) }
+                if case .string(let l) = item.attrs["labl"] { key.attributes["labl"] = l }
+                return key
+            }
             guard let key = SecKey.load(type: type, isPrivate: priv, raw: data) else { return nil }
             if case .data(let tag) = item.attrs["atag"] { key.attributes["atag"] = Data(tag) }
             if case .string(let l) = item.attrs["labl"] { key.attributes["labl"] = l }
