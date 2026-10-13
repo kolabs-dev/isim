@@ -28,11 +28,11 @@ CIContextOption const kCIContextOutputColorSpace = @"output_color_space", kCICon
     _opts = [o copy] ?: @{};
     _managed = YES; _ws = ci_space_linear;
     id ws = _opts[kCIContextWorkingColorSpace];
-    if (ws == [NSNull null]) _managed = NO;
-    else if (ws) { _wsObj = ws; _ws = ci_space_of((__bridge CGColorSpaceRef)ws); }
+    if (ci_is_null(ws)) _managed = NO;
+    else if (ci_is_cgspace(ws)) { _wsObj = ws; _ws = ci_space_of((__bridge CGColorSpaceRef)ws); }
     id os = _opts[kCIContextOutputColorSpace];
-    if (os && os != [NSNull null]) _outObj = os;
-    else if (os == [NSNull null]) _outObj = [NSNull null];
+    if (ci_is_cgspace(os)) _outObj = os;
+    else if (ci_is_null(os)) _outObj = [NSNull null];
     _hq = _opts[kCIContextHighQualityDownsample] ? [_opts[kCIContextHighQualityDownsample] boolValue] : NO;
     _premul = _opts[kCIContextOutputPremultiplied] ? [_opts[kCIContextOutputPremultiplied] boolValue] : YES;
     return self;

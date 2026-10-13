@@ -85,7 +85,7 @@ static void register_once(void) {
     impls = [NSMutableDictionary dictionary];
     ci_register_color_filters(); ci_register_blur_filters(); ci_register_composite_filters(); ci_register_geometry_filters();
     ci_register_distortion_filters(); ci_register_generator_filters(); ci_register_stylize_filters(); ci_register_reduction_filters();
-    ci_register_tile_filters(); ci_register_transition_filters(); ci_register_ml_filters();
+    ci_register_tile_filters(); ci_register_transition_filters(); ci_register_ml_filters(); ci_register_halftone_filters();
 }
 ci_filter_impl ci_impl_for(NSString *name) {
     static pthread_once_t once = PTHREAD_ONCE_INIT;

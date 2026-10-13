@@ -3,6 +3,8 @@
 // payloads hold the codeword bits (data then check words) packed MSB first.
 #import "CIInternal.h"
 
+int isim_qr_total_codewords(int v);
+
 @implementation CIBarcodeDescriptor
 + (BOOL)supportsSecureCoding { return YES; }
 - (id)copyWithZone:(NSZone *)z { return self; }
@@ -15,7 +17,8 @@
     return [[self alloc] initWithPayload:p symbolVersion:v maskPattern:m errorCorrectionLevel:l];
 }
 - (instancetype)initWithPayload:(NSData *)p symbolVersion:(NSInteger)v maskPattern:(uint8_t)m errorCorrectionLevel:(CIQRCodeErrorCorrectionLevel)l {
-    if (!p.length || v < 1 || v > 40 || m > 7 || (l != 'L' && l != 'M' && l != 'Q' && l != 'H')) return nil;
+    /* the payload is all of the version's codewords (data and error correction, interleaved) */
+    if ((NSInteger)p.length != isim_qr_total_codewords((int)v) || m > 7 || (l != 'L' && l != 'M' && l != 'Q' && l != 'H')) return nil;
     if ((self = [super init])) { _errorCorrectedPayload = [p copy]; _symbolVersion = v; _maskPattern = m; _errorCorrectionLevel = l; }
     return self;
 }
@@ -60,7 +63,8 @@
     return [[self alloc] initWithPayload:p isCompact:c rowCount:r columnCount:k];
 }
 - (instancetype)initWithPayload:(NSData *)p isCompact:(BOOL)c rowCount:(NSInteger)r columnCount:(NSInteger)k {
-    if (!p.length || r < 3 || r > 90 || k < 1 || k > 30) return nil;
+    /* big-endian 16-bit codewords, one per data column of each row */
+    if (r < 3 || r > 90 || k < 1 || k > 30 || (NSInteger)p.length != 2 * r * k) return nil;
     if ((self = [super init])) { _errorCorrectedPayload = [p copy]; _isCompact = c; _rowCount = r; _columnCount = k; }
     return self;
 }

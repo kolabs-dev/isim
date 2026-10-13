@@ -34,6 +34,8 @@ ci_space ci_space_of(CGColorSpaceRef cs) {
     r.extended = [s containsString:@"Extended"] || r.trc == CI_TRC_LINEAR;
     return r;
 }
+BOOL ci_is_null(id o) { return o && [o isKindOfClass:[NSNull class]]; }
+BOOL ci_is_cgspace(id o) { return o && !ci_is_null(o) && CFGetTypeID((__bridge CFTypeRef)o) == CGColorSpaceGetTypeID(); }
 int ci_space_eq(ci_space a, ci_space b) { return a.prim == b.prim && a.trc == b.trc && a.gray == b.gray; }
 static float srgb_dec(float v) { return v <= 0.04045f ? v / 12.92f : powf((v + 0.055f) / 1.055f, 2.4f); }
 static float srgb_enc(float v) { return v <= 0.0031308f ? v * 12.92f : 1.055f * powf(v, 1 / 2.4f) - 0.055f; }
@@ -766,8 +768,8 @@ static CIImage *with_options(CIImage *im, NSDictionary *o) {
     id cs = o[kCIImageColorSpace];
     if (cs && [im isKindOfClass:[__CIBitmapImage class]]) {
         __CIBitmapImage *b = (__CIBitmapImage *)im;
-        if (cs == [NSNull null]) b->_raw = YES;
-        else { b->_space = ci_space_of((__bridge CGColorSpaceRef)cs); b.isimCGColorSpace = cs; }
+        if (ci_is_null(cs)) b->_raw = YES;
+        else if (ci_is_cgspace(cs)) { b->_space = ci_space_of((__bridge CGColorSpaceRef)cs); b.isimCGColorSpace = cs; }
     }
     if (o[kCIImageProperties]) im.isimProperties = o[kCIImageProperties];
     if ([o[kCIImageNearestSampling] boolValue]) im.isimSampling = CI_SAMPLE_NEAREST;

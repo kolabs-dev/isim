@@ -13,11 +13,14 @@ static char ci_key;
     static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_lock(&m); if (!ctx) ctx = [CIContext contextWithOptions:@{ kCIContextName: @"UIImage" }]; pthread_mutex_unlock(&m);
     if (!ci || ci_infinite(ci.extent) || CGRectIsEmpty(ci.extent)) {
+        /* like iOS, the image exists but draws nothing (iOS fails when drawing it) */
         if (ci && ci_infinite(ci.extent)) NSLog(@"isim: UIImage(ciImage:): the CIImage has an infinite extent; crop it first");
-        return nil;
+        UIImage *img = [self init];
+        if (img && ci) objc_setAssociatedObject(img, &ci_key, ci, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        return img;
     }
     CGImageRef cg = [ctx createCGImage:ci fromRect:ci.extent];
-    if (!cg) return nil;
+    if (!cg) return [self init];
     UIImage *img = [self initWithCGImage:cg scale:s orientation:o];
     CGImageRelease(cg);
     if (img) objc_setAssociatedObject(img, &ci_key, ci, OBJC_ASSOCIATION_RETAIN_NONATOMIC);

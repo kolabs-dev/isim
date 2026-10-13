@@ -26,6 +26,7 @@ bool CGPointEqualToPoint(CGPoint a, CGPoint b) { return a.x == b.x && a.y == b.y
 bool CGSizeEqualToSize(CGSize a, CGSize b) { return a.width == b.width && a.height == b.height; }
 bool CGRectEqualToRect(CGRect a, CGRect b) { a = CGRectStandardize(a); b = CGRectStandardize(b); return CGPointEqualToPoint(a.origin, b.origin) && CGSizeEqualToSize(a.size, b.size); }
 bool CGRectIsNull(CGRect r) { return isinf(r.origin.x) || isinf(r.origin.y); }
+bool CGRectIsInfinite(CGRect r) { return CGRectEqualToRect(r, CGRectInfinite); }
 bool CGRectIsEmpty(CGRect r) { return CGRectIsNull(r) || r.size.width == 0 || r.size.height == 0; }
 CGRect CGRectInset(CGRect r, CGFloat dx, CGFloat dy) {
     r = CGRectStandardize(r);

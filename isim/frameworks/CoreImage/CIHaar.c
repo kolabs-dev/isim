@@ -189,5 +189,8 @@ int haar_detect(const haar_cascade *c, const float *gray, int w, int h, double s
         memcpy(out + m * 5, r1, sizeof(int) * 5); m++;
     }
     free(raw); free(parent); free(acc); free(cand);
+    for (int i = 1; i < m; i++)            /* strongest (most neighbors) first */
+        for (int j = i; j > 0 && out[j * 5 + 4] > out[(j - 1) * 5 + 4]; j--)
+            for (int k = 0; k < 5; k++) { int t = out[j * 5 + k]; out[j * 5 + k] = out[(j - 1) * 5 + k]; out[(j - 1) * 5 + k] = t; }
     return m;
 }

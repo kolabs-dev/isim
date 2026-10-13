@@ -22,7 +22,10 @@ enum { CI_PRIM_SRGB, CI_PRIM_P3, CI_PRIM_2020 };
 enum { CI_TRC_LINEAR, CI_TRC_SRGB, CI_TRC_GAMMA22, CI_TRC_709, CI_TRC_PQ, CI_TRC_HLG, CI_TRC_GAMMA18 };
 typedef struct { int prim, trc, gray, extended; } ci_space;
 CI_HIDDEN extern const ci_space ci_space_srgb, ci_space_linear;
-CI_HIDDEN ci_space ci_space_of(CGColorSpaceRef _Nullable cs);           /* NULL: sRGB */
+CI_HIDDEN ci_space ci_space_of(CGColorSpaceRef _Nullable cs);
+/* option values: NSNull (any instance) and CGColorSpace objects, checked by type */
+CI_HIDDEN BOOL ci_is_null(id _Nullable o);
+CI_HIDDEN BOOL ci_is_cgspace(id _Nullable o);           /* NULL: sRGB */
 CI_HIDDEN CGColorSpaceRef _Nonnull ci_cgspace_named(CFStringRef _Nonnull name);  /* cached, not retained */
 CI_HIDDEN int ci_space_eq(ci_space a, ci_space b);
 CI_HIDDEN float ci_trc_decode(int trc, float v);                        /* encoded -> linear (sign-extended) */
@@ -30,6 +33,8 @@ CI_HIDDEN float ci_trc_encode(int trc, float v);
 /* convert n premultiplied RGBA pixels in place */
 CI_HIDDEN void ci_convert(float *_Nonnull px, size_t n, ci_space from, ci_space to);
 /* one straight (unpremultiplied) RGB color */
+/* linear sRGB white of a color temperature (K) and tint (CITemperatureAndTint's model) */
+CI_HIDDEN void ci_white_rgb(double T, double tint, float rgb[_Nonnull 3]);
 CI_HIDDEN void ci_convert_rgb(float *_Nonnull rgb, ci_space from, ci_space to);
 
 /* ---- render context ---- */
@@ -148,4 +153,5 @@ CI_HIDDEN void ci_register_reduction_filters(void);
 CI_HIDDEN void ci_register_tile_filters(void);
 CI_HIDDEN void ci_register_transition_filters(void);
 CI_HIDDEN void ci_register_ml_filters(void);
+CI_HIDDEN void ci_register_halftone_filters(void);
 CI_HIDDEN CIImage *_Nonnull ci_empty(void);

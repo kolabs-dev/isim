@@ -34,10 +34,10 @@ static void cct_xy(double T, double *x, double *y) {        /* Kim et al. cubic 
 }
 static void white_rgb(double T, double tint, float rgb[3]) {
     double x, y; cct_xy(T, &x, &y);
-    /* tint: a shift perpendicular to the locus in CIE 1960 uv (+ toward magenta), 1 unit = 1/3000 */
-    double d = 2 * x - 8 * y + 3, u = 4 * x / d, v = 6 * y / d;
+    /* tint: a shift perpendicular to the locus in CIE 1960 uv (+: a greener light, which correcting turns magenta), 1 unit = 1/3000 */
+    double d = -2 * x + 12 * y + 3, u = 4 * x / d, v = 6 * y / d;     /* CIE 1960 uv */
     double x2, y2; cct_xy(T + 10, &x2, &y2);
-    double d2 = 2 * x2 - 8 * y2 + 3, u2 = 4 * x2 / d2, v2 = 6 * y2 / d2;
+    double d2 = -2 * x2 + 12 * y2 + 3, u2 = 4 * x2 / d2, v2 = 6 * y2 / d2;
     double du = u2 - u, dv = v2 - v, l = hypot(du, dv);
     if (l > 0) { u += -dv / l * (-tint / 3000.0); v += du / l * (-tint / 3000.0); }
     x = 3 * u / (2 * u - 8 * v + 4); y = 2 * v / (2 * u - 8 * v + 4);
@@ -46,6 +46,8 @@ static void white_rgb(double T, double tint, float rgb[3]) {
     rgb[1] = (float)(-0.9692660 * X + 1.8760108 * Y + 0.0415560 * Z);
     rgb[2] = (float)(0.0556434 * X - 0.2040259 * Y + 1.0572252 * Z);
 }
+
+void ci_white_rgb(double T, double tint, float rgb[3]) { white_rgb(T, tint, rgb); }
 
 /* ---- tone curve: a monotone cubic (Fritsch-Carlson) through the points ---- */
 typedef struct { float x[5], y[5], m[5]; int extrapolate; } curve5;
@@ -98,8 +100,8 @@ static CIImage *apply_cube(CIImage *im, NSData *data, int n, BOOL extrap, id spa
     cube_t c0 = { 0 }, c1 = { 0 };
     if (!cube_of(data, n, &c0)) { NSLog(@"isim: Core Image: color cube data must hold %d^3 RGBA floats", n); return nil; }
     BOOL two = mask && cube_of(data1, n, &c1);
-    ci_space sp = space && space != [NSNull null] ? ci_space_of((__bridge CGColorSpaceRef)space) : ci_space_linear;
-    BOOL hasSpace = space && space != [NSNull null];
+    BOOL hasSpace = ci_is_cgspace(space);
+    ci_space sp = hasSpace ? ci_space_of((__bridge CGColorSpaceRef)space) : ci_space_linear;
     return ci_op(im.extent, ^(CGRect r, float *out, const ci_rctx *rc) {
         [im _render:r into:out ctx:rc];
         float *m = two ? ci_render_new(mask, r, rc) : NULL;

@@ -582,7 +582,7 @@ static val builtin(frame *fr, node *n) {
     val a[8]; int na = n->nk < 8 ? n->nk : 8;
     const char *name = BUILTINS[id];
     /* sampler arguments are not evaluated to values */
-    int sampler_fn = !strcmp(name, "sample") || !strncmp(name, "sampler", 7) || !strncmp(name, "m_", 2);
+    int sampler_fn = !strcmp(name, "sample") || !strncmp(name, "sampler", 7) || !strncmp(name, "m_", 2) || !strcmp(name, "destCoord");
     for (int i = 0; i < na; i++) a[i] = eval(fr, n->k[i]);
     val r; memset(&r, 0, sizeof r); r.kind = CK_FLOAT; r.n = na ? a[0].n : 1;
     if (r.n < 1) r.n = 1;

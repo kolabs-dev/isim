@@ -4,6 +4,11 @@
  * classes, so type IDs come from the object's class; the hashes match -[NSString hash]. */
 #import <Foundation/Foundation.h>
 #import <CoreFoundation/CFBase.h>
+#import <objc/message.h>
+
+@interface NSObject (IsimCFTypeID)
+- (unsigned long)_isimCFTypeID;
+@end
 
 enum { ISIM_CF_OTHER = 1, ISIM_CF_STRING = 7, ISIM_CF_ARRAY = 19, ISIM_CF_DICTIONARY = 18, ISIM_CF_NUMBER = 22, ISIM_CF_DATA = 20 };
 
@@ -15,6 +20,12 @@ CFTypeID CFGetTypeID(CFTypeRef cf) {
     if ([o isKindOfClass:[NSDictionary class]]) return ISIM_CF_DICTIONARY;
     if ([o isKindOfClass:[NSNumber class]]) return ISIM_CF_NUMBER;
     if ([o isKindOfClass:[NSData class]]) return ISIM_CF_DATA;
+    /* Core Graphics objects: their CG...GetTypeID values */
+    static Class color, image;
+    if (!color) { color = NSClassFromString(@"__NSCGColor"); image = NSClassFromString(@"__NSCGImage"); }
+    if (color && [o isKindOfClass:color]) return 0x4363;
+    if (image && [o isKindOfClass:image]) return 0x4369;
+    if ([o respondsToSelector:@selector(_isimCFTypeID)]) return ((CFTypeID (*)(id, SEL))objc_msgSend)(o, @selector(_isimCFTypeID));
     return ISIM_CF_OTHER;
 }
 CFHashCode CFStringHashNSString(CFStringRef s) { return [(__bridge NSString *)s hash]; }

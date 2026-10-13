@@ -155,13 +155,18 @@ static int place(struct qr *q, const uint8_t *all, int raw, int v, int ecl, int 
 }
 
 /* encodes bytes; out gets size*size modules (1 = dark). Returns the size, or 0 if the message is too long. The
-   descriptor fields (version, the level used, mask, interleaved codewords) are returned when asked for. */
+   descriptor fields (version, the level used, mask, interleaved codewords) are returned when asked for.
+   ecl | QR_BOOST raises the level when the data still fits the version (what isim_qr_encode always did); Core Image
+   keeps the requested level, as iOS does. */
+#define QR_BOOST 4
 int isim_qr_encode_ex(const uint8_t *msg, int len, int ecl, uint8_t *out, int *outVersion, int *outEcl, int *outMask, uint8_t *codewords, int *ncodewords) {
+    int boost = ecl >= 0 && (ecl & QR_BOOST);
+    if (ecl >= 0) ecl &= ~QR_BOOST;
     if (ecl < 0 || ecl > 3 || len < 0) return 0;
     int v;
     for (v = 1; v <= 40; v++) if (4 + (v < 10 ? 8 : 16) + 8 * len <= data_codewords(v, ecl) * 8) break;
     if (v > 40) return 0;
-    for (int e = 3; e > ecl; e--) if (4 + (v < 10 ? 8 : 16) + 8 * len <= data_codewords(v, e) * 8) { ecl = e; break; }   /* boost if it fits */
+    if (boost) for (int e = 3; e > ecl; e--) if (4 + (v < 10 ? 8 : 16) + 8 * len <= data_codewords(v, e) * 8) { ecl = e; break; }
     int cap = data_codewords(v, ecl);
     uint8_t *data = calloc((size_t)cap, 1); long bit = 0;
     #define PUT(val, n) do { for (int i_ = (n) - 1; i_ >= 0; i_--) { if (((val) >> i_) & 1) data[bit >> 3] |= (uint8_t)(0x80 >> (bit & 7)); bit++; } } while (0)
@@ -198,7 +203,9 @@ int isim_qr_encode_ex(const uint8_t *msg, int len, int ecl, uint8_t *out, int *o
     free(all); free(q);
     return s;
 }
-int isim_qr_encode(const uint8_t *msg, int len, int ecl, uint8_t *out) { return isim_qr_encode_ex(msg, len, ecl, out, NULL, NULL, NULL, NULL, NULL); }
+int isim_qr_encode(const uint8_t *msg, int len, int ecl, uint8_t *out) { return isim_qr_encode_ex(msg, len, ecl < 0 ? ecl : ecl | QR_BOOST, out, NULL, NULL, NULL, NULL, NULL); }
+/* the codewords (data + error correction) of a version */
+__attribute__((visibility("hidden"))) int isim_qr_total_codewords(int v) { return v < 1 || v > 40 ? 0 : raw_modules(v) / 8; }
 /* a symbol from a descriptor: the codewords must fill the version's capacity */
 int isim_qr_from_codewords(const uint8_t *cw, int n, int v, int ecl, int mask, uint8_t *out) {
     if (v < 1 || v > 40 || ecl < 0 || ecl > 3 || mask < 0 || mask > 7 || n != raw_modules(v) / 8) return 0;

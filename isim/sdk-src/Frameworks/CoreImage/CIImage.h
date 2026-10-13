@@ -9,14 +9,37 @@ NS_ASSUME_NONNULL_BEGIN
  * computed until a CIContext renders it; isim renders on the CPU in the context's working space (extended linear
  * sRGB by default, as on iOS). */
 typedef int CIFormat NS_TYPED_ENUM;
-extern CIFormat kCIFormatARGB8, kCIFormatBGRA8, kCIFormatRGBA8, kCIFormatABGR8;
-extern CIFormat kCIFormatRGBAh, kCIFormatRGBA16, kCIFormatRGBAf;
-extern CIFormat kCIFormatRGBX16, kCIFormatRGBXh, kCIFormatRGBXf;
-extern CIFormat kCIFormatA8, kCIFormatA16, kCIFormatAh, kCIFormatAf;
-extern CIFormat kCIFormatR8, kCIFormatR16, kCIFormatRh, kCIFormatRf;
-extern CIFormat kCIFormatRG8, kCIFormatRG16, kCIFormatRGh, kCIFormatRGf;
-extern CIFormat kCIFormatL8, kCIFormatL16, kCIFormatLh, kCIFormatLf;
-extern CIFormat kCIFormatLA8, kCIFormatLA16, kCIFormatLAh, kCIFormatLAf;
+/* Swift names as on iOS (CIFormat.RGBAh, .Lf, ...) */
+extern CIFormat kCIFormatARGB8 NS_SWIFT_NAME(CIFormat.ARGB8);
+extern CIFormat kCIFormatBGRA8 NS_SWIFT_NAME(CIFormat.BGRA8);
+extern CIFormat kCIFormatRGBA8 NS_SWIFT_NAME(CIFormat.RGBA8);
+extern CIFormat kCIFormatABGR8 NS_SWIFT_NAME(CIFormat.ABGR8);
+extern CIFormat kCIFormatRGBAh NS_SWIFT_NAME(CIFormat.RGBAh);
+extern CIFormat kCIFormatRGBA16 NS_SWIFT_NAME(CIFormat.RGBA16);
+extern CIFormat kCIFormatRGBAf NS_SWIFT_NAME(CIFormat.RGBAf);
+extern CIFormat kCIFormatRGBX16 NS_SWIFT_NAME(CIFormat.RGBX16);
+extern CIFormat kCIFormatRGBXh NS_SWIFT_NAME(CIFormat.RGBXh);
+extern CIFormat kCIFormatRGBXf NS_SWIFT_NAME(CIFormat.RGBXf);
+extern CIFormat kCIFormatA8 NS_SWIFT_NAME(CIFormat.A8);
+extern CIFormat kCIFormatA16 NS_SWIFT_NAME(CIFormat.A16);
+extern CIFormat kCIFormatAh NS_SWIFT_NAME(CIFormat.Ah);
+extern CIFormat kCIFormatAf NS_SWIFT_NAME(CIFormat.Af);
+extern CIFormat kCIFormatR8 NS_SWIFT_NAME(CIFormat.R8);
+extern CIFormat kCIFormatR16 NS_SWIFT_NAME(CIFormat.R16);
+extern CIFormat kCIFormatRh NS_SWIFT_NAME(CIFormat.Rh);
+extern CIFormat kCIFormatRf NS_SWIFT_NAME(CIFormat.Rf);
+extern CIFormat kCIFormatRG8 NS_SWIFT_NAME(CIFormat.RG8);
+extern CIFormat kCIFormatRG16 NS_SWIFT_NAME(CIFormat.RG16);
+extern CIFormat kCIFormatRGh NS_SWIFT_NAME(CIFormat.RGh);
+extern CIFormat kCIFormatRGf NS_SWIFT_NAME(CIFormat.RGf);
+extern CIFormat kCIFormatL8 NS_SWIFT_NAME(CIFormat.L8);
+extern CIFormat kCIFormatL16 NS_SWIFT_NAME(CIFormat.L16);
+extern CIFormat kCIFormatLh NS_SWIFT_NAME(CIFormat.Lh);
+extern CIFormat kCIFormatLf NS_SWIFT_NAME(CIFormat.Lf);
+extern CIFormat kCIFormatLA8 NS_SWIFT_NAME(CIFormat.LA8);
+extern CIFormat kCIFormatLA16 NS_SWIFT_NAME(CIFormat.LA16);
+extern CIFormat kCIFormatLAh NS_SWIFT_NAME(CIFormat.LAh);
+extern CIFormat kCIFormatLAf NS_SWIFT_NAME(CIFormat.LAf);
 
 typedef NSString *CIImageOption NS_TYPED_ENUM;
 extern CIImageOption const kCIImageColorSpace;
@@ -88,8 +111,8 @@ extern CIImageOption const kCIImageContentHeadroom API_AVAILABLE(ios(18.0));
 - (CIImage *)imageByClampingToRect:(CGRect)rect NS_SWIFT_NAME(clamped(to:));
 - (CIImage *)imageByApplyingFilter:(NSString *)filterName withInputParameters:(nullable NSDictionary<NSString *, id> *)params NS_SWIFT_NAME(applyingFilter(_:parameters:));
 - (CIImage *)imageByApplyingFilter:(NSString *)filterName NS_SWIFT_NAME(applyingFilter(_:));
-- (CIImage *)imageByColorMatchingColorSpaceToWorkingSpace:(CGColorSpaceRef)colorSpace NS_SWIFT_NAME(matchedToWorkingSpace(from:));
-- (CIImage *)imageByColorMatchingWorkingSpaceToColorSpace:(CGColorSpaceRef)colorSpace NS_SWIFT_NAME(matchedFromWorkingSpace(to:));
+- (nullable CIImage *)imageByColorMatchingColorSpaceToWorkingSpace:(CGColorSpaceRef)colorSpace NS_SWIFT_NAME(matchedToWorkingSpace(from:));
+- (nullable CIImage *)imageByColorMatchingWorkingSpaceToColorSpace:(CGColorSpaceRef)colorSpace NS_SWIFT_NAME(matchedFromWorkingSpace(to:));
 - (CIImage *)imageByPremultiplyingAlpha NS_SWIFT_NAME(premultiplyingAlpha());
 - (CIImage *)imageByUnpremultiplyingAlpha NS_SWIFT_NAME(unpremultiplyingAlpha());
 - (CIImage *)imageBySettingAlphaOneInExtent:(CGRect)extent NS_SWIFT_NAME(settingAlphaOne(in:));
@@ -116,11 +139,15 @@ extern CIImageOption const kCIImageContentHeadroom API_AVAILABLE(ios(18.0));
 /* auto adjustment (CIImage+AutoAdjustment). isim (adapted): enhance (CIVibrance, CIToneCurve, CIHighlightShadowAdjust)
  * from image statistics, crop and level (CIStraightenFilter) from the image's dominant lines; red-eye correction
  * filters are not returned (isim's face detector finds no eye landmarks precise enough) */
-extern NSString *const kCIImageAutoAdjustEnhance, *const kCIImageAutoAdjustRedEye, *const kCIImageAutoAdjustFeatures,
-    *const kCIImageAutoAdjustCrop, *const kCIImageAutoAdjustLevel;
+typedef NSString *CIImageAutoAdjustmentOption NS_TYPED_ENUM;
+extern CIImageAutoAdjustmentOption const kCIImageAutoAdjustEnhance NS_SWIFT_NAME(CIImageAutoAdjustmentOption.enhance);
+extern CIImageAutoAdjustmentOption const kCIImageAutoAdjustRedEye NS_SWIFT_NAME(CIImageAutoAdjustmentOption.redEye);
+extern CIImageAutoAdjustmentOption const kCIImageAutoAdjustFeatures NS_SWIFT_NAME(CIImageAutoAdjustmentOption.features);
+extern CIImageAutoAdjustmentOption const kCIImageAutoAdjustCrop NS_SWIFT_NAME(CIImageAutoAdjustmentOption.crop);
+extern CIImageAutoAdjustmentOption const kCIImageAutoAdjustLevel NS_SWIFT_NAME(CIImageAutoAdjustmentOption.level);
 @interface CIImage (AutoAdjustment)
 - (NSArray<CIFilter *> *)autoAdjustmentFilters;
-- (NSArray<CIFilter *> *)autoAdjustmentFiltersWithOptions:(nullable NSDictionary<NSString *, id> *)options;
+- (NSArray<CIFilter *> *)autoAdjustmentFiltersWithOptions:(nullable NSDictionary<CIImageAutoAdjustmentOption, id> *)options;
 @end
 
 /* image providers: the provider's bytes are asked for once, when the image is first rendered */

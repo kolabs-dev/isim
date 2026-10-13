@@ -180,7 +180,8 @@ static unsigned char *rgba_of(CIImage *im, double maxSide, int *w, int *h, doubl
     double minFrac = o[CIDetectorMinFeatureSize] ? [o[CIDetectorMinFeatureSize] doubleValue] : 0.1;
     int minSize = (int)fmax(24, fmin(w, h) * minFrac);
     int det[5 * 64];
-    int n = haar_detect(fc, g, w, h, high ? 1.05 : 1.1, 3, minSize, det, 64);
+    /* the finer pyramid of high accuracy gives more overlapping windows per face: it needs more neighbors */
+    int n = haar_detect(fc, g, w, h, high ? 1.05 : 1.1, high ? 10 : 5, minSize, det, 64);
     haar_cascade *ec = cascade(@"haarcascade_eye.xml"), *sc = [o[CIDetectorSmile] boolValue] ? cascade(@"haarcascade_smile.xml") : NULL;
     BOOL blink = [o[CIDetectorEyeBlink] boolValue];
     NSMutableArray *out = [NSMutableArray array];
@@ -249,6 +250,42 @@ static unsigned char *rgba_of(CIImage *im, double maxSide, int *w, int *h, doubl
 }
 
 /* ---- rectangles: the largest filled quadrilateral of either polarity (Otsu threshold) ---- */
+static double seg_dist(const double *p, const double *a, const double *b) {
+    double dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+    double t = l2 > 0 ? ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    return hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+}
+/* the four sides as lines fitted (total least squares) to the boundary pixels near each side, and the corners as
+   their intersections: more precise than the hull vertices, which sit on the pixel staircase of slanted edges */
+static void refine_quad(double *q, const double *pts, int np) {
+    double line[4][3]; int ok = 1;
+    for (int e = 0; e < 4 && ok; e++) {
+        const double *a = q + e * 2, *b = q + ((e + 1) % 4) * 2;
+        double len = hypot(b[0] - a[0], b[1] - a[1]), sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0; int n = 0;
+        for (int i = 0; i < np; i++) {
+            const double *p = pts + i * 2;
+            double t = ((p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1])) / (len * len);
+            if (t < 0.1 || t > 0.9 || seg_dist(p, a, b) > 3) continue;       /* away from the corners */
+            sx += p[0]; sy += p[1]; sxx += p[0] * p[0]; syy += p[1] * p[1]; sxy += p[0] * p[1]; n++;
+        }
+        if (n < 4) { ok = 0; break; }
+        double mx = sx / n, my = sy / n, cxx = sxx / n - mx * mx, cyy = syy / n - my * my, cxy = sxy / n - mx * my;
+        double ang = 0.5 * atan2(2 * cxy, cxx - cyy);              /* direction of the line */
+        double nx = -sin(ang), ny = cos(ang);
+        line[e][0] = nx; line[e][1] = ny; line[e][2] = nx * mx + ny * my;
+    }
+    if (!ok) return;
+    double r[8];
+    for (int i = 0; i < 4; i++) {          /* corner i joins side i-1 and side i */
+        const double *l1 = line[(i + 3) % 4], *l2 = line[i];
+        double det = l1[0] * l2[1] - l1[1] * l2[0];
+        if (fabs(det) < 1e-9) return;
+        r[i * 2] = (l1[2] * l2[1] - l1[1] * l2[2]) / det; r[i * 2 + 1] = (l1[0] * l2[2] - l1[2] * l2[0]) / det;
+        if (hypot(r[i * 2] - q[i * 2], r[i * 2 + 1] - q[i * 2 + 1]) > 12) return;    /* keep the hull's if far off */
+    }
+    memcpy(q, r, sizeof r);
+}
 static double cross2(const double *o, const double *a, const double *b) { return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]); }
 static int cmp_pt(const void *a, const void *b) { const double *p = a, *q = b; return p[0] < q[0] ? -1 : p[0] > q[0] ? 1 : p[1] < q[1] ? -1 : p[1] > q[1]; }
 static int hull(double *pts, int n, double *out) {
@@ -309,6 +346,7 @@ static double poly_area(const double *p, int n) { double a = 0; for (int i = 0; 
                 }
                 memmove(hl + bi * 2, hl + (bi + 1) * 2, sizeof(double) * 2 * (nh - bi - 1)); nh--;
             }
+            refine_quad(hl, pts, np);
             double qa = poly_area(hl, 4);
             if (qa < 1 || cnt / qa < 0.85 || cnt / qa > 1.15) continue;        /* the region fills the quadrilateral */
             double e1 = hypot(hl[2] - hl[0], hl[3] - hl[1]), e2 = hypot(hl[4] - hl[2], hl[5] - hl[3]);

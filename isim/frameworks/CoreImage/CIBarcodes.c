@@ -431,7 +431,7 @@ int isim_pdf417_encode(const uint8_t *msg, int len, int level, int minCols, int 
     int idx = 0;
     for (int y = 0; y < br; y++) {
         uint8_t *row = out + (size_t)y * w; int x = 0, cl = y % 3, left, right;
-#define PUT(pat, nb) do { for (int b_ = (nb) - 1; b_ >= 0; b_--) row[x++] = ((pat) >> b_) & 1; } while (0)
+#define PUT(pat, nb) do { uint32_t p_ = (pat); for (int b_ = (nb) - 1; b_ >= 0; b_--) row[x++] = (p_ >> b_) & 1; } while (0)
         PUT(0x1fea8u, 17);
         if (cl == 0) { left = 30 * (y / 3) + (br - 1) / 3; right = 30 * (y / 3) + (bc - 1); }
         else if (cl == 1) { left = 30 * (y / 3) + level * 3 + (br - 1) % 3; right = 30 * (y / 3) + (br - 1) / 3; }
@@ -456,7 +456,7 @@ int isim_pdf417_from_codewords(const int *full, int total, int rows, int cols, i
     int idx = 0;
     for (int y = 0; y < rows; y++) {
         uint8_t *row = out + (size_t)y * w; int x = 0, cl = y % 3, left, right;
-#define PUT(pat, nb) do { for (int b_ = (nb) - 1; b_ >= 0; b_--) row[x++] = ((pat) >> b_) & 1; } while (0)
+#define PUT(pat, nb) do { uint32_t p_ = (pat); for (int b_ = (nb) - 1; b_ >= 0; b_--) row[x++] = (p_ >> b_) & 1; } while (0)
         PUT(0x1fea8u, 17);
         if (cl == 0) { left = 30 * (y / 3) + (rows - 1) / 3; right = 30 * (y / 3) + (cols - 1); }
         else if (cl == 1) { left = 30 * (y / 3) + level * 3 + (rows - 1) % 3; right = 30 * (y / 3) + (rows - 1) / 3; }
