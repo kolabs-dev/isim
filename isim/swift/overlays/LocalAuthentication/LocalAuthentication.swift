@@ -97,8 +97,8 @@ public func ~= (code: LAError.Code, error: Error) -> Bool { (error as? LAError)?
 
 open class LAContext: NSObject, @unchecked Sendable {
     private var checkedBiometry = false
-    private var invalidated = false
-    private var succeeded = false
+    fileprivate var invalidated = false
+    fileprivate var succeeded = false
     open var localizedFallbackTitle: String?
     open var localizedCancelTitle: String?
     open var localizedReason: String = ""
@@ -314,4 +314,27 @@ enum _LADevice {
         window = w
     }
     static func hide() { window?.isHidden = true; window = nil }
+}
+
+// MARK: - The device owner, synchronously (Secure Enclave keys and keychain items with access control)
+
+@_silgen_name("isim_ui_run_until") func _isimRunUntil(_ done: @escaping @convention(block) () -> Bool)
+
+/// What a Secure Enclave key's access control (biometry / user presence) asks before it signs or agrees on a key:
+/// nothing when `context` has already authenticated, else the Face ID / Touch ID prompt (passcode allowed unless
+/// `biometryOnly`). Synchronous like the key operation that asks: on the main thread the UI keeps running in a nested
+/// loop until the prompt is answered. CryptoKit and Security find it with dlsym. 1 = authenticated.
+@_cdecl("isim_la_require_owner")
+public func _isimLARequireOwner(_ reason: UnsafePointer<CChar>, _ biometryOnly: Int32, _ context: UnsafeRawPointer?) -> Int32 {
+    let ctx = context.map { Unmanaged<LAContext>.fromOpaque($0).takeUnretainedValue() } ?? LAContext()
+    if ctx.isAuthenticated { return 1 }
+    let policy: LAPolicy = biometryOnly != 0 ? .deviceOwnerAuthenticationWithBiometrics : .deviceOwnerAuthentication
+    final class Box: @unchecked Sendable { var done = false; var ok = false }
+    let box = Box(), sem = DispatchSemaphore(value: 0)
+    ctx.evaluatePolicy(policy, localizedReason: String(cString: reason)) { ok, _ in box.ok = ok; box.done = true; sem.signal() }
+    if Thread.isMainThread { _isimRunUntil { box.done } } else { sem.wait() }
+    return box.ok ? 1 : 0
+}
+extension LAContext {
+    var isAuthenticated: Bool { succeeded && !invalidated }
 }

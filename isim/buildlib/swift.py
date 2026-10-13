@@ -661,12 +661,12 @@ simd
 SpriteKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswiftCombine -lswiftSwiftUI -lswift_Concurrency -lswiftsimd -lswiftAVFoundation -lswiftCoreImage -lswiftCoreVideo -lswiftCoreMedia -lswiftAudioToolbox -framework Foundation -framework UIKit -framework CoreGraphics -framework CoreImage -lisim_host
 GameplayKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswiftsimd -lswiftSpriteKit -lswift_Concurrency -framework Foundation -framework UIKit
 GameController -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
-CryptoKit -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
+CryptoKit -lswiftObjectiveC -lswiftFoundation -lswiftSecurity -lswiftLocalAuthentication -lswiftUIKit -framework Foundation -lisim_host
 Security -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 os -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 OSLog -lswiftos -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 LocalAuthentication -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
-DeviceCheck -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
+DeviceCheck -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCryptoKit -lswiftSecurity -framework Foundation
 BackgroundTasks -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 UserNotifications -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit -framework UserNotifications
 Intents -lswiftObjectiveC -lswiftFoundation -framework Foundation -framework Intents   # INFocusStatus.isFocused as Bool?

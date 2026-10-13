@@ -8,6 +8,7 @@
 // (biometry, passcode) are stored but not enforced. Keys, certificates and identities are not supported
 // (errSecUnimplemented).
 import Foundation
+import isim_host
 
 public typealias OSStatus = Int32
 public typealias SecRandomRef = OpaquePointer
@@ -27,6 +28,7 @@ public let errSecDuplicateItem: OSStatus = -25299
 public let errSecItemNotFound: OSStatus = -25300
 public let errSecInteractionNotAllowed: OSStatus = -25308
 public let errSecDecode: OSStatus = -26275
+public let errSecInternalError: OSStatus = -26276
 public let errSecMissingEntitlement: OSStatus = -34018
 
 // MARK: - Keys and values
@@ -110,7 +112,7 @@ public func SecRandomCopyBytes(_ rnd: SecRandomRef?, _ count: Int, _ bytes: Unsa
     return errSecSuccess
 }
 
-// MARK: - Access control (stored with the item, not enforced on isim)
+// MARK: - Access control (stored with keychain items, not enforced for them; Secure Enclave keys enforce it)
 
 public struct SecAccessControlCreateFlags: OptionSet, Sendable {
     public let rawValue: UInt
@@ -130,6 +132,60 @@ public struct SecAccessControlCreateFlags: OptionSet, Sendable {
 public final class SecAccessControl: NSObject {
     let protection: String, flags: SecAccessControlCreateFlags
     init(protection: String, flags: SecAccessControlCreateFlags) { self.protection = protection; self.flags = flags }
+    /// for isim's CryptoKit (Secure Enclave keys): whether using the key asks for the device owner, and biometry only
+    @_spi(isim) public var _requiresOwner: Bool { !flags.isDisjoint(with: [.userPresence, .biometryAny, .biometryCurrentSet, .devicePasscode]) }
+    @_spi(isim) public var _biometryOnly: Bool {
+        !flags.isDisjoint(with: [.biometryAny, .biometryCurrentSet]) && flags.isDisjoint(with: [.userPresence, .devicePasscode])
+    }
+}
+
+// MARK: - The simulated Secure Enclave's key wrapping (shared with isim's CryptoKit)
+
+/// isim's Secure Enclave (adapted: software, not hardware): a private key leaves "the enclave" only sealed (AES-GCM)
+/// with this device's key ($ISIM_DATA/Library/isim/SecureEnclave/device.key, made on first use), so a key's data
+/// representation opens only on the same simulated device, like a real enclave's. `ISIM_SECURE_ENCLAVE=0` turns it off
+/// (a Simulator without one).
+@_spi(isim) public enum _SecureEnclaveStore {
+    public static var isAvailable: Bool { ProcessInfo.processInfo.environment["ISIM_SECURE_ENCLAVE"] != "0" }
+    static let magic: [UInt8] = Array("isimSE1".utf8)
+    static var deviceKey: [UInt8]? {
+        let env = ProcessInfo.processInfo.environment
+        let data = env["ISIM_DATA"].flatMap { $0.isEmpty ? nil : $0 } ?? ((env["HOME"] ?? "/tmp") as NSString).appendingPathComponent(".local/share/isim")
+        let dir = (data as NSString).appendingPathComponent("Library/isim/SecureEnclave"), path = (dir as NSString).appendingPathComponent("device.key")
+        if let d = FileManager.default.contents(atPath: path), d.count == 32 { return [UInt8](d) }
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        var k = [UInt8](repeating: 0, count: 32); arc4random_buf(&k, 32)
+        guard FileManager.default.createFile(atPath: path, contents: Data(k), attributes: [.posixPermissions: 0o600]) else { return nil }
+        return [UInt8](FileManager.default.contents(atPath: path) ?? Data(k))
+    }
+    /// flags: bit 0 the key asks for the device owner, bit 1 biometry only
+    public static func wrap(_ d: [UInt8], flags: UInt8) -> Data? {
+        guard let key = deviceKey else { return nil }
+        var nonce = [UInt8](repeating: 0, count: 12); arc4random_buf(&nonce, 12)
+        let header = magic + [flags]
+        var out = [UInt8](repeating: 0, count: d.count), tag = [UInt8](repeating: 0, count: 16)
+        guard isim_crypto_aead(0, 1, key, key.count, nonce, 12, header, header.count, d, d.count, &out, &tag) == 1 else { return nil }
+        return Data(header + nonce + out + tag)
+    }
+    public static func unwrap(_ blob: [UInt8]) -> (d: [UInt8], flags: UInt8)? {
+        guard blob.count == magic.count + 1 + 12 + 32 + 16, Array(blob.prefix(magic.count)) == magic, let key = deviceKey else { return nil }
+        let header = Array(blob.prefix(magic.count + 1)), nonce = Array(blob[header.count..<header.count + 12])
+        let ct = Array(blob[(header.count + 12)..<(blob.count - 16)])
+        var tag = Array(blob.suffix(16)), out = [UInt8](repeating: 0, count: ct.count)
+        guard isim_crypto_aead(0, 0, key, key.count, nonce, 12, header, header.count, ct, ct.count, &out, &tag) == 1 else { return nil }
+        return (out, header.last!)
+    }
+    /// the device owner for a key that asks for it (LocalAuthentication's prompt; found at run time)
+    public static func authenticate(flags: UInt8, reason: String, context: AnyObject?) -> Bool {
+        guard flags & 1 != 0 else { return true }
+        typealias Fn = @convention(c) (UnsafePointer<CChar>, Int32, UnsafeRawPointer?) -> Int32
+        var sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "isim_la_require_owner")     // RTLD_DEFAULT
+        if sym == nil { _ = dlopen("/usr/lib/swift/libswiftLocalAuthentication.dylib", RTLD_NOW); sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "isim_la_require_owner") }
+        guard let sym else { NSLog("isim Security: the Secure Enclave key asks for the device owner, but LocalAuthentication is not available"); return false }
+        let f = unsafeBitCast(sym, to: Fn.self)
+        let ctx = context.map { UnsafeRawPointer(Unmanaged.passUnretained($0).toOpaque()) }
+        return reason.withCString { f($0, flags & 2 != 0 ? 1 : 0, ctx) } != 0
+    }
 }
 public func SecAccessControlCreateWithFlags(_ allocator: CFAllocator?, _ protection: CFTypeRef, _ flags: SecAccessControlCreateFlags,
                                             _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> SecAccessControl? {

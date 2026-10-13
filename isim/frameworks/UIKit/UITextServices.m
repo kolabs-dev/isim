@@ -226,6 +226,10 @@ static NSString *recent_code(void) { return last_code && -last_code_at.timeInter
 
 @implementation __IsimAutoFillSuggestion
 @end
+/* AuthenticationServices' AutoFill-assisted requests (performAutoFillAssistedRequests): passkeys offered in the QuickType
+   bar of username fields. The provider returns dictionaries {title, subtitle, action (a block)}; nil clears it. */
+static NSArray<NSDictionary *> *(^assisted_provider)(void);
+void isim_ui_autofill_set_assisted(NSArray<NSDictionary *> *(^provider)(void)) { assisted_provider = [provider copy]; }
 NSArray<__IsimAutoFillSuggestion *> *isim_ui_autofill_suggestions(id target) {
     NSString *t = content_type(target);
     if (!t || ![target isKindOfClass:[UIView class]]) return @[];
@@ -266,6 +270,14 @@ NSArray<__IsimAutoFillSuggestion *> *isim_ui_autofill_suggestions(id target) {
         return out;
     }
     if (!is_user_type(t) && ![t isEqualToString:UITextContentTypePassword]) return out;
+    if (is_user_type(t) && assisted_provider)
+        for (NSDictionary *d in assisted_provider()) {
+            if (out.count == 3) break;
+            __IsimAutoFillSuggestion *s = [__IsimAutoFillSuggestion new];
+            s.title = d[@"title"]; s.subtitle = d[@"subtitle"]; s.symbol = @"person.badge.key.fill";
+            s.action = d[@"action"];
+            [out addObject:s];
+        }
     for (NSDictionary *c in credentials_for_app()) {
         if (out.count == 3) break;
         __IsimAutoFillSuggestion *s = [__IsimAutoFillSuggestion new];

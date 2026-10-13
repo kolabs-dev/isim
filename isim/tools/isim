@@ -27,6 +27,8 @@
 #   isim metrickit [deliver]     deliver sample MetricKit payloads to running apps (Debug > Simulate MetricKit Payloads);
 #                                deliver: the payloads MetricKit measured so far, now (iOS delivers them about daily)
 #   isim crashlog [list|show [N|FILE] [--json]|path|clear]   the crash reports (.ips) the device's apps wrote
+#   isim devicecheck validate|query|update TOKEN ...   the local DeviceCheck server (two bits per device and app)
+#   isim appattest root [--der FILE]   the device data's App Attest root certificate (trust it on a test server)
 #   isim version                 print the isim version and the iOS versions it supports
 #   isim devices                 list device presets with the iOS versions each can run
 #   isim update [VERSION]        install the latest (or given) release and make it active (keeps the others)
@@ -433,6 +435,8 @@ PY
       date +%s.%N > "$DATA/Library/isim/MetricKitTrigger"
       echo "isim: simulated MetricKit payloads requested (apps with a subscriber get them within 0.5 s)"
     fi ;;
+  devicecheck|appattest)   # the server side of isim's local DeviceCheck / App Attest
+    ISIM_DATA=$DATA exec python3 "$BIN/isim-devicecheck.py" "$cmd" "$@" ;;
   crashlog)    # the crash reports (.ips) in the device data, like ~/Library/Logs/DiagnosticReports for the Simulator
     ISIM_DATA=$DATA exec python3 "$BIN/isim-crashlog.py" "$@" ;;
   info)
