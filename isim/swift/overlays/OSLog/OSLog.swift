@@ -35,7 +35,7 @@ public final class OSLogStore: NSObject, @unchecked Sendable {
     public func getEntries(with options: OSLogEnumerator.Options = [], at position: OSLogPosition? = nil, matching predicate: NSPredicate? = nil) throws -> AnySequence<OSLogEntry> {
         AnySequence(_entries(options, position, predicate))
     }
-    @objc(entriesEnumeratorWithOptions:position:predicate:error:)
+
     public func entriesEnumerator(options: OSLogEnumerator.Options = [], position: OSLogPosition? = nil, predicate: NSPredicate? = nil) throws -> OSLogEnumerator {
         OSLogEnumerator(_entries(options, position, predicate))
     }
