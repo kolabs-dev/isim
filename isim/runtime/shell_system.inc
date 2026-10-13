@@ -1767,7 +1767,7 @@ static void sys_draw(void) {
     cairo_surface_destroy(bs); cairo_surface_destroy(home);
     if (ov != OV_NONE && !(standby && ov == OV_LOCK)) sys_chrome(c, ov == OV_CC ? e : 1);   /* StandBy: no status bar */
     if (calls_visible()) { cairo_save(c); cairo_identity_matrix(c); cairo_scale(c, px_scale, px_scale); calls_draw(c); cairo_restore(c); }
-    if (calls_fullscreen() && ov == OV_NONE) sys_chrome(c, 1);                    /* the status bar over the call screens */
+    if (calls_fullscreen() && !(standby && ov == OV_LOCK)) sys_chrome(c, 1);    /* the status bar over the call screens */
     if (siri_visible()) { cairo_save(c); cairo_identity_matrix(c); cairo_scale(c, px_scale, px_scale); siri_draw(c); cairo_restore(c); }
     if (cc_brightness < 0.999) { cairo_identity_matrix(c); cairo_set_source_rgba(c, 0, 0, 0, (1 - cc_brightness) * 0.7); cairo_paint(c); }
     cairo_destroy(c);
