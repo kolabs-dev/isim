@@ -722,6 +722,7 @@ static NSMutableDictionary *error_providers;
 @end
 @implementation __NSCGContext
 - (void)dealloc { if (_fin) _fin((__bridge void *)self); }
+- (unsigned long)_isimCFTypeID { return 0x4378; }
 @end
 /* other Core Graphics / ImageIO objects (color spaces, data providers, gradients, ...): a finalizer + private storage */
 @interface __NSCGObject : NSObject { @public void (*_fin)(void *); const char *_kind; }
@@ -729,5 +730,14 @@ static NSMutableDictionary *error_providers;
 @implementation __NSCGObject
 - (void)dealloc { if (_fin) _fin((__bridge void *)self); }
 - (NSString *)description { return [NSString stringWithFormat:@"<%s %p>", _kind ?: "CGObject", self]; }
+/* CFGetTypeID: the CG...GetTypeID value of the kind (CoreGraphics' numbering) */
+- (unsigned long)_isimCFTypeID {
+    static const struct { const char *kind; unsigned long tid; } ids[] = {
+        { "CGColorSpace", 0x4373 }, { "CGDataProvider", 0x4364 }, { "CGDataConsumer", 0x4365 }, { "CGFont", 0x4366 },
+        { "CGGradient", 0x4367 }, { "CGFunction", 0x4368 }, { "CGShading", 0x436a }, { "CGPattern", 0x436b },
+        { "CGPDFDocument", 0x4370 }, { "CGPDFPage", 0x4371 } };
+    for (size_t i = 0; _kind && i < sizeof ids / sizeof ids[0]; i++) if (!strcmp(_kind, ids[i].kind)) return ids[i].tid;
+    return 1;
+}
 @end
 

@@ -56,13 +56,15 @@ def test_core_image(imaging):
     log, _, a, *_ = imaging
     assert "ciimage extent (0.0, 0.0, 60.0, 60.0)" in log, "Core Image extent"
     assert "ci sepia top [199, 177, 138, 255]" in log and close(a, 46, 140, (199, 177, 138)), "CISepiaTone"
-    assert "ci mono top [146, 146, 146, 255] bottom [120, 120, 120, 255]" in log, "CIColorControls saturation 0"
+    # Core Image works in linear light (the working space is linear sRGB, as on iOS): luminance and compositing are
+    # computed there and encoded back to sRGB
+    assert "ci mono top [163, 163, 163, 255] bottom [137, 137, 137, 255]" in log, "CIColorControls saturation 0"
     assert "ci invert top [0, 127, 255, 255] bottom [255, 102, 102, 255]" in log and \
         close(a, 178, 140, (0, 127, 255)), "CIColorInvert (CIFilter(name:))"
     assert re.search(r"ci blur top .* edge \[1[0-9][0-9], 1[0-9][0-9], [0-9]+, 255\]", log), \
         "CIGaussianBlur mixes the halves"
     assert re.search(r"ci noir top \[([0-9]+), \1, \1, 255\]", log), "CIPhotoEffectNoir"
-    assert "ci composite 60x60 corner [51, 51, 51, 255] center [153, 26, 26, 255]" in log, \
+    assert "ci composite 60x60 corner [51, 51, 51, 255] center [190, 35, 35, 255]" in log, \
         "generator + compositing + UIImage(ciImage:)"
     assert "ci transformed extent (0.0, 0.0, 30.0, 30.0)" in log and "has blur true" in log, \
         "transform + builtin filter names"

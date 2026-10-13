@@ -188,6 +188,14 @@ def _(a):
         a.run("espeak-ng", "-w", f"{b}/speech.wav", "hello from isim", check=False, quiet=True)
 
 
+@app("samples/HelloCoreImage", extra_inputs=["samples/HelloCoreImage/face.jpg", "samples/HelloCoreImage/Kernels.metal", "samples/HelloCoreImage/gen_dng.py"])
+def _(a):
+    b = a.swift_app()
+    a.copy("face.jpg", b)                                   # NASA's astronaut portrait (public domain), via scikit-image
+    a.run("python3", "gen_dng.py", f"{b}/fixture.dng")       # a synthetic Bayer DNG for CIRAWFilter
+    a.isim_build().compile_metal([os.path.join(a.d, "Kernels.metal")], b)
+
+
 @app("samples/HelloGameCenter")
 def _(a):
     b = a.swift_app()

@@ -70,7 +70,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Core Graphics | 22 | 0 | 0 | 0 | 22 | 100% |
 | Core Text | 7 | 0 | 0 | 0 | 7 | 100% |
 | QuartzCore / Core Animation | 21 | 0 | 0 | 0 | 21 | 100% |
-| Core Image, ImageIO & Metal | 2 | 1 | 0 | 2 | 5 | 50% |
+| Core Image, ImageIO & Metal | 10 | 5 | 1 | 2 | 18 | 69% |
 | SpriteKit | 22 | 18 | 5 | 1 | 46 | 67% |
 | GameKit (Game Center) | 18 | 0 | 0 | 0 | 18 | 100% |
 | GameController, GameplayKit, SceneKit, RealityKit & ARKit | 13 | 8 | 1 | 4 | 26 | 65% |
@@ -87,7 +87,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | Web & communication | 8 | 6 | 0 | 2 | 16 | 69% |
 | Logging & diagnostics | 5 | 2 | 2 | 0 | 9 | 67% |
 | Platform & tooling | 42 | 5 | 0 | 3 | 50 | 89% |
-| **All areas** | **998** | **67** | **15** | **17** | **1097** | **94%** |
+| **All areas** | **1006** | **71** | **16** | **17** | **1110** | **94%** |
 
 ### Per iOS version
 
@@ -104,7 +104,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Core Graphics | 100% (22) | 100% (22) | 100% (22) | 100% (22) |
 | Core Text | 100% (7) | 100% (7) | 100% (7) | 100% (7) |
 | QuartzCore / Core Animation | 100% (21) | 100% (21) | 100% (21) | 100% (21) |
-| Core Image, ImageIO & Metal | 50% (5) | 50% (5) | 50% (5) | 50% (5) |
+| Core Image, ImageIO & Metal | 69% (18) | 69% (18) | 69% (18) | 69% (18) |
 | SpriteKit | 67% (46) | 67% (46) | 67% (46) | 67% (46) |
 | GameKit (Game Center) | 100% (17) | 100% (17) | 100% (18) | 100% (18) |
 | GameController, GameplayKit, SceneKit, RealityKit & ARKit | 65% (26) | 65% (26) | 65% (26) | 65% (26) |
@@ -121,7 +121,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Web & communication | 73% (15) | 73% (15) | 69% (16) | 69% (16) |
 | Logging & diagnostics | 67% (9) | 67% (9) | 67% (9) | 67% (9) |
 | Platform & tooling | 89% (48) | 89% (49) | 89% (50) | 89% (50) |
-| **All areas** | **94%** (1031) | **94%** (1047) | **94%** (1076) | **94%** (1097) |
+| **All areas** | **94%** (1044) | **94%** (1060) | **94%** (1089) | **94%** (1110) |
 
 ---
 
@@ -1138,7 +1138,20 @@ their presentation copies (model + running animations); there is no separate ren
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| Core Image (`CIImage`, `CIFilter`, `CIContext`, `CIFilterBuiltins`) | 🟡 | ≤17 | CPU renderer (adapted): premultiplied sRGB floats instead of Apple's linear working space. Filters: CIGaussianBlur, CIColorControls, CISepiaTone, CIPhotoEffect* (approximations), CIColorInvert, CIColorMatrix, CIAffineTransform, CICrop, CISourceOver/CIMultiplyCompositing, CIQRCodeGenerator, CICheckerboardGenerator, CIConstantColorGenerator, CILinearGradient, CIVignette; transforms, crops, clamping, `UIImage(ciImage:)`; tested (HelloImaging, QR decoded with zbarimg). Other built-in filters missing (`CIFilter(name:)` returns nil), no custom kernels |
+| Core Image `CIImage` (bitmaps, CGImage, files, colors, transforms, crops, clamping, compositing, color matching, sampling modes, intermediates, orientation, auxiliary images, gain maps, auto adjustment) | ✅ | ≤17 | CPU renderer (adapted): parallel bands of premultiplied float pixels in the context's working space (linear sRGB, or none with `NSNull`), as on iOS; 30 `CIFormat`s; auto adjustment returns isim's choice of tone filters (adapted). Tested (HelloCoreImage: `test_coreimage.py`, HelloImaging) |
+| Core Image `CIContext` (options, `createCGImage`, `render(_:toBitmap:)`, `draw`, PNG / JPEG / TIFF / HEIF / OpenEXR representations and writers, `CIRenderDestination` and tasks) | ✅ | ≤17 | every context renders on the CPU (no Metal / OpenGL contexts); HEIF through isim's writer (the host's ffmpeg libx265); TIFF and OpenEXR written by Core Image itself. Tested (`test_coreimage.py`) |
+| Core Image filters: the 236 built-in filters (`CIFilter(name:)`, `CIFilterBuiltins`, categories, attributes) | ✅ | ≤17 | all implemented by isim (adapted: CPU versions that follow Apple's documented behaviour, not Apple's code); every filter is rendered by a test, gallery pages are checked in screenshots. CIPDF417BarcodeGenerator reads the PDF417 codeword table from the host's zxing-cpp library. Tested (`test_coreimage.py`, `test_coreimage_pages.py`) |
+| Core Image ML filters: `CISaliencyMapFilter` | 🟡 | ≤17 | adapted: spectral residual saliency (Hou & Zhang) instead of Apple's model; tested (rendered) |
+| Core Image ML filters: `CIPersonSegmentation`, `CICoreMLModelFilter` | 🧩 | ≤17 | stub: they need Apple's models / Core ML runtime; the output is nil and the reason is logged |
+| `CIFilter` subclasses, `registerName(_:constructor:classAttributes:)`, XMP serialization, `NSSecureCoding` | ✅ | ≤17 | XMP uses isim's own namespace (not readable by Apple's Photos); tested (`test_coreimage.py`) |
+| Core Image kernels: `CIColorKernel`, `CIWarpKernel`, `CIBlendKernel`, `CIKernel` (Core Image Kernel Language, Metal source / `default.metallib`) | 🟡 | ≤17 | adapted: isim interprets the kernel source on the CPU (a subset of each language: scalar / vector math, swizzles, control flow, the Core Image and common math functions); `isim build` stores `.metal` sources in `default.metallib`; Xcode-compiled metallibs (GPU code) are refused with an error. Tested (`test_coreimage.py`) |
+| `CIImageProcessorKernel` (single and multiple outputs), `CIImageAccumulator`, `CISampler`, `CIFilterShape` | ✅ | ≤17 | processor inputs and outputs are main-memory bitmaps (`baseAddress`); `pixelBuffer` and Metal textures are nil. Tested (`test_coreimage.py`) |
+| `CIDetector` faces (`CIFaceFeature`) | 🟡 | ≤17 | adapted: OpenCV's Haar cascades (the host's opencv-data) evaluated by isim: bounds, eyes, mouth, smile and blink estimates, face angle; tracking IDs are per detector. Needs opencv-data. Tested (`test_coreimage.py`) |
+| `CIDetector` rectangles, QR codes, text (`CIRectangleFeature`, `CIQRCodeFeature`, `CITextFeature`) | 🟡 | ≤17 | rectangles: isim's own quadrilateral finder; QR codes through the host's zbar / zxing-cpp (the `symbolDescriptor` is the message encoded again at level M: isim does not read the symbol's own codewords); text through tesseract. Tested (`test_coreimage.py`) |
+| `CIBarcodeDescriptor` (QR, Aztec, PDF417, Data Matrix) and `CIBarcodeGenerator`, QR / Aztec / Code 128 / PDF417 generators | ✅ | ≤17 | isim's encoders; the generated symbols decode with zxing-cpp (tested: `test_coreimage_pages.py`) |
+| `CIRAWFilter` (and the iOS 10 `CIFilter(imageURL:options:)` RAW API) | 🟡 | ≤17 | adapted: decoded by the host's LibRaw tools (libraw-bin), then isim's processing (white balance, exposure, boost, noise, sharpness, contrast, detail, moire, local tone map, EDR headroom, orientation, scale); lens correction unsupported, semantic mattes nil (stub), preview is a draft rendering. Tested on a generated DNG (`test_coreimage.py`) |
+| Core Image CVPixelBuffer APIs (`CIImage(cvPixelBuffer:)`, `CIContext.render(_:to:)`, `CIRenderDestination(pixelBuffer:)`, `CIImage.pixelBuffer`) | ✅ | ≤17 | Swift overlay (isim's CoreVideo is Swift-only); pixels are copied (no IOSurface sharing); BGRA / ARGB / RGBA, one-component, depth and 4:2:0 formats. Tested (`test_coreimage.py`) |
+| `UIImage(ciImage:)`, `CIImage(image:)`, `CIColor(color:)` | ✅ | ≤17 | adapted: `UIImage(ciImage:)` renders at once, so its `cgImage` is non-nil (iOS leaves it nil). Tested (`test_coreimage.py`, HelloImaging) |
 | ImageIO `CGImageSource` (types, count, properties, frames, thumbnails, EXIF orientation) | ✅ | ≤17 | PNG/JPEG/GIF/WebP/BMP/TIFF/ICO via gdk-pixbuf; GIF delays/loop count; thumbnails with max size and orientation transform; tested (HelloImaging). HEIC through isim's HEIF reader (tested: host test), AVIF through the host's ffmpeg (unverified); incremental sources unverified |
 | ImageIO `CGImageDestination` (PNG, JPEG, animated GIF, HEIC) | ✅ | ≤17 | GIF palette: exact up to 255 colors, else a color cube; tested (HelloImaging). HEIC with the host's ffmpeg libx265 (isim's HEIF writer; listed only when available); other types (TIFF) are refused |
 | Metal, MetalKit (`MTLDevice`, `MTKView`) | ❌ | ≤17 | no GPU API |

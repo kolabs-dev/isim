@@ -6,6 +6,8 @@
  *   - export / asset reader: ffmpeg (argument lists are built by the guest; run without a shell)
  *   - barcodes and QR codes: libzbar.so.0 (dlopen; optional)
  *   - text recognition:      the tesseract command (optional)
+ *   - RAW photos:            LibRaw's dcraw_emu and raw-identify (libraw-bin; optional), libraw.so.23 for the
+ *                            supported camera list (dlopen; optional)
  *   - speech recognition:    whisper.cpp (whisper-cli + ISIM_WHISPER_MODEL) or vosk-transcriber (+ ISIM_VOSK_MODEL)
  * Nothing here opens a camera or microphone unless the user configured it. Face detection has no host backend. */
 #define _GNU_SOURCE
@@ -556,6 +558,56 @@ char *isim_vision_text_languages(void) {
     if (!on_path("tesseract")) return NULL;
     char *argv[] = { "tesseract", "--list-langs", NULL };
     return run_capture(argv, NULL);
+}
+
+/* ================= RAW photos (Core Image's CIRAWFilter) ================= */
+int isim_raw_available(void) { return on_path("dcraw_emu") && on_path("raw-identify"); }
+/* raw-identify -v: the camera, exposure and size metadata as text (NULL: no LibRaw tools or not a RAW file) */
+char *isim_raw_identify(const char *path) {
+    if (!path || !on_path("raw-identify")) return NULL;
+    char *argv[] = { "raw-identify", "-v", (char *)path, NULL };
+    char *out = run_capture(argv, NULL);
+    if (out && !strstr(out, "Filter pattern") && !strstr(out, "Raw colors")) { free(out); out = NULL; }
+    return out;
+}
+/* Decodes a RAW file to linear 16-bit RGB (sRGB primaries, the camera's as-shot white balance, not rotated) with
+ * dcraw_emu. half: half size (draft mode); highlight: dcraw's -H mode (0 clip, 2 blend). *rgb is malloc'd w*h*3
+ * values (free with isim_media_free). Returns 0 when the tools are missing or the file is not readable RAW. */
+int isim_raw_decode(const char *path, int half, int highlight, int *w, int *h, unsigned short **rgb) {
+    if (!path || !rgb || !on_path("dcraw_emu")) return 0;
+    char hl[8]; snprintf(hl, sizeof hl, "%d", highlight < 0 ? 0 : highlight > 9 ? 9 : highlight);
+    char *argv[16]; int n = 0;
+    argv[n++] = "dcraw_emu"; argv[n++] = "-4"; argv[n++] = "-o"; argv[n++] = "1"; argv[n++] = "-w";
+    argv[n++] = "-t"; argv[n++] = "0"; argv[n++] = "-H"; argv[n++] = hl;
+    if (half) argv[n++] = "-h";
+    argv[n++] = "-Z"; argv[n++] = "-"; argv[n++] = (char *)path; argv[n] = NULL;
+    size_t len = 0;
+    char *out = run_capture(argv, &len);
+    if (!out) return 0;
+    int W = 0, H = 0, max = 0, off = 0;
+    if (sscanf(out, "P6 %d %d %d%n", &W, &H, &max, &off) != 3 || W <= 0 || H <= 0 || max != 65535 ||
+        (size_t)off + 1 + (size_t)W * H * 6 > len) { free(out); return 0; }
+    const unsigned char *p = (const unsigned char *)out + off + 1;
+    unsigned short *px = malloc(sizeof(unsigned short) * 3 * (size_t)W * H);
+    for (size_t i = 0; i < (size_t)W * H * 3; i++) px[i] = (unsigned short)(p[2 * i] << 8 | p[2 * i + 1]);
+    free(out);
+    *w = W; *h = H; *rgb = px;
+    return 1;
+}
+/* LibRaw's supported cameras, one per line (NULL without libraw.so.23) */
+char *isim_raw_camera_list(void) {
+    void *lib = dlopen("libraw.so.23", RTLD_NOW | RTLD_LOCAL);
+    if (!lib) return NULL;
+    const char **(*list)(void) = (const char **(*)(void))dlsym(lib, "libraw_cameraList");
+    int (*count)(void) = (int (*)(void))dlsym(lib, "libraw_cameraCount");
+    if (!list || !count) return NULL;
+    const char **l = list(); int c = count();
+    size_t total = 1;
+    for (int i = 0; i < c && l[i]; i++) total += strlen(l[i]) + 1;
+    char *out = malloc(total), *o = out;
+    for (int i = 0; i < c && l[i]; i++) { size_t k = strlen(l[i]); memcpy(o, l[i], k); o[k] = '\n'; o += k + 1; }
+    *o = 0;
+    return out;
 }
 
 /* ================= speech recognition ================= */
