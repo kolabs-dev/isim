@@ -349,3 +349,42 @@ System/Library/Frameworks/CoreImage.framework/CoreImage _OBJC_METACLASS_$___CIGe
 System/Library/Frameworks/CoreImage.framework/CoreImage _OBJC_METACLASS_$___CIMap
 System/Library/Frameworks/CoreImage.framework/CoreImage _OBJC_METACLASS_$___CIPositional
 System/Library/Frameworks/CoreImage.framework/CoreImage _OBJC_METACLASS_$___CITransform
+# 0.20.0 (issue #19): SKScene.camera was typed SKNode? and SKPhysicsWorld.contactDelegate AnyObject? (iOS: SKCameraNode?
+# and SKPhysicsContactDelegate?). Their getter and setter dispatch thunks are still exported under the 0.19 names
+# (SpriteKit.swift, SKPhysics.swift), so apps that read or set them keep working; the modify coroutines and the
+# method/property descriptors (subclass overrides of these properties, key paths to them) cannot be declared next to
+# the retyped properties. Apps that override them or use key paths to them must be rebuilt.
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit14SKPhysicsWorldC15contactDelegateyXlSgvMTj
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit14SKPhysicsWorldC15contactDelegateyXlSgvMTq
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit14SKPhysicsWorldC15contactDelegateyXlSgvgTq
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit14SKPhysicsWorldC15contactDelegateyXlSgvpMV
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit14SKPhysicsWorldC15contactDelegateyXlSgvsTq
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit7SKSceneC6cameraAA6SKNodeCSgvMTj
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit7SKSceneC6cameraAA6SKNodeCSgvMTq
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit7SKSceneC6cameraAA6SKNodeCSgvgTq
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit7SKSceneC6cameraAA6SKNodeCSgvpMV
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit7SKSceneC6cameraAA6SKNodeCSgvsTq
+# 0.20.0 (issue #19): SKTileAdjacencyMask was an enum; it is an OptionSet as on iOS (struct, rawValue UInt, the adjacency
+# constants as static members), which tile automapping needs to combine and compare masks. Apps that use
+# SKTileAdjacencyMask or SKTileGroupRule(adjacency:tileDefinitions:) / SKTileGroupRule.adjacency must be rebuilt.
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit15SKTileGroupRuleC9adjacency15tileDefinitionsAcA0C13AdjacencyMaskO_SayAA0C10DefinitionCGtcfC
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit15SKTileGroupRuleC9adjacency15tileDefinitionsAcA0C13AdjacencyMaskO_SayAA0C10DefinitionCGtcfCTj
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit15SKTileGroupRuleC9adjacency15tileDefinitionsAcA0C13AdjacencyMaskO_SayAA0C10DefinitionCGtcfCTq
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit15SKTileGroupRuleC9adjacency15tileDefinitionsAcA0C13AdjacencyMaskO_SayAA0C10DefinitionCGtcfc
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit15SKTileGroupRuleC9adjacencyAA0C13AdjacencyMaskOvMTj
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit15SKTileGroupRuleC9adjacencyAA0C13AdjacencyMaskOvMTq
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit15SKTileGroupRuleC9adjacencyAA0C13AdjacencyMaskOvgTj
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit15SKTileGroupRuleC9adjacencyAA0C13AdjacencyMaskOvgTq
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit15SKTileGroupRuleC9adjacencyAA0C13AdjacencyMaskOvpMV
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit15SKTileGroupRuleC9adjacencyAA0C13AdjacencyMaskOvsTj
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit15SKTileGroupRuleC9adjacencyAA0C13AdjacencyMaskOvsTq
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit19SKTileAdjacencyMaskO12adjacencyAllyA2CmFWC
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit19SKTileAdjacencyMaskO8rawValueACSgSu_tcfC
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit19SKTileAdjacencyMaskO8rawValueSuvg
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit19SKTileAdjacencyMaskO8rawValueSuvpMV
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit19SKTileAdjacencyMaskOMa
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit19SKTileAdjacencyMaskOMn
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit19SKTileAdjacencyMaskON
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit19SKTileAdjacencyMaskOSHAAMc
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit19SKTileAdjacencyMaskOSQAAMc
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit19SKTileAdjacencyMaskOSYAAMc

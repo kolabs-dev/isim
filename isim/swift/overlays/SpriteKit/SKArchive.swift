@@ -113,6 +113,11 @@ final class _SKArchive {
         top = root["$top"]?.dict ?? [:]
         guard !objects.isEmpty else { return nil }
     }
+    /// an archive from a file URL (SKReferenceNode(url:))
+    static func load(url: URL) -> _SKArchive? {
+        guard let d = FileManager.default.contents(atPath: url.path) else { return nil }
+        return _SKArchive(bytes: [UInt8](d))
+    }
     static func load(named name: String, extensions: [String] = ["sks"]) -> _SKArchive? {
         let n = name as NSString
         let ext = n.pathExtension, stem = ext.isEmpty ? name : n.deletingPathExtension
