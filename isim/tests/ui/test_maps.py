@@ -172,3 +172,30 @@ def test_map_camera(launch, tmp_path):
     app.wait_log(r"HelloMaps: camera heading 3[12]\d pitch [0-2]?\d distance \d+ animated no")
     assert app.quit() == 0, "exits cleanly"
     assert count_px(tilted, (176, 300, 40, 80), RED) > 150 and count_px(coast, (0, 60, 393, 600), WATER) > 3000
+
+
+MAG = frac(lambda r, g, b: r > 0.9 and g < 0.2 and b > 0.9)
+PALE_ORANGE = frac(lambda r, g, b: r > 0.95 and 0.6 < g < 0.85 and b < 0.6)
+SYS_GREEN = frac(lambda r, g, b: g > 0.7 and r < 0.4 and b < 0.5)
+SYS_BLUE = frac(lambda r, g, b: b > 0.85 and r < 0.2 and g < 0.6)
+DASH_RED = frac(lambda r, g, b: r > 0.9 and g < 0.35 and b < 0.35)
+
+
+def test_map_overlay_renderers(launch, tmp_path):
+    """Overlay renderers as on iOS: lineDashPattern, a polygon's interiorPolygons cut out of its fill, a renderer
+    subclass drawing itself in draw(_:zoomScale:in:) (renderer coordinates scaled by zoomScale) and
+    MKGradientPolylineRenderer's colours along the line."""
+    app = maps(launch, tmp_path, "overlays", args=["-overlays"])
+    app.wait_log(r"HelloMaps: overlay demo: 4 overlays")
+    app.wait_log(r"HelloMaps: custom renderer draws at zoomScale 0\.01")
+    shot = app.wait_shot(lambda s: count_px(s, (240, 340, 80, 100), MAG) > 5000, "custom renderer drawn")
+    app.screenshot("overlays")
+    assert app.quit() == 0, "exits cleanly"
+    # the dashed line: red dashes with gaps of land between them
+    row = [DASH_RED(shot.getpixel((x, 279))[:3]) for x in range(100, 300)]
+    runs = sum(1 for i in range(1, len(row)) if row[i] and not row[i - 1])
+    assert 6 <= runs <= 10 and 0.3 < sum(row) / len(row) < 0.7, f"lineDashPattern [12, 12]: {runs} dashes"
+    assert count_px(shot, (98, 340, 14, 100), PALE_ORANGE) > 800 and count_px(shot, (122, 370, 32, 42), PALE_ORANGE) < 20 and \
+        count_px(shot, (122, 370, 32, 42), LAND) > 800, "interiorPolygons: the hole is not filled"
+    assert count_px(shot, (98, 498, 30, 8), SYS_GREEN) > 60 and count_px(shot, (275, 498, 28, 8), SYS_BLUE) > 60, \
+        "gradient polyline: green at the start, blue at the end"

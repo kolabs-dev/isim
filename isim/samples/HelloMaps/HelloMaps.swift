@@ -75,6 +75,7 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
         ])
         map.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: "marker")
         map.setRegion(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 37.3335, longitude: -122.0180), latitudinalMeters: 4000, longitudinalMeters: 4000), animated: false)
+        if ProcessInfo.processInfo.arguments.contains("-overlays") { addOverlayDemo(); return }
         let park = MKPointAnnotation(coordinate: applePark, title: "Apple Park", subtitle: "Cupertino")
         let loop = MKPointAnnotation(coordinate: infiniteLoop, title: "Infinite Loop", subtitle: "1 Infinite Loop")
         map.addAnnotations([park, loop, Landmark(visitorCenter, "Visitor Center", "Apple Park Visitor Center")])
@@ -112,8 +113,26 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
         v.accessibilityIdentifier = "marker-" + (annotation.title.flatMap { $0 } ?? "")
         return v
     }
+    /// -overlays: a dashed line, a polygon with a hole, a renderer drawing itself (draw(_:zoomScale:in:)), a gradient line
+    func addOverlayDemo() {
+        func c(_ lat: Double, _ lon: Double) -> CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: lat, longitude: lon) }
+        func square(_ n: Double, _ w: Double, _ s: Double, _ e: Double) -> [CLLocationCoordinate2D] { [c(n, w), c(n, e), c(s, e), c(s, w)] }
+        let dashed = MKPolyline(coordinates: [c(37.343, -122.030), c(37.343, -122.006)]); dashed.title = "dashed"
+        let gradient = MKPolyline(coordinates: [c(37.323, -122.030), c(37.323, -122.006)]); gradient.title = "gradient"
+        let holed = MKPolygon(coordinates: square(37.338, -122.030, 37.328, -122.020),
+                              interiorPolygons: [MKPolygon(coordinates: square(37.3355, -122.0275, 37.3305, -122.0225))])
+        let custom = MKPolygon(coordinates: square(37.338, -122.014, 37.328, -122.004)); custom.title = "custom"
+        map.addOverlays([dashed, gradient, holed, custom])
+        log("overlay demo: \(map.overlays.count) overlays")
+    }
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
         switch overlay {
+        case let l as MKPolyline where l.title == "dashed":
+            let r = MKPolylineRenderer(polyline: l); r.strokeColor = .systemRed; r.lineWidth = 6; r.lineCap = .butt; r.lineDashPattern = [12, 12]; return r
+        case let l as MKPolyline where l.title == "gradient":
+            let r = MKGradientPolylineRenderer(polyline: l); r.lineWidth = 8; r.setColors([.systemGreen, .systemBlue], locations: [0, 1]); return r
+        case let p as MKPolygon where p.title == "custom":
+            return Crosshair(overlay: p)
         case let c as MKCircle:
             let r = MKCircleRenderer(circle: c); r.fillColor = UIColor.systemGreen.withAlphaComponent(0.25); r.strokeColor = .systemGreen; r.lineWidth = 2; return r
         case let l as MKPolyline:
@@ -188,6 +207,22 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
     @objc func toggleType() {
         map.mapType = map.mapType == .standard ? .satellite : .standard
         log("map type \(map.mapType == .satellite ? "satellite" : "standard")")
+    }
+}
+
+/// an overlay renderer that draws itself, as on iOS: in renderer coordinates (map points), scaled by zoomScale
+final class Crosshair: MKOverlayRenderer {
+    var logged = false
+    override func draw(_ mapRect: MKMapRect, zoomScale: MKZoomScale, in context: CGContext) {
+        let r = rect(for: overlay.boundingMapRect)
+        context.setFillColor(UIColor.magenta.cgColor)
+        context.fill(r)
+        context.setStrokeColor(UIColor.white.cgColor)
+        context.setLineWidth(4 / zoomScale)   /* 4 points at any zoom */
+        context.move(to: CGPoint(x: r.minX, y: r.midY)); context.addLine(to: CGPoint(x: r.maxX, y: r.midY))
+        context.move(to: CGPoint(x: r.midX, y: r.minY)); context.addLine(to: CGPoint(x: r.midX, y: r.maxY))
+        context.strokePath()
+        if !logged { logged = true; log(String(format: "custom renderer draws at zoomScale %.5f", zoomScale)) }
     }
 }
 
