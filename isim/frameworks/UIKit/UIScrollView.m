@@ -56,6 +56,7 @@ static void update_tracking(UIScrollView *s, BOOL active) {
         _bounces = YES; _scrollEnabled = YES; _showsVerticalScrollIndicator = YES; _showsHorizontalScrollIndicator = YES;
         _decelerationRate = UIScrollViewDecelerationRateNormal; _scrollsToTop = YES;
         _pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(_isim_pan:)];
+        _pan.allowedScrollTypesMask = UIScrollTypeMaskAll;              /* a trackpad or mouse wheel scrolls it, as on iPad */
         [self addGestureRecognizer:_pan];
     }
     return self;

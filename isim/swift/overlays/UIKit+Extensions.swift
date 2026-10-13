@@ -88,3 +88,20 @@ public struct UIPrintError: CustomNSError, Hashable, _ObjectiveCBridgeableError 
     public static var unknownImageFormat: Code { .unknownImageFormat }
     public static var jobFailed: Code { .jobFailed }
 }
+
+// MARK: - scene destruction conditions (iOS 26)
+@available(iOS 26.0, *)
+extension UIScene {
+    /// when UIKit destroys the scene and its session (UIApplication.m: userInitiatedDismissal on going home,
+    /// systemDisconnection when the process ends)
+    public struct DestructionCondition: Hashable, Sendable {
+        let kind: Int
+        public static let userInitiatedDismissal = DestructionCondition(kind: 0)
+        public static let systemDisconnection = DestructionCondition(kind: 1)
+        @MainActor var _objc: __UISceneDestructionCondition { kind == 0 ? .userInitiatedDismissal() : .systemDisconnection() }
+    }
+    public var destructionConditions: Set<DestructionCondition> {
+        get { Set(__destructionConditions.map { $0 == __UISceneDestructionCondition.userInitiatedDismissal() ? .userInitiatedDismissal : .systemDisconnection }) }
+        set { __destructionConditions = Set(newValue.map { $0._objc }) }
+    }
+}

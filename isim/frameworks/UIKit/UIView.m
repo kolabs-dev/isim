@@ -885,9 +885,11 @@ static void al_collect(UIView *v, NSMutableArray *out) { [out addObject:v]; for 
     return g;
 }
 
-/* one solve; returns YES if inputs that depend on the result changed (another pass needed) */
-static BOOL al_solve_once(UIView *root, NSArray<UIView *> *views) {
-    isim_al al = { cw_new(), ++al_gen };
+/* the engine's inputs for a window (or a subtree root). probe: a view whose weak pull goes to another frame (its own
+   moved by AL_PROBE points), to find out whether its constraints pin it (hasAmbiguousLayout) */
+#define AL_PROBE 40
+static void al_build(isim_al *alp, UIView *root, NSArray<UIView *> *views, UIView *probe) {
+    isim_al al = *alp;
     cw_solver *s = al.s;
     for (UIView *v in views) {
         v->_alGen = al.gen; for (int i = 0; i < 4; i++) v->_alVars[i] = cw_var(s);
@@ -904,12 +906,13 @@ static BOOL al_solve_once(UIView *root, NSArray<UIView *> *views) {
         if (v != root) {
             UIView *sup = v->_superview; int *p = sup->_alVars;
             double off[2] = { v->_frame.origin.x - al_bo(sup).x, v->_frame.origin.y - al_bo(sup).y };
-            double strength = v->_translatesAutoresizingMaskIntoConstraints ? AL_STRUCTURAL : AL_WEAK;
+            double strength = v->_translatesAutoresizingMaskIntoConstraints ? AL_STRUCTURAL : v == probe ? 0.5 : AL_WEAK;
+            double moved = v == probe ? AL_PROBE : 0;
             for (int axis = 0; axis < 2; axis++) {
                 int pv[2] = { x[axis], p[axis] }; double pc[2] = { 1, -1 };
-                al_raw(&al, 2, pv, pc, -off[axis], CW_EQ, strength);
+                al_raw(&al, 2, pv, pc, -(off[axis] + moved), CW_EQ, strength);
                 double size = axis ? v->_frame.size.height : v->_frame.size.width;
-                al_raw(&al, 1, &x[2 + axis], &one, -size, CW_EQ, strength);
+                al_raw(&al, 1, &x[2 + axis], &one, -(size + moved), CW_EQ, strength);
             }
             if (!v->_translatesAutoresizingMaskIntoConstraints) {
                 v->_alUsedWidth = v->_frame.size.width;
@@ -932,7 +935,14 @@ static BOOL al_solve_once(UIView *root, NSArray<UIView *> *views) {
     for (NSLayoutConstraint *c in active_constraints)
         isim_al_add(&al, c.firstItem, c.firstAttribute, c.relation, c.secondItem, c.secondAttribute, c.multiplier, c.constant, c.priority);
     for (UIView *v in views) [v _isim_addEngineConstraints:&al];
+    *alp = al;
+}
 
+/* one solve; returns YES if inputs that depend on the result changed (another pass needed) */
+static BOOL al_solve_once(UIView *root, NSArray<UIView *> *views) {
+    isim_al al = { cw_new(), ++al_gen };
+    cw_solver *s = al.s;
+    al_build(&al, root, views, nil);
     /* apply (parents first, so autoresizing of frame-based children sees final sizes) */
     BOOL again = NO;
     al_applying = YES; al_tamic_moved = NO;
@@ -963,6 +973,36 @@ static void al_solve_root(UIView *root) {
     for (UIView *v in views) if (!v->_translatesAutoresizingMaskIntoConstraints && v != root) { any = YES; break; }
     if (!any) return;
     for (int pass = 0; pass < 4; pass++) if (!al_solve_once(root, views)) break;
+}
+/* hasAmbiguousLayout: the view's frame in window terms (left, top, width, height) solved with its weak pull on its
+   own frame and on a moved one; a constraint-pinned view stays put. YES with the other frame (in its superview) when
+   it moves */
+static BOOL al_ambiguity(UIView *v, CGRect *other) {
+    if (v->_translatesAutoresizingMaskIntoConstraints || !v->_superview) return NO;
+    UIView *root = v; while (root->_superview) root = root->_superview;
+    NSMutableArray *views = [NSMutableArray array];
+    al_collect(root, views);
+    double val[2][4];
+    for (int k = 0; k < 2; k++) {
+        isim_al al = { cw_new(), ++al_gen };
+        al_build(&al, root, views, k ? v : nil);
+        UIView *sup = v->_superview;
+        for (int i = 0; i < 4; i++) val[k][i] = cw_value(al.s, v->_alVars[i]) - (i < 2 ? cw_value(al.s, sup->_alVars[i]) : 0);
+        cw_free(al.s);
+    }
+    BOOL moved = NO;
+    for (int i = 0; i < 4; i++) if (fabs(val[0][i] - val[1][i]) > 0.5) moved = YES;
+    if (moved && other) *other = CGRectMake(val[1][0] + al_bo(v->_superview).x, val[1][1] + al_bo(v->_superview).y, fmax(0, val[1][2]), fmax(0, val[1][3]));
+    return moved;
+}
+BOOL isim_ui_has_ambiguous_layout(UIView *v) { return al_ambiguity(v, NULL); }
+/* exerciseAmbiguityInLayout: the view takes another frame its constraints allow (and keeps it: the weak pull holds
+   a view where it is) */
+void isim_ui_exercise_ambiguity(UIView *v) {
+    CGRect f;
+    if (!al_ambiguity(v, &f)) return;
+    NSLog(@"isim: exercising the ambiguous layout of %@: %@ -> %@", NSStringFromClass(v.class), NSStringFromCGRect(v.frame), NSStringFromCGRect(f));
+    v.frame = f;
 }
 /* engine inputs are tracked globally, so a dirty engine re-solves every root given */
 void isim_ui_layout_roots(NSArray<UIView *> *roots) {

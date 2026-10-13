@@ -133,6 +133,7 @@ __attribute__((constructor)) static void watch_power(void) {
 }
 @end
 static char k_conditions, k_protection, k_lock, k_behaviors, k_statusbar;
+static char kDestruction;
 @implementation UIScene (UISceneExtras)
 - (UISceneActivationConditions *)activationConditions {
     UISceneActivationConditions *c = objc_getAssociatedObject(self, &k_conditions);
@@ -151,6 +152,12 @@ static char k_conditions, k_protection, k_lock, k_behaviors, k_statusbar;
     if (!p) { p = [UIPointerLockState new]; [p setValue:self forKey:@"_scene"]; objc_setAssociatedObject(self, &k_lock, p, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
     return p;
 }
+- (NSSet<UISceneDestructionCondition *> *)destructionConditions { return objc_getAssociatedObject(self, &kDestruction) ?: [NSSet set]; }
+- (void)setDestructionConditions:(NSSet<UISceneDestructionCondition *> *)c {
+    objc_setAssociatedObject(self, &kDestruction, [c copy], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    extern void isim_ui_scene_destruction_changed(void);
+    isim_ui_scene_destruction_changed();
+}
 @end
 /* the scene that opens content with a target content identifier: one that prefers it, else (one scene only) one
    that can (UIApplication.m's activation requests) */
@@ -164,7 +171,28 @@ UIScene *isim_ui_scene_for_target(NSString *ident) {
     }
     return UIApplication.sharedApplication.supportsMultipleScenes ? nil : can;
 }
+/* for Swift overlays (AppIntents routes scene intents with it) */
+@implementation UIApplication (IsimSceneTarget)
+- (NSArray<UIScene *> *)_isim_scenesForTargetContentIdentifier:(NSString *)ident { UIScene *s = isim_ui_scene_for_target(ident); return s ? @[s] : @[]; }
+@end
+/* ---- destruction conditions (iOS 26; UIApplication.m acts on them) ---- */
+@implementation UISceneDestructionCondition { int _kind; }
++ (instancetype)_isim_kind:(int)k { static UISceneDestructionCondition *c[2]; if (!c[k]) { c[k] = [super new]; c[k]->_kind = k; } return c[k]; }
++ (instancetype)userInitiatedDismissal { return [self _isim_kind:0]; }
++ (instancetype)systemDisconnection { return [self _isim_kind:1]; }
+- (int)_isim_kind { return _kind; }
+- (BOOL)isEqual:(id)o { return [o isKindOfClass:[UISceneDestructionCondition class]] && ((UISceneDestructionCondition *)o)->_kind == _kind; }
+- (NSUInteger)hash { return (NSUInteger)_kind + 1; }
+- (id)copyWithZone:(NSZone *)z { return self; }
+- (NSString *)description { return _kind ? @"systemDisconnection" : @"userInitiatedDismissal"; }
+@end
+
 @implementation UISceneConnectionOptions (UISceneExtras)
+/* the isim-... launch marker (ISIM_LAUNCH_URL) of the scene the app launched with: the payloads other frameworks read
+   (AppIntents appIntent, CoreNFC nfcEvent, SecureElementCredential credentialSessionEvent, MarketplaceKit
+   marketplaceDisplayOption) */
+- (NSString *)_isim_launchMarker { return objc_getAssociatedObject(self, "_isim_launchMarker"); }
+- (BOOL)shouldHandleActiveWorkoutRecovery { return [self._isim_launchMarker isEqualToString:@"isim-workout-recovery"]; }
 /* isim delivers a launching notification response to the notification center's delegate only */
 - (UNNotificationResponse *)notificationResponse { return nil; }
 - (CKShareMetadata *)cloudKitShareMetadata { return nil; }
@@ -222,6 +250,10 @@ UIScene *isim_ui_scene_for_target(NSString *ident) {
     UIStatusBarManager *m = objc_getAssociatedObject(self, &k_statusbar);
     if (!m) { m = [UIStatusBarManager new]; [m setValue:self forKey:@"_scene"]; objc_setAssociatedObject(self, &k_statusbar, m, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
     return m;
+}
+- (UIFocusSystem *)focusSystem {
+    UIWindow *w = self.keyWindow ?: self.windows.firstObject;
+    return w ? [UIFocusSystem focusSystemForEnvironment:w] : nil;
 }
 @end
 @implementation UIWindowSceneGeometry (UISceneExtras)

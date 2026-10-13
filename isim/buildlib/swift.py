@@ -671,7 +671,7 @@ QuartzCore -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundatio
 CoreHaptics -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation
 CoreMotion -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
 CoreBluetooth -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation
-CoreNFC -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation
+CoreNFC -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -framework Foundation -framework UIKit
 HealthKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 Contacts -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 ContactsUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftContacts -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
@@ -695,6 +695,8 @@ ActivityKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurre
 WidgetKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftAppIntents -lswiftActivityKit -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 CoreSpotlight -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUniformTypeIdentifiers -framework Foundation
 AppClip -lswiftObjectiveC -lswiftFoundation -lswiftCoreLocation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
+SecureElementCredential -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit
+MarketplaceKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit
 """
 
 # app-facing re-implementations: library evolution keeps their ABI stable across isim updates (since 0.12 also the base
@@ -704,7 +706,7 @@ HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayK
 GameKit AppTrackingTransparency GoogleMobileAds UserMessagingPlatform Network CryptoKit Security os OSLog LocalAuthentication
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices
 QuartzCore CoreHaptics CoreVideo CoreML Vision NaturalLanguage Speech VisionKit WebKit SafariServices MessageUI MapKit
-MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit Symbols AppClip Intents""".split())
+MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit Symbols AppClip Intents SecureElementCredential MarketplaceKit""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer".split())
 # overlays that declare macros of isim's compiler plugins (host_plugins): they compile after the plugin is built

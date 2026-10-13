@@ -102,6 +102,28 @@ open class HKHealthStore: NSObject, @unchecked Sendable {
             top.present(nav, animated: true, completion: nil)
         }
     }
+    /// the containing app shows the authorization sheet for what an app extension asked (after
+    /// applicationShouldRequestHealthAuthorization(_:)). isim runs no extension that asks: the request is the launch
+    /// marker isim-health-authorization:share=ID,ID;read=ID (ISIM_LAUNCH_URL); with none pending, it succeeds
+    open func handleAuthorizationForExtension(completion: @escaping @Sendable (Bool, Error?) -> Void) {
+        let marker = ProcessInfo.processInfo.environment["ISIM_LAUNCH_URL"] ?? ""
+        guard marker.hasPrefix("isim-health-authorization:") else { _Privacy.reply { completion(true, nil) }; return }
+        var share = Set<HKSampleType>(), read = Set<HKObjectType>()
+        for part in marker.dropFirst(26).split(separator: ";") {
+            let kv = part.split(separator: "=", maxSplits: 1)
+            guard kv.count == 2 else { continue }
+            for id in kv[1].split(separator: ",").map(String.init) {
+                let t: HKSampleType = id.hasPrefix("HKCategoryTypeIdentifier") ? HKCategoryType(id) : HKQuantityType(id)
+                if kv[0] == "share" { share.insert(t) } else { read.insert(t) }
+            }
+        }
+        requestAuthorization(toShare: share, read: read) { ok, e in completion(ok, e) }
+    }
+    open func handleAuthorizationForExtension() async throws {
+        try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
+            handleAuthorizationForExtension { ok, e in if let e { k.resume(throwing: e) } else { k.resume() } }
+        }
+    }
     open func requestAuthorization(toShare typesToShare: Set<HKSampleType>, read typesToRead: Set<HKObjectType>) async throws {
         try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
             requestAuthorization(toShare: typesToShare, read: typesToRead) { ok, e in if let e { k.resume(throwing: e) } else { k.resume() } }

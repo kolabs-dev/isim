@@ -198,7 +198,9 @@ NSString *isim_ui_shortcut_text(UIKeyCommand *c) {
     NSDictionary *names = @{ UIKeyInputUpArrow: @"↑", UIKeyInputDownArrow: @"↓", UIKeyInputLeftArrow: @"←", UIKeyInputRightArrow: @"→", UIKeyInputEscape: @"⎋",
                              @"\r": @"↩", @"\t": @"⇥", @" ": @"Space", @"\b": @"⌫", UIKeyInputDelete: @"⌦", UIKeyInputPageUp: @"⇞", UIKeyInputPageDown: @"⇟",
                              UIKeyInputHome: @"↖", UIKeyInputEnd: @"↘" };
-    [s appendString:names[c.input] ?: c.input.uppercaseString];
+    extern NSString *isim_ui_key_command_input(UIKeyCommand *);
+    NSString *input = isim_ui_key_command_input(c);
+    [s appendString:names[input] ?: input.uppercaseString];
     return s;
 }
 

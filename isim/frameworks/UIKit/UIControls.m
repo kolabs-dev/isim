@@ -1126,6 +1126,29 @@ static BOOL recognized_since(UIGestureRecognizer *o, double start) { return o.is
     self.state = UIGestureRecognizerStatePossible;
     _waitAllUp = NO;
 }
+/* a scroll event as a pan (UIApplication.m handle_scroll): 0 starts at the pointer, 1 moves the translation by d,
+   2 ends it; NO when the pan does not take it (touches down, or gestureRecognizerShouldBegin: says no) */
+- (BOOL)_isim_scrollPhase:(int)phase delta:(CGPoint)d at:(CGPoint)wp time:(double)t {
+    BOOL active = self.state == UIGestureRecognizerStateBegan || self.state == UIGestureRecognizerStateChanged;
+    if (phase == 0) {
+        if (self.isimTouches.count || active) return NO;
+        _ns = 0; _waitAllUp = NO; self.startPoint = self.lastPoint = _down = wp; self.state = UIGestureRecognizerStatePossible;
+        [self _sample:wp time:t];
+        return YES;
+    }
+    if (phase == 1) {
+        CGPoint p = CGPointMake(self.lastPoint.x + d.x, self.lastPoint.y + d.y);
+        [self _sample:p time:t];
+        self.lastPoint = p;
+        if (active) { self.state = UIGestureRecognizerStateChanged; [self _fire]; return YES; }
+        if (![self _isim_shouldBegin]) { self.state = UIGestureRecognizerStatePossible; return NO; }
+        self.state = UIGestureRecognizerStateBegan; [self _fire];
+        return YES;
+    }
+    if (active) { self.state = UIGestureRecognizerStateEnded; [self _fire]; }      /* the velocity of the last movement carries on */
+    self.state = UIGestureRecognizerStatePossible;
+    return YES;
+}
 - (CGPoint)locationInView:(UIView *)v { return [self.view.window convertPoint:self.lastPoint toView:v]; }
 - (CGPoint)_isim_downLocationInView:(UIView *)v { return [self.view.window convertPoint:_down toView:v]; }
 - (CGPoint)translationInView:(UIView *)v { return CGPointMake(self.lastPoint.x - self.startPoint.x, self.lastPoint.y - self.startPoint.y); }

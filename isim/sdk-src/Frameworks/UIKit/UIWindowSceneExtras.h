@@ -68,8 +68,19 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(14.0))
 @interface UIPointerLockState : NSObject
 @property (nonatomic, readonly, getter=isLocked) BOOL locked;
 @end
+/* iOS 26: when UIKit destroys a scene and its session. userInitiatedDismissal: the person dismissing it (going to the
+   home screen on iPhone) destroys it, and the app's next foreground connects a new scene; systemDisconnection: the
+   app's process ending destroys it, and the next launch discards the session (application:didDiscardSceneSessions:)
+   instead of restoring it. Swift: Set<UIScene.DestructionCondition> */
+NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0)) NS_REFINED_FOR_SWIFT
+@interface UISceneDestructionCondition : NSObject <NSCopying>
++ (instancetype)userInitiatedDismissal;
++ (instancetype)systemDisconnection;
+- (instancetype)init NS_UNAVAILABLE;
+@end
 @interface UIScene (UISceneExtras)
 @property (nonatomic, strong) UISceneActivationConditions *activationConditions;
+@property (nonatomic, copy) NSSet<UISceneDestructionCondition *> *destructionConditions NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(26.0));
 @property (nonatomic, readonly, nullable) UISceneSystemProtectionManager *systemProtectionManager API_AVAILABLE(ios(18.0));
 /* iPad scenes only (nil on iPhone) */
 @property (nonatomic, readonly, nullable) UIPointerLockState *pointerLockState API_AVAILABLE(ios(14.0));
@@ -80,6 +91,9 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(14.0))
 /* isim has no CloudKit sharing and no game controller activation: always nil */
 @property (nullable, nonatomic, readonly) CKShareMetadata *cloudKitShareMetadata;
 @property (nullable, nonatomic, readonly) GCGameControllerActivationContext *gameControllerActivationContext API_AVAILABLE(ios(18.0));
+/* iOS 26: the system relaunched the app to recover a workout that was running (isim: the launch marker
+   isim-workout-recovery, ISIM_LAUNCH_URL) */
+@property (nonatomic, readonly) BOOL shouldHandleActiveWorkoutRecovery API_AVAILABLE(ios(26.0));
 @end
 
 /* windowing (iPad, Mac Catalyst): window buttons and the control style; isim stores them (no window chrome) */
@@ -108,7 +122,10 @@ typedef NS_ENUM(NSInteger, UIStatusBarAnimation) { UIStatusBarAnimationNone, UIS
 /* where the scene's items come from when the scene is shared (the share menu, sharing a window; isim: stored) */
 @property (nullable, nonatomic, weak) id<UIActivityItemsConfigurationProviding> activityItemsConfigurationSource API_AVAILABLE(ios(15.0));
 @end
+@class UIFocusSystem;
 @interface UIWindowScene (UISceneExtras)
+/* the focus system of the scene's windows (iPad with a keyboard; nil where there is no focus system) */
+@property (nonatomic, readonly, nullable) UIFocusSystem *focusSystem API_AVAILABLE(ios(15.0));
 @property (nonatomic, readonly, nullable) UISceneWindowingBehaviors *windowingBehaviors API_AVAILABLE(ios(16.0));
 @property (nonatomic, readonly, nullable) UIStatusBarManager *statusBarManager;
 @end
