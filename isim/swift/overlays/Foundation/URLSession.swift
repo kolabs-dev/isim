@@ -366,6 +366,12 @@ public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeD
             return
         }
         _taskStart = Date()
+        if let domain = _IsimTrackingDomains.blocked(originalRequest?.url?.host) {   /* privacy manifest tracking domain */
+            print("isim: \(originalRequest?.url?.host ?? domain) is a tracking domain of this app's privacy manifest (\(domain)) "
+                  + "and tracking is not authorized (App Tracking Transparency): the request fails")
+            Thread.detachNewThread { self._finish(URLError._make(NSURLErrorCannotFindHost, url: self.originalRequest?.url)) }
+            return
+        }
         let delay = earliestBeginDate.map { max(0, $0.timeIntervalSinceNow) } ?? 0
         Thread.detachNewThread {
             if delay > 0 { Thread.sleep(forTimeInterval: delay) }

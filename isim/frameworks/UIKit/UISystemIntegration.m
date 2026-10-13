@@ -295,6 +295,13 @@ void isim_ui_attribution_touch(UIWindow *w, CGPoint p) {
         if (shown && CGRectContainsPoint(v.bounds, [v convertPoint:p fromView:nil])) { attribution_tap = isim_time(); return; }
     }
 }
+/* AdAttributionKit's AppImpression.handleTap(): YES (and the tap is used up) when an attribution view was tapped in
+   the last second */
+BOOL isim_ui_attribution_take_tap(void) {
+    if (isim_time() - attribution_tap > 1.0) return NO;
+    attribution_tap = 0;
+    return YES;
+}
 /* ================= full-page screenshots (iOS 13) ================= */
 @interface UIScreenshotService ()
 - (instancetype)initIsimWithScene:(UIWindowScene *)scene;

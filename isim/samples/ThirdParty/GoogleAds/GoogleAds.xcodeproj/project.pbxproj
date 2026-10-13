@@ -1,0 +1,67 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1039F40EFA657E55EBF754FC /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = C3292955DD3D0941177CF849; };
+		56C8844D8D8627266D4C0000 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3ECC311D51AE83CBE919A64; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B3ECC311D51AE83CBE919A64 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		B8D81AB3FFD8FEF05DF5646B /* GoogleAds.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GoogleAds.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		6B7B02D56EAB2E168CDECEC4 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (1039F40EFA657E55EBF754FC, ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		5FCB11E6375A64DD4A8ABC92 /* App */ = {isa = PBXGroup; children = (B3ECC311D51AE83CBE919A64, ); path = App; sourceTree = "<group>"; };
+		B225E4650F8CE28217B198E4 /*  */ = {isa = PBXGroup; children = (5FCB11E6375A64DD4A8ABC92, B3A8326CAA8FE72E5090AD84, ); name = ""; sourceTree = "<group>"; };
+		B3A8326CAA8FE72E5090AD84 /* Products */ = {isa = PBXGroup; children = (B8D81AB3FFD8FEF05DF5646B, ); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		28774FABC89FD25CA4919A01 /* GoogleAds */ = {isa = PBXNativeTarget; buildConfigurationList = 9935740EBCE4C0653BC32862; buildPhases = (C5A969ACC9146EDE6EC85763, 6B7B02D56EAB2E168CDECEC4, 1B83A511A13E019F29A926F7, ); buildRules = (); dependencies = (); name = GoogleAds; packageProductDependencies = (C3292955DD3D0941177CF849, ); productName = GoogleAds; productReference = B8D81AB3FFD8FEF05DF5646B; productType = "com.apple.product-type.application"; };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		CEA7A811486FDF57B228D80F /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 1600; }; buildConfigurationList = 1BB090B649755F7F3781EB41; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base, ); mainGroup = B225E4650F8CE28217B198E4; productRefGroup = B3A8326CAA8FE72E5090AD84; projectDirPath = ""; projectRoot = ""; targets = (28774FABC89FD25CA4919A01, ); packageReferences = (09B4930E1E14A186743077DB, ); };
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1B83A511A13E019F29A926F7 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C5A969ACC9146EDE6EC85763 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (56C8844D8D8627266D4C0000, ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		3C99C0A87E44CCFB6DCE3FB5 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; }; name = Debug; };
+		6DCF25FA0AF06229EE8D0EE5 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = App/Info.plist; PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.GoogleAds; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
+		7645E65AA3F26A45D814EDEA /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; }; name = Release; };
+		AB6F5856B29304F43D650952 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = App/Info.plist; PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.GoogleAds; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1BB090B649755F7F3781EB41 /* Build configuration list for PBXProject */ = {isa = XCConfigurationList; buildConfigurations = (3C99C0A87E44CCFB6DCE3FB5, 7645E65AA3F26A45D814EDEA, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		9935740EBCE4C0653BC32862 /* Build configuration list for PBXNativeTarget "GoogleAds" */ = {isa = XCConfigurationList; buildConfigurations = (6DCF25FA0AF06229EE8D0EE5, AB6F5856B29304F43D650952, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		09B4930E1E14A186743077DB /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git"; requirement = {kind = upToNextMajorVersion; minimumVersion = 13.0.0; }; };
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C3292955DD3D0941177CF849 /* GoogleMobileAds */ = {isa = XCSwiftPackageProductDependency; package = 09B4930E1E14A186743077DB; productName = GoogleMobileAds; };
+/* End XCSwiftPackageProductDependency section */
+
+	};
+	rootObject = CEA7A811486FDF57B228D80F /* Project object */;
+}

@@ -77,17 +77,17 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | AVFoundation & audio | 46 | 0 | 0 | 0 | 46 | 100% |
 | Photos, Vision, Core ML & camera | 5 | 7 | 2 | 0 | 14 | 61% |
 | StoreKit | 29 | 0 | 0 | 0 | 29 | 100% |
-| Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 2 | 0 | 3 | 1 | 6 | 33% |
+| Ads & privacy (AppTrackingTransparency, ad attribution, privacy manifests) | 6 | 0 | 0 | 0 | 6 | 100% |
 | Data & persistence | 23 | 0 | 0 | 0 | 23 | 100% |
 | Identity & security | 13 | 0 | 0 | 0 | 13 | 100% |
 | Notifications & background work | 13 | 0 | 0 | 0 | 13 | 100% |
 | App extensions & system integration | 9 | 1 | 0 | 0 | 10 | 95% |
 | Location & maps | 7 | 0 | 0 | 0 | 7 | 100% |
 | Personal data & device sensors | 6 | 0 | 0 | 0 | 6 | 100% |
-| Web & communication | 16 | 0 | 1 | 0 | 17 | 94% |
+| Web & communication | 16 | 0 | 1 | 1 | 18 | 89% |
 | Logging & diagnostics | 9 | 0 | 0 | 0 | 9 | 100% |
 | Platform & tooling | 42 | 5 | 0 | 3 | 50 | 89% |
-| **All areas** | **1059** | **32** | **8** | **14** | **1113** | **97%** |
+| **All areas** | **1063** | **32** | **5** | **14** | **1114** | **97%** |
 
 ### Per iOS version
 
@@ -111,17 +111,17 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | AVFoundation & audio | 100% (46) | 100% (46) | 100% (46) | 100% (46) |
 | Photos, Vision, Core ML & camera | 61% (14) | 61% (14) | 61% (14) | 61% (14) |
 | StoreKit | 100% (29) | 100% (29) | 100% (29) | 100% (29) |
-| Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP) | 33% (6) | 33% (6) | 33% (6) | 33% (6) |
+| Ads & privacy (AppTrackingTransparency, ad attribution, privacy manifests) | 100% (6) | 100% (6) | 100% (6) | 100% (6) |
 | Data & persistence | 100% (23) | 100% (23) | 100% (23) | 100% (23) |
 | Identity & security | 100% (13) | 100% (13) | 100% (13) | 100% (13) |
 | Notifications & background work | 100% (13) | 100% (13) | 100% (13) | 100% (13) |
 | App extensions & system integration | 95% (10) | 95% (10) | 95% (10) | 95% (10) |
 | Location & maps | 100% (7) | 100% (7) | 100% (7) | 100% (7) |
 | Personal data & device sensors | 100% (6) | 100% (6) | 100% (6) | 100% (6) |
-| Web & communication | 94% (16) | 94% (16) | 94% (17) | 94% (17) |
+| Web & communication | 88% (17) | 88% (17) | 89% (18) | 89% (18) |
 | Logging & diagnostics | 100% (9) | 100% (9) | 100% (9) | 100% (9) |
 | Platform & tooling | 89% (48) | 89% (49) | 89% (50) | 89% (50) |
-| **All areas** | **96%** (1047) | **97%** (1063) | **97%** (1092) | **97%** (1113) |
+| **All areas** | **97%** (1048) | **97%** (1064) | **97%** (1093) | **97%** (1114) |
 
 ---
 
@@ -1401,16 +1401,20 @@ id>/ledger.json`, kept when the app is deleted); `isim storekit <app> ...` is th
 | `SKOverlay`, `SKStoreProductViewController` | ✅ | ≤17 | adapted: the app's listing (name, developer, icon, rating, price, description) from Apple's public lookup API (`ISIM_APPSTORE_LOOKUP_URL` overrides it); unknown apps fail (`loadProduct` completion, `storeOverlay(_:didFailToLoadWithError:)`); overlay slides in with the delegate's transition calls; installing is unavailable on isim (GET says so); tested with a lookup fixture |
 | Transaction Manager (refund, expire, cancel, clear) | ✅ | ≤17 | `isim storekit <app> list\|refund\|expire\|cancel\|resume\|billing-issue\|resolve\|delete\|clear`, `isim storekit certificate\|offer-key`; the running app picks changes up within 0.5 s |
 
-## Ads & privacy (AppTrackingTransparency, Google Mobile Ads, UMP)
+## Ads & privacy (AppTrackingTransparency, ad attribution, privacy manifests)
+
+Apple's frameworks only: third-party ad and analytics SDKs (Google Mobile Ads, Google UMP, Firebase, AppLovin, Meta, …)
+are not part of isim. Apps get them from their own packages, which `isim build` fetches and builds (source, or an
+`.xcframework`'s simulator slice); whether one runs depends on the iOS APIs it uses (AGENTS.md, "Only Apple's SDK").
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| `ATTrackingManager.requestTrackingAuthorization`, `trackingAuthorizationStatus` | ✅ | ≤17 | iOS-style prompt; choice persists per app; missing usage string is logged |
-| `ASIdentifierManager` (IDFA, `isAdvertisingTrackingEnabled`) | ✅ | ≤17 | all zeros unless the app's ATT answer is Allow; then a random per-device UUID kept in the device data (stable across apps and launches, new after `isim reset`). Nothing is sent. Tested: HelloSignIn |
-| Google Mobile Ads stand-in (`MobileAds.start`, `BannerView`, `InterstitialAd`, `RewardedAd`, `AppOpenAd`) | 🧩 | ≤17 | builds and runs; every ad load fails with "unavailable on isim" |
-| Google UMP stand-in (`ConsentInformation`, `ConsentForm`) | 🧩 | ≤17 | succeeds without a form; `canRequestAds` is false |
-| Privacy manifests (`PrivacyInfo.xcprivacy`) | 🧩 | ≤17 | copied into the bundle; not checked |
-| Other ad/analytics SDKs (Firebase, AppLovin, Meta, …) | ❌ | ≤17 | binary SDKs are not run; no stand-ins |
+| `ATTrackingManager.requestTrackingAuthorization`, `trackingAuthorizationStatus` | ✅ | ≤17 | iOS-style prompt; choice persists per app; missing usage string is logged. Tested: HelloSignIn, test_privacy |
+| `ASIdentifierManager` (IDFA, `isAdvertisingTrackingEnabled`) | ✅ | ≤17 | all zeros unless the app's ATT answer is Allow; then a random per-device UUID kept in the device data (stable across apps and launches, new after `isim reset`). Nothing is sent. Tested: HelloSignIn, test_privacy |
+| Privacy manifests (`PrivacyInfo.xcprivacy`) | ✅ | ≤17 | copied into the bundle and checked like App Store Connect does, by `isim build` (warnings) and `isim privacy-report App.app` (`--json`, `--strict`): known keys, data types and purposes, approved reasons per required-reason API category, and ITMS-91053 for required-reason APIs a binary uses (file timestamps, boot time, disk space, active keyboards, user defaults) without a declared reason; a report like Xcode's privacy report. Tracking domains: URLSession requests to the `NSPrivacyTrackingDomains` of a manifest with `NSPrivacyTracking` fail until tracking is authorized (ATT), like iOS 17 (adapted: `NSURLErrorCannotFindHost`). Tested: test_privacy |
+| AdServices (`AAAttribution.attributionToken`) | ✅ | ≤17 | adapted: the token comes from Apple Ads for an App Store install, which isim does not have: it throws `AAAttributionError.platformNotSupported` (logged), so apps take their no-attribution path. Tested: test_ad_attribution |
+| SKAdNetwork (`updatePostbackConversionValue` with coarse values and `lockWindow`, `startImpression` / `endImpression`, `SKAdImpression`) | ✅ | ≤17 | adapted: no ad-driven installs, nothing is sent to ad networks. Values checked like iOS (fine 0–63: `SKANError.invalidConversionValue`; coarse low / medium / high), locking closes one of the three conversion windows (time compressed: a window stays open until locked), impressions checked and recorded; shared with AdAttributionKit and recorded in the device data. Tested: test_ad_attribution |
+| AdAttributionKit (`AppImpression` click-through and view-through, `Postback.updateConversionValue`, `PostbackUpdate`, conversion tags, development postbacks) | ✅ | 17.4 | adapted: `AppImpression(compactJWS:)` checks the ad network's JWS (ES256 header, the payload fields Apple documents; the signature only for its shape: isim cannot check it against the network's key registered with Apple); `handleTap()` needs a tap on a `UIEventAttributionView` in the last second (`missingAttributionView` otherwise), records the impression and opens the App Store page URL (no App Store on isim: logged); `beginView` / `endView` record view-throughs of at least two seconds. Conversion values as for SKAdNetwork. Development postbacks (Settings › Developer › Development Postbacks on a device) with `isim adattribution add / list / transmit / clear`: the app's updates fill them and `transmit` POSTs Apple's JSON stanza (fine value in the first postback only), with an unsigned JWS (`alg` none: isim cannot sign as Apple). Tested: test_ad_attribution |
 
 ---
 
@@ -1525,6 +1529,7 @@ id>/ledger.json`, kept when the app is deleted); `isim storekit <app> ...` is th
 | WebKit JavaScript bridge (`evaluateJavaScript`, `callAsyncJavaScript`, content worlds, `WKUserScript`, `WKScriptMessageHandler`(`WithReply`), `WKURLSchemeHandler`) | ✅ | ≤17 | results converted like iOS (dictionaries, arrays, numbers, `WKError.javaScriptExceptionOccurred`, unsupported types); isolated worlds; replies to page promises. Tested |
 | WebKit input, selection, scrolling, zoom, menus, find, PDF, web archives, website data (`WKWebsiteDataStore`, `WKHTTPCookieStore`), snapshots | ✅ | ≤17 | adapted input: taps, typing (system keyboard on focused fields) and scrolling become DOM events from an isolated world (`isTrusted` false); `scrollView` mirrors page scrolling. A long press selects a word (selection tint and handles, edit menu with Copy / Select All / Share…, `copy:` / `selectAll:`); a long press on a link or image opens a context menu with a live preview (`WKUIDelegate` `contextMenuConfigurationFor`, will-present, did-end, commit; else Open / Copy Link / Share…); `<select>` and `<select multiple>` become UIKit menus (option groups, disabled options, change events); pinch zoom within the viewport meta's scales (`user-scalable=no` honoured), `scrollView.zoomScale` follows; `isFindInteractionEnabled` / `findInteraction` (find navigator, highlights, n of m); `createPDF` (whole page or `WKPDFConfiguration.rect`, WebKit's print backend at CSS size, cropped with poppler) and `createWebArchiveData` (WebKit's MHTML as a webarchive plist: main resource and subresources). Cookies get/set/delete and data removal; `takeSnapshot`. Tested (test_web, test_web_interact) |
 | SwiftUI `WebView` / `WebPage` (iOS 26) | ✅ | 26.0 | on WKWebView: `WebPage` is `@Observable` (`title`, `url`, `isLoading`, `estimatedProgress`, `currentNavigationEvent`), `load` (request, HTML, data) returning the navigation events as an `AsyncSequence`, `reload`, `callJavaScript` with arguments, `pdf`, `snapshot`, `webArchiveData`, `find`, `URLSchemeHandler`; `WebView(page)` / `WebView(url:)` with `webViewBackForwardNavigationGestures`, `webViewLinkPreviews`, `webViewMagnificationGestures`, `webViewContentBackground`. Tested (HelloWeb -webpage, test_web_webpage) |
+| WebKit from Objective-C (`#import <WebKit/WebKit.h>`, `WKWebView` by its Objective-C name) | ❌ | ≤17 | isim's WebKit is a Swift overlay: no Objective-C headers or class names yet, so Objective-C apps and binary SDKs that use WKWebView (e.g. Google Mobile Ads) do not build or run ([#200](https://github.com/kolabs-dev/isim/issues/200)) |
 | SafariServices (`SFSafariViewController`) | ✅ | ≤17 | iOS 17-style chrome (Done/Close/Cancel, domain + lock, “aA” button (cosmetic), back/forward/share/Open in Safari toolbar) on isim's WKWebView; delegate initial load / redirect / finish; tint colors; `DataStore.clearWebsiteData`. Adapted: its own in-memory website data (not Safari's), Reader and bar collapsing not real, Open in Safari logged. Tested (HelloSafari) |
 | MessageUI (`MFMailComposeViewController`, `MFMessageComposeViewController`) | ✅ | ≤17 | like the Simulator `canSendMail()`/`canSendText()` are false (presenting shows nothing); `ISIM_MAIL=1` / `ISIM_MESSAGES=1` give the device accounts: iOS 17-style composers prefilled from the API, Send / Cancel → Delete or Save Draft, results to the delegates; nothing is sent — mails become `.eml` files in `$ISIM_DATA/Library/Mail/{Outbox,Drafts}`, messages JSON in `Library/SMS/Outbox`. Tested |
 | Network framework `NWPathMonitor` (`pathUpdateHandler`, `currentPath`, `for await`) | ✅ | ≤17 | mirrors the host's connectivity (Wi-Fi/Ethernet), polled every 2 s; tested |

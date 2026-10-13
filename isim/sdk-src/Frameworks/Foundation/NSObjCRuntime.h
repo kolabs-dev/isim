@@ -46,6 +46,10 @@
 /* as in Apple's NSObjCRuntime.h: a block (or typedef) marked NS_SWIFT_SENDABLE imports into Swift as @Sendable */
 #define NS_SWIFT_SENDABLE __attribute__((swift_attr("@Sendable")))
 #define NS_SWIFT_NONSENDABLE __attribute__((swift_attr("@_nonSendable")))
+/* as in Apple's NSObjCRuntime.h: a parameter or result handed over to Swift as `sending` (region isolation) */
+#ifndef NS_SWIFT_SENDING
+#define NS_SWIFT_SENDING __attribute__((swift_attr("sending")))
+#endif
 #define NS_REFINED_FOR_SWIFT __attribute__((swift_private))
 /* isim: an Objective-C class that Foundation's Swift overlay defines (the URL loading system): Objective-C code finds it
    through the runtime, not the linker, so it cannot subclass it or add a category to it */

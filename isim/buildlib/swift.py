@@ -509,6 +509,8 @@ class Swift:
             srcs += c.glob(f"swift/overlays/{m}+*.swift")
             if m in PRIVACY:
                 srcs += c.glob("swift/overlays/_Privacy/*.swift")
+            if m in ATTRIBUTION:
+                srcs += c.glob("swift/overlays/_AdAttribution/*.swift")
             deps, fws, prev = [], [], None
             for a in args:
                 if a.startswith("-lswift") or a.startswith("-reexport-lswift"):
@@ -530,8 +532,6 @@ class Swift:
             if m == "Foundation":
                 link_args += foundation_objc_aliases()
             outs += [mod(m), self.link(f"swift{m}", objs, link_args, minos="17.0")]
-        # stand-ins for remote Swift packages that isim cannot fetch or run (isim build reads this)
-        act.write_if_changed(os.path.join(c.root, SDK, "usr/share/isim/package-standins.json"), STANDINS)
         # MapKit's offline basemap: land shapes from Natural Earth (public domain; tools/make-land.py)
         for f in ("land-50m.bin", "land-10m.bin"):
             act.copy_if_changed(os.path.join(c.root, "data/maps", f), os.path.join(c.root, SDK, "usr/share/isim/maps", f))
@@ -650,8 +650,6 @@ Spatial
 Charts -lswiftSpatial -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit
 GameKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftNetwork -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 AppTrackingTransparency -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit
-GoogleMobileAds -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit
-UserMessagingPlatform -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit
 AudioToolbox -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation -lisim_host
 CoreVideo -lswiftObjectiveC -lswiftFoundation -lswiftCoreGraphics -framework Foundation -framework CoreGraphics
 CoreImage -lswiftObjectiveC -lswiftFoundation -lswiftCoreVideo -lswiftCoreGraphics -framework Foundation -framework CoreGraphics -framework CoreImage   # CVPixelBuffer APIs
@@ -698,6 +696,8 @@ Network -lswiftObjectiveC -lswiftFoundation -lswiftSecurity -lswiftDispatch -lsw
 WebKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftObservation -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 SafariServices -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftWebKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit
 AdSupport -lswiftObjectiveC -lswiftFoundation -framework Foundation
+AdServices -lswiftObjectiveC -lswiftFoundation -framework Foundation
+AdAttributionKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit
 MetricKit -lswiftos -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation -lisim_host
 CloudKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreLocation -lswift_Concurrency -framework Foundation -framework UIKit
 AuthenticationServices -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftWebKit -lswiftSafariServices -lswiftSwiftUI -lswiftCryptoKit -lswiftSecurity -lswiftDispatch -lswiftCoreGraphics -lswiftCombine -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics
@@ -720,23 +720,14 @@ CallKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency 
 # overlays every other module and app imports: their types can change layout without breaking apps built earlier)
 EVOLUTION = set("""ObjectiveC Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI EventKit EventKitUI Contacts ContactsUI
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
-GameKit AppTrackingTransparency GoogleMobileAds UserMessagingPlatform Network CryptoKit Security os OSLog LocalAuthentication
+GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Security os OSLog LocalAuthentication
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices
 QuartzCore CoreHaptics CoreVideo CoreML Vision NaturalLanguage Speech VisionKit WebKit SafariServices MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer".split())
+# modules that also compile overlays/_AdAttribution (the conversion values SKAdNetwork and AdAttributionKit share)
+ATTRIBUTION = set("StoreKit AdAttributionKit".split())
 # overlays that declare macros of isim's compiler plugins (host_plugins): they compile after the plugin is built
 MACRO_PLUGINS = {"UIKit": ["PreviewsMacros"], "SwiftUI": ["PreviewsMacros", "SwiftUIMacros"], "SwiftData": ["SwiftDataMacros"]}
 
-STANDINS = """{
-  "https://github.com/googleads/swift-package-manager-google-mobile-ads.git": {
-    "kind": "stub", "note": "Google Mobile Ads is not run on isim; ad loads fail, no ads are shown",
-    "products": { "GoogleMobileAds": ["GoogleMobileAds"] }
-  },
-  "https://github.com/googleads/swift-package-manager-google-user-messaging-platform.git": {
-    "kind": "stub", "note": "no consent form on isim; canRequestAds is false",
-    "products": { "GoogleUserMessagingPlatform": ["UserMessagingPlatform"] }
-  }
-}
-"""
