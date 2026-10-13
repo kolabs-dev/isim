@@ -309,7 +309,7 @@ System/Library/Frameworks/CoreData.framework/CoreData _OBJC_METACLASS_$_NSDiffab
 System/Library/Frameworks/CoreData.framework/CoreData _OBJC_IVAR_$_NSDiffableDataSourceSnapshotReference._items
 System/Library/Frameworks/CoreData.framework/CoreData _OBJC_IVAR_$_NSDiffableDataSourceSnapshotReference._reloaded
 System/Library/Frameworks/CoreData.framework/CoreData _OBJC_IVAR_$_NSDiffableDataSourceSnapshotReference._sections
-# 0.17.0 (issue #18): Core Image's renderer was rewritten; the image node classes of the old one (__CIBitmap, __CIBlur, ...) were
+# 0.18.0 (issue #18): Core Image's renderer was rewritten; the image node classes of the old one (__CIBitmap, __CIBlur, ...) were
 # private (double-underscore, in no header) and are gone. Apps never referenced them; nothing has to be rebuilt.
 System/Library/Frameworks/CoreImage.framework/CoreImage _OBJC_CLASS_$___CIBitmap
 System/Library/Frameworks/CoreImage.framework/CoreImage _OBJC_CLASS_$___CIBlur
