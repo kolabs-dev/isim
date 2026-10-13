@@ -88,9 +88,10 @@ def test_connections_mdns(launch, tmp_path):
         app.wait_log(r"HelloConnections: done: mdns", timeout=30)
         assert "HelloConnections: mdns: found Python Peer._isimpy._tcplocal. from=python reply=python:hello from isim" in app.log
         app.wait_log(r"HelloConnections: mdns: app service got hello from python", timeout=20)
-        peer = log.read_text()
-        assert "peer: answer for isim App" in peer and "(id ok=True)" in peer, peer
-        assert re.search(r"peer: found isim App port [0-9]+ txt=b'\\tfrom=isim' addresses=\S+ reply=isim:hello from python", peer), peer
+        found = re.compile(r"peer: found isim App port [0-9]+ txt=b'\\tfrom=isim' addresses=\S+ reply=(.*)")
+        m = app.wait_until(lambda: found.search(log.read_text()), timeout=20, what="the peer connects to the app's service")
+        assert m.group(1) == "isim:hello from python", log.read_text()     # logged once the app's reply arrived
+        assert "(id ok=True)" in log.read_text(), "the legacy unicast answer echoes the query id"
         assert app.quit() == 0
 
 
