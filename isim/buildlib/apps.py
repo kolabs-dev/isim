@@ -209,7 +209,7 @@ def _(a):
     a.copy("HelloStore.storekit", f"{b}/isim-StoreKitConfiguration.storekit")   # as `isim build` does with a scheme's
 
 
-@app("samples/HelloAds")
+@app("samples/HelloPrivacy")
 def _(a):
     b = a.swift_app()
     a.copy("PrivacyInfo.xcprivacy", f"{b}/PrivacyInfo.xcprivacy")      # its privacy manifest, as Xcode copies it

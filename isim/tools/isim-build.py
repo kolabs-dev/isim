@@ -34,9 +34,8 @@ What it does per target (dependencies first, also across the projects of a works
   * Swift packages: local packages are built from source (Swift and C/ObjC targets, dependencies between
     packages, resources with Bundle.module, binary targets with a local .xcframework); manifests are read with
     `swift package dump-package`. Remote packages: a local checkout in -package-cache DIR / $ISIM_PACKAGE_CACHE
-    (DIR/<name> or DIR/checkouts/<name>) first, then a declared isim stand-in (usr/share/isim/package-standins.json),
-    else fetched with git into the package cache (default $XDG_CACHE_HOME/isim/packages) at the revision pinned in
-    Package.resolved, or resolved from the requirement and the repository's tags and pinned there
+    (DIR/<name> or DIR/checkouts/<name>) first, else fetched with git into the package cache (default
+    $XDG_CACHE_HOME/isim/packages) at the revision pinned in Package.resolved, or resolved from the requirement and the repository's tags and pinned there
     (-onlyUsePackageVersionsFromResolvedFile / -disableAutomaticPackageResolution refuse; -resolvePackageDependencies
     only fetches); remote binary targets are downloaded and checked against their SHA-256 checksum
   * project view: -list and -showBuildSettings (with -json) like xcodebuild; -tree (isim project) prints the targets,
@@ -385,14 +384,6 @@ def privacy_check(app, log):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     mod.check(app, log)
-
-
-def load_standins():
-    path = os.path.join(SDK, 'usr', 'share', 'isim', 'package-standins.json')
-    if not os.path.exists(path):
-        return {}
-    with open(path) as f:
-        return {k.lower().rstrip('/').removesuffix('.git'): v for k, v in json.load(f).items()}
 
 
 # swift-syntax's libraries in the Swift toolchain (/usr/lib/swift/host of swift:6.2): what macro targets build against
@@ -764,11 +755,6 @@ class Packages:
         isa = ref.get('isa') if ref else 'XCLocalSwiftPackageReference'
         if isa == 'XCRemoteSwiftPackageReference':
             url = ref.get('repositoryURL', '')
-            if not self.checkout(url):
-                standin = load_standins().get(norm_url(url))
-                if standin and product in standin.get('products', {}):
-                    log(f'{product}: isim stand-in ({standin.get("kind", "stub")}): {standin.get("note", "")}')
-                    return self.empty()
             return self.product(self.remote(url, requirement_of_ref(ref)), product)
         if ref is None:                             # product of a local package: find the package that has it
             refs = [project.objects[r] for r in project.project.get('packageReferences', [])

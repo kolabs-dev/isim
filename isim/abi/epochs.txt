@@ -11,3 +11,8 @@ usr/lib/swift/libswiftDispatch.dylib 0.12.0
 usr/lib/swift/libswiftFoundation.dylib 0.12.0
 usr/lib/swift/libswiftUIKit.dylib 0.12.0
 usr/lib/swift/libswiftCoreGraphics.dylib 0.12.0
+# 0.20.0 (issue #25): isim no longer ships stand-ins for third-party SDKs: it re-implements Apple's iOS SDK only
+# (AGENTS.md, "Only Apple's SDK"). The Google Mobile Ads and User Messaging Platform stand-ins are gone; apps that
+# linked them must be rebuilt with 0.20 against the real SDKs (isim build fetches their packages).
+usr/lib/swift/libswiftGoogleMobileAds.dylib 0.20.0
+usr/lib/swift/libswiftUserMessagingPlatform.dylib 0.20.0

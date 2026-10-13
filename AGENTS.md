@@ -8,6 +8,11 @@ Code lives in `isim/`; see the [README](README.md) for what isim is and how it i
 - **Be honest about compatibility.**
   - Never falsify SDK or Xcode metadata to make an incompatible build look compatible.
   - Never quietly retarget an app to macOS or Linux and call that iOS compatibility.
+- **Only Apple's SDK.** isim re-implements what belongs to iOS: Apple's frameworks, system UI and tools. It never
+  re-implements, stubs or stands in for third-party libraries (Google Mobile Ads, Google UMP, Firebase, AppLovin,
+  Meta, …), even closed-source ones. Apps get those from their own packages, which `isim build` fetches and builds
+  (source, or an `.xcframework`'s simulator slice); when one does not run on isim, fix the iOS API it needs, or record
+  the gap (COVERAGE.md, an issue). Sample apps may use third-party libraries to show how they run on isim.
 - **Label what you implement.** Behaviour is *passthrough* (the host's function with the same ABI), *adapted*
   (isim's translation of Apple's behaviour) or a *stub*. Results are *verified* (a test checks it) or *proposed*.
 - **No secrets in the repo.** Signing keys, certificates, provisioning profiles and API credentials stay local: never in
