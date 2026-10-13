@@ -9,6 +9,9 @@
 #define O_TRUNC 0x0400
 #define O_EXCL 0x0800
 #define O_CLOEXEC 0x01000000
+#define O_NOFOLLOW 0x0100
+#define O_SYNC 0x0080
+#define O_DIRECTORY 0x00100000
 int open(const char *, int, ...);
 #define F_DUPFD 0
 #define F_GETFD 1
@@ -30,6 +33,11 @@ struct flock { off_t l_start; off_t l_len; pid_t l_pid; short l_type; short l_wh
 int fcntl(int, int, ...);
 /* isim: non-variadic forms for Swift (Foundation's open(_:_:_:) / fcntl(_:_:_:)) */
 static inline int _isim_open(const char *path, int oflag, int mode) { return open(path, oflag, mode); }
+#define AT_FDCWD -2
+int openat(int, const char *, int, ...);
+static inline int _isim_openat(int fd, const char *path, int oflag, int mode) { return openat(fd, path, oflag, mode); }
 static inline int _isim_fcntl(int fd, int cmd, int value) { return fcntl(fd, cmd, value); }
+static inline int _isim_fcntl_ptr(int fd, int cmd, void *ptr) { return fcntl(fd, cmd, ptr); }
 int ioctl(int, unsigned long, ...);
 static inline int _isim_ioctl(int fd, unsigned long request, void *value) { return ioctl(fd, request, value); }
+static inline int _isim_ioctl_int(int fd, unsigned long request, int value) { return ioctl(fd, request, value); }

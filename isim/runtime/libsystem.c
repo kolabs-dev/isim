@@ -33,7 +33,7 @@ static int *d_error(void) { return &errno; } /* values 1..34 match Darwin; highe
 static FILE *d_stdinp, *d_stdoutp, *d_stderrp;
 
 /* ---------------- open(): Darwin flag bits differ ---------------- */
-static int d_open(const char *path, int dflags, int mode) {
+static int oflags_from_darwin(int dflags) {
     int f = dflags & 3;                                   /* O_RDONLY/O_WRONLY/O_RDWR identical */
     if (dflags & 0x0008) f |= O_APPEND;
     if (dflags & 0x0004) f |= O_NONBLOCK;
@@ -42,7 +42,14 @@ static int d_open(const char *path, int dflags, int mode) {
     if (dflags & 0x0800) f |= O_EXCL;
     if (dflags & 0x1000000) f |= O_CLOEXEC;
     if (dflags & 0x100000) f |= O_DIRECTORY;
-    return open(path, f, mode);
+    if (dflags & 0x0100) f |= O_NOFOLLOW;
+    if (dflags & 0x0080) f |= O_SYNC;
+    return f;
+}
+static int d_open(const char *path, int dflags, int mode) { return open(path, oflags_from_darwin(dflags), mode); }
+/* openat(2): Darwin's AT_FDCWD is -2 */
+static int d_openat(int dirfd, const char *path, int dflags, int mode) {
+    return openat(dirfd == -2 ? AT_FDCWD : dirfd, path, oflags_from_darwin(dflags), mode);
 }
 
 /* ---------------- time ---------------- */
@@ -427,7 +434,7 @@ static const struct shim libsystem_table[] = {
     A("___stdinp", &d_stdinp), A("___stdoutp", &d_stdoutp), A("___stderrp", &d_stderrp),
     /* process & environment */
     P(exit), P(_exit), P(abort), P(atexit), { "___cxa_atexit", (void *)__cxa_atexit, "passthrough" }, P(getenv), P(setenv), P(getpid), P(getuid), P(isatty), P(getpagesize), P(sleep), P(usleep), P(nanosleep),
-    A("_open", d_open), A("_read", d_read), A("_write", d_write), P(close), P(lseek), P(ftruncate), P(fsync), P(access), P(unlink), P(readlink), P(symlink), P(link), P(getcwd), P(chdir), P(mkdir), P(rmdir), P(chmod), P(flock),
+    A("_open", d_open), A("_openat", d_openat), A("_read", d_read), A("_write", d_write), P(close), P(lseek), P(ftruncate), P(fsync), P(access), P(unlink), P(readlink), P(symlink), P(link), P(getcwd), P(chdir), P(mkdir), P(rmdir), P(chmod), P(flock),
     A("___error", d_error), A("__NSGetArgc", d_NSGetArgc), A("__NSGetArgv", d_NSGetArgv), A("__NSGetExecutablePath", d_NSGetExecutablePath), A("__NSGetEnviron", d_NSGetEnviron), A("_sysconf", d_sysconf),
     /* time */
     P(time), P(gettimeofday), P(localtime_r), P(gmtime_r), P(mktime), P(strftime), P(tzset), P(timegm),

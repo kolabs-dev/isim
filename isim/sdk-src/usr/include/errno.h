@@ -38,6 +38,15 @@ __END_DECLS
 #define ECANCELED 89
 #define EILSEQ 92
 #define EPIPE 32
+#define ENXIO 6
+#define ENOEXEC 8
+#define ENOTBLK 15
+#define ENODEV 19
+#define ENOTTY 25
+#define ETXTBSY 26
+#define EFBIG 27
+#define ESPIPE 29
+#define EMLINK 31
 #define EALREADY 37
 #define ENOTSOCK 38
 #define EDESTADDRREQ 39
