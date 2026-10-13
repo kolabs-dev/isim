@@ -20,6 +20,8 @@
 @property (nonatomic) int isimFinger;
 @property (nonatomic) BOOL isimPencil, isimPointer;
 @property (nonatomic) double isimForce, isimAltitude, isimAzimuth;
+@property (nonatomic, strong) NSNumber *isimEstimationIndex;
+@property (nonatomic) UITouchProperties isimExpecting;
 @end
 @implementation UITouch
 - (instancetype)initWithIsimView:(UIView *)v window:(UIWindow *)w location:(CGPoint)p time:(NSTimeInterval)t {
@@ -33,6 +35,18 @@
 - (void)_isim_setStationary { if (_phase != UITouchPhaseEnded && _phase != UITouchPhaseCancelled) { _phase = UITouchPhaseStationary; _prev = _loc; } }
 /* a simulated Apple Pencil touch (script `pencil`): force 0...4.17, altitude above the screen, azimuth (radians) */
 - (void)_isim_setPencilForce:(double)f altitude:(double)alt azimuth:(double)az { _isimPencil = YES; _isimForce = f; _isimAltitude = alt; _isimAzimuth = az; }
+/* Apple Pencil samples: force and angles are estimates until the Pencil reports them (isim: one update per sample,
+   a frame later, with the same values; see deliver_estimate_update) */
+static NSUInteger estimation_counter;
+- (void)_isim_newPencilSample { _isimEstimationIndex = @(++estimation_counter); _isimExpecting = UITouchPropertyForce | UITouchPropertyAzimuth | UITouchPropertyAltitude; }
+/* the sample as it is now, its estimates final (the touch passed to touchesEstimatedPropertiesUpdated:) */
+- (UITouch *)_isim_estimateUpdate {
+    UITouch *u = [[UITouch alloc] initWithIsimView:_view window:_window location:_loc time:_timestamp];
+    u->_prev = _prev; u->_phase = _phase; u->_tapCount = _tapCount; u->_isimFinger = _isimFinger;
+    [u _isim_setPencilForce:_isimForce altitude:_isimAltitude azimuth:_isimAzimuth];
+    u->_isimEstimationIndex = _isimEstimationIndex; u->_isimExpecting = 0;
+    return u;
+}
 - (void)_isim_setPointer { _isimPointer = YES; }            /* an iPad pointer (trackpad / mouse) touch (script `pointerdrag`) */
 - (UITouchType)type { return _isimPencil ? UITouchTypePencil : _isimPointer ? UITouchTypeIndirectPointer : UITouchTypeDirect; }
 - (CGFloat)majorRadius { return _isimPencil ? 0.25 : 20; }
@@ -43,9 +57,9 @@
 - (CGFloat)azimuthAngleInView:(UIView *)v { return _isimPencil ? _isimAzimuth : 0; }
 - (CGVector)azimuthUnitVectorInView:(UIView *)v { double a = [self azimuthAngleInView:v]; return CGVectorMake(cos(a), sin(a)); }
 - (CGFloat)rollAngle { return 0; }
-- (UITouchProperties)estimatedProperties { return 0; }
-- (UITouchProperties)estimatedPropertiesExpectingUpdates { return 0; }
-- (NSNumber *)estimationUpdateIndex { return nil; }
+- (UITouchProperties)estimatedProperties { return _isimPencil ? UITouchPropertyForce | UITouchPropertyAzimuth | UITouchPropertyAltitude : 0; }
+- (UITouchProperties)estimatedPropertiesExpectingUpdates { return _isimPencil ? _isimExpecting : 0; }
+- (NSNumber *)estimationUpdateIndex { return _isimPencil ? _isimEstimationIndex : nil; }
 - (CGPoint)preciseLocationInView:(UIView *)v { return [self locationInView:v]; }
 - (CGPoint)precisePreviousLocationInView:(UIView *)v { return [self previousLocationInView:v]; }
 - (NSArray *)gestureRecognizers {
@@ -60,6 +74,7 @@
 @interface UIEvent ()
 @property (nonatomic, strong) NSSet *touchSet;
 @property (nonatomic) UIKeyModifierFlags isimMods;
+@property (nonatomic) UIEventType isimType;                    /* UIEventTypeTouches (0) unless a scroll */
 @end
 extern UIKeyModifierFlags isim_ui_current_modifiers(int hostmods);
 @implementation UIEvent
@@ -71,7 +86,8 @@ extern UIKeyModifierFlags isim_ui_current_modifiers(int hostmods);
     for (UITouch *t in _touchSet) if (t.type == UITouchTypeIndirectPointer && t.phase != UITouchPhaseEnded && t.phase != UITouchPhaseCancelled) return UIEventButtonMaskPrimary;
     return 0;
 }
-- (UIEventType)type { return UIEventTypeTouches; }
+- (UIEventType)type { return _isimType; }
+- (instancetype)initWithIsimScroll { if ((self = [super init])) { _isimType = UIEventTypeScroll; _isimMods = isim_ui_current_modifiers(0); } return self; }
 - (UIEventSubtype)subtype { return UIEventSubtypeNone; }
 - (NSTimeInterval)timestamp { return _touchSet ? [_touchSet.anyObject timestamp] : isim_time(); }
 - (NSSet *)allTouches { return _touchSet; }
@@ -942,6 +958,66 @@ static BOOL status_bar_touch(const struct isim_event *ev) {
     sb_replaying = YES; handle_touch(&sb_down); sb_replaying = NO;   /* not a status bar tap: the touch goes to the app after all */
     return NO;
 }
+/* a Pencil sample's estimated properties are final a frame later: touchesEstimatedPropertiesUpdated: on its view and
+   the recognizers that saw it */
+static void deliver_estimate_update(UITouch *t, UIView *v, NSArray *recognizers) {
+    UITouch *u = [t _isim_estimateUpdate];
+    NSArray *gs = [recognizers copy];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.008 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        NSSet *set = [NSSet setWithObject:u];
+        [v touchesEstimatedPropertiesUpdated:set];
+        for (UIGestureRecognizer *g in gs) [g touchesEstimatedPropertiesUpdated:set];
+    });
+}
+/* ================= scroll events (trackpad / mouse wheel; script `scroll`) =================
+   The innermost pan recognizer under the pointer whose allowedScrollTypesMask takes the scroll type turns the scroll
+   into a pan (a scroll view's pan takes all types). A wheel step is a whole pan; a trackpad scroll ends when told or
+   after a pause. */
+@interface UIPanGestureRecognizer (IsimScroll)
+- (BOOL)_isim_scrollPhase:(int)phase delta:(CGPoint)d at:(CGPoint)wp time:(double)t;
+@end
+static __weak UIPanGestureRecognizer *scroll_pan;
+static NSUInteger scroll_gen;
+static void end_scroll(void) {
+    UIPanGestureRecognizer *g = scroll_pan;
+    scroll_pan = nil;
+    [g _isim_scrollPhase:2 delta:CGPointZero at:CGPointZero time:isim_time()];
+}
+static void handle_scroll(const struct isim_event *ev) {
+    double dx = 0, dy = 0; sscanf(ev->text, "%lf %lf", &dx, &dy);
+    UIScrollType type = ev->pad ? UIScrollTypeContinuous : UIScrollTypeDiscrete;
+    CGPoint p = CGPointMake(ev->x, ev->y);
+    UIPanGestureRecognizer *g = scroll_pan;
+    if (g && !g.view.window) { scroll_pan = nil; g = nil; }
+    if (!g) {
+        UIEvent *e = [[UIEvent alloc] initWithIsimScroll];
+        NSArray *ws = [UIApplication.sharedApplication.windows sortedArrayUsingComparator:^NSComparisonResult(UIWindow *a, UIWindow *b) {
+            return a.windowLevel > b.windowLevel ? NSOrderedAscending : a.windowLevel < b.windowLevel ? NSOrderedDescending : NSOrderedSame; }];
+        UIView *hit = nil;
+        for (UIWindow *c in ws) {
+            if (c.hidden || !CGRectContainsPoint(c.frame, p) || !isim_ui_window_on_screen(c)) continue;
+            if ((hit = [c hitTest:CGPointMake(p.x - c.frame.origin.x, p.y - c.frame.origin.y) withEvent:e])) break;
+        }
+        for (UIView *v = hit; v && !g; v = v.superview)
+            for (UIGestureRecognizer *r in v.gestureRecognizers) {
+                if (![r isKindOfClass:[UIPanGestureRecognizer class]] || !r.enabled) continue;
+                if (!(((UIPanGestureRecognizer *)r).allowedScrollTypesMask & (1 << type)) || ![r shouldReceiveEvent:e]) continue;
+                g = (UIPanGestureRecognizer *)r; break;
+            }
+        if (!g) return;
+        CGPoint wp = CGPointMake(p.x - g.view.window.frame.origin.x, p.y - g.view.window.frame.origin.y);
+        [g _isim_setLastEvent:e];
+        if (![g _isim_scrollPhase:0 delta:CGPointZero at:wp time:ev->timestamp]) return;
+        NSLog(@"isim: %@ scroll to %@", type == UIScrollTypeContinuous ? @"trackpad" : @"wheel", NSStringFromClass(g.view.class));
+        scroll_pan = g;
+    }
+    if (![g _isim_scrollPhase:1 delta:CGPointMake(dx, dy) at:CGPointZero time:ev->timestamp]) { scroll_pan = nil; return; }
+    NSUInteger gen = ++scroll_gen;
+    if (ev->mods == 3 || type == UIScrollTypeDiscrete) { end_scroll(); return; }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (gen == scroll_gen && scroll_pan) end_scroll();       /* the fingers left the trackpad */
+    });
+}
 static void handle_touch(const struct isim_event *ev) {
     if (!synthesizing && isim_ui_touch_filtered(ev)) return;              /* VoiceOver, drag sessions (UIKitInputPrivate.h) */
     if (!active_touches) active_touches = [NSMutableDictionary dictionary];
@@ -1008,7 +1084,8 @@ static void handle_touch(const struct isim_event *ev) {
     UITouch *t = active_touches[@(finger)];
     if (!t) return;
     double pf, pa, pz;                                       /* a Pencil touch (script `pencil`) */
-    if (!strncmp(ev->text, "pencil ", 7) && sscanf(ev->text + 7, "%lf %lf %lf", &pf, &pa, &pz) == 3) [t _isim_setPencilForce:pf altitude:pa azimuth:pz];
+    BOOL pencilSample = !strncmp(ev->text, "pencil ", 7) && sscanf(ev->text + 7, "%lf %lf %lf", &pf, &pa, &pz) == 3;
+    if (pencilSample) { [t _isim_setPencilForce:pf altitude:pa azimuth:pz]; if (ev->type != ISIM_EV_TOUCH_UP) [t _isim_newPencilSample]; }
     if (!strcmp(ev->text, "pointer")) [t _isim_setPointer];
     UITouchPhase phase = ev->type == ISIM_EV_TOUCH_DOWN ? UITouchPhaseBegan : ev->type == ISIM_EV_TOUCH_MOVE ? UITouchPhaseMoved : UITouchPhaseEnded;
     CGRect wf = t.window.frame;
@@ -1033,6 +1110,7 @@ static void handle_touch(const struct isim_event *ev) {
         if (phase == UITouchPhaseMoved) [v touchesMoved:set withEvent:e];
         else if (phase == UITouchPhaseEnded) [v touchesEnded:set withEvent:e];
     }
+    if (pencilSample && phase != UITouchPhaseEnded) deliver_estimate_update(t, toView && !touch_cancelled ? v : nil, cur_gestures);
     if (phase == UITouchPhaseEnded) {
         [active_touches removeObjectForKey:@(finger)];
         if (t == cur_touch) { last_tap_time = ev->timestamp; last_tap_point = p; last_tap_count = t.tapCount; }
@@ -1092,9 +1170,12 @@ static void dump_view_to(FILE *out, UIView *v, int depth) {
     static int ax = -1;
     if (ax < 0) { const char *e = getenv("ISIM_DUMP_ACCESSIBILITY"); ax = e && *e && strcmp(e, "0"); }   /* ax="label, value, traits" */
     NSString *axs = ax ? isim_ui_accessibility_dump(v) : nil;
-    fprintf(out, "%*s%s (%g %g; %g x %g)%s%s%s%s%s%s%s%s%s\n", depth * 2, "", class_getName(object_getClass(v)), f.origin.x, f.origin.y, f.size.width, f.size.height,
+    /* app entities annotated on the view (AppIntents' appEntityIdentifier / appEntityUIElementProvider) */
+    SEL entitySel = NSSelectorFromString(@"_isim_appEntityDescription");
+    NSString *entity = [v respondsToSelector:entitySel] ? ((NSString *(*)(id, SEL))objc_msgSend)(v, entitySel) : nil;
+    fprintf(out, "%*s%s (%g %g; %g x %g)%s%s%s%s%s%s%s%s%s%s%s\n", depth * 2, "", class_getName(object_getClass(v)), f.origin.x, f.origin.y, f.size.width, f.size.height,
             v.hidden ? " hidden" : "", v.alpha < 1 ? " alpha<1" : "", ident ? " id=" : "", ident ? ident.UTF8String : "", label ? " text=" : "", label ? label.UTF8String : "",
-            axs ? " ax=\"" : "", axs ? axs.UTF8String : "", axs ? "\"" : "");
+            axs ? " ax=\"" : "", axs ? axs.UTF8String : "", axs ? "\"" : "", entity ? " entity=" : "", entity ? entity.UTF8String : "");
     for (UIView *s in v.subviews) dump_view_to(out, s, depth + 1);
 }
 static void dump_view(UIView *v, int depth) { dump_view_to(stderr, v, depth); }
@@ -1304,6 +1385,8 @@ static void enter_background(void) {
     if ([d respondsToSelector:@selector(applicationDidEnterBackground:)]) [d applicationDidEnterBackground:app];
     [nc postNotificationName:UIApplicationDidEnterBackgroundNotification object:app];
     [isim_ui_first_responder() resignFirstResponder];
+    extern void isim_ui_scenes_user_dismissed(void);
+    isim_ui_scenes_user_dismissed();                             /* destructionConditions: userInitiatedDismissal */
     isim_sys_entered_background();
 }
 static void enter_foreground(void) {
@@ -1415,7 +1498,9 @@ static NSString *sessions_file(void) {
 @end
 /* the open sessions, in the order they were connected, the ones on screen marked */
 static NSMutableArray<UISceneSession *> *session_order;
+void isim_ui_scene_destruction_changed(void);
 static void save_sessions(void) {
+    isim_ui_scene_destruction_changed();
     if (!scenes_multi()) return;
     NSMutableArray *out = [NSMutableArray array];
     for (UISceneSession *ss in session_order) {
@@ -1492,6 +1577,7 @@ static void scene_to_background(UIWindowScene *s) {
         if ([d respondsToSelector:@selector(sceneWillResignActive:)]) [d sceneWillResignActive:s];
         [nc postNotificationName:UISceneWillDeactivateNotification object:s];
     }
+    if (s.activationState == UISceneActivationStateBackground) return;      /* (the app went to the background with it) */
     s.activationState = UISceneActivationStateBackground;
     if ([d respondsToSelector:@selector(sceneDidEnterBackground:)]) [d sceneDidEnterBackground:s];
     [nc postNotificationName:UISceneDidEnterBackgroundNotification object:s];
@@ -1677,10 +1763,14 @@ void isim_ui_disconnect_role_scene(UIScene *s) {
     NSLog(@"isim: scene %@ disconnected (%@)", session.persistentIdentifier, session.role);
 }
 
+static NSSet<UISceneSession *> *sessions_destroyed_by_exit(void);
 /* launch: the app's first scene, or the sessions it had open (iPad, multiple scenes) */
 void isim_ui_scenes_launch(NSDictionary *manifest) {
     scene_manifest = manifest ?: @{};
     UIApplication *app = UIApplication.sharedApplication;
+    NSSet<UISceneSession *> *destroyed = sessions_destroyed_by_exit();       /* destructionConditions: systemDisconnection */
+    if (destroyed.count && [app.delegate respondsToSelector:@selector(application:didDiscardSceneSessions:)])
+        [app.delegate application:app didDiscardSceneSessions:destroyed];
     /* sessions discarded in the app switcher since the last launch */
     NSString *discarded = [sessions_file() stringByAppendingString:@".discarded"];
     NSArray *gone = [NSDictionary dictionaryWithContentsOfFile:discarded][@"sessions"];
@@ -1737,6 +1827,67 @@ void isim_ui_scenes_discarded(void) {
 }
 /* the app went to the background: keep each session's state (stateRestorationActivity is set by UISystemIntegration.m) */
 void isim_ui_scenes_save(void) { save_sessions(); }
+
+/* ---- destructionConditions (iOS 26) ----
+   systemDisconnection: the sessions of such scenes are listed in SceneSessions.plist.destroy (kept current while the
+   app runs); the next launch discards them (application:didDiscardSceneSessions:) instead of restoring them.
+   userInitiatedDismissal: going to the home screen destroys such scenes; the next foreground connects a new one. */
+@interface UISceneDestructionCondition (Isim)
+- (int)_isim_kind;
+@end
+static BOOL has_condition(UIScene *s, int kind) {
+    for (UISceneDestructionCondition *c in s.destructionConditions) if ([c _isim_kind] == kind) return YES;
+    return NO;
+}
+static NSString *destroy_file(void) { return [sessions_file() stringByAppendingString:@".destroy"]; }
+void isim_ui_scene_destruction_changed(void) {
+    NSMutableArray *out = [NSMutableArray array];
+    for (UIScene *s in UIApplication.sharedApplication.connectedScenes)
+        if (has_condition(s, 1)) [out addObject:@{ @"id": s.session.persistentIdentifier ?: @"", @"config": s.session.configuration.name ?: @"" }];
+    if (out.count) [@{ @"sessions": out } writeToFile:destroy_file() atomically:YES];
+    else [NSFileManager.defaultManager removeItemAtPath:destroy_file() error:NULL];
+}
+/* at launch: the sessions the last process's end destroyed */
+static NSSet<UISceneSession *> *sessions_destroyed_by_exit(void) {
+    NSArray *gone = [NSDictionary dictionaryWithContentsOfFile:destroy_file()][@"sessions"];
+    [NSFileManager.defaultManager removeItemAtPath:destroy_file() error:NULL];
+    if (!gone.count) return nil;
+    NSMutableSet *set = [NSMutableSet set];
+    NSMutableSet *ids = [NSMutableSet set];
+    for (NSDictionary *e in gone) {
+        UISceneSession *ss = [UISceneSession new]; ss.role = UIWindowSceneSessionRoleApplication; ss.persistentIdentifier = e[@"id"];
+        if ([e[@"config"] length]) ss.configuration = [UISceneConfiguration configurationWithName:e[@"config"] sessionRole:UIWindowSceneSessionRoleApplication];
+        [set addObject:ss]; [ids addObject:e[@"id"] ?: @""];
+    }
+    /* not restored: off the saved sessions, no saved scene state */
+    NSArray *saved = [NSDictionary dictionaryWithContentsOfFile:sessions_file()][@"sessions"];
+    if (saved) {
+        NSMutableArray *keep = [NSMutableArray array];
+        for (NSDictionary *e in saved) if (![ids containsObject:e[@"id"] ?: @""]) [keep addObject:e];
+        [@{ @"sessions": keep } writeToFile:sessions_file() atomically:YES];
+    }
+    extern void isim_sys_forget_scene_state(void);
+    isim_sys_forget_scene_state();
+    NSLog(@"isim: %lu scene session(s) destroyed by the system disconnection", (unsigned long)set.count);
+    return set;
+}
+void isim_ui_scenes_user_dismissed(void) {
+    UIApplication *app = UIApplication.sharedApplication;
+    NSMutableArray *gone = [NSMutableArray array];
+    for (UIScene *s in app.connectedScenes)
+        if ([s.session.role isEqualToString:UIWindowSceneSessionRoleApplication] && has_condition(s, 0)) [gone addObject:s];
+    if (!gone.count) return;
+    for (UIScene *s in gone) {
+        NSLog(@"isim: scene %@ dismissed by the user: destroyed (userInitiatedDismissal)", s.session.persistentIdentifier);
+        [app requestSceneSessionDestruction:s.session options:nil errorHandler:nil];
+    }
+    extern void isim_sys_forget_scene_state(void);
+    isim_sys_forget_scene_state();
+    BOOL left = NO;
+    for (UIScene *s in app.connectedScenes) if ([s.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) left = YES;
+    if (!left) pending_scene_manifest = scene_manifest ?: @{};        /* the next foreground connects a new scene */
+    isim_ui_scene_destruction_changed();
+}
 
 static void scene_error(void (^handler)(NSError *), UISceneErrorCode code, NSString *msg) {
     NSLog(@"isim: scene request failed: %@", msg);
@@ -1846,6 +1997,7 @@ static void run_loop_once(void) {
                 isim_ui_pencil_hover_z = !strncmp(ev.text, "pencil ", 7) ? atof(ev.text + 7) : -1;
                 isim_ui_hover(ev.x, ev.y, ev.pad == 1); break;
             }
+            case ISIM_EV_SCROLL: handle_scroll(&ev); break;
             case ISIM_EV_TEXT_EDITING: isim_ui_text_editing(@(ev.text), ev.key, ev.mods); break;
             case ISIM_EV_VOICEOVER: isim_ui_voiceover_command(@(ev.text)); break;
             case ISIM_EV_TEXT_SERVICE: isim_ui_text_service(@(ev.text)); break;

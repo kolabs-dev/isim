@@ -730,24 +730,50 @@ static NSRange granularity_range(NSString *str, NSTextSelectionGranularity g, NS
 @end
 
 /* ================= the viewport ================= */
-@implementation NSTextViewportLayoutController
+@implementation NSTextViewportLayoutController {
+    NSMapTable<id, id> *_surfaces;            /* rendering surfaces of the fragments in the viewport, by key (iOS 27) */
+}
 - (instancetype)initWithTextLayoutManager:(NSTextLayoutManager *)m { if ((self = [super init])) _textLayoutManager = m; return self; }
+/* iOS 27 rendering surfaces (isim's order; Apple documents none): a fragment entering the viewport gets the surface
+   cached for it (retrieveCachedRenderingSurfaceForKey:), else a new one (renderingSurfaceForTextLayoutFragment:), right
+   before configureRenderingSurfaceForTextLayoutFragment:; renderingSurfaceForKey: maps it while the fragment stays; a
+   fragment leaving the viewport hands its surface back (cacheRenderingSurface:forKey:). Keys are the fragments. */
+- (id<NSTextViewportRenderingSurface>)renderingSurfaceForKey:(id<NSTextViewportRenderingSurfaceKey>)key { return key ? [_surfaces objectForKey:key] : nil; }
 - (void)layoutViewport {
     id<NSTextViewportLayoutControllerDelegate> d = _delegate;
     NSTextLayoutManager *m = _textLayoutManager;
     if (!d || !m) return;
+    if (!_surfaces) _surfaces = [NSMapTable strongToStrongObjectsMapTable];
     _viewportBounds = [d viewportBoundsForTextViewportLayoutController:self];
     if ([d respondsToSelector:@selector(textViewportLayoutControllerWillLayout:)]) [d textViewportLayoutControllerWillLayout:self];
     __block NSTextRange *range = nil;
     CGRect vb = _viewportBounds;
+    NSMutableSet *seen = [NSMutableSet set];
+    BOOL ios27 = isim_ui_os_major() >= 27;                    /* (earlier versions have no rendering surfaces) */
+    BOOL retrieve = ios27 && [d respondsToSelector:@selector(textViewportLayoutController:retrieveCachedRenderingSurfaceForKey:)];
+    BOOL make = ios27 && [d respondsToSelector:@selector(textViewportLayoutController:renderingSurfaceForTextLayoutFragment:)];
+    NSMapTable *surfaces = _surfaces;
     [m enumerateTextLayoutFragmentsFromLocation:nil options:NSTextLayoutFragmentEnumerationOptionsEnsuresLayout usingBlock:^BOOL(NSTextLayoutFragment *f) {
         CGRect fr = f.layoutFragmentFrame;
         if (CGRectGetMaxY(fr) < CGRectGetMinY(vb)) return YES;
         if (fr.origin.y > CGRectGetMaxY(vb)) return NO;
         range = range ? [range textRangeByFormingUnionWithTextRange:f.rangeInElement] : f.rangeInElement;
+        [seen addObject:f];
+        if (![surfaces objectForKey:f]) {
+            id surface = retrieve ? [d textViewportLayoutController:self retrieveCachedRenderingSurfaceForKey:f] : nil;
+            if (!surface && make) surface = [d textViewportLayoutController:self renderingSurfaceForTextLayoutFragment:f];
+            if (surface) [surfaces setObject:surface forKey:f];
+        }
         [d textViewportLayoutController:self configureRenderingSurfaceForTextLayoutFragment:f];
         return YES;
     }];
+    for (id key in [[surfaces keyEnumerator] allObjects]) {              /* left the viewport: back to the delegate's cache */
+        if ([seen containsObject:key]) continue;
+        id surface = [surfaces objectForKey:key];
+        [surfaces removeObjectForKey:key];
+        if (ios27 && [d respondsToSelector:@selector(textViewportLayoutController:cacheRenderingSurface:forKey:)])
+            [d textViewportLayoutController:self cacheRenderingSurface:surface forKey:key];
+    }
     _viewportRange = range;
     if ([d respondsToSelector:@selector(textViewportLayoutControllerDidLayout:)]) [d textViewportLayoutControllerDidLayout:self];
 }

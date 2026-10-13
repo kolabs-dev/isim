@@ -441,7 +441,9 @@ static char kButtonGroup, kOwnerItem;
     for (UIBarButtonItem *it in _barButtonItems) { __IsimWeakBox *b = [__IsimWeakBox new]; b.value = self; objc_setAssociatedObject(it, &kButtonGroup, b, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
     [self _isimChanged];
 }
-- (BOOL)isDisplayingRepresentativeItem { return NO; }          /* isim shows the group's items */
+/* YES while the bar shows the representative item instead of the items (no room for them) */
+- (BOOL)isDisplayingRepresentativeItem { return [objc_getAssociatedObject(self, "_isim_rep") boolValue]; }
+- (void)_isim_setDisplayingRepresentative:(BOOL)d { objc_setAssociatedObject(self, "_isim_rep", @(d), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 - (void)setHidden:(BOOL)h { _hidden = h; [self _isimChanged]; }
 - (void)_isimChanged {
     UINavigationItem *owner = ((__IsimWeakBox *)objc_getAssociatedObject(self, &kOwnerItem)).value;
@@ -453,6 +455,7 @@ static char kButtonGroup, kOwnerItem;
 static char kLeadingGroups, kCenterGroups, kTrailingGroups, kItemStyle, kOverflowSource;
 @interface UIBarButtonItemGroup (IsimCustomization)
 - (BOOL)_isim_leftOutOfCustomization;
+- (void)_isim_setDisplayingRepresentative:(BOOL)d;
 @end
 static NSArray<UIBarButtonItem *> *group_items(NSArray<UIBarButtonItemGroup *> *groups) {
     NSMutableArray *out = [NSMutableArray array];
@@ -791,20 +794,49 @@ int search_spot(UINavigationItem *it, UINavigationController *nav, UIView *v) {
 /* the large title band below the bar row: 52 pt, 20 more for a subtitle under the large title (iOS 26) */
 - (CGFloat)_isim_largeHeight { return 52 + ([self.topItem _isim_hasLargeSubtitle] ? 20 : 0); }
 - (CGSize)sizeThatFits:(CGSize)s { return CGSizeMake(s.width, 44); }
-/* trailing items; iOS 27: the ones that do not fit move to an overflow menu (ellipsis), lowest visibilityPriority first
-   (then the leading-most), and the overflow button goes at the trailing edge */
+/* trailing items. When they do not fit, groups with a representative item collapse into it first (leading-most group
+   first; a representative without an action or menu of its own opens a menu of the group's items); iOS 27: the items
+   that still do not fit move to an overflow menu (ellipsis), lowest visibilityPriority first (then the leading-most),
+   and the overflow button goes at the trailing edge */
 - (NSArray<UIView *> *)_isim_placeRightItems:(NSArray<UIBarButtonItem *> *)items x:(CGFloat)x y:(CGFloat)y limit:(CGFloat)limit {
     NSMutableArray<UIBarButtonItem *> *kept = [items mutableCopy], *overflowed = [NSMutableArray array];
+    NSMutableArray<UIBarButtonItemGroup *> *collapsed = [NSMutableArray array];
+    NSMutableSet *wasShowing = [NSMutableSet set];
+    for (UIBarButtonItem *it in items) {
+        UIBarButtonItemGroup *g = it.buttonGroup;
+        if (g.isDisplayingRepresentativeItem) [wasShowing addObject:g];
+        [g _isim_setDisplayingRepresentative:NO];
+    }
     for (;;) {
-        NSArray *list = kept;
-        if (overflowed.count) list = [@[[self _isim_overflowItemFor:overflowed]] arrayByAddingObjectsFromArray:kept];   /* trailingmost */
+        NSMutableArray *list = [NSMutableArray array];
+        NSMutableSet *placedGroups = [NSMutableSet set];
+        for (UIBarButtonItem *it in kept) {                      /* a collapsed group: its representative, where its items were */
+            UIBarButtonItemGroup *g = it.buttonGroup;
+            if (![collapsed containsObject:g]) { [list addObject:it]; continue; }
+            if ([placedGroups containsObject:g]) continue;
+            [placedGroups addObject:g];
+            [list addObject:[self _isim_representativeFor:g]];
+        }
+        if (overflowed.count) [list insertObject:[self _isim_overflowItemFor:overflowed] atIndex:0];     /* trailingmost */
         NSUInteger before = self.subviews.count;
         NSArray *views = place_items(self, list, x, y, 44, YES, limit);
         NSUInteger shown = 0; for (UIBarButtonItem *it in list) if (!it.hidden && ![it _isim_isFlexible] && ![it _isim_isFixed]) shown++;
         NSUInteger placed = 0; for (UIView *v in views) if (![v isKindOfClass:[__IsimBarGlass class]]) placed++;
-        if (placed >= shown || isim_ui_os_major() < 27) return views;
+        if (placed >= shown) return views;
+        /* a group with a representative item that is not collapsed yet: the leading-most (kept runs trailing to leading) */
+        UIBarButtonItemGroup *next = nil;
+        for (UIBarButtonItem *it in kept.reverseObjectEnumerator) {
+            UIBarButtonItemGroup *g = it.buttonGroup;
+            if (g.representativeItem && !g.hidden && ![collapsed containsObject:g]) { next = g; break; }
+        }
+        if (!next && isim_ui_os_major() < 27) return views;
         for (UIView *v in views) [v removeFromSuperview];
         while (self.subviews.count > before) [self.subviews.lastObject removeFromSuperview];
+        if (next) {
+            [collapsed addObject:next]; [next _isim_setDisplayingRepresentative:YES];
+            if (![wasShowing containsObject:next]) NSLog(@"isim: bar button group collapsed into its representative item (%lu items)", (unsigned long)next.barButtonItems.count);
+            continue;
+        }
         NSInteger low = -1;
         for (NSUInteger i = 0; i < kept.count; i++) {
             UIBarButtonItem *it = kept[i];
@@ -816,7 +848,19 @@ int search_spot(UINavigationItem *it, UINavigationController *nav, UIView *v) {
         [kept removeObjectAtIndex:(NSUInteger)low];
     }
 }
-- (UIBarButtonItem *)_isim_overflowItemFor:(NSArray<UIBarButtonItem *> *)items {
+/* the item a collapsed group shows: its representative item, given a menu of the group's items when it has no
+   action or menu of its own */
+- (UIBarButtonItem *)_isim_representativeFor:(UIBarButtonItemGroup *)g {
+    UIBarButtonItem *rep = g.representativeItem;
+    if (rep.menu || rep.primaryAction || rep.action) return rep;
+    UIMenu *m = [UIMenu menuWithChildren:[self _isim_menuElementsFor:g.barButtonItems]];
+    UIBarButtonItem *o = rep.image ? [[UIBarButtonItem alloc] initWithImage:rep.image menu:m] : [[UIBarButtonItem alloc] initWithTitle:rep.title ?: @"" menu:m];
+    o.accessibilityIdentifier = rep.accessibilityIdentifier ?: @"nav-group-representative"; o.accessibilityLabel = rep.accessibilityLabel ?: rep.title;
+    o.enabled = rep.enabled; o.tintColor = rep.tintColor;
+    return o;
+}
+/* the menu elements of bar items (an overflow menu, a collapsed group's representative) */
+- (NSArray<UIMenuElement *> *)_isim_menuElementsFor:(NSArray<UIBarButtonItem *> *)items {
     NSMutableArray *els = [NSMutableArray array];
     __weak UINavigationBar *ws = self;
     for (UIBarButtonItem *it in items) {
@@ -829,6 +873,10 @@ int search_spot(UINavigationItem *it, UINavigationController *nav, UIView *v) {
         if (!it.enabled) a.attributes = UIMenuElementAttributesDisabled;
         [els addObject:a];
     }
+    return els;
+}
+- (UIBarButtonItem *)_isim_overflowItemFor:(NSArray<UIBarButtonItem *> *)items {
+    NSArray *els = [self _isim_menuElementsFor:items];
     UIBarButtonItem *o = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:isim_ui_glass() ? @"ellipsis" : @"ellipsis.circle"] menu:[UIMenu menuWithChildren:els]];
     o.accessibilityIdentifier = @"nav-overflow"; o.accessibilityLabel = @"More";
     if (self.topItem) objc_setAssociatedObject(self.topItem, &kOverflowSource, o, OBJC_ASSOCIATION_RETAIN_NONATOMIC);   /* overflowPresentationSource */

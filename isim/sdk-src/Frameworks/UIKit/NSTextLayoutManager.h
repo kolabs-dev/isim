@@ -255,9 +255,15 @@ API_AVAILABLE(ios(15.0))
 - (void)textViewportLayoutControllerDidLayout:(NSTextViewportLayoutController *)textViewportLayoutController;
 - (void)textViewportLayoutControllerReceivedSetNeedsLayout:(NSTextViewportLayoutController *)textViewportLayoutController;
 - (void)textViewportLayoutController:(NSTextViewportLayoutController *)textViewportLayoutController cacheRenderingSurface:(id<NSTextViewportRenderingSurface>)renderingSurface
-                              forKey:(id<NSTextViewportRenderingSurfaceKey>)renderingSurfaceKey API_AVAILABLE(ios(27.0));
+                              forKey:(id<NSTextViewportRenderingSurfaceKey>)renderingSurfaceKey
+    NS_SWIFT_NAME(textViewportLayoutController(_:cacheRenderingSurface:for:)) API_AVAILABLE(ios(27.0));
 - (nullable id<NSTextViewportRenderingSurface>)textViewportLayoutController:(NSTextViewportLayoutController *)textViewportLayoutController
-                                     retrieveCachedRenderingSurfaceForKey:(id<NSTextViewportRenderingSurfaceKey>)renderingSurfaceKey API_AVAILABLE(ios(27.0));
+                                     retrieveCachedRenderingSurfaceForKey:(id<NSTextViewportRenderingSurfaceKey>)renderingSurfaceKey
+    NS_SWIFT_NAME(textViewportLayoutController(_:retrieveCachedRenderingSurfaceFor:)) API_AVAILABLE(ios(27.0));
+/* a new rendering surface for a fragment entering the viewport (when none is cached for it); called right before
+   configureRenderingSurfaceForTextLayoutFragment: */
+- (nullable id<NSTextViewportRenderingSurface>)textViewportLayoutController:(NSTextViewportLayoutController *)textViewportLayoutController
+                                    renderingSurfaceForTextLayoutFragment:(NSTextLayoutFragment *)textLayoutFragment API_AVAILABLE(ios(27.0));
 @end
 
 API_AVAILABLE(ios(15.0))
@@ -272,6 +278,8 @@ API_AVAILABLE(ios(15.0))
 - (void)layoutViewport;
 - (CGFloat)relocateViewportToTextLocation:(id<NSTextLocation>)textLocation;
 - (void)adjustViewportByVerticalOffset:(CGFloat)verticalOffset;
+/* iOS 27: the rendering surface of a fragment in the viewport (its key) */
+- (nullable id<NSTextViewportRenderingSurface>)renderingSurfaceForKey:(id<NSTextViewportRenderingSurfaceKey>)renderingSurfaceKey API_AVAILABLE(ios(27.0));
 @end
 
 /* ---------------- selections ---------------- */

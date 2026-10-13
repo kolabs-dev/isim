@@ -1,6 +1,7 @@
 // isim Core NFC (self-authored, iOS API names). Like the iOS Simulator, there is no NFC reader: `readingAvailable` is
 // false and a session that begins anyway is invalidated with NFCReaderError.readerErrorUnsupportedFeature.
 import Foundation
+import UIKit
 
 public let NFCErrorDomain = "NFCError"
 public struct NFCReaderError: CustomNSError, LocalizedError, Sendable {
@@ -96,4 +97,24 @@ open class NFCTagReaderSession: NFCReaderSession, @unchecked Sendable {
     }
     open override class var readingAvailable: Bool { false }
     override func invalidated(_ e: NFCReaderError) { delegate?.tagReaderSession(self, didInvalidateWithError: e) }
+}
+
+// MARK: - scene events (iOS 17.4, the EEA's host card emulation)
+/// what made the system create the app's scene for NFC. isim has no NFC: the event reaches an app only through the
+/// launch marker isim-nfc:readerDetected|presentation (ISIM_LAUNCH_URL), in its launch scene's connection options
+public enum NFCWindowSceneEvent: Sendable, Hashable {
+    /// the device detected an NFC reader's RF field
+    case readerDetected
+    /// the person did the gesture that presents an NFC display
+    case presentation
+}
+extension UIScene.ConnectionOptions {
+    @available(iOS 17.4, *)
+    @MainActor public var nfcEvent: NFCWindowSceneEvent? {
+        switch value(forKey: "_isim_launchMarker") as? String {
+        case "isim-nfc:readerDetected": return .readerDetected
+        case "isim-nfc:presentation": return .presentation
+        default: return nil
+        }
+    }
 }

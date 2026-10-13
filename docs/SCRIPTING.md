@@ -156,6 +156,7 @@ activity with a push token. `start` needs the push-to-start token the app read f
 | `pinch X Y SCALE S` | two-finger pinch around (X, Y) to SCALE over S seconds |
 | `rotate2 X Y DEGREES S` | two-finger rotation around (X, Y) |
 | `twofinger X Y DX DY S` | two fingers moving together by (DX, DY) |
+| `scroll X Y DX DY [S] [wheel]` | the pointer at (X, Y) scrolls (`UIEvent.EventType.scroll`): a trackpad swipe moving the content by (DX, DY) points over S seconds (default 0.3; its momentum carries on), or with `wheel` one mouse wheel step. The innermost `UIPanGestureRecognizer` whose `allowedScrollTypesMask` takes it pans (a scroll view's takes both); logs `isim: trackpad scroll to CLASS` / `isim: wheel scroll to CLASS`. The window's mouse wheel and trackpad do the same |
 | `hover X Y` / `hover` | move the pointer without pressing (iPad pointer, `UIHoverGestureRecognizer`); no arguments ends hovering |
 | `pencil X1 Y1 X2 Y2 SECS [FORCE] [ALTITUDE]` | an Apple Pencil stroke: `UITouch.type` `.pencil`, `force` (0…4.17, default 1), `altitudeAngle` (radians, default 1.1), azimuth along the stroke |
 | `pencil tap` · `pencil squeeze` | the Pencil's double-tap / squeeze (`UIPencilInteraction`; the preferred actions come from Settings › Apple Pencil) |
