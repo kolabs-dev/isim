@@ -3,8 +3,13 @@
  * isim runs a content extension (NSExtensionPointIdentifier com.apple.usernotifications.content-extension) as a helper
  * process when a notification of one of its UNNotificationExtensionCategory categories is expanded (long press in
  * Notification Center, on the lock screen or on a banner): the principal view controller gets didReceiveNotification:,
- * and its view is rendered into the expanded notification (an image: the custom UI is not interactive). The category's
- * actions are listed under it; responses go to the app (UNNotificationContentExtensionResponseOptionDismissAndForwardAction). */
+ * and its view is drawn in the expanded notification, rendered again whenever it changes. The helper lives as long as
+ * the expanded notification: with UNNotificationExtensionUserInteractionEnabled, touches on the view reach the
+ * extension's views; the media play / pause button (mediaPlayPauseButtonType, its frame and tint) is drawn over the
+ * view and calls mediaPlay / mediaPause. The category's actions (or the ones set in notificationActions) are listed
+ * under it; choosing one calls didReceiveNotificationResponse:completionHandler: when the extension implements it, and
+ * its option keeps the notification, dismisses it, or dismisses it and forwards the action to the app (without the
+ * method: forwarded). performNotificationDefaultAction opens the app; dismissNotificationContentExtension closes it. */
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <UserNotifications/UserNotifications.h>
@@ -33,7 +38,7 @@ typedef NS_ENUM(NSUInteger, UNNotificationContentExtensionResponseOption) {
 @end
 
 @interface NSExtensionContext (UNNotificationContentExtension)
-/* isim: the actions shown under the expanded notification are the category's; changes made here are logged */
+/* the actions shown under the expanded notification (initially the category's) */
 @property (nonatomic, copy) NSArray<UNNotificationAction *> *notificationActions API_AVAILABLE(ios(12.0));
 - (void)mediaPlayingStarted;
 - (void)mediaPlayingPaused;

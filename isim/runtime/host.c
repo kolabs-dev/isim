@@ -14,6 +14,7 @@
  *                  "spotlight", "siri [PHRASE]", "island", "bgtask BUNDLE-ID TASK-ID", "openurl URL", "homepage N|library", "iconstyle STYLE [#RRGGBB] [small|large]", "swipehome left|right",
  *                  "push BUNDLE-ID FILE", "handoff TYPE [URL] [TITLE]", "terminate BUNDLE-ID", "appclip URL|register|unregister|expire|list ...",
  *                  "focus [dnd|personal|work|sleep|off]", "actionbutton [assign CONTROL]", "lockcontrol left|right CONTROL",
+ *                  "silent [on|off]" (Silent Mode: the Ring/Silent switch),
  *                  "standby on|off", "lockscreen customize|done"
  *
  * Shell mode (`isim boot`): isim_shell_main() owns the window; every app (home screen, Settings,
@@ -1458,7 +1459,7 @@ static int script_step(struct isim_event *ev) {
     } else if (!strcmp(cmd, "lock") || !strcmp(cmd, "unlock") || !strcmp(cmd, "switcher") || !strcmp(cmd, "notifications") || !strcmp(cmd, "controlcenter")
                || !strcmp(cmd, "remote") || !strcmp(cmd, "volume") || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || (!strcmp(cmd, "handoff") && shell_mode) || (!strcmp(cmd, "appclip") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage") || !strcmp(cmd, "iconstyle")
                || (!strcmp(cmd, "focus") && shell_mode && args[strspn(args, " ")] && args[strspn(args, " ")] != ';')   /* `focus MODE`; bare `focus`: the window */
-               || !strcmp(cmd, "actionbutton") || !strcmp(cmd, "lockcontrol")
+               || !strcmp(cmd, "actionbutton") || !strcmp(cmd, "lockcontrol") || (!strcmp(cmd, "silent") && shell_mode)
                || (!strcmp(cmd, "push") && shell_mode) || (!strcmp(cmd, "terminate") && shell_mode) || (!strcmp(cmd, "siri") && shell_mode)) {
         /* system UI and integration (shell_system.inc): lock/unlock, app switcher, Notification Center, Control Center,
            "bgtask BUNDLE-ID TASK-ID" (like Xcode's _simulateLaunchForTaskWithIdentifier), "island" (expand),

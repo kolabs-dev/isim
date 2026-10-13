@@ -6,7 +6,11 @@
  * in the foreground, the delegate's willPresent decides the presentation; a banner slides in at the top (tap:
  * didReceive with the default action, swipe up: dismiss). In the background under `isim boot` the shell shows the
  * banner over the home screen or the app in front; tapping it brings this app to the front and calls didReceive.
- * Apps that are not running do not get their local notifications (no system scheduler).
+ * Apps that are not running get theirs from the system: the home screen reads the pending requests (each with its next
+ * fire time) from the app's preferences and the shell shows the due ones (system/SpringBoard/SBNotifications.m).
+ * Sounds: in the foreground the app plays its own (or, under the shell, asks the shell, which knows Silent Mode);
+ * each record has a sidecar (<record>.txt) with what the shell needs to present it: thread, sound, interruption level
+ * (as the app's entitlements and grants allow it) and the category's summary format.
  *
  * Remote notifications (push): the home screen ("SpringBoard", standing in for apsd) takes payloads from `isim push`,
  * the `push` script command or a dropped .apns file, runs the app's Notification Service extension, and hands the result
@@ -693,6 +697,15 @@ static NSString *focus_flags(UNNotificationContent *c) {
     return f;
 }
 
+/* the banner's window covers the screen but only the card takes touches: the app under it keeps working, like iOS */
+@interface ISIMBannerWindow : UIWindow
+@end
+@implementation ISIMBannerWindow
+- (UIView *)hitTest:(CGPoint)p withEvent:(UIEvent *)e {
+    UIView *v = [super hitTest:p withEvent:e];
+    return v == self || v == self.rootViewController.view ? nil : v;
+}
+@end
 @interface ISIMNotificationBanner : NSObject
 + (void)show:(UNNotification *)n onTap:(void (^)(void))tap;
 @end
@@ -714,7 +727,7 @@ static UIWindow *bannerWindow; static UIView *bannerCard; static void (^bannerTa
 + (void)show:(UNNotification *)n onTap:(void (^)(void))tap {
     [self hide:NO];
     CGRect screen = UIScreen.mainScreen.bounds;
-    UIWindow *w = [[UIWindow alloc] initWithFrame:screen];
+    UIWindow *w = [[ISIMBannerWindow alloc] initWithFrame:screen];
     w.windowLevel = 2100;                                          /* above alerts, like iOS banners */
     w.backgroundColor = UIColor.clearColor;
     UIViewController *root = [[UIViewController alloc] init];
@@ -1333,9 +1346,6 @@ static NSData *png_of_view(UIView *v, CGFloat width, CGFloat h) {
     NSExtensionContext *ctx = [[NSExtensionContext alloc] initISIMWithInputItems:@[] handler:nil];
     SEL setCtx = NSSelectorFromString(@"_isim_setExtensionContext:");
     if ([vc respondsToSelector:setCtx]) ((void (*)(id, SEL, id))objc_msgSend)(vc, setCtx, ctx);
-    if ([vc respondsToSelector:@selector(didReceiveNotification:)]) [(id<ISIMContentExtension>)vc didReceiveNotification:n];
-    else NSLog(@"isim: Notification Content extension: %@ does not implement didReceiveNotification:", NSStringFromClass(vc.class));
-    NSLog(@"isim: Notification Content extension %@ didReceive “%@”", NSStringFromClass(vc.class), n.request.identifier);
     _session = _req[@"session"];
     _width = width; _height = height;
     _hidden = [attrs[@"UNNotificationExtensionDefaultContentHidden"] boolValue];
@@ -1346,6 +1356,9 @@ static NSData *png_of_view(UIView *v, CGFloat width, CGFloat h) {
         /* a session ends with the expanded notification; this is a backstop */
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(600 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ NSLog(@"isim: Notification Content extension session timed out"); exit(0); });
     }
+    if ([vc respondsToSelector:@selector(didReceiveNotification:)]) [(id<ISIMContentExtension>)vc didReceiveNotification:n];
+    else NSLog(@"isim: Notification Content extension: %@ does not implement didReceiveNotification:", NSStringFromClass(vc.class));
+    NSLog(@"isim: Notification Content extension %@ didReceive “%@”", NSStringFromClass(vc.class), n.request.identifier);
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         NSData *png = [self renderFrame];
         if (!self->_session.length) {                           /* one frame */
@@ -1393,7 +1406,7 @@ static NSData *png_of_view(UIView *v, CGFloat width, CGFloat h) {
     if ([vc respondsToSelector:@selector(mediaPlayPauseButtonType)]) {
         NSUInteger type = ((NSUInteger (*)(id, SEL))objc_msgSend)(vc, @selector(mediaPlayPauseButtonType));
         if (type) {
-            CGRect f = [vc respondsToSelector:@selector(mediaPlayPauseButtonFrame)] ? ((CGRect (*)(id, SEL))objc_msgSend)(vc, @selector(mediaPlayPauseButtonFrame)) : CGRectZero;
+            CGRect f = [vc respondsToSelector:@selector(mediaPlayPauseButtonFrame)] ? ((CGRect (*)(id, SEL))[vc methodForSelector:@selector(mediaPlayPauseButtonFrame)])(vc, @selector(mediaPlayPauseButtonFrame))   /* the IMP: a struct return */ : CGRectZero;
             if (CGRectIsEmpty(f)) f = CGRectMake((_width - 50) / 2, (_frameHeight - 50) / 2, 50, 50);
             [st appendFormat:@"media=%lu %g %g %g %g %d\n", (unsigned long)type, f.origin.x, f.origin.y, f.size.width, f.size.height, _playing];
         }

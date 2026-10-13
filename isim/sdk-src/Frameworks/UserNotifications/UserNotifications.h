@@ -1,11 +1,16 @@
 #pragma once
 /* isim SDK (self-authored): UserNotifications — local and remote (push) notifications.
  * isim: authorization asks with the iOS permission alert (remembered per app); time-interval and calendar
- * triggers fire while the app runs (a suspended app is woken for them); in the foreground the delegate's
- * willPresent decides whether a banner shows (tapping it calls didReceive). Pending requests persist with the
- * app's data. Push payloads come from `isim push`, the script command `push` or a dropped .apns file (no APNs);
- * Notification Service extensions run before display and Notification Content extensions render the expanded
- * notification (long press), with the category's actions (text input included). */
+ * triggers fire while the app runs (a suspended app is woken for them); for an app that is not running under
+ * `isim boot` the system (the home screen's scheduler) delivers them. In the foreground the delegate's willPresent
+ * decides whether a banner shows (tapping it calls didReceive). Pending requests persist with the app's data.
+ * Presentation: Notification Center stacks an app's notifications by thread (threadIdentifier, the category's
+ * summary format); sounds play (default, file names from the app bundle or Library/Sounds, critical and ringtone
+ * sounds; Silent Mode mutes all but critical alerts); interruption levels (passive: listed quietly; time sensitive and
+ * critical, with their entitlements: through Focus). Push payloads come from `isim push`, the script command `push` or
+ * a dropped .apns file (no APNs); Notification Service extensions run before display and Notification Content
+ * extensions draw the expanded notification (long press; interactive with UNNotificationExtensionUserInteractionEnabled,
+ * with the media button), with the category's actions (text input included). */
 #import <Foundation/Foundation.h>
 #ifndef NS_SWIFT_UNAVAILABLE
 #define NS_SWIFT_UNAVAILABLE(_msg) __attribute__((availability(swift, unavailable, message=_msg)))

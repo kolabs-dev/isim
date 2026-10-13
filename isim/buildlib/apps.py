@@ -239,6 +239,16 @@ def _(a):
     a.icon(f"{b}/AppIcon60x60@3x.png", "#ff3b30", "#c41d14", "P")
 
 
+@app("samples/HelloAlerts")
+def _(a):
+    b = a.swift_app(srcs=["HelloAlerts.swift"])
+    a.copy("HelloAlerts.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # critical alerts, time sensitive
+    a.copy("ping.wav", f"{b}/ping.wav")
+    a.appex(b, "AlertsPoll", ["Poll/PollViewController.swift"], "Poll/Info.plist",
+            link=["-framework", "UserNotifications", "-framework", "UserNotificationsUI"])
+    a.icon(f"{b}/AppIcon60x60@3x.png", "#5856d6", "#3634a3", "A")
+
+
 @app("samples/HelloCalls")
 def _(a):
     b = a.swift_app(srcs=["HelloCalls.swift"])

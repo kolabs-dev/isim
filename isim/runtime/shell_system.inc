@@ -313,7 +313,7 @@ static void sys_play_sound(const char *spec, const char *app) {
     const char *name = strrchr(what, '/'); name = name ? name + 1 : what;
     const char *a = strrchr(app, '/'); a = a ? a + 1 : app;
     if (ctl_silent && !critical) { fprintf(stderr, "isim shell: notification sound %s from %s not played (Silent Mode)\n", name, a); return; }
-    if (!isim_audio_available()) { fprintf(stderr, "isim shell: notification sound %s from %s (no audio device)\n", name, a); return; }
+    if (!isim_audio_available()) { fprintf(stderr, "isim shell: notification sound %s from %s (no audio device)%s\n", name, a, critical ? " (critical alert)" : ""); return; }
     double vol = critical ? 1.0 : cc_volume;
     if (what[0] == '/') {
         float *pcm = NULL; long frames = 0; int ch = 0; double rate = 0;
@@ -394,7 +394,8 @@ static double nc_draw_card(cairo_t *c, struct nc_item *n, int i, double x, doubl
     if (n->thumb[0]) nb_thumb(c, n->thumb, r.x + r.w - 14 - 38, r.y + 76 - 14 - 38, 38);
     if (summary) sys_text(c, summary, r.x + 60, r.y + 68, r.w - 74, 13, PANGO_WEIGHT_NORMAL, 0, 1, 0.42, 0.42, 0.45, 1);
     char id[300]; snprintf(id, sizeof id, summary ? "nc-group-%s" : "nc-item-%s", n->id);
-    el_add(id, n->title, r, summary ? EL_NC_GROUP : EL_NC_ITEM, i);
+    char text[400]; snprintf(text, sizeof text, summary ? "%s (%s)" : "%s", n->title, summary);   /* a stack: and its summary */
+    el_add(id, text, r, summary ? EL_NC_GROUP : EL_NC_ITEM, i);
     return r.h;
 }
 static void nc_draw_list(cairo_t *c, double top, int lock_style) {
@@ -441,11 +442,15 @@ static void nc_draw_list(cairo_t *c, double top, int lock_style) {
             if (m->sumarg[0] && !strstr(args, m->sumarg)) { if (args[0]) strncat(args, ", ", sizeof args - strlen(args) - 1); strncat(args, m->sumarg, sizeof args - strlen(args) - 1); }
         }
         char summary[200]; nc_summary(ncl[i].summary, hidden, args, summary, sizeof summary);
+        cairo_save(c);                                  /* the plates peek out under the card (not through it) */
+        cairo_new_path(c); cairo_rectangle(c, 0, 0, dev.width, dev.height); sys_round(c, x, y, w, 94, 22);
+        cairo_set_fill_rule(c, CAIRO_FILL_RULE_EVEN_ODD); cairo_clip(c);
         for (int k = nm >= 3 ? 2 : 1; k >= 1; k--) {
             double inset = 10 * k;
-            sys_round(c, x + inset, y + 94 - 70 + 7 * k, w - 2 * inset, 70, 20);
+            cairo_new_path(c); sys_round(c, x + inset, y + 94 - 70 + 7 * k, w - 2 * inset, 70, 20);
             cairo_set_source_rgba(c, 0.92, 0.92, 0.95, 0.75 - 0.2 * k); cairo_fill(c);
         }
+        cairo_restore(c);
         y += nc_draw_card(c, &ncl[i], i, x, y, w, summary) + 8 + (nm >= 3 ? 14 : 7);
     }
 }
@@ -2370,7 +2375,7 @@ static int sys_command(const char *text) {
     if (!strcmp(verb, "homepage")) { if (!locked && active == 0) sys_send_text(0, "homepage %s", args); return 1; }
     if (!strcmp(verb, "iconstyle")) { sys_send_text(0, "iconstyle %s", args); return 1; }   /* Home Screen > Edit > Customize */
     if (!strcmp(verb, "spotlight")) { if (!locked && active == 0) sys_send_text(0, "spotlight"); return 1; }
-    if (ctl_command(verb, args)) return 1;                       /* focus, actionbutton, lockcontrol */
+    if (ctl_command(verb, args)) return 1;                       /* focus, silent, actionbutton, lockcontrol */
     if (!strcmp(verb, "siri")) { sys_send_text(0, "siri %d %s", locked, args); return 1; }   /* the simulated Siri (SBSiri.m) */
     fprintf(stderr, "isim shell: '%s' is not available\n", verb);
     return 1;
