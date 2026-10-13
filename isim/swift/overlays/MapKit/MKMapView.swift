@@ -408,7 +408,7 @@ open class MKMapView: UIView, CLLocationManagerDelegate {
     // (east turns up for heading 90°). Pitch tilts the plane back about the view's horizontal centre line, seen in
     // perspective by the camera (30° vertical field of view, eye distance d): a plane point (x, y) is drawn at
     // centre + (x, y·cos θ) / (1 − y·sin θ / d). _MKBaseView draws the plane; its layer carries the same tilt.
-    static func _rotate(_ x: Double, _ y: Double, _ a: Double) -> (Double, Double) {
+    nonisolated static func _rotate(_ x: Double, _ y: Double, _ a: Double) -> (Double, Double) {
         let c = cos(a), s = sin(a)
         return (x * c - y * s, x * s + y * c)
     }

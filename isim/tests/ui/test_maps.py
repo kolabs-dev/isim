@@ -199,3 +199,92 @@ def test_map_overlay_renderers(launch, tmp_path):
         count_px(shot, (122, 370, 32, 42), LAND) > 800, "interiorPolygons: the hole is not filled"
     assert count_px(shot, (98, 498, 30, 8), SYS_GREEN) > 60 and count_px(shot, (275, 498, 28, 8), SYS_BLUE) > 60, \
         "gradient polyline: green at the start, blue at the end"
+
+
+OSRM_ROUTE = {
+    "code": "Ok",
+    "routes": [{
+        "distance": 2310.4, "duration": 1662.0,
+        "geometry": {"type": "LineString", "coordinates": [[-122.03118, 37.33182], [-122.0150, 37.3305], [-122.00902, 37.3349]]},
+        "legs": [{"summary": "Stevens Creek Boulevard", "steps": [
+            {"distance": 0, "name": "Infinite Loop", "maneuver": {"type": "depart"},
+             "geometry": {"type": "LineString", "coordinates": [[-122.03118, 37.33182]]}},
+            {"distance": 1500, "name": "Stevens Creek Boulevard", "maneuver": {"type": "turn", "modifier": "left"},
+             "geometry": {"type": "LineString", "coordinates": [[-122.03118, 37.33182], [-122.0150, 37.3305]]}},
+            {"distance": 810.4, "name": "Tantau Avenue", "maneuver": {"type": "turn", "modifier": "right"},
+             "geometry": {"type": "LineString", "coordinates": [[-122.0150, 37.3305], [-122.00902, 37.3349]]}},
+            {"distance": 0, "name": "", "maneuver": {"type": "arrive"},
+             "geometry": {"type": "LineString", "coordinates": [[-122.00902, 37.3349]]}},
+        ]}],
+    }],
+}
+
+
+def test_map_services(launch, tmp_path):
+    """MKLocalSearchCompleter (results, highlight ranges, a search from a completion), MKDirections and ETA from a
+    routing server you run (ISIM_ROUTING_URL: an OSRM route service; a stand-in server here), a camera snapshot turned to
+    its heading, and Look Around from a panorama you supply (MKLookAroundSceneRequest, MKLookAroundViewController
+    turned by dragging, MKLookAroundSnapshotter)."""
+    import http.server
+    import json
+    import threading
+
+    requests = []
+
+    class OSRM(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            requests.append(self.path)
+            body = json.dumps(OSRM_ROUTE).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), OSRM)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        app = maps(launch, tmp_path, "services", env={"ISIM_ROUTING_URL": f"http://127.0.0.1:{server.server_port}"})
+        app.wait_log(r"HelloMaps: added 3 annotation views")
+        app.tap_id("search")
+        app.wait_log(r"HelloMaps: completer: \d+ for Golden: Golden Gate Bridge\[0,6\]")
+        app.wait_log(r"HelloMaps: completion search found Golden Gate Bridge")
+        app.tap_id("route")
+        app.wait_log(r"HelloMaps: directions: route Stevens Creek Boulevard 2310 m 1662 s walking=yes 3 points; steps: "
+                     r"Turn left onto Stevens Creek Boulevard \| Turn right onto Tantau Avenue \| Arrive at the destination")
+        app.wait_log(r"HelloMaps: eta 1662 s 2310 m")
+        app.tap_id("snapshot")
+        app.wait_log(r"HelloMaps: camera snapshot center at 100,100 east at 100,(\d+)")
+        assert app.quit() == 0, "exits cleanly"
+    finally:
+        server.shutdown()
+    assert any(r.startswith("/route/v1/walking/-122.031180,37.331820;-122.009020,37.334900?") and "steps=true" in r
+               for r in requests), f"an OSRM route request for the walking profile: {requests}"
+    m = re.search(r"camera snapshot center at 100,100 east at 100,(\d+)", app.log)
+    assert int(m.group(1)) < 60, "heading 90: east is up in the snapshot"
+
+    # Look Around: an equirectangular panorama, its centre facing north (green), east a quarter further (blue)
+    data = tmp_path / "lookaround"
+    pano = data / "Library/Maps/LookAround"
+    pano.mkdir(parents=True)
+    img = Image.new("RGB", (720, 360))
+    for x0, x1, colour in ((0, 90, (200, 30, 30)), (90, 270, (230, 200, 20)), (270, 450, (30, 160, 60)), (450, 630, (30, 80, 220)),
+                           (630, 720, (200, 30, 30))):   # south, west, north, east, south
+        img.paste(colour, (x0, 0, x1, 360))
+    img.save(pano / "37.3349,-122.00902.png")
+    app = launch("HelloMaps", data=data, args=["-lookaround"], env=ENV)
+    app.wait_log(r"HelloMaps: look around scene: found error=none")
+    app.wait_log(r"HelloMaps: look around snapshot 120x80")
+    def near(c, want):
+        return all(abs(a - b) < 12 for a, b in zip(c[:3], want))
+    north = app.wait_shot(lambda s: near(s.getpixel((s.width // 2, s.height // 2)), (30, 160, 60)), "facing north (green)")
+    app.wait_view(r"id=lookaround text=Look Around heading 0")
+    app.drag(390, 400, 20, 400, 0.4)
+    view = app.wait_view(r"id=lookaround text=Look Around heading (\d+)")
+    heading = int(re.search(r"Look Around heading (\d+)", view).group(1))
+    east = app.wait_shot(lambda s: near(s.getpixel((s.width // 2, s.height // 2)), (30, 80, 220)), "turned to face east (blue)")
+    assert app.quit() == 0
+    assert 60 <= heading <= 100 and north and east, "dragging left turns the view right (toward the east)"

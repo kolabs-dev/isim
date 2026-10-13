@@ -38,7 +38,7 @@ final class Landmark: NSObject, MKAnnotation {
     init(_ c: CLLocationCoordinate2D, _ t: String, _ s: String) { coordinate = c; title = t; subtitle = s }
 }
 
-final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationManagerDelegate {
+final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationManagerDelegate, MKLocalSearchCompleterDelegate {
     let map = MKMapView()
     let status = UILabel()
     let location = CLLocationManager()
@@ -76,6 +76,7 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
         map.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: "marker")
         map.setRegion(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 37.3335, longitude: -122.0180), latitudinalMeters: 4000, longitudinalMeters: 4000), animated: false)
         if ProcessInfo.processInfo.arguments.contains("-overlays") { addOverlayDemo(); return }
+        if ProcessInfo.processInfo.arguments.contains("-lookaround") { lookAround(); return }
         let park = MKPointAnnotation(coordinate: applePark, title: "Apple Park", subtitle: "Cupertino")
         let loop = MKPointAnnotation(coordinate: infiniteLoop, title: "Infinite Loop", subtitle: "1 Infinite Loop")
         map.addAnnotations([park, loop, Landmark(visitorCenter, "Visitor Center", "Apple Park Visitor Center")])
@@ -112,6 +113,20 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
         if annotation.title == "Infinite Loop" { v.markerTintColor = .systemBlue; v.glyphText = "1" } else { v.markerTintColor = .systemRed; v.glyphText = nil }
         v.accessibilityIdentifier = "marker-" + (annotation.title.flatMap { $0 } ?? "")
         return v
+    }
+    /// -lookaround: Look Around at Apple Park (a scene only where a panorama was supplied)
+    func lookAround() {
+        MKLookAroundSceneRequest(coordinate: applePark).getSceneWithCompletionHandler { [weak self] scene, err in
+            log("look around scene: \(scene == nil ? "none" : "found") error=\(err == nil ? "none" : "\(err!)")")
+            guard let self, let scene else { return }
+            let vc = MKLookAroundViewController(scene: scene)
+            vc.modalPresentationStyle = .fullScreen
+            self.present(vc, animated: false)
+            let o = MKLookAroundSnapshotter.Options(); o.size = CGSize(width: 120, height: 80)
+            MKLookAroundSnapshotter(scene: scene, options: o).getSnapshotWithCompletionHandler { snap, _ in
+                log("look around snapshot \(Int(snap?.image.size.width ?? 0))x\(Int(snap?.image.size.height ?? 0))")
+            }
+        }
     }
     /// -overlays: a dashed line, a polygon with a hole, a renderer drawing itself (draw(_:zoomScale:in:)), a gradient line
     func addOverlayDemo() {
@@ -179,14 +194,39 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
             self.map.setRegion(resp.boundingRegion, animated: true)
             self.status.text = "found \(items[0].name ?? "")"
         }
+        completer.delegate = self
+        completer.queryFragment = "Golden"
         let none = MKLocalSearch.Request(); none.naturalLanguageQuery = "Nowhere-at-all-xyz"
         MKLocalSearch(request: none).start { _, err in log("search for nonsense: \((err as? MKError)?.code == .placemarkNotFound ? "placemarkNotFound" : "?")") }
     }
+    let completer = MKLocalSearchCompleter()
+    func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        let rs = completer.results
+        log("completer: \(rs.count) for \(completer.queryFragment): " + rs.map { c in
+            let h = c.titleHighlightRanges.first.map { "[\($0.rangeValue.location),\($0.rangeValue.length)]" } ?? ""
+            return c.title + h + (c.subtitle.isEmpty ? "" : " (\(c.subtitle))")
+        }.joined(separator: "; "))
+        guard let first = rs.first else { return }
+        MKLocalSearch(request: MKLocalSearch.Request(completion: first)).start { resp, _ in
+            log("completion search found \(resp?.mapItems.first?.name ?? "nothing")")
+        }
+    }
+    func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) { log("completer failed \(error)") }
     @objc func route() {
         let rq = MKDirections.Request()
         rq.source = MKMapItem(placemark: MKPlacemark(coordinate: infiniteLoop)); rq.destination = MKMapItem(placemark: MKPlacemark(coordinate: applePark))
-        MKDirections(request: rq).calculate { resp, err in
-            log("directions: \(resp == nil ? "none" : "route") error=\((err as? MKError)?.code == .directionsNotFound ? "directionsNotFound" : "\(String(describing: err))")")
+        rq.transportType = .walking
+        MKDirections(request: rq).calculate { [weak self] resp, err in
+            guard let resp, let r = resp.routes.first else {
+                log("directions: none error=\((err as? MKError)?.code == .directionsNotFound ? "directionsNotFound" : "\(String(describing: err))")")
+                return
+            }
+            log(String(format: "directions: route %@ %.0f m %.0f s walking=%@ %d points; steps: ", r.name, r.distance, r.expectedTravelTime,
+                       r.transportType == .walking ? "yes" : "no", r.polyline.pointCount) + r.steps.map { $0.instructions }.filter { !$0.isEmpty }.joined(separator: " | "))
+            self?.map.addOverlay(r.polyline)
+        }
+        MKDirections(request: rq).calculateETA { eta, _ in
+            if let eta { log(String(format: "eta %.0f s %.0f m", eta.expectedTravelTime, eta.distance)) }
         }
     }
     @objc func snapshot() {
@@ -195,6 +235,14 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
             guard let snap else { return }
             let p = snap.point(for: o.region.center)
             log("snapshot \(Int(snap.image.size.width))x\(Int(snap.image.size.height)) center at \(Int(p.x)),\(Int(p.y))")
+        }
+        // a camera turned to face east: a place east of the centre is above it in the snapshot
+        let c = MKMapSnapshotter.Options(); c.size = CGSize(width: 200, height: 200)
+        c.camera = MKMapCamera(lookingAtCenter: applePark, fromDistance: 3000, pitch: 0, heading: 90)
+        MKMapSnapshotter(options: c).start { snap, _ in
+            guard let snap else { return }
+            let p = snap.point(for: applePark), e = snap.point(for: CLLocationCoordinate2D(latitude: applePark.latitude, longitude: applePark.longitude + 0.005))
+            log("camera snapshot center at \(Int(p.x)),\(Int(p.y)) east at \(Int(e.x)),\(Int(e.y))")
         }
     }
     @objc func zoomIn() {
