@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import os
 
 /// <sys/stat.h> permission bits (typed `mode_t`, so `open(_:_:_ mode:)` resolves) and flock(2) from <sys/file.h>.
 func posixTests() {
@@ -68,4 +69,21 @@ func fcntlIoctlTests() {
     let cwdFile = openat(AT_FDCWD, dir + "/" + name, O_RDONLY)
     check(cwdFile >= 0, "openat(AT_FDCWD, absolute path)")
     close(cwdFile)
+}
+
+/// The C library headers from Swift (issue #220): uname into utsname, sysctlbyname, the user database, available memory
+func darwinHeaderTests() {
+    var u = utsname()
+    check(uname(&u) == 0, "uname(&utsname())")
+    let machine = withUnsafeBytes(of: &u.machine) { String(cString: $0.bindMemory(to: CChar.self).baseAddress!) }
+    let sysname = withUnsafeBytes(of: &u.sysname) { String(cString: $0.bindMemory(to: CChar.self).baseAddress!) }
+    check(machine == "x86_64" && sysname == "Darwin", "utsname: \(sysname) \(machine)")
+    var size = 0
+    check(sysctlbyname("hw.machine", nil, &size, nil, 0) == 0 && size > 1, "sysctlbyname size query: \(size)")
+    var buf = [CChar](repeating: 0, count: size)
+    check(sysctlbyname("hw.machine", &buf, &size, nil, 0) == 0 && String(cString: buf) == "x86_64", "sysctlbyname(\"hw.machine\")")
+    var ncpu: Int32 = 0, len = MemoryLayout<Int32>.size
+    check(sysctlbyname("hw.ncpu", &ncpu, &len, nil, 0) == 0 && ncpu > 0, "sysctlbyname(\"hw.ncpu\"): \(ncpu)")
+    check(getpwuid(getuid()).map { String(cString: $0.pointee.pw_name) } == "mobile", "getpwuid(getuid()).pw_name")
+    check(os_proc_available_memory() > 0, "os_proc_available_memory()")
 }

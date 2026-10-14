@@ -348,6 +348,52 @@ static void sp_emit(void *dso, struct os_log_s *l, uint8_t type, uint64_t spid, 
     isim_signpost_print(l->subsystem, l->category, type, spid, name ? name : "", msg);
 }
 
+/* ---------------- os_activity (os/activity.h) ---------------- */
+/* adapted: activities are Objective-C objects (OS_os_activity, immortal) with an identifier and their parent's; each
+   thread keeps its current activity, which scopes and os_activity_apply change. Nothing is logged for them. */
+struct os_activity_s { void *isa; uint64_t id, parent; char description[128]; };
+struct os_activity_s _os_activity_none = { NULL, 0, 0, "" }, _os_activity_current = { NULL, 0, 0, "" };
+static __thread struct os_activity_s *activity_now;
+static uint64_t activity_ids;
+__attribute__((constructor)) static void activity_class_init(void) {
+    _os_activity_none.isa = _os_activity_current.isa = objc_rt_immortal_class("OS_os_activity");
+}
+static struct os_activity_s *activity_resolve(struct os_activity_s *a) { return a == &_os_activity_current ? activity_now : a == &_os_activity_none ? NULL : a; }
+static struct os_activity_s *activity_create(void *dso, const char *desc, struct os_activity_s *parent, uint32_t flags) {
+    (void)dso;
+    struct os_activity_s *p = (flags & 1) ? NULL : activity_resolve(parent);         /* OS_ACTIVITY_FLAG_DETACHED */
+    if ((flags & 2) && activity_now) return activity_now;                             /* IF_NONE_PRESENT */
+    struct os_activity_s *a = calloc(1, sizeof *a);
+    a->isa = _os_activity_none.isa;
+    a->id = __atomic_add_fetch(&activity_ids, 1, __ATOMIC_RELAXED);
+    a->parent = p ? p->id : 0;
+    snprintf(a->description, sizeof a->description, "%s", desc ? desc : "");
+    return a;
+}
+struct activity_state { uint64_t previous, unused; };
+static void activity_scope_enter(struct os_activity_s *a, struct activity_state *st) {
+    st->previous = (uint64_t)(uintptr_t)activity_now;
+    activity_now = activity_resolve(a);
+}
+static void activity_scope_leave(struct activity_state *st) { activity_now = (struct os_activity_s *)(uintptr_t)st->previous; }
+struct os_block { void *isa; int flags, reserved; void (*invoke)(void *); };
+static void activity_apply(struct os_activity_s *a, struct os_block *b) {
+    struct activity_state st; activity_scope_enter(a, &st); b->invoke(b); activity_scope_leave(&st);
+}
+static void activity_apply_f(struct os_activity_s *a, void *ctx, void (*fn)(void *)) {
+    struct activity_state st; activity_scope_enter(a, &st); fn(ctx); activity_scope_leave(&st);
+}
+static void activity_initiate(void *dso, const char *desc, uint32_t flags, struct os_block *b) { activity_apply(activity_create(dso, desc, &_os_activity_current, flags), b); }
+static void activity_initiate_f(void *dso, const char *desc, uint32_t flags, void *ctx, void (*fn)(void *)) {
+    activity_apply_f(activity_create(dso, desc, &_os_activity_current, flags), ctx, fn);
+}
+static uint64_t activity_get_identifier(struct os_activity_s *a, uint64_t *parent) {
+    a = activity_resolve(a);
+    if (parent) *parent = a ? a->parent : 0;
+    return a ? a->id : 0;
+}
+static void activity_label_useraction(void *dso, const char *name) { (void)dso; (void)name; }
+
 static const struct shim os_table[] = {
     { "_os_signpost_id_generate", (void *)sp_generate, "isim" }, { "_os_signpost_id_make_with_pointer", (void *)sp_with_pointer, "isim" },
     { "_os_signpost_enabled", (void *)sp_enabled, "isim" }, { "__os_signpost_emit_with_name_impl", (void *)sp_emit, "isim" },
@@ -358,5 +404,11 @@ static const struct shim os_table[] = {
     { "__os_log_impl", (void *)os_log_impl, "isim" }, { "__os_log_debug_impl", (void *)os_log_impl, "isim" },
     { "__os_log_error_impl", (void *)os_log_impl, "isim" }, { "__os_log_fault_impl", (void *)os_log_impl, "isim" },
     { "__os_log_default", &_os_log_default, "isim" }, { "__os_log_disabled", &_os_log_disabled, "isim" },
+    { "__os_activity_create", (void *)activity_create, "adapted" }, { "_os_activity_scope_enter", (void *)activity_scope_enter, "adapted" },
+    { "_os_activity_scope_leave", (void *)activity_scope_leave, "adapted" }, { "_os_activity_apply", (void *)activity_apply, "adapted" },
+    { "_os_activity_apply_f", (void *)activity_apply_f, "adapted" }, { "__os_activity_initiate", (void *)activity_initiate, "adapted" },
+    { "__os_activity_initiate_f", (void *)activity_initiate_f, "adapted" }, { "_os_activity_get_identifier", (void *)activity_get_identifier, "adapted" },
+    { "__os_activity_label_useraction", (void *)activity_label_useraction, "stub" },
+    { "__os_activity_none", &_os_activity_none, "adapted" }, { "__os_activity_current", &_os_activity_current, "adapted" },
 };
 const struct host_lib host_libsystem_os = { "/usr/lib/system/libsystem_platform.dylib", os_table, sizeof os_table / sizeof *os_table, NULL };

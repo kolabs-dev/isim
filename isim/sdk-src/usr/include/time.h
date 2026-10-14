@@ -33,4 +33,9 @@ int nanosleep(const struct timespec *, struct timespec *);
 int clock_gettime(clockid_t, struct timespec *);
 int clock_getres(clockid_t, struct timespec *);
 uint64_t clock_gettime_nsec_np(clockid_t);
+char *strptime(const char *, const char *, struct tm *);
+char *asctime_r(const struct tm *, char *);
+char *ctime_r(const time_t *, char *);
+time_t timelocal(struct tm *);
+extern char *tzname[2];
 __END_DECLS

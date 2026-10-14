@@ -18,6 +18,11 @@ import Core
         #expect(table.name == "kilo")
     }
 
+    @Test func posixHeaders() {
+        #expect(Core.matches("^[a-z]+-[0-9]+$", "abc-42") && !Core.matches("^[a-z]+$", "abc-42"))
+        #expect(Core.platformOK)
+    }
+
     @Test func asyncWork() async {
         let v = await Task.detached { 21 * 2 }.value
         #expect(v == 42)

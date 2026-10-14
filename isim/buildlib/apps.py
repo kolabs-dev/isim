@@ -521,6 +521,11 @@ def _(a):
     a.copy("FoundationTest.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # its iCloud container
 
 
+@app("tests/libc", products=["LibcTest.app"], swift=False)
+def _(a):
+    a.objc_app(["main.c"], "Info.plist", ["-framework", "Foundation"], name="LibcTest")
+
+
 @app("tests/objc-runtime", products=["ObjCRuntimeTest.app", "ObjCUncaught.app", "SwiftUncaught.app"])
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "CoreGraphics"], name="ObjCRuntimeTest",

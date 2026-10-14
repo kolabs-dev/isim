@@ -385,12 +385,20 @@ static char ***d_NSGetArgv(void) { return &guest_argv; }
 extern char **environ;
 static char ***d_NSGetEnviron(void) { return &environ; }
 static long d_sysconf(int name) {
-    switch (name) {                     /* Darwin _SC_* numbering */
-    case 29: return sysconf(_SC_PAGESIZE);
-    case 57: return sysconf(_SC_NPROCESSORS_CONF);
-    case 58: return sysconf(_SC_NPROCESSORS_ONLN);
-    default: errno = EINVAL; return -1;
-    }
+    static const struct { int d, h; } names[] = {        /* Darwin _SC_* numbering -> the host's */
+        { 1, _SC_ARG_MAX }, { 2, _SC_CHILD_MAX }, { 3, _SC_CLK_TCK }, { 4, _SC_NGROUPS_MAX }, { 5, _SC_OPEN_MAX },
+        { 6, _SC_JOB_CONTROL }, { 7, _SC_SAVED_IDS }, { 8, _SC_VERSION }, { 9, _SC_BC_BASE_MAX }, { 10, _SC_BC_DIM_MAX },
+        { 11, _SC_BC_SCALE_MAX }, { 12, _SC_BC_STRING_MAX }, { 13, _SC_COLL_WEIGHTS_MAX }, { 14, _SC_EXPR_NEST_MAX },
+        { 15, _SC_LINE_MAX }, { 16, _SC_RE_DUP_MAX }, { 17, _SC_2_VERSION }, { 26, _SC_STREAM_MAX }, { 27, _SC_TZNAME_MAX },
+        { 29, _SC_PAGESIZE }, { 38, _SC_FSYNC }, { 41, _SC_TIMERS }, { 50, _SC_SEM_VALUE_MAX }, { 56, _SC_IOV_MAX },
+        { 57, _SC_NPROCESSORS_CONF }, { 58, _SC_NPROCESSORS_ONLN }, { 70, _SC_GETGR_R_SIZE_MAX }, { 71, _SC_GETPW_R_SIZE_MAX },
+        { 72, _SC_HOST_NAME_MAX }, { 73, _SC_LOGIN_NAME_MAX }, { 74, _SC_MONOTONIC_CLOCK },
+        { 85, _SC_THREAD_DESTRUCTOR_ITERATIONS }, { 86, _SC_THREAD_KEYS_MAX }, { 93, _SC_THREAD_STACK_MIN },
+        { 94, _SC_THREAD_THREADS_MAX }, { 96, _SC_THREADS }, { 101, _SC_TTY_NAME_MAX }, { 200, _SC_PHYS_PAGES },
+    };
+    for (size_t i = 0; i < sizeof names / sizeof *names; i++) if (names[i].d == name) return sysconf(names[i].h);
+    errno = EINVAL;
+    return -1;
 }
 static int d_NSGetExecutablePath(char *buf, uint32_t *size) {
     const char *p = isim_main_executable_path(); size_t n = strlen(p) + 1;
@@ -407,6 +415,7 @@ static int d_utimes(const char *p, const struct d_timeval *t) {
 }
 #include "posix_extras.inc"   /* pipe, pread/pwrite, dup, kill, signal numbers */
 #include "darwin_extras.inc"  /* sigaction, rwlocks, mmap, uname, sysctl, rune tables, unw_*, tlv_atexit */
+#include "libc_extras.inc"    /* mman, resource, xattr, kqueue, wchar, regex, syslog, pwd, termios, OSAtomic, getopt ... */
 
 void libsystem_init(int argc, char **argv) {
     d_stdinp = stdin; d_stdoutp = stdout; d_stderrp = stderr;
@@ -448,6 +457,7 @@ static const struct shim libsystem_table[] = {
     A("_iswupper", d_iswupper), A("_iswlower", d_iswlower), A("_iswcntrl", d_iswcntrl), A("_iswprint", d_iswprint), A("_iswxdigit", d_iswxdigit),
     A("_iswgraph", d_iswgraph), A("_towupper", d_towupper), A("_towlower", d_towlower), A("_qos_class_self", d_qos_class_self), I("___isPlatformVersionAtLeast", d_isPlatformVersionAtLeast), I("___isOSVersionAtLeast", d_isOSVersionAtLeast), A("_qos_class_main", d_qos_class_main), A("_pthread_set_qos_class_self_np", d_pthread_set_qos_class_self_np), A("_pthread_get_qos_class_np", d_pthread_get_qos_class_np), A("_clock_getres", d_clock_getres), A("_memset_s", d_memset_s), I("_memset_pattern4", d_memset_pattern4), I("_memset_pattern8", d_memset_pattern8), I("_memset_pattern16", d_memset_pattern16), A("_clock_gettime_nsec_np", d_clock_gettime_nsec_np),
     MACH_SHIMS,
+    LIBC_EXTRAS_SHIMS,
     /* math (Darwin's libm lives in libSystem): full C99 set incl. f/l variants */
     P(acos),
     P(acosf),
