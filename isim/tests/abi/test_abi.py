@@ -28,3 +28,28 @@ def test_probe_app(launch):
     app.wait_log(r"^abi long press ended true")                          # LongPressGesture().onEnded
     assert "unresolved symbol" not in app.log, "the 0.2.0 app links (no unresolved symbols)"
     assert app.quit() == 0
+
+
+def test_stale_sdk_binaries_removed(tmp_path):
+    """build.py ci removes SDK binaries the graph no longer builds (a cached out/ kept the Google Mobile Ads stand-in
+    and it reached two releases, issue #206), with their .swiftmodule / .framework, but keeps outputs and links."""
+    sys.path.insert(0, str(ROOT))
+    from buildlib import ninja
+    sdk = tmp_path / "out" / "sdk"
+    swift, fw = sdk / "usr/lib/swift", sdk / "System/Library/Frameworks"
+    for f in ("usr/lib/swift/libswiftKept.dylib", "usr/lib/swift/Kept.swiftmodule/x.swiftmodule",
+              "usr/lib/swift/libswiftGone.dylib", "usr/lib/swift/Gone.swiftmodule/x.swiftmodule",
+              "System/Library/Frameworks/Kept.framework/Kept", "System/Library/Frameworks/Gone.framework/Gone",
+              "System/Library/Frameworks/Gone.framework/Headers/Gone.h"):
+        (sdk / f).parent.mkdir(parents=True, exist_ok=True)
+        (sdk / f).write_text("")
+    (sdk / "usr/lib/libc++.dylib").symlink_to("libc++.1.dylib")
+    kept = ["out/sdk/usr/lib/swift/libswiftKept.dylib", "out/sdk/usr/lib/swift/Kept.swiftmodule/x.swiftmodule",
+            "out/sdk/System/Library/Frameworks/Kept.framework/Kept"]
+    (tmp_path / "out" / "build.ninja").write_text("rule touch\n  command = touch $out\n" + "".join(f"build {k}: touch\n" for k in kept))
+    exe = ninja.find_ninja(str(ROOT / "out" / "pyenv")) or "ninja"
+    removed = ninja.remove_stale_sdk(exe, str(tmp_path))
+    assert sorted(removed) == ["out/sdk/System/Library/Frameworks/Gone.framework", "out/sdk/usr/lib/swift/Gone.swiftmodule",
+                               "out/sdk/usr/lib/swift/libswiftGone.dylib"], removed
+    assert all((tmp_path / k).exists() for k in kept) and (sdk / "usr/lib/libc++.dylib").is_symlink()
+    assert not (swift / "Gone.swiftmodule").exists() and not (fw / "Gone.framework").exists()

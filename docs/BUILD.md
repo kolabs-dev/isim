@@ -74,7 +74,9 @@ pull requests do not, so they don't conflict.
 
 CI restores `isim/out` from a cache. A checkout gives every file a new modification time, so `build.py ci` first gives
 files whose content matches the last cached build their recorded timestamps back (`out/srcstate.json`); Ninja then
-rebuilds only what changed.
+rebuilds only what changed. Ninja never deletes an output that left the graph, so `build.py ci` also removes SDK binaries the graph no
+longer builds (with their `.swiftmodule` or `.framework`): a cached `out/` cannot carry a removed library into a release
+tarball or ABI baseline.
 
 ## Claude Code cloud environments
 

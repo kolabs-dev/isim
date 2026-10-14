@@ -154,3 +154,44 @@ def run(ninja, root, targets, jobs=None, verbose=False, keep_going=False):
     cmd += targets
     sys.stdout.flush()
     return subprocess.call(cmd)
+
+
+def remove_stale_sdk(ninja, root):
+    """Removes SDK binaries the graph no longer builds, with their .swiftmodule or .framework when nothing in it is
+    built either. CI and the Release workflow restore out/ from a cache, and Ninja never deletes an output that left
+    the graph, so a removed library stayed in out/sdk and reached the release tarballs and ABI baselines (the Google
+    Mobile Ads stand-in removed in 0.20 was in the 0.20.0 and 0.21.0 ones, issue #206). Only for those builds: a local
+    graph can leave parts out (no Docker: no Swift) whose outputs must stay."""
+    r = subprocess.run([ninja, "-C", root, "-f", "out/build.ninja", "-t", "targets", "all"], capture_output=True, text=True,
+                       check=True)
+    outputs = {line.rsplit(": ", 1)[0] for line in r.stdout.splitlines()}
+    sdk = os.path.join(root, "out", "sdk")
+
+    def built(rel):                    # rel (relative to root) is an output, or a directory holding one
+        return rel in outputs or any(o.startswith(rel + "/") for o in outputs)
+
+    stale = []
+    for d, dirs, files in os.walk(sdk):
+        for f in files:
+            rel = os.path.relpath(os.path.join(d, f), root)
+            framework = d.endswith(".framework") and f == os.path.basename(d)[:-len(".framework")]
+            if not (f.endswith(".dylib") or framework) or built(rel):
+                continue
+            if os.path.islink(os.path.join(d, f)):      # links are made while the graph is written (libc++.dylib)
+                continue
+            if framework:
+                stale.append(os.path.relpath(d, root))
+                continue
+            stale.append(rel)
+            if f.startswith("libswift"):
+                stale.append(os.path.relpath(os.path.join(d, f[len("libswift"):-len(".dylib")] + ".swiftmodule"), root))
+    removed = []
+    for rel in stale:
+        p = os.path.join(root, rel)
+        if not os.path.lexists(p) or built(rel):
+            continue
+        shutil.rmtree(p) if os.path.isdir(p) and not os.path.islink(p) else os.remove(p)
+        removed.append(rel)
+    for rel in removed:
+        print(f"build.py: removed {rel} (no longer built)")
+    return removed
