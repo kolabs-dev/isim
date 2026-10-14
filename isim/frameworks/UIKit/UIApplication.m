@@ -807,10 +807,21 @@ static BOOL idle_timer_disabled;
 - (NSArray *)windows { return [_allWindows copy]; }
 - (NSSet *)connectedScenes { return [_scenes copy]; }
 - (NSSet *)openSessions { return [_sessions copy]; }
+/* Info.plist UIRequiresFullScreen: before iPadOS 26 an iPad app with it opts out of multitasking (no split view, one
+   scene); iPadOS 26's windowing ignores it (deprecated) */
+static BOOL requires_full_screen(void) {
+    return isim_ui_os_major() < 26 && [NSBundle.mainBundle.infoDictionary[@"UIRequiresFullScreen"] boolValue];
+}
 /* Info.plist UIApplicationSceneManifest > UIApplicationSupportsMultipleScenes, on iPad (iPhones show one scene) */
 - (BOOL)supportsMultipleScenes {
     NSDictionary *m = NSBundle.mainBundle.infoDictionary[@"UIApplicationSceneManifest"];
-    return [m isKindOfClass:[NSDictionary class]] && [m[@"UIApplicationSupportsMultipleScenes"] boolValue] && UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad;
+    BOOL multi = [m isKindOfClass:[NSDictionary class]] && [m[@"UIApplicationSupportsMultipleScenes"] boolValue] && UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad;
+    if (multi && requires_full_screen()) {
+        static dispatch_once_t once;
+        dispatch_once(&once, ^{ NSLog(@"isim: UIRequiresFullScreen: the app opts out of multitasking (one full-screen scene, no split view)"); });
+        return NO;
+    }
+    return multi;
 }
 - (void)_isim_removeScene:(UIScene *)s session:(UISceneSession *)ss { if (s) [_scenes removeObject:s]; if (ss) [_sessions removeObject:ss]; }
 - (UIResponder *)nextResponder { return [self.delegate isKindOfClass:[UIResponder class]] ? (UIResponder *)self.delegate : nil; }
@@ -830,7 +841,41 @@ static BOOL idle_timer_disabled;
 + (NSString *)openNotificationSettingsURLString { return @"app-settings:notifications"; }   /* the app's notification settings */
 BOOL isim_sys_can_open_url(NSURL *url);
 BOOL isim_sys_route_url(NSURL *url, NSDictionary *options, void (^completion)(BOOL));
-- (BOOL)canOpenURL:(NSURL *)url { NSString *s = url.scheme.lowercaseString; return [@[@"http", @"https", @"mailto", @"tel", @"sms", @"app-settings"] containsObject:s ?: @""] || isim_sys_can_open_url(url); }
+static BOOL can_open(NSURL *url) {
+    NSString *s = url.scheme.lowercaseString;
+    return [@[@"http", @"https", @"mailto", @"tel", @"sms", @"app-settings"] containsObject:s ?: @""] || isim_sys_can_open_url(url);
+}
+/* one of the app's own URL schemes (Info.plist CFBundleURLTypes) */
+static BOOL own_scheme(NSString *scheme) {
+    NSDictionary *info = NSBundle.mainBundle.infoDictionary;
+    for (NSDictionary *t in [info[@"CFBundleURLTypes"] isKindOfClass:[NSArray class]] ? info[@"CFBundleURLTypes"] : @[])
+        for (id s in [t isKindOfClass:[NSDictionary class]] && [t[@"CFBundleURLSchemes"] isKindOfClass:[NSArray class]] ? t[@"CFBundleURLSchemes"] : @[])
+            if ([s isKindOfClass:[NSString class]] && [[s lowercaseString] isEqualToString:scheme]) return YES;
+    return NO;
+}
+/* iOS 9+: an app may only ask about the URL schemes in its Info.plist LSApplicationQueriesSchemes (the first 50, iOS 15+),
+   its own (CFBundleURLTypes) and the system's (web, mail, phone, messages, Settings); openURL is not limited */
+static BOOL may_query_scheme(NSString *scheme) {
+    if ([@[@"http", @"https", @"mailto", @"tel", @"sms", @"facetime", @"facetime-audio", @"app-settings"] containsObject:scheme]) return YES;
+    NSDictionary *info = NSBundle.mainBundle.infoDictionary;
+    NSArray *declared = info[@"LSApplicationQueriesSchemes"];
+    if ([declared isKindOfClass:[NSArray class]]) {
+        NSUInteger n = 0;
+        for (id d in declared) {
+            if (++n > 50) { NSLog(@"isim: LSApplicationQueriesSchemes lists more than 50 schemes: the rest are ignored (iOS 15+)"); break; }
+            if ([d isKindOfClass:[NSString class]] && [[d lowercaseString] isEqualToString:scheme]) return YES;
+        }
+    }
+    return own_scheme(scheme);
+}
+- (BOOL)canOpenURL:(NSURL *)url {
+    NSString *s = url.scheme.lowercaseString ?: @"";
+    if (!may_query_scheme(s)) {
+        NSLog(@"-canOpenURL: failed for URL: \"%@\" - error: \"This app is not allowed to query for scheme %@\"", url.absoluteString, s);
+        return NO;
+    }
+    return own_scheme(s) || can_open(url);
+}
 - (void)openURL:(NSURL *)url options:(NSDictionary *)options completionHandler:(void (^)(BOOL))completion {
     { extern void isim_ui_record_attribution(id, NSURL *); id a = options[UIApplicationOpenExternalURLOptionsEventAttributionKey]; if (a) isim_ui_record_attribution(a, url); }
     if (isim_sys_route_url(url, options, completion)) return;     /* another app's URL scheme or universal link */
@@ -847,7 +892,7 @@ BOOL isim_sys_route_url(NSURL *url, NSDictionary *options, void (^completion)(BO
     BOOL hostOpen = [@[@"http", @"https", @"mailto"] containsObject:scheme] && isim_open_url(url.absoluteString.UTF8String);
     if ([scheme isEqualToString:@"app-settings"]) NSLog(@"isim: open URL %@ (the app's page in Settings; isim has no Settings app)", url.absoluteString);
     else NSLog(@"isim: open URL %@%@", url.absoluteString, hostOpen ? @" (opened on the host)" : @" (not opened; ISIM_OPEN_URLS=1 opens http/mailto on the host)");
-    if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion([self canOpenURL:url]); });
+    if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion(can_open(url)); });
 }
 - (void)_isim_addScene:(UIScene *)s session:(UISceneSession *)ss { if (s) [_scenes addObject:s]; if (ss) [_sessions addObject:ss]; }
 /* push notifications (UISystemIntegration.m): a device token, like the Simulator (Xcode 14+); payloads from `isim push` */

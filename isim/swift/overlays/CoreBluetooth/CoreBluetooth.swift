@@ -90,10 +90,22 @@ open class CBPeripheral: CBPeer, @unchecked Sendable {
     @objc optional func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?)
 }
 
+/// Info.plist NSBluetoothAlwaysUsageDescription: Core Bluetooth needs it (iOS 13+ terminates an app without it; isim
+/// reports Bluetooth unauthorized)
+enum _CBUsage {
+    static let declared: Bool = {
+        if let s = Bundle.main.object(forInfoDictionaryKey: "NSBluetoothAlwaysUsageDescription") as? String, !s.isEmpty { return true }
+        NSLog("isim CoreBluetooth: this app has attempted to access privacy-sensitive data without a usage description. The app's Info.plist must contain an NSBluetoothAlwaysUsageDescription key with a string value explaining to the user how the app uses this data (iOS would terminate the app; isim reports the access as denied)")
+        return false
+    }()
+    /// a manager's state: unauthorized without the usage description, else unsupported (no Bluetooth radio)
+    static var state: CBManagerState { declared ? .unsupported : .unauthorized }
+}
+
 open class CBManager: NSObject, @unchecked Sendable {
     open var state: CBManagerState { .unknown }
-    /// no Bluetooth permission prompt is shown on a device without Bluetooth
-    open class var authorization: CBManagerAuthorization { .allowedAlways }
+    /// no Bluetooth permission prompt is shown on a device without Bluetooth; denied without the usage description
+    open class var authorization: CBManagerAuthorization { _CBUsage.declared ? .allowedAlways : .denied }
     open var authorization: CBManagerAuthorization { CBManager.authorization }
     func misuse(_ what: String) {
         NSLog("[CoreBluetooth] API MISUSE: <%@: %p> can only accept this command while in the powered on state", String(describing: type(of: self)), unsafeBitCast(self, to: Int.self))
@@ -128,7 +140,7 @@ open class CBCentralManager: CBManager, @unchecked Sendable {
         super.init()
         (queue ?? .main).async { [weak self] in
             guard let self else { return }
-            self.current = .unsupported
+            self.current = _CBUsage.state
             self.delegate?.centralManagerDidUpdateState(self)
         }
     }
@@ -152,7 +164,7 @@ open class CBPeripheralManager: CBManager, @unchecked Sendable {
     private var current: CBManagerState = .unknown
     open override var state: CBManagerState { current }
     open private(set) var isAdvertising = false
-    @available(*, deprecated) open class func authorizationStatus() -> CBPeripheralManagerAuthorizationStatus { .authorized }
+    @available(*, deprecated) open class func authorizationStatus() -> CBPeripheralManagerAuthorizationStatus { _CBUsage.declared ? .authorized : .denied }
     public convenience override init() { self.init(delegate: nil, queue: nil, options: nil) }
     public convenience init(delegate: CBPeripheralManagerDelegate?, queue: DispatchQueue?) { self.init(delegate: delegate, queue: queue, options: nil) }
     public init(delegate: CBPeripheralManagerDelegate?, queue: DispatchQueue?, options: [String: Any]? = nil) {
@@ -160,7 +172,7 @@ open class CBPeripheralManager: CBManager, @unchecked Sendable {
         super.init()
         (queue ?? .main).async { [weak self] in
             guard let self else { return }
-            self.current = .unsupported
+            self.current = _CBUsage.state
             self.delegate?.peripheralManagerDidUpdateState(self)
         }
     }

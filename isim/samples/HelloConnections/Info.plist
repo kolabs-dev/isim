@@ -10,5 +10,19 @@
 	<string>dev.isim.samples.HelloConnections</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Finds and talks to nearby services and peers.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_isimecho._tcp</string>
+		<string>_isimapp._tcp</string>
+		<string>_isimpy._tcp</string>
+		<string>_isim-chat._tcp</string>
+		<string>_isim-chat._udp</string>
+		<string>_isim-secure._tcp</string>
+		<string>_isim-secure._udp</string>
+		<string>_isim-ui._tcp</string>
+		<string>_isim-ui._udp</string>
+	</array>
 </dict>
 </plist>

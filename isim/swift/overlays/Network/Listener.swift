@@ -42,6 +42,22 @@ enum _NWBonjour {
         return URL(fileURLWithPath: data).appendingPathComponent("Library/isim/Bonjour")
     }
     static func normType(_ t: String) -> String { t.hasSuffix(".") ? String(t.dropLast()) : t }
+    /// iOS 14+: an app browses and advertises only the Bonjour service types in its Info.plist NSBonjourServices; the
+    /// others fail with kDNSServiceErr_NoAuth. NSLocalNetworkUsageDescription explains the local network prompt (isim
+    /// allows local network access without asking).
+    static func declared(_ type: String) -> Bool {
+        let want = normType(type).lowercased()
+        let list = Bundle.main.object(forInfoDictionaryKey: "NSBonjourServices") as? [String] ?? []
+        if list.contains(where: { normType($0).lowercased() == want }) { return true }
+        NSLog("isim Network: the Bonjour service type %@ is not in the app's Info.plist NSBonjourServices: browsing and advertising it fail with NoAuth (-65555), like iOS 14+", want)
+        return false
+    }
+    static let noAuth: Int32 = -65555                     /* kDNSServiceErr_NoAuth */
+    static let usageNoted: Void = {
+        if (Bundle.main.object(forInfoDictionaryKey: "NSLocalNetworkUsageDescription") as? String ?? "").isEmpty {
+            NSLog("isim Network: the app uses the local network without an NSLocalNetworkUsageDescription in its Info.plist (iOS's local network prompt would show a default explanation)")
+        }
+    }()
     static func file(_ s: _NWService) -> URL {
         root.appendingPathComponent(normType(s.type)).appendingPathComponent(s.name.replacingOccurrences(of: "/", with: "_") + ".json")
     }
@@ -150,6 +166,10 @@ public final class NWListener: CustomDebugStringConvertible, @unchecked Sendable
 
     public func start(queue: DispatchQueue) {
         lock.lock(); guard self.queue == nil else { lock.unlock(); return }; self.queue = queue; lock.unlock()
+        if let svc = service {
+            _NWBonjour.usageNoted
+            guard _NWBonjour.declared(svc.type) else { setState(.failed(.dns(_NWBonjour.noAuth))); return }
+        }
         setState(.ready)
         advertise()
         let loop = DispatchQueue(label: "isim.NWListener.accept")
@@ -283,6 +303,12 @@ public final class NWBrowser: CustomDebugStringConvertible, @unchecked Sendable 
     public func start(queue: DispatchQueue) {
         guard self.queue == nil else { return }
         self.queue = queue
+        _NWBonjour.usageNoted
+        guard _NWBonjour.declared(descriptor.type) else {
+            state = .failed(.dns(_NWBonjour.noAuth))
+            if let h = stateUpdateHandler { queue.async { h(.failed(.dns(_NWBonjour.noAuth))) } }
+            return
+        }
         state = .ready
         if let h = stateUpdateHandler { queue.async { h(.ready) } }
         if _NWMDNS.enabled { _NWMDNS.shared.browse(descriptor.type) }
