@@ -16,6 +16,7 @@ should always use their own `ISIM_DATA`.
 | `ISIM_BATTERY="LEVEL [unplugged\|charging\|full]"` | the simulated battery for `UIDevice.batteryLevel` / `batteryState` (default `"1 full"`) |
 | `ISIM_OBJC_AUDIT=1` | before `main`, print the Objective-C selectors the app (and its embedded frameworks) reference that no loaded class implements: the gaps a binary SDK may hit as "unrecognized selector" |
 | `ISIM_BUILD_VERBOSE=1` | `isim build` prints the compiler and linker command lines it runs |
+| `ISIM_BUILD_INCREMENTAL=0` | `isim build` compiles every source again (by default it skips compiles whose command and inputs are unchanged since the last build into the same output folder) |
 | `ISIM_AUTOLOCK=SECONDS` | under `isim boot`, lock the device after that much idle time unless the foreground app sets `isIdleTimerDisabled` (default: never, like the Simulator) |
 
 ## Biometrics

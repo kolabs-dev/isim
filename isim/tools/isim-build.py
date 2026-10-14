@@ -15,6 +15,8 @@ What it does per target (dependencies first, also across the projects of a works
   * compiles Swift sources with `isim swiftc` (whole-module) and C/ObjC/C++ sources with `isim cc`;
     mixed targets: bridging headers (SWIFT_OBJC_BRIDGING_HEADER), the generated <Module>-Swift.h header,
     frameworks import their own ObjC headers (umbrella header) into Swift
+  * incremental: a compile whose command and inputs (sources, headers, imported modules, the SDK, as the compiler
+    lists them) did not change since it last ran in OUTDIR is skipped; ISIM_BUILD_INCREMENTAL=0 compiles everything
   * build settings: project/target configurations, .xcconfig files (#include, $(inherited), conditional
     settings), $(VAR) expansion, SETTING=VALUE overrides on the command line; schemes pick the targets
   * links the product (apps: MH_EXECUTE; app extensions: entry point _NSExtensionMain; frameworks:
@@ -138,6 +140,19 @@ MISSING_MODULE = re.compile(r"no such module '([A-Za-z_][A-Za-z0-9_]*)'|module '
                             r"|fatal error: '([A-Za-z_][A-Za-z0-9_]*)/[^']*' file not found")
 
 
+def write_if_changed(path, text):
+    """write a generated file (module map, generated Swift) only when its content changes: an unchanged one keeps its
+    time stamp, so the compiles that read it stay up to date"""
+    try:
+        with open(path) as f:
+            if f.read() == text:
+                return
+    except OSError:
+        pass
+    with open(path, 'w') as f:
+        f.write(text)
+
+
 def _compile_outputs(cmd):
     """the files a compile command writes: the object (-o), and the Swift module and ObjC header it emits"""
     outs = []
@@ -221,7 +236,7 @@ def run_compiler(cmd):
             run_cmd = cmd + ['-MD', '-MF', depfile]
         if os.path.exists(depfile):
             os.remove(depfile)
-        started = time.time() - 1                              # (file systems with coarse timestamps)
+        started = time.time()
     else:
         run_cmd = cmd
     p = subprocess.Popen(run_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors='replace')
@@ -531,8 +546,7 @@ def generate_asset_symbols(catalogs, settings, swift_out, objc_out, bundle_expr=
                 swift += [f'    /// The "{n}" asset catalog color.', f'    static var {sym}: SwiftUI.Color {{ .init(.{sym}) }}', '']
             swift += ['}', '#endif', '']
     os.makedirs(os.path.dirname(swift_out), exist_ok=True)
-    with open(swift_out, 'w') as f:
-        f.write('\n'.join(swift))
+    write_if_changed(swift_out, '\n'.join(swift))
     # Objective-C: the asset names as constants (ACColorName... / ACImageName...)
     objc = ['#import <Foundation/Foundation.h>', '', '#if __has_attribute(swift_private)',
             '#define AC_SWIFT_PRIVATE __attribute__((swift_private))', '#else', '#define AC_SWIFT_PRIVATE', '#endif', '']
@@ -543,8 +557,7 @@ def generate_asset_symbols(catalogs, settings, swift_out, objc_out, bundle_expr=
     for sym, n in ims:
         objc += [f'/// The "{n}" asset catalog image resource.', f'static NSString * const ACImageName{objc_name(n)} AC_SWIFT_PRIVATE = @"{n}";', '']
     objc += ['#undef AC_SWIFT_PRIVATE', '']
-    with open(objc_out, 'w') as f:
-        f.write('\n'.join(objc))
+    write_if_changed(objc_out, '\n'.join(objc))
     log(f'asset symbols: {len(cs)} colors, {len(ims)} images -> {os.path.basename(swift_out)}'
         + (' (with UIKit / SwiftUI extensions)' if extensions else ''))
     return swift_out
@@ -753,8 +766,7 @@ def compile_coreml(model, bundle, gen_dir, codegen=True):
         return None
     os.makedirs(gen_dir, exist_ok=True)
     swift = os.path.join(gen_dir, name + '.swift')
-    with open(swift, 'w') as f:
-        f.write(coreml_swift(name, inputs, outputs, about))
+    write_if_changed(swift, coreml_swift(name, inputs, outputs, about))
     return swift
 
 
@@ -910,8 +922,7 @@ def compile_intentdefinition(path, bundle, gen_dir, codegen=True):
         return None
     os.makedirs(gen_dir, exist_ok=True)
     out = os.path.join(gen_dir, name + '.swift')
-    with open(out, 'w') as f:
-        f.write(intents_swift(defn))
+    write_if_changed(out, intents_swift(defn))
     return out
 
 
@@ -1705,8 +1716,7 @@ class Packages:
             res['bundles'].append(bundle)
             if swift:
                 accessor = os.path.join(objdir, 'resource_bundle_accessor.swift')
-                with open(accessor, 'w') as f:
-                    f.write(RESOURCE_ACCESSOR.replace('@NAME@', bundle_name))
+                write_if_changed(accessor, RESOURCE_ACCESSOR.replace('@NAME@', bundle_name))
                 swift = swift + [accessor]
                 gen = generate_asset_symbols(sorted({os.path.join(dp, d) for r in t.get('resources', []) for dp, dn, _ in
                                                      os.walk(os.path.normpath(os.path.join(src, r['path']))) for d in dn if d.endswith('.xcassets')}
@@ -1738,8 +1748,7 @@ class Packages:
                 if not os.path.exists(umbrella):
                     umbrella = os.path.join(include, tname + '.h')
                 body = f'umbrella header "{umbrella}"' if os.path.exists(umbrella) else f'umbrella "{include}"'
-                with open(os.path.join(mapdir, 'module.modulemap'), 'w') as f:
-                    f.write(f'module {tname} {{\n  {body}\n  export *\n}}\n')
+                write_if_changed(os.path.join(mapdir, 'module.modulemap'), f'module {tname} {{\n  {body}\n  export *\n}}\n')
                 res['swift_flags'] += ['-I', mapdir]
             res['swift_flags'] += ['-Xcc', '-I' + include]
             res['cc_flags'] += ['-I', include]
@@ -2278,7 +2287,9 @@ class Builder:
                 cmd += ['-Xcc', '-D' + d]
             cmd += deps['swift_flags']
             if kind in ('static', 'staticframework', 'framework', 'dylib') or is_test or target.name in self.testing:
-                mod_out = os.path.join(path, 'Modules', module + '.swiftmodule', TRIPLE_MODULE + '.swiftmodule') if is_framework \
+                # a framework's module is emitted under obj/ and copied into the framework (whose folder is made
+                # anew each build), so an unchanged module keeps its time stamp and its importers stay up to date
+                mod_out = os.path.join(objdir, 'Modules', module + '.swiftmodule', TRIPLE_MODULE + '.swiftmodule') if is_framework \
                     else os.path.join(self.modules_dir, module + '.swiftmodule')
                 if is_framework:
                     os.makedirs(os.path.dirname(mod_out), exist_ok=True)
@@ -2297,11 +2308,12 @@ class Builder:
                 # unextended module map); the final module map (with the -Swift.h submodule) is written after
                 umap = os.path.join(objdir, 'underlying', 'module.modulemap')
                 os.makedirs(os.path.dirname(umap), exist_ok=True)
-                with open(umap, 'w') as f:
-                    f.write(self.module_map_body(module, path, public_headers, None, framework=False))
+                write_if_changed(umap, self.module_map_body(module, path, public_headers, None, framework=False))
                 cmd += ['-import-underlying-module', '-Xcc', '-fmodule-map-file=' + umap]
             run_compiler(cmd + swift)
             objs.append(obj)
+            if is_framework and '-emit-module' in cmd:
+                shutil.copytree(os.path.join(objdir, 'Modules'), os.path.join(path, 'Modules'), dirs_exist_ok=True)
         cc_base = common_cc + ['-I', derived] + deps['cc_flags'] + [f'-D{d}' for d in defs]
         if s.get('CLANG_ENABLE_OBJC_ARC', 'YES') != 'YES':
             cc_base.append('-fno-objc-arc')
@@ -2405,8 +2417,10 @@ class Builder:
                 shutil.copy2(mm if os.path.isabs(mm) else os.path.join(target.p.root, mm), os.path.join(path, 'Modules', 'module.modulemap'))
             elif swift or s.get('DEFINES_MODULE') == 'YES':
                 os.makedirs(os.path.join(path, 'Modules'), exist_ok=True)
-                with open(os.path.join(path, 'Modules', 'module.modulemap'), 'w') as f:
-                    f.write(self.module_map_body(module, path, public_headers, swift_header if swift_header and os.path.exists(swift_header) else None))
+                mmap = os.path.join(objdir, 'module.modulemap')        # (kept under obj/: its time stamp stays)
+                os.makedirs(objdir, exist_ok=True)
+                write_if_changed(mmap, self.module_map_body(module, path, public_headers, swift_header if swift_header and os.path.exists(swift_header) else None))
+                shutil.copy2(mmap, os.path.join(path, 'Modules', 'module.modulemap'))
             link_result['swift_flags'] += ['-F', out]
         elif kind == 'static' and swift_header and os.path.exists(swift_header):
             inc = os.path.join(out, 'include', product_name)
@@ -2416,8 +2430,7 @@ class Builder:
         if kind == 'static' and s.get('DEFINES_MODULE') == 'YES' and not swift and os.path.isdir(inc):
             # an ObjC/C static library that defines a module: a module map over its installed public headers
             hdrs = sorted(h for h in os.listdir(inc) if h.endswith('.h'))
-            with open(os.path.join(inc, 'module.modulemap'), 'w') as f:
-                f.write(f'module {module} {{\n' + ''.join(f'  header "{h}"\n' for h in hdrs) + '  export *\n}\n')
+            write_if_changed(os.path.join(inc, 'module.modulemap'), f'module {module} {{\n' + ''.join(f'  header "{h}"\n' for h in hdrs) + '  export *\n}\n')
             link_result['swift_flags'] += ['-I', inc]
 
         self.run_script_phases(target, s, 'resources', kind, path)
