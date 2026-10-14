@@ -8,7 +8,7 @@ on a simulated iPhone or iPad with a home screen, a Settings app and a web brows
 
 Goal: write → build → run in the simulator → device build → sign → upload → TestFlight, all on Linux.
 
-![isim: home screen, Settings, and a SwiftUI app](docs/images/isim-overview.png)
+![isim windows with the toolbar and device bezel: the home screen, Settings, and a SwiftUI app](docs/images/isim-overview.png)
 
 ## Quick start (no build needed)
 
