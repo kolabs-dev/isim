@@ -405,3 +405,42 @@ usr/lib/swift/libswiftMultipeerConnectivity.dylib _$s21MultipeerConnectivity21MC
 usr/lib/swift/libswiftMetricKit.dylib _$s9MetricKit019MXCellularConditionA0C020histogrammedCellularD4TimeAA11MXHistogramCySo6NSUnitCGvpMV
 usr/lib/swift/libswiftMetricKit.dylib _$s9MetricKit12MXDiagnosticC12signpostDataSayypGSgvpMV
 usr/lib/swift/libswiftMetricKit.dylib _$s9MetricKit15MXMetricPayloadC14displayMetricsAA0C0CSgvpMV
+# 0.22.0 (issue #217): POSIXErrorCode moved from Network to Darwin, where iOS has it (Apple's full enum, with
+# POSIXError and MachError in Foundation). Network's partial copy and NWError.posix's case constructor over it are gone;
+# apps built with isim 0.21 or earlier that use POSIXErrorCode or NWError.posix must be rebuilt with 0.22.
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO10EADDRINUSEyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO10ECONNRESETyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO11ENETUNREACHyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO12ECONNABORTEDyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO12ECONNREFUSEDyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO12EHOSTUNREACHyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO13EADDRNOTAVAILyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO3EIOyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO5EBADFyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO5EINTRyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO5EPERMyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO5EPIPEyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO6EACCESyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO6EAGAINyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO6EINVALyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO6ENOENTyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO6ENOMEMyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO7EISCONNyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO7ENOBUFSyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO7ENOTSUPyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO8EMSGSIZEyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO8ENETDOWNyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO8ENOTCONNyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO8rawValueACSgs5Int32V_tcfC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO8rawValues5Int32Vvg
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO8rawValues5Int32VvpMV
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO9ECANCELEDyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO9ETIMEDOUTyA2CmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeOMa
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeOMn
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeON
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeOSHAAMc
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeOSQAAMc
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeOSYAAMc
+usr/lib/swift/libswiftNetwork.dylib _$s7Network7NWErrorO5posixyAcA14POSIXErrorCodeOcACmFWC
+usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO6EPROTOyA2CmFWC

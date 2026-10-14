@@ -71,6 +71,7 @@ extension NSNumber {
     public var int16Value: Int16 { shortValue }
     public var int8Value: Int8 { Int8(truncatingIfNeeded: longLongValue) }
     public var uint8Value: UInt8 { unsignedCharValue }
+    public var uint16Value: UInt16 { UInt16(truncatingIfNeeded: unsignedLongLongValue) }
     public var uintValue: UInt { unsignedLongValue }
 }
 // like Apple's overlay: string literals where an NSString is expected (NSCache<NSString, _> keys, ...)
@@ -653,5 +654,151 @@ extension Progress {
         becomeCurrent(withPendingUnitCount: unitCount)
         defer { resignCurrent() }
         return try work()
+    }
+}
+
+// MARK: - numbers from NSNumber (Apple's Swift overlay): `Int(truncating:)` converts like the C cast, `Int(exactly:)`
+// only when the value fits exactly. The number's objCType tells whether it holds a float, a signed or an unsigned value.
+
+extension NSNumber {
+    var _isimKind: UInt8 {
+        switch objCType.pointee {
+        case 0x66, 0x64: return 2                          // f, d
+        case 0x43, 0x49, 0x53, 0x4c, 0x51: return 1        // C, I, S, L, Q
+        default: return 0
+        }
+    }
+}
+extension Int {
+    public init(truncating number: __shared NSNumber) { self = number.integerValue }
+    public init?(exactly number: __shared NSNumber) {
+        switch number._isimKind {
+        case 2: guard let v = Int(exactly: number.doubleValue) else { return nil }; self = v
+        case 1: guard let v = Int(exactly: number.uint64Value) else { return nil }; self = v
+        default: guard let v = Int(exactly: number.int64Value) else { return nil }; self = v
+        }
+    }
+}
+extension Int8 {
+    public init(truncating number: __shared NSNumber) { self = number.int8Value }
+    public init?(exactly number: __shared NSNumber) {
+        switch number._isimKind {
+        case 2: guard let v = Int8(exactly: number.doubleValue) else { return nil }; self = v
+        case 1: guard let v = Int8(exactly: number.uint64Value) else { return nil }; self = v
+        default: guard let v = Int8(exactly: number.int64Value) else { return nil }; self = v
+        }
+    }
+}
+extension Int16 {
+    public init(truncating number: __shared NSNumber) { self = number.int16Value }
+    public init?(exactly number: __shared NSNumber) {
+        switch number._isimKind {
+        case 2: guard let v = Int16(exactly: number.doubleValue) else { return nil }; self = v
+        case 1: guard let v = Int16(exactly: number.uint64Value) else { return nil }; self = v
+        default: guard let v = Int16(exactly: number.int64Value) else { return nil }; self = v
+        }
+    }
+}
+extension Int32 {
+    public init(truncating number: __shared NSNumber) { self = number.int32Value }
+    public init?(exactly number: __shared NSNumber) {
+        switch number._isimKind {
+        case 2: guard let v = Int32(exactly: number.doubleValue) else { return nil }; self = v
+        case 1: guard let v = Int32(exactly: number.uint64Value) else { return nil }; self = v
+        default: guard let v = Int32(exactly: number.int64Value) else { return nil }; self = v
+        }
+    }
+}
+extension Int64 {
+    public init(truncating number: __shared NSNumber) { self = number.int64Value }
+    public init?(exactly number: __shared NSNumber) {
+        switch number._isimKind {
+        case 2: guard let v = Int64(exactly: number.doubleValue) else { return nil }; self = v
+        case 1: guard let v = Int64(exactly: number.uint64Value) else { return nil }; self = v
+        default: guard let v = Int64(exactly: number.int64Value) else { return nil }; self = v
+        }
+    }
+}
+extension UInt {
+    public init(truncating number: __shared NSNumber) { self = number.uintValue }
+    public init?(exactly number: __shared NSNumber) {
+        switch number._isimKind {
+        case 2: guard let v = UInt(exactly: number.doubleValue) else { return nil }; self = v
+        case 1: guard let v = UInt(exactly: number.uint64Value) else { return nil }; self = v
+        default: guard let v = UInt(exactly: number.int64Value) else { return nil }; self = v
+        }
+    }
+}
+extension UInt8 {
+    public init(truncating number: __shared NSNumber) { self = number.uint8Value }
+    public init?(exactly number: __shared NSNumber) {
+        switch number._isimKind {
+        case 2: guard let v = UInt8(exactly: number.doubleValue) else { return nil }; self = v
+        case 1: guard let v = UInt8(exactly: number.uint64Value) else { return nil }; self = v
+        default: guard let v = UInt8(exactly: number.int64Value) else { return nil }; self = v
+        }
+    }
+}
+extension UInt16 {
+    public init(truncating number: __shared NSNumber) { self = number.uint16Value }
+    public init?(exactly number: __shared NSNumber) {
+        switch number._isimKind {
+        case 2: guard let v = UInt16(exactly: number.doubleValue) else { return nil }; self = v
+        case 1: guard let v = UInt16(exactly: number.uint64Value) else { return nil }; self = v
+        default: guard let v = UInt16(exactly: number.int64Value) else { return nil }; self = v
+        }
+    }
+}
+extension UInt32 {
+    public init(truncating number: __shared NSNumber) { self = number.uint32Value }
+    public init?(exactly number: __shared NSNumber) {
+        switch number._isimKind {
+        case 2: guard let v = UInt32(exactly: number.doubleValue) else { return nil }; self = v
+        case 1: guard let v = UInt32(exactly: number.uint64Value) else { return nil }; self = v
+        default: guard let v = UInt32(exactly: number.int64Value) else { return nil }; self = v
+        }
+    }
+}
+extension UInt64 {
+    public init(truncating number: __shared NSNumber) { self = number.uint64Value }
+    public init?(exactly number: __shared NSNumber) {
+        switch number._isimKind {
+        case 2: guard let v = UInt64(exactly: number.doubleValue) else { return nil }; self = v
+        case 1: guard let v = UInt64(exactly: number.uint64Value) else { return nil }; self = v
+        default: guard let v = UInt64(exactly: number.int64Value) else { return nil }; self = v
+        }
+    }
+}
+extension Float {
+    public init(truncating number: __shared NSNumber) { self = number.floatValue }
+    public init?(exactly number: __shared NSNumber) {
+        switch number._isimKind {
+        case 2:
+            let d = number.doubleValue
+            guard d.isNaN || Float(exactly: d) != nil else { return nil }
+            self = Float(d)
+        case 1: guard let v = Float(exactly: number.uint64Value) else { return nil }; self = v
+        default: guard let v = Float(exactly: number.int64Value) else { return nil }; self = v
+        }
+    }
+}
+extension Double {
+    public init(truncating number: __shared NSNumber) { self = number.doubleValue }
+    public init?(exactly number: __shared NSNumber) {
+        switch number._isimKind {
+        case 2:
+            let d = number.doubleValue
+            guard d.isNaN || Double(exactly: d) != nil else { return nil }
+            self = Double(d)
+        case 1: guard let v = Double(exactly: number.uint64Value) else { return nil }; self = v
+        default: guard let v = Double(exactly: number.int64Value) else { return nil }; self = v
+        }
+    }
+}
+extension Bool {
+    public init(truncating number: __shared NSNumber) { self = number.boolValue }
+    /// true for 1, false for 0, otherwise nil
+    public init?(exactly number: __shared NSNumber) {
+        if number.doubleValue == 0 { self = false } else if number.doubleValue == 1 { self = true } else { return nil }
     }
 }

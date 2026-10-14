@@ -119,3 +119,6 @@ extension URLError: _ObjectiveCBridgeableError {
         self.init(Code(rawValue: e.code), userInfo: e.userInfo)
     }
 }
+
+/// The `NSError **` out-parameter of Objective-C methods, as Swift sees it.
+public typealias NSErrorPointer = AutoreleasingUnsafeMutablePointer<NSError?>?

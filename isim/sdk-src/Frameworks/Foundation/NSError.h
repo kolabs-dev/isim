@@ -7,6 +7,7 @@ typedef NSString *NSErrorUserInfoKey;
 FOUNDATION_EXPORT NSErrorDomain const NSCocoaErrorDomain;
 FOUNDATION_EXPORT NSErrorDomain const NSPOSIXErrorDomain;
 FOUNDATION_EXPORT NSErrorDomain const NSOSStatusErrorDomain;
+FOUNDATION_EXPORT NSErrorDomain const NSMachErrorDomain;
 FOUNDATION_EXPORT NSErrorUserInfoKey const NSLocalizedDescriptionKey;
 FOUNDATION_EXPORT NSErrorUserInfoKey const NSUnderlyingErrorKey;
 FOUNDATION_EXPORT NSErrorUserInfoKey const NSLocalizedFailureReasonErrorKey;
