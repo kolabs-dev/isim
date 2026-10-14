@@ -12,11 +12,18 @@ Code lives in `isim/`; see the [README](README.md) for what isim is and how it i
   re-implements, stubs or stands in for third-party libraries (Google Mobile Ads, Google UMP, Firebase, AppLovin,
   Meta, …), even closed-source ones. Apps get those from their own packages, which `isim build` fetches and builds
   (source, or an `.xcframework`'s simulator slice); when one does not run on isim, fix the iOS API it needs, or record
-  the gap (COVERAGE.md, an issue). Sample apps may use third-party libraries to show how they run on isim.
+  the gap (its framework page in docs/frameworks/, a `coverage` issue). Sample apps may use third-party libraries to
+  show how they run on isim.
 - **Label what you implement.** Behaviour is *passthrough* (the host's function with the same ABI), *adapted*
   (isim's translation of Apple's behaviour) or a *stub*. Results are *verified* (a test checks it) or *proposed*.
 - **No secrets in the repo.** Signing keys, certificates, provisioning profiles and API credentials stay local: never in
   source, logs, commits or issues.
+- **Match Apple's API exactly.** Same names, kinds and signatures as Apple's SDK, so iOS code compiles unchanged: a
+  class stays a class, an enum stays an enum, and no `AnyObject?` or `Int` placeholders stand in for Apple's types.
+  `isim/tools/api-coverage.py` (exact mode) lists what differs.
+- **Objective-C and C too.** Every framework isim implements in Swift also gets Apple's Objective-C/C interface:
+  headers in `isim/sdk-src/Frameworks/<Name>` over the Swift classes (`SWIFT_FRAMEWORKS` in `isim/buildlib/graph.py`).
+  Most binary SDKs, and many apps, are Objective-C.
 - **ABI stability.** Apps built with older isim releases should keep running.
   - By default, never remove an exported symbol.
   - `python3 isim/tools/abi-check.py` compares the SDK with every recorded release (`isim/abi/`).
@@ -83,8 +90,10 @@ python3 isim/tools/abi-check.py  # exported symbols against every release
   - Its commit status `ci / build and test` is required to merge.
   - Pushes to `main` run it automatically.
 - **When you add or change an API:**
-  - update its row in [docs/COVERAGE.md](docs/COVERAGE.md) (status, notes, the test that verifies it) and the summary
-    tables (`isim/tools/coverage-summary.py`);
+  - update its row on its framework page, `docs/frameworks/<Module>.md` (status, iOS version, notes with the
+    passthrough / adapted / stub label, the test that verifies it). Create the page from `docs/frameworks/_template.md`
+    when the framework has none, with the module in `isim/data/frameworks.json`;
+  - tick its item in the `coverage` issue that lists it;
   - add or extend a sample app (`isim/samples/`) and a pytest test (`isim/tests/`);
   - keep it usable by AI agents: anything a person can do in the device window (a button, a gesture, a menu item) is
     also a script command in [docs/SCRIPTING.md](docs/SCRIPTING.md) or an `isim` subcommand, with text or file
@@ -92,8 +101,22 @@ python3 isim/tools/abi-check.py  # exported symbols against every release
   - check each supported iOS version: 17, 18, 26 and 27 ([docs/IOS-VERSIONS.md](docs/IOS-VERSIONS.md)): mark tests of
     version-dependent behaviour (system UI, chrome frames / pixels, `@available` APIs) `@pytest.mark.os_matrix` and run
     `OS_MATRIX=1` locally (CI's test job of each iOS version runs them too). The rules: [docs/TESTING.md](docs/TESTING.md#which-tests-run-under-every-ios-version-os_matrix).
+- **Coverage.** The goal is 100% of the iOS API ([docs/COVERAGE.md](docs/COVERAGE.md)).
+  - **Scope:** every framework Apple documents for iOS is tracked, unless it is Apple-platform-only and completely
+    impossible to replicate on Linux. Deprecated APIs are in scope while they are usable in some iOS 17–27 (deprecated
+    in iOS 18 or later); those deprecated in iOS 17 or earlier are out of scope.
+  - **Work is split into small `coverage` issues** (S ≤ 1 day, M 2–3 days, L ≤ 1 week), one per batch of APIs, each
+    description a checklist with a link to Apple's documentation per item. There are no parent issues or sub-issues;
+    `area:*` labels group them. Use the "Coverage batch" issue form. Claim an issue (assign yourself or comment) before
+    starting, so two agents don't take the same batch.
+  - **No conflicts between pull requests:** edit rows and prose on the framework pages only. Never edit the generated
+    parts by hand (between `<!-- generated:… -->` markers in COVERAGE.md and the pages, `isim/data/api-coverage.json.gz`)
+    and don't regenerate them in a pull request. The Release workflow rebuilds them with
+    `isim/tools/api-coverage.py measure` and `isim/tools/coverage-summary.py`.
+  - **Sweeps:** re-run the documentation sweep ([docs/API-SWEEP.md](docs/API-SWEEP.md)) after each Apple SDK release and
+    before each minor release; it refreshes the Apple snapshot and the "Not yet in isim" lists.
 - **Issues.** A bug that is not fixed right away gets a GitHub issue with enough context to fix it later: symptom,
-  reproduction, where to look. Missing API coverage is tracked by one issue per COVERAGE.md area (label `coverage`).
+  reproduction, where to look. Missing API coverage: see Coverage above.
   - **Every issue has at least one label** from the table below (several when they apply, e.g. `bug` and
     `performance`). When none fits, create a new label (`gh label create NAME --description ... --color ...`) and
     add it to the table in the same PR or right after.
@@ -102,7 +125,12 @@ python3 isim/tools/abi-check.py  # exported symbols against every release
 |---|---|
 | `bug` | something isim does wrong (a crash, a wrong result, a hang) |
 | `enhancement` | new functionality |
-| `coverage` | API coverage toward 100%, one issue per COVERAGE.md area (with `enhancement`) |
+| `coverage` | API coverage toward 100%: one small batch of APIs per issue, a checklist (with `enhancement`) |
+| `area:<key>` | the COVERAGE.md area of a `coverage` issue (`area:uikit`, `area:media`, …; keys in `isim/data/frameworks.json`) |
+| `size:S`, `size:M`, `size:L` | a `coverage` issue's size: up to 1 day, 2–3 days, up to 1 week |
+| `wave:0` … `wave:4` | the order of `coverage` work: 0 docs and measurement, 1 unblocks whole kinds of apps, 2 common frameworks, 3 GPU, 4 the rest |
+| `objc-interface` | an Objective-C / C interface for a framework isim implements in Swift |
+| `blocked` | cannot be done yet; the issue says why |
 | `look-and-feel` | isim's UI does not look or behave like real iOS of that version (with a reference screenshot) |
 | `performance` | correct but too slow (an O(n) lookup, a slow load) |
 | `flaky-test` | a test that passes or fails intermittently |
@@ -121,7 +149,10 @@ Releases are made by the Release workflow (`.github/workflows/release.yml`):
    - sets the next version after the latest tag (`isim/build.py version patch|minor|major`);
    - builds and packages it (`isim/build.py package X.Y.Z`) and smoke-tests the tarball;
    - records the ABI baseline;
-   - opens a "Release X.Y.Z" pull request (`isim/VERSION`, the README's examples, `isim/abi/vX.Y.Z.txt.gz`) and starts
+   - refreshes the coverage numbers (`isim/tools/api-coverage.py measure` on the built SDK, then
+     `isim/tools/coverage-summary.py`);
+   - opens a "Release X.Y.Z" pull request (`isim/VERSION`, the README's examples, `isim/abi/vX.Y.Z.txt.gz`, the coverage
+     data and the generated parts of `docs/COVERAGE.md` and `docs/frameworks/`) and starts
      CI on it.
 
    A dry run stops after the smoke test and keeps the tarball as an artifact.
@@ -134,7 +165,9 @@ Releases are made by the Release workflow (`.github/workflows/release.yml`):
 |---|---|
 | [docs/BUILD.md](docs/BUILD.md) | building, the Ninja graph, adding things |
 | [docs/TESTING.md](docs/TESTING.md) | the test driver, CI |
-| [docs/COVERAGE.md](docs/COVERAGE.md) | API coverage per framework and per iOS version |
+| [docs/COVERAGE.md](docs/COVERAGE.md) | API coverage: the index of every iOS framework, summaries per area and per iOS version |
+| [docs/frameworks/](docs/frameworks/) | one page per framework: how isim implements it, its rows, what it still lacks |
+| [docs/API-SWEEP.md](docs/API-SWEEP.md) | how coverage is measured against Apple's documentation, and how to repeat it |
 | [docs/IOS-VERSIONS.md](docs/IOS-VERSIONS.md) | `--os 17\|18\|26\|27` and what changes per version |
 | [docs/SCRIPTING.md](docs/SCRIPTING.md) | script commands and the `--control` channel |
 | [docs/AI-AGENTS.md](docs/AI-AGENTS.md) | developing apps with AI coding agents |

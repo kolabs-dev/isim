@@ -3,7 +3,7 @@
 isim ships its own Core Data: an Objective-C `CoreData` framework (`isim/frameworks/CoreData`, headers in
 `isim/sdk-src/Frameworks/CoreData`) plus a Swift overlay (`isim/swift/overlays/CoreData`) with typed fetches,
 async `perform`, `ObservableObject` managed objects and SwiftUI's `@FetchRequest` / `@SectionedFetchRequest`.
-Stores use the host's SQLite through isim's `/usr/lib/libsqlite3.dylib`. Coverage details: `COVERAGE.md`
+Stores use the host's SQLite through isim's `/usr/lib/libsqlite3.dylib`. Coverage details: [frameworks/CoreData.md](frameworks/CoreData.md)
 ("Data & persistence"). Tests: `isim/tests/coredata` (self-test) and `isim/tests/ui/test_coredata.py` (the
 `HelloCoreData` sample, built from an Xcode project).
 

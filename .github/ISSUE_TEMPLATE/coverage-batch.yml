@@ -1,0 +1,50 @@
+name: Coverage batch
+description: A small batch of iOS APIs to implement in isim (toward 100% of the iOS API, see docs/COVERAGE.md)
+title: "<Framework>: <scope>"
+labels: ["coverage", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One batch = up to a week of work (S ≤ 1 day, M 2–3 days, L ≤ 1 week); split anything bigger. Add the `area:<key>`
+        label of its framework (keys in `isim/data/frameworks.json`) and a `size:` label. Claim it (assign yourself or
+        comment) before starting. See AGENTS.md, "Coverage".
+  - type: textarea
+    id: apis
+    attributes:
+      label: APIs
+      description: One checklist item per API or behaviour, each linking Apple's documentation. Tick items as pull requests land.
+      value: |
+        - [ ] [`SomeType`](https://developer.apple.com/documentation/<framework>/<sometype>) — what it needs
+        - [ ] [`someMethod(_:)`](https://developer.apple.com/documentation/<framework>/<type>/<somemethod(_:)>)
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: How isim will implement it
+      description: Passthrough (which host library), adapted (isim's own engine: which files), or stub (like Apple's Simulator); what is simulated.
+    validations:
+      required: true
+  - type: dropdown
+    id: target
+    attributes:
+      label: Target status
+      options: ["✅ implemented", "🟡 partial (say what is left)", "🧩 stub, like Apple's Simulator", "⛔ blocked (say why)"]
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      value: |
+        - [ ] rows on `docs/frameworks/<Module>.md` updated (status, iOS version, passthrough / adapted / stub, the test)
+        - [ ] a sample in `isim/samples/` and a pytest test in `isim/tests/` exercise it
+        - [ ] `@pytest.mark.os_matrix` and `OS_MATRIX=1` when the behaviour depends on the iOS version
+        - [ ] Objective-C / C interface when the framework has one in Apple's SDK
+        - [ ] `python3 isim/tools/abi-check.py` passes (or the break is recorded in `isim/abi/`)
+  - type: input
+    id: deps
+    attributes:
+      label: Depends on
+      description: Other issues that must land first (#123, #456)

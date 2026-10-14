@@ -36,7 +36,7 @@ This page is for people building **their own apps** with an agent. Working on is
    - When I have the isim window open (my default device data), send it commands with
      `ISIM_DATA=~/.local/share/isim isim send "…"` (script commands) instead of starting another device.
    - isim is not Apple's simulator. If an iOS API is missing or wrong in isim, do not change the app to avoid it:
-     say so (it is a gap in isim, see its docs/COVERAGE.md) and draft an issue for
+     say so (it is a gap in isim, see its docs/COVERAGE.md and docs/frameworks/) and draft an issue for
      https://github.com/kolabs-dev/isim/issues; show it to me before posting it.
    ```
 
@@ -206,7 +206,8 @@ headless run with a device data of your own for checks that should not disturb i
 ## What isim is and is not
 
 - isim runs real iOS-simulator binaries on its own implementation of the iOS frameworks. It is not Apple's
-  simulator, and it does not cover every API: check [COVERAGE.md](COVERAGE.md). When an API is missing, the fix
+  simulator, and it does not cover every API: check [COVERAGE.md](COVERAGE.md) and the framework's page in
+  [frameworks/](frameworks/) (its "Not yet in isim" list). When an API is missing, the fix
   belongs in isim, not in the app. Do not work around it: report it (below), and never fake SDK or Xcode metadata.
 - The look follows the chosen iOS version and device, but screenshots from isim are not Apple's. Check important
   screens on Apple's simulator or a device before release.
