@@ -405,6 +405,15 @@ extension String {
     self = resource.defaultValue.resolve(resource.defaultValue.expandingPlurals(format))
   }
 }
+/// A type that describes itself with a localized string resource (iOS 16): errors and values the system shows.
+@available(iOS 16.0, *)
+public protocol CustomLocalizedStringResourceConvertible {
+  var localizedStringResource: LocalizedStringResource { get }
+}
+@available(iOS 16.0, *)
+extension LocalizedStringResource: CustomLocalizedStringResourceConvertible {
+  public var localizedStringResource: LocalizedStringResource { self }
+}
 /// A reference to a localized string, resolved later (iOS 16). isim resolves it with the same lookup as
 /// String(localized:).
 @available(iOS 15.0, *) @_originallyDefinedIn(module: "AppIntents", iOS 15.0)   // isim 0.5.0 had it in AppIntents (no OS version moved it: 15.0 = isim's oldest target)

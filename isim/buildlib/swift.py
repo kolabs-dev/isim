@@ -764,5 +764,6 @@ PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFounda
 # modules that also compile overlays/_AdAttribution (the conversion values SKAdNetwork and AdAttributionKit share)
 ATTRIBUTION = set("StoreKit AdAttributionKit".split())
 # overlays that declare macros of isim's compiler plugins (host_plugins): they compile after the plugin is built
-MACRO_PLUGINS = {"UIKit": ["PreviewsMacros"], "SwiftUI": ["PreviewsMacros", "SwiftUIMacros"], "SwiftData": ["SwiftDataMacros"]}
+MACRO_PLUGINS = {"UIKit": ["PreviewsMacros"], "SwiftUI": ["PreviewsMacros", "SwiftUIMacros"], "SwiftData": ["SwiftDataMacros"],
+                 "AppIntents": ["SwiftDataMacros"]}   # @ComputedProperty uses SwiftData's no-op property macro
 
