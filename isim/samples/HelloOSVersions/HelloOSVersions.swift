@@ -1,5 +1,6 @@
 // Sample: one app on every iOS version isim emulates (isim run ... --os 17|18|26|27).
 // - reports UIDevice.systemVersion, ProcessInfo.operatingSystemVersion(String), isOperatingSystemAtLeast
+// - the SIMULATOR_* environment (model identifier, device name, runtime version, UDID, shared resources, screen)
 // - `#available` / `if #available` (Swift) and `@available` (Objective-C, HelloOSVersionsObjC.m) for iOS 18, 26, 27
 // - version-gated APIs: iOS 18 stdlib (Int128) and SwiftUI Tab/TabRole, iOS 26 UIGlassEffect, UIButton glass
 //   configurations, SwiftUI glassEffect / .glass button style, iOS 27 SwiftUI toolbar visibility priority
@@ -32,6 +33,15 @@ func report() {
     // stdlib work that the stdlib itself gates on SwiftStdlib 5.x/6.x internally
     let text = "Café 🇧🇷 naïve ﬁ"
     print("hov stdlib strings \(text.count) \(text.unicodeScalars.count) \(text.utf8.count) \(text.lowercased()) \(String(text.reversed()))")
+    // the environment Apple's Simulator gives apps (DeviceKit, analytics SDKs)
+    let env = pi.environment
+    func e(_ k: String) -> String { env["SIMULATOR_" + k] ?? "-" }
+    print("hov simulator model=\(e("MODEL_IDENTIFIER")) name=\(e("DEVICE_NAME")) runtime=\(e("RUNTIME_VERSION")) udid=\(e("UDID"))")
+    print("hov simulator shared=\(e("SHARED_RESOURCES_DIRECTORY")) root=\(env["SIMULATOR_ROOT"].map { FileManager.default.fileExists(atPath: $0) } ?? false) "
+          + "screen=\(e("MAINSCREEN_WIDTH"))x\(e("MAINSCREEN_HEIGHT"))@\(e("MAINSCREEN_SCALE"))")
+    #if targetEnvironment(simulator)
+    print("hov simulator target=simulator")
+    #endif
     print("hov stdlib collections \(Array(1...10).reduce(0, +)) \(Set([3, 1, 2]).sorted()) \([1: "a", 2: "b"].sorted { $0.key < $1.key }.map(\.value).joined())")
 }
 

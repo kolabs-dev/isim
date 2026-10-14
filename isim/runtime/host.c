@@ -197,6 +197,63 @@ static void device_versions(int di, char *out, size_t cap) {
 static void os_format(const int v[3], char *out, size_t cap) {
     if (v[2]) snprintf(out, cap, "%d.%d.%d", v[0], v[1], v[2]); else snprintf(out, cap, "%d.%d", v[0], v[1]);
 }
+/* ---- the environment Apple's Simulator gives apps (SIMULATOR_*): DeviceKit, analytics and crash SDKs read them to
+   tell a simulator from a device and to name the model. Set once per run for the apps this process starts. ---- */
+static const struct { const char *id, *model; } model_ids[] = {
+    { "iphonese", "iPhone14,6" }, { "iphone13mini", "iPhone14,4" }, { "iphone14", "iPhone14,7" }, { "iphone15", "iPhone15,4" },
+    { "iphone15plus", "iPhone15,5" }, { "iphone15promax", "iPhone16,2" }, { "iphone16pro", "iPhone17,1" },
+    { "iphone16promax", "iPhone17,2" }, { "iphone17", "iPhone18,3" }, { "iphoneair", "iPhone18,4" }, { "iphone17pro", "iPhone18,1" },
+    { "iphone17promax", "iPhone18,2" }, { "ipadmini", "iPad14,1" }, { "ipad", "iPad14,8" }, { "ipadair11", "iPad14,8" },
+    { "ipadpro11", "iPad16,3" }, { "ipadpro13", "iPad16,5" },
+};
+const char *isim_sysroot(void);
+/* the device's UDID: made once and kept with its data (<isim data>/Library/isim/UDID), like a CoreSimulator device's */
+static void device_udid(char *out, size_t cap) {
+    char dir[1024], path[1100];
+    const char *data = getenv("ISIM_DATA"), *home = getenv("HOME");
+    if (data && *data) snprintf(dir, sizeof dir, "%s", data);
+    else snprintf(dir, sizeof dir, "%s/.local/share/isim", home ? home : "");
+    snprintf(path, sizeof path, "%s/Library/isim/UDID", dir);
+    FILE *f = fopen(path, "r");
+    if (f) {
+        char line[64] = "";
+        if (fgets(line, sizeof line, f) && strlen(line) >= 36) { line[36] = 0; snprintf(out, cap, "%s", line); fclose(f); return; }
+        fclose(f);
+    }
+    unsigned char r[16];
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd < 0 || read(fd, r, sizeof r) != sizeof r) for (int i = 0; i < 16; i++) r[i] = (unsigned char)(rand() ^ (i * 37));
+    if (fd >= 0) close(fd);
+    r[6] = (r[6] & 0x0f) | 0x40; r[8] = (r[8] & 0x3f) | 0x80;          /* version 4 */
+    snprintf(out, cap, "%02X%02X%02X%02X-%02X%02X-%02X%02X-%02X%02X-%02X%02X%02X%02X%02X%02X", r[0], r[1], r[2], r[3], r[4], r[5],
+             r[6], r[7], r[8], r[9], r[10], r[11], r[12], r[13], r[14], r[15]);
+    char lib[1100]; snprintf(lib, sizeof lib, "%s/Library", dir); mkdir(dir, 0755); mkdir(lib, 0755);
+    snprintf(lib, sizeof lib, "%s/Library/isim", dir); mkdir(lib, 0755);
+    if ((f = fopen(path, "w"))) { fprintf(f, "%s\n", out); fclose(f); }
+}
+static void simulator_env(int di, const char *version) {
+    const char *model = "iPhone15,4";
+    for (size_t i = 0; i < sizeof model_ids / sizeof *model_ids; i++) if (!strcmp(model_ids[i].id, devices[di].id)) model = model_ids[i].model;
+    char udid[64], v[300], dir[1024];
+    device_udid(udid, sizeof udid);
+    const struct isim_device *d = &devices[di].d;
+    setenv("SIMULATOR_MODEL_IDENTIFIER", model, 1);
+    setenv("SIMULATOR_DEVICE_NAME", d->name, 1);
+    setenv("SIMULATOR_RUNTIME_VERSION", version, 1);
+    setenv("SIMULATOR_UDID", udid, 1);
+    const char *data = getenv("ISIM_DATA"), *home = getenv("HOME");
+    if (data && *data) snprintf(dir, sizeof dir, "%s", data); else snprintf(dir, sizeof dir, "%s/.local/share/isim", home ? home : "");
+    setenv("SIMULATOR_SHARED_RESOURCES_DIRECTORY", dir, 1);            /* the device's data, as CoreSimulator's .../data */
+    const char *root = isim_sysroot();
+    if (root && *root) setenv("SIMULATOR_ROOT", root, 1);              /* the runtime root: isim's SDK */
+    if (home && !getenv("SIMULATOR_HOST_HOME")) setenv("SIMULATOR_HOST_HOME", home, 1);
+    snprintf(v, sizeof v, "%.0f", d->width * d->scale); setenv("SIMULATOR_MAINSCREEN_WIDTH", v, 1);
+    snprintf(v, sizeof v, "%.0f", d->height * d->scale); setenv("SIMULATOR_MAINSCREEN_HEIGHT", v, 1);
+    snprintf(v, sizeof v, "%.1f", d->scale); setenv("SIMULATOR_MAINSCREEN_SCALE", v, 1);
+    snprintf(v, sizeof v, "CoreSimulator isim - Device: %s (%s) - Runtime: iOS %s - DeviceType: %s", d->name, udid, version, d->name);
+    setenv("SIMULATOR_VERSION_INFO", v, 1);
+}
+
 /* Resolves ISIM_OS_VERSION for this device (and exports it for the apps the process starts).
    Returns 0, or 2 after printing why the requested combination is invalid. */
 int isim_os_select(void) {
@@ -237,6 +294,7 @@ int isim_os_select(void) {
     }
     os_format(v, buf, sizeof buf);
     setenv("ISIM_OS_VERSION", buf, 1);
+    simulator_env(di, buf);
     return 0;
 }
 /* isim-runtime --list-devices: id, name, supported iOS versions */

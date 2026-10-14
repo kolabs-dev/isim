@@ -14,6 +14,9 @@ from isimtest import APPS, ISIM, App, need_apps, rgb
 
 VERSIONS = [int(v) for v in os.environ.get("OSV_VERSIONS", "17 18 26 27").split()]
 DEVICE = {17: "iphone15", 18: "iphone16pro", 26: "iphone17", 27: "iphone17"}
+# SIMULATOR_MODEL_IDENTIFIER, SIMULATOR_DEVICE_NAME and the screen in pixels per device
+SIM = {"iphone15": ("iPhone15,4", "iPhone 15", "1179x2556@3.0"), "iphone16pro": ("iPhone17,1", "iPhone 16 Pro", "1206x2622@3.0"),
+       "iphone17": ("iPhone18,3", "iPhone 17", "1206x2622@3.0")}
 
 
 def px(img, x, y):
@@ -87,6 +90,7 @@ def run_version(v, base):
         r["about"] = dev.wait_view(r"text=\d+\.\d+ \(isim\)")
         dev.quit()
         r["blog"] = dev.log
+    r["data"] = str(data)
     return r
 
 
@@ -114,6 +118,14 @@ def test_versions(tmp_path):
         else:
             assert has(r"^hov stdlib18 fallback 4611686018427387903$"), \
                 f"iOS {v}: the stdlib 6.0 branch is skipped (back-deployment path)"
+        model, name, screen = SIM[DEVICE[v]]
+        sim = has(r"^hov simulator model=(\S+) name=(.+) runtime=(\S+) udid=(\S+)$")
+        assert sim and sim.groups()[:3] == (model, name, f"{v}.0"), f"iOS {v}: SIMULATOR_* model, name, runtime: {sim and sim.groups()}"
+        assert re.fullmatch(r"[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}", sim.group(4)), sim.group(4)
+        assert f"udid={sim.group(4)}" in slog, f"iOS {v}: SIMULATOR_UDID stays with the device's data"
+        assert has(rf"^hov simulator shared={re.escape(r['data'])} root=true screen={re.escape(screen)}$"), \
+            f"iOS {v}: SIMULATOR_SHARED_RESOURCES_DIRECTORY, SIMULATOR_ROOT, SIMULATOR_MAINSCREEN_*"
+        assert has(r"^hov simulator target=simulator$"), f"iOS {v}: targetEnvironment(simulator)"
         assert has(r"^hov stdlib strings 14 15 25 café 🇧🇷 naïve ﬁ ﬁ evïan 🇧🇷 éfaC$") and \
             has(r"^hov stdlib collections 55 \[1, 2, 3\] ab$"), f"iOS {v}: stdlib strings/collections unchanged"
         if v >= 26:
