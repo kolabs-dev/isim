@@ -8,8 +8,8 @@
 // (no Look Around imagery otherwise). MKMapSnapshotter renders the offline basemap.
 import UIKit
 
-open class MKLocalSearch: NSObject, @unchecked Sendable {
-    open class Request: NSObject, @unchecked Sendable {
+@objc(MKLocalSearch) open class MKLocalSearch: NSObject, @unchecked Sendable {
+    @objc(MKLocalSearchRequest) open class Request: NSObject, @unchecked Sendable {
         public struct ResultType: OptionSet, Sendable {
             public let rawValue: UInt
             public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -24,7 +24,7 @@ open class MKLocalSearch: NSObject, @unchecked Sendable {
         public init(completion: MKLocalSearchCompletion) { super.init(); naturalLanguageQuery = completion.title + (completion.subtitle.isEmpty ? "" : ", " + completion.subtitle) }
         public convenience init(naturalLanguageQuery: String) { self.init(); self.naturalLanguageQuery = naturalLanguageQuery }
     }
-    open class Response: NSObject, @unchecked Sendable {
+    @objc(MKLocalSearchResponse) open class Response: NSObject, @unchecked Sendable {
         open internal(set) var mapItems: [MKMapItem] = []
         open internal(set) var boundingRegion = MKCoordinateRegion()
     }
@@ -167,7 +167,7 @@ open class MKLocalSearchCompleter: NSObject, @unchecked Sendable {
 // MARK: - directions
 
 open class MKDirections: NSObject, @unchecked Sendable {
-    open class Request: NSObject, @unchecked Sendable {
+    @objc(MKDirectionsRequest) open class Request: NSObject, @unchecked Sendable {
         open var source: MKMapItem?
         open var destination: MKMapItem?
         open var transportType: MKDirectionsTransportType = .any
@@ -180,7 +180,7 @@ open class MKDirections: NSObject, @unchecked Sendable {
         public init(contentsOf url: URL) { super.init() }
         public class func isDirectionsRequest(_ url: URL) -> Bool { false }
     }
-    open class Response: NSObject, @unchecked Sendable {
+    @objc(MKDirectionsResponse) open class Response: NSObject, @unchecked Sendable {
         open internal(set) var source = MKMapItem()
         open internal(set) var destination = MKMapItem()
         open internal(set) var routes: [MKRoute] = []

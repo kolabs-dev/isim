@@ -13,6 +13,7 @@
 ## API
 
 | API / feature | Status | iOS | Notes |
+| Objective-C interface (`EventKitUI.framework`): `EKEventEditViewController` and `EKEventEditViewDelegate`, `EKEventViewController` and `EKEventViewDelegate` | ✅ | ≤17 | adapted: headers over the Swift overlay's classes (Apple's Objective-C names). The delegates' selectors are now Apple's (`...didCompleteWithAction:`); Swift apps built with 0.21 or earlier still get the editor's call. Tested (HelloPersonalObjC: the editor, tests/ui/test_personal_objc.py) |
 |---|---|---|---|
 | Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `EKCalendarChooser` (1 type; with its members under "Not yet in isim") |
 

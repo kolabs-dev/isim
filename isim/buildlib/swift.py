@@ -663,6 +663,18 @@ OBJC_NAMES["PushKit"] = {c: c for c in "PKPushCredentials PKPushPayload PKPushRe
 OBJC_NAMES["BackgroundTasks"] = {c: c for c in """BGTaskRequest BGAppRefreshTaskRequest BGProcessingTaskRequest BGTask BGAppRefreshTask BGProcessingTask
     BGTaskScheduler""".split()}
 OBJC_NAMES["CoreSpotlight"] = {c: c for c in "CSSearchableItemAttributeSet CSSearchableItem CSSearchableIndex CSSearchQuery".split()}
+OBJC_NAMES["CoreLocation"] = {c: c for c in "CLLocationManager CLLocation CLHeading CLPlacemark CLGeocoder CLRegion CLCircularRegion CLVisit CLFloor".split()}
+OBJC_NAMES["MapKit"] = {**{c: c for c in """MKMapView MKAnnotationView MKMarkerAnnotationView MKPinAnnotationView MKShape MKPointAnnotation
+                             MKUserLocation MKPlacemark MKMapItem MKLocalSearch MKMultiPoint MKPolyline MKPolygon MKCircle MKOverlayRenderer
+                             MKOverlayPathRenderer MKPolylineRenderer MKPolygonRenderer MKCircleRenderer""".split()},
+                       "MKLocalSearch.Request": "MKLocalSearchRequest", "MKLocalSearch.Response": "MKLocalSearchResponse",
+                       "MKDirections.Request": "MKDirectionsRequest", "MKDirections.Response": "MKDirectionsResponse"}
+OBJC_NAMES["Contacts"] = {c: c for c in """CNContact CNMutableContact CNPhoneNumber CNPostalAddress CNMutablePostalAddress CNContactFormatter
+    CNContactStore CNFetchRequest CNContactFetchRequest CNSaveRequest""".split()}
+OBJC_NAMES["ContactsUI"] = {c: c for c in "CNContactProperty CNContactPickerViewController CNContactViewController".split()}
+OBJC_NAMES["EventKit"] = {c: c for c in """EKObject EKSource EKCalendar EKAlarm EKRecurrenceEnd EKRecurrenceRule EKCalendarItem EKEvent EKReminder
+    EKEventStore""".split()}
+OBJC_NAMES["EventKitUI"] = {c: c for c in "EKEventEditViewController EKEventViewController".split()}
 OBJC_NAMES["MultipeerConnectivity"] = {c: c for c in """MCPeerID MCSession MCNearbyServiceAdvertiser MCNearbyServiceBrowser MCBrowserViewController
     MCAdvertiserAssistant""".split()}
 

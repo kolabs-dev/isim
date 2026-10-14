@@ -26,14 +26,14 @@ extension MKOverlay {
     public var canReplaceMapContent: Bool { false }
 }
 
-open class MKShape: NSObject, MKAnnotation, @unchecked Sendable {
+@objc(MKShape) open class MKShape: NSObject, MKAnnotation, @unchecked Sendable {
     @objc open var title: String?
     @objc open var subtitle: String?
     open var coordinate: CLLocationCoordinate2D { CLLocationCoordinate2D() }
     public override init() { super.init() }
 }
 
-open class MKPointAnnotation: MKShape, @unchecked Sendable {
+@objc(MKPointAnnotation) open class MKPointAnnotation: MKShape, @unchecked Sendable {
     var _coordinate = CLLocationCoordinate2D()
     open override var coordinate: CLLocationCoordinate2D {
         get { _coordinate }
@@ -47,7 +47,7 @@ open class MKPointAnnotation: MKShape, @unchecked Sendable {
 }
 
 /// The user's location as an annotation (MKMapView.userLocation).
-open class MKUserLocation: NSObject, MKAnnotation, @unchecked Sendable {
+@objc(MKUserLocation) open class MKUserLocation: NSObject, MKAnnotation, @unchecked Sendable {
     @objc dynamic open internal(set) var location: CLLocation?
     open internal(set) var heading: CLHeading?
     open var isUpdating: Bool { location != nil }
@@ -58,7 +58,7 @@ open class MKUserLocation: NSObject, MKAnnotation, @unchecked Sendable {
 
 // MARK: - multi-points
 
-open class MKMultiPoint: MKShape, @unchecked Sendable {
+@objc(MKMultiPoint) open class MKMultiPoint: MKShape, @unchecked Sendable {
     var _points: [MKMapPoint] = []
     open var pointCount: Int { _points.count }
     open func points() -> UnsafeMutablePointer<MKMapPoint> {
@@ -84,7 +84,7 @@ open class MKMultiPoint: MKShape, @unchecked Sendable {
     open func intersects(_ mapRect: MKMapRect) -> Bool { boundingMapRect.intersects(mapRect) }
 }
 
-open class MKPolyline: MKMultiPoint, MKOverlay, @unchecked Sendable {
+@objc(MKPolyline) open class MKPolyline: MKMultiPoint, MKOverlay, @unchecked Sendable {
     public override init() { super.init() }
     public convenience init(points: UnsafePointer<MKMapPoint>, count: Int) {
         self.init(); _points = Array(UnsafeBufferPointer(start: points, count: count))
@@ -123,7 +123,7 @@ open class MKGeodesicPolyline: MKPolyline, @unchecked Sendable {
     }
 }
 
-open class MKPolygon: MKMultiPoint, MKOverlay, @unchecked Sendable {
+@objc(MKPolygon) open class MKPolygon: MKMultiPoint, MKOverlay, @unchecked Sendable {
     open private(set) var interiorPolygons: [MKPolygon]?
     public override init() { super.init() }
     public convenience init(points: UnsafePointer<MKMapPoint>, count: Int) { self.init(); _points = Array(UnsafeBufferPointer(start: points, count: count)) }
@@ -143,7 +143,7 @@ open class MKPolygon: MKMultiPoint, MKOverlay, @unchecked Sendable {
     open override var boundingMapRect: MKMapRect { super.boundingMapRect }
 }
 
-open class MKCircle: MKShape, MKOverlay, @unchecked Sendable {
+@objc(MKCircle) open class MKCircle: MKShape, MKOverlay, @unchecked Sendable {
     let _center: CLLocationCoordinate2D
     public let radius: CLLocationDistance
     public init(center coord: CLLocationCoordinate2D, radius: CLLocationDistance) { _center = coord; self.radius = radius; super.init() }
@@ -211,7 +211,7 @@ open class MKTileOverlay: NSObject, MKOverlay, @unchecked Sendable {
 
 // MARK: - placemarks & map items
 
-open class MKPlacemark: CLPlacemark, MKAnnotation, @unchecked Sendable {
+@objc(MKPlacemark) open class MKPlacemark: CLPlacemark, MKAnnotation, @unchecked Sendable {
     public init(coordinate: CLLocationCoordinate2D) {
         _coord = coordinate
         super.init(_isimName: nil, location: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
@@ -262,7 +262,7 @@ public struct MKPointOfInterestFilter: Sendable {
     public func excludes(_ c: MKPointOfInterestCategory) -> Bool { !includes(c) }
 }
 
-open class MKMapItem: NSObject, @unchecked Sendable {
+@objc(MKMapItem) open class MKMapItem: NSObject, @unchecked Sendable {
     open private(set) var placemark: MKPlacemark
     open var isCurrentLocation = false
     open var name: String?

@@ -446,8 +446,35 @@ Class _objc_realizeClassFromSwift(Class cls, void *previously) {
     return cls;
 }
 
+/* A Swift class whose superclass is resilient in another module (MapKit's MKPlacemark: Core Location's CLPlacemark)
+ * has no static Objective-C class: its _OBJC_CLASS_$_ symbol is a class stub, { isa = 1, the Swift metadata
+ * initializer }, that the initializer turns into the class. Like libobjc, the runtime resolves stubs where Objective-C
+ * meets them: categories, class references (clang's objc_loadClassref for classes marked objc_class_stub, and plain
+ * __objc_classrefs). The initializer is Swift code: it runs once the image is ready (objc_rt_load_image, where +load
+ * runs; while it is mapped, its code is not executable yet), and it calls back into the runtime, so rt_lock is
+ * released around it. */
+struct objc_class_stub { uintptr_t isa; Class (*initializer)(Class, void *); };
+static int is_class_stub(const void *c) {
+    uintptr_t isa = c ? ((const struct objc_class_stub *)c)->isa : 0;
+    return isa != 0 && isa < 16;
+}
+static Class resolve_stub_unlocked(Class c) {
+    if (!is_class_stub(c)) return c;
+    struct objc_class_stub *s = (struct objc_class_stub *)c;
+    return s->initializer ? s->initializer(c, NULL) : NULL;
+}
+Class objc_loadClassref(Class *ref) {
+    Class c = resolve_stub_unlocked(*ref);
+    *ref = c;
+    return c;
+}
+
+static void attach_category_to(struct category_t *cat, Class c);
 static void attach_category(struct category_t *cat) {
-    Class c = cat->cls;
+    if (is_class_stub(cat->cls)) return;          /* on a Swift class stub: when the image is loaded (objc_rt_load_image) */
+    attach_category_to(cat, cat->cls);
+}
+static void attach_category_to(struct category_t *cat, Class c) {
     if (!c) { fprintf(stderr, "isim objc: warning: category %s on missing class ignored\n", cat->name); return; }
     realize(c);
     struct { Class k; struct method_list_t *ml; } targets[2] = { { c, cat->inst }, { c->isa, cat->cls_methods } };
@@ -648,6 +675,22 @@ void objc_rt_map_image(const struct objc_image *img) {
 
 void objc_rt_load_image(const struct objc_image *img) {
     uint64_t n;
+    static const char *const refsects[] = { "__objc_classrefs", "__objc_superrefs" };
+    for (int k = 0; k < 2; k++) {                 /* references to Swift class stubs become the classes */
+        Class *refs = img->find_section(img, refsects[k], &n);
+        for (uint64_t i = 0; i < n / 8; i++) if (is_class_stub(refs[i])) refs[i] = resolve_stub_unlocked(refs[i]);
+    }
+    struct category_t **cats = img->find_section(img, "__objc_catlist", &n);
+    int attached = 0;
+    for (uint64_t i = 0; i < n / 8; i++) {
+        if (!is_class_stub(cats[i]->cls)) continue;
+        Class c = resolve_stub_unlocked(cats[i]->cls);
+        pthread_mutex_lock(&rt_lock);
+        attach_category_to(cats[i], c);
+        pthread_mutex_unlock(&rt_lock);
+        attached = 1;
+    }
+    if (attached) { pthread_mutex_lock(&rt_lock); cache_flush(); pthread_mutex_unlock(&rt_lock); }
     Class *nl = img->find_section(img, "__objc_nlclslist", &n);
     for (uint64_t i = 0; i < n / 8; i++) {
         IMP load = find_in_list(ro_of(nl[i]->isa)->base_methods, s_load);
@@ -1690,7 +1733,7 @@ static const struct shim objc_table[] = {
     I(isim_objc_set_forward_handler), I(isim_objc_call_frame),
     J("__objc_empty_cache", empty_cache), J("_OBJC_CLASS_$_Protocol", &protocol_class), J("_OBJC_METACLASS_$_Protocol", &protocol_meta),
     I(sel_registerName), J("_sel_getUid", sel_registerName), I(sel_getName), I(sel_isEqual),
-    I(objc_getClass), I(objc_lookUpClass), I(objc_getMetaClass), I(class_getName), I(class_getSuperclass), I(class_isMetaClass),
+    I(objc_getClass), I(objc_lookUpClass), I(objc_loadClassref), I(objc_getMetaClass), I(class_getName), I(class_getSuperclass), I(class_isMetaClass),
     I(class_getInstanceSize), I(object_getClass), I(object_setClass), I(object_getClassName), I(class_respondsToSelector),
     I(class_getMethodImplementation), I(class_getMethodImplementation_stret), I(class_createInstance), I(object_dispose), I(objc_destructInstance),
     I(objc_getProtocol), I(protocol_getMethodDescription), I(protocol_copyMethodDescriptionList), I(protocol_copyProtocolList),

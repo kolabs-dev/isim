@@ -4,7 +4,7 @@
 @_spi(isim) import Contacts
 import UIKit
 
-open class CNContactProperty: NSObject, NSCopying, @unchecked Sendable {
+@objc(CNContactProperty) open class CNContactProperty: NSObject, NSCopying, @unchecked Sendable {
     public let contact: CNContact
     public let key: String
     public let value: Any?
@@ -24,7 +24,7 @@ open class CNContactProperty: NSObject, NSCopying, @unchecked Sendable {
     @objc(contactPicker:didSelectContactProperties:) optional func contactPicker(_ picker: CNContactPickerViewController, didSelectContactProperties contactProperties: [CNContactProperty])
 }
 
-open class CNContactPickerViewController: UIViewController {
+@objc(CNContactPickerViewController) open class CNContactPickerViewController: UIViewController {
     open weak var delegate: CNContactPickerDelegate?
     open var displayedPropertyKeys: [String]?
     open var predicateForEnablingContact: NSPredicate?
@@ -196,11 +196,11 @@ final class _CNCard: UITableViewController {
 // MARK: - CNContactViewController
 
 @objc public protocol CNContactViewControllerDelegate: NSObjectProtocol {
-    @objc optional func contactViewController(_ viewController: CNContactViewController, shouldPerformDefaultActionFor property: CNContactProperty) -> Bool
-    @objc optional func contactViewController(_ viewController: CNContactViewController, didCompleteWith contact: CNContact?)
+    @objc(contactViewController:shouldPerformDefaultActionForContactProperty:) optional func contactViewController(_ viewController: CNContactViewController, shouldPerformDefaultActionFor property: CNContactProperty) -> Bool
+    @objc(contactViewController:didCompleteWithContact:) optional func contactViewController(_ viewController: CNContactViewController, didCompleteWith contact: CNContact?)
 }
 
-open class CNContactViewController: UIViewController, UITextFieldDelegate {
+@objc(CNContactViewController) open class CNContactViewController: UIViewController, UITextFieldDelegate {
     open weak var delegate: CNContactViewControllerDelegate?
     open var contactStore: CNContactStore?
     open var allowsEditing = true
@@ -265,7 +265,7 @@ open class CNContactViewController: UIViewController, UITextFieldDelegate {
         }
     }
     public func textFieldShouldReturn(_ textField: UITextField) -> Bool { textField.resignFirstResponder(); return true }
-    @objc func isimCNUIFormCancel() { delegate?.contactViewController?(self, didCompleteWith: nil) }
+    @objc func isimCNUIFormCancel() { _complete(nil) }
     @objc func isimCNUIFormDone() {
         for f in fields.values { _ = f.resignFirstResponder() }
         let m = contact.mutableCopy() as! CNMutableContact
@@ -278,6 +278,20 @@ open class CNContactViewController: UIViewController, UITextFieldDelegate {
         CNContactStore._isimSave(m)
         contact = m.copy() as! CNContact
         NSLog("isim ContactsUI: saved new contact %@", CNContactStore._isimFullName(m))
-        delegate?.contactViewController?(self, didCompleteWith: contact)
+        _complete(contact)
+    }
+}
+
+extension CNContactViewController {
+    /// the delegate's contactViewController:didCompleteWithContact:; Swift apps built with isim 0.21 or earlier implement it
+    /// under Swift's selector (contactViewController:didCompleteWith:), called when the delegate has only that one
+    func _complete(_ contact: CNContact?) {
+        let old = NSSelectorFromString("contactViewController:didCompleteWith:")
+        if let d = delegate as? NSObject, d.responds(to: old) {
+            typealias Send = @convention(c) (AnyObject, Selector, AnyObject, AnyObject?) -> Void
+            unsafeBitCast(d.method(for: old), to: Send.self)(d, old, self, contact)
+        } else {
+            delegate?.contactViewController?(self, didCompleteWith: contact)
+        }
     }
 }
