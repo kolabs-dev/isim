@@ -26,6 +26,10 @@ public struct _ModifiedScene<Base: Scene>: Scene, _SceneRoot, _SceneNode {
 }
 
 extension Scene {
+    /// sets an environment value for the scene's views
+    public func environment<V>(_ keyPath: WritableKeyPath<EnvironmentValues, V>, _ value: V) -> some Scene {
+        _ModifiedScene(base: self) { AnyView($0.environment(keyPath, value)) }
+    }
     public func onChange<V: Equatable>(of value: V, initial: Bool = false, _ action: @escaping (V, V) -> Void) -> some Scene {
         _ModifiedScene(base: self) { AnyView($0.onChange(of: value, initial: initial, action)) }
     }

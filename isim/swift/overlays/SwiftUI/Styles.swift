@@ -29,7 +29,8 @@ struct _LabelStyleKey: EnvironmentKey { static var defaultValue: (@MainActor (La
 struct _LabelStyleKindKey: EnvironmentKey { static var defaultValue: Int { 0 } }
 extension EnvironmentValues {
     var _labelStyle: (@MainActor (LabelStyleConfiguration) -> any View)? { get { self[_LabelStyleKey.self] } set { self[_LabelStyleKey.self] = newValue } }
-    /// the stock style for controls that draw their own label (PasteButton): 0 title and icon, 1 title only, 2 icon only
+    /// the stock style for controls that draw their own label (PasteButton): 0 automatic (title and icon), 1 title only,
+    /// 2 icon only, 3 title and icon chosen by the app (toolbars keep it)
     var _labelStyleKind: Int { get { self[_LabelStyleKindKey.self] } set { self[_LabelStyleKindKey.self] = newValue } }
 }
 extension View {
@@ -37,7 +38,7 @@ extension View {
         _env { e in
             if style is DefaultLabelStyle || style is TitleAndIconLabelStyle { e._labelStyle = nil }
             else { e._labelStyle = { style.makeBody(configuration: $0) } }
-            e._labelStyleKind = style is TitleOnlyLabelStyle ? 1 : style is IconOnlyLabelStyle ? 2 : 0
+            e._labelStyleKind = style is TitleOnlyLabelStyle ? 1 : style is IconOnlyLabelStyle ? 2 : style is TitleAndIconLabelStyle ? 3 : 0
         }
     }
 }
@@ -46,7 +47,13 @@ extension View {
     guard let style = ctx.environment._labelStyle else { return nil }
     let config = LabelStyleConfiguration(title: .init(make: { c in _resolve(title, c.with { $0._labelStyle = nil }) }),
                                          icon: .init(make: { c in _resolve(icon, c.with { $0._labelStyle = nil }) }))
-    return _resolve(style(config), ctx.child("lstyle").with { $0._labelStyle = nil })
+    let node = _resolve(style(config), ctx.child("lstyle").with { $0._labelStyle = nil })
+    // an icon-only label keeps its title for VoiceOver, as on iOS
+    if ctx.environment._labelStyleKind == 2, node.accessibilityLabel == nil {
+        let words = _collectText(_resolve(title, ctx.child("ltitle").with { $0._labelStyle = nil }))
+        if !words.isEmpty { node.accessibilityLabel = words.joined(separator: " ") }
+    }
+    return node
 }
 
 // MARK: - TextFieldStyle

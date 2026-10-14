@@ -41,7 +41,7 @@
 | `ObservableObject` + `@Published` | ✅ | ≤17 | isim Combine |
 | `@StateObject`, `@ObservedObject` | ✅ | ≤17 | |
 | `@EnvironmentObject`, `.environmentObject` | ✅ | ≤17 | |
-| `@Environment(keyPath)`, custom `EnvironmentKey`, `.environment(_:_:)` | ✅ | ≤17 | |
+| `@Environment(keyPath)`, custom `EnvironmentKey`, `.environment(_:_:)` (on views and scenes) | ✅ | ≤17 | `Scene.environment(_:_:)` sets the value for the scene's views (SwiftData's `.modelContainer` on a `WindowGroup`); tested (HelloSwiftDataTemplate) |
 | `@Observable` macro / Observation | ✅ | 17.0 | Observation built from Swift sources; macro via the toolchain plugin; renders track reads; tested (HelloObservation) |
 | `@Bindable`, `@Environment(Model.self)` | ✅ | 17.0 | plus `.environment(_:)` for Observable objects; tested |
 | `@AppStorage` | ✅ | ≤17 | Bool/Int/Double/String/URL/Data/RawRepresentable/optionals; persists; tested (HelloForms) |
@@ -148,6 +148,7 @@
 | `navigationTitle`, `navigationBarTitleDisplayMode` | ✅ | ≤17 | |
 | `navigationBarBackButtonHidden` | ✅ | ≤17 | hides the back button and the edge swipe back; tested (HelloNavStack) |
 | `.toolbar` with `ToolbarItem` / `ToolbarItemGroup` | ✅ | ≤17 | leading / trailing items side by side (iOS 26+: one glass capsule per group), `.principal`, `.secondaryAction` (a "More" menu), `.bottomBar` / `.status` bar, `.keyboard` bar on the keyboard, `ToolbarTitleMenu` / `toolbarTitleMenu`, `toolbarRole(.editor)` (back button without title); tested (HelloNavStack) |
+| A `Label` in a toolbar | ✅ | ≤17 | shows its icon only, as on iOS (a label style set by the app wins; menu items keep their titles); the title stays the button's accessibility label. Tested (HelloSwiftDataTemplate: the template's Add Item button) |
 | `toolbarBackground`, `toolbarColorScheme`, `toolbar(.hidden)` | ✅ | ≤17 | navigation bar background colour / visibility and colour scheme (tested, HelloNavStack); `toolbar(.hidden, for: .navigationBar / .tabBar / .bottomBar)` (tested, HelloLists, HelloTabs); bottom bar background |
 | `TabView` (tab bar, `.tabItem`, `.badge`, selection) | ✅ | ≤17 | material tab bar, SF Symbol items, badges, selection, iOS 18 `Tab`; tested |
 | `TabView` `.tabViewStyle(.page)` | ✅ | ≤17 | swipe paging with page dots; tested |
