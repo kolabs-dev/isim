@@ -16,6 +16,7 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | CoreFoundation strings, time zones, bundles (`CFString*`, `CFTimeZone*`, `CFBundle*`) | 🟡 | ≤17 | the common functions binary SDKs call, over Foundation (toll-free) |
+| CoreFoundation core types: `CFNumber` (create / get value / type / compare, infinities and NaN), mutable `CFArray` / `CFDictionary` / `CFSet` and their copies and accessors, `CFDate` and `CFAbsoluteTimeGetCurrent`, `CFError`, `CFUUID`, `CFCopyDescription`, `CFGetTypeID` per type, `kCFCoreFoundationVersionNumber`, `NSFoundationVersionNumber` | 🟡 | ≤17 | passthrough to the toll-free bridged Foundation classes (as on iOS; `CFUUID` is its own type, not bridged to `NSUUID`). Adapted: collection callbacks are not called, collections always retain their values (the `kCFType*` callbacks' behaviour: values must be objects); `CFNumberGetType` reports the storage of isim's `NSNumber`, which keeps every integer as 64 bits and every float as a double (`kCFNumberSInt64Type` / `kCFNumberFloat64Type`, where iOS keeps the type it was made with); the version numbers are isim's, increasing with the emulated iOS version and above every `…_iOS_*` constant, not Apple's exact build numbers. Tested (FoundationTest: test_foundation) |
 
 ## Not yet in isim
 
