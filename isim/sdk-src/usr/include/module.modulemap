@@ -12,6 +12,8 @@ module Darwin [system] [extern_c] {
     header "stdlib.h"
     header "string.h"
     header "time.h"
+    header "wchar.h"
+    header "regex.h"
     export *
   }
   module POSIX {
@@ -25,6 +27,17 @@ module Darwin [system] [extern_c] {
     header "sys/stat.h"
     header "sys/file.h"
     header "sys/param.h"
+    header "sys/mman.h"
+    header "sys/sysctl.h"
+    header "sys/utsname.h"
+    header "sys/event.h"
+    header "sys/resource.h"
+    header "sys/xattr.h"
+    header "sys/random.h"
+    header "execinfo.h"
+    header "syslog.h"
+    header "pwd.h"
+    header "termios.h"
     export *
   }
   module Networking {
@@ -42,6 +55,7 @@ module Darwin [system] [extern_c] {
     export *
   }
   module Mach {
+    header "libkern/OSAtomic.h"
     header "mach-o/dyld.h"
     header "malloc/malloc.h"
     header "mach/mach.h"
@@ -60,6 +74,10 @@ module ObjectiveC [system] [extern_c] {
 }
 module Dispatch [system] [extern_c] {
   header "dispatch/dispatch.h"
+  export *
+}
+module notify [system] [extern_c] {
+  header "notify.h"
   export *
 }
 module isim_host [system] [extern_c] {

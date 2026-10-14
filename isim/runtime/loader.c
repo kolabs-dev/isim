@@ -891,6 +891,48 @@ void isim_print_backtrace(void *frame) {
         fp = next;
     }
 }
+
+/* execinfo.h for guest code: a frame-pointer walk from the caller (Darwin code always keeps frame pointers), ending
+   where the frames leave the guest images; symbols in Darwin's format ("0   MyApp   0x... main + 52") */
+__attribute__((noinline)) static int d_backtrace(void **buf, int size) {
+    uintptr_t fp = (uintptr_t)__builtin_frame_address(0);
+    int n = 0;
+    for (; n < size && fp && !(fp & 7); ) {
+        uintptr_t next = ((uintptr_t *)fp)[0], ret = ((uintptr_t *)fp)[1];
+        if (!ret || !image_for_address((void *)ret)) break;
+        buf[n++] = (void *)ret;
+        if (next <= fp) break;
+        fp = next;
+    }
+    return n;
+}
+static int frame_line(char *out, size_t cap, int i, void *pc) {
+    d_dl_info di;
+    if (d_dladdr(pc, &di)) {
+        const char *base = strrchr(di.dli_fname, '/');
+        return snprintf(out, cap, "%-4d%-35s 0x%016lx %s + %lu", i, base ? base + 1 : di.dli_fname, (unsigned long)(uintptr_t)pc,
+                        di.dli_sname ? di.dli_sname : "???", di.dli_saddr ? (unsigned long)((uintptr_t)pc - (uintptr_t)di.dli_saddr) : 0UL);
+    }
+    return snprintf(out, cap, "%-4d%-35s 0x%016lx 0x0 + %lu", i, "???", (unsigned long)(uintptr_t)pc, (unsigned long)(uintptr_t)pc);
+}
+static char **d_backtrace_symbols(void *const *pcs, int n) {
+    if (n <= 0) return NULL;
+    char line[1024];
+    size_t total = (size_t)n * sizeof(char *);
+    for (int i = 0; i < n; i++) total += (size_t)frame_line(line, sizeof line, i, pcs[i]) + 1;
+    char **out = malloc(total), *w = (char *)(out + n);
+    for (int i = 0; i < n; i++) { int l = frame_line(w, sizeof line, i, pcs[i]); out[i] = w; w += l + 1; }
+    return out;
+}
+static void d_backtrace_symbols_fd(void *const *pcs, int n, int fd) {
+    char line[1024];
+    for (int i = 0; i < n; i++) {
+        int l = frame_line(line, sizeof line - 1, i, pcs[i]);
+        if (l > (int)sizeof line - 2) l = (int)sizeof line - 2;
+        line[l++] = '\n';
+        if (write(fd, line, (size_t)l) < 0) break;
+    }
+}
 static void write_crash_report(int sig, siginfo_t *si, ucontext_t *uc);
 static void crash_handler(int sig, siginfo_t *si, void *ctx) {
     ucontext_t *uc = ctx;
@@ -1273,7 +1315,8 @@ static const struct shim dyld_table[] = {
     D("__dyld_is_objc_constant", d_dyld_is_objc_constant), D("_dyld_image_path_containing_address", d_dyld_image_path_containing_address),
     D("__dyld_is_memory_immutable", d_dyld_is_memory_immutable), D("_getsectiondata", d_getsectiondata),
     D("_dlsym", d_dlsym), D("_dlopen", d_dlopen), D("_dlclose", d_dlclose), D("_dlerror", d_dlerror), D("_dladdr", d_dladdr),
-    D("_dlopen_preflight", d_dlopen_preflight),
+    D("_dlopen_preflight", d_dlopen_preflight), D("_backtrace", d_backtrace), D("_backtrace_symbols", d_backtrace_symbols),
+    D("_backtrace_symbols_fd", d_backtrace_symbols_fd),
 };
 static const size_t dyld_table_count = sizeof dyld_table / sizeof *dyld_table;
 

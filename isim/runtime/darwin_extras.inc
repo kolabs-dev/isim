@@ -500,7 +500,7 @@ static int d_fprintf_l(FILE *fp, locale_t l, const char *f, ...) {
     A("_pthread_rwlock_unlock", d_rwlock_unlock), P(pthread_atfork), \
     A("_pthread_cond_timedwait_relative_np", d_cond_timedwait_relative_np), A("_pthread_getschedparam", d_pthread_getschedparam), \
     A("_mmap", d_mmap), A("_munmap", d_munmap), A("_uname", d_uname), A("_sysctl", d_sysctl), A("_sysctlbyname", d_sysctlbyname), \
-    P(strptime), P(fseeko), P(ftello), P(wcslen), P(backtrace), P(backtrace_symbols), P(backtrace_symbols_fd), \
+    P(strptime), P(fseeko), P(ftello), P(wcslen), \
     A("__DefaultRuneLocale", &d_DefaultRuneLocale), A("___maskrune", d_maskrune), A("___tolower", d___tolower), \
     A("___toupper", d___toupper), \
     A("_unw_getcontext", d_unw_getcontext), A("_unw_init_local", d_unw_init_local), A("_unw_step", d_unw_step), \

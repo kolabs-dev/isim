@@ -341,6 +341,8 @@ static int d_ioctl(int fd, unsigned long req, void *arg) {
     case 0x4004667fUL: return NETRET(ioctl(fd, FIONREAD, arg));     /* FIONREAD */
     case 0x20006601UL: return NETRET(ioctl(fd, FIOCLEX));           /* FIOCLEX */
     case 0x20006602UL: return NETRET(ioctl(fd, FIONCLEX));          /* FIONCLEX */
+    case 0x40087468UL: return NETRET(ioctl(fd, TIOCGWINSZ, arg));   /* TIOCGWINSZ: struct winsize is the same */
+    case 0x80087467UL: return NETRET(ioctl(fd, TIOCSWINSZ, arg));   /* TIOCSWINSZ */
     default: errno = 25; return -1;                                 /* ENOTTY */
     }
 }

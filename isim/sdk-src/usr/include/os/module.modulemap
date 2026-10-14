@@ -4,5 +4,7 @@ module os [system] [extern_c] {
   module log { header "log.h" export * }
   module lock { header "lock.h" export * }
   module signpost { header "signpost.h" export * }
+  module activity { header "activity.h" export * }
+  module proc { header "proc.h" export * }
   export *
 }
