@@ -104,6 +104,7 @@ void isim_shell_request(int type, const char *a, const char *b, const char *c);
 int isim_image_load(const char *path, double *w, double *h);
 int isim_image_load_data(const void *data, unsigned long len, double *w, double *h);
 int isim_image_symbol(const char *name, double *w, double *h);
+int isim_image_symbol_variable(const char *name, double value, double *w, double *h);
 void isim_image_draw(int handle, double x, double y, double w, double h, const double *tint_rgba, double alpha);
 /* symbols: draw with a UIImageSymbolWeight (0 unspecified, 1 ultraLight ... 9 black) */
 void isim_image_draw_symbol(int handle, double x, double y, double w, double h, const double *tint_rgba, double alpha, int weight);

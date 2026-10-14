@@ -329,8 +329,11 @@ extension Text {
         if let l = _x.live { return MainActor.assumeIsolated { l.make(Date()) } }
         switch storage {
         case .verbatim(let s): return s
-        case .localized(let k, let b):
-            let s = k.resolved(b)
+        case .localized(let k, let b, let t):
+            let s = k.resolved(b, table: t)
+            return _parseMarkdown(s).map { $0.map(\.0).joined() } ?? s
+        case .resource(let r):
+            let s = String(localized: r)
             return _parseMarkdown(s).map { $0.map(\.0).joined() } ?? s
         }
     }
@@ -356,8 +359,11 @@ extension Text {
     else {
         switch t.storage {
         case .verbatim(let s): segments = [(s, _MDStyle())]
-        case .localized(let k, let b):
-            let s = k.resolved(b)
+        case .localized(let k, let b, let table):
+            let s = k.resolved(b, table: table)
+            segments = (t._x.markdown ? _parseMarkdown(s) : nil) ?? [(s, _MDStyle())]
+        case .resource(let r):
+            let s = String(localized: r)
             segments = (t._x.markdown ? _parseMarkdown(s) : nil) ?? [(s, _MDStyle())]
         }
     }
