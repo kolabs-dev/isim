@@ -1,5 +1,5 @@
 // isim's PreviewsMacros compiler plugin (self-authored; built for the Swift toolchain's host, loaded from
-// out/swift/host/plugins): `#Preview` (SwiftUI views, UIViews, UIViewControllers) expands into a type conforming to
+// out/swift/host/plugins): `#Preview` (SwiftUI views, UIViews, UIViewControllers, WidgetKit widgets and Live Activities) expands into a type conforming to
 // DeveloperToolsSupport.PreviewRegistry whose makePreview() builds a Preview with the name, traits and body closure, so
 // the body is type-checked like in Xcode, and an exported entry point for `isim preview` (it renders the preview).
 import SwiftCompilerPlugin
@@ -24,12 +24,34 @@ enum PreviewExpansion {
             }
         }
         guard let body else { return [] }        // the compiler reports the missing body argument
+        let traitList = traits.map(\.description).joined(separator: ", ")
+        return declarations(node, context, name: name,
+                            make: "DeveloperToolsSupport.Preview(\(label): \(name), traits: [\(traitList)], body: \(body))")
+    }
+
+    /// WidgetKit's previews (`#Preview(_:as:widget:timeline:)`, `timelineProvider:`, `using:`, `contentStates:`): every
+    /// argument and trailing closure is passed on, labelled, to `Preview(_isimWidget:...)`; the first trailing closure is
+    /// `widget:`
+    static func expandForwarding(_ node: some FreestandingMacroExpansionSyntax, _ context: some MacroExpansionContext) -> [DeclSyntax] {
+        var name: ExprSyntax = "nil"
+        var args: [String] = []
+        for (i, arg) in node.arguments.enumerated() {
+            if let l = arg.label?.text { args.append("\(l): \(arg.expression)") }
+            else if i == 0 { name = arg.expression }
+        }
+        if let c = node.trailingClosure { args.append("widget: \(c)") }
+        for c in node.additionalTrailingClosures { args.append("\(c.label.text): \(c.closure)") }
+        return declarations(node, context, name: name,
+                            make: "DeveloperToolsSupport.Preview(_isimWidget: \(name), \(args.joined(separator: ", ")))")
+    }
+
+    static func declarations(_ node: some FreestandingMacroExpansionSyntax, _ context: some MacroExpansionContext,
+                             name: ExprSyntax, make: String) -> [DeclSyntax] {
         let type = context.makeUniqueName("Preview")
         let loc = context.location(of: node)
         let file: ExprSyntax = loc.map { ExprSyntax($0.file) } ?? "#fileID"
         let line: ExprSyntax = loc.map { ExprSyntax($0.line) } ?? "#line"
         let column: ExprSyntax = loc.map { ExprSyntax($0.column) } ?? "0"
-        let traitList = traits.map(\.description).joined(separator: ", ")
         // `isim preview` finds previews by an exported entry point named after where the preview is and its name
         // ("isim_preview_" + the hex of "file|line|name"); the entry builds a view controller showing the preview
         func literal(_ e: ExprSyntax) -> String? {
@@ -47,7 +69,7 @@ enum PreviewExpansion {
                 static let line: Int = \(line)
                 static let column: Int = \(column)
                 @MainActor static func makePreview() throws -> DeveloperToolsSupport.Preview {
-                    DeveloperToolsSupport.Preview(\(raw: label): \(name), traits: [\(raw: traitList)], body: \(body))
+                    \(raw: make)
                 }
             }
             """, """
@@ -74,7 +96,13 @@ public struct UIKitViewController: DeclarationMacro {
     }
 }
 
+public struct WidgetPreview: DeclarationMacro {
+    public static func expansion(of node: some FreestandingMacroExpansionSyntax, in context: some MacroExpansionContext) throws -> [DeclSyntax] {
+        PreviewExpansion.expandForwarding(node, context)
+    }
+}
+
 @main
 struct PreviewsMacrosPlugin: CompilerPlugin {
-    let providingMacros: [Macro.Type] = [SwiftUIView.self, UIKitView.self, UIKitViewController.self]
+    let providingMacros: [Macro.Type] = [SwiftUIView.self, UIKitView.self, UIKitViewController.self, WidgetPreview.self]
 }
