@@ -169,7 +169,7 @@ def test_web_interact(launch, web):
     app.send("pinch 200 500 2.0 0.6")
     app.wait_log(r"^isim: WKWebView zoom 2\.00")
     app.tap_id("paste")
-    app.wait_log(r"^HelloWeb: pasteboard .* zoom=2\.0")
+    app.wait_log(r"^HelloWeb: pasteboard .* zoom=(2\.0|1\.99999)")       # the pinch's scale is a ratio of finger distances
     assert app.quit() == 0
 
 
