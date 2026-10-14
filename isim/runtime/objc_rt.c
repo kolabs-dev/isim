@@ -9,12 +9,12 @@
  * non-fragile ivar sliding, categories, protocols (conformance by name), +load,
  * +initialize, objc_msgSend/Super2/_stret variants, ARC entry points, weak refs,
  * autorelease pools, property accessors, @synchronized, fast-enumeration mutation
- * hook, class/object introspection subset.
+ * hook, +resolveInstanceMethod:/+resolveClassMethod:, message forwarding (to Foundation's
+ * handler), associated objects, swizzling (method_setImplementation & co.), classes made at
+ * run time (objc_allocateClassPair, class_addIvar), block IMPs, ivar / property / protocol /
+ * method-encoding introspection. Exceptions: objc_exc.c.
  *
- * +resolveInstanceMethod:/+resolveClassMethod:, property introspection (class_getProperty & co.).
- * Not implemented: message forwarding (aborts with the selector),
- * tagged pointers, non-pointer isa, associated objects, exceptions (throw aborts),
- * method swizzling APIs, class_addMethod, ivar/property introspection, fpret variants.
+ * Not implemented: tagged pointers, non-pointer isa, fpret variants.
  */
 #define _GNU_SOURCE
 #include <pthread.h>
@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include "runtime.h"
 
 typedef struct objc_class *Class;
@@ -1305,6 +1306,379 @@ void _Block_object_dispose(const void *obj, int flags) {
     }
 }
 
+/* ================= classes made at run time (objc_allocateClassPair & co.) ================= */
+/* A class pair is one allocation: the class and metaclass, their class_ro_t, then the caller's extra bytes after the
+ * class (object_getIndexedIvars). Ivars may be added until the pair is registered; registering makes it visible by
+ * name; disposing frees it. KVO-style isa-swizzling libraries (Firebase, Sentry, Aspects) build classes this way. */
+struct class_pair { struct objc_class meta; struct class_ro_t ro, meta_ro; int registered; size_t extra; struct objc_class cls; };
+static struct class_pair **pairs; static int npairs;
+static struct class_pair *pair_for(Class c) {
+    for (int i = 0; i < npairs; i++) if (pairs[i] && (&pairs[i]->cls == c || &pairs[i]->meta == c)) return pairs[i];
+    return NULL;
+}
+Class objc_allocateClassPair(Class superclass, const char *name, size_t extraBytes) {
+    pthread_once(&rt_once, rt_init_once);
+    if (!name || lookup_class_raw(name)) return NULL;
+    struct class_pair *p = calloc(1, sizeof *p + extraBytes);
+    if (!p) return NULL;
+    char *n = strdup(name);
+    uint32_t start = superclass ? (ro_of(superclass)->instance_size + 7) & ~7u : sizeof(void *);
+    p->ro = (struct class_ro_t){ 0, start, start, 0, NULL, n, NULL, NULL, NULL, NULL, NULL };
+    p->meta_ro = (struct class_ro_t){ RO_META, 40, 40, 0, NULL, n, NULL, NULL, NULL, NULL, NULL };
+    p->extra = extraBytes;
+    p->cls.isa = &p->meta; p->cls.superclass = superclass; p->cls.data = (uintptr_t)&p->ro;
+    p->meta.isa = superclass ? superclass->isa->isa : &p->meta;          /* the root metaclass */
+    p->meta.superclass = superclass ? superclass->isa : &p->cls;           /* a root class's metaclass inherits from it */
+    p->meta.data = (uintptr_t)&p->meta_ro;
+    pthread_mutex_lock(&rt_lock);
+    if (superclass) realize(superclass);
+    rt_attach(&p->cls, &p->cls)->realized = 1;
+    rt_attach(&p->meta, &p->cls)->realized = 1;
+    pairs = realloc(pairs, (npairs + 1) * sizeof *pairs); pairs[npairs++] = p;
+    pthread_mutex_unlock(&rt_lock);
+    return &p->cls;
+}
+void objc_registerClassPair(Class c) {
+    struct class_pair *p = c ? pair_for(c) : NULL;
+    if (!p || p->registered) { fprintf(stderr, "isim objc: objc_registerClassPair: %s is not an unregistered class pair\n", c ? cls_name(c) : "nil"); return; }
+    pthread_mutex_lock(&rt_lock);
+    p->registered = 1;
+    void **slot = strmap_slot(&classes, p->ro.name, 1);
+    if (!*slot) *slot = &p->cls;
+    cache_flush();
+    pthread_mutex_unlock(&rt_lock);
+}
+void objc_disposeClassPair(Class c) {
+    struct class_pair *p = c ? pair_for(c) : NULL;
+    if (!p) { fprintf(stderr, "isim objc: objc_disposeClassPair: %s was not made by objc_allocateClassPair\n", c ? cls_name(c) : "nil"); return; }
+    pthread_mutex_lock(&rt_lock);
+    void **slot = strmap_slot(&classes, p->ro.name, 0);
+    if (slot && *slot == &p->cls) *slot = NULL;
+    for (int i = 0; i < npairs; i++) if (pairs[i] == p) pairs[i] = NULL;
+    cache_flush();
+    pthread_mutex_unlock(&rt_lock);
+    /* the class's runtime state and name stay allocated: Method and Ivar pointers may still be held */
+}
+void *object_getIndexedIvars(id o) { return o ? (char *)o + ro_of(o->isa)->instance_size : NULL; }
+
+/* ivars: only while the pair is being built, like libobjc; alignment is log2 */
+int class_addIvar(Class c, const char *name, size_t size, uint8_t alignment, const char *types) {
+    struct class_pair *p = c ? pair_for(c) : NULL;
+    if (!p || p->registered || c != &p->cls || !name) return 0;
+    pthread_mutex_lock(&rt_lock);
+    for (Class k = c; k; k = k->superclass) {                                /* no duplicate names */
+        struct ivar_list_t *il = ro_of(k)->ivars;
+        uint32_t es = il ? il->entsize_flags & ~3u : 0;
+        for (uint32_t i = 0; il && i < il->count; i++)
+            if (!strcmp(((struct ivar_t *)((uint8_t *)(il + 1) + i * es))->name, name)) { pthread_mutex_unlock(&rt_lock); return 0; }
+    }
+    struct ivar_list_t *il = p->ro.ivars;
+    uint32_t n = il ? il->count : 0;
+    il = realloc(il, sizeof *il + (n + 1) * sizeof(struct ivar_t));
+    il->entsize_flags = sizeof(struct ivar_t); il->count = n + 1;
+    uint32_t align = 1u << (alignment > 6 ? 6 : alignment);
+    uint32_t off = (p->ro.instance_size + align - 1) & ~(align - 1);
+    int32_t *offp = calloc(1, sizeof(int64_t));
+    *offp = (int32_t)off;
+    ((struct ivar_t *)(il + 1))[n] = (struct ivar_t){ offp, strdup(name), types ? strdup(types) : strdup(""), alignment, (uint32_t)size };
+    p->ro.ivars = il;
+    p->ro.instance_size = off + (uint32_t)size;
+    pthread_mutex_unlock(&rt_lock);
+    return 1;
+}
+struct ivar_t *class_getInstanceVariable(Class cls, const char *name) {
+    if (!name) return NULL;
+    for (Class c = cls; c; c = c->superclass) {
+        struct ivar_list_t *il = ro_of(c)->ivars;
+        uint32_t es = il ? il->entsize_flags & ~3u : 0;
+        for (uint32_t i = 0; il && i < il->count; i++) {
+            struct ivar_t *iv = (struct ivar_t *)((uint8_t *)(il + 1) + i * es);
+            if (iv->name && !strcmp(iv->name, name)) return iv;
+        }
+    }
+    return NULL;
+}
+struct ivar_t *class_getClassVariable(Class cls, const char *name) { return cls ? class_getInstanceVariable(cls->isa, name) : NULL; }
+
+/* An ivar's memory management from the ARC ivar layouts of the class that declares it (strong / weak; anything else
+ * is assigned unretained, as libobjc does). A layout byte is (words to skip << 4) | words that are scanned, counted
+ * from the class's (word-aligned) instance start. */
+static int layout_scans(const uint8_t *layout, ptrdiff_t offset) {
+    if (!layout || offset < 0 || offset % sizeof(void *)) return 0;
+    ptrdiff_t word = offset / (ptrdiff_t)sizeof(void *), at = 0;
+    for (; *layout; layout++) {
+        at += *layout >> 4;
+        if (word < at) return 0;
+        at += *layout & 15;
+        if (word < at) return 1;
+    }
+    return 0;
+}
+enum { IVAR_UNRETAINED, IVAR_STRONG, IVAR_WEAK };
+static int ivar_memory(id o, struct ivar_t *v) {
+    for (Class c = o->isa; c; c = c->superclass) {
+        struct ivar_list_t *il = ro_of(c)->ivars;
+        uint32_t es = il ? il->entsize_flags & ~3u : 0;
+        if (!il || (uint8_t *)v < (uint8_t *)(il + 1) || (uint8_t *)v >= (uint8_t *)(il + 1) + il->count * es) continue;
+        struct class_ro_t *ro = ro_of(c);
+        ptrdiff_t local = *v->offset - (ptrdiff_t)((ro->instance_start + 7) & ~7u);   /* layouts start at the class's ivars */
+        if (layout_scans(ro->ivar_layout, local)) return IVAR_STRONG;
+        if (layout_scans(ro->weak_ivar_layout, local)) return IVAR_WEAK;
+        return IVAR_UNRETAINED;
+    }
+    return IVAR_UNRETAINED;
+}
+id object_getIvar(id o, struct ivar_t *v) {
+    if (!o || !v || !v->offset) return NULL;
+    id *slot = (id *)((char *)o + *v->offset);
+    return ivar_memory(o, v) == IVAR_WEAK ? objc_loadWeak(slot) : *slot;
+}
+static void set_ivar(id o, struct ivar_t *v, id value, int strong_default) {
+    if (!o || !v || !v->offset) return;
+    id *slot = (id *)((char *)o + *v->offset);
+    int mm = ivar_memory(o, v);
+    if (mm == IVAR_UNRETAINED && strong_default && !ro_of(o->isa)->ivar_layout) mm = IVAR_STRONG;
+    if (mm == IVAR_WEAK) objc_storeWeak(slot, value);
+    else if (mm == IVAR_STRONG) objc_storeStrong(slot, value);
+    else *slot = value;
+}
+void object_setIvar(id o, struct ivar_t *v, id value) { set_ivar(o, v, value, 0); }
+void object_setIvarWithStrongDefault(id o, struct ivar_t *v, id value) { set_ivar(o, v, value, 1); }
+
+/* protocols and properties added at run time, kept like a category's */
+int class_addProtocol(Class c, struct protocol_t *proto) {
+    if (!c || !proto || class_conformsToProtocol(c, proto)) return 0;
+    pthread_mutex_lock(&rt_lock);
+    if (!c->rt) rt_attach(c, c);
+    struct protocol_list_t *pl = calloc(1, sizeof *pl + sizeof(struct protocol_t *));
+    pl->count = 1; pl->list[0] = proto;
+    struct rt_class *r = R(c);
+    r->cat_protos = realloc(r->cat_protos, (r->ncatp + 1) * sizeof *r->cat_protos);
+    r->cat_protos[r->ncatp++] = pl;
+    pthread_mutex_unlock(&rt_lock);
+    return 1;
+}
+typedef struct { const char *name, *value; } objc_property_attribute_t;
+static char *property_attribute_string(const objc_property_attribute_t *attrs, unsigned n) {
+    size_t len = 1;
+    for (unsigned i = 0; i < n; i++) len += strlen(attrs[i].name) + (attrs[i].value ? strlen(attrs[i].value) : 0) + 1;
+    char *s = calloc(1, len), *w = s;
+    for (unsigned i = 0; i < n; i++) w += sprintf(w, "%s%s%s", i ? "," : "", attrs[i].name, attrs[i].value ? attrs[i].value : "");
+    return s;
+}
+static int add_property(Class c, const char *name, const objc_property_attribute_t *attrs, unsigned n, int replace) {
+    if (!c || !name) return 0;
+    struct property_t *existing = NULL;
+    struct rt_class *r = R(c);
+    for (int i = r ? r->ncatprops - 1 : -1; i >= 0 && !existing; i--) existing = prop_in_list(r->cat_props[i], name);
+    if (!existing) existing = prop_in_list(ro_of(c)->base_properties, name);
+    if (existing) {
+        if (!replace) return 0;
+        existing->attributes = property_attribute_string(attrs, n);         /* the old string stays valid for holders */
+        return 1;
+    }
+    pthread_mutex_lock(&rt_lock);
+    if (!c->rt) rt_attach(c, c);
+    r = R(c);
+    struct property_list_t *pl = calloc(1, sizeof *pl + sizeof(struct property_t));
+    pl->entsize = sizeof(struct property_t); pl->count = 1;
+    ((struct property_t *)(pl + 1))->name = strdup(name);
+    ((struct property_t *)(pl + 1))->attributes = property_attribute_string(attrs, n);
+    r->cat_props = realloc(r->cat_props, (r->ncatprops + 1) * sizeof *r->cat_props);
+    r->cat_props[r->ncatprops++] = pl;
+    pthread_mutex_unlock(&rt_lock);
+    return 1;
+}
+int class_addProperty(Class c, const char *name, const objc_property_attribute_t *attrs, unsigned n) { return add_property(c, name, attrs, n, 0); }
+void class_replaceProperty(Class c, const char *name, const objc_property_attribute_t *attrs, unsigned n) { add_property(c, name, attrs, n, 1); }
+/* the attributes as name / value pairs (one malloc block; free() it) */
+objc_property_attribute_t *property_copyAttributeList(struct property_t *prop, unsigned *outCount) {
+    if (outCount) *outCount = 0;
+    if (!prop || !prop->attributes || !*prop->attributes) return NULL;
+    size_t len = strlen(prop->attributes), n = 1;
+    for (const char *a = prop->attributes; *a; a++) if (*a == ',') n++;
+    objc_property_attribute_t *out = calloc(1, (n + 1) * sizeof *out + 2 * (len + n) + 2);
+    char *buf = (char *)(out + n + 1);
+    unsigned k = 0;
+    for (const char *a = prop->attributes; *a; ) {
+        const char *end = a; int quoted = 0;
+        while (*end && (quoted || *end != ',')) { if (*end == '"') quoted = !quoted; end++; }
+        out[k].name = buf; *buf++ = *a; *buf++ = 0;
+        out[k].value = buf; memcpy(buf, a + 1, end - a - 1); buf += end - a - 1; *buf++ = 0;
+        k++;
+        a = *end ? end + 1 : end;
+    }
+    if (outCount) *outCount = k;
+    return out;
+}
+
+/* replace the class's own implementation, or add the method when only a superclass has it (or none) */
+IMP class_replaceMethod(Class c, SEL sel, IMP imp, const char *types) {
+    if (!c || !sel) return NULL;
+    pthread_mutex_lock(&rt_lock);
+    if (!c->rt) rt_attach(c, is_meta(c) ? NULL : c);
+    IMP old = NULL;
+    struct rt_method *m = NULL;
+    for (m = c->rt->methods; m && m->name != sel; m = m->next) {}
+    if (!m && find_own(c, sel)) m = method_for(c, sel, 0);                  /* the owner is c: materialized on c */
+    if (m && m->cls == c) { old = m->imp; m->imp = imp; }
+    else {
+        m = calloc(1, sizeof *m);
+        m->name = sel; m->imp = imp; m->types = types ? strdup(types) : NULL; m->cls = c;
+        m->next = c->rt->methods; c->rt->methods = m;
+    }
+    cache_flush();
+    pthread_mutex_unlock(&rt_lock);
+    return old;
+}
+
+/* ---- method type encodings ---- */
+/* the end of one type in an encoding ("@\"NSString\"", "{CGRect={CGPoint=dd}{CGSize=dd}}", "^v", "[4i]", "b3"),
+ * without its stack offset */
+static const char *skip_type(const char *t) {
+    while (*t && strchr("rnNoORVA+", *t)) t++;                            /* qualifiers */
+    switch (*t) {
+    case 0: return t;
+    case '^': return skip_type(t + 1);
+    case '@':
+        t++;
+        if (*t == '?') return t + 1;                                       /* a block */
+        if (*t == '"') { const char *q = strchr(t + 1, '"'); return q ? q + 1 : t + strlen(t); }
+        return t;
+    case 'b': t++; while (*t >= '0' && *t <= '9') t++; return t;
+    case '{': case '(': case '[': {
+        char open = *t, close = open == '{' ? '}' : open == '(' ? ')' : ']';
+        int depth = 0;
+        for (; *t; t++) {
+            if (*t == '"') { const char *q = strchr(t + 1, '"'); if (!q) return t + strlen(t); t = q; continue; }
+            if (*t == open) depth++;
+            else if (*t == close && --depth == 0) return t + 1;
+        }
+        return t;
+    }
+    default: return t + 1;
+    }
+}
+static const char *skip_offset(const char *t) { if (*t == '-') t++; while (*t >= '0' && *t <= '9') t++; return t; }
+/* the index-th type (0 = the return type) */
+static const char *nth_type(const char *types, unsigned index, size_t *len) {
+    const char *t = types;
+    for (unsigned i = 0; t && *t; i++) {
+        const char *end = skip_type(t);
+        if (i == index) { *len = (size_t)(end - t); return t; }
+        t = skip_offset(end);
+    }
+    return NULL;
+}
+unsigned method_getNumberOfArguments(struct rt_method *m) {
+    if (!m || !m->types) return 0;
+    unsigned n = 0;
+    size_t len;
+    while (nth_type(m->types, n + 1, &len)) n++;
+    return n;
+}
+static char *copy_type(struct rt_method *m, unsigned index) {
+    size_t len;
+    const char *t = m && m->types ? nth_type(m->types, index, &len) : NULL;
+    return t ? strndup(t, len) : NULL;
+}
+char *method_copyReturnType(struct rt_method *m) { char *t = copy_type(m, 0); return t ? t : strdup(""); }
+char *method_copyArgumentType(struct rt_method *m, unsigned index) { return copy_type(m, index + 1); }
+static void type_into(char *t, char *dst, size_t dst_len) {
+    if (!dst || !dst_len) { free(t); return; }
+    strncpy(dst, t ? t : "", dst_len);
+    if (!t || strlen(t) >= dst_len) dst[t && strlen(t) >= dst_len ? dst_len - 1 : 0] = 0;
+    free(t);
+}
+void method_getReturnType(struct rt_method *m, char *dst, size_t len) { type_into(method_copyReturnType(m), dst, len); }
+void method_getArgumentType(struct rt_method *m, unsigned index, char *dst, size_t len) { type_into(method_copyArgumentType(m, index), dst, len); }
+struct objc_method_description *method_getDescription(struct rt_method *m) { return (struct objc_method_description *)m; }  /* name, types: the first two fields */
+
+/* ---- blocks as method implementations ---- */
+/* Each IMP is a 16-byte trampoline in an executable page: it moves self into the block's first argument and the block
+ * into self's register, then jumps to the block's invoke (struct-returning blocks shift one register later). */
+#define BLOCK_USE_STRET (1 << 29)
+#define TRAMPS_PER_PAGE 256
+struct tramp_page { uint8_t *code; void *blocks[TRAMPS_PER_PAGE]; struct tramp_page *next; };
+static struct tramp_page *tramp_pages;
+static pthread_mutex_t tramp_lock = PTHREAD_MUTEX_INITIALIZER;
+static void write_tramp(uint8_t *at, void *block, int stret) {
+    uint8_t *w = at;
+    if (!stret) { *w++ = 0x48; *w++ = 0x89; *w++ = 0xfe;                    /* mov %rdi, %rsi */
+                  *w++ = 0x48; *w++ = 0xbf; }                               /* movabs $block, %rdi */
+    else        { *w++ = 0x48; *w++ = 0x89; *w++ = 0xf2;                    /* mov %rsi, %rdx */
+                  *w++ = 0x48; *w++ = 0xbe; }                               /* movabs $block, %rsi */
+    memcpy(w, &block, 8); w += 8;
+    *w++ = 0xff; *w++ = stret ? 0x66 : 0x67; *w++ = 0x10;                   /* jmp *0x10(%rdi / %rsi): invoke */
+}
+IMP imp_implementationWithBlock(id block) {
+    struct block_layout *b = _Block_copy(block);
+    if (!b) return NULL;
+    pthread_mutex_lock(&tramp_lock);
+    struct tramp_page *pg; int slot = -1;
+    for (pg = tramp_pages; pg && slot < 0; pg = slot < 0 ? pg->next : pg)
+        for (int i = 0; i < TRAMPS_PER_PAGE; i++) if (!pg->blocks[i]) { slot = i; break; }
+    if (slot < 0) {
+        pg = calloc(1, sizeof *pg);
+        pg->code = mmap(NULL, TRAMPS_PER_PAGE * 16, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (pg->code == MAP_FAILED) { free(pg); pthread_mutex_unlock(&tramp_lock); _Block_release(b); return NULL; }
+        pg->next = tramp_pages; tramp_pages = pg; slot = 0;
+    }
+    pg->blocks[slot] = b;
+    write_tramp(pg->code + slot * 16, b, (b->flags & BLOCK_USE_STRET) != 0);
+    __builtin___clear_cache((char *)pg->code + slot * 16, (char *)pg->code + slot * 16 + 16);
+    pthread_mutex_unlock(&tramp_lock);
+    return (IMP)(pg->code + slot * 16);
+}
+static void **tramp_slot(IMP imp) {
+    for (struct tramp_page *pg = tramp_pages; pg; pg = pg->next) {
+        uint8_t *p = (uint8_t *)imp;
+        if (p >= pg->code && p < pg->code + TRAMPS_PER_PAGE * 16 && (p - pg->code) % 16 == 0) return &pg->blocks[(p - pg->code) / 16];
+    }
+    return NULL;
+}
+id imp_getBlock(IMP imp) {
+    pthread_mutex_lock(&tramp_lock);
+    void **s = imp ? tramp_slot(imp) : NULL;
+    id b = s ? *s : NULL;
+    pthread_mutex_unlock(&tramp_lock);
+    return b;
+}
+int imp_removeBlock(IMP imp) {
+    pthread_mutex_lock(&tramp_lock);
+    void **s = imp ? tramp_slot(imp) : NULL;
+    void *b = s ? *s : NULL;
+    if (s) *s = NULL;
+    pthread_mutex_unlock(&tramp_lock);
+    if (b) _Block_release(b);
+    return b != NULL;
+}
+
+/* ---- lists ---- */
+/* fills buffer with up to count registered classes; returns how many there are */
+int objc_getClassList(Class *buffer, int count) {
+    unsigned n = 0;
+    Class *all = objc_copyClassList(&n);
+    for (int i = 0; buffer && i < count && i < (int)n; i++) buffer[i] = all[i];
+    free(all);
+    return (int)n;
+}
+struct protocol_t **objc_copyProtocolList(unsigned *outCount) {
+    pthread_mutex_lock(&rt_lock);
+    struct protocol_t **out = calloc(protocols.n + 1, sizeof *out);
+    unsigned k = 0;
+    for (size_t i = 0; i < protocols.cap && k < protocols.n; i++) if (protocols.k[i] && protocols.v[i]) out[k++] = protocols.v[i];
+    pthread_mutex_unlock(&rt_lock);
+    if (outCount) *outCount = k;
+    return out;
+}
+int protocol_isEqual(struct protocol_t *a, struct protocol_t *b) { return a == b || (a && b && !strcmp(a->name, b->name)); }
+Class objc_getRequiredClass(const char *name) {
+    Class c = objc_getClass(name);
+    if (!c) { fflush(NULL); fprintf(stderr, "isim objc: FATAL: link error: class '%s' not found\n", name ? name : ""); abort(); }
+    return c;
+}
+
 static void *empty_cache[2];
 
 #define I(n) { "_" #n, (void *)n, "isim" }
@@ -1345,5 +1719,12 @@ static const struct shim objc_table[] = {
     I(_Block_copy), I(_Block_release), I(_Block_object_assign), I(_Block_object_dispose),
     J("__NSConcreteStackBlock", _NSConcreteStackBlock), J("__NSConcreteMallocBlock", _NSConcreteMallocBlock),
     J("__NSConcreteGlobalBlock", _NSConcreteGlobalBlock),
+    I(objc_allocateClassPair), I(objc_registerClassPair), I(objc_disposeClassPair), I(object_getIndexedIvars),
+    I(class_addIvar), I(class_getInstanceVariable), I(class_getClassVariable), I(object_getIvar), I(object_setIvar),
+    I(object_setIvarWithStrongDefault), I(class_addProtocol), I(class_addProperty), I(class_replaceProperty),
+    I(property_copyAttributeList), I(class_replaceMethod), I(method_getNumberOfArguments), I(method_copyReturnType),
+    I(method_copyArgumentType), I(method_getReturnType), I(method_getArgumentType), I(method_getDescription),
+    I(imp_implementationWithBlock), I(imp_getBlock), I(imp_removeBlock), I(objc_getClassList), I(objc_copyProtocolList),
+    I(protocol_isEqual), I(objc_getRequiredClass),
 };
 const struct host_lib host_libobjc = { "/usr/lib/libobjc.A.dylib", objc_table, sizeof objc_table / sizeof *objc_table, NULL };

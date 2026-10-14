@@ -40,7 +40,7 @@ final class _IsimSymbolEffectPlayer: NSObject {
     static func player(for v: UIView) -> _IsimSymbolEffectPlayer {
         if let p = objc_getAssociatedObject(v, &isimSymbolPlayerKey) as? _IsimSymbolEffectPlayer { return p }
         let p = _IsimSymbolEffectPlayer(view: v)
-        objc_setAssociatedObject(v, &isimSymbolPlayerKey, p, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+        objc_setAssociatedObject(v, &isimSymbolPlayerKey, p, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         return p
     }
     static func now() -> Double { CACurrentMediaTime() }

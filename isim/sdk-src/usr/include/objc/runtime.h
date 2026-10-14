@@ -17,9 +17,10 @@ OBJC_EXPORT SEL _Nonnull method_getName(Method _Nonnull m);
 OBJC_EXPORT const char * _Nullable method_getTypeEncoding(Method _Nonnull m);
 OBJC_EXPORT BOOL class_addMethod(Class _Nullable cls, SEL _Nonnull name, IMP _Nonnull imp, const char * _Nullable types);
 OBJC_EXPORT id _Nullable objc_getAssociatedObject(id _Nonnull object, const void * _Nonnull key);
-typedef uintptr_t objc_AssociationPolicy;
-enum { OBJC_ASSOCIATION_ASSIGN = 0, OBJC_ASSOCIATION_RETAIN_NONATOMIC = 1, OBJC_ASSOCIATION_COPY_NONATOMIC = 3,
-       OBJC_ASSOCIATION_RETAIN = 01401, OBJC_ASSOCIATION_COPY = 01403 };
+typedef OBJC_ENUM(uintptr_t, objc_AssociationPolicy) {
+    OBJC_ASSOCIATION_ASSIGN = 0, OBJC_ASSOCIATION_RETAIN_NONATOMIC = 1, OBJC_ASSOCIATION_COPY_NONATOMIC = 3,
+    OBJC_ASSOCIATION_RETAIN = 01401, OBJC_ASSOCIATION_COPY = 01403
+};
 OBJC_EXPORT void objc_setAssociatedObject(id _Nonnull object, const void * _Nonnull key, id _Nullable value, objc_AssociationPolicy policy);
 OBJC_EXPORT const char * _Nullable class_getImageName(Class _Nullable cls);
 OBJC_EXPORT Class _Nullable objc_getRequiredClass(const char * _Nonnull name);
@@ -90,4 +91,36 @@ OBJC_EXPORT BOOL protocol_conformsToProtocol(Protocol * _Nullable proto, Protoco
 OBJC_EXPORT id _Nullable class_createInstance(Class _Nullable cls, size_t extraBytes) NS_RETURNS_RETAINED;
 OBJC_EXPORT id _Nullable object_dispose(id _Nullable obj);
 OBJC_EXPORT void * _Nullable objc_destructInstance(id _Nullable obj);
+/* classes made at run time, ivars, protocols and properties added at run time */
+OBJC_EXPORT Class _Nullable objc_allocateClassPair(Class _Nullable superclass, const char * _Nonnull name, size_t extraBytes);
+OBJC_EXPORT void objc_registerClassPair(Class _Nonnull cls);
+OBJC_EXPORT void objc_disposeClassPair(Class _Nonnull cls);
+OBJC_EXPORT void * _Nullable object_getIndexedIvars(id _Nullable obj);
+OBJC_EXPORT BOOL class_addIvar(Class _Nullable cls, const char * _Nonnull name, size_t size, uint8_t alignment, const char * _Nullable types);
+OBJC_EXPORT Ivar _Nullable class_getInstanceVariable(Class _Nullable cls, const char * _Nonnull name);
+OBJC_EXPORT Ivar _Nullable class_getClassVariable(Class _Nullable cls, const char * _Nonnull name);
+OBJC_EXPORT id _Nullable object_getIvar(id _Nullable obj, Ivar _Nonnull ivar);
+OBJC_EXPORT void object_setIvar(id _Nullable obj, Ivar _Nonnull ivar, id _Nullable value);
+OBJC_EXPORT void object_setIvarWithStrongDefault(id _Nullable obj, Ivar _Nonnull ivar, id _Nullable value);
+OBJC_EXPORT BOOL class_addProtocol(Class _Nullable cls, Protocol * _Nonnull protocol);
+typedef struct { const char * _Nonnull name; const char * _Nonnull value; } objc_property_attribute_t;
+OBJC_EXPORT BOOL class_addProperty(Class _Nullable cls, const char * _Nonnull name, const objc_property_attribute_t * _Nullable attributes, unsigned int attributeCount);
+OBJC_EXPORT void class_replaceProperty(Class _Nullable cls, const char * _Nonnull name, const objc_property_attribute_t * _Nullable attributes, unsigned int attributeCount);
+OBJC_EXPORT objc_property_attribute_t * _Nullable property_copyAttributeList(objc_property_t _Nonnull property, unsigned int * _Nullable outCount);
+OBJC_EXPORT IMP _Nullable class_replaceMethod(Class _Nullable cls, SEL _Nonnull name, IMP _Nonnull imp, const char * _Nullable types);
+/* method type encodings */
+OBJC_EXPORT unsigned int method_getNumberOfArguments(Method _Nonnull m);
+OBJC_EXPORT char * _Nonnull method_copyReturnType(Method _Nonnull m);
+OBJC_EXPORT char * _Nullable method_copyArgumentType(Method _Nonnull m, unsigned int index);
+OBJC_EXPORT void method_getReturnType(Method _Nonnull m, char * _Nonnull dst, size_t dst_len);
+OBJC_EXPORT void method_getArgumentType(Method _Nonnull m, unsigned int index, char * _Nullable dst, size_t dst_len);
+OBJC_EXPORT struct objc_method_description * _Nonnull method_getDescription(Method _Nonnull m);
+/* blocks as method implementations: the block takes self first, then the method's arguments (no _cmd) */
+OBJC_EXPORT IMP _Nonnull imp_implementationWithBlock(id _Nonnull block);
+OBJC_EXPORT id _Nullable imp_getBlock(IMP _Nonnull anImp);
+OBJC_EXPORT BOOL imp_removeBlock(IMP _Nonnull anImp);
+/* lists */
+OBJC_EXPORT int objc_getClassList(Class _Nonnull * _Nullable buffer, int bufferCount);
+OBJC_EXPORT Protocol * __unsafe_unretained _Nonnull * _Nullable objc_copyProtocolList(unsigned int * _Nullable outCount);
+OBJC_EXPORT BOOL protocol_isEqual(Protocol * _Nullable proto, Protocol * _Nullable other);
 __END_DECLS

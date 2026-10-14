@@ -109,7 +109,7 @@ extension UITextFormattingViewController {
         get { (objc_getAssociatedObject(self, &_isimFormattingAdapterKey) as? _IsimTextFormattingAdapter)?.target }
         set {
             let adapter = newValue.map { _IsimTextFormattingAdapter($0) }
-            objc_setAssociatedObject(self, &_isimFormattingAdapterKey, adapter, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+            objc_setAssociatedObject(self, &_isimFormattingAdapterKey, adapter, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
             __delegate = adapter
         }
     }

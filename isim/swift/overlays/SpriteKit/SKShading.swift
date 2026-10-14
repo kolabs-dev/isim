@@ -105,7 +105,7 @@ extension SKShader {
     var _program: _SKShaderProgram? {
         let key = (source ?? "") + "|" + uniforms.map { "\($0.name):\($0.uniformType.rawValue)" }.joined(separator: ",") + "|" + attributes.map { "\($0.name):\($0.type.rawValue)" }.joined(separator: ",")
         let box = (objc_getAssociatedObject(self, &_skProgramKey) as? _SKProgramBox) ?? {
-            let b = _SKProgramBox(); objc_setAssociatedObject(self, &_skProgramKey, b, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)); return b
+            let b = _SKProgramBox(); objc_setAssociatedObject(self, &_skProgramKey, b, .OBJC_ASSOCIATION_RETAIN_NONATOMIC); return b
         }()
         if box.key != key || box.program == nil { box.key = key; box.program = _SKShaderProgram(self) }
         return box.program?.kernel == nil ? nil : box.program
@@ -123,7 +123,7 @@ extension SKNode {
         // the last image, when nothing it depends on changed (programs reading u_time run every frame)
         let key = second ? UnsafeRawPointer(&_skKeeper2Key) : UnsafeRawPointer(&_skKeeperKey)
         let keeper = (objc_getAssociatedObject(self, key) as? _SKImageKeeper) ?? {
-            let k = _SKImageKeeper(); objc_setAssociatedObject(self, key, k, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)); return k
+            let k = _SKImageKeeper(); objc_setAssociatedObject(self, key, k, .OBJC_ASSOCIATION_RETAIN_NONATOMIC); return k
         }()
         var sig = ""
         if !prog.animated {

@@ -196,8 +196,8 @@ nonisolated(unsafe) private var kTextDropInteraction: UInt8 = 0, kTextDragOption
     let source = _IsimTextDragSource(v)
     let i = UIDragInteraction(delegate: source)
     i.isEnabled = UIDevice.current.userInterfaceIdiom == .pad              // as on iOS: on by default on iPad
-    objc_setAssociatedObject(i, &kTextDragInteraction, source, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
-    objc_setAssociatedObject(v, &kTextDragInteraction, i, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+    objc_setAssociatedObject(i, &kTextDragInteraction, source, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    objc_setAssociatedObject(v, &kTextDragInteraction, i, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     v.addInteraction(i)
     return i
 }
@@ -205,31 +205,31 @@ nonisolated(unsafe) private var kTextDropInteraction: UInt8 = 0, kTextDragOption
     if let i = objc_getAssociatedObject(v, &kTextDropInteraction) as? UIDropInteraction { return i }
     let target = _IsimTextDropTarget(v)
     let i = UIDropInteraction(delegate: target)
-    objc_setAssociatedObject(i, &kTextDropInteraction, target, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
-    objc_setAssociatedObject(v, &kTextDropInteraction, i, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+    objc_setAssociatedObject(i, &kTextDropInteraction, target, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    objc_setAssociatedObject(v, &kTextDropInteraction, i, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     return i
 }
 
 extension UITextView: UITextDraggable, UITextDroppable, UITextPasteConfigurationSupporting {
     public var textDragDelegate: UITextDragDelegate? {
         get { (objc_getAssociatedObject(self, &kTextDragDelegate) as? _WeakBox)?.value as? UITextDragDelegate }
-        set { objc_setAssociatedObject(self, &kTextDragDelegate, _WeakBox(newValue), objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)); _ = _isimMakeDragInteraction(self) }
+        set { objc_setAssociatedObject(self, &kTextDragDelegate, _WeakBox(newValue), .OBJC_ASSOCIATION_RETAIN_NONATOMIC); _ = _isimMakeDragInteraction(self) }
     }
     public var textDragInteraction: UIDragInteraction? { _isimMakeDragInteraction(self) }
     public var isTextDragActive: Bool { _IsimTextDropState.sourceView === self && _IsimDragController.current != nil }
     public var textDragOptions: UITextDragOptions {
         get { UITextDragOptions(rawValue: (objc_getAssociatedObject(self, &kTextDragOptions) as? Int) ?? 0) }
-        set { objc_setAssociatedObject(self, &kTextDragOptions, newValue.rawValue, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)) }
+        set { objc_setAssociatedObject(self, &kTextDragOptions, newValue.rawValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
     public var textDropDelegate: UITextDropDelegate? {
         get { (objc_getAssociatedObject(self, &kTextDropDelegate) as? _WeakBox)?.value as? UITextDropDelegate }
-        set { objc_setAssociatedObject(self, &kTextDropDelegate, _WeakBox(newValue), objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)) }
+        set { objc_setAssociatedObject(self, &kTextDropDelegate, _WeakBox(newValue), .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
     public var textDropInteraction: UIDropInteraction? { _isimMakeDropInteraction(self) }
     public var isTextDropActive: Bool { _IsimDragController.current?.textTarget === self }
     public var pasteDelegate: UITextPasteDelegate? {
         get { (objc_getAssociatedObject(self, &kPasteDelegate) as? _WeakBox)?.value as? UITextPasteDelegate }
-        set { objc_setAssociatedObject(self, &kPasteDelegate, _WeakBox(newValue), objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)) }
+        set { objc_setAssociatedObject(self, &kPasteDelegate, _WeakBox(newValue), .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
     @objc func _isim_textPaste() -> Bool { _isimTextPaste(self) }
     @objc func _isim_textDragBeginsAt(_ p: CGPoint) -> Bool { _isimTextDragBegins(self, at: p) }
@@ -237,23 +237,23 @@ extension UITextView: UITextDraggable, UITextDroppable, UITextPasteConfiguration
 extension UITextField: UITextDraggable, UITextDroppable, UITextPasteConfigurationSupporting {
     public var textDragDelegate: UITextDragDelegate? {
         get { (objc_getAssociatedObject(self, &kTextDragDelegate) as? _WeakBox)?.value as? UITextDragDelegate }
-        set { objc_setAssociatedObject(self, &kTextDragDelegate, _WeakBox(newValue), objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)); _ = _isimMakeDragInteraction(self) }
+        set { objc_setAssociatedObject(self, &kTextDragDelegate, _WeakBox(newValue), .OBJC_ASSOCIATION_RETAIN_NONATOMIC); _ = _isimMakeDragInteraction(self) }
     }
     public var textDragInteraction: UIDragInteraction? { _isimMakeDragInteraction(self) }
     public var isTextDragActive: Bool { _IsimTextDropState.sourceView === self && _IsimDragController.current != nil }
     public var textDragOptions: UITextDragOptions {
         get { UITextDragOptions(rawValue: (objc_getAssociatedObject(self, &kTextDragOptions) as? Int) ?? 0) }
-        set { objc_setAssociatedObject(self, &kTextDragOptions, newValue.rawValue, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)) }
+        set { objc_setAssociatedObject(self, &kTextDragOptions, newValue.rawValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
     public var textDropDelegate: UITextDropDelegate? {
         get { (objc_getAssociatedObject(self, &kTextDropDelegate) as? _WeakBox)?.value as? UITextDropDelegate }
-        set { objc_setAssociatedObject(self, &kTextDropDelegate, _WeakBox(newValue), objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)) }
+        set { objc_setAssociatedObject(self, &kTextDropDelegate, _WeakBox(newValue), .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
     public var textDropInteraction: UIDropInteraction? { _isimMakeDropInteraction(self) }
     public var isTextDropActive: Bool { _IsimDragController.current?.textTarget === self }
     public var pasteDelegate: UITextPasteDelegate? {
         get { (objc_getAssociatedObject(self, &kPasteDelegate) as? _WeakBox)?.value as? UITextPasteDelegate }
-        set { objc_setAssociatedObject(self, &kPasteDelegate, _WeakBox(newValue), objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)) }
+        set { objc_setAssociatedObject(self, &kPasteDelegate, _WeakBox(newValue), .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
     @objc func _isim_textPaste() -> Bool { _isimTextPaste(self) }
     @objc func _isim_textDragBeginsAt(_ p: CGPoint) -> Bool { _isimTextDragBegins(self, at: p) }

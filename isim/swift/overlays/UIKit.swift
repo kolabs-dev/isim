@@ -981,7 +981,7 @@ extension UIWindowScene {
     public func displayLink(action: @escaping @Sendable (CADisplayLink) -> Void) -> CADisplayLink? {
         let target = _IsimDisplayLinkAction(action)
         guard let link = displayLink(target: target, selector: #selector(_IsimDisplayLinkAction.fire(_:))) else { return nil }
-        objc_setAssociatedObject(link, &_isimDisplayLinkActionKey, target, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))   // the link keeps its target
+        objc_setAssociatedObject(link, &_isimDisplayLinkActionKey, target, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)   // the link keeps its target
         return link
     }
 }

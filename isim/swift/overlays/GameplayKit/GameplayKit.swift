@@ -122,7 +122,7 @@ extension SKNode {
     /// the GameplayKit entity this node belongs to (weak)
     public var entity: GKEntity? {
         get { (objc_getAssociatedObject(self, &_gkEntityKey) as? _GKWeakEntity)?.value }
-        set { objc_setAssociatedObject(self, &_gkEntityKey, _GKWeakEntity(newValue), 1 /* OBJC_ASSOCIATION_RETAIN_NONATOMIC */) }
+        set { objc_setAssociatedObject(self, &_gkEntityKey, _GKWeakEntity(newValue), .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
 }
 

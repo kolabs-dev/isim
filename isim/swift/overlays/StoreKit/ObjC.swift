@@ -30,7 +30,7 @@ extension SKStoreProductViewController {
         get { (delegate as? _SKObjCProductDelegate)?.f.target }
         set {
             let a = newValue.map(_SKObjCProductDelegate.init)
-            objc_setAssociatedObject(self, &_skObjCDelegateKey, a, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))   // the delegate is weak
+            objc_setAssociatedObject(self, &_skObjCDelegateKey, a, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)   // the delegate is weak
             delegate = a
         }
     }
@@ -51,7 +51,7 @@ extension SKOverlay {
         get { (delegate as? _SKObjCOverlayDelegate)?.f.target }
         set {
             let a = newValue.map(_SKObjCOverlayDelegate.init)
-            objc_setAssociatedObject(self, &_skObjCDelegateKey, a, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+            objc_setAssociatedObject(self, &_skObjCDelegateKey, a, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
             delegate = a
         }
     }
