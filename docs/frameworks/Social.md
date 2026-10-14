@@ -1,7 +1,7 @@
 # Social
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 42.9% of Apple's iOS API (24 of 56, exact) · **iOS:** 6.0+
+**Symbols:** 42.9% of Apple's iOS API (24 of 56, exact) · **Rows:** 0% (1: 1 ❌) · **iOS:** 6.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [Social](https://developer.apple.com/documentation/social) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)

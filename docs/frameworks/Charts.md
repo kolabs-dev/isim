@@ -1,7 +1,7 @@
 # Charts
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 74.2% of Apple's iOS API (442 of 596, exact) · **Rows:** 94% (16: 14 ✅ 2 🟡) · **iOS:** 16.0+
+**Symbols:** 74.2% of Apple's iOS API (442 of 596, exact) · **Rows:** 88% (17: 14 ✅ 2 🟡 1 ❌) · **iOS:** 16.0+
 <!-- /generated:header -->
 
 **Area:** [SwiftUI & Charts](../COVERAGE.md#swiftui) · **Apple:** [Charts](https://developer.apple.com/documentation/charts) · **Issues:** [`area:swiftui`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aswiftui)

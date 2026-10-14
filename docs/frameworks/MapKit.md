@@ -1,7 +1,7 @@
 # MapKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 67.4% of Apple's iOS API (993 of 1473, exact) · **Rows:** 90% (5: 4 ✅ 1 🟡) · **iOS:** 3.0+
+**Symbols:** 67.4% of Apple's iOS API (993 of 1473, exact) · **Rows:** 56% (8: 4 ✅ 1 🟡 3 ❌) · **iOS:** 3.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [MapKit](https://developer.apple.com/documentation/mapkit) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)

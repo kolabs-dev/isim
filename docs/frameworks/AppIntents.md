@@ -1,7 +1,7 @@
 # AppIntents
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 13.2% of Apple's iOS API (865 of 6539, exact) · **Rows:** 75% (2: 1 ✅ 1 🟡) · **iOS:** 16.0+
+**Symbols:** 13.2% of Apple's iOS API (865 of 6539, exact) · **Rows:** 36% (7: 2 ✅ 1 🟡 4 ❌) · **iOS:** 16.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [AppIntents](https://developer.apple.com/documentation/appintents) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)

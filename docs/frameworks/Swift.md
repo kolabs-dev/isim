@@ -1,7 +1,7 @@
 # Swift (stdlib, runtime, concurrency)
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 92.4% of Apple's iOS API (21975 of 23770, exact) · **Rows:** 100% (19: 19 ✅) · **iOS:** 8.0+
+**Symbols:** 92.4% of Apple's iOS API (21975 of 23770, exact) · **Rows:** 92% (26: 24 ✅ 2 ❌) · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [Swift](https://developer.apple.com/documentation/swift) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)

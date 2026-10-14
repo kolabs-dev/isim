@@ -1,7 +1,7 @@
 # Platform & tooling
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Rows:** 88% (53: 44 ✅ 5 🟡 4 ❌)
+**Rows:** 90% (53: 46 ✅ 3 🟡 4 ❌)
 <!-- /generated:header -->
 
 **Area:** [Developer tools](../COVERAGE.md#devtools) · **Issues:** [`area:devtools`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Adevtools)

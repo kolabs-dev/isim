@@ -1,7 +1,7 @@
 # Observation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 52.8% of Apple's iOS API (19 of 36, exact) · **iOS:** 17.0+
+**Symbols:** 52.8% of Apple's iOS API (19 of 36, exact) · **Rows:** 0% (1: 1 ❌) · **iOS:** 17.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [Observation](https://developer.apple.com/documentation/observation) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)

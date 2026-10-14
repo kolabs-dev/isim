@@ -1,7 +1,7 @@
 # Testing
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 81.6% of Apple's iOS API (173 of 212, exact) · **Rows:** 100% (1: 1 ✅) · **iOS:** None+
+**Symbols:** 81.6% of Apple's iOS API (173 of 212, exact) · **Rows:** 50% (2: 1 ✅ 1 ❌) · **iOS:** None+
 <!-- /generated:header -->
 
 **Area:** [Developer tools](../COVERAGE.md#devtools) · **Apple:** [Testing](https://developer.apple.com/documentation/testing) · **Issues:** [`area:devtools`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Adevtools)

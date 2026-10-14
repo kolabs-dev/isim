@@ -1,7 +1,7 @@
 # AVFoundation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 30.2% of Apple's iOS API (1670 of 5537, exact) · **Rows:** 98% (29: 28 ✅ 1 🟡) · **iOS:** 2.2+
+**Symbols:** 30.2% of Apple's iOS API (1670 of 5537, exact) · **Rows:** 86% (33: 28 ✅ 1 🟡 4 ❌) · **iOS:** 2.2+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [AVFoundation](https://developer.apple.com/documentation/avfoundation) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)

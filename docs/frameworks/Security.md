@@ -1,7 +1,7 @@
 # Security
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 25.7% of Apple's iOS API (322 of 1255, exact) · **Rows:** 92% (6: 5 ✅ 1 🟡) · **iOS:** 2.0+
+**Symbols:** 25.7% of Apple's iOS API (322 of 1255, exact) · **Rows:** 75% (8: 5 ✅ 2 🟡 1 ❌) · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Identity & security](../COVERAGE.md#security) · **Apple:** [Security](https://developer.apple.com/documentation/security) · **Issues:** [`area:security`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asecurity)

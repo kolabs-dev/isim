@@ -1,7 +1,7 @@
 # AVKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 30.5% of Apple's iOS API (106 of 347, exact) · **Rows:** 83% (3: 2 ✅ 1 🟡) · **iOS:** 8.0+
+**Symbols:** 30.5% of Apple's iOS API (106 of 347, exact) · **Rows:** 42% (6: 2 ✅ 1 🟡 3 ❌) · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [AVKit](https://developer.apple.com/documentation/avkit) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)

@@ -1,7 +1,7 @@
 # CoreBluetooth
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 42.4% of Apple's iOS API (192 of 453, exact) · **Rows:** 50% (1: 1 🟡) · **iOS:** 5.0+
+**Symbols:** 42.4% of Apple's iOS API (192 of 453, exact) · **Rows:** 17% (3: 1 🟡 2 ❌) · **iOS:** 5.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [CoreBluetooth](https://developer.apple.com/documentation/corebluetooth) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)

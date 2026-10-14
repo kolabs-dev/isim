@@ -1,7 +1,7 @@
 # UIKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 92.0% of Apple's iOS API (13612 of 14790, exact) · **Rows:** 99% (312: 304 ✅ 7 🟡 1 ❌) · **iOS:** 2.0+
+**Symbols:** 92.1% of Apple's iOS API (13625 of 14790, exact) · **Rows:** 98% (315: 305 ✅ 8 🟡 2 ❌) · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [UIKit](../COVERAGE.md#uikit) · **Apple:** [UIKit](https://developer.apple.com/documentation/uikit) · **Issues:** [`area:uikit`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Auikit)
@@ -399,7 +399,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1178 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1165 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -703,7 +703,7 @@
 - [`init(rawValue: UInt)`](https://developer.apple.com/documentation/uikit/uicollisionbehavior/mode/init(rawvalue:))
 - [`static var items: UICollisionBehavior.Mode`](https://developer.apple.com/documentation/uikit/uicollisionbehavior/mode/items)
 - [`func setTranslatesReferenceBoundsIntoBoundary(with: UIEdgeInsets)`](https://developer.apple.com/documentation/uikit/uicollisionbehavior/settranslatesreferenceboundsintoboundary(with:))
-- … and 878 more (`isim/data/api-coverage.json.gz`)
+- … and 865 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

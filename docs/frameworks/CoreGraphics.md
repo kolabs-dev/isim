@@ -1,7 +1,7 @@
 # CoreGraphics
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 45.7% of Apple's iOS API (545 of 1193, exact) · **Rows:** 93% (22: 19 ✅ 3 🟡) · **iOS:** 2.0+
+**Symbols:** 45.7% of Apple's iOS API (545 of 1193, exact) · **Rows:** 79% (26: 19 ✅ 3 🟡 4 ❌) · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Graphics & text](../COVERAGE.md#graphics) · **Apple:** [CoreGraphics](https://developer.apple.com/documentation/coregraphics) · **Issues:** [`area:graphics`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agraphics)

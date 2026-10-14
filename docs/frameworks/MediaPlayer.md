@@ -1,7 +1,7 @@
 # MediaPlayer
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 69.0% of Apple's iOS API (377 of 546, exact) · **Rows:** 88% (4: 3 ✅ 1 🟡) · **iOS:** 2.0+
+**Symbols:** 69.0% of Apple's iOS API (377 of 546, exact) · **Rows:** 50% (7: 3 ✅ 1 🟡 3 ❌) · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [MediaPlayer](https://developer.apple.com/documentation/mediaplayer) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
