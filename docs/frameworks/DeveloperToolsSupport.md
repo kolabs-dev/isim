@@ -9,11 +9,14 @@
 ## How isim implements it
 
 - **Adapted:** the preview types; `#Preview` is expanded by isim's macro plugin and rendered by `isim preview`. Rows: [SwiftUI](SwiftUI.md) and [Platform](Platform.md).
+- **Adapted:** the asset catalog resources `ImageResource` and `ColorResource` (`isim/swift/overlays/DeveloperToolsSupport.swift`) name an asset and its bundle; `isim build` generates Xcode's `GeneratedAssetSymbols.swift` / `.h` naming them, and UIKit and SwiftUI load them from isim's asset catalog format.
 
 ## API
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
+| `ImageResource`, `ColorResource` (`init(name:bundle:)`) | ✅ | ≤17 | an asset's name and bundle; `UIImage(resource:)` / `UIColor(resource:)` and SwiftUI's `Image(_:)` / `Color(_:)` load them (iOS 17 in Apple's documentation; usable with older deployment targets, as Xcode 15+ generates them). Tested (HelloAssetSymbols: test_asset_symbols) |
+| Generated asset symbols (`GeneratedAssetSymbols.swift` / `.h`) | ✅ | ≤17 | `isim build` writes them for the target's asset catalogs like Xcode: `ColorResource` / `ImageResource` members (`ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS`, default YES; names in lower camel case without a trailing "Color" / "Image": "AccentColor" is `.accent`, "hero-image" is `.hero`), with `ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS` (YES in new projects) `UIColor` / `UIImage` / `Color` / `ShapeStyle` members for `ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOL_FRAMEWORKS` (default SwiftUI and UIKit), and `ACColorName…` / `ACImageName…` constants for Objective-C; Swift packages get them over `Bundle.module` (unverified). Namespaced folders (`provides-namespace`) are not supported, as in isim's asset catalogs. Tested (HelloAssetSymbols: test_generated_asset_symbols_source, test_asset_symbols, test_asset_symbols_dark) |
 
 ## Not yet in isim
 

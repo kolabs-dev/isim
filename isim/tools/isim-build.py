@@ -279,6 +279,117 @@ def compile_xcassets(path, bundle):
     return index
 
 
+SWIFT_KEYWORDS = {'associatedtype', 'class', 'deinit', 'enum', 'extension', 'fileprivate', 'func', 'import', 'init', 'inout',
+                  'internal', 'let', 'open', 'operator', 'private', 'protocol', 'public', 'static', 'struct', 'subscript',
+                  'typealias', 'var', 'break', 'case', 'continue', 'default', 'defer', 'do', 'else', 'fallthrough', 'for',
+                  'guard', 'if', 'in', 'repeat', 'return', 'switch', 'where', 'while', 'as', 'catch', 'false', 'is', 'nil',
+                  'rethrows', 'super', 'self', 'throw', 'throws', 'true', 'try', 'Type', 'Self', 'Any'}
+
+
+def asset_symbol_name(name, kind):
+    """Xcode's symbol for an asset: lower camel case of its words, without a trailing "Color" / "Image" ("AccentColor" ->
+    accent, "brand-blue" -> brandBlue, "URLIcon" -> urlIcon); "_" before a leading digit, keywords in backticks"""
+    words = []
+    for part in re.split(r'[^0-9A-Za-z]+', name):
+        words += re.findall(r'[A-Z]+(?=[A-Z][a-z]|[0-9]|$)|[A-Z]?[a-z]+|[0-9]+|[A-Z]+', part)
+    suffix = 'Color' if kind == 'color' else 'Image'
+    if len(words) > 1 and words[-1].lower() == suffix.lower():
+        words = words[:-1]
+    if not words:
+        return None
+    sym = words[0].lower() + ''.join(w[:1].upper() + w[1:] for w in words[1:])
+    if sym[0].isdigit():
+        sym = '_' + sym
+    return f'`{sym}`' if sym in SWIFT_KEYWORDS else sym
+
+
+def asset_names(catalogs):
+    """(colors, images) of asset catalogs: their asset names (app icons excluded), in order"""
+    colors, images = [], []
+    for cat in catalogs:
+        for dirpath, dirnames, _ in os.walk(cat):
+            dirnames.sort()
+            for d in dirnames:
+                name, kind = os.path.splitext(d)
+                if kind == '.colorset' and name not in colors:
+                    colors.append(name)
+                elif kind == '.imageset' and name not in images:
+                    images.append(name)
+    return colors, images
+
+
+def generate_asset_symbols(catalogs, settings, swift_out, objc_out, bundle_expr='Foundation.Bundle(for: ResourceBundleClass.self)'):
+    """Xcode's GeneratedAssetSymbols.swift / .h for asset catalogs (ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS,
+    default YES): ColorResource / ImageResource members, and with ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS
+    (YES in new projects) UIColor / UIImage / Color / Image / ShapeStyle members for the frameworks in
+    ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOL_FRAMEWORKS (default: SwiftUI and UIKit). Returns the Swift file, or None."""
+    yes = lambda k, d: str(settings.get(k, d)).upper() == 'YES'
+    if not catalogs or not yes('ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS', 'YES'):
+        return None
+    colors, images = asset_names(catalogs)
+    if not colors and not images:
+        return None
+    frameworks = split_setting(settings.get('ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOL_FRAMEWORKS')) or ['SwiftUI', 'UIKit']
+    extensions = yes('ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS', 'NO')
+
+    def symbols(names, kind):
+        out, seen = [], set()
+        for n in names:
+            sym = asset_symbol_name(n, kind)
+            if not sym or sym in seen:
+                log(f'asset symbols: no symbol for {kind} "{n}" (empty or clashing name)')
+                continue
+            seen.add(sym)
+            out.append((sym, n))
+        return out
+    cs, ims = symbols(colors, 'color'), symbols(images, 'image')
+    swift = ['import Foundation', '#if canImport(DeveloperToolsSupport)', 'import DeveloperToolsSupport', '#endif', '']
+    swift += (['private class ResourceBundleClass {}'] if 'ResourceBundleClass' in bundle_expr else []) + \
+        [f'private let resourceBundle = {bundle_expr}', '']
+    swift += ['// MARK: - Color Symbols -', '', 'extension DeveloperToolsSupport.ColorResource {']
+    for sym, n in cs:
+        swift += [f'    /// The "{n}" asset catalog color resource.', f'    static let {sym} = DeveloperToolsSupport.ColorResource(name: "{n}", bundle: resourceBundle)', '']
+    swift += ['}', '', '// MARK: - Image Symbols -', '', 'extension DeveloperToolsSupport.ImageResource {']
+    for sym, n in ims:
+        swift += [f'    /// The "{n}" asset catalog image resource.', f'    static let {sym} = DeveloperToolsSupport.ImageResource(name: "{n}", bundle: resourceBundle)', '']
+    swift += ['}', '']
+    if extensions:
+        if 'UIKit' in frameworks:
+            swift += ['// MARK: - Color Symbol Extensions -', '', '#if canImport(UIKit)', 'import UIKit', '', 'extension UIKit.UIColor {']
+            for sym, n in cs:
+                swift += [f'    /// The "{n}" asset catalog color.', f'    static var {sym}: UIKit.UIColor {{', f'        .init(resource: .{sym})', '    }', '']
+            swift += ['}', '', 'extension UIKit.UIImage {']
+            for sym, n in ims:
+                swift += [f'    /// The "{n}" asset catalog image.', f'    static var {sym}: UIKit.UIImage {{', f'        .init(resource: .{sym})', '    }', '']
+            swift += ['}', '#endif', '']
+        if 'SwiftUI' in frameworks:
+            swift += ['#if canImport(SwiftUI)', 'import SwiftUI', '', 'extension SwiftUI.Color {']
+            for sym, n in cs:
+                swift += [f'    /// The "{n}" asset catalog color.', f'    static var {sym}: SwiftUI.Color {{ .init(.{sym}) }}', '']
+            swift += ['}', '', 'extension SwiftUI.ShapeStyle where Self == SwiftUI.Color {']
+            for sym, n in cs:
+                swift += [f'    /// The "{n}" asset catalog color.', f'    static var {sym}: SwiftUI.Color {{ .init(.{sym}) }}', '']
+            swift += ['}', '#endif', '']
+    os.makedirs(os.path.dirname(swift_out), exist_ok=True)
+    with open(swift_out, 'w') as f:
+        f.write('\n'.join(swift))
+    # Objective-C: the asset names as constants (ACColorName... / ACImageName...)
+    objc = ['#import <Foundation/Foundation.h>', '', '#if __has_attribute(swift_private)',
+            '#define AC_SWIFT_PRIVATE __attribute__((swift_private))', '#else', '#define AC_SWIFT_PRIVATE', '#endif', '']
+    def objc_name(n):
+        return ''.join(w[:1].upper() + w[1:] for w in re.split(r'[^0-9A-Za-z]+', n) if w)
+    for sym, n in cs:
+        objc += [f'/// The "{n}" asset catalog color resource.', f'static NSString * const ACColorName{objc_name(n)} AC_SWIFT_PRIVATE = @"{n}";', '']
+    for sym, n in ims:
+        objc += [f'/// The "{n}" asset catalog image resource.', f'static NSString * const ACImageName{objc_name(n)} AC_SWIFT_PRIVATE = @"{n}";', '']
+    objc += ['#undef AC_SWIFT_PRIVATE', '']
+    with open(objc_out, 'w') as f:
+        f.write('\n'.join(objc))
+    log(f'asset symbols: {len(cs)} colors, {len(ims)} images -> {os.path.basename(swift_out)}'
+        + (' (with UIKit / SwiftUI extensions)' if extensions else ''))
+    return swift_out
+
+
 def compile_metal(sources, bundle):
     """Metal sources -> <bundle>/default.metallib: isim's library format, the sources after an "ISIMMETALLIB 1" line.
     isim's Core Image interprets the kernels in it (CIKernel(functionName:fromMetalLibraryData:)); it is not GPU code."""
@@ -1072,6 +1183,13 @@ class Packages:
                 with open(accessor, 'w') as f:
                     f.write(RESOURCE_ACCESSOR.replace('@NAME@', bundle_name))
                 swift = swift + [accessor]
+                gen = generate_asset_symbols(sorted({os.path.join(dp, d) for r in t.get('resources', []) for dp, dn, _ in
+                                                     os.walk(os.path.normpath(os.path.join(src, r['path']))) for d in dn if d.endswith('.xcassets')}
+                                                    | {os.path.normpath(os.path.join(src, r['path'])) for r in t.get('resources', [])
+                                                       if r['path'].rstrip('/').endswith('.xcassets')}), {}, os.path.join(objdir, 'GeneratedAssetSymbols.swift'),
+                                             os.path.join(objdir, 'GeneratedAssetSymbols.h'), bundle_expr='Foundation.Bundle.module')
+                if gen:
+                    swift.append(gen)
             log(f'{tname}: resources -> {bundle_name} (Bundle.module)')
         if csrc:
             include = os.path.join(src, t.get('publicHeadersPath') or 'include')
@@ -1506,6 +1624,12 @@ class Builder:
         sources = target.sources()
         swift = [f for f in sources if f.endswith('.swift')]
         csrc = [f for f in sources if f.endswith(('.m', '.mm', '.c', '.cpp', '.cc'))]
+        # asset catalogs -> GeneratedAssetSymbols.swift / .h (ImageResource / ColorResource symbols, as Xcode generates)
+        catalogs = [r for r in target.resources() if r.rstrip('/').endswith('.xcassets')]
+        gen = generate_asset_symbols(catalogs, s, os.path.join(derived, 'GeneratedAssetSymbols.swift'),
+                                     os.path.join(derived, 'GeneratedAssetSymbols.h'))
+        if gen and swift:
+            swift.append(gen)
         # Core Data models (Sources phase in classic projects, resources in folder-synchronized groups)
         models = [f for f in sources + target.resources() if f.rstrip('/').endswith(('.xcdatamodeld', '.xcdatamodel'))
                   and not os.path.dirname(f.rstrip('/')).endswith('.xcdatamodeld')]

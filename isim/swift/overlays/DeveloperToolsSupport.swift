@@ -2,7 +2,10 @@
 // plugin, swift/macro-support/PreviewsMacros.swift) turns each `#Preview` into a type conforming to PreviewRegistry,
 // like Xcode's. isim has no preview canvas: previews compile and type-check, their content can be built at run time
 // (`_isimMakeContent`), and `isim preview` renders one (UIKit's preview mode). Re-exported by UIKit (and so SwiftUI).
+// Also the asset catalog resources (`ImageResource`, `ColorResource`) that Xcode's generated asset symbols
+// (GeneratedAssetSymbols.swift, which `isim build` generates too) name; UIKit and SwiftUI load them.
 import CoreGraphics
+import Foundation
 
 /// One `#Preview`: its name, traits and content (a SwiftUI view, a UIView or a UIViewController).
 public struct Preview {
@@ -51,4 +54,24 @@ public protocol PreviewRegistry {
     static var line: Int { get }
     static var column: Int { get }
     @MainActor static func makePreview() throws -> Preview
+}
+
+// MARK: - Asset catalog resources (iOS 17; usable with older deployment targets, as Xcode 15+ generates them)
+
+/// An image in an asset catalog: its name and the bundle holding the catalog. `UIImage(resource:)` and SwiftUI's
+/// `Image(_:)` load it like `UIImage(named:in:with:)`.
+public struct ImageResource: Hashable, @unchecked Sendable {      // (a Bundle does not change)
+    /// isim: the asset's name and bundle (what UIKit and SwiftUI load)
+    public let _isimName: String
+    public let _isimBundle: Bundle
+    public init(name: String, bundle: Bundle) { _isimName = name; _isimBundle = bundle }
+}
+
+/// A color in an asset catalog: its name and the bundle holding the catalog. `UIColor(resource:)` and SwiftUI's
+/// `Color(_:)` load it like `UIColor(named:in:compatibleWith:)` (light, dark and high-contrast variants).
+public struct ColorResource: Hashable, @unchecked Sendable {      // (a Bundle does not change)
+    /// isim: the asset's name and bundle (what UIKit and SwiftUI load)
+    public let _isimName: String
+    public let _isimBundle: Bundle
+    public init(name: String, bundle: Bundle) { _isimName = name; _isimBundle = bundle }
 }
