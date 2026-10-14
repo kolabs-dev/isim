@@ -37,6 +37,8 @@
 | `CADisplayLink` | ✅ | ≤17 | fires once per frame while added; keeps the run loop at 60 fps |
 | `CATransform3D` | ✅ | ≤17 | full 4x4 math (make/translate/scale/rotate/concat/invert/isAffine/affine conversions), NSValue boxing and Swift bridging. Tested |
 | `CAValueFunction`, `filters`/`compositingFilter`, `shouldRasterize` | ✅ | ≤17 | value functions (rotate / scale / translate, per axis or 3-vector) in basic, spring and keyframe animations of a transform: the numbers are interpolated, then made into the transform. `shouldRasterize`: the layer (with its shadow and sublayers) drawn into a bitmap of `rasterizationScale` pixels per point, opacity applied to the bitmap. `filters`, `backgroundFilters`, `compositingFilter`: stored, not applied, like iOS ("not supported on layers in iOS"). Tested (HelloCALayers) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `CAEDRMetadata`, `CAMetalDisplayLink`, `CAMetalDisplayLink.Update`, `CAMetalDisplayLinkDelegate`, `CAMetalDrawable`, `CAMetalLayer`, `CARenderer`, `CATiledLayer` (8 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `CALayer.ToneMapMode` (1 type; with its members under "Not yet in isim") |
 
 ## Not yet in isim
 

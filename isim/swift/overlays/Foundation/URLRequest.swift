@@ -190,7 +190,9 @@ public struct URLRequest: Hashable, @unchecked Sendable, CustomStringConvertible
     public var allowsConstrainedNetworkAccess = true
     public var assumesHTTP3Capable = false
     public var requiresDNSSECValidation = false
-    public var allowsPersistentDNS = false
+    var _allowsPersistentDNS = false
+    @available(iOS 18.0, *)
+    public var allowsPersistentDNS: Bool { get { _allowsPersistentDNS } set { _allowsPersistentDNS = newValue } }
     public var networkServiceType: NetworkServiceType = .default
     public var attribution: Attribution = .developer
     var _method: String?

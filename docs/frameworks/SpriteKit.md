@@ -61,6 +61,7 @@
 | `SKVideoNode` (`init(avPlayer:)`, `init(fileNamed:)`, `init(url:)`, `play`, `pause`, `size`, `anchorPoint`) | ✅ | ≤17 | draws isim AVPlayer's current frame (host ffmpeg decodes); size defaults to the video size; red→green clip checked by pixels |
 | `SKTransformNode` (`xRotation`/`yRotation`/`zRotation`, euler angles, `quaternion`, `rotationMatrix`) | ✅ | ≤17 | R = Rx·Ry·Rz, children projected orthographically (no perspective); width halving at 60° checked by pixels |
 | `SK3DNode`, `SKRenderer` | ❌ | ≤17 | need SceneKit and Metal, which isim does not have |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `SKNodeFocusBehavior` (1 type; with its members under "Not yet in isim") |
 
 ## Not yet in isim
 

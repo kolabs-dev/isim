@@ -32,6 +32,7 @@
 | C and Objective-C interfaces of Swift-implemented frameworks: Security (`SecKey*`, `SecRandomCopyBytes`), Network path monitor (`nw_path_monitor_*`), MobileCoreServices `UTType*`, CoreMedia `CMTime`, AVFoundation, AdSupport, AppTrackingTransparency, CoreMotion, MessageUI, StoreKit (SKAdNetwork, SKOverlay, SKStoreProductViewController, payment queue), MarketplaceKit `AppDistributor` | 🟡 | ≤17 | adapted: Objective-C headers (hidden from Swift) over the Swift overlays, C functions through `@_cdecl`; classes are not subclassable from Objective-C except WebKit's. Not yet from C: keychain (`SecItem*`), certificates/trust, Network connections. Tested: test_system_objc |
 | Objective-C runtime: protocol introspection (`protocol_copyMethodDescriptionList`, `protocol_copyPropertyList`, `class_copyProtocolList`, `property_copyAttributeValue`), Protocol objects under ARC | ✅ | ≤17 | Tested: test_system_objc (JSExport) |
 | `ISIM_OBJC_AUDIT=1`: selectors an app references that no loaded class implements | ✅ | ≤17 | developer diagnostic printed before `main` (some are only checked with `respondsToSelector:`) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `objc_property_attribute_t`, `ObjCClassList`, `ObjCEnumerationImage` (3 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

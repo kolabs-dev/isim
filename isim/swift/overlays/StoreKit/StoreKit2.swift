@@ -1167,6 +1167,7 @@ public enum AppStore {
         /// local StoreKit testing (what isim provides)
         public static let xcode = Environment(rawValue: "Xcode")
     }
+    @available(iOS 18.4, *)
     public struct Platform: RawRepresentable, Hashable, Sendable {
         public let rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -1220,6 +1221,7 @@ public struct AppTransaction: Sendable {
     public let signedDate: Date
     public var environment: AppStore.Environment { .xcode }
     public var appTransactionID: String { "isim-local-\(bundleID)" }
+    @available(iOS 18.4, *)
     public var originalPlatform: AppStore.Platform { .iOS }
     public var deviceVerificationNonce: UUID { _skStableUUID("app transaction \(bundleID) \(originalPurchaseDate.timeIntervalSince1970) \(signedDate.timeIntervalSince1970)") }
     public var deviceVerification: Data { _SKDevice.verification(nonce: deviceVerificationNonce) }

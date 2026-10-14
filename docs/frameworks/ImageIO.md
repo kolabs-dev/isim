@@ -16,6 +16,7 @@
 |---|---|---|---|
 | ImageIO `CGImageSource` (types, count, properties, frames, thumbnails, EXIF orientation) | 🟡 | ≤17 | PNG/JPEG/GIF/WebP/BMP/TIFF/ICO via gdk-pixbuf; GIF delays/loop count; thumbnails with max size and orientation transform; tested (HelloImaging). HEIC through isim's HEIF reader (tested: host test), AVIF through the host's ffmpeg (unverified); incremental sources unverified. Missing: properties are size, orientation, alpha and a fixed depth (8) and DPI (72): no EXIF, GPS or IPTC dictionaries |
 | ImageIO `CGImageDestination` (PNG, JPEG, animated GIF, HEIC) | 🟡 | ≤17 | GIF palette: exact up to 255 colors, else a color cube; tested (HelloImaging). HEIC with the host's ffmpeg libx265 (isim's HEIF writer; listed only when available); other types (TIFF) are refused. Missing: metadata (EXIF, GPS, orientation) is not written, so `AddImageFromSource` drops it |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `CGImageAnimationStatus`, `CGImageMetadata`, `CGImageMetadataErrors`, `CGImageMetadataTag`, `CGImagePropertyTGACompression`, `CGMutableImageMetadata` (6 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

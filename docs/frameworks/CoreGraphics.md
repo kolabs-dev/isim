@@ -36,6 +36,10 @@
 | PDF contexts (`CGContext(consumer:mediaBox:)`, `beginPDFPage`, `closePDF`) | ✅ | ≤17 | cairo PDF surface, y-up pages; tested (HelloQuartz) |
 | `CGPDFDocument` / `CGPDFPage` (read, `drawPDFPage`) | 🟡 | ≤17 | adapted through the packaged host poppler-glib: data-provider/URL documents, page count/lookup, media-sized box rects, page/document identity, rotation (0), drawing transform and rendering; tested (HelloQuartz). Missing: every box is the media box, rotation is 0, encrypted documents report unlocked; no `unlockWithPassword`, catalog, dictionaries or scanner |
 | `CGFont` | 🟡 | ≤17 | adapted subset: creation by name or an OpenType data provider; PostScript/full names and units/em (provider metadata parsed with HarfBuzz); tested (HelloQuartz). Glyph-table accessors are not in isim's SDK subset |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `CGBitmapLayout`, `CGColorBufferFormat`, `CGColorConversionInfo`, `CGColorConversionInfoTransformType`, `CGColorDataFormat`, `CGColorModel`, `CGComponent`, `CGContentInfo`, `CGError`, `CGGlyphDeprecatedEnum`, `CGImageComponentInfo`, `CGLayer`, `CGPDFAccessPermissions`, `CGPDFStructureElement`, `CGPDFTagProperty`, `CGPDFTagType`, `CGRenderingBufferProvider`, `ColorSyncProfile`, `IOSurfaceRef` (19 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `CGToneMapping` (1 type; with its members under "Not yet in isim") |
+| Types not yet in isim (iOS 26) | ❌ | 26.0 | not implemented, found by the 2026-10 sweep: `CGBitmapParameters`, `CGContentToneMappingInfo` (2 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 27) | ❌ | 27.0 | not implemented, found by the 2026-10 sweep: `CGPDFMarkedContentItem` (1 type; with its members under "Not yet in isim") |
 
 ## Not yet in isim
 

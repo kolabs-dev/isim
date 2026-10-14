@@ -15,6 +15,7 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | VisionKit (`DataScannerViewController`, `VNDocumentCameraViewController`, `ImageAnalyzer`) | 🧩 | ≤17 | stub: `isSupported` is false (like the Simulator); `startScanning` throws `.unsupported` (tested) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `ImageAnalysis`, `ImageAnalysisInteraction`, `ImageAnalysisInteractionDelegate`, `RecognizedItem` (4 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

@@ -14,6 +14,8 @@
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `AVAudioChannelLayout`, `AVAudioCompressedBuffer`, `AVAudioConverter`, `AVAudioSequencer`, `AVAudioUnitComponent`, `AVAudioUnitComponentManager`, `AVAudioUnitGenerator`, `AVAudioUnitMIDIInstrument`, `AVAudioUnitSampler`, `AVAudioUnitTimeEffect`, `AVMIDIPlayer`, `AVSpeechSynthesisProviderAudioUnit` (12 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 27) | ❌ | 27.0 | not implemented, found by the 2026-10 sweep: `AVReadOnlyAudioPCMBuffer` (1 type; with its members under "Not yet in isim") |
 
 ## Not yet in isim
 

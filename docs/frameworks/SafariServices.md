@@ -15,6 +15,8 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | SafariServices (`SFSafariViewController`) | ✅ | ≤17 | iOS 17-style chrome (Done/Close/Cancel, domain + lock, “aA” button (cosmetic), back/forward/share/Open in Safari toolbar) on isim's WKWebView; delegate initial load / redirect / finish; tint colors; `DataStore.clearWebsiteData`. Adapted: its own in-memory website data (not Safari's), Reader and bar collapsing not real, Open in Safari logged. Tested (HelloSafari) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `SFAddToHomeScreenActivityItem`, `SFContentBlockerManager`, `SFContentBlockerState`, `SFError`, `SFError.Code`, `SSReadingListError`, `SSReadingListError.Code` (7 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 26) | ❌ | 26.0 | not implemented, found by the 2026-10 sweep: `SFSafariExtensionManager`, `SFSafariExtensionState`, `SFSafariSettings` (3 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

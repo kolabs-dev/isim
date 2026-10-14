@@ -16,6 +16,7 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | CoreFoundation strings, time zones, bundles (`CFString*`, `CFTimeZone*`, `CFBundle*`) | 🟡 | ≤17 | the common functions binary SDKs call, over Foundation (toll-free) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `CFBag`, `CFBinaryHeap`, `CFBitVector`, `CFCalendar`, `CFCalendarIdentifier`, `CFDateFormatter`, `CFDateFormatterKey`, `CFFileDescriptor`, `CFFileSecurity`, `CFFileSecurityClearOptions`, `CFGregorianUnitFlags`, `CFISO8601DateFormatOptions`, `CFLocale`, `CFLocaleIdentifier`, `CFLocaleKey`, `CFMachPort`, `CFMessagePort`, `CFMutableArray`, `CFMutableBag`, `CFMutableBitVector`, `CFMutableCharacterSet`, `CFMutableDictionary`, `CFMutableSet`, `CFNotificationCenter`, `CFNotificationName`, `CFNull`, `CFNumberFormatter`, `CFNumberFormatterKey`, `CFPlugIn`, `CFPlugInInstance`, `CFReadStream`, `CFRunLoop`, `CFRunLoopMode`, `CFRunLoopObserver`, `CFRunLoopRunResult`, `CFRunLoopSource`, `CFRunLoopTimer`, `CFSocket`, `CFStreamClientContext`, `CFStreamError`, `CFStreamErrorDomain`, `CFStreamEventType`, `CFStreamPropertyKey`, `CFStreamStatus`, `CFStringTokenizer`, `CFSwappedFloat32`, `CFSwappedFloat64`, `CFTree`, `CFURLEnumerator`, `CFURLEnumeratorOptions`, `CFURLEnumeratorResult`, `CFUserNotification`, `CFUUID`, `CFWriteStream`, `CGAffineTransformComponents` (55 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 
