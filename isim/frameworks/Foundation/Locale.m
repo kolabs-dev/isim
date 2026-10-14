@@ -17,6 +17,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <isim_host.h>
 #include "isim_foundation.h"
 #include "isim_locale.h"
 
@@ -479,10 +480,40 @@ NSString *isim_foundation_calendar_id(NSString *icuName) {
 + (NSLocale *)autoupdatingCurrentLocale { return [self currentLocale]; }
 + (NSLocale *)systemLocale { return [self localeWithLocaleIdentifier:@""]; }
 + (NSArray<NSString *> *)preferredLanguages { return isim_preferred_languages(); }
+/* a list from the host's ICU (isim_icu_codes), or nil without ICU */
+static NSArray<NSString *> *icu_codes(int kind, const char *locale) {
+    static char buf[1 << 16];
+    static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_lock(&m);
+    int n = isim_icu_codes(kind, locale, buf, sizeof buf);
+    NSArray *a = n > 0 ? [@(buf) componentsSeparatedByString:@"\n"] : nil;
+    pthread_mutex_unlock(&m);
+    return a;
+}
 + (NSArray<NSString *> *)availableLocaleIdentifiers {
+    NSArray *icu = icu_codes(0, NULL);                       /* ICU's (CLDR's) locales, as on iOS */
+    if (icu) return icu;
     NSMutableArray *a = [NSMutableArray array];
     for (size_t i = 0; i < sizeof REGIONS / sizeof *REGIONS; i++) [a addObject:@(REGIONS[i].loc)];
     return a;
+}
++ (NSArray<NSString *> *)ISOCountryCodes {
+    NSArray *icu = icu_codes(1, NULL);
+    if (icu) return icu;
+    NSMutableOrderedSet *s = [NSMutableOrderedSet orderedSet];
+    for (size_t i = 0; i < sizeof REGIONS / sizeof *REGIONS; i++) {
+        NSString *l = @(REGIONS[i].loc); NSRange u = [l rangeOfString:@"_"];
+        if (u.location != NSNotFound) [s addObject:[l substringFromIndex:u.location + 1]];
+    }
+    return [s.array sortedArrayUsingSelector:@selector(compare:)];
+}
++ (NSArray<NSString *> *)ISOCurrencyCodes { return icu_codes(3, NULL) ?: [self commonISOCurrencyCodes]; }
++ (NSArray<NSString *> *)commonISOCurrencyCodes {
+    NSArray *icu = icu_codes(2, NULL);
+    if (icu) return icu;
+    NSMutableOrderedSet *s = [NSMutableOrderedSet orderedSet];
+    for (size_t i = 0; i < sizeof REGIONS / sizeof *REGIONS; i++) if (REGIONS[i].currencyCode) [s addObject:@(REGIONS[i].currencyCode)];
+    return [s.array sortedArrayUsingSelector:@selector(compare:)];
 }
 + (instancetype)localeWithLocaleIdentifier:(NSString *)ident { return [[self alloc] initWithLocaleIdentifier:ident]; }
 - (instancetype)init { return [self initWithLocaleIdentifier:@""]; }
@@ -501,6 +532,7 @@ NSString *isim_foundation_calendar_id(NSString *icuName) {
         _lang = parts.count && [parts[0] length] ? parts[0] : nil;
         for (NSUInteger i = 1; i < parts.count; i++) {
             NSString *p = parts[i];
+            if (p.length == 1) break;                                   /* a BCP 47 extension ("en-US-u-hc-h23") */
             if (p.length == 4) _script = p;
             else if (p.length == 2 || p.length == 3) _region = p.uppercaseString;
         }
@@ -583,16 +615,16 @@ static NSTimeZone *default_tz;
    removing an environment variable reallocates environ under other threads that walk it (issue #437). */
 static const char host_tz[] = ":/etc/localtime";
 static BOOL is_host_tz(const char *tz) { return !tz || !*tz || !strcmp(tz, host_tz); }
+static pthread_mutex_t tz_lock = PTHREAD_MUTEX_INITIALIZER;   /* TZ is process-wide */
 static long tz_offset(NSString *name, time_t at, char *abbr, size_t abbrlen, int *dst) {
     /* evaluate in the requested zone by switching TZ temporarily (the host C library owns the tz database) */
-    static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_lock(&lock);
+    pthread_mutex_lock(&tz_lock);
     const char *old = getenv("TZ"); char saved[256] = {0}; snprintf(saved, sizeof saved, "%s", old ? old : host_tz);
     if (name) setenv("TZ", name.UTF8String, 1);
     tzset();
     struct tm tm; localtime_r(&at, &tm);
     if (name) { setenv("TZ", saved, 1); tzset(); }
-    pthread_mutex_unlock(&lock);
+    pthread_mutex_unlock(&tz_lock);
     if (abbr) snprintf(abbr, abbrlen, "%s", tm.tm_zone ? tm.tm_zone : "");
     if (dst) *dst = tm.tm_isdst > 0;
     return tm.tm_gmtoff;
@@ -617,6 +649,19 @@ static long tz_offset(NSString *name, time_t at, char *abbr, size_t abbrlen, int
 + (void)setDefaultTimeZone:(NSTimeZone *)tz { default_tz = [tz copy]; }
 + (void)resetSystemTimeZone { isim_reapply_time_zone_setting(); }
 + (NSArray<NSString *> *)knownTimeZoneNames {
+    /* the host's time zone database (zone.tab: every zone with its country), as iOS lists its tz database */
+    FILE *f = fopen("/usr/share/zoneinfo/zone.tab", "r");
+    if (f) {
+        NSMutableSet *names = [NSMutableSet setWithObject:@"GMT"];
+        char line[512];
+        while (fgets(line, sizeof line, f)) {
+            if (line[0] == '#') continue;
+            char *save = NULL, *cc = strtok_r(line, "\t\n", &save), *coord = strtok_r(NULL, "\t\n", &save), *tz = strtok_r(NULL, "\t\n", &save);
+            if (cc && coord && tz) [names addObject:@(tz)];
+        }
+        fclose(f);
+        if (names.count > 1) return [names.allObjects sortedArrayUsingSelector:@selector(compare:)];
+    }
     return @[@"America/New_York", @"America/Chicago", @"America/Denver", @"America/Los_Angeles", @"America/Sao_Paulo",
              @"America/Mexico_City", @"Europe/London", @"Europe/Lisbon", @"Europe/Madrid", @"Europe/Paris", @"Europe/Berlin",
              @"Europe/Rome", @"Asia/Tokyo", @"Asia/Shanghai", @"Asia/Kolkata", @"Asia/Riyadh", @"Australia/Sydney", @"UTC"];
@@ -651,6 +696,56 @@ static long tz_offset(NSString *name, time_t at, char *abbr, size_t abbrlen, int
 }
 - (NSString *)abbreviation { return [self abbreviationForDate:[NSDate date]]; }
 - (BOOL)isDaylightSavingTimeForDate:(NSDate *)d { int dst = 0; if (!_isFixed) tz_offset(_name, (time_t)d.timeIntervalSince1970, NULL, 0, &dst); return dst; }
+- (BOOL)isDaylightSavingTime { return [self isDaylightSavingTimeForDate:[NSDate date]]; }
+/* the daylight-saving shift in effect at a date: its offset minus the zone's standard offset nearby */
+- (NSTimeInterval)daylightSavingTimeOffsetForDate:(NSDate *)d {
+    if (_isFixed) return 0;
+    time_t t = (time_t)d.timeIntervalSince1970;
+    int dst = 0;
+    long off = tz_offset(_name, t, NULL, 0, &dst);
+    if (!dst) return 0;
+    for (int months = 1; months <= 12; months++)                  /* the nearest standard time, before or after */
+        for (int sign = -1; sign <= 1; sign += 2) {
+            int sdst = 0;
+            long soff = tz_offset(_name, t + sign * months * 30L * 86400, NULL, 0, &sdst);
+            if (!sdst) return (NSTimeInterval)(off - soff);
+        }
+    return 3600;
+}
+- (NSTimeInterval)daylightSavingTimeOffset { return [self daylightSavingTimeOffsetForDate:[NSDate date]]; }
+/* the next change of offset or of daylight saving time after a date (within ten years), to the second: one switch of
+ * TZ for the whole search (tz_offset switches per call) */
+static time_t tz_next_transition(NSString *name, time_t from) {
+    pthread_mutex_lock(&tz_lock);
+    const char *old = getenv("TZ"); char saved[256] = {0}; snprintf(saved, sizeof saved, "%s", old ? old : host_tz);
+    setenv("TZ", name.UTF8String, 1);
+    tzset();
+    struct tm tm;
+    time_t lo = from, found = 0;
+    localtime_r(&lo, &tm);
+    long off0 = tm.tm_gmtoff; int dst0 = tm.tm_isdst > 0;
+    for (time_t hi = lo + 86400; hi < from + 3660L * 86400; hi += 86400) {
+        localtime_r(&hi, &tm);
+        if (tm.tm_gmtoff == off0 && (tm.tm_isdst > 0) == dst0) { lo = hi; continue; }
+        while (hi - lo > 1) {                                     /* the first second after the change */
+            time_t mid = lo + (hi - lo) / 2;
+            localtime_r(&mid, &tm);
+            if (tm.tm_gmtoff == off0 && (tm.tm_isdst > 0) == dst0) lo = mid; else hi = mid;
+        }
+        found = hi;
+        break;
+    }
+    setenv("TZ", saved, 1);                                       /* never unset (issue #437) */
+    tzset();
+    pthread_mutex_unlock(&tz_lock);
+    return found;
+}
+- (NSDate *)nextDaylightSavingTimeTransitionAfterDate:(NSDate *)d {
+    if (_isFixed) return nil;
+    time_t t = tz_next_transition(_name, (time_t)floor(d.timeIntervalSince1970));
+    return t ? [NSDate dateWithTimeIntervalSince1970:(NSTimeInterval)t] : nil;
+}
+- (NSDate *)nextDaylightSavingTimeTransition { return [self nextDaylightSavingTimeTransitionAfterDate:[NSDate date]]; }
 - (NSString *)description { return [NSString stringWithFormat:@"%@ (%@) offset %ld", _name, self.abbreviation, (long)self.secondsFromGMT]; }
 @end
 

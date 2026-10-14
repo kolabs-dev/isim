@@ -356,7 +356,7 @@ extension Locale {
         }
         public var lineLayoutDirection: LanguageDirection { .topToBottom }
     }
-    public var language: Language { Language(identifier: identifier) }
+    public var language: Language { Language(identifier: String(identifier.prefix { $0 != "@" })) }
     public static func characterDirection(forLanguage code: String) -> LanguageDirection { Language(identifier: code).characterDirection }
 }
 
