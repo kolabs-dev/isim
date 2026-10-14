@@ -265,7 +265,7 @@ Anything a click does in the window is also a command, so agents and tests reach
 |---|---|
 | `windowshot FILE.png` | the whole window (toolbar, bezel, menus, the screen) as a PNG, also headless |
 | `window menu device\|more\|location\|openurl\|push\|pushhelp\|none` | open a menu or form (or close it) |
-| `window tap ID` | click a control by its id: `device`, `home`, `lock`, `rotate`, `shot`, `appearance`, `more`; hardware `hw.side`, `hw.top`, `hw.volup`, `hw.voldown`, `hw.action`, `hw.silent`, `hw.home`; device menu `dev.ID` (e.g. `dev.iphonese`), `dev.all`, `os.26`, `zoom.minus`, `zoom.plus`, `bezel`, `apply`; restart dialog `dialog.dontask`, `dialog.cancel`, `dialog.restart`; More menu `more.shake`, `more.location`, `more.openurl`, `more.push`, `more.memorywarning`; forms `back`, `field.NAME`, `place.0`…`place.4`, `loc.set`, `loc.none`, `recent.N`, `url.open`, `url.cancel`, `push.app`, `pushapp.N`, `tab.alert`, `tab.json`, `push.sound`, `push.mutable`, `push.available`, `push.load`, `push.help`, `push.send`, `help.back`, `help.docs`; `toast.show` |
+| `window tap ID` | click a control by its id: `device`, `home`, `lock`, `rotate`, `shot`, `appearance`, `more`; hardware `hw.side`, `hw.top`, `hw.volup`, `hw.voldown`, `hw.action`, `hw.silent`, `hw.home`; device menu `dev.ID` (e.g. `dev.iphonese`), `dev.all`, `os.26`, `zoom.minus`, `zoom.plus`, `bezel`, `apply`; restart dialog `dialog.dontask`, `dialog.cancel`, `dialog.restart`; More menu `more.shake`, `more.location`, `more.openurl`, `more.push`, `more.memorywarning` (and `more.appearance` in a compact window, whose toolbar has no Appearance button); forms `back`, `field.NAME`, `place.0`…`place.4`, `loc.set`, `loc.none`, `recent.N`, `url.open`, `url.cancel`, `push.app`, `pushapp.N`, `tab.alert`, `tab.json`, `push.sound`, `push.mutable`, `push.available`, `push.load`, `push.help`, `push.send`, `help.back`, `help.docs`; `toast.show` |
 | `window els` | print the controls shown now, with their centres in window points |
 | `window click X Y [shift]` · `window hover X Y` | click or point at window points (the toolbar starts at 0, 0); a click on the screen is a tap there; hovering a toolbar button shows its tooltip |
 | `window type TEXT` | type into the focused field of a form (fields: `lat`, `lon`, `url`, `title`, `body`, `badge`, `json`) |
@@ -299,6 +299,12 @@ it like Xcode's Simulator does (`xcrun simctl push`), with no server and no devi
 `"mutable-content": 1` runs the app's Notification Service extension first; `"content-available": 1` wakes the app
 in the background. See the `push` command under Timing and control for collapse ids, VoIP pushes and Live Activity
 updates.
+
+Like iOS, the system shows a push's alert (banner, Lock Screen, Notification Center) only for an app the user allowed
+to send notifications: the app must have asked (`UNUserNotificationCenter.requestAuthorization`) and been allowed
+(the prompt, or `ISIM_NOTIFICATION_PERMISSION=allow`; Settings › Notifications turns it off again). For any other app
+the push still reaches it (`didReceiveRemoteNotification`, the service extension) but nothing is shown; the push form
+says so under the app picker, and the window logs `isim window: note: …` when sending.
 
 ## Interactive shortcuts
 

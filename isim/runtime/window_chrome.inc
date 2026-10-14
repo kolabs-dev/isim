@@ -169,9 +169,17 @@ static void window_size(int *w, int *h) {
 }
 static void window_resize(void) {
     if (!win) return;
-    int w, h; window_size(&w, &h);
+    int w, h, cw = 0, ch_ = 0; window_size(&w, &h);
+    SDL_GetWindowSize(win, &cw, &ch_);
+    if (cw == w && ch_ == h) return;     /* unchanged: on X11 a fixed-size window is unmapped and mapped again to resize */
+    if (getenv("ISIM_WINDOW_DEBUG")) fprintf(stderr, "isim window: resize %dx%d -> %dx%d (orientation %d)\n", cw, ch_, w, h, dev.orientation);
     SDL_SetWindowSize(win, w, h);
 }
+/* isim draws every frame in software (cairo) and copies it to the window surface. SDL's default backs that surface with
+   an accelerated renderer, which on X11 destroys the new window and creates it again the first time it is drawn: the
+   window flickered at every start and restart, and a click in those first ~100 ms went to a window that no longer
+   existed. The environment variable SDL_FRAMEBUFFER_ACCELERATION still overrides this. */
+static void window_sdl_hints(void) { SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "0"); }
 static void window_title(void) {
     if (!win) return;
     char n[64], t[160]; ch_short_name(ch_cur_dev(), n, sizeof n);
@@ -707,6 +715,16 @@ static const struct { const char *id, *label, *cmd; } ch_more[] = {
 };
 static double ch_pop_more(cairo_t *c, double x, double y, double w) {
     double y0 = y; y += 16;
+    if (ch_layout().compact) {                       /* the compact toolbar has no Appearance button: here instead */
+        const char *lab = ch_dark() ? "Light appearance" : "Dark appearance";
+        ch_el("more.appearance", x + 6, y - 6, w - 12, 32);
+        if (ch_hot("more.appearance")) ch_fill_round(c, x + 6, y - 6, w - 12, 32, 7, C_ROW);
+        ch_icon(c, ch_dark() ? "sun" : "moon", x + 24, y + 10, 17, C_TEXT, 1);
+        ch_text_at(c, lab, x + 40, y + 10, CH_FONT, 400, 0, C_TEXT, 1, 0, 0);
+        ch_text_at(c, "appearance", x, y + 10, 11.5, 400, 1, C_TEXT2, 1, 2, w - 16);
+        y += 32;
+        ch_divider(c, x + 8, y, w - 16); y += 12;
+    }
     ch_header(c, "SIMULATE", x + 16, y); y += 20;
     for (size_t i = 0; i < sizeof ch_more / sizeof *ch_more; i++) {
         ch_el(ch_more[i].id, x + 6, y, w - 12, 32);
@@ -846,6 +864,20 @@ static void ch_scan_apps(void) {
     for (int i = 0; i < nn; i++) { char p[1400]; snprintf(p, sizeof p, "%s/%s", apps, names[i]); ch_scan_app(p); }
     if (ch.push_app >= ch_napps) ch.push_app = 0;
 }
+/* why iOS would show no alert for a push to this app (its notification permission, kept in its preferences like
+   UNUserNotificationCenter does), or NULL when it may */
+static const char *ch_push_blocked(const char *bundle) {
+    char rel[600], p[1200]; snprintf(rel, sizeof rel, "Containers/%s/Library/Preferences/%s.plist", bundle, bundle);
+    ch_data_path(p, sizeof p, rel);
+    size_t n = 0; char *x = ch_slurp(p, &n);
+    int status = 0;
+    const char *k = x ? strstr(x, "<key>_ISIMNotificationAuthorization</key>") : NULL;
+    if (k) { k += 41; k += strspn(k, " \t\r\n"); if (!strncmp(k, "<integer>", 9)) status = atoi(k + 9); }
+    free(x);
+    if (status >= 2) return NULL;                    /* authorized, provisional, ephemeral */
+    return status == 1 ? "has notifications turned off (Settings › Notifications): the push reaches the app, but iOS shows nothing."
+                       : "has not asked to send notifications yet (requestAuthorization): the push reaches the app, but iOS shows nothing.";
+}
 static int ch_word_in(const char *list, const char *w, int wildcard) {
     char b[512]; snprintf(b, sizeof b, "%s", list);
     for (char *s, *t = strtok_r(b, " ", &s); t; t = strtok_r(NULL, " ", &s)) {
@@ -934,6 +966,12 @@ static double ch_pop_push(cairo_t *c, double x, double y, double w) {
     ch_icon(c, ch.app_list ? "chevron.up" : "chevron.down", x + w - 12 - 16, y + 16.5, 18, C_TEXT, 1);
     double app_y = y + 33;
     y += 33 + 10;
+    const char *why = ch_napps ? ch_push_blocked(ch_apps[ch.push_app].bundle) : NULL;
+    if (why) {                                       /* iOS shows nothing for an app not allowed to notify */
+        static const double C_WARN[3] = { 240, 186, 92 };
+        char note[300]; snprintf(note, sizeof note, "%s %s", ch_apps[ch.push_app].name, why);
+        y += ch_para(c, note, x + 12, y - 4, w - 24, 12, 400, 0, C_WARN, 0) + 6;
+    }
     ch_fill_round(c, x + 12, y, w - 24, 32, 8, C_INSET);
     double tw = (w - 24 - 4) / 2;
     for (int i = 0; i < 2; i++) {
@@ -1174,7 +1212,9 @@ static void chrome_run(const char *cmd) {
     control_poll();                                           /* (sets up the script buffer's length the first time) */
     /* next: before the rest of a running script (a `window tap` in a script runs its command right after it) */
     size_t n = strlen(cmd), off = script_pos ? (size_t)(script_pos - script) : script_len;
+    int fresh = !script;                                      /* no script yet (the CLI and the launcher start none) */
     script = realloc(script, script_len + n + 3);
+    if (fresh) script[script_len] = 0;                        /* the buffer is always terminated at script_len */
     memmove(script + off + n + 2, script + off, script_len - off + 1);
     script[off] = ';'; memcpy(script + off + 1, cmd, n); script[off + n + 1] = ';';
     script_len += n + 2;
@@ -1319,6 +1359,7 @@ static void ch_click(const char *id, int mods) {
     }
     /* the More menu and its forms */
     else if (!strcmp(id, "more.shake")) { ch_close_pop(); chrome_run("shake"); }
+    else if (!strcmp(id, "more.appearance")) { ch_close_pop(); chrome_run(ch_dark() ? "appearance light" : "appearance dark"); }
     else if (!strcmp(id, "more.memorywarning")) { ch_close_pop(); chrome_run("memorywarning"); }
     else if (!strcmp(id, "more.location")) ch_open(CH_POP_LOCATION);
     else if (!strcmp(id, "more.openurl")) ch_open(CH_POP_OPENURL);
@@ -1375,6 +1416,8 @@ static void ch_click(const char *id, int mods) {
         FILE *f = fopen(path, "w"); if (!f) { fprintf(stderr, "isim window: cannot write %s\n", path); return; }
         fputs(p, f); fclose(f);
         ch_close_pop();
+        const char *why = ch_push_blocked(ch_apps[ch.push_app].bundle);
+        if (why) fprintf(stderr, "isim window: note: %s %s\n", ch_apps[ch.push_app].name, why);
         snprintf(cmd, sizeof cmd, "push %s %s", ch_apps[ch.push_app].bundle, path); chrome_run(cmd);
     }
     window_redraw();
@@ -1477,6 +1520,11 @@ static int chrome_sdl_event(SDL_Event *e, struct isim_event *ev) {
     ch_init();
     struct ch_geo g = ch_layout();
     int modal = ch.pop || ch.dialog;
+    static int dbg = -1;
+    if (dbg < 0) dbg = getenv("ISIM_WINDOW_DEBUG") && *getenv("ISIM_WINDOW_DEBUG") == '1';
+    if (dbg && e->type != SDL_EVENT_USER)
+        fprintf(stderr, "isim window: event %#x at %.0f,%.0f (on %s)\n", e->type, e->button.x, e->button.y,
+                e->type == SDL_EVENT_MOUSE_BUTTON_DOWN || e->type == SDL_EVENT_MOUSE_BUTTON_UP ? (ch_el_at(e->button.x, e->button.y) ?: "-") : "-");
     switch (e->type) {
     case SDL_EVENT_MOUSE_MOTION: {
         double x = e->motion.x, y = e->motion.y;

@@ -38,6 +38,10 @@ def test_navigation(launch):
   `selftest("FoundationTest")` runs one and requires N == M.
 - **Markers.** `@pytest.mark.os_matrix` runs a test once per iOS version with `--os-matrix` (see below).
 - **Missing tools.** A test that needs an optional host tool (ffmpeg, zbar, tesseract, …) skips when it is missing.
+- **Real windows.** `ui/test_window_clicks.py` starts devices with a window on a virtual X display (Xvfb) and clicks
+  the window's controls with real X input (`tests/fixtures/xinput`), on every device preset of the iOS version under
+  test (`--os`, or all four with `OS_MATRIX=1`). `App(..., env={"ISIM_HEADLESS": None, "ISIM_SCRIPT": None})`
+  starts a device the way the CLI does (a window, no launch script).
 - **Coverage pages.** `tests/docs/test_coverage_docs.py` checks the framework pages (`docs/frameworks/`) without
   running anything: every row has a valid status and iOS cell, and every sample or test a row cites exists. A row that
   says "Tested (X)" must name a test that exercises it.

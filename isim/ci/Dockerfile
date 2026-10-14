@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       docker.io \
       libcairo2-dev libpango1.0-dev librsvg2-dev libgdk-pixbuf-2.0-dev libfontconfig-dev \
       libwayland-dev libxkbcommon-dev wayland-protocols libegl1-mesa-dev libgles2-mesa-dev \
-      libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxfixes-dev \
+      libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxfixes-dev xvfb \
       libpulse-dev libasound2-dev libdbus-1-dev libudev-dev \
       fontconfig fonts-noto-core fonts-noto-color-emoji fonts-dejavu-core adwaita-icon-theme imagemagick \
       ffmpeg espeak-ng libzbar0 zbar-tools zxing-cpp-tools qrencode tesseract-ocr tesseract-ocr-eng opencv-data libraw-bin libssl3 libcurl4 libpcre2-8-0 libsqlite3-0 libicu74 \

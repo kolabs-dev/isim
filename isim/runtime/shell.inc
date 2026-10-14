@@ -514,6 +514,7 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
     headless = getenv("ISIM_HEADLESS") && atoi(getenv("ISIM_HEADLESS"));
     if (getenv("ISIM_SCRIPT")) { script = strdup(getenv("ISIM_SCRIPT")); script_pos = script; }
     if (!headless) app_identity();
+    if (!headless) window_sdl_hints();
     if (!headless && !SDL_Init(SDL_INIT_VIDEO)) { fprintf(stderr, "isim shell: SDL_Init failed: %s (headless)\n", SDL_GetError()); headless = 1; }
     if (!headless) {
         int ww, wh; window_size(&ww, &wh);
