@@ -1,0 +1,22 @@
+#pragma once
+#include <CoreVideo/CVBuffer.h>
+#if !defined(__swift__)
+__BEGIN_DECLS
+typedef CVBufferRef CVImageBufferRef;
+CV_EXPORT const CFStringRef kCVImageBufferCGColorSpaceKey;
+CV_EXPORT const CFStringRef kCVImageBufferColorPrimariesKey;
+CV_EXPORT const CFStringRef kCVImageBufferTransferFunctionKey;
+CV_EXPORT const CFStringRef kCVImageBufferYCbCrMatrixKey;
+CV_EXPORT const CFStringRef kCVImageBufferPixelAspectRatioKey;
+CV_EXPORT const CFStringRef kCVImageBufferFieldCountKey;
+CV_EXPORT const CFStringRef kCVImageBufferChromaLocationTopFieldKey;
+CV_EXPORT const CFStringRef kCVImageBufferColorPrimaries_ITU_R_709_2;
+CV_EXPORT const CFStringRef kCVImageBufferColorPrimaries_P3_D65;
+CV_EXPORT const CFStringRef kCVImageBufferTransferFunction_ITU_R_709_2;
+CV_EXPORT const CFStringRef kCVImageBufferYCbCrMatrix_ITU_R_709_2;
+CV_EXPORT const CFStringRef kCVImageBufferYCbCrMatrix_ITU_R_601_4;
+CV_EXPORT CGSize CVImageBufferGetEncodedSize(CVImageBufferRef imageBuffer);
+CV_EXPORT CGSize CVImageBufferGetDisplaySize(CVImageBufferRef imageBuffer);
+CV_EXPORT CGRect CVImageBufferGetCleanRect(CVImageBufferRef imageBuffer);
+__END_DECLS
+#endif

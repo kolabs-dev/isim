@@ -327,6 +327,12 @@ def _(a):
     a.objc_app(a.files("HelloCounter/*.m"), "HelloCounter/Info.plist", ["-framework", "UIKit", "-framework", "Foundation"])
 
 
+@app("samples/HelloQuartzCoreObjC")   # after the Swift overlays: CoreVideo.framework re-exports libswiftCoreVideo
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "QuartzCore",
+                                          "-framework", "CoreVideo", "-framework", "CoreGraphics"])
+
+
 @app("samples/HelloSystemObjC", swift=False)
 def _(a):
     a.objc_app(["main.mm"], "Info.plist", ["-std=c++17", "-framework", "UIKit", "-framework", "Foundation", "-framework", "JavaScriptCore",
