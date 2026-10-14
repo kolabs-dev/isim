@@ -157,6 +157,8 @@ struct _WKWidgetSpec {
     var snapshot: @MainActor (TimelineProviderContext, [String: Any]) async -> _WKEntry
     /// the configuration intent: its title and parameters (AppIntentConfiguration), nil for StaticConfiguration
     var params: (@MainActor ([String: Any]) -> (title: String, description: String, params: [[String: Any]]))? = nil
+    /// the view of any entry of the provider's entry type (#Preview(as:widget:timeline:), Previews.swift)
+    var render: (@MainActor (Any) -> AnyView?)? = nil
 }
 /// build an entry's view and catch its widgetURL
 @MainActor func _wkEntry(_ date: Date, _ make: () -> AnyView) -> _WKEntry {
@@ -181,7 +183,7 @@ public struct StaticConfiguration<Content: View>: WidgetConfiguration, _WKConfig
         }, placeholder: { ctx in AnyView(content(provider.placeholder(in: ctx))) }, snapshot: { ctx, _ in
             let e: P.Entry = await withCheckedContinuation { k in provider.getSnapshot(in: ctx) { k.resume(returning: $0) } }
             return _wkEntry(e.date) { AnyView(content(e)) }
-        })
+        }, render: { e in (e as? P.Entry).map { AnyView(content($0)) } })
     }
     var _widgets: [_WKWidgetSpec] { [spec] }
 }
@@ -196,7 +198,7 @@ public struct AppIntentConfiguration<Intent: WidgetConfigurationIntent, Content:
             return _wkEntry(e.date) { AnyView(content(e)) }
         }, params: { config in
             (Intent.title.description, Intent.description?.text ?? "", _wkParameters(_wkIntent(Intent.self, config)))
-        })
+        }, render: { e in (e as? P.Entry).map { AnyView(content($0)) } })
     }
     var _widgets: [_WKWidgetSpec] { [spec] }
 }
@@ -436,7 +438,11 @@ struct _WKLook {
     nonisolated(unsafe) static var hidingAccentable = false     /* the accented pass without the widgetAccentable content */
     static func run(_ c: [_WKConfig]) {
         configs = c
-        guard ProcessInfo.processInfo.environment["ISIM_WIDGET_REQUEST"] != nil else {
+        let env = ProcessInfo.processInfo.environment
+        if let p = env["ISIM_PREVIEW"], !p.isEmpty {          /* isim preview: UIKit shows the #Preview (Previews.swift) */
+            _ = UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, nil); return
+        }
+        guard env["ISIM_WIDGET_REQUEST"] != nil else {
             NSLog("isim WidgetKit: widget extension with %ld widget(s); the home screen runs it (Edit Home Screen > +)", c.flatMap { $0._widgets }.count)
             exit(0)
         }

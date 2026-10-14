@@ -87,6 +87,77 @@ def run(cmd, **kw):
         sys.exit(f'isim build: command failed ({r.returncode}): {shlex.join(shown)}')
 
 
+COVERAGE_URL = 'https://github.com/kolabs-dev/isim/blob/main/docs/COVERAGE.md'
+_IOS_FRAMEWORKS = None
+
+
+def ios_frameworks():
+    """{module: (area key, why it is out of scope or None)} for every framework Apple documents for iOS
+    (isim/data/frameworks.json in the source tree, frameworks.json next to this script in a release)"""
+    global _IOS_FRAMEWORKS
+    if _IOS_FRAMEWORKS is None:
+        _IOS_FRAMEWORKS = {}
+        for path in (os.path.join(BIN, '..', 'data', 'frameworks.json'), os.path.join(BIN, 'frameworks.json')):
+            if os.path.exists(path):
+                with open(path) as f:
+                    cat = json.load(f)
+                out = {**cat.get('deprecated', {}), **cat.get('impossible', {})}
+                for a in cat.get('areas', []):
+                    for m in a['frameworks']:
+                        _IOS_FRAMEWORKS[m] = (a['key'], out.get(m))
+                for m, why in out.items():
+                    _IOS_FRAMEWORKS.setdefault(m, (None, why))
+                break
+    return _IOS_FRAMEWORKS
+
+
+def in_isim_sdk(module):
+    """whether isim's SDK has the module (an Objective-C framework or a Swift module)"""
+    return (os.path.isdir(os.path.join(SDK, 'System/Library/Frameworks', module + '.framework'))
+            or os.path.exists(os.path.join(SDK, 'usr/lib/swift', module + '.swiftmodule'))
+            or os.path.exists(os.path.join(SDK, 'usr/lib/swift', f'libswift{module}.dylib')))
+
+
+def absent_framework_message(module):
+    """why an iOS framework isim does not have can't be used, and where its coverage is tracked; None for modules that
+    are not iOS frameworks (the app's own, a package's) or that isim has"""
+    info = ios_frameworks().get(module)
+    if not info or in_isim_sdk(module):
+        return None
+    area, why = info
+    if why:
+        return (f'{module} is an iOS framework isim does not include: {why}, so it is out of isim\'s scope '
+                f'({COVERAGE_URL}#out-of-scope)')
+    return (f'{module} is an iOS framework isim does not implement yet, so code that uses it does not build on isim. '
+            f'Its coverage: {COVERAGE_URL}#{area} (issues labelled `area:{area}`). Code inside `#if canImport({module})` '
+            f'builds without it')
+
+
+MISSING_MODULE = re.compile(r"no such module '([A-Za-z_][A-Za-z0-9_]*)'|module '([A-Za-z_][A-Za-z0-9_]*)' not found"
+                            r"|fatal error: '([A-Za-z_][A-Za-z0-9_]*)/[^']*' file not found")
+
+
+def run_compiler(cmd):
+    """run a compiler like run(), echoing its output on stderr (where compilers write diagnostics); when it fails because
+    an iOS framework is missing from isim, say which and where its coverage is tracked, not only 'no such module'"""
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors='replace')
+    missing = []
+    for line in p.stdout:
+        sys.stderr.write(line)
+        for m in MISSING_MODULE.finditer(line):
+            name = next(g for g in m.groups() if g)
+            if name not in missing:
+                missing.append(name)
+    p.wait()
+    if p.returncode:
+        for name in missing:
+            msg = absent_framework_message(name)
+            if msg:
+                print(f'isim build: error: {msg}', file=sys.stderr, flush=True)
+        shown = cmd if os.environ.get('ISIM_BUILD_VERBOSE') else cmd[:6] + ['...']
+        sys.exit(f'isim build: command failed ({p.returncode}): {shlex.join(shown)}')
+
+
 def split_setting(v):
     """A list-valued build setting (space separated, shell-quoted) -> [items] without $(inherited)."""
     try:
@@ -1200,7 +1271,7 @@ class Packages:
             for f in csrc:
                 o = os.path.join(objdir, os.path.basename(f) + '.o')
                 lang = ['-fno-objc-arc'] if f.endswith(('.m', '.mm')) else []     # SwiftPM: no ARC unless asked
-                run([ISIM, 'cc', '-Wno-unused-command-line-argument', '-c', f, '-o', o] + lang + cflags + flags)
+                run_compiler([ISIM, 'cc', '-Wno-unused-command-line-argument', '-c', f, '-o', o] + lang + cflags + flags)
                 res['objs'].append(o)
             # module map for importers (Swift and C): the target's own include/module.modulemap, or a generated one
             mapdir = os.path.join(objdir, 'module')
@@ -1235,7 +1306,7 @@ class Packages:
             for d in defines:
                 cmd += ['-D', d]
             log(f'{tname}: package target ({len(swift)} Swift files)')
-            run(cmd + swift)
+            run_compiler(cmd + swift)
             res['objs'].append(obj)
         if not swift and not csrc:
             log(f'{tname}: package target has no sources')
@@ -1750,7 +1821,7 @@ class Builder:
                 with open(umap, 'w') as f:
                     f.write(self.module_map_body(module, path, public_headers, None, framework=False))
                 cmd += ['-import-underlying-module', '-Xcc', '-fmodule-map-file=' + umap]
-            run(cmd + swift)
+            run_compiler(cmd + swift)
             objs.append(obj)
         cc_base = common_cc + ['-I', derived] + deps['cc_flags'] + [f'-D{d}' for d in defs]
         if s.get('CLANG_ENABLE_OBJC_ARC', 'YES') != 'YES':
@@ -1767,7 +1838,7 @@ class Builder:
             obj = os.path.join(objdir, os.path.basename(f) + '.o')
             os.makedirs(objdir, exist_ok=True)
             extra = split_setting(s.get('OTHER_CPLUSPLUSFLAGS')) if f.endswith(('.mm', '.cpp', '.cc')) else []
-            run([ISIM, 'cc', '-Wno-unused-command-line-argument', '-c', f, '-o', obj, '-I', os.path.dirname(f)] + cc_base + extra)
+            run_compiler([ISIM, 'cc', '-Wno-unused-command-line-argument', '-c', f, '-o', obj, '-I', os.path.dirname(f)] + cc_base + extra)
             objs.append(obj)
         objs += deps['objs']
         self.run_script_phases(target, s, 'link', kind, path)
@@ -1807,7 +1878,8 @@ class Builder:
                 # frameworks isim implements only as Swift modules (SpriteKit, GameplayKit, ...) are autolinked
                 if not os.path.isdir(os.path.join(SDK, 'System/Library/Frameworks', n + '.framework')):
                     if not os.path.exists(os.path.join(SDK, 'usr/lib/swift', f'libswift{n}.dylib')):
-                        log(f'{name}: framework {n} is not in the isim SDK (not linked)')
+                        msg = absent_framework_message(n)
+                        log(f'{name}: warning: ' + (msg + ' (not linked)' if msg else f'framework {n} is not in the isim SDK (not linked)'))
                     continue
                 link += ['-framework', n]
             if is_test:

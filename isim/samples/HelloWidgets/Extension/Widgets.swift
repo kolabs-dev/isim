@@ -189,3 +189,43 @@ struct DeliveryLiveActivity: Widget {
         }
     }
 }
+
+// MARK: - Previews (`isim preview HelloWidgets.app --list`: they are in this extension)
+
+#Preview("Counter", as: .systemSmall) {
+    CounterWidget()
+} timeline: {
+    CounterEntry(date: Date(timeIntervalSince1970: 1_700_000_000), count: 1)
+    CounterEntry(date: Date(timeIntervalSince1970: 1_700_000_600), count: 2)
+    CounterEntry(date: Date(timeIntervalSince1970: 1_700_001_200), count: 3)
+}
+
+#Preview("Counter circle", as: .accessoryCircular, widget: { CounterWidget() }, timelineProvider: { CounterProvider() })
+
+extension WeatherIntent {
+    static var paris: WeatherIntent { let i = WeatherIntent(); i.city = .paris; i.feelsLike = true; return i }
+}
+#Preview("Weather", as: .systemMedium, using: WeatherIntent.paris) {
+    WeatherWidget()
+} timelineProvider: {
+    WeatherProvider()
+}
+
+#Preview("Delivery", as: .content, using: DeliveryAttributes(orderNumber: "42")) {
+    DeliveryLiveActivity()
+} contentStates: {
+    DeliveryAttributes.ContentState(minutes: 12, status: "On its way")
+    DeliveryAttributes.ContentState(minutes: 2, status: "Arriving")
+}
+
+#Preview("Delivery island", as: .dynamicIsland(.expanded), using: DeliveryAttributes(orderNumber: "42")) {
+    DeliveryLiveActivity()
+} contentStates: {
+    DeliveryAttributes.ContentState(minutes: 12, status: "On its way")
+}
+
+struct CounterView_Previews: PreviewProvider {           // iOS 14 style: WidgetPreviewContext
+    static var previews: some View {
+        CounterView(entry: CounterEntry(date: Date(), count: 7)).previewContext(WidgetPreviewContext(family: .systemSmall))
+    }
+}

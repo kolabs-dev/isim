@@ -6,9 +6,10 @@
                                                     render one preview (default the first) to FILE.png
 
 isim's PreviewsMacros plugin gives each #Preview an exported entry point, isim_preview_<hex of "file|line|name">;
-this tool finds them in the app's executable and runs the app alone (headless) in preview mode (ISIM_PREVIEW): UIKit
-shows the preview's view controller instead of launching the app, laid out by its traits (the device, its size that
-fits or a fixed size on a grey canvas), and the screen is saved."""
+this tool finds them in the app's executable and its extensions' (PlugIns/*.appex: widget and Live Activity previews
+live in the widget extension) and runs that executable alone (headless) in preview mode (ISIM_PREVIEW): UIKit shows
+the preview's view controller instead of launching the app, laid out by its traits (the device, its size that fits or
+a fixed size on a grey canvas; widgets: their entries rendered like the home screen does), and the screen is saved."""
 import argparse
 import os
 import plistlib
@@ -44,6 +45,22 @@ def symbols(path):
         p += size
 
 
+def bundle_exe(bundle):
+    return os.path.join(bundle, plistlib.load(open(os.path.join(bundle, "Info.plist"), "rb"))["CFBundleExecutable"])
+
+
+def all_previews(app):
+    """the previews of an app (or executable) and of its extensions, each with the bundle that has it"""
+    if not os.path.isdir(app):
+        return [dict(p, bundle=app) for p in previews(app)]
+    out = [dict(p, bundle=app) for p in previews(bundle_exe(app))]
+    plugins = os.path.join(app, "PlugIns")
+    for ext in sorted(os.listdir(plugins)) if os.path.isdir(plugins) else []:
+        if ext.endswith(".appex"):
+            out += [dict(p, bundle=os.path.join(plugins, ext)) for p in previews(bundle_exe(os.path.join(plugins, ext)))]
+    return out
+
+
 def previews(exe):
     out = []
     for s in set(symbols(exe)):
@@ -70,13 +87,11 @@ def main():
     ap.add_argument("--wait", type=float, default=1.5, help="seconds to let the preview settle before the screenshot")
     a = ap.parse_args()
     app = a.app.rstrip("/")
-    exe = app
-    if os.path.isdir(app):
-        exe = os.path.join(app, plistlib.load(open(os.path.join(app, "Info.plist"), "rb"))["CFBundleExecutable"])
-    found = previews(exe)
+    found = all_previews(app)
     if a.list:
         for i, p in enumerate(found):
-            print(f"{i}\t{p['name'] or '(unnamed)'}\t{p['file']}:{p['line']}")
+            where = "" if p["bundle"] == app else f"\t({os.path.basename(p['bundle'])})"
+            print(f"{i}\t{p['name'] or '(unnamed)'}\t{p['file']}:{p['line']}{where}")
         return
     if not found:
         sys.exit(f"isim preview: {app} has no #Preview")
@@ -100,7 +115,7 @@ def main():
         env["ISIM_APPEARANCE"] = "dark"
     isim = os.path.join(os.path.dirname(os.path.abspath(__file__)), "isim")
     print(f"isim preview: {pick['name'] or '(unnamed)'} ({pick['file']}:{pick['line']}) -> {out}")
-    r = subprocess.run([isim, "run", app], env=env)
+    r = subprocess.run([isim, "run", pick["bundle"]], env=env)
     if r.returncode != 0 or not os.path.exists(out):
         sys.exit(f"isim preview: rendering failed (exit {r.returncode})")
 
