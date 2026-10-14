@@ -161,6 +161,13 @@ def _(a):
     a.run("python3", "make-assets.py", b)                      # atlas, sounds, .sks archives
 
 
+@app("samples/HelloGameTemplate")
+def _(a):
+    b = a.swift_app()
+    for f in ("GameScene.sks", "Actions.sks"):                  # made by Xcode's scene and action editors (README.md)
+        a.copy(f, b)
+
+
 @app("samples/HelloSpriteKit2")
 def _(a):
     b = a.swift_app()
