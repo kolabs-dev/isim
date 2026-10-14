@@ -71,8 +71,8 @@ struct dispatch_source_s {
 struct dispatch_semaphore_s { dobj h; long value; pthread_mutex_t lock; pthread_cond_t cond; };
 struct dispatch_group_s { dobj h; long count; pthread_mutex_t lock; pthread_cond_t cond; job *notify; dispatch_queue_t *notify_q; int nnotify; };
 
-struct dispatch_queue_s _dispatch_main_q = { { K_QUEUE, 1 << 30, NULL, NULL }, 0, "com.apple.main-thread", PTHREAD_MUTEX_INITIALIZER, NULL, NULL, 0, 0, NULL, NULL };
-struct dispatch_queue_attr_s _dispatch_queue_attr_concurrent = { { K_ATTR, 1 << 30, NULL, NULL }, 1 };
+struct dispatch_queue_s _dispatch_main_q = { DOBJ(queue, K_QUEUE, 1 << 30), 0, "com.apple.main-thread", PTHREAD_MUTEX_INITIALIZER, NULL, NULL, 0, 0, NULL, NULL };
+struct dispatch_queue_attr_s _dispatch_queue_attr_concurrent = { DOBJ(queue_attr, K_ATTR, 1 << 30), 1 };
 enum { ST_TIMER = 1, ST_DATA_ADD, ST_DATA_OR, ST_DATA_REPLACE, ST_READ, ST_WRITE, ST_SIGNAL, ST_PROC, ST_VNODE, ST_MEMORYPRESSURE, ST_MACH_SEND, ST_MACH_RECV };
 const struct dispatch_source_type_s _dispatch_source_type_timer = { ST_TIMER };
 const struct dispatch_source_type_s _dispatch_source_type_data_add = { ST_DATA_ADD };
@@ -140,6 +140,59 @@ void dispatch_release(dispatch_object_t o) {
     else if (d->kind == K_IO) isim_dispatch_io_dispose(o);
     else free(o);
 }
+
+/* the Objective-C side of dispatch objects (Apple's OS_object / OS_dispatch_* classes): retain and release are the
+   object's dispatch reference count, so ARC code built against Apple's SDK can own queues, groups and sources */
+@interface OS_object : NSObject
+@end
+@implementation OS_object
+@end
+@interface OS_dispatch_object : OS_object
+@end
+@implementation OS_dispatch_object
+- (id)retain { dispatch_retain((dispatch_object_t)self); return self; }
+- (oneway void)release { dispatch_release((dispatch_object_t)self); }
+- (NSUInteger)retainCount { return (NSUInteger)((dobj *)self)->refs; }
+- (BOOL)_tryRetain { [self retain]; return YES; }
+- (BOOL)_isDeallocating { return NO; }
+- (BOOL)allowsWeakReference { return YES; }
+- (BOOL)retainWeakReference { return [self _tryRetain]; }
+- (void)dealloc { if (0) [super dealloc]; }          /* dispatch_release frees the object */
+- (NSString *)description {
+    dobj *d = (dobj *)self;
+    if (d->kind == K_QUEUE) return [NSString stringWithFormat:@"<%@: %s>", NSStringFromClass([self class]), ((struct dispatch_queue_s *)self)->label ?: ""];
+    return [NSString stringWithFormat:@"<%@: %p>", NSStringFromClass([self class]), self];
+}
+@end
+@interface OS_dispatch_queue : OS_dispatch_object
+@end
+@implementation OS_dispatch_queue
+@end
+@interface OS_dispatch_source : OS_dispatch_object
+@end
+@implementation OS_dispatch_source
+@end
+@interface OS_dispatch_group : OS_dispatch_object
+@end
+@implementation OS_dispatch_group
+@end
+@interface OS_dispatch_semaphore : OS_dispatch_object
+@end
+@implementation OS_dispatch_semaphore
+@end
+@interface OS_dispatch_queue_attr : OS_dispatch_object
+@end
+@implementation OS_dispatch_queue_attr
+@end
+@interface OS_dispatch_data : OS_dispatch_object
+@end
+@implementation OS_dispatch_data
+@end
+@interface OS_dispatch_io : OS_dispatch_object
+@end
+@implementation OS_dispatch_io
+@end
+
 void *dispatch_get_context(dispatch_object_t o) { return o ? ((dobj *)o)->ctx : NULL; }
 void dispatch_set_context(dispatch_object_t o, void *ctx) { if (o) ((dobj *)o)->ctx = ctx; }
 void dispatch_set_finalizer_f(dispatch_object_t o, dispatch_function_t f) { if (o) ((dobj *)o)->finalizer = f; }
@@ -189,7 +242,7 @@ static void init_globals(void) {
     static const char *labels[6] = { "com.apple.root.background-qos", "com.apple.root.utility-qos", "com.apple.root.default-qos",
                                      "com.apple.root.user-initiated-qos", "com.apple.root.user-interactive-qos", "com.apple.root.low-qos" };
     for (int i = 0; i < 6; i++) {
-        global_q[i] = (struct dispatch_queue_s){ { K_QUEUE, 1 << 30, NULL, NULL }, 1, labels[i] };
+        global_q[i] = (struct dispatch_queue_s){ DOBJ(queue, K_QUEUE, 1 << 30), 1, labels[i] };
         pthread_mutex_init(&global_q[i].lock, NULL);
     }
 }
@@ -206,7 +259,7 @@ dispatch_queue_t dispatch_get_global_queue(long id, unsigned long flags) {
 dispatch_queue_attr_t dispatch_queue_attr_make_with_qos_class(dispatch_queue_attr_t attr, dispatch_qos_class_t qos, int prio) { return attr; }
 dispatch_queue_t dispatch_queue_create_with_target(const char *label, dispatch_queue_attr_t attr, dispatch_queue_t target) {
     struct dispatch_queue_s *q = calloc(1, sizeof *q);
-    q->h = (dobj){ K_QUEUE, 1, NULL, NULL };
+    q->h = (dobj)DOBJ(queue, K_QUEUE, 1);
     q->qkind = attr && attr->concurrent ? 1 : 2;
     q->label = strdup(label ? label : "");
     pthread_mutex_init(&q->lock, NULL);
@@ -415,7 +468,7 @@ dispatch_source_t dispatch_source_create(dispatch_source_type_t type, uintptr_t 
     if ((type->type == ST_MACH_SEND || type->type == ST_MACH_RECV) && (handle == MACH_PORT_NULL || handle == MACH_PORT_DEAD)) return NULL;
     struct dispatch_source_s *s = calloc(1, sizeof *s);
     s->wfd = -1;
-    s->h = (dobj){ K_SOURCE, 1, NULL, NULL };
+    s->h = (dobj)DOBJ(source, K_SOURCE, 1);
     s->queue = q ?: dispatch_get_global_queue(0, 0);
     s->type = type->type; s->handle = handle; s->mask = mask;
     pthread_mutex_init(&s->lock, NULL);
@@ -796,7 +849,7 @@ static int wait_until(pthread_cond_t *c, pthread_mutex_t *m, dispatch_time_t tim
 dispatch_semaphore_t dispatch_semaphore_create(long value) {
     if (value < 0) return NULL;
     struct dispatch_semaphore_s *s = calloc(1, sizeof *s);
-    s->h = (dobj){ K_SEMA, 1, NULL, NULL }; s->value = value;
+    s->h = (dobj)DOBJ(semaphore, K_SEMA, 1); s->value = value;
     pthread_mutex_init(&s->lock, NULL); pthread_cond_init(&s->cond, NULL);
     return s;
 }
@@ -816,7 +869,7 @@ long dispatch_semaphore_signal(dispatch_semaphore_t s) {
 }
 dispatch_group_t dispatch_group_create(void) {
     struct dispatch_group_s *g = calloc(1, sizeof *g);
-    g->h = (dobj){ K_GROUP, 1, NULL, NULL };
+    g->h = (dobj)DOBJ(group, K_GROUP, 1);
     pthread_mutex_init(&g->lock, NULL); pthread_cond_init(&g->cond, NULL);
     return g;
 }

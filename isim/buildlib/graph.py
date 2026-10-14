@@ -174,6 +174,7 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
 SWIFT_FRAMEWORKS = [
     ("WebKit", "-framework Foundation -framework UIKit"),
     ("AdSupport", "-framework Foundation"),
+    ("AppTrackingTransparency", "-framework Foundation"),
     ("CoreMotion", "-framework Foundation"),
     ("MessageUI", "-framework Foundation -framework UIKit"),
     ("StoreKit", "-framework Foundation -framework UIKit"),

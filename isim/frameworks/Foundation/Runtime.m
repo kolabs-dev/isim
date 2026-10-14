@@ -368,6 +368,8 @@ void isim_bundle_register_extension(NSString *path) {
 - (void)encodeWithCoder:(NSCoder *)c { isim_encode_builtin(self, c, [NSDate class]); }    /* NS.time */
 - (instancetype)initWithCoder:(NSCoder *)c { if ((self = [super init])) _t = [c decodeDoubleForKey:@"NS.time"]; return self; }   /* not via the designated initializer (Swift subclasses) */
 + (NSTimeInterval)timeIntervalSinceReferenceDate_isim { return wall_now() - REF_EPOCH; }
++ (NSTimeInterval)timeIntervalSinceReferenceDate { return wall_now() - REF_EPOCH; }   /* Objective-C's; the header hides it from Swift */
++ (instancetype)now { return [self date]; }
 + (instancetype)date { return [[self alloc] initWithTimeIntervalSinceReferenceDate:wall_now() - REF_EPOCH]; }
 + (instancetype)dateWithTimeIntervalSinceNow:(NSTimeInterval)s { return [[self alloc] initWithTimeIntervalSinceReferenceDate:wall_now() - REF_EPOCH + s]; }
 + (instancetype)dateWithTimeIntervalSince1970:(NSTimeInterval)s { return [[self alloc] initWithTimeIntervalSinceReferenceDate:s - REF_EPOCH]; }

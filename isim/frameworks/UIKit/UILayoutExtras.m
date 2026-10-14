@@ -370,3 +370,14 @@ NSDictionary<NSString *, id> *_NSDictionaryOfVariableBindings(NSString *keys, id
     va_end(ap);
     return d;
 }
+
+/* window and screen coordinates (windows fill the screen on isim, so a nil window means screen coordinates) */
+@implementation UIWindow (IsimWindowConversion)
+- (CGPoint)convertPoint:(CGPoint)point toWindow:(UIWindow *)window { return [self convertPoint:point toView:window]; }
+- (CGPoint)convertPoint:(CGPoint)point fromWindow:(UIWindow *)window { return [self convertPoint:point fromView:window]; }
+- (CGRect)convertRect:(CGRect)rect toWindow:(UIWindow *)window { return [self convertRect:rect toView:window]; }
+- (CGRect)convertRect:(CGRect)rect fromWindow:(UIWindow *)window { return [self convertRect:rect fromView:window]; }
+@end
+@implementation UIScreen (IsimApplicationFrame)
+- (CGRect)applicationFrame { return self.bounds; }      /* deprecated in iOS 9: the screen when the status bar overlaps the app */
+@end

@@ -527,13 +527,101 @@ static void rt_init_once(void) {
     protocol_class_init();
 }
 
+/* ISIM_OBJC_AUDIT=1 (a developer diagnostic): before main, list the selectors the app's own images (not the SDK's)
+   reference that no loaded class implements, the messages that would end in "unrecognized selector" (some are only
+   checked with respondsToSelector:, or implemented by classes made at run time). */
+static struct audit_img { const char *name; SEL *refs; uint64_t n; } *audit_imgs;
+static int audit_nimgs;
+static void audit_note_image(const struct objc_image *img, SEL *refs, uint64_t n) {
+    static int on = -1;
+    if (on < 0) on = getenv("ISIM_OBJC_AUDIT") && *getenv("ISIM_OBJC_AUDIT") == '1';
+    if (!on || !n || !img->name || strstr(img->name, "/System/Library/") || strstr(img->name, "/usr/lib/")) return;
+    audit_imgs = realloc(audit_imgs, (audit_nimgs + 1) * sizeof *audit_imgs);
+    audit_imgs[audit_nimgs++] = (struct audit_img){ strdup(img->name), refs, n };
+}
+struct rt_method **class_copyMethodList(Class c, unsigned int *outCount);
+Class *objc_copyClassList(unsigned int *outCount);
+void objc_rt_audit(void) {
+    if (!audit_nimgs) return;
+    size_t cap = 1 << 20, used = 0;
+    SEL *set = calloc(cap, sizeof *set);
+    #define SET_ADD(s) do { size_t _h = ((uintptr_t)(s) >> 3) & (cap - 1); while (set[_h] && set[_h] != (s)) _h = (_h + 1) & (cap - 1); \
+        if (!set[_h] && used < cap / 2) { set[_h] = (s); used++; } } while (0)
+    unsigned nc = 0;
+    Class *cls = objc_copyClassList(&nc);
+    for (unsigned i = 0; i < nc; i++)
+        for (int meta = 0; meta < 2; meta++) {
+            unsigned nm = 0;
+            struct rt_method **ms = class_copyMethodList(meta ? cls[i]->isa : cls[i], &nm);
+            for (unsigned k = 0; k < nm; k++) SET_ADD(ms[k]->name);
+            free(ms);
+        }
+    free(cls);
+    int missing = 0;
+    for (int i = 0; i < audit_nimgs; i++)
+        for (uint64_t j = 0; j < audit_imgs[i].n; j++) {
+            SEL s = audit_imgs[i].refs[j];
+            size_t h = ((uintptr_t)s >> 3) & (cap - 1);
+            while (set[h] && set[h] != s) h = (h + 1) & (cap - 1);
+            if (set[h]) continue;
+            SET_ADD(s);                                      /* report each selector once */
+            fprintf(stderr, "isim audit: no class implements -%s (referenced by %s)\n", (const char *)s, audit_imgs[i].name);
+            missing++;
+        }
+    #undef SET_ADD
+    fprintf(stderr, "isim audit: %d selector(s) without an implementation\n", missing);
+    free(set);
+}
+
+static pthread_once_t rt_once = PTHREAD_ONCE_INIT;
+
+/* A root class for objects the host runtime makes that Apple's SDK declares as Objective-C objects (os_log_t: OS_os_log),
+   so ARC code compiled against Apple's SDK can retain and release them. They live as long as the process. */
+static int immortal_is_equal(id self, SEL _cmd, id other) { return self == other; }
+static uintptr_t immortal_hash(id self, SEL _cmd) { return (uintptr_t)self >> 4; }
+static int immortal_responds(id self, SEL _cmd, SEL sel) { return objc_rt_lookup(self, self->isa, sel) != (IMP)rt_msgForward; }
+Class objc_rt_immortal_class(const char *name) {
+    static struct { char name[64]; struct class_ro_t ro, meta_ro; struct objc_class cls, meta; } made[8];
+    static int n;
+    static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+    pthread_once(&rt_once, rt_init_once);
+    pthread_mutex_lock(&lock);
+    for (int i = 0; i < n; i++) if (!strcmp(made[i].name, name)) { pthread_mutex_unlock(&lock); return &made[i].cls; }
+    if (n == 8) { pthread_mutex_unlock(&lock); return NULL; }
+    typeof(made[0]) *m = &made[n++];
+    snprintf(m->name, sizeof m->name, "%s", name);
+    m->meta_ro = (struct class_ro_t){ RO_META, 40, 40, 0, NULL, m->name, NULL, NULL, NULL, NULL, NULL };
+    m->ro = (struct class_ro_t){ 0, 8, 8, 0, NULL, m->name, NULL, NULL, NULL, NULL, NULL };
+    m->meta = (struct objc_class){ &m->meta, NULL, NULL, NULL, (uintptr_t)&m->meta_ro };
+    m->cls = (struct objc_class){ &m->meta, NULL, NULL, NULL, (uintptr_t)&m->ro };
+    rt_attach(&m->cls, &m->cls)->realized = 1;
+    rt_attach(&m->meta, &m->cls)->realized = 1;
+    m->cls.rt->init_state = m->meta.rt->init_state = 2;
+    static const struct { const char *sel; IMP imp; const char *types; } ms[] = {
+        { "retain", (IMP)proto_self, "@16@0:8" }, { "autorelease", (IMP)proto_self, "@16@0:8" },
+        { "self", (IMP)proto_self, "@16@0:8" }, { "copy", (IMP)proto_self, "@16@0:8" },
+        { "copyWithZone:", (IMP)proto_self, "@24@0:8^v16" }, { "release", (IMP)proto_nothing, "v16@0:8" },
+        { "retainCount", (IMP)proto_retain_count, "Q16@0:8" }, { "isEqual:", (IMP)immortal_is_equal, "B24@0:8@16" },
+        { "hash", (IMP)immortal_hash, "Q16@0:8" }, { "respondsToSelector:", (IMP)immortal_responds, "B24@0:8:16" },
+        { "_tryRetain", (IMP)proto_self, "B16@0:8" }, { "allowsWeakReference", (IMP)proto_self, "B16@0:8" },
+        { "retainWeakReference", (IMP)proto_self, "B16@0:8" },
+    };
+    pthread_mutex_unlock(&lock);
+    for (size_t i = 0; i < sizeof ms / sizeof *ms; i++) class_addMethod(&m->cls, sel_intern(ms[i].sel), ms[i].imp, ms[i].types);
+    pthread_mutex_lock(&rt_lock);
+    void **slot = strmap_slot(&classes, m->name, 1);
+    if (slot && !*slot) *slot = &m->cls;
+    pthread_mutex_unlock(&rt_lock);
+    return &m->cls;
+}
+
 void objc_rt_map_image(const struct objc_image *img) {
-    static pthread_once_t once = PTHREAD_ONCE_INIT;
-    pthread_once(&once, rt_init_once);
+    pthread_once(&rt_once, rt_init_once);
     pthread_mutex_lock(&rt_lock);
     uint64_t n;
     SEL *selrefs = img->find_section(img, "__objc_selrefs", &n);
     for (uint64_t i = 0; i < n / 8; i++) selrefs[i] = sel_intern(selrefs[i]);
+    audit_note_image(img, selrefs, n / 8);
 
     struct protocol_t **protos = img->find_section(img, "__objc_protolist", &n);
     for (uint64_t i = 0; i < n / 8; i++) {

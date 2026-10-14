@@ -23,7 +23,7 @@ typedef struct dbuf { int refs; const void *ptr; size_t size; dispatch_block_t d
 typedef struct { dbuf *buf; size_t off, len; } dregion;
 struct dispatch_data_s { dobj h; size_t size, n; dregion *r; };
 
-struct dispatch_data_s _dispatch_data_empty = { { K_DATA, 1 << 30, NULL, NULL }, 0, 0, NULL };
+struct dispatch_data_s _dispatch_data_empty = { DOBJ(data, K_DATA, 1 << 30), 0, 0, NULL };
 static volatile int destructor_marks;
 const dispatch_block_t _dispatch_data_destructor_free = ^{ destructor_marks |= 1; };      /* markers, never run */
 const dispatch_block_t _dispatch_data_destructor_munmap = ^{ destructor_marks |= 2; };
@@ -43,7 +43,7 @@ static void dbuf_release(dbuf *b) {
 }
 static dispatch_data_t data_new(size_t n) {
     struct dispatch_data_s *d = calloc(1, sizeof *d);
-    d->h = (dobj){ K_DATA, 1, NULL, NULL };
+    d->h = (dobj)DOBJ(data, K_DATA, 1);
     d->r = n ? calloc(n, sizeof *d->r) : NULL;
     return d;
 }
@@ -159,7 +159,7 @@ static uint64_t now_ns(void) { struct timespec ts; clock_gettime(CLOCK_UPTIME_RA
 static dispatch_io_t io_new(dispatch_io_type_t type, int fd, int owns, int err, dispatch_queue_t queue, void (^cleanup)(int)) {
     if (type != DISPATCH_IO_STREAM && type != DISPATCH_IO_RANDOM) return NULL;
     struct dispatch_io_s *c = calloc(1, sizeof *c);
-    c->h = (dobj){ K_IO, 1, NULL, NULL };
+    c->h = (dobj)DOBJ(io, K_IO, 1);
     c->type = (int)type; c->fd = fd; c->owns = owns; c->err = err;
     c->q = dispatch_queue_create("com.apple.libdispatch-io.channelq", NULL);
     c->cleanup_q = queue ?: dispatch_get_global_queue(0, 0);

@@ -15,6 +15,7 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) CGFloat brightness;
 @property (nonatomic, readonly) NSInteger maximumFramesPerSecond;
 @property (readonly) id<UICoordinateSpace> coordinateSpace;
+@property (nonatomic, readonly) CGRect applicationFrame __attribute__((deprecated("Use -[UIScreen bounds]")));
 @end
 UIKIT_EXTERN NSNotificationName const UIScreenBrightnessDidChangeNotification;
 /* isim: never posted (no screen recording or mirroring, the device screen has one mode) */

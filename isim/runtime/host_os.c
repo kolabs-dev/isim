@@ -69,10 +69,15 @@ static void ul_assert_not_owner(const uint32_t *l) {
 }
 
 /* ---------------- os_log (C) ---------------- */
-struct os_log_s { char subsystem[256], category[256]; int disabled; };
-struct os_log_s _os_log_default = { "", "", 0 }, _os_log_disabled = { "", "", 1 };
+/* an os_log_t is an Objective-C object on Apple platforms (ARC retains it): isa is the runtime's OS_os_log class */
+struct os_log_s { void *isa; char subsystem[256], category[256]; int disabled; };
+struct os_log_s _os_log_default = { NULL, "", "", 0 }, _os_log_disabled = { NULL, "", "", 1 };
+__attribute__((constructor)) static void log_class_init(void) {
+    _os_log_default.isa = _os_log_disabled.isa = objc_rt_immortal_class("OS_os_log");
+}
 static struct os_log_s *log_create(const char *subsystem, const char *category) {
     struct os_log_s *l = calloc(1, sizeof *l);
+    l->isa = _os_log_default.isa;
     snprintf(l->subsystem, sizeof l->subsystem, "%s", subsystem ? subsystem : "");
     snprintf(l->category, sizeof l->category, "%s", category ? category : "");
     return l;

@@ -644,6 +644,7 @@ OBJC_NAMES["WebKit"] = {c: c for c in """WKFrameInfo WKFindResult WKNavigation W
 
 
 OBJC_NAMES["AdSupport"] = {"ASIdentifierManager": "ASIdentifierManager"}
+OBJC_NAMES["AppTrackingTransparency"] = {"ATTrackingManager": "ATTrackingManager"}
 OBJC_NAMES["StoreKit"] = {**{c: c for c in "SKAdImpression SKAdNetwork SKOverlay SKPaymentQueue SKStoreProductViewController SKStorefront".split()},
                           "SKOverlay.Configuration": "SKOverlayConfiguration", "SKOverlay.AppConfiguration": "SKOverlayAppConfiguration",
                           "SKOverlay.AppClipConfiguration": "SKOverlayAppClipConfiguration", "SKOverlay.TransitionContext": "SKOverlayTransitionContext"}

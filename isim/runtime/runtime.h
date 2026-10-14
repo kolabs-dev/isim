@@ -47,5 +47,7 @@ struct objc_image {
 };
 void objc_rt_map_image(const struct objc_image *img);   /* after fixups, before mprotect */
 void objc_rt_load_image(const struct objc_image *img);  /* +load methods, after all images mapped */
+void objc_rt_audit(void);
+struct objc_class *objc_rt_immortal_class(const char *name);   /* a root class whose objects are never freed (os_log_t) */                                /* ISIM_OBJC_AUDIT=1: unimplemented selectors, before main */
 
 void libsystem_init(int argc, char **argv);

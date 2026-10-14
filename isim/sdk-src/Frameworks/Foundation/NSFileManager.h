@@ -109,6 +109,11 @@ FOUNDATION_EXPORT NSArray<NSString *> *NSSearchPathForDirectoriesInDomains(NSSea
 - (const char *)fileSystemRepresentationWithPath:(NSString *)path NS_RETURNS_INNER_POINTER;
 - (NSString *)stringWithFileSystemRepresentation:(const char *)str length:(NSUInteger)len;
 @end
+#if !defined(__swift__)   /* Objective-C only: Swift has its own Foundation API for these */
+@interface NSFileManager (IsimURLs)
+- (nullable NSURL *)URLForDirectory:(NSSearchPathDirectory)directory inDomain:(NSSearchPathDomainMask)domain appropriateForURL:(nullable NSURL *)url create:(BOOL)shouldCreate error:(NSError **)error;
+@end
+#endif
 
 /* a deep, pre-order walk of a directory: relative paths (enumeratorAtPath:) or URLs (enumeratorAtURL:...) */
 @interface NSDirectoryEnumerator<ObjectType> : NSEnumerator<ObjectType>

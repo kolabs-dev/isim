@@ -1382,6 +1382,7 @@ int main(int argc, char **argv, char **envp) {
     for (int i = 0; i < n; i++) objc_rt_load_image(&oimgs[i]);
     for (int i = 0; i < n; i++) run_initializers(order[i], gargc, gargv, envp, apple);
 
+    objc_rt_audit();                                     /* ISIM_OBJC_AUDIT=1 */
     int (*guest_main)(int, char **, char **, char **) = (void *)(main_image->base + main_image->entry->entryoff);
     exit(guest_main(gargc, gargv, envp, apple));
 }
