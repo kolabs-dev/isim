@@ -582,6 +582,18 @@ class Scheme:
             out.append(r)
         return out
 
+    def test_plans(self):
+        """the test plans of the TestAction: [(path of the .xctestplan, default?)]"""
+        ta = self.root.find('TestAction')
+        out = []
+        if ta is None:
+            return out
+        for r in ta.iter('TestPlanReference'):
+            kind, _, rel = r.get('reference', '').partition(':')
+            path = os.path.normpath(os.path.join(self.container_dir, rel)) if kind == 'container' else os.path.normpath(rel)
+            out.append((path, r.get('default', 'NO') == 'YES'))
+        return out
+
     def configuration(self, action):
         a = self.root.find(action)
         return a.get('buildConfiguration', 'Debug') if a is not None else 'Debug'

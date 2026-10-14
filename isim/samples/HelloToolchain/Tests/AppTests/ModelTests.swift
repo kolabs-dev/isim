@@ -82,6 +82,12 @@ final class ModelTests: XCTestCase {
         measure { _ = (0..<1000).reduce(0, +) }
     }
 
+    /// prints what a test plan configured (Unit.xctestplan: its environment, arguments and language)
+    func testPlanOptions() {
+        let env = ProcessInfo.processInfo.environment
+        print("plan options: \(env["PLAN_NAME"] ?? "none") / \(env["PLAN_CONFIGURATION"] ?? "none") argument \(CommandLine.arguments.contains("-planArgument")) language \(Locale.preferredLanguages.first ?? "?")")
+    }
+
     func testZLifecycleOrder() {
         // runs last (alphabetical order): every earlier test had setUp and tearDown around it
         XCTAssertEqual(ModelTests.events.first, "class setUp")

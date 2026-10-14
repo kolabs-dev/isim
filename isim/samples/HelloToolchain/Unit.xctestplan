@@ -1,0 +1,80 @@
+{
+  "configurations": [
+    {
+      "id": "6E2B0E37-0001-4A51-9F00-000000000001",
+      "name": "English",
+      "options": {
+        "environmentVariableEntries": [
+          {
+            "key": "PLAN_CONFIGURATION",
+            "value": "English"
+          }
+        ]
+      }
+    },
+    {
+      "id": "6E2B0E37-0002-4A51-9F00-000000000002",
+      "name": "French",
+      "options": {
+        "environmentVariableEntries": [
+          {
+            "key": "PLAN_CONFIGURATION",
+            "value": "French"
+          }
+        ],
+        "language": "fr",
+        "region": "FR"
+      }
+    }
+  ],
+  "defaultOptions": {
+    "commandLineArgumentEntries": [
+      {
+        "argument": "-planArgument"
+      }
+    ],
+    "environmentVariableEntries": [
+      {
+        "key": "PLAN_NAME",
+        "value": "Unit"
+      },
+      {
+        "enabled": false,
+        "key": "PLAN_DISABLED",
+        "value": "1"
+      }
+    ]
+  },
+  "testTargets": [
+    {
+      "skippedTests": [
+        "ExpectedFailureTests",
+        "ExpectedObjCFailureTests"
+      ],
+      "target": {
+        "containerPath": "container:HelloToolchain.xcodeproj",
+        "identifier": "A7C00020219F9750A615D83F",
+        "name": "AppTests"
+      }
+    },
+    {
+      "skippedTests": [
+        "FailingSuite"
+      ],
+      "target": {
+        "containerPath": "container:HelloToolchain.xcodeproj",
+        "identifier": "A7C0002271897BAA367E2E7F",
+        "name": "AppSwiftTests"
+      }
+    },
+    {
+      "enabled": false,
+      "target": {
+        "containerPath": "container:HelloToolchain.xcodeproj",
+        "identifier": "A7C00021584B4B0C2B9E71F9",
+        "name": "AppUITests"
+      }
+    }
+  ],
+  "version": 1
+}

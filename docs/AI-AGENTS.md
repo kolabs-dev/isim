@@ -143,7 +143,7 @@ prints the device data's App Attest root certificate, which the server trusts in
 ### 4. Test
 
 ```bash
-isim test -project MyApp.xcodeproj -scheme MyApp [-only-testing:MyAppTests/LoginTests/testEmptyPassword]
+isim test -project MyApp.xcodeproj -scheme MyApp [-only-testing:MyAppTests/LoginTests/testEmptyPassword] [-testPlan NAME]
 ```
 
 XCTest, Swift Testing and XCUITest run as with `xcodebuild test`: the output follows Xcode's format, ends with
