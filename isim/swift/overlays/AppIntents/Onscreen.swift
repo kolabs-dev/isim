@@ -59,12 +59,12 @@ extension UIView: AppEntityAnnotatable {
     /// the app entity the view shows
     @MainActor @preconcurrency public var appEntityIdentifier: EntityIdentifier? {
         get { (objc_getAssociatedObject(self, &kEntity) as? _EntityBox)?.id }
-        set { objc_setAssociatedObject(self, &kEntity, _EntityBox(newValue), objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)) }
+        set { objc_setAssociatedObject(self, &kEntity, _EntityBox(newValue), .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
     /// the app entities in the view's content (for custom views drawing several)
     @MainActor @preconcurrency public var appEntityUIElementProvider: ((UIView, AppEntityUIElementsContext) -> [AppEntityUIElement])? {
         get { (objc_getAssociatedObject(self, &kProvider) as? _ProviderBox)?.f }
-        set { objc_setAssociatedObject(self, &kProvider, newValue.map(_ProviderBox.init), objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)) }
+        set { objc_setAssociatedObject(self, &kProvider, newValue.map(_ProviderBox.init), .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
     /// the view dump's entity=… (UIApplication.m): the view's entity, then its provider's visible elements
     @objc func _isim_appEntityDescription() -> String? {

@@ -199,11 +199,11 @@ nonisolated(unsafe) private var _cmTimeKey: UInt8 = 0
 extension NSValue {
     public convenience init(time: CMTime) {
         self.init()
-        objc_setAssociatedObject(self, &_cmTimeKey, _CMTimeBox(time, nil), objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+        objc_setAssociatedObject(self, &_cmTimeKey, _CMTimeBox(time, nil), .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
     public convenience init(timeRange: CMTimeRange) {
         self.init()
-        objc_setAssociatedObject(self, &_cmTimeKey, _CMTimeBox(timeRange.start, timeRange), objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+        objc_setAssociatedObject(self, &_cmTimeKey, _CMTimeBox(timeRange.start, timeRange), .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
     public var timeValue: CMTime { (objc_getAssociatedObject(self, &_cmTimeKey) as? _CMTimeBox)?.time ?? .invalid }
     public var timeRangeValue: CMTimeRange { (objc_getAssociatedObject(self, &_cmTimeKey) as? _CMTimeBox)?.range ?? .invalid }

@@ -47,13 +47,13 @@ final class _SUIDropTarget: NSObject, UIDropInteractionDelegate {
     if let src = objc_getAssociatedObject(v, &kSUIDrag) as? _SUIDragSource { src.make = make; src.preview = preview; return }
     let src = _SUIDragSource(make)
     src.preview = preview
-    objc_setAssociatedObject(v, &kSUIDrag, src, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+    objc_setAssociatedObject(v, &kSUIDrag, src, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     v.addInteraction(UIDragInteraction(delegate: src))
     v.isUserInteractionEnabled = true
 }
 @MainActor func _installDrop(_ v: UIView, _ t: _SUIDropTarget) {
     if let old = objc_getAssociatedObject(v, &kSUIDrop) as? _SUIDropTarget { old.types = t.types; old.targeted = t.targeted; old.perform = t.perform; return }
-    objc_setAssociatedObject(v, &kSUIDrop, t, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+    objc_setAssociatedObject(v, &kSUIDrop, t, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     v.addInteraction(UIDropInteraction(delegate: t))
 }
 

@@ -41,7 +41,7 @@ extension SKEffectNode {
         let vb = box.applying(t).integral
         let scale = max(1, view.window?.screen.scale ?? UIScreen.main.scale)
         let cache = (objc_getAssociatedObject(self, &_skRasterKey) as? _SKRasterCache) ?? {
-            let c = _SKRasterCache(); objc_setAssociatedObject(self, &_skRasterKey, c, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)); return c
+            let c = _SKRasterCache(); objc_setAssociatedObject(self, &_skRasterKey, c, .OBJC_ASSOCIATION_RETAIN_NONATOMIC); return c
         }()
         let sig = shouldRasterize ? _signature(t) : ""
         if !shouldRasterize || cache.signature != sig || cache.image == nil {

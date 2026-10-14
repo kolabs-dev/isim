@@ -252,7 +252,7 @@ extension SKScene {
         audioEngine.attach(env)
         audioEngine.connect(env, to: audioEngine.mainMixerNode, format: nil)
         env.listenerPosition = AVAudio3DPoint(x: 0, y: 0, z: 0)
-        objc_setAssociatedObject(self, &_skEnvKey, env, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+        objc_setAssociatedObject(self, &_skEnvKey, env, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         return env
     }
 }

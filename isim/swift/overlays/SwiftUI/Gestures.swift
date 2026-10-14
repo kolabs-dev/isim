@@ -43,7 +43,7 @@ nonisolated(unsafe) private var kTargets: UInt8 = 0
     g.cancelsTouchesInView = false
     var targets = objc_getAssociatedObject(g, &kTargets) as? [_SUIGestureTarget] ?? []
     targets.append(t)
-    objc_setAssociatedObject(g, &kTargets, targets, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+    objc_setAssociatedObject(g, &kTargets, targets, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     v.addGestureRecognizer(g)
 }
 

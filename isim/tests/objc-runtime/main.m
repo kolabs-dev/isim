@@ -2,6 +2,9 @@
 // message forwarding (forwardingTargetForSelector:, forwardInvocation:, doesNotRecognizeSelector:),
 // NSMethodSignature, NSInvocation and NSProxy. Prints PASS/FAIL per check; exit code = failures.
 #import <Foundation/Foundation.h>
+#import <objc/runtime.h>
+#import <objc/message.h>
+#import <CoreGraphics/CoreGraphics.h>
 
 static int failures, checks;
 #define CHECK(cond) do { checks++; if (cond) printf("PASS  %s\n", #cond); else { failures++; printf("FAIL  %s  (%s:%d)\n", #cond, __FILE__, __LINE__); } } while (0)
@@ -459,11 +462,184 @@ static void testInvocation(void) {
     CHECK(NSGetUncaughtExceptionHandler() == NULL);
 }
 
+// ---------------------------------------------------------------- classes made at run time (issue #219)
+@interface Counter : NSObject
+- (NSInteger)value;
+- (NSInteger)twice;
+- (NSInteger)add:(NSInteger)a to:(NSInteger)b;
+- (CGRect)rectWithScale:(CGFloat)s;
+@end
+@implementation Counter
+- (NSInteger)value { return 10; }
+- (NSInteger)twice { return 20; }
+- (NSInteger)add:(NSInteger)a to:(NSInteger)b { return a + b; }
+- (CGRect)rectWithScale:(CGFloat)s { return CGRectMake(1, 2, 3 * s, 4 * s); }
+@end
+@interface CounterChild : Counter @end
+@implementation CounterChild @end
+@interface Holder : NSObject { @public __strong id _strongRef; __weak id _weakRef; __unsafe_unretained id _plainRef; } @end
+@implementation Holder @end
+static int tokenDeallocs;
+@interface Token : NSObject @end
+@implementation Token - (void)dealloc { tokenDeallocs++; } @end
+
+static void testDynamicClasses(void) {
+    // a class pair: ivars, a block method, a protocol, a property, then registration
+    Class Thing = objc_allocateClassPair([NSObject class], "ISDynamicThing", 16);
+    CHECK(Thing != Nil && NSClassFromString(@"ISDynamicThing") == Nil);            // not visible before registration
+    CHECK(class_addIvar(Thing, "_count", sizeof(long), 3, "q"));
+    CHECK(class_addIvar(Thing, "_label", sizeof(id), 3, "@\"NSString\""));
+    CHECK(!class_addIvar(Thing, "_count", sizeof(long), 3, "q"));                   // duplicate name
+    IMP describe = imp_implementationWithBlock(^NSString *(id self) {
+        Ivar count = class_getInstanceVariable(object_getClass(self), "_count");
+        long n = *(long *)((char *)(__bridge void *)self + ivar_getOffset(count));
+        return [NSString stringWithFormat:@"%@ #%ld", object_getIvar(self, class_getInstanceVariable(object_getClass(self), "_label")), n];
+    });
+    CHECK(class_addMethod(Thing, @selector(describe), describe, "@16@0:8"));
+    CHECK(class_addProtocol(Thing, @protocol(NSCopying)) && !class_addProtocol(Thing, @protocol(NSCopying)));
+    objc_property_attribute_t attrs[] = { { "T", "@\"NSString\"" }, { "C", "" }, { "N", "" }, { "V", "_label" } };
+    CHECK(class_addProperty(Thing, "label", attrs, 4) && !class_addProperty(Thing, "label", attrs, 4));
+    objc_registerClassPair(Thing);
+    CHECK(NSClassFromString(@"ISDynamicThing") == Thing && objc_allocateClassPair([NSObject class], "ISDynamicThing", 0) == Nil);
+    CHECK(!class_addIvar(Thing, "_late", sizeof(int), 2, "i"));                     // no ivars once registered
+    CHECK(class_getInstanceSize(Thing) == 8 + 8 + 8);
+    CHECK(class_conformsToProtocol(Thing, @protocol(NSCopying)) && [Thing conformsToProtocol:@protocol(NSCopying)]);
+    objc_property_t prop = class_getProperty(Thing, "label");
+    CHECK(prop && strcmp(property_getAttributes(prop), "T@\"NSString\",C,N,V_label") == 0);
+    unsigned na = 0;
+    objc_property_attribute_t *list = property_copyAttributeList(prop, &na);
+    CHECK(na == 4 && !strcmp(list[0].name, "T") && !strcmp(list[0].value, "@\"NSString\"") && !strcmp(list[3].value, "_label"));
+    free(list);
+    char *extra = object_getIndexedIvars(Thing);
+    memset(extra, 0x5a, 16);
+    CHECK(extra[15] == 0x5a);
+
+    NSString *label = @"thing";
+    id thing = [Thing new];
+    Ivar countIvar = class_getInstanceVariable(Thing, "_count"), labelIvar = class_getInstanceVariable(Thing, "_label");
+    CHECK(countIvar && labelIvar && !strcmp(ivar_getName(labelIvar), "_label") && !strcmp(ivar_getTypeEncoding(countIvar), "q"));
+    CHECK(ivar_getOffset(countIvar) == 8 && ivar_getOffset(labelIvar) == 16);
+    *(long *)((char *)(__bridge void *)thing + ivar_getOffset(countIvar)) = 7;
+    object_setIvar(thing, labelIvar, label);                                       // unknown memory management: unretained
+    CHECK(object_getIvar(thing, labelIvar) == label);
+    CHECK([[thing performSelector:@selector(describe)] isEqualToString:@"thing #7"]);
+    CHECK(class_getInstanceVariable([CounterChild class], "_count") == NULL && class_getInstanceVariable(Thing, "isa") != NULL);   // NSObject's isa, as on iOS
+
+    // a subclass of the made class inherits its block method; disposing it unregisters it
+    Class Sub = objc_allocateClassPair(Thing, "ISDynamicThingSub", 0);
+    objc_registerClassPair(Sub);
+    id sub = [Sub new];
+    object_setIvar(sub, labelIvar, label);
+    CHECK([sub isKindOfClass:Thing] && [[sub performSelector:@selector(describe)] isEqualToString:@"thing #0"]);
+    sub = nil;
+    objc_disposeClassPair(Sub);
+    CHECK(NSClassFromString(@"ISDynamicThingSub") == Nil);
+
+    // isa-swizzling, as KVO and Sentry / Firebase do: a made subclass overrides a method and calls the original
+    Counter *counter = [Counter new];
+    Class Observed = objc_allocateClassPair([Counter class], "Counter_ISObserved", 0);
+    IMP original = class_getMethodImplementation([Counter class], @selector(value));
+    class_addMethod(Observed, @selector(value), imp_implementationWithBlock(^NSInteger(id self) {
+        return ((NSInteger (*)(id, SEL))original)(self, @selector(value)) + 1;
+    }), "q16@0:8");
+    class_addMethod(Observed, @selector(class), imp_implementationWithBlock(^Class(id self) { return [Counter class]; }), "#16@0:8");
+    objc_registerClassPair(Observed);
+    object_setClass(counter, Observed);
+    CHECK(counter.value == 11 && [counter class] == [Counter class] && object_getClass(counter) == Observed);
+    object_setClass(counter, [Counter class]);
+    CHECK(counter.value == 10);
+
+    // block IMPs with arguments and with a struct return (returned through memory)
+    IMP mul = imp_implementationWithBlock(^NSInteger(id self, NSInteger a, NSInteger b) { return a * b + (self == counter); });
+    class_addMethod([Counter class], @selector(multiply:by:), mul, "q32@0:8q16q24");
+    CHECK(((NSInteger (*)(id, SEL, NSInteger, NSInteger))objc_msgSend)(counter, @selector(multiply:by:), 6, 7) == 43);
+    IMP rect = imp_implementationWithBlock(^CGRect(id self, CGFloat s) { return CGRectMake(s, s * 2, s * 3, s * 4); });
+    class_addMethod([Counter class], @selector(blockRect:), rect, "{CGRect={CGPoint=dd}{CGSize=dd}}24@0:8d16");
+    CGRect r = ((CGRect (*)(id, SEL, CGFloat))objc_msgSend_stret)(counter, @selector(blockRect:), 1.5);
+    CHECK(r.origin.x == 1.5 && r.origin.y == 3 && r.size.width == 4.5 && r.size.height == 6);
+    id blockOfImp = imp_getBlock(mul);
+    CHECK(blockOfImp != nil && ((NSInteger (^)(id, NSInteger, NSInteger))blockOfImp)(nil, 2, 3) == 6);
+    CHECK(imp_getBlock((IMP)testDynamicClasses) == nil);
+    CHECK(imp_removeBlock(rect) && !imp_removeBlock(rect) && imp_getBlock(rect) == nil);
+
+    // class_replaceMethod: the class's own method returns the old IMP; an inherited one is overridden (NULL)
+    IMP twenty = class_replaceMethod([Counter class], @selector(twice), imp_implementationWithBlock(^NSInteger(id self) { return 22; }), "q16@0:8");
+    CHECK(twenty != NULL && ((NSInteger (*)(id, SEL))twenty)(counter, @selector(twice)) == 20 && [counter twice] == 22);
+    CounterChild *child = [CounterChild new];
+    CHECK(class_replaceMethod([CounterChild class], @selector(value), imp_implementationWithBlock(^NSInteger(id self) { return 99; }), "q16@0:8") == NULL);
+    CHECK(child.value == 99 && counter.value == 10);
+    class_replaceMethod([Counter class], @selector(twice), twenty, "q16@0:8");
+    CHECK([counter twice] == 20);
+
+    // swizzling with method_exchangeImplementations, and back
+    Method mv = class_getInstanceMethod([Counter class], @selector(value)), mt = class_getInstanceMethod([Counter class], @selector(twice));
+    method_exchangeImplementations(mv, mt);
+    CHECK(counter.value == 20 && [counter twice] == 10);
+    method_exchangeImplementations(mv, mt);
+    CHECK(counter.value == 10 && [counter twice] == 20);
+
+    // associated objects: retained, copied, cleared, released with their owner
+    static char kRetained, kCopied;
+    __weak Token *weakToken;
+    @autoreleasepool {
+        Token *token = [Token new];
+        weakToken = token;
+        NSMutableString *text = [NSMutableString stringWithString:@"one"];
+        Counter *owner = [Counter new];
+        objc_setAssociatedObject(owner, &kRetained, token, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(owner, &kCopied, text, OBJC_ASSOCIATION_COPY);
+        [text appendString:@"!"];
+        CHECK(objc_getAssociatedObject(owner, &kRetained) == token && [objc_getAssociatedObject(owner, &kCopied) isEqualToString:@"one"]);
+        objc_setAssociatedObject(owner, &kCopied, nil, OBJC_ASSOCIATION_COPY);
+        CHECK(objc_getAssociatedObject(owner, &kCopied) == nil);
+        token = nil;
+        CHECK(weakToken != nil);                                                    // kept alive by the association
+    }
+    CHECK(weakToken == nil && tokenDeallocs == 1);                                  // released with its owner
+
+    // object_setIvar follows the ivar's ARC memory management
+    Holder *holder = [Holder new];
+    @autoreleasepool {
+        Token *strongValue = [Token new], *weakValue = [Token new];
+        object_setIvar(holder, class_getInstanceVariable([Holder class], "_strongRef"), strongValue);
+        object_setIvar(holder, class_getInstanceVariable([Holder class], "_weakRef"), weakValue);
+        CHECK(object_getIvar(holder, class_getInstanceVariable([Holder class], "_weakRef")) == weakValue);
+    }
+    CHECK(holder->_strongRef != nil && holder->_weakRef == nil && tokenDeallocs == 2);   // strong kept, weak zeroed
+
+    // method type encodings
+    Method addTo = class_getInstanceMethod([Counter class], @selector(add:to:));
+    CHECK(method_getNumberOfArguments(addTo) == 4);
+    char *ret = method_copyReturnType(addTo), *arg = method_copyArgumentType(addTo, 2), *none = method_copyArgumentType(addTo, 4);
+    CHECK(!strcmp(ret, "q") && !strcmp(arg, "q") && none == NULL);
+    free(ret); free(arg);
+    Method rectMethod = class_getInstanceMethod([Counter class], @selector(rectWithScale:));
+    char buf[64];
+    method_getReturnType(rectMethod, buf, sizeof buf);
+    CHECK(!strcmp(buf, "{CGRect={CGPoint=dd}{CGSize=dd}}") && method_getNumberOfArguments(rectMethod) == 3);
+    method_getArgumentType(rectMethod, 0, buf, sizeof buf);
+    CHECK(!strcmp(buf, "@"));
+    CHECK(method_getDescription(addTo)->name == @selector(add:to:));
+
+    // lists and protocol equality
+    int total = objc_getClassList(NULL, 0);
+    Class *some = (Class *)malloc(sizeof(Class) * 4);
+    CHECK(total > 100 && objc_getClassList(some, 4) == total && some[3] != Nil);
+    free(some);
+    unsigned np = 0;
+    Protocol * __unsafe_unretained *protos = objc_copyProtocolList(&np);
+    BOOL hasCopying = NO;
+    for (unsigned i = 0; i < np; i++) if (protocol_isEqual(protos[i], @protocol(NSCopying))) hasCopying = YES;
+    free(protos);
+    CHECK(np > 10 && hasCopying && protocol_isEqual(objc_getProtocol("NSCopying"), @protocol(NSCopying)) && !protocol_isEqual(@protocol(NSCopying), @protocol(NSCoding)));
+}
+
 int main(int argc, char **argv) {
     @autoreleasepool {
         testExceptions();
         testForwarding();
         testInvocation();
+        testDynamicClasses();
         NSLog(@"objc runtime test: %d/%d passed", checks - failures, checks);
     }
     return failures;

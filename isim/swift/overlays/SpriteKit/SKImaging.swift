@@ -64,7 +64,7 @@ extension NSObject {
         let key = second ? UnsafeRawPointer(&_skBox2Key) : UnsafeRawPointer(&_skBoxKey)
         if let b = objc_getAssociatedObject(self, key) as? _SKHandleBox { return b }
         let b = _SKHandleBox()
-        objc_setAssociatedObject(self, key, b, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+        objc_setAssociatedObject(self, key, b, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         return b
     }
 }
@@ -82,7 +82,7 @@ extension SKTexture {
         guard w > 0, h > 0 else { return nil }
         let mutable = self is SKMutableTexture
         let cache = (objc_getAssociatedObject(self, &_skPixelCacheKey) as? _SKPixelCache) ?? {
-            let c = _SKPixelCache(); objc_setAssociatedObject(self, &_skPixelCacheKey, c, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)); return c
+            let c = _SKPixelCache(); objc_setAssociatedObject(self, &_skPixelCacheKey, c, .OBJC_ASSOCIATION_RETAIN_NONATOMIC); return c
         }()
         if !mutable, let p = cache.pixels { return p }
         var p = _SKPixels(w: w, h: h)

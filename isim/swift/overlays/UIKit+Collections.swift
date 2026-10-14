@@ -115,7 +115,7 @@ extension UICollectionViewCell {
     /// runs before the next layout whenever the cell's state changes (selection, highlight, editing, …)
     public var configurationUpdateHandler: ConfigurationUpdateHandler? {
         get { (objc_getAssociatedObject(self, &isimUpdateHandlerKey) as? _IsimHandlerBox)?.handler }
-        set { objc_setAssociatedObject(self, &isimUpdateHandlerKey, newValue.map(_IsimHandlerBox.init), objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)); setNeedsUpdateConfiguration() }
+        set { objc_setAssociatedObject(self, &isimUpdateHandlerKey, newValue.map(_IsimHandlerBox.init), .OBJC_ASSOCIATION_RETAIN_NONATOMIC); setNeedsUpdateConfiguration() }
     }
     @objc func _isimRunConfigurationUpdate() { configurationUpdateHandler?(self, configurationState) }
 }

@@ -475,6 +475,33 @@ func fileChecks() {
     try? fm.removeItem(at: dir)
 }
 
+/// Objective-C runtime APIs from Swift (issue #219): swizzling, associated objects, block IMPs, classes made at run time
+final class SwizzleTarget: NSObject {
+    @objc dynamic func greeting() -> String { "hello" }
+    @objc dynamic func farewell() -> String { "bye" }
+}
+private var associationKey: UInt8 = 0
+func runtimeChecks() {
+    let target = SwizzleTarget()
+    let a = class_getInstanceMethod(SwizzleTarget.self, #selector(SwizzleTarget.greeting))!
+    let b = class_getInstanceMethod(SwizzleTarget.self, #selector(SwizzleTarget.farewell))!
+    method_exchangeImplementations(a, b)
+    check(target.greeting() == "bye" && target.farewell() == "hello", "method_exchangeImplementations from Swift")
+    method_exchangeImplementations(a, b)
+    objc_setAssociatedObject(target, &associationKey, "tagged", .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    check(objc_getAssociatedObject(target, &associationKey) as? String == "tagged", "objc_setAssociatedObject from Swift")
+    let block: @convention(block) (AnyObject) -> String = { _ in "from a block" }
+    let imp = imp_implementationWithBlock(block)
+    let made: AnyClass? = objc_allocateClassPair(NSObject.self, "SwiftMadeClass", 0)
+    if let made {
+        class_addMethod(made, NSSelectorFromString("greeting"), imp, "@16@0:8")
+        objc_registerClassPair(made)
+        let obj = (made as! NSObject.Type).init()
+        let answer = obj.perform(NSSelectorFromString("greeting"))?.takeUnretainedValue() as? String
+        check(answer == "from a block" && NSClassFromString("SwiftMadeClass") == made, "objc_allocateClassPair + imp_implementationWithBlock from Swift")
+    } else { check(false, "objc_allocateClassPair from Swift") }
+}
+
 func classBridgingChecks() {
     let classes = [NSString.self, UIColor.self] as [AnyClass] as NSArray
     let any = classes as! [AnyClass]
@@ -759,6 +786,7 @@ func lockingChecks() {
         codingChecks()
         classBridgingChecks()
         lockingChecks()
+        runtimeChecks()
         fileAttributeChecks()
         fileManagerChecks()
         predicateAndDecimalChecks()

@@ -325,36 +325,36 @@ extension UIScrollView {
         let p = UILongPressGestureRecognizer(target: handler, action: #selector(_IsimListDragGesture.pressed(_:)))
         p.minimumPressDuration = 0.5
         addGestureRecognizer(p)
-        objc_setAssociatedObject(self, &kListPress, handler, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+        objc_setAssociatedObject(self, &kListPress, handler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
 }
 extension UITableView {
     public var dragDelegate: UITableViewDragDelegate? {
         get { (objc_getAssociatedObject(self, &kDragDelegate) as? _WeakBox)?.value as? UITableViewDragDelegate }
-        set { objc_setAssociatedObject(self, &kDragDelegate, _WeakBox(newValue), objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)); if newValue != nil { _isimInstallListDrag() } }
+        set { objc_setAssociatedObject(self, &kDragDelegate, _WeakBox(newValue), .OBJC_ASSOCIATION_RETAIN_NONATOMIC); if newValue != nil { _isimInstallListDrag() } }
     }
     public var dropDelegate: UITableViewDropDelegate? {
         get { (objc_getAssociatedObject(self, &kDropDelegate) as? _WeakBox)?.value as? UITableViewDropDelegate }
-        set { objc_setAssociatedObject(self, &kDropDelegate, _WeakBox(newValue), objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)) }
+        set { objc_setAssociatedObject(self, &kDropDelegate, _WeakBox(newValue), .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
     public var dragInteractionEnabled: Bool {
         get { (objc_getAssociatedObject(self, &kDragEnabled) as? Bool) ?? true }
-        set { objc_setAssociatedObject(self, &kDragEnabled, newValue, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)) }
+        set { objc_setAssociatedObject(self, &kDragEnabled, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
     public var hasActiveDrag: Bool { _IsimDragController.current?.sourceList === self }
 }
 extension UICollectionView {
     public var dragDelegate: UICollectionViewDragDelegate? {
         get { (objc_getAssociatedObject(self, &kDragDelegate) as? _WeakBox)?.value as? UICollectionViewDragDelegate }
-        set { objc_setAssociatedObject(self, &kDragDelegate, _WeakBox(newValue), objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)); if newValue != nil { _isimInstallListDrag() } }
+        set { objc_setAssociatedObject(self, &kDragDelegate, _WeakBox(newValue), .OBJC_ASSOCIATION_RETAIN_NONATOMIC); if newValue != nil { _isimInstallListDrag() } }
     }
     public var dropDelegate: UICollectionViewDropDelegate? {
         get { (objc_getAssociatedObject(self, &kDropDelegate) as? _WeakBox)?.value as? UICollectionViewDropDelegate }
-        set { objc_setAssociatedObject(self, &kDropDelegate, _WeakBox(newValue), objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)) }
+        set { objc_setAssociatedObject(self, &kDropDelegate, _WeakBox(newValue), .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
     public var dragInteractionEnabled: Bool {
         get { (objc_getAssociatedObject(self, &kDragEnabled) as? Bool) ?? true }
-        set { objc_setAssociatedObject(self, &kDragEnabled, newValue, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)) }
+        set { objc_setAssociatedObject(self, &kDragEnabled, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
     public var hasActiveDrag: Bool { _IsimDragController.current?.sourceList === self }
 }

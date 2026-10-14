@@ -20,7 +20,7 @@ final class _SUIHover: NSObject {
     if let h = objc_getAssociatedObject(v, &kHover) as? _SUIHover { h.handler = handler; return }
     let h = _SUIHover()
     h.handler = handler
-    objc_setAssociatedObject(v, &kHover, h, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+    objc_setAssociatedObject(v, &kHover, h, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     let g = UIHoverGestureRecognizer(target: h, action: #selector(_SUIHover.hovered(_:)))
     v.addGestureRecognizer(g)
     v.isUserInteractionEnabled = true
@@ -88,7 +88,7 @@ extension View {
                 if let old = objc_getAssociatedObject(v, &kPointer) as? _SUIPointerEffects { d = old }
                 else {
                     d = _SUIPointerEffects()
-                    objc_setAssociatedObject(v, &kPointer, d, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+                    objc_setAssociatedObject(v, &kPointer, d, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
                     v.addInteraction(UIPointerInteraction(delegate: d))
                 }
                 d.effect = effect; d.enabled = isEnabled && !disabled

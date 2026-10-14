@@ -17,9 +17,9 @@
 @property (readonly, nullable) Class superclass;
 - (Class)class;
 - (instancetype)self;
-- (id)performSelector:(SEL)aSelector;
-- (id)performSelector:(SEL)aSelector withObject:(nullable id)object;
-- (id)performSelector:(SEL)aSelector withObject:(nullable id)object1 withObject:(nullable id)object2;
+- (null_unspecified id)performSelector:(null_unspecified SEL)aSelector;
+- (null_unspecified id)performSelector:(null_unspecified SEL)aSelector withObject:(null_unspecified id)object;
+- (null_unspecified id)performSelector:(null_unspecified SEL)aSelector withObject:(null_unspecified id)object1 withObject:(null_unspecified id)object2;
 - (BOOL)isProxy;
 - (BOOL)isKindOfClass:(Class)aClass;
 - (BOOL)isMemberOfClass:(Class)aClass;

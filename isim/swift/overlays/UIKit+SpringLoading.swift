@@ -123,7 +123,7 @@ extension UISpringLoadedInteractionBehavior {
 nonisolated(unsafe) private var kSpringLoaded: UInt8 = 0
 @MainActor private func _isimSetSpringLoaded(_ v: UIView, _ on: Bool, activate: @escaping (UIView, CGPoint) -> Void) {
     for i in v.interactions where i is UISpringLoadedInteraction { v.removeInteraction(i) }
-    objc_setAssociatedObject(v, &kSpringLoaded, on, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+    objc_setAssociatedObject(v, &kSpringLoaded, on, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     if on { v.addInteraction(UISpringLoadedInteraction { i, ctx in if let view = i.view { activate(view, ctx.location(in: view)) } }) }
 }
 extension UIButton: UISpringLoadedInteractionSupporting {
@@ -170,18 +170,18 @@ extension UICollectionView: UISpringLoadedInteractionSupporting {
 extension UIBarButtonItem: UISpringLoadedInteractionSupporting {
     public var isSpringLoaded: Bool {
         get { (objc_getAssociatedObject(self, &kSpringLoaded) as? Bool) ?? false }
-        set { objc_setAssociatedObject(self, &kSpringLoaded, newValue, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)) }
+        set { objc_setAssociatedObject(self, &kSpringLoaded, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
 }
 extension UITabBar: UISpringLoadedInteractionSupporting {
     public var isSpringLoaded: Bool {
         get { (objc_getAssociatedObject(self, &kSpringLoaded) as? Bool) ?? false }
-        set { objc_setAssociatedObject(self, &kSpringLoaded, newValue, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)) }
+        set { objc_setAssociatedObject(self, &kSpringLoaded, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
 }
 extension UIAlertController: UISpringLoadedInteractionSupporting {
     public var isSpringLoaded: Bool {
         get { (objc_getAssociatedObject(self, &kSpringLoaded) as? Bool) ?? false }
-        set { objc_setAssociatedObject(self, &kSpringLoaded, newValue, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)) }
+        set { objc_setAssociatedObject(self, &kSpringLoaded, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
 }

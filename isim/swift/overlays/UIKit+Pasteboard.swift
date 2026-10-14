@@ -138,7 +138,7 @@ nonisolated(unsafe) private var isimPasteConfigurationKey: UInt8 = 0
 extension UIResponder: UIPasteConfigurationSupporting {
     @objc open var pasteConfiguration: UIPasteConfiguration? {
         get { objc_getAssociatedObject(self, &isimPasteConfigurationKey) as? UIPasteConfiguration }
-        set { objc_setAssociatedObject(self, &isimPasteConfigurationKey, newValue, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC)) }
+        set { objc_setAssociatedObject(self, &isimPasteConfigurationKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
     }
     /// responders override these (paste controls, and pastes of the accepted types)
     @objc(pasteItemProviders:) open func paste(itemProviders: [NSItemProvider]) {}

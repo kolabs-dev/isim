@@ -100,7 +100,7 @@ extension UIIndirectScribbleInteraction {
     public convenience init(delegate: some UIIndirectScribbleInteractionDelegate) {
         let adapter = _IsimIndirectScribbleAdapter(delegate)
         self.init(__delegate: adapter)
-        objc_setAssociatedObject(self, &_isimScribbleAdapterKey, adapter, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+        objc_setAssociatedObject(self, &_isimScribbleAdapterKey, adapter, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
     public var delegate: (any UIIndirectScribbleInteractionDelegate)? {
         (objc_getAssociatedObject(self, &_isimScribbleAdapterKey) as? _IsimIndirectScribbleAdapter)?.target
