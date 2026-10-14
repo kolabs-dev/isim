@@ -10,11 +10,11 @@ Inputs:
 Outputs, between `<!-- generated:NAME -->` and `<!-- /generated:NAME -->` markers only (the rest is hand-written):
 - COVERAGE.md: the summary per area, the summary per iOS version, the framework index, the frameworks out of scope and
   the Objective-C interfaces;
-- each framework page: its header line (symbol and row coverage) and its "Not yet in isim" list.
+- each framework page: its header line (symbol coverage, and its rows by status) and its "Not yet in isim" list.
 
-Row coverage = (✅ + 0.5 × 🟡) / rows; stubs (🧩), missing (❌) and blocked (⛔) rows count as zero. The iOS column (the
-version that introduced the API: `≤17`, `18.0`, `26.0`, `27.1`, ...) gives the per-version summary: a row counts toward
-iOS N when it was introduced at or before N.
+Coverage is symbols: the share of the symbols Apple documents for iOS that isim's SDK has (api-coverage.py), overall
+and per emulated iOS version. The hand-written rows say how each API is implemented (✅ 🟡 🧩 ❌ ⛔); they are counted per
+status but are not a coverage number: a page only has rows for what someone wrote down.
 
 Pull requests edit rows only; the Release workflow runs this (and api-coverage.py measure), so the generated parts do not
 conflict between pull requests (AGENTS.md, "Coverage").
@@ -63,9 +63,13 @@ def counts(rows, upto=None):
     return c
 
 
-def pct(c):
-    n = sum(c)
-    return f'{round(100 * (c[0] + 0.5 * c[1]) / n)}%' if n else '–'
+def share(p, t):
+    return f'{round(100 * p / t)}%' if t else '–'
+
+
+def by_status(c):
+    """rows per status, e.g. 120: 110 ✅ 5 🟡 5 ❌"""
+    return f'{sum(c)}: ' + ' '.join(f'{n} {m}' for n, m in zip(c, MARKS) if n)
 
 
 def replace(text, name, body):
@@ -106,7 +110,7 @@ def main():
             kind = 'approximate, by name' if f.get('approximate') else 'exact'
             parts.append(f"**Symbols:** {f['coverage']}% of Apple's iOS API ({f['present']} of {f['total']}, {kind})")
         if sum(c):
-            parts.append(f'**Rows:** {pct(c)} ({sum(c)}: ' + ' '.join(f'{n} {m}' for n, m in zip(c, MARKS) if n) + ')')
+            parts.append(f'**Rows:** {by_status(c)}')
         if name in afw and afw[name].get('ios'):
             parts.append(f"**iOS:** {afw[name]['ios'][0]}+")
         header = ' · '.join(parts) or 'Not measured yet (isim/tools/api-coverage.py).'
@@ -139,43 +143,55 @@ def main():
             r += [x for x in rows.get(m, []) if upto is None or x[1] <= upto]
         return r
 
-    def area_symbols(a):
+    def area_symbols(a, upto=None):
+        """(present, total) symbols of an area, overall or for iOS `upto` (frameworks measured per version only)"""
         p = t = 0
         for m in a['frameworks']:
             f = fw_cov.get(m)
             if f and m not in out_of_scope:
-                p += f['present']; t += f['total']
+                if upto is None:
+                    p += f['present']; t += f['total']
+                elif f.get('by_version'):
+                    vp, vt = f['by_version'][str(upto)]
+                    p += vp; t += vt
         return p, t
 
     def area_frameworks(a):
         inscope = [m for m in a['frameworks'] if m in afw and m not in out_of_scope]
         return sum(1 for m in inscope if fw_cov.get(m, {}).get('shipped') or m in pages), len(inscope)
 
-    s = ['| Area | Symbols | Rows | ✅ | 🟡 | 🧩 | ❌ | ⛔ | Frameworks in isim |', '|---|---:|---:|---:|---:|---:|---:|---:|---:|']
+    s = ['| Area | Symbols | ✅ | 🟡 | 🧩 | ❌ | ⛔ | Frameworks in isim |', '|---|---:|---:|---:|---:|---:|---:|---:|']
     tp = tt = 0; tc = [0] * len(MARKS); tf = [0, 0]
     for a in areas:
         p, t = area_symbols(a); c = counts(area_rows(a)); f = area_frameworks(a)
         tp += p; tt += t; tc = [x + y for x, y in zip(tc, c)]; tf = [tf[0] + f[0], tf[1] + f[1]]
-        sym = f'{round(100 * p / t)}%' if t else '–'
-        s.append(f"| [{a['name']}](#{a['key']}) | {sym} | {pct(c)} | " + ' | '.join(map(str, c)) + f' | {f[0]} of {f[1]} |')
-    s.append(f"| **All areas** | **{round(100 * tp / tt) if tt else 0}%** | **{pct(tc)}** | " + ' | '.join(f'**{x}**' for x in tc) +
+        s.append(f"| [{a['name']}](#{a['key']}) | {share(p, t)} | " + ' | '.join(map(str, c)) + f' | {f[0]} of {f[1]} |')
+    s.append(f"| **All areas** | **{share(tp, tt)}** | " + ' | '.join(f'**{x}**' for x in tc) +
              f' | **{tf[0]} of {tf[1]}** |')
     mode = cov.get('mode', 'not measured')
     s += ['', f"Symbols: {tp} of {tt} Apple iOS symbols in the frameworks isim has or tracks ({mode}"
           f"{'' if mode == 'exact' else ', a lower bound'}; isim {cov.get('commit', '?')}, Apple snapshot {apple.get('date', '?')})."]
     text = replace(text, 'summary', '\n'.join(s))
 
+    # per iOS version: the symbols that exist in that version (measured per version by api-coverage.py)
     v = ['| Area | ' + ' | '.join(f'iOS {x}' for x in VERSIONS) + ' |', '|---|' + '---:|' * len(VERSIONS)]
+    tot = {x: [0, 0] for x in VERSIONS}
     for a in areas:
-        v.append(f"| {a['name']} | " + ' | '.join(f'{pct(counts(area_rows(a), x))} ({len(area_rows(a, x))})' for x in VERSIONS) + ' |')
-    allr = [r for a in areas for r in area_rows(a)]
-    v.append('| **All areas** | ' + ' | '.join(f'**{pct(counts(allr, x))}** ({len([r for r in allr if r[1] <= x])})' for x in VERSIONS) + ' |')
+        cells = []
+        for x in VERSIONS:
+            p, t = area_symbols(a, x)
+            tot[x][0] += p; tot[x][1] += t
+            cells.append(share(p, t))
+        v.append(f"| {a['name']} | " + ' | '.join(cells) + ' |')
+    v.append('| **All areas** | ' + ' | '.join(f'**{share(*tot[x])}**' for x in VERSIONS) + ' |')
+    if not any(f.get('by_version') for f in fw_cov.values()):
+        v += ['', 'Not measured per version yet (the next `api-coverage.py measure` records it).']
     text = replace(text, 'versions', '\n'.join(v))
 
     idx = []
     for a in areas:
         idx += ['', f"### {a['name']}", '', f"<a id=\"{a['key']}\"></a>Issues: [`area:{a['key']}`]({ISSUES}{a['key']})", '',
-                '| Framework | iOS | In isim | Symbols | Rows | Page |', '|---|---|---|---:|---:|---|']
+                '| Framework | iOS | In isim | Symbols | Rows | Page |', '|---|---|---|---:|---|---|']
         for m in sorted(a['frameworks'], key=str.lower):
             if m in out_of_scope or (m not in afw and m not in pages):
                 continue
@@ -183,12 +199,12 @@ def main():
             ios = (afw.get(m, {}).get('ios') or ['–'])[0]
             have = '✅' if f.get('shipped') or (m in pages and rows.get(m)) else '❌'
             sym = f"{f['coverage']}%{'*' if f.get('approximate') else ''}" if f.get('total') else '–'
-            r = pct(counts(rows.get(m, []))) if rows.get(m) else '–'
+            r = by_status(counts(rows[m])) if rows.get(m) else '–'
             title = afw.get(m, {}).get('title', m)
             link = f'[{m}](frameworks/{m}.md)' if m in pages else '–'
             idx.append(f"| [{title}](https://developer.apple.com/documentation/{afw.get(m, {}).get('id', m.lower())}) | {ios} | {have} | {sym} | {r} | {link} |")
         for m in sorted(x for x in pages if area_of.get(x) == a['key'] and x not in afw):
-            idx.append(f'| {m} (isim topic) | – | ✅ | – | {pct(counts(rows[m]))} | [{m}](frameworks/{m}.md) |')
+            idx.append(f'| {m} (isim topic) | – | ✅ | – | {by_status(counts(rows[m]))} | [{m}](frameworks/{m}.md) |')
     idx += ['', '\\* measured by name (approximate): not built into isim yet, or measured without a built SDK.']
     text = replace(text, 'index', '\n'.join(idx))
 

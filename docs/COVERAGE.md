@@ -7,13 +7,17 @@ it still lacks.
 
 **What the numbers mean**
 
-- **Symbols:** the share of the symbols Apple documents for iOS (types, functions, constants, members) that isim's SDK has.
+- **Symbols** (isim's API coverage, and the number to track progress by): the share of the symbols Apple documents
+  for iOS (types, functions, constants, members) that isim's SDK has.
   - Measured by [`isim/tools/api-coverage.py`](../isim/tools/api-coverage.py) against a snapshot of Apple's
     documentation ([API-SWEEP.md](API-SWEEP.md)).
   - *Exact* compares the symbol graphs of isim's built SDK with Apple's documentation paths. *By name* (marked \*)
     only checks that the name occurs in isim's sources, so it is a lower bound on what is missing.
   - A symbol that exists can still do nothing; the rows say how well it works.
-- **Rows:** hand-written rows on the framework pages, one per API or feature: (✅ + 0.5 × 🟡) / rows.
+- **Rows** (how each API is implemented, not a coverage number): hand-written rows on the framework pages, one per API
+  or feature, with its status (✅ 🟡 🧩 ❌ ⛔), the iOS version, a passthrough / adapted / stub label and the test that
+  verifies it. Keep them up to date when an API changes. The tables count rows per status; they are not turned into a
+  percentage, because a page only has rows for what someone wrote down.
 - **Frameworks in isim:** frameworks isim ships, out of the frameworks Apple documents for iOS that are in scope.
 
 **Legend**
@@ -71,9 +75,10 @@ so pull requests don't conflict on them (AGENTS.md, "Coverage").
 Symbols: 81188 of 251101 Apple iOS symbols in the frameworks isim has or tracks (exact; isim 422ccae, Apple snapshot 2026-10-14).
 <!-- /generated:summary -->
 
-### Per iOS version (rows)
+### Per iOS version
 
-A row counts toward iOS N when it was introduced at or before N (rows in parentheses).
+Symbol coverage of what each emulated iOS version has: a symbol counts toward iOS N when Apple introduced it at or before
+N (iOS 17 when the snapshot does not say).
 
 <!-- generated:versions (isim/tools/coverage-summary.py; do not edit by hand) -->
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |

@@ -15,6 +15,10 @@ In scope: symbols Apple documents for iOS that are usable in at least one of the
 27): not unavailable, and not deprecated at iOS 17 or earlier. Frameworks deprecated before iOS 17 are out of scope
 (isim/data/frameworks.json).
 
+Per framework it records the symbols isim has and Apple's total, overall and per emulated iOS version (by_version: a
+symbol counts toward iOS N when it came in at or before N). This is isim's API coverage; the rows on the framework pages
+say how each API is implemented, and are not a coverage number.
+
 Like abi-check.py this is a maintainer tool: pull requests do not run it; the Release workflow refreshes
 isim/data/api-coverage.json.gz and the generated parts of docs/COVERAGE.md and docs/frameworks/ (coverage-summary.py).
 """
@@ -111,6 +115,12 @@ def in_scope(av):
     if intro is not None and intro >= VERSIONS[-1] + 1:
         return False
     return dep is None or dep >= VERSIONS[0] + 1
+
+
+def introduced_major(av):
+    """the iOS major a symbol came in, for the per-version numbers: 17 for iOS 17 and earlier, and when not known"""
+    v = version(av[0]) if av and av[0] else None
+    return max(VERSIONS[0], int(v)) if v is not None else VERSIONS[0]
 
 
 # ---------------------------------------------------------------- snapshot
@@ -382,7 +392,8 @@ def measure(args):
                     ok = bool(b) and b in words
             (p if ok else cand).append(path)
         present[m], candidates[m] = p, cand
-    av = fill_availability(snap, [x for m in candidates for x in candidates[m]
+    # availability: what is missing (in scope or not), and when present symbols were introduced (the per-version numbers)
+    av = fill_availability(snap, [x for m in candidates for x in candidates[m] + present[m]
                                   if IMPLEMENTED_IN.get(m, m) in shipped]) if not args.offline else snap.get('availability', {})
     result = {'date': datetime.date.today().isoformat(), 'apple_snapshot': snap['date'], 'mode': mode,
               'commit': subprocess.run(['git', '-C', REPO, 'rev-parse', '--short', 'HEAD'], capture_output=True, text=True).stdout.strip(),
@@ -404,6 +415,9 @@ def measure(args):
             'total': total, 'coverage': round(100 * n_present / total, 1) if total else None,
             'approximate': not have or mode == 'names', 'unchecked': len(unknown),
             'missing_symbols': sorted([[x, titles.get(x, '')] for x in missing]) if have else [],
+            'by_version': {str(v): [sum(1 for x in present[m] if introduced_major(av.get(x)) <= v),
+                                    sum(1 for x in present[m] + missing if introduced_major(av.get(x)) <= v)]
+                           for v in VERSIONS},
         }
     with gzip.open(RESULT, 'wt', encoding='utf-8', compresslevel=9) as f:
         json.dump(result, f, indent=0, sort_keys=True, ensure_ascii=False)
