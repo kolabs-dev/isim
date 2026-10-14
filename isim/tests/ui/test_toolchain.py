@@ -110,6 +110,37 @@ def test_failing_tests(device_data):
         "XCUITest: tapping a missing element fails"
 
 
+def test_test_plans(device_data):
+    """test plans (.xctestplan): the HelloToolchainPlans scheme has no Testables, only TestPlans; its default plan Unit
+    runs its enabled targets (AppTests, AppSwiftTests; AppUITests disabled) once per configuration with its skipped
+    tests, environment, arguments and the French configuration's language; -testPlan Failures runs its selected test;
+    -showTestPlans lists them."""
+    with exclusive("toolchain-build"):
+        rc, shown = isim(device_data, "test", "-workspace", "HelloToolchain.xcworkspace", "-scheme", "HelloToolchainPlans", "-showTestPlans")
+        assert rc == 0 and "\tUnit (default)" in shown and "\tFailures" in shown, shown
+        rc, log = isim(device_data, "test", "-workspace", "HelloToolchain.xcworkspace", "-scheme", "HelloToolchainPlans",
+                       "-o", str(WORK))
+        tail = "\n".join(l for l in log.splitlines() if not l.startswith(" "))[-5000:]
+        assert rc == 0 and re.search(r"^\*\* TEST SUCCEEDED \*\*", log, re.M), f"the default plan succeeds (exit {rc})\n{tail}"
+        has = lambda rx: re.search(rx, log, re.M) is not None
+        assert has(r'test plan Unit, configuration "English"') and has(r'test plan Unit, configuration "French"'), "both configurations"
+        assert has(r"plan options: Unit / English argument true language en") and \
+            has(r"plan options: Unit / French argument true language fr"), "environment, arguments, language per configuration"
+        assert not has(r"PLAN_DISABLED") and not has(r"ExpectedFailureTests") and not has(r"AppUITests"), \
+            "skipped tests and the disabled target do not run"
+        assert has(r"Suite UnitsSuite passed") and not has(r"deliberateFailure"), "Swift Testing with the plan's skips"
+
+        rc, log = isim(device_data, "test", "-workspace", "HelloToolchain.xcworkspace", "-scheme", "HelloToolchainPlans",
+                       "-testPlan", "Failures", "-o", str(WORK), timeout=600)
+        has = lambda rx: re.search(rx, log, re.M) is not None
+        assert rc == 65 and has(r"ExpectedFailureTests testEqualFails\]. failed") and has(r"Executed 1 test, with 1 failure"), \
+            f"-testPlan Failures runs its one selected (failing) test\n{log[-3000:]}"
+
+        rc, log = isim(device_data, "test", "-workspace", "HelloToolchain.xcworkspace", "-scheme", "HelloToolchainPlans",
+                       "-only-test-configuration", "French", "-only-testing:AppTests/ModelTests/testPlanOptions", "-o", str(WORK))
+        assert rc == 0 and "language fr" in log and 'configuration "English"' not in log, log[-2000:]
+
+
 def test_release_configuration(launch, device_data):
     with exclusive("toolchain-build"):
         rc, log = isim(device_data, "build", "-project", "HelloToolchain.xcodeproj", "-target", "HelloToolchain",

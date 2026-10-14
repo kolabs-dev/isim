@@ -341,9 +341,9 @@ def test_project_view(tmp_path):
     assert re.search(r"Targets:\n(\s+\w+\n?)+", sections[0]) and \
         [l.strip() for l in sections[0].splitlines()[2:]] == ["HelloToolchain", "MathKit", "Greeter", "AppTests", "AppUITests",
                                                              "AppSwiftTests"], out
-    assert "Build Configurations:\n        Debug\n        Release" in out and "Schemes:\n        HelloToolchain" in out
+    assert "Build Configurations:\n        Debug\n        Release" in out and "Schemes:\n        HelloToolchain\n        HelloToolchainPlans" in out
     rc, out = isim(proj, "build", "-workspace", "HelloToolchain.xcworkspace", "-list", "-json")
-    assert rc == 0 and json.loads(out) == {"workspace": {"name": "HelloToolchain", "schemes": ["HelloToolchain"]}}, out
+    assert rc == 0 and json.loads(out) == {"workspace": {"name": "HelloToolchain", "schemes": ["HelloToolchain", "HelloToolchainPlans"]}}, out
 
     rc, out = isim(proj, "build", "-project", "HelloToolchain.xcodeproj", "-target", "Greeter", "-configuration", "Release",
                    "-showBuildSettings")

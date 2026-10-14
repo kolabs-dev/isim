@@ -1,0 +1,23 @@
+{
+  "configurations": [
+    {
+      "id": "6E2B0E37-0003-4A51-9F00-000000000003",
+      "name": "Configuration 1",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {},
+  "testTargets": [
+    {
+      "selectedTests": [
+        "ExpectedFailureTests/testEqualFails()"
+      ],
+      "target": {
+        "containerPath": "container:HelloToolchain.xcodeproj",
+        "identifier": "A7C00020219F9750A615D83F",
+        "name": "AppTests"
+      }
+    }
+  ],
+  "version": 1
+}
