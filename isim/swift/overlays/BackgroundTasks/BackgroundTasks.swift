@@ -8,7 +8,7 @@
 import Foundation
 import UIKit
 
-open class BGTaskRequest: NSObject, NSCopying {
+@objc(BGTaskRequest) open class BGTaskRequest: NSObject, NSCopying {
     public let identifier: String
     open var earliestBeginDate: Date?
     init(identifier: String) { self.identifier = identifier }
@@ -21,11 +21,11 @@ open class BGTaskRequest: NSObject, NSCopying {
     }
     open override var description: String { "<\(type(of: self)): \(identifier), earliestBeginDate: \(earliestBeginDate.map { "\($0)" } ?? "(null)")>" }
 }
-public final class BGAppRefreshTaskRequest: BGTaskRequest {
+@objc(BGAppRefreshTaskRequest) public final class BGAppRefreshTaskRequest: BGTaskRequest {
     public override init(identifier: String) { super.init(identifier: identifier) }
     public override func copy(with zone: OpaquePointer? = nil) -> Any { let r = BGAppRefreshTaskRequest(identifier: identifier); r.earliestBeginDate = earliestBeginDate; return r }
 }
-public final class BGProcessingTaskRequest: BGTaskRequest {
+@objc(BGProcessingTaskRequest) public final class BGProcessingTaskRequest: BGTaskRequest {
     public var requiresNetworkConnectivity = false
     public var requiresExternalPower = false
     public override init(identifier: String) { super.init(identifier: identifier) }
@@ -41,7 +41,7 @@ public final class BGProcessingTaskRequest: BGTaskRequest {
     }
 }
 
-open class BGTask: NSObject {
+@objc(BGTask) open class BGTask: NSObject {
     public let identifier: String
     open var expirationHandler: (() -> Void)?
     var completed = false
@@ -55,12 +55,12 @@ open class BGTask: NSObject {
     var bgTaskID: UIBackgroundTaskIdentifier?
     var _limit: Double { 30 }
 }
-public final class BGAppRefreshTask: BGTask {}
-public final class BGProcessingTask: BGTask { override var _limit: Double { 180 } }
+@objc(BGAppRefreshTask) public final class BGAppRefreshTask: BGTask {}
+@objc(BGProcessingTask) public final class BGProcessingTask: BGTask { override var _limit: Double { 180 } }
 
 public func ~= (code: BGTaskScheduler.Error.Code, error: Swift.Error) -> Bool { (error as? BGTaskScheduler.Error)?.code == code }
 
-public final class BGTaskScheduler: NSObject, @unchecked Sendable {
+@objc(BGTaskScheduler) public final class BGTaskScheduler: NSObject, @unchecked Sendable {
     public static let shared = BGTaskScheduler()
     public struct Error: Swift.Error, CustomNSError, Equatable, Sendable {
         public enum Code: Int, Sendable { case unavailable = 1, tooManyPendingTaskRequests = 2, notPermitted = 3 }

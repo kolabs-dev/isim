@@ -70,7 +70,7 @@ public func ~= (code: CXErrorCodeCallDirectoryManagerError.Code, error: Error) -
 
 // MARK: - handles, updates, configuration
 
-open class CXHandle: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
+@objc(CXHandle) open class CXHandle: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
     @objc public enum HandleType: Int, Sendable { case generic = 1, phoneNumber = 2, emailAddress = 3 }
     open private(set) var type: HandleType
     open private(set) var value: String
@@ -88,7 +88,7 @@ open class CXHandle: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
     open override var description: String { "<CXHandle type=\(type.rawValue) value=\(value)>" }
 }
 
-open class CXCallUpdate: NSObject, NSCopying, @unchecked Sendable {
+@objc(CXCallUpdate) open class CXCallUpdate: NSObject, NSCopying, @unchecked Sendable {
     open var remoteHandle: CXHandle?
     open var localizedCallerName: String?
     open var supportsHolding = false
@@ -105,7 +105,7 @@ open class CXCallUpdate: NSObject, NSCopying, @unchecked Sendable {
     }
 }
 
-open class CXProviderConfiguration: NSObject, NSCopying, @unchecked Sendable {
+@objc(CXProviderConfiguration) open class CXProviderConfiguration: NSObject, NSCopying, @unchecked Sendable {
     open var localizedName: String?
     open var ringtoneSound: String?
     open var iconTemplateImageData: Data?
@@ -130,7 +130,7 @@ open class CXProviderConfiguration: NSObject, NSCopying, @unchecked Sendable {
 
 // MARK: - actions
 
-open class CXAction: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
+@objc(CXAction) open class CXAction: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
     open private(set) var uuid = UUID()
     open private(set) var isComplete = false
     open private(set) var timeoutDate = Date(timeIntervalSinceNow: 30)
@@ -149,12 +149,12 @@ open class CXAction: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
     public required init?(coder: NSCoder) {}
     var _name: String { "action" }
 }
-open class CXCallAction: CXAction, @unchecked Sendable {
+@objc(CXCallAction) open class CXCallAction: CXAction, @unchecked Sendable {
     open private(set) var callUUID: UUID
     public init(call callUUID: UUID) { self.callUUID = callUUID; super.init() }
     public required init?(coder: NSCoder) { callUUID = UUID() ; super.init(coder: coder) }
 }
-open class CXStartCallAction: CXCallAction, @unchecked Sendable {
+@objc(CXStartCallAction) open class CXStartCallAction: CXCallAction, @unchecked Sendable {
     open var handle: CXHandle
     open var contactIdentifier: String?
     open var isVideo = false
@@ -163,37 +163,37 @@ open class CXStartCallAction: CXCallAction, @unchecked Sendable {
     open func fulfill(withDateStarted dateStarted: Date) { fulfill() }
     override var _name: String { "start" }
 }
-open class CXAnswerCallAction: CXCallAction, @unchecked Sendable {
+@objc(CXAnswerCallAction) open class CXAnswerCallAction: CXCallAction, @unchecked Sendable {
     public override init(call callUUID: UUID) { super.init(call: callUUID) }
     public required init?(coder: NSCoder) { super.init(coder: coder) }
     open func fulfill(withDateConnected dateConnected: Date) { fulfill() }
     override var _name: String { "answer" }
 }
-open class CXEndCallAction: CXCallAction, @unchecked Sendable {
+@objc(CXEndCallAction) open class CXEndCallAction: CXCallAction, @unchecked Sendable {
     public override init(call callUUID: UUID) { super.init(call: callUUID) }
     public required init?(coder: NSCoder) { super.init(coder: coder) }
     open func fulfill(withDateEnded dateEnded: Date) { fulfill() }
     override var _name: String { "end" }
 }
-open class CXSetHeldCallAction: CXCallAction, @unchecked Sendable {
+@objc(CXSetHeldCallAction) open class CXSetHeldCallAction: CXCallAction, @unchecked Sendable {
     open var isOnHold: Bool
     public init(call callUUID: UUID, onHold: Bool) { isOnHold = onHold; super.init(call: callUUID) }
     public required init?(coder: NSCoder) { isOnHold = false; super.init(coder: coder) }
     override var _name: String { isOnHold ? "hold" : "unhold" }
 }
-open class CXSetMutedCallAction: CXCallAction, @unchecked Sendable {
+@objc(CXSetMutedCallAction) open class CXSetMutedCallAction: CXCallAction, @unchecked Sendable {
     open var isMuted: Bool
     public init(call callUUID: UUID, muted: Bool) { isMuted = muted; super.init(call: callUUID) }
     public required init?(coder: NSCoder) { isMuted = false; super.init(coder: coder) }
     override var _name: String { isMuted ? "mute" : "unmute" }
 }
-open class CXSetGroupCallAction: CXCallAction, @unchecked Sendable {
+@objc(CXSetGroupCallAction) open class CXSetGroupCallAction: CXCallAction, @unchecked Sendable {
     open var callUUIDToGroupWith: UUID?
     public init(call callUUID: UUID, callUUIDToGroupWith: UUID?) { self.callUUIDToGroupWith = callUUIDToGroupWith; super.init(call: callUUID) }
     public required init?(coder: NSCoder) { super.init(coder: coder) }
     override var _name: String { "group" }
 }
-open class CXPlayDTMFCallAction: CXCallAction, @unchecked Sendable {
+@objc(CXPlayDTMFCallAction) open class CXPlayDTMFCallAction: CXCallAction, @unchecked Sendable {
     @objc public enum ActionType: Int, Sendable { case singleTone = 1, softPause = 2, hardPause = 3 }
     open var digits: String
     open var type: ActionType
@@ -202,7 +202,7 @@ open class CXPlayDTMFCallAction: CXCallAction, @unchecked Sendable {
     override var _name: String { "dtmf \(digits)" }
 }
 
-open class CXTransaction: NSObject, NSCopying, @unchecked Sendable {
+@objc(CXTransaction) open class CXTransaction: NSObject, NSCopying, @unchecked Sendable {
     open private(set) var uuid = UUID()
     open var isComplete: Bool { actions.allSatisfy { $0.isComplete } }
     open private(set) var actions: [CXAction]
@@ -214,7 +214,7 @@ open class CXTransaction: NSObject, NSCopying, @unchecked Sendable {
 
 // MARK: - calls and the observer
 
-open class CXCall: NSObject, @unchecked Sendable {
+@objc(CXCall) open class CXCall: NSObject, @unchecked Sendable {
     open private(set) var uuid: UUID
     open internal(set) var isOutgoing: Bool
     open internal(set) var isOnHold = false
@@ -237,7 +237,7 @@ open class CXCall: NSObject, @unchecked Sendable {
 @objc public protocol CXCallObserverDelegate: NSObjectProtocol {
     @objc(callObserver:callChanged:) func callObserver(_ callObserver: CXCallObserver, callChanged call: CXCall)
 }
-open class CXCallObserver: NSObject, @unchecked Sendable {
+@objc(CXCallObserver) open class CXCallObserver: NSObject, @unchecked Sendable {
     weak var delegate: CXCallObserverDelegate?
     var queue: DispatchQueue = .main
     public override init() { super.init(); _CallKit.observers.append(_CallKit.WeakObserver(o: self)) }
@@ -263,7 +263,7 @@ open class CXCallObserver: NSObject, @unchecked Sendable {
     @objc(provider:didDeactivateAudioSession:) optional func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession)
 }
 
-open class CXProvider: NSObject, @unchecked Sendable {
+@objc(CXProvider) open class CXProvider: NSObject, @unchecked Sendable {
     open var configuration: CXProviderConfiguration
     weak var delegate: CXProviderDelegate?
     var queue: DispatchQueue = .main
@@ -376,7 +376,7 @@ open class CXProvider: NSObject, @unchecked Sendable {
 
 // MARK: - the call controller
 
-open class CXCallController: NSObject, @unchecked Sendable {
+@objc(CXCallController) open class CXCallController: NSObject, @unchecked Sendable {
     let queue: DispatchQueue
     open private(set) var callObserver = CXCallObserver()
     public override init() { queue = .main; super.init() }
@@ -404,7 +404,7 @@ open class CXCallController: NSObject, @unchecked Sendable {
 
 // MARK: - Call Directory (stub)
 
-open class CXCallDirectoryManager: NSObject, @unchecked Sendable {
+@objc(CXCallDirectoryManager) open class CXCallDirectoryManager: NSObject, @unchecked Sendable {
     @objc public enum EnabledStatus: Int, Sendable { case unknown = 0, disabled = 1, enabled = 2 }
     public static let sharedInstance = CXCallDirectoryManager()
     func find(_ identifier: String) -> Bool {
@@ -442,7 +442,7 @@ open class CXCallDirectoryManager: NSObject, @unchecked Sendable {
     }
 }
 public typealias CXCallDirectoryPhoneNumber = Int64
-open class CXCallDirectoryExtensionContext: NSExtensionContext, @unchecked Sendable {
+@objc(CXCallDirectoryExtensionContext) open class CXCallDirectoryExtensionContext: NSExtensionContext, @unchecked Sendable {
     weak open var delegate: CXCallDirectoryExtensionContextDelegate?
     open var isIncremental: Bool { false }
     open func addBlockingEntry(withNextSequentialPhoneNumber phoneNumber: CXCallDirectoryPhoneNumber) {}
@@ -456,7 +456,7 @@ open class CXCallDirectoryExtensionContext: NSExtensionContext, @unchecked Senda
 @objc public protocol CXCallDirectoryExtensionContextDelegate: NSObjectProtocol {
     @objc(requestFailedForExtensionContext:withError:) func requestFailed(for extensionContext: CXCallDirectoryExtensionContext, withError error: Error)
 }
-open class CXCallDirectoryProvider: NSObject, NSExtensionRequestHandling {
+@objc(CXCallDirectoryProvider) open class CXCallDirectoryProvider: NSObject, NSExtensionRequestHandling {
     public override init() {}
     open func beginRequest(with context: NSExtensionContext) {}
 }

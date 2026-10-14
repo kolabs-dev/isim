@@ -19,7 +19,7 @@ import Security
 public let kMCSessionMinimumNumberOfPeers = 2
 public let kMCSessionMaximumNumberOfPeers = 8
 
-open class MCPeerID: NSObject, NSCopying, @unchecked Sendable {
+@objc(MCPeerID) open class MCPeerID: NSObject, NSCopying, @unchecked Sendable {
     public let displayName: String
     let _id: String
     public init(displayName myDisplayName: String) {
@@ -106,7 +106,7 @@ final class _MCLink: @unchecked Sendable {
     }
 }
 
-open class MCSession: NSObject, @unchecked Sendable {
+@objc(MCSession) open class MCSession: NSObject, @unchecked Sendable {
     open weak var delegate: MCSessionDelegate?
     public let myPeerID: MCPeerID
     public let securityIdentity: [Any]?
@@ -308,7 +308,7 @@ func _mcValidType(_ t: String) -> Bool {
     return ok
 }
 
-open class MCNearbyServiceAdvertiser: NSObject, @unchecked Sendable {
+@objc(MCNearbyServiceAdvertiser) open class MCNearbyServiceAdvertiser: NSObject, @unchecked Sendable {
     open weak var delegate: MCNearbyServiceAdvertiserDelegate?
     public let myPeerID: MCPeerID
     public let discoveryInfo: [String: String]?
@@ -395,7 +395,7 @@ extension MCNearbyServiceBrowserDelegate {
     public func browser(_ browser: MCNearbyServiceBrowser, didNotStartBrowsingForPeers error: Error) {}
 }
 
-open class MCNearbyServiceBrowser: NSObject, @unchecked Sendable {
+@objc(MCNearbyServiceBrowser) open class MCNearbyServiceBrowser: NSObject, @unchecked Sendable {
     open weak var delegate: MCNearbyServiceBrowserDelegate?
     public let myPeerID: MCPeerID
     public let serviceType: String
@@ -482,7 +482,7 @@ extension MCBrowserViewControllerDelegate {
 
 /// The nearby-peers sheet: tap a peer to invite it (its row shows Connecting, then Connected); Done is enabled once
 /// the session has minimumNumberOfPeers (this device included).
-open class MCBrowserViewController: UIViewController, MCNearbyServiceBrowserDelegate, UITableViewDataSource, UITableViewDelegate {
+@objc(MCBrowserViewController) open class MCBrowserViewController: UIViewController, MCNearbyServiceBrowserDelegate, UITableViewDataSource, UITableViewDelegate {
     open weak var delegate: MCBrowserViewControllerDelegate?
     public let browser: MCNearbyServiceBrowser?
     public let session: MCSession
@@ -586,7 +586,7 @@ extension MCAdvertiserAssistantDelegate {
 }
 
 /// Advertises with the system's invitation alert ("<peer> wants to connect" — Decline / Accept).
-open class MCAdvertiserAssistant: NSObject, MCNearbyServiceAdvertiserDelegate {
+@objc(MCAdvertiserAssistant) open class MCAdvertiserAssistant: NSObject, MCNearbyServiceAdvertiserDelegate {
     public let session: MCSession
     public let discoveryInfo: [String: String]?
     public let serviceType: String

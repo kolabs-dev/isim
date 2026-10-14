@@ -238,8 +238,8 @@ enum _SFCompass {
 }
 
 @MainActor
-open class SFSafariViewController: UIViewController {
-    open class Configuration: NSObject, @unchecked Sendable {
+@objc(SFSafariViewController) open class SFSafariViewController: UIViewController {
+    @objc(SFSafariViewControllerConfiguration) open class Configuration: NSObject, @unchecked Sendable {
         open var entersReaderIfAvailable = false
         open var barCollapsingEnabled = true
         open var activityButton: AnyObject?
@@ -297,7 +297,12 @@ open class SFSafariViewController: UIViewController {
             self.dismiss(animated: true) { self.delegate?.safariViewControllerDidFinish?(self) }
         }
         b.onFirstLoad = { [weak self] ok in guard let self else { return }; self.delegate?.safariViewController?(self, didCompleteInitialLoad: ok) }
-        b.onRedirect = { [weak self] u in guard let self else { return }; self.delegate?.safariViewController?(self, initialLoadDidRedirectTo: u) }
+        b.onRedirect = { [weak self] u in
+            guard let self, let d = self.delegate else { return }
+            let objc = NSSelectorFromString("safariViewController:initialLoadDidRedirectToURL:")     // an Objective-C delegate's (Apple's) selector
+            if d.responds(to: objc) { _ = d.perform(objc, with: self, with: u as NSURL) }
+            else { d.safariViewController?(self, initialLoadDidRedirectTo: u) }
+        }
         addChild(b)
         b.view.frame = view.bounds
         b.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -313,13 +318,13 @@ open class SFSafariViewController: UIViewController {
 
 // MARK: - SFSafariApplication / Reading List
 
-open class SSReadingList: NSObject, @unchecked Sendable {
+@objc(SSReadingList) open class SSReadingList: NSObject, @unchecked Sendable {
     static let _default = SSReadingList()
     public static func `default`() -> SSReadingList? { _default }
     public static func supportsURL(_ URL: URL) -> Bool { ["http", "https"].contains(URL.scheme?.lowercased() ?? "") }
     var items: [(URL, String?, String?)] = []
     open func addItem(with URL: URL, title: String?, previewText: String?) throws {
-        guard SSReadingList.supportsURL(URL) else { throw NSError(domain: "SSErrorDomain", code: 1, userInfo: [NSLocalizedDescriptionKey: "URL scheme not supported"]) }
+        guard SSReadingList.supportsURL(URL) else { throw NSError(domain: "SSReadingListErrorDomain", code: 1, userInfo: [NSLocalizedDescriptionKey: "URL scheme not supported"]) }
         items.append((URL, title, previewText))
         print("isim: Safari Reading List: added \(URL.absoluteString)")
     }
