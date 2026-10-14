@@ -334,8 +334,14 @@ static CGFloat scale_from_name(NSString *path) {
 }
 + (UIImage *)systemImageNamed:(NSString *)name { return [self systemImageNamed:name withConfiguration:nil]; }
 + (UIImage *)systemImageNamed:(NSString *)name withConfiguration:(UIImageConfiguration *)config {
+    return [self systemImageNamed:name variableValue:NAN withConfiguration:config];
+}
++ (UIImage *)imageNamed:(NSString *)name inBundle:(NSBundle *)bundle variableValue:(double)value withConfiguration:(UIImageConfiguration *)config {
+    return [self imageNamed:name inBundle:bundle withConfiguration:config];      /* asset images have no variable layers in isim */
+}
++ (UIImage *)systemImageNamed:(NSString *)name variableValue:(double)value withConfiguration:(UIImageConfiguration *)config {
     double w, h;
-    int hd = isim_image_symbol(name.UTF8String, &w, &h);
+    int hd = isnan(value) ? isim_image_symbol(name.UTF8String, &w, &h) : isim_image_symbol_variable(name.UTF8String, value, &w, &h);
     if (!hd) return nil;
     UIImage *i = [UIImage new];
     i->_data = [__IsimImageData new]; i->_data.handle = hd;

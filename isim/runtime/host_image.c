@@ -240,6 +240,32 @@ static int proc_symbol(int proc, int fill, const char *text, double *w, double *
     return new_img(v);
 }
 
+int isim_image_symbol(const char *name, double *w, double *h);
+/* A variable-value SF Symbol (UIImage(systemName:variableValue:)): the symbols whose variable layers are signal or
+   volume levels draw Adwaita's icon for that level (adapted); every other symbol draws as without a value, as iOS draws
+   symbols that have no variable layers. value: 0 ... 1. */
+int isim_image_symbol_variable(const char *name, double value, double *w, double *h) {
+    static const char *signal[] = { "none", "weak", "ok", "good", "excellent" }, *volume[] = { "muted", "low", "medium", "high" };
+    char base[128]; snprintf(base, sizeof base, "%s", name);
+    size_t n = strlen(base);
+    if (n > 5 && !strcmp(base + n - 5, ".fill")) base[n - 5] = 0;
+    double v = value < 0 ? 0 : value > 1 ? 1 : value;
+    char path[256] = "";
+    if (!strcmp(base, "wifi") || !strcmp(base, "cellularbars")) {
+        int k = v <= 0 ? 0 : 1 + (int)(v * 3.999);                 /* 0: no bar lit, then one to four */
+        snprintf(path, sizeof path, "/usr/share/icons/Adwaita/symbolic/status/network-%s-signal-%s-symbolic.svg",
+                 base[0] == 'w' ? "wireless" : "cellular", signal[k]);
+    } else if (!strncmp(base, "speaker.wave.", 13)) {
+        int k = v <= 0 ? 0 : 1 + (int)(v * 2.999);                 /* 0: no wave lit, then one to three */
+        snprintf(path, sizeof path, "/usr/share/icons/Adwaita/symbolic/status/audio-volume-%s-symbolic.svg", volume[k]);
+    }
+    if (path[0]) {
+        double sw, sh; int hd = isim_image_load(path, &sw, &sh);
+        if (hd) { struct img *im = get(hd); im->w = 1.2; im->h = 1.2 * sh / sw; *w = im->w; *h = im->h; return hd; }
+    }
+    return isim_image_symbol(name, w, h);
+}
+
 /* SF Symbol substitute. Size is relative to a 1pt font (multiply by the point size). */
 int isim_image_symbol(const char *name, double *w, double *h) {
     char base[128]; snprintf(base, sizeof base, "%s", name);

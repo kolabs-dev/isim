@@ -50,11 +50,12 @@ UIKIT_EXTERN UIFontWeight UIFontWeightForImageSymbolWeight(UIImageSymbolWeight s
 + (instancetype)configurationPreferringMonochrome API_AVAILABLE(ios(16.0)) NS_SWIFT_NAME(preferringMonochrome());
 - (instancetype)configurationByApplyingConfiguration:(nullable UIImageSymbolConfiguration *)configuration;
 @end
+@class UIImage;
 typedef NS_ENUM(NSInteger, UIImageOrientation) {
     UIImageOrientationUp, UIImageOrientationDown, UIImageOrientationLeft, UIImageOrientationRight,
     UIImageOrientationUpMirrored, UIImageOrientationDownMirrored, UIImageOrientationLeftMirrored, UIImageOrientationRightMirrored
-};
-typedef NS_ENUM(NSInteger, UIImageResizingMode) { UIImageResizingModeTile = 0, UIImageResizingModeStretch = 1 };
+} NS_SWIFT_NAME(UIImage.Orientation);
+typedef NS_ENUM(NSInteger, UIImageResizingMode) { UIImageResizingModeTile = 0, UIImageResizingModeStretch = 1 } NS_SWIFT_NAME(UIImage.ResizingMode);
 /* (isim: UIImage also answers preferredPresentationSizeForItemProvider, its size) */
 @interface UIImage : NSObject <NSSecureCoding, NSItemProviderReading, NSItemProviderWriting>
 + (UIImage *)imageWithCGImage:(CGImageRef)cgImage;
@@ -67,6 +68,10 @@ typedef NS_ENUM(NSInteger, UIImageResizingMode) { UIImageResizingModeTile = 0, U
 + (nullable UIImage *)imageNamed:(NSString *)name inBundle:(nullable NSBundle *)bundle withConfiguration:(nullable UIImageConfiguration *)configuration;
 + (nullable UIImage *)systemImageNamed:(NSString *)name;
 + (nullable UIImage *)systemImageNamed:(NSString *)name withConfiguration:(nullable UIImageConfiguration *)configuration;
+/* variable value (0 ... 1): isim lights the levels of wifi, cellularbars and speaker.wave.* (adapted); other symbols
+   draw as without a value, as iOS draws symbols without variable layers */
++ (nullable UIImage *)systemImageNamed:(NSString *)name variableValue:(double)value withConfiguration:(nullable UIImageConfiguration *)configuration NS_SWIFT_NAME(init(systemName:variableValue:configuration:)) API_AVAILABLE(ios(16.0));
++ (nullable UIImage *)imageNamed:(NSString *)name inBundle:(nullable NSBundle *)bundle variableValue:(double)value withConfiguration:(nullable UIImageConfiguration *)configuration NS_SWIFT_NAME(init(named:in:variableValue:configuration:)) API_AVAILABLE(ios(16.0));
 + (nullable UIImage *)imageWithContentsOfFile:(NSString *)path;
 - (nullable instancetype)initWithContentsOfFile:(NSString *)path;
 + (nullable UIImage *)imageWithData:(NSData *)data;

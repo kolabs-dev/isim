@@ -360,6 +360,15 @@ def _(a):
     print("localizations:", a.isim_build().compile_xcstrings("Localizable.xcstrings", b))
 
 
+@app("samples/HelloSwiftUIImageText", extra_inputs=["samples/HelloSwiftUIImageText/star.svg",
+                                                    "samples/HelloSwiftUIImageText/en.lproj/Localizable.strings",
+                                                    "samples/HelloSwiftUIImageText/en.lproj/Menu.strings"])
+def _(a):
+    b = a.swift_app()
+    a.copy("star.svg", b)
+    shutil.copytree(os.path.join(a.d, "en.lproj"), os.path.join(b, "en.lproj"), dirs_exist_ok=True)
+
+
 @app("samples/HelloRightToLeft")
 def _(a):
     b = a.swift_app()

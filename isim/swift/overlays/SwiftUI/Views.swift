@@ -1,5 +1,6 @@
 // isim SwiftUI: primitive views and value types.
 import UIKit
+import CoreText
 
 // MARK: - Geometry types
 
@@ -185,6 +186,9 @@ public struct Font: Hashable, Sendable {
     var customName: String?
     var weightSet = false
     var textStyle: TextStyle?          /* text styles follow Dynamic Type (Settings > Accessibility > Larger Text) */
+    var relativeStyle: TextStyle?      /* custom(_:size:relativeTo:): scales with Dynamic Type like that style */
+    var widthValue: Double = 0         /* width(_:): UIFont.Width */
+    var platform: _PlatformFont?       /* Font(UIFont), Font(CTFont) */
     static func style(_ s: TextStyle) -> Font { var f = _style(s); f.textStyle = s; return f }
     static func _style(_ s: TextStyle) -> Font {
         switch s {
@@ -214,19 +218,33 @@ public struct Font: Hashable, Sendable {
     public func weight(_ w: Weight) -> Font { var f = self; f.weight = w; f.weightSet = true; return f }
     /// A font by PostScript or family name (bundled with UIAppFonts or installed); falls back to the system font.
     public static func custom(_ name: String, size: CGFloat) -> Font { var f = Font(size: size, weight: .regular); f.customName = name; return f }
-    public static func custom(_ name: String, size: CGFloat, relativeTo style: TextStyle) -> Font { custom(name, size: size) }
+    public static func custom(_ name: String, size: CGFloat, relativeTo style: TextStyle) -> Font { var f = custom(name, size: size); f.relativeStyle = style; return f }
     public static func custom(_ name: String, fixedSize: CGFloat) -> Font { custom(name, size: fixedSize) }
     public func monospacedDigit() -> Font { self }
     public func leading(_ l: Leading) -> Font { self }
     public enum Leading: Sendable { case standard, tight, loose }
-    public func width(_ w: Width) -> Font { self }
-    public struct Width: Hashable, Sendable { let v: Double; public static let compressed = Width(v: -0.3), condensed = Width(v: -0.2), standard = Width(v: 0), expanded = Width(v: 0.2) }
+    /// The system font's width (UIFont.Width); isim draws every width with the default face, as its UIKit does (adapted).
+    public func width(_ w: Width) -> Font { var f = self; f.widthValue = w.value; return f }
+    public struct Width: Hashable, Sendable {
+        public var value: CGFloat
+        public init(_ value: CGFloat) { self.value = value }
+        public static let compressed = Width(-0.3), condensed = Width(-0.2), standard = Width(0), expanded = Width(0.2)
+    }
     public func italic() -> Font { var f = self; f.isItalic = true; return f }
     public func monospaced() -> Font { var f = self; f.design = .monospaced; return f }
     static let weightNames: [(CGFloat, String)] = [(-0.8, "Thin"), (-0.6, "ExtraLight"), (-0.4, "Light"), (0, "Regular"), (0.23, "Medium"),
                                                    (0.3, "SemiBold"), (0.4, "Bold"), (0.56, "ExtraBold"), (0.62, "Black")]
     var uiFont: UIFont {
-        let size = textStyle == nil ? self.size : (UIFontMetrics.default.scaledValue(for: self.size)).rounded()
+        if let p = platform?.font {
+            var traits = p.fontDescriptor.symbolicTraits
+            if weightSet, weight.value >= Weight.semibold.value { traits.insert(.traitBold) }
+            if isItalic { traits.insert(.traitItalic) }
+            if design == .monospaced { traits.insert(.traitMonoSpace) }
+            if traits == p.fontDescriptor.symbolicTraits { return p }
+            return p.fontDescriptor.withSymbolicTraits(traits).map { UIFont(descriptor: $0, size: p.pointSize) } ?? p
+        }
+        let size = relativeStyle.map { UIFontMetrics(forTextStyle: $0.uikit).scaledValue(for: self.size).rounded() }
+            ?? (textStyle == nil ? self.size : (UIFontMetrics.default.scaledValue(for: self.size)).rounded())
         if let name = customName {
             if weightSet, weight.value != 0, let wn = Font.weightNames.first(where: { $0.0 == weight.value })?.1 {
                 let base = name.split(separator: "-").first.map(String.init) ?? name
@@ -235,7 +253,39 @@ public struct Font: Hashable, Sendable {
             if let f = UIFont(name: name, size: size) { return f }
         }
         if design == .monospaced { return UIFont.monospacedSystemFont(ofSize: size, weight: UIFont.Weight(rawValue: weight.value)) }
+        if widthValue != 0 { return UIFont.systemFont(ofSize: size, weight: UIFont.Weight(rawValue: weight.value), width: UIFont.Width(rawValue: widthValue)) }
         return UIFont.systemFont(ofSize: size, weight: UIFont.Weight(rawValue: weight.value))
+    }
+}
+extension Font {
+    /// A font from a UIKit font: its face and size, without Dynamic Type (as SwiftUI does).
+    public init(_ font: UIFont) { self.init(size: font.pointSize, weight: .regular); platform = _PlatformFont(font) }
+    /// A font from a Core Text font: the face with that PostScript name, at its size.
+    public init(_ font: CTFont) {
+        let name = CTFontCopyPostScriptName(font) as String, size = CTFontGetSize(font)
+        self.init(UIFont(name: name, size: size) ?? .systemFont(ofSize: size))
+    }
+}
+/// A UIKit font held by a Font (UIFont is immutable, so it is safe to share).
+struct _PlatformFont: Hashable, @unchecked Sendable {
+    let font: UIFont
+    init(_ font: UIFont) { self.font = font }
+}
+extension Font.TextStyle {
+    var uikit: UIFont.TextStyle {
+        switch self {
+        case .largeTitle: return .largeTitle
+        case .title: return .title1
+        case .title2: return .title2
+        case .title3: return .title3
+        case .headline: return .headline
+        case .subheadline: return .subheadline
+        case .body: return .body
+        case .callout: return .callout
+        case .footnote: return .footnote
+        case .caption: return .caption1
+        case .caption2: return .caption2
+        }
     }
 }
 
@@ -255,8 +305,8 @@ public struct LocalizedStringKey: Equatable, ExpressibleByStringInterpolation, S
         public mutating func appendInterpolation<T: BinaryInteger>(_ v: T) { key += "%lld"; arguments.append(String(v)) }
         public mutating func appendInterpolation<T>(_ v: T) { key += "%@"; arguments.append(String(describing: v)) }
     }
-    func resolved(_ bundle: Bundle? = nil) -> String {
-        let format = (bundle ?? .main).localizedString(forKey: key, value: nil, table: nil)
+    func resolved(_ bundle: Bundle? = nil, table: String? = nil) -> String {
+        let format = (bundle ?? .main).localizedString(forKey: key, value: nil, table: table)
         return arguments.isEmpty ? format : _format(format, arguments)
     }
 }
@@ -288,7 +338,7 @@ func _format(_ format: String, _ args: [String]) -> String {
 // MARK: - Text
 
 public struct Text: View, Equatable, _PrimitiveView {
-    enum Storage: Equatable { case verbatim(String), localized(LocalizedStringKey, Bundle?) }
+    enum Storage: Equatable { case verbatim(String), localized(LocalizedStringKey, Bundle?, String?), resource(LocalizedStringResource) }
     let storage: Storage
     var font: Font?
     var color: Color?
@@ -297,7 +347,9 @@ public struct Text: View, Equatable, _PrimitiveView {
     var _x = _TextExtras()          // concatenation, live text, decorations (Text+Formatting.swift)
     public init(verbatim content: String) { storage = .verbatim(content) }
     @_disfavoredOverload public init<S: StringProtocol>(_ content: S) { storage = .verbatim(String(content)) }
-    public init(_ key: LocalizedStringKey, tableName: String? = nil, bundle: Bundle? = nil, comment: StaticString? = nil) { storage = .localized(key, bundle) }
+    public init(_ key: LocalizedStringKey, tableName: String? = nil, bundle: Bundle? = nil, comment: StaticString? = nil) { storage = .localized(key, bundle, tableName) }
+    /// A localized string resource: its key in its table and bundle, resolved like String(localized:).
+    public init(_ resource: LocalizedStringResource) { storage = .resource(resource) }
     public static func == (a: Text, b: Text) -> Bool { a.storage == b.storage && a.font == b.font && a.color == b.color }
     var string: String { _plain }
     public func font(_ f: Font?) -> Text { var t = self; t.font = f; return t }
@@ -365,6 +417,8 @@ final class _TextNode: _Node {
 public struct Image: View, _PrimitiveView {
     enum Source { case system(String), named(String, Bundle?), ui(UIImage) }
     let source: Source
+    var variableValue: Double?                       /* Image(systemName:variableValue:) */
+    var a11y: _ImageAccessibility = .unset            /* Image(_:bundle:label:), Image(decorative:bundle:) */
     var isResizable = false
     var renderingMode: TemplateRenderingMode?
     var interpolationMode: Interpolation?
@@ -374,6 +428,42 @@ public struct Image: View, _PrimitiveView {
     public init(systemName: String) { source = .system(systemName) }
     public init(_ name: String, bundle: Bundle? = nil) { source = .named(name, bundle) }
     nonisolated public init(uiImage: UIImage) { source = .ui(uiImage) }
+    /// A symbol whose variable layers show `variableValue` (0 ... 1): isim lights the levels of wifi, cellularbars
+    /// and speaker.wave.* (adapted); other symbols draw as without a value, as on iOS.
+    public init(systemName: String, variableValue: Double?) { source = .system(systemName); self.variableValue = variableValue }
+    /// An image that accessibility ignores (no label, not an element).
+    public init(decorative name: String, bundle: Bundle? = nil) { source = .named(name, bundle); a11y = .decorative }
+    /// An image with that accessibility label.
+    public init(_ name: String, bundle: Bundle? = nil, label: Text) { source = .named(name, bundle); a11y = .label(label.string) }
+    public init(_ name: String, variableValue: Double?, bundle: Bundle? = nil) { source = .named(name, bundle); self.variableValue = variableValue }
+    public init(_ name: String, variableValue: Double?, bundle: Bundle? = nil, label: Text) {
+        source = .named(name, bundle); self.variableValue = variableValue; a11y = .label(label.string)
+    }
+    public init(decorative name: String, variableValue: Double?, bundle: Bundle? = nil) {
+        source = .named(name, bundle); self.variableValue = variableValue; a11y = .decorative
+    }
+    /// A Core Graphics image: `scale` pixels per point, drawn turned / mirrored by `orientation`.
+    public init(_ cgImage: CGImage, scale: CGFloat, orientation: Orientation = .up, label: Text) {
+        source = .ui(UIImage(cgImage: cgImage, scale: scale, orientation: orientation.uikit)); a11y = .label(label.string)
+    }
+    public init(decorative cgImage: CGImage, scale: CGFloat, orientation: Orientation = .up) {
+        source = .ui(UIImage(cgImage: cgImage, scale: scale, orientation: orientation.uikit)); a11y = .decorative
+    }
+    public enum Orientation: UInt8, CaseIterable, Hashable, Sendable {
+        case up, upMirrored, down, downMirrored, left, leftMirrored, right, rightMirrored
+        var uikit: UIImage.Orientation {
+            switch self {
+            case .up: return .up
+            case .upMirrored: return .upMirrored
+            case .down: return .down
+            case .downMirrored: return .downMirrored
+            case .left: return .left
+            case .leftMirrored: return .leftMirrored
+            case .right: return .right
+            case .rightMirrored: return .rightMirrored
+            }
+        }
+    }
     public func resizable() -> Image { var i = self; i.isResizable = true; return i }
     public func renderingMode(_ m: TemplateRenderingMode?) -> Image { var i = self; i.renderingMode = m; return i }
     public var body: Never { fatalError() }
@@ -386,8 +476,10 @@ public struct Image: View, _PrimitiveView {
             // rendering modes: monochrome is a template tinted with the foreground; hierarchical, palette and
             // multicolor symbols carry their colours (UIKit's symbol configurations)
             let (cfg, coloured) = _symbolRendering(_symbolConfig(font, ctx.environment), symbolMode ?? ctx.environment.symbolRenderingMode, ctx.environment)
-            img = UIImage(systemName: _symbolName(n, ctx.environment), withConfiguration: cfg); template = !coloured
-        case .named(let n, _): img = UIImage(named: n)
+            if let v = variableValue { img = UIImage(systemName: _symbolName(n, ctx.environment), variableValue: v, configuration: cfg) }
+            else { img = UIImage(systemName: _symbolName(n, ctx.environment), withConfiguration: cfg) }
+            template = !coloured
+        case .named(let n, let b): img = UIImage(named: n, in: b, with: nil)
         case .ui(let u): img = u
         }
         if renderingMode == .template { template = true } else if renderingMode == .original { template = false }
@@ -396,10 +488,16 @@ public struct Image: View, _PrimitiveView {
         node.nearest = interpolationMode == Interpolation.none
         node.contentTransition = ctx.environment._contentTransition
         if case .system(let n) = source { node.symbolName = n }
+        switch a11y {
+        case .unset: break
+        case .decorative: node.accessibilityApply.append { v in v.isAccessibilityElement = false; v.accessibilityLabel = nil; v.accessibilityElementsHidden = true }
+        case .label(let l): node.accessibilityApply.append { v in v.isAccessibilityElement = true; v.accessibilityLabel = l; v.accessibilityTraits.insert(.image) }
+        }
         if ctx.environment._redactsContent { return _RedactedTextNode(path: ctx.path + "/redacted", child: node) }   // a grey box (Styles.swift)
         return node
     }
 }
+enum _ImageAccessibility { case unset, decorative, label(String) }
 /// An image view that remembers its SF Symbol (content transitions, symbol effects).
 final class _SUIImageView: UIImageView { var symbolName: String? }
 final class _ImageNode: _Node {
