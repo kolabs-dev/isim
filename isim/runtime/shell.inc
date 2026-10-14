@@ -43,7 +43,7 @@ static void shell_apply_orient(int o) {
     dev = oriented(o);
     surf_w = (int)lround(dev.width * px_scale); surf_h = (int)lround(dev.height * px_scale);
     if (comp) { cairo_surface_destroy(comp); comp = NULL; }
-    if (win) SDL_SetWindowSize(win, (int)lround(dev.width * zoom), (int)lround(dev.height * zoom));
+    window_resize();
 }
 static void bg_track(int i, int type);           /* shell_system.inc: background state, suspension; resumes a suspended app */
 static void shell_send(int i, int type) {
@@ -93,15 +93,7 @@ static void shell_show(int i) {
     if (surf) cairo_surface_destroy(surf);
     surf = cairo_image_surface_create_for_data(clients[i].pixels, CAIRO_FORMAT_ARGB32, surf_w, surf_h, surf_w * 4);
     cr = cairo_create(surf);
-    if (headless || !win) return;
-    SDL_Surface *ws = SDL_GetWindowSurface(win);
-    if (!ws) return;
-    SDL_Surface *src = SDL_CreateSurfaceFrom(surf_w, surf_h, SDL_PIXELFORMAT_ARGB8888, clients[i].pixels, surf_w * 4);
-    if (ws->w == surf_w && ws->h == surf_h) SDL_BlitSurface(src, NULL, ws, NULL);
-    else SDL_BlitSurfaceScaled(src, NULL, ws, NULL, SDL_SCALEMODE_LINEAR);
-    SDL_DestroySurface(src);
-    present_overlay(ws);
-    SDL_UpdateWindowSurface(win);
+    window_show(surf);
 }
 
 /* ---- app open / close animations (like iOS: apps zoom out of and back into their icons) ---- */
@@ -143,15 +135,7 @@ static void present_comp(void) {
     if (surf) cairo_surface_destroy(surf);
     surf = cairo_surface_reference(comp);           /* screenshots show the composited frame */
     cr = cairo_create(surf);
-    if (headless || !win) return;
-    SDL_Surface *ws = SDL_GetWindowSurface(win);
-    if (!ws) return;
-    SDL_Surface *src = SDL_CreateSurfaceFrom(surf_w, surf_h, SDL_PIXELFORMAT_ARGB8888, cairo_image_surface_get_data(comp), surf_w * 4);
-    if (ws->w == surf_w && ws->h == surf_h) SDL_BlitSurface(src, NULL, ws, NULL);
-    else SDL_BlitSurfaceScaled(src, NULL, ws, NULL, SDL_SCALEMODE_LINEAR);
-    SDL_DestroySurface(src);
-    present_overlay(ws);
-    SDL_UpdateWindowSurface(win);
+    window_show(comp);
 }
 /* Home screen behind; the app as a rounded card in r (points). icon_alpha crossfades the icon in. */
 static void compose(int app, struct rectf r, double radius, double app_alpha, double icon_alpha, double home_scale, struct rectf iconr) {
@@ -532,10 +516,10 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
     if (!headless) app_identity();
     if (!headless && !SDL_Init(SDL_INIT_VIDEO)) { fprintf(stderr, "isim shell: SDL_Init failed: %s (headless)\n", SDL_GetError()); headless = 1; }
     if (!headless) {
-        char t[256]; snprintf(t, sizeof t, "%s (isim)", dev.name);
-        win = SDL_CreateWindow(t, (int)lround(dev.width * zoom), (int)lround(dev.height * zoom), SDL_WINDOW_HIGH_PIXEL_DENSITY);
+        int ww, wh; window_size(&ww, &wh);
+        win = SDL_CreateWindow("isim", ww, wh, SDL_WINDOW_HIGH_PIXEL_DENSITY);
         if (!win) { fprintf(stderr, "isim shell: SDL_CreateWindow failed: %s\n", SDL_GetError()); headless = 1; }
-        else { px_scale = SDL_GetWindowPixelDensity(win) * zoom; SDL_StartTextInput(win); window_icon(win); }
+        else { px_scale = SDL_GetWindowPixelDensity(win) * zoom; SDL_StartTextInput(win); window_icon(win); window_title(); }
     }
     if (headless) px_scale = getenv("ISIM_SHOT_SCALE") ? atof(getenv("ISIM_SHOT_SCALE")) : 2;
     if (headless && !getenv("ISIM_AUDIO")) setenv("ISIM_MUTE", "1", 1);      /* headless runs (tests) are silent */

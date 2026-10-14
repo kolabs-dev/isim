@@ -8,7 +8,7 @@ on a simulated iPhone or iPad with a home screen, a Settings app and a web brows
 
 Goal: write → build → run in the simulator → device build → sign → upload → TestFlight, all on Linux.
 
-![isim: home screen, Settings, and a SwiftUI app](docs/images/isim-overview.png)
+![isim windows with the toolbar and device bezel: the home screen, Settings, and a SwiftUI app](docs/images/isim-overview.png)
 
 ## Quick start (no build needed)
 
@@ -70,6 +70,9 @@ isim install ~/.local/lib/isim/current/apps/*.app
 - `--headless --script "…"`
 
 **On the device:**
+- The window has a toolbar (device menu, Home, Lock, Rotate, Screenshot, light/dark, More: location, URLs, push
+  notifications) and a device bezel whose buttons work; see [The window](docs/SCRIPTING.md#the-window). Changing the
+  device, iOS version or zoom there restarts the device after asking; apps and data stay.
 - Click to touch, drag to swipe.
 - Swipe up from the bottom edge (or press Ctrl+Shift+H) to go home.
 - Press and hold an icon to delete the app.

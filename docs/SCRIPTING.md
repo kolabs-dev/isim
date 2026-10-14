@@ -234,11 +234,77 @@ activity with a push token. `start` needs the push-to-start token the app read f
 | `dump views FILE` | write the view tree (as `dump` prints it) to FILE |
 | `sysevent TEXT` | hand the app a system event as the shell would (`remote-notification FILE`, `nx-media play`, …); the shell drives extension helpers this way, through their control channel |
 
+## The window
+
+A device window has a toolbar above the screen and a device bezel around it (on by default):
+
+- **device button**: the device, its iOS version and a status dot. It opens the device menu: device, iOS version
+  (17, 18, 26, 27; the current one is marked "now") and zoom, which apply after a restart, and "Show device bezel",
+  which applies at once and is remembered;
+- **Home**, **Lock**, **Rotate** (Shift: the other way), **Screenshot** (saved as `~/Pictures/isim-HHMM.png`, then a
+  "Saved … Show" message), **Appearance** (light / dark) and **More** (Shake, Location…, Open URL…, Send push
+  notification…, Memory warning);
+- the bezel's hardware buttons: the side (or top) button locks and unlocks, the volume buttons change the volume, the
+  Action button runs its action, the Ring/Silent switch toggles Silent Mode, and the iPhone SE's Home button goes home.
+
+Every control runs one of the script commands on this page through the same dispatcher as `--script` and the control
+FIFO; the window prints each as `isim window: COMMAND`. What the toolbar shows (light or dark, locked, the location in
+the Location form) is read from the device each time it is drawn, so a change from a script, `isim send`, Control
+Center or Settings shows up too. Device, iOS version and zoom are boot options: **Apply…** asks "Restart the device?"
+first (it lists what changes; "Don't ask again" is remembered in the device data), then the device shuts down and
+boots again with them. Installed apps, their data and settings stay. Scripts, `isim boot --device … --os …` and
+`restart` never ask.
+
+`shot` and F12 save the screen alone; `windowshot` saves the window with the toolbar, bezel and any open menu.
+`ISIM_CHROME=0` turns the toolbar and bezel off (the window is the screen alone). The window's choices live in the
+device data (`Library/isim/Window.conf`).
+
+Anything a click does in the window is also a command, so agents and tests reach it without a mouse:
+
+| Command | What it does |
+|---|---|
+| `windowshot FILE.png` | the whole window (toolbar, bezel, menus, the screen) as a PNG, also headless |
+| `window menu device\|more\|location\|openurl\|push\|pushhelp\|none` | open a menu or form (or close it) |
+| `window tap ID` | click a control by its id: `device`, `home`, `lock`, `rotate`, `shot`, `appearance`, `more`; hardware `hw.side`, `hw.top`, `hw.volup`, `hw.voldown`, `hw.action`, `hw.silent`, `hw.home`; device menu `dev.ID` (e.g. `dev.iphonese`), `dev.all`, `os.26`, `zoom.minus`, `zoom.plus`, `bezel`, `apply`; restart dialog `dialog.dontask`, `dialog.cancel`, `dialog.restart`; More menu `more.shake`, `more.location`, `more.openurl`, `more.push`, `more.memorywarning`; forms `back`, `field.NAME`, `place.0`…`place.4`, `loc.set`, `loc.none`, `recent.N`, `url.open`, `url.cancel`, `push.app`, `pushapp.N`, `tab.alert`, `tab.json`, `push.sound`, `push.mutable`, `push.available`, `push.load`, `push.help`, `push.send`, `help.back`, `help.docs`; `toast.show` |
+| `window els` | print the controls shown now, with their centres in window points |
+| `window click X Y [shift]` · `window hover X Y` | click or point at window points (the toolbar starts at 0, 0); a click on the screen is a tap there; hovering a toolbar button shows its tooltip |
+| `window type TEXT` | type into the focused field of a form (fields: `lat`, `lon`, `url`, `title`, `body`, `badge`, `json`) |
+| `window key escape\|return\|tab\|backspace\|delete\|left\|right\|home\|end\|selectall\|paste\|copy\|cut` | a key in the open menu, form or dialog |
+| `window bezel on\|off` | show or hide the device bezel (no restart; remembered) |
+| `window load FILE` | load an `.apns` payload into the push form's JSON tab |
+| `window state` | print what the toolbar shows: `appearance=dark locked=0 orientation=portrait location=… bezel=1 menu=none dialog=0 device=iphone15 ios=18 zoom=1` |
+| `restart [device=ID] [os=17\|18\|26\|27] [zoom=Z]` | restart the device with new boot options (what the restart dialog does, without asking); the device data stays |
+
+## Push notifications
+
+A remote notification is a JSON payload with an `aps` dictionary, as Apple's push service delivers it. isim delivers
+it like Xcode's Simulator does (`xcrun simctl push`), with no server and no device token involved:
+
+- in the window: More › **Send push notification…** builds the payload from a title, body, badge and options (the
+  Alert tab), or takes it as JSON (the JSON payload tab, or **Load .apns file…**), and sends it to the app picked;
+- `isim push BUNDLE_ID payload.apns` (or `-` for standard input) from a terminal, or `push BUNDLE_ID FILE` in a script;
+- drop an `.apns` file with a `"Simulator Target Bundle"` key on the device window.
+
+```json
+{
+  "Simulator Target Bundle": "dev.example.myapp",
+  "aps": {
+    "alert": { "title": "Your order is on its way", "body": "Arrives today." },
+    "badge": 3,
+    "sound": "default"
+  }
+}
+```
+
+`"mutable-content": 1` runs the app's Notification Service extension first; `"content-available": 1` wakes the app
+in the background. See the `push` command under Timing and control for collapse ids, VoIP pushes and Live Activity
+updates.
+
 ## Interactive shortcuts
 
 In a window: click to touch, drag to swipe, Option-drag for a second finger (pinch/rotate), Option+Shift-drag
 to move two fingers together. Swipe up from the bottom edge or press Ctrl+Shift+H to go home; Ctrl+Left/Right
-rotates; F12 saves a screenshot. Under `isim boot`: Ctrl+Shift+H twice opens the app switcher (or swipe up from the
+rotates; F12 saves a screenshot (the screen alone; the toolbar's Screenshot button saves to `~/Pictures`). Under `isim boot`: Ctrl+Shift+H twice opens the app switcher (or swipe up from the
 bottom edge and hold), Ctrl+L locks/unlocks, pulling down from the top edge opens Notification Center (Control
 Center from the top-right corner), Ctrl+Shift+S brings up Siri (the side button held) or dismisses it.
 
