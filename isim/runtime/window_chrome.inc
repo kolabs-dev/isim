@@ -846,6 +846,20 @@ static void ch_scan_apps(void) {
     for (int i = 0; i < nn; i++) { char p[1400]; snprintf(p, sizeof p, "%s/%s", apps, names[i]); ch_scan_app(p); }
     if (ch.push_app >= ch_napps) ch.push_app = 0;
 }
+/* why iOS would show no alert for a push to this app (its notification permission, kept in its preferences like
+   UNUserNotificationCenter does), or NULL when it may */
+static const char *ch_push_blocked(const char *bundle) {
+    char rel[600], p[1200]; snprintf(rel, sizeof rel, "Containers/%s/Library/Preferences/%s.plist", bundle, bundle);
+    ch_data_path(p, sizeof p, rel);
+    size_t n = 0; char *x = ch_slurp(p, &n);
+    int status = 0;
+    const char *k = x ? strstr(x, "<key>_ISIMNotificationAuthorization</key>") : NULL;
+    if (k) { k += 41; k += strspn(k, " \t\r\n"); if (!strncmp(k, "<integer>", 9)) status = atoi(k + 9); }
+    free(x);
+    if (status >= 2) return NULL;                    /* authorized, provisional, ephemeral */
+    return status == 1 ? "has notifications turned off (Settings › Notifications): the push reaches the app, but iOS shows nothing."
+                       : "has not asked to send notifications yet (requestAuthorization): the push reaches the app, but iOS shows nothing.";
+}
 static int ch_word_in(const char *list, const char *w, int wildcard) {
     char b[512]; snprintf(b, sizeof b, "%s", list);
     for (char *s, *t = strtok_r(b, " ", &s); t; t = strtok_r(NULL, " ", &s)) {
@@ -934,6 +948,12 @@ static double ch_pop_push(cairo_t *c, double x, double y, double w) {
     ch_icon(c, ch.app_list ? "chevron.up" : "chevron.down", x + w - 12 - 16, y + 16.5, 18, C_TEXT, 1);
     double app_y = y + 33;
     y += 33 + 10;
+    const char *why = ch_napps ? ch_push_blocked(ch_apps[ch.push_app].bundle) : NULL;
+    if (why) {                                       /* iOS shows nothing for an app not allowed to notify */
+        static const double C_WARN[3] = { 240, 186, 92 };
+        char note[300]; snprintf(note, sizeof note, "%s %s", ch_apps[ch.push_app].name, why);
+        y += ch_para(c, note, x + 12, y - 4, w - 24, 12, 400, 0, C_WARN, 0) + 6;
+    }
     ch_fill_round(c, x + 12, y, w - 24, 32, 8, C_INSET);
     double tw = (w - 24 - 4) / 2;
     for (int i = 0; i < 2; i++) {
@@ -1174,7 +1194,9 @@ static void chrome_run(const char *cmd) {
     control_poll();                                           /* (sets up the script buffer's length the first time) */
     /* next: before the rest of a running script (a `window tap` in a script runs its command right after it) */
     size_t n = strlen(cmd), off = script_pos ? (size_t)(script_pos - script) : script_len;
+    int fresh = !script;                                      /* no script yet (the CLI and the launcher start none) */
     script = realloc(script, script_len + n + 3);
+    if (fresh) script[script_len] = 0;                        /* the buffer is always terminated at script_len */
     memmove(script + off + n + 2, script + off, script_len - off + 1);
     script[off] = ';'; memcpy(script + off + 1, cmd, n); script[off + n + 1] = ';';
     script_len += n + 2;
@@ -1375,6 +1397,8 @@ static void ch_click(const char *id, int mods) {
         FILE *f = fopen(path, "w"); if (!f) { fprintf(stderr, "isim window: cannot write %s\n", path); return; }
         fputs(p, f); fclose(f);
         ch_close_pop();
+        const char *why = ch_push_blocked(ch_apps[ch.push_app].bundle);
+        if (why) fprintf(stderr, "isim window: note: %s %s\n", ch_apps[ch.push_app].name, why);
         snprintf(cmd, sizeof cmd, "push %s %s", ch_apps[ch.push_app].bundle, path); chrome_run(cmd);
     }
     window_redraw();

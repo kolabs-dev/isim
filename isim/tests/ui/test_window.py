@@ -134,6 +134,7 @@ def test_controls_run_commands(tmp_path):
 
         dev.send("window menu push; window tap push.send")
         m = dev.wait_log(r"^isim window: push dev\.isim\.samples\.HelloSystem (\S+)$")
+        dev.wait_log(r"^isim window: note: System has not asked to send notifications")   # iOS would show nothing
         payload = json.loads(open(m.group(1)).read())
         assert payload["aps"]["alert"]["title"] == "Hello from isim" and payload["aps"]["badge"] == 1, payload
         assert payload["aps"]["sound"] == "default" and "mutable-content" not in payload["aps"], payload

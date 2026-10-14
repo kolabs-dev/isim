@@ -300,6 +300,12 @@ it like Xcode's Simulator does (`xcrun simctl push`), with no server and no devi
 in the background. See the `push` command under Timing and control for collapse ids, VoIP pushes and Live Activity
 updates.
 
+Like iOS, the system shows a push's alert (banner, Lock Screen, Notification Center) only for an app the user allowed
+to send notifications: the app must have asked (`UNUserNotificationCenter.requestAuthorization`) and been allowed
+(the prompt, or `ISIM_NOTIFICATION_PERMISSION=allow`; Settings › Notifications turns it off again). For any other app
+the push still reaches it (`didReceiveRemoteNotification`, the service extension) but nothing is shown; the push form
+says so under the app picker, and the window logs `isim window: note: …` when sending.
+
 ## Interactive shortcuts
 
 In a window: click to touch, drag to swipe, Option-drag for a second finger (pinch/rotate), Option+Shift-drag

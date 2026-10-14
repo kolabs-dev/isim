@@ -223,6 +223,8 @@ class App:
         if not animations:
             e["ISIM_ANIMATIONS"] = "0"
         e.update(env or {})
+        for k in [k for k, v in e.items() if v is None]:   # env={"ISIM_HEADLESS": None}: remove (a window, no script)
+            del e[k]
         self._lines: list[str] = []
         self._cv = threading.Condition()
         what = ["run", str(self.bundle)] if self.bundle else ["boot"]
