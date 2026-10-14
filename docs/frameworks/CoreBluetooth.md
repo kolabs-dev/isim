@@ -15,6 +15,8 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | Core Bluetooth | 🟡 | ≤17 | like the Simulator: managers report `.unsupported`, scans log iOS's API MISUSE and find nothing. Missing: the peripheral-role types (`CBMutableService`, `CBMutableCharacteristic`, `CBDescriptor`, `CBATTRequest`, `CBCentral`, `CBL2CAPChannel`) do not exist, so code using them does not compile (it does on the Simulator) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `CBATTError`, `CBMutableDescriptor` (2 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 27) | ❌ | 27.0 | not implemented, found by the 2026-10 sweep: `CBChannelSoundingProcedureResults`, `CBChannelSoundingSessionConfiguration` (2 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

@@ -15,6 +15,8 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | MarketplaceKit `MarketplaceDisplayOption`, SecureElementCredential `CredentialSessionWindowSceneEvent` (iOS 17.4, EU) | 🟡 | 17.4 | only the scene connection options: `marketplaceDisplayOption` and `credentialSessionEvent` from launch markers (`isim-marketplace:…`, `isim-credential:…`; see UIKit scene members). isim is no app marketplace and has no secure element: the rest of both frameworks is not in isim. Tested (HelloSceneLaunch) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `ActionButton`, `AppLibrary`, `AppVersion`, `AutomaticUpdate`, `BatchInstallConfiguration`, `BatchInstallConfirmationResult`, `InstallConfiguration`, `InstallConfirmationResult`, `InstallMetadata`, `InstallRequirements`, `MarketplaceExtension`, `MarketplaceExtensionConfiguration`, `MarketplaceKitError`, `MarketplaceSceneDelegate` (14 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 26) | ❌ | 26.0 | not implemented, found by the 2026-10 sweep: `MarketplaceAppExtension`, `RequestAppDeletionAction`, `TransactionReporting` (3 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

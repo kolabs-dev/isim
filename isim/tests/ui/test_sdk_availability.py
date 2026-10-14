@@ -18,7 +18,8 @@ from isimtest import ISIM, ROOT
 SDK = ROOT / "out" / "sdk"
 
 # (Objective-C expression statement, Apple's iOS version). Declarations used: `UITabBarController *tbc`, `UIView *v`,
-# `UITouch *touch`, `UIScrollView *sv`, `UINavigationItem *item`, `UIMenuElement *el`, `UIWindowScene *scene`.
+# `UITouch *touch`, `UIScrollView *sv`, `UINavigationItem *item`, `UIMenuElement *el`, `UIWindowScene *scene`,
+# `WKWebpagePreferences *prefs`.
 OBJC = [
     # iOS 17.5 (Apple Pencil Pro)
     ("(void)[UIPencilHoverPose class];", "17.5"),
@@ -67,6 +68,9 @@ OBJC = [
     ("(void)[UIArrangementViewController class];", "27.1"),
     ("(void)[UIHingeInteraction class];", "27.1"),
     ("(void)[UIViewReservedRegion class];", "27.1"),
+    # WebKit
+    ("(void)WKWebpagePreferencesUpgradeToHTTPSPolicyErrorOnFailure;", "18.2"),
+    ("(void)prefs.preferredHTTPSNavigationPolicy;", "18.2"),
 ]
 
 # (Swift statement inside a function, Apple's iOS version): isim's overlays and the imported UIKit headers.
@@ -91,7 +95,7 @@ SWIFT = [
     ("_ = ToolbarItemPlacement.topBarPinnedTrailing", "27.0"),
     ("_ = TabRole.prominent", "27.0"),
     ("_ = Text(\"a\").swipeActionsContainer()", "27.0"),
-    # Foundation, CoreLocation, StoreKit, LocalAuthentication, PhotosUI, GameKit
+    # Foundation, CoreLocation, StoreKit, LocalAuthentication, PhotosUI, GameKit, WebKit
     ("_ = Calendar.Component.dayOfYear", "18.0"),
     ("_ = DateComponents().dayOfYear", "18.0"),
     ("_ = ProgressManager.self", "26.0"),
@@ -99,6 +103,10 @@ SWIFT = [
     ("_ = Product.SubscriptionOffer.OfferType.winBack", "18.0"),
     ("_ = StoreKit.Message.Reason.winBackOffer", "18.0"),
     ("_ = StoreKit.Transaction.currentEntitlements(for: \"x\")", "18.4"),
+    ("_ = AppStore.Platform.iOS", "18.4"),
+    ("_ = { (t: AppTransaction) in t.originalPlatform }", "18.4"),
+    ("_ = URLRequest(url: URL(fileURLWithPath: \"/\")).allowsPersistentDNS", "18.0"),
+    ("_ = WKWebpagePreferences.UpgradeToHTTPSPolicy.errorOnFailure", "18.2"),
     ("_ = LAPolicy.deviceOwnerAuthenticationWithCompanion", "18.0"),
     ("_ = PHPickerFilter.spatialMedia", "18.0"),
     ("_ = GKGameActivity.self", "26.0"),
@@ -109,13 +117,13 @@ SWIFT = [
     ("_ = UIGlassEffect.self", "26.0"),
     ("_ = UIPencilInteraction.Squeeze.self", "17.5"),
 ]
-SWIFT_IMPORTS = ["SwiftUI", "UIKit", "Foundation", "CoreLocation", "StoreKit", "LocalAuthentication", "PhotosUI", "GameKit"]
+SWIFT_IMPORTS = ["SwiftUI", "UIKit", "Foundation", "CoreLocation", "StoreKit", "LocalAuthentication", "PhotosUI", "GameKit", "WebKit"]
 
 
 def objc_source(guard=None):
-    head = ("#import <UIKit/UIKit.h>\n"
+    head = ("#import <UIKit/UIKit.h>\n#import <WebKit/WebKit.h>\n"
             "void f(UITabBarController *tbc, UIView *v, UITouch *touch, UIScrollView *sv, UINavigationItem *item,\n"
-            "       UIMenuElement *el, UIWindowScene *scene) {\n")
+            "       UIMenuElement *el, UIWindowScene *scene, WKWebpagePreferences *prefs) {\n")
     body = [f"    {code}" for code, _ in OBJC]
     if guard:
         body = [f"    if (@available(iOS {guard}, *)) {{"] + ["    " + b for b in body] + ["    }"]
@@ -209,3 +217,23 @@ def test_swift_guarded_newer_apis_compile(tmp_path):
     src, _ = swift_source(guard="27.1")
     rc, out = swiftc(tmp_path, src)
     assert rc == 0 and "is only available" not in out, f"if #available(iOS 27.1, *) compiles\n{out[-4000:]}"
+
+
+# APIs Apple's SDK marks unavailable on iOS (macOS or watchOS only): an error, even inside `if #available`.
+UNAVAILABLE = [
+    "_ = LAPolicy.deviceOwnerAuthenticationWithWatch",
+    "_ = LAPolicy.deviceOwnerAuthenticationWithBiometricsOrWatch",
+    "_ = LAPolicy.deviceOwnerAuthenticationWithWristDetection",
+    "_ = LAError.Code.biometryNotPaired",
+    "_ = LAError.Code.biometryDisconnected",
+    "_ = LAError.Code.invalidDimensions",
+]
+
+
+def test_swift_ios_unavailable_apis_are_errors(tmp_path):
+    head = "import LocalAuthentication\nfunc f() {\n"
+    rc, out = swiftc(tmp_path, head + "\n".join(f"    {code}" for code in UNAVAILABLE) + "\n}\n")
+    assert rc != 0, "macOS / watchOS-only APIs do not compile for iOS"
+    diags = by_line(out, "avail.swift", r"is unavailable in iOS")
+    first = head.count("\n") + 1
+    assert set(diags) == {first + i for i in range(len(UNAVAILABLE))}, f"one 'unavailable in iOS' error per line\n{out[-3000:]}"

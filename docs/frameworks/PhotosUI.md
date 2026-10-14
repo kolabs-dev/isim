@@ -15,6 +15,8 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | PhotosUI `PhotosPicker` / `PHPickerViewController` | 🟡 | ≤17 | grid of the device photo library outside the app's permission; single/multiple selection, `NSItemProvider` results, `PhotosPickerItem.loadTransferable(type:)` for `Data` and `Image` (tested; custom `Transferable` types compile, unverified at run time); images only (library videos are not offered yet). Missing: videos are never offered (the picker vends a JPEG or PNG), inline picker configuration (iOS 17) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `PHContentEditingController`, `PHLivePhotoView` (2 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 27) | ❌ | 27.0 | not implemented, found by the 2026-10 sweep: `PHPickerMetadataOptions`, `PHPickerSearchText`, `PHSharedAlbumCreationConfiguration`, `PHSharedAlbumCreationResult`, `PHSharedAlbumCreationSharingPolicy`, `PHSharedAlbumCreationViewController`, `PHSharedAlbumCustomizationViewController`, `PHSharedAlbumPostingViewController` (8 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

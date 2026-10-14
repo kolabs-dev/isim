@@ -15,6 +15,9 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | Core Motion (accelerometer, gyroscope, pedometer) | ✅ | ≤17 | adapted: a device held upright at rest (gravity (0,-1,0), no rotation) for accelerometer/gyro/magnetometer/device-motion push and pull updates; `ISIM_MOTION=unavailable` reports no sensors like the Simulator; pedometer, activity, altimeter unavailable (Simulator); shake stays a UIKit motion event. Tested (HelloSensors, iOS 17–27) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `CMAbsoluteAltitudeData`, `CMAmbientPressureData`, `CMBatchedSensorManager`, `CMDyskineticSymptomResult`, `CMHighFrequencyHeartRateData`, `CMOdometerData`, `CMRecordedAccelerometerData`, `CMRecordedPressureData`, `CMSensorDataList`, `CMSensorRecorder`, `CMTremorResult`, `CMWaterSubmersionEvent`, `CMWaterSubmersionManager`, `CMWaterSubmersionManagerDelegate`, `CMWaterSubmersionMeasurement`, `CMWaterTemperature` (16 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `CMHeadphoneActivityManager` (1 type; with its members under "Not yet in isim") |
+| Types not yet in isim (iOS 27) | ❌ | 27.0 | not implemented, found by the 2026-10 sweep: `CMBodyIdentifiable`, `CMRecordedDeviceMotion` (2 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

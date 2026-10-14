@@ -22,6 +22,9 @@
 | `GCKeyboard.coalesced`, `GCKeyboardInput` (`button(forKeyCode:)`, `keyChangedHandler`, `isAnyKeyPressed`), `GCKeyCode` | ✅ | ≤17 | the host keyboard; key presses and releases arrive as USB HID usages (scripts: `keydown`/`keyup`) |
 | `GCVirtualController` (iOS 15) | 🟡 | ≤17 | thumbsticks, d-pad, A/B/X/Y, shoulders, triggers and menu drawn over the key window; element configurations only hide elements (custom paths ignored) |
 | `GCMouse`, motion, haptics, light, battery | ❌ | ≤17 | no mice; the others are typed `AnyObject?` and nil: `GCDeviceBattery`, `GCDeviceLight`, `GCMotion`, `GCDeviceHaptics` and `GCMouseInput` do not exist, so code using them does not compile |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `GCAxisElement`, `GCAxisElementName`, `GCAxisInput`, `GCButtonElement`, `GCButtonElementName`, `GCDevicePhysicalInput`, `GCDevicePhysicalInputState`, `GCDevicePhysicalInputStateDiff`, `GCDirectionPadElement`, `GCDirectionPadElementName`, `GCEventViewController`, `GCLinearInput`, `GCPhysicalInputElement`, `GCPhysicalInputElementCollection`, `GCPhysicalInputElementName`, `GCPhysicalInputElementTypedName`, `GCPhysicalInputSource`, `GCPressedStateInput`, `GCRelativeInput`, `GCSwitchElement`, `GCSwitchElementName`, `GCSwitchPositionInput`, `GCTouchedStateInput` (23 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 26) | ❌ | 26.2 | not implemented, found by the 2026-10 sweep: `GCPhysicalInputExtents` (1 type; with its members under "Not yet in isim") |
+| Types not yet in isim (iOS 27) | ❌ | 27.0 | not implemented, found by the 2026-10 sweep: `GCControllerHomeButtonSettingCustomizationStatus`, `GCControllerHomeButtonSettingInAppAction`, `GCControllerHomeButtonSettingsCustomizationActivity`, `GCControllerHomeButtonSettingsManager`, `GCControllerHomeButtonSettingSystemAction` (5 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

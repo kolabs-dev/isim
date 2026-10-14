@@ -15,6 +15,7 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | EventKit / EventKitUI (calendars, reminders) | 🟡 | ≤17 | adapted: calendar database in `$ISIM_DATA/Library/Calendar` (default "Calendar" and "Reminders" lists); iOS 17 access alerts (full / write-only events, full reminders); events, reminders, date/completion predicates, save/remove, store-changed notification; `EKEventEditViewController` basic form (title, location, all-day; dates shown, not editable) saves without access like iOS 17; recurrence rules and alarms stored but not expanded/fired; no Birthdays/Holidays calendars. Tested (HelloPersonal, iOS 17–27). Missing: recurrences are not expanded in date-range queries, alarms never fire; no `EKParticipant`, `EKStructuredLocation`, `EKCalendarChooser` |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `EKRecurrenceDayOfWeek`, `EKVirtualConferenceDescriptor`, `EKVirtualConferenceProvider`, `EKVirtualConferenceRoomTypeDescriptor` (4 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

@@ -16,6 +16,7 @@
 |---|---|---|---|
 | NaturalLanguage `NLTokenizer`, `NLLanguageRecognizer` | 🟡 | ≤17 | adapted: rule-based (Unicode classes, abbreviations; scripts + stop words for 14 Latin-script languages); tested on 6 languages; no Apple statistical models |
 | NaturalLanguage `NLTagger` | 🟡 | ≤17 | adapted: tokenType, language, script; lexicalClass from a small English lexicon and suffix rules; sentimentScore from a word list; tested; nameType and lemma give no tags; `NLEmbedding`/`NLModel` unavailable |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `NLContextualEmbedding`, `NLContextualEmbeddingKey`, `NLScript` (3 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

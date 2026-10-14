@@ -15,6 +15,9 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | Speech `SFSpeechRecognizer` (authorization, URL and buffer requests, tasks, transcriptions) | 🟡 | ≤17 | permission alert tested; recognition passthrough to whisper.cpp (`ISIM_WHISPER_MODEL`) or Vosk (`ISIM_VOSK_MODEL`) when installed, one final result (unverified: neither on the test host); otherwise `isAvailable` is false and tasks fail with a clear error (tested) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `SFAcousticFeature`, `SFCustomLanguageModelData`, `SFSpeechError`, `SFSpeechError.Code`, `SFSpeechLanguageModel`, `SFSpeechLanguageModel.Configuration`, `SFSpeechRecognitionMetadata`, `SFVoiceAnalytics` (8 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 26) | ❌ | 26.0 | not implemented, found by the 2026-10 sweep: `AnalysisContext`, `AnalyzerInput`, `AssetInstallationRequest`, `AssetInventory`, `DictationTranscriber`, `LocaleDependentSpeechModule`, `SpeechAnalyzer`, `SpeechDetector`, `SpeechModels`, `SpeechModule`, `SpeechModuleResult`, `SpeechTranscriber` (12 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 27) | ❌ | 27.0 | not implemented, found by the 2026-10 sweep: `AnalyzerInputConverter`, `AssetInputSequenceProvider`, `CaptureInputSequenceProvider` (3 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

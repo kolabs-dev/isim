@@ -15,6 +15,7 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | VoIP pushes (PushKit) | ✅ | ≤17 | adapted: `PKPushRegistry` with `desiredPushTypes` `.voIP` gets a 32-byte token (`pushRegistry(_:didUpdate:for:)`, `pushToken(for:)`, kept in the app's container; `didInvalidatePushTokenFor` when it no longer wants them); VoIP pushes are `isim push` payloads with a top-level `"apns-push-type": "voip"` (no `aps` needed), delivered to apps with UIBackgroundModes `voip` (launched in the background when not running) as `pushRegistry(_:didReceiveIncomingPushWith:for:completion:)` (or the older method). Like iOS 13+, an app that reports no incoming call to CallKit for a VoIP push is terminated. File provider pushes are never delivered. `PKPushType` is a Swift struct (not an `NSString`), so `PKPushRegistryDelegate` is a Swift protocol with default implementations of its optional methods (Swift only). Tested (HelloCalls: test_calls, OS matrix) |
+| Types not yet in isim (iOS 26) | ❌ | 26.4 | not implemented, found by the 2026-10 sweep: `PKVoIPPushMetadata` (1 type; with its members under "Not yet in isim") |
 
 ## Not yet in isim
 

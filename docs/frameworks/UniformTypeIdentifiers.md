@@ -15,6 +15,7 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | UniformTypeIdentifiers (`UTType`), CoreTransferable (`Transferable`, `DataRepresentation`, `FileRepresentation`, `ProxyRepresentation`) | 🟡 | ≤17 | fixed table of common system types with conformance, extensions and MIME types; Transferable import/export through data; `Data`, `String`, `URL`, SwiftUI `Image` conform; Info.plist `UTExportedTypeDeclarations` / `UTImportedTypeDeclarations` are not read; no `CodableRepresentation` |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `UTTypeReference` (1 type; with its members under "Not yet in isim") |
 
 ## Not yet in isim
 

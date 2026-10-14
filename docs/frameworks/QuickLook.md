@@ -14,6 +14,7 @@
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `ARQuickLookPreviewItem`, `QLFilePreviewRequest`, `QLPreviewingController`, `QLPreviewProvider`, `QLPreviewReply`, `QLPreviewReplyAttachment`, `QLPreviewSceneActivationConfiguration` (7 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

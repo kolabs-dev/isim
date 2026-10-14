@@ -15,6 +15,9 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | SwiftData (`@Model`, `@Attribute`, `@Relationship`, `ModelContainer`, `ModelContext`, `FetchDescriptor`, `@Query`) | 🧩 | ≤17 | adapted: real compiler macros and an identity-preserving, process-local model container with insert/delete/save/fetch and SwiftUI environment/query integration. No disk schema migration, relationship/delete-rule engine, predicate execution, or CloudKit backend. Tested: HelloCloudKit. Stub level: `save()` writes nothing, `fetch` ignores the predicate and sort, `@Attribute` / `@Relationship` do nothing, models are not `Observable` and `@Query` does not refresh; Xcode's SwiftData template does not compile (`Schema([...])`, `ModelConfiguration(schema:isStoredInMemoryOnly:)`) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `DefaultSerialModelExecutor`, `ModelActor`, `ModelDocument`, `ModelExecutor`, `SerialModelExecutor`, `SwiftDataError`, `Transient` (7 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `DataStore`, `DataStoreBatching`, `DataStoreError`, `DataStoreSnapshotCodingKey`, `DefaultHistoryDelete`, `DefaultHistoryInsert`, `DefaultHistoryToken`, `DefaultHistoryTransaction`, `DefaultHistoryUpdate`, `DefaultStore`, `HistoryChange`, `HistoryDelete`, `HistoryDescriptor`, `HistoryInsert`, `HistoryProviding`, `HistoryToken`, `HistoryTombstone`, `HistoryTransaction`, `HistoryUpdate`, `Index`, `Unique` (21 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 27) | ❌ | 27.0 | not implemented, found by the 2026-10 sweep: `HistoryObserver`, `ResultsObserver`, `ResultsSection`, `SectionedResults` (4 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

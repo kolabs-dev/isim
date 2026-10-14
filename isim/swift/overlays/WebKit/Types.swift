@@ -64,12 +64,18 @@ public struct WKError: Error, CustomNSError, Hashable, LocalizedError, @unchecke
 
 @objc(WKWebpagePreferences) open class WKWebpagePreferences: NSObject, @unchecked Sendable {
     @objc public enum ContentMode: Int, Sendable { case recommended = 0, mobile, desktop }
+    @available(iOS 18.2, *)
     @objc public enum UpgradeToHTTPSPolicy: Int, Sendable { case keepAsRequested = 0, automaticFallbackToHTTP, userMediatedFallbackToHTTP, errorOnFailure }
     @objc open dynamic var allowsContentJavaScript = true
     @objc open dynamic var preferredContentMode: ContentMode = .recommended
     var _lockdown = false
     @objc open dynamic var isLockdownModeEnabled: Bool { @objc(isLockdownModeEnabled) get { _lockdown } @objc(setLockdownModeEnabled:) set { _lockdown = newValue } }
-    @objc open dynamic var preferredHTTPSNavigationPolicy: UpgradeToHTTPSPolicy = .keepAsRequested
+    var _httpsPolicy = 0
+    @available(iOS 18.2, *)
+    @objc open dynamic var preferredHTTPSNavigationPolicy: UpgradeToHTTPSPolicy {
+        get { UpgradeToHTTPSPolicy(rawValue: _httpsPolicy) ?? .keepAsRequested }
+        set { _httpsPolicy = newValue.rawValue }
+    }
     public override init() { super.init() }
 }
 

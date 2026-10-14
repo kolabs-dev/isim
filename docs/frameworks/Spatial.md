@@ -14,6 +14,9 @@
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `AffineTransform3D`, `Point3D`, `Pose3D`, `Primitive3D`, `ProjectiveTransform3D`, `Ray3D`, `Rect3D`, `Rotatable3D`, `Rotation3D`, `RotationAxis3D`, `Scalable3D`, `ScaledPose3D`, `ScaledPose3DFloat`, `Shearable3D`, `Size3D`, `Translatable3D`, `Vector3D`, `Volumetric` (18 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `SphericalCoordinates3D` (1 type; with its members under "Not yet in isim") |
+| Types not yet in isim (iOS 26) | ❌ | 26.0 | not implemented, found by the 2026-10 sweep: `AffineTransform3DFloat`, `Angle2DFloat`, `AxisWithFactorsFloat`, `ClampableWithinRectProtocol`, `CoordinateSpace3D`, `CoordinateSpace3DFloat`, `CoordinateSpaceValue3D`, `EulerAnglesFloat`, `Point3DFloat`, `Pose3DFloat`, `Primitive3DProtocol`, `ProjectiveTransform3DFloat`, `ProjectiveTransformable3D`, `ProjectiveTransformable3DFloat`, `Ray3DFloat`, `Rect3DFloat`, `Rotatable3DProtocol`, `Rotation3DFloat`, `RotationAxis3DFloat`, `Scalable3DProtocol`, `Shearable3DProtocol`, `Size3DFloat`, `SpatialTypeProtocol`, `SphericalCoordinates3DFloat`, `Transform3DProtocol`, `Translatable3DProtocol`, `Vector3DFloat`, `VolumetricProtocol`, `WorldReferenceCoordinateSpace` (29 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

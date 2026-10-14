@@ -137,6 +137,9 @@ The first sweep ran two rounds of eight and seven parallel reviews, one per area
 - **Corrections:**
   - about 70 rows downgraded or corrected (statuses, notes, iOS columns);
   - the big per-area `coverage` issues were replaced by small batch issues, each a checklist.
+  - each framework page got ❌ rows ("Types not yet in isim", one per iOS version) for the missing types that no row
+    mentioned, 2,593 types in all, so a page's row coverage counts them (issue #207);
+    types isim declares in another module than Apple's are 🟡 rows instead.
 
 ## External references (iPhone Duo, iOS 27.1)
 

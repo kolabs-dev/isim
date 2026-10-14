@@ -17,6 +17,9 @@
 |---|---|---|---|
 | `ImageResource`, `ColorResource` (`init(name:bundle:)`) | ✅ | ≤17 | an asset's name and bundle; `UIImage(resource:)` / `UIColor(resource:)` and SwiftUI's `Image(_:)` / `Color(_:)` load them (iOS 17 in Apple's documentation; usable with older deployment targets, as Xcode 15+ generates them). Tested (HelloAssetSymbols: test_asset_symbols) |
 | Generated asset symbols (`GeneratedAssetSymbols.swift` / `.h`) | ✅ | ≤17 | `isim build` writes them for the target's asset catalogs like Xcode: `ColorResource` / `ImageResource` members (`ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS`, default YES; names in lower camel case without a trailing "Color" / "Image": "AccentColor" is `.accent`, "hero-image" is `.hero`), with `ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS` (YES in new projects) `UIColor` / `UIImage` / `Color` / `ShapeStyle` members for `ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOL_FRAMEWORKS` (default SwiftUI and UIKit), and `ACColorName…` / `ACImageName…` constants for Objective-C; Swift packages get them over `Bundle.module` (unverified). Namespaced folders (`provides-namespace`) are not supported, as in isim's asset catalogs. Tested (HelloAssetSymbols: test_generated_asset_symbols_source, test_asset_symbols, test_asset_symbols_dark) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `LibraryContentProvider`, `LibraryItem`, `PreviewMacroBodyBuilder` (3 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `PreviewBodyBuilder` (1 type; with its members under "Not yet in isim") |
+| Types not yet in isim (iOS 26) | ❌ | 26.0 | not implemented, found by the 2026-10 sweep: `PreviewArguments` (1 type; with its members under "Not yet in isim") |
 
 ## Not yet in isim
 

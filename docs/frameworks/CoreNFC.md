@@ -15,6 +15,8 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | Core NFC | 🟡 | ≤17 | like the Simulator: `readingAvailable` false; sessions are invalidated with `readerErrorUnsupportedFeature`; `NFCWindowSceneEvent` and the scene's `nfcEvent` (from the launch marker `isim-nfc:…`, see UIKit scene members). Missing: the `NFCTag` family, `didDetect tags:`, `NFCVASReaderSession`, `CardSession` |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `NFCFeliCaEncryptionId`, `NFCFeliCaPollingRequestCode`, `NFCFeliCaPollingResponse`, `NFCFeliCaPollingTimeSlot`, `NFCFeliCaRequestSpecificationVersionResponse`, `NFCFeliCaRequsetServiceV2Response`, `NFCFeliCaStatusFlag`, `NFCFeliCaTag`, `NFCISO15693CustomCommandConfiguration`, `NFCISO15693MultipleBlockSecurityStatus`, `NFCISO15693ReadMultipleBlocksConfiguration`, `NFCISO15693RequestFlag`, `NFCISO15693ResponseFlag`, `NFCISO15693SystemInfo`, `NFCISO15693Tag`, `NFCISO7816Tag`, `NFCMiFareTag`, `NFCNDEFTag`, `NFCPresentmentIntentAssertion`, `NFCReaderSessionProtocol`, `NFCTagCommandConfiguration`, `NFCVASCommandConfiguration.Mode`, `NFCVASResponse.ErrorCode`, `NFCWindowSceneDelegate` (24 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 26) | ❌ | 26.0 | not implemented, found by the 2026-10 sweep: `NFCPaymentTagReaderSession` (1 type; with its members under "Not yet in isim") |
 
 ## Not yet in isim
 

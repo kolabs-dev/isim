@@ -15,6 +15,8 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | LocalAuthentication (Face ID / Touch ID, `LAContext`) | ✅ | ≤17 | `canEvaluatePolicy`/`evaluatePolicy` (+ async), `LAError`, `biometryType` from the device (Face ID; Touch ID on iPhone SE and non-Pro iPads). Face ID permission alert (`NSFaceIDUsageDescription`, remembered), simulated scan alert (Matching / Non-matching / Cancel), passcode fallback; `ISIM_BIOMETRY=match\|nomatch\|cancel`, `ISIM_BIOMETRY_ENROLLED=0`. Reply on a background queue like iOS |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `LAAuthenticationRequirement`, `LABiometryFallbackRequirement`, `LAPersistedRight`, `LAPrivateKey`, `LAPublicKey`, `LARight`, `LARight.State`, `LARightStore`, `LASecret` (9 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `LACompanionType`, `LADomainState`, `LADomainStateBiometry`, `LADomainStateCompanion`, `LAEnvironment` (5 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

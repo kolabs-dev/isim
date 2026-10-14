@@ -14,6 +14,7 @@
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
+| Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `ContactAccessButton` (1 type; with its members under "Not yet in isim") |
 
 ## Not yet in isim
 
