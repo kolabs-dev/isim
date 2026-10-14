@@ -438,6 +438,20 @@ def _(a):
     a.xcode_project("-project", "HelloAssetSymbols.xcodeproj", targets=["HelloAssetSymbols"])
 
 
+@app("samples/HelloCoreMLModels", extra_inputs=["samples/HelloCoreMLModels/gen_models.py"])
+def _(a):
+    # the models are written into a copy of the project (generated files stay out of the source tree), then built
+    src = os.path.join(OUT, "obj", "HelloCoreMLModels-src")
+    shutil.rmtree(src, ignore_errors=True)
+    shutil.copytree(a.d, src)
+    a.run("python3", "gen_models.py", os.path.join(src, "HelloCoreMLModels"))
+    work = os.path.join(OUT, "projects", a.name)
+    a.run(ISIM, "build", "-project", os.path.join(src, "HelloCoreMLModels.xcodeproj"), "-o", work)
+    dst = os.path.join(a.out, "HelloCoreMLModels.app")
+    shutil.rmtree(dst, ignore_errors=True)
+    shutil.copytree(os.path.join(work, "HelloCoreMLModels.app"), dst, symlinks=True)
+
+
 @app("samples/HelloCoreData")
 def _(a):
     a.xcode_project("-project", "HelloCoreData.xcodeproj", targets=["HelloCoreData"])
