@@ -140,6 +140,8 @@ def main():
         if not testables:
             ib.fail('no test targets found; pass -scheme or -target')
 
+    for t, *_ in (testables if runs is None else runs[0][1] if runs else []):
+        b.mark_test_host(t)
     results = os.path.abspath(opts['result']) if opts['result'] else None
     if results:
         os.makedirs(results, exist_ok=True)
