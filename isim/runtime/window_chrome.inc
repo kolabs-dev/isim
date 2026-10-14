@@ -219,7 +219,7 @@ static double ch_text_at(cairo_t *c, const char *s, double x, double cy, double 
     PangoRectangle log; pango_layout_get_extents(l, NULL, &log);
     double tw = log.width / (double)PANGO_SCALE, th = log.height / (double)PANGO_SCALE;
     double tx = align == 1 ? x + (w - tw) / 2 : align == 2 ? x + w - tw : x;
-    ch_rgba(c, col, alpha); cairo_move_to(c, tx, cy - th / 2); pango_cairo_show_layout(c, l);
+    ch_rgba(c, col, alpha); cairo_move_to(c, tx, cy - th / 2); pango_cairo_show_layout(c, l); cairo_new_path(c);
     g_object_unref(l);
     return tw;
 }
@@ -230,7 +230,7 @@ static double ch_para(cairo_t *c, const char *s, double x, double y, double w, d
     pango_layout_set_spacing(l, (int)(size * 0.28 * PANGO_SCALE));
     int pw, ph; pango_layout_get_pixel_size(l, &pw, &ph);
     PangoRectangle log; pango_layout_get_extents(l, NULL, &log);
-    ch_rgb(c, col); cairo_move_to(c, x, y); pango_cairo_show_layout(c, l);
+    ch_rgb(c, col); cairo_move_to(c, x, y); pango_cairo_show_layout(c, l); cairo_new_path(c);
     double h = log.height / (double)PANGO_SCALE;
     g_object_unref(l);
     return h;
@@ -334,7 +334,8 @@ static int ch_dark(void) {
     const char *k = memmem(buf, n, "AppleInterfaceStyle", 19);
     if (!k) return 0;
     if (!memcmp(buf, "bplist", 6)) return memmem(buf, n, "Dark", 4) != NULL;
-    const char *v = k + 19 + strspn(k + 19, "</key> \t\r\n");
+    const char *v = k + 19; if (!strncmp(v, "</key>", 6)) v += 6;
+    v += strspn(v, " \t\r\n");
     return !strncmp(v, "<string>Dark</string>", 21);
 }
 /* Features > Location: "LAT LON", or none */
@@ -397,7 +398,7 @@ static void ch_header(cairo_t *c, const char *s, double x, double y) {     /* "D
     PangoLayout *l = ch_layout_text(c, s, 11, 700, 0, 0);
     PangoAttrList *al = pango_attr_list_new(); pango_attr_list_insert(al, pango_attr_letter_spacing_new((int)(0.9 * PANGO_SCALE)));
     pango_layout_set_attributes(l, al); pango_attr_list_unref(al);
-    ch_rgb(c, C_TEXT2); cairo_move_to(c, x, y); pango_cairo_show_layout(c, l); g_object_unref(l);
+    ch_rgb(c, C_TEXT2); cairo_move_to(c, x, y); pango_cairo_show_layout(c, l); cairo_new_path(c); g_object_unref(l);
 }
 static void ch_divider(cairo_t *c, double x, double y, double w) {
     cairo_rectangle(c, x, y, w, 1); ch_rgb(c, C_PANEL_LINE); cairo_fill(c);
@@ -434,7 +435,7 @@ static void ch_field_draw(cairo_t *c, const char *id, double x, double y, double
     if (focus && ch.select_all && f->buf[0]) {
         cairo_rectangle(c, x + pad - ox, y + oy, log.width / (double)PANGO_SCALE, th); ch_rgba(c, C_ACCENT, 0.35); cairo_fill(c);
     }
-    ch_rgb(c, C_TEXT); cairo_move_to(c, x + pad - ox, y + oy); pango_cairo_show_layout(c, l);
+    ch_rgb(c, C_TEXT); cairo_move_to(c, x + pad - ox, y + oy); pango_cairo_show_layout(c, l); cairo_new_path(c);
     if (focus) { cairo_rectangle(c, x + pad - ox + cx - 0.75, y + oy + cy + 1, 1.5, lh - 2); ch_rgb(c, C_ACCENT); cairo_fill(c); }
     cairo_restore(c);
     g_object_unref(l);
@@ -897,7 +898,7 @@ static double ch_pop_openurl(cairo_t *c, double x, double y, double w) {
     PangoLayout *l = ch_layout_text(c, "", 12.5, 400, 0, 0);
     pango_layout_set_markup(l, m, -1); pango_layout_set_width(l, (int)((w - 24 - (t >= 0 ? 52 : 20)) * PANGO_SCALE)); pango_layout_set_ellipsize(l, PANGO_ELLIPSIZE_END);
     PangoRectangle lg; pango_layout_get_extents(l, NULL, &lg);
-    ch_rgb(c, C_TEXT2); cairo_move_to(c, x + (t >= 0 ? 52 : 22), y + 19 - lg.height / 2.0 / PANGO_SCALE); pango_cairo_show_layout(c, l);
+    ch_rgb(c, C_TEXT2); cairo_move_to(c, x + (t >= 0 ? 52 : 22), y + 19 - lg.height / 2.0 / PANGO_SCALE); pango_cairo_show_layout(c, l); cairo_new_path(c);
     g_object_unref(l); g_free(m);
     y += 38 + 10;
     y += ch_para(c, "Custom schemes and universal links go to the app that claims them; other web links open in Safari.",
@@ -1005,7 +1006,7 @@ static double ch_pop_pushhelp(cairo_t *c, double x, double y, double w) {
     double ch_h = lg.height / (double)PANGO_SCALE + 24;
     ch_fill_round(c, x + 12, y, w - 24, ch_h, 8, C_INSET); ch_stroke_round(c, x + 12, y, w - 24, ch_h, 8, C_PANEL_LINE, 1);
     cairo_save(c); cairo_rectangle(c, x + 13, y + 1, w - 26, ch_h - 2); cairo_clip(c);
-    ch_rgb(c, C_TEXT); cairo_move_to(c, x + 24, y + 12); pango_cairo_show_layout(c, l); cairo_restore(c);
+    ch_rgb(c, C_TEXT); cairo_move_to(c, x + 24, y + 12); pango_cairo_show_layout(c, l); cairo_new_path(c); cairo_restore(c);
     g_object_unref(l);
     y += ch_h + 10;
     char t[512], *bm = g_markup_escape_text(bundle, -1);
@@ -1060,7 +1061,7 @@ static void ch_paint_dialog(cairo_t *c, struct ch_geo *g) {
         ch_text_at(c, labs[i], 32, ry, CH_FONT, 400, 0, C_TEXT2, 1, 0, 0);
         PangoLayout *l = ch_layout_text(c, "", CH_FONT, 400, 0, 0); pango_layout_set_markup(l, vals[i], -1);
         PangoRectangle lg; pango_layout_get_extents(l, NULL, &lg);
-        ch_rgb(c, C_TEXT); cairo_move_to(c, vx, ry - lg.height / 2.0 / PANGO_SCALE); pango_cairo_show_layout(c, l); g_object_unref(l);
+        ch_rgb(c, C_TEXT); cairo_move_to(c, vx, ry - lg.height / 2.0 / PANGO_SCALE); pango_cairo_show_layout(c, l); cairo_new_path(c); g_object_unref(l);
         if (notes[i][0]) ch_text_at(c, notes[i], nx, ry, CH_FONT, 400, 0, C_TEXT2, 1, 3, w - 20 - 12 - nx);
     }
     y += rows_h + 14;
@@ -1171,10 +1172,12 @@ static void ch_refresh_els(void) {
 static void chrome_run(const char *cmd) {
     fprintf(stderr, "isim window: %s\n", cmd);
     control_poll();                                           /* (sets up the script buffer's length the first time) */
+    /* next: before the rest of a running script (a `window tap` in a script runs its command right after it) */
     size_t n = strlen(cmd), off = script_pos ? (size_t)(script_pos - script) : script_len;
     script = realloc(script, script_len + n + 3);
-    script[script_len++] = ';'; memcpy(script + script_len, cmd, n); script_len += n;
-    script[script_len++] = ';'; script[script_len] = 0;
+    memmove(script + off + n + 2, script + off, script_len - off + 1);
+    script[off] = ';'; memcpy(script + off + 1, cmd, n); script[off + n + 1] = ';';
+    script_len += n + 2;
     script_pos = script + off;
 }
 static void ch_open_path(const char *what) {                 /* the desktop opens a folder or a link (xdg-open) */

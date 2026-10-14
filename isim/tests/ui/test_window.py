@@ -128,12 +128,12 @@ def test_controls_run_commands(tmp_path):
 
         dev.send("window menu openurl; window type hellosystem://window-test; window key return")
         dev.wait_log(r"^isim window: openurl hellosystem://window-test$")
-        dev.wait_log(r"openURLContexts hellosystem://window-test")
+        dev.wait_log(r"HelloSystem: scene connected .*hellosystem://window-test")
         conf = (data / "Library/isim/Window.conf").read_text()
         assert "url=hellosystem://window-test" in conf, conf             # a recent URL, remembered
 
         dev.send("window menu push; window tap push.send")
-        m = dev.wait_log(r"^isim window: push dev\.isim\.samples\.hellosystem (\S+)$")
+        m = dev.wait_log(r"^isim window: push dev\.isim\.samples\.HelloSystem (\S+)$")
         payload = json.loads(open(m.group(1)).read())
         assert payload["aps"]["alert"]["title"] == "Hello from isim" and payload["aps"]["badge"] == 1, payload
         assert payload["aps"]["sound"] == "default" and "mutable-content" not in payload["aps"], payload
@@ -161,10 +161,11 @@ def test_restart_dialog(tmp_path):
         assert (data / "Library/isim/os-version").read_text().strip() == "26.0"
         assert "ask-restart=0" in (data / "Library/isim/Window.conf").read_text()
 
+        dialogs = dev.count(r"isim window: restart dialog")
         dev.send("window menu device; window tap dev.iphonese; window tap apply")   # no dialog now
         dev.wait_log(r"isim window: restart: device iphonese, iOS 26\.0, zoom 1")
         wait_state(dev, r"device=iphonese ios=26")
-        assert dev.count(r"isim window: restart dialog") == 1
+        assert dev.count(r"isim window: restart dialog") == dialogs
 
         dev.send("restart zoom=0.75")
         dev.wait_log(r"isim window: restart: device iphonese, iOS 26\.0, zoom 0\.75")
@@ -189,6 +190,7 @@ def test_device_menu_validates_ios(tmp_path):
 def bezel_checks(img: Image.Image, family: str):
     w, h = img.size
     cx = w // 2
+    left = next(x for x in range(w) if near(img.getpixel((x, h // 2)), C_RIM, 30))   # the bezel's left rim
     top = 44 + 7                                            # the toolbar, the margin: the bezel's top edge
     assert near(img.getpixel((cx, top + 6)), C_BEZEL, 12), f"{family}: black bezel below the rim"
     assert near(img.getpixel((cx, top)), C_RIM, 30) or near(img.getpixel((cx, top + 1)), C_RIM, 30), f"{family}: metal rim"
@@ -200,7 +202,7 @@ def bezel_checks(img: Image.Image, family: str):
     if family == "pad":                                     # the top button sits on the top edge
         assert any(near(img.getpixel((x, top - 2)), C_RIM, 30) for x in range(cx, w - 20)), "iPad: the top button"
     else:                                                   # volume buttons on the left side
-        assert any(near(img.getpixel((7 - 2, y)), C_RIM, 30) for y in range(top, h - 10)), f"{family}: side buttons"
+        assert any(near(img.getpixel((left - 2, y)), C_RIM, 30) for y in range(top, h - 10)), f"{family}: side buttons"
 
 
 def test_bezel_families(tmp_path):
