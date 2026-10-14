@@ -27,38 +27,21 @@ public struct SKError: Error, CustomNSError, Sendable {
     public static let unknown = Code.unknown
 }
 
-/// Stand-in for Foundation's NSDecimalNumber (not in isim's Foundation yet): SKProduct.price.
-open class NSDecimalNumber: NSObject, @unchecked Sendable {
-    public let decimalValue: Decimal
-    public init(decimal: Decimal) { decimalValue = decimal }
-    public convenience init(string: String?) { self.init(decimal: Decimal(string: string ?? "") ?? .zero) }
-    public var doubleValue: Double { NSDecimalNumberHelper.double(decimalValue) }
-    public var floatValue: Float { Float(doubleValue) }
-    public var intValue: Int { Int(doubleValue) }
-    public var stringValue: String { "\(decimalValue)" }
-    open override var description: String { stringValue }
-    public static var zero: NSDecimalNumber { NSDecimalNumber(decimal: .zero) }
-    open override func isEqual(_ object: Any?) -> Bool { (object as? NSDecimalNumber)?.decimalValue == decimalValue }
-    open override var hash: Int { stringValue.hashValue }
-}
 enum NSDecimalNumberHelper {
     static func double(_ d: Decimal) -> Double { Double("\(d)") ?? 0 }
     /// milliunits, as App Store JWS prices
     static func milli(_ d: Decimal) -> Int { Int((double(d) * 1000).rounded()) }
 }
-extension NumberFormatter {
-    public func string(from number: NSDecimalNumber) -> String? { string(from: NSNumber(value: number.doubleValue)) }
-}
 
 // MARK: - Products
 
-open class SKProductSubscriptionPeriod: NSObject, @unchecked Sendable {
+@objc(SKProductSubscriptionPeriod) open class SKProductSubscriptionPeriod: NSObject, @unchecked Sendable {
     public let numberOfUnits: Int
     public let unit: SKProduct.PeriodUnit
     init(_ p: Product.SubscriptionPeriod) { numberOfUnits = p.value; unit = SKProduct.PeriodUnit(rawValue: UInt(p.unit.rawValue)) ?? .month }
 }
 
-open class SKProductDiscount: NSObject, @unchecked Sendable {
+@objc(SKProductDiscount) open class SKProductDiscount: NSObject, @unchecked Sendable {
     public enum PaymentMode: UInt, Sendable { case payAsYouGo = 0, payUpFront = 1, freeTrial = 2 }
     public enum `Type`: UInt, Sendable { case introductory = 0, subscription = 1 }
     public let price: NSDecimalNumber
@@ -76,7 +59,7 @@ open class SKProductDiscount: NSObject, @unchecked Sendable {
     }
 }
 
-open class SKProduct: NSObject, @unchecked Sendable {
+@objc(SKProduct) open class SKProduct: NSObject, @unchecked Sendable {
     public enum PeriodUnit: UInt, Sendable { case day = 0, week = 1, month = 2, year = 3 }
     public let productIdentifier: String
     public let localizedTitle: String
@@ -102,7 +85,7 @@ open class SKProduct: NSObject, @unchecked Sendable {
     }
 }
 
-open class SKProductsResponse: NSObject, @unchecked Sendable {
+@objc(SKProductsResponse) open class SKProductsResponse: NSObject, @unchecked Sendable {
     public let products: [SKProduct]
     public let invalidProductIdentifiers: [String]
     init(products: [SKProduct], invalid: [String]) { self.products = products; invalidProductIdentifiers = invalid }
@@ -120,14 +103,14 @@ public protocol SKProductsRequestDelegate: SKRequestDelegate {
     func productsRequest(_ request: SKProductsRequest, didReceive response: SKProductsResponse)
 }
 
-open class SKRequest: NSObject {
+@objc(SKRequest) open class SKRequest: NSObject {
     weak open var delegate: SKRequestDelegate?
     var cancelled = false
     open func start() {}
     open func cancel() { cancelled = true }
 }
 
-open class SKProductsRequest: SKRequest {
+@objc(SKProductsRequest) open class SKProductsRequest: SKRequest {
     let ids: Set<String>
     public init(productIdentifiers: Set<String>) { ids = productIdentifiers; super.init() }
     open override func start() {
@@ -149,9 +132,11 @@ public let SKReceiptPropertyIsVolumePurchase = "vpp"
 
 /// Signs the app receipt again from the device's account (there is no App Store to fetch one from). Receipt properties
 /// (SKReceiptPropertyIsExpired / IsVolumePurchase), as in the sandbox, give the receipt an expiration date.
-open class SKReceiptRefreshRequest: SKRequest {
+@objc(SKReceiptRefreshRequest) open class SKReceiptRefreshRequest: SKRequest {
     public let receiptProperties: [String: Any]?
     public init(receiptProperties: [String: Any]? = nil) { self.receiptProperties = receiptProperties; super.init() }
+    /// [[SKReceiptRefreshRequest alloc] init]
+    @objc public override convenience init() { self.init(receiptProperties: nil) }
     open override func start() {
         let p = receiptProperties ?? [:]
         func flag(_ k: String) -> Bool { (p[k] as? Bool) ?? ((p[k] as? NSNumber)?.boolValue ?? false) }
@@ -229,7 +214,7 @@ public struct SKPaymentDiscount: Sendable {
     }
 }
 
-open class SKPayment: NSObject, @unchecked Sendable {
+@objc(SKPayment) open class SKPayment: NSObject, @unchecked Sendable {
     var _productIdentifier: String, _quantity = 1, _applicationUsername: String?, _requestData: Data?, _askToBuy = false, _discount: SKPaymentDiscount?
     public init(product: SKProduct) { _productIdentifier = product.productIdentifier; super.init() }
     init(id: String) { _productIdentifier = id; super.init() }
@@ -241,10 +226,10 @@ open class SKPayment: NSObject, @unchecked Sendable {
     open var paymentDiscount: SKPaymentDiscount? { _discount }
 }
 
-open class SKMutablePayment: SKPayment, @unchecked Sendable {
+@objc(SKMutablePayment) open class SKMutablePayment: SKPayment, @unchecked Sendable {
     public override init(product: SKProduct) { super.init(product: product) }
     override init(id: String) { super.init(id: id) }
-    public convenience init() { self.init(id: "") }
+    @objc public convenience init() { self.init(id: "") }   // [[SKMutablePayment alloc] init]
     open override var productIdentifier: String { get { _productIdentifier } set { _productIdentifier = newValue } }
     open override var quantity: Int { get { _quantity } set { _quantity = newValue } }
     open override var applicationUsername: String? { get { _applicationUsername } set { _applicationUsername = newValue } }
@@ -255,7 +240,7 @@ open class SKMutablePayment: SKPayment, @unchecked Sendable {
 
 public enum SKPaymentTransactionState: Int, Sendable { case purchasing = 0, purchased = 1, failed = 2, restored = 3, deferred = 4 }
 
-open class SKPaymentTransaction: NSObject, @unchecked Sendable {
+@objc(SKPaymentTransaction) open class SKPaymentTransaction: NSObject, @unchecked Sendable {
     public let payment: SKPayment
     open internal(set) var transactionState: SKPaymentTransactionState
     open internal(set) var transactionIdentifier: String?
