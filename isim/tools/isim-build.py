@@ -60,6 +60,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from xcodeproj import Project, Workspace, Scheme, scheme_files, cross_dependencies, expand, PHASE_NAMES  # noqa: E402
@@ -137,10 +138,93 @@ MISSING_MODULE = re.compile(r"no such module '([A-Za-z_][A-Za-z0-9_]*)'|module '
                             r"|fatal error: '([A-Za-z_][A-Za-z0-9_]*)/[^']*' file not found")
 
 
+def _compile_outputs(cmd):
+    """the files a compile command writes: the object (-o), and the Swift module and ObjC header it emits"""
+    outs = []
+    for flag in ('-o', '-emit-module-path', '-emit-objc-header-path'):
+        for i, a in enumerate(cmd[:-1]):
+            if a == flag:
+                outs.append(os.path.abspath(cmd[i + 1]))
+    return outs
+
+
+def _depfile_inputs(path, cwd):
+    """the inputs a Makefile-style dependency file lists (clang -MD, swiftc -emit-dependencies), as absolute paths"""
+    try:
+        with open(path) as f:
+            text = f.read().replace('\\\n', ' ')
+    except OSError:
+        return None
+    deps = set()
+    for line in text.splitlines():
+        _, sep, rest = line.partition(': ')
+        if not sep:
+            _, sep, rest = line.partition(':')
+        for tok in re.split(r'(?<!\\) ', rest):
+            tok = tok.replace('\\ ', ' ').strip()
+            if tok:
+                deps.add(os.path.normpath(os.path.join(cwd, tok)))
+    return sorted(deps)
+
+
+def _compile_up_to_date(stamp, cmd, outs):
+    """whether the compile that wrote `stamp` ran this same command in this directory and nothing it read has changed
+    since: every output exists and no input (sources, headers, imported Swift modules and the SDK's) is newer than the
+    compile. Inputs that only exist inside the Swift toolchain's container (its compiler plugins) are not checked."""
+    try:
+        with open(stamp) as f:
+            st = json.load(f)
+    except (OSError, ValueError):
+        return False
+    if st.get('cmd') != cmd or st.get('cwd') != os.getcwd() or st.get('env') != _compile_env():
+        return False
+    if not all(os.path.exists(o) for o in outs):
+        return False
+    t = st.get('t', 0)
+    for d in st.get('deps', []):
+        try:
+            if os.path.getmtime(d) > t:
+                return False
+        except OSError:
+            if not d.startswith('/usr/lib/swift/'):
+                return False                                   # an input is gone
+    return True
+
+
+def _compile_env():
+    return {k: os.environ.get(k) for k in ('ISIM_MIN_IOS', 'ISIM_SDK') if os.environ.get(k)}
+
+
 def run_compiler(cmd):
     """run a compiler like run(), echoing its output on stderr (where compilers write diagnostics); when it fails because
-    an iOS framework is missing from isim, say which and where its coverage is tracked, not only 'no such module'"""
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors='replace')
+    an iOS framework is missing from isim, say which and where its coverage is tracked, not only 'no such module'.
+    Incremental: a compile (`isim swiftc` / `isim cc` with -c -o) is skipped when the same command already ran and
+    none of its inputs changed since (the compiler's own dependency list, like Xcode's and make's), so a build with
+    nothing changed recompiles nothing. ISIM_BUILD_INCREMENTAL=0 always compiles."""
+    tool = cmd[1] if len(cmd) > 1 else ''
+    obj = cmd[cmd.index('-o') + 1] if '-o' in cmd[:-1] else None
+    cache = tool in ('swiftc', 'cc') and '-c' in cmd and obj and os.environ.get('ISIM_BUILD_INCREMENTAL', '1') != '0'
+    if cache:
+        obj = os.path.abspath(obj)
+        stamp = obj + '.isimdeps'
+        outs = _compile_outputs(cmd)
+        if _compile_up_to_date(stamp, cmd, outs):
+            return
+        if os.path.exists(stamp):
+            os.remove(stamp)
+        if tool == 'swiftc':
+            module = cmd[cmd.index('-module-name') + 1] if '-module-name' in cmd[:-1] else os.path.splitext(os.path.basename(obj))[0]
+            depfile = os.path.join(os.path.dirname(obj), module + '.d')
+            run_cmd = cmd + ['-emit-dependencies']
+        else:
+            depfile = obj + '.d'
+            run_cmd = cmd + ['-MD', '-MF', depfile]
+        if os.path.exists(depfile):
+            os.remove(depfile)
+        started = time.time() - 1                              # (file systems with coarse timestamps)
+    else:
+        run_cmd = cmd
+    p = subprocess.Popen(run_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors='replace')
     missing = []
     for line in p.stdout:
         sys.stderr.write(line)
@@ -156,6 +240,11 @@ def run_compiler(cmd):
                 print(f'isim build: error: {msg}', file=sys.stderr, flush=True)
         shown = cmd if os.environ.get('ISIM_BUILD_VERBOSE') else cmd[:6] + ['...']
         sys.exit(f'isim build: command failed ({p.returncode}): {shlex.join(shown)}')
+    if cache:
+        deps = _depfile_inputs(depfile, os.getcwd())
+        if deps is not None:                                   # no dependency list: compile again next time
+            with open(stamp, 'w') as f:
+                json.dump({'cmd': cmd, 'cwd': os.getcwd(), 'env': _compile_env(), 't': started, 'deps': deps}, f)
 
 
 def split_setting(v):
@@ -1985,6 +2074,15 @@ class Builder:
         fail(f'{path}: unsupported binary dependency')
 
     # -- building --
+    def mark_test_host(self, test_target):
+        """build test_target's host app (TEST_HOST) with testability from the start, as Xcode's test action does,
+        instead of building it plain first (a dependency of the test target) and again for testing"""
+        s = self.settings(test_target)
+        if s.get('TEST_HOST'):
+            host = self.find_product_target(os.path.basename(os.path.dirname(s['TEST_HOST'])))
+            if host:
+                self.testing.add(host.name)
+
     def build(self, target, for_testing=False):
         key = (target.p.xcodeproj, target.name)
         if key in self.built:
@@ -2014,8 +2112,9 @@ class Builder:
         if kind == 'xctest' and s.get('TEST_HOST'):
             host_target = self.find_product_target(os.path.basename(os.path.dirname(s['TEST_HOST'])))
             if host_target:
-                self.testing.add(host_target.name)
-                self.built.pop((host_target.p.xcodeproj, host_target.name), None)
+                if host_target.name not in self.testing:       # built before without testability: again with it
+                    self.testing.add(host_target.name)
+                    self.built.pop((host_target.p.xcodeproj, host_target.name), None)
                 test_host = self.build(host_target, for_testing=True)
         if kind == 'uitest' and s.get('TEST_TARGET_NAME'):
             self.build(self.find_target(s['TEST_TARGET_NAME'], target.p))
