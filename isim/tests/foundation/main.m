@@ -1,5 +1,6 @@
 // Foundation self-test for the isim runtime. Prints PASS/FAIL per check; exit code = failures.
 #import <Foundation/Foundation.h>
+#include <CoreFoundation/CoreFoundation.h>
 #include <errno.h>
 #include <string.h>
 #include <math.h>
@@ -727,8 +728,73 @@ static void objc_networking_checks(void) {
            back.storagePolicy == NSURLCacheStorageAllowed && cache.currentMemoryUsage > 0));
 }
 
+/* CoreFoundation over the toll-free bridged Foundation classes (issue #216) */
+static void test_corefoundation(void) {
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    CHECK(fabs(now + kCFAbsoluteTimeIntervalSince1970 - [[NSDate date] timeIntervalSince1970]) < 5);
+    CFDateRef d = CFDateCreate(NULL, 1000.0);
+    CHECK(CFDateGetAbsoluteTime(d) == 1000.0 && [(__bridge NSDate *)d timeIntervalSinceReferenceDate] == 1000.0 && CFGetTypeID(d) == CFDateGetTypeID());
+    CFRelease(d);
+
+    int32_t i32 = 70000; double dbl = 2.5; int8_t i8 = 0;
+    CFNumberRef n = CFNumberCreate(NULL, kCFNumberSInt32Type, &i32), f = CFNumberCreate(NULL, kCFNumberDoubleType, &dbl);
+    int64_t out64 = 0; int32_t out32 = 0;
+    CHECK(CFNumberGetValue(n, kCFNumberSInt64Type, &out64) && out64 == 70000 && CFNumberGetType(n) == kCFNumberSInt64Type && !CFNumberIsFloatType(n));   /* isim keeps every integer NSNumber as 64-bit */
+    CHECK(!CFNumberGetValue(n, kCFNumberSInt8Type, &i8) && !CFNumberGetValue(f, kCFNumberSInt32Type, &out32) && out32 == 2);   /* lossy: false */
+    CHECK(CFNumberIsFloatType(f) && CFNumberCompare(n, f, NULL) == kCFCompareGreaterThan && [(__bridge NSNumber *)f isEqual:@2.5]);
+    CHECK(CFGetTypeID(n) == CFNumberGetTypeID() && isinf([(__bridge NSNumber *)kCFNumberPositiveInfinity doubleValue]));
+    CFRelease(n); CFRelease(f);
+
+    CFMutableArrayRef a = CFArrayCreateMutable(NULL, 0, &kCFTypeArrayCallBacks);
+    CFArrayAppendValue(a, CFSTR("b")); CFArrayInsertValueAtIndex(a, 0, CFSTR("a")); CFArrayAppendValue(a, CFSTR("c"));
+    CFArraySetValueAtIndex(a, 2, CFSTR("z")); CFArrayExchangeValuesAtIndices(a, 0, 1);
+    CHECK([(__bridge NSArray *)a isEqual:(@[@"b", @"a", @"z"])] && CFArrayGetFirstIndexOfValue(a, CFRangeMake(0, 3), CFSTR("z")) == 2 &&
+          CFArrayContainsValue(a, CFRangeMake(0, 3), CFSTR("a")) && CFArrayGetCountOfValue(a, CFRangeMake(0, 3), CFSTR("q")) == 0);
+    CFArrayRemoveValueAtIndex(a, 0);
+    CFArrayRef ac = CFArrayCreateCopy(NULL, a);
+    CFArrayRemoveAllValues(a);
+    CHECK(CFArrayGetCount(a) == 0 && CFArrayGetCount(ac) == 2 && CFGetTypeID(ac) == CFArrayGetTypeID());
+    CFRelease(a); CFRelease(ac);
+
+    CFMutableDictionaryRef dict = CFDictionaryCreateMutable(NULL, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    CFDictionarySetValue(dict, CFSTR("k"), CFSTR("v")); CFDictionaryAddValue(dict, CFSTR("k"), CFSTR("ignored")); CFDictionaryAddValue(dict, CFSTR("j"), CFSTR("w"));
+    const void *val = NULL;
+    CHECK(CFDictionaryGetValueIfPresent(dict, CFSTR("k"), &val) && [(__bridge NSString *)val isEqualToString:@"v"] && CFDictionaryGetCount(dict) == 2 &&
+          CFDictionaryContainsKey(dict, CFSTR("j")) && CFDictionaryContainsValue(dict, CFSTR("w")) && !CFDictionaryContainsKey(dict, CFSTR("x")));
+    CFDictionaryRemoveValue(dict, CFSTR("j"));
+    CHECK([(__bridge NSDictionary *)dict isEqual:@{ @"k": @"v" }] && CFGetTypeID(dict) == CFDictionaryGetTypeID());
+    CFRelease(dict);
+
+    CFMutableSetRef set = CFSetCreateMutable(NULL, 0, &kCFTypeSetCallBacks);
+    CFSetAddValue(set, CFSTR("x")); CFSetAddValue(set, CFSTR("x")); CFSetAddValue(set, CFSTR("y"));
+    CHECK(CFSetGetCount(set) == 2 && CFSetContainsValue(set, CFSTR("y")) && CFGetTypeID(set) == CFSetGetTypeID());
+    CFSetRemoveValue(set, CFSTR("x"));
+    CHECK([(__bridge NSSet *)set isEqual:[NSSet setWithObject:@"y"]]);
+    CFRelease(set);
+
+    CFErrorRef e = CFErrorCreate(NULL, kCFErrorDomainPOSIX, ENOENT, (__bridge CFDictionaryRef)@{ (__bridge NSString *)kCFErrorLocalizedDescriptionKey: @"No such file" });
+    CHECK([(__bridge NSString *)CFErrorGetDomain(e) isEqualToString:NSPOSIXErrorDomain] && CFErrorGetCode(e) == ENOENT &&
+          [(__bridge_transfer NSString *)CFErrorCopyDescription(e) isEqualToString:@"No such file"] && [(__bridge NSError *)e isKindOfClass:[NSError class]]);
+    CFRelease(e);
+
+    CFUUIDRef u = CFUUIDCreateFromString(NULL, CFSTR("68753A44-4D6F-1226-9C60-0050E4C00067"));
+    CFUUIDBytes b = CFUUIDGetUUIDBytes(u);
+    NSString *us = (__bridge_transfer NSString *)CFUUIDCreateString(NULL, u);
+    CHECK([us isEqualToString:@"68753A44-4D6F-1226-9C60-0050E4C00067"] && b.byte0 == 0x68 && b.byte15 == 0x67 && CFGetTypeID(u) == CFUUIDGetTypeID());
+    CFUUIDRef r1 = CFUUIDCreate(NULL), r2 = CFUUIDCreate(NULL), same = CFUUIDCreateFromUUIDBytes(NULL, b);
+    CHECK(!CFEqual(r1, r2) && CFEqual(u, same));
+    NSString *desc = (__bridge_transfer NSString *)CFCopyDescription(u);
+    CHECK([desc containsString:@"68753A44"]);
+    CFRelease(u); CFRelease(r1); CFRelease(r2); CFRelease(same);
+
+    printf("cf versions %.0f %.0f\n", kCFCoreFoundationVersionNumber, NSFoundationVersionNumber);
+    CHECK(kCFCoreFoundationVersionNumber > kCFCoreFoundationVersionNumber_iOS_12_0 && NSFoundationVersionNumber > NSFoundationVersionNumber_iOS_10_0);
+    CHECK([(__bridge_transfer NSString *)CFCopyTypeIDDescription(CFUUIDGetTypeID()) isEqualToString:@"CFUUID"]);
+}
+
 int main(int argc, char *argv[]) {
     @autoreleasepool {
+        test_corefoundation();
         // strings & formatting
         NSString *s = [NSString stringWithFormat:@"%@ %d %.2f %s %ld %05x %@", @"hi", 42, 3.14159, "c", (long)-7, 255, @[@1, @2]];
         CHECK([s hasPrefix:@"hi 42 3.14 c -7 000ff ("]);

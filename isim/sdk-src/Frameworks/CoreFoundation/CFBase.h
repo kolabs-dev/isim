@@ -59,6 +59,15 @@ CF_EXPORT CFTypeRef CFAutorelease(CFTypeRef cf);
 CF_EXPORT CFIndex CFGetRetainCount(CFTypeRef cf);
 CF_EXPORT Boolean CFEqual(CFTypeRef a, CFTypeRef b);
 CF_EXPORT CFHashCode CFHash(CFTypeRef cf);
+CF_EXPORT CFStringRef CFCopyDescription(CFTypeRef cf) CF_RETURNS_RETAINED;
+CF_EXPORT CFStringRef CFCopyTypeIDDescription(CFTypeID type_id) CF_RETURNS_RETAINED;
+/* the CoreFoundation version: isim's value for the iOS version it emulates (adapted: increases with the iOS version,
+   above every kCFCoreFoundationVersionNumber_iOS_* constant; not Apple's exact build number) */
+CF_EXPORT double kCFCoreFoundationVersionNumber;
+#define kCFCoreFoundationVersionNumber_iOS_9_0 1240.1
+#define kCFCoreFoundationVersionNumber_iOS_10_0 1348.0
+#define kCFCoreFoundationVersionNumber_iOS_11_0 1443.0
+#define kCFCoreFoundationVersionNumber_iOS_12_0 1556.0
 CF_EXPORT CFTypeID CFStringGetTypeID(void);
 CF_EXPORT CFIndex CFStringGetLength(CFStringRef s);
 CF_EXPORT CFHashCode CFStringHashNSString(CFStringRef s);

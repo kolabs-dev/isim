@@ -15,6 +15,10 @@ CFTypeID CFGetTypeID(CFTypeRef cf) {
     if ([o isKindOfClass:[NSDictionary class]]) return ISIM_CF_DICTIONARY;
     if ([o isKindOfClass:[NSNumber class]]) return ISIM_CF_NUMBER;
     if ([o isKindOfClass:[NSData class]]) return ISIM_CF_DATA;
+    if ([o isKindOfClass:[NSSet class]]) return 17;                     /* CFCore.mrc.m: CFSetGetTypeID ... */
+    if ([o isKindOfClass:[NSDate class]]) return 42;
+    if ([o isKindOfClass:[NSError class]]) return 43;
+    if ([NSStringFromClass([o class]) isEqualToString:@"__NSCFUUID"]) return 44;
     return ISIM_CF_OTHER;
 }
 CFHashCode CFStringHashNSString(CFStringRef s) { return [(__bridge NSString *)s hash]; }

@@ -20,3 +20,6 @@
 #include <CoreFoundation/CFString.h>
 #include <CoreFoundation/CFTimeZone.h>
 #include <CoreFoundation/CFBundle.h>
+#include <CoreFoundation/CFDate.h>
+#include <CoreFoundation/CFError.h>
+#include <CoreFoundation/CFUUID.h>

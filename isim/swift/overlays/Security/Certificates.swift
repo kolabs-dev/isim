@@ -186,10 +186,12 @@ public func SecTrustSetAnchorCertificatesOnly(_ trust: SecTrust, _ anchorCertifi
 public func SecTrustCopyCustomAnchorCertificates(_ trust: SecTrust, _ anchors: UnsafeMutablePointer<CFArray?>) -> OSStatus {
     anchors.pointee = trust.state.anchors.isEmpty ? nil : _cfArray(trust.state.anchors); return errSecSuccess
 }
-/// CFDate is toll-free bridged to NSDate (isim's CoreFoundation subset has no CFDate type of its own)
-public typealias CFDate = NSDate
-public typealias CFAbsoluteTime = Double
 public func SecTrustSetVerifyDate(_ trust: SecTrust, _ verifyDate: CFDate) -> OSStatus {
+    trust.state.verifyDate = verifyDate as Date; trust.state.result = .invalid; return errSecSuccess
+}
+// before CoreFoundation had CFDate (0.22), isim's CFDate was NSDate; kept for apps built then
+@_disfavoredOverload
+public func SecTrustSetVerifyDate(_ trust: SecTrust, _ verifyDate: NSDate) -> OSStatus {
     trust.state.verifyDate = verifyDate as Date; trust.state.result = .invalid; return errSecSuccess
 }
 public func SecTrustGetVerifyTime(_ trust: SecTrust) -> CFAbsoluteTime { (trust.state.verifyDate ?? Date()).timeIntervalSinceReferenceDate }

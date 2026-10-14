@@ -132,3 +132,7 @@ FOUNDATION_EXPORT NSString *NSStringFromCGRect(CGRect r);
 __END_DECLS
 NS_ASSUME_NONNULL_END
 #endif
+/* the Foundation version: isim's value for the iOS version it emulates (adapted, like kCFCoreFoundationVersionNumber) */
+FOUNDATION_EXPORT double NSFoundationVersionNumber;
+#define NSFoundationVersionNumber_iOS_9_0 1240.1
+#define NSFoundationVersionNumber_iOS_10_0 1348.0
