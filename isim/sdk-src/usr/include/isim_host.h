@@ -409,6 +409,9 @@ int isim_icu_cal_add(const char *_Nullable calLocale, const char *_Nullable tz, 
 int isim_icu_cal_limit(const char *_Nullable calLocale, const char *_Nullable tz, int firstWeekday, int minDays, double ms, int field, int which, int *value);
 int isim_icu_week_data(const char *_Nullable locale, int *firstWeekday, int *minDays);
 int isim_icu_tz_name(const char *tz, const char *_Nullable locale, int type, char *out, int cap);
+int isim_icu_weekend(const char *_Nullable locale, int *types);   /* types[7], Sunday first: 0 weekday, 1 weekend, 2 onset, 3 cease */
+/* one code per line: kind 0 available locales, 1 ISO regions, 2 ISO currencies in use, 3 all ISO currencies, 4 collations */
+int isim_icu_codes(int kind, const char *_Nullable locale, char *out, int cap);
 int isim_icu_number_skeleton(const char *_Nullable locale, const char *skeleton, double v, char *out, int cap);
 int isim_icu_number_format(const char *_Nullable locale, int style, const char *_Nullable currency, double v, char *out, int cap);
 int isim_icu_number_parse(const char *_Nullable locale, int style, const char *_Nullable currency, const char *text, double *v);

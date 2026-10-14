@@ -1,5 +1,6 @@
 #pragma once
 #import <Foundation/NSObject.h>
+#import <Foundation/NSDate.h>
 NS_ASSUME_NONNULL_BEGIN
 @class NSString, NSDate, NSArray<ObjectType>;
 FOUNDATION_EXPORT NSNotificationName const NSSystemTimeZoneDidChangeNotification;
@@ -19,5 +20,10 @@ FOUNDATION_EXPORT NSNotificationName const NSSystemTimeZoneDidChangeNotification
 - (NSInteger)secondsFromGMTForDate:(NSDate *)aDate;
 - (nullable NSString *)abbreviationForDate:(NSDate *)aDate;
 - (BOOL)isDaylightSavingTimeForDate:(NSDate *)aDate;
+- (NSTimeInterval)daylightSavingTimeOffsetForDate:(NSDate *)aDate;
+- (nullable NSDate *)nextDaylightSavingTimeTransitionAfterDate:(NSDate *)aDate;
+@property (readonly, getter=isDaylightSavingTime) BOOL daylightSavingTime;
+@property (readonly) NSTimeInterval daylightSavingTimeOffset;
+@property (nullable, readonly, copy) NSDate *nextDaylightSavingTimeTransition;
 @end
 NS_ASSUME_NONNULL_END

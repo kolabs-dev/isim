@@ -1885,6 +1885,8 @@ int isim_icu_cal_add(const char *, const char *, int, int, double, int, int, int
 int isim_icu_cal_limit(const char *, const char *, int, int, double, int, int, int *);
 int isim_icu_week_data(const char *, int *, int *);
 int isim_icu_tz_name(const char *, const char *, int, char *, int);
+int isim_icu_weekend(const char *, int *);
+int isim_icu_codes(int, const char *, char *, int);
 int isim_icu_number_skeleton(const char *, const char *, double, char *, int);
 int isim_icu_number_format(const char *, int, const char *, double, char *, int);
 int isim_icu_number_parse(const char *, int, const char *, const char *, double *);
@@ -2090,6 +2092,6 @@ static const struct shim isim_table[] = {
     H(isim_icu_date_symbols), H(isim_icu_cal_fields), H(isim_icu_cal_date), H(isim_icu_cal_add), H(isim_icu_cal_limit),
     H(isim_icu_week_data), H(isim_icu_tz_name), H(isim_icu_number_skeleton), H(isim_icu_number_format), H(isim_icu_number_parse),
     H(isim_icu_number_pattern), H(isim_icu_number_symbol), H(isim_icu_currency), H(isim_icu_relative), H(isim_icu_interval),
-    H(isim_icu_list), H(isim_icu_plural), H(isim_icu_display_name), H(isim_icu_case),
+    H(isim_icu_list), H(isim_icu_plural), H(isim_icu_display_name), H(isim_icu_case), H(isim_icu_weekend), H(isim_icu_codes),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table, NULL };

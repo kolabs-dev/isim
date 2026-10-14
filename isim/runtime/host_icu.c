@@ -15,7 +15,7 @@
 
 typedef uint16_t UChar;
 typedef int UErr;
-typedef void UCollator, UDateFormat, UDTPG, UCal, UNumFmt, UNumFormatter, UNumResult, URelFmt, UItvFmt, UListFmt, UPlural;
+typedef void UEnum, UCollator, UDateFormat, UDTPG, UCal, UNumFmt, UNumFormatter, UNumResult, URelFmt, UItvFmt, UListFmt, UPlural;
 #define FAIL(e) ((e) > 0)
 
 static struct {
@@ -35,6 +35,12 @@ static struct {
     int32_t (*toUpper)(UChar *, int32_t, const UChar *, int32_t, const char *, UErr *);
     int32_t (*toLower)(UChar *, int32_t, const UChar *, int32_t, const char *, UErr *);
     int32_t (*toTitle)(UChar *, int32_t, const UChar *, int32_t, void *, const char *, UErr *);
+    int32_t (*locCountAvailable)(void);
+    const char *(*locGetAvailable)(int32_t);
+    const char *const *(*locISOCountries)(void);
+    UEnum *(*currISOCurrencies)(uint32_t, UErr *);
+    const char *(*enumNext)(UEnum *, int32_t *, UErr *);
+    void (*enumClose)(UEnum *);
     /* i18n */
     UCollator *(*colOpen)(const char *, UErr *);
     void (*colClose)(UCollator *);
@@ -64,6 +70,8 @@ static struct {
     void (*calSetAttr)(UCal *, int, int32_t);
     int32_t (*calGetAttr)(const UCal *, int);
     int32_t (*calTZName)(const UCal *, int, const char *, UChar *, int32_t, UErr *);
+    int (*calDayOfWeekType)(const UCal *, int, UErr *);
+    UEnum *(*colKeywordValues)(const char *, const char *, int8_t, UErr *);
     UNumFormatter *(*numfOpen)(const UChar *, int32_t, const char *, UErr *);
     void (*numfClose)(UNumFormatter *);
     UNumResult *(*numfOpenResult)(UErr *);
@@ -125,6 +133,8 @@ static void load(void) {
     C(currName, "ucurr_getName"); C(currPluralName, "ucurr_getPluralName"); C(currForLocale, "ucurr_forLocale");
     C(currFractionDigits, "ucurr_getDefaultFractionDigits");
     C(toUpper, "u_strToUpper"); C(toLower, "u_strToLower"); C(toTitle, "u_strToTitle");
+    C(locCountAvailable, "uloc_countAvailable"); C(locGetAvailable, "uloc_getAvailable"); C(locISOCountries, "uloc_getISOCountries");
+    C(currISOCurrencies, "ucurr_openISOCurrencies"); C(enumNext, "uenum_next"); C(enumClose, "uenum_close");
     I(colOpen, "ucol_open"); I(colClose, "ucol_close"); I(colSetAttr, "ucol_setAttribute"); I(colStrcoll, "ucol_strcoll");
     I(datOpen, "udat_open"); I(datClose, "udat_close"); I(datFormat, "udat_format"); I(datParse, "udat_parse");
     I(datSetLenient, "udat_setLenient"); I(datToPattern, "udat_toPattern"); I(datGetSymbols, "udat_getSymbols");
@@ -133,7 +143,8 @@ static void load(void) {
     I(calOpen, "ucal_open"); I(calClose, "ucal_close"); I(calSetMillis, "ucal_setMillis"); I(calGetMillis, "ucal_getMillis");
     I(calGet, "ucal_get"); I(calSet, "ucal_set"); I(calClear, "ucal_clear"); I(calAdd, "ucal_add"); I(calRoll, "ucal_roll");
     I(calGetLimit, "ucal_getLimit"); I(calSetAttr, "ucal_setAttribute"); I(calGetAttr, "ucal_getAttribute");
-    I(calTZName, "ucal_getTimeZoneDisplayName");
+    I(calTZName, "ucal_getTimeZoneDisplayName"); I(calDayOfWeekType, "ucal_getDayOfWeekType");
+    I(colKeywordValues, "ucol_getKeywordValuesForLocale");
     I(numfOpen, "unumf_openForSkeletonAndLocale"); I(numfClose, "unumf_close"); I(numfOpenResult, "unumf_openResult");
     I(numfCloseResult, "unumf_closeResult"); I(numfFormatDouble, "unumf_formatDouble"); I(numfResultToString, "unumf_resultToString");
     I(numOpen, "unum_open"); I(numClose, "unum_close"); I(numFormatDouble, "unum_formatDouble"); I(numParseDouble, "unum_parseDouble");
@@ -438,6 +449,57 @@ int isim_icu_week_data(const char *locale, int *firstWeekday, int *minDays) {
     if (c) { *firstWeekday = U.calGetAttr(c, 1); *minDays = U.calGetAttr(c, 2); }
     pthread_mutex_unlock(&lock);
     return c ? 0 : -1;
+}
+
+/* the locale's weekend (CLDR weekData): types[0..6] for Sunday..Saturday, 0 weekday, 1 weekend, 2 the weekend starts
+ * that day, 3 it ends that day (ICU's UCalendarWeekdayType) */
+int isim_icu_weekend(const char *locale, int *types) {
+    if (!ready() || !U.calDayOfWeekType) return -1;
+    pthread_mutex_lock(&lock);
+    UCal *c = calendar(locale, "UTC", 0, 0);
+    UErr e = 0;
+    for (int d = 0; c && d < 7 && !FAIL(e); d++) types[d] = U.calDayOfWeekType(c, d + 1, &e);
+    pthread_mutex_unlock(&lock);
+    return c && !FAIL(e) ? 0 : -1;
+}
+
+/* a list of codes, one per line: kind 0 the available locales, 1 ISO 3166 regions, 2 ISO 4217 currencies in use,
+ * 3 every ISO 4217 currency, 4 the collations of `locale` (commonly used first) */
+int isim_icu_codes(int kind, const char *locale, char *out, int cap) {
+    if (!ready() || cap <= 0) return -1;
+    int n = 0;
+    out[0] = 0;
+#define ADD(s) do { int l = (int)strlen(s); if (n + l + 2 > cap) return -2 - n - l; if (n) out[n++] = '\n'; memcpy(out + n, s, (size_t)l); n += l; out[n] = 0; } while (0)
+    if (kind == 0) {
+        if (!U.locCountAvailable || !U.locGetAvailable) return -1;
+        for (int32_t i = 0, c = U.locCountAvailable(); i < c; i++) ADD(U.locGetAvailable(i));
+        return n;
+    }
+    if (kind == 1) {
+        if (!U.locISOCountries) return -1;
+        for (const char *const *p = U.locISOCountries(); p && *p; p++) ADD(*p);
+        return n;
+    }
+    UEnum *en = NULL;
+    UErr e = 0;
+    pthread_mutex_lock(&lock);
+    if ((kind == 2 || kind == 3) && U.currISOCurrencies)
+        en = U.currISOCurrencies(kind == 2 ? 1 | 8 /* UCURR_COMMON | UCURR_NON_DEPRECATED */ : 0x7fffffff, &e);
+    else if (kind == 4 && U.colKeywordValues)
+        en = U.colKeywordValues("collation", locale ? locale : "", 1, &e);
+    pthread_mutex_unlock(&lock);
+    if (!en || FAIL(e) || !U.enumNext) { if (en && U.enumClose) U.enumClose(en); return -1; }
+    const char *v;
+    int32_t len;
+    while ((v = U.enumNext(en, &len, &e)) && !FAIL(e)) {
+        int l = (int)strlen(v);
+        if (n + l + 2 > cap) break;
+        if (n) out[n++] = '\n';
+        memcpy(out + n, v, (size_t)l); n += l; out[n] = 0;
+    }
+    U.enumClose(en);
+#undef ADD
+    return n;
 }
 
 /* time zone display name: type 0 standard, 1 short standard, 2 daylight, 3 short daylight; generic names are not

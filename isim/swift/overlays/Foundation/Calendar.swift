@@ -333,7 +333,6 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
     public func isDateInToday(_ d: Date) -> Bool { isDate(d, inSameDayAs: Date()) }
     public func isDateInYesterday(_ d: Date) -> Bool { date(byAdding: .day, value: -1, to: Date()).map { isDate(d, inSameDayAs: $0) } ?? false }
     public func isDateInTomorrow(_ d: Date) -> Bool { date(byAdding: .day, value: 1, to: Date()).map { isDate(d, inSameDayAs: $0) } ?? false }
-    public func isDateInWeekend(_ d: Date) -> Bool { let w = component(.weekday, from: d); return w == 1 || w == 7 }
     public func isDate(_ a: Date, equalTo b: Date, toGranularity c: Component) -> Bool { compare(a, to: b, toGranularity: c) == .orderedSame }
     public func compare(_ a: Date, to b: Date, toGranularity c: Component) -> ComparisonResult {
         let order: [Component] = [.era, .year, .month, .day, .hour, .minute, .second, .nanosecond]
@@ -396,22 +395,33 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
             start = dateFromLocal(Double(_days(fromCivil: f.y, f.m, f.d) - back) * 86400); end = self.date(byAdding: .day, value: 7, to: start)!
         case .hour:
             start = dateFromLocal(Double(_days(fromCivil: f.y, f.m, f.d)) * 86400 + Double(f.hh * 3600)); end = start.addingTimeInterval(3600)
+        case .minute:
+            start = dateFromLocal(Double(_days(fromCivil: f.y, f.m, f.d)) * 86400 + Double(f.hh * 3600 + f.mm * 60)); end = start.addingTimeInterval(60)
         default: return nil
         }
         return DateInterval(start: start, end: end)
     }
     public func nextDate(after date: Date, matching comps: DateComponents, matchingPolicy: MatchingPolicy,
                          repeatedTimePolicy: RepeatedTimePolicy = .first, direction: SearchDirection = .forward) -> Date? {
-        // walk day by day (bounded) and pick the first matching wall-clock time
+        // walk day by day (or hour by hour when only minutes / seconds are given, minute by minute for seconds alone;
+        // bounded) and pick the first matching wall-clock time; unspecified smaller components are their lowest value
         let sign = direction == .forward ? 1 : -1
-        for n in 0..<(366 * 8) {
-            guard let day = self.date(byAdding: .day, value: n * sign, to: startOfDay(for: date)) else { return nil }
-            let f = dateComponents([.year, .month, .day, .weekday], from: day)
+        let step: Component = comps.hour != nil || (comps.minute == nil && comps.second == nil) ? .day : comps.minute != nil ? .hour : .minute
+        let limit = step == .day ? 366 * 8 : step == .hour ? 24 * 366 * 2 : 60 * 24 * 2
+        let first: Date
+        if step == .day { first = startOfDay(for: date) }
+        else if let unit = dateInterval(of: step, for: date) { first = unit.start }
+        else { first = Date(timeIntervalSinceReferenceDate: (date.timeIntervalSinceReferenceDate / 60).rounded(.down) * 60) }
+        for n in 0..<limit {
+            guard let base = self.date(byAdding: step, value: n * sign, to: first) else { return nil }
+            let f = dateComponents([.year, .month, .day, .weekday, .hour, .minute], from: base)
             if let m = comps.month, m != f.month { continue }
             if let d = comps.day, d != f.day { continue }
             if let w = comps.weekday, w != f.weekday { continue }
             if let y = comps.year, y != f.year { continue }
-            guard let t = self.date(bySettingHour: comps.hour ?? 0, minute: comps.minute ?? 0, second: comps.second ?? 0, of: day) else { continue }
+            let hour = step == .day ? comps.hour ?? 0 : f.hour ?? 0
+            let minute = step == .minute ? f.minute ?? 0 : comps.minute ?? 0
+            guard let t = self.date(bySettingHour: hour, minute: minute, second: comps.second ?? 0, of: base) else { continue }
             if direction == .forward ? t > date : t < date { return t }
         }
         return nil

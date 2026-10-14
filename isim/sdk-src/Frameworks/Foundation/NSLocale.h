@@ -18,6 +18,9 @@ typedef NS_ENUM(NSUInteger, NSLocaleLanguageDirection) {
 @property (class, readonly, copy) NSLocale *systemLocale;
 @property (class, readonly, copy) NSArray<NSString *> *preferredLanguages;
 @property (class, readonly, copy) NSArray<NSString *> *availableLocaleIdentifiers;
+@property (class, readonly, copy) NSArray<NSString *> *ISOCountryCodes;
+@property (class, readonly, copy) NSArray<NSString *> *ISOCurrencyCodes;
+@property (class, readonly, copy) NSArray<NSString *> *commonISOCurrencyCodes;
 + (instancetype)localeWithLocaleIdentifier:(NSString *)ident;
 - (instancetype)initWithLocaleIdentifier:(NSString *)string NS_DESIGNATED_INITIALIZER;
 - (nullable id)objectForKey:(NSLocaleKey)key;
