@@ -66,3 +66,11 @@ const CFStringRef kSecUseAuthenticationUIFail = CFSTR("u_AuthUIF");
 const CFStringRef kSecUseAuthenticationUISkip = CFSTR("u_AuthUIS");
 const CFStringRef kSecUseAuthenticationContext = CFSTR("u_AuthCtx");
 const CFStringRef kSecUseOperationPrompt = CFSTR("u_OpPrompt");
+
+/* SecPKCS12Import's options and results */
+const CFStringRef kSecImportExportPassphrase = CFSTR("passphrase");
+const CFStringRef kSecImportItemLabel = CFSTR("label");
+const CFStringRef kSecImportItemKeyID = CFSTR("keyid");
+const CFStringRef kSecImportItemTrust = CFSTR("trust");
+const CFStringRef kSecImportItemCertChain = CFSTR("chain");
+const CFStringRef kSecImportItemIdentity = CFSTR("identity");

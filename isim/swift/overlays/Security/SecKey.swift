@@ -161,6 +161,7 @@ public enum SecKeyOperationType: Int, Sendable {
 
 // MARK: - SecKey
 
+public func SecKeyGetTypeID() -> CFTypeID { 0x5ec4 }
 public final class SecKey: CustomStringConvertible, Hashable {
     /// 0 RSA, 1 EC
     let type: Int32
