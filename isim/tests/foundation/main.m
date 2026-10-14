@@ -10,6 +10,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <stdatomic.h>
+#include <stdlib.h>
 
 static int failures, checks;
 #define CHECK(cond) do { checks++; if (cond) printf("PASS  %s\n", #cond); else { failures++; printf("FAIL  %s  (%s:%d)\n", #cond, __FILE__, __LINE__); } } while (0)
@@ -792,6 +794,38 @@ static void test_corefoundation(void) {
     CHECK([(__bridge_transfer NSString *)CFCopyTypeIDDescription(CFUUIDGetTypeID()) isEqualToString:@"CFUUID"]);
 }
 
+/* NSTimeZone switches TZ to evaluate other zones; that must never reallocate environ, which other threads walk without
+   a lock (SDL's audio init copies it from a background thread: HelloAudioEngine crashed at launch, issue #437) */
+extern char **environ;
+static atomic_int env_walking;
+static void *walk_environ(void *arg) {
+    long copies = 0;
+    while (atomic_load(&env_walking))
+        for (char **e = environ; *e; e++) { free(strdup(*e)); copies++; }
+    *(long *)arg = copies;
+    return NULL;
+}
+static void testEnvironmentStable(void) {
+    CHECK(getenv("TZ") != NULL);                                        /* isim-runtime sets it before any thread */
+    NSString *sys = [NSTimeZone systemTimeZone].name;
+    CHECK(sys.length && ![sys hasPrefix:@"/"]);                         /* ":/etc/localtime" is the host zone's name */
+    char **before = environ;
+    NSArray *zones = @[@"Asia/Tokyo", @"America/New_York", @"Europe/Paris", @"UTC"];
+    NSDate *now = [NSDate date];
+    long walked = 0;
+    pthread_t t;
+    atomic_store(&env_walking, 1);
+    pthread_create(&t, NULL, walk_environ, &walked);
+    NSInteger sum = 0;
+    for (int i = 0; i < 2000; i++) sum += [[NSTimeZone timeZoneWithName:zones[i % zones.count]] secondsFromGMTForDate:now];
+    atomic_store(&env_walking, 0);
+    pthread_join(t, NULL);
+    CHECK(environ == before);                                           /* replaced in place, never reallocated */
+    CHECK(walked > 0 && sum != 0);
+    CHECK([[NSTimeZone timeZoneWithName:@"Asia/Tokyo"] secondsFromGMTForDate:now] == 9 * 3600);
+    CHECK([[NSTimeZone systemTimeZone].name isEqualToString:sys]);      /* restored after each switch */
+}
+
 int main(int argc, char *argv[]) {
     @autoreleasepool {
         test_corefoundation();
@@ -1359,6 +1393,7 @@ int main(int argc, char *argv[]) {
 
         collection_checks();
 
+        testEnvironmentStable();
         NSLog(@"foundation test: %d/%d passed", checks - failures, checks);
     }
     return failures;
