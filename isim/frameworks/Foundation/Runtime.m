@@ -600,6 +600,7 @@ static NSDictionary *argument_domain(void) {
 NSErrorDomain const NSCocoaErrorDomain = @"NSCocoaErrorDomain";
 NSErrorDomain const NSPOSIXErrorDomain = @"NSPOSIXErrorDomain";
 NSErrorDomain const NSOSStatusErrorDomain = @"NSOSStatusErrorDomain";
+NSErrorDomain const NSMachErrorDomain = @"NSMachErrorDomain";
 NSErrorUserInfoKey const NSLocalizedDescriptionKey = @"NSLocalizedDescription";
 NSErrorUserInfoKey const NSUnderlyingErrorKey = @"NSUnderlyingError";
 NSErrorUserInfoKey const NSLocalizedFailureReasonErrorKey = @"NSLocalizedFailureReason";

@@ -1,6 +1,10 @@
 // isim Foundation: FileHandle and Scanner Swift refinements (Apple's Foundation overlay API shape).
-// Apple takes `some DataProtocol` in write(contentsOf:); isim has no DataProtocol, so any UInt8 sequence.
 extension FileHandle {
+  public func write<T: DataProtocol>(contentsOf data: T) throws {
+    try _isimWrite(Data(data))
+  }
+  // isim before DataProtocol took any byte sequence; kept for apps built then
+  @_disfavoredOverload
   public func write<T: Sequence>(contentsOf data: T) throws where T.Element == UInt8 {
     try _isimWrite(Data(data))
   }

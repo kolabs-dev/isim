@@ -14,14 +14,7 @@ import isim_host
 
 // MARK: - errors
 
-/// POSIX error codes (Darwin values) as NWError reports them.
-public enum POSIXErrorCode: Int32, Sendable {
-    case EPERM = 1, ENOENT = 2, EINTR = 4, EIO = 5, EBADF = 9, EAGAIN = 35, ENOMEM = 12, EACCES = 13, EINVAL = 22, EPIPE = 32
-    case EADDRINUSE = 48, EADDRNOTAVAIL = 49, ENETDOWN = 50, ENETUNREACH = 51, ECONNABORTED = 53, ECONNRESET = 54, ENOBUFS = 55
-    case EISCONN = 56, ENOTCONN = 57, ETIMEDOUT = 60, ECONNREFUSED = 61, EHOSTUNREACH = 65, ECANCELED = 89, EMSGSIZE = 40, ENOTSUP = 45
-    case EPROTO = 100
-}
-
+// POSIXErrorCode is Darwin's (the Darwin overlay), as on iOS.
 public enum NWError: Error, Equatable, CustomDebugStringConvertible, Sendable {
     case posix(POSIXErrorCode)
     case dns(Int32)
