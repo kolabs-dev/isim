@@ -15,7 +15,7 @@ import isim_host
 
 // MARK: - delegates
 
-@objc public protocol WKNavigationDelegate: NSObjectProtocol {
+@objc(WKNavigationDelegate) public protocol WKNavigationDelegate: NSObjectProtocol {
     @MainActor @objc(webView:decidePolicyForNavigationAction:decisionHandler:) optional func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                                            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void)
     @MainActor @objc(webView:decidePolicyForNavigationAction:preferences:decisionHandler:) optional func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, preferences: WKWebpagePreferences,
@@ -27,14 +27,14 @@ import isim_host
     @MainActor @objc optional func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!)
     @MainActor @objc optional func webView(_ webView: WKWebView, didReceiveServerRedirectForProvisionalNavigation navigation: WKNavigation!)
     @MainActor @objc optional func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error)
-    @MainActor @objc optional func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!)
-    @MainActor @objc optional func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!)
-    @MainActor @objc optional func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error)
+    @MainActor @objc(webView:didCommitNavigation:) optional func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!)
+    @MainActor @objc(webView:didFinishNavigation:) optional func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!)
+    @MainActor @objc(webView:didFailNavigation:withError:) optional func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error)
     @MainActor @objc optional func webViewWebContentProcessDidTerminate(_ webView: WKWebView)
 }
 
-@objc public protocol WKUIDelegate: NSObjectProtocol {
-    @MainActor @objc optional func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+@objc(WKUIDelegate) public protocol WKUIDelegate: NSObjectProtocol {
+    @MainActor @objc(webView:createWebViewWithConfiguration:forNavigationAction:windowFeatures:) optional func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                                            for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView?
     @MainActor @objc optional func webViewDidClose(_ webView: WKWebView)
     @MainActor @objc optional func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo,
@@ -142,12 +142,12 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
 // MARK: - WKWebView
 
 @MainActor
-open class WKWebView: UIView, UIKeyInput {
-    open private(set) var configuration: WKWebViewConfiguration
-    open weak var navigationDelegate: WKNavigationDelegate?
-    open weak var uiDelegate: WKUIDelegate?
-    open private(set) var backForwardList = WKBackForwardList()
-    public var scrollView: UIScrollView { _scroll }
+@objc(WKWebView) open class WKWebView: UIView, UIKeyInput {
+    @objc open private(set) dynamic var configuration: WKWebViewConfiguration
+    @objc open weak dynamic var navigationDelegate: WKNavigationDelegate?
+    @objc(UIDelegate) open weak dynamic var uiDelegate: WKUIDelegate?
+    @objc open private(set) dynamic var backForwardList = WKBackForwardList()
+    @objc public dynamic var scrollView: UIScrollView { _scroll }
     let _scroll = _WKScrollView(frame: .zero)
 
     // KVO-observable like WebKit's (key paths work without warnings); the class posts the change notifications itself
@@ -159,21 +159,25 @@ open class WKWebView: UIView, UIKeyInput {
     @objc open private(set) dynamic var canGoForward = false
     @objc open private(set) dynamic var hasOnlySecureContent = false
     @objc open private(set) dynamic var themeColor: UIColor?
-    @objc open var underPageBackgroundColor: UIColor! = .systemBackground
-    open var customUserAgent: String? { didSet { _send(["ua", _userAgent]) } }
-    open var allowsBackForwardNavigationGestures = false
-    open var allowsLinkPreview = true
-    open var allowsMagnification = false
-    open var isInspectable = false
-    open var isFindInteractionEnabled = false {
-        didSet {
-            guard isFindInteractionEnabled != oldValue else { return }
-            if isFindInteractionEnabled { let f = UIFindInteraction(sessionDelegate: self); _findInteraction = f; addInteraction(f) }
+    @objc open dynamic var underPageBackgroundColor: UIColor! = .systemBackground
+    @objc open dynamic var customUserAgent: String? { didSet { _send(["ua", _userAgent]) } }
+    @objc open dynamic var allowsBackForwardNavigationGestures = false
+    @objc open dynamic var allowsLinkPreview = true
+    @objc open dynamic var allowsMagnification = false
+    var _inspectable = false
+    @objc open dynamic var isInspectable: Bool { @objc(isInspectable) get { _inspectable } @objc(setInspectable:) set { _inspectable = newValue } }
+    var _findEnabled = false
+    @objc open dynamic var isFindInteractionEnabled: Bool {
+        @objc(isFindInteractionEnabled) get { _findEnabled }
+        @objc(setFindInteractionEnabled:) set {
+            guard newValue != _findEnabled else { return }
+            _findEnabled = newValue
+            if newValue { let f = UIFindInteraction(sessionDelegate: self); _findInteraction = f; addInteraction(f) }
             else if let f = _findInteraction { removeInteraction(f); _findInteraction = nil }
         }
     }
     /// the find navigator (iOS 16), while isFindInteractionEnabled
-    open var findInteraction: UIFindInteraction? { _findInteraction }
+    @objc open dynamic var findInteraction: UIFindInteraction? { _findInteraction }
     var _findInteraction: UIFindInteraction?
     // Interaction.swift: menus, selection, pinch zoom
     var _interactions: _WKContextMenus?
@@ -184,11 +188,11 @@ open class WKWebView: UIView, UIKeyInput {
     var _selectionOverlay: UIView?
     var _pinchZoom: CGFloat = 1
     var _magnificationAllowed = true                 /* SwiftUI webViewMagnificationGestures */
-    open var interactionState: Any?
-    open var mediaType: String?
-    open var pageZoom: CGFloat = 1 { didSet { _send(["zoom", _WKProto.num(Double(pageZoom))]) } }
+    @objc open dynamic var interactionState: Any?
+    @objc open dynamic var mediaType: String?
+    @objc open dynamic var pageZoom: CGFloat = 1 { didSet { _send(["zoom", _WKProto.num(Double(pageZoom))]) } }
     open override class func automaticallyNotifiesObservers(forKey key: String) -> Bool {
-        ["title", "URL", "isLoading", "estimatedProgress", "canGoBack", "canGoForward", "hasOnlySecureContent", "themeColor"].contains(key) ? false : super.automaticallyNotifiesObservers(forKey: key)
+        ["title", "URL", "isLoading", "loading", "estimatedProgress", "canGoBack", "canGoForward", "hasOnlySecureContent", "themeColor"].contains(key) ? false : super.automaticallyNotifiesObservers(forKey: key)
     }
 
     // engine state
@@ -209,7 +213,7 @@ open class WKWebView: UIView, UIKeyInput {
     nonisolated(unsafe) static var _all: [Int: _WKWeakView] = [:]
     static func _live(_ id: Int) -> WKWebView? { _all[id]?.view }
 
-    public init(frame: CGRect, configuration: WKWebViewConfiguration) {
+    @objc(initWithFrame:configuration:) public init(frame: CGRect, configuration: WKWebViewConfiguration) {
         self.configuration = configuration.copy() as! WKWebViewConfiguration
         super.init(frame: frame)
         _setup()
@@ -338,11 +342,14 @@ open class WKWebView: UIView, UIKeyInput {
     // MARK: KVO helpers
     private func _set<T: Equatable>(_ key: String, _ old: T, _ new: T, _ assign: () -> Void) {
         guard old != new else { return }
-        willChangeValue(forKey: key); assign(); didChangeValue(forKey: key)
+        let alias = key == "isLoading" ? "loading" : nil          /* Objective-C observers use Apple's key "loading" */
+        willChangeValue(forKey: key); if let alias { willChangeValue(forKey: alias) }
+        assign()
+        if let alias { didChangeValue(forKey: alias) }; didChangeValue(forKey: key)
     }
 
     // MARK: loading
-    @discardableResult open func load(_ request: URLRequest) -> WKNavigation? {
+    @objc(loadRequest:) @discardableResult dynamic open func load(_ request: URLRequest) -> WKNavigation? {
         guard let u = request.url else { return nil }
         let nav = WKNavigation()
         _requestedNavigation = nav
@@ -351,7 +358,7 @@ open class WKWebView: UIView, UIKeyInput {
         _send(["load", u.absoluteString, headers])
         return nav
     }
-    @discardableResult open func loadHTMLString(_ string: String, baseURL: URL?) -> WKNavigation? {
+    @objc @discardableResult dynamic open func loadHTMLString(_ string: String, baseURL: URL?) -> WKNavigation? {
         let nav = WKNavigation()
         _requestedNavigation = nav
         if _engineID == 0 { _failWithoutEngine(nav, url: baseURL ?? URL(string: "about:blank")!); return nav }
@@ -359,7 +366,8 @@ open class WKWebView: UIView, UIKeyInput {
         _send(["html", baseURL?.absoluteString ?? "about:blank", string])
         return nav
     }
-    @discardableResult open func load(_ data: Data, mimeType MIMEType: String, characterEncodingName: String, baseURL: URL) -> WKNavigation? {
+    @objc(loadData:MIMEType:characterEncodingName:baseURL:) @discardableResult
+    dynamic open func load(_ data: Data, mimeType MIMEType: String, characterEncodingName: String, baseURL: URL) -> WKNavigation? {
         let nav = WKNavigation()
         _requestedNavigation = nav
         if _engineID == 0 { _failWithoutEngine(nav, url: baseURL); return nav }
@@ -367,40 +375,46 @@ open class WKWebView: UIView, UIKeyInput {
         _send(["data", baseURL.absoluteString, MIMEType, characterEncodingName, data.base64EncodedString()])
         return nav
     }
-    @discardableResult open func loadFileURL(_ URL: URL, allowingReadAccessTo readAccessURL: URL) -> WKNavigation? {
+    @objc(loadFileURL:allowingReadAccessToURL:) @discardableResult dynamic open func loadFileURL(_ URL: URL, allowingReadAccessTo readAccessURL: URL) -> WKNavigation? {
         load(URLRequest(url: URL))
     }
-    @discardableResult open func loadSimulatedRequest(_ request: URLRequest, response: URLResponse, responseData data: Data) -> WKNavigation {
+    @objc(loadSimulatedRequest:response:responseData:) @discardableResult
+    dynamic open func loadSimulatedRequest(_ request: URLRequest, response: URLResponse, responseData data: Data) -> WKNavigation {
         load(data, mimeType: response.mimeType ?? "text/html", characterEncodingName: response.textEncodingName ?? "utf-8",
              baseURL: request.url ?? URL(string: "about:blank")!) ?? WKNavigation()
     }
-    @discardableResult open func loadSimulatedRequest(_ request: URLRequest, responseHTML string: String) -> WKNavigation {
+    @objc(loadSimulatedRequest:responseHTMLString:) @discardableResult dynamic open func loadSimulatedRequest(_ request: URLRequest, responseHTML string: String) -> WKNavigation {
         loadHTMLString(string, baseURL: request.url) ?? WKNavigation()
     }
-    @discardableResult open func loadFileRequest(_ request: URLRequest, allowingReadAccessTo readAccessURL: URL) -> WKNavigation { load(request) ?? WKNavigation() }
-    @discardableResult open func goBack() -> WKNavigation? {
+    @objc(loadFileRequest:allowingReadAccessToURL:) @discardableResult
+    dynamic open func loadFileRequest(_ request: URLRequest, allowingReadAccessTo readAccessURL: URL) -> WKNavigation { load(request) ?? WKNavigation() }
+    @objc @discardableResult dynamic open func goBack() -> WKNavigation? {
         guard canGoBack || isLoading else { return nil }   /* the engine checks again (state may lag a navigation) */
         let nav = WKNavigation(); _requestedNavigation = nav; _send(["back"]); return nav
     }
-    @discardableResult open func goForward() -> WKNavigation? {
+    @objc @discardableResult dynamic open func goForward() -> WKNavigation? {
         guard canGoForward || isLoading else { return nil }
         let nav = WKNavigation(); _requestedNavigation = nav; _send(["forward"]); return nav
     }
-    @discardableResult open func go(to item: WKBackForwardListItem) -> WKNavigation? {
+    @objc(goToBackForwardListItem:) @discardableResult dynamic open func go(to item: WKBackForwardListItem) -> WKNavigation? {
         let nav = WKNavigation(); _requestedNavigation = nav; _send(["goto", String(item._offset)]); return nav
     }
-    @discardableResult open func reload() -> WKNavigation? {
+    @objc @discardableResult dynamic open func reload() -> WKNavigation? {
         let nav = WKNavigation(); _requestedNavigation = nav; _send(["reload"]); return nav
     }
-    @discardableResult open func reloadFromOrigin() -> WKNavigation? {
+    @objc @discardableResult dynamic open func reloadFromOrigin() -> WKNavigation? {
         let nav = WKNavigation(); _requestedNavigation = nav; _send(["reloadorigin"]); return nav
     }
-    open func stopLoading() { _send(["stop"]) }
+    @objc dynamic open func stopLoading() { _send(["stop"]) }
+    // media playback control (stubs: the page's media is not controlled); Objective-C's completion handlers may be nil
     open func closeAllMediaPresentations() async {}
     open func pauseAllMediaPlayback() async {}
     open func setAllMediaPlaybackSuspended(_ suspended: Bool) async {}
-    open func setMicrophoneCaptureState(_ state: Int) async {}
-    open func setCameraCaptureState(_ state: Int) async {}
+    @objc(closeAllMediaPresentationsWithCompletionHandler:) dynamic open func closeAllMediaPresentations(completionHandler: (() -> Void)?) { completionHandler?() }
+    @objc(pauseAllMediaPlayback:) dynamic open func pauseAllMediaPlayback(completionHandler: (() -> Void)?) { completionHandler?() }
+    @objc(setAllMediaPlaybackSuspended:completionHandler:) dynamic open func setAllMediaPlaybackSuspended(_ suspended: Bool, completionHandler: (() -> Void)?) { completionHandler?() }
+    @objc dynamic open func setMicrophoneCaptureState(_ state: Int) async {}
+    @objc dynamic open func setCameraCaptureState(_ state: Int) async {}
 
     private func _failWithoutEngine(_ nav: WKNavigation, url: URL) {
         DispatchQueue.main.async { [weak self] in
@@ -412,7 +426,7 @@ open class WKWebView: UIView, UIKeyInput {
     }
 
     // MARK: JavaScript
-    open func evaluateJavaScript(_ javaScriptString: String, completionHandler: (@MainActor (Any?, Error?) -> Void)? = nil) {
+    @objc(evaluateJavaScript:completionHandler:) dynamic open func evaluateJavaScript(_ javaScriptString: String, completionHandler: (@MainActor (Any?, Error?) -> Void)? = nil) {
         _evaluate(javaScriptString, world: .page) { r in
             switch r {
             case .success(let v): completionHandler?(v, nil)
@@ -420,8 +434,8 @@ open class WKWebView: UIView, UIKeyInput {
             }
         }
     }
-    open func evaluateJavaScript(_ javaScriptString: String, in frame: WKFrameInfo? = nil, in contentWorld: WKContentWorld,
-                                 completionHandler: (@MainActor (Result<Any, Error>) -> Void)? = nil) {
+    public final func evaluateJavaScript(_ javaScriptString: String, in frame: WKFrameInfo? = nil, in contentWorld: WKContentWorld,
+                                         completionHandler: (@MainActor (Result<Any, Error>) -> Void)? = nil) {
         _evaluate(javaScriptString, world: contentWorld) { r in
             switch r {
             case .success(let v): completionHandler?(.success(v ?? NSNull()))
@@ -430,7 +444,7 @@ open class WKWebView: UIView, UIKeyInput {
         }
     }
     @discardableResult
-    open func evaluateJavaScript(_ javaScriptString: String) async throws -> Any {
+    public final func evaluateJavaScript(_ javaScriptString: String) async throws -> Any {
         try await withCheckedThrowingContinuation { c in
             _evaluate(javaScriptString, world: .page) { r in
                 switch r {
@@ -443,14 +457,14 @@ open class WKWebView: UIView, UIKeyInput {
         }
     }
     @discardableResult
-    open func evaluateJavaScript(_ javaScriptString: String, in frame: WKFrameInfo? = nil, contentWorld: WKContentWorld) async throws -> Any? {
+    public final func evaluateJavaScript(_ javaScriptString: String, in frame: WKFrameInfo? = nil, contentWorld: WKContentWorld) async throws -> Any? {
         try await withCheckedThrowingContinuation { c in
             _evaluate(javaScriptString, world: contentWorld) { r in c.resume(with: r) }
         }
     }
     /// iOS 14 callAsyncJavaScript: `functionBody` runs as an async function with `arguments` as its parameters; a returned promise is awaited
-    open func callAsyncJavaScript(_ functionBody: String, arguments: [String: Any] = [:], in frame: WKFrameInfo? = nil, in contentWorld: WKContentWorld,
-                                  completionHandler: (@MainActor (Result<Any, Error>) -> Void)? = nil) {
+    public final func callAsyncJavaScript(_ functionBody: String, arguments: [String: Any] = [:], in frame: WKFrameInfo? = nil, in contentWorld: WKContentWorld,
+                                          completionHandler: (@MainActor (Result<Any, Error>) -> Void)? = nil) {
         _callAsync(functionBody, arguments: arguments, world: contentWorld) { r in
             switch r {
             case .success(let v): completionHandler?(.success(v ?? NSNull()))
@@ -459,7 +473,7 @@ open class WKWebView: UIView, UIKeyInput {
         }
     }
     @discardableResult
-    open func callAsyncJavaScript(_ functionBody: String, arguments: [String: Any] = [:], in frame: WKFrameInfo? = nil, contentWorld: WKContentWorld) async throws -> Any? {
+    public final func callAsyncJavaScript(_ functionBody: String, arguments: [String: Any] = [:], in frame: WKFrameInfo? = nil, contentWorld: WKContentWorld) async throws -> Any? {
         try await withCheckedThrowingContinuation { c in _callAsync(functionBody, arguments: arguments, world: contentWorld) { r in c.resume(with: r) } }
     }
     private func _callAsync(_ body: String, arguments: [String: Any], world: WKContentWorld, _ done: @escaping (Result<Any?, Error>) -> Void) {
@@ -486,7 +500,8 @@ open class WKWebView: UIView, UIKeyInput {
     }
 
     // MARK: snapshots, find, PDF
-    open func takeSnapshot(with snapshotConfiguration: WKSnapshotConfiguration?, completionHandler: @escaping (UIImage?, Error?) -> Void) {
+    @objc(takeSnapshotWithConfiguration:completionHandler:)
+    dynamic open func takeSnapshot(with snapshotConfiguration: WKSnapshotConfiguration?, completionHandler: @escaping (UIImage?, Error?) -> Void) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             var w: Int32 = 0, h: Int32 = 0
@@ -510,24 +525,24 @@ open class WKWebView: UIView, UIKeyInput {
             completionHandler(out, nil)
         }
     }
-    open func takeSnapshot(configuration snapshotConfiguration: WKSnapshotConfiguration?) async throws -> UIImage {
+    public final func takeSnapshot(configuration snapshotConfiguration: WKSnapshotConfiguration?) async throws -> UIImage {
         try await withCheckedThrowingContinuation { c in
             takeSnapshot(with: snapshotConfiguration) { img, e in if let img { c.resume(returning: img) } else { c.resume(throwing: e ?? WKError(.unknown)) } }
         }
     }
-    open func find(_ string: String, configuration: WKFindConfiguration = WKFindConfiguration(), completionHandler: @escaping (WKFindResult) -> Void) {
+    public final func find(_ string: String, configuration: WKFindConfiguration = WKFindConfiguration(), completionHandler: @escaping (WKFindResult) -> Void) {
         let js = "window.find(\(_wkJSONText(string)), \(configuration.caseSensitive), \(configuration.backwards), \(configuration.wraps))"
         _evaluate(js, world: .defaultClient) { r in
             let found = (try? r.get()) as? Bool ?? false
             completionHandler(WKFindResult(matchFound: found))
         }
     }
-    open func find(_ string: String, configuration: WKFindConfiguration = WKFindConfiguration()) async throws -> WKFindResult {
+    public final func find(_ string: String, configuration: WKFindConfiguration = WKFindConfiguration()) async throws -> WKFindResult {
         await withCheckedContinuation { c in find(string, configuration: configuration) { c.resume(returning: $0) } }
     }
     /// a PDF of the page: one page as wide as the view and as tall as the page (vector text, printed by WebKit;
     /// adapted: print styles apply), cropped to configuration.rect when it is set (through the host's poppler-glib)
-    open func createPDF(configuration: WKPDFConfiguration = WKPDFConfiguration(), completionHandler: @escaping (Result<Data, Error>) -> Void) {
+    public final func createPDF(configuration: WKPDFConfiguration = WKPDFConfiguration(), completionHandler: @escaping (Result<Data, Error>) -> Void) {
         guard _engineID != 0, _engineReady else {
             DispatchQueue.main.async { completionHandler(.failure(WKError(.unknown, userInfo: [NSLocalizedDescriptionKey: "no page"]))) }
             return
@@ -542,12 +557,12 @@ open class WKWebView: UIView, UIKeyInput {
             completionHandler(.success(pdf))
         }
     }
-    open func createPDF(configuration: WKPDFConfiguration = WKPDFConfiguration()) async throws -> Data {
+    public final func createPDF(configuration: WKPDFConfiguration = WKPDFConfiguration()) async throws -> Data {
         try await withCheckedThrowingContinuation { c in createPDF(configuration: configuration) { c.resume(with: $0) } }
     }
     /// the page and its resources as a .webarchive (a binary property list: WebMainResource, WebSubresources), from
     /// WebKit's MHTML of the page
-    open func createWebArchiveData(completionHandler: @escaping (Result<Data, Error>) -> Void) {
+    public final func createWebArchiveData(completionHandler: @escaping (Result<Data, Error>) -> Void) {
         guard _engineID != 0, _engineReady else {
             DispatchQueue.main.async { completionHandler(.failure(WKError(.unknown, userInfo: [NSLocalizedDescriptionKey: "no page"]))) }
             return
@@ -560,7 +575,7 @@ open class WKWebView: UIView, UIKeyInput {
             completionHandler(.success(archive))
         }
     }
-    open func webArchiveData() async throws -> Data {
+    public final func webArchiveData() async throws -> Data {
         try await withCheckedThrowingContinuation { c in createWebArchiveData { c.resume(with: $0) } }
     }
     /// a command with a request id whose "done" payload is the answer
@@ -569,7 +584,7 @@ open class WKWebView: UIView, UIKeyInput {
         _WKEngine.shared.storeCallbacks[req] = { v in reply(v) }
         _WKEngine.shared.send([cmd[0], String(_engineID), String(req)] + cmd.dropFirst())
     }
-    open class func handlesURLScheme(_ urlScheme: String) -> Bool {
+    @objc dynamic open class func handlesURLScheme(_ urlScheme: String) -> Bool {
         ["http", "https", "file", "data", "about", "blob", "javascript", "ws", "wss"].contains(urlScheme.lowercased())
     }
 
@@ -578,21 +593,22 @@ open class WKWebView: UIView, UIKeyInput {
         _send(["tap", _WKProto.num(Double(p.x)), _WKProto.num(Double(p.y)), phase])
     }
     open override var canBecomeFirstResponder: Bool { _editing }
-    public var hasText: Bool { true }
-    public func insertText(_ text: String) {
+    @objc public dynamic var hasText: Bool { true }
+    @objc public dynamic func insertText(_ text: String) {
         if text == "\n" { _send(["key", "enter"]); return }
         _send(["text", text])
     }
-    public func deleteBackward() { _send(["key", "backspace"]) }
-    public var autocapitalizationType: UITextAutocapitalizationType = .sentences
-    public var autocorrectionType: UITextAutocorrectionType = .default
-    public var spellCheckingType: UITextSpellCheckingType = .default
-    public var keyboardType: UIKeyboardType = .default
-    public var keyboardAppearance: UIKeyboardAppearance = .default
-    public var returnKeyType: UIReturnKeyType = .default
-    public var enablesReturnKeyAutomatically = false
-    public var isSecureTextEntry = false
-    public var textContentType: UITextContentType! = nil
+    @objc public dynamic func deleteBackward() { _send(["key", "backspace"]) }
+    @objc public dynamic var autocapitalizationType: UITextAutocapitalizationType = .sentences
+    @objc public dynamic var autocorrectionType: UITextAutocorrectionType = .default
+    @objc public dynamic var spellCheckingType: UITextSpellCheckingType = .default
+    @objc public dynamic var keyboardType: UIKeyboardType = .default
+    @objc public dynamic var keyboardAppearance: UIKeyboardAppearance = .default
+    @objc public dynamic var returnKeyType: UIReturnKeyType = .default
+    @objc public dynamic var enablesReturnKeyAutomatically = false
+    var _secure = false
+    @objc public dynamic var isSecureTextEntry: Bool { @objc(isSecureTextEntry) get { _secure } @objc(setSecureTextEntry:) set { _secure = newValue } }
+    @objc public dynamic var textContentType: UITextContentType! = nil
 
     // MARK: engine events
     func _engineExited() {

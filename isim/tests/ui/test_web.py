@@ -169,7 +169,7 @@ def test_web_interact(launch, web):
     app.send("pinch 200 500 2.0 0.6")
     app.wait_log(r"^isim: WKWebView zoom 2\.00")
     app.tap_id("paste")
-    app.wait_log(r"^HelloWeb: pasteboard .* zoom=2\.0")
+    app.wait_log(r"^HelloWeb: pasteboard .* zoom=(2\.0|1\.99999)")       # the pinch's scale is a ratio of finger distances
     assert app.quit() == 0
 
 
@@ -185,4 +185,26 @@ def test_web_webpage(launch, web):
     app.wait_view(r"id=page-title\n\s*UILabel .*text=Interact$")
     app.wait_tap_id("page-js")
     app.wait_log(r"^HelloWeb: callJavaScript Interact 5")
+    assert app.quit() == 0
+
+
+def test_web_objc(launch):
+    """WebKit from Objective-C (HelloWebObjC, #200): Apple's class names, a WKUserContentController subclass, a category,
+    delegates under Apple's selectors, script messages, KVO on Apple's key paths, JavaScript calls and a snapshot"""
+    if not (ROOT / "out/bin/isim-webkit").exists():
+        pytest.skip("no web engine helper (needs WebKitGTK 6.0 and gtk4-broadwayd on the host)")
+    app = launch("HelloWebObjC")
+    app.wait_log(r"^HelloWebObjC: classes WKWebView WKWebViewConfiguration WKUserContentController domain=WKErrorDomain")
+    app.wait_log(r"^HelloWebObjC: config media=0 inline=1 persistent=0 scripts=1")
+    app.wait_log(r"^HelloWebObjC: didStartProvisionalNavigation", timeout=30)
+    for line in ( "didCommitNavigation", r"didFinishNavigation https://objc\.example/ loading=0",
+                 "kvo loading=1", "kvo loading=0", r"kvo estimatedProgress=1\.0", "kvo title=ObjC page",
+                 r"message native: kind=script href=https://objc\.example/ controller=SampleContentController",
+                 "evaluateJavaScript: ObjC page / 42 error=none", "exception: domain=WKErrorDomain code=4",
+                 "isolated world: typeof show = undefined", "callAsyncJavaScript: 42", r"snapshot \d+x\d+"):
+        app.wait_log(r"^HelloWebObjC: " + line)
+    shot = app.wait_until(lambda: (lambda s: s if red(rgb(s, 60, 120)) else None)(app.screenshot("objc")), what="the page is drawn")
+    assert red(rgb(shot, 120, 160))
+    app.tap(50, 210)                                                    # the page link "Blocked link"
+    app.wait_log(r"^HelloWebObjC: policy https://blocked\.example/ type=0 main=1 -> cancel")
     assert app.quit() == 0

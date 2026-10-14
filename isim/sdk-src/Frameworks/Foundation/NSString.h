@@ -138,6 +138,18 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 + (instancetype)stringWithCapacity:(NSUInteger)capacity;
 - (instancetype)initWithCapacity:(NSUInteger)capacity;
 @end
+#if !defined(__swift__)   /* Objective-C only: Swift has its own Foundation API for these */
+@class NSCharacterSet, NSURL, NSError;
+@interface NSString (NSURLUtilities)
+- (nullable NSString *)stringByAddingPercentEncodingWithAllowedCharacters:(NSCharacterSet *)allowedCharacters;
+@property (nullable, readonly, copy) NSString *stringByRemovingPercentEncoding;
+- (nullable instancetype)initWithContentsOfURL:(NSURL *)url encoding:(NSStringEncoding)enc error:(NSError **)error;
+- (nullable instancetype)initWithContentsOfFile:(NSString *)path encoding:(NSStringEncoding)enc error:(NSError **)error;
+@end
+@interface NSMutableString (NSMutableStringExtensionMethods)
+- (NSUInteger)replaceOccurrencesOfString:(NSString *)target withString:(NSString *)replacement options:(NSStringCompareOptions)options range:(NSRange)searchRange;
+@end
+#endif
 
 /* isim: expands a .stringsdict plural format (as returned by a localized-string lookup) for the given argument
  * values, one per format position; nil when the string is not a known plural format. Used by Swift's

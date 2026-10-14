@@ -24,4 +24,14 @@ typedef uint32_t UTF32Char;
 - (NSRange)rangeOfCharacterFromSet:(NSCharacterSet *)set;
 - (NSArray<NSString *> *)componentsSeparatedByCharactersInSet:(NSCharacterSet *)set;
 @end
+#if !defined(__swift__)   /* Objective-C only: Swift has its own Foundation API for these */
+@interface NSCharacterSet (NSURLUtilities)
+@property (class, readonly, copy) NSCharacterSet *URLUserAllowedCharacterSet;
+@property (class, readonly, copy) NSCharacterSet *URLPasswordAllowedCharacterSet;
+@property (class, readonly, copy) NSCharacterSet *URLHostAllowedCharacterSet;
+@property (class, readonly, copy) NSCharacterSet *URLPathAllowedCharacterSet;
+@property (class, readonly, copy) NSCharacterSet *URLQueryAllowedCharacterSet;
+@property (class, readonly, copy) NSCharacterSet *URLFragmentAllowedCharacterSet;
+@end
+#endif
 NS_ASSUME_NONNULL_END

@@ -35,6 +35,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable NSString *)pathForResource:(nullable NSString *)name ofType:(nullable NSString *)ext inDirectory:(nullable NSString *)subpath forLocalization:(nullable NSString *)localizationName;
 - (NSString *)localizedStringForKey:(NSString *)key value:(nullable NSString *)value table:(nullable NSString *)tableName;
 @end
+#if !defined(__swift__)   /* Objective-C only: Swift has its own Foundation API for these */
+@interface NSBundle (IsimURLs)
+- (nullable NSURL *)URLForResource:(nullable NSString *)name withExtension:(nullable NSString *)ext;
+- (nullable NSURL *)URLForResource:(nullable NSString *)name withExtension:(nullable NSString *)ext subdirectory:(nullable NSString *)subpath;
+@end
+#endif
 @interface NSString (NSBundleExtensionMethods)
 /* a width variation of a localized string (String Catalog / .stringsdict NSStringVariableWidthRuleType) */
 - (NSString *)variantFittingPresentationWidth:(NSInteger)width;

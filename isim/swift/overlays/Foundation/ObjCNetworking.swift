@@ -154,6 +154,7 @@ extension URLRequest: _ObjectiveCBridgeable {
 // MARK: - responses
 
 extension URLResponse {
+    @objc(copyWithZone:) func _objc_copy(with zone: OpaquePointer?) -> Any { self }   /* NSCopying: immutable, copies to itself */
     @objc(initWithURL:MIMEType:expectedContentLength:textEncodingName:)
     convenience init(_objcURL url: URL, mimeType: String?, expectedContentLength: Int, textEncodingName: String?) {
         self.init(url: url, mimeType: mimeType, expectedContentLength: expectedContentLength, textEncodingName: textEncodingName)
@@ -178,6 +179,7 @@ extension HTTPURLResponse {
 // MARK: - cookies
 
 extension HTTPCookie {
+    @objc(copyWithZone:) func _objc_copy(with zone: OpaquePointer?) -> Any { self }   /* NSCopying: immutable, copies to itself */
     static func _keys(_ d: [String: Any]) -> [HTTPCookiePropertyKey: Any] {
         var out: [HTTPCookiePropertyKey: Any] = [:]
         for (k, v) in d { out[HTTPCookiePropertyKey(k)] = v }
@@ -227,6 +229,7 @@ extension HTTPCookieStorage {
 // MARK: - cache
 
 extension CachedURLResponse {
+    @objc(copyWithZone:) func _objc_copy(with zone: OpaquePointer?) -> Any { self }   /* NSCopying: immutable, copies to itself */
     @objc(initWithResponse:data:) convenience init(_objcResponse r: URLResponse, data: Data) { self.init(response: r, data: data) }
     @objc(initWithResponse:data:userInfo:storagePolicy:)
     convenience init(_objcResponse r: URLResponse, data: Data, userInfo: [AnyHashable: Any]?, storagePolicy: UInt) {
@@ -259,6 +262,7 @@ extension URLCache {
 // MARK: - authentication
 
 extension URLCredential {
+    @objc(copyWithZone:) func _objc_copy(with zone: OpaquePointer?) -> Any { self }   /* NSCopying: immutable, copies to itself */
     @objc(initWithUser:password:persistence:) convenience init(_objcUser u: String, password: String, persistence: UInt) {
         self.init(user: u, password: password, persistence: Persistence(rawValue: persistence) ?? .none)
     }
@@ -271,6 +275,7 @@ extension URLCredential {
     @objc(persistence) var _objc_persistence: UInt { persistence.rawValue }
 }
 extension URLProtectionSpace {
+    @objc(copyWithZone:) func _objc_copy(with zone: OpaquePointer?) -> Any { self }   /* NSCopying: immutable, copies to itself */
     @objc(initWithHost:port:protocol:realm:authenticationMethod:)
     convenience init(_objcHost h: String, port: Int, protocol p: String?, realm: String?, authenticationMethod m: String?) {
         self.init(host: h, port: port, protocol: p, realm: realm, authenticationMethod: m)
@@ -403,6 +408,8 @@ extension URLSession {
 // MARK: - tasks
 
 extension URLSessionTask {
+    /// NSCopying, like Apple's: a task copies to itself (apps key dictionaries by task)
+    @objc(copyWithZone:) func _objc_copy(with zone: OpaquePointer?) -> Any { self }
     @objc(taskIdentifier) var _objc_taskIdentifier: Int { taskIdentifier }
     @objc(originalRequest) var _objc_originalRequest: NSURLRequest? { originalRequest.map(NSURLRequest.init) }
     @objc(currentRequest) var _objc_currentRequest: NSURLRequest? { currentRequest.map(NSURLRequest.init) }

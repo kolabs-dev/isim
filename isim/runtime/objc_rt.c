@@ -65,10 +65,12 @@ struct rt_class {
     struct protocol_list_t **cat_protos; int ncatp;
     void **cat_props; int ncatprops;           /* categories' instance property lists (class_getProperty) */
     IMP cxx_destruct;
+    int swift_inited;                          /* RO_HAS_SWIFT_INITIALIZER: the Swift metadata initializer ran */
 };
 
 #define FAST_DATA_MASK 0x00007ffffffffff8ull
 #define RO_META 0x1
+#define RO_HAS_SWIFT_INITIALIZER 0x40            /* class_ro_t is followed by the Swift metadata initializer */
 #define SMALL_METHOD_LIST 0x80000000u
 #define ENTSIZE_MASK 0x0000fffcu
 
@@ -192,12 +194,28 @@ static IMP lookup_nofail(Class cls, SEL sel) {
 /* ================= +initialize ================= */
 static SEL s_initialize, s_load, s_alloc, s_init, s_new, s_retain, s_release, s_autorelease, s_dealloc,
            s_class, s_isKindOfClass, s_respondsToSelector, s_copy, s_mutableCopy, s_cxx_destruct;
+static void slide_ivars(Class c);
+/* A Swift class whose metadata is completed at run time (resilient layout: library evolution) carries its Swift
+ * metadata initializer after its class_ro_t (RO_HAS_SWIFT_INITIALIZER). Swift runs it through the class's metadata
+ * accessor; when Objective-C reaches the class first (an Objective-C app or binary SDK messaging WKWebView, or a
+ * subclass of it), the runtime runs it, like libobjc's realizeSwiftClass: it fills in the field offsets and the
+ * instance size and hands the class back through _objc_realizeClassFromSwift. Objective-C subclasses then slide their
+ * ivars past the class's real size. */
+static void swift_initialize(Class c) {
+    if (!c->rt || c->rt->swift_inited || !(ro_of(c)->flags & RO_HAS_SWIFT_INITIALIZER)) return;
+    c->rt->swift_inited = 1;
+    Class (*init)(Class, void *) = *(Class (**)(Class, void *))((uint8_t *)ro_of(c) + sizeof(struct class_ro_t));
+    if (init) init(c, NULL);
+}
+
 static void ensure_initialized(Class c) {
     if (!c || !c->rt || __atomic_load_n(&c->rt->init_state, __ATOMIC_ACQUIRE) == 2) return;
     pthread_mutex_lock(&init_lock);
     if (c->rt->init_state == 0) {
         c->rt->init_state = 1;
         ensure_initialized(c->superclass);
+        swift_initialize(c);
+        if (!(c->data & 3)) slide_ivars(c);      /* an Objective-C class (not Swift: FAST_IS_SWIFT_*) past a superclass that grew */
         IMP imp = lookup_nofail(c->isa, s_initialize);
         if (imp) ((void (*)(Class, SEL))imp)(c, s_initialize);
         __atomic_store_n(&c->rt->init_state, 2, __ATOMIC_RELEASE);
@@ -456,12 +474,45 @@ static struct class_ro_t protocol_meta_ro = { RO_META, 40, 40, 0, NULL, "Protoco
 static struct class_ro_t protocol_ro = { 0, 8, 8, 0, NULL, "Protocol", NULL, NULL, NULL, NULL, NULL };
 static struct objc_class protocol_meta, protocol_class;
 
+/* Protocol objects live as long as their image: memory management is a no-op, as for Apple's (an NSObject subclass), so
+   ARC code and collections can hold them; equality is by name (one protocol may have a copy in several images) */
+int class_addMethod(Class c, SEL sel, IMP imp, const char *types);
+int protocol_conformsToProtocol(struct protocol_t *p, struct protocol_t *other);
+static id proto_self(id self, SEL _cmd) { return self; }
+static void proto_nothing(id self, SEL _cmd) {}
+static uintptr_t proto_retain_count(id self, SEL _cmd) { return UINTPTR_MAX; }
+static int proto_is_equal(id self, SEL _cmd, id other) {
+    return self == other || (other && other->isa == &protocol_class && !strcmp(((struct protocol_t *)self)->name, ((struct protocol_t *)other)->name));
+}
+static uintptr_t proto_hash(id self, SEL _cmd) {
+    uintptr_t h = 5381;
+    for (const char *c = ((struct protocol_t *)self)->name; c && *c; c++) h = h * 33 + (unsigned char)*c;
+    return h;
+}
+static Class proto_class(id self, SEL _cmd) { return &protocol_class; }
+static const char *proto_name(id self, SEL _cmd) { return ((struct protocol_t *)self)->name; }
+static int proto_conforms_to(id self, SEL _cmd, id other) { return protocol_conformsToProtocol((struct protocol_t *)self, (struct protocol_t *)other); }
+static int proto_is_kind(id self, SEL _cmd, Class c) { return c == &protocol_class; }
+static int proto_responds(id self, SEL _cmd, SEL sel) { return find_own(&protocol_class, sel) != NULL; }
+
 static void protocol_class_init(void) {
     protocol_meta = (struct objc_class){ &protocol_meta, NULL, NULL, NULL, (uintptr_t)&protocol_meta_ro };
     protocol_class = (struct objc_class){ &protocol_meta, NULL, NULL, NULL, (uintptr_t)&protocol_ro };
     rt_attach(&protocol_class, &protocol_class)->realized = 1;
     rt_attach(&protocol_meta, &protocol_class)->realized = 1;
     protocol_class.rt->init_state = protocol_meta.rt->init_state = 2;
+    static const struct { const char *sel; IMP imp; const char *types; } m[] = {
+        { "retain", (IMP)proto_self, "@16@0:8" }, { "autorelease", (IMP)proto_self, "@16@0:8" },
+        { "self", (IMP)proto_self, "@16@0:8" }, { "copy", (IMP)proto_self, "@16@0:8" },
+        { "copyWithZone:", (IMP)proto_self, "@24@0:8^v16" }, { "release", (IMP)proto_nothing, "v16@0:8" },
+        { "retainCount", (IMP)proto_retain_count, "Q16@0:8" }, { "isEqual:", (IMP)proto_is_equal, "B24@0:8@16" },
+        { "hash", (IMP)proto_hash, "Q16@0:8" }, { "class", (IMP)proto_class, "#16@0:8" },
+        { "name", (IMP)proto_name, "*16@0:8" }, { "conformsTo:", (IMP)proto_conforms_to, "B24@0:8@16" },
+        { "isKindOfClass:", (IMP)proto_is_kind, "B24@0:8#16" }, { "respondsToSelector:", (IMP)proto_responds, "B24@0:8:16" },
+        { "_tryRetain", (IMP)proto_self, "B16@0:8" }, { "allowsWeakReference", (IMP)proto_self, "B16@0:8" },
+        { "retainWeakReference", (IMP)proto_self, "B16@0:8" },
+    };
+    for (size_t i = 0; i < sizeof m / sizeof *m; i++) class_addMethod(&protocol_class, sel_intern(m[i].sel), m[i].imp, m[i].types);
 }
 
 static void rt_init_once(void) {
@@ -476,13 +527,101 @@ static void rt_init_once(void) {
     protocol_class_init();
 }
 
+/* ISIM_OBJC_AUDIT=1 (a developer diagnostic): before main, list the selectors the app's own images (not the SDK's)
+   reference that no loaded class implements, the messages that would end in "unrecognized selector" (some are only
+   checked with respondsToSelector:, or implemented by classes made at run time). */
+static struct audit_img { const char *name; SEL *refs; uint64_t n; } *audit_imgs;
+static int audit_nimgs;
+static void audit_note_image(const struct objc_image *img, SEL *refs, uint64_t n) {
+    static int on = -1;
+    if (on < 0) on = getenv("ISIM_OBJC_AUDIT") && *getenv("ISIM_OBJC_AUDIT") == '1';
+    if (!on || !n || !img->name || strstr(img->name, "/System/Library/") || strstr(img->name, "/usr/lib/")) return;
+    audit_imgs = realloc(audit_imgs, (audit_nimgs + 1) * sizeof *audit_imgs);
+    audit_imgs[audit_nimgs++] = (struct audit_img){ strdup(img->name), refs, n };
+}
+struct rt_method **class_copyMethodList(Class c, unsigned int *outCount);
+Class *objc_copyClassList(unsigned int *outCount);
+void objc_rt_audit(void) {
+    if (!audit_nimgs) return;
+    size_t cap = 1 << 20, used = 0;
+    SEL *set = calloc(cap, sizeof *set);
+    #define SET_ADD(s) do { size_t _h = ((uintptr_t)(s) >> 3) & (cap - 1); while (set[_h] && set[_h] != (s)) _h = (_h + 1) & (cap - 1); \
+        if (!set[_h] && used < cap / 2) { set[_h] = (s); used++; } } while (0)
+    unsigned nc = 0;
+    Class *cls = objc_copyClassList(&nc);
+    for (unsigned i = 0; i < nc; i++)
+        for (int meta = 0; meta < 2; meta++) {
+            unsigned nm = 0;
+            struct rt_method **ms = class_copyMethodList(meta ? cls[i]->isa : cls[i], &nm);
+            for (unsigned k = 0; k < nm; k++) SET_ADD(ms[k]->name);
+            free(ms);
+        }
+    free(cls);
+    int missing = 0;
+    for (int i = 0; i < audit_nimgs; i++)
+        for (uint64_t j = 0; j < audit_imgs[i].n; j++) {
+            SEL s = audit_imgs[i].refs[j];
+            size_t h = ((uintptr_t)s >> 3) & (cap - 1);
+            while (set[h] && set[h] != s) h = (h + 1) & (cap - 1);
+            if (set[h]) continue;
+            SET_ADD(s);                                      /* report each selector once */
+            fprintf(stderr, "isim audit: no class implements -%s (referenced by %s)\n", (const char *)s, audit_imgs[i].name);
+            missing++;
+        }
+    #undef SET_ADD
+    fprintf(stderr, "isim audit: %d selector(s) without an implementation\n", missing);
+    free(set);
+}
+
+static pthread_once_t rt_once = PTHREAD_ONCE_INIT;
+
+/* A root class for objects the host runtime makes that Apple's SDK declares as Objective-C objects (os_log_t: OS_os_log),
+   so ARC code compiled against Apple's SDK can retain and release them. They live as long as the process. */
+static int immortal_is_equal(id self, SEL _cmd, id other) { return self == other; }
+static uintptr_t immortal_hash(id self, SEL _cmd) { return (uintptr_t)self >> 4; }
+static int immortal_responds(id self, SEL _cmd, SEL sel) { return objc_rt_lookup(self, self->isa, sel) != (IMP)rt_msgForward; }
+Class objc_rt_immortal_class(const char *name) {
+    static struct { char name[64]; struct class_ro_t ro, meta_ro; struct objc_class cls, meta; } made[8];
+    static int n;
+    static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+    pthread_once(&rt_once, rt_init_once);
+    pthread_mutex_lock(&lock);
+    for (int i = 0; i < n; i++) if (!strcmp(made[i].name, name)) { pthread_mutex_unlock(&lock); return &made[i].cls; }
+    if (n == 8) { pthread_mutex_unlock(&lock); return NULL; }
+    typeof(made[0]) *m = &made[n++];
+    snprintf(m->name, sizeof m->name, "%s", name);
+    m->meta_ro = (struct class_ro_t){ RO_META, 40, 40, 0, NULL, m->name, NULL, NULL, NULL, NULL, NULL };
+    m->ro = (struct class_ro_t){ 0, 8, 8, 0, NULL, m->name, NULL, NULL, NULL, NULL, NULL };
+    m->meta = (struct objc_class){ &m->meta, NULL, NULL, NULL, (uintptr_t)&m->meta_ro };
+    m->cls = (struct objc_class){ &m->meta, NULL, NULL, NULL, (uintptr_t)&m->ro };
+    rt_attach(&m->cls, &m->cls)->realized = 1;
+    rt_attach(&m->meta, &m->cls)->realized = 1;
+    m->cls.rt->init_state = m->meta.rt->init_state = 2;
+    static const struct { const char *sel; IMP imp; const char *types; } ms[] = {
+        { "retain", (IMP)proto_self, "@16@0:8" }, { "autorelease", (IMP)proto_self, "@16@0:8" },
+        { "self", (IMP)proto_self, "@16@0:8" }, { "copy", (IMP)proto_self, "@16@0:8" },
+        { "copyWithZone:", (IMP)proto_self, "@24@0:8^v16" }, { "release", (IMP)proto_nothing, "v16@0:8" },
+        { "retainCount", (IMP)proto_retain_count, "Q16@0:8" }, { "isEqual:", (IMP)immortal_is_equal, "B24@0:8@16" },
+        { "hash", (IMP)immortal_hash, "Q16@0:8" }, { "respondsToSelector:", (IMP)immortal_responds, "B24@0:8:16" },
+        { "_tryRetain", (IMP)proto_self, "B16@0:8" }, { "allowsWeakReference", (IMP)proto_self, "B16@0:8" },
+        { "retainWeakReference", (IMP)proto_self, "B16@0:8" },
+    };
+    pthread_mutex_unlock(&lock);
+    for (size_t i = 0; i < sizeof ms / sizeof *ms; i++) class_addMethod(&m->cls, sel_intern(ms[i].sel), ms[i].imp, ms[i].types);
+    pthread_mutex_lock(&rt_lock);
+    void **slot = strmap_slot(&classes, m->name, 1);
+    if (slot && !*slot) *slot = &m->cls;
+    pthread_mutex_unlock(&rt_lock);
+    return &m->cls;
+}
+
 void objc_rt_map_image(const struct objc_image *img) {
-    static pthread_once_t once = PTHREAD_ONCE_INIT;
-    pthread_once(&once, rt_init_once);
+    pthread_once(&rt_once, rt_init_once);
     pthread_mutex_lock(&rt_lock);
     uint64_t n;
     SEL *selrefs = img->find_section(img, "__objc_selrefs", &n);
     for (uint64_t i = 0; i < n / 8; i++) selrefs[i] = sel_intern(selrefs[i]);
+    audit_note_image(img, selrefs, n / 8);
 
     struct protocol_t **protos = img->find_section(img, "__objc_protolist", &n);
     for (uint64_t i = 0; i < n / 8; i++) {
@@ -644,6 +783,66 @@ static const char *proto_method_types(struct protocol_t *p, SEL sel, int req, in
 struct objc_method_description protocol_getMethodDescription(struct protocol_t *p, SEL sel, int req, int inst) {
     const char *t = sel ? proto_method_types(p, sel, req & 1, inst & 1, 0) : NULL;
     return (struct objc_method_description){ t ? sel : NULL, t };
+}
+/* the protocol's own methods (not its parents'), like Apple's */
+struct objc_method_description *protocol_copyMethodDescriptionList(struct protocol_t *p, int req, int inst, unsigned *outCount) {
+    const struct method_list_t *ml = !p ? NULL : req ? (inst ? p->inst : p->cls) : (inst ? p->opt_inst : p->opt_cls);
+    unsigned n = ml ? ml->count : 0;
+    struct objc_method_description *out = n ? calloc(n + 1, sizeof *out) : NULL;
+    for (unsigned i = 0; i < n; i++) {
+        const uint8_t *e = m_entry(ml, i);
+        out[i].name = m_name(ml, i);
+        out[i].types = ml->entsize_flags & SMALL_METHOD_LIST ? (const char *)(e + 4 + rel32(e + 4)) : ((const struct method_t *)e)->types;
+    }
+    if (outCount) *outCount = n;
+    return out;
+}
+static struct protocol_t **copy_proto_lists(struct protocol_list_t **lists, int nlists, unsigned *outCount) {
+    unsigned n = 0; struct protocol_t **out = NULL;
+    for (int k = 0; k < nlists; k++) n += lists[k] ? (unsigned)lists[k]->count : 0;
+    if (n) {
+        out = calloc(n + 1, sizeof *out); n = 0;
+        for (int k = 0; k < nlists; k++) for (uintptr_t i = 0; lists[k] && i < lists[k]->count; i++) out[n++] = lists[k]->list[i];
+    }
+    if (outCount) *outCount = n;
+    return out;
+}
+struct protocol_t **protocol_copyProtocolList(struct protocol_t *p, unsigned *outCount) {
+    struct protocol_list_t *l = p ? p->protocols : NULL;
+    return copy_proto_lists(&l, 1, outCount);
+}
+struct protocol_t **class_copyProtocolList(Class c, unsigned *outCount) {
+    if (!c) { if (outCount) *outCount = 0; return NULL; }
+    struct rt_class *r = R(c);
+    int nl = 1 + (r ? r->ncatp : 0);
+    struct protocol_list_t **lists = calloc(nl, sizeof *lists);
+    lists[0] = ro_of(c)->base_protocols;
+    for (int i = 1; i < nl; i++) lists[i] = r->cat_protos[i - 1];
+    struct protocol_t **out = copy_proto_lists(lists, nl, outCount);
+    free(lists);
+    return out;
+}
+/* the protocol's own required instance properties */
+struct property_t **protocol_copyPropertyList(struct protocol_t *p, unsigned *outCount) {
+    struct property_list_t *pl = p ? p->props : NULL;
+    unsigned n = pl ? pl->count : 0;
+    struct property_t **out = n ? calloc(n + 1, sizeof *out) : NULL;
+    for (unsigned i = 0; i < n; i++) out[i] = (struct property_t *)((uint8_t *)(pl + 1) + i * pl->entsize);
+    if (outCount) *outCount = n;
+    return out;
+}
+/* one attribute of "T@\"NSString\",&,N,V_name" by its letter (malloc'd; "" for a flag) */
+char *property_copyAttributeValue(struct property_t *prop, const char *name) {
+    if (!prop || !prop->attributes || !name || !*name) return NULL;
+    size_t nl = strlen(name);
+    for (const char *a = prop->attributes; *a; ) {
+        const char *end = a;
+        int quoted = 0;
+        while (*end && (quoted || *end != ',')) { if (*end == '"') quoted = !quoted; end++; }
+        if ((size_t)(end - a) >= nl && !strncmp(a, name, nl)) return strndup(a + nl, end - a - nl);
+        a = *end ? end + 1 : end;
+    }
+    return NULL;
 }
 static struct rt_method *method_for(Class cls, SEL sel, int create_on_owner) {
     for (Class c = cls; c; c = c->superclass) {
@@ -1120,7 +1319,8 @@ static const struct shim objc_table[] = {
     I(objc_getClass), I(objc_lookUpClass), I(objc_getMetaClass), I(class_getName), I(class_getSuperclass), I(class_isMetaClass),
     I(class_getInstanceSize), I(object_getClass), I(object_setClass), I(object_getClassName), I(class_respondsToSelector),
     I(class_getMethodImplementation), I(class_getMethodImplementation_stret), I(class_createInstance), I(object_dispose), I(objc_destructInstance),
-    I(objc_getProtocol), I(protocol_getMethodDescription), I(protocol_getName), I(protocol_conformsToProtocol), I(class_conformsToProtocol),
+    I(objc_getProtocol), I(protocol_getMethodDescription), I(protocol_copyMethodDescriptionList), I(protocol_copyProtocolList),
+    I(class_copyProtocolList), I(protocol_copyPropertyList), I(property_copyAttributeValue), I(protocol_getName), I(protocol_conformsToProtocol), I(class_conformsToProtocol),
     I(_objc_rootRetain), I(_objc_rootRelease), I(_objc_rootReleaseWasZero), I(_objc_rootRetainCount), I(_objc_rootAutorelease),
     I(_objc_rootIsDeallocating), I(_objc_realizeClassFromSwift),
     I(objc_retain), I(objc_release), I(objc_autorelease), I(objc_retainAutorelease), I(objc_retainAutoreleaseReturnValue),
@@ -1146,4 +1346,4 @@ static const struct shim objc_table[] = {
     J("__NSConcreteStackBlock", _NSConcreteStackBlock), J("__NSConcreteMallocBlock", _NSConcreteMallocBlock),
     J("__NSConcreteGlobalBlock", _NSConcreteGlobalBlock),
 };
-const struct host_lib host_libobjc = { "/usr/lib/libobjc.A.dylib", objc_table, sizeof objc_table / sizeof *objc_table };
+const struct host_lib host_libobjc = { "/usr/lib/libobjc.A.dylib", objc_table, sizeof objc_table / sizeof *objc_table, NULL };

@@ -354,3 +354,30 @@ TRAIT_REG_IMPL
 @implementation UIPresentationController (UITraitChangeObservable)
 TRAIT_REG_IMPL
 @end
+
+
+/* NSDictionaryOfVariableBindings(a, b): the variable names (comma-separated, as written) mapped to their values */
+NSDictionary<NSString *, id> *_NSDictionaryOfVariableBindings(NSString *keys, id first, ...) {
+    NSMutableDictionary *d = [NSMutableDictionary dictionary];
+    va_list ap; va_start(ap, first);
+    id v = first;
+    for (NSString *k in [keys componentsSeparatedByString:@","]) {
+        NSString *name = [k stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        if (!v) break;
+        if (name.length) d[name] = v;
+        v = va_arg(ap, id);
+    }
+    va_end(ap);
+    return d;
+}
+
+/* window and screen coordinates (windows fill the screen on isim, so a nil window means screen coordinates) */
+@implementation UIWindow (IsimWindowConversion)
+- (CGPoint)convertPoint:(CGPoint)point toWindow:(UIWindow *)window { return [self convertPoint:point toView:window]; }
+- (CGPoint)convertPoint:(CGPoint)point fromWindow:(UIWindow *)window { return [self convertPoint:point fromView:window]; }
+- (CGRect)convertRect:(CGRect)rect toWindow:(UIWindow *)window { return [self convertRect:rect toView:window]; }
+- (CGRect)convertRect:(CGRect)rect fromWindow:(UIWindow *)window { return [self convertRect:rect fromView:window]; }
+@end
+@implementation UIScreen (IsimApplicationFrame)
+- (CGRect)applicationFrame { return self.bounds; }      /* deprecated in iOS 9: the screen when the status bar overlaps the app */
+@end

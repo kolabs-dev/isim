@@ -22,6 +22,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSEnumerator<KeyType> *)keyEnumerator;
 - (NSEnumerator<ObjectType> *)objectEnumerator;
 @end
+#if !defined(__swift__)   /* Objective-C only: Swift has its own Foundation API for these */
+@interface NSDictionary<KeyType, ObjectType> (IsimInitializers)
+- (instancetype)initWithObjects:(NSArray<ObjectType> *)objects forKeys:(NSArray<KeyType <NSCopying>> *)keys;
+- (instancetype)initWithDictionary:(NSDictionary<KeyType, ObjectType> *)otherDictionary copyItems:(BOOL)flag;
+- (NSString *)descriptionWithLocale:(nullable id)locale;
+- (NSString *)descriptionWithLocale:(nullable id)locale indent:(NSUInteger)level;
+@end
+#endif
 
 @interface NSMutableDictionary<KeyType, ObjectType> : NSDictionary<KeyType, ObjectType>
 - (void)removeObjectForKey:(KeyType)aKey;

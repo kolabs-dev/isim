@@ -17,3 +17,6 @@
 #include <CoreFoundation/CFNumber.h>
 #include <CoreFoundation/CFData.h>
 #include <CoreFoundation/CFArray.h>
+#include <CoreFoundation/CFString.h>
+#include <CoreFoundation/CFTimeZone.h>
+#include <CoreFoundation/CFBundle.h>

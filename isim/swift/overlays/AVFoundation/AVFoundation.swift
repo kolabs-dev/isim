@@ -22,7 +22,7 @@ public let NSOSStatusErrorDomain = "NSOSStatusErrorDomain"
 
 // MARK: - Session
 
-open class AVAudioSession: NSObject {
+@objc(AVAudioSession) open class AVAudioSession: NSObject {
     public struct Category: RawRepresentable, Hashable, Sendable {
         public let rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -60,14 +60,14 @@ open class AVAudioSession: NSObject {
     }
     nonisolated(unsafe) static let shared = AVAudioSession()
     /// isim: also starts listening for the `audio` script command (interruptions, route changes)
-    open class func sharedInstance() -> AVAudioSession {
+    @objc open class func sharedInstance() -> AVAudioSession {
         _AudioSessionEvents.start(); _AVSessionPrefs.installMicrophonePrompt(); _observeVolume()
         return shared
     }
     open private(set) var category: Category = .soloAmbient
     open private(set) var mode: Mode = .default
     open private(set) var categoryOptions: CategoryOptions = []
-    open var sampleRate: Double { 48000 }
+    @objc open var sampleRate: Double { 48000 }
     /// the device volume (isim's own: Control Center, MPVolumeView, `volume up|down`); key-value observable
     @objc open var outputVolume: Float { Float(isim_device_volume()) }
     nonisolated(unsafe) static var _volumeObserver: NSObjectProtocol?
@@ -82,8 +82,8 @@ open class AVAudioSession: NSObject {
                                                        "AVSystemController_AudioCategoryNotificationParameter": "Audio/Video"])
         }
     }
-    open var isOtherAudioPlaying: Bool { false }
-    open var secondaryAudioShouldBeSilencedHint: Bool { false }
+    @objc open var isOtherAudioPlaying: Bool { false }
+    @objc open var secondaryAudioShouldBeSilencedHint: Bool { false }
     open func setCategory(_ category: Category) throws { self.category = category; _IsimBackgroundAudio.publish(category) }
     open func setCategory(_ category: Category, options: CategoryOptions = []) throws { self.category = category; categoryOptions = options; _IsimBackgroundAudio.publish(category) }
     open func setCategory(_ category: Category, mode: Mode, options: CategoryOptions = []) throws { self.category = category; self.mode = mode; categoryOptions = options; _IsimBackgroundAudio.publish(category) }

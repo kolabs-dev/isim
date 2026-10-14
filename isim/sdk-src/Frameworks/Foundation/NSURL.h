@@ -158,6 +158,13 @@ FOUNDATION_EXPORT NSURLFileResourceType const NSURLFileResourceTypeUnknown NS_SW
 - (void)removeAllCachedResourceValues;
 @property (nullable, readonly, copy) NSURL *URLByResolvingSymlinksInPath NS_REFINED_FOR_SWIFT;
 @end
+#if !defined(__swift__)   /* Objective-C only: Swift has its own Foundation API for these */
+@interface NSURL (IsimURLAdditions)
++ (nullable instancetype)URLWithString:(NSString *)URLString encodingInvalidCharacters:(BOOL)encodingInvalidCharacters;
+- (NSURL *)URLByAppendingPathComponent:(NSString *)pathComponent isDirectory:(BOOL)isDirectory;
+- (nullable NSURL *)URLByAppendingPathExtension:(NSString *)pathExtension;
+@end
+#endif
 NS_ASSUME_NONNULL_END
 
 /* URLComponents / URLQueryItem for Objective-C: classes of the Swift overlay (Swift code uses the structs) */

@@ -2,7 +2,7 @@
 // app's container (so it persists until the app is deleted) and nothing is tracked by isim either way.
 import UIKit
 
-open class ATTrackingManager: NSObject {
+@objc(ATTrackingManager) open class ATTrackingManager: NSObject {
     public enum AuthorizationStatus: UInt, Sendable { case notDetermined = 0, restricted = 1, denied = 2, authorized = 3 }
     static let key = "_ISIMTrackingAuthorizationStatus"
     public class var trackingAuthorizationStatus: AuthorizationStatus {
@@ -15,6 +15,13 @@ open class ATTrackingManager: NSObject {
     }
     public class func requestTrackingAuthorization() async -> AuthorizationStatus {
         await withCheckedContinuation { k in requestTrackingAuthorization { k.resume(returning: $0) } }
+    }
+    /// Objective-C: +trackingAuthorizationStatus (ATTrackingManagerAuthorizationStatus) and
+    /// +requestTrackingAuthorizationWithCompletionHandler:
+    @objc(trackingAuthorizationStatus) public class var _objc_trackingAuthorizationStatus: UInt { trackingAuthorizationStatus.rawValue }
+    @objc(requestTrackingAuthorizationWithCompletionHandler:)
+    public class func _objc_requestTrackingAuthorization(_ completionHandler: @escaping (UInt) -> Void) {
+        requestTrackingAuthorization { completionHandler($0.rawValue) }
     }
     @MainActor static func _prompt(_ done: @escaping (AuthorizationStatus) -> Void) {
         let current = trackingAuthorizationStatus

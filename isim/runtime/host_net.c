@@ -246,6 +246,41 @@ struct isim_http *isim_http_start(const char *method, const char *url, const cha
     if (body_len > 0) isim_metric_add("net.up", (double)body_len);              /* MetricKit network transfer */
     return isim_http_start_tls(method, url, headers, body, body_len, timeout, resource_timeout, flags, NULL, NULL, 0);
 }
+/* whether libcurl sends url through a proxy (https_proxy / HTTPS_PROXY / http_proxy / all_proxy, minus no_proxy), as
+ * libcurl decides from the environment */
+static int env_proxy_for(const char *url) {
+    const char *colon = strstr(url, "://");
+    if (!colon) return 0;
+    int https = colon - url == 5 && !strncasecmp(url, "https", 5);
+    const char *p = https ? getenv("https_proxy") : getenv("http_proxy");
+    if ((!p || !*p) && https) p = getenv("HTTPS_PROXY");
+    if (!p || !*p) p = getenv("all_proxy");
+    if (!p || !*p) p = getenv("ALL_PROXY");
+    if (!p || !*p) return 0;
+    char host[256] = "";
+    const char *h = colon + 3, *at = strpbrk(h, "@/");
+    if (at && *at == '@') h = at + 1;
+    size_t n = strcspn(h, ":/?#");
+    if (*h == '[') { h++; n = strcspn(h, "]"); }
+    snprintf(host, sizeof host, "%.*s", (int)n, h);
+    const char *np = getenv("no_proxy");
+    if (!np || !*np) np = getenv("NO_PROXY");
+    for (const char *e = np; e && *e; ) {
+        size_t len = strcspn(e, ",");
+        char item[256];
+        snprintf(item, sizeof item, "%.*s", (int)len, e);
+        char *it = item;
+        while (*it == ' ') it++;
+        for (char *z = it + strlen(it); z > it && z[-1] == ' '; ) *--z = 0;
+        if (!strcmp(it, "*")) return 0;
+        if (*it == '*') it++;
+        if (*it == '.') it++;
+        size_t hl = strlen(host), il = strlen(it);
+        if (il && hl >= il && !strcasecmp(host + hl - il, it) && (hl == il || host[hl - il - 1] == '.')) return 0;
+        e += len + (e[len] == ',');
+    }
+    return 1;
+}
 /* isim_http_start with TLS options: pinned_key ("sha256//<base64>", or NULL) is the only server key accepted;
  * client_pem (or NULL) holds the client certificate chain and its private key, offered when the server asks */
 struct isim_http *isim_http_start_tls(const char *method, const char *url, const char *headers, const void *body, long body_len,
@@ -259,6 +294,13 @@ struct isim_http *isim_http_start_tls(const char *method, const char *url, const
     if (body) { h->body = malloc(body_len ? body_len : 1); memcpy(h->body, body, body_len); h->body_len = body_len; }
     h->timeout = timeout; h->resource_timeout = resource_timeout; h->flags = flags;
     if (pinned_key && *pinned_key) h->pinned = strdup(pinned_key);
+    if (h->pinned && env_proxy_for(url)) {
+        /* the server-trust probe connected directly; through a proxy libcurl's TLS peer is what the proxy presents (an
+           intercepting proxy has its own key), so the probe's key cannot be pinned: libcurl verifies the CA store
+           instead, also when the app accepted the probed server's trust (that decision was about another connection) */
+        free(h->pinned); h->pinned = NULL;
+        h->flags &= ~2;
+    }
     if (client_pem && client_pem_len > 0) { h->client_pem = malloc(client_pem_len); memcpy(h->client_pem, client_pem, client_pem_len); h->client_pem_len = client_pem_len; }
     if (headers) {
         const char *p = headers;

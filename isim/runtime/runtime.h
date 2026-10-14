@@ -11,8 +11,8 @@
 struct shim { const char *name; void *addr; const char *status; };
 
 /* host pseudo-libraries: install name -> symbol table */
-struct host_lib { const char *install_name; const struct shim *table; size_t count; };
-extern const struct host_lib host_libsystem, host_libobjc, host_isim, host_sqlite;
+struct host_lib { const char *install_name; const struct shim *table; size_t count; void (*load)(void); /* before the first lookup */ };
+extern const struct host_lib host_libsystem, host_libobjc, host_isim, host_sqlite, host_libz, host_libcompression, host_jsc;
 extern const struct host_lib host_commoncrypto, host_libsystem_os;   /* searched as part of libSystem */
 void host_sqlite_load(void);                       /* dlopens the host libsqlite3 (before the first lookup) */
 const struct shim *host_lib_lookup(const struct host_lib *lib, const char *name);
@@ -47,5 +47,7 @@ struct objc_image {
 };
 void objc_rt_map_image(const struct objc_image *img);   /* after fixups, before mprotect */
 void objc_rt_load_image(const struct objc_image *img);  /* +load methods, after all images mapped */
+void objc_rt_audit(void);
+struct objc_class *objc_rt_immortal_class(const char *name);   /* a root class whose objects are never freed (os_log_t) */                                /* ISIM_OBJC_AUDIT=1: unimplemented selectors, before main */
 
 void libsystem_init(int argc, char **argv);

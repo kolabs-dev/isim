@@ -15,8 +15,8 @@ import UIKit
 extension WKContentWorld { static let _isim = WKContentWorld(name: nil, engineName: "isim") }
 
 /// what a context menu is for (iOS 13)
-open class WKContextMenuElementInfo: NSObject, @unchecked Sendable {
-    open private(set) var linkURL: URL?
+@objc(WKContextMenuElementInfo) open class WKContextMenuElementInfo: NSObject, @unchecked Sendable {
+    @objc open private(set) dynamic var linkURL: URL?
     init(linkURL: URL?) { self.linkURL = linkURL; super.init() }
 }
 

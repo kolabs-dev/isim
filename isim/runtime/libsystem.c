@@ -406,6 +406,7 @@ static int d_utimes(const char *p, const struct d_timeval *t) {
     return utimes(p, h);
 }
 #include "posix_extras.inc"   /* pipe, pread/pwrite, dup, kill, signal numbers */
+#include "darwin_extras.inc"  /* sigaction, rwlocks, mmap, uname, sysctl, rune tables, unw_*, tlv_atexit */
 
 void libsystem_init(int argc, char **argv) {
     d_stdinp = stdin; d_stdoutp = stdout; d_stderrp = stderr;
@@ -413,6 +414,7 @@ void libsystem_init(int argc, char **argv) {
     if (argc > 0) { char *a = strdup(argv[0]); d_progname = strdup(basename(a)); free(a); }
     if (getrandom(&stack_chk_guard, sizeof stack_chk_guard, 0) != sizeof stack_chk_guard) stack_chk_guard = 0x5a17e57a;
     mach_init();
+    rune_init();
 }
 
 extern int __cxa_atexit(void (*f)(void *), void *arg, void *dso);
@@ -626,7 +628,7 @@ static const struct shim libsystem_table[] = {
     P(freopen), P(fdopen), P(fileno), P(setbuf), P(setvbuf), P(remove), P(rename), P(tmpfile), P(rewind), P(fgetpos), P(fsetpos),
     P(clearerr), P(feof), P(ferror), P(strcoll), P(strxfrm), P(strpbrk), P(strspn), P(strcspn), P(strtok), P(strtok_r),
     P(strerror), A("_strerror_r", d_strerror_r), A("_strlcpy", d_strlcpy), A("_strlcat", d_strlcat), P(clock), P(difftime), P(asctime), P(ctime),
-    P(gmtime), P(localtime), P(timespec_get), P(imaxabs), P(imaxdiv), P(strtoimax), P(strtoumax), POSIX_EXTRAS,
+    P(gmtime), P(localtime), P(timespec_get), P(imaxabs), P(imaxdiv), P(strtoimax), P(strtoumax), POSIX_EXTRAS, DARWIN_EXTRAS,
     A("___ulock_wait", d_ulock_wait), A("___ulock_wake", d_ulock_wake),
     A("_pthread_get_stackaddr_np", d_pthread_get_stackaddr_np),
     A("_pthread_get_stacksize_np", d_pthread_get_stacksize_np), A("_pthread_attr_init", d_attr_init),
@@ -663,4 +665,4 @@ static const struct shim libsystem_table[] = {
     A("__Unwind_Backtrace", isim_unwind_backtrace),
     A("___objc_personality_v0", isim_objc_personality), A("___gxx_personality_v0", isim_gxx_personality), S("__tlv_bootstrap", d_tlv_bootstrap),
 };
-const struct host_lib host_libsystem = { "/usr/lib/libSystem.B.dylib", libsystem_table, sizeof libsystem_table / sizeof *libsystem_table };
+const struct host_lib host_libsystem = { "/usr/lib/libSystem.B.dylib", libsystem_table, sizeof libsystem_table / sizeof *libsystem_table, NULL };

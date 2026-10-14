@@ -19,6 +19,12 @@ UIKIT_EXTERN const UIWindowLevel UIWindowLevelNormal, UIWindowLevelAlert, UIWind
 @property (nullable, nonatomic, strong) UIViewController *rootViewController;
 - (void)sendEvent:(UIEvent *)event;
 @end
+@interface UIWindow (IsimWindowConversion)
+- (CGPoint)convertPoint:(CGPoint)point toWindow:(nullable UIWindow *)window;
+- (CGPoint)convertPoint:(CGPoint)point fromWindow:(nullable UIWindow *)window;
+- (CGRect)convertRect:(CGRect)rect toWindow:(nullable UIWindow *)window;
+- (CGRect)convertRect:(CGRect)rect fromWindow:(nullable UIWindow *)window;
+@end
 /* software keyboard (isim system keyboard window) */
 UIKIT_EXTERN NSNotificationName const UIWindowDidBecomeVisibleNotification, UIWindowDidBecomeHiddenNotification,
     UIWindowDidBecomeKeyNotification, UIWindowDidResignKeyNotification;

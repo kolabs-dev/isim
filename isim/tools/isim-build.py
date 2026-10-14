@@ -83,7 +83,8 @@ def fail(msg):
 def run(cmd, **kw):
     r = subprocess.run(cmd, **kw)
     if r.returncode:
-        sys.exit(f'isim build: command failed ({r.returncode}): {" ".join(cmd[:6])} ...')
+        shown = cmd if os.environ.get('ISIM_BUILD_VERBOSE') else cmd[:6] + ['...']     # ISIM_BUILD_VERBOSE=1: the whole command
+        sys.exit(f'isim build: command failed ({r.returncode}): {shlex.join(shown)}')
 
 
 def split_setting(v):
@@ -310,6 +311,33 @@ def copy_resource(path, bundle):
 
 
 # ---------------- binary frameworks (.xcframework) ----------------
+CXX_RUNTIME = re.compile(r'\s(__ZNSt3__1|__ZNKSt3__1|__ZTVN10__cxxabiv1|__Znwm|__Znam|__ZdlPv|__ZdaPv|___cxa_|___gxx_personality_v0)')
+
+
+def uses_cxx_runtime(paths):
+    """whether objects or static libraries reference the C++ runtime (libc++/libc++abi): the link then adds -lc++, like
+    Xcode's link of C++ code and of binary dependencies built from it (Google Mobile Ads)"""
+    files = [p for p in paths if os.path.isfile(p) and (p.endswith('.o') or macho_kind(p) in ('static', 'fat'))]
+    if not files:
+        return False
+    r = subprocess.run(['llvm-nm', '--arch=x86_64', '-u', '-j', *files], capture_output=True, text=True)
+    return bool(CXX_RUNTIME.search('\n' + r.stdout))
+
+
+def link_inputs(objs, args):
+    """the objects and library files of a link line (-F dir -framework X resolved to dir/X.framework/X)"""
+    out, fdirs, prev = list(objs), [], None
+    for a in args:
+        if prev == '-F':
+            fdirs.append(a)
+        elif prev == '-framework':
+            out += [os.path.join(d, f'{a}.framework', a) for d in fdirs if os.path.isfile(os.path.join(d, f'{a}.framework', a))][:1]
+        elif not a.startswith('-') and prev not in ('-o', '-L', '-install_name', '-bundle_loader'):
+            out.append(a)
+        prev = a
+    return out
+
+
 def macho_kind(path):
     """'dylib', 'static', 'fat' (universal; needs thinning), 'other' or None for a library file."""
     try:
@@ -1683,6 +1711,8 @@ class Builder:
             for d in split_setting(s.get('FRAMEWORK_SEARCH_PATHS')):
                 link += ['-F', d.rstrip('/').removesuffix('/**')]
             link += split_setting(s.get('OTHER_LDFLAGS'))
+            if '-lc++' not in link and uses_cxx_runtime(link_inputs(objs, link)):
+                link.append('-lc++')
             run(link)
             if kind == 'framework':
                 link_result['link'] += ['-F', out, '-framework', product_name]

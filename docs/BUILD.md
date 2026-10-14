@@ -46,6 +46,10 @@ A compiler newer than CI's may warn about more; `ISIM_WERROR=0 isim/build.py` bu
   and a line in `FRAMEWORKS` (`graph.py`).
 - **A Swift overlay**: `isim/swift/overlays/<Name>.swift` (or a directory) and a line in `OVERLAYS` (`swift.py`) with
   the modules and frameworks it links.
+- **An Objective-C interface for a Swift overlay** (WebKit, StoreKit, AVFoundation…): give the classes Apple's names
+  (`@objc(WKWebView)`) and members Apple's selectors, add the old `_TtC…` class symbols to `OBJC_NAMES` (`swift.py`),
+  headers in `isim/sdk-src/Frameworks/<Name>` wrapped in `#if !defined(__swift__)`, C constants or categories in
+  `isim/frameworks/<Name>`, and a line in `SWIFT_FRAMEWORKS` (`graph.py`): the framework re-exports the overlay.
 
 ## CI
 

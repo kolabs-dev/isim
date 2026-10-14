@@ -516,7 +516,7 @@ static const struct shim commoncrypto_table[] = {
     S_("CCCryptorUpdate", cc_cryptor_update), S_("CCCryptorFinal", cc_cryptor_final), S_("CCCryptorRelease", cc_cryptor_release),
     S_("CCCryptorReset", cc_cryptor_reset), S_("CCCryptorGetOutputLength", cc_cryptor_get_output_length),
 };
-const struct host_lib host_commoncrypto = { "/usr/lib/system/libcommonCrypto.dylib", commoncrypto_table, sizeof commoncrypto_table / sizeof *commoncrypto_table };
+const struct host_lib host_commoncrypto = { "/usr/lib/system/libcommonCrypto.dylib", commoncrypto_table, sizeof commoncrypto_table / sizeof *commoncrypto_table, NULL };
 
 /* ================= libisim_host: CryptoKit primitives ================= */
 int isim_crypto_available(void) { return ossl_ok(); }

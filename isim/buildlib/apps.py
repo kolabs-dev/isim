@@ -327,6 +327,19 @@ def _(a):
     a.objc_app(a.files("HelloCounter/*.m"), "HelloCounter/Info.plist", ["-framework", "UIKit", "-framework", "Foundation"])
 
 
+@app("samples/HelloSystemObjC", swift=False)
+def _(a):
+    a.objc_app(["main.mm"], "Info.plist", ["-std=c++17", "-framework", "UIKit", "-framework", "Foundation", "-framework", "JavaScriptCore",
+               "-framework", "CoreMedia", "-framework", "AVFoundation", "-framework", "Security", "-framework", "SystemConfiguration",
+               "-framework", "Network", "-framework", "CoreTelephony", "-framework", "MobileCoreServices", "-framework", "AdSupport",
+               "-framework", "StoreKit", "-lz", "-lcompression", "-lc++"], minos="17.0")
+
+
+@app("samples/HelloWebObjC", swift=False)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "WebKit"], minos="17.0")
+
+
 @app("samples/HelloCounterSwift")
 def _(a):
     a.swift_app(srcs=a.files("HelloCounterSwift/*.swift"), plist="HelloCounterSwift/Info.plist")

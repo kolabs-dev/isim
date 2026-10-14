@@ -1553,6 +1553,11 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
         }
         attrs = all;
     }
+    /* cells that left the rect go to the reuse pool before new ones are dequeued, like UIKit: a scroll that jumps a whole
+       screen in one frame reuses them instead of creating a second screenful of cells */
+    NSMutableSet *wanted = [NSMutableSet set];
+    for (UICollectionViewLayoutAttributes *a in attrs) if (a.representedElementCategory == UICollectionElementCategoryCell) [wanted addObject:a.indexPath];
+    for (NSIndexPath *ip in _cells.allKeys) if (![wanted containsObject:ip]) { [self _recycleCell:_cells[ip] at:ip]; [_cells removeObjectForKey:ip]; }
     NSMutableSet *keepDecos = [NSMutableSet set];
     UICollectionViewLayout *lay = _collectionViewLayout;
     BOOL flip = lay.flipsHorizontallyInOppositeLayoutDirection && self.effectiveUserInterfaceLayoutDirection != lay.developmentLayoutDirection;

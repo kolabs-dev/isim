@@ -296,21 +296,21 @@ extension SKPaymentTransactionObserver {
 }
 public protocol SKPaymentQueueDelegate: AnyObject {}
 
-open class SKStorefront: NSObject, @unchecked Sendable {
-    public let countryCode: String, identifier: String
+@objc(SKStorefront) open class SKStorefront: NSObject, @unchecked Sendable {
+    @objc public let countryCode: String, identifier: String
     init(_ c: String) { countryCode = c; identifier = c }
 }
 
-open class SKPaymentQueue: NSObject, @unchecked Sendable {
+@objc(SKPaymentQueue) open class SKPaymentQueue: NSObject, @unchecked Sendable {
     static let shared = SKPaymentQueue()
-    open class func `default`() -> SKPaymentQueue { shared }
-    open class func canMakePayments() -> Bool { true }
+    @objc(defaultQueue) open class func `default`() -> SKPaymentQueue { shared }
+    @objc open class func canMakePayments() -> Bool { true }
     weak open var delegate: SKPaymentQueueDelegate?
     final class Weak { weak var o: SKPaymentTransactionObserver?; init(_ o: SKPaymentTransactionObserver) { self.o = o } }
     private var observers: [Weak] = []
     open private(set) var transactions: [SKPaymentTransaction] = []
     open var transactionObservers: [SKPaymentTransactionObserver] { observers.compactMap { $0.o } }
-    open var storefront: SKStorefront? { SKStorefront(_SKConfig.load().storefront) }
+    @objc open var storefront: SKStorefront? { SKStorefront(_SKConfig.load().storefront) }
     private var listening = false
 
     open func add(_ observer: SKPaymentTransactionObserver) {
@@ -419,6 +419,15 @@ public let SKStoreProductParameterAffiliateToken = "at"
 public let SKStoreProductParameterCampaignToken = "ct"
 public let SKStoreProductParameterProviderToken = "pt"
 public let SKStoreProductParameterAdvertisingPartnerToken = "advp"
+// SKAdNetwork's install-validation parameters (the ad network's signed impression)
+public let SKStoreProductParameterAdNetworkIdentifier = "adNetworkId"
+public let SKStoreProductParameterAdNetworkCampaignIdentifier = "adNetworkCampaignId"
+public let SKStoreProductParameterAdNetworkSourceIdentifier = "adNetworkSourceIdentifier"
+public let SKStoreProductParameterAdNetworkTimestamp = "adNetworkImpressionTimestamp"
+public let SKStoreProductParameterAdNetworkNonce = "adNetworkNonce"
+public let SKStoreProductParameterAdNetworkAttributionSignature = "adNetworkAttributionSignature"
+public let SKStoreProductParameterAdNetworkVersion = "adNetworkPayloadVersion"
+public let SKStoreProductParameterAdNetworkSourceAppStoreIdentifier = "adNetworkSourceAppStoreIdentifier"
 
 public protocol SKStoreProductViewControllerDelegate: AnyObject {
     func productViewControllerDidFinish(_ viewController: SKStoreProductViewController)
@@ -429,10 +438,11 @@ extension SKStoreProductViewControllerDelegate {
 
 /// The App Store product page, with the app's listing from Apple's public lookup API (see _SKAppStore). Installing is
 /// not possible on isim ("GET" says so). An unknown app makes loadProduct fail, as on iOS.
-open class SKStoreProductViewController: UIViewController {
+@objc(SKStoreProductViewController) open class SKStoreProductViewController: UIViewController {
     weak open var delegate: SKStoreProductViewControllerDelegate?
     var appID = ""
     lazy var model = _SKListingModel(appID: appID)
+    @objc(loadProductWithParameters:completionBlock:)
     open func loadProduct(withParameters parameters: [String: Any], completionBlock: ((Bool, Error?) -> Void)? = nil) {
         appID = "\(parameters[SKStoreProductParameterITunesItemIdentifier] ?? parameters[SKStoreProductParameterProductIdentifier] ?? "")"
         let model = _SKListingModel(appID: appID)
@@ -494,41 +504,46 @@ extension SKOverlayDelegate {
 
 /// The App Store overlay: a card at the bottom of the screen with the app's listing (see _SKAppStore); it slides up,
 /// and "GET" says installing is not possible on isim. An unknown app fails through the delegate, as on iOS.
-open class SKOverlay: NSObject {
+@objc(SKOverlay) open class SKOverlay: NSObject {
     public enum Position: Int, Sendable { case bottom = 0, bottomRaised = 1 }
-    open class Configuration: NSObject {}
-    open class AppConfiguration: Configuration {
-        open var appIdentifier: String
+    @objc(SKOverlayConfiguration) open class Configuration: NSObject {}
+    @objc(SKOverlayAppConfiguration) open class AppConfiguration: Configuration {
+        @objc open var appIdentifier: String
         open var position: Position
-        open var campaignToken: String?
-        open var providerToken: String?
-        open var customProductPageIdentifier: String?
-        open var latestReleaseID: String?
-        open var userDismissible = true
+        /// Objective-C's SKOverlayPosition (an NSInteger)
+        @objc(position) public var _objc_position: Int { get { position.rawValue } set { position = Position(rawValue: newValue) ?? .bottom } }
+        @objc open var campaignToken: String?
+        @objc open var providerToken: String?
+        @objc open var customProductPageIdentifier: String?
+        @objc open var latestReleaseID: String?
+        @objc open var userDismissible = true
         var extra: [String: Any] = [:]
         public init(appIdentifier: String, position: Position) { self.appIdentifier = appIdentifier; self.position = position }
-        open func additionalValue(forKey key: String) -> Any? { extra[key] }
-        open func setAdditionalValue(_ value: Any?, forKey key: String) { extra[key] = value }
+        @objc(initWithAppIdentifier:position:) public convenience init(_objcAppIdentifier appIdentifier: String, position: Int) {
+            self.init(appIdentifier: appIdentifier, position: Position(rawValue: position) ?? .bottom)
+        }
+        @objc(additionalValueForKey:) open func additionalValue(forKey key: String) -> Any? { extra[key] }
+        @objc(setAdditionalValue:forKey:) open func setAdditionalValue(_ value: Any?, forKey key: String) { extra[key] = value }
     }
-    open class AppClipConfiguration: Configuration {
+    @objc(SKOverlayAppClipConfiguration) open class AppClipConfiguration: Configuration {
         open var position: Position
         open var campaignToken: String?
         open var providerToken: String?
         public init(position: Position) { self.position = position }
     }
-    open class TransitionContext: NSObject {
+    @objc(SKOverlayTransitionContext) open class TransitionContext: NSObject {
         var blocks: [() -> Void] = []
         public func addAnimationBlock(_ block: @escaping () -> Void) { blocks.append(block) }
         public var startFrame: CGRect = .zero, endFrame: CGRect = .zero
     }
     public let configuration: Configuration
     weak open var delegate: SKOverlayDelegate?
-    public init(configuration: Configuration) { self.configuration = configuration }
+    @objc(initWithConfiguration:) public init(configuration: Configuration) { self.configuration = configuration }
     @MainActor static var window: UIWindow?
     @MainActor static var current: SKOverlay?
     @MainActor static var card: UIView?
 
-    @MainActor open func present(in scene: UIWindowScene) {
+    @MainActor @objc(presentInScene:) open func present(in scene: UIWindowScene) {
         let app = configuration as? AppConfiguration
         let raised = (app?.position ?? (configuration as? AppClipConfiguration)?.position) == .bottomRaised
         let dismissible = app?.userDismissible ?? true
@@ -597,7 +612,7 @@ open class SKOverlay: NSObject {
         })
         NSLog("isim StoreKit: SKOverlay presented for app %@ (%@)", listing.id, listing.name)
     }
-    @MainActor open class func dismiss(in scene: UIWindowScene) { dismiss(in: scene, overlay: current) }
+    @MainActor @objc(dismissOverlayInScene:) open class func dismiss(in scene: UIWindowScene) { dismiss(in: scene, overlay: current) }
     @MainActor static func dismiss(in scene: UIWindowScene, overlay: SKOverlay?) {
         guard let w = window else { return }
         let ctx = TransitionContext()

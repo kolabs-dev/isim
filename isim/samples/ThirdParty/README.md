@@ -14,4 +14,4 @@ isim run /tmp/ga/GoogleAds.app
 
 | Sample | SDK | Status |
 |---|---|---|
-| GoogleAds | Google Mobile Ads 13 (`swift-package-manager-google-mobile-ads`): banner and interstitial with Google's test ad units | does not build yet: the SDK's headers import `WebKit/WebKit.h`, and isim's WebKit has no Objective-C interface ([#200](https://github.com/kolabs-dev/isim/issues/200)) |
+| GoogleAds | Google Mobile Ads 13 (`swift-package-manager-google-mobile-ads`): banner and interstitial with Google's test ad units | builds and runs: the SDK starts, the test banner and interstitial load from Google's servers and show ([#200](https://github.com/kolabs-dev/isim/issues/200)). Known gap: tapping the interstitial's close button does not dismiss it yet. `ISIM_OBJC_AUDIT=1` lists the selectors the SDK references that isim does not implement (most are optional delegate callbacks) |

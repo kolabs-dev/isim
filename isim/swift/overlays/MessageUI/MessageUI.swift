@@ -7,11 +7,11 @@
 // is written to $ISIM_DATA/Library/Mail/Outbox/<n>.eml (saved drafts: Mail/Drafts) and a sent message to $ISIM_DATA/Library/SMS/Outbox/<n>.json.
 import UIKit
 
-@objc public protocol MFMailComposeViewControllerDelegate: NSObjectProtocol {
-    @MainActor @objc optional func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: Error?)
+@objc(MFMailComposeViewControllerDelegate) public protocol MFMailComposeViewControllerDelegate: NSObjectProtocol {
+    @MainActor @objc(mailComposeController:didFinishWithResult:error:) optional func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: Error?)
 }
-@objc public protocol MFMessageComposeViewControllerDelegate: NSObjectProtocol {
-    @MainActor func messageComposeViewController(_ controller: MFMessageComposeViewController, didFinishWith result: MessageComposeResult)
+@objc(MFMessageComposeViewControllerDelegate) public protocol MFMessageComposeViewControllerDelegate: NSObjectProtocol {
+    @MainActor @objc(messageComposeViewController:didFinishWithResult:) func messageComposeViewController(_ controller: MFMessageComposeViewController, didFinishWith result: MessageComposeResult)
 }
 
 @objc public enum MFMailComposeResult: Int, Sendable { case cancelled = 0, saved, sent, failed }
@@ -107,14 +107,14 @@ enum _MFDevice {
 // MARK: - Mail
 
 @MainActor
-open class MFMailComposeViewController: UINavigationController {
-    open weak var mailComposeDelegate: MFMailComposeViewControllerDelegate?
-    open class func canSendMail() -> Bool { _MFDevice.enabled("ISIM_MAIL") }
+@objc(MFMailComposeViewController) open class MFMailComposeViewController: UINavigationController {
+    @objc open weak var mailComposeDelegate: MFMailComposeViewControllerDelegate?
+    @objc open class func canSendMail() -> Bool { _MFDevice.enabled("ISIM_MAIL") }
     var to: [String] = [], cc: [String] = [], bcc: [String] = [], subject = "", body = "", isHTML = false, from: String?
     var attachments: [(Data, String, String)] = []
     let editor = _MFMailEditor()
 
-    public init() {
+    @objc public init() {
         super.init(nibName: nil, bundle: nil)
         editor.owner = self
         viewControllers = [editor]
@@ -125,13 +125,13 @@ open class MFMailComposeViewController: UINavigationController {
     }
     public required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     public override init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) { super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil) }
-    open func setSubject(_ subject: String) { self.subject = subject }
-    open func setToRecipients(_ toRecipients: [String]?) { to = toRecipients ?? [] }
-    open func setCcRecipients(_ ccRecipients: [String]?) { cc = ccRecipients ?? [] }
-    open func setBccRecipients(_ bccRecipients: [String]?) { bcc = bccRecipients ?? [] }
-    open func setMessageBody(_ body: String, isHTML: Bool) { self.body = body; self.isHTML = isHTML }
-    open func addAttachmentData(_ attachment: Data, mimeType: String, fileName filename: String) { attachments.append((attachment, mimeType, filename)) }
-    open func setPreferredSendingEmailAddress(_ emailAddress: String) { from = emailAddress }
+    @objc open func setSubject(_ subject: String) { self.subject = subject }
+    @objc open func setToRecipients(_ toRecipients: [String]?) { to = toRecipients ?? [] }
+    @objc open func setCcRecipients(_ ccRecipients: [String]?) { cc = ccRecipients ?? [] }
+    @objc open func setBccRecipients(_ bccRecipients: [String]?) { bcc = bccRecipients ?? [] }
+    @objc open func setMessageBody(_ body: String, isHTML: Bool) { self.body = body; self.isHTML = isHTML }
+    @objc open func addAttachmentData(_ attachment: Data, mimeType: String, fileName filename: String) { attachments.append((attachment, mimeType, filename)) }
+    @objc open func setPreferredSendingEmailAddress(_ emailAddress: String) { from = emailAddress }
 
     open override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
@@ -256,28 +256,28 @@ open class MFMailComposeViewController: UINavigationController {
 // MARK: - Messages
 
 @MainActor
-open class MFMessageComposeViewController: UINavigationController {
-    open weak var messageComposeDelegate: MFMessageComposeViewControllerDelegate?
-    open var recipients: [String]?
-    open var body: String?
-    open var subject: String?
-    open var message: AnyObject?
+@objc(MFMessageComposeViewController) open class MFMessageComposeViewController: UINavigationController {
+    @objc open weak var messageComposeDelegate: MFMessageComposeViewControllerDelegate?
+    @objc open var recipients: [String]?
+    @objc open var body: String?
+    @objc open var subject: String?
+    @objc open var message: AnyObject?
     var attachments: [(Data, String, String)] = []
-    open class func canSendText() -> Bool { _MFDevice.enabled("ISIM_MESSAGES") }
-    open class func canSendSubject() -> Bool { false }
-    open class func canSendAttachments() -> Bool { canSendText() }
-    open class func isSupportedAttachmentUTI(_ uti: String) -> Bool { canSendText() }
-    open func disableUserAttachments() {}
-    @discardableResult open func addAttachmentData(_ attachmentData: Data, typeIdentifier uti: String, filename: String) -> Bool {
+    @objc open class func canSendText() -> Bool { _MFDevice.enabled("ISIM_MESSAGES") }
+    @objc open class func canSendSubject() -> Bool { false }
+    @objc open class func canSendAttachments() -> Bool { canSendText() }
+    @objc open class func isSupportedAttachmentUTI(_ uti: String) -> Bool { canSendText() }
+    @objc open func disableUserAttachments() {}
+    @objc @discardableResult open func addAttachmentData(_ attachmentData: Data, typeIdentifier uti: String, filename: String) -> Bool {
         attachments.append((attachmentData, uti, filename)); return MFMessageComposeViewController.canSendAttachments()
     }
-    @discardableResult open func addAttachmentURL(_ attachmentURL: URL, withAlternateFilename alternateFilename: String?) -> Bool {
+    @objc @discardableResult open func addAttachmentURL(_ attachmentURL: URL, withAlternateFilename alternateFilename: String?) -> Bool {
         guard let d = try? Data(contentsOf: attachmentURL) else { return false }
         attachments.append((d, "public.data", alternateFilename ?? attachmentURL.lastPathComponent)); return MFMessageComposeViewController.canSendAttachments()
     }
-    open var attachmentsList: [[String: Any]]? { attachments.map { [MFMessageComposeViewControllerAttachmentAlternateFilename: $0.2] } }
+    @objc(attachments) open var attachmentsList: [[String: Any]]? { attachments.map { [MFMessageComposeViewControllerAttachmentAlternateFilename: $0.2] } }
     let editor = _MFMessageEditor()
-    public init() {
+    @objc public init() {
         super.init(nibName: nil, bundle: nil)
         editor.owner = self
         viewControllers = [editor]

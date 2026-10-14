@@ -31,6 +31,8 @@
 /* isim: these sets are defined over UTF-16 code units, so supplementary-plane scalars are not members */
 - (BOOL)longCharacterIsMember:(UTF32Char)c { return c <= 0xFFFF ? [self characterIsMember:(unichar)c] : NO; }
 - (id)copyWithZone:(NSZone *)z { return self; }
+- (id)mutableCopyWithZone:(NSZone *)z { NSMutableCharacterSet *m = [NSMutableCharacterSet new]; m.test = self.test; return m; }
+- (BOOL)isSupersetOfSet:(NSCharacterSet *)o { for (unichar c = 0; c < 0xFFFF; c++) if ([o characterIsMember:c] && ![self characterIsMember:c]) return NO; return YES; }
 @end
 @implementation NSMutableCharacterSet
 - (void)addCharactersInString:(NSString *)s { NSCharacterSet *o = [NSCharacterSet characterSetWithCharactersInString:s]; [self formUnionWithCharacterSet:o]; }
