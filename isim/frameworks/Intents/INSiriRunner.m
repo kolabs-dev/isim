@@ -19,6 +19,7 @@
 #import <objc/message.h>
 #import <objc/runtime.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 id isim_in_encode(id v);
 id isim_in_decode(id v);
@@ -89,7 +90,91 @@ static NSArray<NSDictionary *> *intent_params(NSString *cls) {
     };
     return t[cls];
 }
-static NSString *base_name(NSString *cls) { return [[cls substringFromIndex:2] stringByReplacingOccurrencesOfString:@"Intent" withString:@""]; }   /* SendMessage */
+/* ---------------- custom intents: their definition (.intentdefinition files `isim build` copies into the bundle) ---------------- */
+static NSArray<NSDictionary *> *definitions(void) {
+    static NSMutableArray *defs;
+    if (defs) return defs;
+    defs = [NSMutableArray array];
+    NSMutableArray *dirs = [NSMutableArray arrayWithObject:NSBundle.mainBundle.bundlePath];
+    if ([NSBundle.mainBundle.bundlePath.pathExtension isEqualToString:@"appex"])     /* an extension: the app's too */
+        [dirs addObject:NSBundle.mainBundle.bundlePath.stringByDeletingLastPathComponent.stringByDeletingLastPathComponent];
+    for (NSString *dir in dirs)
+        for (NSString *f in [NSFileManager.defaultManager contentsOfDirectoryAtPath:dir error:NULL])
+            if ([f.pathExtension isEqualToString:@"intentdefinition"]) {
+                NSDictionary *d = [NSDictionary dictionaryWithContentsOfFile:[dir stringByAppendingPathComponent:f]];
+                if (d) [defs addObject:d];
+            }
+    return defs;
+}
+static NSDictionary *custom_intent(NSString *cls, NSDictionary **definition) {
+    for (NSDictionary *d in definitions())
+        for (NSDictionary *i in d[@"INIntents"])
+            if ([[i[@"INIntentName"] stringByAppendingString:@"Intent"] isEqualToString:cls] || [i[@"INIntentClassName"] isEqualToString:cls]) {
+                if (definition) *definition = d;
+                return i;
+            }
+    return nil;
+}
+static NSString *capitalized(NSString *s) { return s.length ? [[s substringToIndex:1].uppercaseString stringByAppendingString:[s substringFromIndex:1]] : s; }
+/* a custom intent's parameters, like intent_params: kind from its type (number, bool, enum, object, person(s), url,
+   date, string), Xcode's resolve selector, the question (its primary prompt dialog) */
+static NSArray<NSDictionary *> *custom_params(NSString *cls) {
+    NSDictionary *def = nil, *intent = custom_intent(cls, &def);
+    if (!intent) return nil;
+    NSString *base = [cls hasSuffix:@"Intent"] ? [cls substringToIndex:cls.length - 6] : cls;
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSDictionary *p in intent[@"INIntentParameters"]) {
+        NSString *name = p[@"INIntentParameterName"], *type = p[@"INIntentParameterType"] ?: @"String", *kind = @"string";
+        BOOL many = [p[@"INIntentParameterSupportsMultipleValues"] boolValue];
+        if (p[@"INIntentParameterEnumType"]) kind = @"enum";
+        else if ([type isEqualToString:@"Integer"] || [type isEqualToString:@"Decimal"]) kind = @"number";
+        else if ([type isEqualToString:@"Boolean"]) kind = @"bool";
+        else if ([type isEqualToString:@"Object"]) kind = @"object";
+        else if ([type isEqualToString:@"Person"]) kind = many ? @"persons" : @"person";
+        else if ([type isEqualToString:@"URL"]) kind = @"url";
+        NSString *prompt = nil;
+        for (NSDictionary *d in p[@"INIntentParameterPromptDialogs"])
+            if ([d[@"INIntentParameterPromptDialogType"] isEqual:@"Primary"]) prompt = d[@"INIntentParameterPromptDialogFormatString"];
+        NSMutableDictionary *e = [@{ @"key": name, @"kind": kind, @"many": @(many), @"type": type,
+                                     @"sel": @[[NSString stringWithFormat:@"resolve%@For%@:withCompletion:", capitalized(name), base]],
+                                     @"prompt": prompt ?: [NSString stringWithFormat:@"What %@?", p[@"INIntentParameterDisplayName"] ?: name] } mutableCopy];
+        if (p[@"INIntentParameterEnumType"]) {
+            for (NSDictionary *en in def[@"INEnums"])
+                if ([en[@"INEnumName"] isEqual:p[@"INIntentParameterEnumType"]]) e[@"enum"] = en[@"INEnumValues"] ?: @[];
+        }
+        if (p[@"INIntentParameterObjectType"]) e[@"objectType"] = p[@"INIntentParameterObjectType"];
+        [out addObject:e];
+    }
+    return out;
+}
+static id value_from_text(NSString *kind, NSString *text, INIntent *intent);
+/* a custom parameter's value from text: the parameter's type (the script's key=value strings, and answers) */
+static id custom_value(NSDictionary *p, id raw) {
+    if (![raw isKindOfClass:[NSString class]]) return raw;
+    NSString *text = [raw stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet], *kind = p[@"kind"];
+    if ([kind isEqualToString:@"number"]) return [p[@"type"] isEqual:@"Decimal"] ? @(text.doubleValue) : @(text.integerValue);
+    if ([kind isEqualToString:@"bool"]) { NSString *l = text.lowercaseString; return @([l hasPrefix:@"y"] || [l isEqualToString:@"true"] || [l isEqualToString:@"1"]); }
+    if ([kind isEqualToString:@"enum"]) {
+        for (NSDictionary *v in p[@"enum"])
+            if ([[v[@"INEnumValueName"] lowercaseString] isEqualToString:text.lowercaseString] || [[v[@"INEnumValueDisplayName"] lowercaseString] isEqualToString:text.lowercaseString])
+                return @([v[@"INEnumValueIndex"] integerValue]);
+        return @(text.integerValue);
+    }
+    if ([kind isEqualToString:@"object"]) {
+        Class c = NSClassFromString(p[@"objectType"]) ?: [INObject class];
+        id o = [[c alloc] initWithIdentifier:text displayString:text];
+        return [p[@"many"] boolValue] ? @[o] : o;
+    }
+    if ([kind isEqualToString:@"url"]) return [NSURL URLWithString:text];
+    if ([kind isEqualToString:@"persons"]) return value_from_text(@"persons", text, nil);
+    if ([kind isEqualToString:@"person"]) return [value_from_text(@"persons", text, nil) firstObject];
+    return text;
+}
+static NSString *base_name(NSString *cls) {                 /* SendMessage; OrderSoup for a custom OrderSoupIntent */
+    BOOL system = cls.length > 2 && [cls hasPrefix:@"IN"] && isupper([cls characterAtIndex:2]);
+    NSString *b = system ? [cls substringFromIndex:2] : cls;
+    return [b hasSuffix:@"Intent"] ? [b substringToIndex:b.length - 6] : b;
+}
 static SEL handle_sel(NSString *cls) { return NSSelectorFromString([NSString stringWithFormat:@"handle%@:completion:", base_name(cls)]); }
 static SEL confirm_sel(NSString *cls) { return NSSelectorFromString([NSString stringWithFormat:@"confirm%@:completion:", base_name(cls)]); }
 static Protocol *handling_protocol(NSString *cls) { return objc_getProtocol([cls stringByAppendingString:@"Handling"].UTF8String); }
@@ -146,8 +231,41 @@ static id value_from_text(NSString *kind, NSString *text, INIntent *intent) {
     return text;
 }
 
+/* a custom response's dialog: its code's format string with ${parameter} filled in from the response */
+static NSDictionary *custom_code(NSString *cls, NSInteger code) {
+    NSDictionary *intent = custom_intent(cls, NULL);
+    if (!intent) return nil;
+    NSArray *codes = intent[@"INIntentResponse"][@"INIntentResponseCodes"];
+    static NSArray *system;
+    if (!system) system = @[@"unspecified", @"ready", @"continueInApp", @"inProgress", @"success", @"failure", @"failureRequiringAppLaunch"];
+    NSInteger custom = 100;
+    for (NSDictionary *c in codes) {
+        NSString *name = c[@"INIntentResponseCodeName"];
+        NSUInteger i = [system indexOfObject:name];
+        NSInteger value = i != NSNotFound ? (NSInteger)i : custom++;
+        if (value == code) return c;
+    }
+    return nil;
+}
+static NSString *custom_dialog(INIntentResponse *r, NSDictionary *c) {
+    NSString *f = c[@"INIntentResponseCodeFormatString"] ?: c[@"INIntentResponseCodeConciseFormatString"] ?: @"";
+    NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:@"\\$\\{([A-Za-z0-9_]+)\\}" options:0 error:NULL];
+    NSMutableString *out = [f mutableCopy];
+    for (NSTextCheckingResult *m in [[re matchesInString:f options:0 range:NSMakeRange(0, f.length)] reverseObjectEnumerator]) {
+        NSString *key = [f substringWithRange:[m rangeAtIndex:1]];
+        id v = [r respondsToSelector:NSSelectorFromString(key)] ? [r valueForKey:key] : nil;
+        NSString *text = [v respondsToSelector:@selector(displayString)] ? [v displayString] : v ? [v description] : @"";
+        [out replaceCharactersInRange:m.range withString:text];
+    }
+    return out;
+}
 /* what the response code means, per domain */
 static NSString *outcome_of(NSString *cls, NSInteger code) {
+    if (custom_intent(cls, NULL)) {                         /* custom: success 4 (or a custom code marked success), ... */
+        NSDictionary *c = custom_code(cls, code);
+        if (code >= 100) return [c[@"INIntentResponseCodeSuccess"] boolValue] ? @"success" : @"failure";
+        return code == 4 || code == 3 || code == 1 ? @"success" : code == 2 ? @"continueInApp" : code == 6 ? @"appLaunch" : @"failure";
+    }
     if ([cls isEqualToString:@"INStartCallIntent"]) return code == 2 || code == 1 ? @"continueInApp" : code == 5 ? @"appLaunch" : code >= 4 ? @"failure" : @"failure";
     if ([cls isEqualToString:@"INPlayMediaIntent"])
         return code == 4 ? @"success" : code == 2 ? @"continueInApp" : code == 5 ? @"handleInApp" : code == 3 || code == 1 ? @"success" : code == 7 ? @"appLaunch" : @"failure";
@@ -212,6 +330,9 @@ static NSString *success_dialog(INIntent *intent, INIntentResponse *r, NSString 
 - (void)start {
     NSString *cls = NSStringFromClass(self.intent.class);
     NSArray *params = intent_params(cls);
+    if (!params && (params = custom_params(cls))) {          /* a custom intent: its values as the parameters' types */
+        for (NSDictionary *p in params) { id v = [self.intent _get:p[@"key"]]; if (v) [self.intent _set:custom_value(p, v) forKey:p[@"key"]]; }
+    }
     if (!params || !self.handler) {
         NSLog(@"isim Intents: no handler for %@ in %@", cls, self.app);
         [self fail:[NSString stringWithFormat:@"Sorry, %@ can’t do that.", self.app]]; return;
@@ -255,7 +376,7 @@ static NSString *success_dialog(INIntent *intent, INIntentResponse *r, NSString 
         if ([rk isEqualToString:@"needsValue"]) {
             [self.channel ask:@{ @"type": @"value", @"param": key, @"prompt": p[@"prompt"], @"kind": @"text" } reply:^(NSDictionary *a) {
                 if (![a[@"kind"] isEqual:@"text"]) { [self cancelled]; return; }
-                id v = value_from_text(kind, a[@"text"] ?: @"", self.intent);
+                id v = p[@"type"] ? custom_value(p, a[@"text"] ?: @"") : value_from_text(kind, a[@"text"] ?: @"", self.intent);
                 if ([kind isEqualToString:@"string"] || [kind isEqualToString:@"speakable"] || [kind isEqualToString:@"taskList"] || [kind isEqualToString:@"noteContent"] || [kind isEqualToString:@"bool"]) [self.intent _set:v forKey:key];
                 else if (v) [self.intent _set:v forKey:key];
                 [self resolve:params index:i];
@@ -350,7 +471,9 @@ static NSString *success_dialog(INIntent *intent, INIntentResponse *r, NSString 
     INInteraction *interaction = [[INInteraction alloc] initWithIntent:self.intent response:r];
     interaction.direction = INInteractionDirectionOutgoing;
     NSMutableDictionary *res = [@{ @"outcome": outcome, @"code": @(code), @"interaction": [interaction _isim_plist] } mutableCopy];
-    if ([outcome isEqualToString:@"success"]) res[@"dialog"] = success_dialog(self.intent, r, self.app, &detail);
+    NSDictionary *cc = custom_code(cls, code);
+    if (cc && custom_dialog(r, cc).length) res[@"dialog"] = custom_dialog(r, cc);
+    else if ([outcome isEqualToString:@"success"]) res[@"dialog"] = success_dialog(self.intent, r, self.app, &detail);
     else if ([outcome isEqualToString:@"continueInApp"]) res[@"dialog"] = [cls isEqualToString:@"INStartCallIntent"] ? success_dialog(self.intent, r, self.app, &detail) : [NSString stringWithFormat:@"Opening %@…", self.app];
     else if ([outcome isEqualToString:@"appLaunch"]) res[@"dialog"] = [NSString stringWithFormat:@"You’ll need to continue in %@.", self.app];
     else if ([outcome isEqualToString:@"handleInApp"]) res[@"dialog"] = success_dialog(self.intent, r, self.app, &detail);

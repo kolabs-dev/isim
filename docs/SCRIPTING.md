@@ -104,7 +104,10 @@ optionally ending with `using|with|in|on|via APP` (or starting with `APP,`):
 
 `siri intent CLASS KEY=VALUE …` (`CLASS`: `INSendMessageIntent` or `SendMessage`; quote values with spaces) takes
 `recipients=A,B content=TEXT` (messages), `contacts=A video=1` (calls), `senders=A terms=X,Y` (message search),
-`media=NAME shuffle=1`, `tasks=A,B list=NAME`, `title=… content=… folder=…` (notes) and `app=BUNDLE_ID`. A SiriKit
+`media=NAME shuffle=1`, `tasks=A,B list=NAME`, `title=… content=… folder=…` (notes) and `app=BUNDLE_ID`. A custom intent
+(from an `.intentdefinition`) is named by its class, `siri intent OrderSoupIntent soup=Tomato quantity=2 size=bowl`:
+each value is converted to its parameter's type (numbers, booleans, enum cases by name, custom types by display
+string, people), Siri asks for missing values with the definition's prompts and speaks the response code's dialog. A SiriKit
 intent goes to the app that supports it (its Intents extension's `IntentsSupported`, or `INIntentsSupported` in the
 app's Info.plist; Siri asks "Which app?" when several do); the app must have the `com.apple.developer.siri`
 entitlement and have been allowed to use Siri (`INPreferences.requestSiriAuthorization`).

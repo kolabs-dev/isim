@@ -141,6 +141,9 @@ static NSDictionary *intent_plist(NSString *cls, NSDictionary<NSString *, NSStri
         if (v[@"title"]) p[@"title"] = speakable(v[@"title"]);
         if (v[@"content"]) p[@"content"] = @{ @"$class": @"INTextNoteContent", @"text": v[@"content"] };
         if (v[@"folder"]) p[@"groupName"] = speakable(v[@"folder"]);
+    } else if (![cls hasPrefix:@"IN"]) {                   /* a custom intent (.intentdefinition): the values as typed;
+                                                              the app converts them to the parameters' types */
+        for (NSString *k in v) p[k] = v[k];
     } else return nil;
     return p;
 }
@@ -201,7 +204,10 @@ static NSDictionary *structured(NSString *args, NSString **cls) {
     if (cur.length) [tok addObject:cur];
     if (!tok.count) return nil;
     *cls = tok[0];
-    if (![*cls hasPrefix:@"IN"]) *cls = [NSString stringWithFormat:@"IN%@%@", tok[0], [tok[0] hasSuffix:@"Intent"] ? @"" : @"Intent"];
+    if (![*cls hasPrefix:@"IN"]) {                         /* SendMessage -> INSendMessageIntent; a custom intent's class stays */
+        NSString *system = [NSString stringWithFormat:@"IN%@%@", tok[0], [tok[0] hasSuffix:@"Intent"] ? @"" : @"Intent"];
+        if (intent_plist(system, @{})) *cls = system;
+    }
     NSMutableDictionary *v = [NSMutableDictionary dictionary];
     for (NSString *t in [tok subarrayWithRange:NSMakeRange(1, tok.count - 1)]) {
         NSRange eq = [t rangeOfString:@"="];
