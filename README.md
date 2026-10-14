@@ -90,7 +90,7 @@ and logs can be answered or configured with environment variables: see [docs/SYS
 - [Scripting and automation](docs/SCRIPTING.md): script commands, `isim send` and the control FIFO, interactive shortcuts
 - [System prompts, simulated hardware and logs](docs/SYSTEM-PROMPTS.md): environment variables for permissions, biometrics, location, network, logs
 - [iOS versions](docs/IOS-VERSIONS.md): `--os 17|18|26|27`, device pairing, `#available`, what changes per version (Liquid Glass)
-- [API coverage](docs/COVERAGE.md): what is implemented, per framework and per iOS version
+- [API coverage](docs/COVERAGE.md): what is implemented, per framework and per iOS version, measured against Apple's documentation
 - [Core Data](docs/COREDATA.md) · [Game Center](docs/GAMECENTER.md): isim's model and configuration formats
 - [App Store distribution](docs/DISTRIBUTION.md): why upload from Linux is blocked, and shipping from a macOS CI runner
 - [Building](docs/BUILD.md) · [Testing](docs/TESTING.md): build.py, the Ninja graph, adding samples/frameworks/overlays; pytest and CI
@@ -130,8 +130,9 @@ isim/build.py package 0.20.0
 
 ## Status
 
-API coverage is tracked per framework and per iOS version in [docs/COVERAGE.md](docs/COVERAGE.md) (about 80% of its
-rows). ✅ done · 🟡 partial · ⬜ not started · ⛔ blocked
+API coverage is measured against Apple's documentation, per framework and per iOS version, in
+[docs/COVERAGE.md](docs/COVERAGE.md) (an index of every iOS framework, with a page per framework in
+[docs/frameworks/](docs/frameworks/)). ✅ done · 🟡 partial · ⬜ not started · ⛔ blocked
 
 | Area | Status | Notes |
 |---|---|---|

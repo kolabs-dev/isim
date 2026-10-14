@@ -38,6 +38,9 @@ def test_navigation(launch):
   `selftest("FoundationTest")` runs one and requires N == M.
 - **Markers.** `@pytest.mark.os_matrix` runs a test once per iOS version with `--os-matrix` (see below).
 - **Missing tools.** A test that needs an optional host tool (ffmpeg, zbar, tesseract, …) skips when it is missing.
+- **Coverage pages.** `tests/docs/test_coverage_docs.py` checks the framework pages (`docs/frameworks/`) without
+  running anything: every row has a valid status and iOS cell, and every sample or test a row cites exists. A row that
+  says "Tested (X)" must name a test that exercises it.
 
 Tests run with `ISIM_SKIP_LAUNCH_SCREEN=1` and, where a test asks for it, `ISIM_ANIMATIONS=0`
 (see [SYSTEM-PROMPTS.md](SYSTEM-PROMPTS.md)).

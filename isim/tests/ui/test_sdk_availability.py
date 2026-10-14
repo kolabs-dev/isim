@@ -5,7 +5,7 @@ deployment target iOS 17 gets the compiler's availability diagnostics for newer 
 - Swift (`isim swiftc -typecheck`, target x86_64-apple-ios17.0-simulator): the error "'X' is only available in iOS N
   or newer" for each unguarded use (APIs of isim's Swift overlays and of the imported Objective-C headers); none
   inside `if #available(iOS N, *)`.
-The tables below are a sample of the audited APIs (docs/COVERAGE.md, "SDK availability annotations"): each line must
+The tables below are a sample of the audited APIs (docs/frameworks/Platform.md, "SDK availability annotations"): each line must
 produce exactly its diagnostic, on its own line, with Apple's version."""
 import os
 import re

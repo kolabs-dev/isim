@@ -50,6 +50,25 @@ A compiler newer than CI's may warn about more; `ISIM_WERROR=0 isim/build.py` bu
   (`@objc(WKWebView)`) and members Apple's selectors, add the old `_TtC…` class symbols to `OBJC_NAMES` (`swift.py`),
   headers in `isim/sdk-src/Frameworks/<Name>` wrapped in `#if !defined(__swift__)`, C constants or categories in
   `isim/frameworks/<Name>`, and a line in `SWIFT_FRAMEWORKS` (`graph.py`): the framework re-exports the overlay.
+  Every Swift-implemented framework needs one (AGENTS.md).
+- **Its coverage page**: `docs/frameworks/<Name>.md` from `docs/frameworks/_template.md` (how isim implements it, the
+  rows), with the module in its area in `isim/data/frameworks.json`. The generated parts of the page are filled in by
+  `isim/tools/coverage-summary.py` at the next release.
+
+## Coverage numbers
+
+`isim/tools/api-coverage.py` compares isim's SDK with a snapshot of Apple's documentation
+(`isim/data/apple-api/apple-api.json.gz`; [API-SWEEP.md](API-SWEEP.md)):
+
+```bash
+isim/tools/api-coverage.py snapshot              # refresh Apple's data (network; after an Apple SDK release)
+isim/tools/api-coverage.py measure               # exact, from the built SDK's symbol graphs (swift:6.2 image)
+isim/tools/api-coverage.py measure --names       # without a build: by name, a lower bound on what is missing
+isim/tools/coverage-summary.py                   # docs/COVERAGE.md and the pages' generated parts
+```
+
+The Release workflow runs `measure` and `coverage-summary.py` and commits the results in the release pull request;
+pull requests do not, so they don't conflict.
 
 ## CI
 

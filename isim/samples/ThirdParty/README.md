@@ -2,7 +2,7 @@
 
 Apps that use real third-party SDKs, from their own packages, to show how they run on isim. isim does not
 re-implement third-party libraries (AGENTS.md, "Only Apple's SDK"). When one of these does not build or run, the cause
-is an iOS API isim lacks: fix it in isim, or record it in docs/COVERAGE.md and an issue.
+is an iOS API isim lacks: fix it in isim, or record it on its framework page (docs/frameworks/) and in a `coverage` issue.
 
 They are not part of `isim/build.py`: they need the network (`isim build` fetches the packages, and the SDKs talk to
 their own servers). Build one with `isim build`:

@@ -1,0 +1,456 @@
+# Foundation
+
+<!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 39.8% of Apple's iOS API (10975 of 27578, exact) · **Rows:** 98% (87: 83 ✅ 4 🟡) · **iOS:** 2.0+
+<!-- /generated:header -->
+
+**Area:** [Foundation & CoreFoundation](../COVERAGE.md#foundation) · **Apple:** [Foundation](https://developer.apple.com/documentation/foundation) · **Issues:** [`area:foundation`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Afoundation)
+
+## How isim implements it
+
+- **Adapted:** isim's own Objective-C Foundation (`isim/frameworks/Foundation`) and Swift overlay (`isim/swift/overlays/Foundation`), plus swift-foundation's `Predicate` sources (`FoundationEssentials`).
+- **Passthrough** to host libraries:
+  - ICU (loaded at run time): locale data;
+  - PCRE2: regular expressions;
+  - libcurl: `URLSession`;
+  - OpenSSL: TLS;
+  - inotify: file monitoring.
+- iCloud features are simulated locally under `ISIM_DATA`.
+
+## API
+
+
+### Strings & text
+
+| API / feature | Status | iOS | Notes |
+|---|---|---|---|
+| `String` ⇄ `NSString` bridging | ✅ | ≤17 | copies instead of lazy bridging |
+| `NSString` / `NSMutableString` API (search, replace, case, trimming, components, paths) | ✅ | ≤17 | search options (case/diacritic-insensitive, anchored, backwards, regex), Unicode case mapping, substring/line enumeration; locale-aware comparisons (`localizedCompare`, `localizedCaseInsensitiveCompare`, `localizedStandardCompare`, `compare(_:options:range:locale:)`) use the locale's collation and locale case mapping (`uppercased(with:)`, `localizedUppercase`: Turkish dotted I, ...) uses its rules, both from the host's ICU (libicu, dlopen'd; isim's built-in tables without it), as on iOS (code-point order without ICU). Tested: FoundationTest, SwiftFoundationTest |
+| `String(format:)`, `NSLog` | ✅ | ≤17 | |
+| String encodings (`data(using:)`, `String(data:encoding:)`, `String(contentsOf:)`) | ✅ | ≤17 | |
+| `CharacterSet` | ✅ | ≤17 | BMP only |
+| `NSAttributedString`, `NSMutableAttributedString` | ✅ | ≤17 | Foundation keys only (UIKit's font/color keys belong to UIKit); `mutableString` is a snapshot |
+| `AttributedString`, `AttributeContainer`, attribute scopes, runs | ✅ | ≤17 | Foundation scope (link, inline/presentation intents, imageURL, language, Markdown source position, ...); Codable (Foundation scope by default, any scope through `CodableWithConfiguration` / `@CodableConfiguration(from: \.myScope)`; reads Apple's attribute-table form too); the iOS 17 key rules: `runBoundaries` (`.paragraph`, `.character`), `inheritedByAddedText`, `invalidationConditions` (`.textChanged`, `.attributeChanged`). Adapted: `CodableConfiguration` resolves attribute scopes itself (isim's `AttributeScope` does not refine the configuration-providing protocols, to keep built apps' scopes working). Tested: SwiftFoundationTest |
+| `AttributedString(markdown:)` | ✅ | ≤17 | CommonMark + GFM blocks/inlines as presentation intents; reference links (`[text][label]`, `[label]`, one-line definitions); extended attributes `^[text](key: value)` (`allowsExtendedAttributes`, JSON5 values decoded by the scope's `MarkdownDecodableAttributedStringKey`s, `including:` scopes); source positions (`appliesSourcePositionAttributes`: each run's text, 1-based lines and UTF-8 columns; tabs count as 4). Raw HTML stays text. Tested: SwiftFoundationTest |
+| `NSRegularExpression`, `NSTextCheckingResult` | ✅ | ≤17 | host PCRE2 (close to ICU syntax); templates, named groups, options |
+| `NSDataDetector` | ✅ | ≤17 | links, phone numbers, dates, street addresses (US style: street, city, state, ZIP in `addressComponents`), transit information (flight numbers of common airlines: `components` airline and flight); tested (foundation self-test). Addresses outside the US format are not recognised |
+| `Scanner` | ✅ | ≤17 | ObjC and Swift (`scanString`, `scanInt`, `scanDouble`, `scanDecimal`, `currentIndex`) APIs |
+| `String(localized:)`, `NSLocalizedString`, `Bundle.localizedString` | ✅ | ≤17 | |
+| `LocalizedStringResource` | ✅ | ≤17 | Foundation's (also used by AppIntents); `String(localized:)` resolves it with the bundle/table/locale lookup, plurals included. Tested: HelloSharedData (en, ru) |
+| String Catalogs (`.xcstrings`) | ✅ | ≤17 | compiled to `.strings` + `.stringsdict` like Xcode: plural variations and substitutions (`%#@name@`, `argNum`, `%arg`) keep every category; device variations (`NSStringDeviceSpecificRuleType`: the simulated device's idiom, else `other`) and width variations (`NSStringVariableWidthRuleType`: the widest by default, `variantFittingPresentationWidth(_:)`). Tested: HelloSharedData (catalog compiled by isim build's compiler) |
+| `.stringsdict` plural rules | ✅ | ≤17 | `NSStringPluralRuleType`: CLDR cardinal categories (zero/one/two/few/many/other) for every language from the host's ICU, with the number's visible fraction digits (1.5: v = 1, f = 5; French "many" for 1 000 000); without ICU isim's table of CLDR rules for the common languages (en, de, es, it, nl, sv, fr, pt, ru, uk, be, pl, cs, sk, hr, sr, sl, lt, cy, ar, he, ro, ja, zh, ko, ...); the `zero` rule is used for 0 in every language, as on Apple platforms; applied by `localizedStringWithFormat:` / `stringWithFormat:` / `String(format:)` / `String(localized:)`, positional variables too. Adapted: Apple marks the returned string; isim's strings bridge to Swift by copying, so isim finds the entry by the format text, and entries are kept by identity: a second entry with the same format text (every String Catalog plural is `%#@value@`) gets the text plus an invisible tag (default-ignorable zero-width characters), removed when it is formatted. Tested: HelloSharedData (en, ru; every category of sl, lt, cy, ar, fr; two catalog plurals with the same format text) |
+
+### Collections & values
+
+| API / feature | Status | iOS | Notes |
+|---|---|---|---|
+| `NSArray`, `NSDictionary`, `NSSet` (+ mutable), literals, fast enumeration, sorting | ✅ | ≤17 | dictionaries and sets keep insertion order and are hash-indexed (`-hash` / `-isEqual:`): lookup, insertion and removal take constant expected time. Tested: FoundationTest (100k-entry set, dictionary and counted set) |
+| `Array` ⇄ `NSArray`, `Dictionary` ⇄ `NSDictionary`, `Set` ⇄ `NSSet` bridging | ✅ | ≤17 | copies (not lazy); elements bridge one by one, including classes to metatypes (`NSArray` of classes `as! [AnyClass]`, `as? [UIColor.Type]`, `super.allowedTopLevelClasses`). Tested: SwiftFoundationTest |
+| `NSOrderedSet`, `NSCountedSet`, `NSIndexSet` / `IndexSet`, `NSCache`, `NSHashTable`, `NSMapTable`, `NSPointerArray` | ✅ | ≤17 | `NSCache` evicts by count/cost limits only (no memory-pressure purging); weak tables use ObjC weak references. `NSHashTable` / `NSMapTable` are hash-indexed (`-hash` / `-isEqual:`, or the pointer with `NSPointerFunctionsObjectPointerPersonality`); entries whose weak object is gone are swept out by `count`, enumeration and growth. Tested: FoundationTest (50k-entry strong and weak tables, pointer personality) |
+| `IndexPath` / `NSIndexPath` (+ UIKit `row`/`section`/`item`) | ✅ | ≤17 | value type bridged to NSIndexPath; tested (HelloTable) |
+| `NSNumber`, `NSValue` (CG geometry), `NSNull` | ✅ | ≤17 | |
+| `UUID` | ✅ | ≤17 | |
+| `Decimal`, `NSDecimalNumber`, `NSDecimalNumberHandler` | ✅ | ≤17 | adapted: 38 significant digits, exact decimal arithmetic (digit strings), `NSDecimalRound`/`NSDecimalAdd`... (Swift and C), `pow`; `NSDecimalNumber` (an `NSNumber` subclass: arithmetic with behaviors, rounding modes, raise-on errors, `notANumber`, `compare:`, coding, scalar initializers exact), `NSDecimalNumberHandler`, `NSNumber.decimalValue`; `Decimal` bridges to `NSDecimalNumber` both ways (`as`, `Any`). Tested: FoundationTest, SwiftFoundationTest |
+| `NSError`, `LocalizedError`, `CustomNSError`, `RecoverableError`, `CocoaError` | 🟡 | ≤17 | Swift errors bridge through the Swift runtime's NSError box: `domain`/`code` from the error (raw values, `errorDomain`/`errorCode`), `userInfo` from `errorUserInfo` + `errorDescription`/`failureReason`/`recoverySuggestion`/`helpAnchor` + recovery options; `localizedDescription` matches iOS (default "The operation couldn’t be completed. (domain error n.)"); `as? MyError` works after a round trip through Objective-C; NSErrors of the Cocoa / URL domains bridge to `CocoaError` / `URLError` (`catch CocoaError.fileReadNoSuchFile`); Objective-C `NSError *` parameters and block arguments import as `Error` / `Error?`, as on iOS (Foundation API notes: `SwiftBridge: Swift.Error`), so Swift errors pass without `as NSError` and Swift classes adopt Objective-C protocols with Apple's signatures; `NSError.setUserInfoValueProvider(forDomain:)`, `localizedRecoverySuggestion`, `localizedRecoveryOptions`, `helpAnchor`, `underlyingErrors`. Tested (tests/swift-foundation, tests/foundation). `POSIXError`/`MachError` missing |
+| `NSPredicate`, `NSExpression` (format strings, `filtered(using:)`), `Predicate` / `#Predicate`, `Expression` / `#Expression` | ✅ | ≤17 | adapted: comparisons, string operators (`CONTAINS[cd]`, `LIKE`, `MATCHES`, `UTI-CONFORMS-TO`, ...), aggregates, `ANY`/`ALL`/`NONE`, `SUBQUERY`, `FUNCTION`, built-in functions (`sum:`, `average:`, `now()`, `uppercase:`, `count:`, ...), `$variables`, ternaries, set operations, block and custom-selector predicates; every `NSExpression` kind; secure coding. `#Predicate` / `#Expression` (the toolchain's macros) with swift-foundation's `Predicate` sources (Apache 2.0, see NOTICE) in a `FoundationEssentials` module that Foundation re-exports, as the macros expand to it; `NSPredicate(_: Predicate)` / `NSExpression(_:)` conversion. Tested: FoundationTest, SwiftFoundationTest |
+| `NSSortDescriptor`, `SortDescriptor`, `KeyPathComparator`, `sorted(using:)` | ✅ | ≤17 | |
+| Key-value coding (`value(forKey:)`, key paths, collection operators) and observing (KVO, `observe(\.x)`, `publisher(for:)`) | ✅ | ≤17 | KVO wraps setters; `@objc dynamic` Swift properties observable |
+| `UndoManager` | ✅ | ≤17 | groups, run-loop grouping, redo, action names, `registerUndo(withTarget:handler:)` |
+| `Progress` | ✅ | ≤17 | units, children, implicit (`becomeCurrent`, `performAsCurrent`), KVO on `fractionCompleted`, file progress (`kind = .file`, `fileOperationKind`, `fileURL`, `fileTotalCount` / `fileCompletedCount`, `throughput`, `estimatedTimeRemaining`, file-aware localized descriptions), `ProgressReporting`. Publishing and subscribing are macOS-only (unavailable on iOS). Tested: FoundationTest, SwiftFoundationTest |
+| `ProgressManager`, `Subprogress` | 🟡 | 27.0 | a subset: total and completed counts, `fractionCompleted` (started children count within the share their parent assigned), `isFinished`, `isIndeterminate`, `complete(count:)`, `setCounts`, `subprogress(assigningCount:)` / `start(totalCount:)` (an unstarted subprogress completes its share when it goes away). Not provided: `ProgressReporter`, custom properties, the bridge to `Progress`. Used by SwiftUI's document readers and writers (tested, HelloDocumentGroup) |
+| `FileWrapper` (`NSFileWrapper`) | ✅ | ≤17 | regular files, directories (packages) of named children (`addFileWrapper`, `addRegularFileWithContents`, `removeFileWrapper`, `keyForFileWrapper`, unique names), symbolic links; `init(url:options:)` / `read(from:options:)` read the whole tree, `write(to:options:originalContentsURL:)` (atomic: a package is written beside the destination and moved over it), `matchesContents(of:)`, file attributes. Not provided: `serializedRepresentation`, icons. Tested (HelloDocumentGroup) |
+
+### Encoding & serialization
+
+| API / feature | Status | iOS | Notes |
+|---|---|---|---|
+| `JSONEncoder` / `JSONDecoder` (key/date/data/float strategies, output formatting) | ✅ | ≤17 | |
+| `JSONSerialization` | ✅ | ≤17 | NSNumber/NSNull like Apple |
+| `PropertyListEncoder` / `PropertyListDecoder` | ✅ | ≤17 | XML and binary |
+| `PropertyListSerialization` | ✅ | ≤17 | XML, binary, OpenStep (read) |
+| Reading XML plists (`NSDictionary(contentsOfFile:)`, Info.plist) | ✅ | ≤17 | |
+| Binary plists | ✅ | ≤17 | read and written (Info.plist, user defaults, serialization) |
+| `NSKeyedArchiver` / `NSKeyedUnarchiver`, `NSCoding`, `NSSecureCoding` | ✅ | ≤17 | Apple's keyed-archive format (bplist `$objects`/`$top`), shared references and cycles, allowed classes, class name mapping. Foundation's classes (NSArray, NSDictionary, NSSet, NSString, NSValue, NSNull, NSDate, NSURL, NSLocale, NSTimeZone, NSError) and UIColor implement `encodeWithCoder:` / `initWithCoder:` / `supportsSecureCoding` with Apple's keys, so subclasses archive through `super`; non-keyed coders are not supported (keyed only, as on iOS); a dynamic UIColor archives as its current color (adapted). Tested: FoundationTest, SwiftFoundationTest |
+| `ValueTransformer` (`NSValueTransformer`), `NSSecureUnarchiveFromDataTransformer` | ✅ | ≤17 | named registry (class names register on first use), negate/is-nil built-ins, keyed-archive transformers. Tested: CoreDataTest |
+
+### Dates, calendars & formatters
+
+| API / feature | Status | iOS | Notes |
+|---|---|---|---|
+| `Date`, `TimeInterval`, `Date.now` | ✅ | ≤17 | |
+| `Calendar`, `DateComponents`, `DateInterval` | ✅ | ≤17 | Gregorian and ISO 8601 in Swift; every other identifier (Buddhist, Chinese, Coptic, Ethiopic, Hebrew, Indian, Islamic variants, Japanese, Persian, Republic of China) is computed by the host's ICU (libicu, dlopen'd; Gregorian rules without it): components, `date(from:)`, adding / rolling, ranges (13-month Hebrew years), intervals; `Locale.calendar` from `@calendar=`; localized symbols (`monthSymbols`, eras, quarters). Tested: SwiftFoundationTest, FoundationTest |
+| `TimeZone` (named zones, DST) | ✅ | ≤17 | Settings > Date & Time or the host's zone; changes apply live (`NSSystemTimeZoneDidChange`, `resetSystemTimeZone`) |
+| `Locale` (identifiers, language/region, separators, currency, `Locale.Language`) | 🟡 | ≤17 | Missing: `region`, `currency`, `measurementSystem`, `hourCycle`, `firstDayOfWeek`, ISO code lists, `Locale.Components`; `Language` minimal/maximal identifiers return their input |
+| `DateFormatter` (styles, `dateFormat`, templates, parsing) | ✅ | ≤17 | adapted: built-in tables for en, pt, es, fr, de, it, ja and their regions (they mirror iOS's strings); every other locale, and any locale with a non-Gregorian calendar (`calendar`, `@calendar=`), formats and parses with the host's ICU (libicu, dlopen'd; isim's built-in tables without it) (CLDR patterns, names, standalone and narrow symbols, quarters, long eras); the 12/24-hour setting applies to the current locale. Tested: FoundationTest, SwiftFoundationTest |
+| `NumberFormatter` (decimal, currency, percent, scientific, spell-out, ordinal, rounding, parsing) | ✅ | ≤17 | adapted: isim's decimal engine (ICU-style rounding) with locale data (separators, grouping, currency and percent patterns, currency symbols and digits) for every locale from the host's ICU (libicu, dlopen'd; isim's built-in tables without it); spell-out in every language (ICU's rule-based formats), ordinals for languages without built-in rules, currency plural names in the locale's language. Tested: FoundationTest |
+| `ISO8601DateFormatter` | ✅ | ≤17 | |
+| `RelativeDateTimeFormatter`, `DateComponentsFormatter`, `DateIntervalFormatter` | ✅ | ≤17 | adapted: built-in phrases for en, pt, es, fr, de, it, ja; every other language (relative phrases, unit names with its plural forms, unit lists, interval patterns, non-Gregorian calendars) from the host's ICU (libicu, dlopen'd; isim's built-in tables without it). The "About" / "remaining" phrases of DateComponentsFormatter are English. Tested: FoundationTest |
+| `.formatted()` / `FormatStyle` (dates, ISO 8601, relative, intervals, numbers, currency, percent, lists, byte counts, durations, measurements) and parse strategies | ✅ | ≤17 | follows the device region; built on the formatters above, so every locale and calendar `Date.FormatStyle` is given works (ICU for the ones without built-in tables); duration units and compact notation for other languages from ICU. Tested: SwiftFoundationTest |
+| `Measurement`, `Unit*`, `MeasurementFormatter` | ✅ | ≤17 | 22 unit families with conversion; locale-preferred units for length, mass, temperature, speed, volume; unit names and patterns for en, pt, es, fr, de, it built in, every other language from the host's ICU (libicu, dlopen'd; isim's built-in tables without it). Tested: FoundationTest |
+| `ByteCountFormatter`, `PersonNameComponentsFormatter`, `ListFormatter` | ✅ | ≤17 | |
+
+### Files, bundles & preferences
+
+| API / feature | Status | iOS | Notes |
+|---|---|---|---|
+| App sandbox container (Documents, Library, Caches, tmp) | ✅ | ≤17 | per app, under `ISIM_DATA` |
+| `FileManager` (exists, create, remove, copy, move, list, `urls(for:in:)`, temporary directory) | ✅ | ≤17 | Swift and Objective-C (path and URL forms). `copyItem` copies whole trees (symbolic links as links, permissions and modification dates kept); `moveItem` renames, or copies and removes across file systems; neither replaces an existing item (`NSFileWriteFileExistsError`). Directory enumerators (`enumerator(atPath:)`, `enumerator(at:includingPropertiesForKeys:options:errorHandler:)`, `subpathsOfDirectory(atPath:)`, `contentsOfDirectory(at:includingPropertiesForKeys:options:)`): pre-order, entries sorted by name, links not followed, `skipDescendants`, `level`, `fileAttributes`, the hidden-file / shallow / package / post-order options and the error handler; `NSEnumerator` is a Swift `Sequence`. Symbolic and hard links (`createSymbolicLink`, `destinationOfSymbolicLink`, `linkItem`), `replaceItemAt` / `replaceItem(at:…)` (rename(2), backup item, keeps the original's permissions), `contentsEqual`, `isExecutableFile` / `isDeletableFile`, `currentDirectoryPath` / `changeCurrentDirectoryPath`, file system representation (`NSString.fileSystemRepresentation`, `withFileSystemRepresentation`), `stringByResolvingSymlinksInPath`, the `NSFile*Error` codes (`FoundationErrors.h`). Adapted: packages are directories with a known package extension (`.app`, `.bundle`, `.framework`, …; no Uniform Type lookup); `producesRelativePathURLs` gives absolute URLs; `displayName(atPath:)` is the file name. Tested: FoundationTest, SwiftFoundationTest |
+| URL resource values (`URL.resourceValues(forKeys:)`, `URLResourceKey` / `URLResourceValues`, `setResourceValues`, `-[NSURL resourceValuesForKeys:error:]` / `getResourceValue:forKey:error:` / `setResourceValue(s):…`, temporary and cached values) | ✅ | ≤17 | adapted: file keys from lstat / access(2) (name, path, parent, file type flags, readable / writable / executable, resource type, (allocated / total) sizes, link count, file and resource identifiers, all dates); `contentType` / `typeIdentifier` / `localizedTypeDescription` through UniformTypeIdentifiers (a built-in table when it is not linked); volume keys from the host's file system (one APFS-like volume "Data": capacities incl. important / opportunistic usage, capabilities, UUID); ubiquity keys (`isUbiquitousItem`, downloading status, `ubiquitousItemIsDownloading` / `…IsUploaded` …) from isim's local iCloud (below); `setResourceValues` renames (`name`), sets the modification / access dates, and keeps `creationDate`, `isHidden`, `isExcludedFromBackup` (no backups: remembered only), `ubiquitousItemIsExcludedFromSync` and `fileProtection` (not enforced) in a per-device metadata store (`<isim data>/Library/.isim-file-metadata.plist`) that FileManager moves and removals follow; `setTemporaryResourceValue`, `removeCachedResourceValue(forKey:)` / `removeAllCachedResourceValues`. No thumbnail, tag or Finder label keys (nil), no prefetching. Tested: FoundationTest, SwiftFoundationTest |
+| `FileManager` attributes (`attributesOfItem(atPath:)`, `setAttributes(_:ofItemAtPath:)`, `attributesOfFileSystem(forPath:)`, `FileAttributeKey` / `FileAttributeType` / `FileProtectionType`, `NSDictionary` file accessors) | ✅ | ≤17 | adapted: from `lstat` (birth time from `statx`), `statvfs`; sets permissions, owner / group, modification date; creation date, data protection, immutable / append-only and HFS codes are accepted and ignored. `createFile` / `createDirectory` apply their attributes. Tested: FoundationTest, SwiftFoundationTest |
+| `Data(contentsOf:)`, `Data.write(to:)` | ✅ | ≤17 | |
+| `FileHandle`, `InputStream` / `OutputStream` | ✅ | ≤17 | adapted: files, memory and standard I/O; `readabilityHandler` / `writeabilityHandler` on threads; `readInBackgroundAndNotify(forModes:)`, `readToEndOfFileInBackgroundAndNotify`, `acceptConnectionInBackgroundAndNotify`, `waitForDataInBackgroundAndNotify` (notifications on the calling thread's run loop); streams: data / file / URL input, memory / buffer / file output, `schedule(in:forMode:)` / delegates with events coalesced like CFStream, `Stream.getStreamsToHost(withName:port:…)` (TCP, then TLS through the host's OpenSSL for `socketSecurityLevelKey` / `kCFStreamPropertySSLSettings`; a peer that closes without close_notify ends the stream), `getBoundStreams(withBufferSize:…)`, `setProperty` / `property(forKey:)` (file offsets, data written). No SOCKS / proxy properties (logged). Tested: FoundationTest (sockets, bound pairs, background notifications), SwiftNetworkTest (TLS) |
+| App Group containers (`containerURL(forSecurityApplicationGroupIdentifier:)`) | ✅ | ≤17 | `<isim data>/Shared/AppGroup/<id>`, shared by apps and their extensions; `UserDefaults(suiteName:)` uses it. Tested (HelloWidgets: the widget extension and the app share a counter) |
+| iCloud Drive / ubiquity containers (`url(forUbiquityContainerIdentifier:)`, `ubiquityIdentityToken`), `NSMetadataQuery`, `NSFileCoordinator` / `NSFilePresenter`, download states | ✅ | ≤17 | **local, no iCloud sync**: `<isim data>/Mobile Documents/<container>/Documents`; nil when `ISIM_ICLOUD=noAccount`. `setUbiquitous(_:itemAt:destinationURL:)` moves files in and out, `isUbiquitousItem(at:)`, `evictUbiquitousItem(at:)` (the content moves aside and the item reads as `.notDownloaded`), `startDownloadingUbiquitousItem(at:)` (back to `.current` shortly after; a coordinated read downloads first), `url(forPublishingUbiquitousItemAt:)` fails (no sharing). `NSMetadataQuery`: predicate (on `NSMetadataItem` attributes: name, path, URL, size, dates, content type, ubiquity status), `searchScopes` (ubiquitous documents / data / external), sort descriptors, grouping, value lists, `operationQueue`, gathering / finish / update notifications (polled at `notificationBatchingInterval`, 0.2–1 s, while live), `disableUpdates` / `enableUpdates`. `NSFileCoordinator`: reader / writer coordination within the app process (across apps it is not coordinated), `coordinate(with:queue:)` with `NSFileAccessIntent`, presenters (`addFilePresenter`) told of changes, moves and deletions by other coordinators and asked to save / relinquish first. Tested: FoundationTest, SwiftFoundationTest |
+| `Bundle` (main, by path/id, resources, Info.plist, localizations) | ✅ | ≤17 | code loading (`load`, `principalClass`, `allFrameworks`, ...): see Objective-C runtime & C library (`dlopen`) |
+| `UserDefaults` (standard, suites, register defaults, argument domain) | ✅ | ≤17 | persisted as an XML plist in the container |
+| `NSUbiquitousKeyValueStore` | ✅ | ≤17 | **local, no iCloud sync**: a plist per store under `<isim data>/Mobile Documents/KeyValueStore`; another process (or the host) writing it posts `didChangeExternallyNotification` (server change, changed keys) within 0.5 s. Tested: HelloSharedData |
+
+### Notifications, timers & threads
+
+| API / feature | Status | iOS | Notes |
+|---|---|---|---|
+| `NotificationCenter` (selector, block, Combine publisher) | ✅ | ≤17 | |
+| `NotificationCenter` messages (`MainActorMessage`, `AsyncMessage`, `MessageIdentifier`, `ObservationToken`) | 🟡 | 26 | `addObserver(of:for:using:)` (a subject, a subject type or a message type), `post(_:subject:)`, `removeObserver(_:)`, `messages(of:for:bufferSize:)` (an async sequence); a message posted from Swift reaches Swift observers as the same value, notifications posted the old way become messages with `makeMessage`, and old observers get `makeNotification`'s notification. Main-actor messages posted off the main thread are delivered on it. Tested (HelloMessages, OS matrix). Foundation's own messages (`UndoManager`, `UserDefaults`, `Locale`, …) are not defined yet |
+| `NotificationQueue` | ✅ | ≤17 | `.now`, `.asap` (end of the run-loop pass), `.whenIdle` (shortly after), coalescing on name/sender, `dequeueNotifications`; one queue per thread. Tested: HelloSharedData |
+| `DistributedNotificationCenter` | N/A | ≤17 | macOS only (not in the iOS SDK) |
+| `Timer` (block / target-selector, repeating, `RunLoop.add`) | ✅ | ≤17 | the run loop keeps scheduled timers alive until invalidated; `init(fire:interval:repeats:block:)` / target forms, `fireDate`, `tolerance` (accepted; timers fire on time); scheduled timers go to the current thread's run loop in the default mode. Tested: FoundationTest, SwiftFoundationTest |
+| `RunLoop` | ✅ | ≤17 | one per thread (`RunLoop.current` on a `Thread`), with modes: timers, delayed performs (`perform(_:with:afterDelay:inModes:)`, cancelling), ordered performs (`perform(_:target:argument:order:modes:)`), blocks (`perform(_:)`, `perform(inModes:block:)`) and ports (`Port` / `NSMachPort` keep a loop running) each in a set of modes; `.common` stands for the loop's common modes; `run()`, `run(until:)`, `run(mode:before:)` (false when the mode has nothing to wait for), `limitDate(forMode:)`, `acceptInput(forMode:before:)`, `currentMode`. The main loop is driven by UIKit's event loop and runs in `RunLoop.Mode.tracking` (`UITrackingRunLoopMode`, a common mode) while a scroll view is dragged or decelerates, so default-mode timers wait, as on iOS (isim's own framework timers use the common modes). Main-queue blocks run in the main loop's common modes. `Timer.publish(every:on:in:)` and the `RunLoop` Combine scheduler use the given loop and mode. Adapted: ports carry no messages (no `NSPortMessage`); no `CFRunLoop` API. Tested: FoundationTest, SwiftFoundationTest, HelloScrollAndLists (tracking mode) |
+| `Thread` (main checks, detach, sleep, name) | ✅ | ≤17 | pthreads: `Thread(block:)` / `init(target:selector:object:)`, `start`, `main`, `cancel`, `isExecuting` / `isFinished` / `isCancelled`, `detachNewThread`, `exit()`, `stackSize`, `threadDictionary`, `qualityOfService` / `threadPriority` (recorded, not applied: adapted), `callStackSymbols` / `callStackReturnAddresses`, `isMultiThreaded`, `NSThreadWillExit` / `NSWillBecomeMultiThreaded` notifications; `perform(_:on:with:waitUntilDone:modes:)`, `performSelector(onMainThread:with:waitUntilDone:modes:)` (waits for the target thread's run loop), `performSelector(inBackground:with:)`. Tested: FoundationTest, SwiftFoundationTest |
+| `OperationQueue` | ✅ | ≤17 | `Operation` (subclasses overriding `main`, or asynchronous ones overriding `start` / `isExecuting` / `isFinished` and posting KVO), `BlockOperation` (several execution blocks run concurrently), `NSInvocationOperation` (Objective-C); dependencies (a cancelled operation stops waiting), `queuePriority`, `qualityOfService`, `completionBlock` (on another thread), `waitUntilFinished`, KVO on `isReady` / `isExecuting` / `isFinished` / `isCancelled`. Queues: `addOperation(s)`, `addOperation { }`, `addBarrierBlock`, `maxConcurrentOperationCount`, `isSuspended`, `cancelAllOperations`, `waitUntilAllOperationsAreFinished`, `operations` / `operationCount` (KVO), `underlyingQueue`, `progress`, `OperationQueue.current` / `.main`. Operations run on the global dispatch queue of their quality of service (the main queue for `.main`). Tested: FoundationTest, SwiftFoundationTest |
+| `NSLock`, `NSRecursiveLock`, `NSCondition` | ✅ | ≤17 | |
+| `ProcessInfo` (environment, arguments, processor count, uptime) | ✅ | ≤17 | |
+| `ProcessInfo.thermalState`, `isLowPowerModeEnabled`, `physicalMemory`, `operatingSystemVersion`, activities | ✅ | ≤17 | a simulated iPhone: always `.nominal`, never Low Power Mode, memory per device model |
+
+### Networking
+
+| API / feature | Status | iOS | Notes |
+|---|---|---|---|
+| `URL` (parsing, components, file URLs, path helpers, percent encoding) | ✅ | ≤17 | RFC 3986 relative resolution, IPv6 hosts, `appending(queryItems:)`, `init(string:encodingInvalidCharacters:)` |
+| `URLComponents`, `URLQueryItem` | ✅ | ≤17 | parse/build, percent-encoded and decoded accessors, `queryItems` encoding like Apple's (`+` kept); tested |
+| `URLRequest` (method, headers, body, timeout, cache policy, cookies flag) | ✅ | ≤17 | tested |
+| `URLResponse`, `HTTPURLResponse` (status, `allHeaderFields`, `value(forHTTPHeaderField:)`, MIME type, length) | ✅ | ≤17 | tested |
+| `URLError` (codes, `failingURL`, `catch URLError.code`, NSError bridging) | ✅ | ≤17 | host errors mapped (refused, DNS, timeout, TLS, offline, cancelled); tested |
+| `URLSession` data/download/upload tasks (completion and async) | ✅ | ≤17 | Swift API; HTTP/HTTPS through the host's libcurl (dlopen'd, needed at run time); handlers on the session's background `delegateQueue`; cancellation; redirects; `ISIM_NETWORK=offline` simulates no network; tested (self-test + HelloNetwork) |
+| `URLSession` delegates (data, download, redirect, completion) | ✅ | ≤17 | Swift protocols with default implementations (Apple's are `@objc` optional methods); tested; `didCreateTask`, `willCacheResponse` unverified |
+| `bytes(from:)` / `bytes(for:)`, `AsyncBytes.lines` | ✅ | ≤17 | `lines` skips empty lines like Apple's; tested |
+| `URLSessionConfiguration` (`.default`, `.ephemeral`, timeouts, extra headers, cache/cookie settings) | ✅ | ≤17 | `timeoutIntervalForRequest` is an idle timeout as on iOS; `waitsForConnectivity`, `allowsCellularAccess` and service types are stored only |
+| `file:` and `data:` URLs in `URLSession` | ✅ | ≤17 | tested |
+| `URLSessionWebSocketTask` | ✅ | ≤17 | adapted: isim's own RFC 6455 client over ws:// and wss:// (any host libcurl): the upgrade (Sec-WebSocket-Accept checked; request headers, cookies and `Sec-WebSocket-Protocol` sent), the subprotocol the server chose in `didOpenWithProtocol`, the server's response (101, or a refusal's status) as the task's `response`, text and data, fragmented messages joined, pings answered, `sendPing`, close with code and reason. No proxies or permessage-deflate (servers fall back to uncompressed frames). Tested (SwiftNetworkTest over ws and wss, HelloNetwork echo) |
+| Authentication challenges (`didReceive challenge`, `URLCredential`, `URLProtectionSpace`), certificate pinning, client certificates | ✅ | ≤17 | HTTP Basic and Digest (MD5, qop=auth) through the task delegate (completion and async forms), `previousFailureCount`, `URLCredentialStorage` default credentials (in memory), 401 without a credential. Server trust: adapted: before an HTTPS request (with a delegate), URLSession meets the server in a handshake of its own (host OpenSSL) and puts the server's certificate chain in the challenge's `serverTrust`, so pinning code reads it with `SecTrustCopyCertificateChain` / `SecCertificateCopyData` / `SecTrustCopyKey` and `SecTrustEvaluateWithError`; libcurl's connection is then pinned to that certificate's key (a server whose key changes fails with -1202). `.useCredential` + `URLCredential(trust:)` accepts the certificate, cancel → -999, default handling checks it against the CA store. Client certificates: a server that asks for one gets an `NSURLAuthenticationMethodClientCertificate` challenge (`distinguishedNames`: the CAs the server names); `URLCredential(identity:certificates:persistence:)` (an identity from `SecPKCS12Import` or the keychain) is presented through libcurl; none → `clientCertificateRequired` (-1206). One probe per server and session. No NTLM / Negotiate or proxies. Tested (SwiftNetworkTest against https_server.py: pin match and mismatch, client identity and none; HelloConnections) |
+| `URLSessionTaskMetrics`, task `progress`, resumable downloads (`resumeData`) | ✅ | ≤17 | metrics per transaction from libcurl timings (lookup, connect, TLS, request, response; protocol, addresses, reused connection, local-cache loads), redirect count; `progress` (bytes, KVO `fractionCompleted`); `cancel(byProducingResumeData:)`, failed downloads' `NSURLSessionDownloadTaskResumeData`, `downloadTask(withResumeData:)` with `Range`/`If-Range` and `didResumeAtOffset`. Tested (HelloConnections). Resumable uploads not supported |
+| Background `URLSession` | ✅ | ≤17 | adapted (isim has no transfer daemon): `background(withIdentifier:)` transfers run in the app, which reports "transfer" so it is not suspended; finished in the background, the app is woken (`handleEventsForBackgroundURLSession` / SwiftUI `.backgroundTask(.urlSession)`), the held delegate events follow, then `urlSessionDidFinishEvents(forBackgroundURLSession:)`; completion-handler tasks are refused as on iOS. Unfinished downloads and file uploads are saved: when the system ends the app (script `terminate BUNDLE-ID`, or a crash) the home screen relaunches it in the background to finish them — iOS would finish them in its daemon and relaunch the app afterwards; a session the app does not recreate at launch is announced to the app first, then its events follow without a second wake. Closing the app in the app switcher cancels them, as on iOS. Downloads start again from the beginning (no resume data across launches). Tested (HelloTransfers, HelloScenes: test_transfers) |
+| `HTTPCookie`, `HTTPCookieStorage` | ✅ | ≤17 | Set-Cookie parsing (domain, path, expiry, secure); `shared` persists in the app container; ephemeral sessions get a private jar; tested; accept policies unverified |
+| `URLCache`, `CachedURLResponse` | ✅ | ≤17 | adapted: an in-memory LRU (`memoryCapacity`) over an on-disk LRU (`diskCapacity`; a metadata and a body file per response in `directory` / `diskPath`, by default `Library/Caches/<bundle id>/isim-urlcache`, not CFNetwork's Cache.db) that survives relaunches; responses over 5% of a tier's capacity skip it, `.allowedInMemoryOnly` stays in memory; max-age/Expires/heuristic freshness, ETag/Last-Modified revalidation, request cache policies, `removeCachedResponses(since:)`. Tested (SwiftNetworkTest: a second cache object on the same directory, LRU eviction, a later session served from disk) |
+| Objective-C `NSURLSession`, `NSURLRequest`, `NSURLComponents`, `NSHTTPCookie` | ✅ | ≤17 | adapted: the Swift overlay's classes under Apple's Objective-C names (`NSURLSession`, `NSURLSessionConfiguration`, data / upload / download tasks, `NSURLResponse` / `NSHTTPURLResponse`, `NSHTTPCookie` / `NSHTTPCookieStorage`, `NSURLCache` / `NSCachedURLResponse`, `NSURLCredential` / `NSURLProtectionSpace` / `NSURLAuthenticationChallenge` / `NSURLCredentialStorage`) with Apple's selectors, plus `NSURLRequest` / `NSMutableURLRequest`, `NSURLComponents` / `NSURLQueryItem` wrapping the Swift structs (and bridging to them); completion-handler blocks and `NSURLSessionDelegate` / `TaskDelegate` / `DataDelegate` / `DownloadDelegate` objects (each implemented optional method is called); the constants (`NSURLErrorDomain` and codes, cookie property keys, authentication methods...). The headers declare the classes `objc_runtime_visible` (found through the runtime: an app without Swift loads the overlay on first use), so Objective-C code cannot subclass them or add categories. Not for Objective-C: WebSocket and stream tasks, task metrics, `serverTrust` / client identities, `HTTPBodyStream`. Tested (FoundationTest against http_server.py: components, requests, responses, cookies, completion handlers, upload, download, a delegate with redirect and Basic authentication, errors, cache) |
+
+## Not yet in isim
+
+<!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+16603 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`AsyncCharacterSequence`](https://developer.apple.com/documentation/foundation/asynccharactersequence)
+- [`AsyncCharacterSequence`](https://developer.apple.com/documentation/foundation/asynccharactersequence)
+- [`AsyncCharacterSequence`](https://developer.apple.com/documentation/foundation/asynccharactersequence)
+- [`AsyncCharacterSequence.Element`](https://developer.apple.com/documentation/foundation/asynccharactersequence/element)
+- [`AsyncCharacterSequence.Element`](https://developer.apple.com/documentation/foundation/asynccharactersequence/element)
+- [`AsyncCharacterSequence.Element`](https://developer.apple.com/documentation/foundation/asynccharactersequence/element)
+- [`AsyncUnicodeScalarSequence`](https://developer.apple.com/documentation/foundation/asyncunicodescalarsequence)
+- [`AsyncUnicodeScalarSequence`](https://developer.apple.com/documentation/foundation/asyncunicodescalarsequence)
+- [`AsyncUnicodeScalarSequence`](https://developer.apple.com/documentation/foundation/asyncunicodescalarsequence)
+- [`AsyncUnicodeScalarSequence.Element`](https://developer.apple.com/documentation/foundation/asyncunicodescalarsequence/element)
+- [`AsyncUnicodeScalarSequence.Element`](https://developer.apple.com/documentation/foundation/asyncunicodescalarsequence/element)
+- [`AsyncUnicodeScalarSequence.Element`](https://developer.apple.com/documentation/foundation/asyncunicodescalarsequence/element)
+- [`func filter(inheritedByAddedText: Bool) -> AttributeContainer`](https://developer.apple.com/documentation/foundation/attributecontainer/filter(inheritedbyaddedtext:))
+- [`func filter(runBoundaries: AttributedString.AttributeRunBoundaries?) -> AttributeContainer`](https://developer.apple.com/documentation/foundation/attributecontainer/filter(runboundaries:))
+- [`AttributedString.AdaptiveImageGlyph`](https://developer.apple.com/documentation/foundation/attributedstring/adaptiveimageglyph)
+- [`let contentDescription: String`](https://developer.apple.com/documentation/foundation/attributedstring/adaptiveimageglyph/contentdescription)
+- [`let contentIdentifier: String`](https://developer.apple.com/documentation/foundation/attributedstring/adaptiveimageglyph/contentidentifier)
+- [`static var contentType: UTType`](https://developer.apple.com/documentation/foundation/attributedstring/adaptiveimageglyph/contenttype)
+- [`let imageContent: Data`](https://developer.apple.com/documentation/foundation/attributedstring/adaptiveimageglyph/imagecontent)
+- [`init(NSAdaptiveImageGlyph)`](https://developer.apple.com/documentation/foundation/attributedstring/adaptiveimageglyph/init(_:)-7hag2)
+- [`init(imageContent: Data)`](https://developer.apple.com/documentation/foundation/attributedstring/adaptiveimageglyph/init(imagecontent:))
+- [`static var defaultResolverSpecification: some ResolverSpecification`](https://developer.apple.com/documentation/foundation/attributedstring/defaultresolverspecification)
+- [`AttributedString.FormattingOptions`](https://developer.apple.com/documentation/foundation/attributedstring/formattingoptions)
+- [`static let applyReplacementIndexAttribute: AttributedString.FormattingOptions`](https://developer.apple.com/documentation/foundation/attributedstring/formattingoptions/applyreplacementindexattribute)
+- [`init?<S>(String.Index, within: S)`](https://developer.apple.com/documentation/foundation/attributedstring/index/init(_:within:))
+- [`init?<S>(String.Index, within: S)`](https://developer.apple.com/documentation/foundation/attributedstring/index/init(_:within:))
+- [`init?<S>(String.Index, within: S)`](https://developer.apple.com/documentation/foundation/attributedstring/index/init(_:within:))
+- [`init?<S>(String.Index, within: S)`](https://developer.apple.com/documentation/foundation/attributedstring/index/init(_:within:))
+- [`func isValid(within: DiscontiguousAttributedSubstring) -> Bool`](https://developer.apple.com/documentation/foundation/attributedstring/index/isvalid(within:)-6wjr6)
+- [`func isValid(within: DiscontiguousAttributedSubstring) -> Bool`](https://developer.apple.com/documentation/foundation/attributedstring/index/isvalid(within:)-6wjr6)
+- [`func isValid(within: DiscontiguousAttributedSubstring) -> Bool`](https://developer.apple.com/documentation/foundation/attributedstring/index/isvalid(within:)-6wjr6)
+- [`func isValid(within: DiscontiguousAttributedSubstring) -> Bool`](https://developer.apple.com/documentation/foundation/attributedstring/index/isvalid(within:)-6wjr6)
+- [`func isValid(within: some AttributedStringProtocol) -> Bool`](https://developer.apple.com/documentation/foundation/attributedstring/index/isvalid(within:)-8fw50)
+- [`func isValid(within: some AttributedStringProtocol) -> Bool`](https://developer.apple.com/documentation/foundation/attributedstring/index/isvalid(within:)-8fw50)
+- [`func isValid(within: some AttributedStringProtocol) -> Bool`](https://developer.apple.com/documentation/foundation/attributedstring/index/isvalid(within:)-8fw50)
+- [`func isValid(within: some AttributedStringProtocol) -> Bool`](https://developer.apple.com/documentation/foundation/attributedstring/index/isvalid(within:)-8fw50)
+- [`func inflected() -> AttributedString`](https://developer.apple.com/documentation/foundation/attributedstring/inflected())
+- [`func inflected(locale: Locale, userTermOfAddress: TermOfAddress?, inflectionConcepts: [InflectionConcept]) -> AttributedString`](https://developer.apple.com/documentation/foundation/attributedstring/inflected(locale:usertermofaddress:inflectionconcepts:))
+- [`AttributedString.InterpolationOptions`](https://developer.apple.com/documentation/foundation/attributedstring/interpolationoptions)
+- [`static let insertAttributesWithoutMerging: AttributedString.InterpolationOptions`](https://developer.apple.com/documentation/foundation/attributedstring/interpolationoptions/insertattributeswithoutmerging)
+- [`AttributedString.LineHeight`](https://developer.apple.com/documentation/foundation/attributedstring/lineheight)
+- [`static func exact(points: CGFloat) -> AttributedString.LineHeight`](https://developer.apple.com/documentation/foundation/attributedstring/lineheight/exact(points:))
+- [`static func leading(increase: CGFloat) -> AttributedString.LineHeight`](https://developer.apple.com/documentation/foundation/attributedstring/lineheight/leading(increase:))
+- [`static var loose: AttributedString.LineHeight`](https://developer.apple.com/documentation/foundation/attributedstring/lineheight/loose)
+- [`static func multiple(factor: CGFloat) -> AttributedString.LineHeight`](https://developer.apple.com/documentation/foundation/attributedstring/lineheight/multiple(factor:))
+- [`static var normal: AttributedString.LineHeight`](https://developer.apple.com/documentation/foundation/attributedstring/lineheight/normal)
+- [`static var tight: AttributedString.LineHeight`](https://developer.apple.com/documentation/foundation/attributedstring/lineheight/tight)
+- [`static var variable: AttributedString.LineHeight`](https://developer.apple.com/documentation/foundation/attributedstring/lineheight/variable)
+- [`AttributedString.LocalizationOptions`](https://developer.apple.com/documentation/foundation/attributedstring/localizationoptions)
+- [`var applyReplacementIndexAttribute: Bool`](https://developer.apple.com/documentation/foundation/attributedstring/localizationoptions/applyreplacementindexattribute)
+- [`var concepts: [InflectionConcept]?`](https://developer.apple.com/documentation/foundation/attributedstring/localizationoptions/concepts)
+- [`var inflect: Bool`](https://developer.apple.com/documentation/foundation/attributedstring/localizationoptions/inflect)
+- [`init()`](https://developer.apple.com/documentation/foundation/attributedstring/localizationoptions/init())
+- [`static func localizedPhraseConcept(String) -> AttributedString.LocalizationOptions`](https://developer.apple.com/documentation/foundation/attributedstring/localizationoptions/localizedphraseconcept(_:))
+- [`var replacements: [any CVarArg]?`](https://developer.apple.com/documentation/foundation/attributedstring/localizationoptions/replacements)
+- [`static func termsOfAddressConcept([TermOfAddress]) -> AttributedString.LocalizationOptions`](https://developer.apple.com/documentation/foundation/attributedstring/localizationoptions/termsofaddressconcept(_:))
+- [`func makeContainer(context: IntentValueContainer.ConversionContext) -> IntentValueContainer`](https://developer.apple.com/documentation/foundation/attributedstring/makecontainer(context:))
+- [`func rangeOfAudioTimeRangeAttributes(intersecting: CMTimeRange) -> Range<AttributedString.Index>?`](https://developer.apple.com/documentation/foundation/attributedstring/rangeofaudiotimerangeattributes(intersecting:))
+- [`func removeSubranges(RangeSet<AttributedString.Index>)`](https://developer.apple.com/documentation/foundation/attributedstring/removesubranges(_:))
+- [`func replaceSelection(inout AttributedTextSelection, with: some AttributedStringProtocol)`](https://developer.apple.com/documentation/foundation/attributedstring/replaceselection(_:with:))
+- [`func replaceSelection(inout AttributedTextSelection, withCharacters: some Collection<Character>)`](https://developer.apple.com/documentation/foundation/attributedstring/replaceselection(_:withcharacters:))
+- [`AttributedString.Runs.AttributesSlice3`](https://developer.apple.com/documentation/foundation/attributedstring/runs-swift.struct/attributesslice3)
+- [`AttributedString.Runs.AttributesSlice3`](https://developer.apple.com/documentation/foundation/attributedstring/runs-swift.struct/attributesslice3)
+- [`AttributedString.Runs.AttributesSlice4`](https://developer.apple.com/documentation/foundation/attributedstring/runs-swift.struct/attributesslice4)
+- [`AttributedString.Runs.AttributesSlice4`](https://developer.apple.com/documentation/foundation/attributedstring/runs-swift.struct/attributesslice4)
+- [`AttributedString.Runs.AttributesSlice5`](https://developer.apple.com/documentation/foundation/attributedstring/runs-swift.struct/attributesslice5)
+- [`AttributedString.Runs.AttributesSlice5`](https://developer.apple.com/documentation/foundation/attributedstring/runs-swift.struct/attributesslice5)
+- [`AttributedString.SingleAttributeTransformer`](https://developer.apple.com/documentation/foundation/attributedstring/singleattributetransformer)
+- [`var range: Range<AttributedString.Index>`](https://developer.apple.com/documentation/foundation/attributedstring/singleattributetransformer/range)
+- [`func replace<U>(with: U.Type, value: U.Value)`](https://developer.apple.com/documentation/foundation/attributedstring/singleattributetransformer/replace(with:value:)-6bn0e)
+- [`func replace<U>(with: KeyPath<AttributeDynamicLookup, U>, value: U.Value)`](https://developer.apple.com/documentation/foundation/attributedstring/singleattributetransformer/replace(with:value:)-xg8b)
+- [`var value: T.Value?`](https://developer.apple.com/documentation/foundation/attributedstring/singleattributetransformer/value)
+- [`AttributedString.Specification`](https://developer.apple.com/documentation/foundation/attributedstring/specification)
+- [`AttributedString.TextAlignment`](https://developer.apple.com/documentation/foundation/attributedstring/textalignment)
+- [`case center`](https://developer.apple.com/documentation/foundation/attributedstring/textalignment/center)
+- [`case left`](https://developer.apple.com/documentation/foundation/attributedstring/textalignment/left)
+- [`case right`](https://developer.apple.com/documentation/foundation/attributedstring/textalignment/right)
+- [`func transform<E>(updating: inout Range<AttributedString.Index>, body: (inout AttributedString) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/foundation/attributedstring/transform(updating:body:)-1b6eb)
+- [`func transform<E>(updating: inout [Range<AttributedString.Index>], body: (inout AttributedString) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/foundation/attributedstring/transform(updating:body:)-3j625)
+- [`func transform<E>(updating: Range<AttributedString.Index>, body: (inout AttributedString) throws(E) -> Void) throws(E) -> Range<AttributedString.Index>?`](https://developer.apple.com/documentation/foundation/attributedstring/transform(updating:body:)-79te9)
+- [`func transform<E>(updating: [Range<AttributedString.Index>], body: (inout AttributedString) throws(E) -> Void) throws(E) -> [Range<AttributedString.Index>]?`](https://developer.apple.com/documentation/foundation/attributedstring/transform(updating:body:)-89r96)
+- [`func transform<E>(updating: inout AttributedTextSelection, body: (inout AttributedString) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/foundation/attributedstring/transform(updating:body:)-9wpg2)
+- [`func transformAttributes<E>(in: inout AttributedTextSelection, body: (inout AttributeContainer) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/foundation/attributedstring/transformattributes(in:body:))
+- [`func transformingAttributes<K>(KeyPath<AttributeDynamicLookup, K>, (inout AttributedString.SingleAttributeTransformer<K>) -> Void) -> AttributedString`](https://developer.apple.com/documentation/foundation/attributedstring/transformingattributes(_:_:)-64qnl)
+- [`func transformingAttributes<K>(K.Type, (inout AttributedString.SingleAttributeTransformer<K>) -> Void) -> AttributedString`](https://developer.apple.com/documentation/foundation/attributedstring/transformingattributes(_:_:)-9prm2)
+- [`func transformingAttributes<K1, K2>(K1.Type, K2.Type, (inout AttributedString.SingleAttributeTransformer<K1>, inout AttributedString.SingleAttributeTransformer<K2>) -> Void) -> AttributedString`](https://developer.apple.com/documentation/foundation/attributedstring/transformingattributes(_:_:_:)-7kw1o)
+- [`func transformingAttributes<K1, K2>(KeyPath<AttributeDynamicLookup, K1>, KeyPath<AttributeDynamicLookup, K2>, (inout AttributedString.SingleAttributeTransformer<K1>, inout AttributedString.SingleAttributeTransformer<K2>) -> Void) -> AttributedString`](https://developer.apple.com/documentation/foundation/attributedstring/transformingattributes(_:_:_:)-8gt2n)
+- [`func transformingAttributes<K1, K2, K3>(K1.Type, K2.Type, K3.Type, (inout AttributedString.SingleAttributeTransformer<K1>, inout AttributedString.SingleAttributeTransformer<K2>, inout AttributedString.SingleAttributeTransformer<K3>) -> Void) -> AttributedString`](https://developer.apple.com/documentation/foundation/attributedstring/transformingattributes(_:_:_:_:)-4owv7)
+- [`func transformingAttributes<K1, K2, K3>(KeyPath<AttributeDynamicLookup, K1>, KeyPath<AttributeDynamicLookup, K2>, KeyPath<AttributeDynamicLookup, K3>, (inout AttributedString.SingleAttributeTransformer<K1>, inout AttributedString.SingleAttributeTransformer<K2>, inout AttributedString.SingleAttributeTransformer<K3>) -> Void) -> AttributedString`](https://developer.apple.com/documentation/foundation/attributedstring/transformingattributes(_:_:_:_:)-5xmlf)
+- [`func transformingAttributes<K1, K2, K3, K4>(K1.Type, K2.Type, K3.Type, K4.Type, (inout AttributedString.SingleAttributeTransformer<K1>, inout AttributedString.SingleAttributeTransformer<K2>, inout AttributedString.SingleAttributeTransformer<K3>, inout AttributedString.SingleAttributeTransformer<K4>) -> Void) -> AttributedString`](https://developer.apple.com/documentation/foundation/attributedstring/transformingattributes(_:_:_:_:_:)-9uodg)
+- [`func transformingAttributes<K1, K2, K3, K4>(KeyPath<AttributeDynamicLookup, K1>, KeyPath<AttributeDynamicLookup, K2>, KeyPath<AttributeDynamicLookup, K3>, KeyPath<AttributeDynamicLookup, K4>, (inout AttributedString.SingleAttributeTransformer<K1>, inout AttributedString.SingleAttributeTransformer<K2>, inout AttributedString.SingleAttributeTransformer<K3>, inout AttributedString.SingleAttributeTransformer<K4>) -> Void) -> AttributedString`](https://developer.apple.com/documentation/foundation/attributedstring/transformingattributes(_:_:_:_:_:)-all0)
+- [`func transformingAttributes<K1, K2, K3, K4, K5>(K1.Type, K2.Type, K3.Type, K4.Type, K5.Type, (inout AttributedString.SingleAttributeTransformer<K1>, inout AttributedString.SingleAttributeTransformer<K2>, inout AttributedString.SingleAttributeTransformer<K3>, inout AttributedString.SingleAttributeTransformer<K4>, inout AttributedString.SingleAttributeTransformer<K5>) -> Void) -> AttributedString`](https://developer.apple.com/documentation/foundation/attributedstring/transformingattributes(_:_:_:_:_:_:)-3i7ac)
+- [`func transformingAttributes<K1, K2, K3, K4, K5>(KeyPath<AttributeDynamicLookup, K1>, KeyPath<AttributeDynamicLookup, K2>, KeyPath<AttributeDynamicLookup, K3>, KeyPath<AttributeDynamicLookup, K4>, KeyPath<AttributeDynamicLookup, K5>, (inout AttributedString.SingleAttributeTransformer<K1>, inout AttributedString.SingleAttributeTransformer<K2>, inout AttributedString.SingleAttributeTransformer<K3>, inout AttributedString.SingleAttributeTransformer<K4>, inout AttributedString.SingleAttributeTransformer<K5>) -> Void) -> AttributedString`](https://developer.apple.com/documentation/foundation/attributedstring/transformingattributes(_:_:_:_:_:_:)-9hppo)
+- [`AttributedString.UnwrappedType`](https://developer.apple.com/documentation/foundation/attributedstring/unwrappedtype)
+- [`var utf16: AttributedString.UTF16View`](https://developer.apple.com/documentation/foundation/attributedstring/utf16)
+- [`AttributedString.UTF16View`](https://developer.apple.com/documentation/foundation/attributedstring/utf16view)
+- [`AttributedString.UTF16View.Subsequence`](https://developer.apple.com/documentation/foundation/attributedstring/utf16view/subsequence)
+- [`var utf8: AttributedString.UTF8View`](https://developer.apple.com/documentation/foundation/attributedstring/utf8)
+- [`AttributedString.UTF8View`](https://developer.apple.com/documentation/foundation/attributedstring/utf8view)
+- [`AttributedString.UTF8View.Subsequence`](https://developer.apple.com/documentation/foundation/attributedstring/utf8view/subsequence)
+- [`AttributedString.ValueType`](https://developer.apple.com/documentation/foundation/attributedstring/valuetype)
+- [`AttributedString.WritingDirection`](https://developer.apple.com/documentation/foundation/attributedstring/writingdirection)
+- [`case leftToRight`](https://developer.apple.com/documentation/foundation/attributedstring/writingdirection/lefttoright)
+- [`case rightToLeft`](https://developer.apple.com/documentation/foundation/attributedstring/writingdirection/righttoleft)
+- [`AttributedStringAttributeMutation`](https://developer.apple.com/documentation/foundation/attributedstringattributemutation)
+- [`func mergeAttributes(AttributeContainer, mergePolicy: AttributedString.AttributeMergePolicy)`](https://developer.apple.com/documentation/foundation/attributedstringattributemutation/mergeattributes(_:mergepolicy:))
+- [`func replaceAttributes(AttributeContainer, with: AttributeContainer)`](https://developer.apple.com/documentation/foundation/attributedstringattributemutation/replaceattributes(_:with:))
+- [`func setAttributes(AttributeContainer)`](https://developer.apple.com/documentation/foundation/attributedstringattributemutation/setattributes(_:))
+- [`var description: String`](https://developer.apple.com/documentation/foundation/attributedstringkey/description)
+- [`func index(AttributedString.Index, offsetByCharacters: Int) -> AttributedString.Index`](https://developer.apple.com/documentation/foundation/attributedstringprotocol/index(_:offsetbycharacters:))
+- [`func index(AttributedString.Index, offsetByRuns: Int) -> AttributedString.Index`](https://developer.apple.com/documentation/foundation/attributedstringprotocol/index(_:offsetbyruns:))
+- [`func index(AttributedString.Index, offsetByUnicodeScalars: Int) -> AttributedString.Index`](https://developer.apple.com/documentation/foundation/attributedstringprotocol/index(_:offsetbyunicodescalars:))
+- [`func index(afterCharacter: AttributedString.Index) -> AttributedString.Index`](https://developer.apple.com/documentation/foundation/attributedstringprotocol/index(aftercharacter:))
+- [`func index(afterRun: AttributedString.Index) -> AttributedString.Index`](https://developer.apple.com/documentation/foundation/attributedstringprotocol/index(afterrun:))
+- [`func index(afterUnicodeScalar: AttributedString.Index) -> AttributedString.Index`](https://developer.apple.com/documentation/foundation/attributedstringprotocol/index(afterunicodescalar:))
+- [`func index(beforeCharacter: AttributedString.Index) -> AttributedString.Index`](https://developer.apple.com/documentation/foundation/attributedstringprotocol/index(beforecharacter:))
+- [`func index(beforeRun: AttributedString.Index) -> AttributedString.Index`](https://developer.apple.com/documentation/foundation/attributedstringprotocol/index(beforerun:))
+- [`func index(beforeUnicodeScalar: AttributedString.Index) -> AttributedString.Index`](https://developer.apple.com/documentation/foundation/attributedstringprotocol/index(beforeunicodescalar:))
+- [`func replacingAttributes(AttributeContainer, with: AttributeContainer) -> AttributedString`](https://developer.apple.com/documentation/foundation/attributedstringprotocol/replacingattributes(_:with:))
+- [`var utf16: AttributedString.UTF16View`](https://developer.apple.com/documentation/foundation/attributedstringprotocol/utf16)
+- [`var utf8: AttributedString.UTF8View`](https://developer.apple.com/documentation/foundation/attributedstringprotocol/utf8)
+- [`var utf16: AttributedString.UTF16View`](https://developer.apple.com/documentation/foundation/attributedsubstring/utf16)
+- [`var utf8: AttributedString.UTF8View`](https://developer.apple.com/documentation/foundation/attributedsubstring/utf8)
+- [`static var attributeKeys: some Sequence<any AttributedStringKey.Type>`](https://developer.apple.com/documentation/foundation/attributescope/attributekeys)
+- [`var accessibility: AttributeScopes.AccessibilityAttributes.Type`](https://developer.apple.com/documentation/foundation/attributescopes/accessibility)
+- [`AttributeScopes.AccessibilityAttributes`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes)
+- [`let accessibilityHeadingLevel: AttributeScopes.AccessibilityAttributes.HeadingLevelAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/accessibilityheadinglevel)
+- [`let accessibilitySpeechAdjustedPitch: AttributeScopes.AccessibilityAttributes.AdjustedPitchAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/accessibilityspeechadjustedpitch)
+- [`let accessibilitySpeechAnnouncementPriority: AttributeScopes.AccessibilityAttributes.AnnouncementPriorityAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/accessibilityspeechannouncementpriority)
+- [`let accessibilitySpeechAnnouncementsQueued: AttributeScopes.AccessibilityAttributes.QueueAnnouncementAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/accessibilityspeechannouncementsqueued)
+- [`let accessibilitySpeechIncludesPunctuation: AttributeScopes.AccessibilityAttributes.IncludesPunctuationAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/accessibilityspeechincludespunctuation)
+- [`let accessibilitySpeechPhoneticNotation: AttributeScopes.AccessibilityAttributes.IPANotationAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/accessibilityspeechphoneticnotation)
+- [`let accessibilitySpeechSpellsOutCharacters: AttributeScopes.AccessibilityAttributes.SpellOutAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/accessibilityspeechspellsoutcharacters)
+- [`let accessibilitySpeechSSML: AttributeScopes.AccessibilityAttributes.SpeechSSMLAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/accessibilityspeechssml)
+- [`let accessibilityTextCustom: AttributeScopes.AccessibilityAttributes.TextCustomAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/accessibilitytextcustom)
+- [`let accessibilityTextualContext: AttributeScopes.AccessibilityAttributes.TextualContextAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/accessibilitytextualcontext)
+- [`AttributeScopes.AccessibilityAttributes.AdjustedPitchAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/adjustedpitchattribute)
+- [`AttributeScopes.AccessibilityAttributes.AnnouncementPriorityAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/announcementpriorityattribute)
+- [`AttributeScopes.AccessibilityAttributes.AnnouncementPriorityAttribute.AnnouncementPriority`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/announcementpriorityattribute/announcementpriority)
+- [`case `default``](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/announcementpriorityattribute/announcementpriority/default)
+- [`case high`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/announcementpriorityattribute/announcementpriority/high)
+- [`case low`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/announcementpriorityattribute/announcementpriority/low)
+- [`AttributeScopes.AccessibilityAttributes.HeadingLevelAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/headinglevelattribute)
+- [`AttributeScopes.AccessibilityAttributes.HeadingLevelAttribute.HeadingLevel`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/headinglevelattribute/headinglevel)
+- [`case h1`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/headinglevelattribute/headinglevel/h1)
+- [`case h2`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/headinglevelattribute/headinglevel/h2)
+- [`case h3`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/headinglevelattribute/headinglevel/h3)
+- [`case h4`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/headinglevelattribute/headinglevel/h4)
+- [`case h5`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/headinglevelattribute/headinglevel/h5)
+- [`case h6`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/headinglevelattribute/headinglevel/h6)
+- [`case unspecified`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/headinglevelattribute/headinglevel/unspecified)
+- [`AttributeScopes.AccessibilityAttributes.IncludesPunctuationAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/includespunctuationattribute)
+- [`AttributeScopes.AccessibilityAttributes.IPANotationAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/ipanotationattribute)
+- [`AttributeScopes.AccessibilityAttributes.QueueAnnouncementAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/queueannouncementattribute)
+- [`AttributeScopes.AccessibilityAttributes.SpeechSSMLAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/speechssmlattribute)
+- [`AttributeScopes.AccessibilityAttributes.SpellOutAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/spelloutattribute)
+- [`AttributeScopes.AccessibilityAttributes.TextCustomAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/textcustomattribute)
+- [`AttributeScopes.AccessibilityAttributes.TextualContextAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/textualcontextattribute)
+- [`AttributeScopes.AccessibilityAttributes.TextualContextAttribute.TextualContext`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/textualcontextattribute/textualcontext)
+- [`case console`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/textualcontextattribute/textualcontext/console)
+- [`case fileSystem`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/textualcontextattribute/textualcontext/filesystem)
+- [`case messaging`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/textualcontextattribute/textualcontext/messaging)
+- [`case narrative`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/textualcontextattribute/textualcontext/narrative)
+- [`case plain`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/textualcontextattribute/textualcontext/plain)
+- [`case sourceCode`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/textualcontextattribute/textualcontext/sourcecode)
+- [`case spreadsheet`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/textualcontextattribute/textualcontext/spreadsheet)
+- [`case wordProcessing`](https://developer.apple.com/documentation/foundation/attributescopes/accessibilityattributes/textualcontextattribute/textualcontext/wordprocessing)
+- [`AttributeScopes.CoreTextAttributes`](https://developer.apple.com/documentation/foundation/attributescopes/coretextattributes)
+- [`AttributeScopes.CoreTextAttributes.LineHeightAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/coretextattributes/lineheightattribute)
+- [`AttributeScopes.CoreTextAttributes.TextAlignmentAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/coretextattributes/textalignmentattribute)
+- [`let agreementArgument: AttributeScopes.FoundationAttributes.AgreementArgumentAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/agreementargument)
+- [`AttributeScopes.FoundationAttributes.AgreementArgumentAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/agreementargumentattribute)
+- [`let agreementConcept: AttributeScopes.FoundationAttributes.AgreementConceptAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/agreementconcept)
+- [`AttributeScopes.FoundationAttributes.AgreementConceptAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/agreementconceptattribute)
+- [`let byteCount: AttributeScopes.FoundationAttributes.ByteCountAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecount)
+- [`AttributeScopes.FoundationAttributes.ByteCountAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecountattribute)
+- [`AttributeScopes.FoundationAttributes.ByteCountAttribute.Component`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecountattribute/component)
+- [`case actualByteCount`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecountattribute/component/actualbytecount)
+- [`case spelledOutValue`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecountattribute/component/spelledoutvalue)
+- [`case unit(AttributeScopes.FoundationAttributes.ByteCountAttribute.Unit)`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecountattribute/component/unit(_:))
+- [`case value`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecountattribute/component/value)
+- [`AttributeScopes.FoundationAttributes.ByteCountAttribute.Unit`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecountattribute/unit)
+- [`case byte`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecountattribute/unit/byte)
+- [`case eb`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecountattribute/unit/eb)
+- [`case gb`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecountattribute/unit/gb)
+- [`case kb`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecountattribute/unit/kb)
+- [`case mb`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecountattribute/unit/mb)
+- [`case pb`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecountattribute/unit/pb)
+- [`case tb`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecountattribute/unit/tb)
+- [`case yb`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecountattribute/unit/yb)
+- [`case zb`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/bytecountattribute/unit/zb)
+- [`let dateField: AttributeScopes.FoundationAttributes.DateFieldAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefield)
+- [`AttributeScopes.FoundationAttributes.DateFieldAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute)
+- [`AttributeScopes.FoundationAttributes.DateFieldAttribute.Field`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field)
+- [`case amPM`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/ampm)
+- [`case day`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/day)
+- [`case dayOfYear`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/dayofyear)
+- [`case era`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/era)
+- [`case hour`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/hour)
+- [`case minute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/minute)
+- [`case month`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/month)
+- [`case quarter`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/quarter)
+- [`case relatedGregorianYear`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/relatedgregorianyear)
+- [`case second`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/second)
+- [`case secondFraction`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/secondfraction)
+- [`case timeZone`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/timezone)
+- [`case weekday`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/weekday)
+- [`case weekdayOrdinal`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/weekdayordinal)
+- [`case weekOfMonth`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/weekofmonth)
+- [`case weekOfYear`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/weekofyear)
+- [`case year`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/datefieldattribute/field/year)
+- [`let durationField: AttributeScopes.FoundationAttributes.DurationFieldAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/durationfield)
+- [`AttributeScopes.FoundationAttributes.DurationFieldAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/durationfieldattribute)
+- [`AttributeScopes.FoundationAttributes.DurationFieldAttribute.Field`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/durationfieldattribute/field)
+- [`case days`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/durationfieldattribute/field/days)
+- [`case hours`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/durationfieldattribute/field/hours)
+- [`case microseconds`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/durationfieldattribute/field/microseconds)
+- [`case milliseconds`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/durationfieldattribute/field/milliseconds)
+- [`case minutes`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/durationfieldattribute/field/minutes)
+- [`case nanoseconds`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/durationfieldattribute/field/nanoseconds)
+- [`case seconds`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/durationfieldattribute/field/seconds)
+- [`case weeks`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/durationfieldattribute/field/weeks)
+- [`let inflect: AttributeScopes.FoundationAttributes.InflectionRuleAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/inflect)
+- [`let inflectionAlternative: AttributeScopes.FoundationAttributes.InflectionAlternativeAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/inflectionalternative)
+- [`AttributeScopes.FoundationAttributes.InflectionAlternativeAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/inflectionalternativeattribute)
+- [`AttributeScopes.FoundationAttributes.InflectionRuleAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/inflectionruleattribute)
+- [`let listItemDelimiter: AttributeScopes.FoundationAttributes.ListItemDelimiterAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/listitemdelimiter)
+- [`AttributeScopes.FoundationAttributes.ListItemDelimiterAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/listitemdelimiterattribute)
+- [`let localizedNumberFormat: AttributeScopes.FoundationAttributes.LocalizedNumberFormatAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizednumberformat)
+- [`AttributeScopes.FoundationAttributes.LocalizedNumberFormatAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizednumberformatattribute)
+- [`let localizedStringArgumentAttributes: AttributeScopes.FoundationAttributes.LocalizedStringArgumentAttributes`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.property)
+- [`AttributeScopes.FoundationAttributes.LocalizedStringArgumentAttributes`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct)
+- [`let localizedDateArgument: AttributeScopes.FoundationAttributes.LocalizedStringArgumentAttributes.LocalizedDateArgumentAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizeddateargument)
+- [`AttributeScopes.FoundationAttributes.LocalizedStringArgumentAttributes.LocalizedDateArgumentAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizeddateargumentattribute)
+- [`static let name: String`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizeddateargumentattribute/name)
+- [`let localizedDateIntervalArgument: AttributeScopes.FoundationAttributes.LocalizedStringArgumentAttributes.LocalizedDateIntervalArgumentAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizeddateintervalargument)
+- [`AttributeScopes.FoundationAttributes.LocalizedStringArgumentAttributes.LocalizedDateIntervalArgumentAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizeddateintervalargumentattribute)
+- [`static let name: String`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizeddateintervalargumentattribute/name)
+- [`let localizedNumericArgument: AttributeScopes.FoundationAttributes.LocalizedStringArgumentAttributes.LocalizedNumericArgumentAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizednumericargument)
+- [`AttributeScopes.FoundationAttributes.LocalizedStringArgumentAttributes.LocalizedNumericArgumentAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizednumericargumentattribute)
+- [`static let name: String`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizednumericargumentattribute/name)
+- [`AttributeScopes.FoundationAttributes.LocalizedStringArgumentAttributes.LocalizedNumericArgumentAttribute.Value`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizednumericargumentattribute/value)
+- [`case decimal(Decimal)`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizednumericargumentattribute/value/decimal(_:))
+- [`case double(Double)`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizednumericargumentattribute/value/double(_:))
+- [`case int(Int64)`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizednumericargumentattribute/value/int(_:))
+- [`case uint(UInt64)`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizednumericargumentattribute/value/uint(_:))
+- [`let localizedURLArgument: AttributeScopes.FoundationAttributes.LocalizedStringArgumentAttributes.LocalizedURLArgumentAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizedurlargument)
+- [`AttributeScopes.FoundationAttributes.LocalizedStringArgumentAttributes.LocalizedURLArgumentAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizedurlargumentattribute)
+- [`static let name: String`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizedstringargumentattributes-swift.struct/localizedurlargumentattribute/name)
+- [`let measurement: AttributeScopes.FoundationAttributes.MeasurementAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/measurement)
+- [`AttributeScopes.FoundationAttributes.MeasurementAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/measurementattribute)
+- [`AttributeScopes.FoundationAttributes.MeasurementAttribute.Component`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/measurementattribute/component)
+- [`case unit`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/measurementattribute/component/unit)
+- [`case value`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/measurementattribute/component/value)
+- [`let morphology: AttributeScopes.FoundationAttributes.MorphologyAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/morphology)
+- [`AttributeScopes.FoundationAttributes.MorphologyAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/morphologyattribute)
+- [`let numberFormat: AttributeScopes.FoundationAttributes.NumberFormatAttributes`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformat)
+- [`AttributeScopes.FoundationAttributes.NumberFormatAttributes`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformatattributes)
+- [`let numberPart: AttributeScopes.FoundationAttributes.NumberFormatAttributes.NumberPartAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformatattributes/numberpart)
+- [`AttributeScopes.FoundationAttributes.NumberFormatAttributes.NumberPartAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformatattributes/numberpartattribute)
+- [`AttributeScopes.FoundationAttributes.NumberFormatAttributes.NumberPartAttribute.NumberPart`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformatattributes/numberpartattribute/numberpart)
+- [`case fraction`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformatattributes/numberpartattribute/numberpart/fraction)
+- [`case integer`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformatattributes/numberpartattribute/numberpart/integer)
+- [`let numberSymbol: AttributeScopes.FoundationAttributes.NumberFormatAttributes.SymbolAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformatattributes/numbersymbol)
+- [`AttributeScopes.FoundationAttributes.NumberFormatAttributes.SymbolAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformatattributes/symbolattribute)
+- [`AttributeScopes.FoundationAttributes.NumberFormatAttributes.SymbolAttribute.Symbol`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformatattributes/symbolattribute/symbol)
+- [`case currency`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformatattributes/symbolattribute/symbol/currency)
+- [`case decimalSeparator`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformatattributes/symbolattribute/symbol/decimalseparator)
+- [`case groupingSeparator`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformatattributes/symbolattribute/symbol/groupingseparator)
+- [`case percent`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformatattributes/symbolattribute/symbol/percent)
+- [`case sign`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformatattributes/symbolattribute/symbol/sign)
+- [`let personNameComponent: AttributeScopes.FoundationAttributes.PersonNameComponentAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/personnamecomponent)
+- [`AttributeScopes.FoundationAttributes.PersonNameComponentAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/personnamecomponentattribute)
+- [`AttributeScopes.FoundationAttributes.PersonNameComponentAttribute.Component`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/personnamecomponentattribute/component)
+- [`case delimiter`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/personnamecomponentattribute/component/delimiter)
+- [`case familyName`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/personnamecomponentattribute/component/familyname)
+- [`case givenName`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/personnamecomponentattribute/component/givenname)
+- [`case middleName`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/personnamecomponentattribute/component/middlename)
+- [`case namePrefix`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/personnamecomponentattribute/component/nameprefix)
+- [`case nameSuffix`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/personnamecomponentattribute/component/namesuffix)
+- [`case nickname`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/personnamecomponentattribute/component/nickname)
+- [`let referentConcept: AttributeScopes.FoundationAttributes.ReferentConceptAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/referentconcept)
+- [`AttributeScopes.FoundationAttributes.ReferentConceptAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/referentconceptattribute)
+- [`let replacementIndex: AttributeScopes.FoundationAttributes.ReplacementIndexAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/replacementindex)
+- [`AttributeScopes.FoundationAttributes.ReplacementIndexAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/replacementindexattribute)
+- [`let writingDirection: AttributeScopes.FoundationAttributes.WritingDirectionAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/writingdirection)
+- [`AttributeScopes.FoundationAttributes.WritingDirectionAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/writingdirectionattribute)
+- [`AttributeScopes.SpeechAttributes`](https://developer.apple.com/documentation/foundation/attributescopes/speechattributes)
+- [`let audioTimeRange: AttributeScopes.SpeechAttributes.TimeRangeAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/speechattributes/audiotimerange)
+- [`AttributeScopes.SpeechAttributes.ConfidenceAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/speechattributes/confidenceattribute)
+- [`AttributeScopes.SpeechAttributes.TimeRangeAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/speechattributes/timerangeattribute)
+- [`let transcriptionConfidence: AttributeScopes.SpeechAttributes.ConfidenceAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/speechattributes/transcriptionconfidence)
+- [`let accessibility: AttributeScopes.AccessibilityAttributes`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/accessibility)
+- [`let adaptiveImageGlyph: AttributeScopes.SwiftUIAttributes.AdaptiveImageGlyphAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/adaptiveimageglyph)
+- [`AttributeScopes.SwiftUIAttributes.AdaptiveImageGlyphAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/adaptiveimageglyphattribute)
+- [`let alignment: AttributeScopes.CoreTextAttributes.TextAlignmentAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/alignment)
+- [`let backgroundColor: AttributeScopes.SwiftUIAttributes.BackgroundColorAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/backgroundcolor)
+- [`AttributeScopes.SwiftUIAttributes.BackgroundColorAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/backgroundcolorattribute)
+- [`let baselineOffset: AttributeScopes.SwiftUIAttributes.BaselineOffsetAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/baselineoffset)
+- [`AttributeScopes.SwiftUIAttributes.BaselineOffsetAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/baselineoffsetattribute)
+- … and 16303 more (`isim/data/api-coverage.json.gz`)
+
+</details>
+<!-- /generated:missing -->
