@@ -5,6 +5,7 @@
  *   xinput click X Y [shift]     a left click at window points (Shift held)
  *   xinput type TEXT             type TEXT (ASCII)
  *   xinput key NAME              press a key (X keysym name: Return, Escape, Tab, BackSpace, ...)
+ *   xinput list                  every window titled isim..., shown or not (debugging)
  *
  * The window is the top-level window whose title starts with "isim". Build: cc xinput.c -lX11 -lXtst */
 #include <X11/Xlib.h>
@@ -41,10 +42,25 @@ static void key(Display *d, KeySym ks, int shift) {
     XFlush(d); usleep(15000);
 }
 
+static void list(Display *d, Window w, int depth) {      /* every window titled isim..., for debugging */
+    char *name = NULL; XWindowAttributes wa;
+    if (XFetchName(d, w, &name) && name) {
+        if (!strncmp(name, "isim", 4) && XGetWindowAttributes(d, w, &wa))
+            printf("%#lx %s %dx%d+%d+%d \"%s\"\n", (unsigned long)w, wa.map_state == IsViewable ? "shown" : "hidden",
+                   wa.width, wa.height, wa.x, wa.y, name);
+        XFree(name);
+    }
+    Window r, p, *kids; unsigned n;
+    if (!XQueryTree(d, w, &r, &p, &kids, &n)) return;
+    for (unsigned i = 0; i < n; i++) list(d, kids[i], depth + 1);
+    if (kids) XFree(kids);
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: xinput where | click X Y [shift] | type TEXT | key NAME\n"); return 1; }
     Display *d = XOpenDisplay(NULL);
     if (!d) { fprintf(stderr, "xinput: no display\n"); return 2; }
+    if (!strcmp(argv[1], "list")) { list(d, DefaultRootWindow(d), 0); return 0; }
     Window w = find(d, DefaultRootWindow(d));
     if (!w) { fprintf(stderr, "xinput: no isim window\n"); return 3; }
     int x, y; Window child; XWindowAttributes a;

@@ -28,7 +28,7 @@ VERSIONS = ("17", "18", "26", "27")
 
 
 def presets():
-    """[(device id, first iOS major it runs)] from isim-runtime --list-devices"""
+    """[(device id, first iOS major it runs, its first release: "17.5" for the iPads)] from isim-runtime --list-devices"""
     exe = ROOT / "out" / "bin" / "isim-runtime"
     if not exe.exists():
         return []
@@ -36,9 +36,9 @@ def presets():
     rows = []
     for line in out.splitlines()[1:]:
         parts = line.split()
-        versions = re.findall(r"\b(\d+)\.\d+\b", line)
+        versions = re.findall(r"\b(\d+)\.(\d+)\b", line)
         if parts and versions:
-            rows.append((parts[0], int(versions[0])))
+            rows.append((parts[0], int(versions[0][0]), versions))
     return rows
 
 
@@ -47,8 +47,10 @@ def pytest_generate_tests(metafunc):
         return
     opt = metafunc.config.getoption("--os")
     versions = [str(opt).split(".")[0]] if opt else list(VERSIONS) if metafunc.config.getoption("--os-matrix") else ["18"]
-    cases = [(d, v) for v in versions for d, first in presets() if int(v) >= first]
-    metafunc.parametrize("case", cases, ids=[f"{d}-ios{v}" for d, v in cases])
+    # the device's own release of that major (iPads came with 17.5: --os 17 is refused for them, like Xcode)
+    cases = [(d, next(f"{a}.{b}" for a, b in rel if a == v)) for v in versions for d, first, rel in presets()
+             if int(v) >= first]
+    metafunc.parametrize("case", cases, ids=[f"{d}-ios{v.split('.')[0]}" for d, v in cases])
 
 
 @pytest.fixture(scope="session")
@@ -106,7 +108,7 @@ class Window:
             if not more:
                 return False
             r = subprocess.run([str(self.xinput), "where"], env=self.env, capture_output=True, text=True)
-            return r.returncode == 0 and int(r.stdout.split()[2]) == more[0] + 6 + 16
+            return r.returncode == 0 and abs(int(r.stdout.split()[2]) - (more[0] + 6 + 16)) <= 1   # (rounded up)
         self.dev.wait_until(shown, what="the window on screen with its toolbar")
 
     def controls(self) -> dict[str, tuple[int, int]]:
@@ -149,7 +151,7 @@ def boot(tmp_path, device, version, display, install=()):
     shots.mkdir()
     env = {"ISIM_HEADLESS": None, "ISIM_SCRIPT": None, "DISPLAY": display, "SDL_VIDEO_DRIVER": "x11",
            "WAYLAND_DISPLAY": None, "ISIM_MUTE": "1", "ISIM_SCREENSHOT_DIR": str(shots),
-           "ISIM_NOTIFICATION_PERMISSION": "allow"}
+           "ISIM_NOTIFICATION_PERMISSION": "allow", "ISIM_WINDOW_DEBUG": "1"}
     return App(None, data=data, device=device, os_version=version, install=list(install), env=env)
 
 
@@ -163,7 +165,7 @@ def test_every_control(case, tmp_path, xinput, display):
         dev.wait_view(r"id=home-dock")
         s = win.state()
         assert f"device={device}" in s or device == "ipad", s
-        assert f"ios={version}" in s, s
+        assert f"ios={version.split('.')[0]}" in s, s
 
         # toolbar
         win.click("home", r"^isim window: home$")
@@ -173,9 +175,16 @@ def test_every_control(case, tmp_path, xinput, display):
         win.wait_state(r"locked=0")
         win.click("rotate", r"^isim window: rotate left$")
         win.click("rotate", r"^isim window: rotate right$", shift=True)
-        win.click("appearance", r"^isim window: appearance dark$")
-        win.wait_state(r"appearance=dark")
-        win.click("appearance", r"^isim window: appearance light$")
+        if "appearance" in win.controls():
+            win.click("appearance", r"^isim window: appearance dark$")
+            win.wait_state(r"appearance=dark")
+            win.click("appearance", r"^isim window: appearance light$")
+        else:                                        # a compact toolbar: in the More menu
+            win.click("more")
+            win.click("more.appearance", r"^isim window: appearance dark$")
+            win.wait_state(r"appearance=dark")
+            win.click("more")
+            win.click("more.appearance", r"^isim window: appearance light$")
         win.wait_state(r"appearance=light")
         win.click("shot", r"^isim window: shot \S+\.png$", r"isim host: screenshot \S+\.png")
 
@@ -237,7 +246,7 @@ def test_every_control(case, tmp_path, xinput, display):
         win.click("apply", r"isim window: restart dialog")
         win.click("dialog.cancel", r"isim window: restart cancelled")
         s = win.state()
-        assert "dialog=0" in s and f"ios={version}" in s, s
+        assert "dialog=0" in s and f"ios={version.split('.')[0]}" in s, s
 
         # a tap on the screen goes to the device, not the chrome
         w, h = win.size()
@@ -261,5 +270,6 @@ def test_restart_from_window(tmp_path, xinput, display):
         win.click("dialog.restart", r"isim window: restart: device iphone15, iOS 18\.0, zoom 0\.75")
         win.wait_state(r"device=iphone15 ios=18 zoom=0\.75")
         win.ready()                                  # the new window
+        dev.wait_view(r"id=home-dock")               # the device has booted again
         win.click("rotate", r"^isim window: rotate left$")
         assert dev.quit() == 0

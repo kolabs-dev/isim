@@ -169,9 +169,17 @@ static void window_size(int *w, int *h) {
 }
 static void window_resize(void) {
     if (!win) return;
-    int w, h; window_size(&w, &h);
+    int w, h, cw = 0, ch_ = 0; window_size(&w, &h);
+    SDL_GetWindowSize(win, &cw, &ch_);
+    if (cw == w && ch_ == h) return;     /* unchanged: on X11 a fixed-size window is unmapped and mapped again to resize */
+    if (getenv("ISIM_WINDOW_DEBUG")) fprintf(stderr, "isim window: resize %dx%d -> %dx%d (orientation %d)\n", cw, ch_, w, h, dev.orientation);
     SDL_SetWindowSize(win, w, h);
 }
+/* isim draws every frame in software (cairo) and copies it to the window surface. SDL's default backs that surface with
+   an accelerated renderer, which on X11 destroys the new window and creates it again the first time it is drawn: the
+   window flickered at every start and restart, and a click in those first ~100 ms went to a window that no longer
+   existed. The environment variable SDL_FRAMEBUFFER_ACCELERATION still overrides this. */
+static void window_sdl_hints(void) { SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "0"); }
 static void window_title(void) {
     if (!win) return;
     char n[64], t[160]; ch_short_name(ch_cur_dev(), n, sizeof n);
@@ -707,6 +715,16 @@ static const struct { const char *id, *label, *cmd; } ch_more[] = {
 };
 static double ch_pop_more(cairo_t *c, double x, double y, double w) {
     double y0 = y; y += 16;
+    if (ch_layout().compact) {                       /* the compact toolbar has no Appearance button: here instead */
+        const char *lab = ch_dark() ? "Light appearance" : "Dark appearance";
+        ch_el("more.appearance", x + 6, y - 6, w - 12, 32);
+        if (ch_hot("more.appearance")) ch_fill_round(c, x + 6, y - 6, w - 12, 32, 7, C_ROW);
+        ch_icon(c, ch_dark() ? "sun" : "moon", x + 24, y + 10, 17, C_TEXT, 1);
+        ch_text_at(c, lab, x + 40, y + 10, CH_FONT, 400, 0, C_TEXT, 1, 0, 0);
+        ch_text_at(c, "appearance", x, y + 10, 11.5, 400, 1, C_TEXT2, 1, 2, w - 16);
+        y += 32;
+        ch_divider(c, x + 8, y, w - 16); y += 12;
+    }
     ch_header(c, "SIMULATE", x + 16, y); y += 20;
     for (size_t i = 0; i < sizeof ch_more / sizeof *ch_more; i++) {
         ch_el(ch_more[i].id, x + 6, y, w - 12, 32);
@@ -1341,6 +1359,7 @@ static void ch_click(const char *id, int mods) {
     }
     /* the More menu and its forms */
     else if (!strcmp(id, "more.shake")) { ch_close_pop(); chrome_run("shake"); }
+    else if (!strcmp(id, "more.appearance")) { ch_close_pop(); chrome_run(ch_dark() ? "appearance light" : "appearance dark"); }
     else if (!strcmp(id, "more.memorywarning")) { ch_close_pop(); chrome_run("memorywarning"); }
     else if (!strcmp(id, "more.location")) ch_open(CH_POP_LOCATION);
     else if (!strcmp(id, "more.openurl")) ch_open(CH_POP_OPENURL);
@@ -1501,6 +1520,11 @@ static int chrome_sdl_event(SDL_Event *e, struct isim_event *ev) {
     ch_init();
     struct ch_geo g = ch_layout();
     int modal = ch.pop || ch.dialog;
+    static int dbg = -1;
+    if (dbg < 0) dbg = getenv("ISIM_WINDOW_DEBUG") && *getenv("ISIM_WINDOW_DEBUG") == '1';
+    if (dbg && e->type != SDL_EVENT_USER)
+        fprintf(stderr, "isim window: event %#x at %.0f,%.0f (on %s)\n", e->type, e->button.x, e->button.y,
+                e->type == SDL_EVENT_MOUSE_BUTTON_DOWN || e->type == SDL_EVENT_MOUSE_BUTTON_UP ? (ch_el_at(e->button.x, e->button.y) ?: "-") : "-");
     switch (e->type) {
     case SDL_EVENT_MOUSE_MOTION: {
         double x = e->motion.x, y = e->motion.y;

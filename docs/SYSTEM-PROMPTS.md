@@ -17,6 +17,7 @@ should always use their own `ISIM_DATA`.
 | `ISIM_OBJC_AUDIT=1` | before `main`, print the Objective-C selectors the app (and its embedded frameworks) reference that no loaded class implements: the gaps a binary SDK may hit as "unrecognized selector" |
 | `ISIM_BUILD_VERBOSE=1` | `isim build` prints the compiler and linker command lines it runs |
 | `ISIM_BUILD_INCREMENTAL=0` | `isim build` compiles every source again (by default it skips compiles whose command and inputs are unchanged since the last build into the same output folder) |
+| `ISIM_WINDOW_DEBUG=1` | the device window logs every SDL event it receives (`isim window: event TYPE at X,Y (on CONTROL)`) and each resize: for clicks that seem to go nowhere |
 | `ISIM_AUTOLOCK=SECONDS` | under `isim boot`, lock the device after that much idle time unless the foreground app sets `isIdleTimerDisabled` (default: never, like the Simulator) |
 
 Apps also see the environment Apple's Simulator sets (isim sets it from the device and version; apps and SDKs such
