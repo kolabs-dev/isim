@@ -187,6 +187,10 @@ SWIFT_FRAMEWORKS = [
     ("CoreVideo", "-framework Foundation -framework CoreGraphics"),
     # Core Animation's classes are UIKit's (UIKit/CALayer.h): QuartzCore re-exports UIKit as well as libswiftQuartzCore
     ("QuartzCore", "-framework Foundation -framework UIKit -reexport_framework UIKit"),
+    # module shims (issue #223): headers over isim's AVFoundation and AudioToolbox; AVFAudio's classes are AVFoundation's
+    ("AVFAudio", "-framework Foundation -framework AVFoundation -reexport_framework AVFoundation"),
+    ("AudioUnit", "-framework Foundation"),
+    ("CoreAudio", "-framework Foundation"),
 ]
 
 GUEST_CFLAGS = ["-target", f"x86_64-apple-ios{MINOS}-simulator", "-nostdlibinc", "-isystem", f"{SDK}/usr/include",

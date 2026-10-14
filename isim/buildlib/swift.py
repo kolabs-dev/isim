@@ -711,6 +711,9 @@ SwiftData -lswiftObjectiveC -lswiftFoundation -lswiftSwiftUI -lswiftCombine -lsw
 StoreKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCryptoKit -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 CoreLocation -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 QuartzCore -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit
+AVFAudio -lswiftObjectiveC -lswiftFoundation -lswiftAVFoundation -framework Foundation   # import AVFAudio: re-exports AVFoundation
+AudioUnit -lswiftObjectiveC -lswiftFoundation -lswiftAudioToolbox -framework Foundation   # re-exports AudioToolbox
+CoreAudio -lswiftObjectiveC -lswiftFoundation -lswiftAudioToolbox -framework Foundation   # re-exports AudioToolbox
 CoreHaptics -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation
 CoreMotion -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
 CoreBluetooth -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation
@@ -752,7 +755,7 @@ EVOLUTION = set("""ObjectiveC Dispatch Spatial DeveloperToolsSupport FoundationE
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
 GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Security os OSLog LocalAuthentication
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices
-QuartzCore CoreHaptics CoreVideo CoreML Vision NaturalLanguage Speech VisionKit WebKit SafariServices MessageUI MapKit
+QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision NaturalLanguage Speech VisionKit WebKit SafariServices MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer".split())
