@@ -121,7 +121,9 @@ iPhone, a large one and an iPad catches most layout bugs. `isim devices` lists t
 To look at one view without navigating to it, render its `#Preview` (like Xcode's canvas, one preview at a time):
 `isim preview build/MyApp.app --list` lists the previews, `isim preview build/MyApp.app "Detail" -o
 /tmp/detail.png` (a name or an index; `--device`, `--os`, `--dark`) saves a screenshot of it, laid out by its traits
-(the device, `.sizeThatFitsLayout` or `.fixedLayout` on a grey canvas).
+(the device, `.sizeThatFitsLayout` or `.fixedLayout` on a grey canvas). Widget and Live Activity previews
+(`#Preview(as: .systemSmall) { MyWidget() } timeline: { ... }`) are found in the app's widget extension and show every
+timeline entry or content state, rendered like the home screen renders them, one under another.
 
 ### 3. Read the output
 
