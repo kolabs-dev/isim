@@ -28,6 +28,16 @@ Cancel).
 | `ISIM_BIOMETRY=match\|nomatch\|cancel` | answer every scan automatically |
 | `ISIM_BIOMETRY_ENROLLED=0` | no enrolled face or finger |
 
+Secure Enclave keys with access control (`.userPresence`, `.biometryAny`, …) ask for the same scan each time they
+sign or agree on a key.
+
+## Secure Enclave and App Attest
+
+| Variable | Effect |
+|---|---|
+| `ISIM_SECURE_ENCLAVE=0` | no Secure Enclave: `SecureEnclave.isAvailable` is false and enclave keys fail (like the Simulator) |
+| `ISIM_APP_ATTEST=0` | DeviceCheck and App Attest unsupported: `isSupported` false, `DCError.featureUnsupported` (like the Simulator) |
+
 ## Permission prompts
 
 Each variable answers its prompt automatically; without it, the alert is shown and waits for a tap.

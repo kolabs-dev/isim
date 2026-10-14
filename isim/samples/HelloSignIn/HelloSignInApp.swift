@@ -1,7 +1,7 @@
 // Sample: isim's local AuthenticationServices — Sign in with Apple (SwiftUI SignInWithAppleButton and the UIKit
 // ASAuthorizationAppleIDButton), credential state + revocation, passkey registration and sign-in (the app plays
 // the relying-party server too: it parses the attestation object, keeps the COSE public key and verifies the
-// assertion signature with CryptoKit), saved-password sign-in from the keychain, and AppTrackingTransparency +
+// assertion signature with CryptoKit; also from the QuickType bar with performAutoFillAssistedRequests), saved-password sign-in from the keychain, and AppTrackingTransparency +
 // the advertising identifier (AdSupport). Results are printed for tests/ui/test_signin.py.
 import SwiftUI
 import UIKit
@@ -73,6 +73,18 @@ final class Auth: NSObject, ObservableObject, ASAuthorizationControllerDelegate,
         get { UserDefaults.standard.string(forKey: "appleUserID") }
         set { UserDefaults.standard.set(newValue, forKey: "appleUserID") }
     }
+    var assisted: ASAuthorizationController?
+    /// passkey sign-in from the QuickType bar (performAutoFillAssistedRequests), started before the username field is used
+    func autoFill() {
+        assisted?.cancel()
+        let p = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: Server.rp)
+        let c = ASAuthorizationController(authorizationRequests: [p.createCredentialAssertionRequest(challenge: Server.newChallenge())])
+        c.delegate = self
+        c.presentationContextProvider = self
+        c.performAutoFillAssistedRequests()
+        assisted = c
+        print("autofill-assisted request started")
+    }
     func run(_ requests: [ASAuthorizationRequest], options: ASAuthorizationController.RequestOptions = []) {
         let c = ASAuthorizationController(authorizationRequests: requests)
         c.delegate = self
@@ -117,6 +129,7 @@ final class Auth: NSObject, ObservableObject, ASAuthorizationControllerDelegate,
             Server.register(c)
         case let c as ASAuthorizationPlatformPublicKeyCredentialAssertion:
             Server.verify(c)
+            DispatchQueue.main.async { MainActor.assumeIsolated { _ = UsernameField.field?.resignFirstResponder() } }
         case let c as ASPasswordCredential:
             print("password credential: \(c.user) / \(String(repeating: "•", count: c.password.count)) matches=\(c.password == "correct horse")")
         default:
@@ -131,6 +144,23 @@ final class Auth: NSObject, ObservableObject, ASAuthorizationControllerDelegate,
             print("credential state: \(s)")
         }
     }
+}
+
+/// a username field (UITextField, textContentType .username): with an AutoFill-assisted request running, the
+/// QuickType bar above its keyboard offers the saved passkeys
+struct UsernameField: UIViewRepresentable {
+    nonisolated(unsafe) static weak var field: UITextField?
+    func makeUIView(context: Context) -> UITextField {
+        let f = UITextField()
+        UsernameField.field = f
+        f.placeholder = "Username"
+        f.textContentType = .username
+        f.autocapitalizationType = .none
+        f.borderStyle = .roundedRect
+        f.accessibilityIdentifier = "username"
+        return f
+    }
+    func updateUIView(_ uiView: UITextField, context: Context) {}
 }
 
 /// the UIKit button, in a SwiftUI layout
@@ -181,6 +211,8 @@ struct RootView: View {
                         let p = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: Server.rp)
                         auth.run([p.createCredentialAssertionRequest(challenge: Server.newChallenge())])
                     }
+                    row("Passkey AutoFill", "passkey-autofill") { auth.autoFill() }
+                    UsernameField().frame(height: 40)
                     row("Save a password", "save-password") {
                         let q: [String: Any] = [kSecClass as String: kSecClassInternetPassword, kSecAttrServer as String: Server.rp,
                                                 kSecAttrAccount as String: "pat@example.com", kSecValueData as String: Data("correct horse".utf8)]

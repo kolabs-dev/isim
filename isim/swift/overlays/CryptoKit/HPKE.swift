@@ -323,27 +323,3 @@ public enum HPKE {
 
 @inline(__always) func _i2osp(_ v: UInt16) -> [UInt8] { [UInt8(v >> 8), UInt8(v & 0xff)] }
 
-// MARK: - Secure Enclave (unavailable on isim, like the Simulator without a Secure Enclave)
-
-public enum SecureEnclave {
-    /// false: isim has no Secure Enclave
-    public static var isAvailable: Bool { false }
-    public enum P256 {
-        public enum Signing {
-            public struct PrivateKey: Sendable {
-                public init(compactRepresentable: Bool = true) throws { throw CryptoKitError.underlyingCoreCryptoError(error: -25293) }
-                public init<D: ContiguousBytes>(dataRepresentation: D) throws { throw CryptoKitError.underlyingCoreCryptoError(error: -25293) }
-                public var publicKey: CryptoKit.P256.Signing.PublicKey { fatalError("no Secure Enclave on isim") }
-                public var dataRepresentation: Data { Data() }
-            }
-        }
-        public enum KeyAgreement {
-            public struct PrivateKey: Sendable {
-                public init(compactRepresentable: Bool = true) throws { throw CryptoKitError.underlyingCoreCryptoError(error: -25293) }
-                public init<D: ContiguousBytes>(dataRepresentation: D) throws { throw CryptoKitError.underlyingCoreCryptoError(error: -25293) }
-                public var publicKey: CryptoKit.P256.KeyAgreement.PublicKey { fatalError("no Secure Enclave on isim") }
-                public var dataRepresentation: Data { Data() }
-            }
-        }
-    }
-}

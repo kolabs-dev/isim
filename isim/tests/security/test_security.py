@@ -1,8 +1,29 @@
 """Security self-test (SecurityTest.app: CommonCrypto, CryptoKit, SQLite3, Keychain known-answer tests) on scratch
 device data, and the os.Logger / os_log lines it writes to stderr."""
+import http.server
+import pathlib
 import re
+import threading
 
 from isimtest import need_apps, selftest
+
+PKI = pathlib.Path(__file__).parent / "pki"
+
+
+class OCSPResponder(http.server.BaseHTTPRequestHandler):
+    """The OCSP responder ocsp-good.der / ocsp-revoked.der name: answers with the CA's response for the serial asked."""
+    def do_POST(self):
+        req = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        name = "ocsp-revoked" if b"\x02\x020\x02" in req else "ocsp-good"      # CertID serialNumber 0x3002 / 0x3001
+        body = (PKI / f"{name}.resp").read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/ocsp-response")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
 
 LOG_LINES = {
     "Logger.notice: log-stream style line, strings private by default":
@@ -25,7 +46,13 @@ LOG_LINES = {
 
 def test_security(device_data):
     need_apps("SecurityTest")
-    r = selftest("SecurityTest", data=device_data, timeout=60, split_stderr=True)
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 47821), OCSPResponder)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        r = selftest("SecurityTest", data=device_data, timeout=60, split_stderr=True)
+    finally:
+        server.shutdown()
+        server.server_close()
     err = r.stderr
     missing = [what for what, rx in LOG_LINES.items() if not re.search(rx, err, re.M)]
     assert not missing, f"os_log lines missing: {missing}\n{err[-3000:]}"

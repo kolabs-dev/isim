@@ -59,6 +59,7 @@ int isim_pki_ecdh(const uint8_t *, size_t, const uint8_t *, size_t, uint8_t *, s
 int isim_pki_cert_parse(const uint8_t *, size_t, char *, size_t);
 int isim_pki_key_der(int, const uint8_t *, size_t, uint8_t *, size_t *);
 int isim_pki_trust(const uint8_t *, const size_t *, int, const uint8_t *, const size_t *, int, int, int, const char *, double, char *, size_t, int *);
+int isim_pki_trust_ex(const uint8_t *, const size_t *, int, const uint8_t *, const size_t *, int, int, int, const char *, double, int, const uint8_t *, size_t, int, char *, size_t, int *, int *);
 int isim_pki_pkcs12(const uint8_t *, size_t, const char *, uint8_t *, size_t *, int *, uint8_t *, size_t, size_t *, int *);
 
 struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48];
@@ -2061,7 +2062,7 @@ static const struct shim isim_table[] = {
     H(isim_crypto_ec_compress), H(isim_crypto_ec_sign), H(isim_crypto_ec_verify), H(isim_crypto_ec_ecdh), H(isim_crypto_25519_public),
     H(isim_crypto_25519_check_public), H(isim_crypto_x25519), H(isim_crypto_ed25519_sign), H(isim_crypto_ed25519_verify),
     H(isim_pki_available), H(isim_pki_error), H(isim_pki_generate), H(isim_pki_public), H(isim_pki_key_bits), H(isim_pki_sign), H(isim_pki_verify),
-    H(isim_pki_encrypt), H(isim_pki_decrypt), H(isim_pki_ecdh), H(isim_pki_cert_parse), H(isim_pki_key_der), H(isim_pki_trust), H(isim_pki_pkcs12),
+    H(isim_pki_encrypt), H(isim_pki_decrypt), H(isim_pki_ecdh), H(isim_pki_cert_parse), H(isim_pki_key_der), H(isim_pki_trust), H(isim_pki_trust_ex), H(isim_pki_pkcs12),
     H(isim_set_orientation), H(isim_device_orientation),
     H(isim_gfx_offscreen_begin), H(isim_gfx_offscreen_snapshot), H(isim_gfx_offscreen_end), H(isim_gfx_offscreen_depth),
     H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_text_ink_markup), H(isim_tl_create), H(isim_tl_free), H(isim_tl_size), H(isim_tl_line_count), H(isim_tl_line), H(isim_tl_index_rect), H(isim_tl_index_at), H(isim_tl_draw), H(isim_tl_set_tabs), H(isim_text_draw_markup),

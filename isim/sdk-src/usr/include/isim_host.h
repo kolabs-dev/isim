@@ -232,6 +232,12 @@ int isim_pki_cert_parse(const uint8_t *der, size_t len, char *json, size_t cap);
 /* chain verification: DER certificates (leaf first) and anchors, each concatenated with their sizes in lens */
 int isim_pki_trust(const uint8_t *certs, const size_t *lens, int ncerts, const uint8_t *_Nullable anchors, const size_t *_Nullable alens, int nanchors,
                    int useSystemAnchors, int sslServer, const char *_Nullable hostname, double when, char *err, size_t errcap, int *chainlen);
+/* the same with Apple's trust rules: flags bit 0 SSL server rules (key sizes, SHA-1, SAN, EKU, lifetime, Certificate
+   Transparency), bit 1 OCSP revocation, bit 2 require a positive revocation answer, bit 3 network fetch allowed; ocsp: a
+   stapled OCSP response for the leaf; scts: SCTs given besides the embedded ones; *status: Apple's OSStatus of a rule */
+int isim_pki_trust_ex(const uint8_t *certs, const size_t *lens, int ncerts, const uint8_t *_Nullable anchors, const size_t *_Nullable alens, int nanchors,
+                      int useSystemAnchors, int sslServer, const char *_Nullable hostname, double when, int flags, const uint8_t *_Nullable ocsp,
+                      size_t ocsplen, int scts, char *err, size_t errcap, int *chainlen, int *status);
 /* PKCS#12: private key (+ type) and certificates (identity certificate first); ncerts -1 if not PKCS#12 */
 int isim_pki_pkcs12(const uint8_t *data, size_t len, const char *_Nullable password, uint8_t *key, size_t *keylen, int *keytype,
                     uint8_t *certs, size_t certscap, size_t *certlens, int *ncerts);

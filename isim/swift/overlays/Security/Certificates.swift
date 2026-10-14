@@ -1,6 +1,10 @@
 // isim Security: certificates, policies, trust evaluation, PKCS#12 import and identities (self-authored, iOS names).
-// X.509 parsing, chain building and verification run in the host's OpenSSL (host_pki.c). The system anchors are the
-// host's CA store (Apple's trust store and its policies — CT, key-size rules, revocation — are not reproduced).
+// X.509 parsing, chain building and verification run in the host's OpenSSL (host_pki.c), then Apple's rules (adapted):
+// for SSL policies RSA keys of 2048 bits or more, no SHA-1 signatures, the host in subjectAltName, the serverAuth EKU
+// and at most 825 days (certificates issued from July 2019), and for chains to a system root (not a self-signed certificate trusted directly) also at most 398 days
+// (from September 2020) and Certificate Transparency (two SCTs, embedded or given); OCSP revocation (stapled responses,
+// or fetched from the certificate's responder) with SecPolicyCreateRevocation. The system anchors are the host's CA
+// store, not Apple's; SCTs are counted, not verified against CT logs; CRLs are not fetched.
 // SecTrust is Foundation's class (URLSession hands out trusts in challenges); this file adds its certificate state.
 import Foundation
 import isim_host
@@ -77,8 +81,26 @@ public func _isimCertificateValidity(_ certificate: SecCertificate) -> (notBefor
 
 public final class SecPolicy: CustomStringConvertible {
     let ssl: Bool, server: Bool, hostname: String?
-    init(ssl: Bool, server: Bool, hostname: String?) { self.ssl = ssl; self.server = server; self.hostname = hostname }
-    public var description: String { ssl ? "<SecPolicy SSL \(server ? "server" : "client") \(hostname ?? "")>" : "<SecPolicy basic X.509>" }
+    /// a revocation policy's kSecRevocation* flags (nil: not a revocation policy)
+    let revocation: CFOptionFlags?
+    init(ssl: Bool, server: Bool, hostname: String?, revocation: CFOptionFlags? = nil) {
+        self.ssl = ssl; self.server = server; self.hostname = hostname; self.revocation = revocation
+    }
+    public var description: String {
+        if let r = revocation { return "<SecPolicy revocation \(r)>" }
+        return ssl ? "<SecPolicy SSL \(server ? "server" : "client") \(hostname ?? "")>" : "<SecPolicy basic X.509>"
+    }
+}
+public let kSecRevocationOCSPMethod: CFOptionFlags = 1 << 0
+public let kSecRevocationCRLMethod: CFOptionFlags = 1 << 1
+public let kSecRevocationPreferCRL: CFOptionFlags = 1 << 2
+public let kSecRevocationRequirePositiveResponse: CFOptionFlags = 1 << 3
+public let kSecRevocationNetworkAccessDisabled: CFOptionFlags = 1 << 4
+public let kSecRevocationUseAnyAvailableMethod: CFOptionFlags = kSecRevocationOCSPMethod | kSecRevocationCRLMethod
+public let kSecPolicyAppleRevocation: CFString = "1.2.840.113635.100.1.21" as CFString
+/// Revocation checking (OCSP; isim fetches no CRLs, so kSecRevocationCRLMethod alone checks nothing).
+public func SecPolicyCreateRevocation(_ revocationFlags: CFOptionFlags) -> SecPolicy? {
+    SecPolicy(ssl: false, server: false, hostname: nil, revocation: revocationFlags)
 }
 public let kSecPolicyAppleX509Basic: CFString = "1.2.840.113635.100.1.2" as CFString
 public let kSecPolicyAppleSSL: CFString = "1.2.840.113635.100.1.3" as CFString
@@ -88,7 +110,7 @@ public let kSecPolicyClient: CFString = "SecPolicyClient" as CFString
 public func SecPolicyCreateBasicX509() -> SecPolicy { SecPolicy(ssl: false, server: false, hostname: nil) }
 public func SecPolicyCreateSSL(_ server: Bool, _ hostname: CFString?) -> SecPolicy { SecPolicy(ssl: true, server: server, hostname: hostname.map { $0 as String }) }
 public func SecPolicyCopyProperties(_ policyRef: SecPolicy) -> CFDictionary? {
-    var d: [String: Any] = ["SecPolicyOid": policyRef.ssl ? "1.2.840.113635.100.1.3" : "1.2.840.113635.100.1.2"]
+    var d: [String: Any] = ["SecPolicyOid": policyRef.revocation != nil ? "1.2.840.113635.100.1.21" : policyRef.ssl ? "1.2.840.113635.100.1.3" : "1.2.840.113635.100.1.2"]
     if let h = policyRef.hostname { d["SecPolicyName"] = h }
     if policyRef.ssl && !policyRef.server { d["SecPolicyClient"] = true }
     return d as NSDictionary as CFDictionary
@@ -108,6 +130,8 @@ public let errSecVerifyFailed: OSStatus = -67808
 public let errSecInvalidCertificateRef: OSStatus = -67723
 public let errSecPkcs12VerifyFailure: OSStatus = -25264
 public let errSecPassphraseRequired: OSStatus = -25260
+public let errSecCertificateRevoked: OSStatus = -67820
+public let errSecIncompleteCertRevocationCheck: OSStatus = -67635
 
 final class _TrustState {
     var certificates: [SecCertificate]
@@ -119,6 +143,9 @@ final class _TrustState {
     var result: SecTrustResultType = .invalid
     var chain: [SecCertificate] = []
     var failure: (OSStatus, String)?
+    var networkFetchAllowed = true
+    var ocspResponses: [[UInt8]] = []
+    var scts: [[UInt8]] = []
     init(certificates: [SecCertificate], policies: [SecPolicy]) { self.certificates = certificates; self.policies = policies }
 }
 extension SecTrust {
@@ -166,8 +193,24 @@ public func SecTrustSetVerifyDate(_ trust: SecTrust, _ verifyDate: CFDate) -> OS
     trust.state.verifyDate = verifyDate as Date; trust.state.result = .invalid; return errSecSuccess
 }
 public func SecTrustGetVerifyTime(_ trust: SecTrust) -> CFAbsoluteTime { (trust.state.verifyDate ?? Date()).timeIntervalSinceReferenceDate }
-public func SecTrustSetNetworkFetchAllowed(_ trust: SecTrust, _ allowFetch: Bool) -> OSStatus { errSecSuccess }
-public func SecTrustGetNetworkFetchAllowed(_ trust: SecTrust, _ allowFetch: UnsafeMutablePointer<Bool>) -> OSStatus { allowFetch.pointee = false; return errSecSuccess }
+/// Whether revocation checking may ask the certificate's OCSP responder over the network (default true, like iOS).
+public func SecTrustSetNetworkFetchAllowed(_ trust: SecTrust, _ allowFetch: Bool) -> OSStatus {
+    trust.state.networkFetchAllowed = allowFetch; trust.state.result = .invalid; return errSecSuccess
+}
+public func SecTrustGetNetworkFetchAllowed(_ trust: SecTrust, _ allowFetch: UnsafeMutablePointer<Bool>) -> OSStatus {
+    allowFetch.pointee = trust.state.networkFetchAllowed; return errSecSuccess
+}
+/// Stapled OCSP responses (a DER response, or an array of them) for the leaf; checked even without a revocation policy.
+public func SecTrustSetOCSPResponse(_ trust: SecTrust, _ responseData: CFTypeRef?) -> OSStatus {
+    if let d = responseData as? Data { trust.state.ocspResponses = [Array(d)] }
+    else { trust.state.ocspResponses = _array(responseData).compactMap { ($0 as? Data).map(Array.init) } }
+    trust.state.result = .invalid
+    return errSecSuccess
+}
+/// SCTs from the TLS handshake or OCSP (counted toward Certificate Transparency with the embedded ones).
+public func SecTrustSetSignedCertificateTimestamps(_ trust: SecTrust, _ sctArray: CFArray?) -> OSStatus {
+    trust.state.scts = _array(sctArray).compactMap { ($0 as? Data).map(Array.init) }; trust.state.result = .invalid; return errSecSuccess
+}
 
 func _evaluate(_ trust: SecTrust) -> Bool {
     let st = trust.state
@@ -182,15 +225,24 @@ func _evaluate(_ trust: SecTrust) -> Bool {
     for c in st.certificates { certBytes += c.der; lens.append(c.der.count) }
     var anchorBytes: [UInt8] = [], alens: [Int] = []
     for c in st.anchors { anchorBytes += c.der; alens.append(c.der.count) }
-    var err = [CChar](repeating: 0, count: 256), chainLen: Int32 = 0
+    var err = [CChar](repeating: 0, count: 256), chainLen: Int32 = 0, appleStatus: Int32 = 0
     let when = st.verifyDate?.timeIntervalSince1970 ?? 0
     let useSystem: Int32 = st.anchors.isEmpty || !st.anchorsOnly ? 1 : 0
+    // flags: 1 Apple's SSL rules, 2 revocation (OCSP), 4 require a positive answer, 8 network fetch allowed
+    let revocation = st.policies.compactMap(\.revocation)
+    var flags: Int32 = ssl != nil ? 1 : 0
+    let ocspMethod = revocation.contains { $0 & kSecRevocationOCSPMethod != 0 || $0 & kSecRevocationCRLMethod == 0 }
+    if ocspMethod || !st.ocspResponses.isEmpty { flags |= 2 }
+    if revocation.contains(where: { $0 & kSecRevocationRequirePositiveResponse != 0 }) { flags |= 4 }
+    if ocspMethod && st.networkFetchAllowed && !revocation.contains(where: { $0 & kSecRevocationNetworkAccessDisabled != 0 }) { flags |= 8 }
+    let ocsp = st.ocspResponses.first ?? []
     let ok = certBytes.withUnsafeBufferPointer { cb in lens.withUnsafeBufferPointer { lb in anchorBytes.withUnsafeBufferPointer { ab in alens.withUnsafeBufferPointer { alb in
-        err.withUnsafeMutableBufferPointer { eb in
+        ocsp.withUnsafeBufferPointer { ob in err.withUnsafeMutableBufferPointer { eb in
             (ssl?.hostname ?? "").withCString { host in
-                isim_pki_trust(cb.baseAddress!, lb.baseAddress!, Int32(lens.count), ab.baseAddress, alb.baseAddress, Int32(alens.count), useSystem,
-                               ssl?.server == true ? 1 : 0, ssl?.hostname == nil ? nil : host, when, eb.baseAddress!, eb.count, &chainLen)
-            } } } } } }
+                isim_pki_trust_ex(cb.baseAddress!, lb.baseAddress!, Int32(lens.count), ab.baseAddress, alb.baseAddress, Int32(alens.count), useSystem,
+                                  ssl?.server == true ? 1 : 0, ssl?.hostname == nil ? nil : host, when, flags, ob.baseAddress, ob.count,
+                                  Int32(st.scts.count), eb.baseAddress!, eb.count, &chainLen, &appleStatus)
+            } } } } } } }
     let reason = String(cString: err)
     // the verified chain: leaf, then the matching certificates/anchors in issuer order
     var chain = [st.certificates[0]]
@@ -208,7 +260,8 @@ func _evaluate(_ trust: SecTrust) -> Bool {
         return true
     }
     let status: OSStatus
-    if reason.contains("expired") { status = errSecCertificateExpired }
+    if appleStatus != 0 { status = OSStatus(appleStatus) }
+    else if reason.contains("expired") { status = errSecCertificateExpired }
     else if reason.contains("not yet valid") { status = errSecCertificateNotValidYet }
     else if reason.contains("hostname") || reason.contains("Hostname") { status = errSecHostNameMismatch }
     else { status = errSecNotTrusted }

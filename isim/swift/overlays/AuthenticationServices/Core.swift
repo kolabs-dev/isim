@@ -88,6 +88,8 @@ public enum ASUserDetectionStatus: Int, Sendable { case unsupported = 0, unknown
 
 // MARK: - Controller
 
+@_silgen_name("isim_ui_autofill_set_assisted") func _isimSetAutoFillAssisted(_ provider: (@convention(block) () -> NSArray)?)
+
 open class ASAuthorizationController: NSObject {
     public let authorizationRequests: [ASAuthorizationRequest]
     weak open var delegate: ASAuthorizationControllerDelegate?
@@ -111,14 +113,51 @@ open class ASAuthorizationController: NSObject {
         ASAuthorizationController.active.insert(self)
         DispatchQueue.main.async { MainActor.assumeIsolated { self._perform(options) } }
     }
-    /// AutoFill-assisted passkey requests: isim has no QuickType bar, so this behaves like performRequests
-    /// with preferImmediatelyAvailableCredentials (the sheet appears only when there are saved credentials).
-    open func performAutoFillAssistedRequests() { performRequests(options: .preferImmediatelyAvailableCredentials) }
+    /// AutoFill-assisted passkey requests, like iOS: no sheet; the saved passkeys for the relying party appear in the
+    /// QuickType bar above the keyboard of username fields (textContentType .username), and picking one completes the
+    /// request. Only passkey assertion requests take part (others are ignored, as on iOS). Ends with the result, cancel(),
+    /// or a newer AutoFill-assisted controller.
+    open func performAutoFillAssistedRequests() {
+        ASAuthorizationController.active.insert(self)
+        DispatchQueue.main.async { MainActor.assumeIsolated { self._performAssisted() } }
+    }
     open func cancel() {
         DispatchQueue.main.async { MainActor.assumeIsolated {
             if let s = self.sheet { s.dismiss(animated: true, completion: nil) }
             self.fail(.canceled)
         } }
+    }
+
+    nonisolated(unsafe) static weak var assisted: ASAuthorizationController?
+    @MainActor func _performAssisted() {
+        let assertions = authorizationRequests.compactMap { $0 as? ASAuthorizationPlatformPublicKeyCredentialAssertionRequest }
+        if assertions.count < authorizationRequests.count {
+            NSLog("isim AuthenticationServices: performAutoFillAssistedRequests takes passkey assertion requests only; the others are ignored")
+        }
+        if let old = ASAuthorizationController.assisted, old !== self { old.fail(.canceled) }
+        ASAuthorizationController.assisted = self
+        _isimSetAutoFillAssisted { [weak self] in
+            guard let self, !self.finished else { return NSArray() }
+            var out: [NSDictionary] = []
+            for a in assertions {
+                for k in _ASPasskeys.load(a.relyingPartyIdentifier) where a.allowedCredentials.isEmpty || a.allowedCredentials.contains(where: { $0.credentialID == k.credentialID }) {
+                    let action: @convention(block) () -> Void = { [weak self] in
+                        MainActor.assumeIsolated {
+                            guard let self else { return }
+                            NSLog("isim AuthenticationServices: AutoFill passkey %@ for %@", k.name, a.relyingPartyIdentifier)
+                            do { self.complete(a.provider, try _ASPasskeys.assert(a, k)) } catch { self.fail(.failed) }
+                        }
+                    }
+                    out.append(["title": k.name, "subtitle": "Passkey for \(a.relyingPartyIdentifier)", "action": action as AnyObject] as NSDictionary)
+                }
+            }
+            return out as NSArray
+        }
+        NSLog("isim AuthenticationServices: AutoFill-assisted requests: %d passkey(s) offered in the QuickType bar",
+              assertions.reduce(0) { $0 + _ASPasskeys.load($1.relyingPartyIdentifier).count })
+    }
+    @MainActor func endAssisted() {
+        if ASAuthorizationController.assisted === self { ASAuthorizationController.assisted = nil; _isimSetAutoFillAssisted(nil) }
     }
 
     @MainActor func anchorController() -> UIViewController? {
@@ -132,12 +171,14 @@ open class ASAuthorizationController: NSObject {
     @MainActor func complete(_ provider: ASAuthorizationProvider, _ credential: ASAuthorizationCredential) {
         guard !finished else { return }
         finished = true
+        endAssisted()
         ASAuthorizationController.active.remove(self)
         delegate?.authorizationController?(controller: self, didCompleteWithAuthorization: ASAuthorization(provider: provider, credential: credential))
     }
     @MainActor func fail(_ code: ASAuthorizationError.Code) {
         guard !finished else { return }
         finished = true
+        endAssisted()
         ASAuthorizationController.active.remove(self)
         delegate?.authorizationController?(controller: self, didCompleteWithError: ASAuthorizationError(code))
     }
