@@ -21,12 +21,17 @@ const struct isim_device *isim_ui_device(void) {
 void isim_ui_device_refresh(void) { isim_device_metrics(&ui_dev); ui_dev_init = YES; }   /* after a rotation */
 
 static UIUserInterfaceStyle cached_style;
-/* ISIM_APPEARANCE, else Settings > Display & Brightness (AppleInterfaceStyle = "Dark" in the global domain) */
+/* the app's Info.plist UIUserInterfaceStyle (Light or Dark: the app keeps that style whatever the device's; Automatic
+   or none: it follows the device), else ISIM_APPEARANCE, else Settings > Display & Brightness (AppleInterfaceStyle =
+   "Dark" in the global domain) */
 UIUserInterfaceStyle isim_ui_base_style(void) {
     if (!cached_style) {
+        id forced = NSBundle.mainBundle.infoDictionary[@"UIUserInterfaceStyle"];
         const char *e = getenv("ISIM_APPEARANCE");
         extern NSDictionary *isim_global_preferences(void);
-        if (e && *e) cached_style = !strcmp(e, "dark") ? UIUserInterfaceStyleDark : UIUserInterfaceStyleLight;
+        if ([forced isEqual:@"Light"]) cached_style = UIUserInterfaceStyleLight;
+        else if ([forced isEqual:@"Dark"]) cached_style = UIUserInterfaceStyleDark;
+        else if (e && *e) cached_style = !strcmp(e, "dark") ? UIUserInterfaceStyleDark : UIUserInterfaceStyleLight;
         else cached_style = [isim_global_preferences()[@"AppleInterfaceStyle"] isEqual:@"Dark"] ? UIUserInterfaceStyleDark : UIUserInterfaceStyleLight;
     }
     return cached_style;
