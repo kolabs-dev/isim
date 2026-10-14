@@ -75,9 +75,14 @@ public struct Color: ShapeStyle, Hashable, CustomStringConvertible, @unchecked S
     }
     init(_ name: String, _ make: @escaping () -> UIColor) { provider = _ColorProvider(name, make) }
     public init(uiColor: UIColor) { provider = _ColorProvider("\(ObjectIdentifier(uiColor))") { uiColor } }
-    public init(_ uiColor: UIColor) { self.init(uiColor: uiColor) }
+    /// (disfavored: `Color(.name)` picks the generated `ColorResource` over a generated `UIColor` of the same name)
+    @_disfavoredOverload public init(_ uiColor: UIColor) { self.init(uiColor: uiColor) }
     public init(_ name: String, bundle: Bundle? = nil) {
         provider = _ColorProvider("named:" + name) { UIColor(named: name, in: bundle, compatibleWith: nil) ?? .systemPink }
+    }
+    /// An asset catalog color (Xcode's generated `ColorResource` symbols): its light, dark and high-contrast variants.
+    public init(_ resource: ColorResource) {
+        provider = _ColorProvider("resource:\(resource._isimBundle.bundlePath)/\(resource._isimName)") { UIColor(resource: resource) }
     }
     public init(red: Double, green: Double, blue: Double, opacity: Double = 1) {
         provider = _ColorProvider("rgb\(red),\(green),\(blue),\(opacity)") { UIColor(red: red, green: green, blue: blue, alpha: opacity) }
@@ -433,6 +438,8 @@ public struct Image: View, _PrimitiveView {
     public init(systemName: String, variableValue: Double?) { source = .system(systemName); self.variableValue = variableValue }
     /// An image that accessibility ignores (no label, not an element).
     public init(decorative name: String, bundle: Bundle? = nil) { source = .named(name, bundle); a11y = .decorative }
+    /// An asset catalog image (Xcode's generated `ImageResource` symbols).
+    public init(_ resource: ImageResource) { source = .named(resource._isimName, resource._isimBundle) }
     /// An image with that accessibility label.
     public init(_ name: String, bundle: Bundle? = nil, label: Text) { source = .named(name, bundle); a11y = .label(label.string) }
     public init(_ name: String, variableValue: Double?, bundle: Bundle? = nil) { source = .named(name, bundle); self.variableValue = variableValue }

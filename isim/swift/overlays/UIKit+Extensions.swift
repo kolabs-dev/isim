@@ -105,3 +105,27 @@ extension UIScene {
         set { __destructionConditions = Set(newValue.map { $0._objc }) }
     }
 }
+
+// MARK: - Asset catalog resources (iOS 17; Xcode's generated asset symbols)
+
+extension UIImage {
+    /// The asset catalog image `resource` names; an empty image when the catalog has none (as on iOS).
+    public convenience init(resource: ImageResource) {
+        if UIImage(named: resource._isimName, in: resource._isimBundle, with: nil) != nil {
+            self.init(named: resource._isimName, in: resource._isimBundle, with: nil)!
+        } else {
+            self.init()
+        }
+    }
+}
+
+extension UIColor {
+    /// The asset catalog color `resource` names, with its appearance variants; clear when the catalog has none.
+    public convenience init(resource: ColorResource) {
+        if UIColor(named: resource._isimName, in: resource._isimBundle, compatibleWith: nil) != nil {
+            self.init(named: resource._isimName, in: resource._isimBundle, compatibleWith: nil)!
+        } else {
+            self.init(white: 0, alpha: 0)
+        }
+    }
+}

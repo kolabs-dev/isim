@@ -433,6 +433,11 @@ def _(a):   # the full app with its App Clip embedded in AppClips/ (the App Clip
     a.xcode_project("-project", "HelloAppClip.xcodeproj", targets=["HelloAppClip"])
 
 
+@app("samples/HelloAssetSymbols")
+def _(a):
+    a.xcode_project("-project", "HelloAssetSymbols.xcodeproj", targets=["HelloAssetSymbols"])
+
+
 @app("samples/HelloCoreData")
 def _(a):
     a.xcode_project("-project", "HelloCoreData.xcodeproj", targets=["HelloCoreData"])
