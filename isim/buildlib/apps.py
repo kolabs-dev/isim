@@ -673,6 +673,7 @@ def selftest(d, name, *flags):
 
 selftest("tests/swift-full", "SwiftFullTest")
 selftest("tests/swift-concurrency", "SwiftConcurrencyTest")
+selftest("tests/swift-62", "Swift62Test")
 selftest("tests/swift-foundation", "SwiftFoundationTest")
 selftest("tests/swift-libraries", "SwiftLibrariesTest", "-enable-bare-slash-regex")
 

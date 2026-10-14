@@ -1,5 +1,6 @@
-"""Dispatch C API self-test (DispatchTest.app): dispatch_data_t, dispatch_io_t, and the sources fed by host events
-(write-source free space, pending connections, Mach receive / send, process fork / exec / exit)."""
+"""Dispatch C API self-test (DispatchTest.app): dispatch_data_t, dispatch_io_t, the sources fed by host events
+(write-source free space, pending connections, Mach receive / send, process fork / exec / exit), and dispatch and
+os_log objects owned by ARC as Objective-C objects."""
 import subprocess
 import sys
 
