@@ -452,6 +452,11 @@ def _(a):
     shutil.copytree(os.path.join(work, "HelloCoreMLModels.app"), dst, symlinks=True)
 
 
+@app("samples/HelloCustomIntents")
+def _(a):
+    a.xcode_project("-project", "HelloCustomIntents.xcodeproj", targets=["HelloCustomIntents"])
+
+
 @app("samples/HelloCoreData")
 def _(a):
     a.xcode_project("-project", "HelloCoreData.xcodeproj", targets=["HelloCoreData"])
