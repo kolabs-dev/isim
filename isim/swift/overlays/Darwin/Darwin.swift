@@ -9,6 +9,20 @@ public var errno: Int32 {
     set { __error().pointee = newValue }
 }
 
+// the standard streams (macros for __stdinp / __stdoutp / __stderrp in C), as in Swift's Darwin overlay
+public var stdin: UnsafeMutablePointer<FILE> {
+    get { __stdinp }
+    set { __stdinp = newValue }
+}
+public var stdout: UnsafeMutablePointer<FILE> {
+    get { __stdoutp }
+    set { __stdoutp = newValue }
+}
+public var stderr: UnsafeMutablePointer<FILE> {
+    get { __stderrp }
+    set { __stderrp = newValue }
+}
+
 // open(2), openat(2)
 public func open(_ path: UnsafePointer<CChar>, _ oflag: Int32) -> Int32 { _isim_open(path, oflag, 0) }
 public func open(_ path: UnsafePointer<CChar>, _ oflag: Int32, _ mode: mode_t) -> Int32 { _isim_open(path, oflag, Int32(mode)) }

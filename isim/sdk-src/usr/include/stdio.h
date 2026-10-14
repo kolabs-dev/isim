@@ -3,8 +3,30 @@
 #include <stddef.h>
 #include <stdarg.h>
 __BEGIN_DECLS
-typedef struct __sFILE FILE;            /* opaque; host provides the object */
 typedef long long fpos_t;
+/* Darwin's FILE layout, so Swift sees UnsafeMutablePointer<FILE> as on iOS (and stdin / stdout / stderr in the Darwin
+   overlay). Only pointers to it cross isim's libSystem: the host provides the object, and its fields are not Darwin's. */
+struct __sbuf { unsigned char *_base; int _size; };
+struct __sFILEX;
+typedef struct __sFILE {
+    unsigned char *_p;
+    int _r, _w;
+    short _flags, _file;
+    struct __sbuf _bf;
+    int _lbfsize;
+    void *_cookie;
+    int (*_close)(void *);
+    int (*_read)(void *, char *, int);
+    fpos_t (*_seek)(void *, fpos_t, int);
+    int (*_write)(void *, const char *, int);
+    struct __sbuf _ub;
+    struct __sFILEX *_extra;
+    int _ur;
+    unsigned char _ubuf[3], _nbuf[1];
+    struct __sbuf _lb;
+    int _blksize;
+    fpos_t _offset;
+} FILE;
 extern FILE *__stdinp, *__stdoutp, *__stderrp;
 #define stdin __stdinp
 #define stdout __stdoutp

@@ -1,7 +1,7 @@
 // isim AVFoundation: AVAudioSession routes, interruptions and route changes (self-authored, iOS API names).
 // The host has one output; isim reports the built-in speaker (and microphone) until a script changes the route.
 // Interruptions and route changes come from the `audio` script/control command (adapted, like the Simulator's
-// lack of phone calls): `audio interrupt begin`, `audio interrupt end [resume]`, `audio route headphones|speaker|
+// lack of phone calls): `audio interrupt begin [alert|muted]`, `audio interrupt end [resume]`, `audio route headphones|speaker|
 // bluetooth|carplay|airplay|usb`. As on iOS, an interruption pauses AVAudioPlayers; nothing resumes on its own.
 import Foundation
 import isim_host
@@ -117,7 +117,8 @@ enum _AudioSessionEvents {
             guard let cmd = words.first else { continue }
             if cmd == "interrupt" || cmd == "interruption" {
                 let begin = words.count < 2 || words[1] == "begin" || words[1] == "began"
-                interrupt(begin: begin, resume: words.contains("resume"))
+                interrupt(begin: begin, resume: words.contains("resume"),
+                          cause: words.contains("alert") ? .systemAlert : words.contains("muted") ? .micMuted : .other)
             } else if cmd == "route", words.count > 1 {
                 setRoute(words[1], reason: nil)
             } else if cmd == "silence" || cmd == "secondary" {
@@ -131,15 +132,25 @@ enum _AudioSessionEvents {
             }
         }
     }
-    static func interrupt(begin: Bool, resume: Bool) {
+    enum Cause { case other, systemAlert, micMuted }
+    nonisolated(unsafe) static var ignored = false
+    static func interrupt(begin: Bool, resume: Bool, cause: Cause = .other) {
         let s = AVAudioSession.sharedInstance()
+        // what the app opted out of doesn't interrupt it (nor does the matching end reach it)
+        if begin, cause == .systemAlert && s.prefersNoInterruptionsFromSystemAlerts
+                    || cause == .micMuted && s.categoryOptions.contains(.overrideMutedMicrophoneInterruption) {
+            ignored = true
+            NSLog("isim AVFoundation: audio session interruption ignored (%@)", cause == .systemAlert ? "prefersNoInterruptionsFromSystemAlerts" : "overrideMutedMicrophoneInterruption")
+            return
+        }
+        if !begin, ignored { ignored = false; return }
         if begin {
             interrupted = true
             for w in players { if let p = w.p, p.isPlaying { p.pause() } }
             NSLog("isim AVFoundation: audio session interruption began")
             NotificationCenter.default.post(name: AVAudioSession.interruptionNotification, object: s,
                                             userInfo: [AVAudioSessionInterruptionTypeKey: NSNumber(value: AVAudioSession.InterruptionType.began.rawValue),
-                                                       AVAudioSessionInterruptionReasonKey: NSNumber(value: AVAudioSession.InterruptionReason.default.rawValue)])
+                                                       AVAudioSessionInterruptionReasonKey: NSNumber(value: (cause == .micMuted ? AVAudioSession.InterruptionReason.builtInMicMuted : .default).rawValue)])
         } else {
             interrupted = false
             NSLog("isim AVFoundation: audio session interruption ended%@", resume ? " (should resume)" : "")

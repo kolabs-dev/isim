@@ -41,6 +41,10 @@ public let NSOSStatusErrorDomain = "NSOSStatusErrorDomain"
         public static let moviePlayback = Mode(rawValue: "AVAudioSessionModeMoviePlayback")
         public static let spokenAudio = Mode(rawValue: "AVAudioSessionModeSpokenAudio")
         public static let voiceChat = Mode(rawValue: "AVAudioSessionModeVoiceChat")
+        public static let videoChat = Mode(rawValue: "AVAudioSessionModeVideoChat")
+        public static let videoRecording = Mode(rawValue: "AVAudioSessionModeVideoRecording")
+        public static let measurement = Mode(rawValue: "AVAudioSessionModeMeasurement")
+        public static let voicePrompt = Mode(rawValue: "AVAudioSessionModeVoicePrompt")
     }
     public struct CategoryOptions: OptionSet, Sendable {
         public let rawValue: UInt
@@ -52,6 +56,15 @@ public let NSOSStatusErrorDomain = "NSOSStatusErrorDomain"
         public static let interruptSpokenAudioAndMixWithOthers = CategoryOptions(rawValue: 17)
         public static let allowBluetoothA2DP = CategoryOptions(rawValue: 32)
         public static let allowAirPlay = CategoryOptions(rawValue: 64)
+        /// a muted built-in microphone (an iPad's closed Smart Folio) doesn't interrupt the session
+        public static let overrideMutedMicrophoneInterruption = CategoryOptions(rawValue: 128)
+    }
+    /// how the session's audio is routed relative to other apps (adapted: isim has one route, so the policy is kept and
+    /// checked, not applied)
+    public enum RouteSharingPolicy: UInt, Sendable {
+        case `default` = 0, longFormAudio = 1, independent = 2, longFormVideo = 3
+        @available(*, deprecated, renamed: "longFormAudio")
+        public static var longForm: RouteSharingPolicy { .longFormAudio }
     }
     public struct SetActiveOptions: OptionSet, Sendable {
         public let rawValue: UInt
@@ -88,6 +101,15 @@ public let NSOSStatusErrorDomain = "NSOSStatusErrorDomain"
     open func setCategory(_ category: Category, options: CategoryOptions = []) throws { self.category = category; categoryOptions = options; _IsimBackgroundAudio.publish(category) }
     open func setCategory(_ category: Category, mode: Mode, options: CategoryOptions = []) throws { self.category = category; self.mode = mode; categoryOptions = options; _IsimBackgroundAudio.publish(category) }
     open func setMode(_ mode: Mode) throws { self.mode = mode }
+    open private(set) var routeSharingPolicy: RouteSharingPolicy = .default
+    /// the long-form policies are for the playback category only (iOS fails the call otherwise)
+    open func setCategory(_ category: Category, mode: Mode, policy: RouteSharingPolicy, options: CategoryOptions = []) throws {
+        if policy == .longFormAudio || policy == .longFormVideo, category != .playback {
+            throw NSError(domain: NSOSStatusErrorDomain, code: Int(AVAudioSession.ErrorCode.badParam.rawValue))
+        }
+        try setCategory(category, mode: mode, options: options)
+        routeSharingPolicy = policy
+    }
     open func setActive(_ active: Bool, options: SetActiveOptions = []) throws {}
     public static let interruptionNotification = Notification.Name("AVAudioSessionInterruptionNotification")
     public static let routeChangeNotification = Notification.Name("AVAudioSessionRouteChangeNotification")

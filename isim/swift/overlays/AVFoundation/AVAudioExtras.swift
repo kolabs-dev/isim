@@ -72,6 +72,22 @@ extension AVAudioSession {
         _AVSessionPrefs.ioBuffer = d
         _IsimSessionIO.ioBufferDuration = d == 0 ? 0.01 : (min(max(d, 0.005), 0.093) * 48000).rounded() / 48000
     }
+    /// whether system alerts (an incoming call's banner, alarms) may interrupt the session: with `true`, isim's
+    /// `audio interrupt begin alert` leaves it running
+    public var prefersNoInterruptionsFromSystemAlerts: Bool { _AVSessionPrefs.noSystemAlertInterruptions }
+    public func setPrefersNoInterruptionsFromSystemAlerts(_ inValue: Bool) throws { _AVSessionPrefs.noSystemAlertInterruptions = inValue }
+    /// echo-cancelled input for the built-in microphone in the play-and-record category (adapted: the preference and
+    /// availability follow iOS's rules; isim's input is not processed)
+    @available(iOS 18.2, *)
+    public var prefersEchoCancelledInput: Bool { _AVSessionPrefs.echoCancelledInput }
+    @available(iOS 18.2, *)
+    public func setPrefersEchoCancelledInput(_ value: Bool) throws { _AVSessionPrefs.echoCancelledInput = value }
+    @available(iOS 18.2, *)
+    public var isEchoCancelledInputAvailable: Bool {
+        category == .playAndRecord && currentRoute.inputs.contains { $0.portType == .builtInMic }
+    }
+    @available(iOS 18.2, *)
+    public var isEchoCancelledInputEnabled: Bool { _AVSessionPrefs.echoCancelledInput && isEchoCancelledInputAvailable }
     public var isInputGainSettable: Bool { true }
     public var inputGain: Float { _AVSessionPrefs.inputGain }
     public func setInputGain(_ gain: Float) throws { _AVSessionPrefs.inputGain = max(0, min(1, gain)); _IsimAudioInput.gain = _AVSessionPrefs.inputGain }
@@ -86,6 +102,8 @@ enum _AVSessionPrefs {
     nonisolated(unsafe) static var sampleRate = 0.0
     nonisolated(unsafe) static var ioBuffer: TimeInterval?
     nonisolated(unsafe) static var inputGain: Float = 1
+    nonisolated(unsafe) static var noSystemAlertInterruptions = false
+    nonisolated(unsafe) static var echoCancelledInput = false
     /// the microphone prompt for AudioToolbox's input (installed by AVFoundation's entry points)
     static func installMicrophonePrompt() {
         guard _IsimAudioInput.requestPermission == nil else { return }

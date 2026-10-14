@@ -18,7 +18,8 @@ typedef NSString *AVLayerVideoGravity NS_TYPED_EXTENSIBLE_ENUM;
 FOUNDATION_EXPORT AVAudioSessionCategory const AVAudioSessionCategoryAmbient, AVAudioSessionCategorySoloAmbient, AVAudioSessionCategoryPlayback,
     AVAudioSessionCategoryRecord, AVAudioSessionCategoryPlayAndRecord, AVAudioSessionCategoryMultiRoute;
 FOUNDATION_EXPORT AVAudioSessionMode const AVAudioSessionModeDefault, AVAudioSessionModeGameChat, AVAudioSessionModeMoviePlayback,
-    AVAudioSessionModeSpokenAudio, AVAudioSessionModeVoiceChat;
+    AVAudioSessionModeSpokenAudio, AVAudioSessionModeVoiceChat, AVAudioSessionModeVideoChat, AVAudioSessionModeVideoRecording,
+    AVAudioSessionModeMeasurement, AVAudioSessionModeVoicePrompt;
 FOUNDATION_EXPORT AVAudioSessionPort const AVAudioSessionPortBuiltInSpeaker, AVAudioSessionPortBuiltInReceiver, AVAudioSessionPortBuiltInMic,
     AVAudioSessionPortHeadphones, AVAudioSessionPortHeadsetMic, AVAudioSessionPortBluetoothA2DP, AVAudioSessionPortBluetoothHFP,
     AVAudioSessionPortBluetoothLE, AVAudioSessionPortCarAudio, AVAudioSessionPortAirPlay, AVAudioSessionPortHDMI, AVAudioSessionPortUSBAudio,
@@ -35,6 +36,12 @@ typedef NS_OPTIONS(NSUInteger, AVAudioSessionCategoryOptions) {
     AVAudioSessionCategoryOptionMixWithOthers = 0x1, AVAudioSessionCategoryOptionDuckOthers = 0x2, AVAudioSessionCategoryOptionAllowBluetooth = 0x4,
     AVAudioSessionCategoryOptionDefaultToSpeaker = 0x8, AVAudioSessionCategoryOptionInterruptSpokenAudioAndMixWithOthers = 0x11,
     AVAudioSessionCategoryOptionAllowBluetoothA2DP = 0x20, AVAudioSessionCategoryOptionAllowAirPlay = 0x40,
+    AVAudioSessionCategoryOptionOverrideMutedMicrophoneInterruption = 0x80,
+};
+typedef NS_ENUM(NSUInteger, AVAudioSessionRouteSharingPolicy) {
+    AVAudioSessionRouteSharingPolicyDefault = 0, AVAudioSessionRouteSharingPolicyLongFormAudio = 1,
+    AVAudioSessionRouteSharingPolicyLongForm __attribute__((deprecated("use AVAudioSessionRouteSharingPolicyLongFormAudio"))) = 1,
+    AVAudioSessionRouteSharingPolicyIndependent = 2, AVAudioSessionRouteSharingPolicyLongFormVideo = 3,
 };
 typedef NS_OPTIONS(NSUInteger, AVAudioSessionSetActiveOptions) { AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation = 1 };
 
@@ -56,6 +63,15 @@ typedef NS_OPTIONS(NSUInteger, AVAudioSessionSetActiveOptions) { AVAudioSessionS
 - (BOOL)setCategory:(AVAudioSessionCategory)category withOptions:(AVAudioSessionCategoryOptions)options error:(NSError **)outError;
 - (BOOL)setCategory:(AVAudioSessionCategory)category mode:(AVAudioSessionMode)mode options:(AVAudioSessionCategoryOptions)options error:(NSError **)outError;
 - (BOOL)setMode:(AVAudioSessionMode)mode error:(NSError **)outError;
+- (BOOL)setCategory:(AVAudioSessionCategory)category mode:(AVAudioSessionMode)mode routeSharingPolicy:(AVAudioSessionRouteSharingPolicy)policy
+            options:(AVAudioSessionCategoryOptions)options error:(NSError **)outError;
+@property (readonly) AVAudioSessionRouteSharingPolicy routeSharingPolicy;
+@property (readonly) BOOL prefersNoInterruptionsFromSystemAlerts;
+- (BOOL)setPrefersNoInterruptionsFromSystemAlerts:(BOOL)inValue error:(NSError **)outError;
+@property (readonly) BOOL prefersEchoCancelledInput API_AVAILABLE(ios(18.2));
+- (BOOL)setPrefersEchoCancelledInput:(BOOL)value error:(NSError **)error API_AVAILABLE(ios(18.2));
+@property (readonly, getter=isEchoCancelledInputEnabled) BOOL echoCancelledInputEnabled API_AVAILABLE(ios(18.2));
+@property (readonly, getter=isEchoCancelledInputAvailable) BOOL echoCancelledInputAvailable API_AVAILABLE(ios(18.2));
 - (BOOL)setActive:(BOOL)active error:(NSError **)outError;
 - (BOOL)setActive:(BOOL)active withOptions:(AVAudioSessionSetActiveOptions)options error:(NSError **)outError;
 @property (readonly) float outputVolume;
