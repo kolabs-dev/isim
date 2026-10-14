@@ -15,6 +15,7 @@ def test_document_group(launch, ios, device_data):
     app.wait_log(r'^read "Hello" as public.plain-text$')
     app.wait_view(r"id=doc-info text=file Untitled.txt editable yes undo yes")
     app.tap_id("doc-text")
+    app.wait_log(r"isim: keyboard shown")                                  # focused: typing reaches the text
     app.type(", world")
     app.wait_log(r'^text "Hello, world"$')
     app.wait_log(r'^write "Hello, world"$')                                # autosave
@@ -67,7 +68,9 @@ def test_url_document(launch, ios, device_data):
     app.wait_log(r"^make document for Untitled.txt$")
     app.wait_log(r'^apply "New note" previous nil$')                        # read, then applied
     app.wait_tap_id("note-text")
+    app.wait_log(r"isim: keyboard shown")                                  # focused: typing reaches the note
     app.type("!")
+    app.wait_view(r"id=note-text text=\"New note!\"")
     app.tap_id("documents")                                                # closing saves the change
     app.wait_log(r'^write "New note!" over the file$')
     app.wait_until(lambda: (device_data / "Files" / "Untitled.txt").read_text() == "New note!", what="saved")

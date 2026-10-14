@@ -41,7 +41,7 @@ def test_log_store_signposts_metrickit(launch):
     app.send("signposts dev.isim.diag")
     load = app.wait_log(r"isim signposts: dev.isim.diag:PointsOfInterest Load events 0 intervals 1 open 0 total (\d+\.\d) ms")
     assert float(load.group(1)) >= 45, f"interval duration measured: {load.group(0)}"
-    assert app.has(r"isim signposts: dev.isim.diag:PointsOfInterest Tap events 1 intervals 0")
+    app.wait_log(r"isim signposts: dev.isim.diag:PointsOfInterest Tap events 1 intervals 0")   # printed after Load
 
     app.send("metrickit deliver")
     m = app.wait_log(r"diag metric payload .*")
