@@ -116,6 +116,18 @@ extension Float: _ObjectiveCBridgeable {
     public static func _unconditionallyBridgeFromObjectiveC(_ s: NSNumber?) -> Float { s?.floatValue ?? 0 }
 }
 
+// MARK: - NSLocking (Apple's Swift overlay)
+
+extension NSLocking {
+    /// Runs `body` with the lock held (NSLock, NSRecursiveLock, NSCondition, NSConditionLock).
+    @_alwaysEmitIntoClient
+    public func withLock<R>(_ body: () throws -> R) rethrows -> R {
+        lock()
+        defer { unlock() }
+        return try body()
+    }
+}
+
 // MARK: - CharacterSet
 
 /// A set of Unicode scalars (Apple's CharacterSet). Bridges to NSCharacterSet; sets that come from

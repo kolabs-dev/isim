@@ -599,6 +599,28 @@ func errorBridgingChecks() {
     check(NSError(domain: "x.provided", code: 2, userInfo: nil).localizedDescription == "from provider", "NSError.setUserInfoValueProvider(forDomain:)")
 }
 
+/// NSLocking.withLock(_:) on the four lock classes: the lock is held in the body, released after it, also on throw
+func lockingChecks() {
+    struct Boom: Error {}
+    let locks: [any NSLocking] = [NSLock(), NSRecursiveLock(), NSCondition(), NSConditionLock(condition: 0)]
+    for l in locks {
+        let name = String(describing: type(of: l))
+        let v = l.withLock { 42 }
+        check(v == 42, "\(name).withLock returns the body's value")
+        let held: Bool = l.withLock {
+            guard let t = l as? NSLock else { return true }
+            return !t.try()                                  // held: try() fails inside the body
+        }
+        check(held, "\(name).withLock holds the lock")
+        check((try? l.withLock { throw Boom() }) == nil, "\(name).withLock rethrows")
+        if let t = l as? NSLock { check(t.try(), "NSLock released after withLock (also after a throw)"); t.unlock() }
+    }
+    var total = 0
+    let lock = NSLock()
+    DispatchQueue.concurrentPerform(iterations: 1000) { _ in lock.withLock { total += 1 } }
+    check(total == 1000, "NSLock.withLock serializes concurrent increments")
+}
+
 @main struct Main {
     static func main() {
         let ns: NSString = "bridged" as NSString
@@ -736,6 +758,7 @@ func errorBridgingChecks() {
         nsErrorParameterChecks()
         codingChecks()
         classBridgingChecks()
+        lockingChecks()
         fileAttributeChecks()
         fileManagerChecks()
         predicateAndDecimalChecks()
