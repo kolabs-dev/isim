@@ -32,6 +32,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable WKNavigation *)reload;
 - (nullable WKNavigation *)reloadFromOrigin;
 - (void)stopLoading;
+- (void)closeAllMediaPresentationsWithCompletionHandler:(nullable void (^)(void))completionHandler;
+- (void)pauseAllMediaPlayback:(nullable void (^)(void))completionHandler;
+- (void)setAllMediaPlaybackSuspended:(BOOL)suspended completionHandler:(nullable void (^)(void))completionHandler;
 - (void)evaluateJavaScript:(NSString *)javaScriptString completionHandler:(void (^ _Nullable)(_Nullable id, NSError * _Nullable error))completionHandler;
 - (void)evaluateJavaScript:(NSString *)javaScriptString inFrame:(nullable WKFrameInfo *)frame inContentWorld:(WKContentWorld *)contentWorld
          completionHandler:(void (^ _Nullable)(_Nullable id, NSError * _Nullable error))completionHandler;

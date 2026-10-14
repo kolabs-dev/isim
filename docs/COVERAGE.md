@@ -4,7 +4,7 @@ This tracks how much of the iOS SDK isim covers (iOS 17, 18, 26 and 27, selected
 It lists what an app developer reaches for, including everything isim does **not** have yet. Statuses come from
 reading isim's headers (`isim/sdk-src`), implementations (`isim/frameworks`, `isim/swift/overlays`) and their comments, not from guesses.
 
-Last updated: 2026-10-13
+Last updated: 2026-10-14
 
 **Legend**
 
@@ -66,7 +66,7 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | **Swift runtime, stdlib & concurrency** | 39 | 0 | 0 | 0 | 39 | 100% |
 | &nbsp;&nbsp;↳ Combine | 14 | 0 | 0 | 0 | 14 | 100% |
 | &nbsp;&nbsp;↳ Dispatch | 6 | 0 | 0 | 0 | 6 | 100% |
-| Objective-C runtime & C library | 18 | 0 | 0 | 0 | 18 | 100% |
+| Objective-C runtime & C library | 25 | 3 | 0 | 0 | 28 | 95% |
 | Core Graphics | 22 | 0 | 0 | 0 | 22 | 100% |
 | Core Text | 7 | 0 | 0 | 0 | 7 | 100% |
 | QuartzCore / Core Animation | 21 | 0 | 0 | 0 | 21 | 100% |
@@ -84,10 +84,10 @@ toward iOS N when it was introduced at or before N, so newer versions add their 
 | App extensions & system integration | 9 | 1 | 0 | 0 | 10 | 95% |
 | Location & maps | 7 | 0 | 0 | 0 | 7 | 100% |
 | Personal data & device sensors | 6 | 0 | 0 | 0 | 6 | 100% |
-| Web & communication | 16 | 0 | 1 | 1 | 18 | 89% |
+| Web & communication | 17 | 0 | 1 | 0 | 18 | 94% |
 | Logging & diagnostics | 9 | 0 | 0 | 0 | 9 | 100% |
 | Platform & tooling | 42 | 5 | 0 | 3 | 50 | 89% |
-| **All areas** | **1059** | **34** | **7** | **14** | **1114** | **97%** |
+| **All areas** | **1067** | **37** | **7** | **13** | **1124** | **97%** |
 
 ### Per iOS version
 
@@ -100,7 +100,7 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | Swift Charts | 100% (15) | 100% (16) | 100% (16) | 100% (16) |
 | Foundation | 100% (85) | 100% (85) | 100% (87) | 100% (87) |
 | Swift runtime, stdlib & concurrency | 100% (39) | 100% (39) | 100% (39) | 100% (39) |
-| Objective-C runtime & C library | 100% (18) | 100% (18) | 100% (18) | 100% (18) |
+| Objective-C runtime & C library | 95% (28) | 95% (28) | 95% (28) | 95% (28) |
 | Core Graphics | 100% (22) | 100% (22) | 100% (22) | 100% (22) |
 | Core Text | 100% (7) | 100% (7) | 100% (7) | 100% (7) |
 | QuartzCore / Core Animation | 100% (21) | 100% (21) | 100% (21) | 100% (21) |
@@ -118,10 +118,10 @@ Coverage of the APIs each version has: a row counts toward iOS N when it was int
 | App extensions & system integration | 95% (10) | 95% (10) | 95% (10) | 95% (10) |
 | Location & maps | 100% (7) | 100% (7) | 100% (7) | 100% (7) |
 | Personal data & device sensors | 100% (6) | 100% (6) | 100% (6) | 100% (6) |
-| Web & communication | 88% (17) | 88% (17) | 89% (18) | 89% (18) |
+| Web & communication | 94% (17) | 94% (17) | 94% (18) | 94% (18) |
 | Logging & diagnostics | 100% (9) | 100% (9) | 100% (9) | 100% (9) |
 | Platform & tooling | 89% (48) | 89% (49) | 89% (50) | 89% (50) |
-| **All areas** | **96%** (1048) | **97%** (1064) | **97%** (1093) | **97%** (1114) |
+| **All areas** | **96%** (1058) | **97%** (1074) | **97%** (1103) | **97%** (1124) |
 
 ---
 
@@ -1058,6 +1058,16 @@ isim's Foundation is self-authored: an Objective-C framework plus a Swift overla
 | Uncaught exceptions (`*** Terminating app due to uncaught exception …`, first throw call stack, `NSSetUncaughtExceptionHandler`, `callStackReturnAddresses`/`callStackSymbols`) | ✅ | ≤17 | SIGABRT like iOS; an NSException raised by ObjC code called from Swift is not catchable by Swift `do/catch` (same as iOS) and terminates with the report. Tested: tests/objc-runtime (ObjCUncaught, SwiftUncaught) |
 | C++ exceptions (`throw`/`try`/`catch`), RTTI (`typeid`, `dynamic_cast`), `std::exception_ptr`, nested exceptions | ✅ | ≤17 | adapted: libc++abi in the SDK's `libc++.1.dylib` (built with exceptions and RTTI), unwound by the host unwinder like Objective-C exceptions; exceptions thrown by libc++ itself (`at`, `stoi`, `substr`, `bad_cast`, `bad_variant_access`, `bad_optional_access`, `bad_alloc`, `system_error`); on other threads; an uncaught one ends in `libc++abi: terminating due to uncaught exception of type T: what` and SIGABRT. With Objective-C, as on iOS: `__objc_personality_v0` (every Objective-C++ function) defers C++ exceptions to libc++abi, `@catch (...)`, `@finally` and `@throw;` handle them, C++ frames run destructors for Objective-C exceptions, and C++ `catch (NSException *e)` / `catch (...)` catch them (apps' `__cxa_begin_catch` / `__cxa_end_catch` / `__cxa_rethrow` go through isim). Difference: `std::uncaught_exceptions()` / `std::current_exception()` do not see Objective-C exceptions (foreign to libc++abi; on iOS they are C++ exceptions). Tested: tests/cxx-exceptions |
 | libc / POSIX (stdio, malloc, string, pthreads, time, files) | ✅ | ≤17 | host glibc with Darwin layouts |
+| Dispatch and os_log objects as Objective-C objects (`OS_dispatch_*`, `OS_os_log`) | ✅ | ≤17 | adapted: dispatch objects have an isa whose `-retain`/`-release` are `dispatch_retain`/`dispatch_release`, `os_log_t` an immortal class, so ARC code built against Apple's SDK (binary SDKs) can own them. Verified by running Google Mobile Ads |
+| Darwin locales (`newlocale`, `uselocale`, `localeconv`, `<xlocale.h>` `_l` functions), `<ctype.h>` rune tables | ✅ | ≤17 | adapted: the host's glibc locale objects (NULL = the C locale); `setlocale` records the app's choice without changing the host process's locale. Tested: test_system_objc |
+| libc++ iostreams, locales, `<regex>`, `std::shared_mutex`, `<memory_resource>` | ✅ | ≤17 | libc++ 22 built with localization (char only; no wide characters, `<filesystem>`, `random_device` or `to_chars` for floating point). Tested: test_system_objc |
+| zlib (`libz`), libcompression (`compression_encode_buffer`/`decode`) | 🟡 | ≤17 | passthrough: the host's zlib; libcompression supports `COMPRESSION_ZLIB` only (LZFSE, LZ4, LZMA fail). Tested: test_system_objc |
+| JavaScriptCore (C API and `JSContext`, `JSValue`, `JSExport`, `JSManagedValue`, `JSVirtualMachine`) | ✅ | ≤17 | passthrough C API: the host's JavaScriptCore (WebKitGTK `libjavascriptcoregtk-6.0`/`4.1`), loaded on first use; the Objective-C API is isim's over it (blocks as functions, JSExport protocols, conversions). Tested: test_system_objc |
+| C and Objective-C interfaces of Swift-implemented frameworks: Security (`SecKey*`, `SecRandomCopyBytes`), Network path monitor (`nw_path_monitor_*`), MobileCoreServices `UTType*`, CoreMedia `CMTime`, AVFoundation, AdSupport, AppTrackingTransparency, CoreMotion, MessageUI, StoreKit (SKAdNetwork, SKOverlay, SKStoreProductViewController, payment queue), MarketplaceKit `AppDistributor` | 🟡 | ≤17 | adapted: Objective-C headers (hidden from Swift) over the Swift overlays, C functions through `@_cdecl`; classes are not subclassable from Objective-C except WebKit's. Not yet from C: keychain (`SecItem*`), certificates/trust, Network connections. Tested: test_system_objc |
+| SystemConfiguration (`SCNetworkReachability*`), CoreTelephony (`CTTelephonyNetworkInfo`, `CTCarrier`) | ✅ | ≤17 | reachability from the host's connectivity (polled every 2 s); no cellular service, like the Simulator. Tested: test_system_objc |
+| CoreFoundation strings, time zones, bundles (`CFString*`, `CFTimeZone*`, `CFBundle*`) | 🟡 | ≤17 | the common functions binary SDKs call, over Foundation (toll-free) |
+| Objective-C runtime: protocol introspection (`protocol_copyMethodDescriptionList`, `protocol_copyPropertyList`, `class_copyProtocolList`, `property_copyAttributeValue`), Protocol objects under ARC | ✅ | ≤17 | Tested: test_system_objc (JSExport) |
+| `ISIM_OBJC_AUDIT=1`: selectors an app references that no loaded class implements | ✅ | ≤17 | developer diagnostic printed before `main` (some are only checked with `respondsToSelector:`) |
 | `pipe`, `pread`/`pwrite`, `dup`/`dup2`, `kill`, `signal`/`raise` with Darwin signal numbers (`SIGUSR1` = 30, ...); Swift `open`/`fcntl`/`ioctl` and `SIG_IGN`/`SIG_DFL` | ✅ | ≤17 | numbers translated to the host's and back for handlers. Tested: SwiftExtrasTest (pipe sources, `raise(SIGUSR1)`) |
 | `flock` (`<sys/file.h>`: `LOCK_SH`/`LOCK_EX`/`LOCK_NB`/`LOCK_UN`), `<sys/stat.h>` mode bits (`S_IRWXU` … `S_ISVTX`, `S_IF*`) | ✅ | ≤17 | `flock` passthrough (lock values match Linux); the mode bits are `mode_t` as in Apple's Darwin overlay, so Swift's `open(path, flags, S_IRUSR \| S_IWUSR)` takes the non-variadic form. Tested: SwiftExtrasTest (POSIX) |
 | `errno` from Swift | ✅ | ≤17 | the Darwin overlay (`import Darwin`, also through Foundation) reads and sets the thread's `errno`, translated to Darwin values; the Foundation overlay's old copy stays for ABI. Tested (swift-extras POSIXTests) |
@@ -1529,7 +1539,7 @@ are not part of isim. Apps get them from their own packages, which `isim build` 
 | WebKit JavaScript bridge (`evaluateJavaScript`, `callAsyncJavaScript`, content worlds, `WKUserScript`, `WKScriptMessageHandler`(`WithReply`), `WKURLSchemeHandler`) | ✅ | ≤17 | results converted like iOS (dictionaries, arrays, numbers, `WKError.javaScriptExceptionOccurred`, unsupported types); isolated worlds; replies to page promises. Tested |
 | WebKit input, selection, scrolling, zoom, menus, find, PDF, web archives, website data (`WKWebsiteDataStore`, `WKHTTPCookieStore`), snapshots | ✅ | ≤17 | adapted input: taps, typing (system keyboard on focused fields) and scrolling become DOM events from an isolated world (`isTrusted` false); `scrollView` mirrors page scrolling. A long press selects a word (selection tint and handles, edit menu with Copy / Select All / Share…, `copy:` / `selectAll:`); a long press on a link or image opens a context menu with a live preview (`WKUIDelegate` `contextMenuConfigurationFor`, will-present, did-end, commit; else Open / Copy Link / Share…); `<select>` and `<select multiple>` become UIKit menus (option groups, disabled options, change events); pinch zoom within the viewport meta's scales (`user-scalable=no` honoured), `scrollView.zoomScale` follows; `isFindInteractionEnabled` / `findInteraction` (find navigator, highlights, n of m); `createPDF` (whole page or `WKPDFConfiguration.rect`, WebKit's print backend at CSS size, cropped with poppler) and `createWebArchiveData` (WebKit's MHTML as a webarchive plist: main resource and subresources). Cookies get/set/delete and data removal; `takeSnapshot`. Tested (test_web, test_web_interact) |
 | SwiftUI `WebView` / `WebPage` (iOS 26) | ✅ | 26.0 | on WKWebView: `WebPage` is `@Observable` (`title`, `url`, `isLoading`, `estimatedProgress`, `currentNavigationEvent`), `load` (request, HTML, data) returning the navigation events as an `AsyncSequence`, `reload`, `callJavaScript` with arguments, `pdf`, `snapshot`, `webArchiveData`, `find`, `URLSchemeHandler`; `WebView(page)` / `WebView(url:)` with `webViewBackForwardNavigationGestures`, `webViewLinkPreviews`, `webViewMagnificationGestures`, `webViewContentBackground`. Tested (HelloWeb -webpage, test_web_webpage) |
-| WebKit from Objective-C (`#import <WebKit/WebKit.h>`, `WKWebView` by its Objective-C name) | ❌ | ≤17 | isim's WebKit is a Swift overlay: no Objective-C headers or class names yet, so Objective-C apps and binary SDKs that use WKWebView (e.g. Google Mobile Ads) do not build or run ([#200](https://github.com/kolabs-dev/isim/issues/200)) |
+| WebKit from Objective-C (`#import <WebKit/WebKit.h>`, `WKWebView` by its Objective-C name) | ✅ | ≤17 | adapted: Objective-C headers over the Swift overlay's classes (Apple's class names and selectors, delegates, KVO, subclasses and categories from Objective-C, `evaluateJavaScript:`/`callAsyncJavaScript:` and the other completion-handler APIs). Tested: test_web_objc (HelloWebObjC); runs Google Mobile Ads ([#200](https://github.com/kolabs-dev/isim/issues/200)) |
 | SafariServices (`SFSafariViewController`) | ✅ | ≤17 | iOS 17-style chrome (Done/Close/Cancel, domain + lock, “aA” button (cosmetic), back/forward/share/Open in Safari toolbar) on isim's WKWebView; delegate initial load / redirect / finish; tint colors; `DataStore.clearWebsiteData`. Adapted: its own in-memory website data (not Safari's), Reader and bar collapsing not real, Open in Safari logged. Tested (HelloSafari) |
 | MessageUI (`MFMailComposeViewController`, `MFMessageComposeViewController`) | ✅ | ≤17 | like the Simulator `canSendMail()`/`canSendText()` are false (presenting shows nothing); `ISIM_MAIL=1` / `ISIM_MESSAGES=1` give the device accounts: iOS 17-style composers prefilled from the API, Send / Cancel → Delete or Save Draft, results to the delegates; nothing is sent — mails become `.eml` files in `$ISIM_DATA/Library/Mail/{Outbox,Drafts}`, messages JSON in `Library/SMS/Outbox`. Tested |
 | Network framework `NWPathMonitor` (`pathUpdateHandler`, `currentPath`, `for await`) | ✅ | ≤17 | mirrors the host's connectivity (Wi-Fi/Ethernet), polled every 2 s; tested |

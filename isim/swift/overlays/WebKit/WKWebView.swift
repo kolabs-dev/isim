@@ -406,9 +406,13 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
         let nav = WKNavigation(); _requestedNavigation = nav; _send(["reloadorigin"]); return nav
     }
     @objc dynamic open func stopLoading() { _send(["stop"]) }
-    @objc dynamic open func closeAllMediaPresentations() async {}
-    @objc dynamic open func pauseAllMediaPlayback() async {}
-    @objc dynamic open func setAllMediaPlaybackSuspended(_ suspended: Bool) async {}
+    // media playback control (stubs: the page's media is not controlled); Objective-C's completion handlers may be nil
+    open func closeAllMediaPresentations() async {}
+    open func pauseAllMediaPlayback() async {}
+    open func setAllMediaPlaybackSuspended(_ suspended: Bool) async {}
+    @objc(closeAllMediaPresentationsWithCompletionHandler:) dynamic open func closeAllMediaPresentations(completionHandler: (() -> Void)?) { completionHandler?() }
+    @objc(pauseAllMediaPlayback:) dynamic open func pauseAllMediaPlayback(completionHandler: (() -> Void)?) { completionHandler?() }
+    @objc(setAllMediaPlaybackSuspended:completionHandler:) dynamic open func setAllMediaPlaybackSuspended(_ suspended: Bool, completionHandler: (() -> Void)?) { completionHandler?() }
     @objc dynamic open func setMicrophoneCaptureState(_ state: Int) async {}
     @objc dynamic open func setCameraCaptureState(_ state: Int) async {}
 

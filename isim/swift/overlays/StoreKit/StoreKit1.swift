@@ -505,19 +505,23 @@ extension SKOverlayDelegate {
 /// The App Store overlay: a card at the bottom of the screen with the app's listing (see _SKAppStore); it slides up,
 /// and "GET" says installing is not possible on isim. An unknown app fails through the delegate, as on iOS.
 @objc(SKOverlay) open class SKOverlay: NSObject {
-    @objc(SKOverlayPosition) public enum Position: Int, Sendable { case bottom = 0, bottomRaised = 1 }
+    public enum Position: Int, Sendable { case bottom = 0, bottomRaised = 1 }
     @objc(SKOverlayConfiguration) open class Configuration: NSObject {}
     @objc(SKOverlayAppConfiguration) open class AppConfiguration: Configuration {
         @objc open var appIdentifier: String
-        @objc open var position: Position
+        open var position: Position
+        /// Objective-C's SKOverlayPosition (an NSInteger)
+        @objc(position) public var _objc_position: Int { get { position.rawValue } set { position = Position(rawValue: newValue) ?? .bottom } }
         @objc open var campaignToken: String?
         @objc open var providerToken: String?
         @objc open var customProductPageIdentifier: String?
         @objc open var latestReleaseID: String?
         @objc open var userDismissible = true
         var extra: [String: Any] = [:]
-        @objc(initWithAppIdentifier:position:)
         public init(appIdentifier: String, position: Position) { self.appIdentifier = appIdentifier; self.position = position }
+        @objc(initWithAppIdentifier:position:) public convenience init(_objcAppIdentifier appIdentifier: String, position: Int) {
+            self.init(appIdentifier: appIdentifier, position: Position(rawValue: position) ?? .bottom)
+        }
         @objc(additionalValueForKey:) open func additionalValue(forKey key: String) -> Any? { extra[key] }
         @objc(setAdditionalValue:forKey:) open func setAdditionalValue(_ value: Any?, forKey key: String) { extra[key] = value }
     }
