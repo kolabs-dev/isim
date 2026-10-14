@@ -1310,6 +1310,11 @@ static void link_new_images(int first, int gargc, char **gargv) {
 int main(int argc, char **argv, char **envp) {
     /* apps' output reaches log readers (tests, `isim run | ...`) line by line, not only when the buffer fills or at exit */
     if (!isatty(1)) setvbuf(stdout, NULL, _IOLBF, 0);
+    /* TZ always exists, before any thread starts: ":/etc/localtime" is the host zone, the same as no TZ. Time zone
+       code switches TZ from any thread (NSTimeZone offsets, Settings), and adding or removing a variable reallocates
+       environ under threads that walk it (SDL's audio init copies it); replacing an existing value does not
+       (issue #437) */
+    if (!getenv("TZ")) setenv("TZ", ":/etc/localtime", 1);
     int ai = 1;
     sysroot = getenv("ISIM_ROOT");
     while (ai < argc && argv[ai][0] == '-') {

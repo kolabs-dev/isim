@@ -611,15 +611,19 @@ static NSArray<NSString *> *icu_codes(int kind, const char *locale) {
 NSNotificationName const NSSystemTimeZoneDidChangeNotification = @"NSSystemTimeZoneDidChangeNotification";
 void isim_reapply_time_zone_setting(void);
 static NSTimeZone *default_tz;
+/* TZ is never unset (isim-runtime sets it before any thread starts): the host zone is ":/etc/localtime". Adding or
+   removing an environment variable reallocates environ under other threads that walk it (issue #437). */
+static const char host_tz[] = ":/etc/localtime";
+static BOOL is_host_tz(const char *tz) { return !tz || !*tz || !strcmp(tz, host_tz); }
 static pthread_mutex_t tz_lock = PTHREAD_MUTEX_INITIALIZER;   /* TZ is process-wide */
 static long tz_offset(NSString *name, time_t at, char *abbr, size_t abbrlen, int *dst) {
     /* evaluate in the requested zone by switching TZ temporarily (the host C library owns the tz database) */
     pthread_mutex_lock(&tz_lock);
-    const char *old = getenv("TZ"); char saved[256] = {0}; if (old) snprintf(saved, sizeof saved, "%s", old);
+    const char *old = getenv("TZ"); char saved[256] = {0}; snprintf(saved, sizeof saved, "%s", old ? old : host_tz);
     if (name) setenv("TZ", name.UTF8String, 1);
     tzset();
     struct tm tm; localtime_r(&at, &tm);
-    if (name) { if (old) setenv("TZ", saved, 1); else unsetenv("TZ"); tzset(); }
+    if (name) { setenv("TZ", saved, 1); tzset(); }
     pthread_mutex_unlock(&tz_lock);
     if (abbr) snprintf(abbr, abbrlen, "%s", tm.tm_zone ? tm.tm_zone : "");
     if (dst) *dst = tm.tm_isdst > 0;
@@ -631,7 +635,7 @@ static long tz_offset(NSString *name, time_t at, char *abbr, size_t abbrlen, int
 - (instancetype)initWithCoder:(NSCoder *)c { return [self initWithName:[c decodeObjectOfClass:[NSString class] forKey:@"NS.name"] ?: @"GMT"]; }
 + (NSTimeZone *)systemTimeZone {
     const char *tz = getenv("TZ");
-    if (tz && *tz) return [[NSTimeZone alloc] initWithName:@(tz[0] == ':' ? tz + 1 : tz)];
+    if (!is_host_tz(tz)) return [[NSTimeZone alloc] initWithName:@(tz[0] == ':' ? tz + 1 : tz)];
     char buf[256]; ssize_t n = readlink("/etc/localtime", buf, sizeof buf - 1);   /* host zone, e.g. .../zoneinfo/America/Sao_Paulo */
     if (n > 0) {
         buf[n] = 0;
@@ -713,7 +717,7 @@ static long tz_offset(NSString *name, time_t at, char *abbr, size_t abbrlen, int
  * TZ for the whole search (tz_offset switches per call) */
 static time_t tz_next_transition(NSString *name, time_t from) {
     pthread_mutex_lock(&tz_lock);
-    const char *old = getenv("TZ"); char saved[256] = {0}; if (old) snprintf(saved, sizeof saved, "%s", old);
+    const char *old = getenv("TZ"); char saved[256] = {0}; snprintf(saved, sizeof saved, "%s", old ? old : host_tz);
     setenv("TZ", name.UTF8String, 1);
     tzset();
     struct tm tm;
@@ -731,7 +735,7 @@ static time_t tz_next_transition(NSString *name, time_t from) {
         found = hi;
         break;
     }
-    if (old) setenv("TZ", saved, 1); else unsetenv("TZ");
+    setenv("TZ", saved, 1);                                       /* never unset (issue #437) */
     tzset();
     pthread_mutex_unlock(&tz_lock);
     return found;
@@ -1285,7 +1289,7 @@ NSDictionary *isim_parse_strings_file(NSString *path) {
 static BOOL tz_from_environment, tz_applied;
 static NSString *tz_current;
 __attribute__((constructor)) static void isim_apply_time_zone_setting(void) {
-    tz_from_environment = getenv("TZ") != NULL;
+    tz_from_environment = !is_host_tz(getenv("TZ"));
     isim_reapply_time_zone_setting();
 }
 void isim_reapply_time_zone_setting(void) {
@@ -1295,7 +1299,7 @@ void isim_reapply_time_zone_setting(void) {
     if (tz_applied && (tz == tz_current || [tz isEqualToString:tz_current])) return;
     BOOL changed = tz_applied;
     tz_applied = YES; tz_current = [tz copy];
-    if (tz) setenv("TZ", tz.UTF8String, 1); else unsetenv("TZ");          /* nil: "Set Automatically" (host zone) */
+    setenv("TZ", tz ? tz.UTF8String : host_tz, 1);                        /* nil: "Set Automatically" (host zone) */
     tzset();
     default_tz = nil;
     if (changed) [NSNotificationCenter.defaultCenter postNotificationName:NSSystemTimeZoneDidChangeNotification object:nil];
