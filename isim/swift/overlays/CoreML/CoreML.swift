@@ -10,7 +10,7 @@
 //   - prediction(from:) runs only generalized linear models (GLMRegressor, GLMClassifier). Every other model type
 //     (neural networks, ML programs, trees, pipelines, ...) fails with a clear error. An Apple-compiled .mlmodelc
 //     without the spec fails to load with a clear error.
-import Foundation
+@_exported import Foundation            // like Apple's: `import CoreML` is enough for URL, Bundle (Xcode's generated model classes)
 import CoreVideo
 
 // MARK: - errors

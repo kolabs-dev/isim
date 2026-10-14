@@ -1,0 +1,195 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXFileReference section */
+		C1E7A000000000000000000A /* HelloCustomIntents.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HelloCustomIntents.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		C1E7A0000000000000000017 /* Exceptions for "HelloCustomIntents" folder in "HelloCustomIntents" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = C1E7A000000000000000001E /* HelloCustomIntents */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		C1E7A0000000000000000014 /* HelloCustomIntents */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (C1E7A0000000000000000017 /* Exceptions for "HelloCustomIntents" folder in "HelloCustomIntents" target */, ); path = HelloCustomIntents; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C1E7A0000000000000000029 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		C1E7A0000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				C1E7A0000000000000000014 /* HelloCustomIntents */,
+				C1E7A0000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C1E7A0000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C1E7A000000000000000000A /* HelloCustomIntents.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C1E7A000000000000000001E /* HelloCustomIntents */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C1E7A000000000000000003D /* Build configuration list for PBXNativeTarget "HelloCustomIntents" */;
+			buildPhases = (
+				C1E7A0000000000000000028 /* Sources */,
+				C1E7A0000000000000000029 /* Frameworks */,
+				C1E7A000000000000000002A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C1E7A0000000000000000014 /* HelloCustomIntents */,
+			);
+			name = HelloCustomIntents;
+			productName = HelloCustomIntents;
+			productReference = C1E7A000000000000000000A /* HelloCustomIntents.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C1E7A0000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = C1E7A000000000000000003C /* Build configuration list for PBXProject "HelloCustomIntents" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = C1E7A0000000000000000002;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = C1E7A0000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C1E7A000000000000000001E /* HelloCustomIntents */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C1E7A000000000000000002A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C1E7A0000000000000000028 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		C1E7A0000000000000000040 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_ARC = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		C1E7A0000000000000000041 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_ARC = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		C1E7A0000000000000000042 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloCustomIntents;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				CODE_SIGN_ENTITLEMENTS = HelloCustomIntents/HelloCustomIntents.entitlements;
+				INFOPLIST_FILE = HelloCustomIntents/Info.plist;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C1E7A0000000000000000043 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloCustomIntents;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				CODE_SIGN_ENTITLEMENTS = HelloCustomIntents/HelloCustomIntents.entitlements;
+				INFOPLIST_FILE = HelloCustomIntents/Info.plist;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C1E7A000000000000000003C /* Build configuration list for PBXProject "HelloCustomIntents" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C1E7A0000000000000000040 /* Debug */,
+				C1E7A0000000000000000041 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C1E7A000000000000000003D /* Build configuration list for PBXNativeTarget "HelloCustomIntents" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C1E7A0000000000000000042 /* Debug */,
+				C1E7A0000000000000000043 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = C1E7A0000000000000000001 /* Project object */;
+}

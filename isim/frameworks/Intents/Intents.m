@@ -238,9 +238,72 @@ OBJ(NSString *, customIdentifier) OBJ(NSArray *, aliases) INT(INPersonSuggestion
 }
 @end
 
+/* ---------------- custom intents: @NSManaged / @dynamic properties ---------------- */
+/* a declared property of a subclass without accessors (Swift @NSManaged, Objective-C @dynamic) is kept with the
+   object's values: objects as they are, scalars (enumerations, BOOL, numbers) as NSNumbers */
+static id dyn_get_obj(id self, SEL _cmd) { return [self _get:NSStringFromSelector(_cmd)]; }
+static long long dyn_get_int(id self, SEL _cmd) { return [[self _get:NSStringFromSelector(_cmd)] longLongValue]; }
+static double dyn_get_dbl(id self, SEL _cmd) { return [[self _get:NSStringFromSelector(_cmd)] doubleValue]; }
+static BOOL dyn_get_bool(id self, SEL _cmd) { return [[self _get:NSStringFromSelector(_cmd)] boolValue]; }
+static NSString *dyn_key(SEL setter) {
+    NSString *s = NSStringFromSelector(setter);                    /* setFooBar: -> fooBar */
+    s = [s substringWithRange:NSMakeRange(3, s.length - 4)];
+    return [[s substringToIndex:1].lowercaseString stringByAppendingString:[s substringFromIndex:1]];
+}
+static void dyn_set_obj(id self, SEL _cmd, id v) {
+    objc_property_t p = class_getProperty([self class], dyn_key(_cmd).UTF8String);
+    char *copy = p ? property_copyAttributeValue(p, "C") : NULL;
+    if (copy) { free(copy); v = [v copy]; }
+    [self _set:v forKey:dyn_key(_cmd)];
+}
+static void dyn_set_int(id self, SEL _cmd, long long v) { [self _set:@(v) forKey:dyn_key(_cmd)]; }
+static void dyn_set_dbl(id self, SEL _cmd, double v) { [self _set:@(v) forKey:dyn_key(_cmd)]; }
+static void dyn_set_bool(id self, SEL _cmd, BOOL v) { [self _set:@(v) forKey:dyn_key(_cmd)]; }
+static BOOL resolve_dynamic(Class cls, SEL sel) {
+    NSString *name = NSStringFromSelector(sel);
+    BOOL setter = [name hasPrefix:@"set"] && [name hasSuffix:@":"] && name.length > 4;
+    NSString *key = setter ? dyn_key(sel) : name;
+    for (Class c = cls; c && c != [NSObject class]; c = class_getSuperclass(c)) {
+        objc_property_t p = class_getProperty(c, key.UTF8String);
+        if (!p) continue;
+        char *t = property_copyAttributeValue(p, "T");
+        char k = t ? t[0] : '@';
+        free(t);
+        IMP imp; const char *types;
+        if (k == '@') { imp = setter ? (IMP)dyn_set_obj : (IMP)dyn_get_obj; types = setter ? "v@:@" : "@@:"; }
+        else if (k == 'd' || k == 'f') { imp = setter ? (IMP)dyn_set_dbl : (IMP)dyn_get_dbl; types = setter ? "v@:d" : "d@:"; }
+        else if (k == 'B' || k == 'c') { imp = setter ? (IMP)dyn_set_bool : (IMP)dyn_get_bool; types = setter ? "v@:B" : "B@:"; }
+        else { imp = setter ? (IMP)dyn_set_int : (IMP)dyn_get_int; types = setter ? "v@:q" : "q@:"; }
+        return class_addMethod(cls, sel, imp, types);
+    }
+    return NO;
+}
+#define DYNAMIC_PROPERTIES \
++ (BOOL)resolveInstanceMethod:(SEL)sel { return resolve_dynamic(self, sel) || [super resolveInstanceMethod:sel]; }
+
+/* ---------------- custom types ---------------- */
+@implementation INObject
+VALUE_CLASS
+DYNAMIC_PROPERTIES
+- (instancetype)initWithIdentifier:(NSString *)identifier displayString:(NSString *)displayString pronunciationHint:(NSString *)hint {
+    if ((self = [super init])) { SET("identifier", identifier); SET("displayString", displayString ?: @""); SET("pronunciationHint", hint); }
+    return self;
+}
+- (instancetype)initWithIdentifier:(NSString *)identifier displayString:(NSString *)displayString { return [self initWithIdentifier:identifier displayString:displayString pronunciationHint:nil]; }
+- (instancetype)initWithIdentifier:(NSString *)identifier displayString:(NSString *)displayString subtitleString:(NSString *)subtitle displayImage:(id)image {
+    if ((self = [self initWithIdentifier:identifier displayString:displayString pronunciationHint:nil])) SET("subtitleString", subtitle);
+    return self;
+}
+OBJ(NSString *, identifier) OBJ(NSString *, pronunciationHint) OBJ(NSString *, subtitleString)
+- (NSString *)displayString { return [self _get:@"displayString"] ?: @""; }
+- (void)setSubtitleString:(NSString *)s { SET("subtitleString", s); }
+- (NSString *)spokenPhrase { return self.displayString; }
+@end
+
 /* ---------------- intents ---------------- */
 @implementation INIntent
 VALUE_CLASS
+DYNAMIC_PROPERTIES
 - (instancetype)init { if ((self = [super init])) [self _set:NSUUID.UUID.UUIDString forKey:@"identifier"]; return self; }
 - (NSString *)identifier { return [self _get:@"identifier"] ?: @""; }
 - (NSString *)intentDescription { return [NSString stringWithFormat:@"%@", NSStringFromClass(self.class)]; }
@@ -253,6 +316,7 @@ OBJ(NSString *, suggestedInvocationPhrase)
 @end
 @implementation INIntentResponse
 VALUE_CLASS
+DYNAMIC_PROPERTIES
 OBJ(NSUserActivity *, userActivity)
 - (void)setUserActivity:(NSUserActivity *)a { SET("userActivity", a); }
 @end
@@ -321,6 +385,24 @@ RESULT_SUCCESS(successWithResolvedString:, INSpeakableString *) RESULT_DISAMBIG(
 @implementation INBooleanResolutionResult
 + (instancetype)successWithResolvedValue:(BOOL)v { return [self _kind:@"success" value:@(v) options:nil]; }
 RESULT_CONFIRM(confirmationRequiredWithValueToConfirm:, NSNumber *)
+@end
+@implementation INIntegerResolutionResult
++ (instancetype)successWithResolvedValue:(NSInteger)v { return [self _kind:@"success" value:@(v) options:nil]; }
+RESULT_CONFIRM(confirmationRequiredWithValueToConfirm:, NSNumber *)
+@end
+@implementation INDoubleResolutionResult
++ (instancetype)successWithResolvedValue:(double)v { return [self _kind:@"success" value:@(v) options:nil]; }
+RESULT_CONFIRM(confirmationRequiredWithValueToConfirm:, NSNumber *)
+@end
+@implementation INURLResolutionResult
+RESULT_SUCCESS(successWithResolvedURL:, NSURL *) RESULT_DISAMBIG(disambiguationWithURLsToDisambiguate:) RESULT_CONFIRM(confirmationRequiredWithURLToConfirm:, NSURL *)
+@end
+@implementation INObjectResolutionResult
+RESULT_SUCCESS(successWithResolvedObject:, INObject *) RESULT_DISAMBIG(disambiguationWithObjectsToDisambiguate:) RESULT_CONFIRM(confirmationRequiredWithObjectToConfirm:, INObject *)
+@end
+@implementation INEnumResolutionResult
++ (instancetype)successWithResolvedValue:(NSInteger)v { return [self _kind:@"success" value:@(v) options:nil]; }
++ (instancetype)confirmationRequiredWithValueToConfirm:(NSInteger)v { return [self _kind:@"confirmationRequired" value:@(v) options:nil]; }
 @end
 @implementation INDateComponentsResolutionResult
 RESULT_SUCCESS(successWithResolvedDateComponents:, NSDateComponents *) RESULT_DISAMBIG(disambiguationWithDateComponentsToDisambiguate:) RESULT_CONFIRM(confirmationRequiredWithDateComponentsToConfirm:, NSDateComponents *)
