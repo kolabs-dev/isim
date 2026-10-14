@@ -202,6 +202,11 @@ works too). The FIFO only goes one way: commands get no reply. To read a result,
 (`dump views FILE`, `shot FILE`) and wait for the file to appear. `isim send` fails with a message when no device
 runs on that device data. After a new build, run `isim run` again: it installs the new bundle and opens it.
 
+Everything in the window's toolbar, bezel and menus is a command too (`window tap ID`, `window menu …`, `window state`,
+`restart device=ID os=N`; see [The window](SCRIPTING.md#the-window)), and `windowshot FILE` saves what the person sees,
+toolbar and bezel included. `window state` prints what the toolbar shows (appearance, locked, orientation, location).
+`restart` reboots the person's window with other boot options without asking, so tell them first.
+
 Do not boot a second device on the same `ISIM_DATA` as the person's window: use `isim send` for that window, or a
 headless run with a device data of your own for checks that should not disturb it.
 

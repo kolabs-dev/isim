@@ -183,40 +183,22 @@ static int input_script_cmd(const char *cmd, const char *args) {
 }
 
 /* ---- window input ---- */
-static void present_overlay(SDL_Surface *ws);
-static void reblit(void) {                    /* redraw the window from the shown frame (for the finger overlay) */
-    if (headless || !win || !surf) return;
-    SDL_Surface *ws = SDL_GetWindowSurface(win);
-    if (!ws) return;
-    cairo_surface_flush(surf);
-    int w = cairo_image_surface_get_width(surf), h = cairo_image_surface_get_height(surf);
-    SDL_Surface *src = SDL_CreateSurfaceFrom(w, h, SDL_PIXELFORMAT_ARGB8888, cairo_image_surface_get_data(surf), cairo_image_surface_get_stride(surf));
-    if (ws->w == w && ws->h == h) SDL_BlitSurface(src, NULL, ws, NULL);
-    else SDL_BlitSurfaceScaled(src, NULL, ws, NULL, SDL_SCALEMODE_LINEAR);
-    SDL_DestroySurface(src);
-    present_overlay(ws);
-    SDL_UpdateWindowSurface(win);
-}
+static void reblit(void) { window_redraw(); }   /* redraw the window from the shown frame (for the finger overlay) */
 static void second_finger(double x, double y, double *x2, double *y2) {
     if (mt_host_fingers == 2) { *x2 = x + mt_host_dx; *y2 = y + mt_host_dy; return; }
     *x2 = dev.width - x; *y2 = dev.height - y;                /* mirrored around the screen centre */
 }
-/* draws the two fingers onto the window (not into screenshots) while Option is held */
-static void present_overlay(SDL_Surface *ws) {
-    if (!mt_overlay || mouse_x < 0 || !ws || (ws->format != SDL_PIXELFORMAT_XRGB8888 && ws->format != SDL_PIXELFORMAT_ARGB8888)) return;
-    if (!SDL_LockSurface(ws)) return;
-    cairo_surface_t *s = cairo_image_surface_create_for_data(ws->pixels, CAIRO_FORMAT_RGB24, ws->w, ws->h, ws->pitch);
-    cairo_t *c = cairo_create(s);
-    double k = (double)ws->w / dev.width, x2, y2;
+/* draws the two fingers over the screen (c in screen points; not into screenshots) while Option is held */
+static void present_overlay(cairo_t *c) {
+    if (!mt_overlay || mouse_x < 0) return;
+    double x2, y2;
     second_finger(mouse_x, mouse_y, &x2, &y2);
     double pts[2][2] = { { mouse_x, mouse_y }, { x2, y2 } };
     for (int i = 0; i < 2; i++) {
-        cairo_arc(c, pts[i][0] * k, pts[i][1] * k, 18 * k, 0, 2 * M_PI);
+        cairo_arc(c, pts[i][0], pts[i][1], 18, 0, 2 * M_PI);
         cairo_set_source_rgba(c, 0.5, 0.5, 0.5, button_down ? 0.55 : 0.35); cairo_fill_preserve(c);
-        cairo_set_source_rgba(c, 0.25, 0.25, 0.25, 0.6); cairo_set_line_width(c, 1.5 * k); cairo_stroke(c);
+        cairo_set_source_rgba(c, 0.25, 0.25, 0.25, 0.6); cairo_set_line_width(c, 1.5); cairo_stroke(c);
     }
-    cairo_destroy(c); cairo_surface_destroy(s);
-    SDL_UnlockSurface(ws);
 }
 /* SDL events this file turns into isim events; returns 1 with *ev filled (more may be queued in `pending`) */
 static int input_sdl_event(const SDL_Event *e, struct isim_event *ev) {

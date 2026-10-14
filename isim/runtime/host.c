@@ -29,6 +29,8 @@
 #include <fontconfig/fontconfig.h>
 #include <fontconfig/fcfreetype.h>
 #include <libgen.h>
+#include <dirent.h>
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -100,6 +102,17 @@ static struct isim_event pending[16]; static int npending;
 
 static double now(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
 double isim_time(void) { return now() - t0; }
+/* the simulator window around the screen: toolbar, device bezel, menus and forms (window_chrome.inc) */
+static void window_show(cairo_surface_t *screen);          /* presents a screen frame (device pixels) in the window */
+static void window_redraw(void);                           /* presents the last frame again (the chrome changed) */
+static void window_size(int *w, int *h);                   /* the window's size in points for the current screen */
+static void window_resize(void);
+static int chrome_sdl_event(SDL_Event *e, struct isim_event *ev);   /* 2: ev filled, 1: consumed, 0: pass on (mapped) */
+static int chrome_script_cmd(const char *cmd, const char *args);
+static void chrome_tick(void);
+static int chrome_wait_ms(int ms);
+static void window_title(void);
+static int text_input_on;                                  /* the app asked for text input (isim_text_input) */
 #include "host_input.inc"             /* second finger, hover, IME composition, voiceover script commands */
 
 /* script commands passed to the app as they are ("VERB ARGS"): its UIKit handles them (isim_sys_event) */
@@ -286,7 +299,7 @@ int isim_set_orientation(int o) {
     dev = oriented(o);
     if (old.width == dev.width && old.height == dev.height) { send_orient_to_shell(o); return 1; }
     if (cr) make_surface();
-    if (win) SDL_SetWindowSize(win, (int)lround(dev.width * zoom), (int)lround(dev.height * zoom));
+    window_resize();
     send_orient_to_shell(o);
     return 1;
 }
@@ -380,10 +393,11 @@ int isim_display_open(const char *title) {
         if (!SDL_Init(SDL_INIT_VIDEO)) { fprintf(stderr, "isim host: SDL_Init failed: %s (falling back to headless)\n", SDL_GetError()); headless = 1; }
     }
     if (!headless) {
-        char t[256]; snprintf(t, sizeof t, "%s — %s (isim)", title ? title : "App", dev.name);
-        win = SDL_CreateWindow(t, (int)lround(dev.width * zoom), (int)lround(dev.height * zoom), SDL_WINDOW_HIGH_PIXEL_DENSITY);
+        (void)title;                                 /* the window shows the device: "isim — iPhone 15 · iOS 18" */
+        int ww, wh; window_size(&ww, &wh);
+        win = SDL_CreateWindow("isim", ww, wh, SDL_WINDOW_HIGH_PIXEL_DENSITY);
         if (!win) { fprintf(stderr, "isim host: SDL_CreateWindow failed: %s\n", SDL_GetError()); headless = 1; }
-        else { px_scale = SDL_GetWindowPixelDensity(win) * zoom; window_icon(win); }
+        else { px_scale = SDL_GetWindowPixelDensity(win) * zoom; window_icon(win); window_title(); }
         if (isim_verbose) fprintf(stderr, "isim host: video driver %s, pixel scale %.2f\n", SDL_GetCurrentVideoDriver(), px_scale);
     }
     if (headless) px_scale = getenv("ISIM_SHOT_SCALE") ? atof(getenv("ISIM_SHOT_SCALE")) : 2;
@@ -1146,16 +1160,7 @@ void isim_frame_end(void) {
         memcpy(client_pixels, cairo_image_surface_get_data(surf), (size_t)surf_w * surf_h * 4);
         struct shell_msg m = { .type = SM_FRAME }; send(client_sock, &m, sizeof m, MSG_NOSIGNAL); return;
     }
-    if (headless || !win) return;
-    SDL_Surface *ws = SDL_GetWindowSurface(win);
-    if (!ws) return;
-    SDL_Surface *src = SDL_CreateSurfaceFrom(surf_w, surf_h, SDL_PIXELFORMAT_ARGB8888,
-                                             cairo_image_surface_get_data(surf), cairo_image_surface_get_stride(surf));
-    if (ws->w == surf_w && ws->h == surf_h) SDL_BlitSurface(src, NULL, ws, NULL);
-    else SDL_BlitSurfaceScaled(src, NULL, ws, NULL, SDL_SCALEMODE_LINEAR);
-    SDL_DestroySurface(src);
-    present_overlay(ws);
-    SDL_UpdateWindowSurface(win);
+    window_show(surf);
 }
 
 static void screenshot(const char *path) {
@@ -1572,6 +1577,7 @@ static int script_step(struct isim_event *ev) {
     }
     else if (!strcmp(cmd, "quit")) { pending[npending++] = (struct isim_event){ .type = EV_QUIT }; }
     else if (input_script_cmd(cmd, args)) {}
+    else if (chrome_script_cmd(cmd, args)) {}
     else fprintf(stderr, "isim host: bad script command near '%s'\n", cmd);
     return script_step(ev);
 }
@@ -1623,6 +1629,7 @@ static int next_event(struct isim_event *ev, double timeout) {
         return 1;
     }
     for (;;) {
+        chrome_tick();
         if (script_step(ev)) return 1;
         if (headless || !win) {
             double left = deadline - now();
@@ -1638,8 +1645,12 @@ static int next_event(struct isim_event *ev, double timeout) {
         double left = deadline - now();
         int wait_ms = left <= 0 ? 0 : (int)(left * 1000);
         if ((script_pos || ctl_fd >= 0) && wait_ms > 10) wait_ms = 10;
+        wait_ms = chrome_wait_ms(wait_ms);
         if (!SDL_WaitEventTimeout(&e, wait_ms)) { if (now() >= deadline) return 0; continue; }
         ev->timestamp = isim_time();
+        int ch = chrome_sdl_event(&e, ev);      /* the toolbar, bezel, menus; else window points become screen points */
+        if (ch == 2) return 1;
+        if (ch == 1) continue;
         if (input_sdl_event(&e, ev)) return 1;
         switch (e.type) {
         case SDL_EVENT_USER: return 0;
@@ -1671,14 +1682,17 @@ static int next_event(struct isim_event *ev, double timeout) {
             fprintf(stderr, "isim host: dropped %s (drop .apns files on a device started with `isim boot`)\n", e.drop.data);
             break;
         case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED: case SDL_EVENT_WINDOW_EXPOSED:
-            if (e.type != SDL_EVENT_WINDOW_EXPOSED) { px_scale = SDL_GetWindowPixelDensity(win) * zoom; make_surface(); }
+            if (e.type != SDL_EVENT_WINDOW_EXPOSED) {
+                double ps = SDL_GetWindowPixelDensity(win) * zoom;
+                if (fabs(ps - px_scale) > 1e-6) { px_scale = ps; make_surface(); }   /* a new density; not a new window size */
+            }
             ev->type = EV_REDRAW; return 1;
         default: break;
         }
     }
 }
 
-void isim_text_input(int on) { if (win) { if (on) SDL_StartTextInput(win); else SDL_StopTextInput(win); } }
+void isim_text_input(int on) { text_input_on = on; if (win) { if (on) SDL_StartTextInput(win); else SDL_StopTextInput(win); } }
 
 /* main bundle path = directory of the main executable */
 const char *isim_bundle_path(void) {
@@ -2002,6 +2016,7 @@ static void send_deferred_edges(void) {
 }
 
 #include "shell.inc"
+#include "window_chrome.inc"
 #include "host_cg_exports.h"
 
 /* file attributes the Darwin libSystem subset does not cover (NSFileManager): account names and file-system sizes */
