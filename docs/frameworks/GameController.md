@@ -1,7 +1,7 @@
 # GameController
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 31.5% of Apple's iOS API (288 of 914, exact) · **Rows:** 64% (7: 4 ✅ 1 🟡 2 ❌) · **iOS:** 7.0+
+**Symbols:** 31.5% of Apple's iOS API (288 of 914, exact) · **Rows:** 45% (10: 4 ✅ 1 🟡 5 ❌) · **iOS:** 7.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [GameController](https://developer.apple.com/documentation/gamecontroller) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)

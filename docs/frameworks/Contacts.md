@@ -1,7 +1,7 @@
 # Contacts
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 43.6% of Apple's iOS API (324 of 743, exact) · **Rows:** 100% (1: 1 ✅) · **iOS:** 9.0+
+**Symbols:** 43.6% of Apple's iOS API (324 of 743, exact) · **Rows:** 50% (3: 1 ✅ 1 🟡 1 ❌) · **iOS:** 9.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [Contacts](https://developer.apple.com/documentation/contacts) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)

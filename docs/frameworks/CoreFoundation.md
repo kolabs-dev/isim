@@ -1,7 +1,7 @@
 # CoreFoundation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 6.2% of Apple's iOS API (155 of 2502, exact) · **Rows:** 50% (1: 1 🟡) · **iOS:** 2.0+
+**Symbols:** 11.6% of Apple's iOS API (289 of 2502, exact) · **Rows:** 33% (3: 2 🟡 1 ❌) · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Foundation & CoreFoundation](../COVERAGE.md#foundation) · **Apple:** [CoreFoundation](https://developer.apple.com/documentation/corefoundation) · **Issues:** [`area:foundation`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Afoundation)
@@ -22,13 +22,11 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-2347 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+2213 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
 - [`var CF_HAS_TYPED_ALLOCATOR: Int32`](https://developer.apple.com/documentation/corefoundation/cf_has_typed_allocator)
-- [`CFAbsoluteTime`](https://developer.apple.com/documentation/corefoundation/cfabsolutetime)
-- [`func CFAbsoluteTimeGetCurrent() -> CFAbsoluteTime`](https://developer.apple.com/documentation/corefoundation/cfabsolutetimegetcurrent())
 - [`func CFAllocatorAllocate(CFAllocator!, CFIndex, CFOptionFlags) -> UnsafeMutableRawPointer!`](https://developer.apple.com/documentation/corefoundation/cfallocatorallocate(_:_:_:))
 - [`func CFAllocatorAllocateBytes(CFAllocator!, CFIndex, CFOptionFlags) -> UnsafeMutableRawPointer!`](https://developer.apple.com/documentation/corefoundation/cfallocatorallocatebytes(_:_:_:))
 - [`CFAllocatorAllocateCallBack`](https://developer.apple.com/documentation/corefoundation/cfallocatorallocatecallback)
@@ -62,30 +60,15 @@
 - [`CFAllocatorRetainCallBack`](https://developer.apple.com/documentation/corefoundation/cfallocatorretaincallback)
 - [`func CFAllocatorSetDefault(CFAllocator!)`](https://developer.apple.com/documentation/corefoundation/cfallocatorsetdefault(_:))
 - [`CFAllocatorTypeID`](https://developer.apple.com/documentation/corefoundation/cfallocatortypeid)
-- [`func CFArrayAppendArray(CFMutableArray!, CFArray!, CFRange)`](https://developer.apple.com/documentation/corefoundation/cfarrayappendarray(_:_:_:))
-- [`func CFArrayAppendValue(CFMutableArray!, UnsafeRawPointer!)`](https://developer.apple.com/documentation/corefoundation/cfarrayappendvalue(_:_:))
 - [`CFArrayApplierFunction`](https://developer.apple.com/documentation/corefoundation/cfarrayapplierfunction)
 - [`func CFArrayApplyFunction(CFArray!, CFRange, ((UnsafeRawPointer?, UnsafeMutableRawPointer?) -> Void)!, UnsafeMutableRawPointer!)`](https://developer.apple.com/documentation/corefoundation/cfarrayapplyfunction(_:_:_:_:))
 - [`func CFArrayBSearchValues(CFArray!, CFRange, UnsafeRawPointer!, CFComparatorFunction!, UnsafeMutableRawPointer!) -> CFIndex`](https://developer.apple.com/documentation/corefoundation/cfarraybsearchvalues(_:_:_:_:_:))
-- [`func CFArrayContainsValue(CFArray!, CFRange, UnsafeRawPointer!) -> Bool`](https://developer.apple.com/documentation/corefoundation/cfarraycontainsvalue(_:_:_:))
 - [`CFArrayCopyDescriptionCallBack`](https://developer.apple.com/documentation/corefoundation/cfarraycopydescriptioncallback)
-- [`func CFArrayCreateCopy(CFAllocator!, CFArray!) -> CFArray!`](https://developer.apple.com/documentation/corefoundation/cfarraycreatecopy(_:_:))
-- [`func CFArrayCreateMutable(CFAllocator!, CFIndex, UnsafePointer<CFArrayCallBacks>!) -> CFMutableArray!`](https://developer.apple.com/documentation/corefoundation/cfarraycreatemutable(_:_:_:))
-- [`func CFArrayCreateMutableCopy(CFAllocator!, CFIndex, CFArray!) -> CFMutableArray!`](https://developer.apple.com/documentation/corefoundation/cfarraycreatemutablecopy(_:_:_:))
 - [`CFArrayEqualCallBack`](https://developer.apple.com/documentation/corefoundation/cfarrayequalcallback)
-- [`func CFArrayExchangeValuesAtIndices(CFMutableArray!, CFIndex, CFIndex)`](https://developer.apple.com/documentation/corefoundation/cfarrayexchangevaluesatindices(_:_:_:))
-- [`func CFArrayGetCountOfValue(CFArray!, CFRange, UnsafeRawPointer!) -> CFIndex`](https://developer.apple.com/documentation/corefoundation/cfarraygetcountofvalue(_:_:_:))
-- [`func CFArrayGetFirstIndexOfValue(CFArray!, CFRange, UnsafeRawPointer!) -> CFIndex`](https://developer.apple.com/documentation/corefoundation/cfarraygetfirstindexofvalue(_:_:_:))
 - [`func CFArrayGetLastIndexOfValue(CFArray!, CFRange, UnsafeRawPointer!) -> CFIndex`](https://developer.apple.com/documentation/corefoundation/cfarraygetlastindexofvalue(_:_:_:))
-- [`func CFArrayGetTypeID() -> CFTypeID`](https://developer.apple.com/documentation/corefoundation/cfarraygettypeid())
-- [`func CFArrayGetValues(CFArray!, CFRange, UnsafeMutablePointer<UnsafeRawPointer?>!)`](https://developer.apple.com/documentation/corefoundation/cfarraygetvalues(_:_:_:))
-- [`func CFArrayInsertValueAtIndex(CFMutableArray!, CFIndex, UnsafeRawPointer!)`](https://developer.apple.com/documentation/corefoundation/cfarrayinsertvalueatindex(_:_:_:))
 - [`CFArrayReleaseCallBack`](https://developer.apple.com/documentation/corefoundation/cfarrayreleasecallback)
-- [`func CFArrayRemoveAllValues(CFMutableArray!)`](https://developer.apple.com/documentation/corefoundation/cfarrayremoveallvalues(_:))
-- [`func CFArrayRemoveValueAtIndex(CFMutableArray!, CFIndex)`](https://developer.apple.com/documentation/corefoundation/cfarrayremovevalueatindex(_:_:))
 - [`func CFArrayReplaceValues(CFMutableArray!, CFRange, UnsafeMutablePointer<UnsafeRawPointer?>!, CFIndex)`](https://developer.apple.com/documentation/corefoundation/cfarrayreplacevalues(_:_:_:_:))
 - [`CFArrayRetainCallBack`](https://developer.apple.com/documentation/corefoundation/cfarrayretaincallback)
-- [`func CFArraySetValueAtIndex(CFMutableArray!, CFIndex, UnsafeRawPointer!)`](https://developer.apple.com/documentation/corefoundation/cfarraysetvalueatindex(_:_:_:))
 - [`func CFArraySortValues(CFMutableArray!, CFRange, CFComparatorFunction!, UnsafeMutableRawPointer!)`](https://developer.apple.com/documentation/corefoundation/cfarraysortvalues(_:_:_:_:))
 - [`func CFAttributedStringBeginEditing(CFMutableAttributedString!)`](https://developer.apple.com/documentation/corefoundation/cfattributedstringbeginediting(_:))
 - [`func CFAttributedStringCreate(CFAllocator!, CFString!, CFDictionary!) -> CFAttributedString!`](https://developer.apple.com/documentation/corefoundation/cfattributedstringcreate(_:_:_:))
@@ -198,7 +181,6 @@
 - [`func CFBitVectorSetBitAtIndex(CFMutableBitVector!, CFIndex, CFBit)`](https://developer.apple.com/documentation/corefoundation/cfbitvectorsetbitatindex(_:_:_:))
 - [`func CFBitVectorSetBits(CFMutableBitVector!, CFRange, CFBit)`](https://developer.apple.com/documentation/corefoundation/cfbitvectorsetbits(_:_:_:))
 - [`func CFBitVectorSetCount(CFMutableBitVector!, CFIndex)`](https://developer.apple.com/documentation/corefoundation/cfbitvectorsetcount(_:_:))
-- [`func CFBooleanGetTypeID() -> CFTypeID`](https://developer.apple.com/documentation/corefoundation/cfbooleangettypeid())
 - [`func CFBundleCopyAuxiliaryExecutableURL(CFBundle!, CFString!) -> CFURL!`](https://developer.apple.com/documentation/corefoundation/cfbundlecopyauxiliaryexecutableurl(_:_:))
 - [`func CFBundleCopyBuiltInPlugInsURL(CFBundle!) -> CFURL!`](https://developer.apple.com/documentation/corefoundation/cfbundlecopybuiltinpluginsurl(_:))
 - [`func CFBundleCopyBundleLocalizations(CFBundle!) -> CFArray!`](https://developer.apple.com/documentation/corefoundation/cfbundlecopybundlelocalizations(_:))
@@ -326,7 +308,25 @@
 - [`static var year: CFCalendarUnit`](https://developer.apple.com/documentation/corefoundation/cfcalendarunit/year)
 - [`static var yearForWeekOfYear: CFCalendarUnit`](https://developer.apple.com/documentation/corefoundation/cfcalendarunit/yearforweekofyear)
 - [`func CFCharacterSetAddCharactersInRange(CFMutableCharacterSet!, CFRange)`](https://developer.apple.com/documentation/corefoundation/cfcharactersetaddcharactersinrange(_:_:))
-- … and 2047 more (`isim/data/api-coverage.json.gz`)
+- [`func CFCharacterSetAddCharactersInString(CFMutableCharacterSet!, CFString!)`](https://developer.apple.com/documentation/corefoundation/cfcharactersetaddcharactersinstring(_:_:))
+- [`func CFCharacterSetCreateBitmapRepresentation(CFAllocator!, CFCharacterSet!) -> CFData!`](https://developer.apple.com/documentation/corefoundation/cfcharactersetcreatebitmaprepresentation(_:_:))
+- [`func CFCharacterSetCreateCopy(CFAllocator!, CFCharacterSet!) -> CFCharacterSet!`](https://developer.apple.com/documentation/corefoundation/cfcharactersetcreatecopy(_:_:))
+- [`func CFCharacterSetCreateInvertedSet(CFAllocator!, CFCharacterSet!) -> CFCharacterSet!`](https://developer.apple.com/documentation/corefoundation/cfcharactersetcreateinvertedset(_:_:))
+- [`func CFCharacterSetCreateMutable(CFAllocator!) -> CFMutableCharacterSet!`](https://developer.apple.com/documentation/corefoundation/cfcharactersetcreatemutable(_:))
+- [`func CFCharacterSetCreateMutableCopy(CFAllocator!, CFCharacterSet!) -> CFMutableCharacterSet!`](https://developer.apple.com/documentation/corefoundation/cfcharactersetcreatemutablecopy(_:_:))
+- [`func CFCharacterSetCreateWithBitmapRepresentation(CFAllocator!, CFData!) -> CFCharacterSet!`](https://developer.apple.com/documentation/corefoundation/cfcharactersetcreatewithbitmaprepresentation(_:_:))
+- [`func CFCharacterSetCreateWithCharactersInRange(CFAllocator!, CFRange) -> CFCharacterSet!`](https://developer.apple.com/documentation/corefoundation/cfcharactersetcreatewithcharactersinrange(_:_:))
+- [`func CFCharacterSetCreateWithCharactersInString(CFAllocator!, CFString!) -> CFCharacterSet!`](https://developer.apple.com/documentation/corefoundation/cfcharactersetcreatewithcharactersinstring(_:_:))
+- [`func CFCharacterSetGetPredefined(CFCharacterSetPredefinedSet) -> CFCharacterSet!`](https://developer.apple.com/documentation/corefoundation/cfcharactersetgetpredefined(_:))
+- [`func CFCharacterSetGetTypeID() -> CFTypeID`](https://developer.apple.com/documentation/corefoundation/cfcharactersetgettypeid())
+- [`func CFCharacterSetHasMemberInPlane(CFCharacterSet!, CFIndex) -> Bool`](https://developer.apple.com/documentation/corefoundation/cfcharactersethasmemberinplane(_:_:))
+- [`func CFCharacterSetIntersect(CFMutableCharacterSet!, CFCharacterSet!)`](https://developer.apple.com/documentation/corefoundation/cfcharactersetintersect(_:_:))
+- [`func CFCharacterSetInvert(CFMutableCharacterSet!)`](https://developer.apple.com/documentation/corefoundation/cfcharactersetinvert(_:))
+- [`func CFCharacterSetIsCharacterMember(CFCharacterSet!, UniChar) -> Bool`](https://developer.apple.com/documentation/corefoundation/cfcharactersetischaractermember(_:_:))
+- [`func CFCharacterSetIsLongCharacterMember(CFCharacterSet!, UTF32Char) -> Bool`](https://developer.apple.com/documentation/corefoundation/cfcharactersetislongcharactermember(_:_:))
+- [`func CFCharacterSetIsSupersetOfSet(CFCharacterSet!, CFCharacterSet!) -> Bool`](https://developer.apple.com/documentation/corefoundation/cfcharactersetissupersetofset(_:_:))
+- [`CFCharacterSetPredefinedSet`](https://developer.apple.com/documentation/corefoundation/cfcharactersetpredefinedset)
+- … and 1913 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

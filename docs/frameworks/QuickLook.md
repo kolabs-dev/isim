@@ -1,7 +1,7 @@
 # QuickLook
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 49.2% of Apple's iOS API (29 of 59, exact) · **iOS:** 4.0+
+**Symbols:** 49.2% of Apple's iOS API (29 of 59, exact) · **Rows:** 0% (1: 1 ❌) · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [UIKit](../COVERAGE.md#uikit) · **Apple:** [Quick Look](https://developer.apple.com/documentation/quicklook) · **Issues:** [`area:uikit`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Auikit)

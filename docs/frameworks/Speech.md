@@ -1,7 +1,7 @@
 # Speech
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 24.9% of Apple's iOS API (112 of 450, exact) · **Rows:** 50% (1: 1 🟡) · **iOS:** 10.0+
+**Symbols:** 24.9% of Apple's iOS API (112 of 450, exact) · **Rows:** 12% (4: 1 🟡 3 ❌) · **iOS:** 10.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [Speech](https://developer.apple.com/documentation/speech) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)

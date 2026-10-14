@@ -1,7 +1,7 @@
 # QuartzCore
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 86.9% of Apple's iOS API (610 of 702, exact) · **Rows:** 98% (21: 20 ✅ 1 🟡) · **iOS:** 2.0+
+**Symbols:** 86.9% of Apple's iOS API (610 of 702, exact) · **Rows:** 89% (23: 20 ✅ 1 🟡 2 ❌) · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Graphics & text](../COVERAGE.md#graphics) · **Apple:** [QuartzCore](https://developer.apple.com/documentation/quartzcore) · **Issues:** [`area:graphics`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agraphics)

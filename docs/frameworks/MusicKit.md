@@ -1,7 +1,7 @@
 # MusicKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 26.3% of Apple's iOS API (242 of 919, exact) · **iOS:** 15.0+
+**Symbols:** 26.3% of Apple's iOS API (242 of 919, exact) · **Rows:** 0% (3: 3 ❌) · **iOS:** 15.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [MusicKit](https://developer.apple.com/documentation/musickit) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)

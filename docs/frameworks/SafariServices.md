@@ -1,7 +1,7 @@
 # SafariServices
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 34.8% of Apple's iOS API (39 of 112, exact) · **Rows:** 100% (1: 1 ✅) · **iOS:** 7.0+
+**Symbols:** 34.8% of Apple's iOS API (39 of 112, exact) · **Rows:** 33% (3: 1 ✅ 2 ❌) · **iOS:** 7.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [SafariServices](https://developer.apple.com/documentation/safariservices) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)

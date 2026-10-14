@@ -1,7 +1,7 @@
 # WidgetKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 43.6% of Apple's iOS API (116 of 266, exact) · **Rows:** 50% (1: 1 🟡) · **iOS:** 14.0+
+**Symbols:** 55.5% of Apple's iOS API (151 of 272, exact) · **Rows:** 30% (5: 1 ✅ 1 🟡 3 ❌) · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [WidgetKit](https://developer.apple.com/documentation/widgetkit) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -23,16 +23,13 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-150 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+121 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
 - [`ActivityFamily`](https://developer.apple.com/documentation/widgetkit/activityfamily)
 - [`case medium`](https://developer.apple.com/documentation/widgetkit/activityfamily/medium)
 - [`case small`](https://developer.apple.com/documentation/widgetkit/activityfamily/small)
-- [`ActivityPreviewViewKind`](https://developer.apple.com/documentation/widgetkit/activitypreviewviewkind)
-- [`case content`](https://developer.apple.com/documentation/widgetkit/activitypreviewviewkind/content)
-- [`case dynamicIsland(ActivityPreviewViewKind.DynamicIslandPreviewViewState)`](https://developer.apple.com/documentation/widgetkit/activitypreviewviewkind/dynamicisland(_:))
 - [`ActivityPreviewViewKind.DynamicIslandPreviewViewState`](https://developer.apple.com/documentation/widgetkit/activitypreviewviewkind/dynamicislandpreviewviewstate)
 - [`case compact`](https://developer.apple.com/documentation/widgetkit/activitypreviewviewkind/dynamicislandpreviewviewstate/compact)
 - [`case expanded`](https://developer.apple.com/documentation/widgetkit/activitypreviewviewkind/dynamicislandpreviewviewstate/expanded)
@@ -93,32 +90,10 @@
 - [`static let `default`: LevelOfDetail`](https://developer.apple.com/documentation/widgetkit/levelofdetail/default)
 - [`static let simplified: LevelOfDetail`](https://developer.apple.com/documentation/widgetkit/levelofdetail/simplified)
 - [`let NSUserActivityTypeLiveActivity: String`](https://developer.apple.com/documentation/widgetkit/nsuseractivitytypeliveactivity)
-- [`macro Preview<Widget, Attributes>(String?, as: ActivityPreviewViewKind, using: Attributes, widget: () -> Widget, contentStates: () async -> [Attributes.ContentState])`](https://developer.apple.com/documentation/widgetkit/preview(_:as:using:widget:contentstates:))
-- [`macro Preview<Widget, Attributes>(String?, as: ActivityPreviewViewKind, using: Attributes, widget: () -> Widget, contentStates: () async -> [Attributes.ContentState])`](https://developer.apple.com/documentation/widgetkit/preview(_:as:using:widget:contentstates:))
-- [`macro Preview<Widget, Provider>(String?, as: WidgetFamily, using: Provider.Intent, widget: () -> Widget, timelineProvider: () -> Provider)`](https://developer.apple.com/documentation/widgetkit/preview(_:as:using:widget:timelineprovider:)-3df1l)
-- [`macro Preview<Widget, Provider>(String?, as: WidgetFamily, using: Provider.Intent, widget: () -> Widget, timelineProvider: () -> Provider)`](https://developer.apple.com/documentation/widgetkit/preview(_:as:using:widget:timelineprovider:)-3df1l)
-- [`macro Preview<Widget, Provider>(String?, as: WidgetFamily, using: Provider.Intent, widget: () -> Widget, timelineProvider: () -> Provider)`](https://developer.apple.com/documentation/widgetkit/preview(_:as:using:widget:timelineprovider:)-4ljg1)
-- [`macro Preview<Widget, Provider>(String?, as: WidgetFamily, using: Provider.Intent, widget: () -> Widget, timelineProvider: () -> Provider)`](https://developer.apple.com/documentation/widgetkit/preview(_:as:using:widget:timelineprovider:)-4ljg1)
-- [`macro Preview<Widget>(String?, as: WidgetFamily, widget: () -> Widget, timeline: () async -> [any TimelineEntry])`](https://developer.apple.com/documentation/widgetkit/preview(_:as:widget:timeline:))
-- [`macro Preview<Widget>(String?, as: WidgetFamily, widget: () -> Widget, timeline: () async -> [any TimelineEntry])`](https://developer.apple.com/documentation/widgetkit/preview(_:as:widget:timeline:))
-- [`macro Preview<Widget, Provider>(String?, as: WidgetFamily, widget: () -> Widget, timelineProvider: () -> Provider)`](https://developer.apple.com/documentation/widgetkit/preview(_:as:widget:timelineprovider:))
-- [`macro Preview<Widget, Provider>(String?, as: WidgetFamily, widget: () -> Widget, timelineProvider: () -> Provider)`](https://developer.apple.com/documentation/widgetkit/preview(_:as:widget:timelineprovider:))
-- [`PreviewActivityBuilder`](https://developer.apple.com/documentation/widgetkit/previewactivitybuilder)
-- [`PreviewActivityBuilder`](https://developer.apple.com/documentation/widgetkit/previewactivitybuilder)
-- [`static func buildArray([[A.ContentState]]) -> [A.ContentState]`](https://developer.apple.com/documentation/widgetkit/previewactivitybuilder/buildarray(_:))
-- [`static func buildArray([[A.ContentState]]) -> [A.ContentState]`](https://developer.apple.com/documentation/widgetkit/previewactivitybuilder/buildarray(_:))
-- [`static func buildExpression(A.ContentState) -> [A.ContentState]`](https://developer.apple.com/documentation/widgetkit/previewactivitybuilder/buildexpression(_:))
-- [`static func buildExpression(A.ContentState) -> [A.ContentState]`](https://developer.apple.com/documentation/widgetkit/previewactivitybuilder/buildexpression(_:))
 - [`static func buildPartialBlock(accumulated: [A.ContentState], next: [A.ContentState]) -> [A.ContentState]`](https://developer.apple.com/documentation/widgetkit/previewactivitybuilder/buildpartialblock(accumulated:next:))
 - [`static func buildPartialBlock(accumulated: [A.ContentState], next: [A.ContentState]) -> [A.ContentState]`](https://developer.apple.com/documentation/widgetkit/previewactivitybuilder/buildpartialblock(accumulated:next:))
 - [`static func buildPartialBlock(first: [A.ContentState]) -> [A.ContentState]`](https://developer.apple.com/documentation/widgetkit/previewactivitybuilder/buildpartialblock(first:))
 - [`static func buildPartialBlock(first: [A.ContentState]) -> [A.ContentState]`](https://developer.apple.com/documentation/widgetkit/previewactivitybuilder/buildpartialblock(first:))
-- [`PreviewTimelineBuilder`](https://developer.apple.com/documentation/widgetkit/previewtimelinebuilder)
-- [`PreviewTimelineBuilder`](https://developer.apple.com/documentation/widgetkit/previewtimelinebuilder)
-- [`static func buildArray([[any TimelineEntry]]) -> [any TimelineEntry]`](https://developer.apple.com/documentation/widgetkit/previewtimelinebuilder/buildarray(_:))
-- [`static func buildArray([[any TimelineEntry]]) -> [any TimelineEntry]`](https://developer.apple.com/documentation/widgetkit/previewtimelinebuilder/buildarray(_:))
-- [`static func buildExpression(some TimelineEntry) -> [any TimelineEntry]`](https://developer.apple.com/documentation/widgetkit/previewtimelinebuilder/buildexpression(_:))
-- [`static func buildExpression(some TimelineEntry) -> [any TimelineEntry]`](https://developer.apple.com/documentation/widgetkit/previewtimelinebuilder/buildexpression(_:))
 - [`static func buildPartialBlock(accumulated: [any TimelineEntry], next: [any TimelineEntry]) -> [any TimelineEntry]`](https://developer.apple.com/documentation/widgetkit/previewtimelinebuilder/buildpartialblock(accumulated:next:))
 - [`static func buildPartialBlock(accumulated: [any TimelineEntry], next: [any TimelineEntry]) -> [any TimelineEntry]`](https://developer.apple.com/documentation/widgetkit/previewtimelinebuilder/buildpartialblock(accumulated:next:))
 - [`static func buildPartialBlock(first: [any TimelineEntry]) -> [any TimelineEntry]`](https://developer.apple.com/documentation/widgetkit/previewtimelinebuilder/buildpartialblock(first:))
@@ -159,10 +134,6 @@
 - [`WidgetMountingStyle`](https://developer.apple.com/documentation/widgetkit/widgetmountingstyle)
 - [`static let elevated: WidgetMountingStyle`](https://developer.apple.com/documentation/widgetkit/widgetmountingstyle/elevated)
 - [`static let recessed: WidgetMountingStyle`](https://developer.apple.com/documentation/widgetkit/widgetmountingstyle/recessed)
-- [`WidgetPreviewContext`](https://developer.apple.com/documentation/widgetkit/widgetpreviewcontext)
-- [`WidgetPreviewContext`](https://developer.apple.com/documentation/widgetkit/widgetpreviewcontext)
-- [`init(family: WidgetFamily)`](https://developer.apple.com/documentation/widgetkit/widgetpreviewcontext/init(family:))
-- [`init(family: WidgetFamily)`](https://developer.apple.com/documentation/widgetkit/widgetpreviewcontext/init(family:))
 - [`WidgetPushHandler`](https://developer.apple.com/documentation/widgetkit/widgetpushhandler)
 - [`init()`](https://developer.apple.com/documentation/widgetkit/widgetpushhandler/init())
 - [`func pushTokenDidChange(WidgetPushInfo, widgets: [WidgetInfo])`](https://developer.apple.com/documentation/widgetkit/widgetpushhandler/pushtokendidchange(_:widgets:))

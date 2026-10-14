@@ -1,7 +1,7 @@
 # Intents
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 24.1% of Apple's iOS API (702 of 2909, exact) · **Rows:** 100% (1: 1 ✅) · **iOS:** 10.0+
+**Symbols:** 25.1% of Apple's iOS API (731 of 2909, exact) · **Rows:** 50% (4: 2 ✅ 2 ❌) · **iOS:** 10.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [Intents](https://developer.apple.com/documentation/intents) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -22,7 +22,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-2207 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+2178 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -326,7 +326,7 @@
 - [`INCancelWorkoutIntentHandling`](https://developer.apple.com/documentation/intents/incancelworkoutintenthandling)
 - [`func confirm(intent: INCancelWorkoutIntent, completion: (INCancelWorkoutIntentResponse) -> Void)`](https://developer.apple.com/documentation/intents/incancelworkoutintenthandling/confirm(intent:completion:))
 - [`func handle(intent: INCancelWorkoutIntent, completion: (INCancelWorkoutIntentResponse) -> Void)`](https://developer.apple.com/documentation/intents/incancelworkoutintenthandling/handle(intent:completion:))
-- … and 1907 more (`isim/data/api-coverage.json.gz`)
+- … and 1878 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

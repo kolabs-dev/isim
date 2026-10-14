@@ -1,7 +1,7 @@
 # CoreMedia
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 14.3% of Apple's iOS API (343 of 2396, exact) · **Rows:** 83% (3: 2 ✅ 1 🟡) · **iOS:** 4.0+
+**Symbols:** 14.3% of Apple's iOS API (343 of 2396, exact) · **Rows:** 42% (6: 2 ✅ 1 🟡 3 ❌) · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [CoreMedia](https://developer.apple.com/documentation/coremedia) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)

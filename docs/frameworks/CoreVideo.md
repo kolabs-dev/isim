@@ -1,7 +1,7 @@
 # CoreVideo
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 7.8% of Apple's iOS API (69 of 887, exact) · **iOS:** 4.0+
+**Symbols:** 7.8% of Apple's iOS API (69 of 887, exact) · **Rows:** 0% (3: 3 ❌) · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [Graphics & text](../COVERAGE.md#graphics) · **Apple:** [Core Video](https://developer.apple.com/documentation/corevideo) · **Issues:** [`area:graphics`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agraphics)

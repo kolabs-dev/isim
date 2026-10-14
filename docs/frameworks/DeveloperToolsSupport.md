@@ -1,7 +1,7 @@
 # DeveloperToolsSupport
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 25.0% of Apple's iOS API (16 of 64, exact) · **iOS:** 14.0+
+**Symbols:** 31.2% of Apple's iOS API (20 of 64, exact) · **Rows:** 40% (5: 2 ✅ 3 ❌) · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [Developer tools](../COVERAGE.md#devtools) · **Apple:** [DeveloperToolsSupport](https://developer.apple.com/documentation/developertoolssupport) · **Issues:** [`area:devtools`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Adevtools)
@@ -24,14 +24,10 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-48 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+44 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
-- [`ColorResource`](https://developer.apple.com/documentation/developertoolssupport/colorresource)
-- [`init(name: String, bundle: Bundle)`](https://developer.apple.com/documentation/developertoolssupport/colorresource/init(name:bundle:))
-- [`ImageResource`](https://developer.apple.com/documentation/developertoolssupport/imageresource)
-- [`init(name: String, bundle: Bundle)`](https://developer.apple.com/documentation/developertoolssupport/imageresource/init(name:bundle:))
 - [`LibraryContentBuilder`](https://developer.apple.com/documentation/developertoolssupport/librarycontentbuilder)
 - [`static func buildBlock([LibraryItem]...) -> [LibraryItem]`](https://developer.apple.com/documentation/developertoolssupport/librarycontentbuilder/buildblock(_:))
 - [`static func buildExpression(LibraryItem) -> [LibraryItem]`](https://developer.apple.com/documentation/developertoolssupport/librarycontentbuilder/buildexpression(_:)-8x2oz)

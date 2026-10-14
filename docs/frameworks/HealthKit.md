@@ -1,7 +1,7 @@
 # HealthKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 15.8% of Apple's iOS API (422 of 2672, exact) · **Rows:** 50% (1: 1 🟡) · **iOS:** 8.0+
+**Symbols:** 15.8% of Apple's iOS API (422 of 2672, exact) · **Rows:** 10% (5: 1 🟡 4 ❌) · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [HealthKit](https://developer.apple.com/documentation/healthkit) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)

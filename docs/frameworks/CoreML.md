@@ -1,7 +1,7 @@
 # CoreML
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 24.9% of Apple's iOS API (236 of 947, exact) · **Rows:** 75% (2: 1 ✅ 1 🟡) · **iOS:** 11.0+
+**Symbols:** 24.9% of Apple's iOS API (236 of 947, exact) · **Rows:** 50% (5: 2 ✅ 1 🟡 2 ❌) · **iOS:** 11.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [CoreML](https://developer.apple.com/documentation/coreml) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)
