@@ -17,6 +17,22 @@ int main(void) {
         CHECK(session != nil && [session isKindOfClass:[AVAudioSession class]]);
         CHECK([session setCategory:AVAudioSessionCategoryPlayback error:NULL] && [session.category isEqualToString:AVAudioSessionCategoryPlayback]);
 
+        // AVAudioSession's modes, options and policies (issue #224)
+        CHECK([AVAudioSessionModeVideoChat isEqualToString:@"AVAudioSessionModeVideoChat"] && [AVAudioSessionModeVoicePrompt isEqualToString:@"AVAudioSessionModeVoicePrompt"]);
+        CHECK([AVAudioSessionModeVideoRecording isEqualToString:@"AVAudioSessionModeVideoRecording"] && [AVAudioSessionModeMeasurement isEqualToString:@"AVAudioSessionModeMeasurement"]);
+        NSError *err = nil;
+        CHECK(![session setCategory:AVAudioSessionCategoryRecord mode:AVAudioSessionModeDefault routeSharingPolicy:AVAudioSessionRouteSharingPolicyLongFormAudio
+                            options:0 error:&err] && err.code == -50);
+        CHECK([session setCategory:AVAudioSessionCategoryPlayAndRecord mode:AVAudioSessionModeVideoChat routeSharingPolicy:AVAudioSessionRouteSharingPolicyIndependent
+                           options:AVAudioSessionCategoryOptionOverrideMutedMicrophoneInterruption error:NULL]);
+        CHECK(session.routeSharingPolicy == AVAudioSessionRouteSharingPolicyIndependent && [session.mode isEqualToString:AVAudioSessionModeVideoChat]);
+        CHECK(session.categoryOptions == AVAudioSessionCategoryOptionOverrideMutedMicrophoneInterruption && AVAudioSessionCategoryOptionOverrideMutedMicrophoneInterruption == 0x80);
+        CHECK([session setPrefersNoInterruptionsFromSystemAlerts:YES error:NULL] && session.prefersNoInterruptionsFromSystemAlerts);
+        if (@available(iOS 18.2, *)) {
+            CHECK([session setPrefersEchoCancelledInput:YES error:NULL] && session.prefersEchoCancelledInput);
+            CHECK(session.isEchoCancelledInputAvailable && session.isEchoCancelledInputEnabled);
+        }
+
         // AudioUnit: the description of a RemoteIO unit, the constants' values (four-character codes as on iOS)
         AudioComponentDescription desc = {kAudioUnitType_Output, kAudioUnitSubType_RemoteIO, kAudioUnitManufacturer_Apple, 0, 0};
         CHECK(desc.componentType == 0x61756f75 && desc.componentSubType == 0x72696f63 && desc.componentManufacturer == 0x6170706c);

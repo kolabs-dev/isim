@@ -42,6 +42,7 @@
 | Simulator environment (`SIMULATOR_MODEL_IDENTIFIER`, `SIMULATOR_DEVICE_NAME`, `SIMULATOR_RUNTIME_VERSION`, `SIMULATOR_UDID`, `SIMULATOR_ROOT`, `SIMULATOR_SHARED_RESOURCES_DIRECTORY`, `SIMULATOR_MAINSCREEN_*`, …) | ✅ | ≤17 | adapted: set by isim's launcher from the device and iOS version like Apple's Simulator ([SYSTEM-PROMPTS.md](../SYSTEM-PROMPTS.md)); the UDID is made once per device data; `SIMULATOR_ROOT` is isim's SDK. Tested: HelloOSVersions (test_versions) |
 | `POSIXErrorCode`, `MachErrorCode` | ✅ | ≤17 | passthrough: Apple's Darwin overlay enums (Swift's `stdlib/public/Platform`), Darwin's values; `POSIXErrorCode(rawValue: errno)`. Before 0.22 isim had a partial `POSIXErrorCode` in Network. Tested: HelloBytes (test_bytes) |
 | `fcntl`, `ioctl`, `open`/`openat` from Swift | ✅ | ≤17 | the Darwin Swift overlay wraps the variadic C functions like Apple's: `fcntl` with no argument, an `Int32` or a pointer (`F_GETFL`/`F_SETFL` `O_NONBLOCK`, `F_GETFD`/`F_SETFD`, `F_DUPFD`), `ioctl` (`FIONREAD`, `FIONBIO`, `FIOCLEX`), `open`/`openat` with a mode (`AT_FDCWD`, `O_DIRECTORY`, `O_NOFOLLOW`); Darwin flags translated to the host's. Tested (swift-extras POSIXTests) |
+| `stdin` / `stdout` / `stderr` in Swift, `FILE` (`UnsafeMutablePointer<FILE>`) | ✅ | ≤17 | as Apple's Darwin overlay: the standard streams over `__stdinp` / `__stdoutp` / `__stderrp`; `FILE` has Darwin's layout so Swift imports `FILE *` as on iOS (only pointers cross isim's libSystem; the host owns the object). Tested (HelloAudioSessionPolicies: `fflush(stdout)`) |
 
 ## Not yet in isim
 

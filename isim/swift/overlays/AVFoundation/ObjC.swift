@@ -26,6 +26,21 @@ extension AVAudioSession {
         try setCategory(Category(rawValue: c), mode: Mode(rawValue: mode), options: CategoryOptions(rawValue: options))
     }
     @objc(setMode:error:) func _objc_setMode(_ m: String) throws { try setMode(Mode(rawValue: m)) }
+    @objc(setCategory:mode:routeSharingPolicy:options:error:) func _objc_setCategory(_ c: String, mode: String, policy: UInt, options: UInt) throws {
+        try setCategory(Category(rawValue: c), mode: Mode(rawValue: mode), policy: RouteSharingPolicy(rawValue: policy) ?? .default,
+                        options: CategoryOptions(rawValue: options))
+    }
+    @objc(routeSharingPolicy) var _objc_routeSharingPolicy: UInt { routeSharingPolicy.rawValue }
+    @objc(prefersNoInterruptionsFromSystemAlerts) var _objc_prefersNoInterruptions: Bool { prefersNoInterruptionsFromSystemAlerts }
+    @objc(setPrefersNoInterruptionsFromSystemAlerts:error:) func _objc_setPrefersNoInterruptions(_ v: Bool) throws {
+        try setPrefersNoInterruptionsFromSystemAlerts(v)
+    }
+    @objc(prefersEchoCancelledInput) var _objc_prefersEchoCancelledInput: Bool { _AVSessionPrefs.echoCancelledInput }
+    @objc(setPrefersEchoCancelledInput:error:) func _objc_setPrefersEchoCancelledInput(_ v: Bool) throws { _AVSessionPrefs.echoCancelledInput = v }
+    @objc(isEchoCancelledInputEnabled) var _objc_echoEnabled: Bool { _AVSessionPrefs.echoCancelledInput && _objc_echoAvailable }
+    @objc(isEchoCancelledInputAvailable) var _objc_echoAvailable: Bool {
+        category == .playAndRecord && currentRoute.inputs.contains { $0.portType == .builtInMic }
+    }
     @objc(setActive:error:) func _objc_setActive(_ a: Bool) throws { try setActive(a) }
     @objc(setActive:withOptions:error:) func _objc_setActive(_ a: Bool, options: UInt) throws { try setActive(a, options: SetActiveOptions(rawValue: options)) }
     @objc(currentRoute) var _objc_currentRoute: AVAudioSessionRouteDescription { currentRoute }
