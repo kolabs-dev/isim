@@ -184,6 +184,9 @@ SWIFT_FRAMEWORKS = [
     ("MobileCoreServices", "-framework Foundation", "UniformTypeIdentifiers"),
     ("CoreMedia", []),
     ("AVFoundation", "-framework Foundation -framework UIKit -framework CoreMedia"),
+    ("CoreVideo", "-framework Foundation -framework CoreGraphics"),
+    # Core Animation's classes are UIKit's (UIKit/CALayer.h): QuartzCore re-exports UIKit as well as libswiftQuartzCore
+    ("QuartzCore", "-framework Foundation -framework UIKit -reexport_framework UIKit"),
 ]
 
 GUEST_CFLAGS = ["-target", f"x86_64-apple-ios{MINOS}-simulator", "-nostdlibinc", "-isystem", f"{SDK}/usr/include",

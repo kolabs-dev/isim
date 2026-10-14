@@ -10,7 +10,7 @@
 
 - **Adapted:** Core Animation is part of isim's UIKit (`isim/frameworks/UIKit/CoreAnimation.m`, `CALayerKinds.m`).
 - Layers are rendered with cairo every frame, with no render server.
-- There is no `QuartzCore` Objective-C umbrella header yet.
+- Objective-C: `QuartzCore/QuartzCore.h` and `QuartzCore.framework` forward to UIKit (`isim/sdk-src/Frameworks/QuartzCore`).
 
 ## API
 
@@ -35,6 +35,7 @@
 | `CATransition` | ✅ | ≤17 | fade, push, moveIn, reveal with subtypes: the previous on-screen appearance (a snapshot when added) leaves while the new state comes in, on the transition's timing (pausable with the layer's `speed` / `timeOffset`). Tested (HelloCALayers: each kind half-way) |
 | `CATransaction`, implicit animations, `CAMediaTimingFunction` | ✅ | ≤17 | begin/commit, duration, timing function, `setDisableActions`, completion blocks (wait for the transaction's animations), implicit 0.25 s animations for standalone layers only (not a view's layer, as on iOS), `actions`/delegate `action(for:forKey:)`/NSNull; custom control-point curves. Tested |
 | `CADisplayLink` | ✅ | ≤17 | fires once per frame while added; keeps the run loop at 60 fps |
+| `QuartzCore/QuartzCore.h` and the per-class headers (`CALayer.h`, `CADisplayLink.h`, `CATransaction.h`, …), `-framework QuartzCore` | ✅ | ≤17 | adapted: the headers forward to UIKit's declarations, and `QuartzCore.framework` re-exports UIKit and the Swift overlay, so Objective-C code links `-framework QuartzCore` alone. Tested (HelloQuartzCoreObjC: layers, transforms, a transaction, an animation, a display link drawing a ring) |
 | `CATransform3D` | ✅ | ≤17 | full 4x4 math (make/translate/scale/rotate/concat/invert/isAffine/affine conversions), NSValue boxing and Swift bridging. Tested |
 | `CAValueFunction`, `filters`/`compositingFilter`, `shouldRasterize` | ✅ | ≤17 | value functions (rotate / scale / translate, per axis or 3-vector) in basic, spring and keyframe animations of a transform: the numbers are interpolated, then made into the transform. `shouldRasterize`: the layer (with its shadow and sublayers) drawn into a bitmap of `rasterizationScale` pixels per point, opacity applied to the bitmap. `filters`, `backgroundFilters`, `compositingFilter`: stored, not applied, like iOS ("not supported on layers in iOS"). Tested (HelloCALayers) |
 | Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `CAEDRMetadata`, `CAMetalDisplayLink`, `CAMetalDisplayLink.Update`, `CAMetalDisplayLinkDelegate`, `CAMetalDrawable`, `CAMetalLayer`, `CARenderer`, `CATiledLayer` (8 types; with their members under "Not yet in isim") |

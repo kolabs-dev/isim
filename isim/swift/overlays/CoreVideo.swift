@@ -98,6 +98,8 @@ public final class CVBuffer: @unchecked Sendable, Hashable {
     let _release: (() -> Void)?
     var _locks = 0
     public var _attachments: [String: Any] = [:]
+    var _propagated: [String: Bool] = [:]                     // the attachments' modes (CVAttachmentMode.shouldPropagate)
+    var _gotAttachments: NSDictionary?                         // what CVBufferGetAttachments last returned (+0)
 
     static func bytesPerPixel(_ f: OSType) -> Int? {
         switch f {
@@ -134,6 +136,9 @@ public final class CVBuffer: @unchecked Sendable, Hashable {
     init(_wrapping base: UnsafeMutableRawPointer, width: Int, height: Int, format: OSType, bytesPerRow: Int, release: (() -> Void)?) {
         _width = width; _height = height; _format = format; _owned = nil; _release = release
         _planes = [Plane(base: base, width: width, height: height, bytesPerRow: bytesPerRow)]
+    }
+    init(_planes planes: [Plane], width: Int, height: Int, format: OSType, release: (() -> Void)?) {
+        _width = width; _height = height; _format = format; _owned = nil; _release = release; _planes = planes
     }
     deinit { _owned?.deallocate(); _release?() }
 
@@ -231,6 +236,9 @@ public func CVBufferRelease(_ b: CVBuffer?) {}
 public final class CVPixelBufferPool: @unchecked Sendable {
     let width: Int, height: Int, format: OSType
     let attributes: [String: Any]
+    var _poolAttributes: [String: Any] = [:]
+    lazy var _attributesObject: NSDictionary = attributes as NSDictionary          // returned at +0 by the C getters
+    lazy var _poolAttributesObject: NSDictionary = _poolAttributes as NSDictionary
     init(width: Int, height: Int, format: OSType, attributes: [String: Any]) { self.width = width; self.height = height; self.format = format; self.attributes = attributes }
 }
 func _cvInt(_ d: [String: Any], _ k: CFString) -> Int? {
