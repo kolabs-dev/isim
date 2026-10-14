@@ -1003,7 +1003,8 @@ static void load_clock_prefs(void) {
     plist_string(xml, "TimeZone", tz, sizeof tz);
     if (!getenv("ISIM_KEEP_TZ") && strcmp(tz, clock_prefs.tz)) {
         if (*tz) { setenv("TZ", tz, 1); clock_prefs.tz_set = 1; }
-        else if (clock_prefs.tz_set) { unsetenv("TZ"); clock_prefs.tz_set = 0; }      /* back to "Set Automatically" */
+        else if (clock_prefs.tz_set) { setenv("TZ", ":/etc/localtime", 1); clock_prefs.tz_set = 0; }   /* "Set Automatically":
+                                                         the host zone; TZ is never removed (loader.c, issue #437) */
         tzset();
         snprintf(clock_prefs.tz, sizeof clock_prefs.tz, "%s", tz);
     }
