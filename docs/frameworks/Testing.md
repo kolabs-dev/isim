@@ -15,6 +15,7 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | Swift Testing (`import Testing`, `@Test`, `@Suite`, `#expect`, `#require`) | ✅ | ≤17 | swift-testing 6.2.4 built for isim (`isim/buildlib/swift.py`); parameterized tests, async tests, filters/skips from `isim test`, xUnit output; tests run serially by default (`ISIM_SWIFT_TESTING_PARALLEL=1` runs them in parallel, which intermittently aborts with a mutex used after destruction — under investigation); exit tests unavailable (no process spawning, as on iOS); tested (HelloToolchain: AppSwiftTests) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `AttachableAsImage`, `AttachableImageFormat`, `CustomTestReflectable`, `ExitStatus`, `ExitTest` (5 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

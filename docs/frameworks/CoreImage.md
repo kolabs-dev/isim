@@ -30,6 +30,7 @@
 | `CIRAWFilter` (and the iOS 10 `CIFilter(imageURL:options:)` RAW API) | 🟡 | ≤17 | adapted: decoded by the host's LibRaw tools (libraw-bin), then isim's processing (white balance, exposure, boost, noise, sharpness, contrast, detail, moire, local tone map, EDR headroom, orientation, scale); lens correction unsupported, semantic mattes nil (stub), preview is a draft rendering. Tested on a generated DNG (`test_coreimage.py`) |
 | Core Image CVPixelBuffer APIs (`CIImage(cvPixelBuffer:)`, `CIContext.render(_:to:)`, `CIRenderDestination(pixelBuffer:)`, `CIImage.pixelBuffer`) | ✅ | ≤17 | Swift overlay (isim's CoreVideo is Swift-only); pixels are copied (no IOSurface sharing); BGRA / ARGB / RGBA, one-component, depth and 4:2:0 formats. Tested (`test_coreimage.py`) |
 | `UIImage(ciImage:)`, `CIImage(image:)`, `CIColor(color:)` | ✅ | ≤17 | adapted: `UIImage(ciImage:)` renders at once, so its `cgImage` is non-nil (iOS leaves it nil). Tested (`test_coreimage.py`, HelloImaging) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `CIAreaAverageMaximumRed`, `CIAreaBoundsRed`, `CIBlurredRoundedRectangleGenerator`, `CIConvertLab`, `CIMaximumScaleTransform`, `CIMedian`, `CIRoundedQRCodeGenerator`, `CISystemToneMap` (8 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

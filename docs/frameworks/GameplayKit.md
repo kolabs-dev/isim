@@ -30,6 +30,7 @@
 | `GKDecisionTree`, `GKDecisionNode` (value / predicate / weight branches; learned from examples) | 🟡 | ≤17 | ID3 (categorical, numeric thresholds) tested; unseen answers fall back to the majority action; `export(to:)` / `init(url:)` ❌ |
 | `GKQuadtree`, `GKOctree` (add at point / in quad or box, `elements(at:)`, `elements(in:)`, remove) | ✅ | ≤17 | `elements(in:)` returns elements overlapping the query (iOS: whole cells); removal matches `isEqual` |
 | `GKRTree` (add / remove / query, half / linear / quadratic / reduce-overlap splits) | ✅ | ≤17 | Guttman R-tree; all four strategies checked against brute force |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `GKCompositeBehavior`, `GKNSPredicateRule`, `GKScene`, `GKSceneRootNodeType`, `GKSCNNodeComponent` (5 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

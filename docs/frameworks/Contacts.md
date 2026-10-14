@@ -15,6 +15,8 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | Contacts / ContactsUI | ✅ | ≤17 | address book in `$ISIM_DATA/Library/AddressBook` seeded with the Simulator's sample contacts; permission alert (iOS 18: limited access with a selection list; iOS 17: Don't Allow/OK); fetch requests, name/phone/email/identifier predicates, save requests (add/update/delete, groups), unfetched keys raise like iOS, formatter, vCard; `CNContactPickerViewController` list (contact/property/multi selection), `CNContactViewController` card and a basic new-contact form; no images, no linked contacts |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `CNChangeHistoryAddContactEvent`, `CNChangeHistoryAddGroupEvent`, `CNChangeHistoryAddMemberToGroupEvent`, `CNChangeHistoryAddSubgroupToGroupEvent`, `CNChangeHistoryDeleteContactEvent`, `CNChangeHistoryDeleteGroupEvent`, `CNChangeHistoryDropEverythingEvent`, `CNChangeHistoryEvent`, `CNChangeHistoryEventVisitor`, `CNChangeHistoryFetchRequest`, `CNChangeHistoryRemoveMemberFromGroupEvent`, `CNChangeHistoryRemoveSubgroupFromGroupEvent`, `CNChangeHistoryUpdateContactEvent`, `CNChangeHistoryUpdateGroupEvent`, `CNContactsUserDefaults`, `CNFetchResult` (16 types; with their members under "Not yet in isim") |
+| `CNContactProperty` in isim's ContactsUI module | 🟡 | ≤17 | adapted: implemented, but declared in isim's ContactsUI overlay instead of Contacts (Apple's module), so code that imports only Contacts does not see it; the 2026-10 sweep counts it missing from Contacts |
 
 ## Not yet in isim
 

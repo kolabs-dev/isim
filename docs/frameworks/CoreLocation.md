@@ -16,6 +16,8 @@
 |---|---|---|---|
 | CoreLocation (`CLLocationManager`, authorization, updates, geocoding) | ✅ | ≤17 | permission alert (Allow Once / While Using / Don't Allow, Always upgrade) remembered per app; simulated location (adapted): Apple Park by default, `ISIM_LOCATION=lat,lon` or a looping route, `location LAT LON`/`location none` script commands; `requestLocation`, `CLLocationUpdate.liveUpdates`, `CLServiceSession`; `CLGeocoder` answers offline from a small built-in gazetteer (other places: `geocodeFoundNoResult`); no heading (like the Simulator); missing usage string: request ignored + logged |
 | Region monitoring, beacons, visits | ✅ | ≤17 | `CLCircularRegion` monitoring (enter/exit, `requestState`); `CLMonitor` (iOS 17 actor: circular-geographic and beacon-identity conditions, `events`, records kept in `ISIM_DATA`, 20 conditions); iBeacons from the simulated radio (`beacon UUID MAJOR MINOR [immediate\|near\|far] [RSSI]` script command or `ISIM_BEACONS`): ranging (`startRangingBeacons(satisfying:)` and the deprecated region forms), beacon regions, `CLBeaconRegion.peripheralData`; `CLVisit` arrivals and departures detected from the simulated location (adapted: a stay within 50 m for `ISIM_VISIT_SECONDS`, default 120 s). Tested (`test_location.py`: circular regions, `test_beacons_visits_monitor`) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `CLLocationPushServiceError`, `CLLocationPushServiceError.Code`, `CLLocationPushServiceExtension` (3 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 27) | ❌ | 27.0 | not implemented, found by the 2026-10 sweep: `CLBodyIdentifiable` (1 type; with its members under "Not yet in isim") |
 
 ## Not yet in isim
 

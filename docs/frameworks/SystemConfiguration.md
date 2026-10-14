@@ -16,6 +16,7 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | SystemConfiguration (`SCNetworkReachability*`), CoreTelephony (`CTTelephonyNetworkInfo`, `CTCarrier`) | ✅ | ≤17 | reachability from the host's connectivity (polled every 2 s); no cellular service, like the Simulator. Tested: test_system_objc |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `SCBondStatus`, `SCDynamicStore`, `SCDynamicStoreContext`, `SCNetworkConnection`, `SCNetworkConnectionContext`, `SCNetworkConnectionPPPStatus`, `SCNetworkConnectionStatus`, `SCNetworkInterface`, `SCNetworkProtocol`, `SCNetworkService`, `SCNetworkSet`, `SCPreferences`, `SCPreferencesContext`, `SCPreferencesNotification` (14 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

@@ -15,6 +15,7 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | JavaScriptCore (C API and `JSContext`, `JSValue`, `JSExport`, `JSManagedValue`, `JSVirtualMachine`) | ✅ | ≤17 | passthrough C API: the host's JavaScriptCore (WebKitGTK `libjavascriptcoregtk-6.0`/`4.1`), loaded on first use; the Objective-C API is isim's over it (blocks as functions, JSExport protocols, conversions). Tested: test_system_objc |
+| Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `JSRelationCondition` (1 type; with its members under "Not yet in isim") |
 
 ## Not yet in isim
 

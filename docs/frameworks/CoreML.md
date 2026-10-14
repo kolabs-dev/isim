@@ -16,6 +16,8 @@
 |---|---|---|---|
 | Core ML data API (`MLMultiArray`, `MLFeatureValue`, `MLDictionaryFeatureProvider`, `MLArrayBatchProvider`, `MLModelConfiguration`, `MLModelDescription`) | ✅ | ≤17 | tested (shapes, strides, subscripts, feature values) |
 | Core ML `MLModel` loading and prediction | 🟡 | ≤17 | adapted: Apple's compiled `.mlmodelc` format is undocumented and needs Apple's runtime, so Xcode-compiled models fail to load with a clear error (tested); `MLModel.compileModel(at:)` turns a `.mlmodel` spec into an isim `.mlmodelc`; descriptions are read for every model type; predictions run for GLM regressors/classifiers only (tested); neural networks, ML programs, trees and pipelines fail with a clear error (tested) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `MLComputeDevice`, `MLComputeDeviceProtocol`, `MLComputePlan`, `MLCPUComputeDevice`, `MLCustomLayer`, `MLCustomModel`, `MLGPUComputeDevice`, `MLModelAsset`, `MLModelStructure`, `MLNeuralEngineComputeDevice`, `MLTask`, `MLUpdateTask` (12 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `MLComputePolicy`, `MLSendableFeatureValue`, `MLShapedArrayBufferLayout`, `MLState`, `MLStateConstraint`, `MLTensor`, `MLTensorRangeExpression`, `MLTensorScalar` (8 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

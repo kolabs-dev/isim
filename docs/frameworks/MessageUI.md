@@ -15,6 +15,7 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | MessageUI (`MFMailComposeViewController`, `MFMessageComposeViewController`) | ✅ | ≤17 | like the Simulator `canSendMail()`/`canSendText()` are false (presenting shows nothing); `ISIM_MAIL=1` / `ISIM_MESSAGES=1` give the device accounts: iOS 17-style composers prefilled from the API, Send / Cancel → Delete or Save Draft, results to the delegates; nothing is sent — mails become `.eml` files in `$ISIM_DATA/Library/Mail/{Outbox,Drafts}`, messages JSON in `Library/SMS/Outbox`. Tested |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `MFComposeAssistantViewController`, `MFComposeAssistantViewControllerDelegate`, `MFMailComposeControllerDeferredAction`, `MFMailDraft`, `WritingAssistant` (5 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

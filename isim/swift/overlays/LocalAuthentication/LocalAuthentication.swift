@@ -14,9 +14,9 @@ internal import isim_host
 public enum LAPolicy: Int, Sendable {
     case deviceOwnerAuthenticationWithBiometrics = 1
     case deviceOwnerAuthentication = 2
-    case deviceOwnerAuthenticationWithWatch = 3
-    case deviceOwnerAuthenticationWithBiometricsOrWatch = 4
-    case deviceOwnerAuthenticationWithWristDetection = 5
+    @available(iOS, unavailable) case deviceOwnerAuthenticationWithWatch = 3
+    @available(iOS, unavailable) case deviceOwnerAuthenticationWithBiometricsOrWatch = 4
+    @available(iOS, unavailable) case deviceOwnerAuthenticationWithWristDetection = 5
     @available(iOS 18.0, *) case deviceOwnerAuthenticationWithCompanion = 6
     @available(iOS 18.0, *) case deviceOwnerAuthenticationWithBiometricsOrCompanion = 7
 }
@@ -45,9 +45,9 @@ public struct LAError: CustomNSError, LocalizedError, Hashable, Sendable {
         case appCancel = -9
         case invalidContext = -10
         @available(iOS 18.0, *) case companionNotAvailable = -11
-        case biometryNotPaired = -12
-        case biometryDisconnected = -13
-        case invalidDimensions = -14
+        @available(iOS, unavailable) case biometryNotPaired = -12
+        @available(iOS, unavailable) case biometryDisconnected = -13
+        @available(iOS, unavailable) case invalidDimensions = -14
         case notInteractive = -1004
         @available(*, deprecated, renamed: "biometryNotAvailable") public static let touchIDNotAvailable = Code.biometryNotAvailable
         @available(*, deprecated, renamed: "biometryNotEnrolled") public static let touchIDNotEnrolled = Code.biometryNotEnrolled
@@ -119,7 +119,7 @@ open class LAContext: NSObject, @unchecked Sendable {
         if invalidated { return LAError(.invalidContext) }
         switch policy.rawValue {     // raw values: the companion policies are iOS 18 cases
         case LAPolicy.deviceOwnerAuthentication.rawValue: return nil
-        case LAPolicy.deviceOwnerAuthenticationWithBiometrics.rawValue, LAPolicy.deviceOwnerAuthenticationWithBiometricsOrWatch.rawValue, 7 /* biometrics or companion */:
+        case LAPolicy.deviceOwnerAuthenticationWithBiometrics.rawValue, 4 /* biometrics or watch */, 7 /* biometrics or companion */:
             if _LADevice.biometry == .faceID && _LADevice.permission == false {
                 return LAError(.biometryNotAvailable, message: "User has denied the use of biometry for this app.")
             }

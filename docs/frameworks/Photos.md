@@ -16,6 +16,9 @@
 |---|---|---|---|
 | Photos (`PHPhotoLibrary`, `PHAsset`, saving images) | 🟡 | ≤17 | device library in `$ISIM_DATA/Media` seeded with 6 generated sample pictures (stand-ins for the Simulator's); permission alert (full / limited with selection / add-only) remembered per app; fetch with sort/limit, smart albums (Recents, Favorites), `PHImageManager` scaling, `PHAssetChangeRequest` create/favorite/delete (with confirmation), change observers; videos saved with `UISaveVideoAtPathToSavedPhotosAlbum` are `.video` assets (`duration`, poster frame for image requests, Videos smart album); no `requestAVAsset` / `requestPlayerItem` yet. Missing: `requestAVAsset` / `requestPlayerItem`, user albums (`PHAssetCollectionChangeRequest`), Live Photos, `PHContentEditingInput` |
 | `UIImageWriteToSavedPhotosAlbum` | ✅ | ≤17 | add-only permission alert, completion selector called with nil/error |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `PHAssetResourceManager`, `PHAssetResourceRequestOptions`, `PHCollectionList`, `PHLivePhoto`, `PHLivePhotoRequestOptions`, `PHVideoRequestOptions` (6 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 26) | ❌ | 26.1 | not implemented, found by the 2026-10 sweep: `PHAssetResourceUploadJob`, `PHAssetResourceUploadJobChangeRequest`, `PHBackgroundResourceUploadExtension` (3 types; with their members under "Not yet in isim") |
+| Types not yet in isim (iOS 27) | ❌ | 27.0 | not implemented, found by the 2026-10 sweep: `PHAssetExtendedMetadata`, `PHAssetResourceUploadJobOptions`, `PHBackgroundResourceUploadJobExtension`, `PHPhotoLibraryPersistentChangesObserver`, `PHReferenceImageInfo` (5 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 
