@@ -71,7 +71,7 @@ open class SKTexture: NSObject {
 
 // MARK: - Node
 
-open class SKNode: UIResponder {
+open class SKNode: UIResponder, NSCopying {
     open var position: CGPoint = .zero
     open var zPosition: CGFloat = 0
     open var zRotation: CGFloat = 0
@@ -107,7 +107,7 @@ open class SKNode: UIResponder {
         if let v = c.cg("zRotation") { zRotation = v }
         if let v = c.cg("xScale") { xScale = v }
         if let v = c.cg("yScale") { yScale = v }
-        if let v = c.cg("alpha") { alpha = v }
+        if let v = c.cg("alpha") ?? c.cg("opacity") { alpha = v }      // Xcode writes _opacity
         if let v = c.bool("hidden") ?? c.bool("isHidden") { isHidden = v }
         if let v = c.bool("paused") ?? c.bool("isPaused") { isPaused = v }
         if let v = c.cg("speed") { speed = v }
@@ -230,6 +230,23 @@ open class SKNode: UIResponder {
     open func action(forKey key: String) -> SKAction? { runners.first { $0.key == key }?.action }
     open func removeAction(forKey key: String) { runners.removeAll { $0.key == key } }
     open func removeAllActions() { runners.removeAll() }
+    /// A copy of the node and its subtree, as SpriteKit's (NSCopying): its properties, copies of its children, and
+    /// its running actions (adapted: they start over on the copy).
+    open func copy(with zone: NSZone? = nil) -> Any {
+        let n = (type(of: self) as NSObject.Type).init() as! SKNode
+        _copyState(to: n)
+        return n
+    }
+    /// copies this class's state; subclasses add theirs and call super
+    func _copyState(to n: SKNode) {
+        n.position = position; n.zPosition = zPosition; n.zRotation = zRotation; n.xScale = xScale; n.yScale = yScale
+        n.alpha = alpha; n.isHidden = isHidden; n.isPaused = isPaused; n.speed = speed; n.name = name
+        n.userData = userData?.mutableCopy() as? NSMutableDictionary
+        n.isUserInteractionEnabled = isUserInteractionEnabled
+        n.constraints = constraints; n.reachConstraints = reachConstraints; n.attributeValues = attributeValues
+        for c in children { if let cc = c.copy() as? SKNode { n.addChild(cc) } }
+        for r in runners { if let a = r.action { n.run(a, completion: nil, key: r.key) } }
+    }
     open func hasActions() -> Bool { !runners.isEmpty }
 
     func evaluateActions(_ dt: TimeInterval) {
@@ -281,6 +298,14 @@ open class SKSpriteNode: SKNode {
         if let v = c.size("size") { size = v } else if let t = texture { size = t.size() }
         if let v = c.point("anchorPoint") { anchorPoint = v }
         if let b = c.int("blendMode").flatMap(SKBlendMode.init(rawValue:)) { blendMode = b }
+    }
+    override func _copyState(to n: SKNode) {
+        super._copyState(to: n)
+        guard let s = n as? SKSpriteNode else { return }
+        s.texture = texture; s.color = color; s.colorBlendFactor = colorBlendFactor; s.size = size; s.anchorPoint = anchorPoint
+        s.blendMode = blendMode; s.centerRect = centerRect; s.sizeFromTexture = sizeFromTexture; s.normalTexture = normalTexture
+        s.lightingBitMask = lightingBitMask; s.shadowCastBitMask = shadowCastBitMask; s.shadowedBitMask = shadowedBitMask
+        s.shader = shader; s.warpGeometry = warpGeometry; s.subdivisionLevels = subdivisionLevels
     }
     public convenience init(imageNamed name: String, normalMapped: Bool) { self.init(imageNamed: name) }
     public init(texture: SKTexture?, color: UIColor, size: CGSize) {
@@ -369,6 +394,14 @@ open class SKShapeNode: SKNode {
         return total
     }
 
+    override func _copyState(to n: SKNode) {
+        super._copyState(to: n)
+        guard let s = n as? SKShapeNode else { return }
+        s.path = path; s.fillColor = fillColor; s.strokeColor = strokeColor; s.lineWidth = lineWidth; s.glowWidth = glowWidth
+        s.isAntialiased = isAntialiased; s.lineCap = lineCap; s.lineJoin = lineJoin; s.fillTexture = fillTexture
+        s.strokeTexture = strokeTexture; s.fillShader = fillShader; s.strokeShader = strokeShader; s.blendMode = blendMode
+        s.miterLimit = miterLimit
+    }
     public override init() { super.init() }
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
@@ -479,6 +512,15 @@ open class SKLabelNode: SKNode {
     /// spacing are drawn (through UIKit's attributed string drawing); fontName / fontSize / fontColor are ignored
     open var attributedText: NSAttributedString? { didSet { if let a = attributedText { text = a.string } } }
 
+    override func _copyState(to n: SKNode) {
+        super._copyState(to: n)
+        guard let l = n as? SKLabelNode else { return }
+        l.text = text; l.fontName = fontName; l.fontSize = fontSize; l.fontColor = fontColor; l.color = color
+        l.colorBlendFactor = colorBlendFactor; l.horizontalAlignmentMode = horizontalAlignmentMode
+        l.verticalAlignmentMode = verticalAlignmentMode; l.numberOfLines = numberOfLines
+        l.preferredMaxLayoutWidth = preferredMaxLayoutWidth; l.lineBreakMode = lineBreakMode; l.blendMode = blendMode
+        l.attributedText = attributedText
+    }
     public override init() { super.init() }
     public convenience init(attributedText: NSAttributedString?) { self.init(); self.attributedText = attributedText; text = attributedText?.string }
     public required init?(coder: NSCoder) {
@@ -609,7 +651,7 @@ open class SKScene: SKNode {
         isUserInteractionEnabled = true
         physicsWorld.scene = self
         if let c = coder as? _SKCoder {
-            if let s = c.size("size") { size = s }
+            if let s = c.size("size") ?? c.rectSize("Scene_bounds") { size = s }   // Xcode: Scene_bounds
             if let p = c.point("anchorPoint") { anchorPoint = p }
             if let col = c.color("backgroundColor") { backgroundColor = col }
             if let m = c.int("scaleMode").flatMap(SKSceneScaleMode.init(rawValue:)) { scaleMode = m }
@@ -617,6 +659,13 @@ open class SKScene: SKNode {
             if let u = c.coder(forKey: "camera")?.uid { camera = c.node(uid: u) as? SKCameraNode }
         }
         if _skDecodingScene == 0 { sceneDidLoad() }
+    }
+
+    override func _copyState(to n: SKNode) {
+        super._copyState(to: n)
+        guard let sc = n as? SKScene else { return }
+        sc.size = size; sc.scaleMode = scaleMode; sc.backgroundColor = backgroundColor; sc.anchorPoint = anchorPoint
+        sc.physicsWorld.gravity = physicsWorld.gravity; sc.physicsWorld.speed = physicsWorld.speed
     }
 
     open func sceneDidLoad() {}

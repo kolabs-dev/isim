@@ -16,6 +16,7 @@
 |---|---|---|---|
 | `GKStateMachine`, `GKState` | ✅ | ≤17 | |
 | `GKEntity`, `GKComponent`, `GKComponentSystem`, `GKSKNodeComponent`, `SKNode.entity` | ✅ | ≤17 | |
+| `GKScene` (`init(fileNamed:)`, `init(fileNamed:rootNode:)`, `rootNode`, `entities`, `graphs`, `addEntity` / `removeEntity`, `addGraph` / `removeGraph`, NSCopying), `GKSceneRootNodeType` | ✅ | ≤17 | adapted: the .sks file is read by isim's SpriteKit reader; the root node is the app's SKScene subclass the file names (a bare Swift class name is looked up in the app's module, as Xcode writes it), entities and their components (GKSKNodeComponent pointing at the tree's node) come from the file's GKScene part. Verified on an Xcode-made GameScene.sks (Xcode's Game template; no entities or graphs in it); graphs in files are not decoded yet. Tested (HelloGameTemplate) |
 | `GKRandomSource`, `GKARC4RandomSource`, `GKMersenneTwisterRandomSource`, `GKLinearCongruentialRandomSource`, `arrayByShufflingObjects` | 🟡 | ≤17 | MT19937 matches the reference generator; ARC4 is RC4; LCG is the 64-bit MMIX generator; seeded sequences are not checked against iOS's |
 | `GKRandomDistribution`, `GKGaussianDistribution`, `GKShuffledDistribution` | ✅ | ≤17 | |
 | `GKGraph`, `GKGridGraph`, `GKGraphNode`, `GKGraphNode2D/3D`, `findPath` (A*) | ✅ | ≤17 | |

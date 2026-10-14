@@ -169,6 +169,59 @@ open class SKEmitterNode: SKNode {
     var emitted = 0
     var simTargetID: ObjectIdentifier?
 
+    /// the emitter's settings, not its live particles (as SpriteKit)
+    override func _copyState(to n: SKNode) {
+        super._copyState(to: n)
+        guard let e = n as? SKEmitterNode else { return }
+        e.particleTexture = particleTexture
+        e.particleZPosition = particleZPosition
+        e.particleZPositionRange = particleZPositionRange
+        e.particleZPositionSpeed = particleZPositionSpeed
+        e.particleRenderOrder = particleRenderOrder
+        e.particleBlendMode = particleBlendMode
+        e.particleColor = particleColor
+        e.particleColorRedRange = particleColorRedRange
+        e.particleColorGreenRange = particleColorGreenRange
+        e.particleColorBlueRange = particleColorBlueRange
+        e.particleColorAlphaRange = particleColorAlphaRange
+        e.particleColorRedSpeed = particleColorRedSpeed
+        e.particleColorGreenSpeed = particleColorGreenSpeed
+        e.particleColorBlueSpeed = particleColorBlueSpeed
+        e.particleColorAlphaSpeed = particleColorAlphaSpeed
+        e.particleColorSequence = particleColorSequence
+        e.particleColorBlendFactor = particleColorBlendFactor
+        e.particleColorBlendFactorRange = particleColorBlendFactorRange
+        e.particleColorBlendFactorSpeed = particleColorBlendFactorSpeed
+        e.particleColorBlendFactorSequence = particleColorBlendFactorSequence
+        e.particleBirthRate = particleBirthRate
+        e.numParticlesToEmit = numParticlesToEmit
+        e.particleLifetime = particleLifetime
+        e.particleLifetimeRange = particleLifetimeRange
+        e.particlePosition = particlePosition
+        e.particlePositionRange = particlePositionRange
+        e.particleSpeed = particleSpeed
+        e.particleSpeedRange = particleSpeedRange
+        e.emissionAngle = emissionAngle
+        e.emissionAngleRange = emissionAngleRange
+        e.xAcceleration = xAcceleration
+        e.yAcceleration = yAcceleration
+        e.particleAlpha = particleAlpha
+        e.particleAlphaRange = particleAlphaRange
+        e.particleAlphaSpeed = particleAlphaSpeed
+        e.particleAlphaSequence = particleAlphaSequence
+        e.particleScale = particleScale
+        e.particleScaleRange = particleScaleRange
+        e.particleScaleSpeed = particleScaleSpeed
+        e.particleScaleSequence = particleScaleSequence
+        e.particleRotation = particleRotation
+        e.particleRotationRange = particleRotationRange
+        e.particleRotationSpeed = particleRotationSpeed
+        e.particleSize = particleSize
+        e.fieldBitMask = fieldBitMask
+        e.shader = shader
+        e.particleAction = particleAction
+        e.targetNode = targetNode
+    }
     public override init() { super.init() }
     public required init?(coder: NSCoder) {
         super.init(coder: coder)

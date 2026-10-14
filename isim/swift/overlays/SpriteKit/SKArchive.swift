@@ -209,7 +209,8 @@ final class _SKCoder: NSCoder {
             for (kx, ky) in [("x", "y"), ("width", "height"), ("dx", "dy")] {
                 if let x = d[kx].flatMap({ a.resolve($0).double }), let y = d[ky].flatMap({ a.resolve($0).double }) { return (CGFloat(x), CGFloat(y)) }
             }
-            if let s = d["NS.string"] ?? d["NS.special"] ?? d["NS.pointval"] ?? d["NS.sizeval"] { return pair(from: a.resolve(s), a) }
+            // NSValue: NS.pointval / NS.sizeval / NS.rectval hold the string; NS.special is only its type tag
+            if let s = d["NS.pointval"] ?? d["NS.sizeval"] ?? d["NS.string"] ?? d["NS.special"] { return pair(from: a.resolve(s), a) }
             return nil
         default: return nil
         }
@@ -217,7 +218,20 @@ final class _SKCoder: NSCoder {
     func point(_ key: String) -> CGPoint? { pair(key).map { CGPoint(x: $0.0, y: $0.1) } }
     func size(_ key: String) -> CGSize? { pair(key).map { CGSize(width: $0.0, height: $0.1) } }
     func vector(_ key: String) -> CGVector? { pair(key).map { CGVector(dx: $0.0, dy: $0.1) } }
-    func color(_ key: String) -> UIColor? { raw(key).flatMap { _SKCoder.color(from: $0, archive) } }
+    /// a colour object, or Xcode's separate components (`_fontColorR`, `_fontColorG`, `_fontColorB`, `_fontColorA`)
+    func color(_ key: String) -> UIColor? {
+        if let c = raw(key).flatMap({ _SKCoder.color(from: $0, archive) }) { return c }
+        guard let r = cg(key + "R"), let g = cg(key + "G"), let b = cg(key + "B") else { return nil }
+        return UIColor(red: r, green: g, blue: b, alpha: cg(key + "A") ?? 1)
+    }
+    /// the size of a rectangle ("{{x, y}, {w, h}}", NS.rectval): Xcode's `Scene_bounds`
+    func rectSize(_ key: String) -> CGSize? {
+        guard var v = raw(key) else { return nil }
+        if let d = v.dict, let r = d["NS.rectval"] ?? d["NS.string"] { v = archive.resolve(r) }
+        guard let s = v.string else { return nil }
+        let n = s.split(whereSeparator: { "{}, ".contains($0) }).compactMap { Double($0) }
+        return n.count == 4 ? CGSize(width: n[2], height: n[3]) : nil
+    }
 
     static func color(from v: _PList, _ a: _SKArchive) -> UIColor? {
         guard let d = v.dict else {
@@ -276,7 +290,7 @@ final class _SKCoder: NSCoder {
     static func nodeClass(for chain: [String]) -> SKNode.Type {
         for name in chain {
             if let builtin = _skNodeClasses[name] { return builtin }
-            if let cls = NSClassFromString(name) as? SKNode.Type { return cls }
+            if let cls = _skAppClass(name) as? SKNode.Type { return cls }
         }
         return SKNode.self
     }
@@ -338,6 +352,50 @@ let _skNodeClasses: [String: SKNode.Type] = [
 ]
 
 /// substring test without Foundation's StringProtocol extensions
+/// the app's module: Xcode's PRODUCT_MODULE_NAME, the executable's name with other characters as "_"
+let _skAppModule: String? = (Bundle.main.object(forInfoDictionaryKey: "CFBundleExecutable") as? String)
+    .map { String($0.map { $0.isLetter || $0.isNumber ? $0 : "_" }) }
+/// a class named in an .sks file: Xcode writes a Swift class's bare name ("GameScene"), found in the app's module
+func _skAppClass(_ name: String) -> AnyClass? {
+    if let c = NSClassFromString(name) { return c }
+    if !name.contains("."), let m = _skAppModule { return NSClassFromString("\(m).\(name)") }
+    return nil
+}
+
+/// isim's GameplayKit reads GKScene's part of an .sks file (`_gkScene`: entities and their components) through this
+@_spi(ISIMGameplayKit) public struct _SKFileObject {
+    let coder: _SKCoder
+    /// the archived class and its superclasses
+    public var classChain: [String] { coder.archive.classChain(.dict(coder.object)) }
+    /// a class of the chain: SpriteKit's, the app's (bare Swift names in its module) or Foundation's
+    public func resolvedClass() -> AnyClass? { classChain.lazy.compactMap { _skAppClass($0) }.first }
+    public func objects(_ key: String) -> [_SKFileObject] { coder.uids(key).map { _SKFileObject(coder: _SKCoder(archive: coder.archive, uid: $0)) } }
+    public func object(_ key: String) -> _SKFileObject? { coder.coder(forKey: key).map(_SKFileObject.init) }
+    /// a node of the file's tree: the same instance as in the decoded scene
+    public func node(_ key: String) -> SKNode? { coder.coder(forKey: key).flatMap { coder.node(uid: $0.uid) } }
+    public func string(_ key: String) -> String? { coder.string(key) }
+    public func double(_ key: String) -> Double? { coder.double(key) }
+    /// an NSCoder for the object's own init?(coder:) (values under their property names)
+    public var nsCoder: NSCoder { coder }
+}
+@_spi(ISIMGameplayKit) public struct _SKFile {
+    let archive: _SKArchive
+    public init?(named name: String) {
+        guard let a = _SKArchive.load(named: name) else { return nil }
+        archive = a
+    }
+    /// the root node, as the class the file names (the app's SKScene subclass)
+    public func rootNode() -> SKNode? {
+        guard let u = archive.rootUID else { return nil }
+        return _SKCoder(archive: archive, uid: 0).node(uid: u)
+    }
+    /// an object of the archive's top level (`_gkScene`)
+    public func top(_ key: String) -> _SKFileObject? {
+        guard case .uid(let u)? = archive.top[key] else { return nil }
+        return _SKFileObject(coder: _SKCoder(archive: archive, uid: u))
+    }
+}
+
 func _strHas(_ s: String, _ sub: String) -> Bool {
     let a = Array(s.utf8), b = Array(sub.utf8)
     if b.isEmpty { return true }
