@@ -8,12 +8,16 @@
 
 ## How isim implements it
 
-- **Adapted:** implemented inside isim's AVFoundation overlay (`AVAudioEngine.swift`, `AVFoundation.swift`): the audio graph, players, recorders, sessions and speech synthesis (espeak-ng). There is no separate `AVFAudio` module yet: `import AVFAudio` fails. Rows: [AVFoundation](AVFoundation.md).
+- **Adapted:** implemented inside isim's AVFoundation overlay (`AVAudioEngine.swift`, `AVFoundation.swift`): the audio graph, players, recorders, sessions and speech synthesis (espeak-ng). Rows for the classes: [AVFoundation](AVFoundation.md).
+- **Module:** `import AVFAudio` is a module that re-exports AVFoundation (`isim/swift/overlays/AVFAudio.swift`): on iOS AVFoundation re-exports AVFAudio, in isim both names reach the same classes.
+- **Objective-C:** `<AVFAudio/AVFAudio.h>` imports AVFoundation's header, and `AVFAudio.framework` re-exports `AVFoundation.framework` (`isim/sdk-src/Frameworks/AVFAudio`).
 
 ## API
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
+| `import AVFAudio` | ✅ | 14.5 | adapted: re-exports isim's AVFoundation, so it brings AVFoundation's other names too. Tested (HelloAudioModules) |
+| `#import <AVFAudio/AVFAudio.h>`, `-framework AVFAudio` | ✅ | 14.5 | adapted: AVFoundation's Objective-C header (`AVAudioSession` and the rest of what isim declares there). Tested (AudioHeadersTest) |
 | Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `AVAudioChannelLayout`, `AVAudioCompressedBuffer`, `AVAudioConverter`, `AVAudioSequencer`, `AVAudioUnitComponent`, `AVAudioUnitComponentManager`, `AVAudioUnitGenerator`, `AVAudioUnitMIDIInstrument`, `AVAudioUnitSampler`, `AVAudioUnitTimeEffect`, `AVMIDIPlayer`, `AVSpeechSynthesisProviderAudioUnit` (12 types; with their members under "Not yet in isim") |
 | Types not yet in isim (iOS 27) | ❌ | 27.0 | not implemented, found by the 2026-10 sweep: `AVReadOnlyAudioPCMBuffer` (1 type; with its members under "Not yet in isim") |
 

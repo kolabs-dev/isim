@@ -532,6 +532,12 @@ def _(a):
     a.objc_app(["main.c"], "Info.plist", ["-framework", "Foundation"], name="LibcTest")
 
 
+@app("tests/audio-headers", products=["AudioHeadersTest.app"])   # after the overlays: AVFAudio re-exports AVFoundation
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "AVFAudio", "-framework", "AudioUnit",
+                                          "-framework", "CoreAudio"], name="AudioHeadersTest")
+
+
 @app("tests/objc-runtime", products=["ObjCRuntimeTest.app", "ObjCUncaught.app", "SwiftUncaught.app"])
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "CoreGraphics"], name="ObjCRuntimeTest",
