@@ -85,6 +85,8 @@ def build(args, ci=False):
         n = ninja.restore_mtimes(REPO, state)
         print(f"build.py: {n} unchanged sources keep their cached timestamps")
     graph()
+    if ci:                         # nor outputs the graph stopped building (issue #206)
+        ninja.remove_stale_sdk(exe, ROOT)
     rc = ninja.run(exe, ROOT, targets, jobs=jobs, verbose=verbose, keep_going=keep_going)
     if rc == 0 and ci:
         ninja.record_mtimes(REPO, state)

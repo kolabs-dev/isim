@@ -13,9 +13,12 @@ usr/lib/swift/libswiftUIKit.dylib 0.12.0
 usr/lib/swift/libswiftCoreGraphics.dylib 0.12.0
 # 0.20.0 (issue #25): isim no longer ships stand-ins for third-party SDKs: it re-implements Apple's iOS SDK only
 # (AGENTS.md, "Only Apple's SDK"). The Google Mobile Ads and User Messaging Platform stand-ins are gone; apps that
-# linked them must be rebuilt with 0.20 against the real SDKs (isim build fetches their packages).
-usr/lib/swift/libswiftGoogleMobileAds.dylib 0.20.0
-usr/lib/swift/libswiftUserMessagingPlatform.dylib 0.20.0
+# linked them must be rebuilt against the real SDKs (isim build fetches their packages).
+# 0.22.0 (issue #206): the 0.20.0 and 0.21.0 release builds restored out/ from CI's cache, which still held the removed
+# stand-ins, so those tarballs and their ABI baselines still had them. The build now removes SDK binaries the graph no
+# longer builds (build.py ci); apps that linked the stand-ins must be rebuilt with 0.22.
+usr/lib/swift/libswiftGoogleMobileAds.dylib 0.22.0
+usr/lib/swift/libswiftUserMessagingPlatform.dylib 0.22.0
 # 0.20.0 (issue #200): WebKit for Objective-C. The overlay's classes took Apple's Objective-C names and their members are
 # dispatched through objc_msgSend (`@objc dynamic`, or final), so Objective-C code and binary SDKs can subclass them (an
 # Objective-C subclass has no Swift vtable); the delegate methods use Apple's selectors (webView:didFinishNavigation:...).
