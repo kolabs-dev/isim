@@ -19,6 +19,21 @@ should always use their own `ISIM_DATA`.
 | `ISIM_BUILD_INCREMENTAL=0` | `isim build` compiles every source again (by default it skips compiles whose command and inputs are unchanged since the last build into the same output folder) |
 | `ISIM_AUTOLOCK=SECONDS` | under `isim boot`, lock the device after that much idle time unless the foreground app sets `isIdleTimerDisabled` (default: never, like the Simulator) |
 
+Apps also see the environment Apple's Simulator sets (isim sets it from the device and version; apps and SDKs such
+as DeviceKit read it to tell the simulator from a device and to name the model):
+
+| Variable | Value |
+|---|---|
+| `SIMULATOR_MODEL_IDENTIFIER` | the device's model code, e.g. `iPhone18,3` for `--device iphone17` |
+| `SIMULATOR_DEVICE_NAME` | the device's name, e.g. `iPhone 17` |
+| `SIMULATOR_RUNTIME_VERSION` | the iOS version, e.g. `26.0` |
+| `SIMULATOR_UDID` | the device's UDID: made once and kept with its data (`<data>/Library/isim/UDID`) |
+| `SIMULATOR_SHARED_RESOURCES_DIRECTORY` | the device data directory (`ISIM_DATA` or `~/.local/share/isim`) |
+| `SIMULATOR_ROOT` | the runtime root: isim's SDK |
+| `SIMULATOR_HOST_HOME` | the host user's home |
+| `SIMULATOR_MAINSCREEN_WIDTH`, `_HEIGHT`, `_SCALE` | the screen in pixels and its scale |
+| `SIMULATOR_VERSION_INFO` | `CoreSimulator isim - Device: … - Runtime: iOS … - DeviceType: …` |
+
 ## Biometrics
 
 Face ID / Touch ID scans show an alert standing in for the Simulator's Features menu (Matching / Non-matching /
