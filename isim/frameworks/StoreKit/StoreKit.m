@@ -2,6 +2,10 @@
 #import <StoreKit/StoreKit.h>
 
 NSErrorDomain const SKANErrorDomain = @"SKANErrorDomain";
+NSErrorDomain const SKErrorDomain = @"SKErrorDomain";
+NSString * const SKReceiptPropertyIsExpired = @"expired";
+NSString * const SKReceiptPropertyIsRevoked = @"revoked";
+NSString * const SKReceiptPropertyIsVolumePurchase = @"vpp";
 SKAdNetworkCoarseConversionValue const SKAdNetworkCoarseConversionValueHigh = @"high";
 SKAdNetworkCoarseConversionValue const SKAdNetworkCoarseConversionValueMedium = @"medium";
 SKAdNetworkCoarseConversionValue const SKAdNetworkCoarseConversionValueLow = @"low";

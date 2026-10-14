@@ -2,13 +2,135 @@
 /* isim StoreKit for Objective-C: the classes are the StoreKit Swift overlay's (StoreKit.framework re-exports
    libswiftStoreKit.dylib): SKAdNetwork and SKAdImpression (ad attribution, recorded for development postbacks), the
    App Store product page and overlay (listings from Apple's public lookup API; installing is not possible on isim) and
-   the payment queue's entry points. Swift uses the overlay; these declarations are hidden from Swift. Not available from
-   Objective-C yet: products, payments and transactions' members (StoreKit 1 purchases), receipts and review requests.
-   The classes are not subclassable from Objective-C. */
+   StoreKit 1 (products requests, payments, the payment queue and its transactions, receipt refresh, review requests),
+   on the same local StoreKit testing ledger as Swift. Swift uses the overlay; these declarations are hidden from Swift.
+   Not available from Objective-C yet: SKPaymentDiscount (promotional offers), downloads. The classes are not
+   subclassable from Objective-C. */
 #import <UIKit/UIKit.h>
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
 @class SKAdImpression, SKOverlay, SKOverlayConfiguration, SKOverlayTransitionContext, SKStoreProductViewController, SKPaymentQueue, SKStorefront;
+@class SKProduct, SKProductsRequest, SKProductsResponse, SKRequest, SKPayment, SKPaymentTransaction;
+
+FOUNDATION_EXPORT NSErrorDomain const SKErrorDomain;
+typedef NS_ERROR_ENUM(SKErrorDomain, SKErrorCode) {
+    SKErrorUnknown = 0, SKErrorClientInvalid = 1, SKErrorPaymentCancelled = 2, SKErrorPaymentInvalid = 3, SKErrorPaymentNotAllowed = 4,
+    SKErrorStoreProductNotAvailable = 5, SKErrorCloudServicePermissionDenied = 6, SKErrorCloudServiceNetworkConnectionFailed = 7,
+    SKErrorCloudServiceRevoked = 8, SKErrorPrivacyAcknowledgementRequired = 9, SKErrorUnauthorizedRequestData = 10,
+    SKErrorInvalidOfferIdentifier = 11, SKErrorInvalidSignature = 12, SKErrorMissingOfferParams = 13, SKErrorInvalidOfferPrice = 14,
+    SKErrorOverlayCancelled = 15, SKErrorOverlayInvalidConfiguration = 16, SKErrorOverlayTimeout = 17, SKErrorIneligibleForOffer = 18,
+    SKErrorUnsupportedPlatform = 19, SKErrorOverlayPresentedInBackgroundScene = 20,
+};
+
+/* products */
+typedef NS_ENUM(NSUInteger, SKProductPeriodUnit) { SKProductPeriodUnitDay = 0, SKProductPeriodUnitWeek, SKProductPeriodUnitMonth, SKProductPeriodUnitYear };
+@interface SKProductSubscriptionPeriod : NSObject
+@property (nonatomic, readonly) NSUInteger numberOfUnits;
+@property (nonatomic, readonly) SKProductPeriodUnit unit;
+@end
+typedef NS_ENUM(NSUInteger, SKProductDiscountPaymentMode) {
+    SKProductDiscountPaymentModePayAsYouGo = 0, SKProductDiscountPaymentModePayUpFront, SKProductDiscountPaymentModeFreeTrial,
+};
+typedef NS_ENUM(NSUInteger, SKProductDiscountType) { SKProductDiscountTypeIntroductory = 0, SKProductDiscountTypeSubscription };
+@interface SKProductDiscount : NSObject
+@property (nonatomic, readonly) NSDecimalNumber *price;
+@property (nonatomic, readonly) NSLocale *priceLocale;
+@property (nonatomic, readonly, nullable) NSString *identifier;
+@property (nonatomic, readonly) SKProductSubscriptionPeriod *subscriptionPeriod;
+@property (nonatomic, readonly) NSUInteger numberOfPeriods;
+@property (nonatomic, readonly) SKProductDiscountPaymentMode paymentMode;
+@property (nonatomic, readonly) SKProductDiscountType type;
+@end
+@interface SKProduct : NSObject
+@property (nonatomic, readonly) NSString *localizedDescription;
+@property (nonatomic, readonly) NSString *localizedTitle;
+@property (nonatomic, readonly) NSDecimalNumber *price;
+@property (nonatomic, readonly) NSLocale *priceLocale;
+@property (nonatomic, readonly) NSString *productIdentifier;
+@property (nonatomic, readonly, getter=isDownloadable) BOOL downloadable;
+@property (nonatomic, readonly, getter=isFamilyShareable) BOOL isFamilyShareable;
+@property (nonatomic, readonly) NSArray<NSNumber *> *downloadContentLengths;
+@property (nonatomic, readonly) NSString *contentVersion;
+@property (nonatomic, readonly) NSString *downloadContentVersion;
+@property (nonatomic, readonly, nullable) SKProductSubscriptionPeriod *subscriptionPeriod;
+@property (nonatomic, readonly, nullable) SKProductDiscount *introductoryPrice;
+@property (nonatomic, readonly, nullable) NSString *subscriptionGroupIdentifier;
+@property (nonatomic, readonly) NSArray<SKProductDiscount *> *discounts;
+@end
+
+/* requests */
+@protocol SKRequestDelegate <NSObject>
+@optional
+- (void)requestDidFinish:(SKRequest *)request;
+- (void)request:(SKRequest *)request didFailWithError:(NSError *)error;
+@end
+@interface SKRequest : NSObject
+@property (nonatomic, weak, nullable) id<SKRequestDelegate> delegate;
+- (void)start;
+- (void)cancel;
+@end
+@protocol SKProductsRequestDelegate <SKRequestDelegate>
+@required
+- (void)productsRequest:(SKProductsRequest *)request didReceiveResponse:(SKProductsResponse *)response;
+@end
+@interface SKProductsResponse : NSObject
+@property (nonatomic, readonly) NSArray<SKProduct *> *products;
+@property (nonatomic, readonly) NSArray<NSString *> *invalidProductIdentifiers;
+@end
+@interface SKProductsRequest : SKRequest
+- (instancetype)initWithProductIdentifiers:(NSSet<NSString *> *)productIdentifiers;
+@property (nonatomic, weak, nullable) id<SKProductsRequestDelegate> delegate;
+@end
+FOUNDATION_EXPORT NSString * const SKReceiptPropertyIsExpired;
+FOUNDATION_EXPORT NSString * const SKReceiptPropertyIsRevoked;
+FOUNDATION_EXPORT NSString * const SKReceiptPropertyIsVolumePurchase;
+@interface SKReceiptRefreshRequest : SKRequest
+- (instancetype)init;
+- (instancetype)initWithReceiptProperties:(nullable NSDictionary<NSString *, id> *)properties;
+@property (nonatomic, readonly, nullable) NSDictionary<NSString *, id> *receiptProperties;
+@end
+
+/* payments */
+@interface SKPayment : NSObject
++ (instancetype)paymentWithProduct:(SKProduct *)product;
+@property (nonatomic, copy, readonly) NSString *productIdentifier;
+@property (nonatomic, copy, readonly, nullable) NSData *requestData;
+@property (nonatomic, readonly) NSInteger quantity;
+@property (nonatomic, copy, readonly, nullable) NSString *applicationUsername;
+@property (nonatomic, readonly) BOOL simulatesAskToBuyInSandbox;
+@end
+@interface SKMutablePayment : SKPayment
+- (instancetype)init;
+@property (nonatomic, copy, readwrite) NSString *productIdentifier;
+@property (nonatomic, copy, readwrite, nullable) NSData *requestData;
+@property (nonatomic, readwrite) NSInteger quantity;
+@property (nonatomic, copy, readwrite, nullable) NSString *applicationUsername;
+@property (nonatomic, readwrite) BOOL simulatesAskToBuyInSandbox;
+@end
+typedef NS_ENUM(NSInteger, SKPaymentTransactionState) {
+    SKPaymentTransactionStatePurchasing = 0, SKPaymentTransactionStatePurchased, SKPaymentTransactionStateFailed,
+    SKPaymentTransactionStateRestored, SKPaymentTransactionStateDeferred,
+};
+@interface SKPaymentTransaction : NSObject
+@property (nonatomic, readonly, nullable) NSError *error;
+@property (nonatomic, readonly, nullable) SKPaymentTransaction *originalTransaction;
+@property (nonatomic, readonly) SKPayment *payment;
+@property (nonatomic, readonly) NSArray *downloads;
+@property (nonatomic, readonly, nullable) NSDate *transactionDate;
+@property (nonatomic, readonly, nullable) NSString *transactionIdentifier;
+@property (nonatomic, readonly) SKPaymentTransactionState transactionState;
+@end
+
+/* the review prompt */
+@interface SKStoreReviewController : NSObject
++ (void)requestReview;
++ (void)requestReviewInScene:(UIWindowScene *)windowScene;
+@end
+
+/* the app receipt (StoreKit's: signed by the device, as Xcode's local receipts) */
+@interface NSBundle (SKAppStoreReceipt)
+@property (nonatomic, readonly, copy, nullable) NSURL *appStoreReceiptURL;
+@end
 
 FOUNDATION_EXPORT NSErrorDomain const SKANErrorDomain;
 typedef NS_ENUM(NSInteger, SKANError) {
@@ -115,9 +237,9 @@ typedef NS_ENUM(NSInteger, SKOverlayPosition) { SKOverlayPositionBottom = 0, SKO
 
 @protocol SKPaymentTransactionObserver <NSObject>
 @required
-- (void)paymentQueue:(SKPaymentQueue *)queue updatedTransactions:(NSArray *)transactions;
+- (void)paymentQueue:(SKPaymentQueue *)queue updatedTransactions:(NSArray<SKPaymentTransaction *> *)transactions;
 @optional
-- (void)paymentQueue:(SKPaymentQueue *)queue removedTransactions:(NSArray *)transactions;
+- (void)paymentQueue:(SKPaymentQueue *)queue removedTransactions:(NSArray<SKPaymentTransaction *> *)transactions;
 - (void)paymentQueue:(SKPaymentQueue *)queue restoreCompletedTransactionsFailedWithError:(NSError *)error;
 - (void)paymentQueueRestoreCompletedTransactionsFinished:(SKPaymentQueue *)queue;
 @end
@@ -130,7 +252,12 @@ typedef NS_ENUM(NSInteger, SKOverlayPosition) { SKOverlayPositionBottom = 0, SKO
 + (BOOL)canMakePayments;
 - (void)addTransactionObserver:(id<SKPaymentTransactionObserver>)observer;
 - (void)removeTransactionObserver:(id<SKPaymentTransactionObserver>)observer;
-@property (nonatomic, readonly) NSArray *transactions;
+- (void)addPayment:(SKPayment *)payment;
+- (void)finishTransaction:(SKPaymentTransaction *)transaction;
+- (void)restoreCompletedTransactions;
+- (void)restoreCompletedTransactionsWithApplicationUsername:(nullable NSString *)username;
+- (void)presentCodeRedemptionSheet;
+@property (nonatomic, readonly) NSArray<SKPaymentTransaction *> *transactions;
 @property (nonatomic, readonly, nullable) SKStorefront *storefront;
 @end
 NS_ASSUME_NONNULL_END

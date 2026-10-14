@@ -16,7 +16,7 @@ extension EnvironmentValues {
     }
 }
 
-open class SKStoreReviewController: NSObject {
+@objc(SKStoreReviewController) open class SKStoreReviewController: NSObject {
     @MainActor public class func requestReview() { _ISIMReviewPrompt.request() }
     @MainActor public class func requestReview(in windowScene: UIWindowScene) { _ISIMReviewPrompt.request() }
 }

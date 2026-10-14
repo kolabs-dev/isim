@@ -645,7 +645,9 @@ OBJC_NAMES["WebKit"] = {c: c for c in """WKFrameInfo WKFindResult WKNavigation W
 
 OBJC_NAMES["AdSupport"] = {"ASIdentifierManager": "ASIdentifierManager"}
 OBJC_NAMES["AppTrackingTransparency"] = {"ATTrackingManager": "ATTrackingManager"}
-OBJC_NAMES["StoreKit"] = {**{c: c for c in "SKAdImpression SKAdNetwork SKOverlay SKPaymentQueue SKStoreProductViewController SKStorefront".split()},
+OBJC_NAMES["StoreKit"] = {**{c: c for c in """SKAdImpression SKAdNetwork SKOverlay SKPaymentQueue SKStoreProductViewController SKStorefront
+                             SKProductSubscriptionPeriod SKProductDiscount SKProduct SKProductsResponse SKRequest SKProductsRequest
+                             SKReceiptRefreshRequest SKPayment SKMutablePayment SKPaymentTransaction SKStoreReviewController""".split()},
                           "SKOverlay.Configuration": "SKOverlayConfiguration", "SKOverlay.AppConfiguration": "SKOverlayAppConfiguration",
                           "SKOverlay.AppClipConfiguration": "SKOverlayAppClipConfiguration", "SKOverlay.TransitionContext": "SKOverlayTransitionContext"}
 OBJC_NAMES["AVFoundation"] = {c: c for c in """AVAudioSession AVAudioSessionPortDescription AVAudioSessionRouteDescription AVAsset AVURLAsset

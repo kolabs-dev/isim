@@ -444,3 +444,43 @@ usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeOSQAAMc
 usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeOSYAAMc
 usr/lib/swift/libswiftNetwork.dylib _$s7Network7NWErrorO5posixyAcA14POSIXErrorCodeOcACmFWC
 usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO6EPROTOyA2CmFWC
+# 0.22 (issue #226): StoreKit had its own placeholder NSDecimalNumber class (Foundation had none then); SKProduct.price
+# and SKProductDiscount.price are now Foundation's NSDecimalNumber, as on iOS and as Objective-C needs. Keeping the
+# placeholder would keep a second NSDecimalNumber next to Foundation's. Swift apps built with isim 0.21 or earlier
+# that use SKProduct.price / SKProductDiscount.price (StoreKit 1) must be rebuilt.
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC10floatValueSfvgTj
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC10floatValueSfvgTq
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC10floatValueSfvpMV
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC11doubleValueSdvgTj
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC11doubleValueSdvgTq
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC11doubleValueSdvpMV
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC11stringValueSSvgTj
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC11stringValueSSvgTq
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC11stringValueSSvpMV
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC12decimalValue10Foundation7DecimalVvg
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC12decimalValue10Foundation7DecimalVvpMV
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC4zeroACvgZ
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC4zeroACvpZMV
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC6stringACSSSg_tcfC
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC7decimalAC10Foundation7DecimalV_tcfC
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC7decimalAC10Foundation7DecimalV_tcfCTj
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC7decimalAC10Foundation7DecimalV_tcfCTq
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC7decimalAC10Foundation7DecimalV_tcfc
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC8intValueSivgTj
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC8intValueSivgTq
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC8intValueSivpMV
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberCACycfC
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberCACycfc
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberCMa
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberCMn
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberCMo
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberCMu
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberCN
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberCfD
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit17SKProductDiscountC5priceAA15NSDecimalNumberCvg
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit17SKProductDiscountC5priceAA15NSDecimalNumberCvpMV
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit9SKProductC5priceAA15NSDecimalNumberCvg
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit9SKProductC5priceAA15NSDecimalNumberCvpMV
+usr/lib/swift/libswiftStoreKit.dylib _$sSo17NSNumberFormatterC8StoreKitE6string4fromSSSgAC15NSDecimalNumberC_tF
+usr/lib/swift/libswiftStoreKit.dylib _OBJC_CLASS_$__TtC8StoreKit15NSDecimalNumber
+usr/lib/swift/libswiftStoreKit.dylib _OBJC_METACLASS_$__TtC8StoreKit15NSDecimalNumber

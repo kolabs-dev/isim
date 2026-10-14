@@ -216,6 +216,13 @@ def _(a):
     a.copy("HelloStore.storekit", f"{b}/isim-StoreKitConfiguration.storekit")   # as `isim build` does with a scheme's
 
 
+@app("samples/HelloStoreObjC", extra_inputs=["samples/HelloStore/HelloStore.storekit"])   # HelloStore's products
+def _(a):
+    b = a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "StoreKit",
+                                                       "-framework", "CoreGraphics"])
+    shutil.copy(os.path.join(a.d, "..", "HelloStore", "HelloStore.storekit"), f"{b}/isim-StoreKitConfiguration.storekit")
+
+
 @app("samples/HelloPrivacy")
 def _(a):
     b = a.swift_app()
