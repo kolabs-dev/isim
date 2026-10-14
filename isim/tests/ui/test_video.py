@@ -6,12 +6,29 @@ Needs ffmpeg/ffprobe on the host (the sample is not built without them). Port of
 import time
 
 import pytest
-from isimtest import APPS, rgb, visible
+from isimtest import APPS, WaitTimeout, rgb, visible
 
 
 def red(c): return c[0] > 230 and c[1] < 30 and c[2] < 30
 def green(c): return c[1] > 230 and c[0] < 30 and c[2] < 30
 def blue(c): return c[2] > 230 and c[0] < 30 and c[1] < 30
+
+
+def start_pip(app, started):
+    """Tap AVPlayerViewController's Picture in Picture button until `started` (a log pattern) appears. While the video
+    plays its controls hide 3 s after the last interaction, so on a busy machine the tap can land as they fade (the
+    touch reaches the video and only shows them again) or after (then a tap on the video shows them)."""
+    for _ in range(5):
+        try:
+            app.wait_tap_id("avkit-pip", timeout=4)
+        except WaitTimeout:
+            app.tap_id("avkit-video")                                  # hidden controls: a tap on the video shows them
+            continue
+        try:
+            return app.wait_log(started, timeout=4)
+        except WaitTimeout:
+            pass
+    return app.wait_log(started)
 
 
 @pytest.fixture(autouse=True)
@@ -107,8 +124,7 @@ def test_avkit_speed_airplay_pip_inline(launch):
     app.screenshot("route-picker")
     app.tap_id("route-airplay")
     app.wait_log(r"HelloVideo: route AirPlay")
-    app.wait_tap_id("avkit-pip")
-    app.wait_log(r"pip did start presented=false")                     # the player controller is dismissed
+    start_pip(app, r"pip did start presented=false")                    # the player controller is dismissed
     app.wait_view(r"id=pip-window")
     app.tap_id("pip-window")                                            # controls
     app.wait_tap_id("pip-restore")
@@ -127,8 +143,7 @@ def test_avkit_pip_system(launch):
     dev.send("launch dev.isim.samples.HelloVideo")
     dev.wait_tap_id("long")
     dev.wait_log(r"long video playing")
-    dev.wait_tap_id("avkit-pip")
-    dev.wait_log(r"isim shell: Picture in Picture from Video \(320x180\)")
+    start_pip(dev, r"isim shell: Picture in Picture from Video \(320x180\)")
     dev.wait_log(r"pip did start presented=false")
     dev.wait_dump(r"id=pip-window text=long playing")
     dev.wait_still()
