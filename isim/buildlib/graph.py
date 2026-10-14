@@ -265,6 +265,9 @@ def tools(c):
     for t, _ in TOOLS:
         outs += c.n.build(f"{OUT}/bin/{t}", c.act("copy", f"tools/{t}", f"{OUT}/bin/{t}"), inputs=[f"tools/{t}"], desc=f"INSTALL {t}")
     outs += c.n.build(f"{OUT}/bin/VERSION", c.act("copy", "VERSION", f"{OUT}/bin/VERSION"), inputs=["VERSION"], desc="INSTALL VERSION")
+    # the iOS frameworks and their coverage areas: isim build names the ones isim lacks (isim-build.py: ios_frameworks)
+    outs += c.n.build(f"{OUT}/bin/frameworks.json", c.act("copy", "data/frameworks.json", f"{OUT}/bin/frameworks.json"),
+                      inputs=["data/frameworks.json"], desc="INSTALL frameworks.json")
     # xctest: the runner for test bundles (isim test)
     xc = f"{SDK}/usr/bin/xctest"
     outs += c.n.build(xc, [f"{OUT}/bin/isim", "cc", "-O1", "-g", "-MMD", "-MF", f"{xc}.d", "frameworks/XCTest/runner/xctest.m",
