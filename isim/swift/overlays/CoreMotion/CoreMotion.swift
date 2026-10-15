@@ -204,6 +204,22 @@ enum _CMDevice {
 
 // MARK: - Sensors the Simulator does not have
 
+/// Info.plist NSMotionUsageDescription: motion activity, the pedometer and the altimeter need it (iOS terminates an app
+/// without it; isim reports them not authorized). With it, they are still unavailable: like the Simulator, isim has no
+/// motion coprocessor.
+enum _CMMotionUsage {
+    static let declared: Bool = {
+        if let s = Bundle.main.object(forInfoDictionaryKey: "NSMotionUsageDescription") as? String, !s.isEmpty { return true }
+        NSLog("isim CoreMotion: this app has attempted to access privacy-sensitive data without a usage description. The app's Info.plist must contain an NSMotionUsageDescription key with a string value explaining to the user how the app uses this data (iOS would terminate the app; isim reports the access as denied)")
+        return false
+    }()
+    static var status: CMAuthorizationStatus { declared ? .notDetermined : .denied }
+    /// the error a request gets: not authorized without the key, else not available
+    static func error(_ unavailable: CMError.Code = .motionActivityNotAvailable) -> CMError {
+        CMError(declared ? unavailable : .motionActivityNotAuthorized)
+    }
+}
+
 open class CMPedometerData: NSObject, @unchecked Sendable {
     open private(set) var startDate = Date(), endDate = Date()
     open private(set) var numberOfSteps: NSNumber = 0
@@ -226,16 +242,19 @@ open class CMPedometer: NSObject, @unchecked Sendable {
     open class func isPaceAvailable() -> Bool { false }
     open class func isCadenceAvailable() -> Bool { false }
     open class func isPedometerEventTrackingAvailable() -> Bool { false }
-    open class func authorizationStatus() -> CMAuthorizationStatus { .notDetermined }
+    open class func authorizationStatus() -> CMAuthorizationStatus { _CMMotionUsage.status }
     open func queryPedometerData(from start: Date, to end: Date, withHandler handler: @escaping CMPedometerHandler) {
-        DispatchQueue.global().async { handler(nil, CMError(.motionActivityNotAvailable)) }
+        let e = _CMMotionUsage.error()
+        DispatchQueue.global().async { handler(nil, e) }
     }
     open func startUpdates(from start: Date, withHandler handler: @escaping CMPedometerHandler) {
-        DispatchQueue.global().async { handler(nil, CMError(.motionActivityNotAvailable)) }
+        let e = _CMMotionUsage.error()
+        DispatchQueue.global().async { handler(nil, e) }
     }
     open func stopUpdates() {}
     open func startEventUpdates(handler: @escaping (CMPedometerEvent?, Error?) -> Void) {
-        DispatchQueue.global().async { handler(nil, CMError(.motionActivityNotAvailable)) }
+        let e = _CMMotionUsage.error()
+        DispatchQueue.global().async { handler(nil, e) }
     }
     open func stopEventUpdates() {}
 }
@@ -250,11 +269,12 @@ public typealias CMMotionActivityHandler = (CMMotionActivity?) -> Void
 open class CMMotionActivityManager: NSObject, @unchecked Sendable {
     public override init() { super.init() }
     open class func isActivityAvailable() -> Bool { false }
-    open class func authorizationStatus() -> CMAuthorizationStatus { .notDetermined }
+    open class func authorizationStatus() -> CMAuthorizationStatus { _CMMotionUsage.status }
     open func queryActivityStarting(from start: Date, to end: Date, to queue: OperationQueue, withHandler handler: @escaping ([CMMotionActivity]?, Error?) -> Void) {
-        queue.addOperation { handler(nil, CMError(.motionActivityNotAvailable)) }
+        let e = _CMMotionUsage.error()
+        queue.addOperation { handler(nil, e) }
     }
-    open func startActivityUpdates(to queue: OperationQueue, withHandler handler: @escaping CMMotionActivityHandler) {}
+    open func startActivityUpdates(to queue: OperationQueue, withHandler handler: @escaping CMMotionActivityHandler) { _ = _CMMotionUsage.declared }
     open func stopActivityUpdates() {}
 }
 
@@ -266,9 +286,10 @@ open class CMAltimeter: NSObject, @unchecked Sendable {
     public override init() { super.init() }
     open class func isRelativeAltitudeAvailable() -> Bool { false }
     open class func isAbsoluteAltitudeAvailable() -> Bool { false }
-    open class func authorizationStatus() -> CMAuthorizationStatus { .notDetermined }
+    open class func authorizationStatus() -> CMAuthorizationStatus { _CMMotionUsage.status }
     open func startRelativeAltitudeUpdates(to queue: OperationQueue, withHandler handler: @escaping (CMAltitudeData?, Error?) -> Void) {
-        queue.addOperation { handler(nil, CMError(.notAvailable)) }
+        let e = _CMMotionUsage.error(.notAvailable)
+        queue.addOperation { handler(nil, e) }
     }
     open func stopRelativeAltitudeUpdates() {}
 }

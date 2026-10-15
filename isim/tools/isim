@@ -109,11 +109,46 @@ PY
 validate_app_device() {
   local app=$1 families device=${ISIM_DEVICE:-iphone15}
   [ -d "$app" ] && [ -f "$app/Info.plist" ] || return 0
+  required_capabilities "$app" "$device" || return 1
   families=$(app_device_families "$app")
   case "$device" in ipad*) return 0 ;; esac
   case " $families " in *" 1 "*|"  ") return 0 ;; esac
   echo "isim: cannot install $(basename "$app"): UIDeviceFamily [$families] does not support iPhone ($device)" >&2
   return 1
+}
+# Info.plist UIRequiredDeviceCapabilities (a list of what the device must have, or a dictionary: true = must have,
+# false = must not have), checked against the hardware of the device isim simulates, like the App Store and iOS
+# refuse an app the device cannot run. A capability isim does not know is a warning.
+required_capabilities() {
+  python3 - "$1/Info.plist" "$2" <<'PY'
+import plistlib, sys
+info, device = plistlib.load(open(sys.argv[1], "rb")), sys.argv[2]
+req = info.get("UIRequiredDeviceCapabilities")
+if not req:
+    sys.exit(0)
+common = {"armv7", "arm64", "accelerometer", "gyroscope", "magnetometer", "location-services", "wifi", "still-camera",
+          "auto-focus-camera", "front-facing-camera", "camera-flash", "video-camera", "microphone", "bluetooth-le", "peer-peer",
+          "gamekit", "metal", "opengles-1", "opengles-2", "opengles-3", "arkit", "iphone-ipad-minimum-performance-a12"}
+iphone = common | {"telephony", "sms", "gps", "nfc", "healthkit"}
+ipad = common | {"healthkit"}                    # Wi-Fi iPads: no cellular, GPS or NFC; HealthKit since iPadOS 17
+gaming = {"iphone15pro", "iphone15promax", "iphone16pro", "iphone16promax", "iphone17", "iphoneair", "iphone17pro",
+          "iphone17promax", "ipad", "ipadair11", "ipadpro11", "ipadpro13"}                 # A17 Pro, A18, A19, M-series
+m_series = {"ipad", "ipadair11", "ipadpro11", "ipadpro13"}
+has = set(ipad if device.startswith("ipad") else iphone)
+if device in gaming: has.add("iphone-performance-gaming-tier")
+if device in m_series: has |= {"ipad-minimum-performance-m1", "driverkit"}
+known = iphone | ipad | {"iphone-performance-gaming-tier", "ipad-minimum-performance-m1", "driverkit"}
+wants = {k: True for k in req} if isinstance(req, list) else {k: bool(v) for k, v in req.items()} if isinstance(req, dict) else {}
+missing = [k for k, v in wants.items() if v and k in known and k not in has]
+present = [k for k, v in wants.items() if not v and k in has]
+for k in wants:
+    if k not in known:
+        print(f"isim: warning: UIRequiredDeviceCapabilities: unknown capability '{k}'", file=sys.stderr)
+if missing or present:
+    why = ", ".join([f"requires {k}" for k in missing] + [f"must not have {k}" for k in present])
+    print(f"isim: cannot install {sys.argv[1].rsplit('/', 2)[-2]} on {device}: UIRequiredDeviceCapabilities ({why})", file=sys.stderr)
+    sys.exit(1)
+PY
 }
 # The running device's control FIFO: every device reads script commands from one, --control FIFO or else a default
 # FIFO of its own, and `$CTLREC` names it with the device's pid (this script execs the runtime, so the pid stays) for

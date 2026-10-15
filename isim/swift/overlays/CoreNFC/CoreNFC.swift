@@ -54,6 +54,12 @@ open class NFCReaderSession: NSObject, @unchecked Sendable {
     let queue: DispatchQueue
     init(queue: DispatchQueue?) { self.queue = queue ?? .global() }
     open func begin() {
+        if (Bundle.main.object(forInfoDictionaryKey: "NFCReaderUsageDescription") as? String ?? "").isEmpty {
+            // iOS terminates an app that starts a reader session without it; isim ends the session as a security violation
+            NSLog("isim CoreNFC: this app has attempted to access privacy-sensitive data without a usage description. The app's Info.plist must contain an NFCReaderUsageDescription key with a string value explaining to the user how the app uses this data (iOS would terminate the app; isim invalidates the session)")
+            queue.async { self.invalidated(NFCReaderError(.readerErrorSecurityViolation)) }
+            return
+        }
         NSLog("isim CoreNFC: NFC reading is not available on this device (like the iOS Simulator)")
         queue.async { self.invalidated(NFCReaderError(.readerErrorUnsupportedFeature)) }
     }

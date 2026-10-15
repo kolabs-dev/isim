@@ -29,6 +29,7 @@
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_isim-svcobjc._tcp</string>
+		<string>_isim-svcobjc._udp</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
