@@ -593,7 +593,7 @@ final class _CLVisits {
     }
 }
 
-// Swift apps built with isim 0.21 or earlier implement the delegate methods whose selectors are now Apple's
+// Swift apps built with isim 0.22 or earlier implement the delegate methods whose selectors are now Apple's
 // (locationManager:didChangeAuthorizationStatus: ...) under Swift's own selectors (locationManager:didChangeAuthorization:
 // ...). A delegate that has only the old one is called under it.
 extension CLLocationManager {

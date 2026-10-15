@@ -13,7 +13,7 @@
 ## API
 
 | API / feature | Status | iOS | Notes |
-| Objective-C interface (`ContactsUI.framework`): `CNContactPickerViewController` and `CNContactPickerDelegate`, `CNContactViewController` and `CNContactViewControllerDelegate`, `CNContactProperty` | ✅ | ≤17 | adapted: headers over the Swift overlay's classes (Apple's Objective-C names). `CNContactViewControllerDelegate`'s selectors are now Apple's (`contactViewController:didCompleteWithContact:`); Swift apps built with 0.21 or earlier still get the call. Tested (HelloPersonalObjC: the picker, tests/ui/test_personal_objc.py) |
+| Objective-C interface (`ContactsUI.framework`): `CNContactPickerViewController` and `CNContactPickerDelegate`, `CNContactViewController` and `CNContactViewControllerDelegate`, `CNContactProperty` | ✅ | ≤17 | adapted: headers over the Swift overlay's classes (Apple's Objective-C names). `CNContactViewControllerDelegate`'s selectors are now Apple's (`contactViewController:didCompleteWithContact:`); Swift apps built with 0.22 or earlier still get the call. Tested (HelloPersonalObjC: the picker, tests/ui/test_personal_objc.py) |
 |---|---|---|---|
 | Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `ContactAccessButton` (1 type; with its members under "Not yet in isim") |
 

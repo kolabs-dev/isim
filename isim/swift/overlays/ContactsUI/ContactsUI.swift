@@ -283,7 +283,7 @@ final class _CNCard: UITableViewController {
 }
 
 extension CNContactViewController {
-    /// the delegate's contactViewController:didCompleteWithContact:; Swift apps built with isim 0.21 or earlier implement it
+    /// the delegate's contactViewController:didCompleteWithContact:; Swift apps built with isim 0.22 or earlier implement it
     /// under Swift's selector (contactViewController:didCompleteWith:), called when the delegate has only that one
     func _complete(_ contact: CNContact?) {
         let old = NSSelectorFromString("contactViewController:didCompleteWith:")

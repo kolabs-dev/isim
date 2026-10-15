@@ -33,7 +33,7 @@ import UIKit
     open func cancelEditing() { finish(.canceled) }
     func finish(_ action: EKEventEditViewAction) {
         guard let d = editViewDelegate else { presentingViewController?.dismiss(animated: true, completion: nil); return }
-        // Swift apps built with isim 0.21 or earlier implement it under Swift's selector (eventEditViewController:didCompleteWith:)
+        // Swift apps built with isim 0.22 or earlier implement it under Swift's selector (eventEditViewController:didCompleteWith:)
         let old = NSSelectorFromString("eventEditViewController:didCompleteWith:")
         if !d.responds(to: #selector(EKEventEditViewDelegate.eventEditViewController(_:didCompleteWith:))), let o = d as? NSObject, o.responds(to: old) {
             typealias Send = @convention(c) (AnyObject, Selector, AnyObject, Int) -> Void
