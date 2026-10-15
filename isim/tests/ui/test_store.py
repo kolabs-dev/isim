@@ -202,6 +202,7 @@ def test_store(launch, device_data, tmp_path):
     app.wait_log(r"sk1: dev\.isim\.store\.coins state=1 id=")
     app.wait_tap_id("sk1-restore")
     app.wait_log(r"sk1: restore finished")
+    assert "sk1 discount: identity=true timestamp=1700000000000" in app.log
     app.wait_log(r"sk1: dev\.isim\.store\.plus\.monthly state=3 .* original=")           # payment queue purchase + restore
     assert app.has(r"sk1 product: dev\.isim\.store\.plus\.monthly Plus Monthly 2\.99 period=1/2 intro=2") and \
         app.has(r'sk1 invalid: \["dev\.isim\.store\.nope"\]'), "SK1 products request (invalid ids too)"

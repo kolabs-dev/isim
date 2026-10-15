@@ -484,3 +484,27 @@ usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit9SKProductC5priceAA15NSDecimalN
 usr/lib/swift/libswiftStoreKit.dylib _$sSo17NSNumberFormatterC8StoreKitE6string4fromSSSgAC15NSDecimalNumberC_tF
 usr/lib/swift/libswiftStoreKit.dylib _OBJC_CLASS_$__TtC8StoreKit15NSDecimalNumber
 usr/lib/swift/libswiftStoreKit.dylib _OBJC_METACLASS_$__TtC8StoreKit15NSDecimalNumber
+# 0.24 (issue #454): SKPaymentDiscount was a struct with an Int timestamp; Apple's API is
+# an NSObject subclass with an NSNumber timestamp. Swift apps built with isim 0.23 or earlier that use
+# SKPaymentDiscount or SKPayment/SKMutablePayment.paymentDiscount must be rebuilt for 0.24 (a minor release).
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit16SKMutablePaymentC15paymentDiscountAA09SKPaymentF0VSgvMTj
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit16SKMutablePaymentC15paymentDiscountAA09SKPaymentF0VSgvMTq
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit16SKMutablePaymentC15paymentDiscountAA09SKPaymentF0VSgvsTj
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit16SKMutablePaymentC15paymentDiscountAA09SKPaymentF0VSgvsTq
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit17SKPaymentDiscountV10identifier13keyIdentifier5nonce9signature9timestampACSS_SS10Foundation4UUIDVSSSo8NSNumberCtcfC
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit17SKPaymentDiscountV10identifierSSvg
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit17SKPaymentDiscountV10identifierSSvpMV
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit17SKPaymentDiscountV13keyIdentifierSSvg
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit17SKPaymentDiscountV13keyIdentifierSSvpMV
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit17SKPaymentDiscountV5nonce10Foundation4UUIDVvg
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit17SKPaymentDiscountV5nonce10Foundation4UUIDVvpMV
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit17SKPaymentDiscountV9signatureSSvg
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit17SKPaymentDiscountV9signatureSSvpMV
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit17SKPaymentDiscountV9timestampSivg
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit17SKPaymentDiscountV9timestampSivpMV
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit17SKPaymentDiscountVMa
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit17SKPaymentDiscountVMn
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit17SKPaymentDiscountVN
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit9SKPaymentC15paymentDiscountAA0cE0VSgvgTj
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit9SKPaymentC15paymentDiscountAA0cE0VSgvgTq
+usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit9SKPaymentC15paymentDiscountAA0cE0VSgvpMV
