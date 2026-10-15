@@ -73,9 +73,12 @@ static NSString *ax_type(UIView *v, BOOL *leaf) {
     return @"other";
 }
 
+/* the texts a container's label is made of: its labels' text, or a subview's own accessibility label (an icon-only
+   button's image keeps its title, as on iOS) */
 static void collect_text(UIView *v, NSMutableArray *out) {
     if (v.hidden || v.alpha <= 0.01) return;
-    if ([v isKindOfClass:[UILabel class]] && ((UILabel *)v).text.length) [out addObject:((UILabel *)v).text];
+    if ([v isKindOfClass:[UILabel class]]) { NSString *t = v.accessibilityLabel.length ? v.accessibilityLabel : ((UILabel *)v).text; if (t.length) [out addObject:t]; return; }
+    if (v.accessibilityLabel.length && ![v isKindOfClass:[UIControl class]]) { [out addObject:v.accessibilityLabel]; return; }
     for (UIView *s in v.subviews) collect_text(s, out);
 }
 static NSString *trimmed_nonempty(NSString *s) { return s.length ? s : nil; }

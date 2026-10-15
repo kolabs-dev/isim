@@ -444,9 +444,9 @@ usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeOSQAAMc
 usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeOSYAAMc
 usr/lib/swift/libswiftNetwork.dylib _$s7Network7NWErrorO5posixyAcA14POSIXErrorCodeOcACmFWC
 usr/lib/swift/libswiftNetwork.dylib _$s7Network14POSIXErrorCodeO6EPROTOyA2CmFWC
-# 0.22 (issue #226): StoreKit had its own placeholder NSDecimalNumber class (Foundation had none then); SKProduct.price
+# 0.23 (issue #226): StoreKit had its own placeholder NSDecimalNumber class (Foundation had none then); SKProduct.price
 # and SKProductDiscount.price are now Foundation's NSDecimalNumber, as on iOS and as Objective-C needs. Keeping the
-# placeholder would keep a second NSDecimalNumber next to Foundation's. Swift apps built with isim 0.21 or earlier
+# placeholder would keep a second NSDecimalNumber next to Foundation's. Swift apps built with isim 0.22 or earlier
 # that use SKProduct.price / SKProductDiscount.price (StoreKit 1) must be rebuilt.
 usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC10floatValueSfvgTj
 usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit15NSDecimalNumberC10floatValueSfvgTq

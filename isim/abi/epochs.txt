@@ -24,3 +24,7 @@ usr/lib/swift/libswiftUserMessagingPlatform.dylib 0.22.0
 # Objective-C subclass has no Swift vtable); the delegate methods use Apple's selectors (webView:didFinishNavigation:...).
 # Swift apps that use WebKit must be rebuilt with 0.20 (the old class symbols are kept as aliases, the vtable thunks are not).
 usr/lib/swift/libswiftWebKit.dylib 0.20.0
+# 0.23.0 (issue #227): SwiftData was a stub (an in-memory dictionary, Schema an enum namespace); it now has Apple's
+# shapes: Schema is a class, ModelConfiguration carries a schema, PersistentModel refines Identifiable / Hashable /
+# Observable, fetches filter and sort. Swift apps built with 0.22 or earlier that use SwiftData must be rebuilt.
+usr/lib/swift/libswiftSwiftData.dylib 0.23.0

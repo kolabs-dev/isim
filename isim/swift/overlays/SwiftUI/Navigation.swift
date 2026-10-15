@@ -1070,7 +1070,10 @@ extension View {
             }
             if let lv = ctx.nav {
                 for (i, item) in items.enumerated() {
-                    let ictx = _Context(graph: ctx.graph, path: ctx.path + "/toolbar\(i)", environment: ctx.environment, nav: nil)
+                    // a Label in a bar shows its icon only, as on iOS (unless the app chose a label style)
+                    var env = ctx.environment
+                    if env._labelStyle == nil && env._labelStyleKind == 0 { env._labelStyle = { $0.icon }; env._labelStyleKind = 2 }
+                    let ictx = _Context(graph: ctx.graph, path: ctx.path + "/toolbar\(i)", environment: env, nav: nil)
                     let n = _resolve(item.view, ictx)
                     n.toolbarPriority = item.priority; n.toolbarSpacer = item.spacer
                     lv.toolbar.append((item.placement, n))

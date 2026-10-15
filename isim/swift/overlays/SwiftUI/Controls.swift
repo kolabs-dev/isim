@@ -439,7 +439,8 @@ public struct Menu<Label: View, Content: View>: View, _PrimitiveView {
     func _makeNode(_ ctx: _Context) -> _Node {
         let env = ctx.environment
         let labelNode = _resolve(label, ctx.child("label").with { $0._foreground = $0._foreground ?? $0._tint ?? .accentColor })
-        let contentNode = _resolve(content, ctx.child("content").with { $0._inList = false })
+        // menu items show their titles whatever the label style around the menu (a toolbar's icon-only labels)
+        let contentNode = _resolve(content, ctx.child("content").with { $0._inList = false; $0._labelStyle = nil; $0._labelStyleKind = 0 })
         let title = _collectText(labelNode).joined(separator: " ")
         let build = { UIMenu(title: "", children: _menuElements(contentNode)) }
         _ = title
