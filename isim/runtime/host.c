@@ -112,7 +112,7 @@ static int chrome_script_cmd(const char *cmd, const char *args);
 static void chrome_tick(void);
 static int chrome_wait_ms(int ms);
 static void window_title(void);
-static void window_sdl_hints(void);                        /* before SDL_Init (video) */
+static void window_sdl_hints(void);                        /* after SDL_Init (video), before the first window surface */
 static int text_input_on;                                  /* the app asked for text input (isim_text_input) */
 #include "host_input.inc"             /* second finger, hover, IME composition, voiceover script commands */
 
@@ -449,8 +449,8 @@ int isim_display_open(const char *title) {
     if (getenv("ISIM_SCRIPT")) { script = strdup(getenv("ISIM_SCRIPT")); script_pos = script; }
     if (!headless) {
         app_identity();
-        window_sdl_hints();
         if (!SDL_Init(SDL_INIT_VIDEO)) { fprintf(stderr, "isim host: SDL_Init failed: %s (falling back to headless)\n", SDL_GetError()); headless = 1; }
+        else window_sdl_hints();
     }
     if (!headless) {
         (void)title;                                 /* the window shows the device: "isim — iPhone 15 · iOS 18" */
