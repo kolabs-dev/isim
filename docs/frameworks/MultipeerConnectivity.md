@@ -1,7 +1,7 @@
 # MultipeerConnectivity
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 94.7% of Apple's iOS API (126 of 133, exact) · **Rows:** 100% (1: 1 ✅) · **iOS:** 7.0+
+**Symbols:** 94.7% of Apple's iOS API (126 of 133, exact) · **Rows:** 2: 2 ✅ · **iOS:** 7.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [MultipeerConnectivity](https://developer.apple.com/documentation/multipeerconnectivity) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)

@@ -1,7 +1,7 @@
 # CoreSpotlight
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 8.9% of Apple's iOS API (74 of 828, exact) · **Rows:** 17% (3: 1 🟡 2 ❌) · **iOS:** 9.0+
+**Symbols:** 8.9% of Apple's iOS API (74 of 828, exact) · **Rows:** 4: 1 ✅ 1 🟡 2 ❌ · **iOS:** 9.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [CoreSpotlight](https://developer.apple.com/documentation/corespotlight) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)

@@ -1,7 +1,7 @@
 # MarketplaceKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 7.6% of Apple's iOS API (13 of 172, exact) · **Rows:** 17% (3: 1 🟡 2 ❌) · **iOS:** 17.4+
+**Symbols:** 7.6% of Apple's iOS API (13 of 172, exact) · **Rows:** 3: 1 🟡 2 ❌ · **iOS:** 17.4+
 <!-- /generated:header -->
 
 **Area:** [Commerce & privacy](../COVERAGE.md#commerce) · **Apple:** [MarketplaceKit](https://developer.apple.com/documentation/marketplacekit) · **Issues:** [`area:commerce`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Acommerce)

@@ -1,7 +1,7 @@
 # CoreMotion
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 54.8% of Apple's iOS API (223 of 407, exact) · **Rows:** 25% (4: 1 ✅ 3 ❌) · **iOS:** 4.0+
+**Symbols:** 54.8% of Apple's iOS API (223 of 407, exact) · **Rows:** 4: 1 ✅ 3 ❌ · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [CoreMotion](https://developer.apple.com/documentation/coremotion) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)

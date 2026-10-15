@@ -1,7 +1,7 @@
 # AVFAudio
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 50.2% of Apple's iOS API (727 of 1449, exact) · **Rows:** 0% (2: 2 ❌) · **iOS:** 14.5+
+**Symbols:** 51.4% of Apple's iOS API (746 of 1450, exact) · **Rows:** 4: 2 ✅ 2 ❌ · **iOS:** 14.5+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [AVFAudio](https://developer.apple.com/documentation/avfaudio) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -24,7 +24,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-722 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+704 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -251,7 +251,6 @@
 - [`static var allowBluetoothHFP: AVAudioSession.CategoryOptions`](https://developer.apple.com/documentation/avfaudio/avaudiosession/categoryoptions-swift.struct/allowbluetoothhfp)
 - [`static var bluetoothHighQualityRecording: AVAudioSession.CategoryOptions`](https://developer.apple.com/documentation/avfaudio/avaudiosession/categoryoptions-swift.struct/bluetoothhighqualityrecording)
 - [`static var farFieldInput: AVAudioSession.CategoryOptions`](https://developer.apple.com/documentation/avfaudio/avaudiosession/categoryoptions-swift.struct/farfieldinput)
-- [`static var overrideMutedMicrophoneInterruption: AVAudioSession.CategoryOptions`](https://developer.apple.com/documentation/avfaudio/avaudiosession/categoryoptions-swift.struct/overridemutedmicrophoneinterruption)
 - [`func deactivate(options: AVAudioSessionDeactivationOptions, completionHandler: (Bool, (any Error)?) -> Void)`](https://developer.apple.com/documentation/avfaudio/avaudiosession/deactivate(options:completionhandler:))
 - [`AVAudioSession.DeactivationContext`](https://developer.apple.com/documentation/avfaudio/avaudiosession/deactivationcontext)
 - [`var interruptionContext: AVAudioSession.InterruptionContext?`](https://developer.apple.com/documentation/avfaudio/avaudiosession/deactivationcontext/interruptioncontext)
@@ -278,8 +277,6 @@
 - [`case aggregated`](https://developer.apple.com/documentation/avfaudio/avaudiosession/iotype/aggregated)
 - [`init?(rawValue: UInt)`](https://developer.apple.com/documentation/avfaudio/avaudiosession/iotype/init(rawvalue:))
 - [`case notSpecified`](https://developer.apple.com/documentation/avfaudio/avaudiosession/iotype/notspecified)
-- [`var isEchoCancelledInputAvailable: Bool`](https://developer.apple.com/documentation/avfaudio/avaudiosession/isechocancelledinputavailable)
-- [`var isEchoCancelledInputEnabled: Bool`](https://developer.apple.com/documentation/avfaudio/avaudiosession/isechocancelledinputenabled)
 - [`var isMicrophoneInjectionAvailable: Bool`](https://developer.apple.com/documentation/avfaudio/avaudiosession/ismicrophoneinjectionavailable)
 - [`var isOutputMuted: Bool`](https://developer.apple.com/documentation/avfaudio/avaudiosession/isoutputmuted)
 - [`AVAudioSession.Location`](https://developer.apple.com/documentation/avfaudio/avaudiosession/location)
@@ -301,11 +298,7 @@
 - [`case none`](https://developer.apple.com/documentation/avfaudio/avaudiosession/microphoneinjectionmode/none)
 - [`case spokenAudio`](https://developer.apple.com/documentation/avfaudio/avaudiosession/microphoneinjectionmode/spokenaudio)
 - [`static let dualRoute: AVAudioSession.Mode`](https://developer.apple.com/documentation/avfaudio/avaudiosession/mode-swift.struct/dualroute)
-- [`static let measurement: AVAudioSession.Mode`](https://developer.apple.com/documentation/avfaudio/avaudiosession/mode-swift.struct/measurement)
 - [`static let shortFormVideo: AVAudioSession.Mode`](https://developer.apple.com/documentation/avfaudio/avaudiosession/mode-swift.struct/shortformvideo)
-- [`static let videoChat: AVAudioSession.Mode`](https://developer.apple.com/documentation/avfaudio/avaudiosession/mode-swift.struct/videochat)
-- [`static let videoRecording: AVAudioSession.Mode`](https://developer.apple.com/documentation/avfaudio/avaudiosession/mode-swift.struct/videorecording)
-- [`static let voicePrompt: AVAudioSession.Mode`](https://developer.apple.com/documentation/avfaudio/avaudiosession/mode-swift.struct/voiceprompt)
 - [`class let muteStateKey: String`](https://developer.apple.com/documentation/avfaudio/avaudiosession/mutestatekey)
 - [`class let muteStateKey: String`](https://developer.apple.com/documentation/avfaudio/avaudiosession/mutestatekey)
 - [`AVAudioSession.Orientation`](https://developer.apple.com/documentation/avfaudio/avaudiosession/orientation)
@@ -328,7 +321,14 @@
 - [`static let AVB: AVAudioSession.Port`](https://developer.apple.com/documentation/avfaudio/avaudiosession/port/avb)
 - [`static let continuityMicrophone: AVAudioSession.Port`](https://developer.apple.com/documentation/avfaudio/avaudiosession/port/continuitymicrophone)
 - [`static let displayPort: AVAudioSession.Port`](https://developer.apple.com/documentation/avfaudio/avaudiosession/port/displayport)
-- … and 422 more (`isim/data/api-coverage.json.gz`)
+- [`static let fireWire: AVAudioSession.Port`](https://developer.apple.com/documentation/avfaudio/avaudiosession/port/firewire)
+- [`static let mediaDeviceExtension: AVAudioSession.Port`](https://developer.apple.com/documentation/avfaudio/avaudiosession/port/mediadeviceextension)
+- [`static let mediaDeviceExtension: AVAudioSession.Port`](https://developer.apple.com/documentation/avfaudio/avaudiosession/port/mediadeviceextension)
+- [`static let PCI: AVAudioSession.Port`](https://developer.apple.com/documentation/avfaudio/avaudiosession/port/pci)
+- [`static let thunderbolt: AVAudioSession.Port`](https://developer.apple.com/documentation/avfaudio/avaudiosession/port/thunderbolt)
+- [`static let virtual: AVAudioSession.Port`](https://developer.apple.com/documentation/avfaudio/avaudiosession/port/virtual)
+- [`var preferredInputOrientation: AVAudioSession.StereoOrientation`](https://developer.apple.com/documentation/avfaudio/avaudiosession/preferredinputorientation)
+- … and 404 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

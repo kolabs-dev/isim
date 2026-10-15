@@ -1,7 +1,7 @@
 # CoreLocation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 84.3% of Apple's iOS API (419 of 497, exact) · **Rows:** 50% (4: 2 ✅ 2 ❌) · **iOS:** 2.0+
+**Symbols:** 84.3% of Apple's iOS API (419 of 497, exact) · **Rows:** 5: 3 ✅ 2 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [CoreLocation](https://developer.apple.com/documentation/corelocation) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)

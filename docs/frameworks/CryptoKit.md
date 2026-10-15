@@ -1,7 +1,7 @@
 # CryptoKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 71.8% of Apple's iOS API (534 of 744, exact) · **Rows:** 43% (7: 3 ✅ 4 ❌) · **iOS:** 13.0+
+**Symbols:** 71.8% of Apple's iOS API (534 of 744, exact) · **Rows:** 7: 3 ✅ 4 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Identity & security](../COVERAGE.md#security) · **Apple:** [CryptoKit](https://developer.apple.com/documentation/cryptokit) · **Issues:** [`area:security`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asecurity)

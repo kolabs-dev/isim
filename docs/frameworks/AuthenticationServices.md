@@ -1,7 +1,7 @@
 # AuthenticationServices
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 17.6% of Apple's iOS API (255 of 1452, exact) · **Rows:** 50% (8: 4 ✅ 4 ❌) · **iOS:** 12.0+
+**Symbols:** 17.6% of Apple's iOS API (255 of 1452, exact) · **Rows:** 8: 4 ✅ 4 ❌ · **iOS:** 12.0+
 <!-- /generated:header -->
 
 **Area:** [Identity & security](../COVERAGE.md#security) · **Apple:** [AuthenticationServices](https://developer.apple.com/documentation/authenticationservices) · **Issues:** [`area:security`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asecurity)

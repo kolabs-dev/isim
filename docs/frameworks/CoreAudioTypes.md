@@ -1,7 +1,7 @@
 # CoreAudioTypes
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 7.1% of Apple's iOS API (44 of 624, exact) · **Rows:** 0% (1: 1 ❌) · **iOS:** 13.0+
+**Symbols:** 7.1% of Apple's iOS API (44 of 624, exact) · **Rows:** 1: 1 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [Core Audio Types](https://developer.apple.com/documentation/coreaudiotypes) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)

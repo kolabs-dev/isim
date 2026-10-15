@@ -1,7 +1,7 @@
 # Metal
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 0.0% of Apple's iOS API (0 of 3742, approximate, by name) · **Rows:** 0% (1: 1 ❌) · **iOS:** 8.0+
+**Symbols:** 0.0% of Apple's iOS API (0 of 3742, approximate, by name) · **Rows:** 1: 1 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [GPU](../COVERAGE.md#gpu) · **Apple:** [Metal](https://developer.apple.com/documentation/metal) · **Issues:** [`area:gpu`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agpu)

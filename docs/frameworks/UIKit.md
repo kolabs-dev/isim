@@ -1,7 +1,7 @@
 # UIKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 92.1% of Apple's iOS API (13625 of 14790, exact) · **Rows:** 98% (315: 305 ✅ 8 🟡 2 ❌) · **iOS:** 2.0+
+**Symbols:** 92.1% of Apple's iOS API (13625 of 14790, exact) · **Rows:** 315: 305 ✅ 8 🟡 2 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [UIKit](../COVERAGE.md#uikit) · **Apple:** [UIKit](https://developer.apple.com/documentation/uikit) · **Issues:** [`area:uikit`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Auikit)

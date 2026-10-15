@@ -1,7 +1,7 @@
 # WebKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 35.3% of Apple's iOS API (548 of 1551, exact) · **Rows:** 60% (10: 6 ✅ 4 ❌) · **iOS:** 16.0+
+**Symbols:** 35.3% of Apple's iOS API (548 of 1551, exact) · **Rows:** 10: 6 ✅ 4 ❌ · **iOS:** 16.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [WebKit](https://developer.apple.com/documentation/webkit) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)

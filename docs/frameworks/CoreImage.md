@@ -1,7 +1,7 @@
 # CoreImage
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 95.3% of Apple's iOS API (2868 of 3010, exact) · **Rows:** 70% (15: 8 ✅ 5 🟡 1 🧩 1 ❌) · **iOS:** 5.0+
+**Symbols:** 95.3% of Apple's iOS API (2868 of 3010, exact) · **Rows:** 15: 8 ✅ 5 🟡 1 🧩 1 ❌ · **iOS:** 5.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [CoreImage](https://developer.apple.com/documentation/coreimage) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)

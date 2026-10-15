@@ -1,7 +1,7 @@
 # EventKitUI
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 53.1% of Apple's iOS API (26 of 49, exact) · **Rows:** 0% (1: 1 ❌) · **iOS:** 4.0+
+**Symbols:** 53.1% of Apple's iOS API (26 of 49, exact) · **Rows:** 2: 1 ✅ 1 ❌ · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [EventKit UI](https://developer.apple.com/documentation/eventkitui) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)

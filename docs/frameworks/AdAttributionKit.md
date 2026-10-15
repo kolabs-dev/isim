@@ -1,7 +1,7 @@
 # AdAttributionKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 100.0% of Apple's iOS API (51 of 51, exact) · **Rows:** 100% (1: 1 ✅) · **iOS:** 17.4+
+**Symbols:** 100.0% of Apple's iOS API (51 of 51, exact) · **Rows:** 1: 1 ✅ · **iOS:** 17.4+
 <!-- /generated:header -->
 
 **Area:** [Commerce & privacy](../COVERAGE.md#commerce) · **Apple:** [AdAttributionKit](https://developer.apple.com/documentation/adattributionkit) · **Issues:** [`area:commerce`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Acommerce)

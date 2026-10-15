@@ -1,7 +1,7 @@
 # MetricKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 36.9% of Apple's iOS API (250 of 678, exact) · **Rows:** 25% (4: 1 ✅ 3 ❌) · **iOS:** 13.0+
+**Symbols:** 36.9% of Apple's iOS API (250 of 678, exact) · **Rows:** 4: 1 ✅ 3 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [MetricKit](https://developer.apple.com/documentation/metrickit) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)

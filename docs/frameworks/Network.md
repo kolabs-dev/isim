@@ -1,7 +1,7 @@
 # Network
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 23.5% of Apple's iOS API (556 of 2371, exact) · **Rows:** 56% (9: 5 ✅ 1 🧩 3 ❌) · **iOS:** 12.0+
+**Symbols:** 23.5% of Apple's iOS API (556 of 2371, exact) · **Rows:** 9: 5 ✅ 1 🧩 3 ❌ · **iOS:** 12.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [Network](https://developer.apple.com/documentation/network) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)

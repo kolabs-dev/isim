@@ -1,7 +1,7 @@
 # CoreTransferable
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 70.8% of Apple's iOS API (46 of 65, exact) · **Rows:** 0% (1: 1 ❌) · **iOS:** 16.0+
+**Symbols:** 70.8% of Apple's iOS API (46 of 65, exact) · **Rows:** 1: 1 ❌ · **iOS:** 16.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [Core Transferable](https://developer.apple.com/documentation/coretransferable) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)

@@ -1,7 +1,7 @@
 # WidgetKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 55.5% of Apple's iOS API (151 of 272, exact) · **Rows:** 30% (5: 1 ✅ 1 🟡 3 ❌) · **iOS:** 14.0+
+**Symbols:** 55.5% of Apple's iOS API (151 of 272, exact) · **Rows:** 5: 1 ✅ 1 🟡 3 ❌ · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [WidgetKit](https://developer.apple.com/documentation/widgetkit) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)

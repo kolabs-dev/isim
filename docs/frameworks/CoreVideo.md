@@ -1,7 +1,7 @@
 # CoreVideo
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 7.8% of Apple's iOS API (69 of 887, exact) · **Rows:** 0% (3: 3 ❌) · **iOS:** 4.0+
+**Symbols:** 11.2% of Apple's iOS API (100 of 889, exact) · **Rows:** 9: 6 ✅ 3 ❌ · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [Graphics & text](../COVERAGE.md#graphics) · **Apple:** [Core Video](https://developer.apple.com/documentation/corevideo) · **Issues:** [`area:graphics`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agraphics)
@@ -28,7 +28,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-818 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+789 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -87,10 +87,6 @@
 - [`var defaultValue: Value`](https://developer.apple.com/documentation/corevideo/cvattachmentkeydefinitionwithdefault/defaultvalue)
 - [`init(String, default: Value)`](https://developer.apple.com/documentation/corevideo/cvattachmentkeydefinitionwithdefault/init(_:default:))
 - [`var rawValue: String`](https://developer.apple.com/documentation/corevideo/cvattachmentkeydefinitionwithdefault/rawvalue)
-- [`CVAttachmentMode`](https://developer.apple.com/documentation/corevideo/cvattachmentmode)
-- [`init?(rawValue: UInt32)`](https://developer.apple.com/documentation/corevideo/cvattachmentmode/init(rawvalue:))
-- [`case shouldNotPropagate`](https://developer.apple.com/documentation/corevideo/cvattachmentmode/shouldnotpropagate)
-- [`case shouldPropagate`](https://developer.apple.com/documentation/corevideo/cvattachmentmode/shouldpropagate)
 - [`CVAttachmentModePreference`](https://developer.apple.com/documentation/corevideo/cvattachmentmodepreference)
 - [`static var preferredMode: CVAttachmentMode`](https://developer.apple.com/documentation/corevideo/cvattachmentmodepreference/preferredmode)
 - [`CVAttachmentModePreferenceShouldNotPropagate`](https://developer.apple.com/documentation/corevideo/cvattachmentmodepreferenceshouldnotpropagate)
@@ -135,17 +131,9 @@
 - [`CVBuffer.Padding`](https://developer.apple.com/documentation/corevideo/cvbuffer/padding)
 - [`CVBuffer.PlaneProperties`](https://developer.apple.com/documentation/corevideo/cvbuffer/planeproperties)
 - [`CVBuffer.Size`](https://developer.apple.com/documentation/corevideo/cvbuffer/size)
-- [`func CVBufferCopyAttachment(CVBuffer, CFString, UnsafeMutablePointer<CVAttachmentMode>?) -> CFTypeRef?`](https://developer.apple.com/documentation/corevideo/cvbuffercopyattachment(_:_:_:))
-- [`func CVBufferCopyAttachments(CVBuffer, CVAttachmentMode) -> CFDictionary?`](https://developer.apple.com/documentation/corevideo/cvbuffercopyattachments(_:_:))
-- [`func CVBufferHasAttachment(CVBuffer, CFString) -> Bool`](https://developer.apple.com/documentation/corevideo/cvbufferhasattachment(_:_:))
-- [`func CVBufferPropagateAttachments(CVBuffer, CVBuffer)`](https://developer.apple.com/documentation/corevideo/cvbufferpropagateattachments(_:_:))
-- [`func CVBufferRemoveAllAttachments(CVBuffer)`](https://developer.apple.com/documentation/corevideo/cvbufferremoveallattachments(_:))
-- [`func CVBufferRemoveAttachment(CVBuffer, CFString)`](https://developer.apple.com/documentation/corevideo/cvbufferremoveattachment(_:_:))
 - [`CVBufferRepresentable`](https://developer.apple.com/documentation/corevideo/cvbufferrepresentable)
 - [`Buffer`](https://developer.apple.com/documentation/corevideo/cvbufferrepresentable/buffer)
 - [`func withUnsafeBuffer<R>((Self.Buffer) throws -> sending R) rethrows -> sending R`](https://developer.apple.com/documentation/corevideo/cvbufferrepresentable/withunsafebuffer(_:))
-- [`func CVBufferSetAttachment(CVBuffer, CFString, CFTypeRef, CVAttachmentMode)`](https://developer.apple.com/documentation/corevideo/cvbuffersetattachment(_:_:_:_:))
-- [`func CVBufferSetAttachments(CVBuffer, CFDictionary, CVAttachmentMode)`](https://developer.apple.com/documentation/corevideo/cvbuffersetattachments(_:_:_:))
 - [`func CVColorPrimariesGetIntegerCodePointForString(CFString?) -> Int32`](https://developer.apple.com/documentation/corevideo/cvcolorprimariesgetintegercodepointforstring(_:))
 - [`func CVColorPrimariesGetIntegerCodePointForString(CFString?) -> Int32`](https://developer.apple.com/documentation/corevideo/cvcolorprimariesgetintegercodepointforstring(_:))
 - [`func CVColorPrimariesGetStringForIntegerCodePoint(Int32) -> Unmanaged<CFString>?`](https://developer.apple.com/documentation/corevideo/cvcolorprimariesgetstringforintegercodepoint(_:))
@@ -332,7 +320,19 @@
 - [`CVMutablePixelBuffer.Pool.Configuration`](https://developer.apple.com/documentation/corevideo/cvmutablepixelbuffer/pool/configuration)
 - [`var ageOutDuration: TimeInterval`](https://developer.apple.com/documentation/corevideo/cvmutablepixelbuffer/pool/configuration/ageoutduration)
 - [`init(ageOutDuration: TimeInterval, minimumBufferCount: Int)`](https://developer.apple.com/documentation/corevideo/cvmutablepixelbuffer/pool/configuration/init(ageoutduration:minimumbuffercount:))
-- … and 518 more (`isim/data/api-coverage.json.gz`)
+- [`var minimumBufferCount: Int`](https://developer.apple.com/documentation/corevideo/cvmutablepixelbuffer/pool/configuration/minimumbuffercount)
+- [`func flush(agedOutOnly: Bool)`](https://developer.apple.com/documentation/corevideo/cvmutablepixelbuffer/pool/flush(agedoutonly:))
+- [`init(pixelBufferAttributes: CVPixelBufferCreationAttributes, configuration: CVMutablePixelBuffer.Pool.Configuration) throws`](https://developer.apple.com/documentation/corevideo/cvmutablepixelbuffer/pool/init(pixelbufferattributes:configuration:))
+- [`init(unsafePool: sending CVPixelBufferPool)`](https://developer.apple.com/documentation/corevideo/cvmutablepixelbuffer/pool/init(unsafepool:))
+- [`func makeMutablePixelBuffer(CVMutablePixelBuffer.Pool.AllocationAttributes) throws -> CVMutablePixelBuffer`](https://developer.apple.com/documentation/corevideo/cvmutablepixelbuffer/pool/makemutablepixelbuffer(_:))
+- [`var pixelBufferAttributes: CVPixelBufferCreationAttributes`](https://developer.apple.com/documentation/corevideo/cvmutablepixelbuffer/pool/pixelbufferattributes)
+- [`func withUnsafeBuffer<R>((CVPixelBuffer) throws -> sending R) rethrows -> sending R`](https://developer.apple.com/documentation/corevideo/cvmutablepixelbuffer/withunsafebuffer(_:))
+- [`CVOpenGLESTexture`](https://developer.apple.com/documentation/corevideo/cvopenglestexture)
+- [`CVOpenGLESTextureCache`](https://developer.apple.com/documentation/corevideo/cvopenglestexturecache)
+- [`CVPixelBufferAttachmentKeyDefinitions`](https://developer.apple.com/documentation/corevideo/cvpixelbufferattachmentkeydefinitions)
+- [`static let proResRawMetadata: CVAttachmentCompositeKeyDefinition<CVPixelBufferAttachmentKeyDefinitions.ShouldPropagate, CVProResRawMetadata>`](https://developer.apple.com/documentation/corevideo/cvpixelbufferattachmentkeydefinitions/proresrawmetadata)
+- [`static let senselArrayPattern: CVAttachmentKeyDefinition<CVPixelBufferAttachmentKeyDefinitions.ShouldNotPropagate, CVSenselArrayPattern>`](https://developer.apple.com/documentation/corevideo/cvpixelbufferattachmentkeydefinitions/senselarraypattern)
+- … and 489 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

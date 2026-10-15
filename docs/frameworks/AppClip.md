@@ -1,7 +1,7 @@
 # AppClip
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 100.0% of Apple's iOS API (17 of 17, exact) · **Rows:** 100% (1: 1 ✅) · **iOS:** 14.0+
+**Symbols:** 100.0% of Apple's iOS API (17 of 17, exact) · **Rows:** 1: 1 ✅ · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [AppClip](https://developer.apple.com/documentation/appclip) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)

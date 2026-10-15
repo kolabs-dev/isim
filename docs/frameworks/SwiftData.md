@@ -1,7 +1,7 @@
 # SwiftData
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 18.2% of Apple's iOS API (144 of 792, exact) · **Rows:** 0% (4: 1 🧩 3 ❌) · **iOS:** 17.0+
+**Symbols:** 24.6% of Apple's iOS API (195 of 792, exact) · **Rows:** 4: 1 🟡 3 ❌ · **iOS:** 17.0+
 <!-- /generated:header -->
 
 **Area:** [Data & persistence](../COVERAGE.md#data) · **Apple:** [SwiftData](https://developer.apple.com/documentation/swiftdata) · **Issues:** [`area:data`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Adata)
@@ -22,7 +22,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-648 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+597 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -149,8 +149,6 @@
 - [`DefaultStore.TokenType`](https://developer.apple.com/documentation/swiftdata/defaultstore/tokentype)
 - [`EditingState`](https://developer.apple.com/documentation/swiftdata/editingstate)
 - [`var author: String?`](https://developer.apple.com/documentation/swiftdata/editingstate/author)
-- [`var includePendingChanges: Bool`](https://developer.apple.com/documentation/swiftdata/fetchdescriptor/includependingchanges)
-- [`var includePendingChanges: Bool`](https://developer.apple.com/documentation/swiftdata/fetchdescriptor/includependingchanges)
 - [`var propertiesToFetch: [PartialKeyPath<T>]`](https://developer.apple.com/documentation/swiftdata/fetchdescriptor/propertiestofetch)
 - [`var propertiesToFetch: [PartialKeyPath<T>]`](https://developer.apple.com/documentation/swiftdata/fetchdescriptor/propertiestofetch)
 - [`var relationshipKeyPathsForPrefetching: [PartialKeyPath<T>]`](https://developer.apple.com/documentation/swiftdata/fetchdescriptor/relationshipkeypathsforprefetching)
@@ -232,8 +230,6 @@
 - [`var modelExecutor: any ModelExecutor`](https://developer.apple.com/documentation/swiftdata/modelactor/modelexecutor)
 - [`subscript<T>(PersistentIdentifier, as _: T.Type) -> T?`](https://developer.apple.com/documentation/swiftdata/modelactor/subscript(_:as:))
 - [`var unownedExecutor: UnownedSerialExecutor`](https://developer.apple.com/documentation/swiftdata/modelactor/unownedexecutor)
-- [`let allowsSave: Bool`](https://developer.apple.com/documentation/swiftdata/modelconfiguration/allowssave)
-- [`let allowsSave: Bool`](https://developer.apple.com/documentation/swiftdata/modelconfiguration/allowssave)
 - [`let cloudKitContainerIdentifier: String?`](https://developer.apple.com/documentation/swiftdata/modelconfiguration/cloudkitcontaineridentifier)
 - [`let cloudKitContainerIdentifier: String?`](https://developer.apple.com/documentation/swiftdata/modelconfiguration/cloudkitcontaineridentifier)
 - [`let cloudKitDatabase: ModelConfiguration.CloudKitDatabase`](https://developer.apple.com/documentation/swiftdata/modelconfiguration/cloudkitdatabase-swift.property)
@@ -258,34 +254,22 @@
 - [`static func identifier(String) -> ModelConfiguration.GroupContainer`](https://developer.apple.com/documentation/swiftdata/modelconfiguration/groupcontainer-swift.struct/identifier(_:))
 - [`static var none: ModelConfiguration.GroupContainer`](https://developer.apple.com/documentation/swiftdata/modelconfiguration/groupcontainer-swift.struct/none)
 - [`static var none: ModelConfiguration.GroupContainer`](https://developer.apple.com/documentation/swiftdata/modelconfiguration/groupcontainer-swift.struct/none)
-- [`let url: URL`](https://developer.apple.com/documentation/swiftdata/modelconfiguration/url)
-- [`let url: URL`](https://developer.apple.com/documentation/swiftdata/modelconfiguration/url)
 - [`func configurationName(forStoreIdentifier: String) -> String?`](https://developer.apple.com/documentation/swiftdata/modelcontainer/configurationname(forstoreidentifier:))
 - [`func configurationName(forStoreIdentifier: String) -> String?`](https://developer.apple.com/documentation/swiftdata/modelcontainer/configurationname(forstoreidentifier:))
-- [`func deleteAllData()`](https://developer.apple.com/documentation/swiftdata/modelcontainer/deletealldata())
-- [`func deleteAllData()`](https://developer.apple.com/documentation/swiftdata/modelcontainer/deletealldata())
 - [`func erase() throws`](https://developer.apple.com/documentation/swiftdata/modelcontainer/erase())
 - [`func erase() throws`](https://developer.apple.com/documentation/swiftdata/modelcontainer/erase())
 - [`let migrationPlan: (any SchemaMigrationPlan.Type)?`](https://developer.apple.com/documentation/swiftdata/modelcontainer/migrationplan)
 - [`let migrationPlan: (any SchemaMigrationPlan.Type)?`](https://developer.apple.com/documentation/swiftdata/modelcontainer/migrationplan)
-- [`let schema: Schema`](https://developer.apple.com/documentation/swiftdata/modelcontainer/schema)
-- [`let schema: Schema`](https://developer.apple.com/documentation/swiftdata/modelcontainer/schema)
 - [`func storeIdentifier(forConfigurationNamed: String) -> String?`](https://developer.apple.com/documentation/swiftdata/modelcontainer/storeidentifier(forconfigurationnamed:))
 - [`func storeIdentifier(forConfigurationNamed: String) -> String?`](https://developer.apple.com/documentation/swiftdata/modelcontainer/storeidentifier(forconfigurationnamed:))
 - [`var author: String?`](https://developer.apple.com/documentation/swiftdata/modelcontext/author)
 - [`var changedModelsArray: [any PersistentModel]`](https://developer.apple.com/documentation/swiftdata/modelcontext/changedmodelsarray)
 - [`var debugDescription: String`](https://developer.apple.com/documentation/swiftdata/modelcontext/debugdescription)
-- [`var deletedModelsArray: [any PersistentModel]`](https://developer.apple.com/documentation/swiftdata/modelcontext/deletedmodelsarray)
 - [`func deleteHistory<T>(HistoryDescriptor<T>) throws`](https://developer.apple.com/documentation/swiftdata/modelcontext/deletehistory(_:))
 - [`static let didSave: Notification.Name`](https://developer.apple.com/documentation/swiftdata/modelcontext/didsave)
 - [`var editingState: EditingState`](https://developer.apple.com/documentation/swiftdata/modelcontext/editingstate)
 - [`func enumerate<T>(FetchDescriptor<T>, batchSize: Int, allowEscapingMutations: Bool, block: (T) throws -> Void) throws`](https://developer.apple.com/documentation/swiftdata/modelcontext/enumerate(_:batchsize:allowescapingmutations:block:))
 - [`func fetchHistory<T>(HistoryDescriptor<T>) throws -> [T]`](https://developer.apple.com/documentation/swiftdata/modelcontext/fetchhistory(_:))
-- [`func fetchIdentifiers<T>(FetchDescriptor<T>) throws -> [PersistentIdentifier]`](https://developer.apple.com/documentation/swiftdata/modelcontext/fetchidentifiers(_:))
-- [`func fetchIdentifiers<T>(FetchDescriptor<T>, batchSize: Int) throws -> FetchResultsCollection<PersistentIdentifier>`](https://developer.apple.com/documentation/swiftdata/modelcontext/fetchidentifiers(_:batchsize:))
-- [`init(ModelContainer)`](https://developer.apple.com/documentation/swiftdata/modelcontext/init(_:))
-- [`var insertedModelsArray: [any PersistentModel]`](https://developer.apple.com/documentation/swiftdata/modelcontext/insertedmodelsarray)
-- [`func model(for: PersistentIdentifier) -> any PersistentModel`](https://developer.apple.com/documentation/swiftdata/modelcontext/model(for:))
 - [`ModelContext.NotificationKey`](https://developer.apple.com/documentation/swiftdata/modelcontext/notificationkey)
 - [`case deletedIdentifiers`](https://developer.apple.com/documentation/swiftdata/modelcontext/notificationkey/deletedidentifiers)
 - [`case historyTokens`](https://developer.apple.com/documentation/swiftdata/modelcontext/notificationkey/historytokens)
@@ -294,7 +278,6 @@
 - [`case queryGeneration`](https://developer.apple.com/documentation/swiftdata/modelcontext/notificationkey/querygeneration)
 - [`case updatedIdentifiers`](https://developer.apple.com/documentation/swiftdata/modelcontext/notificationkey/updatedidentifiers)
 - [`func processPendingChanges()`](https://developer.apple.com/documentation/swiftdata/modelcontext/processpendingchanges())
-- [`func registeredModel<T>(for: PersistentIdentifier) -> T?`](https://developer.apple.com/documentation/swiftdata/modelcontext/registeredmodel(for:))
 - [`func transaction(block: () throws -> Void) throws`](https://developer.apple.com/documentation/swiftdata/modelcontext/transaction(block:))
 - [`var undoManager: UndoManager?`](https://developer.apple.com/documentation/swiftdata/modelcontext/undomanager)
 - [`static let willSave: Notification.Name`](https://developer.apple.com/documentation/swiftdata/modelcontext/willsave)
@@ -313,8 +296,6 @@
 - [`var isTemporary: Bool`](https://developer.apple.com/documentation/swiftdata/persistentidentifier/istemporary)
 - [`var storeIdentifier: String?`](https://developer.apple.com/documentation/swiftdata/persistentidentifier/storeidentifier)
 - [`var storeIdentifier: String?`](https://developer.apple.com/documentation/swiftdata/persistentidentifier/storeidentifier)
-- [`static func == (Self, Self) -> Bool`](https://developer.apple.com/documentation/swiftdata/persistentmodel/==(_:_:))
-- [`static func == (Self, Self) -> Bool`](https://developer.apple.com/documentation/swiftdata/persistentmodel/==(_:_:))
 - [`static func createBackingData<P>() -> some BackingData<P>
 `](https://developer.apple.com/documentation/swiftdata/persistentmodel/createbackingdata())
 - [`static func createBackingData<P>() -> some BackingData<P>
@@ -328,7 +309,26 @@
 - [`func getValue<Value>(forKey: KeyPath<Self, Value>) -> Value`](https://developer.apple.com/documentation/swiftdata/persistentmodel/getvalue(forkey:)-4cs0c)
 - [`func getValue<Value>(forKey: KeyPath<Self, Value>) -> Value`](https://developer.apple.com/documentation/swiftdata/persistentmodel/getvalue(forkey:)-4cs0c)
 - [`func getValue<Value, OtherModel>(forKey: KeyPath<Self, Value>) -> Value`](https://developer.apple.com/documentation/swiftdata/persistentmodel/getvalue(forkey:)-5m792)
-- … and 348 more (`isim/data/api-coverage.json.gz`)
+- [`func getValue<Value, OtherModel>(forKey: KeyPath<Self, Value>) -> Value`](https://developer.apple.com/documentation/swiftdata/persistentmodel/getvalue(forkey:)-5m792)
+- [`func getValue<Value>(forKey: KeyPath<Self, Value?>) -> Value?`](https://developer.apple.com/documentation/swiftdata/persistentmodel/getvalue(forkey:)-998oq)
+- [`func getValue<Value>(forKey: KeyPath<Self, Value?>) -> Value?`](https://developer.apple.com/documentation/swiftdata/persistentmodel/getvalue(forkey:)-998oq)
+- [`var hasChanges: Bool`](https://developer.apple.com/documentation/swiftdata/persistentmodel/haschanges)
+- [`var hasChanges: Bool`](https://developer.apple.com/documentation/swiftdata/persistentmodel/haschanges)
+- [`init(backingData: any BackingData<Self>)`](https://developer.apple.com/documentation/swiftdata/persistentmodel/init(backingdata:))
+- [`init(backingData: any BackingData<Self>)`](https://developer.apple.com/documentation/swiftdata/persistentmodel/init(backingdata:))
+- [`var isDeleted: Bool`](https://developer.apple.com/documentation/swiftdata/persistentmodel/isdeleted)
+- [`var isDeleted: Bool`](https://developer.apple.com/documentation/swiftdata/persistentmodel/isdeleted)
+- [`var persistentBackingData: any BackingData<Self>`](https://developer.apple.com/documentation/swiftdata/persistentmodel/persistentbackingdata)
+- [`var persistentBackingData: any BackingData<Self>`](https://developer.apple.com/documentation/swiftdata/persistentmodel/persistentbackingdata)
+- [`Root`](https://developer.apple.com/documentation/swiftdata/persistentmodel/root)
+- [`Root`](https://developer.apple.com/documentation/swiftdata/persistentmodel/root)
+- [`static var schemaMetadata: [Schema.PropertyMetadata]`](https://developer.apple.com/documentation/swiftdata/persistentmodel/schemametadata)
+- [`static var schemaMetadata: [Schema.PropertyMetadata]`](https://developer.apple.com/documentation/swiftdata/persistentmodel/schemametadata)
+- [`func setTransformableValue<Value>(forKey: KeyPath<Self, Value>, to: Value)`](https://developer.apple.com/documentation/swiftdata/persistentmodel/settransformablevalue(forkey:to:))
+- [`func setTransformableValue<Value>(forKey: KeyPath<Self, Value>, to: Value)`](https://developer.apple.com/documentation/swiftdata/persistentmodel/settransformablevalue(forkey:to:))
+- [`func setValue<Value, OtherModel>(forKey: KeyPath<Self, Value>, to: Value)`](https://developer.apple.com/documentation/swiftdata/persistentmodel/setvalue(forkey:to:)-18176)
+- [`func setValue<Value, OtherModel>(forKey: KeyPath<Self, Value>, to: Value)`](https://developer.apple.com/documentation/swiftdata/persistentmodel/setvalue(forkey:to:)-18176)
+- … and 297 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

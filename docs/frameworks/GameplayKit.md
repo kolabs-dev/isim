@@ -1,7 +1,7 @@
 # GameplayKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 88.7% of Apple's iOS API (433 of 488, exact) · **Rows:** 74% (17: 9 ✅ 7 🟡 1 ❌) · **iOS:** 9.0+
+**Symbols:** 91.2% of Apple's iOS API (445 of 488, exact) · **Rows:** 18: 10 ✅ 7 🟡 1 ❌ · **iOS:** 9.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [GameplayKit](https://developer.apple.com/documentation/gameplaykit) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)
@@ -36,7 +36,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-55 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+43 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -78,18 +78,6 @@
 - [`case linear`](https://developer.apple.com/documentation/gameplaykit/gkrtreesplitstrategy/linear)
 - [`case quadratic`](https://developer.apple.com/documentation/gameplaykit/gkrtreesplitstrategy/quadratic)
 - [`case quadratic`](https://developer.apple.com/documentation/gameplaykit/gkrtreesplitstrategy/quadratic)
-- [`GKScene`](https://developer.apple.com/documentation/gameplaykit/gkscene)
-- [`func addEntity(GKEntity)`](https://developer.apple.com/documentation/gameplaykit/gkscene/addentity(_:))
-- [`func addGraph(GKGraph, name: String)`](https://developer.apple.com/documentation/gameplaykit/gkscene/addgraph(_:name:))
-- [`var entities: [GKEntity]`](https://developer.apple.com/documentation/gameplaykit/gkscene/entities)
-- [`var graphs: [String : GKGraph]`](https://developer.apple.com/documentation/gameplaykit/gkscene/graphs)
-- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/gameplaykit/gkscene/init(coder:))
-- [`convenience init?(fileNamed: String)`](https://developer.apple.com/documentation/gameplaykit/gkscene/init(filenamed:))
-- [`convenience init?(fileNamed: String, rootNode: any GKSceneRootNodeType)`](https://developer.apple.com/documentation/gameplaykit/gkscene/init(filenamed:rootnode:))
-- [`func removeEntity(GKEntity)`](https://developer.apple.com/documentation/gameplaykit/gkscene/removeentity(_:))
-- [`func removeGraph(String)`](https://developer.apple.com/documentation/gameplaykit/gkscene/removegraph(_:))
-- [`var rootNode: (any GKSceneRootNodeType)?`](https://developer.apple.com/documentation/gameplaykit/gkscene/rootnode)
-- [`GKSceneRootNodeType`](https://developer.apple.com/documentation/gameplaykit/gkscenerootnodetype)
 - [`GKSCNNodeComponent`](https://developer.apple.com/documentation/gameplaykit/gkscnnodecomponent)
 - [`init(node: SCNNode)`](https://developer.apple.com/documentation/gameplaykit/gkscnnodecomponent/init(node:))
 - [`var node: SCNNode`](https://developer.apple.com/documentation/gameplaykit/gkscnnodecomponent/node)
