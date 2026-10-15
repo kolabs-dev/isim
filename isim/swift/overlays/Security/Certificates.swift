@@ -54,6 +54,7 @@ func _array(_ x: CFTypeRef?) -> [AnyObject] {
 }
 
 public func SecCertificateGetTypeID() -> CFTypeID { 0x5ec0 }
+public func SecPolicyGetTypeID() -> CFTypeID { 0x5ec3 }
 public func SecCertificateCreateWithData(_ allocator: CFAllocator?, _ data: CFData) -> SecCertificate? { SecCertificate(der: Array(data as Data)) }
 public func SecCertificateCopyData(_ certificate: SecCertificate) -> CFData { Data(certificate.der) as CFData }
 public func SecCertificateCopySubjectSummary(_ certificate: SecCertificate) -> CFString? { certificate.subjectSummary.map { $0 as CFString } }

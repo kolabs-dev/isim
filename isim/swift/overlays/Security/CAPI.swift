@@ -89,3 +89,115 @@ public func _c_SecAccessControlCreateWithFlags(_ allocator: UnsafeRawPointer?, _
     return SecAccessControlCreateWithFlags(nil, p, SecAccessControlCreateFlags(rawValue: flags), nil).map { Unmanaged.passRetained($0).toOpaque() }
 }
 @_cdecl("SecAccessControlGetTypeID") public func _c_SecAccessControlGetTypeID() -> UInt { SecAccessControlGetTypeID() }
+
+// MARK: - certificates, policies, trust and identities for C (the overlay's objects; trust is Foundation's SecTrust)
+
+private func cert(_ p: UnsafeRawPointer) -> SecCertificate { Unmanaged<SecCertificate>.fromOpaque(p).takeUnretainedValue() }
+private func trust(_ p: UnsafeRawPointer) -> SecTrust { Unmanaged<SecTrust>.fromOpaque(p).takeUnretainedValue() }
+private func plus1(_ o: AnyObject?) -> UnsafeMutableRawPointer? { o.map { Unmanaged.passRetained($0).toOpaque() } }
+private func object(_ p: UnsafeRawPointer?) -> CFTypeRef? { p.map { Unmanaged<AnyObject>.fromOpaque($0).takeUnretainedValue() } }
+
+@_cdecl("SecCertificateGetTypeID") public func _c_SecCertificateGetTypeID() -> UInt { SecCertificateGetTypeID() }
+@_cdecl("SecCertificateCreateWithData")
+public func _c_SecCertificateCreateWithData(_ allocator: UnsafeRawPointer?, _ data: CFData) -> UnsafeMutableRawPointer? {
+    plus1(SecCertificateCreateWithData(nil, data))
+}
+@_cdecl("SecCertificateCopyData")
+public func _c_SecCertificateCopyData(_ c: UnsafeRawPointer) -> UnsafeMutableRawPointer? { plus1(SecCertificateCopyData(cert(c)) as NSData) }
+@_cdecl("SecCertificateCopySubjectSummary")
+public func _c_SecCertificateCopySubjectSummary(_ c: UnsafeRawPointer) -> UnsafeMutableRawPointer? {
+    plus1(SecCertificateCopySubjectSummary(cert(c)).map { $0 as NSString })
+}
+@_cdecl("SecCertificateCopyCommonName")
+public func _c_SecCertificateCopyCommonName(_ c: UnsafeRawPointer, _ out: UnsafeMutablePointer<UnsafeMutableRawPointer?>) -> OSStatus {
+    var name: CFString?
+    let s = SecCertificateCopyCommonName(cert(c), &name)
+    out.pointee = plus1(name.map { $0 as NSString })
+    return s
+}
+@_cdecl("SecCertificateCopyKey")
+public func _c_SecCertificateCopyKey(_ c: UnsafeRawPointer) -> UnsafeMutableRawPointer? { plus1(SecCertificateCopyKey(cert(c))) }
+@_cdecl("SecCertificateCopySerialNumberData")
+public func _c_SecCertificateCopySerialNumberData(_ c: UnsafeRawPointer, _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> UnsafeMutableRawPointer? {
+    plus1(SecCertificateCopySerialNumberData(cert(c), error).map { $0 as NSData })
+}
+
+@_cdecl("SecPolicyGetTypeID") public func _c_SecPolicyGetTypeID() -> UInt { SecPolicyGetTypeID() }
+@_cdecl("SecPolicyCreateSSL")
+public func _c_SecPolicyCreateSSL(_ server: Bool, _ hostname: UnsafeRawPointer?) -> UnsafeMutableRawPointer? {
+    plus1(SecPolicyCreateSSL(server, object(hostname).map { $0 as! CFString }))
+}
+@_cdecl("SecPolicyCreateBasicX509") public func _c_SecPolicyCreateBasicX509() -> UnsafeMutableRawPointer? { plus1(SecPolicyCreateBasicX509()) }
+
+@_cdecl("SecTrustGetTypeID") public func _c_SecTrustGetTypeID() -> UInt { SecTrustGetTypeID() }
+@_cdecl("SecTrustCreateWithCertificates")
+public func _c_SecTrustCreateWithCertificates(_ certificates: UnsafeRawPointer, _ policies: UnsafeRawPointer?,
+                                              _ out: UnsafeMutablePointer<UnsafeMutableRawPointer?>) -> OSStatus {
+    var t: SecTrust?
+    let s = SecTrustCreateWithCertificates(object(certificates)!, object(policies), &t)
+    out.pointee = plus1(t)
+    return s
+}
+@_cdecl("SecTrustSetPolicies")
+public func _c_SecTrustSetPolicies(_ t: UnsafeRawPointer, _ policies: UnsafeRawPointer) -> OSStatus { SecTrustSetPolicies(trust(t), object(policies)!) }
+@_cdecl("SecTrustSetAnchorCertificates")
+public func _c_SecTrustSetAnchorCertificates(_ t: UnsafeRawPointer, _ anchors: CFArray?) -> OSStatus { SecTrustSetAnchorCertificates(trust(t), anchors) }
+@_cdecl("SecTrustSetAnchorCertificatesOnly")
+public func _c_SecTrustSetAnchorCertificatesOnly(_ t: UnsafeRawPointer, _ only: Bool) -> OSStatus { SecTrustSetAnchorCertificatesOnly(trust(t), only) }
+@_cdecl("SecTrustSetVerifyDate")
+public func _c_SecTrustSetVerifyDate(_ t: UnsafeRawPointer, _ date: UnsafeRawPointer) -> OSStatus {
+    SecTrustSetVerifyDate(trust(t), Unmanaged<NSDate>.fromOpaque(date).takeUnretainedValue())
+}
+@_cdecl("SecTrustSetNetworkFetchAllowed")
+public func _c_SecTrustSetNetworkFetchAllowed(_ t: UnsafeRawPointer, _ allow: Bool) -> OSStatus { SecTrustSetNetworkFetchAllowed(trust(t), allow) }
+@_cdecl("SecTrustEvaluateWithError")
+public func _c_SecTrustEvaluateWithError(_ t: UnsafeRawPointer, _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> Bool {
+    SecTrustEvaluateWithError(trust(t), error)
+}
+@_cdecl("SecTrustEvaluate")
+public func _c_SecTrustEvaluate(_ t: UnsafeRawPointer, _ result: UnsafeMutablePointer<UInt32>) -> OSStatus {
+    _ = SecTrustEvaluateWithError(trust(t), nil)           // the deprecated form: evaluate, then report the result
+    var r = SecTrustResultType.invalid
+    let s = SecTrustGetTrustResult(trust(t), &r)
+    result.pointee = r.rawValue
+    return s
+}
+@_cdecl("SecTrustGetTrustResult")
+public func _c_SecTrustGetTrustResult(_ t: UnsafeRawPointer, _ result: UnsafeMutablePointer<UInt32>) -> OSStatus {
+    var r = SecTrustResultType.invalid
+    let s = SecTrustGetTrustResult(trust(t), &r)
+    result.pointee = r.rawValue
+    return s
+}
+@_cdecl("SecTrustGetCertificateCount") public func _c_SecTrustGetCertificateCount(_ t: UnsafeRawPointer) -> Int { SecTrustGetCertificateCount(trust(t)) }
+@_cdecl("SecTrustCopyCertificateChain")
+public func _c_SecTrustCopyCertificateChain(_ t: UnsafeRawPointer) -> UnsafeMutableRawPointer? { plus1(SecTrustCopyCertificateChain(trust(t))) }
+@_cdecl("SecTrustCopyKey") public func _c_SecTrustCopyKey(_ t: UnsafeRawPointer) -> UnsafeMutableRawPointer? { plus1(SecTrustCopyKey(trust(t))) }
+@_cdecl("SecTrustCopyExceptions")
+public func _c_SecTrustCopyExceptions(_ t: UnsafeRawPointer) -> UnsafeMutableRawPointer? { plus1(SecTrustCopyExceptions(trust(t)).map { $0 as NSData }) }
+@_cdecl("SecTrustSetExceptions")
+public func _c_SecTrustSetExceptions(_ t: UnsafeRawPointer, _ exceptions: CFData?) -> Bool { SecTrustSetExceptions(trust(t), exceptions) }
+
+@_cdecl("SecIdentityGetTypeID") public func _c_SecIdentityGetTypeID() -> UInt { SecIdentityGetTypeID() }
+@_cdecl("SecIdentityCopyCertificate")
+public func _c_SecIdentityCopyCertificate(_ i: UnsafeRawPointer, _ out: UnsafeMutablePointer<UnsafeMutableRawPointer?>) -> OSStatus {
+    var c: SecCertificate?
+    let s = SecIdentityCopyCertificate(Unmanaged<SecIdentity>.fromOpaque(i).takeUnretainedValue(), &c)
+    out.pointee = plus1(c)
+    return s
+}
+@_cdecl("SecIdentityCopyPrivateKey")
+public func _c_SecIdentityCopyPrivateKey(_ i: UnsafeRawPointer, _ out: UnsafeMutablePointer<UnsafeMutableRawPointer?>) -> OSStatus {
+    var k: SecKey?
+    let s = SecIdentityCopyPrivateKey(Unmanaged<SecIdentity>.fromOpaque(i).takeUnretainedValue(), &k)
+    out.pointee = plus1(k)
+    return s
+}
+@_cdecl("SecPKCS12Import")
+public func _c_SecPKCS12Import(_ data: CFData, _ options: CFDictionary, _ out: UnsafeMutablePointer<UnsafeMutableRawPointer?>) -> OSStatus {
+    var items: CFArray?
+    let s = SecPKCS12Import(data, options, &items)
+    out.pointee = plus1(items)
+    return s
+}
+@_cdecl("SecKeyGetTypeID") public func _c_SecKeyGetTypeID() -> UInt { SecKeyGetTypeID() }

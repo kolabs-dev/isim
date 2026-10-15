@@ -3,6 +3,7 @@
  * -isEqualToString: or -hash, e.g. the domain of a bridged Swift error). isim's CF types are its Foundation
  * classes, so type IDs come from the object's class; the hashes match -[NSString hash]. */
 #import <Foundation/Foundation.h>
+#import <objc/runtime.h>
 #import <CoreFoundation/CFBase.h>
 
 enum { ISIM_CF_OTHER = 1, ISIM_CF_STRING = 7, ISIM_CF_ARRAY = 19, ISIM_CF_DICTIONARY = 18, ISIM_CF_NUMBER = 22 };
@@ -19,6 +20,13 @@ CFTypeID CFGetTypeID(CFTypeRef cf) {
     if ([o isKindOfClass:[NSDate class]]) return 42;
     if ([o isKindOfClass:[NSError class]]) return 43;
     if ([NSStringFromClass([o class]) isEqualToString:@"__NSCFUUID"]) return 44;
+    /* Security's CF types that are Swift classes (no Objective-C methods): their ...GetTypeID values (Certificates.swift,
+       SecKey.swift; SecTrust is Foundation's) */
+    static const struct { const char *cls; CFTypeID tid; } swift_types[] = {
+        { "_TtC8Security14SecCertificate", 0x5ec0 }, { "_TtC10Foundation8SecTrust", 0x5ec1 }, { "_TtC8Security11SecIdentity", 0x5ec2 },
+        { "_TtC8Security9SecPolicy", 0x5ec3 }, { "_TtC8Security6SecKey", 0x5ec4 } };
+    const char *cn = object_getClassName(o);
+    for (size_t i = 0; cn && i < sizeof swift_types / sizeof swift_types[0]; i++) if (!strcmp(cn, swift_types[i].cls)) return swift_types[i].tid;
     /* CF types of other frameworks (Core Graphics objects, Security's SecAccessControlRef): the object knows its type ID */
     SEL own = NSSelectorFromString(@"_isimCFTypeID");
     if ([o respondsToSelector:own]) return ((CFTypeID (*)(id, SEL))[o methodForSelector:own])(o, own);

@@ -693,6 +693,14 @@ def _(a):
         a.copy(f"pki/{f}", b)
 
 
+@app("tests/security-c", products=["SecurityCTest.app"],   # after the overlays: Security.framework re-exports libswiftSecurity
+     extra_inputs=[f"tests/security/pki/{f}" for f in ("ca.der", "leaf.der", "server.der", "expired.der", "identity.p12")])
+def _(a):
+    b = a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "Security"], name="SecurityCTest")
+    for f in ("ca.der", "leaf.der", "server.der", "expired.der", "identity.p12"):   # tests/security's test PKI
+        shutil.copy(os.path.join(a.d, "..", "security", "pki", f), b)
+
+
 @app("tests/swift-cxx", products=["SwiftCxxTest.app"])
 def _(a):
     b = a.bundle("SwiftCxxTest")
