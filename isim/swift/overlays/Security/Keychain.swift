@@ -165,19 +165,32 @@ final class _Keychain: @unchecked Sendable {
         let wantData = flag("r_Data"), wantAttrs = flag("r_Attributes"), wantPRef = flag("r_PersistentRef"), wantRef = flag("r_Ref")
         let kinds = [wantData, wantAttrs, wantPRef, wantRef].filter { $0 }.count
         guard kinds > 0, let out else { return }
-        func value(_ group: String, _ item: _KCItem) -> Any {
-            if kinds == 1 && wantData { return Data(item.data ?? []) }
-            if kinds == 1 && wantPRef { return persistentRef(group, item) }
-            if kinds == 1 && wantRef { return _Keychain.makeRef(item) ?? NSNull() }
-            var d: [String: Any] = ["class": item.cls]
-            if wantAttrs { for (k, v) in item.attrs where !k.hasPrefix("_") { d[k] = v.any } }
-            if wantData { d["v_Data"] = Data(item.data ?? []) }
-            if wantPRef { d["v_PersistentRef"] = persistentRef(group, item) }
-            if wantRef, let r = _Keychain.makeRef(item) { d["v_Ref"] = r }
+        // Foundation objects (NSData, NSDictionary, NSArray), as CF types for C callers; Swift bridges them back
+        func object(_ v: Any) -> AnyObject {
+            switch v {
+            case let d as Data: return d as NSData
+            case let d as Date: return d as NSDate
+            case let s as String: return s as NSString
+            case let b as Bool: return NSNumber(value: b)
+            case let i as Int: return NSNumber(value: i)
+            case let x as Double: return NSNumber(value: x)
+            default: return v as AnyObject
+            }
+        }
+        func value(_ group: String, _ item: _KCItem) -> AnyObject {
+            if kinds == 1 && wantData { return Data(item.data ?? []) as NSData }
+            if kinds == 1 && wantPRef { return persistentRef(group, item) as NSData }
+            if kinds == 1 && wantRef { return _Keychain.makeRef(item).map { $0 as AnyObject } ?? NSNull() }
+            let d = NSMutableDictionary()
+            d["class" as NSString] = item.cls as NSString
+            if wantAttrs { for (k, v) in item.attrs where !k.hasPrefix("_") { d[k as NSString] = object(v.any) } }
+            if wantData { d["v_Data" as NSString] = Data(item.data ?? []) as NSData }
+            if wantPRef { d["v_PersistentRef" as NSString] = persistentRef(group, item) as NSData }
+            if wantRef, let r = _Keychain.makeRef(item) { d["v_Ref" as NSString] = r as AnyObject }
             return d
         }
-        if isAll(q) { out.pointee = found.map { value($0.0, $0.1) } as AnyObject }
-        else if let first = found.first { out.pointee = value(first.0, first.1) as AnyObject }
+        if isAll(q) { out.pointee = NSArray(array: found.map { value($0.0, $0.1) }) }
+        else if let first = found.first { out.pointee = value(first.0, first.1) }
     }
     func isAll(_ q: [String: Any]) -> Bool {
         if let s = q["m_Limit"] as? String { return s == "m_LimitAll" }
@@ -237,13 +250,40 @@ final class _Keychain: @unchecked Sendable {
         let (cls, st) = classOf(q)
         guard let cls else { return st }
         if let g = q["agrp"] as? String, !entitled(g) { return errSecMissingEntitlement }
-        lock.lock(); defer { lock.unlock() }
+        lock.lock()
         var found: [(String, _KCItem)] = []
         for g in searchGroups(q) { for item in load(g).items where matches(item, group: g, q, cls: cls) { found.append((g, item)) } }
+        lock.unlock()
+        let wantsData = (q["r_Data"] as? Bool) ?? (q["r_Data"] as? NSNumber)?.boolValue ?? false
+        if wantsData {                                      // the secret of a protected item asks for the device owner
+            var allowed: [(String, _KCItem)] = [], authenticated = false
+            for (g, item) in found {
+                let owner = _Keychain.ownerFlags(item)
+                if owner == 0 || authenticated { allowed.append((g, item)); continue }
+                switch q["u_AuthUI"] as? String {
+                case "u_AuthUIF": return errSecInteractionNotAllowed
+                case "u_AuthUIS": continue                  // skip the items that would ask
+                default: break
+                }
+                let reason = (q["u_OpPrompt"] as? String) ?? "Access your saved password"
+                guard _SecureEnclaveStore.authenticate(flags: owner, reason: reason, context: q["u_AuthCtx"] as AnyObject?) else {
+                    return errSecUserCanceled
+                }
+                authenticated = true
+                allowed.append((g, item))
+            }
+            found = allowed
+        }
         if let n = q["m_Limit"] as? Int, n > 0 { found = Array(found.prefix(n)) }
         guard !found.isEmpty else { return errSecItemNotFound }
         result(for: found, q, out)
         return errSecSuccess
+    }
+    /// what reading an item's data asks for, as _SecureEnclaveStore flags: bit 0 the device owner, bit 1 biometry only
+    static func ownerFlags(_ item: _KCItem) -> UInt8 {
+        guard case .int(let raw)? = item.attrs["accc"] else { return 0 }
+        let ac = SecAccessControl(protection: "", flags: SecAccessControlCreateFlags(rawValue: UInt(raw)))
+        return ac._requiresOwner ? (ac._biometryOnly ? 3 : 1) : 0
     }
 
     func update(_ q: [String: Any], _ changes: [String: Any]) -> OSStatus {

@@ -5,8 +5,9 @@
 // Items live in the device data directory, one file per access group: $ISIM_DATA/Library/Keychains/<group>.keychain
 // (mode 0600, JSON; not encrypted — the host user can read it). An app's default access group is its bundle
 // identifier; items survive app deletion like on iOS and are erased by `isim reset`. Access control flags
-// (biometry, passcode) are stored with password items but not enforced for them; Secure Enclave keys enforce them
-// (SecKey.swift). Keys, certificates and identities: SecKey.swift, Keychain.swift and Certificates.swift.
+// (user presence, biometry, passcode) are enforced when an item's data is read (LocalAuthentication's prompt, as for
+// Secure Enclave keys in SecKey.swift). Keys, certificates and identities: SecKey.swift, Keychain.swift and
+// Certificates.swift.
 import Foundation
 import isim_host
 
@@ -112,7 +113,7 @@ public func SecRandomCopyBytes(_ rnd: SecRandomRef?, _ count: Int, _ bytes: Unsa
     return errSecSuccess
 }
 
-// MARK: - Access control (stored with keychain items, not enforced for them; Secure Enclave keys enforce it)
+// MARK: - Access control (keychain items and Secure Enclave keys enforce it)
 
 public struct SecAccessControlCreateFlags: OptionSet, Sendable {
     public let rawValue: UInt
@@ -131,6 +132,8 @@ public struct SecAccessControlCreateFlags: OptionSet, Sendable {
 }
 public final class SecAccessControl: NSObject {
     let protection: String, flags: SecAccessControlCreateFlags
+    /// CFGetTypeID(_:) of a SecAccessControlRef (Foundation's CFGetTypeID asks objects it does not know)
+    @objc var _isimCFTypeID: UInt { SecAccessControlGetTypeID() }
     init(protection: String, flags: SecAccessControlCreateFlags) { self.protection = protection; self.flags = flags }
     /// for isim's CryptoKit (Secure Enclave keys): whether using the key asks for the device owner, and biometry only
     @_spi(isim) public var _requiresOwner: Bool { !flags.isDisjoint(with: [.userPresence, .biometryAny, .biometryCurrentSet, .devicePasscode]) }
@@ -201,6 +204,8 @@ public func SecAccessControlCreateWithFlags(_ allocator: CFAllocator?, _ protect
                                             _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> SecAccessControl? {
     SecAccessControl(protection: (protection as? String) ?? "ak", flags: flags)
 }
+public func SecAccessControlGetTypeID() -> CFTypeID { 0x5341_4343 }   // 'SACC'
+
 
 // MARK: - Error messages
 

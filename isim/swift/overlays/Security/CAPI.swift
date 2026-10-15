@@ -52,3 +52,40 @@ public func _c_SecKeyCreateDecryptedData(_ k: UnsafeRawPointer, _ alg: CFString,
 }
 @_cdecl("SecRandomCopyBytes")
 public func _c_SecRandomCopyBytes(_ rnd: OpaquePointer?, _ count: Int, _ bytes: UnsafeMutableRawPointer) -> Int32 { SecRandomCopyBytes(rnd, count, bytes) }
+
+// MARK: - the keychain (SecItem*) and SecAccessControl for C: the same items as Swift's; results are +1 (CF "Copy")
+
+private func store(_ r: CFTypeRef?, _ out: UnsafeMutablePointer<UnsafeMutableRawPointer?>?) {
+    out?.pointee = r.map { Unmanaged.passRetained($0 as AnyObject).toOpaque() }
+}
+@_cdecl("SecItemAdd")
+public func _c_SecItemAdd(_ attributes: CFDictionary, _ result: UnsafeMutablePointer<UnsafeMutableRawPointer?>?) -> OSStatus {
+    guard let result else { return SecItemAdd(attributes, nil) }
+    var r: CFTypeRef?
+    let s = SecItemAdd(attributes, &r)
+    store(r, result)
+    return s
+}
+@_cdecl("SecItemCopyMatching")
+public func _c_SecItemCopyMatching(_ query: CFDictionary, _ result: UnsafeMutablePointer<UnsafeMutableRawPointer?>?) -> OSStatus {
+    guard let result else { return SecItemCopyMatching(query, nil) }
+    var r: CFTypeRef?
+    let s = SecItemCopyMatching(query, &r)
+    store(r, result)
+    return s
+}
+@_cdecl("SecItemUpdate")
+public func _c_SecItemUpdate(_ query: CFDictionary, _ attributes: CFDictionary) -> OSStatus { SecItemUpdate(query, attributes) }
+@_cdecl("SecItemDelete")
+public func _c_SecItemDelete(_ query: CFDictionary) -> OSStatus { SecItemDelete(query) }
+@_cdecl("SecCopyErrorMessageString")
+public func _c_SecCopyErrorMessageString(_ status: OSStatus, _ reserved: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer? {
+    SecCopyErrorMessageString(status, reserved).map { Unmanaged.passRetained($0 as AnyObject).toOpaque() }
+}
+@_cdecl("SecAccessControlCreateWithFlags")
+public func _c_SecAccessControlCreateWithFlags(_ allocator: UnsafeRawPointer?, _ protection: UnsafeRawPointer, _ flags: UInt,
+                                               _ error: UnsafeMutablePointer<UnsafeMutableRawPointer?>?) -> UnsafeMutableRawPointer? {
+    let p = Unmanaged<AnyObject>.fromOpaque(protection).takeUnretainedValue()
+    return SecAccessControlCreateWithFlags(nil, p, SecAccessControlCreateFlags(rawValue: flags), nil).map { Unmanaged.passRetained($0).toOpaque() }
+}
+@_cdecl("SecAccessControlGetTypeID") public func _c_SecAccessControlGetTypeID() -> UInt { SecAccessControlGetTypeID() }

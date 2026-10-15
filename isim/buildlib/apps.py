@@ -347,6 +347,12 @@ def _(a):
                                           "-framework", "CoreVideo", "-framework", "CoreGraphics"])
 
 
+@app("samples/HelloKeychainObjC")   # after the overlays: Security.framework re-exports libswiftSecurity
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Security",
+                                          "-framework", "CoreGraphics"])
+
+
 @app("samples/HelloSystemObjC", swift=False)
 def _(a):
     a.objc_app(["main.mm"], "Info.plist", ["-std=c++17", "-framework", "UIKit", "-framework", "Foundation", "-framework", "JavaScriptCore",

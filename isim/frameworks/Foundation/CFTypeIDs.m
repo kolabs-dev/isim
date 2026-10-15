@@ -5,7 +5,7 @@
 #import <Foundation/Foundation.h>
 #import <CoreFoundation/CFBase.h>
 
-enum { ISIM_CF_OTHER = 1, ISIM_CF_STRING = 7, ISIM_CF_ARRAY = 19, ISIM_CF_DICTIONARY = 18, ISIM_CF_NUMBER = 22, ISIM_CF_DATA = 20 };
+enum { ISIM_CF_OTHER = 1, ISIM_CF_STRING = 7, ISIM_CF_ARRAY = 19, ISIM_CF_DICTIONARY = 18, ISIM_CF_NUMBER = 22 };
 
 CFTypeID CFStringGetTypeID(void) { return ISIM_CF_STRING; }
 CFTypeID CFGetTypeID(CFTypeRef cf) {
@@ -14,11 +14,14 @@ CFTypeID CFGetTypeID(CFTypeRef cf) {
     if ([o isKindOfClass:[NSArray class]]) return ISIM_CF_ARRAY;
     if ([o isKindOfClass:[NSDictionary class]]) return ISIM_CF_DICTIONARY;
     if ([o isKindOfClass:[NSNumber class]]) return ISIM_CF_NUMBER;
-    if ([o isKindOfClass:[NSData class]]) return ISIM_CF_DATA;
+    if ([o isKindOfClass:[NSData class]]) return CFDataGetTypeID();       /* CFData.mrc.m */
     if ([o isKindOfClass:[NSSet class]]) return 17;                     /* CFCore.mrc.m: CFSetGetTypeID ... */
     if ([o isKindOfClass:[NSDate class]]) return 42;
     if ([o isKindOfClass:[NSError class]]) return 43;
     if ([NSStringFromClass([o class]) isEqualToString:@"__NSCFUUID"]) return 44;
+    /* CF types of other frameworks (Core Graphics objects, Security's SecAccessControlRef): the object knows its type ID */
+    SEL own = NSSelectorFromString(@"_isimCFTypeID");
+    if ([o respondsToSelector:own]) return ((CFTypeID (*)(id, SEL))[o methodForSelector:own])(o, own);
     return ISIM_CF_OTHER;
 }
 CFHashCode CFStringHashNSString(CFStringRef s) { return [(__bridge NSString *)s hash]; }
