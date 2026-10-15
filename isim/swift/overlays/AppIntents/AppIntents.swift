@@ -97,6 +97,9 @@ public enum IntentAuthenticationPolicy: Sendable {
 
 @_alwaysEmitConformanceMetadata public protocol AppIntent: Sendable {
     associatedtype PerformResult: IntentResult
+    /// the sentence Shortcuts shows for the action (Properties.swift)
+    associatedtype SummaryContent: ParameterSummary = _IsimNoSummary<Self>
+    @ParameterSummaryBuilder<Self> static var parameterSummary: SummaryContent { get }
     static var title: LocalizedStringResource { get }
     static var description: IntentDescription? { get }
     static var openAppWhenRun: Bool { get }
@@ -104,6 +107,9 @@ public enum IntentAuthenticationPolicy: Sendable {
     static var authenticationPolicy: IntentAuthenticationPolicy { get }
     init()
     @MainActor func perform() async throws -> PerformResult
+}
+extension AppIntent where SummaryContent == _IsimNoSummary<Self> {
+    public static var parameterSummary: _IsimNoSummary<Self> { _IsimNoSummary() }
 }
 extension AppIntent {
     public static var description: IntentDescription? { nil }
@@ -191,6 +197,8 @@ extension Optional: _IsimOptional {
 @propertyWrapper
 public final class IntentParameter<Value>: @unchecked Sendable {
     var _value: Value?
+    /// a DynamicOptionsProvider's values (Properties.swift)
+    var _optionsProvider: (() async -> [_IsimOption])?
     public let title: LocalizedStringResource
     let _description: LocalizedStringResource?
     let _requestValueDialog: IntentDialog?
@@ -273,6 +281,7 @@ protocol _IsimAnyParameter: AnyObject {
     var _isimOptional: Bool { get }
     var _isimValueType: Any.Type { get }
     var _isimCurrent: Any? { get }
+    var _isimProvidedOptions: (() async -> [_IsimOption])? { get }
     func _isimSet(_ v: Any?) -> Bool
 }
 extension IntentParameter: _IsimAnyParameter {
@@ -285,6 +294,7 @@ extension IntentParameter: _IsimAnyParameter {
     }
     var _isimOptional: Bool { Value.self is _IsimOptional.Type }
     var _isimValueType: Any.Type { (Value.self as? _IsimOptional.Type)?._isimWrapped ?? Value.self }
+    var _isimProvidedOptions: (() async -> [_IsimOption])? { _optionsProvider }
     var _isimCurrent: Any? {
         guard let v = _value else { return nil }
         if let o = v as? _IsimOptional { return o._isimUnwrapped }

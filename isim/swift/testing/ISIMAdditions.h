@@ -34,11 +34,12 @@ SWT_EXTERN char *_Nullable *_Nullable *_Null_unspecified _NSGetEnviron(void);
 static inline bool swt_S_ISFIFO(mode_t mode) { return (mode & S_IFMT) == S_IFIFO; }
 #endif
 
-/* <execinfo.h>: frame-pointer backtraces, implemented in isim-testing-support.c */
+/* <execinfo.h>: frame-pointer backtraces, implemented in isim-testing-support.c. isim's SDK header has backtrace() but not
+   backtrace_async(), so that one is always declared here. */
 #if !__has_include(<execinfo.h>)
 SWT_EXTERN int backtrace(void *_Nullable *_Nonnull array, int size);
-SWT_EXTERN size_t backtrace_async(void *_Nullable *_Nonnull array, size_t length, uint32_t *_Nullable task_id);
 #endif
+SWT_EXTERN size_t backtrace_async(void *_Nullable *_Nonnull array, size_t length, uint32_t *_Nullable task_id);
 
 SWT_ASSUME_NONNULL_END
 

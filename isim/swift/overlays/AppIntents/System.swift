@@ -100,6 +100,7 @@ enum _IsimConformances {
     }
     static var providers: [any AppShortcutsProvider.Type] { types(conformingTo: "AppShortcutsProvider").compactMap { $0 as? any AppShortcutsProvider.Type } }
     static var intents: [any AppIntent.Type] { types(conformingTo: "AppIntent").compactMap { $0 as? any AppIntent.Type } }
+    static var entities: [any AppEntity.Type] { types(conformingTo: "AppEntity").compactMap { $0 as? any AppEntity.Type } }
 }
 func _isimTypeName(_ t: Any.Type) -> String { String(reflecting: t) }
 
@@ -147,12 +148,13 @@ struct _IsimOption: @unchecked Sendable {
 
 enum _IsimValues {
     enum Kind {
-        case string, integer, decimal, boolean, date, url
+        case string, integer, decimal, boolean, date, url, person, file, currency
         case enumeration(any AppEnum.Type), entity(any AppEntity.Type), unsupported(String)
         var name: String {
             switch self {
             case .string: return "string"; case .integer: return "integer"; case .decimal: return "decimal"; case .boolean: return "boolean"
             case .date: return "date"; case .url: return "url"; case .enumeration: return "enum"; case .entity: return "entity"
+            case .person: return "person"; case .file: return "file"; case .currency: return "currency"
             case .unsupported(let t): return "unsupported:" + t
             }
         }
@@ -165,6 +167,9 @@ enum _IsimValues {
         if t == Bool.self { return .boolean }
         if t == Date.self { return .date }
         if t == URL.self { return .url }
+        if t == IntentPerson.self { return .person }
+        if t == IntentFile.self { return .file }
+        if t == IntentCurrencyAmount.self { return .currency }
         if let e = t as? any AppEnum.Type { return .enumeration(e) }
         if let e = t as? any AppEntity.Type { return .entity(e) }
         return .unsupported(String(reflecting: t))
@@ -181,6 +186,9 @@ enum _IsimValues {
         if let b = v as? Bool { return b ? "Yes" : "No" }
         if let d = v as? Date { let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .short; return f.string(from: d) }
         if let s = v as? String { return s }
+        if let p = v as? IntentPerson { return p.description }
+        if let f = v as? IntentFile { return f.filename }
+        if let c = v as? IntentCurrencyAmount { return c.description }
         return "\(v)"
     }
     static func options(_ k: Kind) async -> [_IsimOption] {
@@ -200,6 +208,29 @@ enum _IsimValues {
         case .decimal: return Double(t) ?? _words[t.lowercased()].map { Double($0) }
         case .boolean: return ["true", "yes", "on", "1", "y", "ok"].contains(t.lowercased()) ? true : ["false", "no", "off", "0", "n"].contains(t.lowercased()) ? false : nil
         case .url: return URL(string: t)
+        case .person:                                        // "Ana Lima" or "Ana Lima <ana@example.com>"
+            let parts = t.components(separatedBy: "<")
+            let name = parts[0].trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty else { return nil }
+            var n = PersonNameComponents()
+            let words = name.split(separator: " ").map(String.init)
+            n.givenName = words.first; n.familyName = words.count > 1 ? words.dropFirst().joined(separator: " ") : nil
+            let handle = parts.count > 1 ? parts[1].replacingOccurrences(of: ">", with: "").trimmingCharacters(in: .whitespaces) : nil
+            return IntentPerson(identifier: .applicationDefined(name), name: .components(n),
+                                handle: handle.map { $0.contains("@") ? IntentPerson.Handle(emailAddress: $0, label: .other)
+                                                                      : IntentPerson.Handle(phoneNumber: $0, label: .other) })
+        case .file:                                          // a path on the device
+            let u = t.hasPrefix("/") ? URL(fileURLWithPath: t) : URL(string: t)
+            guard let u, FileManager.default.fileExists(atPath: u.path) else { return nil }
+            return IntentFile(fileURL: u)
+        case .currency:                                      // "12.50 USD", "$12.50"
+            var code = "USD", text = t
+            if let last = t.split(separator: " ").last, last.count == 3, last.allSatisfy(\.isLetter) {
+                code = last.uppercased(); text = String(t.dropLast(4))
+            }
+            text = text.replacingOccurrences(of: "$", with: "").replacingOccurrences(of: "€", with: "").trimmingCharacters(in: .whitespaces)
+            if t.hasPrefix("€") { code = "EUR" }
+            return Decimal(string: text).map { IntentCurrencyAmount(amount: $0, currencyCode: code) }
         case .date:
             let f = ISO8601DateFormatter()
             if let d = f.date(from: t) { return d }
@@ -212,6 +243,23 @@ enum _IsimValues {
             return await e._isimMatching(t).first?.value
         case .unsupported: return nil
         }
+    }
+    /// a value of a plain type from text, without asking anyone (EntityPropertyQuery comparisons)
+    static func parse<V>(_ s: String, as: V.Type) -> V? {
+        let t = s.trimmingCharacters(in: .whitespaces)
+        let target: Any.Type = (V.self as? _IsimOptional.Type)?._isimWrapped ?? V.self
+        var v: Any?
+        switch kind(target) {
+        case .string: v = t
+        case .integer: v = Int(t)
+        case .decimal: v = target == Float.self ? Float(t).map { $0 as Any } : Double(t)
+        case .boolean: v = ["true", "yes", "1"].contains(t.lowercased()) ? true : ["false", "no", "0"].contains(t.lowercased()) ? false : nil
+        case .date: v = ISO8601DateFormatter().date(from: t)
+        case .url: v = URL(string: t)
+        case .enumeration(let e): v = e._isimCases().first { $0.id.lowercased() == t.lowercased() || $0.title.lowercased() == t.lowercased() }?.value
+        default: v = nil
+        }
+        return v.flatMap { cast($0, to: V.self) ?? ($0 as? V) }
     }
     static let _words = ["one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
                          "fifteen": 15, "twenty": 20, "thirty": 30, "forty-five": 45, "sixty": 60]
@@ -266,6 +314,7 @@ enum _IsimValues {
         let prompt = dialog ?? p._isimPrompt ?? _IsimValues.prompt(p._isimTitle, k)
         var options: [_IsimOption]
         if let among { options = among.enumerated().map { _IsimOption(id: "\($0.offset)", title: _IsimValues.describe($0.element), subtitle: "", value: $0.element) } }
+        else if let provided = p._isimProvidedOptions { options = await provided() }          /* a DynamicOptionsProvider */
         else { options = await _IsimValues.options(k) }
         if !options.isEmpty || among != nil {
             let a = await ch.ask(["type": "choice", "param": name, "prompt": prompt, "options": options.map { $0.plist }, "kind": k.name,
@@ -331,6 +380,9 @@ enum _IsimValues {
         defer { if task != .invalid { app.endBackgroundTask(task); task = .invalid } }
         let appName = req["appName"] as? String ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "the app"
         if let w = req["width"] as? Double { _IsimRun.width = CGFloat(w) }
+        if let entity = req["find"] as? String {                     /* Shortcuts' "Find … where …" (EntityPropertyQuery) */
+            await _IsimEntityProbe.find(entity, req, ch); return
+        }
         var intent: (any AppIntent)?
         if let i = req["shortcut"] as? Int, let s = shortcut(i) { intent = s._intent }
         else if let name = req["intent"] as? String, let t = intentType(name) { intent = t.init() }
@@ -362,6 +414,7 @@ enum _IsimValues {
             var attempts = 0
             while performed == nil {
                 do { performed = try await _perform(intent) }
+                catch let e as AppIntentError where e.restart && attempts < 4 { attempts += 1 }   /* restartPerform */
                 catch let e as _IsimNeedsValue where attempts < 4 {      /* needsValueError(): ask, then perform again */
                     attempts += 1
                     guard let p = e.parameter as? _IsimAnyParameter else { throw e }
@@ -408,8 +461,10 @@ enum _IsimValues {
         var d: [String: Any] = ["name": name, "title": p._isimTitle, "kind": k.name, "optional": p._isimOptional, "hasValue": p._isimHasValue]
         if let pr = p._isimPrompt { d["prompt"] = pr }
         if let v = p._isimCurrent { d["value"] = _IsimValues.describe(v) }
-        let opts = await _IsimValues.options(k)
+        let opts: [_IsimOption]
+        if let provided = p._isimProvidedOptions { opts = await provided() } else { opts = await _IsimValues.options(k) }
         if !opts.isEmpty { d["options"] = opts.prefix(50).map { $0.plist } }
+        if p._isimProvidedOptions != nil { d["dynamicOptions"] = true }
         return d
     }
     static func intentInfo(_ t: any AppIntent.Type) async -> [String: Any] {
@@ -420,6 +475,24 @@ enum _IsimValues {
                                 "authentication": ["alwaysAllowed", "requiresAuthentication", "requiresLocalDeviceAuthentication"][policyIndex(t.authenticationPolicy)],
                                 "parameters": params, "widgetConfiguration": probe is any WidgetConfigurationIntent, "open": probe is any OpenIntent]
         if let desc = t.description { d["description"] = desc.text; if !desc.searchKeywords.isEmpty { d["keywords"] = desc.searchKeywords } }
+        if let summary = _summary(probe) {
+            d["summary"] = summary.sentence
+            if !summary.table.isEmpty { d["summaryTable"] = summary.table }
+        }
+        return d
+    }
+    static func _summary<I: AppIntent>(_ intent: I) -> _IsimSummary? { I.parameterSummary._isimResolveAny(intent) }
+    /// what the system shows of an entity type: its properties, and what a property query can filter and sort by
+    static func entityInfo(_ t: any AppEntity.Type) async -> [String: Any] {
+        var d: [String: Any] = ["name": t.typeDisplayRepresentation.name.description]
+        if let probe = await _IsimEntityProbe.sample(t) {
+            d["properties"] = Mirror(reflecting: probe).children.compactMap { c -> [String: Any]? in
+                guard let label = c.label, let p = c.value as? _IsimAnyEntityProperty else { return nil }
+                let name = label.hasPrefix("_") ? String(label.dropFirst()) : label
+                return ["name": name, "title": p._isimTitle ?? name]
+            }
+        }
+        if let q = await _IsimEntityProbe.propertyQuery(t) { d["query"] = q }
         return d
     }
     static func policyIndex(_ p: IntentAuthenticationPolicy) -> Int { switch p { case .alwaysAllowed: return 0; case .requiresAuthentication: return 1; case .requiresLocalDeviceAuthentication: return 2 } }
@@ -449,7 +522,9 @@ enum _IsimValues {
         let (shortcuts, color) = await shortcutsInfo()
         var intents: [String: Any] = [:]
         for t in _IsimConformances.intents { intents[_isimTypeName(t)] = await intentInfo(t) }
-        var m: [String: Any] = ["linksAppIntents": true, "shortcuts": shortcuts, "intents": intents, "date": Date()]
+        var entities: [String: Any] = [:]
+        for t in _IsimConformances.entities where t != _IsimNoEntity.self { entities[_isimTypeName(t)] = await entityInfo(t) }
+        var m: [String: Any] = ["linksAppIntents": true, "shortcuts": shortcuts, "intents": intents, "entities": entities, "date": Date()]
         if let color { m["tileColor"] = color }
         (m as NSDictionary).write(toFile: out, atomically: true)
         NSLog("isim AppIntents: %ld App Shortcut(s), %ld intent(s)", shortcuts.count, intents.count)
