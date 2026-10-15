@@ -178,8 +178,13 @@ static void window_resize(void) {
 /* isim draws every frame in software (cairo) and copies it to the window surface. SDL's default backs that surface with
    an accelerated renderer, which on X11 destroys the new window and creates it again the first time it is drawn: the
    window flickered at every start and restart, and a click in those first ~100 ms went to a window that no longer
-   existed. The environment variable SDL_FRAMEBUFFER_ACCELERATION still overrides this. */
-static void window_sdl_hints(void) { SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "0"); }
+   existed. Only on X11: it is the only Linux video driver with a software window framebuffer, and on Wayland, without
+   the renderer, the window has no surface at all, is never drawn, and so is never shown (isim 0.23.0). The environment
+   variable SDL_FRAMEBUFFER_ACCELERATION still overrides this. */
+static void window_sdl_hints(void) {
+    const char *drv = SDL_GetCurrentVideoDriver();
+    if (drv && !strcmp(drv, "x11")) SDL_SetHint(SDL_HINT_FRAMEBUFFER_ACCELERATION, "0");
+}
 static void window_title(void) {
     if (!win) return;
     char n[64], t[160]; ch_short_name(ch_cur_dev(), n, sizeof n);
@@ -1168,7 +1173,11 @@ static cairo_surface_t *ch_canvas;                  /* the window's frame, blitt
 static void ch_present(cairo_surface_t *screen) {
     if (headless || !win) return;
     SDL_Surface *ws = SDL_GetWindowSurface(win);
-    if (!ws) return;
+    if (!ws) {                                      /* nothing can be drawn: say so (once), never fail silently */
+        static int told;
+        if (!told++) fprintf(stderr, "isim window: no window surface (video driver %s): %s\n", SDL_GetCurrentVideoDriver(), SDL_GetError());
+        return;
+    }
     if (!ch_canvas || cairo_image_surface_get_width(ch_canvas) != ws->w || cairo_image_surface_get_height(ch_canvas) != ws->h) {
         if (ch_canvas) cairo_surface_destroy(ch_canvas);
         ch_canvas = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, ws->w, ws->h);
