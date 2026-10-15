@@ -360,6 +360,13 @@ def _(a):
                                           "-framework", "CoreGraphics"])
 
 
+@app("samples/HelloPersonalObjC")   # after the overlays: the frameworks re-export their Swift overlays (issue #232)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "CoreLocation", "-framework", "MapKit",
+                                          "-framework", "Contacts", "-framework", "ContactsUI", "-framework", "EventKit", "-framework", "EventKitUI",
+                                          "-framework", "CoreGraphics"])
+
+
 @app("samples/HelloSystemObjC", swift=False)
 def _(a):
     a.objc_app(["main.mm"], "Info.plist", ["-std=c++17", "-framework", "UIKit", "-framework", "Foundation", "-framework", "JavaScriptCore",

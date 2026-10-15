@@ -2,7 +2,7 @@
 // glyph and title), MKPinAnnotationView, the user-location dot, the callout bubble — and overlay renderers.
 import UIKit
 
-open class MKAnnotationView: UIView {
+@objc(MKAnnotationView) open class MKAnnotationView: UIView {
     public enum DragState: UInt, Sendable { case none = 0, starting, dragging, canceling, ending }
     public enum CollisionMode: Int, Sendable { case rectangle = 0, circle, none }
     public struct ZPriority: RawRepresentable, Hashable, Sendable {
@@ -69,7 +69,7 @@ public struct MKFeatureDisplayPriority: RawRepresentable, Hashable, Sendable {
 public enum MKFeatureVisibility: Int, Sendable { case adaptive = 0, hidden, visible }
 
 /// iOS 11+ marker: a balloon in markerTintColor with a white glyph; the title sits below it.
-open class MKMarkerAnnotationView: MKAnnotationView {
+@objc(MKMarkerAnnotationView) open class MKMarkerAnnotationView: MKAnnotationView {
     open var markerTintColor: UIColor? { didSet { setNeedsDisplay() } }
     open var glyphTintColor: UIColor? { didSet { setNeedsDisplay() } }
     open var glyphText: String? { didSet { setNeedsDisplay() } }
@@ -151,7 +151,7 @@ open class MKMarkerAnnotationView: MKAnnotationView {
 }
 
 @available(iOS, deprecated: 16.0, message: "Use MKMarkerAnnotationView")
-open class MKPinAnnotationView: MKAnnotationView {
+@objc(MKPinAnnotationView) open class MKPinAnnotationView: MKAnnotationView {
     public static func redPinColor() -> UIColor { .systemRed }
     public static func greenPinColor() -> UIColor { .systemGreen }
     public static func purplePinColor() -> UIColor { .systemPurple }
@@ -242,7 +242,7 @@ final class _MKCalloutView: UIView {
 
 // MARK: - overlay renderers
 
-open class MKOverlayRenderer: NSObject {
+@objc(MKOverlayRenderer) open class MKOverlayRenderer: NSObject {
     public let overlay: MKOverlay
     open var alpha: CGFloat = 1
     open var contentScaleFactor: CGFloat { UIScreen.main.scale }
@@ -291,7 +291,7 @@ open class MKOverlayRenderer: NSObject {
 
 /// adapted from iOS: draw(_:zoomScale:in:) makes the path once (createPath), then fills it (applyFillProperties,
 /// fillPath) and strokes it (applyStrokeProperties, strokePath). Line widths and dash lengths are in view points.
-open class MKOverlayPathRenderer: MKOverlayRenderer {
+@objc(MKOverlayPathRenderer) open class MKOverlayPathRenderer: MKOverlayRenderer {
     open var fillColor: UIColor? { didSet { setNeedsDisplay() } }
     open var strokeColor: UIColor? { didSet { setNeedsDisplay() } }
     open var lineWidth: CGFloat = 0 { didSet { setNeedsDisplay() } }
@@ -363,7 +363,7 @@ open class MKOverlayPathRenderer: MKOverlayRenderer {
     }
 }
 
-open class MKPolylineRenderer: MKOverlayPathRenderer {
+@objc(MKPolylineRenderer) open class MKPolylineRenderer: MKOverlayPathRenderer {
     public init(polyline: MKPolyline) { super.init(overlay: polyline) }
     public override init(overlay: MKOverlay) { super.init(overlay: overlay) }
     open var polyline: MKPolyline { overlay as! MKPolyline }
@@ -430,7 +430,7 @@ open class MKGradientPolylineRenderer: MKPolylineRenderer {
     }
 }
 
-open class MKPolygonRenderer: MKOverlayPathRenderer {
+@objc(MKPolygonRenderer) open class MKPolygonRenderer: MKOverlayPathRenderer {
     public init(polygon: MKPolygon) { super.init(overlay: polygon) }
     public override init(overlay: MKOverlay) { super.init(overlay: overlay) }
     open var polygon: MKPolygon { overlay as! MKPolygon }
@@ -444,7 +444,7 @@ open class MKPolygonRenderer: MKOverlayPathRenderer {
     }
 }
 
-open class MKCircleRenderer: MKOverlayPathRenderer {
+@objc(MKCircleRenderer) open class MKCircleRenderer: MKOverlayPathRenderer {
     public init(circle: MKCircle) { super.init(overlay: circle) }
     public override init(overlay: MKOverlay) { super.init(overlay: overlay) }
     open var circle: MKCircle { overlay as! MKCircle }

@@ -33,8 +33,8 @@ open class CNMutableGroup: CNGroup, @unchecked Sendable {
     open override var name: String { get { _name } set { _name = newValue } }
 }
 
-open class CNFetchRequest: NSObject, @unchecked Sendable {}
-open class CNContactFetchRequest: CNFetchRequest, @unchecked Sendable {
+@objc(CNFetchRequest) open class CNFetchRequest: NSObject, @unchecked Sendable {}
+@objc(CNContactFetchRequest) open class CNContactFetchRequest: CNFetchRequest, @unchecked Sendable {
     open var predicate: NSPredicate?
     open var keysToFetch: [CNKeyDescriptor]
     open var mutableObjects = false
@@ -43,7 +43,7 @@ open class CNContactFetchRequest: CNFetchRequest, @unchecked Sendable {
     public init(keysToFetch: [CNKeyDescriptor]) { self.keysToFetch = keysToFetch }
 }
 
-open class CNSaveRequest: NSObject, @unchecked Sendable {
+@objc(CNSaveRequest) open class CNSaveRequest: NSObject, @unchecked Sendable {
     enum Op { case add(CNMutableContact, String?), update(CNMutableContact), delete(CNMutableContact), addGroup(CNMutableGroup), deleteGroup(CNMutableGroup)
         case addMember(CNContact, CNGroup), removeMember(CNContact, CNGroup) }
     var ops: [Op] = []
@@ -129,7 +129,7 @@ enum _CNAuth {
     static var authorized: Bool { status == .authorized || status == .limited }
 }
 
-open class CNContactStore: NSObject, @unchecked Sendable {
+@objc(CNContactStore) open class CNContactStore: NSObject, @unchecked Sendable {
     public override init() { super.init() }
 
     open class func authorizationStatus(for entityType: CNEntityType) -> CNAuthorizationStatus { _CNAuth.status }

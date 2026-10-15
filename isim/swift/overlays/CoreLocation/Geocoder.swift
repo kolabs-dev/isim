@@ -4,7 +4,7 @@
 // CLError.geocodeFoundNoResult; ISIM_GEOCODER=offline makes every request fail with CLError.network.
 import Foundation
 
-open class CLPlacemark: NSObject, NSCopying, @unchecked Sendable {
+@objc(CLPlacemark) open class CLPlacemark: NSObject, NSCopying, @unchecked Sendable {
     open private(set) var location: CLLocation?
     open private(set) var region: CLRegion?
     open private(set) var timeZone: TimeZone?
@@ -117,7 +117,7 @@ enum _CLGazetteer {
     }
 }
 
-open class CLGeocoder: NSObject, @unchecked Sendable {
+@objc(CLGeocoder) open class CLGeocoder: NSObject, @unchecked Sendable {
     public typealias CompletionHandler = ([CLPlacemark]?, Error?) -> Void
     open private(set) var isGeocoding = false
     private var canceled = false

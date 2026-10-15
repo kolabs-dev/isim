@@ -8,11 +8,11 @@ import UIKit
     @available(*, deprecated, renamed: "canceled") public static var cancelled: EKEventEditViewAction { .canceled } }
 
 @objc public protocol EKEventEditViewDelegate: NSObjectProtocol {
-    func eventEditViewController(_ controller: EKEventEditViewController, didCompleteWith action: EKEventEditViewAction)
+    @objc(eventEditViewController:didCompleteWithAction:) func eventEditViewController(_ controller: EKEventEditViewController, didCompleteWith action: EKEventEditViewAction)
     @objc optional func eventEditViewControllerDefaultCalendar(forNewEvents controller: EKEventEditViewController) -> EKCalendar
 }
 
-open class EKEventEditViewController: UINavigationController {
+@objc(EKEventEditViewController) open class EKEventEditViewController: UINavigationController {
     open weak var editViewDelegate: EKEventEditViewDelegate?
     open var eventStore: EKEventStore!
     open var event: EKEvent?
@@ -32,8 +32,15 @@ open class EKEventEditViewController: UINavigationController {
     }
     open func cancelEditing() { finish(.canceled) }
     func finish(_ action: EKEventEditViewAction) {
-        if let d = editViewDelegate { d.eventEditViewController(self, didCompleteWith: action) }
-        else { presentingViewController?.dismiss(animated: true, completion: nil) }
+        guard let d = editViewDelegate else { presentingViewController?.dismiss(animated: true, completion: nil); return }
+        // Swift apps built with isim 0.22 or earlier implement it under Swift's selector (eventEditViewController:didCompleteWith:)
+        let old = NSSelectorFromString("eventEditViewController:didCompleteWith:")
+        if !d.responds(to: #selector(EKEventEditViewDelegate.eventEditViewController(_:didCompleteWith:))), let o = d as? NSObject, o.responds(to: old) {
+            typealias Send = @convention(c) (AnyObject, Selector, AnyObject, Int) -> Void
+            unsafeBitCast(o.method(for: old), to: Send.self)(o, old, self, action.rawValue)
+        } else {
+            d.eventEditViewController(self, didCompleteWith: action)
+        }
     }
 }
 
@@ -111,9 +118,9 @@ final class _EKEditForm: UIViewController, UITextFieldDelegate {
 
 @objc public enum EKEventViewAction: Int, Sendable { case done = 0, responded, deleted }
 @objc public protocol EKEventViewDelegate: NSObjectProtocol {
-    func eventViewController(_ controller: EKEventViewController, didCompleteWith action: EKEventViewAction)
+    @objc(eventViewController:didCompleteWithAction:) func eventViewController(_ controller: EKEventViewController, didCompleteWith action: EKEventViewAction)
 }
-open class EKEventViewController: UIViewController {
+@objc(EKEventViewController) open class EKEventViewController: UIViewController {
     open weak var delegate: EKEventViewDelegate?
     open var event: EKEvent!
     open var allowsEditing = true

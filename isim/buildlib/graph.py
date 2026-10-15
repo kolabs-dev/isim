@@ -198,6 +198,13 @@ SWIFT_FRAMEWORKS = [
     ("BackgroundTasks", "-framework Foundation"),
     ("CoreSpotlight", "-framework Foundation"),
     ("MultipeerConnectivity", "-framework Foundation -framework UIKit"),
+    # issue #232: location and personal data from Objective-C
+    ("CoreLocation", "-framework Foundation"),
+    ("MapKit", "-framework Foundation -framework UIKit -framework CoreLocation"),
+    ("Contacts", "-framework Foundation"),
+    ("ContactsUI", "-framework Foundation -framework UIKit -framework Contacts"),
+    ("EventKit", "-framework Foundation"),
+    ("EventKitUI", "-framework Foundation -framework UIKit -framework EventKit"),
 ]
 
 GUEST_CFLAGS = ["-target", f"x86_64-apple-ios{MINOS}-simulator", "-nostdlibinc", "-isystem", f"{SDK}/usr/include",

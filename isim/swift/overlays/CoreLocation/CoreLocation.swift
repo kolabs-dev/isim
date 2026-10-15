@@ -87,7 +87,7 @@ public func ~= (code: CLError.Code, error: Error) -> Bool { (error as? CLError)?
 
 // MARK: - CLLocation
 
-open class CLFloor: NSObject, @unchecked Sendable { open var level: Int { 0 } }
+@objc(CLFloor) open class CLFloor: NSObject, @unchecked Sendable { open var level: Int { 0 } }
 
 open class CLLocationSourceInformation: NSObject, @unchecked Sendable {
     open private(set) var isSimulatedBySoftware: Bool
@@ -97,7 +97,7 @@ open class CLLocationSourceInformation: NSObject, @unchecked Sendable {
     }
 }
 
-open class CLLocation: NSObject, NSCopying, @unchecked Sendable {
+@objc(CLLocation) open class CLLocation: NSObject, NSCopying, @unchecked Sendable {
     open private(set) var coordinate: CLLocationCoordinate2D
     open private(set) var altitude: CLLocationDistance
     open private(set) var ellipsoidalAltitude: CLLocationDistance
@@ -163,7 +163,7 @@ open class CLLocation: NSObject, NSCopying, @unchecked Sendable {
     open override var hash: Int { coordinate.latitude.hashValue ^ coordinate.longitude.hashValue }
 }
 
-open class CLHeading: NSObject, @unchecked Sendable {
+@objc(CLHeading) open class CLHeading: NSObject, @unchecked Sendable {
     open private(set) var magneticHeading: CLLocationDirection = -1
     open private(set) var trueHeading: CLLocationDirection = -1
     open private(set) var headingAccuracy: CLLocationDirection = -1
@@ -173,7 +173,7 @@ open class CLHeading: NSObject, @unchecked Sendable {
     open private(set) var timestamp = Date()
 }
 
-open class CLVisit: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
+@objc(CLVisit) open class CLVisit: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
     open private(set) var arrivalDate = Date.distantPast
     open private(set) var departureDate = Date.distantFuture
     open private(set) var coordinate = kCLLocationCoordinate2DInvalid
@@ -197,7 +197,7 @@ open class CLVisit: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
 
 // MARK: - Regions
 
-open class CLRegion: NSObject, NSCopying, @unchecked Sendable {
+@objc(CLRegion) open class CLRegion: NSObject, NSCopying, @unchecked Sendable {
     open private(set) var identifier: String
     open var notifyOnEntry = true
     open var notifyOnExit = true
@@ -206,7 +206,7 @@ open class CLRegion: NSObject, NSCopying, @unchecked Sendable {
     func _contains(_ c: CLLocationCoordinate2D) -> Bool { false }
 }
 
-open class CLCircularRegion: CLRegion, @unchecked Sendable {
+@objc(CLCircularRegion) open class CLCircularRegion: CLRegion, @unchecked Sendable {
     open private(set) var center: CLLocationCoordinate2D
     open private(set) var radius: CLLocationDistance
     public init(center: CLLocationCoordinate2D, radius: CLLocationDistance, identifier: String) {

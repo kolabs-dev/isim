@@ -94,7 +94,7 @@ public struct CNError: CustomNSError, LocalizedError, Sendable {
 
 // MARK: - Values
 
-open class CNPhoneNumber: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
+@objc(CNPhoneNumber) open class CNPhoneNumber: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
     public let stringValue: String
     public init(stringValue string: String) { stringValue = string }
     public convenience init?(stringValue: String?) { guard let stringValue else { return nil }; self.init(stringValue: stringValue) }
@@ -108,7 +108,7 @@ open class CNPhoneNumber: NSObject, NSCopying, NSSecureCoding, @unchecked Sendab
     open override var description: String { "<CNPhoneNumber: stringValue=\(stringValue)>" }
 }
 
-open class CNPostalAddress: NSObject, NSCopying, NSMutableCopying, NSSecureCoding, @unchecked Sendable {
+@objc(CNPostalAddress) open class CNPostalAddress: NSObject, NSCopying, NSMutableCopying, NSSecureCoding, @unchecked Sendable {
     var d = _CNAddress()
     open var street: String { d.street }
     open var subLocality: String { d.subLocality }
@@ -131,7 +131,7 @@ open class CNPostalAddress: NSObject, NSCopying, NSMutableCopying, NSSecureCodin
         ["street": "Street", "city": "City", "state": "State", "postalCode": "ZIP", "country": "Country"][key] ?? key
     }
 }
-open class CNMutablePostalAddress: CNPostalAddress, @unchecked Sendable {
+@objc(CNMutablePostalAddress) open class CNMutablePostalAddress: CNPostalAddress, @unchecked Sendable {
     open override var street: String { get { d.street } set { d.street = newValue } }
     open override var subLocality: String { get { d.subLocality } set { d.subLocality = newValue } }
     open override var city: String { get { d.city } set { d.city = newValue } }
@@ -234,7 +234,7 @@ extension _CNDay {
     var components: DateComponents { var c = DateComponents(); c.calendar = Calendar(identifier: .gregorian); c.year = year; c.month = month; c.day = day; return c }
 }
 
-open class CNContact: NSObject, NSCopying, NSMutableCopying, NSSecureCoding, @unchecked Sendable {
+@objc(CNContact) open class CNContact: NSObject, NSCopying, NSMutableCopying, NSSecureCoding, @unchecked Sendable {
     var d: _CNData
     /// keys fetched (nil: all, e.g. new contacts)
     var fetched: Set<String>?
@@ -356,7 +356,7 @@ enum _CNSort {
     }
 }
 
-open class CNMutableContact: CNContact, @unchecked Sendable {
+@objc(CNMutableContact) open class CNMutableContact: CNContact, @unchecked Sendable {
     open override var contactType: CNContactType { get { super.contactType } set { d.type = newValue.rawValue } }
     open override var namePrefix: String { get { super.namePrefix } set { d.namePrefix = newValue } }
     open override var givenName: String { get { super.givenName } set { d.givenName = newValue } }
@@ -398,7 +398,7 @@ open class CNMutableContact: CNContact, @unchecked Sendable {
 
 @objc public enum CNContactFormatterStyle: Int, Sendable { case fullName = 0, phoneticFullName }
 @objc public enum CNContactDisplayNameOrder: Int, Sendable { case userDefault = 0, givenNameFirst, familyNameFirst }
-open class CNContactFormatter: Formatter, @unchecked Sendable {
+@objc(CNContactFormatter) open class CNContactFormatter: Formatter, @unchecked Sendable {
     open var style: CNContactFormatterStyle = .fullName
     open class func descriptorForRequiredKeys(for style: CNContactFormatterStyle) -> CNKeyDescriptor {
         _CNKeys([CNContactNamePrefixKey, CNContactGivenNameKey, CNContactMiddleNameKey, CNContactFamilyNameKey, CNContactNameSuffixKey,

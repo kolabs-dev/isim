@@ -199,7 +199,7 @@ final class _MKAttributionView: UIView {
 }
 
 @MainActor
-open class MKMapView: UIView, CLLocationManagerDelegate {
+@objc(MKMapView) open class MKMapView: UIView, CLLocationManagerDelegate {
     open weak var delegate: MKMapViewDelegate?
     open var mapType: MKMapType = .standard { didSet { _base.setNeedsDisplay() } }
     open var preferredConfiguration: MKMapConfiguration = MKStandardMapConfiguration() { didSet { _base.setNeedsDisplay() } }

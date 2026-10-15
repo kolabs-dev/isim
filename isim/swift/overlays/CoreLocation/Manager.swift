@@ -6,25 +6,25 @@ import isim_host
     @objc optional func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation])
     @objc optional func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading)
     @objc optional func locationManagerShouldDisplayHeadingCalibration(_ manager: CLLocationManager) -> Bool
-    @objc optional func locationManager(_ manager: CLLocationManager, didDetermineState state: CLRegionState, for region: CLRegion)
+    @objc(locationManager:didDetermineState:forRegion:) optional func locationManager(_ manager: CLLocationManager, didDetermineState state: CLRegionState, for region: CLRegion)
     @objc optional func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion)
     @objc optional func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion)
     @objc optional func locationManager(_ manager: CLLocationManager, didFailWithError error: Error)
-    @objc optional func locationManager(_ manager: CLLocationManager, monitoringDidFailFor region: CLRegion?, withError error: Error)
-    @objc optional func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus)
+    @objc(locationManager:monitoringDidFailForRegion:withError:) optional func locationManager(_ manager: CLLocationManager, monitoringDidFailFor region: CLRegion?, withError error: Error)
+    @objc(locationManager:didChangeAuthorizationStatus:) optional func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus)
     @objc optional func locationManagerDidChangeAuthorization(_ manager: CLLocationManager)
-    @objc optional func locationManager(_ manager: CLLocationManager, didStartMonitoringFor region: CLRegion)
+    @objc(locationManager:didStartMonitoringForRegion:) optional func locationManager(_ manager: CLLocationManager, didStartMonitoringFor region: CLRegion)
     @objc optional func locationManagerDidPauseLocationUpdates(_ manager: CLLocationManager)
     @objc optional func locationManagerDidResumeLocationUpdates(_ manager: CLLocationManager)
     @objc optional func locationManager(_ manager: CLLocationManager, didFinishDeferredUpdatesWithError error: Error?)
     @objc optional func locationManager(_ manager: CLLocationManager, didVisit visit: CLVisit)
-    @objc optional func locationManager(_ manager: CLLocationManager, didRange beacons: [CLBeacon], satisfying beaconConstraint: CLBeaconIdentityConstraint)
-    @objc optional func locationManager(_ manager: CLLocationManager, didFailRangingFor beaconConstraint: CLBeaconIdentityConstraint, error: Error)
-    @objc optional func locationManager(_ manager: CLLocationManager, didRangeBeacons beacons: [CLBeacon], in region: CLBeaconRegion)
-    @objc optional func locationManager(_ manager: CLLocationManager, rangingBeaconsDidFailFor region: CLBeaconRegion, withError error: Error)
+    @objc(locationManager:didRangeBeacons:satisfyingConstraint:) optional func locationManager(_ manager: CLLocationManager, didRange beacons: [CLBeacon], satisfying beaconConstraint: CLBeaconIdentityConstraint)
+    @objc(locationManager:didFailRangingBeaconsForConstraint:error:) optional func locationManager(_ manager: CLLocationManager, didFailRangingFor beaconConstraint: CLBeaconIdentityConstraint, error: Error)
+    @objc(locationManager:didRangeBeacons:inRegion:) optional func locationManager(_ manager: CLLocationManager, didRangeBeacons beacons: [CLBeacon], in region: CLBeaconRegion)
+    @objc(locationManager:rangingBeaconsDidFailForRegion:withError:) optional func locationManager(_ manager: CLLocationManager, rangingBeaconsDidFailFor region: CLBeaconRegion, withError error: Error)
 }
 
-open class CLLocationManager: NSObject, @unchecked Sendable {
+@objc(CLLocationManager) open class CLLocationManager: NSObject, @unchecked Sendable {
     open weak var delegate: CLLocationManagerDelegate?
     open var desiredAccuracy: CLLocationAccuracy = kCLLocationAccuracyBest
     open var distanceFilter: CLLocationDistance = kCLDistanceFilterNone
@@ -88,7 +88,7 @@ open class CLLocationManager: NSObject, @unchecked Sendable {
 
     func notifyAuthorization() {
         delegate?.locationManagerDidChangeAuthorization?(self)
-        delegate?.locationManager?(self, didChangeAuthorization: _CLAuth.status)
+        if !_legacyAuthorization(_CLAuth.status) { delegate?.locationManager?(self, didChangeAuthorization: _CLAuth.status) }
     }
 
     // MARK: location
@@ -115,7 +115,7 @@ open class CLLocationManager: NSObject, @unchecked Sendable {
     open func startRangingBeacons(satisfying constraint: CLBeaconIdentityConstraint) {
         rangedBeaconConstraints.insert(constraint); lastRanging = .distantPast
         if _CLAuth.status == .denied || _CLAuth.status == .restricted {
-            DispatchQueue.main.async { self.delegate?.locationManager?(self, didFailRangingFor: constraint, error: CLError(.denied)) }
+            DispatchQueue.main.async { if !self._legacy("locationManager:didFailRangingFor:error:", constraint, CLError(.denied) as NSError) { self.delegate?.locationManager?(self, didFailRangingFor: constraint, error: CLError(.denied)) } }
             return
         }
         _CLSim.shared.kick()
@@ -125,7 +125,7 @@ open class CLLocationManager: NSObject, @unchecked Sendable {
     open func startRangingBeacons(in region: CLBeaconRegion) {
         rangedLegacy.removeAll { $0.identifier == region.identifier }; rangedLegacy.append(region); lastRanging = .distantPast
         if _CLAuth.status == .denied || _CLAuth.status == .restricted {
-            DispatchQueue.main.async { self.delegate?.locationManager?(self, rangingBeaconsDidFailFor: region, withError: CLError(.denied)) }
+            DispatchQueue.main.async { if !self._legacy("locationManager:rangingBeaconsDidFailFor:withError:", region, CLError(.denied) as NSError) { self.delegate?.locationManager?(self, rangingBeaconsDidFailFor: region, withError: CLError(.denied)) } }
             return
         }
         _CLSim.shared.kick()
@@ -138,16 +138,16 @@ open class CLLocationManager: NSObject, @unchecked Sendable {
     // MARK: regions
     open func startMonitoring(for region: CLRegion) {
         guard region is CLCircularRegion || region is CLBeaconRegion else {
-            DispatchQueue.main.async { self.delegate?.locationManager?(self, monitoringDidFailFor: region, withError: CLError(.regionMonitoringFailure)) }
+            DispatchQueue.main.async { if !self._legacy("locationManager:monitoringDidFailFor:withError:", region, CLError(.regionMonitoringFailure) as NSError) { self.delegate?.locationManager?(self, monitoringDidFailFor: region, withError: CLError(.regionMonitoringFailure)) } }
             return
         }
         monitoredRegions.insert(region)
         inside[region.identifier] = nil
         DispatchQueue.main.async {
             if !_CLAuth.authorized && _CLAuth.status != .notDetermined {
-                self.delegate?.locationManager?(self, monitoringDidFailFor: region, withError: CLError(.regionMonitoringDenied)); return
+                if !self._legacy("locationManager:monitoringDidFailFor:withError:", region, CLError(.regionMonitoringDenied) as NSError) { self.delegate?.locationManager?(self, monitoringDidFailFor: region, withError: CLError(.regionMonitoringDenied)) }; return
             }
-            self.delegate?.locationManager?(self, didStartMonitoringFor: region)
+            if !self._legacy("locationManager:didStartMonitoringFor:", region) { self.delegate?.locationManager?(self, didStartMonitoringFor: region) }
             _CLSim.shared.kick()
         }
     }
@@ -159,9 +159,10 @@ open class CLLocationManager: NSObject, @unchecked Sendable {
     open func requestState(for region: CLRegion) {
         DispatchQueue.main.async {
             guard _CLAuth.authorized, let fix = _CLSim.shared.current() ?? (region is CLBeaconRegion ? _CLSim.nowhere : nil) else {
-                self.delegate?.locationManager?(self, didDetermineState: .unknown, for: region); return
+                if !self._legacyState(.unknown, region) { self.delegate?.locationManager?(self, didDetermineState: .unknown, for: region) }; return
             }
-            self.delegate?.locationManager?(self, didDetermineState: region._contains(fix.coordinate) ? .inside : .outside, for: region)
+            let state: CLRegionState = region._contains(fix.coordinate) ? .inside : .outside
+            if !self._legacyState(state, region) { self.delegate?.locationManager?(self, didDetermineState: state, for: region) }
         }
     }
 
@@ -210,8 +211,14 @@ open class CLLocationManager: NSObject, @unchecked Sendable {
         // beacons are ranged about once a second (iOS reports every second, also when none is in range)
         if !rangedBeaconConstraints.isEmpty || !rangedLegacy.isEmpty, Date().timeIntervalSince(lastRanging) >= 0.95 {
             lastRanging = Date()
-            for c in rangedBeaconConstraints { delegate?.locationManager?(self, didRange: _CLBeacons.inRange(c), satisfying: c) }
-            for r in rangedLegacy { delegate?.locationManager?(self, didRangeBeacons: _CLBeacons.inRange(r.beaconIdentityConstraint), in: r) }
+            for c in rangedBeaconConstraints {
+                let b = _CLBeacons.inRange(c)
+                if !_legacy("locationManager:didRange:satisfying:", b as NSArray, c) { delegate?.locationManager?(self, didRange: b, satisfying: c) }
+            }
+            for r in rangedLegacy {
+                let b = _CLBeacons.inRange(r.beaconIdentityConstraint)
+                if !_legacy("locationManager:didRangeBeacons:in:", b as NSArray, r) { delegate?.locationManager?(self, didRangeBeacons: b, in: r) }
+            }
         }
         for r in monitoredRegions {
             guard let fix = fix ?? (r is CLBeaconRegion ? _CLSim.nowhere : nil) else { continue }
@@ -583,5 +590,35 @@ final class _CLVisits {
         }
         anchor = c; since = Date()
         return nil
+    }
+}
+
+// Swift apps built with isim 0.22 or earlier implement the delegate methods whose selectors are now Apple's
+// (locationManager:didChangeAuthorizationStatus: ...) under Swift's own selectors (locationManager:didChangeAuthorization:
+// ...). A delegate that has only the old one is called under it.
+extension CLLocationManager {
+    private func _old(_ sel: String) -> (NSObject, Selector)? {
+        guard let d = delegate as? NSObject else { return nil }
+        let s = NSSelectorFromString(sel)
+        return d.responds(to: s) ? (d, s) : nil
+    }
+    /// object arguments after the manager
+    func _legacy(_ sel: String, _ a: AnyObject, _ b: AnyObject? = nil) -> Bool {
+        guard let (d, s) = _old(sel) else { return false }
+        typealias Send = @convention(c) (AnyObject, Selector, AnyObject, AnyObject, AnyObject?) -> Void
+        unsafeBitCast(d.method(for: s), to: Send.self)(d, s, self, a, b)
+        return true
+    }
+    func _legacyAuthorization(_ status: CLAuthorizationStatus) -> Bool {
+        guard let (d, s) = _old("locationManager:didChangeAuthorization:") else { return false }
+        typealias Send = @convention(c) (AnyObject, Selector, AnyObject, Int32) -> Void
+        unsafeBitCast(d.method(for: s), to: Send.self)(d, s, self, status.rawValue)
+        return true
+    }
+    func _legacyState(_ state: CLRegionState, _ region: CLRegion) -> Bool {
+        guard let (d, s) = _old("locationManager:didDetermineState:for:") else { return false }
+        typealias Send = @convention(c) (AnyObject, Selector, AnyObject, Int, AnyObject) -> Void
+        unsafeBitCast(d.method(for: s), to: Send.self)(d, s, self, state.rawValue, region)
+        return true
     }
 }

@@ -90,14 +90,14 @@ enum _EKAuth {
 
 // MARK: - Objects
 
-open class EKObject: NSObject, @unchecked Sendable {
+@objc(EKObject) open class EKObject: NSObject, @unchecked Sendable {
     open var hasChanges: Bool { true }
     open func isNew() -> Bool { true }
     open func reset() {}
     open func rollback() {}
     open func refresh() -> Bool { true }
 }
-open class EKSource: EKObject, @unchecked Sendable {
+@objc(EKSource) open class EKSource: EKObject, @unchecked Sendable {
     open var sourceIdentifier: String { "isim-local" }
     open var sourceType: EKSourceType { .local }
     open var title: String { "Default" }
@@ -107,7 +107,7 @@ open class EKSource: EKObject, @unchecked Sendable {
     }
 }
 
-open class EKCalendar: EKObject, @unchecked Sendable {
+@objc(EKCalendar) open class EKCalendar: EKObject, @unchecked Sendable {
     var c: _EKCal
     init(_ c: _EKCal) { self.c = c }
     public init(for entityType: EKEntityType, eventStore: EKEventStore) {
@@ -130,20 +130,20 @@ open class EKCalendar: EKObject, @unchecked Sendable {
     open override var hash: Int { c.id.hashValue }
 }
 
-open class EKAlarm: EKObject, NSCopying, @unchecked Sendable {
+@objc(EKAlarm) open class EKAlarm: EKObject, NSCopying, @unchecked Sendable {
     open var relativeOffset: TimeInterval
     open var absoluteDate: Date?
     public init(relativeOffset offset: TimeInterval) { relativeOffset = offset }
     public init(absoluteDate date: Date) { relativeOffset = 0; absoluteDate = date }
     public func copy(with zone: OpaquePointer? = nil) -> Any { self }
 }
-open class EKRecurrenceEnd: NSObject, NSCopying, @unchecked Sendable {
+@objc(EKRecurrenceEnd) open class EKRecurrenceEnd: NSObject, NSCopying, @unchecked Sendable {
     public let endDate: Date?, occurrenceCount: Int
     public init(end endDate: Date) { self.endDate = endDate; occurrenceCount = 0 }
     public init(occurrenceCount: Int) { endDate = nil; self.occurrenceCount = occurrenceCount }
     public func copy(with zone: OpaquePointer? = nil) -> Any { self }
 }
-open class EKRecurrenceRule: EKObject, NSCopying, @unchecked Sendable {
+@objc(EKRecurrenceRule) open class EKRecurrenceRule: EKObject, NSCopying, @unchecked Sendable {
     public let frequency: EKRecurrenceFrequency
     public let interval: Int
     open var recurrenceEnd: EKRecurrenceEnd?
@@ -151,7 +151,7 @@ open class EKRecurrenceRule: EKObject, NSCopying, @unchecked Sendable {
     public func copy(with zone: OpaquePointer? = nil) -> Any { self }
 }
 
-open class EKCalendarItem: EKObject, @unchecked Sendable {
+@objc(EKCalendarItem) open class EKCalendarItem: EKObject, @unchecked Sendable {
     var i: _EKItem
     init(_ i: _EKItem) { self.i = i }
     open var calendarItemIdentifier: String { i.id }
@@ -184,7 +184,7 @@ open class EKCalendarItem: EKObject, @unchecked Sendable {
     open func removeRecurrenceRule(_ rule: EKRecurrenceRule) { i.rule = nil }
 }
 
-open class EKEvent: EKCalendarItem, @unchecked Sendable {
+@objc(EKEvent) open class EKEvent: EKCalendarItem, @unchecked Sendable {
     public init(eventStore: EKEventStore) { super.init(_EKItem(id: UUID().uuidString, kind: 0, calendar: "", title: "")) }
     override init(_ i: _EKItem) { super.init(i) }
     open var eventIdentifier: String! { i.id }
@@ -203,7 +203,7 @@ open class EKEvent: EKCalendarItem, @unchecked Sendable {
     open override var description: String { "EKEvent <\(i.id)> {title = \(i.title); startDate = \(startDate.map { "\($0)" } ?? "nil")}" }
 }
 
-open class EKReminder: EKCalendarItem, @unchecked Sendable {
+@objc(EKReminder) open class EKReminder: EKCalendarItem, @unchecked Sendable {
     public init(eventStore: EKEventStore) { super.init(_EKItem(id: UUID().uuidString, kind: 1, calendar: "", title: "")) }
     override init(_ i: _EKItem) { super.init(i) }
     static func comps(_ c: DateComponents?) -> [Int?]? { c.map { [$0.year, $0.month, $0.day, $0.hour, $0.minute] } }
@@ -227,7 +227,7 @@ open class EKReminder: EKCalendarItem, @unchecked Sendable {
 
 // MARK: - Store
 
-open class EKEventStore: NSObject, @unchecked Sendable {
+@objc(EKEventStore) open class EKEventStore: NSObject, @unchecked Sendable {
     public override init() { super.init() }
     public init(sources: [EKSource]) { super.init() }
     open var eventStoreIdentifier: String { "isim-event-store" }
