@@ -11,7 +11,7 @@ public let CSSearchableItemActivityIdentifier = "kCSSearchableItemActivityIdenti
 public let CSQueryContinuationActionType = "com.apple.corespotlightquerycontinuation"
 public let CSSearchQueryString = "kCSSearchQueryString"
 
-open class CSSearchableItemAttributeSet: NSObject {
+@objc(CSSearchableItemAttributeSet) open class CSSearchableItemAttributeSet: NSObject {
     public let contentType: String
     open var title: String?
     open var displayName: String?
@@ -32,7 +32,7 @@ open class CSSearchableItemAttributeSet: NSObject {
     public init(itemContentType: String) { self.contentType = itemContentType }
 }
 
-open class CSSearchableItem: NSObject {
+@objc(CSSearchableItem) open class CSSearchableItem: NSObject {
     open var uniqueIdentifier: String
     open var domainIdentifier: String?
     open var attributeSet: CSSearchableItemAttributeSet
@@ -51,7 +51,7 @@ public struct CSIndexError: Swift.Error, Sendable {
     public let code: Code
 }
 
-open class CSSearchableIndex: NSObject, @unchecked Sendable {
+@objc(CSSearchableIndex) open class CSSearchableIndex: NSObject, @unchecked Sendable {
     private static let shared = CSSearchableIndex(name: "default")
     open class func `default`() -> CSSearchableIndex { shared }
     open class func isIndexingAvailable() -> Bool { true }
@@ -121,7 +121,7 @@ open class CSSearchableIndex: NSObject, @unchecked Sendable {
 }
 
 /// In-app queries over the app's own index. isim: not implemented (no results; the completion runs).
-open class CSSearchQuery: NSObject {
+@objc(CSSearchQuery) open class CSSearchQuery: NSObject {
     open var foundItemsHandler: (([CSSearchableItem]) -> Void)?
     open var completionHandler: ((Swift.Error?) -> Void)?
     public let queryString: String

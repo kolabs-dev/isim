@@ -21,13 +21,13 @@ public struct PKPushType: RawRepresentable, Hashable, Sendable {
 public let PKPushTypeVoIP = PKPushType.voIP
 public let PKPushTypeFileProvider = PKPushType.fileProvider
 
-open class PKPushCredentials: NSObject, @unchecked Sendable {
+@objc(PKPushCredentials) open class PKPushCredentials: NSObject, @unchecked Sendable {
     open private(set) var type: PKPushType
     open private(set) var token: Data
     init(type: PKPushType, token: Data) { self.type = type; self.token = token }
 }
 
-open class PKPushPayload: NSObject, @unchecked Sendable {
+@objc(PKPushPayload) open class PKPushPayload: NSObject, @unchecked Sendable {
     open private(set) var type: PKPushType
     open private(set) var dictionaryPayload: [AnyHashable: Any]
     init(type: PKPushType, payload: [AnyHashable: Any]) { self.type = type; dictionaryPayload = payload }
@@ -84,7 +84,7 @@ enum _PushKitStore {
     }
 }
 
-open class PKPushRegistry: NSObject, @unchecked Sendable {
+@objc(PKPushRegistry) open class PKPushRegistry: NSObject, @unchecked Sendable {
     open weak var delegate: PKPushRegistryDelegate?
     let queue: DispatchQueue
     nonisolated(unsafe) static var registries: [Weak] = []

@@ -347,6 +347,13 @@ def _(a):
                                           "-framework", "CoreVideo", "-framework", "CoreGraphics"])
 
 
+@app("samples/HelloServicesObjC")   # after the overlays: the frameworks re-export their Swift overlays (issue #231)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "PushKit", "-framework", "CallKit",
+                                          "-framework", "AVFoundation", "-framework", "BackgroundTasks", "-framework", "CoreSpotlight",
+                                          "-framework", "SafariServices", "-framework", "MultipeerConnectivity", "-framework", "CoreGraphics"])
+
+
 @app("samples/HelloKeychainObjC")   # after the overlays: Security.framework re-exports libswiftSecurity
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Security",

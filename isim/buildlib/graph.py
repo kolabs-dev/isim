@@ -191,6 +191,13 @@ SWIFT_FRAMEWORKS = [
     ("AVFAudio", "-framework Foundation -framework AVFoundation -reexport_framework AVFoundation"),
     ("AudioUnit", "-framework Foundation"),
     ("CoreAudio", "-framework Foundation"),
+    # issue #231: the frameworks ad, login and VoIP SDKs use from Objective-C
+    ("SafariServices", "-framework Foundation -framework UIKit"),
+    ("CallKit", "-framework Foundation -framework AVFoundation"),
+    ("PushKit", "-framework Foundation"),
+    ("BackgroundTasks", "-framework Foundation"),
+    ("CoreSpotlight", "-framework Foundation"),
+    ("MultipeerConnectivity", "-framework Foundation -framework UIKit"),
 ]
 
 GUEST_CFLAGS = ["-target", f"x86_64-apple-ios{MINOS}-simulator", "-nostdlibinc", "-isystem", f"{SDK}/usr/include",

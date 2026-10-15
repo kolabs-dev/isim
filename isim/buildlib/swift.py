@@ -654,6 +654,17 @@ OBJC_NAMES["AVFoundation"] = {c: c for c in """AVAudioSession AVAudioSessionPort
     AVAssetTrack AVPlayerItem AVPlayerItemTrack AVPlayer AVQueuePlayer AVPlayerLayer""".split()}
 OBJC_NAMES["MessageUI"] = {c: c for c in ("MFMailComposeViewController", "MFMessageComposeViewController")}
 OBJC_NAMES["CoreMotion"] = {c: c for c in "CMLogItem CMAccelerometerData CMGyroData CMMagnetometerData CMAttitude CMDeviceMotion CMMotionManager".split()}
+OBJC_NAMES["SafariServices"] = {"SFSafariViewController": "SFSafariViewController", "SSReadingList": "SSReadingList",
+                                "SFSafariViewController.Configuration": "SFSafariViewControllerConfiguration"}
+OBJC_NAMES["CallKit"] = {c: c for c in """CXHandle CXCallUpdate CXProviderConfiguration CXAction CXCallAction CXStartCallAction CXAnswerCallAction
+    CXEndCallAction CXSetHeldCallAction CXSetMutedCallAction CXSetGroupCallAction CXPlayDTMFCallAction CXTransaction CXCall CXCallObserver
+    CXProvider CXCallController CXCallDirectoryManager CXCallDirectoryExtensionContext CXCallDirectoryProvider""".split()}
+OBJC_NAMES["PushKit"] = {c: c for c in "PKPushCredentials PKPushPayload PKPushRegistry".split()}
+OBJC_NAMES["BackgroundTasks"] = {c: c for c in """BGTaskRequest BGAppRefreshTaskRequest BGProcessingTaskRequest BGTask BGAppRefreshTask BGProcessingTask
+    BGTaskScheduler""".split()}
+OBJC_NAMES["CoreSpotlight"] = {c: c for c in "CSSearchableItemAttributeSet CSSearchableItem CSSearchableIndex CSSearchQuery".split()}
+OBJC_NAMES["MultipeerConnectivity"] = {c: c for c in """MCPeerID MCSession MCNearbyServiceAdvertiser MCNearbyServiceBrowser MCBrowserViewController
+    MCAdvertiserAssistant""".split()}
 
 
 def objc_aliases(module):
