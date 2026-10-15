@@ -1,7 +1,7 @@
 # DeveloperToolsSupport
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 31.2% of Apple's iOS API (20 of 64, exact) · **Rows:** 40% (5: 2 ✅ 3 ❌) · **iOS:** 14.0+
+**Symbols:** 31.2% of Apple's iOS API (20 of 64, exact) · **Rows:** 5: 2 ✅ 3 ❌ · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [Developer tools](../COVERAGE.md#devtools) · **Apple:** [DeveloperToolsSupport](https://developer.apple.com/documentation/developertoolssupport) · **Issues:** [`area:devtools`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Adevtools)

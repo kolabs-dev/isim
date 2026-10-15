@@ -1,7 +1,7 @@
 # Info.plist keys (Bundle Resources)
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 0.0% of Apple's iOS API (0 of 3, approximate, by name) · **Rows:** 31% (13: 4 ✅ 9 ❌) · **iOS:** 2.0+
+**Symbols:** 0.0% of Apple's iOS API (0 of 3, approximate, by name) · **Rows:** 16: 9 ✅ 1 🟡 6 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Accessibility & Info.plist](../COVERAGE.md#a11y) · **Apple:** [Bundle Resources](https://developer.apple.com/documentation/bundleresources) · **Issues:** [`area:a11y`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aa11y)

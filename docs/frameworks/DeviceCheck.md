@@ -1,7 +1,7 @@
 # DeviceCheck
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 100.0% of Apple's iOS API (32 of 32, exact) · **Rows:** 100% (1: 1 ✅) · **iOS:** 11.0+
+**Symbols:** 100.0% of Apple's iOS API (32 of 32, exact) · **Rows:** 1: 1 ✅ · **iOS:** 11.0+
 <!-- /generated:header -->
 
 **Area:** [Identity & security](../COVERAGE.md#security) · **Apple:** [DeviceCheck](https://developer.apple.com/documentation/devicecheck) · **Issues:** [`area:security`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asecurity)

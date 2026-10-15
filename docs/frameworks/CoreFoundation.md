@@ -1,7 +1,7 @@
 # CoreFoundation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 11.6% of Apple's iOS API (289 of 2502, exact) · **Rows:** 33% (3: 2 🟡 1 ❌) · **iOS:** 2.0+
+**Symbols:** 11.6% of Apple's iOS API (289 of 2502, exact) · **Rows:** 4: 1 ✅ 2 🟡 1 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Foundation & CoreFoundation](../COVERAGE.md#foundation) · **Apple:** [CoreFoundation](https://developer.apple.com/documentation/corefoundation) · **Issues:** [`area:foundation`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Afoundation)

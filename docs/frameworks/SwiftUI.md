@@ -1,7 +1,7 @@
 # SwiftUI
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 59.0% of Apple's iOS API (4038 of 6841, exact) · **Rows:** 96% (250: 236 ✅ 8 🟡 6 ❌) · **iOS:** 13.0+
+**Symbols:** 59.1% of Apple's iOS API (4045 of 6841, exact) · **Rows:** 251: 237 ✅ 8 🟡 6 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [SwiftUI & Charts](../COVERAGE.md#swiftui) · **Apple:** [SwiftUI](https://developer.apple.com/documentation/swiftui) · **Issues:** [`area:swiftui`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aswiftui)
@@ -340,7 +340,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-2803 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+2796 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -644,7 +644,7 @@
 - [`var body: Self.Body`](https://developer.apple.com/documentation/swiftui/commands/body-swift.property)
 - [`CommandsBuilder`](https://developer.apple.com/documentation/swiftui/commandsbuilder)
 - [`static func buildBlock() -> EmptyCommands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock())
-- … and 2503 more (`isim/data/api-coverage.json.gz`)
+- … and 2496 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

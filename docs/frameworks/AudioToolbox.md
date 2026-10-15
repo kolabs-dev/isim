@@ -1,7 +1,7 @@
 # AudioToolbox
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 17.8% of Apple's iOS API (538 of 3023, exact) · **Rows:** 78% (9: 7 ✅ 2 ❌) · **iOS:** 2.0+
+**Symbols:** 17.8% of Apple's iOS API (538 of 3023, exact) · **Rows:** 9: 7 ✅ 2 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [AudioToolbox](https://developer.apple.com/documentation/audiotoolbox) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)

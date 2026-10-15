@@ -1,7 +1,7 @@
 # AdSupport
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 100.0% of Apple's iOS API (4 of 4, exact) · **Rows:** 100% (1: 1 ✅) · **iOS:** 6.0+
+**Symbols:** 100.0% of Apple's iOS API (4 of 4, exact) · **Rows:** 1: 1 ✅ · **iOS:** 6.0+
 <!-- /generated:header -->
 
 **Area:** [Commerce & privacy](../COVERAGE.md#commerce) · **Apple:** [AdSupport](https://developer.apple.com/documentation/adsupport) · **Issues:** [`area:commerce`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Acommerce)

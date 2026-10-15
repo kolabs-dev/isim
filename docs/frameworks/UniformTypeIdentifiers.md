@@ -1,7 +1,7 @@
 # UniformTypeIdentifiers
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 38.2% of Apple's iOS API (131 of 343, exact) · **Rows:** 25% (2: 1 🟡 1 ❌) · **iOS:** 14.0+
+**Symbols:** 38.2% of Apple's iOS API (131 of 343, exact) · **Rows:** 2: 1 🟡 1 ❌ · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [UniformTypeIdentifiers](https://developer.apple.com/documentation/uniformtypeidentifiers) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)

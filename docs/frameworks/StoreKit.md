@@ -1,7 +1,7 @@
 # StoreKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 52.7% of Apple's iOS API (1239 of 2353, exact) · **Rows:** 88% (34: 30 ✅ 4 ❌) · **iOS:** 3.0+
+**Symbols:** 52.7% of Apple's iOS API (1239 of 2353, exact) · **Rows:** 35: 31 ✅ 4 ❌ · **iOS:** 3.0+
 <!-- /generated:header -->
 
 **Area:** [Commerce & privacy](../COVERAGE.md#commerce) · **Apple:** [StoreKit](https://developer.apple.com/documentation/storekit) · **Issues:** [`area:commerce`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Acommerce)

@@ -1,7 +1,7 @@
 # Dispatch
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 84.7% of Apple's iOS API (370 of 437, exact) · **Rows:** 86% (7: 6 ✅ 1 ❌) · **iOS:** 8.0+
+**Symbols:** 84.7% of Apple's iOS API (370 of 437, exact) · **Rows:** 7: 6 ✅ 1 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [Dispatch](https://developer.apple.com/documentation/dispatch) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)

@@ -1,7 +1,7 @@
 # PushKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 93.3% of Apple's iOS API (28 of 30, exact) · **Rows:** 50% (2: 1 ✅ 1 ❌) · **iOS:** 8.0+
+**Symbols:** 93.3% of Apple's iOS API (28 of 30, exact) · **Rows:** 3: 2 ✅ 1 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [PushKit](https://developer.apple.com/documentation/pushkit) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)

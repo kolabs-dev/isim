@@ -1,7 +1,7 @@
 # CoreTelephony
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 18.1% of Apple's iOS API (30 of 166, exact) · **Rows:** 0% (3: 3 ❌) · **iOS:** 4.0+
+**Symbols:** 18.1% of Apple's iOS API (30 of 166, exact) · **Rows:** 3: 3 ❌ · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [Core Telephony](https://developer.apple.com/documentation/coretelephony) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)

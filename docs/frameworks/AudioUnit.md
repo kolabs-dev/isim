@@ -1,6 +1,7 @@
 # AudioUnit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 0.0% of Apple's iOS API (0 of 1, exact) · **Rows:** 2: 1 ✅ 1 🟡 · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [Audio Unit](https://developer.apple.com/documentation/audiounit) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -20,4 +21,11 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+1 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`var AUDIO_UNIT_VERSION: Int32`](https://developer.apple.com/documentation/audiounit/audio_unit_version)
+
+</details>
 <!-- /generated:missing -->

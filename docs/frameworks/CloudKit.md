@@ -1,7 +1,7 @@
 # CloudKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 48.9% of Apple's iOS API (697 of 1426, exact) · **Rows:** 69% (8: 5 ✅ 1 🟡 2 ❌) · **iOS:** 8.0+
+**Symbols:** 48.9% of Apple's iOS API (697 of 1426, exact) · **Rows:** 8: 5 ✅ 1 🟡 2 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Data & persistence](../COVERAGE.md#data) · **Apple:** [CloudKit](https://developer.apple.com/documentation/cloudkit) · **Issues:** [`area:data`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Adata)
