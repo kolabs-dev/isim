@@ -72,7 +72,7 @@ so pull requests don't conflict on them (AGENTS.md, "Coverage").
 | [Accessibility & Info.plist](#a11y) | 0% | 9 | 1 | 0 | 6 | 0 | 1 of 2 |
 | **All areas** | **33%** | **1107** | **96** | **4** | **185** | **0** | **103 of 252** |
 
-Symbols: 83046 of 250420 Apple iOS symbols in the frameworks isim has or tracks (exact; isim dca9530, Apple snapshot 2026-10-14).
+Symbols: 83046 of 250420 Apple iOS symbols in the frameworks isim has or tracks (exact; isim e014842, Apple snapshot 2026-10-14).
 <!-- /generated:summary -->
 
 ### Per iOS version
