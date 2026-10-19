@@ -449,3 +449,8 @@ void isim_ib_hide_launch_screen(void);
 /* UIMainStoryboardFile / UISceneStoryboardFile: a window (kept alive; given to the delegate's `window`) showing the
    storyboard's initial view controller */
 UIWindow *isim_ib_storyboard_window(UIStoryboard *storyboard, UIWindowScene *scene, id delegate);
+
+/* configuration updates (UIConfigurationState.m): -updateConfigurationUsingState:, then the update handler */
+@interface UIView (IsimConfigurationUpdate)
+- (void)_isim_runConfigurationUpdate;
+@end

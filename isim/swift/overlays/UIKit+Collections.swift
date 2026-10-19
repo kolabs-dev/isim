@@ -44,6 +44,66 @@ public struct UICellConfigurationState: UIConfigurationState, Hashable {
     }
 }
 
+// MARK: - bridging to the Objective-C state classes (UIConfigurationState.h)
+extension UIViewConfigurationState {
+    init(_objc o: __UIViewConfigurationState) {
+        self.init(traitCollection: o.traitCollection)
+        isDisabled = o.isDisabled; isHighlighted = o.isHighlighted; isSelected = o.isSelected; isFocused = o.isFocused
+        if #available(iOS 18.0, *) { isPinned = o.isPinned }
+        for (k, v) in o._isim_custom { if let h = v as? AnyHashable { _custom[UIConfigurationStateCustomKey(rawValue: k)] = h } }
+    }
+    func _fill(_ o: __UIViewConfigurationState) {
+        o.isDisabled = isDisabled; o.isHighlighted = isHighlighted; o.isSelected = isSelected; o.isFocused = isFocused
+        if #available(iOS 18.0, *) { o.isPinned = isPinned }
+        o._isim_custom = Dictionary(uniqueKeysWithValues: _custom.map { ($0.key.rawValue, $0.value.base) })
+    }
+}
+extension UIViewConfigurationState: _ObjectiveCBridgeable {
+    public typealias _ObjectiveCType = __UIViewConfigurationState
+    public func _bridgeToObjectiveC() -> __UIViewConfigurationState {
+        let o = __UIViewConfigurationState(traitCollection: traitCollection); _fill(o); return o
+    }
+    public static func _forceBridgeFromObjectiveC(_ o: __UIViewConfigurationState, result: inout UIViewConfigurationState?) { result = Self(_objc: o) }
+    public static func _conditionallyBridgeFromObjectiveC(_ o: __UIViewConfigurationState, result: inout UIViewConfigurationState?) -> Bool {
+        result = Self(_objc: o); return true
+    }
+    public static func _unconditionallyBridgeFromObjectiveC(_ o: __UIViewConfigurationState?) -> UIViewConfigurationState {
+        o.map { Self(_objc: $0) } ?? Self(traitCollection: UITraitCollection.current)
+    }
+}
+extension UICellConfigurationState {
+    init(_objc o: __UICellConfigurationState) {
+        let v = UIViewConfigurationState(_objc: o)
+        self.init(traitCollection: v.traitCollection)
+        isDisabled = v.isDisabled; isHighlighted = v.isHighlighted; isSelected = v.isSelected; isFocused = v.isFocused; isPinned = v.isPinned
+        _custom = v._custom
+        isEditing = o.isEditing; isExpanded = o.isExpanded; isSwiped = o.isSwiped; isReordering = o.isReordering
+        cellDragState = [.none, .lifting, .dragging][max(0, min(2, o.cellDragState.rawValue))]
+        cellDropState = [.none, .notTargeted, .targeted][max(0, min(2, o.cellDropState.rawValue))]
+    }
+}
+extension UICellConfigurationState: _ObjectiveCBridgeable {
+    public typealias _ObjectiveCType = __UICellConfigurationState
+    public func _bridgeToObjectiveC() -> __UICellConfigurationState {
+        let o = __UICellConfigurationState(traitCollection: traitCollection)
+        var v = UIViewConfigurationState(traitCollection: traitCollection)
+        v.isDisabled = isDisabled; v.isHighlighted = isHighlighted; v.isSelected = isSelected; v.isFocused = isFocused; v.isPinned = isPinned
+        v._custom = _custom
+        v._fill(o)
+        o.isEditing = isEditing; o.isExpanded = isExpanded; o.isSwiped = isSwiped; o.isReordering = isReordering
+        o.cellDragState = __UICellConfigurationDragState(rawValue: [.none: 0, .lifting: 1, .dragging: 2][cellDragState] ?? 0) ?? .none
+        o.cellDropState = __UICellConfigurationDropState(rawValue: [.none: 0, .notTargeted: 1, .targeted: 2][cellDropState] ?? 0) ?? .none
+        return o
+    }
+    public static func _forceBridgeFromObjectiveC(_ o: __UICellConfigurationState, result: inout UICellConfigurationState?) { result = Self(_objc: o) }
+    public static func _conditionallyBridgeFromObjectiveC(_ o: __UICellConfigurationState, result: inout UICellConfigurationState?) -> Bool {
+        result = Self(_objc: o); return true
+    }
+    public static func _unconditionallyBridgeFromObjectiveC(_ o: __UICellConfigurationState?) -> UICellConfigurationState {
+        o.map { Self(_objc: $0) } ?? Self(traitCollection: UITraitCollection.current)
+    }
+}
+
 // MARK: - content configurations
 public protocol UIContentConfiguration {
     @MainActor func makeContentView() -> UIView & UIContentView
@@ -100,38 +160,27 @@ extension UICollectionViewCell {
         get { _isimUnbox(__contentConfiguration) }
         set { __contentConfiguration = _isimBox(newValue) }
     }
-    /// the cell's state, as content configurations see it
-    public var configurationState: UICellConfigurationState {
-        var s = UICellConfigurationState(traitCollection: traitCollection)
-        s.isSelected = isSelected; s.isHighlighted = isHighlighted; s.isDisabled = !isUserInteractionEnabled
-        s.isExpanded = (value(forKey: "_isim_expandedState") as? Bool) ?? false
-        s.isSwiped = (value(forKey: "_isim_swipedState") as? Bool) ?? false
-        return s
-    }
 }
-nonisolated(unsafe) private var isimUpdateHandlerKey: UInt8 = 0
+/* configurationState, updateConfiguration(using:) and configurationUpdateHandler are UIKit's Objective-C members
+   (UIConfigurationState.h), with the states bridged to the structs above (issue #242) */
+// Apps built before #242 call the overlay's own accessors of these: their getters and the handler's setter stay
+// exported under those names (the property descriptors and the modify accessor cannot be: abi/allowlist.txt).
 extension UICollectionViewCell {
-    public typealias ConfigurationUpdateHandler = (_ cell: UICollectionViewCell, _ state: UICellConfigurationState) -> Void
-    /// runs before the next layout whenever the cell's state changes (selection, highlight, editing, …)
-    public var configurationUpdateHandler: ConfigurationUpdateHandler? {
-        get { (objc_getAssociatedObject(self, &isimUpdateHandlerKey) as? _IsimHandlerBox)?.handler }
-        set { objc_setAssociatedObject(self, &isimUpdateHandlerKey, newValue.map(_IsimHandlerBox.init), .OBJC_ASSOCIATION_RETAIN_NONATOMIC); setNeedsUpdateConfiguration() }
-    }
-    @objc func _isimRunConfigurationUpdate() { configurationUpdateHandler?(self, configurationState) }
+    @_silgen_name("$sSo20UICollectionViewCellC5UIKitE18configurationStateAC019UICellConfigurationF0Vvg")
+    @usableFromInline func _abi024_configurationState() -> UICellConfigurationState { configurationState }
+    @_silgen_name("$sSo20UICollectionViewCellC5UIKitE26configurationUpdateHandleryAB_AC24UICellConfigurationStateVtcSgvg")
+    @usableFromInline func _abi024_configurationUpdateHandler() -> ConfigurationUpdateHandler? { configurationUpdateHandler }
+    @_silgen_name("$sSo20UICollectionViewCellC5UIKitE26configurationUpdateHandleryAB_AC24UICellConfigurationStateVtcSgvs")
+    @usableFromInline func _abi024_setConfigurationUpdateHandler(_ newValue: __owned ConfigurationUpdateHandler?) { configurationUpdateHandler = newValue }
 }
-final class _IsimHandlerBox: NSObject {
-    let handler: UICollectionViewCell.ConfigurationUpdateHandler
-    init(_ h: @escaping UICollectionViewCell.ConfigurationUpdateHandler) { handler = h }
+extension UITableViewCell {
+    @_silgen_name("$sSo15UITableViewCellC5UIKitE18configurationStateAC019UICellConfigurationF0Vvg")
+    @usableFromInline func _abi024_configurationState() -> UICellConfigurationState { configurationState }
 }
 extension UITableViewCell {
     public var contentConfiguration: UIContentConfiguration? {
         get { _isimUnbox(__contentConfiguration) }
         set { __contentConfiguration = _isimBox(newValue) }
-    }
-    public var configurationState: UICellConfigurationState {
-        var s = UICellConfigurationState(traitCollection: traitCollection)
-        s.isSelected = isSelected; s.isHighlighted = isHighlighted; s.isEditing = isEditing; s.isDisabled = !isUserInteractionEnabled
-        return s
     }
 }
 extension UITableViewHeaderFooterView {
