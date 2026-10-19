@@ -403,13 +403,16 @@ def compile_xcassets(path, bundle):
             if kind == '.colorset':
                 variants = {}
                 for c in meta.get('colors', []):
+                    if 'color' not in c:
+                        continue                     # no color given (Xcode's new AccentColor): nothing, as actool does
                     appearance = appearance_key(c.get('appearances', []))
                     comps = c.get('color', {}).get('components', {})
                     def comp(k, default='1'):
                         v = str(comps.get(k, default))
                         return int(v, 16) / 255 if v.startswith('0x') else (float(v) / 255 if float(v) > 1 else float(v))
                     variants[appearance] = [comp('red', '0'), comp('green', '0'), comp('blue', '0'), comp('alpha')]
-                index['colors'][name] = variants
+                if variants:                         # an empty color set: no color named so (the tint stays the system's blue)
+                    index['colors'][name] = variants
             elif kind == '.dataset':
                 # NSDataAsset(name:): the data file and its type identifier
                 for item in meta.get('data', []):

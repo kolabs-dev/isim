@@ -3,6 +3,7 @@ file: Xcode's autocreated scheme), run, and with --tests tested with `isim test 
 the targets that depend on the app). Xcode's own test templates use XCTAttachment(screenshot:), add(_:), measure(metrics:
 [XCTApplicationLaunchMetric()]) and runsForEachTargetApplicationUIConfiguration, so they run here too. The generated
 Info.plist has what Xcode generates for INFOPLIST_KEY_*_Generation: UILaunchScreen and UIApplicationSceneManifest."""
+import json
 import os
 import plistlib
 import re
@@ -65,9 +66,24 @@ def test_new_swiftui(tmp_path, launch):
     assert info["UIApplicationSceneManifest"] == {"UIApplicationSupportsMultipleScenes": True}
     assert "UILaunchScreen_Generation" not in info and "UIApplicationSceneManifest_Generation" not in info
     assert info["UISupportedInterfaceOrientations~iphone"] == ORIENTATIONS and info["UIDeviceFamily"] == [1, 2]
+    colors = json.loads((app / "isim-assets.json").read_text())["colors"]
+    assert "AccentColor" not in colors, "the template's AccentColor has no color: none is compiled (black before)"
     a = launch(app)
     a.wait_view(r"text=Hello, world!")
+    # .foregroundStyle(.tint) with that AccentColor: the system blue, like Xcode's preview (not black)
+    img = a.wait_shot(lambda i: any(bluish(i.getpixel((x, y))) for x in range(i.width // 2 - 15, i.width // 2 + 15)
+                                    for y in range(i.height // 2 - 60, i.height // 2)), "the blue globe above the text")
+    assert not any(blackish(img.getpixel((x, y))) for x in range(img.width // 2 - 15, img.width // 2 + 15)
+                   for y in range(img.height // 2 - 60, img.height // 2 - 20)), "the globe is not black"
     a.quit()
+
+
+def bluish(c):
+    return c[2] > 200 and c[0] < 80 and 90 < c[1] < 160
+
+
+def blackish(c):
+    return c[0] < 40 and c[1] < 40 and c[2] < 40
 
 
 def test_new_with_tests(tmp_path, device_data):
