@@ -138,6 +138,7 @@ These override the Settings app for one run (the device's settings stay as they 
 |---|---|
 | `ISIM_MIN_IOS=17.0` | deployment target used by `isim cc` / `isim swiftc` |
 | `ISIM_SWIFT_TOOLCHAIN=DIR` | the Swift 6.2.4 toolchain `isim swiftc` / `isim build` compile with: a toolchain directory (with `usr/bin/swiftc`). Unset: swiftly's 6.2.4, else a 6.2.4 `swiftc` on `PATH` (`isim toolchain status`) |
+| `CLANG=PATH` | the clang `isim cc` / `isim build` compile and link with (LLVM's, 21 or newer), with the `ld64.lld` next to it. Unset: the first `clang` on `PATH` that is not a Swift toolchain's (swiftly's proxies, a toolchain's `usr/bin`: Apple's fork of lld refuses to link for iOS) |
 | `ISIM_TEST_TIMEOUT=S` | `isim test`: time limit per test bundle (default 900) |
 | `ISIM_INSTALL_DIR=DIR` | where `install.sh` / `isim update` keep releases (default `~/.local/lib/isim`) |
 | `ISIM_NO_DESKTOP=1` | `install.sh` / `isim update` do not add isim Simulator to the app launcher (like `--no-desktop`) |

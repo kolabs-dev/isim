@@ -1070,7 +1070,9 @@ def dump_package(path, cache_dir):
         r = subprocess.run(swift_tool('swift', 'package', '--package-path', path, '--scratch-path', scratch, 'dump-package'),
                            capture_output=True, text=True, cwd=scratch)
     if r.returncode:
-        sys.exit(f'isim build: cannot read {manifest}:\n{r.stderr}')
+        hint = ('\nisim build: the Swift toolchain cannot run: `isim toolchain status` says what it is missing'
+                if 'error while loading shared libraries' in r.stderr else '')
+        sys.exit(f'isim build: cannot read {manifest}:\n{r.stderr}{hint}')
     with open(cache, 'w') as f:
         f.write(r.stdout)
     return json.loads(r.stdout)

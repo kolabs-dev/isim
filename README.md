@@ -96,9 +96,9 @@ example); see [docs/SCRIPTING.md](docs/SCRIPTING.md) for every command and [docs
 coding agents. Permission prompts, Face ID, location, microphone
 and logs can be answered or configured with environment variables: see [docs/SYSTEM-PROMPTS.md](docs/SYSTEM-PROMPTS.md).
 
-**Compiling** needs clang/lld 21 or newer (isim's SDK ships libc++ 22; on Ubuntu/Debian get it from [apt.llvm.org](https://apt.llvm.org)). Constant Objective-C literals (clang 23) are supported. Swift compiles with Swift 6.2.4 exactly (the compiler isim's SDK is built with: its Swift modules load in no other), installed with [swiftly](https://www.swift.org/install/linux/):
+**Compiling** needs clang/lld 21 or newer (isim's SDK ships libc++ 22; on Ubuntu/Debian get it from [apt.llvm.org](https://apt.llvm.org)): LLVM's own, not a Swift toolchain's (swiftly puts one first on `PATH`; its lld refuses to link for iOS), so `isim cc` skips those, and `CLANG=/path/to/clang` names one. Constant Objective-C literals (clang 23) are supported. Swift compiles with Swift 6.2.4 exactly (the compiler isim's SDK is built with: its Swift modules load in no other), installed with [swiftly](https://www.swift.org/install/linux/):
 
-- `isim toolchain install` installs it (and swiftly first when it is missing; your shell profile is not changed). `isim toolchain status` says which toolchain isim uses and why.
+- `isim toolchain install` installs it (and swiftly first when it is missing; your shell profile is not changed). `isim toolchain status` says which toolchain isim uses and why, and what system library its `swift` driver lacks, if any (`swift package` reads `Package.swift` with it; on distributions swiftly does not support, such as Arch, swiftly installs the Ubuntu build).
 - isim looks for, in order: `ISIM_SWIFT_TOOLCHAIN=DIR` (a toolchain installed otherwise, e.g. swift.org's unpacked tarball), swiftly's 6.2.4, and a `swiftc` on `PATH` that is 6.2.4 (e.g. a devcontainer from the `swift:6.2.4` image). Another Swift version is refused with a message, never used.
 - Earlier releases compiled Swift in Docker's `swift:6.2` image; isim no longer uses Docker.
 
