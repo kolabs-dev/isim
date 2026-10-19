@@ -1393,3 +1393,9 @@ extension UIContentUnavailableConfiguration {
         set { __secondaryButton = newValue._bridgeToObjectiveC() }
     }
 }
+
+@available(iOS 17.0, *)
+extension UIApplication {
+    /// Activates a scene session without an error handler (Apple's default `errorHandler: nil`).
+    public func activateSceneSession(for request: UISceneSessionActivationRequest) { activateSceneSession(for: request, errorHandler: nil) }
+}

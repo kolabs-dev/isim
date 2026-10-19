@@ -678,6 +678,7 @@ static UIWindowScene *implicit_scene(void) {
 @implementation UISceneSessionActivationRequest
 + (instancetype)request { return [self requestWithRole:UIWindowSceneSessionRoleApplication]; }
 + (instancetype)requestWithRole:(UISceneSessionRole)role { UISceneSessionActivationRequest *r = [self new]; r.role = role; return r; }
+- (instancetype)initForIsimRole:(UISceneSessionRole)role { if ((self = [super init])) _role = role; return self; }
 + (instancetype)requestWithSession:(UISceneSession *)session {
     if (!session) return nil;
     UISceneSessionActivationRequest *r = [self new]; r.role = session.role ?: UIWindowSceneSessionRoleApplication; r.session = session; return r;
@@ -1713,6 +1714,11 @@ static UIScene *connect_session_shown(UISceneSession *reuse, NSUserActivity *act
     for (NSDictionary *pc in roleConfigs) if (wantName && [pc[@"UISceneConfigurationName"] isEqualToString:wantName]) plistConfig = pc;
     if (!config) config = [UISceneConfiguration configurationWithName:plistConfig[@"UISceneConfigurationName"] sessionRole:UIWindowSceneSessionRoleApplication];
     if (!config.delegateClass) config.delegateClass = class_named(plistConfig[@"UISceneDelegateClassName"]);
+    /* a SwiftUI hosting scene delegate's request (UISceneSessionActivationRequest(hostingDelegateClass:)) names its class */
+    for (NSUserActivity *a in options.userActivities) {
+        id h = a.userInfo[@"isim.hostingDelegate"];
+        if ([h isKindOfClass:[NSString class]] && class_named(h)) config.delegateClass = class_named(h);
+    }
     if (!config.sceneClass) config.sceneClass = class_named(plistConfig[@"UISceneClassName"]) ?: [UIWindowScene class];
     if (!config.storyboard && plistConfig[@"UISceneStoryboardFile"])
         config.storyboard = [UIStoryboard storyboardWithName:plistConfig[@"UISceneStoryboardFile"] bundle:nil];
@@ -1728,6 +1734,11 @@ static UIScene *connect_session_shown(UISceneSession *reuse, NSUserActivity *act
     UIWindow *storyboardWindow = config.storyboard && [scene isKindOfClass:[UIWindowScene class]]
         ? isim_ib_storyboard_window(config.storyboard, (UIWindowScene *)scene, sd) : nil;
     [NSNotificationCenter.defaultCenter postNotificationName:UISceneWillConnectNotification object:scene];
+    /* SwiftUI's UIHostingSceneDelegate (when SwiftUI is loaded): the window of its root scene, before the delegate's willConnect */
+    static void (*hosting)(void *, void *);
+    static BOOL looked;
+    if (!looked) { looked = YES; hosting = (void (*)(void *, void *))dlsym(RTLD_DEFAULT, "isim_swiftui_connect_hosting_scene"); }
+    if (hosting && sd) hosting((__bridge void *)scene, (__bridge void *)options);
     if ([sd respondsToSelector:@selector(scene:willConnectToSession:options:)]) [sd scene:scene willConnectToSession:session options:options];
     if (storyboardWindow.hidden) [storyboardWindow makeKeyAndVisible];
     extern void isim_sys_scene_connected(UIScene *scene);
