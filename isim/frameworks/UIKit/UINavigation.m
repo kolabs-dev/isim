@@ -1628,13 +1628,14 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     dim = _dim = [[UIView alloc] initWithFrame:host.bounds]; _dim.backgroundColor = UIColor.blackColor; _dim.userInteractionEnabled = NO;
     [host insertSubview:_dim belowSubview:push ? tv : fv];
     [host bringSubviewToFront:_bar]; [host bringSubviewToFront:_toolbar];
+    CGFloat s = [self.view _isim_isRTL] ? -1 : 1;              /* right to left: pushed screens come in from the left */
     [UIView performWithoutAnimation:^{
-        tv.frame = CGRectOffset(host.bounds, push ? W : -W * 0.3, 0);
+        tv.frame = CGRectOffset(host.bounds, s * (push ? W : -W * 0.3), 0);
         _dim.alpha = push ? 0 : 0.08;
     }];
     [UIView animateWithDuration:0.5 delay:0 usingSpringWithDamping:1 initialSpringVelocity:0 options:0 animations:^{
         tv.frame = host.bounds;
-        fv.frame = CGRectOffset(host.bounds, push ? -W * 0.3 : W, 0);
+        fv.frame = CGRectOffset(host.bounds, s * (push ? -W * 0.3 : W), 0);
         _dim.alpha = push ? 0.08 : 0;
     } completion:finish];
 }
@@ -1679,32 +1680,33 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     [self _isim_transitionFrom:from to:to push:push animated:animated done:^{ for (UIViewController *n in vcs) [n didMoveToParentViewController:self]; }];
 }
 
-/* ---- interactive pop: a swipe that starts at the left edge ---- */
+/* ---- interactive pop: a swipe that starts at the leading edge (the right one, right to left) ---- */
 - (void)_isim_swipe:(UIPanGestureRecognizer *)g {
     UIView *host = self.view;
-    CGFloat W = host.bounds.size.width, dx = [g translationInView:host].x;
+    CGFloat s = [self.view _isim_isRTL] ? -1 : 1;
+    CGFloat W = host.bounds.size.width, dx = s * [g translationInView:host].x;
     if (g.state == UIGestureRecognizerStateBegan) {
         /* from the edge where the finger went down: on a busy frame the pan can begin well inside the screen */
         CGFloat startX = [g _isim_downLocationInView:host].x;
-        _swiping = startX < 30 && _stack.count > 1 && !_transitioning;
+        _swiping = (s > 0 ? startX < 30 : startX > W - 30) && _stack.count > 1 && !_transitioning;
         if (!_swiping) return;
         UIViewController *below = _stack[_stack.count - 2];
         [self _isim_install:below];
         [host insertSubview:below.view belowSubview:self.topViewController.view];
-        [UIView performWithoutAnimation:^{ below.view.frame = CGRectOffset(host.bounds, -W * 0.3, 0); }];
+        [UIView performWithoutAnimation:^{ below.view.frame = CGRectOffset(host.bounds, -s * W * 0.3, 0); }];
     }
     if (!_swiping) return;
     UIViewController *top = self.topViewController, *below = _stack[_stack.count - 2];
     CGFloat d = fmax(0, fmin(W, dx));
     if (g.state == UIGestureRecognizerStateChanged || g.state == UIGestureRecognizerStateBegan) {
         [UIView performWithoutAnimation:^{
-            top.view.frame = CGRectOffset(host.bounds, d, 0);
-            below.view.frame = CGRectOffset(host.bounds, -W * 0.3 * (1 - d / W), 0);
+            top.view.frame = CGRectOffset(host.bounds, s * d, 0);
+            below.view.frame = CGRectOffset(host.bounds, -s * W * 0.3 * (1 - d / W), 0);
         }];
         return;
     }
     _swiping = NO;
-    BOOL complete = g.state == UIGestureRecognizerStateEnded && (d > W / 3 || [g velocityInView:host].x > 600);
+    BOOL complete = g.state == UIGestureRecognizerStateEnded && (d > W / 3 || s * [g velocityInView:host].x > 600);
     if (complete) {
         [_stack removeLastObject];
         [top willMoveToParentViewController:nil];
@@ -1714,7 +1716,7 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
         [self.view setNeedsLayout]; [self _isim_layoutBar];
         [self.tabBarController _isim_updateTabBar];
         [UIView animateWithDuration:0.3 delay:0 options:UIViewAnimationOptionCurveEaseOut animations:^{
-            top.view.frame = CGRectOffset(host.bounds, W, 0); below.view.frame = host.bounds;
+            top.view.frame = CGRectOffset(host.bounds, s * W, 0); below.view.frame = host.bounds;
         } completion:^(BOOL f) {
             _transitioning = NO;
             [top.view removeFromSuperview]; if (visible) { [top _isim_appear:NO]; [below _isim_didAppear]; }
@@ -1724,7 +1726,7 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
         }];
     } else {
         [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:1 initialSpringVelocity:0 options:0 animations:^{
-            top.view.frame = host.bounds; below.view.frame = CGRectOffset(host.bounds, -W * 0.3, 0);
+            top.view.frame = host.bounds; below.view.frame = CGRectOffset(host.bounds, -s * W * 0.3, 0);
         } completion:^(BOOL f) { [below.view removeFromSuperview]; }];
     }
 }

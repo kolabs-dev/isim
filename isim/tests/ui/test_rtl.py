@@ -1,7 +1,8 @@
 """Right-to-left layout (HelloRightToLeft): the app's direction from its Arabic localization, Xcode's right-to-left
 pseudolanguage (-AppleTextDirection YES) or left to right in English; leading / trailing constraints with constants,
 a stack view, directional margins, natural text alignment, an image that flips, a playback row that does not, the
-navigation bar's back button and table cells. Positions are checked against the device's width (os_matrix: iPhone 15,
+navigation bar's back button and table cells, a segmented control (segment 0 on the leading side, taps too), a
+horizontal flow layout (mirrored, starting at the leading end) and the back swipe from the leading edge. Positions are checked against the device's width (os_matrix: iPhone 15,
 16 Pro, 17)."""
 import re
 
@@ -48,11 +49,30 @@ def test_rtl(launch, mode):
         assert f["s1"][0] < f["s2"][0] < f["s3"][0], "the stack view runs left to right"
         assert f["nav-back"][0] < W / 2, "the back button is on the left"
     assert f["rewind"][0] < f["play"][0], "the playback row stays left to right"
+    app.wait_log(r"flips=true")
+    off, mx = map(int, app.wait_log(r"shelf offset=(\d+) max=(\d+)").groups())
+    assert mx > 0 and off == (mx if rtl else 0), f"the shelf starts at its leading end ({off} of {mx})"
+    dump = app.wait_view(r"id=item1")
+    f = frames(dump)
+    item0, item1 = f["item0"], f["item1"]                              # in the shelf's content: minus the offset on screen
+    if rtl:
+        assert item1[0] < item0[0] and abs(item0[0] + item0[2] - off - W) <= 1, f"items run right to left {item0} {item1}"
+    else:
+        assert item1[0] > item0[0] and abs(item0[0]) <= 1, f"items run left to right {item0} {item1}"
+    sx, sy, sw, sh = f["seg"]
+    app.tap(sx + sw / 6, sy + sh / 2)                                  # the left-most segment
+    app.wait_log(rf"segment {2 if rtl else 0}")
     shot = app.wait_shot_still()
     weight = red_weight(shot, f["arrow"])
     assert (weight > 0) == rtl, f"the arrow points {'left' if rtl else 'right'} (left - right pixels: {weight})"
+    lx, ly, lw, lh = f["label"]                                        # natural alignment: the text on the leading side
+    dark = lambda c: c[0] < 90 and c[1] < 90 and c[2] < 90
+    left, right = count_px(shot, (lx, ly, lw / 2, lh), dark), count_px(shot, (lx + lw / 2, ly, lw / 2, lh), dark)
+    assert (right > left) == rtl, f"the label's text is on the {'right' if rtl else 'left'} ({left} left, {right} right)"
 
-    app.wait_tap_id("nav-back")                                        # the list: cells mirrored
+    ax, ay, _, ah = f["arrow"]                                         # the back swipe, from the leading edge
+    app.drag(W - 3, ay + ah / 2, W - 300, ay + ah / 2, 0.4) if rtl else app.drag(3, ay + ah / 2, 300, ay + ah / 2, 0.4)
+    app.wait_log(r"list appears")                                      # the list: cells mirrored
     list_dump = app.wait_view(r"id=row0")
     inbox = re.search(r"\(([-\d.]+) [-\d.]+; ([-\d.]+) x [-\d.]+\)[^\n]*text=Inbox", list_dump)
     x, w = float(inbox.group(1)), float(inbox.group(2))

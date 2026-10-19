@@ -1,7 +1,9 @@
 // Sample: right-to-left layout on isim — the app's layout direction (from its Arabic localization, Xcode's
 // right-to-left pseudolanguage or ISIM_LAYOUT_DIRECTION), leading / trailing constraints, a stack view, natural text
 // alignment, directional margins, a navigation bar with a back button, table cells with accessories, an image that
-// flips (imageFlippedForRightToLeftLayoutDirection), and a playback row that stays left to right.
+// flips (imageFlippedForRightToLeftLayoutDirection), a playback row that stays left to right, a segmented control
+// (segment 0 on the leading side), a horizontally scrolling flow layout that mirrors and starts at the leading end, and
+// the interactive back swipe from the leading edge.
 import UIKit
 
 @main
@@ -23,6 +25,7 @@ final class ListViewController: UITableViewController {
         title = NSLocalizedString("title", comment: "")
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: "c")
     }
+    override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); print("list appears") }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { 3 }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let c = UITableViewCell(style: indexPath.row == 1 ? .value1 : .default, reuseIdentifier: nil)
@@ -34,7 +37,8 @@ final class ListViewController: UITableViewController {
     }
 }
 
-final class DetailViewController: UIViewController {
+final class DetailViewController: UIViewController, UICollectionViewDataSource {
+    var shelf: UICollectionView!
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Detail"
@@ -58,7 +62,16 @@ final class DetailViewController: UIViewController {
         player.spacing = 8; player.distribution = .fillEqually
         player.semanticContentAttribute = .playback                       // media controls keep their order
         player.accessibilityIdentifier = "player"
-        for v in [label, field, arrow, player] as [UIView] { v.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(v) }
+        let seg = UISegmentedControl(items: ["one", "two", "three"])
+        seg.selectedSegmentIndex = 1; seg.accessibilityIdentifier = "seg"
+        seg.addAction(UIAction { [unowned seg] _ in print("segment \(seg.selectedSegmentIndex)") }, for: .valueChanged)
+        let flow = UICollectionViewFlowLayout()
+        flow.scrollDirection = .horizontal; flow.itemSize = CGSize(width: 70, height: 40); flow.minimumLineSpacing = 10
+        print("flips=\(flow.flipsHorizontallyInOppositeLayoutDirection)")
+        shelf = UICollectionView(frame: .zero, collectionViewLayout: flow)
+        shelf.register(UICollectionViewCell.self, forCellWithReuseIdentifier: "c")
+        shelf.dataSource = self; shelf.accessibilityIdentifier = "shelf"
+        for v in [label, field, arrow, player, seg, shelf] as [UIView] { v.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(v) }
         view.addSubview(stack)
         let g = view.safeAreaLayoutGuide, m = view.layoutMarginsGuide
         NSLayoutConstraint.activate([
@@ -76,10 +89,25 @@ final class DetailViewController: UIViewController {
             arrow.widthAnchor.constraint(equalToConstant: 40), arrow.heightAnchor.constraint(equalToConstant: 40),
             player.leadingAnchor.constraint(equalTo: m.leadingAnchor), player.trailingAnchor.constraint(equalTo: m.trailingAnchor),
             player.topAnchor.constraint(equalTo: arrow.bottomAnchor, constant: 20), player.heightAnchor.constraint(equalToConstant: 40),
+            seg.leadingAnchor.constraint(equalTo: m.leadingAnchor), seg.trailingAnchor.constraint(equalTo: m.trailingAnchor),
+            seg.topAnchor.constraint(equalTo: player.bottomAnchor, constant: 20),
+            shelf.leadingAnchor.constraint(equalTo: view.leadingAnchor), shelf.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            shelf.topAnchor.constraint(equalTo: seg.bottomAnchor, constant: 20), shelf.heightAnchor.constraint(equalToConstant: 40),
         ])
         let margins = view.directionalLayoutMargins
         view.directionalLayoutMargins = NSDirectionalEdgeInsets(top: margins.top, leading: 30, bottom: margins.bottom, trailing: 10)
         print("margins left=\(Int(view.layoutMargins.left)) right=\(Int(view.layoutMargins.right))")
+    }
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        print("shelf offset=\(Int(shelf.contentOffset.x)) max=\(Int(max(0, shelf.contentSize.width - shelf.bounds.width)))")
+    }
+    func collectionView(_ cv: UICollectionView, numberOfItemsInSection section: Int) -> Int { 10 }
+    func collectionView(_ cv: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        let c = cv.dequeueReusableCell(withReuseIdentifier: "c", for: indexPath)
+        c.backgroundColor = indexPath.item == 0 ? .systemTeal : .systemGray4
+        c.accessibilityIdentifier = "item\(indexPath.item)"
+        return c
     }
     func box(_ c: UIColor, _ id: String) -> UIView {
         let v = UIView(); v.backgroundColor = c; v.accessibilityIdentifier = id

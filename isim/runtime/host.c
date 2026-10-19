@@ -844,6 +844,14 @@ static int pango_weight(double w) {
 #define SYSTEM_SANS "Adwaita Sans,Inter,Noto Sans,sans-serif"
 #define SYSTEM_MONO "Adwaita Mono,Noto Sans Mono,monospace"
 /* style: 1 monospaced, 2 italic, 4 tabular (monospaced) digits */
+/* UIKit's alignments are visual (natural is resolved before it gets here); Pango swaps left and right in a paragraph
+   whose text runs right to left (Arabic, Hebrew), so they are swapped back */
+static void set_visual_alignment(PangoLayout *l, int align) {
+    PangoAlignment a = align == 1 ? PANGO_ALIGN_CENTER : align == 2 ? PANGO_ALIGN_RIGHT : PANGO_ALIGN_LEFT;
+    PangoLayoutLine *line = a == PANGO_ALIGN_CENTER ? NULL : pango_layout_get_line_readonly(l, 0);
+    if (line && line->resolved_dir == PANGO_DIRECTION_RTL) a = a == PANGO_ALIGN_LEFT ? PANGO_ALIGN_RIGHT : PANGO_ALIGN_LEFT;
+    pango_layout_set_alignment(l, a);
+}
 static PangoLayout *layout_for_family(const char *utf8, const char *family, double size, double weight, int style, double maxw, int lines, int align) {
     int mono = style & 1;
     PangoLayout *l = pango_layout_new(pctx);
@@ -866,7 +874,7 @@ static PangoLayout *layout_for_family(const char *utf8, const char *family, doub
     pango_layout_set_text(l, utf8 ? utf8 : "", -1);
     if (maxw > 0) { pango_layout_set_width(l, (int)(maxw * PANGO_SCALE)); pango_layout_set_wrap(l, PANGO_WRAP_WORD_CHAR); }
     if (lines > 0 && maxw > 0) { pango_layout_set_height(l, -lines); pango_layout_set_ellipsize(l, PANGO_ELLIPSIZE_END); }
-    pango_layout_set_alignment(l, align == 1 ? PANGO_ALIGN_CENTER : align == 2 ? PANGO_ALIGN_RIGHT : PANGO_ALIGN_LEFT);
+    set_visual_alignment(l, align);
     return l;
 }
 /* text is measured with the screen's pixel scale, as it will be drawn: glyph advances differ at 1x, 2x and 3x
@@ -1791,6 +1799,7 @@ int isim_gfx_offscreen_depth(void) { return cr_depth; }
 static PangoLayout *layout_markup(const char *markup, double maxw, int lines, int align, double spacing) {
     PangoLayout *l = layout_for_family("", NULL, 17, 400, 0, maxw, lines, align);
     pango_layout_set_markup(l, markup ? markup : "", -1);
+    set_visual_alignment(l, align);
     if (spacing > 0) pango_layout_set_spacing(l, (int)(spacing * PANGO_SCALE));
     return l;
 }

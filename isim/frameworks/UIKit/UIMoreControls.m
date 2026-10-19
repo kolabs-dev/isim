@@ -321,7 +321,12 @@ const NSInteger UISegmentedControlNoSegment = -1;
 }
 - (CGSize)sizeThatFits:(CGSize)s { return [self intrinsicContentSize]; }
 - (NSUInteger)numberOfSegments { return _items.count; }
+/* right to left: segment 0 is on the right, as on iOS */
 - (CGRect)_segmentRect:(NSUInteger)i {
+    CGRect r = [self _segmentRectLTR:i];
+    return [self _isim_isRTL] ? isim_ui_mirror_rect(r, self.bounds.size.width) : r;
+}
+- (CGRect)_segmentRectLTR:(NSUInteger)i {
     CGFloat W = self.bounds.size.width, n = fmax(1, _items.count), x = 0;
     if (_apportionsSegmentWidthsByContent || _widths.count) {
         CGFloat total = 0, ws[_items.count];
@@ -380,7 +385,11 @@ const NSInteger UISegmentedControlNoSegment = -1;
     if (ev & UIControlEventValueChanged) [self _isim_runSegmentAction];
     [super _isim_sendEvents:ev withEvent:event];
 }
-- (NSInteger)_indexAt:(CGPoint)p { for (NSUInteger i = 0; i < _items.count; i++) if (p.x < CGRectGetMaxX([self _segmentRect:i])) return (NSInteger)i; return (NSInteger)_items.count - 1; }
+- (NSInteger)_indexAt:(CGPoint)p {
+    if ([self _isim_isRTL]) p.x = self.bounds.size.width - p.x;
+    for (NSUInteger i = 0; i < _items.count; i++) if (p.x < CGRectGetMaxX([self _segmentRectLTR:i])) return (NSInteger)i;
+    return (NSInteger)_items.count - 1;
+}
 - (BOOL)beginTrackingWithTouch:(UITouch *)t withEvent:(UIEvent *)e {
     _pressedIndex = [self _indexAt:[t locationInView:self]];
     if (isim_ui_glass() && _pressedIndex == _selectedSegmentIndex && !_momentary) _thumb.alpha = 0;   /* the selection turns to glass while held */
@@ -417,7 +426,8 @@ const NSInteger UISegmentedControlNoSegment = -1;
     }
     for (NSUInteger i = 0; i + 1 < _items.count; i++) {
         BOOL nearSel = (NSInteger)i == _selectedSegmentIndex || (NSInteger)i + 1 == _selectedSegmentIndex;
-        if (!nearSel || _momentary) fill(UIColor.separatorColor, CGRectGetMaxX([self _segmentRect:i]) - 0.5, 8, 1, s.height - 16, 0, 1);
+        CGRect r = [self _segmentRect:i];
+        if (!nearSel || _momentary) fill(UIColor.separatorColor, ([self _isim_isRTL] ? CGRectGetMinX(r) : CGRectGetMaxX(r)) - 0.5, 8, 1, s.height - 16, 0, 1);
     }
 }
 - (void)_isim_drawOverlay {           /* titles draw above the sliding selection */
