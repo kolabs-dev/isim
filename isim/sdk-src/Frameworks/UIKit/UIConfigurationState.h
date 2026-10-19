@@ -1,6 +1,7 @@
 // isim UIKit: configuration states, cell registrations and scene placements for Objective-C (issue #235).
-// Swift has its own API for these (the UIKit overlay's structs and generic types: UICellConfigurationState,
-// UICollectionView.CellRegistration, UIWindowScenePlacement ...), so they are declared for Objective-C only.
+// Swift has its own API for most of these (the UIKit overlay's generic types: UICollectionView.CellRegistration,
+// UIWindowScenePlacement ...), so they are declared for Objective-C only; the configuration states and the cells'
+// configuration members are shared with Swift (bridged to the overlay's structs, issue #242).
 #import <UIKit/UIKitDefines.h>
 #import <UIKit/UITraitCollection.h>
 #import <UIKit/UICollectionView.h>
@@ -9,10 +10,15 @@
 #import <UIKit/UIStoryboard.h>
 #import <UIKit/UIDiffableDataSourceReference.h>
 
-#if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
 
-/* ---- configuration states ---- */
+/* ---- configuration states ----
+   The state classes and the cells' configuration members are Swift's too (issue #242): Swift sees the classes as
+   __UIViewConfigurationState / __UICellConfigurationState, bridged to the UIKit overlay's structs (swift_bridge, as
+   Apple's API notes do), so a Swift cell overrides updateConfiguration(using:) and sets configurationUpdateHandler
+   with the struct. The custom-key protocol and subscripts stay Objective-C's: Swift has its own
+   UIConfigurationStateCustomKey and subscripts on the structs. */
+#if !defined(__swift__)
 typedef NSString *UIConfigurationStateCustomKey NS_TYPED_EXTENSIBLE_ENUM API_AVAILABLE(ios(14.0));
 
 API_AVAILABLE(ios(14.0))
@@ -24,9 +30,14 @@ API_AVAILABLE(ios(14.0))
 - (nullable id)objectForKeyedSubscript:(UIConfigurationStateCustomKey)key;
 - (void)setObject:(nullable id)obj forKeyedSubscript:(UIConfigurationStateCustomKey)key;
 @end
+#endif
 
-UIKIT_EXTERN API_AVAILABLE(ios(14.0)) NS_SWIFT_UI_ACTOR
-@interface UIViewConfigurationState : NSObject <UIConfigurationState>
+UIKIT_EXTERN API_AVAILABLE(ios(14.0)) NS_SWIFT_UI_ACTOR NS_SWIFT_NAME(__UIViewConfigurationState)
+__attribute__((swift_bridge("UIViewConfigurationState")))
+@interface UIViewConfigurationState : NSObject
+#if !defined(__swift__)
+<UIConfigurationState>
+#endif
 - (instancetype)initWithTraitCollection:(UITraitCollection *)traitCollection NS_DESIGNATED_INITIALIZER;
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
@@ -37,16 +48,19 @@ UIKIT_EXTERN API_AVAILABLE(ios(14.0)) NS_SWIFT_UI_ACTOR
 @property (nonatomic, getter=isSelected) BOOL selected;
 @property (nonatomic, getter=isFocused) BOOL focused;
 @property (nonatomic, getter=isPinned) BOOL pinned API_AVAILABLE(ios(18.0));
+/* isim: the custom states by key, for the Swift structs' bridging */
+@property (nonatomic, copy, setter=_isim_setCustom:) NSDictionary<NSString *, id> *_isim_custom;
 @end
 
 typedef NS_ENUM(NSInteger, UICellConfigurationDragState) {
     UICellConfigurationDragStateNone, UICellConfigurationDragStateLifting, UICellConfigurationDragStateDragging
-} API_AVAILABLE(ios(14.0));
+} NS_SWIFT_NAME(__UICellConfigurationDragState) API_AVAILABLE(ios(14.0));
 typedef NS_ENUM(NSInteger, UICellConfigurationDropState) {
     UICellConfigurationDropStateNone, UICellConfigurationDropStateNotTargeted, UICellConfigurationDropStateTargeted
-} API_AVAILABLE(ios(14.0));
+} NS_SWIFT_NAME(__UICellConfigurationDropState) API_AVAILABLE(ios(14.0));
 
-UIKIT_EXTERN API_AVAILABLE(ios(14.0)) NS_SWIFT_UI_ACTOR
+UIKIT_EXTERN API_AVAILABLE(ios(14.0)) NS_SWIFT_UI_ACTOR NS_SWIFT_NAME(__UICellConfigurationState)
+__attribute__((swift_bridge("UICellConfigurationState")))
 @interface UICellConfigurationState : UIViewConfigurationState
 @property (nonatomic, getter=isEditing) BOOL editing;
 @property (nonatomic, getter=isExpanded) BOOL expanded;
@@ -56,6 +70,7 @@ UIKIT_EXTERN API_AVAILABLE(ios(14.0)) NS_SWIFT_UI_ACTOR
 @property (nonatomic) UICellConfigurationDropState cellDropState;
 @end
 
+#if !defined(__swift__)
 /* configurations re-derived for a state (Apple's UIContentConfiguration requires it; isim calls it when present) */
 @interface UIListContentConfiguration (UIConfigurationStateUpdates)
 - (instancetype)updatedConfigurationForState:(id<UIConfigurationState>)state;
@@ -63,36 +78,44 @@ UIKIT_EXTERN API_AVAILABLE(ios(14.0)) NS_SWIFT_UI_ACTOR
 @interface UIBackgroundConfiguration (UIConfigurationStateUpdates)
 - (instancetype)updatedConfigurationForState:(id<UIConfigurationState>)state;
 @end
+#endif
 
 /* the cells' state, the override point and the update handlers: updateConfigurationUsingState: runs before the next
    layout whenever the state changes (selection, highlight, editing, swipe, expansion) or after
    setNeedsUpdateConfiguration; its default implementation calls configurationUpdateHandler */
 typedef void (^UICollectionViewCellConfigurationUpdateHandler)(__kindof UICollectionViewCell *cell, UICellConfigurationState *state)
-    API_AVAILABLE(ios(15.0));
+    NS_SWIFT_NAME(UICollectionViewCell.ConfigurationUpdateHandler) API_AVAILABLE(ios(15.0));
 @interface UICollectionViewCell (UIConfigurationState)
 @property (nonatomic, readonly) UICellConfigurationState *configurationState API_AVAILABLE(ios(14.0));
-- (void)updateConfigurationUsingState:(UICellConfigurationState *)state API_AVAILABLE(ios(14.0));
+- (void)updateConfigurationUsingState:(UICellConfigurationState *)state NS_SWIFT_NAME(updateConfiguration(using:)) API_AVAILABLE(ios(14.0));
 @property (nonatomic, copy, nullable) UICollectionViewCellConfigurationUpdateHandler configurationUpdateHandler API_AVAILABLE(ios(15.0));
+#if !defined(__swift__)
 - (UIBackgroundConfiguration *)defaultBackgroundConfiguration API_AVAILABLE(ios(16.0));
+#endif
 @end
 
 typedef void (^UITableViewCellConfigurationUpdateHandler)(__kindof UITableViewCell *cell, UICellConfigurationState *state)
-    API_AVAILABLE(ios(15.0));
+    NS_SWIFT_NAME(UITableViewCell.ConfigurationUpdateHandler) API_AVAILABLE(ios(15.0));
 @interface UITableViewCell (UIConfigurationState)
 @property (nonatomic, readonly) UICellConfigurationState *configurationState API_AVAILABLE(ios(14.0));
 - (void)setNeedsUpdateConfiguration API_AVAILABLE(ios(14.0));
-- (void)updateConfigurationUsingState:(UICellConfigurationState *)state API_AVAILABLE(ios(14.0));
+- (void)updateConfigurationUsingState:(UICellConfigurationState *)state NS_SWIFT_NAME(updateConfiguration(using:)) API_AVAILABLE(ios(14.0));
 @property (nonatomic, copy, nullable) UITableViewCellConfigurationUpdateHandler configurationUpdateHandler API_AVAILABLE(ios(15.0));
 @end
 
 typedef void (^UITableViewHeaderFooterViewConfigurationUpdateHandler)(__kindof UITableViewHeaderFooterView *headerFooterView,
-                                                                      UIViewConfigurationState *state) API_AVAILABLE(ios(15.0));
+                                                                      UIViewConfigurationState *state)
+    NS_SWIFT_NAME(UITableViewHeaderFooterView.ConfigurationUpdateHandler) API_AVAILABLE(ios(15.0));
 @interface UITableViewHeaderFooterView (UIConfigurationState)
 @property (nonatomic, readonly) UIViewConfigurationState *configurationState API_AVAILABLE(ios(14.0));
 - (void)setNeedsUpdateConfiguration API_AVAILABLE(ios(14.0));
-- (void)updateConfigurationUsingState:(UIViewConfigurationState *)state API_AVAILABLE(ios(14.0));
+- (void)updateConfigurationUsingState:(UIViewConfigurationState *)state NS_SWIFT_NAME(updateConfiguration(using:)) API_AVAILABLE(ios(14.0));
 @property (nonatomic, copy, nullable) UITableViewHeaderFooterViewConfigurationUpdateHandler configurationUpdateHandler API_AVAILABLE(ios(15.0));
 @end
+
+NS_ASSUME_NONNULL_END
+#if !defined(__swift__)
+NS_ASSUME_NONNULL_BEGIN
 
 /* ---- cell and supplementary registrations ---- */
 typedef void (^UICollectionViewCellRegistrationConfigurationHandler)(__kindof UICollectionViewCell *cell, NSIndexPath *indexPath, id item)

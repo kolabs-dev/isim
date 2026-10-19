@@ -274,7 +274,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
     return YES;
 }
 - (void)layoutSubviews {
-    if (_isimNeedsConfig) { _isimNeedsConfig = NO; [self updateConfigurationUsingState:self.configurationState]; }
+    if (_isimNeedsConfig) { _isimNeedsConfig = NO; [self _isim_runConfigurationUpdate]; }
     [super layoutSubviews];
     CGRect b = self.bounds;
     CGFloat acc = [self _accessoryWidth], ed = [self _editInset];
@@ -477,7 +477,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
 - (void)setContentConfiguration:(id<UIContentConfiguration>)c { _contentConfiguration = [(id)c copy]; [self setNeedsLayout]; }
 - (void)prepareForReuse {}
 - (void)layoutSubviews {
-    if (_isimNeedsConfig) { _isimNeedsConfig = NO; [self updateConfigurationUsingState:self.configurationState]; }
+    if (_isimNeedsConfig) { _isimNeedsConfig = NO; [self _isim_runConfigurationUpdate]; }
     [super layoutSubviews];
     _content.frame = self.bounds;
     UIListContentConfiguration *cfg = [(id)_contentConfiguration isKindOfClass:[UIListContentConfiguration class]] ? (UIListContentConfiguration *)_contentConfiguration : nil;

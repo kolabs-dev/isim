@@ -484,3 +484,13 @@ usr/lib/swift/libswiftStoreKit.dylib _$s8StoreKit9SKProductC5priceAA15NSDecimalN
 usr/lib/swift/libswiftStoreKit.dylib _$sSo17NSNumberFormatterC8StoreKitE6string4fromSSSgAC15NSDecimalNumberC_tF
 usr/lib/swift/libswiftStoreKit.dylib _OBJC_CLASS_$__TtC8StoreKit15NSDecimalNumber
 usr/lib/swift/libswiftStoreKit.dylib _OBJC_METACLASS_$__TtC8StoreKit15NSDecimalNumber
+# Issue #242: UICollectionViewCell / UITableViewCell configurationState and UICollectionViewCell.configurationUpdateHandler
+# are UIKit's Objective-C members now (overridable from Swift: updateConfiguration(using:), configurationState), with the
+# states bridged to the Swift structs, instead of the overlay's own extension properties. Their getters and the
+# handler's setter stay exported under the old names (UIKit+Collections.swift); the property descriptors (key paths
+# such as \UICollectionViewCell.configurationState) and the handler's modify accessor (inout access) cannot be declared
+# next to the imported properties. Swift apps built with an earlier isim that use those must be rebuilt.
+usr/lib/swift/libswiftUIKit.dylib _$sSo15UITableViewCellC5UIKitE18configurationStateAC019UICellConfigurationF0VvpMV
+usr/lib/swift/libswiftUIKit.dylib _$sSo20UICollectionViewCellC5UIKitE18configurationStateAC019UICellConfigurationF0VvpMV
+usr/lib/swift/libswiftUIKit.dylib _$sSo20UICollectionViewCellC5UIKitE26configurationUpdateHandleryAB_AC24UICellConfigurationStateVtcSgvM
+usr/lib/swift/libswiftUIKit.dylib _$sSo20UICollectionViewCellC5UIKitE26configurationUpdateHandleryAB_AC24UICellConfigurationStateVtcSgvpMV

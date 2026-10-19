@@ -233,8 +233,7 @@ id isim_ui_content_configuration_for_state(id cfg, UIView *cell, BOOL selected, 
 - (void)layoutSubviews {
     if (_isimNeedsConfig) {                              /* the Swift configurationUpdateHandler (UIKit overlay) */
         _isimNeedsConfig = NO;
-        [self updateConfigurationUsingState:self.configurationState];    /* Objective-C: the override point and its handler */
-        if ([self respondsToSelector:@selector(_isimRunConfigurationUpdate)]) ((void (*)(id, SEL))objc_msgSend)(self, @selector(_isimRunConfigurationUpdate));
+        [self _isim_runConfigurationUpdate];                  /* the override point (Swift subclasses too), then the handler */
     }
     [super layoutSubviews];
     _backgroundView.frame = self.bounds; _selectedBackgroundView.frame = self.bounds;

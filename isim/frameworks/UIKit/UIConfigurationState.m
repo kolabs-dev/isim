@@ -1,7 +1,8 @@
 /* Configuration states, cell and supplementary registrations and window scene placements for Objective-C (issue #235).
  * Swift apps use the UIKit overlay's structs and generic registrations; these are Apple's Objective-C classes. The
- * cells call -updateConfigurationUsingState: before their next layout when their state changes (UICollectionView.m,
- * UITableView.m); its default implementation runs the cell's configurationUpdateHandler. */
+ * cells run -_isim_runConfigurationUpdate before their next layout when their state changes (UICollectionView.m,
+ * UITableView.m): -updateConfigurationUsingState: (empty by default: the override point), then the
+ * configurationUpdateHandler with the same state, as UIKit does. */
 #import "UIKitPrivate.h"
 #import <UIKit/UIConfigurationState.h>
 #import <objc/runtime.h>
@@ -36,7 +37,8 @@
 - (void)setCustomState:(id)state forKey:(UIConfigurationStateCustomKey)key { if (state) _custom[key] = state; else [_custom removeObjectForKey:key]; }
 - (id)objectForKeyedSubscript:(UIConfigurationStateCustomKey)key { return _custom[key]; }
 - (void)setObject:(id)obj forKeyedSubscript:(UIConfigurationStateCustomKey)key { [self setCustomState:obj forKey:key]; }
-- (NSDictionary *)_isim_custom { return _custom; }
+- (NSDictionary *)_isim_custom { return [_custom copy]; }
+- (void)_isim_setCustom:(NSDictionary *)custom { _custom = [custom mutableCopy] ?: [NSMutableDictionary dictionary]; }
 - (BOOL)isEqual:(id)o {
     if (![o isKindOfClass:[UIViewConfigurationState class]]) return NO;
     UIViewConfigurationState *s = o;
@@ -114,7 +116,10 @@ static char kUpdateHandler;
 - (UICellConfigurationState *)configurationState {
     return isim_ui_cell_state(self, self.selected, self.highlighted, self._isim_cv.isEditing, [self _isim_swipedState], [self _isim_expandedState]);
 }
-- (void)updateConfigurationUsingState:(UICellConfigurationState *)state {
+- (void)updateConfigurationUsingState:(UICellConfigurationState *)state {}
+- (void)_isim_runConfigurationUpdate {
+    UICellConfigurationState *state = self.configurationState;
+    [self updateConfigurationUsingState:state];
     UICollectionViewCellConfigurationUpdateHandler h = objc_getAssociatedObject(self, &kUpdateHandler);
     if (h) h(self, state);
 }
@@ -135,7 +140,10 @@ static char kUpdateHandler;
 - (UICellConfigurationState *)configurationState {
     return isim_ui_cell_state(self, self.selected, self.highlighted, self.editing, self._isim_swipe != 0, NO);
 }
-- (void)updateConfigurationUsingState:(UICellConfigurationState *)state {
+- (void)updateConfigurationUsingState:(UICellConfigurationState *)state {}
+- (void)_isim_runConfigurationUpdate {
+    UICellConfigurationState *state = self.configurationState;
+    [self updateConfigurationUsingState:state];
     UITableViewCellConfigurationUpdateHandler h = objc_getAssociatedObject(self, &kUpdateHandler);
     if (h) h(self, state);
 }
@@ -152,7 +160,10 @@ static char kUpdateHandler;
     s.disabled = !self.userInteractionEnabled;
     return s;
 }
-- (void)updateConfigurationUsingState:(UIViewConfigurationState *)state {
+- (void)updateConfigurationUsingState:(UIViewConfigurationState *)state {}
+- (void)_isim_runConfigurationUpdate {
+    UIViewConfigurationState *state = self.configurationState;
+    [self updateConfigurationUsingState:state];
     UITableViewHeaderFooterViewConfigurationUpdateHandler h = objc_getAssociatedObject(self, &kUpdateHandler);
     if (h) h(self, state);
 }
