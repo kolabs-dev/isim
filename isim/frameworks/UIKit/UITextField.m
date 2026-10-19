@@ -45,6 +45,7 @@ NSString *const UITextFieldDidEndEditingReasonKey = @"UITextFieldDidEndEditingRe
 - (void)setText:(NSString *)t {
     t = t ?: @"";
     if ([t isEqualToString:_storage]) return;
+    isim_ti_clear_undo(self);
     _storage = [t copy]; _sel = NSMakeRange(_storage.length, 0);
     isim_ui_set_marked_range(self, NSMakeRange(NSNotFound, 0));
     [self _changed];
@@ -75,6 +76,7 @@ static void tf_put(id o, const void *k, id v) { objc_setAssociatedObject(o, k, v
 }
 - (NSAttributedString *)attributedText { return [[NSAttributedString alloc] initWithString:_storage attributes:self.defaultTextAttributes]; }
 - (void)setAttributedText:(NSAttributedString *)t {
+    isim_ti_clear_undo(self);
     if (t.length) {                                     /* one style: the first character's */
         NSMutableDictionary *a = [self.defaultTextAttributes mutableCopy];
         [a addEntriesFromDictionary:[t attributesAtIndex:0 effectiveRange:NULL]];
@@ -210,8 +212,10 @@ static CGSize overlay_size(UIView *v) {
     BOOL composing = isim_ui_marked_range(self).location != NSNotFound;
     if (!composing && [d respondsToSelector:@selector(textField:shouldChangeCharactersInRange:replacementString:)] &&
         ![d textField:self shouldChangeCharactersInRange:r replacementString:s]) return;
+    NSString *old = [_storage substringWithRange:r];
     _storage = [_storage stringByReplacingCharactersInRange:r withString:s];
     _sel = NSMakeRange(r.location + s.length, 0);
+    if (!composing) isim_ti_did_replace(self, r, old, s);
     [self _changed];
     [self _isim_sendEvents:UIControlEventEditingChanged withEvent:nil];
     [NSNotificationCenter.defaultCenter postNotificationName:UITextFieldTextDidChangeNotification object:self];

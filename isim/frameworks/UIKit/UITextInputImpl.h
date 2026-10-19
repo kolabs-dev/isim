@@ -17,6 +17,8 @@ void isim_ti_copy(id<IsimEditableText> v);
 void isim_ti_cut(id<IsimEditableText> v);
 void isim_ti_paste(id<IsimEditableText> v);
 void isim_ti_delete(id<IsimEditableText> v);
+void isim_ti_clear_undo(id v);
+void isim_ti_did_replace(id<IsimEditableText> v, NSRange r, NSString *old, NSString *t);   /* registers the edit's undo */                           /* a programmatic text change: the view's undo actions go */
 void isim_ti_select(id<IsimEditableText> v);
 void isim_ti_select_all(id<IsimEditableText> v);
 id isim_ti_input_delegate(id v);

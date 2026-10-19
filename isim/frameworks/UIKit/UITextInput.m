@@ -157,12 +157,82 @@ static void notify_selection(id<IsimEditableText> v, void (^change)(void)) {
     change();
     [d selectionDidChange:v];
 }
+static void undo_break(id v);
 void isim_ti_set_selection(id<IsimEditableText> v, NSRange r) {
     r = clamp_range(r, text_of(v).length);
     if (NSEqualRanges(r, [v _isim_selectedRange])) return;
+    undo_break(v);
     notify_selection(v, ^{ [v _isim_setSelectedRange:r]; });
     isim_ui_text_selection_changed(v);
 }
+/* ================= undo ================= */
+/* Edits register with the view's undoManager (the responder chain's: the window's). Typing coalesces into one
+   "Typing" action while each keystroke continues the run (inside or at the end of the text it inserted), as on iOS;
+   paste, cut and delete are actions of their own. Undoing replaces the run with the text it replaced, and registers
+   the inverse for redo. A programmatic text change, or the end of editing, removes the view's actions. */
+@interface __IsimTextUndoRecord : NSObject
+@property (nonatomic) NSRange range;             /* in the current text */
+@property (nonatomic, copy) NSString *original;  /* what it replaced */
+@property (nonatomic, copy) NSString *action;
+@end
+@implementation __IsimTextUndoRecord
+@end
+static __weak __IsimTextUndoRecord *open_record;
+static __weak id open_record_view;
+static NSString *pending_action;                 /* the next registration's action name (nil: typing) */
+static NSString *compose_original;               /* what a composition (marked text) replaces, for its commit */
+static __weak id compose_view;
+static BOOL registering;
+static void undo_invalidate(NSNotification *n) { if (!registering) open_record = nil; }
+static void undo_observe(NSUndoManager *um) {
+    static NSHashTable *seen;
+    if (!seen) seen = [NSHashTable weakObjectsHashTable];
+    if ([seen containsObject:um]) return;
+    [seen addObject:um];
+    for (NSString *name in @[NSUndoManagerDidOpenUndoGroupNotification, NSUndoManagerDidUndoChangeNotification, NSUndoManagerDidRedoChangeNotification])
+        [NSNotificationCenter.defaultCenter addObserverForName:name object:um queue:nil usingBlock:^(NSNotification *n) { undo_invalidate(n); }];
+}
+static void replace(id<IsimEditableText> v, NSRange r, NSString *t);
+/* called by the views right after their text changed (range r, which held old, now holds t), before they tell
+   anyone: a delegate or an editingChanged target already sees the action */
+void isim_ti_did_replace(id<IsimEditableText> v, NSRange r, NSString *old, NSString *t) {
+    NSString *action = pending_action ?: @"Typing";
+    NSUndoManager *um = [(UIResponder *)v undoManager];
+    if (compose_original && compose_view == v) { old = compose_original; compose_original = nil; }   /* committing a composition */
+    if (!um || !um.isUndoRegistrationEnabled || (!old.length && !t.length) || [old isEqualToString:t]) return;
+    undo_observe(um);
+    __IsimTextUndoRecord *rec = open_record;
+    BOOL replay = um.isUndoing || um.isRedoing;
+    if (!replay && !pending_action && rec && open_record_view == v && [rec.action isEqualToString:@"Typing"] &&
+        r.location >= rec.range.location && NSMaxRange(r) <= NSMaxRange(rec.range)) {
+        /* the same typing run: it now covers what this keystroke left */
+        rec.range = NSMakeRange(rec.range.location, rec.range.length - r.length + t.length);
+        return;
+    }
+    rec = [__IsimTextUndoRecord new];
+    rec.range = NSMakeRange(r.location, t.length); rec.original = old; rec.action = action;
+    __weak id weakView = v;
+    registering = YES;
+    [um registerUndoWithTarget:v handler:^(id target) {
+        id<IsimEditableText> tv = weakView;
+        if (!tv) return;
+        NSString *saved = pending_action; pending_action = rec.action;
+        replace(tv, rec.range, rec.original);
+        pending_action = saved;                       /* (the caret after the restored text) */
+    }];
+    [um setActionName:action];
+    registering = NO;
+    open_record = replay || pending_action ? nil : rec;
+    open_record_view = v;
+}
+/* the view's undo actions go (a programmatic change, the end of editing) */
+void isim_ti_clear_undo(id v) {
+    if (open_record_view == v) open_record = nil;
+    [[(UIResponder *)v undoManager] removeAllActionsWithTarget:v];
+}
+/* the caret moved away: the next keystroke starts another typing action */
+static void undo_break(id v) { if (open_record_view == v) open_record = nil; }
+
 static void replace(id<IsimEditableText> v, NSRange r, NSString *t) {
     id<UITextInputDelegate> d = state_of(v).inputDelegate;
     [d textWillChange:v];
@@ -198,17 +268,22 @@ void isim_ti_set_marked(id<IsimEditableText> v, NSString *text, NSRange selInMar
     text = text ?: @"";
     NSRange target = st.marked.location != NSNotFound ? st.marked : [v _isim_selectedRange];
     target = clamp_range(target, text_of(v).length);
+    if (st.marked.location == NSNotFound) { compose_original = [text_of(v) substringWithRange:target]; compose_view = v; }
     /* (marked before the change, so text-change delegates already see markedTextRange) */
     st.marked = text.length ? NSMakeRange(target.location, text.length) : NSMakeRange(NSNotFound, 0);
     replace(v, target, text);
     NSRange sel = selInMarked.location == NSNotFound ? NSMakeRange(text.length, 0) : clamp_range(selInMarked, text.length);
+    __IsimTextUndoRecord *run = open_record;           /* the caret inside the composition: still the same typing */
     isim_ti_set_selection(v, NSMakeRange(target.location + sel.location, sel.length));
+    open_record = run;
     isim_ui_set_needs_display();
 }
 void isim_ti_unmark(id<IsimEditableText> v) {
     __IsimTextState *st = state_of(v);
     if (st.marked.location == NSNotFound) return;
+    NSRange m = clamp_range(st.marked, text_of(v).length);
     st.marked = NSMakeRange(NSNotFound, 0);
+    if (compose_view == v && compose_original) isim_ti_did_replace(v, m, compose_original, [text_of(v) substringWithRange:m]);   /* committed in place */
     isim_ui_set_needs_display();
 }
 /* host IME composition (SDL text editing events, script `compose`) */
@@ -282,7 +357,9 @@ void isim_ti_cut(id<IsimEditableText> v) {
     if (!t) return;
     UIPasteboard.generalPasteboard.string = t;
     NSLog(@"isim: cut \"%@\"", t);
+    pending_action = @"Cut";
     replace(v, [v _isim_selectedRange], @"");
+    pending_action = nil;
 }
 void isim_ti_paste(id<IsimEditableText> v) {
     /* a paste delegate (UITextPasteConfigurationSupporting, the UIKit overlay) takes over */
@@ -291,9 +368,17 @@ void isim_ti_paste(id<IsimEditableText> v) {
     NSString *t = UIPasteboard.generalPasteboard.string;
     if (!t.length || ![v _isim_isEditable]) return;
     NSLog(@"isim: pasted \"%@\"", t);
+    pending_action = @"Paste";
     isim_ti_insert(v, t);
+    pending_action = nil;
 }
-void isim_ti_delete(id<IsimEditableText> v) { NSRange r = [v _isim_selectedRange]; if (r.length) replace(v, r, @""); }
+void isim_ti_delete(id<IsimEditableText> v) {
+    NSRange r = [v _isim_selectedRange];
+    if (!r.length) return;
+    pending_action = @"Delete";
+    replace(v, r, @"");
+    pending_action = nil;
+}
 void isim_ui_show_text_menu(id<IsimEditableText> v);
 void isim_ti_select(id<IsimEditableText> v) {
     NSString *s = text_of(v);
@@ -958,6 +1043,7 @@ void isim_ui_text_install(UIView *v) {
 }
 void isim_ui_text_did_end_editing(id<IsimEditableText> v) {
     isim_ti_unmark(v);
+    isim_ti_clear_undo(v);
     isim_ui_hide_edit_menu();
     hide_loupe();
 }
@@ -1008,6 +1094,14 @@ BOOL isim_ui_text_handle_key(id<IsimEditableText> v, int hid, int hostmods) {
     if (cmd && !alt) {
         SEL a = hid == 0x04 ? @selector(selectAll:) : hid == 0x06 ? @selector(copy:) : hid == 0x1B ? @selector(cut:) : hid == 0x19 ? @selector(paste:) : NULL;
         if (a) { if ([r canPerformAction:a withSender:nil]) isim_ui_perform_edit_action(r, a, nil); return YES; }
+        if (hid == 0x1D) {                                     /* Cmd-Z undo, Shift-Cmd-Z redo */
+            NSUndoManager *um = r.undoManager;
+            if (shift ? um.canRedo : um.canUndo) {
+                NSLog(@"isim: %@ %@", shift ? @"redo" : @"undo", shift ? um.redoActionName : um.undoActionName);
+                if (shift) [um redo]; else [um undo];
+            }
+            return YES;
+        }
     }
     if (hid == 0x4C && [v _isim_isEditable]) {                 /* forward delete */
         isim_ti_unmark(v);
