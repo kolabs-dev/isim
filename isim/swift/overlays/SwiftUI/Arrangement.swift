@@ -5,7 +5,9 @@
 // in compact width in portrait and puts them side by side otherwise (within the allowed axes); sizes along the split
 // come from the views' ratio / size / ideal size, the rest shared, the view with the lower layout priority taking what
 // is left; overlay layers the primary over the secondary, both filling the arrangement (it would turn side by side,
-// at `overlayArrangementEdge`, only when a device folds).
+// at `overlayArrangementEdge`, only when a device folds). The views inside read the split's axis from
+// `\.splitArrangementAxis` (decided when the arrangement resolves, from the size class and the window's orientation)
+// and their order in an overlay from `\.overlayArrangementZIndex` (the secondary 0, the primary 1, on top).
 import UIKit
 
 /// The styles of an ArrangementView.
@@ -51,8 +53,16 @@ extension ArrangementViewStyle where Self == SplitArrangementViewStyle { public 
 extension ArrangementViewStyle where Self == OverlayArrangementViewStyle { public static var overlay: OverlayArrangementViewStyle { .init() } }
 
 struct _ArrangementStyleKey: EnvironmentKey { static var defaultValue: Any? { nil } }      // any ArrangementViewStyle
+struct _SplitArrangementAxisKey: EnvironmentKey { static var defaultValue: Axis? { nil } }
+struct _OverlayArrangementZIndexKey: EnvironmentKey { static var defaultValue: Int { 0 } }
 extension EnvironmentValues {
     var _arrangementStyle: Any? { get { self[_ArrangementStyleKey.self] } set { self[_ArrangementStyleKey.self] = newValue } }
+    /// The axis of the split arrangement this view is in (nil outside one).
+    @available(iOS 27.1, *)
+    public var splitArrangementAxis: Axis? { get { self[_SplitArrangementAxisKey.self] } set { self[_SplitArrangementAxisKey.self] = newValue } }
+    /// This view's z-index in an overlay arrangement: higher is drawn on top (the primary 1, the secondary 0; 0 outside one).
+    @available(iOS 27.1, *)
+    public var overlayArrangementZIndex: Int { get { self[_OverlayArrangementZIndexKey.self] } set { self[_OverlayArrangementZIndexKey.self] = newValue } }
 }
 
 /// Primary and secondary content arranged by the arrangement view style in the environment.
@@ -125,15 +135,26 @@ struct _ArrangementLayout: View, _PrimitiveView {
     let kind: Int, axes: Axis.Set, primary: AnyView, secondary: AnyView
     var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
-        let p = _resolve(primary, ctx.child("primary")), s = _resolve(secondary, ctx.child("secondary"))
+        let horizontal = kind == 0 ? _ArrangementLayout.horizontal(axes: axes, compact: ctx.environment.horizontalSizeClass == .compact) : nil
+        let axis: Axis? = horizontal.map { $0 ? .horizontal : .vertical }
+        let p = _resolve(primary, ctx.child("primary").with { $0[_SplitArrangementAxisKey.self] = axis; $0[_OverlayArrangementZIndexKey.self] = kind == 1 ? 1 : 0 })
+        let s = _resolve(secondary, ctx.child("secondary").with { $0[_SplitArrangementAxisKey.self] = axis; $0[_OverlayArrangementZIndexKey.self] = 0 })
         let n = _ArrangementNode(path: ctx.path, kind: kind, axes: axes, primary: p, secondary: s)
-        n.compact = ctx.environment.horizontalSizeClass == .compact
+        n.horizontal = horizontal ?? false
         return n
+    }
+    /// split: stacked in compact width in portrait, else side by side (within the allowed axes)
+    @MainActor static func horizontal(axes: Axis.Set, compact: Bool) -> Bool {
+        if axes == .horizontal { return true }
+        if axes == .vertical { return false }
+        let w = UIApplication.shared.windows.first(where: { $0.isKeyWindow }) ?? UIApplication.shared.windows.first
+        let portrait = w.map { $0.bounds.height > $0.bounds.width } ?? true
+        return !(compact && portrait)
     }
 }
 final class _ArrangementNode: _Node {
     let kind: Int, axes: Axis.Set
-    var compact = true
+    var horizontal = false
     /// the axis of the last split layout (logged when it changes)
     var lastAxis: Axis?
     init(path: String, kind: Int, axes: Axis.Set, primary: _Node, secondary: _Node) {
@@ -152,10 +173,6 @@ final class _ArrangementNode: _Node {
         let all = CGRect(origin: .zero, size: rect.size)
         guard kind == 0 else { children.forEach { $0.place(all) }; return }   // overlay: both fill, the primary on top
         let p = children[0], s = children[1]
-        // split: stacked in compact width in portrait, else side by side (within the allowed axes)
-        let horizontal: Bool
-        if axes == .horizontal { horizontal = true } else if axes == .vertical { horizontal = false }
-        else { horizontal = !(compact && rect.height > rect.width) }
         let total = horizontal ? rect.width : rect.height
         func preferred(_ n: _Node) -> CGFloat? {
             guard let z = _ArrangementNode.sizing(n) else { return nil }

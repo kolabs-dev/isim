@@ -147,7 +147,9 @@ Verified from Apple's documentation (developer.apple.com, "SwiftUI updates" / "U
   without confirmation); UIKit text tables and blocks (`NSTextTable`, `NSTextTableBlock`, `NSTextBlock`, per-edge
   widths and border colours from 27.0; `tests/ui/test_text_tables.py`);
 - iOS 27.1 (beta), the APIs for foldable iPhones (`tests/ui/test_arrangements.py`, under `--os 27.1`): arrangement
-  view controllers, reserved regions, the hinge interaction and the vertical bar, as they behave on a device that
+  view controllers, reserved regions, the hinge interaction and the vertical bar, and SwiftUI's arrangement views,
+  hinge, reserved regions, vertical bar and camera capture accessory (`tests/ui/test_swiftui_arrangements.py`,
+  `test_swiftui_foldable.py`), as they behave on a device that
   does not fold (isim has no foldable preset yet: Apple's specifications and Xcode 27.1's iPhone Duo simulator are the
   reference, issue #115);
 - implemented in SwiftUI (adapted; `tests/ui/test_containers.py` and `test_document_group.py` under `--os 27`):
