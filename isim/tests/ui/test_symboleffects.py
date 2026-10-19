@@ -1,4 +1,4 @@
-"""SF Symbols effects on UIImageView (HelloSymbolEffects, UIKit, per iOS version): scale (held until removed, by
+"""SF Symbols effects on UIImageView (HelloSymbols -effects, UIKit, per iOS version): scale (held until removed, by
 pixels), disappear / appear (by pixels), bounce with a repeat count, pulse and its removal, variable colour, replace
 content transition (setSymbolImage); iOS 18 wiggle, rotate (continuous, removed), breathe (periodic); iOS 26 draw off /
 on. iOS 17 has no wiggle/rotate/breathe, iOS 18 no draw off/on. Port of tests/ui/symboleffects.sh."""
@@ -17,7 +17,7 @@ def shot_until(app, name, box, pred, cond, what):
 
 
 def test_ios26(launch):
-    app = launch("HelloSymbolEffects", os_version="26")
+    app = launch("HelloSymbols", args=["-effects"], os_version="26")
     start = app.screenshot("start")
     heart0, star0 = count_px(start, HEART, red), count_px(start, (150, 120, 100, 100), blue)
     assert heart0 > 300 and star0 > 300, f"the symbols draw: heart {heart0}, star {star0}"
@@ -65,7 +65,7 @@ def test_ios26(launch):
 
 
 def test_ios17(launch):
-    app = launch("HelloSymbolEffects", os_version="17", device="iphone15")   # a device that shipped with iOS 17
+    app = launch("HelloSymbols", args=["-effects"], os_version="17", device="iphone15")   # a device that shipped with iOS 17
     app.wait_tap_id("bounce")
     app.wait_log(r"bounce finished true")                                # iOS 17: bounce works ...
     app.tap_id("wiggle").tap_id("rotate").tap_id("breathe")
@@ -75,7 +75,7 @@ def test_ios17(launch):
 
 
 def test_ios18(launch):
-    app = launch("HelloSymbolEffects", os_version="18")
+    app = launch("HelloSymbols", args=["-effects"], os_version="18")
     app.wait_tap_id("wiggle")
     app.wait_log(r"wiggle finished true")                                # iOS 18: wiggle works ...
     app.tap_id("drawOff")

@@ -1,7 +1,9 @@
-// Sample: ImageIO, Core Image and UIImage extras on isim — CGImageSource (types, frames, GIF delays, EXIF orientation,
-// thumbnails), CGImageDestination (PNG/JPEG/animated GIF), Core Image filters rendered by CIContext (sepia, blur,
-// color controls, invert, photo effects, compositing, QR code), animated images in UIImageView, resizable
-// (nine-slice) images, flipped and rotated image orientations.
+// Sample: images on isim, one page per launch argument:
+// - (none) ImageIO, Core Image and UIImage extras: CGImageSource (types, frames, GIF delays, EXIF orientation,
+//   thumbnails), CGImageDestination (PNG/JPEG/animated GIF), Core Image filters rendered by CIContext (sepia, blur,
+//   color controls, invert, photo effects, compositing, QR code), animated images in UIImageView, resizable
+//   (nine-slice) images, flipped and rotated image orientations;
+// - -images: UIKit drawing (Images.swift).
 import UIKit
 import ImageIO
 import CoreImage
@@ -12,24 +14,24 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = ImagingViewController()
+        window?.rootViewController = ProcessInfo.processInfo.arguments.contains("-images") ? ImagesViewController() : ImagingViewController()
         window?.makeKeyAndVisible()
         return true
     }
 }
 
 /// A JPEG (8x4, left half blue, right half red) whose EXIF orientation is 6 (rotate 90° clockwise to show).
-let orientedJPEG = Data(base64Encoded: "/9j/4QAiRXhpZgAASUkqAAgAAAABABIBAwABAAAABgAAAAAAAAD/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAAEAAgDAREAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACP/EABgQAAIDAAAAAAAAAAAAAAAAAAAHRYPC/8QAFQEBAQAAAAAAAAAAAAAAAAAABwj/xAAYEQACAwAAAAAAAAAAAAAAAAAACEWDw//aAAwDAQACEQMRAD8AGyplatjgzcPfiUavErTqf//Z")!
+private let orientedJPEG = Data(base64Encoded: "/9j/4QAiRXhpZgAASUkqAAgAAAABABIBAwABAAAABgAAAAAAAAD/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAAEAAgDAREAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACP/EABgQAAIDAAAAAAAAAAAAAAAAAAAHRYPC/8QAFQEBAQAAAAAAAAAAAAAAAAAABwj/xAAYEQACAwAAAAAAAAAAAAAAAAAACEWDw//aAAwDAQACEQMRAD8AGyplatjgzcPfiUavErTqf//Z")!
 
 /// A solid-color CGImage drawn with Core Graphics.
-func solid(_ color: UIColor, _ w: Int = 40, _ h: Int = 40) -> CGImage {
+private func solid(_ color: UIColor, _ w: Int = 40, _ h: Int = 40) -> CGImage {
     let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
                         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
     ctx.setFillColor(color.cgColor); ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
     return ctx.makeImage()!
 }
 /// RGBA of a CGImage pixel (x, y from the top left), read through a bitmap context.
-func rgba(_ image: CGImage, _ x: Int, _ y: Int) -> [Int] {
+private func rgba(_ image: CGImage, _ x: Int, _ y: Int) -> [Int] {
     let w = image.width, h = image.height
     let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
                         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!

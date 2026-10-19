@@ -1,4 +1,4 @@
-"""AVAudioEngine's pull graph and AudioToolbox's Audio Units (HelloAudioEngine): varispeed and time/pitch (offline),
+"""AVAudioEngine's pull graph and AudioToolbox's Audio Units (HelloAudio, -engine): varispeed and time/pitch (offline),
 AVAudioEnvironmentNode positions, a resampled player and play(at:), an equalizer switched on while a looping buffer
 plays (seen by a real-time tap on the main mixer), AVAudioSourceNode and an AVAudioSinkNode fed by the simulated
 microphone, AUGraph (render callback -> MultiChannelMixer -> RemoteIO), RemoteIO's input bus, GenericOutput pulled
@@ -35,8 +35,8 @@ def test_audio_engine(launch, device_data):
     subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-f", "lavfi", "-i",
                     "aevalsrc=0.6*sin(2*PI*1000*t):s=48000:d=10", str(tone)], check=True)
     tap_file = device_data / "tap.f32"
-    app = launch("HelloAudioEngine", env={"ISIM_AUDIO": "1", "SDL_AUDIO_DRIVER": "dummy", "ISIM_AUDIO_INPUT": str(tone), "ISIM_MICROPHONE_PERMISSION": "allow",
-                                          "ISIM_AUDIO_TAP": str(tap_file)})
+    app = launch("HelloAudio", args=["-engine"], env={"ISIM_AUDIO": "1", "SDL_AUDIO_DRIVER": "dummy", "ISIM_AUDIO_INPUT": str(tone),
+                                                      "ISIM_MICROPHONE_PERMISSION": "allow", "ISIM_AUDIO_TAP": str(tap_file)})
     app.wait_log(r"HelloAudioEngine: done", timeout=30)
     assert app.quit() == 0, "exits cleanly"
     log = app.log

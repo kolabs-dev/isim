@@ -2,6 +2,7 @@
 // Adwaita icons; Apple's symbol artwork is not shipped). This app lays out a grid of common symbol names and their
 // .fill / .circle / .square / .slash variants, plus SymbolConfiguration weight, scale and tint, and logs where each
 // cell is so tests/ui/test_symbols.py can check the pixels.
+// Pages, by launch argument: (none) this one; -effects: symbol effects on UIImageView (SymbolEffects.swift).
 import UIKit
 
 /// The grid, in order. The first cell is a name no substitute exists for: the reference placeholder.
@@ -79,7 +80,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = SymbolsViewController()
+        window?.rootViewController = ProcessInfo.processInfo.arguments.contains("-effects") ? EffectsViewController() : SymbolsViewController()
         window?.makeKeyAndVisible()
         return true
     }

@@ -18,7 +18,7 @@
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| `AXCustomContent` (`init(label:value:)`, `init(attributedLabel:attributedValue:)`, `label`, `value`, `attributedLabel`, `attributedValue`, `importance`), `AXCustomContent.Importance`, `AXCustomContentProvider` (`accessibilityCustomContent`, `accessibilityCustomContentBlock`), `AXCustomContentReturnBlock` | ✅ | ≤17 | adapted: isim's VoiceOver reads an element's custom content (its `accessibilityCustomContent` or block, or SwiftUI's `accessibilityCustomContent`): high-importance entries after the element's description ("label, value"), default-importance ones one at a time in the rotor's More Content. NSCopying / NSSecureCoding. Tested through SwiftUI (HelloSwiftUIAccessibility, test_swiftui_accessibility) |
+| `AXCustomContent` (`init(label:value:)`, `init(attributedLabel:attributedValue:)`, `label`, `value`, `attributedLabel`, `attributedValue`, `importance`), `AXCustomContent.Importance`, `AXCustomContentProvider` (`accessibilityCustomContent`, `accessibilityCustomContentBlock`), `AXCustomContentReturnBlock` | ✅ | ≤17 | adapted: isim's VoiceOver reads an element's custom content (its `accessibilityCustomContent` or block, or SwiftUI's `accessibilityCustomContent`): high-importance entries after the element's description ("label, value"), default-importance ones one at a time in the rotor's More Content. NSCopying / NSSecureCoding. Tested through SwiftUI (HelloSwiftUI -accessibility, test_swiftui_accessibility) |
 | The rest of the framework (`AXChart` / audio graphs, `AXBrailleMap`, math, the settings and notifications) | ❌ | ≤17 | not provided yet (issues #325, #425, #426) |
 
 ## Not yet in isim

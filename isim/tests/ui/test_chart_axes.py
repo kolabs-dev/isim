@@ -1,4 +1,4 @@
-"""Swift Charts axes and scales (HelloChartAxes, issue #246): a log scale (decade labels evenly spaced), a square root
+"""Swift Charts axes and scales (HelloCharts -axes, issue #246): a log scale (decade labels evenly spaced), a square root
 scale, AxisValueLabel(format:) with a percent format and vertical labels (AxisValueLabelOrientation), labels
 truncated by AxisValueLabelCollisionResolution.truncate, a position range with padding (.plotDimension(padding:)) and
 an axis from AnyAxisContent. Label positions come from the view tree (frames summed up to each chart)."""
@@ -26,7 +26,7 @@ def mid_x(r): return r[0] + r[2] / 2
 
 
 def test_chart_axes(launch):
-    app = launch("HelloChartAxes")
+    app = launch("HelloCharts", args=["-axes"])
     app.wait_log(r"chart axes shown")
     tree = app.wait_view(r"text=100%")
     got = labels(tree)

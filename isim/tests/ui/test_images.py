@@ -1,4 +1,4 @@
-"""UIKit drawing (HelloImages): UIGraphicsImageRenderer, PNG/JPEG export and UIImage(data:) round trips,
+"""UIKit drawing (HelloImaging, -images): UIGraphicsImageRenderer, PNG/JPEG export and UIImage(data:) round trips,
 UIGraphicsBeginImageContext, NSString/NSAttributedString drawing and measuring, UILabel.attributedText.
 Port of tests/ui/images.sh."""
 import re
@@ -7,7 +7,7 @@ from isimtest import close, count_px
 
 
 def test_images(launch):
-    app = launch("HelloImages")
+    app = launch("HelloImaging", args=["-images"])
     app.wait_log(r"measured \d+x\d+")
     shot = app.wait_shot(lambda s: close(s, 40, 140, (255, 59, 48)), "renderer drew the red circle")
     dump = app.view_dump()

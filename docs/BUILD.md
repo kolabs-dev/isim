@@ -27,7 +27,9 @@ and relinks.
 
 Changes do not cascade needlessly: steps that rewrite an output with the same content keep its old timestamp (Ninja
 `restat`), so a comment-only change in an overlay recompiles that overlay and nothing else. Apps depend on the SDK's
-interface (headers, Swift module files, `.tbd` stubs), not on framework implementations.
+interface (headers, `.tbd` stubs and each Swift module's public interface: the `.swiftinterface` a library-evolution
+overlay prints to `out/swift/iface`, else its binary module), not on framework or overlay implementations: an edit
+to an overlay's internals rebuilds the overlay, not the 200 apps; a change to its public API rebuilds them.
 
 ## Warnings are errors
 
@@ -39,9 +41,15 @@ A compiler newer than CI's may warn about more; `ISIM_WERROR=0 isim/build.py` bu
 
 ## Adding things
 
-- **A sample**: a directory in `isim/samples` with Swift files and an `Info.plist` builds as `<Dir>.app` with no
-  build code. Anything else (extensions, generated resources, Objective-C, Xcode projects) is a function in
-  `buildlib/apps.py` registered with `@app("samples/<Dir>", ...)`.
+- **A sample**: first extend an existing one. Each app costs build time (about a second of compiler start-up and
+  module loading, on every app rebuild) and a launch in the tests, so new API goes into the sample for its framework
+  or area: one sample per framework is the aim (e.g. HelloStore for StoreKit, HelloMaps for MapKit; the Objective-C
+  interface's sample, Hello<Name>ObjC, next to it). Add a page, a button or a launch argument the test passes rather
+  than a new app (HelloCharts' pages: `-more`, `-styling`, `-axes`). Start a new sample only when one cannot hold it:
+  another kind of app (an App Clip, a document app, an extension's host), Info.plist keys or entitlements that would
+  change the existing sample's behaviour, or a framework with none yet. A directory in `isim/samples` with Swift files
+  and an `Info.plist` builds as `<Dir>.app` with no build code. Anything else (extensions, generated resources,
+  Objective-C, Xcode projects) is a function in `buildlib/apps.py` registered with `@app("samples/<Dir>", ...)`.
 - **A framework** (Objective-C): sources in `isim/frameworks/<Name>`, headers in `isim/sdk-src/Frameworks/<Name>`,
   and a line in `FRAMEWORKS` (`graph.py`).
 - **A Swift overlay**: `isim/swift/overlays/<Name>.swift` (or a directory) and a line in `OVERLAYS` (`swift.py`) with

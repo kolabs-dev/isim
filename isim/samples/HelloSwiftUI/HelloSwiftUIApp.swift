@@ -1,10 +1,20 @@
 // SwiftUI sample for isim: state, forms, navigation, text input, focus, toolbar, tasks.
+// Other pages, by launch argument: -gestures (Gestures.swift), -arrangements (iOS 27.1 ArrangementView,
+// Arrangements.swift), -accessibility (VoiceOver, Accessibility.swift).
 import SwiftUI
 
 @main
 struct HelloSwiftUIApp: App {
     var body: some Scene {
-        WindowGroup { ContentView() }
+        WindowGroup { page }
+    }
+
+    @ViewBuilder var page: some View {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-gestures") { GesturesPage() }
+        else if args.contains("-arrangements") { ArrangementsPage() }
+        else if args.contains("-accessibility") { AXDemo() }
+        else { ContentView() }
     }
 }
 

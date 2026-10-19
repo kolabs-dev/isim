@@ -1,4 +1,4 @@
-"""AVAudioSession's modes, options and policies for call and video apps (HelloAudioSessionPolicies, issue #224): the
+"""AVAudioSession's modes, options and policies for call and video apps (HelloAudioModules, -policies, issue #224): the
 videoChat / videoRecording / measurement / voicePrompt modes, RouteSharingPolicy, prefersNoInterruptionsFromSystemAlerts
 and overrideMutedMicrophoneInterruption against the `audio interrupt begin alert|muted` script commands, and
 echo-cancelled input (iOS 18.2 and later: checked under every iOS version)."""
@@ -13,7 +13,7 @@ def major(ios):
 
 @pytest.mark.os_matrix
 def test_audio_session_policies(launch, ios):
-    app = launch("HelloAudioSessionPolicies")
+    app = launch("HelloAudioModules", args=["-policies"])
     app.wait_log(r"^as ready$")
     r = {m[0]: m[1] for m in re.findall(r"^as (\S+) (.*)$", app.log, re.M)}
     assert r["modes"] == ("AVAudioSessionModeVideoChat,AVAudioSessionModeVideoRecording,AVAudioSessionModeMeasurement,"

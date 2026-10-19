@@ -1,4 +1,4 @@
-"""Text blocks and tables in attributed strings (HelloTextTables): NSTextTable / NSTextTableBlock cells (header row
+"""Text blocks and tables in attributed strings (HelloTextKit -tables): NSTextTable / NSTextTableBlock cells (header row
 background, collapsed 1 pt borders, padding, a cell spanning three columns, a 40% column, centred and middle-aligned
 text) and an NSTextBlock quote, in a UILabel and drawn by NSAttributedString.draw(in:) with boundingRect; the block
 model's accessors and NSParagraphStyle copies keep the blocks. The per-edge setters are iOS 27 (the quote's leading
@@ -13,7 +13,7 @@ def major(ios):
 
 @pytest.mark.os_matrix
 def test_text_tables(launch, ios):
-    app = launch("HelloTextTables")
+    app = launch("HelloTextKit", args=["-tables"])
     app.wait_log(r"^htt cell row 0 column 0 columns 3 width 40% percentage true$")
     app.wait_log(r"^htt copy keeps blocks true$")
     m = app.wait_log(r"^htt bounding (\d+)x(\d+)$")

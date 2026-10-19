@@ -1,4 +1,4 @@
-"""SwiftUI gestures (HelloSwiftUIGestures): MagnifyGesture + RotateGesture combined with simultaneously(with:) and
+"""SwiftUI gestures (HelloSwiftUI -gestures): MagnifyGesture + RotateGesture combined with simultaneously(with:) and
 driven by scripted two-finger pinch / rotate2; a long press sequenced before a drag with @GestureState (the live
 offset resets after the gesture, the kept position moves); a double tap exclusively before a SpatialTapGesture.
 Port of tests/ui/swiftui-gestures.sh."""
@@ -6,7 +6,7 @@ import re
 
 
 def test_swiftui_gestures(launch):
-    app = launch("HelloSwiftUIGestures")
+    app = launch("HelloSwiftUI", args=["-gestures"])
     app.wait_for(id="offset")
     app.send("pinch 201 314 1.6 0.5")
     app.wait_log(r"^magnify ended 1.6")                                # MagnifyGesture from a pinch
@@ -32,7 +32,7 @@ def test_swiftui_gestures(launch):
 def test_gesture_priority(launch):
     """Nested gestures: a child's tap wins over its parent's .gesture; highPriorityGesture wins over the child's;
     simultaneousGesture fires with it; masks (.gesture: the subviews' off, .subviews: its own off, isEnabled: false)."""
-    app = launch("HelloSwiftUIGestures", env={"PAGE": "priority"})
+    app = launch("HelloSwiftUI", args=["-gestures"], env={"PAGE": "priority"})
     app.wait_for(id="drag-child")
     dump = app.view_dump()
 

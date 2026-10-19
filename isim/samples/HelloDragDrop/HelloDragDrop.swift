@@ -2,6 +2,8 @@
 // string, a UITableView reordered by dragging (dragDelegate/dropDelegate + the data source's move) that also accepts
 // dropped text (performDrop inserts a row), and SwiftUI's .draggable (with a custom preview) / .dropDestination.
 // Long press (0.5 s) lifts.
+// Pages, by launch argument: (none) this one; -extras: text drag and drop, placeholders, spring loading, hover, traits
+// and Auto Layout extras, for iPad (DragExtras.swift).
 import UIKit
 import SwiftUI
 
@@ -10,7 +12,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = DragDropViewController()
+        window?.rootViewController = ProcessInfo.processInfo.arguments.contains("-extras") ? DragExtrasViewController() : DragDropViewController()
         window?.makeKeyAndVisible()
         return true
     }

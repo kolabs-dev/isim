@@ -1,4 +1,4 @@
-"""Collection view layouts and lists (HelloCollectionLayouts, UIKit): outlines (section snapshots, outline disclosure
+"""Collection view layouts and lists (HelloCollection -layouts, UIKit): outlines (section snapshots, outline disclosure
 expand/collapse with the handlers), list swipe actions (trailing Delete, leading Pin), reordering (reorder accessory +
 reorderingHandlers), a custom UIContentConfiguration updated for the selected state, async apply; compositional
 section backgrounds (decoration items), a custom group, visibleItemsInvalidationHandler (a scaling carousel),
@@ -17,7 +17,7 @@ def frame(dump, ident):
 
 @pytest.mark.os_matrix
 def test_outline_list(launch, ios):
-    app = launch("HelloCollectionLayouts")
+    app = launch("HelloCollection", args=["-layouts"])
     app.wait_tap_id("demo-outline")
     app.wait_log(r"outline: 5 visible of 7, level of Lemon 1")
     app.wait_log(r"async apply finished")
@@ -80,7 +80,7 @@ def test_outline_list(launch, ios):
 
 @pytest.mark.os_matrix
 def test_compositional_extras(launch, ios):
-    app = launch("HelloCollectionLayouts")
+    app = launch("HelloCollection", args=["-layouts"])
     app.wait_tap_id("demo-gallery")
     app.wait_view(r"id=tile-1-0")
     app.wait_log(r"prefetch 1-\d+")                                     # items below the screen, before they show

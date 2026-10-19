@@ -1,6 +1,9 @@
-// Sample: the music library on isim — MPMediaLibrary authorization, MPMediaQuery (songs, albums, artists, playlists,
-// predicates, sections), MPMusicPlayerController (queue, play, skip, shuffle, repeat, notifications), app playlists and
-// MPMediaPickerController. The library is the simulated device's (six generated songs on a new device).
+// Sample: music on isim, one page per launch argument:
+// - (none) the music library: MPMediaLibrary authorization, MPMediaQuery (songs, albums, artists, playlists,
+//   predicates, sections), MPMusicPlayerController (queue, play, skip, shuffle, repeat, notifications), app playlists
+//   and MPMediaPickerController;
+// - -musickit: MusicKit's library and catalog requests and ApplicationMusicPlayer (MusicKit.swift).
+// The library is the simulated device's (six generated songs on a new device).
 import UIKit
 import MediaPlayer
 
@@ -9,13 +12,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = MusicViewController()
+        window?.rootViewController = ProcessInfo.processInfo.arguments.contains("-musickit") ? MusicKitViewController() : MusicViewController()
         window?.makeKeyAndVisible()
         return true
     }
 }
 
-func log(_ s: String) { NSLog("HelloMusic: %@", s) }
+private func log(_ s: String) { NSLog("HelloMusic: %@", s) }
 
 final class MusicViewController: UIViewController, MPMediaPickerControllerDelegate {
     let player = MPMusicPlayerController.systemMusicPlayer

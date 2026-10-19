@@ -1,12 +1,25 @@
-// Sample: Swift Charts on isim — bar charts (annotations, stacking, custom style scale, horizontal),
-// line/point/rule and area marks, a donut of sector marks with a legend, custom axis marks, a date axis
-// and a rectangle heat map. Charts sit at fixed screen positions so the UI test can measure them.
+// Sample: Swift Charts on isim, one page per launch argument:
+// - (none) the gallery: bar charts (annotations, stacking, custom style scale, horizontal), line/point/rule and area
+//   marks, a donut of sector marks with a legend, custom axis marks, a date axis and a rectangle heat map;
+// - -more: symbols, axis titles, the proxy, selection, scrolling, plot style, iOS 18 plots and iOS 26 Chart3D
+//   (MoreCharts.swift);
+// - -styling: mark styling, annotations' overflow, bins (StylingCharts.swift);
+// - -axes: axes and scales (AxisCharts.swift).
+// Charts sit at fixed screen positions so the UI tests can measure them.
 import SwiftUI
 import Charts
 
 @main
 struct HelloChartsApp: App {
-    var body: some Scene { WindowGroup { ChartsGallery() } }
+    var body: some Scene { WindowGroup { page } }
+
+    @ViewBuilder var page: some View {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-more") { MoreCharts() }
+        else if args.contains("-styling") { StylingCharts() }
+        else if args.contains("-axes") { AxisCharts() }
+        else { ChartsGallery() }
+    }
 }
 
 struct Sale: Identifiable { let id = UUID(); let name: String; let value: Double }

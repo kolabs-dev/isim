@@ -1,4 +1,4 @@
-"""SwiftUI pickers and controls (HelloPickers): DatePicker graphical (day taps, month paging), compact (date pill ->
+"""SwiftUI pickers and controls (HelloForms -pickers): DatePicker graphical (day taps, month paging), compact (date pill ->
 calendar popover, time pill -> wheel popover), wheel style; wheel Picker; ColorPicker (UIKit's colour picker); TextField(value:formatter:);
 TextEditor; Gauge; ProgressView label; DisclosureGroup; OutlineGroup; ControlGroup; controlSize; PrimitiveButtonStyle
 (long press); ShareLink (UIKit's share sheet); PasteButton (disabled while the pasteboard is empty); AsyncImage (data URL); label and toggle styles.
@@ -9,7 +9,7 @@ from isimtest import grep
 
 
 def test_dates(launch):
-    app = launch("HelloPickers")
+    app = launch("HelloForms", args=["-pickers"])
     app.wait_view(r"id=day-15")
     app.screenshot("dates")
     app.tap_id("day-15")
@@ -43,7 +43,7 @@ def test_dates(launch):
 
 
 def test_inputs(launch):
-    app = launch("HelloPickers")
+    app = launch("HelloForms", args=["-pickers"])
     app.wait_tap_id("tab-Inputs")
     app.wait_view(r"id=wheel-0")
     app.wait_still()
@@ -81,7 +81,7 @@ def test_inputs(launch):
 
 
 def test_views(launch):
-    app = launch("HelloPickers")
+    app = launch("HelloForms", args=["-pickers"])
     app.wait_tap_id("tab-Views")
     app.wait_view(r"id=gauge-linear")
     app.wait_still()

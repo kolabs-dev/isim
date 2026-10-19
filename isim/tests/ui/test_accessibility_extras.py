@@ -1,4 +1,4 @@
-"""Further accessibility APIs (HelloAccessibilityExtras): Settings > Accessibility values and their notifications (script
+"""Further accessibility APIs (HelloAccessibility -extras): Settings > Accessibility values and their notifications (script
 `accessibility SETTING on|off`), Guided Access (script `guidedaccess`), VoiceOver's use of attributed labels (heading
 level, spell out), expanded status, iOS 17 block-based properties, data tables, a picker's accessibility delegate,
 reading content and scroll status (script `voiceover scroll`), the focused element, announcement priority; custom
@@ -16,7 +16,7 @@ def major(ios):
 @pytest.mark.os_matrix
 def test_accessibility_extras(launch, ios):
     v = major(ios)
-    app = launch("HelloAccessibilityExtras")
+    app = launch("HelloAccessibility", args=["-extras"])
     app.wait_log(r"^ax ready$")
     log = app.log
     assert ("ax settings guided false mono false speakScreen false speakSelection false assistiveTouch false "
@@ -88,7 +88,7 @@ def test_accessibility_extras_settings(launch, device_data):
     prefs.parent.mkdir(parents=True)
     prefs.write_bytes(plistlib.dumps({"ISIMContentSizeCategory": "UICTContentSizeCategoryAccessibilityXL",
                                       "ISIMMonoAudio": True, "ISIMShakeToUndo": False, "ISIMSpeakScreen": True}))
-    app = launch("HelloAccessibilityExtras")
+    app = launch("HelloAccessibility", args=["-extras"])
     app.wait_log(r"^ax ready$")
     assert "mono true speakScreen true speakSelection false assistiveTouch false shakeToUndo false" in app.log
     assert "ax image size 40 category true" in app.log, "an adjusting image view grows with the body text (40 / 17)"

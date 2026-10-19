@@ -1,7 +1,9 @@
-// Sample: audio beyond playback on isim — AVSpeechSynthesizer (espeak-ng on the host), AudioToolbox system sounds,
-// AVAudioEngine effects rendered offline (EQ, reverb, time pitch, delay, distortion), AVAudioRecorder and an input
-// node tap fed by ISIM_AUDIO_INPUT, AVAudioFile writing/reading (WAV, and AAC via the host's ffmpeg),
-// MPNowPlayingInfoCenter / MPRemoteCommandCenter (commands from the `remote` script command) and MPVolumeView.
+// Sample: audio on isim, one page per launch argument:
+// - (none) audio beyond playback: AVSpeechSynthesizer (espeak-ng on the host), AudioToolbox system sounds,
+//   AVAudioEngine effects rendered offline (EQ, reverb, time pitch, delay, distortion), AVAudioRecorder and an input
+//   node tap fed by ISIM_AUDIO_INPUT, AVAudioFile writing/reading (WAV, and AAC via the host's ffmpeg),
+//   MPNowPlayingInfoCenter / MPRemoteCommandCenter (commands from the `remote` script command) and MPVolumeView;
+// - -engine: AVAudioEngine's real-time graph and AudioToolbox's Audio Units (AudioEngine.swift).
 import UIKit
 import AVFoundation
 import AudioToolbox
@@ -12,15 +14,15 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = AudioViewController()
+        window?.rootViewController = ProcessInfo.processInfo.arguments.contains("-engine") ? EngineViewController() : AudioViewController()
         window?.makeKeyAndVisible()
         return true
     }
 }
 
-func log(_ s: String) { NSLog("HelloAudio: %@", s) }
-func f2(_ x: Double) -> String { String(format: "%.2f", x) }
-func rms(_ b: AVAudioPCMBuffer, from: Int = 0, to: Int? = nil) -> Double {
+private func log(_ s: String) { NSLog("HelloAudio: %@", s) }
+private func f2(_ x: Double) -> String { String(format: "%.2f", x) }
+private func rms(_ b: AVAudioPCMBuffer, from: Int = 0, to: Int? = nil) -> Double {
     let p = b.floatChannelData![0], end = to ?? Int(b.frameLength)
     guard end > from else { return 0 }
     var s = 0.0

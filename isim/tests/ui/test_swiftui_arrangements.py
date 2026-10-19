@@ -1,4 +1,4 @@
-"""iOS 27.1 SwiftUI arrangement views on isim's devices, none of which folds (HelloSwiftUIArrangements):
+"""iOS 27.1 SwiftUI arrangement views on isim's devices, none of which folds (HelloSwiftUI -arrangements):
 ArrangementView with the automatic style (stacked in compact width portrait, side by side on iPad), a primary asking
 for 30% with the higher layout priority, a secondary asking for an ideal height of 200 pt, split restricted to the
 horizontal axis, overlay (both fill, the primary on top) and a custom ArrangementViewStyle.
@@ -18,13 +18,13 @@ def frames(app, mode):
 
 @pytest.mark.os_matrix
 def test_swiftui_arrangements_unavailable(launch, ios):
-    app = launch("HelloSwiftUIArrangements")                           # every matrix version is before 27.1
+    app = launch("HelloSwiftUI", args=["-arrangements"])               # every matrix version is before 27.1
     app.wait_log(r"^hsarr ios27\.1 no$")
     assert app.quit() == 0
 
 
 def test_swiftui_arrangements_iphone(launch):
-    app = launch("HelloSwiftUIArrangements", device="iphone17", os_version="27.1")
+    app = launch("HelloSwiftUI", args=["-arrangements"], device="iphone17", os_version="27.1")
     app.wait_log(r"^hsarr ios27\.1 yes$")
     app.wait_view(r"id=mode-ratio")
     app.wait_still()
@@ -48,7 +48,7 @@ def test_swiftui_arrangements_iphone(launch):
 
 
 def test_swiftui_arrangements_ipad(launch):
-    app = launch("HelloSwiftUIArrangements", device="ipadpro11", os_version="27.1")
+    app = launch("HelloSwiftUI", args=["-arrangements"], device="ipadpro11", os_version="27.1")
     app.wait_view(r"id=mode-ratio")
     app.wait_still()
     f = screen_frames(app.view_dump())

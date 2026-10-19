@@ -1,11 +1,11 @@
-"""Part 11 of #9 (HelloDragExtras, iPad): Auto Layout extras and new traits; text drag and drop between text views
+"""Part 11 of #9 (HelloDragDrop -extras, iPad): Auto Layout extras and new traits; text drag and drop between text views
 (the text drag and drop delegates); a table drop through a placeholder row; a spring-loaded button under a resting
 drag; hover styles on the iPad pointer; a paste delegate; a UIKit trait bridged into SwiftUI's environment."""
 import re
 
 
 def test_drag_extras(launch):
-    app = launch("HelloDragExtras", device="ipadpro11")
+    app = launch("HelloDragDrop", args=["-extras"], device="ipadpro11")
     app.wait_log(r"^dg ready$")
     log = app.log
     assert "dg offset gap 30" in log                                     # anchorWithOffset(to:) as a dimension

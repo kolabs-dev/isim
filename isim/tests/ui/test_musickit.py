@@ -1,4 +1,4 @@
-"""MusicKit (HelloMusicKit): authorization, library requests over the simulated music library (sorting, filters,
+"""MusicKit (HelloMusic, -musickit): authorization, library requests over the simulated music library (sorting, filters,
 albums, artists, playlists), ApplicationMusicPlayer playing an album, no Apple Music subscription, and the catalog:
 requests go to the Apple Music API with the developer token from ISIM_MUSICKIT_DEVELOPER_TOKEN (here a local server
 standing in for api.music.apple.com, ISIM_MUSICKIT_API), and fail with developerTokenRequestFailed without one."""
@@ -45,7 +45,7 @@ def api():
 
 
 def run(launch, env):
-    app = launch("HelloMusicKit", env={"ISIM_MEDIALIBRARY_PERMISSION": "allow", "SDL_AUDIO_DRIVER": "dummy", **env})
+    app = launch("HelloMusic", args=["-musickit"], env={"ISIM_MEDIALIBRARY_PERMISSION": "allow", "SDL_AUDIO_DRIVER": "dummy", **env})
     app.wait_log(r"HelloMusicKit: done", timeout=30)
     assert app.quit() == 0, "exits cleanly"
     return app.log

@@ -1,4 +1,4 @@
-"""The rest of the text APIs (HelloTextFormatting): Writing Tools settings (unavailable, as without Apple
+"""The rest of the text APIs (HelloTextKit -formatting): Writing Tools settings (unavailable, as without Apple
 Intelligence), conversation contexts and smart reply suggestions, tab stops, text lists and their markers, selection
 navigation over a TextKit 2 layout manager, adaptive image glyphs, Core Text alignment conversions, and the text
 formatting panel (from a text view's edit menu, applied to the selection; and on its own, reporting changes)."""
@@ -19,7 +19,7 @@ def select_all(app):
 @pytest.mark.os_matrix
 def test_text_formatting(launch, ios):
     v = major(ios)
-    app = launch("HelloTextFormatting")
+    app = launch("HelloTextKit", args=["-formatting"])
     app.wait_log(r"^fm ready$")
     log = app.log
     # TextKit: tab stops (12 left tabs 28 points apart by default), list markers, list elements
@@ -72,7 +72,7 @@ def test_text_formatting(launch, ios):
 
 def test_text_formatting_ipad(launch):
     """on iPad the panel is a popover at the selection"""
-    app = launch("HelloTextFormatting", device="ipadpro11")
+    app = launch("HelloTextKit", args=["-formatting"], device="ipadpro11")
     app.wait_log(r"^fm ready$")
     select_all(app)
     app.wait_tap_id("isim-menu-Format")

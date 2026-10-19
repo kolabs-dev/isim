@@ -150,9 +150,26 @@ def tree_hash(paths):
     return h.hexdigest()
 
 
-def cmd_stamp(args):
+def swift_module_api(lib, iface):
+    """what apps compile against in each Name.swiftmodule of lib: its printed public interface (iface/Name.swiftinterface)
+    when it has one (library evolution), else the binary module, which changes with any edit to the module"""
     import glob
-    paths = [x for a in args[1:] for x in (sorted(glob.glob(a)) if "*" in a else [a])]
+    out = []
+    for d in sorted(glob.glob(f"{lib}/*.swiftmodule")):
+        i = os.path.join(iface, os.path.basename(d)[:-len(".swiftmodule")] + ".swiftinterface")
+        out += [i] if os.path.isfile(i) else sorted(glob.glob(f"{d}/*.swiftmodule")) + sorted(glob.glob(f"{d}/*.swiftinterface"))
+    return out
+
+
+def cmd_stamp(args):
+    """a hash of files (paths, globs, or swift-api:LIB:IFACE, see swift_module_api), rewritten only when it changes"""
+    import glob
+    paths = []
+    for a in args[1:]:
+        if a.startswith("swift-api:"):
+            paths += swift_module_api(*a.split(":")[1:3])
+        else:
+            paths += sorted(glob.glob(a)) if "*" in a else [a]
     write_if_changed(args[0], tree_hash(paths) + "\n")
     return 0
 

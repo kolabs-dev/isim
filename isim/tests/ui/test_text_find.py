@@ -1,6 +1,6 @@
-"""Text interactions for a custom UITextInput and find and replace (HelloTextFind): UITextInteraction's tap and double
-tap, the selection display's cursor, the loupe session and drop position animator; the find navigator (count, next,
-replace all, Done) and Cmd+F in a text view."""
+"""Text interactions for a custom UITextInput and find and replace (HelloTextKit -find): UITextInteraction's tap and
+double tap, the selection display's cursor, the loupe session and drop position animator; the find navigator (count,
+next, replace all, Done) and Cmd+F in a text view."""
 import pytest
 
 
@@ -11,7 +11,7 @@ def major(ios):
 @pytest.mark.os_matrix
 def test_text_find(launch, ios):
     v = major(ios)
-    app = launch("HelloTextFind")
+    app = launch("HelloTextKit", args=["-find"])
     app.wait_log(r"^tf ready$")
     assert "tf interaction mode true gestures 3 input true" in app.log
     if v >= 17:

@@ -1,4 +1,4 @@
-"""Small UIKit members (HelloKitMembers, issue #240): UIView.contentScaleFactor (the screen's scale, then set, with the
+"""Small UIKit members (HelloKitExtras -members, issue #240): UIView.contentScaleFactor (the screen's scale, then set, with the
 layer's contentsScale), UIButton.isHeld (a touch held on the button; the configuration update handler sees it, and it
 ends with the touch), UINavigationItem.additionalOverflowItems (a deferred element in the bar's overflow menu, which
 shows for it alone), UIWindowScene.isFullScreen and, on iOS 26 and later, UIView.Invalidating(.properties) running
@@ -11,7 +11,7 @@ import pytest
 @pytest.mark.os_matrix
 def test_kit_members(launch, ios):
     v = int(str(ios[0] or "18").split(".")[0])
-    app = launch("HelloKitMembers")
+    app = launch("HelloKitExtras", args=["-members"])
     app.wait_log(r"^contentScaleFactor default=true$")
     app.wait_log(r"^contentScaleFactor set=1\.0 layer=1\.0$")
     app.wait_log(r"^configuration value title=Hold me copy=Copy button=Hold me equal=false same=true$")   # a struct (#487)

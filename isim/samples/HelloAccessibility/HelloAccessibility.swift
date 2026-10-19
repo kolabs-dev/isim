@@ -2,15 +2,19 @@
 // UIAccessibilityElements in its own order, a custom action, an adjustable slider, announcements, Dynamic Type
 // (preferredFont + adjustsFontForContentSizeCategory, UIFontMetrics), the Settings > Accessibility values, and
 // SwiftUI accessibility modifiers in a UIHostingController. Drive it with isim's VoiceOver (`voiceover on`, `next`, ...).
+// Pages, by launch argument: (none) this one; -extras: the further accessibility APIs and Guided Access
+// (AccessibilityExtras.swift).
 import UIKit
 import SwiftUI
+
+let extrasPage = ProcessInfo.processInfo.arguments.contains("-extras")
 
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = AccessibilityViewController()
+        window?.rootViewController = extrasPage ? AccessibilityExtrasViewController() : AccessibilityViewController()
         window?.makeKeyAndVisible()
         return true
     }

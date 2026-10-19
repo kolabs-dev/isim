@@ -1,30 +1,41 @@
-// Sample: smaller UIKit APIs from the documentation sweep (#9), each logged with "hx" so the test can check it.
-// - UIStackView: isBaselineRelativeArrangement, customSpacing(after:)
-// - iOS 26 flushUpdates (UIView.animate options and UIViewPropertyAnimator)
-// - UIUpdateLink's phases in order and UIUpdateInfo.current(for:)
-// - UILargeContentViewerInteraction: gestureRecognizerForExclusionRelationship, scalesLargeContentImage, image insets
-// - UILetterformAwareAdjusting: a label's oversize sizing rule makes room for stacked marks
-// - item providers: a preferred presentation size from UIImage, a reading class augmented with plain text
-// - UIEventAttribution / UIEventAttributionView (private click measurement; script `attributions`)
-// - UIScreenshotService: a full-page PDF (script `fullpage PATH`)
-// - UIGraphicsRenderer subclassing (runDrawingActions), UIRectFillUsingBlendMode, UIGraphicsImageRendererFormat(for:)
-// - tooltips (UIToolTipInteraction, UIControl.toolTip, UILabel.showsExpansionTextWhenTruncated) and band selection on iPad
-// - motion effects (script `tilt H V`), UIKit Dynamics fields and attachments, gesture recognizer touch types and masks
-// - geometry: NSValue / NSCoder additions, the string forms
+// Sample: small UIKit APIs, one page per launch argument:
+// - -kit27: small iOS 27 additions (Kit27.swift); -final: the last rows of #188 (KitFinal.swift);
+//   -members: small members of #240 / #241 (KitMembers.swift);
+// - (none) smaller UIKit APIs from the documentation sweep (#9), each logged with "hx" so the test can check it:
+//   - UIStackView: isBaselineRelativeArrangement, customSpacing(after:)
+//   - iOS 26 flushUpdates (UIView.animate options and UIViewPropertyAnimator)
+//   - UIUpdateLink's phases in order and UIUpdateInfo.current(for:)
+//   - UILargeContentViewerInteraction: gestureRecognizerForExclusionRelationship, scalesLargeContentImage, image insets
+//   - UILetterformAwareAdjusting: a label's oversize sizing rule makes room for stacked marks
+//   - item providers: a preferred presentation size from UIImage, a reading class augmented with plain text
+//   - UIEventAttribution / UIEventAttributionView (private click measurement; script `attributions`)
+//   - UIScreenshotService: a full-page PDF (script `fullpage PATH`)
+//   - UIGraphicsRenderer subclassing (runDrawingActions), UIRectFillUsingBlendMode, UIGraphicsImageRendererFormat(for:)
+//   - tooltips (UIToolTipInteraction, UIControl.toolTip, UILabel.showsExpansionTextWhenTruncated) and band selection on iPad
+//   - motion effects (script `tilt H V`), UIKit Dynamics fields and attachments, gesture recognizer touch types and masks
+//   - geometry: NSValue / NSCoder additions, the string forms
 import UIKit
 import UniformTypeIdentifiers
 
-func log(_ s: String) { print("hx \(s)") }
-func n(_ v: CGFloat) -> String { String(format: "%.0f", v) }
+fileprivate func log(_ s: String) { print("hx \(s)") }
+fileprivate func n(_ v: CGFloat) -> String { String(format: "%.0f", v) }
 
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
+    let args = ProcessInfo.processInfo.arguments
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = ExtrasViewController()
+        if args.contains("-kit27") { window?.rootViewController = KitViewController() }
+        else if args.contains("-final") { window?.rootViewController = UINavigationController(rootViewController: FinalViewController()) }
+        else if args.contains("-members") { window?.rootViewController = UINavigationController(rootViewController: MembersViewController()) }
+        else { window?.rootViewController = ExtrasViewController() }
         window?.makeKeyAndVisible()
+        if args.contains("-kit27") { KitViewController.logSymbolWeights() }
         return true
+    }
+    func applicationShouldAutomaticallyLocalizeKeyCommands(_ application: UIApplication) -> Bool {
+        args.contains("-final") ? FinalViewController.shouldLocalizeKeyCommands() : true
     }
 }
 

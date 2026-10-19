@@ -1,7 +1,9 @@
-// Sample: the audio module names apps import (issue #223), each checked by an "am" log line and shown in a list.
-// - import AVFAudio: AVAudioSession, AVAudioFormat, AVAudioEngine (isim's AVFoundation, re-exported)
-// - import AudioUnit: AudioComponentDescription, AudioComponentFindNext, a RemoteIO unit's stream format
-// - import CoreAudio / CoreAudioTypes: AudioStreamBasicDescription, format IDs and linear PCM flags
+// Sample: audio modules and session policies on isim, one page per launch argument:
+// - (none) the audio module names apps import (issue #223), each checked by an "am" log line and shown in a list:
+//   - import AVFAudio: AVAudioSession, AVAudioFormat, AVAudioEngine (isim's AVFoundation, re-exported)
+//   - import AudioUnit: AudioComponentDescription, AudioComponentFindNext, a RemoteIO unit's stream format
+//   - import CoreAudio / CoreAudioTypes: AudioStreamBasicDescription, format IDs and linear PCM flags
+// - -policies: AVAudioSession's modes, options and policies for call and video apps (SessionPolicies.swift).
 import SwiftUI
 import AVFAudio
 import AudioUnit
@@ -9,7 +11,7 @@ import CoreAudio
 import CoreAudioTypes
 
 var rows: [(String, String)] = []
-func log(_ key: String, _ value: String) { print("am \(key) \(value)"); rows.append((key, value)) }
+private func log(_ key: String, _ value: String) { print("am \(key) \(value)"); rows.append((key, value)) }
 
 func runChecks() {
     // AVFAudio
@@ -65,6 +67,9 @@ struct ContentView: View {
 
 @main
 struct HelloAudioModulesApp: App {
-    init() { runChecks() }
-    var body: some Scene { WindowGroup { ContentView(results: rows) } }
+    let policies = ProcessInfo.processInfo.arguments.contains("-policies")
+    init() { if policies { runPolicyChecks() } else { runChecks() } }
+    var body: some Scene {
+        WindowGroup { if policies { PoliciesView(results: policyRows) } else { ContentView(results: rows) } }
+    }
 }

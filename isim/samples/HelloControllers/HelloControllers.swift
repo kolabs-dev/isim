@@ -1,13 +1,22 @@
-// Sample: view controllers on isim (UIKit) — a triple-column UISplitViewController (tile / overlay / displace display
-// modes, the sidebar button, the edge swipe, collapsing and expanding when an iPhone Pro Max turns), a search
-// controller with a results controller and search suggestions plus a standalone one, and the share sheet's Save Image
-// and Print.
+// Sample: view controllers on isim (UIKit), one page per launch argument:
+// - (none) a triple-column UISplitViewController (tile / overlay / displace display modes, the sidebar button, the
+//   edge swipe, collapsing and expanding when an iPhone Pro Max turns), a search controller with a results controller
+//   and search suggestions plus a standalone one, and the share sheet's Save Image and Print;
+// - -extras: view controller and container members from the documentation sweep, in a seven-tab bar
+//   (ControllerExtras.swift).
 import UIKit
 
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate, UISplitViewControllerDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        if ProcessInfo.processInfo.arguments.contains("-extras") {
+            let tabs = ControllerExtras.make(delegate: self)
+            window = UIWindow(frame: UIScreen.main.bounds)
+            window?.rootViewController = tabs
+            window?.makeKeyAndVisible()
+            return true
+        }
         let split = UISplitViewController(style: .tripleColumn)
         split.delegate = self
         split.setViewController(LibraryViewController(), for: .primary)

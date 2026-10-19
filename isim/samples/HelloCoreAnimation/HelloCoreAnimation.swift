@@ -1,8 +1,10 @@
-// Sample: Core Animation on isim — standalone CALayer trees (shape, gradient, replicator, text, emitter layers),
-// CABasicAnimation / CAKeyframeAnimation / CASpringAnimation / CAAnimationGroup with delegates, CATransaction
-// (implicit animations, completion blocks, disableActions), CATransform3D perspective (a layer and a view),
-// layer masks and view masks, blurred shadows, UIKit Dynamics (gravity + collision) and CoreHaptics.
-// Buttons print what is happening (presentation values) so the UI test can check it.
+// Sample: Core Animation on isim, one page per launch argument:
+// - (none) standalone CALayer trees (shape, gradient, replicator, text, emitter layers), CABasicAnimation /
+//   CAKeyframeAnimation / CASpringAnimation / CAAnimationGroup with delegates, CATransaction (implicit animations,
+//   completion blocks, disableActions), CATransform3D perspective (a layer and a view), layer masks and view masks,
+//   blurred shadows, UIKit Dynamics (gravity + collision) and CoreHaptics. Buttons print what is happening
+//   (presentation values) so the UI test can check it;
+// - -layers: layer features, one sub-page per PAGE environment variable (Layers.swift).
 import UIKit
 import QuartzCore
 import CoreHaptics
@@ -12,13 +14,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = CoreAnimationViewController()
+        window?.rootViewController = ProcessInfo.processInfo.arguments.contains("-layers") ? LayersViewController() : CoreAnimationViewController()
         window?.makeKeyAndVisible()
         return true
     }
 }
 
-func f2(_ v: CGFloat) -> String { String(format: "%.2f", Double(v)) }
+private func f2(_ v: CGFloat) -> String { String(format: "%.2f", Double(v)) }
 func f0(_ v: CGFloat) -> String { String(format: "%.0f", Double(v)) }
 
 final class AnimDelegate: NSObject, CAAnimationDelegate {

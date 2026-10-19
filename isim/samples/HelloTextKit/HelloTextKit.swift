@@ -1,14 +1,21 @@
-// Sample: TextKit on isim (UIKit) — TextKit 1 (NSTextStorage + NSLayoutManager + NSTextContainer laid out and drawn by
-// a custom view: line fragments, glyph and character queries, bounding rects; the storage delegate on edits), an
-// NSTextStorage subclass with its own backing store highlighting #tags in a TextKit 1 text view, TextKit 2 (a text
-// view's NSTextLayoutManager / NSTextContentStorage: layout fragments, line fragments, text segments, rendering
-// attributes), an inline image attachment, attachment view providers with the iOS 27 reuse policies and the layout
-// manager delegate's provider cache, a standalone viewport layout controller delegate, and the switch to TextKit 1.
+// Sample: TextKit and text on isim (UIKit), one page per launch argument:
+// - (none) TextKit: TextKit 1 (NSTextStorage + NSLayoutManager + NSTextContainer laid out and drawn by a custom view:
+//   line fragments, glyph and character queries, bounding rects; the storage delegate on edits), an NSTextStorage
+//   subclass with its own backing store highlighting #tags in a TextKit 1 text view, TextKit 2 (a text view's
+//   NSTextLayoutManager / NSTextContentStorage: layout fragments, line fragments, text segments, rendering attributes),
+//   an inline image attachment, attachment view providers with the iOS 27 reuse policies and the layout manager
+//   delegate's provider cache, a standalone viewport layout controller delegate, and the switch to TextKit 1;
+// - -extras: text field, text view, responder, text input and keyboard members (TextExtrasPage.swift);
+// - -fidelity: text drawing fidelity: shadows, attachments, button image views, refresh titles (TextFidelityPage.swift);
+// - -find: text interactions for a custom text input, find and replace (TextFindPage.swift);
+// - -formatting: Writing Tools, the formatting panel, conversation context, tabs and lists (TextFormattingPage.swift);
+// - -tables: text blocks and tables in attributed strings (TextTablesPage.swift);
+// - -undo: undo while editing text (TextUndoPage.swift).
 import UIKit
 
-func log(_ s: String) { print("htk \(s)") }
-func r1(_ v: CGFloat) -> String { String(format: "%.0f", v) }
-func rect(_ r: CGRect) -> String { "\(r1(r.minX)),\(r1(r.minY)) \(r1(r.width))x\(r1(r.height))" }
+private func log(_ s: String) { print("htk \(s)") }
+private func r1(_ v: CGFloat) -> String { String(format: "%.0f", v) }
+private func rect(_ r: CGRect) -> String { "\(r1(r.minX)),\(r1(r.minY)) \(r1(r.width))x\(r1(r.height))" }
 
 /// draws a TextKit 1 stack (glyphs and backgrounds) at the container origin
 final class TK1View: UIView {
@@ -59,7 +66,7 @@ final class TagStorage: NSTextStorage {
 }
 
 /// an attachment's view: a coloured square that counts how often it was made
-var madeViews = 0
+private var madeViews = 0
 final class BadgeProvider: NSTextAttachmentViewProvider {
     override func loadView() {
         madeViews += 1
@@ -267,7 +274,14 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = ViewController()
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-extras") { window?.rootViewController = UINavigationController(rootViewController: TextViewController()) }
+        else if args.contains("-fidelity") { window?.rootViewController = FidelityViewController() }
+        else if args.contains("-find") { window?.rootViewController = UINavigationController(rootViewController: FindViewController()) }
+        else if args.contains("-formatting") { window?.rootViewController = UINavigationController(rootViewController: FormatViewController()) }
+        else if args.contains("-tables") { window?.rootViewController = TablesViewController() }
+        else if args.contains("-undo") { window?.rootViewController = UndoViewController() }
+        else { window?.rootViewController = ViewController() }
         window?.makeKeyAndVisible()
         return true
     }

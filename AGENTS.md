@@ -106,7 +106,9 @@ python3 isim/tools/portability-check.py   # host code stays portable (docs/BUILD
     passthrough / adapted / stub label, the test that verifies it). Create the page from `docs/frameworks/_template.md`
     when the framework has none, with the module in `isim/data/frameworks.json`;
   - tick its item in the `coverage` issue that lists it;
-  - add or extend a sample app (`isim/samples/`) and a pytest test (`isim/tests/`);
+  - extend the framework's existing sample app (`isim/samples/`), or add one only when none can hold it (another kind
+    of app, Info.plist keys or entitlements that would change its behaviour, a framework with no sample yet: see
+    [docs/BUILD.md](docs/BUILD.md#adding-things)), and a pytest test (`isim/tests/`);
   - keep it usable by AI agents: anything a person can do in the device window (a button, a gesture, a menu item) is
     also a script command in [docs/SCRIPTING.md](docs/SCRIPTING.md) or an `isim` subcommand, with text or file
     output; update [docs/AI-AGENTS.md](docs/AI-AGENTS.md) when it changes the agent workflow;

@@ -17,6 +17,7 @@ TRIPLE = "x86_64-apple-ios15.0-simulator"
 SDK = "out/sdk"
 LIB = f"{SDK}/usr/lib/swift"
 SW = "out/swift"
+IFACE = f"{SW}/iface"          # the library-evolution overlays' public interfaces (not shipped in the SDK)
 ISIM = "out/bin/isim"
 # isim's own Swift (overlays, apps): warnings are errors, deprecations stay warnings (issue #40); upstream modules build
 # with -suppress-warnings. ISIM_WERROR=0 turns it off
@@ -541,9 +542,15 @@ class Swift:
             implicit += [f"{SW}/host/plugins/lib{p}.so" for p in MACRO_PLUGINS.get(m, [])]      # macros it declares
             obj = f"{objdir}/{m}.o"
             os.makedirs(os.path.join(c.root, LIB, f"{m}.swiftmodule"), exist_ok=True)
-            self.swiftc([obj, mod(m)], ["-parse-as-library", "-module-name", m, "-module-link-name", f"swift{m}", *flags,
-                                        "-emit-module", "-emit-module-path", mod(m), "-wmo", "-c", "-o", obj],
-                        srcs, implicit=base + implicit, keep=[obj, mod(m)], desc=f"SWIFT {m}")
+            os.makedirs(os.path.join(c.root, IFACE), exist_ok=True)
+            # a library-evolution overlay also prints its public interface (out/swift/iface): what apps depend on, so
+            # an edit to its internals does not rebuild them (buildlib/apps.py, the SDK-interface stamp)
+            iface = [f"{IFACE}/{m}.swiftinterface"] if m in EVOLUTION else []
+            iface_args = ["-emit-module-interface-path", iface[0], "-no-verify-emitted-module-interface",
+                          "-Xfrontend", "-alias-module-names-in-module-interface"] if iface else []
+            self.swiftc([obj, mod(m), *iface], ["-parse-as-library", "-module-name", m, "-module-link-name", f"swift{m}", *flags,
+                                                "-emit-module", "-emit-module-path", mod(m), *iface_args, "-wmo", "-c", "-o", obj],
+                        srcs, implicit=base + implicit, keep=[obj, mod(m), *iface], desc=f"SWIFT {m}")
             objs = [obj] + [a for a in args if a.endswith(".o")]
             link_args = ["-lSystem", "-lobjc", "-lswiftCore"] + [a for a in args if not a.endswith(".o")]
             link_args += objc_aliases(m)
