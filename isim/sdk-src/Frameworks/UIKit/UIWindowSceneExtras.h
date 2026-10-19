@@ -31,6 +31,11 @@ typedef NS_ERROR_ENUM(UIApplicationCategoryDefaultErrorDomain, UIApplicationCate
     UIApplicationCategoryDefaultErrorRateLimited = 1 } API_AVAILABLE(ios(18.2));
 UIKIT_EXTERN NSString *const UIApplicationCategoryDefaultStatusLastProvidedDateErrorKey API_AVAILABLE(ios(18.2));
 UIKIT_EXTERN NSString *const UIApplicationCategoryDefaultRetryAvailabilityDateErrorKey API_AVAILABLE(ios(18.2));
+typedef NS_ENUM(NSInteger, UIApplicationCategoryDefaultStatus) {
+    UIApplicationCategoryDefaultStatusUnavailable = 0,     /* not determined (an unknown category); see the error */
+    UIApplicationCategoryDefaultStatusIsDefault = 1,
+    UIApplicationCategoryDefaultStatusNotDefault = 2,
+} NS_SWIFT_NAME(UIApplication.CategoryDefaultStatus) API_AVAILABLE(ios(18.2));
 @interface UIApplication (UISceneExtras)
 /* NO while the device is locked (isim boot: script `lock`) */
 @property (nonatomic, readonly, getter=isProtectedDataAvailable) BOOL protectedDataAvailable;
@@ -40,7 +45,9 @@ UIKIT_EXTERN NSString *const UIApplicationCategoryDefaultRetryAvailabilityDateEr
 - (void)beginReceivingRemoteControlEvents;
 - (void)endReceivingRemoteControlEvents;
 @property (nonatomic, readonly) BOOL systemPrefersReducedResourceUsage API_AVAILABLE(ios(27.0));
-- (BOOL)isDefaultForCategory:(UIApplicationCategory)category error:(NSError **)error NS_SWIFT_NAME(isDefault(_:)) __attribute__((swift_error(nonnull_error))) API_AVAILABLE(ios(18.2));
+/* Swift: isDefault(_:) (isim's UIKit overlay). (Earlier isim releases had -isDefaultForCategory:error:; it stays exported
+   for the apps built with them.) */
+- (UIApplicationCategoryDefaultStatus)defaultStatusForCategory:(UIApplicationCategory)category error:(NSError **)error NS_REFINED_FOR_SWIFT API_AVAILABLE(ios(18.2));
 @end
 @interface UIApplicationShortcutIcon (UISceneExtras)
 /* the contact's picture, else a monogram of their initials */

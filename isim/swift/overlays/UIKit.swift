@@ -735,6 +735,14 @@ extension UIApplication {
         public nonisolated static let statusLastProvidedDateErrorKey: String = UIApplicationCategoryDefaultStatusLastProvidedDateErrorKey
         public nonisolated static let retryAvailableDateErrorKey: String = UIApplicationCategoryDefaultRetryAvailabilityDateErrorKey
     }
+    /// whether the app is the default one of the category (Objective-C: -defaultStatusForCategory:error:)
+    @available(iOS 18.2, *)
+    public func isDefault(_ category: UIApplication.Category) throws -> Bool {
+        var error: NSError?
+        let status = __defaultStatus(for: category, error: &error)
+        if status == .unavailable { throw error ?? NSError(domain: UIApplicationCategoryDefaultErrorDomain, code: 0) }
+        return status == .isDefault
+    }
 }
 @available(iOS 17.0, *)
 extension UIWindowScene.ActivationAction {

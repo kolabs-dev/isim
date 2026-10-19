@@ -56,6 +56,8 @@ NS_SWIFT_UI_ACTOR
 @property (nullable, nonatomic, copy) NSAttributedString *attributedPlaceholder;
 @property (nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *defaultTextAttributes;
 @property (nonatomic) BOOL allowsEditingTextAttributes;
+/* adaptive image glyphs (iOS 18): stored (isim's keyboard has no Genmoji to offer) */
+@property (nonatomic) BOOL supportsAdaptiveImageGlyph API_AVAILABLE(ios(18.0));
 @property (nullable, nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *typingAttributes;
 /* images drawn stretched behind the text (not with the rounded rect border style) */
 @property (nullable, nonatomic, strong) UIImage *background;

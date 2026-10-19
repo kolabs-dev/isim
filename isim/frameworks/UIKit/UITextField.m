@@ -21,6 +21,7 @@ NSString *const UITextFieldDidEndEditingReasonKey = @"UITextFieldDidEndEditingRe
     CGFloat _scrollX;                       /* single line: horizontal scroll that keeps the caret visible */
     NSInteger _isim_minLines, _isim_maxLines; BOOL _isim_multi;
 }
+@dynamic supportsAdaptiveImageGlyph;                         /* (IsimAdaptiveImageGlyph) */
 @synthesize sizingRule = _sizingRule;     /* UILetterformAwareAdjusting (iOS 17) */
 /* the alignment text is laid out with: natural is right aligned right to left */
 - (NSTextAlignment)_isim_alignment { return _textAlignment == NSTextAlignmentNatural ? ([self _isim_isRTL] ? NSTextAlignmentRight : NSTextAlignmentLeft) : _textAlignment; }
@@ -445,4 +446,11 @@ ISIM_TEXT_INPUT_METHODS
     CGRect dr = multi ? r : CGRectMake(r.origin.x + [self _alignOffset:ts.width area:r.size.width], r.origin.y + floor((r.size.height - ts.height) / 2), MAX(ts.width, r.size.width) + 4, ts.height);
     isim_ui_draw_text(text, f, c, dr, multi ? [self _isim_alignment] : NSTextAlignmentLeft, multi ? _isim_maxLines : 1, self.enabled ? 1 : 0.5);
 }
+@end
+
+/* iOS 18: whether the input accepts adaptive image glyphs (stored; isim's keyboard offers none) */
+@implementation UITextField (IsimAdaptiveImageGlyph)
+static char kSupportsAdaptiveImageGlyphUITextField;
+- (BOOL)supportsAdaptiveImageGlyph { return [objc_getAssociatedObject(self, &kSupportsAdaptiveImageGlyphUITextField) boolValue]; }
+- (void)setSupportsAdaptiveImageGlyph:(BOOL)b { objc_setAssociatedObject(self, &kSupportsAdaptiveImageGlyphUITextField, @(b), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 @end

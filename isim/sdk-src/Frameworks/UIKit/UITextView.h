@@ -73,6 +73,8 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, getter=isSelectable) BOOL selectable;
 @property (nonatomic) UIDataDetectorTypes dataDetectorTypes;
 @property (nonatomic) BOOL allowsEditingTextAttributes;
+/* adaptive image glyphs (iOS 18): stored (isim's keyboard has no Genmoji to offer) */
+@property (nonatomic) BOOL supportsAdaptiveImageGlyph API_AVAILABLE(ios(18.0));
 @property (nonatomic) BOOL clearsOnInsertion;
 @property (nonatomic) UIEdgeInsets textContainerInset;
 @property (nonatomic) BOOL adjustsFontForContentSizeCategory;

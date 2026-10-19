@@ -1222,3 +1222,21 @@ extension UIFocusSystem {
         }
     }
 }
+@available(iOS 26.0, *)
+extension UIPointerLockState {
+    /// the scene's pointer lock state changed (posted with the state as the object and the scene in the user info)
+    public struct DidChangeMessage: NotificationCenter.MainActorMessage {
+        public typealias Subject = UIPointerLockState
+        public static var name: Foundation.Notification.Name { UIPointerLockState.didChangeNotification }
+        public var scene: UIScene
+        public var pointerLockState: UIPointerLockState
+        public init(scene: UIScene, pointerLockState: UIPointerLockState) { self.scene = scene; self.pointerLockState = pointerLockState }
+        @MainActor public static func makeMessage(_ n: Foundation.Notification) -> Self? {
+            guard let state = n.object as? UIPointerLockState, let scene = n.userInfo?[UIPointerLockState.sceneUserInfoKey] as? UIScene else { return nil }
+            return Self(scene: scene, pointerLockState: state)
+        }
+        @MainActor public static func makeNotification(_ m: Self) -> Foundation.Notification {
+            Foundation.Notification(name: name, object: m.pointerLockState, userInfo: [UIPointerLockState.sceneUserInfoKey: m.scene])
+        }
+    }
+}

@@ -233,6 +233,8 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) CGRect unobscuredContentRect API_AVAILABLE(ios(18.0));
 - (NSAttributedString *)attributedTextInRange:(UITextRange *)range NS_SWIFT_NAME(attributedText(in:)) API_AVAILABLE(ios(18.0));
 - (void)insertAttributedText:(NSAttributedString *)string API_AVAILABLE(ios(18.0));
+/* the input accepts adaptive image glyphs (Genmoji, NSAdaptiveImageGlyph) from the keyboard and pasteboard */
+@property (nonatomic) BOOL supportsAdaptiveImageGlyph API_AVAILABLE(ios(18.0));
 - (void)willPresentWritingTools API_AVAILABLE(ios(18.0));
 - (void)didDismissWritingTools API_AVAILABLE(ios(18.0));
 @end
