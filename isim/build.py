@@ -109,8 +109,8 @@ def test(args, verbose=False):
 
 def ci(args):
     """CI, in two phases (separate workflow steps, so each shows its own time): `build` fetches, builds, checks that
-    the optional parts exist and runs the ABI check; `test` runs every test. Runs in the isim/ci image with the
-    host's Docker socket. Arguments after `--` go to pytest (e.g. `ci test -- -m os_matrix`)."""
+    the optional parts exist and runs the ABI check; `test` runs every test. Runs in the isim/ci image with swift.org's
+    Swift 6.2.4 mounted (ISIM_SWIFT_TOOLCHAIN). Arguments after `--` go to pytest (e.g. `ci test -- -m os_matrix`)."""
     pytest_args = args[args.index("--") + 1:] if "--" in args else []
     args = args[:args.index("--")] if "--" in args else args
     phases = [a for a in args if a in ("build", "test")] or ["build", "test"]
@@ -127,8 +127,6 @@ def ci_build(args):
     subprocess.run(["git", "config", "--global", "--add", "safe.directory", "*"])
     if not os.path.isdir(os.path.join(REPO, "third_party", "swift", "stdlib")):
         fetch([])
-    if subprocess.run(["docker", "image", "inspect", "swift:6.2"], capture_output=True).returncode:
-        subprocess.run(["docker", "pull", "-q", "swift:6.2"], check=True)
     venv()                         # the test packages too, so the build cache carries them to the test step
     rc = build(args, ci=True)
     if rc:

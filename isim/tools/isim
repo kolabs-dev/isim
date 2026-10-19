@@ -8,7 +8,9 @@
 #   isim run <App.app> [args...]: install, boot and open the app (headless or ISIM_STANDALONE=1: the app alone)
 #     options: [--os 17|18|26|27] [--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16pro|iphone16promax|iphone17|iphoneair|iphone17pro|iphone17promax|ipadmini|ipadair11|ipadpro11|ipadpro13] [--zoom N] [--dark] [--headless --script "..."]
 #   isim cc  <clang args...>     compile/link for the isim iOS-simulator SDK (x86_64)
-#   isim swiftc [-embedded] <swiftc args...>  compile Swift for the simulator (needs docker image swift:6.2)
+#   isim swiftc [-embedded] <swiftc args...>  compile Swift for the simulator (needs Swift 6.2.4: isim toolchain install)
+#   isim toolchain [status|install|which]   the Swift 6.2.4 toolchain isim compiles with: which one and why | install it
+#                                with swiftly | its usr directory (ISIM_SWIFT_TOOLCHAIN=DIR picks one)
 #   ISIM_MIN_IOS=17.0            deployment target used by cc/swiftc (default 17.0)
 #   isim build -project X.xcodeproj [-target T] [-configuration Debug] [-o DIR]   build an Xcode project for isim
 #                                (products in ./build of the current folder unless -o DIR)
@@ -80,6 +82,66 @@ select_os() {   # validates the device + iOS version pairing; remembers an expli
   elif [ -f "$OSFILE" ]; then
     export ISIM_OS_DEFAULT; ISIM_OS_DEFAULT=$(cat "$OSFILE")
   fi
+}
+# Swift: the SDK's Swift modules are compiled .swiftmodule files, which load only in the compiler that built them, so
+# Swift compiles with exactly Swift $SWIFT_VERSION, installed with swiftly (`isim toolchain install`); ISIM_SWIFT_TOOLCHAIN
+# or a swiftc on PATH can name the same toolchain installed otherwise. `isim toolchain status` says which and why.
+SWIFT_VERSION=6.2.4
+swift_version_of() { "$1/bin/swift-frontend" --version 2>/dev/null | head -1 || true; }   # "Swift version 6.2.4 (swift-6.2.4-RELEASE)"
+swift_ok() { case "$(swift_version_of "$1")" in *"(swift-$SWIFT_VERSION-RELEASE)"*) return 0 ;; esac; return 1; }
+swiftly_toolchain() { echo "${SWIFTLY_TOOLCHAINS_DIR:-${SWIFTLY_HOME_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/swiftly}/toolchains}/$SWIFT_VERSION/usr"; }
+path_toolchain() {   # the toolchain of the swiftc on PATH (its usr directory), if it is a toolchain's own swiftc
+  local p d; p=$(command -v swiftc 2>/dev/null) || return 1
+  d=$(dirname -- "$(dirname -- "$(readlink -f -- "$p")")")
+  [ -x "$d/bin/swift-frontend" ] && echo "$d"
+}
+swift_toolchain() {   # SWIFT_TC: the toolchain's usr directory; SWIFT_WHY: how it was chosen
+  local t=${ISIM_SWIFT_TOOLCHAIN:-} d
+  SWIFT_TC=
+  if [ -n "$t" ]; then
+    t=$(realpath -m -- "$t"); d=$t; [ -x "$d/bin/swift-frontend" ] || d=$t/usr
+    if [ ! -x "$d/bin/swift-frontend" ]; then
+      echo "isim: ISIM_SWIFT_TOOLCHAIN=$t is not a Swift toolchain (no bin/swift-frontend in it or in its usr/)" >&2; return 1
+    fi
+    if ! swift_ok "$d"; then
+      echo "isim: ISIM_SWIFT_TOOLCHAIN=$t is $(swift_version_of "$d"); isim needs Swift $SWIFT_VERSION exactly (the SDK's Swift modules load in no other compiler): isim toolchain install" >&2
+      return 1
+    fi
+    SWIFT_TC=$d SWIFT_WHY="ISIM_SWIFT_TOOLCHAIN"; return 0
+  fi
+  d=$(swiftly_toolchain)
+  if [ -x "$d/bin/swift-frontend" ] && swift_ok "$d"; then SWIFT_TC=$d SWIFT_WHY="swiftly"; return 0; fi
+  if d=$(path_toolchain) && swift_ok "$d"; then SWIFT_TC=$d SWIFT_WHY="swiftc on PATH"; return 0; fi
+  echo "isim: compiling Swift needs Swift $SWIFT_VERSION: install it with \`isim toolchain install\` (swiftly)" >&2
+  return 1
+}
+toolchain_install() {   # Swift $SWIFT_VERSION with swiftly (https://www.swift.org/install/linux/), swiftly first when it is missing
+  local d swiftly tmp
+  d=$(swiftly_toolchain)
+  if [ -x "$d/bin/swift-frontend" ] && swift_ok "$d"; then echo "isim: Swift $SWIFT_VERSION is installed ($d)"; return 0; fi
+  swiftly=$(command -v swiftly 2>/dev/null) || swiftly=${SWIFTLY_BIN_DIR:-${SWIFTLY_HOME_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/swiftly}/bin}/swiftly
+  if [ ! -x "$swiftly" ]; then
+    echo "isim: installing swiftly, the Swift toolchain manager (download.swift.org; your shell profile is not changed)"
+    tmp=$(mktemp -d)
+    curl -fsSL -o "$tmp/swiftly.tar.gz" "https://download.swift.org/swiftly/linux/swiftly-$(uname -m).tar.gz" \
+      && tar -xzf "$tmp/swiftly.tar.gz" -C "$tmp" \
+      && "$tmp/swiftly" init --assume-yes --skip-install --no-modify-profile --quiet-shell-followup \
+      || { rm -rf "$tmp"; echo "isim: installing swiftly failed (https://www.swift.org/install/linux/ installs it by hand)" >&2; return 1; }
+    rm -rf "$tmp"
+    swiftly=${SWIFTLY_BIN_DIR:-${SWIFTLY_HOME_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/swiftly}/bin}/swiftly
+  fi
+  echo "isim: swiftly install $SWIFT_VERSION"
+  # swiftly exits non-zero when it suggests system packages (written to the post-install file), so the toolchain itself decides
+  tmp=$(mktemp)
+  "$swiftly" install "$SWIFT_VERSION" --assume-yes --post-install-file "$tmp" || true
+  if [ -s "$tmp" ]; then
+    echo "isim: swiftly suggests these system packages for Swift on Linux (isim's compiles do not need them):"
+    sed 's/^/  /' "$tmp"
+  fi
+  rm -f "$tmp"
+  if [ -x "$d/bin/swift-frontend" ] && swift_ok "$d"; then echo "isim: Swift $SWIFT_VERSION is installed ($d)"; return 0; fi
+  echo "isim: swiftly installed Swift $SWIFT_VERSION somewhere else than $d; point ISIM_SWIFT_TOOLCHAIN at it" >&2
+  return 1
 }
 plist_get() { python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb")).get(sys.argv[2],""))' "$1" "$2"; }
 app_device_families() {
@@ -355,36 +417,8 @@ case "$cmd" in
     for a in "$@"; do case "$a" in -c|-S|-E|-M|-MM|-fsyntax-only|--precompile) link=() ;; esac; done
     exec "${CLANG:-clang}" -target x86_64-apple-ios${ISIM_MIN_IOS:-17.0}-simulator -isysroot "$SDK" -fobjc-arc "${link[@]}" "$@" ;;
   swiftc)
-    ws=$(cd -- "$BIN/../../.." && pwd)
-    mounts=(-v "$ws:$ws")
-    # outputs outside the isim workspace (e.g. `isim build` products in ./build of an app project) are mounted
-    # writable: ISIM_SWIFTC_WRITABLE (directories, ':'-separated) and the directories of output arguments
-    writable=(); prev=
-    IFS=: read -r -a extra <<< "${ISIM_SWIFTC_WRITABLE:-}"
-    for a in "${extra[@]}"; do [ -n "$a" ] && writable+=("$a"); done
-    for a in "$@"; do
-      case "$prev" in -o|-emit-*-path|-module-cache-path|-index-store-path) [[ "$a" == /* ]] && writable+=("$(dirname -- "$a")") ;; esac
-      prev=$a
-    done
-    declare -A seen=(["$ws"]=1)
-    rw=()
-    for d in "${writable[@]}"; do
-      case "$d/" in "$ws"/*) continue ;; esac
-      [ -n "${seen[$d]:-}" ] && continue; seen[$d]=1
-      mkdir -p -- "$d" && mounts+=(--mount "type=bind,src=$d,dst=$d") && rw+=("$d")
-    done
-    # also expose input files that live outside the isim workspace (e.g. an app project elsewhere), read-only
-    for a in "$@" "$PWD/"; do
-      [[ "$a" == /* ]] || continue
-      d=$a; [ -d "$d" ] || d=$(dirname -- "$a")
-      [ -d "$d" ] || continue
-      case "$d/" in "$ws"/*) continue ;; esac
-      inside=; for w in "${rw[@]}"; do case "$d/" in "$w"/*) inside=1 ;; esac; done
-      [ -n "$inside" ] && continue
-      [ -n "${seen[$d]:-}" ] && continue; seen[$d]=1
-      mounts+=(--mount "type=bind,src=$d,dst=$d,readonly")
-    done
-    run=(docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp "${mounts[@]}" -w "$PWD" swift:6.2 swiftc -target x86_64-apple-ios${ISIM_MIN_IOS:-17.0}-simulator)
+    swift_toolchain || exit 1
+    run=("$SWIFT_TC/bin/swiftc" -target x86_64-apple-ios${ISIM_MIN_IOS:-17.0}-simulator)
     if [ "${1:-}" = "-embedded" ]; then
       shift
       exec "${run[@]}" -enable-experimental-feature Embedded -enable-experimental-feature Extern -wmo -parse-as-library -Osize \
@@ -399,6 +433,16 @@ case "$cmd" in
     exec "${run[@]}" -sdk "$SDK" -resource-dir "$BIN/../swift/resource" "${plugins[@]}" -O -runtime-compatibility-version none \
       $( [ -d "$SDK/usr/lib/swift/_Concurrency.swiftmodule" ] || echo -Xfrontend -disable-implicit-concurrency-module-import ) \
       $( [ -d "$SDK/usr/lib/swift/_StringProcessing.swiftmodule" ] || echo -Xfrontend -disable-implicit-string-processing-module-import ) "$@" ;;
+  toolchain)   # isim toolchain [status|install|which]: the Swift toolchain isim compiles with
+    case "${1:-status}" in
+      which) swift_toolchain || exit 1; echo "$SWIFT_TC" ;;
+      status)
+        rc=0; if swift_toolchain; then echo "Swift $SWIFT_VERSION: $SWIFT_TC ($SWIFT_WHY)"; else rc=1; fi
+        if d=$(path_toolchain) && ! swift_ok "$d"; then echo "  not used: swiftc on PATH ($d) is $(swift_version_of "$d")"; fi
+        exit $rc ;;
+      install) toolchain_install ;;
+      *) echo "usage: isim toolchain [status|install|which]" >&2; exit 2 ;;
+    esac ;;
   build)
     exec python3 "$BIN/isim-build.py" "$@" ;;
   project)   # isim project [App.xcodeproj|App.xcworkspace]: targets -> build phases -> files, as a tree

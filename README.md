@@ -85,7 +85,11 @@ example); see [docs/SCRIPTING.md](docs/SCRIPTING.md) for every command and [docs
 coding agents. Permission prompts, Face ID, location, microphone
 and logs can be answered or configured with environment variables: see [docs/SYSTEM-PROMPTS.md](docs/SYSTEM-PROMPTS.md).
 
-**Compiling** needs clang/lld 21 or newer (isim's SDK ships libc++ 22; on Ubuntu/Debian get it from [apt.llvm.org](https://apt.llvm.org)). Constant Objective-C literals (clang 23) are supported. Swift needs Docker with the `swift:6.2` image.
+**Compiling** needs clang/lld 21 or newer (isim's SDK ships libc++ 22; on Ubuntu/Debian get it from [apt.llvm.org](https://apt.llvm.org)). Constant Objective-C literals (clang 23) are supported. Swift compiles with Swift 6.2.4 exactly (the compiler isim's SDK is built with: its Swift modules load in no other), installed with [swiftly](https://www.swift.org/install/linux/):
+
+- `isim toolchain install` installs it (and swiftly first when it is missing; your shell profile is not changed). `isim toolchain status` says which toolchain isim uses and why.
+- isim looks for, in order: `ISIM_SWIFT_TOOLCHAIN=DIR` (a toolchain installed otherwise, e.g. swift.org's unpacked tarball), swiftly's 6.2.4, and a `swiftc` on `PATH` that is 6.2.4 (e.g. a devcontainer from the `swift:6.2.4` image). Another Swift version is refused with a message, never used.
+- Earlier releases compiled Swift in Docker's `swift:6.2` image; isim no longer uses Docker.
 
 ## Documentation
 
@@ -101,9 +105,9 @@ and logs can be answered or configured with environment variables: see [docs/SYS
 ## Build from source
 
 Requirements: clang/lld/llvm 21 or newer, `python3` (with `venv`), `pkg-config`, SDL3, cairo, pango, librsvg,
-gdk-pixbuf, fontconfig, ImageMagick and Docker (Swift compiles in the `swift:6.2` image). Package names for Ubuntu are
-in [isim/ci/Dockerfile](isim/ci/Dockerfile), which CI builds on; on Arch/CachyOS: `clang lld llvm sdl3 cairo pango
-librsvg python imagemagick docker`.
+gdk-pixbuf, fontconfig, ImageMagick and Swift 6.2.4 (`isim/tools/isim toolchain install`; see Compiling above).
+Package names for Ubuntu are in [isim/ci/Dockerfile](isim/ci/Dockerfile), which CI builds on; on Arch/CachyOS: `clang
+lld llvm sdl3 cairo pango librsvg python imagemagick`.
 Optional at run time: `webkitgtk-6.0` + `gtk4` (`gtk4-broadwayd`) for WKWebView / SFSafariViewController / ASWebAuthenticationSession (real WebKit, rendered off screen), `openssl` 3 (`libssl.so.3`) for TLS NWConnections, `libcurl` for URLSession, ICU (`libicuuc` / `libicui18n`, any version from 50) for locale data beyond the built-in languages (collation, non-Gregorian calendars, every locale's formats).
 Media and ML (each used only when an app needs it): `ffmpeg` (video, export, asset reader/writer, the simulated camera `ISIM_CAMERA`), `zbar` (QR/barcodes in capture and Vision), `tesseract` (Vision and Core Image text recognition), `zxing-cpp` (Aztec / Data Matrix reading; Core Image's PDF417 generator), `opencv-data` (Core Image face detection), LibRaw's `libraw-bin` (CIRAWFilter), whisper.cpp or Vosk (Speech recognition). Tests that need a missing tool skip it.
 

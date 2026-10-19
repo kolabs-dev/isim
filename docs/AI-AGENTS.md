@@ -15,7 +15,8 @@ This page is for people building **their own apps** with an agent. Working on is
 ## Setup
 
 1. Install isim (see the [README](../README.md#quick-start-no-build-needed)) and check it: `isim version`.
-   Swift apps also need Docker with the `swift:6.2` image; Objective-C needs clang/lld 21 or newer.
+   Swift apps also need Swift 6.2.4: `isim toolchain install` (swiftly); `isim toolchain status` says which toolchain
+   isim uses. Objective-C needs clang/lld 21 or newer.
 2. Give the agent its own device data, so it never touches yours (`~/.local/share/isim`):
 
    ```bash
