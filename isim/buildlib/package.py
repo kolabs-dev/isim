@@ -35,7 +35,7 @@ for l in $out/lib/*.so*; do patchelf --set-rpath "\$ORIGIN" "$l"; done
 
 
 def package(root, version, ctx):
-    from .graph import host_sources
+    from .graph import TOOLS, host_sources
     name = f"isim-{version}-linux-x86_64"
     dist = os.path.join(root, "dist")
     stage = os.path.join(dist, name)
@@ -50,9 +50,10 @@ def package(root, version, ctx):
         subprocess.run(["docker", "build", "-q", "-t", image, "release/"], check=True, cwd=root, stdout=subprocess.DEVNULL)
     subprocess.run(["docker", "run", "--rm", "-u", f"{os.getuid()}:{os.getgid()}", "-v", f"{root}:/isim", "-w", "/isim",
                     image, "bash", "-c", BUNDLE.format(name=name, srcs=" ".join(host_sources(ctx)))], check=True)
-    for t in ("tools/isim", "tools/isim-build.py", "tools/xcodeproj.py", "VERSION", "tools/isim-services.py", "tools/momc.py",
-              "tools/ibtool.py", "tools/isim-test.py", "tools/isim-crashlog.py", "tools/isim-devicecheck.py",
-              "data/frameworks.json"):            # (isim build: which iOS frameworks isim lacks, and their coverage)
+    # the tools the build installs in out/bin (graph.TOOLS: one list, so a new subcommand's script is never left out
+    # of the tarball, as isim-preview.py, isim-privacy.py and isim-adattribution.py were), the version, and the iOS
+    # frameworks list (isim build: which frameworks isim lacks, and their coverage)
+    for t in [f"tools/{t}" for t, _ in TOOLS] + ["VERSION", "data/frameworks.json"]:
         shutil.copy(os.path.join(root, t), os.path.join(stage, "bin"))
     shutil.copy(os.path.join(root, "..", "install.sh"), os.path.join(stage, "bin", "isim-install.sh"))   # `isim update`
     shutil.copytree(os.path.join(root, "out/sdk"), os.path.join(stage, "sdk"), symlinks=True)

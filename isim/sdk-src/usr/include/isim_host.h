@@ -352,8 +352,12 @@ int isim_xcui_launch(const char *exe, const char *const *argv, const char *const
 int isim_xcui_running(int handle);
 int isim_xcui_send(int handle, const char *script_command);
 char *isim_xcui_snapshot(int handle, double timeout);
+/* the app's screen as PNG bytes (free with isim_xcui_free), size in *size; NULL on timeout */
+char *isim_xcui_screenshot(int handle, double timeout, long *size);
 void isim_xcui_free(char *text);
 void isim_xcui_terminate(int handle);
+/* terminates every app under test still running (a test bundle's end) */
+void isim_xcui_terminate_all(void);
 /* host game controllers (SDL3 gamepads; ISIM_GAMEPADS=0 disables). buttons: bit i = SDL_GamepadButton i (0 south/A,
    1 east/B, 2 west/X, 3 north/Y, 4 back, 5 guide, 6 start, 7/8 stick clicks, 9/10 shoulders, 11-14 dpad up/down/left/right);
    axes: left x, left y, right x, right y (-1...1, y down), left / right trigger (0...1) */

@@ -6,6 +6,8 @@
 #import <XCTest/XCTestDefines.h>
 #import <XCTest/XCTestRun.h>
 #import <XCTest/XCTestCase.h>
+#import <XCTest/XCTMetric.h>
+#import <XCTest/XCTAttachment.h>
 #import <XCTest/XCTestSuite.h>
 #import <XCTest/XCTestExpectation.h>
 #import <XCTest/XCTestObservation.h>
@@ -15,3 +17,4 @@
 #import <XCTest/XCUIElementQuery.h>
 #import <XCTest/XCUIApplication.h>
 #import <XCTest/XCUIDevice.h>
+#import <XCTest/XCUIScreenshot.h>

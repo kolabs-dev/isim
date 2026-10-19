@@ -1226,7 +1226,10 @@ void isim_frame_end(void) {
 static void screenshot(const char *path) {
     if (!surf) { fprintf(stderr, "isim host: screenshot %s: no frame yet\n", path); return; }
     cairo_surface_flush(surf);
-    cairo_status_t st = cairo_surface_write_to_png(surf, path);
+    char tmp[1100];                       /* whole or not at all: a reader polling for the file never sees half of it */
+    snprintf(tmp, sizeof tmp, "%s.tmp%d", path, (int)getpid());
+    cairo_status_t st = cairo_surface_write_to_png(surf, tmp);
+    if (st == CAIRO_STATUS_SUCCESS) rename(tmp, path); else unlink(tmp);
     fprintf(stderr, "isim host: screenshot %s (%dx%d px): %s\n", path, surf_w, surf_h, cairo_status_to_string(st));
 }
 
@@ -2050,6 +2053,7 @@ int isim_tls_probe(const char *, int, double, unsigned char *, long, long *, int
 /* XCUITest: the app under test as a child process (host_xctest.c) */
 int isim_xcui_launch(const char *exe, const char *const *argv, const char *const *envp); int isim_xcui_running(int h);
 int isim_xcui_send(int h, const char *line); char *isim_xcui_snapshot(int h, double timeout); void isim_xcui_free(char *p); void isim_xcui_terminate(int h);
+char *isim_xcui_screenshot(int h, double timeout, long *size); void isim_xcui_terminate_all(void);
 struct isim_gamepad;
 int isim_gamepad_poll(struct isim_gamepad *out, int max);
 int isim_gamepad_rumble(int id, double low, double high, double seconds);
@@ -2160,7 +2164,7 @@ static const struct shim isim_table[] = {
     ISIM_CG_EXPORTS(H),
     H(isim_web_available), H(isim_web_send), H(isim_web_next), H(isim_web_free), H(isim_web_frame), H(isim_web_release),
     H(isim_tls_connect), H(isim_tls_start), H(isim_tls_peer_chain), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close), H(isim_tls_read_nb), H(isim_tls_write_nb), H(isim_tls_probe),
-    H(isim_xcui_launch), H(isim_xcui_running), H(isim_xcui_send), H(isim_xcui_snapshot), H(isim_xcui_free), H(isim_xcui_terminate),
+    H(isim_xcui_launch), H(isim_xcui_running), H(isim_xcui_send), H(isim_xcui_snapshot), H(isim_xcui_screenshot), H(isim_xcui_terminate_all), H(isim_xcui_free), H(isim_xcui_terminate),
     H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_image_create_bgra), H(isim_image_update_bgra),
     H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_glass), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),
     H(isim_gfx_pop_group_filtered), H(isim_set_home_indicator_autohide), H(isim_set_deferred_system_edges), H(isim_gfx_glass_shapes),

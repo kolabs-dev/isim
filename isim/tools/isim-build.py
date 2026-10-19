@@ -1937,6 +1937,10 @@ def make_info_plist(target, settings, bundle, extra_localizations, package_type=
                 if key.endswith(suffix): key = key[:-len(suffix)] + plist
             if key.startswith('UISupportedInterfaceOrientations') and isinstance(v, str):
                 v = v.split()                # a space-separated list in build settings, an array in Info.plist
+            if key in GENERATED_KEYS:        # <Key>_Generation = YES: Xcode writes the key's default value
+                if v == 'YES':
+                    info.setdefault(GENERATED_KEYS[key][0], GENERATED_KEYS[key][1]())
+                continue
             info.setdefault(key, {'YES': True, 'NO': False}.get(v, v) if isinstance(v, str) else v)
     info.setdefault('CFBundleExecutable', settings['EXECUTABLE_NAME'])
     info.setdefault('CFBundleIdentifier', settings.get('PRODUCT_BUNDLE_IDENTIFIER', ''))
@@ -1958,6 +1962,13 @@ def make_info_plist(target, settings, bundle, extra_localizations, package_type=
         plistlib.dump(info, f)
     return info
 
+
+
+# INFOPLIST_KEY_<Key>_Generation = YES (Xcode's iOS App template): the Info.plist key Xcode generates in its place
+GENERATED_KEYS = {
+    'UIApplicationSceneManifest_Generation': ('UIApplicationSceneManifest', lambda: {'UIApplicationSupportsMultipleScenes': True}),
+    'UILaunchScreen_Generation': ('UILaunchScreen', dict),     # an empty launch screen: the system background
+}
 
 
 # ---------------- targets ----------------

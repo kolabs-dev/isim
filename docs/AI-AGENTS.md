@@ -17,6 +17,8 @@ This page is for people building **their own apps** with an agent. Working on is
 1. Install isim (see the [README](../README.md#quick-start-no-build-needed)) and check it: `isim version`.
    Swift apps also need Swift 6.2.4: `isim toolchain install` (swiftly); `isim toolchain status` says which toolchain
    isim uses. Objective-C needs clang/lld 21 or newer.
+   No project yet? `isim new MyApp [--tests]` creates one from Xcode's iOS App template (`--uikit` for storyboards);
+   it builds with the commands below and opens unchanged in Xcode.
 2. Give the agent its own device data, so it never touches yours (`~/.local/share/isim`):
 
    ```bash

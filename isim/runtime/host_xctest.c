@@ -141,7 +141,34 @@ char *isim_xcui_snapshot(int h, double timeout) {
     }
     return NULL;
 }
+/* the app's screen as PNG bytes (script command "shot FILE"); malloc'd (free with isim_xcui_free), NULL on timeout */
+char *isim_xcui_screenshot(int h, double timeout, long *size) {
+    if (!isim_xcui_running(h)) return NULL;
+    char path[512], cmd[600];
+    snprintf(path, sizeof path, "%s/screenshot-%d.png", apps[h].dir, ++apps[h].seq);
+    snprintf(cmd, sizeof cmd, "shot %s", path);
+    if (isim_xcui_send(h, cmd) != 0) return NULL;
+    double end = mono() + timeout;
+    while (mono() < end) {
+        FILE *f = fopen(path, "rb");                 /* the app writes it whole (a temporary file, then rename) */
+        if (f) {
+            fseek(f, 0, SEEK_END); long sz = ftell(f); fseek(f, 0, SEEK_SET);
+            char *out = malloc(sz > 0 ? sz : 1);
+            size_t got = fread(out, 1, sz, f);
+            fclose(f); unlink(path);
+            if (size) *size = (long)got;
+            return out;
+        }
+        if (!isim_xcui_running(h)) return NULL;
+        sleep_s(0.005);
+    }
+    return NULL;
+}
 void isim_xcui_free(char *p) { free(p); }
+
+void isim_xcui_terminate(int h);
+/* every app under test that is still running (the end of a test bundle) */
+void isim_xcui_terminate_all(void) { for (int h = 0; h < MAX_APPS; h++) isim_xcui_terminate(h); }
 
 void isim_xcui_terminate(int h) {
     if (h < 0 || h >= MAX_APPS || apps[h].pid <= 0) return;

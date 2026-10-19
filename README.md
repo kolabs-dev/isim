@@ -34,6 +34,16 @@ running device to the front. `--no-desktop` (`… | bash -s -- --no-desktop`) sk
 isim install ~/.local/lib/isim/current/apps/*.app
 ```
 
+**Your first app:** `isim new` writes a project the way Xcode's iOS App template does (SwiftUI, or `--uikit` for
+storyboards; `--tests` adds unit and UI tests). It is an ordinary Xcode project, so it also opens in Xcode on a Mac.
+Swift needs Swift 6.2.4 (`isim toolchain install`, once):
+
+```bash
+isim new HelloWorld && cd HelloWorld
+isim build -project HelloWorld.xcodeproj -scheme HelloWorld
+isim run build/HelloWorld.app
+```
+
 **Updating:** `isim update` installs the newest release and makes it active (`isim update 0.24.0` for a given one);
 `isim versions` lists the installed releases and `isim use VERSION` switches between them. Device data
 (`~/.local/share/isim`) is shared by all versions. You can also download a tarball from
@@ -47,6 +57,7 @@ isim install ~/.local/lib/isim/current/apps/*.app
 | `isim install App.app…` · `isim uninstall NAME` · `isim apps` | manage installed apps |
 | `isim run App.app [args…]` | install, boot and open the app over the home screen (headless or `ISIM_STANDALONE=1`: the app alone) |
 | `isim reset` | erase installed apps, app data and settings |
+| `isim new NAME [--org com.example] [--uikit] [--tests] [-o DIR]` | create an app project like Xcode's iOS App template (SwiftUI or storyboards, optional unit and UI tests), ready for `isim build` and `isim test` |
 | `isim build (-project App.xcodeproj \| -workspace App.xcworkspace) [-scheme S \| -target T] [-configuration Release] [-o DIR]` | build an Xcode project or workspace: apps, extensions, frameworks, static libraries, Swift packages (remote ones fetched with git, pinned in `Package.resolved`), `.xcframework`s (x86_64 simulator slice), `.xcconfig` files, shell script phases, CocoaPods workspaces; products in `./build` of the current folder (or `-o DIR`), the last line is `done: <path to .app>` |
 | `isim build … -list` · `isim build … -showBuildSettings` (`-json`) · `isim project [App.xcodeproj]` | like `xcodebuild -list` / `-showBuildSettings`: targets, configurations, schemes / resolved build settings; the project as a tree (targets → build phases → files) |
 | `isim test -project App.xcodeproj -scheme S [-only-testing:Target/Class/test] [-resultBundlePath DIR]` | build and run the scheme's test targets like `xcodebuild test`: XCTest (hosted in the app or standalone), Swift Testing and XCUITest; exits 65 on failures |

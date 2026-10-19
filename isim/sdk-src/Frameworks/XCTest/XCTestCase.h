@@ -1,15 +1,22 @@
 #pragma once
 #import <XCTest/XCTestRun.h>
+#import <XCTest/XCTMetric.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class XCUIElement;
+@class XCUIElement, XCTAttachment;
+
+/* Something attachments are added to: a test case. */
+@protocol XCTActivity <NSObject>
+@property (readonly, copy) NSString *name;
+- (void)addAttachment:(XCTAttachment *)attachment NS_SWIFT_NAME(add(_:));
+@end
 
 /* A test case. The runner discovers subclasses through the Objective-C runtime and runs every instance
  * method whose name starts with "test" and takes no arguments (Swift: `func testX()`, `func testX() throws`,
  * `func testX() async throws`; members of XCTestCase subclasses are @objc, like on Apple platforms). */
 __attribute__((swift_attr("@objcMembers")))
-@interface XCTestCase : XCTest
+@interface XCTestCase : XCTest <XCTActivity>
 + (instancetype)testCaseWithSelector:(SEL)selector;
 - (instancetype)initWithSelector:(SEL)selector;
 @property (nullable, readonly) SEL selector NS_REFINED_FOR_SWIFT;
@@ -31,6 +38,23 @@ __attribute__((swift_attr("@objcMembers")))
 
 /* performance: runs the block 10 times and reports the average wall-clock time */
 - (void)measureBlock:(void (NS_NOESCAPE ^)(void))block NS_SWIFT_NAME(measure(_:));
+/* performance with metrics (XCTClockMetric, XCTApplicationLaunchMetric): the block runs options.iterationCount
+ * times (default 5), each metric reported in Xcode's console format; defaultMetrics: the clock */
+@property (class, readonly, copy) NSArray<id<XCTMetric>> *defaultMetrics;
+@property (class, readonly, copy) XCTMeasureOptions *defaultMeasureOptions;
+- (void)measureWithMetrics:(NSArray<id<XCTMetric>> *)metrics block:(void (NS_NOESCAPE ^)(void))block
+    NS_SWIFT_NAME(measure(metrics:block:));
+- (void)measureWithOptions:(XCTMeasureOptions *)options block:(void (NS_NOESCAPE ^)(void))block
+    NS_SWIFT_NAME(measure(options:block:));
+- (void)measureWithMetrics:(NSArray<id<XCTMetric>> *)metrics options:(XCTMeasureOptions *)options
+                     block:(void (NS_NOESCAPE ^)(void))block NS_SWIFT_NAME(measure(metrics:options:block:));
+
+/* attachments: kept with the test's results (XCTAttachment's lifetime) */
+- (void)addAttachment:(XCTAttachment *)attachment NS_SWIFT_NAME(add(_:));
+
+/* UI tests: whether the test runs once per UI configuration of the app (appearance, orientation). isim (adapted): the
+ * test runs once, in the device's current configuration. Default NO. */
+@property (class, readonly) BOOL runsForEachTargetApplicationUIConfiguration;
 
 /* expectations */
 - (XCTestExpectation *)expectationWithDescription:(NSString *)description NS_SWIFT_NAME(expectation(description:));
