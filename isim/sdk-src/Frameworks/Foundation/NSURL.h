@@ -158,6 +158,41 @@ FOUNDATION_EXPORT NSURLFileResourceType const NSURLFileResourceTypeUnknown NS_SW
 - (void)removeAllCachedResourceValues;
 @property (nullable, readonly, copy) NSURL *URLByResolvingSymlinksInPath NS_REFINED_FOR_SWIFT;
 @end
+/* bookmarks (isim: the path, the file's identity and the resource values asked for; a file renamed in its folder is
+   still found, and reported stale) and security-scoped access (counted; isim has no sandbox, so every file URL is
+   accessible) */
+typedef NS_OPTIONS(NSUInteger, NSURLBookmarkCreationOptions) {
+    NSURLBookmarkCreationPreferFileIDResolution = 1UL << 8,
+    NSURLBookmarkCreationMinimalBookmark = 1UL << 9,
+    NSURLBookmarkCreationSuitableForBookmarkFile = 1UL << 10,
+    NSURLBookmarkCreationWithSecurityScope = 1UL << 11,
+    NSURLBookmarkCreationSecurityScopeAllowOnlyReadAccess = 1UL << 12,
+    NSURLBookmarkCreationWithoutImplicitSecurityScope = 1UL << 29,
+} NS_SWIFT_NAME(NSURL.BookmarkCreationOptions);
+typedef NS_OPTIONS(NSUInteger, NSURLBookmarkResolutionOptions) {
+    NSURLBookmarkResolutionWithoutUI = 1UL << 8,
+    NSURLBookmarkResolutionWithoutMounting = 1UL << 9,
+    NSURLBookmarkResolutionWithSecurityScope = 1UL << 10,
+    NSURLBookmarkResolutionWithoutImplicitStartAccessing = 1UL << 15,
+} NS_SWIFT_NAME(NSURL.BookmarkResolutionOptions);
+typedef NSUInteger NSURLBookmarkFileCreationOptions NS_SWIFT_NAME(NSURL.BookmarkFileCreationOptions);
+@interface NSURL (NSURLBookmarks)
+- (nullable NSData *)bookmarkDataWithOptions:(NSURLBookmarkCreationOptions)options includingResourceValuesForKeys:(nullable NSArray<NSURLResourceKey> *)keys
+                               relativeToURL:(nullable NSURL *)relativeURL error:(NSError * _Nullable * _Nullable)error;
+- (nullable instancetype)initByResolvingBookmarkData:(NSData *)bookmarkData options:(NSURLBookmarkResolutionOptions)options relativeToURL:(nullable NSURL *)relativeURL
+                                 bookmarkDataIsStale:(BOOL * _Nullable)isStale error:(NSError * _Nullable * _Nullable)error
+    NS_SWIFT_NAME(init(resolvingBookmarkData:options:relativeTo:bookmarkDataIsStale:));
++ (nullable instancetype)URLByResolvingBookmarkData:(NSData *)bookmarkData options:(NSURLBookmarkResolutionOptions)options relativeToURL:(nullable NSURL *)relativeURL
+                                bookmarkDataIsStale:(BOOL * _Nullable)isStale error:(NSError * _Nullable * _Nullable)error;
++ (nullable NSDictionary<NSURLResourceKey, id> *)resourceValuesForKeys:(NSArray<NSURLResourceKey> *)keys fromBookmarkData:(NSData *)bookmarkData;
++ (BOOL)writeBookmarkData:(NSData *)bookmarkData toURL:(NSURL *)bookmarkFileURL options:(NSURLBookmarkFileCreationOptions)options error:(NSError * _Nullable * _Nullable)error;
++ (nullable NSData *)bookmarkDataWithContentsOfURL:(NSURL *)bookmarkFileURL error:(NSError * _Nullable * _Nullable)error;
+- (BOOL)startAccessingSecurityScopedResource;
+- (void)stopAccessingSecurityScopedResource;
+/* "." and ".." components removed (file URLs: the standardized path) */
+@property (nullable, readonly, copy) NSURL *standardizedURL;
+@property (nullable, readonly, copy) NSURL *URLByStandardizingPath;
+@end
 #if !defined(__swift__)   /* Objective-C only: Swift has its own Foundation API for these */
 @interface NSURL (IsimURLAdditions)
 + (nullable instancetype)URLWithString:(NSString *)URLString encodingInvalidCharacters:(BOOL)encodingInvalidCharacters;

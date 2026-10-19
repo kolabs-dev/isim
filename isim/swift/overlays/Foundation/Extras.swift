@@ -371,10 +371,55 @@ extension URL: Codable {
     public func encode(to encoder: Encoder) throws { var c = encoder.singleValueContainer(); try c.encode(absoluteString) }
 }
 extension URL {
-    public init(filePath path: String) { self.init(fileURLWithPath: path) }
-    public func appendingPathComponent(_ c: String, isDirectory: Bool) -> URL { appendingPathComponent(c) }
-    public func appending(path: String) -> URL { appendingPathComponent(path) }
-    public func appending(component: String) -> URL { appendingPathComponent(component) }
+    // isim 0.9 and earlier: without the directory hint (kept for apps built with them; the forms below are preferred)
+    @_disfavoredOverload public init(filePath path: String) { self.init(filePath: path, directoryHint: .inferFromPath, relativeTo: nil) }
+    @_disfavoredOverload public func appending(path: String) -> URL { appending(path: path, directoryHint: .inferFromPath) }
+    @_disfavoredOverload public func appending(component: String) -> URL { appending(component: component, directoryHint: .inferFromPath) }
+    public func appendingPathComponent(_ c: String, isDirectory: Bool) -> URL {
+        isFileURL ? URL(fileURLWithPath: (path as NSString).appendingPathComponent(c), isDirectory: isDirectory) : appendingPathComponent(c)
+    }
+
+    /// Whether a file URL names a directory (its path ends in "/"): as the caller says, by looking at the file
+    /// system, or from a trailing "/" in the path.
+    public enum DirectoryHint: Sendable, Hashable {
+        case isDirectory, notDirectory, checkFileSystem, inferFromPath
+        func isDirectory(_ path: String) -> Bool {
+            switch self {
+            case .isDirectory: return true
+            case .notDirectory: return false
+            case .inferFromPath: return path.hasSuffix("/")
+            case .checkFileSystem: var d: ObjCBool = false; return FileManager.default.fileExists(atPath: path, isDirectory: &d) && d.boolValue
+            }
+        }
+    }
+    /// A file URL; a relative path is taken from `base` (else from the current directory).
+    public init(filePath path: String, directoryHint: DirectoryHint = .inferFromPath, relativeTo base: URL? = nil) {
+        var p = path
+        if !p.hasPrefix("/") {
+            let dir = base.map { $0.isFileURL ? $0.path : $0.path } ?? FileManager.default.currentDirectoryPath
+            p = (dir as NSString).appendingPathComponent(p) + (p.hasSuffix("/") ? "/" : "")
+        }
+        self.init(fileURLWithPath: p, isDirectory: directoryHint.isDirectory(p))
+    }
+    /// The URL with a path appended ("/" separated components); the hint decides the trailing "/".
+    public func appending<S: StringProtocol>(path: S, directoryHint: DirectoryHint = .inferFromPath) -> URL {
+        let extra = String(path)
+        guard isFileURL else { return URL(string: absoluteString + (absoluteString.hasSuffix("/") || extra.hasPrefix("/") ? "" : "/") + extra) ?? self }
+        let p = (self.path as NSString).appendingPathComponent(extra)
+        return URL(fileURLWithPath: p, isDirectory: directoryHint == .inferFromPath ? extra.hasSuffix("/") : directoryHint.isDirectory(p))
+    }
+    /// The URL with one component appended ("/" in it is part of the name).
+    public func appending<S: StringProtocol>(component: S, directoryHint: DirectoryHint = .inferFromPath) -> URL {
+        let c = String(component)
+        guard isFileURL else { return appendingPathComponent(c) }
+        let p = (self.path as NSString).appendingPathComponent(c.replacingOccurrences(of: "/", with: ":"))
+        return URL(fileURLWithPath: p, isDirectory: directoryHint == .inferFromPath ? false : directoryHint.isDirectory(p))
+    }
+    public func appending<S: StringProtocol>(components: S..., directoryHint: DirectoryHint = .inferFromPath) -> URL {
+        var u = self
+        for (i, c) in components.enumerated() { u = u.appending(component: c, directoryHint: i == components.count - 1 ? directoryHint : .notDirectory) }
+        return u
+    }
     public func appendingPathExtension(_ ext: String) -> URL {
         isFileURL ? URL(fileURLWithPath: path + "." + ext) : (URL(string: absoluteString + "." + ext) ?? self)
     }
@@ -394,7 +439,10 @@ extension URL {
         let parts = path.split(separator: "/").map(String.init)
         return path.hasPrefix("/") ? ["/"] + parts : parts
     }
-    public var standardizedFileURL: URL { self }
+    /// "." and ".." removed from the path.
+    public var standardized: URL { _ns.standardized ?? self }
+    /// A file URL with its path standardized ("." and ".." removed, "~" expanded); other URLs as they are.
+    public var standardizedFileURL: URL { isFileURL ? (_ns.standardizingPath ?? self) : self }
     public var absoluteURL: URL { self }
     public var hasDirectoryPath: Bool { absoluteString.hasSuffix("/") }
     public func path(percentEncoded: Bool = true) -> String { path }
@@ -813,4 +861,31 @@ extension Bool {
     public init?(exactly number: __shared NSNumber) {
         if number.doubleValue == 0 { self = false } else if number.doubleValue == 1 { self = true } else { return nil }
     }
+}
+
+// MARK: - Bookmarks and security-scoped access (adapted: isim has no sandbox; see Bookmarks.m)
+
+extension URL {
+    public typealias BookmarkCreationOptions = NSURL.BookmarkCreationOptions
+    public typealias BookmarkResolutionOptions = NSURL.BookmarkResolutionOptions
+    public typealias BookmarkFileCreationOptions = NSURL.BookmarkFileCreationOptions
+    /// Gives access to a file outside the app's container (always true for file URLs on isim; the calls are counted).
+    public func startAccessingSecurityScopedResource() -> Bool { _ns.startAccessingSecurityScopedResource() }
+    public func stopAccessingSecurityScopedResource() { _ns.stopAccessingSecurityScopedResource() }
+    public func bookmarkData(options: BookmarkCreationOptions = [], includingResourceValuesForKeys keys: Set<URLResourceKey>? = nil,
+                             relativeTo url: URL? = nil) throws -> Data {
+        try _ns.bookmarkData(options: options, includingResourceValuesForKeys: keys.map(Array.init), relativeTo: url)
+    }
+    public init(resolvingBookmarkData data: Data, options: BookmarkResolutionOptions = [], relativeTo url: URL? = nil,
+                bookmarkDataIsStale: inout Bool) throws {
+        var stale: ObjCBool = false
+        let u = try NSURL(resolvingBookmarkData: data, options: options, relativeTo: url, bookmarkDataIsStale: &stale)
+        bookmarkDataIsStale = stale.boolValue
+        self = u as URL
+    }
+    public static func resourceValues(forKeys keys: Set<URLResourceKey>, fromBookmarkData data: Data) -> URLResourceValues? {
+        NSURL.resourceValues(forKeys: Array(keys), fromBookmarkData: data).map { URLResourceValues(_values: $0) }
+    }
+    public static func writeBookmarkData(_ data: Data, to url: URL) throws { try NSURL.writeBookmarkData(data, to: url, options: 0) }
+    public static func bookmarkData(withContentsOf url: URL) throws -> Data { try NSURL.bookmarkData(withContentsOf: url) }
 }

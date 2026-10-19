@@ -341,7 +341,40 @@ static BOOL builtin_bytes(NSValue *v, void *out, NSUInteger size) {
     return c.URL;
 }
 - (NSURL *)URLByStandardizingPath { return self.isFileURL ? [NSURL fileURLWithPath:self.path.stringByStandardizingPath] : self; }
-- (NSURL *)standardizedURL { return self.URLByStandardizingPath; }
+/* RFC 3986 dot-segment removal on the path ("a/./b/../c" -> "a/c"); a file URL keeps a trailing slash */
+static NSString *remove_dot_segments(NSString *path) {
+    NSMutableArray *out = [NSMutableArray array];
+    NSArray *parts = [path componentsSeparatedByString:@"/"];
+    for (NSUInteger i = 0; i < parts.count; i++) {
+        NSString *p = parts[i];
+        BOOL last = i + 1 == parts.count;
+        if ([p isEqual:@"."]) { if (last) [out addObject:@""]; continue; }
+        if ([p isEqual:@".."]) {
+            if (out.count > 1 || (out.count == 1 && [out[0] length])) [out removeLastObject];
+            if (last) [out addObject:@""];
+            continue;
+        }
+        [out addObject:p];
+    }
+    return [out componentsJoinedByString:@"/"];
+}
+- (NSURL *)standardizedURL {
+    NSString *s = self.absoluteString;
+    if (!s) return self;
+    // the path: after "scheme:" and "//authority", up to "?" or "#"
+    NSRange colon = [s rangeOfString:@":"];
+    NSUInteger start = colon.location == NSNotFound ? 0 : NSMaxRange(colon);
+    if ([s length] >= start + 2 && [[s substringWithRange:NSMakeRange(start, 2)] isEqual:@"//"]) {
+        NSRange slash = [s rangeOfString:@"/" options:0 range:NSMakeRange(start + 2, s.length - start - 2)];
+        start = slash.location == NSNotFound ? s.length : slash.location;
+    }
+    NSUInteger stop = start;
+    while (stop < s.length && [s characterAtIndex:stop] != '?' && [s characterAtIndex:stop] != '#') stop++;
+    NSString *path = [s substringWithRange:NSMakeRange(start, stop - start)];
+    if ([path rangeOfString:@"."].location == NSNotFound) return self;
+    NSString *std = [NSString stringWithFormat:@"%@%@%@", [s substringToIndex:start], remove_dot_segments(path), [s substringFromIndex:stop]];
+    return [NSURL URLWithString:std] ?: self;
+}
 - (BOOL)checkResourceIsReachableAndReturnError:(NSError **)error {
     if (self.isFileURL && [NSFileManager.defaultManager fileExistsAtPath:self.path]) return YES;
     if (error) *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileNoSuchFileError userInfo:@{ NSURLErrorKey: self }];
