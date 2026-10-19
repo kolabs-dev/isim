@@ -787,6 +787,8 @@ extension UIInterfaceOrientation {
 // MARK: - Buttons (Swift default arguments from Apple's UIKit overlay)
 extension UIButton {
     public convenience init(configuration: UIButton.Configuration) { self.init(configuration: configuration, primaryAction: nil) }
+    /// init(type: .system, primaryAction:): Apple's default button type
+    public convenience init(primaryAction: UIAction?) { self.init(type: .system, primaryAction: primaryAction) }
 }
 
 // MARK: - Page view controllers (options: nil by default, as in Apple's SDK)
