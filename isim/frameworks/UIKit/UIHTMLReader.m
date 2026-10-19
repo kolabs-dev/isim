@@ -286,6 +286,29 @@ static NSSet *blocks(void) {
 - (void)_apply:(NSDictionary *)d to:(__IsimHTMLStyle *)s parent:(__IsimHTMLStyle *)p {
     [d enumerateKeysAndObjectsUsingBlock:^(NSString *k, NSString *v, BOOL *stop) {
         NSString *l = v.lowercaseString;
+        if ([k isEqualToString:@"font"]) {
+            /* the shorthand: [style] [weight] size[/line-height] family, family ... (Cocoa's HTML writer uses it) */
+            NSArray *words = [v componentsSeparatedByCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+            NSMutableDictionary *longhand = [NSMutableDictionary dictionaryWithDictionary:@{ @"font-style": @"normal", @"font-weight": @"normal" }];
+            NSUInteger i = 0;
+            for (; i < words.count; i++) {
+                NSString *w = [words[i] lowercaseString];
+                if (!w.length) continue;
+                if ([w isEqualToString:@"italic"] || [w isEqualToString:@"oblique"]) longhand[@"font-style"] = w;
+                else if ([w isEqualToString:@"bold"] || [w isEqualToString:@"bolder"] || [w isEqualToString:@"lighter"] || (w.intValue >= 100 && w.intValue % 100 == 0 && w.length == 3)) longhand[@"font-weight"] = w;
+                else if ([@[@"normal", @"small-caps"] containsObject:w]) continue;
+                else {                                                           /* the size, then the families */
+                    NSArray *sl = [words[i] componentsSeparatedByString:@"/"];
+                    longhand[@"font-size"] = sl[0];
+                    if (sl.count > 1) longhand[@"line-height"] = sl[1];
+                    i++;
+                    break;
+                }
+            }
+            if (i < words.count) longhand[@"font-family"] = [[words subarrayWithRange:NSMakeRange(i, words.count - i)] componentsJoinedByString:@" "];
+            if (longhand[@"font-size"]) [self _apply:longhand to:s parent:p];
+            return;
+        }
         if ([k isEqualToString:@"color"]) { UIColor *c = css_color(v); if (c) s.color = c; }
         else if ([k isEqualToString:@"background-color"] || [k isEqualToString:@"background"]) { UIColor *c = css_color([v componentsSeparatedByString:@" "].firstObject); if (c) s.background = c; }
         else if ([k isEqualToString:@"font-size"]) { CGFloat z = css_font_size(v, p.size); if (!isnan(z) && z > 0) s.size = z; }

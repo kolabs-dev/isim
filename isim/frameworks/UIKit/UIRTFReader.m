@@ -1,8 +1,10 @@
 /* isim RTF reader (ARC): RTF data to an NSAttributedString with UIKit attributes (issue #237, for Quick Look; the
  * NSAttributedString document API builds on it). Adapted: the character formatting (bold, italic, underline,
  * strikethrough, size, font, colour, superscript / subscript), paragraphs (alignment, indents, spacing), tabs and line
- * breaks, Unicode and code-page escapes; tables, pictures, fields' instructions, headers / footers and the document's
- * styles are skipped (fields keep their result text). */
+ * breaks, Unicode and code-page escapes, background colours (\cb, \highlight), raised / lowered text (\up, \dn),
+ * links (HYPERLINK fields, issue #239), RTFD's attachments ({\NeXTGraphic name \width \height}, from the package's
+ * files) and the page settings (\paperw, \margl ..., \deftab) as document attributes; tables, pictures, other fields'
+ * instructions, headers / footers and the document's styles are skipped (fields keep their result text). */
 #import <UIKit/UIKit.h>
 #include <ctype.h>
 
@@ -14,6 +16,8 @@ typedef struct {
     NSTextAlignment align;
     double li, ri, fi, sb, sa;   /* points */
     BOOL skip;                   /* a destination that is not text */
+    int bg, up, link;            /* background colour, baseline offset (half-points), link (index + 1) */
+    int field, graphic;          /* 1 in a field's instruction / an attachment's file name, 2 after it */
 } RTFState;
 
 /* RTF's 8-bit text is Windows-1252 (\ansicpg1252, the default): Latin-1 but for 0x80-0x9F */
@@ -54,6 +58,13 @@ UIFont *isim_ui_styled_font(UIFont *base, BOOL bold, BOOL italic) {
     NSMutableDictionary<NSNumber *, NSString *> *_fonts;
     NSMutableArray *_colors;     /* UIColor or NSNull (the default colour) */
     int _skipBytes;
+    NSMutableArray<NSURL *> *_links;
+    NSMutableString *_fieldInst, *_graphicName;
+    int _graphicW, _graphicH;    /* twips */
+    BOOL _skipNot;               /* the "\u00ac" placeholder after an attachment */
+    NSDictionary<NSString *, NSFileWrapper *> *_files;
+@public
+    NSMutableDictionary *_docAttrs;
 }
 - (instancetype)initWithData:(NSData *)d {
     if ((self = [super init])) {
@@ -61,9 +72,12 @@ UIFont *isim_ui_styled_font(UIFont *base, BOOL bold, BOOL italic) {
         _out = [NSMutableAttributedString new]; _run = [NSMutableString string];
         _fonts = [NSMutableDictionary dictionary]; _colors = [NSMutableArray array];
         _st = (RTFState){ .size2 = 24, .uc = 1, .align = NSTextAlignmentNatural };
+        _links = [NSMutableArray array]; _fieldInst = [NSMutableString string]; _graphicName = [NSMutableString string];
+        _docAttrs = [NSMutableDictionary dictionary];
     }
     return self;
 }
+- (void)setFiles:(NSDictionary *)files { _files = files; }
 - (NSDictionary *)_attributes {
     CGFloat size = _st.size2 / 2.0;
     if (_st.super_) size *= 0.66;
@@ -77,6 +91,10 @@ UIFont *isim_ui_styled_font(UIFont *base, BOOL bold, BOOL italic) {
     if (_st.under) a[NSUnderlineStyleAttributeName] = @(NSUnderlineStyleSingle);
     if (_st.strike) a[NSStrikethroughStyleAttributeName] = @(NSUnderlineStyleSingle);
     if (_st.super_) a[NSBaselineOffsetAttributeName] = @(_st.super_ * _st.size2 / 2.0 * 0.33);
+    else if (_st.up) a[NSBaselineOffsetAttributeName] = @(_st.up / 2.0);
+    id bg = _st.bg > 0 && _st.bg < (int)_colors.count ? _colors[_st.bg] : nil;
+    if ([bg isKindOfClass:UIColor.class]) a[NSBackgroundColorAttributeName] = bg;
+    if (_st.link > 0 && _st.link <= (int)_links.count) a[NSLinkAttributeName] = _links[_st.link - 1];
     NSMutableParagraphStyle *ps = [NSMutableParagraphStyle new];
     ps.alignment = _st.align;
     ps.headIndent = _st.li; ps.firstLineHeadIndent = _st.li + _st.fi; ps.tailIndent = -_st.ri;
@@ -90,8 +108,26 @@ UIFont *isim_ui_styled_font(UIFont *base, BOOL bold, BOOL italic) {
     [_run setString:@""];
 }
 - (void)_text:(NSString *)s {
+    if (_st.field == 1) { [_fieldInst appendString:s]; return; }
+    if (_st.graphic == 1) { [_graphicName appendString:s]; return; }
     if (_st.skip || !s.length) return;
+    if (_skipNot) { _skipNot = NO; if ([s characterAtIndex:0] == 0xAC) { s = [s substringFromIndex:1]; if (!s.length) return; } }
     [_run appendString:s];
+}
+/* the attachment an RTFD names: its file from the package, sized in twips */
+- (void)_attachment {
+    [self _flush];
+    NSString *name = [_graphicName stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+    NSTextAttachment *a = [[NSTextAttachment alloc] initWithData:nil ofType:nil];
+    NSFileWrapper *fw = _files[name];
+    if (!fw) { fw = [[NSFileWrapper alloc] initRegularFileWithContents:[NSData data]]; fw.preferredFilename = name; }
+    a.fileWrapper = fw;
+    if (_graphicW > 0 && _graphicH > 0) a.bounds = CGRectMake(0, 0, _graphicW / 20.0, _graphicH / 20.0);
+    unichar obj = 0xFFFC;
+    NSMutableDictionary *attrs = [[self _attributes] mutableCopy];
+    attrs[NSAttachmentAttributeName] = a;
+    [_out appendAttributedString:[[NSAttributedString alloc] initWithString:[NSString stringWithCharacters:&obj length:1] attributes:attrs]];
+    _skipNot = YES;
 }
 /* the font table: {\f0\fswiss Helvetica;} entries */
 - (void)_fontTableEntry:(int)n name:(NSString *)name { if (n >= 0 && name.length) _fonts[@(n)] = name; }
@@ -116,7 +152,9 @@ UIFont *isim_ui_styled_font(UIFont *base, BOOL bold, BOOL italic) {
             }
             if (depth == destDepth) { dest = DNone; destDepth = -1; }
             if (depth > 0) {
-                [self _flushIfChanging:(RTFState *)((char *)stack.mutableBytes + stack.length - sizeof _st)];
+                RTFState *outer = (RTFState *)((char *)stack.mutableBytes + stack.length - sizeof _st);
+                if (_st.graphic && !outer->graphic) [self _attachment];
+                [self _flushIfChanging:outer];
                 memcpy(&_st, (char *)stack.bytes + stack.length - sizeof _st, sizeof _st);
                 stack.length -= sizeof _st; depth--;
             }
@@ -197,11 +235,38 @@ UIFont *isim_ui_styled_font(UIFont *base, BOOL bold, BOOL italic) {
     }
     static NSSet *skipped;
     if (!skipped) skipped = [NSSet setWithArray:@[@"stylesheet", @"info", @"pict", @"header", @"footer", @"headerl", @"headerr", @"headerf",
-                                                  @"footerl", @"footerr", @"footerf", @"fldinst", @"listtable", @"listoverridetable",
+                                                  @"footerl", @"footerr", @"footerf", @"listtable", @"listoverridetable",
                                                   @"generator", @"themedata", @"colorschememapping", @"latentstyles", @"rsidtbl",
                                                   @"datastore", @"xmlnstbl", @"mmathPr", @"object", @"footnote", @"bkmkstart", @"bkmkend",
                                                   @"expandedcolortbl", @"listtext", @"pntext"]];
     if ([skipped containsObject:w]) { _st.skip = YES; return; }
+    /* a field: its instruction ({\*\fldinst HYPERLINK "url"}) is kept, its result is the text */
+    if ([w isEqualToString:@"fldinst"]) { _st.field = 1; _st.skip = YES; [_fieldInst setString:@""]; return; }
+    if ([w isEqualToString:@"fldrslt"]) {
+        [self _flush];
+        _st.field = 2; _st.skip = NO;
+        NSString *inst = [_fieldInst stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        if ([inst hasPrefix:@"HYPERLINK"]) {
+            NSString *target = [[inst substringFromIndex:9] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+            target = [target stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"\""]];
+            NSURL *u = [NSURL URLWithString:target];
+            if (u) { [_links addObject:u]; _st.link = (int)_links.count; }
+        }
+        return;
+    }
+    if (_st.field == 1) return;
+    /* an RTFD attachment: {\NeXTGraphic file name \width W \height H} */
+    if ([w isEqualToString:@"NeXTGraphic"]) { [self _flush]; _st.graphic = 1; [_graphicName setString:@""]; _graphicW = _graphicH = 0; return; }
+    if (_st.graphic) {
+        _st.graphic = 2;
+        if ([w isEqualToString:@"width"]) _graphicW = n; else if ([w isEqualToString:@"height"]) _graphicH = n;
+        return;
+    }
+    /* the page: document attributes */
+    if ([@[@"paperw", @"paperh", @"margl", @"margr", @"margt", @"margb", @"deftab", @"viewkind"] containsObject:w]) {
+        _docAttrs[w] = @(n);
+        return;
+    }
     if (_st.skip) return;
     if ([w isEqualToString:@"u"]) {
         unichar u = (unichar)(n < 0 ? n + 65536 : n);
@@ -228,11 +293,14 @@ UIFont *isim_ui_styled_font(UIFont *base, BOOL bold, BOOL italic) {
     else if ([w isEqualToString:@"fs"] && n > 0) s.size2 = n;
     else if ([w isEqualToString:@"f"]) s.font = n;
     else if ([w isEqualToString:@"cf"]) s.color = n;
+    else if ([w isEqualToString:@"cb"] || [w isEqualToString:@"highlight"]) s.bg = n;
+    else if ([w isEqualToString:@"up"]) s.up = has ? n : 6;
+    else if ([w isEqualToString:@"dn"]) s.up = -(has ? n : 6);
     else if ([w isEqualToString:@"super"]) s.super_ = 1;
     else if ([w isEqualToString:@"sub"]) s.super_ = -1;
     else if ([w isEqualToString:@"nosupersub"]) s.super_ = 0;
     else if ([w isEqualToString:@"uc"]) s.uc = n;
-    else if ([w isEqualToString:@"plain"]) { s.bold = s.italic = s.under = s.strike = NO; s.size2 = 24; s.font = 0; s.color = 0; s.super_ = 0; }
+    else if ([w isEqualToString:@"plain"]) { s.bold = s.italic = s.under = s.strike = NO; s.size2 = 24; s.font = 0; s.color = 0; s.super_ = 0; s.bg = 0; s.up = 0; }
     else if ([w isEqualToString:@"pard"]) { s.align = NSTextAlignmentNatural; s.li = s.ri = s.fi = s.sb = s.sa = 0; }
     else if ([w isEqualToString:@"ql"]) s.align = NSTextAlignmentLeft;
     else if ([w isEqualToString:@"qr"]) s.align = NSTextAlignmentRight;
@@ -250,7 +318,15 @@ UIFont *isim_ui_styled_font(UIFont *base, BOOL bold, BOOL italic) {
 
 @implementation NSAttributedString (IsimRTF)
 + (NSAttributedString *)_isim_attributedStringWithRTF:(NSData *)data {
+    return [self _isim_attributedStringWithRTF:data files:nil page:NULL];
+}
+/* files: an RTFD package's attachments by name; page: \paperw ... \deftab as read (twips) */
++ (NSAttributedString *)_isim_attributedStringWithRTF:(NSData *)data files:(NSDictionary<NSString *, NSFileWrapper *> *)files page:(NSDictionary **)page {
     if (data.length < 5 || memcmp(data.bytes, "{\\rtf", 5)) return nil;
-    return [[[__IsimRTFReader alloc] initWithData:data] read];
+    __IsimRTFReader *r = [[__IsimRTFReader alloc] initWithData:data];
+    [r setFiles:files];
+    NSAttributedString *s = [r read];
+    if (page) *page = r->_docAttrs;
+    return s;
 }
 @end

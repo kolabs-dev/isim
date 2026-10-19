@@ -35,6 +35,7 @@ API_AVAILABLE(ios(15.0))
 @property (nullable, copy) NSData *contents;
 @property (nullable, copy) NSString *fileType;
 @property (nullable, strong) UIImage *image;
+@property (nullable, strong) NSFileWrapper *fileWrapper;   /* an RTFD attachment's file (its image, when no contents) */
 @property CGRect bounds;
 @property CGFloat lineLayoutPadding API_AVAILABLE(ios(15.0));
 @property BOOL allowsTextAttachmentView API_AVAILABLE(ios(15.0));

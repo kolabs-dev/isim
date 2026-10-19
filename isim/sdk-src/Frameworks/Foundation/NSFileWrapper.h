@@ -6,7 +6,8 @@
 NS_ASSUME_NONNULL_BEGIN
 @class NSError, NSString;
 /* isim: file wrappers — a regular file, a directory (package) of named wrappers, or a symbolic link — read from and
-   written to disk. Not supported: serializedRepresentation (RTFD pasteboard form), icons. */
+   written to disk; the serialized form (isim's own layout: Apple's is undocumented, see FileWrapper.m). Not supported:
+   icons. */
 typedef NS_OPTIONS(NSUInteger, NSFileWrapperReadingOptions) {
     NSFileWrapperReadingImmediate = 1 << 0,
     NSFileWrapperReadingWithoutMapping = 1 << 1
@@ -21,6 +22,7 @@ typedef NS_OPTIONS(NSUInteger, NSFileWrapperWritingOptions) {
 - (instancetype)initDirectoryWithFileWrappers:(NSDictionary<NSString *, NSFileWrapper *> *)childrenByPreferredName;
 - (instancetype)initRegularFileWithContents:(NSData *)contents;
 - (instancetype)initSymbolicLinkWithDestinationURL:(NSURL *)url;
+- (nullable instancetype)initWithSerializedRepresentation:(NSData *)serializeRepresentation;
 @property (readonly, getter=isDirectory) BOOL directory;
 @property (readonly, getter=isRegularFile) BOOL regularFile;
 @property (readonly, getter=isSymbolicLink) BOOL symbolicLink;
@@ -37,5 +39,6 @@ typedef NS_OPTIONS(NSUInteger, NSFileWrapperWritingOptions) {
 - (nullable NSString *)keyForFileWrapper:(NSFileWrapper *)child;
 @property (nullable, readonly, copy) NSData *regularFileContents;
 @property (nullable, readonly, copy) NSURL *symbolicLinkDestinationURL;
+@property (nullable, readonly, copy) NSData *serializedRepresentation;
 @end
 NS_ASSUME_NONNULL_END

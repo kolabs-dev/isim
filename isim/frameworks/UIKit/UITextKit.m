@@ -542,7 +542,7 @@ static NSMutableDictionary<NSString *, Class> *view_provider_classes;
 - (void)encodeWithCoder:(NSCoder *)coder {}
 - (void)setImage:(UIImage *)i { _image = i; }
 - (UIImage *)image {
-    if (!_image && _contents) _image = [UIImage imageWithData:_contents];
+    if (!_image && (_contents || _fileWrapper.regularFileContents)) _image = [UIImage imageWithData:_contents ?: _fileWrapper.regularFileContents];
     return _image;
 }
 + (Class)textAttachmentViewProviderClassForFileType:(NSString *)type { return type ? view_provider_classes[type] : nil; }

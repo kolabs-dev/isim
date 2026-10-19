@@ -148,9 +148,9 @@ NS_SWIFT_UI_ACTOR
 - (void)drawWithRect:(CGRect)rect options:(NSStringDrawingOptions)options context:(nullable NSStringDrawingContext *)context;
 - (CGRect)boundingRectWithSize:(CGSize)size options:(NSStringDrawingOptions)options context:(nullable NSStringDrawingContext *)context;
 @end
-/* ---- document formats (issue #238): reading plain text, RTF and HTML. Adapted: HTML is parsed by the host's libxml2
-   and mapped to attributes from its tags and CSS (inline styles, <style> rules with simple selectors), not laid out
-   by WebKit; RTF by isim's RTF reader. ---- */
+/* ---- document formats (issues #238, #239): reading and writing plain text, RTF, RTFD and HTML. Adapted: HTML is
+   parsed by the host's libxml2 and mapped to attributes from its tags and CSS (inline styles, <style> rules with simple
+   selectors), not laid out by WebKit; RTF by isim's RTF reader. ---- */
 typedef NSString *NSAttributedStringDocumentType NS_TYPED_EXTENSIBLE_ENUM NS_SWIFT_NAME(NSAttributedString.DocumentType);
 UIKIT_EXTERN NSAttributedStringDocumentType const NSPlainTextDocumentType NS_SWIFT_NAME(plain) API_AVAILABLE(ios(7.0));
 UIKIT_EXTERN NSAttributedStringDocumentType const NSRTFTextDocumentType NS_SWIFT_NAME(rtf) API_AVAILABLE(ios(7.0));
@@ -199,6 +199,12 @@ UIKIT_EXTERN NSAttributedStringDocumentReadingOptionKey const NSTextKit1ListMark
                   documentAttributes:(NSDictionary<NSAttributedStringDocumentAttributeKey, id> *_Nullable *_Nullable)dict error:(NSError **)error API_AVAILABLE(ios(9.0));
 - (nullable instancetype)initWithData:(NSData *)data options:(NSDictionary<NSAttributedStringDocumentReadingOptionKey, id> *)options
                    documentAttributes:(NSDictionary<NSAttributedStringDocumentAttributeKey, id> *_Nullable *_Nullable)dict error:(NSError **)error API_AVAILABLE(ios(7.0));
+/* writing (issue #239): plain text, RTF, RTFD (a package: TXT.rtf and the attachments' files; as data, the file
+   wrapper's serialized form) and HTML, in Cocoa's writers' shape */
+- (nullable NSData *)dataFromRange:(NSRange)range documentAttributes:(NSDictionary<NSAttributedStringDocumentAttributeKey, id> *)dict
+                             error:(NSError **)error API_AVAILABLE(ios(7.0));
+- (nullable NSFileWrapper *)fileWrapperFromRange:(NSRange)range documentAttributes:(NSDictionary<NSAttributedStringDocumentAttributeKey, id> *)dict
+                                           error:(NSError **)error API_AVAILABLE(ios(7.0));
 @end
 @interface NSMutableAttributedString (NSMutableAttributedStringDocumentFormats)
 - (BOOL)readFromURL:(NSURL *)url options:(NSDictionary<NSAttributedStringDocumentReadingOptionKey, id> *)opts
