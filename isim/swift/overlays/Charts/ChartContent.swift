@@ -169,6 +169,13 @@ public struct AnnotationPosition: Equatable, Sendable {
 
 /// Point mark symbols.
 public protocol ChartSymbolShape: Shape {}
+/// A type-erased symbol shape.
+public struct AnyChartSymbolShape: ChartSymbolShape, @unchecked Sendable {
+    let shape: (CGRect) -> Path
+    public init(_ shape: any ChartSymbolShape) { self.shape = { shape.path(in: $0) } }
+    init(path: @escaping (CGRect) -> Path) { shape = path }
+    public func path(in rect: CGRect) -> Path { shape(rect) }
+}
 public struct BasicChartSymbolShape: Sendable {
     enum Kind: Sendable { case circle, square, triangle, diamond, pentagon, plus, cross, asterisk }
     let kind: Kind
@@ -211,7 +218,10 @@ extension ChartSymbolShape where Self == BasicChartSymbolShape {
 // MARK: - Resolved marks
 
 enum _MarkKind { case bar, line, point, area, rule, rectangle, sector }
-struct _Annotation { let position: AnnotationPosition; let alignment: Alignment; let spacing: CGFloat?; let view: AnyView }
+struct _Annotation {
+    let position: AnnotationPosition; let alignment: Alignment; let spacing: CGFloat?; let view: AnyView
+    var overflow = AnnotationOverflowResolution.automatic
+}
 /// One mark with its values and styling, as the chart lays it out.
 struct _Mark {
     var kind: _MarkKind
@@ -232,7 +242,17 @@ struct _Mark {
     var symbolSizeValue: Double?               // symbolSize(by:): mapped through the symbol size scale
     var interpolation = InterpolationMethod.linear
     var lineStyle: StrokeStyle?
+    var lineStyleKey: String?                  // lineStyle(by:): through chartLineStyleScale or the default dashes
     var opacity = 1.0
+    // ChartContent offset / zIndex / mask / clipShape / shadow / blur
+    var offset = CGSize.zero
+    var rangeOffset: (xStart: CGFloat, xEnd: CGFloat, yStart: CGFloat, yEnd: CGFloat)?
+    var zIndex = 0.0
+    var maskGroup: Int?                        // drawn through the mask of this group
+    var maskOf: Int?                           // a mark of this group's mask: draws into the clip, not the plot
+    var clip: (shape: (CGRect) -> Path, eoFill: Bool)?
+    var shadow: (color: Color, radius: CGFloat, x: CGFloat, y: CGFloat)?
+    var blur: CGFloat = 0
     var cornerRadius: CGFloat = 0
     var positionKey: String?
     var annotations: [_Annotation] = []
@@ -445,6 +465,33 @@ extension ChartContent {
     public func symbolSize(_ size: CGSize) -> _ChartModified<Self> { _modify { $0.symbolSize = (size.width * size.height).squareRoot() } }
     public func interpolationMethod(_ method: InterpolationMethod) -> _ChartModified<Self> { _modify { $0.interpolation = method } }
     public func lineStyle(_ style: StrokeStyle) -> _ChartModified<Self> { _modify { $0.lineStyle = style } }
+    /// Styles lines by a value (series): chartLineStyleScale, else solid, dashed, dotted, ... per value.
+    public func lineStyle<D: Plottable>(by value: PlottableValue<D>) -> _ChartModified<Self> { let k = value._pv.category; return _modify { $0.lineStyleKey = k } }
+    /// Moves the marks by points (screen coordinates); the range forms move a range mark's edges.
+    public func offset(_ offset: CGSize) -> _ChartModified<Self> { _modify { $0.offset.width += offset.width; $0.offset.height += offset.height } }
+    public func offset(x: CGFloat = 0, y: CGFloat = 0) -> _ChartModified<Self> { offset(CGSize(width: x, height: y)) }
+    public func offset(x: CGFloat = 0, yStart: CGFloat = 0, yEnd: CGFloat = 0) -> _ChartModified<Self> {
+        _modify { $0.offset.width += x; $0.rangeOffset = (0, 0, yStart, yEnd) }
+    }
+    public func offset(xStart: CGFloat = 0, xEnd: CGFloat = 0, y: CGFloat = 0) -> _ChartModified<Self> {
+        _modify { $0.offset.height += y; $0.rangeOffset = (xStart, xEnd, 0, 0) }
+    }
+    public func offset(xStart: CGFloat = 0, xEnd: CGFloat = 0, yStart: CGFloat = 0, yEnd: CGFloat = 0) -> _ChartModified<Self> {
+        _modify { $0.rangeOffset = (xStart, xEnd, yStart, yEnd) }
+    }
+    /// Draw order: higher above (marks of equal zIndex in the order they are declared).
+    public func zIndex(_ value: Double) -> _ChartModified<Self> { _modify { $0.zIndex = value } }
+    /// Clips the marks to a shape fitted to the plot area.
+    public func clipShape<S: Shape>(_ shape: S, style: FillStyle = FillStyle()) -> _ChartModified<Self> {
+        let path: (CGRect) -> Path = { shape.path(in: $0) }, eo = style.isEOFilled
+        return _modify { $0.clip = (path, eo) }
+    }
+    public func shadow(color: Color = Color(.sRGBLinear, white: 0, opacity: 0.33), radius: CGFloat, x: CGFloat = 0, y: CGFloat = 0) -> _ChartModified<Self> {
+        _modify { $0.shadow = (color, radius, x, y) }
+    }
+    public func blur(radius: CGFloat) -> _ChartModified<Self> { _modify { $0.blur = radius } }
+    /// Shows the marks only where the mask's marks are drawn (laid out on the same scales).
+    public func mask<C: ChartContent>(@ChartContentBuilder content: () -> C) -> _ChartMasked<Self, C> { _ChartMasked(content: self, mask: content()) }
     public func opacity(_ opacity: Double) -> _ChartModified<Self> { _modify { $0.opacity *= opacity } }
     public func cornerRadius(_ radius: CGFloat, style: RoundedCornerStyle = .continuous) -> _ChartModified<Self> { _modify { $0.cornerRadius = radius } }
     /// Grouped (side by side) bars by a value.
@@ -456,9 +503,175 @@ extension ChartContent {
         let a = _Annotation(position: position, alignment: alignment, spacing: spacing, view: AnyView(content()))
         return _modify { $0.annotations.append(a) }
     }
+    /// An annotation kept inside the plot or the chart (`fit`), or allowed to overflow (`disabled`).
+    public func annotation<V: View>(position: AnnotationPosition = .automatic, alignment: Alignment = .center, spacing: CGFloat? = nil,
+                                    overflowResolution: AnnotationOverflowResolution, @ViewBuilder content: () -> V) -> _ChartModified<Self> {
+        var a = _Annotation(position: position, alignment: alignment, spacing: spacing, view: AnyView(content()))
+        a.overflow = overflowResolution
+        return _modify { $0.annotations.append(a) }
+    }
     public func accessibilityLabel(_ label: Text) -> _ChartModified<Self> { _modify { _ in } }
     public func accessibilityLabel<S: StringProtocol>(_ label: S) -> _ChartModified<Self> { _modify { _ in } }
     public func accessibilityValue(_ value: Text) -> _ChartModified<Self> { _modify { _ in } }
     public func accessibilityValue<S: StringProtocol>(_ value: S) -> _ChartModified<Self> { _modify { _ in } }
     public func accessibilityHidden(_ hidden: Bool) -> _ChartModified<Self> { _modify { _ in } }
+}
+
+/// mask(content:): the content's marks drawn through the mask's
+public struct _ChartMasked<C: ChartContent, M: ChartContent>: ChartContent, _ChartPrimitive {
+    let content: C, mask: M
+    public var body: Never { fatalError() }
+    func _marks() -> [_Mark] {
+        _maskGroups += 1
+        let g = _maskGroups
+        return _resolveMarks(content).map { var m = $0; m.maskGroup = m.maskGroup ?? g; return m }
+            + _resolveMarks(mask).map { var m = $0; m.maskOf = g; m.annotations = []; return m }
+    }
+}
+@MainActor var _maskGroups = 0
+
+// MARK: - annotation overflow
+
+/// How an annotation that would cross a boundary is placed, per axis: `fit` moves it inside the boundary (the plot,
+/// the chart, or automatic: the chart), `disabled` lets it overflow; `padScale` is placed as `fit`. isim's `automatic`
+/// places annotations as before, beside their mark, without fitting them.
+public struct AnnotationOverflowResolution: Sendable {
+    public struct Boundary: Sendable, Equatable {
+        let id: Int
+        public static let automatic = Boundary(id: 0), plot = Boundary(id: 1), chart = Boundary(id: 2)
+    }
+    public struct Strategy: Sendable {
+        enum Kind: Sendable { case automatic, fit(Boundary), disabled, padScale }
+        let kind: Kind
+        public static let automatic = Strategy(kind: .automatic)
+        public static let fit = Strategy(kind: .fit(.automatic))
+        public static func fit(to boundary: Boundary) -> Strategy { Strategy(kind: .fit(boundary)) }
+        public static let disabled = Strategy(kind: .disabled)
+        public static let padScale = Strategy(kind: .padScale)
+        /// the boundary it keeps the annotation in (nil: none)
+        var boundary: Boundary? {
+            switch kind {
+            case .disabled, .automatic: return nil
+            case .fit(let b): return b
+            case .padScale: return .automatic
+            }
+        }
+    }
+    let x: Strategy, y: Strategy
+    public init(x: Strategy = .automatic, y: Strategy = .automatic) { self.x = x; self.y = y }
+    public static let automatic = AnnotationOverflowResolution(x: .automatic, y: .automatic)
+}
+
+// MARK: - bins
+
+/// The range of one bin.
+public struct ChartBinRange<Bound: Comparable>: Sendable where Bound: Sendable {
+    public let lowerBound: Bound
+    public let upperBound: Bound
+}
+
+/// Number bins: thresholds splitting a range into bins of nice sizes; bin i is thresholds[i] ..< thresholds[i + 1].
+public struct NumberBins<Value: Comparable & Numeric & Sendable>: RandomAccessCollection, Sendable {
+    public let thresholds: [Value]
+    public init(thresholds: [Value]) { self.thresholds = thresholds.sorted() }
+    public var startIndex: Int { 0 }
+    public var endIndex: Int { Swift.max(0, thresholds.count - 1) }
+    public subscript(i: Int) -> ChartBinRange<Value> { ChartBinRange(lowerBound: thresholds[i], upperBound: thresholds[i + 1]) }
+    /// the bin a value falls in (the last bin includes its upper bound); clamped to the bins
+    public func index(for value: Value) -> Int {
+        guard thresholds.count > 1 else { return 0 }
+        var lo = 0, hi = thresholds.count - 1
+        while hi - lo > 1 { let mid = (lo + hi) / 2; if value < thresholds[mid] { hi = mid } else { lo = mid } }
+        return value < thresholds[0] ? 0 : lo
+    }
+}
+extension NumberBins where Value: BinaryFloatingPoint {
+    public init(size: Value, range: ClosedRange<Value>) {
+        var t: [Value] = [], v = (range.lowerBound / size).rounded(.down) * size
+        while v < range.upperBound && t.count < 10_000 { t.append(v); v += size }
+        t.append(v)
+        self.init(thresholds: t)
+    }
+    public init(range: ClosedRange<Value>, count: Int) {
+        let n = Swift.max(1, count), step = (range.upperBound - range.lowerBound) / Value(n)
+        self.init(thresholds: (0...n).map { range.lowerBound + step * Value($0) })
+    }
+    public init(range: ClosedRange<Value>, desiredCount: Int, minimumStride: Value = 0) {
+        let span = Double(range.upperBound - range.lowerBound)
+        let step = Swift.max(Value(_niceStep(span, Swift.max(1, desiredCount))), minimumStride)
+        self.init(size: step > 0 ? step : 1, range: range)
+    }
+    public init(data: [Value], desiredCount: Int? = nil, minimumStride: Value = 0) {
+        let lo = data.min() ?? 0, hi = data.max() ?? 1
+        self.init(range: lo...Swift.max(hi, lo + 1), desiredCount: desiredCount ?? Int(Double(data.count).squareRoot().rounded(.up)), minimumStride: minimumStride)
+    }
+}
+extension NumberBins where Value: BinaryInteger {
+    public init(size: Value, range: ClosedRange<Value>) {
+        let s = Swift.max(1, size)
+        var t: [Value] = [], v = range.lowerBound - ((range.lowerBound % s) + s) % s
+        while v < range.upperBound && t.count < 10_000 { t.append(v); v += s }
+        t.append(v)
+        self.init(thresholds: t)
+    }
+    public init(range: ClosedRange<Value>, count: Int) {
+        let n = Swift.max(1, count), span = range.upperBound - range.lowerBound
+        let step = Swift.max(1, (span + Value(n) - 1) / Value(n))
+        self.init(size: step, range: range)
+    }
+    public init(range: ClosedRange<Value>, desiredCount: Int, minimumStride: Value = 1) {
+        let span = Double(range.upperBound - range.lowerBound)
+        let step = Swift.max(Value(_niceStep(span, Swift.max(1, desiredCount)).rounded(.up)), Swift.max(1, minimumStride))
+        self.init(size: step, range: range)
+    }
+    public init(data: [Value], desiredCount: Int? = nil, minimumStride: Value = 1) {
+        let lo = data.min() ?? 0, hi = data.max() ?? 1
+        self.init(range: lo...Swift.max(hi, lo + 1), desiredCount: desiredCount ?? Int(Double(data.count).squareRoot().rounded(.up)), minimumStride: minimumStride)
+    }
+}
+
+/// Date bins on calendar units (days, weeks, months, ...) or fixed intervals.
+public struct DateBins: RandomAccessCollection, Sendable {
+    public let thresholds: [Date]
+    public init(thresholds: [Date]) { self.thresholds = thresholds.sorted() }
+    public init(unit: Calendar.Component, by step: Int = 1, range: ClosedRange<Date>, calendar: Calendar = .current) {
+        var d = calendar.dateInterval(of: unit, for: range.lowerBound)?.start ?? range.lowerBound
+        var t: [Date] = [d]
+        while d < range.upperBound && t.count < 10_000 {
+            guard let n = calendar.date(byAdding: unit, value: Swift.max(1, step), to: d), n > d else { break }
+            d = n; t.append(d)
+        }
+        self.init(thresholds: t)
+    }
+    public init(timeInterval: TimeInterval, range: ClosedRange<Date>) {
+        let s = Swift.max(1, timeInterval)
+        var v = (range.lowerBound.timeIntervalSinceReferenceDate / s).rounded(.down) * s
+        var t: [Date] = []
+        while v < range.upperBound.timeIntervalSinceReferenceDate && t.count < 10_000 { t.append(Date(timeIntervalSinceReferenceDate: v)); v += s }
+        t.append(Date(timeIntervalSinceReferenceDate: v))
+        self.init(thresholds: t)
+    }
+    /// bins of the calendar unit that gives about `desiredCount` of them
+    public init(range: ClosedRange<Date>, desiredCount: Int, calendar: Calendar = .current) {
+        let span = range.upperBound.timeIntervalSince(range.lowerBound), want = Double(Swift.max(1, desiredCount))
+        let units: [(Calendar.Component, Int, Double)] = [(.second, 1, 1), (.minute, 1, 60), (.minute, 15, 900), (.hour, 1, 3600), (.hour, 6, 21600),
+                                                          (.day, 1, 86400), (.weekOfYear, 1, 604800), (.month, 1, 2_629_800), (.quarter, 1, 7_889_400),
+                                                          (.year, 1, 31_557_600)]
+        let best = units.min { abs(span / $0.2 - want) < abs(span / $1.2 - want) } ?? (.day, 1, 86400)
+        self.init(unit: best.0, by: best.1, range: range, calendar: calendar)
+    }
+    public init(data: [Date], desiredCount: Int? = nil, calendar: Calendar = .current) {
+        let lo = data.min() ?? Date(), hi = data.max() ?? lo.addingTimeInterval(86400)
+        self.init(range: lo...Swift.max(hi, lo.addingTimeInterval(1)), desiredCount: desiredCount ?? Swift.max(1, Int(Double(data.count).squareRoot().rounded(.up))),
+                  calendar: calendar)
+    }
+    public var startIndex: Int { 0 }
+    public var endIndex: Int { Swift.max(0, thresholds.count - 1) }
+    public subscript(i: Int) -> ChartBinRange<Date> { ChartBinRange(lowerBound: thresholds[i], upperBound: thresholds[i + 1]) }
+    public func index(for date: Date) -> Int {
+        guard thresholds.count > 1 else { return 0 }
+        var lo = 0, hi = thresholds.count - 1
+        while hi - lo > 1 { let mid = (lo + hi) / 2; if date < thresholds[mid] { hi = mid } else { lo = mid } }
+        return date < thresholds[0] ? 0 : lo
+    }
 }

@@ -13,6 +13,7 @@ public struct ChartProxy {
     let xs: _Scale, ys: _Scale
     let selection: _SelectionSetters
     let angleAt: ((CGPoint) -> Double?)?
+    var styles = _ProxyStyles()
 
     /// The plot area in the chart's coordinate space: `geometry[proxy.plotFrame!]` in an overlay's GeometryReader.
     public var plotFrame: Anchor<CGRect>? { Anchor(_isimValue: plot) }
@@ -58,6 +59,23 @@ public struct ChartProxy {
         case .date(let a, let b): return [a, b].compactMap { _convert(.date(Date(timeIntervalSinceReferenceDate: $0)), to: P.self, depth: 0) }
         }
     }
+
+    /// The angle of a position (in the plot area) around the plot's centre: from 12 o'clock, clockwise, as pies run.
+    public func angle(at position: CGPoint) -> Angle {
+        var a = atan2(Double(position.y - plot.height / 2), Double(position.x - plot.width / 2)) + Double.pi / 2
+        if a < 0 { a += 2 * Double.pi }
+        return .radians(a)
+    }
+    /// The styles the chart's scales give a series value (foregroundStyle(by:), lineStyle(by:), symbol(by:),
+    /// symbolSize(by:)), and the values each scale knows, in order.
+    public func foregroundStyle<P: Plottable>(for value: P) -> AnyShapeStyle? { styles.foreground(_PV.of(value).category) }
+    public func foregroundStyleDomain<P: Plottable>(dataType: P.Type = P.self) -> [P] { styles.foregroundKeys.compactMap { _convert(.str($0), to: P.self, depth: 0) } }
+    public func lineStyle<P: Plottable>(for value: P) -> StrokeStyle? { styles.line(_PV.of(value).category) }
+    public func lineStyleDomain<P: Plottable>(dataType: P.Type = P.self) -> [P] { styles.lineKeys.compactMap { _convert(.str($0), to: P.self, depth: 0) } }
+    public func symbol<P: Plottable>(for value: P) -> AnyChartSymbolShape? { styles.symbol(_PV.of(value).category) }
+    public func symbolDomain<P: Plottable>(dataType: P.Type = P.self) -> [P] { styles.symbolKeys.compactMap { _convert(.str($0), to: P.self, depth: 0) } }
+    public func symbolSize<P: Plottable>(for value: P) -> CGFloat? { _PV.of(value).number.flatMap(styles.size) }
+    public func symbolSizeDomain<P: Plottable>(dataType: P.Type = P.self) -> [P] { styles.sizeDomain.compactMap { _convert(.num($0), to: P.self, depth: 0) } }
 
     // selection, as the chart's own gesture does it (positions in the plot area)
     public func selectXValue(at position: CGFloat) { selection.x?(xs.value(at: position + plot.minX)) }
@@ -256,4 +274,12 @@ extension View {
     public func chartScrollTargetBehavior(_ behavior: some ChartScrollTargetBehavior) -> some View {
         transformEnvironment(\._chartScroll) { b in let n = (b ?? _ScrollBox()).copy(); n.target = behavior; b = n }
     }
+}
+
+/// What ChartProxy's style lookups read: the series values of each scale and their styles.
+struct _ProxyStyles {
+    var foregroundKeys: [String] = [], foreground: (String) -> AnyShapeStyle? = { _ in nil }
+    var lineKeys: [String] = [], line: (String) -> StrokeStyle? = { _ in nil }
+    var symbolKeys: [String] = [], symbol: (String) -> AnyChartSymbolShape? = { _ in nil }
+    var sizeDomain: [Double] = [], size: (Double) -> CGFloat? = { _ in nil }
 }

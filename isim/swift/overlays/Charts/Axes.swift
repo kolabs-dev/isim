@@ -307,6 +307,11 @@ final class _SymbolScaleBox {
     let keys: [String]?, shapes: [(CGRect) -> Path]
     init(_ k: [String]?, _ s: [(CGRect) -> Path]) { keys = k; shapes = s }
 }
+/// chartLineStyleScale: line styles per series value (keys in order, or a mapping), else in order of appearance.
+final class _LineStyleScaleBox {
+    let keys: [String]?, styles: [StrokeStyle], mapping: ((String) -> StrokeStyle?)?
+    init(_ k: [String]?, _ s: [StrokeStyle], mapping: ((String) -> StrokeStyle?)? = nil) { keys = k; styles = s; self.mapping = mapping }
+}
 final class _SymbolSizeScaleBox { let domain: (Double, Double)?, range: (Double, Double); init(_ d: (Double, Double)?, _ r: (Double, Double)) { domain = d; range = r } }
 
 struct _ChartXAxisVisKey: EnvironmentKey { static var defaultValue: Visibility { .automatic } }
@@ -325,6 +330,7 @@ struct _ChartLegendKey: EnvironmentKey { static var defaultValue: _LegendBox? { 
 struct _ChartXLabelKey: EnvironmentKey { static var defaultValue: _ViewBox? { nil } }
 struct _ChartYLabelKey: EnvironmentKey { static var defaultValue: _ViewBox? { nil } }
 struct _ChartSymbolScaleKey: EnvironmentKey { static var defaultValue: _SymbolScaleBox? { nil } }
+struct _ChartLineStyleScaleKey: EnvironmentKey { static var defaultValue: _LineStyleScaleBox? { nil } }
 struct _ChartSymbolSizeScaleKey: EnvironmentKey { static var defaultValue: _SymbolSizeScaleBox? { nil } }
 extension EnvironmentValues {
     var _chartXAxisVisibility: Visibility { get { self[_ChartXAxisVisKey.self] } set { self[_ChartXAxisVisKey.self] = newValue } }
@@ -342,6 +348,7 @@ extension EnvironmentValues {
     var _chartXLabel: _ViewBox? { get { self[_ChartXLabelKey.self] } set { self[_ChartXLabelKey.self] = newValue } }
     var _chartYLabel: _ViewBox? { get { self[_ChartYLabelKey.self] } set { self[_ChartYLabelKey.self] = newValue } }
     var _chartSymbolScale: _SymbolScaleBox? { get { self[_ChartSymbolScaleKey.self] } set { self[_ChartSymbolScaleKey.self] = newValue } }
+    var _chartLineStyleScale: _LineStyleScaleBox? { get { self[_ChartLineStyleScaleKey.self] } set { self[_ChartLineStyleScaleKey.self] = newValue } }
     var _chartSymbolSizeScale: _SymbolSizeScaleBox? { get { self[_ChartSymbolSizeScaleKey.self] } set { self[_ChartSymbolSizeScaleKey.self] = newValue } }
 }
 
@@ -430,6 +437,29 @@ extension View {
         environment(\._chartSymbolScale, _SymbolScaleBox(nil, range.map { s in { s.path(in: $0) } }))
     }
     /// Symbol areas (square points) for `symbolSize(by:)` values: the data's extent maps onto `range`.
+    /// Line styles for lineStyle(by:) values.
+    public func chartLineStyleScale<DataValue: Plottable>(_ mapping: KeyValuePairs<DataValue, StrokeStyle>) -> some View {
+        environment(\._chartLineStyleScale, _LineStyleScaleBox(mapping.map { _PV.of($0.key).category }, mapping.map(\.value)))
+    }
+    public func chartLineStyleScale<Domain: Collection>(domain: Domain) -> some View where Domain.Element: Plottable {
+        let dashes: [[CGFloat]] = [[], [5, 3], [1, 3], [8, 3, 1, 3], [10, 5], [2, 2]]
+        let keys = domain.map { _PV.of($0).category }
+        return environment(\._chartLineStyleScale, _LineStyleScaleBox(keys, keys.indices.map { StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round, dash: dashes[$0 % dashes.count]) }))
+    }
+    public func chartLineStyleScale<Domain: Collection, Range: Collection>(domain: Domain, range: Range) -> some View
+        where Domain.Element: Plottable, Range.Element == StrokeStyle {
+        environment(\._chartLineStyleScale, _LineStyleScaleBox(domain.map { _PV.of($0).category }, Array(range)))
+    }
+    public func chartLineStyleScale<Range: Collection>(range: Range) -> some View where Range.Element == StrokeStyle {
+        environment(\._chartLineStyleScale, _LineStyleScaleBox(nil, Array(range)))
+    }
+    public func chartLineStyleScale<Domain: Collection>(domain: Domain, mapping: @escaping (Domain.Element) -> StrokeStyle) -> some View where Domain.Element: Plottable {
+        let items = Array(domain)
+        return environment(\._chartLineStyleScale, _LineStyleScaleBox(items.map { _PV.of($0).category }, items.map(mapping)))
+    }
+    public func chartLineStyleScale<DataValue: Plottable>(mapping: @escaping (DataValue) -> StrokeStyle) -> some View {
+        environment(\._chartLineStyleScale, _LineStyleScaleBox(nil, [], mapping: { k in _convert(.str(k), to: DataValue.self, depth: 0).map(mapping) }))
+    }
     public func chartSymbolSizeScale<D: Plottable>(domain: ClosedRange<D>, range: ClosedRange<Double>) -> some View {
         environment(\._chartSymbolSizeScale, _SymbolSizeScaleBox((_PV.of(domain.lowerBound).number ?? 0, _PV.of(domain.upperBound).number ?? 1), (range.lowerBound, range.upperBound)))
     }

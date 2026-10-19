@@ -14,6 +14,7 @@ public struct Chart<Content: ChartContent>: View {
     @Environment(\._chartYScale) var yScale
     @Environment(\._chartXScaleType) var xScaleType
     @Environment(\._chartYScaleType) var yScaleType
+    @Environment(\._chartLineStyleScale) var lineStyleScale
     @Environment(\._chartXRange) var xRange
     @Environment(\._chartYRange) var yRange
     @Environment(\._chartStyleScale) var styleScale
@@ -51,6 +52,7 @@ public struct Chart<Content: ChartContent>: View {
                                styleScale: styleScale, legend: legend, xLabel: xLabel, yLabel: yLabel)
         cfg.symbolScale = symbolScale; cfg.symbolSizeScale = symbolSizeScale
         cfg.xType = xScaleType; cfg.yType = yScaleType; cfg.xRange = xRange; cfg.yRange = yRange
+        cfg.lineStyleScale = lineStyleScale
         cfg.selection = _SelectionSetters(x: xSelection?.set, y: ySelection?.set, xRange: xRangeSelection?.set, yRange: yRangeSelection?.set,
                                           angle: angleSelection?.set)
         cfg.scroll = scroll; cfg.overlay = overlay; cfg.background = background; cfg.gesture = chartGesture; cfg.plotStyle = plotStyle
@@ -59,7 +61,8 @@ public struct Chart<Content: ChartContent>: View {
         cfg.setScroll = { x, y in sx.wrappedValue = x; sy.wrappedValue = y }
         let marks = _resolveMarks(content)
         // fills the space it is offered; where a height is left open (scroll views) it is 200 pt tall
-        let all = _expandFunctions(marks, xDomain: xScale)
+        // zIndex: drawn in order of it, declared order among equals
+        let all = _expandFunctions(marks, xDomain: xScale).enumerated().sorted { ($0.1.zIndex, $0.0) < ($1.1.zIndex, $1.0) }.map(\.1)
         return GeometryReader { geo in _ChartRenderer(marks: all, cfg: cfg, size: geo.size).view() }._isimIdealSize(height: 200)
     }
 }
@@ -72,6 +75,7 @@ struct _ChartConfig {
     var xLabel: _ViewBox?, yLabel: _ViewBox?
     var symbolScale: _SymbolScaleBox? = nil, symbolSizeScale: _SymbolSizeScaleBox? = nil
     var xType: ScaleType? = nil, yType: ScaleType? = nil, xRange: _PositionRange? = nil, yRange: _PositionRange? = nil
+    var lineStyleScale: _LineStyleScaleBox? = nil
     var selection = _SelectionSetters()
     var scroll: _ScrollBox? = nil
     var overlay: _ProxyViewBox? = nil, background: _ProxyViewBox? = nil, gesture: _ProxyViewBox? = nil
@@ -217,7 +221,12 @@ func _unitLength(_ u: Calendar.Component?) -> Double? {
 
 // MARK: - Renderer
 
-struct _ChartDraw { var path: Path; var style: AnyShapeStyle; var stroke: StrokeStyle?; var opacity: Double }
+struct _ChartDraw {
+    var path: Path; var style: AnyShapeStyle; var stroke: StrokeStyle?; var opacity: Double
+    var clip: (Path, Bool)? = nil                    // clipShape: the shape over the plot, even-odd
+    var mask: Int? = nil                             // mask(content:): the group whose marks it is drawn through
+    var filters: [GraphicsContext.Filter] = []       // shadow, blur
+}
 struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignment }
 
 @MainActor struct _ChartRenderer {
@@ -601,20 +610,54 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
 
         // marks
         var drawnSeries: Set<String> = []
+        var maskPaths: [Int: Path] = [:]
+        // lineStyle(by:): the scale's styles, else solid, dashed, dotted, dash-dot, ... in order of appearance
+        var lineKeys: [String] = []
+        for m in marks { if let k = m.lineStyleKey, !lineKeys.contains(k) { lineKeys.append(k) } }
+        func seriesLineStyle(_ m: _Mark, _ base: StrokeStyle) -> StrokeStyle {
+            guard let k = m.lineStyleKey else { return base }
+            if let f = cfg.lineStyleScale?.mapping, let st = f(k) { return st }
+            if let sc = cfg.lineStyleScale, !sc.styles.isEmpty {
+                if let ks = sc.keys { if let j = ks.firstIndex(of: k), j < sc.styles.count { return sc.styles[j] } }
+                else if let i = lineKeys.firstIndex(of: k) { return sc.styles[i % sc.styles.count] }
+            }
+            let dashes: [[CGFloat]] = [[], [5, 3], [1, 3], [8, 3, 1, 3], [10, 5], [2, 2]]
+            var st = base
+            st.dash = dashes[(lineKeys.firstIndex(of: k) ?? 0) % dashes.count]
+            return st
+        }
         var groups: [String: [String]] = [:]                    // position(by:) groups per base category
         for m in marks { if let pk = m.positionKey { let k = (horizontal(m) ? m.y : m.x)?.category ?? ""; if !(groups[k]?.contains(pk) ?? false) { groups[k, default: []].append(pk) } } }
         for (i, m) in marks.enumerated() {
             let st = style(m)
+            let drawsBefore = draws.count, placedBefore = placed.count
+            defer {        // the mark's offset, clip, mask and effects on what it drew; a mask's marks draw into the clip
+                let t = CGAffineTransform(translationX: m.offset.width, y: m.offset.height)
+                for j in drawsBefore..<draws.count {
+                    if m.offset != .zero { draws[j].path = draws[j].path.applying(t) }
+                    if let c = m.clip { draws[j].clip = (c.shape(plot), c.eoFill) }
+                    if let g = m.maskGroup, m.maskOf == nil { draws[j].mask = g }
+                    if let sh = m.shadow { draws[j].filters.append(.shadow(color: sh.color, radius: sh.radius, x: sh.x, y: sh.y)) }
+                    if m.blur > 0 { draws[j].filters.append(.blur(radius: m.blur)) }
+                }
+                for j in placedBefore..<placed.count where m.offset != .zero { placed[j].rect = placed[j].rect.offsetBy(dx: m.offset.width, dy: m.offset.height) }
+                if let g = m.maskOf {
+                    for d in draws[drawsBefore...] { maskPaths[g, default: Path()].addPath(d.stroke.map { d.path.strokedPath($0) } ?? d.path) }
+                    draws.removeSubrange(drawsBefore...)
+                    placed.removeSubrange(placedBefore...)
+                }
+            }
             switch m.kind {
             case .bar, .rectangle:
                 guard let r = rect(m, i, horizontal(m), xs, ys, lo, hi, groups) else { continue }
                 draws.append(_ChartDraw(path: m.cornerRadius > 0 ? Path(roundedRect: r, cornerRadius: m.cornerRadius) : Path(r), style: st, stroke: nil, opacity: m.opacity))
-                for a in m.annotations { placed.append(annotation(a, r)) }
+                for a in m.annotations { placed.append(annotation(a, plot, r)) }
             case .line, .area:
-                let key = (m.kind == .line ? "L|" : "A|") + (m.series ?? m.styleKey ?? "")
+                let key = (m.kind == .line ? "L|" : "A|") + (m.series ?? m.styleKey ?? m.lineStyleKey ?? "") + "|\(m.maskOf ?? -1)"
                 if drawnSeries.contains(key) { continue }
                 drawnSeries.insert(key)
-                let members = marks.indices.filter { j in marks[j].kind == m.kind && (marks[j].series ?? marks[j].styleKey ?? "") == (m.series ?? m.styleKey ?? "") }
+                let members = marks.indices.filter { j in marks[j].kind == m.kind && marks[j].maskOf == m.maskOf &&
+                    (marks[j].series ?? marks[j].styleKey ?? marks[j].lineStyleKey ?? "") == (m.series ?? m.styleKey ?? m.lineStyleKey ?? "") }
                 let pts: [CGPoint] = members.compactMap { j in
                     let n = marks[j]
                     guard let x = xs.pos(n.x) else { return nil }
@@ -624,7 +667,8 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
                 }
                 guard !pts.isEmpty else { continue }
                 if m.kind == .line {
-                    draws.append(_ChartDraw(path: _curve(pts, m.interpolation), style: st, stroke: m.lineStyle ?? StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round), opacity: m.opacity))
+                    draws.append(_ChartDraw(path: _curve(pts, m.interpolation), style: st,
+                                            stroke: m.lineStyle ?? seriesLineStyle(m, StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)), opacity: m.opacity))
                     for j in members where marks[j].symbol != nil || marks[j].symbolKey != nil || marks[j].symbolPath != nil || marks[j].symbolView != nil {
                         guard let x = xs.pos(marks[j].x), let y = ys.pos(marks[j].y) else { continue }
                         if let v = marks[j].symbolView {
@@ -638,14 +682,14 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
                     }
                     draws.append(_ChartDraw(path: _area(pts, base, m.interpolation), style: st, stroke: nil, opacity: m.opacity))
                 }
-                for j in members { for a in marks[j].annotations { if let x = xs.pos(marks[j].x), let y = ys.pos(marks[j].y) { placed.append(annotation(a, CGRect(x: x - 4, y: y - 4, width: 8, height: 8))) } } }
+                for j in members { for a in marks[j].annotations { if let x = xs.pos(marks[j].x), let y = ys.pos(marks[j].y) { placed.append(annotation(a, plot, CGRect(x: x - 4, y: y - 4, width: 8, height: 8))) } } }
             case .point:
                 guard let x = xs.pos(m.x), let y = ys.pos(m.y) else { continue }
                 if let v = m.symbolView {
                     if inPlotX(x) && inPlotY(y) { placed.append(_PlacedView(view: AnyView(v.fixedSize()), rect: CGRect(x: x - 50, y: y - 50, width: 100, height: 100), alignment: .center)) }
                 } else { draws.append(symbol(m, CGPoint(x: x, y: y), st)) }
                 let s = symbolSide(m)
-                for a in m.annotations { placed.append(annotation(a, CGRect(x: x - s / 2, y: y - s / 2, width: s, height: s))) }
+                for a in m.annotations { placed.append(annotation(a, plot, CGRect(x: x - s / 2, y: y - s / 2, width: s, height: s))) }
             case .rule:
                 var p = Path()
                 if let y = ys.pos(m.y), m.x == nil {
@@ -653,20 +697,21 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
                 } else if let x = xs.pos(m.x) {
                     p.move(to: CGPoint(x: x, y: ys.pos(m.yStart) ?? plot.maxY)); p.addLine(to: CGPoint(x: x, y: ys.pos(m.yEnd) ?? plot.minY))
                 } else { continue }
-                draws.append(_ChartDraw(path: p, style: st, stroke: m.lineStyle ?? StrokeStyle(lineWidth: 1), opacity: m.opacity))
-                for a in m.annotations { placed.append(annotation(a, p.boundingRect)) }
+                draws.append(_ChartDraw(path: p, style: st, stroke: m.lineStyle ?? seriesLineStyle(m, StrokeStyle(lineWidth: 1)), opacity: m.opacity))
+                for a in m.annotations { placed.append(annotation(a, plot, p.boundingRect)) }
             case .sector: continue
             }
         }
         placeLegend(&placed, legendItems, top: legendTop ? 0 : H - legendH + 6, width: W)
         if let c = cfg.legend?.content, legendVisible { placed.append(_PlacedView(view: c, rect: CGRect(x: 0, y: legendTop ? 0 : H - legendH, width: W, height: legendH), alignment: .leading)) }
-        let proxy = ChartProxy(plot: plot, xs: xs, ys: ys, selection: cfg.selection, angleAt: nil)
+        var proxy = ChartProxy(plot: plot, xs: xs, ys: ys, selection: cfg.selection, angleAt: nil)
+        proxy.styles = proxyStyles(series, lineKeys: lineKeys, seriesLineStyle)
         var lay = layers(plot, proxy, scrolling: xScroll != nil || yScroll != nil)
         if (xScroll != nil || yScroll != nil) && cfg.gesture == nil {
             lay.gesture = scrollLayer(plot, xs, ys, xScroll, yScroll, proxy)
         }
         // marks of a scrolled-away window are clipped; labels outside the plot were skipped above
-        return compose(draws, placed, lay)
+        return compose(draws, placed, lay, masks: maskPaths)
     }
 
     /// Background, plot style, gesture and overlay layers.
@@ -769,9 +814,47 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
             let t = (h ? m.width : m.height).resolve(value.isBand ? value.bandWidth : 20, auto: value.isBand ? value.bandWidth : 20)
             a = v - t / 2; b = v + t / 2
         } else { return nil }
-        let r = h ? CGRect(x: min(a, b), y: center - thickness / 2, width: abs(b - a), height: thickness)
+        var r = h ? CGRect(x: min(a, b), y: center - thickness / 2, width: abs(b - a), height: thickness)
                   : CGRect(x: center - thickness / 2, y: min(a, b), width: thickness, height: abs(b - a))
+        if let o = m.rangeOffset {           // offset(xStart:xEnd:yStart:yEnd:): the edges move (screen points)
+            r = CGRect(x: r.minX + o.xStart, y: r.minY + o.yStart, width: r.width - o.xStart + o.xEnd, height: r.height - o.yStart + o.yEnd).standardized
+        }
         return r
+    }
+
+    /// ChartProxy's view of the scales: series styles, line styles, symbols and symbol sizes by value.
+    func proxyStyles(_ series: [(String, AnyShapeStyle)], lineKeys: [String], _ lineStyle: @escaping (_Mark, StrokeStyle) -> StrokeStyle) -> _ProxyStyles {
+        var p = _ProxyStyles()
+        p.foregroundKeys = series.map(\.0)
+        p.foreground = { k in series.first { $0.0 == k }?.1 }
+        p.lineKeys = lineKeys
+        p.line = { k in
+            guard lineKeys.contains(k) else { return nil }
+            var m = _Mark(.line); m.lineStyleKey = k
+            return lineStyle(m, StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+        }
+        var symbolKeys: [String] = []
+        for n in marks { if let s = n.symbolKey, !symbolKeys.contains(s) { symbolKeys.append(s) } }
+        p.symbolKeys = symbolKeys
+        let scale = cfg.symbolScale
+        p.symbol = { k in
+            guard let i = symbolKeys.firstIndex(of: k) else { return nil }
+            if let sc = scale, !sc.shapes.isEmpty {
+                if let ks = sc.keys { if let j = ks.firstIndex(of: k), j < sc.shapes.count { return AnyChartSymbolShape(path: sc.shapes[j]) } }
+                else { return AnyChartSymbolShape(path: sc.shapes[i % sc.shapes.count]) }
+            }
+            let all: [BasicChartSymbolShape] = [.circle, .square, .triangle, .diamond, .pentagon, .plus, .cross, .asterisk]
+            let b = all[i % all.count]
+            return AnyChartSymbolShape(path: { b.path(in: $0) })
+        }
+        let vals = marks.compactMap(\.symbolSizeValue)
+        if !vals.isEmpty {
+            let (lo, hi) = cfg.symbolSizeScale?.domain ?? (vals.min() ?? 0, vals.max() ?? 1)
+            let (a, b) = cfg.symbolSizeScale?.range ?? (20, 200)
+            p.sizeDomain = [lo, hi]
+            p.size = { v in CGFloat(a + (hi > lo ? min(1, max(0, (v - lo) / (hi - lo))) : 0.5) * (b - a)) }    // an area, square points
+        }
+        return p
     }
 
     /// The side of a mark's symbol: symbolSize (an area in square points), symbolSize(by:) through the size scale,
@@ -843,18 +926,16 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
         }
     }
 
-    func annotation(_ a: _Annotation, _ r: CGRect) -> _PlacedView {
-        let sp = a.spacing ?? 4, bw: CGFloat = 200, bh: CGFloat = 60
-        switch a.position {
-        case .bottom: return _PlacedView(view: a.view, rect: CGRect(x: r.midX - bw / 2, y: r.maxY + sp, width: bw, height: bh), alignment: .top)
-        case .leading: return _PlacedView(view: a.view, rect: CGRect(x: r.minX - sp - bw, y: r.midY - bh / 2, width: bw, height: bh), alignment: .trailing)
-        case .trailing: return _PlacedView(view: a.view, rect: CGRect(x: r.maxX + sp, y: r.midY - bh / 2, width: bw, height: bh), alignment: .leading)
-        case .overlay: return _PlacedView(view: a.view, rect: CGRect(x: r.midX - bw / 2, y: r.midY - bh / 2, width: bw, height: bh), alignment: a.alignment)
-        default: return _PlacedView(view: a.view, rect: CGRect(x: r.midX - bw / 2, y: r.minY - sp - bh, width: bw, height: bh), alignment: .bottom)
-        }
+    /// An annotation laid out at its size beside (or over) the mark's rect, kept inside its overflow boundary.
+    func annotation(_ a: _Annotation, _ plot: CGRect, _ r: CGRect) -> _PlacedView {
+        let chart = CGRect(x: 0, y: 0, width: size.width, height: size.height)
+        func bounds(_ b: AnnotationOverflowResolution.Boundary?) -> CGRect? { b.map { $0 == .plot ? plot : chart } }
+        let layout = _AnnotationLayout(position: a.position, alignment: a.alignment, spacing: a.spacing ?? 4, anchor: r,
+                                       fitX: bounds(a.overflow.x.boundary), fitY: bounds(a.overflow.y.boundary))
+        return _PlacedView(view: AnyView(layout { a.view.fixedSize() }), rect: chart, alignment: .topLeading)
     }
 
-    func compose(_ draws: [_ChartDraw], _ placed: [_PlacedView], _ l: _ChartLayers) -> AnyView {
+    func compose(_ draws: [_ChartDraw], _ placed: [_PlacedView], _ l: _ChartLayers, masks: [Int: Path] = [:]) -> AnyView {
         let plot = l.plot, clip = l.clip
         return AnyView(ZStack(alignment: .topLeading) {
             if let b = l.background { b.frame(width: size.width, height: size.height, alignment: l.backgroundAlignment) }
@@ -865,6 +946,9 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
                 for d in draws {
                     var c = ctx
                     c.opacity = d.opacity
+                    if let (p, eo) = d.clip { c.clip(to: p, style: FillStyle(eoFill: eo)) }
+                    if let g = d.mask { c.clip(to: masks[g] ?? Path()) }
+                    for f in d.filters { c.addFilter(f) }
                     if let s = d.stroke { c.stroke(d.path, with: .style(d.style), style: s) } else { c.fill(d.path, with: .style(d.style)) }
                 }
             }
@@ -930,4 +1014,42 @@ func _area(_ top: [CGPoint], _ base: [CGPoint], _ m: InterpolationMethod) -> Pat
 /// a label turned a quarter (counterclockwise when `up`), laid out at its turned size
 func _rotated(_ v: AnyView, width: CGFloat, _ up: Bool) -> AnyView {
     AnyView(v.fixedSize().frame(width: width + 2, height: 14).rotationEffect(.degrees(up ? -90 : 90)).frame(width: 14, height: width + 2))
+}
+
+/// Places one annotation beside its mark's rect (or over it) at the annotation's own size, aligned along the side
+/// (`alignment`), then moves it inside `fitX` / `fitY` when they are given (AnnotationOverflowResolution).
+struct _AnnotationLayout: Layout {
+    let position: AnnotationPosition, alignment: Alignment, spacing: CGFloat, anchor: CGRect
+    let fitX: CGRect?, fitY: CGRect?
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize { proposal.replacingUnspecifiedDimensions() }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for v in subviews {
+            let s = v.sizeThatFits(.unspecified)
+            var o = origin(s)
+            if let f = fitX { o.x = min(max(o.x, f.minX), max(f.minX, f.maxX - s.width)) }
+            if let f = fitY { o.y = min(max(o.y, f.minY), max(f.minY, f.maxY - s.height)) }
+            v.place(at: CGPoint(x: bounds.minX + o.x, y: bounds.minY + o.y), proposal: ProposedViewSize(s))
+        }
+    }
+    func origin(_ s: CGSize) -> CGPoint {
+        let r = anchor, sp = spacing
+        // along a side: centred, or flush with the rect's leading / trailing (top / bottom) edge
+        func alongX() -> CGFloat {
+            switch alignment.horizontal { case .leading: return r.minX; case .trailing: return r.maxX - s.width; default: return r.midX - s.width / 2 }
+        }
+        func alongY() -> CGFloat {
+            switch alignment.vertical { case .top: return r.minY; case .bottom: return r.maxY - s.height; default: return r.midY - s.height / 2 }
+        }
+        switch position {
+        case .bottom: return CGPoint(x: alongX(), y: r.maxY + sp)
+        case .leading: return CGPoint(x: r.minX - sp - s.width, y: alongY())
+        case .trailing: return CGPoint(x: r.maxX + sp, y: alongY())
+        case .overlay: return CGPoint(x: alongX(), y: alongY())
+        case .topLeading: return CGPoint(x: r.minX - sp - s.width, y: r.minY - sp - s.height)
+        case .topTrailing: return CGPoint(x: r.maxX + sp, y: r.minY - sp - s.height)
+        case .bottomLeading: return CGPoint(x: r.minX - sp - s.width, y: r.maxY + sp)
+        case .bottomTrailing: return CGPoint(x: r.maxX + sp, y: r.maxY + sp)
+        default: return CGPoint(x: alongX(), y: r.minY - sp - s.height)
+        }
+    }
 }

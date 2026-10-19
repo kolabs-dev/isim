@@ -244,7 +244,7 @@
 | `Material` (`.ultraThinMaterial` … `.bar`) | ✅ | ≤17 | real backdrop blur (UIVisualEffectView) |
 | `Color` (system colors, RGB/HSB/white, `Color(uiColor:)`, asset colors) | ✅ | ≤17 | |
 | `ImagePaint` (`.image(_:sourceRect:scale:)`) | ✅ | ≤17 | tiles fills; image strokes are not drawn |
-| `Canvas` / `GraphicsContext` (fill/stroke paths with colors, styles and gradients, text, images, transforms, opacity, clip, `drawLayer`) | 🟡 | ≤17 | filters, blend modes, `clipToLayer` and symbols are accepted and not drawn. Missing: `addFilter` and `clipToLayer` do nothing, `resolveSymbol` returns nil (so `Canvas(symbols:)` content is not drawn) |
+| `Canvas` / `GraphicsContext` (fill/stroke paths with colors, styles and gradients, text, images, transforms, opacity, clip, `drawLayer`, `addFilter`) | 🟡 | ≤17 | `addFilter`: `blur`, `shadow` and the colour filters (`colorMultiply`, `grayscale`, `hueRotation`, `saturation`, `brightness`, `contrast`, `colorInvert`) apply to each later drawing, as the views' visual effects do (tested through Charts' `shadow` / `blur`, HelloChartStyling); `alphaThreshold`, blend modes, `clipToLayer` and symbols are accepted and not drawn. Missing: `clipToLayer` does nothing, `resolveSymbol` returns nil (so `Canvas(symbols:)` content is not drawn) |
 | Shaders (`ShaderLibrary`, `.colorEffect`, `.layerEffect`, `.distortionEffect`) | ❌ | ≤17 | need Metal, which isim does not have |
 | `MeshGradient`, `Color.mix(with:by:)` | ✅ | 18.0 | adapted: the mesh is rasterized by isim (points or Bézier points, smooth Catmull-Rom or bilinear colours, background), as a view and a shape style; `Color.mix` in Oklab (`.perceptual`) or sRGB (`.device`); `Color.Resolved` / `resolve(in:)` (iOS 17). Tested (HelloShapes) |
 
