@@ -36,6 +36,8 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     var usedAppear: Set<String> = []
     var disappearActions: [String: () -> Void] = [:]
     var rendering = false, pending = false
+    /// called when the tree's state changes (ImageRenderer's objectWillChange)
+    var onInvalidate: (() -> Void)?
     var urlHandlers: [String: (URL) -> Void] = [:]
     /// Every view is gone (the presentation hosting them was dismissed): disappear actions run, tasks are cancelled.
     func disappearAll() {
@@ -148,6 +150,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
             return
         }
         MainActor.assumeIsolated {
+            onInvalidate?()
             if rendering { pending = true; return }
             hostView?.setNeedsLayout()
         }

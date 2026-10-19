@@ -79,6 +79,8 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.0))
 + (instancetype)request NS_SWIFT_NAME(init());
 + (instancetype)requestWithRole:(UISceneSessionRole)role NS_SWIFT_NAME(init(role:));
 + (nullable instancetype)requestWithSession:(UISceneSession *)session NS_SWIFT_NAME(init(session:));
+/* (isim: what SwiftUI's hosting scene delegate requests are made with) */
+- (instancetype)initForIsimRole:(UISceneSessionRole)role NS_SWIFT_NAME(init(_isimRole:));
 @property (nonatomic, readonly) UISceneSessionRole role;
 @property (nullable, nonatomic, readonly) UISceneSession *session;
 @property (nullable, nonatomic, strong) NSUserActivity *userActivity;
