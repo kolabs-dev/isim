@@ -127,8 +127,9 @@ def ci_build(args):
     subprocess.run(["git", "config", "--global", "--add", "safe.directory", "*"])
     if not os.path.isdir(os.path.join(REPO, "third_party", "swift", "stdlib")):
         fetch([])
-    if subprocess.run(["docker", "image", "inspect", "swift:6.2"], capture_output=True).returncode:
-        subprocess.run(["docker", "pull", "-q", "swift:6.2"], check=True)
+    tc = subprocess.run([os.path.join(ROOT, "tools", "isim"), "toolchain", "which"], capture_output=True, text=True, check=True).stdout.split()
+    if tc[0] == "docker" and subprocess.run(["docker", "image", "inspect", tc[2]], capture_output=True).returncode:
+        subprocess.run(["docker", "pull", "-q", tc[2]], check=True)
     venv()                         # the test packages too, so the build cache carries them to the test step
     rc = build(args, ci=True)
     if rc:

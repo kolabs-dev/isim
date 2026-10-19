@@ -1,6 +1,7 @@
 #!/bin/bash
 # Setup script for a Claude Code cloud environment (claude.ai/code) that builds and tests isim: the same packages as
-# CI's image (isim/ci/Dockerfile, keep the two in step), plus Docker and the swift:6.2 image. Paste it into the
+# CI's image (isim/ci/Dockerfile, keep the two in step), plus Swift 6.2.4 from swift.org (swiftc on PATH), Docker
+# and the swift:6.2.4 image (for the tests that compile in it too). Paste it into the
 # environment's settings (Edit environment → Setup script); it runs as root when a session starts. The environment
 # variables to set there are in docs/BUILD.md ("Claude Code cloud environments"). Safe to run again.
 set -e
@@ -38,9 +39,15 @@ fi
 printf '#!/bin/sh\nif [ "$1" = identify ] || [ "$1" = montage ] || [ "$1" = compare ]; then c=$1; shift; exec "$c" "$@"; fi\nexec convert "$@"\n' \
   > /usr/local/bin/magick && chmod +x /usr/local/bin/magick
 
-# Docker and the Swift 6.2 image. Docker Hub rate-limits shared egress (429), so pull the same official image from
-# Google's mirror and tag it under the name the build uses
+# Swift 6.2.4 (the compiler isim's SDK is built with) from swift.org, its swiftc on PATH: isim compiles Swift with it,
+# without Docker (`isim toolchain status`)
+"$(dirname "$0")/swift-toolchain.sh" /opt/swift-6.2.4 2>/dev/null \
+  || bash <(curl -fsSL https://raw.githubusercontent.com/kolabs-dev/isim/main/isim/ci/swift-toolchain.sh) /opt/swift-6.2.4
+ln -sf /opt/swift-6.2.4/usr/bin/swiftc /usr/local/bin/swiftc
+
+# Docker and the Swift 6.2.4 image, for the tests that compile in the image too. Docker Hub rate-limits shared egress
+# (429), so pull the same official image from Google's mirror and tag it under its own name
 docker info >/dev/null 2>&1 || { nohup dockerd > /var/log/dockerd.log 2>&1 & }
 for i in $(seq 30); do docker info >/dev/null 2>&1 && break; sleep 1; done
-docker image inspect swift:6.2 >/dev/null 2>&1 \
-  || { docker pull -q mirror.gcr.io/library/swift:6.2 && docker tag mirror.gcr.io/library/swift:6.2 swift:6.2; }
+docker image inspect swift:6.2.4 >/dev/null 2>&1 \
+  || { docker pull -q mirror.gcr.io/library/swift:6.2.4 && docker tag mirror.gcr.io/library/swift:6.2.4 swift:6.2.4; }

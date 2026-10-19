@@ -1,18 +1,17 @@
-"""Swift for isim, from the pinned sources in third_party (build.py fetch) with the swift:6.2 Docker image
-(Swift 6.2.4):
+"""Swift for isim, from the pinned sources in third_party (build.py fetch) with the Swift 6.2.4 toolchain that
+`isim toolchain` picks (a local one, or the swift:6.2.4 Docker image):
   core     Embedded stdlib + support library; libc++; the Swift runtime and libswiftCore; Concurrency, Observation,
            Synchronization, Distributed, SwiftOnoneSupport, Regex (_RegexParser, _StringProcessing, RegexBuilder),
            C++ interop (Cxx, CxxStdlib)
   overlays isim's Swift modules for the SDK's frameworks (swift/overlays)
   testing  Swift Testing (`import Testing`)
-Swift compiles in Docker (`isim swiftc`, or the image's swiftc for the stdlib); C/C++ parts with the host clang."""
+Swift compiles with that toolchain (`isim swiftc`, or its plain swiftc for the stdlib); C/C++ parts with the host clang."""
 import os
 import re
 import subprocess
 
 from . import act
 
-IMAGE = "swift:6.2"
 MT = "x86_64-apple-ios-simulator"
 TRIPLE = "x86_64-apple-ios15.0-simulator"
 SDK = "out/sdk"
@@ -32,20 +31,36 @@ def dylib(name):
     return f"{LIB}/lib{name}.dylib"
 
 
-def image_id():
+def toolchain(root):
+    """(mode, version, where): `isim toolchain which`, the Swift toolchain isim compiles with: ("local", "6.2.4", its usr
+    directory) or ("docker", "6.2.4", image); None (and why) when there is none"""
     try:
-        r = subprocess.run(["docker", "image", "inspect", "-f", "{{.Id}}", IMAGE], capture_output=True, text=True)
-    except OSError:
-        return None
-    return r.stdout.strip() if r.returncode == 0 else None
+        r = subprocess.run([os.path.join(root, "tools", "isim"), "toolchain", "which"], capture_output=True, text=True)
+    except OSError as e:
+        return None, str(e)
+    if r.returncode:
+        return None, r.stderr.strip()
+    mode, version, where = r.stdout.split(maxsplit=2)
+    where = where.strip()
+    if mode == "docker":
+        try:
+            ok = subprocess.run(["docker", "image", "inspect", where], capture_output=True).returncode == 0
+        except OSError:
+            ok = False
+        if not ok:
+            return None, f"docker image {where} not available: docker pull {where}, or isim toolchain install"
+    return (mode, version, where), None
 
 
 class Swift:
-    def __init__(self, c, img):
+    def __init__(self, c, tc):
         self.c, self.n = c, c.n
+        self.mode, version, self.where = tc
+        self.usr = self.where if self.mode == "local" else "/usr"   # the toolchain's usr directory, where its commands run
         self.src = f"{c.tp}/swift"
-        self.key = f"{SW}/image-id"                     # changes when the swift:6.2 image does
-        act.write_if_changed(os.path.join(c.root, self.key), img + "\n")
+        # changes with the compiler (not with a re-pulled image or a reinstall of the same version)
+        self.key = f"{SW}/toolchain"
+        act.write_if_changed(os.path.join(c.root, self.key), f"swift-{version}-RELEASE\n")
         self.avail_def = f"{self.src}/utils/availability-macros.def"
         cpus = os.cpu_count() or 4
         try:                                            # a whole-module Swift compile can take a few GB
@@ -55,11 +70,17 @@ class Swift:
         self.n.pool("swift", max(1, min(cpus, int(mem_gb // 3))))
 
     # ---- helpers ----
-    def docker_swiftc(self, *args):
-        """the image's swiftc with the checkout mounted at the same path (for the stdlib, which builds without an SDK)"""
+    def host(self, *argv):
+        """a command run with the toolchain: here, or in its Docker image with the checkout mounted at the same path"""
+        if self.mode == "local":
+            return list(argv)
         repo = self.c.repo
         return ["docker", "run", "--rm", "-u", f"{os.getuid()}:{os.getgid()}", "-e", "HOME=/tmp", "-v", f"{repo}:{repo}",
-                "-w", self.c.root, IMAGE, "swiftc", *args]
+                "-w", self.c.root, self.where, *argv]
+
+    def plain_swiftc(self, *args):
+        """the toolchain's own swiftc, without isim's SDK (for the stdlib, which builds without one, and host plugins)"""
+        return self.host(f"{self.usr}/bin/swiftc" if self.mode == "local" else "swiftc", *args)
 
     def avail(self, embedded=False):
         out = []
@@ -79,13 +100,13 @@ class Swift:
                             inputs=[src], implicit=self.c.glob(f"{self.src}/utils/*.py") + (self.c.glob(f"{pp}/*.py") if pythonpath else []),
                             desc=f"GYB {os.path.basename(out)}")[0]
 
-    def swiftc(self, outs, args, srcs, implicit=(), order_only=(), desc=None, docker=False, keep=()):
+    def swiftc(self, outs, args, srcs, implicit=(), order_only=(), desc=None, plain=False, keep=()):
         """a Swift compile edge; outputs listed in keep keep their timestamp when the compiler rewrote them unchanged"""
-        cmd = (self.docker_swiftc(*args) if docker else [ISIM, "swiftc", *args]) + list(srcs)
+        cmd = (self.plain_swiftc(*args) if plain else [ISIM, "swiftc", *args]) + list(srcs)
         if keep:
             cmd = self.c.act("keep", *keep, "--") + cmd
-        imp = [self.key, *implicit] + ([] if docker else [ISIM])
-        oo = list(order_only) + ([] if docker else [f"{SW}/resource/.stamp", "tbds", *self.c.header_stamps])
+        imp = [self.key, *implicit] + ([] if plain else [ISIM])
+        oo = list(order_only) + ([] if plain else [f"{SW}/resource/.stamp", "tbds", *self.c.header_stamps])
         return self.n.build(outs, cmd, inputs=srcs, implicit=imp, order_only=oo, desc=desc, pool="swift")
 
     def link(self, name, objs, args=(), implicit=(), minos="15.0"):
@@ -162,7 +183,7 @@ class Swift:
         os.makedirs(os.path.join(self.c.root, os.path.dirname(modpath)), exist_ok=True)
         if full:
             os.makedirs(os.path.join(self.c.root, SW, "full"), exist_ok=True)
-        self.swiftc(outs, args, files, docker=True, keep=outs, desc=f"SWIFT stdlib ({kind})",
+        self.swiftc(outs, args, files, plain=True, keep=outs, desc=f"SWIFT stdlib ({kind})",
                     implicit=[f"{core}/GroupInfo.json", self.avail_def] + self.c.glob(f"{self.src}/stdlib/public/SwiftShims/**/*.h"))
         return outs
 
@@ -184,15 +205,14 @@ class Swift:
         return a
 
     def resource_dir(self):
-        """isim's Swift resource dir: the image's clang builtin headers + SwiftShims (no Linux corelibs module maps), and
+        """isim's Swift resource dir: the toolchain's clang builtin headers + SwiftShims (no Linux corelibs module maps), and
         the C++ interop shims (CxxShim, CxxStdlibShim) where the compiler looks for them for iOS targets"""
         stamp = f"{SW}/resource/.stamp"
         shims = [f"{self.src}/stdlib/public/Cxx/cxxshim/{f}" for f in ("libcxxshim.modulemap", "libcxxshim.h", "libcxxstdlibshim.h")]
-        repo = self.c.repo
-        self.n.build(stamp, ["docker", "run", "--rm", "-u", f"{os.getuid()}:{os.getgid()}", "-v", f"{repo}:{repo}", "-w", self.c.root,
-                             IMAGE, "bash", "-c", f"rm -rf {SW}/resource && mkdir -p {SW}/resource/iphonesimulator && cp -rL /usr/lib/swift/clang "
-                             f"/usr/lib/swift/shims /usr/lib/swift/apinotes {SW}/resource/ && cp {' '.join(shims)} {SW}/resource/iphonesimulator/ "
-                             f"&& touch {stamp}"],
+        u = f"{self.usr}/lib/swift"
+        self.n.build(stamp, self.host("bash", "-c", f"rm -rf {SW}/resource && mkdir -p {SW}/resource/iphonesimulator && cp -rL {u}/clang "
+                                      f"{u}/shims {u}/apinotes {SW}/resource/ && cp {' '.join(shims)} {SW}/resource/iphonesimulator/ "
+                                      f"&& touch {stamp}"),
                      implicit=[self.key, *shims], desc="Swift resource dir")
         return stamp
 
@@ -429,34 +449,35 @@ class Swift:
         return out
 
     def host_plugins(self):
-        """Swift macros on the compiler's side (Linux, the swift:6.2 toolchain's host, against its swift-syntax
-        libraries in /usr/lib/swift/host): isim's SwiftCompilerPlugin module (what macro packages import; `isim build`
+        """Swift macros on the compiler's side (Linux, the Swift toolchain's host, against its swift-syntax
+        libraries in lib/swift/host): isim's SwiftCompilerPlugin module (what macro packages import; `isim build`
         compiles their macro targets against it), isim's PreviewsMacros plugin (`#Preview`), SwiftUIMacros plugin
         (`@Entry`, `@Animatable`) and SwiftDataMacros plugin (`@Model`), in out/swift/host
         (`isim swiftc` passes -plugin-path out/swift/host/plugins)"""
         H = f"{SW}/host"
         os.makedirs(os.path.join(self.c.root, H, "plugins"), exist_ok=True)
-        host = ["-I", "/usr/lib/swift/host", "-L", "/usr/lib/swift/host", "-Xlinker", "-rpath", "-Xlinker", "/usr/lib/swift/host"]
+        th = f"{self.usr}/lib/swift/host"
+        host = ["-I", th, "-L", th, "-Xlinker", "-rpath", "-Xlinker", th]
         cp = self.swiftc([f"{H}/libSwiftCompilerPlugin.so", f"{H}/SwiftCompilerPlugin.swiftmodule"],
                          ["-O", "-emit-library", "-parse-as-library", "-module-name", "SwiftCompilerPlugin", *WERROR, *host,
                           "-lSwiftSyntaxMacros", "-lSwiftSyntax", "-emit-module", "-emit-module-path", f"{H}/SwiftCompilerPlugin.swiftmodule",
                           "-o", f"{H}/libSwiftCompilerPlugin.so"],
-                         ["swift/macro-support/SwiftCompilerPlugin.swift"], docker=True, desc="SWIFT SwiftCompilerPlugin (host)")
+                         ["swift/macro-support/SwiftCompilerPlugin.swift"], plain=True, desc="SWIFT SwiftCompilerPlugin (host)")
         pm = self.swiftc([f"{H}/plugins/libPreviewsMacros.so"],
                          ["-O", "-emit-library", "-parse-as-library", "-module-name", "PreviewsMacros", *WERROR, *host, "-I", H, "-L", H,
                           "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
                           "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libPreviewsMacros.so"],
-                         ["swift/macro-support/PreviewsMacros.swift"], implicit=cp, docker=True, desc="SWIFT PreviewsMacros (host)")
+                         ["swift/macro-support/PreviewsMacros.swift"], implicit=cp, plain=True, desc="SWIFT PreviewsMacros (host)")
         um = self.swiftc([f"{H}/plugins/libSwiftUIMacros.so"],
                          ["-O", "-emit-library", "-parse-as-library", "-module-name", "SwiftUIMacros", *WERROR, *host, "-I", H, "-L", H,
                           "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
                           "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libSwiftUIMacros.so"],
-                         ["swift/macro-support/SwiftUIMacros.swift"], implicit=cp, docker=True, desc="SWIFT SwiftUIMacros (host)")
+                         ["swift/macro-support/SwiftUIMacros.swift"], implicit=cp, plain=True, desc="SWIFT SwiftUIMacros (host)")
         sm = self.swiftc([f"{H}/plugins/libSwiftDataMacros.so"],
                          ["-O", "-emit-library", "-parse-as-library", "-module-name", "SwiftDataMacros", *WERROR, *host, "-I", H, "-L", H,
                           "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
                           "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libSwiftDataMacros.so"],
-                         ["swift/macro-support/SwiftDataMacros.swift"], implicit=cp, docker=True, desc="SWIFT SwiftDataMacros (host)")
+                         ["swift/macro-support/SwiftDataMacros.swift"], implicit=cp, plain=True, desc="SWIFT SwiftDataMacros (host)")
         return cp + pm + um + sm
 
     def onone(self):
@@ -605,15 +626,15 @@ class Swift:
 
 
 def generate(c):
-    """add Swift to the graph; False when it cannot be built here (no Docker image or sources)"""
+    """add Swift to the graph; False when it cannot be built here (no Swift toolchain or sources)"""
     if not os.path.isdir(os.path.join(c.root, c.tp, "swift/stdlib")):
         c.notes.append("Swift: skipped (third_party/swift missing; run build.py fetch)")
         return False
-    img = image_id()
-    if not img:
-        c.notes.append(f"Swift: skipped (docker image {IMAGE} not available: docker pull {IMAGE})")
+    tc, why = toolchain(c.root)
+    if not tc:
+        c.notes.append(f"Swift: skipped ({why})")
         return False
-    s = Swift(c, img)
+    s = Swift(c, tc)
     s.core()
     s.overlays()
     testing = s.testing()

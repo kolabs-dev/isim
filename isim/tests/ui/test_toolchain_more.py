@@ -80,22 +80,26 @@ def test_default_output_in_current_folder(launch, tmp_path):
     build_without_output(launch, copy_fixture("BuildPhases", tmp_path))
 
 
-def docker_sees(path):
-    """Whether the docker daemon sees this host path (not when the tests themselves run in a container that shares only
-    the workspace with the host's docker, as on CI)."""
+def toolchain_sees(path):
+    """Whether the Swift toolchain sees this host path: a local toolchain always does; the Docker image's container
+    not when the tests themselves run in a container that shares only the workspace with the host's docker."""
+    tc = subprocess.run([str(ISIM), "toolchain", "which"], capture_output=True, text=True).stdout.split()
+    if not tc or tc[0] == "local":
+        return bool(tc)
     marker = path / ".isim-docker-probe"
     marker.write_text("x")
-    r = subprocess.run(["docker", "run", "--rm", "--mount", f"type=bind,src={path},dst=/probe,readonly", "swift:6.2",
+    r = subprocess.run(["docker", "run", "--rm", "--mount", f"type=bind,src={path},dst=/probe,readonly", tc[2],
                         "cat", "/probe/.isim-docker-probe"], capture_output=True, text=True)
     marker.unlink()
     return r.returncode == 0 and r.stdout == "x"
 
 
 def test_default_output_outside_workspace(launch):
-    """A project outside the isim tree: isim swiftc's container mounts the products directory writable."""
+    """A project outside the isim tree: a local Swift toolchain writes there directly; the Docker image's container
+    mounts the products directory writable."""
     import tempfile
     with tempfile.TemporaryDirectory(prefix="isim-proj-") as d:
-        if not docker_sees(Path(d)):
+        if not toolchain_sees(Path(d)):
             pytest.skip("the docker daemon cannot see paths outside the isim workspace here (tests in a container)")
         src = Path(d) / "BuildPhases"
         shutil.copytree(FIX / "BuildPhases", src, symlinks=True)

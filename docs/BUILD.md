@@ -62,7 +62,7 @@ A compiler newer than CI's may warn about more; `ISIM_WERROR=0 isim/build.py` bu
 
 ```bash
 isim/tools/api-coverage.py snapshot              # refresh Apple's data (network; after an Apple SDK release)
-isim/tools/api-coverage.py measure               # exact, from the built SDK's symbol graphs (swift:6.2 image)
+isim/tools/api-coverage.py measure               # exact, from the built SDK's symbol graphs (the Swift toolchain)
 isim/tools/api-coverage.py measure --names       # without a build: by name, a lower bound on what is missing
 isim/tools/coverage-summary.py                   # docs/COVERAGE.md and the pages' generated parts
 ```
@@ -84,8 +84,9 @@ A [Claude Code cloud environment](https://code.claude.com/docs/en/claude-code-on
 and test isim like CI. In the environment's settings (Edit environment):
 
 - **Setup script:** paste [`isim/ci/cloud-setup.sh`](../isim/ci/cloud-setup.sh). It installs CI's packages
-  (`isim/ci/Dockerfile`; keep the two in step), clang 22, SDL3, Docker and the `swift:6.2` image (from Google's mirror
-  of Docker Hub, which rate-limits shared egress).
+  (`isim/ci/Dockerfile`; keep the two in step), clang 22, SDL3, Swift 6.2.4 from swift.org (`swiftc` on `PATH`), Docker
+  and the `swift:6.2.4` image (from Google's mirror of Docker Hub, which rate-limits shared egress), which only the
+  tests that compile in the image too use.
 - **Environment variables:**
 
   | Variable | Why |

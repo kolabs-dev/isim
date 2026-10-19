@@ -98,12 +98,21 @@ jobs:
             !isim/out/test-*
           key: build-main-${{ github.sha }}
           restore-keys: build-main-
-      - name: Swift compiler image
-        # the official image from Google's mirror of Docker Hub (which rate-limits shared runners), under the name the build uses
-        run: docker pull -q mirror.gcr.io/library/swift:6.2 && docker tag mirror.gcr.io/library/swift:6.2 swift:6.2
+      # the Swift toolchain CI builds with (ci.yml: main's build cache was built with it, so nothing is rebuilt for
+      # another compiler)
+      - name: Swift toolchain
+        id: swift-toolchain
+        uses: actions/cache/restore@v5
+        with:
+          path: ~/swift-toolchain
+          key: swift-toolchain-${{ hashFiles('isim/ci/swift-toolchain.sh') }}
+      - name: Swift toolchain (download)
+        if: steps.swift-toolchain.outputs.cache-hit != 'true'
+        run: isim/ci/swift-toolchain.sh ~/swift-toolchain
       - name: Build and package
         run: |
           docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock -e CI=1 \
+            -v "$HOME/swift-toolchain:$HOME/swift-toolchain:ro" -e ISIM_SWIFT_TOOLCHAIN="$HOME/swift-toolchain" \
             -e ISIM_RELEASE_IMAGE=isim-release-build isim-ci \
             bash -c 'python3 isim/build.py ci build && python3 isim/build.py package "${{ steps.version.outputs.version }}"'
           sudo chown -R "$(id -u):$(id -g)" isim/out isim/dist third_party
@@ -116,10 +125,12 @@ jobs:
             ISIM_DATA=\$t/data ISIM_HEADLESS=1 ISIM_SCRIPT='wait 2; shot '\$t'/shot.png; quit' \$r/bin/isim run \$r/apps/HelloSwiftUI.app
             test -s \$t/shot.png && echo 'smoke test: isim $v runs HelloSwiftUI'"
       - name: Coverage numbers (docs/COVERAGE.md, docs/frameworks)
-        # exact symbol coverage from the built SDK's symbol graphs (swift:6.2 image) against the Apple snapshot in
-        # isim/data/apple-api; availability of newly missing symbols is fetched from developer.apple.com
+        # exact symbol coverage from the built SDK's symbol graphs (the Swift toolchain's swift-symbolgraph-extract)
+        # against the Apple snapshot in isim/data/apple-api; availability of newly missing symbols is fetched from
+        # developer.apple.com
         run: |
           docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock -u "$(id -u):$(id -g)" \
+            -v "$HOME/swift-toolchain:$HOME/swift-toolchain:ro" -e ISIM_SWIFT_TOOLCHAIN="$HOME/swift-toolchain" \
             --group-add "$(stat -c %g /var/run/docker.sock)" -e HOME=/tmp isim-ci \
             bash -c 'python3 isim/tools/api-coverage.py measure --sdk isim/out/sdk && python3 isim/tools/coverage-summary.py'
       - name: ABI baseline and release commit

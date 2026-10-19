@@ -6,7 +6,7 @@
   api-coverage.py updates                      Apple's per-release "updates" pages vs isim (network; a report)
 
 measure has two modes. With a built SDK (--sdk, the default when isim/out/sdk exists) it is exact: every Swift module
-of the SDK is read with swift-symbolgraph-extract (swift:6.2 image), which also gives the Swift view of the Objective-C
+of the SDK is read with swift-symbolgraph-extract (the Swift toolchain `isim toolchain` picks, like isim swiftc), which also gives the Swift view of the Objective-C
 frameworks, and each Apple symbol is matched by its documentation path (DocC derives the path from the same path
 components). Without one (--names) it falls back to names: an Apple symbol counts as present when its name occurs in
 that framework's isim sources (a lower bound on what is missing).
@@ -293,9 +293,23 @@ def sdk_modules(sdk):
     return mods
 
 
+def swift_program(tool):
+    """a Swift toolchain program, like isim swiftc runs it: the local toolchain's, or in its Docker image (the checkout
+    mounted at its own path)"""
+    r = subprocess.run([os.path.join(REPO, 'isim', 'tools', 'isim'), 'toolchain', 'which'], capture_output=True, text=True)
+    if r.returncode:
+        sys.exit(r.stderr.strip())
+    mode, _, where = r.stdout.split(maxsplit=2)
+    if mode == 'local':
+        return [os.path.join(where.strip(), 'bin', tool)]
+    return ['docker', 'run', '--rm', '-u', f'{os.getuid()}:{os.getgid()}', '-e', 'HOME=/tmp', '-v', f'{REPO}:{REPO}', '-w', REPO,
+            where.strip(), tool]
+
+
 def extract_symbol_graphs(sdk, modules, outdir):
-    """swift-symbolgraph-extract for each module (swift:6.2 image, like isim swiftc); returns {module: set of keys}"""
+    """swift-symbolgraph-extract for each module (the Swift toolchain, like isim swiftc); returns {module: set of keys}"""
     os.makedirs(outdir, exist_ok=True)
+    extract = swift_program('swift-symbolgraph-extract')
     sdk = os.path.abspath(sdk)
     out_root = os.path.dirname(sdk)                          # isim/out
     keys = {}
@@ -303,9 +317,7 @@ def extract_symbol_graphs(sdk, modules, outdir):
         d = os.path.join(outdir, m)
         os.makedirs(d, exist_ok=True)
         if not glob.glob(f'{d}/*.symbols.json'):
-            cmd = ['docker', 'run', '--rm', '-u', f'{os.getuid()}:{os.getgid()}', '-e', 'HOME=/tmp',
-                   '-v', f'{REPO}:{REPO}', '-w', REPO, 'swift:6.2', 'swift-symbolgraph-extract',
-                   '-target', 'x86_64-apple-ios27.0-simulator', '-sdk', sdk, '-resource-dir', f'{out_root}/swift/resource',
+            cmd = [*extract, '-target', 'x86_64-apple-ios27.0-simulator', '-sdk', sdk, '-resource-dir', f'{out_root}/swift/resource',
                    '-I', f'{sdk}/usr/lib/swift', '-F', f'{sdk}/System/Library/Frameworks',
                    '-module-name', m, '-minimum-access-level', 'public', '-output-dir', d]
             r = subprocess.run(cmd, capture_output=True, text=True)

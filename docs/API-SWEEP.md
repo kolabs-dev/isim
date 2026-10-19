@@ -78,7 +78,7 @@ isim/tools/api-coverage.py updates                          # per release: what 
   - Keeps, for each symbol: its documentation path, title, kind, owner and the "deprecated somewhere" flag.
   - Keeps the availability cache.
 - **`measure` (exact; the default when `isim/out/sdk` exists)**
-  - Runs `swift-symbolgraph-extract` (the `swift:6.2` image, like `isim swiftc`) on every module of the built SDK. That
+  - Runs `swift-symbolgraph-extract` (the Swift toolchain, like `isim swiftc`) on every module of the built SDK. That
     also gives the Swift view of the Objective-C frameworks.
   - Matches each Apple symbol by its documentation path: DocC builds the path from the same path components, lowercased,
     with disambiguation suffixes such as `-swift.struct` or `-1a2b3` removed.

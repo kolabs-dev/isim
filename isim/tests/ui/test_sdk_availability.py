@@ -9,7 +9,6 @@ The tables below are a sample of the audited APIs (docs/frameworks/Platform.md, 
 produce exactly its diagnostic, on its own line, with Apple's version."""
 import os
 import re
-import shutil
 import subprocess
 
 import pytest
@@ -190,8 +189,9 @@ def test_objc_guarded_newer_apis_are_quiet(tmp_path):
 
 
 def swiftc(tmp_path, src):
-    if not shutil.which("docker") or not (SDK / "usr/lib/swift/SwiftUI.swiftmodule").is_dir():
-        pytest.skip("Swift toolchain (docker swift:6.2) or the Swift overlays are not available")
+    if subprocess.run([str(ISIM), "toolchain", "which"], capture_output=True).returncode \
+            or not (SDK / "usr/lib/swift/SwiftUI.swiftmodule").is_dir():
+        pytest.skip("the Swift toolchain (isim toolchain status) or the Swift overlays are not available")
     f = tmp_path / "avail.swift"
     f.write_text(src)
     env = dict(os.environ, ISIM_MIN_IOS="17.0")

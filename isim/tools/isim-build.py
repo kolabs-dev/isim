@@ -62,6 +62,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
@@ -1030,9 +1031,45 @@ def thin_x86_64(src, dst):
         shutil.copy2(src, dst)
 
 
+# ---------------- the Swift toolchain ----------------
+_swift = None
+
+
+def swift_toolchain():
+    """('local', VERSION, the toolchain's usr directory) or ('docker', VERSION, image): the Swift toolchain `isim toolchain`
+    picks (exactly the version the SDK is built with). Children (`isim swiftc`) get the same one."""
+    global _swift
+    if _swift is None:
+        r = subprocess.run([ISIM, 'toolchain', 'which'], capture_output=True, text=True)
+        if r.returncode:
+            sys.exit(f'isim build: {r.stderr.strip()}')
+        mode, version, where = r.stdout.split(maxsplit=2)
+        _swift = (mode, version, where.strip())
+        os.environ['ISIM_SWIFT_TOOLCHAIN'] = _swift[2] if mode == 'local' else 'docker'
+    return _swift
+
+
+def swift_host_lib():
+    """the toolchain's swift-syntax libraries (lib/swift/host): what macro plugins build and load against"""
+    mode, _, where = swift_toolchain()
+    return os.path.join(where, 'lib', 'swift', 'host') if mode == 'local' else '/usr/lib/swift/host'
+
+
+def swift_tool(tool, args, ro=(), rw=()):
+    """a command running one of the Swift toolchain's programs: the local one, or in its Docker image with the directories
+    `ro` (read-only) and `rw` mounted at their own paths and /tmp as the working directory and HOME"""
+    mode, _, where = swift_toolchain()
+    if mode == 'local':
+        return [os.path.join(where, 'bin', tool), *args]
+    cmd = ['docker', 'run', '--rm', '-u', f'{os.getuid()}:{os.getgid()}', '-e', 'HOME=/tmp']
+    cmd += [x for d in ro for x in ('--mount', f'type=bind,src={d},dst={d},readonly')]
+    cmd += [x for d in rw for x in ('--mount', f'type=bind,src={d},dst={d}')]
+    return cmd + ['-w', '/tmp', where, tool, *args]
+
+
 # ---------------- Swift packages ----------------
 def dump_package(path, cache_dir):
-    """Package.swift -> manifest JSON (evaluated by SwiftPM in the swift:6.2 container; cached)."""
+    """Package.swift -> manifest JSON (evaluated by the Swift toolchain's SwiftPM; cached)."""
     os.makedirs(cache_dir, exist_ok=True)
     cache = os.path.join(cache_dir, re.sub(r'[^A-Za-z0-9]', '_', path) + '.json')
     manifest = os.path.join(path, 'Package.swift')
@@ -1041,10 +1078,11 @@ def dump_package(path, cache_dir):
     if os.path.exists(cache) and os.path.getmtime(cache) >= os.path.getmtime(manifest):
         with open(cache) as f:
             return json.load(f)
-    r = subprocess.run(['docker', 'run', '--rm', '-u', f'{os.getuid()}:{os.getgid()}', '-e', 'HOME=/tmp',
-                        '--mount', f'type=bind,src={path},dst={path},readonly', '-w', '/tmp', 'swift:6.2',
-                        'swift', 'package', '--package-path', path, '--scratch-path', '/tmp/spm', 'dump-package'],
-                       capture_output=True, text=True)
+    with tempfile.TemporaryDirectory(prefix='isim-spm-') as scratch:
+        local = swift_toolchain()[0] == 'local'
+        r = subprocess.run(swift_tool('swift', ['package', '--package-path', path, '--scratch-path',
+                                                scratch if local else '/tmp/spm', 'dump-package'], ro=[path]),
+                           capture_output=True, text=True, cwd=scratch if local else None)
     if r.returncode:
         sys.exit(f'isim build: cannot read {manifest}:\n{r.stderr}')
     with open(cache, 'w') as f:
@@ -1061,7 +1099,7 @@ def privacy_check(app, log):
     mod.check(app, log)
 
 
-# swift-syntax's libraries in the Swift toolchain (/usr/lib/swift/host of swift:6.2): what macro targets build against
+# swift-syntax's libraries in the Swift toolchain (its lib/swift/host): what macro targets build against
 SWIFT_SYNTAX_HOST = set('''SwiftBasicFormat SwiftCompilerPluginMessageHandling SwiftDiagnostics SwiftIDEUtils SwiftIfConfig
 SwiftOperators SwiftParser SwiftParserDiagnostics SwiftRefactor SwiftSyntax SwiftSyntaxBuilder SwiftSyntaxMacroExpansion
 SwiftSyntaxMacros'''.split())
@@ -1532,8 +1570,8 @@ class Packages:
         return res
 
     def macro_target(self, pkg_dir, m, t):
-        """A macro target: a compiler plugin for the toolchain's host (Linux), built in the swift:6.2 container against
-        the toolchain's swift-syntax libraries (/usr/lib/swift/host; the package's swift-syntax dependency is not
+        """A macro target: a compiler plugin for the toolchain's host (Linux), built with the Swift toolchain against
+        its swift-syntax libraries (lib/swift/host; the package's swift-syntax dependency is not
         fetched) and isim's SwiftCompilerPlugin module, as lib<Target>.so that the compiler loads in process
         (-load-plugin-library) when it compiles the targets using the macros."""
         tname = t['name']
@@ -1558,14 +1596,12 @@ class Packages:
             log(f'{tname}: macro target, built as a compiler plugin (lib{tname}.so, the toolchain\'s swift-syntax)')
             _, flags, _ = self.settings_of(t, 'swift')
             libs = [f'-l{n}' for n in sorted(SWIFT_SYNTAX_HOST)]
-            r = subprocess.run(['docker', 'run', '--rm', '-u', f'{os.getuid()}:{os.getgid()}', '-e', 'HOME=/tmp',
-                                '--mount', f'type=bind,src={src},dst={src},readonly',
-                                '--mount', f'type=bind,src={host_dir},dst={host_dir},readonly',
-                                '--mount', f'type=bind,src={outdir},dst={outdir}', '-w', '/tmp', 'swift:6.2',
-                                'swiftc', '-O', '-emit-library', '-parse-as-library', '-module-name', tname, *flags,
-                                '-I', host_dir, '-L', host_dir, '-I', '/usr/lib/swift/host', '-L', '/usr/lib/swift/host',
-                                '-lSwiftCompilerPlugin', *libs, '-Xlinker', '-rpath', '-Xlinker', '/usr/lib/swift/host',
-                                '-Xlinker', '-rpath', '-Xlinker', host_dir, '-o', lib, *srcs], capture_output=True, text=True)
+            th = swift_host_lib()
+            r = subprocess.run(swift_tool('swiftc', ['-O', '-emit-library', '-parse-as-library', '-module-name', tname, *flags,
+                                                     '-I', host_dir, '-L', host_dir, '-I', th, '-L', th,
+                                                     '-lSwiftCompilerPlugin', *libs, '-Xlinker', '-rpath', '-Xlinker', th,
+                                                     '-Xlinker', '-rpath', '-Xlinker', host_dir, '-o', lib, *srcs],
+                                          ro=[src, host_dir], rw=[outdir]), capture_output=True, text=True, cwd='/tmp')
             if r.returncode:
                 fail(f'{tname}: building the macro plugin failed:\n{r.stdout}{r.stderr}')
         res = self.empty()

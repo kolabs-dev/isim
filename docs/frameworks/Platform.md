@@ -9,7 +9,8 @@
 ## How isim implements it
 
 - `isim build` and `isim test` read Xcode projects (`isim/tools/isim-build.py`, `xcodeproj.py`, `isim-test.py`).
-- Code compiles with clang / lld and Swift 6.2 (Docker); Swift packages are read with `dump-package`.
+- Code compiles with clang / lld and Swift 6.2.4 (a local toolchain, or the `swift:6.2.4` Docker image:
+  `isim toolchain`); Swift packages are read with `dump-package`.
 - isim has its own storyboard compiler (`ibtool.py`), Core Data model compiler (`momc.py`) and asset-catalog format.
 - Devices and `--os` are simulated presets.
 - Device builds and signing are blocked ([DISTRIBUTION.md](../DISTRIBUTION.md)).
@@ -25,7 +26,7 @@
 | Crash reporting (crash logs, `NSSetUncaughtExceptionHandler` reports) | ✅ | ≤17 | uncaught exceptions print the iOS report ("*** Terminating app due to uncaught exception …", first throw call stack) and abort; `NSSetUncaughtExceptionHandler` runs first (objc-runtime). Crashes (signals and uncaught exceptions) write an Apple-style `.ips` report to `$ISIM_DATA/Library/Logs/DiagnosticReports`: exception type and signal, termination, the crashed thread symbolized, last exception backtrace, binary images with UUIDs; `isim crashlog` lists / shows / clears them; MetricKit turns them into `MXCrashDiagnostic`s. Tested: test_diagnostics |
 | `assert`, `precondition`, `fatalError` messages | ✅ | ≤17 | |
 | Compile ObjC/C for iOS on Linux (`isim cc`) | ✅ | ≤17 | clang/lld; simulator x86_64 and device arm64 Mach-O |
-| Compile Swift (`isim swiftc`) | ✅ | ≤17 | Docker `swift:6.2` image |
+| Compile Swift (`isim swiftc`) | ✅ | ≤17 | Swift 6.2.4 only (the SDK's compiled Swift modules load in no other compiler): a local toolchain (`ISIM_SWIFT_TOOLCHAIN`, swiftly's, or `swiftc` on `PATH`; `isim toolchain install`) or the `swift:6.2.4` Docker image; adapted. Verified: test_swift_toolchain.py |
 | Swift toolchain newer than 6.2 (Xcode 27's Swift 6.3 / 6.4 language features such as the `State()` macro and `ContentBuilder`; packages with a newer `swift-tools-version`) | ❌ | 27.0 | isim compiles with Swift 6.2.4 (`isim/buildlib/fetch.py`, the `swift:6.2` image), so code that needs a newer compiler does not build; moving needs a rebuilt toolchain with the ABI kept stable (`EVOLUTION`) |
 | `isim build` for Xcode projects (`.xcodeproj`, targets, schemes, configurations, build settings) | ✅ | ≤17 | `-scheme` (BuildAction), `-configuration Debug/Release` (Debug: `-Onone`, SwiftOnoneSupport built for isim), `SETTING=VALUE` overrides, target dependencies; tested (HelloToolchain: Debug and Release) |
 | Workspaces (`-workspace`, `.xcworkspace`, cross-project dependencies) | ✅ | ≤17 | projects of `contents.xcworkspacedata`, schemes of the workspace or its projects, products found across projects (implicit dependencies), `PBXContainerItemProxy` into referenced projects (unverified); tested (HelloToolchain builds from its workspace) |
