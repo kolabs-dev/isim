@@ -848,8 +848,9 @@ static int pango_weight(double w) {
    whose text runs right to left (Arabic, Hebrew), so they are swapped back */
 static void set_visual_alignment(PangoLayout *l, int align) {
     PangoAlignment a = align == 1 ? PANGO_ALIGN_CENTER : align == 2 ? PANGO_ALIGN_RIGHT : PANGO_ALIGN_LEFT;
-    PangoLayoutLine *line = a == PANGO_ALIGN_CENTER ? NULL : pango_layout_get_line_readonly(l, 0);
-    if (line && line->resolved_dir == PANGO_DIRECTION_RTL) a = a == PANGO_ALIGN_LEFT ? PANGO_ALIGN_RIGHT : PANGO_ALIGN_LEFT;
+    /* the paragraph's direction from its first strong character (what Pango's auto-dir uses), without a layout pass */
+    if (a != PANGO_ALIGN_CENTER && pango_find_base_dir(pango_layout_get_text(l), -1) == PANGO_DIRECTION_RTL)
+        a = a == PANGO_ALIGN_LEFT ? PANGO_ALIGN_RIGHT : PANGO_ALIGN_LEFT;
     pango_layout_set_alignment(l, a);
 }
 static PangoLayout *layout_for_family(const char *utf8, const char *family, double size, double weight, int style, double maxw, int lines, int align) {
@@ -1992,6 +1993,7 @@ int isim_regex_match(void *code, const char *subject, unsigned long len, unsigne
 /* host_media.c */
 struct isim_media_info;
 int isim_media_probe(const char *url, struct isim_media_info *info);
+long isim_html_flatten(const char *html, long len, const char *encoding, char *out, long cap);
 int isim_media_open(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume);
 int isim_media_video_frame(int h, double t, int *eof, double *pts);
 void isim_media_set_audio(int h, int paused, double volume);
@@ -2155,7 +2157,7 @@ static const struct shim isim_table[] = {
     H(isim_gfx_offscreen_begin), H(isim_gfx_offscreen_snapshot), H(isim_gfx_offscreen_end), H(isim_gfx_offscreen_depth),
     H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_text_ink_markup), H(isim_tl_create), H(isim_tl_free), H(isim_tl_size), H(isim_tl_line_count), H(isim_tl_line), H(isim_tl_index_rect), H(isim_tl_index_at), H(isim_tl_draw), H(isim_tl_set_tabs), H(isim_text_draw_markup),
     H(isim_regex_compile), H(isim_regex_free), H(isim_regex_capture_count), H(isim_regex_group_number), H(isim_regex_error_message), H(isim_regex_match),
-    H(isim_media_probe), H(isim_media_open), H(isim_media_open_rate), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
+    H(isim_html_flatten), H(isim_media_probe), H(isim_media_open), H(isim_media_open_rate), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
     H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize), H(isim_tts_available), H(isim_tts_render),
     H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
     H(isim_audio_set_pan), H(isim_image_read_bgra),

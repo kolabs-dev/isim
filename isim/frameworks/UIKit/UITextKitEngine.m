@@ -337,6 +337,9 @@ static void set_tabs(void *tl, NSParagraphStyle *ps, CGFloat head) {
     NSTextList *list = ps.textLists.lastObject;
     __IsimTextLine *first = p.lines.firstObject;
     if (!list || !first) return;
+    /* the TextKit 1 format already has the marker in the text ("\t1.\t", HTML and RTF import) */
+    NSString *head = [_string.string substringWithRange:NSMakeRange(p->content.location, MIN(p->content.length, (NSUInteger)16))];
+    if ([head hasPrefix:@"\t"] && [head rangeOfString:@"\t" options:0 range:NSMakeRange(1, head.length - 1)].location != NSNotFound) return;
     NSInteger n = list.startingItemNumber;
     NSUInteger i = [_paras indexOfObjectIdenticalTo:p];
     while (i-- > 0) {

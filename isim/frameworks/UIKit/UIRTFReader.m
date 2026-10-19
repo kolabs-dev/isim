@@ -28,6 +28,22 @@ static NSString *cp1252_string(const unsigned char *p, NSUInteger n) {
     return [NSString stringWithCharacters:buf length:n];
 }
 
+/* a family's bold / italic face by name (TimesNewRomanPS-BoldMT, Helvetica-Oblique), as iOS's document readers pick
+   them; the system font's variants for families without such faces. Shared with UIHTMLReader.m. */
+UIFont *isim_ui_styled_font(UIFont *base, BOOL bold, BOOL italic) {
+    if (!bold && !italic) return base;
+    NSString *best = nil;
+    for (NSString *face in [UIFont fontNamesForFamilyName:base.familyName]) {
+        NSString *l = face.lowercaseString;
+        BOOL b = [l containsString:@"bold"] && ![l containsString:@"semibold"], i = [l containsString:@"italic"] || [l containsString:@"oblique"];
+        if (b == bold && i == italic && ![l containsString:@"light"] && ![l containsString:@"condensed"]) { best = face; break; }
+    }
+    UIFont *f = best ? [UIFont fontWithName:best size:base.pointSize] : nil;
+    if (f) return f;
+    UIFontDescriptor *d = [base.fontDescriptor fontDescriptorWithSymbolicTraits:(bold ? UIFontDescriptorTraitBold : 0) | (italic ? UIFontDescriptorTraitItalic : 0)];
+    return (d ? [UIFont fontWithDescriptor:d size:base.pointSize] : nil) ?: base;
+}
+
 @interface __IsimRTFReader : NSObject
 @end
 @implementation __IsimRTFReader {
@@ -54,8 +70,7 @@ static NSString *cp1252_string(const unsigned char *p, NSUInteger n) {
     NSString *name = _fonts[@(_st.font)];
     UIFont *f = name ? [UIFont fontWithName:name size:size] : nil;
     if (!f) f = [UIFont systemFontOfSize:size];
-    UIFontDescriptorSymbolicTraits t = (_st.bold ? UIFontDescriptorTraitBold : 0) | (_st.italic ? UIFontDescriptorTraitItalic : 0);
-    if (t) { UIFontDescriptor *fd = [f.fontDescriptor fontDescriptorWithSymbolicTraits:t]; UIFont *styled = fd ? [UIFont fontWithDescriptor:fd size:size] : nil; if (styled) f = styled; }
+    f = isim_ui_styled_font(f, _st.bold, _st.italic);
     NSMutableDictionary *a = [NSMutableDictionary dictionaryWithObject:f forKey:NSFontAttributeName];
     id c = _st.color > 0 && _st.color < (int)_colors.count ? _colors[_st.color] : nil;
     if ([c isKindOfClass:UIColor.class]) a[NSForegroundColorAttributeName] = c;

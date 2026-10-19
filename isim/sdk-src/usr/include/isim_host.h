@@ -245,6 +245,9 @@ int isim_pki_pkcs12(const uint8_t *data, size_t len, const char *_Nullable passw
 /* media (host_media.c): video/audio files and http(s) URLs through the host's ffprobe/ffmpeg */
 struct isim_media_info { double duration, width, height, fps; int has_video, has_audio; };
 int isim_media_probe(const char *url, struct isim_media_info *info);            /* 0: unreadable / no ffprobe */
+/* HTML parsed by the host's libxml2, flattened into records ('S' element start with attributes, 'E' end, 'T' text;
+   \x1e between records, \x1f between fields): the stream's length (written up to cap), -1 without libxml2 */
+long isim_html_flatten(const char *html, long len, const char *_Nullable encoding, char *out, long cap);
 /* playback session from `start` seconds: video frames (if want_video) and the soundtrack to the mixer (if want_audio) */
 int isim_media_open(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume);
 /* the same at a playback rate: the soundtrack is time-stretched (pitch kept) */
