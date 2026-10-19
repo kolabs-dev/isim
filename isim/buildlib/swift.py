@@ -504,9 +504,11 @@ class Swift:
         base = [mod("Swift"), mod("_Concurrency")] + ([mod("_StringProcessing")] if os.path.isdir(os.path.join(
             c.root, f"{c.tp}/swift-experimental-string-processing/Sources")) else [])
         from .graph import SWIFT_FRAMEWORKS, swift_framework
-        objc_frameworks = {}                                     # overlay -> [(framework, link args)]
-        for name, link, *overlay in SWIFT_FRAMEWORKS:
-            objc_frameworks.setdefault(overlay[0] if overlay else name, []).append((name, link))
+        objc_frameworks = {}                                     # overlay built before -> [(framework, link args, overlay)]
+        for name, link, *rest in SWIFT_FRAMEWORKS:
+            overlay = rest[0] if rest else name                  # the overlay it re-exports
+            after = rest[1] if len(rest) > 1 else overlay        # the overlay it links, if built later
+            objc_frameworks.setdefault(after, []).append((name, link, overlay))
         outs = []
         for line in OVERLAYS.strip().splitlines():
             line = line.split("#")[0].split()
@@ -539,8 +541,8 @@ class Swift:
             link_args = ["-lSystem", "-lobjc", "-lswiftCore"] + [a for a in args if not a.endswith(".o")]
             link_args += objc_aliases(m)
             outs += [mod(m), self.link(f"swift{m}", objs, link_args, minos="17.0")]
-            for fw, fw_link in objc_frameworks.get(m, []):
-                outs += swift_framework(c, fw, fw_link, overlay_name=m)
+            for fw, fw_link, overlay in objc_frameworks.get(m, []):
+                outs += swift_framework(c, fw, fw_link, overlay_name=overlay)
         # MapKit's offline basemap: land shapes from Natural Earth (public domain; tools/make-land.py)
         for f in ("land-50m.bin", "land-10m.bin"):
             act.copy_if_changed(os.path.join(c.root, "data/maps", f), os.path.join(c.root, SDK, "usr/share/isim/maps", f))

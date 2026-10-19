@@ -4,6 +4,7 @@
  * the same sections animates item inserts and deletes; other changes reload the view. */
 #import "UIKitPrivate.h"
 #import <UIKit/UIDiffableDataSourceReference.h>
+#import <UIKit/UIConfigurationState.h>
 
 /* ================= NSDiffableDataSourceSnapshotReference ================= */
 @implementation NSDiffableDataSourceSnapshotReference {
@@ -214,9 +215,54 @@ static void finish(void (^completion)(void), BOOL animated) {
     else completion();
 }
 
+/* ---- reorders and outline handlers (issue #235) ---- */
+@interface NSDiffableDataSourceSectionTransaction ()
+- (instancetype)_isimInitWithSection:(id)section initial:(NSDiffableDataSourceSectionSnapshotReference *)a final:(NSDiffableDataSourceSectionSnapshotReference *)b
+    __attribute__((objc_method_family(init)));
+@end
+@implementation NSDiffableDataSourceSectionTransaction
+- (instancetype)_isimInitWithSection:(id)section initial:(NSDiffableDataSourceSectionSnapshotReference *)a final:(NSDiffableDataSourceSectionSnapshotReference *)b {
+    if ((self = [super init])) { _sectionIdentifier = section; _initialSnapshot = a; _finalSnapshot = b; }
+    return self;
+}
+@end
+@interface NSDiffableDataSourceTransaction ()
+- (instancetype)_isimInitWithInitial:(NSDiffableDataSourceSnapshotReference *)a final:(NSDiffableDataSourceSnapshotReference *)b sections:(NSArray *)sections
+    __attribute__((objc_method_family(init)));
+@end
+@implementation NSDiffableDataSourceTransaction
+- (instancetype)_isimInitWithInitial:(NSDiffableDataSourceSnapshotReference *)a final:(NSDiffableDataSourceSnapshotReference *)b sections:(NSArray *)sections {
+    if ((self = [super init])) { _initialSnapshot = a; _finalSnapshot = b; _sectionTransactions = [sections copy]; }
+    return self;
+}
+@end
+@implementation UICollectionViewDiffableDataSourceReorderingHandlers
+- (id)copyWithZone:(NSZone *)zone {
+    UICollectionViewDiffableDataSourceReorderingHandlers *c = [[self class] new];
+    c.canReorderItemHandler = self.canReorderItemHandler; c.willReorderHandler = self.willReorderHandler; c.didReorderHandler = self.didReorderHandler;
+    return c;
+}
+@end
+@implementation UICollectionViewDiffableDataSourceSectionSnapshotHandlers
+- (id)copyWithZone:(NSZone *)zone {
+    UICollectionViewDiffableDataSourceSectionSnapshotHandlers *c = [[self class] new];
+    c.shouldExpandItemHandler = self.shouldExpandItemHandler; c.willExpandItemHandler = self.willExpandItemHandler;
+    c.shouldCollapseItemHandler = self.shouldCollapseItemHandler; c.willCollapseItemHandler = self.willCollapseItemHandler;
+    c.snapshotForExpandingParentItemHandler = self.snapshotForExpandingParentItemHandler;
+    return c;
+}
+@end
+static NSDiffableDataSourceSectionSnapshotReference *flat_section(NSDiffableDataSourceSnapshotReference *snap, id section) {
+    NSDiffableDataSourceSectionSnapshotReference *s = [NSDiffableDataSourceSectionSnapshotReference new];
+    [s appendItems:[snap itemIdentifiersInSectionWithIdentifier:section]];
+    return s;
+}
+
 @implementation UICollectionViewDiffableDataSourceReference {
     __weak UICollectionView *_cv; UICollectionViewDiffableDataSourceCellProvider _provider;
     NSDiffableDataSourceSnapshotReference *_snap; NSMutableDictionary *_outlines;   /* section -> section snapshot */
+    UICollectionViewDiffableDataSourceReorderingHandlers *_reorderingHandlers;
+    UICollectionViewDiffableDataSourceSectionSnapshotHandlers *_sectionSnapshotHandlers;
 }
 - (instancetype)initWithCollectionView:(UICollectionView *)cv cellProvider:(UICollectionViewDiffableDataSourceCellProvider)provider {
     if ((self = [super init])) { _cv = cv; _provider = [provider copy]; _snap = [NSDiffableDataSourceSnapshotReference new]; _outlines = [NSMutableDictionary dictionary]; cv.dataSource = self; }
@@ -288,6 +334,69 @@ static void finish(void (^completion)(void), BOOL animated) {
 }
 - (UICollectionReusableView *)collectionView:(UICollectionView *)cv viewForSupplementaryElementOfKind:(NSString *)kind atIndexPath:(NSIndexPath *)ip {
     return _supplementaryViewProvider ? _supplementaryViewProvider(cv, kind, ip) : nil;
+}
+/* ---- reordering (the reorder accessory, interactive movement) ---- */
+- (UICollectionViewDiffableDataSourceReorderingHandlers *)reorderingHandlers { return [_reorderingHandlers ?: [UICollectionViewDiffableDataSourceReorderingHandlers new] copy]; }
+- (void)setReorderingHandlers:(UICollectionViewDiffableDataSourceReorderingHandlers *)h { _reorderingHandlers = [h copy]; }
+- (UICollectionViewDiffableDataSourceSectionSnapshotHandlers *)sectionSnapshotHandlers { return [_sectionSnapshotHandlers ?: [UICollectionViewDiffableDataSourceSectionSnapshotHandlers new] copy]; }
+- (void)setSectionSnapshotHandlers:(UICollectionViewDiffableDataSourceSectionSnapshotHandlers *)h { _sectionSnapshotHandlers = [h copy]; }
+- (BOOL)collectionView:(UICollectionView *)cv canMoveItemAtIndexPath:(NSIndexPath *)ip {
+    id item = [self itemIdentifierForIndexPath:ip];
+    return item && _reorderingHandlers.canReorderItemHandler && _reorderingHandlers.canReorderItemHandler(item);
+}
+- (void)collectionView:(UICollectionView *)cv moveItemAtIndexPath:(NSIndexPath *)from toIndexPath:(NSIndexPath *)to {
+    id item = [self itemIdentifierForIndexPath:from];
+    NSArray *secs = _snap.sectionIdentifiers;
+    if (!item || to.section < 0 || to.section >= (NSInteger)secs.count) return;
+    NSDiffableDataSourceSnapshotReference *initial = [_snap copy], *final = [_snap copy];
+    id fromSec = secs[from.section], toSec = secs[to.section];
+    [final deleteItemsWithIdentifiers:@[item]];
+    NSArray *dest = [final itemIdentifiersInSectionWithIdentifier:toSec];
+    if (to.item < (NSInteger)dest.count) [final insertItemsWithIdentifiers:@[item] beforeItemWithIdentifier:dest[to.item]];
+    else [final appendItemsWithIdentifiers:@[item] intoSectionWithIdentifier:toSec];
+    NSMutableArray *sections = [NSMutableArray array];
+    for (id sec in [NSOrderedSet orderedSetWithObjects:fromSec, toSec, nil])
+        [sections addObject:[[NSDiffableDataSourceSectionTransaction alloc] _isimInitWithSection:sec initial:flat_section(initial, sec) final:flat_section(final, sec)]];
+    NSDiffableDataSourceTransaction *t = [[NSDiffableDataSourceTransaction alloc] _isimInitWithInitial:initial final:final sections:sections];
+    if (_reorderingHandlers.willReorderHandler) _reorderingHandlers.willReorderHandler(t);
+    _snap = [final copy];                               /* the collection view already shows the move */
+    /* outlines keep their trees: the item (with its children) leaves the source outline and joins the destination's */
+    NSDiffableDataSourceSectionSnapshotReference *moved = nil;
+    if (_outlines[fromSec]) { moved = [_outlines[fromSec] snapshotOfParentItem:item includingParentItem:YES]; [_outlines[fromSec] deleteItems:@[item]]; }
+    else { moved = [NSDiffableDataSourceSectionSnapshotReference new]; [moved appendItems:@[item]]; }
+    NSDiffableDataSourceSectionSnapshotReference *into = _outlines[toSec];
+    if (into) {
+        NSArray *now = [final itemIdentifiersInSectionWithIdentifier:toSec];
+        NSUInteger at = [now indexOfObject:item];
+        if (at + 1 < now.count) [into insertSnapshot:moved beforeItem:now[at + 1]];
+        else if (at > 0 && at != NSNotFound) [into insertSnapshot:moved afterItem:now[at - 1]];
+        else [into appendItems:moved.items];
+    }
+    if (_reorderingHandlers.didReorderHandler) _reorderingHandlers.didReorderHandler(t);
+}
+/* ---- outlines: the disclosure accessory expands and collapses through the section snapshot handlers ---- */
+- (NSInteger)_isim_outlineStateAt:(NSIndexPath *)ip {
+    id item = [self itemIdentifierForIndexPath:ip], sec = [self sectionIdentifierForIndex:ip.section];
+    NSDiffableDataSourceSectionSnapshotReference *o = sec ? _outlines[sec] : nil;
+    if (!item || !o || ![o snapshotOfParentItem:item].items.count) return 0;
+    return [o isExpanded:item] ? 2 : 1;
+}
+- (void)_isim_toggleOutlineAt:(NSIndexPath *)ip {
+    id item = [self itemIdentifierForIndexPath:ip], sec = [self sectionIdentifierForIndex:ip.section];
+    NSDiffableDataSourceSectionSnapshotReference *o = [self snapshotForSection:sec];
+    if (!item || !_outlines[sec]) return;
+    UICollectionViewDiffableDataSourceSectionSnapshotHandlers *h = _sectionSnapshotHandlers;
+    if ([o isExpanded:item]) {
+        if (h.shouldCollapseItemHandler && !h.shouldCollapseItemHandler(item)) return;
+        if (h.willCollapseItemHandler) h.willCollapseItemHandler(item);
+        [o collapseItems:@[item]];
+    } else {
+        if (h.shouldExpandItemHandler && !h.shouldExpandItemHandler(item)) return;
+        if (h.willExpandItemHandler) h.willExpandItemHandler(item);
+        if (h.snapshotForExpandingParentItemHandler) [o replaceChildrenOfParentItem:item withSnapshot:h.snapshotForExpandingParentItemHandler(item, [o snapshotOfParentItem:item])];
+        [o expandItems:@[item]];
+    }
+    [self applySnapshot:o toSection:sec animatingDifferences:YES];
 }
 @end
 

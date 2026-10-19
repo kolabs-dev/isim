@@ -14,6 +14,7 @@
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
+| Objective-C interface (`Symbols.framework`): `NSSymbolEffect` and its effects (pulse, bounce, variable colour, scale, appear, disappear; wiggle, rotate, breathe iOS 18; draw on / off iOS 26), `NSSymbolEffectOptions` (repeat count, speed, `NSSymbolEffectOptionsRepeatBehavior`), `NSSymbolReplaceContentTransition`, `NSSymbolAutomaticContentTransition` | ✅ | 17.0 | adapted: each object describes its effect the way the Swift overlay's do, and UIKit plays it (`-[UIImageView addSymbolEffect:…]`); isim animates the whole image, so `byLayer` and the variable-colour modes only change the timing. Symbols.framework re-exports the Swift overlay and links UIKit's. Tested (HelloConfigurationsObjC, tests/ui/test_configurations_objc.py) |
 
 ## Not yet in isim
 
