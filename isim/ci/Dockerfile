@@ -1,8 +1,8 @@
 # CI environment for isim: a stock Ubuntu 24.04 with distribution packages (plus clang from LLVM's apt repository),
 # so CI proves isim builds and runs on an ordinary Linux. SDL3 is built from source (Ubuntu 24.04 does not package it). isim renders with its bundled fonts
 # (isim/fonts), so layout does not depend on the distribution's fonts. Swift compiles with swift.org's Swift 6.2.4,
-# which the workflows mount from their cache (isim/ci/swift-toolchain.sh, ISIM_SWIFT_TOOLCHAIN); the tests that compile in
-# the swift:6.2.4 image too reach it through the host's Docker socket.
+# which the workflows mount from their cache (isim/ci/swift-toolchain.sh, ISIM_SWIFT_TOOLCHAIN). docker.io: the Release
+# workflow builds the release tarball's host runtime in isim/release's image through the host's Docker socket.
 # Docker Hub rate-limits the shared runners (429), so the same official image comes from Google's mirror of it
 FROM mirror.gcr.io/library/ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive

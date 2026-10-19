@@ -1,5 +1,5 @@
 """Swift for isim, from the pinned sources in third_party (build.py fetch) with the Swift 6.2.4 toolchain that
-`isim toolchain` picks (a local one, or the swift:6.2.4 Docker image):
+`isim toolchain` picks (swiftly's: isim toolchain install):
   core     Embedded stdlib + support library; libc++; the Swift runtime and libswiftCore; Concurrency, Observation,
            Synchronization, Distributed, SwiftOnoneSupport, Regex (_RegexParser, _StringProcessing, RegexBuilder),
            C++ interop (Cxx, CxxStdlib)
@@ -32,35 +32,29 @@ def dylib(name):
 
 
 def toolchain(root):
-    """(mode, version, where): `isim toolchain which`, the Swift toolchain isim compiles with: ("local", "6.2.4", its usr
-    directory) or ("docker", "6.2.4", image); None (and why) when there is none"""
+    """(the usr directory of the Swift toolchain isim compiles with (`isim toolchain which`), None) or (None, why not)"""
     try:
         r = subprocess.run([os.path.join(root, "tools", "isim"), "toolchain", "which"], capture_output=True, text=True)
     except OSError as e:
         return None, str(e)
-    if r.returncode:
-        return None, r.stderr.strip()
-    mode, version, where = r.stdout.split(maxsplit=2)
-    where = where.strip()
-    if mode == "docker":
-        try:
-            ok = subprocess.run(["docker", "image", "inspect", where], capture_output=True).returncode == 0
-        except OSError:
-            ok = False
-        if not ok:
-            return None, f"docker image {where} not available: docker pull {where}, or isim toolchain install"
-    return (mode, version, where), None
+    return (r.stdout.strip(), None) if r.returncode == 0 else (None, r.stderr.strip())
+
+
+def toolchain_version(usr):
+    """its compiler's version ("swift-6.2.4-RELEASE", from "Swift version 6.2.4 (swift-6.2.4-RELEASE)")"""
+    r = subprocess.run([f"{usr}/bin/swift-frontend", "--version"], capture_output=True, text=True)
+    m = re.search(r"\((swift-[^)]*)\)", r.stdout)
+    return m.group(1) if m else r.stdout.strip()
 
 
 class Swift:
-    def __init__(self, c, tc):
+    def __init__(self, c, usr):
         self.c, self.n = c, c.n
-        self.mode, version, self.where = tc
-        self.usr = self.where if self.mode == "local" else "/usr"   # the toolchain's usr directory, where its commands run
+        self.usr = usr                                  # the toolchain's usr directory
         self.src = f"{c.tp}/swift"
-        # changes with the compiler (not with a re-pulled image or a reinstall of the same version)
+        # changes with the compiler (not with a reinstall of the same version, or the same one somewhere else)
         self.key = f"{SW}/toolchain"
-        act.write_if_changed(os.path.join(c.root, self.key), f"swift-{version}-RELEASE\n")
+        act.write_if_changed(os.path.join(c.root, self.key), toolchain_version(usr) + "\n")
         self.avail_def = f"{self.src}/utils/availability-macros.def"
         cpus = os.cpu_count() or 4
         try:                                            # a whole-module Swift compile can take a few GB
@@ -70,17 +64,9 @@ class Swift:
         self.n.pool("swift", max(1, min(cpus, int(mem_gb // 3))))
 
     # ---- helpers ----
-    def host(self, *argv):
-        """a command run with the toolchain: here, or in its Docker image with the checkout mounted at the same path"""
-        if self.mode == "local":
-            return list(argv)
-        repo = self.c.repo
-        return ["docker", "run", "--rm", "-u", f"{os.getuid()}:{os.getgid()}", "-e", "HOME=/tmp", "-v", f"{repo}:{repo}",
-                "-w", self.c.root, self.where, *argv]
-
     def plain_swiftc(self, *args):
         """the toolchain's own swiftc, without isim's SDK (for the stdlib, which builds without one, and host plugins)"""
-        return self.host(f"{self.usr}/bin/swiftc" if self.mode == "local" else "swiftc", *args)
+        return [f"{self.usr}/bin/swiftc", *args]
 
     def avail(self, embedded=False):
         out = []
@@ -210,9 +196,9 @@ class Swift:
         stamp = f"{SW}/resource/.stamp"
         shims = [f"{self.src}/stdlib/public/Cxx/cxxshim/{f}" for f in ("libcxxshim.modulemap", "libcxxshim.h", "libcxxstdlibshim.h")]
         u = f"{self.usr}/lib/swift"
-        self.n.build(stamp, self.host("bash", "-c", f"rm -rf {SW}/resource && mkdir -p {SW}/resource/iphonesimulator && cp -rL {u}/clang "
-                                      f"{u}/shims {u}/apinotes {SW}/resource/ && cp {' '.join(shims)} {SW}/resource/iphonesimulator/ "
-                                      f"&& touch {stamp}"),
+        self.n.build(stamp, ["bash", "-c", f"rm -rf {SW}/resource && mkdir -p {SW}/resource/iphonesimulator && cp -rL {u}/clang "
+                             f"{u}/shims {u}/apinotes {SW}/resource/ && cp {' '.join(shims)} {SW}/resource/iphonesimulator/ "
+                             f"&& touch {stamp}"],
                      implicit=[self.key, *shims], desc="Swift resource dir")
         return stamp
 
@@ -630,11 +616,11 @@ def generate(c):
     if not os.path.isdir(os.path.join(c.root, c.tp, "swift/stdlib")):
         c.notes.append("Swift: skipped (third_party/swift missing; run build.py fetch)")
         return False
-    tc, why = toolchain(c.root)
-    if not tc:
+    usr, why = toolchain(c.root)
+    if not usr:
         c.notes.append(f"Swift: skipped ({why})")
         return False
-    s = Swift(c, tc)
+    s = Swift(c, usr)
     s.core()
     s.overlays()
     testing = s.testing()

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Swift 6.2.4 from swift.org (the toolchain isim's SDK is built with, the same one the swift:6.2.4 image holds), checked
+# Swift 6.2.4 from swift.org (the toolchain isim's SDK is built with, the same one swiftly installs), checked
 # against swift.org's signing keys and unpacked into DIR (DIR/usr/bin/swiftc), for CI and cloud sessions:
-# ISIM_SWIFT_TOOLCHAIN=DIR then compiles with it, without Docker. On a desktop, `isim toolchain install` (swiftly) does
-# the same. Usage: isim/ci/swift-toolchain.sh DIR [ubuntu24.04]
+# ISIM_SWIFT_TOOLCHAIN=DIR then compiles with it. On a desktop, `isim toolchain install` (swiftly) installs the same
+# toolchain. Usage: isim/ci/swift-toolchain.sh DIR [ubuntu24.04]
 set -euo pipefail
 dir=${1:?usage: swift-toolchain.sh DIR [platform]}
 platform=${2:-ubuntu24.04}

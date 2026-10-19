@@ -161,7 +161,7 @@ def remove_stale_sdk(ninja, root):
     built either. CI and the Release workflow restore out/ from a cache, and Ninja never deletes an output that left
     the graph, so a removed library stayed in out/sdk and reached the release tarballs and ABI baselines (the Google
     Mobile Ads stand-in removed in 0.20 was in the 0.20.0 and 0.21.0 ones, issue #206). Only for those builds: a local
-    graph can leave parts out (no Docker: no Swift) whose outputs must stay."""
+    graph can leave parts out (no Swift toolchain: no Swift) whose outputs must stay."""
     r = subprocess.run([ninja, "-C", root, "-f", "out/build.ninja", "-t", "targets", "all"], capture_output=True, text=True,
                        check=True)
     outputs = {line.rsplit(": ", 1)[0] for line in r.stdout.splitlines()}

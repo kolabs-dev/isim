@@ -129,9 +129,9 @@ jobs:
         # against the Apple snapshot in isim/data/apple-api; availability of newly missing symbols is fetched from
         # developer.apple.com
         run: |
-          docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock -u "$(id -u):$(id -g)" \
+          docker run --rm -v "$PWD:$PWD" -w "$PWD" -u "$(id -u):$(id -g)" \
             -v "$HOME/swift-toolchain:$HOME/swift-toolchain:ro" -e ISIM_SWIFT_TOOLCHAIN="$HOME/swift-toolchain" \
-            --group-add "$(stat -c %g /var/run/docker.sock)" -e HOME=/tmp isim-ci \
+            -e HOME=/tmp isim-ci \
             bash -c 'python3 isim/tools/api-coverage.py measure --sdk isim/out/sdk && python3 isim/tools/coverage-summary.py'
       - name: ABI baseline and release commit
         run: |

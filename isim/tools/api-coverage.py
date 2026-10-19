@@ -294,16 +294,11 @@ def sdk_modules(sdk):
 
 
 def swift_program(tool):
-    """a Swift toolchain program, like isim swiftc runs it: the local toolchain's, or in its Docker image (the checkout
-    mounted at its own path)"""
+    """a program of the Swift toolchain isim swiftc compiles with (isim toolchain)"""
     r = subprocess.run([os.path.join(REPO, 'isim', 'tools', 'isim'), 'toolchain', 'which'], capture_output=True, text=True)
     if r.returncode:
         sys.exit(r.stderr.strip())
-    mode, _, where = r.stdout.split(maxsplit=2)
-    if mode == 'local':
-        return [os.path.join(where.strip(), 'bin', tool)]
-    return ['docker', 'run', '--rm', '-u', f'{os.getuid()}:{os.getgid()}', '-e', 'HOME=/tmp', '-v', f'{REPO}:{REPO}', '-w', REPO,
-            where.strip(), tool]
+    return [os.path.join(r.stdout.strip(), 'bin', tool)]
 
 
 def extract_symbol_graphs(sdk, modules, outdir):

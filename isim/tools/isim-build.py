@@ -186,7 +186,7 @@ def _depfile_inputs(path, cwd):
 def _compile_up_to_date(stamp, cmd, outs):
     """whether the compile that wrote `stamp` ran this same command in this directory and nothing it read has changed
     since: every output exists and no input (sources, headers, imported Swift modules and the SDK's) is newer than the
-    compile. Inputs that only exist inside the Swift toolchain's container (its compiler plugins) are not checked."""
+    compile."""
     try:
         with open(stamp) as f:
             st = json.load(f)
@@ -202,8 +202,7 @@ def _compile_up_to_date(stamp, cmd, outs):
             if os.path.getmtime(d) > t:
                 return False
         except OSError:
-            if not d.startswith('/usr/lib/swift/'):
-                return False                                   # an input is gone
+            return False                                       # an input is gone
     return True
 
 
@@ -1036,35 +1035,21 @@ _swift = None
 
 
 def swift_toolchain():
-    """('local', VERSION, the toolchain's usr directory) or ('docker', VERSION, image): the Swift toolchain `isim toolchain`
-    picks (exactly the version the SDK is built with). Children (`isim swiftc`) get the same one."""
+    """the usr directory of the Swift toolchain `isim toolchain` picks (exactly the version the SDK is built with);
+    children (`isim swiftc`) get the same one"""
     global _swift
     if _swift is None:
         r = subprocess.run([ISIM, 'toolchain', 'which'], capture_output=True, text=True)
         if r.returncode:
             sys.exit(f'isim build: {r.stderr.strip()}')
-        mode, version, where = r.stdout.split(maxsplit=2)
-        _swift = (mode, version, where.strip())
-        os.environ['ISIM_SWIFT_TOOLCHAIN'] = _swift[2] if mode == 'local' else 'docker'
+        _swift = r.stdout.strip()
+        os.environ['ISIM_SWIFT_TOOLCHAIN'] = _swift
     return _swift
 
 
-def swift_host_lib():
-    """the toolchain's swift-syntax libraries (lib/swift/host): what macro plugins build and load against"""
-    mode, _, where = swift_toolchain()
-    return os.path.join(where, 'lib', 'swift', 'host') if mode == 'local' else '/usr/lib/swift/host'
-
-
-def swift_tool(tool, args, ro=(), rw=()):
-    """a command running one of the Swift toolchain's programs: the local one, or in its Docker image with the directories
-    `ro` (read-only) and `rw` mounted at their own paths and /tmp as the working directory and HOME"""
-    mode, _, where = swift_toolchain()
-    if mode == 'local':
-        return [os.path.join(where, 'bin', tool), *args]
-    cmd = ['docker', 'run', '--rm', '-u', f'{os.getuid()}:{os.getgid()}', '-e', 'HOME=/tmp']
-    cmd += [x for d in ro for x in ('--mount', f'type=bind,src={d},dst={d},readonly')]
-    cmd += [x for d in rw for x in ('--mount', f'type=bind,src={d},dst={d}')]
-    return cmd + ['-w', '/tmp', where, tool, *args]
+def swift_tool(tool, *args):
+    """a command running one of the Swift toolchain's programs"""
+    return [os.path.join(swift_toolchain(), 'bin', tool), *args]
 
 
 # ---------------- Swift packages ----------------
@@ -1079,10 +1064,8 @@ def dump_package(path, cache_dir):
         with open(cache) as f:
             return json.load(f)
     with tempfile.TemporaryDirectory(prefix='isim-spm-') as scratch:
-        local = swift_toolchain()[0] == 'local'
-        r = subprocess.run(swift_tool('swift', ['package', '--package-path', path, '--scratch-path',
-                                                scratch if local else '/tmp/spm', 'dump-package'], ro=[path]),
-                           capture_output=True, text=True, cwd=scratch if local else None)
+        r = subprocess.run(swift_tool('swift', 'package', '--package-path', path, '--scratch-path', scratch, 'dump-package'),
+                           capture_output=True, text=True, cwd=scratch)
     if r.returncode:
         sys.exit(f'isim build: cannot read {manifest}:\n{r.stderr}')
     with open(cache, 'w') as f:
@@ -1596,12 +1579,12 @@ class Packages:
             log(f'{tname}: macro target, built as a compiler plugin (lib{tname}.so, the toolchain\'s swift-syntax)')
             _, flags, _ = self.settings_of(t, 'swift')
             libs = [f'-l{n}' for n in sorted(SWIFT_SYNTAX_HOST)]
-            th = swift_host_lib()
-            r = subprocess.run(swift_tool('swiftc', ['-O', '-emit-library', '-parse-as-library', '-module-name', tname, *flags,
-                                                     '-I', host_dir, '-L', host_dir, '-I', th, '-L', th,
-                                                     '-lSwiftCompilerPlugin', *libs, '-Xlinker', '-rpath', '-Xlinker', th,
-                                                     '-Xlinker', '-rpath', '-Xlinker', host_dir, '-o', lib, *srcs],
-                                          ro=[src, host_dir], rw=[outdir]), capture_output=True, text=True, cwd='/tmp')
+            th = os.path.join(swift_toolchain(), 'lib', 'swift', 'host')
+            r = subprocess.run(swift_tool('swiftc', '-O', '-emit-library', '-parse-as-library', '-module-name', tname, *flags,
+                                          '-I', host_dir, '-L', host_dir, '-I', th, '-L', th,
+                                          '-lSwiftCompilerPlugin', *libs, '-Xlinker', '-rpath', '-Xlinker', th,
+                                          '-Xlinker', '-rpath', '-Xlinker', host_dir, '-o', lib, *srcs),
+                               capture_output=True, text=True)
             if r.returncode:
                 fail(f'{tname}: building the macro plugin failed:\n{r.stdout}{r.stderr}')
         res = self.empty()
@@ -3027,8 +3010,6 @@ def main():
         return print_tree(projects, workspace)
     overrides = parse_overrides(rest)
     outdir = os.path.abspath(a.output or 'build')                 # like xcodebuild: products next to the project, not in isim
-    # isim swiftc runs in a container that sees only isim's own tree writable: let it write the products
-    os.environ['ISIM_SWIFTC_WRITABLE'] = ':'.join(filter(None, [os.environ.get('ISIM_SWIFTC_WRITABLE'), outdir]))
     scheme = None
     if a.scheme:
         schemes = scheme_files(containers)

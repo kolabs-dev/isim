@@ -112,7 +112,6 @@ def main():
         plan = next((p for p, d in plans if d), plans[0][0])
     configuration = opts['configuration'] or (scheme.configuration('TestAction') if scheme else 'Debug')
     outdir = os.path.abspath(opts['output'] or 'build')          # ./build of the current folder, as isim build
-    os.environ['ISIM_SWIFTC_WRITABLE'] = ':'.join(filter(None, [os.environ.get('ISIM_SWIFTC_WRITABLE'), outdir]))
     os.makedirs(outdir, exist_ok=True)
     b = ib.Builder(projects, configuration, outdir, overrides, opts['package_cache'], opts['scripts'])
     b.packages.resolved_file = ib.resolved_file_path(containers[0] if containers[0].endswith('.xcworkspace') else None, projects)

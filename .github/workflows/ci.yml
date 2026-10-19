@@ -72,7 +72,7 @@ jobs:
             build-${{ github.ref_name }}-
             build-main-
       # Swift 6.2.4 from swift.org, checked against its signing keys (isim/ci/swift-toolchain.sh): the build and the
-      # tests compile with it (ISIM_SWIFT_TOOLCHAIN), not in the swift:6.2.4 image; cached once per toolchain
+      # tests compile with it (ISIM_SWIFT_TOOLCHAIN); cached once per toolchain
       - name: Swift toolchain (restore)
         id: swift-toolchain
         uses: actions/cache/restore@v5
@@ -90,7 +90,7 @@ jobs:
           key: ${{ env.SWIFT_KEY }}
       - name: Build
         run: |
-          docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock \
+          docker run --rm -v "$PWD:$PWD" -w "$PWD" \
             -v "$HOME/swift-toolchain:$HOME/swift-toolchain:ro" -e ISIM_SWIFT_TOOLCHAIN="$HOME/swift-toolchain" \
             -e CI=1 isim-ci python3 isim/build.py ci build
       # the container runs as root; give the runner its files back (tar for the cache)
@@ -168,14 +168,9 @@ jobs:
           path: ~/swift-toolchain
           key: ${{ env.SWIFT_KEY }}
           fail-on-cache-miss: true
-      - name: Swift compiler image
-        # for the tests that compile in the image too (test_swift_toolchain.py: the local toolchain and the image alike);
-        # the official image from Google's mirror of Docker Hub (which rate-limits shared runners), under its own name
-        if: matrix.ios == '18'
-        run: docker pull -q mirror.gcr.io/library/swift:6.2.4 && docker tag mirror.gcr.io/library/swift:6.2.4 swift:6.2.4
       - name: Test
         run: |
-          docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock \
+          docker run --rm -v "$PWD:$PWD" -w "$PWD" \
             -v "$HOME/swift-toolchain:$HOME/swift-toolchain:ro" -e ISIM_SWIFT_TOOLCHAIN="$HOME/swift-toolchain" \
             -e CI=1 -e ISIM_TEST_JOBS="$(nproc)" -e ISIM_WAIT_SCALE=3 isim-ci python3 isim/build.py ci test -- ${{ matrix.args }}
       - name: File ownership (tests)
