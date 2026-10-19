@@ -60,6 +60,7 @@ public struct GraphicsContext {
     public var environment: EnvironmentValues
     public var transform: CGAffineTransform = .identity
     var clips: [(Path, Bool)] = []                  // in canvas coordinates
+    var filters: [Filter] = []                      // addFilter: applied to each drawing (a group through the host's effects)
     let size: CGSize
     init(environment: EnvironmentValues, size: CGSize) { self.environment = environment; self.size = size }
 
@@ -85,23 +86,43 @@ public struct GraphicsContext {
         public static let `repeat` = GradientOptions(rawValue: 1), mirror = GradientOptions(rawValue: 2), linearColor = GradientOptions(rawValue: 4)
         var extend: Int { contains(.mirror) ? 3 : contains(.repeat) ? 2 : 1 }
     }
-    /// Filters are accepted and not applied on isim.
-    public struct Filter: Sendable {
+    /// Filters applied to what is drawn after addFilter (the visual effects of SwiftUI views: blur, drop shadow, the colour
+    /// filters); `alphaThreshold` is accepted and not applied.
+    public struct Filter: @unchecked Sendable {
         let id: Int
-        public static func blur(radius: CGFloat, options: BlurOptions = BlurOptions()) -> Filter { Filter(id: 1) }
-        public static func shadow(color: Color = .black, radius: CGFloat, x: CGFloat = 0, y: CGFloat = 0, blendMode: BlendMode = .normal, options: ShadowOptions = ShadowOptions()) -> Filter { Filter(id: 2) }
-        public static func colorMultiply(_ color: Color) -> Filter { Filter(id: 3) }
-        public static func grayscale(_ amount: Double) -> Filter { Filter(id: 4) }
-        public static func hueRotation(_ angle: Angle) -> Filter { Filter(id: 5) }
-        public static func saturation(_ amount: Double) -> Filter { Filter(id: 6) }
-        public static func brightness(_ amount: Double) -> Filter { Filter(id: 7) }
-        public static func contrast(_ amount: Double) -> Filter { Filter(id: 8) }
-        public static func colorInvert(_ amount: Double = 1) -> Filter { Filter(id: 9) }
+        var values: [Double] = []
+        var color: Color? = nil
+        public static func blur(radius: CGFloat, options: BlurOptions = BlurOptions()) -> Filter { Filter(id: 1, values: [Double(radius), options.contains(.opaque) ? 1 : 0]) }
+        public static func shadow(color: Color = .black, radius: CGFloat, x: CGFloat = 0, y: CGFloat = 0, blendMode: BlendMode = .normal, options: ShadowOptions = ShadowOptions()) -> Filter {
+            Filter(id: 2, values: [Double(radius), Double(x), Double(y)], color: color)
+        }
+        public static func colorMultiply(_ color: Color) -> Filter { Filter(id: 3, color: color) }
+        public static func grayscale(_ amount: Double) -> Filter { Filter(id: 4, values: [amount]) }
+        public static func hueRotation(_ angle: Angle) -> Filter { Filter(id: 5, values: [angle.radians]) }
+        public static func saturation(_ amount: Double) -> Filter { Filter(id: 6, values: [amount]) }
+        public static func brightness(_ amount: Double) -> Filter { Filter(id: 7, values: [amount]) }
+        public static func contrast(_ amount: Double) -> Filter { Filter(id: 8, values: [amount]) }
+        public static func colorInvert(_ amount: Double = 1) -> Filter { Filter(id: 9, values: [amount]) }
         public static func alphaThreshold(min: Double, max: Double = 1, color: Color = Color.black) -> Filter { Filter(id: 10) }
+        /// the view effect it is (nil: not applied)
+        func _op(_ env: EnvironmentValues) -> _VFXOp? {
+            switch id {
+            case 1: return _VFXOp(values[1] != 0 ? .blurOpaque : .blur, [values[0]])
+            case 2: return _VFXOp(.shadow, _rgba(color ?? .black, env) + values)
+            case 3: return _VFXOp(.colorMultiply, _rgba(color ?? .white, env))
+            case 4: return _VFXOp(.grayscale, values)
+            case 5: return _VFXOp(.hueRotation, values)
+            case 6: return _VFXOp(.saturation, values)
+            case 7: return _VFXOp(.brightness, values)
+            case 8: return _VFXOp(.contrast, values)
+            case 9: return values.first.map { $0 > 0.5 } ?? true ? _VFXOp(.colorInvert) : nil
+            default: return nil
+            }
+        }
     }
     public struct BlurOptions: OptionSet, Sendable { public let rawValue: UInt32; public init(rawValue: UInt32) { self.rawValue = rawValue }; public static let opaque = BlurOptions(rawValue: 1), dithersResult = BlurOptions(rawValue: 2) }
     public struct ShadowOptions: OptionSet, Sendable { public let rawValue: UInt32; public init(rawValue: UInt32) { self.rawValue = rawValue }; public static let shadowAbove = ShadowOptions(rawValue: 1), shadowOnly = ShadowOptions(rawValue: 2), invertsAlpha = ShadowOptions(rawValue: 4), disablesGroup = ShadowOptions(rawValue: 8) }
-    public mutating func addFilter(_ filter: Filter, options: FilterOptions = FilterOptions()) {}
+    public mutating func addFilter(_ filter: Filter, options: FilterOptions = FilterOptions()) { filters.append(filter) }
     public struct FilterOptions: OptionSet, Sendable { public let rawValue: UInt32; public init(rawValue: UInt32) { self.rawValue = rawValue }; public static let linearColor = FilterOptions(rawValue: 1) }
 
     /// What paths are filled or stroked with.
@@ -161,10 +182,15 @@ public struct GraphicsContext {
         isim_gfx_save()
         for (p, eo) in clips { _hostPath(p); isim_path_set_fill_rule(eo ? 1 : 0); isim_gfx_clip_path() }
         isim_path_set_fill_rule(0)
+        let spec = filters.isEmpty ? nil : MainActor.assumeIsolated { _vfxSpec(filters.compactMap { $0._op(environment) }) }
+        if spec != nil { isim_gfx_push_group() }
         let t = transform
+        isim_gfx_save()
         isim_gfx_concat(t.a, t.b, t.c, t.d, t.tx, t.ty)
         body()
         isim_path_begin()
+        isim_gfx_restore()
+        if let spec { spec.withUnsafeBufferPointer { isim_gfx_pop_group_filtered($0.baseAddress, 1, 0, 0, size.width, size.height) } }
         isim_gfx_restore()
     }
     @MainActor func _paint(_ shading: Shading, bounds: CGRect) -> _Paint {
