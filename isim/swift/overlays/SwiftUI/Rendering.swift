@@ -37,7 +37,7 @@ public struct ForegroundStyle: ShapeStyle, Sendable {
 extension ShapeStyle where Self == ForegroundStyle {
     public static var foreground: ForegroundStyle { ForegroundStyle() }
 }
-/// The background style (`.background`): the system background color.
+/// The background style (`.background`): the style set with backgroundStyle(_:), or the system background color.
 public struct BackgroundStyle: ShapeStyle, Sendable {
     public init() {}
 }
@@ -71,6 +71,7 @@ extension EnvironmentValues {
     for _ in 0..<8 {
         if let a = s as? AnyShapeStyle { s = a.base; continue }
         if s is ForegroundStyle { s = _foregroundStyle(env); continue }
+        if s is BackgroundStyle, let b = env._backgroundStyle { s = b; continue }       // backgroundStyle(_:)
         break
     }
     return s

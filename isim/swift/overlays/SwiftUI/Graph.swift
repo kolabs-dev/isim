@@ -444,6 +444,8 @@ extension UIView {
     var badge: String?
     /// deleteDisabled / moveDisabled / selectionDisabled (List rows; nil when not set)
     var rowDisabled: (delete: Bool?, move: Bool?, selection: Bool?) = (nil, nil, nil)
+    /// badgeProminence where the badge was set: 0 standard, 1 increased, 2 decreased
+    var badgeProminence = 0
     /// Tab(role:): 0 none, 1 search, 2 prominent
     var tabRole = 0
     /// TabSection title (TabView sidebar), toolbar item priority (visibilityPriority) and spacer width (ToolbarSpacer)

@@ -222,7 +222,11 @@ final class _TabBarVisibilityNode: _WrapperNode {
     return n.children.contains { _tabBarHidden($0) }
 }
 extension View {
-    public func toolbar(_ visibility: Visibility, for bars: ToolbarPlacement...) -> some View {
+    public func toolbar(_ visibility: Visibility, for bars: ToolbarPlacement...) -> some View { _toolbarVisibility(visibility, bars) }
+    /// iOS 18's name for toolbar(_:for:).
+    @available(iOS 18.0, *)
+    public func toolbarVisibility(_ visibility: Visibility, for bars: ToolbarPlacement...) -> some View { _toolbarVisibility(visibility, bars) }
+    func _toolbarVisibility(_ visibility: Visibility, _ bars: [ToolbarPlacement]) -> some View {
         _modify { ctx, c in
             let nav = bars.isEmpty || bars.contains { $0.id == 0 || $0.id == 1 }
             if nav { ctx.nav?.barHidden = visibility == .hidden }
@@ -232,7 +236,11 @@ extension View {
             return node
         }
     }
-    public func toolbarBackground(_ visibility: Visibility, for bars: ToolbarPlacement...) -> some View {
+    public func toolbarBackground(_ visibility: Visibility, for bars: ToolbarPlacement...) -> some View { _toolbarBackgroundVisibility(visibility, bars) }
+    /// iOS 18's name for toolbarBackground(_:for:) with a visibility.
+    @available(iOS 18.0, *)
+    public func toolbarBackgroundVisibility(_ visibility: Visibility, for bars: ToolbarPlacement...) -> some View { _toolbarBackgroundVisibility(visibility, bars) }
+    func _toolbarBackgroundVisibility(_ visibility: Visibility, _ bars: [ToolbarPlacement]) -> some View {
         _modify { ctx, c in
             if bars.isEmpty || bars.contains(where: { $0.id <= 1 }) { ctx.nav?.barBackgroundVisibility = visibility }
             return _resolve(c, ctx.child("tbb"))
