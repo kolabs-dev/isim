@@ -252,7 +252,7 @@ extension View {
             g.usedTasks.insert(key); g.usedChanges.insert(vkey)
             let old = g.changeValues[vkey] as? T
             if g.tasks[key] == nil || old != value {
-                g.tasks[key]?.cancel()
+                if !g.measuring { g.tasks[key]?.cancel() }
                 g.changeValues[vkey] = value
                 g.postRender.append { g.tasks[key] = Task { @MainActor in await action() } }
                 g.tasks[key] = Task {}

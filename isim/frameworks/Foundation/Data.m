@@ -207,13 +207,14 @@ static NSData *b64_decode(const char *s, NSUInteger n, BOOL ignoreUnknown) {
         free(u);
         return d;
     }
-    if (enc == NSASCIIStringEncoding || enc == NSISOLatin1StringEncoding || enc == NSNonLossyASCIIStringEncoding) {
+    if (enc == NSASCIIStringEncoding || enc == NSISOLatin1StringEncoding || enc == NSNonLossyASCIIStringEncoding ||
+        enc == NSWindowsCP1252StringEncoding || enc == NSMacOSRomanStringEncoding) {
         unichar *u = malloc(sizeof(unichar) * (len + 1)); [self getCharacters:u range:NSMakeRange(0, len)];
         NSMutableData *d = [NSMutableData dataWithCapacity:len];
-        unichar limit = enc == NSISOLatin1StringEncoding ? 0xFF : 0x7F;
         for (NSUInteger i = 0; i < len; i++) {
-            if (u[i] > limit) { if (!lossy) { free(u); return nil; } unsigned char q = '?'; [d appendBytes:&q length:1]; }
-            else { unsigned char c = (unsigned char)u[i]; [d appendBytes:&c length:1]; }
+            int c = isim_8bit_encode(enc, u[i]);
+            if (c < 0) { if (!lossy) { free(u); return nil; } c = '?'; }
+            unsigned char byte = (unsigned char)c; [d appendBytes:&byte length:1];
         }
         free(u);
         return d;

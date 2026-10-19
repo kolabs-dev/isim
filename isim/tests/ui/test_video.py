@@ -18,16 +18,17 @@ def start_pip(app, started):
     """Tap AVPlayerViewController's Picture in Picture button until `started` (a log pattern) appears. While the video
     plays its controls hide 3 s after the last interaction, so on a busy machine the tap can land as they fade (the
     touch reaches the video and only shows them again) or after (then a tap on the video shows them)."""
-    for _ in range(5):
-        try:
-            app.wait_tap_id("avkit-pip", timeout=4)
-        except WaitTimeout:
-            app.tap_id("avkit-video")                                  # hidden controls: a tap on the video shows them
-            continue
-        try:
-            return app.wait_log(started, timeout=4)
-        except WaitTimeout:
-            pass
+    with app.expecting_timeouts():
+        for _ in range(5):
+            try:
+                app.wait_tap_id("avkit-pip", timeout=4)
+            except WaitTimeout:
+                app.tap_id("avkit-video")                              # hidden controls: a tap on the video shows them
+                continue
+            try:
+                return app.wait_log(started, timeout=4)
+            except WaitTimeout:
+                pass
     return app.wait_log(started)
 
 

@@ -10,6 +10,9 @@ NSString *isim_string_take(char *bytes, NSUInteger len) NS_RETURNS_RETAINED;   /
 NSString *isim_string_copy(const char *bytes, NSUInteger len) NS_RETURNS_RETAINED;
 NSString *isim_format(NSString *fmt, va_list ap) NS_RETURNS_RETAINED;
 NSUInteger isim_utf16_length(const char *s, NSUInteger n);
+/* 8-bit encodings (ASCII, ISO Latin 1, Windows-1252, Mac Roman): a byte's Unicode scalar, a scalar's byte; -1 if none */
+int32_t isim_8bit_decode(NSStringEncoding enc, unsigned char b);
+int isim_8bit_encode(NSStringEncoding enc, uint32_t cp);
 NSUInteger isim_utf16_to_byte(const char *s, NSUInteger n, NSUInteger idx);
 
 /* numbers (Collections.mrc.m): NSNumber reads its value through -_isim_getNumber:, which the constant-literal

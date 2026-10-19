@@ -28,6 +28,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     var keyboardHeight: CGFloat = 0
     var postRender: [() -> Void] = []
     var changeValues: [String: Any] = [:]
+    var measuring = false                                         // measure(): resolving without lasting effects
     var usedChanges: Set<String> = []
     var tasks: [String: Task<Void, Never>] = [:]
     var usedTasks: Set<String> = []
@@ -213,12 +214,27 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         env.colorScheme = traits.userInterfaceStyle == .dark ? .dark : .light
         _systemEnvironment(&env, traits: traits)
         _rootEnvironment(&env, self)
-        let saved = (postRender, usedKeys)
-        defer { postRender = saved.0; usedKeys = saved.1 }
+        // a measurement has no lasting effects: onAppear, task, onChange and the rest see the next render as before
+        let saved = (postRender, usedKeys, appeared, disappearActions, tasks, changeValues)
+        measuring = true
+        defer {
+            measuring = false
+            postRender = saved.0; usedKeys = saved.1; appeared = saved.2; disappearActions = saved.3; tasks = saved.4; changeValues = saved.5
+        }
         let node = _resolve(root(), _Context(graph: self, path: "root", environment: env, nav: nil))
         func dim(_ v: CGFloat) -> CGFloat? { v.isFinite && v > 0 && v < 1e6 ? v : nil }
         let s = node.sizeThatFits(_Proposal(width: dim(size.width), height: dim(size.height)))
         return CGSize(width: min(s.width, 1e6), height: min(s.height, 1e6))
+    }
+
+    /// The hosting view's intrinsicContentSize: the content's ideal size, with UIView.noIntrinsicMetric along an axis
+    /// where it is flexible (it takes more room when offered: Color, Spacer, .frame(maxWidth: .infinity)); nil while
+    /// rendering.
+    func intrinsicSize(traits: UITraitCollection) -> CGSize? {
+        guard !rendering else { return nil }
+        let ideal = measure(.zero, traits: traits), roomy = measure(CGSize(width: 100_000, height: 100_000), traits: traits)
+        return CGSize(width: roomy.width > ideal.width + 0.5 ? UIView.noIntrinsicMetric : ideal.width,
+                      height: roomy.height > ideal.height + 0.5 ? UIView.noIntrinsicMetric : ideal.height)
     }
 
     /// .ignoresSafeArea(): a view that reaches a safe-area edge grows to the screen edge (like SwiftUI).

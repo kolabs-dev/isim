@@ -290,28 +290,48 @@ static void siri_say(NSString *text, HSApp *app, NSDictionary *extra) {
     if (!stale.count) { NSArray *blocks = after_refresh; after_refresh = nil; for (void (^b)(void) in blocks) b(); return; }
     refreshing = YES;
     __block NSUInteger left = stale.count;
-    for (HSApp *a in stale) {
-        NSString *dir = dir_named(@"Library/SpringBoard/AppIntents");
-        NSString *req = [dir stringByAppendingPathComponent:[NSString stringWithFormat:@"list-%@-%u.plist", a.bundleID, arc4random() % 100000]];
-        NSString *out = [req stringByReplacingOccurrencesOfString:@".plist" withString:@"-out.plist"];
-        [@{ @"mode": @"appintents-list", @"out": out } writeToFile:req atomically:YES];
-        NSString *stamp = exe_stamp(a);
-        if (!helpers) helpers = [NSMutableDictionary dictionary];
-        helpers[req] = ^{
-            NSMutableDictionary *m = [[NSDictionary dictionaryWithContentsOfFile:out] mutableCopy] ?: [@{ @"shortcuts": @[], @"intents": @{}, @"error": @"no metadata" } mutableCopy];
-            m[@"stamp"] = stamp; m[@"app"] = a.bundleID; m[@"appName"] = a.name; m[@"appPath"] = a.path;
-            if (a.iconPath) m[@"icon"] = a.iconPath;
-            [m writeToFile:meta_file(a) atomically:YES];
-            [NSFileManager.defaultManager removeItemAtPath:req error:NULL]; [NSFileManager.defaultManager removeItemAtPath:out error:NULL];
-            NSLog(@"SpringBoard: %@: %lu App Shortcut(s), %lu intent(s)", a.name, (unsigned long)[m[@"shortcuts"] count], (unsigned long)[m[@"intents"] count]);
+    for (HSApp *a in stale)
+        [self readAppIntentsOf:a attempt:1 done:^{
             if (--left == 0) {
                 refreshing = NO;
                 NSArray *blocks = after_refresh; after_refresh = nil;
                 for (void (^b)(void) in blocks) b();
             }
-        };
-        isim_shell_request(ISIM_SHELL_SYSTEM, "ext-run", a.executable.UTF8String, req.UTF8String);
-    }
+        }];
+}
+/* runs the app's executable in its metadata mode; a helper that has not answered after a while (a loaded machine, a
+ * helper that failed to start) is asked again, then the app is given no metadata, so a refresh always finishes */
+- (void)readAppIntentsOf:(HSApp *)a attempt:(int)attempt done:(void (^)(void))done {
+    NSString *dir = dir_named(@"Library/SpringBoard/AppIntents");
+    NSString *req = [dir stringByAppendingPathComponent:[NSString stringWithFormat:@"list-%@-%u.plist", a.bundleID, arc4random() % 100000]];
+    NSString *out = [req stringByReplacingOccurrencesOfString:@".plist" withString:@"-out.plist"];
+    [@{ @"mode": @"appintents-list", @"out": out } writeToFile:req atomically:YES];
+    NSString *stamp = exe_stamp(a);
+    if (!helpers) helpers = [NSMutableDictionary dictionary];
+    helpers[req] = ^{
+        NSMutableDictionary *m = [[NSDictionary dictionaryWithContentsOfFile:out] mutableCopy] ?: [@{ @"shortcuts": @[], @"intents": @{}, @"error": @"no metadata" } mutableCopy];
+        m[@"stamp"] = stamp; m[@"app"] = a.bundleID; m[@"appName"] = a.name; m[@"appPath"] = a.path;
+        if (a.iconPath) m[@"icon"] = a.iconPath;
+        [m writeToFile:meta_file(a) atomically:YES];
+        [NSFileManager.defaultManager removeItemAtPath:req error:NULL]; [NSFileManager.defaultManager removeItemAtPath:out error:NULL];
+        NSLog(@"SpringBoard: %@: %lu App Shortcut(s), %lu intent(s)", a.name, (unsigned long)[m[@"shortcuts"] count], (unsigned long)[m[@"intents"] count]);
+        done();
+    };
+    NSLog(@"SpringBoard: reading %@'s App Intents metadata (attempt %d)", a.name, attempt);
+    isim_shell_request(ISIM_SHELL_SYSTEM, "ext-run", a.executable.UTF8String, req.UTF8String);
+    const char *e = getenv("ISIM_WAIT_SCALE");
+    double wait = 5 * (e && atof(e) > 0 ? atof(e) : 1);
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (!helpers[req]) return;                                  /* answered */
+        [helpers removeObjectForKey:req];
+        [NSFileManager.defaultManager removeItemAtPath:req error:NULL]; [NSFileManager.defaultManager removeItemAtPath:out error:NULL];
+        NSLog(@"SpringBoard: %@'s App Intents metadata: no answer after %.0f s%@", a.name, wait, attempt < 3 ? @", asking again" : @"");
+        if (attempt < 3) [self readAppIntentsOf:a attempt:attempt + 1 done:done];
+        else {
+            NSLog(@"SpringBoard: %@: 0 App Shortcut(s), 0 intent(s)", a.name);
+            done();
+        }
+    });
 }
 /* every App Shortcut: { app (HSApp), shortcut (metadata), phrases (with the app's name) } */
 - (NSArray<NSDictionary *> *)allAppShortcuts {

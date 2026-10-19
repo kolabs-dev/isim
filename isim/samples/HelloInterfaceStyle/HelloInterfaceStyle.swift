@@ -32,17 +32,30 @@ final class ViewController: UIViewController {
         stack.spacing = 24
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
+        // the hosting view sizes to its content (its intrinsicContentSize, issue #463): no constraints of its own
         NSLayoutConstraint.activate([stack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-                                     stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-                                     // isim's hosting view has no intrinsic size yet (#463): give the card its size
-                                     card.view.widthAnchor.constraint(equalToConstant: 220),
-                                     card.view.heightAnchor.constraint(equalToConstant: 64)])
+                                     stack.centerYAnchor.constraint(equalTo: view.centerYAnchor)])
         card.view.backgroundColor = .clear
         card.didMove(toParent: self)
+        self.card = card
         report()
     }
+    var card: UIHostingController<Card>?
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        if let card {
+            view.layoutIfNeeded()
+            let f = card.view.frame, i = card.view.intrinsicContentSize
+            say("card \(Int(f.width))x\(Int(f.height)) intrinsic \(Int(i.width))x\(Int(i.height))")
+        }
+        // flexible content has no intrinsic size along the axes it fills; sizingOptions keeps preferredContentSize
+        let flexible = UIHostingController(rootView: Color.orange.frame(height: 30)).view.intrinsicContentSize
+        say("flexible width \(flexible.width == UIView.noIntrinsicMetric ? "none" : "\(flexible.width)") height \(Int(flexible.height))")
+        let sized = UIHostingController(rootView: Text("Sized").padding())
+        sized.sizingOptions = .preferredContentSize
+        sized.view.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
+        sized.view.layoutIfNeeded()
+        say("preferred \(sized.preferredContentSize.width > 40 && sized.preferredContentSize.height > 30)")
         say("screen \(UIScreen.main.traitCollection.userInterfaceStyle.rawValue) plist \(Bundle.main.object(forInfoDictionaryKey: "UIUserInterfaceStyle") as? String ?? "-")")
     }
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {

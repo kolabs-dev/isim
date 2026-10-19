@@ -23,7 +23,8 @@ def imaging(launch_module, tmp_path_factory):
     def advanced(prev):
         moved = lambda s: rgb(s, 41, 99) != rgb(prev, 41, 99) and rgb(s, 290, 360) != rgb(prev, 290, 360)
         try:
-            return app.wait_shot(moved, "the GIF and animationImages advance a frame", timeout=TIMEOUT / 2)
+            with app.expecting_timeouts():
+                return app.wait_shot(moved, "the GIF and animationImages advance a frame", timeout=TIMEOUT / 2)
         except WaitTimeout:
             return app.screenshot()
     b = advanced(a)

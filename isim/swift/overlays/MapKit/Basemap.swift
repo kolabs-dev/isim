@@ -147,10 +147,15 @@ enum _MKBasemap {
         }
     }
 
-    static func drawPlaces(visible: MKMapRect, scale: Double, rect: CGRect, st: Style, toView: (MKMapPoint) -> CGPoint) {
+    /// avoid: the annotation views' frames (and their titles') in view points: a label that would collide with one is
+    /// left out, as Apple Maps hides map labels under annotations
+    /// Returns the names it drew.
+    @discardableResult
+    static func drawPlaces(visible: MKMapRect, scale: Double, rect: CGRect, st: Style, avoid: [CGRect] = [],
+                           toView: (MKMapPoint) -> CGPoint) -> [String] {
         // map points per view point: world ~ 1.1e6 at full zoom-out; landmarks only when zoomed in to a city
         let maxRank = scale > 20_000 ? 1 : scale > 2_000 ? 2 : scale > 200 ? 3 : 4
-        var taken: [CGRect] = []
+        var taken: [CGRect] = avoid, drawn: [String] = []
         for p in places.sorted(by: { $0.rank < $1.rank }) where p.rank <= maxRank {
             let mp = MKMapPoint(CLLocationCoordinate2D(latitude: p.lat, longitude: p.lon))
             guard visible.insetBy(dx: -visible.width * 0.05, dy: -visible.height * 0.05).contains(mp) else { continue }
@@ -163,7 +168,9 @@ enum _MKBasemap {
             st.dot.setFill()
             UIBezierPath(ovalIn: CGRect(x: c.x - 2.5, y: c.y - 2.5, width: 5, height: 5)).fill()
             _text(p.name, at: CGPoint(x: c.x - size.width / 2, y: c.y + 4), font: font, color: st.label, halo: st.halo)
+            drawn.append(p.name)
         }
+        return drawn
     }
 
     static func _text(_ s: String, at p: CGPoint, font: UIFont, color: UIColor, halo: UIColor?) {

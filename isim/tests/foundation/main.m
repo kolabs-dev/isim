@@ -826,9 +826,41 @@ static void testEnvironmentStable(void) {
     CHECK([[NSTimeZone systemTimeZone].name isEqualToString:sys]);      /* restored after each switch */
 }
 
+static void test_string_encodings(void) {
+    // initWithBytes:length:encoding: decodes the 8-bit encodings (issue #482); invalid input gives nil, as on iOS
+    unsigned char cp[] = { 'c', 'a', 'f', 0xE9, 0x8D, 0x80 };
+    NSString *w = [[NSString alloc] initWithBytes:cp length:6 encoding:NSWindowsCP1252StringEncoding];
+    CHECK(w.length == 6 && [w characterAtIndex:3] == 0xE9 && [w characterAtIndex:4] == 0x8D && [w characterAtIndex:5] == 0x20AC);
+    CHECK_STR([[NSString alloc] initWithBytes:cp length:4 encoding:NSISOLatin1StringEncoding], @"café");
+    NSUInteger walked = 0; for (NSUInteger i = 0; i < w.length; i++) { [w characterAtIndex:i]; walked++; }
+    CHECK(walked == 6);
+    unsigned char mr[] = { 0x8E, 0xDB, 0xF0, 0xD2 };
+    NSString *m = [[NSString alloc] initWithBytes:mr length:4 encoding:NSMacOSRomanStringEncoding];
+    CHECK(m.length == 4 && [m characterAtIndex:0] == 0xE9 && [m characterAtIndex:1] == 0x20AC && [m characterAtIndex:2] == 0xF8FF && [m characterAtIndex:3] == 0x201C);
+    CHECK([[NSMutableString alloc] initWithBytes:cp length:6 encoding:NSWindowsCP1252StringEncoding].length == 6);
+    CHECK([[NSString alloc] initWithBytes:cp length:4 encoding:NSASCIIStringEncoding] == nil);
+    CHECK([[NSString alloc] initWithBytes:cp length:4 encoding:NSUTF8StringEncoding] == nil);
+    unsigned char over[] = { 0xC0, 0xAF };
+    CHECK([[NSString alloc] initWithBytes:over length:2 encoding:NSUTF8StringEncoding] == nil);
+    CHECK_STR([[NSString alloc] initWithData:[NSData dataWithBytes:cp length:3] encoding:NSASCIIStringEncoding], @"caf");
+    unsigned char be[] = { 0xFE, 0xFF, 0x00, 'h', 0x00, 0xE9 }, le[] = { 'h', 0x00, 0xE9, 0x00 };
+    CHECK_STR([[NSString alloc] initWithBytes:be length:6 encoding:NSUTF16StringEncoding], @"hé");
+    CHECK_STR([[NSString alloc] initWithBytes:le length:4 encoding:NSUTF16LittleEndianStringEncoding], @"hé");
+    CHECK_STR([[NSString alloc] initWithBytes:be + 2 length:4 encoding:NSUTF16BigEndianStringEncoding], @"hé");
+    unsigned char u32[] = { 0x00, 0xF6, 0x01, 0x00 };   // U+1F600, little-endian
+    CHECK_STR([[NSString alloc] initWithBytes:u32 length:4 encoding:NSUTF32LittleEndianStringEncoding], @"😀");
+    // and back: dataUsingEncoding: for Windows-1252 and Mac Roman
+    NSData *d = [@"café€" dataUsingEncoding:NSWindowsCP1252StringEncoding];
+    CHECK(d.length == 5 && ((const unsigned char *)d.bytes)[3] == 0xE9 && ((const unsigned char *)d.bytes)[4] == 0x80);
+    d = [@"é€" dataUsingEncoding:NSMacOSRomanStringEncoding];
+    CHECK(d.length == 2 && ((const unsigned char *)d.bytes)[0] == 0x8E && ((const unsigned char *)d.bytes)[1] == 0xDB);
+    CHECK([@"Ω≈" dataUsingEncoding:NSWindowsCP1252StringEncoding] == nil);
+}
+
 int main(int argc, char *argv[]) {
     @autoreleasepool {
         test_corefoundation();
+        test_string_encodings();
         // strings & formatting
         NSString *s = [NSString stringWithFormat:@"%@ %d %.2f %s %ld %05x %@", @"hi", 42, 3.14159, "c", (long)-7, 255, @[@1, @2]];
         CHECK([s hasPrefix:@"hi 42 3.14 c -7 000ff ("]);

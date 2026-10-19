@@ -1378,6 +1378,7 @@ int main(int argc, char **argv, char **envp) {
             char self[PATH_MAX]; if (isim_self_path(self, sizeof self) <= 0) self[0] = 0;
             char **open = ai + 5 < argc && !strcmp(argv[ai + 3], "--open") ? argv + ai + 4 : NULL;
             extern int isim_os_select(void); if (isim_os_select()) return 2;
+            install_stack_dumper();       /* the shell answers SIGRTMIN+5 too (a test's timeout) instead of dying of it */
             return isim_shell_main(self, sysroot, argv[ai + 1], argv[ai + 2], open);
         }
         else break;
