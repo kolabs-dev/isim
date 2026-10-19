@@ -6,6 +6,7 @@
  *    POSIX read/write (stream) or pread/pwrite (random access, offsets relative to the descriptor's position when the
  *    channel was created). Partial results follow the high / low water marks (Apple's defaults: SIZE_MAX and 512 KiB)
  *    and the interval (strict: also below the low-water mark). Self-authored. */
+#define OS_OBJECT_USE_OBJC 0       /* the implementation works on the C layout (DispatchInternal.h) */
 #include "DispatchInternal.h"
 #include <Block.h>
 #include <errno.h>

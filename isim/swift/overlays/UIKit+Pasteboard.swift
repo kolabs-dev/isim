@@ -150,7 +150,7 @@ open class UIPasteControl: UIControl {
     public enum DisplayMode: Int, Sendable { case iconAndLabel, iconOnly, labelOnly, arrowAndLabel }
     open class Configuration: NSObject {
         open var displayMode: DisplayMode = .iconAndLabel
-        open var cornerStyle: UIButtonConfigurationCornerStyle = .dynamic
+        open var cornerStyle: UIButton.Configuration.CornerStyle = .dynamic
         open var cornerRadius: CGFloat = 0
         open var baseForegroundColor: UIColor?
         open var baseBackgroundColor: UIColor?

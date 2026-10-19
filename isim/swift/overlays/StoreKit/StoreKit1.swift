@@ -207,10 +207,17 @@ extension Bundle {
 
 // MARK: - Payments
 
-public struct SKPaymentDiscount: Sendable {
-    public let identifier: String, keyIdentifier: String, nonce: UUID, signature: String, timestamp: Int
-    public init(identifier: String, keyIdentifier: String, nonce: UUID, signature: String, timestamp: NSNumber) { let timestamp = Int(timestamp.int64Value)
-        self.identifier = identifier; self.keyIdentifier = keyIdentifier; self.nonce = nonce; self.signature = signature; self.timestamp = timestamp
+@objc(SKPaymentDiscount) open class SKPaymentDiscount: NSObject, @unchecked Sendable {
+    @objc open var identifier: String { _identifier }
+    @objc open var keyIdentifier: String { _keyIdentifier }
+    @objc open var nonce: UUID { _nonce }
+    @objc open var signature: String { _signature }
+    @objc open var timestamp: NSNumber { _timestamp }
+    private let _identifier: String, _keyIdentifier: String, _nonce: UUID, _signature: String, _timestamp: NSNumber
+    @objc(initWithIdentifier:keyIdentifier:nonce:signature:timestamp:)
+    public init(identifier: String, keyIdentifier: String, nonce: UUID, signature: String, timestamp: NSNumber) {
+        _identifier = identifier; _keyIdentifier = keyIdentifier; _nonce = nonce; _signature = signature; _timestamp = timestamp
+        super.init()
     }
 }
 
@@ -346,7 +353,7 @@ public protocol SKPaymentQueueDelegate: AnyObject {}
             if let u = payment.applicationUsername.flatMap({ UUID(uuidString: $0) }) { options.insert(.appAccountToken(u)) }
             if let d = payment.paymentDiscount {
                 options.insert(.promotionalOffer(offerID: d.identifier, keyID: d.keyIdentifier, nonce: d.nonce,
-                                                 signature: Data(base64Encoded: d.signature) ?? Data(), timestamp: d.timestamp))
+                                                 signature: Data(base64Encoded: d.signature) ?? Data(), timestamp: Int(d.timestamp.int64Value)))
             }
             do {
                 switch try await Product(item)._purchase(options: options, api: "sk1") {

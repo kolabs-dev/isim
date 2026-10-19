@@ -4,8 +4,12 @@
 // and without DISPATCH_IO_STOP, open errors, dispatch_read / dispatch_write, the _f variants) and the sources whose
 // events come from the host: write sources' free space, a listening socket's pending connections, Mach receive and
 // send (dead name) sources on isim's ports, and process fork / exec / exit of a process the test driver started
-// (DISPATCH_TEST_PID, DISPATCH_TEST_GO); dispatch and os_log objects owned by ARC as Objective-C objects.
+// (DISPATCH_TEST_PID, DISPATCH_TEST_GO); dispatch and os_log objects as Objective-C objects (strong properties,
+// collections, blocks; ARC frees them).
 // Prints PASS/FAIL per check; exit code = failures.
+// This file checks the C API with OS_OBJECT_USE_OBJC=0 (dispatch_retain / dispatch_release on C pointers, as
+// Apple's SDK allows); objects.m checks the default, where they are Objective-C objects under ARC.
+#define OS_OBJECT_USE_OBJC 0
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #include <dispatch/dispatch.h>
@@ -19,7 +23,7 @@
 #include <string.h>
 #include <unistd.h>
 
-static int failures, checks;
+int failures, checks;
 #define CHECK(cond) do { checks++; if (cond) printf("PASS  %s\n", #cond); else { failures++; printf("FAIL  %s  (%s:%d)\n", #cond, __FILE__, __LINE__); } fflush(stdout); } while (0)
 
 /* waits (polling) until cond holds or `seconds` pass */
@@ -309,77 +313,7 @@ static void testSources(void) {
     } else CHECK(!"DISPATCH_TEST_PID / DISPATCH_TEST_GO not set");
 }
 
-static int finalized;
-static void onFinalize(void *ctx) { (void)ctx; finalized++; }
-
-/* Apple's SDK declares dispatch objects and os_log_t as Objective-C objects (OS_OBJECT_USE_OBJC), so ARC code built
-   against it (binary SDKs) retains and releases them with objc_retain / objc_release. isim's headers keep them C
-   pointers; the objects are bridged to id by hand here to run the same ARC calls. */
-static void testObjects(void) {
-    @autoreleasepool {
-        dispatch_queue_t dq = dispatch_queue_create("dispatch.test.arc", NULL);
-        id queue = (__bridge id)dq;
-        CHECK(strcmp(object_getClassName(queue), "OS_dispatch_queue") == 0);
-        CHECK([queue isKindOfClass:NSClassFromString(@"OS_dispatch_object")]);
-        CHECK([queue isKindOfClass:NSClassFromString(@"OS_object")]);
-        CHECK([[queue description] containsString:@"dispatch.test.arc"]);
-        NSArray *queues = @[queue, queue];                                   // retained twice by the array (ARC)
-        CHECK(queues[1] == queue);
-        CHECK([(__bridge id)dispatch_get_main_queue() isKindOfClass:NSClassFromString(@"OS_dispatch_queue")]);
-        dispatch_release(dq);
-    }
-    @autoreleasepool {                                                       // still usable after the pool released the array
-        __block int ran = 0;
-        dispatch_queue_t dq = dispatch_queue_create("dispatch.test.arc2", NULL);
-        id queue = (__bridge_transfer id)dq;                                 // ARC owns the creation reference
-        dispatch_sync((__bridge dispatch_queue_t)queue, ^{ ran = 1; });
-        CHECK(ran == 1);
-    }
-    finalized = 0;
-    @autoreleasepool {
-        dispatch_group_t g = dispatch_group_create();
-        dispatch_set_finalizer_f(g, onFinalize);
-        id group = (__bridge_transfer id)g;                                  // ARC owns the creation reference
-        CHECK(strcmp(object_getClassName(group), "OS_dispatch_group") == 0);
-        NSMutableArray *holder = [NSMutableArray arrayWithObject:group];     // +1 through -retain = dispatch_retain
-        group = nil;                                                         // -release: the array still owns it
-        CHECK(finalized == 0);
-        dispatch_group_t inArray = (__bridge dispatch_group_t)holder[0];
-        dispatch_group_enter(inArray);
-        dispatch_group_leave(inArray);
-        CHECK(dispatch_group_wait(inArray, DISPATCH_TIME_NOW) == 0);
-        [holder removeAllObjects];                                           // last reference: dispatch_release frees it
-        CHECK(finalized == 1);
-    }
-    @autoreleasepool {
-        dispatch_semaphore_t sem = dispatch_semaphore_create(1);
-        id s = (__bridge_transfer id)sem;
-        CHECK(strcmp(object_getClassName(s), "OS_dispatch_semaphore") == 0);
-        CHECK(dispatch_semaphore_wait((__bridge dispatch_semaphore_t)s, DISPATCH_TIME_NOW) == 0);
-        dispatch_source_t src = dispatch_source_create(DISPATCH_SOURCE_TYPE_DATA_ADD, 0, 0, q);
-        id source = (__bridge_transfer id)src;
-        CHECK(strcmp(object_getClassName(source), "OS_dispatch_source") == 0);
-        dispatch_data_t d = dispatch_data_create("abc", 3, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
-        id data = (__bridge_transfer id)d;
-        CHECK([data isKindOfClass:NSClassFromString(@"OS_dispatch_data")]);
-        CHECK(dispatch_data_get_size((__bridge dispatch_data_t)data) == 3);
-    }
-
-    // os_log_t: immortal objects of class OS_os_log; ARC retains and releases are no-ops, hashing and equality work
-    @autoreleasepool {
-        os_log_t log = os_log_create("com.isim.dispatchtest", "arc");
-        id l = (__bridge id)log, d = (__bridge id)OS_LOG_DEFAULT;
-        CHECK(strcmp(object_getClassName(l), "OS_os_log") == 0);
-        CHECK(strcmp(object_getClassName(d), "OS_os_log") == 0);
-        NSArray *logs = @[l, d, l];
-        CHECK([logs indexOfObject:d] == 1);
-        CHECK([logs[2] isEqual:l] && ![l isEqual:d]);
-        CHECK([[NSSet setWithArray:logs] count] == 2);
-        logs = nil;
-        os_log(log, "os_log_t still usable after ARC released it");
-        CHECK(os_log_type_enabled(log, OS_LOG_TYPE_DEFAULT));
-    }
-}
+void testObjects(void);   /* objects.m: dispatch and os_log objects as Objective-C objects */
 
 int main(int argc, char **argv) {
     @autoreleasepool {

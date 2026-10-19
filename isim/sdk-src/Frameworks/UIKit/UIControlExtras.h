@@ -68,9 +68,9 @@ UIKIT_EXTERN UIConfigurationColorTransformer const UIConfigurationColorTransform
 /* the indicator after the title: automatic (a pop-up indicator for a button that shows its menu and changes
    selection), none, or the pop-up chevrons */
 typedef NS_ENUM(NSInteger, UIButtonConfigurationIndicator) { UIButtonConfigurationIndicatorAutomatic, UIButtonConfigurationIndicatorNone,
-    UIButtonConfigurationIndicatorPopup } NS_SWIFT_NAME(UIButton.Configuration.Indicator) API_AVAILABLE(ios(15.0));
+    UIButtonConfigurationIndicatorPopup } NS_SWIFT_NAME(__UIButtonConfiguration.Indicator) API_AVAILABLE(ios(15.0));
 typedef NS_ENUM(NSInteger, UIButtonConfigurationMacIdiomStyle) { UIButtonConfigurationMacIdiomStyleAutomatic, UIButtonConfigurationMacIdiomStyleBordered,
-    UIButtonConfigurationMacIdiomStyleBorderless, UIButtonConfigurationMacIdiomStyleBorderlessTinted } NS_SWIFT_NAME(UIButton.Configuration.MacIdiomStyle) API_AVAILABLE(ios(15.0));
+    UIButtonConfigurationMacIdiomStyleBorderless, UIButtonConfigurationMacIdiomStyleBorderlessTinted } NS_SWIFT_NAME(__UIButtonConfiguration.MacIdiomStyle) API_AVAILABLE(ios(15.0));
 @interface UIButtonConfiguration (UIButtonConfigurationExtras)
 @property (nonatomic, copy, nullable) UIConfigurationTextAttributesTransformer titleTextAttributesTransformer NS_REFINED_FOR_SWIFT;
 @property (nonatomic, copy, nullable) UIConfigurationTextAttributesTransformer subtitleTextAttributesTransformer NS_REFINED_FOR_SWIFT;

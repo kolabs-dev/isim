@@ -7,6 +7,7 @@
  *  - timers: one timer thread (dispatch_after on non-main queues, timer sources).
  * Time values are nanoseconds of CLOCK_UPTIME_RAW (what mach_absolute_time and Swift's
  * suspending clock read); bit 63 marks the continuous clock (same base on isim), bit 62 wall time. */
+#define OS_OBJECT_USE_OBJC 0       /* the implementation works on the C layout (DispatchInternal.h) */
 #import <Foundation/Foundation.h>
 #include <dispatch/dispatch.h>
 #include <Block.h>

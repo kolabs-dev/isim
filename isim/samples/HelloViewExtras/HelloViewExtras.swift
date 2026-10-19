@@ -131,19 +131,19 @@ final class ControlsViewController: UIViewController, UIPageControlTimerProgress
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
         // a configuration with a subtitle, the title made bold by its transformer
-        let sub = UIButton.Configuration.filled(); sub.title = "Title"; sub.subtitle = "Subtitle"
+        var sub = UIButton.Configuration.filled(); sub.title = "Title"; sub.subtitle = "Subtitle"
         sub.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { a in
             var a = a; a.font = UIFont.boldSystemFont(ofSize: 20); return a
         }
         sub.imageColorTransformer = .grayscale
         let subButton = UIButton(configuration: sub); subButton.accessibilityIdentifier = "subtitle-button"
-        let plain = UIButton.Configuration.filled(); plain.title = "Title"
+        var plain = UIButton.Configuration.filled(); plain.title = "Title"
         let h1 = subButton.intrinsicContentSize.height, h0 = UIButton(configuration: plain).intrinsicContentSize.height
         log("subtitle taller \(h1 > h0 + 10) label \(subButton.subtitleLabel?.text ?? "-")")
         subButton.frame = CGRect(x: 20, y: 70, width: 160, height: h1)
         view.addSubview(subButton)
         // a pop-up button: the menu as its primary action, the chosen item as its title, the pop-up indicator
-        let popupConf = UIButton.Configuration.gray(); popupConf.indicator = .popup
+        var popupConf = UIButton.Configuration.gray(); popupConf.indicator = .popup
         let popup = UIButton(configuration: popupConf)
         popup.menu = UIMenu(options: .singleSelection, children: ["Red", "Green", "Blue"].map { name in
             UIAction(title: name, state: name == "Red" ? .on : .off) { _ in log("popup chose \(name)") }
@@ -178,7 +178,7 @@ final class ControlsViewController: UIViewController, UIPageControlTimerProgress
         plus.contentHorizontalAlignment = .leading
         log("effective alignment left \(plus.effectiveContentHorizontalAlignment == .left)")
         // a toggle: a selected plain button looks tinted
-        let toggleConf = UIButton.Configuration.plain(); toggleConf.title = "Toggle"
+        var toggleConf = UIButton.Configuration.plain(); toggleConf.title = "Toggle"
         let toggle = UIButton(configuration: toggleConf); toggle.changesSelectionAsPrimaryAction = true
         toggle.configurationUpdateHandler = { b in log("toggle selected \(b.isSelected) hovered \(b.isHovered)") }
         toggle.frame = CGRect(x: 80, y: 200, width: 100, height: 44); toggle.accessibilityIdentifier = "toggle"

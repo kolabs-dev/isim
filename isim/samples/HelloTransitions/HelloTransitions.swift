@@ -16,7 +16,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 }
 
 func button(_ title: String, _ id: String, _ action: @escaping () -> Void) -> UIButton {
-    let config = UIButton.Configuration.gray()
+    var config = UIButton.Configuration.gray()
     config.title = title
     let b = UIButton(configuration: config, primaryAction: UIAction { _ in action() })
     b.accessibilityIdentifier = id
@@ -353,7 +353,7 @@ final class EmptyStateViewController: UIViewController {
         config.image = UIImage(systemName: "envelope")
         config.text = "No Mail"
         config.secondaryText = "New messages appear here."
-        let b = UIButton.Configuration.filled()
+        var b = UIButton.Configuration.filled()
         b.title = "Load"
         config.button = b
         config.buttonProperties.primaryAction = UIAction { [weak self] _ in self?.load() }

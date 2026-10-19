@@ -4,6 +4,9 @@
  * are dispatch_retain/dispatch_release), so code compiled with ARC against Apple's SDK (where dispatch_queue_t is an
  * Objective-C type) can retain, release and autorelease them. */
 #pragma once
+#ifndef OS_OBJECT_USE_OBJC
+#define OS_OBJECT_USE_OBJC 0      /* the implementation works on the objects' C layout */
+#endif
 #include <dispatch/dispatch.h>
 
 enum { K_QUEUE = 1, K_SOURCE, K_GROUP, K_SEMA, K_ATTR, K_DATA, K_IO };

@@ -1,6 +1,6 @@
 // HelloStoreObjC: StoreKit 1 from Objective-C (issue #226), as Unity IAP and the Capacitor / Cordova purchase plugins
 // use it: an SKProductsRequest, buying through the SKPaymentQueue with a transaction observer, finishing transactions,
-// restoring purchases, refreshing the receipt and asking for a review. It uses HelloStore's local StoreKit
+// restoring purchases, signed promotional offers (#454), refreshing the receipt and asking for a review. It uses HelloStore's local StoreKit
 // configuration. Logs "so ..." lines; the buttons have accessibility identifiers.
 #import <StoreKit/StoreKit.h>
 #import <UIKit/UIKit.h>
@@ -94,6 +94,8 @@ static NSString *stateName(SKPaymentTransactionState s) {
     }
     self.products = byID;
     say(@"invalid %@", [response.invalidProductIdentifiers componentsJoinedByString:@","]);
+    [self button:@"Promotional Offer" id:@"promo" action:@selector(promo:)];
+    [self button:@"Forged Offer" id:@"promo-bad" action:@selector(promo:)];
     [self button:@"Buy Unknown" id:@"buy-unknown" action:@selector(buyUnknown)];
     [self button:@"Restore Purchases" id:@"restore" action:@selector(restore)];
     [self button:@"Refresh Receipt" id:@"refresh-receipt" action:@selector(refreshReceipt)];
@@ -118,6 +120,26 @@ static NSString *stateName(SKPaymentTransactionState s) {
     payment.quantity = [pid isEqualToString:@"dev.isim.store.coins"] ? 2 : 1;
     payment.applicationUsername = @"player-1";
     say(@"add payment %@ quantity=%ld mutable=%d", payment.productIdentifier, (long)payment.quantity, [payment isKindOfClass:[SKMutablePayment class]]);
+    [[SKPaymentQueue defaultQueue] addPayment:payment];
+}
+// The test supplies an offer signed by the device's local subscription offers key (a stand-in offer server).
+- (void)promo:(UIButton *)sender {
+    NSDictionary *env = NSProcessInfo.processInfo.environment;
+    SKMutablePayment *payment = [SKMutablePayment paymentWithProduct:self.products[@"dev.isim.store.plus.monthly"]];
+    NSUUID *nonce = [[NSUUID alloc] initWithUUIDString:env[@"STOREOBJC_NONCE"]];
+    NSNumber *timestamp = @([env[@"STOREOBJC_TIMESTAMP"] longLongValue]);
+    NSString *signature = [sender.accessibilityIdentifier isEqualToString:@"promo-bad"] ? @"Zm9yZ2Vk" : env[@"STOREOBJC_SIGNATURE"];
+    if (!nonce || !signature) { say(@"offer needs a signed payload from the test offer server"); return; }
+    SKPaymentDiscount *discount = [[SKPaymentDiscount alloc] initWithIdentifier:@"comeback" keyIdentifier:env[@"STOREOBJC_KEY_ID"]
+                                                                       nonce:nonce signature:signature timestamp:timestamp];
+    payment.paymentDiscount = discount;
+    SKPayment *base = payment;
+    say(@"discount class=%d identity=%d fields=%d", [discount isKindOfClass:[NSObject class]], base.paymentDiscount == discount,
+        [discount.identifier isEqualToString:@"comeback"] && [discount.keyIdentifier isEqualToString:env[@"STOREOBJC_KEY_ID"]] &&
+        [discount.nonce isEqual:nonce] && [discount.signature isEqualToString:signature] && [discount.timestamp isEqual:timestamp]);
+    payment.paymentDiscount = nil;
+    say(@"discount cleared=%d", base.paymentDiscount == nil);
+    payment.paymentDiscount = discount;
     [[SKPaymentQueue defaultQueue] addPayment:payment];
 }
 - (void)buyUnknown {

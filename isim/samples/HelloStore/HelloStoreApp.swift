@@ -93,6 +93,9 @@ let coinsID = "dev.isim.store.coins", fullGameID = "dev.isim.store.full_game"
     }
 }
 
+// Compiles only when SKPaymentDiscount is an open reference type, as in Apple’s SDK.
+final class SamplePaymentDiscount: SKPaymentDiscount, @unchecked Sendable {}
+
 final class SK1Observer: NSObject, SKPaymentTransactionObserver, SKProductsRequestDelegate {
     static let shared = SK1Observer()
     var request: SKProductsRequest?
@@ -104,6 +107,11 @@ final class SK1Observer: NSObject, SKPaymentTransactionObserver, SKProductsReque
     }
     func paymentQueueRestoreCompletedTransactionsFinished(_ queue: SKPaymentQueue) { print("sk1: restore finished") }
     func productsRequest(_ request: SKProductsRequest, didReceive response: SKProductsResponse) {
+        let discount = SamplePaymentDiscount(identifier: "comeback", keyIdentifier: "sample", nonce: UUID(),
+                                             signature: "", timestamp: NSNumber(value: Int64(1_700_000_000_000)))
+        let object: NSObject = discount
+        let timestamp: NSNumber = discount.timestamp
+        print("sk1 discount: identity=\(object === discount) timestamp=\(timestamp.int64Value)")
         for p in response.products {
             print("sk1 product: \(p.productIdentifier) \(p.localizedTitle) \(p.price) period=\(p.subscriptionPeriod.map { "\($0.numberOfUnits)/\($0.unit.rawValue)" } ?? "-") intro=\(p.introductoryPrice.map { "\($0.paymentMode.rawValue)" } ?? "-")")
         }

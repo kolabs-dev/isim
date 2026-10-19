@@ -794,7 +794,14 @@ extension UIInterfaceOrientation {
 
 // MARK: - Buttons (Swift default arguments from Apple's UIKit overlay)
 extension UIButton {
-    public convenience init(configuration: UIButton.Configuration) { self.init(configuration: configuration, primaryAction: nil) }
+    public convenience init(configuration: UIButton.Configuration, primaryAction: UIAction? = nil) {
+        self.init(__configuration: configuration._bridgeToObjectiveC(), primaryAction: primaryAction)
+    }
+    /// the button's configuration (a value: change it and set it back, or change it in place)
+    public var configuration: UIButton.Configuration? {
+        get { __configuration.map { UIButton.Configuration(_o: $0.copy() as! __UIButtonConfiguration) } }
+        set { __configuration = newValue?._bridgeToObjectiveC() }
+    }
     /// init(type: .system, primaryAction:): Apple's default button type
     public convenience init(primaryAction: UIAction?) { self.init(type: .system, primaryAction: primaryAction) }
 }
@@ -879,18 +886,6 @@ extension UIBarButtonItem.Badge {
     public static func count(_ count: Int) -> UIBarButtonItem.Badge { _isim_count(count) }
     public static func string(_ string: String) -> UIBarButtonItem.Badge { _isim_string(string) }
     public static func indicator() -> UIBarButtonItem.Badge { _isim_indicator() }
-}
-
-// MARK: - Button configurations: attributed titles as AttributedString (Apple's Swift API)
-extension UIButton.Configuration {
-    public var attributedTitle: AttributedString? {
-        get { __attributedTitle.map { AttributedString($0) } }
-        set { __attributedTitle = newValue.map { NSAttributedString($0) } }
-    }
-    public var attributedSubtitle: AttributedString? {
-        get { __attributedSubtitle.map { AttributedString($0) } }
-        set { __attributedSubtitle = newValue.map { NSAttributedString($0) } }
-    }
 }
 
 // MARK: - iOS 26 navigation item titles and subtitles as AttributedString (Apple's Swift API)
@@ -1179,31 +1174,6 @@ public struct UIConfigurationColorTransformer {
     public static let preferredTint = UIConfigurationColorTransformer(__UIConfigurationColorTransformerPreferredTint)
     public static let monochromeTint = UIConfigurationColorTransformer(__UIConfigurationColorTransformerMonochromeTint)
 }
-extension UIButton.Configuration {
-    @available(iOS 15.0, *)
-    public var titleTextAttributesTransformer: UIConfigurationTextAttributesTransformer? {
-        get { __titleTextAttributesTransformer.map { UIConfigurationTextAttributesTransformer(_isim: $0) } }
-        set { __titleTextAttributesTransformer = newValue?._isimBlock }
-    }
-    @available(iOS 15.0, *)
-    public var subtitleTextAttributesTransformer: UIConfigurationTextAttributesTransformer? {
-        get { __subtitleTextAttributesTransformer.map { UIConfigurationTextAttributesTransformer(_isim: $0) } }
-        set { __subtitleTextAttributesTransformer = newValue?._isimBlock }
-    }
-    public var imageColorTransformer: UIConfigurationColorTransformer? {
-        get { __imageColorTransformer.map { UIConfigurationColorTransformer($0) } }
-        set { __imageColorTransformer = newValue.map { t in { t($0) } } }
-    }
-    public var indicatorColorTransformer: UIConfigurationColorTransformer? {
-        get { __indicatorColorTransformer.map { UIConfigurationColorTransformer($0) } }
-        set { __indicatorColorTransformer = newValue.map { t in { t($0) } } }
-    }
-    public var activityIndicatorColorTransformer: UIConfigurationColorTransformer? {
-        get { __activityIndicatorColorTransformer.map { UIConfigurationColorTransformer($0) } }
-        set { __activityIndicatorColorTransformer = newValue.map { t in { t($0) } } }
-    }
-}
-
 // MARK: - Control event handlers (Apple's Swift signature)
 extension UIControl {
     @available(iOS 14.0, *)
@@ -1296,3 +1266,130 @@ extension NSAttributedString.TextHighlightColorScheme {
 public typealias UITextSearching = __UITextSearching
 @available(iOS 16.0, *)
 public typealias UITextSearchAggregator = __UITextSearchAggregator
+
+// MARK: - UIButton.Configuration: a value type, as on iOS (issue #487)
+// The Objective-C UIButtonConfiguration (__UIButtonConfiguration in Swift) holds the values the button renders; the
+// struct keeps one as copy-on-write storage and bridges to it (UIButton.configuration, init(configuration:), ...).
+extension UIButton {
+    @MainActor @preconcurrency
+    public struct Configuration: Hashable {
+        public typealias CornerStyle = __UIButtonConfiguration.CornerStyle
+        public typealias Size = __UIButtonConfiguration.Size
+        public typealias TitleAlignment = __UIButtonConfiguration.TitleAlignment
+        public typealias Indicator = __UIButtonConfiguration.Indicator
+        public typealias MacIdiomStyle = __UIButtonConfiguration.MacIdiomStyle
+        var _o: __UIButtonConfiguration
+        init(_o: __UIButtonConfiguration) { self._o = _o }
+        /// the storage, copied first when another configuration value shares it
+        mutating func _mutable() -> __UIButtonConfiguration {
+            if !isKnownUniquelyReferenced(&_o) { _o = _o.copy() as! __UIButtonConfiguration }
+            return _o
+        }
+
+        public static func plain() -> Configuration { Configuration(_o: .plain()) }
+        public static func tinted() -> Configuration { Configuration(_o: .tinted()) }
+        public static func gray() -> Configuration { Configuration(_o: .gray()) }
+        public static func filled() -> Configuration { Configuration(_o: .filled()) }
+        public static func borderless() -> Configuration { Configuration(_o: .borderless()) }
+        public static func bordered() -> Configuration { Configuration(_o: .bordered()) }
+        public static func borderedTinted() -> Configuration { Configuration(_o: .borderedTinted()) }
+        public static func borderedProminent() -> Configuration { Configuration(_o: .borderedProminent()) }
+        @available(iOS 26.0, *) public static func glass() -> Configuration { Configuration(_o: .glass()) }
+        @available(iOS 26.0, *) public static func prominentGlass() -> Configuration { Configuration(_o: .prominentGlass()) }
+        @available(iOS 26.0, *) public static func clearGlass() -> Configuration { Configuration(_o: .clearGlass()) }
+        @available(iOS 26.0, *) public static func prominentClearGlass() -> Configuration { Configuration(_o: .prominentClearGlass()) }
+
+        public var title: String? { get { _o.title } set { _mutable().title = newValue } }
+        public var subtitle: String? { get { _o.subtitle } set { _mutable().subtitle = newValue } }
+        public var image: UIImage? { get { _o.image } set { _mutable().image = newValue } }
+        public var baseForegroundColor: UIColor? { get { _o.baseForegroundColor } set { _mutable().baseForegroundColor = newValue } }
+        public var baseBackgroundColor: UIColor? { get { _o.baseBackgroundColor } set { _mutable().baseBackgroundColor = newValue } }
+        public var cornerStyle: CornerStyle { get { _o.cornerStyle } set { _mutable().cornerStyle = newValue } }
+        public var buttonSize: Size { get { _o.buttonSize } set { _mutable().buttonSize = newValue } }
+        public var contentInsets: NSDirectionalEdgeInsets { get { _o.contentInsets } set { _mutable().contentInsets = newValue } }
+        public var imagePadding: CGFloat { get { _o.imagePadding } set { _mutable().imagePadding = newValue } }
+        public var imageReservation: CGFloat { get { _o.imageReservation } set { _mutable().imageReservation = newValue } }
+        public var titlePadding: CGFloat { get { _o.titlePadding } set { _mutable().titlePadding = newValue } }
+        public var imagePlacement: NSDirectionalRectEdge { get { _o.imagePlacement } set { _mutable().imagePlacement = newValue } }
+        public var titleAlignment: TitleAlignment { get { _o.titleAlignment } set { _mutable().titleAlignment = newValue } }
+        public var showsActivityIndicator: Bool { get { _o.showsActivityIndicator } set { _mutable().showsActivityIndicator = newValue } }
+        public var automaticallyUpdateForSelection: Bool { get { _o.automaticallyUpdateForSelection } set { _mutable().automaticallyUpdateForSelection = newValue } }
+        public var titleLineBreakMode: NSLineBreakMode { get { _o.titleLineBreakMode } set { _mutable().titleLineBreakMode = newValue } }
+        public var subtitleLineBreakMode: NSLineBreakMode { get { _o.subtitleLineBreakMode } set { _mutable().subtitleLineBreakMode = newValue } }
+        public var indicator: Indicator { get { _o.indicator } set { _mutable().indicator = newValue } }
+        public var macIdiomStyle: MacIdiomStyle { get { _o.macIdiomStyle } set { _mutable().macIdiomStyle = newValue } }
+        public var preferredSymbolConfigurationForImage: UIImage.SymbolConfiguration? { get { _o.preferredSymbolConfigurationForImage } set { _mutable().preferredSymbolConfigurationForImage = newValue } }
+        @available(iOS 26.0, *)
+        public var symbolContentTransition: UISymbolContentTransition? { get { _o.symbolContentTransition } set { _mutable().symbolContentTransition = newValue } }
+        public var attributedTitle: AttributedString? {
+            get { _o.__attributedTitle.map { AttributedString($0) } }
+            set { _mutable().__attributedTitle = newValue.map { NSAttributedString($0) } }
+        }
+        public var attributedSubtitle: AttributedString? {
+            get { _o.__attributedSubtitle.map { AttributedString($0) } }
+            set { _mutable().__attributedSubtitle = newValue.map { NSAttributedString($0) } }
+        }
+        public var titleTextAttributesTransformer: UIConfigurationTextAttributesTransformer? {
+            get { _o.__titleTextAttributesTransformer.map { UIConfigurationTextAttributesTransformer(_isim: $0) } }
+            set { _mutable().__titleTextAttributesTransformer = newValue?._isimBlock }
+        }
+        public var subtitleTextAttributesTransformer: UIConfigurationTextAttributesTransformer? {
+            get { _o.__subtitleTextAttributesTransformer.map { UIConfigurationTextAttributesTransformer(_isim: $0) } }
+            set { _mutable().__subtitleTextAttributesTransformer = newValue?._isimBlock }
+        }
+        public var imageColorTransformer: UIConfigurationColorTransformer? {
+            get { _o.__imageColorTransformer.map { UIConfigurationColorTransformer($0) } }
+            set { _mutable().__imageColorTransformer = newValue.map { t in { t($0) } } }
+        }
+        public var indicatorColorTransformer: UIConfigurationColorTransformer? {
+            get { _o.__indicatorColorTransformer.map { UIConfigurationColorTransformer($0) } }
+            set { _mutable().__indicatorColorTransformer = newValue.map { t in { t($0) } } }
+        }
+        public var activityIndicatorColorTransformer: UIConfigurationColorTransformer? {
+            get { _o.__activityIndicatorColorTransformer.map { UIConfigurationColorTransformer($0) } }
+            set { _mutable().__activityIndicatorColorTransformer = newValue.map { t in { t($0) } } }
+        }
+        /// the content insets for the configuration's style and size
+        public mutating func setDefaultContentInsets() { _mutable().setDefaultContentInsets() }
+
+        // Hashable: by the values the configuration shows (the closures and transformers compare by presence)
+        nonisolated var _key: [AnyHashable?] {
+            nonisolated(unsafe) var key: [AnyHashable?] = []
+            MainActor.assumeIsolated { key =  {
+                [title, subtitle, image, baseForegroundColor, baseBackgroundColor, cornerStyle.rawValue, buttonSize.rawValue,
+                 contentInsets.top, contentInsets.leading, contentInsets.bottom, contentInsets.trailing, imagePadding,
+                 imageReservation, titlePadding, imagePlacement.rawValue, titleAlignment.rawValue, showsActivityIndicator,
+                 automaticallyUpdateForSelection, indicator.rawValue, preferredSymbolConfigurationForImage,
+                 _o.__attributedTitle, _o.__attributedSubtitle, _o.__titleTextAttributesTransformer != nil,
+                 _o.__imageColorTransformer != nil] }()
+            }
+            return key
+        }
+        nonisolated public static func == (a: Configuration, b: Configuration) -> Bool { a._o === b._o || a._key == b._key }
+        nonisolated public func hash(into h: inout Hasher) { h.combine(_key) }
+    }
+}
+extension UIButton.Configuration: _ObjectiveCBridgeable {
+    public typealias _ObjectiveCType = __UIButtonConfiguration
+    nonisolated public func _bridgeToObjectiveC() -> __UIButtonConfiguration { MainActor.assumeIsolated { _o.copy() as! __UIButtonConfiguration } }
+    nonisolated public static func _forceBridgeFromObjectiveC(_ o: __UIButtonConfiguration, result: inout UIButton.Configuration?) {
+        result = MainActor.assumeIsolated { UIButton.Configuration(_o: o.copy() as! __UIButtonConfiguration) }
+    }
+    nonisolated public static func _conditionallyBridgeFromObjectiveC(_ o: __UIButtonConfiguration, result: inout UIButton.Configuration?) -> Bool {
+        _forceBridgeFromObjectiveC(o, result: &result); return true
+    }
+    nonisolated public static func _unconditionallyBridgeFromObjectiveC(_ o: __UIButtonConfiguration?) -> UIButton.Configuration {
+        MainActor.assumeIsolated { UIButton.Configuration(_o: (o ?? .plain()).copy() as! __UIButtonConfiguration) }
+    }
+}
+extension UIContentUnavailableConfiguration {
+    /// the primary button's configuration (a value, as on iOS; plain() until set)
+    public var button: UIButton.Configuration {
+        get { UIButton.Configuration(_o: (__button ?? .plain()).copy() as! __UIButtonConfiguration) }
+        set { __button = newValue._bridgeToObjectiveC() }
+    }
+    public var secondaryButton: UIButton.Configuration {
+        get { UIButton.Configuration(_o: (__secondaryButton ?? .plain()).copy() as! __UIButtonConfiguration) }
+        set { __secondaryButton = newValue._bridgeToObjectiveC() }
+    }
+}

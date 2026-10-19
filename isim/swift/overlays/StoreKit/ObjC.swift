@@ -172,10 +172,12 @@ extension SKPayment {
     @objc(quantity) var _objc_quantity: Int { quantity }
     @objc(applicationUsername) var _objc_applicationUsername: String? { applicationUsername }
     @objc(requestData) var _objc_requestData: Data? { requestData }
+    @objc(paymentDiscount) var _objc_paymentDiscount: SKPaymentDiscount? { paymentDiscount }
     @objc(simulatesAskToBuyInSandbox) var _objc_askToBuy: Bool { simulatesAskToBuyInSandbox }
 }
 
 extension SKMutablePayment {
+    @objc(setPaymentDiscount:) func _objc_setPaymentDiscount(_ v: SKPaymentDiscount?) { paymentDiscount = v }
     @objc(setProductIdentifier:) func _objc_setProductIdentifier(_ v: String) { productIdentifier = v }
     @objc(setQuantity:) func _objc_setQuantity(_ v: Int) { quantity = v }
     @objc(setApplicationUsername:) func _objc_setApplicationUsername(_ v: String?) { applicationUsername = v }

@@ -38,9 +38,9 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) UIContentUnavailableTextProperties *textProperties;
 @property (nullable, nonatomic, copy) NSString *secondaryText;
 @property (nonatomic, readonly) UIContentUnavailableTextProperties *secondaryTextProperties;
-@property (nullable, nonatomic, copy) UIButtonConfiguration *button;
+@property (nullable, nonatomic, copy) UIButtonConfiguration *button NS_REFINED_FOR_SWIFT;
 @property (nonatomic, readonly) UIContentUnavailableButtonProperties *buttonProperties;
-@property (nullable, nonatomic, copy) UIButtonConfiguration *secondaryButton;
+@property (nullable, nonatomic, copy) UIButtonConfiguration *secondaryButton NS_REFINED_FOR_SWIFT;
 @property (nonatomic, readonly) UIContentUnavailableButtonProperties *secondaryButtonProperties;
 @property (nonatomic) NSDirectionalEdgeInsets directionalLayoutMargins;
 @property (nonatomic) CGFloat imageToTextPadding, textToSecondaryTextPadding, textToButtonPadding, buttonToSecondaryButtonPadding;
