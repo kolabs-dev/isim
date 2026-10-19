@@ -105,7 +105,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: ~/swift-toolchain
-          key: swift-toolchain-${{ hashFiles('isim/ci/swift-toolchain.sh') }}
+          key: swift-6.2.4-ubuntu24.04
       - name: Swift toolchain (download)
         if: steps.swift-toolchain.outputs.cache-hit != 'true'
         run: isim/ci/swift-toolchain.sh ~/swift-toolchain

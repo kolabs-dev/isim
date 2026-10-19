@@ -31,7 +31,7 @@ env:
   STATUS: repos/${{ github.repository }}/statuses/${{ github.sha }}
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
   BUILD_KEY: build-${{ github.ref_name }}-${{ github.sha }}-${{ github.run_id }}
-  SWIFT_KEY: swift-toolchain-${{ hashFiles('isim/ci/swift-toolchain.sh') }}
+  SWIFT_KEY: swift-6.2.4-ubuntu24.04          # isim/ci/swift-toolchain.sh's toolchain (release.yml uses the same key)
 jobs:
   build:
     name: build
