@@ -403,13 +403,16 @@ def compile_xcassets(path, bundle):
             if kind == '.colorset':
                 variants = {}
                 for c in meta.get('colors', []):
+                    if 'color' not in c:
+                        continue                     # no color given (Xcode's new AccentColor): nothing, as actool does
                     appearance = appearance_key(c.get('appearances', []))
                     comps = c.get('color', {}).get('components', {})
                     def comp(k, default='1'):
                         v = str(comps.get(k, default))
                         return int(v, 16) / 255 if v.startswith('0x') else (float(v) / 255 if float(v) > 1 else float(v))
                     variants[appearance] = [comp('red', '0'), comp('green', '0'), comp('blue', '0'), comp('alpha')]
-                index['colors'][name] = variants
+                if variants:                         # an empty color set: no color named so (the tint stays the system's blue)
+                    index['colors'][name] = variants
             elif kind == '.dataset':
                 # NSDataAsset(name:): the data file and its type identifier
                 for item in meta.get('data', []):
@@ -1937,6 +1940,10 @@ def make_info_plist(target, settings, bundle, extra_localizations, package_type=
                 if key.endswith(suffix): key = key[:-len(suffix)] + plist
             if key.startswith('UISupportedInterfaceOrientations') and isinstance(v, str):
                 v = v.split()                # a space-separated list in build settings, an array in Info.plist
+            if key in GENERATED_KEYS:        # <Key>_Generation = YES: Xcode writes the key's default value
+                if v == 'YES':
+                    info.setdefault(GENERATED_KEYS[key][0], GENERATED_KEYS[key][1]())
+                continue
             info.setdefault(key, {'YES': True, 'NO': False}.get(v, v) if isinstance(v, str) else v)
     info.setdefault('CFBundleExecutable', settings['EXECUTABLE_NAME'])
     info.setdefault('CFBundleIdentifier', settings.get('PRODUCT_BUNDLE_IDENTIFIER', ''))
@@ -1958,6 +1965,13 @@ def make_info_plist(target, settings, bundle, extra_localizations, package_type=
         plistlib.dump(info, f)
     return info
 
+
+
+# INFOPLIST_KEY_<Key>_Generation = YES (Xcode's iOS App template): the Info.plist key Xcode generates in its place
+GENERATED_KEYS = {
+    'UIApplicationSceneManifest_Generation': ('UIApplicationSceneManifest', lambda: {'UIApplicationSupportsMultipleScenes': True}),
+    'UILaunchScreen_Generation': ('UILaunchScreen', dict),     # an empty launch screen: the system background
+}
 
 
 # ---------------- targets ----------------
@@ -2065,6 +2079,19 @@ class Builder:
             compile_xcassets(res, bundle)
         elif res.rstrip('/').endswith(('.xcdatamodeld', '.xcdatamodel')):
             momc.compile_model(res, bundle, os.path.join(bundle, '..', 'obj', 'coredata-unused'))
+        elif res.rstrip('/').endswith('.lproj') and os.path.isdir(res):
+            # a whole localized folder (Xcode 16's synchronized groups list Base.lproj, not its files): what is in it
+            # goes to the bundle's folder of that name, Interface Builder documents compiled like a variant group's
+            name = os.path.basename(res.rstrip('/'))
+            for f in sorted(os.listdir(res)):
+                p = os.path.join(res, f)
+                if f.startswith('.'):
+                    continue
+                if os.path.isdir(p) and not f.endswith(('.storyboard', '.xib')):
+                    copy_resource(p, os.path.join(bundle, name))
+                else:
+                    self.install_resource(p, bundle)
+            return [name[:-6]] if name != 'Base.lproj' else []
         elif res.endswith(('.storyboard', '.xib')):
             # Interface Builder documents -> isim's IB archive format (NOT Apple's compiled nibs; see ibtool.py)
             parent = os.path.basename(os.path.dirname(res))

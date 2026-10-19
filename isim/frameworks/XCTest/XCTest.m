@@ -2,6 +2,8 @@
  * runner (XCTIsimRunTestBundle) that `isim test` uses for hosted (in the app) and standalone test bundles.
  * Self-authored for isim; output follows Xcode's console format so existing tooling can read it. */
 #import <XCTest/XCTest.h>
+#import <UIKit/UIKit.h>
+#include <isim_host.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
 #include <dlfcn.h>
@@ -235,7 +237,89 @@ static BOOL spin_until(double deadline, BOOL (^done)(void)) {
 @property BOOL isimSkipped;
 @property (copy) NSString *isimSkipMessage;
 @property (strong) NSMutableArray *isimFailures;       /* for JUnit: {message, file, line} */
+@property (strong) NSMutableArray<XCTAttachment *> *isimAttachments;
 @end
+
+/* ================= attachments ================= */
+@interface XCTAttachment ()
+@property (copy) NSData *isimData;
+@property (copy, readwrite) NSString *uniformTypeIdentifier;
+@end
+static NSString *attachment_extension(NSString *uti) {
+    NSDictionary *ext = @{ @"public.png": @"png", @"public.jpeg": @"jpg", @"public.plain-text": @"txt",
+                           @"public.utf8-plain-text": @"txt", @"public.json": @"json", @"public.html": @"html",
+                           @"public.xml": @"xml", @"public.comma-separated-values-text": @"csv", @"com.adobe.pdf": @"pdf" };
+    return ext[uti] ?: @"bin";
+}
+static NSString *attachment_type(NSString *extension) {
+    NSString *e = extension.lowercaseString;
+    NSDictionary *uti = @{ @"png": @"public.png", @"jpg": @"public.jpeg", @"jpeg": @"public.jpeg", @"txt": @"public.plain-text",
+                           @"json": @"public.json", @"html": @"public.html", @"xml": @"public.xml", @"csv": @"public.comma-separated-values-text",
+                           @"pdf": @"com.adobe.pdf" };
+    return uti[e] ?: @"public.data";
+}
+@implementation XCTAttachment
+- (instancetype)initIsimWithData:(NSData *)data type:(NSString *)uti {
+    if ((self = [super init])) {
+        _isimData = [data copy] ?: [NSData data];
+        _uniformTypeIdentifier = [uti copy];
+        _lifetime = XCTAttachmentLifetimeDeleteOnSuccess;
+    }
+    return self;
+}
++ (instancetype)attachmentWithData:(NSData *)d { return [[self alloc] initIsimWithData:d type:@"public.data"]; }
++ (instancetype)attachmentWithData:(NSData *)d uniformTypeIdentifier:(NSString *)uti { return [[self alloc] initIsimWithData:d type:uti]; }
++ (instancetype)attachmentWithString:(NSString *)str {
+    return [[self alloc] initIsimWithData:[str dataUsingEncoding:NSUTF8StringEncoding] type:@"public.utf8-plain-text"];
+}
++ (instancetype)attachmentWithContentsOfFileAtURL:(NSURL *)url {
+    XCTAttachment *a = [[self alloc] initIsimWithData:[NSData dataWithContentsOfURL:url] type:attachment_type(url.pathExtension)];
+    a.name = url.lastPathComponent;
+    return a;
+}
++ (instancetype)attachmentWithImage:(UIImage *)image { return [[self alloc] initIsimWithData:UIImagePNGRepresentation(image) type:@"public.png"]; }
++ (instancetype)attachmentWithScreenshot:(XCUIScreenshot *)shot { return [[self alloc] initIsimWithData:shot.PNGRepresentation type:@"public.png"]; }
+@end
+
+/* the test's attachments, saved when it ends: keepAlways ones always, deleteOnSuccess ones when it failed, in
+ * ISIM_XCTEST_ATTACHMENTS/<Class>/<test>/<name>.<extension> (isim test -resultBundlePath) */
+static void save_attachments(XCTestCase *tc, BOOL failed, NSString *className, NSString *testName) {
+    NSArray *list = tc.isimAttachments;
+    tc.isimAttachments = nil;
+    const char *dir = getenv("ISIM_XCTEST_ATTACHMENTS");
+    if (!dir || !*dir || !list.count) return;
+    NSString *base = [[@(dir) stringByAppendingPathComponent:className] stringByAppendingPathComponent:testName];
+    NSUInteger i = 0;
+    for (XCTAttachment *a in list) {
+        i++;
+        if (a.lifetime == XCTAttachmentLifetimeDeleteOnSuccess && !failed) continue;
+        [[NSFileManager defaultManager] createDirectoryAtPath:base withIntermediateDirectories:YES attributes:nil error:NULL];
+        NSString *stem = [a.name.length ? a.name : [NSString stringWithFormat:@"Attachment %lu", (unsigned long)i]
+                          stringByReplacingOccurrencesOfString:@"/" withString:@"-"];
+        NSString *ext = attachment_extension(a.uniformTypeIdentifier);
+        NSString *path = [base stringByAppendingPathComponent:[stem stringByAppendingPathExtension:ext]];
+        for (int n = 2; [[NSFileManager defaultManager] fileExistsAtPath:path]; n++)
+            path = [base stringByAppendingPathComponent:[[NSString stringWithFormat:@"%@ %d", stem, n] stringByAppendingPathExtension:ext]];
+        if ([a.isimData writeToFile:path atomically:YES]) say(@"    Attachment '%@' saved: %@", a.name ?: stem, path);
+    }
+}
+
+/* ================= performance metrics ================= */
+@implementation XCTClockMetric
+- (instancetype)init { return [super init]; }
+- (id)copyWithZone:(NSZone *)zone { return self; }
+@end
+@implementation XCTApplicationLaunchMetric { BOOL _waitUntilResponsive; }
+- (instancetype)init { return [self initWithWaitUntilResponsive:NO]; }
+- (instancetype)initWithWaitUntilResponsive:(BOOL)w { if ((self = [super init])) _waitUntilResponsive = w; return self; }
+- (id)copyWithZone:(NSZone *)zone { return self; }
+@end
+@implementation XCTMeasureOptions
++ (XCTMeasureOptions *)defaultOptions { return [XCTMeasureOptions new]; }
+- (instancetype)init { if ((self = [super init])) _iterationCount = 5; return self; }
+- (id)copyWithZone:(NSZone *)zone { XCTMeasureOptions *o = [XCTMeasureOptions new]; o.iterationCount = _iterationCount; return o; }
+@end
+static void record_measurement(NSArray<NSNumber *> *values, NSString *metric, NSString *_Nullable filePath, NSUInteger line);
 
 @implementation XCTestCase { SEL _sel; }
 + (instancetype)testCaseWithSelector:(SEL)selector { return [[self alloc] initWithSelector:selector]; }
@@ -288,6 +372,34 @@ static BOOL spin_until(double deadline, BOOL (^done)(void)) {
     for (int i = 0; i < 10; i++) { double t = now_s(); block(); [values addObject:@(now_s() - t)]; }
     _XCTIsimRecordMeasurement(values, nil, 0);
 }
++ (NSArray<id<XCTMetric>> *)defaultMetrics { return @[[XCTClockMetric new]]; }
++ (XCTMeasureOptions *)defaultMeasureOptions { return [XCTMeasureOptions defaultOptions]; }
+- (void)measureWithMetrics:(NSArray<id<XCTMetric>> *)metrics block:(void (^)(void))block {
+    [self measureWithMetrics:metrics options:[self.class defaultMeasureOptions] block:block];
+}
+- (void)measureWithOptions:(XCTMeasureOptions *)options block:(void (^)(void))block {
+    [self measureWithMetrics:[self.class defaultMetrics] options:options block:block];
+}
+/* every metric isim has is the block's wall-clock time: run it iterationCount times, report it once per metric */
+- (void)measureWithMetrics:(NSArray<id<XCTMetric>> *)metrics options:(XCTMeasureOptions *)options block:(void (^)(void))block {
+    NSUInteger n = options.iterationCount ?: 1;
+    NSMutableArray *values = [NSMutableArray array];
+    for (NSUInteger i = 0; i < n; i++) { double t = now_s(); block(); [values addObject:@(now_s() - t)]; }
+    for (id<XCTMetric> m in metrics) {
+        if ([(id)m isKindOfClass:[XCTApplicationLaunchMetric class]]) record_measurement(values, @"Duration (AppLaunch), s", nil, 0);
+        else if ([(id)m isKindOfClass:[XCTClockMetric class]]) record_measurement(values, @"Clock Monotonic Time, s", nil, 0);
+        else say(@"<unknown>:0: warning: %@ : %@ is not measured by isim (only XCTClockMetric and XCTApplicationLaunchMetric)",
+                 self.name, NSStringFromClass([(id)m class]));
+    }
+}
+- (void)addAttachment:(XCTAttachment *)attachment {
+    if (!attachment) return;
+    @synchronized (self) {
+        if (!_isimAttachments) _isimAttachments = [NSMutableArray array];
+        [_isimAttachments addObject:attachment];
+    }
+}
++ (BOOL)runsForEachTargetApplicationUIConfiguration { return NO; }
 
 - (XCTestExpectation *)_isim_track:(XCTestExpectation *)e { if (!_unwaited) _unwaited = [NSMutableArray array]; [_unwaited addObject:e]; return e; }
 - (XCTestExpectation *)expectationWithDescription:(NSString *)d { return [self _isim_track:[[XCTestExpectation alloc] initWithDescription:d]]; }
@@ -412,6 +524,7 @@ static BOOL overrides(XCTestCase *tc, SEL sel) {
     r.ownExecutions = 1;
     if (_isimSkipped && r.totalFailureCount == 0) r.ownSkips = 1;
     NSString *result = r.totalFailureCount ? @"failed" : _isimSkipped ? @"skipped" : @"passed";
+    save_attachments(self, r.totalFailureCount > 0, readable_class_name(self.class), _sel ? test_method_name(_sel) : @"test");
     say(@"Test Case '%@' %@ (%.3f seconds).", self.name, result, r.totalDuration);
     NOTIFY(testCaseDidFinish:, testCaseDidFinish:self);
     current_case = nil;
@@ -442,6 +555,9 @@ void _XCTIsimRecordSkip(NSString *message, NSString *filePath, NSUInteger line) 
     maybe_interrupt();
 }
 void _XCTIsimRecordMeasurement(NSArray<NSNumber *> *values, NSString * _Nullable filePath, NSUInteger line) {
+    record_measurement(values, @"Time, seconds", filePath, line);
+}
+static void record_measurement(NSArray<NSNumber *> *values, NSString *metric, NSString *_Nullable filePath, NSUInteger line) {
     double sum = 0, sq = 0;
     for (NSNumber *v in values) sum += v.doubleValue;
     double avg = values.count ? sum / values.count : 0;
@@ -449,8 +565,8 @@ void _XCTIsimRecordMeasurement(NSArray<NSNumber *> *values, NSString * _Nullable
     double sd = values.count > 1 ? sqrt(sq / (values.count - 1)) : 0;
     NSMutableArray *vs = [NSMutableArray array];
     for (NSNumber *v in values) [vs addObject:[NSString stringWithFormat:@"%.6f", v.doubleValue]];
-    say(@"%@:%lu: Test Case '%@' measured [Time, seconds] average: %.6f, relative standard deviation: %.3f%%, values: [%@]",
-        filePath ?: @"<unknown>", (unsigned long)line, current_case.name, avg, avg > 0 ? sd / avg * 100 : 0, [vs componentsJoinedByString:@", "]);
+    say(@"%@:%lu: Test Case '%@' measured [%@] average: %.6f, relative standard deviation: %.3f%%, values: [%@]",
+        filePath ?: @"<unknown>", (unsigned long)line, current_case.name, metric, avg, avg > 0 ? sd / avg * 100 : 0, [vs componentsJoinedByString:@", "]);
 }
 NSString *_XCTIsimFormat(NSString *format, ...) {
     if (!format.length) return @"";
@@ -679,6 +795,9 @@ int XCTIsimRunTestBundle(const char *bundlePath) {
         int src = run_swift_testing(st, only, skip, bundleBase);
         if (src == 1) rc = 1;                   /* 69: no @Test functions matched (e.g. none in this bundle) */
     }
+    /* the apps UI tests left running (Xcode's templates end with one): the runner ends with _exit, which skips the
+       host's atexit cleanup, and a running app keeps the runner's output open, so `isim test` would wait for it */
+    isim_xcui_terminate_all();
     if (out_fp) { fclose(out_fp); out_fp = NULL; }
     return rc;
 }

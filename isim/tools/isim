@@ -12,6 +12,8 @@
 #   isim toolchain [status|install|which]   the Swift 6.2.4 toolchain isim compiles with: which one and why | install it
 #                                with swiftly | its usr directory (ISIM_SWIFT_TOOLCHAIN=DIR picks one)
 #   ISIM_MIN_IOS=17.0            deployment target used by cc/swiftc (default 17.0)
+#   isim new NAME [--org com.example] [--uikit] [--tests] [-o DIR]   a new iOS app project, as Xcode's iOS App template
+#                                writes it (SwiftUI, or --uikit storyboards; --tests: unit + UI tests); builds with isim build
 #   isim build -project X.xcodeproj [-target T] [-configuration Debug] [-o DIR]   build an Xcode project for isim
 #                                (products in ./build of the current folder unless -o DIR)
 #   isim build ... -list [-json] | -showBuildSettings [-json]   targets, configurations, schemes / resolved build settings
@@ -443,6 +445,8 @@ case "$cmd" in
       install) toolchain_install ;;
       *) echo "usage: isim toolchain [status|install|which]" >&2; exit 2 ;;
     esac ;;
+  new)       # isim new NAME [--org ORG] [--uikit] [--tests] [-o DIR]: a project from Xcode's iOS App template
+    exec python3 "$BIN/isim-new.py" "$@" ;;
   build)
     exec python3 "$BIN/isim-build.py" "$@" ;;
   project)   # isim project [App.xcodeproj|App.xcworkspace]: targets -> build phases -> files, as a tree

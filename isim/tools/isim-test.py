@@ -15,7 +15,8 @@
   Testables): the plan's enabled test targets, skipped / selected tests, its default options and each configuration's
   (environment variables, arguments, language -> ISIM_LANGUAGES, region -> ISIM_LOCALE); the targets run once per
   configuration (-only-test-configuration / -skip-test-configuration). -showTestPlans lists the scheme's plans.
-* -resultBundlePath DIR: per bundle a console log, a JUnit XML report (XCTest) and Swift Testing's xUnit XML.
+* -resultBundlePath DIR: per bundle a console log, a JUnit XML report (XCTest), Swift Testing's xUnit XML and the
+  tests' kept attachments (XCTAttachment: <bundle>.attachments/<Class>/<test>/<name>.<ext>).
   (isim's results directory; NOT an Xcode .xcresult bundle.)
 """
 import importlib.util
@@ -90,11 +91,14 @@ def main():
     projects, containers = ib.open_container(opts['project'], opts['workspace'])
     overrides = ib.parse_overrides(rest)
     scheme = None
+    autoscheme = None                                # no scheme file: the scheme Xcode autocreates for a target
     if opts['scheme']:
         schemes = ib.scheme_files(containers)
         if opts['scheme'] in schemes:
             scheme = ib.Scheme(*schemes[opts['scheme']])
-    if opts['scheme'] and not scheme:
+        elif not schemes:
+            autoscheme = opts['scheme']              # (checked to be a target once the projects are open, below)
+    if opts['scheme'] and not scheme and not autoscheme:
         ib.fail(f'no scheme named {opts["scheme"]}')
     plans = scheme.test_plans() if scheme else []
     if opts['show_plans']:
@@ -115,6 +119,8 @@ def main():
     os.makedirs(outdir, exist_ok=True)
     b = ib.Builder(projects, configuration, outdir, overrides, opts['package_cache'], opts['scripts'])
     b.packages.resolved_file = ib.resolved_file_path(containers[0] if containers[0].endswith('.xcworkspace') else None, projects)
+    if autoscheme and not any(autoscheme in p.targets() for p in b.projects):
+        ib.fail(f'no scheme named {autoscheme}')
 
     # which test targets
     testables = []                                   # (Target, skipped identifiers from the scheme)
@@ -131,6 +137,14 @@ def main():
             testables.append((t, [f'{r["target"]}/{s}' for s in r['skipped_tests']]))
         if not testables:
             ib.fail(f'scheme {scheme.name} has no test targets (TestAction > Testables)')
+    elif autoscheme:                                 # Xcode's autocreated scheme tests the targets that depend on it
+        for p in b.projects:
+            for n in p.targets():
+                t = p.target(n)
+                if t.product_type.endswith(('.unit-test', '.ui-testing')) and (n == autoscheme or autoscheme in t.dependencies()):
+                    testables.append((t, []))
+        if not testables:
+            ib.fail(f'scheme {autoscheme} (autocreated, no scheme file) has no test targets: none depends on {autoscheme}')
     else:
         for p in b.projects:
             for n, tid in p.targets().items():
@@ -232,6 +246,7 @@ def run_testables(b, testables, env, args, opts, only, skip, results, configurat
         if results:
             renv['ISIM_XCTEST_JUNIT'] = os.path.join(results, bundle_base + suffix + '.junit.xml')
             renv['ISIM_SWIFT_TESTING_XUNIT'] = os.path.join(results, bundle_base + suffix + '.swift-testing.xml')
+            renv['ISIM_XCTEST_ATTACHMENTS'] = os.path.join(results, bundle_base + suffix + '.attachments')   # XCTAttachment
         sdk = ib.SDK
         if product['kind'] == 'xctest' and product.get('test_host'):
             host = product['test_host']

@@ -110,8 +110,13 @@ static _XCUINode *parse_snapshot(const char *text) {
 - (_XCUINode *)_isim_rawSnapshot;
 - (_XCUINode *)_isim_snapshotQuiet:(BOOL)quiet;
 - (void)_isim_send:(NSString *)cmd;
+- (int)_isim_target;
 @end
 static __weak XCUIApplication *last_app;
+/* bundle identifier -> the handle of its process: one per app, like iOS, whichever XCUIApplication launched it (a new
+   XCUIApplication() finds it; launch() replaces it: measure(metrics: [XCTApplicationLaunchMetric()]) launches from a
+   new instance each iteration) */
+static NSMutableDictionary<NSString *, NSNumber *> *app_handles;
 static void handle_interruptions(XCUIApplication *app);     /* UI interruption monitors (system alerts) */
 
 /* ---------------- queries ---------------- */
@@ -134,6 +139,7 @@ typedef NS_ENUM(int, XCUIBinding) { XCUIBindUnique, XCUIBindFirst, XCUIBindIndex
 @property XCUIBinding binding;
 @property NSUInteger index;
 - (_XCUINode *)_isim_node:(_XCUINode *)root error:(NSString **)err;
+- (XCUIApplication *)_isim_app;
 @end
 
 static BOOL type_matches(_XCUINode *n, XCUIElementType t) { return t == XCUIElementTypeAny || n.type == t; }
@@ -471,8 +477,8 @@ static NSString *const kSpringboard = @"com.apple.springboard";
         _launchArguments = @[]; _launchEnvironment = @{};
         NSDictionary *info = _appPath ? [NSDictionary dictionaryWithContentsOfFile:[_appPath stringByAppendingPathComponent:@"Info.plist"]] : nil;
         _bundleIdentifier = info[@"CFBundleIdentifier"] ?: @"";
-        XCUIApplication *prev = last_app;
-        if (prev && [prev.bundleIdentifier isEqualToString:_bundleIdentifier]) _handle = prev.handle;   /* the same running app */
+        NSNumber *running = app_handles[_bundleIdentifier];
+        if (running && isim_xcui_running(running.intValue)) _handle = running.intValue;                  /* the same running app */
     }
     return self;
 }
@@ -481,8 +487,8 @@ static NSString *const kSpringboard = @"com.apple.springboard";
         _bundleIdentifier = [bid copy];
         _springboard = [bid isEqualToString:kSpringboard];
         _appPath = _springboard ? nil : app_for_bundle_id(bid);
-        XCUIApplication *prev = last_app;
-        _handle = prev && [prev.bundleIdentifier isEqualToString:bid] ? prev.handle : -1;
+        NSNumber *running = app_handles[bid];
+        _handle = running && isim_xcui_running(running.intValue) ? running.intValue : -1;
     }
     return self;
 }
@@ -499,6 +505,8 @@ static NSString *const kSpringboard = @"com.apple.springboard";
     if (_springboard) { [self activate]; return; }
     if (!_appPath) { _XCTIsimRecordFailure(@"Failed to launch: no target application (isim test sets it from the UI-test target's TEST_TARGET_NAME)", nil, 0, YES); return; }
     if (isim_xcui_running(_handle)) isim_xcui_terminate(_handle);
+    NSNumber *running = app_handles[_bundleIdentifier];               /* launched by another XCUIApplication */
+    if (running && isim_xcui_running(running.intValue)) isim_xcui_terminate(running.intValue);
     NSDictionary *info = [NSDictionary dictionaryWithContentsOfFile:[_appPath stringByAppendingPathComponent:@"Info.plist"]];
     NSString *exe = [_appPath stringByAppendingPathComponent:info[@"CFBundleExecutable"] ?: _appPath.lastPathComponent.stringByDeletingPathExtension];
     const char **argv = calloc(_launchArguments.count + 1, sizeof *argv);
@@ -510,6 +518,8 @@ static NSString *const kSpringboard = @"com.apple.springboard";
     free(argv); free(envp);
     if (_handle < 0) { _XCTIsimRecordFailure([NSString stringWithFormat:@"Failed to launch %@", _appPath.lastPathComponent], nil, 0, YES); return; }
     last_app = self;
+    if (!app_handles) app_handles = [NSMutableDictionary dictionary];
+    if (_bundleIdentifier.length) app_handles[_bundleIdentifier] = @(_handle);
     /* launched = it answers a snapshot with a window that has content (like XCUITest waiting for the app to idle) */
     double end = xcui_now() + 30;
     while (xcui_now() < end && isim_xcui_running(_handle)) {
@@ -662,4 +672,63 @@ static void handle_interruptions(XCUIApplication *app) {
     /* stub: Apple's Simulator has no volume buttons (XCUIDevice.Button.volumeUp/Down are device-only) */
     fprintf(stderr, "XCUIDevice: the volume buttons exist only on devices (as with Apple's Simulator); press ignored\n");
 }
+@end
+
+/* ---------------- screenshots (XCUIScreenshot, XCUIScreen, XCUIElement.screenshot()) ----------------
+ * The app's process draws the device screen (script command "shot FILE": PNG at the screenshot scale); the image's
+ * scale makes its size the screen's size in points. An element's screenshot is that part of the app's. */
+#import <UIKit/UIKit.h>
+
+@interface XCUIScreenshot ()
+- (instancetype)initIsimWithPNG:(NSData *)png scale:(CGFloat)scale;
+@end
+@implementation XCUIScreenshot { NSData *_png; CGFloat _scale; UIImage *_image; }
+- (instancetype)initIsimWithPNG:(NSData *)png scale:(CGFloat)scale {
+    if ((self = [super init])) { _png = [png copy]; _scale = scale > 0 ? scale : 1; }
+    return self;
+}
+- (NSData *)PNGRepresentation { return _png; }
+- (UIImage *)image {
+    if (!_image) _image = [UIImage imageWithData:_png scale:_scale] ?: [UIImage new];
+    return _image;
+}
+@end
+
+/* the app's screen, or the part of it showing `frame` (CGRectNull: all of it) */
+static XCUIScreenshot *xcui_screenshot(XCUIApplication *app, CGRect frame) {
+    long size = 0;
+    char *bytes = app ? isim_xcui_screenshot([app _isim_target], 10, &size) : NULL;
+    if (!bytes) {
+        _XCTIsimRecordFailure(@"Failed to take a screenshot: the application is not running", nil, 0, YES);
+        return [[XCUIScreenshot alloc] initIsimWithPNG:[NSData data] scale:1];
+    }
+    NSData *png = [NSData dataWithBytes:bytes length:size];
+    isim_xcui_free(bytes);
+    UIImage *full = [UIImage imageWithData:png];
+    _XCUINode *root = [app _isim_rawSnapshot];
+    CGFloat points = 0;                                  /* the screen's width in points: the widest window */
+    for (_XCUINode *w in root.children) points = fmax(points, w.frame.size.width);
+    CGFloat scale = points > 0 && full ? full.size.width / points : 1;
+    if (CGRectIsNull(frame) || !full.CGImage) return [[XCUIScreenshot alloc] initIsimWithPNG:png scale:scale];
+    CGRect px = CGRectIntegral(CGRectMake(frame.origin.x * scale, frame.origin.y * scale, frame.size.width * scale, frame.size.height * scale));
+    CGImageRef part = CGImageCreateWithImageInRect(full.CGImage, px);
+    if (!part) return [[XCUIScreenshot alloc] initIsimWithPNG:[NSData data] scale:scale];
+    UIImage *crop = [UIImage imageWithCGImage:part scale:scale orientation:UIImageOrientationUp];
+    CGImageRelease(part);
+    return [[XCUIScreenshot alloc] initIsimWithPNG:UIImagePNGRepresentation(crop) ?: [NSData data] scale:scale];
+}
+
+@implementation XCUIElement (XCUIScreenshotProviding)
+- (XCUIScreenshot *)screenshot {
+    XCUIApplication *app = [self _isim_app];
+    if ((XCUIElement *)app == self) return xcui_screenshot(app, CGRectNull);
+    CGRect f = self.frame;                               /* (records a failure when the element does not exist) */
+    return xcui_screenshot(app, f);
+}
+@end
+
+@implementation XCUIScreen
++ (XCUIScreen *)mainScreen { static XCUIScreen *s; static dispatch_once_t o; dispatch_once(&o, ^{ s = [XCUIScreen new]; }); return s; }
++ (NSArray<XCUIScreen *> *)screens { return @[self.mainScreen]; }
+- (XCUIScreenshot *)screenshot { return xcui_screenshot(foreground_app(), CGRectNull); }
 @end
