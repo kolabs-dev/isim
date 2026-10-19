@@ -602,10 +602,7 @@ extension View {
         _modify { ctx, c in
             _ScrollWatchNode(path: ctx.path, child: _resolve(c, ctx.child("sgc"))) { v in
                 guard let sv = _firstScrollView(in: v) else { return nil }
-                let i = sv.adjustedContentInset
-                let geo = ScrollGeometry(contentOffset: sv.contentOffset, contentSize: sv.contentSize,
-                                         contentInsets: EdgeInsets(top: i.top, leading: i.left, bottom: i.bottom, trailing: i.right), containerSize: sv.bounds.size)
-                return transform(geo)
+                return transform(_scrollGeometry(sv))
             } changed: { old, new in if let o = old as? T, let n = new as? T, o != n { action(o, n) } }
         }
     }
@@ -622,6 +619,12 @@ extension View {
             } changed: { old, new in if let o = old as? Bool, let n = new as? Bool, o != n { action(n) } }
         }
     }
+}
+@available(iOS 18.0, *)
+@MainActor func _scrollGeometry(_ sv: UIScrollView) -> ScrollGeometry {
+    let i = sv.adjustedContentInset
+    return ScrollGeometry(contentOffset: sv.contentOffset, contentSize: sv.contentSize,
+                          contentInsets: EdgeInsets(top: i.top, leading: i.left, bottom: i.bottom, trailing: i.right), containerSize: sv.bounds.size)
 }
 @MainActor func _firstScrollView(in v: UIView) -> UIScrollView? {
     if let s = v as? UIScrollView { return s }

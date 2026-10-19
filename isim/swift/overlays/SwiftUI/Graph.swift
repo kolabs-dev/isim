@@ -442,6 +442,8 @@ extension UIView {
     /// .tabItem { } content and .badge
     var tabItem: _Node?
     var badge: String?
+    /// deleteDisabled / moveDisabled / selectionDisabled (List rows; nil when not set)
+    var rowDisabled: (delete: Bool?, move: Bool?, selection: Bool?) = (nil, nil, nil)
     /// Tab(role:): 0 none, 1 search, 2 prominent
     var tabRole = 0
     /// TabSection title (TabView sidebar), toolbar item priority (visibilityPriority) and spacer width (ToolbarSpacer)

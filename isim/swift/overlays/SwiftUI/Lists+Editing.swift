@@ -149,6 +149,26 @@ extension DynamicViewContent {
     public func onMove(perform action: ((IndexSet, Int) -> Void)?) -> _EditableContent<Self> { _EditableContent(base: self, onDelete: nil, onMove: action) }
     public func onInsert(of types: [Any], perform action: @escaping (Int, [Any]) -> Void) -> Self { self }
 }
+
+/// Marks a resolved row (or every row of a ForEach / Group) with deleteDisabled / moveDisabled / selectionDisabled.
+@MainActor func _markRows(_ n: _Node, _ set: (inout (delete: Bool?, move: Bool?, selection: Bool?)) -> Void) {
+    set(&n.rowDisabled)
+    if n is _GroupNode { for c in n.children { _markRows(c, set) } }
+}
+extension View {
+    /// List rows: no swipe-to-delete and no delete control in edit mode (adapted).
+    public func deleteDisabled(_ isDisabled: Bool) -> some View {
+        _modify { ctx, c in let n = _resolve(c, ctx); _markRows(n) { $0.delete = isDisabled }; return n }
+    }
+    /// List rows: no reorder handle in edit mode (adapted).
+    public func moveDisabled(_ isDisabled: Bool) -> some View {
+        _modify { ctx, c in let n = _resolve(c, ctx); _markRows(n) { $0.move = isDisabled }; return n }
+    }
+    /// List(selection:) rows: tapping does not select the row (adapted).
+    public func selectionDisabled(_ isDisabled: Bool = true) -> some View {
+        _modify { ctx, c in let n = _resolve(c, ctx); _markRows(n) { $0.selection = isDisabled }; return n }
+    }
+}
 extension _EditableContent {
     public func onDelete(perform action: ((IndexSet) -> Void)?) -> _EditableContent<Base> { var c = self; c.onDelete = action; return c }
     public func onMove(perform action: ((IndexSet, Int) -> Void)?) -> _EditableContent<Base> { var c = self; c.onMove = action; return c }
@@ -258,11 +278,18 @@ struct _RowInfo {
     var contextPreview: (() -> UIView)?
     var badge: String?
     var tag: AnyHashable?
+    /// moveDisabled: the row keeps its place among its ForEach's rows but shows no handle
+    var canMove = true
+    var selectable = true
 }
 @MainActor func _rowInfo(_ row: _Node) -> _RowInfo {
     var info = _RowInfo()
     var x: _Node? = row
+    var disabled: (delete: Bool?, move: Bool?, selection: Bool?) = (nil, nil, nil)
     while let n = x {
+        disabled.delete = disabled.delete ?? n.rowDisabled.delete
+        disabled.move = disabled.move ?? n.rowDisabled.move
+        disabled.selection = disabled.selection ?? n.rowDisabled.selection
         if let e = n as? _RowEditNode {
             if info.delete == nil { info.delete = e.delete }
             if info.move == nil { info.move = e.move }
@@ -274,6 +301,9 @@ struct _RowInfo {
         if info.tag == nil { info.tag = n.tag }
         x = n.children.count == 1 && !(n is _StackNode) ? n.children[0] : nil
     }
+    if disabled.delete == true { info.delete = nil }
+    info.canMove = info.move != nil && disabled.move != true
+    info.selectable = disabled.selection != true
     if info.trailing.isEmpty, let d = info.delete {
         info.trailing = [_SwipeAction(title: "Delete", image: nil, color: .systemRed, action: d)]
     }
@@ -360,7 +390,7 @@ struct _ListExtras {
     guard x.editing else { return (0, 0) }
     let info = _rowInfo(row)
     let lead: CGFloat = info.delete != nil || (x.selection?.multi == true && info.tag != nil) ? 38 : 0
-    return (lead, info.move != nil ? 40 : 0)
+    return (lead, info.canMove ? 40 : 0)
 }
 
 /// Adds the row's extras: badge, edit controls, selection, swipe actions, context menu.
@@ -375,7 +405,7 @@ struct _ListExtras {
     row.moveInfo = x.editing ? info.move : nil
     // selection: tapping selects; single selection highlights the row
     var selected = false
-    if let sel = x.selection, let tag = info.tag, (row.action == nil || row.selectionAction) {
+    if let sel = x.selection, let tag = info.tag, info.selectable, (row.action == nil || row.selectionAction) {
         selected = sel.isSelected(tag)
         let advance = x.advance
         if !(x.editing && !sel.multi) {
@@ -388,7 +418,7 @@ struct _ListExtras {
     row.backgroundColor = row.persistentHighlight ? .systemGray4 : nil
     // leading control in edit mode: delete (minus) or selection circle
     let leadKey = list.path + "|lead\(index)"
-    if x.editing, info.delete != nil || (x.selection?.multi == true && info.tag != nil) {
+    if x.editing, info.delete != nil || (x.selection?.multi == true && info.tag != nil && info.selectable) {
         let c = g.view(leadKey) { _SUIControl(frame: .zero) }
         let iv = (c.subviews.first as? UIImageView) ?? { let i = UIImageView(); c.addSubview(i); return i }()
         if info.delete != nil {
@@ -409,7 +439,7 @@ struct _ListExtras {
     } else { g.views[leadKey]?.removeFromSuperview(); g.views[leadKey] = nil }
     // reorder handle
     let moveKey = list.path + "|move\(index)"
-    if x.editing, info.move != nil {
+    if x.editing, info.canMove {
         let h = g.view(moveKey) { _SUIMoveHandle(frame: .zero) }
         h.row = row
         h.accessibilityIdentifier = "row-move-\(index)"
