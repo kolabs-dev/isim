@@ -1,4 +1,4 @@
-"""SwiftUI accessibility modifiers on isim's VoiceOver (HelloSwiftUIAccessibility): heading levels (View and Text),
+"""SwiftUI accessibility modifiers on isim's VoiceOver (HelloSwiftUI -accessibility): heading levels (View and Text),
 custom content (high importance read with the element, the rest in the rotor's More Content), custom rotors (ForEach
 ids, a namespace entry through a system rotor), accessibilityChildren and accessibilityRepresentation (synthetic
 elements, not drawn), a linked group (its elements follow each other), @AccessibilityFocusState, and scroll, zoom and
@@ -13,7 +13,7 @@ def spoken(app):
 
 
 def test_swiftui_accessibility(launch):
-    app = launch("HelloSwiftUIAccessibility")
+    app = launch("HelloSwiftUI", args=["-accessibility"])
     f = screen_frames(app.wait_view(r"id=pad"))
 
     def focus(ident, said):
@@ -94,7 +94,7 @@ def test_swiftui_accessibility(launch):
 
 
 def test_swiftui_accessibility_not_drawn(launch):
-    app = launch("HelloSwiftUIAccessibility")
+    app = launch("HelloSwiftUI", args=["-accessibility"])
     tree = app.wait_view(r"id=isim-accessibility-representation")
     f = screen_frames(tree)
     shot = app.screenshot()

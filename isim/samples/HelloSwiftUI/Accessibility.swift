@@ -1,17 +1,12 @@
-// Sample: SwiftUI accessibility on isim's VoiceOver — headings with levels (View and Text), custom content (high
-// importance read with the element, default importance in the rotor's More Content), custom rotors (ForEach ids, a
-// namespace entry, a system rotor), accessibilityChildren (a chart's bars as elements), accessibilityRepresentation (a
-// custom control read as a Slider), a linked group, @AccessibilityFocusState, and scroll, zoom and direct touch actions.
-// It prints what the UI test checks.
+// HelloSwiftUI, -accessibility: SwiftUI accessibility on isim's VoiceOver — headings with levels (View and Text),
+// custom content (high importance read with the element, default importance in the rotor's More Content), custom rotors
+// (ForEach ids, a namespace entry, a system rotor), accessibilityChildren (a chart's bars as elements),
+// accessibilityRepresentation (a custom control read as a Slider), a linked group, @AccessibilityFocusState, and
+// scroll, zoom and direct touch actions. It prints what the UI test checks.
 import SwiftUI
 
-@main
-struct HelloSwiftUIAccessibilityApp: App {
-    var body: some Scene { WindowGroup { AXDemo() } }
-}
-
-struct Fruit: Identifiable { let id: Int; let name: String; let favorite: Bool }
-let fruits = [Fruit(id: 1, name: "Apple", favorite: false), Fruit(id: 2, name: "Banana", favorite: true),
+private struct Fruit: Identifiable { let id: Int; let name: String; let favorite: Bool }
+private let fruits = [Fruit(id: 1, name: "Apple", favorite: false), Fruit(id: 2, name: "Banana", favorite: true),
               Fruit(id: 3, name: "Cherry", favorite: false), Fruit(id: 4, name: "Date", favorite: true)]
 
 struct AXDemo: View {

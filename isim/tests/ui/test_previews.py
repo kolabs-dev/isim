@@ -20,11 +20,11 @@ def test_previews(tmp_path):
     listed = run(tmp_path, "--list")
     assert listed.returncode == 0, listed.stdout
     rows = [line.split("\t") for line in listed.stdout.strip().splitlines()]
-    assert rows == [["0", "(unnamed)", "HelloSwiftUI/HelloSwiftUIApp.swift:89"], ["1", "Detail", "HelloSwiftUI/HelloSwiftUIApp.swift:90"]], \
+    assert rows == [["0", "(unnamed)", "HelloSwiftUI/HelloSwiftUIApp.swift:90"], ["1", "Detail", "HelloSwiftUI/HelloSwiftUIApp.swift:91"]], \
         f"the #Previews, in source order ({listed.stdout})"
 
     detail = run(tmp_path, "Detail", "-o", str(tmp_path / "detail.png"))
-    assert detail.returncode == 0 and "isim: preview Detail (HelloSwiftUI/HelloSwiftUIApp.swift:90)" in detail.stdout, detail.stdout
+    assert detail.returncode == 0 and "isim: preview Detail (HelloSwiftUI/HelloSwiftUIApp.swift:91)" in detail.stdout, detail.stdout
     img = Image.open(tmp_path / "detail.png").convert("RGB")
     w, h = img.size
     grey = lambda c: all(220 <= v <= 236 for v in c) and max(c) - min(c) < 8
