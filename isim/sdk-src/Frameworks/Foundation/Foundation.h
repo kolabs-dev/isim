@@ -70,3 +70,4 @@
 #import <Foundation/NSItemProvider.h>
 #import <Foundation/NSExtensionContext.h>
 #import <Foundation/NSJSONSerialization.h>
+#import <Foundation/NSFileVersion.h>
