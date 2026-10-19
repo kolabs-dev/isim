@@ -177,8 +177,30 @@ final class _SUIHostView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         graph.render(bounds: bounds, safeArea: safeAreaInsets, traits: traitCollection)
+        if intrinsicAsked {                                     // the content may have a new ideal size
+            let old = intrinsic
+            intrinsic = nil
+            if autoInvalidatesIntrinsicSize, old != intrinsicContentSize { invalidateIntrinsicContentSize() }
+        }
+        afterRender?()
     }
     override func traitCollectionDidChange(_ previous: UITraitCollection?) { setNeedsLayout() }
+
+    // sizing: the content's ideal size, like iOS's hosting view (Auto Layout, UIStackView, sizeToFit)
+    private var intrinsic: CGSize?
+    private var intrinsicAsked = false
+    /// UIHostingController.sizingOptions contains .intrinsicContentSize: a new ideal size invalidates it
+    var autoInvalidatesIntrinsicSize = false
+    /// after each render (UIHostingController.sizingOptions .preferredContentSize)
+    var afterRender: (() -> Void)?
+    override var intrinsicContentSize: CGSize {
+        intrinsicAsked = true
+        if let s = intrinsic { return s }
+        guard let s = graph.intrinsicSize(traits: traitCollection) else { return CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric) }
+        intrinsic = s
+        return s
+    }
+    override func sizeThatFits(_ size: CGSize) -> CGSize { graph.measure(size, traits: traitCollection) }
 }
 
 extension _SUIHostingController: _IsimSizing {
@@ -198,21 +220,56 @@ class _SUIHostingController: UIViewController {
     override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) { if !_suiHandlePresses(graph, presses, up: true) { super.pressesEnded(presses, with: event) } }
 }
 
-final class _RootBox<C> { var get: (() -> C)? }
+/// the hosting controller's root view, held for its graph: the view (and its graph) can outlive the controller
+final class _RootBox<C> { var value: C?; init(_ v: C) { value = v } }
+
+/// Which sizes a UIHostingController keeps up to date from its content (UIHostingController.sizingOptions).
+@available(iOS 16.0, *)
+public struct UIHostingControllerSizingOptions: OptionSet, Sendable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+    /// preferredContentSize follows the content's ideal size
+    public static let preferredContentSize = UIHostingControllerSizingOptions(rawValue: 1 << 0)
+    /// the view's intrinsicContentSize is invalidated when the content's ideal size changes
+    public static let intrinsicContentSize = UIHostingControllerSizingOptions(rawValue: 1 << 1)
+}
 
 /// UIKit integration: hosts a SwiftUI view hierarchy in a view controller.
 open class UIHostingController<Content: View>: UIViewController {
     let graph: _Graph
-    public var rootView: Content { didSet { graph.invalidate() } }
+    public var rootView: Content { didSet { box.value = rootView; graph.invalidate() } }
+    let box: _RootBox<Content>
+    /// What the controller keeps up to date from its content's ideal size: preferredContentSize (a popover or a
+    /// child's container sizes to it) and its view's intrinsicContentSize (invalidated when the content changes).
+    @available(iOS 16.0, *)
+    public var sizingOptions: UIHostingControllerSizingOptions {
+        get { UIHostingControllerSizingOptions(rawValue: _sizingOptions) }
+        set { _sizingOptions = newValue.rawValue; applySizingOptions() }
+    }
+    var _sizingOptions = 0
     public init(rootView: Content) {
         self.rootView = rootView
-        let box = _RootBox<Content>()
-        graph = _Graph(root: { () -> any View in box.get?() ?? EmptyView() })
+        let box = _RootBox(rootView)
+        self.box = box
+        graph = _Graph(root: { () -> any View in box.value ?? EmptyView() })
         super.init(nibName: nil, bundle: nil)
-        box.get = { [unowned self] in self.rootView }
     }
     public required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-    open override func loadView() { view = _SUIHostView(graph: graph) }
+    open override func loadView() {
+        let v = _SUIHostView(graph: graph)
+        view = v
+        applySizingOptions()
+    }
+    func applySizingOptions() {
+        guard isViewLoaded, let v = view as? _SUIHostView else { return }
+        v.autoInvalidatesIntrinsicSize = _sizingOptions & 2 != 0
+        v.afterRender = _sizingOptions & 1 == 0 ? nil : { [weak self] in
+            guard let self else { return }
+            let s = self.sizeThatFits(in: .zero)                          // the ideal size
+            if self.preferredContentSize != s { self.preferredContentSize = s }
+        }
+        v.setNeedsLayout()
+    }
     /// The content's size for a proposal (its ideal size along infinite or zero dimensions).
     public func sizeThatFits(in size: CGSize) -> CGSize { graph.measure(size, traits: traitCollection) }
     open override var keyCommands: [UIKeyCommand]? { _suiKeyCommands(graph, target: #selector(_isimSwiftUIShortcut(_:))) }

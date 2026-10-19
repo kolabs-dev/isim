@@ -2,6 +2,7 @@
 #import <Foundation/Foundation.h>
 #include <objc/isim_internal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -134,11 +135,16 @@ void NSLogv(NSString *format, va_list args) {
     char ts[32]; strftime(ts, sizeof ts, "%Y-%m-%d %H:%M:%S", &tm);
     struct timespec now; clock_gettime(CLOCK_REALTIME, &now);
     const char *prog = isim_process_name();
+    /* one write(2) per line: stderr is unbuffered, and a line written in pieces interleaves with other processes'
+       output on a shared pipe (the device shell and its apps write to the same one) */
+    char *line = NULL;
+    int n = asprintf(&line, "%s.%03ld %s[%d:%lx] %s\n", ts, now.tv_nsec / 1000000, prog, getpid(),
+                     (unsigned long)(uintptr_t)pthread_self() & 0xffffff, [msg UTF8String]);
     pthread_mutex_lock(&log_lock);
-    fprintf(stderr, "%s.%03ld %s[%d:%lx] %s\n", ts, now.tv_nsec / 1000000, prog, getpid(),
-            (unsigned long)(uintptr_t)pthread_self() & 0xffffff, [msg UTF8String]);
     fflush(stderr);
+    for (int o = 0; line && o < n; ) { ssize_t w = write(2, line + o, (size_t)(n - o)); if (w <= 0) break; o += (int)w; }
     pthread_mutex_unlock(&log_lock);
+    free(line);
     [msg release];
 }
 void NSLog(NSString *format, ...) { va_list ap; va_start(ap, format); NSLogv(format, ap); va_end(ap); }

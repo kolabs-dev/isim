@@ -44,9 +44,9 @@ static const UILayoutPriority UILayoutPriorityRequired = 1000;
 static const UILayoutPriority UILayoutPriorityDefaultHigh = 750;
 static const UILayoutPriority UILayoutPriorityDefaultLow = 250;
 static const UILayoutPriority UILayoutPriorityFittingSizeLevel = 50;
-UIKIT_EXTERN const CGFloat UIViewNoIntrinsicMetric;
-UIKIT_EXTERN const CGSize UILayoutFittingCompressedSize;
-UIKIT_EXTERN const CGSize UILayoutFittingExpandedSize;
+UIKIT_EXTERN const CGFloat UIViewNoIntrinsicMetric NS_SWIFT_NAME(UIView.noIntrinsicMetric);
+UIKIT_EXTERN const CGSize UILayoutFittingCompressedSize NS_SWIFT_NAME(UIView.layoutFittingCompressedSize);
+UIKIT_EXTERN const CGSize UILayoutFittingExpandedSize NS_SWIFT_NAME(UIView.layoutFittingExpandedSize);
 
 typedef NS_ENUM(NSInteger, UIViewTintAdjustmentMode) { UIViewTintAdjustmentModeAutomatic, UIViewTintAdjustmentModeNormal, UIViewTintAdjustmentModeDimmed };
 NS_SWIFT_UI_ACTOR

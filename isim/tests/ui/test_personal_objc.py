@@ -5,6 +5,7 @@ the delegate, an MKPolyline and its renderer, MKLocalSearch), Contacts (saving a
 CNLabeledValue phone numbers and emails), ContactsUI (the contact picker and its delegate) and EventKit / EventKitUI
 (saving and finding an event, the event editor's delegate)."""
 import os
+import re
 
 ENV = {"ISIM_LOCATION_PERMISSION": "wheninuse", "ISIM_CONTACTS_PERMISSION": "allow", "ISIM_CALENDAR_PERMISSION": "allow"}
 
@@ -30,6 +31,11 @@ def test_personal_objc(launch):
     if d:
         os.makedirs(d, exist_ok=True)
         shot.save(os.path.join(d, "personal-objc-map.png"))
+    # the basemap's own "Apple Park" label makes way for the marker titled Apple Park on that spot (#471)
+    dump = app.view_dump()
+    assert re.search(r"text=MKMarkerAnnotationView Apple Park", dump), "the marker for Apple Park"
+    m = re.search(r"text=map center [^\n]* labels (\S[^\n]*)", dump)
+    assert not m or "Apple Park" not in m.group(1).split("|"), f"no basemap label under the marker's title ({m and m.group(1)})"
 
     app.wait_log(r"^po contacts granted=1 saved=1 found=1 name=Dana Objc phone=\+1 555 0100 label=mobile email=dana@example\.com error=nil$")
     app.wait_log(r"^po calendar granted=1 status=3 saved=1 found=1 title=Objective-C sync alarms=1 error=nil$")

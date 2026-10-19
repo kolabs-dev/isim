@@ -33,7 +33,10 @@ def test_navigation(launch):
 - **Waits.** `wait_for(id=/label=/type=, gone=)`, `wait_log(regex, count=)`, `wait_view` (view tree; `wait_view(visible("id"), gone=True)`
   for a view that is gone or hidden),
   `wait_dump` (system UI under `isim boot`), `wait_still` (no change for a moment, e.g. after a transition),
-  `wait_shot` / `wait_shot_still` (screenshots) and `wait_until(condition)`.
+  `wait_shot` / `wait_shot_still` (screenshots) and `wait_until(condition)`. A timeout prints every thread's stack
+  of the device's processes (they answer SIGRTMIN+5); a wait that may time out on purpose (a retry loop) goes in
+  `with app.expecting_timeouts():`, which skips that dump. A device that exits under a command raises `WaitTimeout`
+  with its exit status and last output, not `BrokenPipeError`.
 - **Self-tests.** Apps that test themselves (FoundationTest, SwiftConcurrencyTest, …) print `N/M passed`;
   `selftest("FoundationTest")` runs one and requires N == M.
 - **Markers.** `@pytest.mark.os_matrix` runs a test once per iOS version with `--os-matrix` (see below).

@@ -1112,7 +1112,11 @@ static void sys_run_helper(const char *exe, const char *req) { sys_run_helper_ki
 static void sys_run_helper_kind(const char *exe, const char *req, int ext) {
     int slot = -1;
     for (int i = 0; i < 16; i++) if (!helpers[i].pid) { slot = i; break; }
-    if (slot < 0) { fprintf(stderr, "isim shell: too many widget extension processes\n"); return; }
+    if (slot < 0) {
+        fprintf(stderr, "isim shell: too many widget extension processes\n");
+        sys_send_text(0, "%s 127 %s", ext ? "ext-done" : "widget-done", req);   /* the home screen stops waiting for it */
+        return;
+    }
     char ctl[600] = "";
     if (ext) { helper_ctl_path(req, ctl, sizeof ctl); unlink(ctl); if (isim_ctl_create(ctl) != 0) ctl[0] = 0; }
     char rq[700], cv[700];
@@ -1125,7 +1129,12 @@ static void sys_run_helper_kind(const char *exe, const char *req, int ext) {
     struct isim_spawn sp = { .path = shell_self, .argv = av, .set_env = set, .unset_env = unset, .close_others = 1,
                              .die_with_parent = 1 };                 /* dies with the shell */
     pid_t pid = isim_spawn(&sp);
-    if (pid < 0) { if (ctl[0]) unlink(ctl); return; }
+    if (pid < 0) {
+        fprintf(stderr, "isim shell: could not start %s: %s\n", exe, strerror(errno));
+        if (ctl[0]) unlink(ctl);
+        sys_send_text(0, "%s 127 %s", ext ? "ext-done" : "widget-done", req);
+        return;
+    }
     helpers[slot].pid = pid; helpers[slot].ext = ext; snprintf(helpers[slot].req, sizeof helpers[slot].req, "%s", req);
 }
 static void sys_reaped(pid_t pid, int status) {

@@ -55,6 +55,103 @@ static char *utf16_to_utf8(const unichar *u, NSUInteger n, NSUInteger *outLen) {
     return out;
 }
 
+/* the 8-bit encodings' upper halves (0x80-0xFF) as Unicode: Windows-1252 (its five unassigned bytes map to the C1
+ * controls, as on iOS) and Mac Roman (0xDB is the euro sign, 0xF0 the Apple logo, as in Apple's table) */
+static const uint16_t cp1252_high[32] = {
+    0x20AC, 0x0081, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x008D, 0x017D, 0x008F,
+    0x0090, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014, 0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178,
+};
+static const uint16_t mac_roman_high[128] = {
+    0x00C4, 0x00C5, 0x00C7, 0x00C9, 0x00D1, 0x00D6, 0x00DC, 0x00E1, 0x00E0, 0x00E2, 0x00E4, 0x00E3, 0x00E5, 0x00E7, 0x00E9, 0x00E8,
+    0x00EA, 0x00EB, 0x00ED, 0x00EC, 0x00EE, 0x00EF, 0x00F1, 0x00F3, 0x00F2, 0x00F4, 0x00F6, 0x00F5, 0x00FA, 0x00F9, 0x00FB, 0x00FC,
+    0x2020, 0x00B0, 0x00A2, 0x00A3, 0x00A7, 0x2022, 0x00B6, 0x00DF, 0x00AE, 0x00A9, 0x2122, 0x00B4, 0x00A8, 0x2260, 0x00C6, 0x00D8,
+    0x221E, 0x00B1, 0x2264, 0x2265, 0x00A5, 0x00B5, 0x2202, 0x2211, 0x220F, 0x03C0, 0x222B, 0x00AA, 0x00BA, 0x03A9, 0x00E6, 0x00F8,
+    0x00BF, 0x00A1, 0x00AC, 0x221A, 0x0192, 0x2248, 0x2206, 0x00AB, 0x00BB, 0x2026, 0x00A0, 0x00C0, 0x00C3, 0x00D5, 0x0152, 0x0153,
+    0x2013, 0x2014, 0x201C, 0x201D, 0x2018, 0x2019, 0x00F7, 0x25CA, 0x00FF, 0x0178, 0x2044, 0x20AC, 0x2039, 0x203A, 0xFB01, 0xFB02,
+    0x2021, 0x00B7, 0x201A, 0x201E, 0x2030, 0x00C2, 0x00CA, 0x00C1, 0x00CB, 0x00C8, 0x00CD, 0x00CE, 0x00CF, 0x00CC, 0x00D3, 0x00D4,
+    0xF8FF, 0x00D2, 0x00DA, 0x00DB, 0x00D9, 0x0131, 0x02C6, 0x02DC, 0x00AF, 0x02D8, 0x02D9, 0x02DA, 0x00B8, 0x02DD, 0x02DB, 0x02C7,
+};
+/* the Unicode scalar of byte b in an 8-bit encoding, or -1 (not an 8-bit encoding isim decodes, or not in it) */
+int32_t isim_8bit_decode(NSStringEncoding enc, unsigned char b) {
+    if (b < 0x80) return enc == NSASCIIStringEncoding || enc == NSISOLatin1StringEncoding || enc == NSWindowsCP1252StringEncoding ||
+                         enc == NSMacOSRomanStringEncoding || enc == NSNonLossyASCIIStringEncoding ? b : -1;
+    if (enc == NSISOLatin1StringEncoding) return b;
+    if (enc == NSWindowsCP1252StringEncoding) return b < 0xA0 ? cp1252_high[b - 0x80] : b;
+    if (enc == NSMacOSRomanStringEncoding) return mac_roman_high[b - 0x80];
+    return -1;
+}
+/* the byte for Unicode scalar cp in an 8-bit encoding, or -1 */
+int isim_8bit_encode(NSStringEncoding enc, uint32_t cp) {
+    if (cp < 0x80) return isim_8bit_decode(enc, (unsigned char)cp) >= 0 ? (int)cp : -1;
+    if (enc == NSASCIIStringEncoding || enc == NSNonLossyASCIIStringEncoding) return -1;
+    for (int b = 0x80; b < 0x100; b++) { int32_t u = isim_8bit_decode(enc, (unsigned char)b); if (u < 0) return -1; if ((uint32_t)u == cp) return b; }
+    return -1;
+}
+/* the length of the valid UTF-8 sequence at s[i] (no overlongs, surrogates or scalars past U+10FFFF), or 0 */
+static NSUInteger utf8_valid_at(const unsigned char *s, NSUInteger n, NSUInteger i) {
+    unsigned char b = s[i];
+    if (b < 0x80) return 1;
+    NSUInteger len = b >= 0xC2 && b < 0xE0 ? 2 : b >= 0xE0 && b < 0xF0 ? 3 : b >= 0xF0 && b < 0xF5 ? 4 : 0;
+    if (!len || i + len > n) return 0;
+    for (NSUInteger k = 1; k < len; k++) if ((s[i + k] & 0xC0) != 0x80) return 0;
+    if (b == 0xE0 && s[i + 1] < 0xA0) return 0;          /* overlong */
+    if (b == 0xED && s[i + 1] >= 0xA0) return 0;         /* a surrogate */
+    if (b == 0xF0 && s[i + 1] < 0x90) return 0;          /* overlong */
+    if (b == 0xF4 && s[i + 1] >= 0x90) return 0;         /* past U+10FFFF */
+    return len;
+}
+/* bytes in enc as UTF-8 (malloc'd, NUL-terminated), or NULL where iOS gives nil: invalid UTF-8 or UTF-16/32, bytes outside
+ * ASCII for NSASCIIStringEncoding. Encodings isim does not convert (the CJK ones, NEXTSTEP, Symbol, ISO Latin 2, the
+ * other Windows code pages) are taken as UTF-8, as before. */
+static char *decode_to_utf8(const void *bytes, NSUInteger len, NSStringEncoding enc, NSUInteger *outLen) {
+    const unsigned char *s = bytes;
+    if (enc == NSASCIIStringEncoding || enc == NSISOLatin1StringEncoding || enc == NSWindowsCP1252StringEncoding ||
+        enc == NSMacOSRomanStringEncoding) {
+        char *out = malloc(len * 3 + 1); NSUInteger o = 0;
+        for (NSUInteger i = 0; i < len; i++) {
+            int32_t cp = isim_8bit_decode(enc, s[i]);
+            if (cp < 0) { free(out); return NULL; }
+            o += encode_utf8((uint32_t)cp, out + o);
+        }
+        out[o] = 0; *outLen = o;
+        return out;
+    }
+    if (enc == NSUTF16StringEncoding || enc == NSUTF16BigEndianStringEncoding || enc == NSUTF16LittleEndianStringEncoding) {
+        if (len % 2) return NULL;
+        NSUInteger n = len / 2, start = 0;
+        int be = enc == NSUTF16BigEndianStringEncoding;
+        if (enc == NSUTF16StringEncoding && n && ((s[0] == 0xFF && s[1] == 0xFE) || (s[0] == 0xFE && s[1] == 0xFF))) { be = s[0] == 0xFE; start = 1; }
+        unichar *u = malloc((n + 1) * sizeof(unichar));
+        for (NSUInteger i = start; i < n; i++) u[i - start] = be ? (unichar)(s[2 * i] << 8 | s[2 * i + 1]) : (unichar)(s[2 * i] | s[2 * i + 1] << 8);
+        char *out = utf16_to_utf8(u, n - start, outLen);
+        free(u);
+        return out;
+    }
+    if (enc == NSUTF32StringEncoding || enc == NSUTF32BigEndianStringEncoding || enc == NSUTF32LittleEndianStringEncoding) {
+        if (len % 4) return NULL;
+        NSUInteger n = len / 4, start = 0;
+        int be = enc == NSUTF32BigEndianStringEncoding;
+        if (enc == NSUTF32StringEncoding && n) {
+            if (s[0] == 0xFF && s[1] == 0xFE && !s[2] && !s[3]) start = 1;
+            else if (!s[0] && !s[1] && s[2] == 0xFE && s[3] == 0xFF) { be = 1; start = 1; }
+        }
+        char *out = malloc(n * 4 + 1); NSUInteger o = 0;
+        for (NSUInteger i = start; i < n; i++) {
+            const unsigned char *q = s + 4 * i;
+            uint32_t cp = be ? (uint32_t)q[0] << 24 | q[1] << 16 | q[2] << 8 | q[3] : (uint32_t)q[3] << 24 | q[2] << 16 | q[1] << 8 | q[0];
+            if (cp > 0x10FFFF || (cp >= 0xD800 && cp < 0xE000)) { free(out); return NULL; }
+            o += encode_utf8(cp, out + o);
+        }
+        out[o] = 0; *outLen = o;
+        return out;
+    }
+    if (enc == NSUTF8StringEncoding)
+        for (NSUInteger i = 0; i < len; ) { NSUInteger k = utf8_valid_at(s, len, i); if (!k) return NULL; i += k; }
+    char *out = malloc(len + 1);
+    memcpy(out, bytes, len); out[len] = 0; *outLen = len;
+    return out;
+}
+
 static const char *memrchr_compat(const char *b, NSUInteger n) { while (n--) if (b[n] == '.') return b + n; return NULL; }
 
 /* ---------------- growable byte buffer ---------------- */
@@ -309,14 +406,14 @@ NSString *isim_format(NSString *fmt, va_list ap) {
     buf_add(&b, "", 0);
     while ((r = read(fd, chunk, sizeof chunk)) > 0) buf_add(&b, chunk, (NSUInteger)r);
     close(fd);
-    NSString *s = [[[self alloc] initWithBytes:b.b length:b.n encoding:NSUTF8StringEncoding] autorelease];
+    NSString *s = [[[self alloc] initWithBytes:b.b length:b.n encoding:enc] autorelease];
     free(b.b);
     return s;
 }
 - (instancetype)initWithBytes:(const void *)bytes length:(NSUInteger)len encoding:(NSStringEncoding)enc {
     [self release];
-    if (enc == NSUTF16StringEncoding) { NSUInteger ol; char *u = utf16_to_utf8(bytes, len / 2, &ol); return isim_string_take(u, ol); }
-    return isim_string_copy(bytes, len);
+    NSUInteger ol; char *u = decode_to_utf8(bytes, len, enc, &ol);
+    return u ? isim_string_take(u, ol) : nil;
 }
 - (instancetype)initWithCharacters:(const unichar *)c length:(NSUInteger)n { [self release]; NSUInteger ol; char *u = utf16_to_utf8(c, n, &ol); return isim_string_take(u, ol); }
 - (instancetype)initWithData:(NSData *)data encoding:(NSStringEncoding)e { return data ? [self initWithBytes:[data bytes] length:[data length] encoding:e] : ([self release], nil); }
@@ -607,12 +704,14 @@ static struct { const void *key; char *utf8; NSUInteger n; } *const_cache; stati
 - (instancetype)init { return [self initWithCapacity:16]; }
 - (instancetype)initWithCapacity:(NSUInteger)c { _cap = c + 1; _b = calloc(_cap, 1); return self; }
 - (instancetype)initWithBytes:(const void *)bytes length:(NSUInteger)len encoding:(NSStringEncoding)enc {
-    [self initWithCapacity:len];
-    if (enc == NSUTF16StringEncoding) { NSUInteger ol; char *u = utf16_to_utf8(bytes, len / 2, &ol); [self _append:u length:ol]; free(u); }
-    else [self _append:bytes length:len];
+    NSUInteger ol; char *u = decode_to_utf8(bytes, len, enc, &ol);
+    if (!u) { [self release]; return nil; }
+    [self initWithCapacity:ol];
+    [self _append:u length:ol];
+    free(u);
     return self;
 }
-- (instancetype)initWithCharacters:(const unichar *)c length:(NSUInteger)n { return [self initWithBytes:c length:n * 2 encoding:NSUTF16StringEncoding]; }
+- (instancetype)initWithCharacters:(const unichar *)c length:(NSUInteger)n { return [self initWithBytes:c length:n * 2 encoding:NSUTF16LittleEndianStringEncoding]; }
 - (void)dealloc { free(_b); [super dealloc]; }
 - (const char *)_isim_bytes:(NSUInteger *)len { *len = _n; return _b ? _b : ""; }
 - (void)_append:(const char *)s length:(NSUInteger)n {

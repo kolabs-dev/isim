@@ -144,7 +144,10 @@ extension MKMapViewDelegate {
 /// to the heading in its context; MKMapView tilts it in perspective for pitch
 final class _MKBaseView: UIView {
     weak var map: MKMapView?
+    /// the place names the last draw showed (the map's dump text lists them)
+    var labels: [String] = []
     override func draw(_ rect: CGRect) {
+        labels = []
         guard let m = map, let ctx = UIGraphicsGetCurrentContext() else { return }
         let dark = traitCollection.userInterfaceStyle == .dark
         let a = m._baseAnchor, h = m._heading * Double.pi / 180, s = m._scale, c = m._center
@@ -179,7 +182,8 @@ final class _MKBaseView: UIView {
         ctx.restoreGState()
         // place names stay upright
         if m.pointOfInterestFilter.map({ $0.includes(.landmark) }) ?? true, !_MKBasemap.usesTiles {
-            _MKBasemap.drawPlaces(visible: visible, scale: s, rect: bounds, st: _MKBasemap.style(m._effectiveType, dark: dark)) { p in
+            labels = _MKBasemap.drawPlaces(visible: visible, scale: s, rect: bounds, st: _MKBasemap.style(m._effectiveType, dark: dark),
+                                           avoid: m._annotationRects(in: self)) { p in
                 let q = flat(p), r = MKMapView._rotate(Double(q.x), Double(q.y), -h)
                 return CGPoint(x: a.x + CGFloat(r.0), y: a.y + CGFloat(r.1))
             }
@@ -533,7 +537,20 @@ final class _MKAttributionView: UIView {
         super.traitCollectionDidChange(previous)
         _base.setNeedsDisplay()
     }
+    /// the visible annotation views' frames, with their titles, in `view`'s coordinates (basemap labels avoid them)
+    func _annotationRects(in view: UIView) -> [CGRect] {
+        _views.values.filter { !$0.isHidden && $0.superview != nil }.map { v in
+            var r = v.bounds
+            if let m = v as? MKMarkerAnnotationView, !m.titleLabel.isHidden { r = r.union(m.titleLabel.frame) }
+            return v.convert(r, to: view).insetBy(dx: -2, dy: -2)
+        }
+    }
+    var _placedRects: [CGRect] = []
     func _layoutAnnotations() {
+        defer {
+            let rects = _annotationRects(in: _base)          /* the basemap's labels make way for the annotations */
+            if rects != _placedRects { _placedRects = rects; _base.setNeedsDisplay() }
+        }
         let toView = _toView
         let all = (showsUserLocation && userLocation.location != nil ? [userLocation as MKAnnotation] : []) + _annotations
         for a in all {
@@ -842,6 +859,7 @@ final class _MKAttributionView: UIView {
         return String(format: "map center %.5f,%.5f span %.4f,%.4f annotations %d overlays %d type %@", r.center.latitude, r.center.longitude,
                       r.span.latitudeDelta, r.span.longitudeDelta, _annotations.count, _overlays.count, "\(_effectiveType)")
             + (_heading != 0 || _pitch != 0 ? String(format: " heading %.0f pitch %.0f", _heading, Double(_pitch)) : "")
+            + (_base.labels.isEmpty ? "" : " labels " + _base.labels.joined(separator: "|"))
     }
 }
 

@@ -227,6 +227,7 @@ class App:
             del e[k]
         self._lines: list[str] = []
         self._cv = threading.Condition()
+        self._expect_timeouts = 0
         what = ["run", str(self.bundle)] if self.bundle else ["boot"]
         self.proc = subprocess.Popen([str(ISIM), *what, "--control", str(self.fifo), *(args or [])],
                                      env=e, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
@@ -289,10 +290,20 @@ class App:
                                       + "\n".join(self._lines[-30:]))
                 self._cv.wait(min(left, 0.2))
 
+    @contextmanager
+    def expecting_timeouts(self):
+        """Waits inside this block may time out as part of the test (a retry loop): their WaitTimeout skips the thread
+        stack dump, which takes seconds and stops the app's threads while they print."""
+        self._expect_timeouts += 1
+        try:
+            yield self
+        finally:
+            self._expect_timeouts -= 1
+
     def _timeout(self, message: str) -> WaitTimeout:
         """A WaitTimeout that also carries every thread's stack of the still-running app processes (the runtime prints
         them on SIGRTMIN+5): shows whether the app hung (deadlock, busy loop) or was only slow."""
-        if self.proc.poll() is not None or os.environ.get("ISIM_NO_STACK_DUMP"):
+        if self.proc.poll() is not None or self._expect_timeouts or os.environ.get("ISIM_NO_STACK_DUMP"):
             return WaitTimeout(message)
         pids = []
         for pid in _descendants(self.proc.pid):             # only isim-runtime handles the signal (it kills others)
@@ -319,8 +330,19 @@ class App:
 
     # ---- commands ----
     def send(self, command: str) -> "App":
-        self._ctl.write(command + "\n")
-        self._ctl.flush()
+        try:
+            self._ctl.write(command + "\n")
+            self._ctl.flush()
+        except BrokenPipeError:
+            # the device is gone: say how it ended and what it printed last, not just "Broken pipe"
+            try:
+                code = self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                code = None
+            self._reader.join(timeout=5)
+            with self._cv:
+                tail = "\n".join(self._lines[-60:])
+            raise WaitTimeout(f"{command!r}: the device's control channel closed (isim exited with {code})\n{tail}") from None
         return self
 
     def tap(self, x: float, y: float) -> "App":
