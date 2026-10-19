@@ -1,7 +1,7 @@
 // isim SwiftUI: ScrollView behaviours — `scrollTargetBehavior(.paging / .viewAligned / custom)` with
 // `scrollTargetLayout()`, `scrollPosition(id:)` (reports the top/leading item, scrolls when the binding changes),
 // `scrollDisabled`, `scrollIndicators`, `scrollBounceBehavior`, `scrollDismissesKeyboard` and `contentMargins`
-// (CustomLayout.swift).
+// (CustomLayout.swift); ScrollPosition, scroll phases, default anchors, clipping and indicator flashes: Scroll+Position.swift.
 // Paging uses UIScrollView.isPagingEnabled; view alignment snaps the drag's target offset to a child's edge.
 import UIKit
 
@@ -16,6 +16,16 @@ struct _ScrollOptions {
     var refresh: RefreshAction? = nil
     /// scrollDismissesKeyboard: 0 automatic, 1 immediately, 2 interactively, 3 never
     var keyboard = 0
+    /// scrollPosition(_: Binding<ScrollPosition>, anchor:) (Scroll+Position.swift)
+    var scrollPosition: _ScrollPositionBinding? = nil
+    /// onScrollPhaseChange: (old phase, new phase, the scroll view, the release velocity), phases as ScrollPhase._code
+    var phase: ((Int, Int, UIScrollView, CGVector?) -> Void)? = nil
+    /// defaultScrollAnchor, per ScrollAnchorRole
+    var anchor: (initial: UnitPoint?, sizeChanges: UnitPoint?, alignment: UnitPoint?) = (nil, nil, nil)
+    var clipDisabled = false
+    /// scrollIndicatorsFlash(trigger:) (the value and an equality test against a former value), (onAppear:)
+    var flashTrigger: (value: Any, equals: (Any) -> Bool)? = nil
+    var flashOnAppear = false
 }
 /// The UIKit keyboard dismiss mode of a scroll view (`editor`: a TextEditor's text view, interactive by default).
 func _keyboardDismissMode(_ mode: Int, editor: Bool = false) -> UIScrollView.KeyboardDismissMode {
@@ -32,7 +42,11 @@ extension EnvironmentValues { var _scrollOptions: _ScrollOptions { get { self[_S
 @MainActor func _makeScrollNode(axes: Axis.Set, indicators: Bool, _ ctx: _Context, content: (_Context) -> _Node) -> _Node {
     let env = ctx.environment
     let margins = env._contentMargins
-    var child = content(ctx.child("scroll").with { $0._contentMargins = nil; $0._indicatorMargins = nil; $0._scrollOptions.position = nil })
+    // the options that apply to the first scroll view only
+    var child = content(ctx.child("scroll").with {
+        $0._contentMargins = nil; $0._indicatorMargins = nil; $0._scrollOptions.position = nil; $0._scrollOptions.scrollPosition = nil
+        $0._scrollOptions.phase = nil; $0._scrollOptions.flashTrigger = nil; $0._scrollOptions.flashOnAppear = false
+    })
     if let m = margins { child = _PaddingNode(path: ctx.path + "/margins", insets: m, child: child) }
     let n = _ScrollNode(path: ctx.path, axes: axes, indicators: indicators && env._scrollOptions.indicators != false, child: child)
     n.indicatorMargins = env._indicatorMargins.map { UIEdgeInsets(top: $0.top, left: $0.leading, bottom: $0.bottom, right: $0.trailing) } ?? .zero
@@ -72,7 +86,10 @@ final class _ScrollTargetLayoutNode: _WrapperNode {
         v.alwaysBounceHorizontal = n.axes.contains(.horizontal) && n.contentSize.width > n.frame.width
     }
     v.isPagingEnabled = o.paging
-    guard o.viewAligned || o.position != nil || o.custom != nil || o.refresh != nil else { v.behavior = nil; v.delegate = nil; return }
+    v.clipsToBounds = !o.clipDisabled
+    _applyScrollAnchorAndFlash(n, v, g)
+    guard o.viewAligned || o.position != nil || o.custom != nil || o.refresh != nil || o.scrollPosition != nil || o.phase != nil
+    else { v.behavior = nil; v.delegate = nil; return }
     let b = v.behavior ?? _ScrollBehavior()
     v.behavior = b; v.delegate = b
     if o.refresh != nil || b.refresher != nil { let rd = b.refresher ?? _RefreshDriver(); b.refresher = rd; rd.attach(v, o.refresh) }
@@ -87,6 +104,9 @@ final class _ScrollTargetLayoutNode: _WrapperNode {
         let target = b.clamp(b.horizontal ? CGPoint(x: t.0.minX, y: v.contentOffset.y) : CGPoint(x: v.contentOffset.x, y: t.0.minY), v)
         g.postRender.append { [weak v] in v?.contentOffset = target }
     }
+    b.phaseAction = o.phase
+    b.scrollPosition = o.scrollPosition
+    if let sp = o.scrollPosition { _applyScrollPosition(sp, b, v, g) }
 }
 
 /// Delegate of a SwiftUI scroll view with targets: snapping and position reporting.
@@ -97,11 +117,23 @@ final class _ScrollBehavior: NSObject, UIScrollViewDelegate {
     var position: (get: () -> AnyHashable?, set: (AnyHashable?) -> Void)?
     var reported: AnyHashable?
     var refresher: _RefreshDriver?
-    func scrollViewDidScroll(_ s: UIScrollView) { refresher?.scrolled(s) }
+    /// onScrollPhaseChange (Scroll+Position.swift): the current phase, the release velocity (points per second)
+    var phaseAction: ((Int, Int, UIScrollView, CGVector?) -> Void)?
+    var phase = _ScrollPhaseCode.idle
+    var velocity: CGVector?
+    /// scrollPosition(_: Binding<ScrollPosition>): the position last applied or reported
+    var scrollPosition: _ScrollPositionBinding?
+    var appliedPosition: _ScrollPositionState?
+    func scrollViewDidScroll(_ s: UIScrollView) {
+        refresher?.scrolled(s)
+        if #available(iOS 17.4, *), phase == _ScrollPhaseCode.idle, !s.isDragging, s.isScrollAnimating { setPhase(_ScrollPhaseCode.animating, s) }
+    }
+    func scrollViewWillBeginDragging(_ s: UIScrollView) { velocity = nil; setPhase(_ScrollPhaseCode.interacting, s) }
     func clamp(_ p: CGPoint, _ s: UIScrollView) -> CGPoint {
         CGPoint(x: min(max(0, p.x), max(0, s.contentSize.width - s.bounds.width)), y: min(max(0, p.y), max(0, s.contentSize.height - s.bounds.height)))
     }
     func scrollViewWillEndDragging(_ s: UIScrollView, withVelocity velocity: CGPoint, targetContentOffset t: UnsafeMutablePointer<CGPoint>) {
+        self.velocity = CGVector(dx: velocity.x * 1000, dy: velocity.y * 1000)     // (UIKit's is in points per millisecond)
         if let custom {
             var target = ScrollTarget(rect: CGRect(origin: t.pointee, size: s.bounds.size))
             let ctx = ScrollTargetBehaviorContext(originalTarget: target, velocity: CGVector(dx: velocity.x, dy: velocity.y), contentSize: s.contentSize,
@@ -121,9 +153,19 @@ final class _ScrollBehavior: NSObject, UIScrollViewDelegate {
         if v < -0.2, best >= cur - 0.5, let prev = edges.last(where: { $0 < cur - 0.5 }) { best = prev }
         t.pointee = clamp(horizontal ? CGPoint(x: best, y: t.pointee.y) : CGPoint(x: t.pointee.x, y: best), s)
     }
-    func scrollViewDidEndDragging(_ s: UIScrollView, willDecelerate d: Bool) { refresher?.endDragging(s); if !d { report(s) } }
-    func scrollViewDidEndDecelerating(_ s: UIScrollView) { report(s) }
-    func scrollViewDidEndScrollingAnimation(_ s: UIScrollView) { report(s) }
+    func scrollViewDidEndDragging(_ s: UIScrollView, willDecelerate d: Bool) {
+        refresher?.endDragging(s)
+        setPhase(d ? _ScrollPhaseCode.decelerating : _ScrollPhaseCode.idle, s)
+        if !d { report(s); reportScrollPosition(s) }
+    }
+    func scrollViewDidEndDecelerating(_ s: UIScrollView) { setPhase(_ScrollPhaseCode.idle, s); report(s); reportScrollPosition(s) }
+    func scrollViewDidEndScrollingAnimation(_ s: UIScrollView) { setPhase(_ScrollPhaseCode.idle, s); report(s) }
+    func setPhase(_ p: Int, _ s: UIScrollView) {
+        guard p != phase else { return }
+        let old = phase
+        phase = p
+        phaseAction?(old, p, s, p == _ScrollPhaseCode.interacting ? nil : velocity)
+    }
     /// scrollPosition(id:) gets the first target whose frame reaches past the top/leading edge.
     func report(_ s: UIScrollView) {
         guard let position else { return }
@@ -189,6 +231,8 @@ extension View {
         _env { $0._scrollOptions.indicators = visibility.id == 2 || visibility.id == 3 ? false : nil }
     }
     public func scrollDisabled(_ disabled: Bool) -> some View { _env { $0._scrollOptions.disabled = disabled } }
+    // scrollPosition(_:anchor:), onScrollPhaseChange, defaultScrollAnchor, scrollClipDisabled, scrollIndicatorsFlash:
+    // Scroll+Position.swift
     public func scrollBounceBehavior(_ behavior: ScrollBounceBehavior, axes: Axis.Set = [.vertical]) -> some View {
         _env { $0._scrollOptions.bounceBasedOnSize = behavior.id == 2 }
     }

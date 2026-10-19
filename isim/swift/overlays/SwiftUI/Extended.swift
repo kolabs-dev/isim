@@ -552,11 +552,18 @@ final class _ScrollNode: _WrapperNode {
         _containerSizes.append(rect.size)
         defer { _containerSizes.removeLast() }
         var s = child.sizeThatFits(contentProposal(_Proposal(width: rect.width, height: rect.height)))
+        let natural = s
         if !axes.contains(.horizontal) { s.width = rect.width }
         if !axes.contains(.vertical) { s.height = rect.height }
         s.width = max(s.width, axes.contains(.horizontal) ? 0 : rect.width)
-        contentSize = s
-        child.place(CGRect(origin: .zero, size: s))
+        // defaultScrollAnchor(for: .alignment): content smaller than the scroll view sits at the anchor
+        var origin = CGPoint.zero, size = s, placed = s
+        if let a = options.anchor.alignment {
+            if natural.width < rect.width { origin.x = (rect.width - natural.width) * a.x; placed.width = natural.width; size.width = rect.width }
+            if natural.height < rect.height { origin.y = (rect.height - natural.height) * a.y; placed.height = natural.height; size.height = rect.height }
+        }
+        contentSize = size
+        child.place(CGRect(origin: origin, size: placed))
     }
     override func mountView(_ g: _Graph) -> UIView {
         let v = g.view(viewKey) { _SUIScrollView(frame: .zero) }
@@ -576,6 +583,11 @@ final class _ScrollNode: _WrapperNode {
 }
 final class _SUIScrollView: UIScrollView {
     var behavior: _ScrollBehavior?           // paging / view-aligned snapping, scroll position (Scroll+Paging.swift)
+    /// defaultScrollAnchor and scrollIndicatorsFlash (Scroll+Position.swift): the content size last anchored, the last
+    /// flash trigger value, whether the appearance flash happened
+    var anchoredSize: CGSize?
+    var flashValue: Any?
+    var flashedOnAppear = false
     /// pinned section headers / footers of the lazy stacks and grids inside (Lazy+Pinned.swift)
     var pinGroups: [ObjectIdentifier: _PinGroup] = [:]
     override var bounds: CGRect { didSet { if !pinGroups.isEmpty && bounds.origin != oldValue.origin { applyPins() } } }
