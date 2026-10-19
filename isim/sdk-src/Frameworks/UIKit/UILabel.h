@@ -15,6 +15,8 @@ typedef NS_OPTIONS(NSUInteger, NSLineBreakStrategy) {
 @property (nullable, nonatomic, copy) NSAttributedString *attributedText;
 @property (null_resettable, nonatomic, strong) UIFont *font;
 @property (null_resettable, nonatomic, strong) UIColor *textColor;
+@property (nullable, nonatomic, strong) UIColor *shadowColor;   /* default nil: no shadow */
+@property (nonatomic) CGSize shadowOffset;                       /* default (0, -1): a top shadow */
 @property (nonatomic) NSTextAlignment textAlignment;
 @property (nonatomic) NSLineBreakMode lineBreakMode;
 @property (nonatomic, getter=isEnabled) BOOL enabled;

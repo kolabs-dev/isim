@@ -140,7 +140,12 @@ static void set_tabs(void *tl, NSParagraphStyle *ps, CGFloat head) {
         }
     }];
     p->tl = isim_tl_create(mk.UTF8String, textW, pango_align_for(al), spacing, first - head, (int)slots.count, bytes.bytes, boxes.bytes);
-    if (!empty && [str rangeOfString:@"\t"].location != NSNotFound) set_tabs(p->tl, ps ?: [NSParagraphStyle defaultParagraphStyle], head);
+    if (!empty && [str rangeOfString:@"\t"].location != NSNotFound) {
+        p->tlTabs = ps ?: [NSParagraphStyle defaultParagraphStyle]; p->tlHead = head;
+        set_tabs(p->tl, p->tlTabs, head);
+    }
+    p->tlWidth = textW; p->tlAlign = pango_align_for(al); p->tlSpacing = spacing; p->tlIndent = first - head;
+    p->tlBytes = bytes; p->tlBoxes = boxes; p->tlFont = _font; p->tlColor = _color;
     p->textX = _padding + head;
     p.attachments = slots;
 }
@@ -369,6 +374,15 @@ static void set_tabs(void *tl, NSParagraphStyle *ps, CGFloat head) {
             for (__IsimTextLine *l in p.lines)
                 if (NSIntersectionRange(l->range, range).length) isim_path_rect(o.x - 10000, o.y + l->rect.origin.y, 20000 + l->rect.size.width, l->rect.size.height, 0);
             isim_gfx_clip_path();
+        }
+        for (NSShadow *sh in isim_ui_shadows(p.string)) {     /* NSShadow: a pass with the same layout, under the text */
+            void *tl = isim_tl_create(isim_ui_shadow_markup(p.string, p->tlFont, p->tlColor, sh).UTF8String, p->tlWidth, p->tlAlign, p->tlSpacing,
+                                      p->tlIndent, (int)(p->tlBytes.length / sizeof(int)), p->tlBytes.bytes, p->tlBoxes.bytes);
+            if (p->tlTabs) set_tabs(tl, p->tlTabs, p->tlHead);
+            isim_ui_shadow_begin();
+            isim_tl_draw(tl, o.x + p->textX, o.y + p->textY, black);
+            isim_ui_shadow_end(sh, 1);
+            isim_tl_free(tl);
         }
         isim_tl_draw(p->tl, o.x + p->textX, o.y + p->textY, black);
         [self _drawListMarker:p at:o];

@@ -35,6 +35,9 @@ NS_ASSUME_NONNULL_BEGIN
     CGFloat textX, textY;   /* where its Pango layout sits */
     void *tl;               /* the Pango layout (host) */
     NSData *u2b;            /* UTF-16 index -> UTF-8 byte offset (length + 1 entries) */
+    /* how tl was made, for NSShadow's shadow passes (laid out the same, see isim_ui_shadow_markup) */
+    CGFloat tlWidth, tlSpacing, tlIndent; int tlAlign; NSData *tlBytes, *tlBoxes; UIFont *tlFont; UIColor *tlColor;
+    NSParagraphStyle *tlTabs; CGFloat tlHead;   /* its tab stops (nil: none) */
 }
 @property (nonatomic, copy) NSArray<__IsimTextLine *> *lines;
 @property (nonatomic, copy) NSArray<__IsimTextAttachmentSlot *> *attachments;
