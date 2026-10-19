@@ -83,7 +83,7 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 @property (readonly, copy) NSString *pathExtension;
 @property (readonly, copy) NSString *stringByDeletingPathExtension;
 - (NSString *)stringByAppendingPathComponent:(NSString *)str;
-- (NSString *)stringByAppendingPathExtension:(NSString *)str;
+- (nullable NSString *)stringByAppendingPathExtension:(NSString *)str;
 - (BOOL)writeToFile:(NSString *)path atomically:(BOOL)useAuxiliaryFile encoding:(NSStringEncoding)enc error:(NSError * _Nullable * _Nullable)error;
 - (BOOL)writeToURL:(NSURL *)url atomically:(BOOL)useAuxiliaryFile encoding:(NSStringEncoding)enc error:(NSError * _Nullable * _Nullable)error;
 @end

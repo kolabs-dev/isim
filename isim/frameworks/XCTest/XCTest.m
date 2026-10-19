@@ -723,6 +723,13 @@ static int run_swift_testing(swift_testing_entry entry, NSArray<NSString *> *onl
     }
     const char *xunit = getenv("ISIM_SWIFT_TESTING_XUNIT");
     if (xunit && *xunit) [args addObjectsFromArray:@[@"--xunit-output", @(xunit)]];
+    /* Swift Testing's attachments (Attachment.record) next to the XCTAttachments: <bundle>.attachments/SwiftTesting */
+    const char *att = getenv("ISIM_XCTEST_ATTACHMENTS");
+    if (att && *att) {
+        NSString *dir = [@(att) stringByAppendingPathComponent:@"SwiftTesting"];
+        if ([[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:NULL])
+            [args addObjectsFromArray:@[@"--attachments-path", dir]];
+    }
     const char **argv = calloc(args.count + 1, sizeof *argv);
     for (NSUInteger i = 0; i < args.count; i++) argv[i] = [args[i] UTF8String];
     st_finished = 0;

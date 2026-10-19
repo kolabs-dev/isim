@@ -85,6 +85,13 @@ def test_scheme(device_data, tmp_path):
     assert '<testcase classname="AppTests.ModelTests" name="testAsync"' in junit and \
         "testcase" in (res / "AppSwiftTests.swift-testing.xml").read_text() and \
         (res / "AppUITests.log").stat().st_size > 0, "JUnit / xUnit reports written"
+    # Swift Testing attachments (Attachment.record; Data, Encodable and file URLs through the Foundation overlay)
+    att = res / "AppSwiftTests.attachments" / "SwiftTesting"
+    assert has(r"Test attachments\(\) passed"), "the attachments test"
+    names = sorted(p.name for p in att.iterdir()) if att.is_dir() else []
+    assert names == ["magic.bin", "table.csv", "unit.json", "units.txt"], names
+    assert (att / "units.txt").read_text() == "kilo = 1000" and (att / "magic.bin").read_bytes() == b"ISIM"
+    assert '"factor"' in (att / "unit.json").read_text() and (att / "table.csv").read_text().startswith("name,factor")
 
 
 def test_failing_tests(device_data):

@@ -574,13 +574,16 @@ class Swift:
         SRC, INC = f"{OBJ}/src", f"{OBJ}/src/_TestingInternals/include"
         stamp = c.sync(f"{OBJ}/src.stamp", ["--tree", f"{UP}/_TestingInternals", f"{SRC}/_TestingInternals",
                                             "--tree", f"{UP}/_TestDiscovery", f"{SRC}/_TestDiscovery", "--tree", f"{UP}/Testing", f"{SRC}/Testing",
+                                            "--tree", f"{UP}/Overlays/_Testing_Foundation", f"{SRC}/_Testing_Foundation",
                                             "--file", "swift/testing/ISIMAdditions.h", f"{INC}/ISIMAdditions.h",
                                             "--file", "swift/testing/ISIMAdditions.swift", f"{SRC}/Testing/ISIMAdditions.swift"],
                        "swift-testing sources")
         mapping, _ = act.parse_sync(["--tree", f"{UP}/_TestDiscovery", f"{SRC}/_TestDiscovery", "--tree", f"{UP}/Testing", f"{SRC}/Testing",
+                                     "--tree", f"{UP}/Overlays/_Testing_Foundation", f"{SRC}/_Testing_Foundation",
                                      "--file", "swift/testing/ISIMAdditions.swift", f"{SRC}/Testing/ISIMAdditions.swift"])
         disc = sorted(p for p in mapping if p.startswith(f"{SRC}/_TestDiscovery/") and p.endswith(".swift"))
         tsrc = sorted(p for p in mapping if p.startswith(f"{SRC}/Testing/") and p.endswith(".swift"))
+        fsrc = sorted(p for p in mapping if p.startswith(f"{SRC}/_Testing_Foundation/") and p.endswith(".swift"))
         defs = "SWT_TARGET_OS_APPLE SWT_NO_EXIT_TESTS SWT_NO_PROCESS_SPAWNING SWT_NO_MACH_PORTS SWT_NO_SYSCTL SWT_NO_UNAME SWT_NO_PIPES SWT_NO_FOUNDATION_FILE_COORDINATION".split()
         sdefs = [x for d in defs for x in ("-D", d, "-Xcc", f"-D{d}=1")]
         objs = [c.compile(f"{SRC}/_TestingInternals/{f}.cpp", f"{OBJ}/{f}.o",
@@ -617,7 +620,21 @@ class Swift:
         lib = self.link("swiftTesting", [f"{OBJ}/Testing.o", f"{OBJ}/_TestDiscovery.o", *objs],
                         ["-lSystem", "-lc++", "-lobjc", "-lswiftCore", "-lswift_Concurrency", "-lswiftDispatch", "-lswiftFoundation"],
                         implicit=[f"{SDK}/usr/lib/libc++.1.dylib"], minos="17.0")
-        return [mod("Testing"), lib]
+        # the Foundation cross-import overlay (Attachable Data / Encodable / NSSecureCoding, Attachment(contentsOf:)):
+        # importing Testing and Foundation loads it (Testing.swiftcrossimport next to Testing.swiftmodule)
+        os.makedirs(os.path.join(c.root, LIB, "_Testing_Foundation.swiftmodule"), exist_ok=True)
+        self.swiftc([f"{OBJ}/_Testing_Foundation.o", mod("_Testing_Foundation")],
+                    [*common, "-module-name", "_Testing_Foundation", "-module-link-name", "swift_Testing_Foundation",
+                     "-emit-module", "-emit-module-path", mod("_Testing_Foundation"), "-c", "-o", f"{OBJ}/_Testing_Foundation.o"],
+                    fsrc, implicit=iface + [stamp, mod("Testing")], order_only=["overlays"],
+                    keep=[f"{OBJ}/_Testing_Foundation.o", mod("_Testing_Foundation")], desc="SWIFT _Testing_Foundation")
+        flib = self.link("swift_Testing_Foundation", [f"{OBJ}/_Testing_Foundation.o"],
+                         ["-lSystem", "-lobjc", "-lswiftCore", "-lswift_Concurrency", "-lswiftFoundation", "-lswiftTesting", "-framework", "Foundation"],
+                         implicit=[lib], minos="17.0")
+        cross = f"{LIB}/Testing.swiftcrossimport/Foundation.swiftoverlay"
+        ovl = f"{UP}/Testing/Testing.swiftcrossimport/Foundation.swiftoverlay"
+        self.n.build(cross, c.act("copy", ovl, cross), inputs=[ovl], desc="INSTALL Testing.swiftcrossimport")
+        return [mod("Testing"), lib, mod("_Testing_Foundation"), flib, cross]
 
 
 def generate(c):

@@ -49,6 +49,7 @@ FOUNDATION_EXPORT NSExceptionName const NSInvocationOperationCancelledException;
 static const NSInteger NSOperationQueueDefaultMaxConcurrentOperationCount NS_SWIFT_NAME(OperationQueue.defaultMaxConcurrentOperationCount) = -1;
 
 /* runs operations as they become ready (dependencies), by priority, up to maxConcurrentOperationCount at once */
+NS_SWIFT_SENDABLE
 @interface NSOperationQueue : NSObject
 @property (class, readonly, strong) NSOperationQueue *mainQueue;
 @property (class, readonly, strong, nullable) NSOperationQueue *currentQueue;
