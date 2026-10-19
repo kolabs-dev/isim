@@ -151,7 +151,8 @@ static void emit(NSMutableString *out, UIView *v, int depth, CGRect screen) {
         NSInteger n = sc.numberOfSegments;
         for (NSInteger i = 0; i < n; i++) {
             CGFloat sw = r.size.width / (n ? n : 1);
-            [out appendFormat:@"%d\tbutton\t%g\t%g\t%g\t%g\t\t%@\t\t\te%@%@\n", depth + 1, r.origin.x + sw * i, r.origin.y, sw, r.size.height,
+            NSInteger slot = sc.effectiveUserInterfaceLayoutDirection == UIUserInterfaceLayoutDirectionRightToLeft ? n - 1 - i : i;  /* right to left: 0 on the right */
+            [out appendFormat:@"%d\tbutton\t%g\t%g\t%g\t%g\t\t%@\t\t\te%@%@\n", depth + 1, r.origin.x + sw * slot, r.origin.y, sw, r.size.height,
                 esc([sc titleForSegmentAtIndex:i]), sc.selectedSegmentIndex == i ? @"s" : @"", hittable ? @"h" : @""];
         }
     }

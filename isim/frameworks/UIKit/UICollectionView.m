@@ -687,6 +687,8 @@ static NSString *attr_key(UICollectionViewLayoutAttributes *a) {
     NSMutableDictionary<NSIndexPath *, NSValue *> *_preferred;
     CGSize _content;
 }
+/* written left to right, mirrored in a right-to-left app (UIKit's flow and compositional layouts do the same) */
+- (BOOL)flipsHorizontallyInOppositeLayoutDirection { return YES; }
 - (instancetype)init {
     if ((self = [super init])) { _itemSize = CGSizeMake(50, 50); _minimumLineSpacing = 10; _minimumInteritemSpacing = 10; _preferred = [NSMutableDictionary dictionary]; }
     return self;
@@ -994,6 +996,8 @@ typedef struct { CGRect band; CGFloat contentW; BOOL ortho; CGRect items; CGFloa
     NSMutableArray<NSMutableArray<UICollectionViewLayoutAttributes *> *> *_decos;
     id<NSCollectionLayoutEnvironment> _env;
 }
+/* written left to right, mirrored in a right-to-left app (UIKit's flow and compositional layouts do the same) */
+- (BOOL)flipsHorizontallyInOppositeLayoutDirection { return YES; }
 - (instancetype)_init { if ((self = [super init])) { _preferred = [NSMutableDictionary dictionary]; _configuration = [UICollectionViewCompositionalLayoutConfiguration new]; } return self; }
 - (instancetype)initWithSection:(NSCollectionLayoutSection *)s { if ((self = [self _init])) _section = s; return self; }
 - (instancetype)initWithSection:(NSCollectionLayoutSection *)s configuration:(UICollectionViewCompositionalLayoutConfiguration *)c { if ((self = [self initWithSection:s])) _configuration = [c copy]; return self; }
@@ -1351,7 +1355,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
 @end
 
 @implementation UICollectionView {
-    NSMutableArray<NSNumber *> *_counts; BOOL _loaded;
+    NSMutableArray<NSNumber *> *_counts; BOOL _loaded, _isimStartedAtLeadingEdge;
     NSMutableDictionary<NSIndexPath *, UICollectionViewCell *> *_cells;
     NSMutableDictionary<NSString *, UICollectionReusableView *> *_supps;
     NSMutableDictionary<NSString *, NSMutableArray<UICollectionReusableView *> *> *_pool;
@@ -1516,6 +1520,13 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
         _collectionViewLayout._isim_valid = YES;
         CGSize cs = _collectionViewLayout.collectionViewContentSize;
         if (!CGSizeEqualToSize(cs, self.contentSize)) self.contentSize = cs;
+        /* right to left: horizontally scrolling content starts at its leading (right) end */
+        UIEdgeInsets in = self.adjustedContentInset;
+        CGFloat extra = cs.width + in.right - self.bounds.size.width;
+        if (!_isimStartedAtLeadingEdge && [self _isim_flipWidth] >= 0 && self.bounds.size.width > 0 && extra > 0 && self.contentOffset.x <= -in.left) {
+            _isimStartedAtLeadingEdge = YES;
+            self.contentOffset = CGPointMake(extra, self.contentOffset.y);
+        }
     }
 }
 - (void)_isim_cvLayoutPass {
@@ -1528,6 +1539,8 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
 - (BOOL)_placeVisible {
     CGRect b = self.bounds; UIEdgeInsets ai = self.adjustedContentInset;
     CGRect rect = CGRectInset(b, -60, -120);
+    CGFloat flipW = [self _isim_flipWidth];                 /* right to left: the layout's left-to-right frames, mirrored */
+    if (flipW >= 0) rect.origin.x = ai.left + flipW - CGRectGetMaxX(rect);
     NSArray *attrs = [_collectionViewLayout layoutAttributesForElementsInRect:rect];
     NSMutableSet *keepCells = [NSMutableSet set], *keepSupps = [NSMutableSet set], *orthoSecs = [NSMutableSet set];
     BOOL changed = NO;
@@ -1542,7 +1555,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
             if (!card) { card = [UIView new]; card.layer.cornerRadius = 10; card.layer.cornerCurve = kCACornerCurveContinuous; card.clipsToBounds = YES; card.userInteractionEnabled = NO; _cards[@(s)] = card; }
             card.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor;
             if (card.superview != self) [self insertSubview:card atIndex:_backgroundView ? 1 : 0];
-            card.frame = CGRectOffset(items, ai.left, 0);
+            card.frame = CGRectOffset(flipW >= 0 ? isim_ui_mirror_rect(items, flipW) : items, ai.left, 0);
         } else { [card removeFromSuperview]; [_cards removeObjectForKey:@(s)]; }
     }
     /* visibleItemsInvalidationHandler: the section's cells, as the handler adjusted them */
@@ -1565,9 +1578,7 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
     for (UICollectionViewLayoutAttributes *a in attrs) if (a.representedElementCategory == UICollectionElementCategoryCell) [wanted addObject:a.indexPath];
     for (NSIndexPath *ip in _cells.allKeys) if (![wanted containsObject:ip]) { [self _recycleCell:_cells[ip] at:ip]; [_cells removeObjectForKey:ip]; }
     NSMutableSet *keepDecos = [NSMutableSet set];
-    UICollectionViewLayout *lay = _collectionViewLayout;
-    BOOL flip = lay.flipsHorizontallyInOppositeLayoutDirection && self.effectiveUserInterfaceLayoutDirection != lay.developmentLayoutDirection;
-    CGFloat flipW = flip ? lay.collectionViewContentSize.width : 0;
+    BOOL flip = flipW >= 0;
     for (UICollectionViewLayoutAttributes *a in attrs) {
         NSIndexPath *ip = a.indexPath;
         CGRect f = CGRectOffset(a.frame, ai.left, 0);
@@ -1726,13 +1737,28 @@ static NSString *pkey(NSString *kind, NSInteger s, NSInteger i) { return [NSStri
 - (NSDictionary *)_isim_supplementaryViews { return _supps; }
 
 /* ---- queries ---- */
-- (UICollectionViewLayoutAttributes *)layoutAttributesForItemAtIndexPath:(NSIndexPath *)ip { [self _prepareIfNeeded]; return [_collectionViewLayout layoutAttributesForItemAtIndexPath:ip]; }
-- (UICollectionViewLayoutAttributes *)layoutAttributesForSupplementaryElementOfKind:(NSString *)k atIndexPath:(NSIndexPath *)ip { [self _prepareIfNeeded]; return [_collectionViewLayout layoutAttributesForSupplementaryViewOfKind:k atIndexPath:ip]; }
+/* right to left: a layout that flips (flow and compositional layouts, written left to right) is shown mirrored across its
+   content width; -1 when it is shown as laid out */
+- (CGFloat)_isim_flipWidth {
+    UICollectionViewLayout *lay = _collectionViewLayout;
+    if (!lay.flipsHorizontallyInOppositeLayoutDirection || self.effectiveUserInterfaceLayoutDirection == lay.developmentLayoutDirection) return -1;
+    return fmax(lay.collectionViewContentSize.width, self.bounds.size.width - self.adjustedContentInset.left - self.adjustedContentInset.right);
+}
+- (UICollectionViewLayoutAttributes *)_isim_flipped:(UICollectionViewLayoutAttributes *)a {
+    CGFloat w = [self _isim_flipWidth];
+    if (!a || w < 0) return a;
+    a = [a copy]; a.frame = isim_ui_mirror_rect(a.frame, w);
+    return a;
+}
+- (UICollectionViewLayoutAttributes *)layoutAttributesForItemAtIndexPath:(NSIndexPath *)ip { [self _prepareIfNeeded]; return [self _isim_flipped:[_collectionViewLayout layoutAttributesForItemAtIndexPath:ip]]; }
+- (UICollectionViewLayoutAttributes *)layoutAttributesForSupplementaryElementOfKind:(NSString *)k atIndexPath:(NSIndexPath *)ip { [self _prepareIfNeeded]; return [self _isim_flipped:[_collectionViewLayout layoutAttributesForSupplementaryViewOfKind:k atIndexPath:ip]]; }
 - (UICollectionViewCell *)cellForItemAtIndexPath:(NSIndexPath *)ip { [self _ensureCells]; return _cells[ip]; }
 - (NSIndexPath *)indexPathForCell:(UICollectionViewCell *)c { for (NSIndexPath *ip in _cells) if (_cells[ip] == c) return ip; return nil; }
 - (NSIndexPath *)indexPathForItemAtPoint:(CGPoint)p {
     [self _prepareIfNeeded];
     UIEdgeInsets ai = self.adjustedContentInset;
+    CGFloat fw = [self _isim_flipWidth];
+    if (fw >= 0) p.x = ai.left + fw - (p.x - ai.left);         /* into the layout's left-to-right coordinates */
     for (UICollectionViewLayoutAttributes *a in [_collectionViewLayout layoutAttributesForElementsInRect:CGRectMake(p.x - 1, p.y - 1, 2, 2)])
         if (a.representedElementCategory == UICollectionElementCategoryCell && CGRectContainsPoint(CGRectOffset(a.frame, ai.left, 0), p)) return a.indexPath;
     return nil;
