@@ -1575,7 +1575,14 @@ class Packages:
         outdir = os.path.join(self.b.outdir, 'obj', 'packages', 'plugins')
         os.makedirs(outdir, exist_ok=True)
         lib = os.path.join(outdir, f'lib{tname}.so')
-        if not os.path.exists(lib) or os.path.getmtime(lib) < max(os.path.getmtime(f) for f in srcs):
+        # the plugin links the toolchain's swift-syntax at its path (rpath): a different toolchain, or the same one
+        # somewhere else, needs it built again
+        built_with = lib + '.toolchain'
+        try:
+            same_toolchain = open(built_with).read() == swift_toolchain()
+        except OSError:
+            same_toolchain = False
+        if not same_toolchain or not os.path.exists(lib) or os.path.getmtime(lib) < max(os.path.getmtime(f) for f in srcs):
             log(f'{tname}: macro target, built as a compiler plugin (lib{tname}.so, the toolchain\'s swift-syntax)')
             _, flags, _ = self.settings_of(t, 'swift')
             libs = [f'-l{n}' for n in sorted(SWIFT_SYNTAX_HOST)]
@@ -1587,6 +1594,8 @@ class Packages:
                                capture_output=True, text=True)
             if r.returncode:
                 fail(f'{tname}: building the macro plugin failed:\n{r.stdout}{r.stderr}')
+            with open(built_with, 'w') as f:
+                f.write(swift_toolchain())
         res = self.empty()
         res['swift_flags'] += ['-load-plugin-library', lib]
         return res
