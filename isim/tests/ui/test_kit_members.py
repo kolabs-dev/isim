@@ -2,7 +2,9 @@
 layer's contentsScale), UIButton.isHeld (a touch held on the button; the configuration update handler sees it, and it
 ends with the touch), UINavigationItem.additionalOverflowItems (a deferred element in the bar's overflow menu, which
 shows for it alone), UIWindowScene.isFullScreen and, on iOS 26 and later, UIView.Invalidating(.properties) running
-updateProperties (os_matrix)."""
+updateProperties (os_matrix). Part 2 (issue #241): UIApplication.isDefault(_:) (iOS 18.2), NSItemProvider's
+preferredPresentationStyle, UITextInput's supportsAdaptiveImageGlyph (iOS 18), UIPointerLockState.DidChangeMessage
+(iOS 26) and a paste into a UISearchTextField that its paste delegate turns into a search token."""
 import pytest
 
 
@@ -23,6 +25,14 @@ def test_kit_members(launch, ios):
     app.drag(x, y, x + 1, y, 0.05, hold=1.2)                           # touch and hold
     app.wait_log(r"^held true$")
     app.wait_log(r"^held false$")                                      # released
+
+    app.wait_log(r"^presentationStyle=attachment$")
+    app.wait_log(r"^tokens=1 text=$")                                  # the pasted text became a token
+    if v >= 18:
+        app.wait_log(r"^supportsAdaptiveImageGlyph=true$")
+    if v >= 26:                                                        # isDefault(_:) is iOS 18.2
+        app.wait_log(r"^isDefault browser=false$")                     # Settings: no default browser chosen
+        app.wait_log(r"^pointerLockMessage name=true$")
 
     app.wait_tap_id("nav-overflow")                                    # the additional items' overflow menu
     app.wait_tap_id("menu-Extra action")

@@ -14,6 +14,7 @@
  * ISIM_PASTE_PERMISSION=ask|deny|allow. has*, numberOfItems, types, changeCount and pattern detection never ask. */
 #import "UIKitPrivate.h"
 #import <UIKit/UIPasteboard.h>
+#import <objc/runtime.h>
 
 UIPasteboardName const UIPasteboardNameGeneral = @"com.apple.UIKit.pboard.general";
 NSString *const UIPasteboardNameFind = @"com.apple.UIKit.pboard.find";
@@ -368,5 +369,14 @@ static NSDictionary *values_only(NSDictionary *d) {
         for (NSDictionary *d in per) [a addObject:values_only(d)];
         h(a, nil);
     }];
+}
+@end
+
+/* NSItemProvider's preferred presentation style (iOS 11, UIKit's addition): stored on the provider, for the receiver */
+@implementation NSItemProvider (UIKitAdditions)
+static char kPreferredPresentationStyle;
+- (UIPreferredPresentationStyle)preferredPresentationStyle { return [objc_getAssociatedObject(self, &kPreferredPresentationStyle) integerValue]; }
+- (void)setPreferredPresentationStyle:(UIPreferredPresentationStyle)s {
+    objc_setAssociatedObject(self, &kPreferredPresentationStyle, @(s), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 @end

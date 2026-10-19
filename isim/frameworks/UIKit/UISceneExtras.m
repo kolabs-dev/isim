@@ -91,13 +91,17 @@ __attribute__((constructor)) static void watch_power(void) {
 /* adapted: the system prefers reduced resource usage in Low Power Mode */
 - (BOOL)systemPrefersReducedResourceUsage { return NSProcessInfo.processInfo.lowPowerModeEnabled; }
 /* the default browser is Settings > Apps > Default Apps (preference ISIMDefaultBrowser, a bundle identifier) */
-- (BOOL)isDefaultForCategory:(UIApplicationCategory)category error:(NSError **)error {
+- (UIApplicationCategoryDefaultStatus)defaultStatusForCategory:(UIApplicationCategory)category error:(NSError **)error {
     if (category != UIApplicationCategoryWebBrowser) {
         if (error) *error = [NSError errorWithDomain:UIApplicationCategoryDefaultErrorDomain code:0 userInfo:@{ NSLocalizedDescriptionKey: @"Unknown category" }];
-        return NO;
+        return UIApplicationCategoryDefaultStatusUnavailable;
     }
     NSString *browser = isim_global_preferences()[@"ISIMDefaultBrowser"];
-    return [browser isEqualToString:NSBundle.mainBundle.bundleIdentifier];
+    return [browser isEqualToString:NSBundle.mainBundle.bundleIdentifier] ? UIApplicationCategoryDefaultStatusIsDefault : UIApplicationCategoryDefaultStatusNotDefault;
+}
+/* the selector earlier isim releases declared before Apple's (apps built with them call it) */
+- (BOOL)isDefaultForCategory:(UIApplicationCategory)category error:(NSError **)error {
+    return [self defaultStatusForCategory:category error:error] == UIApplicationCategoryDefaultStatusIsDefault;
 }
 @end
 @interface UIApplicationShortcutIcon ()

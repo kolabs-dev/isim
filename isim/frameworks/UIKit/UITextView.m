@@ -36,6 +36,7 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
     CGFloat _measuredWidth;
     NSArray<NSTextCheckingResult *> *_items; NSString *_itemsText; UIDataDetectorTypes _itemsTypes;
 }
+@dynamic supportsAdaptiveImageGlyph;                         /* (IsimAdaptiveImageGlyph) */
 @synthesize sizingRule = _sizingRule;     /* UILetterformAwareAdjusting (iOS 17) */
 @dynamic delegate;
 @synthesize autocapitalizationType = _autocapitalizationType, autocorrectionType = _autocorrectionType, spellCheckingType = _spellCheckingType,
@@ -551,4 +552,11 @@ static UIColor *highlight_color(NSString *scheme, UIColor *tint) {
     if (![fr isKindOfClass:[UIView class]] || ![(UIView *)fr isDescendantOfView:self]) return YES;
     return [fr resignFirstResponder] || force;
 }
+@end
+
+/* iOS 18: whether the input accepts adaptive image glyphs (stored; isim's keyboard offers none) */
+@implementation UITextView (IsimAdaptiveImageGlyph)
+static char kSupportsAdaptiveImageGlyphUITextView;
+- (BOOL)supportsAdaptiveImageGlyph { return [objc_getAssociatedObject(self, &kSupportsAdaptiveImageGlyphUITextView) boolValue]; }
+- (void)setSupportsAdaptiveImageGlyph:(BOOL)b { objc_setAssociatedObject(self, &kSupportsAdaptiveImageGlyphUITextView, @(b), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
 @end

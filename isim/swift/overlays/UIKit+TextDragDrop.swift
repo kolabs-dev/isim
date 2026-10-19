@@ -353,7 +353,11 @@ extension UITextPasteDelegate {
     }
     public func textPasteConfigurationSupporting(_ textPasteConfigurationSupporting: UITextPasteConfigurationSupporting, shouldAnimatePasteOf attributedString: NSAttributedString, to textRange: UITextRange) -> Bool { true }
 }
-final class _IsimTextPasteItem: NSObject, UITextPasteItem {
+/// a paste into a search text field: an item can become a search token (iOS 15)
+@MainActor public protocol UISearchTextFieldPasteItem: UITextPasteItem {
+    func setSearchTokenResult(_ token: UISearchToken)
+}
+class _IsimTextPasteItem: NSObject, UITextPasteItem {
     let itemProvider: NSItemProvider
     let localObject: Any?
     let defaultAttributes: [NSAttributedString.Key: Any]
@@ -367,6 +371,10 @@ final class _IsimTextPasteItem: NSObject, UITextPasteItem {
     func setAttachmentResult(_ a: NSTextAttachment) { result = NSAttributedString(attachment: a) }
     func setNoResult() { result = NSAttributedString() }
     func setDefaultResult() { result = defaultString.map { NSAttributedString(string: $0, attributes: defaultAttributes) } ?? NSAttributedString() }
+}
+final class _IsimSearchTextPasteItem: _IsimTextPasteItem, UISearchTextFieldPasteItem {
+    var token: UISearchToken?
+    func setSearchTokenResult(_ token: UISearchToken) { self.token = token; result = NSAttributedString() }
 }
 @MainActor func _isimPerformPaste(_ target: UITextPasteConfigurationSupporting, _ s: NSAttributedString, _ range: UITextRange) -> UITextRange? {
     guard let v = target as? (UIView & UITextInput) else { return nil }
@@ -386,8 +394,14 @@ final class _IsimTextPasteItem: NSObject, UITextPasteItem {
     let strings = pb.strings ?? []
     let attrs: [NSAttributedString.Key: Any] = (v as? UITextView)?.typingAttributes ?? (v as? UITextField)?.defaultTextAttributes ?? [:]
     let providers = pb.itemProviders
-    let items: [_IsimTextPasteItem] = providers.enumerated().map { i, p in _IsimTextPasteItem(provider: p, string: i < strings.count ? strings[i] : nil, attributes: attrs) }
+    let search = v as? UISearchTextField
+    let items: [_IsimTextPasteItem] = providers.enumerated().map { i, p in
+        let s = i < strings.count ? strings[i] : nil
+        return search != nil ? _IsimSearchTextPasteItem(provider: p, string: s, attributes: attrs) : _IsimTextPasteItem(provider: p, string: s, attributes: attrs)
+    }
     for item in items { d.textPasteConfigurationSupporting(v, transform: item) }
+    /* search tokens go after the field's tokens, the rest pastes as text */
+    if let search { for case let t? in items.map({ ($0 as? _IsimSearchTextPasteItem)?.token }) { search.insertToken(t, at: search.tokens.count) } }
     let parts = items.map { $0.result ?? NSAttributedString() }
     let combined = d.textPasteConfigurationSupporting(v, combineItemAttributedStrings: parts, for: range)
     _ = d.textPasteConfigurationSupporting(v, shouldAnimatePasteOf: combined, to: range)

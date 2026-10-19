@@ -11,6 +11,15 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(11.0))
 @protocol UIItemProviderPresentationSizeProviding <NSObject>
 @property (nonatomic, readonly) CGSize preferredPresentationSizeForItemProvider;
 @end
+/* how a receiver should present the item: inline (the content) or as an attachment (a file); stored on the provider */
+typedef NS_ENUM(NSInteger, UIPreferredPresentationStyle) {
+    UIPreferredPresentationStyleUnspecified = 0,
+    UIPreferredPresentationStyleInline,
+    UIPreferredPresentationStyleAttachment,
+} NS_SWIFT_NAME(NSItemProvider.PreferredPresentationStyle) API_AVAILABLE(ios(11.0));
+@interface NSItemProvider (UIKitAdditions)
+@property (nonatomic) UIPreferredPresentationStyle preferredPresentationStyle API_AVAILABLE(ios(11.0));
+@end
 @protocol UIItemProviderReadingAugmentationProviding <NSObject>
 @required
 /* read before / after the designating class's own readableTypeIdentifiersForItemProvider */
