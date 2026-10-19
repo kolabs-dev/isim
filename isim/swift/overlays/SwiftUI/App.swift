@@ -72,6 +72,7 @@ extension App {
         let app = Self()
         let scenes = _collectScenes(app)
         _SUIBackgroundTasks.install(scenes.backgroundTasks)     /* before launch: background launches have no UI */
+        _SUICommands.entries = scenes.commands                     /* the main menu (Commands.swift) */
         _SUIAppRoot.makeRootController = scenes.rootController
         _SUIAppRoot.makeRoot = { _rootView(app) }
         _ = UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, NSStringFromClass(_SUIAppDelegate.self))

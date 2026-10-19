@@ -329,15 +329,7 @@ struct _CircularGauge: View {
 public struct GroupBox<Label: View, Content: View>: View {
     let label: Label?, content: Content
     public init(@ViewBuilder content: () -> Content, @ViewBuilder label: () -> Label) { self.content = content(); self.label = label() }
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let label { label.font(.headline) }
-            content
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(Color("groupbox") { .secondarySystemBackground }, in: RoundedRectangle(cornerRadius: 10))
-    }
+    public var body: some View { _GroupBoxBody(label: label.map { AnyView($0) }, content: AnyView(content)) }   // (Styles+Containers.swift)
 }
 extension GroupBox where Label == EmptyView {
     public init(@ViewBuilder content: () -> Content) { self.content = content(); label = nil }
@@ -433,6 +425,13 @@ public struct DisclosureGroup<Label: View, Content: View>: View, _PrimitiveView 
         let st = (g.storage[key] as? _StateStorage<Bool>) ?? { let s = _StateStorage(false); g.storage[key] = s; return s }()
         g.usedKeys.insert(key)
         let binding = isExpanded ?? Binding(get: { st.value }, set: { [weak g] v in st.value = v; g?.invalidate() })
+        // disclosureGroupStyle: the style's body with the label, content and expansion (Styles+Containers.swift)
+        if let style = ctx.environment._disclosureGroupStyle {
+            let label = self.label, content = self.content
+            let config = DisclosureGroupStyleConfiguration(label: .init(make: { _resolve(label, $0) }), content: .init(make: { _resolve(content, $0) }),
+                                                           isExpanded: binding)
+            return _resolve(style.make(config), ctx.child("dgstyle").with { $0._disclosureGroupStyle = nil })
+        }
         let open = binding.wrappedValue
         let inList = ctx.environment._inList
         let tint = ctx.environment._tint ?? .accentColor

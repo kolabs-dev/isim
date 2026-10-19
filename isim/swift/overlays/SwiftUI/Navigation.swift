@@ -166,7 +166,7 @@ final class _ListNode: _Node {
         var y: CGFloat = 0
         if let lv = level, lv.showsLargeTitle {
             largeTitleRect = CGRect(x: 20, y: 0, width: W - 40, height: 52)
-            y = 52
+            y = 52 + (lv.subtitle != nil ? 22 : 0)
         } else { y = look.plainLike ? 0 : 18 }
         if level?.search != nil {                               // .searchable: the field under the title
             searchRect = CGRect(x: 16, y: largeTitleRect == nil ? 8 : y, width: W - 32, height: 36)
@@ -251,6 +251,14 @@ final class _ListNode: _Node {
             l.frame = lt
             sv.largeTitleBottom = lt.maxY
         } else { sv.largeTitleBottom = 0 }
+        let subKey = path + "|largeSubtitle"
+        if let lt = largeTitleRect, let sub = level?.subtitle {
+            let l = g.view(subKey) { UILabel() }
+            l.text = sub; l.font = .systemFont(ofSize: 15); l.textColor = .secondaryLabel
+            l.accessibilityIdentifier = "isim-nav-subtitle"
+            if l.superview !== sv { sv.addSubview(l) }
+            l.frame = CGRect(x: lt.minX, y: lt.maxY - 4, width: lt.width, height: 20)
+        } else { g.views[subKey]?.removeFromSuperview(); g.views[subKey] = nil }
         let hair = 1 / max(1, UIScreen.main.scale)
         for (i, c) in cards.enumerated() {
             let card = g.view(path + "|card\(i)") { UIView() }
@@ -450,6 +458,12 @@ public struct LabeledContent<Label: View, Content: View>: View, _PrimitiveView {
     public init(@ViewBuilder content: () -> Content, @ViewBuilder label: () -> Label) { self.label = label(); self.content = content() }
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
+        // labeledContentStyle: the style's body with the label and content (Styles+Containers.swift)
+        if let style = ctx.environment._labeledContentStyle {
+            let label = self.label, content = self.content
+            let config = LabeledContentStyleConfiguration(label: .init(make: { _resolve(label, $0) }), content: .init(make: { _resolve(content, $0) }))
+            return _resolve(style.make(config), ctx.child("lcstyle").with { $0._labeledContentStyle = nil })
+        }
         let l = _resolve(label, ctx.child("label"))
         let c = _resolve(content, ctx.child("content").with { $0._foreground = $0._foreground ?? .secondary })
         return _StackNode(path: ctx.path, axis: .horizontal, spacing: 8, alignment: .center,
@@ -505,6 +519,8 @@ public enum NavigationBarItem {
 /// Per navigation level: title, display mode, toolbar items (filled in while the level's content evaluates).
 @MainActor final class _NavLevel {
     var title: String?
+    /// navigationSubtitle (iOS 26): under the large title, and under the inline title in the bar
+    var subtitle: String?
     var displayMode: NavigationBarItem.TitleDisplayMode = .automatic
     var toolbar: [(ToolbarItemPlacement, _Node)] = []
     var contentIsList = false
@@ -738,6 +754,14 @@ final class _NavStackNode: _Node {
             if l.superview !== view { view.addSubview(l) } else { view.bringSubviewToFront(l) }
             l.frame = CGRect(x: 20, y: safeTop + barHeight, width: view.bounds.width - 40, height: 52)
         }
+        let subKey = path + "|largeSubtitle"
+        if !content.ignoresSafeArea, top.showsLargeTitle, top.title != nil, let sub = top.subtitle {
+            let l = g.view(subKey) { UILabel() }
+            l.text = sub; l.font = .systemFont(ofSize: 15); l.textColor = .secondaryLabel
+            l.accessibilityIdentifier = "isim-nav-subtitle"
+            if l.superview !== view { view.addSubview(l) } else { view.bringSubviewToFront(l) }
+            l.frame = CGRect(x: 20, y: safeTop + barHeight + 48, width: view.bounds.width - 40, height: 20)
+        } else { g.views[subKey]?.removeFromSuperview(); g.views[subKey] = nil }
         let bar = g.view(path + "|bar") { _SUINavBar(frame: .zero) }
         if bar.superview !== view { view.addSubview(bar) } else { view.bringSubviewToFront(bar) }
         bar.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: safeTop + barHeight)
@@ -907,6 +931,7 @@ final class _NavStackNode: _Node {
 /// Navigation bar: back button, title (inline, or shown when the large title scrolls away), toolbar items.
 final class _SUINavBar: UIView {
     let titleLabel = UILabel()
+    let subtitleLabel = UILabel()
     let back = _SUIControl(frame: .zero)
     let backLabel = UILabel()
     let backChevron = UIImageView()
@@ -922,6 +947,9 @@ final class _SUINavBar: UIView {
         titleLabel.font = .systemFont(ofSize: 17, weight: .semibold)
         titleLabel.textAlignment = .center
         addSubview(titleLabel)
+        subtitleLabel.font = .systemFont(ofSize: 12); subtitleLabel.textColor = .secondaryLabel; subtitleLabel.textAlignment = .center
+        subtitleLabel.accessibilityIdentifier = "isim-nav-inline-subtitle"
+        addSubview(subtitleLabel)
         hairline.backgroundColor = .separator
         addSubview(hairline)
         insertSubview(fade, at: 0)
@@ -936,6 +964,12 @@ final class _SUINavBar: UIView {
         self.level = level
         titleLabel.text = level.title
         titleLabel.frame = CGRect(x: 100, y: safeTop, width: bounds.width - 200, height: 44)
+        // navigationSubtitle: the inline title moves up, the subtitle under it
+        subtitleLabel.text = level.subtitle
+        if level.subtitle != nil {
+            titleLabel.frame = CGRect(x: 100, y: safeTop + 3, width: bounds.width - 200, height: 22)
+            subtitleLabel.frame = CGRect(x: 100, y: safeTop + 24, width: bounds.width - 200, height: 16)
+        }
         hairline.frame = CGRect(x: 0, y: bounds.height - 0.5, width: bounds.width, height: 0.5)
         back.isHidden = pop == nil
         back.action = pop
@@ -970,6 +1004,7 @@ final class _SUINavBar: UIView {
         let inline = !l.isLarge || scrolled || !l.contentIsList && !l.showsLargeTitle
         titleLabel.alpha = inline ? 1 : 0
         titleLabel.isHidden = principal                          // a .principal toolbar item replaces the title
+        subtitleLabel.alpha = titleLabel.alpha; subtitleLabel.isHidden = principal || l.subtitle == nil
         // .toolbarTitleMenu: the title opens a menu (a chevron after it)
         titleMenuButton.isHidden = l.titleMenu == nil || principal || !inline
         if let build = l.titleMenu, !titleMenuButton.isHidden {
@@ -1042,6 +1077,19 @@ extension View {
     public func navigationTitle(_ titleKey: LocalizedStringKey) -> some View { _navTitle { titleKey.resolved() } }
     @_disfavoredOverload public func navigationTitle<S: StringProtocol>(_ title: S) -> some View { let t = String(title); return _navTitle { t } }
     public func navigationTitle(_ title: Text) -> some View { _navTitle { title.string } }
+    /// A subtitle under the navigation title (iOS 26).
+    @available(iOS 26.0, *)
+    public func navigationSubtitle(_ subtitle: Text) -> some View { _navSubtitle { subtitle.string } }
+    @available(iOS 26.0, *)
+    public func navigationSubtitle(_ subtitleKey: LocalizedStringKey) -> some View { _navSubtitle { subtitleKey.resolved() } }
+    @available(iOS 26.0, *)
+    @_disfavoredOverload public func navigationSubtitle<S: StringProtocol>(_ subtitle: S) -> some View { let s = String(subtitle); return _navSubtitle { s } }
+    func _navSubtitle(_ subtitle: @escaping () -> String) -> some View {
+        _modify { ctx, c in
+            if let lv = ctx.nav, lv.subtitle == nil { lv.subtitle = subtitle() }
+            return _resolve(c, ctx.child("nst"))
+        }
+    }
     func _navTitle(_ title: @escaping () -> String) -> some View {
         _modify { ctx, c in
             if let lv = ctx.nav, lv.title == nil { lv.title = title() }

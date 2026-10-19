@@ -387,10 +387,19 @@ final class _SUISegmented: UISegmentedControl {
 // MARK: - Menu
 
 /// Builds UIMenu children from resolved menu content: buttons, nested Menus, Pickers, Sections and Dividers.
-@MainActor func _menuElements(_ n: _Node) -> [UIMenuElement] {
+/// (`shortcuts`: the main menu's commands, Commands.swift: buttons with a keyboard shortcut become key commands)
+@MainActor func _menuElements(_ n: _Node, shortcuts: _Graph? = nil) -> [UIMenuElement] {
     var groups: [[UIMenuElement]] = [[]]
     func walk(_ n: _Node) {
         switch n {
+        case let b as _ButtonNode where shortcuts?.storage[b.path + "#shortcut"] is _ShortcutBox:
+            let s = (shortcuts!.storage[b.path + "#shortcut"] as! _ShortcutBox).shortcut
+            let i = _SUICommands.actions.count
+            _SUICommands.actions.append(b.action)
+            let c = UIKeyCommand(title: _collectText(b).joined(separator: " "), image: _firstImage(b), action: #selector(_SUIAppDelegate._isimSwiftUICommand(_:)),
+                                 input: s.key._input, modifierFlags: s.modifiers._uikit, propertyList: i)
+            if !b.enabled { c.attributes = .disabled }
+            groups[groups.count - 1].append(c)
         case let b as _ButtonNode:
             let a = UIAction(title: _collectText(b).joined(separator: " "), image: _firstImage(b),
                              attributes: b.role == .destructive ? .destructive : (b.enabled ? [] : .disabled)) { [action = b.action] _ in action() }

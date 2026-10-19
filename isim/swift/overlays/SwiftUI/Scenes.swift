@@ -13,6 +13,8 @@ import UIKit
 @MainActor final class _SceneCollector {
     var groups: [(id: String?, make: () -> AnyView)] = []
     var backgroundTasks: [(id: String, kind: String, run: @Sendable () async -> Void)] = []
+    /// .commands (Commands.swift)
+    var commands: [_CommandEntry] = []
     /// a scene hosted by its own view controller (DocumentGroup), when it is the first scene
     var rootController: (@MainActor () -> UIViewController)?
 }
@@ -85,7 +87,8 @@ extension Scene {
         _ModifiedScene(base: self, transform: { $0 }, apply: { c in c.backgroundTasks.append((task.identifier, task.kind, action)) })
     }
     public func handlesExternalEvents(matching conditions: Set<String>) -> some Scene { _ModifiedScene(base: self, transform: { $0 }) }
-    public func commands<C>(@_SceneCommandsBuilder content: () -> C) -> some Scene { _ModifiedScene(base: self, transform: { $0 }) }
+    /// (kept for apps built with isim before Commands; commands(content:) with Commands: Commands.swift)
+    @_disfavoredOverload public func commands<C>(@_SceneCommandsBuilder content: () -> C) -> some Scene { _ModifiedScene(base: self, transform: { $0 }) }
     public func defaultSize(width: CGFloat, height: CGFloat) -> some Scene { _ModifiedScene(base: self, transform: { $0 }) }
     public func defaultSize(_ size: CGSize) -> some Scene { _ModifiedScene(base: self, transform: { $0 }) }
 }

@@ -124,3 +124,82 @@ extension View {
         return _accessibility(deepest: false) { v in _installDrop(v, target) }
     }
 }
+
+// MARK: - DropDelegate
+
+/// The kind of drop a destination accepts.
+public enum DropOperation: Hashable, Sendable {
+    case cancel, forbidden, copy, move
+    var _uikit: UIDropOperation {
+        switch self { case .cancel: return .cancel; case .forbidden: return .forbidden; case .copy: return .copy; case .move: return .move }
+    }
+}
+/// What a drop destination does with the items over it.
+public struct DropProposal: Sendable {
+    public let operation: DropOperation
+    public init(operation: DropOperation) { self.operation = operation }
+}
+/// The drag over a drop destination: where it is and what it carries.
+public struct DropInfo {
+    /// in the destination view's coordinates
+    public var location: CGPoint
+    let session: UIDropSession
+    public func hasItemsConforming(to contentTypes: [UTType]) -> Bool { session.hasItemsConforming(toTypeIdentifiers: contentTypes.map(\.identifier)) }
+    public func itemProviders(for contentTypes: [UTType]) -> [NSItemProvider] {
+        session.items.map(\.itemProvider).filter { p in contentTypes.contains { p.hasItemConformingToTypeIdentifier($0.identifier) } }
+    }
+    @available(iOS, introduced: 13.4, deprecated: 100000.0)
+    public func hasItemsConforming(to types: [String]) -> Bool { session.hasItemsConforming(toTypeIdentifiers: types) }
+    @available(iOS, introduced: 13.4, deprecated: 100000.0)
+    public func itemProviders(for types: [String]) -> [NSItemProvider] {
+        session.items.map(\.itemProvider).filter { p in types.contains { p.hasItemConformingToTypeIdentifier($0) } }
+    }
+}
+/// Handles a drag over a view and the drop on it (onDrop(of:delegate:)).
+@MainActor public protocol DropDelegate {
+    func validateDrop(info: DropInfo) -> Bool
+    func performDrop(info: DropInfo) -> Bool
+    func dropEntered(info: DropInfo)
+    func dropUpdated(info: DropInfo) -> DropProposal?
+    func dropExited(info: DropInfo)
+}
+extension DropDelegate {
+    public func validateDrop(info: DropInfo) -> Bool { true }
+    public func dropEntered(info: DropInfo) {}
+    public func dropUpdated(info: DropInfo) -> DropProposal? { nil }
+    public func dropExited(info: DropInfo) {}
+}
+/// A UIDropInteraction delegate that asks a DropDelegate.
+/// (UIKit calls it on the main thread: the delegate's methods run there)
+final class _SUIDropDelegateTarget: NSObject, UIDropInteractionDelegate {
+    var types: [UTType], delegate: any DropDelegate
+    init(types: [UTType], delegate: any DropDelegate) { self.types = types; self.delegate = delegate }
+    func info(_ i: UIDropInteraction, _ s: UIDropSession) -> DropInfo { DropInfo(location: i.view.map { s.location(in: $0) } ?? .zero, session: s) }
+    func dropInteraction(_ i: UIDropInteraction, canHandle s: UIDropSession) -> Bool {
+        s.hasItemsConforming(toTypeIdentifiers: types.map(\.identifier)) && MainActor.assumeIsolated { delegate.validateDrop(info: info(i, s)) }
+    }
+    func dropInteraction(_ i: UIDropInteraction, sessionDidEnter s: UIDropSession) { MainActor.assumeIsolated { delegate.dropEntered(info: info(i, s)) } }
+    func dropInteraction(_ i: UIDropInteraction, sessionDidExit s: UIDropSession) { MainActor.assumeIsolated { delegate.dropExited(info: info(i, s)) } }
+    func dropInteraction(_ i: UIDropInteraction, sessionDidUpdate s: UIDropSession) -> UIDropProposal {
+        UIDropProposal(operation: MainActor.assumeIsolated { delegate.dropUpdated(info: info(i, s)) }?.operation._uikit ?? .copy)
+    }
+    func dropInteraction(_ i: UIDropInteraction, performDrop s: UIDropSession) { _ = MainActor.assumeIsolated { delegate.performDrop(info: info(i, s)) } }
+}
+nonisolated(unsafe) private var kSUIDropDelegate: UInt8 = 0
+extension View {
+    /// A drop destination whose delegate validates, follows and performs the drop.
+    public func onDrop(of supportedContentTypes: [UTType], delegate: any DropDelegate) -> some View {
+        _accessibility(deepest: false) { v in
+            if let old = objc_getAssociatedObject(v, &kSUIDropDelegate) as? _SUIDropDelegateTarget {
+                old.types = supportedContentTypes; old.delegate = delegate; return
+            }
+            let t = _SUIDropDelegateTarget(types: supportedContentTypes, delegate: delegate)
+            objc_setAssociatedObject(v, &kSUIDropDelegate, t, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            v.addInteraction(UIDropInteraction(delegate: t))
+        }
+    }
+    @available(iOS, introduced: 13.4, deprecated: 100000.0, message: "Provide `UTType`s as the `supportedContentTypes` instead.")
+    public func onDrop(of supportedTypes: [String], delegate: any DropDelegate) -> some View {
+        onDrop(of: supportedTypes.compactMap { UTType($0) }, delegate: delegate)
+    }
+}
