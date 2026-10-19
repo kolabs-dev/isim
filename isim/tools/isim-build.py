@@ -2076,6 +2076,19 @@ class Builder:
             compile_xcassets(res, bundle)
         elif res.rstrip('/').endswith(('.xcdatamodeld', '.xcdatamodel')):
             momc.compile_model(res, bundle, os.path.join(bundle, '..', 'obj', 'coredata-unused'))
+        elif res.rstrip('/').endswith('.lproj') and os.path.isdir(res):
+            # a whole localized folder (Xcode 16's synchronized groups list Base.lproj, not its files): what is in it
+            # goes to the bundle's folder of that name, Interface Builder documents compiled like a variant group's
+            name = os.path.basename(res.rstrip('/'))
+            for f in sorted(os.listdir(res)):
+                p = os.path.join(res, f)
+                if f.startswith('.'):
+                    continue
+                if os.path.isdir(p) and not f.endswith(('.storyboard', '.xib')):
+                    copy_resource(p, os.path.join(bundle, name))
+                else:
+                    self.install_resource(p, bundle)
+            return [name[:-6]] if name != 'Base.lproj' else []
         elif res.endswith(('.storyboard', '.xib')):
             # Interface Builder documents -> isim's IB archive format (NOT Apple's compiled nibs; see ibtool.py)
             parent = os.path.basename(os.path.dirname(res))

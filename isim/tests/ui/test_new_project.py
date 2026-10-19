@@ -107,8 +107,9 @@ def test_new_uikit(tmp_path, launch):
     assert info["CFBundleExecutable"] == "Board", "the Info.plist file is the target's (processed), not a resource"
     assert list(app.rglob("Main.storyboardc")) and list(app.rglob("LaunchScreen.storyboardc")), sorted(map(str, app.rglob("*")))
     a = launch(app)
-    a.wait_log(r"isim: scenes: ")
-    a.wait_dump(r"Board\.ViewController|ViewController")                # the storyboard's initial view controller
+    a.wait_log(r"isim: launch screen: storyboard LaunchScreen")
+    a.wait_log(r"isim: main storyboard Main: initial view controller Board\.ViewController")
+    a.wait_view(r"^UIWindow \(0 0; ")                                   # its view, in the scene's window
     a.quit()
 
 
