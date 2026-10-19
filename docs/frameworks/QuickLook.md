@@ -8,13 +8,16 @@
 
 ## How isim implements it
 
-- **Adapted:** `QLPreviewController` (`isim/frameworks/QuickLook/QuickLook.m`) is a paging controller over UIKit: images, PDFs (poppler), text, audio and video (ffmpeg). Preview extensions are not hosted yet. Rows: [UIKit](UIKit.md).
+- **Adapted:** `QLPreviewController` (`isim/frameworks/QuickLook/QuickLook.m`) is a paging controller over UIKit: images, PDFs (poppler), HTML (WebKit), RTF, text, audio and video (ffmpeg); SwiftUI's `quickLookPreview` comes from isim's QuickLook Swift overlay (`isim/swift/overlays/QuickLook`). Preview extensions are not hosted yet. Rows: [UIKit](UIKit.md).
 
 ## API
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `ARQuickLookPreviewItem`, `QLFilePreviewRequest`, `QLPreviewingController`, `QLPreviewProvider`, `QLPreviewReply`, `QLPreviewReplyAttachment`, `QLPreviewSceneActivationConfiguration` (7 types; with their members under "Not yet in isim") |
+| SwiftUI `quickLookPreview(_:)`, `quickLookPreview(_:in:)` | ✅ | ≤17 | adapted: isim's QuickLook Swift overlay presents a `QLPreviewController` over the URL, or over the collection from the selected URL (swipes between them); Done clears the binding, setting it to nil dismisses the preview. Tested (HelloQuickLookSwiftUI, OS matrix) |
+| `QLPreviewSceneActivationConfiguration`, `QLPreviewSceneOptions` | ✅ | ≤17 | `init(itemsAt:options:)` (Objective-C `initWithItemsAtURLs:options:`), `initialPreviewIndex`, `editingMode` (stored: no Markup). Activated by `UIWindowScene.ActivationAction` / `ActivationInteraction`, the preview opens at the initial index. Adapted: full screen over the app's window, not a window scene of its own. Tested (HelloQuickLookSwiftUI) |
+| HTML and RTF previews | ✅ | ≤17 | adapted: HTML in a `WKWebView` (WebKit is loaded when one is previewed; the files next to it are readable); RTF as rich text (UIKit's RTF reader). Without the WebKit helper, HTML shows its source. Tested (HelloQuickLookSwiftUI) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `ARQuickLookPreviewItem`, `QLFilePreviewRequest`, `QLPreviewingController`, `QLPreviewProvider`, `QLPreviewReply`, `QLPreviewReplyAttachment` (6 types; with their members under "Not yet in isim") |
 
 ## Not yet in isim
 

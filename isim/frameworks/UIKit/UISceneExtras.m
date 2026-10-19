@@ -7,6 +7,10 @@
 #import <UIKit/UIWindowSceneExtras.h>
 #import <objc/runtime.h>
 
+@interface NSObject (IsimSceneActivation)
+- (void)_isim_activateWithErrorHandler:(void (^)(NSError *))errorHandler;
+@end
+
 NSString *const UIApplicationOpenSettingsURLString = @"app-settings:";
 NSString *const UIApplicationOpenNotificationSettingsURLString = @"app-settings:notifications";
 NSString *const UIApplicationOpenDefaultApplicationsSettingsURLString = @"app-settings:default-apps";
@@ -284,6 +288,8 @@ UIScene *isim_ui_scene_for_target(NSString *ident) {
 - (instancetype)initWithUserActivity:(NSUserActivity *)a { if ((self = [super init])) _userActivity = a; return self; }
 @end
 static void activate_configuration(UIWindowSceneActivationConfiguration *c, void (^errorHandler)(NSError *)) {
+    /* a framework's own scene (Quick Look's preview scene) activates itself */
+    if ([c respondsToSelector:@selector(_isim_activateWithErrorHandler:)]) { [(id)c _isim_activateWithErrorHandler:errorHandler]; return; }
     UISceneSessionActivationRequest *r = [UISceneSessionActivationRequest request];
     r.userActivity = c.userActivity;
     r.options = c.options;

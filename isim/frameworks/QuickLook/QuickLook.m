@@ -4,6 +4,8 @@
  * - images (UIImage formats): zoomable (pinch, double tap);
  * - PDFs: every page rendered with CGPDFDocument (the host's poppler; without it the generic page);
  * - text and source files (UTF-8): a read-only text view, monospaced for code and data;
+ * - HTML: rendered in a WKWebView (WebKit, through the WebKitGTK helper), with the files next to it (images, styles);
+ * - RTF: rendered as rich text (UIKit's RTF reader: fonts, sizes, styles, colours, paragraphs);
  * - audio and video (the host's ffprobe / ffmpeg): the first frame, a play / pause button and the time; video frames
  *   are drawn as they play, sound goes to isim's mixer;
  * - anything else: an icon with the file's name, kind and size (as iOS shows files it cannot render).
@@ -12,19 +14,37 @@
  * items, no zoom transition from frameForPreviewItem. */
 #import <QuickLook/QuickLook.h>
 #import <isim_host.h>
+#import <dlfcn.h>
+#import <objc/runtime.h>
+
+/* WebKit is loaded when an HTML file is previewed (QuickLook links below it) */
+@interface NSObject (IsimQLWebView)
+- (instancetype)initWithFrame:(CGRect)frame;
+- (id)loadFileURL:(NSURL *)url allowingReadAccessToURL:(NSURL *)readAccessURL;
+@end
+@interface NSAttributedString (IsimRTF)
++ (nullable NSAttributedString *)_isim_attributedStringWithRTF:(NSData *)data;
+@end
+static Class web_view_class(void) {
+    Class c = NSClassFromString(@"WKWebView");
+    if (!c) { dlopen("/System/Library/Frameworks/WebKit.framework/WebKit", RTLD_NOW); c = NSClassFromString(@"WKWebView"); }
+    return c;
+}
 
 @implementation NSURL (QLPreviewConvenienceAdditions)
 - (NSURL *)previewItemURL { return self; }
 - (NSString *)previewItemTitle { return self.lastPathComponent; }
 @end
 
-typedef NS_ENUM(int, QLKind) { QLKindGeneric, QLKindImage, QLKindPDF, QLKindText, QLKindMedia };
+typedef NS_ENUM(int, QLKind) { QLKindGeneric, QLKindImage, QLKindPDF, QLKindText, QLKindMedia, QLKindWeb, QLKindRich };
 static QLKind kind_of(NSURL *url) {
     NSString *e = url.pathExtension.lowercaseString;
     if ([@[@"png", @"jpg", @"jpeg", @"gif", @"bmp", @"tif", @"tiff", @"webp", @"heic", @"ico"] containsObject:e]) return QLKindImage;
     if ([e isEqualToString:@"pdf"]) return QLKindPDF;
-    if ([@[@"txt", @"text", @"md", @"markdown", @"json", @"csv", @"tsv", @"xml", @"plist", @"html", @"htm", @"css", @"js", @"swift", @"m", @"mm", @"h",
-           @"c", @"cc", @"cpp", @"py", @"rb", @"sh", @"yml", @"yaml", @"log", @"ini", @"strings", @"rtf"] containsObject:e]) return QLKindText;
+    if ([@[@"html", @"htm", @"xhtml"] containsObject:e]) return QLKindWeb;
+    if ([e isEqualToString:@"rtf"]) return QLKindRich;
+    if ([@[@"txt", @"text", @"md", @"markdown", @"json", @"csv", @"tsv", @"xml", @"plist", @"css", @"js", @"swift", @"m", @"mm", @"h",
+           @"c", @"cc", @"cpp", @"py", @"rb", @"sh", @"yml", @"yaml", @"log", @"ini", @"strings"] containsObject:e]) return QLKindText;
     if ([@[@"mov", @"mp4", @"m4v", @"mp3", @"m4a", @"aac", @"wav", @"aif", @"aiff", @"caf", @"flac", @"ogg", @"webm", @"mkv"] containsObject:e]) return QLKindMedia;
     return QLKindGeneric;
 }
@@ -153,6 +173,8 @@ static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfF
     _kind = [NSFileManager.defaultManager fileExistsAtPath:url.path] ? kind_of(url) : QLKindGeneric;
     if (_kind == QLKindImage && ![UIImage imageWithContentsOfFile:url.path]) _kind = QLKindGeneric;
     if (_kind == QLKindMedia) { struct isim_media_info i = {0}; if (!isim_media_probe(url.path.UTF8String, &i) || !(i.has_video || i.has_audio)) _kind = QLKindGeneric; }
+    if (_kind == QLKindWeb && !web_view_class()) _kind = QLKindText;      /* without WebKit: the source */
+    if (_kind == QLKindRich && ![NSAttributedString _isim_attributedStringWithRTF:[NSData dataWithContentsOfFile:url.path] ?: [NSData data]]) _kind = QLKindText;
     if (_kind == QLKindPDF) {
         CGPDFDocumentRef doc = CGPDFDocumentCreateWithURL((__bridge CFURLRef)url);
         if (!doc || !CGPDFDocumentGetNumberOfPages(doc)) _kind = QLKindGeneric;
@@ -213,6 +235,22 @@ static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfF
         BOOL prose = [@[@"txt", @"text", @"md", @"markdown", @"rtf", @"log"] containsObject:e];
         tv.font = prose ? [UIFont systemFontOfSize:17] : [UIFont monospacedSystemFontOfSize:14 weight:UIFontWeightRegular];
         tv.textContainerInset = UIEdgeInsetsMake(16, 12, 16, 12);
+        _content = tv;
+        [self addSubview:tv];
+        break; }
+    case QLKindWeb: {
+        UIView *wv = [[web_view_class() alloc] initWithFrame:CGRectZero];
+        wv.accessibilityIdentifier = @"ql-web";
+        [(id)wv loadFileURL:_url allowingReadAccessToURL:[NSURL fileURLWithPath:_url.path.stringByDeletingLastPathComponent isDirectory:YES]];
+        _content = wv;
+        [self addSubview:wv];
+        break; }
+    case QLKindRich: {
+        UITextView *tv = [UITextView new];
+        tv.editable = NO;
+        tv.accessibilityIdentifier = @"ql-rich";
+        tv.textContainerInset = UIEdgeInsetsMake(16, 12, 16, 12);
+        tv.attributedText = [NSAttributedString _isim_attributedStringWithRTF:[NSData dataWithContentsOfFile:_url.path]];
         _content = tv;
         [self addSubview:tv];
         break; }
@@ -392,7 +430,7 @@ static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfF
     NSString *title = [item respondsToSelector:@selector(previewItemTitle)] ? item.previewItemTitle : nil;
     title = title ?: item.previewItemURL.lastPathComponent ?: @"";
     if (_bar) _bar.topItem.title = title; else self.title = title;
-    static const char *names[] = { "generic", "image", "pdf", "text", "media" };
+    static const char *names[] = { "generic", "image", "pdf", "text", "media", "html", "rtf" };
     if (_count) NSLog(@"isim QuickLook: item %ld of %ld: %@ (%s)", (long)_index + 1, (long)_count, title, names[_pages[@(_index)].kind]);
 }
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)s {
@@ -419,4 +457,45 @@ static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfF
     }];
 }
 - (void)viewWillDisappear:(BOOL)animated { [super viewWillDisappear:animated]; for (__IsimQLPage *p in _pages.allValues) [p disappeared]; }
+@end
+
+/* ---------------- the preview scene (issue #237) ---------------- */
+@implementation QLPreviewSceneOptions
+@end
+
+@interface __IsimQLSceneSource : NSObject <QLPreviewControllerDataSource>
+@property (nonatomic, copy) NSArray<NSURL *> *urls;
+@end
+@implementation __IsimQLSceneSource
+- (NSInteger)numberOfPreviewItemsInPreviewController:(QLPreviewController *)c { return (NSInteger)_urls.count; }
+- (id<QLPreviewItem>)previewController:(QLPreviewController *)c previewItemAtIndex:(NSInteger)i { return _urls[(NSUInteger)i]; }
+@end
+
+@implementation QLPreviewSceneActivationConfiguration {
+    NSArray<NSURL *> *_urls; QLPreviewSceneOptions *_qlOptions;
+}
+- (instancetype)initWithItemsAtURLs:(NSArray<NSURL *> *)urls options:(QLPreviewSceneOptions *)options {
+    NSUserActivity *a = [[NSUserActivity alloc] initWithActivityType:@"com.apple.quicklook.preview-scene"];
+    if ((self = [super initWithUserActivity:a])) { _urls = [urls copy]; _qlOptions = options; }
+    return self;
+}
+- (instancetype)initWithUserActivity:(NSUserActivity *)userActivity { return [self initWithItemsAtURLs:@[] options:nil]; }
+/* adapted: the preview fills the screen over the app's window (iOS opens it in a window scene of its own) */
+- (void)_isim_activateWithErrorHandler:(void (^)(NSError *))errorHandler {
+    UIViewController *top = UIApplication.sharedApplication.keyWindow.rootViewController;
+    while (top.presentedViewController) top = top.presentedViewController;
+    if (!top || !_urls.count) {
+        if (errorHandler) errorHandler([NSError errorWithDomain:@"QLPreviewSceneActivationErrorDomain" code:1 userInfo:nil]);
+        return;
+    }
+    QLPreviewController *q = [QLPreviewController new];
+    __IsimQLSceneSource *src = [__IsimQLSceneSource new];
+    src.urls = _urls;
+    q.dataSource = src;
+    objc_setAssociatedObject(q, @selector(dataSource), src, OBJC_ASSOCIATION_RETAIN_NONATOMIC);   /* the data source is weak */
+    q.currentPreviewItemIndex = _qlOptions.initialPreviewIndex;
+    q.modalPresentationStyle = UIModalPresentationFullScreen;
+    NSLog(@"isim QuickLook: preview scene with %lu items", (unsigned long)_urls.count);
+    [top presentViewController:q animated:YES completion:nil];
+}
 @end
