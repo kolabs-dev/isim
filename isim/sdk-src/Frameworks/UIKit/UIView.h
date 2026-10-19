@@ -122,6 +122,9 @@ CGRect isim_ui_space_convert_rect(id<UICoordinateSpace> space, CGRect rect, id<U
 @property (nonatomic) BOOL clearsContextBeforeDrawing;
 @property (nonatomic, getter=isHidden) BOOL hidden;
 @property (nonatomic) UIViewContentMode contentMode;
+/* the scale the view's content draws at: the screen's until set (isim draws at the screen's scale; the layer's
+   contentsScale follows) */
+@property (nonatomic) CGFloat contentScaleFactor API_AVAILABLE(ios(4.0));
 @property (null_resettable, nonatomic, strong) UIColor *tintColor;
 - (void)tintColorDidChange;
 /* dimmed: tintColor reads as a desaturated gray (UIKit dims the views behind an alert); automatic follows the superview */

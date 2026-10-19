@@ -1092,6 +1092,9 @@ extension UIView {
                 if view.responds(to: sel) { _ = view.perform(sel) }
             }
         }
+        /// iOS 26: the view's updateProperties runs before the next layout
+        @available(iOS 26.0, *)
+        public struct Properties: UIViewInvalidating { public init() {}; @MainActor public func invalidate(view: UIView) { view.setNeedsUpdateProperties() } }
         public struct Tuple<Invalidation1: UIViewInvalidating, Invalidation2: UIViewInvalidating>: UIViewInvalidating {
             let first: Invalidation1, second: Invalidation2
             public init(_ first: Invalidation1, _ second: Invalidation2) { self.first = first; self.second = second }
@@ -1138,6 +1141,8 @@ extension UIViewInvalidating where Self == UIView.Invalidations.Display { public
 extension UIViewInvalidating where Self == UIView.Invalidations.Constraints { public static var constraints: Self { .init() } }
 extension UIViewInvalidating where Self == UIView.Invalidations.IntrinsicContentSize { public static var intrinsicContentSize: Self { .init() } }
 extension UIViewInvalidating where Self == UIView.Invalidations.Configuration { public static var configuration: Self { .init() } }
+@available(iOS 26.0, *)
+extension UIViewInvalidating where Self == UIView.Invalidations.Properties { public static var properties: Self { .init() } }
 
 // MARK: - Configuration transformers (Apple's Swift value types over the Objective-C blocks)
 @available(iOS 15.0, *)

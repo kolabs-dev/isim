@@ -49,6 +49,8 @@ typedef UIPointerStyle *_Nullable (^UIButtonPointerStyleProvider)(UIButton *butt
 @property (nullable, nonatomic, readonly, strong) UILabel *subtitleLabel API_AVAILABLE(ios(15.0));
 /* the pointer is over the button (iPad pointer, `hover X Y`) */
 @property (nonatomic, readonly, getter=isHovered) BOOL hovered API_AVAILABLE(ios(17.0));
+/* a touch has stayed down on the button for half a second (until it lifts or leaves); configuration updates follow */
+@property (nonatomic, readonly, getter=isHeld) BOOL held API_AVAILABLE(ios(15.0));
 @property (nonatomic) UIButtonRole role API_AVAILABLE(ios(14.0));
 @property (nullable, nonatomic, copy) UIButtonPointerStyleProvider pointerStyleProvider API_AVAILABLE(ios(13.4));   /* isim: stored */
 @property (nonatomic) UIBehavioralStyle preferredBehavioralStyle API_AVAILABLE(ios(15.0));

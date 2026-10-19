@@ -308,7 +308,7 @@ void isim_ui_menu_chose(UIView *source, UIAction *a) {
     NSMutableDictionary<NSNumber *, UIImage *> *_images; NSMutableDictionary<NSNumber *, UIImageSymbolConfiguration *> *_symbolConfigs;
     NSMutableDictionary<NSNumber *, UIImage *> *_backgrounds; NSMutableDictionary<NSNumber *, UIColor *> *_shadowColors;
     BOOL _needsConfigUpdate, _configShown; UIActivityIndicatorView *_spinner;
-    UIImage *_transFrom, *_configImage; double _transStart; CADisplayLink *_transLink; }
+    UIImage *_transFrom, *_configImage; double _transStart; CADisplayLink *_transLink; BOOL _held; }
 @dynamic adjustsImageSizeForAccessibilityContentSizeCategory;      /* UIAccessibilityExtras.m */
 /* configuration updates: state changes, setNeedsUpdateConfiguration, and the first time the button shows */
 - (void)updateConfiguration { if (_configurationUpdateHandler) _configurationUpdateHandler(self); }
@@ -317,7 +317,22 @@ void isim_ui_menu_chose(UIView *source, UIAction *a) {
     _needsConfigUpdate = YES; [self setNeedsLayout]; isim_ui_set_needs_layout();
 }
 - (void)setConfigurationUpdateHandler:(UIButtonConfigurationUpdateHandler)h { _configurationUpdateHandler = [h copy]; [self setNeedsUpdateConfiguration]; }
-- (void)setHighlighted:(BOOL)h { BOOL was = self.highlighted; [super setHighlighted:h]; if (was != h && _automaticallyUpdatesConfiguration) [self setNeedsUpdateConfiguration]; }
+- (void)setHighlighted:(BOOL)h {
+    BOOL was = self.highlighted; [super setHighlighted:h];
+    if (was != h && _automaticallyUpdatesConfiguration) [self setNeedsUpdateConfiguration];
+    /* held: a touch that stays down on the button for half a second (iOS 15's isHeld); ends with the touch */
+    if (h && !was) [self performSelector:@selector(_isim_holdCheck) withObject:nil afterDelay:0.5];
+    else if (!h) {
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_isim_holdCheck) object:nil];
+        if (_held) { _held = NO; [self setNeedsUpdateConfiguration]; }
+    }
+}
+- (void)_isim_holdCheck {
+    if (!self.highlighted || !self.tracking || _held) return;
+    _held = YES;
+    [self setNeedsUpdateConfiguration];
+}
+- (BOOL)isHeld { return _held; }
 - (void)setSelected:(BOOL)s { BOOL was = self.selected; [super setSelected:s]; if (was != s && _automaticallyUpdatesConfiguration) [self setNeedsUpdateConfiguration]; }
 - (void)setEnabled:(BOOL)e { BOOL was = self.enabled; [super setEnabled:e]; if (was != e && _automaticallyUpdatesConfiguration) [self setNeedsUpdateConfiguration]; }
 - (void)didMoveToWindow { [super didMoveToWindow]; if (self.window && !_configShown) { _configShown = YES; if (_configuration || _configurationUpdateHandler) [self setNeedsUpdateConfiguration]; } }
