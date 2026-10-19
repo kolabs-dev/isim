@@ -16,7 +16,8 @@
   (environment variables, arguments, language -> ISIM_LANGUAGES, region -> ISIM_LOCALE); the targets run once per
   configuration (-only-test-configuration / -skip-test-configuration). -showTestPlans lists the scheme's plans.
 * -resultBundlePath DIR: per bundle a console log, a JUnit XML report (XCTest), Swift Testing's xUnit XML and the
-  tests' kept attachments (XCTAttachment: <bundle>.attachments/<Class>/<test>/<name>.<ext>).
+  tests' kept attachments (XCTAttachment: <bundle>.attachments/<Class>/<test>/<name>.<ext>; Swift Testing's Attachment:
+  <bundle>.attachments/SwiftTesting/<name>).
   (isim's results directory; NOT an Xcode .xcresult bundle.)
 """
 import importlib.util

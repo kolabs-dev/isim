@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 import Units
 import Core
 
@@ -23,10 +24,28 @@ import Core
         #expect(Core.platformOK)
     }
 
+    /// Attachments (saved by `isim test` under <bundle>.attachments/SwiftTesting): a String, Data and an Encodable value
+    /// (the Foundation cross-import overlay encodes it as JSON), and a file.
+    @Test func attachments() async throws {
+        Attachment.record("kilo = 1000", named: "units.txt")
+        Attachment.record(Data([0x49, 0x53, 0x49, 0x4d]), named: "magic.bin")
+        Attachment.record(UnitInfo(name: "kilo", factor: 1000), named: "unit.json")
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("table.csv")
+        try "name,factor\nkilo,1000\n".write(to: file, atomically: true, encoding: .utf8)
+        let attachment = try await Attachment(contentsOf: file)            // Attachment(contentsOf:): a file's contents
+        #expect(attachment.preferredName == "table.csv")
+        Attachment.record(attachment)
+    }
+
     @Test func asyncWork() async {
         let v = await Task.detached { 21 * 2 }.value
         #expect(v == 42)
     }
+}
+
+struct UnitInfo: Codable, Attachable {
+    let name: String
+    let factor: Int
 }
 
 /// Deliberately failing (skipped by the scheme; run with -only-testing:AppSwiftTests/FailingSuite).
