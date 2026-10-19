@@ -7,22 +7,22 @@
 @_exported import UniformTypeIdentifiers
 
 // MARK: - items, previews, proposals
-open class UIDragItem: NSObject {
+@objc(UIDragItem) open class UIDragItem: NSObject {
     public let itemProvider: NSItemProvider
     open var localObject: Any?
     open var previewProvider: (() -> UIDragPreview?)?
     public init(itemProvider: NSItemProvider) { self.itemProvider = itemProvider }
 }
-open class UIDragPreviewParameters: UIPreviewParameters {}
-open class UIDragPreview: NSObject {
+@objc(UIDragPreviewParameters) open class UIDragPreviewParameters: UIPreviewParameters {}
+@objc(UIDragPreview) open class UIDragPreview: NSObject {
     public let view: UIView
     public let parameters: UIDragPreviewParameters
     public init(view: UIView, parameters: UIDragPreviewParameters = UIDragPreviewParameters()) { self.view = view; self.parameters = parameters }
 }
-open class UITargetedDragPreview: UITargetedPreview {}
+@objc(UITargetedDragPreview) open class UITargetedDragPreview: UITargetedPreview {}
 
 @objc public enum UIDropOperation: Int, Sendable { case cancel = 0, forbidden = 1, copy = 2, move = 3 }
-open class UIDropProposal: NSObject {
+@objc(UIDropProposal) open class UIDropProposal: NSObject {
     public let operation: UIDropOperation
     open var isPrecise = false
     open var prefersFullSizePreview = false
@@ -61,18 +61,18 @@ extension UIDropSession {
 }
 
 final class _IsimDragSession: NSObject, UIDragSession, UIDropSession, @unchecked Sendable {
-    var items: [UIDragItem]
-    var localContext: Any?
-    var progressIndicatorStyle: UIDropSessionProgressIndicatorStyle = .default
-    let progress = Progress(totalUnitCount: 1)
+    @objc var items: [UIDragItem]
+    @objc var localContext: Any?
+    @objc var progressIndicatorStyle: UIDropSessionProgressIndicatorStyle = .default
+    @objc let progress = Progress(totalUnitCount: 1)
     var windowPoint = CGPoint.zero
     weak var window: UIWindow?
     init(items: [UIDragItem]) { self.items = items }
-    func location(in view: UIView) -> CGPoint { view.convert(windowPoint, from: window ?? view.window) }
-    var allowsMoveOperation: Bool { true }
-    var isRestrictedToDraggingApplication: Bool { true }
+    @objc(locationInView:) func location(in view: UIView) -> CGPoint { view.convert(windowPoint, from: window ?? view.window) }
+    @objc var allowsMoveOperation: Bool { true }
+    @objc var isRestrictedToDraggingApplication: Bool { true }
     var localDragSession: UIDragSession? { self }
-    func hasItemsConforming(toTypeIdentifiers ids: [String]) -> Bool { items.contains { i in ids.contains { i.itemProvider.hasItemConformingToTypeIdentifier($0) } } }
+    @objc(hasItemsConformingToTypeIdentifiers:) func hasItemsConforming(toTypeIdentifiers ids: [String]) -> Bool { items.contains { i in ids.contains { i.itemProvider.hasItemConformingToTypeIdentifier($0) } } }
     func canLoadObjects(ofClass c: NSItemProviderReading.Type) -> Bool { items.contains { $0.itemProvider.canLoadObject(ofClass: c) } }
     func loadObjects(ofClass c: NSItemProviderReading.Type, completion: @escaping ([NSItemProviderReading]) -> Void) -> Progress {
         let group = DispatchGroup(), lock = NSLock()
@@ -136,10 +136,10 @@ public protocol UIDragAnimating: AnyObject {
     func addAnimations(_ animations: @escaping () -> Void)
     func addCompletion(_ completion: @escaping (UIViewAnimatingPosition) -> Void)
 }
-final class _IsimDragAnimator: UIDragAnimating {
+final class _IsimDragAnimator: NSObject, UIDragAnimating {
     var animations: [() -> Void] = [], completions: [(UIViewAnimatingPosition) -> Void] = []
-    func addAnimations(_ a: @escaping () -> Void) { animations.append(a) }
-    func addCompletion(_ c: @escaping (UIViewAnimatingPosition) -> Void) { completions.append(c) }
+    @objc(addAnimations:) func addAnimations(_ a: @escaping () -> Void) { animations.append(a) }
+    @objc(addCompletion:) func addCompletion(_ c: @escaping (UIViewAnimatingPosition) -> Void) { completions.append(c) }
     func run() {
         let a = animations, c = completions
         if a.isEmpty && c.isEmpty { return }
@@ -148,7 +148,7 @@ final class _IsimDragAnimator: UIDragAnimating {
 }
 
 // MARK: - interactions
-@MainActor open class UIDragInteraction: NSObject, UIInteraction {
+@objc(UIDragInteraction) @MainActor open class UIDragInteraction: NSObject, UIInteraction {
     /// iOS 27: how a touch lifts the item (`extended`: a longer delay, and a second finger cancels, for gesture-rich views)
     @available(iOS 27.0, *)
     public enum LiftBehavior: UInt, @unchecked Sendable { case `default` = 0, extended = 1 }
@@ -220,7 +220,7 @@ final class _IsimDragGate: NSObject, UIGestureRecognizerDelegate {
         return (g === i.press && other === i.pointerPan) || (g === i.pointerPan && other === i.press)
     }
 }
-@MainActor open class UIDropInteraction: NSObject, UIInteraction {
+@objc(UIDropInteraction) @MainActor open class UIDropInteraction: NSObject, UIInteraction {
     public private(set) weak var delegate: UIDropInteractionDelegate?
     open private(set) weak var view: UIView?
     open var allowsSimultaneousDropSessions = false
@@ -231,12 +231,12 @@ final class _IsimDragGate: NSObject, UIGestureRecognizerDelegate {
 
 // MARK: - table and collection views
 @objc public enum UITableViewDropIntent: Int, Sendable { case unspecified, insertAtDestinationIndexPath, insertIntoDestinationIndexPath, automatic }
-open class UITableViewDropProposal: UIDropProposal {
+@objc(UITableViewDropProposal) open class UITableViewDropProposal: UIDropProposal {
     public let intent: UITableViewDropIntent
     public init(operation: UIDropOperation, intent: UITableViewDropIntent = .unspecified) { self.intent = intent; super.init(operation: operation) }
 }
 @objc public enum UICollectionViewDropIntent: Int, Sendable { case unspecified, insertAtDestinationIndexPath, insertIntoDestinationIndexPath }
-open class UICollectionViewDropProposal: UIDropProposal {
+@objc(UICollectionViewDropProposal) open class UICollectionViewDropProposal: UIDropProposal {
     public let intent: UICollectionViewDropIntent
     public init(operation: UIDropOperation, intent: UICollectionViewDropIntent = .unspecified) { self.intent = intent; super.init(operation: operation) }
 }

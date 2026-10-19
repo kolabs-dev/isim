@@ -673,6 +673,9 @@ OBJC_NAMES["BackgroundTasks"] = {c: c for c in """BGTaskRequest BGAppRefreshTask
     BGTaskScheduler""".split()}
 OBJC_NAMES["CoreSpotlight"] = {c: c for c in "CSSearchableItemAttributeSet CSSearchableItem CSSearchableIndex CSSearchQuery".split()}
 OBJC_NAMES["CoreLocation"] = {c: c for c in "CLLocationManager CLLocation CLHeading CLPlacemark CLGeocoder CLRegion CLCircularRegion CLVisit CLFloor".split()}
+# issue #245: drag and drop, spring loading for Objective-C (UIPasteConfiguration had its Objective-C name already)
+OBJC_NAMES["UIKit"] = {c: c for c in """UIDragItem UIDragPreviewParameters UIDragPreview UITargetedDragPreview UIDropProposal UIDragInteraction
+    UIDropInteraction UITableViewDropProposal UICollectionViewDropProposal UITextDropProposal UISpringLoadedInteraction""".split()}
 OBJC_NAMES["MapKit"] = {**{c: c for c in """MKMapView MKAnnotationView MKMarkerAnnotationView MKPinAnnotationView MKShape MKPointAnnotation
                              MKUserLocation MKPlacemark MKMapItem MKLocalSearch MKMultiPoint MKPolyline MKPolygon MKCircle MKOverlayRenderer
                              MKOverlayPathRenderer MKPolylineRenderer MKPolygonRenderer MKCircleRenderer""".split()},

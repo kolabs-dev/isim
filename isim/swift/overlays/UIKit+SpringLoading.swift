@@ -28,12 +28,12 @@ extension UISpringLoadedInteractionBehavior {
 }
 
 @MainActor final class _IsimSpringContext: NSObject, UISpringLoadedInteractionContext {
-    var state: UISpringLoadedInteractionEffectState = .inactive
-    weak var targetView: UIView?
-    var targetItem: Any?
+    @objc var state: UISpringLoadedInteractionEffectState = .inactive
+    @objc weak var targetView: UIView?
+    @objc var targetItem: Any?
     var windowPoint = CGPoint.zero
     weak var window: UIWindow?
-    func location(in view: UIView?) -> CGPoint { view.map { $0.convert(windowPoint, from: window) } ?? windowPoint }
+    @objc(locationInView:) func location(in view: UIView?) -> CGPoint { view.map { $0.convert(windowPoint, from: window) } ?? windowPoint }
 }
 /// the default behaviour: always allowed
 @MainActor final class _IsimSpringBehavior: NSObject, UISpringLoadedInteractionBehavior {
@@ -52,7 +52,7 @@ extension UISpringLoadedInteractionBehavior {
     }
 }
 
-@MainActor open class UISpringLoadedInteraction: NSObject, UIInteraction {
+@objc(UISpringLoadedInteraction) @MainActor open class UISpringLoadedInteraction: NSObject, UIInteraction {
     public let interactionBehavior: UISpringLoadedInteractionBehavior
     public let interactionEffect: UISpringLoadedInteractionEffect
     open private(set) weak var view: UIView?

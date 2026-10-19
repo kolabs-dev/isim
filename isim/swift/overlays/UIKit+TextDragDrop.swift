@@ -39,13 +39,15 @@ final class _IsimTextDragRequest: NSObject, UITextDragRequest {
     }
 }
 final class _IsimTextDropRequest: NSObject, UITextDropRequest {
-    let dropPosition: UITextPosition, suggestedProposal: UITextDropProposal, isSameView: Bool, dropSession: UIDropSession
+    @objc let dropPosition: UITextPosition, suggestedProposal: UITextDropProposal, isSameView: Bool
+    let dropSession: UIDropSession
+    @objc(dropSession) var _objc_dropSession: AnyObject { dropSession as AnyObject }
     init(position: UITextPosition, proposal: UITextDropProposal, sameView: Bool, session: UIDropSession) {
         dropPosition = position; suggestedProposal = proposal; isSameView = sameView; dropSession = session
     }
 }
 /// what a drop does with the text: where it goes, how progress shows, who performs it
-open class UITextDropProposal: UIDropProposal, NSCopying {
+@objc(UITextDropProposal) open class UITextDropProposal: UIDropProposal, NSCopying {
     @objc public enum Action: Int, Sendable { case insert = 0, replaceSelection, replaceAll }
     @objc public enum ProgressMode: Int, Sendable { case system = 0, custom }
     @objc public enum Performer: Int, Sendable { case view = 0, delegate }

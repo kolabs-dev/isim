@@ -124,3 +124,15 @@
 #import <UIKit/UIConversationContext.h>
 #import <UIKit/UIHoverStyle.h>
 #import <UIKit/UITextFormattingViewController.h>
+#import <UIKit/UIDragItem.h>
+#import <UIKit/UIDragPreviewParameters.h>
+#import <UIKit/UIDragPreview.h>
+#import <UIKit/UITargetedDragPreview.h>
+#import <UIKit/UIDragSession.h>
+#import <UIKit/UIDragInteraction.h>
+#import <UIKit/UIDropInteraction.h>
+#import <UIKit/UISpringLoadedInteraction.h>
+#import <UIKit/UIPasteConfiguration.h>
+#import <UIKit/UITableViewDragDrop.h>
+#import <UIKit/UICollectionViewDragDrop.h>
+#import <UIKit/UITextDropping.h>
