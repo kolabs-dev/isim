@@ -188,6 +188,7 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
 - (void)setText:(NSString *)t {
     t = t ?: @"";
     if ([t isEqualToString:_ts.string] && ![self _isimHasForeignAttributes]) return;
+    isim_ti_clear_undo(self);
     [self _isimSetStorage:[[NSAttributedString alloc] initWithString:t attributes:_typing]];
     _selectedRange = NSMakeRange(_ts.length, 0);
     isim_ui_set_marked_range(self, NSMakeRange(NSNotFound, 0));
@@ -205,6 +206,7 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
 }
 - (NSAttributedString *)attributedText { return [_ts attributedSubstringFromRange:NSMakeRange(0, _ts.length)]; }
 - (void)setAttributedText:(NSAttributedString *)a {
+    isim_ti_clear_undo(self);
     a = a ?: [NSAttributedString new];
     [self _isimSetStorage:a];
     if (a.length) {                                               /* like UIKit: the view's font and colour follow the text's start */
@@ -363,10 +365,12 @@ NSNotificationName const UITextViewTextDidEndEditingNotification = @"UITextViewT
     id<UITextViewDelegate> d = self.delegate;
     BOOL composing = isim_ui_marked_range(self).location != NSNotFound;
     if (!composing && [d respondsToSelector:@selector(textView:shouldChangeTextInRange:replacementText:)] && ![d textView:self shouldChangeTextInRange:r replacementText:s]) return;
+    NSString *old = [_ts.string substringWithRange:r];
     _updatingStorage = YES;
     [_ts replaceCharactersInRange:r withAttributedString:[[NSAttributedString alloc] initWithString:s attributes:_typing]];
     _updatingStorage = NO;
     _selectedRange = NSMakeRange(r.location + s.length, 0);
+    if (!composing) isim_ti_did_replace(self, r, old, s);
     [self _isim_tvChanged];
     if ([d respondsToSelector:@selector(textViewDidChange:)]) [d textViewDidChange:self];
     [NSNotificationCenter.defaultCenter postNotificationName:UITextViewTextDidChangeNotification object:self];
