@@ -12,6 +12,10 @@ public struct Chart<Content: ChartContent>: View {
     @Environment(\._chartYAxis) var yAxis
     @Environment(\._chartXScale) var xScale
     @Environment(\._chartYScale) var yScale
+    @Environment(\._chartXScaleType) var xScaleType
+    @Environment(\._chartYScaleType) var yScaleType
+    @Environment(\._chartXRange) var xRange
+    @Environment(\._chartYRange) var yRange
     @Environment(\._chartStyleScale) var styleScale
     @Environment(\._chartLegend) var legend
     @Environment(\._chartXLabel) var xLabel
@@ -46,6 +50,7 @@ public struct Chart<Content: ChartContent>: View {
         var cfg = _ChartConfig(xVisibility: xVisibility, yVisibility: yVisibility, xAxis: xAxis?.specs, yAxis: yAxis?.specs, xDomain: xScale, yDomain: yScale,
                                styleScale: styleScale, legend: legend, xLabel: xLabel, yLabel: yLabel)
         cfg.symbolScale = symbolScale; cfg.symbolSizeScale = symbolSizeScale
+        cfg.xType = xScaleType; cfg.yType = yScaleType; cfg.xRange = xRange; cfg.yRange = yRange
         cfg.selection = _SelectionSetters(x: xSelection?.set, y: ySelection?.set, xRange: xRangeSelection?.set, yRange: yRangeSelection?.set,
                                           angle: angleSelection?.set)
         cfg.scroll = scroll; cfg.overlay = overlay; cfg.background = background; cfg.gesture = chartGesture; cfg.plotStyle = plotStyle
@@ -66,6 +71,7 @@ struct _ChartConfig {
     var styleScale: _StyleScaleBox?, legend: _LegendBox?
     var xLabel: _ViewBox?, yLabel: _ViewBox?
     var symbolScale: _SymbolScaleBox? = nil, symbolSizeScale: _SymbolSizeScaleBox? = nil
+    var xType: ScaleType? = nil, yType: ScaleType? = nil, xRange: _PositionRange? = nil, yRange: _PositionRange? = nil
     var selection = _SelectionSetters()
     var scroll: _ScrollBox? = nil
     var overlay: _ProxyViewBox? = nil, background: _ProxyViewBox? = nil, gesture: _ProxyViewBox? = nil
@@ -122,10 +128,34 @@ let _chartPalette: [Color] = [.blue, .green, .orange, .purple, .red, .cyan, .yel
 
 // MARK: - Scales
 
+/// A position scale's value transform (ScaleType): positions are linear in t(value).
+enum _ScaleTransform {
+    case identity, log, sqrt, power(Double), symlog(Double)
+    init(_ t: ScaleType?) {
+        switch t?.id {
+        case 1?: self = .log
+        case 2?: self = .sqrt
+        case 5?: self = .power(t?.parameter ?? 1)
+        case 6?: self = .symlog(t?.parameter ?? 1)
+        default: self = .identity
+        }
+    }
+    func callAsFunction(_ v: Double) -> Double {
+        switch self {
+        case .identity: return v
+        case .log: return log10(max(v, 1e-300))
+        case .sqrt: return v < 0 ? -(-v).squareRoot() : v.squareRoot()
+        case .power(let e): return v < 0 ? -pow(-v, e) : pow(v, e)
+        case .symlog(let c): return (v < 0 ? -1 : 1) * log1p(abs(v) * max(c, 1e-12))       // linear near zero, logarithmic away from it
+        }
+    }
+    var isLog: Bool { if case .log = self { return true }; return false }
+}
 struct _Scale {
     enum Kind { case band([String]), linear(Double, Double), date(Double, Double) }
     var kind: Kind
     var start: CGFloat, end: CGFloat               // screen positions of the domain's first and last value
+    var transform = _ScaleTransform.identity
     var isBand: Bool { if case .band = kind { return true }; return false }
     var categories: [String] { if case .band(let c) = kind { return c }; return [] }
     var bandWidth: CGFloat {
@@ -152,7 +182,8 @@ struct _Scale {
         return pos(n, lo, hi)
     }
     private func pos(_ n: Double, _ lo: Double, _ hi: Double) -> CGFloat {
-        hi == lo ? (start + end) / 2 : start + CGFloat((n - lo) / (hi - lo)) * (end - start)
+        let a = transform(lo), b = transform(hi)
+        return a == b ? (start + end) / 2 : start + CGFloat((transform(n) - a) / (b - a)) * (end - start)
     }
 }
 
@@ -246,8 +277,8 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
 
         // which axis carries the values of bars and areas
         func isCat(_ v: _PV?) -> Bool { if case .str? = v { return true }; return false }
-        let xCategorical = marks.contains { isCat($0.x) || isCat($0.xStart) || isCat($0.xEnd) } || cfg.xDomain.map { if case .values(let v) = $0.kind { return v.contains { isCat($0) } }; return false } ?? false
-        let yCategorical = marks.contains { isCat($0.y) || isCat($0.yStart) || isCat($0.yEnd) } || cfg.yDomain.map { if case .values(let v) = $0.kind { return v.contains { isCat($0) } }; return false } ?? false
+        let xCategorical = cfg.xType == .category || marks.contains { isCat($0.x) || isCat($0.xStart) || isCat($0.xEnd) } || cfg.xDomain.map { if case .values(let v) = $0.kind { return v.contains { isCat($0) } }; return false } ?? false
+        let yCategorical = cfg.yType == .category || marks.contains { isCat($0.y) || isCat($0.yStart) || isCat($0.yEnd) } || cfg.yDomain.map { if case .values(let v) = $0.kind { return v.contains { isCat($0) } }; return false } ?? false
         func horizontal(_ m: _Mark) -> Bool {
             if m.xStart != nil && m.xEnd != nil && m.yStart == nil { return true }
             if m.yStart != nil && m.yEnd != nil { return false }
@@ -294,6 +325,13 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
         }
         func numericScale(_ isX: Bool, _ dom: _ChartDomain?, desired: Int) -> (_Scale.Kind, Double) {
             let (vals, isDate, _) = values(isX)
+            let t = _ScaleTransform(isX ? cfg.xType : cfg.yType)
+            if t.isLog {                                   // decades around the positive values
+                if case .range(let a, let b)? = dom?.kind, let l = a.number, let u = b.number, l > 0, u > l { return (.linear(l, u), -1) }
+                let pos = vals.filter { $0 > 0 }
+                let l = pow(10, floor(log10(pos.min() ?? 1))), u = pow(10, ceil(log10(pos.max() ?? 10)))
+                return (.linear(l, u > l ? u : l * 10), -1)
+            }
             var includesZero = !isDate
             if case .automatic(let z, _)? = dom?.kind, let z { includesZero = z }
             if case .range(let a, let b)? = dom?.kind, let l = a.number, let u = b.number {
@@ -332,6 +370,16 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
             case .band(let c):
                 if case .explicit(let v)? = spec?.values.kind { return v }
                 return c.map { _PV.str($0) }
+            case .linear(let l, let u) where step < 0 && l > 0:          // a log scale (step -1)
+                if case .explicit(let v)? = spec?.values.kind { return v }
+                // powers of ten; within one or two decades also 2 and 5 of each
+                var out: [_PV] = [], d = pow(10, floor(log10(l)))
+                let decades = log10(u / l)
+                while d <= u * (1 + 1e-9) && out.count < 60 {
+                    for m in decades <= 2 ? [1.0, 2, 5] : [1.0] where d * m >= l * (1 - 1e-9) && d * m <= u * (1 + 1e-9) { out.append(.num(d * m)) }
+                    d *= 10
+                }
+                return out
             case .linear(let l, let u):
                 switch spec?.values.kind {
                 case .explicit(let v)?: return v
@@ -363,7 +411,7 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
         }
         func label(_ v: _PV, _ kind: _Scale.Kind, _ step: Double) -> String {
             switch (v, kind) {
-            case (.num(let n), _): return _ChartFormat.number(n, step: step > 0 ? step : 1)
+            case (.num(let n), _): return _ChartFormat.number(n, step: step > 0 ? step : step < 0 ? abs(n) : 1)
             case (.date(let d), .date(let l, let u)): return _ChartFormat.date(d, span: u - l)
             default: return v.category
             }
@@ -374,7 +422,7 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
         func axisMarks(_ specs: [_AxisMarksSpec]?, _ kind: _Scale.Kind, _ step: Double) -> ([_PV], [_AxisPartList]) {
             guard let specs else {
                 let t = tickValues(kind, step, nil)
-                return (t, t.map { _ in _AxisPartList(parts: [.grid(nil), .label(nil, nil)]) })
+                return (t, t.map { _ in _AxisPartList(parts: [.grid(nil), .label(nil, nil, _AxisLabelOptions())]) })
             }
             var values: [_PV] = [], parts: [_AxisPartList] = []
             for spec in specs {
@@ -388,16 +436,36 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
         }
         let (xTicks, xParts) = xHidden ? ([], []) : axisMarks(cfg.xAxis, xKind, xStep)
         let (yTicks, yParts) = yHidden ? ([], []) : axisMarks(cfg.yAxis, yKind, yStep)
-        let yLabels = yTicks.map { label($0, yKind, yStep) }
-        // label widths: measured for value labels; custom label views get room for a few more characters
+        /// a value label's text: its format style's, else the axis' default
+        func labelText(_ v: _PV, _ ps: _AxisPartList, _ kind: _Scale.Kind, _ step: Double) -> String {
+            for p in ps.parts { if case .label(_, _, let o) = p, let f = o.format, let s = f(v) { return s } }
+            return label(v, kind, step)
+        }
+        func labelOptions(_ ps: _AxisPartList) -> _AxisLabelOptions? {
+            for p in ps.parts { if case .label(_, _, let o) = p { return o } }
+            return nil
+        }
+        let yLabels = zip(yTicks, yParts).map { labelText($0, $1, yKind, yStep) }
+        // label widths: measured for value labels (their height when turned vertical); custom label views get room for a
+        // few more characters
         let yLabelW = zip(yLabels, yParts).compactMap { (s, ps) -> CGFloat? in
-            for p in ps.parts { if case .label(let custom, _) = p { return _ChartFormat.size(s, _ChartFormat.labelFont).width + (custom != nil ? 16 : 0) } }
+            for p in ps.parts {
+                guard case .label(let custom, _, let o) = p else { continue }
+                if o.orientation == .vertical || o.orientation == .verticalReversed { return 16 }
+                return _ChartFormat.size(s, _ChartFormat.labelFont).width + (custom != nil ? 16 : 0)
+            }
             return nil
         }.max() ?? 0
         let yLeading = ySpec?.position == .leading
         let xTop = xSpec?.position == .top
         let hasXLabels = xParts.contains { $0.parts.contains { if case .label = $0 { return true }; return false } }
-        let xLabelH: CGFloat = hasXLabels ? 18 : 0
+        let xLabels = zip(xTicks, xParts).map { labelText($0, $1, xKind, xStep) }
+        // vertical x labels take their width in height
+        let xVerticalH = zip(xLabels, xParts).compactMap { (s, ps) -> CGFloat? in
+            guard let o = labelOptions(ps), o.orientation == .vertical || o.orientation == .verticalReversed else { return nil }
+            return _ChartFormat.size(s, _ChartFormat.labelFont).width + 6
+        }.max()
+        let xLabelH: CGFloat = hasXLabels ? max(18, xVerticalH ?? 0) : 0
         let yLabelGap: CGFloat = yLabelW > 0 ? yLabelW + 6 : 0
         // axis titles: x below (or .top), y above (or beside the plot, vertical, with .leading / .trailing)
         let xTitleTop = cfg.xLabel?.position == .top
@@ -410,19 +478,33 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
         let topPad: CGFloat = (yLabelW > 0 ? 7 : 1) + yTitleH + (xTop ? xLabelH : 0) + (legendTop ? legendH : 0) + (xTitleTop ? xTitleH : 0)
         let plot = CGRect(x: leftPad, y: topPad, width: max(1, W - leftPad - rightPad),
                           height: max(1, H - topPad - (xTop ? 0 : xLabelH) - (xTitleTop ? 0 : xTitleH) - (legendTop ? 0 : legendH) - (yLabelW > 0 && !hasXLabels ? 6 : 0)))
-        let xs = xScroll?.scale(xKind, plot.minX, plot.maxX) ?? _Scale(kind: xKind, start: plot.minX, end: plot.maxX)
-        let ys: _Scale
-        if case .band = yKind { ys = yScroll?.scale(yKind, plot.minY, plot.maxY) ?? _Scale(kind: yKind, start: plot.minY, end: plot.maxY) }
+        // the positions the domains map to (chartXScale(range:) / chartYScale(range:)): points from the plot's leading
+        // edge and bottom, or its dimension less padding
+        func span(_ r: _PositionRange?, _ lo: CGFloat, _ hi: CGFloat, fromEnd: Bool) -> (CGFloat, CGFloat) {
+            switch r?.kind {
+            case .points(let a, let b)?: return fromEnd ? (hi - a, hi - b) : (lo + a, lo + b)
+            case .padding(let a, let b)?: return fromEnd ? (hi - a, lo + b) : (lo + a, hi - b)
+            case nil: return fromEnd ? (hi, lo) : (lo, hi)
+            }
+        }
+        let (x0, x1) = span(cfg.xRange, plot.minX, plot.maxX, fromEnd: false)
+        var xs = xScroll?.scale(xKind, x0, x1) ?? _Scale(kind: xKind, start: x0, end: x1)
+        xs.transform = _ScaleTransform(cfg.xType)
+        var ys: _Scale
+        if case .band = yKind { let (a, b) = span(cfg.yRange, plot.minY, plot.maxY, fromEnd: false); ys = yScroll?.scale(yKind, a, b) ?? _Scale(kind: yKind, start: a, end: b) }
         else {
             var reversed = false
             if case .automatic(_, let r?)? = cfg.yDomain?.kind { reversed = r }
-            ys = reversed ? _Scale(kind: yKind, start: plot.minY, end: plot.maxY) : _Scale(kind: yKind, start: plot.maxY, end: plot.minY)
+            let (a, b) = span(cfg.yRange, plot.minY, plot.maxY, fromEnd: true)
+            ys = reversed ? _Scale(kind: yKind, start: b, end: a) : _Scale(kind: yKind, start: a, end: b)
         }
+        ys.transform = _ScaleTransform(cfg.yType)
         func inPlotX(_ x: CGFloat) -> Bool { x >= plot.minX - 0.5 && x <= plot.maxX + 0.5 }
         func inPlotY(_ y: CGFloat) -> Bool { y >= plot.minY - 0.5 && y <= plot.maxY + 0.5 }
 
         // grid lines, ticks and labels
         let grid = AnyShapeStyle(Color.gray.opacity(0.35))
+        var placedYLabels: [CGRect] = []
         for (i, v) in yTicks.enumerated() {
             guard let y = ys.pos(v), inPlotY(y) else { continue }
             let ps = yParts[i]
@@ -435,10 +517,18 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
                     let x0 = yLeading ? plot.minX - len : plot.maxX
                     draws.append(_ChartDraw(path: Path { $0.move(to: CGPoint(x: x0, y: y)); $0.addLine(to: CGPoint(x: x0 + len, y: y)) },
                                             style: ps.style ?? grid, stroke: s ?? StrokeStyle(lineWidth: 0.5), opacity: 1))
-                case .label(let custom, _):
-                    let text = custom.map { AnyView($0.font(ps.font ?? .system(size: 11)).foregroundStyle(ps.style ?? AnyShapeStyle(HierarchicalShapeStyle.secondary)).fixedSize()) }
+                case .label(let custom, _, let o):
+                    var text = custom.map { AnyView($0.font(ps.font ?? .system(size: 11)).foregroundStyle(ps.style ?? AnyShapeStyle(HierarchicalShapeStyle.secondary)).fixedSize()) }
                         ?? AnyView(Text(yLabels[i]).font(ps.font ?? .system(size: 11)).foregroundStyle(ps.style ?? AnyShapeStyle(HierarchicalShapeStyle.secondary)))
-                    let r = yLeading ? CGRect(x: plot.minX - yLabelGap, y: y - 8, width: yLabelW, height: 16) : CGRect(x: plot.maxX + 6, y: y - 8, width: max(yLabelW, 1), height: 16)
+                    let gap = o.horizontalSpacing ?? 6
+                    var r = yLeading ? CGRect(x: plot.minX - yLabelW - gap, y: y - 8, width: yLabelW, height: 16) : CGRect(x: plot.maxX + gap, y: y - 8, width: max(yLabelW, 1), height: 16)
+                    if o.orientation == .vertical || o.orientation == .verticalReversed {
+                        let tw = _ChartFormat.size(yLabels[i], _ChartFormat.labelFont).width
+                        text = _rotated(text, width: tw, o.orientation == .vertical)
+                        r = CGRect(x: r.minX, y: y - tw / 2, width: r.width, height: tw)
+                    }
+                    if case .disabled = o.collision.kind {} else if placedYLabels.contains(where: { $0.insetBy(dx: 0, dy: 3).intersects(r.insetBy(dx: 0, dy: 3)) }) { continue }
+                    placedYLabels.append(r)
                     placed.append(_PlacedView(view: text, rect: r, alignment: yLeading ? .trailing : .leading))
                 }
             }
@@ -458,16 +548,32 @@ struct _PlacedView { var view: AnyView; var rect: CGRect; var alignment: Alignme
                     let y0 = xTop ? plot.minY - len : plot.maxY
                     draws.append(_ChartDraw(path: Path { $0.move(to: CGPoint(x: x, y: y0)); $0.addLine(to: CGPoint(x: x, y: y0 + len)) },
                                             style: ps.style ?? grid, stroke: s ?? StrokeStyle(lineWidth: 0.5), opacity: 1))
-                case .label(let custom, _):
-                    let s = label(v, xKind, xStep)
-                    let tw = _ChartFormat.size(s, _ChartFormat.labelFont).width
-                    let w = xs.isBand ? max(band, tw + 4) : tw + 8
-                    let r = CGRect(x: x - w / 2, y: xTop ? plot.minY - xLabelH : plot.maxY + 3, width: w, height: 15)
-                    if custom == nil && x - tw / 2 < lastLabelMaxX + 4 { continue }           // overlapping labels are skipped
-                    lastLabelMaxX = x + tw / 2
-                    let text = custom.map { AnyView($0.font(ps.font ?? .system(size: 11)).foregroundStyle(ps.style ?? AnyShapeStyle(HierarchicalShapeStyle.secondary)).fixedSize()) }
-                        ?? AnyView(Text(s).font(ps.font ?? .system(size: 11)).foregroundStyle(ps.style ?? AnyShapeStyle(HierarchicalShapeStyle.secondary)))
-                    placed.append(_PlacedView(view: text, rect: r, alignment: .center))
+                case .label(let custom, _, let o):
+                    let s = xLabels[i]
+                    let vertical = o.orientation == .vertical || o.orientation == .verticalReversed
+                    let tw = vertical ? 14 : _ChartFormat.size(s, _ChartFormat.labelFont).width
+                    let gap = o.verticalSpacing ?? 3
+                    var w = xs.isBand ? max(band, tw + 4) : tw + 8
+                    var truncated = false
+                    switch o.collision.kind {
+                    case .disabled: break
+                    case .truncate:                                   // shortened to the room left of the next tick
+                        let next = i + 1 < xTicks.count ? xs.pos(xTicks[i + 1]) : nil
+                        let room = next.map { ($0 - x) - 4 } ?? (plot.maxX - x) * 2
+                        if !vertical && room < tw + 4 { w = max(8, room); truncated = true }
+                        if x - w / 2 < lastLabelMaxX { continue }
+                    case .automatic, .greedy:
+                        var spacing: CGFloat = 4
+                        if case .greedy(_, let m?) = o.collision.kind { spacing = m }
+                        if custom == nil && x - tw / 2 < lastLabelMaxX + spacing { continue }    // overlapping labels are skipped
+                    }
+                    lastLabelMaxX = x + (truncated ? w : tw) / 2
+                    let r = CGRect(x: x - w / 2, y: xTop ? plot.minY - xLabelH : plot.maxY + gap, width: w, height: vertical ? xLabelH - gap : 15)
+                    let styled = custom.map { AnyView($0.font(ps.font ?? .system(size: 11)).foregroundStyle(ps.style ?? AnyShapeStyle(HierarchicalShapeStyle.secondary)).fixedSize()) }
+                        ?? AnyView(Text(s).font(ps.font ?? .system(size: 11)).foregroundStyle(ps.style ?? AnyShapeStyle(HierarchicalShapeStyle.secondary))
+                                   .lineLimit(1).truncationMode(.tail))
+                    let text = vertical ? _rotated(styled, width: _ChartFormat.size(s, _ChartFormat.labelFont).width, o.orientation == .vertical) : styled
+                    placed.append(_PlacedView(view: text, rect: r, alignment: vertical ? .top : .center))
                 }
             }
         }
@@ -819,4 +925,9 @@ func _area(_ top: [CGPoint], _ base: [CGPoint], _ m: InterpolationMethod) -> Pat
     }
     p.closeSubpath()
     return p
+}
+
+/// a label turned a quarter (counterclockwise when `up`), laid out at its turned size
+func _rotated(_ v: AnyView, width: CGFloat, _ up: Bool) -> AnyView {
+    AnyView(v.fixedSize().frame(width: width + 2, height: 14).rotationEffect(.degrees(up ? -90 : 90)).frame(width: 14, height: width + 2))
 }
