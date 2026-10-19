@@ -229,7 +229,7 @@ activity with a push token. `start` needs the push-to-start token the app read f
 | Command | What it does |
 |---|---|
 | `shot FILE.png` | screenshot (the full screen at the device's pixel scale) |
-| `dump` | print the foreground app's view tree (frames, text, identifiers; `ISIM_DUMP_ACCESSIBILITY=1` adds accessibility descriptions) |
+| `dump` | print the foreground app's view tree (frames, text, identifiers; an empty text field shows its `placeholder=` and a field its `contentType=`; `ISIM_DUMP_ACCESSIBILITY=1` adds accessibility descriptions) |
 | `dump FILE` | write an accessibility snapshot to FILE (used by XCUITest and the Python tests) |
 | `dump views FILE` | write the view tree (as `dump` prints it) to FILE |
 | `sysevent TEXT` | hand the app a system event as the shell would (`remote-notification FILE`, `nx-media play`, …); the shell drives extension helpers this way, through their control channel |

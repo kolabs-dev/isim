@@ -162,6 +162,8 @@ static CGSize overlay_size(UIView *v) {
     if (self.isFirstResponder && (_sel.length || _sel.location != _storage.length)) t = [t stringByAppendingFormat:@" selection %lu+%lu", (unsigned long)_sel.location, (unsigned long)_sel.length];
     NSRange m = isim_ui_marked_range(self);
     if (m.location != NSNotFound) t = [t stringByAppendingFormat:@" marked %lu+%lu", (unsigned long)m.location, (unsigned long)m.length];
+    if (!_storage.length && self.placeholder.length) t = [t stringByAppendingFormat:@" placeholder=\"%@\"", self.placeholder];
+    if (self.textContentType.length) t = [t stringByAppendingFormat:@" contentType=%@", self.textContentType];
     return t;
 }
 

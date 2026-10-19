@@ -344,6 +344,7 @@ struct _TextTraits {
     var autocapitalization: TextInputAutocapitalization? = nil
     var submitLabel: UIReturnKeyType = .default
     var roundedBorder = false
+    var contentType: UITextContentType? = nil
 }
 
 extension EnvironmentValues {
