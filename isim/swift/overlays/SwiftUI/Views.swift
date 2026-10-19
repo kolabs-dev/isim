@@ -668,6 +668,7 @@ final class _ButtonNode: _WrapperNode {
     let action: () -> Void, inList: Bool, enabled: Bool
     var role: ButtonRole?
     var onPressed: ((Bool) -> Void)?
+    var accessibilityButton = true
     init(path: String, child: _Node, action: @escaping () -> Void, inList: Bool, enabled: Bool) {
         self.action = action; self.inList = inList; self.enabled = enabled
         super.init(path: path, child: child)
@@ -682,6 +683,13 @@ final class _ButtonNode: _WrapperNode {
         c.isEnabled = enabled
         c.onPressed = onPressed
         c.alpha = enabled || onPressed != nil ? 1 : 0.4
+        // VoiceOver reads the button's text, as SwiftUI's buttons do (accessibilityLabel replaces it)
+        if accessibilityLabel == nil {
+            let text = _accessibilityTexts(child).joined(separator: ", ")
+            c.accessibilityLabel = text.isEmpty ? nil : text
+        }
+        // (onTapGesture's control is not a button for VoiceOver, as on iOS)
+        if accessibilityButton { c.accessibilityTraits.insert(.button) } else { c.accessibilityTraits.remove(.button) }
         return c
     }
 }
