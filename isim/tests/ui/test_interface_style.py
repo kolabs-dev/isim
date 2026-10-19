@@ -41,6 +41,7 @@ def test_light_on_a_dark_device(launch):
     # UIHostingController's view sizes to its content in the UIStackView (#463), flexible axes report no metric
     w, h, iw, ih = (int(v) for v in app.wait_log(r"^st card (\d+)x(\d+) intrinsic (\d+)x(\d+)$").groups())
     assert (w, h) == (iw, ih) and 100 < w < 300 and 40 < h < 90, f"the card is its content's size ({w}x{h})"
+    app.wait_view(r"UILabel \([\d.]+ [\d.]+; [\d.]+ x 2\d(\.\d+)?\) text=SwiftUI light")   # one line inside its own size
     app.wait_log(r"^st flexible width none height 30$")
     app.wait_log(r"^st preferred true$")
     shot = app.wait_shot_still()

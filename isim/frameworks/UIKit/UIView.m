@@ -343,7 +343,9 @@ static char kContentScale;
     }
     _frame = f;
     if (!CGSizeEqualToSize(old, f.size) && !_superview && [self isKindOfClass:[UIWindow class]]) isim_ui_traits_invalidate(self);   /* size classes */
-    if (!CGSizeEqualToSize(old, f.size)) {
+    /* a resize lays the view out again; the solver's rounding noise (143.00000000000003 then 142.99999999999997 for
+       the same frame) is not one, or a view sized by its intrinsic content size would lay out on every pass */
+    if (fabs(old.width - f.size.width) > 1e-6 || fabs(old.height - f.size.height) > 1e-6) {
         if (_autoresizesSubviews) for (UIView *s in _subs) [s _isim_autoresizeFrom:old to:f.size];
         [self setNeedsLayout];
     }

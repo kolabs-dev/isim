@@ -390,7 +390,9 @@ final class _TextNode: _Node {
         var s = l.sizeThatFits(CGSize(width: w >= 1e6 ? 0 : max(1, w), height: 1e6))
         if w < 1e6 {
             let natural = l.sizeThatFits(CGSize(width: 0, height: 1e6))
-            if natural.width <= w { s = natural }      // fits unwrapped: its ideal size (a stack offered its ideal width fits exactly)
+            // fits unwrapped: its ideal size (a stack offered its ideal width fits exactly; Auto Layout's arithmetic can
+            // offer a hair less, 142.99999999999997 for 143)
+            if natural.width <= w + 0.01 { s = natural }
             else {
                 // the label is drawn at its own (measured) width: make that width wrap exactly like the measurement
                 s.width = min(w, ceil(s.width) + 1)
