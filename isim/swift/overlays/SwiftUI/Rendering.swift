@@ -136,6 +136,16 @@ public struct _ShapeView<Content: Shape, Style: ShapeStyle>: View, _PrimitiveVie
         }
         let eo = fillStyle.isEOFilled
         // ContainerRelativeShape (or an inset one) inside a container shape: the path comes from where the view is
+        // ConcentricRectangle (iOS 26): concentric with the container shape or the screen, once the view is in place
+        if #available(iOS 26.0, *), let cr = _concentricRectangle(shape) as? ConcentricRectangle {
+            let cs = env._containerShape
+            let n = _PathNode(path: ctx.path, ops: { r in [_DrawOp(path: cr.path(in: r), paint: _resolvePaint(resolved, in: r, env), stroke: stroke, eoFill: eo)] })
+            n.relative = { [weak g = ctx.graph] view, r in
+                guard let p = _concentricRectanglePath(cr, view, cs, g) else { return nil }
+                return [_DrawOp(path: p, paint: _resolvePaint(resolved, in: r, env), stroke: stroke, eoFill: eo)]
+            }
+            return n
+        }
         if let cs = env._containerShape, let extra = _containerRelativeInset(shape) {
             let n = _PathNode(path: ctx.path, ops: { r in [_DrawOp(path: Path(r), paint: _resolvePaint(resolved, in: r, env), stroke: stroke, eoFill: eo)] })
             n.relative = { [weak g = ctx.graph] view, r in

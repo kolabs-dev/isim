@@ -18,6 +18,7 @@ public struct Slider<Label: View, ValueLabel: View>: View, _PrimitiveView {
         let s = _SliderNode(path: ctx.path + "/slider", value: value, bounds: bounds, step: step, onEditingChanged: onEditingChanged,
                             tint: tint, enabled: ctx.environment.isEnabled)
         s.ticks = ticks; s.neutral = neutral; s.enabledBounds = enabledBounds
+        s.thumbHidden = ctx.environment._sliderThumb == .hidden
         guard let minLabel, let maxLabel else { return s }
         return _StackNode(path: ctx.path, axis: .horizontal, spacing: 8, alignment: .center,
                           children: [_resolve(minLabel, ctx.child("min")), s, _resolve(maxLabel, ctx.child("max"))])
@@ -59,6 +60,8 @@ extension Slider {
 final class _SliderNode: _Node {
     let value: Binding<Double>, bounds: ClosedRange<Double>, step: Double?, onEditingChanged: (Bool) -> Void, tint: UIColor, enabled: Bool
     var ticks: [_SliderTickSpec]?, neutral: Double?, enabledBounds: ClosedRange<Double>?
+    /// sliderThumbVisibility(.hidden) (iOS 26): UIKit's thumbless slider
+    var thumbHidden = false
     init(path: String, value: Binding<Double>, bounds: ClosedRange<Double>, step: Double?, onEditingChanged: @escaping (Bool) -> Void, tint: UIColor, enabled: Bool) {
         self.value = value; self.bounds = bounds; self.step = step; self.onEditingChanged = onEditingChanged; self.tint = tint; self.enabled = enabled
         super.init(path: path, children: [])
@@ -72,7 +75,10 @@ final class _SliderNode: _Node {
         if !s.isTracking { s.value = Float(value.wrappedValue) }
         s.minimumTrackTintColor = tint
         s.isEnabled = enabled
-        if #available(iOS 26.0, *) { s.trackConfiguration = _sliderTrack(self) }
+        if #available(iOS 26.0, *) {
+            s.trackConfiguration = _sliderTrack(self)
+            s.sliderStyle = thumbHidden ? .thumbless : .default
+        }
         return s
     }
 }

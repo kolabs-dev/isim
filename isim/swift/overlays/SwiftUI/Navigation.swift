@@ -1076,7 +1076,11 @@ extension View {
                     var env = ctx.environment
                     if env._labelStyle == nil && env._labelStyleKind == 0 { env._labelStyle = { $0.icon }; env._labelStyleKind = 2 }
                     let ictx = _Context(graph: ctx.graph, path: ctx.path + "/toolbar\(i)", environment: env, nav: nil)
-                    let n = _resolve(item.view, ictx)
+                    let view = item.defaultSearch
+                        ? AnyView(Button { [weak lv] in lv?.search?.bar?.begin(); _ = lv?.search?.bar?.field.becomeFirstResponder() } label: {
+                            Image(systemName: "magnifyingglass") }.accessibilityIdentifier("toolbar-search"))
+                        : item.view
+                    let n = _resolve(view, ictx)
                     n.toolbarPriority = item.priority; n.toolbarSpacer = item.spacer
                     lv.toolbar.append((item.placement, n))
                 }
@@ -1114,6 +1118,8 @@ public struct _ToolbarEntry {
     let placement: ToolbarItemPlacement; let view: AnyView
     var priority = 0                 // visibilityPriority (iOS 27)
     var spacer: CGFloat? = nil       // ToolbarSpacer (iOS 26): 8 fixed, 0 flexible
+    /// DefaultToolbarItem(kind: .search) (iOS26+Bars.swift): a button that starts the stack's search
+    var defaultSearch = false
 }
 public protocol ToolbarContent { var _items: [_ToolbarEntry] { get } }
 public struct ToolbarItem<ID, Content: View>: ToolbarContent {

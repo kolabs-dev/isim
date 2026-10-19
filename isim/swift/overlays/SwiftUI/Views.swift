@@ -598,7 +598,8 @@ public struct Label<Title: View, Icon: View>: View, _PrimitiveView {
             f.width = 28
             column = f
         } else { column = iconNode }
-        return _StackNode(path: ctx.path, axis: .horizontal, spacing: inList ? 14 : 8, alignment: .center, children: [column, titleNode])
+        let spacing = ctx.environment._labelIconSpacing ?? (inList ? 14 : 8)            // labelIconToTitleSpacing (iOS 26)
+        return _StackNode(path: ctx.path, axis: .horizontal, spacing: spacing, alignment: .center, children: [column, titleNode])
     }
 }
 extension Label where Title == Text, Icon == Image {

@@ -460,6 +460,20 @@ final class _SafeAreaInsetNode: _Node {
         if !_placeBeneath(main, in: CGRect(origin: .zero, size: rect.size), extra) { main.place(mainRect) }
         inset.place(_align(CGSize(width: min(i.width, insetRect.width), height: min(i.height, insetRect.height)), in: insetRect, alignment))
     }
+    override func mountView(_ g: _Graph) -> UIView {
+        let v = super.mountView(g)
+        // beside content that reaches the screen edge (a List under a navigation bar), the inset still stays out of
+        // the safe area (the home indicator, the status bar): moved in once it is in place
+        guard vertical, main.ignoresSafeArea else { return v }
+        let key = inset.viewKey, safe = g.safeArea, bottom = edge == .bottom
+        g.postRender.append { [weak g] in
+            guard let iv = g?.views[key], let w = iv.window else { return }
+            let f = iv.convert(iv.bounds, to: nil)
+            if bottom, f.maxY > w.bounds.maxY - safe.bottom + 0.5 { iv.frame.origin.y -= f.maxY - (w.bounds.maxY - safe.bottom) }
+            if !bottom, f.minY < safe.top - 0.5 { iv.frame.origin.y += safe.top - f.minY }
+        }
+        return v
+    }
 }
 /// A scroll view or list that fills `rect` (through modifiers that keep its size): placed there with `extra` added to
 /// its content insets. False if `main` is not one (it is laid out in the remaining space instead).
