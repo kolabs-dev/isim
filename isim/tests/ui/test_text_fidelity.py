@@ -1,5 +1,5 @@
-"""Text drawing fidelity (HelloTextFidelity, issue #243): UILabel's shadowColor / shadowOffset (a hard, offset copy of
-the text), NSShadow on attributed text in a label, a text view and string drawing into an image (blurred, in its
+"""Text drawing fidelity (HelloTextKit -fidelity, issue #243): UILabel's shadowColor / shadowOffset (a hard, offset copy
+of the text), NSShadow on attributed text in a label, a text view and string drawing into an image (blurred, in its
 colour, only under the ranges that carry it), an NSTextAttachment image laid out inside a label's text,
 UIButton.imageView (the current image at its frame; its isHidden applies) and UIRefreshControl.attributedTitle drawn
 under the spinner."""
@@ -31,7 +31,7 @@ def purple(r, g, b):
 
 
 def test_text_fidelity(launch):
-    app = launch("HelloTextFidelity")
+    app = launch("HelloTextKit", args=["-fidelity"])
     app.wait_log(r"^label shadow color=true offset=4,4 default=-1$")             # UILabel's default: (0, -1)
     app.wait_log(r"^nsshadow default offset=-3 equal=true$")                      # NSShadow's default: (0, -3)
     app.wait_log(r"^attachment label wider=true$")                                # the attachment takes room

@@ -1,4 +1,4 @@
-"""View and control members (HelloViewExtras): margins that preserve the superview's or ignore the safe area,
+"""View and control members (HelloViews -extras): margins that preserve the superview's or ignore the safe area,
 alignment rect insets, baseline views, the update constraints pass, content size category limits, UIView.Invalidating,
 the delete system animation and repeated animations; a button configuration's subtitle and transformers, a pop-up
 button, attributed titles, a button menu on a long press, event handler enumeration, a toggle's selection look,
@@ -15,7 +15,7 @@ def major(ios):
 @pytest.mark.os_matrix
 def test_view_extras(launch, ios):
     v = major(ios)
-    app = launch("HelloViewExtras")
+    app = launch("HelloViews", args=["-extras"])
     app.wait_log(r"^vx deleted true$")
     app.wait_log(r"^vx repeated animation done$")
     log = app.log

@@ -1,4 +1,4 @@
-"""Small UIKit APIs of iOS 27 and their neighbours (HelloKit27): menu element subtitles, preferredImageVisibility and
+"""Small UIKit APIs of iOS 27 and their neighbours (HelloKitExtras -kit27): menu element subtitles, preferredImageVisibility and
 highlightStateUpdateHandler, keyboard navigation and type select in menus (UIContextMenuConfiguration.allowsTypeSelect),
 UIWindowScene.displayLink(action:) / (target:selector:), UIFont.Weight.symbolWeight() / UIImage.SymbolWeight.fontWeight(),
 and UIDragInteraction.liftBehavior / allowsPointerDragBeforeLiftDelay (script `pointerdrag`: iPad pointer touches)."""
@@ -25,7 +25,7 @@ def key(app, name):
 @pytest.mark.os_matrix
 def test_menus_display_links_symbol_weights(launch, ios):
     ios27 = major(ios) >= 27
-    app = launch("HelloKit27")
+    app = launch("HelloKitExtras", args=["-kit27"])
     app.wait_log(r"^hk symbolWeight semibold true 0\.35 6 bold font true unspecified true$")   # 0.35: nearest is semibold
     if ios27:
         app.wait_log(r"^hk displayLink action 10 frames$")
@@ -72,7 +72,7 @@ def test_menus_display_links_symbol_weights(launch, ios):
 @pytest.mark.os_matrix
 def test_drag_lift_behavior(launch, ios):
     ios27 = major(ios) >= 27
-    app = launch("HelloKit27", device="ipadpro11", os_version=ipad_os(ios))
+    app = launch("HelloKitExtras", args=["-kit27"], device="ipadpro11", os_version=ipad_os(ios))
     app.wait_log(r"^hk symbolWeight")
     app.wait_still()
     f = screen_frames(app.view_dump())

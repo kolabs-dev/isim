@@ -1,4 +1,4 @@
-"""The last UIKit rows of #188 (HelloKitFinal): scroll events from a trackpad and a mouse wheel (script `scroll`) as
+"""The last UIKit rows of #188 (HelloKitExtras -final): scroll events from a trackpad and a mouse wheel (script `scroll`) as
 pans (a scroll view, a pan taking wheel steps only); Apple Pencil estimated properties and their updates; layout
 ambiguity (hasAmbiguousLayout, exerciseAmbiguityInLayout); a bar button group collapsing into its representative item;
 automatic key command localization (arrow mirroring right to left); viewport rendering surfaces (iOS 27)."""
@@ -12,7 +12,7 @@ def major(ios):
 @pytest.mark.os_matrix
 def test_kit_final(launch, ios):
     v = major(ios)
-    app = launch("HelloKitFinal")
+    app = launch("HelloKitExtras", args=["-final"])
     app.wait_log(r"^kf ready$")
     log = app.log
     assert "kf ambiguous true pinned false" in log, "a view without a height is ambiguous, a pinned one is not"
@@ -58,7 +58,7 @@ def test_kit_final(launch, ios):
 @pytest.mark.parametrize("localize,fires", [("1", True), ("0", False)])
 def test_key_command_mirroring(launch, localize, fires):
     """Right to left, a left-arrow key command answers to the right arrow while the app lets key commands be localized."""
-    app = launch("HelloKitFinal", env={"ISIM_LAYOUT_DIRECTION": "rtl", "HELLO_LOCALIZE": localize})
+    app = launch("HelloKitExtras", args=["-final"], env={"ISIM_LAYOUT_DIRECTION": "rtl", "HELLO_LOCALIZE": localize})
     app.wait_log(r"^kf ready$")
     app.send("keydown right"); app.send("keyup right")
     app.wait_log(rf"^kf asked to localize key commands: {'true' if fires else 'false'}$")

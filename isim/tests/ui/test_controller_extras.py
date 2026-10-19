@@ -1,4 +1,4 @@
-"""View controller and container members (HelloControllerExtras): the More tab of a seven-tab bar, the tab bar's
+"""View controller and container members (HelloControllers -extras): the More tab of a seven-tab bar, the tab bar's
 item appearances, customizable navigation item groups (fixed, optional left out, pinned), the generic back button and
 a back action, the title menu's Rename, hiding the bars on tap, the split view's collapsed environment and inspector
 sheet, search tokens and the bookmark button, a popover with a source item and a custom background, a popover's
@@ -15,7 +15,7 @@ def major(ios):
 @pytest.mark.os_matrix
 def test_controller_extras(launch, ios):
     v = major(ios)
-    app = launch("HelloControllerExtras")
+    app = launch("HelloControllers", args=["-extras"])
     app.wait_log(r"^ctl items is appearing true$")
     app.wait_log(r"^ctl managed document saved true opened true count 1 store true$")
     log = app.log

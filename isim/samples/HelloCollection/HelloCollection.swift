@@ -1,12 +1,20 @@
 // Sample: UICollectionView on isim — a flow-layout grid (UICollectionViewController, headers, selection, inserts and
 // deletes), a compositional layout (orthogonal carousel, two-column grid, estimated headers, cell registrations,
 // diffable data source) and a list layout (inset grouped, list cells, accessories, self-sizing rows).
+// Pages, by launch argument: (none) this one; -layouts: outlines, swipe actions, reordering, custom content
+// configurations and more layouts (CollectionLayouts.swift).
 import UIKit
 
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        if ProcessInfo.processInfo.arguments.contains("-layouts") {
+            window = UIWindow(frame: UIScreen.main.bounds)
+            window?.rootViewController = UINavigationController(rootViewController: LayoutsMenuViewController())
+            window?.makeKeyAndVisible()
+            return true
+        }
         let flow = UICollectionViewFlowLayout()
         flow.itemSize = CGSize(width: 110, height: 80)
         flow.minimumInteritemSpacing = 8

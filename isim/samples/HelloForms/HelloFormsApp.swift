@@ -1,5 +1,6 @@
 // Sample: SwiftUI input controls and tabs on isim — TabView (tab bar with badge, page style), Form with
 // @AppStorage, Toggle, Slider, Stepper, Picker (menu, segmented, navigationLink, inline), ProgressView, Menu.
+// -pickers: DatePicker, wheel Picker, ColorPicker, TextField(value:), TextEditor, Gauge and other controls (Pickers.swift).
 import SwiftUI
 
 enum Flavor: String, CaseIterable, Identifiable { case vanilla, chocolate, strawberry; var id: String { rawValue } }
@@ -7,7 +8,9 @@ enum Size: Int, CaseIterable { case small, medium, large }
 
 @main
 struct HelloFormsApp: App {
-    var body: some Scene { WindowGroup { RootTabs() } }
+    var body: some Scene {
+        WindowGroup { if ProcessInfo.processInfo.arguments.contains("-pickers") { PickersRoot() } else { RootTabs() } }
+    }
 }
 
 struct RootTabs: View {

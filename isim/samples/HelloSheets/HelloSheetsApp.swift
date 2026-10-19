@@ -2,11 +2,19 @@
 // iPhone unless presentationCompactAdaptation keeps them), detent sheets with background interaction and
 // interactiveDismissDisabled, presentationSizing (iOS 18, iPad), a zoom fullScreenCover (iOS 18) and the inspector
 // (a trailing column on iPad).
+// -presentations: sheet with an environment object, sheet(item:), fullScreenCover, alert, confirmationDialog
+// (Presentations.swift).
 import SwiftUI
 
 @main
 struct HelloSheetsApp: App {
-    var body: some Scene { WindowGroup { SheetsView() } }
+    @StateObject private var store = PresentationsStore()
+    var body: some Scene {
+        WindowGroup {
+            if ProcessInfo.processInfo.arguments.contains("-presentations") { PresentationsView().environmentObject(store) }
+            else { SheetsView() }
+        }
+    }
 }
 
 struct SheetsView: View {

@@ -1,6 +1,6 @@
-"""Undo while editing text (HelloTextUndo, issue #244): a UITextField and a UITextView register their edits with the
-responder chain's undoManager (the window's). Typing coalesces into one "Typing" action (a caret move starts another),
-paste is its own action,
+"""Undo while editing text (HelloTextKit -undo, issue #244): a UITextField and a UITextView register their edits with
+the responder chain's undoManager (the window's). Typing coalesces into one "Typing" action (a caret move starts
+another), paste is its own action,
 Cmd-Z / Shift-Cmd-Z undo and redo, Shake to Undo offers "Undo Typing", and setting the text in code clears the
 actions."""
 
@@ -16,7 +16,7 @@ def cmd(app, key, shift=False):
 
 
 def test_text_undo(launch):
-    app = launch("HelloTextUndo")
+    app = launch("HelloTextKit", args=["-undo"])
     app.wait_log(r"^undo managers window=true responder=true$")
 
     # typing: one action for the whole run

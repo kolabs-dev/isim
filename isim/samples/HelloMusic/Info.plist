@@ -10,6 +10,11 @@
 	<string>dev.isim.samples.HelloMusic</string>
 	<key>NSAppleMusicUsageDescription</key>
 	<string>Plays songs from your library.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 </dict>

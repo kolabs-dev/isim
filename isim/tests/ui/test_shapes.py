@@ -1,4 +1,4 @@
-"""SwiftUI shapes, styles and animation timing (HelloShapes): path boolean operations and strokedPath, line
+"""SwiftUI shapes, styles and animation timing (HelloDrawing -shapes): path boolean operations and strokedPath, line
 operations, fill().stroke(), gradient text, ContainerRelativeShape in a containerShape, MeshGradient, Color.mix and
 Color.Resolved, custom timing curves, springs and repeatCount."""
 import re
@@ -33,7 +33,7 @@ white = lambda c: min(c) > 240
 
 
 def test_path_operations(launch):
-    app = launch("HelloShapes")
+    app = launch("HelloDrawing", args=["-shapes"])
     app.wait_view(r"id=line-ops")
     app.wait_log(r"^line ")
     app.wait_still()
@@ -63,7 +63,7 @@ def test_path_operations(launch):
 
 
 def test_fills(launch):
-    app = launch("HelloShapes", env={"PAGE": "fills"})
+    app = launch("HelloDrawing", args=["-shapes"], env={"PAGE": "fills"})
     app.wait_view(r"id=no-container")
     app.wait_still()
     dump = app.view_dump()
@@ -94,7 +94,7 @@ def test_fills(launch):
 
 
 def test_mesh_gradient(launch):
-    app = launch("HelloShapes", env={"PAGE": "mesh"})
+    app = launch("HelloDrawing", args=["-shapes"], env={"PAGE": "mesh"})
     app.wait_view(r"id=mix-perceptual")
     app.wait_log(r"^resolved ")
     app.wait_still()
@@ -125,7 +125,7 @@ COLOURS = {"linear": (255, 59, 48), "custom": (0, 122, 255), "spring": (52, 199,
 
 
 def test_curves_and_springs(launch):
-    app = launch("HelloShapes", env={"PAGE": "curves", "DURATION": "3"})
+    app = launch("HelloDrawing", args=["-shapes"], env={"PAGE": "curves", "DURATION": "3"})
     app.wait_view(r"id=interp")
     app.wait_log(r"^critical ")
     app.wait_still()
@@ -209,7 +209,7 @@ def record(app, rects, until):
 
 
 def test_transitions(launch):
-    app = launch("HelloShapes", env={"PAGE": "transitions", "DURATION": "2"})
+    app = launch("HelloDrawing", args=["-shapes"], env={"PAGE": "transitions", "DURATION": "2"})
     app.wait_view(r"id=slot-combined")
     app.wait_still()
     dump = app.view_dump()
@@ -241,7 +241,7 @@ def test_transitions(launch):
 
 
 def test_matched_geometry(launch):
-    app = launch("HelloShapes", env={"PAGE": "matched", "DURATION": "2"})
+    app = launch("HelloDrawing", args=["-shapes"], env={"PAGE": "matched", "DURATION": "2"})
     app.wait_view(r"id=card-small")
     app.wait_still()
     dump = app.view_dump()

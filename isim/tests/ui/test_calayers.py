@@ -1,8 +1,8 @@
-"""Core Animation layer features (HelloCALayers), one page each: contents (contentsCenter 9-slice, contentsRect,
-contentsScale, gravities), CATextLayer truncation, CAEmitterLayer sub-cells and 3D emission, CATransformLayer (a shared
-3D space) against a flattening layer, CAScrollLayer (scroll(to:), scrollMode, scrollRectToVisible, visibleRect),
-CATransition kinds paused half-way, CAValueFunction (basic and keyframe), shouldRasterize / rasterizationScale, and
-filters / compositingFilter (not applied, like iOS)."""
+"""Core Animation layer features (HelloCoreAnimation, -layers), one page each: contents (contentsCenter 9-slice,
+contentsRect, contentsScale, gravities), CATextLayer truncation, CAEmitterLayer sub-cells and 3D emission,
+CATransformLayer (a shared 3D space) against a flattening layer, CAScrollLayer (scroll(to:), scrollMode,
+scrollRectToVisible, visibleRect), CATransition kinds paused half-way, CAValueFunction (basic and keyframe),
+shouldRasterize / rasterizationScale, and filters / compositingFilter (not applied, like iOS)."""
 from isimtest import count_px, near, rgb
 
 BLACK, WHITE, GRAY = (0, 0, 0), (255, 255, 255), (170, 170, 170)
@@ -14,7 +14,7 @@ def is_(img, x, y, colour, tol=30):
 
 
 def page(launch, name, ready):
-    app = launch("HelloCALayers", env={"PAGE": name})
+    app = launch("HelloCoreAnimation", args=["-layers"], env={"PAGE": name})
     app.wait_log(ready)
     app.wait_still()
     return app

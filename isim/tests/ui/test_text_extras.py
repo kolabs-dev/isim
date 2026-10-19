@@ -1,4 +1,4 @@
-"""Text field, text view, responder, text input and keyboard members (HelloTextExtras): overlay views and layout
+"""Text field, text view, responder, text input and keyboard members (HelloTextKit -extras): overlay views and layout
 rects, attributed placeholders and default attributes, text highlights, money and physical value detection, edit
 actions on attributes, attributed text in a range, text placeholders, the lexicon, grammar checking, remote control
 events, F-key commands, math expression completion, input view controllers with reloadInputViews, and the iPad
@@ -18,7 +18,7 @@ def ipad_os(ios):
 @pytest.mark.os_matrix
 def test_text_extras(launch, ios):
     v = major(ios)
-    app = launch("HelloTextExtras")
+    app = launch("HelloTextKit", args=["-extras"])
     app.wait_log(r"^tx ready$")
     app.wait_log(r"^tx lexicon omw=On my way!$")
     log = app.log
@@ -58,7 +58,7 @@ def test_text_extras(launch, ios):
 
 
 def test_shortcuts_bar_ipad(launch, ios):
-    app = launch("HelloTextExtras", device="ipadpro11", os_version=ipad_os(ios))
+    app = launch("HelloTextKit", args=["-extras"], device="ipadpro11", os_version=ipad_os(ios))
     app.wait_log(r"^tx ready$")
     app.wait_tap_id("math")
     app.wait_tap_id("isim-kb-assistant-bold")

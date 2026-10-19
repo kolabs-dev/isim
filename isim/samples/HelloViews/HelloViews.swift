@@ -1,10 +1,12 @@
-// Sample: UIKit views and controls on isim — context menus (UIContextMenuInteraction with a snapshot or a preview
-// controller, table view row menus), button configurations (configurationUpdateHandler, attributed titles, activity
-// indicator, image placement), tintAdjustmentMode (dimmed behind an alert), contentMode by pixels and custom input
-// views (inputView / inputAccessoryView).
+// Sample: UIKit views and controls on isim, one page per launch argument:
+// - (none) context menus (UIContextMenuInteraction with a snapshot or a preview controller, table view row menus),
+//   button configurations (configurationUpdateHandler, attributed titles, activity indicator, image placement),
+//   tintAdjustmentMode (dimmed behind an alert), contentMode by pixels and custom input views (inputView /
+//   inputAccessoryView);
+// - -extras: view and control members from the documentation sweep, in a tab bar controller (ViewExtras.swift).
 import UIKit
 
-func log(_ s: String) { print("HelloViews: \(s)") }
+fileprivate func log(_ s: String) { print("HelloViews: \(s)") }
 func hex(_ c: UIColor?) -> String {
     guard let c else { return "nil" }
     var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
@@ -192,7 +194,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = ViewsController()
+        window?.rootViewController = ProcessInfo.processInfo.arguments.contains("-extras") ? ViewExtras.make() : ViewsController()
         window?.makeKeyAndVisible()
         return true
     }

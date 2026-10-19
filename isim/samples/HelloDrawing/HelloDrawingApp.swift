@@ -2,11 +2,14 @@
 // trims, insets, shape transforms, gradients (linear, radial, angular, elliptical, Color.gradient),
 // clipping to custom shapes, Canvas, TimelineView, animatable shapes/colors, phase and keyframe
 // animations, and projection effects. Items sit at fixed screen positions so the UI test can check pixels.
+// -shapes: path boolean operations, fills, MeshGradient, timing curves, transitions, matchedGeometryEffect (Shapes.swift).
 import SwiftUI
 
 @main
 struct HelloDrawingApp: App {
-    var body: some Scene { WindowGroup { Gallery() } }
+    var body: some Scene {
+        WindowGroup { if ProcessInfo.processInfo.arguments.contains("-shapes") { ShapesRoot() } else { Gallery() } }
+    }
 }
 
 struct Gallery: View {

@@ -1,4 +1,4 @@
-"""SwiftUI modal presentations (HelloPresentations): sheet with environment object and dismiss, alert with roles +
+"""SwiftUI modal presentations (HelloSheets -presentations): sheet with environment object and dismiss, alert with roles +
 message, confirmationDialog, fullScreenCover, sheet(item:). Port of tests/ui/presentations.sh."""
 import pytest
 
@@ -7,7 +7,7 @@ import pytest
 def test_presentations(launch, ios):
     if ios[0] == "17":
         pytest.skip("not run under iOS 17 (as in the shell suite)")
-    app = launch("HelloPresentations")
+    app = launch("HelloSheets", args=["-presentations"])
     app.wait_tap_id("open-sheet")
     app.wait_log(r"showSheet true")
     sheet = app.wait_view(r"\(20 44; 362 x 52\) text=Sheet")              # sheet presents with a large title
