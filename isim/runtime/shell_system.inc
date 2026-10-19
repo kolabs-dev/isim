@@ -92,7 +92,7 @@ static double np_elapsed(void) {
 }
 static const char *const np_cmds[3] = { "previous", "toggle", "next" };
 /* the device volume (host_audio.c): Control Center's slider, the `volume` command and apps' MPVolumeViews share it */
-double isim_device_volume(void); void isim_device_volume_set(double v, int save);
+ISIM_GUEST_ABI double isim_device_volume(void); void isim_device_volume_set(double v, int save);
 static void sys_volume_changed(double v, int except) {
     cc_volume = v;
     isim_device_volume_set(v, 1);
@@ -1114,20 +1114,18 @@ static void sys_run_helper_kind(const char *exe, const char *req, int ext) {
     for (int i = 0; i < 16; i++) if (!helpers[i].pid) { slot = i; break; }
     if (slot < 0) { fprintf(stderr, "isim shell: too many widget extension processes\n"); return; }
     char ctl[600] = "";
-    if (ext) { helper_ctl_path(req, ctl, sizeof ctl); unlink(ctl); if (mkfifo(ctl, 0600) != 0) ctl[0] = 0; }
-    pid_t shell_pid = getpid(), pid = fork();
-    if (pid < 0) return;
-    if (pid == 0) {
-        prctl(PR_SET_PDEATHSIG, SIGKILL);                   /* dies with the shell */
-        if (getppid() != shell_pid) _exit(1);
-        for (int fd = 3; fd < 256; fd++) close(fd);
-        unsetenv("ISIM_CLIENT_SOCK"); unsetenv("ISIM_CLIENT_SURFACE"); unsetenv("ISIM_SCRIPT"); unsetenv("ISIM_CONTROL");
-        unsetenv("ISIM_LAUNCH_URL"); unsetenv("ISIM_LAUNCH_BACKGROUND");
-        setenv("ISIM_HEADLESS", "1", 1); setenv(ext ? "ISIM_EXTENSION_REQUEST" : "ISIM_WIDGET_REQUEST", req, 1); setenv("ISIM_MUTE", "1", 1);
-        if (ctl[0]) setenv("ISIM_CONTROL", ctl, 1);
-        execl(shell_self, shell_self, "--root", shell_root, exe, (char *)NULL);
-        _exit(127);
-    }
+    if (ext) { helper_ctl_path(req, ctl, sizeof ctl); unlink(ctl); if (isim_ctl_create(ctl) != 0) ctl[0] = 0; }
+    char rq[700], cv[700];
+    snprintf(rq, sizeof rq, "%s=%s", ext ? "ISIM_EXTENSION_REQUEST" : "ISIM_WIDGET_REQUEST", req);
+    snprintf(cv, sizeof cv, "ISIM_CONTROL=%s", ctl);
+    const char *set[] = { "ISIM_HEADLESS=1", "ISIM_MUTE=1", rq, ctl[0] ? cv : NULL, NULL };
+    const char *unset[] = { "ISIM_CLIENT_SOCK", "ISIM_CLIENT_SURFACE", "ISIM_SCRIPT", "ISIM_CONTROL", "ISIM_LAUNCH_URL",
+                            "ISIM_LAUNCH_BACKGROUND", NULL };
+    char *av[] = { (char *)shell_self, "--root", (char *)shell_root, (char *)exe, NULL };
+    struct isim_spawn sp = { .path = shell_self, .argv = av, .set_env = set, .unset_env = unset, .close_others = 1,
+                             .die_with_parent = 1 };                 /* dies with the shell */
+    pid_t pid = isim_spawn(&sp);
+    if (pid < 0) { if (ctl[0]) unlink(ctl); return; }
     helpers[slot].pid = pid; helpers[slot].ext = ext; snprintf(helpers[slot].req, sizeof helpers[slot].req, "%s", req);
 }
 static void sys_reaped(pid_t pid, int status) {
@@ -1191,11 +1189,11 @@ static void bg_tick(void) {
  * corner. Controls send the app "pip close|restore|play|pause|skip SECONDS" system events. Elements: pip-window,
  * pip-close, pip-restore, pip-play, pip-skip-back, pip-skip-forward. */
 struct isim_media_info { double duration, width, height, fps; int has_video, has_audio; };
-int isim_media_probe(const char *url, struct isim_media_info *info);
-int isim_media_open_rate(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume, double rate);
-int isim_media_video_frame(int h, double t, int *eof, double *pts);
-void isim_media_close(int h);
-int isim_image_read_bgra(int hd, int x, int y, int w, int h, unsigned char *out);
+ISIM_GUEST_ABI int isim_media_probe(const char *url, struct isim_media_info *info);
+ISIM_GUEST_ABI int isim_media_open_rate(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume, double rate);
+ISIM_GUEST_ABI int isim_media_video_frame(int h, double t, int *eof, double *pts);
+ISIM_GUEST_ABI void isim_media_close(int h);
+ISIM_GUEST_ABI int isim_image_read_bgra(int hd, int x, int y, int w, int h, unsigned char *out);
 static struct {
     int on, client, media, corner, controls, down, moved;
     char url[1024], title[256];

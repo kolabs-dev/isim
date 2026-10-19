@@ -36,6 +36,7 @@
 
 #include "macho.h"
 #include "runtime.h"
+#include "platform.h"
 
 #define MAX_SEGS 32
 #define MAX_DEPS 64
@@ -645,9 +646,8 @@ static void print_exports(const char *lib) {
 
 static const char *default_root(void) {
     static char buf[PATH_MAX];
-    char self[PATH_MAX]; ssize_t n = readlink("/proc/self/exe", self, sizeof self - 1);
-    if (n <= 0) return ".";
-    self[n] = 0;
+    char self[PATH_MAX];
+    if (isim_self_path(self, sizeof self) <= 0) return ".";
     snprintf(buf, sizeof buf, "%s/../sdk", dirname(self));
     return buf;
 }
@@ -962,7 +962,7 @@ static void crash_handler(int sig, siginfo_t *si, void *ctx) {
 #include <errno.h>
 #include <sys/syscall.h>
 #include <unwind.h>
-extern _Unwind_Reason_Code isim_unwind_backtrace(_Unwind_Trace_Fn, void *);   /* objc_exc.c: guest images registered */
+ISIM_GUEST_ABI extern _Unwind_Reason_Code isim_unwind_backtrace(_Unwind_Trace_Fn, void *);   /* objc_exc.c: guest images registered */
 struct dump_pcs { uintptr_t pc[48]; int n; };
 static _Unwind_Reason_Code dump_collect(struct _Unwind_Context *c, void *arg) {
     struct dump_pcs *d = arg;
@@ -1092,7 +1092,7 @@ static void install_stack_dumper(void) {
 }
 
 /* one thread's stack (MetricKit hang diagnostics): signal it and take the pcs its handler collects */
-int isim_sample_thread(int tid, uintptr_t *pcs, int max) {
+ISIM_GUEST_ABI int isim_sample_thread(int tid, uintptr_t *pcs, int max) {
     static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
     if (!dump_sig) return 0;
     pthread_mutex_lock(&m);
@@ -1375,7 +1375,7 @@ int main(int argc, char **argv, char **envp) {
             if (!sysroot) sysroot = default_root();
             char *rr = realpath(sysroot, NULL); if (rr) sysroot = rr;
             setenv("ISIM_ROOT", sysroot, 1);
-            char self[PATH_MAX]; ssize_t n = readlink("/proc/self/exe", self, sizeof self - 1); if (n > 0) self[n] = 0;
+            char self[PATH_MAX]; if (isim_self_path(self, sizeof self) <= 0) self[0] = 0;
             char **open = ai + 5 < argc && !strcmp(argv[ai + 3], "--open") ? argv + ai + 4 : NULL;
             extern int isim_os_select(void); if (isim_os_select()) return 2;
             return isim_shell_main(self, sysroot, argv[ai + 1], argv[ai + 2], open);

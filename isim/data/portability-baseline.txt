@@ -1,0 +1,27 @@
+# isim/tools/portability-check.py --update: what the host runtime still has that a non-Linux host
+# has to replace (issue #491). It may only shrink: new code uses the platform layer and ISIM_GUEST_ABI
+# (docs/BUILD.md, "Portability"). file<TAB>what<TAB>count
+host.c	"/dev/(null|shm|urandom)	1
+host_audio.c	"/dev/(null|shm|urandom)	1
+host_audio.c	\bposix_spawnp?\s*\(	1
+host_capture.c	"/dev/(null|shm|urandom)	2
+host_capture.c	\bdlopen\s*\(\s*"lib[^"]*\.so	2
+host_capture.c	\bposix_spawnp?\s*\(	1
+host_cg.c	\bdlopen\s*\(\s*"lib[^"]*\.so	2
+host_crypto.c	\bdlopen\s*\(\s*"lib[^"]*\.so	2
+host_diag.c	"/proc/	4
+host_heif.c	"/dev/(null|shm|urandom)	3
+host_heif.c	\bposix_spawnp?\s*\(	1
+host_html.c	\bdlopen\s*\(\s*"lib[^"]*\.so	2
+host_jsc.c	\bdlopen\s*\(\s*"lib[^"]*\.so	2
+host_media.c	"/dev/(null|shm|urandom)	2
+host_media.c	\bposix_spawnp?\s*\(	1
+host_net.c	"/dev/(null|shm|urandom)	1
+host_net.c	\bdlopen\s*\(\s*"lib[^"]*\.so	2
+host_pki.c	\bdlopen\s*\(\s*"lib[^"]*\.so	2
+host_regex.c	\bdlopen\s*\(\s*"lib[^"]*\.so	2
+host_sqlite.c	\bdlopen\s*\(\s*"lib[^"]*\.so	2
+host_tls.c	\bdlopen\s*\(\s*"lib[^"]*\.so	2
+host_tts.c	\bdlopen\s*\(\s*"lib[^"]*\.so	2
+host_z.c	\bdlopen\s*\(\s*"lib[^"]*\.so	1
+loader.c	"/proc/	2

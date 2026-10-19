@@ -10,6 +10,7 @@
  * tiles become one Annex B stream that ffmpeg decodes to RGBA; isim composes the grid, crops it to the output size and
  * applies irot / imir. Thumbnails, alpha and depth auxiliary images and Exif are not read. */
 #define _GNU_SOURCE
+#include "guest_abi.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <spawn.h>
@@ -104,7 +105,7 @@ static int child(const unsigned char *p, size_t n, size_t skip, const char *type
 
 /* ---------- encoding ---------- */
 static int can_encode = -1;
-int isim_heif_can_encode(void) {
+ISIM_GUEST_ABI int isim_heif_can_encode(void) {
     if (can_encode >= 0) return can_encode;
     char out[256]; tmpname(out, sizeof out, ".txt");
     /* an 2x2 frame through libx265: proves both ffmpeg and the encoder are there */
@@ -137,7 +138,7 @@ static int mp4_hevc(const unsigned char *d, size_t len, const unsigned char **hv
 
 /* Encodes w x h BGRA pixels (rows `stride` bytes apart; alpha ignored) as a HEIC still image. quality 0...1.
    Returns the length (*out freed with free), or 0 without ffmpeg's libx265. */
-long isim_heif_encode_bgra(const unsigned char *bgra, int w, int h, int stride, double quality, unsigned char **out) {
+ISIM_GUEST_ABI long isim_heif_encode_bgra(const unsigned char *bgra, int w, int h, int stride, double quality, unsigned char **out) {
     *out = NULL;
     if (w <= 0 || h <= 0 || !isim_heif_can_encode()) return 0;
     char raw[256], mp4[256]; tmpname(raw, sizeof raw, ".bgra"); tmpname(mp4, sizeof mp4, ".mp4");
@@ -353,7 +354,7 @@ static int annexb(struct buf *out, const struct box *hvcc, const unsigned char *
 
 /* Decodes a HEIF image (hvc1, or a grid of hvc1 tiles). Returns 1 with *rgba (w*h*4, straight alpha 255; free with
    free) and its size; 0 when it is not such a file or ffmpeg cannot decode it. */
-int isim_heif_decode(const void *data, long len, int *w, int *h, unsigned char **rgba) {
+ISIM_GUEST_ABI int isim_heif_decode(const void *data, long len, int *w, int *h, unsigned char **rgba) {
     *rgba = NULL; *w = *h = 0;
     struct heif *hf = calloc(1, sizeof *hf);
     hf->d = data; hf->len = (size_t)len;

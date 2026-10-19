@@ -27,7 +27,7 @@
 #include "runtime.h"
 
 /* ---------------- errno ---------------- */
-static int *d_error(void) { return &errno; } /* values 1..34 match Darwin; higher values are NOT translated */
+ISIM_GUEST_ABI static int *d_error(void) { return &errno; } /* values 1..34 match Darwin; higher values are NOT translated */
 
 /* ---------------- stdio globals: Darwin's stdin/stdout/stderr are FILE* variables ---------------- */
 static FILE *d_stdinp, *d_stdoutp, *d_stderrp;
@@ -46,9 +46,9 @@ static int oflags_from_darwin(int dflags) {
     if (dflags & 0x0080) f |= O_SYNC;
     return f;
 }
-static int d_open(const char *path, int dflags, int mode) { return open(path, oflags_from_darwin(dflags), mode); }
+ISIM_GUEST_ABI static int d_open(const char *path, int dflags, int mode) { return open(path, oflags_from_darwin(dflags), mode); }
 /* openat(2): Darwin's AT_FDCWD is -2 */
-static int d_openat(int dirfd, const char *path, int dflags, int mode) {
+ISIM_GUEST_ABI static int d_openat(int dirfd, const char *path, int dflags, int mode) {
     return openat(dirfd == -2 ? AT_FDCWD : dirfd, path, oflags_from_darwin(dflags), mode);
 }
 
@@ -64,17 +64,17 @@ static clockid_t clock_of(int d) {
     default: return (clockid_t)-1;
     }
 }
-static int d_clock_gettime(int clk, struct timespec *ts) { clockid_t c = clock_of(clk); if (c == (clockid_t)-1) { errno = EINVAL; return -1; } return clock_gettime(c, ts); }
-static int d_clock_getres(int clk, struct timespec *ts) { clockid_t c = clock_of(clk); if (c == (clockid_t)-1) { errno = EINVAL; return -1; } return clock_getres(c, ts); }
+ISIM_GUEST_ABI static int d_clock_gettime(int clk, struct timespec *ts) { clockid_t c = clock_of(clk); if (c == (clockid_t)-1) { errno = EINVAL; return -1; } return clock_gettime(c, ts); }
+ISIM_GUEST_ABI static int d_clock_getres(int clk, struct timespec *ts) { clockid_t c = clock_of(clk); if (c == (clockid_t)-1) { errno = EINVAL; return -1; } return clock_getres(c, ts); }
 /* Darwin's memset_pattern4/8/16: fill with a repeated 4/8/16-byte pattern */
 static void fill_pattern(void *b, const void *pat, size_t plen, size_t len) {
     unsigned char *d = b; const unsigned char *p = pat;
     for (size_t i = 0; i < len; i++) d[i] = p[i % plen];
 }
-static void d_memset_pattern4(void *b, const void *p, size_t len) { fill_pattern(b, p, 4, len); }
-static void d_memset_pattern8(void *b, const void *p, size_t len) { fill_pattern(b, p, 8, len); }
-static void d_memset_pattern16(void *b, const void *p, size_t len) { fill_pattern(b, p, 16, len); }
-static int d_memset_s(void *dest, size_t destsz, int ch, size_t count) {
+ISIM_GUEST_ABI static void d_memset_pattern4(void *b, const void *p, size_t len) { fill_pattern(b, p, 4, len); }
+ISIM_GUEST_ABI static void d_memset_pattern8(void *b, const void *p, size_t len) { fill_pattern(b, p, 8, len); }
+ISIM_GUEST_ABI static void d_memset_pattern16(void *b, const void *p, size_t len) { fill_pattern(b, p, 16, len); }
+ISIM_GUEST_ABI static int d_memset_s(void *dest, size_t destsz, int ch, size_t count) {
     if (!dest) return EINVAL;
     memset(dest, ch, count < destsz ? count : destsz);
     __asm__ volatile("" ::: "memory");           /* not optimized away */
@@ -88,11 +88,11 @@ static locale_t utf8_locale(void) {
     if (!l) { l = newlocale(LC_CTYPE_MASK, "C.UTF-8", (locale_t)0); if (!l) l = newlocale(LC_CTYPE_MASK, "en_US.UTF-8", (locale_t)0); }
     return l;
 }
-#define WCLS(n) static int d_##n(wint_t c) { locale_t l = utf8_locale(); return l ? n##_l(c, l) : n(c); }
+#define WCLS(n) ISIM_GUEST_ABI static int d_##n(wint_t c) { locale_t l = utf8_locale(); return l ? n##_l(c, l) : n(c); }
 WCLS(iswalpha) WCLS(iswdigit) WCLS(iswalnum) WCLS(iswspace) WCLS(iswpunct) WCLS(iswupper) WCLS(iswlower)
 WCLS(iswcntrl) WCLS(iswprint) WCLS(iswxdigit) WCLS(iswgraph)
-static wint_t d_towupper(wint_t c) { locale_t l = utf8_locale(); return l ? towupper_l(c, l) : towupper(c); }
-static wint_t d_towlower(wint_t c) { locale_t l = utf8_locale(); return l ? towlower_l(c, l) : towlower(c); }
+ISIM_GUEST_ABI static wint_t d_towupper(wint_t c) { locale_t l = utf8_locale(); return l ? towupper_l(c, l) : towupper(c); }
+ISIM_GUEST_ABI static wint_t d_towlower(wint_t c) { locale_t l = utf8_locale(); return l ? towlower_l(c, l) : towlower(c); }
 /* stat: Darwin layout (64-bit inode) */
 struct d_stat {
     int32_t st_dev; uint16_t st_mode, st_nlink; uint64_t st_ino; uint32_t st_uid, st_gid; int32_t st_rdev;
@@ -122,19 +122,19 @@ static int d_statx(int dirfd, const char *p, int flags, struct d_stat *d) {
     d->st_size = (int64_t)h.stx_size; d->st_blocks = (int64_t)h.stx_blocks; d->st_blksize = (int32_t)h.stx_blksize;
     return 0;
 }
-static int d_stat(const char *p, struct d_stat *d) { return d_statx(AT_FDCWD, p, 0, d); }
-static int d_lstat(const char *p, struct d_stat *d) { return d_statx(AT_FDCWD, p, AT_SYMLINK_NOFOLLOW, d); }
-static int d_fstat(int fd, struct d_stat *d) { return d_statx(fd, "", AT_EMPTY_PATH, d); }
+ISIM_GUEST_ABI static int d_stat(const char *p, struct d_stat *d) { return d_statx(AT_FDCWD, p, 0, d); }
+ISIM_GUEST_ABI static int d_lstat(const char *p, struct d_stat *d) { return d_statx(AT_FDCWD, p, AT_SYMLINK_NOFOLLOW, d); }
+ISIM_GUEST_ABI static int d_fstat(int fd, struct d_stat *d) { return d_statx(fd, "", AT_EMPTY_PATH, d); }
 /* directories: Darwin struct dirent (64-bit, 1024-byte name) from the host's */
 #include <dirent.h>
 struct d_dirent { uint64_t d_ino, d_seekoff; uint16_t d_reclen, d_namlen; uint8_t d_type; char d_name[1024]; };
 struct d_dir { DIR *host; struct d_dirent ent; };
-static struct d_dir *d_opendir(const char *name) {
+ISIM_GUEST_ABI static struct d_dir *d_opendir(const char *name) {
     DIR *h = opendir(name);
     if (!h) return NULL;
     struct d_dir *d = calloc(1, sizeof *d); d->host = h; return d;
 }
-static struct d_dirent *d_readdir(struct d_dir *d) {
+ISIM_GUEST_ABI static struct d_dirent *d_readdir(struct d_dir *d) {
     struct dirent *e = readdir(d->host);
     if (!e) return NULL;
     d->ent.d_ino = e->d_ino; d->ent.d_seekoff = (uint64_t)e->d_off; d->ent.d_type = e->d_type;
@@ -143,30 +143,30 @@ static struct d_dirent *d_readdir(struct d_dir *d) {
     d->ent.d_namlen = (uint16_t)n; d->ent.d_reclen = (uint16_t)sizeof d->ent;
     return &d->ent;
 }
-static int d_closedir(struct d_dir *d) { int r = closedir(d->host); free(d); return r; }
-static void d_rewinddir(struct d_dir *d) { rewinddir(d->host); }
-static int d_dirfd(struct d_dir *d) { return dirfd(d->host); }
+ISIM_GUEST_ABI static int d_closedir(struct d_dir *d) { int r = closedir(d->host); free(d); return r; }
+ISIM_GUEST_ABI static void d_rewinddir(struct d_dir *d) { rewinddir(d->host); }
+ISIM_GUEST_ABI static int d_dirfd(struct d_dir *d) { return dirfd(d->host); }
 /* OS version answered to availability checks (__builtin_available / #available).
  * isim is not iOS; it reports the API level it emulates: ISIM_OS_VERSION (default 18.0). */
-static void isim_os_version(unsigned v[3]) {
+ISIM_GUEST_ABI static void isim_os_version(unsigned v[3]) {
     const char *e = getenv("ISIM_OS_VERSION");
     v[0] = 18; v[1] = 0; v[2] = 0;
     if (e) sscanf(e, "%u.%u.%u", &v[0], &v[1], &v[2]);
 }
-static int d_isPlatformVersionAtLeast(unsigned platform, unsigned major, unsigned minor, unsigned sub) {
+ISIM_GUEST_ABI static int d_isPlatformVersionAtLeast(unsigned platform, unsigned major, unsigned minor, unsigned sub) {
     unsigned v[3]; isim_os_version(v);
     if (platform != 7 && platform != 2) return 1;                   /* other platforms' checks: not this OS, treat as satisfied */
     if (v[0] != major) return v[0] > major;
     if (v[1] != minor) return v[1] > minor;
     return v[2] >= sub;
 }
-static int d_isOSVersionAtLeast(int major, int minor, int sub) { return d_isPlatformVersionAtLeast(7, major, minor, sub); }
+ISIM_GUEST_ABI static int d_isOSVersionAtLeast(int major, int minor, int sub) { return d_isPlatformVersionAtLeast(7, major, minor, sub); }
 /* QoS: reported, not enforced */
-static unsigned d_qos_class_self(void) { return getpid() == gettid() ? 0x21u : 0x15u; }
-static unsigned d_qos_class_main(void) { return 0x21u; }
-static int d_pthread_set_qos_class_self_np(unsigned q, int rel) { return 0; }
-static int d_pthread_get_qos_class_np(pthread_t t, unsigned *q, int *rel) { if (q) *q = t == pthread_self() && getpid() == gettid() ? 0x21u : 0x15u; if (rel) *rel = 0; return 0; }
-static uint64_t d_clock_gettime_nsec_np(int clk) {
+ISIM_GUEST_ABI static unsigned d_qos_class_self(void) { return getpid() == gettid() ? 0x21u : 0x15u; }
+ISIM_GUEST_ABI static unsigned d_qos_class_main(void) { return 0x21u; }
+ISIM_GUEST_ABI static int d_pthread_set_qos_class_self_np(unsigned q, int rel) { return 0; }
+ISIM_GUEST_ABI static int d_pthread_get_qos_class_np(pthread_t t, unsigned *q, int *rel) { if (q) *q = t == pthread_self() && getpid() == gettid() ? 0x21u : 0x15u; if (rel) *rel = 0; return 0; }
+ISIM_GUEST_ABI static uint64_t d_clock_gettime_nsec_np(int clk) {
     struct timespec ts; if (d_clock_gettime(clk, &ts)) return 0;
     return (uint64_t)ts.tv_sec * 1000000000ull + ts.tv_nsec;
 }
@@ -221,19 +221,19 @@ static int mutex_ready(struct d_mutex *m) {
         sched_yield();
     }
 }
-static int d_mutexattr_init(struct d_mutexattr *a) { a->sig = SIG_MUTEXATTR; a->type = 0; return 0; }
-static int d_mutexattr_settype(struct d_mutexattr *a, int t) { a->type = t; return 0; } /* Darwin: 0 normal,1 errorcheck,2 recursive */
-static int d_mutexattr_destroy(struct d_mutexattr *a) { a->sig = 0; return 0; }
-static int d_mutex_init(struct d_mutex *m, const struct d_mutexattr *a) {
+ISIM_GUEST_ABI static int d_mutexattr_init(struct d_mutexattr *a) { a->sig = SIG_MUTEXATTR; a->type = 0; return 0; }
+ISIM_GUEST_ABI static int d_mutexattr_settype(struct d_mutexattr *a, int t) { a->type = t; return 0; } /* Darwin: 0 normal,1 errorcheck,2 recursive */
+ISIM_GUEST_ABI static int d_mutexattr_destroy(struct d_mutexattr *a) { a->sig = 0; return 0; }
+ISIM_GUEST_ABI static int d_mutex_init(struct d_mutex *m, const struct d_mutexattr *a) {
     int t = a ? a->type : 0;
     mutex_init_host(m, t == 2 ? PTHREAD_MUTEX_RECURSIVE : t == 1 ? PTHREAD_MUTEX_ERRORCHECK : PTHREAD_MUTEX_NORMAL);
     __atomic_store_n(&m->sig, SIG_MUTEX, __ATOMIC_RELEASE);
     return 0;
 }
-static int d_mutex_lock(struct d_mutex *m) { int r = mutex_ready(m); return r ? r : d_errno(pthread_mutex_lock(&m->host)); }
-static int d_mutex_trylock(struct d_mutex *m) { int r = mutex_ready(m); return r ? r : d_errno(pthread_mutex_trylock(&m->host)); }
-static int d_mutex_unlock(struct d_mutex *m) { int r = mutex_ready(m); return r ? r : d_errno(pthread_mutex_unlock(&m->host)); }
-static int d_mutex_destroy(struct d_mutex *m) { if (m->sig == SIG_MUTEX) pthread_mutex_destroy(&m->host); m->sig = 0; return 0; }
+ISIM_GUEST_ABI static int d_mutex_lock(struct d_mutex *m) { int r = mutex_ready(m); return r ? r : d_errno(pthread_mutex_lock(&m->host)); }
+ISIM_GUEST_ABI static int d_mutex_trylock(struct d_mutex *m) { int r = mutex_ready(m); return r ? r : d_errno(pthread_mutex_trylock(&m->host)); }
+ISIM_GUEST_ABI static int d_mutex_unlock(struct d_mutex *m) { int r = mutex_ready(m); return r ? r : d_errno(pthread_mutex_unlock(&m->host)); }
+ISIM_GUEST_ABI static int d_mutex_destroy(struct d_mutex *m) { if (m->sig == SIG_MUTEX) pthread_mutex_destroy(&m->host); m->sig = 0; return 0; }
 
 static pthread_mutex_t cond_init_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t *cond_ready(struct d_cond *c) {
@@ -249,14 +249,14 @@ static pthread_cond_t *cond_ready(struct d_cond *c) {
     pthread_mutex_unlock(&cond_init_lock);
     return c->host;
 }
-static int d_cond_init(struct d_cond *c, const void *attr) { c->sig = SIG_COND_INIT; cond_ready(c); return 0; }
-static int d_cond_wait(struct d_cond *c, struct d_mutex *m) { mutex_ready(m); return d_errno(pthread_cond_wait(cond_ready(c), &m->host)); }
-static int d_cond_timedwait(struct d_cond *c, struct d_mutex *m, const struct timespec *ts) { mutex_ready(m); return d_errno(pthread_cond_timedwait(cond_ready(c), &m->host, ts)); }
-static int d_cond_signal(struct d_cond *c) { return d_errno(pthread_cond_signal(cond_ready(c))); }
-static int d_cond_broadcast(struct d_cond *c) { return d_errno(pthread_cond_broadcast(cond_ready(c))); }
-static int d_cond_destroy(struct d_cond *c) { if (c->sig == SIG_COND) { pthread_cond_destroy(c->host); free(c->host); } c->sig = 0; return 0; }
+ISIM_GUEST_ABI static int d_cond_init(struct d_cond *c, const void *attr) { c->sig = SIG_COND_INIT; cond_ready(c); return 0; }
+ISIM_GUEST_ABI static int d_cond_wait(struct d_cond *c, struct d_mutex *m) { mutex_ready(m); return d_errno(pthread_cond_wait(cond_ready(c), &m->host)); }
+ISIM_GUEST_ABI static int d_cond_timedwait(struct d_cond *c, struct d_mutex *m, const struct timespec *ts) { mutex_ready(m); return d_errno(pthread_cond_timedwait(cond_ready(c), &m->host, ts)); }
+ISIM_GUEST_ABI static int d_cond_signal(struct d_cond *c) { return d_errno(pthread_cond_signal(cond_ready(c))); }
+ISIM_GUEST_ABI static int d_cond_broadcast(struct d_cond *c) { return d_errno(pthread_cond_broadcast(cond_ready(c))); }
+ISIM_GUEST_ABI static int d_cond_destroy(struct d_cond *c) { if (c->sig == SIG_COND) { pthread_cond_destroy(c->host); free(c->host); } c->sig = 0; return 0; }
 
-static int d_once(struct d_once *o, void (*fn)(void)) {
+ISIM_GUEST_ABI static int d_once(struct d_once *o, void (*fn)(void)) {
     static pthread_mutex_t lk = PTHREAD_MUTEX_INITIALIZER;
     if (__atomic_load_n(&o->state, __ATOMIC_ACQUIRE) == 2) return 0;
     pthread_mutex_lock(&lk);   /* coarse: one global lock for all once-blocks (recursion would deadlock) */
@@ -265,7 +265,7 @@ static int d_once(struct d_once *o, void (*fn)(void)) {
     return 0;
 }
 
-static int d_pthread_create(pthread_t *t, const void *attr, void *(*fn)(void *), void *arg) {
+ISIM_GUEST_ABI static int d_pthread_create(pthread_t *t, const void *attr, void *(*fn)(void *), void *arg) {
     const struct { long sig; pthread_attr_t *host; } *a = attr;
     struct tstart *s = malloc(sizeof *s);                 /* the thread registers its tid first (mach.inc) */
     s->fn = fn; s->arg = arg;
@@ -273,85 +273,85 @@ static int d_pthread_create(pthread_t *t, const void *attr, void *(*fn)(void *),
     if (r) free(s);
     return d_errno(r);
 }
-static int d_pthread_join(pthread_t t, void **r) { return d_errno(pthread_join(t, r)); }
-static int d_pthread_detach(pthread_t t) { return d_errno(pthread_detach(t)); }
-static int d_pthread_key_create(unsigned long *k, void (*dtor)(void *)) { pthread_key_t hk; int r = pthread_key_create(&hk, dtor); *k = hk; return d_errno(r); }
-static void *d_pthread_getspecific(unsigned long k) { return pthread_getspecific((pthread_key_t)k); }
-static int d_pthread_setspecific(unsigned long k, const void *v) { return d_errno(pthread_setspecific((pthread_key_t)k, v)); }
-static int d_pthread_setname_np(const char *name) { char b[16]; snprintf(b, sizeof b, "%s", name); return d_errno(pthread_setname_np(pthread_self(), b)); }
-static int d_pthread_main_np(void) { return getpid() == gettid(); }
+ISIM_GUEST_ABI static int d_pthread_join(pthread_t t, void **r) { return d_errno(pthread_join(t, r)); }
+ISIM_GUEST_ABI static int d_pthread_detach(pthread_t t) { return d_errno(pthread_detach(t)); }
+ISIM_GUEST_ABI static int d_pthread_key_create(unsigned long *k, void (*dtor)(void *)) { pthread_key_t hk; int r = pthread_key_create(&hk, dtor); *k = hk; return d_errno(r); }
+ISIM_GUEST_ABI static void *d_pthread_getspecific(unsigned long k) { return pthread_getspecific((pthread_key_t)k); }
+ISIM_GUEST_ABI static int d_pthread_setspecific(unsigned long k, const void *v) { return d_errno(pthread_setspecific((pthread_key_t)k, v)); }
+ISIM_GUEST_ABI static int d_pthread_setname_np(const char *name) { char b[16]; snprintf(b, sizeof b, "%s", name); return d_errno(pthread_setname_np(pthread_self(), b)); }
+ISIM_GUEST_ABI static int d_pthread_main_np(void) { return getpid() == gettid(); }
 
 /* Darwin libm: sin+cos pair returned in xmm0/xmm1 (SysV struct return, same on Linux) */
 struct d_sincos { double s, c; };
-static double d_exp10(double x) { return pow(10.0, x); }      /* Darwin libm extension */
-static float d_exp10f(float x) { return powf(10.0f, x); }
-static struct d_sincos d_sincos_stret(double x) { struct d_sincos r = { sin(x), cos(x) }; return r; }
+ISIM_GUEST_ABI static double d_exp10(double x) { return pow(10.0, x); }      /* Darwin libm extension */
+ISIM_GUEST_ABI static float d_exp10f(float x) { return powf(10.0f, x); }
+ISIM_GUEST_ABI static struct d_sincos d_sincos_stret(double x) { struct d_sincos r = { sin(x), cos(x) }; return r; }
 struct d_sincosf { float s, c; };
-static struct d_sincosf d_sincosf_stret(float x) { struct d_sincosf r = { sinf(x), cosf(x) }; return r; }
+ISIM_GUEST_ABI static struct d_sincosf d_sincosf_stret(float x) { struct d_sincosf r = { sinf(x), cosf(x) }; return r; }
 
 /* XSI strerror_r (glibc's default strerror_r is the GNU variant returning char *) */
 extern int __xpg_strerror_r(int, char *, size_t);
-static int d_strerror_r(int e, char *b, size_t n) { return __xpg_strerror_r(e, b, n); }
+ISIM_GUEST_ABI static int d_strerror_r(int e, char *b, size_t n) { return __xpg_strerror_r(e, b, n); }
 /* BSD strlcpy/strlcat (glibc has them only from 2.38) */
-static size_t d_strlcpy(char *d, const char *s, size_t n) {
+ISIM_GUEST_ABI static size_t d_strlcpy(char *d, const char *s, size_t n) {
     size_t l = strlen(s);
     if (n) { size_t c = l < n - 1 ? l : n - 1; memcpy(d, s, c); d[c] = 0; }
     return l;
 }
-static size_t d_strlcat(char *d, const char *s, size_t n) {
+ISIM_GUEST_ABI static size_t d_strlcat(char *d, const char *s, size_t n) {
     size_t dl = strnlen(d, n);
     return dl == n ? n + strlen(s) : dl + d_strlcpy(d + dl, s, n - dl);
 }
 static int mb_cur_max_value = 1;
-static int d_system(const char *cmd) { (void)cmd; errno = ENOSYS; return -1; }   /* no subprocesses on iOS */
+ISIM_GUEST_ABI static int d_system(const char *cmd) { (void)cmd; errno = ENOSYS; return -1; }   /* no subprocesses on iOS */
 
 /* ---------------- Darwin private futex (__ulock_*) on Linux futexes ---------------- */
 #define UL_OPCODE_MASK 0xff
 #define ULF_WAKE_ALL 0x100
-static int d_ulock_wait(uint32_t op, void *addr, uint64_t value, uint32_t timeout_us) {
+ISIM_GUEST_ABI static int d_ulock_wait(uint32_t op, void *addr, uint64_t value, uint32_t timeout_us) {
     struct timespec ts, *tp = NULL;
     if (timeout_us) { ts.tv_sec = timeout_us / 1000000; ts.tv_nsec = (timeout_us % 1000000) * 1000; tp = &ts; }
-    long r = syscall(SYS_futex, addr, FUTEX_WAIT_PRIVATE, (uint32_t)value, tp, NULL, 0);   /* 32-bit compare ops only */
+    long r = syscall(SYS_futex, addr, FUTEX_WAIT_PRIVATE, (uint32_t)value, tp, NULL, 0);   /* 32-bit compare ops only */   /* linux-only: __ulock_wait/__ulock_wake over futex */
     if (r < 0 && (errno == EAGAIN || errno == EINTR)) return 0;
     return r < 0 ? -d_errno(errno) : 0;
 }
-static int d_ulock_wake(uint32_t op, void *addr, uint64_t wake_value) {
-    syscall(SYS_futex, addr, FUTEX_WAKE_PRIVATE, (op & ULF_WAKE_ALL) ? INT32_MAX : 1, NULL, NULL, 0);
+ISIM_GUEST_ABI static int d_ulock_wake(uint32_t op, void *addr, uint64_t wake_value) {
+    syscall(SYS_futex, addr, FUTEX_WAKE_PRIVATE, (op & ULF_WAKE_ALL) ? INT32_MAX : 1, NULL, NULL, 0);   /* linux-only: __ulock_wait/__ulock_wake over futex */
     return 0;
 }
-static void *d_pthread_get_stackaddr_np(pthread_t t) {
+ISIM_GUEST_ABI static void *d_pthread_get_stackaddr_np(pthread_t t) {
     pthread_attr_t a; void *addr = NULL; size_t sz = 0;
     if (pthread_getattr_np(t, &a) == 0) { pthread_attr_getstack(&a, &addr, &sz); pthread_attr_destroy(&a); }
     return (char *)addr + sz;                                   /* Darwin returns the stack top */
 }
-static size_t d_pthread_get_stacksize_np(pthread_t t) {
+ISIM_GUEST_ABI static size_t d_pthread_get_stacksize_np(pthread_t t) {
     pthread_attr_t a; void *addr = NULL; size_t sz = 0;
     if (pthread_getattr_np(t, &a) == 0) { pthread_attr_getstack(&a, &addr, &sz); pthread_attr_destroy(&a); }
     return sz;
 }
 /* Darwin pthread_attr_t is 64 bytes; glibc's is 56, so it is stored inline after a signature word */
 struct d_attr { long sig; pthread_attr_t *host; };
-static int d_attr_init(struct d_attr *a) { a->sig = 0x54485241; a->host = malloc(sizeof *a->host); return pthread_attr_init(a->host); }
-static int d_attr_destroy(struct d_attr *a) { if (a->host) { pthread_attr_destroy(a->host); free(a->host); a->host = NULL; } return 0; }
-static int d_attr_setstacksize(struct d_attr *a, size_t n) { return d_errno(pthread_attr_setstacksize(a->host, n)); }
-static int d_attr_getstacksize(const struct d_attr *a, size_t *n) { return d_errno(pthread_attr_getstacksize(a->host, n)); }
-static int d_attr_getstack(const struct d_attr *a, void **p, size_t *n) { return d_errno(pthread_attr_getstack(a->host, p, n)); }
-static int d_attr_setdetachstate(struct d_attr *a, int s) { return d_errno(pthread_attr_setdetachstate(a->host, s == 2 ? PTHREAD_CREATE_DETACHED : PTHREAD_CREATE_JOINABLE)); }
+ISIM_GUEST_ABI static int d_attr_init(struct d_attr *a) { a->sig = 0x54485241; a->host = malloc(sizeof *a->host); return pthread_attr_init(a->host); }
+ISIM_GUEST_ABI static int d_attr_destroy(struct d_attr *a) { if (a->host) { pthread_attr_destroy(a->host); free(a->host); a->host = NULL; } return 0; }
+ISIM_GUEST_ABI static int d_attr_setstacksize(struct d_attr *a, size_t n) { return d_errno(pthread_attr_setstacksize(a->host, n)); }
+ISIM_GUEST_ABI static int d_attr_getstacksize(const struct d_attr *a, size_t *n) { return d_errno(pthread_attr_getstacksize(a->host, n)); }
+ISIM_GUEST_ABI static int d_attr_getstack(const struct d_attr *a, void **p, size_t *n) { return d_errno(pthread_attr_getstack(a->host, p, n)); }
+ISIM_GUEST_ABI static int d_attr_setdetachstate(struct d_attr *a, int s) { return d_errno(pthread_attr_setdetachstate(a->host, s == 2 ? PTHREAD_CREATE_DETACHED : PTHREAD_CREATE_JOINABLE)); }
 
 /* ---------------- libmalloc subset ---------------- */
 static char fake_zone[64];
-static size_t d_malloc_size(const void *p) { return p ? malloc_usable_size((void *)p) : 0; }
-static size_t d_malloc_good_size(size_t n) { return (n + 15) & ~(size_t)15; }
-static void *d_malloc_default_zone(void) { return fake_zone; }
-static void *d_malloc_zone_from_ptr(const void *p) { return NULL; }
-static void *d_zone_malloc(void *z, size_t n) { return malloc(n); }
-static void *d_zone_calloc(void *z, size_t n, size_t s) { return calloc(n, s); }
-static void *d_zone_memalign(void *z, size_t a, size_t n) { void *p = NULL; return posix_memalign(&p, a < sizeof(void *) ? sizeof(void *) : a, n) ? NULL : p; }
-static void d_zone_free(void *z, void *p) { free(p); }
+ISIM_GUEST_ABI static size_t d_malloc_size(const void *p) { return p ? malloc_usable_size((void *)p) : 0; }
+ISIM_GUEST_ABI static size_t d_malloc_good_size(size_t n) { return (n + 15) & ~(size_t)15; }
+ISIM_GUEST_ABI static void *d_malloc_default_zone(void) { return fake_zone; }
+ISIM_GUEST_ABI static void *d_malloc_zone_from_ptr(const void *p) { return NULL; }
+ISIM_GUEST_ABI static void *d_zone_malloc(void *z, size_t n) { return malloc(n); }
+ISIM_GUEST_ABI static void *d_zone_calloc(void *z, size_t n, size_t s) { return calloc(n, s); }
+ISIM_GUEST_ABI static void *d_zone_memalign(void *z, size_t a, size_t n) { void *p = NULL; return posix_memalign(&p, a < sizeof(void *) ? sizeof(void *) : a, n) ? NULL : p; }
+ISIM_GUEST_ABI static void d_zone_free(void *z, void *p) { free(p); }
 
 /* ---------------- os_object (no ObjC-backed OS objects in isim) ---------------- */
-static void *d_os_retain(void *o) { return o; }
-static void d_os_release(void *o) { }
+ISIM_GUEST_ABI static void *d_os_retain(void *o) { return o; }
+ISIM_GUEST_ABI static void d_os_release(void *o) { }
 
 /* compiler-rt / libgcc builtins: identical calling convention on Linux and Darwin x86_64 */
 extern __int128 __divti3(__int128, __int128);
@@ -366,25 +366,25 @@ static char *d_progname = "app";
 
 /* ---------------- misc ---------------- */
 static uintptr_t stack_chk_guard;
-static void d_stack_chk_fail(void) { fflush(NULL); fputs("isim: guest stack smashing detected\n", stderr); abort(); }
-static void d_stub_binder(void) { fputs("isim: dyld_stub_binder called (lazy binds are pre-resolved)\n", stderr); abort(); }
-static void d_tlv_bootstrap(void) { fputs("isim: thread-local variables are not supported\n", stderr); abort(); }
+ISIM_GUEST_ABI static void d_stack_chk_fail(void) { fflush(NULL); fputs("isim: guest stack smashing detected\n", stderr); abort(); }
+ISIM_GUEST_ABI static void d_stub_binder(void) { fputs("isim: dyld_stub_binder called (lazy binds are pre-resolved)\n", stderr); abort(); }
+ISIM_GUEST_ABI static void d_tlv_bootstrap(void) { fputs("isim: thread-local variables are not supported\n", stderr); abort(); }
 /* Exceptions: the host libgcc unwinder walks guest frames (objc_exc.c registers their unwind info) */
 #include <unwind.h>
-extern _Unwind_Reason_Code isim_objc_personality(int, _Unwind_Action, uint64_t, struct _Unwind_Exception *, struct _Unwind_Context *);
-extern _Unwind_Reason_Code isim_gxx_personality(int, _Unwind_Action, uint64_t, struct _Unwind_Exception *, struct _Unwind_Context *);
-extern _Unwind_Reason_Code isim_unwind_raise(struct _Unwind_Exception *);
-extern _Unwind_Reason_Code isim_unwind_backtrace(_Unwind_Trace_Fn, void *);
-static uint32_t d_arc4random(void) { uint32_t v; if (getrandom(&v, sizeof v, 0) != sizeof v) v = (uint32_t)random(); return v; }
-static uint32_t d_arc4random_uniform(uint32_t n) { if (n < 2) return 0; uint32_t min = -n % n, r; do r = d_arc4random(); while (r < min); return r % n; }
-static void d_arc4random_buf(void *b, size_t n) { uint8_t *p = b; while (n) { ssize_t r = getrandom(p, n, 0); if (r <= 0) break; p += r; n -= r; } }
-static void d_bzero(void *p, size_t n) { memset(p, 0, n); }
+ISIM_GUEST_ABI extern _Unwind_Reason_Code isim_objc_personality(int, _Unwind_Action, uint64_t, struct _Unwind_Exception *, struct _Unwind_Context *);
+ISIM_GUEST_ABI extern _Unwind_Reason_Code isim_gxx_personality(int, _Unwind_Action, uint64_t, struct _Unwind_Exception *, struct _Unwind_Context *);
+ISIM_GUEST_ABI extern _Unwind_Reason_Code isim_unwind_raise(struct _Unwind_Exception *);
+ISIM_GUEST_ABI extern _Unwind_Reason_Code isim_unwind_backtrace(_Unwind_Trace_Fn, void *);
+ISIM_GUEST_ABI static uint32_t d_arc4random(void) { uint32_t v; if (getrandom(&v, sizeof v, 0) != sizeof v) v = (uint32_t)random(); return v; }
+ISIM_GUEST_ABI static uint32_t d_arc4random_uniform(uint32_t n) { if (n < 2) return 0; uint32_t min = -n % n, r; do r = d_arc4random(); while (r < min); return r % n; }
+ISIM_GUEST_ABI static void d_arc4random_buf(void *b, size_t n) { uint8_t *p = b; while (n) { ssize_t r = getrandom(p, n, 0); if (r <= 0) break; p += r; n -= r; } }
+ISIM_GUEST_ABI static void d_bzero(void *p, size_t n) { memset(p, 0, n); }
 static char **guest_argv; static int guest_argc;
-static int *d_NSGetArgc(void) { return &guest_argc; }
-static char ***d_NSGetArgv(void) { return &guest_argv; }
+ISIM_GUEST_ABI static int *d_NSGetArgc(void) { return &guest_argc; }
+ISIM_GUEST_ABI static char ***d_NSGetArgv(void) { return &guest_argv; }
 extern char **environ;
-static char ***d_NSGetEnviron(void) { return &environ; }
-static long d_sysconf(int name) {
+ISIM_GUEST_ABI static char ***d_NSGetEnviron(void) { return &environ; }
+ISIM_GUEST_ABI static long d_sysconf(int name) {
     static const struct { int d, h; } names[] = {        /* Darwin _SC_* numbering -> the host's */
         { 1, _SC_ARG_MAX }, { 2, _SC_CHILD_MAX }, { 3, _SC_CLK_TCK }, { 4, _SC_NGROUPS_MAX }, { 5, _SC_OPEN_MAX },
         { 6, _SC_JOB_CONTROL }, { 7, _SC_SAVED_IDS }, { 8, _SC_VERSION }, { 9, _SC_BC_BASE_MAX }, { 10, _SC_BC_DIM_MAX },
@@ -400,7 +400,7 @@ static long d_sysconf(int name) {
     errno = EINVAL;
     return -1;
 }
-static int d_NSGetExecutablePath(char *buf, uint32_t *size) {
+ISIM_GUEST_ABI static int d_NSGetExecutablePath(char *buf, uint32_t *size) {
     const char *p = isim_main_executable_path(); size_t n = strlen(p) + 1;
     if (n > *size) { *size = n; return -1; }
     memcpy(buf, p, n); return 0;
@@ -408,7 +408,7 @@ static int d_NSGetExecutablePath(char *buf, uint32_t *size) {
 
 #include "sockets.inc"     /* BSD sockets, name resolution, poll/select, fcntl/ioctl, getifaddrs */
 /* utimes: Darwin's struct timeval has a 32-bit tv_usec (then padding) */
-static int d_utimes(const char *p, const struct d_timeval *t) {
+ISIM_GUEST_ABI static int d_utimes(const char *p, const struct d_timeval *t) {
     if (!t) return utimes(p, NULL);
     struct timeval h[2] = { { t[0].tv_sec, t[0].tv_usec }, { t[1].tv_sec, t[1].tv_usec } };
     return utimes(p, h);

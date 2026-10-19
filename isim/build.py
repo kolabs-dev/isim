@@ -138,6 +138,11 @@ def ci_build(args):
         if not os.path.exists(os.path.join(ROOT, f)):
             print(f"CI: {f} was not built")
             return 1
+    # host code stays portable (native Windows, issue #491): no new Linux-only calls outside the platform layer, and
+    # every function guests call marked ISIM_GUEST_ABI (docs/BUILD.md, "Portability")
+    rc = subprocess.call([sys.executable, "tools/portability-check.py"], cwd=ROOT)
+    if rc:
+        return rc
     return subprocess.call([sys.executable, "tools/abi-check.py"], cwd=ROOT)
 
 

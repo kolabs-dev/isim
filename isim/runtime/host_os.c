@@ -48,7 +48,7 @@ static void ul_lock(uint32_t *l) {
             continue;
         }
         if (!(v & WAITERS) && !__atomic_compare_exchange_n(l, &v, v | WAITERS, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED)) continue;
-        syscall(SYS_futex, l, FUTEX_WAIT_PRIVATE, v | WAITERS, NULL, NULL, 0);
+        syscall(SYS_futex, l, FUTEX_WAIT_PRIVATE, v | WAITERS, NULL, NULL, 0);   /* linux-only: os_unfair_lock over futex */
     }
 }
 static _Bool ul_trylock(uint32_t *l) {
@@ -59,7 +59,7 @@ static void ul_unlock(uint32_t *l) {
     uint32_t v = __atomic_load_n(l, __ATOMIC_RELAXED);
     if ((v & ~WAITERS) != self_id()) ul_crash("Unlock of an os_unfair_lock not owned by current thread");
     v = __atomic_exchange_n(l, 0, __ATOMIC_RELEASE);
-    if (v & WAITERS) syscall(SYS_futex, l, FUTEX_WAKE_PRIVATE, 1, NULL, NULL, 0);
+    if (v & WAITERS) syscall(SYS_futex, l, FUTEX_WAKE_PRIVATE, 1, NULL, NULL, 0);   /* linux-only: os_unfair_lock over futex */
 }
 static void ul_assert_owner(const uint32_t *l) {
     if ((__atomic_load_n(l, __ATOMIC_RELAXED) & ~WAITERS) != self_id()) ul_crash("os_unfair_lock is not owned by current thread");
@@ -97,7 +97,7 @@ static bool log_type_enabled(struct os_log_s *l, uint8_t type) { return l && !l-
 /* -[obj description].UTF8String through isim's Objective-C runtime */
 typedef void *(*imp_t)(void *, void *);
 extern void *object_getClass(void *);
-extern void *sel_registerName(const char *);
+ISIM_GUEST_ABI extern void *sel_registerName(const char *);
 extern void *class_getMethodImplementation(void *, void *);
 extern void *objc_autoreleasePoolPush(void);
 extern void objc_autoreleasePoolPop(void *);
@@ -209,7 +209,7 @@ static long rec_end;                                    /* the next sequence num
 static pthread_mutex_t store_lock = PTHREAD_MUTEX_INITIALIZER;
 static char *dupz(const char *s) { return strdup(s ? s : ""); }
 /* kind 0 log message, 1 signpost (sptype 0 event, 1 begin, 2 end) */
-void isim_log_record(int kind, int type, const char *subsystem, const char *category, const char *message,
+ISIM_GUEST_ABI void isim_log_record(int kind, int type, const char *subsystem, const char *category, const char *message,
                      const char *format, int sptype, uint64_t spid, const char *name) {
     struct timeval tv; gettimeofday(&tv, NULL);
     pthread_mutex_lock(&store_lock);
@@ -225,14 +225,14 @@ void isim_log_record(int kind, int type, const char *subsystem, const char *cate
     pthread_mutex_unlock(&store_lock);
 }
 /* the range of sequence numbers held: [*first, end) */
-long isim_log_range(long *first) {
+ISIM_GUEST_ABI long isim_log_range(long *first) {
     pthread_mutex_lock(&store_lock);
     long end = rec_end; if (first) *first = end > LOG_MAX ? end - LOG_MAX : 0;
     pthread_mutex_unlock(&store_lock);
     return end;
 }
 /* one entry: meta = kind, type, sptype; ids = signpost id, thread id; strs = 5 malloc'd copies (free them) */
-int isim_log_get(long seq, double *date, int meta[3], uint64_t ids[2], char *strs[5]) {
+ISIM_GUEST_ABI int isim_log_get(long seq, double *date, int meta[3], uint64_t ids[2], char *strs[5]) {
     pthread_mutex_lock(&store_lock);
     long first = rec_end > LOG_MAX ? rec_end - LOG_MAX : 0;
     if (!recs || seq < first || seq >= rec_end) { pthread_mutex_unlock(&store_lock); return 0; }
@@ -252,13 +252,13 @@ static struct metric *metric_slot(const char *key) {
     if (nmetrics >= 128) return NULL;
     struct metric *m = &metrics[nmetrics++]; snprintf(m->key, sizeof m->key, "%s", key); m->v = 0; return m;
 }
-void isim_metric_add(const char *key, double v) {
+ISIM_GUEST_ABI void isim_metric_add(const char *key, double v) {
     pthread_mutex_lock(&metric_lock); struct metric *m = metric_slot(key); if (m) m->v += v; pthread_mutex_unlock(&metric_lock);
 }
-void isim_metric_max(const char *key, double v) {
+ISIM_GUEST_ABI void isim_metric_max(const char *key, double v) {
     pthread_mutex_lock(&metric_lock); struct metric *m = metric_slot(key); if (m && v > m->v) m->v = v; pthread_mutex_unlock(&metric_lock);
 }
-double isim_metric_get(const char *key) {
+ISIM_GUEST_ABI double isim_metric_get(const char *key) {
     pthread_mutex_lock(&metric_lock); double v = 0;
     for (int i = 0; i < nmetrics; i++) if (!strcmp(metrics[i].key, key)) { v = metrics[i].v; break; }
     pthread_mutex_unlock(&metric_lock); return v;
@@ -326,7 +326,7 @@ static uint64_t sp_counter = 1;
 static uint64_t sp_generate(struct os_log_s *l) { (void)l; return __atomic_add_fetch(&sp_counter, 1, __ATOMIC_RELAXED) + 0x1000; }
 static uint64_t sp_with_pointer(struct os_log_s *l, const void *p) { (void)l; return (uint64_t)(uintptr_t)p; }
 static bool sp_enabled(struct os_log_s *l) { return l && !l->disabled; }
-void isim_signpost_print(const char *subsystem, const char *category, int sptype, uint64_t spid, const char *name, const char *msg) {
+ISIM_GUEST_ABI void isim_signpost_print(const char *subsystem, const char *category, int sptype, uint64_t spid, const char *name, const char *msg) {
     const char *e = getenv("ISIM_LOG_SIGNPOSTS");
     if (!e || strcmp(e, "1")) return;
     struct timeval tv; gettimeofday(&tv, NULL);

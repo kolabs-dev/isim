@@ -79,37 +79,37 @@ static void sa_to_darwin(const struct sockaddr *h, socklen_t hlen, void *dsa, so
 }
 
 /* read/write also serve sockets and pipes, where EAGAIN, ECONNRESET, ... must read as Darwin values */
-static ssize_t d_read(int fd, void *b, size_t n) { return NETRET(read(fd, b, n)); }
-static ssize_t d_write(int fd, const void *b, size_t n) { return NETRET(write(fd, b, n)); }
+ISIM_GUEST_ABI static ssize_t d_read(int fd, void *b, size_t n) { return NETRET(read(fd, b, n)); }
+ISIM_GUEST_ABI static ssize_t d_write(int fd, const void *b, size_t n) { return NETRET(write(fd, b, n)); }
 
-static int d_socket(int domain, int type, int proto) { return NETRET(socket(host_af(domain), type, proto)); }
-static int d_socketpair(int domain, int type, int proto, int sv[2]) { return NETRET(socketpair(host_af(domain), type, proto, sv)); }
-static int d_bind(int fd, const void *sa, socklen_t len) {
+ISIM_GUEST_ABI static int d_socket(int domain, int type, int proto) { return NETRET(socket(host_af(domain), type, proto)); }
+ISIM_GUEST_ABI static int d_socketpair(int domain, int type, int proto, int sv[2]) { return NETRET(socketpair(host_af(domain), type, proto, sv)); }   /* linux-only: the guest's socketpair / fd paths (libSystem over host sockets) */
+ISIM_GUEST_ABI static int d_bind(int fd, const void *sa, socklen_t len) {
     struct sockaddr_storage h; socklen_t n = sa_to_host(sa, len, &h);
     if (n == (socklen_t)-1) { errno = darwin_errno(errno); return -1; }
     return NETRET(bind(fd, (struct sockaddr *)&h, n));
 }
-static int d_connect(int fd, const void *sa, socklen_t len) {
+ISIM_GUEST_ABI static int d_connect(int fd, const void *sa, socklen_t len) {
     struct sockaddr_storage h; socklen_t n = sa_to_host(sa, len, &h);
     if (n == (socklen_t)-1) { errno = darwin_errno(errno); return -1; }
     return NETRET(connect(fd, (struct sockaddr *)&h, n));
 }
-static int d_listen(int fd, int backlog) { return NETRET(listen(fd, backlog)); }
-static int d_accept(int fd, void *sa, socklen_t *len) {
+ISIM_GUEST_ABI static int d_listen(int fd, int backlog) { return NETRET(listen(fd, backlog)); }
+ISIM_GUEST_ABI static int d_accept(int fd, void *sa, socklen_t *len) {
     struct sockaddr_storage h; socklen_t hl = sizeof h;
     int r = accept(fd, (struct sockaddr *)&h, &hl);
     if (r < 0) { errno = darwin_errno(errno); return r; }
     sa_to_darwin((struct sockaddr *)&h, hl, sa, len);
     return r;
 }
-static int d_getsockname(int fd, void *sa, socklen_t *len) {
+ISIM_GUEST_ABI static int d_getsockname(int fd, void *sa, socklen_t *len) {
     struct sockaddr_storage h; socklen_t hl = sizeof h;
     int r = getsockname(fd, (struct sockaddr *)&h, &hl);
     if (r < 0) { errno = darwin_errno(errno); return r; }
     sa_to_darwin((struct sockaddr *)&h, hl, sa, len);
     return 0;
 }
-static int d_getpeername(int fd, void *sa, socklen_t *len) {
+ISIM_GUEST_ABI static int d_getpeername(int fd, void *sa, socklen_t *len) {
     struct sockaddr_storage h; socklen_t hl = sizeof h;
     int r = getpeername(fd, (struct sockaddr *)&h, &hl);
     if (r < 0) { errno = darwin_errno(errno); return r; }
@@ -124,22 +124,22 @@ static int msg_flags(int d) {
     if (d & 0x80) f |= MSG_DONTWAIT;
     return f;
 }
-static ssize_t d_send(int fd, const void *b, size_t n, int fl) { return NETRET(send(fd, b, n, msg_flags(fl) | MSG_NOSIGNAL)); }
-static ssize_t d_recv(int fd, void *b, size_t n, int fl) { return NETRET(recv(fd, b, n, msg_flags(fl))); }
-static ssize_t d_sendto(int fd, const void *b, size_t n, int fl, const void *sa, socklen_t len) {
+ISIM_GUEST_ABI static ssize_t d_send(int fd, const void *b, size_t n, int fl) { return NETRET(send(fd, b, n, msg_flags(fl) | MSG_NOSIGNAL)); }
+ISIM_GUEST_ABI static ssize_t d_recv(int fd, void *b, size_t n, int fl) { return NETRET(recv(fd, b, n, msg_flags(fl))); }
+ISIM_GUEST_ABI static ssize_t d_sendto(int fd, const void *b, size_t n, int fl, const void *sa, socklen_t len) {
     if (!sa) return NETRET(sendto(fd, b, n, msg_flags(fl) | MSG_NOSIGNAL, NULL, 0));
     struct sockaddr_storage h; socklen_t hl = sa_to_host(sa, len, &h);
     if (hl == (socklen_t)-1) { errno = darwin_errno(errno); return -1; }
     return NETRET(sendto(fd, b, n, msg_flags(fl) | MSG_NOSIGNAL, (struct sockaddr *)&h, hl));
 }
-static ssize_t d_recvfrom(int fd, void *b, size_t n, int fl, void *sa, socklen_t *len) {
+ISIM_GUEST_ABI static ssize_t d_recvfrom(int fd, void *b, size_t n, int fl, void *sa, socklen_t *len) {
     struct sockaddr_storage h; socklen_t hl = sizeof h;
     ssize_t r = recvfrom(fd, b, n, msg_flags(fl), (struct sockaddr *)&h, &hl);
     if (r < 0) { errno = darwin_errno(errno); return r; }
     if (sa && len) { if (hl) sa_to_darwin((struct sockaddr *)&h, hl, sa, len); else *len = 0; }
     return r;
 }
-static int d_shutdown(int fd, int how) { return NETRET(shutdown(fd, how)); }
+ISIM_GUEST_ABI static int d_shutdown(int fd, int how) { return NETRET(shutdown(fd, how)); }
 
 /* socket options: (Darwin level, name) -> host; returns 0 if unknown */
 static int sockopt_map(int dlevel, int dname, int *level, int *name) {
@@ -183,7 +183,7 @@ static int sockopt_map(int dlevel, int dname, int *level, int *name) {
     }
 }
 struct d_timeval { long tv_sec; int tv_usec; };
-static int d_setsockopt(int fd, int dlevel, int dname, const void *val, socklen_t len) {
+ISIM_GUEST_ABI static int d_setsockopt(int fd, int dlevel, int dname, const void *val, socklen_t len) {
     if (dlevel == 0xffff && (dname == 0x1022 || dname == 0x1134)) return 0;   /* SO_NOSIGPIPE (sends never signal), SO_NOADDRERR */
     int level, name;
     if (!sockopt_map(dlevel, dname, &level, &name)) { errno = 42; return -1; }   /* ENOPROTOOPT */
@@ -193,7 +193,7 @@ static int d_setsockopt(int fd, int dlevel, int dname, const void *val, socklen_
     }
     return NETRET(setsockopt(fd, level, name, val, len));
 }
-static int d_getsockopt(int fd, int dlevel, int dname, void *val, socklen_t *len) {
+ISIM_GUEST_ABI static int d_getsockopt(int fd, int dlevel, int dname, void *val, socklen_t *len) {
     if (dlevel == 0xffff && dname == 0x1022) { if (val && len && *len >= sizeof(int)) { *(int *)val = 1; *len = sizeof(int); } return 0; }
     int level, name;
     if (!sockopt_map(dlevel, dname, &level, &name)) { errno = 42; return -1; }
@@ -230,7 +230,7 @@ static int eai_darwin(int e) {
     default: return 4;
     }
 }
-static int d_getaddrinfo(const char *node, const char *service, const struct d_addrinfo *dh, struct d_addrinfo **res) {
+ISIM_GUEST_ABI static int d_getaddrinfo(const char *node, const char *service, const struct d_addrinfo *dh, struct d_addrinfo **res) {
     struct addrinfo hints, *hres = NULL;
     memset(&hints, 0, sizeof hints);
     if (dh) {
@@ -254,10 +254,10 @@ static int d_getaddrinfo(const char *node, const char *service, const struct d_a
     *res = head;
     return 0;
 }
-static void d_freeaddrinfo(struct d_addrinfo *a) {
+ISIM_GUEST_ABI static void d_freeaddrinfo(struct d_addrinfo *a) {
     while (a) { struct d_addrinfo *n = a->ai_next; free(a->ai_canonname); free(a); a = n; }
 }
-static const char *d_gai_strerror(int e) {
+ISIM_GUEST_ABI static const char *d_gai_strerror(int e) {
     static const char *msg[] = { "Unknown error", "Address family for hostname not supported", "Temporary failure in name resolution",
         "Invalid value for ai_flags", "Non-recoverable failure in name resolution", "ai_family not supported", "Memory allocation failure",
         "No address associated with hostname", "nodename nor servname provided, or not known", "servname not supported for ai_socktype",
@@ -265,7 +265,7 @@ static const char *d_gai_strerror(int e) {
         "Argument buffer overflow" };
     return e >= 0 && e < (int)(sizeof msg / sizeof *msg) ? msg[e] : "Unknown error";
 }
-static int d_getnameinfo(const void *sa, socklen_t salen, char *host, socklen_t hostlen, char *serv, socklen_t servlen, int dflags) {
+ISIM_GUEST_ABI static int d_getnameinfo(const void *sa, socklen_t salen, char *host, socklen_t hostlen, char *serv, socklen_t servlen, int dflags) {
     struct sockaddr_storage h; socklen_t n = sa_to_host(sa, salen, &h);
     if (n == (socklen_t)-1) return 5;   /* EAI_FAMILY */
     int f = 0;
@@ -273,8 +273,8 @@ static int d_getnameinfo(const void *sa, socklen_t salen, char *host, socklen_t 
     if (dflags & 8) f |= NI_NUMERICSERV; if (dflags & 16) f |= NI_DGRAM;
     return eai_darwin(getnameinfo((struct sockaddr *)&h, n, host, hostlen, serv, servlen, f));
 }
-static int d_inet_pton(int af, const char *src, void *dst) { return NETRET(inet_pton(host_af(af), src, dst)); }
-static const char *d_inet_ntop(int af, const void *src, char *dst, socklen_t size) {
+ISIM_GUEST_ABI static int d_inet_pton(int af, const char *src, void *dst) { return NETRET(inet_pton(host_af(af), src, dst)); }
+ISIM_GUEST_ABI static const char *d_inet_ntop(int af, const void *src, char *dst, socklen_t size) {
     const char *r = inet_ntop(host_af(af), src, dst, size);
     if (!r) errno = darwin_errno(errno);
     return r;
@@ -284,7 +284,7 @@ static const char *d_inet_ntop(int af, const void *src, char *dst, socklen_t siz
 struct d_pollfd { int fd; short events, revents; };
 static short poll_host(short d) { short h = d & (POLLIN | POLLPRI | POLLOUT | POLLERR | POLLHUP | POLLNVAL | POLLRDNORM | POLLRDBAND); if (d & 0x100) h |= POLLWRBAND; return h; }
 static short poll_darwin(short h) { short d = h & (POLLIN | POLLPRI | POLLOUT | POLLERR | POLLHUP | POLLNVAL | POLLRDNORM | POLLRDBAND); if (h & POLLWRNORM) d |= POLLOUT; if (h & POLLWRBAND) d |= 0x100; return d; }
-static int d_poll(struct d_pollfd *fds, unsigned int n, int timeout) {   /* Darwin nfds_t is 32-bit */
+ISIM_GUEST_ABI static int d_poll(struct d_pollfd *fds, unsigned int n, int timeout) {   /* Darwin nfds_t is 32-bit */
     for (unsigned i = 0; i < n; i++) fds[i].events = poll_host(fds[i].events);
     int r = poll((struct pollfd *)fds, n, timeout);                     /* same layout */
     int e = errno;
@@ -293,7 +293,7 @@ static int d_poll(struct d_pollfd *fds, unsigned int n, int timeout) {   /* Darw
     return r;
 }
 /* fd_set: 1024 bits in 128 bytes on both, same bit order */
-static int d_select(int n, fd_set *r, fd_set *w, fd_set *x, struct d_timeval *dt) {
+ISIM_GUEST_ABI static int d_select(int n, fd_set *r, fd_set *w, fd_set *x, struct d_timeval *dt) {
     struct timeval tv, *tp = NULL;
     if (dt) { tv.tv_sec = dt->tv_sec; tv.tv_usec = dt->tv_usec; tp = &tv; }
     int res = select(n, r, w, x, tp);
@@ -308,7 +308,7 @@ static int oflags_host(long d) { int f = (int)(d & 3); if (d & 4) f |= O_NONBLOC
 static long oflags_darwin(int h) { long d = h & 3; if (h & O_NONBLOCK) d |= 4; if (h & O_APPEND) d |= 8; if (h & O_ASYNC) d |= 0x40; return d; }
 static short lock_type_host(short t) { return t == 1 ? F_RDLCK : t == 3 ? F_WRLCK : F_UNLCK; }      /* Darwin: RD 1, UN 2, WR 3 */
 static short lock_type_darwin(short t) { return t == F_RDLCK ? 1 : t == F_WRLCK ? 3 : 2; }
-static int d_fcntl(int fd, int cmd, long arg) {
+ISIM_GUEST_ABI static int d_fcntl(int fd, int cmd, long arg) {
     switch (cmd) {
     case 0: return NETRET(fcntl(fd, F_DUPFD, (int)arg));
     case 67: return NETRET(fcntl(fd, F_DUPFD_CLOEXEC, (int)arg));
@@ -325,7 +325,7 @@ static int d_fcntl(int fd, int cmd, long arg) {
         return r;
     }
     case 50: {                                        /* F_GETPATH: buffer of MAXPATHLEN (1024) */
-        char link[64]; snprintf(link, sizeof link, "/proc/self/fd/%d", fd);
+        char link[64]; snprintf(link, sizeof link, "/proc/self/fd/%d", fd);   /* linux-only: the guest's socketpair / fd paths (libSystem over host sockets) */
         ssize_t n = readlink(link, (char *)arg, 1023);
         if (n < 0) { errno = darwin_errno(errno); return -1; }
         ((char *)arg)[n] = 0; return 0;
@@ -335,7 +335,7 @@ static int d_fcntl(int fd, int cmd, long arg) {
     default: errno = EINVAL; return -1;
     }
 }
-static int d_ioctl(int fd, unsigned long req, void *arg) {
+ISIM_GUEST_ABI static int d_ioctl(int fd, unsigned long req, void *arg) {
     switch (req) {
     case 0x8004667eUL: return NETRET(ioctl(fd, FIONBIO, arg));      /* FIONBIO */
     case 0x4004667fUL: return NETRET(ioctl(fd, FIONREAD, arg));     /* FIONREAD */
@@ -350,7 +350,7 @@ static int d_ioctl(int fd, unsigned long req, void *arg) {
 /* ---- interfaces ---- */
 struct d_ifaddrs { struct d_ifaddrs *ifa_next; char *ifa_name; unsigned int ifa_flags; void *ifa_addr, *ifa_netmask, *ifa_dst; void *ifa_data; };  /* ifa_dst: Darwin ifa_dstaddr (a macro on Linux) */
 static unsigned int iff_darwin(unsigned int h) { unsigned int d = h & 0x3ff & ~0x400u; if (h & IFF_MULTICAST) d |= 0x8000; return d; }
-static int d_getifaddrs(struct d_ifaddrs **out) {
+ISIM_GUEST_ABI static int d_getifaddrs(struct d_ifaddrs **out) {
     struct ifaddrs *list;
     if (getifaddrs(&list) < 0) { errno = darwin_errno(errno); return -1; }
     struct d_ifaddrs *head = NULL, **tail = &head;
@@ -374,7 +374,7 @@ static int d_getifaddrs(struct d_ifaddrs **out) {
     *out = head;
     return 0;
 }
-static void d_freeifaddrs(struct d_ifaddrs *a) { while (a) { struct d_ifaddrs *n = a->ifa_next; free(a); a = n; } }
+ISIM_GUEST_ABI static void d_freeifaddrs(struct d_ifaddrs *a) { while (a) { struct d_ifaddrs *n = a->ifa_next; free(a); a = n; } }
 
 #define SOCKET_SHIMS \
     A("_socket", d_socket), A("_socketpair", d_socketpair), A("_bind", d_bind), A("_connect", d_connect), A("_listen", d_listen), \

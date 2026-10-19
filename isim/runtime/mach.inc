@@ -50,15 +50,15 @@ struct m_time_value { integer_t seconds, microseconds; };
 static uint64_t mach_msgs_sent, mach_msgs_received;          /* TASK_EVENTS_INFO */
 
 /* ---------------- time ---------------- */
-static uint64_t d_mach_absolute_time(void) { return d_clock_gettime_nsec_np(8); }   /* Darwin: CLOCK_UPTIME_RAW */
-static uint64_t d_mach_continuous_time(void) {          /* absolute time + time suspended (BOOTTIME - MONOTONIC) */
+ISIM_GUEST_ABI static uint64_t d_mach_absolute_time(void) { return d_clock_gettime_nsec_np(8); }   /* Darwin: CLOCK_UPTIME_RAW */
+ISIM_GUEST_ABI static uint64_t d_mach_continuous_time(void) {          /* absolute time + time suspended (BOOTTIME - MONOTONIC) */
     struct timespec b, m; clock_gettime(CLOCK_BOOTTIME, &b); clock_gettime(CLOCK_MONOTONIC, &m);
     int64_t asleep = (int64_t)(b.tv_sec - m.tv_sec) * 1000000000ll + (b.tv_nsec - m.tv_nsec);
     return d_mach_absolute_time() + (uint64_t)(asleep > 0 ? asleep : 0);
 }
 struct d_timebase { uint32_t numer, denom; };
-static int d_mach_timebase_info(struct d_timebase *tb) { tb->numer = 1; tb->denom = 1; return 0; }
-static kern_return_t d_mach_wait_until(uint64_t deadline) {
+ISIM_GUEST_ABI static int d_mach_timebase_info(struct d_timebase *tb) { tb->numer = 1; tb->denom = 1; return 0; }
+ISIM_GUEST_ABI static kern_return_t d_mach_wait_until(uint64_t deadline) {
     for (uint64_t now; (now = d_mach_absolute_time()) < deadline;) {
         uint64_t d = deadline - now;
         struct timespec ts = { (time_t)(d / 1000000000ull), (long)(d % 1000000000ull) };
@@ -75,7 +75,7 @@ static kern_return_t d_mach_wait_until(uint64_t deadline) {
 #define THREAD_PORT 0x40000000u                 /* | Linux tid */
 static unsigned int d_mach_task_self_ = TASK_PORT;
 static uintptr_t d_vm_page_size, d_vm_page_mask; static int d_vm_page_shift;
-static mach_port_name_t d_mach_host_self(void) { return HOST_PORT; }
+ISIM_GUEST_ABI static mach_port_name_t d_mach_host_self(void) { return HOST_PORT; }
 static int is_task(mach_port_name_t t) { return t == TASK_PORT; }
 
 /* ---------------- threads: pthread_t <-> Linux tid (registered when they start) ---------------- */
@@ -118,17 +118,17 @@ static void *thread_trampoline(void *p) {
     treg_add();
     return s.fn(s.arg);
 }
-static mach_port_name_t d_pthread_mach_thread_np(pthread_t t) {
+ISIM_GUEST_ABI static mach_port_name_t d_pthread_mach_thread_np(pthread_t t) {
     pid_t tid = tid_of(t);
     return tid ? THREAD_PORT | (unsigned)tid : (unsigned int)(((uintptr_t)t >> 12) & 0x3fffffff) | 1;
 }
-static pthread_t d_pthread_from_mach_thread_np(mach_port_name_t port) { return port & THREAD_PORT ? pthread_of((pid_t)(port & ~THREAD_PORT)) : 0; }
-static int d_pthread_threadid_np(pthread_t t, uint64_t *id) {   /* the Linux tid (NULL: the calling thread) */
+ISIM_GUEST_ABI static pthread_t d_pthread_from_mach_thread_np(mach_port_name_t port) { return port & THREAD_PORT ? pthread_of((pid_t)(port & ~THREAD_PORT)) : 0; }
+ISIM_GUEST_ABI static int d_pthread_threadid_np(pthread_t t, uint64_t *id) {   /* the Linux tid (NULL: the calling thread) */
     pid_t tid = tid_of(t ? t : pthread_self());
     if (id) *id = tid ? (uint64_t)tid : (uint64_t)(uintptr_t)t;
     return 0;
 }
-static mach_port_name_t d_mach_thread_self(void) { treg_add(); return THREAD_PORT | (unsigned)gettid(); }
+ISIM_GUEST_ABI static mach_port_name_t d_mach_thread_self(void) { treg_add(); return THREAD_PORT | (unsigned)gettid(); }
 
 /* ---------------- /proc ---------------- */
 static ssize_t read_text(const char *path, char *buf, size_t cap) {
@@ -151,7 +151,7 @@ static uint64_t field_num(const char *text, const char *key) {
 struct tstat { char state; uint64_t utime, stime, start; };          /* clock ticks */
 static int thread_stat(pid_t tid, struct tstat *s) {
     char path[64], buf[1024];
-    snprintf(path, sizeof path, "/proc/self/task/%d/stat", tid);
+    snprintf(path, sizeof path, "/proc/self/task/%d/stat", tid);   /* linux-only: Mach task and thread info over procfs */
     if (read_text(path, buf, sizeof buf) <= 0) return -1;
     char *p = strrchr(buf, ')');
     if (!p) return -1;
@@ -196,7 +196,7 @@ static int valid_thread(mach_port_name_t port, pid_t *tid, struct tstat *s) {
     *tid = (pid_t)(port & ~THREAD_PORT);
     return thread_stat(*tid, s) == 0 && s->state != 'Z' && s->state != 'X';     /* an exited thread is gone */
 }
-static kern_return_t d_thread_info(mach_port_name_t port, natural_t flavor, integer_t *info, natural_t *count) {
+ISIM_GUEST_ABI static kern_return_t d_thread_info(mach_port_name_t port, natural_t flavor, integer_t *info, natural_t *count) {
     pid_t tid; struct tstat s;
     if (!valid_thread(port, &tid, &s)) return M_SEND_INVALID_DEST;
     struct rusage ru; int self = tid == gettid() && getrusage(RUSAGE_THREAD, &ru) == 0;   /* the caller: exact times */
@@ -223,7 +223,7 @@ static kern_return_t d_thread_info(mach_port_name_t port, natural_t flavor, inte
         b.system_ns = self ? (uint64_t)ru.ru_stime.tv_sec * 1000000000ull + ru.ru_stime.tv_usec * 1000ull : s.stime * 1000000000ull / clk_tck();
         b.cpu_usage = cpu_usage(tid, &s); b.policy = 1; b.run_state = self ? 1 : run_state(s.state);
         b.curpri = b.priority = 31; b.maxpriority = 63;
-        char path[64]; snprintf(path, sizeof path, "/proc/self/task/%d/comm", tid);
+        char path[64]; snprintf(path, sizeof path, "/proc/self/task/%d/comm", tid);   /* linux-only: Mach task and thread info over procfs */
         if (read_text(path, b.name, sizeof b.name) > 0) b.name[strcspn(b.name, "\n")] = 0;
         if (*count < sizeof b / 4) return M_KERN_INVALID_ARGUMENT;
         memcpy(info, &b, sizeof b); *count = sizeof b / 4;
@@ -234,7 +234,7 @@ static kern_return_t d_thread_info(mach_port_name_t port, natural_t flavor, inte
 }
 static int cmp_int(const void *a, const void *b) { int x = *(const int *)a, y = *(const int *)b; return (x > y) - (x < y); }
 static int thread_ids(int **out) {
-    DIR *d = opendir("/proc/self/task");
+    DIR *d = opendir("/proc/self/task");   /* linux-only: Mach task and thread info over procfs */
     int n = 0, cap = 64, *ids = malloc(cap * sizeof *ids);
     for (struct dirent *e; d && (e = readdir(d));) {
         int tid = atoi(e->d_name);
@@ -251,7 +251,7 @@ static void *vm_alloc_bytes(size_t n) {               /* out-of-line results: th
     void *p = mmap(NULL, n ? n : 1, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     return p == MAP_FAILED ? NULL : p;
 }
-static kern_return_t d_task_threads(mach_port_name_t task, mach_port_name_t **list, natural_t *count) {
+ISIM_GUEST_ABI static kern_return_t d_task_threads(mach_port_name_t task, mach_port_name_t **list, natural_t *count) {
     if (!is_task(task)) return M_SEND_INVALID_DEST;
     int *ids; int n = thread_ids(&ids);
     mach_port_name_t *ports = vm_alloc_bytes(n * sizeof *ports);
@@ -261,11 +261,11 @@ static kern_return_t d_task_threads(mach_port_name_t task, mach_port_name_t **li
     *list = ports; *count = (natural_t)n;
     return M_KERN_SUCCESS;
 }
-static kern_return_t d_thread_policy_set(mach_port_name_t thread, natural_t flavor, integer_t *info, natural_t count) {
+ISIM_GUEST_ABI static kern_return_t d_thread_policy_set(mach_port_name_t thread, natural_t flavor, integer_t *info, natural_t count) {
     pid_t tid; struct tstat s;
     return valid_thread(thread, &tid, &s) ? M_KERN_SUCCESS : M_SEND_INVALID_DEST;   /* accepted, not applied */
 }
-static kern_return_t d_thread_policy_get(mach_port_name_t thread, natural_t flavor, integer_t *info, natural_t *count, int *get_default) {
+ISIM_GUEST_ABI static kern_return_t d_thread_policy_get(mach_port_name_t thread, natural_t flavor, integer_t *info, natural_t *count, int *get_default) {
     pid_t tid; struct tstat s;
     if (!valid_thread(thread, &tid, &s)) return M_SEND_INVALID_DEST;
     if (!*count) return M_KERN_INVALID_ARGUMENT;
@@ -285,9 +285,9 @@ static uint64_t device_memory(void) {                  /* as NSProcessInfo.physi
 
 /* ---------------- task_info ---------------- */
 static uint64_t footprint_peak;
-static kern_return_t d_task_info(mach_port_name_t task, natural_t flavor, integer_t *info, natural_t *count) {
+ISIM_GUEST_ABI static kern_return_t d_task_info(mach_port_name_t task, natural_t flavor, integer_t *info, natural_t *count) {
     if (!is_task(task)) return M_SEND_INVALID_DEST;
-    char st[4096]; read_text("/proc/self/status", st, sizeof st);
+    char st[4096]; read_text("/proc/self/status", st, sizeof st);   /* linux-only: Mach task and thread info over procfs */
     uint64_t vsize = field_kb(st, "VmSize:"), rss = field_kb(st, "VmRSS:"), hwm = field_kb(st, "VmHWM:");
     uint64_t anon = field_kb(st, "RssAnon:"), file = field_kb(st, "RssFile:"), shmem = field_kb(st, "RssShmem:");
     uint64_t swap = field_kb(st, "VmSwap:"), footprint = anon + shmem + swap;
@@ -331,7 +331,7 @@ static kern_return_t d_task_info(mach_port_name_t task, natural_t flavor, intege
         return M_KERN_SUCCESS;
     }
     case 2: {                                                       /* TASK_EVENTS_INFO */
-        char stat[1024]; read_text("/proc/self/stat", stat, sizeof stat);
+        char stat[1024]; read_text("/proc/self/stat", stat, sizeof stat);   /* linux-only: Mach task and thread info over procfs */
         unsigned long long minflt = 0, majflt = 0; char *p = strrchr(stat, ')');
         if (p) sscanf(p + 2, "%*c %*d %*d %*d %*d %*d %*u %llu %*u %llu", &minflt, &majflt);
         integer_t b[8] = { (integer_t)(minflt + majflt), (integer_t)majflt, 0, 0, 0, 0, 0,
@@ -355,7 +355,7 @@ static kern_return_t d_task_info(mach_port_name_t task, natural_t flavor, intege
             int64_t neural_total, neural_peak;                         /* rev7 */
         } b;
         memset(&b, 0, sizeof b);
-        char *maps = malloc(1 << 18); ssize_t n = read_text("/proc/self/maps", maps, 1 << 18);
+        char *maps = malloc(1 << 18); ssize_t n = read_text("/proc/self/maps", maps, 1 << 18);   /* linux-only: Mach task and thread info over procfs */
         int regions = 0; uint64_t lo = UINT64_MAX, hi = 0;
         for (char *line = maps; n > 0 && *line;) {
             unsigned long long a, z;
@@ -387,12 +387,12 @@ static kern_return_t d_task_info(mach_port_name_t task, natural_t flavor, intege
 
 /* ---------------- host ---------------- */
 static int ncpus(void) { long n = sysconf(_SC_NPROCESSORS_ONLN); return n > 0 ? (int)n : 1; }
-static kern_return_t d_host_page_size(mach_port_name_t host, uintptr_t *size) {
+ISIM_GUEST_ABI static kern_return_t d_host_page_size(mach_port_name_t host, uintptr_t *size) {
     if (host != HOST_PORT) return M_SEND_INVALID_DEST;
     *size = d_vm_page_size;
     return M_KERN_SUCCESS;
 }
-static kern_return_t d_host_info(mach_port_name_t host, natural_t flavor, integer_t *info, natural_t *count) {
+ISIM_GUEST_ABI static kern_return_t d_host_info(mach_port_name_t host, natural_t flavor, integer_t *info, natural_t *count) {
     if (host != HOST_PORT) return M_SEND_INVALID_DEST;
     if (flavor == 1) {                                              /* HOST_BASIC_INFO */
         uint64_t mem = device_memory();
@@ -418,7 +418,7 @@ static int cpu_ticks(int cpu, natural_t t[4]) {
     static pthread_mutex_t lk = PTHREAD_MUTEX_INITIALIZER;
     pthread_mutex_lock(&lk);
     int found = 0;
-    if (read_text("/proc/stat", buf, sizeof buf) > 0) {
+    if (read_text("/proc/stat", buf, sizeof buf) > 0) {   /* linux-only: Mach task and thread info over procfs */
         char want[16]; if (cpu < 0) snprintf(want, sizeof want, "cpu "); else snprintf(want, sizeof want, "cpu%d ", cpu);
         char *p = strstr(buf, want);
         unsigned long long user, nice, sys, idle, iowait = 0, irq = 0, softirq = 0;
@@ -435,8 +435,8 @@ static int cpu_ticks(int cpu, natural_t t[4]) {
 struct vmstats { uint64_t free, active, inactive, wire, internal, external, faults, pageins, pageouts, swapins, swapouts; };
 static void vm_stats(struct vmstats *v) {
     char mi[4096], vs[1 << 14];
-    read_text("/proc/meminfo", mi, sizeof mi);
-    if (read_text("/proc/vmstat", vs, sizeof vs) < 0) vs[0] = 0;
+    read_text("/proc/meminfo", mi, sizeof mi);   /* linux-only: Mach task and thread info over procfs */
+    if (read_text("/proc/vmstat", vs, sizeof vs) < 0) vs[0] = 0;   /* linux-only: Mach task and thread info over procfs */
     uint64_t total = field_kb(mi, "MemTotal:"), page = d_vm_page_size;
     double scale = total ? (double)device_memory() / total : 1;
     uint64_t freeb = field_kb(mi, "MemFree:"), act = field_kb(mi, "Active:"), inact = field_kb(mi, "Inactive:");
@@ -448,12 +448,12 @@ static void vm_stats(struct vmstats *v) {
     v->faults = field_num(vs, "\npgfault "); v->pageins = field_num(vs, "\npgmajfault ");
     v->pageouts = field_num(vs, "\npswpout "); v->swapins = field_num(vs, "\npswpin "); v->swapouts = v->pageouts;
 }
-static kern_return_t d_host_statistics(mach_port_name_t host, natural_t flavor, integer_t *info, natural_t *count) {
+ISIM_GUEST_ABI static kern_return_t d_host_statistics(mach_port_name_t host, natural_t flavor, integer_t *info, natural_t *count) {
     if (host != HOST_PORT) return M_SEND_INVALID_DEST;
     switch (flavor) {
     case 1: {                                                       /* HOST_LOAD_INFO: load averages * LOAD_SCALE */
         double l[3] = {0};
-        char buf[128]; if (read_text("/proc/loadavg", buf, sizeof buf) > 0) sscanf(buf, "%lf %lf %lf", &l[0], &l[1], &l[2]);
+        char buf[128]; if (read_text("/proc/loadavg", buf, sizeof buf) > 0) sscanf(buf, "%lf %lf %lf", &l[0], &l[1], &l[2]);   /* linux-only: Mach task and thread info over procfs */
         if (*count < 6) return M_KERN_FAILURE;
         for (int i = 0; i < 3; i++) { info[i] = (integer_t)(l[i] * 1000); info[3 + i] = (integer_t)(ncpus() * 1000 - l[i] * 1000 > 0 ? ncpus() * 1000 - l[i] * 1000 : 0); }
         *count = 6;
@@ -477,7 +477,7 @@ static kern_return_t d_host_statistics(mach_port_name_t host, natural_t flavor, 
     default: return M_KERN_INVALID_ARGUMENT;
     }
 }
-static kern_return_t d_host_statistics64(mach_port_name_t host, natural_t flavor, integer_t *info, natural_t *count) {
+ISIM_GUEST_ABI static kern_return_t d_host_statistics64(mach_port_name_t host, natural_t flavor, integer_t *info, natural_t *count) {
     if (host != HOST_PORT) return M_SEND_INVALID_DEST;
     if (flavor != 4) return d_host_statistics(host, flavor, info, count);   /* HOST_VM_INFO64 */
     struct vmstats v; vm_stats(&v);
@@ -500,7 +500,7 @@ static kern_return_t d_host_statistics64(mach_port_name_t host, natural_t flavor
     memcpy(info, &b, give * 4); *count = give;
     return M_KERN_SUCCESS;
 }
-static kern_return_t d_host_processor_info(mach_port_name_t host, natural_t flavor, natural_t *nproc, integer_t **info, natural_t *count) {
+ISIM_GUEST_ABI static kern_return_t d_host_processor_info(mach_port_name_t host, natural_t flavor, natural_t *nproc, integer_t **info, natural_t *count) {
     if (host != HOST_PORT) return M_SEND_INVALID_DEST;
     int n = ncpus();
     if (flavor == 2) {                                              /* PROCESSOR_CPU_LOAD_INFO */
@@ -522,13 +522,13 @@ static kern_return_t d_host_processor_info(mach_port_name_t host, natural_t flav
 
 /* ---------------- clocks ---------------- */
 struct m_timespec { unsigned int tv_sec; int tv_nsec; };
-static kern_return_t d_host_get_clock_service(mach_port_name_t host, int clock_id, mach_port_name_t *clock) {
+ISIM_GUEST_ABI static kern_return_t d_host_get_clock_service(mach_port_name_t host, int clock_id, mach_port_name_t *clock) {
     if (host != HOST_PORT) return M_SEND_INVALID_DEST;
     if (clock_id != 0 && clock_id != 1) return M_KERN_INVALID_ARGUMENT;
     *clock = clock_id ? CALENDAR_CLOCK_PORT : SYSTEM_CLOCK_PORT;
     return M_KERN_SUCCESS;
 }
-static kern_return_t d_clock_get_time(mach_port_name_t clock, struct m_timespec *t) {
+ISIM_GUEST_ABI static kern_return_t d_clock_get_time(mach_port_name_t clock, struct m_timespec *t) {
     if (clock != SYSTEM_CLOCK_PORT && clock != CALENDAR_CLOCK_PORT) return M_SEND_INVALID_DEST;
     struct timespec ts; clock_gettime(clock == SYSTEM_CLOCK_PORT ? CLOCK_MONOTONIC_RAW : CLOCK_REALTIME, &ts);
     t->tv_sec = (unsigned int)ts.tv_sec; t->tv_nsec = (int)ts.tv_nsec;
@@ -586,16 +586,16 @@ static kern_return_t vm_read_over(mach_port_name_t task, uint64_t addr, uint64_t
     if (kr == M_KERN_SUCCESS && out) *out = size;
     return kr;
 }
-static kern_return_t d_vm_allocate(mach_port_name_t t, uintptr_t *a, uintptr_t s, int f) { uint64_t x = *a; kern_return_t r = vm_alloc(t, &x, s, f); if (!r) *a = (uintptr_t)x; return r; }
-static kern_return_t d_vm_deallocate(mach_port_name_t t, uintptr_t a, uintptr_t s) { return vm_dealloc(t, a, s); }
-static kern_return_t d_vm_protect(mach_port_name_t t, uintptr_t a, uintptr_t s, int m, int p) { return vm_prot(t, a, s, m, p); }
-static kern_return_t d_vm_read_overwrite(mach_port_name_t t, uintptr_t a, uintptr_t s, uintptr_t d, uintptr_t *o) {
+ISIM_GUEST_ABI static kern_return_t d_vm_allocate(mach_port_name_t t, uintptr_t *a, uintptr_t s, int f) { uint64_t x = *a; kern_return_t r = vm_alloc(t, &x, s, f); if (!r) *a = (uintptr_t)x; return r; }
+ISIM_GUEST_ABI static kern_return_t d_vm_deallocate(mach_port_name_t t, uintptr_t a, uintptr_t s) { return vm_dealloc(t, a, s); }
+ISIM_GUEST_ABI static kern_return_t d_vm_protect(mach_port_name_t t, uintptr_t a, uintptr_t s, int m, int p) { return vm_prot(t, a, s, m, p); }
+ISIM_GUEST_ABI static kern_return_t d_vm_read_overwrite(mach_port_name_t t, uintptr_t a, uintptr_t s, uintptr_t d, uintptr_t *o) {
     uint64_t n = 0; kern_return_t r = vm_read_over(t, a, s, d, &n); if (!r && o) *o = (uintptr_t)n; return r;
 }
-static kern_return_t d_mach_vm_allocate(mach_port_name_t t, uint64_t *a, uint64_t s, int f) { return vm_alloc(t, a, s, f); }
-static kern_return_t d_mach_vm_deallocate(mach_port_name_t t, uint64_t a, uint64_t s) { return vm_dealloc(t, a, s); }
-static kern_return_t d_mach_vm_protect(mach_port_name_t t, uint64_t a, uint64_t s, int m, int p) { return vm_prot(t, a, s, m, p); }
-static kern_return_t d_mach_vm_read_overwrite(mach_port_name_t t, uint64_t a, uint64_t s, uint64_t d, uint64_t *o) { return vm_read_over(t, a, s, d, o); }
+ISIM_GUEST_ABI static kern_return_t d_mach_vm_allocate(mach_port_name_t t, uint64_t *a, uint64_t s, int f) { return vm_alloc(t, a, s, f); }
+ISIM_GUEST_ABI static kern_return_t d_mach_vm_deallocate(mach_port_name_t t, uint64_t a, uint64_t s) { return vm_dealloc(t, a, s); }
+ISIM_GUEST_ABI static kern_return_t d_mach_vm_protect(mach_port_name_t t, uint64_t a, uint64_t s, int m, int p) { return vm_prot(t, a, s, m, p); }
+ISIM_GUEST_ABI static kern_return_t d_mach_vm_read_overwrite(mach_port_name_t t, uint64_t a, uint64_t s, uint64_t d, uint64_t *o) { return vm_read_over(t, a, s, d, o); }
 
 /* ---------------- ports and semaphores (names of this process) ---------------- */
 struct mmsg { struct mmsg *next; uint32_t size, bits, reply, reply_type, dest_type; uint8_t data[]; };
@@ -656,7 +656,7 @@ static struct timespec deadline_ms(uint32_t ms) {
     return ts;
 }
 
-static kern_return_t d_mach_port_allocate(mach_port_name_t task, natural_t right, mach_port_name_t *name) {
+ISIM_GUEST_ABI static kern_return_t d_mach_port_allocate(mach_port_name_t task, natural_t right, mach_port_name_t *name) {
     if (!is_task(task)) return M_SEND_INVALID_DEST;
     if (right != 1 && right != 4) return M_KERN_INVALID_VALUE;     /* RECEIVE, DEAD_NAME (port sets: unsupported) */
     pthread_mutex_lock(&mport_lock);
@@ -666,9 +666,9 @@ static kern_return_t d_mach_port_allocate(mach_port_name_t task, natural_t right
     pthread_mutex_unlock(&mport_lock);
     return M_KERN_SUCCESS;
 }
-static mach_port_name_t d_mach_reply_port(void) { mach_port_name_t n = 0; d_mach_port_allocate(TASK_PORT, 1, &n); return n; }
+ISIM_GUEST_ABI static mach_port_name_t d_mach_reply_port(void) { mach_port_name_t n = 0; d_mach_port_allocate(TASK_PORT, 1, &n); return n; }
 struct m_port_options { uint32_t flags; uint32_t qlimit; uint64_t reserved[2]; };
-static kern_return_t d_mach_port_construct(mach_port_name_t task, struct m_port_options *o, uint64_t context, mach_port_name_t *name) {
+ISIM_GUEST_ABI static kern_return_t d_mach_port_construct(mach_port_name_t task, struct m_port_options *o, uint64_t context, mach_port_name_t *name) {
     if (!is_task(task)) return M_SEND_INVALID_DEST;
     pthread_mutex_lock(&mport_lock);
     struct mport *p = mport_new(K_PORT);
@@ -679,7 +679,7 @@ static kern_return_t d_mach_port_construct(mach_port_name_t task, struct m_port_
     pthread_mutex_unlock(&mport_lock);
     return M_KERN_SUCCESS;
 }
-static kern_return_t d_mach_port_destruct(mach_port_name_t task, mach_port_name_t name, int srdelta, uint64_t guard) {
+ISIM_GUEST_ABI static kern_return_t d_mach_port_destruct(mach_port_name_t task, mach_port_name_t name, int srdelta, uint64_t guard) {
     if (!is_task(task)) return M_SEND_INVALID_DEST;
     pthread_mutex_lock(&mport_lock);
     struct mport *p = mport_find(name);
@@ -691,7 +691,7 @@ static kern_return_t d_mach_port_destruct(mach_port_name_t task, mach_port_name_
     pthread_mutex_unlock(&mport_lock);
     return r;
 }
-static kern_return_t d_mach_port_insert_right(mach_port_name_t task, mach_port_name_t name, mach_port_name_t poly, natural_t type) {
+ISIM_GUEST_ABI static kern_return_t d_mach_port_insert_right(mach_port_name_t task, mach_port_name_t name, mach_port_name_t poly, natural_t type) {
     if (!is_task(task)) return M_SEND_INVALID_DEST;
     if (name != poly) return M_KERN_INVALID_VALUE;                 /* a right under another name: unsupported */
     pthread_mutex_lock(&mport_lock);
@@ -705,7 +705,7 @@ static kern_return_t d_mach_port_insert_right(mach_port_name_t task, mach_port_n
     pthread_mutex_unlock(&mport_lock);
     return r;
 }
-static kern_return_t d_mach_port_deallocate(mach_port_name_t task, mach_port_name_t name) {
+ISIM_GUEST_ABI static kern_return_t d_mach_port_deallocate(mach_port_name_t task, mach_port_name_t name) {
     if (!is_task(task)) return M_SEND_INVALID_DEST;
     if (special_name(name) || name == 0 || name == ~0u) return M_KERN_SUCCESS;
     pthread_mutex_lock(&mport_lock);
@@ -718,7 +718,7 @@ static kern_return_t d_mach_port_deallocate(mach_port_name_t task, mach_port_nam
     pthread_mutex_unlock(&mport_lock);
     return r;
 }
-static kern_return_t d_mach_port_destroy(mach_port_name_t task, mach_port_name_t name) {
+ISIM_GUEST_ABI static kern_return_t d_mach_port_destroy(mach_port_name_t task, mach_port_name_t name) {
     if (!is_task(task)) return M_SEND_INVALID_DEST;
     pthread_mutex_lock(&mport_lock);
     struct mport *p = mport_find(name);
@@ -728,7 +728,7 @@ static kern_return_t d_mach_port_destroy(mach_port_name_t task, mach_port_name_t
     pthread_mutex_unlock(&mport_lock);
     return r;
 }
-static kern_return_t d_mach_port_mod_refs(mach_port_name_t task, mach_port_name_t name, natural_t right, int delta) {
+ISIM_GUEST_ABI static kern_return_t d_mach_port_mod_refs(mach_port_name_t task, mach_port_name_t name, natural_t right, int delta) {
     if (!is_task(task)) return M_SEND_INVALID_DEST;
     if (special_name(name)) return M_KERN_SUCCESS;
     pthread_mutex_lock(&mport_lock);
@@ -750,7 +750,7 @@ static kern_return_t d_mach_port_mod_refs(mach_port_name_t task, mach_port_name_
     pthread_mutex_unlock(&mport_lock);
     return r;
 }
-static kern_return_t d_mach_port_get_refs(mach_port_name_t task, mach_port_name_t name, natural_t right, natural_t *refs) {
+ISIM_GUEST_ABI static kern_return_t d_mach_port_get_refs(mach_port_name_t task, mach_port_name_t name, natural_t right, natural_t *refs) {
     if (!is_task(task)) return M_SEND_INVALID_DEST;
     pthread_mutex_lock(&mport_lock);
     struct mport *p = mport_find(name);
@@ -761,7 +761,7 @@ static kern_return_t d_mach_port_get_refs(mach_port_name_t task, mach_port_name_
     pthread_mutex_unlock(&mport_lock);
     return r;
 }
-static kern_return_t d_mach_port_type(mach_port_name_t task, mach_port_name_t name, natural_t *type) {
+ISIM_GUEST_ABI static kern_return_t d_mach_port_type(mach_port_name_t task, mach_port_name_t name, natural_t *type) {
     if (!is_task(task)) return M_SEND_INVALID_DEST;
     if (special_name(name)) { *type = 1u << 16; return M_KERN_SUCCESS; }   /* a send right */
     pthread_mutex_lock(&mport_lock);
@@ -772,7 +772,7 @@ static kern_return_t d_mach_port_type(mach_port_name_t task, mach_port_name_t na
     pthread_mutex_unlock(&mport_lock);
     return r;
 }
-static kern_return_t d_mach_port_set_attributes(mach_port_name_t task, mach_port_name_t name, int flavor, integer_t *info, natural_t count) {
+ISIM_GUEST_ABI static kern_return_t d_mach_port_set_attributes(mach_port_name_t task, mach_port_name_t name, int flavor, integer_t *info, natural_t count) {
     if (!is_task(task)) return M_SEND_INVALID_DEST;
     if (flavor != 1 || count < 1) return M_KERN_INVALID_ARGUMENT;      /* MACH_PORT_LIMITS_INFO */
     pthread_mutex_lock(&mport_lock);
@@ -785,7 +785,7 @@ static kern_return_t d_mach_port_set_attributes(mach_port_name_t task, mach_port
     return r;
 }
 
-static kern_return_t d_mach_port_get_attributes(mach_port_name_t task, mach_port_name_t name, int flavor, integer_t *info, natural_t *count) {
+ISIM_GUEST_ABI static kern_return_t d_mach_port_get_attributes(mach_port_name_t task, mach_port_name_t name, int flavor, integer_t *info, natural_t *count) {
     if (!is_task(task)) return M_SEND_INVALID_DEST;
     if (!info || !count) return M_KERN_INVALID_ARGUMENT;
     pthread_mutex_lock(&mport_lock);
@@ -809,7 +809,7 @@ static kern_return_t d_mach_port_get_attributes(mach_port_name_t task, mach_port
 }
 /* isim (private, for Dispatch's Mach sources): a descriptor that becomes readable (eventfd counter) when a message is
    queued on the port or its receive right dies; the caller owns (closes) it. -1 for an unknown name. */
-static int d_isim_mach_port_notify_fd(mach_port_name_t name) {
+ISIM_GUEST_ABI static int d_isim_mach_port_notify_fd(mach_port_name_t name) {
     pthread_mutex_lock(&mport_lock);
     struct mport *p = mport_find(name);
     int fd = -1;
@@ -917,17 +917,17 @@ static kern_return_t msg_receive(struct m_header *h, uint32_t cap, mach_port_nam
     pthread_mutex_unlock(&mport_lock);
     return r;
 }
-static kern_return_t d_mach_msg(struct m_header *h, int options, uint32_t send_size, uint32_t rcv_size, mach_port_name_t rcv_name,
+ISIM_GUEST_ABI static kern_return_t d_mach_msg(struct m_header *h, int options, uint32_t send_size, uint32_t rcv_size, mach_port_name_t rcv_name,
                                 uint32_t timeout, mach_port_name_t notify) {
     if (options & 1) { kern_return_t r = msg_send(h, send_size, options, timeout); if (r) return r; }   /* MACH_SEND_MSG */
     if (options & 2) return msg_receive(h, rcv_size, rcv_name, options, timeout);                     /* MACH_RCV_MSG */
     return M_KERN_SUCCESS;
 }
-static kern_return_t d_mach_msg_send(struct m_header *h) { return d_mach_msg(h, 1, h->size, 0, 0, 0, 0); }
-static kern_return_t d_mach_msg_receive(struct m_header *h) { return d_mach_msg(h, 2, 0, h->size, h->local, 0, 0); }
+ISIM_GUEST_ABI static kern_return_t d_mach_msg_send(struct m_header *h) { return d_mach_msg(h, 1, h->size, 0, 0, 0, 0); }
+ISIM_GUEST_ABI static kern_return_t d_mach_msg_receive(struct m_header *h) { return d_mach_msg(h, 2, 0, h->size, h->local, 0, 0); }
 
 /* semaphores */
-static kern_return_t d_semaphore_create(mach_port_name_t task, mach_port_name_t *sem, int policy, int value) {
+ISIM_GUEST_ABI static kern_return_t d_semaphore_create(mach_port_name_t task, mach_port_name_t *sem, int policy, int value) {
     if (!is_task(task)) return M_SEND_INVALID_DEST;
     if (value < 0) return M_KERN_INVALID_ARGUMENT;
     pthread_mutex_lock(&mport_lock);
@@ -938,7 +938,7 @@ static kern_return_t d_semaphore_create(mach_port_name_t task, mach_port_name_t 
     return M_KERN_SUCCESS;
 }
 static struct mport *sem_find(mach_port_name_t name) { struct mport *p = mport_find(name); return p && p->kind == K_SEM && !p->destroyed ? p : NULL; }
-static kern_return_t d_semaphore_destroy(mach_port_name_t task, mach_port_name_t sem) {
+ISIM_GUEST_ABI static kern_return_t d_semaphore_destroy(mach_port_name_t task, mach_port_name_t sem) {
     if (!is_task(task)) return M_SEND_INVALID_DEST;
     pthread_mutex_lock(&mport_lock);
     struct mport *p = sem_find(sem);
@@ -956,8 +956,8 @@ static kern_return_t sem_signal(mach_port_name_t sem, int all) {
     pthread_mutex_unlock(&mport_lock);
     return p ? M_KERN_SUCCESS : M_KERN_INVALID_ARGUMENT;
 }
-static kern_return_t d_semaphore_signal(mach_port_name_t sem) { return sem_signal(sem, 0); }
-static kern_return_t d_semaphore_signal_all(mach_port_name_t sem) { return sem_signal(sem, 1); }
+ISIM_GUEST_ABI static kern_return_t d_semaphore_signal(mach_port_name_t sem) { return sem_signal(sem, 0); }
+ISIM_GUEST_ABI static kern_return_t d_semaphore_signal_all(mach_port_name_t sem) { return sem_signal(sem, 1); }
 static kern_return_t sem_wait(mach_port_name_t sem, const struct timespec *deadline) {
     pthread_mutex_lock(&mport_lock);
     struct mport *p = sem_find(sem);
@@ -975,8 +975,8 @@ static kern_return_t sem_wait(mach_port_name_t sem, const struct timespec *deadl
     pthread_mutex_unlock(&mport_lock);
     return r;
 }
-static kern_return_t d_semaphore_wait(mach_port_name_t sem) { return sem_wait(sem, NULL); }
-static kern_return_t d_semaphore_timedwait(mach_port_name_t sem, struct m_timespec wait) {
+ISIM_GUEST_ABI static kern_return_t d_semaphore_wait(mach_port_name_t sem) { return sem_wait(sem, NULL); }
+ISIM_GUEST_ABI static kern_return_t d_semaphore_timedwait(mach_port_name_t sem, struct m_timespec wait) {
     struct timespec dl; clock_gettime(CLOCK_MONOTONIC, &dl);
     dl.tv_sec += wait.tv_sec; dl.tv_nsec += wait.tv_nsec;
     while (dl.tv_nsec >= 1000000000) { dl.tv_sec++; dl.tv_nsec -= 1000000000; }
@@ -999,14 +999,14 @@ static const struct { int code; const char *text; } mach_errors[] = {
     { M_RCV_TIMED_OUT, "(ipc/rcv) timed out" }, { M_RCV_TOO_LARGE, "(ipc/rcv) message too large" },
     { M_RCV_PORT_DIED, "(ipc/rcv) port died" },
 };
-static char *d_mach_error_string(int code) {
+ISIM_GUEST_ABI static char *d_mach_error_string(int code) {
     for (size_t i = 0; i < sizeof mach_errors / sizeof *mach_errors; i++) if (mach_errors[i].code == code) return (char *)mach_errors[i].text;
     return (char *)"unknown error code";
 }
-static char *d_mach_error_type(int code) {
+ISIM_GUEST_ABI static char *d_mach_error_type(int code) {
     return (char *)((code & 0xfc000000) == 0x10000000 ? (code & 0x4000 ? "(ipc/rcv)" : "(ipc/send)") : "(os/kern)");
 }
-static void d_mach_error(const char *s, int code) { fprintf(stderr, "%s %s (%x)\n", s, d_mach_error_string(code), code); }
+ISIM_GUEST_ABI static void d_mach_error(const char *s, int code) { fprintf(stderr, "%s %s (%x)\n", s, d_mach_error_string(code), code); }
 
 static void mach_init(void) {
     long ps = sysconf(_SC_PAGESIZE); if (ps <= 0) ps = 4096;

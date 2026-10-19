@@ -48,21 +48,22 @@
 #include <sys/prctl.h>
 
 #include "runtime.h"
+#include "platform.h"
 #include "host_crypto.h"
 /* host_pki.c */
-int isim_pki_available(void); const char *isim_pki_error(void);
-int isim_pki_generate(int, int, uint8_t *, size_t *); int isim_pki_public(int, const uint8_t *, size_t, uint8_t *, size_t *);
-int isim_pki_key_bits(int, const uint8_t *, size_t, int);
-int isim_pki_sign(int, const uint8_t *, size_t, int, const uint8_t *, size_t, uint8_t *, size_t *);
-int isim_pki_verify(int, const uint8_t *, size_t, int, const uint8_t *, size_t, const uint8_t *, size_t);
-int isim_pki_encrypt(const uint8_t *, size_t, int, const uint8_t *, size_t, uint8_t *, size_t *);
-int isim_pki_decrypt(const uint8_t *, size_t, int, const uint8_t *, size_t, uint8_t *, size_t *);
-int isim_pki_ecdh(const uint8_t *, size_t, const uint8_t *, size_t, uint8_t *, size_t *);
-int isim_pki_cert_parse(const uint8_t *, size_t, char *, size_t);
-int isim_pki_key_der(int, const uint8_t *, size_t, uint8_t *, size_t *);
-int isim_pki_trust(const uint8_t *, const size_t *, int, const uint8_t *, const size_t *, int, int, int, const char *, double, char *, size_t, int *);
-int isim_pki_trust_ex(const uint8_t *, const size_t *, int, const uint8_t *, const size_t *, int, int, int, const char *, double, int, const uint8_t *, size_t, int, char *, size_t, int *, int *);
-int isim_pki_pkcs12(const uint8_t *, size_t, const char *, uint8_t *, size_t *, int *, uint8_t *, size_t, size_t *, int *);
+ISIM_GUEST_ABI int isim_pki_available(void); const char *isim_pki_error(void);
+ISIM_GUEST_ABI int isim_pki_generate(int, int, uint8_t *, size_t *); int isim_pki_public(int, const uint8_t *, size_t, uint8_t *, size_t *);
+ISIM_GUEST_ABI int isim_pki_key_bits(int, const uint8_t *, size_t, int);
+ISIM_GUEST_ABI int isim_pki_sign(int, const uint8_t *, size_t, int, const uint8_t *, size_t, uint8_t *, size_t *);
+ISIM_GUEST_ABI int isim_pki_verify(int, const uint8_t *, size_t, int, const uint8_t *, size_t, const uint8_t *, size_t);
+ISIM_GUEST_ABI int isim_pki_encrypt(const uint8_t *, size_t, int, const uint8_t *, size_t, uint8_t *, size_t *);
+ISIM_GUEST_ABI int isim_pki_decrypt(const uint8_t *, size_t, int, const uint8_t *, size_t, uint8_t *, size_t *);
+ISIM_GUEST_ABI int isim_pki_ecdh(const uint8_t *, size_t, const uint8_t *, size_t, uint8_t *, size_t *);
+ISIM_GUEST_ABI int isim_pki_cert_parse(const uint8_t *, size_t, char *, size_t);
+ISIM_GUEST_ABI int isim_pki_key_der(int, const uint8_t *, size_t, uint8_t *, size_t *);
+ISIM_GUEST_ABI int isim_pki_trust(const uint8_t *, const size_t *, int, const uint8_t *, const size_t *, int, int, int, const char *, double, char *, size_t, int *);
+ISIM_GUEST_ABI int isim_pki_trust_ex(const uint8_t *, const size_t *, int, const uint8_t *, const size_t *, int, int, int, const char *, double, int, const uint8_t *, size_t, int, char *, size_t, int *, int *);
+ISIM_GUEST_ABI int isim_pki_pkcs12(const uint8_t *, size_t, const char *, uint8_t *, size_t *, int *, uint8_t *, size_t, size_t *, int *);
 
 struct isim_device { double width, height, scale, safe_top, safe_bottom, corner_radius; int has_island; char name[48];
                      double safe_left, safe_right; int orientation; };   /* orientation: UIInterfaceOrientation (0 = portrait) */
@@ -101,7 +102,7 @@ static double script_resume;
 static struct isim_event pending[16]; static int npending;
 
 static double now(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
-double isim_time(void) { return now() - t0; }
+ISIM_GUEST_ABI double isim_time(void) { return now() - t0; }
 /* the simulator window around the screen: toolbar, device bezel, menus and forms (window_chrome.inc) */
 static void window_show(cairo_surface_t *screen);          /* presents a screen frame (device pixels) in the window */
 static void window_redraw(void);                           /* presents the last frame again (the chrome changed) */
@@ -308,18 +309,18 @@ void isim_list_devices(void) {
     }
 }
 /* the selected version, parsed (guest frameworks: UIKit's look, SwiftUI): major*10000 + minor*100 + patch */
-int isim_os_version(void) {
+ISIM_GUEST_ABI int isim_os_version(void) {
     int v[3]; const char *e = getenv("ISIM_OS_VERSION");
     if (!os_parse(e, v)) { v[0] = ISIM_OS_DEFAULT_MAJOR; v[1] = v[2] = 0; }
     return v[0] * 10000 + v[1] * 100 + v[2];
 }
 
-void isim_device_metrics(struct isim_device *out) { if (!dev.width) device_from_env(); *out = dev; }
+ISIM_GUEST_ABI void isim_device_metrics(struct isim_device *out) { if (!dev.width) device_from_env(); *out = dev; }
 
 /* iPadOS presents an iPhone-only app on an iPhone-sized compatibility canvas. Keep the physical device's name for
    diagnostics, but use iPhone SE geometry and scale for every guest UIKit decision. The shell retains the physical
    iPad geometry and composites this smaller client surface into it. */
-void isim_set_phone_compatibility_mode(void) {
+ISIM_GUEST_ABI void isim_set_phone_compatibility_mode(void) {
     if (!dev.width) device_from_env();
     if (fmin(portrait_dev.width, portrait_dev.height) < 700 || phone_compat) return;
     char physical_name[sizeof portrait_dev.name]; snprintf(physical_name, sizeof physical_name, "%s", portrait_dev.name);
@@ -347,11 +348,11 @@ static struct isim_device oriented(int o) {        /* o: UIInterfaceOrientation 
     }
     return d;
 }
-int isim_device_orientation(void) { return device_orient; }
+ISIM_GUEST_ABI int isim_device_orientation(void) { return device_orient; }
 static void send_orient_to_shell(int o);
 static void make_surface(void);
 /* the app's screen takes interface orientation o; returns 1 if the geometry changed */
-int isim_set_orientation(int o) {
+ISIM_GUEST_ABI int isim_set_orientation(int o) {
     if (!dev.width) device_from_env();
     if (o < 1 || o > 4 || o == (dev.orientation ? dev.orientation : 1)) return 0;
     struct isim_device old = dev;
@@ -395,7 +396,7 @@ static void app_identity(void) {
     SDL_SetAppMetadata("isim Simulator", NULL, "dev.isim.Simulator");
 }
 static void window_icon(SDL_Window *w) {
-    char self[PATH_MAX]; ssize_t n = readlink("/proc/self/exe", self, sizeof self - 1);
+    char self[PATH_MAX]; int n = isim_self_path(self, sizeof self);
     if (n <= 0) return;
     self[n] = 0;
     char *slash = strrchr(self, '/'); if (!slash) return;
@@ -426,7 +427,7 @@ static void window_icon(SDL_Window *w) {
     cairo_surface_destroy(png);
 }
 
-int isim_display_open(const char *title) {
+ISIM_GUEST_ABI int isim_display_open(const char *title) {
     if (!dev.width) device_from_env();
     t0 = now();
     if (getenv("ISIM_CLIENT_SOCK")) {              /* running under the shell: draw into its shared surface */
@@ -434,8 +435,8 @@ int isim_display_open(const char *title) {
         px_scale = atof(getenv("ISIM_CLIENT_SCALE"));
         headless = 1;
         int w = (int)lround(dev.width * px_scale), h = (int)lround(dev.height * px_scale);
-        client_pixels = mmap(NULL, (size_t)w * h * 4, PROT_READ | PROT_WRITE, MAP_SHARED, atoi(getenv("ISIM_CLIENT_SURFACE")), 0);
-        if (client_pixels == MAP_FAILED) { perror("isim client: mmap surface"); exit(1); }
+        client_pixels = isim_shm_map(atoi(getenv("ISIM_CLIENT_SURFACE")), (size_t)w * h * 4, 1);
+        if (!client_pixels) { perror("isim client: map surface"); exit(1); }
         if (pipe2(client_wake, O_NONBLOCK | O_CLOEXEC)) perror("isim client: pipe");
         make_surface();
         if (phone_compat) {
@@ -466,7 +467,7 @@ int isim_display_open(const char *title) {
 }
 
 /* ---------------- drawing (all coordinates in points) ---------------- */
-void isim_frame_begin(void) {
+ISIM_GUEST_ABI void isim_frame_begin(void) {
     cairo_identity_matrix(cr);
     cairo_reset_clip(cr);
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
@@ -475,15 +476,15 @@ void isim_frame_begin(void) {
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
     cairo_scale(cr, px_scale, px_scale);
 }
-void isim_gfx_save(void) { cairo_save(cr); }
-void isim_gfx_restore(void) { cairo_restore(cr); }
-void isim_gfx_translate(double x, double y) { cairo_translate(cr, x, y); }
-void isim_gfx_scale(double sx, double sy) { cairo_scale(cr, sx, sy); }
+ISIM_GUEST_ABI void isim_gfx_save(void) { cairo_save(cr); }
+ISIM_GUEST_ABI void isim_gfx_restore(void) { cairo_restore(cr); }
+ISIM_GUEST_ABI void isim_gfx_translate(double x, double y) { cairo_translate(cr, x, y); }
+ISIM_GUEST_ABI void isim_gfx_scale(double sx, double sy) { cairo_scale(cr, sx, sy); }
 
 /* corner shape of rounded rects: 1 continuous (Apple's "squircle" corners, the default for system drawing),
    0 circular arcs (CALayer's default cornerCurve) */
 static int corner_continuous = 1;
-int isim_gfx_corner_curve(int continuous) {
+ISIM_GUEST_ABI int isim_gfx_corner_curve(int continuous) {
     int was = corner_continuous;
     if (continuous >= 0) corner_continuous = continuous != 0;
     return was;
@@ -516,7 +517,7 @@ static void corner_to(double kx, double ky, double ux, double uy, double vx, dou
 }
 /* rounded rect with a radius per corner: c = top-left, top-right, bottom-left, bottom-right; continuous or circular
    corners (isim_gfx_corner_curve) */
-void isim_path_corners(double x, double y, double w, double h, const double *c) {
+ISIM_GUEST_ABI void isim_path_corners(double x, double y, double w, double h, const double *c) {
     double lim = fmin(w, h) / 2;
     double tl = fmax(0, fmin(c[0], lim)), tr = fmax(0, fmin(c[1], lim)), bl = fmax(0, fmin(c[2], lim)), br = fmax(0, fmin(c[3], lim));
     double x1 = x + w, y1 = y + h;
@@ -544,27 +545,27 @@ static void rounded(double x, double y, double w, double h, double r) {
     isim_path_corners(x, y, w, h, c);
 }
 /* each starts a new path: isim_path_fill / isim_path_stroke keep theirs (preserve) */
-void isim_gfx_clip_rounded(double x, double y, double w, double h, double r) { cairo_new_path(cr); rounded(x, y, w, h, r); cairo_clip(cr); }
-void isim_gfx_fill_rounded(double x, double y, double w, double h, double r, const double *rgba) {
+ISIM_GUEST_ABI void isim_gfx_clip_rounded(double x, double y, double w, double h, double r) { cairo_new_path(cr); rounded(x, y, w, h, r); cairo_clip(cr); }
+ISIM_GUEST_ABI void isim_gfx_fill_rounded(double x, double y, double w, double h, double r, const double *rgba) {
     cairo_new_path(cr); rounded(x, y, w, h, r); cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_fill(cr);
 }
-void isim_gfx_stroke_rounded(double x, double y, double w, double h, double r, double lw, const double *rgba) {
+ISIM_GUEST_ABI void isim_gfx_stroke_rounded(double x, double y, double w, double h, double r, double lw, const double *rgba) {
     cairo_new_path(cr);
     rounded(x + lw / 2, y + lw / 2, w - lw, h - lw, r - lw / 2);
     cairo_set_line_width(cr, lw); cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_stroke(cr);
 }
-void isim_gfx_fill_ellipse(double x, double y, double w, double h, const double *rgba) {
+ISIM_GUEST_ABI void isim_gfx_fill_ellipse(double x, double y, double w, double h, const double *rgba) {
     cairo_new_path(cr); cairo_save(cr); cairo_translate(cr, x + w / 2, y + h / 2); cairo_scale(cr, w / 2, h / 2);
     cairo_arc(cr, 0, 0, 1, 0, 2 * M_PI); cairo_restore(cr);
     cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_fill(cr);
 }
-void isim_gfx_rotate(double radians) { cairo_rotate(cr, radians); }
+ISIM_GUEST_ABI void isim_gfx_rotate(double radians) { cairo_rotate(cr, radians); }
 /* multiplies the current transform by [a b c d tx ty] (CGAffineTransform layout) */
-void isim_gfx_concat(double a, double b, double c, double d, double tx, double ty) {
+ISIM_GUEST_ABI void isim_gfx_concat(double a, double b, double c, double d, double tx, double ty) {
     cairo_matrix_t m; cairo_matrix_init(&m, a, b, c, d, tx, ty); cairo_transform(cr, &m);
 }
 /* clips to the current path (then clears it) */
-void isim_gfx_clip_path(void) { cairo_clip(cr); }
+ISIM_GUEST_ABI void isim_gfx_clip_path(void) { cairo_clip(cr); }
 /* Backdrop blur (UIVisualEffectView / SwiftUI materials): blurs what is already drawn under the rounded
  * rect (x, y, w, h, corner r) by `radius` points. Works at reduced resolution (downsample, edge-clamped
  * 3-pass box blur, bilinear upsample) and paints back through the shape, so clips and corners apply.
@@ -588,7 +589,7 @@ static void box_blur_pass(uint32_t *px, int w, int h, int stride, int r, int hor
     }
     free(tmp);
 }
-void isim_gfx_backdrop_blur(double x, double y, double w, double h, double r, double radius) {
+ISIM_GUEST_ABI void isim_gfx_backdrop_blur(double x, double y, double w, double h, double r, double radius) {
     if (w <= 0 || h <= 0) return;
     cairo_surface_t *tgt = cairo_get_group_target(cr);
     if (cairo_surface_get_type(tgt) != CAIRO_SURFACE_TYPE_IMAGE) return;
@@ -645,7 +646,7 @@ void isim_gfx_backdrop_blur(double x, double y, double w, double h, double r, do
  * shapes: 5 doubles each (x, y, w, h, corner radius), user space; tints: 4 each (alpha 0: none) or NULL; pressed: per
  * shape (interactive highlight) or NULL. flags: 1 dark appearance, 2 clear (more transparent, used over media), 4 no
  * shadow, 8 all pressed. Rotated or skewed transforms fall back to isim_gfx_glass_path (no merging or refraction). */
-void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy);
+ISIM_GUEST_ABI void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy);
 static void glass_path(double x, double y, double w, double h, double r, const double *tint, int flags) {
     int dark = flags & 1, clear = flags & 2;
     r = fmin(r, fmin(w, h) / 2);
@@ -690,7 +691,7 @@ static double sd_round_rect(double px, double py, const double *b) {   /* b: x0 
     return sqrt(ox * ox + oy * oy) + fmin(fmax(qx, qy), 0) - re;
 }
 static inline double clamp01(double v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
-void isim_gfx_glass_shapes(int n, const double *shapes, const double *tints, const int *pressed, double spacing, int flags) {
+ISIM_GUEST_ABI void isim_gfx_glass_shapes(int n, const double *shapes, const double *tints, const int *pressed, double spacing, int flags) {
     if (n <= 0) return;
     cairo_matrix_t m; cairo_get_matrix(cr, &m);
     cairo_surface_t *tgt = cairo_get_group_target(cr);
@@ -794,15 +795,15 @@ void isim_gfx_glass_shapes(int n, const double *shapes, const double *tints, con
     cairo_surface_mark_dirty(tgt);
     free(b); free(d); free(near); free(blur);
 }
-void isim_gfx_glass(double x, double y, double w, double h, double r, const double *tint, int flags) {
+ISIM_GUEST_ABI void isim_gfx_glass(double x, double y, double w, double h, double r, const double *tint, int flags) {
     if (w <= 0 || h <= 0) return;
     double s[5] = { x, y, w, h, r };
     isim_gfx_glass_shapes(1, s, tint && tint[3] > 0 ? tint : NULL, NULL, 0, flags);
 }
-double isim_gfx_get_alpha(void) { return 1; }
-void isim_gfx_push_group(void) { cairo_push_group(cr); }
+ISIM_GUEST_ABI double isim_gfx_get_alpha(void) { return 1; }
+ISIM_GUEST_ABI void isim_gfx_push_group(void) { cairo_push_group(cr); }
 /* two groups pushed (content, then mask): paints the content through the mask's alpha (SKCropNode) */
-void isim_gfx_pop_group_masked(double alpha) {
+ISIM_GUEST_ABI void isim_gfx_pop_group_masked(double alpha) {
     cairo_pattern_t *mask = cairo_pop_group(cr);
     cairo_pattern_t *content = cairo_pop_group(cr);
     cairo_save(cr);
@@ -814,25 +815,25 @@ void isim_gfx_pop_group_masked(double alpha) {
 }
 /* compositing for the following draws (until restore): 0 over, 1 add, 2 subtract (difference), 3 multiply,
    4 screen, 5 replace (source) -- SpriteKit blend modes */
-void isim_gfx_set_blend(int mode) {
+ISIM_GUEST_ABI void isim_gfx_set_blend(int mode) {
     static const cairo_operator_t ops[] = { CAIRO_OPERATOR_OVER, CAIRO_OPERATOR_ADD, CAIRO_OPERATOR_DIFFERENCE, CAIRO_OPERATOR_MULTIPLY,
                                             CAIRO_OPERATOR_SCREEN, CAIRO_OPERATOR_SOURCE };
     cairo_set_operator(cr, mode >= 0 && mode < 6 ? ops[mode] : CAIRO_OPERATOR_OVER);
 }
-void isim_gfx_pop_group(double alpha) { cairo_pop_group_to_source(cr); cairo_paint_with_alpha(cr, alpha); }
+ISIM_GUEST_ABI void isim_gfx_pop_group(double alpha) { cairo_pop_group_to_source(cr); cairo_paint_with_alpha(cr, alpha); }
 
 /* path API for UIBezierPath / CGContext subset */
-void isim_path_begin(void) { cairo_new_path(cr); }
-void isim_path_move(double x, double y) { cairo_move_to(cr, x, y); }
-void isim_path_line(double x, double y) { cairo_line_to(cr, x, y); }
-void isim_path_curve(double x1, double y1, double x2, double y2, double x, double y) { cairo_curve_to(cr, x1, y1, x2, y2, x, y); }
-void isim_path_arc(double cx, double cy, double r, double a0, double a1, int cw) {
+ISIM_GUEST_ABI void isim_path_begin(void) { cairo_new_path(cr); }
+ISIM_GUEST_ABI void isim_path_move(double x, double y) { cairo_move_to(cr, x, y); }
+ISIM_GUEST_ABI void isim_path_line(double x, double y) { cairo_line_to(cr, x, y); }
+ISIM_GUEST_ABI void isim_path_curve(double x1, double y1, double x2, double y2, double x, double y) { cairo_curve_to(cr, x1, y1, x2, y2, x, y); }
+ISIM_GUEST_ABI void isim_path_arc(double cx, double cy, double r, double a0, double a1, int cw) {
     if (cw) cairo_arc(cr, cx, cy, r, a0, a1); else cairo_arc_negative(cr, cx, cy, r, a0, a1);
 }
-void isim_path_close(void) { cairo_close_path(cr); }
-void isim_path_rect(double x, double y, double w, double h, double r) { rounded(x, y, w, h, r); }
-void isim_path_fill(const double *rgba) { cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_fill_preserve(cr); }
-void isim_path_stroke(double lw, const double *rgba) { cairo_set_line_width(cr, lw); cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_stroke_preserve(cr); }
+ISIM_GUEST_ABI void isim_path_close(void) { cairo_close_path(cr); }
+ISIM_GUEST_ABI void isim_path_rect(double x, double y, double w, double h, double r) { rounded(x, y, w, h, r); }
+ISIM_GUEST_ABI void isim_path_fill(const double *rgba) { cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_fill_preserve(cr); }
+ISIM_GUEST_ABI void isim_path_stroke(double lw, const double *rgba) { cairo_set_line_width(cr, lw); cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]); cairo_stroke_preserve(cr); }
 
 /* ---------------- text ---------------- */
 static int pango_weight(double w) {
@@ -886,21 +887,21 @@ static void measure_context(void) {
     cairo_identity_matrix(mcr); cairo_scale(mcr, px_scale, px_scale);
     pango_cairo_update_context(mcr, pctx);
 }
-void isim_text_measure_f(const char *utf8, const char *family, double size, double weight, int mono, double maxw, int lines, double *w, double *h) {
+ISIM_GUEST_ABI void isim_text_measure_f(const char *utf8, const char *family, double size, double weight, int mono, double maxw, int lines, double *w, double *h) {
     measure_context();
     PangoLayout *l = layout_for_family(utf8, family, size, weight, mono, maxw, lines, 0);
     PangoRectangle log; pango_layout_get_extents(l, NULL, &log);
     *w = ceil((double)log.width / PANGO_SCALE); *h = ceil((double)log.height / PANGO_SCALE);
     g_object_unref(l);
 }
-void isim_text_end_point_f(const char *utf8, const char *family, double size, double weight, int mono, double maxw, double *x, double *y) {
+ISIM_GUEST_ABI void isim_text_end_point_f(const char *utf8, const char *family, double size, double weight, int mono, double maxw, double *x, double *y) {
     measure_context();
     PangoLayout *l = layout_for_family(utf8, family, size, weight, mono, maxw, 0, 0);
     PangoRectangle pos; pango_layout_index_to_pos(l, (int)strlen(utf8), &pos);
     *x = pos.x / (double)PANGO_SCALE; *y = pos.y / (double)PANGO_SCALE;
     g_object_unref(l);
 }
-void isim_text_draw_f(const char *utf8, const char *family, double x, double y, double w, double size, double weight, int mono, int align, int lines, const double *rgba) {
+ISIM_GUEST_ABI void isim_text_draw_f(const char *utf8, const char *family, double x, double y, double w, double size, double weight, int mono, int align, int lines, const double *rgba) {
     PangoLayout *l = layout_for_family(utf8, family, size, weight, mono, w, lines, align);
     pango_cairo_update_context(cr, pctx);
     cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]);
@@ -908,9 +909,9 @@ void isim_text_draw_f(const char *utf8, const char *family, double x, double y, 
     pango_cairo_show_layout(cr, l);
     g_object_unref(l);
 }
-void isim_text_measure(const char *utf8, double size, double weight, int mono, double maxw, int lines, double *w, double *h) { isim_text_measure_f(utf8, NULL, size, weight, mono, maxw, lines, w, h); }
-void isim_text_end_point(const char *utf8, double size, double weight, int mono, double maxw, double *x, double *y) { isim_text_end_point_f(utf8, NULL, size, weight, mono, maxw, x, y); }
-void isim_text_draw(const char *utf8, double x, double y, double w, double size, double weight, int mono, int align, int lines, const double *rgba) { isim_text_draw_f(utf8, NULL, x, y, w, size, weight, mono, align, lines, rgba); }
+ISIM_GUEST_ABI void isim_text_measure(const char *utf8, double size, double weight, int mono, double maxw, int lines, double *w, double *h) { isim_text_measure_f(utf8, NULL, size, weight, mono, maxw, lines, w, h); }
+ISIM_GUEST_ABI void isim_text_end_point(const char *utf8, double size, double weight, int mono, double maxw, double *x, double *y) { isim_text_end_point_f(utf8, NULL, size, weight, mono, maxw, x, y); }
+ISIM_GUEST_ABI void isim_text_draw(const char *utf8, double x, double y, double w, double size, double weight, int mono, int align, int lines, const double *rgba) { isim_text_draw_f(utf8, NULL, x, y, w, size, weight, mono, align, lines, rgba); }
 
 /* UIFont weights (-1...1) <-> OpenType weights (100...900) */
 static double uifont_weight(int ot) {
@@ -922,7 +923,7 @@ static double uifont_weight(int ot) {
 /* isim's own UI fonts (fonts/: Adwaita Sans and Mono, OFL), installed next to the runtime in ../share/fonts, so text
    looks and measures the same on every distribution; host fonts stay the fallback (emoji, other scripts). */
 __attribute__((constructor)) static void bundled_fonts(void) {
-    char self[PATH_MAX]; ssize_t n = readlink("/proc/self/exe", self, sizeof self - 1);
+    char self[PATH_MAX]; int n = isim_self_path(self, sizeof self);
     if (n <= 0) return;
     self[n] = 0;
     char *slash = strrchr(self, '/'); if (!slash) return;
@@ -934,7 +935,7 @@ __attribute__((constructor)) static void bundled_fonts(void) {
 /* Adds a font file for this process (UIAppFonts / CTFontManagerRegisterFontsForURL). */
 static struct { char family[128], ps[128]; } app_faces[128];
 static int napp_faces;
-int isim_font_register(const char *path) {
+ISIM_GUEST_ABI int isim_font_register(const char *path) {
     if (!FcConfigAppFontAddFile(FcConfigGetCurrent(), (const FcChar8 *)path)) return 0;
     int count = 0;                                     /* the file's faces, for UIFont.familyNames / fontNames(forFamilyName:) */
     for (int face = 0; napp_faces < 128; face++) {
@@ -955,14 +956,14 @@ int isim_font_register(const char *path) {
     return 1;
 }
 /* the i-th face registered by isim_font_register (family and PostScript name); 0 past the end */
-int isim_font_app_face(int i, char *family, int famlen, char *ps, int pslen) {
+ISIM_GUEST_ABI int isim_font_app_face(int i, char *family, int famlen, char *ps, int pslen) {
     if (i < 0 || i >= napp_faces) return 0;
     snprintf(family, famlen, "%s", app_faces[i].family); snprintf(ps, pslen, "%s", app_faces[i].ps);
     return 1;
 }
 /* Resolves a PostScript name ("Silkscreen-Bold") or a family name ("Sora") to family + UIFont weight.
  * Returns 0 when no such font is available. */
-int isim_font_lookup(const char *name, char *family, int famlen, double *weight, int *italic) {
+ISIM_GUEST_ABI int isim_font_lookup(const char *name, char *family, int famlen, double *weight, int *italic) {
     const char *keys[] = { FC_POSTSCRIPT_NAME, FC_FULLNAME, FC_FAMILY };
     for (int k = 0; k < 3; k++) {
         FcPattern *p = FcPatternCreate();
@@ -1013,7 +1014,7 @@ int isim_font_lookup(const char *name, char *family, int famlen, double *weight,
     return 0;
 }
 /* Whether the given family (exactly, not a fallback) has a glyph for the code point. */
-int isim_font_has_char(const char *family, unsigned cp) {
+ISIM_GUEST_ABI int isim_font_has_char(const char *family, unsigned cp) {
     FcPattern *p = FcPatternCreate();
     FcPatternAddString(p, FC_FAMILY, (const FcChar8 *)family);
     FcObjectSet *os = FcObjectSetBuild(FC_CHARSET, (char *)0);
@@ -1033,17 +1034,17 @@ int isim_font_has_char(const char *family, unsigned cp) {
 
 /* ---------------- system chrome (drawn by the "device", not the app) ---------------- */
 static int status_dark_content = 1, status_hidden;
-void isim_set_status_bar_style(int dark_content) { status_dark_content = dark_content; }
-void isim_set_status_bar_hidden(int hidden) { status_hidden = hidden; }
+ISIM_GUEST_ABI void isim_set_status_bar_style(int dark_content) { status_dark_content = dark_content; }
+ISIM_GUEST_ABI void isim_set_status_bar_hidden(int hidden) { status_hidden = hidden; }
 /* persistentSystemOverlays(.hidden) / prefersHomeIndicatorAutoHidden: the home indicator fades out 2 s after the
    last touch and comes back on the next one; defersSystemGestures / preferredScreenEdgesDeferringSystemGestures: the
    shell asks for a second swipe from a deferred edge (the first goes to the app) */
 static int home_autohide, home_drawn, deferred_edges = -1;
 static double home_touch_t;
 static double now(void);
-void isim_set_home_indicator_autohide(int hide) { if (hide != home_autohide) { home_autohide = hide; home_touch_t = now(); } }
+ISIM_GUEST_ABI void isim_set_home_indicator_autohide(int hide) { if (hide != home_autohide) { home_autohide = hide; home_touch_t = now(); } }
 static void send_deferred_edges(void);
-void isim_set_deferred_system_edges(int edges) { if (edges != deferred_edges) { deferred_edges = edges; send_deferred_edges(); } }
+ISIM_GUEST_ABI void isim_set_deferred_system_edges(int edges) { if (edges != deferred_edges) { deferred_edges = edges; send_deferred_edges(); } }
 
 /* Settings > General > Date & Time for the status bar clock: 24-hour time (forced, or the region's default,
  * as isim Foundation decides) and the time zone. Re-read when the global preferences file changes. */
@@ -1218,7 +1219,7 @@ static void sample_luminance(void) {
         }
     if (n) { isim_metric_add("apl.sum", 100 * sum / n); isim_metric_add("apl.n", 1); }
 }
-void isim_frame_end(void) {
+ISIM_GUEST_ABI void isim_frame_end(void) {
     cairo_identity_matrix(cr); cairo_reset_clip(cr); cairo_scale(cr, px_scale, px_scale);
     draw_chrome();
     apply_corner_mask();
@@ -1657,21 +1658,19 @@ static int script_step(struct isim_event *ev) {
 static int button_down;
 static volatile int wakeup_pending;
 /* thread-safe: makes a pending isim_next_event return early (no event) so the app loop runs */
-/* opens a URL on the host desktop when ISIM_OPEN_URLS=1 (xdg-open); returns 1 if launched */
-int isim_open_url(const char *url) {
+/* opens a URL on the host desktop when ISIM_OPEN_URLS=1 (the desktop's handler); returns 1 if launched */
+ISIM_GUEST_ABI int isim_open_url(const char *url) {
     const char *e = getenv("ISIM_OPEN_URLS");
     if (!e || strcmp(e, "1") || !url) return 0;
-    pid_t pid = fork();
-    if (pid == 0) { execlp("xdg-open", "xdg-open", url, (char *)NULL); _exit(127); }
-    return pid > 0;
+    return isim_open_on_desktop(url);
 }
-void isim_post_wakeup(void) {
+ISIM_GUEST_ABI void isim_post_wakeup(void) {
     if (client_sock >= 0) { if (write(client_wake[1], "w", 1) < 0) {} return; }
     if (win) { SDL_Event e; SDL_zero(e); e.type = SDL_EVENT_USER; SDL_PushEvent(&e); }
     else __atomic_store_n(&wakeup_pending, 1, __ATOMIC_RELEASE);
 }
 static int next_event(struct isim_event *ev, double timeout);
-int isim_next_event(struct isim_event *ev, double timeout) {
+ISIM_GUEST_ABI int isim_next_event(struct isim_event *ev, double timeout) {
     if (home_autohide && home_drawn && now() - home_touch_t > 2.05) {   /* the auto-hidden home indicator goes away */
         memset(ev, 0, sizeof *ev); ev->type = EV_REDRAW; home_drawn = 0; return 1;
     }
@@ -1764,10 +1763,10 @@ static int next_event(struct isim_event *ev, double timeout) {
     }
 }
 
-void isim_text_input(int on) { text_input_on = on; if (win) { if (on) SDL_StartTextInput(win); else SDL_StopTextInput(win); } }
+ISIM_GUEST_ABI void isim_text_input(int on) { text_input_on = on; if (win) { if (on) SDL_StartTextInput(win); else SDL_StopTextInput(win); } }
 
 /* main bundle path = directory of the main executable */
-const char *isim_bundle_path(void) {
+ISIM_GUEST_ABI const char *isim_bundle_path(void) {
     static char *p;
     if (!p) { char *e = strdup(isim_main_executable_path()); p = strdup(dirname(e)); free(e); }
     return p;
@@ -1781,7 +1780,7 @@ cairo_t *isim_host_swap_cairo(cairo_t *n) { cairo_t *o = cr; cr = n; return o; }
    that temporarily replace the screen as the drawing target ---- */
 static cairo_t *cr_stack[16]; static int cr_depth;
 int isim_image_from_surface(cairo_surface_t *src);
-int isim_gfx_offscreen_begin(double w, double h, double scale, int opaque) {
+ISIM_GUEST_ABI int isim_gfx_offscreen_begin(double w, double h, double scale, int opaque) {
     if (cr_depth >= 16 || w <= 0 || h <= 0) return 0;
     int pw = (int)ceil(w * scale), ph = (int)ceil(h * scale);
     cairo_surface_t *s = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, pw, ph);
@@ -1791,13 +1790,13 @@ int isim_gfx_offscreen_begin(double w, double h, double scale, int opaque) {
     cairo_scale(cr, scale, scale);
     return 1;
 }
-int isim_gfx_offscreen_snapshot(void) { return cr_depth ? isim_image_from_surface(cairo_get_target(cr)) : 0; }
-void isim_gfx_offscreen_end(void) {
+ISIM_GUEST_ABI int isim_gfx_offscreen_snapshot(void) { return cr_depth ? isim_image_from_surface(cairo_get_target(cr)) : 0; }
+ISIM_GUEST_ABI void isim_gfx_offscreen_end(void) {
     if (!cr_depth) return;
     cairo_destroy(cr);
     cr = cr_stack[--cr_depth];
 }
-int isim_gfx_offscreen_depth(void) { return cr_depth; }
+ISIM_GUEST_ABI int isim_gfx_offscreen_depth(void) { return cr_depth; }
 
 /* ---- attributed text: Pango markup (spans carry font, colour, kerning, underline, strike, rise) ---- */
 static PangoLayout *layout_markup(const char *markup, double maxw, int lines, int align, double spacing) {
@@ -1807,7 +1806,7 @@ static PangoLayout *layout_markup(const char *markup, double maxw, int lines, in
     if (spacing > 0) pango_layout_set_spacing(l, (int)(spacing * PANGO_SCALE));
     return l;
 }
-void isim_text_measure_markup(const char *markup, double maxw, int lines, int align, double spacing, double *w, double *h) {
+ISIM_GUEST_ABI void isim_text_measure_markup(const char *markup, double maxw, int lines, int align, double spacing, double *w, double *h) {
     measure_context();
     PangoLayout *l = layout_markup(markup, maxw, lines, align, spacing);
     PangoRectangle log; pango_layout_get_extents(l, NULL, &log);
@@ -1815,7 +1814,7 @@ void isim_text_measure_markup(const char *markup, double maxw, int lines, int al
     g_object_unref(l);
 }
 /* how far the glyphs' ink reaches above the layout's top and below its bottom (tall scripts, stacked marks) */
-void isim_text_ink_markup(const char *markup, double maxw, int lines, int align, double spacing, double *above, double *below) {
+ISIM_GUEST_ABI void isim_text_ink_markup(const char *markup, double maxw, int lines, int align, double spacing, double *above, double *below) {
     measure_context();
     PangoLayout *l = layout_markup(markup, maxw, lines, align, spacing);
     PangoRectangle ink, log; pango_layout_get_extents(l, &ink, &log);
@@ -1823,7 +1822,7 @@ void isim_text_ink_markup(const char *markup, double maxw, int lines, int align,
     *below = fmax(0, ceil((double)((ink.y + ink.height) - (log.y + log.height)) / PANGO_SCALE));
     g_object_unref(l);
 }
-void isim_text_draw_markup(const char *markup, double x, double y, double w, int lines, int align, double spacing, const double *rgba) {
+ISIM_GUEST_ABI void isim_text_draw_markup(const char *markup, double x, double y, double w, int lines, int align, double spacing, const double *rgba) {
     PangoLayout *l = layout_markup(markup, w, lines, align, spacing);
     pango_cairo_update_context(cr, pctx);
     pango_layout_context_changed(l);
@@ -1842,7 +1841,7 @@ void isim_text_draw_markup(const char *markup, double x, double y, double w, int
    layout's UTF-8 text (the markup's text without its tags) ---- */
 /* shapes: n inline boxes (text attachments) at byte offsets, each x y w h relative to the baseline (y up negative),
    that replace the character there; indent: the first line's indent (negative: the other lines') */
-void *isim_tl_create(const char *markup, double maxw, int align, double spacing, double indent, int n, const int *bytes, const double *boxes) {
+ISIM_GUEST_ABI void *isim_tl_create(const char *markup, double maxw, int align, double spacing, double indent, int n, const int *bytes, const double *boxes) {
     measure_context();
     PangoLayout *l = layout_markup(markup, maxw, 0, align, spacing);
     if (indent != 0) pango_layout_set_indent(l, (int)(indent * PANGO_SCALE));
@@ -1865,7 +1864,7 @@ void *isim_tl_create(const char *markup, double maxw, int align, double spacing,
 }
 /* tab stops (NSTextTab): n positions from the layout's left edge, each aligned 0 left, 1 right, 2 center, 3 decimal;
    Pango spaces the stops after the last one like the last two */
-void isim_tl_set_tabs(void *t, int n, const double *pos, const int *align) {
+ISIM_GUEST_ABI void isim_tl_set_tabs(void *t, int n, const double *pos, const int *align) {
     if (n <= 0) return;
     PangoTabArray *ta = pango_tab_array_new(n, FALSE);
     for (int i = 0; i < n; i++) {
@@ -1877,14 +1876,14 @@ void isim_tl_set_tabs(void *t, int n, const double *pos, const int *align) {
     pango_layout_set_tabs((PangoLayout *)t, ta);
     pango_tab_array_free(ta);
 }
-void isim_tl_free(void *t) { if (t) g_object_unref((PangoLayout *)t); }
-void isim_tl_size(void *t, double *w, double *h) {
+ISIM_GUEST_ABI void isim_tl_free(void *t) { if (t) g_object_unref((PangoLayout *)t); }
+ISIM_GUEST_ABI void isim_tl_size(void *t, double *w, double *h) {
     PangoRectangle log; pango_layout_get_extents((PangoLayout *)t, NULL, &log);
     *w = (double)log.width / PANGO_SCALE; *h = (double)log.height / PANGO_SCALE;
 }
-int isim_tl_line_count(void *t) { return pango_layout_get_line_count((PangoLayout *)t); }
+ISIM_GUEST_ABI int isim_tl_line_count(void *t) { return pango_layout_get_line_count((PangoLayout *)t); }
 /* line i: its byte range, its logical rect (x y w h, layout coordinates) and baseline */
-void isim_tl_line(void *t, int i, int *start, int *len, double *r, double *baseline) {
+ISIM_GUEST_ABI void isim_tl_line(void *t, int i, int *start, int *len, double *r, double *baseline) {
     PangoLayoutIter *it = pango_layout_get_iter((PangoLayout *)t);
     for (int k = 0; k < i && pango_layout_iter_next_line(it); k++) {}
     PangoLayoutLine *line = pango_layout_iter_get_line_readonly(it);
@@ -1896,18 +1895,18 @@ void isim_tl_line(void *t, int i, int *start, int *len, double *r, double *basel
     pango_layout_iter_free(it);
 }
 /* the rect of the character at a byte offset (its leading edge for an insertion point) */
-void isim_tl_index_rect(void *t, int byte, double *r) {
+ISIM_GUEST_ABI void isim_tl_index_rect(void *t, int byte, double *r) {
     PangoRectangle pos; pango_layout_index_to_pos((PangoLayout *)t, byte, &pos);
     r[0] = (double)pos.x / PANGO_SCALE; r[1] = (double)pos.y / PANGO_SCALE; r[2] = (double)pos.width / PANGO_SCALE; r[3] = (double)pos.height / PANGO_SCALE;
 }
 /* the byte offset of the character under a point; trailing: how far past it (in characters) the point is */
-int isim_tl_index_at(void *t, double x, double y, int *trailing) {
+ISIM_GUEST_ABI int isim_tl_index_at(void *t, double x, double y, int *trailing) {
     int idx = 0, tr = 0;
     pango_layout_xy_to_index((PangoLayout *)t, (int)(x * PANGO_SCALE), (int)(y * PANGO_SCALE), &idx, &tr);
     if (trailing) *trailing = tr;
     return idx;
 }
-void isim_tl_draw(void *t, double x, double y, const double *rgba) {
+ISIM_GUEST_ABI void isim_tl_draw(void *t, double x, double y, const double *rgba) {
     PangoLayout *l = (PangoLayout *)t;
     pango_cairo_update_context(cr, pctx);
     pango_layout_context_changed(l);
@@ -1916,170 +1915,170 @@ void isim_tl_draw(void *t, double x, double y, const double *rgba) {
     pango_cairo_show_layout(cr, l);
 }
 
-int isim_image_load(const char *path, double *w, double *h);
-long isim_image_encode(int hd, int fmt, double quality, unsigned char **out);
-void isim_image_bytes_free(unsigned char *p);
-int isim_image_load_data(const void *data, unsigned long len, double *w, double *h);
-int isim_image_symbol(const char *name, double *w, double *h);
-int isim_image_symbol_variable(const char *name, double value, double *w, double *h);
-void isim_image_draw(int hd, double x, double y, double w, double h, const double *tint, double alpha);
-void isim_image_draw_symbol(int hd, double x, double y, double w, double h, const double *tint, double alpha, int weight);
-int isim_image_symbol_layers(int hd);
-void isim_image_draw_symbol_layered(int hd, double x, double y, double w, double h, const double *rgba2, double alpha, int weight);
-int isim_image_is_template(int hd);
-void isim_image_free(int hd);
-void isim_image_draw_part(int hd, double sx, double sy, double sw, double sh, double x, double y, double w, double h, int nearest, const double *blend, double factor, double alpha);
-void isim_image_pixel_size(int hd, double *w, double *h);
-int isim_audio_available(void);
-int isim_audio_buffer_create(const float *pcm, long frames, int channels, double rate);
-void isim_audio_buffer_release(int b);
-long isim_audio_play(int b, double volume, int loops);
-void isim_audio_stop(long h);
-void isim_audio_pause(long h, int paused);
-void isim_audio_set_volume(long h, double volume);
-int isim_audio_is_playing(long h);
-double isim_audio_position(long h);
-void isim_audio_seek(long h, double seconds);
-void isim_audio_suspend(int s); int isim_audio_active(void);
-void isim_path_set_line_style(int cap, int join, double miter, const double *dash, int ndash, double phase);
-void isim_path_set_fill_rule(int even_odd);
-void isim_path_gradient(int mode, int kind, const double *geom, int n, const double *locs, const double *rgba, int extend, double lw, const double *matrix);
-int isim_audio_decode_file(const char *path, float **out, long *frames, int *channels, double *rate);
-void isim_audio_free(float *pcm);
+ISIM_GUEST_ABI int isim_image_load(const char *path, double *w, double *h);
+ISIM_GUEST_ABI long isim_image_encode(int hd, int fmt, double quality, unsigned char **out);
+ISIM_GUEST_ABI void isim_image_bytes_free(unsigned char *p);
+ISIM_GUEST_ABI int isim_image_load_data(const void *data, unsigned long len, double *w, double *h);
+ISIM_GUEST_ABI int isim_image_symbol(const char *name, double *w, double *h);
+ISIM_GUEST_ABI int isim_image_symbol_variable(const char *name, double value, double *w, double *h);
+ISIM_GUEST_ABI void isim_image_draw(int hd, double x, double y, double w, double h, const double *tint, double alpha);
+ISIM_GUEST_ABI void isim_image_draw_symbol(int hd, double x, double y, double w, double h, const double *tint, double alpha, int weight);
+ISIM_GUEST_ABI int isim_image_symbol_layers(int hd);
+ISIM_GUEST_ABI void isim_image_draw_symbol_layered(int hd, double x, double y, double w, double h, const double *rgba2, double alpha, int weight);
+ISIM_GUEST_ABI int isim_image_is_template(int hd);
+ISIM_GUEST_ABI void isim_image_free(int hd);
+ISIM_GUEST_ABI void isim_image_draw_part(int hd, double sx, double sy, double sw, double sh, double x, double y, double w, double h, int nearest, const double *blend, double factor, double alpha);
+ISIM_GUEST_ABI void isim_image_pixel_size(int hd, double *w, double *h);
+ISIM_GUEST_ABI int isim_audio_available(void);
+ISIM_GUEST_ABI int isim_audio_buffer_create(const float *pcm, long frames, int channels, double rate);
+ISIM_GUEST_ABI void isim_audio_buffer_release(int b);
+ISIM_GUEST_ABI long isim_audio_play(int b, double volume, int loops);
+ISIM_GUEST_ABI void isim_audio_stop(long h);
+ISIM_GUEST_ABI void isim_audio_pause(long h, int paused);
+ISIM_GUEST_ABI void isim_audio_set_volume(long h, double volume);
+ISIM_GUEST_ABI int isim_audio_is_playing(long h);
+ISIM_GUEST_ABI double isim_audio_position(long h);
+ISIM_GUEST_ABI void isim_audio_seek(long h, double seconds);
+ISIM_GUEST_ABI void isim_audio_suspend(int s); int isim_audio_active(void);
+ISIM_GUEST_ABI void isim_path_set_line_style(int cap, int join, double miter, const double *dash, int ndash, double phase);
+ISIM_GUEST_ABI void isim_path_set_fill_rule(int even_odd);
+ISIM_GUEST_ABI void isim_path_gradient(int mode, int kind, const double *geom, int n, const double *locs, const double *rgba, int extend, double lw, const double *matrix);
+ISIM_GUEST_ABI int isim_audio_decode_file(const char *path, float **out, long *frames, int *channels, double *rate);
+ISIM_GUEST_ABI void isim_audio_free(float *pcm);
 struct isim_http; struct isim_ws;
-struct isim_http *isim_http_start(const char *method, const char *url, const char *headers, const void *body, long body_len, double timeout, double resource_timeout, int flags);
-int isim_http_response(struct isim_http *h, long *status, char **url, char **headers);
-long isim_http_read(struct isim_http *h, void *buf, long cap);
-const char *isim_http_error_message(struct isim_http *h);
-void isim_http_cancel(struct isim_http *h);
-void isim_http_close(struct isim_http *h);
-void isim_http_metrics(struct isim_http *h, double *t, long *ints, char *remote, int rlen, char *local, int llen);
-struct isim_ws *isim_ws_open(const char *url, const char *headers, double timeout, int *err);
-struct isim_ws *isim_ws_open_ex(const char *url, const char *headers, double timeout, int *err, char **response);
-struct isim_http *isim_http_start_tls(const char *, const char *, const char *, const void *, long, double, double, int, const char *, const void *, long);
-int isim_ws_send(struct isim_ws *w, int kind, const void *data, long len);
-int isim_ws_recv(struct isim_ws *w, int *kind, unsigned char **data, long *len);
-void isim_ws_close(struct isim_ws *w);
-int isim_net_path(int *flags);
-int isim_icu_version(void);
-int isim_icu_collate(const char *, const uint16_t *, int, const uint16_t *, int, int);
-int isim_icu_date_format(const char *, const char *, const char *, double, char *, int);
-int isim_icu_date_parse(const char *, const char *, const char *, const char *, int, double *);
-int isim_icu_date_pattern(const char *, const char *, int, int, char *, int);
-int isim_icu_date_symbols(const char *, int, char *, int);
-int isim_icu_cal_fields(const char *, const char *, int, int, double, int *);
-int isim_icu_cal_date(const char *, const char *, int, int, const int *, unsigned, double *);
-int isim_icu_cal_add(const char *, const char *, int, int, double, int, int, int, double *);
-int isim_icu_cal_limit(const char *, const char *, int, int, double, int, int, int *);
-int isim_icu_week_data(const char *, int *, int *);
-int isim_icu_tz_name(const char *, const char *, int, char *, int);
-int isim_icu_weekend(const char *, int *);
-int isim_icu_codes(int, const char *, char *, int);
-int isim_icu_number_skeleton(const char *, const char *, double, char *, int);
-int isim_icu_number_format(const char *, int, const char *, double, char *, int);
-int isim_icu_number_parse(const char *, int, const char *, const char *, double *);
-int isim_icu_number_pattern(const char *, int, char *, int);
-int isim_icu_number_symbol(const char *, int, char *, int);
-int isim_icu_currency(const char *, const char *, int, const char *, char *, int);
-int isim_icu_relative(const char *, double, int, int, int, char *, int);
-int isim_icu_interval(const char *, const char *, const char *, double, double, char *, int);
-int isim_icu_list(const char *, const char *, int, int, char *, int);
-int isim_icu_plural(const char *, double, int, char *, int);
-int isim_icu_display_name(const char *, const char *, int, char *, int);
-int isim_icu_case(const char *, const char *, int, char *, int);
-void *isim_regex_compile(const char *pattern, unsigned long len, unsigned int options, int unix_lines, int *err, unsigned long *erroffset);
-void isim_regex_free(void *code);
-int isim_regex_capture_count(void *code);
-int isim_regex_group_number(void *code, const char *name);
-void isim_regex_error_message(int err, char *buf, unsigned long n);
-int isim_regex_match(void *code, const char *subject, unsigned long len, unsigned long start, unsigned int options, long *ovector, int pairs);
+ISIM_GUEST_ABI struct isim_http *isim_http_start(const char *method, const char *url, const char *headers, const void *body, long body_len, double timeout, double resource_timeout, int flags);
+ISIM_GUEST_ABI int isim_http_response(struct isim_http *h, long *status, char **url, char **headers);
+ISIM_GUEST_ABI long isim_http_read(struct isim_http *h, void *buf, long cap);
+ISIM_GUEST_ABI const char *isim_http_error_message(struct isim_http *h);
+ISIM_GUEST_ABI void isim_http_cancel(struct isim_http *h);
+ISIM_GUEST_ABI void isim_http_close(struct isim_http *h);
+ISIM_GUEST_ABI void isim_http_metrics(struct isim_http *h, double *t, long *ints, char *remote, int rlen, char *local, int llen);
+ISIM_GUEST_ABI struct isim_ws *isim_ws_open(const char *url, const char *headers, double timeout, int *err);
+ISIM_GUEST_ABI struct isim_ws *isim_ws_open_ex(const char *url, const char *headers, double timeout, int *err, char **response);
+ISIM_GUEST_ABI struct isim_http *isim_http_start_tls(const char *, const char *, const char *, const void *, long, double, double, int, const char *, const void *, long);
+ISIM_GUEST_ABI int isim_ws_send(struct isim_ws *w, int kind, const void *data, long len);
+ISIM_GUEST_ABI int isim_ws_recv(struct isim_ws *w, int *kind, unsigned char **data, long *len);
+ISIM_GUEST_ABI void isim_ws_close(struct isim_ws *w);
+ISIM_GUEST_ABI int isim_net_path(int *flags);
+ISIM_GUEST_ABI int isim_icu_version(void);
+ISIM_GUEST_ABI int isim_icu_collate(const char *, const uint16_t *, int, const uint16_t *, int, int);
+ISIM_GUEST_ABI int isim_icu_date_format(const char *, const char *, const char *, double, char *, int);
+ISIM_GUEST_ABI int isim_icu_date_parse(const char *, const char *, const char *, const char *, int, double *);
+ISIM_GUEST_ABI int isim_icu_date_pattern(const char *, const char *, int, int, char *, int);
+ISIM_GUEST_ABI int isim_icu_date_symbols(const char *, int, char *, int);
+ISIM_GUEST_ABI int isim_icu_cal_fields(const char *, const char *, int, int, double, int *);
+ISIM_GUEST_ABI int isim_icu_cal_date(const char *, const char *, int, int, const int *, unsigned, double *);
+ISIM_GUEST_ABI int isim_icu_cal_add(const char *, const char *, int, int, double, int, int, int, double *);
+ISIM_GUEST_ABI int isim_icu_cal_limit(const char *, const char *, int, int, double, int, int, int *);
+ISIM_GUEST_ABI int isim_icu_week_data(const char *, int *, int *);
+ISIM_GUEST_ABI int isim_icu_tz_name(const char *, const char *, int, char *, int);
+ISIM_GUEST_ABI int isim_icu_weekend(const char *, int *);
+ISIM_GUEST_ABI int isim_icu_codes(int, const char *, char *, int);
+ISIM_GUEST_ABI int isim_icu_number_skeleton(const char *, const char *, double, char *, int);
+ISIM_GUEST_ABI int isim_icu_number_format(const char *, int, const char *, double, char *, int);
+ISIM_GUEST_ABI int isim_icu_number_parse(const char *, int, const char *, const char *, double *);
+ISIM_GUEST_ABI int isim_icu_number_pattern(const char *, int, char *, int);
+ISIM_GUEST_ABI int isim_icu_number_symbol(const char *, int, char *, int);
+ISIM_GUEST_ABI int isim_icu_currency(const char *, const char *, int, const char *, char *, int);
+ISIM_GUEST_ABI int isim_icu_relative(const char *, double, int, int, int, char *, int);
+ISIM_GUEST_ABI int isim_icu_interval(const char *, const char *, const char *, double, double, char *, int);
+ISIM_GUEST_ABI int isim_icu_list(const char *, const char *, int, int, char *, int);
+ISIM_GUEST_ABI int isim_icu_plural(const char *, double, int, char *, int);
+ISIM_GUEST_ABI int isim_icu_display_name(const char *, const char *, int, char *, int);
+ISIM_GUEST_ABI int isim_icu_case(const char *, const char *, int, char *, int);
+ISIM_GUEST_ABI void *isim_regex_compile(const char *pattern, unsigned long len, unsigned int options, int unix_lines, int *err, unsigned long *erroffset);
+ISIM_GUEST_ABI void isim_regex_free(void *code);
+ISIM_GUEST_ABI int isim_regex_capture_count(void *code);
+ISIM_GUEST_ABI int isim_regex_group_number(void *code, const char *name);
+ISIM_GUEST_ABI void isim_regex_error_message(int err, char *buf, unsigned long n);
+ISIM_GUEST_ABI int isim_regex_match(void *code, const char *subject, unsigned long len, unsigned long start, unsigned int options, long *ovector, int pairs);
 /* host_media.c */
 struct isim_media_info;
-int isim_media_probe(const char *url, struct isim_media_info *info);
-long isim_html_flatten(const char *html, long len, const char *encoding, char *out, long cap);
-int isim_media_open(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume);
-int isim_media_video_frame(int h, double t, int *eof, double *pts);
-void isim_media_set_audio(int h, int paused, double volume);
-void isim_media_close(int h);
-int isim_media_thumbnail_png(const char *url, double t, double max_side, void **out, long *len);
-int isim_media_transcode(const char *in, const char *out);
-void isim_media_free(void *p);
-int isim_tts_synthesize(const char *text, const char *voice, double wpm, double pitch, float **out, long *frames, double *rate);
+ISIM_GUEST_ABI int isim_media_probe(const char *url, struct isim_media_info *info);
+ISIM_GUEST_ABI long isim_html_flatten(const char *html, long len, const char *encoding, char *out, long cap);
+ISIM_GUEST_ABI int isim_media_open(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume);
+ISIM_GUEST_ABI int isim_media_video_frame(int h, double t, int *eof, double *pts);
+ISIM_GUEST_ABI void isim_media_set_audio(int h, int paused, double volume);
+ISIM_GUEST_ABI void isim_media_close(int h);
+ISIM_GUEST_ABI int isim_media_thumbnail_png(const char *url, double t, double max_side, void **out, long *len);
+ISIM_GUEST_ABI int isim_media_transcode(const char *in, const char *out);
+ISIM_GUEST_ABI void isim_media_free(void *p);
+ISIM_GUEST_ABI int isim_tts_synthesize(const char *text, const char *voice, double wpm, double pitch, float **out, long *frames, double *rate);
 struct isim_tts_event; int isim_tts_available(void);
-int isim_tts_render(const char *text, int ssml, const char *voice, double wpm, double pitch, double volume, float **out, long *frames, double *rate,
+ISIM_GUEST_ABI int isim_tts_render(const char *text, int ssml, const char *voice, double wpm, double pitch, double volume, float **out, long *frames, double *rate,
                     struct isim_tts_event **events, int *nevents);
-int isim_audio_input_start(void);
-long isim_audio_input_read(float *out, long max_frames);
-void isim_audio_input_stop(void);
-void isim_media_remote_post(const char *cmd);
-int isim_remote_command_poll(char *buf, int len);
-void isim_audio_set_pan(long h, double pan);
-int isim_image_read_bgra(int hd, int x, int y, int w, int h, unsigned char *out);
+ISIM_GUEST_ABI int isim_audio_input_start(void);
+ISIM_GUEST_ABI long isim_audio_input_read(float *out, long max_frames);
+ISIM_GUEST_ABI void isim_audio_input_stop(void);
+ISIM_GUEST_ABI void isim_media_remote_post(const char *cmd);
+ISIM_GUEST_ABI int isim_remote_command_poll(char *buf, int len);
+ISIM_GUEST_ABI void isim_audio_set_pan(long h, double pan);
+ISIM_GUEST_ABI int isim_image_read_bgra(int hd, int x, int y, int w, int h, unsigned char *out);
 /* host_capture.c */
-int isim_camera_source(char *desc, int len);
-int isim_camera_open(int max_side, double fps, int *w, int *h);
-void isim_camera_set_effects(int h, double zoom, double gain);
-int isim_camera_source_at(int position, char *desc, int len);
-int isim_heif_can_encode(void);
-long isim_heif_encode_bgra(const unsigned char *bgra, int w, int h, int stride, double quality, unsigned char **out);
-int isim_heif_decode(const void *data, long len, int *w, int *h, unsigned char **rgba);
-int isim_camera_open_at(int position, int max_side, double fps, int *w, int *h);
-long isim_camera_frame(int h, unsigned char *out, long seq, double timeout);
-int isim_camera_preview(int h);
-void isim_camera_close(int h);
-int isim_ffmpeg_run(const char *const *args, int nargs, double *progress, volatile int *cancel, char *err, long errlen);
-int isim_media_reader_open(const char *url, int kind, double start, double duration, int w, int h, double rate, int channels);
-long isim_media_reader_read(int hd, void *buf, long n);
-void isim_media_reader_close(int hd);
-int isim_vision_available(int kind);
-char *isim_vision_barcodes(const unsigned char *bgra, int w, int h, int stride);
-char *isim_vision_barcodes_ex(const unsigned char *bgra, int w, int h, int stride, int extended);
-char *isim_vision_text(const unsigned char *bgra, int w, int h, int stride, const char *langs);
-char *isim_vision_text_languages(void);
-int isim_raw_available(void);
-char *isim_raw_identify(const char *path);
-int isim_raw_decode(const char *path, int half, int highlight, int *w, int *h, unsigned short **rgb);
-char *isim_raw_camera_list(void);
-int isim_speech_available(void);
-char *isim_speech_transcribe(const float *pcm, long frames, const char *lang);
-int isim_audio_session_poll(char *buf, int len);
-int isim_audio_stream_open(double volume);
-long isim_audio_stream_write(int s, const float *pcm, long frames);
-void isim_audio_stream_control(int s, int paused, double volume);
-void isim_audio_stream_close(int s);
-double isim_device_volume(void); void isim_device_volume_set(double v, int save);
-int isim_media_open_rate(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume, double rate);
+ISIM_GUEST_ABI int isim_camera_source(char *desc, int len);
+ISIM_GUEST_ABI int isim_camera_open(int max_side, double fps, int *w, int *h);
+ISIM_GUEST_ABI void isim_camera_set_effects(int h, double zoom, double gain);
+ISIM_GUEST_ABI int isim_camera_source_at(int position, char *desc, int len);
+ISIM_GUEST_ABI int isim_heif_can_encode(void);
+ISIM_GUEST_ABI long isim_heif_encode_bgra(const unsigned char *bgra, int w, int h, int stride, double quality, unsigned char **out);
+ISIM_GUEST_ABI int isim_heif_decode(const void *data, long len, int *w, int *h, unsigned char **rgba);
+ISIM_GUEST_ABI int isim_camera_open_at(int position, int max_side, double fps, int *w, int *h);
+ISIM_GUEST_ABI long isim_camera_frame(int h, unsigned char *out, long seq, double timeout);
+ISIM_GUEST_ABI int isim_camera_preview(int h);
+ISIM_GUEST_ABI void isim_camera_close(int h);
+ISIM_GUEST_ABI int isim_ffmpeg_run(const char *const *args, int nargs, double *progress, volatile int *cancel, char *err, long errlen);
+ISIM_GUEST_ABI int isim_media_reader_open(const char *url, int kind, double start, double duration, int w, int h, double rate, int channels);
+ISIM_GUEST_ABI long isim_media_reader_read(int hd, void *buf, long n);
+ISIM_GUEST_ABI void isim_media_reader_close(int hd);
+ISIM_GUEST_ABI int isim_vision_available(int kind);
+ISIM_GUEST_ABI char *isim_vision_barcodes(const unsigned char *bgra, int w, int h, int stride);
+ISIM_GUEST_ABI char *isim_vision_barcodes_ex(const unsigned char *bgra, int w, int h, int stride, int extended);
+ISIM_GUEST_ABI char *isim_vision_text(const unsigned char *bgra, int w, int h, int stride, const char *langs);
+ISIM_GUEST_ABI char *isim_vision_text_languages(void);
+ISIM_GUEST_ABI int isim_raw_available(void);
+ISIM_GUEST_ABI char *isim_raw_identify(const char *path);
+ISIM_GUEST_ABI int isim_raw_decode(const char *path, int half, int highlight, int *w, int *h, unsigned short **rgb);
+ISIM_GUEST_ABI char *isim_raw_camera_list(void);
+ISIM_GUEST_ABI int isim_speech_available(void);
+ISIM_GUEST_ABI char *isim_speech_transcribe(const float *pcm, long frames, const char *lang);
+ISIM_GUEST_ABI int isim_audio_session_poll(char *buf, int len);
+ISIM_GUEST_ABI int isim_audio_stream_open(double volume);
+ISIM_GUEST_ABI long isim_audio_stream_write(int s, const float *pcm, long frames);
+ISIM_GUEST_ABI void isim_audio_stream_control(int s, int paused, double volume);
+ISIM_GUEST_ABI void isim_audio_stream_close(int s);
+ISIM_GUEST_ABI double isim_device_volume(void); void isim_device_volume_set(double v, int save);
+ISIM_GUEST_ABI int isim_media_open_rate(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume, double rate);
 struct isim_acodec; struct isim_acodec *isim_acodec_open(int encode, const char *name, double rate, int channels, long bitrate);
-int isim_acodec_frame_size(struct isim_acodec *h); int isim_acodec_send_pcm(struct isim_acodec *h, const float *pcm, int frames);
-int isim_acodec_receive_packet(struct isim_acodec *h, unsigned char *out, int cap); int isim_acodec_send_packet(struct isim_acodec *h, const unsigned char *d, int n);
-int isim_acodec_receive_pcm(struct isim_acodec *h, float *out, int cap, int *channels, double *rate); void isim_acodec_close(struct isim_acodec *h);
-int isim_web_available(char *why, int cap); void isim_web_send(const char *line); char *isim_web_next(double timeout);
-void isim_web_free(char *s); int isim_web_frame(int view, int *w, int *h); void isim_web_release(int view);
+ISIM_GUEST_ABI int isim_acodec_frame_size(struct isim_acodec *h); int isim_acodec_send_pcm(struct isim_acodec *h, const float *pcm, int frames);
+ISIM_GUEST_ABI int isim_acodec_receive_packet(struct isim_acodec *h, unsigned char *out, int cap); int isim_acodec_send_packet(struct isim_acodec *h, const unsigned char *d, int n);
+ISIM_GUEST_ABI int isim_acodec_receive_pcm(struct isim_acodec *h, float *out, int cap, int *channels, double *rate); void isim_acodec_close(struct isim_acodec *h);
+ISIM_GUEST_ABI int isim_web_available(char *why, int cap); void isim_web_send(const char *line); char *isim_web_next(double timeout);
+ISIM_GUEST_ABI void isim_web_free(char *s); int isim_web_frame(int view, int *w, int *h); void isim_web_release(int view);
 struct isim_tls; struct isim_tls *isim_tls_connect(int fd, const char *host, int verify, const char *alpn, int min_version, char *err, int errlen, int *code);
-struct isim_tls *isim_tls_start(int, int, int, const char *, int, const char *, int, const char *, char *, int, int *); int isim_tls_peer_chain(struct isim_tls *, unsigned char *, long, long *, int);
-long isim_tls_read(struct isim_tls *t, void *buf, long n); long isim_tls_write(struct isim_tls *t, const void *buf, long n);
-void isim_tls_info(struct isim_tls *t, char *version, int vlen, char *alpn, int alen); void isim_tls_close(struct isim_tls *t);
-long isim_tls_read_nb(struct isim_tls *t, void *buf, long n); long isim_tls_write_nb(struct isim_tls *t, const void *buf, long n);
-int isim_tls_probe(const char *, int, double, unsigned char *, long, long *, int, int *, char *, int, int *, unsigned char *, long, long *, int, int *, char *, int);
+ISIM_GUEST_ABI struct isim_tls *isim_tls_start(int, int, int, const char *, int, const char *, int, const char *, char *, int, int *); int isim_tls_peer_chain(struct isim_tls *, unsigned char *, long, long *, int);
+ISIM_GUEST_ABI long isim_tls_read(struct isim_tls *t, void *buf, long n); long isim_tls_write(struct isim_tls *t, const void *buf, long n);
+ISIM_GUEST_ABI void isim_tls_info(struct isim_tls *t, char *version, int vlen, char *alpn, int alen); void isim_tls_close(struct isim_tls *t);
+ISIM_GUEST_ABI long isim_tls_read_nb(struct isim_tls *t, void *buf, long n); long isim_tls_write_nb(struct isim_tls *t, const void *buf, long n);
+ISIM_GUEST_ABI int isim_tls_probe(const char *, int, double, unsigned char *, long, long *, int, int *, char *, int, int *, unsigned char *, long, long *, int, int *, char *, int);
 /* XCUITest: the app under test as a child process (host_xctest.c) */
-int isim_xcui_launch(const char *exe, const char *const *argv, const char *const *envp); int isim_xcui_running(int h);
-int isim_xcui_send(int h, const char *line); char *isim_xcui_snapshot(int h, double timeout); void isim_xcui_free(char *p); void isim_xcui_terminate(int h);
-char *isim_xcui_screenshot(int h, double timeout, long *size); void isim_xcui_terminate_all(void);
+ISIM_GUEST_ABI int isim_xcui_launch(const char *exe, const char *const *argv, const char *const *envp); int isim_xcui_running(int h);
+ISIM_GUEST_ABI int isim_xcui_send(int h, const char *line); char *isim_xcui_snapshot(int h, double timeout); void isim_xcui_free(char *p); void isim_xcui_terminate(int h);
+ISIM_GUEST_ABI char *isim_xcui_screenshot(int h, double timeout, long *size); void isim_xcui_terminate_all(void);
 struct isim_gamepad;
-int isim_gamepad_poll(struct isim_gamepad *out, int max);
-int isim_gamepad_rumble(int id, double low, double high, double seconds);
-int isim_image_create_bgra(int w, int h);
-void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
-void isim_image_draw_quad(int handle, const double *quad, double alpha);           /* host_ca.c */
-void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy);
-int isim_gfx_screen_snapshot(double x, double y, double w, double h);
-void isim_gfx_pop_group_tinted(const double *rgba, double alpha);
-void isim_gfx_pop_group_filtered(const double *v, double alpha, double x, double y, double w, double h);
+ISIM_GUEST_ABI int isim_gamepad_poll(struct isim_gamepad *out, int max);
+ISIM_GUEST_ABI int isim_gamepad_rumble(int id, double low, double high, double seconds);
+ISIM_GUEST_ABI int isim_image_create_bgra(int w, int h);
+ISIM_GUEST_ABI void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
+ISIM_GUEST_ABI void isim_image_draw_quad(int handle, const double *quad, double alpha);           /* host_ca.c */
+ISIM_GUEST_ABI void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy);
+ISIM_GUEST_ABI int isim_gfx_screen_snapshot(double x, double y, double w, double h);
+ISIM_GUEST_ABI void isim_gfx_pop_group_tinted(const double *rgba, double alpha);
+ISIM_GUEST_ABI void isim_gfx_pop_group_filtered(const double *v, double alpha, double x, double y, double w, double h);
 
 /* ---------------- client side of the shell protocol (guest API) ---------------- */
-int isim_shell_present(void) { return getenv("ISIM_CLIENT_SOCK") != NULL; }
+ISIM_GUEST_ABI int isim_shell_present(void) { return getenv("ISIM_CLIENT_SOCK") != NULL; }
 /* type: 3 launch (a = bundle path, b = executable, c = URL to open), 4 settings changed, 5 go home, 6 terminate other apps */
-void isim_shell_request(int type, const char *a, const char *b, const char *c) {
+ISIM_GUEST_ABI void isim_shell_request(int type, const char *a, const char *b, const char *c) {
     if (client_sock < 0) return;
     struct shell_msg m = { .type = type };
     snprintf(m.a, sizeof m.a, "%s", a ? a : ""); snprintf(m.b, sizeof m.b, "%s", b ? b : ""); snprintf(m.c, sizeof m.c, "%s", c ? c : "");
@@ -2101,7 +2100,7 @@ static void send_deferred_edges(void) {
 #include <grp.h>
 #include <pwd.h>
 #include <sys/statvfs.h>
-int isim_account_name(int group, unsigned id, char *buf, int n) {
+ISIM_GUEST_ABI int isim_account_name(int group, unsigned id, char *buf, int n) {
     char tmp[4096]; const char *name = NULL;
     struct passwd pw, *pr = NULL; struct group gr, *gp = NULL;
     if (group) { if (!getgrgid_r(id, &gr, tmp, sizeof tmp, &gp) && gp) name = gp->gr_name; }
@@ -2110,13 +2109,13 @@ int isim_account_name(int group, unsigned id, char *buf, int n) {
     snprintf(buf, (size_t)n, "%s", name);
     return 1;
 }
-long isim_account_id(int group, const char *name) {
+ISIM_GUEST_ABI long isim_account_id(int group, const char *name) {
     char tmp[4096];
     struct passwd pw, *pr = NULL; struct group gr, *gp = NULL;
     if (group) return !getgrnam_r(name, &gr, tmp, sizeof tmp, &gp) && gp ? (long)gp->gr_gid : -1;
     return !getpwnam_r(name, &pw, tmp, sizeof tmp, &pr) && pr ? (long)pr->pw_uid : -1;
 }
-int isim_fs_stats(const char *path, unsigned long long out[4]) {
+ISIM_GUEST_ABI int isim_fs_stats(const char *path, unsigned long long out[4]) {
     struct statvfs v;
     if (statvfs(path, &v)) return -errno;
     out[0] = (unsigned long long)v.f_blocks * v.f_frsize; out[1] = (unsigned long long)v.f_bavail * v.f_frsize;
@@ -2124,15 +2123,15 @@ int isim_fs_stats(const char *path, unsigned long long out[4]) {
     return 0;
 }
 
-long isim_log_range(long *first);
-int isim_log_get(long seq, double *date, int meta[3], uint64_t ids[2], char *strs[5]);
-void isim_signpost_print(const char *subsystem, const char *category, int sptype, uint64_t spid, const char *name, const char *msg);
-int isim_resource_usage(double out[8]);
-int isim_hang_count(void);
-int isim_hang_get(int i, double *start, double *duration, char *stack, int cap);
-void isim_diag_set_app(const char *bundle_id, const char *version, const char *build, const char *name, const char *path);
-int isim_sample_main_stack(char *out, int cap);
-int isim_launch_stack(char *out, int cap);
+ISIM_GUEST_ABI long isim_log_range(long *first);
+ISIM_GUEST_ABI int isim_log_get(long seq, double *date, int meta[3], uint64_t ids[2], char *strs[5]);
+ISIM_GUEST_ABI void isim_signpost_print(const char *subsystem, const char *category, int sptype, uint64_t spid, const char *name, const char *msg);
+ISIM_GUEST_ABI int isim_resource_usage(double out[8]);
+ISIM_GUEST_ABI int isim_hang_count(void);
+ISIM_GUEST_ABI int isim_hang_get(int i, double *start, double *duration, char *stack, int cap);
+ISIM_GUEST_ABI void isim_diag_set_app(const char *bundle_id, const char *version, const char *build, const char *name, const char *path);
+ISIM_GUEST_ABI int isim_sample_main_stack(char *out, int cap);
+ISIM_GUEST_ABI int isim_launch_stack(char *out, int cap);
 #define H(n) { "_" #n, (void *)n, "isim" }
 static const struct shim isim_table[] = {
     H(isim_log_record), H(isim_log_range), H(isim_log_get), H(isim_signpost_print), H(isim_metric_add), H(isim_metric_max),

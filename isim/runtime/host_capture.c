@@ -11,6 +11,7 @@
  *   - speech recognition:    whisper.cpp (whisper-cli + ISIM_WHISPER_MODEL) or vosk-transcriber (+ ISIM_VOSK_MODEL)
  * Nothing here opens a camera or microphone unless the user configured it. Face detection has no host backend. */
 #define _GNU_SOURCE
+#include "guest_abi.h"
 #include <dlfcn.h>
 #include <ctype.h>
 #include <errno.h>
@@ -30,10 +31,10 @@
 extern char **environ;
 
 struct isim_media_info { double duration, width, height, fps; int has_video, has_audio; };
-int isim_media_probe(const char *url, struct isim_media_info *info);
-int isim_image_create_bgra(int w, int h);
-void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
-void isim_image_free(int hd);
+ISIM_GUEST_ABI int isim_media_probe(const char *url, struct isim_media_info *info);
+ISIM_GUEST_ABI int isim_image_create_bgra(int w, int h);
+ISIM_GUEST_ABI void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
+ISIM_GUEST_ABI void isim_image_free(int hd);
 
 /* argv with stdout on a pipe (*out), stderr on a pipe if errfd != NULL (else /dev/null), stdin /dev/null */
 static pid_t spawn2(char *const argv[], int *out, int *errfd) {
@@ -110,7 +111,7 @@ static const char *camera_env(int front) {
 }
 /* kind: 0 no camera, 1 still image, 2 video file, 3 webcam (v4l2). desc receives the source (file or device).
  * position: 0 back (ISIM_CAMERA), 1 front (ISIM_CAMERA_FRONT, else ISIM_CAMERA). */
-int isim_camera_source_at(int position, char *desc, int len) {
+ISIM_GUEST_ABI int isim_camera_source_at(int position, char *desc, int len) {
     const char *s = camera_env(position == 1);
     if (desc && len > 0) desc[0] = 0;
     if (!s || !*s) return 0;
@@ -126,7 +127,7 @@ int isim_camera_source_at(int position, char *desc, int len) {
     if (ext) for (int i = 0; still[i]; i++) if (!strcasecmp(ext, still[i])) return 1;
     return 2;
 }
-int isim_camera_source(char *desc, int len) { return isim_camera_source_at(0, desc, len); }
+ISIM_GUEST_ABI int isim_camera_source(char *desc, int len) { return isim_camera_source_at(0, desc, len); }
 
 #define MAX_CAMS 6
 struct cam {
@@ -192,7 +193,7 @@ static void *cam_thread(void *arg) {
 
 /* Starts the simulated camera at up to max_side pixels (longest side; 0 = 1280) and fps frames per second.
  * Returns a handle (> 0) with the frame size in w x h, or 0 (no ISIM_CAMERA, unreadable source, no ffmpeg). */
-int isim_camera_open_at(int position, int max_side, double fps, int *w, int *h) {
+ISIM_GUEST_ABI int isim_camera_open_at(int position, int max_side, double fps, int *w, int *h) {
     char src[1024];
     int kind = isim_camera_source_at(position, src, sizeof src);
     if (!kind) {
@@ -242,12 +243,12 @@ int isim_camera_open_at(int position, int max_side, double fps, int *w, int *h) 
     *w = ow; *h = oh;
     return slot + 1;
 }
-int isim_camera_open(int max_side, double fps, int *w, int *h) { return isim_camera_open_at(0, max_side, fps, w, h); }
+ISIM_GUEST_ABI int isim_camera_open(int max_side, double fps, int *w, int *h) { return isim_camera_open_at(0, max_side, fps, w, h); }
 static struct cam *cam_get(int h) { return h > 0 && h <= MAX_CAMS && cams[h - 1].used ? &cams[h - 1] : NULL; }
 
 /* Copies the newest frame (BGRA, w*h*4 bytes) into out when it is newer than `seq`, waiting up to timeout seconds.
  * Returns the frame's sequence number (> seq), or 0 when nothing newer arrived (or the source ended). */
-long isim_camera_frame(int h, unsigned char *out, long seq, double timeout) {
+ISIM_GUEST_ABI long isim_camera_frame(int h, unsigned char *out, long seq, double timeout) {
     struct cam *c = cam_get(h);
     if (!c) return 0;
     struct timespec dl; clock_gettime(CLOCK_REALTIME, &dl);
@@ -263,13 +264,13 @@ long isim_camera_frame(int h, unsigned char *out, long seq, double timeout) {
 }
 /* Digital zoom (1 = none; the centre 1/zoom of the picture) and brightness gain (1 = none; torch, flash, exposure
    bias) for the frames that follow. */
-void isim_camera_set_effects(int h, double zoom, double gain) {
+ISIM_GUEST_ABI void isim_camera_set_effects(int h, double zoom, double gain) {
     struct cam *c = cam_get(h);
     if (!c) return;
     pthread_mutex_lock(&c->m); c->zoom = zoom < 1 ? 1 : zoom; c->gain = gain < 0 ? 0 : gain; pthread_mutex_unlock(&c->m);
 }
 /* UI thread: an image handle showing the newest frame (0 before the first frame arrives) */
-int isim_camera_preview(int h) {
+ISIM_GUEST_ABI int isim_camera_preview(int h) {
     struct cam *c = cam_get(h);
     if (!c) return 0;
     if (!c->img) c->img = isim_image_create_bgra(c->w, c->h);
@@ -279,7 +280,7 @@ int isim_camera_preview(int h) {
     pthread_mutex_unlock(&c->m);
     return s > 0 ? c->img : 0;
 }
-void isim_camera_close(int h) {
+ISIM_GUEST_ABI void isim_camera_close(int h) {
     struct cam *c = cam_get(h);
     if (!c) return;
     pthread_mutex_lock(&c->m); c->stop = 1; pthread_cond_broadcast(&c->cv); pthread_mutex_unlock(&c->m);
@@ -297,7 +298,7 @@ void isim_camera_close(int h) {
 /* Runs `ffmpeg -nostdin -v error -progress pipe:1 -nostats <args...>` to completion. *progress receives the output
  * time in seconds as it advances; setting *cancel to non-zero stops the job. err receives ffmpeg's error output.
  * Returns 0 on success, the exit status, -1 when ffmpeg cannot be started, -2 when cancelled. */
-int isim_ffmpeg_run(const char *const *args, int nargs, double *progress, volatile int *cancel, char *err, long errlen) {
+ISIM_GUEST_ABI int isim_ffmpeg_run(const char *const *args, int nargs, double *progress, volatile int *cancel, char *err, long errlen) {
     char **argv = calloc((size_t)nargs + 8, sizeof *argv);
     int k = 0;
     argv[k++] = "ffmpeg"; argv[k++] = "-nostdin"; argv[k++] = "-v"; argv[k++] = "error";
@@ -348,7 +349,7 @@ int isim_ffmpeg_run(const char *const *args, int nargs, double *progress, volati
 #define MAX_READERS 16
 static struct { pid_t pid; int fd; } readers[MAX_READERS];
 static pthread_mutex_t readers_mtx = PTHREAD_MUTEX_INITIALIZER;
-int isim_media_reader_open(const char *url, int kind, double start, double duration, int w, int h, double rate, int channels) {
+ISIM_GUEST_ABI int isim_media_reader_open(const char *url, int kind, double start, double duration, int w, int h, double rate, int channels) {
     char ss[32], tt[32], vf[96], ar[32], ac[16];
     snprintf(ss, sizeof ss, "%.6f", start > 0 ? start : 0);
     snprintf(tt, sizeof tt, "%.6f", duration > 0 ? duration : 1e9);
@@ -371,7 +372,7 @@ int isim_media_reader_open(const char *url, int kind, double start, double durat
     return hd;
 }
 /* blocking: reads up to n bytes (fewer only at the end of the stream); returns the count */
-long isim_media_reader_read(int hd, void *buf, long n) {
+ISIM_GUEST_ABI long isim_media_reader_read(int hd, void *buf, long n) {
     if (hd <= 0 || hd > MAX_READERS || !readers[hd - 1].pid) return 0;
     int fd = readers[hd - 1].fd;
     long got = 0;
@@ -383,7 +384,7 @@ long isim_media_reader_read(int hd, void *buf, long n) {
     }
     return got;
 }
-void isim_media_reader_close(int hd) {
+ISIM_GUEST_ABI void isim_media_reader_close(int hd) {
     if (hd <= 0 || hd > MAX_READERS || !readers[hd - 1].pid) return;
     pthread_mutex_lock(&readers_mtx);
     pid_t pid = readers[hd - 1].pid; int fd = readers[hd - 1].fd;
@@ -439,7 +440,7 @@ static int zbar_load(void) {
 }
 
 /* what the host can do: 1 barcodes/QR (zbar), 2 text recognition (tesseract), 3 face detection (never) */
-int isim_vision_available(int kind) {
+ISIM_GUEST_ABI int isim_vision_available(int kind) {
     if (kind == 1) return zbar_load();
     if (kind == 2) return on_path("tesseract");
     if (kind == 3) return on_path("ZXingReader");       /* zxing-cpp's reader: Aztec, Data Matrix, Micro QR */
@@ -489,7 +490,7 @@ static int zxing_scan(const unsigned char *gray, int w, int h, char **out, size_
 /* Scans BGRA pixels for barcodes. Returns malloc'd lines "SYMBOLOGY\tQUALITY\tx,y;x,y;...\tHEXDATA\n" (pixel
  * corner points), "" when nothing was found, NULL without zbar. Free with isim_media_free.
  * extended: also look for Aztec, Data Matrix and Micro QR with zxing-cpp's ZXingReader (a process per call). */
-char *isim_vision_barcodes_ex(const unsigned char *bgra, int w, int h, int stride, int extended) {
+ISIM_GUEST_ABI char *isim_vision_barcodes_ex(const unsigned char *bgra, int w, int h, int stride, int extended) {
     int zbar = zbar_load(), zx = extended && on_path("ZXingReader");
     if (!bgra || w <= 0 || h <= 0 || (!zbar && !zx)) return NULL;
     if (stride <= 0) stride = w * 4;
@@ -524,12 +525,12 @@ char *isim_vision_barcodes_ex(const unsigned char *bgra, int w, int h, int strid
     free(gray);
     return out;
 }
-char *isim_vision_barcodes(const unsigned char *bgra, int w, int h, int stride) { return isim_vision_barcodes_ex(bgra, w, h, stride, 0); }
+ISIM_GUEST_ABI char *isim_vision_barcodes(const unsigned char *bgra, int w, int h, int stride) { return isim_vision_barcodes_ex(bgra, w, h, stride, 0); }
 
 /* Text recognition with the host's tesseract. langs: tesseract language codes joined by '+' ("eng", "eng+fra").
  * Returns tesseract's TSV output (level, page, block, par, line, word, left, top, width, height, conf, text),
  * or NULL without tesseract. Free with isim_media_free. */
-char *isim_vision_text(const unsigned char *bgra, int w, int h, int stride, const char *langs) {
+ISIM_GUEST_ABI char *isim_vision_text(const unsigned char *bgra, int w, int h, int stride, const char *langs) {
     if (!bgra || w <= 0 || h <= 0 || !on_path("tesseract")) return NULL;
     if (stride <= 0) stride = w * 4;
     char path[512];
@@ -554,16 +555,16 @@ char *isim_vision_text(const unsigned char *bgra, int w, int h, int stride, cons
     return out;
 }
 /* installed tesseract languages, one per line (NULL without tesseract) */
-char *isim_vision_text_languages(void) {
+ISIM_GUEST_ABI char *isim_vision_text_languages(void) {
     if (!on_path("tesseract")) return NULL;
     char *argv[] = { "tesseract", "--list-langs", NULL };
     return run_capture(argv, NULL);
 }
 
 /* ================= RAW photos (Core Image's CIRAWFilter) ================= */
-int isim_raw_available(void) { return on_path("dcraw_emu") && on_path("raw-identify"); }
+ISIM_GUEST_ABI int isim_raw_available(void) { return on_path("dcraw_emu") && on_path("raw-identify"); }
 /* raw-identify -v: the camera, exposure and size metadata as text (NULL: no LibRaw tools or not a RAW file) */
-char *isim_raw_identify(const char *path) {
+ISIM_GUEST_ABI char *isim_raw_identify(const char *path) {
     if (!path || !on_path("raw-identify")) return NULL;
     char *argv[] = { "raw-identify", "-v", (char *)path, NULL };
     char *out = run_capture(argv, NULL);
@@ -573,7 +574,7 @@ char *isim_raw_identify(const char *path) {
 /* Decodes a RAW file to linear 16-bit RGB (sRGB primaries, the camera's as-shot white balance, not rotated) with
  * dcraw_emu. half: half size (draft mode); highlight: dcraw's -H mode (0 clip, 2 blend). *rgb is malloc'd w*h*3
  * values (free with isim_media_free). Returns 0 when the tools are missing or the file is not readable RAW. */
-int isim_raw_decode(const char *path, int half, int highlight, int *w, int *h, unsigned short **rgb) {
+ISIM_GUEST_ABI int isim_raw_decode(const char *path, int half, int highlight, int *w, int *h, unsigned short **rgb) {
     if (!path || !rgb || !on_path("dcraw_emu")) return 0;
     char hl[8]; snprintf(hl, sizeof hl, "%d", highlight < 0 ? 0 : highlight > 9 ? 9 : highlight);
     char *argv[16]; int n = 0;
@@ -595,7 +596,7 @@ int isim_raw_decode(const char *path, int half, int highlight, int *w, int *h, u
     return 1;
 }
 /* LibRaw's supported cameras, one per line (NULL without libraw.so.23) */
-char *isim_raw_camera_list(void) {
+ISIM_GUEST_ABI char *isim_raw_camera_list(void) {
     void *lib = dlopen("libraw.so.23", RTLD_NOW | RTLD_LOCAL);
     if (!lib) return NULL;
     const char **(*list)(void) = (const char **(*)(void))dlsym(lib, "libraw_cameraList");
@@ -617,7 +618,7 @@ static const char *whisper_tool(void) {
     return NULL;
 }
 /* 1 whisper.cpp with ISIM_WHISPER_MODEL, 2 vosk-transcriber with ISIM_VOSK_MODEL, 0 nothing */
-int isim_speech_available(void) {
+ISIM_GUEST_ABI int isim_speech_available(void) {
     const char *wm = getenv("ISIM_WHISPER_MODEL"), *vm = getenv("ISIM_VOSK_MODEL");
     if (wm && *wm && !access(wm, R_OK) && whisper_tool()) return 1;
     if (vm && *vm && !access(vm, R_OK) && on_path("vosk-transcriber")) return 2;
@@ -625,7 +626,7 @@ int isim_speech_available(void) {
 }
 /* Transcribes 16 kHz mono float PCM. lang: two-letter code ("en"). Returns malloc'd lines "START\tEND\tTEXT\n" (seconds;
  * -1 when the backend gives no times) or NULL. Free with isim_media_free. */
-char *isim_speech_transcribe(const float *pcm, long frames, const char *lang) {
+ISIM_GUEST_ABI char *isim_speech_transcribe(const float *pcm, long frames, const char *lang) {
     int kind = isim_speech_available();
     if (!kind || !pcm || frames <= 0) return NULL;
     char wav[512];
@@ -679,7 +680,7 @@ void isim_audio_session_post(const char *ev) {
     if (asq_count < 32) { snprintf(as_q[(asq_head + asq_count) % 32], 64, "%s", ev); asq_count++; }
     pthread_mutex_unlock(&asq_mtx);
 }
-int isim_audio_session_poll(char *buf, int len) {
+ISIM_GUEST_ABI int isim_audio_session_poll(char *buf, int len) {
     pthread_mutex_lock(&asq_mtx);
     int got = asq_count > 0;
     if (got) { snprintf(buf, len, "%s", as_q[asq_head]); asq_head = (asq_head + 1) % 32; asq_count--; }

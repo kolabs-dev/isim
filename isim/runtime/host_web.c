@@ -7,12 +7,13 @@
  * into an image handle when the app asks for it (isim_web_frame), then acknowledged so the helper
  * can send the next one. Without WebKitGTK on the host (no helper binary) isim_web_available is 0. */
 #define _GNU_SOURCE
+#include "guest_abi.h"
+#include "platform.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <pthread.h>
 #include <signal.h>
-#include <spawn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,11 +23,10 @@
 #include <time.h>
 #include <unistd.h>
 
-void isim_post_wakeup(void);
-int isim_image_create_bgra(int w, int h);
-void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
-void isim_image_free(int hd);
-extern char **environ;
+ISIM_GUEST_ABI void isim_post_wakeup(void);
+ISIM_GUEST_ABI int isim_image_create_bgra(int w, int h);
+ISIM_GUEST_ABI void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
+ISIM_GUEST_ABI void isim_image_free(int hd);
 
 static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cv = PTHREAD_COND_INITIALIZER;
@@ -51,9 +51,8 @@ static struct webframe *frame_slot(int view, int create) {
 static void helper_path(char *out, size_t n) {
     const char *e = getenv("ISIM_WEBKIT_HELPER");
     if (e && *e) { snprintf(out, n, "%s", e); return; }
-    char self[PATH_MAX]; ssize_t r = readlink("/proc/self/exe", self, sizeof self - 1);
-    if (r <= 0) { snprintf(out, n, "isim-webkit"); return; }
-    self[r] = 0;
+    char self[PATH_MAX];
+    if (isim_self_path(self, sizeof self) <= 0) { snprintf(out, n, "isim-webkit"); return; }
     char *slash = strrchr(self, '/'); if (slash) *slash = 0;
     snprintf(out, n, "%s/isim-webkit", self);
 }
@@ -114,18 +113,14 @@ static int start_locked(void) {
         return 0;
     }
     int sv[2];
-    if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) != 0) { state = -1; snprintf(reason, sizeof reason, "socketpair: %s", strerror(errno)); return 0; }
-    posix_spawn_file_actions_t fa;
-    posix_spawn_file_actions_init(&fa);
-    posix_spawn_file_actions_adddup2(&fa, sv[1], 3);
-    posix_spawn_file_actions_addopen(&fa, 0, "/dev/null", O_RDONLY, 0);
-    if (!getenv("ISIM_WEBKIT_DEBUG")) posix_spawn_file_actions_addopen(&fa, 2, "/dev/null", O_WRONLY, 0);
-    posix_spawn_file_actions_addopen(&fa, 1, "/dev/null", O_WRONLY, 0);
+    if (isim_ipc_pair(sv, 0) != 0) { state = -1; snprintf(reason, sizeof reason, "ipc pair: %s", strerror(errno)); return 0; }
     char *argv[] = { path, NULL };
-    int rc = posix_spawn(&helper_pid, path, &fa, NULL, argv, environ);
-    posix_spawn_file_actions_destroy(&fa);
+    struct isim_spawn sp = { .path = path, .argv = argv, .remap_from = sv[1], .remap_to = 3,   /* the helper's fd 3 */
+                             .null_stdin = 1, .null_stdout = 1, .null_stderr = !getenv("ISIM_WEBKIT_DEBUG") };
+    helper_pid = isim_spawn(&sp);
+    int err = errno;
     close(sv[1]);
-    if (rc != 0) { close(sv[0]); state = -1; snprintf(reason, sizeof reason, "cannot start %s: %s", path, strerror(rc)); return 0; }
+    if (helper_pid < 0) { close(sv[0]); state = -1; snprintf(reason, sizeof reason, "cannot start %s: %s", path, strerror(err)); return 0; }
     sock = sv[0];
     state = 1;
     pthread_t th; pthread_create(&th, NULL, reader, NULL); pthread_detach(th);
@@ -133,7 +128,7 @@ static int start_locked(void) {
 }
 
 /* 1 if the web engine can run (starts the helper on first call); reason (optional) explains a 0 */
-int isim_web_available(char *why, int cap) {
+ISIM_GUEST_ABI int isim_web_available(char *why, int cap) {
     pthread_mutex_lock(&mtx);
     int ok = start_locked();
     if (!ok && why && cap > 0) snprintf(why, cap, "%s", reason);
@@ -142,7 +137,7 @@ int isim_web_available(char *why, int cap) {
 }
 
 /* sends one protocol line (without the newline) */
-void isim_web_send(const char *line) {
+ISIM_GUEST_ABI void isim_web_send(const char *line) {
     pthread_mutex_lock(&mtx);
     int ok = start_locked(), fd = sock;
     pthread_mutex_unlock(&mtx);
@@ -160,7 +155,7 @@ void isim_web_send(const char *line) {
 }
 
 /* next event line (malloc'd, free with isim_web_free) or NULL; waits up to timeout seconds (0: no wait) */
-char *isim_web_next(double timeout) {
+ISIM_GUEST_ABI char *isim_web_next(double timeout) {
     pthread_mutex_lock(&mtx);
     if (!qhead && timeout > 0 && state > 0) {
         struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
@@ -176,10 +171,10 @@ char *isim_web_next(double timeout) {
     pthread_mutex_unlock(&mtx);
     return s;
 }
-void isim_web_free(char *s) { free(s); }
+ISIM_GUEST_ABI void isim_web_free(char *s) { free(s); }
 
 /* UI thread: image handle with the view's newest frame (0 before the first), pixel size in *w and *h */
-int isim_web_frame(int view, int *w, int *h) {
+ISIM_GUEST_ABI int isim_web_frame(int view, int *w, int *h) {
     pthread_mutex_lock(&mtx);
     struct webframe *f = frame_slot(view, 0);
     if (!f) { pthread_mutex_unlock(&mtx); return 0; }
@@ -191,14 +186,14 @@ int isim_web_frame(int view, int *w, int *h) {
             size_t sz = (size_t)cur.w * cur.h * 4;
             struct stat st;
             if (fstat(fd, &st) == 0 && (size_t)st.st_size >= sz) {
-                void *m = mmap(NULL, sz, PROT_READ, MAP_SHARED, fd, 0);
-                if (m != MAP_FAILED) {
+                void *m = isim_shm_map(fd, sz, 0);
+                if (m) {
                     if (!cur.img || cur.iw != cur.w || cur.ih != cur.h) {
                         if (cur.img) isim_image_free(cur.img);
                         cur.img = isim_image_create_bgra(cur.w, cur.h); cur.iw = cur.w; cur.ih = cur.h;
                     }
                     isim_image_update_bgra(cur.img, m, cur.w, cur.h);
-                    munmap(m, sz);
+                    isim_shm_unmap(m, sz);
                 }
             }
             close(fd);
@@ -216,7 +211,7 @@ int isim_web_frame(int view, int *w, int *h) {
 }
 
 /* forget a closed view's frame */
-void isim_web_release(int view) {
+ISIM_GUEST_ABI void isim_web_release(int view) {
     pthread_mutex_lock(&mtx);
     struct webframe *f = frame_slot(view, 0);
     int img = 0;

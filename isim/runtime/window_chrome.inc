@@ -1229,11 +1229,10 @@ static void chrome_run(const char *cmd) {
     script_len += n + 2;
     script_pos = script + off;
 }
-static void ch_open_path(const char *what) {                 /* the desktop opens a folder or a link (xdg-open) */
+static void ch_open_path(const char *what) {                 /* the desktop opens a folder or a link */
     fprintf(stderr, "isim window: open %s\n", what);
     if (headless || !win) return;
-    pid_t pid = fork();
-    if (pid == 0) { setsid(); execlp("xdg-open", "xdg-open", what, (char *)NULL); _exit(127); }
+    isim_open_on_desktop(what);
 }
 static int ch_tip_shown;
 static void ch_set_hover(const char *id) {
@@ -1599,18 +1598,13 @@ static void ch_restart(int di, int major, double z) {
     ch_data_path(p, sizeof p, "Library/isim/os-version");               /* what `isim boot` remembers for the device data */
     FILE *f = fopen(p, "w"); if (f) { fprintf(f, "%s\n", ver); fclose(f); }
     ch_save();
-    char args[8192]; size_t n = 0;
-    int fd = open("/proc/self/cmdline", O_RDONLY);
-    if (fd >= 0) { ssize_t r; while (n < sizeof args - 1 && (r = read(fd, args + n, sizeof args - 1 - n)) > 0) n += (size_t)r; close(fd); }
-    char *argv[128]; int argc = 0;
-    for (size_t i = 0; i < n && argc < 127; i += strlen(args + i) + 1) argv[argc++] = args + i;
-    argv[argc] = NULL;
-    if (!argc) { fprintf(stderr, "isim window: cannot read the command line to restart\n"); return; }
+    char args[8192]; char *argv[128];
+    int argc = isim_self_args(args, sizeof args, argv, 128);
+    if (argc <= 0) { fprintf(stderr, "isim window: cannot read the command line to restart\n"); return; }
     if (shell_mode) shell_quit();                                       /* running apps quit */
     if (win) { SDL_DestroyWindow(win); win = NULL; }
     SDL_Quit();
-    fflush(NULL);
-    execv("/proc/self/exe", argv);                                      /* (the control FIFO stays open across the exec) */
+    isim_restart_self(argv);                                            /* (the control FIFO stays open across it) */
     fprintf(stderr, "isim window: restart failed: %s\n", strerror(errno));
     _exit(1);
 }

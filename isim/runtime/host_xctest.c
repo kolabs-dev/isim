@@ -2,6 +2,8 @@
  * process (headless if the test runner is) with a control FIFO, sends it script commands (tap, type, drag, ...)
  * and asks it for accessibility snapshots ("dump FILE": the app writes its element tree to FILE). */
 #define _GNU_SOURCE
+#include "guest_abi.h"
+#include "platform.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -48,7 +50,7 @@ static void kill_all(void) {
 
 /* argv / envp: NULL-terminated arrays (envp entries are KEY=VALUE, added to the runner's environment).
  * Returns a handle >= 0, or -1. */
-int isim_xcui_launch(const char *exe, const char *const *argv, const char *const *envp) {
+ISIM_GUEST_ABI int isim_xcui_launch(const char *exe, const char *const *argv, const char *const *envp) {
     int h = -1;
     for (int i = 0; i < MAX_APPS; i++) { reap(&apps[i]); if (apps[i].pid <= 0 || apps[i].exited) { h = i; break; } }
     if (h < 0 || !exe) return -1;
@@ -59,7 +61,7 @@ int isim_xcui_launch(const char *exe, const char *const *argv, const char *const
     snprintf(a->dir, sizeof a->dir, "%s/isim-xcui-XXXXXX", tmp);
     if (!mkdtemp(a->dir)) { a->dir[0] = 0; return -1; }
     char fifo[512]; snprintf(fifo, sizeof fifo, "%s/control", a->dir);
-    if (mkfifo(fifo, 0600) != 0) return -1;
+    if (isim_ctl_create(fifo) != 0) return -1;
     a->fd = open(fifo, O_RDWR | O_NONBLOCK);          /* RDWR: the app's reads never see EOF between commands */
     if (a->fd < 0) return -1;
     if (!atexit_done) { atexit(kill_all); atexit_done = 1; }
@@ -90,11 +92,11 @@ int isim_xcui_launch(const char *exe, const char *const *argv, const char *const
     args[n++] = (char *)exe;
     for (int i = 0; i < nargs; i++) args[n++] = (char *)argv[i];
     args[n] = NULL;
-    fflush(NULL);
-    pid_t pid = fork();
-    if (pid == 0) {
-        execve("/proc/self/exe", args, env);
-        _exit(127);
+    char self[1024];
+    pid_t pid = -1;
+    if (isim_self_path(self, sizeof self) > 0) {
+        struct isim_spawn sp = { .path = self, .argv = args, .env = env };   /* the control FIFO's handle is inherited */
+        pid = isim_spawn(&sp);
     }
     free(args); free(env);
     if (pid < 0) return -1;
@@ -102,14 +104,14 @@ int isim_xcui_launch(const char *exe, const char *const *argv, const char *const
     return h;
 }
 
-int isim_xcui_running(int h) {
+ISIM_GUEST_ABI int isim_xcui_running(int h) {
     if (h < 0 || h >= MAX_APPS || apps[h].pid <= 0) return 0;
     reap(&apps[h]);
     return !apps[h].exited;
 }
 
 /* one script command (e.g. "tap 100 200", "type hello", "drag 10 10 10 300 0.3", "rotate landscapeleft") */
-int isim_xcui_send(int h, const char *line) {
+ISIM_GUEST_ABI int isim_xcui_send(int h, const char *line) {
     if (!isim_xcui_running(h) || apps[h].fd < 0) return -1;
     size_t len = strlen(line);
     char *buf = malloc(len + 2);
@@ -120,7 +122,7 @@ int isim_xcui_send(int h, const char *line) {
 }
 
 /* asks the app for its element tree; returns a malloc'd text (free with isim_xcui_free) or NULL on timeout */
-char *isim_xcui_snapshot(int h, double timeout) {
+ISIM_GUEST_ABI char *isim_xcui_snapshot(int h, double timeout) {
     if (!isim_xcui_running(h)) return NULL;
     char path[512], cmd[600];
     snprintf(path, sizeof path, "%s/snapshot-%d.txt", apps[h].dir, ++apps[h].seq);
@@ -142,7 +144,7 @@ char *isim_xcui_snapshot(int h, double timeout) {
     return NULL;
 }
 /* the app's screen as PNG bytes (script command "shot FILE"); malloc'd (free with isim_xcui_free), NULL on timeout */
-char *isim_xcui_screenshot(int h, double timeout, long *size) {
+ISIM_GUEST_ABI char *isim_xcui_screenshot(int h, double timeout, long *size) {
     if (!isim_xcui_running(h)) return NULL;
     char path[512], cmd[600];
     snprintf(path, sizeof path, "%s/screenshot-%d.png", apps[h].dir, ++apps[h].seq);
@@ -164,13 +166,13 @@ char *isim_xcui_screenshot(int h, double timeout, long *size) {
     }
     return NULL;
 }
-void isim_xcui_free(char *p) { free(p); }
+ISIM_GUEST_ABI void isim_xcui_free(char *p) { free(p); }
 
-void isim_xcui_terminate(int h);
+ISIM_GUEST_ABI void isim_xcui_terminate(int h);
 /* every app under test that is still running (the end of a test bundle) */
-void isim_xcui_terminate_all(void) { for (int h = 0; h < MAX_APPS; h++) isim_xcui_terminate(h); }
+ISIM_GUEST_ABI void isim_xcui_terminate_all(void) { for (int h = 0; h < MAX_APPS; h++) isim_xcui_terminate(h); }
 
-void isim_xcui_terminate(int h) {
+ISIM_GUEST_ABI void isim_xcui_terminate(int h) {
     if (h < 0 || h >= MAX_APPS || apps[h].pid <= 0) return;
     struct xcui_app *a = &apps[h];
     if (isim_xcui_running(h)) {

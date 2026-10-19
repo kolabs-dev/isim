@@ -16,9 +16,9 @@
 #include <time.h>
 #include "runtime.h"
 struct isim_http;
-struct isim_http *isim_http_start(const char *method, const char *url, const char *headers, const void *body, long body_len, double timeout, double resource_timeout, int flags);
-long isim_http_read(struct isim_http *h, void *out, long cap);
-void isim_http_close(struct isim_http *h);
+ISIM_GUEST_ABI struct isim_http *isim_http_start(const char *method, const char *url, const char *headers, const void *body, long body_len, double timeout, double resource_timeout, int flags);
+ISIM_GUEST_ABI long isim_http_read(struct isim_http *h, void *out, long cap);
+ISIM_GUEST_ABI void isim_http_close(struct isim_http *h);
 
 typedef struct evp_pkey_st EVP_PKEY; typedef struct evp_pkey_ctx_st EVP_PKEY_CTX; typedef struct evp_md_ctx_st EVP_MD_CTX;
 typedef struct evp_md_st EVP_MD; typedef struct ec_key_st EC_KEY; typedef struct ec_group_st EC_GROUP; typedef struct ec_point_st EC_POINT;
@@ -114,7 +114,7 @@ static int pki_state;
 static pthread_once_t pki_once = PTHREAD_ONCE_INIT;
 static __thread char pki_err[256];
 static void fail(const char *m) { snprintf(pki_err, sizeof pki_err, "%s", m); }
-const char *isim_pki_error(void) { return pki_err; }
+ISIM_GUEST_ABI const char *isim_pki_error(void) { return pki_err; }
 static void pki_load(void) {
     void *h = dlopen("libcrypto.so.3", RTLD_NOW | RTLD_LOCAL);
     if (!h) h = dlopen("libcrypto.so", RTLD_NOW | RTLD_LOCAL);
@@ -124,7 +124,7 @@ static void pki_load(void) {
     pki_state = 1;
 }
 static int ok(void) { pthread_once(&pki_once, pki_load); if (pki_state != 1) fail("OpenSSL libcrypto is not available on the host"); return pki_state == 1; }
-int isim_pki_available(void) { return ok(); }
+ISIM_GUEST_ABI int isim_pki_available(void) { return ok(); }
 
 enum { PK_RSA = 6, PK_EC = 408 };
 enum { RSA_PKCS1 = 1, RSA_NONE = 3, RSA_OAEP = 4, RSA_PSS = 6 };
@@ -181,7 +181,7 @@ static int export_key(EVP_PKEY *pk, int priv, uint8_t *out, size_t *len) {
     *len = (size_t)n; ossl_free(der);
     return good;
 }
-int isim_pki_generate(int type, int bits, uint8_t *out, size_t *outlen) {
+ISIM_GUEST_ABI int isim_pki_generate(int type, int bits, uint8_t *out, size_t *outlen) {
     if (!ok()) return 0;
     EVP_PKEY *pk;
     if (type == 1) {
@@ -197,13 +197,13 @@ int isim_pki_generate(int type, int bits, uint8_t *out, size_t *outlen) {
     P.EVP_PKEY_free(pk);
     return r;
 }
-int isim_pki_public(int type, const uint8_t *priv, size_t len, uint8_t *out, size_t *outlen) {
+ISIM_GUEST_ABI int isim_pki_public(int type, const uint8_t *priv, size_t len, uint8_t *out, size_t *outlen) {
     EVP_PKEY *pk = load_key(type, priv, len, 1); if (!pk) return 0;
     int r = export_key(pk, 0, out, outlen); P.EVP_PKEY_free(pk); return r;
 }
 /* a private key (Apple representation) as OpenSSL's traditional DER: PKCS#1 RSAPrivateKey or SEC1 ECPrivateKey
  * (for a PEM "RSA PRIVATE KEY" / "EC PRIVATE KEY", e.g. a TLS client identity) */
-int isim_pki_key_der(int type, const uint8_t *priv, size_t len, uint8_t *out, size_t *outlen) {
+ISIM_GUEST_ABI int isim_pki_key_der(int type, const uint8_t *priv, size_t len, uint8_t *out, size_t *outlen) {
     EVP_PKEY *pk = load_key(type, priv, len, 1); if (!pk) return 0;
     unsigned char *der = NULL; int n = P.i2d_PrivateKey(pk, &der);
     P.EVP_PKEY_free(pk);
@@ -214,7 +214,7 @@ int isim_pki_key_der(int type, const uint8_t *priv, size_t len, uint8_t *out, si
     return good;
 }
 /* key size in bits, or 0 when the data is not a key of that type and class */
-int isim_pki_key_bits(int type, const uint8_t *key, size_t len, int priv) {
+ISIM_GUEST_ABI int isim_pki_key_bits(int type, const uint8_t *key, size_t len, int priv) {
     EVP_PKEY *pk = load_key(type, key, len, priv); if (!pk) return 0;
     int b = P.EVP_PKEY_get_bits(pk); P.EVP_PKEY_free(pk); return b;
 }
@@ -249,7 +249,7 @@ static int setup_rsa(EVP_PKEY_CTX *c, int scheme, const EVP_MD *md) {
                             (!md || P.EVP_PKEY_CTX_set_rsa_mgf1_md(c, md) > 0);
     return P.EVP_PKEY_CTX_set_rsa_padding(c, scheme == 4 ? RSA_NONE : RSA_PKCS1) > 0;
 }
-int isim_pki_sign(int type, const uint8_t *priv, size_t len, int alg, const uint8_t *data, size_t dlen, uint8_t *sig, size_t *siglen) {
+ISIM_GUEST_ABI int isim_pki_sign(int type, const uint8_t *priv, size_t len, int alg, const uint8_t *data, size_t dlen, uint8_t *sig, size_t *siglen) {
     EVP_PKEY *pk = load_key(type, priv, len, 1); if (!pk) return 0;
     int scheme = alg >> 8 & 15, isMessage = alg & 16; const EVP_MD *md = md_for(alg & 15);
     uint8_t buf[1200]; size_t bl = sizeof buf; int good = 0;
@@ -270,7 +270,7 @@ int isim_pki_sign(int type, const uint8_t *priv, size_t len, int alg, const uint
     if (!good) fail("signing failed (wrong algorithm for the key, or the data is too long)");
     P.EVP_PKEY_free(pk); return good;
 }
-int isim_pki_verify(int type, const uint8_t *pub, size_t len, int alg, const uint8_t *data, size_t dlen, const uint8_t *sig, size_t siglen) {
+ISIM_GUEST_ABI int isim_pki_verify(int type, const uint8_t *pub, size_t len, int alg, const uint8_t *data, size_t dlen, const uint8_t *sig, size_t siglen) {
     EVP_PKEY *pk = load_key(type, pub, len, 0); if (!pk) return 0;
     int scheme = alg >> 8 & 15, isMessage = alg & 16; const EVP_MD *md = md_for(alg & 15);
     uint8_t der[200];
@@ -304,10 +304,10 @@ static int rsa_crypt(int encrypt, const uint8_t *key, size_t len, int alg, const
     if (!good) fail(encrypt ? "encryption failed (data too long for the key?)" : "decryption failed");
     P.EVP_PKEY_CTX_free(c); P.EVP_PKEY_free(pk); return good;
 }
-int isim_pki_encrypt(const uint8_t *pub, size_t len, int alg, const uint8_t *in, size_t inlen, uint8_t *out, size_t *outlen) { return rsa_crypt(1, pub, len, alg, in, inlen, out, outlen); }
-int isim_pki_decrypt(const uint8_t *priv, size_t len, int alg, const uint8_t *in, size_t inlen, uint8_t *out, size_t *outlen) { return rsa_crypt(0, priv, len, alg, in, inlen, out, outlen); }
+ISIM_GUEST_ABI int isim_pki_encrypt(const uint8_t *pub, size_t len, int alg, const uint8_t *in, size_t inlen, uint8_t *out, size_t *outlen) { return rsa_crypt(1, pub, len, alg, in, inlen, out, outlen); }
+ISIM_GUEST_ABI int isim_pki_decrypt(const uint8_t *priv, size_t len, int alg, const uint8_t *in, size_t inlen, uint8_t *out, size_t *outlen) { return rsa_crypt(0, priv, len, alg, in, inlen, out, outlen); }
 /* ECDH: the shared x coordinate */
-int isim_pki_ecdh(const uint8_t *priv, size_t len, const uint8_t *pub, size_t publen, uint8_t *out, size_t *outlen) {
+ISIM_GUEST_ABI int isim_pki_ecdh(const uint8_t *priv, size_t len, const uint8_t *pub, size_t publen, uint8_t *out, size_t *outlen) {
     EVP_PKEY *a = load_key(1, priv, len, 1), *b = a ? load_key(1, pub, publen, 0) : NULL;
     int good = 0;
     if (a && b) {
@@ -372,7 +372,7 @@ static double asn1_time(const ASN1_STRING *t) {
 /* JSON description: subject/issuer ([[shortName, oid, value]...]), subject/issuer DER (hex), serial (hex),
  * notBefore/notAfter (Unix time), keyType ("RSA"/"EC"), keyBits, publicKey (hex, Apple representation),
  * emails, isCA, selfIssued */
-int isim_pki_cert_parse(const uint8_t *der, size_t len, char *json, size_t cap) {
+ISIM_GUEST_ABI int isim_pki_cert_parse(const uint8_t *der, size_t len, char *json, size_t cap) {
     X509 *x = load_cert(der, len); if (!x) return 0;
     jbuf j = { json, 0, cap, 0 }; json[0] = 0;
     jlit(&j, "{\"subject\":"); jname(&j, P.X509_get_subject_name(x));
@@ -412,7 +412,7 @@ int isim_pki_cert_parse(const uint8_t *der, size_t len, char *json, size_t cap) 
 /* Chain building + verification. certs: DER blobs (leaf first) concatenated, lens: their sizes; anchors likewise.
  * useSystemAnchors adds the host's CA store. time 0 = now. hostname (SSL policy) may be NULL. On success *chainlen
  * is the length of the verified chain; on failure err gets OpenSSL's reason. */
-int isim_pki_trust(const uint8_t *certs, const size_t *lens, int ncerts, const uint8_t *anchors, const size_t *alens, int nanchors,
+ISIM_GUEST_ABI int isim_pki_trust(const uint8_t *certs, const size_t *lens, int ncerts, const uint8_t *anchors, const size_t *alens, int nanchors,
                    int useSystemAnchors, int sslServer, const char *hostname, double when, char *err, size_t errcap, int *chainlen) {
     if (!ok() || ncerts < 1) { snprintf(err, errcap, "%s", ncerts < 1 ? "no certificates" : pki_err); return 0; }
     X509 *xs[32]; int nx = 0; X509 *as[64]; int na = 0;
@@ -531,7 +531,7 @@ static int ocsp_status(X509 *cert, X509 *issuer, X509_STORE *store, const uint8_
 /* isim_pki_trust with Apple's rules: flags bit 0 the SSL server rules, bit 1 check revocation (OCSP), bit 2 require a
    positive revocation answer, bit 3 network fetching allowed. ocsp / ocsplen: a stapled OCSP response for the leaf
    (or NULL). *status: Apple's OSStatus when a rule fails (0 when OpenSSL's own verification failed) */
-int isim_pki_trust_ex(const uint8_t *certs, const size_t *lens, int ncerts, const uint8_t *anchors, const size_t *alens, int nanchors,
+ISIM_GUEST_ABI int isim_pki_trust_ex(const uint8_t *certs, const size_t *lens, int ncerts, const uint8_t *anchors, const size_t *alens, int nanchors,
                       int useSystemAnchors, int sslServer, const char *hostname, double when, int flags, const uint8_t *ocsp, size_t ocsplen,
                       int scts, char *err, size_t errcap, int *chainlen, int *status) {
     *status = 0;
@@ -611,7 +611,7 @@ out:
 
 /* PKCS#12: the private key (Apple representation, *keytype 0 RSA / 1 EC), the certificate and the extra
  * certificates (DER, concatenated into certs with sizes in certlens; certs[0] is the identity's certificate) */
-int isim_pki_pkcs12(const uint8_t *data, size_t len, const char *password, uint8_t *key, size_t *keylen, int *keytype,
+ISIM_GUEST_ABI int isim_pki_pkcs12(const uint8_t *data, size_t len, const char *password, uint8_t *key, size_t *keylen, int *keytype,
                     uint8_t *certs, size_t certscap, size_t *certlens, int *ncerts) {
     if (!ok()) return 0;
     const unsigned char *p = data;

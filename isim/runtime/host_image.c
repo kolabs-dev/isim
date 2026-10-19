@@ -10,6 +10,7 @@
  * uses SF-like metrics so sizes match.
  */
 #define _GNU_SOURCE
+#include "guest_abi.h"
 #include <cairo.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <librsvg/rsvg.h>
@@ -66,9 +67,9 @@ static cairo_status_t png_read(void *closure, unsigned char *buf, unsigned int n
     return CAIRO_STATUS_SUCCESS;
 }
 /* Returns a handle (>0) or 0. Size is in pixels of the source (the caller applies @2x/@3x). */
-int isim_image_create_bgra(int w, int h);
-void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
-int isim_image_load_data(const void *data, unsigned long len, double *w, double *h) {
+ISIM_GUEST_ABI int isim_image_create_bgra(int w, int h);
+ISIM_GUEST_ABI void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
+ISIM_GUEST_ABI int isim_image_load_data(const void *data, unsigned long len, double *w, double *h) {
     if (len > 5 && (!memcmp(data, "<?xml", 5) || !memcmp(data, "<svg", 4))) {
         RsvgHandle *svg = rsvg_handle_new_from_data(data, len, NULL);
         return svg ? load_svg(svg, w, h) : 0;
@@ -112,7 +113,7 @@ int isim_image_load_data(const void *data, unsigned long len, double *w, double 
     return handle;
 }
 
-int isim_image_load(const char *path, double *w, double *h) {
+ISIM_GUEST_ABI int isim_image_load(const char *path, double *w, double *h) {
     gchar *data; gsize len;
     if (!g_file_get_contents(path, &data, &len, NULL)) return 0;
     int r = isim_image_load_data(data, len, w, h);
@@ -240,11 +241,11 @@ static int proc_symbol(int proc, int fill, const char *text, double *w, double *
     return new_img(v);
 }
 
-int isim_image_symbol(const char *name, double *w, double *h);
+ISIM_GUEST_ABI int isim_image_symbol(const char *name, double *w, double *h);
 /* A variable-value SF Symbol (UIImage(systemName:variableValue:)): the symbols whose variable layers are signal or
    volume levels draw Adwaita's icon for that level (adapted); every other symbol draws as without a value, as iOS draws
    symbols that have no variable layers. value: 0 ... 1. */
-int isim_image_symbol_variable(const char *name, double value, double *w, double *h) {
+ISIM_GUEST_ABI int isim_image_symbol_variable(const char *name, double value, double *w, double *h) {
     static const char *signal[] = { "none", "weak", "ok", "good", "excellent" }, *volume[] = { "muted", "low", "medium", "high" };
     char base[128]; snprintf(base, sizeof base, "%s", name);
     size_t n = strlen(base);
@@ -267,7 +268,7 @@ int isim_image_symbol_variable(const char *name, double value, double *w, double
 }
 
 /* SF Symbol substitute. Size is relative to a 1pt font (multiply by the point size). */
-int isim_image_symbol(const char *name, double *w, double *h) {
+ISIM_GUEST_ABI int isim_image_symbol(const char *name, double *w, double *h) {
     char base[128]; snprintf(base, sizeof base, "%s", name);
     int fill = 0; size_t n = strlen(base);
     if (n > 5 && !strcmp(base + n - 5, ".fill")) { fill = 1; base[n - 5] = 0; n -= 5; }
@@ -421,7 +422,7 @@ static void draw_proc(cairo_t *c, struct img *im, double w, double h) {
 }
 
 /* Draws image `h` into (x, y, w, h) in current user space. tint (rgba) != NULL renders it as a template. */
-void isim_image_draw(int hd, double x, double y, double w, double h, const double *tint, double alpha) {
+ISIM_GUEST_ABI void isim_image_draw(int hd, double x, double y, double w, double h, const double *tint, double alpha) {
     struct img *im = get(hd); cairo_t *c = isim_host_cairo();
     if (!im || !c || w <= 0 || h <= 0) return;
     cairo_save(c);
@@ -449,7 +450,7 @@ void isim_image_draw(int hd, double x, double y, double w, double h, const doubl
 
 /* isim_image_draw for symbol images with a UIImage.SymbolWeight (0 unspecified, 1 ultraLight ... 9 black):
    procedural symbols draw their strokes at that weight */
-void isim_image_draw_symbol(int hd, double x, double y, double w, double h, const double *tint, double alpha, int weight) {
+ISIM_GUEST_ABI void isim_image_draw_symbol(int hd, double x, double y, double w, double h, const double *tint, double alpha, int weight) {
     int saved = symbol_weight;
     symbol_weight = weight;
     isim_image_draw(hd, x, y, w, h, tint, alpha);
@@ -458,13 +459,13 @@ void isim_image_draw_symbol(int hd, double x, double y, double w, double h, cons
 
 /* rendering-mode layers of a symbol image: 2 for a glyph in an enclosure (primary: the glyph, secondary: the
    enclosure), else 1 */
-int isim_image_symbol_layers(int hd) {
+ISIM_GUEST_ABI int isim_image_symbol_layers(int hd) {
     struct img *im = get(hd);
     return im && im->kind == IMG_PROC && im->proc == PROC_GLYPH && im->encl ? 2 : 1;
 }
 /* a symbol with one colour per layer (rgba: primary, then secondary), for the hierarchical, palette and multicolor
    rendering modes; a one-layer symbol takes the primary colour */
-void isim_image_draw_symbol_layered(int hd, double x, double y, double w, double h, const double *rgba2, double alpha, int weight) {
+ISIM_GUEST_ABI void isim_image_draw_symbol_layered(int hd, double x, double y, double w, double h, const double *rgba2, double alpha, int weight) {
     if (isim_image_symbol_layers(hd) < 2) { isim_image_draw_symbol(hd, x, y, w, h, rgba2, alpha, weight); return; }
     int saved = symbol_part;
     symbol_part = 2; isim_image_draw_symbol(hd, x, y, w, h, rgba2 + 4, alpha, weight);
@@ -484,7 +485,7 @@ static cairo_surface_t *part_surface(struct img *im, double sx, double sy, doubl
     *ox = x0 - sx; *oy = y0 - sy;
     return cairo_surface_create_for_rectangle(im->surf, x0, y0, x1 - x0, y1 - y0);
 }
-void isim_image_draw_part(int hd, double sx, double sy, double sw, double sh, double x, double y, double w, double h,
+ISIM_GUEST_ABI void isim_image_draw_part(int hd, double sx, double sy, double sw, double sh, double x, double y, double w, double h,
                           int nearest, const double *blend, double factor, double alpha) {
     struct img *im = get(hd); cairo_t *c = isim_host_cairo();
     if (!im || !c || w == 0 || h == 0 || sw <= 0 || sh <= 0) return;
@@ -527,15 +528,15 @@ void isim_image_draw_part(int hd, double sx, double sy, double sw, double sh, do
     cairo_restore(c);
 }
 /* Pixel size of an image (vector images: their intrinsic size). */
-void isim_image_pixel_size(int hd, double *w, double *h) {
+ISIM_GUEST_ABI void isim_image_pixel_size(int hd, double *w, double *h) {
     struct img *im = get(hd);
     *w = im ? im->w : 0; *h = im ? im->h : 0;
 }
 
 /* Is the image a symbol/template by nature (single-color art)? */
-int isim_image_is_template(int hd) { struct img *im = get(hd); return im && im->kind == IMG_PROC; }
+ISIM_GUEST_ABI int isim_image_is_template(int hd) { struct img *im = get(hd); return im && im->kind == IMG_PROC; }
 
-void isim_image_free(int hd) {
+ISIM_GUEST_ABI void isim_image_free(int hd) {
     struct img *im = get(hd); if (!im) return;
     if (im->surf) cairo_surface_destroy(im->surf);
     if (im->svg) g_object_unref(im->svg);
@@ -558,7 +559,7 @@ static cairo_status_t png_write(void *closure, const unsigned char *data, unsign
     GByteArray *a = closure; g_byte_array_append(a, data, n); return CAIRO_STATUS_SUCCESS;
 }
 /* encodes a raster image: fmt 0 PNG, 1 JPEG (quality 0..1). Returns the byte count (0 on failure); *out is malloc'd */
-long isim_image_encode(int hd, int fmt, double quality, unsigned char **out) {
+ISIM_GUEST_ABI long isim_image_encode(int hd, int fmt, double quality, unsigned char **out) {
     struct img *im = get(hd);
     *out = NULL;
     if (!im || im->kind != IMG_RASTER || !im->surf) return 0;
@@ -596,15 +597,15 @@ long isim_image_encode(int hd, int fmt, double quality, unsigned char **out) {
     g_byte_array_free(a, TRUE);
     return n;
 }
-void isim_image_bytes_free(unsigned char *p) { free(p); }
+ISIM_GUEST_ABI void isim_image_bytes_free(unsigned char *p) { free(p); }
 /* Raster image from 32-bit BGRA pixels (cairo ARGB32 byte order on little-endian; opaque video frames).
  * Used by host_media.c for video frames: created once, then updated in place on the UI thread. */
-int isim_image_create_bgra(int w, int h) {
+ISIM_GUEST_ABI int isim_image_create_bgra(int w, int h) {
     if (w <= 0 || h <= 0) return 0;
     struct img v = { .kind = IMG_RASTER, .surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h), .w = w, .h = h };
     return new_img(v);
 }
-void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h) {
+ISIM_GUEST_ABI void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h) {
     struct img *im = get(hd);
     if (!im || im->kind != IMG_RASTER || (int)im->w != w || (int)im->h != h) return;
     cairo_surface_flush(im->surf);
@@ -615,7 +616,7 @@ void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h) {
 /* Copies a w x h pixel rectangle at (x, y) of an image as premultiplied BGRA (cairo ARGB32 on little-endian) into
  * out (w*h*4 bytes, rows packed); pixels outside the image are transparent. Vector and symbol images are rendered at
  * their intrinsic size. Returns 1, or 0 for an unknown handle. Used by Vision, CVPixelBuffer and capture. */
-int isim_image_read_bgra(int hd, int x, int y, int w, int h, unsigned char *out) {
+ISIM_GUEST_ABI int isim_image_read_bgra(int hd, int x, int y, int w, int h, unsigned char *out) {
     struct img *im = get(hd);
     if (!im || w <= 0 || h <= 0 || !out) return 0;
     cairo_surface_t *s = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);

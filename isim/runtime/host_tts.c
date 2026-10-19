@@ -3,6 +3,7 @@
  * AVSpeechSynthesizer's willSpeakRange / willSpeakMarker callbacks follow the speech exactly. Without the library,
  * isim_tts_synthesize (host_media.c: the espeak-ng command) still renders speech, without events.
  * The espeak-ng API is small and stable; it is declared here (speak_lib.h, espeak-ng 1.49+, espeak 1.48). */
+#include "guest_abi.h"
 #include <dlfcn.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -70,12 +71,12 @@ static int load(void) {
     return 1;
 }
 
-int isim_tts_available(void) { pthread_mutex_lock(&es_lock); int ok = load(); pthread_mutex_unlock(&es_lock); return ok; }
+ISIM_GUEST_ABI int isim_tts_available(void) { pthread_mutex_lock(&es_lock); int ok = load(); pthread_mutex_unlock(&es_lock); return ok; }
 
 /* Renders `text` (UTF-8; SSML when ssml) with an espeak voice name, words per minute, pitch 0...99 and volume
    0...200. Returns the mono samples (free with isim_media_free) and the events (free with isim_media_free); 0 when
    libespeak-ng is unavailable or the voice is unknown. */
-int isim_tts_render(const char *text, int ssml, const char *voice, double wpm, double pitch, double volume,
+ISIM_GUEST_ABI int isim_tts_render(const char *text, int ssml, const char *voice, double wpm, double pitch, double volume,
                     float **out, long *frames, double *rate, struct isim_tts_event **events, int *nevents) {
     pthread_mutex_lock(&es_lock);
     int ok = 0;

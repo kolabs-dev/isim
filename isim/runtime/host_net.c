@@ -238,10 +238,10 @@ static void *http_thread(void *arg) {
 
 /* Starts a transfer. headers: "Name: value" lines separated by '\n'. flags: 1 = do not follow redirects, 2 = accept any server certificate.
  * timeout: idle timeout (s); resource_timeout: whole transfer (s, <= 0 none). NULL if libcurl is missing. */
-struct isim_http *isim_http_start_tls(const char *method, const char *url, const char *headers, const void *body, long body_len,
+ISIM_GUEST_ABI struct isim_http *isim_http_start_tls(const char *method, const char *url, const char *headers, const void *body, long body_len,
                                       double timeout, double resource_timeout, int flags, const char *pinned_key,
                                       const void *client_pem, long client_pem_len);
-struct isim_http *isim_http_start(const char *method, const char *url, const char *headers, const void *body, long body_len,
+ISIM_GUEST_ABI struct isim_http *isim_http_start(const char *method, const char *url, const char *headers, const void *body, long body_len,
                                   double timeout, double resource_timeout, int flags) {
     if (body_len > 0) isim_metric_add("net.up", (double)body_len);              /* MetricKit network transfer */
     return isim_http_start_tls(method, url, headers, body, body_len, timeout, resource_timeout, flags, NULL, NULL, 0);
@@ -283,7 +283,7 @@ static int env_proxy_for(const char *url) {
 }
 /* isim_http_start with TLS options: pinned_key ("sha256//<base64>", or NULL) is the only server key accepted;
  * client_pem (or NULL) holds the client certificate chain and its private key, offered when the server asks */
-struct isim_http *isim_http_start_tls(const char *method, const char *url, const char *headers, const void *body, long body_len,
+ISIM_GUEST_ABI struct isim_http *isim_http_start_tls(const char *method, const char *url, const char *headers, const void *body, long body_len,
                                       double timeout, double resource_timeout, int flags, const char *pinned_key,
                                       const void *client_pem, long client_pem_len) {
     if (!curl_load()) return NULL;
@@ -325,7 +325,7 @@ struct isim_http *isim_http_start_tls(const char *method, const char *url, const
 
 /* Blocks until the response headers arrive. Returns 0 or an NSURLError code; *url and *headers are
  * malloc'd (free them), headers as raw "Name: value\r\n" lines after the status line. */
-int isim_http_response(struct isim_http *h, long *status, char **url, char **headers) {
+ISIM_GUEST_ABI int isim_http_response(struct isim_http *h, long *status, char **url, char **headers) {
     pthread_mutex_lock(&h->mu);
     while (!h->have_response && !h->done) pthread_cond_wait(&h->cv, &h->mu);
     int err = h->have_response ? 0 : h->error ? h->error : -1;
@@ -335,7 +335,7 @@ int isim_http_response(struct isim_http *h, long *status, char **url, char **hea
 }
 
 /* Blocks until body bytes arrive: > 0 bytes copied, 0 at the end, < 0 NSURLError code. */
-long isim_http_read(struct isim_http *h, void *out, long cap) {
+ISIM_GUEST_ABI long isim_http_read(struct isim_http *h, void *out, long cap) {
     pthread_mutex_lock(&h->mu);
     while (h->bpos == h->blen && !h->done) pthread_cond_wait(&h->cv, &h->mu);
     long n = 0;
@@ -348,21 +348,21 @@ long isim_http_read(struct isim_http *h, void *out, long cap) {
     return n;
 }
 
-const char *isim_http_error_message(struct isim_http *h) { return h->errbuf; }
+ISIM_GUEST_ABI const char *isim_http_error_message(struct isim_http *h) { return h->errbuf; }
 /* after the body was read: seconds from the start for t[0] total, [1] name lookup, [2] connect, [3] TLS handshake,
    [4] request sent, [5] first response byte, [6] redirects (-1 unknown); ints[0] HTTP version (CURL_HTTP_VERSION_*),
    [1] new connections (0 = reused), [2] remote port, [3] local port; remote/local IP strings */
-void isim_http_metrics(struct isim_http *h, double *t, long *ints, char *remote, int rlen, char *local, int llen) {
+ISIM_GUEST_ABI void isim_http_metrics(struct isim_http *h, double *t, long *ints, char *remote, int rlen, char *local, int llen) {
     pthread_mutex_lock(&h->mu);
     for (int i = 0; i < 7; i++) t[i] = h->done ? h->timing[i] : -1;
     ints[0] = h->http_version; ints[1] = h->new_connections; ints[2] = h->remote_port; ints[3] = h->local_port;
     snprintf(remote, rlen, "%s", h->remote_ip); snprintf(local, llen, "%s", h->local_ip);
     pthread_mutex_unlock(&h->mu);
 }
-void isim_http_cancel(struct isim_http *h) {
+ISIM_GUEST_ABI void isim_http_cancel(struct isim_http *h) {
     pthread_mutex_lock(&h->mu); h->cancelled = 1; pthread_cond_broadcast(&h->cv); pthread_mutex_unlock(&h->mu);
 }
-void isim_http_close(struct isim_http *h) { if (h) { isim_http_cancel(h); http_unref(h); } }
+ISIM_GUEST_ABI void isim_http_close(struct isim_http *h) { if (h) { isim_http_cancel(h); http_unref(h); } }
 
 /* ---------------- WebSocket (RFC 6455 client, isim's own) ----------------
  * Independent of the host libcurl's build (most distributions' libcurl has no WebSocket support): a TCP
@@ -371,10 +371,10 @@ void isim_http_close(struct isim_http *h) { if (h) { isim_http_cancel(h); http_u
  * the peer is echoed and returned to the caller. One thread receives (isim_ws_recv) while others send: the socket
  * is non-blocking and every read/write of the connection happens under the struct's lock. */
 struct isim_tls;
-struct isim_tls *isim_tls_connect(int fd, const char *host, int verify, const char *alpn, int min_version, char *err, int errlen, int *code);
-long isim_tls_read_nb(struct isim_tls *t, void *buf, long n);
-long isim_tls_write_nb(struct isim_tls *t, const void *buf, long n);
-void isim_tls_close(struct isim_tls *t);
+ISIM_GUEST_ABI struct isim_tls *isim_tls_connect(int fd, const char *host, int verify, const char *alpn, int min_version, char *err, int errlen, int *code);
+ISIM_GUEST_ABI long isim_tls_read_nb(struct isim_tls *t, void *buf, long n);
+ISIM_GUEST_ABI long isim_tls_write_nb(struct isim_tls *t, const void *buf, long n);
+ISIM_GUEST_ABI void isim_tls_close(struct isim_tls *t);
 void isim_sha1(const void *data, size_t n, unsigned char out[20]);
 
 struct isim_ws {
@@ -467,14 +467,14 @@ static int ws_parse(struct isim_ws *w, int *fin, int *opcode, unsigned char **pa
     return 1;
 }
 
-struct isim_ws *isim_ws_open_ex(const char *url, const char *headers, double timeout, int *err, char **response);
+ISIM_GUEST_ABI struct isim_ws *isim_ws_open_ex(const char *url, const char *headers, double timeout, int *err, char **response);
 /* Connects (blocking, up to timeout). Returns NULL with *err set to an NSURLError code on failure. */
-struct isim_ws *isim_ws_open(const char *url, const char *headers, double timeout, int *err) {
+ISIM_GUEST_ABI struct isim_ws *isim_ws_open(const char *url, const char *headers, double timeout, int *err) {
     return isim_ws_open_ex(url, headers, timeout, err, NULL);
 }
 /* isim_ws_open, and *response (when not NULL) gets the server's response head ("HTTP/1.1 101 ...\r\n" and the
    header lines; malloc'd, free it) whenever one arrived, also for a refused upgrade */
-struct isim_ws *isim_ws_open_ex(const char *url, const char *headers, double timeout, int *err, char **response) {
+ISIM_GUEST_ABI struct isim_ws *isim_ws_open_ex(const char *url, const char *headers, double timeout, int *err, char **response) {
     *err = 0;
     if (response) *response = NULL;
     if (offline()) { *err = -1009; return NULL; }
@@ -627,7 +627,7 @@ struct isim_ws *isim_ws_open_ex(const char *url, const char *headers, double tim
 }
 
 /* kind: 1 text, 2 binary, 8 close, 9 ping, 10 pong. Returns 0 or an NSURLError code. */
-int isim_ws_send(struct isim_ws *w, int kind, const void *data, long len) {
+ISIM_GUEST_ABI int isim_ws_send(struct isim_ws *w, int kind, const void *data, long len) {
     if (len > 0) isim_metric_add("net.up", (double)len);
     if (w->closed || (w->close_sent && kind != 8)) return -1005;
     int op = kind == 1 ? 1 : kind == 2 ? 2 : kind == 8 ? 8 : kind == 9 ? 9 : 10;
@@ -637,7 +637,7 @@ int isim_ws_send(struct isim_ws *w, int kind, const void *data, long len) {
 
 /* Blocks until a whole message arrives (fragments joined). kind as for send; *data is malloc'd. Pings are answered
  * here and not returned. Returns 0, or an NSURLError code (-1005 when the connection closed). */
-int isim_ws_recv(struct isim_ws *w, int *kind, unsigned char **data, long *len) {
+ISIM_GUEST_ABI int isim_ws_recv(struct isim_ws *w, int *kind, unsigned char **data, long *len) {
     unsigned char *msg = NULL; size_t mlen = 0; int k = 0;
     for (;;) {
         if (w->closed) { free(msg); return -999; }
@@ -674,7 +674,7 @@ int isim_ws_recv(struct isim_ws *w, int *kind, unsigned char **data, long *len) 
     return 0;
 }
 
-void isim_ws_close(struct isim_ws *w) {
+ISIM_GUEST_ABI void isim_ws_close(struct isim_ws *w) {
     if (!w) return;
     w->closed = 1;
     pthread_mutex_lock(&w->mu);              /* waits for a read or write in progress */
@@ -687,7 +687,7 @@ void isim_ws_close(struct isim_ws *w) {
 /* ---------------- connectivity ---------------- */
 /* Returns 1 if the host has a usable (non-loopback, up) interface with an address. flags: 1 Wi-Fi, 2 wired,
  * 4 IPv4, 8 IPv6 (global), 16 a VPN/tunnel-like interface. */
-int isim_net_path(int *flags) {
+ISIM_GUEST_ABI int isim_net_path(int *flags) {
     int f = 0;
     if (offline()) { if (flags) *flags = 0; return 0; }
     struct ifaddrs *list = NULL;

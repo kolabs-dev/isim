@@ -8,6 +8,7 @@
  *   - AVFrame: data[], extended_data, nb_samples, format (offsets 0, 96, 112, 116); sample_rate and ch_layout are
  *     located by decoding one PCM packet and finding the values the decoder wrote;
  *   - AVCodecContext.sample_fmt: after sample_rate (the "ar" option), and the old "channels" field when "ac" is it. */
+#include "guest_abi.h"
 #include <dlfcn.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -106,7 +107,7 @@ static const char *layout_name(int ch) {
 }
 
 /* encode: "aac" (AAC-LC); decode: "aac", "mp3float", "alac"... Returns NULL when unavailable. */
-struct isim_acodec *isim_acodec_open(int encode, const char *name, double rate, int channels, long bitrate) {
+ISIM_GUEST_ABI struct isim_acodec *isim_acodec_open(int encode, const char *name, double rate, int channels, long bitrate) {
     if (!load()) return NULL;
     void *codec = encode ? av.find_encoder(name) : av.find_decoder(name);
     if (!codec) return NULL;
@@ -129,7 +130,7 @@ struct isim_acodec *isim_acodec_open(int encode, const char *name, double rate, 
     h->frame_size = fs > 0 ? (int)fs : 1024;
     return h;
 }
-int isim_acodec_frame_size(struct isim_acodec *h) { return h ? h->frame_size : 0; }
+ISIM_GUEST_ABI int isim_acodec_frame_size(struct isim_acodec *h) { return h ? h->frame_size : 0; }
 
 static int send_planar(struct isim_acodec *h, const float *inter, int n) {
     int ch = h->channels;
@@ -150,7 +151,7 @@ static int send_planar(struct isim_acodec *h, const float *inter, int n) {
     return av.send_frame(h->ctx, f);
 }
 /* encoder input (interleaved float); frames == 0 ends the stream */
-int isim_acodec_send_pcm(struct isim_acodec *h, const float *pcm, int frames) {
+ISIM_GUEST_ABI int isim_acodec_send_pcm(struct isim_acodec *h, const float *pcm, int frames) {
     if (!h || !h->encode || h->flushed) return -1;
     int ch = h->channels;
     if (frames > 0) {
@@ -173,7 +174,7 @@ int isim_acodec_send_pcm(struct isim_acodec *h, const float *pcm, int frames) {
     return sent;
 }
 /* an encoded packet: its size, 0 when the encoder needs more input, -1 at the end */
-int isim_acodec_receive_packet(struct isim_acodec *h, unsigned char *out, int cap) {
+ISIM_GUEST_ABI int isim_acodec_receive_packet(struct isim_acodec *h, unsigned char *out, int cap) {
     if (!h || !h->encode) return -1;
     int st = av.receive_packet(h->ctx, h->pkt);
     if (st < 0) return h->flushed ? -1 : 0;
@@ -184,7 +185,7 @@ int isim_acodec_receive_packet(struct isim_acodec *h, unsigned char *out, int ca
     return n;
 }
 /* decoder input: one packet; size 0 ends the stream */
-int isim_acodec_send_packet(struct isim_acodec *h, const unsigned char *data, int size) {
+ISIM_GUEST_ABI int isim_acodec_send_packet(struct isim_acodec *h, const unsigned char *data, int size) {
     if (!h || h->encode) return -1;
     if (size <= 0) { h->flushed = 1; return av.send_packet(h->ctx, NULL); }
     if (av.new_packet(h->pkt, size) < 0) return -1;
@@ -194,7 +195,7 @@ int isim_acodec_send_packet(struct isim_acodec *h, const unsigned char *data, in
     return st;
 }
 /* decoded audio: frames written (interleaved float, `cap` frames at most), 0 when more input is needed, -1 at the end */
-int isim_acodec_receive_pcm(struct isim_acodec *h, float *out, int cap, int *channels, double *rate) {
+ISIM_GUEST_ABI int isim_acodec_receive_pcm(struct isim_acodec *h, float *out, int cap, int *channels, double *rate) {
     if (!h || h->encode) return -1;
     void *f = h->frame;
     int st = av.receive_frame(h->ctx, f);
@@ -225,7 +226,7 @@ int isim_acodec_receive_pcm(struct isim_acodec *h, float *out, int cap, int *cha
     av.frame_unref(f);
     return n;
 }
-void isim_acodec_close(struct isim_acodec *h) {
+ISIM_GUEST_ABI void isim_acodec_close(struct isim_acodec *h) {
     if (!h) return;
     if (h->encode) { memset(h->frame, 0, 128); }       /* the frame points at our planes: nothing for av_frame_free to unref */
     av.frame_free(&h->frame); av.packet_free(&h->pkt); av.free_ctx(&h->ctx);
