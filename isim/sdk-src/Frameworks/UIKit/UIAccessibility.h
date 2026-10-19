@@ -266,7 +266,7 @@ NS_SWIFT_UI_ACTOR
 
 typedef NS_ENUM(NSInteger, UIAccessibilityCustomRotorDirection) { UIAccessibilityCustomRotorDirectionPrevious, UIAccessibilityCustomRotorDirectionNext };
 @class UIAccessibilityCustomRotorItemResult, UIAccessibilityCustomRotorSearchPredicate, UITextRange;
-typedef UIAccessibilityCustomRotorItemResult *_Nullable (^UIAccessibilityCustomRotorSearch)(UIAccessibilityCustomRotorSearchPredicate *predicate);
+typedef UIAccessibilityCustomRotorItemResult *_Nullable (^UIAccessibilityCustomRotorSearch)(UIAccessibilityCustomRotorSearchPredicate *predicate) NS_SWIFT_NAME(UIAccessibilityCustomRotor.Search);
 NS_SWIFT_UI_ACTOR
 @interface UIAccessibilityCustomRotorSearchPredicate : NSObject
 @property (nonatomic, retain) UIAccessibilityCustomRotorItemResult *currentItem;

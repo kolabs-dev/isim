@@ -13,6 +13,7 @@
 #import "UIKitInputPrivate.h"
 #import <UIKit/UIContentSizeCategory.h>
 #import <objc/runtime.h>
+#import <objc/message.h>
 #include <math.h>
 
 /* ================= traits, notifications ================= */
@@ -228,13 +229,36 @@ static char k_frame, k_path, k_act, k_lang, k_group, k_responds, k_nav, k_inputl
 - (void)accessibilityElementDidLoseFocus {}
 @end
 
-/* hooks for SwiftUI's accessibilityAction / accessibilityAdjustableAction / accessibilitySortPriority */
-static char k_act_handler, k_adj_handler, k_sort;
+/* hooks for SwiftUI's accessibilityAction / accessibilityAdjustableAction / accessibilitySortPriority, and its
+   accessibilityFocused (focus handler: YES when VoiceOver focuses the element, NO when it leaves), accessibilityScrollAction,
+   accessibilityZoomAction, accessibilityCustomContent (AXCustomContent objects for an element that is not an
+   AXCustomContentProvider) and accessibilityLinkedGroup (elements of one group are visited one after the other) */
+static char k_act_handler, k_adj_handler, k_sort, k_focus_handler, k_scroll_handler, k_zoom_handler, k_custom_content, k_linked, k_direct_active;
 @implementation NSObject (IsimAccessibilityHooks)
 - (void)_isim_setAccessibilityActivateHandler:(BOOL (^)(void))h { objc_setAssociatedObject(self, &k_act_handler, h, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 - (void)_isim_setAccessibilityAdjustHandler:(void (^)(NSInteger))h { objc_setAssociatedObject(self, &k_adj_handler, h, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 - (void)_isim_setAccessibilitySortPriority:(double)p { objc_setAssociatedObject(self, &k_sort, @(p), OBJC_ASSOCIATION_RETAIN_NONATOMIC); }
+- (void)_isim_setAccessibilityFocusHandler:(void (^)(BOOL))h { objc_setAssociatedObject(self, &k_focus_handler, h, OBJC_ASSOCIATION_COPY_NONATOMIC); }
+- (void)_isim_setAccessibilityScrollHandler:(BOOL (^)(UIAccessibilityScrollDirection))h { objc_setAssociatedObject(self, &k_scroll_handler, h, OBJC_ASSOCIATION_COPY_NONATOMIC); }
+- (void)_isim_setAccessibilityZoomHandler:(BOOL (^)(BOOL, CGPoint))h { objc_setAssociatedObject(self, &k_zoom_handler, h, OBJC_ASSOCIATION_COPY_NONATOMIC); }
+- (void)_isim_setAccessibilityCustomContent:(NSArray *)a { objc_setAssociatedObject(self, &k_custom_content, a, OBJC_ASSOCIATION_COPY_NONATOMIC); }
+- (void)_isim_setAccessibilityLinkedGroup:(NSString *)g { objc_setAssociatedObject(self, &k_linked, g, OBJC_ASSOCIATION_COPY_NONATOMIC); }
 @end
+/* the element's AXCustomContent (Accessibility framework): its own (AXCustomContentProvider) or SwiftUI's */
+static NSArray *custom_content(id e) {
+    if (!e) return nil;
+    if ([e respondsToSelector:@selector(accessibilityCustomContentBlock)]) {
+        NSArray *(^b)(void) = ((id (*)(id, SEL))objc_msgSend)(e, @selector(accessibilityCustomContentBlock));
+        if (b) return b();
+    }
+    if ([e respondsToSelector:@selector(accessibilityCustomContent)]) { NSArray *a = ((id (*)(id, SEL))objc_msgSend)(e, @selector(accessibilityCustomContent)); if (a.count) return a; }
+    return objc_getAssociatedObject(e, &k_custom_content);
+}
+static BOOL content_high(id c) { return [c respondsToSelector:@selector(importance)] && [[c valueForKey:@"importance"] integerValue] == 1; }
+static NSString *content_text(id c) {
+    NSString *l = [c respondsToSelector:@selector(label)] ? [c valueForKey:@"label"] : nil, *v = [c respondsToSelector:@selector(value)] ? [c valueForKey:@"value"] : nil;
+    return l.length && v.length ? [NSString stringWithFormat:@"%@, %@", l, v] : (v.length ? v : l);
+}
 static double sort_priority(id e) {
     for (id x = e; x; x = [x isKindOfClass:[UIView class]] ? ((UIView *)x).superview : nil) {
         NSNumber *n = objc_getAssociatedObject(x, &k_sort);
@@ -383,7 +407,20 @@ NSArray *isim_ui_accessibility_elements(void) {
     UIWindow *w = app_window();
     if (!w) return @[];
     UIView *root = find_modal(w) ?: w;
-    return flatten_groups(collect(root, YES));
+    NSArray *flat = flatten_groups(collect(root, YES));
+    /* a linked group's elements follow its first one */
+    NSMutableArray *out = [NSMutableArray arrayWithCapacity:flat.count];
+    NSMutableSet *placed = [NSMutableSet set];
+    for (id e in flat) {
+        if ([placed containsObject:[NSValue valueWithNonretainedObject:e]]) continue;
+        [out addObject:e]; [placed addObject:[NSValue valueWithNonretainedObject:e]];
+        NSString *g = objc_getAssociatedObject(e, &k_linked);
+        if (!g) continue;
+        for (id o in flat) if (o != e && [objc_getAssociatedObject(o, &k_linked) isEqualToString:g] && ![placed containsObject:[NSValue valueWithNonretainedObject:o]]) {
+            [out addObject:o]; [placed addObject:[NSValue valueWithNonretainedObject:o]];
+        }
+    }
+    return out;
 }
 
 /* ================= description of an element ================= */
@@ -445,6 +482,7 @@ NSString *isim_ui_accessibility_description(id e, BOOL withHint) {
     NSString *tw = trait_words(e, t);
     if (t & UIAccessibilityTraitToggleButton) { if (tw.length) [parts addObject:tw]; if (v.length) [parts addObject:v]; }
     else { if (v.length && ![v isEqualToString:l]) [parts addObject:v]; if (tw.length) [parts addObject:tw]; }
+    if (withHint) for (id c in custom_content(e)) if (content_high(c)) { NSString *ct = content_text(c); if (ct.length) [parts addObject:ct]; }
     NSString *s = [parts componentsJoinedByString:@", "];
     NSString *hint = [e accessibilityHint];
     if (withHint && !hint && (t & UIAccessibilityTraitAdjustable)) hint = @"Swipe up or down with one finger to adjust the value.";
@@ -521,10 +559,16 @@ static void draw_cursor(void) {
 }
 static void focus(id e, BOOL announce) {
     id old = vo_focus;
-    if (old && old != e) [old accessibilityElementDidLoseFocus];
+    if (old && old != e) {
+        [old accessibilityElementDidLoseFocus];
+        void (^h)(BOOL) = objc_getAssociatedObject(old, &k_focus_handler);
+        if (h) h(NO);
+    }
     vo_focus = e; vo_focus_strong = [e isKindOfClass:[UIView class]] ? nil : e;
     if (e && e != old) {
         [e accessibilityElementDidBecomeFocused];
+        void (^h)(BOOL) = objc_getAssociatedObject(e, &k_focus_handler);
+        if (h) h(YES);
         [NSNotificationCenter.defaultCenter postNotificationName:UIAccessibilityElementFocusedNotification object:nil userInfo:@{ UIAccessibilityFocusedElementKey: e }];
     }
     draw_cursor();
@@ -554,6 +598,12 @@ static void do_adjust(id e, BOOL up) {
 static void activate(void) {
     id e = vo_focus;
     if (!e) return;
+    if (([e accessibilityTraits] & UIAccessibilityTraitAllowsDirectInteraction) && ([e accessibilityDirectTouchOptions] & UIAccessibilityDirectTouchOptionRequiresActivation)) {
+        objc_setAssociatedObject(e, &k_direct_active, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);       /* touches pass through from now on */
+        NSLog(@"isim: VoiceOver direct touch area activated: %@", label_of(e) ?: NSStringFromClass([e class]));
+        speak(@"Direct touch area activated");
+        return;
+    }
     BOOL (^handler)(void) = objc_getAssociatedObject(e, &k_act_handler);
     if (handler && handler()) { NSLog(@"isim: VoiceOver activated %@ (action)", label_of(e) ?: NSStringFromClass([e class])); }
     else if (do_activate(e)) { NSLog(@"isim: VoiceOver activated %@ (accessibilityActivate)", label_of(e) ?: NSStringFromClass([e class])); }
@@ -572,6 +622,7 @@ void isim_ui_voiceover_command(NSString *c);
 /* ---- the rotor: custom rotors (the focused element and its containers), Headings, Actions, Adjust Value ---- */
 static NSInteger rotor_index = -1;                  /* among rotor_entries(); the first turn selects the first */
 static NSUInteger rotor_action;                     /* Actions: the selected custom action */
+static NSInteger content_index = -1;                /* More Content: the item read last */
 static NSArray *rotor_customs(void) {
     NSMutableArray *a = [NSMutableArray array];
     for (id r = vo_focus; r; r = [r isKindOfClass:[UIView class]] ? [(UIView *)r superview] : [r respondsToSelector:@selector(accessibilityContainer)] ? [r accessibilityContainer] : nil)
@@ -586,13 +637,14 @@ static NSArray *rotor_entries(void) {              /* UIAccessibilityCustomRotor
     for (UIAccessibilityCustomRotor *r in a) if (r.systemRotorType == UIAccessibilityCustomSystemRotorTypeHeading) headings = NO;
     if (headings) [a addObject:@"Headings"];
     if ([[vo_focus accessibilityCustomActions] count]) [a addObject:@"Actions"];
+    for (id c in custom_content(vo_focus)) if (!content_high(c)) { [a addObject:@"More Content"]; break; }
     if (effective_traits(vo_focus) & UIAccessibilityTraitAdjustable) [a addObject:@"Adjust Value"];
     return a;
 }
 static NSString *rotor_name(id entry) { return [entry isKindOfClass:[UIAccessibilityCustomRotor class]] ? [(UIAccessibilityCustomRotor *)entry name] : entry; }
 static id rotor_current(void) { NSArray *a = rotor_entries(); return a.count ? a[(NSUInteger)(((rotor_index % (NSInteger)a.count) + (NSInteger)a.count) % (NSInteger)a.count)] : nil; }
 static void rotor_turn(int dir) {
-    rotor_index += dir; rotor_action = 0;
+    rotor_index += dir; rotor_action = 0; content_index = -1;
     NSString *n = rotor_name(rotor_current());
     NSLog(@"isim: VoiceOver rotor: %@", n);
     speak(n);
@@ -619,6 +671,15 @@ static void rotor_move(int dir) {
         if (!acts.count) return;
         rotor_action = (rotor_action + (dir > 0 ? 1 : acts.count - 1)) % acts.count;
         speak([acts[rotor_action] name]);
+    } else if ([entry isEqual:@"More Content"]) {         /* the default-importance custom content, one item per swipe */
+        NSMutableArray *items = [NSMutableArray array];
+        for (id c in custom_content(vo_focus)) if (!content_high(c)) [items addObject:c];
+        if (!items.count) return;
+        NSInteger n = (NSInteger)items.count;
+        content_index = content_index < 0 ? (dir > 0 ? 0 : n - 1) : ((content_index + dir) % n + n) % n;
+        NSString *t = content_text(items[(NSUInteger)content_index]);
+        NSLog(@"isim: VoiceOver more content: %@", t);
+        speak(t);
     } else if ([entry isEqual:@"Adjust Value"]) {
         isim_ui_voiceover_command(dir > 0 ? @"decrement" : @"increment");
     }
@@ -812,6 +873,8 @@ static void scroll_command(NSString *d) {
     UIAccessibilityScrollDirection dir = n.integerValue;
     UIScrollView *sv = nil;
     for (id r = vo_focus; r; r = [r isKindOfClass:[UIView class]] ? [(UIView *)r superview] : [r respondsToSelector:@selector(accessibilityContainer)] ? [r accessibilityContainer] : nil) {
+        BOOL (^sh)(UIAccessibilityScrollDirection) = objc_getAssociatedObject(r, &k_scroll_handler);
+        if (sh && sh(dir)) { NSLog(@"isim: VoiceOver scroll %@ handled by an accessibility scroll action", d); return; }
         if ([r accessibilityScroll:dir]) { NSLog(@"isim: VoiceOver scroll %@ handled by %@", d, NSStringFromClass([r class])); return; }
         if (!sv && [r isKindOfClass:[UIScrollView class]] && ((UIScrollView *)r).scrollEnabled) sv = r;
     }
@@ -854,6 +917,17 @@ void isim_ui_voiceover_command(NSString *c) {
     if (!UIAccessibilityIsVoiceOverRunning()) { NSLog(@"isim: voiceover %@: VoiceOver is off", c); return; }
     if ([c isEqualToString:@"next"]) move(1);
     else if ([c isEqualToString:@"prev"] || [c isEqualToString:@"previous"]) move(-1);
+    else if ([c hasPrefix:@"focus "]) {
+        /* the element with this accessibility identifier, or the first element inside the view that has it */
+        NSString *ident = [c substringFromIndex:6];
+        id found = nil;
+        for (id e in isim_ui_accessibility_elements()) {
+            for (id x = e; x && !found; x = [x isKindOfClass:[UIView class]] ? [(UIView *)x superview] : [x respondsToSelector:@selector(accessibilityContainer)] ? [x accessibilityContainer] : nil)
+                if ([[x accessibilityIdentifier] isEqualToString:ident]) found = e;
+            if (found) break;
+        }
+        if (found) focus(found, YES); else NSLog(@"isim: VoiceOver focus: no element %@", ident);
+    }
     else if ([c isEqualToString:@"rotor"] || [c isEqualToString:@"rotor next"]) rotor_turn(1);
     else if ([c isEqualToString:@"rotor prev"] || [c isEqualToString:@"rotor previous"]) rotor_turn(-1);
     else if ([c isEqualToString:@"down"]) rotor_move(1);
@@ -896,16 +970,49 @@ void isim_ui_voiceover_command(NSString *c) {
                 speak(a ? spoken(a) : [e accessibilityPageContent]);
             } else focus(e, YES);
         }
+    } else if ([c isEqualToString:@"zoom in"] || [c isEqualToString:@"zoom out"]) {
+        /* the Zoom rotor's swipe: the focused element or a container zooms at its activation point */
+        BOOL in = [c isEqualToString:@"zoom in"];
+        CGPoint p = [vo_focus accessibilityActivationPoint];
+        for (id r = vo_focus; r; r = [r isKindOfClass:[UIView class]] ? [(UIView *)r superview] : [r respondsToSelector:@selector(accessibilityContainer)] ? [r accessibilityContainer] : nil) {
+            BOOL (^zh)(BOOL, CGPoint) = objc_getAssociatedObject(r, &k_zoom_handler);
+            if ((zh && zh(in, p)) || (in ? [r accessibilityZoomInAtPoint:p] : [r accessibilityZoomOutAtPoint:p])) {
+                NSLog(@"isim: VoiceOver %@ handled by %@", c, zh ? @"an accessibility zoom action" : NSStringFromClass([r class]));
+                return;
+            }
+        }
+        NSLog(@"isim: VoiceOver %@: nothing to zoom", c);
+        speak(@"Unable to zoom");
     } else if ([c hasPrefix:@"scroll"]) {
         scroll_command([[c substringFromIndex:6] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet]);
     } else NSLog(@"isim: unknown voiceover command '%@'", c);
 }
 /* VoiceOver gestures: tap focuses, double tap activates, horizontal swipe moves */
+/* an element that allows direct interaction under the point: its touches go to the app (once activated, for
+   UIAccessibilityDirectTouchOptionRequiresActivation); VoiceOver speaks it unless SilentOnTouch */
+static id direct_touch_area(CGPoint p) {
+    id hit = nil;
+    for (id e in isim_ui_accessibility_elements()) if (CGRectContainsPoint([e accessibilityFrame], p)) hit = e;
+    if (!hit || !([hit accessibilityTraits] & UIAccessibilityTraitAllowsDirectInteraction)) return nil;
+    if (([hit accessibilityDirectTouchOptions] & UIAccessibilityDirectTouchOptionRequiresActivation) && ![objc_getAssociatedObject(hit, &k_direct_active) boolValue]) return nil;
+    return hit;
+}
 static BOOL vo_touch(const struct isim_event *ev) {
-    static CGPoint down; static double downAt, lastTap; static BOOL tracking;
+    static CGPoint down; static double downAt, lastTap; static BOOL tracking, passing;
     if (!UIAccessibilityIsVoiceOverRunning() || ev->pad == 1) return NO;
     CGPoint p = CGPointMake(ev->x, ev->y);
-    if (ev->type == ISIM_EV_TOUCH_DOWN) { down = p; downAt = ev->timestamp; tracking = YES; return YES; }
+    if (ev->type == ISIM_EV_TOUCH_DOWN) {
+        id area = direct_touch_area(p);
+        if (area) {
+            passing = YES;
+            if (!([area accessibilityDirectTouchOptions] & UIAccessibilityDirectTouchOptionSilentOnTouch) && area != vo_focus) focus(area, YES);
+            NSLog(@"isim: VoiceOver direct touch at %.0f,%.0f", p.x, p.y);
+            return NO;
+        }
+        passing = NO;
+        down = p; downAt = ev->timestamp; tracking = YES; return YES;
+    }
+    if (passing) { if (ev->type != ISIM_EV_TOUCH_MOVE) passing = NO; return NO; }
     if (ev->type == ISIM_EV_TOUCH_MOVE) return tracking;
     if (!tracking) return NO;
     tracking = NO;

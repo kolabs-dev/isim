@@ -293,7 +293,9 @@ extension View {
             // inside a gesture whose mask turns the subviews' gestures off: no tap
             if ctx.environment._gesturesOff { return _resolve(c, ctx.child("tap")) }
             if count != 1 { return _resolve(_TapGestureContent(content: AnyView(c), count: count, action: action), ctx) }
-            return _ButtonNode(path: ctx.path, child: _resolve(c, ctx.child("tap")), action: action, inList: ctx.environment._inList, enabled: true)
+            let b = _ButtonNode(path: ctx.path, child: _resolve(c, ctx.child("tap")), action: action, inList: ctx.environment._inList, enabled: true)
+            b.accessibilityButton = false
+            return b
         }
     }
     /// How the scroll views inside dismiss the keyboard while they scroll (Scroll+Paging.swift).
