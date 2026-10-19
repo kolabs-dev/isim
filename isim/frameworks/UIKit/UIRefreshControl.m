@@ -1,7 +1,8 @@
 /* UIRefreshControl: pull to refresh. Assigned to scrollView.refreshControl it sits above the content; pulling
  * the content down reveals a spinner whose ticks fill in as you pull. Pulling past the threshold while
  * dragging starts refreshing (.valueChanged); on release the scroll view rests with the spinner visible
- * (contentInset.top grows by 60) until endRefreshing(), which animates the content back up. */
+ * (contentInset.top grows by 60) until endRefreshing(), which animates the content back up. An attributedTitle
+ * is drawn under the spinner. */
 #import "UIKitPrivate.h"
 #import <UIKit/UIRefreshControl.h>
 #include <math.h>
@@ -26,7 +27,11 @@
 }
 - (void)dealloc { [_spin invalidate]; [NSNotificationCenter.defaultCenter removeObserver:self]; }
 - (void)setTintColor:(UIColor *)c { _ownTint = c; [super setTintColor:c]; }
-- (NSString *)_isim_dumpText { return _refreshing ? @"refreshing" : [NSString stringWithFormat:@"idle, pulled %g", _pull]; }
+- (NSString *)_isim_dumpText {
+    NSString *t = _refreshing ? @"refreshing" : [NSString stringWithFormat:@"idle, pulled %g", _pull];
+    return _attributedTitle.length ? [t stringByAppendingFormat:@", title '%@'", _attributedTitle.string] : t;
+}
+- (void)setAttributedTitle:(NSAttributedString *)t { _attributedTitle = [t copy]; self.accessibilityLabel = t.string; isim_ui_set_needs_display(); }
 
 /* attached to / detached from a scroll view */
 - (void)_isim_attach:(UIScrollView *)sv {
@@ -97,8 +102,14 @@
 - (void)_isim_drawContent {
     CGSize s = self.bounds.size;
     if (s.height < 1) return;
-    double cx = s.width / 2, cy = fmin(s.height, RC_HEIGHT) / 2, r0 = 5.5, r1 = 10.5;
+    BOOL titled = _attributedTitle.length > 0;
+    double cx = s.width / 2, cy = fmin(s.height, RC_HEIGHT) / 2 - (titled ? 9 : 0), r0 = 5.5, r1 = 10.5;
     int ticks = 8, shown = _refreshing ? ticks : (int)fmin(ticks, floor(_pull / RC_THRESHOLD * ticks));
+    if (titled && shown > 0) {                    /* the title under the spinner, fading in with the pull */
+        UIFont *f = [UIFont systemFontOfSize:13];
+        CGRect tr = CGRectMake(8, cy + r1 + 5, fmax(0, s.width - 16), ceil(f.lineHeight));
+        isim_ui_draw_attributed(_attributedTitle, f, UIColor.secondaryLabelColor, tr, NSTextAlignmentCenter, 1, (double)shown / ticks);
+    }
     double col[4]; isim_ui_rgba(_ownTint ?: UIColor.secondaryLabelColor, col);
     double phase = _refreshing ? fmod(isim_time() * 1.25, 1.0) : 0;
     int head = (int)(phase * ticks);

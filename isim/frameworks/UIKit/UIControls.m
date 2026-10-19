@@ -11,6 +11,7 @@
     if ((self = [super initWithFrame:f])) {
         _font = [UIFont systemFontOfSize:17]; _textColor = UIColor.labelColor; _numberOfLines = 1; _enabled = YES;
         _textAlignment = NSTextAlignmentNatural; _lineBreakMode = NSLineBreakByTruncatingTail; _minimumScaleFactor = 0;
+        _shadowOffset = CGSizeMake(0, -1);
         self.userInteractionEnabled = NO;
         [self setContentHuggingPriority:251 forAxis:UILayoutConstraintAxisHorizontal];
         [self setContentHuggingPriority:251 forAxis:UILayoutConstraintAxisVertical];
@@ -57,6 +58,8 @@
 - (void)layoutSubviews { [super layoutSubviews]; if (_showsExpansionTextWhenTruncated) [self _isim_updateExpansion]; }
 - (void)setFont:(UIFont *)f { _font = f ?: [UIFont systemFontOfSize:17]; [self _changed]; }
 - (void)setTextColor:(UIColor *)c { _textColor = c ?: UIColor.labelColor; isim_ui_set_needs_display(); }
+- (void)setShadowColor:(UIColor *)c { _shadowColor = c; isim_ui_set_needs_display(); }
+- (void)setShadowOffset:(CGSize)o { _shadowOffset = o; isim_ui_set_needs_display(); }
 - (void)setTextAlignment:(NSTextAlignment)a { _textAlignment = a; isim_ui_set_needs_display(); }
 - (void)setNumberOfLines:(NSInteger)n { _numberOfLines = n; [self _changed]; }
 - (void)setPreferredMaxLayoutWidth:(CGFloat)w { _preferredMaxLayoutWidth = w; [self _changed]; }
@@ -120,6 +123,17 @@
         r = CGRectMake(r.origin.x, top1, r.size.width, h1);
     }
     NSAttributedString *tight = [self _isim_tightened:r.size.width font:ef color:c];
+    if (_shadowColor && (_text.length || _attributedText.length)) {
+        /* the text again in the shadow colour, offset, unblurred, under it */
+        CGRect sr = CGRectOffset(r, _shadowOffset.width, _shadowOffset.height);
+        NSAttributedString *src = tight ?: _attributedText;
+        if (src) {
+            NSMutableAttributedString *m = [src mutableCopy];
+            [m removeAttribute:NSBackgroundColorAttributeName range:NSMakeRange(0, m.length)];
+            [m addAttribute:NSForegroundColorAttributeName value:_shadowColor range:NSMakeRange(0, m.length)];
+            isim_ui_draw_attributed(m, ef, _shadowColor, sr, _textAlignment, _numberOfLines, _enabled ? 1 : 0.4);
+        } else isim_ui_draw_text(_text, ef, _shadowColor, sr, _textAlignment, _numberOfLines, _enabled ? 1 : 0.4);
+    }
     if (tight) { isim_ui_draw_attributed(tight, ef, c, r, _textAlignment, _numberOfLines, _enabled ? 1 : 0.4); return; }
     if (_attributedText) { isim_ui_draw_attributed(_attributedText, [self _effectiveFont], c, r, _textAlignment, _numberOfLines, _enabled ? 1 : 0.4); return; }
     isim_ui_draw_text(_text, [self _effectiveFont], c, r, _textAlignment, _numberOfLines, _enabled ? 1 : 0.4);
@@ -308,7 +322,7 @@ void isim_ui_menu_chose(UIView *source, UIAction *a) {
     NSMutableDictionary<NSNumber *, UIImage *> *_images; NSMutableDictionary<NSNumber *, UIImageSymbolConfiguration *> *_symbolConfigs;
     NSMutableDictionary<NSNumber *, UIImage *> *_backgrounds; NSMutableDictionary<NSNumber *, UIColor *> *_shadowColors;
     BOOL _needsConfigUpdate, _configShown; UIActivityIndicatorView *_spinner;
-    UIImage *_transFrom, *_configImage; double _transStart; CADisplayLink *_transLink; BOOL _held; }
+    UIImage *_transFrom, *_configImage; double _transStart; CADisplayLink *_transLink; BOOL _held; UIImageView *_imageView; }
 @dynamic adjustsImageSizeForAccessibilityContentSizeCategory;      /* UIAccessibilityExtras.m */
 /* configuration updates: state changes, setNeedsUpdateConfiguration, and the first time the button shows */
 - (void)updateConfiguration { if (_configurationUpdateHandler) _configurationUpdateHandler(self); }
@@ -339,6 +353,7 @@ void isim_ui_menu_chose(UIView *source, UIAction *a) {
 - (void)layoutSubviews {
     [super layoutSubviews];
     if (_needsConfigUpdate) { _needsConfigUpdate = NO; [self updateConfiguration]; }
+    [self _isim_syncImageView];
     /* the configuration's activity indicator, where the image goes */
     BOOL spin = _configuration.showsActivityIndicator;
     if (spin && !_spinner) { _spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium]; _spinner.userInteractionEnabled = NO; _spinner.accessibilityIdentifier = @"isim-button-activity"; [self addSubview:_spinner]; }
@@ -386,7 +401,20 @@ void isim_ui_menu_chose(UIView *source, UIAction *a) {
     if (_buttonType == UIButtonTypeCustom) _label.font = [UIFont systemFontOfSize:15];
 }
 - (UILabel *)titleLabel { return _label; }
-- (UIImageView *)imageView { return nil; }
+/* the image view: the current image at the frame the button draws it in. The button draws the image itself, as it
+   draws its title label; the image view's isHidden and alpha apply to it */
+- (UIImageView *)imageView {
+    if (!_imageView) { _imageView = [[UIImageView alloc] initWithFrame:CGRectZero]; _imageView.userInteractionEnabled = NO; }
+    [self _isim_syncImageView];
+    return _imageView;
+}
+- (void)_isim_syncImageView {
+    if (!_imageView) return;
+    UIImage *img = _configuration.showsActivityIndicator ? nil : self.currentImage;
+    if (_imageView.image != img) _imageView.image = img;
+    CGRect r = img ? [self _isim_imageRect] : CGRectZero;
+    if (!CGRectEqualToRect(_imageView.frame, r)) _imageView.frame = r;
+}
 - (void)setConfiguration:(UIButtonConfiguration *)c {
     /* the image of the configuration set last time (a configuration read back from the button and changed is the same
        object here, so its own image is already the new one) */
@@ -414,6 +442,7 @@ void isim_ui_menu_chose(UIView *source, UIAction *a) {
 /* the image, or mid-transition (like an image view's replace effect): the old symbol shrinks and fades out, then the new
    one grows in, both nudged along the transition's direction */
 - (void)_isim_drawImage:(UIImage *)img inRect:(CGRect)r tint:(UIColor *)tint alpha:(double)a {
+    if (_imageView) { if (_imageView.hidden) return; a *= _imageView.alpha; }
     double u = [self _isim_transitionProgress];
     if (u >= 1 || !_transFrom) { [img _isim_drawInRect:r tint:tint alpha:a]; return; }
     BOOL first = u < 0.5; double x = first ? u * 2 : (u - 0.5) * 2, h = x * x * (3 - 2 * x);

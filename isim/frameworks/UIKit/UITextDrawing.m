@@ -2,6 +2,7 @@
  * offscreen image contexts (UIGraphicsBeginImageContext, UIGraphicsImageRenderer) and PNG/JPEG export.
  * Attributed text is turned into Pango markup and drawn by the host. */
 #import "UIKitPrivate.h"
+#import "UITextKitPrivate.h"
 #include <math.h>
 
 NSAttributedStringKey const NSFontAttributeName = @"NSFont";
@@ -137,6 +138,11 @@ static NSArray<NSTextTab *> *default_tabs(void) {
 @implementation NSShadow
 - (instancetype)init { if ((self = [super init])) { _shadowOffset = CGSizeMake(0, -3); } return self; }
 - (id)copyWithZone:(NSZone *)z { NSShadow *s = [NSShadow new]; s.shadowOffset = _shadowOffset; s.shadowBlurRadius = _shadowBlurRadius; s.shadowColor = _shadowColor; return s; }
+- (BOOL)isEqual:(NSShadow *)o {
+    return o == self || ([o isKindOfClass:[NSShadow class]] && CGSizeEqualToSize(o.shadowOffset, _shadowOffset) && o.shadowBlurRadius == _shadowBlurRadius &&
+                         (o.shadowColor == _shadowColor || [o.shadowColor isEqual:_shadowColor]));
+}
+- (NSUInteger)hash { return (NSUInteger)(_shadowOffset.width * 31 + _shadowOffset.height * 7 + _shadowBlurRadius); }
 @end
 @implementation NSStringDrawingContext
 - (CGFloat)actualScaleFactor { return 1; }
@@ -167,8 +173,9 @@ static void font_attrs(NSMutableString *m, UIFont *f) {
     if (f._isim_tabular) [m appendString:@" font_features=\"tnum\""];
 }
 /* markup for the whole string; default font/colour apply where the string has none. Reports the first paragraph's
-   alignment and line spacing (Pango lays out a paragraph style per layout) */
-NSString *isim_ui_markup(NSAttributedString *s, UIFont *defFont, UIColor *defColor, NSTextAlignment *align, CGFloat *spacing) {
+   alignment and line spacing (Pango lays out a paragraph style per layout). A shadow pass (shadow non-nil) keeps
+   the glyphs that cast that shadow and hides the rest, with the same layout */
+static NSString *markup(NSAttributedString *s, UIFont *defFont, UIColor *defColor, NSTextAlignment *align, CGFloat *spacing, NSShadow *shadow) {
     NSMutableString *m = [NSMutableString stringWithString:@"<span"];
     font_attrs(m, defFont ?: [UIFont systemFontOfSize:17]);
     double a; NSString *hx = hex_of(defColor ?: UIColor.labelColor, &a);
@@ -179,16 +186,18 @@ NSString *isim_ui_markup(NSAttributedString *s, UIFont *defFont, UIColor *defCol
         if (first) { first = NO; if (ps && align) *align = ps.alignment; if (ps && spacing) *spacing = ps.lineSpacing; }
         NSMutableString *span = [NSMutableString stringWithString:@"<span"];
         font_attrs(span, attrs[NSFontAttributeName]);
+        BOOL hidden = shadow && ![shadow isEqual:attrs[NSShadowAttributeName]];
         UIColor *fg = attrs[NSForegroundColorAttributeName] ?: (attrs[NSLinkAttributeName] ? UIColor.linkColor : nil);
-        if (fg) { double al; NSString *h = hex_of(fg, &al); [span appendFormat:@" foreground=\"%@\" fgalpha=\"%d%%\"", h, (int)lround(al * 100)]; }
-        UIColor *bg = attrs[NSBackgroundColorAttributeName];
+        if (hidden) [span appendString:@" fgalpha=\"1\""];         /* 1/65536: Pango has no fully transparent text */
+        else if (fg) { double al; NSString *h = hex_of(fg, &al); [span appendFormat:@" foreground=\"%@\" fgalpha=\"%d%%\"", h, (int)lround(al * 100)]; }
+        UIColor *bg = shadow ? nil : attrs[NSBackgroundColorAttributeName];
         if (bg) { double al; NSString *h = hex_of(bg, &al); [span appendFormat:@" background=\"%@\" bgalpha=\"%d%%\"", h, (int)fmax(1, lround(al * 100))]; }
         NSNumber *kern = attrs[NSKernAttributeName] ?: attrs[NSTrackingAttributeName];
         if (kern.doubleValue) [span appendFormat:@" letter_spacing=\"%ld\"", lround(kern.doubleValue * 1024)];
-        NSInteger ul = [attrs[NSUnderlineStyleAttributeName] integerValue];
+        NSInteger ul = hidden ? 0 : [attrs[NSUnderlineStyleAttributeName] integerValue];
         if (ul) [span appendFormat:@" underline=\"%@\"", (ul & 0xff) == NSUnderlineStyleDouble ? @"double" : @"single"];
         if (ul && attrs[NSUnderlineColorAttributeName]) [span appendFormat:@" underline_color=\"%@\"", hex_of(attrs[NSUnderlineColorAttributeName], NULL)];
-        if ([attrs[NSStrikethroughStyleAttributeName] integerValue]) {
+        if (!hidden && [attrs[NSStrikethroughStyleAttributeName] integerValue]) {
             [span appendString:@" strikethrough=\"true\""];
             if (attrs[NSStrikethroughColorAttributeName]) [span appendFormat:@" strikethrough_color=\"%@\"", hex_of(attrs[NSStrikethroughColorAttributeName], NULL)];
         }
@@ -203,15 +212,63 @@ NSString *isim_ui_markup(NSAttributedString *s, UIFont *defFont, UIColor *defCol
     [m appendString:@"</span>"];
     return m;
 }
+NSString *isim_ui_markup(NSAttributedString *s, UIFont *defFont, UIColor *defColor, NSTextAlignment *align, CGFloat *spacing) {
+    return markup(s, defFont, defColor, align, spacing, nil);
+}
+/* NSShadow: the distinct shadows in a string, and the markup of one's shadow pass */
+NSArray<NSShadow *> *isim_ui_shadows(NSAttributedString *s) {
+    NSMutableArray *out = [NSMutableArray array];
+    if (s.length) [s enumerateAttribute:NSShadowAttributeName inRange:NSMakeRange(0, s.length) options:0 usingBlock:^(id v, NSRange r, BOOL *stop) {
+        if ([v isKindOfClass:[NSShadow class]] && ![out containsObject:v]) [out addObject:v];
+    }];
+    return out;
+}
+NSString *isim_ui_shadow_markup(NSAttributedString *s, UIFont *defFont, UIColor *defColor, NSShadow *shadow) {
+    return markup(s, defFont, defColor, NULL, NULL, shadow);
+}
+/* the shadow is painted from the alpha of what is drawn between begin and end (the shadow pass), which is discarded:
+   blurred by shadowBlurRadius (a Gaussian of sigma radius / 2, like CALayer's), offset, in shadowColor (default
+   black at 1/3 alpha) */
+void isim_ui_shadow_begin(void) { isim_gfx_push_group(); }
+void isim_ui_shadow_end(NSShadow *shadow, CGFloat alpha) {
+    double c[4] = { 0, 0, 0, 1.0 / 3 };
+    if ([shadow.shadowColor isKindOfClass:[UIColor class]]) isim_ui_rgba(shadow.shadowColor, c);
+    else if (shadow.shadowColor) { CGColorRef cg = (__bridge CGColorRef)shadow.shadowColor; isim_ui_rgba([UIColor colorWithCGColor:cg], c); }
+    c[3] *= alpha;
+    isim_gfx_pop_group_shadow(c, fmax(0, shadow.shadowBlurRadius), shadow.shadowOffset.width, shadow.shadowOffset.height);
+}
 static int pango_align(NSTextAlignment a) {
     if (a == NSTextAlignmentNatural) a = isim_ui_drawing_rtl ? NSTextAlignmentRight : NSTextAlignmentLeft;   /* natural follows the layout direction */
     return a == NSTextAlignmentCenter ? 1 : a == NSTextAlignmentRight ? 2 : 0;
+}
+/* NSTextAttachment: a string with attachments is laid out by the TextKit engine (UITextKitEngine.m), which leaves
+   room for each attachment at its character and draws its image there. The alignment given applies to paragraphs
+   without a style */
+static BOOL has_attachments(NSAttributedString *s) {
+    __block BOOL found = NO;
+    if (s.length) [s enumerateAttribute:NSAttachmentAttributeName inRange:NSMakeRange(0, s.length) options:0 usingBlock:^(id v, NSRange r, BOOL *stop) {
+        if ([v isKindOfClass:[NSTextAttachment class]]) { found = YES; *stop = YES; }
+    }];
+    return found;
+}
+static __IsimTextEngine *attachment_engine(NSAttributedString *s, UIFont *f, UIColor *c, CGFloat maxw, NSInteger lines, NSTextAlignment align) {
+    if (align != NSTextAlignmentNatural) {
+        NSMutableAttributedString *m = [s mutableCopy];
+        NSMutableParagraphStyle *ps = [NSMutableParagraphStyle new]; ps.alignment = align;
+        [s enumerateAttribute:NSParagraphStyleAttributeName inRange:NSMakeRange(0, s.length) options:0 usingBlock:^(id v, NSRange r, BOOL *stop) {
+            if (!v) [m addAttribute:NSParagraphStyleAttributeName value:ps range:r];
+        }];
+        s = m;
+    }
+    return [[__IsimTextEngine alloc] initWithString:s width:maxw padding:0 font:f ?: [UIFont systemFontOfSize:17] color:c ?: UIColor.labelColor
+                                           maxLines:(NSUInteger)MAX(0, lines) extraLine:NO];
 }
 BOOL isim_ui_has_text_blocks(NSAttributedString *s);
 CGSize isim_ui_text_blocks_layout(NSAttributedString *s, UIFont *font, UIColor *color, CGFloat maxw, CGPoint origin, BOOL draw, CGFloat alpha);
 CGSize isim_ui_measure_attributed(NSAttributedString *s, UIFont *f, UIColor *c, CGFloat maxw, NSInteger lines) {
     if (!s.length) return CGSizeZero;
     if (isim_ui_has_text_blocks(s)) return isim_ui_text_blocks_layout(s, f, c, maxw, CGPointZero, NO, 1);   /* UITextBlocks.m */
+    if (has_attachments(s)) { CGRect u = attachment_engine(s, f, c, maxw, lines, NSTextAlignmentNatural).usedRect; return CGSizeMake(CGRectGetMaxX(u), CGRectGetMaxY(u)); }
     NSTextAlignment al = NSTextAlignmentNatural; CGFloat sp = 0;
     NSString *mk = isim_ui_markup(s, f, c, &al, &sp);
     double w, h; isim_text_measure_markup(mk.UTF8String, maxw, (int)lines, pango_align(al), sp, &w, &h);
@@ -232,12 +289,27 @@ void isim_ui_draw_attributed(NSAttributedString *s, UIFont *f, UIColor *c, CGRec
         isim_ui_text_blocks_layout(s, f, c, r.size.width, CGPointMake(r.origin.x, r.origin.y + fmax(0, (r.size.height - sz.height) / 2)), YES, alpha);
         return;
     }
+    if (has_attachments(s)) {
+        __IsimTextEngine *e = attachment_engine(s, f, c, r.size.width, lines, align);
+        double y = r.origin.y + fmax(0, (r.size.height - CGRectGetMaxY(e.usedRect)) / 2);   /* vertically centred like UILabel */
+        isim_gfx_save();
+        if (alpha < 1) isim_gfx_push_group();
+        [e drawRange:NSMakeRange(0, s.length) atPoint:CGPointMake(r.origin.x, y) skipAttachmentViews:NO];
+        if (alpha < 1) isim_gfx_pop_group(alpha);
+        isim_gfx_restore();
+        return;
+    }
     NSTextAlignment al = align; CGFloat sp = 0;
     NSString *mk = isim_ui_markup(s, f, c, &al, &sp);
     double rgba[4] = { 0, 0, 0, alpha };
     double w, h; isim_text_measure_markup(mk.UTF8String, r.size.width, (int)lines, pango_align(al), sp, &w, &h);
     double y = r.origin.y + fmax(0, (r.size.height - h) / 2);          /* vertically centred like UILabel */
     isim_gfx_save();
+    for (NSShadow *sh in isim_ui_shadows(s)) {
+        isim_ui_shadow_begin();
+        isim_text_draw_markup(isim_ui_shadow_markup(s, f, c, sh).UTF8String, r.origin.x, y, r.size.width, (int)lines, pango_align(al), sp, rgba);
+        isim_ui_shadow_end(sh, alpha);
+    }
     if (alpha < 1) isim_gfx_push_group();
     isim_text_draw_markup(mk.UTF8String, r.origin.x, y, r.size.width, (int)lines, pango_align(al), sp, rgba);
     if (alpha < 1) isim_gfx_pop_group(alpha);
@@ -266,11 +338,23 @@ static NSAttributedString *attributed(NSString *s, NSDictionary *attrs) { return
         isim_gfx_restore();
         return;
     }
+    if (has_attachments(self)) {
+        isim_gfx_save();
+        if (r.size.width > 0 && r.size.height > 0) isim_gfx_clip_rounded(r.origin.x, r.origin.y, r.size.width, r.size.height, 0);
+        [attachment_engine(self, nil, nil, r.size.width, lines, NSTextAlignmentNatural) drawRange:NSMakeRange(0, self.length) atPoint:r.origin skipAttachmentViews:NO];
+        isim_gfx_restore();
+        return;
+    }
     NSTextAlignment al = NSTextAlignmentNatural; CGFloat sp = 0;
     NSString *mk = isim_ui_markup(self, nil, nil, &al, &sp);
     double rgba[4] = { 0, 0, 0, 1 };
     isim_gfx_save();
     if (r.size.width > 0 && r.size.height > 0) isim_gfx_clip_rounded(r.origin.x, r.origin.y, r.size.width, r.size.height, 0);
+    for (NSShadow *sh in isim_ui_shadows(self)) {
+        isim_ui_shadow_begin();
+        isim_text_draw_markup(isim_ui_shadow_markup(self, nil, nil, sh).UTF8String, r.origin.x, r.origin.y, r.size.width, (int)lines, pango_align(al), sp, rgba);
+        isim_ui_shadow_end(sh, 1);
+    }
     isim_text_draw_markup(mk.UTF8String, r.origin.x, r.origin.y, r.size.width, (int)lines, pango_align(al), sp, rgba);
     isim_gfx_restore();
 }
