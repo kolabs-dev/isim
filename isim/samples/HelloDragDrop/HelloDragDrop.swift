@@ -1,11 +1,13 @@
 // Sample: drag and drop on isim — a UIDragInteraction source, a UIDropInteraction target that loads the dropped
 // string, a UITableView reordered by dragging (dragDelegate/dropDelegate + the data source's move) that also accepts
-// dropped text (performDrop inserts a row), and SwiftUI's .draggable (with a custom preview) / .dropDestination.
+// dropped text (performDrop inserts a row), and SwiftUI's .draggable (with a custom preview) / .dropDestination /
+// onDrop(of:delegate:) with a DropDelegate.
 // Long press (0.5 s) lifts.
 // Pages, by launch argument: (none) this one; -extras: text drag and drop, placeholders, spring loading, hover, traits
 // and Auto Layout extras, for iPad (DragExtras.swift).
 import UIKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -32,7 +34,29 @@ struct SwiftUIDrops: View {
                 .dropDestination(for: String.self, action: { items, _ in dropped += items; print("swiftui dropped \(items)"); return true },
                                  isTargeted: { targeted = $0 })
                 .accessibilityIdentifier("swiftui-target")
+            // onDrop(of:delegate:): a DropDelegate validates, follows and performs the drop
+            RoundedRectangle(cornerRadius: 12).fill(Color.blue.opacity(delegateTargeted ? 0.4 : 0.15))
+                .frame(height: 60)
+                .overlay(Text("Delegate drop"))
+                .onDrop(of: [.plainText], delegate: TagDropDelegate(targeted: $delegateTargeted))
+                .accessibilityIdentifier("delegate-target")
         }
+    }
+    @State var delegateTargeted = false
+}
+
+struct TagDropDelegate: DropDelegate {
+    @Binding var targeted: Bool
+    func validateDrop(info: DropInfo) -> Bool { info.hasItemsConforming(to: [.plainText]) }
+    func dropEntered(info: DropInfo) { targeted = true; print("delegate entered") }
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+    func dropExited(info: DropInfo) { targeted = false; print("delegate exited") }
+    func performDrop(info: DropInfo) -> Bool {
+        targeted = false
+        let providers = info.itemProviders(for: [.plainText])
+        print("delegate drop \(providers.count) at \(Int(info.location.x)),\(Int(info.location.y))")
+        _ = providers.first?.loadObject(ofClass: String.self) { s, _ in if let s { print("delegate dropped \(s)") } }
+        return true
     }
 }
 
@@ -67,7 +91,7 @@ final class DragDropViewController: UIViewController, UIDragInteractionDelegate,
         [source, zone, table].forEach(view.addSubview)
         let host = UIHostingController(rootView: SwiftUIDrops())
         addChild(host)
-        host.view.frame = CGRect(x: 20, y: 440, width: view.bounds.width - 40, height: 200)
+        host.view.frame = CGRect(x: 20, y: 440, width: view.bounds.width - 40, height: 280)
         view.addSubview(host.view)
         host.didMove(toParent: self)
     }

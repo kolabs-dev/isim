@@ -10,15 +10,18 @@
 // PAGE=rtl: right-to-left layout — app-wide (-AppleTextDirection YES) and a subtree with .environment(\.layoutDirection).
 // PAGE=keyboard: scrollDismissesKeyboard (MODE=automatic|immediately|interactively|never) on a ScrollView, a List or an
 // iOS 26 attributed TextEditor (CONTAINER=scroll|list|editor); logs the keyboard's show / hide notifications.
-// PAGE=badges / options: small view options (Options.swift).
+// PAGE=badges / options: small view options (Options.swift). PAGE=styles: container styles (Containers.swift).
 // The page comes from the environment: PAGE=symbols|effects|text|dates|paste|share|rename|ticks|rich|env|ax|hover|rtl|keyboard|
-// badges|options.
+// badges|options|styles.
 import SwiftUI
 import UniformTypeIdentifiers
 
 @main
 struct HelloSwiftUIControlsApp: App {
-    var body: some Scene { WindowGroup { Root().onOpenURL { url in print("opened \(url.absoluteString)") } } }
+    var body: some Scene {
+        WindowGroup { Root().onOpenURL { url in print("opened \(url.absoluteString)") } }
+            .commands { ControlsCommands() }                    // (Containers.swift)
+    }
 }
 
 let env = ProcessInfo.processInfo.environment
@@ -39,6 +42,7 @@ struct Root: View {
         case "keyboard": KeyboardPage()
         case "ticks": if #available(iOS 26.0, *) { TicksPage() } else { Text("iOS 26") }
         case "rich": if #available(iOS 26.0, *) { RichPage() } else { Text("iOS 26") }
+        case "styles": StylesPage()
         case "badges": if #available(iOS 18.0, *) { OptionsListPage() } else { Text("iOS 18") }
         case "options": if #available(iOS 18.0, *) { OptionsControlsPage() } else { Text("iOS 18") }
         default: SymbolsPage()

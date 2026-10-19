@@ -22,6 +22,7 @@ public struct _ModifiedScene<Base: Scene>: Scene, _SceneRoot, _SceneNode {
         let t = transform
         for g in inner.groups { let make = g.make; c.groups.append((g.id, { t(make()) })) }
         c.backgroundTasks += inner.backgroundTasks
+        c.commands += inner.commands
     }
 }
 

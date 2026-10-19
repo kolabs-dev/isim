@@ -77,7 +77,10 @@ public struct FocusedValues {
                 if x.path.count >= (best[x.key] ?? -1) { best[x.key] = x.path.count; out.values[x.key] = x.value }
             }
         }
-        let fp = out.values.map { k, v in "\(k.hashValue):\(v is _AnyBindingMarker ? "binding" : String(describing: v))" }.sorted().joined(separator: "|")
+        // (objects by identity: two of one class describe themselves the same, @FocusedObject)
+        let fp = out.values.map { k, v in
+            "\(k.hashValue):\(v is _AnyBindingMarker ? "binding" : type(of: v) is AnyClass ? "\(ObjectIdentifier(v as AnyObject))" : String(describing: v))"
+        }.sorted().joined(separator: "|")
         current = out
         if fp != fingerprint { fingerprint = fp; for w in graphs { w.g?.invalidate() } }
     }
