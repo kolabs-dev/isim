@@ -641,7 +641,32 @@ ISIM_GUEST_ABI static int d_sigaltstack(const struct d_stack *ss, struct d_stack
     if (old) *old = (struct d_stack){ o.ss_sp, o.ss_size, (o.ss_flags & SS_ONSTACK ? 1 : 0) | (o.ss_flags & SS_DISABLE ? 4 : 0) };
     return 0;
 }
-ISIM_GUEST_ABI static int d_siginterrupt(int sig, int flag) { int h = sig_host(sig); return h > 0 ? siginterrupt(h, flag) : (errno = 22, -1); }
+/* siginterrupt as glibc implements it (its own is deprecated): a flag clears SA_RESTART on the handler, 0 sets it */
+ISIM_GUEST_ABI static int d_siginterrupt(int sig, int flag) {
+    int h = sig_host(sig);
+    if (h <= 0) { errno = 22; return -1; }
+    struct sigaction sa;
+    if (sigaction(h, NULL, &sa) != 0) return -1;
+    if (flag) sa.sa_flags &= ~SA_RESTART; else sa.sa_flags |= SA_RESTART;
+    return sigaction(h, &sa, NULL);
+}
+/* mktemp: the template's trailing Xs replaced until no file has the name (adapted: glibc's mktemp makes the linker
+   warn, and Darwin keeps the call) */
+ISIM_GUEST_ABI static char *d_mktemp(char *t) {
+    size_t n = t ? strlen(t) : 0, x = 0;
+    while (x < n && t[n - 1 - x] == 'X') x++;
+    if (x < 3) { if (t && n) t[0] = 0; errno = 22; return t; }
+    static const char chars[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    for (int tries = 0; tries < 1000; tries++) {
+        unsigned char r[64];
+        if (getentropy(r, x < sizeof r ? x : sizeof r) != 0) break;
+        for (size_t i = 0; i < x; i++) t[n - x + i] = chars[r[i % sizeof r] % (sizeof chars - 1)];
+        struct stat st;
+        if (lstat(t, &st) != 0 && errno == ENOENT) return t;
+    }
+    t[0] = 0; errno = 17;
+    return t;
+}
 ISIM_GUEST_ABI static int d_killpg(pid_t pg, int sig) { int h = sig ? sig_host(sig) : 0; if (h < 0) { errno = 22; return -1; } return NETRET(killpg(pg, h)); }
 ISIM_GUEST_ABI static void d_psignal(int sig, const char *s) { psignal(sig_host(sig) > 0 ? sig_host(sig) : sig, s); }
 ISIM_GUEST_ABI static char *d_strsignal(int sig) { return strsignal(sig_host(sig) > 0 ? sig_host(sig) : sig); }
@@ -781,7 +806,7 @@ ISIM_GUEST_ABI static int d_sysctlnametomib(const char *name, int *mib, size_t *
     I("_issetugid", d_issetugid), P(getppid), P(getpgrp), P(getpgid), A("_setpgid", d_setpgid), A("_setsid", d_setsid), P(getsid), \
     P(geteuid), P(getgid), P(getegid), P(getgroups), P(ttyname), P(ttyname_r), P(alarm), P(pause), P(fchdir), P(fchown), \
     P(truncate), P(fdatasync), P(sync), A("_lockf", d_lockf), P(nice), P(getdtablesize), P(mkstemp), P(mkstemps), P(mkdtemp), \
-    P(mktemp), A("_getentropy", d_getentropy), P(swab), A("_pathconf", d_pathconf), A("_fpathconf", d_fpathconf), \
+    A("_mktemp", d_mktemp), A("_getentropy", d_getentropy), P(swab), A("_pathconf", d_pathconf), A("_fpathconf", d_fpathconf), \
     A("_getopt", d_getopt), I("_optarg", &optarg), I("_optind", &optind), I("_opterr", &opterr), I("_optopt", &optopt), \
     I("_optreset", &d_optreset), \
     I("_reallocf", d_reallocf), P(valloc), P(putenv), A("_qsort_r", d_qsort_r), I("_heapsort", d_heapsort), I("_mergesort", d_mergesort), \

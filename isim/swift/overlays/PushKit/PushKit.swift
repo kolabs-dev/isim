@@ -44,7 +44,7 @@ public protocol PKPushRegistryDelegate: NSObjectProtocol {
 extension PKPushRegistryDelegate {
     /// apps that only implement the older method get it
     public func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingPushWith payload: PKPushPayload, for type: PKPushType, completion: @escaping () -> Void) {
-        _isimOlderIncoming(registry, payload, type)
+        (_PKOlderIncoming() as any _PKOlderIncomingCall).call(self, registry, payload, type)
         completion()
     }
     @available(*, deprecated)
@@ -52,8 +52,17 @@ extension PKPushRegistryDelegate {
         NSLog("isim: PushKit: the delegate does not implement pushRegistry(_:didReceiveIncomingPushWith:for:completion:)")
     }
     public func pushRegistry(_ registry: PKPushRegistry, didInvalidatePushTokenFor type: PKPushType) {}
+}
+/// the deprecated delegate method, called from a deprecated witness through this protocol (no deprecation warning in
+/// the overlay's own build)
+private protocol _PKOlderIncomingCall {
+    func call(_ d: any PKPushRegistryDelegate, _ r: PKPushRegistry, _ p: PKPushPayload, _ t: PKPushType)
+}
+private struct _PKOlderIncoming: _PKOlderIncomingCall {
     @available(*, deprecated)
-    func _isimOlderIncoming(_ r: PKPushRegistry, _ p: PKPushPayload, _ t: PKPushType) { pushRegistry(r, didReceiveIncomingPushWith: p, for: t) }
+    func call(_ d: any PKPushRegistryDelegate, _ r: PKPushRegistry, _ p: PKPushPayload, _ t: PKPushType) {
+        d.pushRegistry(r, didReceiveIncomingPushWith: p, for: t)
+    }
 }
 
 /// the app's push tokens: <container>/Library/isim/PushKit.plist { type raw value: token (hex) }

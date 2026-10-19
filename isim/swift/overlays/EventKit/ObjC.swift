@@ -115,6 +115,7 @@ extension EKEventStore {
     func _objc_requestFullAccessToReminders(_ completion: @escaping @convention(block) (Bool, NSError?) -> Void) {
         requestFullAccessToReminders { ok, e in completion(ok, e.map { $0 as NSError }) }
     }
+    @available(iOS, deprecated: 17.0, message: "Use requestFullAccessToEvents or requestFullAccessToReminders")   // as Apple's
     @objc(requestAccessToEntityType:completion:)
     func _objc_requestAccess(_ t: EKEntityType, completion: @escaping @convention(block) (Bool, NSError?) -> Void) {
         requestAccess(to: t) { ok, e in completion(ok, e.map { $0 as NSError }) }

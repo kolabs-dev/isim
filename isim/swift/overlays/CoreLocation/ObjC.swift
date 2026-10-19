@@ -24,6 +24,7 @@ extension CLLocationManager {
     @objc(monitoredRegions) var _objc_monitoredRegions: Set<CLRegion> { monitoredRegions }
     @objc(maximumRegionMonitoringDistance) var _objc_maximumRegionMonitoringDistance: Double { maximumRegionMonitoringDistance }
     @objc(authorizationStatus) var _objc_authorizationStatus: CLAuthorizationStatus { authorizationStatus }
+    @available(iOS, deprecated: 14.0, message: "Use the authorizationStatus instance property")   // as Apple's
     @objc(authorizationStatus) class func _objc_classAuthorizationStatus() -> CLAuthorizationStatus { authorizationStatus() }
     @objc(accuracyAuthorization) var _objc_accuracyAuthorization: CLAccuracyAuthorization { accuracyAuthorization }
     @objc(locationServicesEnabled) class func _objc_locationServicesEnabled() -> Bool { locationServicesEnabled() }
