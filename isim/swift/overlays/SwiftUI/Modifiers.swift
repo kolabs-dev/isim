@@ -74,6 +74,8 @@ extension View {
     public func autocorrectionDisabled(_ disable: Bool = true) -> some View { _env { $0._textTraits.autocorrectionDisabled = disable } }
     public func textInputAutocapitalization(_ a: TextInputAutocapitalization?) -> some View { _env { $0._textTraits.autocapitalization = a } }
     public func submitLabel(_ l: SubmitLabel) -> some View { _env { $0._textTraits.submitLabel = l.value } }
+    /// The kind of text the field takes (a name, an email address, a one-time code…), for the keyboard and AutoFill.
+    public func textContentType(_ textContentType: UITextContentType?) -> some View { _env { $0._textTraits.contentType = textContentType } }
     public func preferredColorScheme(_ scheme: ColorScheme?) -> some View {
         _modify { ctx, c in
             if let s = scheme { ctx.graph.postRender.append { [weak g = ctx.graph] in g?.hostView?.window?.overrideUserInterfaceStyle = s == .dark ? .dark : .light } }

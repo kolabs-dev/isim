@@ -764,7 +764,28 @@ extension TextField where Label == Text {
     public init(_ titleKey: LocalizedStringKey, text: Binding<String>, axis: Axis) { self.placeholder = titleKey.resolved(); self.text = text; self.axis = axis; self.secure = false }
     @_disfavoredOverload public init<S: StringProtocol>(_ title: S, text: Binding<String>) { self.placeholder = String(title); self.text = text; self.axis = .horizontal; self.secure = false }
     @_disfavoredOverload public init<S: StringProtocol>(_ title: S, text: Binding<String>, axis: Axis) { self.placeholder = String(title); self.text = text; self.axis = axis; self.secure = false }
-    public init(_ titleKey: LocalizedStringKey, text: Binding<String>, prompt: Text?) { self.init(titleKey, text: text) }
+    // the prompt, when given, is the placeholder (iOS shows the prompt in place of the title)
+    public init(_ titleKey: LocalizedStringKey, text: Binding<String>, prompt: Text?) {
+        self.init(placeholder: prompt?.string ?? titleKey.resolved(), text: text, axis: .horizontal, secure: false)
+    }
+    public init(_ titleKey: LocalizedStringKey, text: Binding<String>, prompt: Text?, axis: Axis) {
+        self.init(placeholder: prompt?.string ?? titleKey.resolved(), text: text, axis: axis, secure: false)
+    }
+    @_disfavoredOverload public init<S: StringProtocol>(_ title: S, text: Binding<String>, prompt: Text?) {
+        self.init(placeholder: prompt?.string ?? String(title), text: text, axis: .horizontal, secure: false)
+    }
+    @_disfavoredOverload public init<S: StringProtocol>(_ title: S, text: Binding<String>, prompt: Text?, axis: Axis) {
+        self.init(placeholder: prompt?.string ?? String(title), text: text, axis: axis, secure: false)
+    }
+}
+extension TextField {
+    /// A field labelled by a view: on iOS the label is not drawn (it names the field), the prompt is the placeholder.
+    public init(text: Binding<String>, prompt: Text? = nil, @ViewBuilder label: () -> Label) {
+        self.init(placeholder: prompt?.string ?? "", text: text, axis: .horizontal, secure: false)
+    }
+    public init(text: Binding<String>, prompt: Text? = nil, axis: Axis, @ViewBuilder label: () -> Label) {
+        self.init(placeholder: prompt?.string ?? "", text: text, axis: axis, secure: false)
+    }
 }
 public struct SecureField<Label: View>: View, _PrimitiveView {
     let field: TextField<Label>
@@ -774,6 +795,17 @@ public struct SecureField<Label: View>: View, _PrimitiveView {
 extension SecureField where Label == Text {
     public init(_ titleKey: LocalizedStringKey, text: Binding<String>) { field = TextField(placeholder: titleKey.resolved(), text: text, axis: .horizontal, secure: true) }
     @_disfavoredOverload public init<S: StringProtocol>(_ title: S, text: Binding<String>) { field = TextField(placeholder: String(title), text: text, axis: .horizontal, secure: true) }
+    public init(_ titleKey: LocalizedStringKey, text: Binding<String>, prompt: Text?) {
+        field = TextField(placeholder: prompt?.string ?? titleKey.resolved(), text: text, axis: .horizontal, secure: true)
+    }
+    @_disfavoredOverload public init<S: StringProtocol>(_ title: S, text: Binding<String>, prompt: Text?) {
+        field = TextField(placeholder: prompt?.string ?? String(title), text: text, axis: .horizontal, secure: true)
+    }
+}
+extension SecureField {
+    public init(text: Binding<String>, prompt: Text? = nil, @ViewBuilder label: () -> Label) {
+        field = TextField(placeholder: prompt?.string ?? "", text: text, axis: .horizontal, secure: true)
+    }
 }
 
 /// Connects a TextField position to a @FocusState binding (set by .focused()).
@@ -818,6 +850,7 @@ final class _TextFieldNode: _Node {
         f.autocorrectionType = traits.autocorrectionDisabled ? UITextAutocorrectionType.no : UITextAutocorrectionType.default
         if let a = traits.autocapitalization { f.autocapitalizationType = a.value }
         f.returnKeyType = traits.submitLabel
+        f.textContentType = traits.contentType
         f.borderStyle = traits.roundedBorder ? .roundedRect : .none
         if axis == .vertical { f._isim_setLineLimitMin(minLines, max: maxLines) }
         if let focus = focus {
