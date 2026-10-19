@@ -847,10 +847,26 @@ static int pango_weight(double w) {
 /* style: 1 monospaced, 2 italic, 4 tabular (monospaced) digits */
 /* UIKit's alignments are visual (natural is resolved before it gets here); Pango swaps left and right in a paragraph
    whose text runs right to left (Arabic, Hebrew), so they are swapped back */
+/* the paragraph's base direction from its first strong character, as pango_find_base_dir (deprecated) found it: letters
+   of right-to-left scripts make it RTL, other letters LTR */
+static PangoDirection text_base_dir(const char *s) {
+    for (const char *p = s; p && *p; p = g_utf8_next_char(p)) {
+        gunichar c = g_utf8_get_char(p);
+        switch (g_unichar_get_script(c)) {
+        case G_UNICODE_SCRIPT_ARABIC: case G_UNICODE_SCRIPT_HEBREW: case G_UNICODE_SCRIPT_SYRIAC: case G_UNICODE_SCRIPT_THAANA:
+        case G_UNICODE_SCRIPT_NKO: case G_UNICODE_SCRIPT_SAMARITAN: case G_UNICODE_SCRIPT_MANDAIC: case G_UNICODE_SCRIPT_ADLAM:
+        case G_UNICODE_SCRIPT_HANIFI_ROHINGYA: case G_UNICODE_SCRIPT_YEZIDI:
+            return PANGO_DIRECTION_RTL;
+        default:
+            if (g_unichar_isalpha(c)) return PANGO_DIRECTION_LTR;
+        }
+    }
+    return PANGO_DIRECTION_NEUTRAL;
+}
 static void set_visual_alignment(PangoLayout *l, int align) {
     PangoAlignment a = align == 1 ? PANGO_ALIGN_CENTER : align == 2 ? PANGO_ALIGN_RIGHT : PANGO_ALIGN_LEFT;
     /* the paragraph's direction from its first strong character (what Pango's auto-dir uses), without a layout pass */
-    if (a != PANGO_ALIGN_CENTER && pango_find_base_dir(pango_layout_get_text(l), -1) == PANGO_DIRECTION_RTL)
+    if (a != PANGO_ALIGN_CENTER && text_base_dir(pango_layout_get_text(l)) == PANGO_DIRECTION_RTL)
         a = a == PANGO_ALIGN_LEFT ? PANGO_ALIGN_RIGHT : PANGO_ALIGN_LEFT;
     pango_layout_set_alignment(l, a);
 }

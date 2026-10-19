@@ -271,6 +271,7 @@ extension MKMarkerAnnotationView {
     }
     @objc(animatesWhenAdded) var _objc_animatesWhenAdded: Bool { get { animatesWhenAdded } set { animatesWhenAdded = newValue } }
 }
+@available(iOS, deprecated: 16.0, message: "Use MKMarkerAnnotationView")   // as Apple's class
 extension MKPinAnnotationView {
     @objc(pinTintColor) var _objc_pinTintColor: UIColor? { get { pinTintColor } set { pinTintColor = newValue } }
     @objc(animatesDrop) var _objc_animatesDrop: Bool { get { animatesDrop } set { animatesDrop = newValue } }

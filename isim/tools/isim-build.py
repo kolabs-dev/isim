@@ -820,10 +820,10 @@ def intents_swift(defn):
               f'@objc({name}ResolutionResult)', f'public class {name}ResolutionResult: INEnumResolutionResult {{',
               f'    @objc(successWithResolved{name}:)',
               f'    public class func success(with resolvedValue: {name}) -> {name}ResolutionResult {{',
-              f'        return __success(withResolvedValue: resolvedValue.rawValue) as! {name}ResolutionResult', '    }',
+              f'        return __success(withResolvedValue: resolvedValue.rawValue)', '    }',
               f'    @objc(confirmationRequiredWith{name}ToConfirm:)',
               f'    public class func confirmationRequired(with valueToConfirm: {name}) -> {name}ResolutionResult {{',
-              f'        return __confirmationRequiredWithValue(toConfirm: valueToConfirm.rawValue) as! {name}ResolutionResult', '    }', '}', '']
+              f'        return __confirmationRequiredWithValue(toConfirm: valueToConfirm.rawValue)', '    }', '}', '']
     for t in defn.get('INTypes', []):
         name = t['INTypeName']
         L += [f'@objc({name})', f'public class {name}: INObject {{']
@@ -839,13 +839,13 @@ def intents_swift(defn):
         L += ['}', '', f'@objc({name}ResolutionResult)', f'public class {name}ResolutionResult: INObjectResolutionResult {{',
               f'    @objc(successWithResolved{name}:)',
               f'    public class func success(with resolvedObject: {name}) -> {name}ResolutionResult {{',
-              f'        return super.success(with: resolvedObject) as! {name}ResolutionResult', '    }',
+              f'        return super.success(with: resolvedObject)', '    }',
               f'    @objc(disambiguationWith{name}sToDisambiguate:)',
               f'    public class func disambiguation(with objectsToDisambiguate: [{name}]) -> {name}ResolutionResult {{',
-              f'        return super.disambiguation(with: objectsToDisambiguate) as! {name}ResolutionResult', '    }',
+              f'        return super.disambiguation(with: objectsToDisambiguate)', '    }',
               f'    @objc(confirmationRequiredWith{name}ToConfirm:)',
               f'    public class func confirmationRequired(with objectToConfirm: {name}?) -> {name}ResolutionResult {{',
-              f'        return super.confirmationRequired(with: objectToConfirm) as! {name}ResolutionResult', '    }', '}', '']
+              f'        return super.confirmationRequired(with: objectToConfirm)', '    }', '}', '']
     for it in defn.get('INIntents', []):
         base = it['INIntentName']
         cls = it.get('INIntentClassName') or base + 'Intent'

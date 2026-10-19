@@ -97,7 +97,9 @@ class A:
         os.makedirs(plugins, exist_ok=True)
         return self.swift_app(name, srcs, plist, link=link, ext=".appex", into=plugins, extension=extension)
 
-    def objc_app(self, srcs, plist, link=(), name=None, minos="15.0", flags=("-O1", "-Wall")):
+    def objc_app(self, srcs, plist, link=(), name=None, minos="17.0", flags=("-O1", "-Wall")):
+        """minos: the deployment target, iOS 17 by default (the oldest isim emulates; its SDK libraries are built for it,
+        so an older target makes the linker warn that each is newer than the app)"""
         name = name or self.name
         b = self.bundle(name)
         clang = os.environ.get("CLANG", "clang")

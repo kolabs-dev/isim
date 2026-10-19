@@ -86,7 +86,7 @@ final class _SKShaderProgram {
             NSLog("isim SpriteKit: SKShader: no void main() in the source; nodes draw without it")
             kernel = nil; return
         }
-        kernel = CIKernel(source: k)
+        kernel = (_LegacyKernels() as any _KernelSources).kernel(k)
         if kernel == nil { NSLog("isim SpriteKit: SKShader: the program did not compile; nodes draw without it") }
     }
 }
@@ -310,4 +310,12 @@ extension SKShapeNode {
     func _applyLineStyle() {
         isim_path_set_line_style(Int32(lineCap.rawValue), Int32(lineJoin.rawValue), Double(miterLimit), nil, 0, 0)
     }
+}
+
+/// SKShader programs run as Core Image Kernel Language kernels, whose API Core Image deprecated (iOS 12): compiled in a
+/// deprecated witness, reached through the protocol so the overlay builds without deprecation warnings
+private protocol _KernelSources { func kernel(_ source: String) -> CIKernel? }
+private struct _LegacyKernels: _KernelSources {
+    @available(iOS, deprecated: 12.0)
+    func kernel(_ source: String) -> CIKernel? { CIKernel(source: source) }
 }

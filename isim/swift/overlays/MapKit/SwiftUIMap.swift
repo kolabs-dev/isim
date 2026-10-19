@@ -382,9 +382,7 @@ struct _MapRepresentable: UIViewRepresentable {
                 return v
             }
             if let p = annotation as? _MapPinAnnotation {
-                let v = MKPinAnnotationView(annotation: p, reuseIdentifier: nil)
-                v.pinTintColor = p.tint ?? MKPinAnnotationView.redPinColor()
-                return v
+                return (_LegacyPinViews() as any _PinViews).pinView(p, tint: p.tint)
             }
             if let h = annotation as? _MapHostAnnotation {
                 let v = _MapHostingAnnotationView(annotation: h, reuseIdentifier: nil)
@@ -554,5 +552,17 @@ struct _MapRepresentable: UIViewRepresentable {
                 m.setVisibleMapRect(r, edgePadding: UIEdgeInsets(top: 60, left: 40, bottom: 40, right: 40), animated: false)
             }
         }
+    }
+}
+
+/// MapPin (deprecated in iOS 16) shows Apple's pin view, MKPinAnnotationView (deprecated too): made in a deprecated
+/// witness, reached through the protocol so the overlay builds without deprecation warnings
+private protocol _PinViews { func pinView(_ annotation: MKAnnotation, tint: UIColor?) -> MKAnnotationView }
+private struct _LegacyPinViews: _PinViews {
+    @available(iOS, deprecated: 16.0)
+    func pinView(_ annotation: MKAnnotation, tint: UIColor?) -> MKAnnotationView {
+        let v = MKPinAnnotationView(annotation: annotation, reuseIdentifier: nil)
+        v.pinTintColor = tint ?? MKPinAnnotationView.redPinColor()
+        return v
     }
 }

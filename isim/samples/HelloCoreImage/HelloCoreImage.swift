@@ -153,7 +153,7 @@ final class GalleryViewController: UIViewController {
 
     func kernels() {
         var items: [(String, CIImage?)] = []
-        let kl = CIColorKernel(source: "kernel vec4 swapRB(__sample s) { return s.bgra; }")
+        let kl = legacy.colorKernel("kernel vec4 swapRB(__sample s) { return s.bgra; }")
         items.append(("CIKL color", kl?.apply(extent: face.extent, arguments: [face])))
         let lib = try? Data(contentsOf: bundle.url(forResource: "default", withExtension: "metallib")!)
         let tint = lib.flatMap { try? CIColorKernel(functionName: "magentaTint", fromMetalLibraryData: $0) }
@@ -373,9 +373,9 @@ struct Checks {
     }
 
     func kernelChecks() {
-        let swap = CIColorKernel(source: "kernel vec4 swapRB(__sample s) { return s.bgra; }")!
-        let mirror = CIWarpKernel(source: "kernel vec2 mirror(float w) { vec2 d = destCoord(); return vec2(w - d.x, d.y); }")!
-        let general = CIKernel(source: "kernel vec4 shift(sampler s) { return sample(s, samplerTransform(s, destCoord() + vec2(16.0, 0.0))); }")!
+        let swap = legacy.colorKernel("kernel vec4 swapRB(__sample s) { return s.bgra; }")!
+        let mirror = legacy.warpKernel("kernel vec2 mirror(float w) { vec2 d = destCoord(); return vec2(w - d.x, d.y); }")!
+        let general = legacy.kernel("kernel vec4 shift(sampler s) { return sample(s, samplerTransform(s, destCoord() + vec2(16.0, 0.0))); }")!
         log("kernel cikl swap \(px(swap.apply(extent: halves.extent, arguments: [halves])!, 4, 4)) mirror \(px(mirror.apply(extent: halves.extent, roiCallback: { _, r in CGRect(x: 64 - r.maxX, y: r.minY, width: r.width, height: r.height) }, image: halves, arguments: [64])!, 4, 4)) general \(px(general.apply(extent: halves.extent, roiCallback: { _, r in r.offsetBy(dx: 16, dy: 0) }, arguments: [halves])!, 20, 4)) names \(swap.name) \(mirror.name)")
         let lib = try! Data(contentsOf: bundle.url(forResource: "default", withExtension: "metallib")!)
         let names = CIKernel.kernelNames(fromMetalLibraryData: lib)
@@ -395,7 +395,7 @@ struct Checks {
             log("kernel metal string unavailable apple binary \(appleBinary == nil ? "rejected" : "accepted")")
         }
         let blend = CIBlendKernel.screen.apply(foreground: halves, background: CIImage(color: CIColor(red: 0, green: 0.5, blue: 0)).cropped(to: halves.extent))!
-        let custom = CIBlendKernel(source: "kernel vec4 avg(__sample f, __sample b) { return (f + b) * 0.5; }")!
+        let custom = legacy.blendKernel("kernel vec4 avg(__sample f, __sample b) { return (f + b) * 0.5; }")!
         log("kernel blend screen \(px(blend, 4, 4)) custom \(px(custom.apply(foreground: halves, background: CIImage.white.cropped(to: halves.extent))!, 60, 4))")
         let inv = try? InvertProcessor.apply(withExtent: halves.extent, inputs: [halves], arguments: nil)
         log("kernel processor \(inv.map { px($0, 4, 4) } ?? []) \(inv.map { px($0, 60, 60) } ?? [])")
@@ -484,7 +484,7 @@ struct Checks {
         let draft = f.outputImage!.extent
         f.isDraftModeEnabled = false; f.orientation = .right
         log("raw scaled \(ext(half)) draft \(ext(draft)) oriented \(ext(f.outputImage!.extent)) preview \(f.previewImage.map { ext($0.extent) } ?? "nil")")
-        let old = CIFilter(imageURL: url, options: [.allowDraftMode: false, CIRAWFilterOption(rawValue: kCIInputEVKey): 0.5])
+        let old = legacy.rawFilter(url, [.allowDraftMode: false, CIRAWFilterOption(rawValue: kCIInputEVKey): 0.5])
         log("raw deprecated \(old != nil) native \((old?.value(forKey: CIRAWFilterOption.outputNativeSize.rawValue) as? CIVector).map { "\(Int($0.x))x\(Int($0.y))" } ?? "nil") ev \(old?.value(forKey: kCIInputEVKey) ?? "nil") output \(old?.outputImage.map { ext($0.extent) } ?? "nil")")
     }
 
@@ -511,3 +511,21 @@ struct Checks {
         log("pixelbuffer depth \(pxf(CIImage(cvPixelBuffer: depth!), 2, 2, nil))")
     }
 }
+
+/// The Core Image Kernel Language (deprecated in iOS 12) and CIFilter(imageURL:options:) (iOS 15) are exercised on
+/// purpose: through this protocol, whose witnesses are deprecated, so the sample builds without deprecation warnings
+protocol LegacyCoreImage: Sendable {
+    func colorKernel(_ source: String) -> CIColorKernel?
+    func warpKernel(_ source: String) -> CIWarpKernel?
+    func blendKernel(_ source: String) -> CIBlendKernel?
+    func kernel(_ source: String) -> CIKernel?
+    func rawFilter(_ url: URL, _ options: [CIRAWFilterOption: Any]) -> CIFilter?
+}
+struct LegacyCoreImageAPI: LegacyCoreImage {
+    @available(iOS, deprecated: 12.0) func colorKernel(_ source: String) -> CIColorKernel? { CIColorKernel(source: source) }
+    @available(iOS, deprecated: 12.0) func warpKernel(_ source: String) -> CIWarpKernel? { CIWarpKernel(source: source) }
+    @available(iOS, deprecated: 12.0) func blendKernel(_ source: String) -> CIBlendKernel? { CIBlendKernel(source: source) }
+    @available(iOS, deprecated: 12.0) func kernel(_ source: String) -> CIKernel? { CIKernel(source: source) }
+    @available(iOS, deprecated: 15.0) func rawFilter(_ url: URL, _ options: [CIRAWFilterOption: Any]) -> CIFilter? { CIFilter(imageURL: url, options: options) }
+}
+let legacy: any LegacyCoreImage = LegacyCoreImageAPI()

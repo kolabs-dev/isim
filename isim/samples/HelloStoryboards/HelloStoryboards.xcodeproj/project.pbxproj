@@ -16,6 +16,7 @@
 		5B0A00010000000000000007 /* ProfileViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00030000000000000005 /* ProfileViewController.xib */; };
 		5B0A00010000000000000008 /* BadgeCell.xib in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000008 /* BadgeCell.xib */; };
 		5B0A00010000000000000009 /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000009 /* Settings.bundle */; };
+		5B0A0001000000000000000F /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A0002000000000000000F /* PrivacyInfo.xcprivacy */; };
 		5B0A0001000000000000000A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A0002000000000000000A /* Assets.xcassets */; };
 		5B0A00010000000000000011 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 5B0A00020000000000000011 /* main.m */; };
 		5B0A00010000000000000012 /* Classic.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 5B0A00030000000000000003 /* Classic.storyboard */; };
@@ -39,6 +40,7 @@
 		5B0A0002000000000000001A /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/ProfileViewController.strings; sourceTree = "<group>"; };
 		5B0A00020000000000000008 /* BadgeCell.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = BadgeCell.xib; sourceTree = "<group>"; };
 		5B0A00020000000000000009 /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
+		5B0A0002000000000000000F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		5B0A0002000000000000000A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5B0A0002000000000000000B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		5B0A0002000000000000000C /* HelloStoryboards.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HelloStoryboards.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -91,6 +93,7 @@
 				5B0A0002000000000000000A /* Assets.xcassets */,
 				5B0A00030000000000000002 /* LaunchScreen.storyboard */,
 				5B0A00020000000000000009 /* Settings.bundle */,
+				5B0A0002000000000000000F /* PrivacyInfo.xcprivacy */,
 				5B0A0002000000000000000B /* Info.plist */,
 			);
 			path = HelloStoryboards;
@@ -195,6 +198,7 @@
 				5B0A00010000000000000007 /* ProfileViewController.xib in Resources */,
 				5B0A00010000000000000008 /* BadgeCell.xib in Resources */,
 				5B0A00010000000000000009 /* Settings.bundle in Resources */,
+				5B0A0001000000000000000F /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
