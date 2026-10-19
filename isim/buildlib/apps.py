@@ -360,6 +360,11 @@ def _(a):
                                           "-framework", "CoreGraphics"])
 
 
+@app("samples/HelloDragDropObjC")   # UIKit loads its Swift overlay for the drag and drop classes (issue #245)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "CoreGraphics"], minos="17.0")
+
+
 @app("samples/HelloConfigurationsObjC")   # after the overlays: Symbols.framework re-exports libswiftSymbols (issue #235)
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Symbols", "-framework", "CoreGraphics"],
