@@ -1,7 +1,9 @@
 // isim SwiftUI: Canvas (immediate-mode drawing with GraphicsContext) and TimelineView.
 // GraphicsContext draws straight into isim's host renderer: paths filled/stroked with colors, styles and
-// gradients, text, images, transforms, opacity, clipping and layers. Filters, blend modes and symbols
-// are not drawn (accepted and ignored / nil).
+// gradients, text, images, transforms, opacity, clipping and layers. Filters run on a group of each drawing, one
+// pass per filter in the order they were added (the host's colour matrix, blur and shadow); clipToLayer renders its
+// content offscreen and masks later drawing with it; blend modes composite each drawing's group; symbols are the
+// Canvas's `symbols` views (by tag), mounted hidden and drawn from their view hierarchy.
 import UIKit
 import isim_host
 
@@ -16,7 +18,10 @@ public struct Canvas<Symbols: View>: View, _PrimitiveView {
         self.renderer = renderer; self.opaque = opaque; self.symbols = symbols()
     }
     public var body: Never { fatalError() }
-    func _makeNode(_ ctx: _Context) -> _Node { _CanvasNode(path: ctx.path, renderer: renderer, env: ctx.environment) }
+    func _makeNode(_ ctx: _Context) -> _Node {
+        let syms = Symbols.self == EmptyView.self ? [] : _flatten([_resolve(symbols, ctx.child("sym"))])
+        return _CanvasNode(path: ctx.path, renderer: renderer, env: ctx.environment, symbols: syms)
+    }
 }
 extension Canvas where Symbols == EmptyView {
     public init(opaque: Bool = false, colorMode: ColorRenderingMode = .nonLinear, rendersAsynchronously: Bool = false,
@@ -25,27 +30,54 @@ extension Canvas where Symbols == EmptyView {
     }
 }
 
+/// A Canvas; its children are the symbol views, each at its ideal size, mounted in a hidden view of the canvas.
 final class _CanvasNode: _Node {
     let renderer: (inout GraphicsContext, CGSize) -> Void, env: EnvironmentValues
-    init(path: String, renderer: @escaping (inout GraphicsContext, CGSize) -> Void, env: EnvironmentValues) {
-        self.renderer = renderer; self.env = env; super.init(path: path, children: [])
+    init(path: String, renderer: @escaping (inout GraphicsContext, CGSize) -> Void, env: EnvironmentValues, symbols: [_Node] = []) {
+        self.renderer = renderer; self.env = env; super.init(path: path, children: symbols)
+        rowAction = nil
     }
     override func sizeThatFits(_ p: _Proposal) -> CGSize { CGSize(width: min(p.width ?? 10, 1e6), height: min(p.height ?? 10, 1e6)) }
+    override func place(_ rect: CGRect) {
+        frame = rect
+        for c in children { c.place(CGRect(origin: .zero, size: c.sizeThatFits(.unspecified))) }
+    }
     override func mountView(_ g: _Graph) -> UIView {
         let v = g.view(viewKey) { _SUICanvasView(frame: .zero) }
         v.renderer = renderer; v.env = env
         v.setNeedsDisplay()
         return v
     }
+    override func mountChildren(_ g: _Graph, in view: UIView) {
+        guard let v = view as? _SUICanvasView else { return }
+        for (i, c) in children.enumerated() { g.mount(c, in: v.symbolHost, order: i) }
+        // the views just mounted are the last ones, in order (a leaving view is never brought to the front)
+        let mounted = Array(v.symbolHost.subviews.suffix(children.count))
+        var symbols: [AnyHashable: GraphicsContext._Symbol] = [:]
+        if mounted.count == children.count {
+            for (c, sv) in zip(children, mounted) {
+                if let t = _tagged(c) { symbols[t] = GraphicsContext._Symbol(view: sv, size: c.frame.size) }
+            }
+        }
+        v.symbols = symbols
+    }
 }
 final class _SUICanvasView: UIView {
     var renderer: ((inout GraphicsContext, CGSize) -> Void)?
     var env = EnvironmentValues()
-    override init(frame: CGRect) { super.init(frame: frame); backgroundColor = .clear; isUserInteractionEnabled = false }
+    var symbols: [AnyHashable: GraphicsContext._Symbol] = [:]
+    /// the symbol views: never shown, drawn into the canvas by resolveSymbol / draw
+    let symbolHost = _PassthroughView()
+    override init(frame: CGRect) {
+        super.init(frame: frame); backgroundColor = .clear; isUserInteractionEnabled = false
+        symbolHost.isHidden = true
+        addSubview(symbolHost)
+    }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     override func draw(_ rect: CGRect) {
         guard let renderer else { return }
         var ctx = GraphicsContext(environment: env, size: bounds.size)
+        ctx.symbols = symbols
         isim_gfx_save()
         isim_gfx_clip_rounded(0, 0, bounds.width, bounds.height, 0)
         renderer(&ctx, bounds.size)
@@ -61,6 +93,8 @@ public struct GraphicsContext {
     public var transform: CGAffineTransform = .identity
     var clips: [(Path, Bool)] = []                  // in canvas coordinates
     var filters: [Filter] = []                      // addFilter: applied to each drawing (a group through the host's effects)
+    var masks: [_LayerMask] = []                    // clipToLayer: later drawing goes through their alpha
+    var symbols: [AnyHashable: _Symbol] = [:]       // the Canvas's symbol views, by tag
     let size: CGSize
     init(environment: EnvironmentValues, size: CGSize) { self.environment = environment; self.size = size }
 
@@ -86,8 +120,10 @@ public struct GraphicsContext {
         public static let `repeat` = GradientOptions(rawValue: 1), mirror = GradientOptions(rawValue: 2), linearColor = GradientOptions(rawValue: 4)
         var extend: Int { contains(.mirror) ? 3 : contains(.repeat) ? 2 : 1 }
     }
-    /// Filters applied to what is drawn after addFilter (the visual effects of SwiftUI views: blur, drop shadow, the colour
-    /// filters); `alphaThreshold` is accepted and not applied.
+    /// Filters applied to what is drawn after addFilter: each is one pass of isim's host effects (colour matrix, blur,
+    /// shadow) on a group of the drawing, in the order they were added. alphaThreshold is two colour-matrix passes
+    /// (a steep ramp at each end of the range, then the constant colour where both hold); projectionTransform
+    /// transforms the drawing (its affine part). Shaders need Metal and are not provided.
     public struct Filter: @unchecked Sendable {
         let id: Int
         var values: [Double] = []
@@ -103,8 +139,17 @@ public struct GraphicsContext {
         public static func brightness(_ amount: Double) -> Filter { Filter(id: 7, values: [amount]) }
         public static func contrast(_ amount: Double) -> Filter { Filter(id: 8, values: [amount]) }
         public static func colorInvert(_ amount: Double = 1) -> Filter { Filter(id: 9, values: [amount]) }
-        public static func alphaThreshold(min: Double, max: Double = 1, color: Color = Color.black) -> Filter { Filter(id: 10) }
-        /// the view effect it is (nil: not applied)
+        public static func alphaThreshold(min: Double, max: Double = 1, color: Color = Color.black) -> Filter { Filter(id: 10, values: [min, max], color: color) }
+        /// the colour, with its alpha multiplied by each pixel's alpha
+        public static func alphaMultiply(_ color: Color) -> Filter { Filter(id: 11, color: color) }
+        public static func colorMatrix(_ matrix: ColorMatrix) -> Filter { Filter(id: 12, values: matrix._values) }
+        /// isim applies the matrix to unpremultiplied components either way
+        public static func colorMatrix(_ matrix: ColorMatrix, isPremultiplied: Bool) -> Filter { Filter(id: 12, values: matrix._values) }
+        public static var luminanceToAlpha: Filter { Filter(id: 13) }
+        public static func projectionTransform(_ matrix: ProjectionTransform) -> Filter {
+            Filter(id: 14, values: [matrix.m11, matrix.m12, matrix.m21, matrix.m22, matrix.m31, matrix.m32].map { Double($0) })
+        }
+        /// the view effect it is (nil: not one of them)
         func _op(_ env: EnvironmentValues) -> _VFXOp? {
             switch id {
             case 1: return _VFXOp(values[1] != 0 ? .blurOpaque : .blur, [values[0]])
@@ -115,9 +160,30 @@ public struct GraphicsContext {
             case 6: return _VFXOp(.saturation, values)
             case 7: return _VFXOp(.brightness, values)
             case 8: return _VFXOp(.contrast, values)
-            case 9: return values.first.map { $0 > 0.5 } ?? true ? _VFXOp(.colorInvert) : nil
+            case 13: return _VFXOp(.luminanceToAlpha)
             default: return nil
             }
+        }
+        /// the host passes (isim_gfx_pop_group_filtered values), first applied first
+        @MainActor func _passes(_ env: EnvironmentValues) -> [[Double]] {
+            switch id {
+            case 9:                                   // a partial inversion: c' = c (1 - 2k) + k
+                let k = Swift.min(1, Swift.max(0, values.first ?? 1))
+                return [_matrixSpec([1 - 2 * k, 0, 0, 0, k,  0, 1 - 2 * k, 0, 0, k,  0, 0, 1 - 2 * k, 0, k,  0, 0, 0, 1, 0])]
+            case 10:
+                let c = _rgba(color ?? .black, env), lo = values[0], hi = values[1], k = 4096.0
+                return [_matrixSpec([0, 0, 0, k, 1 - k * lo,  0, 0, 0, -k, k * hi + 1,  0, 0, 0, 0, 0,  0, 0, 0, 0, 1]),
+                        _matrixSpec([0, 0, 0, 0, c[0],  0, 0, 0, 0, c[1],  0, 0, 0, 0, c[2],  c[3], c[3], 0, 0, -c[3]])]
+            case 11:
+                let c = _rgba(color ?? .black, env)
+                return [_matrixSpec([0, 0, 0, 0, c[0],  0, 0, 0, 0, c[1],  0, 0, 0, 0, c[2],  0, 0, 0, c[3], 0])]
+            case 12: return [_matrixSpec(values)]
+            case 14: return []
+            default: return _op(env).flatMap { _vfxSpec([$0]) }.map { [$0] } ?? []
+            }
+        }
+        var _projection: CGAffineTransform? {
+            id == 14 ? CGAffineTransform(a: values[0], b: values[1], c: values[2], d: values[3], tx: values[4], ty: values[5]) : nil
         }
     }
     public struct BlurOptions: OptionSet, Sendable { public let rawValue: UInt32; public init(rawValue: UInt32) { self.rawValue = rawValue }; public static let opaque = BlurOptions(rawValue: 1), dithersResult = BlurOptions(rawValue: 2) }
@@ -174,23 +240,62 @@ public struct GraphicsContext {
         }
         clips.append((p, eo))
     }
-    public mutating func clipToLayer(opacity: Double = 1, options: ClipOptions = ClipOptions(), content: (inout GraphicsContext) throws -> Void) rethrows {}
+    /// Later drawing shows only where `content` draws (its alpha times `opacity`; `.inverse`: where it does not).
+    /// The content is drawn offscreen at the screen's scale, through this context's clips, transform and masks.
+    public mutating func clipToLayer(opacity: Double = 1, options: ClipOptions = ClipOptions(), content: (inout GraphicsContext) throws -> Void) rethrows {
+        let scale = MainActor.assumeIsolated { max(1, UIScreen.main.scale) }
+        guard size.width >= 1, size.height >= 1, isim_gfx_offscreen_begin(size.width, size.height, scale, 0) != 0 else { return }
+        var inner = self
+        inner.opacity = 1; inner.blendMode = .normal
+        isim_gfx_push_group()
+        do { try content(&inner) } catch {
+            isim_gfx_pop_group(0); isim_gfx_offscreen_end()
+            throw error
+        }
+        let o = Swift.min(1, Swift.max(0, opacity))
+        let alpha: [Double] = options.contains(.inverse) ? [0, 0, 0, -o, 1] : [0, 0, 0, o, 0]
+        _matrixSpec([0, 0, 0, 0, 1,  0, 0, 0, 0, 1,  0, 0, 0, 0, 1] + alpha).withUnsafeBufferPointer {
+            isim_gfx_pop_group_filtered($0.baseAddress, 1, 0, 0, size.width, size.height)
+        }
+        let hd = isim_gfx_offscreen_snapshot()
+        isim_gfx_offscreen_end()
+        if hd > 0 { masks.append(_LayerMask(handle: hd)) }
+    }
+    /// A clipToLayer mask: an image of the canvas's size whose alpha is the mask.
+    final class _LayerMask {
+        let handle: Int32
+        init(handle: Int32) { self.handle = handle }
+        deinit { isim_image_free(handle) }
+    }
 
     // MARK: drawing
     /// Runs a drawing with this context's clips, transform and (optionally) a group for opacity.
+    /// Groups, outermost first: the blend mode's, one per mask, one per filter pass; the drawing goes in the innermost.
     func _withState(_ body: () -> Void) {
         isim_gfx_save()
         for (p, eo) in clips { _hostPath(p); isim_path_set_fill_rule(eo ? 1 : 0); isim_gfx_clip_path() }
         isim_path_set_fill_rule(0)
-        let spec = filters.isEmpty ? nil : MainActor.assumeIsolated { _vfxSpec(filters.compactMap { $0._op(environment) }) }
-        if spec != nil { isim_gfx_push_group() }
-        let t = transform
+        let passes = filters.isEmpty ? [] : MainActor.assumeIsolated { filters.flatMap { $0._passes(environment) } }
+        let blend = _hostBlend(blendMode)
+        var blendSpec: [Double]? = nil
+        if blend != 0 { var v = [Double](repeating: 0, count: 32); v[21] = Double(blend); blendSpec = v }
+        if blendSpec != nil { isim_gfx_push_group() }
+        for _ in masks { isim_gfx_push_group() }
+        for _ in passes { isim_gfx_push_group() }
+        var t = transform
+        for f in filters { if let p = f._projection { t = t.concatenating(p) } }
         isim_gfx_save()
         isim_gfx_concat(t.a, t.b, t.c, t.d, t.tx, t.ty)
         body()
         isim_path_begin()
         isim_gfx_restore()
-        if let spec { spec.withUnsafeBufferPointer { isim_gfx_pop_group_filtered($0.baseAddress, 1, 0, 0, size.width, size.height) } }
+        for spec in passes { spec.withUnsafeBufferPointer { isim_gfx_pop_group_filtered($0.baseAddress, 1, 0, 0, size.width, size.height) } }
+        for m in masks.reversed() {
+            isim_gfx_push_group()
+            isim_image_draw(m.handle, 0, 0, size.width, size.height, nil, 1)
+            isim_gfx_pop_group_masked(1)
+        }
+        if let blendSpec { blendSpec.withUnsafeBufferPointer { isim_gfx_pop_group_filtered($0.baseAddress, 1, 0, 0, size.width, size.height) } }
         isim_gfx_restore()
     }
     @MainActor func _paint(_ shading: Shading, bounds: CGRect) -> _Paint {
@@ -293,11 +398,27 @@ public struct GraphicsContext {
     public func draw(_ image: Image, in rect: CGRect, style: FillStyle = FillStyle()) { draw(resolve(image), in: rect, style: style) }
     public func draw(_ image: Image, at point: CGPoint, anchor: UnitPoint = .center) { draw(resolve(image), at: point, anchor: anchor) }
 
-    /// Canvas symbols are not rendered on isim.
-    public struct ResolvedSymbol { public var size: CGSize { .zero } }
-    public func resolveSymbol<ID: Hashable>(id: ID) -> ResolvedSymbol? { nil }
-    public func draw(_ symbol: ResolvedSymbol, at point: CGPoint, anchor: UnitPoint = .center) {}
-    public func draw(_ symbol: ResolvedSymbol, in rect: CGRect) {}
+    /// A view of the Canvas's `symbols`, by its tag: drawn from its view hierarchy at its ideal size (or `rect`).
+    struct _Symbol { weak var view: UIView?; let size: CGSize }
+    public struct ResolvedSymbol {
+        let symbol: _Symbol?
+        public var size: CGSize { symbol?.size ?? .zero }
+    }
+    public func resolveSymbol<ID: Hashable>(id: ID) -> ResolvedSymbol? { symbols[AnyHashable(id)].map { ResolvedSymbol(symbol: $0) } }
+    public func draw(_ symbol: ResolvedSymbol, at point: CGPoint, anchor: UnitPoint = .center) {
+        let s = symbol.size
+        draw(symbol, in: CGRect(x: point.x - anchor.x * s.width, y: point.y - anchor.y * s.height, width: s.width, height: s.height))
+    }
+    public func draw(_ symbol: ResolvedSymbol, in rect: CGRect) {
+        guard let v = symbol.symbol?.view, rect.width > 0, rect.height > 0 else { return }
+        MainActor.assumeIsolated {
+            _withState {
+                if opacity < 1 { isim_gfx_push_group() }
+                _ = v.drawHierarchy(in: rect, afterScreenUpdates: false)
+                if opacity < 1 { isim_gfx_pop_group(opacity) }
+            }
+        }
+    }
 }
 
 // MARK: - TimelineView
@@ -428,4 +549,37 @@ final class _TimelineBox {
         }
     }
     deinit { timer?.invalidate() }
+}
+
+/// A 4x5 colour matrix for GraphicsContext's colorMatrix filter: rows red, green, blue, alpha; columns the source's
+/// red, green, blue, alpha and a bias.
+public struct ColorMatrix: Equatable, Sendable {
+    public var r1: Float = 1, r2: Float = 0, r3: Float = 0, r4: Float = 0, r5: Float = 0
+    public var g1: Float = 0, g2: Float = 1, g3: Float = 0, g4: Float = 0, g5: Float = 0
+    public var b1: Float = 0, b2: Float = 0, b3: Float = 1, b4: Float = 0, b5: Float = 0
+    public var a1: Float = 0, a2: Float = 0, a3: Float = 0, a4: Float = 1, a5: Float = 0
+    public init() {}
+    var _values: [Double] { [r1, r2, r3, r4, r5, g1, g2, g3, g4, g5, b1, b2, b3, b4, b5, a1, a2, a3, a4, a5].map { Double($0) } }
+}
+
+/// One colour-matrix pass for isim_gfx_pop_group_filtered (20 values, rows R G B A).
+func _matrixSpec(_ m: [Double]) -> [Double] {
+    var v = [Double](repeating: 0, count: 32)
+    for i in 0..<20 { v[i] = m[i] }
+    v[29] = 1
+    return v
+}
+
+/// The host's blend index (isim_gfx_pop_group_filtered) of a GraphicsContext blend mode; 0 (drawn normally) for
+/// clear, copy, sourceIn, sourceOut, destinationIn, destinationAtop and xor, which the host does not composite.
+func _hostBlend(_ m: GraphicsContext.BlendMode) -> Int {
+    switch m.rawValue {
+    case 0...15: return Int(m.rawValue)
+    case 20: return 16          // sourceAtop
+    case 21: return 17          // destinationOver
+    case 23: return 18          // destinationOut
+    case 26: return 19          // plusDarker
+    case 27: return 20          // plusLighter
+    default: return 0
+    }
 }
