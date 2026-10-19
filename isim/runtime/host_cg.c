@@ -5,6 +5,7 @@
  * through the host's poppler-glib when it is installed (dlopen'd).
  */
 #define _GNU_SOURCE
+#include "guest_abi.h"
 #include <cairo.h>
 #include <cairo-pdf.h>
 #include <dlfcn.h>
@@ -27,8 +28,8 @@ cairo_t *isim_host_cairo(void);
 cairo_t *isim_host_swap_cairo(cairo_t *n);
 cairo_surface_t *isim_image_get_surface(int hd, int *owned);
 int isim_image_adopt_surface(cairo_surface_t *s);
-int isim_image_load_data(const void *data, unsigned long len, double *w, double *h);
-void isim_image_pixel_size(int hd, double *w, double *h);
+ISIM_GUEST_ABI int isim_image_load_data(const void *data, unsigned long len, double *w, double *h);
+ISIM_GUEST_ABI void isim_image_pixel_size(int hd, double *w, double *h);
 
 /* layouts shared with sdk-src/usr/include/isim_host_cg.h */
 struct isim_cg_fx {

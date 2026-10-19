@@ -4,6 +4,7 @@
  * Canvas, and by Core Graphics (line dashes/caps/joins, even-odd fill and clip).
  */
 #define _GNU_SOURCE
+#include "guest_abi.h"
 #include <cairo.h>
 #include <math.h>
 #include <stdlib.h>
@@ -12,7 +13,7 @@ cairo_t *isim_host_cairo(void);
 
 /* stroke style of the current graphics state: cap 0 butt, 1 round, 2 square; join 0 miter, 1 round, 2 bevel
    (Core Graphics' enum values); dash lengths in points (ndash 0 = solid) */
-void isim_path_set_line_style(int cap, int join, double miter, const double *dash, int ndash, double phase) {
+ISIM_GUEST_ABI void isim_path_set_line_style(int cap, int join, double miter, const double *dash, int ndash, double phase) {
     cairo_t *cr = isim_host_cairo();
     cairo_set_line_cap(cr, cap == 1 ? CAIRO_LINE_CAP_ROUND : cap == 2 ? CAIRO_LINE_CAP_SQUARE : CAIRO_LINE_CAP_BUTT);
     cairo_set_line_join(cr, join == 1 ? CAIRO_LINE_JOIN_ROUND : join == 2 ? CAIRO_LINE_JOIN_BEVEL : CAIRO_LINE_JOIN_MITER);
@@ -24,7 +25,7 @@ void isim_path_set_line_style(int cap, int join, double miter, const double *das
 }
 
 /* fill rule for fills and clips of the current graphics state: 0 nonzero winding, 1 even-odd */
-void isim_path_set_fill_rule(int even_odd) {
+ISIM_GUEST_ABI void isim_path_set_fill_rule(int even_odd) {
     cairo_set_fill_rule(isim_host_cairo(), even_odd ? CAIRO_FILL_RULE_EVEN_ODD : CAIRO_FILL_RULE_WINDING);
 }
 
@@ -110,7 +111,7 @@ static cairo_pattern_t *make_conic(cairo_t *cr, const double *geom, int n, const
    y-down, so increasing angles turn clockwise on screen). n stops: locations locs[n] (ascending, 0...1) and
    rgba[4n] (straight alpha). extend: 0 none, 1 pad, 2 repeat, 3 reflect. matrix: optional [a b c d tx ty] mapping
    gradient space to user space (elliptical gradients). */
-void isim_path_gradient(int mode, int kind, const double *geom, int n, const double *locs, const double *rgba, int extend, double lw, const double *matrix) {
+ISIM_GUEST_ABI void isim_path_gradient(int mode, int kind, const double *geom, int n, const double *locs, const double *rgba, int extend, double lw, const double *matrix) {
     cairo_t *cr = isim_host_cairo();
     if (n <= 0 || !geom || !locs || !rgba) return;
     cairo_matrix_t toUser;

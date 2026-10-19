@@ -39,7 +39,7 @@ typedef const char *SEL;
 typedef void *IMP;
 struct objc_class { Class isa, superclass; void *cache, *rt; uintptr_t data; };
 
-SEL sel_registerName(const char *s);
+ISIM_GUEST_ABI SEL sel_registerName(const char *s);
 IMP objc_rt_lookup(id self, Class cls, SEL sel);
 int class_respondsToSelector(Class c, SEL sel);
 const char *class_getName(Class c);
@@ -350,10 +350,10 @@ static void *cxxabi(const char *sym, void **cache) {
 static void *__gxx_personality_v0_p, *__cxa_begin_catch_p, *__cxa_end_catch_p, *__cxa_rethrow_p;
 #define CXXABI(name) cxxabi("_" #name, &name##_p)
 
-_Unwind_Reason_Code isim_objc_personality(int version, _Unwind_Action actions, uint64_t cls,
+ISIM_GUEST_ABI _Unwind_Reason_Code isim_objc_personality(int version, _Unwind_Action actions, uint64_t cls,
                                           struct _Unwind_Exception *ue, struct _Unwind_Context *ctx);
 /* libSystem's __gxx_personality_v0 (apps built before isim had libc++abi bound it there): libc++abi's */
-_Unwind_Reason_Code isim_gxx_personality(int version, _Unwind_Action actions, uint64_t cls,
+ISIM_GUEST_ABI _Unwind_Reason_Code isim_gxx_personality(int version, _Unwind_Action actions, uint64_t cls,
                                          struct _Unwind_Exception *ue, struct _Unwind_Context *ctx) {
     personality_fn gxx = CXXABI(__gxx_personality_v0);
     return gxx ? gxx(version, actions, cls, ue, ctx) : isim_objc_personality(version, actions, cls, ue, ctx);
@@ -361,7 +361,7 @@ _Unwind_Reason_Code isim_gxx_personality(int version, _Unwind_Action actions, ui
 
 /* __objc_personality_v0: Objective-C exceptions here; C++ exceptions go to libc++abi's personality, which
    skips @catch clauses (their typeinfo's can_catch slot answers false) */
-_Unwind_Reason_Code isim_objc_personality(int version, _Unwind_Action actions, uint64_t cls,
+ISIM_GUEST_ABI _Unwind_Reason_Code isim_objc_personality(int version, _Unwind_Action actions, uint64_t cls,
                                           struct _Unwind_Exception *ue, struct _Unwind_Context *ctx) {
     if (version != 1 || !ue || !ctx) return _URC_FATAL_PHASE1_ERROR;
     if (!is_objc(ue)) {
@@ -485,5 +485,5 @@ void isim_cxa_rethrow(void) {
     ((void (*)(void))CXXABI(__cxa_rethrow))();                  /* nothing caught: libc++abi terminates */
 }
 
-_Unwind_Reason_Code isim_unwind_raise(struct _Unwind_Exception *ue) { isim_unwind_register_images(); return _Unwind_RaiseException(ue); }
-_Unwind_Reason_Code isim_unwind_backtrace(_Unwind_Trace_Fn fn, void *arg) { isim_unwind_register_images(); return _Unwind_Backtrace(fn, arg); }
+ISIM_GUEST_ABI _Unwind_Reason_Code isim_unwind_raise(struct _Unwind_Exception *ue) { isim_unwind_register_images(); return _Unwind_RaiseException(ue); }
+ISIM_GUEST_ABI _Unwind_Reason_Code isim_unwind_backtrace(_Unwind_Trace_Fn fn, void *arg) { isim_unwind_register_images(); return _Unwind_Backtrace(fn, arg); }

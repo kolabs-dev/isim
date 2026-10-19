@@ -28,7 +28,7 @@ static double mono(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &t
 /* ---- the app's identity ---- */
 static char app_bundle[256], app_version[64], app_build[64], app_name[256], app_path[1024];
 static void start_watchdog(void);
-void isim_diag_set_app(const char *bundle_id, const char *version, const char *build, const char *name, const char *path) {
+ISIM_GUEST_ABI void isim_diag_set_app(const char *bundle_id, const char *version, const char *build, const char *name, const char *path) {
     start_watchdog();                                       /* from launch: a slow launch's stack is sampled too */
     snprintf(app_bundle, sizeof app_bundle, "%s", bundle_id ? bundle_id : "");
     snprintf(app_version, sizeof app_version, "%s", version ? version : "");
@@ -36,12 +36,12 @@ void isim_diag_set_app(const char *bundle_id, const char *version, const char *b
     snprintf(app_name, sizeof app_name, "%s", name ? name : "");
     snprintf(app_path, sizeof app_path, "%s", path ? path : "");
 }
-const char *isim_diag_app(int which) {
+ISIM_GUEST_ABI const char *isim_diag_app(int which) {
     switch (which) { case 0: return app_bundle; case 1: return app_version; case 2: return app_build; case 3: return app_name; default: return app_path; }
 }
 
 /* ---- the process's start (wall clock): /proc/self/stat's start time after boot ---- */
-double isim_diag_process_start(void) {
+ISIM_GUEST_ABI double isim_diag_process_start(void) {
     static double start;
     if (start) return start;
     unsigned long long ticks = 0; double btime = 0;
@@ -71,7 +71,7 @@ void isim_diag_frame(void) {
 
 /* usage: [0] user CPU s, [1] system CPU s, [2] peak memory KB, [3] logical writes bytes, [4] process age s,
    [5] time to first frame ms (0 before it), [6] current memory KB, [7] hitch time s (frames slower than 1.5 x 60 Hz) */
-int isim_resource_usage(double out[8]) {
+ISIM_GUEST_ABI int isim_resource_usage(double out[8]) {
     struct rusage ru; getrusage(RUSAGE_SELF, &ru);
     out[0] = ru.ru_utime.tv_sec + ru.ru_utime.tv_usec / 1e6;
     out[1] = ru.ru_stime.tv_sec + ru.ru_stime.tv_usec / 1e6;
@@ -113,7 +113,7 @@ static void sample_main(char *out, size_t cap) {
     }
 }
 /* the main thread's stack now (MetricKit CPU exception diagnostics); returns the number of frames */
-int isim_sample_main_stack(char *out, int cap) {
+ISIM_GUEST_ABI int isim_sample_main_stack(char *out, int cap) {
     sample_main(out, (size_t)cap);
     int n = 0; for (const char *p = out; *p; p++) n += *p == '\n';
     return n;
@@ -122,7 +122,7 @@ int isim_sample_main_stack(char *out, int cap) {
    app launch diagnostic for a slow launch) */
 static char launch_stack[4096];
 static volatile int launch_sampled;
-int isim_launch_stack(char *out, int cap) { snprintf(out, (size_t)cap, "%s", launch_sampled ? launch_stack : ""); return launch_sampled; }
+ISIM_GUEST_ABI int isim_launch_stack(char *out, int cap) { snprintf(out, (size_t)cap, "%s", launch_sampled ? launch_stack : ""); return launch_sampled; }
 static void *hang_watchdog(void *arg) {
     (void)arg;
     pthread_setname_np(pthread_self(), "isim-hangs");
@@ -163,9 +163,9 @@ void isim_diag_beat(int waiting) {
         watching = 1;
     } else busy_since = mono();
 }
-int isim_hang_count(void) { pthread_mutex_lock(&hang_lock); int n = nhangs; pthread_mutex_unlock(&hang_lock); return n; }
+ISIM_GUEST_ABI int isim_hang_count(void) { pthread_mutex_lock(&hang_lock); int n = nhangs; pthread_mutex_unlock(&hang_lock); return n; }
 /* one hang: start (wall clock), duration (s) and its stack (see sample_main) */
-int isim_hang_get(int i, double *start, double *duration, char *stack, int cap) {
+ISIM_GUEST_ABI int isim_hang_get(int i, double *start, double *duration, char *stack, int cap) {
     pthread_mutex_lock(&hang_lock);
     if (i < 0 || i >= nhangs) { pthread_mutex_unlock(&hang_lock); return 0; }
     *start = hangs[i].start; *duration = hangs[i].duration;

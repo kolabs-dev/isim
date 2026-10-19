@@ -2,6 +2,7 @@
  * (libpcre2-8, loaded on first use; it is installed with GLib on practically every Linux desktop).
  * PCRE2's syntax is close to ICU's, which NSRegularExpression uses on Apple platforms. Patterns and
  * subjects are UTF-8; offsets are byte offsets (Foundation converts them to UTF-16 indices). */
+#include "guest_abi.h"
 #include <dlfcn.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -52,7 +53,7 @@ static void load(void) {
 
 /* options: PCRE2 compile options (caseless, dotall, extended, multiline, literal); unix_lines: only \n ends lines.
  * Returns NULL on error (*err = PCRE2 error code, or 1 when PCRE2 is unavailable; *erroffset = byte offset). */
-void *isim_regex_compile(const char *pattern, unsigned long len, unsigned int options, int unix_lines, int *err, unsigned long *erroffset) {
+ISIM_GUEST_ABI void *isim_regex_compile(const char *pattern, unsigned long len, unsigned int options, int unix_lines, int *err, unsigned long *erroffset) {
     pthread_once(&once, load);
     if (!loaded) { *err = 1; *erroffset = 0; return NULL; }
     pctx *ctx = P.ccontext_create(NULL);
@@ -68,17 +69,17 @@ void *isim_regex_compile(const char *pattern, unsigned long len, unsigned int op
     *erroffset = off;
     return code;
 }
-void isim_regex_free(void *code) { if (code && loaded > 0) P.code_free(code); }
-int isim_regex_capture_count(void *code) { uint32_t n = 0; if (code) P.info(code, P_INFO_CAPTURECOUNT, &n); return (int)n; }
-int isim_regex_group_number(void *code, const char *name) { int n = P.number_from_name ? P.number_from_name(code, (const uint8_t *)name) : -1; return n < 0 ? -1 : n; }
-void isim_regex_error_message(int err, char *buf, unsigned long n) {
+ISIM_GUEST_ABI void isim_regex_free(void *code) { if (code && loaded > 0) P.code_free(code); }
+ISIM_GUEST_ABI int isim_regex_capture_count(void *code) { uint32_t n = 0; if (code) P.info(code, P_INFO_CAPTURECOUNT, &n); return (int)n; }
+ISIM_GUEST_ABI int isim_regex_group_number(void *code, const char *name) { int n = P.number_from_name ? P.number_from_name(code, (const uint8_t *)name) : -1; return n < 0 ? -1 : n; }
+ISIM_GUEST_ABI void isim_regex_error_message(int err, char *buf, unsigned long n) {
     if (err == 1 && !loaded) { snprintf(buf, n, "regular expressions need libpcre2-8 on the host"); return; }
     if (!P.error_message || P.error_message(err, (uint8_t *)buf, n) < 0) snprintf(buf, n, "regex error %d", err);
 }
 /* Finds the next match at or after `start` in subject[0..len). ovector receives (start, end) byte pairs for
  * groups 0..pairs-1 (unset groups: -1). options: PCRE2 match options (anchored, notbol, noteol, notempty_atstart).
  * Returns the number of pairs set (> 0), 0 for no match, < 0 on error. */
-int isim_regex_match(void *code, const char *subject, unsigned long len, unsigned long start, unsigned int options, long *ovector, int pairs) {
+ISIM_GUEST_ABI int isim_regex_match(void *code, const char *subject, unsigned long len, unsigned long start, unsigned int options, long *ovector, int pairs) {
     if (!code) return -1;
     pmatch *md = P.md_create(code, NULL);
     int rc = P.match(code, (const uint8_t *)subject, len, start, options, md, NULL);

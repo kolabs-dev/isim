@@ -8,6 +8,7 @@
  * into a small ring; the UI thread picks the frame for the current playback time into an image handle
  * (host_image.c) that UIKit draws. The soundtrack streams into the audio mixer (host_audio.c). */
 #define _GNU_SOURCE
+#include "guest_abi.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
@@ -23,15 +24,15 @@
 #include <unistd.h>
 extern char **environ;
 
-int isim_image_create_bgra(int w, int h);
-void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
-void isim_image_free(int hd);
-int isim_image_load_data(const void *data, unsigned long len, double *w, double *h);
-int isim_audio_stream_open(double volume);
-long isim_audio_stream_write(int s, const float *pcm, long frames);
-void isim_audio_stream_control(int s, int paused, double volume);
-void isim_audio_stream_close(int s);
-int isim_audio_decode_file(const char *path, float **out, long *frames, int *channels, double *rate);
+ISIM_GUEST_ABI int isim_image_create_bgra(int w, int h);
+ISIM_GUEST_ABI void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
+ISIM_GUEST_ABI void isim_image_free(int hd);
+ISIM_GUEST_ABI int isim_image_load_data(const void *data, unsigned long len, double *w, double *h);
+ISIM_GUEST_ABI int isim_audio_stream_open(double volume);
+ISIM_GUEST_ABI long isim_audio_stream_write(int s, const float *pcm, long frames);
+ISIM_GUEST_ABI void isim_audio_stream_control(int s, int paused, double volume);
+ISIM_GUEST_ABI void isim_audio_stream_close(int s);
+ISIM_GUEST_ABI int isim_audio_decode_file(const char *path, float **out, long *frames, int *channels, double *rate);
 
 static double mono_now(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
 
@@ -80,12 +81,12 @@ static int read_full(int fd, void *dst, size_t n) {
     }
     return 1;
 }
-void isim_media_free(void *p) { free(p); }
+ISIM_GUEST_ABI void isim_media_free(void *p) { free(p); }
 
 /* ---------------- probing ---------------- */
 struct isim_media_info { double duration, width, height, fps; int has_video, has_audio; };
 
-int isim_media_probe(const char *url, struct isim_media_info *info) {
+ISIM_GUEST_ABI int isim_media_probe(const char *url, struct isim_media_info *info) {
     memset(info, 0, sizeof *info);
     char *argv[] = { "ffprobe", "-v", "error", "-show_entries", "format=duration:stream=codec_type,width,height,avg_frame_rate,r_frame_rate",
                      "-of", "default=nw=1", (char *)url, NULL };
@@ -181,12 +182,12 @@ static void fmt_time(char *b, size_t n, double t) { snprintf(b, n, "%.6f", t > 0
 /* Opens a playback session at `start` seconds. want_video: decode frames (needs width/height/fps of the
  * video track, from isim_media_probe); want_audio: stream the soundtrack to the mixer when sound is
  * available. Returns a handle (> 0) or 0. */
-int isim_media_open_rate(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume, double rate);
-int isim_media_open(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume) {
+ISIM_GUEST_ABI int isim_media_open_rate(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume, double rate);
+ISIM_GUEST_ABI int isim_media_open(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume) {
     return isim_media_open_rate(url, start, width, height, fps, want_video, want_audio, volume, 1);
 }
 /* the same at a playback rate: the soundtrack is time-stretched (ffmpeg's atempo keeps the pitch) */
-int isim_media_open_rate(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume, double rate) {
+ISIM_GUEST_ABI int isim_media_open_rate(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume, double rate) {
     struct media *md = calloc(1, sizeof *md);
     md->url = strdup(url); md->start = start > 0 ? start : 0; md->fps = fps > 0 ? fps : 30;
     md->vpid = md->apid = -1; md->vfd = md->afd = -1;
@@ -233,7 +234,7 @@ static struct media *lookup(int h) { return h > 0 && h <= MAX_MEDIA ? medias[h -
 
 /* UI thread: the frame for playback time t (seconds) as an image handle (0 until the first frame arrives).
  * *eof becomes 1 once the decoder finished and every frame was shown. *pts receives the shown frame's time. */
-int isim_media_video_frame(int h, double t, int *eof, double *pts) {
+ISIM_GUEST_ABI int isim_media_video_frame(int h, double t, int *eof, double *pts) {
     struct media *md = lookup(h);
     if (eof) *eof = 1;
     if (!md || md->w <= 0) return 0;
@@ -255,11 +256,11 @@ int isim_media_video_frame(int h, double t, int *eof, double *pts) {
     pthread_mutex_unlock(&md->m);
     return shown ? md->img : 0;
 }
-void isim_media_set_audio(int h, int paused, double volume) {
+ISIM_GUEST_ABI void isim_media_set_audio(int h, int paused, double volume) {
     struct media *md = lookup(h);
     if (md && md->astream > 0) isim_audio_stream_control(md->astream, paused, volume);
 }
-void isim_media_close(int h) {
+ISIM_GUEST_ABI void isim_media_close(int h) {
     struct media *md = lookup(h);
     if (!md) return;
     pthread_mutex_lock(&medias_mtx); medias[h - 1] = NULL; pthread_mutex_unlock(&medias_mtx);
@@ -282,7 +283,7 @@ void isim_media_close(int h) {
 
 /* One frame at time t as PNG bytes (AVAssetImageGenerator), scaled to fit max_side (0 = native).
  * Free with isim_media_free. */
-int isim_media_thumbnail_png(const char *url, double t, double max_side, void **out, long *len) {
+ISIM_GUEST_ABI int isim_media_thumbnail_png(const char *url, double t, double max_side, void **out, long *len) {
     char ss[32]; fmt_time(ss, sizeof ss, t);
     char vf[96] = "null";
     if (max_side > 0) snprintf(vf, sizeof vf, "scale='if(gt(iw,ih),min(iw,%d),-2)':'if(gt(iw,ih),-2,min(ih,%d))'", (int)max_side, (int)max_side);
@@ -295,7 +296,7 @@ int isim_media_thumbnail_png(const char *url, double t, double max_side, void **
 }
 
 /* Re-encodes a media file (e.g. a recorded WAV to AAC .m4a); the format follows out's extension. */
-int isim_media_transcode(const char *in, const char *out) {
+ISIM_GUEST_ABI int isim_media_transcode(const char *in, const char *out) {
     char *argv[] = { "ffmpeg", "-nostdin", "-v", "error", "-y", "-i", (char *)in, (char *)out, NULL };
     size_t n; char *o = run_capture(argv, &n);
     if (!o) { fprintf(stderr, "isim media: cannot encode %s (needs ffmpeg on the host)\n", out); return 0; }
@@ -305,7 +306,7 @@ int isim_media_transcode(const char *in, const char *out) {
 /* ---------------- text to speech ---------------- */
 /* Synthesizes text with espeak-ng (or espeak). voice: an espeak voice/language ("en-us", "fr", ...);
  * wpm: words per minute; pitch: 0-99 (50 = normal). Returns mono float PCM (free with isim_media_free). */
-int isim_tts_synthesize(const char *text, const char *voice, double wpm, double pitch, float **out, long *frames, double *rate) {
+ISIM_GUEST_ABI int isim_tts_synthesize(const char *text, const char *voice, double wpm, double pitch, float **out, long *frames, double *rate) {
     char path[] = "/tmp/isim-tts-XXXXXX";
     int fd = mkstemp(path);
     if (fd < 0) return 0;
@@ -369,7 +370,7 @@ static void *mic_thread(void *arg) {
     return NULL;
 }
 /* returns 2 = microphone, 1 = file, 0 = silence */
-int isim_audio_input_start(void) {
+ISIM_GUEST_ABI int isim_audio_input_start(void) {
     if (in.on) return in.kind;
     in.on = 1; in.kind = 0; in.t0 = mono_now(); in.consumed = 0;
     const char *src = getenv("ISIM_AUDIO_INPUT");
@@ -397,7 +398,7 @@ int isim_audio_input_start(void) {
     return in.kind;
 }
 /* Non-blocking: up to max_frames of input that has "arrived" by now (interleaved stereo, 48 kHz). */
-long isim_audio_input_read(float *out, long max_frames) {
+ISIM_GUEST_ABI long isim_audio_input_read(float *out, long max_frames) {
     if (!in.on) return 0;
     if (in.kind == 2) {
         pthread_mutex_lock(&in.m);
@@ -418,7 +419,7 @@ long isim_audio_input_read(float *out, long max_frames) {
     in.consumed += due;
     return due;
 }
-void isim_audio_input_stop(void) {
+ISIM_GUEST_ABI void isim_audio_input_stop(void) {
     if (!in.on) return;
     if (in.kind == 2) {
         kill(in.pid, SIGKILL); pthread_join(in.th, NULL); close(in.fd); int st; waitpid(in.pid, &st, 0);
@@ -434,12 +435,12 @@ void isim_audio_input_stop(void) {
 static char remote_q[32][64];
 static int rq_head, rq_count;
 static pthread_mutex_t rq_mtx = PTHREAD_MUTEX_INITIALIZER;
-void isim_media_remote_post(const char *cmd) {
+ISIM_GUEST_ABI void isim_media_remote_post(const char *cmd) {
     pthread_mutex_lock(&rq_mtx);
     if (rq_count < 32) { snprintf(remote_q[(rq_head + rq_count) % 32], 64, "%s", cmd); rq_count++; }
     pthread_mutex_unlock(&rq_mtx);
 }
-int isim_remote_command_poll(char *buf, int len) {
+ISIM_GUEST_ABI int isim_remote_command_poll(char *buf, int len) {
     pthread_mutex_lock(&rq_mtx);
     int got = rq_count > 0;
     if (got) { snprintf(buf, len, "%s", remote_q[rq_head]); rq_head = (rq_head + 1) % 32; rq_count--; }

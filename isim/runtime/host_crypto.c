@@ -519,11 +519,11 @@ static const struct shim commoncrypto_table[] = {
 const struct host_lib host_commoncrypto = { "/usr/lib/system/libcommonCrypto.dylib", commoncrypto_table, sizeof commoncrypto_table / sizeof *commoncrypto_table, NULL };
 
 /* ================= libisim_host: CryptoKit primitives ================= */
-int isim_crypto_available(void) { return ossl_ok(); }
+ISIM_GUEST_ABI int isim_crypto_available(void) { return ossl_ok(); }
 
 /* alg: 0 AES-GCM (16/24/32-byte key), 1 ChaCha20-Poly1305 (32-byte key). tag is 16 bytes.
    Returns 1 on success, 0 on failure (authentication failure when opening), -1 if libcrypto is missing. */
-int isim_crypto_aead(int alg, int encrypt, const void *key, size_t keylen, const void *nonce, size_t noncelen,
+ISIM_GUEST_ABI int isim_crypto_aead(int alg, int encrypt, const void *key, size_t keylen, const void *nonce, size_t noncelen,
                      const void *aad, size_t aadlen, const void *in, size_t inlen, void *out, void *tag) {
     if (!ossl_ok()) return -1;
     const EVP_CIPHER *c;
@@ -573,7 +573,7 @@ static EC_KEY *ec_from_public(int curve, const uint8_t *pub, size_t len, int *n)
     if (!ok) { ossl.EC_KEY_free(k); return NULL; }
     return k;
 }
-int isim_crypto_ec_generate(int curve, uint8_t *priv) {
+ISIM_GUEST_ABI int isim_crypto_ec_generate(int curve, uint8_t *priv) {
     int n, nid = curve_nid(curve, &n); if (!nid || !ossl_ok()) return 0;
     EC_KEY *k = ossl.EC_KEY_new_by_curve_name(nid); if (!k) return 0;
     int ok = ossl.EC_KEY_generate_key(k) && ossl.BN_bn2binpad(ossl.EC_KEY_get0_private_key(k), priv, n) == n;
@@ -583,20 +583,20 @@ int isim_crypto_ec_generate(int curve, uint8_t *priv) {
 static size_t ec_point_out(EC_KEY *k, int form, uint8_t *out, size_t cap) {
     return ossl.EC_POINT_point2oct(ossl.EC_KEY_get0_group(k), ossl.EC_KEY_get0_public_key(k), form, out, cap, NULL);
 }
-int isim_crypto_ec_public(int curve, const uint8_t *priv, uint8_t *pub) {
+ISIM_GUEST_ABI int isim_crypto_ec_public(int curve, const uint8_t *priv, uint8_t *pub) {
     int n; EC_KEY *k = ec_from_private(curve, priv, &n); if (!k) return 0;
     size_t r = ec_point_out(k, 4, pub, 1 + 2 * (size_t)n); ossl.EC_KEY_free(k); return r == 1 + 2 * (size_t)n;
 }
 /* validates a public key (X9.63 uncompressed or compressed) and writes its uncompressed form */
-int isim_crypto_ec_import_public(int curve, const uint8_t *pub, size_t len, uint8_t *uncompressed) {
+ISIM_GUEST_ABI int isim_crypto_ec_import_public(int curve, const uint8_t *pub, size_t len, uint8_t *uncompressed) {
     int n; EC_KEY *k = ec_from_public(curve, pub, len, &n); if (!k) return 0;
     size_t r = ec_point_out(k, 4, uncompressed, 1 + 2 * (size_t)n); ossl.EC_KEY_free(k); return r == 1 + 2 * (size_t)n;
 }
-int isim_crypto_ec_compress(int curve, const uint8_t *pub, size_t len, uint8_t *compressed) {
+ISIM_GUEST_ABI int isim_crypto_ec_compress(int curve, const uint8_t *pub, size_t len, uint8_t *compressed) {
     int n; EC_KEY *k = ec_from_public(curve, pub, len, &n); if (!k) return 0;
     size_t r = ec_point_out(k, 2, compressed, 1 + (size_t)n); ossl.EC_KEY_free(k); return r == 1 + (size_t)n;
 }
-int isim_crypto_ec_sign(int curve, const uint8_t *priv, const uint8_t *digest, size_t dlen, uint8_t *sig) {
+ISIM_GUEST_ABI int isim_crypto_ec_sign(int curve, const uint8_t *priv, const uint8_t *digest, size_t dlen, uint8_t *sig) {
     int n; EC_KEY *k = ec_from_private(curve, priv, &n); if (!k) return 0;
     ECDSA_SIG *s = ossl.ECDSA_do_sign(digest, (int)dlen, k); int ok = 0;
     if (s) {
@@ -606,7 +606,7 @@ int isim_crypto_ec_sign(int curve, const uint8_t *priv, const uint8_t *digest, s
     }
     ossl.EC_KEY_free(k); return ok;
 }
-int isim_crypto_ec_verify(int curve, const uint8_t *pub, size_t publen, const uint8_t *digest, size_t dlen, const uint8_t *sig) {
+ISIM_GUEST_ABI int isim_crypto_ec_verify(int curve, const uint8_t *pub, size_t publen, const uint8_t *digest, size_t dlen, const uint8_t *sig) {
     int n; EC_KEY *k = ec_from_public(curve, pub, publen, &n); if (!k) return 0;
     ECDSA_SIG *s = ossl.ECDSA_SIG_new(); int ok = 0;
     BIGNUM *r = ossl.BN_bin2bn(sig, n, NULL), *ss = ossl.BN_bin2bn(sig + n, n, NULL);
@@ -616,7 +616,7 @@ int isim_crypto_ec_verify(int curve, const uint8_t *pub, size_t publen, const ui
     if (s) ossl.ECDSA_SIG_free(s);
     ossl.EC_KEY_free(k); return ok;
 }
-int isim_crypto_ec_ecdh(int curve, const uint8_t *priv, const uint8_t *pub, size_t publen, uint8_t *shared) {
+ISIM_GUEST_ABI int isim_crypto_ec_ecdh(int curve, const uint8_t *priv, const uint8_t *pub, size_t publen, uint8_t *shared) {
     int n, m; EC_KEY *k = ec_from_private(curve, priv, &n), *peer = ec_from_public(curve, pub, publen, &m);
     int ok = k && peer && ossl.ECDH_compute_key(shared, (size_t)n, ossl.EC_KEY_get0_public_key(peer), k, NULL) == n;
     if (k) ossl.EC_KEY_free(k);
@@ -626,18 +626,18 @@ int isim_crypto_ec_ecdh(int curve, const uint8_t *priv, const uint8_t *pub, size
 
 /* ---- Curve25519: kind 0 = X25519 (key agreement), 1 = Ed25519 (signing) ---- */
 static int kind_nid(int kind) { return kind ? 1087 /* EVP_PKEY_ED25519 */ : 1034 /* EVP_PKEY_X25519 */; }
-int isim_crypto_25519_public(int kind, const uint8_t *priv, uint8_t *pub) {
+ISIM_GUEST_ABI int isim_crypto_25519_public(int kind, const uint8_t *priv, uint8_t *pub) {
     if (!ossl_ok()) return 0;
     EVP_PKEY *k = ossl.EVP_PKEY_new_raw_private_key(kind_nid(kind), NULL, priv, 32); if (!k) return 0;
     size_t len = 32; int ok = ossl.EVP_PKEY_get_raw_public_key(k, pub, &len) == 1 && len == 32;
     ossl.EVP_PKEY_free(k); return ok;
 }
-int isim_crypto_25519_check_public(int kind, const uint8_t *pub) {
+ISIM_GUEST_ABI int isim_crypto_25519_check_public(int kind, const uint8_t *pub) {
     if (!ossl_ok()) return 0;
     EVP_PKEY *k = ossl.EVP_PKEY_new_raw_public_key(kind_nid(kind), NULL, pub, 32); if (!k) return 0;
     ossl.EVP_PKEY_free(k); return 1;
 }
-int isim_crypto_x25519(const uint8_t *priv, const uint8_t *pub, uint8_t *shared) {
+ISIM_GUEST_ABI int isim_crypto_x25519(const uint8_t *priv, const uint8_t *pub, uint8_t *shared) {
     if (!ossl_ok()) return 0;
     EVP_PKEY *k = ossl.EVP_PKEY_new_raw_private_key(1034, NULL, priv, 32), *p = ossl.EVP_PKEY_new_raw_public_key(1034, NULL, pub, 32);
     EVP_PKEY_CTX *c = k ? ossl.EVP_PKEY_CTX_new(k, NULL) : NULL; size_t len = 32;
@@ -647,7 +647,7 @@ int isim_crypto_x25519(const uint8_t *priv, const uint8_t *pub, uint8_t *shared)
     if (p) ossl.EVP_PKEY_free(p);
     return ok;
 }
-int isim_crypto_ed25519_sign(const uint8_t *priv, const void *msg, size_t len, uint8_t *sig) {
+ISIM_GUEST_ABI int isim_crypto_ed25519_sign(const uint8_t *priv, const void *msg, size_t len, uint8_t *sig) {
     if (!ossl_ok()) return 0;
     EVP_PKEY *k = ossl.EVP_PKEY_new_raw_private_key(1087, NULL, priv, 32); EVP_MD_CTX *m = ossl.EVP_MD_CTX_new(); size_t sl = 64;
     int ok = k && m && ossl.EVP_DigestSignInit(m, NULL, NULL, NULL, k) == 1 && ossl.EVP_DigestSign(m, sig, &sl, msg, len) == 1 && sl == 64;
@@ -655,7 +655,7 @@ int isim_crypto_ed25519_sign(const uint8_t *priv, const void *msg, size_t len, u
     if (k) ossl.EVP_PKEY_free(k);
     return ok;
 }
-int isim_crypto_ed25519_verify(const uint8_t *pub, const void *msg, size_t len, const uint8_t *sig) {
+ISIM_GUEST_ABI int isim_crypto_ed25519_verify(const uint8_t *pub, const void *msg, size_t len, const uint8_t *sig) {
     if (!ossl_ok()) return 0;
     EVP_PKEY *k = ossl.EVP_PKEY_new_raw_public_key(1087, NULL, pub, 32); EVP_MD_CTX *m = ossl.EVP_MD_CTX_new();
     int ok = k && m && ossl.EVP_DigestVerifyInit(m, NULL, NULL, NULL, k) == 1 && ossl.EVP_DigestVerify(m, sig, 64, msg, len) == 1;

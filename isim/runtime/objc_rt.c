@@ -110,7 +110,7 @@ static SEL sel_intern(const char *s) {
     if (!*slot) *slot = (void *)s;
     return *slot;
 }
-SEL sel_registerName(const char *s) {
+ISIM_GUEST_ABI SEL sel_registerName(const char *s) {
     pthread_mutex_lock(&rt_lock);
     void **slot = strmap_slot(&selectors, s, 0);
     SEL r = slot ? *slot : sel_intern(strdup(s));
@@ -247,7 +247,7 @@ static int try_resolve(Class cls, SEL sel) {
 /* message forwarding: a lookup miss returns _objc_msgForward(_stret), which captures the argument
  * registers in a frame and calls the handler Foundation installs (forwardingTargetForSelector:,
  * methodSignatureForSelector:/forwardInvocation:, doesNotRecognizeSelector:). */
-void rt_msgForward(void); void rt_msgForward_stret(void);
+ISIM_GUEST_ABI void rt_msgForward(void); void rt_msgForward_stret(void);
 static IMP lookup_or_forward(id self, Class cls, SEL sel, int stret) {
     if (cls->rt && cls->rt->nonmeta && cls->rt->nonmeta->rt->init_state != 2) ensure_initialized(cls->rt->nonmeta);
     IMP imp = lookup_nofail(cls, sel);
@@ -353,8 +353,8 @@ __asm__(
     "  mov %rax, 0xd0(%rbx)\n  mov %rdx, 0xd8(%rbx)\n  movdqu %xmm0, 0xe0(%rbx)\n  movdqu %xmm1, 0xf0(%rbx)\n"
     "  lea -16(%rbp), %rsp\n  pop %r12\n  pop %rbx\n  pop %rbp\n  .cfi_def_cfa %rsp, 8\n  ret\n  .cfi_endproc\n"
 );
-void rt_msgSend(void); void rt_msgSendSuper2(void); void rt_msgSendSuper(void);
-void rt_msgSend_stret(void); void rt_msgSendSuper2_stret(void); void isim_objc_call_frame(void *c);
+ISIM_GUEST_ABI void rt_msgSend(void); void rt_msgSendSuper2(void); void rt_msgSendSuper(void);
+ISIM_GUEST_ABI void rt_msgSend_stret(void); void rt_msgSendSuper2_stret(void); void isim_objc_call_frame(void *c);
 
 static id send0(id self, SEL sel) { return self ? ((id (*)(id, SEL))objc_rt_lookup(self, self->isa, sel))(self, sel) : NULL; }
 static id send1(id self, SEL sel, void *a) { return self ? ((id (*)(id, SEL, void *))objc_rt_lookup(self, self->isa, sel))(self, sel, a) : NULL; }

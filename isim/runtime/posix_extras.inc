@@ -44,7 +44,7 @@ static void sig_trampoline(int h) {
     d_sighandler f = h > 0 && h < 65 ? guest_sig_handlers[h] : NULL;
     if (f) f(sig_darwin(h));
 }
-static d_sighandler d_signal(int dsig, d_sighandler f) {
+ISIM_GUEST_ABI static d_sighandler d_signal(int dsig, d_sighandler f) {
     int h = sig_host(dsig);
     if (h <= 0 || h >= 65) { errno = 22 /* EINVAL */; return (d_sighandler)-1; }
     d_sighandler old = guest_sig_handlers[h];
@@ -54,19 +54,19 @@ static d_sighandler d_signal(int dsig, d_sighandler f) {
     if (prev == SIG_ERR) { errno = darwin_errno(errno); return (d_sighandler)-1; }
     return prev == sig_trampoline ? old : (d_sighandler)prev;
 }
-static int d_raise(int dsig) { int h = sig_host(dsig); if (h < 0) { errno = 22; return -1; } return raise(h); }
-static int d_kill(pid_t pid, int dsig) { int h = dsig == 0 ? 0 : sig_host(dsig); if (h < 0) { errno = 22; return -1; } return NETRET(kill(pid, h)); }
-static int d_pipe(int fds[2]) { return NETRET(pipe(fds)); }
-static ssize_t d_pread(int fd, void *b, size_t n, off_t off) { return NETRET(pread(fd, b, n, off)); }
-static ssize_t d_pwrite(int fd, const void *b, size_t n, off_t off) { return NETRET(pwrite(fd, b, n, off)); }
-static int d_dup(int fd) { return NETRET(dup(fd)); }
-static int d_dup2(int a, int b) { return NETRET(dup2(a, b)); }
+ISIM_GUEST_ABI static int d_raise(int dsig) { int h = sig_host(dsig); if (h < 0) { errno = 22; return -1; } return raise(h); }
+ISIM_GUEST_ABI static int d_kill(pid_t pid, int dsig) { int h = dsig == 0 ? 0 : sig_host(dsig); if (h < 0) { errno = 22; return -1; } return NETRET(kill(pid, h)); }
+ISIM_GUEST_ABI static int d_pipe(int fds[2]) { return NETRET(pipe(fds)); }
+ISIM_GUEST_ABI static ssize_t d_pread(int fd, void *b, size_t n, off_t off) { return NETRET(pread(fd, b, n, off)); }
+ISIM_GUEST_ABI static ssize_t d_pwrite(int fd, const void *b, size_t n, off_t off) { return NETRET(pwrite(fd, b, n, off)); }
+ISIM_GUEST_ABI static int d_dup(int fd) { return NETRET(dup(fd)); }
+ISIM_GUEST_ABI static int d_dup2(int a, int b) { return NETRET(dup2(a, b)); }
 
 /* ---- isim private helpers for Dispatch's sources (Foundation, Dispatch.mrc.m): the Linux facilities behind
    kqueue-like events ---- */
 /* free space for a write source: a pipe's capacity minus what is queued in it, a socket's send buffer minus its
    unsent bytes; -1 for anything else (files, terminals) */
-static long d_isim_fd_write_space(int fd) {
+ISIM_GUEST_ABI static long d_isim_fd_write_space(int fd) {
     struct stat st;
     if (fstat(fd, &st) != 0) return -1;
     int queued = 0;
@@ -84,7 +84,7 @@ static long d_isim_fd_write_space(int fd) {
 }
 /* data of a read source: the bytes readable (FIONREAD: also a file's bytes after the offset), or the pending
    connections of a listening socket (TCP: the accept queue; others: 1); -1 if unknown */
-static long d_isim_fd_read_available(int fd) {
+ISIM_GUEST_ABI static long d_isim_fd_read_available(int fd) {
     int listening = 0; socklen_t len = sizeof listening;
     if (getsockopt(fd, SOL_SOCKET, SO_ACCEPTCONN, &listening, &len) == 0 && listening) {
         struct tcp_info ti; len = sizeof ti;
@@ -96,17 +96,17 @@ static long d_isim_fd_read_available(int fd) {
 }
 /* an inotify descriptor that becomes readable when the file or directory open as `fd` changes (content, attributes,
    link count, entries, rename, deletion); the caller drains it with read() and closes it. -1 if unsupported. */
-static int d_isim_fs_watch_fd(int fd) {
-    int in = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+ISIM_GUEST_ABI static int d_isim_fs_watch_fd(int fd) {
+    int in = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);   /* linux-only: dispatch vnode sources over inotify, proc_* over procfs (libSystem) */
     if (in < 0) return -1;
-    char path[64]; snprintf(path, sizeof path, "/proc/self/fd/%d", fd);
-    if (inotify_add_watch(in, path, IN_MODIFY | IN_ATTRIB | IN_MOVE_SELF | IN_DELETE_SELF | IN_CREATE | IN_DELETE |
+    char path[64]; snprintf(path, sizeof path, "/proc/self/fd/%d", fd);   /* linux-only: dispatch vnode sources over inotify, proc_* over procfs (libSystem) */
+    if (inotify_add_watch(in, path, IN_MODIFY | IN_ATTRIB | IN_MOVE_SELF | IN_DELETE_SELF | IN_CREATE | IN_DELETE |   /* linux-only: dispatch vnode sources over inotify, proc_* over procfs (libSystem) */
                                     IN_MOVED_FROM | IN_MOVED_TO | IN_CLOSE_WRITE | IN_UNMOUNT) < 0) { close(in); return -1; }
     return in;
 }
 /* a pidfd: readable once the process has exited (also while it is an unreaped zombie). -1 with errno ESRCH (3) when
    there is no such process, another errno if pidfds are unsupported. */
-static int d_isim_proc_watch_fd(pid_t pid) {
+ISIM_GUEST_ABI static int d_isim_proc_watch_fd(pid_t pid) {
     int fd = (int)syscall(SYS_pidfd_open, pid, 0);
     if (fd < 0) { errno = darwin_errno(errno); return -1; }
     fcntl(fd, F_SETFD, FD_CLOEXEC);
@@ -114,14 +114,14 @@ static int d_isim_proc_watch_fd(pid_t pid) {
 }
 /* what a process source compares between checks: its children (up to `max` pids, all threads) and an exec signature
    (the executable and command line, which change on exec; thread names do not count); returns the number of children, -1 if gone */
-static int d_isim_proc_snapshot(pid_t pid, pid_t *children, int max, uint64_t *exec_sig) {
-    char path[96]; snprintf(path, sizeof path, "/proc/%d/task", (int)pid);
+ISIM_GUEST_ABI static int d_isim_proc_snapshot(pid_t pid, pid_t *children, int max, uint64_t *exec_sig) {
+    char path[96]; snprintf(path, sizeof path, "/proc/%d/task", (int)pid);   /* linux-only: dispatch vnode sources over inotify, proc_* over procfs (libSystem) */
     DIR *d = opendir(path);
     if (!d) return -1;
     int n = 0;
     for (struct dirent *e; (e = readdir(d));) {
         if (e->d_name[0] == '.') continue;
-        snprintf(path, sizeof path, "/proc/%d/task/%s/children", (int)pid, e->d_name);
+        snprintf(path, sizeof path, "/proc/%d/task/%s/children", (int)pid, e->d_name);   /* linux-only: dispatch vnode sources over inotify, proc_* over procfs (libSystem) */
         FILE *f = fopen(path, "r");
         if (!f) continue;
         for (int c; fscanf(f, "%d", &c) == 1;) if (n < max) children[n++] = c;
@@ -130,9 +130,9 @@ static int d_isim_proc_snapshot(pid_t pid, pid_t *children, int max, uint64_t *e
     closedir(d);
     uint64_t h = 1469598103934665603ull;                             /* FNV-1a */
     char buf[4096]; ssize_t len;
-    snprintf(path, sizeof path, "/proc/%d/exe", (int)pid);
+    snprintf(path, sizeof path, "/proc/%d/exe", (int)pid);   /* linux-only: dispatch vnode sources over inotify, proc_* over procfs (libSystem) */
     if ((len = readlink(path, buf, sizeof buf)) > 0) for (ssize_t i = 0; i < len; i++) h = (h ^ (uint8_t)buf[i]) * 1099511628211ull;
-    snprintf(path, sizeof path, "/proc/%d/cmdline", (int)pid);
+    snprintf(path, sizeof path, "/proc/%d/cmdline", (int)pid);   /* linux-only: dispatch vnode sources over inotify, proc_* over procfs (libSystem) */
     int fd = open(path, O_RDONLY | O_CLOEXEC);
     if (fd >= 0) { if ((len = read(fd, buf, sizeof buf)) > 0) for (ssize_t i = 0; i < len; i++) h = (h ^ (uint8_t)buf[i]) * 1099511628211ull; close(fd); }
     if (exec_sig) *exec_sig = h;

@@ -378,39 +378,36 @@ static int open_slot = -1;    /* that app: when it exits by itself, the run ends
 static int shell_spawn_at(int slot, const char *bundle, const char *exe, const char *url) {
     if (slot < 0 && nclients >= (int)(sizeof clients / sizeof *clients)) { fprintf(stderr, "isim shell: too many apps\n"); return -1; }
     int sv[2];
-    if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, sv)) { perror("isim shell: socketpair"); return -1; }
-    int mfd = memfd_create("isim-surface", MFD_CLOEXEC);
-    if (mfd < 0 || ftruncate(mfd, (off_t)surface_bytes)) { perror("isim shell: memfd"); return -1; }
-    unsigned char *px = mmap(NULL, surface_bytes, PROT_READ | PROT_WRITE, MAP_SHARED, mfd, 0);
-    if (px == MAP_FAILED) { perror("isim shell: mmap"); return -1; }
+    if (isim_ipc_pair(sv, 1)) { perror("isim shell: ipc pair"); return -1; }
+    int mfd = isim_shm_create("isim-surface", surface_bytes);
+    if (mfd < 0) { perror("isim shell: shared surface"); close(sv[0]); close(sv[1]); return -1; }
+    unsigned char *px = isim_shm_map(mfd, surface_bytes, 1);
+    if (!px) { perror("isim shell: map surface"); close(sv[0]); close(sv[1]); close(mfd); return -1; }
     memset(px, 0, surface_bytes);
-    pid_t shell_pid = getpid(), pid = fork();
-    if (pid < 0) { perror("isim shell: fork"); return -1; }
-    if (pid == 0) {
-        /* the app dies with the shell, even while suspended (a stopped orphan would hold the device's pipes) */
-        prctl(PR_SET_PDEATHSIG, SIGKILL);
-        if (getppid() != shell_pid) _exit(1);
-        close(sv[0]);
-        fcntl(sv[1], F_SETFD, 0); fcntl(mfd, F_SETFD, 0);
-        char b1[16], b2[16], b3[32];
-        snprintf(b1, sizeof b1, "%d", sv[1]); snprintf(b2, sizeof b2, "%d", mfd); snprintf(b3, sizeof b3, "%g", px_scale);
-        setenv("ISIM_CLIENT_SOCK", b1, 1); setenv("ISIM_CLIENT_SURFACE", b2, 1); setenv("ISIM_CLIENT_SCALE", b3, 1);
-        unsetenv("ISIM_SCRIPT"); unsetenv("ISIM_HEADLESS"); unsetenv("ISIM_CONTROL");
-        if (url && *url) setenv("ISIM_LAUNCH_URL", url, 1); else unsetenv("ISIM_LAUNCH_URL");
-        if (spawn_background) setenv("ISIM_LAUNCH_BACKGROUND", "1", 1); else unsetenv("ISIM_LAUNCH_BACKGROUND");
-        char ob[8]; snprintf(ob, sizeof ob, "%d", device_orient); setenv("ISIM_DEVICE_ORIENTATION", ob, 1);
-        char *av[64]; int n = 0;
-        av[n++] = (char *)shell_self; av[n++] = "--root"; av[n++] = (char *)shell_root; av[n++] = (char *)exe;
-        if (open_args && slot < 0 && nclients > 0 && !strcmp(bundle, open_args[0]))
-            for (char **a = open_args + 2; *a && n < 63; a++) av[n++] = *a;
-        av[n] = NULL;
-        execv(shell_self, av);
-        perror("isim shell: exec"); _exit(127);
-    }
+    /* the app: the runtime again, with the channel and the surface (their handle numbers in its environment) */
+    char b1[48], b2[48], b3[48], ob[48], lu[1100];
+    snprintf(b1, sizeof b1, "ISIM_CLIENT_SOCK=%d", sv[1]); snprintf(b2, sizeof b2, "ISIM_CLIENT_SURFACE=%d", mfd);
+    snprintf(b3, sizeof b3, "ISIM_CLIENT_SCALE=%g", px_scale); snprintf(ob, sizeof ob, "ISIM_DEVICE_ORIENTATION=%d", device_orient);
+    snprintf(lu, sizeof lu, "ISIM_LAUNCH_URL=%s", url ? url : "");
+    const char *set[8] = { b1, b2, b3, ob }; int ns = 4;
+    const char *unset[8] = { "ISIM_SCRIPT", "ISIM_HEADLESS", "ISIM_CONTROL" }; int nu = 3;
+    if (url && *url) set[ns++] = lu; else unset[nu++] = "ISIM_LAUNCH_URL";
+    if (spawn_background) set[ns++] = "ISIM_LAUNCH_BACKGROUND=1"; else unset[nu++] = "ISIM_LAUNCH_BACKGROUND";
+    char *av[64]; int n = 0;
+    av[n++] = (char *)shell_self; av[n++] = "--root"; av[n++] = (char *)shell_root; av[n++] = (char *)exe;
+    if (open_args && slot < 0 && nclients > 0 && !strcmp(bundle, open_args[0]))
+        for (char **a = open_args + 2; *a && n < 63; a++) av[n++] = *a;
+    av[n] = NULL;
+    int keep[] = { sv[1], mfd, -1 };
+    /* the app dies with the shell, even while suspended (a stopped orphan would hold the device's pipes) */
+    struct isim_spawn sp = { .path = shell_self, .argv = av, .set_env = set, .unset_env = unset, .keep = keep,
+                             .die_with_parent = 1 };
+    pid_t pid = isim_spawn(&sp);
     close(sv[1]); close(mfd);
+    if (pid < 0) { perror("isim shell: start app"); close(sv[0]); isim_shm_unmap(px, surface_bytes); return -1; }
     int idx = slot >= 0 ? slot : nclients;
     struct shell_client *c = &clients[idx];
-    if (slot >= 0 && c->pixels) munmap(c->pixels, surface_bytes);
+    if (slot >= 0 && c->pixels) isim_shm_unmap(c->pixels, surface_bytes);
     *c = (struct shell_client){ .pid = pid, .sock = sv[0], .pixels = px, .alive = 1, .orient = 1 };
     if (spawn_background) { c->bg = 1; c->bg_t = now(); }       /* launched into the background: it can be suspended */
     snprintf(c->bundle, sizeof c->bundle, "%s", bundle);

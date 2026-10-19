@@ -7,6 +7,7 @@
  *   gamepad axis NAME VALUE          leftx lefty rightx righty (-1...1, y down like SDL), lefttrigger righttrigger (0...1)
  *   gamepad disconnect               detach it
  * Rumble requests to the virtual pad are logged ("isim gamepad: rumble LOW HIGH"). */
+#include "guest_abi.h"
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,7 +43,7 @@ static float axis(SDL_Gamepad *g, SDL_GamepadAxis a) {
 }
 
 /* fills up to `max` connected pads; returns the count, or -1 when host gamepads are disabled */
-int isim_gamepad_poll(struct isim_gamepad *out, int max) {
+ISIM_GUEST_ABI int isim_gamepad_poll(struct isim_gamepad *out, int max) {
     if (!gp_init()) return -1;
     SDL_UpdateGamepads();
     int n = 0;
@@ -79,7 +80,7 @@ int isim_gamepad_poll(struct isim_gamepad *out, int max) {
 }
 
 /* rumble (0...1 low / high frequency motors) for `seconds`; 1 if the pad accepted it */
-int isim_gamepad_rumble(int id, double low, double high, double seconds) {
+ISIM_GUEST_ABI int isim_gamepad_rumble(int id, double low, double high, double seconds) {
     for (int i = 0; i < nopen; i++) if ((int)open_pads[i].id == id) {
         Uint16 lo = (Uint16)(fmin(1, fmax(0, low)) * 65535), hi = (Uint16)(fmin(1, fmax(0, high)) * 65535);
         return SDL_RumbleGamepad(open_pads[i].pad, lo, hi, (Uint32)(fmax(0, seconds) * 1000)) ? 1 : 0;

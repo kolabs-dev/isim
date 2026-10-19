@@ -9,6 +9,7 @@
  *    (3-pass box blur ~ a Gaussian), tinted and offset, under whatever is drawn next.
  */
 #define _GNU_SOURCE
+#include "guest_abi.h"
 #include <cairo.h>
 #include <math.h>
 #include <stdint.h>
@@ -46,7 +47,7 @@ static int invert3(const double m[9], double o[9]) {
 
 /* Draws raster image `handle` onto the quad (x0 y0 = image top-left, x1 y1 top-right, x2 y2 bottom-right, x3 y3
    bottom-left; current user space) with a perspective warp. */
-void isim_image_draw_quad(int handle, const double *quad, double alpha) {
+ISIM_GUEST_ABI void isim_image_draw_quad(int handle, const double *quad, double alpha) {
     cairo_t *cr = isim_host_cairo();
     cairo_surface_t *src = isim_image_surface(handle);
     if (!cr || !src || !quad || alpha <= 0) return;
@@ -125,7 +126,7 @@ static void blur_a8(uint8_t *px, int w, int h, int stride, int r, int horizontal
 
 /* Pops the group pushed with isim_gfx_push_group (its alpha is the shadow shape) and paints a shadow of it:
    colour rgba, Gaussian-like blur of `radius` points (CALayer.shadowRadius), offset (dx, dy) in user space. */
-void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy) {
+ISIM_GUEST_ABI void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy) {
     cairo_t *cr = isim_host_cairo();
     cairo_pattern_t *pat = cairo_pop_group(cr);
     cairo_surface_t *s = NULL;
@@ -163,7 +164,7 @@ void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, dou
 /* A copy of what is on the drawing target under the rect (user space; between frames: the last frame shown),
    as an image handle (CATransition's "before" picture). */
 int isim_image_from_surface(cairo_surface_t *src);
-int isim_gfx_screen_snapshot(double x, double y, double w, double h) {
+ISIM_GUEST_ABI int isim_gfx_screen_snapshot(double x, double y, double w, double h) {
     cairo_t *cr = isim_host_cairo();
     if (!cr || w <= 0 || h <= 0) return 0;
     cairo_surface_t *tgt = cairo_get_target(cr);
@@ -185,7 +186,7 @@ int isim_gfx_screen_snapshot(double x, double y, double w, double h) {
 }
 
 /* Pops a group and paints it with each pixel multiplied by rgba (CAReplicatorLayer instance colours) and alpha. */
-void isim_gfx_pop_group_tinted(const double *rgba, double alpha) {
+ISIM_GUEST_ABI void isim_gfx_pop_group_tinted(const double *rgba, double alpha) {
     cairo_t *cr = isim_host_cairo();
     cairo_pattern_t *pat = cairo_pop_group(cr);
     cairo_surface_t *s = NULL;
@@ -241,7 +242,7 @@ static void blur_argb(uint32_t *px, int w, int h, int stride, int r, int horizon
    v[22..25] shadow colour (rgba; alpha 0 = no shadow), v[26] shadow radius, v[27] v[28] shadow offset (points)
    The effects apply inside `rect` (the view's bounds, user space) widened by what the blur and shadow need, then
    the group is painted with `alpha` and the blend mode. */
-void isim_gfx_pop_group_filtered(const double *v, double alpha, double x, double y, double w, double h) {
+ISIM_GUEST_ABI void isim_gfx_pop_group_filtered(const double *v, double alpha, double x, double y, double w, double h) {
     cairo_t *cr = isim_host_cairo();
     cairo_pattern_t *pat = cairo_pop_group(cr);
     cairo_surface_t *s = NULL;

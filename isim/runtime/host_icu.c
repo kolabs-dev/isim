@@ -6,6 +6,7 @@
  * Strings are UTF-8 in and out; dates are milliseconds since 1970 (ICU's UDate). Locale identifiers are ICU's
  * ("pt_BR", "ar@calendar=islamic-umalqura;numbers=arab"). Outputs are NUL-terminated; functions return the output's
  * length, or -1 when ICU is unavailable or the call failed. */
+#include "guest_abi.h"
 #include <dlfcn.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -208,11 +209,11 @@ static void cache_put(const char *key, void *obj, void (*close)(void *)) {
     cache[victim].obj = obj; cache[victim].close = close; cache[victim].used = ++tick;
 }
 
-int isim_icu_version(void) { return ready(); }
+ISIM_GUEST_ABI int isim_icu_version(void) { return ready(); }
 
 /* ---- collation (NSString compare:options:range:locale:, localizedCompare:, localizedStandardCompare:) ----
  * flags: 1 case-insensitive, 2 diacritic-insensitive, 4 numeric, 8 width-insensitive. Returns -1, 0, 1, or -2. */
-int isim_icu_collate(const char *locale, const uint16_t *a, int alen, const uint16_t *b, int blen, int flags) {
+ISIM_GUEST_ABI int isim_icu_collate(const char *locale, const uint16_t *a, int alen, const uint16_t *b, int blen, int flags) {
     if (!ready()) return -2;
     char key[320];
     snprintf(key, sizeof key, "col|%s|%d", locale ? locale : "", flags);
@@ -252,7 +253,7 @@ static UDateFormat *date_fmt(const char *locale, const char *tz, const char *pat
 }
 
 /* format `ms` with a UTS #35 pattern (Foundation's dateFormat) */
-int isim_icu_date_format(const char *locale, const char *tz, const char *pattern, double ms, char *out, int cap) {
+ISIM_GUEST_ABI int isim_icu_date_format(const char *locale, const char *tz, const char *pattern, double ms, char *out, int cap) {
     if (!ready()) return -1;
     pthread_mutex_lock(&lock);
     UDateFormat *f = date_fmt(locale, tz, pattern, -2, -2);
@@ -268,7 +269,7 @@ int isim_icu_date_format(const char *locale, const char *tz, const char *pattern
 }
 
 /* parse `text` with a pattern; strict unless lenient. Returns 1 and sets *ms when the whole text parsed, else 0 */
-int isim_icu_date_parse(const char *locale, const char *tz, const char *pattern, const char *text, int lenient, double *ms) {
+ISIM_GUEST_ABI int isim_icu_date_parse(const char *locale, const char *tz, const char *pattern, const char *text, int lenient, double *ms) {
     if (!ready()) return -1;
     pthread_mutex_lock(&lock);
     UDateFormat *f = date_fmt(locale, tz, pattern, -2, -2);
@@ -291,7 +292,7 @@ int isim_icu_date_parse(const char *locale, const char *tz, const char *pattern,
 
 /* the pattern for a template (skeleton != NULL, dateFormatFromTemplate) or for date / time styles (0 full .. 3 short,
  * -1 none; NSDateFormatterStyle order is reversed by the caller) */
-int isim_icu_date_pattern(const char *locale, const char *skeleton, int dateStyle, int timeStyle, char *out, int cap) {
+ISIM_GUEST_ABI int isim_icu_date_pattern(const char *locale, const char *skeleton, int dateStyle, int timeStyle, char *out, int cap) {
     if (!ready()) return -1;
     UChar buf[UBUF];
     UErr e = 0;
@@ -319,7 +320,7 @@ int isim_icu_date_pattern(const char *locale, const char *skeleton, int dateStyl
 /* date format symbols, newline-separated (UDateFormatSymbolType: 0 eras, 1 months, 2 short months, 3 weekdays (Sunday
  * first), 4 short weekdays, 5 AM/PM, 7 era names, 8 narrow months, 9 narrow weekdays, 10..15 standalone forms,
  * 16 quarters, 17 short quarters, 18/19 standalone quarters, 20 shorter weekdays) */
-int isim_icu_date_symbols(const char *locale, int type, char *out, int cap) {
+ISIM_GUEST_ABI int isim_icu_date_symbols(const char *locale, int type, char *out, int cap) {
     if (!ready() || !U.datGetSymbols) return -1;
     pthread_mutex_lock(&lock);
     UDateFormat *f = date_fmt(locale, "UTC", NULL, 2, 2);
@@ -372,7 +373,7 @@ static void get_fields(UCal *c, int *f) {
 }
 
 /* calLocale: e.g. "en_US@calendar=hebrew". Fills fields for `ms`. Returns 0 or -1. */
-int isim_icu_cal_fields(const char *calLocale, const char *tz, int firstWeekday, int minDays, double ms, int *fields) {
+ISIM_GUEST_ABI int isim_icu_cal_fields(const char *calLocale, const char *tz, int firstWeekday, int minDays, double ms, int *fields) {
     if (!ready()) return -1;
     pthread_mutex_lock(&lock);
     UCal *c = calendar(calLocale, tz, firstWeekday, minDays);
@@ -388,7 +389,7 @@ int isim_icu_cal_fields(const char *calLocale, const char *tz, int firstWeekday,
 
 /* the date for the fields whose bit is set in mask (bit i = field i); unset fields take their minimum, like
  * Calendar.date(from:). Lenient: day 32 rolls into the next month, as on iOS. */
-int isim_icu_cal_date(const char *calLocale, const char *tz, int firstWeekday, int minDays, const int *fields, unsigned mask, double *ms) {
+ISIM_GUEST_ABI int isim_icu_cal_date(const char *calLocale, const char *tz, int firstWeekday, int minDays, const int *fields, unsigned mask, double *ms) {
     if (!ready()) return -1;
     pthread_mutex_lock(&lock);
     UCal *c = calendar(calLocale, tz, firstWeekday, minDays);
@@ -408,7 +409,7 @@ int isim_icu_cal_date(const char *calLocale, const char *tz, int firstWeekday, i
 }
 
 /* add (roll = 0) or roll (roll = 1, wrapping within the larger field) `amount` of field (F_* index) */
-int isim_icu_cal_add(const char *calLocale, const char *tz, int firstWeekday, int minDays, double ms, int field, int amount, int roll, double *out) {
+ISIM_GUEST_ABI int isim_icu_cal_add(const char *calLocale, const char *tz, int firstWeekday, int minDays, double ms, int field, int amount, int roll, double *out) {
     if (!ready() || field < 0 || field >= F_N) return -1;
     pthread_mutex_lock(&lock);
     UCal *c = calendar(calLocale, tz, firstWeekday, minDays);
@@ -426,7 +427,7 @@ int isim_icu_cal_add(const char *calLocale, const char *tz, int firstWeekday, in
 
 /* a field's limit at `ms`: which 0 minimum, 1 maximum, 2 greatest minimum, 3 least maximum, 4 actual minimum,
  * 5 actual maximum (UCalendarLimitType). Months are 1-based. */
-int isim_icu_cal_limit(const char *calLocale, const char *tz, int firstWeekday, int minDays, double ms, int field, int which, int *value) {
+ISIM_GUEST_ABI int isim_icu_cal_limit(const char *calLocale, const char *tz, int firstWeekday, int minDays, double ms, int field, int which, int *value) {
     if (!ready() || field < 0 || field >= F_N) return -1;
     pthread_mutex_lock(&lock);
     UCal *c = calendar(calLocale, tz, firstWeekday, minDays);
@@ -442,7 +443,7 @@ int isim_icu_cal_limit(const char *calLocale, const char *tz, int firstWeekday, 
 }
 
 /* the locale's first weekday (1 = Sunday) and minimum days in the first week (CLDR weekData) */
-int isim_icu_week_data(const char *locale, int *firstWeekday, int *minDays) {
+ISIM_GUEST_ABI int isim_icu_week_data(const char *locale, int *firstWeekday, int *minDays) {
     if (!ready()) return -1;
     pthread_mutex_lock(&lock);
     UCal *c = calendar(locale, "UTC", 0, 0);
@@ -453,7 +454,7 @@ int isim_icu_week_data(const char *locale, int *firstWeekday, int *minDays) {
 
 /* the locale's weekend (CLDR weekData): types[0..6] for Sunday..Saturday, 0 weekday, 1 weekend, 2 the weekend starts
  * that day, 3 it ends that day (ICU's UCalendarWeekdayType) */
-int isim_icu_weekend(const char *locale, int *types) {
+ISIM_GUEST_ABI int isim_icu_weekend(const char *locale, int *types) {
     if (!ready() || !U.calDayOfWeekType) return -1;
     pthread_mutex_lock(&lock);
     UCal *c = calendar(locale, "UTC", 0, 0);
@@ -465,7 +466,7 @@ int isim_icu_weekend(const char *locale, int *types) {
 
 /* a list of codes, one per line: kind 0 the available locales, 1 ISO 3166 regions, 2 ISO 4217 currencies in use,
  * 3 every ISO 4217 currency, 4 the collations of `locale` (commonly used first) */
-int isim_icu_codes(int kind, const char *locale, char *out, int cap) {
+ISIM_GUEST_ABI int isim_icu_codes(int kind, const char *locale, char *out, int cap) {
     if (!ready() || cap <= 0) return -1;
     int n = 0;
     out[0] = 0;
@@ -504,7 +505,7 @@ int isim_icu_codes(int kind, const char *locale, char *out, int cap) {
 
 /* time zone display name: type 0 standard, 1 short standard, 2 daylight, 3 short daylight; generic names are not
  * in this C API */
-int isim_icu_tz_name(const char *tz, const char *locale, int type, char *out, int cap) {
+ISIM_GUEST_ABI int isim_icu_tz_name(const char *tz, const char *locale, int type, char *out, int cap) {
     if (!ready() || !U.calTZName) return -1;
     pthread_mutex_lock(&lock);
     UCal *c = calendar(locale, tz, 0, 0);
@@ -522,7 +523,7 @@ int isim_icu_tz_name(const char *tz, const char *locale, int type, char *out, in
 /* ---- numbers ---- */
 /* format with an ICU number skeleton ("currency/EUR", "percent precision-integer", "measure-unit/length-meter
  * unit-width-full-name", "compact-short", ...; ICU 62+) */
-int isim_icu_number_skeleton(const char *locale, const char *skeleton, double v, char *out, int cap) {
+ISIM_GUEST_ABI int isim_icu_number_skeleton(const char *locale, const char *skeleton, double v, char *out, int cap) {
     if (!ready() || !U.numfOpen) return -1;
     char key[320];
     snprintf(key, sizeof key, "numf|%s|%s", locale ? locale : "", skeleton);
@@ -571,7 +572,7 @@ static UNumFmt *num_fmt(const char *locale, int style, const char *currency) {
 
 /* UNumberFormatStyle: 1 decimal, 2 currency, 3 percent, 4 scientific, 5 spell-out, 6 ordinal, 7 duration,
  * 10 currency ISO code, 11 currency plural, 12 accounting, 14 compact short, 15 compact long */
-int isim_icu_number_format(const char *locale, int style, const char *currency, double v, char *out, int cap) {
+ISIM_GUEST_ABI int isim_icu_number_format(const char *locale, int style, const char *currency, double v, char *out, int cap) {
     if (!ready()) return -1;
     pthread_mutex_lock(&lock);
     UNumFmt *f = num_fmt(locale, style, currency);
@@ -587,7 +588,7 @@ int isim_icu_number_format(const char *locale, int style, const char *currency, 
 }
 
 /* parse with a style (as above); 1 when the whole text parsed */
-int isim_icu_number_parse(const char *locale, int style, const char *currency, const char *text, double *v) {
+ISIM_GUEST_ABI int isim_icu_number_parse(const char *locale, int style, const char *currency, const char *text, double *v) {
     if (!ready()) return -1;
     pthread_mutex_lock(&lock);
     UNumFmt *f = num_fmt(locale, style, currency);
@@ -607,7 +608,7 @@ int isim_icu_number_parse(const char *locale, int style, const char *currency, c
 }
 
 /* the style's pattern (unum_toPattern), e.g. "#,##0.00 ¤" */
-int isim_icu_number_pattern(const char *locale, int style, char *out, int cap) {
+ISIM_GUEST_ABI int isim_icu_number_pattern(const char *locale, int style, char *out, int cap) {
     if (!ready()) return -1;
     pthread_mutex_lock(&lock);
     UNumFmt *f = num_fmt(locale, style, NULL);
@@ -625,7 +626,7 @@ int isim_icu_number_pattern(const char *locale, int style, char *out, int cap) {
 /* a number symbol (UNumberFormatSymbol: 0 decimal separator, 1 grouping separator, 3 percent, 4 zero digit,
  * 6 minus, 7 plus, 8 currency symbol, 9 international currency symbol, 10 monetary decimal separator, 11 exponent,
  * 12 per mille, 14 infinity, 15 NaN, 17 monetary grouping separator) */
-int isim_icu_number_symbol(const char *locale, int symbol, char *out, int cap) {
+ISIM_GUEST_ABI int isim_icu_number_symbol(const char *locale, int symbol, char *out, int cap) {
     if (!ready()) return -1;
     pthread_mutex_lock(&lock);
     UNumFmt *f = num_fmt(locale, symbol == 8 || symbol == 9 || symbol == 10 || symbol == 17 ? 2 : 1, NULL);
@@ -642,7 +643,7 @@ int isim_icu_number_symbol(const char *locale, int symbol, char *out, int cap) {
 
 /* currency data: kind 0 symbol, 1 long name, 2 narrow symbol, 3 plural name for `count` ("one", "other"),
  * 4 the locale's currency code (code ignored), 5 default fraction digits (written as text) */
-int isim_icu_currency(const char *locale, const char *code, int kind, const char *count, char *out, int cap) {
+ISIM_GUEST_ABI int isim_icu_currency(const char *locale, const char *code, int kind, const char *count, char *out, int cap) {
     if (!ready()) return -1;
     UErr e = 0;
     if (kind == 4) {
@@ -663,7 +664,7 @@ int isim_icu_currency(const char *locale, const char *code, int kind, const char
 /* ---- relative dates, intervals, lists, plurals ---- */
 /* unit: URelativeDateTimeUnit (0 year, 1 quarter, 2 month, 3 week, 4 day, 5 hour, 6 minute, 7 second, 8..14 Sunday..
  * Saturday); width 0 long, 1 short, 2 narrow; numeric: always "in 1 day" instead of "tomorrow" */
-int isim_icu_relative(const char *locale, double offset, int unit, int width, int numeric, char *out, int cap) {
+ISIM_GUEST_ABI int isim_icu_relative(const char *locale, double offset, int unit, int width, int numeric, char *out, int cap) {
     if (!ready() || !U.relOpen) return -1;
     char key[320];
     snprintf(key, sizeof key, "rel|%s|%d", locale ? locale : "", width);
@@ -682,7 +683,7 @@ int isim_icu_relative(const char *locale, double offset, int unit, int width, in
 }
 
 /* a date interval with a skeleton ("yMMMd", "jm", ...) */
-int isim_icu_interval(const char *locale, const char *tz, const char *skeleton, double from, double to, char *out, int cap) {
+ISIM_GUEST_ABI int isim_icu_interval(const char *locale, const char *tz, const char *skeleton, double from, double to, char *out, int cap) {
     if (!ready() || !U.itvOpen) return -1;
     char key[320];
     snprintf(key, sizeof key, "itv|%s|%s|%s", locale ? locale : "", tz ? tz : "", skeleton);
@@ -704,7 +705,7 @@ int isim_icu_interval(const char *locale, const char *tz, const char *skeleton, 
 }
 
 /* items separated by '\n'; type 0 and, 1 or, 2 units; width 0 wide, 1 short, 2 narrow (ICU 67+) */
-int isim_icu_list(const char *locale, const char *items, int type, int width, char *out, int cap) {
+ISIM_GUEST_ABI int isim_icu_list(const char *locale, const char *items, int type, int width, char *out, int cap) {
     if (!ready() || !U.listOpen) return -1;
     enum { MAXI = 64 };
     ustr parts[MAXI];
@@ -740,7 +741,7 @@ int isim_icu_list(const char *locale, const char *items, int type, int width, ch
 }
 
 /* the plural category ("zero", "one", "two", "few", "many", "other") of n; ordinal rules when ordinal */
-int isim_icu_plural(const char *locale, double n, int ordinal, char *out, int cap) {
+ISIM_GUEST_ABI int isim_icu_plural(const char *locale, double n, int ordinal, char *out, int cap) {
     if (!ready() || !U.plOpen) return -1;
     char key[320];
     snprintf(key, sizeof key, "plural|%s|%d", locale ? locale : "", ordinal);
@@ -761,7 +762,7 @@ int isim_icu_plural(const char *locale, double n, int ordinal, char *out, int ca
 /* ---- display names and case mapping ---- */
 /* kind 0 locale identifier, 1 language code, 2 region code, 3 script code, 4 calendar identifier (ICU name),
  * 5 currency code (long name), named in `displayLocale` */
-int isim_icu_display_name(const char *displayLocale, const char *code, int kind, char *out, int cap) {
+ISIM_GUEST_ABI int isim_icu_display_name(const char *displayLocale, const char *code, int kind, char *out, int cap) {
     if (!ready()) return -1;
     if (kind == 5) return isim_icu_currency(displayLocale, code, 1, NULL, out, cap);
     UChar buf[256];
@@ -786,7 +787,7 @@ int isim_icu_display_name(const char *displayLocale, const char *code, int kind,
 }
 
 /* kind 0 upper, 1 lower, 2 title case, with the locale's rules (Turkish dotted i, Greek final sigma, Dutch IJ) */
-int isim_icu_case(const char *locale, const char *s, int kind, char *out, int cap) {
+ISIM_GUEST_ABI int isim_icu_case(const char *locale, const char *s, int kind, char *out, int cap) {
     if (!ready()) return -1;
     ustr in;
     to_u(&in, s);

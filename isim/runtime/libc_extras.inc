@@ -14,25 +14,25 @@
 #include <regex.h>
 #include <termios.h>
 
-void isim_log_record(int kind, int type, const char *subsystem, const char *category, const char *message,
+ISIM_GUEST_ABI void isim_log_record(int kind, int type, const char *subsystem, const char *category, const char *message,
                      const char *format, int sptype, uint64_t spid, const char *name);
 
 /* ---------------- sys/mman.h ---------------- */
-static int d_mprotect(void *a, size_t n, int prot) { return NETRET(mprotect(a, n, prot & 7)); }
+ISIM_GUEST_ABI static int d_mprotect(void *a, size_t n, int prot) { return NETRET(mprotect(a, n, prot & 7)); }
 /* Darwin MS_SYNC is 0x10 (Linux 4); MS_KILLPAGES / MS_DEACTIVATE have no Linux equivalent */
-static int d_msync(void *a, size_t n, int flags) {
+ISIM_GUEST_ABI static int d_msync(void *a, size_t n, int flags) {
     int h = (flags & 1 ? MS_ASYNC : 0) | (flags & 2 ? MS_INVALIDATE : 0) | (flags & 0x10 ? MS_SYNC : 0);
     return NETRET(msync(a, n, h));
 }
 /* MADV_FREE is 5 on Darwin (8 on Linux); the reuse hints are Darwin's own and do nothing here */
-static int d_madvise(void *a, size_t n, int advice) {
+ISIM_GUEST_ABI static int d_madvise(void *a, size_t n, int advice) {
     if (advice >= 6) return 0;
     return NETRET(madvise(a, n, advice == 5 ? MADV_FREE : advice));
 }
-static int d_posix_madvise(void *a, size_t n, int advice) { return advice >= 0 && advice <= 4 ? posix_madvise(a, n, advice) : EINVAL; }
-static int d_minherit(void *a, size_t n, int inherit) { (void)a; (void)n; (void)inherit; return 0; }   /* no fork on iOS */
-static int d_mlockall(int flags) { return NETRET(mlockall((flags & 1 ? MCL_CURRENT : 0) | (flags & 2 ? MCL_FUTURE : 0))); }
-static int d_mincore(const void *a, size_t n, char *vec) { return NETRET(mincore((void *)a, n, (unsigned char *)vec)); }
+ISIM_GUEST_ABI static int d_posix_madvise(void *a, size_t n, int advice) { return advice >= 0 && advice <= 4 ? posix_madvise(a, n, advice) : EINVAL; }
+ISIM_GUEST_ABI static int d_minherit(void *a, size_t n, int inherit) { (void)a; (void)n; (void)inherit; return 0; }   /* no fork on iOS */
+ISIM_GUEST_ABI static int d_mlockall(int flags) { return NETRET(mlockall((flags & 1 ? MCL_CURRENT : 0) | (flags & 2 ? MCL_FUTURE : 0))); }
+ISIM_GUEST_ABI static int d_mincore(const void *a, size_t n, char *vec) { return NETRET(mincore((void *)a, n, (unsigned char *)vec)); }
 
 /* ---------------- sys/resource.h ---------------- */
 #define D_RLIM_INFINITY (((uint64_t)1 << 63) - 1)
@@ -44,7 +44,7 @@ static int rlimit_host(int d) {
 struct d_rlimit { uint64_t cur, max; };
 static uint64_t rlim_darwin(rlim_t v) { return v == RLIM_INFINITY ? D_RLIM_INFINITY : (uint64_t)v; }
 static rlim_t rlim_host(uint64_t v) { return v >= D_RLIM_INFINITY ? RLIM_INFINITY : (rlim_t)v; }
-static int d_getrlimit(int res, struct d_rlimit *out) {
+ISIM_GUEST_ABI static int d_getrlimit(int res, struct d_rlimit *out) {
     int h = rlimit_host(res);
     struct rlimit r;
     if (h < 0 || !out) { errno = EINVAL; return -1; }
@@ -52,7 +52,7 @@ static int d_getrlimit(int res, struct d_rlimit *out) {
     out->cur = rlim_darwin(r.rlim_cur); out->max = rlim_darwin(r.rlim_max);
     return 0;
 }
-static int d_setrlimit(int res, const struct d_rlimit *in) {
+ISIM_GUEST_ABI static int d_setrlimit(int res, const struct d_rlimit *in) {
     int h = rlimit_host(res);
     if (h < 0 || !in) { errno = EINVAL; return -1; }
     struct rlimit r = { rlim_host(in->cur), rlim_host(in->max) };
@@ -60,7 +60,7 @@ static int d_setrlimit(int res, const struct d_rlimit *in) {
 }
 /* the same layout (a Darwin timeval is 16 bytes too); ru_maxrss is in bytes on Darwin, kilobytes on Linux */
 struct d_rusage { struct d_timeval utime, stime; long maxrss, rest[13]; };
-static int d_getrusage(int who, struct d_rusage *out) {
+ISIM_GUEST_ABI static int d_getrusage(int who, struct d_rusage *out) {
     struct rusage r;
     if (getrusage(who == -1 ? RUSAGE_CHILDREN : who == 0 ? RUSAGE_SELF : who, &r) != 0) { errno = darwin_errno(errno); return -1; }
     out->utime = (struct d_timeval){ r.ru_utime.tv_sec, (int)r.ru_utime.tv_usec };
@@ -71,14 +71,14 @@ static int d_getrusage(int who, struct d_rusage *out) {
     memcpy(out->rest, rest, sizeof rest);
     return 0;
 }
-static int d_getpriority(int which, unsigned id) {
+ISIM_GUEST_ABI static int d_getpriority(int which, unsigned id) {
     if (which > 2) return 0;                                         /* PRIO_DARWIN_THREAD / PROCESS: default */
     errno = 0;
     int r = getpriority(which, id);
     if (r == -1 && errno) errno = darwin_errno(errno);
     return r;
 }
-static int d_setpriority(int which, unsigned id, int prio) { return which > 2 ? 0 : NETRET(setpriority(which, id, prio)); }
+ISIM_GUEST_ABI static int d_setpriority(int which, unsigned id, int prio) { return which > 2 ? 0 : NETRET(setpriority(which, id, prio)); }
 
 /* ---------------- sys/xattr.h ---------------- */
 /* adapted: Darwin's attribute names live in the host's "user." namespace; `position` (resource forks) must be 0;
@@ -90,37 +90,37 @@ static int xattr_name(const char *name, char *out, size_t n) {
 }
 static int xattr_errno(int e) { return e == ENODATA ? 93 : e == ENOTSUP ? 45 : darwin_errno(e); }
 #define XRET(expr) ({ __typeof__(expr) r_ = (expr); if (r_ < 0) errno = xattr_errno(errno); r_; })
-static ssize_t d_getxattr(const char *path, const char *name, void *value, size_t size, uint32_t pos, int opts) {
+ISIM_GUEST_ABI static ssize_t d_getxattr(const char *path, const char *name, void *value, size_t size, uint32_t pos, int opts) {
     char n[300];
     if (pos) { errno = EINVAL; return -1; }
     if (xattr_name(name, n, sizeof n) < 0) return -1;
     return XRET(opts & 1 ? lgetxattr(path, n, value, size) : getxattr(path, n, value, size));
 }
-static ssize_t d_fgetxattr(int fd, const char *name, void *value, size_t size, uint32_t pos, int opts) {
+ISIM_GUEST_ABI static ssize_t d_fgetxattr(int fd, const char *name, void *value, size_t size, uint32_t pos, int opts) {
     char n[300]; (void)opts;
     if (pos) { errno = EINVAL; return -1; }
     if (xattr_name(name, n, sizeof n) < 0) return -1;
     return XRET(fgetxattr(fd, n, value, size));
 }
 static int xattr_set_flags(int opts) { return (opts & 2 ? XATTR_CREATE : 0) | (opts & 4 ? XATTR_REPLACE : 0); }
-static int d_setxattr(const char *path, const char *name, const void *value, size_t size, uint32_t pos, int opts) {
+ISIM_GUEST_ABI static int d_setxattr(const char *path, const char *name, const void *value, size_t size, uint32_t pos, int opts) {
     char n[300];
     if (pos) { errno = EINVAL; return -1; }
     if (xattr_name(name, n, sizeof n) < 0) return -1;
     return XRET(opts & 1 ? lsetxattr(path, n, value, size, xattr_set_flags(opts)) : setxattr(path, n, value, size, xattr_set_flags(opts)));
 }
-static int d_fsetxattr(int fd, const char *name, const void *value, size_t size, uint32_t pos, int opts) {
+ISIM_GUEST_ABI static int d_fsetxattr(int fd, const char *name, const void *value, size_t size, uint32_t pos, int opts) {
     char n[300];
     if (pos) { errno = EINVAL; return -1; }
     if (xattr_name(name, n, sizeof n) < 0) return -1;
     return XRET(fsetxattr(fd, n, value, size, xattr_set_flags(opts)));
 }
-static int d_removexattr(const char *path, const char *name, int opts) {
+ISIM_GUEST_ABI static int d_removexattr(const char *path, const char *name, int opts) {
     char n[300];
     if (xattr_name(name, n, sizeof n) < 0) return -1;
     return XRET(opts & 1 ? lremovexattr(path, n) : removexattr(path, n));
 }
-static int d_fremovexattr(int fd, const char *name, int opts) {
+ISIM_GUEST_ABI static int d_fremovexattr(int fd, const char *name, int opts) {
     char n[300]; (void)opts;
     if (xattr_name(name, n, sizeof n) < 0) return -1;
     return XRET(fremovexattr(fd, n));
@@ -136,7 +136,7 @@ static ssize_t xattr_list_darwin(ssize_t len, char *all, char *out, size_t size)
         if (!strncmp(p, "user.", 5)) { size_t l = strlen(p + 5) + 1; memcpy(w, p + 5, l); w += l; }
     return need;
 }
-static ssize_t d_listxattr(const char *path, char *out, size_t size, int opts) {
+ISIM_GUEST_ABI static ssize_t d_listxattr(const char *path, char *out, size_t size, int opts) {
     ssize_t len = opts & 1 ? llistxattr(path, NULL, 0) : listxattr(path, NULL, 0);
     if (len < 0) { errno = xattr_errno(errno); return -1; }
     char *all = malloc((size_t)len + 1);
@@ -145,7 +145,7 @@ static ssize_t d_listxattr(const char *path, char *out, size_t size, int opts) {
     free(all);
     return r;
 }
-static ssize_t d_flistxattr(int fd, char *out, size_t size, int opts) {
+ISIM_GUEST_ABI static ssize_t d_flistxattr(int fd, char *out, size_t size, int opts) {
     (void)opts;
     ssize_t len = flistxattr(fd, NULL, 0);
     if (len < 0) { errno = xattr_errno(errno); return -1; }
@@ -182,8 +182,8 @@ static struct kq *kq_for(int fd) {
     pthread_mutex_unlock(&kq_table_lock);
     return k;
 }
-static int d_kqueue(void) {
-    int ep = epoll_create1(EPOLL_CLOEXEC);
+ISIM_GUEST_ABI static int d_kqueue(void) {
+    int ep = epoll_create1(EPOLL_CLOEXEC);   /* linux-only: kqueue over epoll / task memory from procfs (libSystem) */
     if (ep < 0) { errno = darwin_errno(errno); return -1; }
     if (ep >= 4096) { close(ep); errno = 24; return -1; }             /* EMFILE */
     struct kq *k = calloc(1, sizeof *k);
@@ -206,7 +206,7 @@ static void kq_update(struct kq *k, struct kq_watch *w) {
     if (w->other && w->other->enabled) ev |= EPOLLIN;
     if (clear) ev |= EPOLLET;
     struct epoll_event e = { .events = ev, .data.ptr = w };
-    if (epoll_ctl(k->epfd, EPOLL_CTL_MOD, w->fd, &e) != 0) epoll_ctl(k->epfd, EPOLL_CTL_ADD, w->fd, &e);
+    if (epoll_ctl(k->epfd, EPOLL_CTL_MOD, w->fd, &e) != 0) epoll_ctl(k->epfd, EPOLL_CTL_ADD, w->fd, &e);   /* linux-only: kqueue over epoll / task memory from procfs (libSystem) */
 }
 static struct kq_watch *kq_watch_for(struct kq *k, int fd) {
     for (struct kq_reg *r = k->regs; r; r = r->next) if (r->watch && r->watch->fd == fd && r->filter != -7 && r->filter != -10) return r->watch;
@@ -231,7 +231,7 @@ static void kq_remove(struct kq *k, struct kq_reg *r) {
     if (w->read == r) w->read = NULL;
     if (w->write == r) w->write = NULL;
     if (w->other == r) w->other = NULL;
-    if (!w->read && !w->write && !w->other) { epoll_ctl(k->epfd, EPOLL_CTL_DEL, w->fd, NULL); free(w); }
+    if (!w->read && !w->write && !w->other) { epoll_ctl(k->epfd, EPOLL_CTL_DEL, w->fd, NULL); free(w); }   /* linux-only: kqueue over epoll / task memory from procfs (libSystem) */
     else kq_update(k, w);
     if (r->filter == -7 || r->filter == -10) close(r->hostfd);
     free(r);
@@ -304,7 +304,7 @@ static int kq_fire(struct kq *k, struct kq_reg *r, uint32_t ev, struct d_kevent 
     else if (r->flags & KEV_DISPATCH) { r->enabled = 0; kq_update(k, r->watch); }
     return 1;
 }
-static int d_kevent(int kqfd, const struct d_kevent *changes, int nchanges, struct d_kevent *events, int nevents, const struct timespec *timeout) {
+ISIM_GUEST_ABI static int d_kevent(int kqfd, const struct d_kevent *changes, int nchanges, struct d_kevent *events, int nevents, const struct timespec *timeout) {
     struct kq *k = kq_for(kqfd);
     if (!k) { errno = 9; return -1; }                                  /* EBADF */
     int out = 0;
@@ -321,7 +321,7 @@ static int d_kevent(int kqfd, const struct d_kevent *changes, int nchanges, stru
     int ms = !timeout ? -1 : (int)(timeout->tv_sec * 1000 + (timeout->tv_nsec + 999999) / 1000000);
     struct epoll_event ev[64];
     for (;;) {
-        int n = epoll_wait(k->epfd, ev, nevents < 64 ? nevents : 64, ms);
+        int n = epoll_wait(k->epfd, ev, nevents < 64 ? nevents : 64, ms);   /* linux-only: kqueue over epoll / task memory from procfs (libSystem) */
         if (n < 0) { if (errno == EINTR) errno = 4; else errno = darwin_errno(errno); return -1; }
         pthread_mutex_lock(&k->lock);
         for (int i = 0; i < n && out < nevents; i++) {
@@ -336,7 +336,7 @@ static int d_kevent(int kqfd, const struct d_kevent *changes, int nchanges, stru
     }
 }
 struct d_kevent64 { uint64_t ident; int16_t filter; uint16_t flags; uint32_t fflags; int64_t data; uint64_t udata; uint64_t ext[2]; };
-static int d_kevent64(int kq, const struct d_kevent64 *changes, int nchanges, struct d_kevent64 *events, int nevents,
+ISIM_GUEST_ABI static int d_kevent64(int kq, const struct d_kevent64 *changes, int nchanges, struct d_kevent64 *events, int nevents,
                       unsigned flags, const struct timespec *timeout) {
     struct d_kevent *c = calloc((size_t)(nchanges > 0 ? nchanges : 1), sizeof *c), *e = calloc((size_t)(nevents > 0 ? nevents : 1), sizeof *e);
     for (int i = 0; i < nchanges; i++)
@@ -353,27 +353,27 @@ static int d_kevent64(int kq, const struct d_kevent64 *changes, int nchanges, st
 /* ---------------- wchar.h: multibyte conversions in UTF-8 ---------------- */
 /* adapted: like an app under a UTF-8 locale (the host process's own locale is left alone) */
 #define IN_UTF8(expr) ({ locale_t l_ = utf8_locale(), o_ = l_ ? uselocale(l_) : (locale_t)0; __typeof__(expr) r_ = (expr); if (l_) uselocale(o_); r_; })
-static size_t d_mbrtowc(wchar_t *w, const char *s, size_t n, mbstate_t *st) { return IN_UTF8(mbrtowc(w, s, n, st)); }
-static size_t d_mbrlen(const char *s, size_t n, mbstate_t *st) { return IN_UTF8(mbrlen(s, n, st)); }
-static size_t d_wcrtomb(char *s, wchar_t w, mbstate_t *st) { return IN_UTF8(wcrtomb(s, w, st)); }
-static size_t d_mbstowcs(wchar_t *w, const char *s, size_t n) { return IN_UTF8(mbstowcs(w, s, n)); }
-static size_t d_wcstombs(char *s, const wchar_t *w, size_t n) { return IN_UTF8(wcstombs(s, w, n)); }
-static size_t d_mbsrtowcs(wchar_t *w, const char **s, size_t n, mbstate_t *st) { return IN_UTF8(mbsrtowcs(w, s, n, st)); }
-static size_t d_wcsrtombs(char *s, const wchar_t **w, size_t n, mbstate_t *st) { return IN_UTF8(wcsrtombs(s, w, n, st)); }
-static size_t d_mbsnrtowcs(wchar_t *w, const char **s, size_t nms, size_t n, mbstate_t *st) { return IN_UTF8(mbsnrtowcs(w, s, nms, n, st)); }
-static size_t d_wcsnrtombs(char *s, const wchar_t **w, size_t nwc, size_t n, mbstate_t *st) { return IN_UTF8(wcsnrtombs(s, w, nwc, n, st)); }
-static int d_mbtowc(wchar_t *w, const char *s, size_t n) { return IN_UTF8(mbtowc(w, s, n)); }
-static int d_wctomb(char *s, wchar_t w) { return IN_UTF8(wctomb(s, w)); }
-static wint_t d_btowc(int c) { return IN_UTF8(btowc(c)); }
-static int d_wctob(wint_t c) { return IN_UTF8(wctob(c)); }
-static int d_wcwidth(wchar_t c) { return IN_UTF8(wcwidth(c)); }
-static int d_wcswidth(const wchar_t *s, size_t n) { return IN_UTF8(wcswidth(s, n)); }
-static size_t d_wcslcpy(wchar_t *d, const wchar_t *s, size_t n) {
+ISIM_GUEST_ABI static size_t d_mbrtowc(wchar_t *w, const char *s, size_t n, mbstate_t *st) { return IN_UTF8(mbrtowc(w, s, n, st)); }
+ISIM_GUEST_ABI static size_t d_mbrlen(const char *s, size_t n, mbstate_t *st) { return IN_UTF8(mbrlen(s, n, st)); }
+ISIM_GUEST_ABI static size_t d_wcrtomb(char *s, wchar_t w, mbstate_t *st) { return IN_UTF8(wcrtomb(s, w, st)); }
+ISIM_GUEST_ABI static size_t d_mbstowcs(wchar_t *w, const char *s, size_t n) { return IN_UTF8(mbstowcs(w, s, n)); }
+ISIM_GUEST_ABI static size_t d_wcstombs(char *s, const wchar_t *w, size_t n) { return IN_UTF8(wcstombs(s, w, n)); }
+ISIM_GUEST_ABI static size_t d_mbsrtowcs(wchar_t *w, const char **s, size_t n, mbstate_t *st) { return IN_UTF8(mbsrtowcs(w, s, n, st)); }
+ISIM_GUEST_ABI static size_t d_wcsrtombs(char *s, const wchar_t **w, size_t n, mbstate_t *st) { return IN_UTF8(wcsrtombs(s, w, n, st)); }
+ISIM_GUEST_ABI static size_t d_mbsnrtowcs(wchar_t *w, const char **s, size_t nms, size_t n, mbstate_t *st) { return IN_UTF8(mbsnrtowcs(w, s, nms, n, st)); }
+ISIM_GUEST_ABI static size_t d_wcsnrtombs(char *s, const wchar_t **w, size_t nwc, size_t n, mbstate_t *st) { return IN_UTF8(wcsnrtombs(s, w, nwc, n, st)); }
+ISIM_GUEST_ABI static int d_mbtowc(wchar_t *w, const char *s, size_t n) { return IN_UTF8(mbtowc(w, s, n)); }
+ISIM_GUEST_ABI static int d_wctomb(char *s, wchar_t w) { return IN_UTF8(wctomb(s, w)); }
+ISIM_GUEST_ABI static wint_t d_btowc(int c) { return IN_UTF8(btowc(c)); }
+ISIM_GUEST_ABI static int d_wctob(wint_t c) { return IN_UTF8(wctob(c)); }
+ISIM_GUEST_ABI static int d_wcwidth(wchar_t c) { return IN_UTF8(wcwidth(c)); }
+ISIM_GUEST_ABI static int d_wcswidth(const wchar_t *s, size_t n) { return IN_UTF8(wcswidth(s, n)); }
+ISIM_GUEST_ABI static size_t d_wcslcpy(wchar_t *d, const wchar_t *s, size_t n) {
     size_t l = wcslen(s);
     if (n) { size_t c = l < n - 1 ? l : n - 1; wmemcpy(d, s, c); d[c] = 0; }
     return l;
 }
-static size_t d_wcslcat(wchar_t *d, const wchar_t *s, size_t n) {
+ISIM_GUEST_ABI static size_t d_wcslcat(wchar_t *d, const wchar_t *s, size_t n) {
     size_t dl = wcsnlen(d, n);
     return dl == n ? n + wcslen(s) : dl + d_wcslcpy(d + dl, s, n - dl);
 }
@@ -383,7 +383,7 @@ static size_t d_wcslcat(wchar_t *d, const wchar_t *s, size_t n) {
 struct d_regex { int magic; size_t nsub; const char *endp; regex_t *g; };
 struct d_regmatch { int64_t so, eo; };
 static int regerr_darwin(int e) { return e == REG_ESIZE ? 12 : e == REG_ERPAREN ? 8 : e == REG_EEND ? 14 : e; }
-static int d_regcomp(struct d_regex *re, const char *pattern, int dflags) {
+ISIM_GUEST_ABI static int d_regcomp(struct d_regex *re, const char *pattern, int dflags) {
     int f = (dflags & 1 ? REG_EXTENDED : 0) | (dflags & 2 ? REG_ICASE : 0) | (dflags & 4 ? REG_NOSUB : 0) | (dflags & 8 ? REG_NEWLINE : 0);
     if (dflags & 0400) return 16;                                      /* REG_ENHANCED: REG_INVARG */
     regex_t *g = calloc(1, sizeof *g);
@@ -401,7 +401,7 @@ static int d_regcomp(struct d_regex *re, const char *pattern, int dflags) {
     re->magic = 0xf1234; re->nsub = g->re_nsub; re->g = g;
     return 0;
 }
-static int d_regexec(const struct d_regex *re, const char *s, size_t n, struct d_regmatch *m, int eflags) {
+ISIM_GUEST_ABI static int d_regexec(const struct d_regex *re, const char *s, size_t n, struct d_regmatch *m, int eflags) {
     if (!re || !re->g) return 16;
     int f = (eflags & 1 ? REG_NOTBOL : 0) | (eflags & 2 ? REG_NOTEOL : 0) | (eflags & 4 ? REG_STARTEND : 0);
     regmatch_t *h = n ? calloc(n, sizeof *h) : NULL;
@@ -414,7 +414,7 @@ static int d_regexec(const struct d_regex *re, const char *s, size_t n, struct d
     free(h);
     return r == REG_NOMATCH ? 1 : regerr_darwin(r);
 }
-static size_t d_regerror(int code, const struct d_regex *re, char *buf, size_t n) {
+ISIM_GUEST_ABI static size_t d_regerror(int code, const struct d_regex *re, char *buf, size_t n) {
     static const char *msg[] = { "success", "regexec() failed to match", "invalid regular expression", "invalid collating element",
                                  "invalid character class", "trailing backslash (\\)", "invalid backreference number",
                                  "brackets ([ ]) not balanced", "parentheses not balanced", "braces not balanced",
@@ -427,18 +427,18 @@ static size_t d_regerror(int code, const struct d_regex *re, char *buf, size_t n
     if (buf && n) { size_t c = l < n ? l : n; memcpy(buf, s, c - 1); buf[c - 1] = 0; }
     return l;
 }
-static void d_regfree(struct d_regex *re) { if (re && re->g) { regfree(re->g); free(re->g); re->g = NULL; } }
+ISIM_GUEST_ABI static void d_regfree(struct d_regex *re) { if (re && re->g) { regfree(re->g); free(re->g); re->g = NULL; } }
 
 /* ---------------- syslog.h: to the unified log, as on iOS ---------------- */
 static char syslog_ident[64]; static int syslog_opts, syslog_mask = 0xff;
-static void d_openlog(const char *ident, int opts, int facility) {
+ISIM_GUEST_ABI static void d_openlog(const char *ident, int opts, int facility) {
     (void)facility;
     snprintf(syslog_ident, sizeof syslog_ident, "%s", ident ? ident : "");
     syslog_opts = opts;
 }
-static void d_closelog(void) { syslog_ident[0] = 0; syslog_opts = 0; }
-static int d_setlogmask(int mask) { int old = syslog_mask; if (mask) syslog_mask = mask; return old; }
-static void d_vsyslog(int pri, const char *fmt, va_list ap) {
+ISIM_GUEST_ABI static void d_closelog(void) { syslog_ident[0] = 0; syslog_opts = 0; }
+ISIM_GUEST_ABI static int d_setlogmask(int mask) { int old = syslog_mask; if (mask) syslog_mask = mask; return old; }
+ISIM_GUEST_ABI static void d_vsyslog(int pri, const char *fmt, va_list ap) {
     if (!(syslog_mask & (1 << (pri & 7)))) return;
     int saved = errno;
     char f[2048], msg[4096];
@@ -457,7 +457,7 @@ static void d_vsyslog(int pri, const char *fmt, va_list ap) {
         else fprintf(stderr, "%s%s%s\n", syslog_ident, syslog_ident[0] ? ": " : "", msg);
     }
 }
-static void d_syslog(int pri, const char *fmt, ...) { va_list ap; va_start(ap, fmt); d_vsyslog(pri, fmt, ap); va_end(ap); }
+ISIM_GUEST_ABI static void d_syslog(int pri, const char *fmt, ...) { va_list ap; va_start(ap, fmt); d_vsyslog(pri, fmt, ap); va_end(ap); }
 
 /* ---------------- pwd.h: the device's one user ---------------- */
 /* adapted: like an iOS device, the app runs as "mobile"; its home is the app's home directory (HOME) */
@@ -481,27 +481,27 @@ static struct d_passwd *pw_fill(struct d_passwd *p, char *buf, size_t n) {
     *p = (struct d_passwd){ out[0], out[1], getuid(), getgid(), 0, out[2], out[3], out[4], out[5], 0 };
     return p;
 }
-static struct d_passwd *d_getpwuid(uid_t uid) { return uid == getuid() ? pw_fill(&pw_entry, NULL, 0) : NULL; }
-static struct d_passwd *d_getpwnam(const char *name) { return name && !strcmp(name, "mobile") ? pw_fill(&pw_entry, NULL, 0) : NULL; }
-static int d_getpwuid_r(uid_t uid, struct d_passwd *p, char *buf, size_t n, struct d_passwd **out) {
+ISIM_GUEST_ABI static struct d_passwd *d_getpwuid(uid_t uid) { return uid == getuid() ? pw_fill(&pw_entry, NULL, 0) : NULL; }
+ISIM_GUEST_ABI static struct d_passwd *d_getpwnam(const char *name) { return name && !strcmp(name, "mobile") ? pw_fill(&pw_entry, NULL, 0) : NULL; }
+ISIM_GUEST_ABI static int d_getpwuid_r(uid_t uid, struct d_passwd *p, char *buf, size_t n, struct d_passwd **out) {
     *out = NULL;
     if (uid != getuid()) return 0;
     if (!pw_fill(p, buf, n)) return 34;                                /* ERANGE */
     *out = p;
     return 0;
 }
-static int d_getpwnam_r(const char *name, struct d_passwd *p, char *buf, size_t n, struct d_passwd **out) {
+ISIM_GUEST_ABI static int d_getpwnam_r(const char *name, struct d_passwd *p, char *buf, size_t n, struct d_passwd **out) {
     *out = NULL;
     if (!name || strcmp(name, "mobile")) return 0;
     if (!pw_fill(p, buf, n)) return 34;
     *out = p;
     return 0;
 }
-static struct d_passwd *d_getpwent(void) { return pw_iter++ ? NULL : pw_fill(&pw_entry, NULL, 0); }
-static void d_setpwent(void) { pw_iter = 0; }
-static void d_endpwent(void) { pw_iter = 0; }
-static char *d_getlogin(void) { return "mobile"; }
-static int d_getlogin_r(char *buf, size_t n) { if (n < 7) return 34; memcpy(buf, "mobile", 7); return 0; }
+ISIM_GUEST_ABI static struct d_passwd *d_getpwent(void) { return pw_iter++ ? NULL : pw_fill(&pw_entry, NULL, 0); }
+ISIM_GUEST_ABI static void d_setpwent(void) { pw_iter = 0; }
+ISIM_GUEST_ABI static void d_endpwent(void) { pw_iter = 0; }
+ISIM_GUEST_ABI static char *d_getlogin(void) { return "mobile"; }
+ISIM_GUEST_ABI static int d_getlogin_r(char *buf, size_t n) { if (n < 7) return 34; memcpy(buf, "mobile", 7); return 0; }
 
 /* ---------------- termios.h ---------------- */
 struct d_termios { unsigned long iflag, oflag, cflag, lflag; unsigned char cc[20]; unsigned long ispeed, ospeed; };
@@ -548,75 +548,75 @@ static void termios_to_host(const struct d_termios *d, struct termios *h) {
     for (size_t i = 0; i < sizeof t_cc / sizeof *t_cc; i++) h->c_cc[t_cc[i].h] = d->cc[t_cc[i].d];
     cfsetispeed(h, speed_host(d->ispeed)); cfsetospeed(h, speed_host(d->ospeed));
 }
-static int d_tcgetattr(int fd, struct d_termios *d) {
+ISIM_GUEST_ABI static int d_tcgetattr(int fd, struct d_termios *d) {
     struct termios h;
     if (tcgetattr(fd, &h) != 0) { errno = darwin_errno(errno); return -1; }
     termios_to_darwin(&h, d);
     return 0;
 }
-static int d_tcsetattr(int fd, int when, const struct d_termios *d) {
+ISIM_GUEST_ABI static int d_tcsetattr(int fd, int when, const struct d_termios *d) {
     struct termios h;
     termios_to_host(d, &h);
     int w = (when & ~0x10) == 1 ? TCSADRAIN : (when & ~0x10) == 2 ? TCSAFLUSH : TCSANOW;
     return NETRET(tcsetattr(fd, w, &h));
 }
-static unsigned long d_cfgetispeed(const struct d_termios *d) { return d->ispeed; }
-static unsigned long d_cfgetospeed(const struct d_termios *d) { return d->ospeed; }
-static int d_cfsetispeed(struct d_termios *d, unsigned long s) { d->ispeed = s; return 0; }
-static int d_cfsetospeed(struct d_termios *d, unsigned long s) { d->ospeed = s; return 0; }
-static int d_cfsetspeed(struct d_termios *d, unsigned long s) { d->ispeed = d->ospeed = s; return 0; }
-static void d_cfmakeraw(struct d_termios *d) {
+ISIM_GUEST_ABI static unsigned long d_cfgetispeed(const struct d_termios *d) { return d->ispeed; }
+ISIM_GUEST_ABI static unsigned long d_cfgetospeed(const struct d_termios *d) { return d->ospeed; }
+ISIM_GUEST_ABI static int d_cfsetispeed(struct d_termios *d, unsigned long s) { d->ispeed = s; return 0; }
+ISIM_GUEST_ABI static int d_cfsetospeed(struct d_termios *d, unsigned long s) { d->ospeed = s; return 0; }
+ISIM_GUEST_ABI static int d_cfsetspeed(struct d_termios *d, unsigned long s) { d->ispeed = d->ospeed = s; return 0; }
+ISIM_GUEST_ABI static void d_cfmakeraw(struct d_termios *d) {
     d->iflag &= ~(0x1UL | 0x2 | 0x8 | 0x20 | 0x40 | 0x80 | 0x100 | 0x200 | 0x2000);
     d->oflag &= ~0x1UL;
     d->lflag &= ~(0x8UL | 0x10 | 0x100 | 0x80 | 0x400 | 0x800 | 0x2 | 0x1 | 0x40 | 0x20);
     d->cflag &= ~(0x300UL | 0x1000); d->cflag |= 0x300;
     d->cc[16] = 1; d->cc[17] = 0;
 }
-static int d_tcflush(int fd, int q) { return NETRET(tcflush(fd, q == 1 ? TCIFLUSH : q == 2 ? TCOFLUSH : TCIOFLUSH)); }
-static int d_tcflow(int fd, int a) { return NETRET(tcflow(fd, a == 1 ? TCOOFF : a == 2 ? TCOON : a == 3 ? TCIOFF : TCION)); }
-static int d_tcdrain(int fd) { return NETRET(tcdrain(fd)); }
-static int d_tcsendbreak(int fd, int d) { return NETRET(tcsendbreak(fd, d)); }
-static pid_t d_tcgetsid(int fd) { return NETRET(tcgetsid(fd)); }
-static pid_t d_tcgetpgrp(int fd) { return NETRET(tcgetpgrp(fd)); }
-static int d_tcsetpgrp(int fd, pid_t p) { return NETRET(tcsetpgrp(fd, p)); }
+ISIM_GUEST_ABI static int d_tcflush(int fd, int q) { return NETRET(tcflush(fd, q == 1 ? TCIFLUSH : q == 2 ? TCOFLUSH : TCIOFLUSH)); }
+ISIM_GUEST_ABI static int d_tcflow(int fd, int a) { return NETRET(tcflow(fd, a == 1 ? TCOOFF : a == 2 ? TCOON : a == 3 ? TCIOFF : TCION)); }
+ISIM_GUEST_ABI static int d_tcdrain(int fd) { return NETRET(tcdrain(fd)); }
+ISIM_GUEST_ABI static int d_tcsendbreak(int fd, int d) { return NETRET(tcsendbreak(fd, d)); }
+ISIM_GUEST_ABI static pid_t d_tcgetsid(int fd) { return NETRET(tcgetsid(fd)); }
+ISIM_GUEST_ABI static pid_t d_tcgetpgrp(int fd) { return NETRET(tcgetpgrp(fd)); }
+ISIM_GUEST_ABI static int d_tcsetpgrp(int fd, pid_t p) { return NETRET(tcsetpgrp(fd, p)); }
 
 /* ---------------- libkern/OSAtomic.h ---------------- */
-static int32_t d_OSAtomicAdd32(int32_t v, volatile int32_t *p) { return __atomic_add_fetch(p, v, __ATOMIC_SEQ_CST); }
-static int32_t d_OSAtomicIncrement32(volatile int32_t *p) { return __atomic_add_fetch(p, 1, __ATOMIC_SEQ_CST); }
-static int32_t d_OSAtomicDecrement32(volatile int32_t *p) { return __atomic_sub_fetch(p, 1, __ATOMIC_SEQ_CST); }
-static int64_t d_OSAtomicAdd64(int64_t v, volatile int64_t *p) { return __atomic_add_fetch(p, v, __ATOMIC_SEQ_CST); }
-static int64_t d_OSAtomicIncrement64(volatile int64_t *p) { return __atomic_add_fetch(p, 1, __ATOMIC_SEQ_CST); }
-static int64_t d_OSAtomicDecrement64(volatile int64_t *p) { return __atomic_sub_fetch(p, 1, __ATOMIC_SEQ_CST); }
-static int32_t d_OSAtomicOr32(uint32_t v, volatile uint32_t *p) { return (int32_t)__atomic_or_fetch(p, v, __ATOMIC_SEQ_CST); }
-static int32_t d_OSAtomicOr32Orig(uint32_t v, volatile uint32_t *p) { return (int32_t)__atomic_fetch_or(p, v, __ATOMIC_SEQ_CST); }
-static int32_t d_OSAtomicAnd32(uint32_t v, volatile uint32_t *p) { return (int32_t)__atomic_and_fetch(p, v, __ATOMIC_SEQ_CST); }
-static int32_t d_OSAtomicAnd32Orig(uint32_t v, volatile uint32_t *p) { return (int32_t)__atomic_fetch_and(p, v, __ATOMIC_SEQ_CST); }
-static int32_t d_OSAtomicXor32(uint32_t v, volatile uint32_t *p) { return (int32_t)__atomic_xor_fetch(p, v, __ATOMIC_SEQ_CST); }
-static int32_t d_OSAtomicXor32Orig(uint32_t v, volatile uint32_t *p) { return (int32_t)__atomic_fetch_xor(p, v, __ATOMIC_SEQ_CST); }
-static bool d_OSAtomicCompareAndSwap32(int32_t o, int32_t n, volatile int32_t *p) { return __atomic_compare_exchange_n(p, &o, n, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
-static bool d_OSAtomicCompareAndSwap64(int64_t o, int64_t n, volatile int64_t *p) { return __atomic_compare_exchange_n(p, &o, n, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
-static bool d_OSAtomicCompareAndSwapPtr(void *o, void *n, void *volatile *p) { return __atomic_compare_exchange_n(p, &o, n, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
+ISIM_GUEST_ABI static int32_t d_OSAtomicAdd32(int32_t v, volatile int32_t *p) { return __atomic_add_fetch(p, v, __ATOMIC_SEQ_CST); }
+ISIM_GUEST_ABI static int32_t d_OSAtomicIncrement32(volatile int32_t *p) { return __atomic_add_fetch(p, 1, __ATOMIC_SEQ_CST); }
+ISIM_GUEST_ABI static int32_t d_OSAtomicDecrement32(volatile int32_t *p) { return __atomic_sub_fetch(p, 1, __ATOMIC_SEQ_CST); }
+ISIM_GUEST_ABI static int64_t d_OSAtomicAdd64(int64_t v, volatile int64_t *p) { return __atomic_add_fetch(p, v, __ATOMIC_SEQ_CST); }
+ISIM_GUEST_ABI static int64_t d_OSAtomicIncrement64(volatile int64_t *p) { return __atomic_add_fetch(p, 1, __ATOMIC_SEQ_CST); }
+ISIM_GUEST_ABI static int64_t d_OSAtomicDecrement64(volatile int64_t *p) { return __atomic_sub_fetch(p, 1, __ATOMIC_SEQ_CST); }
+ISIM_GUEST_ABI static int32_t d_OSAtomicOr32(uint32_t v, volatile uint32_t *p) { return (int32_t)__atomic_or_fetch(p, v, __ATOMIC_SEQ_CST); }
+ISIM_GUEST_ABI static int32_t d_OSAtomicOr32Orig(uint32_t v, volatile uint32_t *p) { return (int32_t)__atomic_fetch_or(p, v, __ATOMIC_SEQ_CST); }
+ISIM_GUEST_ABI static int32_t d_OSAtomicAnd32(uint32_t v, volatile uint32_t *p) { return (int32_t)__atomic_and_fetch(p, v, __ATOMIC_SEQ_CST); }
+ISIM_GUEST_ABI static int32_t d_OSAtomicAnd32Orig(uint32_t v, volatile uint32_t *p) { return (int32_t)__atomic_fetch_and(p, v, __ATOMIC_SEQ_CST); }
+ISIM_GUEST_ABI static int32_t d_OSAtomicXor32(uint32_t v, volatile uint32_t *p) { return (int32_t)__atomic_xor_fetch(p, v, __ATOMIC_SEQ_CST); }
+ISIM_GUEST_ABI static int32_t d_OSAtomicXor32Orig(uint32_t v, volatile uint32_t *p) { return (int32_t)__atomic_fetch_xor(p, v, __ATOMIC_SEQ_CST); }
+ISIM_GUEST_ABI static bool d_OSAtomicCompareAndSwap32(int32_t o, int32_t n, volatile int32_t *p) { return __atomic_compare_exchange_n(p, &o, n, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
+ISIM_GUEST_ABI static bool d_OSAtomicCompareAndSwap64(int64_t o, int64_t n, volatile int64_t *p) { return __atomic_compare_exchange_n(p, &o, n, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
+ISIM_GUEST_ABI static bool d_OSAtomicCompareAndSwapPtr(void *o, void *n, void *volatile *p) { return __atomic_compare_exchange_n(p, &o, n, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); }
 /* bit n counts from the most significant bit of the first byte, as Apple's */
-static bool d_OSAtomicTestAndSet(uint32_t n, volatile void *addr) {
+ISIM_GUEST_ABI static bool d_OSAtomicTestAndSet(uint32_t n, volatile void *addr) {
     volatile uint8_t *b = (volatile uint8_t *)addr + (n >> 3); uint8_t mask = (uint8_t)(0x80 >> (n & 7));
     return (__atomic_fetch_or(b, mask, __ATOMIC_SEQ_CST) & mask) != 0;
 }
-static bool d_OSAtomicTestAndClear(uint32_t n, volatile void *addr) {
+ISIM_GUEST_ABI static bool d_OSAtomicTestAndClear(uint32_t n, volatile void *addr) {
     volatile uint8_t *b = (volatile uint8_t *)addr + (n >> 3); uint8_t mask = (uint8_t)(0x80 >> (n & 7));
     return (__atomic_fetch_and(b, (uint8_t)~mask, __ATOMIC_SEQ_CST) & mask) != 0;
 }
-static void d_OSMemoryBarrier(void) { __atomic_thread_fence(__ATOMIC_SEQ_CST); }
-static bool d_OSSpinLockTry(volatile int32_t *l) { int32_t z = 0; return __atomic_compare_exchange_n(l, &z, -1, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED); }
-static void d_OSSpinLockLock(volatile int32_t *l) { for (int spins = 0; !d_OSSpinLockTry(l); spins++) if (spins > 100) sched_yield(); }
-static void d_OSSpinLockUnlock(volatile int32_t *l) { __atomic_store_n(l, 0, __ATOMIC_RELEASE); }
+ISIM_GUEST_ABI static void d_OSMemoryBarrier(void) { __atomic_thread_fence(__ATOMIC_SEQ_CST); }
+ISIM_GUEST_ABI static bool d_OSSpinLockTry(volatile int32_t *l) { int32_t z = 0; return __atomic_compare_exchange_n(l, &z, -1, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED); }
+ISIM_GUEST_ABI static void d_OSSpinLockLock(volatile int32_t *l) { for (int spins = 0; !d_OSSpinLockTry(l); spins++) if (spins > 100) sched_yield(); }
+ISIM_GUEST_ABI static void d_OSSpinLockUnlock(volatile int32_t *l) { __atomic_store_n(l, 0, __ATOMIC_RELEASE); }
 /* OSAtomicEnqueue / Dequeue: a LIFO linked through the element's link field at `offset`, under one lock */
 static pthread_mutex_t osq_lock = PTHREAD_MUTEX_INITIALIZER;
-static void d_OSAtomicEnqueue(void **head, void *elem, size_t offset) {
+ISIM_GUEST_ABI static void d_OSAtomicEnqueue(void **head, void *elem, size_t offset) {
     pthread_mutex_lock(&osq_lock);
     *(void **)((char *)elem + offset) = head[0]; head[0] = elem;
     pthread_mutex_unlock(&osq_lock);
 }
-static void *d_OSAtomicDequeue(void **head, size_t offset) {
+ISIM_GUEST_ABI static void *d_OSAtomicDequeue(void **head, size_t offset) {
     pthread_mutex_lock(&osq_lock);
     void *e = head[0];
     if (e) head[0] = *(void **)((char *)e + offset);
@@ -625,58 +625,58 @@ static void *d_OSAtomicDequeue(void **head, size_t offset) {
 }
 
 /* ---------------- unistd / stdlib / string / signal ---------------- */
-static int d_sigemptyset(uint32_t *s) { *s = 0; return 0; }
-static int d_sigfillset(uint32_t *s) { *s = 0xffffffffu; return 0; }
-static int d_sigaddset(uint32_t *s, int n) { if (n <= 0 || n > 31) { errno = 22; return -1; } *s |= 1u << (n - 1); return 0; }
-static int d_sigdelset(uint32_t *s, int n) { if (n <= 0 || n > 31) { errno = 22; return -1; } *s &= ~(1u << (n - 1)); return 0; }
-static int d_sigismember(const uint32_t *s, int n) { if (n <= 0 || n > 31) { errno = 22; return -1; } return (*s >> (n - 1)) & 1; }
-static int d_sigpending(uint32_t *out) { sigset_t h; if (sigpending(&h) != 0) return -1; *out = sigset_to_darwin(&h); return 0; }
-static int d_sigsuspend(const uint32_t *m) { sigset_t h; sigset_to_host(*m, &h); int r = sigsuspend(&h); if (r < 0) errno = errno == EINTR ? 4 : darwin_errno(errno); return r; }
-static int d_sigwait(const uint32_t *m, int *sig) { sigset_t h; int s = 0; sigset_to_host(*m, &h); int r = sigwait(&h, &s); if (!r) *sig = sig_darwin(s); return r ? darwin_errno(r) : 0; }
+ISIM_GUEST_ABI static int d_sigemptyset(uint32_t *s) { *s = 0; return 0; }
+ISIM_GUEST_ABI static int d_sigfillset(uint32_t *s) { *s = 0xffffffffu; return 0; }
+ISIM_GUEST_ABI static int d_sigaddset(uint32_t *s, int n) { if (n <= 0 || n > 31) { errno = 22; return -1; } *s |= 1u << (n - 1); return 0; }
+ISIM_GUEST_ABI static int d_sigdelset(uint32_t *s, int n) { if (n <= 0 || n > 31) { errno = 22; return -1; } *s &= ~(1u << (n - 1)); return 0; }
+ISIM_GUEST_ABI static int d_sigismember(const uint32_t *s, int n) { if (n <= 0 || n > 31) { errno = 22; return -1; } return (*s >> (n - 1)) & 1; }
+ISIM_GUEST_ABI static int d_sigpending(uint32_t *out) { sigset_t h; if (sigpending(&h) != 0) return -1; *out = sigset_to_darwin(&h); return 0; }
+ISIM_GUEST_ABI static int d_sigsuspend(const uint32_t *m) { sigset_t h; sigset_to_host(*m, &h); int r = sigsuspend(&h); if (r < 0) errno = errno == EINTR ? 4 : darwin_errno(errno); return r; }
+ISIM_GUEST_ABI static int d_sigwait(const uint32_t *m, int *sig) { sigset_t h; int s = 0; sigset_to_host(*m, &h); int r = sigwait(&h, &s); if (!r) *sig = sig_darwin(s); return r ? darwin_errno(r) : 0; }
 struct d_stack { void *sp; size_t size; int flags; };
-static int d_sigaltstack(const struct d_stack *ss, struct d_stack *old) {
+ISIM_GUEST_ABI static int d_sigaltstack(const struct d_stack *ss, struct d_stack *old) {
     stack_t h, o;
     if (ss) h = (stack_t){ ss->sp, (ss->flags & 4 ? SS_DISABLE : 0), ss->size };
     if (sigaltstack(ss ? &h : NULL, old ? &o : NULL) != 0) { errno = darwin_errno(errno); return -1; }
     if (old) *old = (struct d_stack){ o.ss_sp, o.ss_size, (o.ss_flags & SS_ONSTACK ? 1 : 0) | (o.ss_flags & SS_DISABLE ? 4 : 0) };
     return 0;
 }
-static int d_siginterrupt(int sig, int flag) { int h = sig_host(sig); return h > 0 ? siginterrupt(h, flag) : (errno = 22, -1); }
-static int d_killpg(pid_t pg, int sig) { int h = sig ? sig_host(sig) : 0; if (h < 0) { errno = 22; return -1; } return NETRET(killpg(pg, h)); }
-static void d_psignal(int sig, const char *s) { psignal(sig_host(sig) > 0 ? sig_host(sig) : sig, s); }
-static char *d_strsignal(int sig) { return strsignal(sig_host(sig) > 0 ? sig_host(sig) : sig); }
+ISIM_GUEST_ABI static int d_siginterrupt(int sig, int flag) { int h = sig_host(sig); return h > 0 ? siginterrupt(h, flag) : (errno = 22, -1); }
+ISIM_GUEST_ABI static int d_killpg(pid_t pg, int sig) { int h = sig ? sig_host(sig) : 0; if (h < 0) { errno = 22; return -1; } return NETRET(killpg(pg, h)); }
+ISIM_GUEST_ABI static void d_psignal(int sig, const char *s) { psignal(sig_host(sig) > 0 ? sig_host(sig) : sig, s); }
+ISIM_GUEST_ABI static char *d_strsignal(int sig) { return strsignal(sig_host(sig) > 0 ? sig_host(sig) : sig); }
 /* adapted: the iOS sandbox gives an app no new processes and no other identity */
 static int deny_eperm(void) { errno = 1; return -1; }
-static pid_t d_fork(void) { return deny_eperm(); }
-static int d_execv(const char *p, char *const a[]) { (void)p; (void)a; return deny_eperm(); }
-static int d_execve(const char *p, char *const a[], char *const e[]) { (void)p; (void)a; (void)e; return deny_eperm(); }
-static int d_execl(const char *p, const char *a, ...) { (void)p; (void)a; return deny_eperm(); }
-static int d_setid(unsigned id) { return id == getuid() ? 0 : deny_eperm(); }
-static int d_issetugid(void) { return 0; }
-static int d_setpgid(pid_t p, pid_t g) { return NETRET(setpgid(p, g)); }
-static pid_t d_setsid(void) { return NETRET(setsid()); }
-static int d_lockf(int fd, int cmd, off_t len) { return NETRET(lockf(fd, cmd, len)); }
-static long d_pathconf(const char *p, int name) { return name >= 1 && name <= 9 ? pathconf(p, name - 1) : (errno = 22, -1); }
-static long d_fpathconf(int fd, int name) { return name >= 1 && name <= 9 ? fpathconf(fd, name - 1) : (errno = 22, -1); }
+ISIM_GUEST_ABI static pid_t d_fork(void) { return deny_eperm(); }
+ISIM_GUEST_ABI static int d_execv(const char *p, char *const a[]) { (void)p; (void)a; return deny_eperm(); }
+ISIM_GUEST_ABI static int d_execve(const char *p, char *const a[], char *const e[]) { (void)p; (void)a; (void)e; return deny_eperm(); }
+ISIM_GUEST_ABI static int d_execl(const char *p, const char *a, ...) { (void)p; (void)a; return deny_eperm(); }
+ISIM_GUEST_ABI static int d_setid(unsigned id) { return id == getuid() ? 0 : deny_eperm(); }
+ISIM_GUEST_ABI static int d_issetugid(void) { return 0; }
+ISIM_GUEST_ABI static int d_setpgid(pid_t p, pid_t g) { return NETRET(setpgid(p, g)); }
+ISIM_GUEST_ABI static pid_t d_setsid(void) { return NETRET(setsid()); }
+ISIM_GUEST_ABI static int d_lockf(int fd, int cmd, off_t len) { return NETRET(lockf(fd, cmd, len)); }
+ISIM_GUEST_ABI static long d_pathconf(const char *p, int name) { return name >= 1 && name <= 9 ? pathconf(p, name - 1) : (errno = 22, -1); }
+ISIM_GUEST_ABI static long d_fpathconf(int fd, int name) { return name >= 1 && name <= 9 ? fpathconf(fd, name - 1) : (errno = 22, -1); }
 /* getopt: Darwin's optreset restarts the scan (glibc: optind = 0) */
 int d_optreset;
-static int d_getopt(int argc, char *const argv[], const char *opts) {
+ISIM_GUEST_ABI static int d_getopt(int argc, char *const argv[], const char *opts) {
     if (d_optreset) { d_optreset = 0; optind = 0; }
     return getopt(argc, argv, opts);
 }
-static void *d_reallocf(void *p, size_t n) { void *r = realloc(p, n); if (!r && n) free(p); return r; }
+ISIM_GUEST_ABI static void *d_reallocf(void *p, size_t n) { void *r = realloc(p, n); if (!r && n) free(p); return r; }
 /* Darwin's qsort_r passes its thunk first; glibc's passes it last */
 struct qsort_thunk { void *thunk; int (*cmp)(void *, const void *, const void *); };
 static int qsort_r_cmp(const void *a, const void *b, void *t) { struct qsort_thunk *q = t; return q->cmp(q->thunk, a, b); }
-static void d_qsort_r(void *base, size_t n, size_t size, void *thunk, int (*cmp)(void *, const void *, const void *)) {
+ISIM_GUEST_ABI static void d_qsort_r(void *base, size_t n, size_t size, void *thunk, int (*cmp)(void *, const void *, const void *)) {
     struct qsort_thunk q = { thunk, cmp };
     qsort_r(base, n, size, qsort_r_cmp, &q);
 }
-static int d_heapsort(void *base, size_t n, size_t size, int (*cmp)(const void *, const void *)) { qsort(base, n, size, cmp); return 0; }
-static int d_mergesort(void *base, size_t n, size_t size, int (*cmp)(const void *, const void *)) { qsort(base, n, size, cmp); return 0; }
-static const char *d_getprogname(void) { return program_invocation_short_name; }
-static void d_setprogname(const char *n) { const char *s = strrchr(n, '/'); program_invocation_short_name = (char *)(s ? s + 1 : n); }
-static long long d_strtonum(const char *s, long long lo, long long hi, const char **err) {
+ISIM_GUEST_ABI static int d_heapsort(void *base, size_t n, size_t size, int (*cmp)(const void *, const void *)) { qsort(base, n, size, cmp); return 0; }
+ISIM_GUEST_ABI static int d_mergesort(void *base, size_t n, size_t size, int (*cmp)(const void *, const void *)) { qsort(base, n, size, cmp); return 0; }
+ISIM_GUEST_ABI static const char *d_getprogname(void) { return program_invocation_short_name; }
+ISIM_GUEST_ABI static void d_setprogname(const char *n) { const char *s = strrchr(n, '/'); program_invocation_short_name = (char *)(s ? s + 1 : n); }
+ISIM_GUEST_ABI static long long d_strtonum(const char *s, long long lo, long long hi, const char **err) {
     char *end; long long v = 0;
     errno = 0;
     if (lo > hi) { if (err) *err = "invalid"; errno = 22; return 0; }
@@ -687,31 +687,31 @@ static long long d_strtonum(const char *s, long long lo, long long hi, const cha
     if (err) *err = NULL;
     return v;
 }
-static char *d_strnstr(const char *s, const char *find, size_t n) {
+ISIM_GUEST_ABI static char *d_strnstr(const char *s, const char *find, size_t n) {
     size_t l = strlen(find);
     if (!l) return (char *)s;
     for (; n >= l && *s; s++, n--) if (!strncmp(s, find, l)) return (char *)s;
     return NULL;
 }
-static int d_fls(int v) { return v ? 32 - __builtin_clz((unsigned)v) : 0; }
-static int d_flsl(long v) { return v ? 64 - __builtin_clzl((unsigned long)v) : 0; }
-static int d_ffsl(long v) { return __builtin_ffsl(v); }
-static int d_ffsll(long long v) { return __builtin_ffsll(v); }
-static int d_getentropy(void *b, size_t n) { if (n > 256) { errno = 5; return -1; } return NETRET(getentropy(b, n)); }   /* EIO */
-static int d_getloadavg(double *l, int n) { return getloadavg(l, n); }
+ISIM_GUEST_ABI static int d_fls(int v) { return v ? 32 - __builtin_clz((unsigned)v) : 0; }
+ISIM_GUEST_ABI static int d_flsl(long v) { return v ? 64 - __builtin_clzl((unsigned long)v) : 0; }
+ISIM_GUEST_ABI static int d_ffsl(long v) { return __builtin_ffsl(v); }
+ISIM_GUEST_ABI static int d_ffsll(long long v) { return __builtin_ffsll(v); }
+ISIM_GUEST_ABI static int d_getentropy(void *b, size_t n) { if (n > 256) { errno = 5; return -1; } return NETRET(getentropy(b, n)); }   /* EIO */
+ISIM_GUEST_ABI static int d_getloadavg(double *l, int n) { return getloadavg(l, n); }
 
 /* ---------------- os/proc.h ---------------- */
 /* adapted: the simulated device's per-app limit (3 GB) minus the app's resident size */
-static size_t d_os_proc_available_memory(void) {
+ISIM_GUEST_ABI static size_t d_os_proc_available_memory(void) {
     long pages = 0, resident = 0;
-    FILE *f = fopen("/proc/self/statm", "r");
+    FILE *f = fopen("/proc/self/statm", "r");   /* linux-only: kqueue over epoll / task memory from procfs (libSystem) */
     if (f) { if (fscanf(f, "%ld %ld", &pages, &resident) != 2) resident = 0; fclose(f); }
     size_t used = (size_t)resident * (size_t)sysconf(_SC_PAGESIZE), limit = (size_t)3 << 30;
     return used < limit ? limit - used : 0;
 }
 
 /* ---------------- sysctlnametomib: the names d_sysctl knows ---------------- */
-static int d_sysctlnametomib(const char *name, int *mib, size_t *n) {
+ISIM_GUEST_ABI static int d_sysctlnametomib(const char *name, int *mib, size_t *n) {
     static const struct { const char *name; int a, b; } names[] = {
         { "hw.machine", 6, 1 }, { "hw.model", 6, 2 }, { "hw.ncpu", 6, 3 }, { "hw.physmem", 6, 5 }, { "hw.usermem", 6, 6 },
         { "hw.pagesize", 6, 7 }, { "hw.cpufrequency", 6, 15 }, { "hw.memsize", 6, 24 }, { "hw.activecpu", 6, 25 },

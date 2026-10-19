@@ -88,7 +88,7 @@ or the test looks at system chrome, mark it.
 
     build  ->  test (iOS 17) | test (iOS 18) | test (iOS 26) | test (iOS 27)  ->  status
 
-**build** builds isim and runs the ABI check, and saves the build to the cache under the run's key. The four **test**
+**build** builds isim and runs the portability check ([BUILD.md](BUILD.md#portability)) and the ABI check, and saves the build to the cache under the run's key. The four **test**
 jobs restore that build and run in parallel: iOS 18 (iPhone 16 Pro, the default) runs every test; iOS 17 (iPhone 15),
 26 and 27 (iPhone 17) run the `os_matrix` tests (`build.py ci test -- -m os_matrix --os 26 --device iphone17`). Each
 puts its results in the run's summary and its own artifact. **status** posts the commit status `ci / build and test`

@@ -7,6 +7,7 @@
  *   'T' text                            text (UTF-8)
  * Records are separated by \x1e; \x1e and \x1f inside text become spaces. Comments and processing instructions are
  * dropped. Returns the length of the whole stream (written up to cap, NUL-terminated), or -1 without libxml2. */
+#include "guest_abi.h"
 #include <dlfcn.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -77,7 +78,7 @@ static void walk(Buf *b, HNode *n) {
 }
 
 /* encoding: the document's charset ("UTF-8", "ISO-8859-1") or NULL to detect it (meta charset, else Latin-1) */
-long isim_html_flatten(const char *html, long len, const char *encoding, char *out, long cap) {
+ISIM_GUEST_ABI long isim_html_flatten(const char *html, long len, const char *encoding, char *out, long cap) {
     static pthread_once_t once = PTHREAD_ONCE_INIT;
     pthread_once(&once, load);
     if (!loaded) return -1;

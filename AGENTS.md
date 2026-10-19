@@ -41,6 +41,17 @@ Code lives in `isim/`; see the [README](README.md) for what isim is and how it i
       the PRs), and a note in the README's compatibility row when the break hits most apps (e.g. every Swift app).
   - Batch breaks: when one release already breaks a library, fold other pending breaks of it into the same release
     so users rebuild once.
+- **Keep the host runtime portable** (native Windows later: issue #491). isim runs on Linux today; new host code in
+  `isim/runtime` must not make another host OS harder:
+  - operating-system services (starting processes, opening things on the desktop, shared memory, IPC, control
+    channels, the runtime's own path) go through the platform layer, `runtime/platform.h`: no new `fork`/`exec`,
+    `posix_spawn`, `memfd_create`, `socketpair`, `mkfifo`, `/proc` or `xdg-open` elsewhere. A service it lacks is added
+    to `platform.h` and `platform_posix.c`;
+  - every host function a symbol table hands to guests is marked `ISIM_GUEST_ABI` (definition and prototypes), and
+    function pointers the host calls guest code through are typed `ISIM_GUEST_CALLBACK`;
+  - libSystem code that implements a Darwin API over a Linux one says so: `/* linux-only: what it implements */`;
+  - `isim/tools/portability-check.py` (run by the CI build and `test_portability.py`) enforces this against
+    `isim/data/portability-baseline.txt`, which may only shrink. Details: [docs/BUILD.md](docs/BUILD.md#portability).
 - **Look and feel like real iOS.** isim's system UI (bars, controls, keyboards, sheets, alerts, menus, Liquid Glass,
   the home screen and Settings) mimics the real iOS of the version being emulated (`--os 17|18|26|27`): sizes,
   spacing, fonts, colours, materials and motion. Work from Apple's Human Interface Guidelines and from screenshots of
@@ -61,6 +72,7 @@ isim/build.py                    # build (Ninja; a no-op build takes well under 
 isim/build.py test               # all tests (pytest, parallel); -k NAME for a subset
 OS_MATRIX=1 isim/build.py test   # also run the version-sensitive tests under iOS 17, 18, 26 and 27
 python3 isim/tools/abi-check.py  # exported symbols against every release
+python3 isim/tools/portability-check.py   # host code stays portable (docs/BUILD.md, "Portability")
 ```
 
 - [docs/BUILD.md](docs/BUILD.md) covers the build graph (`isim/buildlib/`), adding samples, frameworks and Swift
@@ -73,7 +85,7 @@ python3 isim/tools/abi-check.py  # exported symbols against every release
 
 - **Branches and PRs.** Make every change on a branch and open a pull request. Merges into `main` are squashed.
 - **Local checks first.** Before opening a PR, run the full local build, `isim/build.py test`, `OS_MATRIX=1` when the
-  change is version-sensitive, and the ABI check. Put the results in the PR description.
+  change is version-sensitive, the ABI check and the portability check. Put the results in the PR description.
 - **Screenshots on applicable PRs.** When a change has a meaningful visual result (UI, drawing, system UI), include
   authentic screenshots of isim's own samples in the PR. Capture the changed state in a test or scripted sample when
   practical; do not use mockups or unrelated images. Screenshot-only evidence is not required for non-visual changes.

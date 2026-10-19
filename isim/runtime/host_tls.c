@@ -3,6 +3,7 @@
  * connections fail with a clear message). Certificates are checked against the host's CA store and the host
  * name, unless the app installed its own verify block (then the app decides, as with sec_protocol_options). */
 #define _GNU_SOURCE
+#include "guest_abi.h"
 #include <dlfcn.h>
 #include <pthread.h>
 #include <signal.h>
@@ -178,7 +179,7 @@ static int use_identity(SSL_CTX *ctx, const char *pem, char *err, int errlen) {
  * decides), 2 = ask for one. identity: PEM certificate(s) and private key (a server's identity, a client's
  * certificate) or NULL. alpn: comma-separated protocols or NULL. Returns a session or NULL with a message in err;
  * *code gets -9807 (errSSLXCertChainInvalid) for certificate failures, -9806 (errSSLClosedAbort) otherwise. */
-struct isim_tls *isim_tls_start(int fd, int server, int dtls, const char *host, int verify, const char *alpn, int min_version,
+ISIM_GUEST_ABI struct isim_tls *isim_tls_start(int fd, int server, int dtls, const char *host, int verify, const char *alpn, int min_version,
                                 const char *identity, char *err, int errlen, int *code) {
     if (code) *code = -9806;
     if (!load()) { snprintf(err, errlen, "TLS needs the host's OpenSSL 3 libssl.so.3"); return NULL; }
@@ -234,11 +235,11 @@ struct isim_tls *isim_tls_start(int fd, int server, int dtls, const char *host, 
     return t;
 }
 /* TLS client handshake on a connected blocking socket (see isim_tls_start) */
-struct isim_tls *isim_tls_connect(int fd, const char *host, int verify, const char *alpn, int min_version, char *err, int errlen, int *code) {
+ISIM_GUEST_ABI struct isim_tls *isim_tls_connect(int fd, const char *host, int verify, const char *alpn, int min_version, char *err, int errlen, int *code) {
     return isim_tls_start(fd, 0, 0, host, verify, alpn, min_version, NULL, err, errlen, code);
 }
 /* the peer's certificates (DER, leaf first) concatenated into out, their sizes in lens: how many */
-int isim_tls_peer_chain(struct isim_tls *t, unsigned char *out, long cap, long *lens, int max) {
+ISIM_GUEST_ABI int isim_tls_peer_chain(struct isim_tls *t, unsigned char *out, long cap, long *lens, int max) {
     int n = 0; long used = 0;
     /* the peer's own certificate first: a server's view of the chain leaves the client's certificate out */
     X509 *leaf = L.SSL_get1_peer_certificate ? L.SSL_get1_peer_certificate(t->ssl) : NULL;
@@ -258,7 +259,7 @@ int isim_tls_peer_chain(struct isim_tls *t, unsigned char *out, long cap, long *
     return n;
 }
 /* bytes read (0 = closed by the peer, < 0 error) */
-long isim_tls_read(struct isim_tls *t, void *buf, long n) {
+ISIM_GUEST_ABI long isim_tls_read(struct isim_tls *t, void *buf, long n) {
     sigset_t om; nopipe_begin(&om);
     int r = L.SSL_read(t->ssl, buf, (int)(n > 1 << 30 ? 1 << 30 : n));
     nopipe_end(&om);
@@ -266,7 +267,7 @@ long isim_tls_read(struct isim_tls *t, void *buf, long n) {
     int e = L.SSL_get_error(t->ssl, r);
     return e == 6 /* SSL_ERROR_ZERO_RETURN */ ? 0 : -1;
 }
-long isim_tls_write(struct isim_tls *t, const void *buf, long n) {
+ISIM_GUEST_ABI long isim_tls_write(struct isim_tls *t, const void *buf, long n) {
     long done = 0;
     sigset_t om; nopipe_begin(&om);
     while (done < n) {
@@ -280,7 +281,7 @@ long isim_tls_write(struct isim_tls *t, const void *buf, long n) {
 /* For a non-blocking socket (one session shared by a reading and a writing thread, each call under the caller's
    lock): bytes read or written, 0 = closed by the peer (read), -1 error, -2 would block (poll the socket and retry;
    SSL_pending data is returned by the next call without waiting). */
-long isim_tls_read_nb(struct isim_tls *t, void *buf, long n) {
+ISIM_GUEST_ABI long isim_tls_read_nb(struct isim_tls *t, void *buf, long n) {
     sigset_t om; nopipe_begin(&om);
     int r = L.SSL_read(t->ssl, buf, (int)(n > 1 << 30 ? 1 << 30 : n));
     int e = r > 0 ? 0 : L.SSL_get_error(t->ssl, r);
@@ -288,7 +289,7 @@ long isim_tls_read_nb(struct isim_tls *t, void *buf, long n) {
     if (r > 0) return r;
     return e == 2 || e == 3 /* SSL_ERROR_WANT_READ / WRITE */ ? -2 : e == 6 /* ZERO_RETURN */ ? 0 : -1;
 }
-long isim_tls_write_nb(struct isim_tls *t, const void *buf, long n) {
+ISIM_GUEST_ABI long isim_tls_write_nb(struct isim_tls *t, const void *buf, long n) {
     sigset_t om; nopipe_begin(&om);
     int r = L.SSL_write(t->ssl, buf, (int)(n > 1 << 30 ? 1 << 30 : n));
     int e = r > 0 ? 0 : L.SSL_get_error(t->ssl, r);
@@ -297,7 +298,7 @@ long isim_tls_write_nb(struct isim_tls *t, const void *buf, long n) {
     return e == 2 || e == 3 ? -2 : -1;
 }
 /* negotiated protocol version ("TLSv1.3") and ALPN protocol into the buffers */
-void isim_tls_info(struct isim_tls *t, char *version, int vlen, char *alpn, int alen) {
+ISIM_GUEST_ABI void isim_tls_info(struct isim_tls *t, char *version, int vlen, char *alpn, int alen) {
     if (version && vlen > 0) snprintf(version, vlen, "%s", L.SSL_get_version ? L.SSL_get_version(t->ssl) : "");
     if (alpn && alen > 0) {
         const unsigned char *p = NULL; unsigned int n = 0;
@@ -305,7 +306,7 @@ void isim_tls_info(struct isim_tls *t, char *version, int vlen, char *alpn, int 
         snprintf(alpn, alen, "%.*s", (int)n, p ? (const char *)p : "");
     }
 }
-void isim_tls_close(struct isim_tls *t) {
+ISIM_GUEST_ABI void isim_tls_close(struct isim_tls *t) {
     if (!t) return;
     sigset_t om; nopipe_begin(&om);
     if (L.SSL_shutdown) L.SSL_shutdown(t->ssl);
@@ -350,7 +351,7 @@ static int probe_client_cert(SSL *ssl, X509 **x, EVP_PKEY **k) {
  * of the leaf's SubjectPublicKeyInfo>", libcurl's CURLOPT_PINNEDPUBLICKEY form) and whether it asks for a client
  * certificate (*client_requested, with the DER names of the CAs it accepts in dn / dnlens). Returns 1, or 0 with a
  * message in err when the server cannot be reached or does not speak TLS. */
-int isim_tls_probe(const char *host, int port, double timeout, unsigned char *chain, long cap, long *lens, int maxcerts, int *ncerts,
+ISIM_GUEST_ABI int isim_tls_probe(const char *host, int port, double timeout, unsigned char *chain, long cap, long *lens, int maxcerts, int *ncerts,
                    char *pin, int pincap, int *client_requested, unsigned char *dn, long dncap, long *dnlens, int maxdn, int *ndn,
                    char *err, int errlen) {
     *ncerts = 0; *ndn = 0; *client_requested = 0; if (pincap > 0) pin[0] = 0; if (errlen > 0) err[0] = 0;
