@@ -1,7 +1,7 @@
 # Symbols
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 86.5% of Apple's iOS API (115 of 133, exact) · **iOS:** 17.0+
+**Symbols:** 86.5% of Apple's iOS API (115 of 133, exact) · **Rows:** 1: 1 ✅ · **iOS:** 17.0+
 <!-- /generated:header -->
 
 **Area:** [Graphics & text](../COVERAGE.md#graphics) · **Apple:** [Symbols](https://developer.apple.com/documentation/symbols) · **Issues:** [`area:graphics`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agraphics)

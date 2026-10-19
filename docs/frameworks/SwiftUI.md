@@ -1,7 +1,7 @@
 # SwiftUI
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 59.1% of Apple's iOS API (4045 of 6841, exact) · **Rows:** 251: 237 ✅ 8 🟡 6 ❌ · **iOS:** 13.0+
+**Symbols:** 61.4% of Apple's iOS API (4202 of 6847, exact) · **Rows:** 253: 240 ✅ 7 🟡 6 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [SwiftUI & Charts](../COVERAGE.md#swiftui) · **Apple:** [SwiftUI](https://developer.apple.com/documentation/swiftui) · **Issues:** [`area:swiftui`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aswiftui)
@@ -342,7 +342,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-2796 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+2645 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -568,9 +568,6 @@
 - [`static var fitted: ButtonSizing`](https://developer.apple.com/documentation/swiftui/buttonsizing/fitted)
 - [`static var flexible: ButtonSizing`](https://developer.apple.com/documentation/swiftui/buttonsizing/flexible)
 - [`static var flexible: ButtonSizing`](https://developer.apple.com/documentation/swiftui/buttonsizing/flexible)
-- [`CameraCaptureAccessory`](https://developer.apple.com/documentation/swiftui/cameracaptureaccessory)
-- [`init(content: () -> Content)`](https://developer.apple.com/documentation/swiftui/cameracaptureaccessory/init(content:))
-- [`init(isEnabled: Binding<Bool>, content: () -> Content)`](https://developer.apple.com/documentation/swiftui/cameracaptureaccessory/init(isenabled:content:))
 - [`var colorMode: ColorRenderingMode`](https://developer.apple.com/documentation/swiftui/canvas/colormode)
 - [`var isOpaque: Bool`](https://developer.apple.com/documentation/swiftui/canvas/isopaque)
 - [`var renderer: (inout GraphicsContext, CGSize) -> Void`](https://developer.apple.com/documentation/swiftui/canvas/renderer)
@@ -591,28 +588,6 @@
 - [`var red: Float`](https://developer.apple.com/documentation/swiftui/color/resolvedhdr/red)
 - [`func resolveHDR(in: EnvironmentValues) -> Color.ResolvedHDR`](https://developer.apple.com/documentation/swiftui/color/resolvehdr(in:))
 - [`static var transferRepresentation: some TransferRepresentation`](https://developer.apple.com/documentation/swiftui/color/transferrepresentation)
-- [`ColorMatrix`](https://developer.apple.com/documentation/swiftui/colormatrix)
-- [`var a1: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/a1)
-- [`var a2: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/a2)
-- [`var a3: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/a3)
-- [`var a4: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/a4)
-- [`var a5: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/a5)
-- [`var b1: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/b1)
-- [`var b2: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/b2)
-- [`var b3: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/b3)
-- [`var b4: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/b4)
-- [`var b5: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/b5)
-- [`var g1: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/g1)
-- [`var g2: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/g2)
-- [`var g3: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/g3)
-- [`var g4: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/g4)
-- [`var g5: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/g5)
-- [`init()`](https://developer.apple.com/documentation/swiftui/colormatrix/init())
-- [`var r1: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/r1)
-- [`var r2: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/r2)
-- [`var r3: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/r3)
-- [`var r4: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/r4)
-- [`var r5: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/r5)
 - [`init?(UIUserInterfaceStyle)`](https://developer.apple.com/documentation/swiftui/colorscheme/init(_:))
 - [`init?(UIAccessibilityContrast)`](https://developer.apple.com/documentation/swiftui/colorschemecontrast/init(_:))
 - [`ColumnNavigationViewStyle`](https://developer.apple.com/documentation/swiftui/columnnavigationviewstyle)
@@ -646,7 +621,32 @@
 - [`var body: Self.Body`](https://developer.apple.com/documentation/swiftui/commands/body-swift.property)
 - [`CommandsBuilder`](https://developer.apple.com/documentation/swiftui/commandsbuilder)
 - [`static func buildBlock() -> EmptyCommands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock())
-- … and 2496 more (`isim/data/api-coverage.json.gz`)
+- [`static func buildBlock<C>(C) -> C`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:))
+- [`static func buildBlock<C0, C1>(C0, C1) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:))
+- [`static func buildBlock<C0, C1, C2>(C0, C1, C2) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:_:))
+- [`static func buildBlock<C0, C1, C2, C3>(C0, C1, C2, C3) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:_:_:))
+- [`static func buildBlock<C0, C1, C2, C3, C4>(C0, C1, C2, C3, C4) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:_:_:_:))
+- [`static func buildBlock<C0, C1, C2, C3, C4, C5>(C0, C1, C2, C3, C4, C5) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:_:_:_:_:))
+- [`static func buildBlock<C0, C1, C2, C3, C4, C5, C6>(C0, C1, C2, C3, C4, C5, C6) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:_:_:_:_:_:))
+- [`static func buildBlock<C0, C1, C2, C3, C4, C5, C6, C7>(C0, C1, C2, C3, C4, C5, C6, C7) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:_:_:_:_:_:_:))
+- [`static func buildBlock<C0, C1, C2, C3, C4, C5, C6, C7, C8>(C0, C1, C2, C3, C4, C5, C6, C7, C8) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:_:_:_:_:_:_:_:))
+- [`static func buildBlock<C0, C1, C2, C3, C4, C5, C6, C7, C8, C9>(C0, C1, C2, C3, C4, C5, C6, C7, C8, C9) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:_:_:_:_:_:_:_:_:))
+- [`static func buildEither<T, F>(first: T) -> _ConditionalContent<T, F>`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildeither(first:))
+- [`static func buildEither<T, F>(second: F) -> _ConditionalContent<T, F>`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildeither(second:))
+- [`static func buildExpression<Content>(Content) -> Content`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildexpression(_:))
+- [`static func buildIf<C>(C?) -> C?`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildif(_:))
+- [`static func buildLimitedAvailability(any Commands) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildlimitedavailability(_:))
+- [`ConcentricRectangle`](https://developer.apple.com/documentation/swiftui/concentricrectangle)
+- [`init()`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init())
+- [`init(corners: Edge.Corner.Style, isUniform: Bool)`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init(corners:isuniform:))
+- [`init(topLeadingCorner: Edge.Corner.Style, topTrailingCorner: Edge.Corner.Style, bottomLeadingCorner: Edge.Corner.Style, bottomTrailingCorner: Edge.Corner.Style)`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init(topleadingcorner:toptrailingcorner:bottomleadingcorner:bottomtrailingcorner:))
+- [`init(uniformBottomCorners: Edge.Corner.Style, topLeadingCorner: Edge.Corner.Style, topTrailingCorner: Edge.Corner.Style)`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init(uniformbottomcorners:topleadingcorner:toptrailingcorner:))
+- [`init(uniformLeadingCorners: Edge.Corner.Style, topTrailingCorner: Edge.Corner.Style, bottomTrailingCorner: Edge.Corner.Style)`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init(uniformleadingcorners:toptrailingcorner:bottomtrailingcorner:))
+- [`init(uniformLeadingCorners: Edge.Corner.Style, uniformTrailingCorners: Edge.Corner.Style)`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init(uniformleadingcorners:uniformtrailingcorners:))
+- [`init(uniformTopCorners: Edge.Corner.Style, bottomLeadingCorner: Edge.Corner.Style, bottomTrailingCorner: Edge.Corner.Style)`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init(uniformtopcorners:bottomleadingcorner:bottomtrailingcorner:))
+- [`init(uniformTopCorners: Edge.Corner.Style, uniformBottomCorners: Edge.Corner.Style)`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init(uniformtopcorners:uniformbottomcorners:))
+- [`init(uniformTrailingCorners: Edge.Corner.Style, topLeadingCorner: Edge.Corner.Style, bottomLeadingCorner: Edge.Corner.Style)`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init(uniformtrailingcorners:topleadingcorner:bottomleadingcorner:))
+- … and 2345 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

@@ -53,12 +53,12 @@ so pull requests don't conflict on them (AGENTS.md, "Coverage").
 <!-- generated:summary (isim/tools/coverage-summary.py; do not edit by hand) -->
 | Area | Symbols | ✅ | 🟡 | 🧩 | ❌ | ⛔ | Frameworks in isim |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [UIKit](#uikit) | 92% | 305 | 8 | 0 | 3 | 0 | 2 of 2 |
-| [SwiftUI & Charts](#swiftui) | 60% | 251 | 10 | 0 | 7 | 0 | 2 of 2 |
-| [Developer tools](#devtools) | 20% | 51 | 5 | 0 | 10 | 0 | 3 of 6 |
-| [Foundation & CoreFoundation](#foundation) | 35% | 90 | 6 | 0 | 4 | 0 | 2 of 8 |
-| [Swift, Darwin & runtimes](#runtime) | 88% | 91 | 5 | 0 | 11 | 0 | 13 of 16 |
-| [Graphics & text](#graphics) | 21% | 52 | 7 | 0 | 11 | 0 | 6 of 12 |
+| [UIKit](#uikit) | 93% | 315 | 7 | 0 | 3 | 0 | 2 of 2 |
+| [SwiftUI & Charts](#swiftui) | 63% | 259 | 7 | 0 | 7 | 0 | 2 of 2 |
+| [Developer tools](#devtools) | 23% | 59 | 7 | 0 | 10 | 0 | 3 of 6 |
+| [Foundation & CoreFoundation](#foundation) | 35% | 94 | 6 | 0 | 4 | 0 | 2 of 8 |
+| [Swift, Darwin & runtimes](#runtime) | 88% | 92 | 5 | 0 | 11 | 0 | 13 of 16 |
+| [Graphics & text](#graphics) | 21% | 53 | 7 | 0 | 11 | 0 | 6 of 12 |
 | [GPU](#gpu) | 0% | 0 | 0 | 0 | 1 | 0 | 1 of 7 |
 | [Imaging, photos & ML](#ml) | 13% | 12 | 14 | 3 | 22 | 0 | 11 of 30 |
 | [Media](#media) | 22% | 49 | 5 | 0 | 21 | 0 | 11 of 27 |
@@ -70,9 +70,9 @@ so pull requests don't conflict on them (AGENTS.md, "Coverage").
 | [Location, personal data & sensors](#location) | 8% | 14 | 6 | 0 | 20 | 0 | 10 of 30 |
 | [Web, network & communication](#web) | 21% | 17 | 0 | 1 | 15 | 0 | 8 of 12 |
 | [Accessibility & Info.plist](#a11y) | 0% | 9 | 1 | 0 | 6 | 0 | 1 of 2 |
-| **All areas** | **33%** | **1107** | **96** | **4** | **185** | **0** | **103 of 252** |
+| **All areas** | **33%** | **1139** | **94** | **4** | **185** | **0** | **103 of 252** |
 
-Symbols: 83046 of 250420 Apple iOS symbols in the frameworks isim has or tracks (exact; isim e014842, Apple snapshot 2026-10-14).
+Symbols: 83569 of 250446 Apple iOS symbols in the frameworks isim has or tracks (exact; isim 8d958fd, Apple snapshot 2026-10-14).
 <!-- /generated:summary -->
 
 ### Per iOS version
@@ -83,10 +83,10 @@ N (iOS 17 when the snapshot does not say).
 <!-- generated:versions (isim/tools/coverage-summary.py; do not edit by hand) -->
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
-| UIKit | 92% | 92% | 92% | 92% |
-| SwiftUI & Charts | 69% | 64% | 61% | 60% |
-| Developer tools | 20% | 20% | 20% | 20% |
-| Foundation & CoreFoundation | 36% | 35% | 35% | 35% |
+| UIKit | 92% | 92% | 93% | 93% |
+| SwiftUI & Charts | 72% | 67% | 64% | 63% |
+| Developer tools | 23% | 23% | 23% | 23% |
+| Foundation & CoreFoundation | 36% | 36% | 35% | 35% |
 | Swift, Darwin & runtimes | 89% | 90% | 89% | 88% |
 | Graphics & text | 23% | 23% | 22% | 21% |
 | GPU | 0% | 0% | 0% | 0% |
@@ -100,7 +100,7 @@ N (iOS 17 when the snapshot does not say).
 | Location, personal data & sensors | 8% | 8% | 8% | 8% |
 | Web, network & communication | 25% | 23% | 21% | 21% |
 | Accessibility & Info.plist | 0% | 0% | 0% | 0% |
-| **All areas** | **34%** | **34%** | **33%** | **33%** |
+| **All areas** | **34%** | **34%** | **34%** | **33%** |
 <!-- /generated:versions -->
 
 ## Frameworks
@@ -116,8 +116,8 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 
 | Framework | iOS | In isim | Symbols | Rows | Page |
 |---|---|---|---:|---|---|
-| [Quick Look](https://developer.apple.com/documentation/quicklook) | 4.0 | ✅ | 49.2% | 1: 1 ❌ | [QuickLook](frameworks/QuickLook.md) |
-| [UIKit](https://developer.apple.com/documentation/uikit) | 2.0 | ✅ | 92.1% | 315: 305 ✅ 8 🟡 2 ❌ | [UIKit](frameworks/UIKit.md) |
+| [Quick Look](https://developer.apple.com/documentation/quicklook) | 4.0 | ✅ | 54.2% | 4: 3 ✅ 1 ❌ | [QuickLook](frameworks/QuickLook.md) |
+| [UIKit](https://developer.apple.com/documentation/uikit) | 2.0 | ✅ | 92.7% | 321: 312 ✅ 7 🟡 2 ❌ | [UIKit](frameworks/UIKit.md) |
 
 ### SwiftUI & Charts
 
@@ -125,8 +125,8 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 
 | Framework | iOS | In isim | Symbols | Rows | Page |
 |---|---|---|---:|---|---|
-| [Swift Charts](https://developer.apple.com/documentation/charts) | 16.0 | ✅ | 74.2% | 17: 14 ✅ 2 🟡 1 ❌ | [Charts](frameworks/Charts.md) |
-| [SwiftUI](https://developer.apple.com/documentation/swiftui) | 13.0 | ✅ | 59.1% | 251: 237 ✅ 8 🟡 6 ❌ | [SwiftUI](frameworks/SwiftUI.md) |
+| [Swift Charts](https://developer.apple.com/documentation/charts) | 16.0 | ✅ | 87.2% | 20: 19 ✅ 1 ❌ | [Charts](frameworks/Charts.md) |
+| [SwiftUI](https://developer.apple.com/documentation/swiftui) | 13.0 | ✅ | 61.4% | 253: 240 ✅ 7 🟡 6 ❌ | [SwiftUI](frameworks/SwiftUI.md) |
 
 ### Developer tools
 
@@ -136,12 +136,12 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 |---|---|---|---:|---|---|
 | [App Intents Testing](https://developer.apple.com/documentation/appintentstesting) | 27.0 | ❌ | 0.0%* | – | – |
 | [DeveloperToolsSupport](https://developer.apple.com/documentation/developertoolssupport) | 14.0 | ✅ | 31.2% | 5: 2 ✅ 3 ❌ | [DeveloperToolsSupport](frameworks/DeveloperToolsSupport.md) |
-| [Platform](https://developer.apple.com/documentation/platform) | – | ✅ | – | 53: 46 ✅ 3 🟡 4 ❌ | [Platform](frameworks/Platform.md) |
+| [Platform](https://developer.apple.com/documentation/platform) | – | ✅ | – | 58: 51 ✅ 3 🟡 4 ❌ | [Platform](frameworks/Platform.md) |
 | [StoreKit Test](https://developer.apple.com/documentation/storekittest) | 14.0 | ❌ | 0.0%* | – | – |
 | [Swift Testing](https://developer.apple.com/documentation/testing) | None | ✅ | 81.6% | 2: 1 ✅ 1 ❌ | [Testing](frameworks/Testing.md) |
-| [XCTest](https://developer.apple.com/documentation/xctest) | None | ✅ | 35.8% | 6: 2 ✅ 2 🟡 2 ❌ | [XCTest](frameworks/XCTest.md) |
+| [XCTest](https://developer.apple.com/documentation/xctest) | None | ✅ | 46.1% | 11: 5 ✅ 4 🟡 2 ❌ | [XCTest](frameworks/XCTest.md) |
 | [XCUIAutomation](https://developer.apple.com/documentation/xcuiautomation) | None | ❌ | 0.0%* | – | – |
-| Platform (isim topic) | – | ✅ | – | 53: 46 ✅ 3 🟡 4 ❌ | [Platform](frameworks/Platform.md) |
+| Platform (isim topic) | – | ✅ | – | 58: 51 ✅ 3 🟡 4 ❌ | [Platform](frameworks/Platform.md) |
 
 ### Foundation & CoreFoundation
 
@@ -154,7 +154,7 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | [Compression](https://developer.apple.com/documentation/compression) | 9.0 | ❌ | 0.0%* | – | – |
 | [Core Foundation](https://developer.apple.com/documentation/corefoundation) | 2.0 | ✅ | 11.6% | 4: 1 ✅ 2 🟡 1 ❌ | [CoreFoundation](frameworks/CoreFoundation.md) |
 | [Core Services](https://developer.apple.com/documentation/coreservices) | 12.0 | ❌ | 0.0%* | – | – |
-| [Foundation](https://developer.apple.com/documentation/foundation) | 2.0 | ✅ | 44.5% | 96: 89 ✅ 4 🟡 3 ❌ | [Foundation](frameworks/Foundation.md) |
+| [Foundation](https://developer.apple.com/documentation/foundation) | 2.0 | ✅ | 45.0% | 100: 93 ✅ 4 🟡 3 ❌ | [Foundation](frameworks/Foundation.md) |
 | [System](https://developer.apple.com/documentation/system) | 14.0 | ❌ | 0.0%* | – | – |
 | [XPC](https://developer.apple.com/documentation/xpc) | 17.4 | ❌ | 0.0%* | – | – |
 
@@ -168,7 +168,7 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | [CrashReportExtension](https://developer.apple.com/documentation/crashreportextension) | 27.0 | ❌ | 0.0%* | – | – |
 | [Darwin](https://developer.apple.com/documentation/darwin) | – | ✅ | – | 24: 20 ✅ 4 🟡 | [Darwin](frameworks/Darwin.md) |
 | [Darwin Notify](https://developer.apple.com/documentation/darwinnotify) | 9.3 | ❌ | 0.0%* | – | – |
-| [Dispatch](https://developer.apple.com/documentation/dispatch) | 8.0 | ✅ | 84.7% | 7: 6 ✅ 1 ❌ | [Dispatch](frameworks/Dispatch.md) |
+| [Dispatch](https://developer.apple.com/documentation/dispatch) | 8.0 | ✅ | 84.7% | 8: 7 ✅ 1 ❌ | [Dispatch](frameworks/Dispatch.md) |
 | [Distributed](https://developer.apple.com/documentation/distributed) | 16.0 | ✅ | 100.0% | – | [Distributed](frameworks/Distributed.md) |
 | [JavaScriptCore](https://developer.apple.com/documentation/javascriptcore) | 16.0 | ✅ | 89.8% | 2: 1 ✅ 1 ❌ | [JavaScriptCore](frameworks/JavaScriptCore.md) |
 | [MetricKit](https://developer.apple.com/documentation/metrickit) | 13.0 | ✅ | 36.9% | 4: 1 ✅ 3 ❌ | [MetricKit](frameworks/MetricKit.md) |
@@ -200,7 +200,7 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | [PencilKit](https://developer.apple.com/documentation/pencilkit) | 13.0 | ❌ | 0.0%* | – | – |
 | [Core Animation](https://developer.apple.com/documentation/quartzcore) | 2.0 | ✅ | 86.9% | 24: 21 ✅ 1 🟡 2 ❌ | [QuartzCore](frameworks/QuartzCore.md) |
 | [Quick Look Thumbnailing](https://developer.apple.com/documentation/quicklookthumbnailing) | 13.0 | ❌ | 0.0%* | – | – |
-| [Symbols](https://developer.apple.com/documentation/symbols) | 17.0 | ✅ | 86.5% | – | [Symbols](frameworks/Symbols.md) |
+| [Symbols](https://developer.apple.com/documentation/symbols) | 17.0 | ✅ | 86.5% | 1: 1 ✅ | [Symbols](frameworks/Symbols.md) |
 
 ### GPU
 
@@ -606,7 +606,7 @@ Objective-C/C interface: headers in `isim/sdk-src/Frameworks/<Name>` over the Sw
 | Swift | ❌ Swift only |
 | SwiftData | ❌ Swift only |
 | SwiftUI | ❌ Swift only |
-| Symbols | ❌ Swift only |
+| Symbols | ✅ headers in isim/sdk-src/Frameworks/Symbols |
 | Synchronization | ❌ Swift only |
 | SystemConfiguration | ✅ headers in isim/sdk-src/Frameworks/SystemConfiguration |
 | Testing | ❌ Swift only |
