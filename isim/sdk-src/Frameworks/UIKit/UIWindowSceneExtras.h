@@ -128,6 +128,8 @@ typedef NS_ENUM(NSInteger, UIStatusBarAnimation) { UIStatusBarAnimationNone, UIS
 @property (nonatomic, readonly, nullable) UIFocusSystem *focusSystem API_AVAILABLE(ios(15.0));
 @property (nonatomic, readonly, nullable) UISceneWindowingBehaviors *windowingBehaviors API_AVAILABLE(ios(16.0));
 @property (nonatomic, readonly, nullable) UIStatusBarManager *statusBarManager;
+/* the scene fills its screen (not in an iPad split view beside another app) */
+@property (nonatomic, readonly, getter=isFullScreen) BOOL fullScreen API_AVAILABLE(ios(13.0));
 @end
 @interface UIWindowSceneGeometry (UISceneExtras)
 /* the top view controller prefers its orientation locked (iOS 26) */

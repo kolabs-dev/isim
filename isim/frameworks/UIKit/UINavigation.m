@@ -452,7 +452,7 @@ static char kButtonGroup, kOwnerItem;
 }
 @end
 
-static char kLeadingGroups, kCenterGroups, kTrailingGroups, kItemStyle, kOverflowSource;
+static char kLeadingGroups, kCenterGroups, kTrailingGroups, kItemStyle, kOverflowSource, kAdditionalOverflow;
 @interface UIBarButtonItemGroup (IsimCustomization)
 - (BOOL)_isim_leftOutOfCustomization;
 - (void)_isim_setDisplayingRepresentative:(BOOL)d;
@@ -491,6 +491,12 @@ static NSArray<UIBarButtonItem *> *group_items(NSArray<UIBarButtonItemGroup *> *
 - (void)setTrailingItemGroups:(NSArray<UIBarButtonItemGroup *> *)g {
     objc_setAssociatedObject(self, &kTrailingGroups, [g copy] ?: @[], OBJC_ASSOCIATION_RETAIN_NONATOMIC); [self _isimOwn:g];
     self.rightBarButtonItems = group_items(g).reverseObjectEnumerator.allObjects;
+}
+/* iOS 16: elements the overflow menu adds after the items in it (the overflow button shows for them alone too) */
+- (UIDeferredMenuElement *)additionalOverflowItems { return objc_getAssociatedObject(self, &kAdditionalOverflow); }
+- (void)setAdditionalOverflowItems:(UIDeferredMenuElement *)e {
+    objc_setAssociatedObject(self, &kAdditionalOverflow, e, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    bar_item_changed(self);
 }
 - (void)setCenterItemGroups:(NSArray<UIBarButtonItemGroup *> *)g {
     objc_setAssociatedObject(self, &kCenterGroups, [g copy] ?: @[], OBJC_ASSOCIATION_RETAIN_NONATOMIC); [self _isimOwn:g];
@@ -877,6 +883,8 @@ int search_spot(UINavigationItem *it, UINavigationController *nav, UIView *v) {
 }
 - (UIBarButtonItem *)_isim_overflowItemFor:(NSArray<UIBarButtonItem *> *)items {
     NSArray *els = [self _isim_menuElementsFor:items];
+    UIDeferredMenuElement *extra = self.topItem.additionalOverflowItems;
+    if (extra) els = [els arrayByAddingObject:extra];
     UIBarButtonItem *o = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:isim_ui_glass() ? @"ellipsis" : @"ellipsis.circle"] menu:[UIMenu menuWithChildren:els]];
     o.accessibilityIdentifier = @"nav-overflow"; o.accessibilityLabel = @"More";
     if (self.topItem) objc_setAssociatedObject(self.topItem, &kOverflowSource, o, OBJC_ASSOCIATION_RETAIN_NONATOMIC);   /* overflowPresentationSource */
@@ -947,8 +955,10 @@ static void set_label_text(UILabel *l, NSString *plain, NSAttributedString *attr
     if (pinned && !pinned.hidden) right = [pinned.barButtonItems.reverseObjectEnumerator.allObjects arrayByAddingObjectsFromArray:right];
     /* iOS 16 center groups: before the trailing items (browser / editor styles) or in the overflow menu (navigator) */
     NSArray<UIBarButtonItem *> *center = [item _isim_centerItems];
-    if (center.count && item.style == UINavigationItemStyleNavigator) right = [@[[self _isim_overflowItemFor:center]] arrayByAddingObjectsFromArray:right];
-    else if (center.count) right = [right arrayByAddingObjectsFromArray:center.reverseObjectEnumerator.allObjects];
+    BOOL navigator = item.style == UINavigationItemStyleNavigator;
+    if ((center.count && navigator) || item.additionalOverflowItems)                  /* the additional items alone show it too */
+        right = [@[[self _isim_overflowItemFor:navigator ? center : @[]]] arrayByAddingObjectsFromArray:right];
+    if (center.count && !navigator) right = [right arrayByAddingObjectsFromArray:center.reverseObjectEnumerator.allObjects];
     if (spot == SEARCH_BUTTON) right = [@[[item _isim_searchButtonItem]] arrayByAddingObjectsFromArray:right];      /* trailingmost: the first item */
     NSArray *rv = [self _isim_placeRightItems:right x:W - margin y:y limit:W / 2];
     CGFloat rightStart = W - margin;

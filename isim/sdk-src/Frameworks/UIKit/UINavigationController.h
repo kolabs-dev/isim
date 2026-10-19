@@ -4,6 +4,7 @@
 #import <UIKit/UIViewController.h>
 #import <UIKit/UIControl.h>
 #import <UIKit/UIDevice.h>
+@class UIDeferredMenuElement;
 NS_ASSUME_NONNULL_BEGIN
 @class UIImage, UIColor, UIMenu, UIGestureRecognizer, UIFont, UIBlurEffect, UISearchController, UINavigationBarAppearance, NSAttributedString, UILayoutGuide;
 
@@ -522,6 +523,8 @@ typedef NS_ENUM(NSInteger, UINavigationItemStyle) { UINavigationItemStyleNavigat
 @property (nonatomic, copy) NSArray<UIBarButtonItemGroup *> *leadingItemGroups API_AVAILABLE(ios(16.0));
 @property (nonatomic, copy) NSArray<UIBarButtonItemGroup *> *centerItemGroups API_AVAILABLE(ios(16.0));
 @property (nonatomic, copy) NSArray<UIBarButtonItemGroup *> *trailingItemGroups API_AVAILABLE(ios(16.0));
+/* elements the overflow (more) menu adds after its items; the overflow button shows for them alone too */
+@property (nonatomic, strong, nullable) UIDeferredMenuElement *additionalOverflowItems API_AVAILABLE(ios(16.0));
 @end
 @interface UINavigationItem (UIVerticalBar)
 @property (nonatomic, assign, readwrite) UIVerticalBarCompressionBehavior verticalBarCompressionBehavior API_AVAILABLE(ios(27.1));

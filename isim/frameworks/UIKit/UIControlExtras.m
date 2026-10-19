@@ -84,6 +84,7 @@ void isim_ui_set_hovered_view(UIView *v) {
 }
 
 @implementation UIButton (UIButtonExtras)
+@dynamic held;                                                     /* UIControls.m */
 + (instancetype)systemButtonWithImage:(UIImage *)image target:(id)target action:(SEL)action {
     UIButton *b = [self buttonWithType:UIButtonTypeSystem];
     [b setImage:image forState:UIControlStateNormal];

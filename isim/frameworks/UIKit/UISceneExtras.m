@@ -245,6 +245,11 @@ UIScene *isim_ui_scene_for_target(NSString *ident) {
 }
 @end
 @implementation UIWindowScene (UISceneExtras)
+/* the scene fills its screen: not beside another app (iPad split view) */
+- (BOOL)isFullScreen {
+    CGRect b = self.coordinateSpace.bounds, s = self.screen.bounds;
+    return fabs(b.size.width - s.size.width) < 1 && fabs(b.size.height - s.size.height) < 1;
+}
 - (UISceneWindowingBehaviors *)windowingBehaviors {
     UISceneWindowingBehaviors *b = objc_getAssociatedObject(self, &k_behaviors);
     if (!b) { b = [UISceneWindowingBehaviors new]; objc_setAssociatedObject(self, &k_behaviors, b, OBJC_ASSOCIATION_RETAIN_NONATOMIC); }

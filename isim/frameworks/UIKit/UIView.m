@@ -3,6 +3,7 @@
  *
  * Auto Layout: a Cassowary solver (Cassowary.c) per window; see "Auto Layout engine" below. */
 #import "UIKitPrivate.h"
+#import <objc/runtime.h>
 /* UIViewExtras.m */
 void isim_ui_mark_needs_update_constraints(UIView *v);
 void isim_ui_update_constraints_in(UIView *v);
@@ -273,6 +274,21 @@ CGRect isim_ui_space_convert_rect(id<UICoordinateSpace> space, CGRect r, id<UICo
 @implementation UIView
 @synthesize layer = _layer;
 + (Class)layerClass { return [__IsimViewLayer class]; }
+/* the scale content draws at: the screen's until set; adapted: isim draws views at the screen's scale, the value goes
+   to the layer's contentsScale (what a CATiledLayer or an offscreen render reads) */
+static char kContentScale;
+- (CGFloat)contentScaleFactor {
+    NSNumber *n = objc_getAssociatedObject(self, &kContentScale);
+    if (n) return n.doubleValue;
+    UIScreen *s = self.window.screen ?: UIScreen.mainScreen;
+    return s.scale;
+}
+- (void)setContentScaleFactor:(CGFloat)f {
+    if (f <= 0) return;
+    objc_setAssociatedObject(self, &kContentScale, @(f), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    _layer.contentsScale = f;
+    [self setNeedsDisplay];
+}
 - (instancetype)init { return [self initWithFrame:CGRectZero]; }
 - (instancetype)initWithCoder:(NSCoder *)c { extern id isim_ib_init_with_coder(id, NSCoder *); return isim_ib_init_with_coder(self, c); }   /* UIStoryboard.m */
 - (void)encodeWithCoder:(NSCoder *)c {}   /* isim: archiving is not implemented */
