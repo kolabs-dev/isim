@@ -258,6 +258,102 @@ extension UIImageView {
     }
 }
 
+// MARK: - Objective-C (issue #235)
+// Symbols.framework's NSSymbolEffect / NSSymbolEffectOptions / NSSymbolContentTransition objects describe themselves
+// (-_isimDescription, -_isimRepeatCount ...); these are Apple's Objective-C UIImageView methods over the same player.
+// Symbols.framework links this overlay, so an Objective-C app that uses the effects has these methods.
+
+/// an Objective-C effect as the player sees it
+struct _IsimDescribedSymbolEffect: DiscreteSymbolEffect, IndefiniteSymbolEffect, TransitionSymbolEffect, ContentTransitionSymbolEffect {
+    var _isimDescription: _IsimSymbolEffectDescription
+}
+private func _isimDescribed(_ object: NSObject?) -> _IsimDescribedSymbolEffect? {
+    let sel = NSSelectorFromString("_isimDescription")
+    guard let o = object, o.responds(to: sel), let d = o.perform(sel)?.takeUnretainedValue() as? [String: Any],
+          let kind = _IsimSymbolEffectDescription.Kind(rawValue: d["kind"] as? Int ?? -1) else { return nil }
+    var desc = _IsimSymbolEffectDescription(kind: kind)
+    desc.direction = d["direction"] as? Int ?? 0; desc.byLayer = d["byLayer"] as? Bool ?? false; desc.flags = d["flags"] as? Int ?? 0
+    desc.angle = d["angle"] as? Double ?? 0; desc.axis = d["axis"] as? Int ?? 0
+    return _IsimDescribedSymbolEffect(_isimDescription: desc)
+}
+private func _isimOptions(_ object: NSObject?) -> SymbolEffectOptions {
+    var o = SymbolEffectOptions()
+    guard let object, object.responds(to: NSSelectorFromString("_isimRepeatCount")) else { return o }
+    let count = object.value(forKey: "_isimRepeatCount") as? Int ?? 0           // 0 the default, -1 forever
+    o._isimRepeatCount = count < 0 ? Int.max : count > 0 ? count : nil
+    o._isimSpeed = object.value(forKey: "_isimSpeed") as? Double ?? 1
+    o._isimRepeatDelay = object.value(forKey: "_isimRepeatDelay") as? Double ?? 0
+    return o
+}
+
+/// Apple's Objective-C UISymbolEffectCompletionContext (Swift has the struct above)
+@objc(UISymbolEffectCompletionContext)
+final class _IsimObjCSymbolEffectCompletionContext: NSObject {
+    @objc(isFinished) let finished: Bool
+    @objc weak var sender: AnyObject?
+    @objc let effect: NSObject?
+    @objc let contentTransition: NSObject?
+    init(finished: Bool, sender: AnyObject?, effect: NSObject?, contentTransition: NSObject?) {
+        self.finished = finished; self.sender = sender; self.effect = effect; self.contentTransition = contentTransition
+    }
+}
+
+@available(iOS 17.0, *)
+extension UIImageView {
+    private func _objcAdd(_ object: NSObject, _ options: NSObject?, _ animated: Bool, _ completion: (@convention(block) (NSObject) -> Void)?) {
+        guard let effect = _isimDescribed(object) else { NSLog("isim UIKit: addSymbolEffect: needs an NSSymbolEffect"); return }
+        let k = effect._isimDescription.kind
+        let done: ((Bool) -> Void)? = completion.map { c in { [weak self] f in c(_IsimObjCSymbolEffectCompletionContext(finished: f, sender: self, effect: object, contentTransition: nil)) } }
+        // as in Swift: pulse, variable colour, breathe, rotate, scale and the transitions run until removed; bounce and
+        // wiggle play once unless the options repeat them
+        _IsimSymbolEffectPlayer.player(for: self).add(effect, options: _isimOptions(options), indefinite: !(k == .bounce || k == .wiggle),
+                                                      animated: animated, completion: done)
+    }
+    @objc(addSymbolEffect:) func _objc_addSymbolEffect(_ effect: NSObject) { _objcAdd(effect, nil, true, nil) }
+    @objc(addSymbolEffect:options:) func _objc_addSymbolEffect(_ effect: NSObject, options: NSObject) { _objcAdd(effect, options, true, nil) }
+    @objc(addSymbolEffect:options:animated:) func _objc_addSymbolEffect(_ effect: NSObject, options: NSObject, animated: Bool) {
+        _objcAdd(effect, options, animated, nil)
+    }
+    @objc(addSymbolEffect:options:animated:completion:)
+    func _objc_addSymbolEffect(_ effect: NSObject, options: NSObject, animated: Bool, completion: (@convention(block) (NSObject) -> Void)?) {
+        _objcAdd(effect, options, animated, completion)
+    }
+
+    private func _objcRemove(_ object: NSObject, _ animated: Bool, _ completion: (@convention(block) (NSObject) -> Void)?) {
+        guard let kind = _isimDescribed(object)?._isimDescription.kind else { return }
+        let done: ((Bool) -> Void)? = completion.map { c in { [weak self] f in c(_IsimObjCSymbolEffectCompletionContext(finished: f, sender: self, effect: object, contentTransition: nil)) } }
+        _IsimSymbolEffectPlayer.player(for: self).remove(where: { $0.kind == kind }, animated: animated, completion: done)
+    }
+    @objc(removeSymbolEffectOfType:) func _objc_removeSymbolEffect(ofType effect: NSObject) { _objcRemove(effect, true, nil) }
+    @objc(removeSymbolEffectOfType:options:) func _objc_removeSymbolEffect(ofType effect: NSObject, options: NSObject) { _objcRemove(effect, true, nil) }
+    @objc(removeSymbolEffectOfType:options:animated:) func _objc_removeSymbolEffect(ofType effect: NSObject, options: NSObject, animated: Bool) {
+        _objcRemove(effect, animated, nil)
+    }
+    @objc(removeSymbolEffectOfType:options:animated:completion:)
+    func _objc_removeSymbolEffect(ofType effect: NSObject, options: NSObject, animated: Bool, completion: (@convention(block) (NSObject) -> Void)?) {
+        _objcRemove(effect, animated, completion)
+    }
+    @objc(removeAllSymbolEffects) func _objc_removeAllSymbolEffects() { removeAllSymbolEffects() }
+    @objc(removeAllSymbolEffectsWithOptions:) func _objc_removeAllSymbolEffects(options: NSObject) { removeAllSymbolEffects() }
+    @objc(removeAllSymbolEffectsWithOptions:animated:) func _objc_removeAllSymbolEffects(options: NSObject, animated: Bool) {
+        removeAllSymbolEffects(animated: animated)
+    }
+
+    @objc(setSymbolImage:withContentTransition:) func _objc_setSymbolImage(_ image: UIImage, withContentTransition transition: NSObject) {
+        _objc_setSymbolImage(image, withContentTransition: transition, options: nil, completion: nil)
+    }
+    @objc(setSymbolImage:withContentTransition:options:) func _objc_setSymbolImage(_ image: UIImage, withContentTransition transition: NSObject, options: NSObject?) {
+        _objc_setSymbolImage(image, withContentTransition: transition, options: options, completion: nil)
+    }
+    @objc(setSymbolImage:withContentTransition:options:completion:)
+    func _objc_setSymbolImage(_ image: UIImage, withContentTransition transition: NSObject, options: NSObject?,
+                              completion: (@convention(block) (NSObject) -> Void)?) {
+        let effect = _isimDescribed(transition) ?? _IsimDescribedSymbolEffect(_isimDescription: _IsimSymbolEffectDescription(kind: .replace))
+        let done: ((Bool) -> Void)? = completion.map { c in { [weak self] f in c(_IsimObjCSymbolEffectCompletionContext(finished: f, sender: self, effect: nil, contentTransition: transition)) } }
+        _IsimSymbolEffectPlayer.player(for: self).replace(with: image, effect: effect, options: _isimOptions(options), completion: done)
+    }
+}
+
 // MARK: - UISymbolContentTransition (iOS 26): a button configuration's symbol replace animation
 /// the Swift values behind a UISymbolContentTransition (Objective-C keeps the kind, direction and speed it draws with)
 final class _IsimSymbolContentTransitionBox: NSObject {

@@ -3,6 +3,7 @@
  * Cells are reused; rows self-size with Auto Layout (or the style's metrics) when rowHeight is automatic;
  * row inserts/deletes/moves animate; plain section headers stick to the top. iOS 17 metrics. */
 #import "UIKitPrivate.h"
+#import <UIKit/UIConfigurationState.h>
 #include <math.h>
 
 const CGFloat UITableViewAutomaticDimension = -1;
@@ -113,7 +114,10 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
 @implementation UITableViewCell {
     UITableViewCellStyle _cellStyle; UIView *_content; UILabel *_text, *_detail; UIImageView *_image; BOOL _usedText, _usedDetail, _usedImage;
     UIPanGestureRecognizer *_swipePan; CGFloat _swipeStart; BOOL _swipeTracking, _swipeLeading; UIControl *_accessoryButton;
+    BOOL _isimNeedsConfig;
 }
+/* configuration updates (iOS 14): -updateConfigurationUsingState: (UIConfigurationState.m) before the next layout */
+- (void)setNeedsUpdateConfiguration { _isimNeedsConfig = YES; [self setNeedsLayout]; }
 - (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)rid {
     if ((self = [super initWithFrame:CGRectMake(0, 0, 320, 44)])) {
         _cellStyle = style; _reuseIdentifier = [rid copy];
@@ -122,6 +126,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
         _selectionStyle = UITableViewCellSelectionStyleDefault;
         _separatorInset = UIEdgeInsetsMake(0, 20, 0, 0);
         _automaticallyUpdatesContentConfiguration = YES;
+        _isimNeedsConfig = YES;                     /* the first update runs before the cell first shows */
         self.backgroundColor = nil;
         _swipePan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(_isim_swiped:)];
         [_swipePan _isim_setExclusive:YES];         /* a row swipe locks out the table's vertical scroll */
@@ -165,11 +170,12 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
 - (void)_isim_stateChanged {                          /* a Swift content configuration's updated(for:) */
     extern id isim_ui_content_configuration_for_state(id cfg, UIView *cell, BOOL selected, BOOL highlighted, BOOL editing, BOOL swiped, BOOL expanded);
     extern UIView *isim_ui_install_content_configuration(UIView *contentView, id cfg);
+    [self setNeedsUpdateConfiguration];
     if (!_contentConfiguration) return;
     id next = isim_ui_content_configuration_for_state(_contentConfiguration, self, _selected, _highlighted, _editing, self._isim_swipe != 0, NO);
     if (next != _contentConfiguration) { _contentConfiguration = next; isim_ui_install_content_configuration(self.contentView, next); }
 }
-- (void)prepareForReuse { self._isim_swipe = 0; [self._isim_actionsView removeFromSuperview]; self._isim_actionsView = nil; self.highlighted = NO; self.selected = NO; }
+- (void)prepareForReuse { self._isim_swipe = 0; [self._isim_actionsView removeFromSuperview]; self._isim_actionsView = nil; self.highlighted = NO; self.selected = NO; [self setNeedsUpdateConfiguration]; }
 - (void)setSelected:(BOOL)s { [self setSelected:s animated:NO]; }
 - (void)setSelected:(BOOL)s animated:(BOOL)a { BOOL changed = _selected != s; _selected = s; isim_ui_set_needs_display(); if (changed) [self _isim_stateChanged]; }
 - (void)setHighlighted:(BOOL)h { [self setHighlighted:h animated:NO]; }
@@ -268,6 +274,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
     return YES;
 }
 - (void)layoutSubviews {
+    if (_isimNeedsConfig) { _isimNeedsConfig = NO; [self updateConfigurationUsingState:self.configurationState]; }
     [super layoutSubviews];
     CGRect b = self.bounds;
     CGFloat acc = [self _accessoryWidth], ed = [self _editInset];
@@ -455,7 +462,9 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
 @interface UITableViewHeaderFooterView ()
 @property (nonatomic) int _isim_kind;                  /* bit 0: inset grouped, bit 1: footer */
 @end
-@implementation UITableViewHeaderFooterView { UIView *_content; UILabel *_label; }
+@implementation UITableViewHeaderFooterView { UIView *_content; UILabel *_label; BOOL _isimNeedsConfig; }
+- (void)setNeedsUpdateConfiguration { _isimNeedsConfig = YES; [self setNeedsLayout]; }
+- (void)didMoveToWindow { [super didMoveToWindow]; if (self.window) [self setNeedsUpdateConfiguration]; }
 - (instancetype)initWithReuseIdentifier:(NSString *)rid {
     if ((self = [super initWithFrame:CGRectZero])) { _reuseIdentifier = [rid copy]; _content = [[UIView alloc] initWithFrame:CGRectZero]; [self addSubview:_content]; }
     return self;
@@ -468,6 +477,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
 - (void)setContentConfiguration:(id<UIContentConfiguration>)c { _contentConfiguration = [(id)c copy]; [self setNeedsLayout]; }
 - (void)prepareForReuse {}
 - (void)layoutSubviews {
+    if (_isimNeedsConfig) { _isimNeedsConfig = NO; [self updateConfigurationUsingState:self.configurationState]; }
     [super layoutSubviews];
     _content.frame = self.bounds;
     UIListContentConfiguration *cfg = [(id)_contentConfiguration isKindOfClass:[UIListContentConfiguration class]] ? (UIListContentConfiguration *)_contentConfiguration : nil;

@@ -360,6 +360,12 @@ def _(a):
                                           "-framework", "CoreGraphics"])
 
 
+@app("samples/HelloConfigurationsObjC")   # after the overlays: Symbols.framework re-exports libswiftSymbols (issue #235)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Symbols", "-framework", "CoreGraphics"],
+               minos="17.0")
+
+
 @app("samples/HelloPersonalObjC")   # after the overlays: the frameworks re-export their Swift overlays (issue #232)
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "CoreLocation", "-framework", "MapKit",

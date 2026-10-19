@@ -4,6 +4,7 @@
  * Cells and supplementary views are reused; estimated sizes are replaced by the cells' preferred sizes;
  * inserts/deletes/moves animate. Vertical scrolling for compositional layouts; flow layouts scroll either way. */
 #import "UIKitPrivate.h"
+#import <UIKit/UIConfigurationState.h>
 #include <math.h>
 #include <objc/runtime.h>
 #include <objc/message.h>
@@ -133,7 +134,11 @@ UIView *isim_ui_install_content_configuration(UIView *contentView, id cfg) {
 }
 /* the configuration for the cell's state (automaticallyUpdatesContentConfiguration; Swift configurations' updated(for:)) */
 id isim_ui_content_configuration_for_state(id cfg, UIView *cell, BOOL selected, BOOL highlighted, BOOL editing, BOOL swiped, BOOL expanded) {
-    if (![cfg respondsToSelector:@selector(_isimUpdatedWithState:)]) return cfg;
+    if (![cfg respondsToSelector:@selector(_isimUpdatedWithState:)]) {      /* an app's own Objective-C configuration */
+        extern UICellConfigurationState *isim_ui_cell_state(UIView *, BOOL, BOOL, BOOL, BOOL, BOOL);
+        if (![cfg respondsToSelector:@selector(updatedConfigurationForState:)] || [cfg isKindOfClass:[UIListContentConfiguration class]]) return cfg;
+        return [cfg updatedConfigurationForState:isim_ui_cell_state(cell, selected, highlighted, editing, swiped, expanded)] ?: cfg;
+    }
     NSDictionary *state = @{ @"selected": @(selected), @"highlighted": @(highlighted), @"editing": @(editing), @"swiped": @(swiped), @"expanded": @(expanded),
                              @"disabled": @(!cell.userInteractionEnabled), @"traits": cell.traitCollection };
     return ((id (*)(id, SEL, NSDictionary *))objc_msgSend)(cfg, @selector(_isimUpdatedWithState:), state) ?: cfg;
@@ -228,6 +233,7 @@ id isim_ui_content_configuration_for_state(id cfg, UIView *cell, BOOL selected, 
 - (void)layoutSubviews {
     if (_isimNeedsConfig) {                              /* the Swift configurationUpdateHandler (UIKit overlay) */
         _isimNeedsConfig = NO;
+        [self updateConfigurationUsingState:self.configurationState];    /* Objective-C: the override point and its handler */
         if ([self respondsToSelector:@selector(_isimRunConfigurationUpdate)]) ((void (*)(id, SEL))objc_msgSend)(self, @selector(_isimRunConfigurationUpdate));
     }
     [super layoutSubviews];

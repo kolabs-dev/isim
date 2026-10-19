@@ -57,6 +57,12 @@ typedef NS_ENUM(NSInteger, UIKeyboardHIDUsage) {
     UIKeyboardHIDUsageKeyboardF22 = 0x71,
     UIKeyboardHIDUsageKeyboardF23 = 0x72,
     UIKeyboardHIDUsageKeyboardF24 = 0x73,
+    /* the keypad */
+    UIKeyboardHIDUsageKeypadNumLock = 0x53, UIKeyboardHIDUsageKeypadSlash = 0x54, UIKeyboardHIDUsageKeypadAsterisk = 0x55,
+    UIKeyboardHIDUsageKeypadHyphen = 0x56, UIKeyboardHIDUsageKeypadPlus = 0x57, UIKeyboardHIDUsageKeypadEnter = 0x58,
+    UIKeyboardHIDUsageKeypad1 = 0x59, UIKeyboardHIDUsageKeypad2, UIKeyboardHIDUsageKeypad3, UIKeyboardHIDUsageKeypad4,
+    UIKeyboardHIDUsageKeypad5, UIKeyboardHIDUsageKeypad6, UIKeyboardHIDUsageKeypad7, UIKeyboardHIDUsageKeypad8,
+    UIKeyboardHIDUsageKeypad9, UIKeyboardHIDUsageKeypad0, UIKeyboardHIDUsageKeypadPeriod = 0x63, UIKeyboardHIDUsageKeypadEqualSign = 0x67,
     UIKeyboardHIDUsageKeypadComma = 0x85,
     UIKeyboardHIDUsageKeypadEqualSignAS400 = 0x86,
     UIKeyboardHIDUsageKeyboardPause = 0x48,

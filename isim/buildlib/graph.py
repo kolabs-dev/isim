@@ -198,6 +198,8 @@ SWIFT_FRAMEWORKS = [
     ("BackgroundTasks", "-framework Foundation"),
     ("CoreSpotlight", "-framework Foundation"),
     ("MultipeerConnectivity", "-framework Foundation -framework UIKit"),
+    # issue #235: symbol effects from Objective-C; Symbols.framework also links UIKit's overlay, which plays them
+    ("Symbols", f"-framework Foundation -L{SDK}/usr/lib/swift -lswiftUIKit", "Symbols", "UIKit"),   # (re-exports, built after)
     # issue #232: location and personal data from Objective-C
     ("CoreLocation", "-framework Foundation"),
     ("MapKit", "-framework Foundation -framework UIKit -framework CoreLocation"),

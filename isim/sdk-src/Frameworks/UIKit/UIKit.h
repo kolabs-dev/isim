@@ -112,6 +112,8 @@
 #import <UIKit/UICollectionLayoutExtras.h>
 #import <UIKit/UIDiffableDataSourceReference.h>
 #import <UIKit/UIConfigurationExtras.h>
+#import <UIKit/UIConfigurationState.h>
+#import <UIKit/UIImageViewSymbolEffects.h>
 #import <UIKit/UIMenuSystem.h>
 #import <UIKit/UIFocus.h>
 #import <UIKit/UIResponderExtras.h>
