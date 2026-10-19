@@ -1,19 +1,19 @@
-// Sample: Swift Charts axes and scales on isim (issue #246) — a log scale (chartYScale(domain:type: .log)), a square
+// HelloCharts, -axes: Swift Charts axes and scales (issue #246) — a log scale (chartYScale(domain:type: .log)), a square
 // root scale, AxisValueLabel(format:) with a percent format, vertical labels (AxisValueLabelOrientation), label
 // collisions resolved by truncating, a position range with padding (chartXScale(domain:range: .plotDimension(padding:)))
 // and an axis built from AnyAxisContent. The test reads the label positions from the view tree.
 import Charts
 import SwiftUI
 
-struct Point: Identifiable { let id = UUID(); let x: Double; let y: Double }
-struct Item: Identifiable { let id = UUID(); let name: String; let value: Double }
+struct AxisPoint: Identifiable { let id = UUID(); let x: Double; let y: Double }
+struct AxisItem: Identifiable { let id = UUID(); let name: String; let value: Double }
 
-struct ContentView: View {
-    let growth = [Point(x: 1, y: 1), Point(x: 2, y: 10), Point(x: 3, y: 100), Point(x: 4, y: 1000)]
-    let squares = [Point(x: 0, y: 0), Point(x: 1, y: 25), Point(x: 2, y: 100)]
-    let shares = [Item(name: "North", value: 0.25), Item(name: "South", value: 0.5), Item(name: "East", value: 0.75)]
-    let long = [Item(name: "Extraordinarily long", value: 3), Item(name: "Remarkably long", value: 5), Item(name: "Unusually long", value: 4),
-                Item(name: "Considerably long", value: 2)]
+struct AxisCharts: View {
+    let growth = [AxisPoint(x: 1, y: 1), AxisPoint(x: 2, y: 10), AxisPoint(x: 3, y: 100), AxisPoint(x: 4, y: 1000)]
+    let squares = [AxisPoint(x: 0, y: 0), AxisPoint(x: 1, y: 25), AxisPoint(x: 2, y: 100)]
+    let shares = [AxisItem(name: "North", value: 0.25), AxisItem(name: "South", value: 0.5), AxisItem(name: "East", value: 0.75)]
+    let long = [AxisItem(name: "Extraordinarily long", value: 3), AxisItem(name: "Remarkably long", value: 5), AxisItem(name: "Unusually long", value: 4),
+                AxisItem(name: "Considerably long", value: 2)]
     let showPercent = true
 
     var body: some View {
@@ -54,7 +54,3 @@ struct ContentView: View {
     }
 }
 
-@main
-struct HelloChartAxesApp: App {
-    var body: some Scene { WindowGroup { ContentView() } }
-}

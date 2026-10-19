@@ -1,4 +1,4 @@
-// Sample: more Swift Charts on isim — point symbols (basic shapes, symbol(by:), symbolSize(by:), a custom
+// HelloCharts, -more: more Swift Charts — point symbols (basic shapes, symbol(by:), symbolSize(by:), a custom
 // ChartSymbolShape, symbol { view }), axis titles with positions, chartOverlay / chartBackground with ChartProxy,
 // selection (chartXSelection), a scrolling chart (chartScrollableAxes, chartXVisibleDomain, chartScrollPosition,
 // value-aligned targets), chartPlotStyle, iOS 18 vectorized plots (BarPlot, PointPlot, function LinePlot / AreaPlot,
@@ -6,15 +6,6 @@
 // positions so the UI test can measure them; values the test checks are printed.
 import SwiftUI
 import Charts
-
-@main
-struct HelloChartsMoreApp: App {
-    var body: some Scene { WindowGroup { MoreCharts() } }
-}
-
-extension View {
-    func at(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat) -> some View { frame(width: w, height: h).offset(x: x, y: y) }
-}
 
 /// A bow tie: a custom ChartSymbolShape.
 struct Bowtie: ChartSymbolShape {
@@ -27,12 +18,12 @@ struct Bowtie: ChartSymbolShape {
     }
 }
 
-struct Item: Identifiable { let id = UUID(); let name: String; let value: Double; let kind: String }
+struct MoreItem: Identifiable { let id = UUID(); let name: String; let value: Double; let kind: String }
 
 struct MoreCharts: View {
     @State private var selected: String? = nil
     @State private var scrollX: Int = 0
-    let items = ["A", "B", "C", "D", "E", "F"].enumerated().map { Item(name: $1, value: Double(($0 + 1) * 10), kind: $0 % 2 == 0 ? "even" : "odd") }
+    let items = ["A", "B", "C", "D", "E", "F"].enumerated().map { MoreItem(name: $1, value: Double(($0 + 1) * 10), kind: $0 % 2 == 0 ? "even" : "odd") }
     let red = Color(red: 1, green: 0, blue: 0), green = Color(red: 0, green: 0.7, blue: 0), blue = Color(red: 0, green: 0, blue: 1)
 
     var body: some View {

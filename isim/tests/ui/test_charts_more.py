@@ -1,4 +1,4 @@
-"""More Swift Charts (HelloChartsMore): point symbols (basic shapes, a custom ChartSymbolShape, symbol { view },
+"""More Swift Charts (HelloCharts -more): point symbols (basic shapes, a custom ChartSymbolShape, symbol { view },
 symbol(by:) + symbolSize(by:) through their scales), axis titles with positions, chartBackground / chartOverlay placed
 with ChartProxy (and its value lookups), chartXSelection under a held finger, a scrolling chart (visible domain,
 scroll position binding, value-aligned snapping), chartPlotStyle, iOS 18 vectorized plots (BarPlot / PointPlot with
@@ -25,7 +25,7 @@ def lavender(c): return 190 < c[0] < 220 and 190 < c[1] < 220 and c[2] > 240
 
 @pytest.fixture(scope="module")
 def more(launch_module):
-    app = launch_module("HelloChartsMore")
+    app = launch_module("HelloCharts", args=["-more"])
     app.wait_log(r"more charts shown")
     app.wait_log(r"proxy plot")
     tree = app.wait_view(r"text=Letters")
@@ -107,7 +107,7 @@ def test_scrolling(more):
 
 
 def test_chart3d(launch):
-    app = launch("HelloChartsMore", os_version="26")
+    app = launch("HelloCharts", os_version="26", args=["-more"])
     app.wait_log(r"3D shown")
     im = app.screenshot("3d")
     region = [(x, y) for x in range(40, 380, 4) for y in range(680, 820, 4)]

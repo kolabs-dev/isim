@@ -1,4 +1,4 @@
-// Sample: Swift Charts mark styling on isim (issue #247) — lineStyle(by:) with chartLineStyleScale, mark offset,
+// HelloCharts, -styling: Swift Charts mark styling (issue #247) — lineStyle(by:) with chartLineStyleScale, mark offset,
 // zIndex, clipShape, mask(content:), shadow and blur, annotations fitted inside the chart (AnnotationOverflowResolution),
 // ChartProxy's style lookups, and NumberBins / DateBins. Each chart fills a known rect (axes hidden, fixed domains),
 // so the test can find the marks' pixels; the bins and proxy print what the test checks.
@@ -7,9 +7,9 @@ import SwiftUI
 
 struct Sample: Identifiable { let id = UUID(); let x: Double; let y: Double; let kind: String }
 
-let red = Color(red: 1, green: 0, blue: 0), blue = Color(red: 0, green: 0, blue: 1), green = Color(red: 0, green: 0.8, blue: 0)
+private let red = Color(red: 1, green: 0, blue: 0), blue = Color(red: 0, green: 0, blue: 1), green = Color(red: 0, green: 0.8, blue: 0)
 
-struct ContentView: View {
+struct StylingCharts: View {
     let lines = [Sample(x: 0, y: 7, kind: "Plan"), Sample(x: 10, y: 7, kind: "Plan"), Sample(x: 0, y: 3, kind: "Actual"), Sample(x: 10, y: 3, kind: "Actual")]
 
     var body: some View {
@@ -89,7 +89,3 @@ struct Fixed: ViewModifier {
     }
 }
 
-@main
-struct HelloChartStylingApp: App {
-    var body: some Scene { WindowGroup { ContentView() } }
-}

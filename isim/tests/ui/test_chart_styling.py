@@ -1,4 +1,4 @@
-"""Swift Charts mark styling (HelloChartStyling, issue #247): lineStyle(by:) through chartLineStyleScale (a dashed
+"""Swift Charts mark styling (HelloCharts -styling, issue #247): lineStyle(by:) through chartLineStyleScale (a dashed
 and a solid series), zIndex, offset, shadow, clipShape, mask(content:) and blur on marks (pixels at known values:
 axes hidden, domains 0...10), annotations fitted inside the chart or overflowing (AnnotationOverflowResolution),
 ChartProxy's line and foreground style lookups and angle(at:), and NumberBins / DateBins."""
@@ -16,7 +16,7 @@ def near(shot, pred, x, y, d=2):
 
 
 def test_chart_styling(launch):
-    app = launch("HelloChartStyling")
+    app = launch("HelloCharts", args=["-styling"])
     app.wait_log(r"^bins numbers=\[0, 2, 4, 6, 8, 10, 12\] count=6 index7.9=3 first=0-2$")
     app.wait_log(r"^bins size=\[0, 5, 10, 15, 20\] ints=1$")
     app.wait_log(r"^bins days=3 hours=5 index=1$")

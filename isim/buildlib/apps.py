@@ -882,8 +882,10 @@ def generate(c, have_swift):
     paths = [f"{S}/usr/include", f"{S}/System/Library/Frameworks/*.framework/Headers", f"{S}/usr/lib/*.tbd",
              "tools/isim", "tools/isim-build.py", "tools/xcodeproj.py", "tools/ibtool.py"]
     if have_swift:
-        # the compiled module files only: .swiftdoc / .swiftsourceinfo change with comments and line numbers
-        paths += [f"{S}/usr/lib/swift/*.swiftmodule/*.swiftmodule", f"{S}/usr/lib/swift/*.swiftmodule/*.swiftinterface",
+        # each Swift module's public interface where it prints one (library evolution: apps depend on nothing else,
+        # and .swiftinterface files print @inlinable bodies and default arguments), else its binary module. Binary
+        # modules change with any edit to a module's internals, which would rebuild every app
+        paths += [f"swift-api:{S}/usr/lib/swift:{O}/swift/iface",
                   f"{O}/swift/host/plugins/*.so"]          # isim's macro plugins: their expansions are in the apps
     # the installed tools too: apps are built with out/bin's copies (isim build imports ibtool / xcodeproj from there)
     installed = [f"{O}/bin/{t}" for t in ("isim", "isim-build.py", "xcodeproj.py", "ibtool.py")]
