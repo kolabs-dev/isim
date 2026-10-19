@@ -1020,7 +1020,9 @@ public struct NavigationLink<Label: View, Destination: View>: View, _PrimitiveVi
         let inList = ctx.environment._inList
         let labelNode = _resolve(label, ctx.child("label").with { if !inList { $0._foreground = $0._foreground ?? $0._tint ?? .accentColor } })
         let node = _ButtonNode(path: ctx.path, child: labelNode, action: { push?(AnyView(EmptyView())) }, inList: inList, enabled: ctx.environment.isEnabled)
-        return inList ? _AccessoryNode(path: ctx.path + "/acc", child: node, accessory: "chevron.right") : node
+        // navigationLinkIndicatorVisibility(.hidden): no chevron
+        let chevron = inList && ctx.environment._navigationLinkIndicator != .hidden
+        return chevron ? _AccessoryNode(path: ctx.path + "/acc", child: node, accessory: "chevron.right") : node
     }
 }
 extension NavigationLink where Label == Text {

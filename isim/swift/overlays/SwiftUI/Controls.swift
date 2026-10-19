@@ -408,8 +408,11 @@ final class _SUISegmented: UISegmentedControl {
     return nonEmpty.map { g in g.count == 1 && g[0] is UIMenu && (g[0] as! UIMenu).options.contains(.displayInline) ? g[0] : UIMenu(title: "", options: .displayInline, children: g) }
 }
 
+/// menuStyle(.button): the label's button opens the menu from the menu's control.
+final class _MenuPresenter { var present: (() -> Void)? }
 final class _MenuNode: _WrapperNode {
     let build: () -> UIMenu, primaryAction: (() -> Void)?, enabled: Bool
+    var presenter: _MenuPresenter?
     init(path: String, child: _Node, build: @escaping () -> UIMenu, primaryAction: (() -> Void)?, enabled: Bool) {
         self.build = build; self.primaryAction = primaryAction; self.enabled = enabled
         super.init(path: path, child: child)
@@ -423,6 +426,7 @@ final class _MenuNode: _WrapperNode {
             guard let c else { return }
             if let primary { primary() } else { c._isim_present(build(), from: c.bounds) }
         }
+        presenter?.present = { [weak c] in c?.action?() }
         c.isEnabled = enabled
         c.alpha = enabled ? 1 : 0.4
         return c
@@ -438,13 +442,32 @@ public struct Menu<Label: View, Content: View>: View, _PrimitiveView {
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
         let env = ctx.environment
-        let labelNode = _resolve(label, ctx.child("label").with { $0._foreground = $0._foreground ?? $0._tint ?? .accentColor })
+        // menuStyle: a custom style's body (with this menu's label and content in its configuration)
+        if let style = env._menuStyle, style.kind == 2 {
+            let label = self.label, content = self.content
+            let config = MenuStyleConfiguration(label: .init(make: { _resolve(label, $0) }), content: .init(make: { _resolve(content, $0) }), primaryAction: primaryAction)
+            return _resolve(style.make(config), ctx.child("mstyle").with { $0._menuStyle = nil })
+        }
+        let indicator = env.menuIndicatorVisibility == .visible
+        let presenter = _MenuPresenter()
+        let asButton = env._menuStyle?.kind == 1
+        let label = self.label
+        let shown: AnyView = {
+            // menuIndicator(.visible): an up-down chevron after the label
+            let l = indicator ? AnyView(HStack(spacing: 4) { label; Image(systemName: "chevron.up.chevron.down").font(.system(size: 13, weight: .semibold)) }.fixedSize()) : AnyView(label)
+            // menuStyle(.button): the label drawn as a button with the button style around; it opens the menu
+            return asButton ? AnyView(Button(action: { presenter.present?() }) { l }) : l
+        }()
+        let labelCtx = ctx.child("label").with { $0._foreground = $0._foreground ?? $0._tint ?? .accentColor; $0._menuStyle = nil }
+        let labelNode = indicator || asButton ? _resolve(shown, labelCtx) : _resolve(label, labelCtx)
         // menu items show their titles whatever the label style around the menu (a toolbar's icon-only labels)
         let contentNode = _resolve(content, ctx.child("content").with { $0._inList = false; $0._labelStyle = nil; $0._labelStyleKind = 0 })
         let title = _collectText(labelNode).joined(separator: " ")
         let build = { UIMenu(title: "", children: _menuElements(contentNode)) }
         _ = title
-        return _MenuNode(path: ctx.path, child: labelNode, build: build, primaryAction: primaryAction, enabled: env.isEnabled)
+        let node = _MenuNode(path: ctx.path, child: labelNode, build: build, primaryAction: primaryAction, enabled: env.isEnabled)
+        node.presenter = asButton ? presenter : nil
+        return node
     }
 }
 extension Menu where Label == Text {
@@ -459,14 +482,28 @@ extension Menu where Label == SwiftUI.Label<Text, Image> {
         self.init(content: content) { SwiftUI.Label(title, systemImage: systemImage) }
     }
 }
-public protocol MenuStyle {}
-public struct DefaultMenuStyle: MenuStyle { public init() {} }
-public struct BorderlessButtonMenuStyle: MenuStyle { public init() {} }
-public struct ButtonMenuStyle: MenuStyle { public init() {} }
+/// The look of a Menu: makeBody gets the menu's label and content (menuStyle: ViewOptions.swift).
+public protocol MenuStyle {
+    associatedtype Body: View
+    typealias Configuration = MenuStyleConfiguration
+    @ViewBuilder @MainActor func makeBody(configuration: Configuration) -> Body
+}
+public struct DefaultMenuStyle: MenuStyle {
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View { Menu(configuration) }
+}
+public struct BorderlessButtonMenuStyle: MenuStyle {
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View { Menu(configuration) }
+}
+/// The menu's label is drawn as a button, with the button style around (`.buttonStyle(.bordered)`).
+public struct ButtonMenuStyle: MenuStyle {
+    public init() {}
+    public func makeBody(configuration: Configuration) -> some View { Menu(configuration) }
+}
 extension MenuStyle where Self == DefaultMenuStyle { public static var automatic: DefaultMenuStyle { .init() } }
 extension MenuStyle where Self == ButtonMenuStyle { public static var button: ButtonMenuStyle { .init() } }
 extension View {
-    public func menuStyle<S: MenuStyle>(_ style: S) -> some View { self }
     public func menuOrder(_ order: MenuOrder) -> some View { self }
 }
 public struct MenuOrder: Sendable { public static let automatic = MenuOrder(), priority = MenuOrder(), fixed = MenuOrder() }

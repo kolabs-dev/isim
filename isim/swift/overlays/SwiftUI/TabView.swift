@@ -46,13 +46,13 @@ extension View {
         }
     }
     public func badge(_ count: Int) -> some View {
-        _modify { ctx, c in let n = _resolve(c, ctx); n.badge = count == 0 ? nil : "\(count)"; return n }
+        _modify { ctx, c in let n = _resolve(c, ctx); n.badge = count == 0 ? nil : "\(count)"; n.badgeProminence = ctx.environment._badgeProminence; return n }
     }
     @_disfavoredOverload public func badge<S: StringProtocol>(_ label: S?) -> some View {
-        _modify { ctx, c in let n = _resolve(c, ctx); n.badge = label.map { String($0) }; return n }
+        _modify { ctx, c in let n = _resolve(c, ctx); n.badge = label.map { String($0) }; n.badgeProminence = ctx.environment._badgeProminence; return n }
     }
     public func badge(_ label: Text?) -> some View {
-        _modify { ctx, c in let n = _resolve(c, ctx); n.badge = label?.string; return n }
+        _modify { ctx, c in let n = _resolve(c, ctx); n.badge = label?.string; n.badgeProminence = ctx.environment._badgeProminence; return n }
     }
     // toolbar(_:for:), toolbarBackground: Navigation+More.swift
 }

@@ -622,7 +622,10 @@ public struct Button<Label: View>: View, _PrimitiveView {
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
         _registerShortcut(ctx, action)
-        if let p = _primitiveButton(label, role: role, action: action, ctx) { return p }
+        if let p = _primitiveButton(label, role: role, action: action, ctx) {
+            if ctx.environment._buttonRepeat == 1 { _firstButton(p)?.repeats = true }
+            return p
+        }
         let env = ctx.environment
         let tint: Color = role == .destructive ? .red : (env._tint ?? .accentColor)
         if let style = env._buttonStyle, !env._inList {
@@ -636,6 +639,7 @@ public struct Button<Label: View>: View, _PrimitiveView {
             let body = style.make(ButtonStyleConfiguration(role: role, label: .init(make: { c in _resolve(lbl, c.with { $0._buttonStyle = nil }) }), isPressed: st.value))
             let bnode = _ButtonNode(path: ctx.path, child: _resolve(body, ctx.child("style").with { $0._buttonStyle = nil }), action: action, inList: false, enabled: env.isEnabled)
             bnode.role = role
+            bnode.repeats = env._buttonRepeat == 1
             bnode.onPressed = { [weak g] p in if st.value != p { st.value = p; g?.invalidate() } }
             return bnode
         }
@@ -643,6 +647,7 @@ public struct Button<Label: View>: View, _PrimitiveView {
         let node = _resolve(label, labelCtx)
         let b = _ButtonNode(path: ctx.path, child: node, action: action, inList: env._inList, enabled: env.isEnabled)
         b.role = role
+        b.repeats = env._buttonRepeat == 1
         return b
     }
 }
@@ -667,6 +672,8 @@ extension Button where Label == SwiftUI.Label<Text, Image> {
 final class _ButtonNode: _WrapperNode {
     let action: () -> Void, inList: Bool, enabled: Bool
     var role: ButtonRole?
+    /// buttonRepeatBehavior(.enabled): the action repeats while the button is held
+    var repeats = false
     var onPressed: ((Bool) -> Void)?
     var accessibilityButton = true
     init(path: String, child: _Node, action: @escaping () -> Void, inList: Bool, enabled: Bool) {
@@ -680,6 +687,7 @@ final class _ButtonNode: _WrapperNode {
         // a button that is a whole list row is handled by the row (full-width highlight); nested ones are controls
         let c = g.view(viewKey) { _SUIControl(frame: .zero) }
         c.action = action
+        c.repeats = repeats
         c.isEnabled = enabled
         c.onPressed = onPressed
         c.alpha = enabled || onPressed != nil ? 1 : 0.4
@@ -694,9 +702,12 @@ final class _ButtonNode: _WrapperNode {
     }
 }
 
-/// Tappable container: dims while pressed, fires on touch up inside.
+/// Tappable container: dims while pressed, fires on touch up inside (or, repeating, on touch down and then every
+/// 0.1 s after a 0.5 s hold).
 final class _SUIControl: UIControl {
     var action: (() -> Void)?
+    var repeats = false
+    private var repeatTimer: Timer?, repeated = false
     /// set for custom button styles: they show the pressed state themselves
     var onPressed: ((Bool) -> Void)?
     override init(frame: CGRect) {
@@ -704,13 +715,28 @@ final class _SUIControl: UIControl {
         addTarget(self, action: #selector(fire), for: .touchUpInside)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-    @objc func fire() { action?() }
+    @objc func fire() { if !(repeats && repeated) { action?() }; repeated = false }
     override var isHighlighted: Bool {
         didSet {
+            if repeats, isHighlighted != oldValue { isHighlighted ? startRepeating() : stopRepeating() }
             if let p = onPressed { if isHighlighted != oldValue { p(isHighlighted) } }
             else { for s in subviews { s.alpha = isHighlighted ? 0.25 : 1 } }
         }
     }
+    private func startRepeating() {
+        repeated = true
+        action?()
+        repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.isHighlighted else { return }
+                self.action?()
+                self.repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] t in
+                    MainActor.assumeIsolated { if let self, self.isHighlighted { self.action?() } else { t.invalidate() } }
+                }
+            }
+        }
+    }
+    private func stopRepeating() { repeatTimer?.invalidate(); repeatTimer = nil }
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         guard !isHidden, alpha > 0.01, isUserInteractionEnabled, self.point(inside: point, with: event) else { return nil }
         if _contentShapeRejects(self, point) { return nil }          // .contentShape (VisualEffects.swift)

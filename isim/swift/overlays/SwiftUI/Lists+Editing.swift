@@ -277,6 +277,7 @@ struct _RowInfo {
     var contextMenu: (() -> UIMenu)?
     var contextPreview: (() -> UIView)?
     var badge: String?
+    var badgeProminence = 0
     var tag: AnyHashable?
     /// moveDisabled: the row keeps its place among its ForEach's rows but shows no handle
     var canMove = true
@@ -297,7 +298,7 @@ struct _RowInfo {
             if let t = e.trailing { info.trailing += t; info.fullTrailing = e.fullTrailing }
         }
         if let c = n as? _ContextMenuNode, info.contextMenu == nil { info.contextMenu = c.build; info.contextPreview = c.preview }
-        if info.badge == nil { info.badge = n.badge }
+        if info.badge == nil, let b = n.badge { info.badge = b; info.badgeProminence = n.badgeProminence }
         if info.tag == nil { info.tag = n.tag }
         x = n.children.count == 1 && !(n is _StackNode) ? n.children[0] : nil
     }
@@ -450,11 +451,20 @@ struct _ListExtras {
     let badgeKey = list.path + "|badge\(index)"
     if let b = info.badge, !x.editing {
         let l = g.view(badgeKey) { UILabel() }
-        l.text = b; l.textColor = .secondaryLabel; l.font = .systemFont(ofSize: 17)
+        // badgeProminence: increased is white on a red capsule, decreased is tertiary
+        let prominent = info.badgeProminence == 1
+        l.text = b; l.font = prominent ? .systemFont(ofSize: 15, weight: .semibold) : .systemFont(ofSize: 17)
+        l.textColor = prominent ? .white : info.badgeProminence == 2 ? .tertiaryLabel : .secondaryLabel
+        l.textAlignment = .center
+        l.backgroundColor = prominent ? .systemRed : nil
         if l.superview !== row { row.addSubview(l) }
-        let s = l.sizeThatFits(CGSize(width: 200, height: 40))
+        var s = l.sizeThatFits(CGSize(width: 200, height: 40))
+        s.width = ceil(s.width)
+        if prominent { s.height = 24; s.width = max(24, s.width + 14) }
+        l.layer.cornerRadius = prominent ? 12 : 0
+        l.clipsToBounds = prominent
         let right = row.bounds.width - (node.rowAccessory != nil ? 36 : 20)
-        l.frame = CGRect(x: right - ceil(s.width), y: (rowHeight - s.height) / 2, width: ceil(s.width), height: s.height)
+        l.frame = CGRect(x: right - s.width, y: (rowHeight - s.height) / 2, width: s.width, height: s.height)
     } else { g.views[badgeKey]?.removeFromSuperview(); g.views[badgeKey] = nil }
     // long press menu on rows that are buttons / links (other rows use the context host inside them)
     row.contextMenu = row.action != nil ? info.contextMenu : nil
