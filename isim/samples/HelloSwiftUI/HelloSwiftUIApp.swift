@@ -1,6 +1,7 @@
 // SwiftUI sample for isim: state, forms, navigation, text input, focus, toolbar, tasks.
 // Other pages, by launch argument: -gestures (Gestures.swift), -arrangements (iOS 27.1 ArrangementView,
-// Arrangements.swift), -accessibility (VoiceOver, Accessibility.swift).
+// Arrangements.swift), -accessibility (VoiceOver, Accessibility.swift), -bars, -bars-shapes, -bars-search, -bars-tabs
+// (iOS 26 bars and shapes, Bars26.swift).
 import SwiftUI
 
 @main
@@ -14,6 +15,7 @@ struct HelloSwiftUIApp: App {
         if args.contains("-gestures") { GesturesPage() }
         else if args.contains("-arrangements") { ArrangementsPage() }
         else if args.contains("-accessibility") { AXDemo() }
+        else if let a = args.first(where: { $0.hasPrefix("-bars") }) { BarsDemo(page: String(a.dropFirst(6))) }
         else { ContentView() }
     }
 }

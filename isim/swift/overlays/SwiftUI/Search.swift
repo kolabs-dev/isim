@@ -36,6 +36,8 @@ extension EnvironmentValues {
     /// searchable(text:tokens:…) and searchFocused
     var tokens: _SearchTokens?
     var focus: _FocusLink?
+    /// searchToolbarBehavior(.minimize) (iOS 26): a magnifier button until searching
+    var minimize = false
     init(text: Binding<String>, prompt: String, path: String, searching: Binding<Bool>, graph: _Graph) {
         self.text = text; self.prompt = prompt; self.path = path; self.searching = searching; self.graph = graph
     }
@@ -75,6 +77,7 @@ extension View {
             ctx.nav?.contentIsList = false
             let extras = ctx.environment._searchExtras ?? _SearchExtras()
             cfg.focus = ctx.environment._searchFocus
+            cfg.minimize = ctx.environment._searchMinimize
             let inner = ctx.child("search").with {
                 $0.isSearching = searching.wrappedValue
                 $0.dismissSearch = DismissSearchAction { text.wrappedValue = ""; searching.wrappedValue = false; UIApplication.shared._isim_firstResponder?.resignFirstResponder() }
@@ -370,11 +373,19 @@ final class _SUISearchBar: UIView {
     let field = _SUISearchTextField(frame: .zero)
     let cancel = _SUIControl(frame: .zero)
     let cancelLabel = UILabel()
+    /// searchToolbarBehavior(.minimize): the round button the field collapses to
+    let minimized = _SUIControl(frame: .zero)
     var config: _SearchConfig?
     override init(frame: CGRect) {
         super.init(frame: frame)
         field.font = .systemFont(ofSize: 17); field.returnKeyType = .search; field.accessibilityIdentifier = "search-field"
         addSubview(field)
+        let icon = UIImageView(image: UIImage(systemName: "magnifyingglass", withConfiguration: UIImage.SymbolConfiguration(pointSize: 17)))
+        icon.tintColor = .label; icon.contentMode = .center
+        minimized.addSubview(icon); minimized.backgroundColor = .tertiarySystemFill; minimized.accessibilityIdentifier = "search-minimized"
+        minimized.isHidden = true
+        minimized.action = { [weak self] in self?.begin(); _ = self?.field.becomeFirstResponder() }
+        addSubview(minimized)
         cancelLabel.text = "Cancel"; cancelLabel.textColor = _accentUIColor(); cancelLabel.font = .systemFont(ofSize: 17)
         cancel.addSubview(cancelLabel); cancel.accessibilityIdentifier = "search-cancel"
         addSubview(cancel)
@@ -411,6 +422,12 @@ final class _SUISearchBar: UIView {
         cancel.frame = CGRect(x: bounds.width - cw, y: 0, width: cw, height: bounds.height)
         cancelLabel.frame = CGRect(x: 12, y: 0, width: cw - 12, height: bounds.height)
         field.frame = CGRect(x: 0, y: 0, width: max(0, bounds.width - cw), height: bounds.height)
+        // minimized (not searching): a round magnifier button at the leading edge instead of the field
+        let mini = config?.minimize == true && !active && !field.isFirstResponder
+        minimized.isHidden = !mini; field.isHidden = mini
+        minimized.frame = CGRect(x: 0, y: 0, width: bounds.height, height: bounds.height)
+        minimized.layer.cornerRadius = bounds.height / 2
+        minimized.subviews.first?.frame = minimized.bounds
     }
     func begin() { if config?.searching.wrappedValue != true { config?.searching.wrappedValue = true } }
     func end() {

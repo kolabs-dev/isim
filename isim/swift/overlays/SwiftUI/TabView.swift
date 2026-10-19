@@ -110,6 +110,7 @@ public struct TabView<SelectionValue: Hashable, Content: View>: View, _Primitive
         g.usedKeys.insert(hostKey)
         let host = (g.storage[hostKey] as? _TabSearchHost) ?? { let h = _TabSearchHost(); g.storage[hostKey] = h; return h }()
         host.config = nil
+        host.activateOnSelection = ctx.environment._tabSearchActivate
         var children = _flatten([_resolve(content, ctx.child("tabs").with { $0._tabStyle = .bar; $0._tabSearchHost = _tabBarMode() == 1 ? host : nil })])
         g.safeArea = saved
         var items = children.map { c -> _TabItemInfo in
@@ -359,6 +360,8 @@ final class _SUITabBar: UIView {
     var search: _TabSearchHost?
     let searchGlass = _SUIGlassView(frame: .zero)
     let searchField = _SUITabSearchField(frame: .zero)
+    /// the search field showed at the last layout (to focus it when the search tab becomes selected)
+    var searchShown = false
     var keyboardLift: CGFloat = 0
     private var keyboardObserver: NSObjectProtocol?
     var expand: (() -> Void)?
@@ -406,7 +409,14 @@ final class _SUITabBar: UIView {
         let prominent = roleIndex.map { items[$0].role == 2 } ?? false
         roleGlass.glassTint = prominent ? tint : nil
         searchGlass.isHidden = true; searchField.isHidden = true
+        let wasShown = searchShown
+        searchShown = false
         if let host = search, let ri = roleIndex, items[ri].role == 1 {
+            searchShown = true
+            if host.activateOnSelection, !wasShown {
+                let f = searchField.field
+                DispatchQueue.main.async { _ = f.becomeFirstResponder() }
+            }
             // search tab selected: the tab to go back to on a glass circle, then the search field across the bar
             let back = host.lastRegular < items.count && host.lastRegular != ri ? host.lastRegular : (items.indices.first { $0 != ri } ?? 0)
             let circle = CGRect(x: full.minX, y: area.minY, width: 62, height: 62)
@@ -512,6 +522,8 @@ final class _SUITabButton: UIControl {
 @MainActor final class _TabSearchHost: _AnyStorage {
     var config: _SearchConfig?
     var lastRegular = 0
+    /// tabViewSearchActivation(.searchTabSelection): selecting the search tab focuses its field
+    var activateOnSelection = false
 }
 struct _InSearchTabKey: EnvironmentKey { static var defaultValue: Bool { false } }
 struct _TabSearchHostKey: EnvironmentKey { nonisolated(unsafe) static var defaultValue: _TabSearchHost? { nil } }
