@@ -7,7 +7,7 @@
 #   isim reset                   erase the device: installed apps, app data and settings
 #   isim run <App.app> [args...]: install, boot and open the app (headless or ISIM_STANDALONE=1: the app alone)
 #     options: [--os 17|18|26|27] [--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16pro|iphone16promax|iphone17|iphoneair|iphone17pro|iphone17promax|ipadmini|ipadair11|ipadpro11|ipadpro13] [--zoom N] [--dark] [--headless --script "..."]
-#   isim cc  <clang args...>     compile/link for the isim iOS-simulator SDK (x86_64)
+#   isim cc  <clang args...>     compile/link for the isim iOS-simulator SDK (x86_64) with LLVM's clang / lld (CLANG=PATH)
 #   isim swiftc [-embedded] <swiftc args...>  compile Swift for the simulator (needs Swift 6.2.4: isim toolchain install)
 #   isim toolchain [status|install|which]   the Swift 6.2.4 toolchain isim compiles with: which one and why | install it
 #                                with swiftly | its usr directory (ISIM_SWIFT_TOOLCHAIN=DIR picks one)
@@ -117,10 +117,26 @@ swift_toolchain() {   # SWIFT_TC: the toolchain's usr directory; SWIFT_WHY: how 
   echo "isim: compiling Swift needs Swift $SWIFT_VERSION: install it with \`isim toolchain install\` (swiftly)" >&2
   return 1
 }
+swift_run_error() {   # why the toolchain $1's swift driver (it reads Package.swift: swift package) cannot run, if it cannot
+  local out lib
+  [ -x "$1/bin/swift" ] || return 1
+  if out=$("$1/bin/swift" --version 2>&1); then return 1; fi
+  lib=$(sed -n 's/.*error while loading shared libraries: \([^:]*\):.*/\1/p' <<<"$out" | head -1)
+  if [ -z "$lib" ]; then echo "$1/bin/swift cannot run: $(head -1 <<<"$out")"; return 0; fi
+  echo -n "$1/bin/swift cannot run: $lib is missing (the system package that has it: swiftly lists them when it installs Swift"
+  # swiftly installs the Ubuntu build on distributions it does not support; Arch's ncurses names the library libncursesw
+  [ "$lib" != libncurses.so.6 ] || echo -n "; on Arch-based systems: sudo ln -s /usr/lib/libncursesw.so.6 /usr/lib/libncurses.so.6"
+  echo ")"
+}
+toolchain_ready() {   # the toolchain $1 is installed: say so, or why its swift driver cannot run
+  local why
+  if why=$(swift_run_error "$1"); then echo "isim: Swift $SWIFT_VERSION is installed ($1), but $why" >&2; return 1; fi
+  echo "isim: Swift $SWIFT_VERSION is installed ($1)"
+}
 toolchain_install() {   # Swift $SWIFT_VERSION with swiftly (https://www.swift.org/install/linux/), swiftly first when it is missing
   local d swiftly tmp
   d=$(swiftly_toolchain)
-  if [ -x "$d/bin/swift-frontend" ] && swift_ok "$d"; then echo "isim: Swift $SWIFT_VERSION is installed ($d)"; return 0; fi
+  if [ -x "$d/bin/swift-frontend" ] && swift_ok "$d"; then toolchain_ready "$d"; return; fi
   swiftly=$(command -v swiftly 2>/dev/null) || swiftly=${SWIFTLY_BIN_DIR:-${SWIFTLY_HOME_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/swiftly}/bin}/swiftly
   if [ ! -x "$swiftly" ]; then
     echo "isim: installing swiftly, the Swift toolchain manager (download.swift.org; your shell profile is not changed)"
@@ -137,12 +153,28 @@ toolchain_install() {   # Swift $SWIFT_VERSION with swiftly (https://www.swift.o
   tmp=$(mktemp)
   "$swiftly" install "$SWIFT_VERSION" --assume-yes --post-install-file "$tmp" || true
   if [ -s "$tmp" ]; then
-    echo "isim: swiftly suggests these system packages for Swift on Linux (isim's compiles do not need them):"
+    echo "isim: swiftly suggests these system packages for Swift on Linux (reading Swift packages needs their libraries):"
     sed 's/^/  /' "$tmp"
   fi
   rm -f "$tmp"
-  if [ -x "$d/bin/swift-frontend" ] && swift_ok "$d"; then echo "isim: Swift $SWIFT_VERSION is installed ($d)"; return 0; fi
+  if [ -x "$d/bin/swift-frontend" ] && swift_ok "$d"; then toolchain_ready "$d"; return; fi
   echo "isim: swiftly installed Swift $SWIFT_VERSION somewhere else than $d; point ISIM_SWIFT_TOOLCHAIN at it" >&2
+  return 1
+}
+# Linking: LLVM's own clang and lld. A Swift toolchain's (swiftly's proxies on PATH, a toolchain's usr/bin) are Apple's
+# fork, whose lld refuses to link for iOS ("does not support linking for platform iOS Simulator"), so isim cc skips them:
+# CLANG names a clang, else the first clang on PATH that is not a Swift toolchain's; lld is the one next to that clang,
+# else the first ld64.lld on PATH that is not a Swift toolchain's.
+LLVM_HINT="install LLVM's clang and lld 21 or newer (Ubuntu/Debian: apt.llvm.org; Arch: pacman -S clang lld), or set CLANG=/path/to/clang"
+swift_toolchain_tool() {   # is $1 a Swift toolchain's program: swiftly's proxy, or next to a swift-frontend?
+  local r; r=$(readlink -f -- "$1")
+  [ "${r##*/}" = swiftly ] || [ -x "${r%/*}/swift-frontend" ]
+}
+llvm_tool() {   # the first $1 on PATH that is not a Swift toolchain's
+  local d IFS=:
+  for d in $PATH; do
+    if [ -f "${d:-.}/$1" ] && [ -x "${d:-.}/$1" ] && ! swift_toolchain_tool "${d:-.}/$1"; then echo "${d:-.}/$1"; return 0; fi
+  done
   return 1
 }
 plist_get() { python3 -c 'import plistlib,sys; print(plistlib.load(open(sys.argv[1],"rb")).get(sys.argv[2],""))' "$1" "$2"; }
@@ -414,10 +446,22 @@ case "$cmd" in
     fi
     exec "$BIN/isim-runtime" --root "$SDK" "$exe" "$@" ;;
   cc)
+    clang=${CLANG:-}
+    if [ -z "$clang" ] && ! clang=$(llvm_tool clang); then
+      echo "isim: compiling needs LLVM's clang$(command -v clang >/dev/null && echo " (the clang on PATH, $(command -v clang), is a Swift toolchain's)"): $LLVM_HINT" >&2
+      exit 1
+    fi
     # the linker flags only when clang links (not with -c, -S, -E, ...), so compiles do not warn about unused arguments
     link=(-fuse-ld=lld -L "$SDK/usr/lib/swift")
     for a in "$@"; do case "$a" in -c|-S|-E|-M|-MM|-fsyntax-only|--precompile) link=() ;; esac; done
-    exec "${CLANG:-clang}" -target x86_64-apple-ios${ISIM_MIN_IOS:-17.0}-simulator -isysroot "$SDK" -fobjc-arc "${link[@]}" "$@" ;;
+    if [ ${#link[@]} -gt 0 ]; then
+      lld=$(command -v -- "$clang" || true); lld=${lld:+$(dirname -- "$(readlink -f -- "$lld")")/ld64.lld}
+      if [ -z "$lld" ] || [ ! -x "$lld" ] || swift_toolchain_tool "$lld"; then
+        lld=$(llvm_tool ld64.lld) || { echo "isim: linking needs LLVM's lld (ld64.lld; a Swift toolchain's refuses to link for iOS): $LLVM_HINT" >&2; exit 1; }
+      fi
+      link+=(--ld-path="$lld")
+    fi
+    exec "$clang" -target x86_64-apple-ios${ISIM_MIN_IOS:-17.0}-simulator -isysroot "$SDK" -fobjc-arc "${link[@]}" "$@" ;;
   swiftc)
     swift_toolchain || exit 1
     run=("$SWIFT_TC/bin/swiftc" -target x86_64-apple-ios${ISIM_MIN_IOS:-17.0}-simulator)
@@ -440,6 +484,7 @@ case "$cmd" in
       which) swift_toolchain || exit 1; echo "$SWIFT_TC" ;;
       status)
         rc=0; if swift_toolchain; then echo "Swift $SWIFT_VERSION: $SWIFT_TC ($SWIFT_WHY)"; else rc=1; fi
+        if [ -n "$SWIFT_TC" ] && why=$(swift_run_error "$SWIFT_TC"); then echo "  $why"; rc=1; fi
         if d=$(path_toolchain) && ! swift_ok "$d"; then echo "  not used: swiftc on PATH ($d) is $(swift_version_of "$d")"; fi
         exit $rc ;;
       install) toolchain_install ;;

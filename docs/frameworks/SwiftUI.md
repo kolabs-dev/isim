@@ -1,7 +1,7 @@
 # SwiftUI
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 59.1% of Apple's iOS API (4045 of 6841, exact) · **Rows:** 251: 237 ✅ 8 🟡 6 ❌ · **iOS:** 13.0+
+**Symbols:** 61.4% of Apple's iOS API (4202 of 6847, exact) · **Rows:** 253: 240 ✅ 7 🟡 6 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [SwiftUI & Charts](../COVERAGE.md#swiftui) · **Apple:** [SwiftUI](https://developer.apple.com/documentation/swiftui) · **Issues:** [`area:swiftui`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aswiftui)
@@ -321,6 +321,13 @@
 | `.draggable`, `.dropDestination`, `.onDrag`, `.onDrop` | ✅ | ≤17 | Transferable payloads / NSItemProviders through UIDragInteraction/UIDropInteraction (long press to lift); `isTargeted`; `preview:` views lift under the finger instead of the view (the lifting preview, see UIKit's `previewForLifting`). Tested (HelloDragDrop: String draggable with a custom preview → dropDestination) |
 | `accessibilityHint`, `accessibilityHidden` | ✅ | ≤17 | set on the mounted UIKit view; VoiceOver reads hints and skips hidden views; tested (HelloAccessibility) |
 | `accessibilityValue`, `accessibilityAddTraits`, `accessibilityElement(children:)`, `accessibilityAction`, `accessibilityAdjustableAction`, `accessibilitySortPriority` | ✅ | ≤17 | feed the UIKit accessibility tree (value, traits, `.combine`/`.ignore` label from the children's text, `.contain` grouping, default and named actions, adjustable increments, sort priority); tested (HelloAccessibility: value, header trait, combine, adjustable, hidden; HelloSwiftUIControls: sort priority, named actions through VoiceOver's action and Actions rotor) |
+| `AccessibilityFocusState` (`init()`, `init(for:)`, `Binding`), `AccessibilityTechnologies`, `accessibilityFocused(_:)` / `(_:equals:)` | ✅ | ≤17 | adapted: VoiceOver focusing the element sets the value (true / the matching value) and leaving it clears it; setting it moves VoiceOver's focus there (a layout-changed notification after the update). Setting false / nil does not move the focus away; the technologies are not told apart. Tested (HelloSwiftUIAccessibility) |
+| `accessibilityHeading(_:)` (View, `ModifiedContent`, `Text`), `AccessibilityHeadingLevel` | ✅ | ≤17 | adapted: levels 1–6 give the element the header trait and UIKit's heading level attribute, so VoiceOver says "Heading level N" (the Headings rotor finds them); `.unspecified` changes nothing. Tested (HelloSwiftUIAccessibility) |
+| `accessibilityCustomContent(_:_:importance:)` (the 11 overloads, View and `ModifiedContent`), `AccessibilityCustomContentKey` | ✅ | ≤17 | as Accessibility's `AXCustomContent` on the element (see [Accessibility](Accessibility.md)): VoiceOver reads high-importance entries with the element and the others in the rotor's More Content; an entry replaces one with the same key identifier, a nil value removes it. Tested (HelloSwiftUIAccessibility) |
+| `accessibilityChildren(children:)`, `accessibilityRepresentation(representation:)` | ✅ | ≤17 | adapted: the views are laid out in the modified view's frame and mounted under an empty layer mask (not drawn, not touchable), so they make the accessibility elements in its place (a `Slider` representation is adjustable and drives its binding); the content's own elements are hidden. Tested (HelloSwiftUIAccessibility) |
+| `accessibilityLinkedGroup(id:in:)` | ✅ | ≤17 | adapted: the group's elements follow its first one in VoiceOver's order (iOS's text navigation across them is not simulated). Tested (HelloSwiftUIAccessibility) |
+| `accessibilityRotor` (content builder, `entries:entryID:entryLabel:`, Identifiable `entries:entryLabel:`, `textRanges:`; Text / key / `StringProtocol` / `LocalizedStringResource` / `AccessibilitySystemRotor`), `accessibilityRotorEntry(id:in:)`, `AccessibilityRotorEntry`, `AccessibilityRotorContent`, `AccessibilityRotorContentBuilder`, `AccessibilitySystemRotor`, `ForEach` of rotor entries | ✅ | ≤17 | a `UIAccessibilityCustomRotor` on the view (a system rotor replaces VoiceOver's, e.g. Headings): its entries find their elements by `ForEach` id, `.id(_:)` or namespace entry; `prepare` runs before VoiceOver moves; entries without an id (text ranges) are the element itself, the ranges are not navigated. Not provided: `Group` of rotor entries (isim's `Group` takes views only). Tested (HelloSwiftUIAccessibility) |
+| `accessibilityScrollAction(_:)`, `accessibilityZoomAction(_:)`, `AccessibilityZoomGestureAction`, `accessibilityDirectTouch(_:options:)`, `AccessibilityDirectTouchOptions`, `AccessibilityAttachmentModifier` | ✅ | ≤17 | VoiceOver's three-finger scroll (`voiceover scroll`: down → `.top`, up → `.bottom`, left → `.trailing`, right → `.leading`; proposed, Apple doesn't document the mapping) and zoom (`voiceover zoom in\|out`, at the element's activation point) run the handlers; a direct touch area's touches reach the app under VoiceOver (`silentOnTouch`: without speaking; `requiresActivation`: after a VoiceOver activation). Tested (HelloSwiftUIAccessibility) |
 
 ### UIKit interop
 
@@ -331,6 +338,10 @@
 | `UIHostingController` in UIKit apps | ✅ | ≤17 | its view's `intrinsicContentSize` and `sizeThatFits(_:)` are the content's ideal size (`UIView.noIntrinsicMetric` along an axis the content fills), so Auto Layout and `UIStackView` size it (adapted). Tested (HelloInterfaceStyle) |
 | `UIHostingController.sizingOptions`, `UIHostingControllerSizingOptions` | ✅ | ≤17 | `.preferredContentSize` keeps `preferredContentSize` at the ideal size after each render, `.intrinsicContentSize` invalidates the view's intrinsic size when it changes (adapted). Tested (HelloInterfaceStyle) |
 | `sizeThatFits(_:uiView:context:)` on representables | ✅ | ≤17 | also `sizeThatFits(_:uiViewController:context:)`; tested (HelloKeys) |
+| `UIHostingConfiguration` | ✅ | 16.0 | adapted: a `UIContentConfiguration` whose content view hosts the SwiftUI views (isim's real UIKit views): the content inset by the cell's layout margins or `margins(_:_:)` (both forms), the background (`background(_:)` with a shape style, `background(content:)`) filling the cell, `minSize(width:height:)` / `minSize()` (the default: 44 pt tall); the cell sizes to the content through UIKit's fitting pass (wrapping text grows the row). Not bridged: list swipe actions and separator alignment. Tested (HelloSwiftUIInterop) |
+| `ImageRenderer` | ✅ | 16.0 | adapted: `uiImage` / `cgImage` draw the content (at its size for `proposedSize`, its ideal size by default) with `drawHierarchy` at `scale` (`isOpaque`); `render(rasterizationScale:renderer:)` draws it into any `CGContext` with a bottom-left origin (a PDF context too); `objectWillChange` (`PassthroughSubject<Void, Never>`) fires when a property or the content's state changes. Every isim view is drawn (no placeholders); `colorMode` and `allowedDynamicRange` (`Image.DynamicRange`, iOS 26) do not change the 8-bit sRGB output. Not provided: the `Observable` conformance and `isObservationEnabled`. Tested (HelloSwiftUIInterop) |
+| `UIGestureRecognizerRepresentable`, `gesture(_:)` with one | ✅ | 18.0 | `makeCoordinator(converter:)` and `makeUIGestureRecognizer(context:)` run once, `updateUIGestureRecognizer` on every update, SwiftUI's target calls `handleUIGestureRecognizerAction` with the latest value; `UIGestureRecognizerRepresentableContext` (`converter`, `coordinator`) and `UIGestureRecognizerRepresentableCoordinateSpaceConverter` (`localLocation` / `localTranslation` / `localVelocity`, `location(in:)`, `translation(in:)` / `velocity(in:)` for pans, `convert(globalPoint:to:)`, in local, global and named spaces). Tested (HelloSwiftUIInterop) |
+| `UIHostingSceneDelegate`, `UISceneSessionActivationRequest(hostingDelegateClass:…)` | ✅ | 26.0 | adapted: when UIKit connects a scene to a delegate class that conforms (a `UISceneConfiguration`'s `delegateClass`, or one of the four request initializers, nil when `rootScene` has no matching window group), SwiftUI makes its window for the requested `WindowGroup` (the first by default; `id:` / `value:`) before the delegate's own `scene(_:willConnectTo:options:)`, and the delegate keeps every UIKit callback. Also `UIApplication.activateSceneSession(for:)` without an error handler. A second window needs an iPad, as with `openWindow`. Tested (HelloSwiftUIInterop, iPhone and iPad under iOS 26) |
 | Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `AccessibilityAttachmentModifier`, `AccessibilityCustomContentKey`, `AccessibilityDirectTouchOptions`, `AccessibilityFocusState`, `AccessibilityHeadingLevel`, `AccessibilityLabeledPairRole`, `AccessibilityRotorContent`, `AccessibilityRotorContentBuilder`, `AccessibilityRotorEntry`, `AccessibilitySystemRotor`, `AccessibilityTechnologies`, `AccessibilityTextContentType`, `AccessibilityZoomGestureAction`, `ActionSheet`, `Alert`, `AnimationContext`, `AnimationState`, `AnimationStateKey`, `AsymmetricTransition`, `AXChartDescriptorRepresentable`, `BackgroundProminence`, `BadgeProminence`, `ButtonRepeatBehavior`, `ColorMatrix`, `CommandGroup`, `CommandGroupPlacement`, `CommandMenu`, `Commands`, `CommandsBuilder`, `ContentSizeCategory`, `ContextMenu`, `ControlGroupStyleConfiguration`, `CustomAnimation`, `CustomizableToolbarContent`, `CustomPresentationDetent`, `DefaultDateProgressLabel`, `DialogSeverity`, `DisclosureGroupStyle`, `DisclosureTableRow`, `DismissBehavior`, `DocumentBaseBox`, `DropDelegate`, `DropInfo`, `DropOperation`, `DropProposal`, `DynamicTableRowContent`, `EditableCollectionContent`, `EditActions`, `EmptyCommands`, `EmptyModifier`, `EmptyTableRowContent`, `EmptyWidgetConfiguration`, `EnvironmentalModifier`, `EquatableView`, `FileDialogBrowserOptions`, `FillShapeView`, `FocusedObject`, `FormStyleConfiguration`, `GroupBoxStyle`, `GroupBoxStyleConfiguration` and 69 more (129 types; with their members under "Not yet in isim") |
 | Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `AccessibilityActionCategory`, `AnyScrollTargetBehavior`, `AnyTabContent`, `ContentToolbarPlacement`, `CustomHoverEffect`, `DefaultDocumentGroupLaunchActions`, `DocumentGroupLaunchScene`, `DocumentLaunchGeometryProxy`, `DocumentLaunchView`, `EmptyControlWidgetConfiguration`, `EmptyControlWidgetTemplate`, `FixedTextVariant`, `ForEachSectionCollection`, `ForEachSubviewCollection`, `GroupElementsOfContent`, `GroupSectionsOfContent`, `HandGestureShortcut`, `MaterialActiveAppearance`, `NewDocumentButton`, `PresentationSizingContext`, `PresentationSizingRoot`, `PreviewModifierContent`, `SceneRestorationBehavior`, `ScrollAnchorRole`, `ScrollContentOffsetAdjustmentBehavior`, `ScrollInputBehavior`, `ScrollInputKind`, `ScrollPhase`, `ScrollPhaseChangeContext`, `ScrollPosition`, `ScrollTargetBehaviorProperties`, `ScrollTargetBehaviorPropertiesContext`, `SizeDependentTextVariant`, `SpatialEventCollection`, `SpatialEventGesture`, `SystemFormatStyle`, `TabContent`, `TabContentBuilder`, `TextProxy`, `TextSelection`, `TextSelectionAffinity`, `TextVariantPreference`, `TimeDataSource`, `ToolbarLabelStyle`, `UIGestureRecognizerRepresentable`, `UIGestureRecognizerRepresentableContext`, `UIGestureRecognizerRepresentableCoordinateSpaceConverter`, `WindowManagerRole`, `WindowToolbarFullScreenVisibility`, `WritingToolsBehavior` (50 types; with their members under "Not yet in isim") |
 | Types not yet in isim (iOS 26) | ❌ | 26.0 | not implemented, found by the 2026-10 sweep: `AnimatableValues`, `AssistiveAccess`, `AttributedTextFormatting`, `AttributedTextFormattingDefinition`, `AttributedTextValueConstraint`, `ButtonSizing`, `ConcentricRectangle`, `DebugReplaceableView`, `DefaultButtonLabel`, `DefaultToolbarItem`, `DragConfiguration`, `DragSession`, `DropConfiguration`, `FindContext`, `RectangleCornerInsets`, `RoundedRectangularShape`, `RoundedRectangularShapeCorners`, `SearchToolbarBehavior`, `SymbolColorRenderingMode`, `SymbolVariableValueMode`, `TextInputFormattingControlPlacement`, `TupleContent`, `UIHostingSceneDelegate` (23 types; with their members under "Not yet in isim") |
@@ -342,7 +353,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-2796 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+2645 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -568,9 +579,6 @@
 - [`static var fitted: ButtonSizing`](https://developer.apple.com/documentation/swiftui/buttonsizing/fitted)
 - [`static var flexible: ButtonSizing`](https://developer.apple.com/documentation/swiftui/buttonsizing/flexible)
 - [`static var flexible: ButtonSizing`](https://developer.apple.com/documentation/swiftui/buttonsizing/flexible)
-- [`CameraCaptureAccessory`](https://developer.apple.com/documentation/swiftui/cameracaptureaccessory)
-- [`init(content: () -> Content)`](https://developer.apple.com/documentation/swiftui/cameracaptureaccessory/init(content:))
-- [`init(isEnabled: Binding<Bool>, content: () -> Content)`](https://developer.apple.com/documentation/swiftui/cameracaptureaccessory/init(isenabled:content:))
 - [`var colorMode: ColorRenderingMode`](https://developer.apple.com/documentation/swiftui/canvas/colormode)
 - [`var isOpaque: Bool`](https://developer.apple.com/documentation/swiftui/canvas/isopaque)
 - [`var renderer: (inout GraphicsContext, CGSize) -> Void`](https://developer.apple.com/documentation/swiftui/canvas/renderer)
@@ -591,28 +599,6 @@
 - [`var red: Float`](https://developer.apple.com/documentation/swiftui/color/resolvedhdr/red)
 - [`func resolveHDR(in: EnvironmentValues) -> Color.ResolvedHDR`](https://developer.apple.com/documentation/swiftui/color/resolvehdr(in:))
 - [`static var transferRepresentation: some TransferRepresentation`](https://developer.apple.com/documentation/swiftui/color/transferrepresentation)
-- [`ColorMatrix`](https://developer.apple.com/documentation/swiftui/colormatrix)
-- [`var a1: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/a1)
-- [`var a2: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/a2)
-- [`var a3: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/a3)
-- [`var a4: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/a4)
-- [`var a5: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/a5)
-- [`var b1: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/b1)
-- [`var b2: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/b2)
-- [`var b3: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/b3)
-- [`var b4: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/b4)
-- [`var b5: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/b5)
-- [`var g1: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/g1)
-- [`var g2: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/g2)
-- [`var g3: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/g3)
-- [`var g4: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/g4)
-- [`var g5: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/g5)
-- [`init()`](https://developer.apple.com/documentation/swiftui/colormatrix/init())
-- [`var r1: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/r1)
-- [`var r2: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/r2)
-- [`var r3: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/r3)
-- [`var r4: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/r4)
-- [`var r5: Float`](https://developer.apple.com/documentation/swiftui/colormatrix/r5)
 - [`init?(UIUserInterfaceStyle)`](https://developer.apple.com/documentation/swiftui/colorscheme/init(_:))
 - [`init?(UIAccessibilityContrast)`](https://developer.apple.com/documentation/swiftui/colorschemecontrast/init(_:))
 - [`ColumnNavigationViewStyle`](https://developer.apple.com/documentation/swiftui/columnnavigationviewstyle)
@@ -646,7 +632,32 @@
 - [`var body: Self.Body`](https://developer.apple.com/documentation/swiftui/commands/body-swift.property)
 - [`CommandsBuilder`](https://developer.apple.com/documentation/swiftui/commandsbuilder)
 - [`static func buildBlock() -> EmptyCommands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock())
-- … and 2496 more (`isim/data/api-coverage.json.gz`)
+- [`static func buildBlock<C>(C) -> C`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:))
+- [`static func buildBlock<C0, C1>(C0, C1) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:))
+- [`static func buildBlock<C0, C1, C2>(C0, C1, C2) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:_:))
+- [`static func buildBlock<C0, C1, C2, C3>(C0, C1, C2, C3) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:_:_:))
+- [`static func buildBlock<C0, C1, C2, C3, C4>(C0, C1, C2, C3, C4) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:_:_:_:))
+- [`static func buildBlock<C0, C1, C2, C3, C4, C5>(C0, C1, C2, C3, C4, C5) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:_:_:_:_:))
+- [`static func buildBlock<C0, C1, C2, C3, C4, C5, C6>(C0, C1, C2, C3, C4, C5, C6) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:_:_:_:_:_:))
+- [`static func buildBlock<C0, C1, C2, C3, C4, C5, C6, C7>(C0, C1, C2, C3, C4, C5, C6, C7) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:_:_:_:_:_:_:))
+- [`static func buildBlock<C0, C1, C2, C3, C4, C5, C6, C7, C8>(C0, C1, C2, C3, C4, C5, C6, C7, C8) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:_:_:_:_:_:_:_:))
+- [`static func buildBlock<C0, C1, C2, C3, C4, C5, C6, C7, C8, C9>(C0, C1, C2, C3, C4, C5, C6, C7, C8, C9) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildblock(_:_:_:_:_:_:_:_:_:_:))
+- [`static func buildEither<T, F>(first: T) -> _ConditionalContent<T, F>`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildeither(first:))
+- [`static func buildEither<T, F>(second: F) -> _ConditionalContent<T, F>`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildeither(second:))
+- [`static func buildExpression<Content>(Content) -> Content`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildexpression(_:))
+- [`static func buildIf<C>(C?) -> C?`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildif(_:))
+- [`static func buildLimitedAvailability(any Commands) -> some Commands`](https://developer.apple.com/documentation/swiftui/commandsbuilder/buildlimitedavailability(_:))
+- [`ConcentricRectangle`](https://developer.apple.com/documentation/swiftui/concentricrectangle)
+- [`init()`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init())
+- [`init(corners: Edge.Corner.Style, isUniform: Bool)`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init(corners:isuniform:))
+- [`init(topLeadingCorner: Edge.Corner.Style, topTrailingCorner: Edge.Corner.Style, bottomLeadingCorner: Edge.Corner.Style, bottomTrailingCorner: Edge.Corner.Style)`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init(topleadingcorner:toptrailingcorner:bottomleadingcorner:bottomtrailingcorner:))
+- [`init(uniformBottomCorners: Edge.Corner.Style, topLeadingCorner: Edge.Corner.Style, topTrailingCorner: Edge.Corner.Style)`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init(uniformbottomcorners:topleadingcorner:toptrailingcorner:))
+- [`init(uniformLeadingCorners: Edge.Corner.Style, topTrailingCorner: Edge.Corner.Style, bottomTrailingCorner: Edge.Corner.Style)`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init(uniformleadingcorners:toptrailingcorner:bottomtrailingcorner:))
+- [`init(uniformLeadingCorners: Edge.Corner.Style, uniformTrailingCorners: Edge.Corner.Style)`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init(uniformleadingcorners:uniformtrailingcorners:))
+- [`init(uniformTopCorners: Edge.Corner.Style, bottomLeadingCorner: Edge.Corner.Style, bottomTrailingCorner: Edge.Corner.Style)`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init(uniformtopcorners:bottomleadingcorner:bottomtrailingcorner:))
+- [`init(uniformTopCorners: Edge.Corner.Style, uniformBottomCorners: Edge.Corner.Style)`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init(uniformtopcorners:uniformbottomcorners:))
+- [`init(uniformTrailingCorners: Edge.Corner.Style, topLeadingCorner: Edge.Corner.Style, bottomLeadingCorner: Edge.Corner.Style)`](https://developer.apple.com/documentation/swiftui/concentricrectangle/init(uniformtrailingcorners:topleadingcorner:bottomleadingcorner:))
+- … and 2345 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

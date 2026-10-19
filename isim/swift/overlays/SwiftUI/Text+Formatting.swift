@@ -25,6 +25,7 @@ struct _TextExtras {
     var markdown = true
     var image: Image? = nil          // Text(Image(...)): an inline image (SF Symbols scale with the font)
     var paint: AnyShapeStyle? = nil  // Text.foregroundStyle(gradient / image paint): drawn through the text's glyphs
+    var axHeading: AccessibilityHeadingLevel? = nil   // Text.accessibilityHeading (Accessibility+More.swift)
 }
 struct _TextLine { let active: Bool; let color: Color? }
 
@@ -393,6 +394,7 @@ extension Text {
 /// a gradient (or other paint) foreground style fills the glyphs.
 @MainActor func _makeTextNode(_ t: Text, _ ctx: _Context) -> _Node {
     let node = _makeTextNode0(t, ctx)
+    if let h = t._x.axHeading { node.accessibilityApply.append(_headingApply(h)) }
     let env = ctx.environment
     var paint: (any ShapeStyle)? = t._x.parts == nil ? t._x.paint?.base : nil
     if paint == nil, t.color == nil, let b = env._foregroundPaint, b.fallback == env._foreground { paint = b.style }

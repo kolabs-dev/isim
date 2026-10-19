@@ -719,7 +719,7 @@ CoreTransferable -lswiftObjectiveC -lswiftFoundation -lswiftUniformTypeIdentifie
 Symbols
 DeveloperToolsSupport -lswiftCoreGraphics -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
 UIKit -lswiftDeveloperToolsSupport -lswiftSymbols -lswiftObjectiveC -lswiftFoundation -lswiftUniformTypeIdentifiers -lswiftDispatch -lswift_Concurrency -lswiftObservation -framework Foundation -framework UIKit
-SwiftUI -lswiftDeveloperToolsSupport -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftUniformTypeIdentifiers -lswiftCoreTransferable -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreText -lisim_host
+SwiftUI -lswiftDeveloperToolsSupport -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftUniformTypeIdentifiers -lswiftCoreTransferable -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreText -framework Accessibility -lisim_host
 Spatial
 Charts -lswiftSpatial -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit
 GameKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftNetwork -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit

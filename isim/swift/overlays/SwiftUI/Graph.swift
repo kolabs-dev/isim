@@ -36,6 +36,9 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
     var usedAppear: Set<String> = []
     var disappearActions: [String: () -> Void] = [:]
     var rendering = false, pending = false
+    /// called when the tree's state changes (ImageRenderer's objectWillChange)
+    var onInvalidate: (() -> Void)?
+    let axRotorTargets = _AXRotorTargets()
     var urlHandlers: [String: (URL) -> Void] = [:]
     /// Every view is gone (the presentation hosting them was dismissed): disappear actions run, tasks are cancelled.
     func disappearAll() {
@@ -148,6 +151,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
             return
         }
         MainActor.assumeIsolated {
+            onInvalidate?()
             if rendering { pending = true; return }
             hostView?.setNeedsLayout()
         }
@@ -403,6 +407,9 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
         if let id = node.accessibilityIdentifier { v.accessibilityIdentifier = id }
         if let label = node.accessibilityLabel { v.accessibilityLabel = label }
         for apply in node.accessibilityApply { apply(v) }          // accessibility modifiers (Accessibility.swift)
+        // rotor entries find their elements by ForEach id or .id(_:) (Accessibility+More.swift)
+        if let t = node.tag { axRotorTargets.views[t] = _AXRotorTargets.WeakBox(v) }
+        if let i = node as? _IDNode { axRotorTargets.views[AnyHashable(i.idTag)] = _AXRotorTargets.WeakBox(v) }
         node.mountChildren(self, in: v)
     }
 }

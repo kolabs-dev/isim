@@ -1,7 +1,7 @@
 # QuickLook
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 49.2% of Apple's iOS API (29 of 59, exact) · **Rows:** 1: 1 ❌ · **iOS:** 4.0+
+**Symbols:** 54.2% of Apple's iOS API (32 of 59, exact) · **Rows:** 4: 3 ✅ 1 ❌ · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [UIKit](../COVERAGE.md#uikit) · **Apple:** [Quick Look](https://developer.apple.com/documentation/quicklook) · **Issues:** [`area:uikit`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Auikit)
@@ -22,7 +22,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-30 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+27 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -50,9 +50,6 @@
 - [`var contentType: UTType`](https://developer.apple.com/documentation/quicklook/qlpreviewreplyattachment/contenttype)
 - [`var data: Data`](https://developer.apple.com/documentation/quicklook/qlpreviewreplyattachment/data)
 - [`init(data: Data, contentType: UTType)`](https://developer.apple.com/documentation/quicklook/qlpreviewreplyattachment/init(data:contenttype:))
-- [`QLPreviewSceneActivationConfiguration`](https://developer.apple.com/documentation/quicklook/qlpreviewsceneactivationconfiguration)
-- [`init(itemsAt: [URL], options: QLPreviewSceneActivationConfiguration.Options?)`](https://developer.apple.com/documentation/quicklook/qlpreviewsceneactivationconfiguration/init(itemsat:options:))
-- [`init(itemsAtURLs: [URL], options: QLPreviewSceneActivationConfiguration.Options?)`](https://developer.apple.com/documentation/quicklook/qlpreviewsceneactivationconfiguration/init(itemsaturls:options:))
 - [`QLPreviewSceneActivationConfiguration.Options`](https://developer.apple.com/documentation/quicklook/qlpreviewsceneactivationconfiguration/options)
 - [`var initialPreviewIndex: Int`](https://developer.apple.com/documentation/quicklook/qlpreviewsceneactivationconfiguration/options/initialpreviewindex)
 - [`var initialPreviewIndex: Int`](https://developer.apple.com/documentation/quicklook/qlpreviewsceneactivationconfiguration/options/initialpreviewindex)

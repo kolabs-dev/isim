@@ -1,7 +1,7 @@
 # UIKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 92.1% of Apple's iOS API (13625 of 14790, exact) · **Rows:** 315: 305 ✅ 8 🟡 2 ❌ · **iOS:** 2.0+
+**Symbols:** 92.7% of Apple's iOS API (13714 of 14790, exact) · **Rows:** 321: 312 ✅ 7 🟡 2 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [UIKit](../COVERAGE.md#uikit) · **Apple:** [UIKit](https://developer.apple.com/documentation/uikit) · **Issues:** [`area:uikit`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Auikit)
@@ -405,7 +405,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1165 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1076 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -451,7 +451,6 @@
 - [`func textContainer(forGlyphAt: Int, effectiveRange: NSRangePointer?) -> NSTextContainer?`](https://developer.apple.com/documentation/uikit/nslayoutmanager/textcontainer(forglyphat:effectiverange:))
 - [`func textContainer(forGlyphAt: Int, effectiveRange: NSRangePointer?, withoutAdditionalLayout: Bool) -> NSTextContainer?`](https://developer.apple.com/documentation/uikit/nslayoutmanager/textcontainer(forglyphat:effectiverange:withoutadditionallayout:))
 - [`func truncatedGlyphRange(inLineFragmentForGlyphAt: Int) -> NSRange`](https://developer.apple.com/documentation/uikit/nslayoutmanager/truncatedglyphrange(inlinefragmentforglyphat:))
-- [`var fileWrapper: FileWrapper?`](https://developer.apple.com/documentation/uikit/nstextattachment/filewrapper)
 - [`func replace(NSTextContentManager)`](https://developer.apple.com/documentation/uikit/nstextlayoutmanager/replace(_:))
 - [`class var includesTextListMarkers: Bool`](https://developer.apple.com/documentation/uikit/nstextlist/includestextlistmarkers)
 - [`func intersection(NSTextRange) -> Self?`](https://developer.apple.com/documentation/uikit/nstextrange/intersection(_:))
@@ -606,7 +605,6 @@
 - [`case bordered`](https://developer.apple.com/documentation/uikit/uibutton/configuration-swift.struct/macidiomstyle-swift.enum/bordered)
 - [`case borderless`](https://developer.apple.com/documentation/uikit/uibutton/configuration-swift.struct/macidiomstyle-swift.enum/borderless)
 - [`case borderlessTinted`](https://developer.apple.com/documentation/uikit/uibutton/configuration-swift.struct/macidiomstyle-swift.enum/borderlesstinted)
-- [`UIButton.Configuration.Size`](https://developer.apple.com/documentation/uikit/uibutton/configuration-swift.struct/size)
 - [`case large`](https://developer.apple.com/documentation/uikit/uibutton/configuration-swift.struct/size/large)
 - [`case medium`](https://developer.apple.com/documentation/uikit/uibutton/configuration-swift.struct/size/medium)
 - [`case mini`](https://developer.apple.com/documentation/uikit/uibutton/configuration-swift.struct/size/mini)
@@ -616,7 +614,6 @@
 - [`case leading`](https://developer.apple.com/documentation/uikit/uibutton/configuration-swift.struct/titlealignment-swift.enum/leading)
 - [`case trailing`](https://developer.apple.com/documentation/uikit/uibutton/configuration-swift.struct/titlealignment-swift.enum/trailing)
 - [`func updated(for: UIButton) -> UIButton.Configuration`](https://developer.apple.com/documentation/uikit/uibutton/configuration-swift.struct/updated(for:))
-- [`var isHeld: Bool`](https://developer.apple.com/documentation/uikit/uibutton/isheld)
 - [`var preferredMenuElementOrder: UIContextMenuConfiguration.ElementOrder`](https://developer.apple.com/documentation/uikit/uibutton/preferredmenuelementorder)
 - [`UIButtonPointerStyleProvider`](https://developer.apple.com/documentation/uikit/uibuttonpointerstyleprovider)
 - [`init(isHidden: Bool?, reservedLayoutWidth: UICellAccessory.LayoutDimension?, tintColor: UIColor?)`](https://developer.apple.com/documentation/uikit/uicellaccessory-swift.struct/checkmarkoptions/init(ishidden:reservedlayoutwidth:tintcolor:))
@@ -690,10 +687,6 @@
 - [`UICollectionView.LayoutInteractiveTransitionCompletion`](https://developer.apple.com/documentation/uikit/uicollectionview/layoutinteractivetransitioncompletion)
 - [`func moveSection(Int, toSection: Int)`](https://developer.apple.com/documentation/uikit/uicollectionview/movesection(_:tosection:))
 - [`func defaultBackgroundConfiguration() -> UIBackgroundConfiguration`](https://developer.apple.com/documentation/uikit/uicollectionviewcell/defaultbackgroundconfiguration())
-- [`func updateConfiguration(using: UICellConfigurationState)`](https://developer.apple.com/documentation/uikit/uicollectionviewcell/updateconfiguration(using:))
-- [`func updateConfiguration(using: UICellConfigurationState)`](https://developer.apple.com/documentation/uikit/uicollectionviewcell/updateconfiguration(using:))
-- [`func updateConfiguration(using: UICellConfigurationState)`](https://developer.apple.com/documentation/uikit/uicollectionviewcell/updateconfiguration(using:))
-- [`func updateConfiguration(using: UICellConfigurationState)`](https://developer.apple.com/documentation/uikit/uicollectionviewcell/updateconfiguration(using:))
 - [`var reorderingHandlers: __UICollectionViewDiffableDataSourceReorderingHandlers`](https://developer.apple.com/documentation/uikit/uicollectionviewdiffabledatasourcereference/reorderinghandlers)
 - [`var reorderingHandlers: __UICollectionViewDiffableDataSourceReorderingHandlers`](https://developer.apple.com/documentation/uikit/uicollectionviewdiffabledatasourcereference/reorderinghandlers)
 - [`var sectionSnapshotHandlers: __UICollectionViewDiffableDataSourceSectionSnapshotHandlers`](https://developer.apple.com/documentation/uikit/uicollectionviewdiffabledatasourcereference/sectionsnapshothandlers)
@@ -709,7 +702,14 @@
 - [`init(rawValue: UInt)`](https://developer.apple.com/documentation/uikit/uicollisionbehavior/mode/init(rawvalue:))
 - [`static var items: UICollisionBehavior.Mode`](https://developer.apple.com/documentation/uikit/uicollisionbehavior/mode/items)
 - [`func setTranslatesReferenceBoundsIntoBoundary(with: UIEdgeInsets)`](https://developer.apple.com/documentation/uikit/uicollisionbehavior/settranslatesreferenceboundsintoboundary(with:))
-- … and 865 more (`isim/data/api-coverage.json.gz`)
+- [`init(traitCollection: UITraitCollection)`](https://developer.apple.com/documentation/uikit/uiconfigurationstate-8d7pd/init(traitcollection:))
+- [`subscript(UIConfigurationStateCustomKey) -> AnyHashable?`](https://developer.apple.com/documentation/uikit/uiconfigurationstate-8d7pd/subscript(_:))
+- [`var preferredContentSize: CGSize`](https://developer.apple.com/documentation/uikit/uicontentcontainer/preferredcontentsize)
+- [`var preferredContentSize: CGSize`](https://developer.apple.com/documentation/uikit/uicontentcontainer/preferredcontentsize)
+- [`var preferredContentSize: CGSize`](https://developer.apple.com/documentation/uikit/uicontentcontainer/preferredcontentsize)
+- [`func preferredContentSizeDidChange(forChildContentContainer: any UIContentContainer)`](https://developer.apple.com/documentation/uikit/uicontentcontainer/preferredcontentsizedidchange(forchildcontentcontainer:))
+- [`func preferredContentSizeDidChange(forChildContentContainer: any UIContentContainer)`](https://developer.apple.com/documentation/uikit/uicontentcontainer/preferredcontentsizedidchange(forchildcontentcontainer:))
+- … and 776 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->
