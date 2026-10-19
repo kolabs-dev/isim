@@ -669,7 +669,7 @@ def _(a):
 
 @app("tests/dispatch", products=["DispatchTest.app"])
 def _(a):
-    a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation"], name="DispatchTest")
+    a.objc_app(["main.m", "objects.m"], "Info.plist", ["-framework", "Foundation"], name="DispatchTest")
 
 
 @app("tests/objc-literals", products=["ObjCLiteralsTest.app"])

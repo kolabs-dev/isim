@@ -228,7 +228,8 @@ Classes:
     MethodKind: Instance
     SwiftName: 'didMove(toParent:)'
 - Name: UIButtonConfiguration
-  SwiftName: UIButton.Configuration
+  # Swift's UIButton.Configuration is a struct in the UIKit overlay (as on iOS), bridged to this class
+  SwiftName: __UIButtonConfiguration
   Methods:
   - Selector: plainButtonConfiguration
     MethodKind: Class
@@ -638,9 +639,9 @@ Tags:
 - Name: UIButtonType
   SwiftName: UIButton.ButtonType
 - Name: UIButtonConfigurationCornerStyle
-  SwiftName: UIButton.Configuration.CornerStyle
+  SwiftName: __UIButtonConfiguration.CornerStyle
 - Name: UIButtonConfigurationSize
-  SwiftName: UIButton.Configuration.Size
+  SwiftName: __UIButtonConfiguration.Size
 - Name: UIStackViewAlignment
   SwiftName: UIStackView.Alignment
 - Name: UIStackViewDistribution

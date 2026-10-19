@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <os/object.h>
 __BEGIN_DECLS
-OS_OBJECT_DECL(os_activity);
+typedef struct os_activity_s *os_activity_t;   /* a C object in isim's runtime (host_os.c), also in Objective-C */
 typedef uint64_t os_activity_id_t;
 typedef struct os_activity_scope_state_s { uint64_t opaque[2]; } *os_activity_scope_state_t;
 typedef enum __attribute__((flag_enum)) : uint32_t {

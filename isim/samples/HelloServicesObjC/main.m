@@ -26,7 +26,7 @@ static const char *QueueKey = "svcobjc.queue";
 @property (nonatomic, strong) PKPushRegistry *registry;
 @property (nonatomic, strong) CXProvider *provider;
 @property (nonatomic, strong) CXCallController *controller;
-@property (nonatomic, assign) dispatch_queue_t queue;   // lives as long as the app
+@property (nonatomic, strong) dispatch_queue_t queue;   // ARC retains dispatch objects (#459)
 @property (nonatomic, strong) NSUUID *outgoing;
 @end
 

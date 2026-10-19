@@ -82,7 +82,7 @@ final class HomeViewController: UIViewController, SFSafariViewControllerDelegate
                              ("Sign in (ephemeral)", "signin-eph", #selector(signInEphemeral)),
                              ("Compose mail", "mail", #selector(composeMail)),
                              ("Compose message", "message", #selector(composeMessage))] as [(String, String, Selector)] {
-            let c = UIButton.Configuration.filled(); c.title = t; c.cornerStyle = .large; c.baseBackgroundColor = .systemBlue
+            var c = UIButton.Configuration.filled(); c.title = t; c.cornerStyle = .large; c.baseBackgroundColor = .systemBlue
             let b = UIButton(configuration: c); b.accessibilityIdentifier = id
             b.addTarget(self, action: sel, for: .touchUpInside)
             b.heightAnchor.constraint(equalToConstant: 46).isActive = true

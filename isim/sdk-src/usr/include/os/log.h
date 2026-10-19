@@ -6,8 +6,9 @@
 #include <_isim_cdefs.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <os/object.h>
 __BEGIN_DECLS
-typedef struct os_log_s *os_log_t;
+OS_OBJECT_DECL(os_log);              /* an Objective-C object in Objective-C (OS_os_log), as on Apple */
 typedef uint8_t os_log_type_t;
 enum {
     OS_LOG_TYPE_DEFAULT = 0x00,
@@ -18,9 +19,9 @@ enum {
 };
 extern struct os_log_s _os_log_default;
 extern struct os_log_s _os_log_disabled;
-#define OS_LOG_DEFAULT (&_os_log_default)
-#define OS_LOG_DISABLED (&_os_log_disabled)
-os_log_t os_log_create(const char *subsystem, const char *category);
+#define OS_LOG_DEFAULT OS_OBJECT_GLOBAL_OBJECT(os_log_t, _os_log_default)
+#define OS_LOG_DISABLED OS_OBJECT_GLOBAL_OBJECT(os_log_t, _os_log_disabled)
+OS_OBJECT_RETURNS_RETAINED os_log_t os_log_create(const char *subsystem, const char *category);
 bool os_log_type_enabled(os_log_t log, os_log_type_t type);
 void _os_log_impl(void *dso, os_log_t log, os_log_type_t type, const char *format, uint8_t *buf, uint32_t size);
 

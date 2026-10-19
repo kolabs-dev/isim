@@ -24,7 +24,9 @@ func _cxQueue(_ q: dispatch_queue_t?) -> dispatch_queue_t? {
 final class _CXObjCProviderDelegate: NSObject, CXProviderDelegate {
     weak var target: NSObject?
     let queue: dispatch_queue_t
-    init(_ t: NSObject, queue: dispatch_queue_t) { target = t; self.queue = queue }
+    /// the queue is an Objective-C caller's: held while the adapter lives (ARC releases the caller's reference)
+    init(_ t: NSObject, queue: dispatch_queue_t) { target = t; self.queue = queue; dispatch_retain(UnsafeMutableRawPointer(queue)) }
+    deinit { dispatch_release(UnsafeMutableRawPointer(queue)) }
     override func responds(to s: Selector) -> Bool {
         s == #selector(CXProviderDelegate.providerDidReset(_:)) || (target?.responds(to: s) ?? false)
     }
@@ -57,14 +59,19 @@ final class _CXObjCProviderDelegate: NSObject, CXProviderDelegate {
 final class _CXObjCObserverDelegate: NSObject, CXCallObserverDelegate {
     weak var target: NSObject?
     let queue: dispatch_queue_t
-    init(_ t: NSObject, queue: dispatch_queue_t) { target = t; self.queue = queue }
+    init(_ t: NSObject, queue: dispatch_queue_t) { target = t; self.queue = queue; dispatch_retain(UnsafeMutableRawPointer(queue)) }
+    deinit { dispatch_release(UnsafeMutableRawPointer(queue)) }
     func callObserver(_ callObserver: CXCallObserver, callChanged call: CXCall) {
         dispatch_async(queue) { [weak self] in if let t = self?.target { _cxSend(t, #selector(CXCallObserverDelegate.callObserver(_:callChanged:)), callObserver, call) } }
     }
 }
 nonisolated(unsafe) private var _cxObjCDelegateKey: UInt8 = 0
 nonisolated(unsafe) private var _cxObjCQueueKey: UInt8 = 0
-final class _CXQueueBox { let queue: dispatch_queue_t; init(_ q: dispatch_queue_t) { queue = q } }
+final class _CXQueueBox {
+    let queue: dispatch_queue_t
+    init(_ q: dispatch_queue_t) { queue = q; dispatch_retain(UnsafeMutableRawPointer(q)) }
+    deinit { dispatch_release(UnsafeMutableRawPointer(queue)) }
+}
 
 // MARK: - errors are NSErrors with Apple's domains and codes (CallKit.m has the domain constants)
 

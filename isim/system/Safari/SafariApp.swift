@@ -84,7 +84,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UITex
     func makeGlassBar() {
         bar.isHidden = true
         let circle = { (symbol: String, id: String) -> UIButton in
-            let c = UIButton.Configuration.glass()
+            var c = UIButton.Configuration.glass()
             c.image = UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold))
             c.baseForegroundColor = .label
             let b = UIButton(configuration: c)
@@ -102,7 +102,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UITex
         view.addSubview(capsule)
         address.font = .systemFont(ofSize: 15, weight: .medium)
         capsule.contentView.addSubview(address)
-        let r = UIButton.Configuration.plain()
+        var r = UIButton.Configuration.plain()
         r.image = UIImage(systemName: "arrow.clockwise", withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .medium))
         r.baseForegroundColor = .label
         let reload = UIButton(configuration: r, primaryAction: UIAction { [unowned self] _ in web.reload() })

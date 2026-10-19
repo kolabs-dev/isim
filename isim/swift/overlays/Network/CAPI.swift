@@ -6,10 +6,16 @@ import Darwin
 
 final class _NWCPathMonitor: NSObject {
     let monitor: NWPathMonitor
-    var queue: dispatch_queue_t?                 // the C caller's queue; the monitor itself runs on the main queue
+    var queue: dispatch_queue_t? {               // the C caller's queue; the monitor itself runs on the main queue
+        didSet {                                 // held while set (an Objective-C caller's reference is ARC's)
+            if let queue { dispatch_retain(UnsafeMutableRawPointer(queue)) }
+            if let oldValue { dispatch_release(UnsafeMutableRawPointer(oldValue)) }
+        }
+    }
     var update: ((NSObject) -> Void)?
     var cancelHandler: (() -> Void)?
     init(_ m: NWPathMonitor) { monitor = m }
+    deinit { if let queue { dispatch_release(UnsafeMutableRawPointer(queue)) } }
 }
 final class _NWCPath: NSObject { let path: NWPath; init(_ p: NWPath) { path = p } }
 final class _NWCInterface: NSObject {

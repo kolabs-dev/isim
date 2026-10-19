@@ -228,8 +228,11 @@ static BOOL key_is(NSString *key, NSString *a, NSString *b) { return [key isEqua
     NSOperation *_barrier;                      /* the last barrier still pending: later operations wait for it */
     BOOL _isMain;
     NSProgress *_progress;
+    dispatch_queue_t _underlyingQueue;          /* retained, as on iOS (the header says assign, "actually retain") */
 }
-@synthesize name = _name, qualityOfService = _qualityOfService, underlyingQueue = _underlyingQueue;
+@synthesize name = _name, qualityOfService = _qualityOfService;
+- (dispatch_queue_t)underlyingQueue { return _underlyingQueue; }
+- (void)setUnderlyingQueue:(dispatch_queue_t)q { _underlyingQueue = q; }
 @synthesize maxConcurrentOperationCount = _maxConcurrentOperationCount, suspended = _suspended;
 + (NSOperationQueue *)mainQueue {
     static NSOperationQueue *m; static dispatch_once_t o;

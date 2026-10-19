@@ -54,8 +54,14 @@ final class MembersViewController: UIViewController {
         print("contentScaleFactor set=\(box.contentScaleFactor) layer=\(box.layer.contentsScale)")
         view.addSubview(box)
 
-        let button = UIButton(configuration: .filled())
-        button.configuration?.title = "Hold me"
+        // UIButton.Configuration is a value (#487): a copy changes on its own, the button keeps its own copy
+        var config = UIButton.Configuration.filled()
+        config.title = "Hold me"
+        let button = UIButton(configuration: config)
+        var copy = config
+        copy.title = "Copy"
+        config.baseBackgroundColor = .systemPink
+        print("configuration value title=\(config.title ?? "-") copy=\(copy.title ?? "-") button=\(button.configuration?.title ?? "-") equal=\(config == copy) same=\(copy == copy)")
         button.accessibilityIdentifier = "hold"
         button.frame = CGRect(x: 20, y: 220, width: 200, height: 50)
         var lastHeld = false

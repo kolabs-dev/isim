@@ -4,7 +4,7 @@
    App Store product page and overlay (listings from Apple's public lookup API; installing is not possible on isim) and
    StoreKit 1 (products requests, payments, the payment queue and its transactions, receipt refresh, review requests),
    on the same local StoreKit testing ledger as Swift. Swift uses the overlay; these declarations are hidden from Swift.
-   Not available from Objective-C yet: SKPaymentDiscount (promotional offers), downloads. The classes are not
+   Not available from Objective-C yet: downloads. The classes are not
    subclassable from Objective-C. */
 #import <UIKit/UIKit.h>
 #if !defined(__swift__)
@@ -91,6 +91,14 @@ FOUNDATION_EXPORT NSString * const SKReceiptPropertyIsVolumePurchase;
 @end
 
 /* payments */
+@interface SKPaymentDiscount : NSObject
+- (instancetype)initWithIdentifier:(NSString *)identifier keyIdentifier:(NSString *)keyIdentifier nonce:(NSUUID *)nonce signature:(NSString *)signature timestamp:(NSNumber *)timestamp;
+@property (nonatomic, copy, readonly) NSString *identifier;
+@property (nonatomic, copy, readonly) NSString *keyIdentifier;
+@property (nonatomic, copy, readonly) NSUUID *nonce;
+@property (nonatomic, copy, readonly) NSString *signature;
+@property (nonatomic, copy, readonly) NSNumber *timestamp;
+@end
 @interface SKPayment : NSObject
 + (instancetype)paymentWithProduct:(SKProduct *)product;
 @property (nonatomic, copy, readonly) NSString *productIdentifier;
@@ -98,6 +106,7 @@ FOUNDATION_EXPORT NSString * const SKReceiptPropertyIsVolumePurchase;
 @property (nonatomic, readonly) NSInteger quantity;
 @property (nonatomic, copy, readonly, nullable) NSString *applicationUsername;
 @property (nonatomic, readonly) BOOL simulatesAskToBuyInSandbox;
+@property (nonatomic, copy, readonly, nullable) SKPaymentDiscount *paymentDiscount;
 @end
 @interface SKMutablePayment : SKPayment
 - (instancetype)init;
@@ -106,6 +115,7 @@ FOUNDATION_EXPORT NSString * const SKReceiptPropertyIsVolumePurchase;
 @property (nonatomic, readwrite) NSInteger quantity;
 @property (nonatomic, copy, readwrite, nullable) NSString *applicationUsername;
 @property (nonatomic, readwrite) BOOL simulatesAskToBuyInSandbox;
+@property (nonatomic, copy, readwrite, nullable) SKPaymentDiscount *paymentDiscount;
 @end
 typedef NS_ENUM(NSInteger, SKPaymentTransactionState) {
     SKPaymentTransactionStatePurchasing = 0, SKPaymentTransactionStatePurchased, SKPaymentTransactionStateFailed,

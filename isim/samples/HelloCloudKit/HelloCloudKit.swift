@@ -91,7 +91,7 @@ final class CloudViewController: UIViewController {
                                     ("Zone, atomic batch, changes", "zone", zone), ("Share + discovery", "share", share), ("Delete (cascade)", "delete", delete),
                                     ("CKSyncEngine", "sync", sync), ("SwiftData", "swiftdata", swiftData),
                                     ("Core Data + CloudKit container", "coredata", coreData), ("List records", "list", list)] as [(String, String, () -> Void)] {
-            let cfg = UIButton.Configuration.filled()
+            var cfg = UIButton.Configuration.filled()
             cfg.title = title
             let b = UIButton(configuration: cfg, primaryAction: UIAction { _ in action() })
             b.accessibilityIdentifier = id

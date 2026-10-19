@@ -13,15 +13,16 @@ typedef NS_OPTIONS(NSUInteger, NSDirectionalRectEdge) {
 @class UIButton;
 typedef void (^UIButtonConfigurationUpdateHandler)(__kindof UIButton *button);
 typedef NS_ENUM(NSInteger, UIButtonConfigurationTitleAlignment) { UIButtonConfigurationTitleAlignmentAutomatic = 0, UIButtonConfigurationTitleAlignmentLeading,
-    UIButtonConfigurationTitleAlignmentCenter, UIButtonConfigurationTitleAlignmentTrailing };
+    UIButtonConfigurationTitleAlignmentCenter, UIButtonConfigurationTitleAlignmentTrailing } NS_SWIFT_NAME(__UIButtonConfiguration.TitleAlignment);
 typedef NS_ENUM(NSInteger, UIButtonType) { UIButtonTypeCustom = 0, UIButtonTypeSystem = 1, UIButtonTypeDetailDisclosure, UIButtonTypeInfoLight, UIButtonTypeInfoDark, UIButtonTypeContactAdd, UIButtonTypeClose = 7, UIButtonTypeRoundedRect = UIButtonTypeSystem };
 @interface UIButton : UIControl <UIAccessibilityContentSizeCategoryImageAdjusting>
 + (instancetype)buttonWithType:(UIButtonType)buttonType;
 + (instancetype)systemButtonWithPrimaryAction:(nullable UIAction *)primaryAction;
 + (instancetype)buttonWithType:(UIButtonType)buttonType primaryAction:(nullable UIAction *)primaryAction;
-+ (instancetype)buttonWithConfiguration:(UIButtonConfiguration *)configuration primaryAction:(nullable UIAction *)primaryAction;
+/* Swift: the UIButton.Configuration struct (UIKit overlay) */
++ (instancetype)buttonWithConfiguration:(UIButtonConfiguration *)configuration primaryAction:(nullable UIAction *)primaryAction NS_REFINED_FOR_SWIFT;
 @property (nonatomic, readonly) UIButtonType buttonType;
-@property (nonatomic, copy, nullable) UIButtonConfiguration *configuration;
+@property (nonatomic, copy, nullable) UIButtonConfiguration *configuration NS_REFINED_FOR_SWIFT;
 @property (nullable, nonatomic, copy) UIMenu *menu;
 @property (nonatomic) BOOL showsMenuAsPrimaryAction;
 @property (nonatomic) BOOL changesSelectionAsPrimaryAction;

@@ -30,6 +30,7 @@ extension BGTaskScheduler {
     @objc(registerForTaskWithIdentifier:usingQueue:launchHandler:)
     func _objc_register(_ identifier: String, queue: dispatch_queue_t?, launchHandler: @escaping @convention(block) (BGTask) -> Void) -> Bool {
         guard let queue else { return register(forTaskWithIdentifier: identifier, using: nil, launchHandler: { launchHandler($0) }) }
+        dispatch_retain(UnsafeMutableRawPointer(queue))         // kept with the registration (ARC releases the caller's)
         return register(forTaskWithIdentifier: identifier, using: nil, launchHandler: { task in dispatch_async(queue) { launchHandler(task) } })
     }
     @objc(submitTaskRequest:error:) func _objc_submit(_ taskRequest: BGTaskRequest) throws { try submit(taskRequest) }

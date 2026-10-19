@@ -14,6 +14,7 @@ def test_kit_members(launch, ios):
     app = launch("HelloKitMembers")
     app.wait_log(r"^contentScaleFactor default=true$")
     app.wait_log(r"^contentScaleFactor set=1\.0 layer=1\.0$")
+    app.wait_log(r"^configuration value title=Hold me copy=Copy button=Hold me equal=false same=true$")   # a struct (#487)
     app.wait_log(r"^isFullScreen=true$")
     if v >= 26:
         app.wait_log(r"^updateProperties count=1$")                    # the invalidating property changed

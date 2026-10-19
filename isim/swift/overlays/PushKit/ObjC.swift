@@ -22,7 +22,9 @@ func _pkSend(_ target: NSObject, _ sel: String, _ a: AnyObject? = nil, _ b: AnyO
 final class _PKObjCDelegate: NSObject, PKPushRegistryDelegate {
     weak var target: NSObject?
     let queue: dispatch_queue_t?
-    init(_ t: NSObject, queue: dispatch_queue_t?) { target = t; self.queue = queue }
+    /// the queue is an Objective-C caller's: held while the adapter lives (ARC releases the caller's reference)
+    init(_ t: NSObject, queue: dispatch_queue_t?) { target = t; self.queue = queue; if let queue { dispatch_retain(UnsafeMutableRawPointer(queue)) } }
+    deinit { if let queue { dispatch_release(UnsafeMutableRawPointer(queue)) } }
     func on(_ work: @escaping () -> Void) { if let queue { dispatch_async(queue, work) } else { work() } }
     func pushRegistry(_ registry: PKPushRegistry, didUpdate pushCredentials: PKPushCredentials, for type: PKPushType) {
         on { [weak self] in
@@ -74,7 +76,11 @@ extension PKPushRegistry {
     }
     @objc(pushTokenForType:) func _objc_pushToken(_ type: String) -> Data? { pushToken(for: PKPushType(rawValue: type)) }
 }
-final class _PKQueueBox { let queue: dispatch_queue_t?; init(_ q: dispatch_queue_t?) { queue = q } }
+final class _PKQueueBox {
+    let queue: dispatch_queue_t?
+    init(_ q: dispatch_queue_t?) { queue = q; if let q { dispatch_retain(UnsafeMutableRawPointer(q)) } }
+    deinit { if let queue { dispatch_release(UnsafeMutableRawPointer(queue)) } }
+}
 
 extension PKPushCredentials {
     @objc(type) var _objc_type: String { type.rawValue }
