@@ -31,9 +31,20 @@ public struct Preview {
 public struct PreviewTrait<T> {
     public enum _Kind: Equatable {
         case orientation(String), sizeThatFitsLayout, defaultLayout, fixedLayout(width: CGFloat, height: CGFloat)
+        /// several traits as one (`PreviewTrait(_:...)`), a SwiftUI PreviewModifier (`.modifier(_:)`, in `_isimPayload`)
+        case combined, modifier
     }
     public let _kind: _Kind
+    /// the traits of `.combined`, the modifier of `.modifier`
+    public var _isimPayload: Any? = nil
     public init(_isimKind kind: _Kind) { _kind = kind }
+    public init(_isimKind kind: _Kind, payload: Any?) { _kind = kind; _isimPayload = payload }
+    /// One trait made of several (they apply in order).
+    public init(_ traits: PreviewTrait<T>...) { _kind = .combined; _isimPayload = traits }
+    /// isim: this trait and the ones it combines, in order
+    public var _isimFlattened: [PreviewTrait<T>] {
+        _kind == .combined ? ((_isimPayload as? [PreviewTrait<T>]) ?? []).flatMap(\._isimFlattened) : [self]
+    }
 }
 
 extension PreviewTrait where T == Preview.ViewTraits {
@@ -46,6 +57,45 @@ extension PreviewTrait where T == Preview.ViewTraits {
     public static func fixedLayout(width: CGFloat, height: CGFloat) -> PreviewTrait {
         PreviewTrait(_isimKind: .fixedLayout(width: width, height: height))
     }
+}
+
+// MARK: - Xcode's library (no library on isim: the items compile, nothing shows them)
+
+/// A view or modifier offered in Xcode's library.
+public struct LibraryItem {
+    public struct Category: Equatable, Sendable {
+        let id: Int
+        public static let control = Category(id: 0), effect = Category(id: 1), layout = Category(id: 2), other = Category(id: 3)
+    }
+    public let title: String?
+    public let category: Category
+    public let isVisible: Bool
+    public let matchingSignature: String?
+    public init<SnippetExpressionType>(_ snippet: @autoclosure () -> SnippetExpressionType, visible: Bool = true, title: String? = nil,
+                                       category: Category = .other, matchingSignature: String? = nil) {
+        self.title = title; self.category = category; isVisible = visible; self.matchingSignature = matchingSignature
+    }
+}
+@resultBuilder public struct LibraryContentBuilder {
+    public static func buildBlock(_ segments: [LibraryItem]...) -> [LibraryItem] { segments.flatMap { $0 } }
+    public static func buildExpression(_ expression: LibraryItem) -> [LibraryItem] { [expression] }
+    public static func buildExpression(_ expression: [LibraryItem]) -> [LibraryItem] { expression }
+}
+/// The views and modifiers a module offers in Xcode's library.
+public protocol LibraryContentProvider {
+    associatedtype ModifierBase = Any
+    @LibraryContentBuilder var views: [LibraryItem] { get }
+    @LibraryContentBuilder func modifiers(base: ModifierBase) -> [LibraryItem]
+}
+extension LibraryContentProvider {
+    public var views: [LibraryItem] { [] }
+    public func modifiers(base: ModifierBase) -> [LibraryItem] { [] }
+}
+
+/// The body of a `#Preview` of UIKit views and view controllers: one expression of its content type (so a
+/// SwiftUI body with several statements is not taken for one).
+@resultBuilder public struct PreviewMacroBodyBuilder<Content> {
+    public static func buildBlock(_ content: Content) -> Content { content }
 }
 
 /// What a `#Preview` expands to: where it is written and how to make it.
