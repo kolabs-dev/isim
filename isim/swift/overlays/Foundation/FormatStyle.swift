@@ -251,7 +251,8 @@ func _isimFormatNumber(_ decimal: String, kind: _NumberKind, locale: Locale, con
     return out
 }
 func _shiftDecimal(_ s: String, by n: Int) -> String {
-    // multiply a plain or exponent decimal string by 10^n exactly
+    // multiply a plain or exponent decimal string by 10^n exactly (zero stays "0": "0e2" formats as "00")
+    if Double(s) == 0 { return s }
     if let e = s.firstIndex(where: { $0 == "e" || $0 == "E" }) {
         let exp = Int(s[s.index(after: e)...]) ?? 0
         return String(s[..<e]) + "e" + String(exp + n)
