@@ -282,9 +282,45 @@ def test_gamecenter_multiplayer(launch, tmp_path):
     b.tap_id("take-turn")
     b.wait_log(r"ended turn: Pat,Sam error=none status=1")
     a.wait_log(r"turn event: my turn active=false data=Pat,Sam")
+    # issue #292: an exchange out of turn (Sam asks, Pat answers, Pat merges it as the current participant)
+    b.tap_id("exchange")
+    b.wait_log(r"sent exchange: error=none status=1 recipients=Pat active=1 max=2048")
+    a.wait_log(r"exchange request from Sam: trade data=apple status=1 timeout=true")
+    a.wait_log(r"replied: error=none")
+    b.wait_log(r"exchange replies: 1 from Pat: ok pear status=2 completed=true")      # the sender
+    a.wait_log(r"exchange replies: 1 from Pat: ok pear status=2 completed=true")      # the current participant
+    a.wait_log(r"merged: error=none completed=0 data=Pat,Sam,trade")
+    # a cancelled exchange
+    b.tap_id("cancel-exchange")
+    b.wait_log(r"cancelled exchange: error=none left=0")
+    a.wait_log(r"exchange cancelled by Sam: never mind status=4")
+    # turn timeout: Pat passes the turn to Sam, then back to Pat, 1 s each; Sam does not play
+    a.tap_id("quick-turn")
+    a.wait_log(r"ended turn: Pat,Sam,trade,Pat error=none status=1 timeout=1")
+    b.wait_log(r"turn event: my turn active=false data=Pat,Sam,trade,Pat")
+    a.wait_log(r"turn event: my turn active=false data=Pat,Sam,trade,Pat")
+    b.wait_log(r"turn event: their turn active=false data=Pat,Sam,trade,Pat")
+    assert "turn-based: Sam's turn timed out, now Pat" in a.log + b.log, "whichever app sees the expired turn passes it on"
     a.tap_id("end-match")
     a.wait_log(r"ended match: error=none status=2")
-    b.wait_log(r"turn-based match ended: my outcome=3 data=Pat,Sam")      # Sam lost
+    b.wait_log(r"turn-based match ended: my outcome=3 data=Pat,Sam,trade,Pat")      # Sam lost
     b.tap_id("load-matches")
     b.wait_log(r"matches: 2:Pat\+Sam$")
-    assert re.search(r"Pat, Sam\s+ended\s+data='Pat,Sam'", gamecenter(pat, APP, "matches"))
+    assert re.search(r"Pat, Sam\s+ended\s+data='Pat,Sam,trade,Pat'", gamecenter(pat, APP, "matches"))
+
+    # issue #292: matchmaking modes. Automatch only: no invites; invite only: no automatch
+    a.tap_id("match-automatch-only")
+    tree = a.wait_view(lambda d: "text=Automatch" in d and "id=gc-match-find" in d, what="an automatch-only sheet")
+    assert "Invite a Friend" not in tree
+    a.tap_id("gc-match-cancel")
+    a.wait_view(visible("gc-match-cancel"), gone=True)
+    a.tap_id("match-invite-only")
+    a.wait_view(r"text=Invite a Friend")
+    a.wait_view(visible("gc-match-find"), gone=True)
+    a.tap_id("gc-match-cancel")
+    a.wait_view(visible("gc-match-cancel"), gone=True)
+    # the turn-based sheet, invite only: friends to invite, no automatch; inviting starts a match with Sam invited
+    a.tap_id("turn-based-invite-only")
+    a.wait_log(r"turn-based matchmaker mode 3")
+    a.wait_tap_id("gc-turn-invite-Sam")
+    a.wait_log(r"turn event: my turn active=true data=-")

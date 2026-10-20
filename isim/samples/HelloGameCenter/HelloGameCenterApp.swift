@@ -41,6 +41,26 @@ final class Listener: NSObject, GKLocalPlayerListener {
         print("turn event: \(mine ? "my turn" : "their turn") active=\(didBecomeActive) data=\(match.matchData.map { String(decoding: $0, as: UTF8.self) } ?? "-")")
         if didBecomeActive, top() is GKTurnBasedMatchmakerViewController { top().dismiss(animated: true) }
     }
+    func player(_ player: GKPlayer, receivedExchangeRequest exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch) {
+        print("exchange request from \(exchange.sender.player?.alias ?? "-"): \(exchange.message ?? "-") data=\(exchange.data.map { String(decoding: $0, as: UTF8.self) } ?? "-") status=\(exchange.status.rawValue) timeout=\(exchange.timeoutDate.map { $0 > exchange.sendDate } ?? false)")
+        guard exchange.message == "trade" else { return }
+        exchange.reply(withLocalizableMessageKey: "ok", arguments: [], data: Data("pear".utf8)) { e in
+            print("replied: error=\(e.map { "\(($0 as NSError).code)" } ?? "none")")
+        }
+    }
+    func player(_ player: GKPlayer, receivedExchangeCancellation exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch) {
+        print("exchange cancelled by \(exchange.sender.player?.alias ?? "-"): \(exchange.message ?? "-") status=\(exchange.status.rawValue)")
+    }
+    func player(_ player: GKPlayer, receivedExchangeReplies replies: [GKTurnBasedExchangeReply], forCompletedExchange exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch) {
+        let rs = replies.map { "\($0.recipient.player?.alias ?? "-"): \($0.message ?? "-") \($0.data.map { String(decoding: $0, as: UTF8.self) } ?? "-")" }
+        print("exchange replies: \(replies.count) from \(rs.joined(separator: "; ")) status=\(exchange.status.rawValue) completed=\(exchange.completionDate != nil)")
+        // the current participant merges the trade into the match data
+        guard match.currentParticipant?.player?.isEqual(GKLocalPlayer.local) ?? false else { return }
+        let data = (match.matchData.map { String(decoding: $0, as: UTF8.self) } ?? "") + ",trade"
+        match.saveMergedMatch(Data(data.utf8), withResolvedExchanges: [exchange]) { e in
+            print("merged: error=\(e.map { "\(($0 as NSError).code)" } ?? "none") completed=\(match.completedExchanges?.count ?? 0) data=\(match.matchData.map { String(decoding: $0, as: UTF8.self) } ?? "-")")
+        }
+    }
     func player(_ player: GKPlayer, matchEnded match: GKTurnBasedMatch) {
         let me = match.participants.first { $0.player?.isEqual(GKLocalPlayer.local) ?? false }
         print("turn-based match ended: my outcome=\(me?.matchOutcome.rawValue ?? -1) data=\(match.matchData.map { String(decoding: $0, as: UTF8.self) } ?? "-")")
@@ -88,6 +108,10 @@ struct RootView: View {
          ("Send hello", "send", { Realtime.shared.hello() }), ("Leave match", "leave", { Realtime.shared.leave() }),
          ("Turn-based", "turn-based", turnBased), ("Take turn", "take-turn", { Turns.shared.take() }),
          ("End match", "end-match", { Turns.shared.end() }), ("Load matches", "load-matches", { Turns.shared.load() }),
+         ("Exchange", "exchange", { Turns.shared.exchange("trade") }), ("Cancel exchange", "cancel-exchange", { Turns.shared.exchange("hold", cancel: true) }),
+         ("Quick turn", "quick-turn", { Turns.shared.take(timeout: 1) }),
+         ("Automatch only", "match-automatch-only", { findMatch(.automatchOnly) }), ("Invite only", "match-invite-only", { findMatch(.inviteOnly) }),
+         ("Turns: invite only", "turn-based-invite-only", { turnBased(.inviteOnly) }),
          ("Activities", "activities", activities)]
     }
     var body: some View {
@@ -205,10 +229,12 @@ struct RootView: View {
         }
     }
     /// the matchmaker sheet (find players or invite friends)
-    func findMatch() {
+    func findMatch() { findMatch(.default) }
+    func findMatch(_ mode: GKMatchmakingMode) {
         let r = GKMatchRequest(); r.minPlayers = 2; r.maxPlayers = 2
         r.recipientResponseHandler = { p, resp in print("invite response from \(p.alias): \(resp.rawValue)") }
         if let vc = GKMatchmakerViewController(matchRequest: r) {
+            vc.matchmakingMode = mode
             vc.matchmakerDelegate = MatchDelegate.shared
             top().present(vc, animated: true)
         }
@@ -221,9 +247,11 @@ struct RootView: View {
             if let m { Realtime.shared.use(m) }
         }
     }
-    func turnBased() {
+    func turnBased() { turnBased(.default) }
+    func turnBased(_ mode: GKMatchmakingMode) {
         let r = GKMatchRequest(); r.minPlayers = 2; r.maxPlayers = 2
         let vc = GKTurnBasedMatchmakerViewController(matchRequest: r)
+        vc.matchmakingMode = mode
         vc.turnBasedMatchmakerDelegate = TurnDelegate.shared
         top().present(vc, animated: true)
     }
@@ -271,15 +299,31 @@ final class Realtime: NSObject, GKMatchDelegate {
 final class Turns: NSObject {
     static let shared = Turns()
     var match: GKTurnBasedMatch?
-    /// appends a move to the match data and passes the turn on
-    func take() {
+    /// appends a move to the match data and passes the turn on (with a timeout: to the others, then back to the
+    /// local player, so the turn comes back when nobody plays it in time)
+    func take(timeout: TimeInterval? = nil) {
         guard let m = match else { print("no turn-based match"); return }
         m.loadMatchData { d, _ in
             let moves = d.map { String(decoding: $0, as: UTF8.self) } ?? ""
             let next = moves.isEmpty ? "\(GKLocalPlayer.local.alias)" : "\(moves),\(GKLocalPlayer.local.alias)"
+            let me = m.participants.filter { $0.player?.isEqual(GKLocalPlayer.local) ?? false }
             let others = m.participants.filter { !($0.player?.isEqual(GKLocalPlayer.local) ?? false) }
-            m.endTurn(withNextParticipants: others, turnTimeout: GKTurnTimeoutDefault, match: Data(next.utf8)) { e in
-                print("ended turn: \(next) error=\(e.map { "\(($0 as NSError).code)" } ?? "none") status=\(m.status.rawValue)")
+            m.endTurn(withNextParticipants: timeout == nil ? others : others + me, turnTimeout: timeout ?? GKTurnTimeoutDefault, match: Data(next.utf8)) { e in
+                let t = m.currentParticipant?.timeoutDate.map { String(format: "%.0f", $0.timeIntervalSinceNow.rounded()) } ?? "-"
+                print("ended turn: \(next) error=\(e.map { "\(($0 as NSError).code)" } ?? "none") status=\(m.status.rawValue)" + (timeout == nil ? "" : " timeout=\(t)"))
+            }
+        }
+    }
+    /// an exchange request to the other participants (out of turn); "hold" is cancelled right away
+    func exchange(_ what: String, cancel: Bool = false) {
+        guard let m = match else { print("no turn-based match"); return }
+        let others = m.participants.filter { !($0.player?.isEqual(GKLocalPlayer.local) ?? false) && $0.status == .active }
+        m.sendExchange(to: others, data: Data("apple".utf8), localizableMessageKey: what, arguments: [], timeout: GKExchangeTimeoutDefault) { x, e in
+            print("sent exchange: error=\(e.map { "\(($0 as NSError).code)" } ?? "none") status=\(x?.status.rawValue ?? -1) recipients=\(x?.recipients.compactMap { $0.player?.alias }.joined(separator: ",") ?? "-") active=\(m.activeExchanges?.count ?? 0) max=\(m.exchangeDataMaximumSize)")
+            if cancel, let x {
+                x.cancel(withLocalizableMessageKey: "never mind", arguments: []) { e in
+                    print("cancelled exchange: error=\(e.map { "\(($0 as NSError).code)" } ?? "none") left=\(m.exchanges?.count ?? 0)")
+                }
             }
         }
     }
