@@ -119,23 +119,30 @@
 - (instancetype)initWithCoder:(NSCoder *)coder { if ((self = [super init])) _number = [coder decodeInt64ForKey:@"transactionNumber"]; return self; }
 @end
 
-@implementation NSPersistentHistoryChange { int64_t _number; NSManagedObjectID *_objectID; NSPersistentHistoryChangeType _type; __weak NSPersistentHistoryTransaction *_transaction; }
-+ (instancetype)_cd_change:(int64_t)n objectID:(NSManagedObjectID *)oid type:(NSPersistentHistoryChangeType)type { NSPersistentHistoryChange *c = [self new]; c->_number = n; c->_objectID = oid; c->_type = type; return c; }
+@implementation NSPersistentHistoryChange { int64_t _number; NSManagedObjectID *_objectID; NSPersistentHistoryChangeType _type; NSSet *_props; __weak NSPersistentHistoryTransaction *_transaction; }
++ (instancetype)_cd_change:(int64_t)n objectID:(NSManagedObjectID *)oid type:(NSPersistentHistoryChangeType)type updatedProperties:(NSSet *)props {
+    NSPersistentHistoryChange *c = [self new]; c->_number = n; c->_objectID = oid; c->_type = type; c->_props = [props copy]; return c;
+}
 - (int64_t)changeID { return _number; }
 - (NSManagedObjectID *)changedObjectID { return _objectID; }
 - (NSPersistentHistoryChangeType)changeType { return _type; }
 - (NSDictionary *)tombstone { return nil; }
-- (NSSet *)updatedProperties { return nil; }
+- (NSSet *)updatedProperties { return _props; }
 - (NSPersistentHistoryTransaction *)transaction { return _transaction; }
 - (void)_cd_setTransaction:(NSPersistentHistoryTransaction *)t { _transaction = t; }
+- (NSString *)description { return [NSString stringWithFormat:@"<NSPersistentHistoryChange %lld %ld %@>", _number, (long)_type, _objectID]; }
 @end
 
-@implementation NSPersistentHistoryTransaction { int64_t _number; NSString *_store, *_author, *_context; NSDate *_timestamp; NSArray *_changes; NSPersistentHistoryToken *_token; }
-+ (instancetype)_cd_transaction:(int64_t)n storeID:(NSString *)store author:(NSString *)author context:(NSString *)context changes:(NSArray *)changes {
+@implementation NSPersistentHistoryTransaction { int64_t _number; NSString *_store, *_author, *_context, *_bundle, *_process; NSDate *_timestamp; NSArray *_changes; NSPersistentHistoryToken *_token; }
++ (instancetype)_cd_transaction:(int64_t)n storeID:(NSString *)store author:(NSString *)author context:(NSString *)context timestamp:(NSDate *)timestamp
+                       bundleID:(NSString *)bundle processID:(NSString *)process changes:(NSArray *)changes {
     NSPersistentHistoryTransaction *t = [self new]; t->_number = n; t->_store = [store copy]; t->_author = [author copy]; t->_context = [context copy];
-    t->_timestamp = [NSDate date]; t->_token = [NSPersistentHistoryToken _cd_token:n]; t->_changes = [changes copy];
+    t->_timestamp = timestamp; t->_bundle = [bundle copy] ?: @""; t->_process = [process copy] ?: @"";
+    t->_token = [NSPersistentHistoryToken _cd_token:n]; t->_changes = [changes copy];
     for (NSPersistentHistoryChange *c in changes) [c _cd_setTransaction:t]; return t;
 }
+- (NSString *)bundleID { return _bundle; }
+- (NSString *)processID { return _process; }
 - (int64_t)transactionNumber { return _number; }
 - (NSPersistentHistoryToken *)token { return _token; }
 - (NSDate *)timestamp { return _timestamp; }
@@ -163,7 +170,8 @@
 - (int64_t)_cd_number { return _number; }
 - (NSDate *)_cd_date { return _date; }
 @end
-@implementation NSPersistentHistoryResult { id _result; NSPersistentHistoryResultType _type; }
+@implementation NSPersistentHistoryResult { id _result; NSPersistentHistoryResultType _type; NSArray *_keep; }
+- (void)_cd_keep:(NSArray *)transactions { _keep = transactions; }   /* changes point to their transactions weakly */
 - (instancetype)_cd_initWithResult:(id)result type:(NSPersistentHistoryResultType)type { if ((self = [super init])) { _result = result; _type = type; } return self; }
 - (id)result { return _result; }
 - (NSPersistentHistoryResultType)resultType { return _type; }

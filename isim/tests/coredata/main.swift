@@ -1,7 +1,7 @@
 // Core Data self-test on isim: models (code + compiled .xcdatamodeld with codegen), SQLite and in-memory stores,
 // @NSManaged accessors, relationships and delete rules, validation, fetching (SQL and in-memory predicates),
 // contexts (child, background, merging, merge policies), batch requests, NSFetchedResultsController,
-// migration. Prints PASS/FAIL per check and "coredata test: N/M passed" last; exits non-zero on failure.
+// migration (the pipeline and staged migration), persistent history in the store. Prints PASS/FAIL per check and "coredata test: N/M passed" last; exits non-zero on failure.
 import Foundation
 import CoreData
 
@@ -33,6 +33,9 @@ let storeDir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathCompone
         persistentHistoryTests()
         fetchedResultsControllerTests()
         migrationTests()
+        historyAcrossReopenTests()
+        migrationPipelineTests()
+        stagedMigrationTests()
         asyncTests()
         print("coredata test: \(checks - failures)/\(checks) passed")
         exit(failures == 0 ? 0 : 1)

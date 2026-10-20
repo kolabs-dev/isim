@@ -51,8 +51,7 @@ static NSString *sql_quote(id v) {
     NSMutableDictionary<NSNumber *, NSEntityDescription *> *_numEnts;
     NSString *_storeType;
     BOOL _inTxn;
-    NSMutableArray<NSPersistentHistoryTransaction *> *_history;
-    int64_t _historyNumber;
+    BOOL _history;           /* NSPersistentHistoryTrackingKey: transactions in ATRANSACTION / ACHANGE */
 }
 - (NSString *)type { return _storeType ?: NSSQLiteStoreType; }
 - (void)_cd_setType:(NSString *)t { _storeType = [t copy]; }
@@ -242,7 +241,7 @@ static id sql_value(NSAttributeDescription *a, id v) {
 }
 - (BOOL)_cd_openWithModel:(NSManagedObjectModel *)model options:(NSDictionary *)options error:(NSError **)error {
     _model = model;
-    if ([options[NSPersistentHistoryTrackingKey] boolValue]) _history = [NSMutableArray array];
+    _history = [options[NSPersistentHistoryTrackingKey] boolValue];
     NSString *path = self.URL.path;
     BOOL memory = [_storeType isEqualToString:NSInMemoryStoreType] || !path.length || [path isEqualToString:@"/dev/null"];
     BOOL readOnly = [options[NSReadOnlyPersistentStoreOption] boolValue];
@@ -300,6 +299,13 @@ static id sql_value(NSAttributeDescription *a, id v) {
             if (!ok) { [self _cd_close]; return NO; }
             CD_LOG(@"lightweight migration of %@ done", path.lastPathComponent);
         } else if (![self _ensureSchema:error]) { [self _cd_close]; return NO; }
+    }
+    /* persistent history lives in the store's file (as Apple's: ATRANSACTION, ACHANGE), so it survives relaunches and
+     * every process that opens the store sees it */
+    if (_history && !readOnly) {
+        [self _exec:@"CREATE TABLE IF NOT EXISTS ATRANSACTION (Z_PK INTEGER PRIMARY KEY, ZTIMESTAMP REAL, ZAUTHOR TEXT, ZCONTEXTNAME TEXT, ZBUNDLEID TEXT, ZPROCESSID TEXT)" error:NULL];
+        [self _exec:@"CREATE TABLE IF NOT EXISTS ACHANGE (Z_PK INTEGER PRIMARY KEY, ZTRANSACTIONID INTEGER, ZCHANGETYPE INTEGER, ZENTITY INTEGER, ZENTITYPK INTEGER, ZCOLUMNS TEXT)" error:NULL];
+        [self _exec:@"CREATE INDEX IF NOT EXISTS ACHANGE_TRANSACTION ON ACHANGE (ZTRANSACTIONID)" error:NULL];
     }
     self.identifier = md[NSStoreUUIDKey];
     NSMutableDictionary *pub = [md mutableCopy];
@@ -650,6 +656,7 @@ static id sql_value(NSAttributeDescription *a, id v) {
         [byRoot[root.name] addObject:@(o.objectID._cd_pk)];
     }
     for (NSString *r in byRoot) ok = ok && [self _deleteRows:byRoot[r] root:roots[r] error:error];
+    if (ok && _history && (toInsert.count || write.count || deleted.count)) ok = [self _recordHistoryInserted:toInsert updated:write deleted:deleted author:author contextName:contextName error:error];
     if (!ok) { [self _exec:@"ROLLBACK" error:NULL]; _inTxn = NO; return NO; }
     if (![self _exec:@"COMMIT" error:error]) { [self _exec:@"ROLLBACK" error:NULL]; _inTxn = NO; return NO; }
     _inTxn = NO;
@@ -660,15 +667,83 @@ static id sql_value(NSAttributeDescription *a, id v) {
         if (st && sqlite3_step(st) == SQLITE_ROW) o._cd_version = sqlite3_column_int64(st, 0);
         sqlite3_finalize(st);
     }
-    if (_history && (toInsert.count || write.count || deleted.count)) {
-        int64_t number = ++_historyNumber, change = 0;
-        NSMutableArray *changes = [NSMutableArray array];
-        for (NSManagedObject *o in toInsert) [changes addObject:[NSPersistentHistoryChange _cd_change:number * 100000 + ++change objectID:o.objectID type:NSPersistentHistoryChangeTypeInsert]];
-        for (NSManagedObject *o in write) [changes addObject:[NSPersistentHistoryChange _cd_change:number * 100000 + ++change objectID:o.objectID type:NSPersistentHistoryChangeTypeUpdate]];
-        for (NSManagedObject *o in deleted) [changes addObject:[NSPersistentHistoryChange _cd_change:number * 100000 + ++change objectID:o.objectID type:NSPersistentHistoryChangeTypeDelete]];
-        [_history addObject:[NSPersistentHistoryTransaction _cd_transaction:number storeID:self.identifier ?: @"" author:author context:contextName changes:changes]];
+    return YES;
+}
+
+/* ---------------- persistent history ---------------- */
+- (BOOL)_recordHistoryInserted:(NSArray<NSManagedObject *> *)inserted updated:(NSArray<NSManagedObject *> *)updated deleted:(NSArray<NSManagedObject *> *)deleted
+                        author:(NSString *)author contextName:(NSString *)contextName error:(NSError **)error {
+    NSString *bundle = [NSBundle mainBundle].bundleIdentifier ?: @"", *process = [NSString stringWithFormat:@"%d", [NSProcessInfo processInfo].processIdentifier];
+    if (![self _run:@"INSERT INTO ATRANSACTION (ZTIMESTAMP, ZAUTHOR, ZCONTEXTNAME, ZBUNDLEID, ZPROCESSID) VALUES (?, ?, ?, ?, ?)"
+               args:@[ [NSDate date], author ?: [NSNull null], contextName ?: [NSNull null], bundle, process ] error:error]) return NO;
+    int64_t txn = sqlite3_last_insert_rowid(_db);
+    NSArray *groups[] = { inserted ?: @[], updated ?: @[], deleted ?: @[] };
+    NSPersistentHistoryChangeType types[] = { NSPersistentHistoryChangeTypeInsert, NSPersistentHistoryChangeTypeUpdate, NSPersistentHistoryChangeTypeDelete };
+    for (int g = 0; g < 3; g++) for (NSManagedObject *o in groups[g]) {
+        if (o.objectID.temporaryID) continue;
+        NSString *columns = types[g] == NSPersistentHistoryChangeTypeUpdate ? [[o.changedValues.allKeys sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@","] : nil;
+        if (![self _run:@"INSERT INTO ACHANGE (ZTRANSACTIONID, ZCHANGETYPE, ZENTITY, ZENTITYPK, ZCOLUMNS) VALUES (?, ?, ?, ?, ?)"
+                   args:@[ @(txn), @(types[g]), _entNums[o.entity.name] ?: @0, @(o.objectID._cd_pk), columns ?: [NSNull null] ] error:error]) return NO;
     }
     return YES;
+}
+/* the transactions after (or, deleting, before) a token, transaction or date */
+- (NSString *)_historyWhere:(NSPersistentHistoryChangeRequest *)req args:(NSMutableArray *)args {
+    if (req._cd_date) { [args addObject:req._cd_date]; return req._cd_delete ? @"ZTIMESTAMP < ?" : @"ZTIMESTAMP > ?"; }
+    [args addObject:@(req._cd_number)];
+    return req._cd_delete ? @"Z_PK < ?" : @"Z_PK > ?";
+}
+- (id)_historyRequest:(NSPersistentHistoryChangeRequest *)req error:(NSError **)error {
+    if (!_history) { if (error) *error = CDError(NSPersistentStoreUnsupportedRequestTypeError, @"Persistent history tracking is not enabled for this store.", nil); return nil; }
+    NSMutableArray *args = [NSMutableArray array];
+    NSString *where = [self _historyWhere:req args:args];
+    if (req._cd_delete) {
+        BOOL ok = [self _run:[NSString stringWithFormat:@"DELETE FROM ACHANGE WHERE ZTRANSACTIONID IN (SELECT Z_PK FROM ATRANSACTION WHERE %@)", where] args:args error:error] &&
+                  [self _run:[NSString stringWithFormat:@"DELETE FROM ATRANSACTION WHERE %@", where] args:args error:error];
+        return ok ? [[NSPersistentHistoryResult alloc] _cd_initWithResult:@YES type:req.resultType] : nil;
+    }
+    NSMutableArray<NSPersistentHistoryTransaction *> *transactions = [NSMutableArray array];
+    sqlite3_stmt *st = [self _prepare:[NSString stringWithFormat:@"SELECT Z_PK, ZTIMESTAMP, ZAUTHOR, ZCONTEXTNAME, ZBUNDLEID, ZPROCESSID FROM ATRANSACTION WHERE %@ ORDER BY Z_PK", where]];
+    bind_all(st, args);
+    NSMutableArray *rows = [NSMutableArray array];
+    while (st && sqlite3_step(st) == SQLITE_ROW)
+        [rows addObject:@[ @(sqlite3_column_int64(st, 0)), @(sqlite3_column_double(st, 1)), col_text(st, 2) ?: [NSNull null], col_text(st, 3) ?: [NSNull null],
+                           col_text(st, 4) ?: @"", col_text(st, 5) ?: @"" ]];
+    sqlite3_finalize(st);
+    for (NSArray *r in rows) {
+        int64_t txn = [r[0] longLongValue];
+        NSMutableArray *changes = [NSMutableArray array];
+        sqlite3_stmt *cs = [self _prepare:@"SELECT Z_PK, ZCHANGETYPE, ZENTITY, ZENTITYPK, ZCOLUMNS FROM ACHANGE WHERE ZTRANSACTIONID = ? ORDER BY Z_PK"];
+        bind(cs, 1, @(txn));
+        while (cs && sqlite3_step(cs) == SQLITE_ROW) {
+            NSEntityDescription *e = _numEnts[@(sqlite3_column_int(cs, 2))];
+            if (!e) continue;
+            NSManagedObjectID *oid = [NSManagedObjectID _cd_idWithEntity:e store:self pk:sqlite3_column_int64(cs, 3)];
+            NSMutableSet *props = nil;
+            NSString *cols = col_text(cs, 4);
+            if (cols.length) { props = [NSMutableSet set]; for (NSString *n in [cols componentsSeparatedByString:@","]) if (e.propertiesByName[n]) [props addObject:e.propertiesByName[n]]; }
+            [changes addObject:[NSPersistentHistoryChange _cd_change:sqlite3_column_int64(cs, 0) objectID:oid type:(NSPersistentHistoryChangeType)sqlite3_column_int(cs, 1) updatedProperties:props]];
+        }
+        sqlite3_finalize(cs);
+        id author = r[2], context = r[3];
+        NSPersistentHistoryTransaction *t = [NSPersistentHistoryTransaction _cd_transaction:txn storeID:self.identifier ?: @"" author:author == [NSNull null] ? nil : author
+            context:context == [NSNull null] ? nil : context timestamp:[NSDate dateWithTimeIntervalSinceReferenceDate:[r[1] doubleValue]] bundleID:r[4] processID:r[5] changes:changes];
+        if (!req.fetchRequest.predicate || [req.fetchRequest.predicate evaluateWithObject:t]) [transactions addObject:t];
+    }
+    if (req.fetchRequest.sortDescriptors.count) [transactions sortUsingDescriptors:req.fetchRequest.sortDescriptors];
+    if (req.fetchRequest.fetchLimit && transactions.count > req.fetchRequest.fetchLimit) [transactions removeObjectsInRange:NSMakeRange(req.fetchRequest.fetchLimit, transactions.count - req.fetchRequest.fetchLimit)];
+    NSMutableArray *changes = [NSMutableArray array]; for (NSPersistentHistoryTransaction *t in transactions) [changes addObjectsFromArray:t.changes ?: @[]];
+    id result;
+    switch (req.resultType) {
+    case NSPersistentHistoryResultTypeStatusOnly: result = @YES; break;
+    case NSPersistentHistoryResultTypeObjectIDs: result = [changes valueForKey:@"changedObjectID"]; break;
+    case NSPersistentHistoryResultTypeCount: result = @(transactions.count); break;
+    case NSPersistentHistoryResultTypeChangesOnly: result = changes; break;
+    default: result = transactions; break;
+    }
+    NSPersistentHistoryResult *out = [[NSPersistentHistoryResult alloc] _cd_initWithResult:result type:req.resultType];
+    [out _cd_keep:transactions];
+    return out;
 }
 
 /* ---------------- batch requests ---------------- */
@@ -691,33 +766,7 @@ static id sql_value(NSAttributeDescription *a, id v) {
 }
 - (id)_cd_executeBatch:(NSPersistentStoreRequest *)request context:(NSManagedObjectContext *)context error:(NSError **)error {
     if (!_db || self.readOnly) { if (error) *error = CDError(NSPersistentStoreOperationError, @"The store is closed or read-only.", nil); return nil; }
-    if ([request isKindOfClass:[NSPersistentHistoryChangeRequest class]]) {
-        NSPersistentHistoryChangeRequest *req = (NSPersistentHistoryChangeRequest *)request;
-        if (!_history) { if (error) *error = CDError(NSPersistentStoreUnsupportedRequestTypeError, @"Persistent history tracking is not enabled for this store.", nil); return nil; }
-        if (req._cd_delete) {
-            NSIndexSet *remove = [_history indexesOfObjectsPassingTest:^BOOL(NSPersistentHistoryTransaction *t, NSUInteger idx, BOOL *stop) {
-                return req._cd_date ? [t.timestamp compare:req._cd_date] == NSOrderedAscending : t.transactionNumber < req._cd_number;
-            }];
-            [_history removeObjectsAtIndexes:remove];
-            return [[NSPersistentHistoryResult alloc] _cd_initWithResult:@YES type:req.resultType];
-        }
-        NSMutableArray *transactions = [NSMutableArray array];
-        for (NSPersistentHistoryTransaction *t in _history) {
-            BOOL include = req._cd_date ? [t.timestamp compare:req._cd_date] == NSOrderedDescending : t.transactionNumber > req._cd_number;
-            if (include && (!req.fetchRequest.predicate || [req.fetchRequest.predicate evaluateWithObject:t])) [transactions addObject:t];
-        }
-        if (req.fetchRequest.sortDescriptors.count) [transactions sortUsingDescriptors:req.fetchRequest.sortDescriptors];
-        NSMutableArray *changes = [NSMutableArray array]; for (NSPersistentHistoryTransaction *t in transactions) [changes addObjectsFromArray:t.changes ?: @[]];
-        id result;
-        switch (req.resultType) {
-        case NSPersistentHistoryResultTypeStatusOnly: result = @YES; break;
-        case NSPersistentHistoryResultTypeObjectIDs: result = [changes valueForKey:@"changedObjectID"]; break;
-        case NSPersistentHistoryResultTypeCount: result = @(transactions.count); break;
-        case NSPersistentHistoryResultTypeChangesOnly: result = changes; break;
-        default: result = transactions; break;
-        }
-        return [[NSPersistentHistoryResult alloc] _cd_initWithResult:result type:req.resultType];
-    }
+    if ([request isKindOfClass:[NSPersistentHistoryChangeRequest class]]) return [self _historyRequest:(NSPersistentHistoryChangeRequest *)request error:error];
     if ([request isKindOfClass:[NSBatchInsertRequest class]]) {
         NSBatchInsertRequest *req = (NSBatchInsertRequest *)request;
         NSEntityDescription *entity = [req _cd_entityInContext:context];

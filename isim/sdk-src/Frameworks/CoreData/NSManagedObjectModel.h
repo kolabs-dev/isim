@@ -24,7 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, copy) NSDictionary<NSString *, NSFetchRequest *> *fetchRequestTemplatesByName;
 @property (copy) NSSet *versionIdentifiers;
 @property (readonly, copy) NSDictionary<NSString *, NSData *> *entityVersionHashesByName;
-@property (nullable, readonly, copy) NSString *versionChecksum;
+@property (readonly, copy) NSString *versionChecksum;
 - (BOOL)isConfiguration:(nullable NSString *)configuration compatibleWithStoreMetadata:(NSDictionary<NSString *, id> *)metadata;
 @property (nullable, nonatomic, strong) NSDictionary *localizationDictionary;
 @end

@@ -95,3 +95,15 @@ extension NSDiffableDataSourceSnapshot: @retroactive _ObjectiveCBridgeable {
         return r ?? Self()
     }
 }
+
+// Staged migration's handlers throw in Swift (Apple's overlay); the Objective-C blocks return BOOL with an NSError **.
+extension NSCustomMigrationStage {
+    public var willMigrateHandler: ((NSStagedMigrationManager, NSCustomMigrationStage) throws -> Void)? {
+        get { __willMigrateHandler.map { h in { m, s in var e: NSError?; if !h(m, s, &e) { throw e ?? NSError(domain: NSCocoaErrorDomain, code: NSMigrationError) } } } }
+        set { __willMigrateHandler = newValue.map { h in { m, s, e in do { try h(m, s); return true } catch { e?.pointee = error as NSError; return false } } } }
+    }
+    public var didMigrateHandler: ((NSStagedMigrationManager, NSCustomMigrationStage) throws -> Void)? {
+        get { __didMigrateHandler.map { h in { m, s in var e: NSError?; if !h(m, s, &e) { throw e ?? NSError(domain: NSCocoaErrorDomain, code: NSMigrationError) } } } }
+        set { __didMigrateHandler = newValue.map { h in { m, s, e in do { try h(m, s); return true } catch { e?.pointee = error as NSError; return false } } } }
+    }
+}

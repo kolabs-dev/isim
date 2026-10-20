@@ -51,6 +51,7 @@ struct ContentView: View {
 
     private func addInBackground() {
         PersistenceController.shared.container.performBackgroundTask { ctx in
+            ctx.transactionAuthor = "background"
             let item = Item(context: ctx)
             item.timestamp = Date()
             item.title = "Background item"
