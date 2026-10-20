@@ -639,3 +639,8 @@ usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation17AVAudioPlayerNodeC15
 usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation17AVAudioPlayerNodeC15scheduleSegment_13startingFrame10frameCount2at22completionCallbackType0L7HandleryAA0B4FileC_s5Int64Vs6UInt32VAA0B4TimeVSgAA0bcd10CompletionmN0OyATcSgtFTq
 usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation17AVAudioPlayerNodeC8nodeTime03forcF0AA0bF0VSgAG_tFTj
 usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation17AVAudioPlayerNodeC8nodeTime03forcF0AA0bF0VSgAG_tFTq
+# GameController (#291): GCExtendedGamepad.leftTrigger / rightTrigger were `let`s; they are now open properties so
+# GCDualSenseGamepad can return its GCDualSenseAdaptiveTrigger, as in Apple's SDK. Apps built with isim 0.25 or earlier
+# that read the triggers of an extended gamepad must be rebuilt (a minor release, with the AVFoundation break of #287).
+usr/lib/swift/libswiftGameController.dylib _$s14GameController17GCExtendedGamepadC11leftTriggerAA23GCControllerButtonInputCvg
+usr/lib/swift/libswiftGameController.dylib _$s14GameController17GCExtendedGamepadC12rightTriggerAA23GCControllerButtonInputCvg

@@ -3,7 +3,8 @@ SKMutableTexture / SKTexture(data:), SKVideoNode, SKAction.reversed(), GKObstacl
 GKMinmaxStrategist, GKMonteCarloStrategist, GKDecisionTree (manual, ID3), GKQuadtree / GKOctree / GKRTree, and a host
 gamepad: the `gamepad` script command attaches an SDL virtual joystick, which reaches the app through the same SDL
 gamepad path as a physical pad (GCController connect / buttons / sticks / triggers / disconnect, rumble through
-GCDeviceHaptics). A second run with
+GCDeviceHaptics), the product profiles (`gamepad connect NAME as ps5 / as xbox`: touchpad, adaptive trigger, share,
+paddles) and the iOS 17 physical input (GCController.input). A second run with
 ISIM_GAMEPADS=0 proves host pads can be turned off. Port of tests/ui/spritekit2.sh and spritekit2_check.py (the
 screenshots keep the script's timeline: the scene animates)."""
 import re
@@ -52,6 +53,13 @@ LINES = {   # check: log lines (all must be present)
     "gamepad disconnect notification": ["gamepad disconnected: isim Test Pad remaining 0"],
     "gamepad motion needs manual activation, has a gyroscope, no gravity split (issue #290)":
         ["pad motion manual true rotation true gravity false"],
+    "GCController.input: named elements, handlers, the input state queue, capture() (issue #291)":
+        ["input buttons 13 dpads 3 a Button A stick true", "input A pressed", "input state A changed pressed true",
+         "input A released", "input state A changed pressed false", "input left stick x 1.00", "input capture B pressed"],
+    "product profiles: DualSense (touchpad button + 2 fingers) and Xbox (share, paddles) elements (issue #291)":
+        ["input buttons 14 dpads 5 a Button A stick true", "input buttons 18 dpads 3 a Button A stick true",
+         "pad adaptive trigger mode feedback status -1"],
+    "GCEventInteraction attached to the SKView (issue #291)": ["event interaction attached true types 1"],
     "gamepad haptics: a GCDeviceHaptics engine rumbles the pad (issue #283)":
         ["pad haptics localities 5 default engine true triggers engine false", "pad haptics played",
          "CoreHaptics: continuous on the gamepad: rumble 0.60 0.60 for 0.20 s", "isim gamepad: rumble 0.60 0.60"],
@@ -109,6 +117,25 @@ def test_spritekit2(launch):
     app.wait_log(r"mouse scroll 0\.00 2\.00")
     app.send("gamepad disconnect")
     app.wait_log(r"gamepad disconnected: ")
+    # issue #291: product profiles (DualSense touchpad and adaptive trigger, Xbox share and paddles)
+    app.send("gamepad connect isim PS5 as ps5")
+    app.wait_log(r"pad profile DualSense category=DualSense touchpads 1 positions 10")
+    app.wait_log(r"isim gamepad: effect 0c( 00){9} 01 33 cc")
+    app.send("gamepad touch 0 1 0.75 0.25")
+    app.wait_log(r"pad touchpad down 0\.50 0\.50")
+    app.wait_log(r"pad touchpad primary 0\.50 0\.50")
+    app.send("gamepad touch 0 0 0 0").send("gamepad button touchpad 1")
+    app.wait_log(r"pad touchpad button pressed")
+    app.send("gamepad button touchpad 0").send("gamepad disconnect")
+    app.wait_log(r"gamepad disconnected: isim PS5")
+    app.send("gamepad connect isim Xbox as xbox")
+    app.wait_log(r"pad profile Xbox category=Xbox One share true paddles 4")
+    app.send("gamepad button misc1 1")
+    app.wait_log(r"pad share pressed")
+    app.send("gamepad button paddle1 1")
+    app.wait_log(r"pad paddle 1 pressed")
+    app.send("gamepad disconnect")
+    app.wait_log(r"gamepad disconnected: isim Xbox")
     app.sleep(2)                                                          # the scene runs on (video, actions)
     b = app.screenshot("b")
     log = app.log

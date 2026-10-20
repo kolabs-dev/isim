@@ -57,9 +57,16 @@ public let GCProductCategoryHID = "HID"
             let c: GCController
             if let known = pads[p.id] { c = known }
             else {
-                c = GCController(extended: true)
+                let cat = category(text(p.type))
+                switch cat {                                  // the product profile of the pad's type
+                case GCProductCategoryDualSense: c = GCController(profile: GCDualSenseGamepad())
+                case GCProductCategoryDualShock4: c = GCController(profile: GCDualShockGamepad())
+                case GCProductCategoryXboxOne:
+                    let x = GCXboxGamepad(); x._configure(hasButtons: p.has_buttons); c = GCController(profile: x)
+                default: c = GCController(extended: true)
+                }
                 c.vendorName = text(p.name)
-                c.productCategory = category(text(p.type))
+                c.productCategory = cat
                 c._hostPadID = p.id
                 pads[p.id] = c
                 update(c, p)
@@ -88,6 +95,7 @@ public let GCProductCategoryHID = "HID"
         if ax[0] != g.leftThumbstick.xAxis.value || -ax[1] != g.leftThumbstick.yAxis.value { g.leftThumbstick.setValueForXAxis(ax[0], yAxis: -ax[1]) }
         if ax[2] != g.rightThumbstick.xAxis.value || -ax[3] != g.rightThumbstick.yAxis.value { g.rightThumbstick.setValueForXAxis(ax[2], yAxis: -ax[3]) }
         g.leftTrigger.setValue(ax[4]); g.rightTrigger.setValue(ax[5])
+        g._hostUpdate(p, bit: { bit($0) })
         // the micro gamepad profile mirrors the extended one
         if let m = c.microGamepad {
             m.buttonA.setValue(bit(0)); m.buttonX.setValue(bit(2)); m.buttonMenu.setValue(bit(6))

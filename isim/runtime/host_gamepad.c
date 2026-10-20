@@ -8,6 +8,10 @@
  *   gamepad disconnect               detach it
  *   gamepad battery PERCENT [discharging|charging|full|unknown]   the virtual pad's battery (SDL has no setter)
  *   gamepad motion AX AY AZ GX GY GZ  accelerometer (m/s², SDL's axes) and gyroscope (rad/s) samples
+ *   gamepad connect NAME as ps5|ps4|xbox|switchpro   a virtual pad with that pad's vendor / product (its SDL type)
+ *   gamepad touch FINGER 0|1 X Y     the virtual pad's touchpad (x, y in 0...1, y down)
+ * Buttons include misc1 (share), paddle1...paddle4 and touchpad. Effect reports (DualSense triggers) are logged as
+ * "isim gamepad: effect XX ...".
  * Rumble requests to the virtual pad are logged ("isim gamepad: rumble LOW HIGH"), so are its light colour
  * ("isim gamepad: led R G B") and sensor switches ("isim gamepad: sensors on|off"). */
 #include "guest_abi.h"
@@ -17,7 +21,10 @@
 #include <string.h>
 #include <math.h>
 
-struct isim_gamepad { int id, vendor, product; unsigned int buttons; float axes[6]; char name[64]; char type[24]; };
+/* buttons: SDL's gamepad button bits (south, east, west, north, back, guide, start, sticks, shoulders, d-pad,
+ * misc1 / share, the four paddles, the touchpad button); touch: the first touchpad's two fingers (down, x, y in 0...1) */
+struct isim_gamepad { int id, vendor, product; unsigned int buttons; float axes[6]; char name[64]; char type[24];
+                      int touchpads; float touch[2][3]; unsigned int has_buttons; };
 
 static int gp_state;                      /* 0 not tried, 1 running, -1 disabled / unavailable */
 static struct { SDL_JoystickID id; SDL_Gamepad *pad; } open_pads[16];
@@ -75,7 +82,13 @@ ISIM_GUEST_ABI int isim_gamepad_poll(struct isim_gamepad *out, int max) {
         snprintf(p->name, sizeof p->name, "%s", SDL_GetGamepadName(g) ? SDL_GetGamepadName(g) : "Gamepad");
         const char *t = SDL_GetGamepadStringForType(SDL_GetGamepadType(g));
         snprintf(p->type, sizeof p->type, "%s", t ? t : "");
-        for (int b = 0; b < SDL_GAMEPAD_BUTTON_MISC1 && b < 32; b++) if (SDL_GetGamepadButton(g, (SDL_GamepadButton)b)) p->buttons |= 1u << b;
+        for (int b = 0; b < SDL_GAMEPAD_BUTTON_COUNT && b < 32; b++) if (SDL_GetGamepadButton(g, (SDL_GamepadButton)b)) p->buttons |= 1u << b;
+        for (int b = 0; b < SDL_GAMEPAD_BUTTON_COUNT && b < 32; b++) if (SDL_GamepadHasButton(g, (SDL_GamepadButton)b)) p->has_buttons |= 1u << b;
+        p->touchpads = SDL_GetNumGamepadTouchpads(g);
+        for (int f = 0; f < 2 && p->touchpads > 0; f++) {
+            bool down = false; float x = 0, y = 0, pr = 0;
+            if (SDL_GetGamepadTouchpadFinger(g, 0, f, &down, &x, &y, &pr)) { p->touch[f][0] = down; p->touch[f][1] = x; p->touch[f][2] = y; }
+        }
         for (int a = 0; a < 6; a++) p->axes[a] = axis(g, (SDL_GamepadAxis)a);
     }
     SDL_free(ids);
@@ -88,6 +101,12 @@ ISIM_GUEST_ABI int isim_gamepad_rumble(int id, double low, double high, double s
         Uint16 lo = (Uint16)(fmin(1, fmax(0, low)) * 65535), hi = (Uint16)(fmin(1, fmax(0, high)) * 65535);
         return SDL_RumbleGamepad(open_pads[i].pad, lo, hi, (Uint32)(fmax(0, seconds) * 1000)) ? 1 : 0;
     }
+    return 0;
+}
+
+/* a raw effect report for the pad (DualSense adaptive triggers, DualShock 4 lights): SDL's SDL_SendGamepadEffect */
+ISIM_GUEST_ABI int isim_gamepad_effect(int id, const void *data, int size) {
+    for (int i = 0; i < nopen; i++) if ((int)open_pads[i].id == id) return SDL_SendGamepadEffect(open_pads[i].pad, data, size) ? 1 : 0;
     return 0;
 }
 
@@ -145,6 +164,14 @@ static bool SDLCALL v_led(void *ud, Uint8 r, Uint8 g, Uint8 b) {
     fprintf(stderr, "isim gamepad: led %u %u %u\n", r, g, b);
     return true;
 }
+static bool SDLCALL v_effect(void *ud, const void *data, int size) {
+    (void)ud;
+    const unsigned char *b = data;
+    fprintf(stderr, "isim gamepad: effect");
+    for (int i = 0; i < size && i < 48; i++) fprintf(stderr, " %02x", b[i]);
+    fprintf(stderr, "\n");
+    return true;
+}
 static bool SDLCALL v_sensors(void *ud, bool on) {
     (void)ud;
     fprintf(stderr, "isim gamepad: sensors %s\n", on ? "on" : "off");
@@ -165,12 +192,23 @@ void isim_gamepad_script(const char *args) {
         if (vjoy) return;
         if (sscanf(args, " %*s %63[^;]", name) != 1) snprintf(name, sizeof name, "isim Virtual Gamepad");
         for (char *e = name + strlen(name) - 1; e >= name && *e == ' '; e--) *e = 0;
+        /* "NAME as ps5|ps4|xbox|switchpro": the vendor and product of that pad, so SDL (and GameController) see its type */
+        Uint16 vendor = 0x1209, product = 0x0001;                 /* pid.codes test VID/PID */
+        char *as = strstr(name, " as ");
+        if (as) {
+            const char *t = as + 4;
+            if (!strcmp(t, "ps5")) { vendor = 0x054C; product = 0x0CE6; }
+            else if (!strcmp(t, "ps4")) { vendor = 0x054C; product = 0x09CC; }
+            else if (!strcmp(t, "xbox")) { vendor = 0x045E; product = 0x0B12; }
+            else if (!strcmp(t, "switchpro")) { vendor = 0x057E; product = 0x2009; }
+            *as = 0;
+        }
         snprintf(vname, sizeof vname, "%s", name);
         SDL_VirtualJoystickDesc d;
         SDL_INIT_INTERFACE(&d);
         d.type = SDL_JOYSTICK_TYPE_GAMEPAD;
-        d.vendor_id = 0x1209; d.product_id = 0x0001;          /* pid.codes test VID/PID */
-        d.nbuttons = SDL_GAMEPAD_BUTTON_MISC1; d.button_mask = (1u << SDL_GAMEPAD_BUTTON_MISC1) - 1;
+        d.vendor_id = vendor; d.product_id = product;
+        d.nbuttons = SDL_GAMEPAD_BUTTON_MISC2; d.button_mask = (1u << SDL_GAMEPAD_BUTTON_MISC2) - 1;   /* up to the touchpad button */
         d.naxes = SDL_GAMEPAD_AXIS_COUNT; d.axis_mask = (1u << SDL_GAMEPAD_AXIS_COUNT) - 1;
         d.name = vname;
         d.Rumble = v_rumble;
@@ -178,6 +216,9 @@ void isim_gamepad_script(const char *args) {
         d.SetSensorsEnabled = v_sensors;
         static const SDL_VirtualJoystickSensorDesc sensors[2] = { { SDL_SENSOR_ACCEL, 100.0f }, { SDL_SENSOR_GYRO, 100.0f } };
         d.nsensors = 2; d.sensors = sensors;
+        static const SDL_VirtualJoystickTouchpadDesc touchpads[1] = { { 2, { 0, 0, 0 } } };
+        d.ntouchpads = 1; d.touchpads = touchpads;
+        d.SendEffect = v_effect;
         vid = SDL_AttachVirtualJoystick(&d);
         if (!vid || !(vjoy = SDL_OpenJoystick(vid))) { fprintf(stderr, "isim host: gamepad connect failed: %s\n", SDL_GetError()); return; }
         /* triggers rest at 0 (the virtual axis starts at the middle of its range) */
@@ -187,6 +228,12 @@ void isim_gamepad_script(const char *args) {
     } else if (!strcmp(verb, "battery") && sscanf(args, " %*s %lf %63s", &v, name) >= 1) {
         vbattery_percent = (int)fmin(100, fmax(0, v));
         vbattery_state = !strcmp(name, "charging") ? 2 : !strcmp(name, "full") ? 3 : !strcmp(name, "unknown") ? 0 : 1;
+    } else if (!strcmp(verb, "touch")) {                       /* gamepad touch FINGER 0|1 X Y (0...1, y down) */
+        int finger = 0; double down = 0, x = 0, y = 0;
+        if (!vjoy || sscanf(args, " %*s %d %lf %lf %lf", &finger, &down, &x, &y) != 4) {
+            fprintf(stderr, "isim host: gamepad touch FINGER 0|1 X Y (needs a connected virtual pad)\n"); return;
+        }
+        SDL_SetJoystickVirtualTouchpad(vjoy, 0, finger, down != 0, (float)x, (float)y, down != 0 ? 1.0f : 0.0f);
     } else if (!strcmp(verb, "motion")) {
         float a[3] = {0}, g[3] = {0};
         if (!vjoy || sscanf(args, " %*s %f %f %f %f %f %f", &a[0], &a[1], &a[2], &g[0], &g[1], &g[2]) != 6) {
@@ -202,7 +249,7 @@ void isim_gamepad_script(const char *args) {
         SDL_DetachVirtualJoystick(vid); vid = 0;
     } else if (!strcmp(verb, "button") && sscanf(args, " %*s %63s %lf", name, &v) == 2) {
         SDL_GamepadButton b = SDL_GetGamepadButtonFromString(name);
-        if (!vjoy || b == SDL_GAMEPAD_BUTTON_INVALID || b >= SDL_GAMEPAD_BUTTON_MISC1) { fprintf(stderr, "isim host: gamepad: bad button '%s'\n", name); return; }
+        if (!vjoy || b == SDL_GAMEPAD_BUTTON_INVALID || b >= SDL_GAMEPAD_BUTTON_MISC2) { fprintf(stderr, "isim host: gamepad: bad button '%s'\n", name); return; }
         SDL_SetJoystickVirtualButton(vjoy, (int)b, v != 0);
     } else if (!strcmp(verb, "axis") && sscanf(args, " %*s %63s %lf", name, &v) == 2) {
         SDL_GamepadAxis a = SDL_GetGamepadAxisFromString(name);

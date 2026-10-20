@@ -80,7 +80,9 @@ open class GCControllerElement: NSObject {
     open var preferredSystemGestureState: Int = 0
     weak var profile: GCPhysicalInputProfile?
     init(name: String?, analog: Bool = false) { localizedName = name; isAnalog = analog; if let name { aliases = [name] } }
-    func changed() { profile?.elementChanged(self) }
+    /// isim: the iOS 17 physical-input wrappers watching this element (GCPhysicalInput.swift)
+    var _observers: [(GCControllerElement) -> Void] = []
+    func changed() { profile?.elementChanged(self); for o in _observers { o(self) } }
 }
 
 public typealias GCControllerButtonValueChangedHandler = (GCControllerButtonInput, Float, Bool) -> Void
@@ -202,8 +204,10 @@ open class GCExtendedGamepad: GCPhysicalInputProfile {
     public let buttonY = GCControllerButtonInput(name: GCInputButtonY)
     public let leftShoulder = GCControllerButtonInput(name: GCInputLeftShoulder)
     public let rightShoulder = GCControllerButtonInput(name: GCInputRightShoulder)
-    public let leftTrigger = GCControllerButtonInput(name: GCInputLeftTrigger, analog: true)
-    public let rightTrigger = GCControllerButtonInput(name: GCInputRightTrigger, analog: true)
+    /// the triggers (a DualSense's are adaptive triggers: GCDualSenseGamepad narrows their type)
+    open var leftTrigger: GCControllerButtonInput { _leftTrigger }
+    open var rightTrigger: GCControllerButtonInput { _rightTrigger }
+    let _leftTrigger: GCControllerButtonInput, _rightTrigger: GCControllerButtonInput
     public let leftThumbstick = GCControllerDirectionPad(name: GCInputLeftThumbstick, analog: true)
     public let rightThumbstick = GCControllerDirectionPad(name: GCInputRightThumbstick, analog: true)
     public let buttonMenu = GCControllerButtonInput(name: GCInputButtonMenu)
@@ -213,7 +217,19 @@ open class GCExtendedGamepad: GCPhysicalInputProfile {
     public let rightThumbstickButton: GCControllerButtonInput? = GCControllerButtonInput(name: GCInputRightThumbstickButton)
 
     public override init() {
+        _leftTrigger = GCControllerButtonInput(name: GCInputLeftTrigger, analog: true)
+        _rightTrigger = GCControllerButtonInput(name: GCInputRightTrigger, analog: true)
         super.init()
+        _registerElements()
+    }
+    /// isim: a profile whose triggers are of a subclass (GCDualSenseAdaptiveTrigger)
+    init(_leftTrigger l: GCControllerButtonInput, rightTrigger r: GCControllerButtonInput) {
+        _leftTrigger = l; _rightTrigger = r
+        super.init()
+        _registerElements()
+    }
+    func _registerElements() {
+        let (leftTrigger, rightTrigger) = (_leftTrigger, _rightTrigger)
         let all: [(GCControllerElement, String)] = [(dpad, GCInputDirectionPad), (buttonA, GCInputButtonA), (buttonB, GCInputButtonB), (buttonX, GCInputButtonX),
             (buttonY, GCInputButtonY), (leftShoulder, GCInputLeftShoulder), (rightShoulder, GCInputRightShoulder), (leftTrigger, GCInputLeftTrigger),
             (rightTrigger, GCInputRightTrigger), (leftThumbstick, GCInputLeftThumbstick), (rightThumbstick, GCInputRightThumbstick),
@@ -226,6 +242,8 @@ open class GCExtendedGamepad: GCPhysicalInputProfile {
         while let c = top.collection { top = c }
         valueChangedHandler?(self, top)
     }
+    /// isim: a product profile's extra inputs from the host pad (GCProductProfiles.swift)
+    func _hostUpdate(_ p: isim_gamepad, bit: (Int) -> Float) {}
     open func saveSnapshot() -> GCExtendedGamepad { self }
     open func setStateFromExtendedGamepad(_ other: GCExtendedGamepad) {
         dpad.setValueForXAxis(other.dpad.xAxis.value, yAxis: other.dpad.yAxis.value)
@@ -307,6 +325,7 @@ open class GCController: NSObject, GCDevice {
         return _light
     }
     var _light: GCDeviceLight?
+    var _liveInput: GCControllerLiveInput?
     /// a host pad's rumble motors (nil for snapshots and pads without one)
     open var haptics: GCDeviceHaptics? { _hostPadID.map { GCDeviceHaptics(pad: $0) } }
     /// isim: the haptics getter of apps built before #283 (typed AnyObject?), kept under its old symbols (-alias)
@@ -326,6 +345,12 @@ open class GCController: NSObject, GCDevice {
     init(extended: Bool) {
         super.init()
         if extended { let g = GCExtendedGamepad(); g.controller = self; g.device = self; extendedGamepad = g }
+        let m = GCMicroGamepad(); m.controller = self; m.device = self; microGamepad = m
+    }
+    /// isim: a host pad with its product profile (GCXboxGamepad, GCDualShockGamepad, GCDualSenseGamepad)
+    init(profile g: GCExtendedGamepad) {
+        super.init()
+        g.controller = self; g.device = self; extendedGamepad = g
         let m = GCMicroGamepad(); m.controller = self; m.device = self; microGamepad = m
     }
     open func capture() -> GCController { self }
