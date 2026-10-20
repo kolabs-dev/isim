@@ -144,6 +144,7 @@ def sdk_headers(c):
 
 FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each links against the ones before it)
     ("CoreFoundation", []),
+    ("Accelerate", []),   # vecLib's BLAS, LAPACK, vDSP and vForce in C (frameworks/Accelerate)
     # CoreGraphics sits below Foundation: the CF strings/data/collections it uses resolve at load time (flat lookup)
     ("CoreGraphics", "-lisim_host -U ___CFConstantStringClassReference -U _CFDataCreate -U _CFDataGetBytePtr "
                      "-U _CFDataGetLength -U _CFDataAppendBytes -U _CFArrayGetCount -U _CFArrayGetValueAtIndex "
