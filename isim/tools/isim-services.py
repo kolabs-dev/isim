@@ -33,9 +33,14 @@
   isim appleid <app> list                          Sign in with Apple state of an app (local simulation)
   isim appleid <app> revoke                        Settings > Apple Account > Sign in with Apple > Stop Using
   isim appleid <app> reset                         forget the app (next sign-in is a new account again)
+  isim wallet list                                 the passes in the device's Wallet (PKPassLibrary)
+  isim wallet add <file.pkpass>                    add a pass, as opening it from Mail or Safari would
+  isim wallet remove <pass type id> <serial>       remove a pass
+  isim wallet orders                               the orders Apple Pay payments added (PKPaymentOrderDetails)
+  isim wallet clear                                remove every pass and order
 
 <app> is a bundle identifier, an .app bundle or an installed app's name. Running apps notice changes
-within half a second. Data: ISIM_DATA (~/.local/share/isim)/Containers/<bundle id>/Library/isim/; StoreKit purchase
+within half a second. Data: ISIM_DATA (~/.local/share/isim)/Containers/<bundle id>/Library/isim/; Wallet: ISIM_DATA/Library/Wallet/; StoreKit purchase
 histories (the device's account, kept when an app is deleted), certificate and offer key: ISIM_DATA/Library/isim/StoreKit/.
 The local Game Center network that isim
 devices on this computer share: ISIM_GAMECENTER (~/.local/share/isim-gamecenter).
@@ -530,11 +535,98 @@ def appleid(app, cmd, args):
     write_json(path, apps)
 
 
+
+# ---- Wallet: the device's passes and orders (PassKit's PKPassLibrary, Apple Pay orders) ----
+
+WALLET = os.path.join(DATA, 'Library', 'Wallet')
+PASS_STYLES = ('boardingPass', 'coupon', 'eventTicket', 'generic', 'storeCard')
+
+
+def wallet_safe(s):
+    return ''.join(c if c.isalnum() or c in '.-' else '_' for c in s)
+
+
+def wallet_read(path):
+    """pass.json, the English strings and the archive's problem (None when PassKit would accept it)"""
+    import hashlib, re, zipfile
+    try:
+        z = zipfile.ZipFile(path)
+        files = {n: z.read(n) for n in z.namelist() if not n.endswith('/')}
+        info = json.loads(files['pass.json'])
+    except Exception:
+        return None, {}, 'not a pass archive with a pass.json'
+    strings = {}
+    raw = files.get('en.lproj/pass.strings')
+    if raw:
+        text = raw.decode('utf-16') if raw[:2] in (b'\xff\xfe', b'\xfe\xff') else raw.decode('utf-8', 'replace')
+        strings = dict(re.findall(r'"((?:[^"\\]|\\.)*)"\s*=\s*"((?:[^"\\]|\\.)*)"\s*;', text))
+    try:
+        manifest = json.loads(files['manifest.json'])
+    except Exception:
+        return info, strings, 'no manifest'
+    for n, d in files.items():
+        if n not in ('manifest.json', 'signature') and manifest.get(n, '').lower() != hashlib.sha1(d).hexdigest():
+            return info, strings, f"the manifest's hash of {n} does not match"
+    if not files.get('signature'):
+        return info, strings, 'not signed'
+    if info.get('formatVersion') != 1 or not all(info.get(k) for k in ('passTypeIdentifier', 'serialNumber', 'organizationName', 'description')):
+        return info, strings, 'pass.json lacks formatVersion 1, passTypeIdentifier, serialNumber, organizationName or description'
+    return info, strings, None
+
+
+def wallet(cmd, args):
+    passes = os.path.join(WALLET, 'Passes')
+    orders = os.path.join(WALLET, 'Orders')
+    if cmd in ('', 'list'):
+        names = sorted(n for n in os.listdir(passes) if n.endswith('.pkpass')) if os.path.isdir(passes) else []
+        if not names:
+            print('no passes')
+        for n in names:
+            info, strings, _ = wallet_read(os.path.join(passes, n))
+            if not info:
+                continue
+            style = next((s for s in PASS_STYLES if s in info), '?')
+            loc = lambda k: strings.get(info.get(k, ''), info.get(k, ''))
+            print(f"{info['passTypeIdentifier']} {info['serialNumber']}  {style}  {loc('organizationName')}: {loc('description')}")
+    elif cmd == 'orders':
+        names = sorted(n for n in os.listdir(orders) if n.endswith('.json')) if os.path.isdir(orders) else []
+        if not names:
+            print('no orders')
+        for n in names:
+            o = json.load(open(os.path.join(orders, n)))
+            print(f"{o.get('orderTypeIdentifier')} {o.get('orderIdentifier')}  {o.get('total', '')}  {o.get('merchantIdentifier', '')}  {o.get('webServiceURL', '')}")
+    elif cmd == 'add':
+        if not args:
+            die('usage: isim wallet add FILE.pkpass')
+        info, _, problem = wallet_read(args[0])
+        if problem:
+            print(f'refused {args[0]}: {problem}')
+            sys.exit(1)
+        os.makedirs(passes, exist_ok=True)
+        shutil.copyfile(args[0], os.path.join(passes, wallet_safe(f"{info['passTypeIdentifier']}_{info['serialNumber']}") + '.pkpass'))
+        print(f"added {info['passTypeIdentifier']} {info['serialNumber']}")
+    elif cmd == 'remove':
+        if len(args) != 2:
+            die('usage: isim wallet remove PASS_TYPE_ID SERIAL')
+        path = os.path.join(passes, wallet_safe(f'{args[0]}_{args[1]}') + '.pkpass')
+        if not os.path.exists(path):
+            die(f'no pass {args[0]} {args[1]} in Wallet')
+        os.remove(path)
+        print(f'removed {args[0]} {args[1]}')
+    elif cmd == 'clear':
+        shutil.rmtree(WALLET, ignore_errors=True)
+        print('Wallet cleared (passes and orders)')
+    else:
+        die(f'unknown wallet command {cmd}')
+
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == 'gamecenter' and sys.argv[2] in GC_NETWORK:
         sys.argv.append('')
     if len(sys.argv) == 3 and sys.argv[1] == 'storekit' and sys.argv[2] in ('certificate', 'offer-key'):
         sys.argv.append('')
+    if len(sys.argv) >= 2 and sys.argv[1] == 'wallet':
+        return wallet(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) < 4:
         print(__doc__.strip())
         sys.exit(2)
@@ -546,3 +638,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

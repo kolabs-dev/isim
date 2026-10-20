@@ -785,7 +785,7 @@ CoreData -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswift
 SwiftData -lswiftObjectiveC -lswiftFoundation -lswiftSwiftUI -lswiftCombine -lswiftObservation -lswift_Concurrency -framework Foundation
 StoreKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCryptoKit -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 StoreKitTest -lswiftObjectiveC -lswiftFoundation -lswiftStoreKit -lswiftUIKit -lswift_Concurrency -framework Foundation   # SKTestSession over the local store
-PassKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftContacts -lswiftCryptoKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit   # Apple Pay: isim's simulated sheet and test token
+PassKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftContacts -lswiftCryptoKit -lswiftCompression -lswiftCoreImage -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreImage -lcompression   # Apple Pay (simulated sheet, test token) and Wallet passes
 CoreLocation -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 QuartzCore -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit
 AVFAudio -lswiftObjectiveC -lswiftFoundation -lswiftAVFoundation -framework Foundation   # import AVFAudio: re-exports AVFoundation

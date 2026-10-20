@@ -119,6 +119,7 @@ import SwiftUI
         NSLog("isim PassKit: authorization result %@%@", r.status == .success ? "success" : "failure",
               errors.isEmpty ? "" : " (" + errors.map(\.localizedDescription).joined(separator: "; ") + ")")
         if r.status == .success {
+            if let o = r.orderDetails { _PKWalletStore.addOrder(o, merchant: request.merchantIdentifier, total: money(total.amount)) }
             phase = .done
             try? await Task.sleep(nanoseconds: 900_000_000)
             finish()

@@ -2,8 +2,8 @@
 // PKPaymentAuthorizationViewController (shipping address and methods, a coupon code, contact details, errors the
 // delegate reports), a donation with PKPaymentAuthorizationController (no view controller), and SwiftUI's
 // PayWithApplePayButton with a request and the onApplePay…Change modifiers. The token isim hands over is its own
-// test token (paymentData is JSON with "version": "isim-test"); nothing is charged. Every step is printed, so
-// tests/ui/test_apple_pay.py can check it.
+// test token (paymentData is JSON with "version": "isim-test"); nothing is charged. The coffee order's result
+// carries Wallet order details. Every step is printed, so tests/ui/test_apple_pay.py can check it.
 import SwiftUI
 import PassKit
 
@@ -110,7 +110,11 @@ func describe(_ payment: PKPayment) -> String {
                                             handler completion: @escaping (PKPaymentAuthorizationResult) -> Void) {
         print("coffee: authorized \(describe(payment))")
         paid = true
-        completion(PKPaymentAuthorizationResult(status: .success, errors: nil))
+        // the order Wallet tracks (isim's Wallet records it: `isim wallet orders`)
+        let result = PKPaymentAuthorizationResult(status: .success, errors: nil)
+        result.orderDetails = PKPaymentOrderDetails(orderTypeIdentifier: "order.dev.isim.samples.coffee", orderIdentifier: "coffee-42",
+                                                    webServiceURL: URL(string: "https://orders.example.com/")!, authenticationToken: "order-token")
+        completion(result)
     }
     func paymentAuthorizationViewControllerDidFinish(_ controller: PKPaymentAuthorizationViewController) {
         controller.dismiss(animated: true)

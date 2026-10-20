@@ -234,6 +234,12 @@ def _(a):
     a.copy("fastest.svg", b)                                   # the configured leaderboard image
 
 
+@app("samples/HelloWallet", extra_inputs=["samples/HelloWallet/gen_passes.py"])
+def _(a):
+    b = a.swift_app()
+    a.run("python3", "gen_passes.py", b)                      # the sample passes (.pkpass, .pkpasses), placeholder-signed
+
+
 @app("samples/HelloStore")
 def _(a):
     b = a.swift_app()
