@@ -307,6 +307,7 @@ public protocol SKPaymentQueueDelegate: AnyObject {}
 
     open func add(_ observer: SKPaymentTransactionObserver) {
         _SKUpdates.start()
+        _SKIntents.start()                     // promoted purchases reach paymentQueue(_:shouldAddStorePayment:for:)
         guard !observers.contains(where: { $0.o === observer }) else { return }
         observers.append(Weak(observer))
         if !listening {

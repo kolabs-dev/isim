@@ -42,6 +42,15 @@ let coinsID = "dev.isim.store.coins", fullGameID = "dev.isim.store.full_game"
                 }
             }
         }
+        // purchases started on the App Store (`isim storekit <app> purchase-intent`): completed here
+        Task { @MainActor in
+            for await intent in PurchaseIntent.intents {
+                var offer = "-"
+                if #available(iOS 18.0, *) { offer = intent.offer?.id ?? "-" }
+                print("purchase intent: \(intent.product.id) offer=\(offer)")
+                if let r = try? await intent.product.purchase(), case .success(.verified(let t)) = r { print("purchase intent bought: txn \(t.id)"); await t.finish() }
+            }
+        }
         Task {
             for await s in Product.SubscriptionInfo.Status.updates {
                 print("status update: \(s.state) \(s.transaction.unsafePayloadValue.productID) autoRenew=\(s.renewalInfo.unsafePayloadValue.willAutoRenew)")
@@ -136,6 +145,7 @@ struct RootView: View {
     @State private var showProducts = false
     @State private var overlay = false
     @State private var showPlans = false
+    @State private var storeKind: StoreKind?
     var body: some View {
         NavigationStack {
             List {
@@ -171,6 +181,15 @@ struct RootView: View {
                         }
                     }.accessibilityIdentifier("jws")
                     Button("Request review") { requestReview() }.accessibilityIdentifier("review")
+                }
+                Section("iOS 18 and later") {
+                    Button("Plans in tabs") { storeKind = .tabs }.accessibilityIdentifier("open-tabs")
+                    Button("Plans by period (links)") { storeKind = .links }.accessibilityIdentifier("open-links")
+                    Button("Plans in sections") { storeKind = .sections }.accessibilityIdentifier("open-sections")
+                    Button("Plans, custom picker") { storeKind = .custom }.accessibilityIdentifier("open-custom")
+                    Button("Upgrades only") { storeKind = .upgrades }.accessibilityIdentifier("open-upgrades")
+                    Button("Subscription offer view") { storeKind = .offerView }.accessibilityIdentifier("open-offer-view")
+                    Button("Promote products") { Task { await promote() } }.accessibilityIdentifier("promote")
                 }
                 Section("StoreKit 1") {
                     Button("SK1 buy coins") {
@@ -234,7 +253,25 @@ struct RootView: View {
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { showPlans = false }.accessibilityIdentifier("close-plans") } }
             }
         }
+        .sheet(item: $storeKind) { kind in
+            NavigationStack {
+                ModernStore(kind: kind)
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { storeKind = nil }.accessibilityIdentifier("close-modern") } }
+            }
+        }
         .appStoreOverlay(isPresented: $overlay) { SKOverlay.AppConfiguration(appIdentifier: "1234567890", position: .bottom) }
+    }
+    /// promoted in-app purchases: the order (full game first) and coins hidden on the App Store
+    func promote() async {
+        do {
+            try await Product.PromotionInfo.updateProductOrder(byID: [fullGameID, coinsID])
+            try await Product.PromotionInfo.updateProductVisibility(.hidden, for: coinsID)
+            let order = try await Product.PromotionInfo.currentOrder
+            print("promotions: " + order.map { "\($0.productID)=\($0.visibility)" }.joined(separator: " "))
+            try await Product.PromotionInfo.updateProductOrder(byID: ["dev.isim.store.nope"])
+        } catch {
+            print("promotion error: \(error)")
+        }
     }
     enum OfferKind { case promo, promoJWS, promoForged, winBack }
     /// Plus Monthly with its promotional offer (signed here, standing in for the developer's server) or win-back offer.
@@ -300,5 +337,77 @@ struct BadgeStyle: ProductViewStyle {
         }
         .padding()
         .accessibilityIdentifier("badge-style")
+    }
+}
+
+// MARK: - iOS 18 and later subscription stores
+
+enum StoreKind: String, Identifiable { case tabs, links, sections, custom, upgrades, offerView; var id: String { rawValue } }
+
+func isPlus(_ p: Product) -> Bool { p.id.contains(".plus.") }
+
+struct ModernStore: View {
+    let kind: StoreKind
+    var body: some View {
+        switch kind {
+        case .tabs:
+            // option groups as tabs: Plus (filter) and Premium (its own section)
+            SubscriptionStoreView(groupID: groupID) {
+                SubscriptionOptionGroup("Plus") { isPlus($0) }
+                SubscriptionOptionGroup("Premium", content: {
+                    SubscriptionOptionSection("Everything", isIncluded: { !isPlus($0) }) { Text("Includes Plus.").accessibilityIdentifier("premium-footer") }
+                }, marketingContent: { Text("Go Premium").font(.title).bold().accessibilityIdentifier("premium-marketing") })
+            }
+            .subscriptionStoreOptionGroupStyle(.tabs)
+            .onInAppPurchaseCompletion { p, _ in print("modern store bought \(p.id)") }
+        case .links:
+            // a group set: one link per billing period
+            SubscriptionStoreView(groupID: groupID) {
+                SubscriptionOptionGroupSet(groupedBy: { $0.subscription?.subscriptionPeriod.unit == .year ? "Yearly" : "Monthly" }) { (period: String) in
+                    Text(period)
+                }
+                .subscriptionStoreOptionGroupStyle(.links)
+            }
+        case .sections:
+            SubscriptionStoreView(groupID: groupID) {
+                SubscriptionOptionSection("Plus", isIncluded: isPlus) { Text("Cancel anytime.") }
+                SubscriptionOptionSection(isIncluded: { !isPlus($0) }) { Text("PREMIUM ✦").accessibilityIdentifier("premium-header") } footer: { EmptyView() }
+            }
+        case .custom:
+            SubscriptionStoreView(groupID: groupID).subscriptionStoreControlStyle(TilePickerStyle())
+        case .upgrades:
+            // a subscriber sees only the plans above theirs
+            SubscriptionStoreView(groupID: groupID, visibleRelationships: .upgrade)
+        case .offerView:
+            VStack(spacing: 16) {
+                if #available(iOS 26.0, *) {
+                    SubscriptionOfferView(id: "dev.isim.store.plus.monthly")
+                    SubscriptionOfferView(groupID: groupID, visibleRelationship: .upgrade)
+                        .subscriptionOfferViewStyle(.compact)
+                } else {
+                    Text("Subscription offer views need iOS 26").accessibilityIdentifier("offer-view-unavailable")
+                }
+                Spacer()
+            }
+            .padding()
+        }
+    }
+}
+
+/// a custom control: SubscriptionStorePicker rows with a tile per plan, and a Join button
+struct TilePickerStyle: SubscriptionStoreControlStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        SubscriptionStorePicker(configuration) { option in
+            HStack {
+                Text(option.displayName).bold()
+                Spacer()
+                Text(option.isSelected ? "Selected" : option.displayPrice).foregroundStyle(option.isSelected ? Color.green : Color.secondary)
+            }
+            .padding()
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
+        } confirmation: { option in
+            Button("Join \(option.displayName)") { print("custom picker subscribe \(option.id) group=\(configuration.groupDisplayName) options=\(configuration.options.count)"); option.subscribe() }
+                .accessibilityIdentifier("custom-join")
+        }
     }
 }

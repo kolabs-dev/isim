@@ -28,6 +28,7 @@ import shutil
 import subprocess
 from datetime import datetime
 
+import pytest
 from PIL import Image
 
 from isimtest import ISIM, visible
@@ -435,4 +436,70 @@ def test_store_winback_ios17(launch, device_data):
     app.wait_view(r"text=Subscribe$")      # no win-back offer (on iOS 18: Resubscribe, the offer's terms)
     app.wait_view(r"id=sk-terms text=\$2\.99/month\. Auto-renews until canceled\.")
     assert not app.has(r"message winBackOffer"), "no win-back message before iOS 18"
+    assert app.quit() == 0
+
+
+@pytest.mark.os_matrix
+def test_store_ios18_views(launch, device_data, ios):
+    """iOS 18 subscription stores (issue #294): option groups as tabs and links, sections, a custom control style
+    built on SubscriptionStorePicker, visible relationships (upgrades only), SubscriptionOfferView (iOS 26),
+    promoted purchases' order and visibility, and a purchase intent from `isim storekit <app> purchase-intent`."""
+    major = int(float(ios[0] or 18))
+    app = launch("HelloStore", env=ENV)
+    plus_m, plus_y, premium = "sk-plan-dev.isim.store.plus.monthly", "sk-plan-dev.isim.store.plus.yearly", "sk-plan-dev.isim.store.premium.monthly"
+    # tabs: Plus (a filter) and Premium (a section, with its marketing content)
+    app.wait_tap_id("open-tabs")
+    tree = app.wait_view(lambda d: f"id={plus_m}" in d and f"id={plus_y}" in d and "id=sk-group-tab-1" in d, what="the Plus tab")
+    assert f"id={premium}" not in tree, "the Plus tab shows only Plus plans"
+    app.tap_id("sk-group-tab-1")
+    tree = app.wait_view(lambda d: f"id={premium}" in d and "id=premium-marketing" in d, what="the Premium tab")
+    assert "id=sk-section-Everything" in tree and "id=premium-footer" in tree and f"id={plus_m}" not in tree
+    app.tap_id("close-modern")
+    # links: one per billing period (a group set); a link opens its plans, back returns
+    app.wait_tap_id("open-links")
+    tree = app.wait_view(lambda d: "id=sk-group-link-0" in d and "id=sk-group-link-1" in d, what="the period links")
+    assert "text=Monthly" in tree and "text=Yearly" in tree and f"id={plus_m}" not in tree
+    app.tap_id("sk-group-link-1")
+    tree = app.wait_view(lambda d: f"id={plus_y}" in d and "id=sk-group-back" in d, what="the Yearly plans")
+    assert f"id={plus_m}" not in tree
+    app.tap_id("sk-group-back")
+    app.wait_view(r"id=sk-group-link-0")
+    app.tap_id("close-modern")
+    # sections: a titled one and one with a custom header
+    app.wait_tap_id("open-sections")
+    app.wait_view(lambda d: "id=sk-section-Plus" in d and "id=premium-header" in d and "text=Cancel anytime." in d, what="the sections")
+    app.tap_id("close-modern")
+    # a custom control style: picker rows and the app's Join button, which buys like the store's
+    app.wait_tap_id("open-custom")
+    app.wait_tap_id("sk-picker-dev.isim.store.plus.monthly")
+    app.wait_view(r"text=Join Plus Monthly")
+    subscribe(app, "custom-join")
+    app.wait_log(r"custom picker subscribe dev\.isim\.store\.plus\.monthly group=Store Plus options=3")
+    app.wait_log(r"entitlements: \[dev\.isim\.store\.plus\.monthly\]")
+    app.tap_id("close-modern")
+    # upgrades only: a Plus subscriber sees Premium
+    app.wait_tap_id("open-upgrades")
+    tree = app.wait_view(f"id={premium}")
+    assert f"id={plus_m}" not in tree and f"id={plus_y}" not in tree, "visibleRelationships: .upgrade"
+    app.tap_id("close-modern")
+    # SubscriptionOfferView (iOS 26): a plan, and the group's upgrade
+    app.wait_tap_id("open-offer-view")
+    if major >= 26:
+        tree = app.wait_view(lambda d: d.count("id=sk-offer-view-subscribe") == 2, what="two subscription offer views")
+        assert "text=Plus Monthly" in tree and "text=Premium Monthly" in tree
+    else:
+        app.wait_view(r"id=offer-view-unavailable")
+    app.tap_id("close-modern")
+    # promoted in-app purchases
+    app.wait_tap_id("promote")
+    app.wait_log(r"promotions: dev\.isim\.store\.full_game=appStoreConnectDefault dev\.isim\.store\.coins=hidden")
+    app.wait_log(r"promotion error: unknown")                                 # an unknown product is refused
+    out = storekit(device_data, "promotions")
+    assert "order: dev.isim.store.full_game, dev.isim.store.coins" in out and "dev.isim.store.coins: hidden" in out, out
+    # a purchase intent (the customer tapped the promoted full game on the App Store)
+    assert "purchase intent for dev.isim.store.full_game" in storekit(device_data, "purchase-intent", "dev.isim.store.full_game")
+    app.wait_log(r"purchase intent: dev\.isim\.store\.full_game offer=-")
+    app.wait_view(r"text=Buy\b")
+    app.tap_text("Buy")
+    app.wait_log(r"purchase intent bought: txn [0-9]+")
     assert app.quit() == 0
