@@ -148,7 +148,7 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
     ("CoreGraphics", "-lisim_host -U ___CFConstantStringClassReference -U _CFDataCreate -U _CFDataGetBytePtr "
                      "-U _CFDataGetLength -U _CFDataAppendBytes -U _CFArrayGetCount -U _CFArrayGetValueAtIndex "
                      "-U _CFDictionaryGetValue -U _CFRetain -U _CFRelease"),
-    ("Foundation", "-framework CoreGraphics -lisim_host"),
+    ("Foundation", "-framework CoreGraphics -lisim_host -lcompression"),
     ("CoreText", "-framework Foundation -framework CoreGraphics -lisim_host"),
     ("UIKit", "-framework Foundation -framework CoreGraphics -lisim_host"),
     ("ImageIO", "-framework Foundation -framework CoreGraphics -lisim_host"),

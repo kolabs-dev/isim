@@ -147,6 +147,22 @@ static void compressionAndZlib(void) {
     say([NSString stringWithFormat:@"zlib %s crc=%08lx roundtrip=%d compression=%d", zlibVersion(), crc32(0, (const Bytef *)text, (uInt)strlen(text)),
          !strcmp(back, text), dlen == strlen(text) && !memcmp(d, text, dlen)]);
 }
+/* every libcompression algorithm, and NSData's compression */
+static void compressionAlgorithms(void) {
+    NSMutableString *list = [NSMutableString string];
+    const struct { compression_algorithm alg; const char *name; } algs[] = {
+        { COMPRESSION_LZFSE, "lzfse" }, { COMPRESSION_LZ4, "lz4" }, { COMPRESSION_LZMA, "lzma" }, { COMPRESSION_BROTLI, "brotli" } };
+    NSData *text = [[@"" stringByPaddingToLength:4000 withString:@"isim compresses " startingAtIndex:0] dataUsingEncoding:NSUTF8StringEncoding];
+    for (const auto &a : algs) {
+        uint8_t c[8192], d[8192];
+        size_t clen = compression_encode_buffer(c, sizeof c, (const uint8_t *)text.bytes, text.length, NULL, a.alg);
+        size_t dlen = compression_decode_buffer(d, sizeof d, c, clen, NULL, a.alg);
+        [list appendFormat:@" %s=%d", a.name, clen > 0 && clen < text.length && dlen == text.length && !memcmp(d, text.bytes, dlen)];
+    }
+    NSData *z = [text compressedDataUsingAlgorithm:NSDataCompressionAlgorithmLZFSE error:NULL];
+    [list appendFormat:@" nsdata=%d", [[z decompressedDataUsingAlgorithm:NSDataCompressionAlgorithmLZFSE error:NULL] isEqualToData:text]];
+    say([@"compression" stringByAppendingString:list]);
+}
 
 static void cxx(void) {
     std::ostringstream out;
@@ -184,6 +200,7 @@ static void cxx(void) {
     network();
     types();
     compressionAndZlib();
+    compressionAlgorithms();
     cxx();
     say(@"done");
     return YES;

@@ -772,6 +772,12 @@ selftest("tests/swift-concurrency", "SwiftConcurrencyTest")
 selftest("tests/swift-62", "Swift62Test")
 selftest("tests/swift-foundation", "SwiftFoundationTest")
 selftest("tests/swift-libraries", "SwiftLibrariesTest", "-enable-bare-slash-regex")
+selftest("tests/swift-compression", "SwiftCompressionTest")
+
+
+@app("tests/compression", products=["CompressionTest.app"], swift=False)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-lcompression", "-lz"], name="CompressionTest")
 
 
 @app("tests/swift-embedded", products=["SwiftEmbeddedTest.app"],
