@@ -82,5 +82,5 @@ def test_quartz(launch):
         "CGPath operations from Swift: boolean ops, stroked / dashed / transformed copies, isRect, addArc(tangent1End:) (issue #273)"
     assert close(shot, 204, 380, (255, 149, 0)) and close(shot, 245, 380, (255, 149, 0)) and \
         close(shot, 216, 380, (255, 255, 255)), "union of circles and a bar, a hole subtracted"
-    assert count_px(shot, (296, 350, 100, 60), lambda c: c[0] > 150 and c[1] < 120 and c[2] > 180) > 40, \
+    assert count_px(shot, (296, 350, 88, 60), lambda c: c[0] > 150 and c[1] < 120 and c[2] > 180) > 40, \
         "dashed outline stroked into a filled path"
