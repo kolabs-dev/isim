@@ -185,6 +185,11 @@ def _(a):
                  "-preset", "veryfast", f"{b}/clip.mp4")
 
 
+@app("samples/HelloSampleBuffers")
+def _(a):
+    a.swift_app()
+
+
 @app("samples/HelloAccelerate")
 def _(a):
     a.swift_app()

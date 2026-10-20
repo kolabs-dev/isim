@@ -312,6 +312,14 @@ int isim_acodec_receive_packet(struct isim_acodec *_Nullable codec, unsigned cha
 int isim_acodec_send_packet(struct isim_acodec *_Nullable codec, const unsigned char *_Nullable data, int size);
 int isim_acodec_receive_pcm(struct isim_acodec *_Nullable codec, float *out, int cap, int *_Nullable channels, double *_Nullable rate);
 void isim_acodec_close(struct isim_acodec *_Nullable codec);
+/* video decoding (H.264 "h264", HEVC "hevc"): Annex-B access units in, BGRA frames out in presentation order */
+struct isim_vcodec;
+struct isim_vcodec *_Nullable isim_vcodec_open(const char *name);
+int isim_vcodec_send(struct isim_vcodec *_Nullable codec, const unsigned char *_Nullable data, int size);
+int isim_vcodec_receive(struct isim_vcodec *_Nullable codec, int *_Nullable width, int *_Nullable height);
+void isim_vcodec_frame_bgra(struct isim_vcodec *_Nullable codec, unsigned char *out);
+void isim_vcodec_flush(struct isim_vcodec *_Nullable codec);
+void isim_vcodec_close(struct isim_vcodec *_Nullable codec);
 /* stereo balance of a playing voice: -1 left .. 1 right */
 void isim_audio_set_pan(long voice, double pan);
 /* copies pixels of an image as premultiplied BGRA (rows packed, w*4 bytes) */

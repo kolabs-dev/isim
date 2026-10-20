@@ -1,11 +1,13 @@
-/* libisim_host audio codecs: AAC (and MP3 decoding) through the host's libavcodec, loaded with dlopen only when an
- * app converts compressed audio (AudioToolbox's AudioConverter). Without libavcodec the functions report that the
- * codec is unavailable and AudioConverterNew returns kAudioConverterErr_FormatNotSupported.
+/* libisim_host codecs through the host's libavcodec, loaded with dlopen only when an app needs one: audio (AAC, and MP3
+ * decoding) for AudioToolbox's AudioConverter, and video decoding (H.264, HEVC) for AVSampleBufferDisplayLayer.
+ * Without libavcodec the functions report that the codec is unavailable and AudioConverterNew returns
+ * kAudioConverterErr_FormatNotSupported (the display layer fails to decode).
  *
  * No FFmpeg headers are needed: the few functions are declared here, options are set through AVOptions, and the
  * fields that are not options are found at run time (stable since FFmpeg 5.1):
  *   - AVPacket: data, size (offsets 24, 32 since FFmpeg 4);
- *   - AVFrame: data[], extended_data, nb_samples, format (offsets 0, 96, 112, 116); sample_rate and ch_layout are
+ *   - AVFrame: data[], linesize[], extended_data, width, height, nb_samples, format (offsets 0, 64, 96, 104, 108, 112,
+ *     116); sample_rate and ch_layout are
  *     located by decoding one PCM packet and finding the values the decoder wrote;
  *   - AVCodecContext.sample_fmt: after sample_rate (the "ar" option), and the old "channels" field when "ac" is it. */
 #include "guest_abi.h"
@@ -27,6 +29,7 @@ static struct {
     int (*opt_set)(void *, const char *, const char *, int), (*opt_set_int)(void *, const char *, int64_t, int);
     int (*opt_get_int)(void *, const char *, int, int64_t *);
     const avopt *(*opt_find)(void *, const char *, const char *, int, int);
+    void (*flush_buffers)(void *);
     int frame_rate_off, frame_layout_off;
 } av;
 
@@ -37,6 +40,8 @@ static struct {
 #define FR_EXT(f) (*(uint8_t ***)((char *)(f) + 96))
 #define FR_SAMPLES(f) (*(int *)((char *)(f) + 112))
 #define FR_FORMAT(f) (*(int *)((char *)(f) + 116))
+#define FR_WIDTH(f) (*(int *)((char *)(f) + 104))
+#define FR_HEIGHT(f) (*(int *)((char *)(f) + 108))
 enum { FMT_U8 = 0, FMT_S16 = 1, FMT_S32 = 2, FMT_FLT = 3, FMT_DBL = 4, FMT_U8P = 5, FMT_S16P = 6, FMT_S32P = 7, FMT_FLTP = 8, FMT_DBLP = 9 };
 
 static void *sym(void *lib, const char *name, int *ok) { void *p = lib ? dlsym(lib, name) : NULL; if (!p) *ok = 0; return p; }
@@ -87,6 +92,7 @@ static int load(void) {
     av.frame_alloc = sym(u, "av_frame_alloc", &ok); av.frame_free = sym(u, "av_frame_free", &ok); av.frame_unref = sym(u, "av_frame_unref", &ok);
     av.opt_set = sym(u, "av_opt_set", &ok); av.opt_set_int = sym(u, "av_opt_set_int", &ok); av.opt_get_int = sym(u, "av_opt_get_int", &ok);
     av.opt_find = sym(u, "av_opt_find", &ok);
+    av.flush_buffers = dlsym(c, "avcodec_flush_buffers");         /* optional: flushing then reopens the decoder */
     if (!ok || !find_frame_offsets()) { fprintf(stderr, "isim audio: unsupported libavcodec on the host\n"); return 0; }
     av.state = 1;
     return 1;
@@ -231,4 +237,96 @@ ISIM_GUEST_ABI void isim_acodec_close(struct isim_acodec *h) {
     if (h->encode) { memset(h->frame, 0, 128); }       /* the frame points at our planes: nothing for av_frame_free to unref */
     av.frame_free(&h->frame); av.packet_free(&h->pkt); av.free_ctx(&h->ctx);
     free(h->fifo); free(h->planes); free(h);
+}
+
+/* ---- video decoding: Annex-B H.264 / HEVC access units in, BGRA frames out (in presentation order) ---- */
+enum { PIX_YUV420P = 0, PIX_YUV422P = 4, PIX_YUV444P = 5, PIX_GRAY8 = 8, PIX_YUVJ420P = 12, PIX_YUVJ422P = 13, PIX_YUVJ444P = 14, PIX_NV12 = 23 };
+
+struct isim_vcodec {
+    void *ctx, *frame, *pkt;
+    const void *codec;
+    int ready;                                   /* a decoded frame is held in `frame` */
+};
+
+/* "h264" or "hevc"; NULL when the host has no such decoder */
+ISIM_GUEST_ABI struct isim_vcodec *isim_vcodec_open(const char *name) {
+    if (!load()) return NULL;
+    void *codec = av.find_decoder(name);
+    if (!codec) return NULL;
+    void *ctx = av.alloc_ctx(codec);
+    av.opt_set_int(ctx, "threads", 1, 0);                          /* no frame threading: frames come out without delay */
+    if (av.open2(ctx, codec, NULL) < 0) { av.free_ctx(&ctx); return NULL; }
+    struct isim_vcodec *h = calloc(1, sizeof *h);
+    h->ctx = ctx; h->codec = codec; h->frame = av.frame_alloc(); h->pkt = av.packet_alloc();
+    return h;
+}
+/* one access unit (Annex-B, with its parameter sets before a key frame); size 0 drains the decoder.
+   0 accepted, -1 rejected (corrupt, or the decoder wants its frames read first: call isim_vcodec_receive) */
+ISIM_GUEST_ABI int isim_vcodec_send(struct isim_vcodec *h, const unsigned char *data, int size) {
+    if (!h) return -1;
+    if (size <= 0) return av.send_packet(h->ctx, NULL) < 0 ? -1 : 0;
+    if (av.new_packet(h->pkt, size) < 0) return -1;
+    memcpy(PKT_DATA(h->pkt), data, (size_t)size);
+    int st = av.send_packet(h->ctx, h->pkt);
+    av.packet_unref(h->pkt);
+    return st < 0 ? -1 : 0;
+}
+/* the next decoded frame: 1 (its size in w, h; read it with isim_vcodec_frame_bgra), 0 when more input is needed */
+ISIM_GUEST_ABI int isim_vcodec_receive(struct isim_vcodec *h, int *w, int *hh) {
+    if (!h) return 0;
+    if (h->ready) { av.frame_unref(h->frame); h->ready = 0; }
+    if (av.receive_frame(h->ctx, h->frame) < 0) return 0;
+    int f = FR_FORMAT(h->frame);
+    if (f != PIX_YUV420P && f != PIX_YUVJ420P && f != PIX_YUV422P && f != PIX_YUVJ422P && f != PIX_YUV444P && f != PIX_YUVJ444P &&
+        f != PIX_NV12 && f != PIX_GRAY8) {
+        static int warned;
+        if (!warned++) fprintf(stderr, "isim video: decoded pixel format %d is not supported (8-bit YUV only)\n", f);
+        av.frame_unref(h->frame);
+        return 0;
+    }
+    h->ready = 1;
+    if (w) *w = FR_WIDTH(h->frame);
+    if (hh) *hh = FR_HEIGHT(h->frame);
+    return 1;
+}
+static inline unsigned char clamp8(int v) { return v < 0 ? 0 : v > 255 ? 255 : (unsigned char)v; }
+/* the held frame as BGRA (w * h * 4 bytes, rows top-down); BT.601, limited range unless the format is full range */
+ISIM_GUEST_ABI void isim_vcodec_frame_bgra(struct isim_vcodec *h, unsigned char *out) {
+    if (!h || !h->ready) return;
+    void *fr = h->frame;
+    int w = FR_WIDTH(fr), hh = FR_HEIGHT(fr), f = FR_FORMAT(fr);
+    uint8_t **d = FR_DATA(fr);
+    int *ls = FR_LINESIZE(fr);
+    int full = f == PIX_YUVJ420P || f == PIX_YUVJ422P || f == PIX_YUVJ444P;
+    int sx = (f == PIX_YUV444P || f == PIX_YUVJ444P) ? 0 : 1, sy = (f == PIX_YUV420P || f == PIX_YUVJ420P || f == PIX_NV12) ? 1 : 0;
+    for (int y = 0; y < hh; y++) {
+        const uint8_t *Y = d[0] + (size_t)y * ls[0];
+        unsigned char *o = out + (size_t)y * w * 4;
+        for (int x = 0; x < w; x++) {
+            int yy = Y[x], u = 128, v = 128;
+            if (f == PIX_NV12) { const uint8_t *uv = d[1] + (size_t)(y >> 1) * ls[1] + (x >> 1) * 2; u = uv[0]; v = uv[1]; }
+            else if (f != PIX_GRAY8) { u = d[1][(size_t)(y >> sy) * ls[1] + (x >> sx)]; v = d[2][(size_t)(y >> sy) * ls[2] + (x >> sx)]; }
+            int c = full ? yy * 256 : (yy - 16) * 298, dd = u - 128, e = v - 128;
+            int ku = full ? 454 : 516, kv = full ? 359 : 409, gu = full ? 88 : 100, gv = full ? 183 : 208;
+            o[4 * x + 0] = clamp8((c + ku * dd + 128) >> 8);
+            o[4 * x + 1] = clamp8((c - gu * dd - gv * e + 128) >> 8);
+            o[4 * x + 2] = clamp8((c + kv * e + 128) >> 8);
+            o[4 * x + 3] = 255;
+        }
+    }
+}
+/* drops queued input and frames (AVSampleBufferDisplayLayer.flush) */
+ISIM_GUEST_ABI void isim_vcodec_flush(struct isim_vcodec *h) {
+    if (!h) return;
+    if (h->ready) { av.frame_unref(h->frame); h->ready = 0; }
+    if (av.flush_buffers) { av.flush_buffers(h->ctx); return; }
+    av.free_ctx(&h->ctx);                                          /* no avcodec_flush_buffers: start over */
+    h->ctx = av.alloc_ctx(h->codec);
+    av.opt_set_int(h->ctx, "threads", 1, 0);
+    av.open2(h->ctx, h->codec, NULL);
+}
+ISIM_GUEST_ABI void isim_vcodec_close(struct isim_vcodec *h) {
+    if (!h) return;
+    av.frame_free(&h->frame); av.packet_free(&h->pkt); av.free_ctx(&h->ctx);
+    free(h);
 }
