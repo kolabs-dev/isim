@@ -124,4 +124,10 @@ void *_Nullable isim_pdf_open(const void *data, long len, int *pages);
 void isim_pdf_page_size(void *doc, int page, double *w, double *h);
 void isim_pdf_page_render(void *doc, int page);   /* into the current target, y-down from the page's top-left */
 void isim_pdf_close(void *_Nullable doc);
+void *_Nullable isim_pdf_open_password(const void *data, long len, const char *_Nullable password, int *pages);
+/* PDF contexts: cairo tags (kind 0 a link, 1 a named destination; page units, y-down), the outline (returns the item's
+   id; link "page=N pos=[x y]" or "dest='name'"), the document information (0 title ... 4 creator) */
+void isim_cg_pdf_tag(void *t, int kind, const char *attrs);
+int isim_cg_pdf_outline(void *t, int parent, const char *title, const char *link, int open);
+void isim_cg_pdf_metadata(void *t, int key, const char *value);
 __END_DECLS

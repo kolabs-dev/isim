@@ -244,6 +244,28 @@ void isim_cg_pdf_end_page(void *tp) {
     struct cgt *t = tp; if (!t || t->kind != 2 || !t->page_open) return;
     cairo_show_page(t->cr); t->page_open = 0; t->pages++;
 }
+/* links and named destinations (cairo tags), in the page's own units (y-down from its top-left): kind 0 a link with
+   attrs ("uri='...' rect=[x y w h]" or "dest='...' rect=[...]"), 1 a destination ("name='...' x=.. y=..") */
+ISIM_GUEST_ABI void isim_cg_pdf_tag(void *tp, int kind, const char *attrs) {
+    struct cgt *t = tp; if (!t || t->kind != 2 || !t->cr || !attrs) return;
+    const char *tag = kind == 1 ? CAIRO_TAG_DEST : CAIRO_TAG_LINK;
+    cairo_save(t->cr); cairo_identity_matrix(t->cr);
+    cairo_tag_begin(t->cr, tag, attrs);
+    cairo_tag_end(t->cr, tag);
+    cairo_restore(t->cr);
+}
+/* an outline item under parent (0: the root); link: "page=N pos=[x y]" or "dest='name'"; returns its id */
+ISIM_GUEST_ABI int isim_cg_pdf_outline(void *tp, int parent, const char *title, const char *link, int open) {
+    struct cgt *t = tp; if (!t || t->kind != 2) return 0;
+    return cairo_pdf_surface_add_outline(t->s, parent, title ? title : "", link ? link : "", open ? CAIRO_PDF_OUTLINE_FLAG_OPEN : 0);
+}
+/* the document information: 0 title, 1 author, 2 subject, 3 keywords, 4 creator */
+ISIM_GUEST_ABI void isim_cg_pdf_metadata(void *tp, int key, const char *value) {
+    static const cairo_pdf_metadata_t keys[] = { CAIRO_PDF_METADATA_TITLE, CAIRO_PDF_METADATA_AUTHOR, CAIRO_PDF_METADATA_SUBJECT,
+                                                 CAIRO_PDF_METADATA_KEYWORDS, CAIRO_PDF_METADATA_CREATOR };
+    struct cgt *t = tp; if (!t || t->kind != 2 || key < 0 || key > 4 || !value) return;
+    cairo_pdf_surface_set_metadata(t->s, keys[key], value);
+}
 long isim_cg_pdf_finish(void *tp, unsigned char **out) {
     struct cgt *t = tp; *out = NULL;
     if (!t || t->kind != 2) return 0;
@@ -1267,6 +1289,16 @@ void *isim_pdf_open(const void *data, long len, int *pages) {
     if (!isim_pdf_available() || !data || len <= 0) return NULL;
     GBytes *b = g_bytes_new(data, (gsize)len);
     void *doc = pp.doc_new_from_bytes(b, NULL, NULL);
+    g_bytes_unref(b);
+    if (doc) *pages = pp.n_pages(doc);
+    return doc;
+}
+/* an encrypted document opened with its password (NULL or "" for none) */
+ISIM_GUEST_ABI void *isim_pdf_open_password(const void *data, long len, const char *password, int *pages) {
+    *pages = 0;
+    if (!isim_pdf_available() || !data || len <= 0) return NULL;
+    GBytes *b = g_bytes_new(data, (gsize)len);
+    void *doc = pp.doc_new_from_bytes(b, password && *password ? password : NULL, NULL);
     g_bytes_unref(b);
     if (doc) *pages = pp.n_pages(doc);
     return doc;
