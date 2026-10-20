@@ -47,6 +47,8 @@ extension Product {
         }
         /// days, for ordering and "same duration" crossgrades
         var approximateDays: Int { value * [1, 7, 30, 365][unit.rawValue] }
+        /// the ISO 8601 duration (P1W, P1M, ...)
+        var iso: String { "P\(value)\(["D", "W", "M", "Y"][unit.rawValue])" }
     }
 
     public struct SubscriptionOffer: Hashable, Sendable {
@@ -178,12 +180,14 @@ struct _SKConfig {
     let storefront: String
     /// Xcode's "Enable Billing Grace Period": a renewal that fails keeps the subscription for the grace period
     let gracePeriod: Bool
+    /// Xcode's "Enable Ask To Buy" (or ISIM_STOREKIT_ASK_TO_BUY=1): purchases wait for the family organizer
+    var askToBuy = false
     nonisolated(unsafe) static var cached: _SKConfig?
     func item(_ id: String) -> _SKItem? { items.first { $0.id == id } }
     static func load() -> _SKConfig {
         if let c = cached { return c }
         var items: [_SKItem] = [], groups: [String: String] = [:]
-        var rate = _SKTimeRate.realTime, storefront = "USA", grace = false
+        var rate = _SKTimeRate.realTime, storefront = "USA", grace = false, askToBuy = false
         let name = Bundle.main.object(forInfoDictionaryKey: "ISIMStoreKitConfiguration") as? String ?? "isim-StoreKitConfiguration.storekit"
         let path = (Bundle.main.bundlePath as NSString).appendingPathComponent(name)
         if let data = FileManager.default.contents(atPath: path),
@@ -255,6 +259,7 @@ struct _SKConfig {
             if let n = settings["_timeRate"] as? Int { rate = .xcode(n) }
             if let s = settings["_storefront"] as? String { storefront = s }
             if let g = settings["_billingGracePeriodEnabled"] as? Bool { grace = g }
+            if let a = settings["_askToBuyEnabled"] as? Bool { askToBuy = a }
             NSLog("isim StoreKit: local testing configuration %@ (%ld products)", name, items.count)
         } else {
             NSLog("isim StoreKit: no StoreKit configuration in the bundle; no products are available")
@@ -262,7 +267,8 @@ struct _SKConfig {
         if let env = ProcessInfo.processInfo.environment["ISIM_STOREKIT_TIME_RATE"], let r = _SKTimeRate.parse(env) { rate = r }
         if let env = ProcessInfo.processInfo.environment["ISIM_STOREKIT_BILLING_GRACE_PERIOD"] { grace = ["1", "on", "true", "yes"].contains(env.lowercased()) }
         if items.contains(where: { $0.type == .autoRenewable }) { NSLog("isim StoreKit: subscription time rate: %@", rate.label) }
-        let c = _SKConfig(items: items, groups: groups, timeRate: rate, storefront: storefront, gracePeriod: grace)
+        var c = _SKConfig(items: items, groups: groups, timeRate: rate, storefront: storefront, gracePeriod: grace)
+        c.askToBuy = askToBuy || ProcessInfo.processInfo.environment["ISIM_STOREKIT_ASK_TO_BUY"] == "1"
         cached = c
         return c
     }
@@ -320,6 +326,20 @@ struct _SKLedgerData: Codable {
     var usedOfferNonces: [String]?   // promotional offer signatures are single-use
     var redeemedOffers: [String]?    // "<product>/<offer>": each offer code can be redeemed once
     var messages: [String]?          // StoreKit messages already delivered (billing issue, win-back offer)
+    var askToBuy: [_SKAskRequest]?   // Ask to Buy requests waiting for the family organizer (`isim storekit approve|decline`)
+}
+
+/// a purchase waiting for the family organizer's answer
+struct _SKAskRequest: Codable, Hashable, Sendable {
+    var id: UInt64
+    var productID: String
+    var quantity: Int
+    var appAccountToken: String?
+    var offerType: Int?
+    var offerID: String?
+    var requested: Double
+    var state: String               // "pending" | "approved" | "declined"
+    var api: String?
 }
 
 /// Thread-safe ledger: the purchase history of this app on the device's account (like the App Store keeps it), as JSON
@@ -497,6 +517,41 @@ final class _SKLedger: @unchecked Sendable {
         }
     }
 
+    /// an Ask to Buy request; its number identifies it to `isim storekit approve|decline`
+    func askToBuy(_ item: _SKItem, quantity: Int, token: UUID?, offer: Product.SubscriptionOffer?, api: String?) -> UInt64 {
+        mutate { d in
+            let id = newID(&d)
+            d.askToBuy = (d.askToBuy ?? []) + [_SKAskRequest(id: id, productID: item.id, quantity: quantity, appAccountToken: token?.uuidString,
+                                                             offerType: offer?.type.rawValue, offerID: offer?.id, requested: Date().timeIntervalSince1970,
+                                                             state: "pending", api: api)]
+            return id
+        }
+    }
+    /// Ask to Buy requests the organizer answered: approved ones become purchases, delivered in Transaction.updates
+    /// (and to StoreKit 1 observers); declined ones are dropped, as on iOS
+    func answerAskToBuy() {
+        let answered = read { ($0.askToBuy ?? []).filter { $0.state != "pending" } }
+        guard !answered.isEmpty else { return }
+        mutate { d in d.askToBuy = (d.askToBuy ?? []).filter { $0.state == "pending" } }
+        let cfg = _SKConfig.load()
+        for r in answered {
+            guard r.state == "approved", let item = cfg.item(r.productID) else {
+                NSLog("isim StoreKit: Ask to Buy: request %llu for %@ declined", r.id, r.productID)
+                continue
+            }
+            let token = r.appAccountToken.flatMap(UUID.init(uuidString:))
+            let t: _SKTxn
+            if item.type == .autoRenewable {
+                let offer = ([item.intro].compactMap { $0 } + item.promos + item.winBacks).first { $0.offer.type.rawValue == r.offerType && $0.offer.id == r.offerID }?.offer
+                switch subscribe(item, offer: offer, token: token, api: r.api) { case .new(let x), .deferred(let x), .already(let x): t = x }
+            } else {
+                t = purchase(item, quantity: r.quantity, token: token, api: r.api)
+            }
+            NSLog("isim StoreKit: Ask to Buy: request %llu approved: transaction %llu (%@)", r.id, t.id, r.productID)
+            _SKUpdates.transactions.yield(.verified(Transaction(t)))
+        }
+    }
+
     func finish(_ id: UInt64) {
         mutate { d in if let i = d.transactions.firstIndex(where: { $0.id == id }) { d.transactions[i].finished = true } }
     }
@@ -648,7 +703,29 @@ final class _SKLedger: @unchecked Sendable {
             offerType: (s?.introPeriodsLeft ?? 0) > 0 ? s?.offerType.map { Transaction.OfferType(rawValue: $0) } : nil,
             offerID: (s?.introPeriodsLeft ?? 0) > 0 ? s?.offerID : nil,
             recentSubscriptionStartDate: Date(timeIntervalSince1970: d.transactions.filter { $0.groupID == group }.map { $0.purchaseDate }.min() ?? t.purchaseDate))
-        return [Product.SubscriptionInfo.Status(state: state, transaction: .verified(Transaction(t)), renewalInfo: .verified(info))]
+        var full = info
+        full.state = state
+        full.appAccountToken = t.appAccountToken.flatMap(UUID.init(uuidString:))
+        let cfg = _SKConfig.load()
+        let next = cfg.item(s?.autoRenewProductID ?? t.productID) ?? cfg.item(t.productID)
+        // the offer still running at the next renewal (introductory periods left), with its price and period
+        if let type = info.offerType, let n = next {
+            var defs: [_SKOfferDef] = n.promos + n.winBacks + n.codes
+            if let i = n.intro { defs.insert(i, at: 0) }
+            let def = defs.first { $0.offer.type.rawValue == type.rawValue && $0.offer.id == info.offerID }
+            var mode: Product.SubscriptionOffer.PaymentMode? = def?.offer.paymentMode
+            if mode == nil, let m = s?.offerPaymentMode { mode = Product.SubscriptionOffer.PaymentMode(rawValue: m) }
+            full.offer = Transaction.Offer(id: info.offerID, type: type, paymentMode: mode)
+            full.offerPaymentModeStringRepresentation = full.offer?.paymentMode?.rawValue
+            full.offerPeriodStringRepresentation = def?.offer.period.iso
+            full.renewalPrice = def?.offer.price ?? n.price
+        } else if info.willAutoRenew, let n = next {
+            full.renewalPrice = n.price
+        }
+        if state == .expired, _skOSMajor() >= 18, let n = next {
+            full.eligibleWinBackOfferIDs = n.winBacks.compactMap { $0.offer.id }
+        }
+        return [Product.SubscriptionInfo.Status(state: state, transaction: .verified(Transaction(t)), renewalInfo: .verified(full))]
     }
 }
 
@@ -688,6 +765,7 @@ enum _SKUpdates {
     /// the subscription clock: renewals, Transaction Manager changes, StoreKit messages
     @MainActor static func clock() {
         _SKLedger.shared.tick()
+        _SKLedger.shared.answerAskToBuy()
         _SKMessages.check()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { MainActor.assumeIsolated { clock() } }
     }
@@ -782,8 +860,10 @@ public struct Product: Identifiable, Hashable, Sendable {
         _SKUpdates.start()
         guard let item = _SKConfig.load().item(id) else { throw PurchaseError.productUnavailable }
         var quantity = 1, token: UUID?, promo: String?, winBack: String?, promoOption: PurchaseOption.Kind?
+        var askToBuy = _SKConfig.load().askToBuy
         for o in options {
             switch o.kind {
+            case .simulatesAskToBuy(let a): askToBuy = askToBuy || a
             case .quantity(let q): quantity = q
             case .token(let t): token = t
             case .promo(let p, _, _, _, _), .promoJWS(let p, _): promo = p; promoOption = o.kind
@@ -824,6 +904,12 @@ public struct Product: Identifiable, Hashable, Sendable {
         }
         guard await _SKPurchaseSheet.confirm(self, quantity: quantity, offer: offer) else { return .userCancelled }
         if let nonce { _SKLedger.shared.mutate { d in d.usedOfferNonces = (d.usedOfferNonces ?? []) + [nonce] } }
+        if askToBuy {
+            // Ask to Buy: the purchase waits for the family organizer; an approved one arrives in Transaction.updates
+            let req = _SKLedger.shared.askToBuy(item, quantity: quantity, token: token, offer: offer, api: api)
+            NSLog("isim StoreKit: Ask to Buy: request %llu for %@ waits for the family organizer (isim storekit <app> approve|decline %llu)", req, id, req)
+            return .pending
+        }
         if type == .autoRenewable {
             switch _SKLedger.shared.subscribe(item, offer: offer, token: token, api: api) {
             case .new(let t), .deferred(let t), .already(let t):
@@ -890,6 +976,21 @@ public struct Product: Identifiable, Hashable, Sendable {
             public let offerType: Transaction.OfferType?
             public let offerID: String?
             public let recentSubscriptionStartDate: Date
+            /// the renewal state (the status's state)
+            public internal(set) var state: Product.SubscriptionInfo.RenewalState = .subscribed
+            /// the offer that applies at the next renewal
+            public internal(set) var offer: Transaction.Offer?
+            /// win-back offers a lapsed subscriber may take (iOS 18)
+            public internal(set) var eligibleWinBackOfferIDs: [String] = []
+            /// what the next period costs: the running offer's price, else the plan it renews into
+            public internal(set) var renewalPrice: Decimal?
+            public var currency: Locale.Currency? { renewalPrice == nil ? nil : Locale.Currency("USD") }
+            public var currencyCode: String? { renewalPrice == nil ? nil : "USD" }
+            public internal(set) var appAccountToken: UUID?
+            public var appTransactionID: String { "isim-local-\(Bundle.main.bundleIdentifier ?? "")" }
+            public var environmentStringRepresentation: String { "Xcode" }
+            public internal(set) var offerPaymentModeStringRepresentation: String?
+            public internal(set) var offerPeriodStringRepresentation: String?
             public var priceIncreaseStatus: PriceIncreaseStatus { .noIncreasePending }
             public var signedDate: Date { renewalDate ?? recentSubscriptionStartDate }
             public var environment: AppStore.Environment { .xcode }
@@ -910,6 +1011,12 @@ public struct Product: Identifiable, Hashable, Sendable {
                 if let g = gracePeriodExpirationDate { d["gracePeriodExpiresDate"] = Int(g.timeIntervalSince1970 * 1000) }
                 if let o = offerType { d["offerType"] = o.rawValue }
                 if let o = offerID { d["offerIdentifier"] = o }
+                if let p = renewalPrice { d["renewalPrice"] = NSDecimalNumber(decimal: p * 1000).intValue }   // milli-units, as the App Store
+                if !eligibleWinBackOfferIDs.isEmpty { d["eligibleWinBackOfferIds"] = eligibleWinBackOfferIDs }
+                if let m = offerPaymentModeStringRepresentation { d["offerDiscountType"] = m.uppercased() }
+                if let p = offerPeriodStringRepresentation { d["offerPeriod"] = p }
+                if let t = appAccountToken { d["appAccountToken"] = t.uuidString.lowercased() }
+                d["appTransactionId"] = appTransactionID
                 return _SKSigning.json(d)
             }
         }
@@ -1159,6 +1266,15 @@ public enum StoreKitError: Error, Sendable {
 }
 
 public enum AppStore {
+    /// The app's current age rating code (iOS 26.2). Adapted: isim's local store has no App Store record, so it is
+    /// what `isim storekit <app> age-rating CODE` set (or ISIM_STOREKIT_AGE_RATING), nil until then.
+    public static var ageRatingCode: Int? {
+        get async {
+            let file = ((_SKLedger.defaultPath as NSString).deletingLastPathComponent as NSString).appendingPathComponent("age-rating")
+            let text = (try? String(contentsOfFile: file, encoding: .utf8)) ?? ProcessInfo.processInfo.environment["ISIM_STOREKIT_AGE_RATING"] ?? ""
+            return Int(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+    }
     public struct Environment: RawRepresentable, Hashable, Sendable {
         public let rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
