@@ -71,6 +71,7 @@ NSRunLoopMode const NSRunLoopCommonModes = @"kCFRunLoopCommonModes";
 }
 - (void)_isim_addItem:(__IsimRunLoopItem *)it;
 - (void)_isim_removeItem:(__IsimRunLoopItem *)it;
+- (void)_isim_waitUntil:(double)limit next:(double)next since:(NSUInteger)seen;
 @end
 
 void (*isim_main_wakeup_hook)(void);      /* set by UIKit: wakes the UI event loop */
@@ -239,6 +240,14 @@ static BOOL perform_sources(NSRunLoop *rl, NSString *mode);
 }
 /* waits (on this loop's condition) until an item is due, the loop is woken or the limit passes */
 - (void)_isim_waitUntil:(double)limit next:(double)next {
+    pthread_mutex_lock(&_lock);
+    NSUInteger seen = _wakeups;
+    pthread_mutex_unlock(&_lock);
+    [self _isim_waitUntil:limit next:next since:seen];
+}
+/* the same, unless the loop was woken since `seen` (its wake-up count before the caller looked for work: what was
+   added meanwhile is not missed) */
+- (void)_isim_waitUntil:(double)limit next:(double)next since:(NSUInteger)seen {
     double now = mono_now(), until = now + next;
     if (until > limit) until = limit;
     if (until <= now) return;
@@ -246,7 +255,6 @@ static BOOL perform_sources(NSRunLoop *rl, NSString *mode);
     double t = ts.tv_sec + ts.tv_nsec / 1e9 + (until - now);
     ts.tv_sec = (time_t)t; ts.tv_nsec = (long)((t - (double)ts.tv_sec) * 1e9);
     pthread_mutex_lock(&_lock);
-    NSUInteger seen = _wakeups;
     while (_wakeups == seen) if (pthread_cond_timedwait(&_cond, &_lock, &ts) != 0) break;
     pthread_mutex_unlock(&_lock);
 }
@@ -353,9 +361,12 @@ void isim_main_runloop_activity(unsigned long activity) {
 void isim_main_wait(double seconds) {
     if (seconds <= 0) return;
     NSRunLoop *rl = NSRunLoop.mainRunLoop;
+    pthread_mutex_lock(&rl->_lock);
+    NSUInteger seen = rl->_wakeups;                        /* before checking for work, so none queued meanwhile is missed */
+    pthread_mutex_unlock(&rl->_lock);
     if (isim_main_next_due() <= 0) return;
     isim_main_runloop_activity(kCFRunLoopBeforeWaiting);
-    [rl _isim_waitUntil:mono_now() + seconds next:seconds];
+    [rl _isim_waitUntil:mono_now() + seconds next:seconds since:seen];
     isim_main_runloop_activity(kCFRunLoopAfterWaiting);
 }
 
@@ -728,6 +739,9 @@ static CFRunLoopRunResult run_in_mode(NSRunLoop *rl, NSString *mode, double seco
     CFRunLoopRunResult result;
     for (;;) {
         if (rl->_stopped) { rl->_stopped = NO; result = kCFRunLoopRunStopped; break; }
+        pthread_mutex_lock(&rl->_lock);
+        NSUInteger seen = rl->_wakeups;                    /* before looking for work: a wake-up after it is not lost */
+        pthread_mutex_unlock(&rl->_lock);
         notify_observers(rl, mode, kCFRunLoopBeforeTimers);
         notify_observers(rl, mode, kCFRunLoopBeforeSources);
         BOOL handled = NO;
@@ -744,7 +758,7 @@ static CFRunLoopRunResult run_in_mode(NSRunLoop *rl, NSString *mode, double seco
         if (isim_runloop_has_source(rl, mode, YES)) continue;
         notify_observers(rl, mode, kCFRunLoopBeforeWaiting);
         rl->_waiting = YES;
-        [rl _isim_waitUntil:limit next:next];
+        [rl _isim_waitUntil:limit next:next since:seen];
         rl->_waiting = NO;
         notify_observers(rl, mode, kCFRunLoopAfterWaiting);
     }
