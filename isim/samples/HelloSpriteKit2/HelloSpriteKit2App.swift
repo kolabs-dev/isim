@@ -46,6 +46,11 @@ final class LabScene: SKScene {
     func at(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x, y: size.height - y) }
 
     override func didMove(to view: SKView) {
+        // game controller input goes to the game, not UIKit (issue #291)
+        let events = GCEventInteraction()
+        events.handledEventTypes = .gamepad
+        view.addInteraction(events)
+        log("event interaction attached \(events.view === view) types \(events.handledEventTypes.rawValue)")
         anchorPoint = .zero
         backgroundColor = UIColor(red: 0.08, green: 0.09, blue: 0.14, alpha: 1)
         log("lab size \(Int(size.width))x\(Int(size.height))")
@@ -285,6 +290,44 @@ final class LabScene: SKScene {
         }
         pad.valueChangedHandler = { _, element in
             if element === pad.buttonMenu && pad.buttonMenu.isPressed { log("pad menu pressed (via valueChangedHandler)") }
+        }
+        profiles(c, pad)
+        liveInput(c)
+    }
+
+    /// product profiles: the DualSense's touchpad and adaptive triggers, the Xbox pad's share button and paddles (issue #291)
+    func profiles(_ c: GCController, _ pad: GCExtendedGamepad) {
+        if let ds = pad as? GCDualSenseGamepad {
+            log("pad profile DualSense category=\(c.productCategory) touchpads \(ds.touchpads.count) positions \(GCDualSenseAdaptiveTrigger.discretePositionCount)")
+            ds.touchpadPrimary.valueChangedHandler = { _, x, y in if x != 0 || y != 0 { log("pad touchpad primary \(f2(x)) \(f2(y))") } }
+            ds.touchpads[GCInputDualShockTouchpadOne]?.touchDown = { _, x, y, _, _ in log("pad touchpad down \(f2(x)) \(f2(y))") }
+            ds.touchpadButton.pressedChangedHandler = { _, _, pressed in if pressed { log("pad touchpad button pressed") } }
+            ds.rightTrigger.setModeFeedbackWithStartPosition(0.2, resistiveStrength: 0.8)
+            log("pad adaptive trigger mode \(ds.rightTrigger.mode == .feedback ? "feedback" : "?") status \(ds.rightTrigger.status.rawValue)")
+        } else if let ps4 = pad as? GCDualShockGamepad {
+            log("pad profile DualShock category=\(c.productCategory) touchpad \(ps4.touchpadPrimary != nil)")
+        } else if let xb = pad as? GCXboxGamepad {
+            log("pad profile Xbox category=\(c.productCategory) share \(xb.buttonShare != nil) paddles \([xb.paddleButton1, xb.paddleButton2, xb.paddleButton3, xb.paddleButton4].compactMap { $0 }.count)")
+            xb.buttonShare?.pressedChangedHandler = { _, _, pressed in if pressed { log("pad share pressed") } }
+            xb.paddleButton1?.pressedChangedHandler = { _, _, pressed in if pressed { log("pad paddle 1 pressed") } }
+        }
+    }
+
+    /// iOS 17's physical input: elements by name, change handlers and the input state queue (issue #291)
+    func liveInput(_ c: GCController) {
+        let input = c.input
+        log("input buttons \(input.buttons.count) dpads \(input.dpads.count) a \(input.buttons[.a]?.localizedName ?? "nil") stick \(input.dpads[.leftThumbstick] != nil)")
+        input.buttons[.a]?.pressedInput.pressedDidChangeHandler = { _, _, pressed in log("input A \(pressed ? "pressed" : "released")") }
+        input.dpads[.leftThumbstick]?.xAxis.valueDidChangeHandler = { _, _, v in if abs(v) > 0.9 { log("input left stick x \(f2(v))") } }
+        input.inputStateQueueDepth = 8
+        input.inputStateAvailableHandler = { i in
+            while let s = i.nextInputState() {
+                guard let a = s.buttons[.a] else { continue }
+                if s.change(for: a) == .changed { log("input state A changed pressed \(a.pressedInput.isPressed)") }
+            }
+        }
+        input.elementValueDidChangeHandler = { _, e in
+            if e.localizedName == "Button B", c.input.capture().buttons[.b]?.pressedInput.isPressed == true { log("input capture B pressed") }
         }
     }
 }

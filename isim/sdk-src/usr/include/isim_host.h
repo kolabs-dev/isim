@@ -397,11 +397,15 @@ void isim_xcui_terminate_all(void);
 /* host game controllers (SDL3 gamepads; ISIM_GAMEPADS=0 disables). buttons: bit i = SDL_GamepadButton i (0 south/A,
    1 east/B, 2 west/X, 3 north/Y, 4 back, 5 guide, 6 start, 7/8 stick clicks, 9/10 shoulders, 11-14 dpad up/down/left/right);
    axes: left x, left y, right x, right y (-1...1, y down), left / right trigger (0...1) */
-struct isim_gamepad { int id, vendor, product; unsigned int buttons; float axes[6]; char name[64]; char type[24]; };
+/* buttons: SDL's gamepad button bits (… misc1 / share 15, paddles 16-19, touchpad 20); touch: the first touchpad's
+   two fingers (down, x, y in 0...1, y down) */
+struct isim_gamepad { int id, vendor, product; unsigned int buttons; float axes[6]; char name[64]; char type[24];
+                      int touchpads; float touch[2][3]; unsigned int has_buttons; };
 int isim_gamepad_poll(struct isim_gamepad *out, int max);   /* connected pads (count), -1 when disabled */
 /* battery: 0 unknown, 1 discharging, 2 charging, 3 full, -1 none (*percent 0...100, -1 unknown) */
 int isim_gamepad_battery(int id, int *_Nullable percent);
 int isim_gamepad_set_light(int id, double r, double g, double b);      /* the light bar; 1 if the pad has one */
+int isim_gamepad_effect(int id, const void *data, int size);           /* a raw effect report (DualSense triggers) */
 /* motion sensors: enable 1 / 0 / -1 (leave); the latest accelerometer (m/s²) and gyroscope (rad/s) values;
    returns 1 (accelerometer) | 2 (gyroscope) */
 int isim_gamepad_motion(int id, int enable, float *_Nullable accel, float *_Nullable gyro);

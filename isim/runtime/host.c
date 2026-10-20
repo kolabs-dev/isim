@@ -2146,6 +2146,7 @@ ISIM_GUEST_ABI int isim_gamepad_rumble(int id, double low, double high, double s
 ISIM_GUEST_ABI int isim_gamepad_battery(int id, int *percent);
 ISIM_GUEST_ABI int isim_gamepad_set_light(int id, double r, double g, double b);
 ISIM_GUEST_ABI int isim_gamepad_motion(int id, int enable, float *accel, float *gyro);
+ISIM_GUEST_ABI int isim_gamepad_effect(int id, const void *data, int size);
 ISIM_GUEST_ABI int isim_image_create_bgra(int w, int h);
 ISIM_GUEST_ABI void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
 ISIM_GUEST_ABI void isim_image_draw_quad(int handle, const double *quad, double alpha);           /* host_ca.c */
@@ -2255,7 +2256,7 @@ static const struct shim isim_table[] = {
     H(isim_web_available), H(isim_web_send), H(isim_web_next), H(isim_web_free), H(isim_web_frame), H(isim_web_release),
     H(isim_tls_connect), H(isim_tls_start), H(isim_tls_peer_chain), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close), H(isim_tls_read_nb), H(isim_tls_write_nb), H(isim_tls_probe),
     H(isim_xcui_launch), H(isim_xcui_running), H(isim_xcui_send), H(isim_xcui_snapshot), H(isim_xcui_screenshot), H(isim_xcui_terminate_all), H(isim_xcui_free), H(isim_xcui_terminate),
-    H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_gamepad_battery), H(isim_gamepad_set_light), H(isim_gamepad_motion), H(isim_mouse_poll), H(isim_image_create_bgra), H(isim_image_update_bgra),
+    H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_gamepad_battery), H(isim_gamepad_set_light), H(isim_gamepad_motion), H(isim_gamepad_effect), H(isim_mouse_poll), H(isim_image_create_bgra), H(isim_image_update_bgra),
     H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_glass), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),
     H(isim_gfx_pop_group_filtered), H(isim_set_home_indicator_autohide), H(isim_set_deferred_system_edges), H(isim_gfx_glass_shapes),
     H(isim_icu_version), H(isim_icu_collate), H(isim_icu_date_format), H(isim_icu_date_parse), H(isim_icu_date_pattern),
