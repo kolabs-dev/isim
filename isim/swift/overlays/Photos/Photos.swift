@@ -1,12 +1,15 @@
 // isim Photos (self-authored, iOS API names): the device photo library ($ISIM_DATA/Media, shared with UIKit's
 // UIImagePickerController and UIImageWriteToSavedPhotosAlbum; seeded with six sample pictures on first use), the
 // photo library permission (iOS 17/18 alert: Limit Access… / Allow Full Access / Don't Allow, and the add-only
-// alert), PHAsset fetching, PHImageManager image requests and PHAssetChangeRequest saving.
-// Images only (adapted): no videos, Live Photos, iCloud, albums beyond the smart albums, or edits.
+// alert), PHAsset fetching, PHImageManager image and video requests, PHAssetChangeRequest saving (photos and videos),
+// user albums (PHAssetCollectionChangeRequest) and PHAssetResourceManager.
+// Adapted: no Live Photos, iCloud, shared albums, folders (PHCollectionList) or edits.
 // Automation: ISIM_PHOTOS_PERMISSION=allow|limited|deny answers without the alert (limited selects nothing).
 import UIKit
 
 @_silgen_name("_isim_photos_seed") func _isimPhotosSeed()
+/// UIKit's UISaveVideoAtPathToSavedPhotosAlbum path: copies a movie in with its poster frame; 1 when saved
+@_silgen_name("_isim_photos_add_video") func _isimPhotosAddVideo(_ src: UnsafePointer<CChar>, _ id: UnsafePointer<CChar>, _ created: Double, _ app: UnsafePointer<CChar>) -> Int32
 
 @objc public enum PHAuthorizationStatus: Int, Sendable { case notDetermined = 0, restricted, denied, authorized, limited }
 @objc public enum PHAccessLevel: Int, Sendable { case addOnly = 1, readWrite = 2 }
@@ -26,6 +29,9 @@ public struct PHAssetMediaSubtype: OptionSet, Sendable {
 @objc public enum PHImageRequestOptionsVersion: Int, Sendable { case current = 0, unadjusted, original }
 @objc public enum PHAssetResourceType: Int, Sendable { case photo = 1, video, audio, alternatePhoto, fullSizePhoto, fullSizeVideo, adjustmentData }
 @objc public enum PHAssetCollectionType: Int, Sendable { case album = 1, smartAlbum = 2, moment = 3 }
+@objc public enum PHCollectionEditOperation: Int, Sendable {
+    case deleteContent = 1, removeContent = 2, addContent = 3, createContent = 4, rearrangeContent = 5, delete = 6, rename = 7
+}
 @objc public enum PHAssetCollectionSubtype: Int, Sendable {
     case albumRegular = 2, albumSyncedEvent = 3, albumSyncedFaces = 4, albumSyncedAlbum = 5, albumImported = 6
     case albumMyPhotoStream = 100, albumCloudShared = 101
@@ -103,6 +109,15 @@ enum _PHStore {
         FileManager.default.createFile(atPath: indexPath, contents: d, attributes: nil)
     }
     static func path(_ r: _PHRecord) -> String { (media as NSString).appendingPathComponent(r.file) }
+    /// user albums: {id, title, assets (identifiers, in the album's order), created}
+    static func albums() -> [_PHAlbum] { ((index()["albums"] as? [[String: Any]]) ?? []).map(_PHAlbum.init) }
+    static func updateAlbums(_ body: (inout [_PHAlbum]) -> Void) {
+        var idx = index()
+        var albums = ((idx["albums"] as? [[String: Any]]) ?? []).map(_PHAlbum.init)
+        body(&albums)
+        idx["albums"] = albums.map(\.dict)
+        write(idx)
+    }
     /// the picture an image request shows: the photo, or a video's poster frame
     static func imagePath(_ r: _PHRecord) -> String { r.isVideo ? (media as NSString).appendingPathComponent(r.poster) : path(r) }
     static func update(_ body: (inout [_PHRecord]) -> Void) {
@@ -127,6 +142,16 @@ enum _PHStore {
         write(idx)
         return r
     }
+}
+
+struct _PHAlbum {
+    var id: String, title: String, assets: [String], created: Double
+    init(id: String, title: String) { self.id = id; self.title = title; assets = []; created = Date().timeIntervalSince1970 }
+    init(_ d: [String: Any]) {
+        id = d["id"] as? String ?? ""; title = d["title"] as? String ?? ""; assets = d["assets"] as? [String] ?? []
+        created = (d["created"] as? NSNumber)?.doubleValue ?? 0
+    }
+    var dict: [String: Any] { ["id": id, "title": title, "assets": assets, "created": NSNumber(value: created)] }
 }
 
 // MARK: - Authorization
@@ -286,13 +311,23 @@ open class PHPhotoLibrary: NSObject, @unchecked Sendable {
         let reqs = _PHChanges.end()
         if reqs.isEmpty { return }
         let needsRead = reqs.contains { !($0 is PHAssetCreationRequest || ($0 is PHAssetChangeRequest && ($0 as! PHAssetChangeRequest).creating)) }
+        // albums need full (or limited) library access, as on iOS
         let ok = needsRead ? (_PHAuth.status == .authorized || _PHAuth.status == .limited) : _PHAuth.addStatus == .authorized
         guard ok else { throw PHPhotosError(.accessUserDenied) }
         var changed = Set<String>()
         var deleteIDs: [String] = []
         for r in reqs {
             if let c = r as? PHAssetChangeRequest {
-                if c.creating {
+                if c.creating, let video = c.videoFile {
+                    let id = c.placeholder.localIdentifier
+                    guard _isimPhotosAddVideo(video.path, id, (c.creationDate ?? Date()).timeIntervalSince1970, _Privacy.bundleID) == 1 else {
+                        throw PHPhotosError(.invalidResource)
+                    }
+                    if c.isFavorite { _PHStore.update { recs in if let i = recs.firstIndex(where: { $0.id == id }) { recs[i].favorite = true } } }
+                    if _PHAuth.status == .limited { _PHAuth.limited = _PHAuth.limited.union([id]) }
+                    changed.insert(id)
+                    NSLog("isim Photos: saved video %@ to the photo library", video.lastPathComponent)
+                } else if c.creating {
                     // image encoding draws with the host renderer, which belongs to the main thread
                     let payload = Thread.isMainThread ? c.payload() : DispatchQueue.main.sync { c.payload() }
                     guard let (data, ext, w, h) = payload, let rec = _PHStore.add(data, ext: ext, width: w, height: h, created: c.creationDate ?? Date(), id: c.placeholder.localIdentifier) else {
@@ -313,6 +348,25 @@ open class PHPhotoLibrary: NSObject, @unchecked Sendable {
                     changed.insert(id)
                 }
             } else if let d = r as? _PHDeleteRequest { deleteIDs += d.ids }
+        }
+        // albums: created, edited and deleted in request order
+        for case let a as PHAssetCollectionChangeRequest in reqs {
+            let visible = Set(_PHAuth.visible().map(\.id))
+            _PHStore.updateAlbums { albums in
+                if a.deleting { albums.removeAll { a.target == $0.id }; return }
+                var album: _PHAlbum
+                if let t = a.target, let i = albums.firstIndex(where: { $0.id == t }) { album = albums[i] }
+                else if a.target == nil { album = _PHAlbum(id: a.placeholder.localIdentifier, title: a.title) }
+                else { return }
+                album.title = a.title
+                let before = Set(album.assets)
+                album.assets = a.edits.reduce(album.assets) { ids, edit in edit(ids) }.filter { visible.contains($0) || before.contains($0) }
+                var seen = Set<String>()
+                album.assets = album.assets.filter { seen.insert($0).inserted }   // an asset appears once in an album
+                if let i = albums.firstIndex(where: { $0.id == album.id }) { albums[i] = album } else { albums.append(album) }
+            }
+            changed.insert(a.target ?? a.placeholder.localIdentifier)
+            if a.target == nil { NSLog("isim Photos: created the album %@", a.title) }
         }
         if !deleteIDs.isEmpty {
             // iOS asks the user before an app deletes photos
@@ -338,6 +392,7 @@ open class PHPhotoLibrary: NSObject, @unchecked Sendable {
                 for r in recs where ids.contains(r.id) { try? FileManager.default.removeItem(atPath: _PHStore.path(r)) }
                 recs.removeAll { ids.contains($0.id) }
             }
+            _PHStore.updateAlbums { albums in for i in albums.indices { albums[i].assets.removeAll { ids.contains($0) } } }
             changed.formUnion(ids)
         }
         notify(changed)
@@ -372,6 +427,22 @@ open class PHAsset: PHObject, @unchecked Sendable {
     open var burstIdentifier: String? { nil }
     open var representsBurst: Bool { false }
     open func canPerform(_ editOperation: Int) -> Bool { true }
+    /// the keys fetch predicates use (NSPredicate reads them with key-value coding)
+    open override func value(forKey key: String) -> Any? {
+        switch key {
+        case "localIdentifier": return localIdentifier
+        case "mediaType": return NSNumber(value: mediaType.rawValue)
+        case "mediaSubtypes": return NSNumber(value: mediaSubtypes.rawValue)
+        case "creationDate", "modificationDate": return creationDate
+        case "pixelWidth": return NSNumber(value: pixelWidth)
+        case "pixelHeight": return NSNumber(value: pixelHeight)
+        case "duration": return NSNumber(value: duration)
+        case "favorite", "isFavorite": return NSNumber(value: isFavorite)
+        case "hidden", "isHidden": return NSNumber(value: isHidden)
+        case "burstIdentifier": return burstIdentifier
+        default: return super.value(forKey: key)
+        }
+    }
     open override var description: String { "<PHAsset: \(localIdentifier)> mediaType=\(mediaType.rawValue)/0, sourceType=1, (\(rec.width)x\(rec.height)), creationDate=\(creationDate!), favorite=\(isFavorite ? "YES" : "NO")" }
 
     static func fetch(_ recs: [_PHRecord], _ options: PHFetchOptions?) -> PHFetchResult<PHAsset> {
@@ -401,6 +472,21 @@ open class PHAsset: PHObject, @unchecked Sendable {
     }
     open class func fetchAssets(in assetCollection: PHAssetCollection, options: PHFetchOptions?) -> PHFetchResult<PHAsset> {
         var recs = _PHAuth.visible()
+        if assetCollection.assetCollectionType == .album {
+            // a user album keeps its own order unless the options sort it
+            let id = assetCollection.localIdentifier, opts = options
+            func albumAssets() -> [PHAsset] {
+                let ids = _PHStore.albums().first { $0.id == id }?.assets ?? []
+                let byID = Dictionary(uniqueKeysWithValues: _PHAuth.visible().map { ($0.id, $0) })
+                let inAlbum = ids.compactMap { byID[$0] }
+                if opts?.sortDescriptors?.isEmpty == false { return fetch(inAlbum, opts).items }
+                var assets = inAlbum.map(PHAsset.init)
+                if let p = opts?.predicate { assets = assets.filter { p.evaluate(with: $0) } }
+                if let lim = opts?.fetchLimit, lim > 0, assets.count > lim { assets = Array(assets.prefix(lim)) }
+                return assets
+            }
+            return PHFetchResult(albumAssets(), again: albumAssets)
+        }
         if assetCollection.assetCollectionSubtype == .smartAlbumFavorites { recs = recs.filter(\.favorite) }
         else if assetCollection.assetCollectionSubtype == .smartAlbumVideos { recs = recs.filter(\.isVideo) }
         return fetch(recs, options)
@@ -414,29 +500,80 @@ open class PHCollection: PHObject, @unchecked Sendable {
     open var localizedTitle: String? { nil }
     open var canContainAssets: Bool { true }
     open var canContainCollections: Bool { false }
+    /// user albums can be renamed, deleted and edited; smart albums cannot
+    open func canPerform(_ anOperation: PHCollectionEditOperation) -> Bool { false }
+    /// the user's albums (isim has no folders)
+    open class func fetchTopLevelUserCollections(with options: PHFetchOptions?) -> PHFetchResult<PHCollection> {
+        let r = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .albumRegular, options: options)
+        return PHFetchResult(r.items) { r.refetched().items }
+    }
 }
 open class PHAssetCollection: PHCollection, @unchecked Sendable {
     public let assetCollectionType: PHAssetCollectionType
     public let assetCollectionSubtype: PHAssetCollectionSubtype
     let title: String
+    let created: Date?
     init(_ type: PHAssetCollectionType, _ sub: PHAssetCollectionSubtype, _ title: String) {
-        assetCollectionType = type; assetCollectionSubtype = sub; self.title = title
+        assetCollectionType = type; assetCollectionSubtype = sub; self.title = title; created = nil
         super.init(id: "isim-collection-\(sub.rawValue)/L0/040")
+    }
+    /// a user album
+    init(_ album: _PHAlbum) {
+        assetCollectionType = .album; assetCollectionSubtype = .albumRegular; title = album.title
+        created = Date(timeIntervalSince1970: album.created)
+        super.init(id: album.id)
     }
     open override var localizedTitle: String? { title }
     open var estimatedAssetCount: Int { PHAsset.fetchAssets(in: self, options: nil).count }
     open var startDate: Date? { nil }
     open var endDate: Date? { nil }
+    open override func canPerform(_ anOperation: PHCollectionEditOperation) -> Bool {
+        assetCollectionType == .album && anOperation != .createContent
+    }
+    open override func value(forKey key: String) -> Any? {
+        switch key {
+        case "localIdentifier": return localIdentifier
+        case "title", "localizedTitle": return title
+        case "estimatedAssetCount": return NSNumber(value: estimatedAssetCount)
+        case "startDate": return startDate
+        case "endDate": return endDate
+        default: return super.value(forKey: key)
+        }
+    }
+    static func userAlbums(_ options: PHFetchOptions?) -> [PHAssetCollection] {
+        var r = _PHStore.albums().map(PHAssetCollection.init)
+        if let p = options?.predicate { r = r.filter { p.evaluate(with: $0) } }
+        for s in (options?.sortDescriptors ?? []).reversed() where s.key == "title" || s.key == "localizedTitle" || s.key == "startDate" {
+            r.sort { s.key == "startDate" ? ($0.created ?? .distantPast) < ($1.created ?? .distantPast) : $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+            if !s.ascending { r.reverse() }
+        }
+        if let lim = options?.fetchLimit, lim > 0, r.count > lim { r = Array(r.prefix(lim)) }
+        return r
+    }
     static let smart: [PHAssetCollection] = [PHAssetCollection(.smartAlbum, .smartAlbumUserLibrary, "Recents"),
                                              PHAssetCollection(.smartAlbum, .smartAlbumFavorites, "Favorites"),
                                              PHAssetCollection(.smartAlbum, .smartAlbumVideos, "Videos")]
     open class func fetchAssetCollections(with type: PHAssetCollectionType, subtype: PHAssetCollectionSubtype, options: PHFetchOptions?) -> PHFetchResult<PHAssetCollection> {
+        if type == .album {
+            let albums = { (subtype == .any || subtype == .albumRegular) ? userAlbums(options) : [] }
+            return PHFetchResult(albums(), again: albums)
+        }
         let r = smart.filter { (type == .smartAlbum) && (subtype == .any || subtype == .albumRegular || $0.assetCollectionSubtype == subtype) }
         return PHFetchResult(type == .smartAlbum ? r : []) { type == .smartAlbum ? r : [] }
     }
     open class func fetchAssetCollections(withLocalIdentifiers identifiers: [String], options: PHFetchOptions?) -> PHFetchResult<PHAssetCollection> {
-        let r = smart.filter { identifiers.contains($0.localIdentifier) }
-        return PHFetchResult(r) { r }
+        let find = { (smart + userAlbums(nil)).filter { identifiers.contains($0.localIdentifier) } }
+        return PHFetchResult(find(), again: find)
+    }
+    /// the user albums (and, for .smartAlbum, the smart albums) holding the asset
+    open class func fetchAssetCollectionsContaining(_ asset: PHAsset, with type: PHAssetCollectionType, options: PHFetchOptions?) -> PHFetchResult<PHAssetCollection> {
+        let id = asset.localIdentifier
+        let find: () -> [PHAssetCollection] = {
+            if type == .album { return userAlbums(options).filter { a in _PHStore.albums().first { $0.id == a.localIdentifier }?.assets.contains(id) == true } }
+            if type == .smartAlbum { return smart.filter { PHAsset.fetchAssets(in: $0, options: nil).items.contains { $0.localIdentifier == id } } }
+            return []
+        }
+        return PHFetchResult(find(), again: find)
     }
 }
 
@@ -495,6 +632,8 @@ final class _PHDeleteRequest: NSObject { let ids: [String]; init(_ ids: [String]
 open class PHAssetChangeRequest: NSObject, @unchecked Sendable {
     var creating = false
     var image: UIImage?, fileURL: URL?, resourceData: Data?
+    /// a movie to add (creationRequestForAssetFromVideo, or a .video resource)
+    var videoFile: URL?
     var target: String?
     let placeholder = PHObjectPlaceholder(id: "\(UUID().uuidString)/L0/001")   // assigned up front, like iOS
     open var creationDate: Date?
@@ -517,8 +656,8 @@ open class PHAssetChangeRequest: NSObject, @unchecked Sendable {
         let r = Self.init(); r.creating = true; r.fileURL = fileURL; _PHChanges.add(r); return r
     }
     open class func creationRequestForAssetFromVideo(atFileURL fileURL: URL) -> Self? {
-        NSLog("isim Photos: saving videos is not supported (images only)")
-        return nil
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
+        let r = Self.init(); r.creating = true; r.videoFile = fileURL; _PHChanges.add(r); return r
     }
     open class func deleteAssets(_ assets: Any) {
         var ids: [String] = []
@@ -551,7 +690,96 @@ open class PHAssetResourceCreationOptions: NSObject, @unchecked Sendable {
 }
 open class PHAssetCreationRequest: PHAssetChangeRequest, @unchecked Sendable {
     open class func forAsset() -> PHAssetCreationRequest { let r = PHAssetCreationRequest(); r.creating = true; _PHChanges.add(r); return r }
-    open class func supportsAssetResourceTypes(_ types: [NSNumber]) -> Bool { types.allSatisfy { $0.integerValue == PHAssetResourceType.photo.rawValue } }
-    open func addResource(with type: PHAssetResourceType, data: Data, options: PHAssetResourceCreationOptions?) { if type == .photo { resourceData = data } }
-    open func addResource(with type: PHAssetResourceType, fileURL: URL, options: PHAssetResourceCreationOptions?) { if type == .photo { self.fileURL = fileURL } }
+    /// one photo or one video (isim has no paired resources: Live Photos, adjustment data)
+    open class func supportsAssetResourceTypes(_ types: [NSNumber]) -> Bool {
+        types.count == 1 && [PHAssetResourceType.photo.rawValue, PHAssetResourceType.video.rawValue].contains(types[0].integerValue)
+    }
+    open func addResource(with type: PHAssetResourceType, data: Data, options: PHAssetResourceCreationOptions?) {
+        if type == .photo { resourceData = data }
+        else if type == .video {
+            let ext = options?.originalFilename.map { ($0 as NSString).pathExtension }.flatMap { $0.isEmpty ? nil : $0 } ?? "mov"
+            let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("isim-photos-\(UUID().uuidString).\(ext)")
+            if (try? data.write(to: url)) != nil { videoFile = url }
+        }
+    }
+    open func addResource(with type: PHAssetResourceType, fileURL: URL, options: PHAssetResourceCreationOptions?) {
+        if type == .photo { self.fileURL = fileURL } else if type == .video { videoFile = fileURL }
+    }
+}
+
+// MARK: - Albums
+
+open class PHAssetCollectionChangeRequest: NSObject, @unchecked Sendable {
+    var target: String?
+    var deleting = false
+    /// edits of the album's asset identifiers, applied in order
+    var edits: [([String]) -> [String]] = []
+    let placeholder = PHObjectPlaceholder(id: "\(UUID().uuidString)/L0/040")
+    open var title: String
+    open var placeholderForCreatedAssetCollection: PHObjectPlaceholder { placeholder }
+
+    init(title: String, target: String?) { self.title = title; self.target = target; super.init() }
+    open class func creationRequestForAssetCollection(withTitle title: String) -> Self {
+        let r = PHAssetCollectionChangeRequest(title: title, target: nil); _PHChanges.add(r); return r as! Self
+    }
+    /// nil for a smart album (it cannot be edited)
+    public convenience init?(for assetCollection: PHAssetCollection) {
+        guard assetCollection.assetCollectionType == .album else { return nil }
+        self.init(title: assetCollection.title, target: assetCollection.localIdentifier)
+        _PHChanges.add(self)
+    }
+    /// assets: the album's contents as the app fetched them, so index-based edits refer to them
+    public convenience init?(for assetCollection: PHAssetCollection, assets: PHFetchResult<PHAsset>) {
+        self.init(for: assetCollection)
+        let ids = assets.items.map(\.localIdentifier)
+        edits.append { _ in ids }
+    }
+    open class func deleteAssetCollections(_ assetCollections: Any) {
+        for id in Self._ids(assetCollections) {
+            let r = PHAssetCollectionChangeRequest(title: "", target: id); r.deleting = true; _PHChanges.add(r)
+        }
+    }
+    static func _ids(_ objects: Any) -> [String] {
+        if let a = objects as? [PHObject] { return a.map(\.localIdentifier) }
+        if let r = objects as? PHFetchResult<PHAssetCollection> { return r.items.map(\.localIdentifier) }
+        if let r = objects as? PHFetchResult<PHAsset> { return r.items.map(\.localIdentifier) }
+        if let a = objects as? [Any] { return a.compactMap { ($0 as? PHObject)?.localIdentifier } }
+        if let a = objects as? NSArray { return (0 ..< a.count).compactMap { (a.object(at: $0) as? PHObject)?.localIdentifier } }
+        return []
+    }
+    open func addAssets(_ assets: Any) {
+        let ids = Self._ids(assets)
+        edits.append { $0 + ids }
+    }
+    open func insertAssets(_ assets: Any, at indexes: IndexSet) {
+        let ids = Self._ids(assets)
+        edits.append { cur in
+            var out = cur
+            for (id, i) in zip(ids, indexes) { out.insert(id, at: min(i, out.count)) }
+            return out
+        }
+    }
+    open func removeAssets(_ assets: Any) {
+        let ids = Set(Self._ids(assets))
+        edits.append { $0.filter { !ids.contains($0) } }
+    }
+    open func removeAssets(at indexes: IndexSet) {
+        edits.append { cur in cur.enumerated().filter { !indexes.contains($0.offset) }.map(\.element) }
+    }
+    open func replaceAssets(at indexes: IndexSet, withAssets assets: Any) {
+        let ids = Self._ids(assets)
+        edits.append { cur in
+            var out = cur
+            for (i, id) in zip(indexes, ids) where i < out.count { out[i] = id }
+            return out
+        }
+    }
+    open func moveAssets(at fromIndexes: IndexSet, to toIndex: Int) {
+        edits.append { cur in
+            let moving = fromIndexes.filter { $0 < cur.count }.map { cur[$0] }
+            var rest = cur.enumerated().filter { !fromIndexes.contains($0.offset) }.map(\.element)
+            rest.insert(contentsOf: moving, at: min(toIndex, rest.count))
+            return rest
+        }
+    }
 }

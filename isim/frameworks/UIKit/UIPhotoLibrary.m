@@ -178,8 +178,8 @@ BOOL UIVideoAtPathIsCompatibleWithSavedPhotosAlbum(NSString *videoPath) {
     struct isim_media_info i = {0};
     return videoPath.length && [NSFileManager.defaultManager fileExistsAtPath:videoPath] && isim_media_probe(videoPath.UTF8String, &i) && i.has_video;
 }
-/* copies the movie into the library (IMG_nnnn.MOV / .MP4) with a poster frame */
-static NSDictionary *add_video_asset(NSMutableDictionary *idx, NSString *src, NSString *app) {
+/* copies the movie into the library (IMG_nnnn.MOV / .MP4) with a poster frame; ident and created (> 0) are optional */
+static NSDictionary *add_video_asset(NSMutableDictionary *idx, NSString *src, NSString *app, NSString *ident, double created) {
     struct isim_media_info info = {0};
     if (!isim_media_probe(src.UTF8String, &info) || !info.has_video) return nil;
     NSString *dcim = [media_dir() stringByAppendingPathComponent:@"DCIM/100APPLE"], *thumbs = [media_dir() stringByAppendingPathComponent:@"PhotoData/Thumbnails"];
@@ -193,11 +193,22 @@ static NSDictionary *add_video_asset(NSMutableDictionary *idx, NSString *src, NS
     if (isim_media_thumbnail_png([dcim stringByAppendingPathComponent:name].UTF8String, 0, 640, &png, &len) && png && len > 0)
         [[NSData dataWithBytes:png length:(NSUInteger)len] writeToFile:[thumbs stringByAppendingPathComponent:poster] atomically:YES];
     if (png) isim_media_free(png);
-    NSDictionary *a = @{ @"id": [NSString stringWithFormat:@"%@/L0/001", NSUUID.UUID.UUIDString], @"file": [@"DCIM/100APPLE" stringByAppendingPathComponent:name],
-                         @"created": @(NSDate.date.timeIntervalSince1970), @"width": @(info.width), @"height": @(info.height), @"favorite": @NO, @"app": app ?: @"",
+    NSDictionary *a = @{ @"id": ident.length ? ident : [NSString stringWithFormat:@"%@/L0/001", NSUUID.UUID.UUIDString],
+                         @"file": [@"DCIM/100APPLE" stringByAppendingPathComponent:name],
+                         @"created": @(created > 0 ? created : NSDate.date.timeIntervalSince1970), @"width": @(info.width), @"height": @(info.height), @"favorite": @NO, @"app": app ?: @"",
                          @"kind": @"video", @"duration": @(info.duration), @"poster": [@"PhotoData/Thumbnails" stringByAppendingPathComponent:poster] };
     [idx[@"assets"] addObject:a];
     return a;
+}
+/* for the Photos framework (Swift: PHAssetChangeRequest.creationRequestForAssetFromVideo): adds the movie at src as the
+   asset ident; 1 when saved (0: not a movie ffprobe can read, or the copy failed) */
+int _isim_photos_add_video(const char *src, const char *ident, double created, const char *app) {
+    _isim_photos_seed();
+    NSMutableDictionary *idx = load_index();
+    NSDictionary *a = add_video_asset(idx, @(src), app ? @(app) : @"", ident ? @(ident) : nil, created);
+    if (!a) return 0;
+    save_index(idx);
+    return 1;
 }
 void UISaveVideoAtPathToSavedPhotosAlbum(NSString *videoPath, id target, SEL sel, void *ctx) {
     NSString *path = [videoPath copy];
@@ -207,7 +218,7 @@ void UISaveVideoAtPathToSavedPhotosAlbum(NSString *videoPath, id target, SEL sel
             if (ok) {
                 _isim_photos_seed();
                 NSMutableDictionary *idx = load_index();
-                NSDictionary *a = add_video_asset(idx, path, NSBundle.mainBundle.bundleIdentifier);
+                NSDictionary *a = add_video_asset(idx, path, NSBundle.mainBundle.bundleIdentifier, nil, 0);
                 if (a) { save_index(idx); NSLog(@"isim Photos: saved video %@ to the photo library", [a[@"file"] lastPathComponent]); }
                 else err = [NSError errorWithDomain:@"ALAssetsLibraryErrorDomain" code:-3302 userInfo:@{ NSLocalizedDescriptionKey: @"Invalid data" }];
             } else err = [NSError errorWithDomain:@"ALAssetsLibraryErrorDomain" code:-3310 userInfo:@{ NSLocalizedDescriptionKey: @"Data unavailable" }];
