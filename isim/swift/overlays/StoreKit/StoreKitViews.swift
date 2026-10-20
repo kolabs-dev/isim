@@ -19,6 +19,7 @@ struct _SKStartKey: EnvironmentKey { static var defaultValue: ((Product) async -
 struct _SKCompletionKey: EnvironmentKey { static var defaultValue: ((Product, Result<Product.PurchaseResult, Error>) async -> Void)? { nil } }
 struct _SKStyleBodyKey: EnvironmentKey { static var defaultValue: (@MainActor (ProductViewStyleConfiguration) -> AnyView)? { nil } }
 struct _SKControlKey: EnvironmentKey { static var defaultValue: String { "automatic" } }
+struct _SKControlBodyKey: EnvironmentKey { static var defaultValue: (@MainActor (SubscriptionStoreControlStyleConfiguration) -> AnyView)? { nil } }
 struct _SKButtonLabelKey: EnvironmentKey { static var defaultValue: SubscriptionStoreButtonLabel { .automatic } }
 struct _SKPoliciesKey: EnvironmentKey { static var defaultValue: [String: _SKPolicyDestination] { [:] } }
 struct _SKOfferSelectorKey: EnvironmentKey {
@@ -34,6 +35,7 @@ extension EnvironmentValues {
     var _skCompletion: ((Product, Result<Product.PurchaseResult, Error>) async -> Void)? { get { self[_SKCompletionKey.self] } set { self[_SKCompletionKey.self] = newValue } }
     var _skStyleBody: (@MainActor (ProductViewStyleConfiguration) -> AnyView)? { get { self[_SKStyleBodyKey.self] } set { self[_SKStyleBodyKey.self] = newValue } }
     var _skControl: String { get { self[_SKControlKey.self] } set { self[_SKControlKey.self] = newValue } }
+    var _skControlBody: (@MainActor (SubscriptionStoreControlStyleConfiguration) -> AnyView)? { get { self[_SKControlBodyKey.self] } set { self[_SKControlBodyKey.self] = newValue } }
     var _skButtonLabel: SubscriptionStoreButtonLabel { get { self[_SKButtonLabelKey.self] } set { self[_SKButtonLabelKey.self] = newValue } }
     var _skPolicies: [String: _SKPolicyDestination] { get { self[_SKPoliciesKey.self] } set { self[_SKPoliciesKey.self] = newValue } }
     var _skOfferSelector: ((Product, Product.SubscriptionInfo, [Product.SubscriptionOffer]) -> Product.SubscriptionOffer?)? {
@@ -116,8 +118,19 @@ struct _SKStoreButtons: ViewModifier {
 }
 /// How SubscriptionStoreView lets the customer pick a plan: a picker (rows with a checkmark and one subscribe button),
 /// a prominent picker (larger rows), a compact picker (side-by-side tiles) or buttons (one subscribe button per plan).
-public protocol SubscriptionStoreControlStyle { var _skControl: String { get } }
-extension SubscriptionStoreControlStyle { public var _skControl: String { "automatic" } }
+public protocol SubscriptionStoreControlStyle {
+    associatedtype Body: View = Never
+    typealias Configuration = SubscriptionStoreControlStyleConfiguration
+    /// a custom style draws the plans and their subscribe action itself (iOS 18)
+    @MainActor @ViewBuilder func makeBody(configuration: Configuration) -> Body
+    var _skControl: String { get }
+}
+extension SubscriptionStoreControlStyle {
+    public var _skControl: String { Body.self == Never.self ? "automatic" : "custom" }
+}
+extension SubscriptionStoreControlStyle where Body == Never {
+    @MainActor public func makeBody(configuration: Configuration) -> Never { fatalError("built-in subscription store control style") }
+}
 public struct AutomaticSubscriptionStoreControlStyle: SubscriptionStoreControlStyle { public init() {}; public var _skControl: String { "automatic" } }
 public struct PickerSubscriptionStoreControlStyle: SubscriptionStoreControlStyle { public init() {}; public var _skControl: String { "picker" } }
 public struct ButtonsSubscriptionStoreControlStyle: SubscriptionStoreControlStyle { public init() {}; public var _skControl: String { "buttons" } }
@@ -160,7 +173,11 @@ extension View {
     public func onInAppPurchaseCompletion(perform action: ((Product, Result<Product.PurchaseResult, Error>) async -> Void)?) -> some View {
         environment(\._skCompletion, action)
     }
-    public func subscriptionStoreControlStyle<S: SubscriptionStoreControlStyle>(_ style: S) -> some View { environment(\._skControl, style._skControl) }
+    public func subscriptionStoreControlStyle<S: SubscriptionStoreControlStyle>(_ style: S) -> some View {
+        var body: (@MainActor (SubscriptionStoreControlStyleConfiguration) -> AnyView)?
+        if S.Body.self != Never.self { body = { @MainActor (c: SubscriptionStoreControlStyleConfiguration) -> AnyView in AnyView(style.makeBody(configuration: c)) } }
+        return environment(\._skControl, style._skControl).environment(\._skControlBody, body)
+    }
     public func subscriptionStoreButtonLabel(_ label: SubscriptionStoreButtonLabel) -> some View { environment(\._skButtonLabel, label) }
     public func subscriptionStorePolicyDestination(url: URL, for policy: Any) -> some View {
         modifier(_SKPolicyModifier(kind: (policy as? SubscriptionStorePolicyKind)?.name ?? "\(policy)", destination: _SKPolicyDestination(url: url, view: nil)))
@@ -467,9 +484,14 @@ public struct SubscriptionStoreView<MarketingContent: View>: View {
     let groupID: String?
     let productIDs: [String]
     let marketing: (() -> MarketingContent)?
+    /// iOS 18 store content (option groups and sections), resolved when the view draws
+    var _content: (@MainActor () -> [_SKContentNode])?
+    var _relationships = Product.SubscriptionRelationship.all
     @Environment(\.self) private var env
     @State private var selected: String?
     @State private var version = 0
+    @State private var tab: Int = 0
+    @State private var openGroup: Int?
 
     public init(groupID: String, @ViewBuilder marketingContent: @escaping () -> MarketingContent) { self.groupID = groupID; productIDs = []; marketing = marketingContent }
     public init<C: Collection>(productIDs: C, @ViewBuilder marketingContent: @escaping () -> MarketingContent) where C.Element == String {
@@ -477,6 +499,9 @@ public struct SubscriptionStoreView<MarketingContent: View>: View {
     }
     public init(subscriptions: [Product], @ViewBuilder marketingContent: @escaping () -> MarketingContent) {
         groupID = nil; productIDs = subscriptions.map { $0.id }; marketing = marketingContent
+    }
+    public init(groupID: String, visibleRelationships: Product.SubscriptionRelationship, @ViewBuilder marketingContent: @escaping () -> MarketingContent) {
+        self.groupID = groupID; productIDs = []; marketing = marketingContent; _relationships = visibleRelationships
     }
 
     /// the offer shown and bought for a plan: introductory (never subscribed) or win-back (lapsed, iOS 18), or the
@@ -493,21 +518,59 @@ public struct SubscriptionStoreView<MarketingContent: View>: View {
         return eligible.first { $0.type == ._winBack } ?? eligible.first
     }
 
+    /// what one page of the store shows: plans, optionally under section headers
+    struct _Page { var plans: [_SKItem]; var sections: [(title: String?, header: AnyView?, footer: AnyView?, plans: [_SKItem])]; var mods: _SKContentMods }
+    /// an option group: its tab or link, marketing content and page
+    struct _Group { var title: String?; var label: AnyView?; var marketing: AnyView?; var page: _Page }
+
+    /// the store content's groups (empty: no groups) and the page shown when there are none
+    func layout(_ plans: [_SKItem]) -> (groups: [_Group], page: _Page) {
+        guard let nodes = _content?() else { return ([], _Page(plans: plans, sections: [], mods: _SKContentMods())) }
+        let products = Dictionary(plans.map { ($0.id, Product($0)) }, uniquingKeysWith: { a, _ in a })
+        func pick(_ f: (Product) -> Bool) -> [_SKItem] { plans.filter { products[$0.id].map(f) ?? false } }
+        func page(_ children: [_SKContentNode], filter: ((Product) -> Bool)?, mods: _SKContentMods) -> _Page {
+            var sections: [(String?, AnyView?, AnyView?, [_SKItem])] = []
+            for c in children { if case .section(let t, let h, let f, let filter, _) = c { sections.append((t, h, f, pick(filter))) } }
+            let inGroup = filter.map(pick) ?? (sections.isEmpty ? plans : plans.filter { p in sections.contains { $0.3.contains { $0.id == p.id } } })
+            return _Page(plans: inGroup, sections: sections.map { (title: $0.0, header: $0.1, footer: $0.2, plans: $0.3) }, mods: mods)
+        }
+        var groups: [_Group] = []
+        var loose: [_SKContentNode] = []
+        for n in nodes {
+            switch n {
+            case .group(let t, let l, let m, let f, let children, let mods):
+                groups.append(_Group(title: t, label: l, marketing: m, page: page(children, filter: f, mods: mods)))
+            case .groupSet(let key, let label, let marketing, let mods):
+                var order: [AnyHashable] = []
+                for p in plans { if let pr = products[p.id] { let k = key(pr); if !order.contains(k) { order.append(k) } } }
+                for k in order {
+                    groups.append(_Group(title: nil, label: label(k), marketing: marketing?(k), page: page([], filter: { key($0) == k }, mods: mods)))
+                }
+            case .section: loose.append(n)
+            }
+        }
+        let mods = nodes.compactMap { n -> _SKContentMods? in if case .section(_, _, _, _, let m) = n { return m }; return nil }.first ?? _SKContentMods()
+        return (groups, page(loose, filter: nil, mods: mods))
+    }
+
     public var body: some View {
         let cfg = _SKConfig.load()
+        let group = groupID ?? productIDs.compactMap { cfg.item($0)?.groupID }.first ?? ""
+        let current = _SKLedger.shared.entitlements().first { $0.groupID == group }
         let plans = (groupID.map { g in cfg.items.filter { $0.groupID == g } } ?? productIDs.compactMap { cfg.item($0) })
             .filter { $0.type == .autoRenewable }.sorted { ($0.groupLevel, $0.price) < ($1.groupLevel, $1.price) }
-        let group = groupID ?? plans.first?.groupID ?? ""
-        let current = _SKLedger.shared.entitlements().first { $0.groupID == group }
+            .filter { _relationships.shows($0, current: current?.productID, cfg: cfg) }
         let ever = _SKLedger.shared.everSubscribed(group: group)
         let lapsed = ever && current == nil
         let offers = Dictionary(plans.map { ($0.id, offer($0, eligibleIntro: !ever, lapsed: lapsed)) }, uniquingKeysWith: { a, _ in a })
-        let choice = selected ?? current?.productID ?? plans.first?.id
-        let chosen = plans.first { $0.id == choice }
-        let control = env._skControl
+        let (groups, loosePage) = layout(plans)
+        let groupStyle = groups.first?.page.mods.groupStyle ?? env._skGroupStyle
+        let shownGroup = groups.isEmpty ? nil : (groupStyle == "links" ? openGroup : min(tab, groups.count - 1))
+        let page = shownGroup.map { groups[$0].page } ?? loosePage
+        let groupMarketing = shownGroup.flatMap { groups[$0].marketing }
         ScrollView {
             VStack(spacing: 16) {
-                if let marketing { marketing() } else {
+                if let groupMarketing { groupMarketing } else if let marketing { marketing() } else {
                     VStack(spacing: 8) {
                         _SKAppIcon(size: 72)
                         Text(verbatim: cfg.groups[group] ?? _SKSheets.appName).font(.system(size: 26, weight: .bold))
@@ -515,41 +578,136 @@ public struct SubscriptionStoreView<MarketingContent: View>: View {
                     }
                     .padding(.top, 24)
                 }
-                if control == "buttons" {
-                    VStack(spacing: 10) {
-                        ForEach(plans, id: \.id) { p in
-                            subscribeButton(p, offer: offers[p.id] ?? nil, current: current).accessibilityIdentifier("sk-subscribe-\(p.id)")
+                if !groups.isEmpty && groupStyle != "links" {
+                    // tabs: a segmented control of the groups
+                    HStack(spacing: 2) {
+                        ForEach(Array(groups.enumerated()), id: \.offset) { i, g in
+                            Button { tab = i; selected = nil } label: {
+                                groupTitle(g).font(.system(size: 13, weight: .semibold)).frame(maxWidth: .infinity).padding(.vertical, 7)
+                                    .foregroundStyle(.primary)
+                                    .background(i == shownGroup ? Color(uiColor: .systemBackground) : Color.clear, in: RoundedRectangle(cornerRadius: 7))
+                            }
+                            .accessibilityIdentifier("sk-group-tab-\(i)")
                         }
                     }
-                } else {
-                    if control == "compactPicker" {
-                        HStack(spacing: 8) {
-                            ForEach(plans, id: \.id) { p in
-                                Button { selected = p.id } label: { compactTile(p, chosen: p.id == choice, current: current?.productID == p.id) }
-                                    .accessibilityIdentifier("sk-plan-\(p.id)")
-                            }
-                        }
-                    } else {
-                        VStack(spacing: control == "prominentPicker" ? 12 : 10) {
-                            ForEach(plans, id: \.id) { p in
-                                Button { selected = p.id } label: {
-                                    planRow(p, chosen: p.id == choice, current: current?.productID == p.id, offer: offers[p.id] ?? nil, prominent: control == "prominentPicker")
-                                }
-                                .accessibilityIdentifier("sk-plan-\(p.id)")
-                            }
-                        }
-                    }
-                    if let chosen { subscribeButton(chosen, offer: offers[chosen.id] ?? nil, current: current).accessibilityIdentifier("sk-subscribe") }
+                    .padding(2)
+                    .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 9))
                 }
-                if let chosen {
-                    Text(verbatim: termsLine(chosen, offer: offers[chosen.id] ?? nil)).font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                        .accessibilityIdentifier("sk-terms")
+                if !groups.isEmpty && groupStyle == "links" && shownGroup == nil {
+                    // links: one row per group, opening its plans
+                    VStack(spacing: 0) {
+                        ForEach(Array(groups.enumerated()), id: \.offset) { i, g in
+                            Button { openGroup = i; selected = nil } label: {
+                                HStack {
+                                    groupTitle(g).font(.system(size: 17)).foregroundStyle(.primary)
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color(uiColor: .tertiaryLabel))
+                                }
+                                .padding(.horizontal, 16).frame(minHeight: 48)
+                            }
+                            .accessibilityIdentifier("sk-group-link-\(i)")
+                            if i < groups.count - 1 { Divider().padding(.leading, 16) }
+                        }
+                    }
+                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+                } else {
+                    if groupStyle == "links", let g = shownGroup {
+                        Button { openGroup = nil; selected = nil } label: {
+                            HStack(spacing: 4) { Image(systemName: "chevron.left"); groupTitle(groups[g]) }.font(.system(size: 17))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("sk-group-back")
+                    }
+                    controls(page, current: current, offers: offers, groupName: cfg.groups[group] ?? "")
                 }
                 _SKStoreFooter(restoreDefault: true)
             }
             .padding(.horizontal, 20)
             .id(version)
         }
+    }
+
+    @ViewBuilder func groupTitle(_ g: _Group) -> some View {
+        if let l = g.label { l } else { Text(verbatim: g.title ?? "") }
+    }
+
+    /// the page's plans with the store's control (picker, buttons, or the app's custom style), and the terms
+    @ViewBuilder func controls(_ page: _Page, current: _SKTxn?, offers: [String: Product.SubscriptionOffer?], groupName: String) -> some View {
+        let plans = page.plans
+        let choice = (selected.flatMap { s in plans.first { $0.id == s } } ?? plans.first { $0.id == current?.productID } ?? plans.first)?.id
+        let chosen = plans.first { $0.id == choice }
+        let control = page.mods.control ?? env._skControl
+        let sections = page.sections.isEmpty ? [(title: String?.none, header: AnyView?.none, footer: AnyView?.none, plans: plans)] : page.sections
+        if control == "custom", let custom = page.mods.controlBody ?? env._skControlBody {
+            let c = configuration(page, current: current, offers: offers, groupName: groupName)
+            custom(c).environment(\._skPickerConfiguration, c)
+        } else if control == "buttons" {
+            VStack(spacing: 10) {
+                ForEach(Array(sections.enumerated()), id: \.offset) { _, sec in
+                    sectionHeader(sec.title, sec.header)
+                    ForEach(sec.plans, id: \.id) { p in
+                        subscribeButton(p, offer: offers[p.id] ?? nil, current: current).accessibilityIdentifier("sk-subscribe-\(p.id)")
+                    }
+                    if let f = sec.footer { f.font(.system(size: 12)).foregroundStyle(.secondary) }
+                }
+            }
+        } else {
+            ForEach(Array(sections.enumerated()), id: \.offset) { _, sec in
+                VStack(spacing: control == "prominentPicker" ? 12 : 10) {
+                    sectionHeader(sec.title, sec.header)
+                    if control == "compactPicker" {
+                        HStack(spacing: 8) {
+                            ForEach(sec.plans, id: \.id) { p in
+                                Button { selected = p.id } label: { compactTile(p, chosen: p.id == choice, current: current?.productID == p.id) }
+                                    .accessibilityIdentifier("sk-plan-\(p.id)")
+                            }
+                        }
+                    } else {
+                        ForEach(sec.plans, id: \.id) { p in
+                            Button { selected = p.id } label: {
+                                planRow(p, chosen: p.id == choice, current: current?.productID == p.id, offer: offers[p.id] ?? nil, prominent: control == "prominentPicker")
+                            }
+                            .accessibilityIdentifier("sk-plan-\(p.id)")
+                        }
+                    }
+                    if let f = sec.footer { f.font(.system(size: 12)).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading) }
+                }
+            }
+            if let chosen { subscribeButton(chosen, offer: offers[chosen.id] ?? nil, current: current).accessibilityIdentifier("sk-subscribe") }
+        }
+        if let chosen, control != "custom" {
+            Text(verbatim: termsLine(chosen, offer: offers[chosen.id] ?? nil)).font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                .accessibilityIdentifier("sk-terms")
+        }
+    }
+
+    @ViewBuilder func sectionHeader(_ title: String?, _ header: AnyView?) -> some View {
+        if let header { header.frame(maxWidth: .infinity, alignment: .leading) }
+        else if let title {
+            Text(verbatim: title.uppercased()).font(.system(size: 13)).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("sk-section-\(title)")
+        }
+    }
+
+    /// what a custom SubscriptionStoreControlStyle gets: the page's plans as options, their sections, the group
+    func configuration(_ page: _Page, current: _SKTxn?, offers: [String: Product.SubscriptionOffer?], groupName: String) -> SubscriptionStoreControlStyleConfiguration {
+        let env = self.env
+        let bump = { version += 1 }
+        func option(_ p: _SKItem) -> SubscriptionStoreControlStyleConfiguration.Option {
+            let product = Product(p), offer = offers[p.id] ?? nil
+            return SubscriptionStoreControlStyleConfiguration.Option(subscription: product, activeOffer: offer) {
+                Task { @MainActor in
+                    let options: Set<Product.PurchaseOption> = offer?.type == ._winBack ? [._winBackOffer(offer!)] : []
+                    await _skBuy(product, env, options: options); bump()
+                }
+            }
+        }
+        let sections = page.sections.isEmpty ? [SubscriptionStoreControlStyleConfiguration.Section(options: page.plans.map(option), header: nil, footer: nil)]
+            : page.sections.map { SubscriptionStoreControlStyleConfiguration.Section(options: $0.plans.map(option), header: $0.header ?? $0.title.map { AnyView(Text(verbatim: $0)) }, footer: $0.footer) }
+        let renew = current.flatMap { t in _SKConfig.load().item(_SKLedger.shared.read { $0.subscriptions[t.groupID ?? ""]?.autoRenewProductID } ?? t.productID) }.map(Product.init)
+        return SubscriptionStoreControlStyleConfiguration(options: page.plans.map(option), sections: sections, groupDisplayName: groupName,
+                                                          autoRenewPreference: renew, allOptions: page.plans.map(Product.init),
+                                                          descriptionVisibility: .automatic)
     }
 
     /// the subscribe button's label: the action, the plan's name or price, on one line or two
@@ -626,6 +784,28 @@ public struct SubscriptionStoreView<MarketingContent: View>: View {
 }
 extension SubscriptionStoreView where MarketingContent == EmptyView {
     public init(groupID: String) { self.groupID = groupID; productIDs = []; marketing = nil }
+    public init(groupID: String, visibleRelationships: Product.SubscriptionRelationship) {
+        self.groupID = groupID; productIDs = []; marketing = nil; _relationships = visibleRelationships
+    }
     public init<C: Collection>(productIDs: C) where C.Element == String { groupID = nil; self.productIDs = Array(productIDs); marketing = nil }
     public init(subscriptions: [Product]) { groupID = nil; productIDs = subscriptions.map { $0.id }; marketing = nil }
+}
+
+/// The iOS 18 store content of a subscription store, shown in place of the marketing content.
+public struct SubscriptionStoreContentView: View {
+    public var body: some View { EmptyView() }
+}
+extension SubscriptionStoreView where MarketingContent == SubscriptionStoreContentView {
+    public init<C: StoreContent>(groupID: String, visibleRelationships: Product.SubscriptionRelationship = .all, @StoreContentBuilder content: @escaping () -> C) {
+        self.groupID = groupID; productIDs = []; marketing = nil; _relationships = visibleRelationships
+        _content = { _skResolve(content()) }
+    }
+    public init<C: StoreContent, P: Collection>(productIDs: P, @StoreContentBuilder content: @escaping () -> C) where P.Element == String {
+        groupID = nil; self.productIDs = Array(productIDs); marketing = nil
+        _content = { _skResolve(content()) }
+    }
+    public init<C: StoreContent, S: Collection>(subscriptions: S, @StoreContentBuilder content: @escaping () -> C) where S.Element == Product {
+        groupID = nil; productIDs = subscriptions.map { $0.id }; marketing = nil
+        _content = { _skResolve(content()) }
+    }
 }

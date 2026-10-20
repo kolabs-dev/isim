@@ -135,6 +135,23 @@ def storekit(app, cmd, args):
     if app in ('certificate', 'offer-key'):
         return storekit_device(app, [a for a in [cmd, *args] if a])
     bid = bundle_id(app)
+    if cmd == 'purchase-intent':        # a purchase started on the App Store (a promoted in-app purchase)
+        if not args:
+            die('usage: isim storekit <app> purchase-intent PRODUCT [OFFER]')
+        d = os.path.join(STOREKIT, bid, 'intents')
+        os.makedirs(d, exist_ok=True)
+        intent = {'productID': args[0], **({'offerID': args[1]} if len(args) > 1 else {})}
+        write_json(os.path.join(d, f'{time.time():.6f}-{random.randint(0, 1 << 30)}.json'), intent)
+        print(f'purchase intent for {args[0]}{" with offer " + args[1] if len(args) > 1 else ""} (the app gets it while it listens)')
+        return
+    if cmd == 'promotions':             # the promoted in-app purchases' order and visibility the app set
+        p = os.path.join(STOREKIT, bid, 'promotions.json')
+        pr = json.load(open(p)) if os.path.exists(p) else {}
+        vis = pr.get('visibility', {})
+        print('order: ' + (', '.join(pr.get('order', [])) or '(App Store Connect order)'))
+        for k in sorted(vis):
+            print(f'{k}: {vis[k]}')
+        return
     path = os.path.join(STOREKIT, bid, 'ledger.json')
     old = os.path.join(container(app), 'Library/isim/StoreKit/ledger.json')
     if not os.path.exists(path) and os.path.exists(old):
