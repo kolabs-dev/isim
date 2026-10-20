@@ -66,8 +66,15 @@ def test_scheme(device_data, tmp_path):
     assert has(r"ModelTests testZLifecycleOrder\]. passed"), "setUp/tearDown order"
     assert has(r"Test Case .-\[ObjCTests testCalculator\]. passed"), "ObjC XCTestCase in the same bundle"
     assert has(r"Test Case .-\[ObjCTests testExceptions\]. passed"), "ObjC XCTAssertThrows (@try/@catch)"
+    for t in ("testActivities", "testExpectedFailures", "testRecordIssue", "testKeyPathExpectation", "testDarwinNotification"):
+        assert has(rf"IssueTests {t}\]. passed"), f"issues, expected failures, activities, expectations: {t}"
+    assert has(r"Test Case .-\[ObjCTests testObjCIssues\]. passed"), "the Objective-C interface (XCTContext, XCTExpectFailure*, XCTMutableIssue)"
+    assert has(r"^    t = +[0-9.]+s Add numbers$") and has(r"^    t = +[0-9.]+s     Attach the operands$"), "activities, nested"
+    assert has(r"testExpectedFailures\] : Expected failure: addition is off by one: XCTAssertEqual failed") and \
+        has(r"Expected failure: known bug 42: failed - bug 42"), "expected failures are reported, not failures"
+    assert not has(r"error: .*IssueTests"), "no issue of IssueTests fails it"
     assert not has(r"ExpectedFailureTests|ExpectedObjCFailureTests"), "the scheme skips the failing classes"
-    assert has(r"Executed 1[0-9] tests, with 2 tests skipped and 0 failures"), "XCTest summary"
+    assert has(r"Executed 2[0-9] tests, with 2 tests skipped and 0 failures"), "XCTest summary"
     assert has(r"Test conversion\(\) passed") and has(r"with 3 test cases passed") and has(r"Suite UnitsSuite passed"), \
         "Swift Testing runs @Test / @Suite"
     assert not has(r"deliberateFailure"), "Swift Testing skips FailingSuite (scheme)"
@@ -90,6 +97,9 @@ def test_scheme(device_data, tmp_path):
     assert has(r"Test attachments\(\) passed"), "the attachments test"
     names = sorted(p.name for p in att.iterdir()) if att.is_dir() else []
     assert names == ["magic.bin", "table.csv", "unit.json", "units.txt"], names
+    # XCTAttachments added to activities (Swift and Objective-C) are kept with their tests
+    kept = {p.name: p.read_text() for p in (res / "AppTests.attachments").rglob("*.txt")}
+    assert kept.get("operands.txt") == "20 + 22" and kept.get("objc.txt") == "from Objective-C", sorted(kept)
     assert (att / "units.txt").read_text() == "kilo = 1000" and (att / "magic.bin").read_bytes() == b"ISIM"
     assert '"factor"' in (att / "unit.json").read_text() and (att / "table.csv").read_text().startswith("name,factor")
 
@@ -110,7 +120,9 @@ def test_failing_tests(device_data):
         "unfulfilled expectation times out"
     assert has(r'testUncaughtException\] : failed: caught "NSInternalInconsistencyException", "deliberate exception"') \
         and not has(r"not reached"), "uncaught NSException recorded"
-    assert has(r"Executed 5 tests, with 5 failures") and not has(r"testLinkedLibraries"), "only the selected tests ran"
+    assert has(r"testUnmatchedExpectedFailure\] : Failed due to unmatched expected failure: a bug that is fixed"), \
+        "a strict XCTExpectFailure that matches nothing fails"
+    assert has(r"Executed 6 tests, with 6 failures") and not has(r"testLinkedLibraries"), "only the selected tests ran"
     assert has(r"Expectation failed: \(Units\.convert\(1\) → 10000\) == 1") and has(r"Test deliberateFailure\(\) failed"), \
         "Swift Testing failure reported"
     assert has(r"Failed to tap: No matches found") and has(r"ExpectedUIFailureTests testMissingButton\]. failed"), \

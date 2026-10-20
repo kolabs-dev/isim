@@ -4,7 +4,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class XCUIElement, XCTAttachment;
+@class XCUIElement, XCTAttachment, XCTIssue;
 
 /* Something attachments are added to: a test case. */
 @protocol XCTActivity <NSObject>
@@ -35,6 +35,9 @@ __attribute__((swift_attr("@objcMembers")))
 
 - (void)recordFailureWithDescription:(NSString *)description inFile:(NSString *)filePath atLine:(NSUInteger)lineNumber expected:(BOOL)expected
     NS_SWIFT_NAME(recordFailure(withDescription:inFile:atLine:expected:));
+/* every issue of the test goes through here (assertions, thrown errors, exceptions): an XCTExpectFailure scope that
+ * matches it makes it an expected failure; otherwise the test fails. Overrides can change it before calling super. */
+- (void)recordIssue:(XCTIssue *)issue NS_SWIFT_NAME(record(_:)) NS_REQUIRES_SUPER;
 
 /* performance: runs the block 10 times and reports the average wall-clock time */
 - (void)measureBlock:(void (NS_NOESCAPE ^)(void))block NS_SWIFT_NAME(measure(_:));
@@ -62,6 +65,11 @@ __attribute__((swift_attr("@objcMembers")))
                                           handler:(nullable XCNotificationExpectationHandler)handler NS_SWIFT_NAME(expectation(forNotification:object:handler:));
 - (XCTestExpectation *)expectationForPredicate:(NSPredicate *)predicate evaluatedWithObject:(nullable id)object
                                        handler:(nullable XCPredicateExpectationHandler)handler NS_SWIFT_NAME(expectation(for:evaluatedWith:handler:));
+- (XCTestExpectation *)keyValueObservingExpectationForObject:(id)objectToObserve keyPath:(NSString *)keyPath expectedValue:(nullable id)expectedValue
+    NS_SWIFT_NAME(keyValueObservingExpectation(for:keyPath:expectedValue:));
+- (XCTestExpectation *)keyValueObservingExpectationForObject:(id)objectToObserve keyPath:(NSString *)keyPath
+                                                     handler:(nullable XCKeyValueObservingExpectationHandler)handler
+    NS_SWIFT_NAME(keyValueObservingExpectation(for:keyPath:handler:));
 - (void)waitForExpectationsWithTimeout:(NSTimeInterval)timeout handler:(nullable XCWaitCompletionHandler)handler
     NS_SWIFT_NAME(waitForExpectations(timeout:handler:)) NS_SWIFT_DISABLE_ASYNC;
 - (void)waitForExpectations:(NSArray<XCTestExpectation *> *)expectations timeout:(NSTimeInterval)seconds

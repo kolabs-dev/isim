@@ -1,0 +1,5 @@
+---
+Name: XCTest
+Classes:
+- Name: XCTIssue
+  SwiftBridge: XCTest.XCTIssue
