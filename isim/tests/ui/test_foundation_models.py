@@ -46,3 +46,79 @@ def test_foundation_models_ios18(launch):
     app = launch("HelloFoundationModels", device="iphone16pro", os_version="18")
     app.wait_log(r"foundation models need iOS 26")
     assert app.quit() == 0
+
+
+# ---- a model backend (issue #277): an OpenAI-compatible server, scripted here ----
+import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+RECIPE = {"name": "Omelette", "minutes": 10, "steps": ["beat", "pour", "fold"], "vegetarian": True, "difficulty": "easy"}
+
+
+class _Model(BaseHTTPRequestHandler):
+    """/v1/chat/completions, streamed as server-sent events: a tool call when the session has tools and the user
+    asks about the weather (then the answer that uses the tool's output), JSON for a response_format, text otherwise"""
+    requests = []
+
+    def log_message(self, *a):
+        pass
+
+    def do_POST(self):
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        _Model.requests.append({"path": self.path, **body})
+        msgs = body["messages"]
+        last = msgs[-1]
+        if last["role"] == "tool":
+            chunks = [{"content": "It is "}, {"content": last["content"].lower() + "."}]
+        elif body.get("tools") and "weather" in (last.get("content") or ""):
+            chunks = [{"tool_calls": [{"index": 0, "id": "call_1", "type": "function",
+                                       "function": {"name": "getWeather", "arguments": '{"city": '}}]},
+                      {"tool_calls": [{"index": 0, "function": {"arguments": '"Paris"}'}}]}]
+        elif body.get("response_format"):
+            text = json.dumps(RECIPE)
+            chunks = [{"content": text[:12]}, {"content": text[12:30]}, {"content": text[30:]}]
+        else:
+            chunks = [{"content": "Hello "}, {"content": "from the model"}]
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.end_headers()
+        for c in chunks:
+            self.wfile.write(b"data: " + json.dumps({"choices": [{"index": 0, "delta": c}]}).encode() + b"\n\n")
+            self.wfile.flush()
+        self.wfile.write(b"data: [DONE]\n\n")
+
+
+def test_foundation_models_backend(launch):
+    """passthrough to an OpenAI-compatible server (ISIM_LLM_URL): text, a Generable response through response_format,
+    a stream of partial JSON, and a tool round (the tool's output goes back to the model)"""
+    _Model.requests = []
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _Model)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{server.server_address[1]}/v1"
+        app = launch("HelloFoundationModels", device="iphone17", os_version="26",
+                     env={"ISIM_LLM_URL": url, "ISIM_LLM_MODEL": "test-model"})
+        app.wait_log(r"HelloFoundationModels: done", timeout=60)
+        log = app.log
+        assert "availability available isAvailable true" in log
+        assert "live error" not in log, re.search(r"live error.*", log)[0]
+        assert "live text 'Hello from the model'" in log, "text response"
+        assert "live recipe Omelette 10 3 steps easy" in log, "a Generable response"
+        assert re.search(r"live stream snapshots>1 true names \[.*\"Omelette\"\]", log), "partial snapshots while streaming"
+        assert "live tool 'It is sunny in paris.' entries [\"prompt\", \"calls(getWeather)\", \"output(Sunny in Paris)\", \"response\"]" in log, \
+            "the tool call round"
+        assert "live transcript 11 responding false" in log, "instructions, 3 requests and their responses, a request with a tool round"
+        assert app.quit() == 0
+    finally:
+        server.shutdown()
+    r = _Model.requests
+    assert all(q["path"] == "/v1/chat/completions" and q["stream"] and q["model"] == "test-model" for q in r)
+    assert r[0]["messages"][0] == {"role": "system", "content": "You are a cook."} and r[0]["temperature"] == 0.2
+    assert r[0]["tools"][0]["function"]["name"] == "getWeather" and "city" in r[0]["tools"][0]["function"]["parameters"]["properties"]
+    fmt = r[1]["response_format"]
+    assert fmt["type"] == "json_schema" and fmt["json_schema"]["name"] == "Recipe"
+    assert fmt["json_schema"]["schema"]["properties"]["minutes"]["maximum"] == 240
+    assert [m["role"] for m in r[1]["messages"]] == ["system", "user", "assistant", "user"], "the conversation so far"
+    tool_round = [q for q in r if q["messages"][-1]["role"] == "tool"]
+    assert tool_round and tool_round[0]["messages"][-1] == {"role": "tool", "content": "Sunny in Paris", "tool_call_id": "call_1"}

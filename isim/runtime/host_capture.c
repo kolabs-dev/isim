@@ -9,9 +9,11 @@
  *   - RAW photos:            LibRaw's dcraw_emu and raw-identify (libraw-bin; optional), libraw.so.23 for the
  *                            supported camera list (dlopen; optional)
  *   - speech recognition:    whisper.cpp (whisper-cli + ISIM_WHISPER_MODEL) or vosk-transcriber (+ ISIM_VOSK_MODEL)
+ *   - language models:       llama.cpp's llama-server for a GGUF model (ISIM_LLM_MODEL; Foundation Models, issue #277)
  * Nothing here opens a camera or microphone unless the user configured it. Face detection has no host backend. */
 #define _GNU_SOURCE
 #include "guest_abi.h"
+#include "platform.h"
 #include <dlfcn.h>
 #include <ctype.h>
 #include <errno.h>
@@ -24,6 +26,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -686,4 +690,55 @@ ISIM_GUEST_ABI int isim_audio_session_poll(char *buf, int len) {
     if (got) { snprintf(buf, len, "%s", as_q[asq_head]); asq_head = (asq_head + 1) % 32; asq_count--; }
     pthread_mutex_unlock(&asq_mtx);
     return got;
+}
+
+/* ================= language models (Foundation Models, issue #277) ================= */
+/* llama.cpp's llama-server serving a GGUF model on a free local port, started once (it dies with the runtime): writes
+   its OpenAI-compatible base URL (http://127.0.0.1:PORT/v1) to `out` and returns 1 once it answers /health (loading a
+   model can take a while); 0 if llama-server is missing or does not come up */
+static int llm_health(int port) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) return 0;
+    struct sockaddr_in a = { .sin_family = AF_INET, .sin_port = htons((unsigned short)port) };
+    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    int ok = 0;
+    if (connect(fd, (struct sockaddr *)&a, sizeof a) == 0) {
+        const char *req = "GET /health HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n";
+        char buf[64] = { 0 };
+        if (write(fd, req, strlen(req)) > 0 && read(fd, buf, sizeof buf - 1) > 12) ok = strncmp(buf + 9, "200", 3) == 0;
+    }
+    close(fd);
+    return ok;
+}
+ISIM_GUEST_ABI int isim_llm_server(const char *gguf, char *out, int cap) {
+    static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+    static int state;                               /* 0 not tried, 1 running, -1 failed */
+    static char url[64];
+    pthread_mutex_lock(&m);
+    if (!state) {
+        state = -1;
+        int port = 0, fd = socket(AF_INET, SOCK_STREAM, 0);
+        struct sockaddr_in a = { .sin_family = AF_INET };
+        a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        socklen_t len = sizeof a;
+        if (fd >= 0 && bind(fd, (struct sockaddr *)&a, sizeof a) == 0 && getsockname(fd, (struct sockaddr *)&a, &len) == 0) port = ntohs(a.sin_port);
+        if (fd >= 0) close(fd);
+        if (gguf && !access(gguf, R_OK) && port && on_path("llama-server")) {
+            char p[16]; snprintf(p, sizeof p, "%d", port);
+            char *argv[] = { "llama-server", "-m", (char *)gguf, "--host", "127.0.0.1", "--port", p, "--jinja", NULL };
+            struct isim_spawn s = { .path = "llama-server", .argv = argv, .null_stdin = 1, .null_stdout = 1, .null_stderr = 1, .die_with_parent = 1 };
+            pid_t pid = isim_spawn(&s);
+            for (int i = 0; pid > 0 && i < 1200; i++) {               /* up to 5 minutes */
+                if (llm_health(port)) { snprintf(url, sizeof url, "http://127.0.0.1:%d/v1", port); state = 1; break; }
+                int st;
+                if (waitpid(pid, &st, WNOHANG) == pid) break;           /* it exited: a bad model, say */
+                struct timespec t = { 0, 250 * 1000 * 1000 }; nanosleep(&t, NULL);
+            }
+            if (state != 1 && pid > 0) { kill(pid, SIGKILL); int st; waitpid(pid, &st, 0); }
+        }
+    }
+    int ok = state == 1;
+    if (ok && out && cap > 0) snprintf(out, (size_t)cap, "%s", url);
+    pthread_mutex_unlock(&m);
+    return ok;
 }

@@ -83,6 +83,9 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_CAMERA_OBJECTS=face:x,y,w,h;humanBody:x,y,w,h` | what the camera sees besides codes (normalized rectangles): `face`, `humanBody`, `humanFullBody`, `catBody`, `dogBody`, `catHead`, `dogHead`, `salientObject`, reported by `AVCaptureMetadataOutput` (there is no detector on the host) |
 | `ISIM_MUSICKIT_DEVELOPER_TOKEN=…` | MusicKit catalog requests go to the Apple Music API with this developer token (yours; iOS gets one for a registered app, isim cannot). Optional: `ISIM_MUSICKIT_USER_TOKEN`, `ISIM_MUSICKIT_STOREFRONT` (default `us`), `ISIM_MUSICKIT_API` (another server, for tests). Never commit tokens |
 | `ISIM_WHISPER_MODEL=model.bin` | speech recognition (`SFSpeechRecognizer`) with whisper.cpp's `whisper-cli` and this ggml model |
+| `ISIM_LLM_URL=http://127.0.0.1:8080/v1` | Foundation Models' system language model: a local OpenAI-compatible server (llama.cpp's `llama-server`, Ollama's `/v1`, LM Studio, vLLM); `SystemLanguageModel.default` is available on devices with Apple Intelligence |
+| `ISIM_LLM_MODEL=name` or `ISIM_LLM_MODEL=model.gguf` | with `ISIM_LLM_URL`: the server's model name; without it, a GGUF model isim serves with llama.cpp's `llama-server` (started on the host on first use) |
+| `ISIM_LLM_API_KEY=…` | a bearer token for a server that wants one (keep it in your environment, never in a project) |
 | `ISIM_VOSK_MODEL=DIR` | speech recognition with `vosk-transcriber` and this Vosk model (when whisper.cpp is not set up) |
 | `ISIM_AUDIO=1` (headless) | open an audio device in headless runs too (tests pair it with `SDL_AUDIO_DRIVER=dummy` for a silent, real-time device) |
 | `ISIM_AUDIO_TAP=file.f32` | write a copy of the mixed audio output (raw 32-bit float, stereo, 48 kHz) for tests |
