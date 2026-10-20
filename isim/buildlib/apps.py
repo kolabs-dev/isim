@@ -787,6 +787,16 @@ def _(a):
         a.copy(os.path.join("fixtures", f), b)
 
 
+@app("tests/pdfkit", products=["PDFKitTest.app"], swift=False, extra_inputs=[f"tests/cgpdf/fixtures/{f}" for f in
+     ("aes128.pdf", "aes256.pdf", "damaged.pdf", "incremental.pdf", "objstm.pdf", "plain.pdf", "rc4.pdf", "text.pdf")])
+def _(a):
+    b = a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "UIKit", "-framework", "CoreGraphics",
+                                              "-framework", "PDFKit"], name="PDFKitTest")
+    fixtures = os.path.join(a.d, "..", "cgpdf", "fixtures")              # CGPDFTest's
+    for f in sorted(os.listdir(fixtures)):
+        shutil.copy(os.path.join(fixtures, f), b)
+
+
 @app("tests/swift-embedded", products=["SwiftEmbeddedTest.app"],
      extra_inputs=["out/swift/embedded/Swift.swiftmodule/x86_64-apple-ios-simulator.swiftmodule", "out/swift/libswiftEmbeddedSupport.a"])
 def _(a):

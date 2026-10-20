@@ -260,6 +260,23 @@ def objstm():
     return bytes(out)
 
 
+def text_document():
+    """two pages of text (the second rotated 90 with a crop box) with page labels: i, then A-5"""
+    t1 = b"BT /F1 20 Tf 72 700 Td (First line) Tj 0 -30 Td (Second) Tj ET\n"
+    t2 = b"BT /F1 20 Tf 50 300 Td (Turned) Tj ET\n"
+    return [
+        {"Type": N("Catalog"), "Pages": R(2), "PageLabels": {"Nums": [0, {"S": N("r")}, 1, {"S": N("D"), "P": b"A-", "St": 5}]}},
+        {"Type": N("Pages"), "Kids": [R(3), R(4)], "Count": 2, "MediaBox": [0, 0, 612, 792], "Resources": {"Font": {"F1": R(7)}}},
+        {"Type": N("Page"), "Parent": R(2), "Contents": R(5)},
+        {"Type": N("Page"), "Parent": R(2), "Contents": R(6), "Rotate": 90, "MediaBox": [0, 0, 300, 400],
+         "CropBox": [10, 20, 290, 380]},
+        Stream({}, t1),
+        Stream({}, t2),
+        {"Type": N("Font"), "Subtype": N("Type1"), "BaseFont": N("Helvetica")},
+        {"Title": b"Text"},
+    ]
+
+
 def check(path, password=None, flag="-upw"):
     cmd = ["pdfinfo"] + ([flag, password] if password is not None else []) + [path]
     r = subprocess.run(cmd, capture_output=True, text=True)
@@ -274,6 +291,7 @@ def main():
         "incremental.pdf": incremental(),
         "objstm.pdf": objstm(),
         "damaged.pdf": classic(document(), broken_xref=True)[0],
+        "text.pdf": classic(text_document(), info=8)[0],
         "rc4.pdf": classic(document(), sec=Security(3, "user", "owner"))[0],
         "aes128.pdf": classic(document(), sec=Security(4, "", "owner"), version=b"1.6")[0],
         "aes256.pdf": classic(document(), sec=Security(6, "user", "owner"), version=b"1.7")[0],
