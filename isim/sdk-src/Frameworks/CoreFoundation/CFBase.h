@@ -33,6 +33,7 @@ typedef unsigned long CFTypeID;
 typedef unsigned long CFOptionFlags;
 typedef unsigned long CFHashCode;
 typedef const void *CFTypeRef;
+typedef CFTypeRef CFPropertyListRef;
 /* toll-free bridged to the Foundation classes, as on Apple platforms */
 typedef const struct __attribute__((objc_bridge(NSString))) __CFString *CFStringRef;
 typedef struct __attribute__((objc_bridge_mutable(NSMutableString))) __CFString *CFMutableStringRef;

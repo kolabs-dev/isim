@@ -159,4 +159,28 @@ typedef NS_OPTIONS(NSUInteger, NSStringEnumerationOptions) {
 - (nullable NSString *)_isim_expandingPluralsWithValues:(NSArray<NSNumber *> *)values;
 @end
 
+/* string transforms (adapted: isim's own transliteration; transforms it does not know give nil / NO, see Transform.m) */
+typedef NSString *NSStringTransform NS_TYPED_EXTENSIBLE_ENUM NS_SWIFT_NAME(StringTransform);
+FOUNDATION_EXPORT NSStringTransform const NSStringTransformLatinToKatakana;
+FOUNDATION_EXPORT NSStringTransform const NSStringTransformLatinToHiragana;
+FOUNDATION_EXPORT NSStringTransform const NSStringTransformLatinToHangul;
+FOUNDATION_EXPORT NSStringTransform const NSStringTransformLatinToArabic;
+FOUNDATION_EXPORT NSStringTransform const NSStringTransformLatinToHebrew;
+FOUNDATION_EXPORT NSStringTransform const NSStringTransformLatinToThai;
+FOUNDATION_EXPORT NSStringTransform const NSStringTransformLatinToCyrillic;
+FOUNDATION_EXPORT NSStringTransform const NSStringTransformLatinToGreek;
+FOUNDATION_EXPORT NSStringTransform const NSStringTransformToLatin;
+FOUNDATION_EXPORT NSStringTransform const NSStringTransformMandarinToLatin;
+FOUNDATION_EXPORT NSStringTransform const NSStringTransformHiraganaToKatakana;
+FOUNDATION_EXPORT NSStringTransform const NSStringTransformFullwidthToHalfwidth;
+FOUNDATION_EXPORT NSStringTransform const NSStringTransformToXMLHex;
+FOUNDATION_EXPORT NSStringTransform const NSStringTransformToUnicodeName;
+FOUNDATION_EXPORT NSStringTransform const NSStringTransformStripCombiningMarks;
+FOUNDATION_EXPORT NSStringTransform const NSStringTransformStripDiacritics;
+@interface NSString (NSStringTransform)
+- (nullable NSString *)stringByApplyingTransform:(NSStringTransform)transform reverse:(BOOL)reverse NS_SWIFT_NAME(applyingTransform(_:reverse:));
+@end
+@interface NSMutableString (NSStringTransform)
+- (BOOL)applyTransform:(NSStringTransform)transform reverse:(BOOL)reverse range:(NSRange)range updatedRange:(nullable NSRangePointer)resultingRange;
+@end
 NS_ASSUME_NONNULL_END

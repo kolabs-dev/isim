@@ -36,4 +36,23 @@ CF_EXPORT void CFStringAppendFormatAndArguments(CFMutableStringRef theString, CF
                                                 va_list arguments);
 CF_EXPORT unsigned long CFStringConvertEncodingToNSStringEncoding(CFStringEncoding encoding);
 CF_EXPORT CFStringEncoding CFStringConvertNSStringEncodingToEncoding(unsigned long encoding);
+/* transliteration (adapted: isim's own transforms, see Foundation's -applyingTransform:reverse:; transform IDs it does not
+   know return false). The result is C bool here so Swift sees Bool, as with Apple's SDK (#523) */
+CF_EXPORT bool CFStringTransform(CFMutableStringRef string, CFRange *range, CFStringRef transform, bool reverse);
+CF_EXPORT const CFStringRef kCFStringTransformStripCombiningMarks;
+CF_EXPORT const CFStringRef kCFStringTransformToLatin;
+CF_EXPORT const CFStringRef kCFStringTransformFullwidthHalfwidth;
+CF_EXPORT const CFStringRef kCFStringTransformLatinKatakana;
+CF_EXPORT const CFStringRef kCFStringTransformLatinHiragana;
+CF_EXPORT const CFStringRef kCFStringTransformHiraganaKatakana;
+CF_EXPORT const CFStringRef kCFStringTransformMandarinLatin;
+CF_EXPORT const CFStringRef kCFStringTransformLatinHangul;
+CF_EXPORT const CFStringRef kCFStringTransformLatinArabic;
+CF_EXPORT const CFStringRef kCFStringTransformLatinHebrew;
+CF_EXPORT const CFStringRef kCFStringTransformLatinThai;
+CF_EXPORT const CFStringRef kCFStringTransformLatinCyrillic;
+CF_EXPORT const CFStringRef kCFStringTransformLatinGreek;
+CF_EXPORT const CFStringRef kCFStringTransformToXMLHex;
+CF_EXPORT const CFStringRef kCFStringTransformToUnicodeName;
+CF_EXPORT const CFStringRef kCFStringTransformStripDiacritics;
 __END_DECLS

@@ -9,6 +9,22 @@ func check(_ ok: @autoclosure () -> Bool, _ what: String) {
     if ok() { print("PASS  \(what)") } else { failures += 1; print("FAIL  \(what)") }
 }
 
+/// CoreFoundation from Swift (CFURL, CFLocale, CFPreferences: managed like Apple's) and String.applyingTransform
+func coreFoundationChecks() {
+    let url = CFURLCreateWithString(nil, "https://example.com:81/a/b.txt?q=1" as CFString, nil)
+    check(url.map { CFURLCopyHostName($0) as String? == "example.com" && CFURLGetPortNumber($0) == 81 } ?? false, "CFURL from Swift")
+    check(url.map { CFURLCopyPathExtension($0) as String? == "txt" && ($0 as URL).lastPathComponent == "b.txt" } ?? false, "CFURL toll-free with URL")
+    let fr = CFLocaleCreate(nil, CFLocaleIdentifier("fr_FR" as CFString))
+    check(fr.map { (CFLocaleGetValue($0, .languageCode) as? String) == "fr" && ($0 as Locale).identifier == "fr_FR" } ?? false, "CFLocale from Swift")
+    CFPreferencesSetAppValue("isim.swift.cf" as CFString, 7 as CFNumber, kCFPreferencesCurrentApplication)
+    check(CFPreferencesGetAppIntegerValue("isim.swift.cf" as CFString, kCFPreferencesCurrentApplication, nil) == 7 &&
+          UserDefaults.standard.integer(forKey: "isim.swift.cf") == 7, "CFPreferences = UserDefaults")
+    check("Ελλάδα".applyingTransform(.toLatin, reverse: false) == "Elláda", "String.applyingTransform(.toLatin)")
+    check("Crème brûlée".applyingTransform(.stripDiacritics, reverse: false) == "Creme brulee", "applyingTransform(.stripDiacritics)")
+    check("カタカナ".applyingTransform(.hiraganaToKatakana, reverse: true) == "かたかな", "applyingTransform(.hiraganaToKatakana, reverse:)")
+    check("中文".applyingTransform(.mandarinToLatin, reverse: false) == nil, "an unknown transform is nil")
+}
+
 /// an NSError subclass with its own state, archived through super (issue #39)
 final class AppError: NSError, @unchecked Sendable {
     let screen: String
@@ -794,6 +810,7 @@ func lockingChecks() {
         attributedStringChecks()
         fileChecks()
         localeChecks()
+        coreFoundationChecks()
         print("swift foundation test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))
     }
