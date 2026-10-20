@@ -682,6 +682,7 @@ OBJC_NAMES["WebKit"] = {c: c for c in """WKFrameInfo WKFindResult WKNavigation W
     WKContextMenuElementInfo WKWebView""".split()}
 
 
+OBJC_NAMES["UniformTypeIdentifiers"] = {"UTTypeReference": "UTType"}
 OBJC_NAMES["AdSupport"] = {"ASIdentifierManager": "ASIdentifierManager"}
 OBJC_NAMES["AppTrackingTransparency"] = {"ATTrackingManager": "ATTrackingManager"}
 OBJC_NAMES["StoreKit"] = {**{c: c for c in """SKAdImpression SKAdNetwork SKOverlay SKPaymentQueue SKStoreProductViewController SKStorefront
@@ -737,8 +738,8 @@ Combine Combine-compat.o           # enum case symbols for apps built before Com
 Dispatch -lswift_Concurrency -framework Foundation
 FoundationEssentials -lswift_Concurrency  # Predicate, Expression: Swift-only, so the #Predicate expansions' module name resolves
 Foundation -lswiftFoundationEssentials -lswiftObjectiveC -lswiftDispatch -lswiftCombine -lswift_Concurrency -framework Foundation -lisim_host
-UniformTypeIdentifiers -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
-CoreTransferable -lswiftObjectiveC -lswiftFoundation -lswiftUniformTypeIdentifiers -lswift_Concurrency -framework Foundation
+UniformTypeIdentifiers -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation -alias _$s22UniformTypeIdentifiers6UTTypeV11_isimTagsV1SDySSSaySSGGvg _$s22UniformTypeIdentifiers6UTTypeV4tagsSDySSSaySSGGvg -alias _$s22UniformTypeIdentifiers6UTTypeV11_isimTagsV1SDySSSaySSGGvpMV _$s22UniformTypeIdentifiers6UTTypeV4tagsSDySSSaySSGGvpMV   # UTType.tags as [String: [String]] (before #278)
+CoreTransferable -lswiftObjectiveC -lswiftFoundation -lswiftUniformTypeIdentifiers -lswiftCombine -lswift_Concurrency -framework Foundation
 Symbols
 DeveloperToolsSupport -lswiftCoreGraphics -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
 UIKit -lswiftDeveloperToolsSupport -lswiftSymbols -lswiftObjectiveC -lswiftFoundation -lswiftUniformTypeIdentifiers -lswiftDispatch -lswift_Concurrency -lswiftObservation -framework Foundation -framework UIKit

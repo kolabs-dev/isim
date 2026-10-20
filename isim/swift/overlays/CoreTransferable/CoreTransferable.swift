@@ -1,8 +1,10 @@
-// isim CoreTransferable (self-authored, iOS API names): the Transferable protocol with data, file and proxy
-// representations, enough to import items (PhotosPickerItem.loadTransferable) and export them as data.
+// isim CoreTransferable (self-authored, iOS API names): the Transferable protocol with data, file, proxy and Codable
+// representations and their modifiers (visibility, suggested file names, exporting conditions), enough to import items
+// (PhotosPickerItem.loadTransferable, drops, paste) and export them as data (ShareLink, drags).
 // Conformances: Data, String, URL (and SwiftUI's Image via PhotosUI).
 @_exported import UniformTypeIdentifiers
 import Foundation
+import Combine
 
 public protocol TransferRepresentation<Item>: Sendable {
     associatedtype Item: Transferable
@@ -22,6 +24,67 @@ public struct _TransferEntry<Item>: @unchecked Sendable {
     public let contentType: UTType
     public let importing: (@Sendable (Data) async throws -> Item)?
     public let exporting: (@Sendable (Item) async throws -> Data)?
+    /// the `.visibility(_:)` modifier: who may receive this representation
+    public var visibility: TransferRepresentationVisibility = .all
+    /// the `.suggestedFileName(_:)` modifier: a name for the file a share or a drop creates
+    public var suggestedName: (@Sendable (Item) -> String?)? = nil
+    /// the `.exportingCondition(_:)` modifier: whether this item exports through this representation
+    public var condition: (@Sendable (Item) -> Bool)? = nil
+    public init(contentType: UTType, importing: (@Sendable (Data) async throws -> Item)?, exporting: (@Sendable (Item) async throws -> Data)?) {
+        self.contentType = contentType; self.importing = importing; self.exporting = exporting
+    }
+}
+
+/// Who may receive a representation: other apps, the developer's team's apps, the app group, or only this app.
+public struct TransferRepresentationVisibility: Sendable, Equatable {
+    let _kind: Int
+    public static let all = TransferRepresentationVisibility(_kind: 0)
+    public static let team = TransferRepresentationVisibility(_kind: 1)
+    @available(iOS 17.0, *)
+    public static let group = TransferRepresentationVisibility(_kind: 2)
+    public static let ownProcess = TransferRepresentationVisibility(_kind: 3)
+    /// isim: NSItemProviderRepresentationVisibility's value (all 0, team 1, group 2, ownProcess 3)
+    public var _isimRawValue: Int { _kind }
+}
+
+extension TransferRepresentation {
+    func _modified(_ change: (inout _TransferEntry<Item>) -> Void) -> _TupleRepresentation<Item> {
+        _TupleRepresentation(entries: _isimEntries.map { var e = $0; change(&e); return e })
+    }
+    /// who may receive this representation (isim: one app at a time, so only `.ownProcess` keeps it from other apps'
+    /// drops and shares)
+    public func visibility(_ visibility: TransferRepresentationVisibility) -> some TransferRepresentation<Item> {
+        _modified { $0.visibility = visibility }
+    }
+    /// the name of the file this representation's data goes into when it is shared or dropped as a file
+    public func suggestedFileName(_ fileName: String) -> some TransferRepresentation<Item> {
+        _modified { $0.suggestedName = { _ in fileName } }
+    }
+    public func suggestedFileName(_ fileName: @escaping @Sendable (Item) -> String?) -> some TransferRepresentation<Item> {
+        _modified { $0.suggestedName = fileName }
+    }
+    /// exports an item through this representation only when `condition` holds for it
+    public func exportingCondition(_ condition: @escaping @Sendable (Item) -> Bool) -> some TransferRepresentation<Item> {
+        _modified { $0.condition = condition }
+    }
+}
+
+/// A Codable item as data: JSON by default, or the given encoder and decoder.
+public struct CodableRepresentation<Item, Encoder, Decoder>: TransferRepresentation, @unchecked Sendable
+    where Item: Transferable & Codable, Encoder: TopLevelEncoder, Decoder: TopLevelDecoder, Encoder.Output == Data, Decoder.Input == Data {
+    let entries: [_TransferEntry<Item>]
+    public init(contentType: UTType, encoder: Encoder, decoder: Decoder) {
+        entries = [_TransferEntry(contentType: contentType, importing: { data in try decoder.decode(Item.self, from: data) },
+                                  exporting: { item in try encoder.encode(item) })]
+    }
+    public init(for itemType: Item.Type = Item.self, contentType: UTType, encoder: Encoder, decoder: Decoder) {
+        self.init(contentType: contentType, encoder: encoder, decoder: decoder)
+    }
+    public var _isimEntries: [_TransferEntry<Item>] { entries }
+}
+extension CodableRepresentation where Encoder == JSONEncoder, Decoder == JSONDecoder {
+    public init(contentType: UTType) { self.init(contentType: contentType, encoder: JSONEncoder(), decoder: JSONDecoder()) }
+    public init(for itemType: Item.Type = Item.self, contentType: UTType) { self.init(contentType: contentType) }
 }
 
 
@@ -127,8 +190,18 @@ extension Transferable {
         return nil
     }
     public func exported(as contentType: UTType) async throws -> Data {
-        for e in Self._isimEntries { if let ex = e.exporting, e.contentType.conforms(to: contentType) || contentType.conforms(to: e.contentType) { return try await ex(self) } }
+        for e in _isimExportEntries where e.contentType.conforms(to: contentType) || contentType.conforms(to: e.contentType) { return try await e.exporting!(self) }
         throw NSError(domain: "NSCocoaErrorDomain", code: 512, userInfo: nil)
+    }
+    /// isim: this item's exporting representations (their exporting conditions hold), in order
+    public var _isimExportEntries: [_TransferEntry<Self>] { Self._isimEntries.filter { $0.exporting != nil && ($0.condition?(self) ?? true) } }
+    /// isim: the content types this item exports to (exporting conditions applied)
+    public var _isimExportedContentTypes: [UTType] { _isimExportEntries.map(\.contentType) }
+    /// isim: the file name suggested for this item's data of `contentType` (with the type's extension)
+    public func _isimSuggestedFileName(for contentType: UTType) -> String? {
+        guard let e = _isimExportEntries.first(where: { $0.contentType == contentType }), let name = e.suggestedName?(self), !name.isEmpty else { return nil }
+        if let ext = contentType.preferredFilenameExtension, (name as NSString).pathExtension.isEmpty { return name + "." + ext }
+        return name
     }
 }
 
