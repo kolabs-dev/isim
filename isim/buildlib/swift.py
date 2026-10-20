@@ -728,7 +728,7 @@ OVERLAYS = """
 CoreGraphics -framework CoreGraphics
 ObjectiveC -framework Foundation   # NSObject lives in isim Foundation, not libobjc
 Combine Combine-compat.o           # enum case symbols for apps built before Completion was @frozen
-Dispatch -framework Foundation
+Dispatch -lswift_Concurrency -framework Foundation
 FoundationEssentials -lswift_Concurrency  # Predicate, Expression: Swift-only, so the #Predicate expansions' module name resolves
 Foundation -lswiftFoundationEssentials -lswiftObjectiveC -lswiftDispatch -lswiftCombine -lswift_Concurrency -framework Foundation -lisim_host
 UniformTypeIdentifiers -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation

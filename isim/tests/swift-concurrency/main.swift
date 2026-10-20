@@ -1,6 +1,7 @@
 // Swift Concurrency self-test on isim: async main, tasks, sleep, task groups, actors,
 // MainActor, continuations, AsyncStream, cancellation, task locals.
 import Foundation
+import Dispatch
 
 var failures = 0, checks = 0
 func check(_ ok: Bool, _ what: String) {
@@ -19,6 +20,61 @@ actor Counter {
 }
 
 enum Trace { @TaskLocal static var id = "none" }
+
+let queueKey = DispatchSpecificKey<String>()
+/// an actor whose jobs run on a DispatchSerialQueue (its SerialExecutor)
+actor QueueActor {
+    let queue: DispatchSerialQueue
+    var count = 0
+    init(queue: DispatchSerialQueue) { self.queue = queue }
+    nonisolated var unownedExecutor: UnownedSerialExecutor { queue.asUnownedSerialExecutor() }
+    func bump() -> (Int, String?) { count += 1; return (count, DispatchQueue.getSpecific(key: queueKey)) }
+}
+
+/// Dispatch's queue kinds from Swift: targets, asyncAndWait, inactive queues, workloops (issue #268)
+func dispatchQueueChecks() {
+    let parent = DispatchSerialQueue(label: "isim.parent")
+    parent.setSpecific(key: queueKey, value: "parent")
+    let child = DispatchQueue(label: "isim.child")
+    child.setTarget(queue: parent)
+    check(child.sync { DispatchQueue.getSpecific(key: queueKey) } == "parent", "setTarget(queue:): the child runs through its target")
+    let concurrent = DispatchConcurrentQueue(label: "isim.concurrent", target: parent)
+    nonisolated(unsafe) var inside = 0, overlap = false
+    let group = DispatchGroup()
+    for _ in 0..<20 {
+        concurrent.async(group: group) { inside += 1; if inside > 1 { overlap = true }; usleep(100); inside -= 1 }
+    }
+    check(group.wait(timeout: .now() + 10) == .success && !overlap, "DispatchConcurrentQueue targeting a serial queue is serialized by it")
+    let value = parent.asyncAndWait { DispatchQueue.getSpecific(key: queueKey) ?? "none" }
+    check(value == "parent", "asyncAndWait runs on the queue and returns its result")
+    nonisolated(unsafe) var itemRan = false
+    parent.asyncAndWait(execute: DispatchWorkItem { itemRan = true })
+    parent.asyncAndWait { itemRan = itemRan && DispatchQueue.getSpecific(key: queueKey) == "parent" }
+    check(itemRan, "asyncAndWait(execute:) with a work item and a closure")
+    let idleSerial = DispatchSerialQueue(label: "isim.idle.serial", attributes: .initiallyInactive)
+    nonisolated(unsafe) var serialEarly = false
+    idleSerial.async { serialEarly = true }
+    usleep(20_000)
+    let wasEarly = serialEarly
+    idleSerial.activate()
+    idleSerial.sync {}
+    check(!wasEarly && serialEarly, "DispatchSerialQueue.Attributes.initiallyInactive")
+    nonisolated(unsafe) var early = false
+    let idle = DispatchQueue(label: "isim.idle", attributes: .initiallyInactive)
+    idle.async { early = true }
+    usleep(30_000)
+    check(!early, ".initiallyInactive queues wait for activate()")
+    idle.activate()
+    idle.sync {}
+    check(early, "activate() starts an inactive queue")
+    let loop = DispatchWorkloop(label: "isim.workloop", autoreleaseFrequency: .workItem)
+    nonisolated(unsafe) var order: [Int] = []
+    for i in 0..<5 { loop.async { order.append(i) } }
+    loop.sync {}
+    check(order == [0, 1, 2, 3, 4] && loop.label == "isim.workloop", "DispatchWorkloop runs its items one at a time")
+    let serial: DispatchQueue = DispatchSerialQueue(label: "isim.serial")
+    check(serial is DispatchSerialQueue && serial.label == "isim.serial", "DispatchSerialQueue is a DispatchQueue")
+}
 
 func slowSquare(_ x: Int) async -> Int {
     try? await Task.sleep(nanoseconds: 10_000_000)
@@ -92,6 +148,23 @@ func slowSquare(_ x: Int) async -> Int {
         async let a = slowSquare(3)
         async let b = slowSquare(4)
         check(await a + b == 25, "async let")
+
+        // an actor on a DispatchSerialQueue
+        let actorQueue = DispatchSerialQueue(label: "isim.actor")
+        actorQueue.setSpecific(key: queueKey, value: "actor")
+        let qa = QueueActor(queue: actorQueue)
+        let (n, where_) = await qa.bump()
+        check(n == 1 && where_ == "actor", "an actor's jobs run on its DispatchSerialQueue (unownedExecutor)")
+        let isolated = actorQueue.sync { qa.assumeIsolated { $0.count == 1 } }
+        check(isolated, "assumeIsolated on the actor's queue (DispatchSerialQueue.checkIsolated)")
+        let counts = await withTaskGroup(of: Int.self) { g in
+            for _ in 0..<20 { g.addTask { await qa.bump().0 } }
+            var all: [Int] = []
+            for await c in g { all.append(c) }
+            return all
+        }
+        check(Set(counts) == Set(2...21), "the actor's jobs are serialized on the queue")
+        dispatchQueueChecks()
 
         print("swift concurrency test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))

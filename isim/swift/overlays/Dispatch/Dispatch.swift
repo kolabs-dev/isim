@@ -106,7 +106,12 @@ open class DispatchObject: @unchecked Sendable {
     public func activate() { dispatch_activate(object) }
     public func suspend() { dispatch_suspend(object) }
     public func resume() { dispatch_resume(object) }
+    /// the queue this object's work runs through (nil: the default global queue)
+    public func setTarget(queue: DispatchQueue?) { dispatch_set_target_queue(object, queue?.queue) }
 }
+
+/// runs the main queue's work forever (a program without a run loop)
+public func dispatchMain() -> Never { dispatch_main() }
 
 public final class DispatchWorkItem: @unchecked Sendable {
     let block: () -> Void
@@ -148,7 +153,7 @@ public final class DispatchSpecificKey<T> {
     public init() {}
 }
 
-public final class DispatchQueue: DispatchObject, @unchecked Sendable {
+public class DispatchQueue: DispatchObject, @unchecked Sendable {
     public struct Attributes: OptionSet, Sendable {
         public let rawValue: UInt64
         public init(rawValue: UInt64) { self.rawValue = rawValue }
@@ -166,14 +171,14 @@ public final class DispatchQueue: DispatchObject, @unchecked Sendable {
     private static let globalsLock: UnsafeMutablePointer<pthread_mutex_t> = {
         let m = UnsafeMutablePointer<pthread_mutex_t>.allocate(capacity: 1); pthread_mutex_init(m, nil); return m
     }()
-    public class func global(qos: DispatchQoS.QoSClass = .default) -> DispatchQueue {
+    public final class func global(qos: DispatchQoS.QoSClass = .default) -> DispatchQueue {
         pthread_mutex_lock(globalsLock); defer { pthread_mutex_unlock(globalsLock) }
         if let q = globals[qos.raw] { return q }
         let q = DispatchQueue(queue: dispatch_get_global_queue(Int(qos.raw), 0))
         globals[qos.raw] = q
         return q
     }
-    public class func global(priority: GlobalQueuePriority) -> DispatchQueue {
+    public final class func global(priority: GlobalQueuePriority) -> DispatchQueue {
         switch priority {
         case .high: return global(qos: .userInitiated)
         case .default: return global(qos: .default)
@@ -184,81 +189,98 @@ public final class DispatchQueue: DispatchObject, @unchecked Sendable {
 
     public convenience init(label: String, qos: DispatchQoS = .unspecified, attributes: Attributes = [],
                             autoreleaseFrequency: AutoreleaseFrequency = .inherit, target: DispatchQueue? = nil) {
-        let attr: dispatch_queue_attr_t? = attributes.contains(.concurrent) ? _isim_dispatch_concurrent_attr() : nil
+        var attr: dispatch_queue_attr_t? = attributes.contains(.concurrent) ? _isim_dispatch_concurrent_attr() : nil
+        if attributes.contains(.initiallyInactive) { attr = dispatch_queue_attr_make_initially_inactive(attr) }
         let q = label.withCString { dispatch_queue_create_with_target($0, attr, target?.queue) }!
         self.init(queue: q)
     }
 
-    public var label: String { String(cString: dispatch_queue_get_label(queue)) }
+    public final var label: String { String(cString: dispatch_queue_get_label(queue)) }
 
-    public func async(group: DispatchGroup? = nil, qos: DispatchQoS = .unspecified, flags: DispatchWorkItemFlags = [],
+    public final func async(group: DispatchGroup? = nil, qos: DispatchQoS = .unspecified, flags: DispatchWorkItemFlags = [],
                       execute work: @escaping @convention(block) () -> Void) {
         if let g = group { dispatch_group_async(g.group, queue, work) }
         else if flags.contains(.barrier) { dispatch_barrier_async(queue, work) }
         else { dispatch_async(queue, work) }
     }
-    public func async(execute workItem: DispatchWorkItem) {
+    public final func async(execute workItem: DispatchWorkItem) {
         if workItem.flags.contains(.barrier) { dispatch_barrier_async(queue) { workItem.perform() } }
         else { dispatch_async(queue) { workItem.perform() } }
     }
-    public func async(group: DispatchGroup, execute workItem: DispatchWorkItem) {
+    public final func async(group: DispatchGroup, execute workItem: DispatchWorkItem) {
         dispatch_group_async(group.group, queue) { workItem.perform() }
     }
-    public func asyncAfter(deadline: DispatchTime, qos: DispatchQoS = .unspecified, flags: DispatchWorkItemFlags = [],
+    public final func asyncAfter(deadline: DispatchTime, qos: DispatchQoS = .unspecified, flags: DispatchWorkItemFlags = [],
                            execute work: @escaping @convention(block) () -> Void) {
         dispatch_after(deadline.rawValue, queue, work)
     }
-    public func asyncAfter(deadline: DispatchTime, execute: DispatchWorkItem) {
+    public final func asyncAfter(deadline: DispatchTime, execute: DispatchWorkItem) {
         dispatch_after(deadline.rawValue, queue) { execute.perform() }
     }
-    public func asyncAfter(wallDeadline: DispatchWallTime, qos: DispatchQoS = .unspecified, flags: DispatchWorkItemFlags = [],
+    public final func asyncAfter(wallDeadline: DispatchWallTime, qos: DispatchQoS = .unspecified, flags: DispatchWorkItemFlags = [],
                            execute work: @escaping @convention(block) () -> Void) {
         dispatch_after(wallDeadline.rawValue, queue, work)
     }
-    public func asyncAfter(wallDeadline: DispatchWallTime, execute: DispatchWorkItem) {
+    public final func asyncAfter(wallDeadline: DispatchWallTime, execute: DispatchWorkItem) {
         dispatch_after(wallDeadline.rawValue, queue) { execute.perform() }
     }
 
-    public func sync(execute block: () -> Void) {
+    public final func sync(execute block: () -> Void) {
         withoutActuallyEscaping(block) { b in dispatch_sync(queue, b) }
     }
-    public func sync(execute workItem: DispatchWorkItem) { sync { workItem.perform() } }
-    public func sync(flags: DispatchWorkItemFlags, execute block: () -> Void) {
+    public final func sync(execute workItem: DispatchWorkItem) { sync { workItem.perform() } }
+    public final func sync(flags: DispatchWorkItemFlags, execute block: () -> Void) {
         withoutActuallyEscaping(block) { b in
             if flags.contains(.barrier) { dispatch_barrier_sync(queue, b) } else { dispatch_sync(queue, b) }
         }
     }
-    public func sync<T>(execute work: () throws -> T) rethrows -> T {
+    public final func sync<T>(execute work: () throws -> T) rethrows -> T {
         var result: Result<T, Error>?
         return try withoutActuallyEscaping(work) { w in
             sync { result = Result { try w() } }
             return try result!.get()
         }
     }
-    public func sync<T>(flags: DispatchWorkItemFlags, execute work: () throws -> T) rethrows -> T {
+    public final func sync<T>(flags: DispatchWorkItemFlags, execute work: () throws -> T) rethrows -> T {
         var result: Result<T, Error>?
         return try withoutActuallyEscaping(work) { w in
             sync(flags: flags) { result = Result { try w() } }
             return try result!.get()
         }
     }
-    public class func concurrentPerform(iterations: Int, execute work: (Int) -> Void) {
+    /// like sync, but the work runs on the queue itself (its thread, its target queue) while the caller waits
+    public final func asyncAndWait(execute work: () -> Void) {
+        withoutActuallyEscaping(work) { w in dispatch_async_and_wait(queue, w) }
+    }
+    public final func asyncAndWait(execute workItem: DispatchWorkItem) { asyncAndWait { workItem.perform() } }
+    public final func asyncAndWait<T>(execute work: () throws -> T) rethrows -> T { try asyncAndWait(flags: [], execute: work) }
+    public final func asyncAndWait<T>(flags: DispatchWorkItemFlags, execute work: () throws -> T) rethrows -> T {
+        var result: Result<T, Error>?
+        return try withoutActuallyEscaping(work) { w in
+            let body: () -> Void = { result = Result { try w() } }
+            withoutActuallyEscaping(body) { b in
+                if flags.contains(.barrier) { dispatch_barrier_async_and_wait(queue, b) } else { dispatch_async_and_wait(queue, b) }
+            }
+            return try result!.get()
+        }
+    }
+    public final class func concurrentPerform(iterations: Int, execute work: (Int) -> Void) {
         withoutActuallyEscaping(work) { w in dispatch_apply(iterations, dispatch_get_global_queue(0, 0)) { w($0) } }
     }
 
     // queue-specific data
     final class Box<T> { let value: T; init(_ v: T) { value = v } }
-    public func setSpecific<T>(key: DispatchSpecificKey<T>, value: T?) {
+    public final func setSpecific<T>(key: DispatchSpecificKey<T>, value: T?) {
         let k = Unmanaged.passUnretained(key).toOpaque()
         if let old = dispatch_queue_get_specific(queue, k) { Unmanaged<AnyObject>.fromOpaque(old).release() }
         let ctx = value.map { Unmanaged.passRetained(Box($0) as AnyObject).toOpaque() }
         dispatch_queue_set_specific(queue, k, ctx, nil)
     }
-    public func getSpecific<T>(key: DispatchSpecificKey<T>) -> T? {
+    public final func getSpecific<T>(key: DispatchSpecificKey<T>) -> T? {
         guard let p = dispatch_queue_get_specific(queue, Unmanaged.passUnretained(key).toOpaque()) else { return nil }
         return (Unmanaged<AnyObject>.fromOpaque(p).takeUnretainedValue() as? Box<T>)?.value
     }
-    public class func getSpecific<T>(key: DispatchSpecificKey<T>) -> T? {
+    public final class func getSpecific<T>(key: DispatchSpecificKey<T>) -> T? {
         guard let p = dispatch_get_specific(Unmanaged.passUnretained(key).toOpaque()) else { return nil }
         return (Unmanaged<AnyObject>.fromOpaque(p).takeUnretainedValue() as? Box<T>)?.value
     }
@@ -575,5 +597,65 @@ public func dispatchPrecondition(condition: @autoclosure () -> DispatchPredicate
     switch condition() {
     case .onQueue(let q), .onQueueAsBarrier(let q): dispatch_assert_queue(q.queue)
     case .notOnQueue(let q): dispatch_assert_queue_not(q.queue)
+    }
+}
+
+// MARK: - Serial and concurrent queues, workloops (iOS 17 / 12)
+
+private func makeQueue(_ label: String, concurrent: Bool, inactive: Bool, target: DispatchQueue?) -> dispatch_queue_t {
+    var attr: dispatch_queue_attr_t? = concurrent ? _isim_dispatch_concurrent_attr() : nil
+    if inactive { attr = dispatch_queue_attr_make_initially_inactive(attr) }
+    return label.withCString { dispatch_queue_create_with_target($0, attr, target?.queue) }!
+}
+
+/// a serial queue; also a SerialExecutor, so an actor can run its jobs on it (`unownedExecutor`)
+public class DispatchSerialQueue: DispatchQueue, @unchecked Sendable {
+    public struct Attributes: OptionSet, Sendable {
+        public let rawValue: UInt64
+        public init(rawValue: UInt64) { self.rawValue = rawValue }
+        public static let initiallyInactive = Attributes(rawValue: 2)
+    }
+    init(_serial q: dispatch_queue_t) { super.init(queue: q) }
+    public convenience init(label: String, qos: DispatchQoS = .unspecified, attributes: Attributes = [],
+                            autoreleaseFrequency: AutoreleaseFrequency = .inherit, target: DispatchQueue? = nil) {
+        self.init(_serial: makeQueue(label, concurrent: false, inactive: attributes.contains(.initiallyInactive), target: target))
+    }
+}
+
+extension DispatchSerialQueue: SerialExecutor {
+    public func enqueue(_ job: consuming ExecutorJob) {
+        let job = UnownedJob(job), executor = asUnownedSerialExecutor()
+        dispatch_async(queue) { job.runSynchronously(on: executor) }
+    }
+    public func asUnownedSerialExecutor() -> UnownedSerialExecutor { UnownedSerialExecutor(ordinary: self) }
+    public func checkIsolated() { dispatch_assert_queue(queue) }
+}
+
+/// a concurrent queue
+public class DispatchConcurrentQueue: DispatchQueue, @unchecked Sendable {
+    public struct Attributes: OptionSet, Sendable {
+        public let rawValue: UInt64
+        public init(rawValue: UInt64) { self.rawValue = rawValue }
+        public static let initiallyInactive = Attributes(rawValue: 2)
+    }
+    init(_concurrent q: dispatch_queue_t) { super.init(queue: q) }
+    public convenience init(label: String, qos: DispatchQoS = .unspecified, attributes: Attributes = [],
+                            autoreleaseFrequency: AutoreleaseFrequency = .inherit, target: DispatchQueue? = nil) {
+        self.init(_concurrent: makeQueue(label, concurrent: true, inactive: attributes.contains(.initiallyInactive), target: target))
+    }
+}
+
+/// a workloop: a serial queue whose items run by priority on iOS; isim has no QoS, so in submission order (adapted).
+/// Not yet: the osWorkgroup parameter (isim has no os_workgroup).
+public class DispatchWorkloop: DispatchQueue, @unchecked Sendable {
+    public struct Attributes: OptionSet, Sendable {
+        public let rawValue: UInt64
+        public init(rawValue: UInt64) { self.rawValue = rawValue }
+        public static let initiallyInactive = Attributes(rawValue: 2)
+    }
+    init(_workloop q: dispatch_queue_t) { super.init(queue: q) }
+    public convenience init(label: String, attributes: Attributes = [], autoreleaseFrequency: AutoreleaseFrequency = .inherit) {
+        let inactive = attributes.contains(.initiallyInactive)
+        self.init(_workloop: label.withCString { inactive ? dispatch_workloop_create_inactive($0) : dispatch_workloop_create($0) }!)
     }
 }
