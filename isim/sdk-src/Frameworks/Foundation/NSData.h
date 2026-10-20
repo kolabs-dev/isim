@@ -77,6 +77,24 @@ typedef NS_OPTIONS(NSUInteger, NSDataBase64DecodingOptions) {
 - (void)setData:(NSData *)data;
 - (void)replaceBytesInRange:(NSRange)range withBytes:(nullable const void *)replacementBytes length:(NSUInteger)replacementLength;
 @end
+/* compression through libcompression (isim: adapted, compression.h): the same formats as Apple's (LZFSE, LZ4 frames,
+   xz for LZMA, raw DEFLATE for zlib) */
+typedef NS_ENUM(NSInteger, NSDataCompressionAlgorithm) {
+    NSDataCompressionAlgorithmLZFSE NS_SWIFT_NAME(lzfse) = 0, NSDataCompressionAlgorithmLZ4 NS_SWIFT_NAME(lz4),
+    NSDataCompressionAlgorithmLZMA NS_SWIFT_NAME(lzma), NSDataCompressionAlgorithmZlib NS_SWIFT_NAME(zlib),
+} NS_SWIFT_NAME(NSData.CompressionAlgorithm);
+@interface NSData (NSDataCompression)
+- (nullable instancetype)decompressedDataUsingAlgorithm:(NSDataCompressionAlgorithm)algorithm error:(NSError **)error
+    NS_SWIFT_NAME(decompressed(using:));
+- (nullable instancetype)compressedDataUsingAlgorithm:(NSDataCompressionAlgorithm)algorithm error:(NSError **)error
+    NS_SWIFT_NAME(compressed(using:));
+@end
+@interface NSMutableData (NSMutableDataCompression)
+- (BOOL)decompressUsingAlgorithm:(NSDataCompressionAlgorithm)algorithm error:(NSError **)error
+    NS_SWIFT_NAME(decompress(using:));
+- (BOOL)compressUsingAlgorithm:(NSDataCompressionAlgorithm)algorithm error:(NSError **)error
+    NS_SWIFT_NAME(compress(using:));
+@end
 @interface NSString (NSStringDataConversions)
 - (nullable NSData *)dataUsingEncoding:(NSStringEncoding)encoding allowLossyConversion:(BOOL)lossy;
 - (nullable NSData *)dataUsingEncoding:(NSStringEncoding)encoding;

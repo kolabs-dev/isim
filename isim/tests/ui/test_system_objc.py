@@ -19,6 +19,7 @@ def test_system_objc(launch):
              "reachability flags=1 callback=1", "telephony carriers=0",
              "uttype png=public.png image=1", "cfstring length=15 text=core foundation", "idfa zero=1",
              "skadnetwork class=SKAdNetwork", r"zlib 1\.\d+(\.\d+)* crc=[0-9a-f]{8} roundtrip=1 compression=1",
+             "compression lzfse=1 lz4=1 lzma=1 brotli=1 nsdata=1",
              "c\\+\\+ pi=3\\.142 hex=ff read=12,34\\.500,word regex=42 upper=Q", "c\\+\\+ cerr ok", r"path status=\d ipv4=\d"]
     if has_host_jsc():
         lines += ["js 6\\*7=42 str=a\\+b", "js block twice\\(21\\)=42 native=hi:2", "js object name=isim list=1,2,3 ok=1",

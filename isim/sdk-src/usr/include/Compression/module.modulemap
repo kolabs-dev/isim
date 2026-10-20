@@ -1,0 +1,7 @@
+// isim SDK module map (self-authored): the C side of `import Compression` (compression.h, libcompression).
+// The Swift Compression module (usr/lib/swift/Compression.swiftmodule) re-exports it and adds InputFilter, OutputFilter.
+module Compression [system] [extern_c] {
+  header "../compression.h"
+  link "compression"
+  export *
+}

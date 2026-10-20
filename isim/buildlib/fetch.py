@@ -3,7 +3,7 @@ import os
 import subprocess
 
 # name: (repository, tag, sparse paths or None for the whole tree); licenses: Apache-2.0 with the Runtime Library
-# Exception (Swift projects), Apache-2.0 with the LLVM exception (llvm-project)
+# Exception (Swift projects), Apache-2.0 with the LLVM exception (llvm-project), BSD-3-Clause (lzfse)
 SOURCES = {
     "swift": ("https://github.com/swiftlang/swift.git", "swift-6.2.4-RELEASE",   # ee343b46aef81c3ac7c5d7960cb35a41a88c5a9b
               ["/stdlib/", "/include/swift/Runtime/", "/include/swift/ABI/", "/include/swift/Basic/", "/include/swift/Demangling/",
@@ -19,6 +19,7 @@ SOURCES = {
     "swift-experimental-string-processing": ("https://github.com/swiftlang/swift-experimental-string-processing.git",
                                              "swift-6.2.4-RELEASE", None),   # Regex, RegexBuilder
     "swift-testing": ("https://github.com/swiftlang/swift-testing.git", "swift-6.2.4-RELEASE", None),   # 5ee435b15ad40ec1f644b5eb9d247f263ccd2170
+    "lzfse": ("https://github.com/lzfse/lzfse.git", "lzfse-1.0", ["/src/", "/LICENSE"]),   # 88e2d2788b4021d0b2eb9fe2d97352ae9190f128; libcompression's LZFSE
 }
 
 

@@ -222,3 +222,56 @@ static NSData *b64_decode(const char *s, NSUInteger n, BOOL ignoreUnknown) {
     return [NSData dataWithBytes:b length:n];
 }
 @end
+
+/* compression (adapted): a libcompression stream of the matching algorithm, so the formats are Apple's */
+#include <compression.h>
+static NSData *isim_data_compress(NSData *src, NSDataCompressionAlgorithm a, BOOL encode, NSError **error) {
+    static const compression_algorithm algs[] = { COMPRESSION_LZFSE, COMPRESSION_LZ4, COMPRESSION_LZMA, COMPRESSION_ZLIB };
+    compression_stream s;
+    if ((NSUInteger)a >= sizeof algs / sizeof *algs ||
+        compression_stream_init(&s, encode ? COMPRESSION_STREAM_ENCODE : COMPRESSION_STREAM_DECODE, algs[a]) != COMPRESSION_STATUS_OK) {
+        if (error) *error = [NSError errorWithDomain:NSCocoaErrorDomain code:encode ? NSFileWriteUnknownError : NSFileReadCorruptFileError userInfo:nil];
+        return nil;
+    }
+    NSMutableData *out = [NSMutableData dataWithLength:src.length / (encode ? 2 : 1) + 4096];
+    s.src_ptr = src.bytes; s.src_size = src.length;
+    size_t done = 0;
+    compression_status st;
+    for (;;) {
+        s.dst_ptr = (uint8_t *)out.mutableBytes + done; s.dst_size = out.length - done;
+        st = compression_stream_process(&s, COMPRESSION_STREAM_FINALIZE);
+        done = out.length - s.dst_size;
+        if (st != COMPRESSION_STATUS_OK) break;
+        if (s.dst_size == 0) out.length *= 2;
+        else if (s.src_size == 0 && !encode) { st = COMPRESSION_STATUS_ERROR; break; }   /* the input ended early */
+    }
+    compression_stream_destroy(&s);
+    if (st != COMPRESSION_STATUS_END) {
+        if (error) *error = [NSError errorWithDomain:NSCocoaErrorDomain code:encode ? NSFileWriteUnknownError : NSFileReadCorruptFileError userInfo:nil];
+        return nil;
+    }
+    out.length = done;
+    return out;
+}
+@implementation NSData (NSDataCompression)
+- (instancetype)decompressedDataUsingAlgorithm:(NSDataCompressionAlgorithm)a error:(NSError **)e {
+    NSData *d = isim_data_compress(self, a, NO, e);
+    return d ? [[self class] dataWithData:d] : nil;
+}
+- (instancetype)compressedDataUsingAlgorithm:(NSDataCompressionAlgorithm)a error:(NSError **)e {
+    NSData *d = isim_data_compress(self, a, YES, e);
+    return d ? [[self class] dataWithData:d] : nil;
+}
+@end
+@implementation NSMutableData (NSMutableDataCompression)
+- (BOOL)decompressUsingAlgorithm:(NSDataCompressionAlgorithm)a error:(NSError **)e {
+    NSData *d = isim_data_compress(self, a, NO, e);
+    if (d) [self setData:d];
+    return d != nil;
+}
+- (BOOL)compressUsingAlgorithm:(NSDataCompressionAlgorithm)a error:(NSError **)e {
+    NSData *d = isim_data_compress(self, a, YES, e);
+    if (d) [self setData:d];
+    return d != nil;
+}
+@end
