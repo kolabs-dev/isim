@@ -129,3 +129,48 @@ def test_photos_add_only(launch):
         re.search(r"^writeToAlbum saved", log, re.M), "UIImageWriteToSavedPhotosAlbum add-only alert"
     assert re.search(r"^library status 2 old API 2", log, re.M) and re.search(r"^library 0 assets", log, re.M), \
         "Don’t Allow -> denied, nothing visible"
+
+
+def test_photos_videos_albums(launch):
+    """videos: saving a movie (creationRequestForAssetFromVideo), fetching it (mediaType and a predicate),
+    requestAVAsset / requestPlayerItem, its resource through PHAssetResourceManager; user albums with
+    PHAssetCollectionChangeRequest (create, insert, remove, rename, find, delete); PhotosPicker and
+    PHPickerViewController offering videos (issue #280)"""
+    app = launch("HelloPhotos", env={"ISIM_PHOTOS_PERMISSION": "allow"})
+    app.wait_tap_id("saveVideo")
+    app.wait_log(r"^resource data ")
+    app.tap_id("albums")
+    app.wait_log(r"^album deleted ")
+    app.wait_view(r"id=status text=1 album\(s\)")
+    app.tap_id("videoPicker")
+    grid = app.wait_view(r"id=video-0")
+    app.wait_still()
+    app.screenshot("video-picker")
+    app.tap_id("video-0")
+    app.wait_log(r"^photosPicker movie ")
+    app.wait_view(r"id=video-0", gone=True)
+    app.wait_still()
+    app.tap_id("phpickerVideo")
+    app.wait_view(r"id=video-0")
+    app.wait_still()
+    app.tap_id("video-0")
+    app.wait_log(r"^video picker file ")
+    assert app.quit() == 0
+    log = app.log
+
+    def has(p):
+        return re.search(p, log, re.M)
+    assert has(r"^video saved true videos 1 duration 2\.0 size 160x120"), "creationRequestForAssetFromVideo"
+    assert has(r"^predicate videos 1$"), "a fetch predicate on mediaType"
+    assert has(r"^requestAVAsset IMG_\d{4}\.MOV duration 2\.0 video tracks 1 main false"), "requestAVAsset"
+    assert has(r"^requestPlayerItem true asset IMG_\d{4}\.MOV"), "requestPlayerItem"
+    assert has(r"^resource type video uti com\.apple\.quicktime-movie name IMG_\d{4}\.MOV"), "PHAssetResource of a video"
+    assert has(r"^resource data true error none written true again fails true"), "PHAssetResourceManager"
+    assert has(r"^album created 1 Trips assets 3 rename true smart rename false"), "creating an album"
+    assert has(r"^album edited Summer Trips order true count 3"), "editing an album"
+    assert has(r"^album found by title 1 containing video 1 top level 1"), "finding albums"
+    assert has(r"^album deleted true"), "deleting an album"
+    assert "id=photo-" not in grid, "PhotosPicker(matching: .videos) offers only videos"
+    assert has(r'^photosPicker movie true types \["com\.apple\.quicktime-movie"\]'), "PhotosPicker -> loadTransferable(Movie)"
+    assert has(r'^video picker types \["com\.apple\.quicktime-movie"\] movie true') and \
+        has(r"^video picker file true mov error none"), "PHPicker -> loadFileRepresentation of a movie"

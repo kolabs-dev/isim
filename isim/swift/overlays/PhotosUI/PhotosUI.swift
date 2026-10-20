@@ -1,6 +1,7 @@
 // isim PhotosUI (self-authored, iOS API names): PHPickerViewController (a grid of the device photo library; like iOS
-// it runs outside the app's photo permission and hands back NSItemProviders), and SwiftUI's PhotosPicker /
-// .photosPicker(isPresented:) with PhotosPickerItem.loadTransferable. Images only (adapted).
+// it runs outside the app's photo permission and hands back NSItemProviders: photos as data, videos as files), and
+// SwiftUI's PhotosPicker / .photosPicker(isPresented:) with PhotosPickerItem.loadTransferable. Photos and videos
+// (adapted: no Live Photos, bursts or screenshots as kinds of their own).
 @_exported import Photos
 @_exported import CoreTransferable
 @_exported import UniformTypeIdentifiers
@@ -22,26 +23,39 @@ extension Image: @retroactive Transferable {
 // MARK: - PHPicker
 
 public struct PHPickerFilter: Hashable, Sendable {
-    let kinds: Set<String>          // "image", "video", "livePhoto", "screenshot", ...
-    let negated: Bool
-    init(_ k: Set<String>, negated: Bool = false) { kinds = k; self.negated = negated }
-    public static let images = PHPickerFilter(["image"])
-    public static let videos = PHPickerFilter(["video"])
-    public static let livePhotos = PHPickerFilter(["livePhoto"])
-    public static let screenshots = PHPickerFilter(["screenshot"])
-    public static let panoramas = PHPickerFilter(["panorama"])
-    public static let depthEffectPhotos = PHPickerFilter(["depth"])
-    public static let bursts = PHPickerFilter(["burst"])
-    public static let slomoVideos = PHPickerFilter(["slomo"])
-    public static let timelapseVideos = PHPickerFilter(["timelapse"])
-    public static let cinematicVideos = PHPickerFilter(["cinematic"])
-    @available(iOS 18.0, *) public static let spatialMedia = PHPickerFilter(["spatial"])
-    public static func any(of subfilters: [PHPickerFilter]) -> PHPickerFilter { PHPickerFilter(subfilters.reduce(into: Set()) { $0.formUnion($1.negated ? [] : $1.kinds) }) }
-    public static func all(of subfilters: [PHPickerFilter]) -> PHPickerFilter { any(of: subfilters) }
-    public static func not(_ filter: PHPickerFilter) -> PHPickerFilter { PHPickerFilter(filter.kinds, negated: !filter.negated) }
+    indirect enum Rule: Hashable, Sendable {
+        case kind(String)          // "image", "video", "livePhoto", "screenshot", ...
+        case not(Rule)
+        case any([Rule])
+        case all([Rule])
+        func matches(_ kinds: Set<String>) -> Bool {
+            switch self {
+            case .kind(let k): return kinds.contains(k)
+            case .not(let r): return !r.matches(kinds)
+            case .any(let rs): return rs.contains { $0.matches(kinds) }
+            case .all(let rs): return rs.allSatisfy { $0.matches(kinds) }
+            }
+        }
+    }
+    let rule: Rule
+    init(_ r: Rule) { rule = r }
+    public static let images = PHPickerFilter(.kind("image"))
+    public static let videos = PHPickerFilter(.kind("video"))
+    public static let livePhotos = PHPickerFilter(.kind("livePhoto"))
+    public static let screenshots = PHPickerFilter(.kind("screenshot"))
+    public static let panoramas = PHPickerFilter(.kind("panorama"))
+    public static let depthEffectPhotos = PHPickerFilter(.kind("depth"))
+    public static let bursts = PHPickerFilter(.kind("burst"))
+    public static let slomoVideos = PHPickerFilter(.kind("slomo"))
+    public static let timelapseVideos = PHPickerFilter(.kind("timelapse"))
+    public static let cinematicVideos = PHPickerFilter(.kind("cinematic"))
+    @available(iOS 18.0, *) public static let spatialMedia = PHPickerFilter(.kind("spatial"))
+    public static func any(of subfilters: [PHPickerFilter]) -> PHPickerFilter { PHPickerFilter(.any(subfilters.map(\.rule))) }
+    public static func all(of subfilters: [PHPickerFilter]) -> PHPickerFilter { PHPickerFilter(.all(subfilters.map(\.rule))) }
+    public static func not(_ filter: PHPickerFilter) -> PHPickerFilter { PHPickerFilter(.not(filter.rule)) }
     public static func playbackStyle(_ playbackStyle: Int) -> PHPickerFilter { .images }
-    /// every library item is a still image on isim
-    var matchesImages: Bool { negated ? !kinds.contains("image") : kinds.contains("image") }
+    /// the kinds of a library item: isim's are plain photos and videos
+    func matches(_ asset: PHAsset) -> Bool { rule.matches([asset.mediaType == .video ? "video" : "image"]) }
 }
 
 public struct PHPickerConfiguration: Sendable {
@@ -73,11 +87,24 @@ public protocol PHPickerViewControllerDelegate: AnyObject {
 }
 
 enum _PUAssets {
+    /// the type identifier of a library file
+    static func type(_ path: String) -> String {
+        ["png": "public.png", "heic": "public.heic", "mov": "com.apple.quicktime-movie", "mp4": "public.mpeg-4", "m4v": "com.apple.m4v-video"][
+            (path as NSString).pathExtension.lowercased()] ?? "public.jpeg"
+    }
     static func provider(_ asset: PHAsset) -> NSItemProvider {
         let p = NSItemProvider()
         let path = asset._isimFilePath
-        let type = path.lowercased().hasSuffix(".png") ? "public.png" : "public.jpeg"
+        let type = type(path)
         p.suggestedName = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
+        if asset.mediaType == .video {
+            // a movie comes as a file (loadFileRepresentation), and as data for loadDataRepresentation
+            p.registerFileRepresentation(forTypeIdentifier: type, fileOptions: [], visibility: .all) { done in
+                if FileManager.default.fileExists(atPath: path) { done(URL(fileURLWithPath: path), false, nil) } else { done(nil, false, PHPhotosError(.missingResource)) }
+                return nil
+            }
+            return p
+        }
         p.registerDataRepresentation(forTypeIdentifier: type, visibility: .all) { done in
             if let d = FileManager.default.contents(atPath: path) { done(d, nil) } else { done(nil, PHPhotosError(.missingResource)) }
             return nil
@@ -102,7 +129,9 @@ open class PHPickerViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
         let limit = configuration.selectionLimit
-        let grid = _ISIMPhotoGridController(title: limit == 1 ? "Photos" : "Select Items", selected: configuration.preselectedAssetIdentifiers, limit: limit)
+        let filter = configuration.filter
+        let grid = _ISIMPhotoGridController(title: limit == 1 ? "Photos" : "Select Items", selected: configuration.preselectedAssetIdentifiers, limit: limit,
+                                            including: filter.map { f in { f.matches($0) } })
         grid.onDone = { [weak self] ids in self?.finish(ids) }
         grid.onCancel = { [weak self] in self?.finish([]) }
         nav.viewControllers = [grid]
@@ -116,7 +145,7 @@ open class PHPickerViewController: UIViewController {
         guard !finished else { return }
         finished = true
         let all = Dictionary(uniqueKeysWithValues: PHAsset._isimAll().map { ($0.localIdentifier, $0) })
-        let results = ids.compactMap { all[$0] }.filter { _ in configuration.filter?.matchesImages ?? true }
+        let results = ids.compactMap { all[$0] }.filter { configuration.filter?.matches($0) ?? true }
             .map { PHPickerResult(itemProvider: _PUAssets.provider($0), assetIdentifier: configuration.identifiers ? $0.localIdentifier : nil) }
         NSLog("isim PhotosUI: picked %d item(s)", results.count)
         if let delegate { delegate.picker(self, didFinishPicking: results) }
@@ -134,7 +163,7 @@ public struct PhotosPickerItem: Equatable, Hashable, Sendable {
     public let itemIdentifier: String?
     let assetID: String
     let path: String
-    public var supportedContentTypes: [UTType] { [path.lowercased().hasSuffix(".png") ? .png : .jpeg] }
+    public var supportedContentTypes: [UTType] { [UTType(_PUAssets.type(path)) ?? .jpeg] }
     public init(itemIdentifier: String) { self.itemIdentifier = itemIdentifier; assetID = itemIdentifier
         path = PHAsset._isimAll().first { $0.localIdentifier == itemIdentifier }?._isimFilePath ?? "" }
     init(asset: PHAsset, exposeIdentifier: Bool) { itemIdentifier = exposeIdentifier ? asset.localIdentifier : nil; assetID = asset.localIdentifier; path = asset._isimFilePath }

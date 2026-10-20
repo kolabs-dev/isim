@@ -1,6 +1,8 @@
-// PHImageManager (images decoded from the library files, scaled to the requested size) and the photo grid used for
-// limited-access selection (and by isim's PhotosUI picker).
+// PHImageManager (images decoded from the library files, scaled to the requested size; videos as AVURLAssets over
+// the library's movie files), asset resources and PHAssetResourceManager, and the photo grid used for limited-access
+// selection (and by isim's PhotosUI picker).
 import UIKit
+import AVFoundation
 
 open class PHImageRequestOptions: NSObject, NSCopying, @unchecked Sendable {
     open var version: PHImageRequestOptionsVersion = .current
@@ -64,6 +66,69 @@ open class PHImageManager: NSObject, @unchecked Sendable {
         return id
     }
     open func cancelImageRequest(_ requestID: PHImageRequestID) { Self.cancelled.insert(requestID) }
+
+    // MARK: videos (the handlers run on a background queue, as on iOS)
+
+    /// the library file of a video asset, or the info dictionary of the failure
+    static func video(_ asset: PHAsset, _ id: PHImageRequestID) -> (URL?, [AnyHashable: Any]) {
+        var info: [AnyHashable: Any] = [PHImageResultRequestIDKey: id, PHImageResultIsInCloudKey: false]
+        if cancelled.contains(id) { info[PHImageCancelledKey] = true; return (nil, info) }
+        let path = _PHStore.path(asset.rec)
+        guard asset.mediaType == .video, FileManager.default.fileExists(atPath: path) else {
+            info[PHImageErrorKey] = PHPhotosError(asset.mediaType == .video ? .missingResource : .requestNotSupportedForAsset)
+            return (nil, info)
+        }
+        return (URL(fileURLWithPath: path), info)
+    }
+    static func videoRequest(_ options: PHVideoRequestOptions?, _ work: @escaping () -> Void) {
+        DispatchQueue.global().async {
+            if let progress = options?.progressHandler { var stop = ObjCBool(false); progress(1, nil, &stop, nil) }
+            work()
+        }
+    }
+    @discardableResult
+    open func requestAVAsset(forVideo asset: PHAsset, options: PHVideoRequestOptions?,
+                             resultHandler: @escaping (AVAsset?, AVAudioMix?, [AnyHashable: Any]?) -> Void) -> PHImageRequestID {
+        let id = Self.newID()
+        Self.videoRequest(options) {
+            let (url, info) = Self.video(asset, id)
+            resultHandler(url.map { AVURLAsset(url: $0) }, nil, info)
+        }
+        return id
+    }
+    @discardableResult
+    open func requestPlayerItem(forVideo asset: PHAsset, options: PHVideoRequestOptions?,
+                                resultHandler: @escaping (AVPlayerItem?, [AnyHashable: Any]?) -> Void) -> PHImageRequestID {
+        let id = Self.newID()
+        Self.videoRequest(options) {
+            let (url, info) = Self.video(asset, id)
+            resultHandler(url.map { AVPlayerItem(asset: AVURLAsset(url: $0)) }, info)
+        }
+        return id
+    }
+    @discardableResult
+    open func requestExportSession(forVideo asset: PHAsset, options: PHVideoRequestOptions?, exportPreset: String,
+                                   resultHandler: @escaping (AVAssetExportSession?, [AnyHashable: Any]?) -> Void) -> PHImageRequestID {
+        let id = Self.newID()
+        Self.videoRequest(options) {
+            let (url, info) = Self.video(asset, id)
+            resultHandler(url.flatMap { AVAssetExportSession(asset: AVURLAsset(url: $0), presetName: exportPreset) }, info)
+        }
+        return id
+    }
+}
+
+@objc public enum PHVideoRequestOptionsVersion: Int, Sendable { case current = 0, original = 1 }
+@objc public enum PHVideoRequestOptionsDeliveryMode: Int, Sendable { case automatic = 0, highQualityFormat = 1, mediumQualityFormat = 2, fastFormat = 3 }
+public typealias PHAssetVideoProgressHandler = (Double, Error?, UnsafeMutablePointer<ObjCBool>, [AnyHashable: Any]?) -> Void
+
+/// isim keeps one version of each video (no edits, no iCloud): every option gets the library file
+open class PHVideoRequestOptions: NSObject, @unchecked Sendable {
+    open var isNetworkAccessAllowed = false
+    open var version: PHVideoRequestOptionsVersion = .current
+    open var deliveryMode: PHVideoRequestOptionsDeliveryMode = .automatic
+    open var progressHandler: PHAssetVideoProgressHandler?
+    public override init() { super.init() }
 }
 
 public enum CGImagePropertyOrientation: UInt32, Sendable { case up = 1, upMirrored, down, downMirrored, leftMirrored, right, rightMirrored, left }
@@ -81,11 +146,85 @@ open class PHAssetResource: NSObject, @unchecked Sendable {
     public let assetLocalIdentifier: String
     public let originalFilename: String
     public let uniformTypeIdentifier: String
+    let path: String
     init(_ a: PHAsset) {
-        type = .photo; assetLocalIdentifier = a.localIdentifier; originalFilename = (a.rec.file as NSString).lastPathComponent
-        uniformTypeIdentifier = originalFilename.lowercased().hasSuffix(".png") ? "public.png" : "public.jpeg"
+        assetLocalIdentifier = a.localIdentifier; originalFilename = (a.rec.file as NSString).lastPathComponent
+        path = _PHStore.path(a.rec)
+        let ext = (originalFilename as NSString).pathExtension.lowercased()
+        type = a.mediaType == .video ? .video : .photo
+        uniformTypeIdentifier = ["png": "public.png", "heic": "public.heic", "mov": "com.apple.quicktime-movie", "mp4": "public.mpeg-4",
+                                 "m4v": "com.apple.m4v-video"][ext] ?? "public.jpeg"
     }
+    /// the asset's one resource: its photo or its video (isim keeps no paired or adjusted resources)
     open class func assetResources(for asset: PHAsset) -> [PHAssetResource] { [PHAssetResource(asset)] }
+}
+
+public typealias PHAssetResourceDataRequestID = Int32
+public typealias PHAssetResourceProgressHandler = (Double) -> Void
+
+open class PHAssetResourceRequestOptions: NSObject, NSCopying, @unchecked Sendable {
+    open var isNetworkAccessAllowed = false
+    open var progressHandler: PHAssetResourceProgressHandler?
+    public override init() { super.init() }
+    public func copy(with zone: OpaquePointer? = nil) -> Any {
+        let o = PHAssetResourceRequestOptions(); o.isNetworkAccessAllowed = isNetworkAccessAllowed; o.progressHandler = progressHandler; return o
+    }
+}
+
+/// A resource's bytes from the library file, in chunks on a background queue (adapted: everything is local).
+open class PHAssetResourceManager: NSObject, @unchecked Sendable {
+    static let shared = PHAssetResourceManager()
+    nonisolated(unsafe) static var nextID: PHAssetResourceDataRequestID = 1
+    nonisolated(unsafe) static var cancelled = Set<PHAssetResourceDataRequestID>()
+    static let lock = NSLock()
+    static let chunk = 256 * 1024
+    open class func `default`() -> PHAssetResourceManager { shared }
+    public override init() { super.init() }
+
+    @discardableResult
+    open func requestData(for resource: PHAssetResource, options: PHAssetResourceRequestOptions?,
+                          dataReceivedHandler handler: @escaping (Data) -> Void, completionHandler: @escaping (Error?) -> Void) -> PHAssetResourceDataRequestID {
+        Self.lock.lock(); let id = Self.nextID; Self.nextID += 1; Self.lock.unlock()
+        DispatchQueue.global().async {
+            guard let fh = FileHandle(forReadingAtPath: resource.path) else { completionHandler(PHPhotosError(.missingResource)); return }
+            defer { fh.closeFile() }
+            let total = Double((try? FileManager.default.attributesOfItem(atPath: resource.path)[.size] as? NSNumber)??.doubleValue ?? 0)
+            var sent = 0.0
+            while true {
+                Self.lock.lock(); let stop = Self.cancelled.contains(id); Self.lock.unlock()
+                if stop { completionHandler(PHPhotosError(.userCancelled)); return }
+                let d = fh.readData(ofLength: Self.chunk)
+                if d.isEmpty { break }
+                handler(d)
+                sent += Double(d.count)
+                options?.progressHandler?(total > 0 ? min(1, sent / total) : 1)
+            }
+            completionHandler(nil)
+        }
+        return id
+    }
+    open func cancelDataRequest(_ requestID: PHAssetResourceDataRequestID) {
+        Self.lock.lock(); Self.cancelled.insert(requestID); Self.lock.unlock()
+    }
+    /// fails when a file already exists at fileURL, as on iOS
+    open func writeData(for resource: PHAssetResource, toFile fileURL: URL, options: PHAssetResourceRequestOptions?,
+                        completionHandler: @escaping (Error?) -> Void) {
+        DispatchQueue.global().async {
+            if FileManager.default.fileExists(atPath: fileURL.path) {
+                completionHandler(NSError(domain: NSCocoaErrorDomain, code: NSFileWriteFileExistsError, userInfo: [NSFilePathErrorKey: fileURL.path])); return
+            }
+            do {
+                try FileManager.default.copyItem(atPath: resource.path, toPath: fileURL.path)
+                options?.progressHandler?(1)
+                completionHandler(nil)
+            } catch { completionHandler(error) }
+        }
+    }
+    open func writeData(for resource: PHAssetResource, toFile fileURL: URL, options: PHAssetResourceRequestOptions?) async throws {
+        try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
+            writeData(for: resource, toFile: fileURL, options: options) { e in if let e { k.resume(throwing: e) } else { k.resume() } }
+        }
+    }
 }
 
 // MARK: - Photo grid (limited selection; reused by PhotosUI)
@@ -107,6 +246,13 @@ open class PHAssetResource: NSObject, @unchecked Sendable {
         super.init(nibName: nil, bundle: nil)
         self.title = title
     }
+    /// including: which assets the grid offers (PHPickerFilter); all of them when nil
+    public init(title: String, selected: [String], limit: Int, confirmTitle: String = "Add", including: ((PHAsset) -> Bool)?) {
+        assets = PHAsset.fetch(_PHStore.records(), nil).items.filter { including?($0) ?? true }
+        self.selected = selected; self.limit = limit; self.confirmTitle = confirmTitle
+        super.init(nibName: nil, bundle: nil)
+        self.title = title
+    }
     public required init?(coder: NSCoder) { fatalError() }
 
     open override func viewDidLoad() {
@@ -116,7 +262,7 @@ open class PHAssetResource: NSObject, @unchecked Sendable {
         if limit != 1 || !autoConfirmSingle {
             navigationItem.rightBarButtonItem = _Privacy.barButton(confirmTitle, bold: true, id: "photos-done", self, #selector(isimPHGridDone))
         }
-        let l = UICollectionViewFlowLayout()
+        let l = _ISIMLeftAlignedFlowLayout()
         let side = ((view.bounds.width - 6) / 4).rounded(.down)
         l.itemSize = CGSize(width: side, height: side); l.minimumLineSpacing = 2; l.minimumInteritemSpacing = 2
         grid = UICollectionView(frame: view.bounds, collectionViewLayout: l)
@@ -141,9 +287,11 @@ open class PHAssetResource: NSObject, @unchecked Sendable {
         }
         let a = assets[indexPath.item]
         iv.image = PHImageManager.image(a, CGSize(width: 200, height: 200), .aspectFill)
+        // a new cell has no size yet: lay out from the layout's
+        let size = (collectionView.collectionViewLayout as? UICollectionViewFlowLayout)?.itemSize ?? cell.bounds.size
         let badge: UILabel
         if let b = cell.contentView.viewWithTag(78) as? UILabel { badge = b } else {
-            badge = UILabel(frame: CGRect(x: cell.bounds.width - 28, y: cell.bounds.height - 28, width: 22, height: 22))
+            badge = UILabel(frame: CGRect(x: size.width - 28, y: size.height - 28, width: 22, height: 22))
             badge.tag = 78; badge.textAlignment = .center; badge.textColor = .white; badge.backgroundColor = .systemBlue
             badge.font = .systemFont(ofSize: 13, weight: .bold); badge.layer.cornerRadius = 11; badge.clipsToBounds = true
             cell.contentView.addSubview(badge)
@@ -151,7 +299,21 @@ open class PHAssetResource: NSObject, @unchecked Sendable {
         let pos = selected.firstIndex(of: a.localIdentifier)
         badge.isHidden = pos == nil
         badge.text = pos.map { limit == 1 ? "✓" : "\($0 + 1)" }
-        cell.accessibilityIdentifier = "photo-\(indexPath.item)"
+        // videos show their duration at the bottom right, like Photos
+        let duration: UILabel
+        if let d = cell.contentView.viewWithTag(79) as? UILabel { duration = d } else {
+            duration = UILabel(frame: CGRect(x: 4, y: cell.bounds.height - 20, width: cell.bounds.width - 8, height: 16))
+            duration.tag = 79; duration.textAlignment = .right; duration.textColor = .white
+            duration.font = .systemFont(ofSize: 12, weight: .semibold)
+            duration.layer.shadowColor = UIColor.black.cgColor; duration.layer.shadowOpacity = 0.6; duration.layer.shadowRadius = 2
+            duration.layer.shadowOffset = .zero
+            cell.contentView.addSubview(duration)
+        }
+        duration.frame = CGRect(x: 4, y: size.height - 20, width: max(0, size.width - 10), height: 16)
+        let secs = Int(a.duration.rounded())
+        duration.isHidden = a.mediaType != .video || pos != nil
+        duration.text = a.mediaType == .video ? String(format: "%d:%02d", secs / 60, secs % 60) : nil
+        cell.accessibilityIdentifier = "\(a.mediaType == .video ? "video" : "photo")-\(indexPath.item)"
         return cell
     }
     public func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
@@ -160,6 +322,21 @@ open class PHAssetResource: NSObject, @unchecked Sendable {
         if let i = selected.firstIndex(of: id) { selected.remove(at: i) }
         else if limit == 0 || selected.count < limit { selected.append(id) }
         collectionView.reloadData()
+    }
+}
+
+/// rows start at the leading edge, as in Photos (a flow layout centres a lone item in its row)
+final class _ISIMLeftAlignedFlowLayout: UICollectionViewFlowLayout {
+    override func layoutAttributesForElements(in rect: CGRect) -> [UICollectionViewLayoutAttributes]? {
+        guard let attrs = super.layoutAttributesForElements(in: rect) else { return nil }
+        var x = sectionInset.left, row = -CGFloat.greatestFiniteMagnitude
+        return attrs.map { a in
+            guard a.representedElementCategory == .cell, let e = a.copy() as? UICollectionViewLayoutAttributes else { return a }
+            if abs(e.frame.minY - row) > 0.5 { row = e.frame.minY; x = sectionInset.left }
+            e.frame.origin.x = x
+            x += e.frame.width + minimumInteritemSpacing
+            return e
+        }
     }
 }
 
@@ -180,6 +357,6 @@ enum _PHSelection {
 extension PHAsset {
     /// isim: the file holding the asset's image (used by PhotosUI's item providers)
     @_spi(isim) public var _isimFilePath: String { _PHStore.path(rec) }
-    /// the photos PHPickerViewController offers (videos are not offered yet)
-    @_spi(isim) public static func _isimAll() -> [PHAsset] { PHAsset.fetch(_PHStore.records().filter { !$0.isVideo }, nil).items }
+    /// every photo and video in the library (PHPickerViewController runs outside the app's permission)
+    @_spi(isim) public static func _isimAll() -> [PHAsset] { PHAsset.fetch(_PHStore.records(), nil).items }
 }
