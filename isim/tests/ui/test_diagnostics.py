@@ -9,6 +9,8 @@
 - Crash reports: a SIGSEGV in C, an uncaught NSRangeException and a Swift fatalError each write an .ips report
   (`isim crashlog list/show`); the next launch gets an MXCrashDiagnostic and the crashed run's metrics with its exit.
 - A slow launch (2.5 s) is an MXAppLaunchDiagnostic.
+- CFRunLoop on the main loop UIKit drives: an observer (CFRunLoopObserverCreateWithHandler) sees the hang between two
+  waits, a CFRunLoopTimer fires, a CFRunLoopPerformBlock block runs in the default mode.
 """
 import os
 import subprocess
@@ -38,6 +40,10 @@ def test_log_store_signposts_metrickit(launch):
     assert "diag signposter enabled=true disabled=false" in log
 
     app.wait_log(r"diag hang duration=true stack=true frames=true", timeout=30)   # a hang diagnostic, right away
+    # CFRunLoop: the block and the timer ran on the main loop; its observer saw the hang (busy between two waits)
+    assert "diag runloop block mode=kCFRunLoopDefaultMode observing=true" in app.log and "diag runloop timer fired" in app.log
+    hang = app.wait_log(r"diag runloop hang (\d+\.\d) s")
+    assert 0.5 <= float(hang.group(1)) < 3, hang.group(0)
     app.send("signposts dev.isim.diag")
     load = app.wait_log(r"isim signposts: dev.isim.diag:PointsOfInterest Load events 0 intervals 1 open 0 total (\d+\.\d) ms")
     assert float(load.group(1)) >= 45, f"interval duration measured: {load.group(0)}"

@@ -2030,7 +2030,13 @@ static void run_loop_once(void) {
         { extern double isim_main_next_due(void); double due = isim_main_next_due(); if (due < timeout) timeout = due; }   /* blocks queued while rendering run right away */
         if (holding && timeout > 0.05) timeout = 0.05;
         struct isim_event ev;
-        for (int got = isim_next_event(&ev, timeout); got; got = isim_next_event(&ev, 0)) {
+        /* the main run loop's observers (CFRunLoopObserver): before and after it waits for events */
+        extern void isim_main_runloop_activity(unsigned long);
+        BOOL waits = timeout > 0;
+        if (waits) isim_main_runloop_activity(kCFRunLoopBeforeWaiting);
+        int first = isim_next_event(&ev, timeout);
+        if (waits) isim_main_runloop_activity(kCFRunLoopAfterWaiting);
+        for (int got = first; got; got = isim_next_event(&ev, 0)) {
             if (holding) { holding = NO; premove_second_finger(&ev); handle_touch(&held_move); }
             if (holds_first_finger_move(&ev)) { held_move = ev; holding = YES; held_at = isim_time(); continue; }
             switch (ev.type) {
@@ -2191,7 +2197,9 @@ int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSSt
         }
     }
 
+    { extern void isim_main_runloop_activity(unsigned long); isim_main_runloop_activity(kCFRunLoopEntry); }
     while (!quit_requested) run_loop_once();
+    { extern void isim_main_runloop_activity(unsigned long); isim_main_runloop_activity(kCFRunLoopExit); }
     @autoreleasepool {
         UIApplication *app = UIApplication.sharedApplication;
         id<UIApplicationDelegate> d = app.delegate;
