@@ -221,6 +221,7 @@ final class _AVTicker: NSObject {
     var _frame: Int32 = 0            // current frame image (host handle owned by the session)
     var _framePTS: Double = -1
     var _needsFrame = false
+    var _openedAt = 0.0
     var _lastTick: Double = -1
     var _layers: [_AVWeakLayer] = []
     var _periodic: [_AVPeriodicObserver] = []
@@ -361,6 +362,7 @@ final class _AVTicker: NSObject {
         _mediaStart = t
         _mediaRate = r
         _needsFrame = info.hasVideo && _media != 0
+        _openedAt = isim_time()
         _applyAudio()
         _updateTicking()
     }
@@ -370,6 +372,9 @@ final class _AVTicker: NSObject {
     }
 
     func _tick() {
+        // a session's first frame can take a while (HLS over the network): the clock waits for it, up to 10 s, so
+        // playback starts at the time asked for instead of skipping the frames that came late
+        if _needsFrame, _frame == 0, timeControlStatus == .playing, isim_time() - _openedAt < 10 { _anchorWall = isim_time() }
         let t = _now()
         if _media != 0 {
             var eof: Int32 = 0, pts = 0.0

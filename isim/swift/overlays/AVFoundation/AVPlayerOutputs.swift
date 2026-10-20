@@ -759,10 +759,11 @@ extension AVPlayerItem {
         guard _accessEvents.isEmpty || _accessEvents.last?.playbackSessionID != _sessionID else { return }
         let e = AVPlayerItemAccessLogEvent()
         e.playbackStartDate = Date()
-        e.uri = asset._url?.absoluteString
+        let url = (asset as? AVURLAsset)?.url ?? asset._url           // the app's URL (not a resource loader's file)
+        e.uri = url?.absoluteString
         e.playbackSessionID = _sessionID
-        e.playbackType = asset._url?.isFileURL == true ? "FILE" : "VOD"
-        e.serverAddress = asset._url?.isFileURL == true ? nil : asset._url?.host
+        e.playbackType = url?.isFileURL == true ? "FILE" : "VOD"
+        e.serverAddress = url?.isFileURL == true ? nil : url?.host
         e.playbackStartOffset = currentTime().seconds
         if let u = asset._url, u.isFileURL, let size = (try? FileManager.default.attributesOfItem(atPath: u.path))?[.size] as? NSNumber {
             e.numberOfBytesTransferred = size.int64Value
@@ -782,7 +783,7 @@ extension AVPlayerItem {
     func _logError(_ error: Error?) {
         let ns = error as NSError?
         let e = AVPlayerItemErrorLogEvent()
-        e.date = Date(); e.uri = asset._url?.absoluteString; e.playbackSessionID = _sessionID
+        e.date = Date(); e.uri = ((asset as? AVURLAsset)?.url ?? asset._url)?.absoluteString; e.playbackSessionID = _sessionID
         e.errorDomain = ns?.domain ?? AVFoundationErrorDomain
         e.errorStatusCode = ns?.code ?? -11800
         e.errorComment = ns?.localizedFailureReason ?? ns?.localizedDescription
