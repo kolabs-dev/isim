@@ -38,7 +38,9 @@ public protocol AVAsynchronousKeyValueLoading {
 }
 
 @objc(AVAsset) open class AVAsset: NSObject, AVAsynchronousKeyValueLoading, @unchecked Sendable {
-    let _url: URL?
+    /// the media isim opens: the asset's URL, or the file a resource loader filled for a custom-scheme URL
+    var _url: URL?
+    var _loaderError: Error?
     private var _info: _AVMediaInfo?
     private let _lock = NSLock()
     var _streamCache: [_AVStream]?                          // media selection (AVPlayerOutputs.swift)
@@ -47,9 +49,15 @@ public protocol AVAsynchronousKeyValueLoading {
     public convenience init(url URL: URL) { self.init(_url: URL) }
     /// The probed media (blocking the first time).
     var _media: _AVMediaInfo? {
-        guard let u = _url else { return nil }
+        guard var u = _url else { return nil }
         _lock.lock(); defer { _lock.unlock() }
-        if _info == nil { _info = _AVMediaInfo(url: u) }
+        if _info == nil {
+            if let scheme = u.scheme?.lowercased(), !["file", "http", "https"].contains(scheme), let a = self as? AVURLAsset {
+                let (file, error) = a.resourceLoader._load(u)          // AVAssetResourceLoader (AVResourceLoader.swift)
+                if let file { u = file; _url = file } else { _loaderError = error }
+            }
+            _info = _AVMediaInfo(url: u)
+        }
         return _info
     }
     var _loaded: Bool { _lock.lock(); defer { _lock.unlock() }; return _info != nil }
@@ -102,7 +110,8 @@ public protocol AVAsynchronousKeyValueLoading {
 }
 
 func _avLoadError(_ a: AVAsset) -> NSError {
-    NSError(domain: AVFoundationErrorDomain, code: -11800,
+    if let e = a._loaderError as NSError? { return e }
+    return NSError(domain: AVFoundationErrorDomain, code: -11800,
             userInfo: [NSLocalizedDescriptionKey: "The operation could not be completed",
                        NSLocalizedFailureReasonErrorKey: "isim could not open \(a._url?.absoluteString ?? "the asset") (missing file, unsupported media, or no ffprobe/ffmpeg on the host)"])
 }
@@ -110,6 +119,8 @@ public let NSLocalizedFailureReasonErrorKey = "NSLocalizedFailureReason"
 
 @objc(AVURLAsset) open class AVURLAsset: AVAsset, @unchecked Sendable {
     @objc(URL) public let url: URL
+    /// the delegate that supplies custom-scheme URLs (AVResourceLoader.swift)
+    @objc public let resourceLoader = AVAssetResourceLoader()
     @objc(initWithURL:options:) public init(url URL: URL, options: [String: Any]? = nil) { url = URL; super.init(_url: URL) }
     public static func audiovisualTypes() -> [String] { ["public.mpeg-4", "com.apple.quicktime-movie", "public.mp3", "com.apple.m4a-audio", "com.apple.m4v-video"] }
     public static func audiovisualMIMETypes() -> [String] { ["video/mp4", "video/quicktime", "audio/mpeg", "audio/mp4"] }

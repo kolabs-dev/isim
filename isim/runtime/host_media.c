@@ -210,6 +210,7 @@ ISIM_GUEST_ABI int isim_media_open_tracks(const char *url, double start, double 
         char vf[96]; snprintf(vf, sizeof vf, "scale=%d:%d,fps=%.6f", md->w, md->h, md->fps);
         char *argv[] = { "ffmpeg", "-nostdin", "-v", "error", "-ss", ss, "-i", md->url, "-an", "-sn", "-vf", vf,
                          "-pix_fmt", "bgra", "-f", "rawvideo", "-", NULL };
+        if (md->start <= 0) { argv[4] = "-hide_banner"; argv[5] = "-nostats"; }   /* no -ss at 0: HLS input would skip the first segment */
         md->vpid = spawn_reader(argv, &md->vfd);
         if (md->vpid > 0) {
             for (int i = 0; i < RING; i++) md->ring[i] = malloc((size_t)md->w * md->h * 4);
@@ -226,6 +227,7 @@ ISIM_GUEST_ABI int isim_media_open_tracks(const char *url, double start, double 
         char map[24]; snprintf(map, sizeof map, "0:a:%d", audio_index > 0 ? audio_index : 0);
         char *argv[] = { "ffmpeg", "-nostdin", "-v", "error", "-ss", ss, "-i", md->url, "-vn", "-sn", "-af", af,
                          "-f", "f32le", "-ac", "2", "-ar", "48000", "-", NULL, NULL, NULL };
+        if (md->start <= 0) { argv[4] = "-hide_banner"; argv[5] = "-nostats"; }
         if (audio_index >= 0) {                           /* insert -map after the input */
             memmove(&argv[10], &argv[8], sizeof(char *) * 12);   /* -vn ... "-" and the NULL */
             argv[8] = "-map"; argv[9] = map;
