@@ -1,5 +1,7 @@
 #pragma once
 #include <ImageIO/CGImageProperties.h>
+#include <ImageIO/CGImagePropertyKeys.h>
+#include <ImageIO/CGImageMetadata.h>
 #include <CoreGraphics/CoreGraphics.h>
 __BEGIN_DECLS
 #pragma clang arc_cf_code_audited begin
@@ -28,6 +30,8 @@ IMAGEIO_EXTERN CFStringRef _Nullable CGImageSourceGetType(CGImageSourceRef isrc)
 IMAGEIO_EXTERN size_t CGImageSourceGetCount(CGImageSourceRef isrc);
 IMAGEIO_EXTERN CFDictionaryRef _Nullable CGImageSourceCopyProperties(CGImageSourceRef isrc, CFDictionaryRef _Nullable options) CF_RETURNS_RETAINED;
 IMAGEIO_EXTERN CFDictionaryRef _Nullable CGImageSourceCopyPropertiesAtIndex(CGImageSourceRef isrc, size_t index, CFDictionaryRef _Nullable options) CF_RETURNS_RETAINED;
+/* the {TIFF}, {Exif}, {GPS} and {IPTC} dictionaries of JPEG, PNG, TIFF and WebP images come from isim's own reader */
+IMAGEIO_EXTERN CGImageMetadataRef _Nullable CGImageSourceCopyMetadataAtIndex(CGImageSourceRef isrc, size_t index, CFDictionaryRef _Nullable options) CF_RETURNS_RETAINED;
 IMAGEIO_EXTERN CGImageRef _Nullable CGImageSourceCreateImageAtIndex(CGImageSourceRef isrc, size_t index, CFDictionaryRef _Nullable options) CF_RETURNS_RETAINED;
 IMAGEIO_EXTERN CGImageRef _Nullable CGImageSourceCreateThumbnailAtIndex(CGImageSourceRef isrc, size_t index, CFDictionaryRef _Nullable options) CF_RETURNS_RETAINED;
 IMAGEIO_EXTERN CGImageSourceStatus CGImageSourceGetStatus(CGImageSourceRef isrc);

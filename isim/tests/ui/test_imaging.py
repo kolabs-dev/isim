@@ -51,6 +51,8 @@ def test_imageio(imaging):
         close(a, 88, 80, (0, 0, 255), 5000) and close(a, 88, 118, (255, 0, 0), 5000), \
         "EXIF orientation + thumbnail transform"
     assert "junk count 0 status -3" in log, "unknown data"
+    assert re.search(r"metadata lens Sample Lens f 2\.2 lat 38\.7223N keywords isim,sample title Hello metadata xmp lat 38,43\.338N", log), \
+        "ImageIO metadata from Swift: EXIF, GPS and IPTC written and read back, XMP title and the GPS tag (issue #272)"
 
 
 def test_core_image(imaging):

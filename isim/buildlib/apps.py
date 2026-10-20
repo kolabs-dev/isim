@@ -803,6 +803,13 @@ def _(a):
         shutil.copy(os.path.join(fixtures, f), b)
 
 
+@app("tests/imageio", products=["ImageIOTest.app"], swift=False)
+def _(a):
+    b = a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "CoreGraphics", "-framework", "ImageIO"], name="ImageIOTest")
+    for f in sorted(os.listdir(os.path.join(a.d, "fixtures"))):
+        a.copy(os.path.join("fixtures", f), b)
+
+
 @app("tests/swift-embedded", products=["SwiftEmbeddedTest.app"],
      extra_inputs=["out/swift/embedded/Swift.swiftmodule/x86_64-apple-ios-simulator.swiftmodule", "out/swift/libswiftEmbeddedSupport.a"])
 def _(a):
