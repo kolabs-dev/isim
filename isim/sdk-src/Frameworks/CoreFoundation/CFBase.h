@@ -19,6 +19,7 @@ __BEGIN_DECLS
 #endif
 #endif
 #define CF_RETURNS_RETAINED __attribute__((cf_returns_retained))
+#define CF_RETURNS_NOT_RETAINED __attribute__((cf_returns_not_retained))
 #define CF_IMPLICIT_BRIDGING_ENABLED
 #define CF_IMPLICIT_BRIDGING_DISABLED
 typedef unsigned char Boolean;

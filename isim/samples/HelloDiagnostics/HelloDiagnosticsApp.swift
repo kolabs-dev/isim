@@ -7,6 +7,8 @@
 //                     =fatal: a Swift fatalError. The next launch gets the crash as an MXCrashDiagnostic and the
 //                     crashed run's metrics (with its exit) in a metric payload
 //   HELLODIAG=slowlaunch  takes 2.5 s to launch (an MXAppLaunchDiagnostic)
+// A main run loop observer (CFRunLoopObserver, like crash and hang SDKs add) times the loop's work between waits and
+// reports the hang too; a CFRunLoopTimer and a CFRunLoopPerformBlock block run on the main loop.
 import UIKit
 import OSLog
 import MetricKit
@@ -24,6 +26,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, MXMetricManagerSubs
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         MXMetricManager.shared.add(self)
+        watchRunLoop()
         print("diag subscribed past=\(MXMetricManager.shared.pastPayloads.count) mode=\(mode.isEmpty ? "normal" : mode)")
         window = UIWindow(frame: UIScreen.main.bounds)
         let vc = UIViewController()
@@ -49,6 +52,28 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, MXMetricManagerSubs
     func crashSoon(_ crash: @escaping () -> Void) {
         print("diag crashing (\(mode))")
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { crash() }
+    }
+
+    // MARK: the main run loop (CFRunLoop)
+    var awake = CFAbsoluteTimeGetCurrent()
+    func watchRunLoop() {
+        let observer = CFRunLoopObserverCreateWithHandler(kCFAllocatorDefault, CFRunLoopActivity.allActivities.rawValue, true, 0) { [unowned self] _, activity in
+            let now = CFAbsoluteTimeGetCurrent()
+            if activity == .afterWaiting { awake = now }
+            if activity == .beforeWaiting, now - awake >= 0.4 {        // busy that long without waiting for events: a hang
+                print("diag runloop hang \(String(format: "%.1f", now - awake)) s")
+            }
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
+        let timer = CFRunLoopTimerCreateWithHandler(kCFAllocatorDefault, CFAbsoluteTimeGetCurrent() + 0.1, 0, 0, 0) { _ in
+            print("diag runloop timer fired")
+        }
+        CFRunLoopAddTimer(CFRunLoopGetMain(), timer, .defaultMode)
+        CFRunLoopPerformBlock(CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue) {
+            let mode = CFRunLoopCopyCurrentMode(CFRunLoopGetMain()).map { $0.rawValue as String } ?? "-"
+            print("diag runloop block mode=\(mode) observing=\(CFRunLoopContainsObserver(CFRunLoopGetMain(), observer, .defaultMode))")
+        }
+        CFRunLoopWakeUp(CFRunLoopGetMain())
     }
 
     // MARK: logging and signposts

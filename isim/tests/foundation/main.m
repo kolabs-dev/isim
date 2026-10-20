@@ -327,6 +327,103 @@ static void thread_checks(void) {
           [NSThread.currentThread.threadDictionary isKindOfClass:[NSMutableDictionary class]]);
 }
 
+/* CFRunLoop: the thread's NSRunLoop, observers of its activities, timers (toll-free with NSTimer), version 0 sources,
+   blocks, stop and wake up (C; like a crash reporter's or a hang detector's main-thread observer) */
+static NSMutableArray *cf_log;
+static void cf_observe(CFRunLoopObserverRef o, CFRunLoopActivity a, void *info) {
+    if (a == kCFRunLoopEntry) [cf_log addObject:@"entry"];
+    if (a == kCFRunLoopBeforeWaiting) [cf_log addObject:@"before-waiting"];
+    if (a == kCFRunLoopAfterWaiting) [cf_log addObject:@"after-waiting"];
+    if (a == kCFRunLoopExit) [cf_log addObject:@"exit"];
+    (*(int *)info)++;
+}
+static void cf_fired(CFRunLoopTimerRef t, void *info) { (*(int *)info)++; }
+static int cf_performed, cf_scheduled, cf_cancelled;
+static void cf_perform(void *info) { cf_performed++; }
+static void cf_schedule(void *info, CFRunLoopRef rl, CFRunLoopMode mode) { cf_scheduled++; }
+static void cf_cancel(void *info, CFRunLoopRef rl, CFRunLoopMode mode) { cf_cancelled++; }
+static void cf_runloop_checks(void) {
+    CFRunLoopRef main = CFRunLoopGetMain();
+    CHECK(main == CFRunLoopGetCurrent() && main == [NSRunLoop.mainRunLoop getCFRunLoop] && CFGetTypeID(main) == CFRunLoopGetTypeID());
+    CHECK(CFEqual(kCFRunLoopDefaultMode, (__bridge CFStringRef)NSDefaultRunLoopMode) && CFEqual(kCFRunLoopCommonModes, (__bridge CFStringRef)NSRunLoopCommonModes));
+    // an observer of every activity, a repeating timer and a one-shot timer in the default mode
+    cf_log = [NSMutableArray array];
+    __block int calls = 0, fired = 0, once = 0;
+    CFRunLoopObserverContext oc = { 0, &calls, NULL, NULL, NULL };
+    CFRunLoopObserverRef obs = CFRunLoopObserverCreate(kCFAllocatorDefault, kCFRunLoopAllActivities, true, 0, cf_observe, &oc);
+    CFRunLoopAddObserver(main, obs, kCFRunLoopDefaultMode);
+    CHECK(CFRunLoopContainsObserver(main, obs, kCFRunLoopDefaultMode) && !CFRunLoopContainsObserver(main, obs, CFSTR("isim.other")));
+    CHECK(CFRunLoopObserverGetActivities(obs) == kCFRunLoopAllActivities && CFRunLoopObserverDoesRepeat(obs) && CFGetTypeID(obs) == CFRunLoopObserverGetTypeID());
+    CFRunLoopTimerContext tc = { 0, &fired, NULL, NULL, NULL };
+    CFRunLoopTimerRef timer = CFRunLoopTimerCreate(kCFAllocatorDefault, CFAbsoluteTimeGetCurrent() + 0.02, 0.02, 0, 0, cf_fired, &tc);
+    CFRunLoopAddTimer(main, timer, kCFRunLoopDefaultMode);
+    CHECK(CFRunLoopContainsTimer(main, timer, kCFRunLoopDefaultMode) && CFRunLoopTimerDoesRepeat(timer) && CFRunLoopTimerGetInterval(timer) == 0.02);
+    CHECK([(__bridge NSTimer *)timer isKindOfClass:[NSTimer class]] && CFGetTypeID(timer) == CFRunLoopTimerGetTypeID());   // toll-free
+    CHECK(fabs(CFRunLoopGetNextTimerFireDate(main, kCFRunLoopDefaultMode) - CFRunLoopTimerGetNextFireDate(timer)) < 0.01);
+    CFRunLoopTimerRef shot = CFRunLoopTimerCreateWithHandler(kCFAllocatorDefault, CFAbsoluteTimeGetCurrent() + 0.01, 0, 0, 0, ^(CFRunLoopTimerRef t) { once++; });
+    CFRunLoopAddTimer(main, shot, kCFRunLoopDefaultMode);
+    CFRunLoopRunResult r = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.2, false);
+    CHECK(r == kCFRunLoopRunTimedOut && fired >= 3 && once == 1 && !CFRunLoopTimerIsValid(shot) && CFRunLoopTimerIsValid(timer));
+    CHECK(calls > 0 && [cf_log.firstObject isEqual:@"entry"] && [cf_log.lastObject isEqual:@"exit"] && [cf_log containsObject:@"before-waiting"] &&
+          [cf_log containsObject:@"after-waiting"]);
+    CFRunLoopTimerInvalidate(timer);
+    CFRunLoopRemoveObserver(main, obs, kCFRunLoopDefaultMode);
+    CHECK(!CFRunLoopContainsObserver(main, obs, kCFRunLoopDefaultMode) && !CFRunLoopContainsTimer(main, timer, kCFRunLoopDefaultMode));
+    // observers in another mode are not told; a one-shot observer runs once
+    __block int other = 0, single = 0;
+    CFRunLoopObserverRef elsewhere = CFRunLoopObserverCreateWithHandler(kCFAllocatorDefault, kCFRunLoopAllActivities, true, 0, ^(CFRunLoopObserverRef o, CFRunLoopActivity a) { other++; });
+    CFRunLoopObserverRef one = CFRunLoopObserverCreateWithHandler(kCFAllocatorDefault, kCFRunLoopBeforeTimers, false, 0, ^(CFRunLoopObserverRef o, CFRunLoopActivity a) { single++; });
+    CFRunLoopAddObserver(main, elsewhere, CFSTR("isim.other"));
+    CFRunLoopAddObserver(main, one, kCFRunLoopCommonModes);
+    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.05, false);
+    CHECK(other == 0 && single == 1 && !CFRunLoopObserverIsValid(one));
+    CFRunLoopObserverInvalidate(elsewhere);
+    // blocks: returnAfterSourceHandled returns as soon as one ran; the current mode during it
+    __block CFStringRef during = NULL;
+    CFRunLoopPerformBlock(main, kCFRunLoopDefaultMode, ^{ during = CFRunLoopCopyCurrentMode(CFRunLoopGetCurrent()); });
+    r = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 2, true);
+    CHECK(r == kCFRunLoopRunHandledSource && during && CFEqual(during, kCFRunLoopDefaultMode));
+    if (during) CFRelease(during);
+    // a version 0 source: scheduled when added, performed once signalled, cancelled when removed
+    CFRunLoopSourceContext sc = { 0, NULL, NULL, NULL, NULL, NULL, NULL, cf_schedule, cf_cancel, cf_perform };
+    CFRunLoopSourceRef src = CFRunLoopSourceCreate(kCFAllocatorDefault, 0, &sc);
+    CFRunLoopAddSource(main, src, kCFRunLoopDefaultMode);
+    CHECK(cf_scheduled == 1 && CFRunLoopContainsSource(main, src, kCFRunLoopDefaultMode) && CFGetTypeID(src) == CFRunLoopSourceGetTypeID());
+    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.02, true);
+    CHECK(cf_performed == 0);                               // not signalled
+    CFRunLoopSourceSignal(src);
+    r = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 2, true);
+    CHECK(r == kCFRunLoopRunHandledSource && cf_performed == 1);
+    CFRunLoopRemoveSource(main, src, kCFRunLoopDefaultMode);
+    CHECK(cf_cancelled == 1 && !CFRunLoopContainsSource(main, src, kCFRunLoopDefaultMode));
+    // a worker thread's loop: CFRunLoopRun until another thread stops it (and wakes it); a source signalled from outside
+    __block CFRunLoopRef worker = NULL;
+    __block BOOL ran = NO, stopped = NO;
+    __block int workerPerformed = 0;
+    [NSThread detachNewThreadWithBlock:^{
+        worker = CFRunLoopGetCurrent();
+        CFRunLoopSourceContext wc = { 0 };
+        wc.perform = cf_perform;
+        CFRunLoopSourceRef keep = CFRunLoopSourceCreate(kCFAllocatorDefault, 0, &wc);   // keeps the loop running
+        CFRunLoopAddSource(worker, keep, kCFRunLoopDefaultMode);
+        ran = YES;
+        int before = cf_performed;
+        CFRunLoopRun();
+        workerPerformed = cf_performed - before;
+        stopped = YES;
+        CFRunLoopSourceInvalidate(keep);
+        CFRelease(keep);
+    }];
+    CHECK(spin_until(^{ return (BOOL)(ran && CFRunLoopIsWaiting(worker)); }, 2));
+    CFArrayRef modes = CFRunLoopCopyAllModes(worker);
+    CHECK(CFArrayGetCount(modes) >= 1);
+    CFRelease(modes);
+    CFRunLoopPerformBlock(worker, kCFRunLoopCommonModes, ^{ CFRunLoopStop(CFRunLoopGetCurrent()); });
+    CFRunLoopWakeUp(worker);
+    CHECK(spin_until(^{ return stopped; }, 2) && workerPerformed == 0);
+    CFRelease(obs); CFRelease(timer); CFRelease(shot); CFRelease(elsewhere); CFRelease(one); CFRelease(src);
+}
+
 static int initialized;
 @interface Lazy : NSObject @end
 @implementation Lazy
@@ -1419,6 +1516,7 @@ int main(int argc, char *argv[]) {
         CHECK(NSFileNoSuchFileError == 4 && NSFileReadNoSuchFileError == 260 && NSFileWriteFileExistsError == 516 && NSPropertyListReadCorruptError == 3840);
         CHECK([fm removeItemAtPath:fmDir error:NULL]);
         thread_checks();
+        cf_runloop_checks();
         file_checks();
         objc_networking_checks();
         locale_checks();

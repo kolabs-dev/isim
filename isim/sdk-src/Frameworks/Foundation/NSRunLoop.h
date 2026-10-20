@@ -1,6 +1,7 @@
 #pragma once
 #import <Foundation/NSObject.h>
 #import <Foundation/NSPort.h>
+#include <CoreFoundation/CFRunLoop.h>
 NS_ASSUME_NONNULL_BEGIN
 @class NSTimer, NSDate, NSString, NSArray<ObjectType>;
 FOUNDATION_EXPORT NSRunLoopMode const NSDefaultRunLoopMode;
@@ -10,6 +11,8 @@ FOUNDATION_EXPORT NSRunLoopMode const NSRunLoopCommonModes;
 @property (class, readonly, strong) NSRunLoop *currentRunLoop;
 @property (class, readonly, strong) NSRunLoop *mainRunLoop;
 @property (nullable, readonly, copy) NSRunLoopMode currentMode;
+/* the CFRunLoop of this run loop (isim: the same object) */
+- (CFRunLoopRef)getCFRunLoop CF_RETURNS_NOT_RETAINED;
 - (void)addTimer:(NSTimer *)timer forMode:(NSRunLoopMode)mode NS_SWIFT_NAME(add(_:forMode:));
 - (void)addPort:(NSPort *)aPort forMode:(NSRunLoopMode)mode NS_SWIFT_NAME(add(_:forMode:));
 - (void)removePort:(NSPort *)aPort forMode:(NSRunLoopMode)mode NS_SWIFT_NAME(remove(_:forMode:));
