@@ -583,11 +583,16 @@ final class _ShareItemSource: NSObject, UIActivityItemSource {
 func _shareItem<T: Transferable>(_ v: T) async -> Any {
     if let s = v as? String { return s }
     if let u = v as? URL { return u }
-    guard let type = T.exportedContentTypes.first, let data = try? await v.exported(as: type) else { return "\(v)" }
-    if type.conforms(to: .plainText) || type.conforms(to: .text) { return String(decoding: data, as: UTF8.self) }
+    guard let type = v._isimExportedContentTypes.first, let data = try? await v.exported(as: type) else { return "\(v)" }
+    let name = v._isimSuggestedFileName(for: type)
+    if name == nil, type.conforms(to: .plainText) || type.conforms(to: .text) { return String(decoding: data, as: UTF8.self) }
     if type.conforms(to: .url), let u = URL(string: String(decoding: data, as: UTF8.self)) { return u }
-    if type.conforms(to: .image), let img = UIImage(data: data) { return img }
-    let file = FileManager.default.temporaryDirectory.appendingPathComponent("Shared item").appendingPathExtension(type.preferredFilenameExtension ?? "data")
+    if name == nil, type.conforms(to: .image), let img = UIImage(data: data) { return img }
+    /* a file: the representation's suggested name (with the type's extension), else "Shared item" */
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    let file = name.map { dir.appendingPathComponent($0) }
+        ?? dir.appendingPathComponent("Shared item").appendingPathExtension(type.preferredFilenameExtension ?? "data")
     try? data.write(to: file)
     return file
 }

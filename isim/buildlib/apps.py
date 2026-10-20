@@ -814,6 +814,13 @@ def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "CoreGraphics"], name="CGPathTest")
 
 
+@app("tests/uttypes", products=["UTTypesTest.app", "UTTypesObjCTest.app"])
+def _(a):
+    a.swift_app("UTTypesTest", srcs=["UTTypesTest.swift"], plist="Info.plist")
+    b = a.objc_app(["main.m"], "ObjC-Info.plist", ["-framework", "Foundation", "-framework", "UniformTypeIdentifiers"], name="UTTypesObjCTest")
+    os.replace(os.path.join(b, "ObjC-Info.plist"), os.path.join(b, "Info.plist"))
+
+
 @app("tests/imageio", products=["ImageIOTest.app"], swift=False)
 def _(a):
     b = a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "CoreGraphics", "-framework", "ImageIO"], name="ImageIOTest")

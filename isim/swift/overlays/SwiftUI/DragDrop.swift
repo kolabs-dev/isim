@@ -57,12 +57,15 @@ final class _SUIDropTarget: NSObject, UIDropInteractionDelegate {
     v.addInteraction(UIDropInteraction(delegate: t))
 }
 
-/// An item provider with the payload's exported representations
+/// An item provider with the payload's exported representations (their exporting conditions and visibility applied;
+/// a suggested file name becomes the provider's suggested name)
 func _provider<T: Transferable>(_ payload: T) -> NSItemProvider {
     let p = NSItemProvider()
     let box = _UncheckedSendable(payload)
-    for t in T.exportedContentTypes {
-        p.registerDataRepresentation(forTypeIdentifier: t.identifier, visibility: .all) { done in
+    for e in payload._isimExportEntries {
+        let t = e.contentType
+        /* the representation's visibility is the provider's (.ownProcess: only this app's drops get it) */
+        p.registerDataRepresentation(forTypeIdentifier: t.identifier, visibility: NSItemProviderRepresentationVisibility(rawValue: e.visibility._isimRawValue) ?? .all) { done in
             let sem = DispatchSemaphore(value: 0)
             nonisolated(unsafe) var data: Data?, err: Error?
             Task.detached { do { data = try await box.value.exported(as: t) } catch { err = error }; sem.signal() }
@@ -71,6 +74,7 @@ func _provider<T: Transferable>(_ payload: T) -> NSItemProvider {
             return nil
         }
     }
+    if let t = payload._isimExportedContentTypes.first, let name = payload._isimSuggestedFileName(for: t) { p.suggestedName = (name as NSString).deletingPathExtension }
     return p
 }
 struct _UncheckedSendable<T>: @unchecked Sendable { let value: T; init(_ v: T) { value = v } }

@@ -190,6 +190,7 @@ SWIFT_FRAMEWORKS = [
     ("MarketplaceKit", []),
     ("Security", "-framework Foundation"),
     ("Network", []),
+    ("UniformTypeIdentifiers", "-framework Foundation"),   # the UTType class (the overlay's UTTypeReference) and UTCoreTypes.h
     ("MobileCoreServices", "-framework Foundation", "UniformTypeIdentifiers"),
     ("CoreMedia", []),
     ("AVFoundation", "-framework Foundation -framework UIKit -framework CoreMedia"),

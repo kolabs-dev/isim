@@ -14,7 +14,12 @@
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `CodableRepresentation`, `TransferRepresentationVisibility`, `TupleTransferRepresentation` (3 types; with their members under "Not yet in isim") |
+| `Transferable`, `TransferRepresentationBuilder`, `DataRepresentation`, `FileRepresentation` (`SentTransferredFile`, `ReceivedTransferredFile`), `ProxyRepresentation`; `Data`, `String`, `URL` (and SwiftUI `Image`) conformances | 🟡 | 16.0 | adapted: representations import and export through data (a file representation reads its file, or writes a temporary one for its importer); `shouldAttemptToOpenInPlace` is accepted, not honoured; used by ShareLink, drag and drop, PasteButton and PhotosPicker; tested (UTTypesTest, HelloScrollAndLists, HelloSwiftUIControls, HelloDragDrop) |
+| `CodableRepresentation` (`init(contentType:)` with JSON, `init(contentType:encoder:decoder:)`, `init(for:…)`) | ✅ | 16.0 | adapted: Combine's `TopLevelEncoder` / `TopLevelDecoder` (JSONEncoder, PropertyListEncoder, …); tested (UTTypesTest: JSON and a property list) |
+| `TransferRepresentationVisibility` (`.all`, `.team`, `.group`, `.ownProcess`), `visibility(_:)` | 🟡 | 16.0 | adapted: passed to the drag's NSItemProvider as its representation visibility; isim runs one app at a time, so only `.ownProcess` changes what another app could receive; tested (UTTypesTest) |
+| `suggestedFileName(_:)` (a name, or one per item) | ✅ | 16.0 | adapted: the file ShareLink shares a representation as (with the type's filename extension), and the drag's suggested name; tested (UTTypesTest) |
+| `exportingCondition(_:)` | ✅ | 16.0 | adapted: a representation whose condition fails for an item is left out of its export, its drag and its share; tested (UTTypesTest) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `TupleTransferRepresentation` (1 type; with its members under "Not yet in isim") |
 
 ## Not yet in isim
 
