@@ -59,6 +59,7 @@ long isim_image_encode_gif(const int *handles, int n, const double *delays, int 
 void *isim_pdf_open(const void *data, long len, int *pages);
 void isim_pdf_page_size(void *doc, int page, double *w, double *h);
 void isim_pdf_page_render(void *doc, int page);
+ISIM_GUEST_ABI int isim_pdf_page_text(void *doc, int page, char *buf, int cap, double *rects, int rcap, int *nrects);
 void isim_pdf_close(void *doc);
 int isim_pdf_available(void);
 ISIM_GUEST_ABI void *isim_pdf_open_password(const void *data, long len, const char *password, int *pages);
@@ -77,4 +78,4 @@ ISIM_GUEST_ABI void isim_cg_pdf_metadata(void *t, int key, const char *value);
     X(isim_ct_font_draw), X(isim_ct_font_faces), X(isim_cg_font_data_info), \
     X(isim_imgsrc_info), X(isim_imgsrc_frame), X(isim_image_encode_gif), \
     X(isim_pdf_open), X(isim_pdf_page_size), X(isim_pdf_page_render), X(isim_pdf_close), X(isim_pdf_available), \
-    X(isim_pdf_open_password), X(isim_cg_pdf_tag), X(isim_cg_pdf_outline), X(isim_cg_pdf_metadata)
+    X(isim_pdf_open_password), X(isim_pdf_page_text), X(isim_cg_pdf_tag), X(isim_cg_pdf_outline), X(isim_cg_pdf_metadata)

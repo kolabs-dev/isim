@@ -123,6 +123,8 @@ int isim_pdf_available(void);
 void *_Nullable isim_pdf_open(const void *data, long len, int *pages);
 void isim_pdf_page_size(void *doc, int page, double *w, double *h);
 void isim_pdf_page_render(void *doc, int page);   /* into the current target, y-down from the page's top-left */
+/* the page's text (UTF-8) and a rectangle per character (x1 y1 x2 y2, y-down in its rotated display space) */
+int isim_pdf_page_text(void *doc, int page, char *buf, int cap, double *rects, int rcap, int *nrects);
 void isim_pdf_close(void *_Nullable doc);
 void *_Nullable isim_pdf_open_password(const void *data, long len, const char *_Nullable password, int *pages);
 /* PDF contexts: cairo tags (kind 0 a link, 1 a named destination; page units, y-down), the outline (returns the item's

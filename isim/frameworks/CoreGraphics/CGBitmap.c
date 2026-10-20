@@ -438,6 +438,43 @@ void CGContextDrawPDFPage(CGContextRef c, CGPDFPageRef p) {
     if (x->target) isim_cg_target_unbind(x->target);
 }
 
+/* for PDFKit (private): a page's text (malloc'd UTF-8) and a rectangle per character in page space (*rects, malloc'd) */
+char *isim_CGPDFPageCopyText(CGPDFPageRef p, CGRect **rects, size_t *count) {
+    *rects = NULL; *count = 0;
+    if (!p || !p->doc->doc) return NULL;
+    int nr = 0, len = isim_pdf_page_text(p->doc->doc, p->index, NULL, 0, NULL, 0, &nr);
+    char *text = malloc((size_t)len + 1);
+    double *r = malloc(sizeof(double) * 4 * (size_t)(nr ? nr : 1));
+    int got = 0;
+    len = isim_pdf_page_text(p->doc->doc, p->index, text, len, r, nr, &got);
+    text[len] = 0;
+    if (got > nr) got = nr;
+    CGRect crop = CGPDFPageGetBoxRect(p, kCGPDFCropBox);
+    double cx = crop.origin.x, cy = crop.origin.y, w = crop.size.width, h = crop.size.height;
+    int rot = CGPDFPageGetRotationAngle(p);
+    CGRect *out = malloc(sizeof *out * (size_t)(got ? got : 1));
+    for (int i = 0; i < got; i++) {                                    /* the display space back to the page's */
+        double px[2], py[2];
+        for (int k = 0; k < 2; k++) {
+            double X = r[4 * i + 2 * k], Y = r[4 * i + 2 * k + 1];
+            if (rot == 90) { px[k] = cx + Y; py[k] = cy + X; }
+            else if (rot == 180) { px[k] = cx + w - X; py[k] = cy + Y; }
+            else if (rot == 270) { px[k] = cx + w - Y; py[k] = cy + h - X; }
+            else { px[k] = cx + X; py[k] = cy + h - Y; }
+        }
+        out[i] = CGRectStandardize(CGRectMake(px[0], py[0], px[1] - px[0], py[1] - py[0]));
+    }
+    free(r);
+    *rects = out; *count = (size_t)got;
+    return text;
+}
+/* for PDFKit (private): 0 locked, 1 unlocked with the user password, 2 with the owner password or not encrypted */
+int isim_CGPDFDocumentGetUnlockLevel(CGPDFDocumentRef d) {
+    if (!d) return 0;
+    if (!d->pd) return 2;
+    return isim_pdf_doc_owner(d->pd) ? 2 : isim_pdf_doc_unlocked(d->pd) ? 1 : 0;
+}
+
 /* ---------------- outlines ---------------- */
 static void set_num(CFMutableDictionaryRef d, CFStringRef k, double v) {
     CFNumberRef n = CFNumberCreate(NULL, kCFNumberDoubleType, &v);

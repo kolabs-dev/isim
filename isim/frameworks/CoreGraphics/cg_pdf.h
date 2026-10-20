@@ -34,6 +34,7 @@ struct CGPDFDictionary *isim_pdf_doc_catalog(struct pdoc *d);
 void isim_pdf_doc_version(struct pdoc *d, int *major, int *minor);
 int isim_pdf_doc_encrypted(struct pdoc *d);
 int isim_pdf_doc_unlocked(struct pdoc *d);
+int isim_pdf_doc_owner(struct pdoc *d);                          /* unlocked with the owner password, or not encrypted */
 int isim_pdf_doc_unlock(struct pdoc *d, const char *password);   /* 1 user, 2 owner password, 0 wrong */
 uint32_t isim_pdf_doc_permissions(struct pdoc *d);               /* the /P bits (all set when not encrypted or owner) */
 const char *isim_pdf_doc_password(struct pdoc *d);               /* the password that unlocked it (for poppler) */

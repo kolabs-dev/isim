@@ -1267,6 +1267,8 @@ static struct {
     void *(*get_page)(void *, int);
     void (*page_size)(void *, double *, double *);
     void (*render)(void *, cairo_t *);
+    char *(*text)(void *);
+    int (*layout)(void *, void **, unsigned *);
 } pp;
 int isim_pdf_available(void) {
     if (!pp.tried) {
@@ -1279,6 +1281,8 @@ int isim_pdf_available(void) {
             pp.get_page = dlsym(h, "poppler_document_get_page");
             pp.page_size = dlsym(h, "poppler_page_get_size");
             pp.render = dlsym(h, "poppler_page_render");
+            pp.text = dlsym(h, "poppler_page_get_text");
+            pp.layout = dlsym(h, "poppler_page_get_text_layout");
             pp.ok = pp.doc_new_from_bytes && pp.n_pages && pp.get_page && pp.page_size && pp.render;
         }
     }
@@ -1302,6 +1306,25 @@ ISIM_GUEST_ABI void *isim_pdf_open_password(const void *data, long len, const ch
     g_bytes_unref(b);
     if (doc) *pages = pp.n_pages(doc);
     return doc;
+}
+/* a page's text (UTF-8 into buf, up to cap bytes) and one rectangle per character (x1 y1 x2 y2, y-down in the page's
+ * rotated display space, up to rcap) into rects; returns the text's length in bytes, *nrects the rectangles' count */
+ISIM_GUEST_ABI int isim_pdf_page_text(void *doc, int page, char *buf, int cap, double *rects, int rcap, int *nrects) {
+    *nrects = 0;
+    void *p = doc && pp.ok && pp.text ? pp.get_page(doc, page) : NULL;
+    if (!p) return 0;
+    char *t = pp.text(p);
+    int len = t ? (int)strlen(t) : 0;
+    if (buf && cap > 0) { memcpy(buf, t, len < cap ? len : cap); }
+    g_free(t);
+    void *r = NULL; unsigned n = 0;
+    if (pp.layout && pp.layout(p, &r, &n) && r) {
+        *nrects = (int)n;
+        if (rects) memcpy(rects, r, sizeof(double) * 4 * (n < (unsigned)rcap ? n : (unsigned)rcap));
+        g_free(r);
+    }
+    g_object_unref(p);
+    return len;
 }
 void isim_pdf_page_size(void *doc, int page, double *w, double *h) {
     *w = *h = 0;

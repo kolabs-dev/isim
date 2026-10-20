@@ -918,6 +918,7 @@ struct CGPDFDictionary *isim_pdf_doc_catalog(struct pdoc *d) { return d && d->tr
 void isim_pdf_doc_version(struct pdoc *d, int *major, int *minor) { if (major) *major = d ? d->major : 0; if (minor) *minor = d ? d->minor : 0; }
 int isim_pdf_doc_encrypted(struct pdoc *d) { return d && d->encrypted; }
 int isim_pdf_doc_unlocked(struct pdoc *d) { return d && (!d->encrypted || d->unlocked); }
+int isim_pdf_doc_owner(struct pdoc *d) { return d && (!d->encrypted || (d->unlocked && d->owner)); }
 uint32_t isim_pdf_doc_permissions(struct pdoc *d) { return !d || !d->encrypted || d->owner ? 0xFFFFFFFFu : d->P; }
 const char *isim_pdf_doc_password(struct pdoc *d) { return d && d->encrypted && d->unlocked ? d->password : NULL; }
 static void collect_pages(struct pdoc *d, struct CGPDFDictionary *node, int depth, struct CGPDFDictionary ***out, int *n, int *cap) {
