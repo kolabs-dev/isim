@@ -2,7 +2,8 @@
 appending(path:directoryHint:)), URL.standardized and standardizedFileURL, security-scoped access (adapted: always
 granted for file URLs), bookmarks (resolved after a rename: stale; the resource values kept in them; bookmark files;
 an error once the file is gone) and NSFileVersion (adding a version by moving a copy, listing, finding by persistent
-identifier, restoring, removing; the current version cannot be removed)."""
+identifier, restoring, removing; the current version cannot be removed); for-in over FileManager enumerators (fast
+enumeration) keeps the objects it hands out alive."""
 
 
 def test_file_urls(launch):
@@ -18,4 +19,6 @@ def test_file_urls(launch):
     app.wait_log(r"^versions restored=version 1$")
     app.wait_log(r"^versions after remove=0$")
     app.wait_log(r"^versions current remove error=513$")                                 # NSFileWriteNoPermissionError
+    # for-in over FileManager enumerators: the iterator must not release what fast enumeration hands out unretained
+    app.wait_log(r"^enumerated paths=36 urls=36 still alive=200$")
     assert app.quit() == 0, "exits cleanly"

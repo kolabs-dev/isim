@@ -242,6 +242,7 @@ def run_testables(b, testables, env, args, opts, only, skip, results, configurat
         # identifiers as Bundle[/Class[/test]] (Xcode's Target/... form, with the bundle's name)
         def ids(lst):
             return ','.join('/'.join([bundle_base] + x.split('/')[1:]) for x in lst if x.split('/')[0] == tname)
+        renv['ISIM_SRCROOT'] = target.p.root        # $(SRCROOT): where SKTestSession finds the project's .storekit files
         renv['ISIM_XCTEST_ONLY'] = ids(mine)
         renv['ISIM_XCTEST_SKIP'] = ids(skip + ([] if mine else scheme_skips))
         if results:

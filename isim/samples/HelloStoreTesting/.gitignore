@@ -1,0 +1,8 @@
+# isim build's products (./build) and this project's own device data (ISIM_DATA=$PWD/.isim-data)
+build/
+.isim-data/
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcuserstate
+.DS_Store
