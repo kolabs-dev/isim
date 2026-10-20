@@ -430,6 +430,89 @@ static void cf_release_all(CFTypeRef first, ...) {          /* NULL-terminated *
     for (CFTypeRef o = first; o; o = va_arg(ap, CFTypeRef)) CFRelease(o);
     va_end(ap);
 }
+/* NSXMLParser: a delegate that logs every callback */
+@interface XMLLog : NSObject <NSXMLParserDelegate>
+@property NSMutableArray<NSString *> *log;
+@property NSInteger abortAfter;
+@end
+@implementation XMLLog
+- (instancetype)init { if ((self = [super init])) _log = [NSMutableArray array]; return self; }
+- (void)add:(NSString *)s parser:(NSXMLParser *)p { [_log addObject:s]; if (_abortAfter && (NSInteger)_log.count >= _abortAfter) [p abortParsing]; }
+- (void)parserDidStartDocument:(NSXMLParser *)p { [self add:@"doc" parser:p]; }
+- (void)parserDidEndDocument:(NSXMLParser *)p { [self add:@"/doc" parser:p]; }
+- (void)parser:(NSXMLParser *)p didStartElement:(NSString *)e namespaceURI:(NSString *)u qualifiedName:(NSString *)q attributes:(NSDictionary *)a {
+    NSMutableArray *kv = [NSMutableArray array];
+    for (NSString *k in [a.allKeys sortedArrayUsingSelector:@selector(compare:)]) [kv addObject:[NSString stringWithFormat:@"%@=%@", k, a[k]]];
+    [self add:[NSString stringWithFormat:@"<%@ %@ %@ [%@] @%ld:%ld", e, u ?: @"-", q ?: @"-", [kv componentsJoinedByString:@","], (long)p.lineNumber, (long)p.columnNumber] parser:p];
+}
+- (void)parser:(NSXMLParser *)p didEndElement:(NSString *)e namespaceURI:(NSString *)u qualifiedName:(NSString *)q { [self add:[@"/" stringByAppendingString:e] parser:p]; }
+- (void)parser:(NSXMLParser *)p didStartMappingPrefix:(NSString *)pre toURI:(NSString *)u { [self add:[NSString stringWithFormat:@"map %@=%@", pre, u] parser:p]; }
+- (void)parser:(NSXMLParser *)p didEndMappingPrefix:(NSString *)pre { [self add:[@"unmap " stringByAppendingString:pre] parser:p]; }
+- (void)parser:(NSXMLParser *)p foundCharacters:(NSString *)s {
+    if ([_log.lastObject hasPrefix:@"\""]) { NSString *prev = _log.lastObject; [_log removeLastObject]; [_log addObject:[NSString stringWithFormat:@"%@%@\"", [prev substringToIndex:prev.length - 1], s]]; }
+    else [self add:[NSString stringWithFormat:@"\"%@\"", s] parser:p];
+}
+- (void)parser:(NSXMLParser *)p foundCDATA:(NSData *)d { [self add:[@"cdata " stringByAppendingString:[[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding]] parser:p]; }
+- (void)parser:(NSXMLParser *)p foundComment:(NSString *)c { [self add:[@"comment " stringByAppendingString:c] parser:p]; }
+- (void)parser:(NSXMLParser *)p foundProcessingInstructionWithTarget:(NSString *)t data:(NSString *)d { [self add:[NSString stringWithFormat:@"pi %@ %@", t, d] parser:p]; }
+- (void)parser:(NSXMLParser *)p foundElementDeclarationWithName:(NSString *)n model:(NSString *)m { [self add:[NSString stringWithFormat:@"element %@ %@", n, m] parser:p]; }
+- (void)parser:(NSXMLParser *)p foundAttributeDeclarationWithName:(NSString *)n forElement:(NSString *)e type:(NSString *)t defaultValue:(NSString *)v {
+    [self add:[NSString stringWithFormat:@"attlist %@ %@ %@ %@", e, n, t, v ?: @"-"] parser:p];
+}
+- (void)parser:(NSXMLParser *)p foundInternalEntityDeclarationWithName:(NSString *)n value:(NSString *)v { [self add:[NSString stringWithFormat:@"entity %@ %@", n, v] parser:p]; }
+- (void)parser:(NSXMLParser *)p foundExternalEntityDeclarationWithName:(NSString *)n publicID:(NSString *)pub systemID:(NSString *)sys {
+    [self add:[NSString stringWithFormat:@"external %@ %@", n, sys] parser:p];
+}
+- (void)parser:(NSXMLParser *)p foundNotationDeclarationWithName:(NSString *)n publicID:(NSString *)pub systemID:(NSString *)sys { [self add:[@"notation " stringByAppendingString:n] parser:p]; }
+- (void)parser:(NSXMLParser *)p parseErrorOccurred:(NSError *)e { [self add:[NSString stringWithFormat:@"error %ld @%ld", (long)e.code, (long)p.lineNumber] parser:p]; }
+@end
+
+static NSArray<NSString *> *xml_log(NSString *xml, BOOL ns, BOOL prefixes, NSInteger abortAfter, BOOL *ok, NSError **err) {
+    NSXMLParser *p = [[NSXMLParser alloc] initWithData:[xml dataUsingEncoding:NSUTF8StringEncoding]];
+    XMLLog *log = [XMLLog new];
+    log.abortAfter = abortAfter;
+    p.delegate = log; p.shouldProcessNamespaces = ns; p.shouldReportNamespacePrefixes = prefixes;
+    *ok = [p parse];
+    if (err) *err = p.parserError;
+    return log.log;
+}
+
+static void xml_parser_checks(void) {
+    NSString *doc = @"<?xml version=\"1.0\"?>\n<!DOCTYPE r [<!ENTITY co \"Kolabs\"><!ENTITY ext SYSTEM \"/etc/hostname\"><!ELEMENT r ANY>"
+                    "<!ATTLIST a kind CDATA \"plain\"><!NOTATION gif SYSTEM \"image/gif\">]>\n"
+                    "<r xmlns=\"urn:d\" xmlns:x=\"urn:x\"><!--note--><?app run fast?>\n<a x:id=\"1 &amp; &co;\">&co; &lt;&#65;&gt;&ext;</a><x:b><![CDATA[<raw>]]></x:b></r>";
+    BOOL ok; NSError *err;
+    NSArray *log = xml_log(doc, NO, NO, 0, &ok, &err);
+    NSString *joined = [log componentsJoinedByString:@" | "];
+    printf("xml: %s\n", joined.UTF8String);
+    CHECK(ok && err == nil && [log.firstObject isEqual:@"doc"] && [log.lastObject isEqual:@"/doc"]);
+    CHECK([log containsObject:@"entity co Kolabs"] && [log containsObject:@"external ext /etc/hostname"] && [log containsObject:@"element r ANY"] &&
+          [log containsObject:@"attlist a kind CDATA plain"] && [log containsObject:@"notation gif"]);
+    CHECK([log containsObject:@"<r - - [xmlns=urn:d,xmlns:x=urn:x] @3:33"]);                 // qualified names, xmlns attributes
+    CHECK([log containsObject:@"<a - - [kind=plain,x:id=1 & Kolabs] @4:23"]);                 // defaulted attribute, entities in values
+    CHECK([log containsObject:@"\"Kolabs <A>\""]);                                            // entities in text; the external one is not loaded
+    CHECK([log containsObject:@"comment note"] && [log containsObject:@"pi app run fast"] && [log containsObject:@"cdata <raw>"] && [log containsObject:@"<x:b - - [] @4:55"]);
+    log = xml_log(doc, YES, YES, 0, &ok, &err);
+    joined = [log componentsJoinedByString:@" | "];
+    printf("xml ns: %s\n", joined.UTF8String);
+    CHECK(ok && [joined containsString:@"map =urn:d | map x=urn:x | <r urn:d r [] @3:33"] && [joined containsString:@"<b urn:x x:b []"] &&
+          [joined containsString:@"<a urn:d a [kind=plain,x:id=1 & Kolabs]"] && [joined containsString:@"/r | unmap  | unmap x | /doc"]);
+    log = xml_log(@"<list>\n  <item>one</item>\n  <item>two</oops>\n</list>", NO, NO, 0, &ok, &err);
+    CHECK(!ok && err.code == NSXMLParserTagNameMismatchError && [err.domain isEqual:NSXMLParserErrorDomain] && [err.userInfo[@"NSXMLParserErrorLineNumber"] integerValue] == 3);
+    CHECK([log.lastObject isEqual:@"error 76 @3"] && ![log containsObject:@"/doc"]);
+    log = xml_log(@"", NO, NO, 0, &ok, &err);
+    CHECK(!ok && err.code > 0 && [log.lastObject hasPrefix:@"error"]);
+    log = xml_log(@"<a>&nope;</a>", NO, NO, 0, &ok, &err);
+    CHECK(!ok && err.code == NSXMLParserUndeclaredEntityError);
+    log = xml_log(@"<a><b/><c/><d/></a>", NO, NO, 3, &ok, &err);
+    CHECK(!ok && err.code == NSXMLParserDelegateAbortedParseError && log.count == 3 && ![log containsObject:@"error 512 @1"]);
+    NSXMLParser *p = [[NSXMLParser alloc] initWithStream:[NSInputStream inputStreamWithData:[@"<s>stream</s>" dataUsingEncoding:NSUTF8StringEncoding]]];
+    XMLLog *sl = [XMLLog new];
+    p.delegate = sl;
+    CHECK([p parse] && [sl.log containsObject:@"\"stream\""] && p.externalEntityResolvingPolicy == NSXMLParserResolveExternalEntitiesNever);
+    CHECK([[NSXMLParser alloc] initWithContentsOfURL:[NSURL fileURLWithPath:@"/nonexistent/isim.xml"]] == nil);
+}
+
 #define CF_SET(ms, str) [(__bridge NSMutableString *)(ms) setString:(str)]
 /* CFURL (toll-free with NSURL), CFBundle resources, CFPreferences, CFLocale, CFDateFormatter and CFStringTransform */
 static void cf_url_locale_checks(void) {
@@ -1635,6 +1718,7 @@ int main(int argc, char *argv[]) {
         thread_checks();
         cf_runloop_checks();
         cf_url_locale_checks();
+        xml_parser_checks();
         file_checks();
         objc_networking_checks();
         locale_checks();

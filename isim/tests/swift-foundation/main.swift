@@ -25,6 +25,83 @@ func coreFoundationChecks() {
     check("中文".applyingTransform(.mandarinToLatin, reverse: false) == nil, "an unknown transform is nil")
 }
 
+/// XMLParser with a delegate (the RSS-reader pattern), namespaces, errors and abortParsing
+final class FeedReader: NSObject, XMLParserDelegate {
+    var titles: [String] = [], events: [String] = [], text = "", errorCode = 0, lines: [Int] = []
+    var abortAt: String?
+    func parserDidStartDocument(_ parser: XMLParser) { events.append("start") }
+    func parserDidEndDocument(_ parser: XMLParser) { events.append("end") }
+    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?,
+                attributes attributeDict: [String: String] = [:]) {
+        events.append("<\(elementName)|\(namespaceURI ?? "-")|\(qName ?? "-")|\(attributeDict.keys.sorted().joined(separator: ","))")
+        lines.append(parser.lineNumber)
+        text = ""
+        if elementName == abortAt { parser.abortParsing() }
+    }
+    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
+        if elementName == "title" { titles.append(text) }
+    }
+    func parser(_ parser: XMLParser, foundCharacters string: String) { text += string }
+    func parser(_ parser: XMLParser, foundCDATA CDATABlock: Data) { text += String(decoding: CDATABlock, as: UTF8.self) }
+    func parser(_ parser: XMLParser, didStartMappingPrefix prefix: String, toURI namespaceURI: String) { events.append("map \(prefix)=\(namespaceURI)") }
+    func parser(_ parser: XMLParser, parseErrorOccurred parseError: Error) { errorCode = (parseError as NSError).code }
+}
+
+func xmlParserChecks() {
+    let feed = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <channel><title>isim news</title>
+        <item><title>First &amp; best</title><dc:creator>kb</dc:creator></item>
+        <item><title><![CDATA[<Second>]]></title></item>
+      </channel>
+    </rss>
+    """
+    let reader = FeedReader()
+    let parser = XMLParser(data: Data(feed.utf8))
+    parser.delegate = reader
+    check(parser.parse() && parser.parserError == nil, "XMLParser.parse() of an RSS feed")
+    check(reader.titles == ["isim news", "First & best", "<Second>"], "foundCharacters / foundCDATA give the titles")
+    check(reader.events.first == "start" && reader.events.last == "end", "parserDidStartDocument / parserDidEndDocument")
+    check(reader.events.contains("<rss|-|-|version,xmlns:dc") && reader.events.contains("<dc:creator|-|-|"),
+          "without namespace processing: qualified names, xmlns attributes")
+    check(reader.lines.first == 2 && reader.lines.contains(4), "lineNumber during callbacks")
+
+    let nsReader = FeedReader()
+    let nsParser = XMLParser(data: Data(feed.utf8))
+    nsParser.shouldProcessNamespaces = true
+    nsParser.shouldReportNamespacePrefixes = true
+    nsParser.delegate = nsReader
+    check(nsParser.parse(), "XMLParser with shouldProcessNamespaces")
+    check(nsReader.events.contains("<creator|http://purl.org/dc/elements/1.1/|dc:creator|") && nsReader.events.contains("<rss|-|rss|version") &&
+          nsReader.events.contains("map dc=http://purl.org/dc/elements/1.1/"), "namespace URI, qualified name, didStartMappingPrefix")
+
+    let bad = FeedReader()
+    let badParser = XMLParser(data: Data("<a><b></a>".utf8))
+    badParser.delegate = bad
+    check(!badParser.parse() && bad.errorCode == XMLParser.ErrorCode.tagNameMismatchError.rawValue &&
+          (badParser.parserError as NSError?)?.domain == XMLParser.errorDomain && !bad.events.contains("end"),
+          "a malformed document: parse() false, parseErrorOccurred with XMLParser.ErrorCode.tagNameMismatchError")
+
+    let aborting = FeedReader()
+    aborting.abortAt = "item"
+    let abortParser = XMLParser(data: Data(feed.utf8))
+    abortParser.delegate = aborting
+    check(!abortParser.parse() && (abortParser.parserError as NSError?)?.code == XMLParser.ErrorCode.delegateAbortedParseError.rawValue &&
+          aborting.titles == ["isim news"], "abortParsing stops at once (delegateAbortedParseError)")
+
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("isim-feed.xml")
+    try? Data(feed.utf8).write(to: url)
+    let fromFile = FeedReader(), fromStream = FeedReader()
+    let fileParser = XMLParser(contentsOf: url)
+    fileParser?.delegate = fromFile
+    let streamParser = XMLParser(stream: InputStream(data: Data(feed.utf8)))
+    streamParser.delegate = fromStream
+    check(fileParser?.parse() == true && fromFile.titles.count == 3 && streamParser.parse() && fromStream.titles.count == 3,
+          "XMLParser(contentsOf:) and XMLParser(stream:)")
+    check(XMLParser(data: Data()).externalEntityResolvingPolicy == .never, "externalEntityResolvingPolicy defaults to .never")
+}
+
 /// an NSError subclass with its own state, archived through super (issue #39)
 final class AppError: NSError, @unchecked Sendable {
     let screen: String
@@ -811,6 +888,7 @@ func lockingChecks() {
         fileChecks()
         localeChecks()
         coreFoundationChecks()
+        xmlParserChecks()
         print("swift foundation test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))
     }

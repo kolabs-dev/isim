@@ -1,6 +1,6 @@
 // Sample: networking on isim — URLSession with async/await and completion handlers, JSONDecoder, cookies
 // (sign in, then an authenticated request), HTTP status and URLError handling, a WebSocket echo,
-// Combine's dataTaskPublisher and NWPathMonitor.
+// Combine's dataTaskPublisher, NWPathMonitor and an RSS feed read with XMLParser.
 // The server is server.py next to this file; pass its address as a launch argument:
 //   python3 samples/HelloNetwork/server.py 8765 &
 //   isim run out/apps/HelloNetwork.app -server http://127.0.0.1:8765
@@ -10,6 +10,22 @@ import Network
 
 struct Todo: Decodable, Identifiable { let id: Int; let title: String; let done: Bool }
 struct Me: Decodable { let user: String }
+
+/// the item titles of an RSS feed (XMLParserDelegate)
+final class FeedParser: NSObject, XMLParserDelegate {
+    private(set) var titles: [String] = []
+    private var text = "", inItem = false
+    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?,
+                attributes attributeDict: [String: String] = [:]) {
+        if elementName == "item" { inItem = true }
+        text = ""
+    }
+    func parser(_ parser: XMLParser, foundCharacters string: String) { text += string }
+    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
+        if elementName == "title" && inItem { titles.append(text) }
+        if elementName == "item" { inItem = false }
+    }
+}
 
 @MainActor
 final class NetworkModel: ObservableObject {
@@ -21,6 +37,7 @@ final class NetworkModel: ObservableObject {
     @Published var errorText = "—"
     @Published var socketText = "—"
     @Published var combineText = "—"
+    @Published var feed: [String] = []
 
     let base: URL
     let monitor = NWPathMonitor()
@@ -50,6 +67,17 @@ final class NetworkModel: ObservableObject {
             todosStatus = error.localizedDescription
             print("todos error \(error)")
         }
+    }
+
+    /// an RSS feed parsed with XMLParser
+    func loadFeed() async {
+        guard let (data, _) = try? await URLSession.shared.data(from: base.appending(path: "feed.xml")) else { return }
+        let parser = XMLParser(data: data)
+        let reader = FeedParser()
+        parser.delegate = reader
+        let ok = parser.parse()
+        feed = reader.titles
+        print("feed \(ok) \(feed.joined(separator: ","))")
     }
 
     /// completion handler (runs on URLSession's background delegate queue)
@@ -155,6 +183,9 @@ struct ContentView: View {
                     }
                     Text(model.todosStatus).foregroundStyle(.secondary)
                 }
+                Section("Feed · XMLParser") {
+                    ForEach(model.feed, id: \.self) { Text($0) }
+                }
                 Section("Message · completion handler") {
                     Text(model.message).accessibilityIdentifier("message")
                     Button("Reload") { model.loadMessage() }.accessibilityIdentifier("reload")
@@ -180,6 +211,7 @@ struct ContentView: View {
         .task {
             await model.loadTodos()
             model.loadMessage()
+            await model.loadFeed()
         }
     }
 }
