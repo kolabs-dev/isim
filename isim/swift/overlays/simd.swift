@@ -65,6 +65,7 @@ public typealias simd_uint4 = SIMD4<UInt32>
 /// A 3x3 matrix of Floats, stored as three columns.
 public struct simd_float3x3: Equatable, Sendable {
     public var columns: (SIMD3<Float>, SIMD3<Float>, SIMD3<Float>)
+    public init(columns: (SIMD3<Float>, SIMD3<Float>, SIMD3<Float>)) { self.columns = columns }
     public init() { columns = (.zero, .zero, .zero) }
     public init(diagonal d: SIMD3<Float>) { columns = (SIMD3(d.x, 0, 0), SIMD3(0, d.y, 0), SIMD3(0, 0, d.z)) }
     public init(_ c0: SIMD3<Float>, _ c1: SIMD3<Float>, _ c2: SIMD3<Float>) { columns = (c0, c1, c2) }
@@ -104,6 +105,7 @@ public func simd_transpose(_ m: simd_float3x3) -> simd_float3x3 { m.transpose }
 /// A 2x2 matrix of Floats, stored as two columns.
 public struct simd_float2x2: Equatable, Sendable {
     public var columns: (SIMD2<Float>, SIMD2<Float>)
+    public init(columns: (SIMD2<Float>, SIMD2<Float>)) { self.columns = columns }
     public init() { columns = (.zero, .zero) }
     public init(_ scalar: Float) { columns = (SIMD2(scalar, 0), SIMD2(0, scalar)) }
     public init(diagonal d: SIMD2<Float>) { columns = (SIMD2(d.x, 0), SIMD2(0, d.y)) }
@@ -132,6 +134,7 @@ extension simd_float3x3 {
 /// A 4x4 matrix of Floats, stored as four columns.
 public struct simd_float4x4: Equatable, Sendable {
     public var columns: (SIMD4<Float>, SIMD4<Float>, SIMD4<Float>, SIMD4<Float>)
+    public init(columns: (SIMD4<Float>, SIMD4<Float>, SIMD4<Float>, SIMD4<Float>)) { self.columns = columns }
     public init() { columns = (.zero, .zero, .zero, .zero) }
     public init(_ scalar: Float) { self.init(diagonal: SIMD4(scalar, scalar, scalar, scalar)) }
     public init(diagonal d: SIMD4<Float>) { columns = (SIMD4(d.x, 0, 0, 0), SIMD4(0, d.y, 0, 0), SIMD4(0, 0, d.z, 0), SIMD4(0, 0, 0, d.w)) }
