@@ -248,6 +248,11 @@ int isim_media_probe(const char *url, struct isim_media_info *info);            
 /* HTML parsed by the host's libxml2, flattened into records ('S' element start with attributes, 'E' end, 'T' text;
    \x1e between records, \x1f between fields): the stream's length (written up to cap), -1 without libxml2 */
 long isim_html_flatten(const char *html, long len, const char *_Nullable encoding, char *out, long cap);
+/* XML parsed by the host's libxml2 SAX parser (host_xml.c), its callbacks recorded for NSXMLParser to replay ('D' / 'd'
+   document, 'S' / 'E' elements, 'T' text, 'A' CDATA, 'C' comment, 'P' instruction, DTD declarations, 'X' the first
+   error; line and column first; \x1e between records, \x1f between fields). flags 1: resolve external entities.
+   The stream's length (written up to cap), -1 without libxml2 */
+long isim_xml_sax(const char *xml, long len, int flags, char *out, long cap);
 /* playback session from `start` seconds: video frames (if want_video) and the soundtrack to the mixer (if want_audio) */
 int isim_media_open(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume);
 /* the same at a playback rate: the soundtrack is time-stretched (pitch kept) */

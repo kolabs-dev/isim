@@ -10,6 +10,12 @@ GET  /status/<n>  that status code               GET  /ws        WebSocket echo 
 import base64, hashlib, json, struct, sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+FEED = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>isim blog</title>
+  <item><title>XMLParser lands</title><link>https://example.com/1</link></item>
+  <item><title>Feeds &amp; more</title><link>https://example.com/2</link></item>
+</channel></rss>
+"""
 TODOS = [{"id": 1, "title": "Write the network layer", "done": True},
          {"id": 2, "title": "Decode JSON", "done": True},
          {"id": 3, "title": "Ship it", "done": False}]
@@ -34,6 +40,8 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path == "/todos":
             self.reply(200, json.dumps(TODOS).encode(), "application/json")
+        elif path == "/feed.xml":
+            self.reply(200, FEED.encode(), "application/rss+xml")
         elif path == "/message":
             self.reply(200, "Hello from a local server 👋".encode())
         elif path == "/me":

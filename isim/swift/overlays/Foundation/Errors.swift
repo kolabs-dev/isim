@@ -122,3 +122,8 @@ extension URLError: _ObjectiveCBridgeableError {
 
 /// The `NSError **` out-parameter of Objective-C methods, as Swift sees it.
 public typealias NSErrorPointer = AutoreleasingUnsafeMutablePointer<NSError?>?
+
+extension XMLParser {
+    /// The domain of the errors XMLParser reports (`parserError`): NSXMLParserErrorDomain.
+    public static let errorDomain: String = NSXMLParserErrorDomain
+}
