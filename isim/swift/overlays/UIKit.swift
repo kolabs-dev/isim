@@ -4,16 +4,16 @@
 
 // MARK: - #Preview of UIKit views and view controllers (isim: compiles and type-checks; `isim preview` renders one)
 @freestanding(declaration)
-public macro Preview(_ name: String? = nil, traits: PreviewTrait<Preview.ViewTraits>..., body: @escaping @MainActor () -> UIView) =
+public macro Preview(_ name: String? = nil, traits: PreviewTrait<Preview.ViewTraits>..., @PreviewMacroBodyBuilder<UIView> body: @escaping @MainActor () -> UIView) =
     #externalMacro(module: "PreviewsMacros", type: "UIKitView")
 @freestanding(declaration)
-public macro Preview(_ name: String? = nil, traits: PreviewTrait<Preview.ViewTraits>..., body: @escaping @MainActor () -> UIViewController) =
+public macro Preview(_ name: String? = nil, traits: PreviewTrait<Preview.ViewTraits>..., @PreviewMacroBodyBuilder<UIViewController> body: @escaping @MainActor () -> UIViewController) =
     #externalMacro(module: "PreviewsMacros", type: "UIKitViewController")
 extension Preview {
-    public init(_isimUIView name: String?, traits: [PreviewTrait<ViewTraits>], body: @escaping @MainActor () -> UIView) {
+    public init(_isimUIView name: String?, traits: [PreviewTrait<ViewTraits>], @PreviewMacroBodyBuilder<UIView> body: @escaping @MainActor () -> UIView) {
         self.init(_isimName: name, traits: traits, content: body)
     }
-    public init(_isimViewController name: String?, traits: [PreviewTrait<ViewTraits>], body: @escaping @MainActor () -> UIViewController) {
+    public init(_isimViewController name: String?, traits: [PreviewTrait<ViewTraits>], @PreviewMacroBodyBuilder<UIViewController> body: @escaping @MainActor () -> UIViewController) {
         self.init(_isimName: name, traits: traits, content: body)
     }
 }
@@ -44,7 +44,9 @@ extension Preview {
         }
     }
     var layout: PreviewTrait<Preview.ViewTraits>._Kind = .defaultLayout
-    for t in p.traits { if case .orientation = t._kind { continue }; layout = t._kind }
+    for t in p.traits.flatMap(\._isimFlattened) {
+        switch t._kind { case .orientation, .modifier, .combined: continue; default: layout = t._kind }
+    }
     guard layout != .defaultLayout else { return content }
     return _IsimPreviewCanvas(content: content, layout: layout)
 }

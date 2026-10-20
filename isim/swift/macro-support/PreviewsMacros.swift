@@ -23,10 +23,43 @@ enum PreviewExpansion {
             default: inTraits = false
             }
         }
-        guard let body else { return [] }        // the compiler reports the missing body argument
+        guard var body else { return [] }        // the compiler reports the missing body argument
         let traitList = traits.map(\.description).joined(separator: ", ")
-        return declarations(node, context, name: name,
-                            make: "DeveloperToolsSupport.Preview(\(label): \(name), traits: [\(traitList)], body: \(body))")
+        // @Previewable declarations (SwiftUI): they become the properties of a view whose body is the rest
+        var extra: [DeclSyntax] = []
+        if label == "_isimView", let closure = body.as(ClosureExprSyntax.self), let wrapped = previewable(closure, context) {
+            extra.append(wrapped.view)
+            body = "{ \(raw: wrapped.name)() }"
+        }
+        return extra + declarations(node, context, name: name,
+                                    make: "DeveloperToolsSupport.Preview(\(label): \(name), traits: [\(traitList)], body: \(body))")
+    }
+
+    /// The view a #Preview body with `@Previewable` variables becomes: those variables as its properties (without
+    /// `@Previewable`), the other statements as its body (nil when the body has none).
+    static func previewable(_ closure: ClosureExprSyntax, _ context: some MacroExpansionContext) -> (name: String, view: DeclSyntax)? {
+        func isPreviewable(_ v: VariableDeclSyntax) -> Bool {
+            v.attributes.contains { $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "Previewable" }
+        }
+        var props: [String] = [], rest: [String] = []
+        for item in closure.statements {
+            if let v = item.item.as(VariableDeclSyntax.self), isPreviewable(v) {
+                let attrs = v.attributes.filter { $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription != "Previewable" }
+                props.append(v.with(\.attributes, attrs).trimmedDescription)
+            } else { rest.append(item.trimmedDescription) }
+        }
+        guard !props.isEmpty else { return nil }
+        let name = context.makeUniqueName("PreviewableView").text
+        // a lone `return EXPR` is the body's expression (the view builder takes expressions)
+        if rest.count == 1, rest[0].hasPrefix("return ") { rest[0] = String(rest[0].dropFirst(7)) }
+        return (name, """
+            struct \(raw: name): SwiftUI.View {
+                \(raw: props.joined(separator: "\n"))
+                @SwiftUI.ViewBuilder var body: some SwiftUI.View {
+                    \(raw: rest.joined(separator: "\n"))
+                }
+            }
+            """)
     }
 
     /// WidgetKit's previews (`#Preview(_:as:widget:timeline:)`, `timelineProvider:`, `using:`, `contentStates:`): every
@@ -102,7 +135,13 @@ public struct WidgetPreview: DeclarationMacro {
     }
 }
 
+/// `@Previewable`: nothing of its own; the #Preview around it moves the declaration (PreviewExpansion.previewable).
+public struct PreviewableMacro: PeerMacro {
+    public static func expansion(of node: AttributeSyntax, providingPeersOf declaration: some DeclSyntaxProtocol,
+                                 in context: some MacroExpansionContext) throws -> [DeclSyntax] { [] }
+}
+
 @main
 struct PreviewsMacrosPlugin: CompilerPlugin {
-    let providingMacros: [Macro.Type] = [SwiftUIView.self, UIKitView.self, UIKitViewController.self, WidgetPreview.self]
+    let providingMacros: [Macro.Type] = [SwiftUIView.self, UIKitView.self, UIKitViewController.self, WidgetPreview.self, PreviewableMacro.self]
 }

@@ -99,3 +99,24 @@ struct ContentView_Previews: PreviewProvider {
         ContentView().previewDisplayName("Content").previewInterfaceOrientation(.portrait)
     }
 }
+
+// @Previewable state and a PreviewModifier (shared context, made once) in #Previews (`isim preview`)
+#Preview("Counter", traits: .sizeThatFitsLayout) {
+    @Previewable @State var count = 5
+    Stepper("Count \(count)", value: $count).padding().frame(width: 260).accessibilityIdentifier("previewable-stepper")
+}
+@available(iOS 18.0, *)
+struct SampleTheme: PreviewModifier {
+    struct Palette { let accent: Color }
+    static func makeSharedContext() async throws -> Palette { Palette(accent: .orange) }
+    func body(content: Content, context: Palette) -> some View {
+        content.padding(20).background(context.accent).accessibilityIdentifier("themed")
+    }
+}
+@available(iOS 18.0, *)
+#Preview("Themed", traits: .sizeThatFitsLayout, .modifier(SampleTheme())) {
+    Text("Themed preview").font(.headline)
+}
+struct SampleLibrary: LibraryContentProvider {
+    var views: [LibraryItem] { LibraryItem(DetailView(count: 1), title: "Detail", category: .layout) }
+}

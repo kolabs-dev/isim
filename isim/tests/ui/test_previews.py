@@ -1,6 +1,8 @@
 """`isim preview` (HelloSwiftUI's #Previews): lists the app's previews from their entry points (the PreviewsMacros
 plugin exports one per #Preview, named after its file, line and name) and renders one to a PNG in UIKit's preview
-mode: the default layout fills the device, .sizeThatFitsLayout centres the content at its size on a grey canvas."""
+mode: the default layout fills the device, .sizeThatFitsLayout centres the content at its size on a grey canvas.
+`@Previewable` state becomes a view's property, and a `.modifier(PreviewModifier)` trait wraps the preview with its
+shared context."""
 import os
 import subprocess
 
@@ -20,7 +22,8 @@ def test_previews(tmp_path):
     listed = run(tmp_path, "--list")
     assert listed.returncode == 0, listed.stdout
     rows = [line.split("\t") for line in listed.stdout.strip().splitlines()]
-    assert rows == [["0", "(unnamed)", "HelloSwiftUI/HelloSwiftUIApp.swift:92"], ["1", "Detail", "HelloSwiftUI/HelloSwiftUIApp.swift:93"]], \
+    assert rows == [["0", "(unnamed)", "HelloSwiftUI/HelloSwiftUIApp.swift:92"], ["1", "Detail", "HelloSwiftUI/HelloSwiftUIApp.swift:93"],
+                    ["2", "Counter", "HelloSwiftUI/HelloSwiftUIApp.swift:104"], ["3", "Themed", "HelloSwiftUI/HelloSwiftUIApp.swift:116"]], \
         f"the #Previews, in source order ({listed.stdout})"
 
     detail = run(tmp_path, "Detail", "-o", str(tmp_path / "detail.png"))
@@ -36,6 +39,16 @@ def test_previews(tmp_path):
     assert first.returncode == 0, first.stdout
     img = Image.open(tmp_path / "content.png").convert("RGB")
     assert not grey(img.getpixel((img.size[0] // 2, int(img.size[1] * 0.9)))), "the default layout fills the device"
+
+    counter = run(tmp_path, "Counter", "-o", str(tmp_path / "counter.png"))
+    assert counter.returncode == 0, counter.stdout
+    img = Image.open(tmp_path / "counter.png").convert("RGB")
+    assert not grey(img.getpixel((w // 2, h // 2))), "@Previewable: the stepper with its state"
+    themed = run(tmp_path, "Themed", "-o", str(tmp_path / "themed.png"))
+    assert themed.returncode == 0, themed.stdout
+    img = Image.open(tmp_path / "themed.png").convert("RGB")
+    orange = lambda c: c[0] > 230 and 130 < c[1] < 170 and c[2] < 40
+    assert any(orange(img.getpixel((x, h // 2))) for x in range(w)), "PreviewModifier: the theme's orange behind the text"
     missing = run(tmp_path, "Nope")
     assert missing.returncode != 0 and "no preview named 'Nope'" in missing.stdout
 
