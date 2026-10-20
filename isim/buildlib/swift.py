@@ -439,7 +439,8 @@ class Swift:
         """Swift macros on the compiler's side (Linux, the Swift toolchain's host, against its swift-syntax
         libraries in lib/swift/host): isim's SwiftCompilerPlugin module (what macro packages import; `isim build`
         compiles their macro targets against it), isim's PreviewsMacros plugin (`#Preview`), SwiftUIMacros plugin
-        (`@Entry`, `@Animatable`) and SwiftDataMacros plugin (`@Model`), in out/swift/host
+        (`@Entry`, `@Animatable`), SwiftDataMacros plugin (`@Model`) and FoundationModelsMacros plugin (`@Generable`,
+        `@Guide`), in out/swift/host
         (`isim swiftc` passes -plugin-path out/swift/host/plugins)"""
         H = f"{SW}/host"
         os.makedirs(os.path.join(self.c.root, H, "plugins"), exist_ok=True)
@@ -465,7 +466,12 @@ class Swift:
                           "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
                           "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libSwiftDataMacros.so"],
                          ["swift/macro-support/SwiftDataMacros.swift"], implicit=cp, plain=True, desc="SWIFT SwiftDataMacros (host)")
-        return cp + pm + um + sm
+        fm = self.swiftc([f"{H}/plugins/libFoundationModelsMacros.so"],
+                         ["-O", "-emit-library", "-parse-as-library", "-module-name", "FoundationModelsMacros", *WERROR, *host, "-I", H, "-L", H,
+                          "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
+                          "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libFoundationModelsMacros.so"],
+                         ["swift/macro-support/FoundationModelsMacros.swift"], implicit=cp, plain=True, desc="SWIFT FoundationModelsMacros (host)")
+        return cp + pm + um + sm + fm
 
     def onone(self):
         src = f"{self.src}/stdlib/public/SwiftOnoneSupport/SwiftOnoneSupport.swift"
@@ -763,6 +769,7 @@ Intents -lswiftObjectiveC -lswiftFoundation -framework Foundation -framework Int
 CoreML -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreVideo -lswiftCoreGraphics -framework Foundation -framework CoreGraphics
 Vision -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreVideo -lswiftCoreImage -lswiftCoreMedia -lswiftAudioToolbox -lswiftCoreML -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics -framework CoreImage -framework ImageIO -lisim_host
 NaturalLanguage -lswiftObjectiveC -lswiftFoundation -lswift_Concurrency -framework Foundation
+FoundationModels -lswiftObjectiveC -lswiftFoundation -lswiftObservation -lswift_Concurrency -framework Foundation
 Speech -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreMedia -lswiftCoreVideo -lswiftAudioToolbox -lswiftAVFoundation -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 VisionKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftCoreGraphics -lswiftVision -lswiftCoreImage -lswiftCoreML -lswiftCoreVideo -lswiftCoreMedia -lswiftAudioToolbox -framework Foundation -framework UIKit -framework CoreGraphics
 AVKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreMedia -lswiftAVFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCoreGraphics -lswiftCombine -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
@@ -818,7 +825,7 @@ EVOLUTION = set("""ObjectiveC Dispatch Spatial DeveloperToolsSupport FoundationE
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
 GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Security os OSLog Compression LocalAuthentication
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices
-QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision NaturalLanguage Speech VisionKit WebKit SafariServices MessageUI MapKit
+QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision NaturalLanguage FoundationModels Speech VisionKit WebKit SafariServices MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer".split())
@@ -826,5 +833,6 @@ PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFounda
 ATTRIBUTION = set("StoreKit AdAttributionKit".split())
 # overlays that declare macros of isim's compiler plugins (host_plugins): they compile after the plugin is built
 MACRO_PLUGINS = {"UIKit": ["PreviewsMacros"], "SwiftUI": ["PreviewsMacros", "SwiftUIMacros"], "SwiftData": ["SwiftDataMacros"],
+                 "FoundationModels": ["FoundationModelsMacros"],
                  "AppIntents": ["SwiftDataMacros"]}   # @ComputedProperty uses SwiftData's no-op property macro
 
