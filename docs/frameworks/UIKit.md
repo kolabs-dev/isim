@@ -110,7 +110,8 @@
 |---|---|---|---|
 | `UIView` hierarchy, frames/bounds/center, hit-testing, coordinate conversion | ✅ | ≤17 | |
 | Autoresizing masks | ✅ | ≤17 | |
-| `transform` (2D affine: translate/scale/rotate) | ✅ | ≤17 | about the view's center |
+| `transform` (2D affine: translate/scale/rotate) | ✅ | ≤17 | about the view's anchor point (its center by default) |
+| `UIView.anchorPoint` | ✅ | 16.0 | adapted: the layer's anchor point; the center stays put when it changes (the frame moves), and transforms, hit-testing and conversions use it. Tested (HelloQuartzCoreObjC, HelloCoreAnimation) |
 | 3D transforms (`CATransform3D`, perspective) | ✅ | ≤17 | `layer.transform`, `view.transform3D`, `sublayerTransform`; affine results drawn directly, perspective (m34 / non-affine) by rendering the layer/view offscreen and warping it onto its projected quad (host homography warp); `isDoubleSided`. Layers are flattened per level (no shared 3D space / depth sorting beyond `zPosition` order). Tested (HelloCoreAnimation: a rotated card is a trapezoid) |
 | Background color, alpha (group opacity), hidden, `clipsToBounds` | ✅ | ≤17 | software rendering (cairo) |
 | `layer.cornerRadius`, border, `cornerCurve` | ✅ | ≤17 | |

@@ -93,6 +93,16 @@ UIKIT_EXTERN CAScrollLayerScrollMode const kCAScrollBoth NS_SWIFT_NAME(CAScrollL
 @property (copy) CAScrollLayerScrollMode scrollMode;
 @end
 
+/* ================= CATiledLayer ================= */
+/* draws its content in tiles (drawInContext: / drawLayer:inContext: once per tile, the context clipped to it), with
+   levels of detail for the scale it is drawn at */
+@interface CATiledLayer : CALayer
++ (CFTimeInterval)fadeDuration;
+@property size_t levelsOfDetail;
+@property size_t levelsOfDetailBias;
+@property CGSize tileSize;
+@end
+
 /* ================= CAEmitterLayer ================= */
 typedef NSString *CAEmitterLayerEmitterShape NS_TYPED_ENUM;
 UIKIT_EXTERN CAEmitterLayerEmitterShape const kCAEmitterLayerPoint NS_SWIFT_NAME(CAEmitterLayerEmitterShape.point);

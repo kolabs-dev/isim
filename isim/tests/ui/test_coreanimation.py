@@ -50,6 +50,8 @@ def test_coreanimation(launch):
     assert all(RED(rgb(main, x, 100)) for x in (100, 195)) and all(WHITE(rgb(main, x, 100)) for x in (210, 370)), \
         "shape strokeEnd paused at 50%: stroked to the midpoint"
     assert "stroke presentation strokeEnd=0.50 model=1.00" in log, "presentation strokeEnd half-way, model untouched"
+    assert "frameRate range true default true link 60.0 tiled 128 lods 1 fade true anchor frame -20.0,10.0 center 20.0,10.0" in log, \
+        "CAFrameRateRange, CATiledLayer and UIView.anchorPoint from Swift (issue #275)"
     l, m, r = rgb(main, 24, 150), rgb(main, 200, 150), rgb(main, 376, 150)
     assert l[0] > 220 and l[2] < 40 and r[2] > 220 and r[0] < 40 and 90 < m[0] < 170 and 90 < m[2] < 170, \
         "axial gradient red -> blue"

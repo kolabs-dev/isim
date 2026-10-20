@@ -215,6 +215,9 @@ static void anim_remove_all(UIView *v);
 /* a view's own layer: corner radius, border and shadow changes animate inside animation blocks (views in a window) */
 @interface __IsimViewLayer : CALayer { @public __weak UIView *_isim_view; }
 @end
+/* the view's anchor point, (0.5, 0.5) by default: its center (the layer's position) sits at that point of its frame,
+   and transforms apply about it */
+static inline CGPoint view_anchor(UIView *v) { CALayer *l = v.layer; return l ? l.anchorPoint : CGPointMake(0.5, 0.5); }
 static void anim_layer_changed(UIView *v, int key, const double *old, const double *nw, int n) {
     if (!v) return;
     if (anim_capturing() && v.window) anim_set(v, key, old, nw, n); else if (v->_anim) anim_rebase(v, key, old, nw, n);
@@ -256,8 +259,10 @@ static void cg_rgba(CGColorRef c, double out[4]) {
     if (anim_presentation(v, AK_SHADOWOFF, x)) p.shadowOffset = CGSizeMake(x[0], x[1]);
     if (anim_presentation(v, AK_BG, x)) p.backgroundColor = [UIColor colorWithRed:x[0] green:x[1] blue:x[2] alpha:x[3]].CGColor;
     p.bounds = CGRectMake(0, 0, f.size.width, f.size.height);
-    CGPoint c = CGPointMake(CGRectGetMidX(f), CGRectGetMidY(f));
-    CGRect r = CGRectApplyAffineTransform(CGRectMake(-f.size.width / 2, -f.size.height / 2, f.size.width, f.size.height), t);
+    CGPoint an = view_anchor(v);
+    p.anchorPoint = an;
+    CGPoint c = CGPointMake(f.origin.x + an.x * f.size.width, f.origin.y + an.y * f.size.height);
+    CGRect r = CGRectApplyAffineTransform(CGRectMake(-an.x * f.size.width, -an.y * f.size.height, f.size.width, f.size.height), t);
     p.frame = CGRectOffset(r, c.x, c.y);
     p.opacity = (float)(alpha * self.opacity);
     if ([self _isim_hasAnimations]) [self _isim_applyAnimationsTo:p at:CACurrentMediaTime()];   /* Core Animation (CoreAnimation.m) */
@@ -320,12 +325,12 @@ static char kContentScale;
 
 /* ---- geometry ---- */
 - (CGRect)_isim_layoutFrame { return _frame; }
-/* like UIKit: with a non-identity transform the frame is the transformed bounds' bounding box around the center
+/* like UIKit: with a non-identity transform the frame is the transformed bounds' bounding box around the anchor point
    (isim keeps the untransformed rectangle in _frame; layout and drawing use it) */
 - (CGRect)frame {
     if (CGAffineTransformIsIdentity(_transform)) return _frame;
-    CGPoint c = CGPointMake(CGRectGetMidX(_frame), CGRectGetMidY(_frame));
-    CGRect b = CGRectMake(-_frame.size.width / 2, -_frame.size.height / 2, _frame.size.width, _frame.size.height);
+    CGPoint a = view_anchor(self), c = self.center;
+    CGRect b = CGRectMake(-a.x * _frame.size.width, -a.y * _frame.size.height, _frame.size.width, _frame.size.height);
     CGAffineTransform t = _transform; t.tx = t.ty = 0;
     CGRect r = CGRectApplyAffineTransform(b, t);
     return CGRectOffset(r, c.x + _transform.tx, c.y + _transform.ty);
@@ -353,12 +358,18 @@ static char kContentScale;
 }
 - (CGRect)bounds { return (CGRect){ _boundsOrigin, _frame.size }; }
 - (void)setBounds:(CGRect)b {
-    CGPoint c = self.center;
+    CGPoint c = self.center, a = view_anchor(self);
     _boundsOrigin = b.origin;
-    self.frame = CGRectMake(c.x - b.size.width / 2, c.y - b.size.height / 2, b.size.width, b.size.height);
+    self.frame = CGRectMake(c.x - a.x * b.size.width, c.y - a.y * b.size.height, b.size.width, b.size.height);
 }
-- (CGPoint)center { return CGPointMake(CGRectGetMidX(_frame), CGRectGetMidY(_frame)); }
-- (void)setCenter:(CGPoint)c { self.frame = CGRectMake(c.x - _frame.size.width / 2, c.y - _frame.size.height / 2, _frame.size.width, _frame.size.height); }
+- (CGPoint)center { CGPoint a = view_anchor(self); return CGPointMake(_frame.origin.x + a.x * _frame.size.width, _frame.origin.y + a.y * _frame.size.height); }
+- (void)setCenter:(CGPoint)c {
+    CGPoint a = view_anchor(self);
+    self.frame = CGRectMake(c.x - a.x * _frame.size.width, c.y - a.y * _frame.size.height, _frame.size.width, _frame.size.height);
+}
+/* iOS 16: the layer's anchor point; changing it keeps the center, so the frame moves (CALayer -setAnchorPoint:) */
+- (CGPoint)anchorPoint { return view_anchor(self); }
+- (void)setAnchorPoint:(CGPoint)a { _layer.anchorPoint = a; }
 - (void)setTransform:(CGAffineTransform)t {
     if (anim_capturing() && !CGAffineTransformEqualToTransform(t, _transform)) {
         double a[6] = { _transform.a, _transform.b, _transform.c, _transform.d, _transform.tx, _transform.ty }, b[6] = { t.a, t.b, t.c, t.d, t.tx, t.ty };
@@ -549,11 +560,12 @@ void (*isim_ui_appearance_hook)(UIView *v);          /* UIAppearance.m: proxies 
 - (void)_isim_didSolve {}
 
 /* ---- coordinates ---- */
-/* a point in a view's bounds -> its superview, and back: transforms apply about the view's center, as drawn */
+/* a point in a view's bounds -> its superview, and back: transforms apply about the view's anchor point, as drawn */
 static inline CGPoint to_superview(UIView *v, CGPoint p, CGRect frame, CGPoint origin, CGAffineTransform t) {
     p.x -= origin.x; p.y -= origin.y;
     if (!CGAffineTransformIsIdentity(t)) {
-        double cx = frame.size.width / 2, cy = frame.size.height / 2, x = p.x - cx, y = p.y - cy;
+        CGPoint a = view_anchor(v);
+        double cx = frame.size.width * a.x, cy = frame.size.height * a.y, x = p.x - cx, y = p.y - cy;
         p.x = t.a * x + t.c * y + t.tx + cx; p.y = t.b * x + t.d * y + t.ty + cy;
     }
     p.x += frame.origin.x; p.y += frame.origin.y;
@@ -563,7 +575,8 @@ static inline CGPoint from_superview(UIView *v, CGPoint p, CGRect frame, CGPoint
     p.x -= frame.origin.x; p.y -= frame.origin.y;
     if (!CGAffineTransformIsIdentity(t)) {
         CGAffineTransform inv = CGAffineTransformInvert(t);
-        double cx = frame.size.width / 2, cy = frame.size.height / 2, x = p.x - cx, y = p.y - cy;
+        CGPoint a = view_anchor(v);
+        double cx = frame.size.width * a.x, cy = frame.size.height * a.y, x = p.x - cx, y = p.y - cy;
         p.x = inv.a * x + inv.c * y + inv.tx + cx; p.y = inv.b * x + inv.d * y + inv.ty + cy;
     }
     p.x += origin.x; p.y += origin.y;
@@ -1167,8 +1180,8 @@ static double concentric_radius(UIView *v, int corner, double minimum) {
     }
     if (alphaOut) *alphaOut = _hidden ? 0 : alpha * _layer.opacity;
     if (!CGAffineTransformIsIdentity(t)) {
-        CGPoint c = CGPointMake(CGRectGetMidX(f), CGRectGetMidY(f));
-        CGRect r = CGRectApplyAffineTransform(CGRectMake(-f.size.width / 2, -f.size.height / 2, f.size.width, f.size.height), t);
+        CGPoint an = view_anchor(self), c = CGPointMake(f.origin.x + an.x * f.size.width, f.origin.y + an.y * f.size.height);
+        CGRect r = CGRectApplyAffineTransform(CGRectMake(-an.x * f.size.width, -an.y * f.size.height, f.size.width, f.size.height), t);
         radius *= sqrt(fabs(t.a * t.d - t.b * t.c));
         f = CGRectOffset(r, c.x, c.y);
     }
@@ -1212,10 +1225,11 @@ static IMP base_drawRect;
     CGSize sz = frame.size;
     isim_gfx_save();
     isim_gfx_translate(frame.origin.x, frame.origin.y);
-    if (!CGAffineTransformIsIdentity(xf)) {      /* about the center, like UIKit */
-        isim_gfx_translate(sz.width / 2, sz.height / 2);
+    if (!CGAffineTransformIsIdentity(xf)) {      /* about the anchor point (the center by default), like UIKit */
+        CGPoint an = view_anchor(self);
+        isim_gfx_translate(an.x * sz.width, an.y * sz.height);
         isim_gfx_concat(xf.a, xf.b, xf.c, xf.d, xf.tx, xf.ty);
-        isim_gfx_translate(-sz.width / 2, -sz.height / 2);
+        isim_gfx_translate(-an.x * sz.width, -an.y * sz.height);
     }
     /* a window, a view controller's view and a view with trait overrides draw with their own traits (dynamic colors) */
     BOOL pushedStyle = _vc || [self _isim_hasTraitOverrides] || !_superview;

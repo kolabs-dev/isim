@@ -161,7 +161,12 @@ NS_SWIFT_UI_ACTOR
 
 /* CADisplayLink (QuartzCore): calls its target once per frame while added to a run loop */
 @class NSRunLoop;
-typedef struct { float minimum, maximum, preferred; } CAFrameRateRange;
+/* CAFrameRateRange (QuartzCore, iOS 15): a range of frame rates; zeros mean the default (the display's rate) */
+struct CAFrameRateRange { float minimum; float maximum; float preferred; };
+typedef struct CAFrameRateRange CAFrameRateRange;
+UIKIT_EXTERN const CAFrameRateRange CAFrameRateRangeDefault API_AVAILABLE(ios(15.0)) NS_SWIFT_NAME(CAFrameRateRange.default);
+UIKIT_EXTERN CAFrameRateRange CAFrameRateRangeMake(float minimum, float maximum, float preferred) API_AVAILABLE(ios(15.0)) NS_REFINED_FOR_SWIFT;
+UIKIT_EXTERN bool CAFrameRateRangeIsEqualToRange(CAFrameRateRange range, CAFrameRateRange other) API_AVAILABLE(ios(15.0)) NS_SWIFT_NAME(CAFrameRateRange.isEqual(self:to:));
 NS_SWIFT_UI_ACTOR
 @interface CADisplayLink : NSObject
 + (CADisplayLink *)displayLinkWithTarget:(id)target selector:(SEL)sel;

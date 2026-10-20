@@ -500,7 +500,11 @@ static id<CAAction> implicit_action(CALayer *l, NSString *key) {
     if (v) { v.center = p; return; }
     CA_SET(@"position", _position = p);
 }
-- (void)setAnchorPoint:(CGPoint)a { CA_SET(@"anchorPoint", _anchorPoint = a); }
+- (void)setAnchorPoint:(CGPoint)a {
+    UIView *v = _ownerView;
+    if (v) { CGPoint c = v.center; _anchorPoint = a; v.center = c; return; }   /* a view's layer: the frame moves around its center */
+    CA_SET(@"anchorPoint", _anchorPoint = a);
+}
 - (void)setZPosition:(CGFloat)z { CA_SET(@"zPosition", _zPosition = z); }
 - (CGRect)frame {
     UIView *v = _ownerView;
@@ -1257,15 +1261,17 @@ void isim_ca_view_values(CALayer *layer, CGRect *frame, CGAffineTransform *xf, d
     if (![layer _isim_hasAnimations]) return;
     /* a standalone copy carrying the view's in-flight values, then the layer's Core Animation animations */
     CALayer *p = [CALayer new];
+    CGPoint an = layer.anchorPoint;
     p.bounds = CGRectMake(0, 0, frame->size.width, frame->size.height);
-    p.position = CGPointMake(CGRectGetMidX(*frame), CGRectGetMidY(*frame));
+    p.anchorPoint = an;
+    p.position = CGPointMake(frame->origin.x + an.x * frame->size.width, frame->origin.y + an.y * frame->size.height);
     p.transform = *has3d ? *t3d : CATransform3DMakeAffineTransform(*xf);
     p.opacity = (float)*opacity; p.cornerRadius = *radius; p.borderWidth = *borderW;
     p.shadowOpacity = (float)*shadowOp; p.shadowRadius = *shadowRad; p.shadowOffset = *shadowOff;
     [layer _isim_applyAnimationsTo:p at:CACurrentMediaTime()];
     ca_val v;
-    CGRect b = p.bounds; CGPoint c = p.position;
-    *frame = CGRectMake(c.x - b.size.width / 2, c.y - b.size.height / 2, b.size.width, b.size.height);
+    CGRect b = p.bounds; CGPoint c = p.position; an = p.anchorPoint;
+    *frame = CGRectMake(c.x - an.x * b.size.width, c.y - an.y * b.size.height, b.size.width, b.size.height);
     CATransform3D t = p.transform;
     if (ca_is_affine2d(t) && CATransform3DIsAffine(t)) { *xf = CATransform3DGetAffineTransform(t); *has3d = NO; }
     else { *t3d = t; *has3d = YES; }
@@ -1280,8 +1286,10 @@ void isim_ca_view_values(CALayer *layer, CGRect *frame, CGAffineTransform *xf, d
 void isim_ca_render_view_3d(UIView *view, CGRect f, CATransform3D t) {
     CGSize sz = f.size;
     if (sz.width <= 0 || sz.height <= 0) return;
-    /* about the view's center */
-    CATransform3D mx = ca_mul(ca_mul(ca_translate(-sz.width / 2, -sz.height / 2, 0), t), ca_translate(CGRectGetMidX(f), CGRectGetMidY(f), 0));
+    /* about the view's anchor point */
+    CGPoint an = view.layer.anchorPoint;
+    CATransform3D mx = ca_mul(ca_mul(ca_translate(-an.x * sz.width, -an.y * sz.height, 0), t),
+                              ca_translate(f.origin.x + an.x * sz.width, f.origin.y + an.y * sz.height, 0));
     double w[4]; CGPoint q[4];
     double cx[4] = { 0, sz.width, sz.width, 0 }, cy[4] = { 0, 0, sz.height, sz.height };
     for (int i = 0; i < 4; i++) { q[i] = ca_project(mx, cx[i], cy[i], &w[i]); if (w[i] <= 1e-6) return; }
