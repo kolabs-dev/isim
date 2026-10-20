@@ -56,6 +56,9 @@ final class ViewController: UIViewController, UITextFieldDelegate {
         let gestures = action("Gestures", "gestures") { [weak self] in
             self?.navigationController?.pushViewController(GesturesViewController(), animated: true)
         }
+        let multitouch = action("Multitouch", "multitouch") { [weak self] in
+            self?.navigationController?.pushViewController(MultitouchViewController(), animated: true)
+        }
         NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
@@ -64,7 +67,7 @@ final class ViewController: UIViewController, UITextFieldDelegate {
             }
         }
         let stack = UIStackView(arrangedSubviews: [greeting, sums, flavor, modeLabel, countLabel, button, field, echoLabel, toggle,
-                                                   notify, camera, gestures, permissionLabel, lifecycleLabel])
+                                                   notify, camera, gestures, multitouch, permissionLabel, lifecycleLabel])
         stack.axis = .vertical
         stack.spacing = 12
         stack.alignment = .leading
@@ -186,6 +189,94 @@ final class GesturesViewController: UIViewController, UITableViewDataSource, UIT
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         topRow.text = "top row: \(table.indexPathsForVisibleRows?.first?.row ?? 0)"
     }
+}
+
+/// UI tests' multi-touch gestures (pinch, rotation, two-finger and triple taps), a drag onto a target, a control
+/// that fails an accessibility audit (tiny and unlabelled) and the device appearance.
+final class MultitouchViewController: UIViewController {
+    private let status = UILabel()
+    private let appearance = UILabel()
+    private let canvas = UIView()
+    private let chip = UILabel()
+    private let target = UILabel()
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Multitouch"
+        view.backgroundColor = .systemBackground
+        status.accessibilityIdentifier = "status"
+        status.text = "status: -"
+        appearance.accessibilityIdentifier = "appearance"
+        canvas.accessibilityIdentifier = "canvas"
+        canvas.backgroundColor = .secondarySystemBackground
+        canvas.addGestureRecognizer(UIPinchGestureRecognizer(target: self, action: #selector(pinched(_:))))
+        canvas.addGestureRecognizer(UIRotationGestureRecognizer(target: self, action: #selector(rotated(_:))))
+        let twoFinger = UITapGestureRecognizer(target: self, action: #selector(twoFingerTapped))
+        twoFinger.numberOfTouchesRequired = 2
+        canvas.addGestureRecognizer(twoFinger)
+        let triple = UITapGestureRecognizer(target: self, action: #selector(tripleTapped))
+        triple.numberOfTapsRequired = 3
+        canvas.addGestureRecognizer(triple)
+        for g in canvas.gestureRecognizers ?? [] { g.delegate = self }
+        chip.text = "Chip"
+        chip.accessibilityIdentifier = "chip"
+        chip.textAlignment = .center
+        chip.backgroundColor = .systemYellow
+        chip.isUserInteractionEnabled = true
+        chip.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragged(_:))))
+        target.text = "Target"
+        target.accessibilityIdentifier = "target"
+        target.textAlignment = .center
+        target.backgroundColor = .systemTeal
+        let tiny = UIButton(type: .system)
+        tiny.setImage(UIImage(systemName: "info.circle"), for: .normal)
+        tiny.accessibilityIdentifier = "tiny"
+        tiny.accessibilityLabel = ""
+        let row = UIStackView(arrangedSubviews: [chip, target, tiny])
+        row.spacing = 40
+        row.alignment = .center
+        let stack = UIStackView(arrangedSubviews: [status, appearance, canvas, row])
+        stack.axis = .vertical
+        stack.spacing = 12
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 20),
+            stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
+            stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
+            canvas.heightAnchor.constraint(equalToConstant: 260),
+            chip.widthAnchor.constraint(equalToConstant: 80), chip.heightAnchor.constraint(equalToConstant: 60),
+            target.widthAnchor.constraint(equalToConstant: 100), target.heightAnchor.constraint(equalToConstant: 60),
+            tiny.widthAnchor.constraint(equalToConstant: 20), tiny.heightAnchor.constraint(equalToConstant: 20),
+        ])
+        showAppearance()
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (vc: MultitouchViewController, _) in vc.showAppearance() }
+    }
+
+    private func showAppearance() {
+        appearance.text = "appearance: \(traitCollection.userInterfaceStyle == .dark ? "dark" : "light")"
+    }
+    @objc private func pinched(_ g: UIPinchGestureRecognizer) {
+        if g.state == .ended { status.text = String(format: "pinch %.1f", g.scale) }
+    }
+    @objc private func rotated(_ g: UIRotationGestureRecognizer) {
+        if g.state == .ended, abs(g.rotation) > 0.2 { status.text = "rotate \(Int((g.rotation * 180 / .pi).rounded()))" }
+    }
+    @objc private func twoFingerTapped() { status.text = "two-finger tap" }
+    @objc private func tripleTapped() { status.text = "triple tap" }
+    @objc private func dragged(_ g: UIPanGestureRecognizer) {
+        let t = g.translation(in: view)
+        chip.transform = CGAffineTransform(translationX: t.x, y: t.y)
+        guard g.state == .ended else { return }
+        let center = chip.superview!.convert(chip.center, to: view)
+        let hit = target.superview!.convert(target.frame, to: view).contains(CGPoint(x: center.x + t.x, y: center.y + t.y))
+        status.text = hit ? "dropped on target" : "dropped"
+        chip.transform = .identity
+    }
+}
+
+extension MultitouchViewController: UIGestureRecognizerDelegate {
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
 }
 
 /// The package macros at work: @CaseCount adds `caseCount`.

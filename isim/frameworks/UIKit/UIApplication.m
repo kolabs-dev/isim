@@ -2098,6 +2098,7 @@ void isim_ui_run_until(BOOL (^done)(void)) {
 @end
 
 int UIApplicationMain(int argc, char *argv[], NSString *principalClassName, NSString *delegateClassName) {
+    { extern void isim_sys_privacy_reset_at_launch(void); isim_sys_privacy_reset_at_launch(); }   /* XCUITest resetAuthorizationStatus(for:) */
     /* the AppIntents overlay (Focus filters): 0 before launching (non-zero: a headless request was answered), 1 after */
     int (*appintents)(int) = (int (*)(int))dlsym(RTLD_DEFAULT, "isim_appintents_launch");
     if (appintents && appintents(0)) { fflush(NULL); exit(0); }
