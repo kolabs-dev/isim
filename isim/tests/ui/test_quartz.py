@@ -14,7 +14,7 @@ from isimtest import close, count_px, rgb
 def test_quartz(launch):
     app = launch("HelloQuartz")
     for line in ("header %PDF-", "cgpdfcontext ", "ctframe lines", "color spaces", "context ctm", "cgfont named",
-                 "pattern uncolored", "masking left"):
+                 "pattern uncolored", "masking left", "cgpdf objects"):
         app.wait_log(re.escape(line))
     shot = app.wait_shot(lambda s: close(s, 116, 100, (255, 149, 0)) and close(s, 36, 370, (64, 64, 64)),
                          "drawn on screen")
@@ -74,3 +74,5 @@ def test_quartz(launch):
     m = re.search(r"cgpdf roundtrip fill \[(\d+), (\d+), (\d+), (\d+)\] shadow \[(\d+), (\d+), (\d+), (\d+)\] fade \[(\d+), (\d+), (\d+), (\d+)\] clear \[(\d+), (\d+), (\d+), (\d+)\] page 1 rotation 0 transform 0.5", log)
     assert m and int(m.group(3)) > 200 and int(m.group(4)) > 200 and int(m.group(8)) > int(m.group(12)) > int(m.group(16)), \
         "CGPDFPage properties and a blurred (not sharp) PDF shadow"
+    assert re.search(r"cgpdf objects title Quartz objects links [1-9] outline Top rects [1-9]\d* version plain", log), \
+        "the PDF object model: info, link annotations, outline and the content-stream scanner (issue #274)"

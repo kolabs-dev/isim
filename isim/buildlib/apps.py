@@ -780,6 +780,13 @@ def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-lcompression", "-lz"], name="CompressionTest")
 
 
+@app("tests/cgpdf", products=["CGPDFTest.app"], swift=False)
+def _(a):
+    b = a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "CoreGraphics"], name="CGPDFTest")
+    for f in sorted(os.listdir(os.path.join(a.d, "fixtures"))):
+        a.copy(os.path.join("fixtures", f), b)
+
+
 @app("tests/swift-embedded", products=["SwiftEmbeddedTest.app"],
      extra_inputs=["out/swift/embedded/Swift.swiftmodule/x86_64-apple-ios-simulator.swiftmodule", "out/swift/libswiftEmbeddedSupport.a"])
 def _(a):

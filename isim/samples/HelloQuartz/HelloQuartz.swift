@@ -277,6 +277,42 @@ final class QuartzViewController: UIViewController {
             print("cgpdf roundtrip fill \(pixel(c.data!, 200, 15, 35)) shadow \(pixel(c.data!, 200, 31, 35)) fade \(pixel(c.data!, 200, 39, 35)) clear \(pixel(c.data!, 200, 48, 35)) page \(page.pageNumber) rotation \(page.rotationAngle) transform \(transform.a)")
             tile(c.makeImage(), "cgpdf", x: 286)
         }
+        // the PDF object model: document info, a link, a named destination and an outline written by a CGPDFContext,
+        // read back through CGPDFDictionary and the outline; the content stream through a CGPDFScanner
+        let linked = NSMutableData()
+        var lbox = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let lc = CGContext(consumer: CGDataConsumer(data: linked as CFMutableData)!, mediaBox: &lbox,
+                           [kCGPDFContextTitle: "Quartz objects", kCGPDFContextAuthor: "HelloQuartz"] as CFDictionary)!
+        lc.beginPDFPage(nil)
+        lc.setFillColor(UIColor.red.cgColor)
+        lc.fill(CGRect(x: 10, y: 10, width: 30, height: 30))
+        lc.setURL(URL(string: "https://example.com")! as CFURL, for: CGRect(x: 10, y: 10, width: 30, height: 30))
+        lc.addDestination("top" as CFString, at: CGPoint(x: 0, y: 100))
+        lc.endPDFPage()
+        CGPDFContextSetOutline(lc, [kCGPDFOutlineChildren: [[kCGPDFOutlineTitle: "Top", kCGPDFOutlineDestination: 1] as CFDictionary]] as CFDictionary)
+        lc.closePDF()
+        if let doc = CGPDFDocument(CGDataProvider(data: linked as CFData)!), let page = doc.page(at: 1), let info = doc.info {
+            var title: CGPDFStringRef?
+            let name = CGPDFDictionaryGetString(info, "Title", &title) ? (CGPDFStringCopyTextString(title!) as String? ?? "") : "?"
+            var annots: CGPDFArrayRef?
+            let links = page.dictionary.flatMap { CGPDFDictionaryGetArray($0, "Annots", &annots) ? CGPDFArrayGetCount(annots!) : 0 } ?? 0
+            let outline = (doc.outline as? [String: Any])?[kCGPDFOutlineChildren as String] as? [[String: Any]] ?? []
+            var ops = 0
+            let table = CGPDFOperatorTableCreate()!
+            CGPDFOperatorTableSetCallback(table, "re") { scanner, info in
+                var h: CGPDFReal = 0
+                if CGPDFScannerPopNumber(scanner, &h) { info!.assumingMemoryBound(to: Int.self).pointee += 1 }
+            }
+            let stream = CGPDFContentStreamCreateWithPage(page)
+            withUnsafeMutablePointer(to: &ops) { p in
+                let scanner = CGPDFScannerCreate(stream, table, p)
+                CGPDFScannerScan(scanner)
+                CGPDFScannerRelease(scanner)
+            }
+            CGPDFContentStreamRelease(stream)
+            CGPDFOperatorTableRelease(table)
+            print("cgpdf objects title \(name) links \(links) outline \(outline.first?[kCGPDFOutlineTitle as String] ?? "-") rects \(ops) version \(doc.isEncrypted ? "encrypted" : "plain")")
+        }
         // Core Text frame: wrapped paragraph in a 120x60 rect
         let fctx = rgbaContext(120, 60)
         fctx.setFillColor(UIColor(white: 0.95, alpha: 1).cgColor); fctx.fill(CGRect(x: 0, y: 0, width: 120, height: 60))

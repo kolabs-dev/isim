@@ -25,6 +25,7 @@ struct CGContext {
     CGBitmapContextReleaseDataCallback releaseCb; void *releaseInfo;
     /* PDF */
     CGDataConsumerRef consumer; CGRect mediaBox; int pageOpen;
+    CGRect pageBox; int pageNumber;        /* PDF: the open page's media box, its number */
 };
 struct CGContext *isim_cg_ctx_new(int kind);
 void isim_cg_gstate_reset(struct gstate *g);

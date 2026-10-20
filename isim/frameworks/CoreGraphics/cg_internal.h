@@ -40,8 +40,8 @@ struct CGGradient { struct cgobj hdr; int n; double *locs, *rgba; };
 struct CGFunction { struct cgobj hdr; void *info; size_t din, dout; CGFloat domain[2], range[16]; CGFunctionCallbacks cb; };
 struct CGShading { struct cgobj hdr; int radial; CGPoint p0, p1; CGFloat r0, r1; CGFunctionRef fn; bool e0, e1; CGColorSpaceRef cs; };
 struct CGPattern { struct cgobj hdr; void *info; CGRect bounds; CGAffineTransform matrix; CGFloat xstep, ystep; CGPatternTiling tiling; bool colored; CGPatternCallbacks cb; int cell; double cw, ch; };
-struct CGPDFDocument { struct cgobj hdr; void *doc; int pages; CFDataRef data; struct CGPDFPage **cache; };
-struct CGPDFPage { struct cgobj hdr; struct CGPDFDocument *doc; int index; double w, h; };
+struct CGPDFDocument { struct cgobj hdr; void *doc; int pages; CFDataRef data; struct CGPDFPage **cache; struct pdoc *pd; CFDictionaryRef outline; };
+struct CGPDFPage { struct cgobj hdr; struct CGPDFDocument *doc; int index; };
 struct CGFont { struct cgobj hdr; CFStringRef name, fullName; int unitsPerEm; };
 
 /* CGImage: host image handle + pixel rect (+ optional layout info in `ext`) */

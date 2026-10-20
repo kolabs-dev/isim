@@ -16,7 +16,27 @@ void CFDataSetLength(CFMutableDataRef d, CFIndex len) { [(NSMutableData *)d setL
 const CFArrayCallBacks kCFTypeArrayCallBacks = { 0 };
 const CFDictionaryKeyCallBacks kCFTypeDictionaryKeyCallBacks = { 0 };
 const CFDictionaryValueCallBacks kCFTypeDictionaryValueCallBacks = { 0 };
+/* a CFArray created with NULL callbacks: it holds raw pointers (CGPDFStreamRefs, C structs) and never retains them */
+@interface _ISCFPointerArray : NSArray { const void **_values; NSUInteger _count; } @end
+@implementation _ISCFPointerArray
+- (instancetype)initWithPointers:(const void **)values count:(NSUInteger)n {
+    if (!(self = [super init])) return nil;
+    _values = malloc((n ? n : 1) * sizeof *_values);
+    if (n) memcpy(_values, values, n * sizeof *_values);
+    _count = n;
+    return self;
+}
+- (void)dealloc { free(_values); [super dealloc]; }
+- (NSUInteger)count { return _count; }
+- (id)objectAtIndex:(NSUInteger)i {
+    if (i >= _count) [NSException raise:NSRangeException format:@"index %lu beyond bounds [0 .. %lu]", (unsigned long)i, (unsigned long)_count];
+    return (id)_values[i];
+}
+- (id)copyWithZone:(NSZone *)z { return [self retain]; }
+@end
+
 CFArrayRef CFArrayCreate(CFAllocatorRef a, const void **values, CFIndex n, const CFArrayCallBacks *cb) {
+    if (!cb) return (CFArrayRef)[[_ISCFPointerArray alloc] initWithPointers:values count:(NSUInteger)(n > 0 ? n : 0)];
     return (CFArrayRef)[[NSArray alloc] initWithObjects:(id *)values count:(NSUInteger)(n > 0 ? n : 0)];
 }
 CFIndex CFArrayGetCount(CFArrayRef a) { return a ? (CFIndex)[(NSArray *)a count] : 0; }

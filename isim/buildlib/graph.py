@@ -147,7 +147,14 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
     # CoreGraphics sits below Foundation: the CF strings/data/collections it uses resolve at load time (flat lookup)
     ("CoreGraphics", "-lisim_host -U ___CFConstantStringClassReference -U _CFDataCreate -U _CFDataGetBytePtr "
                      "-U _CFDataGetLength -U _CFDataAppendBytes -U _CFArrayGetCount -U _CFArrayGetValueAtIndex "
-                     "-U _CFDictionaryGetValue -U _CFRetain -U _CFRelease"),
+                     "-U _CFDictionaryGetValue -U _CFRetain -U _CFRelease "
+                     "-U _CFStringCreateWithBytes -U _CFStringCreateWithCString "
+                     "-U _CFDateCreate -U _CFArrayCreate -U _CFArrayCreateMutable -U _CFArrayAppendValue "
+                     "-U _CFDictionaryCreateMutable -U _CFDictionarySetValue -U _CFNumberCreate -U _CFNumberGetValue "
+                     "-U _CFStringGetCString -U _CFStringGetLength -U _CFStringGetMaximumSizeForEncoding "
+                     "-U _CFURLGetString -U _CFGetTypeID -U _CFStringGetTypeID -U _CFArrayGetTypeID "
+                     "-U _CFDictionaryGetTypeID -U _CFNumberGetTypeID -U _kCFTypeDictionaryKeyCallBacks "
+                     "-U _kCFTypeDictionaryValueCallBacks -U _kCFTypeArrayCallBacks -lz"),
     ("Foundation", "-framework CoreGraphics -lisim_host -lcompression"),
     ("CoreText", "-framework Foundation -framework CoreGraphics -lisim_host"),
     ("UIKit", "-framework Foundation -framework CoreGraphics -lisim_host"),

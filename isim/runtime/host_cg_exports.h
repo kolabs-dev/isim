@@ -61,6 +61,10 @@ void isim_pdf_page_size(void *doc, int page, double *w, double *h);
 void isim_pdf_page_render(void *doc, int page);
 void isim_pdf_close(void *doc);
 int isim_pdf_available(void);
+ISIM_GUEST_ABI void *isim_pdf_open_password(const void *data, long len, const char *password, int *pages);
+ISIM_GUEST_ABI void isim_cg_pdf_tag(void *t, int kind, const char *attrs);
+ISIM_GUEST_ABI int isim_cg_pdf_outline(void *t, int parent, const char *title, const char *link, int open);
+ISIM_GUEST_ABI void isim_cg_pdf_metadata(void *t, int key, const char *value);
 #define ISIM_CG_EXPORTS(X) \
     X(isim_cg_bitmap_create), X(isim_cg_target_bind), X(isim_cg_target_unbind), X(isim_cg_target_free), X(isim_cg_target_image), \
     X(isim_cg_target_sync), X(isim_cg_pdf_create), X(isim_cg_pdf_begin_page), X(isim_cg_pdf_end_page), X(isim_cg_pdf_finish), \
@@ -72,4 +76,5 @@ int isim_pdf_available(void);
     X(isim_ct_font_info), X(isim_ct_font_glyphs), X(isim_ct_font_glyph_metrics), X(isim_ct_font_glyph_path), X(isim_ct_font_features), \
     X(isim_ct_font_draw), X(isim_ct_font_faces), X(isim_cg_font_data_info), \
     X(isim_imgsrc_info), X(isim_imgsrc_frame), X(isim_image_encode_gif), \
-    X(isim_pdf_open), X(isim_pdf_page_size), X(isim_pdf_page_render), X(isim_pdf_close), X(isim_pdf_available)
+    X(isim_pdf_open), X(isim_pdf_page_size), X(isim_pdf_page_render), X(isim_pdf_close), X(isim_pdf_available), \
+    X(isim_pdf_open_password), X(isim_cg_pdf_tag), X(isim_cg_pdf_outline), X(isim_cg_pdf_metadata)
