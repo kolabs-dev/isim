@@ -752,6 +752,7 @@ AudioToolbox -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foun
 CoreVideo -lswiftObjectiveC -lswiftFoundation -lswiftCoreGraphics -framework Foundation -framework CoreGraphics
 CoreImage -lswiftObjectiveC -lswiftFoundation -lswiftCoreVideo -lswiftCoreGraphics -framework Foundation -framework CoreGraphics -framework CoreImage   # CVPixelBuffer APIs
 CoreMedia -lswiftObjectiveC -lswiftFoundation -lswiftCoreVideo -lswiftAudioToolbox -lswiftCoreGraphics -framework Foundation -framework CoreGraphics
+VideoToolbox -lswiftObjectiveC -lswiftFoundation -lswiftAudioToolbox -lswiftCoreMedia -lswiftCoreVideo -lswiftCoreGraphics -framework Foundation -framework CoreGraphics -lisim_host
 AVFoundation -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreMedia -lswiftCoreVideo -lswiftAudioToolbox -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 simd
 SpriteKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswiftCombine -lswiftSwiftUI -lswift_Concurrency -lswiftsimd -lswiftAVFoundation -lswiftCoreImage -lswiftCoreVideo -lswiftCoreMedia -lswiftAudioToolbox -framework Foundation -framework UIKit -framework CoreGraphics -framework CoreImage -lisim_host
@@ -823,7 +824,7 @@ CallKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency 
 
 # app-facing re-implementations: library evolution keeps their ABI stable across isim updates (since 0.12 also the base
 # overlays every other module and app imports: their types can change layout without breaking apps built earlier)
-EVOLUTION = set("""ObjectiveC Accelerate Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI QuickLook EventKit EventKitUI Contacts ContactsUI
+EVOLUTION = set("""ObjectiveC Accelerate VideoToolbox Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI QuickLook EventKit EventKitUI Contacts ContactsUI
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
 GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Security os OSLog Compression LocalAuthentication
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices

@@ -824,6 +824,11 @@ def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "CoreGraphics"], name="CGPathTest")
 
 
+@app("tests/videotoolbox", products=["VideoToolboxTest.app"])
+def _(a):
+    a.swift_app("VideoToolboxTest", srcs=["VideoToolboxTest.swift"], plist="Info.plist")
+
+
 @app("tests/accelerate", products=["AccelerateTest.app", "AccelerateCTest.app"])
 def _(a):
     a.swift_app("AccelerateTest", srcs=["AccelerateTest.swift"], plist="Info.plist")
