@@ -56,6 +56,17 @@ def test_audio_engine(launch, device_data):
     assert has(r"resampled player starts at [0-3] freq 4[34]\d"), f"24 kHz player resampled by the mixer: {line('resampled')}"
     assert has(r"play\(at:\) starts at 1200[0-9] playerTime 1[0-2]\d{3}"), f"play(at:) a sample time: {line('play.at')}"
     assert has(r"reverb audioUnit wetDryMix 25"), "AVAudioUnit.audioUnit is the Audio Unit"
+    # issue #287: AVAudioConverter, compressed buffers, channel layouts, AVAudioTime, the unit node classes
+    assert has(r"avaudiotime object true host 1100000000 equal true"), f"AVAudioTime is an NSObject; extrapolation: {line('avaudiotime')}"
+    assert has(r"channel layout 5\.1 channels 6 format 6 roundtrip true none true"), f"AVAudioChannelLayout: {line('channel layout')}"
+    assert has(r"convert int16 16384 -8192 stride 2 frames 480 downmix 0\.1[23] map -0\.25"), \
+        f"convert(to:from:): float -> interleaved Int16, downmix (0.5 - 0.25) / 2, channel map: {line('convert int16')}"
+    assert has(r"resample frames 2400\d freq 4[34]\d one-call rejected true"), f"48 -> 24 kHz through the input block: {line('resample')}"
+    assert has(r"no data now true then true frames 1200"), f"noDataNow -> inputRanDry, then data: {line('no data now')}"
+    m = re.search(r"aac format true packets (\d+) bytes true cookie true bitrate 128000 decoded true freq (\d+) rms ([\d.]+)", log)
+    assert m and 43 <= int(m[1]) <= 47 and 430 <= int(m[2]) <= 450 and 0.3 <= float(m[3]) <= 0.4, \
+        f"AAC encode into AVAudioCompressedBuffers and decode (host libavcodec): {line('aac')}"
+    assert has(r"unit classes timeeffect true varispeed true generator true"), f"AVAudioUnitTimeEffect, AVAudioUnitGenerator: {line('unit classes')}"
     m = re.search(r"realtime tap true rms before ([\d.]+) after lowpass ([\d.]+) playerTime ([\d.]+)", log)
     assert m and float(m[1]) > 0.3 and float(m[2]) < float(m[1]) * 0.5 and 0.8 <= float(m[3]) <= 1.1, \
         f"real-time tap; the EQ change applies while the buffer plays; player time follows the clock: {line('realtime tap')}"

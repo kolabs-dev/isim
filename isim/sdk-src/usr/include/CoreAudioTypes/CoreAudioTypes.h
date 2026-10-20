@@ -78,5 +78,47 @@ struct AudioTimeStamp {
 };
 typedef struct AudioTimeStamp AudioTimeStamp;
 
+/* channel layouts (CoreAudioBaseTypes.h): a layout is a tag, a bitmap or a list of channel descriptions */
+typedef uint32_t AudioChannelLabel;
+typedef ISIM_CA_OPTIONS(uint32_t, AudioChannelBitmap) {
+    kAudioChannelBit_Left = (1U << 0),
+    kAudioChannelBit_Right = (1U << 1),
+    kAudioChannelBit_Center = (1U << 2),
+    kAudioChannelBit_LFEScreen = (1U << 3),
+    kAudioChannelBit_LeftSurround = (1U << 4),
+    kAudioChannelBit_RightSurround = (1U << 5),
+    kAudioChannelBit_LeftCenter = (1U << 6),
+    kAudioChannelBit_RightCenter = (1U << 7),
+    kAudioChannelBit_CenterSurround = (1U << 8),
+    kAudioChannelBit_LeftSurroundDirect = (1U << 9),
+    kAudioChannelBit_RightSurroundDirect = (1U << 10),
+    kAudioChannelBit_TopCenterSurround = (1U << 11),
+    kAudioChannelBit_VerticalHeightLeft = (1U << 12),
+    kAudioChannelBit_VerticalHeightCenter = (1U << 13),
+    kAudioChannelBit_VerticalHeightRight = (1U << 14),
+    kAudioChannelBit_TopBackLeft = (1U << 15),
+    kAudioChannelBit_TopBackCenter = (1U << 16),
+    kAudioChannelBit_TopBackRight = (1U << 17)
+};
+typedef ISIM_CA_OPTIONS(uint32_t, AudioChannelFlags) {
+    kAudioChannelFlags_AllOff = 0,
+    kAudioChannelFlags_RectangularCoordinates = (1U << 0),
+    kAudioChannelFlags_SphericalCoordinates = (1U << 1),
+    kAudioChannelFlags_Meters = (1U << 2)
+};
+struct AudioChannelDescription {
+    AudioChannelLabel mChannelLabel;
+    AudioChannelFlags mChannelFlags;
+    float mCoordinates[3];
+};
+typedef struct AudioChannelDescription AudioChannelDescription;
+struct AudioChannelLayout {
+    uint32_t mChannelLayoutTag;               /* AudioChannelLayoutTag */
+    AudioChannelBitmap mChannelBitmap;
+    uint32_t mNumberChannelDescriptions;
+    AudioChannelDescription mChannelDescriptions[1];   /* variable length: mNumberChannelDescriptions entries */
+};
+typedef struct AudioChannelLayout AudioChannelLayout;
+
 #pragma clang assume_nonnull end
 __END_DECLS

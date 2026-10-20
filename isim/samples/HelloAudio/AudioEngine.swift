@@ -158,7 +158,107 @@ final class EngineViewController: UIViewController {
         let reverb = AVAudioUnitReverb()
         _ = AudioUnitSetParameter(reverb.audioUnit, kReverb2Param_DryWetMix, kAudioUnitScope_Global, 0, 25, 0)
         report("reverb audioUnit wetDryMix \(Int(reverb.wetDryMix))")
+        converterChecks()
         audioUnitsOffline()
+    }
+
+    // MARK: offline: AVAudioConverter, compressed buffers, channel layouts, AVAudioTime, unit classes
+
+    /// pulls `source` through `converter` into `output`-sized buffers until the end of the stream; returns the floats
+    func pull(_ converter: AVAudioConverter, _ source: [AVAudioBuffer], into format: AVAudioFormat) -> [[Float]] {
+        var queue = source
+        var out = [[Float]](repeating: [], count: Int(format.channelCount))
+        let chunk = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4096)!
+        while true {
+            var error: NSError?
+            let st = converter.convert(to: chunk, error: &error) { _, status in
+                if queue.isEmpty { status.pointee = .endOfStream; return nil }
+                status.pointee = .haveData
+                return queue.removeFirst()
+            }
+            for c in 0..<out.count { out[c] += Array(UnsafeBufferPointer(start: chunk.floatChannelData![c], count: Int(chunk.frameLength))) }
+            if st != .haveData { break }
+        }
+        return out
+    }
+    func converterChecks() {
+        // AVAudioTime is a class, as on iOS
+        let t = AVAudioTime(sampleTime: 4800, atRate: 48000)
+        let anchor = AVAudioTime(hostTime: 1_000_000_000, sampleTime: 0, atRate: 48000)
+        let ex = t.extrapolateTime(fromAnchor: anchor)
+        report("avaudiotime object \((t as AnyObject) is NSObject) host \(ex?.hostTime ?? 0) equal \(t.isEqual(AVAudioTime(sampleTime: 4800, atRate: 48000)))")
+        // channel layouts
+        let l51 = AVAudioChannelLayout(layoutTag: kAudioChannelLayoutTag_MPEG_5_1_A)!
+        let f51 = AVAudioFormat(standardFormatWithSampleRate: 48000, channelLayout: l51)
+        let settings = f51.settings
+        let back = AVAudioFormat(settings: settings)
+        report("channel layout 5.1 channels \(l51.channelCount) format \(f51.channelCount) roundtrip \(back?.channelLayout == l51) none \(AVAudioChannelLayout(layoutTag: kAudioChannelLayoutTag_UseChannelDescriptions) == nil)")
+        // PCM in one call: float stereo -> interleaved Int16; stereo -> mono with downmix; channel map
+        let stereo = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2)!
+        let src = AVAudioPCMBuffer(pcmFormat: stereo, frameCapacity: 480)!
+        src.frameLength = 480
+        for i in 0..<480 { src.floatChannelData![0][i] = 0.5; src.floatChannelData![1][i] = -0.25 }
+        let i16 = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 48000, channels: 2, interleaved: true)!
+        let toInt = AVAudioConverter(from: stereo, to: i16)!
+        let ib = AVAudioPCMBuffer(pcmFormat: i16, frameCapacity: 480)!
+        try! toInt.convert(to: ib, from: src)
+        let p = ib.int16ChannelData![0]
+        let mono = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)!
+        let down = AVAudioConverter(from: stereo, to: mono)!
+        down.downmix = true
+        let mb = AVAudioPCMBuffer(pcmFormat: mono, frameCapacity: 480)!
+        try! down.convert(to: mb, from: src)
+        let swap = AVAudioConverter(from: stereo, to: stereo)!
+        swap.channelMap = [1, 0]
+        let sb = AVAudioPCMBuffer(pcmFormat: stereo, frameCapacity: 480)!
+        try! swap.convert(to: sb, from: src)
+        report("convert int16 \(p[0]) \(p[1]) stride \(ib.stride) frames \(ib.frameLength) downmix \(f2(Double(mb.floatChannelData![0][10]))) map \(f2(Double(sb.floatChannelData![0][0])))")
+        // sample rate conversion through the input block: 48 kHz -> 24 kHz
+        let half = AVAudioFormat(standardFormatWithSampleRate: 24000, channels: 1)!
+        let rc = AVAudioConverter(from: mono, to: half)!
+        let tone = sine(1, 440, mono)
+        let resampled = pull(rc, [tone], into: half)[0]
+        let rateRejected = (try? rc.convert(to: AVAudioPCMBuffer(pcmFormat: half, frameCapacity: 480)!, from: tone)) == nil
+        report("resample frames \(resampled.count) freq \(Int(frequency(Array(resampled[2400..<21600]), rate: 24000).rounded())) one-call rejected \(rateRejected)")
+        // no data now: the block has nothing at first, then a buffer
+        var asks = 0
+        let nd = AVAudioConverter(from: mono, to: half)!
+        let chunk = AVAudioPCMBuffer(pcmFormat: half, frameCapacity: 1200)!
+        var error: NSError?
+        let st1 = nd.convert(to: chunk, error: &error) { _, status in asks += 1; status.pointee = .noDataNow; return nil }
+        let st2 = nd.convert(to: chunk, error: &error) { _, status in asks += 1; status.pointee = .haveData; return tone }
+        report("no data now \(st1 == .inputRanDry) then \(st2 == .haveData) frames \(chunk.frameLength)")
+        // AAC: encode 44.1 kHz stereo into compressed buffers, decode them again
+        let pcm44 = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 2)!
+        guard let aac = AVAudioFormat(settings: [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 44100, AVNumberOfChannelsKey: 2]),
+              let enc = AVAudioConverter(from: pcm44, to: aac) else { report("aac no encoder"); return }
+        enc.bitRate = 128000
+        let music = sine(1, 440, pcm44)
+        var fed = false, packets = 0, bytes = 0
+        var encoded: [AVAudioCompressedBuffer] = []
+        while true {
+            let cb = AVAudioCompressedBuffer(format: aac, packetCapacity: 8, maximumPacketSize: enc.maximumOutputPacketSize)
+            let st = enc.convert(to: cb, error: &error) { _, status in
+                if fed { status.pointee = .endOfStream; return nil }
+                fed = true; status.pointee = .haveData; return music
+            }
+            if cb.packetCount > 0 { encoded.append(cb); packets += Int(cb.packetCount); bytes += Int(cb.byteLength) }
+            if st != .haveData { break }
+        }
+        let cookie = enc.magicCookie
+        aac.magicCookie = cookie
+        let dec = AVAudioConverter(from: aac, to: pcm44)!
+        let decoded = pull(dec, encoded, into: pcm44)
+        let mid = Array(decoded[0][11025..<33075])
+        report("aac format \(aac.commonFormat == .otherFormat) packets \(packets) bytes \(bytes > 8000) cookie \(cookie != nil) bitrate \(enc.bitRate) decoded \(decoded[0].count > 40000) freq \(Int(frequency(mid, rate: 44100).rounded())) rms \(f2(rms(mid)))")
+        // unit node classes: time effects and generators
+        let generator = AudioComponentDescription(componentType: kAudioUnitType_Generator, componentSubType: 0x6166_706C,   // 'afpl'
+                                                  componentManufacturer: kAudioUnitManufacturer_Apple, componentFlags: 0, componentFlagsMask: 0)
+        var made: AVAudioUnit?
+        AVAudioUnit.instantiate(with: generator) { u, _ in made = u }
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+        let timeEffect: AVAudioUnit = AVAudioUnitTimePitch()
+        report("unit classes timeeffect \(timeEffect is AVAudioUnitTimeEffect) varispeed \((AVAudioUnitVarispeed() as AVAudioUnit) is AVAudioUnitTimeEffect) generator \(made is AVAudioUnitGenerator)")
     }
 
     // MARK: real time: live EQ change seen by a mixer tap, source node, sink node from the input
