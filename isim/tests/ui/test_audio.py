@@ -23,6 +23,9 @@ def test_audio(launch, device_data):
     for cmd in ("remote play", "remote skipforward 15", "remote seek 42", "remote next"):
         app.send(cmd)
     app.wait_log(r"remote command next -> status")
+    for cmd in ("remote repeat all", "remote shuffle items", "remote rating 9", "remote language fr-subs"):
+        app.send(cmd)
+    app.wait_log(r"remote command language fr-subs -> success")
     app.wait_tap_id("speak")
     app.wait_log(r"speech didFinish")
     app.wait_view(r"id=spoken text=synthesizer")                   # the word callback updates the UI
@@ -71,6 +74,10 @@ def test_audio(launch, device_data):
     assert has("remote play") and has("remote skip 15") and has("remote seek 42"), \
         "MPRemoteCommandCenter play/skip/seek handlers"
     assert has("remote command next -> status 200"), "disabled remote command fails"
+    assert has("remote repeat all") and has("remote shuffle items"), "MPChangeRepeatModeCommand / MPChangeShuffleModeCommand events"
+    assert has("remote rating 5"), "MPRatingCommand: the rating, clamped to maximumRating"
+    assert has("remote language Français fr legible true"), "language options: the option the app offered, by identifier"
+    assert has("now playing Test Tone — isim (50%)"), "MPNowPlayingInfoPropertyPlaybackProgress"
     assert "id=isim-volume-slider" in dump, "MPVolumeView shows a slider"
 
 
@@ -148,3 +155,20 @@ def test_audio_now_playing(launch):
     assert "id=cc-np-play text=play" in paused, "after pause, the button plays"
     assert "id=lock-np-play" in lock, "lock screen media player with transport buttons"
     assert "isim shell: volume 50%" in dev.log or "isim shell: volume 56%" in dev.log, "volume buttons step the device volume"
+
+
+def test_audio_now_playing_session(launch):
+    """MPNowPlayingSession (issue #285): an AVPlayer's Now Playing published automatically; while the session is
+    active, remote commands go to its command center, not the shared one"""
+    app = launch("HelloAudio", args=["-session"])
+    app.wait_log(r"HelloAudio: session became active true true")
+    app.wait_log(r"isim MediaPlayer: now playing - @ \d+\.\d s")
+    app.send("remote pause")
+    app.wait_log(r"HelloAudio: session pause")
+    app.send("remote play")
+    app.wait_log(r"HelloAudio: session play")
+    assert app.quit() == 0
+    log = app.log
+    assert "session can become active true active false" in log and "session delegate active true" in log, "the session becomes active"
+    assert "shared center pause (wrong)" not in log, "commands go to the active session's command center"
+    assert "isim MediaPlayer: Now Playing session active" in log

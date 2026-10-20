@@ -4,6 +4,7 @@
 //   node tap fed by ISIM_AUDIO_INPUT, AVAudioFile writing/reading (WAV, and AAC via the host's ffmpeg),
 //   MPNowPlayingInfoCenter / MPRemoteCommandCenter (commands from the `remote` script command) and MPVolumeView;
 // - -engine: AVAudioEngine's real-time graph and AudioToolbox's Audio Units (AudioEngine.swift).
+// - -session: an MPNowPlayingSession for an AVPlayer (NowPlayingSession below).
 import UIKit
 import AVFoundation
 import AudioToolbox
@@ -14,7 +15,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = ProcessInfo.processInfo.arguments.contains("-engine") ? EngineViewController() : AudioViewController()
+        let args = ProcessInfo.processInfo.arguments
+        window?.rootViewController = args.contains("-engine") ? EngineViewController() : args.contains("-session") ? SessionViewController() : AudioViewController()
         window?.makeKeyAndVisible()
         return true
     }
@@ -279,5 +281,66 @@ final class AudioViewController: UIViewController, AVSpeechSynthesizerDelegate, 
             log("remote seek \(Int(t))"); return .success
         }
         center.nextTrackCommand.isEnabled = false
+
+        // repeat, shuffle, rating and language options (subtitles the app offers)
+        let english = MPNowPlayingInfoLanguageOption(type: .legible, languageTag: "en", characteristics: [MPLanguageOptionCharacteristicTranscribesSpokenDialog],
+                                                     displayName: "English", identifier: "en-subs")
+        let french = MPNowPlayingInfoLanguageOption(type: .legible, languageTag: "fr", characteristics: nil, displayName: "Français", identifier: "fr-subs")
+        info[MPNowPlayingInfoPropertyAvailableLanguageOptions] = [MPNowPlayingInfoLanguageOptionGroup(languageOptions: [english, french], defaultLanguageOption: nil,
+                                                                                                       allowEmptySelection: true)]
+        info[MPNowPlayingInfoPropertyPlaybackProgress] = 0.0
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        center.changeRepeatModeCommand.currentRepeatType = .off
+        _ = center.changeRepeatModeCommand.addTarget { e in
+            let t = (e as! MPChangeRepeatModeCommandEvent).repeatType
+            center.changeRepeatModeCommand.currentRepeatType = t
+            log("remote repeat \(t == .all ? "all" : t == .one ? "one" : "off")"); return .success
+        }
+        _ = center.changeShuffleModeCommand.addTarget { e in
+            let t = (e as! MPChangeShuffleModeCommandEvent).shuffleType
+            center.changeShuffleModeCommand.currentShuffleType = t
+            log("remote shuffle \(t == .items ? "items" : t == .collections ? "collections" : "off")"); return .success
+        }
+        center.ratingCommand.minimumRating = 1; center.ratingCommand.maximumRating = 5
+        _ = center.ratingCommand.addTarget { e in log("remote rating \(Int((e as! MPRatingCommandEvent).rating))"); return .success }
+        _ = center.enableLanguageOptionCommand.addTarget { e in
+            let o = (e as! MPChangeLanguageOptionCommandEvent).languageOption
+            info[MPNowPlayingInfoPropertyCurrentLanguageOptions] = [o]
+            info[MPNowPlayingInfoPropertyPlaybackProgress] = 0.5
+            info.removeValue(forKey: MPNowPlayingInfoPropertyElapsedPlaybackTime)
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+            log("remote language \(o.displayName ?? "?") \(o.languageTag ?? "?") legible \(o.languageOptionType == .legible)"); return .success
+        }
     }
+}
+
+/// -session: an AVPlayer's Now Playing published by an MPNowPlayingSession, its commands sent to the session
+final class SessionViewController: UIViewController, MPNowPlayingSessionDelegate {
+    var player: AVPlayer!
+    var session: MPNowPlayingSession!
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemBackground
+        // a 20 s tone to play
+        let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("session-tone.caf")
+        if let f = try? AVAudioFile(forWriting: url, settings: [AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 22050, AVNumberOfChannelsKey: 1]),
+           let buf = AVAudioPCMBuffer(pcmFormat: f.processingFormat, frameCapacity: 22050 * 20) {
+            buf.frameLength = 22050 * 20
+            for i in 0 ..< Int(buf.frameLength) { buf.floatChannelData![0][i] = 0.2 * sinf(Float(i) * 2 * .pi * 330 / 22050) }
+            try? f.write(from: buf)
+        }
+        player = AVPlayer(url: url)
+        session = MPNowPlayingSession(players: [player])
+        session.delegate = self
+        session.automaticallyPublishesNowPlayingInfo = true
+        _ = session.remoteCommandCenter.pauseCommand.addTarget { [weak self] _ in self?.player.pause(); log("session pause"); return .success }
+        _ = session.remoteCommandCenter.playCommand.addTarget { [weak self] _ in self?.player.play(); log("session play"); return .success }
+        _ = MPRemoteCommandCenter.shared().pauseCommand.addTarget { _ in log("shared center pause (wrong)"); return .success }
+        log("session can become active \(session.canBecomeActive) active \(session.isActive)")
+        session.becomeActiveIfPossible { [weak self] ok in
+            log("session became active \(ok) \(self?.session.isActive == true)")
+            self?.player.play()
+        }
+    }
+    func nowPlayingSessionDidChangeActive(_ nowPlayingSession: MPNowPlayingSession) { log("session delegate active \(nowPlayingSession.isActive)") }
 }
