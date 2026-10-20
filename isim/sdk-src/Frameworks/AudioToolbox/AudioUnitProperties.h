@@ -1,0 +1,33 @@
+#pragma once
+/* isim AudioToolbox for C: Audio Unit property IDs (Apple's AudioUnitProperties.h), the ones isim's audio units handle. */
+#include <AudioToolbox/AUComponent.h>
+#if !defined(__swift__)
+__BEGIN_DECLS
+enum {
+    kAudioUnitProperty_ClassInfo = 0,
+    kAudioUnitProperty_MakeConnection = 1,
+    kAudioUnitProperty_SampleRate = 2,
+    kAudioUnitProperty_ParameterList = 3,
+    kAudioUnitProperty_ParameterInfo = 4,
+    kAudioUnitProperty_StreamFormat = 8,
+    kAudioUnitProperty_ElementCount = 11,
+    kAudioUnitProperty_Latency = 12,
+    kAudioUnitProperty_MaximumFramesPerSlice = 14,
+    kAudioUnitProperty_TailTime = 20,
+    kAudioUnitProperty_BypassEffect = 21,
+    kAudioUnitProperty_LastRenderError = 22,
+    kAudioUnitProperty_SetRenderCallback = 23,
+    kAudioUnitProperty_ShouldAllocateBuffer = 51,
+    kAudioUnitProperty_MeteringMode = 3007,
+    kAudioOutputUnitProperty_CurrentDevice = 2000,
+    kAudioOutputUnitProperty_IsRunning = 2001,
+    kAudioOutputUnitProperty_EnableIO = 2003,
+    kAudioOutputUnitProperty_SetInputCallback = 2005,
+    kAUVoiceIOProperty_BypassVoiceProcessing = 2100,
+    kAUVoiceIOProperty_VoiceProcessingEnableAGC = 2101,
+    kAUVoiceIOProperty_MuteOutput = 2104,
+    kAUNBandEQProperty_NumberOfBands = 2200,
+    kAUNBandEQProperty_MaxNumberOfBands = 2201,
+};
+__END_DECLS
+#endif

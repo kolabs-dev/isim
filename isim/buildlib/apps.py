@@ -612,6 +612,12 @@ def _(a):
                                           "-framework", "CoreAudio"], name="AudioHeadersTest")
 
 
+@app("tests/audiotoolbox-c", products=["AudioToolboxCTest.app"])   # after the overlays: AudioToolbox re-exports its overlay
+def _(a):
+    a.objc_app(["main.m", "plain.c"], "Info.plist", ["-framework", "Foundation", "-framework", "AudioToolbox", "-framework", "AudioUnit"],
+               name="AudioToolboxCTest")
+
+
 @app("tests/objc-runtime", products=["ObjCRuntimeTest.app", "ObjCUncaught.app", "SwiftUncaught.app"])
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "CoreGraphics"], name="ObjCRuntimeTest",

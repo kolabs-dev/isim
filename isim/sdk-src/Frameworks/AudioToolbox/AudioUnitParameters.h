@@ -1,0 +1,58 @@
+#pragma once
+/* isim AudioToolbox for C: the parameters of Apple's built-in audio units (Apple's AudioUnitParameters.h), the units
+ * isim implements. */
+#include <AudioToolbox/AUComponent.h>
+#if !defined(__swift__)
+__BEGIN_DECLS
+enum {
+    kMultiChannelMixerParam_Volume = 0,
+    kMultiChannelMixerParam_Enable = 1,
+    kMultiChannelMixerParam_Pan = 2,
+    kMultiChannelMixerParam_PreAveragePower = 1000,
+    kMultiChannelMixerParam_PrePeakHoldLevel = 2000,
+    kMultiChannelMixerParam_PostAveragePower = 3000,
+    kMultiChannelMixerParam_PostPeakHoldLevel = 4000,
+    kVarispeedParam_PlaybackRate = 0,
+    kVarispeedParam_PlaybackCents = 1,
+    kNewTimePitchParam_Rate = 0,
+    kNewTimePitchParam_Pitch = 1,
+    kNewTimePitchParam_Overlap = 4,
+    kNewTimePitchParam_EnablePeakLocking = 6,
+    kDelayParam_WetDryMix = 0,
+    kDelayParam_DelayTime = 1,
+    kDelayParam_Feedback = 2,
+    kDelayParam_LopassCutoff = 3,
+    kReverb2Param_DryWetMix = 0,
+    kReverb2Param_Gain = 1,
+    kReverb2Param_MinDelayTime = 2,
+    kReverb2Param_MaxDelayTime = 3,
+    kReverb2Param_DecayTimeAt0Hz = 4,
+    kReverb2Param_DecayTimeAtNyquist = 5,
+    kReverb2Param_RandomizeReflections = 6,
+    kAUNBandEQParam_GlobalGain = 0,
+    kAUNBandEQParam_BypassBand = 1000,
+    kAUNBandEQParam_FilterType = 2000,
+    kAUNBandEQParam_Frequency = 3000,
+    kAUNBandEQParam_Gain = 4000,
+    kAUNBandEQParam_Bandwidth = 5000,
+    kLowPassParam_CutoffFrequency = 0,
+    kLowPassParam_Resonance = 1,
+    kHipassParam_CutoffFrequency = 0,
+    kHipassParam_Resonance = 1,
+    kBandpassParam_CenterFrequency = 0,
+    kBandpassParam_Bandwidth = 1,
+    kHighShelfParam_CutOffFrequency = 0,
+    kHighShelfParam_Gain = 1,
+    kAULowShelfParam_CutoffFrequency = 0,
+    kAULowShelfParam_Gain = 1,
+    kParametricEQParam_CenterFreq = 0,
+    kParametricEQParam_Q = 1,
+    kParametricEQParam_Gain = 2,
+    kDistortionParam_SoftClipGain = 14,
+    kDistortionParam_FinalMix = 15,
+    kLimiterParam_AttackTime = 0,
+    kLimiterParam_DecayTime = 1,
+    kLimiterParam_PreGain = 2,
+};
+__END_DECLS
+#endif
