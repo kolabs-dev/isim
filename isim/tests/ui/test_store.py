@@ -503,3 +503,51 @@ def test_store_ios18_views(launch, device_data, ios):
     app.tap_text("Buy")
     app.wait_log(r"purchase intent bought: txn [0-9]+")
     assert app.quit() == 0
+
+
+@pytest.mark.os_matrix
+def test_store_ask_to_buy(launch, device_data, ios):
+    """Ask to Buy (issue #295): a purchase with simulatesAskToBuyInSandbox is .pending until the family organizer
+    answers with `isim storekit <app> approve|decline`; an approved one arrives in Transaction.updates. RenewalInfo's
+    renewal price, currency, offer and eligible win-back offers (iOS 18), and AppStore.ageRatingCode (iOS 26.2)."""
+    major = int(float(ios[0] or 18))
+    app = launch("HelloStore", env={**ENV, "HELLOSTORE_MESSAGES": "defer"})      # the win-back message would cover the app
+    app.wait_log(r"entitlements: \[\]")
+    # declined: nothing is bought
+    buy(app, "ask-to-buy")
+    app.wait_log(r"ask to buy: pending")
+    req = app.wait_log(r"Ask to Buy: request ([0-9]+) for dev\.isim\.store\.full_game waits for the family organizer").group(1)
+    assert f"Ask to Buy request {req}: dev.isim.store.full_game x1, pending" in storekit(device_data, "list")
+    assert f"declined Ask to Buy request {req}" in storekit(device_data, "decline", req)
+    app.wait_log(rf"Ask to Buy: request {req} for dev\.isim\.store\.full_game declined")
+    # approved: the purchase arrives in Transaction.updates
+    buy(app, "ask-to-buy")
+    req = app.wait_log(r"Ask to Buy: request ([0-9]+) for dev\.isim\.store\.full_game waits", count=2).group(1)
+    assert f"approved Ask to Buy request {req}" in storekit(device_data, "approve", "all")
+    txn = app.wait_log(rf"Ask to Buy: request {req} approved: transaction ([0-9]+)").group(1)
+    app.wait_log(rf"update: txn {txn} dev\.isim\.store\.full_game reason=purchase")
+    app.wait_log(r"entitlements: \[dev\.isim\.store\.full_game\]")
+    assert "no Ask to Buy request" in storekit(device_data, "approve", "all")      # nothing left waiting
+    # renewal info: a subscriber renews at the plan's price; a lapsed one may take the win-back offer (iOS 18)
+    app.wait_tap_id("open-subs")
+    app.wait_tap_id("sk-plan-dev.isim.store.plus.monthly")
+    subscribe(app, "sk-subscribe")
+    app.wait_log(r"entitlements: \[dev\.isim\.store\.full_game,dev\.isim\.store\.plus\.monthly\]")
+    app.wait_tap_id("close-subs")
+    app.wait_tap_id("renewal-info")
+    app.wait_log(r"renewal info: state=subscribed price=2\.99 currency=USD offer=- period=- winbacks=\[[-]?\] app=ok")
+    storekit(device_data, "expire", "21000001")
+    app.wait_log(r"status: expired dev\.isim\.store\.plus\.monthly")
+    app.tap_id("renewal-info")
+    winbacks = r"winback" if major >= 18 else r"-"
+    app.wait_log(rf"renewal info: state=expired price=- currency=- offer=- period=- winbacks=\[{winbacks}\] app=ok")
+    # the age rating code (iOS 26.2): nil until the App Store (here: isim storekit) has one
+    app.tap_id("age-rating")
+    if major >= 27:
+        app.wait_log(r"age rating: nil")
+        storekit(device_data, "age-rating", "12")
+        app.tap_id("age-rating")
+        app.wait_log(r"age rating: 12")
+    else:
+        app.wait_log(r"age rating: needs iOS 26\.2")
+    assert app.quit() == 0

@@ -144,6 +144,19 @@ def storekit(app, cmd, args):
         write_json(os.path.join(d, f'{time.time():.6f}-{random.randint(0, 1 << 30)}.json'), intent)
         print(f'purchase intent for {args[0]}{" with offer " + args[1] if len(args) > 1 else ""} (the app gets it while it listens)')
         return
+    if cmd == 'age-rating':             # AppStore.ageRatingCode (iOS 26.2): the app's age rating code
+        f = os.path.join(STOREKIT, bid, 'age-rating')
+        if not args:
+            print(open(f).read().strip() if os.path.exists(f) else 'none')
+            return
+        os.makedirs(os.path.dirname(f), exist_ok=True)
+        if args[0] == 'none':
+            if os.path.exists(f):
+                os.remove(f)
+        else:
+            open(f, 'w').write(str(int(args[0])) + '\n')
+        print(f'age rating code: {args[0]}')
+        return
     if cmd == 'promotions':             # the promoted in-app purchases' order and visibility the app set
         p = os.path.join(STOREKIT, bid, 'promotions.json')
         pr = json.load(open(p)) if os.path.exists(p) else {}
@@ -184,6 +197,17 @@ def storekit(app, cmd, args):
         cand = [t for t in txs if t.get('groupID') == g and not t.get('isUpgraded')]
         return max(cand, key=lambda t: (t['purchaseDate'], t['id'])) if cand else None
 
+    if cmd in ('approve', 'decline'):   # Ask to Buy: the family organizer answers a request
+        asks = led.get('askToBuy') or []
+        pending = [a for a in asks if a.get('state') == 'pending']
+        pick = pending if args[:1] == ['all'] or not args else [a for a in pending if str(a['id']) in args]
+        if not pick:
+            die('no Ask to Buy request ' + (' '.join(args) or 'waiting'))
+        for a in pick:
+            a['state'] = 'approved' if cmd == 'approve' else 'declined'
+            print(f'{"approved" if cmd == "approve" else "declined"} Ask to Buy request {a["id"]} ({a["productID"]})')
+        write_json(path, led)
+        return
     if cmd == 'list':
         print(f'{"ID":>5} {"ORIG":>5}  {"PRODUCT":38} {"TYPE":28} {"PURCHASED":19}  {"EXPIRES":19}  STATE')
         for t in txs:
@@ -205,6 +229,8 @@ def storekit(app, cmd, args):
                     billing += ' (billing retry ended)'
             print(f'subscription group {g}: {s["productID"]}, auto-renew {"on" if s["willAutoRenew"] else "off"}'
                   f'{" -> " + s["autoRenewProductID"] if s["autoRenewProductID"] != s["productID"] else ""}{billing}')
+        for a in led.get('askToBuy') or []:
+            print(f'Ask to Buy request {a["id"]}: {a["productID"]} x{a.get("quantity", 1)}, {a.get("state", "pending")} (since {when(a.get("requested"))})')
         return
     if cmd == 'refund':
         t = find_tx(args[0])

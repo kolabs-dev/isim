@@ -191,6 +191,34 @@ struct RootView: View {
                     Button("Subscription offer view") { storeKind = .offerView }.accessibilityIdentifier("open-offer-view")
                     Button("Promote products") { Task { await promote() } }.accessibilityIdentifier("promote")
                 }
+                Section("Family and renewals") {
+                    // Ask to Buy: the purchase waits for the organizer (`isim storekit <app> approve|decline`)
+                    Button("Ask to buy the full game") {
+                        Task {
+                            guard let p = try? await Product.products(for: [fullGameID]).first else { return }
+                            switch try? await p.purchase(options: [.simulatesAskToBuyInSandbox(true)]) {
+                            case .pending?: print("ask to buy: pending")
+                            case .success?: print("ask to buy: bought at once?!")
+                            default: print("ask to buy: cancelled")
+                            }
+                        }
+                    }.accessibilityIdentifier("ask-to-buy")
+                    Button("Renewal info") {
+                        Task {
+                            guard let st = (try? await Product.SubscriptionInfo.status(for: groupID))?.first else { print("renewal info: none"); return }
+                            let r = st.renewalInfo.unsafePayloadValue
+                            var winBacks = "-"
+                            if #available(iOS 18.0, *) { winBacks = r.eligibleWinBackOfferIDs.joined(separator: ",") }
+                            print("renewal info: state=\(r.state) price=\(r.renewalPrice.map { "\($0)" } ?? "-") currency=\(r.currency?.identifier ?? "-") offer=\(r.offer.map { "\($0.type.rawValue):\($0.id ?? "-")" } ?? "-") period=\(r.offerPeriodStringRepresentation ?? "-") winbacks=[\(winBacks)] app=\(r.appTransactionID.isEmpty ? "-" : "ok")")
+                        }
+                    }.accessibilityIdentifier("renewal-info")
+                    Button("Age rating") {
+                        Task {
+                            if #available(iOS 26.2, *) { print("age rating: \(await AppStore.ageRatingCode.map { "\($0)" } ?? "nil")") }
+                            else { print("age rating: needs iOS 26.2") }
+                        }
+                    }.accessibilityIdentifier("age-rating")
+                }
                 Section("StoreKit 1") {
                     Button("SK1 buy coins") {
                         SKPaymentQueue.default().add(SK1Observer.shared)

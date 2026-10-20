@@ -350,6 +350,7 @@ public protocol SKPaymentQueueDelegate: AnyObject {}
                 t.transactionState = .failed; t.error = SKError(.storeProductNotAvailable); self.notify([t]); return
             }
             var options: Set<Product.PurchaseOption> = [.quantity(payment.quantity)]
+            if payment.simulatesAskToBuyInSandbox { options.insert(.simulatesAskToBuyInSandbox(true)) }
             // applicationUsername is the app account token when it is a UUID (as StoreKit 1 does)
             if let u = payment.applicationUsername.flatMap({ UUID(uuidString: $0) }) { options.insert(.appAccountToken(u)) }
             if let d = payment.paymentDiscount {
