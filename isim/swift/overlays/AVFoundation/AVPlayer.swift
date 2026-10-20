@@ -28,6 +28,15 @@ import isim_host
     var _position: Double = 0
     weak var _player: AVPlayer?
     var _info: _AVMediaInfo?
+    // media selection, outputs and logs (AVPlayerOutputs.swift)
+    var _chosen: [String: AVMediaSelectionOption?] = [:]
+    var _cues: [_AVCue] = []
+    var _outputs: [AVPlayerItemOutput] = []
+    var _timedMetadata: [AVTimedMetadataGroup]?
+    var _accessEvents: [AVPlayerItemAccessLogEvent] = []
+    var _errorEvents: [AVPlayerItemErrorLogEvent] = []
+    var _sessionID = UUID().uuidString
+    var _playRequested = 0.0
 
     @objc(initWithAsset:automaticallyLoadedAssetKeys:) public init(asset: AVAsset, automaticallyLoadedAssetKeys: [String]? = nil) {
         self.asset = asset
@@ -48,7 +57,7 @@ import isim_host
                 self._info = info
                 self.willChangeValue(forKey: "presentationSize")
                 if let info, info.ok { self._setStatus(.readyToPlay) }
-                else { self.error = _avLoadError(asset); self._setStatus(.failed) }
+                else { self.error = _avLoadError(asset); self._logError(self.error); self._setStatus(.failed) }
                 self.didChangeValue(forKey: "presentationSize")
                 self._player?._itemStatusChanged(self)
             }
@@ -190,8 +199,9 @@ final class _AVTicker: NSObject {
         get { _rate }
         set {
             var r = newValue
-            if r < 0 { NSLog("isim AVFoundation: reverse playback is not supported; pausing"); r = 0 }
-            guard r != _rate else { return }
+            var reason = RateDidChangeReason.setRateCalled
+            if r < 0 { NSLog("isim AVFoundation: reverse playback is not supported; pausing"); r = 0; reason = .setRateFailed }
+            guard r != _rate else { if reason == .setRateFailed { _postRateChange(reason) }; return }
             let t = _now()
             willChangeValue(forKey: "rate")
             _rate = r
@@ -199,6 +209,7 @@ final class _AVTicker: NSObject {
             didChangeValue(forKey: "rate")
             _updateState()
             _firePeriodic(force: true)
+            _postRateChange(reason)
         }
     }
     var _rate: Float = 0
@@ -269,7 +280,10 @@ final class _AVTicker: NSObject {
         currentItem?._position = t
         if currentItem?.status == .readyToPlay { _openMedia(at: t) }
         _lastTick = t
-        if let item = currentItem { NotificationCenter.default.post(name: AVPlayerItem.timeJumpedNotification, object: item) }
+        if let item = currentItem {
+            NotificationCenter.default.post(name: AVPlayerItem.timeJumpedNotification, object: item)
+            item._outputsTick(t, flushed: true)
+        }
         _firePeriodic(force: true)
         DispatchQueue.main.async { completionHandler(true) }
     }
@@ -312,6 +326,7 @@ final class _AVTicker: NSObject {
         else if item == nil { newStatus = .waitingToPlayAtSpecifiedRate; reason = .noItemToPlay }
         else if item?.status != .readyToPlay { newStatus = item?.status == .failed ? .paused : .waitingToPlayAtSpecifiedRate; reason = newStatus == .paused ? nil : .evaluatingBufferingRate }
         else { newStatus = .playing }
+        if newStatus == .playing && timeControlStatus != .playing, let item { item._logPlaybackStarted(requested: isim_time()) }
         if newStatus != timeControlStatus {
             let t = _now()
             willChangeValue(forKey: "timeControlStatus")
@@ -341,7 +356,8 @@ final class _AVTicker: NSObject {
         guard let item = currentItem, let info = item._info, info.ok, let url = item.asset._url else { return }
         let path = url.isFileURL ? url.path : url.absoluteString
         let r = _rate > 0 ? _rate : 1
-        _media = isim_media_open_rate(path, t, info.width, info.height, info.fps, info.hasVideo ? 1 : 0, info.hasAudio ? 1 : 0, isMuted ? 0 : Double(volume), Double(r))
+        _media = isim_media_open_tracks(path, t, info.width, info.height, info.fps, info.hasVideo ? 1 : 0, info.hasAudio ? 1 : 0, isMuted ? 0 : Double(volume),
+                                        Double(r), item._audioIndex)
         _mediaStart = t
         _mediaRate = r
         _needsFrame = info.hasVideo && _media != 0
@@ -362,12 +378,17 @@ final class _AVTicker: NSObject {
                 let first = _frame == 0
                 _frame = img; _framePTS = pts
                 _needsFrame = false
-                if first { for l in _layers { l.layer?._readyChanged() } }
+                if first { for l in _layers { l.layer?._readyChanged() }; currentItem?._logFirstFrame() }
                 _layersChanged()
             }
             if eof != 0 && currentItem?._durationSeconds == nil && timeControlStatus == .playing { _reachedEnd(); return }
         }
+        if let item = currentItem, !item._outputs.isEmpty || !item._cues.isEmpty {
+            item._outputsTick(t, flushed: false)
+            if !item._cues.isEmpty { _layersChanged() }
+        }
         if timeControlStatus == .playing {
+            if _lastTick >= 0, t > _lastTick { currentItem?._logWatched(t - _lastTick) }
             if !_boundary.isEmpty, _lastTick >= 0 {
                 for o in _boundary { o.check(from: _lastTick, to: t) }
             }
@@ -561,13 +582,16 @@ public struct AVLayerVideoGravity: RawRepresentable, Hashable, Sendable {
             _AVPictureInPicturePlaceholder.draw(in: ctx, bounds: bounds)
             return
         }
-        guard let p = player, p._frame != 0, let size = p.currentItem?.presentationSize, size.width > 0 else { return }
+        guard let p = player, p._frame != 0, let item = p.currentItem, !item._suppressesPlayerRendering else { return }
+        let size = item.presentationSize
+        guard size.width > 0 else { return }
         let b = bounds
         let r = AVMakeRect(aspectRatio: size, gravity: videoGravity, in: b)
         isim_gfx_save()
         isim_gfx_clip_rounded(b.minX, b.minY, b.width, b.height, 0)
         isim_image_draw(p._frame, r.minX, r.minY, r.width, r.height, nil, 1)
         isim_gfx_restore()
+        if !item._cues.isEmpty { _drawSubtitles(item, p._now(), in: r.intersection(b), ctx) }
     }
 }
 
