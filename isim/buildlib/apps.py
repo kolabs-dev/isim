@@ -185,6 +185,11 @@ def _(a):
                  "-preset", "veryfast", f"{b}/clip.mp4")
 
 
+@app("samples/HelloFoundationModels")
+def _(a):
+    a.swift_app()
+
+
 @app("samples/HelloVision", extra_inputs=["samples/HelloCoreImage/face.jpg"])
 def _(a):
     b = a.swift_app()
