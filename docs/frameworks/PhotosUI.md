@@ -1,7 +1,7 @@
 # PhotosUI
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 54.1% of Apple's iOS API (139 of 257, exact) · **Rows:** 3: 1 🟡 2 ❌ · **iOS:** 8.0+
+**Symbols:** 54.1% of Apple's iOS API (139 of 257, exact) · **Rows:** 4: 1 ✅ 1 🟡 2 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [PhotosUI](https://developer.apple.com/documentation/photosui) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)

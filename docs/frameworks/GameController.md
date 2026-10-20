@@ -1,7 +1,7 @@
 # GameController
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 31.5% of Apple's iOS API (288 of 914, exact) · **Rows:** 10: 4 ✅ 1 🟡 5 ❌ · **iOS:** 7.0+
+**Symbols:** 33.0% of Apple's iOS API (302 of 914, exact) · **Rows:** 10: 5 ✅ 1 🟡 4 ❌ · **iOS:** 7.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [GameController](https://developer.apple.com/documentation/gamecontroller) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)
@@ -29,7 +29,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-626 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+612 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -178,9 +178,6 @@
 - [`GCDeviceCursor`](https://developer.apple.com/documentation/gamecontroller/gcdevicecursor)
 - [`GCDeviceDirectionPad`](https://developer.apple.com/documentation/gamecontroller/gcdevicedirectionpad)
 - [`GCDeviceElement`](https://developer.apple.com/documentation/gamecontroller/gcdeviceelement)
-- [`GCDeviceHaptics`](https://developer.apple.com/documentation/gamecontroller/gcdevicehaptics)
-- [`func createEngine(withLocality: GCHapticsLocality) -> CHHapticEngine?`](https://developer.apple.com/documentation/gamecontroller/gcdevicehaptics/createengine(withlocality:))
-- [`var supportedLocalities: Set<GCHapticsLocality>`](https://developer.apple.com/documentation/gamecontroller/gcdevicehaptics/supportedlocalities)
 - [`GCDeviceLight`](https://developer.apple.com/documentation/gamecontroller/gcdevicelight)
 - [`var color: GCColor`](https://developer.apple.com/documentation/gamecontroller/gcdevicelight/color)
 - [`GCDevicePhysicalInput`](https://developer.apple.com/documentation/gamecontroller/gcdevicephysicalinput)
@@ -294,17 +291,6 @@
 - [`GCGameControllerSceneDelegate`](https://developer.apple.com/documentation/gamecontroller/gcgamecontrollerscenedelegate)
 - [`func scene(UIScene, didActivateGameControllerWith: GCGameControllerActivationContext)`](https://developer.apple.com/documentation/gamecontroller/gcgamecontrollerscenedelegate/scene(_:didactivategamecontrollerwith:))
 - [`GCGamepadValueChangedHandler`](https://developer.apple.com/documentation/gamecontroller/gcgamepadvaluechangedhandler)
-- [`let GCHapticDurationInfinite: Float`](https://developer.apple.com/documentation/gamecontroller/gchapticdurationinfinite)
-- [`GCHapticsLocality`](https://developer.apple.com/documentation/gamecontroller/gchapticslocality)
-- [`static let all: GCHapticsLocality`](https://developer.apple.com/documentation/gamecontroller/gchapticslocality/all)
-- [`static let `default`: GCHapticsLocality`](https://developer.apple.com/documentation/gamecontroller/gchapticslocality/default)
-- [`static let handles: GCHapticsLocality`](https://developer.apple.com/documentation/gamecontroller/gchapticslocality/handles)
-- [`init(rawValue: String)`](https://developer.apple.com/documentation/gamecontroller/gchapticslocality/init(rawvalue:))
-- [`static let leftHandle: GCHapticsLocality`](https://developer.apple.com/documentation/gamecontroller/gchapticslocality/lefthandle)
-- [`static let leftTrigger: GCHapticsLocality`](https://developer.apple.com/documentation/gamecontroller/gchapticslocality/lefttrigger)
-- [`static let rightHandle: GCHapticsLocality`](https://developer.apple.com/documentation/gamecontroller/gchapticslocality/righthandle)
-- [`static let rightTrigger: GCHapticsLocality`](https://developer.apple.com/documentation/gamecontroller/gchapticslocality/righttrigger)
-- [`static let triggers: GCHapticsLocality`](https://developer.apple.com/documentation/gamecontroller/gchapticslocality/triggers)
 - [`var GCInputButtonShare: String`](https://developer.apple.com/documentation/gamecontroller/gcinputbuttonshare-87tha)
 - [`var GCInputButtonShare: String`](https://developer.apple.com/documentation/gamecontroller/gcinputbuttonshare-87tha)
 - [`let GCInputDirectionalCardinalDpad: String`](https://developer.apple.com/documentation/gamecontroller/gcinputdirectionalcardinaldpad)
@@ -334,7 +320,21 @@
 - [`var GCInputXboxPaddleOne: String`](https://developer.apple.com/documentation/gamecontroller/gcinputxboxpaddleone-offv)
 - [`var GCInputXboxPaddleOne: String`](https://developer.apple.com/documentation/gamecontroller/gcinputxboxpaddleone-offv)
 - [`var GCInputXboxPaddleThree: String`](https://developer.apple.com/documentation/gamecontroller/gcinputxboxpaddlethree-6zcw8)
-- … and 326 more (`isim/data/api-coverage.json.gz`)
+- [`var GCInputXboxPaddleThree: String`](https://developer.apple.com/documentation/gamecontroller/gcinputxboxpaddlethree-6zcw8)
+- [`var GCInputXboxPaddleTwo: String`](https://developer.apple.com/documentation/gamecontroller/gcinputxboxpaddletwo-4ya43)
+- [`var GCInputXboxPaddleTwo: String`](https://developer.apple.com/documentation/gamecontroller/gcinputxboxpaddletwo-4ya43)
+- [`let GCKeyA: String`](https://developer.apple.com/documentation/gamecontroller/gckeya)
+- [`let GCKeyApplication: String`](https://developer.apple.com/documentation/gamecontroller/gckeyapplication)
+- [`let GCKeyB: String`](https://developer.apple.com/documentation/gamecontroller/gckeyb)
+- [`let GCKeyBackslash: String`](https://developer.apple.com/documentation/gamecontroller/gckeybackslash)
+- [`GCKeyboard.DidConnectMessage`](https://developer.apple.com/documentation/gamecontroller/gckeyboard/didconnectmessage)
+- [`init(keyboard: GCKeyboard)`](https://developer.apple.com/documentation/gamecontroller/gckeyboard/didconnectmessage/init(keyboard:))
+- [`var keyboard: GCKeyboard`](https://developer.apple.com/documentation/gamecontroller/gckeyboard/didconnectmessage/keyboard)
+- [`GCKeyboard.DidDisconnectMessage`](https://developer.apple.com/documentation/gamecontroller/gckeyboard/diddisconnectmessage)
+- [`init(keyboard: GCKeyboard)`](https://developer.apple.com/documentation/gamecontroller/gckeyboard/diddisconnectmessage/init(keyboard:))
+- [`var keyboard: GCKeyboard`](https://developer.apple.com/documentation/gamecontroller/gckeyboard/diddisconnectmessage/keyboard)
+- [`let GCKeyC: String`](https://developer.apple.com/documentation/gamecontroller/gckeyc)
+- … and 312 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

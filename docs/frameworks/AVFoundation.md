@@ -1,7 +1,7 @@
 # AVFoundation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 30.2% of Apple's iOS API (1670 of 5537, exact) · **Rows:** 35: 30 ✅ 1 🟡 4 ❌ · **iOS:** 2.2+
+**Symbols:** 31.5% of Apple's iOS API (1746 of 5538, exact) · **Rows:** 38: 33 ✅ 1 🟡 4 ❌ · **iOS:** 2.2+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [AVFoundation](https://developer.apple.com/documentation/avfoundation) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -58,7 +58,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-3867 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+3792 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -363,7 +363,7 @@
 - [`func renditionSpecificAttributes(for: AVMediaSelectionOption) -> AVAssetVariant.AudioAttributes.RenditionSpecificAttributes?`](https://developer.apple.com/documentation/avfoundation/avassetvariant/audioattributes-swift.class/renditionspecificattributes(for:))
 - [`var channelCount: Int?`](https://developer.apple.com/documentation/avfoundation/avassetvariant/audioattributes-swift.class/renditionspecificattributes/channelcount)
 - [`var isBinaural: Bool`](https://developer.apple.com/documentation/avfoundation/avassetvariant/audioattributes-swift.class/renditionspecificattributes/isbinaural)
-- … and 3567 more (`isim/data/api-coverage.json.gz`)
+- … and 3492 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

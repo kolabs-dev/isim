@@ -1,6 +1,7 @@
 # DarwinNotify
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 0.0% of Apple's iOS API (0 of 44, approximate, by name) · **Rows:** 5: 3 ✅ 1 🟡 1 ❌ · **iOS:** 9.3+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [Darwin Notify](https://developer.apple.com/documentation/darwinnotify) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)
@@ -30,4 +31,5 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+Nothing (or not measured yet).
 <!-- /generated:missing -->

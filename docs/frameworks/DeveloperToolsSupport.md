@@ -1,7 +1,7 @@
 # DeveloperToolsSupport
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 31.2% of Apple's iOS API (20 of 64, exact) · **Rows:** 5: 2 ✅ 3 ❌ · **iOS:** 14.0+
+**Symbols:** 64.1% of Apple's iOS API (41 of 64, exact) · **Rows:** 7: 5 ✅ 2 ❌ · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [Developer tools](../COVERAGE.md#devtools) · **Apple:** [DeveloperToolsSupport](https://developer.apple.com/documentation/developertoolssupport) · **Issues:** [`area:devtools`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Adevtools)
@@ -26,27 +26,10 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-44 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+23 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
-- [`LibraryContentBuilder`](https://developer.apple.com/documentation/developertoolssupport/librarycontentbuilder)
-- [`static func buildBlock([LibraryItem]...) -> [LibraryItem]`](https://developer.apple.com/documentation/developertoolssupport/librarycontentbuilder/buildblock(_:))
-- [`static func buildExpression(LibraryItem) -> [LibraryItem]`](https://developer.apple.com/documentation/developertoolssupport/librarycontentbuilder/buildexpression(_:)-8x2oz)
-- [`static func buildExpression([LibraryItem]) -> [LibraryItem]`](https://developer.apple.com/documentation/developertoolssupport/librarycontentbuilder/buildexpression(_:)-90ip4)
-- [`LibraryContentProvider`](https://developer.apple.com/documentation/developertoolssupport/librarycontentprovider)
-- [`ModifierBase`](https://developer.apple.com/documentation/developertoolssupport/librarycontentprovider/modifierbase)
-- [`func modifiers(base: Self.ModifierBase) -> [LibraryItem]`](https://developer.apple.com/documentation/developertoolssupport/librarycontentprovider/modifiers(base:))
-- [`func modifiers(base: Self.ModifierBase) -> [LibraryItem]`](https://developer.apple.com/documentation/developertoolssupport/librarycontentprovider/modifiers(base:)-4gfkr)
-- [`var views: [LibraryItem]`](https://developer.apple.com/documentation/developertoolssupport/librarycontentprovider/views)
-- [`var views: [LibraryItem]`](https://developer.apple.com/documentation/developertoolssupport/librarycontentprovider/views-6n3zo)
-- [`LibraryItem`](https://developer.apple.com/documentation/developertoolssupport/libraryitem)
-- [`LibraryItem.Category`](https://developer.apple.com/documentation/developertoolssupport/libraryitem/category)
-- [`static let control: LibraryItem.Category`](https://developer.apple.com/documentation/developertoolssupport/libraryitem/category/control)
-- [`static let effect: LibraryItem.Category`](https://developer.apple.com/documentation/developertoolssupport/libraryitem/category/effect)
-- [`static let layout: LibraryItem.Category`](https://developer.apple.com/documentation/developertoolssupport/libraryitem/category/layout)
-- [`static let other: LibraryItem.Category`](https://developer.apple.com/documentation/developertoolssupport/libraryitem/category/other)
-- [`init<SnippetExpressionType>(@autoclosure () -> SnippetExpressionType, visible: Bool, title: String?, category: LibraryItem.Category, matchingSignature: String?)`](https://developer.apple.com/documentation/developertoolssupport/libraryitem/init(_:visible:title:category:matchingsignature:))
 - [`init<Attributes>(String?, as: ActivityPreviewViewKind, using: Attributes, widget: () -> some Widget, contentStates: () async -> [Attributes.ContentState])`](https://developer.apple.com/documentation/developertoolssupport/preview/init(_:as:using:widget:contentstates:))
 - [`init<Provider>(String?, as: WidgetFamily, using: Provider.Intent, widget: () -> some Widget, timelineProvider: () -> Provider)`](https://developer.apple.com/documentation/developertoolssupport/preview/init(_:as:using:widget:timelineprovider:)-1if5u)
 - [`init<Provider>(String?, as: WidgetFamily, using: Provider.Intent, widget: () -> some Widget, timelineProvider: () -> Provider)`](https://developer.apple.com/documentation/developertoolssupport/preview/init(_:as:using:widget:timelineprovider:)-5335n)
@@ -65,13 +48,9 @@
 - [`case device`](https://developer.apple.com/documentation/developertoolssupport/previewlayout/device)
 - [`case fixed(width: CGFloat, height: CGFloat)`](https://developer.apple.com/documentation/developertoolssupport/previewlayout/fixed(width:height:))
 - [`case sizeThatFits`](https://developer.apple.com/documentation/developertoolssupport/previewlayout/sizethatfits)
-- [`PreviewMacroBodyBuilder`](https://developer.apple.com/documentation/developertoolssupport/previewmacrobodybuilder)
-- [`static func buildBlock(Content) -> Content`](https://developer.apple.com/documentation/developertoolssupport/previewmacrobodybuilder/buildblock(_:))
 - [`static var preview: Preview`](https://developer.apple.com/documentation/developertoolssupport/previewregistry/preview)
 - [`static var preview: Preview`](https://developer.apple.com/documentation/developertoolssupport/previewregistry/preview-32pcg)
 - [`static var assistiveAccess: PreviewTrait<Preview.ViewTraits>`](https://developer.apple.com/documentation/developertoolssupport/previewtrait/assistiveaccess)
-- [`init(PreviewTrait<T>...)`](https://developer.apple.com/documentation/developertoolssupport/previewtrait/init(_:))
-- [`static func modifier(some PreviewModifier) -> PreviewTrait<T>`](https://developer.apple.com/documentation/developertoolssupport/previewtrait/modifier(_:))
 - [`PreviewUnavailable`](https://developer.apple.com/documentation/developertoolssupport/previewunavailable)
 - [`init()`](https://developer.apple.com/documentation/developertoolssupport/previewunavailable/init())
 

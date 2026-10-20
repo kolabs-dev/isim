@@ -1,7 +1,7 @@
 # AVKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 30.5% of Apple's iOS API (106 of 347, exact) · **Rows:** 6: 2 ✅ 1 🟡 3 ❌ · **iOS:** 8.0+
+**Symbols:** 35.2% of Apple's iOS API (122 of 347, exact) · **Rows:** 7: 3 ✅ 1 🟡 3 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [AVKit](https://developer.apple.com/documentation/avkit) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -25,7 +25,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-241 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+225 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -143,22 +143,6 @@
 - [`var reason: AVLegibleMediaOptionsMenuController.StateChangeReason`](https://developer.apple.com/documentation/avkit/avlegiblemediaoptionsmenustate/reason)
 - [`var activeVideoCallContentViewController: AVPictureInPictureVideoCallViewController`](https://developer.apple.com/documentation/avkit/avpictureinpicturecontroller/contentsource-swift.class/activevideocallcontentviewcontroller)
 - [`var activeVideoCallSourceView: UIView?`](https://developer.apple.com/documentation/avkit/avpictureinpicturecontroller/contentsource-swift.class/activevideocallsourceview)
-- [`var sampleBufferDisplayLayer: AVSampleBufferDisplayLayer?`](https://developer.apple.com/documentation/avkit/avpictureinpicturecontroller/contentsource-swift.class/samplebufferdisplaylayer)
-- [`var sampleBufferPlaybackDelegate: (any AVPictureInPictureSampleBufferPlaybackDelegate)?`](https://developer.apple.com/documentation/avkit/avpictureinpicturecontroller/contentsource-swift.class/samplebufferplaybackdelegate)
-- [`AVPictureInPictureSampleBufferPlaybackDelegate`](https://developer.apple.com/documentation/avkit/avpictureinpicturesamplebufferplaybackdelegate)
-- [`AVPictureInPictureSampleBufferPlaybackDelegate`](https://developer.apple.com/documentation/avkit/avpictureinpicturesamplebufferplaybackdelegate)
-- [`func pictureInPictureController(AVPictureInPictureController, didTransitionToRenderSize: CMVideoDimensions)`](https://developer.apple.com/documentation/avkit/avpictureinpicturesamplebufferplaybackdelegate/pictureinpicturecontroller(_:didtransitiontorendersize:))
-- [`func pictureInPictureController(AVPictureInPictureController, didTransitionToRenderSize: CMVideoDimensions)`](https://developer.apple.com/documentation/avkit/avpictureinpicturesamplebufferplaybackdelegate/pictureinpicturecontroller(_:didtransitiontorendersize:))
-- [`func pictureInPictureController(AVPictureInPictureController, setPlaying: Bool)`](https://developer.apple.com/documentation/avkit/avpictureinpicturesamplebufferplaybackdelegate/pictureinpicturecontroller(_:setplaying:))
-- [`func pictureInPictureController(AVPictureInPictureController, setPlaying: Bool)`](https://developer.apple.com/documentation/avkit/avpictureinpicturesamplebufferplaybackdelegate/pictureinpicturecontroller(_:setplaying:))
-- [`func pictureInPictureController(AVPictureInPictureController, skipByInterval: CMTime, completion: () -> Void)`](https://developer.apple.com/documentation/avkit/avpictureinpicturesamplebufferplaybackdelegate/pictureinpicturecontroller(_:skipbyinterval:completion:))
-- [`func pictureInPictureController(AVPictureInPictureController, skipByInterval: CMTime, completion: () -> Void)`](https://developer.apple.com/documentation/avkit/avpictureinpicturesamplebufferplaybackdelegate/pictureinpicturecontroller(_:skipbyinterval:completion:))
-- [`func pictureInPictureControllerIsPlaybackPaused(AVPictureInPictureController) -> Bool`](https://developer.apple.com/documentation/avkit/avpictureinpicturesamplebufferplaybackdelegate/pictureinpicturecontrollerisplaybackpaused(_:))
-- [`func pictureInPictureControllerIsPlaybackPaused(AVPictureInPictureController) -> Bool`](https://developer.apple.com/documentation/avkit/avpictureinpicturesamplebufferplaybackdelegate/pictureinpicturecontrollerisplaybackpaused(_:))
-- [`func pictureInPictureControllerShouldProhibitBackgroundAudioPlayback(AVPictureInPictureController) -> Bool`](https://developer.apple.com/documentation/avkit/avpictureinpicturesamplebufferplaybackdelegate/pictureinpicturecontrollershouldprohibitbackgroundaudioplayback(_:))
-- [`func pictureInPictureControllerShouldProhibitBackgroundAudioPlayback(AVPictureInPictureController) -> Bool`](https://developer.apple.com/documentation/avkit/avpictureinpicturesamplebufferplaybackdelegate/pictureinpicturecontrollershouldprohibitbackgroundaudioplayback(_:))
-- [`func pictureInPictureControllerTimeRangeForPlayback(AVPictureInPictureController) -> CMTimeRange`](https://developer.apple.com/documentation/avkit/avpictureinpicturesamplebufferplaybackdelegate/pictureinpicturecontrollertimerangeforplayback(_:))
-- [`func pictureInPictureControllerTimeRangeForPlayback(AVPictureInPictureController) -> CMTimeRange`](https://developer.apple.com/documentation/avkit/avpictureinpicturesamplebufferplaybackdelegate/pictureinpicturecontrollertimerangeforplayback(_:))
 - [`AVPictureInPictureVideoCallViewController`](https://developer.apple.com/documentation/avkit/avpictureinpicturevideocallviewcontroller)
 - [`AVPictureInPictureVideoCallViewController`](https://developer.apple.com/documentation/avkit/avpictureinpicturevideocallviewcontroller)
 - [`AVPlaybackUserInterfaceContentArtwork`](https://developer.apple.com/documentation/avkit/avplaybackuserinterfacecontentartwork)
