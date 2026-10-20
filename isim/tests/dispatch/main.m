@@ -11,6 +11,7 @@
 // Apple's SDK allows); objects.m checks the default, where they are Objective-C objects under ARC.
 #define OS_OBJECT_USE_OBJC 0
 #import <Foundation/Foundation.h>
+#include <pthread.h>
 #import <objc/runtime.h>
 #include <dispatch/dispatch.h>
 #include <os/log.h>
@@ -315,6 +316,71 @@ static void testSources(void) {
 
 void testObjects(void);   /* objects.m: dispatch and os_log objects as Objective-C objects */
 
+/* target queues, initially inactive queues, dispatch_async_and_wait, workloops (issue #268) */
+static void testQueues(void) {
+    static char key;
+    dispatch_queue_t parent = dispatch_queue_create("dispatch.parent", NULL);
+    dispatch_queue_set_specific(parent, &key, "parent", NULL);
+    dispatch_queue_t a = dispatch_queue_create_with_target("dispatch.child.a", NULL, parent);
+    dispatch_queue_t b = dispatch_queue_create("dispatch.child.b", DISPATCH_QUEUE_CONCURRENT);
+    dispatch_set_target_queue(b, parent);
+    __block int inside = 0, overlap = 0, ran = 0;
+    __block const char *seen = NULL;
+    dispatch_group_t g = dispatch_group_create();
+    for (int i = 0; i < 40; i++) {
+        dispatch_queue_t on = i % 2 ? a : b;
+        dispatch_group_async(g, on, ^{
+            if (__atomic_add_fetch(&inside, 1, __ATOMIC_SEQ_CST) > 1) overlap = 1;     // the parent serializes both queues
+            usleep(200);
+            if (!seen) seen = dispatch_get_specific(&key);
+            __atomic_sub_fetch(&inside, 1, __ATOMIC_SEQ_CST);
+            ran++;
+        });
+    }
+    CHECK(dispatch_group_wait(g, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC)) == 0 && ran == 40 && !overlap);
+    CHECK(seen && !strcmp(seen, "parent"));                                        // specifics through the target
+    __block BOOL onParent = NO;
+    dispatch_sync(a, ^{ dispatch_assert_queue(parent); onParent = YES; });
+    CHECK(onParent);
+
+    dispatch_queue_t main_child = dispatch_queue_create_with_target("dispatch.main.child", NULL, dispatch_get_main_queue());
+    __block BOOL onMain = NO, mainDone = NO;
+    dispatch_async(main_child, ^{ onMain = pthread_main_np() != 0; mainDone = YES; });
+    for (int i = 0; i < 400 && !mainDone; i++) [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+    CHECK(mainDone && onMain);                                                     // a queue targeting the main queue
+
+    dispatch_queue_t inactive = dispatch_queue_create("dispatch.inactive", DISPATCH_QUEUE_SERIAL_INACTIVE);
+    __block int early = 0;
+    dispatch_async(inactive, ^{ early = 1; });
+    usleep(50000);
+    CHECK(early == 0);
+    dispatch_activate(inactive);
+    dispatch_sync(inactive, ^{});
+    CHECK(early == 1);
+
+    __block BOOL waitedOn = NO; __block const char *label = NULL;
+    dispatch_async_and_wait(a, ^{ waitedOn = YES; label = dispatch_queue_get_label(DISPATCH_CURRENT_QUEUE_LABEL); });
+    CHECK(waitedOn && label && !strcmp(label, "dispatch.child.a"));
+    __block BOOL global = NO;
+    dispatch_async_and_wait(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{ global = !pthread_main_np(); });
+    CHECK(global);                                                                // runs on the queue, not inline on the caller
+
+    dispatch_workloop_t wl = dispatch_workloop_create("dispatch.workloop");
+    dispatch_workloop_set_autorelease_frequency(wl, DISPATCH_AUTORELEASE_FREQUENCY_WORK_ITEM);
+    __block NSMutableString *order = [NSMutableString string];
+    for (int i = 0; i < 5; i++) dispatch_async(wl, ^{ [order appendFormat:@"%d", i]; });
+    dispatch_sync(wl, ^{});
+    CHECK([order isEqualToString:@"01234"]);
+    dispatch_workloop_t idle = dispatch_workloop_create_inactive("dispatch.workloop.inactive");
+    __block int wlRan = 0;
+    dispatch_async(idle, ^{ wlRan = 1; });
+    usleep(30000);
+    CHECK(wlRan == 0);
+    dispatch_activate(idle);
+    dispatch_async_and_wait(idle, ^{});
+    CHECK(wlRan == 1);
+}
+
 int main(int argc, char **argv) {
     @autoreleasepool {
         q = dispatch_queue_create("dispatch.test", NULL);
@@ -325,6 +391,7 @@ int main(int argc, char **argv) {
         testFunctions();
         testSources();
         testObjects();
+        testQueues();
         [NSFileManager.defaultManager removeItemAtPath:dir error:NULL];
         NSLog(@"dispatch test: %d/%d passed", checks - failures, checks);
     }

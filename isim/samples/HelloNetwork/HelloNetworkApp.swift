@@ -1,6 +1,7 @@
 // Sample: networking on isim — URLSession with async/await and completion handlers, JSONDecoder, cookies
 // (sign in, then an authenticated request), HTTP status and URLError handling, a WebSocket echo,
-// Combine's dataTaskPublisher, NWPathMonitor, an RSS feed read with XMLParser and a URLProtocol that answers app: URLs.
+// Combine's dataTaskPublisher, NWPathMonitor, an RSS feed read with XMLParser, a URLProtocol that answers app: URLs, and
+// an actor that keeps the request log on a DispatchSerialQueue (its custom executor).
 // The server is server.py next to this file; pass its address as a launch argument:
 //   python3 samples/HelloNetwork/server.py 8765 &
 //   isim run out/apps/HelloNetwork.app -server http://127.0.0.1:8765
@@ -24,6 +25,19 @@ final class FeedParser: NSObject, XMLParserDelegate {
     func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
         if elementName == "title" && inItem { titles.append(text) }
         if elementName == "item" { inItem = false }
+    }
+}
+
+/// the request log: an actor whose jobs run on a serial dispatch queue (DispatchSerialQueue as a SerialExecutor)
+actor RequestLog {
+    static let queueKey = DispatchSpecificKey<String>()
+    let queue = DispatchSerialQueue(label: "dev.isim.network.log")
+    private var entries: [String] = []
+    init() { queue.setSpecific(key: RequestLog.queueKey, value: "log") }
+    nonisolated var unownedExecutor: UnownedSerialExecutor { queue.asUnownedSerialExecutor() }
+    func record(_ path: String) -> (count: Int, onQueue: Bool) {
+        entries.append(path)
+        return (entries.count, DispatchQueue.getSpecific(key: RequestLog.queueKey) == "log")
     }
 }
 
@@ -53,6 +67,7 @@ final class NetworkModel: ObservableObject {
     @Published var combineText = "—"
     @Published var feed: [String] = []
     @Published var greeting = "—"
+    let requestLog = RequestLog()
 
     let base: URL
     let monitor = NWPathMonitor()
@@ -243,6 +258,10 @@ struct ContentView: View {
             model.loadMessage()
             await model.loadFeed()
             await model.loadGreeting()
+            for path in ["todos", "message", "feed.xml", "app://greeting"] {
+                let entry = await model.requestLog.record(path)
+                if entry.count == 4 { print("request log \(entry.count) entries on its queue=\(entry.onQueue)") }
+            }
         }
     }
 }

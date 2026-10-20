@@ -1,5 +1,5 @@
 """Networking (HelloNetwork) against a local server (samples/HelloNetwork/server.py, no Internet): async/await +
-JSONDecoder, an RSS feed read with XMLParser, a URLProtocol answering app: URLs, completion handler on a background queue, POST + Set-Cookie + authenticated GET, HTTP 503, URLError for
+JSONDecoder, an RSS feed read with XMLParser, a URLProtocol answering app: URLs, an actor on a DispatchSerialQueue, completion handler on a background queue, POST + Set-Cookie + authenticated GET, HTTP 503, URLError for
 an unreachable host, WebSocket echo, Combine dataTaskPublisher, NWPathMonitor, and ISIM_NETWORK=offline.
 Port of tests/ui/network.sh."""
 import re
@@ -16,6 +16,7 @@ def test_network(launch, device_data):
         app.wait_log(r"^message ")
         app.wait_log(r"^feed ")
         app.wait_log(r"^protocol ")
+        app.wait_log(r"^request log ")
         app.wait_view(lambda d: "text=Decode JSON" in d and "text=2 of 3 done" in d,
                       what="async/await data(from:) + JSONDecoder")
         app.wait_view(r"text=Hello from a local server", what="completion handler off the main thread")
@@ -49,6 +50,7 @@ def test_network(launch, device_data):
     def has(p):
         return re.search(p, out, re.M)
     assert has(r"^todos 3 Write the network layer,Decode JSON,Ship it"), "async/await data(from:) + JSONDecoder"
+    assert has(r"^request log 4 entries on its queue=true$"), "an actor whose executor is a DispatchSerialQueue"
     assert has(r"^protocol Hello from a URLProtocol$"), "URLSessionConfiguration.protocolClasses: a URLProtocol answers"
     assert has(r"^feed true XMLParser lands,Feeds & more$"), "an RSS feed parsed with XMLParser"
     assert has(r"^message Hello from a local server 👋 main=false"), "completion handler off the main thread"

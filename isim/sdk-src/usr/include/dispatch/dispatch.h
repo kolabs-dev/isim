@@ -36,6 +36,8 @@ DISPATCH_DECL_SUBCLASS(dispatch_queue_global, dispatch_queue);
 DISPATCH_DECL_SUBCLASS(dispatch_queue_serial, dispatch_queue);
 DISPATCH_DECL_SUBCLASS(dispatch_queue_main, dispatch_queue_serial);
 DISPATCH_DECL_SUBCLASS(dispatch_queue_concurrent, dispatch_queue);
+DISPATCH_DECL_SUBCLASS(dispatch_workloop, dispatch_queue);
+DISPATCH_DECL_SUBCLASS(dispatch_queue_serial_executor, dispatch_queue);
 DISPATCH_DECL(dispatch_queue_attr);
 DISPATCH_DECL(dispatch_source);
 DISPATCH_DECL(dispatch_group);
@@ -50,6 +52,8 @@ typedef struct dispatch_queue_s *dispatch_queue_global_t;
 typedef struct dispatch_queue_s *dispatch_queue_serial_t;
 typedef struct dispatch_queue_s *dispatch_queue_main_t;
 typedef struct dispatch_queue_s *dispatch_queue_concurrent_t;
+typedef struct dispatch_queue_s *dispatch_workloop_t;
+typedef struct dispatch_queue_s *dispatch_queue_serial_executor_t;
 typedef struct dispatch_queue_attr_s *dispatch_queue_attr_t;
 typedef struct dispatch_source_s *dispatch_source_t;
 typedef struct dispatch_group_s *dispatch_group_t;
@@ -82,6 +86,7 @@ typedef void (*dispatch_function_t)(void *);
 #define NSEC_PER_MSEC 1000000ull
 #define NSEC_PER_USEC 1000ull
 #define USEC_PER_SEC 1000000ull
+#define MSEC_PER_SEC 1000ull
 #define DISPATCH_QUEUE_PRIORITY_HIGH 2
 #define DISPATCH_QUEUE_PRIORITY_DEFAULT 0
 #define DISPATCH_QUEUE_PRIORITY_LOW (-2)
@@ -100,6 +105,7 @@ FOUNDATION_EXPORT DISPATCH_RETURNS_RETAINED dispatch_queue_t dispatch_queue_crea
 FOUNDATION_EXPORT DISPATCH_RETURNS_RETAINED dispatch_queue_t dispatch_queue_create_with_target(const char *label, dispatch_queue_attr_t attr, dispatch_queue_t target);
 FOUNDATION_EXPORT dispatch_queue_attr_t dispatch_queue_attr_make_with_qos_class(dispatch_queue_attr_t attr, dispatch_qos_class_t qos, int relative_priority);
 FOUNDATION_EXPORT const char *dispatch_queue_get_label(dispatch_queue_t queue);
+#define DISPATCH_CURRENT_QUEUE_LABEL NULL
 FOUNDATION_EXPORT void dispatch_set_target_queue(dispatch_object_t object, dispatch_queue_t queue);
 FOUNDATION_EXPORT void dispatch_queue_set_specific(dispatch_queue_t queue, const void *key, void *context, dispatch_function_t destructor);
 FOUNDATION_EXPORT void *dispatch_queue_get_specific(dispatch_queue_t queue, const void *key);
@@ -107,11 +113,24 @@ FOUNDATION_EXPORT void *dispatch_get_specific(const void *key);
 FOUNDATION_EXPORT void dispatch_assert_queue(dispatch_queue_t queue);
 FOUNDATION_EXPORT void dispatch_assert_queue_not(dispatch_queue_t queue);
 FOUNDATION_EXPORT void dispatch_main(void) __attribute__((noreturn));
+FOUNDATION_EXPORT dispatch_queue_attr_t dispatch_queue_attr_make_initially_inactive(dispatch_queue_attr_t attr);
+typedef enum : unsigned long {
+    DISPATCH_AUTORELEASE_FREQUENCY_INHERIT = 0, DISPATCH_AUTORELEASE_FREQUENCY_WORK_ITEM = 1, DISPATCH_AUTORELEASE_FREQUENCY_NEVER = 2,
+} dispatch_autorelease_frequency_t;
+FOUNDATION_EXPORT dispatch_queue_attr_t dispatch_queue_attr_make_with_autorelease_frequency(dispatch_queue_attr_t attr, dispatch_autorelease_frequency_t frequency);
+#define DISPATCH_QUEUE_SERIAL_INACTIVE dispatch_queue_attr_make_initially_inactive(DISPATCH_QUEUE_SERIAL)
+#define DISPATCH_QUEUE_CONCURRENT_INACTIVE dispatch_queue_attr_make_initially_inactive(DISPATCH_QUEUE_CONCURRENT)
+/* workloops: serial queues on isim (no QoS: items run in submission order) */
+FOUNDATION_EXPORT DISPATCH_RETURNS_RETAINED dispatch_workloop_t dispatch_workloop_create(const char *label);
+FOUNDATION_EXPORT DISPATCH_RETURNS_RETAINED dispatch_workloop_t dispatch_workloop_create_inactive(const char *label);
+FOUNDATION_EXPORT void dispatch_workloop_set_autorelease_frequency(dispatch_workloop_t workloop, dispatch_autorelease_frequency_t frequency);
 
 FOUNDATION_EXPORT void dispatch_async_f(dispatch_queue_t queue, void *context, dispatch_function_t work);
 FOUNDATION_EXPORT void dispatch_sync_f(dispatch_queue_t queue, void *context, dispatch_function_t work);
 FOUNDATION_EXPORT void dispatch_barrier_async_f(dispatch_queue_t queue, void *context, dispatch_function_t work);
 FOUNDATION_EXPORT void dispatch_barrier_sync_f(dispatch_queue_t queue, void *context, dispatch_function_t work);
+FOUNDATION_EXPORT void dispatch_async_and_wait_f(dispatch_queue_t queue, void *context, dispatch_function_t work);
+FOUNDATION_EXPORT void dispatch_barrier_async_and_wait_f(dispatch_queue_t queue, void *context, dispatch_function_t work);
 FOUNDATION_EXPORT void dispatch_after_f(dispatch_time_t when, dispatch_queue_t queue, void *context, dispatch_function_t work);
 FOUNDATION_EXPORT void dispatch_apply_f(size_t iterations, dispatch_queue_t queue, void *context, void (*work)(void *, size_t));
 FOUNDATION_EXPORT void dispatch_once_f(dispatch_once_t *predicate, void *context, dispatch_function_t function);
@@ -201,6 +220,8 @@ FOUNDATION_EXPORT void dispatch_async(dispatch_queue_t queue, dispatch_block_t b
 FOUNDATION_EXPORT void dispatch_sync(dispatch_queue_t queue, NS_NOESCAPE dispatch_block_t block);
 FOUNDATION_EXPORT void dispatch_barrier_async(dispatch_queue_t queue, dispatch_block_t block);
 FOUNDATION_EXPORT void dispatch_barrier_sync(dispatch_queue_t queue, NS_NOESCAPE dispatch_block_t block);
+FOUNDATION_EXPORT void dispatch_async_and_wait(dispatch_queue_t queue, NS_NOESCAPE dispatch_block_t block);
+FOUNDATION_EXPORT void dispatch_barrier_async_and_wait(dispatch_queue_t queue, NS_NOESCAPE dispatch_block_t block);
 FOUNDATION_EXPORT void dispatch_after(dispatch_time_t when, dispatch_queue_t queue, dispatch_block_t block);
 FOUNDATION_EXPORT void dispatch_apply(size_t iterations, dispatch_queue_t queue, NS_NOESCAPE void (^block)(size_t));
 FOUNDATION_EXPORT void dispatch_once(dispatch_once_t *predicate, NS_NOESCAPE dispatch_block_t block);

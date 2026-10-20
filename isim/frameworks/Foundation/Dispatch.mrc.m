@@ -3,7 +3,10 @@
  *    -[NSRunLoop run] or dispatch_main();
  *  - global queues: one shared FIFO served by a worker pool that grows while all workers are
  *    busy (blocked workers do not starve later work), up to 64 threads;
- *  - serial queues: FIFO drained by one pool job at a time (order + mutual exclusion);
+ *  - serial queues: FIFO drained by one pool job at a time (order + mutual exclusion); workloops are serial queues
+ *    (isim has no QoS: their items run in submission order);
+ *  - target queues: a queue's work runs through its target (a serial or the main queue: serialized with it), the
+ *    global queues being the default target;
  *  - timers: one timer thread (dispatch_after on non-main queues, timer sources).
  * Time values are nanoseconds of CLOCK_UPTIME_RAW (what mach_absolute_time and Swift's
  * suspending clock read); bit 63 marks the continuous clock (same base on isim), bit 62 wall time. */
@@ -48,8 +51,9 @@ struct dispatch_queue_s {
     job *head, *tail; int draining, suspended;
     specific *specifics;
     struct dispatch_queue_s *target;
+    int inactive;                      /* created initially inactive, not activated yet (suspended once) */
 };
-struct dispatch_queue_attr_s { dobj h; int concurrent; };
+struct dispatch_queue_attr_s { dobj h; int concurrent, inactive; };
 struct dispatch_source_type_s { int type; };
 struct dispatch_source_s {
     dobj h;
@@ -73,7 +77,9 @@ struct dispatch_semaphore_s { dobj h; long value; pthread_mutex_t lock; pthread_
 struct dispatch_group_s { dobj h; long count; pthread_mutex_t lock; pthread_cond_t cond; job *notify; dispatch_queue_t *notify_q; int nnotify; };
 
 struct dispatch_queue_s _dispatch_main_q = { DOBJ(queue, K_QUEUE, 1 << 30), 0, "com.apple.main-thread", PTHREAD_MUTEX_INITIALIZER, NULL, NULL, 0, 0, NULL, NULL };
-struct dispatch_queue_attr_s _dispatch_queue_attr_concurrent = { DOBJ(queue_attr, K_ATTR, 1 << 30), 1 };
+struct dispatch_queue_attr_s _dispatch_queue_attr_concurrent = { DOBJ(queue_attr, K_ATTR, 1 << 30), 1, 0 };
+static struct dispatch_queue_attr_s attr_serial_inactive = { DOBJ(queue_attr, K_ATTR, 1 << 30), 0, 1 };
+static struct dispatch_queue_attr_s attr_concurrent_inactive = { DOBJ(queue_attr, K_ATTR, 1 << 30), 1, 1 };
 enum { ST_TIMER = 1, ST_DATA_ADD, ST_DATA_OR, ST_DATA_REPLACE, ST_READ, ST_WRITE, ST_SIGNAL, ST_PROC, ST_VNODE, ST_MEMORYPRESSURE, ST_MACH_SEND, ST_MACH_RECV };
 const struct dispatch_source_type_s _dispatch_source_type_timer = { ST_TIMER };
 const struct dispatch_source_type_s _dispatch_source_type_data_add = { ST_DATA_ADD };
@@ -258,6 +264,11 @@ dispatch_queue_t dispatch_get_global_queue(long id, unsigned long flags) {
     }
 }
 dispatch_queue_attr_t dispatch_queue_attr_make_with_qos_class(dispatch_queue_attr_t attr, dispatch_qos_class_t qos, int prio) { return attr; }
+dispatch_queue_attr_t dispatch_queue_attr_make_initially_inactive(dispatch_queue_attr_t attr) {
+    return attr && attr->concurrent ? &attr_concurrent_inactive : &attr_serial_inactive;
+}
+/* isim drains every work item in its own autorelease pool */
+dispatch_queue_attr_t dispatch_queue_attr_make_with_autorelease_frequency(dispatch_queue_attr_t attr, dispatch_autorelease_frequency_t f) { return attr; }
 dispatch_queue_t dispatch_queue_create_with_target(const char *label, dispatch_queue_attr_t attr, dispatch_queue_t target) {
     struct dispatch_queue_s *q = calloc(1, sizeof *q);
     q->h = (dobj)DOBJ(queue, K_QUEUE, 1);
@@ -265,11 +276,27 @@ dispatch_queue_t dispatch_queue_create_with_target(const char *label, dispatch_q
     q->label = strdup(label ? label : "");
     pthread_mutex_init(&q->lock, NULL);
     q->target = target;
+    if (attr && attr->inactive) { q->inactive = 1; q->suspended = 1; }
     return q;
 }
 dispatch_queue_t dispatch_queue_create(const char *label, dispatch_queue_attr_t attr) { return dispatch_queue_create_with_target(label, attr, NULL); }
 const char *dispatch_queue_get_label(dispatch_queue_t q) { return q ? q->label : (current_queue ? current_queue->label : ""); }
-void dispatch_set_target_queue(dispatch_object_t o, dispatch_queue_t q) { if (o && ((dobj *)o)->kind == K_QUEUE) ((struct dispatch_queue_s *)o)->target = q; }
+void dispatch_set_target_queue(dispatch_object_t o, dispatch_queue_t q) {
+    dobj *d = o;
+    if (!d) return;
+    if (d->kind == K_QUEUE) {
+        dispatch_queue_t self = o;
+        if (self == &_dispatch_main_q || self->h.refs >= (1 << 29)) return;          /* the main and global queues */
+        for (dispatch_queue_t t = q; t; t = t->target) if (t == self) return;          /* no cycles */
+        pthread_mutex_lock(&self->lock); self->target = q; pthread_mutex_unlock(&self->lock);
+    } else if (d->kind == K_SOURCE) {
+        ((struct dispatch_source_s *)o)->queue = q ? q : dispatch_get_global_queue(0, 0);
+    }
+}
+/* workloops: serial queues (isim runs every queue's items in submission order) */
+dispatch_workloop_t dispatch_workloop_create(const char *label) { return dispatch_queue_create_with_target(label, NULL, NULL); }
+dispatch_workloop_t dispatch_workloop_create_inactive(const char *label) { return dispatch_queue_create_with_target(label, &attr_serial_inactive, NULL); }
+void dispatch_workloop_set_autorelease_frequency(dispatch_workloop_t w, dispatch_autorelease_frequency_t f) {}
 
 void dispatch_queue_set_specific(dispatch_queue_t q, const void *key, void *ctx, dispatch_function_t dtor) {
     pthread_mutex_lock(&q->lock);
@@ -315,9 +342,19 @@ static void run_on(dispatch_queue_t q, dispatch_function_t f, void *ctx) {
     current_queue = saved;
 }
 static void global_trampoline(void *p) { qjob *j = p; run_on(j->q, j->f, j->ctx); free(j); }
+static int is_global(dispatch_queue_t q) { return q != &_dispatch_main_q && q->h.refs >= (1 << 29); }
 static void concurrent_submit(dispatch_queue_t q, dispatch_function_t f, void *ctx) {
     qjob *j = malloc(sizeof *j); *j = (qjob){ q, f, ctx };
-    pool_submit(global_trampoline, j);
+    dispatch_queue_t t = q->target;
+    if (t && !is_global(t)) dispatch_async_f(t, j, global_trampoline);     /* through its target queue */
+    else pool_submit(global_trampoline, j);
+}
+static void serial_drain(void *p);
+/* a serial queue's drain runs on its target queue (a serial or the main queue), else on the pool */
+static void kick_serial(dispatch_queue_t q) {
+    dispatch_queue_t t = q->target;
+    if (t && !is_global(t)) dispatch_async_f(t, q, serial_drain);
+    else pool_submit(serial_drain, q);
 }
 static void serial_drain(void *p) {
     dispatch_queue_t q = p;
@@ -360,7 +397,7 @@ void dispatch_async_f(dispatch_queue_t q, void *ctx, dispatch_function_t f) {
     int start = !q->draining && !q->suspended;
     if (start) q->draining = 1;
     pthread_mutex_unlock(&q->lock);
-    if (start) pool_submit(serial_drain, q);
+    if (start) kick_serial(q);
 }
 void dispatch_barrier_async_f(dispatch_queue_t q, void *ctx, dispatch_function_t f) { dispatch_async_f(q, ctx, f); }
 
@@ -378,6 +415,14 @@ void dispatch_sync_f(dispatch_queue_t q, void *ctx, dispatch_function_t f) {
     pthread_mutex_lock(&s.m); while (!s.done) pthread_cond_wait(&s.c, &s.m); pthread_mutex_unlock(&s.m);
 }
 void dispatch_barrier_sync_f(dispatch_queue_t q, void *ctx, dispatch_function_t f) { dispatch_sync_f(q, ctx, f); }
+/* like dispatch_sync, but the work runs on the queue (its thread, its target), never inline unless the caller is on it */
+void dispatch_async_and_wait_f(dispatch_queue_t q, void *ctx, dispatch_function_t f) {
+    if (on_queue(q)) { run_on(q, f, ctx); return; }
+    syncjob s = { f, ctx, PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0 };
+    dispatch_async_f(q, &s, sync_trampoline);
+    pthread_mutex_lock(&s.m); while (!s.done) pthread_cond_wait(&s.c, &s.m); pthread_mutex_unlock(&s.m);
+}
+void dispatch_barrier_async_and_wait_f(dispatch_queue_t q, void *ctx, dispatch_function_t f) { dispatch_async_and_wait_f(q, ctx, f); }
 void dispatch_apply_f(size_t n, dispatch_queue_t q, void *ctx, void (*f)(void *, size_t)) { for (size_t i = 0; i < n; i++) f(ctx, i); }
 
 void dispatch_once_f(dispatch_once_t *pred, void *ctx, dispatch_function_t f) {
@@ -789,6 +834,14 @@ uintptr_t dispatch_source_get_handle(dispatch_source_t s) { return s->handle; }
 uintptr_t dispatch_source_get_mask(dispatch_source_t s) { return s->mask; }
 void dispatch_activate(dispatch_object_t o) {
     dobj *d = o;
+    if (d && d->kind == K_QUEUE) {                     /* an initially inactive queue starts running */
+        dispatch_queue_t q = o;
+        pthread_mutex_lock(&q->lock);
+        int was = q->inactive; q->inactive = 0;
+        pthread_mutex_unlock(&q->lock);
+        if (was) dispatch_resume(o);
+        return;
+    }
     if (!d || d->kind != K_SOURCE) return;
     struct dispatch_source_s *s = o;
     pthread_mutex_lock(&s->lock);
@@ -811,7 +864,7 @@ void dispatch_resume(dispatch_object_t o) {
         job *held = NULL;
         if (q->qkind == 1 && !q->suspended) { held = q->head; q->head = q->tail = NULL; }
         pthread_mutex_unlock(&q->lock);
-        if (start) pool_submit(serial_drain, q);
+        if (start) kick_serial(q);
         while (held) { job *next = held->next; concurrent_submit(q, held->f, held->ctx); free(held); held = next; }
         return;
     }
@@ -918,6 +971,8 @@ void dispatch_async(dispatch_queue_t q, dispatch_block_t b) { dispatch_async_f(q
 void dispatch_barrier_async(dispatch_queue_t q, dispatch_block_t b) { dispatch_async(q, b); }
 void dispatch_sync(dispatch_queue_t q, dispatch_block_t b) { dispatch_sync_f(q, (void *)b, block_sync); }
 void dispatch_barrier_sync(dispatch_queue_t q, dispatch_block_t b) { dispatch_sync(q, b); }
+void dispatch_async_and_wait(dispatch_queue_t q, dispatch_block_t b) { dispatch_async_and_wait_f(q, (void *)b, block_sync); }
+void dispatch_barrier_async_and_wait(dispatch_queue_t q, dispatch_block_t b) { dispatch_async_and_wait_f(q, (void *)b, block_sync); }
 void dispatch_after(dispatch_time_t when, dispatch_queue_t q, dispatch_block_t b) { dispatch_after_f(when, q, Block_copy(b), block_trampoline); }
 void dispatch_apply(size_t n, dispatch_queue_t q, void (^b)(size_t)) { for (size_t i = 0; i < n; i++) b(i); }
 void dispatch_once(dispatch_once_t *pred, dispatch_block_t b) { dispatch_once_f(pred, (void *)b, block_sync); }
