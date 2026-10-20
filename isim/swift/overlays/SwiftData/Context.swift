@@ -31,7 +31,7 @@ open class ModelContext: ObservableObject, Observable {
     private let registrar = ObservationRegistrar()
     private var _changes = 0
     /// read inside fetch (SwiftUI's observation of @Query); bumped by every change
-    private var changes: Int {
+    var changes: Int {
         get { registrar.access(self, keyPath: \.changes); return _changes }
         set { registrar.withMutation(of: self, keyPath: \.changes) { _changes = newValue } }
     }
@@ -48,6 +48,12 @@ open class ModelContext: ObservableObject, Observable {
     init(main container: ModelContainer) {
         self.container = container
         store = container.store
+        // saves of other contexts (a model actor's) refresh the main context's queries, as on iOS 18
+        let me = _Weak(self)
+        store.observeCommits { saver in
+            guard let m = me.value, saver !== m else { return }
+            DispatchQueue.main.async { guard let m = me.value else { return }; m.objectWillChange.send(); m.changes += 1 }
+        }
     }
 
     // MARK: registry
@@ -253,6 +259,7 @@ open class ModelContext: ObservableObject, Observable {
         for k in loaded.keys { loaded[k] = store.generation }
         objectWillChange.send()
         changes += 1
+        store.committed(by: self)
         NotificationCenter.default.post(name: ModelContext.didSave, object: self, userInfo: info)
     }
 
@@ -305,14 +312,14 @@ open class ModelContext: ObservableObject, Observable {
 
     /// the model with that identifier in this context (a stored one is loaded)
     open func model(for id: PersistentIdentifier) -> any PersistentModel {
-        if let m = find(id) { return m }
+        if let m = _find(id) { return m }
         fatalError("SwiftData: no model with identifier \(id) in this context")
     }
     open func registeredModel<T: PersistentModel>(for id: PersistentIdentifier) -> T? {
         if id.isTemporary { return inserted.first { _store($0).identifier == id } as? T }
         return registered[id.entityName]?[id.id.primaryKey] as? T
     }
-    private func find(_ id: PersistentIdentifier) -> (any PersistentModel)? {
+    func _find(_ id: PersistentIdentifier) -> (any PersistentModel)? {
         if let m = inserted.first(where: { _store($0).temporaryKey == id.id.primaryKey }) { return m as? any PersistentModel }
         if let m = registered[id.entityName]?[id.id.primaryKey] { return m as? any PersistentModel }
         guard let t = container.schema.types.first(where: { _ModelInfo.of($0).entity == id.entityName }) else { return nil }
@@ -347,13 +354,34 @@ open class ModelContainer: @unchecked Sendable {
         return m
     }
 
-    public required init(for givenSchema: Schema, configurations: [ModelConfiguration] = []) throws {
+    public let migrationPlan: (any SchemaMigrationPlan.Type)?
+
+    public required convenience init(for givenSchema: Schema, configurations: [ModelConfiguration] = []) throws {
+        try self.init(for: givenSchema, migrationPlan: nil, configurations: configurations)
+    }
+    /// a container whose store is migrated with the plan to the schema's version
+    public init(for givenSchema: Schema, migrationPlan: (any SchemaMigrationPlan.Type)?, configurations: [ModelConfiguration] = []) throws {
         schema = givenSchema
+        self.migrationPlan = migrationPlan
         let config = configurations.first ?? ModelConfiguration(schema: givenSchema)
         self.configurations = Set(configurations.isEmpty ? [config] : configurations)
         store = try _SQLStore.store(for: config)
         allowsSave = config.allowsSave
         for t in givenSchema.types { store.ensure(_ModelInfo.of(t)) }
+        try _Migration.run(store, schema: givenSchema, plan: migrationPlan, configuration: config)
+    }
+    public convenience init(for givenSchema: Schema, migrationPlan: (any SchemaMigrationPlan.Type)?, configurations: ModelConfiguration...) throws {
+        try self.init(for: givenSchema, migrationPlan: migrationPlan, configurations: configurations)
+    }
+    public convenience init(for modelType: any PersistentModel.Type, _ modelTypes: any PersistentModel.Type...,
+                            migrationPlan: (any SchemaMigrationPlan.Type)?, configurations: ModelConfiguration...) throws {
+        try self.init(for: Schema([modelType] + modelTypes), migrationPlan: migrationPlan, configurations: configurations)
+    }
+    /// a container over one schema version's models, for a migration stage
+    init(migrating schema: Schema, store: _SQLStore, configuration: ModelConfiguration) {
+        self.schema = schema; self.store = store; migrationPlan = nil
+        configurations = [configuration]; allowsSave = true
+        for t in schema.types { store.ensure(_ModelInfo.of(t)) }
     }
     public convenience init(for givenSchema: Schema, configurations: ModelConfiguration...) throws {
         try self.init(for: givenSchema, configurations: configurations)

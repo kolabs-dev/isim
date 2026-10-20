@@ -2,7 +2,8 @@
 // survive a relaunch: attributes (Codable structs, enums, arrays, optionals, dates), relationships with inverses
 // (named and inferred), delete rules (cascade, nullify, deny), @Attribute(.unique) and #Unique upserts, #Index,
 // @Transient, a second ModelContext on the same store, rollback, the didSave notification, and an @Query list that
-// refreshes when a model's property changes. The first launch seeds the store; later launches check what it kept.
+// refreshes when a model's property changes; a model actor's saves (HelloSwiftDataNotes.swift, with the schema
+// migration). The first launch seeds the store; later launches check what it kept.
 // Every step is printed ("sd2 ..."), so tests/ui/test_swiftdata.py can check it.
 import SwiftUI
 import SwiftData
@@ -93,6 +94,15 @@ let epoch = Date(timeIntervalSince1970: 1_800_000_000)
     try! other.save()
     NotificationCenter.default.removeObserver(o)
     log("other context: inserted=\(saved) main sees=\(describe(c).contains("Oslo"))")
+    // a model actor: its own context, off the main thread; the main context's queries refresh after its saves
+    let importer = Importer(modelContainer: container)
+    let osloID = (try? c.fetch(FetchDescriptor<Trip>(predicate: #Predicate { $0.name == "Oslo" })).first?.persistentModelID) ?? nil
+    Task {
+        do {
+            log("actor: \(try await importer.addTrip("Rome", days: 90))")
+            if let osloID { log("actor rename: \(try await importer.rename(osloID, to: "Bergen"))") }
+        } catch { log("actor: \(error)") }
+    }
     // deny: a traveler with trips cannot be deleted
     let ana = try! c.fetch(FetchDescriptor<Traveler>(predicate: #Predicate { $0.email == "ana@example.com" })).first!
     c.delete(ana)
@@ -123,6 +133,7 @@ let epoch = Date(timeIntervalSince1970: 1_800_000_000)
     init() {
         let c = container
         MainActor.assumeIsolated {
+            if let phase = ProcessInfo.processInfo.environment["HELLOSWIFTDATA_NOTES"] { notes(phase) }
             let empty = ((try? c.mainContext.fetchCount(FetchDescriptor<Trip>())) ?? 0) == 0
             if empty { seed(c.mainContext) } else { check(c) }
             log("store file: \(FileManager.default.fileExists(atPath: c.configurations.first!.url.path))")

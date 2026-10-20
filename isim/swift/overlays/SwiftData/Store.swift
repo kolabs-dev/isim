@@ -73,6 +73,28 @@ final class _SQLStore: @unchecked Sendable {
         return r == SQLITE_DONE
     }
 
+    /// the schema version the store was last opened with (nil: a new store)
+    var version: Schema.Version? {
+        get {
+            var v: String?
+            query("SELECT value FROM isim_meta WHERE key = 'version'") { v = String(cString: sqlite3_column_text($0, 0)) }
+            let n = (v ?? "").split(separator: ".").compactMap { Int($0) }
+            return n.count == 3 ? Schema.Version(n[0], n[1], n[2]) : nil
+        }
+        set {
+            guard let v = newValue else { return }
+            run("INSERT OR REPLACE INTO isim_meta (key, value) VALUES ('version', ?)") { sqlite3_bind_text($0, 1, v.description, -1, _SQLStore.transient) }
+        }
+    }
+
+    /// called after each save (on the saving thread), with the context that saved
+    private var observers: [(AnyObject?) -> Void] = []
+    func observeCommits(_ f: @escaping (AnyObject?) -> Void) { _SQLStore.lock.lock(); observers.append(f); _SQLStore.lock.unlock() }
+    func committed(by saver: AnyObject?) {
+        _SQLStore.lock.lock(); let list = observers; _SQLStore.lock.unlock()
+        for f in list { f(saver) }
+    }
+
     /// the entity's table, and its indexes (#Index, unique attributes and #Unique constraints)
     func ensure(_ info: _ModelInfo) {
         _SQLStore.lock.lock(); defer { _SQLStore.lock.unlock() }
