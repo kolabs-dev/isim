@@ -951,10 +951,14 @@ __attribute__((constructor)) static void bundled_fonts(void) {
 /* Adds a font file for this process (UIAppFonts / CTFontManagerRegisterFontsForURL). */
 static struct { char family[128], ps[128]; } app_faces[128];
 static int napp_faces;
-ISIM_GUEST_ABI int isim_font_register(const char *path) {
+ISIM_GUEST_ABI int isim_font_register_listed(const char *path, int listed);
+ISIM_GUEST_ABI int isim_font_register(const char *path) { return isim_font_register_listed(path, 1); }
+/* listed 0: the file's fonts are usable by name, but not among the app's registered faces (CTFontManager's fonts from
+ * data that were not registered) */
+ISIM_GUEST_ABI int isim_font_register_listed(const char *path, int listed) {
     if (!FcConfigAppFontAddFile(FcConfigGetCurrent(), (const FcChar8 *)path)) return 0;
     int count = 0;                                     /* the file's faces, for UIFont.familyNames / fontNames(forFamilyName:) */
-    for (int face = 0; napp_faces < 128; face++) {
+    for (int face = 0; listed && napp_faces < 128; face++) {
         FcPattern *p = FcFreeTypeQuery((const FcChar8 *)path, face, NULL, &count);
         if (!p) break;
         FcChar8 *fam = NULL, *ps = NULL;
@@ -2160,7 +2164,7 @@ static const struct shim isim_table[] = {
     H(isim_path_begin), H(isim_path_move), H(isim_path_line), H(isim_path_curve), H(isim_path_arc), H(isim_path_close),
     H(isim_path_rect), H(isim_path_corners), H(isim_gfx_corner_curve), H(isim_path_fill), H(isim_path_stroke), H(isim_path_set_line_style), H(isim_path_set_fill_rule), H(isim_path_gradient),
     H(isim_text_measure), H(isim_text_end_point), H(isim_text_draw), H(isim_text_measure_f), H(isim_text_end_point_f), H(isim_text_draw_f),
-    H(isim_font_register), H(isim_font_app_face), H(isim_font_lookup), H(isim_font_has_char), H(isim_set_status_bar_style), H(isim_set_status_bar_hidden), H(isim_next_event), H(isim_text_input),
+    H(isim_font_register), H(isim_font_register_listed), H(isim_font_app_face), H(isim_font_lookup), H(isim_font_has_char), H(isim_set_status_bar_style), H(isim_set_status_bar_hidden), H(isim_next_event), H(isim_text_input),
     H(isim_bundle_path), H(isim_post_wakeup), H(isim_open_url), H(isim_shell_present), H(isim_shell_request),
     H(isim_image_load), H(isim_image_load_data), H(isim_image_symbol), H(isim_image_symbol_variable), H(isim_image_draw), H(isim_image_is_template), H(isim_image_free), H(isim_image_draw_part), H(isim_image_pixel_size), H(isim_image_draw_symbol), H(isim_image_symbol_layers), H(isim_image_draw_symbol_layered),
     H(isim_gfx_rotate), H(isim_gfx_concat), H(isim_gfx_clip_path), H(isim_gfx_get_alpha), H(isim_gfx_backdrop_blur), H(isim_gfx_set_blend), H(isim_gfx_pop_group_masked),

@@ -44,6 +44,7 @@ struct isim_ct_run { int start, len, glyphs, weight, italic, has_color; double x
 struct isim_ct_para { double width, indent; int align, wrap, dir, single, tabs; double tab_pos[64]; int tab_align[64];
                       char family[160]; int weight, italic; double size; };
 struct isim_ct_line { double ascent, descent, leading, width, trailing, ink[4]; int start, len, rtl, para_start; };
+struct isim_ct_axis { unsigned tag; double min, def, max; int hidden; char name[64]; };
 struct isim_ct_font_info { double size, ascent, descent, leading, cap_height, x_height, underline_position, underline_thickness, slant_angle, bbox[4];
                            int units_per_em, glyph_count, mono, color, weight, italic, stretch, face_weight, face_italic, face_width, synthetic;
                            char family[96], style[64], psname[128], file[512]; };
@@ -886,6 +887,72 @@ int isim_cg_font_data_info(const void *data, long len, char *ps, int pslen, char
     if (units) *units = (int)upem;
     hb_face_destroy(face);
     return ps && ps[0];
+}
+/* the faces of font data (a font file or a collection): "PostScript name\tfamily\tstyle\n" per face into out; returns
+ * how many faces (0: not font data) */
+ISIM_GUEST_ABI int isim_font_data_faces(const void *data, long len, char *out, int outlen) {
+    if (out && outlen > 0) out[0] = 0;
+    if (!data || len <= 0) return 0;
+    hb_blob_t *blob = hb_blob_create(data, (unsigned)len, HB_MEMORY_MODE_READONLY, NULL, NULL);
+    unsigned n = hb_face_count(blob), found = 0;
+    size_t used = 0;
+    for (unsigned i = 0; i < n; i++) {
+        hb_face_t *face = hb_face_create(blob, i);
+        if (hb_face_get_upem(face) && hb_face_get_glyph_count(face)) {
+            char ps[256], fam[256], st[256];
+            face_name(face, HB_OT_NAME_ID_POSTSCRIPT_NAME, ps, sizeof ps);
+            face_name(face, HB_OT_NAME_ID_TYPOGRAPHIC_FAMILY, fam, sizeof fam);
+            if (!fam[0]) face_name(face, HB_OT_NAME_ID_FONT_FAMILY, fam, sizeof fam);
+            face_name(face, HB_OT_NAME_ID_TYPOGRAPHIC_SUBFAMILY, st, sizeof st);
+            if (!st[0]) face_name(face, HB_OT_NAME_ID_FONT_SUBFAMILY, st, sizeof st);
+            if (!ps[0]) snprintf(ps, sizeof ps, "%s", fam);
+            if (out && outlen > 0 && used < (size_t)outlen) {
+                int w = snprintf(out + used, (size_t)outlen - used, "%s\t%s\t%s\n", ps, fam, st);
+                if (w > 0) used += (size_t)w;
+                if (used >= (size_t)outlen) out[outlen - 1] = 0;
+            }
+            found++;
+        }
+        hb_face_destroy(face);
+    }
+    hb_blob_destroy(blob);
+    return (int)found;
+}
+/* a table of a font (the font's own bytes); its length, -1 when the font has no such table */
+ISIM_GUEST_ABI int isim_ct_font_table(void *fp, unsigned tag, unsigned char *out, int max) {
+    if (!fp) return -1;
+    hb_blob_t *b = hb_face_reference_table(hb_font_get_face(pango_font_get_hb_font(fp)), tag);
+    unsigned n = 0;
+    const char *d = hb_blob_get_data(b, &n);
+    if (out && n && max > 0) memcpy(out, d, n < (unsigned)max ? n : (unsigned)max);
+    hb_blob_destroy(b);
+    return n ? (int)n : -1;
+}
+/* the tags of a font's tables; returns how many */
+ISIM_GUEST_ABI int isim_ct_font_table_tags(void *fp, unsigned *tags, int max) {
+    if (!fp) return 0;
+    hb_face_t *face = hb_font_get_face(pango_font_get_hb_font(fp));
+    unsigned total = hb_face_get_table_tags(face, 0, NULL, NULL);
+    if (tags && max > 0) { unsigned n = (unsigned)max; hb_face_get_table_tags(face, 0, &n, tags); }
+    return (int)total;
+}
+/* a variable font's axes (its fvar table); returns how many */
+ISIM_GUEST_ABI int isim_ct_font_axes(void *fp, struct isim_ct_axis *out, int max) {
+    if (!fp) return 0;
+    hb_face_t *face = hb_font_get_face(pango_font_get_hb_font(fp));
+    unsigned total = hb_ot_var_get_axis_count(face);
+    if (out && max > 0) {
+        hb_ot_var_axis_info_t info[64];
+        unsigned n = (unsigned)(max < 64 ? max : 64);
+        hb_ot_var_get_axis_infos(face, 0, &n, info);
+        for (unsigned i = 0; i < n; i++) {
+            out[i].tag = info[i].tag;
+            out[i].min = info[i].min_value; out[i].def = info[i].default_value; out[i].max = info[i].max_value;
+            out[i].hidden = (info[i].flags & HB_OT_VAR_AXIS_FLAG_HIDDEN) != 0;
+            face_name(face, info[i].name_id, out[i].name, sizeof out[i].name);
+        }
+    }
+    return (int)total;
 }
 /* nominal glyphs of code points; 0 where the font has none. Returns how many were found. */
 int isim_ct_font_glyphs(void *fp, const unsigned *cps, unsigned short *glyphs, int n) {

@@ -449,6 +449,69 @@ func paragraphChecks() {
     print("frame visible \(vis.location)+\(vis.length) lines \(frame.lines.count)")
 }
 
+// MARK: string attributes, tables, variations, the font manager
+
+func attributeChecks() {
+    let dv = font("DejaVu Sans", 20)
+    func width(_ s: NSAttributedString) -> Double { CTLineGetTypographicBounds(CTLineCreateWithAttributedString(s), nil, nil, nil) }
+    func glyphs(_ s: NSAttributedString) -> Int { CTLineGetGlyphCount(CTLineCreateWithAttributedString(s)) }
+    let key = { (k: CFString) in NSAttributedString.Key(k as String) }
+    // tracking adds space after every character; ligatures 0 keeps "fi" as two glyphs
+    let plain = attributed("ABCD", dv), tracked = attributed("ABCD", dv, [key(kCTTrackingAttributeName): 5])
+    print("tracking adds \(f2(width(tracked) - width(plain)))")
+    print("ligatures fi default \(glyphs(attributed("fi", dv))) off \(glyphs(attributed("fi", dv, [key(kCTLigatureAttributeName): 0])))")
+    // superscript and subscript: smaller and shifted
+    let sup = CTLineCreateWithAttributedString(attributed("x", dv, [key(kCTSuperscriptAttributeName): 1]))
+    let sub = CTLineCreateWithAttributedString(attributed("x", dv, [key(kCTSuperscriptAttributeName): -1]))
+    let normal = CTLineCreateWithAttributedString(attributed("x", dv))
+    let ib = { (l: CTLine) in CTLineGetImageBounds(l, nil) }
+    print("superscript higher \(ib(sup).minY > ib(normal).minY + 2) smaller \(ib(sup).height < ib(normal).height) subscript lower \(ib(sub).minY < ib(normal).minY - 1)")
+    // the language stays on the run; underline color and stroke on the screen
+    let langRun = (CTLineGetGlyphRuns(CTLineCreateWithAttributedString(attributed("直", font("Noto Sans", 20), [key(kCTLanguageAttributeName): "ja"]))) as! [CTRun])[0]
+    print("language run \((CTRunGetAttributes(langRun) as NSDictionary)[kCTLanguageAttributeName as String] ?? "-")")
+    print("underline styles \(CTUnderlineStyle.double.rawValue) \(CTUnderlineStyleModifiers.patternDash.rawValue)")
+
+    // tables: head is 54 bytes with its magic number; Adwaita Sans is variable (fvar)
+    let adw = font("Adwaita Sans", 20)
+    let head = CTFontCopyTable(adw, CTFontTableTag(kCTFontTableHead), []) as Data?
+    let magic = head.map { $0.count >= 16 ? UInt32($0[12]) << 24 | UInt32($0[13]) << 16 | UInt32($0[14]) << 8 | UInt32($0[15]) : 0 } ?? 0
+    let tags = (CTFontCopyAvailableTables(adw, []) as? [NSNumber])?.map { $0.uint32Value } ?? []
+    print("table head \(head?.count ?? -1) magic \(String(magic, radix: 16)) fvar \(tags.contains(UInt32(kCTFontTableFvar))) missing \(CTFontCopyTable(adw, CTFontTableTag(kCTFontTableMorx), []) == nil)")
+    let axes = CTFontCopyVariationAxes(adw) as? [[String: Any]] ?? []
+    if let w = axes.first(where: { ($0[kCTFontVariationAxisIdentifierKey as String] as? NSNumber)?.uint32Value == 0x7767_6874 }) {
+        print("axis wght \(w[kCTFontVariationAxisNameKey as String] ?? "") \(w[kCTFontVariationAxisMinimumValueKey as String] ?? 0)...\(w[kCTFontVariationAxisMaximumValueKey as String] ?? 0) default \(w[kCTFontVariationAxisDefaultValueKey as String] ?? 0)")
+    }
+    let variation = CTFontCopyVariation(adw) as? [NSNumber: NSNumber]
+    print("variation wght \(variation?[NSNumber(value: 0x7767_6874)] ?? -1) static font axes \(CTFontCopyVariationAxes(dv) == nil)")
+
+    // the font for a string: the font itself, or the fallback (an emoji font)
+    let same = CTFontCreateForString(dv, "Hi 😀" as CFString, CFRange(location: 0, length: 2))
+    let emoji = CTFontCreateForString(dv, "Hi 😀" as CFString, CFRange(location: 3, length: 2))
+    print("for string same \(CTFontCopyPostScriptName(same) == CTFontCopyPostScriptName(dv)) emoji \((CTFontCopyFamilyName(emoji) as String).contains("Emoji"))")
+
+    // the font manager: descriptors from data, a graphics font, URLs with errors
+    let url = Bundle.main.url(forResource: "AdwaitaMono-Regular", withExtension: "ttf")!
+    let data = try! Data(contentsOf: url)
+    let descs = CTFontManagerCreateFontDescriptorsFromData(data as CFData) as? [CTFontDescriptor] ?? []
+    let dname = descs.first.flatMap { CTFontDescriptorCopyAttribute($0, kCTFontNameAttribute) as? String } ?? "-"
+    let fromDesc = descs.first.map { CTFontCreateWithFontDescriptor($0, 14, nil) }
+    print("descriptors from data \(descs.count) \(dname) font \(fromDesc.map { CTFontCopyFamilyName($0) as String } ?? "-") junk \(CTFontManagerCreateFontDescriptorsFromData(Data("no font".utf8) as CFData) == nil)")
+    let cg = CGFont(CGDataProvider(data: data as CFData)!)!
+    var err: Unmanaged<CFError>?
+    let reg1 = CTFontManagerRegisterGraphicsFont(cg, &err)
+    let reg2 = CTFontManagerRegisterGraphicsFont(cg, &err)
+    let code2 = err.map { CFErrorGetCode($0.takeRetainedValue()) } ?? 0
+    let unreg = CTFontManagerUnregisterGraphicsFont(cg, nil)
+    print("graphics font register \(reg1) again \(reg2) code \(code2) unregister \(unreg)")
+    let missing = URL(fileURLWithPath: NSTemporaryDirectory() + "no-such-font.ttf")
+    var codes: [Int] = []
+    CTFontManagerRegisterFontURLs([url, missing] as CFArray, .process, true) { errors, done in
+        codes = (errors as? [NSError] ?? []).map { $0.code } + [done ? 1 : 0]
+        return true
+    }
+    print("register urls errors \(codes)")
+}
+
 // MARK: the screen
 
 /// paragraph styles, a bidirectional line drawn by Core Text and redrawn from its runs, and font features
@@ -491,6 +554,20 @@ final class CoreTextView: UIView {
         f.append(attributed("1100 ", tnum)); f.append(attributed("0 ", zero)); f.append(attributed("Small Caps", smcp))
         ctx.textPosition = CGPoint(x: 16, y: bounds.height - 540)
         CTLineDraw(CTLineCreateWithAttributedString(f), ctx)
+        // attributes: a red double underline, outlined (stroke only) and filled-and-stroked text, a superscript
+        let key = { (k: CFString) in NSAttributedString.Key(k as String) }
+        let a = NSMutableAttributedString(attributedString: attributed("Under", font("DejaVu Sans", 20),
+            [key(kCTUnderlineStyleAttributeName): CTUnderlineStyle.double.rawValue, key(kCTUnderlineColorAttributeName): UIColor.systemRed.cgColor]))
+        a.append(attributed(" E=mc", font("DejaVu Sans", 20)))
+        a.append(attributed("2", font("DejaVu Sans", 20), [key(kCTSuperscriptAttributeName): 1]))
+        ctx.textPosition = CGPoint(x: 16, y: bounds.height - 590)
+        CTLineDraw(CTLineCreateWithAttributedString(a), ctx)
+        let o = NSMutableAttributedString(attributedString: attributed("OO", font("DejaVu Sans Bold", 60),
+            [key(kCTStrokeWidthAttributeName): 4, key(kCTStrokeColorAttributeName): UIColor.systemBlue.cgColor]))
+        o.append(attributed("O", font("DejaVu Sans Bold", 60), [key(kCTStrokeWidthAttributeName): -4, key(kCTStrokeColorAttributeName): UIColor.systemGreen.cgColor,
+                                                                .foregroundColor: UIColor.systemYellow.cgColor]))
+        ctx.textPosition = CGPoint(x: 16, y: bounds.height - 670)
+        CTLineDraw(CTLineCreateWithAttributedString(o), ctx)
         ctx.restoreGState()
     }
 }
@@ -507,6 +584,7 @@ final class CoreTextViewController: UIViewController {
         featureChecks()
         runChecks()
         paragraphChecks()
+        attributeChecks()
         print("coretext checks done")
     }
 }

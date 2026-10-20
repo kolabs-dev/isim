@@ -157,6 +157,12 @@ def _(a):
     shutil.copy(os.path.join(ROOT, "fonts", "AdwaitaSans-Regular.ttf"), b)
 
 
+@app("samples/HelloCoreText", extra_inputs=["fonts/AdwaitaMono-Regular.ttf"])
+def _(a):
+    b = a.swift_app()
+    shutil.copy(os.path.join(ROOT, "fonts", "AdwaitaMono-Regular.ttf"), b)   # font data for CTFontManager
+
+
 @app("samples/HelloSpriteKit")
 def _(a):
     b = a.swift_app()

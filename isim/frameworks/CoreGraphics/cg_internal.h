@@ -42,7 +42,7 @@ struct CGShading { struct cgobj hdr; int radial; CGPoint p0, p1; CGFloat r0, r1;
 struct CGPattern { struct cgobj hdr; void *info; CGRect bounds; CGAffineTransform matrix; CGFloat xstep, ystep; CGPatternTiling tiling; bool colored; CGPatternCallbacks cb; int cell; double cw, ch; };
 struct CGPDFDocument { struct cgobj hdr; void *doc; int pages; CFDataRef data; struct CGPDFPage **cache; struct pdoc *pd; CFDictionaryRef outline; };
 struct CGPDFPage { struct cgobj hdr; struct CGPDFDocument *doc; int index; };
-struct CGFont { struct cgobj hdr; CFStringRef name, fullName; int unitsPerEm; };
+struct CGFont { struct cgobj hdr; CFStringRef name, fullName; int unitsPerEm; CFDataRef data; };   /* data: a font from a provider */
 
 /* CGImage: host image handle + pixel rect (+ optional layout info in `ext`) */
 struct imgext { struct cgobj hdr; size_t bpc, bpp, bpr; uint32_t info; CGColorSpaceRef cs; CGDataProviderRef prov; bool mask, interp; int intent; CGFloat decode[8]; int ndecode; CFStringRef ut; };

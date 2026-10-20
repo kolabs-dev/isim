@@ -106,6 +106,14 @@ void isim_ct_font_glyph_metrics(void *_Nullable f, const unsigned short *glyphs,
 int isim_ct_font_glyph_path(void *_Nullable f, unsigned short glyph, double *_Nullable ops, int max);
 /* OpenType feature tags (GSUB, GPOS); returns the count, which may exceed max */
 int isim_ct_font_features(void *_Nullable f, unsigned *_Nullable tags, int max);
+/* the faces of font data: "PostScript name\tfamily\tstyle\n" per face; returns how many */
+int isim_font_data_faces(const void *data, long len, char *_Nullable out, int outlen);
+/* a font table's bytes (its length; -1: no such table) and the tags of the font's tables */
+int isim_ct_font_table(void *_Nullable f, unsigned tag, unsigned char *_Nullable out, int max);
+int isim_ct_font_table_tags(void *_Nullable f, unsigned *_Nullable tags, int max);
+/* a variable font's axes */
+struct isim_ct_axis { unsigned tag; double min, def, max; int hidden; char name[64]; };
+int isim_ct_font_axes(void *_Nullable f, struct isim_ct_axis *_Nullable out, int max);
 /* draws glyphs at text-space positions (y-up), transformed by tm, at (x, y) in user space */
 void isim_ct_font_draw(void *_Nullable f, const unsigned short *glyphs, const double *pos, int n, double x, double y, const double *_Nullable tm, const double *rgba);
 /* the faces of a family, one per line: PostScript name, style, family, OpenType weight, italic, fontconfig width (tabs) */

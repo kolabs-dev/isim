@@ -7,4 +7,5 @@
 #include <CoreText/CTTextTab.h>
 #include <CoreText/CTParagraphStyle.h>
 #include <CoreText/CTRun.h>
+#include <CoreText/CTStringAttributes.h>
 #include <CoreText/CTLine.h>

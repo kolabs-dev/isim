@@ -139,3 +139,23 @@ def test_coretext(launch):
         return [count_px(shot, (16 + 40 * k, y, 40, 34), lambda c: c[0] + c[1] + c[2] < 600) for k in range(6)]
     a, b = ink(422), ink(462)
     assert sum(a) > 200 and all(abs(x - y) <= max(6, 0.15 * x) for x, y in zip(a, b)), f"line vs runs: {a} {b}"
+
+    # ---- string attributes, tables, variations, the font for a string, the font manager (issue #271)
+    assert has("tracking adds 15.00"), "tracking: 5 points between each of 4 characters (Pango spaces between them)"
+    assert has("ligatures fi default 1 off 2"), "kCTLigatureAttributeName 0 turns the fi ligature off"
+    assert has("superscript higher true smaller true subscript lower true"), "kCTSuperscriptAttributeName"
+    assert has("language run ja"), "kCTLanguageAttributeName stays on the run"
+    assert has("underline styles 9 512"), "CTUnderlineStyle and CTUnderlineStyleModifiers values"
+    assert has("table head 54 magic 5f0f3cf5 fvar true missing true"), "CTFontCopyTable / CTFontCopyAvailableTables"
+    assert has("axis wght Weight 100...900 default 400"), "CTFontCopyVariationAxes of Adwaita Sans (variable)"
+    assert has("variation wght 400 static font axes true"), "CTFontCopyVariation; a static font has no axes"
+    assert has("for string same true emoji true"), "CTFontCreateForString: the font itself, or the emoji fallback"
+    assert has("descriptors from data 1 Adwaita-Mono font Adwaita Mono junk true"), "CTFontManagerCreateFontDescriptorsFromData"
+    assert has("graphics font register true again false code 105 unregister true"), "CTFontManagerRegisterGraphicsFont"
+    assert has("register urls errors [101, 1]"), "CTFontManagerRegisterFontURLs: one missing file, then done"
+    # the screen: a red double underline; outlined O's (blue ring, white inside); a yellow O stroked green
+    assert count_px(shot, (16, 588, 60, 8), lambda c: c[0] > 200 and c[1] < 100 and c[2] < 100) > 40, "red underline"
+    assert count_px(shot, (14, 625, 14, 45), lambda c: c[2] > 200 and c[0] < 100) > 40, "a blue outline"
+    assert count_px(shot, (34, 635, 14, 25), lambda c: c[0] > 240 and c[1] > 240 and c[2] > 240) > 250, "stroke only: unfilled"
+    assert count_px(shot, (123, 638, 7, 20), lambda c: c[0] > 200 and c[1] > 160 and c[2] < 80) > 60, "filled and stroked"
+    assert count_px(shot, (116, 625, 60, 50), lambda c: c[1] > 150 and c[1] > c[0] + 40 and c[1] > c[2] + 60) > 30, "a green stroke"
