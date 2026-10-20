@@ -50,6 +50,8 @@ LINES = {   # check: log lines (all must be present)
         ["pad A pressed", "pad A released", "pad left stick x=1.00 y=0.00", "pad dpad up pressed yAxis=1.00",
          "pad dpad up released yAxis=0.00", "pad right trigger 1.00 pressed=true", "pad menu pressed (via valueChangedHandler)"],
     "gamepad disconnect notification": ["gamepad disconnected: isim Test Pad remaining 0"],
+    "gamepad motion needs manual activation, has a gyroscope, no gravity split (issue #290)":
+        ["pad motion manual true rotation true gravity false"],
     "gamepad haptics: a GCDeviceHaptics engine rumbles the pad (issue #283)":
         ["pad haptics localities 5 default engine true triggers engine false", "pad haptics played",
          "CoreHaptics: continuous on the gamepad: rumble 0.60 0.60 for 0.20 s", "isim gamepad: rumble 0.60 0.60"],
@@ -90,6 +92,21 @@ def test_spritekit2(launch):
     app.wait_log(r"pad right trigger 1\.00")
     app.send("gamepad button start 1")
     app.wait_log(r"pad menu pressed")
+    # issue #290: battery, light bar, motion sensors, the host mouse
+    app.wait_log(r"isim gamepad: led 255 0 128")
+    app.wait_log(r"isim gamepad: sensors on")
+    app.send("gamepad battery 42 charging").send("gamepad button b 1")
+    app.wait_log(r"pad battery 0\.42 charging")
+    app.send("gamepad button b 0").send("gamepad motion 0 -9.80665 0 0 0 1.5")
+    app.wait_log(r"pad motion accel 0\.00 -1\.00 0\.00 rotation 0\.00 0\.00 1\.50")
+    app.send("mouse move 10 -5")
+    app.wait_log(r"mouse connected Mouse current true mice 1")
+    app.wait_log(r"mouse moved 10\.00 5\.00")
+    app.send("mouse button left 1")
+    app.wait_log(r"mouse left pressed")
+    app.send("mouse button left 0").send("mouse button right 1").send("mouse scroll 0 2")
+    app.wait_log(r"mouse right pressed")
+    app.wait_log(r"mouse scroll 0\.00 2\.00")
     app.send("gamepad disconnect")
     app.wait_log(r"gamepad disconnected: ")
     app.sleep(2)                                                          # the scene runs on (video, actions)

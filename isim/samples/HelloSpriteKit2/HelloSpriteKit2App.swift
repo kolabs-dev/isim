@@ -230,6 +230,15 @@ final class LabScene: SKScene {
             log("gamepad disconnected: \(c.vendorName ?? "?") remaining \(GCController.controllers().filter { $0.vendorName == c.vendorName }.count)")
         })
         log("controllers at start: \(GCController.controllers().count)")
+        // the host pointer as a mouse (issue #290)
+        observers.append(nc.addObserver(forName: .GCMouseDidConnect, object: nil, queue: .main) { n in
+            guard let mouse = n.object as? GCMouse, let input = mouse.mouseInput else { return }
+            log("mouse connected \(mouse.productCategory) current \(GCMouse.current === mouse) mice \(GCMouse.mice().count)")
+            input.mouseMovedHandler = { _, dx, dy in log("mouse moved \(f2(dx)) \(f2(dy))") }
+            input.leftButton.pressedChangedHandler = { _, _, pressed in log("mouse left \(pressed ? "pressed" : "released")") }
+            input.rightButton?.pressedChangedHandler = { _, _, pressed in if pressed { log("mouse right pressed") } }
+            input.scroll.valueChangedHandler = { _, x, y in if x != 0 || y != 0 { log("mouse scroll \(f2(x)) \(f2(y))") } }
+        })
     }
 
     func connected(_ c: GCController) {
@@ -259,6 +268,21 @@ final class LabScene: SKScene {
         }
         pad.dpad.up.pressedChangedHandler = { _, _, pressed in log("pad dpad up \(pressed ? "pressed" : "released") yAxis=\(f2(pad.dpad.yAxis.value))") }
         pad.rightTrigger.valueChangedHandler = { _, v, pressed in if v > 0.99 { log("pad right trigger \(f2(v)) pressed=\(pressed)") } }
+        // battery (read when B is pressed), light bar, motion sensors (issue #290)
+        pad.buttonB.pressedChangedHandler = { _, _, pressed in
+            guard pressed, let b = c.battery else { return }
+            let state = [GCDeviceBattery.State.discharging: "discharging", .charging: "charging", .full: "full"][b.batteryState] ?? "unknown"
+            log("pad battery \(f2(b.batteryLevel)) \(state)")
+        }
+        c.light?.color = GCColor(red: 1, green: 0, blue: 0.5)
+        if let m = c.motion {
+            log("pad motion manual \(m.sensorsRequireManualActivation) rotation \(m.hasRotationRate) gravity \(m.hasGravityAndUserAcceleration)")
+            m.sensorsActive = true
+            m.valueChangedHandler = { m in
+                let a = m.acceleration, r = m.rotationRate
+                if abs(a.y) > 0.9 { log(String(format: "pad motion accel %.2f %.2f %.2f rotation %.2f %.2f %.2f", a.x, a.y, a.z, r.x, r.y, r.z)) }
+            }
+        }
         pad.valueChangedHandler = { _, element in
             if element === pad.buttonMenu && pad.buttonMenu.isPressed { log("pad menu pressed (via valueChangedHandler)") }
         }

@@ -399,6 +399,14 @@ void isim_xcui_terminate_all(void);
    axes: left x, left y, right x, right y (-1...1, y down), left / right trigger (0...1) */
 struct isim_gamepad { int id, vendor, product; unsigned int buttons; float axes[6]; char name[64]; char type[24]; };
 int isim_gamepad_poll(struct isim_gamepad *out, int max);   /* connected pads (count), -1 when disabled */
+/* battery: 0 unknown, 1 discharging, 2 charging, 3 full, -1 none (*percent 0...100, -1 unknown) */
+int isim_gamepad_battery(int id, int *_Nullable percent);
+int isim_gamepad_set_light(int id, double r, double g, double b);      /* the light bar; 1 if the pad has one */
+/* motion sensors: enable 1 / 0 / -1 (leave); the latest accelerometer (m/s²) and gyroscope (rad/s) values;
+   returns 1 (accelerometer) | 2 (gyroscope) */
+int isim_gamepad_motion(int id, int enable, float *_Nullable accel, float *_Nullable gyro);
+/* the host mouse: 1 while present; deltas (points, y down) and scroll since the last poll, buttons (1 left, 2 right, 4 middle) */
+int isim_mouse_poll(double *_Nullable dx, double *_Nullable dy, double *_Nullable sx, double *_Nullable sy, unsigned *_Nullable buttons);
 int isim_gamepad_rumble(int id, double low, double high, double seconds);
 /* raster image from 32-bit premultiplied BGRA pixels (rows top-down), updated in place */
 int isim_image_create_bgra(int w, int h);
