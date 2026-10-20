@@ -198,7 +198,9 @@ class _BackingStore: @unchecked Sendable {
     /// the store's row: attributes as JSON fragments, relationships as primary keys
     func load(_ row: [String: Any]) {
         for (i, p) in info.properties.enumerated() {
-            guard let v = row[p.name] else { slots[i] = nil; continue }
+            // a renamed property (`originalName`) is read from its old name until the model is saved again
+            let old = p.attribute?.originalName ?? p.relationship?.originalName
+            guard let v = row[p.name] ?? old.flatMap({ row[$0] }) else { slots[i] = nil; continue }
             if p.target == nil { slots[i] = .raw(v) }
             else if p.toMany { slots[i] = .rawMany(((v as? [Any]) ?? []).compactMap { ($0 as? NSNumber)?.int64Value }) }
             else { slots[i] = .rawOne((v as? NSNumber)?.int64Value) }

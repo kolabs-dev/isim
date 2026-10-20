@@ -7,7 +7,8 @@
 //   property's initial value), and the `_name` peer. Unlike Apple's, the init accessor initializes no storage: the
 //   compiler gives macro-made init accessors no implicit `= nil`, so optionals would have to be set in every
 //   initializer; a property an initializer leaves unset is found when it is read;
-// - `#Unique<T>(...)` / `#Index<T>(...)`: the model's uniqueness constraints and indexes as static key paths.
+// - `#Unique<T>(...)` / `#Index<T>(...)`: the model's uniqueness constraints and indexes as static key paths;
+// - `@ModelActor` on an actor: its model executor, container and `init(modelContainer:)`.
 import SwiftCompilerPlugin
 import SwiftSyntax
 import SwiftSyntaxBuilder
@@ -172,6 +173,31 @@ public struct IndexMacro: DeclarationMacro {
     }
 }
 
+/// `@ModelActor` on an actor: the model executor (a DefaultSerialModelExecutor over a new context of the container),
+/// the container, `init(modelContainer:)` and the ModelActor conformance.
+public struct ModelActorMacro: MemberMacro, ExtensionMacro {
+    public static func expansion(of node: AttributeSyntax, providingMembersOf declaration: some DeclGroupSyntax,
+                                 conformingTo protocols: [TypeSyntax], in context: some MacroExpansionContext) throws -> [DeclSyntax] {
+        guard declaration.is(ActorDeclSyntax.self) else { throw SwiftDataMessage(description: "@ModelActor applies to an actor") }
+        return [
+            "nonisolated let modelExecutor: any SwiftData.ModelExecutor",
+            "nonisolated let modelContainer: SwiftData.ModelContainer",
+            """
+            init(modelContainer: SwiftData.ModelContainer) {
+                let modelContext = SwiftData.ModelContext(modelContainer)
+                self.modelExecutor = SwiftData.DefaultSerialModelExecutor(modelContext: modelContext)
+                self.modelContainer = modelContainer
+            }
+            """,
+        ]
+    }
+    public static func expansion(of node: AttributeSyntax, attachedTo declaration: some DeclGroupSyntax,
+                                 providingExtensionsOf type: some TypeSyntaxProtocol, conformingTo protocols: [TypeSyntax],
+                                 in context: some MacroExpansionContext) throws -> [ExtensionDeclSyntax] {
+        [try ExtensionDeclSyntax("extension \(type): SwiftData.ModelActor {}")]
+    }
+}
+
 @main struct SwiftDataMacrosPlugin: CompilerPlugin {
-    let providingMacros: [Macro.Type] = [ModelMacro.self, PersistedPropertyMacro.self, NoOpPropertyMacro.self, UniqueMacro.self, IndexMacro.self]
+    let providingMacros: [Macro.Type] = [ModelMacro.self, PersistedPropertyMacro.self, NoOpPropertyMacro.self, UniqueMacro.self, IndexMacro.self, ModelActorMacro.self]
 }
