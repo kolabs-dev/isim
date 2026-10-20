@@ -803,6 +803,11 @@ def _(a):
         shutil.copy(os.path.join(fixtures, f), b)
 
 
+@app("tests/cgpath", products=["CGPathTest.app"], swift=False)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "CoreGraphics"], name="CGPathTest")
+
+
 @app("tests/imageio", products=["ImageIOTest.app"], swift=False)
 def _(a):
     b = a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "CoreGraphics", "-framework", "ImageIO"], name="ImageIOTest")

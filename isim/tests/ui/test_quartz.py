@@ -1,7 +1,8 @@
 """Core Graphics below UIKit (HelloQuartz): bitmap contexts over app memory (RGBA, BGRA, gray; app pixel writes;
 makeImage; UIGraphicsPushContext), patterns, clip masks, CGImage from bytes / cropping / masking, gradients, shadings,
 shadows (bitmap and PDF), blend modes, transparency layers, every supported color space, context queries and
-stroked-path replacement, Core Text lines and frames, CGFont names/data providers, PDF write + read.
+stroked-path replacement, Core Text lines and frames, CGFont names/data providers, PDF write + read, path operations
+(issue #273).
 Port of tests/ui/quartz.sh."""
 import re
 
@@ -76,3 +77,10 @@ def test_quartz(launch):
         "CGPDFPage properties and a blurred (not sharp) PDF shadow"
     assert re.search(r"cgpdf objects title Quartz objects links [1-9] outline Top rects [1-9]\d* version plain", log), \
         "the PDF object model: info, link annotations, outline and the content-stream scanner (issue #274)"
+    assert has("cgpath shape hole false bar true stroked -5,110x10 dashes 5 isRect true 1,2 arc end 10,5 "
+               "union 15 intersection 5 subtracting 5 parts 2 intersects true"), \
+        "CGPath operations from Swift: boolean ops, stroked / dashed / transformed copies, isRect, addArc(tangent1End:) (issue #273)"
+    assert close(shot, 204, 380, (255, 149, 0)) and close(shot, 245, 380, (255, 149, 0)) and \
+        close(shot, 216, 380, (255, 255, 255)), "union of circles and a bar, a hole subtracted"
+    assert count_px(shot, (296, 350, 100, 60), lambda c: c[0] > 150 and c[1] < 120 and c[2] > 180) > 40, \
+        "dashed outline stroked into a filled path"

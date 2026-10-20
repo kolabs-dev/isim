@@ -7,6 +7,8 @@ __BEGIN_DECLS
 /* isim: paths are reference-counted objects (as on Apple platforms) */
 typedef const struct __attribute__((objc_bridge(id))) CGPath *CGPathRef;
 typedef struct __attribute__((objc_bridge_mutable(id))) CGPath *CGMutablePathRef;
+typedef CF_ENUM(int32_t, CGLineJoin) { kCGLineJoinMiter, kCGLineJoinRound, kCGLineJoinBevel };
+typedef CF_ENUM(int32_t, CGLineCap) { kCGLineCapButt, kCGLineCapRound, kCGLineCapSquare };
 typedef CF_ENUM(int32_t, CGPathElementType) {
     kCGPathElementMoveToPoint, kCGPathElementAddLineToPoint, kCGPathElementAddQuadCurveToPoint,
     kCGPathElementAddCurveToPoint, kCGPathElementCloseSubpath
@@ -38,6 +40,25 @@ CG_EXTERN CGRect CGPathGetBoundingBox(CGPathRef path);
 CG_EXTERN CGRect CGPathGetPathBoundingBox(CGPathRef path);
 CG_EXTERN bool CGPathContainsPoint(CGPathRef path, const CGAffineTransform * _Nullable m, CGPoint point, bool eoFill);
 CG_EXTERN bool CGPathEqualToPath(CGPathRef a, CGPathRef b);
+CG_EXTERN void CGPathAddArcToPoint(CGMutablePathRef path, const CGAffineTransform * _Nullable m, CGFloat x1, CGFloat y1, CGFloat x2, CGFloat y2, CGFloat radius);
+CG_EXTERN CGPathRef _Nullable CGPathCreateCopyByTransformingPath(CGPathRef _Nullable path, const CGAffineTransform * _Nullable transform) CF_RETURNS_RETAINED;
+CG_EXTERN CGMutablePathRef _Nullable CGPathCreateMutableCopyByTransformingPath(CGPathRef _Nullable path, const CGAffineTransform * _Nullable transform) CF_RETURNS_RETAINED;
+CG_EXTERN bool CGPathIsRect(CGPathRef _Nullable path, CGRect * _Nullable rect);
+/* isim (CGPathOps.c): curves are flattened first; results are polygons that fill (winding rule) like Apple's */
+CG_EXTERN CGPathRef _Nullable CGPathCreateCopyByStrokingPath(CGPathRef _Nullable path, const CGAffineTransform * _Nullable transform, CGFloat lineWidth,
+                                                             CGLineCap lineCap, CGLineJoin lineJoin, CGFloat miterLimit) CF_RETURNS_RETAINED;
+CG_EXTERN CGPathRef _Nullable CGPathCreateCopyByDashingPath(CGPathRef _Nullable path, const CGAffineTransform * _Nullable transform, CGFloat phase,
+                                                            const CGFloat * _Nullable lengths, size_t count) CF_RETURNS_RETAINED;
+CG_EXTERN CGPathRef _Nullable CGPathCreateCopyByNormalizing(CGPathRef _Nullable path, bool evenOddFillRule) CF_RETURNS_RETAINED API_AVAILABLE(macos(13.0), ios(16.0));
+CG_EXTERN CGPathRef _Nullable CGPathCreateCopyByUnioningPath(CGPathRef _Nullable path, CGPathRef _Nullable maskPath, bool evenOddFillRule) CF_RETURNS_RETAINED API_AVAILABLE(macos(13.0), ios(16.0));
+CG_EXTERN CGPathRef _Nullable CGPathCreateCopyByIntersectingPath(CGPathRef _Nullable path, CGPathRef _Nullable maskPath, bool evenOddFillRule) CF_RETURNS_RETAINED API_AVAILABLE(macos(13.0), ios(16.0));
+CG_EXTERN CGPathRef _Nullable CGPathCreateCopyBySubtractingPath(CGPathRef _Nullable path, CGPathRef _Nullable maskPath, bool evenOddFillRule) CF_RETURNS_RETAINED API_AVAILABLE(macos(13.0), ios(16.0));
+CG_EXTERN CGPathRef _Nullable CGPathCreateCopyBySymmetricDifferenceOfPath(CGPathRef _Nullable path, CGPathRef _Nullable maskPath, bool evenOddFillRule) CF_RETURNS_RETAINED API_AVAILABLE(macos(13.0), ios(16.0));
+CG_EXTERN CGPathRef _Nullable CGPathCreateCopyOfLineBySubtractingPath(CGPathRef _Nullable path, CGPathRef _Nullable maskPath, bool evenOddFillRule) CF_RETURNS_RETAINED API_AVAILABLE(macos(13.0), ios(16.0));
+CG_EXTERN CGPathRef _Nullable CGPathCreateCopyOfLineByIntersectingPath(CGPathRef _Nullable path, CGPathRef _Nullable maskPath, bool evenOddFillRule) CF_RETURNS_RETAINED API_AVAILABLE(macos(13.0), ios(16.0));
+CG_EXTERN CFArrayRef _Nullable CGPathCreateSeparateComponentsOfPath(CGPathRef _Nullable path, bool evenOddFillRule) CF_RETURNS_RETAINED API_AVAILABLE(macos(13.0), ios(16.0));
+CG_EXTERN CGPathRef _Nullable CGPathCreateCopyByFlattening(CGPathRef _Nullable path, CGFloat flatteningThreshold) CF_RETURNS_RETAINED API_AVAILABLE(macos(13.0), ios(16.0));
+CG_EXTERN bool CGPathIntersectsPath(CGPathRef _Nullable path1, CGPathRef _Nullable path2, bool evenOddFillRule) API_AVAILABLE(macos(13.0), ios(16.0));
 CG_EXTERN void CGPathApply(CGPathRef path, void * _Nullable info, CGPathApplierFunction _Nullable function);
 #pragma clang assume_nonnull end
 #pragma clang arc_cf_code_audited end

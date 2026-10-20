@@ -725,7 +725,7 @@ def objc_aliases(module):
     return out
 
 OVERLAYS = """
-CoreGraphics -framework CoreGraphics
+CoreGraphics -framework CoreGraphics -U _CFArrayGetCount -U _CFArrayGetValueAtIndex   # CF lives in Foundation, above CoreGraphics
 ObjectiveC -framework Foundation   # NSObject lives in isim Foundation, not libobjc
 Combine Combine-compat.o           # enum case symbols for apps built before Completion was @frozen
 Dispatch -lswift_Concurrency -framework Foundation

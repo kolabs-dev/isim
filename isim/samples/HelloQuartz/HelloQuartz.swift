@@ -79,6 +79,30 @@ final class EffectsView: UIView {
     }
 }
 
+/// Path operations (issue #273), filled in UIKit's context: two circles unioned with the rectangle between them, a hole
+/// subtracted (orange), and a dashed copy of the outline stroked into a filled outline (purple).
+final class PathsView: UIView {
+    static func shape() -> CGPath {
+        let left = CGPath(ellipseIn: CGRect(x: 4, y: 10, width: 40, height: 40), transform: nil)
+        let right = CGPath(ellipseIn: CGRect(x: 54, y: 10, width: 40, height: 40), transform: nil)
+        let bar = CGPath(rect: CGRect(x: 24, y: 22, width: 50, height: 16), transform: nil)
+        let hole = CGPath(rect: CGRect(x: 14, y: 26, width: 20, height: 8), transform: nil)
+        return left.union(right).union(bar).subtracting(hole)
+    }
+    override func draw(_ rect: CGRect) {
+        guard let ctx = UIGraphicsGetCurrentContext() else { return }
+        let shape = Self.shape()
+        ctx.addPath(shape)
+        ctx.setFillColor(UIColor.systemOrange.cgColor)
+        ctx.fillPath()
+        let outline = shape.copy(dashingWithPhase: 0, lengths: [6, 4])
+            .copy(strokingWithWidth: 2, lineCap: .butt, lineJoin: .miter, miterLimit: 10)
+        ctx.addPath(outline.copy(using: [CGAffineTransform(translationX: 100, y: 0)])!)   // Apple's copy(using: UnsafePointer?)
+        ctx.setFillColor(UIColor.systemPurple.cgColor)
+        ctx.fillPath()
+    }
+}
+
 final class QuartzViewController: UIViewController {
     var y: CGFloat = 70
     var frameImage: CGImage?
@@ -109,6 +133,35 @@ final class QuartzViewController: UIViewController {
         y += 140
         colorChecks()
         contextAndFontChecks()
+        pathChecks()
+    }
+
+    // MARK: path operations (issue #273)
+    func pathChecks() {
+        let paths = PathsView(frame: CGRect(x: 196, y: y, width: 200, height: 60))
+        paths.backgroundColor = .white
+        paths.accessibilityIdentifier = "paths"
+        view.addSubview(paths)
+        let shape = PathsView.shape()
+        let line = CGMutablePath()
+        line.move(to: .zero)
+        line.addLine(to: CGPoint(x: 100, y: 0))
+        let stroked = line.copy(strokingWithWidth: 10, lineCap: .square, lineJoin: .miter, miterLimit: 10).boundingBoxOfPath
+        var dashes = 0
+        line.copy(dashingWithPhase: 0, lengths: [10, 10]).applyWithBlock { if $0.pointee.type == .moveToPoint { dashes += 1 } }
+        var r = CGRect.zero
+        let moved = CGPath(rect: CGRect(x: 0, y: 0, width: 4, height: 3), transform: nil).copy(using: [CGAffineTransform(translationX: 1, y: 2)])!
+        let corner = CGMutablePath()
+        corner.move(to: .zero)
+        corner.addArc(tangent1End: CGPoint(x: 10, y: 0), tangent2End: CGPoint(x: 10, y: 10), radius: 5)
+        let a = CGPath(rect: CGRect(x: 0, y: 0, width: 10, height: 10), transform: nil)
+        let b = CGPath(rect: CGRect(x: 5, y: 0, width: 10, height: 10), transform: nil)
+        print("cgpath shape hole \(shape.contains(CGPoint(x: 20, y: 30))) bar \(shape.contains(CGPoint(x: 49, y: 30))) " +
+              "stroked \(Int(stroked.minX)),\(Int(stroked.width))x\(Int(stroked.height)) dashes \(dashes) " +
+              "isRect \(moved.isRect(&r)) \(Int(r.minX)),\(Int(r.minY)) arc end \(Int(corner.currentPoint.x)),\(Int(corner.currentPoint.y)) " +
+              "union \(Int(a.union(b).boundingBoxOfPath.width)) intersection \(Int(a.intersection(b).boundingBoxOfPath.width)) " +
+              "subtracting \(Int(a.subtracting(b).boundingBoxOfPath.width)) parts \(a.union(CGPath(rect: CGRect(x: 30, y: 0, width: 2, height: 2), transform: nil)).componentsSeparated().count) " +
+              "intersects \(a.intersects(b))")
     }
 
     // MARK: bitmap contexts
