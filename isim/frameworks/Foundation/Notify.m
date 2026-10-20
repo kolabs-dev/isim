@@ -1,12 +1,17 @@
 /* isim Foundation: Darwin notifications (<notify.h>): notify_post and the check, dispatch, signal and file-descriptor
- * clients, suspension and the per-name state. Adapted: delivered within the app's process; Mach port registrations
- * are not supported. */
+ * clients, suspension and the per-name state. Adapted: a post reaches the clients of every process on the device
+ * (the app, its extensions, other apps): each post is appended to $ISIM_DATA/Library/isim/notify.log, and a process
+ * with clients watches the log (a vnode dispatch source) and delivers the other processes' posts to them. The state
+ * (notify_set_state) stays in its process; Mach port registrations are not supported. */
 #import <Foundation/Foundation.h>
 #include <notify.h>
 #include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
 #include <netinet/in.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include "isim_foundation.h"
 
 @interface _ISIMNotifyClient : NSObject {
 @public
@@ -34,9 +39,71 @@ static void deliver(_ISIMNotifyClient *c) {                     /* called withou
     }
 }
 
-uint32_t notify_post(const char *name) {
-    if (!name) return NOTIFY_STATUS_INVALID_NAME;
-    NSString *n = @(name);
+/* ---- across processes: the device's post log ---- */
+enum { LOG_LIMIT = 4 << 20 };                 /* a post at this size starts the log again (posts are not kept) */
+static NSString *log_path(void) { return [isim_data_dir() stringByAppendingPathComponent:@"Library/isim/notify.log"]; }
+static int log_fd = -1;
+static off_t log_offset;
+static dispatch_source_t log_source;          /* kept for the life of the process */
+static void post_local(NSString *n);
+/* the posts of other processes since the last read: "<pid> <name>" lines */
+static void read_log(void) {
+    struct stat st;
+    if (fstat(log_fd, &st) != 0) return;
+    if (st.st_size < log_offset) log_offset = 0;                        /* started again */
+    if (st.st_size == log_offset) return;
+    size_t len = (size_t)(st.st_size - log_offset);
+    char *buf = malloc(len);
+    ssize_t n = pread(log_fd, buf, len, log_offset);
+    ssize_t end = n;
+    while (end > 0 && buf[end - 1] != '\n') end--;                      /* whole lines only */
+    if (end > 0) {
+        log_offset += end;
+        NSString *text = [[NSString alloc] initWithBytes:buf length:(NSUInteger)end encoding:NSUTF8StringEncoding];
+        int me = getpid();
+        for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
+            NSRange sp = [line rangeOfString:@" "];
+            if (sp.location == NSNotFound || [line substringToIndex:sp.location].intValue == me) continue;
+            post_local([line substringFromIndex:sp.location + 1]);
+        }
+    }
+    free(buf);
+}
+static void watch_log(void) {                  /* once, when the process registers its first client */
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSString *path = log_path();
+        [NSFileManager.defaultManager createDirectoryAtPath:path.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:NULL];
+        log_fd = open(path.fileSystemRepresentation, O_RDONLY | O_CREAT | O_CLOEXEC, 0644);
+        if (log_fd < 0) return;
+        struct stat st;
+        log_offset = fstat(log_fd, &st) == 0 ? st.st_size : 0;           /* posts from now on */
+        dispatch_queue_t q = dispatch_queue_create("isim.notify", DISPATCH_QUEUE_SERIAL);
+        dispatch_source_t src = dispatch_source_create(DISPATCH_SOURCE_TYPE_VNODE, (uintptr_t)log_fd,
+                                                       DISPATCH_VNODE_WRITE | DISPATCH_VNODE_EXTEND, q);
+        dispatch_source_set_event_handler(src, ^{ read_log(); });
+        dispatch_resume(src);
+        log_source = src;
+    });
+}
+static void append_log(const char *name) {
+    if (strchr(name, '\n')) return;
+    NSString *path = log_path();
+    int fd = open(path.fileSystemRepresentation, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0644);
+    if (fd < 0) {
+        [NSFileManager.defaultManager createDirectoryAtPath:path.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:NULL];
+        if ((fd = open(path.fileSystemRepresentation, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0644)) < 0) return;
+    }
+    struct stat st;
+    if (fstat(fd, &st) == 0 && st.st_size > LOG_LIMIT && ftruncate(fd, 0) != 0) {}
+    char line[1100];
+    int len = snprintf(line, sizeof line, "%d %s\n", getpid(), name);
+    if (len > 0 && len < (int)sizeof line && write(fd, line, (size_t)len) < 0) {}      /* one append: whole */
+    close(fd);
+}
+
+/* the clients of this process */
+static void post_local(NSString *n) {
     NSMutableArray *ready = [NSMutableArray array];
     pthread_mutex_lock(&notify_lock);
     for (_ISIMNotifyClient *c in clients.allValues) {
@@ -46,6 +113,11 @@ uint32_t notify_post(const char *name) {
     }
     pthread_mutex_unlock(&notify_lock);
     for (_ISIMNotifyClient *c in ready) deliver(c);
+}
+uint32_t notify_post(const char *name) {
+    if (!name) return NOTIFY_STATUS_INVALID_NAME;
+    post_local(@(name));
+    append_log(name);
     return NOTIFY_STATUS_OK;
 }
 
@@ -61,6 +133,7 @@ static uint32_t add_client(const char *name, int kind, int *out_token, void (^se
     c->token = next_token++;
     clients[@(c->token)] = c;
     pthread_mutex_unlock(&notify_lock);
+    watch_log();
     *out_token = c->token;
     return NOTIFY_STATUS_OK;
 }
@@ -150,3 +223,7 @@ uint32_t notify_get_state(int token, uint64_t *state64) {
     return NOTIFY_STATUS_OK;
 }
 bool notify_is_valid_token(int val) { return client(val) != nil; }
+/* isim has no Mach ports */
+uint32_t notify_register_mach_port(const char *name, mach_port_t *notify_port, int flags, int *out_token) {
+    return name ? NOTIFY_STATUS_FAILED : NOTIFY_STATUS_INVALID_NAME;
+}

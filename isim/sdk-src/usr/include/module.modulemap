@@ -78,6 +78,7 @@ module Dispatch [system] [extern_c] {
 }
 module notify [system] [extern_c] {
   header "notify.h"
+  header "notify_keys.h"
   export *
 }
 module isim_host [system] [extern_c] {

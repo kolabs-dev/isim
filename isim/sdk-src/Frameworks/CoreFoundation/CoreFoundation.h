@@ -28,3 +28,4 @@
 #include <CoreFoundation/CFLocale.h>
 #include <CoreFoundation/CFDateFormatter.h>
 #include <CoreFoundation/CFPreferences.h>
+#include <CoreFoundation/CFNotificationCenter.h>
