@@ -11,6 +11,8 @@
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
+#include <notify.h>
+#import "XCTIsimInternal.h"
 
 /* ---------------- interruption (continueAfterFailure = NO, ObjC XCTSkip) ----------------
  * Like XCTest: an internal exception unwinds from the failing assertion to the test invocation. Tests that
@@ -26,6 +28,9 @@ static int interruptible;                 /* set while a test's synchronous code
 static int waiting_depth;                 /* > 0 while the runner spins the run loop (async work in progress) */
 static NSMutableArray *observers;
 static FILE *out_fp;
+static void record_issue_of(XCTIssueType type, NSString *description, NSString *filePath, NSUInteger line, NSError *error);
+static void end_expected_failures(XCTestCase *tc);
+static int activity_depth;                /* XCTContext activities open in the current test */
 
 static void say(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 static void say(NSString *fmt, ...) {
@@ -112,6 +117,11 @@ static NSString *test_method_name(SEL sel) {
 - (void)recordFailureWithDescription:(NSString *)description inFile:(NSString *)filePath atLine:(NSUInteger)lineNumber expected:(BOOL)expected {
     if (expected) self.ownFailures++; else self.ownUnexpected++;
 }
+- (void)recordIssue:(XCTIssue *)issue {
+    XCTSourceCodeLocation *l = issue.sourceCodeContext.location;
+    [self recordFailureWithDescription:issue.compactDescription inFile:l.fileURL.path atLine:l ? (NSUInteger)l.lineNumber : 0
+                              expected:issue.type == XCTIssueTypeAssertionFailure];
+}
 @end
 
 @implementation XCTestSuiteRun { NSMutableArray *_runs; }
@@ -186,6 +196,51 @@ static NSInteger fulfill_order;
 }
 @end
 
+@implementation XCTKeyPathExpectation { BOOL _observing, _done, _initialSeen, _changed; }
+static int kvo_context;
+- (instancetype)initWithKeyPath:(NSString *)keyPath observedObject:(id)object expectedValue:(id)expected {
+    if ((self = [super initWithDescription:[NSString stringWithFormat:@"Expect value of '%@' of %@", keyPath, object]])) {
+        _keyPath = [keyPath copy]; _observedObject = object; _expectedValue = expected;
+        [object addObserver:self forKeyPath:keyPath options:NSKeyValueObservingOptionInitial | NSKeyValueObservingOptionNew context:&kvo_context];
+        _observing = YES;
+    }
+    return self;
+}
+- (instancetype)initWithKeyPath:(NSString *)keyPath observedObject:(id)object { return [self initWithKeyPath:keyPath observedObject:object expectedValue:nil]; }
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
+    if (context != &kvo_context) { [super observeValueForKeyPath:keyPath ofObject:object change:change context:context]; return; }
+    if (_initialSeen) _changed = YES; else _initialSeen = YES;      /* the first call is the initial value */
+    [self _isim_check:change];
+}
+/* the expected value (also when it is already there), any change when there is none; a handler decides on changes */
+- (void)_isim_check:(NSDictionary *)change {
+    if (_done) return;
+    id value = [_observedObject valueForKeyPath:_keyPath];
+    BOOL hit;
+    if (_handler) hit = _changed && change && (!_expectedValue || [value isEqual:_expectedValue]) && _handler(_observedObject, change);
+    else if (_expectedValue) hit = [value isEqual:_expectedValue];
+    else hit = _changed;
+    if (hit) { _done = YES; [self fulfill]; }
+}
+- (void)_isim_poll { [self _isim_check:nil]; }
+- (void)dealloc { if (_observing) [_observedObject removeObserver:self forKeyPath:_keyPath context:&kvo_context]; }
+@end
+
+@implementation XCTDarwinNotificationExpectation { int _token; BOOL _registered; }
+- (instancetype)initWithNotificationName:(NSString *)name {
+    if ((self = [super initWithDescription:[NSString stringWithFormat:@"Expect Darwin notification '%@'", name]])) {
+        _notificationName = [name copy];
+        __weak XCTDarwinNotificationExpectation *weakSelf = self;
+        _registered = notify_register_dispatch(name.UTF8String, &_token, dispatch_get_main_queue(), ^(int token) {
+            XCTDarwinNotificationExpectation *s = weakSelf;
+            if (s && (!s.handler || s.handler())) [s fulfill];
+        }) == NOTIFY_STATUS_OK;
+    }
+    return self;
+}
+- (void)dealloc { if (_registered) notify_cancel(_token); }
+@end
+
 /* spins the main run loop (timers, main-queue blocks, MainActor jobs) until done() or the deadline */
 static BOOL spin_until(double deadline, BOOL (^done)(void)) {
     waiting_depth++;
@@ -238,6 +293,8 @@ static BOOL spin_until(double deadline, BOOL (^done)(void)) {
 @property (copy) NSString *isimSkipMessage;
 @property (strong) NSMutableArray *isimFailures;       /* for JUnit: {message, file, line} */
 @property (strong) NSMutableArray<XCTAttachment *> *isimAttachments;
+@property BOOL isimInLegacyRecord;                     /* in an override of -recordFailureWithDescription:... */
+@property (strong) NSMutableArray *isimExpectedFailures;   /* the open XCTExpectFailure scopes, innermost last */
 @end
 
 /* ================= attachments ================= */
@@ -359,12 +416,45 @@ static void record_measurement(NSArray<NSNumber *> *values, NSString *metric, NS
 }
 + (XCTestSuite *)defaultTestSuite { return [XCTestSuite testSuiteForTestCaseClass:self]; }
 
+static BOOL overrides(XCTestCase *tc, SEL sel);
+static XCTIssue *issue_with(XCTIssueType type, NSString *d, NSString *f, NSUInteger l, NSError *error) {
+    XCTSourceCodeLocation *loc = f.length ? [[XCTSourceCodeLocation alloc] initWithFilePath:f lineNumber:(NSInteger)l] : nil;
+    return [[XCTIssue alloc] initWithType:type compactDescription:d ?: @"" detailedDescription:nil
+                        sourceCodeContext:[[XCTSourceCodeContext alloc] initWithLocation:loc] associatedError:error attachments:@[]];
+}
+static BOOL match_expected_failure(XCTestCase *tc, XCTIssue *issue);
+/* the issue fails the test: counted, printed (Xcode's format), kept for JUnit, its attachments kept with the test */
+static void fail_with_issue(XCTestCase *tc, XCTIssue *issue) {
+    XCTSourceCodeLocation *loc = issue.sourceCodeContext.location;
+    NSString *f = loc.fileURL.path ?: @"";
+    NSUInteger l = loc ? (NSUInteger)loc.lineNumber : 0;
+    NSString *d = issue.compactDescription;
+    [tc.isimRun recordIssue:issue];
+    if (!tc.isimFailures) tc.isimFailures = [NSMutableArray array];
+    [tc.isimFailures addObject:@{ @"message": d, @"file": f, @"line": @(l) }];
+    say(@"%@:%lu: error: %@ : %@", f.length ? f : @"<unknown>", (unsigned long)l, tc.name, d);
+    for (XCTAttachment *a in issue.attachments) [tc addAttachment:a];
+    NOTIFY(testCase:didRecordIssue:, testCase:tc didRecordIssue:issue);
+    NOTIFY(testCase:didFailWithDescription:inFile:atLine:, testCase:tc didFailWithDescription:d inFile:f atLine:l);
+}
+- (void)recordIssue:(XCTIssue *)issue {
+    if (match_expected_failure(self, issue)) return;
+    if (!_isimInLegacyRecord && overrides(self, @selector(recordFailureWithDescription:inFile:atLine:expected:))) {
+        /* a test case that overrides the older method still sees every failure there */
+        XCTSourceCodeLocation *loc = issue.sourceCodeContext.location;
+        _isimInLegacyRecord = YES;
+        @try {
+            [self recordFailureWithDescription:issue.compactDescription inFile:loc.fileURL.path ?: @"" atLine:loc ? (NSUInteger)loc.lineNumber : 0
+                                      expected:issue.type == XCTIssueTypeAssertionFailure];
+        } @finally { _isimInLegacyRecord = NO; }
+        return;
+    }
+    fail_with_issue(self, issue);
+}
 - (void)recordFailureWithDescription:(NSString *)d inFile:(NSString *)f atLine:(NSUInteger)l expected:(BOOL)e {
-    [_isimRun recordFailureWithDescription:d inFile:f atLine:l expected:e];
-    if (!_isimFailures) _isimFailures = [NSMutableArray array];
-    [_isimFailures addObject:@{ @"message": d ?: @"", @"file": f ?: @"", @"line": @(l) }];
-    say(@"%@:%lu: error: %@ : %@", f.length ? f : @"<unknown>", (unsigned long)l, self.name, d);
-    NOTIFY(testCase:didFailWithDescription:inFile:atLine:, testCase:self didFailWithDescription:d inFile:f atLine:l);
+    XCTIssue *issue = issue_with(e ? XCTIssueTypeAssertionFailure : XCTIssueTypeUncaughtException, d, f, l, nil);
+    if (_isimInLegacyRecord) fail_with_issue(self, issue);
+    else [self recordIssue:issue];
 }
 
 - (void)measureBlock:(void (^)(void))block {
@@ -411,6 +501,13 @@ static void record_measurement(NSArray<NSNumber *> *values, NSString *metric, NS
     XCTNSPredicateExpectation *e = [[XCTNSPredicateExpectation alloc] initWithPredicate:p object:o]; e.handler = h;
     return [self _isim_track:e];
 }
+- (XCTestExpectation *)keyValueObservingExpectationForObject:(id)o keyPath:(NSString *)k expectedValue:(id)v {
+    return [self _isim_track:[[XCTKeyPathExpectation alloc] initWithKeyPath:k observedObject:o expectedValue:v]];
+}
+- (XCTestExpectation *)keyValueObservingExpectationForObject:(id)o keyPath:(NSString *)k handler:(XCKeyValueObservingExpectationHandler)h {
+    XCTKeyPathExpectation *e = [[XCTKeyPathExpectation alloc] initWithKeyPath:k observedObject:o]; e.handler = h;
+    return [self _isim_track:e];
+}
 static NSString *quoted_list(NSArray<XCTestExpectation *> *xs) {
     NSMutableArray *a = [NSMutableArray array];
     for (XCTestExpectation *x in xs) [a addObject:[NSString stringWithFormat:@"\"%@\"", x.expectationDescription]];
@@ -453,7 +550,8 @@ static BOOL handle_error(XCTestCase *tc, NSError *err, NSString *where) {
     }
     if ([err.domain isEqualToString:@"XCTIsimRecordedFailure"]) return NO;          /* XCTUnwrap & co. already recorded it */
     NSString *what = err.userInfo[@"description"] ?: err.localizedDescription;
-    _XCTIsimRecordFailure([NSString stringWithFormat:@"%@caught error: \"%@\"", where, what], err.userInfo[@"file"], [err.userInfo[@"line"] unsignedIntegerValue], NO);
+    record_issue_of(XCTIssueTypeThrownError, [NSString stringWithFormat:@"%@caught error: \"%@\"", where, what], err.userInfo[@"file"],
+                    [err.userInfo[@"line"] unsignedIntegerValue], err);
     return NO;
 }
 static BOOL call_async(XCTestCase *tc, SEL sel, NSString *where) {
@@ -463,7 +561,7 @@ static BOOL call_async(XCTestCase *tc, SEL sel, NSString *where) {
     ((void (*)(id, SEL, id))objc_msgSend)(tc, sel, completion);
     BOOL finished = spin_until(now_s() + tc.executionTimeAllowance, ^BOOL{ return __atomic_load_n(&done, __ATOMIC_ACQUIRE) != 0; });
     if (!finished) {
-        _XCTIsimRecordFailure([NSString stringWithFormat:@"Test exceeded execution time allowance of %g seconds", tc.executionTimeAllowance], nil, 0, NO);
+        record_issue_of(XCTIssueTypeSystem, [NSString stringWithFormat:@"Test exceeded execution time allowance of %g seconds", tc.executionTimeAllowance], nil, 0, nil);
         return NO;
     }
     return handle_error(tc, error, where);
@@ -498,6 +596,7 @@ static BOOL overrides(XCTestCase *tc, SEL sel) {
 - (void)performTest:(XCTestRun *)run {
     _isimRun = (XCTestCaseRun *)run;
     current_case = self;
+    activity_depth = 0;
     NOTIFY(testCaseWillStart:, testCaseWillStart:self);
     say(@"Test Case '%@' started.", self.name);
     [run start];
@@ -510,7 +609,7 @@ static BOOL overrides(XCTestCase *tc, SEL sel) {
                 /* stopped after a failure or a skip; already recorded */
             } @catch (NSException *e) {
                 interruptible = 0;
-                _XCTIsimRecordFailure([NSString stringWithFormat:@"failed: caught \"%@\", \"%@\"", e.name, e.reason], nil, 0, NO);
+                record_issue_of(XCTIssueTypeUncaughtException, [NSString stringWithFormat:@"failed: caught \"%@\", \"%@\"", e.name, e.reason], nil, 0, nil);
             }
             interruptible = 0;
         }
@@ -518,6 +617,7 @@ static BOOL overrides(XCTestCase *tc, SEL sel) {
             NSArray *u = _unwaited; _unwaited = nil;
             _XCTIsimRecordFailure([NSString stringWithFormat:@"Failed due to unwaited expectation%@ %@.", u.count > 1 ? @"s" : @"", quoted_list(u)], nil, 0, YES);
         }
+        end_expected_failures(self);
     }
     [run stop];
     XCTestRun *r = run;
@@ -540,12 +640,114 @@ static void maybe_interrupt(void) {
         @throw [_XCTestCaseInterruption exceptionWithName:@"_XCTestCaseInterruption" reason:@"test interrupted" userInfo:nil];
     }
 }
-void _XCTIsimRecordFailure(NSString *description, NSString *filePath, NSUInteger line, BOOL expected) {
+/* every issue goes through the test case's -recordIssue: (overrides and expected failures see it) */
+static void record_issue_of(XCTIssueType type, NSString *description, NSString *filePath, NSUInteger line, NSError *error) {
     XCTestCase *tc = current_case;
     if (!tc) { say(@"%@:%lu: error: %@ (outside of a test)", filePath ?: @"<unknown>", (unsigned long)line, description); return; }
-    @synchronized (tc) { [tc recordFailureWithDescription:description inFile:filePath ?: @"" atLine:line expected:expected]; }
+    @synchronized (tc) { [tc recordIssue:issue_with(type, description, filePath, line, error)]; }
     if (!tc.continueAfterFailure) maybe_interrupt();
 }
+void _XCTIsimRecordFailure(NSString *description, NSString *filePath, NSUInteger line, BOOL expected) {
+    record_issue_of(expected ? XCTIssueTypeAssertionFailure : XCTIssueTypeThrownError, description, filePath, line, nil);
+}
+/* ================= expected failures (XCTExpectFailure) ================= */
+@interface _XCTIsimExpectedFailureScope : NSObject
+@property (copy) NSString *reason;
+@property (copy) XCTExpectedFailureOptions *options;
+@property BOOL matched, untilEnd;
+@end
+@implementation _XCTIsimExpectedFailureScope
+@end
+
+static NSString *scope_reason(_XCTIsimExpectedFailureScope *s) { return s.reason.length ? s.reason : @"(no reason)"; }
+/* the innermost open scope that is enabled and whose matcher accepts the issue makes it an expected failure */
+static BOOL match_expected_failure(XCTestCase *tc, XCTIssue *issue) {
+    _XCTIsimExpectedFailureScope *hit = nil;
+    @synchronized (tc) {
+        for (_XCTIsimExpectedFailureScope *sc in [tc.isimExpectedFailures reverseObjectEnumerator]) {
+            if (!sc.options.enabled) continue;
+            if (sc.options.issueMatcher && !sc.options.issueMatcher(issue)) continue;
+            hit = sc; sc.matched = YES; break;
+        }
+    }
+    if (!hit) return NO;
+    XCTSourceCodeLocation *loc = issue.sourceCodeContext.location;
+    say(@"%@:%ld: %@ : Expected failure: %@: %@", loc ? loc.fileURL.path : @"<unknown>", loc ? (long)loc.lineNumber : 0L, tc.name,
+        scope_reason(hit), issue.compactDescription);
+    XCTExpectedFailure *ef = [[XCTExpectedFailure alloc] initIsimWithReason:hit.reason issue:issue];
+    NOTIFY(testCase:didRecordExpectedFailure:, testCase:tc didRecordExpectedFailure:ef);
+    return YES;
+}
+/* a strict scope that matched nothing is an issue itself */
+static void close_scope(XCTestCase *tc, _XCTIsimExpectedFailureScope *sc) {
+    @synchronized (tc) { [tc.isimExpectedFailures removeObjectIdenticalTo:sc]; }
+    if (sc.options.enabled && sc.options.strict && !sc.matched)
+        record_issue_of(XCTIssueTypeUnmatchedExpectedFailure, [NSString stringWithFormat:@"Failed due to unmatched expected failure: %@", scope_reason(sc)], nil, 0, nil);
+}
+static void end_expected_failures(XCTestCase *tc) {
+    NSArray *open;
+    @synchronized (tc) { open = [tc.isimExpectedFailures copy]; }
+    for (_XCTIsimExpectedFailureScope *sc in open) {
+        if (sc.untilEnd) close_scope(tc, sc);                 /* block scopes left open were interrupted: dropped */
+    }
+    tc.isimExpectedFailures = nil;
+}
+id _XCTIsimPushExpectedFailure(NSString *reason, XCTExpectedFailureOptions *options) {
+    _XCTIsimExpectedFailureScope *sc = [_XCTIsimExpectedFailureScope new];
+    sc.reason = reason; sc.options = options ?: [XCTExpectedFailureOptions new];
+    XCTestCase *tc = current_case;
+    if (!tc) { say(@"<unknown>:0: error: XCTExpectFailure called outside of a test"); return sc; }
+    @synchronized (tc) {
+        if (!tc.isimExpectedFailures) tc.isimExpectedFailures = [NSMutableArray array];
+        [tc.isimExpectedFailures addObject:sc];
+    }
+    return sc;
+}
+void _XCTIsimPopExpectedFailure(id scope) {
+    if (current_case) close_scope(current_case, scope);
+}
+void XCTExpectFailure(NSString *reason) { XCTExpectFailureWithOptions(reason, [XCTExpectedFailureOptions new]); }
+void XCTExpectFailureWithOptions(NSString *reason, XCTExpectedFailureOptions *options) {
+    ((_XCTIsimExpectedFailureScope *)_XCTIsimPushExpectedFailure(reason, options)).untilEnd = YES;
+}
+void XCTExpectFailureInBlock(NSString *reason, void (NS_NOESCAPE ^block)(void)) {
+    XCTExpectFailureWithOptionsInBlock(reason, [XCTExpectedFailureOptions new], block);
+}
+void XCTExpectFailureWithOptionsInBlock(NSString *reason, XCTExpectedFailureOptions *options, void (NS_NOESCAPE ^block)(void)) {
+    id sc = _XCTIsimPushExpectedFailure(reason, options);
+    BOOL interrupted = YES;
+    @try { block(); interrupted = NO; }
+    @finally {
+        if (interrupted) { XCTestCase *tc = current_case; @synchronized (tc) { [tc.isimExpectedFailures removeObjectIdenticalTo:sc]; } }
+        else _XCTIsimPopExpectedFailure(sc);
+    }
+}
+
+/* ================= activities (XCTContext) ================= */
+@interface _XCTIsimActivity : NSObject <XCTActivity>
+@property (copy) NSString *name;
+@end
+@implementation _XCTIsimActivity
+- (void)addAttachment:(XCTAttachment *)attachment { [current_case addAttachment:attachment]; }
+@end
+/* printed like Xcode's activity log: "    t =     0.01s Name", nested ones indented */
+id<XCTActivity> _XCTIsimBeginActivity(NSString *name) {
+    _XCTIsimActivity *a = [_XCTIsimActivity new];
+    a.name = name;
+    double t = current_case.isimRun.t0 ? now_s() - current_case.isimRun.t0 : 0;
+    NSString *indent = [@"" stringByPaddingToLength:(NSUInteger)activity_depth * 4 withString:@" " startingAtIndex:0];
+    say(@"    t = %8.2fs %@%@", t, indent, name);
+    activity_depth++;
+    return a;
+}
+void _XCTIsimEndActivity(id<XCTActivity> activity) { if (activity_depth > 0) activity_depth--; }
+@implementation XCTContext
++ (void)runActivityNamed:(NSString *)name block:(void (NS_NOESCAPE ^)(id<XCTActivity>))block {
+    id<XCTActivity> a = _XCTIsimBeginActivity(name);
+    @try { block(a); } @finally { _XCTIsimEndActivity(a); }
+}
+@end
+
 void _XCTIsimRecordSkip(NSString *message, NSString *filePath, NSUInteger line) {
     XCTestCase *tc = current_case;
     if (!tc) return;

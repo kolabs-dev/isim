@@ -29,6 +29,25 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nullable, copy) XCPredicateExpectationHandler handler;
 @end
 
+/* Fulfilled when a key-value observable property of the object changes: to expectedValue (isEqual:), or at all when
+ * expectedValue is nil; the handler, when set, decides. */
+@interface XCTKeyPathExpectation : XCTestExpectation
+- (instancetype)initWithKeyPath:(NSString *)keyPath observedObject:(id)observedObject expectedValue:(nullable id)expectedValue;
+- (instancetype)initWithKeyPath:(NSString *)keyPath observedObject:(id)observedObject;
+@property (readonly, copy) NSString *keyPath;
+@property (readonly, strong) id observedObject;
+@property (nullable, readonly, strong) id expectedValue;
+@property (nullable, copy) XCKeyValueObservingExpectationHandler handler;
+@end
+
+/* Fulfilled when a Darwin notification (notify_post) is posted. isim (adapted): isim's notify delivers posts within the
+ * process, so the post comes from the test or from code it runs (hosted tests: the app). */
+@interface XCTDarwinNotificationExpectation : XCTestExpectation
+- (instancetype)initWithNotificationName:(NSString *)notificationName;
+@property (readonly, copy) NSString *notificationName;
+@property (nullable, copy) XCDarwinNotificationExpectationHandler handler;
+@end
+
 typedef NS_ENUM(NSInteger, XCTWaiterResult) {
     XCTWaiterResultCompleted = 1,
     XCTWaiterResultTimedOut,

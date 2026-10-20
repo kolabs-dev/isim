@@ -8,6 +8,9 @@
 #import <XCTest/XCTestCase.h>
 #import <XCTest/XCTMetric.h>
 #import <XCTest/XCTAttachment.h>
+#import <XCTest/XCTIssue.h>
+#import <XCTest/XCTExpectedFailure.h>
+#import <XCTest/XCTContext.h>
 #import <XCTest/XCTestSuite.h>
 #import <XCTest/XCTestExpectation.h>
 #import <XCTest/XCTestObservation.h>

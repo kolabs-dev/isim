@@ -38,8 +38,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) BOOL hasBeenSkipped;
 @end
 
+@class XCTIssue;
 @interface XCTestCaseRun : XCTestRun
 - (void)recordFailureWithDescription:(NSString *)description inFile:(nullable NSString *)filePath atLine:(NSUInteger)lineNumber expected:(BOOL)expected;
+/* counts the issue: an assertion failure as a failure, any other type as an unexpected one */
+- (void)recordIssue:(XCTIssue *)issue NS_SWIFT_NAME(record(_:)) NS_REQUIRES_SUPER;
 @end
 
 @interface XCTestSuiteRun : XCTestRun

@@ -1,6 +1,7 @@
 import XCTest
 @testable import HelloToolchain
 import Units
+import notify
 
 /// Hosted unit tests (TEST_HOST = the app): @testable access to the app module and everything it links.
 final class ModelTests: XCTestCase {
@@ -95,6 +96,90 @@ final class ModelTests: XCTestCase {
     }
 }
 
+/// Issues: record(_:), expected failures (XCTExpectFailure), activities (XCTContext), and the key-path and Darwin
+/// notification expectations.
+final class IssueTests: XCTestCase {
+    var recorded: [XCTIssue] = []
+
+    override func record(_ issue: XCTIssue) {
+        recorded.append(issue)
+        super.record(issue)
+    }
+
+    func testActivities() {
+        let sum = XCTContext.runActivity(named: "Add numbers") { _ -> Int in
+            XCTContext.runActivity(named: "Attach the operands") { activity in
+                let a = XCTAttachment(string: "20 + 22")
+                a.name = "operands"
+                a.lifetime = .keepAlways
+                activity.add(a)
+            }
+            return 20 + 22
+        }
+        XCTAssertEqual(sum, 42)
+    }
+
+    final class Observer: NSObject, XCTestObservation {
+        var reasons: [String] = []
+        func testCase(_ testCase: XCTestCase, didRecord expectedFailure: XCTExpectedFailure) {
+            reasons.append(expectedFailure.failureReason ?? "")
+        }
+    }
+
+    func testExpectedFailures() {
+        let observer = Observer()
+        XCTestObservationCenter.shared.addTestObserver(observer)
+        defer { XCTestObservationCenter.shared.removeTestObserver(observer) }
+        XCTExpectFailure("addition is off by one") {
+            XCTAssertEqual(1 + 1, 3)
+        }
+        let options = XCTExpectedFailure.Options()
+        options.issueMatcher = { $0.type == .assertionFailure && $0.compactDescription.contains("bug 42") }
+        XCTExpectFailure("known bug 42", options: options)      // until the end of the test
+        XCTFail("bug 42")
+        XCTExpectFailure("not strict", strict: false) {}
+        XCTExpectFailure("disabled", enabled: false)
+        XCTAssertEqual(recorded.count, 2, "record(_:) sees every issue")
+        XCTAssertEqual(observer.reasons, ["addition is off by one", "known bug 42"])
+    }
+
+    func testRecordIssue() {
+        let line = #line
+        var issue = XCTIssue(type: .system, compactDescription: "custom issue",
+                             sourceCodeContext: XCTSourceCodeContext(location: XCTSourceCodeLocation(filePath: #filePath, lineNumber: line)))
+        issue.add(XCTAttachment(string: "detail"))
+        XCTExpectFailure("a recorded issue", failingBlock: { record(issue) }, issueMatcher: { $0.compactDescription == "custom issue" })
+        XCTAssertEqual(recorded.last?.type, .system)
+        XCTAssertEqual(recorded.last?.attachments.count, 1)
+        XCTAssertEqual(recorded.last?.sourceCodeContext.location?.lineNumber, line)
+        XCTAssertFalse(recorded.last?.sourceCodeContext.callStack.isEmpty ?? true, "the call stack")
+    }
+
+    final class Job: NSObject {
+        @objc dynamic var state = "idle"
+    }
+
+    func testKeyPathExpectation() {
+        let job = Job()
+        let done = XCTKeyPathExpectation(keyPath: "state", observedObject: job, expectedValue: "done")
+        let running = keyValueObservingExpectation(for: job, keyPath: "state") { _, change in
+            change[NSKeyValueChangeKey.newKey.rawValue] as? String == "running"
+        }
+        DispatchQueue.main.async {
+            job.state = "running"
+            DispatchQueue.main.async { job.state = "done" }
+        }
+        wait(for: [running, done], timeout: 2)
+    }
+
+    func testDarwinNotification() {
+        let name = "dev.isim.samples.toolchain.ready"
+        let posted = XCTDarwinNotificationExpectation(notificationName: name)
+        DispatchQueue.global().async { notify_post(name) }
+        wait(for: [posted], timeout: 2)
+    }
+}
+
 /// Deliberately failing tests: skipped by the scheme, run explicitly with -only-testing to prove failures are reported.
 final class ExpectedFailureTests: XCTestCase {
     func testEqualFails() {
@@ -110,6 +195,10 @@ final class ExpectedFailureTests: XCTestCase {
         continueAfterFailure = false
         XCTFail("first failure")
         XCTFail("never reached")
+    }
+
+    func testUnmatchedExpectedFailure() {
+        XCTExpectFailure("a bug that is fixed")
     }
 
     func testUnfulfilledExpectation() {

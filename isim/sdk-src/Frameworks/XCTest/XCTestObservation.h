@@ -3,7 +3,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class XCTestSuite;
+@class XCTestSuite, XCTIssue, XCTExpectedFailure;
 
 @protocol XCTestObservation <NSObject>
 @optional
@@ -13,6 +13,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)testSuiteDidFinish:(XCTestSuite *)testSuite;
 - (void)testCaseWillStart:(XCTestCase *)testCase;
 - (void)testCase:(XCTestCase *)testCase didFailWithDescription:(NSString *)description inFile:(nullable NSString *)filePath atLine:(NSUInteger)lineNumber;
+- (void)testCase:(XCTestCase *)testCase didRecordIssue:(XCTIssue *)issue;
+- (void)testCase:(XCTestCase *)testCase didRecordExpectedFailure:(XCTExpectedFailure *)expectedFailure;
 - (void)testCaseDidFinish:(XCTestCase *)testCase;
 @end
 

@@ -21,4 +21,6 @@ NS_ASSUME_NONNULL_BEGIN
 typedef void (^XCWaitCompletionHandler)(NSError *_Nullable error);
 typedef BOOL (^XCNotificationExpectationHandler)(NSNotification *notification);
 typedef BOOL (^XCPredicateExpectationHandler)(void);
+typedef BOOL (^XCKeyValueObservingExpectationHandler)(id observedObject, NSDictionary *change);
+typedef BOOL (^XCDarwinNotificationExpectationHandler)(void);
 NS_ASSUME_NONNULL_END

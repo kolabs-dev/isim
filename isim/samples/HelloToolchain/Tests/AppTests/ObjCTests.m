@@ -18,6 +18,22 @@
     XCTAssertThrowsSpecificNamed([NSException raise:@"Boom" format:@"again"], NSException, @"Boom");
     XCTAssertNoThrow([@[@1] objectAtIndex:0]);
 }
+- (void)testObjCIssues {
+    [XCTContext runActivityNamed:@"ObjC activity" block:^(id<XCTActivity> activity) {
+        XCTAttachment *a = [XCTAttachment attachmentWithString:@"from Objective-C"];
+        a.name = @"objc";
+        a.lifetime = XCTAttachmentLifetimeKeepAlways;
+        [activity addAttachment:a];
+    }];
+    XCTExpectFailureInBlock(@"ObjC expected failure", ^{ XCTAssertEqual(1, 2); });
+    XCTExpectedFailureOptions *options = [XCTExpectedFailureOptions nonStrictOptions];
+    options.issueMatcher = ^BOOL(XCTIssue *issue) { return issue.type == XCTIssueTypeSystem; };
+    XCTExpectFailureWithOptionsInBlock(@"custom issue", options, ^{
+        XCTMutableIssue *issue = [[XCTMutableIssue alloc] initWithType:XCTIssueTypeSystem compactDescription:@"recorded from Objective-C"];
+        issue.detailedDescription = @"details";
+        [self recordIssue:issue];
+    });
+}
 - (void)testObjCSkip {
     XCTSkipIf(YES, @"skipped from Objective-C");
     XCTFail(@"not reached");
