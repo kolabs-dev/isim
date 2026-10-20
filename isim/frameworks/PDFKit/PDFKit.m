@@ -565,6 +565,11 @@ static CGPDFObjectRef name_tree(CGPDFDictionaryRef node, CGPDFStringRef key, int
     d.zoom = zoom;
     return d;
 }
+/* for PDFView's link annotations */
+- (PDFDestination *)_isim_destinationForObject:(CGPDFObjectRef)object {
+    CGPDFArrayRef a = _doc && object ? [self _destArray:object depth:0] : NULL;
+    return a ? [self _destination:a] : nil;
+}
 - (void)_readChildren:(CGPDFDictionaryRef)parent into:(PDFOutline *)node depth:(int)depth {
     CGPDFDictionaryRef item;
     if (depth > 32 || !CGPDFDictionaryGetDictionary(parent, "First", &item)) return;

@@ -1,7 +1,8 @@
 // Sample: PDFKit on isim (issue #269). Builds a document from pages (one drawn with UIGraphicsPDFRenderer, one from an
 // image, a blank page turned 90°), gives it attributes and an outline, reorders its pages, writes it to the app's
 // Documents and reads it back: page labels, text, boxes, rotation, the outline's destinations. Thumbnails of the
-// pages read back fill the screen. PDFView (issue #270) will show the document here too.
+// pages read back sit at the top; below, a PDFView shows the document built (issue #270) with a PDFThumbnailView
+// strip and Previous / Next / Back buttons; the text page's second line is a link (the delegate logs it).
 import PDFKit
 import UIKit
 
@@ -24,7 +25,8 @@ func textPage() -> PDFPage {
         UIColor.systemOrange.setFill()
         UIRectFill(CGRect(x: 0, y: 0, width: 300, height: 80))
         "Hello PDFKit".draw(at: CGPoint(x: 20, y: 110), withAttributes: [.font: UIFont.boldSystemFont(ofSize: 28), .foregroundColor: UIColor.black])
-        "isim reads and writes PDFs".draw(at: CGPoint(x: 20, y: 160), withAttributes: [.font: UIFont.systemFont(ofSize: 16)])
+        "isim reads and writes PDFs".draw(at: CGPoint(x: 20, y: 160), withAttributes: [.font: UIFont.systemFont(ofSize: 16), .foregroundColor: UIColor.systemBlue])
+        ctx.setURL(URL(string: "https://example.com/isim")!, for: CGRect(x: 20, y: 160, width: 220, height: 22))
     }
     return PDFDocument(data: data)!.page(at: 0)!
 }
@@ -38,7 +40,21 @@ func imagePage() -> PDFPage {
     return PDFPage(image: image)!
 }
 
-final class PDFViewController: UIViewController {
+final class PDFViewController: UIViewController, PDFViewDelegate {
+    let pdfView = PDFView()
+    let pageLabel = UILabel()
+
+    func pdfViewWillClick(onLink sender: PDFView, with url: URL) { print("pdfview link \(url.absoluteString)") }
+
+    @objc func pageChanged(_ n: Notification) {
+        guard let doc = pdfView.document, let page = pdfView.currentPage else { return }
+        pageLabel.text = "Page \(doc.index(for: page) + 1) of \(doc.pageCount)"
+        print("pdfview page \(doc.index(for: page)) back \(pdfView.canGoBack) visible \(pdfView.visiblePages.count)")
+    }
+    @objc func showPrevious() { pdfView.goToPreviousPage(nil) }
+    @objc func showNext() { pdfView.goToNextPage(nil) }
+    @objc func showBack() { pdfView.goBack(nil) }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemGray5
@@ -104,5 +120,35 @@ final class PDFViewController: UIViewController {
             x += thumb.size.width + 12
         }
         print("pdfkit thumbnails \(back.pageCount)")
+
+        // the document built, in a PDFView (continuous, fitted to the width) with a thumbnail strip and buttons
+        pdfView.frame = CGRect(x: 16, y: 295, width: view.bounds.width - 32, height: 400)
+        pdfView.autoScales = true
+        pdfView.delegate = self
+        pdfView.accessibilityIdentifier = "pdfview"
+        view.addSubview(pdfView)
+        NotificationCenter.default.addObserver(self, selector: #selector(pageChanged(_:)), name: .PDFViewPageChanged, object: pdfView)
+        NotificationCenter.default.addObserver(forName: .PDFViewScaleChanged, object: pdfView, queue: nil) { [weak self] _ in
+            guard let v = self?.pdfView else { return }
+            print("pdfview scale changed \(String(format: "%.2f", v.scaleFactor / v.scaleFactorForSizeToFit)) auto \(v.autoScales)")
+        }
+        pdfView.document = doc
+        let strip = PDFThumbnailView(frame: CGRect(x: 16, y: 700, width: view.bounds.width - 32, height: 60))
+        strip.pdfView = pdfView
+        strip.layoutMode = .horizontal
+        strip.thumbnailSize = CGSize(width: 36, height: 48)
+        view.addSubview(strip)
+        pageLabel.frame = CGRect(x: 16, y: 770, width: 120, height: 30)
+        view.addSubview(pageLabel)
+        for (i, (title, action)) in [("Previous", #selector(showPrevious)), ("Next", #selector(showNext)), ("Back", #selector(showBack))].enumerated() {
+            let b = UIButton(type: .system)
+            b.setTitle(title, for: .normal)
+            b.frame = CGRect(x: 140 + CGFloat(i) * 82, y: 770, width: 78, height: 30)
+            b.accessibilityIdentifier = title.lowercased()
+            b.addTarget(self, action: action, for: .touchUpInside)
+            view.addSubview(b)
+        }
+        pdfView.layoutIfNeeded()
+        print("pdfview scale \(String(format: "%.3f", pdfView.scaleFactor)) fit \(String(format: "%.3f", pdfView.scaleFactorForSizeToFit)) mode \(pdfView.displayMode == .singlePageContinuous) pages \(pdfView.document?.pageCount ?? 0)")
     }
 }

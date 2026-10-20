@@ -241,12 +241,110 @@ static void writing(void) {
     [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
 }
 
+/* PDFView off screen: layout, scale, navigation and history, conversions, display modes, notifications, links */
+static void view(void) {
+    PDFDocument *doc = fixture(@"plain.pdf");
+    PDFView *v = [[PDFView alloc] initWithFrame:CGRectMake(0, 0, 400, 600)];
+    __block NSMutableArray *names = [NSMutableArray array];
+    id obs = [[NSNotificationCenter defaultCenter] addObserverForName:nil object:v queue:nil usingBlock:^(NSNotification *n) { [names addObject:n.name]; }];
+    CHECK(v.displayMode == kPDFDisplaySinglePageContinuous && v.displayBox == kPDFDisplayBoxCropBox && v.displaysPageBreaks &&
+          !v.autoScales && v.scaleFactor == 1 && !v.document && !v.documentView, "view: defaults");
+    v.document = doc;
+    CHECK([names containsObject:PDFViewDocumentChangedNotification] && v.currentPage == [doc pageAtIndex:0] && v.documentView,
+          "view: document set, first page current");
+    v.autoScales = YES;
+    [v layoutIfNeeded];
+    CGFloat fit = 400.0 / (612 + 8);
+    CHECK(fabs(v.scaleFactor - fit) < 0.01 && fabs(v.scaleFactorForSizeToFit - fit) < 0.01, "view: autoScales fits the width (%g)", v.scaleFactor);
+    CHECK(v.visiblePages.count >= 1 && v.visiblePages[0] == [doc pageAtIndex:0], "view: visible pages");
+    CHECK(v.canGoToNextPage && !v.canGoToPreviousPage && !v.canGoToFirstPage && v.canGoToLastPage && !v.canGoBack, "view: can go");
+    [names removeAllObjects];
+    [v goToNextPage:nil];
+    CHECK(v.currentPage == [doc pageAtIndex:1] && v.canGoBack && [names containsObject:PDFViewPageChangedNotification] &&
+          [names containsObject:PDFViewChangedHistoryNotification], "view: next page, history");
+    [v goBack:nil];
+    CHECK(v.currentPage == [doc pageAtIndex:0] && v.canGoForward && !v.canGoBack, "view: back");
+    [v goForward:nil];
+    CHECK(v.currentPage == [doc pageAtIndex:1], "view: forward");
+    PDFPage *p1 = [doc pageAtIndex:0];
+    [v goToPage:p1];
+    CGPoint inView = [v convertPoint:CGPointMake(72, 700) fromPage:p1];
+    CGPoint back = [v convertPoint:inView toPage:p1];
+    CHECK(fabs(back.x - 72) < 0.5 && fabs(back.y - 700) < 0.5 && [v pageForPoint:inView nearest:NO] == p1, "view: points to and from a page");
+    CGRect r = [v convertRect:[v convertRect:CGRectMake(100, 100, 50, 20) fromPage:p1] toPage:p1];
+    CHECK(fabs(r.origin.x - 100) < 0.5 && fabs(r.size.width - 50) < 0.5 && fabs(r.size.height - 20) < 0.5, "view: rects to and from a page");
+    CHECK(([v areaOfInterestForPoint:[v convertPoint:CGPointMake(100, 708) fromPage:p1]] & kPDFTextArea) &&
+          [v areaOfInterestForPoint:[v convertPoint:CGPointMake(400, 300) fromPage:p1]] == kPDFPageArea, "view: area of interest");
+    PDFDestination *d = [[PDFDestination alloc] initWithPage:[doc pageAtIndex:1] atPoint:CGPointMake(10, 380)];
+    [v goToDestination:d];
+    CHECK(v.currentPage == [doc pageAtIndex:1] && v.currentDestination.page == [doc pageAtIndex:1], "view: go to a destination");
+
+    [names removeAllObjects];
+    CGFloat before = v.scaleFactor;
+    [v zoomIn:nil];
+    CHECK(fabs(v.scaleFactor - before * M_SQRT2) < 0.01 && !v.autoScales && [names containsObject:PDFViewScaleChangedNotification], "view: zoom in");
+    v.scaleFactor = 100;
+    CHECK(v.scaleFactor == v.maxScaleFactor && !v.canZoomIn && v.canZoomOut, "view: scale clamped to the maximum");
+    v.minScaleFactor = 0.5;
+    v.scaleFactor = 0.1;
+    CHECK(v.scaleFactor == 0.5 && !v.canZoomOut, "view: and to the minimum");
+    v.scaleFactor = 1;
+    CGSize rs = [v rowSizeForPage:p1];
+    CHECK(fabs(rs.width - 620) < 0.5 && fabs(rs.height - 801.5) < 0.5, "view: row size (%g x %g)", rs.width, rs.height);
+
+    [names removeAllObjects];
+    v.displayMode = kPDFDisplayTwoUp;
+    [v layoutIfNeeded];
+    CHECK([names containsObject:PDFViewDisplayModeChangedNotification] && v.documentView.subviews.count == 2, "view: two up shows a pair");
+    rs = [v rowSizeForPage:p1];
+    CHECK(fabs(rs.width - (620 + 368)) < 0.5, "view: a two-up row, the turned page landscape (%g)", rs.width);
+    v.displaysAsBook = YES;
+    [v goToPage:p1];
+    [v layoutIfNeeded];
+    CHECK(v.documentView.subviews.count == 1, "view: as a book the first page is alone");
+    v.displayMode = kPDFDisplaySinglePage;
+    v.displaysAsBook = NO;
+    [v goToLastPage:nil];
+    [v layoutIfNeeded];
+    CHECK(v.documentView.subviews.count == 1 && v.currentPage == [doc pageAtIndex:1] && !v.canGoToLastPage, "view: single page");
+    v.displayBox = kPDFDisplayBoxMediaBox;
+    CHECK([names containsObject:PDFViewDisplayBoxChangedNotification], "view: display box");
+    v.displayMode = kPDFDisplaySinglePageContinuous;
+    v.displayDirection = kPDFDisplayDirectionHorizontal;
+    v.autoScales = YES;
+    [v layoutIfNeeded];
+    CHECK(fabs(v.scaleFactor - 600.0 / 801.5) < 0.01, "view: horizontal fits the height (%g)", v.scaleFactor);
+    [v usePageViewController:YES withViewOptions:nil];
+    CHECK(v.isUsingPageViewController, "view: page view controller paging");
+    [[NSNotificationCenter defaultCenter] removeObserver:obs];
+
+    /* links: a PDF with a URL link and a link to page 2 */
+    NSMutableData *data = [NSMutableData data];
+    UIGraphicsBeginPDFContextToData(data, CGRectMake(0, 0, 200, 200), nil);
+    UIGraphicsBeginPDFPage();
+    UIGraphicsSetPDFContextURLForRect([NSURL URLWithString:@"https://example.com/l"], CGRectMake(10, 10, 50, 20));
+    UIGraphicsSetPDFContextDestinationForRect(@"two", CGRectMake(10, 100, 50, 20));
+    UIGraphicsBeginPDFPage();
+    UIGraphicsAddPDFContextDestinationAtPoint(@"two", CGPointMake(0, 50));
+    UIGraphicsEndPDFContext();
+    PDFDocument *linked = [[PDFDocument alloc] initWithData:data];
+    PDFView *lv = [[PDFView alloc] initWithFrame:CGRectMake(0, 0, 208, 500)];
+    lv.document = linked;
+    [lv layoutIfNeeded];
+    PDFPage *l1 = [linked pageAtIndex:0];
+    CGPoint urlAt = [lv convertPoint:CGPointMake(30, 175) fromPage:l1], destAt = [lv convertPoint:CGPointMake(30, 85) fromPage:l1];
+    CHECK(([lv areaOfInterestForPoint:urlAt] & kPDFLinkArea) && ([lv areaOfInterestForPoint:destAt] & kPDFLinkArea) &&
+          !([lv areaOfInterestForPoint:[lv convertPoint:CGPointMake(150, 100) fromPage:l1]] & kPDFLinkArea),
+          "view: UIKit's PDF links are link areas");
+}
+
 int main(void) {
     @autoreleasepool {
         reading();
         text();
         encrypted();
         writing();
+        view();
         printf("pdfkit: %d/%d passed\n", checks - failures, checks);
     }
     return failures ? 1 : 0;

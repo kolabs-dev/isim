@@ -8,7 +8,7 @@
 @end
 
 /* the PDF context stack (UIGraphicsBeginPDFContext* / renderers) */
-struct pdfctx { void *target; CGRect bounds; NSMutableData *data; BOOL page; };
+struct pdfctx { void *target; CGRect bounds; NSMutableData *data; BOOL page; CGPoint pageOrigin; };
 static struct pdfctx pdf_stack[8]; static int pdf_depth;
 static struct pdfctx *cur_pdf(void) { return pdf_depth ? &pdf_stack[pdf_depth - 1] : NULL; }
 
@@ -17,7 +17,7 @@ static BOOL pdf_begin(const char *path, NSMutableData *data, CGRect b) {
     if (b.size.width <= 0 || b.size.height <= 0) b = CGRectMake(0, 0, 612, 792);   /* US Letter, as on iOS */
     void *t = isim_cg_pdf_create(path, b.size.width, b.size.height);
     if (!t) return NO;
-    pdf_stack[pdf_depth++] = (struct pdfctx){ t, b, data, NO };
+    pdf_stack[pdf_depth++] = (struct pdfctx){ t, b, data, NO, CGPointZero };
     isim_cg_target_bind(t);
     CGContextSaveGState(UIGraphicsGetCurrentContext());
     return YES;
@@ -30,6 +30,7 @@ static void pdf_page(CGRect b) {
     CGContextSaveGState(UIGraphicsGetCurrentContext());
     CGContextTranslateCTM(UIGraphicsGetCurrentContext(), -b.origin.x, -b.origin.y);
     p->page = YES;
+    p->pageOrigin = b.origin;
 }
 static void pdf_end(void) {
     struct pdfctx *p = cur_pdf(); if (!p) return;
@@ -50,7 +51,31 @@ void UIGraphicsEndPDFContext(void) { pdf_end(); }
 void UIGraphicsBeginPDFPage(void) { pdf_page(CGRectZero); }
 void UIGraphicsBeginPDFPageWithInfo(CGRect bounds, NSDictionary *info) { pdf_page(bounds); }
 CGRect UIGraphicsGetPDFContextBounds(void) { struct pdfctx *p = cur_pdf(); return p ? p->bounds : CGRectZero; }
-void UIGraphicsSetPDFContextURLForRect(NSURL *url, CGRect rect) {}
+/* links and destinations on the current page (cairo PDF tags): UIKit's rects are already the page's y-down units */
+static NSString *pdf_quoted(NSString *s) {
+    return [[s stringByReplacingOccurrencesOfString:@"\\" withString:@"\\\\"] stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
+}
+static void pdf_tag(int kind, NSString *attrs) {
+    struct pdfctx *p = cur_pdf();
+    if (p && p->page && attrs) isim_cg_pdf_tag(p->target, kind, attrs.UTF8String);
+}
+static NSString *pdf_rect(CGRect r) {
+    struct pdfctx *p = cur_pdf();
+    r = CGRectStandardize(r);
+    CGPoint o = p ? p->pageOrigin : CGPointZero;
+    return [NSString stringWithFormat:@"rect=[%g %g %g %g]", r.origin.x - o.x, r.origin.y - o.y, r.size.width, r.size.height];
+}
+void UIGraphicsSetPDFContextURLForRect(NSURL *url, CGRect rect) {
+    if (url) pdf_tag(0, [NSString stringWithFormat:@"uri='%@' %@", pdf_quoted(url.absoluteString), pdf_rect(rect)]);
+}
+void UIGraphicsAddPDFContextDestinationAtPoint(NSString *name, CGPoint point) {
+    struct pdfctx *p = cur_pdf();
+    CGPoint o = p ? p->pageOrigin : CGPointZero;
+    if (name) pdf_tag(1, [NSString stringWithFormat:@"name='%@' x=%g y=%g", pdf_quoted(name), point.x - o.x, point.y - o.y]);
+}
+void UIGraphicsSetPDFContextDestinationForRect(NSString *name, CGRect rect) {
+    if (name) pdf_tag(0, [NSString stringWithFormat:@"dest='%@' %@", pdf_quoted(name), pdf_rect(rect)]);
+}
 
 @implementation UIGraphicsPDFRendererFormat
 - (instancetype)init { if ((self = [super init])) _documentInfo = @{}; return self; }
@@ -60,9 +85,9 @@ void UIGraphicsSetPDFContextURLForRect(NSURL *url, CGRect rect) {}
 - (CGRect)pdfContextBounds { return UIGraphicsGetPDFContextBounds(); }
 - (void)beginPage { pdf_page(CGRectZero); }
 - (void)beginPageWithBounds:(CGRect)b pageInfo:(NSDictionary *)info { pdf_page(b); }
-- (void)setURL:(NSURL *)url forRect:(CGRect)rect {}
-- (void)addDestinationWithName:(NSString *)name atPoint:(CGPoint)point {}
-- (void)setDestinationWithName:(NSString *)name forRect:(CGRect)rect {}
+- (void)setURL:(NSURL *)url forRect:(CGRect)rect { UIGraphicsSetPDFContextURLForRect(url, rect); }
+- (void)addDestinationWithName:(NSString *)name atPoint:(CGPoint)point { UIGraphicsAddPDFContextDestinationAtPoint(name, point); }
+- (void)setDestinationWithName:(NSString *)name forRect:(CGRect)rect { UIGraphicsSetPDFContextDestinationForRect(name, rect); }
 @end
 @implementation UIGraphicsPDFRenderer
 + (Class)rendererContextClass { return [UIGraphicsPDFRendererContext class]; }

@@ -131,6 +131,3 @@ static UIColor *with_exposure(UIColor *c, CGFloat linear) { objc_setAssociatedOb
 - (id)copyWithZone:(NSZone *)z { return self; }
 @end
 
-/* ================= PDF destinations (stub) ================= */
-void UIGraphicsAddPDFContextDestinationAtPoint(NSString *name, CGPoint point) {}
-void UIGraphicsSetPDFContextDestinationForRect(NSString *name, CGRect rect) {}
