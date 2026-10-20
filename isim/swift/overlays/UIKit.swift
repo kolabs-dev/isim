@@ -1401,3 +1401,11 @@ extension UIApplication {
     /// Activates a scene session without an error handler (Apple's default `errorHandler: nil`).
     public func activateSceneSession(for request: UISceneSessionActivationRequest) { activateSceneSession(for: request, errorHandler: nil) }
 }
+// MARK: - CAFrameRateRange (QuartzCore's Swift API)
+@available(iOS 15.0, *)
+extension CAFrameRateRange {
+    /// A range with no preferred rate (`preferred` nil) leaves the choice inside it to the system.
+    public init(minimum: Float, maximum: Float, preferred: Float? = nil) {
+        self = __CAFrameRateRangeMake(minimum, maximum, preferred ?? 0)
+    }
+}

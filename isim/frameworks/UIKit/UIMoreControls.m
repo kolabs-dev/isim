@@ -478,8 +478,21 @@ const NSInteger UISegmentedControlNoSegment = -1;
 
 /* ================= CADisplayLink ================= */
 static NSMutableArray<CADisplayLink *> *display_links;
-@implementation CADisplayLink { __weak id _target; SEL _sel; BOOL _added; }
+/* the rate a link fires at: its preferred frame rate range (the preferred rate, else the maximum), else
+   preferredFramesPerSecond, else the screen's; never above the screen's maximum (60 Hz) */
+static double link_rate(CADisplayLink *l) {
+    double screen = UIScreen.mainScreen.maximumFramesPerSecond, r = 0;
+    CAFrameRateRange range = l.preferredFrameRateRange;
+    if (range.preferred > 0) r = range.preferred;
+    else if (range.maximum > 0) r = range.maximum;
+    else if (l.preferredFramesPerSecond > 0) r = l.preferredFramesPerSecond;
+    if (r <= 0 || r > screen) r = screen;
+    if (range.minimum > 0 && r < range.minimum) r = fmin(range.minimum, screen);
+    return r;
+}
+@implementation CADisplayLink { __weak id _target; SEL _sel; BOOL _added; double _last; }
 + (CADisplayLink *)displayLinkWithTarget:(id)target selector:(SEL)sel { CADisplayLink *l = [self new]; l->_target = target; l->_sel = sel; return l; }
+- (instancetype)init { if ((self = [super init])) _preferredFrameRateRange = CAFrameRateRangeDefault; return self; }
 - (void)addToRunLoop:(NSRunLoop *)rl forMode:(NSString *)mode {
     if (_added) return;
     _added = YES;
@@ -489,15 +502,24 @@ static NSMutableArray<CADisplayLink *> *display_links;
 }
 - (void)removeFromRunLoop:(NSRunLoop *)rl forMode:(NSString *)mode { [self invalidate]; }
 - (void)invalidate { _added = NO; [display_links removeObjectIdenticalTo:self]; }
-- (double)duration { return 1.0 / 60; }
-- (double)targetTimestamp { return _timestamp + 1.0 / 60; }
+- (double)duration { return 1.0 / UIScreen.mainScreen.maximumFramesPerSecond; }       /* the display's refresh interval */
+- (double)targetTimestamp { return _timestamp + 1.0 / link_rate(self); }               /* the next frame this link fires on */
 - (void)_isim_fire:(double)now {
     id t = _target;
     if (!t) { [self invalidate]; return; }
+    /* below the screen's rate a link skips frames; a quarter frame of slack keeps 30 Hz on every other 60 Hz frame */
+    double interval = 1.0 / link_rate(self), frame = 1.0 / UIScreen.mainScreen.maximumFramesPerSecond;
+    if (_last > 0 && now - _last < interval - frame / 4) return;
+    _last = _last > 0 && now - _last < interval + frame ? _last + interval : now;
     _timestamp = now;
     ((void (*)(id, SEL, id))[t methodForSelector:_sel])(t, _sel, self);
 }
 @end
+const CAFrameRateRange CAFrameRateRangeDefault = { 0, 0, 0 };
+CAFrameRateRange CAFrameRateRangeMake(float minimum, float maximum, float preferred) { return (CAFrameRateRange){ minimum, maximum, preferred }; }
+bool CAFrameRateRangeIsEqualToRange(CAFrameRateRange a, CAFrameRateRange b) {
+    return a.minimum == b.minimum && a.maximum == b.maximum && a.preferred == b.preferred;
+}
 /* called by the run loop once per frame; YES while any display link is active */
 BOOL isim_ui_display_links_fire(void) {
     if (!display_links.count) return NO;

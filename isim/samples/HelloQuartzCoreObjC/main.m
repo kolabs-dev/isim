@@ -2,7 +2,8 @@
 // <QuartzCore/QuartzCore.h> and <CoreVideo/CoreVideo.h> and links -framework QuartzCore -framework CoreVideo
 // (UIKit only for the app itself). Logs "qc PASS ..." / "qc FAIL ..." per check, "qc summary N/M", then
 // "qc reported" once a CADisplayLink has drawn the ring to the end. On screen: a gradient, a ring whose stroke the
-// display link advances, and a pixel buffer filled from C shown as a layer's contents.
+// display link advances, and a pixel buffer filled from C shown as a layer's contents; below it a CATiledLayer drawn
+// tile by tile (issue #275) and a view turned a quarter about its top-left anchor point.
 #import <CoreVideo/CoreVideo.h>
 #import <QuartzCore/QuartzCore.h>
 #import <UIKit/UIKit.h>
@@ -149,10 +150,56 @@ static CGImageRef pixel_buffer_image(void) {
     return img;
 }
 
+/* frame rate ranges and anchor points (issue #275) */
+static void test_frame_rates_and_anchors(void) {
+    CAFrameRateRange r = CAFrameRateRangeMake(30, 60, 60);
+    CHECK(r.minimum == 30 && r.maximum == 60 && r.preferred == 60);
+    CHECK(CAFrameRateRangeIsEqualToRange(r, CAFrameRateRangeMake(30, 60, 60)) && !CAFrameRateRangeIsEqualToRange(r, CAFrameRateRangeDefault));
+    CHECK(CAFrameRateRangeDefault.minimum == 0 && CAFrameRateRangeDefault.maximum == 0 && CAFrameRateRangeDefault.preferred == 0);
+    CADisplayLink *link = [CADisplayLink displayLinkWithTarget:NSNull.null selector:@selector(description)];
+    CHECK(CAFrameRateRangeIsEqualToRange(link.preferredFrameRateRange, CAFrameRateRangeDefault));
+
+    UIView *box = [[UIView alloc] initWithFrame:CGRectMake(10, 20, 100, 50)];
+    CHECK(CGPointEqualToPoint(box.anchorPoint, CGPointMake(0.5, 0.5)) && CGPointEqualToPoint(box.center, CGPointMake(60, 45)));
+    box.anchorPoint = CGPointZero;                       // the center (the layer's position) stays: the frame moves
+    CHECK(CGPointEqualToPoint(box.center, CGPointMake(60, 45)) && CGRectEqualToRect(box.frame, CGRectMake(60, 45, 100, 50)));
+    CHECK(CGPointEqualToPoint(box.layer.anchorPoint, CGPointZero) && CGPointEqualToPoint(box.layer.position, CGPointMake(60, 45)));
+    box.transform = CGAffineTransformMakeScale(2, 2);    // about the anchor point
+    CHECK(CGRectEqualToRect(box.frame, CGRectMake(60, 45, 200, 100)));
+    UIView *parent = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 400, 400)];
+    [parent addSubview:box];
+    CGPoint p = [box convertPoint:CGPointMake(10, 10) toView:parent];
+    CHECK(CGPointEqualToPoint(p, CGPointMake(80, 65)) && CGPointEqualToPoint([parent convertPoint:p toView:box], CGPointMake(10, 10)));
+    box.transform = CGAffineTransformIdentity;
+    box.layer.anchorPoint = CGPointMake(1, 1);           // through the layer, as on iOS
+    CHECK(CGPointEqualToPoint(box.anchorPoint, CGPointMake(1, 1)) && CGRectEqualToRect(box.frame, CGRectMake(-40, -5, 100, 50)));
+    box.center = CGPointMake(100, 100);
+    CHECK(CGRectEqualToRect(box.frame, CGRectMake(0, 50, 100, 50)));
+}
+
+/* the tiled layer's delegate draws one colour per tile, into the rectangle it is clipped to */
+@interface TileDrawer : NSObject <CALayerDelegate>
+@property (nonatomic) int tiles;
+@end
+@implementation TileDrawer
+- (void)drawLayer:(CALayer *)layer inContext:(CGContextRef)ctx {
+    CGRect tile = CGContextGetClipBoundingBox(ctx);
+    int i = (int)(tile.origin.x / 64) + 2 * (int)(tile.origin.y / 64);
+    static const CGFloat colors[4][3] = { { 0.2, 0.8, 0.3 }, { 0.2, 0.5, 1 }, { 1, 0.3, 0.3 }, { 1, 0.85, 0.2 } };
+    CGContextSetRGBFillColor(ctx, colors[i % 4][0], colors[i % 4][1], colors[i % 4][2], 1);
+    CGContextFillRect(ctx, CGContextGetClipBoundingBox(ctx));
+    self.tiles++;
+}
+@end
+
 @interface RingController : UIViewController
 @property (nonatomic, strong) CAShapeLayer *ring;
 @property (nonatomic, strong) CADisplayLink *link;
 @property (nonatomic) int ticks;
+@property (nonatomic, strong) CADisplayLink *slowLink;
+@property (nonatomic) int slowTicks;
+@property (nonatomic, strong) TileDrawer *drawer;
+@property (nonatomic, strong) CATiledLayer *tiled;
 @end
 @implementation RingController
 - (void)viewDidLoad {
@@ -196,9 +243,40 @@ static CGImageRef pixel_buffer_image(void) {
     [root addSublayer:pixels];
     CHECK(pixels.contents != nil);
 
+    /* a 128 pt CATiledLayer with 64 px tiles at contentsScale 1: four tiles, each drawn with the context clipped to it */
+    CATiledLayer *tiled = [CATiledLayer layer];
+    CHECK(tiled.tileSize.width == 256 && tiled.levelsOfDetail == 1 && tiled.levelsOfDetailBias == 0 && CATiledLayer.fadeDuration > 0);
+    tiled.tileSize = CGSizeMake(64, 64);
+    tiled.contentsScale = 1;
+    tiled.frame = CGRectMake(w / 2 - 128, 580, 128, 128);
+    self.drawer = [TileDrawer new];
+    tiled.delegate = self.drawer;
+    [tiled setNeedsDisplay];
+    [root addSublayer:tiled];
+    self.tiled = tiled;
+
+    /* a square turned a quarter clockwise about its top-left corner: it lands to the left of its center */
+    UIView *turned = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 60, 30)];
+    turned.backgroundColor = [UIColor colorWithRed:1 green:0 blue:0.6 alpha:1];
+    turned.anchorPoint = CGPointZero;
+    turned.center = CGPointMake(w / 2 + 100, 590);
+    turned.transform = CGAffineTransformMakeRotation(M_PI / 2);
+    [self.view addSubview:turned];
+    CHECK(CGRectEqualToRect(CGRectIntegral(turned.frame), CGRectMake(w / 2 + 70, 590, 30, 60)));
+
+    /* a 30 Hz display link next to the ring's (the screen's 60 Hz) */
+    self.slowLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(slowTick:)];
+    self.slowLink.preferredFrameRateRange = CAFrameRateRangeMake(30, 30, 30);
+    CHECK(self.slowLink.preferredFrameRateRange.preferred == 30);
+    [self.slowLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+
     self.link = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
     CHECK(self.link != nil && !self.link.paused);
     [self.link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+}
+- (void)slowTick:(CADisplayLink *)link {
+    self.slowTicks++;
+    if (self.slowTicks == 2) printf("qc slow link interval %.3f\n", link.targetTimestamp - link.timestamp);
 }
 - (void)tick:(CADisplayLink *)link {
     self.ticks++;
@@ -210,6 +288,10 @@ static CGImageRef pixel_buffer_image(void) {
     CHECK(self.ticks == 30);
     CHECK(link.timestamp > 0 && link.duration > 0 && link.targetTimestamp > link.timestamp);
     [link invalidate];
+    [self.slowLink invalidate];
+    printf("qc display links fast %d slow %d\n", self.ticks, self.slowTicks);
+    CHECK(self.slowTicks >= 10 && self.slowTicks <= 20);           // about half the 60 Hz link's 30
+    CHECK(self.drawer.tiles >= 4);
     CHECK(self.ring.strokeEnd == 1.0);
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         CHECK(self.ticks == 30);                                   // invalidated: no more callbacks
@@ -228,6 +310,7 @@ static CGImageRef pixel_buffer_image(void) {
     test_layers();
     test_pixel_buffers();
     test_pool();
+    test_frame_rates_and_anchors();
     self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
     self.window.rootViewController = [RingController new];
     [self.window makeKeyAndVisible];

@@ -181,6 +181,7 @@ final class CoreAnimationViewController: UIViewController, UIDynamicAnimatorDele
         }
     }
 
+    @objc func noTick(_ link: CADisplayLink) {}
     @objc func report() {
         let s = stroke.presentation()?.strokeEnd ?? -1
         print("stroke presentation strokeEnd=\(f2(s)) model=\(f2(stroke.strokeEnd))")
@@ -194,6 +195,18 @@ final class CoreAnimationViewController: UIViewController, UIDynamicAnimatorDele
         let m = CATransform3DMakeRotation(.pi / 2, 0, 0, 1)
         let inv = CATransform3DInvert(m)
         print("transform3D concat identity \(CATransform3DIsIdentity(CATransform3DConcat(m, inv))) affine \(CATransform3DIsAffine(m))")
+        // issue #275: frame rate ranges, tiled layers and view anchor points from Swift
+        let range = CAFrameRateRange(minimum: 30, maximum: 120, preferred: 60)
+        let link = CADisplayLink(target: self, selector: #selector(noTick(_:)))
+        link.preferredFrameRateRange = range
+        let tiled = CATiledLayer()
+        tiled.tileSize = CGSize(width: 128, height: 128)
+        let anchored = UIView(frame: CGRect(x: 0, y: 0, width: 40, height: 20))
+        anchored.anchorPoint = CGPoint(x: 1, y: 0)
+        print("frameRate range \(range.isEqual(to: CAFrameRateRange(minimum: 30, maximum: 120, preferred: 60))) " +
+              "default \(CAFrameRateRange.default.isEqual(to: CAFrameRateRange(minimum: 0, maximum: 0))) link \(link.preferredFrameRateRange.preferred) " +
+              "tiled \(Int(tiled.tileSize.width)) lods \(tiled.levelsOfDetail) fade \(CATiledLayer.fadeDuration() > 0) " +
+              "anchor frame \(anchored.frame.minX),\(anchored.frame.minY) center \(anchored.center.x),\(anchored.center.y)")
     }
 
     @objc func transaction() {

@@ -17,6 +17,8 @@
 #import <QuartzCore/CAReplicatorLayer.h>
 #import <QuartzCore/CATransformLayer.h>
 #import <QuartzCore/CAScrollLayer.h>
+#import <QuartzCore/CATiledLayer.h>
+#import <QuartzCore/CAFrameRateRange.h>
 #import <QuartzCore/CAEmitterLayer.h>
 #import <QuartzCore/CAEmitterCell.h>
 #import <QuartzCore/CAValueFunction.h>

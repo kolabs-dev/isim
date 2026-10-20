@@ -70,6 +70,7 @@ CGRect isim_ui_space_convert_rect(id<UICoordinateSpace> space, CGRect rect, id<U
 @property (nonatomic) CGRect frame;
 @property (nonatomic) CGRect bounds;
 @property (nonatomic) CGPoint center;
+@property (nonatomic) CGPoint anchorPoint API_AVAILABLE(ios(16.0));
 @property (nonatomic) CGAffineTransform transform;
 @property (nonatomic, readonly, nullable) UIView *superview;
 @property (nonatomic, readonly, copy) NSArray<__kindof UIView *> *subviews;

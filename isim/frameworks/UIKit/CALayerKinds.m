@@ -3,6 +3,7 @@
  * (instance transform/delay/colour offsets), CAEmitterLayer (particle simulation with sub-cells), CATransformLayer (CoreAnimation.m),
  * CAScrollLayer. Each class draws from its presentation copy and adds its animatable key paths. */
 #import "CAPrivate.h"
+#import <objc/runtime.h>
 #pragma clang diagnostic ignored "-Watomic-property-with-user-defined-accessor"
 #include <math.h>
 #include <stdlib.h>
@@ -381,6 +382,58 @@ static id truncated_string(id str, NSString *mode, UIFont *font, UIColor *color,
         acc = ca_mul(acc, step);
     }
     ca_time_shift = shift0;
+}
+@end
+
+/* ================= CATiledLayer ================= */
+/* adapted: Core Animation draws tiles on background threads and fades them in; isim draws the tiles that intersect
+   the visible area on the main thread as the layer is rendered, each with the context clipped to it */
+@implementation CATiledLayer
++ (CFTimeInterval)fadeDuration { return 0.25; }
+- (instancetype)init {
+    if ((self = [super init])) { _levelsOfDetail = 1; _tileSize = CGSizeMake(256, 256); self.needsDisplayOnBoundsChange = YES; }
+    return self;
+}
+- (instancetype)initWithLayer:(id)layer {
+    if ((self = [super initWithLayer:layer]) && [layer isKindOfClass:[CATiledLayer class]]) {
+        CATiledLayer *o = layer;
+        _levelsOfDetail = o.levelsOfDetail; _levelsOfDetailBias = o.levelsOfDetailBias; _tileSize = o.tileSize;
+    }
+    return self;
+}
+/* the level-of-detail scale for drawing at `zoom` (device pixels per point over contentsScale): a power of two, from
+   2^-(levelsOfDetail - 1 - bias) (the most zoomed out) to 2^bias (the most magnified) */
+static double tiled_level(CATiledLayer *l, double zoom) {
+    long lods = (long)fmax(1, l.levelsOfDetail), bias = (long)fmin(l.levelsOfDetailBias, lods - 1);
+    long k = lround(log2(fmax(zoom, 1e-6)));
+    k = k < -(lods - 1 - bias) ? -(lods - 1 - bias) : k > bias ? bias : k;
+    return ldexp(1, (int)k);
+}
+- (void)_isim_drawContentWithModel:(CALayer *)model {
+    id d = model.delegate;
+    BOOL delegateDraws = d && ![model _isim_isViewLayer] && [d respondsToSelector:@selector(drawLayer:inContext:)];
+    static IMP base;
+    if (!base) base = class_getMethodImplementation([CALayer class], @selector(drawInContext:));
+    if (class_getMethodImplementation(object_getClass(model), @selector(drawInContext:)) == base && !delegateDraws) return;
+    CGContextRef c = isim_cg_current_context();
+    CGAffineTransform m = CGContextGetUserSpaceToDeviceSpaceTransform(c);
+    double scale = model.contentsScale > 0 ? model.contentsScale : 1, zoom = sqrt(fabs(m.a * m.d - m.b * m.c)) / scale;
+    double level = tiled_level(self, zoom);
+    CGSize ts = self.tileSize;
+    double tw = fmax(1, ts.width) / (scale * level), th = fmax(1, ts.height) / (scale * level);   /* a tile in points */
+    CGRect b = model.bounds, visible = CGRectIntersection(b, CGContextGetClipBoundingBox(c));
+    if (CGRectIsNull(visible) || CGRectIsEmpty(visible)) return;
+    long x0 = (long)floor((visible.origin.x - b.origin.x) / tw), x1 = (long)ceil((CGRectGetMaxX(visible) - b.origin.x) / tw);
+    long y0 = (long)floor((visible.origin.y - b.origin.y) / th), y1 = (long)ceil((CGRectGetMaxY(visible) - b.origin.y) / th);
+    for (long ty = y0; ty < y1; ty++)
+        for (long tx = x0; tx < x1; tx++) {
+            CGRect tile = CGRectIntersection(CGRectMake(b.origin.x + tx * tw, b.origin.y + ty * th, tw, th), b);
+            if (CGRectIsEmpty(tile)) continue;
+            isim_gfx_save(); CGContextSaveGState(c);
+            CGContextClipToRect(c, tile);
+            [model drawInContext:c];
+            CGContextRestoreGState(c); isim_gfx_restore();
+        }
 }
 @end
 
