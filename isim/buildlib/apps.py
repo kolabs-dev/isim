@@ -185,10 +185,11 @@ def _(a):
                  "-preset", "veryfast", f"{b}/clip.mp4")
 
 
-@app("samples/HelloVision")
+@app("samples/HelloVision", extra_inputs=["samples/HelloCoreImage/face.jpg"])
 def _(a):
     b = a.swift_app()
     a.run("python3", "gen_models.py", b)
+    a.copy("../HelloCoreImage/face.jpg", b)                  # NASA's astronaut portrait (public domain): Vision's faces
     if shutil.which("magick"):
         a.run("magick", "-size", "640x200", "xc:white", "-fill", "black", "-pointsize", "72", "-gravity", "center",
               "-annotate", "+0+0", "HELLO ISIM", f"{b}/text.png")

@@ -4,9 +4,11 @@
 //     Adapted: zbar has no Aztec / Data Matrix / Micro QR readers; without zbar the request fails with a clear error.
 //   - VNRecognizeTextRequest: the host's `tesseract` command (only when installed); line observations with their words'
 //     confidence. Adapted: tesseract's language data, not Apple's models; .fast and .accurate run the same engine.
-//   - VNDetectFaceRectanglesRequest, VNDetectFaceLandmarksRequest, VNCoreMLRequest, VNClassifyImageRequest,
-//     VNGenerateImageFeaturePrintRequest, VNDetectHumanRectanglesRequest: no host backend; they fail with
-//     VNError.unsupportedRequest and a message saying so (stub).
+//   - faces, landmarks, rectangles, text rectangles, contours, the horizon and saliency: isim's own CPU detectors
+//     (VisionDetectors.swift).
+//   - VNCoreMLRequest, VNClassifyImageRequest, VNGenerateImageFeaturePrintRequest, VNDetectHumanRectanglesRequest,
+//     VNDetectFaceCaptureQualityRequest: no backend; they fail with VNError.unsupportedRequest and a message saying
+//     so (stub).
 // Coordinates follow Vision: normalized to the image, origin at the lower left.
 import UIKit
 import CoreImage
@@ -273,16 +275,13 @@ open class VNRecognizeTextRequest: VNImageBasedRequest, @unchecked Sendable {
     }
 }
 
-/// Requests with no host backend on isim: they fail with VNError.unsupportedRequest.
-open class VNDetectFaceRectanglesRequest: VNImageBasedRequest, @unchecked Sendable {
+/// Requests with no backend on isim: they fail with VNError.unsupportedRequest.
+open class VNDetectFaceCaptureQualityRequest: VNImageBasedRequest, @unchecked Sendable {
+    open var inputFaceObservations: [VNFaceObservation]?
     override func _run(_ img: _VNImage) throws -> [VNObservation] {
-        throw _vnError(.unsupportedRequest, "face detection is not available on isim (no host face detector); \(type(of: self)) cannot run")
+        throw _vnError(.unsupportedRequest, "face capture quality is not available on isim (it needs Apple's models)")
     }
 }
-open class VNDetectFaceLandmarksRequest: VNDetectFaceRectanglesRequest, @unchecked Sendable {
-    open var inputFaceObservations: [VNFaceObservation]?
-}
-open class VNDetectFaceCaptureQualityRequest: VNDetectFaceRectanglesRequest, @unchecked Sendable {}
 open class VNDetectHumanRectanglesRequest: VNImageBasedRequest, @unchecked Sendable {
     open var upperBodyOnly = true
     override func _run(_ img: _VNImage) throws -> [VNObservation] { throw _vnError(.unsupportedRequest, "human detection is not available on isim (no host detector)") }
@@ -292,14 +291,6 @@ open class VNClassifyImageRequest: VNImageBasedRequest, @unchecked Sendable {
 }
 open class VNGenerateImageFeaturePrintRequest: VNImageBasedRequest, @unchecked Sendable {
     override func _run(_ img: _VNImage) throws -> [VNObservation] { throw _vnError(.unsupportedRequest, "image feature prints are not available on isim (they need Apple's models)") }
-}
-open class VNDetectRectanglesRequest: VNImageBasedRequest, @unchecked Sendable {
-    open var minimumAspectRatio: Float = 0.5
-    open var maximumAspectRatio: Float = 1
-    open var minimumSize: Float = 0.2
-    open var maximumObservations = 1
-    open var minimumConfidence: Float = 0
-    override func _run(_ img: _VNImage) throws -> [VNObservation] { throw _vnError(.unsupportedRequest, "rectangle detection is not available on isim") }
 }
 open class VNCoreMLModel: NSObject, @unchecked Sendable {
     let _model: MLModel
@@ -360,7 +351,9 @@ open class VNBarcodeObservation: VNRectangleObservation, @unchecked Sendable {
     open var supplementalPayloadString: String? { nil }
 }
 open class VNTextObservation: VNRectangleObservation, @unchecked Sendable {
-    open var characterBoxes: [VNRectangleObservation]? { nil }
+    var _characterBoxes: [VNRectangleObservation]?
+    /// VNDetectTextRectanglesRequest with reportCharacterBoxes: one box per character
+    open var characterBoxes: [VNRectangleObservation]? { _characterBoxes }
 }
 open class VNRecognizedText: NSObject, @unchecked Sendable {
     public let string: String
@@ -381,10 +374,22 @@ open class VNRecognizedTextObservation: VNTextObservation, @unchecked Sendable {
     open func topCandidates(_ maxCandidateCount: Int) -> [VNRecognizedText] { maxCandidateCount > 0 ? [_text] : [] }
 }
 open class VNFaceObservation: VNDetectedObjectObservation, @unchecked Sendable {
-    open var roll: NSNumber? { nil }
-    open var yaw: NSNumber? { nil }
-    open var pitch: NSNumber? { nil }
+    var _roll: NSNumber?, _yaw: NSNumber?, _pitch: NSNumber?, _landmarks: VNFaceLandmarks2D?
+    /// radians, from the eye line (isim measures no yaw or pitch: nil unless given)
+    open var roll: NSNumber? { _roll }
+    open var yaw: NSNumber? { _yaw }
+    open var pitch: NSNumber? { _pitch }
     open var faceCaptureQuality: NSNumber? { nil }
+    /// VNDetectFaceLandmarksRequest's results
+    open var landmarks: VNFaceLandmarks2D? { _landmarks }
+    public required init(requestRevision: Int, boundingBox: CGRect, roll: NSNumber?, yaw: NSNumber?, pitch: NSNumber?) {
+        _roll = roll; _yaw = yaw; _pitch = pitch
+        super.init(boundingBox: boundingBox)
+    }
+    public convenience init(requestRevision: Int, boundingBox: CGRect, roll: NSNumber?, yaw: NSNumber?) {
+        self.init(requestRevision: requestRevision, boundingBox: boundingBox, roll: roll, yaw: yaw, pitch: nil)
+    }
+    public override init(boundingBox: CGRect) { super.init(boundingBox: boundingBox) }
 }
 open class VNClassificationObservation: VNObservation, @unchecked Sendable {
     public let identifier: String

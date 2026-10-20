@@ -1,7 +1,9 @@
 """Vision, Core ML, NaturalLanguage, Speech and VisionKit (HelloVision). Port of tests/ui/vision.sh.
 - Vision barcodes run on the host's libzbar (two generated QR codes; boxes drawn from the observations are checked in
   the screenshot); region of interest and orientation; text recognition needs the host's tesseract (otherwise the
-  request must fail with a clear message); face detection must fail with VNErrorCode.unsupportedRequest (19).
+  request must fail with a clear message); faces and landmarks run Core Image's Haar cascades (the host's
+  opencv-data; without it the requests fail with VNErrorCode.unsupportedRequest, 19); rectangles, text rectangles,
+  contours, the horizon and saliency run isim's own detectors on pictures the app draws (issue #276).
 - Core ML: model specs written by gen_models.py: GLM regressor and classifier predictions, a neural network spec that
   loads but cannot run, an Xcode-compiled bundle that cannot load.
 - NaturalLanguage tokenization, language recognition, lexical classes, sentiment.
@@ -29,9 +31,19 @@ def has_zbar():
         return False
 
 
+HAVE_FACES = any(os.path.exists(f"{d}/haarcascade_frontalface_default.xml") for d in
+                 ("/usr/share/opencv4/haarcascades", "/usr/share/opencv/haarcascades", "/usr/local/share/opencv4/haarcascades",
+                  "/usr/share/OpenCV/haarcascades"))
+
 COMMON = [   # check, log regex
-    ("VNDetectFaceRectanglesRequest: unsupportedRequest (19)", r"face completion error=face detection is not available on isim"),
-    ("faces error", r"faces error com\.apple\.Vision 19"),
+    ("VNDetectRectanglesRequest: the rectangle, then the turned square; corners",
+     r"rectangles 2: 0\.10,0\.53,0\.40,0\.33; 0\.6[12],0\.1[5-7],0\.2[56],0\.3[34] first topLeft 0\.10,0\.87 bottomRight 0\.50,0\.53"),
+    ("VNDetectContoursRequest: 5 contours, 3 top level, a ring's hole holding a dot; polygon approximation",
+     r"contours 5 top 3 ring children 1 dot path 2\.0\.0 box corners 4 aspect 1\.33"),
+    ("VNDetectTextRectanglesRequest: two words, 5 and 4 characters", r"text rectangles 2 chars \[5, 4\]"),
+    ("VNDetectHorizonRequest: 10 degrees, levelled by the transform", r"horizon (9\.[5-9]|10\.[0-5]) levels -(9\.[5-9]|10\.[0-5])"),
+    ("VNGenerateAttentionBasedSaliencyImageRequest: 68x68 float map, the red disk",
+     r"saliency 68x68 float true objects [1-3] first center 0\.(6[5-9]|7[0-5]),0\.(6[5-9]|7[0-5])"),
     ("MLMultiArray shape/strides/subscripts", r"multiarray count=6 strides=\[3, 1\] \[1,2\]=7\.5 \[0\]=1\.0"),
     ("MLModel.compileModel + description + metadata", r'regressor inputs=\["x1", "x2"\] output=y meta=.y = 2 x1 \+ 3 x2 \+ 1.'),
     ("GLM regressor prediction", r"regressor y=9\.00"),
@@ -62,6 +74,16 @@ def test_vision(launch):
     app.wait_log(r"speech authorization 3")
     for what, rx in COMMON:
         app.wait_log(rx)
+    # the detected rectangle's outline (green) drawn over the shapes picture (300x225 pt at 51,330)
+    app.wait_until(lambda: greenish(rgb(app.screenshot(), 141, 360)), what="rectangle outline over the shapes")
+    if HAVE_FACES:      # the astronaut: one face, landmarks inside it, eyes level, the mouth below them
+        app.wait_log(r"face completion error=none")
+        app.wait_log(r"faces 1 box=0\.\d\d,0\.\d\d,0\.[1-4]\d,0\.[1-4]\d roll=-?0\.[0-3]\d")
+        app.wait_log(r"landmarks pupils 0\.[2-4]\d,0\.[5-7]\d 0\.[6-8]\d,0\.[5-7]\d mouth below eyes true contour 11 all \d+ closed true")
+        app.wait_log(r"given faces landmarks 1")
+    else:
+        app.wait_log(r"face completion error=face detection needs OpenCV.s Haar cascades")
+        app.wait_log(r"faces error com\.apple\.Vision 19")
     if os.environ.get("ISIM_WHISPER_MODEL") or os.environ.get("ISIM_VOSK_MODEL"):
         app.wait_log(r"speech transcription .*hello.* final=true", timeout=60)       # speech recognition (host engine)
     else:
