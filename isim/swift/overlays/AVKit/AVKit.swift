@@ -475,12 +475,32 @@ public struct AVPlaybackSpeed: Hashable, Sendable {
                                                    restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void)
 }
 
+/// Playback of sample-buffer content in Picture in Picture: the app plays, pauses and skips its own renderers.
+public protocol AVPictureInPictureSampleBufferPlaybackDelegate: NSObjectProtocol {
+    func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, setPlaying playing: Bool)
+    func pictureInPictureControllerTimeRangeForPlayback(_ pictureInPictureController: AVPictureInPictureController) -> CMTimeRange
+    func pictureInPictureControllerIsPlaybackPaused(_ pictureInPictureController: AVPictureInPictureController) -> Bool
+    func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, didTransitionToRenderSize newRenderSize: CMVideoDimensions)
+    func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, skipByInterval skipInterval: CMTime,
+                                    completion completionHandler: @escaping () -> Void)
+    func pictureInPictureControllerShouldProhibitBackgroundAudioPlayback(_ pictureInPictureController: AVPictureInPictureController) -> Bool
+}
+extension AVPictureInPictureSampleBufferPlaybackDelegate {
+    public func pictureInPictureControllerShouldProhibitBackgroundAudioPlayback(_ pictureInPictureController: AVPictureInPictureController) -> Bool { false }
+}
+
 open class AVPictureInPictureController: NSObject {
-    /// isim: Picture in Picture floats AVPlayerLayer content (sample-buffer content is not supported)
+    /// isim: Picture in Picture floats AVPlayerLayer content (in the system window) or AVSampleBufferDisplayLayer content
+    /// (in a window over the app: the system window plays URLs)
     public static func isPictureInPictureSupported() -> Bool { true }
     public final class ContentSource: NSObject {
         public let playerLayer: AVPlayerLayer?
-        public init(playerLayer: AVPlayerLayer) { self.playerLayer = playerLayer }
+        public let sampleBufferDisplayLayer: AVSampleBufferDisplayLayer?
+        public private(set) weak var sampleBufferPlaybackDelegate: AVPictureInPictureSampleBufferPlaybackDelegate?
+        public init(playerLayer: AVPlayerLayer) { self.playerLayer = playerLayer; sampleBufferDisplayLayer = nil }
+        public init(sampleBufferDisplayLayer: AVSampleBufferDisplayLayer, playbackDelegate: AVPictureInPictureSampleBufferPlaybackDelegate) {
+            playerLayer = nil; self.sampleBufferDisplayLayer = sampleBufferDisplayLayer; sampleBufferPlaybackDelegate = playbackDelegate
+        }
     }
     open class var pictureInPictureButtonStartImage: UIImage { UIImage(systemName: "pip.enter") ?? UIImage() }
     open class var pictureInPictureButtonStopImage: UIImage { UIImage(systemName: "pip.exit") ?? UIImage() }
@@ -491,8 +511,11 @@ open class AVPictureInPictureController: NSObject {
     open var requiresLinearPlayback = false
     @objc open private(set) var isPictureInPictureActive = false
     open var isPictureInPictureSuspended: Bool { false }
-    /// the player has a video ready to float
-    @objc open var isPictureInPicturePossible: Bool { playerLayer.player?._isimMedia != nil }
+    /// the player has a video ready to float (sample-buffer content: the layer shows a frame)
+    @objc open var isPictureInPicturePossible: Bool {
+        if let l = contentSource?.sampleBufferDisplayLayer { return l.sampleBufferRenderer._isimImage != nil && contentSource?.sampleBufferPlaybackDelegate != nil }
+        return playerLayer.player?._isimMedia != nil
+    }
     public init?(playerLayer: AVPlayerLayer) { self.playerLayer = playerLayer; contentSource = ContentSource(playerLayer: playerLayer); super.init() }
     public init(contentSource: ContentSource) {
         self.contentSource = contentSource
@@ -511,6 +534,24 @@ open class AVPictureInPictureController: NSObject {
 
     open func startPictureInPicture() {
         guard !isPictureInPictureActive else { return }
+        if let layer = contentSource?.sampleBufferDisplayLayer {
+            guard isPictureInPicturePossible else {
+                let e = NSError(domain: "AVKitErrorDomain", code: -1001, userInfo: [NSLocalizedDescriptionKey: "Picture in Picture is not possible: the layer shows no video"])
+                _d?.pictureInPictureController?(self, failedToStartPictureInPictureWithError: e)
+                return
+            }
+            _d?.pictureInPictureControllerWillStartPictureInPicture?(self)
+            let w = _PiPWindow(sampleBufferLayer: layer, owner: self)
+            w.show()
+            _window = w
+            if let d = contentSource?.sampleBufferPlaybackDelegate {
+                let px = w.bounds.size, scale = UIScreen.main.scale
+                d.pictureInPictureController(self, didTransitionToRenderSize: CMVideoDimensions(width: Int32(px.width * scale), height: Int32(px.height * scale)))
+            }
+            layer._isimPictureInPicture = true
+            _began()
+            return
+        }
         guard let player = playerLayer.player, let media = player._isimMedia else {
             let e = NSError(domain: "AVKitErrorDomain", code: -1001, userInfo: [NSLocalizedDescriptionKey: "Picture in Picture is not possible: the player has no video"])
             _d?.pictureInPictureController?(self, failedToStartPictureInPictureWithError: e)
@@ -529,17 +570,21 @@ open class AVPictureInPictureController: NSObject {
             w.show()
             _window = w
         }
+        playerLayer._isimPictureInPicture = true
+        _began()
+    }
+    func _began() {
         _eventObserver = NotificationCenter.default.addObserver(forName: Notification.Name("_IsimSystemEvent"), object: nil, queue: .main) { [weak self] n in
             guard let t = n.object as? String, t.hasPrefix("pip ") else { return }
             MainActor.assumeIsolated { self?._event(String(t.dropFirst(4))) }
         }
-        playerLayer._isimPictureInPicture = true
         willChangeValue(forKey: "isPictureInPictureActive"); isPictureInPictureActive = true; didChangeValue(forKey: "isPictureInPictureActive")
         NSLog("isim AVKit: Picture in Picture started")
         DispatchQueue.main.async { self._d?.pictureInPictureControllerDidStartPictureInPicture?(self) }
     }
     open func stopPictureInPicture() { _stop(restore: false) }
-    open func invalidatePlaybackState() { MainActor.assumeIsolated { _sync(force: true) } }
+    /// the app's sample-buffer playback changed (playing, paused, its time range): the controls follow
+    open func invalidatePlaybackState() { MainActor.assumeIsolated { _sync(force: true); _window?.refresh() } }
     /// keeps the system's floating video in step with the app's player (play, pause, seek, rate)
     @MainActor func _sync(force: Bool = false) {
         guard _shell, isPictureInPictureActive, let p = playerLayer.player else { return }
@@ -550,7 +595,18 @@ open class AVPictureInPictureController: NSObject {
         isim_shell_request(40, "pip-update", "", String(format: "%.3f %.3f", _sent.time, r))
     }
     @MainActor func _event(_ e: String) {
-        guard isPictureInPictureActive, let p = playerLayer.player else { return }
+        guard isPictureInPictureActive else { return }
+        if let d = contentSource?.sampleBufferPlaybackDelegate, contentSource?.sampleBufferDisplayLayer != nil {
+            NSLog("isim AVKit: Picture in Picture %@", e)
+            if e == "play" || e == "pause" { d.pictureInPictureController(self, setPlaying: e == "play") }
+            else if e.hasPrefix("skip "), let s = Double(e.dropFirst(5)) {
+                d.pictureInPictureController(self, skipByInterval: CMTime(seconds: s, preferredTimescale: 600)) {}
+            } else if e == "close" { d.pictureInPictureController(self, setPlaying: false); _stop(restore: false) }
+            else if e == "restore" { _stop(restore: true) }
+            _window?.refresh()
+            return
+        }
+        guard let p = playerLayer.player else { return }
         NSLog("isim AVKit: Picture in Picture %@", e)
         if e == "play" { p.play() }
         else if e == "pause" { p.pause() }
@@ -572,6 +628,7 @@ open class AVPictureInPictureController: NSObject {
             _window?.close(); _window = nil
             if let o = _eventObserver { NotificationCenter.default.removeObserver(o); _eventObserver = nil }
             playerLayer._isimPictureInPicture = false
+            contentSource?.sampleBufferDisplayLayer?._isimPictureInPicture = false
             willChangeValue(forKey: "isPictureInPictureActive"); isPictureInPictureActive = false; didChangeValue(forKey: "isPictureInPictureActive")
             NSLog("isim AVKit: Picture in Picture stopped%@", restore ? " (restored)" : "")
             _d?.pictureInPictureControllerDidStopPictureInPicture?(self)
@@ -596,14 +653,23 @@ open class AVPictureInPictureController: NSObject {
 
 /// `isim run` (no system UI): the floating video in a window over the app, with the system's controls.
 final class _PiPWindow: UIWindow {
-    let player: AVPlayer
+    let player: AVPlayer?
+    weak var sampleLayer: AVSampleBufferDisplayLayer?
     weak var owner: AVPictureInPictureController?
-    let video = _AVPlayerView()
+    let video: UIView
     let controls = UIView()
     var buttons: [String: UIButton] = [:]
     var corner = 3
-    init(player: AVPlayer, owner: AVPictureInPictureController) {
-        self.player = player; self.owner = owner
+    convenience init(player: AVPlayer, owner: AVPictureInPictureController) {
+        let v = _AVPlayerView()
+        v.playerLayer.player = player
+        self.init(player: player, sampleLayer: nil, video: v, owner: owner)
+    }
+    convenience init(sampleBufferLayer layer: AVSampleBufferDisplayLayer, owner: AVPictureInPictureController) {
+        self.init(player: nil, sampleLayer: layer, video: _PiPSampleView(layer.sampleBufferRenderer), owner: owner)
+    }
+    init(player: AVPlayer?, sampleLayer: AVSampleBufferDisplayLayer?, video: UIView, owner: AVPictureInPictureController) {
+        self.player = player; self.sampleLayer = sampleLayer; self.video = video; self.owner = owner
         super.init(frame: .zero)
         windowLevel = UIWindow.Level(rawValue: 2000)
         backgroundColor = .clear
@@ -613,7 +679,6 @@ final class _PiPWindow: UIWindow {
         root.view.clipsToBounds = true
         root.view.accessibilityIdentifier = "pip-window"
         rootViewController = root
-        video.playerLayer.player = player
         video.frame = root.view.bounds; video.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         root.view.addSubview(video)
         controls.frame = root.view.bounds; controls.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -634,8 +699,11 @@ final class _PiPWindow: UIWindow {
     required init?(coder: NSCoder) { fatalError() }
     var size: CGSize {
         let screen = UIScreen.main.bounds
-        let w = min(screen.width * 0.62, 260), info = player._isimMedia
-        let h = info.map { w * $0.height / max(1, $0.width) } ?? w * 9 / 16
+        let w = min(screen.width * 0.62, 260)
+        let h: CGFloat
+        if let info = player?._isimMedia { h = w * info.height / max(1, info.width) }
+        else if let img = sampleLayer?.sampleBufferRenderer._isimImage { h = w * CGFloat(img.height) / CGFloat(max(1, img.width)) }
+        else { h = w * 9 / 16 }
         return CGSize(width: w, height: h)
     }
     func place() {
@@ -652,12 +720,18 @@ final class _PiPWindow: UIWindow {
         buttons["pip-skip-forward"]?.frame = CGRect(x: c.x + 38, y: c.y - 20, width: 40, height: 40)
     }
     func show() { place(); isHidden = false; refresh() }
-    func close() { isHidden = true; video.playerLayer.player = nil }
-    func refresh() { buttons["pip-play"]?.setImage(UIImage(systemName: player.rate > 0 ? "pause.fill" : "play.fill"), for: .normal) }
+    func close() { isHidden = true; (video as? _AVPlayerView)?.playerLayer.player = nil }
+    /// the content plays: the player's rate, or what the sample-buffer delegate says
+    var playing: Bool {
+        if let p = player { return p.rate > 0 }
+        guard let o = owner, let d = o.contentSource?.sampleBufferPlaybackDelegate else { return false }
+        return !d.pictureInPictureControllerIsPlaybackPaused(o)
+    }
+    func refresh() { buttons["pip-play"]?.setImage(UIImage(systemName: playing ? "pause.fill" : "play.fill"), for: .normal) }
     @objc func toggleControls() { controls.isHidden.toggle(); refresh() }
     @objc func pressed(_ b: UIButton) {
         let id = b.accessibilityIdentifier ?? ""
-        let e = id == "pip-close" ? "close" : id == "pip-restore" ? "restore" : id == "pip-play" ? (player.rate > 0 ? "pause" : "play")
+        let e = id == "pip-close" ? "close" : id == "pip-restore" ? "restore" : id == "pip-play" ? (playing ? "pause" : "play")
             : id == "pip-skip-back" ? "skip -15" : "skip 15"
         owner?._event(e)
     }
@@ -670,6 +744,24 @@ final class _PiPWindow: UIWindow {
             corner = (c.x > screen.midX ? 1 : 0) | (c.y > screen.midY ? 2 : 0)
             UIView.animate(withDuration: 0.25) { self.place() }
         }
+    }
+}
+
+/// the floating window's video for sample-buffer content: the display layer's current frame
+final class _PiPSampleView: UIView {
+    let renderer: AVSampleBufferVideoRenderer
+    init(_ r: AVSampleBufferVideoRenderer) {
+        renderer = r
+        super.init(frame: .zero)
+        backgroundColor = .black
+        accessibilityIdentifier = "pip-video"
+        r._isimAddFrameObserver { [weak self] in self?.setNeedsDisplay() }
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    override func draw(_ rect: CGRect) {
+        guard let img = renderer._isimImage else { return }
+        let r = AVMakeRect(aspectRatio: CGSize(width: img.width, height: img.height), insideRect: bounds)
+        isim_image_draw(img.handle, r.minX, r.minY, r.width, r.height, nil, 1)
     }
 }
 

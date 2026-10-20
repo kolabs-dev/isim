@@ -558,16 +558,7 @@ public struct AVLayerVideoGravity: RawRepresentable, Hashable, Sendable {
     public var _isimPictureInPicture = false { didSet { setNeedsDisplay() } }
     open override func draw(in ctx: CGContext) {
         if _isimPictureInPicture {
-            let b = bounds
-            ctx.setFillColor(UIColor(white: 0.08, alpha: 1).cgColor); ctx.fill(b)
-            UIGraphicsPushContext(ctx)
-            let s = min(48, b.height * 0.3)
-            UIImage(systemName: "pip")?.withTintColor(UIColor(white: 0.55, alpha: 1)).draw(in: CGRect(x: b.midX - s / 2, y: b.midY - s * 0.9, width: s, height: s))
-            let text = "This video is playing in Picture in Picture." as NSString
-            let style = NSMutableParagraphStyle(); style.alignment = .center
-            let attrs: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 13), .foregroundColor: UIColor(white: 0.55, alpha: 1), .paragraphStyle: style]
-            text.draw(in: CGRect(x: b.minX + 16, y: b.midY + s * 0.25, width: b.width - 32, height: 40), withAttributes: attrs)
-            UIGraphicsPopContext()
+            _AVPictureInPicturePlaceholder.draw(in: ctx, bounds: bounds)
             return
         }
         guard let p = player, p._frame != 0, let size = p.currentItem?.presentationSize, size.width > 0 else { return }
