@@ -180,6 +180,116 @@ final class AppUITests: XCTestCase {
     }
 }
 
+/// Multi-touch gestures, velocities, element snapshots, accessibility audits, privacy resets and the device appearance.
+final class AppMultitouchUITests: XCTestCase {
+    var app: XCUIApplication!
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launch()
+    }
+
+    override func tearDown() {
+        XCUIDevice.shared.appearance = .light
+        app.terminate()
+    }
+
+    private func openMultitouch() -> XCUIElement {
+        app.buttons["multitouch"].tap()
+        XCTAssertTrue(app.navigationBars["Multitouch"].waitForExistence(timeout: 5))
+        return app.staticTexts["status"]
+    }
+
+    func testPinchRotateAndTaps() {
+        let status = openMultitouch()
+        let canvas = app.otherElements["canvas"]
+        canvas.pinch(withScale: 2, velocity: 2)
+        XCTAssertEqual(status.label, "pinch 2.0")
+        canvas.pinch(withScale: 0.5, velocity: -1)
+        XCTAssertEqual(status.label, "pinch 0.5")
+        canvas.rotate(.pi / 2, withVelocity: .pi)
+        XCTAssertEqual(status.label, "rotate 90")
+        canvas.twoFingerTap()
+        XCTAssertEqual(status.label, "two-finger tap")
+        canvas.tap(withNumberOfTaps: 3, numberOfTouches: 1)
+        XCTAssertEqual(status.label, "triple tap")
+    }
+
+    func testDragToElement() {
+        let status = openMultitouch()
+        app.staticTexts["chip"].press(forDuration: 0.2, thenDragTo: app.staticTexts["target"])
+        XCTAssertEqual(status.label, "dropped on target")
+        app.staticTexts["chip"].press(forDuration: 0.2, thenDragTo: app.staticTexts["target"], withVelocity: .slow, thenHoldForDuration: 0.3)
+        XCTAssertEqual(status.label, "dropped on target")
+    }
+
+    func testSwipeVelocities() {
+        app.buttons["gestures"].tap()
+        XCTAssertTrue(app.navigationBars["Gestures"].waitForExistence(timeout: 5))
+        let area = app.otherElements["swipeArea"]
+        area.swipeLeft(velocity: .fast)
+        XCTAssertEqual(app.staticTexts["status"].label, "swipe left")
+        area.swipeUp(velocity: .default)
+        XCTAssertEqual(app.staticTexts["status"].label, "swipe up")
+        area.swipeRight(velocity: XCUIGestureVelocity(1500))
+        XCTAssertEqual(app.staticTexts["status"].label, "swipe right")
+    }
+
+    func testSnapshot() throws {
+        _ = openMultitouch()
+        func all(_ s: XCUIElementSnapshot) -> [XCUIElementSnapshot] { [s] + s.children.flatMap(all) }
+        let root = try app.snapshot()
+        XCTAssertTrue(all(root).contains { $0.identifier == "canvas" && $0.frame.height == 260 }, "the app's tree")
+        let canvas = try app.otherElements["canvas"].snapshot()
+        XCTAssertEqual(canvas.elementType, .other)
+        XCTAssertEqual(canvas.dictionaryRepresentation[.identifier] as? String, "canvas")
+        XCTAssertThrowsError(try app.buttons["Does not exist"].snapshot())
+    }
+
+    func testAccessibilityAudit() throws {
+        _ = openMultitouch()
+        var found: [String] = []
+        try app.performAccessibilityAudit(for: [.sufficientElementDescription, .hitRegion]) { issue in
+            if issue.element?.identifier == "tiny" { found.append(issue.compactDescription) }
+            return true                                     // handled: the test does not fail
+        }
+        XCTAssertEqual(found.sorted(), ["Element has no description", "Hit area is too small"])
+        try app.performAccessibilityAudit(for: .contrast)   // not checked by isim: no issues
+    }
+
+    func testResetAuthorizationStatus() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        defer { app.resetAuthorizationStatus(for: .camera) }      // the other tests are asked again too
+        app.resetAuthorizationStatus(for: .camera)
+        XCTAssertEqual(app.state, .notRunning, "like iOS, resetting terminates the app")
+        app.launch()
+        app.buttons["camera"].tap()
+        XCTAssertTrue(springboard.alerts.buttons["Allow"].waitForExistence(timeout: 5), "asked after the reset")
+        springboard.alerts.buttons["Allow"].tap()
+        XCTAssertEqual(app.staticTexts["permission"].label, "camera: allowed")
+        app.launch()
+        app.buttons["camera"].tap()
+        XCTAssertEqual(app.staticTexts["permission"].label, "camera: allowed", "the answer is kept")
+        XCTAssertFalse(springboard.alerts.element.exists)
+        app.resetAuthorizationStatus(for: .camera)
+        app.launch()
+        app.buttons["camera"].tap()
+        XCTAssertTrue(springboard.alerts.buttons["Allow"].waitForExistence(timeout: 5), "asked again")
+        springboard.alerts.buttons["Allow"].tap()
+    }
+
+    func testAppearance() {
+        _ = openMultitouch()
+        XCTAssertEqual(app.staticTexts["appearance"].label, "appearance: light")
+        XCUIDevice.shared.appearance = .dark
+        XCTAssertEqual(XCUIDevice.shared.appearance, .dark)
+        XCTAssertTrue(app.staticTexts["appearance: dark"].waitForExistence(timeout: 5))
+        XCUIDevice.shared.appearance = .light
+        XCTAssertTrue(app.staticTexts["appearance: light"].waitForExistence(timeout: 5))
+    }
+}
+
 /// Deliberately failing UI test (skipped by the scheme; run with -only-testing to prove failures are reported).
 final class ExpectedUIFailureTests: XCTestCase {
     func testMissingButton() {

@@ -960,6 +960,37 @@ void isim_sys_entered_background(void) {
 }
 void isim_sys_entered_foreground(void) { [bg_timer invalidate]; bg_timer = nil; [bg_expired removeAllObjects]; reasons_stop(); }
 
+/* script "privacy reset SERVICE|all", and ISIM_PRIVACY_RESET=SERVICE,... at launch (XCUIApplication's
+   resetAuthorizationStatus(for:)): forgets the app's answers to privacy prompts, kept in its defaults (_Privacy.swift),
+   so it asks again; NO for an unknown service */
+static BOOL privacy_reset(NSString *service) {
+    NSDictionary<NSString *, NSArray *> *keys = @{
+        @"camera": @[@"_ISIMPrivacy.camera"], @"microphone": @[@"_ISIMPrivacy.microphone"],
+        @"photos": @[@"_ISIMPrivacy.photos", @"_ISIMPrivacy.photosAdd", @"_ISIMPrivacy.photos.limited"],
+        @"location": @[@"_ISIMPrivacy.location", @"_ISIMPrivacy.locationAlwaysAsked"],
+        @"contacts": @[@"_ISIMPrivacy.contacts", @"_ISIMPrivacy.contacts.limited"], @"calendar": @[@"_ISIMPrivacy.calendar"],
+        @"reminders": @[@"_ISIMPrivacy.reminders"], @"speech": @[@"_ISIMPrivacy.speech"], @"medialibrary": @[@"_ISIMPrivacy.medialibrary"],
+        @"siri": @[@"_ISIMPrivacy.siri"], @"paste": @[@"_ISIMPrivacy.paste"], @"health": @[],
+        @"notifications": @[@"_ISIMNotificationAuthorization", @"_ISIMNotificationOptions"], @"tracking": @[@"_ISIMTrackingAuthorizationStatus"] };
+    BOOL all = [service isEqualToString:@"all"];
+    if (!all && !keys[service]) return NO;
+    NSUserDefaults *d = NSUserDefaults.standardUserDefaults;
+    NSMutableArray *remove = [NSMutableArray array];
+    for (NSString *s in all ? keys.allKeys : @[service]) [remove addObjectsFromArray:keys[s]];
+    for (NSString *k in d.dictionaryRepresentation.allKeys)          /* HealthKit: one answer per data type */
+        if ([k hasPrefix:all ? @"_ISIMPrivacy." : @"_ISIMPrivacy.health."] && ([service isEqualToString:@"health"] || all)) [remove addObject:k];
+    for (NSString *k in remove) [d removeObjectForKey:k];
+    [d synchronize];
+    NSLog(@"isim: privacy reset %@", service);
+    return YES;
+}
+void isim_sys_privacy_reset_at_launch(void) {
+    const char *e = getenv("ISIM_PRIVACY_RESET");
+    if (!e || !*e) return;
+    for (NSString *s in [@(e) componentsSeparatedByString:@","]) if (s.length) privacy_reset(s);
+    unsetenv("ISIM_PRIVACY_RESET");
+}
+
 /* EV_SYSTEM: "<verb> <arguments>" from the shell */
 void isim_sys_event(const char *text) {
     NSString *t = @(text), *verb = t, *args = @"";
@@ -982,6 +1013,11 @@ void isim_sys_event(const char *text) {
             if (on) [g setBool:YES forKey:key]; else [g removeObjectForKey:key];
         }
         NSLog(@"isim: %@ %@", verb, args);
+    }
+    else if ([verb isEqualToString:@"privacy"]) {
+        NSArray *p = [args componentsSeparatedByString:@" "];
+        if (p.count != 2 || ![p[0] isEqualToString:@"reset"] || !privacy_reset(p[1]))
+            NSLog(@"isim: privacy reset all|camera|microphone|photos|location|contacts|calendar|reminders|speech|medialibrary|siri|paste|health|notifications|tracking");
     }
     else if ([verb isEqualToString:@"fullpage"]) full_page(args);
     else if ([verb isEqualToString:@"tilt"]) { extern void isim_ui_tilt(NSString *); isim_ui_tilt(args); }

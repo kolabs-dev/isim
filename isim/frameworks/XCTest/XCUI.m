@@ -6,12 +6,20 @@
  * marked in the snapshot and belong to XCUIApplication(bundleIdentifier: "com.apple.springboard"), not the app. */
 #import <XCTest/XCTest.h>
 #import <objc/runtime.h>
+#import <UIKit/UIKit.h>
 #include <isim_host.h>
 #include <unistd.h>
 
 static const double kSettle = 0.25;          /* after an action, let the app process it and start animations */
 static double xcui_now(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
 static void xcui_sleep(double s) { struct timespec ts = { (time_t)s, (long)((s - (time_t)s) * 1e9) }; while (nanosleep(&ts, &ts) != 0) {} }
+
+const XCUIGestureVelocity XCUIGestureVelocityDefault = 1000, XCUIGestureVelocitySlow = 400, XCUIGestureVelocityFast = 2500;
+XCUIElementAttributeName const XCUIElementAttributeNameIdentifier = @"identifier", XCUIElementAttributeNameFrame = @"frame",
+    XCUIElementAttributeNameValue = @"value", XCUIElementAttributeNameTitle = @"title", XCUIElementAttributeNameLabel = @"label",
+    XCUIElementAttributeNameElementType = @"elementType", XCUIElementAttributeNameEnabled = @"enabled",
+    XCUIElementAttributeNamePlaceholderValue = @"placeholderValue", XCUIElementAttributeNameSelected = @"selected",
+    XCUIElementAttributeNameHasFocus = @"hasFocus", XCUIElementAttributeNameChildren = @"children";
 
 /* ---------------- snapshot model ---------------- */
 @interface _XCUINode : NSObject
@@ -246,6 +254,44 @@ TYPEQ(webViews, XCUIElementTypeWebView) TYPEQ(steppers, XCUIElementTypeStepper) 
 TYPEQ(keyboards, XCUIElementTypeKeyboard) TYPEQ(keys, XCUIElementTypeKey) TYPEQ(otherElements, XCUIElementTypeOther)
 @end
 
+/* ---------------- element snapshots ---------------- */
+@interface _XCUISnapshot : NSObject <XCUIElementSnapshot>
+- (instancetype)initWithNode:(_XCUINode *)node;
+@end
+@implementation _XCUISnapshot { _XCUINode *_n; NSArray *_children; }
+- (instancetype)initWithNode:(_XCUINode *)node { if ((self = [super init])) _n = node; return self; }
+- (NSString *)identifier { return _n.identifier ?: @""; }
+- (CGRect)frame { return _n.frame; }
+- (id)value { return _n.value.length ? _n.value : nil; }
+- (NSString *)title { return @""; }
+- (NSString *)label { return _n.label ?: @""; }
+- (XCUIElementType)elementType { return _n.type; }
+- (BOOL)isEnabled { return _n.enabled; }
+- (BOOL)isSelected { return _n.selected; }
+- (BOOL)hasFocus { return _n.focused; }
+- (NSString *)placeholderValue { return _n.placeholder.length ? _n.placeholder : nil; }
+- (NSArray<id<XCUIElementSnapshot>> *)children {
+    if (!_children) {
+        NSMutableArray *a = [NSMutableArray array];
+        for (_XCUINode *c in _n.children) [a addObject:[[_XCUISnapshot alloc] initWithNode:c]];
+        _children = a;
+    }
+    return _children;
+}
+- (NSDictionary<XCUIElementAttributeName, id> *)dictionaryRepresentation {
+    NSMutableDictionary *d = [@{ XCUIElementAttributeNameIdentifier: self.identifier, XCUIElementAttributeNameFrame: [NSValue valueWithCGRect:_n.frame],
+        XCUIElementAttributeNameTitle: @"", XCUIElementAttributeNameLabel: self.label, XCUIElementAttributeNameElementType: @(_n.type),
+        XCUIElementAttributeNameEnabled: @(_n.enabled), XCUIElementAttributeNameSelected: @(_n.selected), XCUIElementAttributeNameHasFocus: @(_n.focused) } mutableCopy];
+    if (self.value) d[XCUIElementAttributeNameValue] = self.value;
+    if (self.placeholderValue) d[XCUIElementAttributeNamePlaceholderValue] = self.placeholderValue;
+    NSMutableArray *kids = [NSMutableArray array];
+    for (_XCUISnapshot *c in self.children) [kids addObject:c.dictionaryRepresentation];
+    d[XCUIElementAttributeNameChildren] = kids;
+    return d;
+}
+- (NSString *)description { return [NSString stringWithFormat:@"%@ '%@' %@", type_display(_n.type), self.identifier, NSStringFromCGRect(_n.frame)]; }
+@end
+
 /* ---------------- elements ---------------- */
 @interface XCUICoordinate ()
 @property (strong, readwrite) XCUIElement *referencedElement;
@@ -347,17 +393,66 @@ static CGPoint center_of(_XCUINode *n) { return CGPointMake(CGRectGetMidX(n.fram
     [self _isim_do:@"double tap" with:^(_XCUINode *n, XCUIApplication *app) {
         CGPoint c = center_of(n); NSString *t = [NSString stringWithFormat:@"tap %g %g", c.x, c.y]; [app _isim_send:t]; [app _isim_send:t]; }];
 }
-- (void)twoFingerTap { [self tap]; }
+- (void)twoFingerTap { [self tapWithNumberOfTaps:1 numberOfTouches:2]; }
+/* taps in a row at the element's centre; two touches are two fingers side by side (script command twofinger) */
+- (void)tapWithNumberOfTaps:(NSUInteger)taps numberOfTouches:(NSUInteger)touches {
+    if (touches > 2) _XCTIsimRecordFailure([NSString stringWithFormat:@"isim taps with at most 2 touches (asked for %lu)", (unsigned long)touches], nil, 0, YES);
+    [self _isim_do:@"tap" with:^(_XCUINode *n, XCUIApplication *app) {
+        CGPoint c = center_of(n);
+        NSString *t = touches >= 2 ? [NSString stringWithFormat:@"twofinger %g %g 0 0 0.05", c.x, c.y] : [NSString stringWithFormat:@"tap %g %g", c.x, c.y];
+        for (NSUInteger i = 0; i < MAX(taps, 1u); i++) [app _isim_send:t];
+        xcui_sleep(0.1 * MAX(taps, 1u)); }];
+}
 - (void)pressForDuration:(NSTimeInterval)d {
     [self _isim_do:@"press" with:^(_XCUINode *n, XCUIApplication *app) {
         CGPoint c = center_of(n); [app _isim_send:[NSString stringWithFormat:@"drag %g %g %g %g %g", c.x, c.y, c.x, c.y, d]]; xcui_sleep(d); }];
 }
-- (void)_isim_swipe:(CGVector)dir name:(NSString *)name {
+- (void)_isim_swipe:(CGVector)dir name:(NSString *)name velocity:(XCUIGestureVelocity)velocity {
     [self _isim_do:name with:^(_XCUINode *n, XCUIApplication *app) {
         CGPoint c = center_of(n);
         double dist = fmax(80, fmin(300, (dir.dx ? n.frame.size.width : n.frame.size.height) * 0.6));
-        [app _isim_send:[NSString stringWithFormat:@"drag %g %g %g %g 0.2", c.x, c.y, c.x + dir.dx * dist, c.y + dir.dy * dist]];
-        xcui_sleep(200 / 1000.0); }];
+        double secs = velocity > 0 ? fmin(2, fmax(0.05, dist / velocity)) : 0.2;
+        [app _isim_send:[NSString stringWithFormat:@"drag %g %g %g %g %g", c.x, c.y, c.x + dir.dx * dist, c.y + dir.dy * dist, secs]];
+        xcui_sleep(secs); }];
+}
+- (void)_isim_swipe:(CGVector)dir name:(NSString *)name { [self _isim_swipe:dir name:name velocity:0]; }
+- (void)swipeUpWithVelocity:(XCUIGestureVelocity)v { [self _isim_swipe:CGVectorMake(0, -1) name:@"swipe up" velocity:v]; }
+- (void)swipeDownWithVelocity:(XCUIGestureVelocity)v { [self _isim_swipe:CGVectorMake(0, 1) name:@"swipe down" velocity:v]; }
+- (void)swipeLeftWithVelocity:(XCUIGestureVelocity)v { [self _isim_swipe:CGVectorMake(-1, 0) name:@"swipe left" velocity:v]; }
+- (void)swipeRightWithVelocity:(XCUIGestureVelocity)v { [self _isim_swipe:CGVectorMake(1, 0) name:@"swipe right" velocity:v]; }
+/* two-finger gestures around the centre (script commands pinch and rotate2); the duration is the change over the velocity */
+- (void)pinchWithScale:(CGFloat)scale velocity:(CGFloat)velocity {
+    if (scale <= 0) { _XCTIsimRecordFailure(@"Pinch scale must be greater than 0", nil, 0, YES); return; }
+    [self _isim_do:@"pinch" with:^(_XCUINode *n, XCUIApplication *app) {
+        CGPoint c = center_of(n);
+        double secs = velocity != 0 ? fmin(3, fmax(0.2, fabs(scale - 1) / fabs(velocity))) : 0.5;
+        [app _isim_send:[NSString stringWithFormat:@"pinch %g %g %g %g", c.x, c.y, scale, secs]];
+        xcui_sleep(secs + 0.1); }];
+}
+- (void)rotate:(CGFloat)rotation withVelocity:(CGFloat)velocity {
+    [self _isim_do:@"rotate" with:^(_XCUINode *n, XCUIApplication *app) {
+        CGPoint c = center_of(n);
+        double secs = velocity != 0 ? fmin(3, fmax(0.2, fabs(rotation / velocity))) : 0.5;
+        [app _isim_send:[NSString stringWithFormat:@"rotate2 %g %g %g %g", c.x, c.y, rotation * 180 / M_PI, secs]];
+        xcui_sleep(secs + 0.1); }];
+}
+- (void)pressForDuration:(NSTimeInterval)d thenDragToElement:(XCUIElement *)other {
+    [[self coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.5)] pressForDuration:d thenDragToCoordinate:[other coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.5)]];
+}
+- (void)pressForDuration:(NSTimeInterval)d thenDragToElement:(XCUIElement *)other withVelocity:(XCUIGestureVelocity)v thenHoldForDuration:(NSTimeInterval)hold {
+    [[self coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.5)] pressForDuration:d thenDragToCoordinate:[other coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.5)]
+                                                                       withVelocity:v thenHoldForDuration:hold];
+}
+- (id<XCUIElementSnapshot>)snapshotWithError:(NSError **)error {
+    _XCUINode *root = [[self _isim_app] _isim_snapshotQuiet:YES];
+    NSString *why = nil;
+    _XCUINode *n = root ? [self _isim_node:root error:&why] : nil;
+    if (!n) {
+        if (error) *error = [NSError errorWithDomain:@"com.apple.dt.XCTest.XCTFuture" code:1 userInfo:@{
+            NSLocalizedDescriptionKey: root ? (why ?: [NSString stringWithFormat:@"No matches found for %@", [self _isim_desc]]) : @"The application is not running" }];
+        return nil;
+    }
+    return [[_XCUISnapshot alloc] initWithNode:n];
 }
 - (void)swipeUp { [self _isim_swipe:CGVectorMake(0, -1) name:@"swipe up"]; }
 - (void)swipeDown { [self _isim_swipe:CGVectorMake(0, 1) name:@"swipe down"]; }
@@ -449,6 +544,14 @@ static void describe_tree(NSMutableString *s, _XCUINode *n, int depth) {
     [[self _isim_app] _isim_send:[NSString stringWithFormat:@"drag %g %g %g %g 0.3 0 %g", a.x, a.y, b.x, b.y, fmax(0, d)]];
     xcui_sleep((d + 0.3 + kSettle));
 }
+/* the drag moves at the velocity (points per second), then holds before lifting */
+- (void)pressForDuration:(NSTimeInterval)d thenDragToCoordinate:(XCUICoordinate *)other withVelocity:(XCUIGestureVelocity)v thenHoldForDuration:(NSTimeInterval)hold {
+    handle_interruptions([self _isim_app]);
+    CGPoint a = self.screenPoint, b = other.screenPoint;
+    double secs = v > 0 ? fmin(5, fmax(0.05, hypot(b.x - a.x, b.y - a.y) / v)) : 0.3;
+    [[self _isim_app] _isim_send:[NSString stringWithFormat:@"drag %g %g %g %g %g %g %g", a.x, a.y, b.x, b.y, secs, fmax(0, hold), fmax(0, d)]];
+    xcui_sleep(d + secs + hold + kSettle);
+}
 @end
 
 /* ---------------- XCUIApplication ---------------- */
@@ -468,6 +571,7 @@ static NSString *app_for_bundle_id(NSString *bid) {
 /* the application whose process gets the system alerts and the device buttons: the one the test launched last */
 static XCUIApplication *foreground_app(void) { XCUIApplication *a = last_app; return a && isim_xcui_running(a.handle) ? a : nil; }
 static NSString *const kSpringboard = @"com.apple.springboard";
+static NSMutableDictionary<NSString *, NSMutableSet<NSString *> *> *pending_resets;    /* bundle id -> privacy services */
 
 @implementation XCUIApplication
 - (instancetype)init {
@@ -511,9 +615,12 @@ static NSString *const kSpringboard = @"com.apple.springboard";
     NSString *exe = [_appPath stringByAppendingPathComponent:info[@"CFBundleExecutable"] ?: _appPath.lastPathComponent.stringByDeletingPathExtension];
     const char **argv = calloc(_launchArguments.count + 1, sizeof *argv);
     for (NSUInteger i = 0; i < _launchArguments.count; i++) argv[i] = _launchArguments[i].UTF8String;
-    NSArray *keys = _launchEnvironment.allKeys;
+    NSMutableDictionary *env = [_launchEnvironment mutableCopy];
+    NSSet *resets = pending_resets[_bundleIdentifier];               /* resetAuthorizationStatus(for:): cleared as the app starts */
+    if (resets.count) { env[@"ISIM_PRIVACY_RESET"] = [resets.allObjects componentsJoinedByString:@","]; [pending_resets removeObjectForKey:_bundleIdentifier]; }
+    NSArray *keys = env.allKeys;
     const char **envp = calloc(keys.count + 1, sizeof *envp);
-    for (NSUInteger i = 0; i < keys.count; i++) envp[i] = [NSString stringWithFormat:@"%@=%@", keys[i], _launchEnvironment[keys[i]]].UTF8String;
+    for (NSUInteger i = 0; i < keys.count; i++) envp[i] = [NSString stringWithFormat:@"%@=%@", keys[i], env[keys[i]]].UTF8String;
     _handle = isim_xcui_launch(exe.UTF8String, argv, envp);
     free(argv); free(envp);
     if (_handle < 0) { _XCTIsimRecordFailure([NSString stringWithFormat:@"Failed to launch %@", _appPath.lastPathComponent], nil, 0, YES); return; }
@@ -557,6 +664,30 @@ static NSString *const kSpringboard = @"com.apple.springboard";
     }
 }
 - (void)terminate { if (!_springboard) isim_xcui_terminate(_handle); }
+/* the privacy service names of UIKit's `privacy reset` (UISystemIntegration.m); nil: isim stores no answer for it */
+static NSString *privacy_service(XCUIProtectedResource r) {
+    switch (r) {
+    case XCUIProtectedResourceContacts: return @"contacts";
+    case XCUIProtectedResourceCalendar: return @"calendar";
+    case XCUIProtectedResourceReminders: return @"reminders";
+    case XCUIProtectedResourcePhotos: return @"photos";
+    case XCUIProtectedResourceMicrophone: return @"microphone";
+    case XCUIProtectedResourceCamera: return @"camera";
+    case XCUIProtectedResourceMediaLibrary: return @"medialibrary";
+    case XCUIProtectedResourceLocation: return @"location";
+    case XCUIProtectedResourceHealth: return @"health";
+    default: return nil;
+    }
+}
+- (void)resetAuthorizationStatusForResource:(XCUIProtectedResource)resource {
+    if (_springboard) return;
+    NSString *service = privacy_service(resource);
+    if (isim_xcui_running(_handle)) { isim_xcui_terminate(_handle); xcui_sleep(kSettle); }      /* like iOS: the app is killed */
+    if (!service) return;
+    if (!pending_resets) pending_resets = [NSMutableDictionary dictionary];
+    if (!pending_resets[_bundleIdentifier]) pending_resets[_bundleIdentifier] = [NSMutableSet set];
+    [pending_resets[_bundleIdentifier] addObject:service];
+}
 - (BOOL)waitForState:(XCUIApplicationState)st timeout:(NSTimeInterval)t {
     double end = xcui_now() + t;
     do { if (self.state == st) return YES; xcui_sleep(50 / 1000.0); } while (xcui_now() < end);
@@ -640,6 +771,15 @@ static void handle_interruptions(XCUIApplication *app) {
 /* ---------------- XCUIDevice ---------------- */
 @implementation XCUIDevice
 @synthesize orientation = _orientation;
+@synthesize appearance = _appearance;
+/* the device setting (script command appearance), applied to the running app; unspecified leaves it */
+- (void)setAppearance:(XCUIDeviceAppearance)a {
+    _appearance = a;
+    XCUIApplication *app = foreground_app();
+    if (!app || a == XCUIDeviceAppearanceUnspecified) return;
+    [app _isim_send:a == XCUIDeviceAppearanceDark ? @"appearance dark" : @"appearance light"];
+    xcui_sleep(kSettle);
+}
 + (XCUIDevice *)sharedDevice { static XCUIDevice *d; static dispatch_once_t o; dispatch_once(&o, ^{ d = [XCUIDevice new]; d->_orientation = UIDeviceOrientationPortrait; }); return d; }
 /* the device orientation the app under test reports (UIDevice.orientation), or the last one set */
 - (UIDeviceOrientation)orientation {
@@ -667,6 +807,14 @@ static void handle_interruptions(XCUIApplication *app) {
         [app _isim_send:@"home"];
         [app _isim_waitForeground:NO timeout:5];
         xcui_sleep(kSettle);
+        return;
+    }
+    if ((NSInteger)b == 4) {                  /* XCUIDeviceButtonAction (iOS 16): the Action button (devices without one log it) */
+        if (app) { [app _isim_send:@"actionbutton"]; xcui_sleep(kSettle); }
+        return;
+    }
+    if ((NSInteger)b == 5) {                  /* XCUIDeviceButtonCamera (iOS 18) */
+        fprintf(stderr, "XCUIDevice: isim does not simulate the Camera Control; press ignored\n");
         return;
     }
     /* stub: Apple's Simulator has no volume buttons (XCUIDevice.Button.volumeUp/Down are device-only) */
@@ -731,4 +879,71 @@ static XCUIScreenshot *xcui_screenshot(XCUIApplication *app, CGRect frame) {
 + (XCUIScreen *)mainScreen { static XCUIScreen *s; static dispatch_once_t o; dispatch_once(&o, ^{ s = [XCUIScreen new]; }); return s; }
 + (NSArray<XCUIScreen *> *)screens { return @[self.mainScreen]; }
 - (XCUIScreenshot *)screenshot { return xcui_screenshot(foreground_app(), CGRectNull); }
+@end
+
+/* ---------------- accessibility audits ---------------- */
+@interface XCUIAccessibilityAuditIssue ()
+@property (strong, readwrite) XCUIElement *element;
+@property (copy, readwrite) NSString *compactDescription, *detailedDescription;
+@property (readwrite) XCUIAccessibilityAuditType auditType;
+- (instancetype)initIsim;
+@end
+@implementation XCUIAccessibilityAuditIssue
+- (instancetype)initIsim { return [super init]; }
+- (NSString *)description { return [NSString stringWithFormat:@"%@: %@", _compactDescription, _element]; }
+@end
+
+static BOOL audit_control(XCUIElementType t) {
+    switch (t) {
+    case XCUIElementTypeButton: case XCUIElementTypeLink: case XCUIElementTypeSwitch: case XCUIElementTypeToggle:
+    case XCUIElementTypeSlider: case XCUIElementTypeStepper: case XCUIElementTypeSegmentedControl: case XCUIElementTypeTextField:
+    case XCUIElementTypeSecureTextField: case XCUIElementTypeSearchField: return YES;
+    default: return NO;
+    }
+}
+@implementation XCUIApplication (XCUIAccessibilityAudit)
+/* adapted: the snapshot's controls without a label (sufficientElementDescription) or smaller than 44 x 44 points
+ * (hitRegion); system alerts and the keyboard are the system's, not the app's, and are left out */
+- (BOOL)performAccessibilityAuditWithAuditTypes:(XCUIAccessibilityAuditType)types issueHandler:(BOOL (NS_NOESCAPE ^)(XCUIAccessibilityAuditIssue *))handler error:(NSError **)error {
+    _XCUINode *root = [self _isim_snapshotQuiet:NO];
+    if (!root) {
+        if (error) *error = [NSError errorWithDomain:@"com.apple.dt.XCTest.XCTFuture" code:1 userInfo:@{ NSLocalizedDescriptionKey: @"The application is not running" }];
+        return NO;
+    }
+    NSMutableArray<_XCUINode *> *all = [NSMutableArray array];
+    [root addDescendantsTo:all];
+    NSMutableDictionary<NSNumber *, NSNumber *> *seen = [NSMutableDictionary dictionary];     /* index of each node among its type */
+    NSMutableArray<XCUIAccessibilityAuditIssue *> *issues = [NSMutableArray array];
+    for (_XCUINode *n in all) {
+        NSUInteger index = seen[@(n.type)].unsignedIntegerValue;
+        seen[@(n.type)] = @(index + 1);
+        if (n.system || n.type == XCUIElementTypeKeyboard || n.type == XCUIElementTypeKey || !n.hittable || !audit_control(n.type)) continue;
+        XCUIElement *(^element)(void) = ^XCUIElement *{
+            XCUIElementQuery *q = [self descendantsMatchingType:n.type];
+            return n.identifier.length ? [q matchingIdentifier:n.identifier].firstMatch : [q elementBoundByIndex:index];
+        };
+        NSString *what = [NSString stringWithFormat:@"%@%@", type_display(n.type), n.identifier.length ? [NSString stringWithFormat:@" '%@'", n.identifier] : @""];
+        if ((types & XCUIAccessibilityAuditTypeSufficientElementDescription) && !n.label.length && n.type != XCUIElementTypeTextField
+            && n.type != XCUIElementTypeSecureTextField && n.type != XCUIElementTypeSearchField) {
+            XCUIAccessibilityAuditIssue *i = [[XCUIAccessibilityAuditIssue alloc] initIsim];
+            i.element = element(); i.auditType = XCUIAccessibilityAuditTypeSufficientElementDescription;
+            i.compactDescription = @"Element has no description";
+            i.detailedDescription = [NSString stringWithFormat:@"%@ has no accessibility label, so VoiceOver cannot say what it does.", what];
+            [issues addObject:i];
+        }
+        if ((types & XCUIAccessibilityAuditTypeHitRegion) && (n.frame.size.width < 44 || n.frame.size.height < 44)) {
+            XCUIAccessibilityAuditIssue *i = [[XCUIAccessibilityAuditIssue alloc] initIsim];
+            i.element = element(); i.auditType = XCUIAccessibilityAuditTypeHitRegion;
+            i.compactDescription = @"Hit area is too small";
+            i.detailedDescription = [NSString stringWithFormat:@"%@ is %g x %g points; controls should be at least 44 x 44 points.", what,
+                                     n.frame.size.width, n.frame.size.height];
+            [issues addObject:i];
+        }
+    }
+    for (XCUIAccessibilityAuditIssue *i in issues) {
+        if (handler && handler(i)) continue;
+        _XCTIsimRecordFailure([NSString stringWithFormat:@"Accessibility audit: %@ - %@", i.compactDescription, i.detailedDescription], nil, 0, YES);
+    }
+    return YES;
+}
 @end

@@ -88,6 +88,12 @@ def test_scheme(device_data, tmp_path):
                     ("testGestures", "swipes, press(forDuration:), slider, coordinates, table scrolling")):
         assert has(rf"AppUITests {t}\]. passed"), f"XCUITest: {what} ({t})"
     assert has(r"interrupting element .*Would Like to Access the Camera.*Camera permission"), "the monitor is reported"
+    for t, what in (("testPinchRotateAndTaps", "pinch, rotate, twoFingerTap, tap(withNumberOfTaps:numberOfTouches:)"),
+                    ("testDragToElement", "press(forDuration:thenDragTo:) an element, with a velocity and a hold"),
+                    ("testSwipeVelocities", "swipes with XCUIGestureVelocity"), ("testSnapshot", "XCUIElementSnapshot"),
+                    ("testAccessibilityAudit", "performAccessibilityAudit"), ("testResetAuthorizationStatus", "resetAuthorizationStatus(for:)"),
+                    ("testAppearance", "XCUIDevice.appearance")):
+        assert has(rf"AppMultitouchUITests {t}\]. passed"), f"XCUITest: {what} ({t})"
     junit = (res / "AppTests.junit.xml").read_text()
     assert '<testcase classname="AppTests.ModelTests" name="testAsync"' in junit and \
         "testcase" in (res / "AppSwiftTests.swift-testing.xml").read_text() and \
