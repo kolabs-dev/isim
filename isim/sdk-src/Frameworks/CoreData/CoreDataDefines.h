@@ -71,6 +71,7 @@ COREDATA_EXTERN NSString * const NSStoreTypeKey;
 COREDATA_EXTERN NSString * const NSStoreUUIDKey;
 COREDATA_EXTERN NSString * const NSReadOnlyPersistentStoreOption;
 COREDATA_EXTERN NSString * const NSMigratePersistentStoresAutomaticallyOption;
+COREDATA_EXTERN NSString * const NSPersistentStoreStagedMigrationManagerOptionKey;
 COREDATA_EXTERN NSString * const NSInferMappingModelAutomaticallyOption;
 COREDATA_EXTERN NSString * const NSSQLitePragmasOption;
 COREDATA_EXTERN NSString * const NSPersistentHistoryTrackingKey;

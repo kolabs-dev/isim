@@ -172,11 +172,12 @@ NSArray *CDToManyArray(id value);                           /* NSSet / NSOrdered
 @property (readonly) int64_t _cd_number;
 @end
 @interface NSPersistentHistoryChange (CDPrivate)
-+ (instancetype)_cd_change:(int64_t)number objectID:(NSManagedObjectID *)objectID type:(NSPersistentHistoryChangeType)type;
++ (instancetype)_cd_change:(int64_t)number objectID:(NSManagedObjectID *)objectID type:(NSPersistentHistoryChangeType)type updatedProperties:(NSSet *)properties;
 - (void)_cd_setTransaction:(NSPersistentHistoryTransaction *)transaction;
 @end
 @interface NSPersistentHistoryTransaction (CDPrivate)
-+ (instancetype)_cd_transaction:(int64_t)number storeID:(NSString *)storeID author:(NSString *)author context:(NSString *)context changes:(NSArray *)changes;
++ (instancetype)_cd_transaction:(int64_t)number storeID:(NSString *)storeID author:(NSString *)author context:(NSString *)context timestamp:(NSDate *)timestamp
+                       bundleID:(NSString *)bundleID processID:(NSString *)processID changes:(NSArray *)changes;
 @end
 @interface NSPersistentHistoryChangeRequest (CDPrivate)
 @property (readonly) BOOL _cd_delete;
@@ -185,4 +186,12 @@ NSArray *CDToManyArray(id value);                           /* NSSet / NSOrdered
 @end
 @interface NSPersistentHistoryResult (CDPrivate)
 - (instancetype)_cd_initWithResult:(id)result type:(NSPersistentHistoryResultType)type __attribute__((objc_method_family(init)));
+- (void)_cd_keep:(NSArray *)transactions;
+@end
+
+@interface NSStagedMigrationManager (CDPrivate)
+- (BOOL)_cd_migrateStoreAtURL:(NSURL *)url type:(NSString *)type options:(NSDictionary *)options toModel:(NSManagedObjectModel *)model error:(NSError **)error;
+@end
+@interface NSMigrationManager (CDPrivate)
+- (NSManagedObject *)_destinationFor:(NSManagedObject *)source;
 @end

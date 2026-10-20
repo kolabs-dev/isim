@@ -27,7 +27,7 @@ typedef NS_ENUM(NSInteger, NSPersistentHistoryResultType) {
 @property (readonly) NSPersistentHistoryChangeType changeType;
 @property (nullable, readonly, strong) NSDictionary *tombstone;
 @property (nullable, readonly, strong) NSSet<NSPropertyDescription *> *updatedProperties;
-@property (readonly, strong) NSPersistentHistoryTransaction *transaction;
+@property (nullable, readonly, strong) NSPersistentHistoryTransaction *transaction;
 @end
 
 @interface NSPersistentHistoryTransaction : NSObject
@@ -37,6 +37,8 @@ typedef NS_ENUM(NSInteger, NSPersistentHistoryResultType) {
 @property (nullable, readonly, copy) NSString *author;
 @property (nullable, readonly, copy) NSString *contextName;
 @property (readonly, copy) NSString *storeID;
+@property (readonly, copy) NSString *bundleID;
+@property (readonly, copy) NSString *processID;
 @property (nullable, readonly, strong) NSArray<NSPersistentHistoryChange *> *changes;
 - (NSNotification *)objectIDNotification;
 @end

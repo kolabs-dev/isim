@@ -254,7 +254,7 @@ func migrationTests() {
     let manager = NSMigrationManager(sourceModel: v1, destinationModel: v2)
     let migratedURL = storeDir.appendingPathComponent("Manager.sqlite")
     var managerOK = false
-    if let mapping { do { try manager.migrateStore(from: url, type: NSSQLiteStoreType, options: nil, with: mapping,
+    if let mapping { do { try manager.migrateStore(from: url, sourceType: NSSQLiteStoreType, options: nil, with: mapping,
                                                     toDestinationURL: migratedURL, destinationType: NSSQLiteStoreType,
                                                     destinationOptions: nil); managerOK = true } catch {} }
     check(managerOK && manager.migrationProgress == 1, "NSMigrationManager performs an inferred lightweight mapping")
