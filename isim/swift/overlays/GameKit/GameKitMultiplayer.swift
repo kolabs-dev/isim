@@ -509,6 +509,8 @@ open class GKMatchmakerViewController: UINavigationControllerStandIn {
     public let matchRequest: GKMatchRequest
     open var isHosted = false
     open var canStartWithMinimumPlayers = false
+    /// which ways of finding players the sheet offers (automatch, invites, nearby players)
+    open var matchmakingMode: GKMatchmakingMode = .default
     let invite: GKInvite?
     let model = _GCMatchmakerModel()
     public init?(matchRequest request: GKMatchRequest) { matchRequest = request; invite = nil; super.init(nibName: nil, bundle: nil) }
@@ -531,7 +533,9 @@ open class GKMatchmakerViewController: UINavigationControllerStandIn {
             self.matchmakerDelegate?.matchmakerViewController(self, didFindHostedPlayers: ps)
         }
         model.hosted = isHosted
-        NSLog("isim GameKit: matchmaker for %ld-%ld players", matchRequest.minPlayers, matchRequest.maxPlayers)
+        model.mode = matchmakingMode
+        if matchmakingMode == .nearbyOnly { _GCRealtime.advertiseNearby(true) }
+        NSLog("isim GameKit: matchmaker for %ld-%ld players, mode %ld", matchRequest.minPlayers, matchRequest.maxPlayers, matchmakingMode.rawValue)
         embed(_GCMatchmakerView(model: model) { [weak self] in
             guard let self else { return }
             self.model.cancel()
@@ -541,11 +545,16 @@ open class GKMatchmakerViewController: UINavigationControllerStandIn {
         if let invite { model.join(invite) }
         else if let r = matchRequest.recipients, !r.isEmpty { model.invite(r) }
     }
+    open override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if matchmakingMode == .nearbyOnly { _GCRealtime.advertiseNearby(false) }
+    }
 }
 
 final class _GCMatchmakerModel: ObservableObject {
     var request = GKMatchRequest()
     var hosted = false
+    var mode: GKMatchmakingMode = .default
     @Published var slots = 1
     @Published var status = ""
     @Published var searching = false
@@ -632,23 +641,25 @@ struct _GCMatchmakerView: View {
                     _GCPlayerRow(name: _GC.alias, detail: "Ready")
                     ForEach(0..<model.slots, id: \.self) { i in slot(i) }
                 } header: { Text(verbatim: "\(model.request.minPlayers)–\(model.request.maxPlayers) Players") } footer: {
-                    Text(verbatim: model.status.isEmpty ? "Find players, or invite friends. Players are the other isim devices running this game on this computer." : model.status)
+                    Text(verbatim: model.status.isEmpty ? _GCMatchmaking.note(model.mode) : model.status)
                         .accessibilityIdentifier("gc-match-note")
                 }
                 if model.picking {
                     Section {
-                        let friends = _GCNet.friendIDs().map(GKPlayer._make).filter { f in f.isInvitable && !model.invited.contains(f) && !model.joined.contains(f) }
-                        if friends.isEmpty { Text(verbatim: "No friends to invite.").foregroundStyle(.secondary) }
+                        let friends = _GCMatchmaking.invitable(model.mode).filter { f in !model.invited.contains(f) && !model.joined.contains(f) }
+                        if friends.isEmpty { Text(verbatim: model.mode == .nearbyOnly ? "No players nearby." : "No friends to invite.").foregroundStyle(.secondary) }
                         ForEach(friends, id: \._id) { f in
                             Button { model.invite([f]) } label: { _GCPlayerRow(name: f.alias, detail: "Invite") }
                                 .accessibilityIdentifier("gc-match-invite-\(f.alias)")
                         }
-                    } header: { Text(verbatim: "Friends") }
+                    } header: { Text(verbatim: model.mode == .nearbyOnly ? "Nearby Players" : "Friends") }
                 }
-                Section {
-                    Button { model.find() } label: { Text(verbatim: "Find Players").frame(maxWidth: .infinity) }
-                        .disabled(model.searching || !model.invited.isEmpty)
-                        .accessibilityIdentifier("gc-match-find")
+                if model.mode == .default || model.mode == .automatchOnly {
+                    Section {
+                        Button { model.find() } label: { Text(verbatim: "Find Players").frame(maxWidth: .infinity) }
+                            .disabled(model.searching || !model.invited.isEmpty)
+                            .accessibilityIdentifier("gc-match-find")
+                    }
                 }
             }
             .navigationTitle("Game Center")
@@ -661,11 +672,17 @@ struct _GCMatchmakerView: View {
             _GCPlayerRow(name: model.joined[i].alias, detail: "Connected").accessibilityIdentifier("gc-match-slot-\(i + 1)")
         } else if i - model.joined.count < model.invited.count {
             _GCPlayerRow(name: model.invited[i - model.joined.count].alias, detail: "Invited").accessibilityIdentifier("gc-match-slot-\(i + 1)")
+        } else if model.mode == .automatchOnly {
+            HStack(spacing: 12) {
+                ZStack { Circle().fill(_GCStyle.fill); Image(systemName: "magnifyingglass").foregroundStyle(.secondary) }.frame(width: 40, height: 40)
+                Text(verbatim: model.searching ? "Finding Players…" : "Automatch").foregroundStyle(.secondary)
+            }
+            .accessibilityIdentifier("gc-match-slot-\(i + 1)")
         } else {
             Button { if !model.searching { model.picking.toggle() } } label: {
                 HStack(spacing: 12) {
                     ZStack { Circle().fill(_GCStyle.fill); Image(systemName: model.searching ? "magnifyingglass" : "plus").foregroundStyle(.secondary) }.frame(width: 40, height: 40)
-                    Text(verbatim: model.searching ? "Finding Players…" : "Invite a Friend").foregroundStyle(.secondary)
+                    Text(verbatim: model.searching ? "Finding Players…" : model.mode == .nearbyOnly ? "Invite a Nearby Player" : "Invite a Friend").foregroundStyle(.secondary)
                 }
             }
             .accessibilityIdentifier("gc-match-slot-\(i + 1)")
@@ -750,6 +767,38 @@ open class GKTurnBasedMatch: NSObject, @unchecked Sendable {
     open override var hash: Int { _id.hashValue }
     open override var description: String { "<GKTurnBasedMatch \(_id) status \(status.rawValue) current \(currentParticipant?.player?.alias ?? "-")>" }
     var myIndex: Int? { _parts.firstIndex { $0.pid == _GCNet.me } }
+
+    // MARK: exchanges (GameKitExchanges.swift)
+
+    /// the match's active and completed exchanges (not yet resolved or cancelled)
+    open var exchanges: [GKTurnBasedExchange]? { _exchanges { $0 == .active || $0 == .complete } }
+    open var activeExchanges: [GKTurnBasedExchange]? { _exchanges { $0 == .active } }
+    /// exchanges every recipient answered (or that timed out), waiting for the current participant to merge them
+    open var completedExchanges: [GKTurnBasedExchange]? { _exchanges { $0 == .complete } }
+    open var exchangeDataMaximumSize: Int { 2048 }
+    open var exchangeMaxInitiatedExchangesPerPlayer: Int { 5 }
+    /// Sends an exchange request to other active participants, whoever has the turn.
+    open func sendExchange(to participants: [GKTurnBasedParticipant], data: Data, localizableMessageKey key: String, arguments: [String],
+                           timeout: TimeInterval, completionHandler h: ((GKTurnBasedExchange?, Error?) -> Void)? = nil) {
+        _sendExchange(participants, data, _GCExchanges.localized(key, arguments), timeout, h)
+    }
+    open func sendExchange(to participants: [GKTurnBasedParticipant], data: Data, localizableMessageKey key: String, arguments: [String],
+                           timeout: TimeInterval) async throws -> GKTurnBasedExchange {
+        try await withCheckedThrowingContinuation { k in
+            sendExchange(to: participants, data: data, localizableMessageKey: key, arguments: arguments, timeout: timeout) { x, e in
+                if let x { k.resume(returning: x) } else { k.resume(throwing: e ?? GKError(code: .unknown)) }
+            }
+        }
+    }
+    /// Saves the match data with completed exchanges merged in, without ending the turn; the exchanges are resolved.
+    open func saveMergedMatch(_ matchData: Data, withResolvedExchanges exchanges: [GKTurnBasedExchange], completionHandler h: ((Error?) -> Void)? = nil) {
+        _saveMerged(matchData, exchanges.map { $0.exchangeID }, h)
+    }
+    open func saveMergedMatch(_ matchData: Data, withResolvedExchanges exchanges: [GKTurnBasedExchange]) async throws {
+        try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
+            saveMergedMatch(matchData, withResolvedExchanges: exchanges) { e in if let e { k.resume(throwing: e) } else { k.resume() } }
+        }
+    }
 
     // MARK: finding and loading
 
@@ -859,6 +908,7 @@ open class GKTurnBasedMatch: NSObject, @unchecked Sendable {
             ps[mine]["lastTurn"] = now
             ps[n]["timeout"] = now + timeout
             d["participants"] = ps; d["current"] = n; d["data"] = matchData.base64EncodedString(); d["message"] = msg ?? ""
+            d["next"] = Array(next.drop { $0 != n }.dropFirst()); d["turnTimeout"] = timeout
             self.outcomes(&d)
             to = ps[n]["pid"] as? String
             return nil
@@ -924,7 +974,10 @@ open class GKTurnBasedMatch: NSObject, @unchecked Sendable {
             ps[mine]["lastTurn"] = Date().timeIntervalSince1970
             let n = next.first { i in (ps[i]["status"] as? Int ?? 0) != GKTurnBasedParticipant.Status.done.rawValue }
             d["participants"] = ps; d["current"] = n ?? -1; d["data"] = matchData.base64EncodedString()
-            if let n { ps[n]["timeout"] = Date().timeIntervalSince1970 + timeout; d["participants"] = ps }
+            if let n {
+                ps[n]["timeout"] = Date().timeIntervalSince1970 + timeout; d["participants"] = ps
+                d["next"] = Array(next.drop { $0 != n }.dropFirst()); d["turnTimeout"] = timeout
+            }
             return nil
         }, done: { e in if e == nil { _GCTurns.notify(self, kind: "turn") }; h?(e) })
     }
@@ -1028,22 +1081,42 @@ open class GKTurnBasedMatchmakerViewController: UINavigationControllerStandIn {
     weak open var turnBasedMatchmakerDelegate: GKTurnBasedMatchmakerViewControllerDelegate?
     public let matchRequest: GKMatchRequest
     open var showExistingMatches = true
-    open var matchmakingMode = 0
+    /// which ways of finding players the sheet offers (automatch, invites, nearby players)
+    open var matchmakingMode: GKMatchmakingMode = .default
+    /// isim: the Int property of apps built before #292, kept under its old symbols (-alias)
+    open var _isimMatchmakingModeV1: Int { get { matchmakingMode.rawValue } set { matchmakingMode = GKMatchmakingMode(rawValue: newValue) ?? .default } }
     public init(matchRequest request: GKMatchRequest) { matchRequest = request; super.init(nibName: nil, bundle: nil) }
     public required init?(coder: NSCoder) { matchRequest = GKMatchRequest(); super.init(nibName: nil, bundle: nil) }
     open override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
         let matches = showExistingMatches ? _GCTurns.mine().map(GKTurnBasedMatch._make) : []
-        embed(_GCTurnBasedView(matches: matches, start: { [weak self] in
+        let mode = matchmakingMode
+        if mode == .nearbyOnly { _GCRealtime.advertiseNearby(true) }
+        NSLog("isim GameKit: turn-based matchmaker mode %ld", mode.rawValue)
+        embed(_GCTurnBasedView(matches: matches, mode: mode, start: { [weak self] invite in
             guard let self else { return }
-            GKTurnBasedMatch.find(for: self.matchRequest) { m, e in
+            let r = self.matchRequest
+            if let invite {                                    // a new match with the chosen player invited
+                let copy = GKMatchRequest()
+                copy.minPlayers = r.minPlayers; copy.maxPlayers = r.maxPlayers; copy.defaultNumberOfPlayers = r.defaultNumberOfPlayers
+                copy.playerGroup = r.playerGroup; copy.inviteMessage = r.inviteMessage; copy.recipients = [invite]
+                GKTurnBasedMatch.find(for: copy) { m, e in
+                    if let m { self.chose(m) } else if let e { self.turnBasedMatchmakerDelegate?.turnBasedMatchmakerViewController(self, didFailWithError: e) }
+                }
+                return
+            }
+            GKTurnBasedMatch.find(for: r) { m, e in
                 if let m { self.chose(m) } else if let e { self.turnBasedMatchmakerDelegate?.turnBasedMatchmakerViewController(self, didFailWithError: e) }
             }
         }, open: { [weak self] m in self?.chose(m) }, cancel: { [weak self] in
             guard let self else { return }
             if let d = self.turnBasedMatchmakerDelegate { d.turnBasedMatchmakerViewControllerWasCancelled(self) } else { self.dismiss(animated: true, completion: nil) }
         }))
+    }
+    open override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if matchmakingMode == .nearbyOnly { _GCRealtime.advertiseNearby(false) }
     }
     func chose(_ m: GKTurnBasedMatch) {
         NSLog("isim GameKit: turn-based matchmaker chose match %@", m.matchID)
@@ -1054,7 +1127,8 @@ open class GKTurnBasedMatchmakerViewController: UINavigationControllerStandIn {
 
 struct _GCTurnBasedView: View {
     let matches: [GKTurnBasedMatch]
-    let start: () -> Void, open: (GKTurnBasedMatch) -> Void, cancel: () -> Void
+    let mode: GKMatchmakingMode
+    let start: (GKPlayer?) -> Void, open: (GKTurnBasedMatch) -> Void, cancel: () -> Void
     func line(_ m: GKTurnBasedMatch) -> String {
         if m.status == .ended { return "Ended" }
         if let c = m.currentParticipant {
@@ -1066,8 +1140,19 @@ struct _GCTurnBasedView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    Button(action: start) { Text(verbatim: "Start a New Match").frame(maxWidth: .infinity) }.accessibilityIdentifier("gc-match-find")
+                if mode == .default || mode == .automatchOnly {
+                    Section {
+                        Button { start(nil) } label: { Text(verbatim: "Start a New Match").frame(maxWidth: .infinity) }.accessibilityIdentifier("gc-match-find")
+                    }
+                }
+                if mode != .automatchOnly {
+                    Section {
+                        let players = _GCMatchmaking.invitable(mode)
+                        if players.isEmpty { Text(verbatim: mode == .nearbyOnly ? "No players nearby." : "No friends to invite.").foregroundStyle(.secondary) }
+                        ForEach(players, id: \._id) { p in
+                            Button { start(p) } label: { _GCPlayerRow(name: p.alias, detail: "Invite") }.accessibilityIdentifier("gc-turn-invite-\(p.alias)")
+                        }
+                    } header: { Text(verbatim: mode == .nearbyOnly ? "Nearby Players" : "Invite Friends") }
                 }
                 if !matches.isEmpty {
                     Section {
@@ -1092,6 +1177,7 @@ struct _GCTurnBasedView: View {
 
 @MainActor enum _GCMultiplayer {
     static func installHandlers() {
+        _GCExchanges.install()
         _GCNet.handlers["invite"] = { e in
             MainActor.assumeIsolated {
                 let inv = GKInvite()

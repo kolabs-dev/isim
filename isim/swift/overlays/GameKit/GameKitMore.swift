@@ -82,6 +82,9 @@ public protocol GKLocalPlayerListener: AnyObject {
     func player(_ player: GKPlayer, wantsToPlay challenge: GKChallenge)
     func player(_ player: GKPlayer, matchEnded match: GKTurnBasedMatch)
     func player(_ player: GKPlayer, wantsToQuitMatch match: GKTurnBasedMatch)
+    func player(_ player: GKPlayer, receivedExchangeRequest exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch)
+    func player(_ player: GKPlayer, receivedExchangeCancellation exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch)
+    func player(_ player: GKPlayer, receivedExchangeReplies replies: [GKTurnBasedExchangeReply], forCompletedExchange exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch)
     func player(_ player: GKPlayer, didRequestMatchWithOtherPlayers playersToInvite: [GKPlayer])
     func player(_ player: GKPlayer, didReceive challenge: GKChallenge)
     func player(_ player: GKPlayer, didComplete challenge: GKChallenge, issuedByFriend friendPlayer: GKPlayer)
@@ -98,6 +101,9 @@ extension GKLocalPlayerListener {
     public func player(_ player: GKPlayer, wantsToPlay challenge: GKChallenge) {}
     public func player(_ player: GKPlayer, matchEnded match: GKTurnBasedMatch) {}
     public func player(_ player: GKPlayer, wantsToQuitMatch match: GKTurnBasedMatch) {}
+    public func player(_ player: GKPlayer, receivedExchangeRequest exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch) {}
+    public func player(_ player: GKPlayer, receivedExchangeCancellation exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch) {}
+    public func player(_ player: GKPlayer, receivedExchangeReplies replies: [GKTurnBasedExchangeReply], forCompletedExchange exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch) {}
     public func player(_ player: GKPlayer, didRequestMatchWithOtherPlayers playersToInvite: [GKPlayer]) {}
     public func player(_ player: GKPlayer, didReceive challenge: GKChallenge) {}
     public func player(_ player: GKPlayer, didComplete challenge: GKChallenge, issuedByFriend friendPlayer: GKPlayer) {}
