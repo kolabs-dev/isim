@@ -28,3 +28,9 @@ usr/lib/swift/libswiftWebKit.dylib 0.20.0
 # shapes: Schema is a class, ModelConfiguration carries a schema, PersistentModel refines Identifiable / Hashable /
 # Observable, fetches filter and sort. Swift apps built with 0.22 or earlier that use SwiftData must be rebuilt.
 usr/lib/swift/libswiftSwiftData.dylib 0.23.0
+# 0.27.0 (issue #299): SwiftData stores models on disk. @Model expands like Apple's (stored properties become accessors
+# over the model's backing data; persistentBackingData, schemaMetadata and init(backingData:) are generated), and
+# PersistentModel, BackingData, Schema.Attribute / Relationship / PropertyMetadata, PersistentIdentifier,
+# ModelConfiguration and ModelContainer have Apple's shapes; ModelContext is no longer bound to the main actor.
+# Swift apps built with 0.26 or earlier that use SwiftData must be rebuilt.
+usr/lib/swift/libswiftSwiftData.dylib 0.27.0

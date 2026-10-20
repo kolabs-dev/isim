@@ -1,107 +1,362 @@
-// SwiftData on isim: an adapted, process-local model container. @Model is a real compiler macro; models live in their
-// container's main context (identity-preserving instances, insertion order) for the life of the process, without
-// Apple's on-disk store, schema migration or CloudKit backend. Fetches apply the descriptor's predicate, sort, offset
-// and limit; contexts are Observable, so SwiftUI views that read @Query (or fetch) refresh after insert, delete, save
-// and rollback. Xcode's SwiftData app template (Schema, ModelConfiguration(schema:isStoredInMemoryOnly:),
-// ModelContainer(for:configurations:), @Query(sort:order:), .modelContainer(for:inMemory:)) runs as written.
+// SwiftData on isim: models persist in an SQLite store on disk (Store.swift), the same SQLite isim's Core Data uses.
+// @Model is a real compiler macro that expands like Apple's (stored properties become accessors over the model's
+// backing data, Backing.swift); ModelContext (Context.swift) keeps one instance per stored model, tracks inserts,
+// changes and deletes, and writes them on save (autosave on the main context). Adapted: fetches load the entity's
+// rows and evaluate the predicate and sort in Swift (Apple translates them to SQL); no schema migration, history or
+// CloudKit backend yet. Xcode's SwiftData app template runs as written.
 @_exported import Foundation
 import Combine
-import Observation
+@_exported import Observation
 import SwiftUI
 
-@attached(member, names: named(_$persistentModelID), named(persistentModelID))
-@attached(extension, conformances: PersistentModel)
+@attached(member, names: named(_$backingData), named(persistentBackingData), named(schemaMetadata), named(init),
+          named(_$observationRegistrar), named(access), named(withMutation))
+@attached(memberAttribute)
+@attached(extension, conformances: PersistentModel, Observable)
 public macro Model() = #externalMacro(module: "SwiftDataMacros", type: "ModelMacro")
+
+/// the accessors @Model gives a stored property (Apple's expansion uses the same name)
+@attached(accessor, names: named(init), named(get), named(set))
+@attached(peer, names: prefixed(_))
+public macro _PersistedProperty() = #externalMacro(module: "SwiftDataMacros", type: "PersistedPropertyMacro")
 
 @attached(peer)
 public macro Attribute(_ options: Schema.Attribute.Option..., originalName: String? = nil, hashModifier: String? = nil) = #externalMacro(module: "SwiftDataMacros", type: "NoOpPropertyMacro")
 @attached(peer)
 public macro Relationship(_ options: Schema.Relationship.Option..., deleteRule: Schema.Relationship.DeleteRule = .nullify,
-                          minimumModelCount: Int = 0, maximumModelCount: Int = 0, originalName: String? = nil,
+                          minimumModelCount: Int? = 0, maximumModelCount: Int? = 0, originalName: String? = nil,
                           inverse: AnyKeyPath? = nil, hashModifier: String? = nil) = #externalMacro(module: "SwiftDataMacros", type: "NoOpPropertyMacro")
 @attached(peer)
 public macro Transient() = #externalMacro(module: "SwiftDataMacros", type: "NoOpPropertyMacro")
 
-public struct PersistentIdentifier: Hashable, Codable, Sendable, CustomStringConvertible, Comparable {
-    private let value: UUID
-    private let order: UInt64
-    nonisolated(unsafe) private static var next: UInt64 = 0
-    private static let lock = NSLock()
-    public init() {
-        value = UUID()
-        PersistentIdentifier.lock.lock()
-        PersistentIdentifier.next += 1
-        order = PersistentIdentifier.next
-        PersistentIdentifier.lock.unlock()
+/// Models whose values for these key paths must be unique: inserting a model that matches a stored one updates it.
+@freestanding(declaration, names: named(_isimUniquenessConstraints))
+public macro Unique<T>(_ constraints: [PartialKeyPath<T>]...) = #externalMacro(module: "SwiftDataMacros", type: "UniqueMacro") where T: PersistentModel
+/// Indexes of the store for these key paths.
+@freestanding(declaration, names: named(_isimIndexes))
+public macro Index<T>(_ indices: [PartialKeyPath<T>]...) = #externalMacro(module: "SwiftDataMacros", type: "IndexMacro") where T: PersistentModel
+
+/// What a persisted property's `_name` peer holds (its value is in the backing data).
+public struct _SwiftDataNoType: Sendable { public init() {} }
+
+// MARK: - Identifiers
+
+/// A model's identity in its store: entity and primary key (temporary until the model is inserted).
+public struct PersistentIdentifier: Hashable, Codable, Sendable, Comparable, CustomStringConvertible {
+    public struct ID: Hashable, Codable, Sendable { let primaryKey: Int64 }
+    public let id: ID
+    public var entityName: String
+    public var storeIdentifier: String?
+    public var isTemporary: Bool { id.primaryKey < 0 }
+    init(entityName: String, storeIdentifier: String?, primaryKey: Int64) {
+        id = ID(primaryKey: primaryKey); self.entityName = entityName; self.storeIdentifier = storeIdentifier
     }
-    public var description: String { value.uuidString }
-    public static func < (a: PersistentIdentifier, b: PersistentIdentifier) -> Bool { a.order < b.order }
+    /// the identifier of a stored model, from its store, entity and primary key (an integer)
+    public static func identifier<T>(for storeIdentifier: String, entityName: String, primaryKey: T) throws -> PersistentIdentifier
+        where T: Decodable, T: Encodable, T: Hashable, T: Sendable {
+        guard let k = (primaryKey as? any BinaryInteger).map({ Int64($0) }) ?? (primaryKey as? String).flatMap({ Int64($0) }) else {
+            throw SwiftDataError.unknownSchema
+        }
+        return PersistentIdentifier(entityName: entityName, storeIdentifier: storeIdentifier, primaryKey: k)
+    }
+    public var description: String { "PersistentIdentifier(\(entityName)/\(storeIdentifier ?? "-")/\(isTemporary ? "t\(-id.primaryKey)" : "p\(id.primaryKey)"))" }
+    public static func < (a: PersistentIdentifier, b: PersistentIdentifier) -> Bool {
+        (a.entityName, a.id.primaryKey) < (b.entityName, b.id.primaryKey)
+    }
 }
 
-/// A model class (@Model): identified by its persistent identifier, hashed and compared by identity, observable.
+// MARK: - Models
+
+/// A model class (@Model): its values live in its backing data; identified by its persistent identifier, hashed and
+/// compared by identity, observable.
 public protocol PersistentModel: AnyObject, Observable, Hashable, Identifiable {
-    var persistentModelID: PersistentIdentifier { get }
+    init(backingData: any BackingData<Self>)
+    var persistentBackingData: any BackingData<Self> { get set }
+    static var schemaMetadata: [Schema.PropertyMetadata] { get }
+    /// #Unique's constraints (none without it)
+    static var _isimUniquenessConstraints: [[AnyKeyPath]] { get }
+    /// #Index's indexes (none without it)
+    static var _isimIndexes: [[AnyKeyPath]] { get }
 }
+
 extension PersistentModel {
+    public static var _isimUniquenessConstraints: [[AnyKeyPath]] { [] }
+    public static var _isimIndexes: [[AnyKeyPath]] { [] }
     public var id: PersistentIdentifier { persistentModelID }
     public static func == (a: Self, b: Self) -> Bool { a === b }
     public func hash(into hasher: inout Hasher) { hasher.combine(ObjectIdentifier(self)) }
+
+    public var persistentModelID: PersistentIdentifier { _store.identifier }
     /// the context the model was inserted into (nil before insert or after delete)
-    @MainActor public var modelContext: ModelContext? { ModelContext._owner(of: self) }
+    public var modelContext: ModelContext? { _store.context }
+    /// whether the model has changes its context has not saved
+    public var hasChanges: Bool { _store.isInserted || _store.isDirty }
+    public var isDeleted: Bool { _store.isDeleted }
+    var _store: _BackingStore { persistentBackingData as! _BackingStore }
+
+    public static func createBackingData<P: PersistentModel>() -> some BackingData<P> { _DefaultBackingData<P>(for: P.self) }
+
+    public func getValue<Value: Decodable>(forKey key: KeyPath<Self, Value>) -> Value { persistentBackingData.getValue(forKey: key) }
+    public func getValue<Value: PersistentModel>(forKey key: KeyPath<Self, Value>) -> Value { _store.adopt(self); return persistentBackingData.getValue(forKey: key) }
+    public func getValue<Value: PersistentModel>(forKey key: KeyPath<Self, Value?>) -> Value? { _store.adopt(self); return persistentBackingData.getValue(forKey: key) }
+    public func getValue<Value, OtherModel>(forKey key: KeyPath<Self, Value>) -> Value where Value: RelationshipCollection, OtherModel == Value.PersistentElement {
+        _store.adopt(self); return persistentBackingData.getValue(forKey: key)
+    }
+    public func getValue<Value, OtherModel>(forKey key: KeyPath<Self, Value?>) -> Value? where Value: RelationshipCollection, OtherModel == Value.PersistentElement {
+        _store.adopt(self); return persistentBackingData.getValue(forKey: key)
+    }
+    public func getTransformableValue<Value>(forKey key: KeyPath<Self, Value>) -> Value { persistentBackingData.getTransformableValue(forKey: key) }
+
+    public func setValue<Value: Encodable>(forKey key: KeyPath<Self, Value>, to newValue: Value) { _store.adopt(self); persistentBackingData.setValue(forKey: key, to: newValue) }
+    public func setValue<Value: PersistentModel>(forKey key: KeyPath<Self, Value>, to newValue: Value) { _store.adopt(self); persistentBackingData.setValue(forKey: key, to: newValue) }
+    public func setValue<Value: PersistentModel>(forKey key: KeyPath<Self, Value?>, to newValue: Value?) { _store.adopt(self); persistentBackingData.setValue(forKey: key, to: newValue) }
+    public func setValue<Value, OtherModel>(forKey key: KeyPath<Self, Value>, to newValue: Value) where Value: RelationshipCollection, OtherModel == Value.PersistentElement {
+        _store.adopt(self); persistentBackingData.setValue(forKey: key, to: newValue)
+    }
+    public func setValue<Value, OtherModel>(forKey key: KeyPath<Self, Value?>, to newValue: Value?) where Value: RelationshipCollection, OtherModel == Value.PersistentElement {
+        _store.adopt(self); persistentBackingData.setValue(forKey: key, to: newValue)
+    }
+    public func setTransformableValue<Value>(forKey key: KeyPath<Self, Value>, to newValue: Value) { _store.adopt(self); persistentBackingData.setTransformableValue(forKey: key, to: newValue) }
 }
 
-/// The model types of a container, and the options of their properties.
+/// A to-many relationship's value: an array of models.
+public protocol RelationshipCollection: Collection {
+    associatedtype PersistentElement: PersistentModel
+    init(_ models: [PersistentElement])
+    var _models: [PersistentElement] { get }
+}
+extension Array: RelationshipCollection where Element: PersistentModel {
+    public typealias PersistentElement = Element
+    public init(_ models: [Element]) { self = models }
+    public var _models: [Element] { self }
+}
+
+// MARK: - Schema
+
+/// A property's description in a schema: an attribute or a relationship.
+public protocol SchemaProperty: Codable, Hashable {
+    var name: String { get }
+    var originalName: String { get }
+    var valueType: any Any.Type { get }
+    var isAttribute: Bool { get }
+    var isRelationship: Bool { get }
+    var isTransient: Bool { get }
+    var isOptional: Bool { get }
+    var isUnique: Bool { get }
+}
+
+func _isOptional(_ t: Any.Type) -> Bool { t is _OptionalMarker.Type }
+protocol _OptionalMarker {}
+extension Optional: _OptionalMarker {}
+
+/// The model types of a container, their properties and constraints.
 public final class Schema: Hashable, @unchecked Sendable {
-    public enum Attribute {
-        public struct Option: OptionSet, Sendable {
-            public let rawValue: Int
-            public init(rawValue: Int) { self.rawValue = rawValue }
-            public static let unique = Option(rawValue: 1)
-            public static let externalStorage = Option(rawValue: 2)
-            public static let encrypt = Option(rawValue: 4)
-            public static let preserveValueOnDeletion = Option(rawValue: 8)
+    /// An attribute: a stored value property, and its options.
+    public final class Attribute: SchemaProperty, @unchecked Sendable {
+        public struct Option: Hashable, Codable, Sendable {
+            let kind: String
+            public static var unique: Option { Option(kind: "unique") }
+            public static var externalStorage: Option { Option(kind: "externalStorage") }
+            public static var allowsCloudEncryption: Option { Option(kind: "allowsCloudEncryption") }
+            public static var preserveValueOnDeletion: Option { Option(kind: "preserveValueOnDeletion") }
+            public static var ephemeral: Option { Option(kind: "ephemeral") }
+            public static var spotlight: Option { Option(kind: "spotlight") }
+            public static func transformable(by transformerName: String) -> Option { Option(kind: "transformable:" + transformerName) }
+        }
+        public internal(set) var name: String
+        public var originalName: String
+        public var options: [Option]
+        public internal(set) var valueType: any Any.Type
+        public var defaultValue: Any?
+        public var hashModifier: String?
+        public init(_ options: Option..., originalName: String? = nil, hashModifier: String? = nil) {
+            self.options = options; name = ""; self.originalName = originalName ?? ""; valueType = Any.self; self.hashModifier = hashModifier
+        }
+        public init(name: String, originalName: String? = nil, options: [Option] = [], valueType: any Any.Type, defaultValue: Any? = nil, hashModifier: String? = nil) {
+            self.name = name; self.originalName = originalName ?? name; self.options = options; self.valueType = valueType
+            self.defaultValue = defaultValue; self.hashModifier = hashModifier
+        }
+        public var isAttribute: Bool { true }
+        public var isRelationship: Bool { false }
+        public var isTransient: Bool { false }
+        public var isOptional: Bool { _isOptional(valueType) }
+        public var isUnique: Bool { options.contains(.unique) }
+        public var isTransformable: Bool { options.contains { $0.kind.hasPrefix("transformable:") } }
+        public var isCodable: Bool { valueType is any Codable.Type }
+        enum CodingKeys: String, CodingKey { case name, originalName, options, hashModifier }
+        public required init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            name = try c.decode(String.self, forKey: .name); originalName = try c.decode(String.self, forKey: .originalName)
+            options = try c.decode([Option].self, forKey: .options); hashModifier = try c.decodeIfPresent(String.self, forKey: .hashModifier); valueType = Any.self
+        }
+        public func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(name, forKey: .name); try c.encode(originalName, forKey: .originalName); try c.encode(options, forKey: .options)
+            try c.encodeIfPresent(hashModifier, forKey: .hashModifier)
+        }
+        public static func == (a: Attribute, b: Attribute) -> Bool { a.name == b.name && a.options == b.options && a.originalName == b.originalName }
+        public func hash(into h: inout Hasher) { h.combine(name); h.combine(options) }
+    }
+
+    /// A relationship: a property whose value is a model or models, its delete rule and inverse.
+    public final class Relationship: SchemaProperty, @unchecked Sendable {
+        public struct Option: Hashable, Codable, Sendable {
+            let kind: String
+            public static var unique: Option { Option(kind: "unique") }
+        }
+        public enum DeleteRule: String, Hashable, Codable, Sendable { case noAction, nullify, cascade, deny }
+        public internal(set) var name: String
+        public var originalName: String
+        public var options: [Option]
+        public var deleteRule: DeleteRule
+        public var minimumModelCount: Int?
+        public var maximumModelCount: Int?
+        public var inverseKeyPath: AnyKeyPath?
+        public internal(set) var inverseName: String?
+        public internal(set) var keypath: AnyKeyPath?
+        public internal(set) var destination: String
+        public internal(set) var valueType: any Any.Type
+        public var hashModifier: String?
+        public init(_ options: Option..., deleteRule: DeleteRule = .nullify, minimumModelCount: Int? = 0, maximumModelCount: Int? = 0,
+                    originalName: String? = nil, inverse: AnyKeyPath? = nil, hashModifier: String? = nil) {
+            self.options = options; self.deleteRule = deleteRule; self.minimumModelCount = minimumModelCount; self.maximumModelCount = maximumModelCount
+            self.originalName = originalName ?? ""; inverseKeyPath = inverse; self.hashModifier = hashModifier
+            name = ""; destination = ""; valueType = Any.self
+        }
+        public var isAttribute: Bool { false }
+        public var isRelationship: Bool { true }
+        public var isTransient: Bool { false }
+        public var isOptional: Bool { _isOptional(valueType) }
+        public var isUnique: Bool { options.contains(.unique) }
+        public var isToOneRelationship: Bool { !(valueType is _ToManyMarker.Type) }
+        enum CodingKeys: String, CodingKey { case name, originalName, options, deleteRule, destination, inverseName }
+        public required init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            name = try c.decode(String.self, forKey: .name); originalName = try c.decode(String.self, forKey: .originalName)
+            options = try c.decode([Option].self, forKey: .options); deleteRule = try c.decode(DeleteRule.self, forKey: .deleteRule)
+            destination = try c.decode(String.self, forKey: .destination); inverseName = try c.decodeIfPresent(String.self, forKey: .inverseName)
+            valueType = Any.self
+        }
+        public func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(name, forKey: .name); try c.encode(originalName, forKey: .originalName); try c.encode(options, forKey: .options)
+            try c.encode(deleteRule, forKey: .deleteRule); try c.encode(destination, forKey: .destination); try c.encodeIfPresent(inverseName, forKey: .inverseName)
+        }
+        public static func == (a: Relationship, b: Relationship) -> Bool { a.name == b.name && a.destination == b.destination && a.deleteRule == b.deleteRule }
+        public func hash(into h: inout Hasher) { h.combine(name); h.combine(destination) }
+    }
+
+    /// What @Model generates for each persisted property.
+    public struct PropertyMetadata {
+        let name: String, keypath: AnyKeyPath, defaultValue: Any?, metadata: (any SchemaProperty)?
+        public init(name: String, keypath: AnyKeyPath, defaultValue: Any?, metadata: (any SchemaProperty)?) {
+            self.name = name; self.keypath = keypath; self.defaultValue = defaultValue; self.metadata = metadata
         }
     }
-    public enum Relationship {
-        public struct Option: OptionSet, Sendable { public let rawValue: Int; public init(rawValue: Int) { self.rawValue = rawValue }; public static let unique = Option(rawValue: 1) }
-        public enum DeleteRule: Sendable { case noAction, nullify, cascade, deny }
+
+    /// A model type of the schema.
+    public final class Entity: Hashable, @unchecked Sendable {
+        public let name: String
+        public let properties: [any SchemaProperty]
+        public var attributes: Set<Attribute> { Set(properties.compactMap { $0 as? Attribute }) }
+        public var relationships: Set<Relationship> { Set(properties.compactMap { $0 as? Relationship }) }
+        public var storedProperties: [any SchemaProperty] { properties }
+        public var storedPropertiesByName: [String: any SchemaProperty] { Dictionary(properties.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a }) }
+        public var attributesByName: [String: Attribute] { Dictionary(attributes.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a }) }
+        public var relationshipsByName: [String: Relationship] { Dictionary(relationships.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a }) }
+        /// the properties whose values together must be unique (#Unique, @Attribute(.unique))
+        public let uniquenessConstraints: [[String]]
+        public let indices: [[String]]
+        init(_ info: _ModelInfo) {
+            name = info.entity
+            properties = info.properties.map { $0.schemaProperty }
+            uniquenessConstraints = info.uniques.map { $0.map { info.properties[$0].name } }
+            indices = info.indexes.map { $0.map { info.properties[$0].name } }
+        }
+        public static func == (a: Entity, b: Entity) -> Bool { a.name == b.name }
+        public func hash(into h: inout Hasher) { h.combine(name) }
     }
-    public struct Version: Hashable, Sendable, CustomStringConvertible {
+
+    public struct Version: Hashable, Codable, Sendable, CustomStringConvertible, Comparable {
         public let major: Int, minor: Int, patch: Int
         public init(_ major: Int, _ minor: Int, _ patch: Int) { self.major = major; self.minor = minor; self.patch = patch }
         public var description: String { "\(major).\(minor).\(patch)" }
+        public static func < (a: Version, b: Version) -> Bool { (a.major, a.minor, a.patch) < (b.major, b.minor, b.patch) }
     }
-    /// the names of the schema's model types
-    public let entityNames: [String]
-    let types: [any PersistentModel.Type]
+    public static let schemaEncodingVersion = Version(1, 0, 0)
+
+    /// the model types and those their relationships reach
+    public let entities: [Entity]
+    public let entitiesByName: [String: Entity]
     public let version: Version
+    public let encodingVersion: Version
+    let types: [any PersistentModel.Type]
+
     public init(_ types: [any PersistentModel.Type], version: Version = Version(1, 0, 0)) {
-        self.types = types; self.version = version
-        entityNames = types.map { String(describing: $0) }
+        var all: [any PersistentModel.Type] = [], seen = Set<ObjectIdentifier>()
+        var queue = types
+        while !queue.isEmpty {
+            let t = queue.removeFirst()
+            guard seen.insert(ObjectIdentifier(t)).inserted else { continue }
+            all.append(t)
+            queue += _ModelInfo.of(t).properties.compactMap(\.target)
+        }
+        self.types = all; self.version = version; encodingVersion = Schema.schemaEncodingVersion
+        entities = all.map { Entity(_ModelInfo.of($0)) }
+        entitiesByName = Dictionary(entities.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
     }
     public convenience init(_ types: any PersistentModel.Type..., version: Version = Version(1, 0, 0)) { self.init(types, version: version) }
     public convenience init() { self.init([any PersistentModel.Type]()) }
-    public static func == (a: Schema, b: Schema) -> Bool { a.entityNames == b.entityNames && a.version == b.version }
-    public func hash(into h: inout Hasher) { h.combine(entityNames); h.combine(version) }
+    public func entity<T: PersistentModel>(for type: T.Type) -> Entity? { entitiesByName[Schema.entityName(for: type)] }
+    public static func entityName<T: PersistentModel>(for type: T.Type) -> String { _ModelInfo.of(type).entity }
+    public static func == (a: Schema, b: Schema) -> Bool { a.entities.map(\.name) == b.entities.map(\.name) && a.version == b.version }
+    public func hash(into h: inout Hasher) { h.combine(entities.map(\.name)); h.combine(version) }
 }
 
+// MARK: - Configuration, fetching, errors
+
 public struct ModelConfiguration: Hashable, Sendable {
-    public var name: String
-    public var schema: Schema?
-    public var isStoredInMemoryOnly: Bool
-    public var allowsSave: Bool
-    public init(_ name: String? = nil, schema: Schema? = nil, isStoredInMemoryOnly: Bool = false, allowsSave: Bool = true) {
-        self.name = name ?? "default"; self.schema = schema; self.isStoredInMemoryOnly = isStoredInMemoryOnly; self.allowsSave = allowsSave
+    public struct GroupContainer: Hashable, Sendable {
+        let id: String?
+        public static var automatic: GroupContainer { GroupContainer(id: "") }
+        public static var none: GroupContainer { GroupContainer(id: nil) }
+        public static func identifier(_ groupName: String) -> GroupContainer { GroupContainer(id: groupName) }
     }
-    public init(schema: Schema? = nil, isStoredInMemoryOnly: Bool = false, allowsSave: Bool = true) {
-        self.init(nil, schema: schema, isStoredInMemoryOnly: isStoredInMemoryOnly, allowsSave: allowsSave)
+    public struct CloudKitDatabase: Hashable, Sendable {
+        let id: String?
+        public static var automatic: CloudKitDatabase { CloudKitDatabase(id: "") }
+        public static var none: CloudKitDatabase { CloudKitDatabase(id: nil) }
+        public static func `private`(_ dbName: String) -> CloudKitDatabase { CloudKitDatabase(id: dbName) }
+    }
+    public let name: String
+    public var schema: Schema?
+    public let url: URL
+    public let isStoredInMemoryOnly: Bool
+    public let allowsSave: Bool
+    public let groupContainer: GroupContainer
+    public let cloudKitDatabase: CloudKitDatabase
+    public var groupAppContainerIdentifier: String? { groupContainer.id.flatMap { $0.isEmpty ? nil : $0 } }
+    public var cloudKitContainerIdentifier: String? { cloudKitDatabase.id.flatMap { $0.isEmpty ? nil : $0 } }
+
+    /// a store named `name` (default: "default") in the app's Application Support directory, or in memory
+    public init(_ name: String? = nil, schema: Schema? = nil, isStoredInMemoryOnly: Bool = false, allowsSave: Bool = true,
+                groupContainer: GroupContainer = .automatic, cloudKitDatabase: CloudKitDatabase = .automatic) {
+        let n = name ?? "default"
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: NSTemporaryDirectory())
+        self.name = n; self.schema = schema; self.isStoredInMemoryOnly = isStoredInMemoryOnly; self.allowsSave = allowsSave
+        self.groupContainer = groupContainer; self.cloudKitDatabase = cloudKitDatabase
+        url = isStoredInMemoryOnly ? URL(fileURLWithPath: "/dev/null") : dir.appendingPathComponent("\(n).store")
+    }
+    /// a store at a file URL
+    public init(_ name: String? = nil, schema: Schema? = nil, url: URL, allowsSave: Bool = true, cloudKitDatabase: CloudKitDatabase = .automatic) {
+        self.name = name ?? url.deletingPathExtension().lastPathComponent; self.schema = schema; self.url = url
+        isStoredInMemoryOnly = url.path == "/dev/null"; self.allowsSave = allowsSave
+        groupContainer = .none; self.cloudKitDatabase = cloudKitDatabase
+    }
+    public init(for forTypes: any PersistentModel.Type..., isStoredInMemoryOnly: Bool = false) {
+        self.init(nil, schema: Schema(forTypes), isStoredInMemoryOnly: isStoredInMemoryOnly)
     }
     public init(isStoredInMemoryOnly: Bool) { self.init(nil, schema: nil, isStoredInMemoryOnly: isStoredInMemoryOnly) }
-    /// where Apple's store would be (isim keeps models in memory)
-    public var url: URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: NSTemporaryDirectory())
-        return isStoredInMemoryOnly ? URL(fileURLWithPath: "/dev/null") : dir.appendingPathComponent("\(name).store")
-    }
 }
 
 public struct FetchDescriptor<T: PersistentModel> {
@@ -110,110 +365,39 @@ public struct FetchDescriptor<T: PersistentModel> {
     public var fetchLimit: Int?
     public var fetchOffset: Int?
     public var includePendingChanges = true
+    /// kept; isim loads every property
+    public var propertiesToFetch: [PartialKeyPath<T>] = []
+    /// kept; isim loads relationships when they are read
+    public var relationshipKeyPathsForPrefetching: [PartialKeyPath<T>] = []
     public init(predicate: Predicate<T>? = nil, sortBy: [SortDescriptor<T>] = []) { self.predicate = predicate; self.sortBy = sortBy }
 }
 
-@MainActor open class ModelContext: ObservableObject, Observable {
-    nonisolated(unsafe) static var owners: [ObjectIdentifier: (model: AnyObject, context: ModelContext)] = [:]
-    static func _owner(of model: AnyObject) -> ModelContext? { owners[ObjectIdentifier(model)]?.context }
-
-    public let container: ModelContainer
-    private var objects: [any PersistentModel] = []        // insertion order
-    private var inserted: [ObjectIdentifier] = []
-    private var deleted: [any PersistentModel] = []
-    private let registrar = ObservationRegistrar()
-    private var _changes = 0
-    /// read inside fetch (SwiftUI's observation of @Query); bumped by every change
-    private var changes: Int {
-        get { registrar.access(self, keyPath: \.changes); return _changes }
-        set { registrar.withMutation(of: self, keyPath: \.changes) { _changes = newValue } }
-    }
-    open private(set) var hasChanges = false
-    public var autosaveEnabled = true
-    public init(_ container: ModelContainer) { self.container = container }
-
-    open func insert<T: PersistentModel>(_ model: T) {
-        guard !objects.contains(where: { $0 === model }) else { return }
-        objects.append(model)
-        inserted.append(ObjectIdentifier(model))
-        ModelContext.owners[ObjectIdentifier(model)] = (model, self)
-        changed()
-    }
-    open func delete<T: PersistentModel>(_ model: T) {
-        guard let i = objects.firstIndex(where: { $0 === model }) else { return }
-        deleted.append(objects.remove(at: i))
-        ModelContext.owners[ObjectIdentifier(model)] = nil
-        changed()
-    }
-    /// deletes the models of a type that match a predicate (all of them without one)
-    open func delete<T: PersistentModel>(model: T.Type, where predicate: Predicate<T>? = nil, includeSubclasses: Bool = true) throws {
-        for m in try fetch(FetchDescriptor<T>(predicate: predicate)) { delete(m) }
-    }
-    open func save() throws { inserted = []; deleted = []; hasChanges = false; changes += 1 }
-    /// undoes the changes since the last save: inserted models leave, deleted ones come back
-    open func rollback() {
-        objects.removeAll { m in inserted.contains(ObjectIdentifier(m)) }
-        for m in deleted { objects.append(m); ModelContext.owners[ObjectIdentifier(m)] = (m, self) }
-        objects.sort { $0.persistentModelID < $1.persistentModelID }
-        inserted = []; deleted = []; hasChanges = false; changes += 1
-    }
-    open func fetch<T>(_ descriptor: FetchDescriptor<T>) throws -> [T] where T: PersistentModel {
-        _ = changes
-        var result = objects.compactMap { $0 as? T }
-        if let p = descriptor.predicate { result = try result.filter { try p.evaluate($0) } }
-        if !descriptor.sortBy.isEmpty { result.sort(using: descriptor.sortBy) }
-        if let o = descriptor.fetchOffset, o > 0 { result = Array(result.dropFirst(o)) }
-        if let limit = descriptor.fetchLimit { result = Array(result.prefix(limit)) }
-        return result
-    }
-    open func fetchCount<T>(_ descriptor: FetchDescriptor<T>) throws -> Int where T: PersistentModel { try fetch(descriptor).count }
-    open func fetchIdentifiers<T>(_ descriptor: FetchDescriptor<T>) throws -> [PersistentIdentifier] where T: PersistentModel {
-        try fetch(descriptor).map(\.persistentModelID)
-    }
-    /// the model with that identifier in this context
-    open func model(for id: PersistentIdentifier) -> any PersistentModel {
-        guard let m = objects.first(where: { $0.persistentModelID == id }) else { fatalError("SwiftData: no model with identifier \(id) in this context") }
-        return m
-    }
-    open func registeredModel<T: PersistentModel>(for id: PersistentIdentifier) -> T? { objects.first { $0.persistentModelID == id } as? T }
-    public var insertedModelsArray: [any PersistentModel] { objects.filter { inserted.contains(ObjectIdentifier($0)) } }
-    public var deletedModelsArray: [any PersistentModel] { deleted }
-
-    private var saveScheduled = false
-    /// autosave, as SwiftData's main context: after the current event (a rollback in the same turn still undoes)
-    private func changed() {
-        hasChanges = true
-        objectWillChange.send()
-        changes += 1
-        guard autosaveEnabled, !saveScheduled else { return }
-        saveScheduled = true
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            saveScheduled = false
-            if autosaveEnabled && hasChanges { try? save() }
-        }
-    }
+/// SwiftData's errors.
+public struct SwiftDataError: Error, Equatable, Hashable, Sendable, CustomStringConvertible {
+    let code: String
+    public var description: String { "SwiftDataError(\(code))" }
+    public static let loadIssueModelContainer = SwiftDataError(code: "loadIssueModelContainer")
+    public static let configurationFileNameContainsInvalidCharacters = SwiftDataError(code: "configurationFileNameContainsInvalidCharacters")
+    public static let configurationFileNameTooLong = SwiftDataError(code: "configurationFileNameTooLong")
+    public static let configurationSchemaNotFoundInContainerSchema = SwiftDataError(code: "configurationSchemaNotFoundInContainerSchema")
+    public static let duplicateConfiguration = SwiftDataError(code: "duplicateConfiguration")
+    public static let backwardMigration = SwiftDataError(code: "backwardMigration")
+    public static let unknownSchema = SwiftDataError(code: "unknownSchema")
+    public static let unknownDataStoreSchema = SwiftDataError(code: "unknownDataStoreSchema")
+    public static let unsupportedPredicate = SwiftDataError(code: "unsupportedPredicate")
+    public static let unsupportedSortDescriptor = SwiftDataError(code: "unsupportedSortDescriptor")
+    public static let unsupportedKeyPath = SwiftDataError(code: "unsupportedKeyPath")
+    public static let includePendingChangesWithBatchSize = SwiftDataError(code: "includePendingChangesWithBatchSize")
+    public static let sortingPendingChangesWithIdentifiers = SwiftDataError(code: "sortingPendingChangesWithIdentifiers")
+    public static let invalidTransactionFetchRequest = SwiftDataError(code: "invalidTransactionFetchRequest")
+    public static let historyTokenExpired = SwiftDataError(code: "historyTokenExpired")
+    public static let missingModelContext = SwiftDataError(code: "missingModelContext")
+    /// a save broke the model's rules (a `deny` delete rule, a relationship's minimum or maximum count)
+    public static let modelValidationFailure = SwiftDataError(code: "modelValidationFailure")
+    public static func ~= (match: SwiftDataError, error: any Error) -> Bool { (error as? SwiftDataError) == match }
 }
 
-@MainActor open class ModelContainer: ObservableObject {
-    public let schema: Schema
-    public let configurations: [ModelConfiguration]
-    public lazy var mainContext = ModelContext(self)
-    public required init(for givenSchema: Schema, configurations: [ModelConfiguration] = []) throws {
-        schema = givenSchema
-        self.configurations = configurations.isEmpty ? [ModelConfiguration(schema: givenSchema)] : configurations
-    }
-    public convenience init(for givenSchema: Schema, configurations: ModelConfiguration...) throws {
-        try self.init(for: givenSchema, configurations: configurations)
-    }
-    public convenience init(for modelTypes: [any PersistentModel.Type], configurations: [ModelConfiguration] = []) throws {
-        try self.init(for: Schema(modelTypes), configurations: configurations)
-    }
-    public convenience init(for modelType: any PersistentModel.Type, _ modelTypes: any PersistentModel.Type..., configurations: ModelConfiguration...) throws {
-        try self.init(for: Schema([modelType] + modelTypes), configurations: configurations)
-    }
-    open func deleteAllData() { mainContext = ModelContext(self) }
-}
+// MARK: - SwiftUI
 
 @MainActor @propertyWrapper public struct Query<Element: PersistentModel>: DynamicProperty, _IsimInstallableDynamicProperty {
     /// the view's context (from its environment, at install) and the subscription that re-renders the view
@@ -242,7 +426,7 @@ public struct FetchDescriptor<T: PersistentModel> {
     public var modelContext: ModelContext { holder.context ?? ModelContextKey.defaultValue }
 }
 private struct ModelContextKey: EnvironmentKey {
-    @MainActor static let fallback: ModelContext = try! ModelContainer(for: Schema()).mainContext
+    @MainActor static let fallback: ModelContext = try! ModelContainer(for: Schema(), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]).mainContext
     static var defaultValue: ModelContext { MainActor.assumeIsolated { fallback } }
 }
 extension EnvironmentValues {
@@ -252,11 +436,11 @@ extension View {
     @MainActor public func modelContainer(_ container: ModelContainer) -> some View { environment(\.modelContext, container.mainContext) }
     @MainActor public func modelContainer(for modelTypes: [any PersistentModel.Type], inMemory: Bool = false, isAutosaveEnabled: Bool = true,
                                           isUndoEnabled: Bool = false, onSetup: @escaping (Swift.Result<ModelContainer, any Error>) -> Void = { _ in }) -> some View {
-        modelContainer(_containers.container(modelTypes, inMemory: inMemory, onSetup: onSetup))
+        modelContainer(_containers.container(modelTypes, inMemory: inMemory, autosave: isAutosaveEnabled, onSetup: onSetup))
     }
     @MainActor public func modelContainer(for modelType: any PersistentModel.Type, inMemory: Bool = false, isAutosaveEnabled: Bool = true,
                                           isUndoEnabled: Bool = false, onSetup: @escaping (Swift.Result<ModelContainer, any Error>) -> Void = { _ in }) -> some View {
-        modelContainer(for: [modelType], inMemory: inMemory, onSetup: onSetup)
+        modelContainer(for: [modelType], inMemory: inMemory, isAutosaveEnabled: isAutosaveEnabled, onSetup: onSetup)
     }
     @MainActor public func modelContext(_ modelContext: ModelContext) -> some View { environment(\.modelContext, modelContext) }
 }
@@ -264,22 +448,30 @@ extension Scene {
     @MainActor public func modelContainer(_ container: ModelContainer) -> some Scene { environment(\.modelContext, container.mainContext) }
     @MainActor public func modelContainer(for modelTypes: [any PersistentModel.Type], inMemory: Bool = false, isAutosaveEnabled: Bool = true,
                                           isUndoEnabled: Bool = false, onSetup: @escaping (Swift.Result<ModelContainer, any Error>) -> Void = { _ in }) -> some Scene {
-        modelContainer(_containers.container(modelTypes, inMemory: inMemory, onSetup: onSetup))
+        modelContainer(_containers.container(modelTypes, inMemory: inMemory, autosave: isAutosaveEnabled, onSetup: onSetup))
     }
     @MainActor public func modelContainer(for modelType: any PersistentModel.Type, inMemory: Bool = false, isAutosaveEnabled: Bool = true,
                                           isUndoEnabled: Bool = false, onSetup: @escaping (Swift.Result<ModelContainer, any Error>) -> Void = { _ in }) -> some Scene {
-        modelContainer(for: [modelType], inMemory: inMemory, onSetup: onSetup)
+        modelContainer(for: [modelType], inMemory: inMemory, isAutosaveEnabled: isAutosaveEnabled, onSetup: onSetup)
     }
 }
 /// .modelContainer(for:) keeps one container per set of model types (a view's body runs many times)
 @MainActor enum _containers {
     static var made: [String: ModelContainer] = [:]
-    static func container(_ types: [any PersistentModel.Type], inMemory: Bool, onSetup: (Swift.Result<ModelContainer, any Error>) -> Void) -> ModelContainer {
+    static func container(_ types: [any PersistentModel.Type], inMemory: Bool, autosave: Bool, onSetup: (Swift.Result<ModelContainer, any Error>) -> Void) -> ModelContainer {
         let key = types.map { String(reflecting: $0) }.joined(separator: ",") + (inMemory ? "/memory" : "")
         if let c = made[key] { return c }
-        let c = try! ModelContainer(for: Schema(types), configurations: [ModelConfiguration(isStoredInMemoryOnly: inMemory)])
-        made[key] = c
-        onSetup(.success(c))
-        return c
+        do {
+            let c = try ModelContainer(for: Schema(types), configurations: [ModelConfiguration(isStoredInMemoryOnly: inMemory)])
+            c.mainContext.autosaveEnabled = autosave
+            made[key] = c
+            onSetup(.success(c))
+            return c
+        } catch {
+            onSetup(.failure(error))
+            let c = try! ModelContainer(for: Schema(types), configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+            made[key] = c
+            return c
+        }
     }
 }

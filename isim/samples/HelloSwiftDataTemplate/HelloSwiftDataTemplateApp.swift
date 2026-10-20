@@ -35,7 +35,7 @@ func log(_ s: String) { print("sd \(s)"); fflush(stdout) }
     let container = try! ModelContainer(for: Score.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     let context = container.mainContext
     for (p, n) in [("ana", 30), ("bo", 10), ("cy", 50), ("di", 20), ("ed", 40)] { context.insert(Score(player: p, points: n)) }
-    log("schema \(container.schema.entityNames) configs=\(container.configurations.count) memory=\(container.configurations[0].isStoredInMemoryOnly)")
+    log("schema \(container.schema.entities.map(\.name)) configs=\(container.configurations.count) memory=\(container.configurations.first!.isStoredInMemoryOnly)")
     func names(_ d: FetchDescriptor<Score>) -> String { ((try? context.fetch(d)) ?? []).map(\.player).joined(separator: ",") }
     log("insertion-order \(names(FetchDescriptor<Score>()))")
     log("sorted \(names(FetchDescriptor(sortBy: [SortDescriptor(\Score.points, order: .reverse)])))")
