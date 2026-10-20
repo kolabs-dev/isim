@@ -1,7 +1,7 @@
 # CoreGraphics
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 45.7% of Apple's iOS API (545 of 1193, exact) · **Rows:** 26: 19 ✅ 3 🟡 4 ❌ · **iOS:** 2.0+
+**Symbols:** 59.3% of Apple's iOS API (707 of 1193, exact) · **Rows:** 36: 30 ✅ 2 🟡 4 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Graphics & text](../COVERAGE.md#graphics) · **Apple:** [CoreGraphics](https://developer.apple.com/documentation/coregraphics) · **Issues:** [`area:graphics`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agraphics)
@@ -54,7 +54,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-648 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+486 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -233,8 +233,6 @@
 - [`case relative(Float)`](https://developer.apple.com/documentation/coregraphics/cgcontenttonemappinginfo-swift.enum/lightlevel/relative(_:))
 - [`case none`](https://developer.apple.com/documentation/coregraphics/cgcontenttonemappinginfo-swift.enum/none)
 - [`case referenceWhiteBased(CGContentToneMappingInfo.DefaultOptions)`](https://developer.apple.com/documentation/coregraphics/cgcontenttonemappinginfo-swift.enum/referencewhitebased(_:))
-- [`func addDestination(CFString, at: CGPoint)`](https://developer.apple.com/documentation/coregraphics/cgcontext/adddestination(_:at:))
-- [`func addDocumentMetadata(CFData?)`](https://developer.apple.com/documentation/coregraphics/cgcontext/adddocumentmetadata(_:))
 - [`func addStructureTreeRootChild(CGPDFStructureElement) -> OSStatus`](https://developer.apple.com/documentation/coregraphics/cgcontext/addstructuretreerootchild(_:))
 - [`CGContext.AuxiliaryInfo`](https://developer.apple.com/documentation/coregraphics/cgcontext/auxiliaryinfo)
 - [`init()`](https://developer.apple.com/documentation/coregraphics/cgcontext/auxiliaryinfo/init())
@@ -251,13 +249,11 @@
 - [`func setAllowsFontSmoothing(Bool)`](https://developer.apple.com/documentation/coregraphics/cgcontext/setallowsfontsmoothing(_:))
 - [`func setAllowsFontSubpixelPositioning(Bool)`](https://developer.apple.com/documentation/coregraphics/cgcontext/setallowsfontsubpixelpositioning(_:))
 - [`func setAllowsFontSubpixelQuantization(Bool)`](https://developer.apple.com/documentation/coregraphics/cgcontext/setallowsfontsubpixelquantization(_:))
-- [`func setDestination(CFString, for: CGRect)`](https://developer.apple.com/documentation/coregraphics/cgcontext/setdestination(_:for:))
 - [`func setEDRTargetHeadroom(Float) -> Bool`](https://developer.apple.com/documentation/coregraphics/cgcontext/setedrtargetheadroom(_:))
 - [`func setEDRTargetHeadroom(Float) -> Bool`](https://developer.apple.com/documentation/coregraphics/cgcontext/setedrtargetheadroom(_:))
 - [`func setShouldSmoothFonts(Bool)`](https://developer.apple.com/documentation/coregraphics/cgcontext/setshouldsmoothfonts(_:))
 - [`func setShouldSubpixelPositionFonts(Bool)`](https://developer.apple.com/documentation/coregraphics/cgcontext/setshouldsubpixelpositionfonts(_:))
 - [`func setShouldSubpixelQuantizeFonts(Bool)`](https://developer.apple.com/documentation/coregraphics/cgcontext/setshouldsubpixelquantizefonts(_:))
-- [`func setURL(CFURL, for: CGRect)`](https://developer.apple.com/documentation/coregraphics/cgcontext/seturl(_:for:))
 - [`func showGlyphs([CGGlyph], at: [CGPoint])`](https://developer.apple.com/documentation/coregraphics/cgcontext/showglyphs(_:at:))
 - [`func synchronizeAttributes()`](https://developer.apple.com/documentation/coregraphics/cgcontext/synchronizeattributes())
 - [`class var typeID: CFTypeID`](https://developer.apple.com/documentation/coregraphics/cgcontext/typeid)
@@ -358,7 +354,11 @@
 - [`var contentHeadroom: Float`](https://developer.apple.com/documentation/coregraphics/cgimage/contentheadroom)
 - [`func copyWithCalculatedHDRStats() -> CGImage?`](https://developer.apple.com/documentation/coregraphics/cgimage/copywithcalculatedhdrstats())
 - [`var shouldToneMap: Bool`](https://developer.apple.com/documentation/coregraphics/cgimage/shouldtonemap)
-- … and 348 more (`isim/data/api-coverage.json.gz`)
+- [`var shouldToneMap: Bool`](https://developer.apple.com/documentation/coregraphics/cgimage/shouldtonemap)
+- [`class var typeID: CFTypeID`](https://developer.apple.com/documentation/coregraphics/cgimage/typeid)
+- [`case alphaOnly`](https://developer.apple.com/documentation/coregraphics/cgimagealphainfo/alphaonly)
+- [`case alphaOnly`](https://developer.apple.com/documentation/coregraphics/cgimagealphainfo/alphaonly)
+- … and 186 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

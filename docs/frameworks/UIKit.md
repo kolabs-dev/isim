@@ -1,7 +1,7 @@
 # UIKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 92.7% of Apple's iOS API (13714 of 14790, exact) · **Rows:** 321: 312 ✅ 7 🟡 2 ❌ · **iOS:** 2.0+
+**Symbols:** 92.7% of Apple's iOS API (13716 of 14790, exact) · **Rows:** 322: 313 ✅ 7 🟡 2 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [UIKit](../COVERAGE.md#uikit) · **Apple:** [UIKit](https://developer.apple.com/documentation/uikit) · **Issues:** [`area:uikit`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Auikit)
@@ -406,7 +406,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1076 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1074 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -522,7 +522,6 @@
 - [`case next`](https://developer.apple.com/documentation/uikit/uiaccessibilitycustomrotor/direction/next)
 - [`case previous`](https://developer.apple.com/documentation/uikit/uiaccessibilitycustomrotor/direction/previous)
 - [`case previous`](https://developer.apple.com/documentation/uikit/uiaccessibilitycustomrotor/direction/previous)
-- [`UIAccessibilityCustomRotor.Search`](https://developer.apple.com/documentation/uikit/uiaccessibilitycustomrotor/search)
 - [`UIActionSheetDelegate`](https://developer.apple.com/documentation/uikit/uiactionsheetdelegate)
 - [`UIActivity.Category`](https://developer.apple.com/documentation/uikit/uiactivity/category)
 - [`UIActivity.Category`](https://developer.apple.com/documentation/uikit/uiactivity/category)
@@ -710,7 +709,8 @@
 - [`var preferredContentSize: CGSize`](https://developer.apple.com/documentation/uikit/uicontentcontainer/preferredcontentsize)
 - [`func preferredContentSizeDidChange(forChildContentContainer: any UIContentContainer)`](https://developer.apple.com/documentation/uikit/uicontentcontainer/preferredcontentsizedidchange(forchildcontentcontainer:))
 - [`func preferredContentSizeDidChange(forChildContentContainer: any UIContentContainer)`](https://developer.apple.com/documentation/uikit/uicontentcontainer/preferredcontentsizedidchange(forchildcontentcontainer:))
-- … and 776 more (`isim/data/api-coverage.json.gz`)
+- [`func preferredContentSizeDidChange(forChildContentContainer: any UIContentContainer)`](https://developer.apple.com/documentation/uikit/uicontentcontainer/preferredcontentsizedidchange(forchildcontentcontainer:))
+- … and 774 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

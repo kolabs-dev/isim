@@ -1,7 +1,7 @@
 # Vision
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 5.4% of Apple's iOS API (256 of 4774, exact) · **Rows:** 8: 1 ✅ 2 🟡 1 🧩 4 ❌ · **iOS:** None+
+**Symbols:** 8.3% of Apple's iOS API (398 of 4782, exact) · **Rows:** 15: 5 ✅ 5 🟡 1 🧩 4 ❌ · **iOS:** None+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [Vision](https://developer.apple.com/documentation/vision) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)
@@ -33,7 +33,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-4518 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+4384 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -337,7 +337,7 @@
 - [`var cropAndScaleAction: ImageCropAndScaleAction`](https://developer.apple.com/documentation/vision/detectlenssmudgerequest/cropandscaleaction)
 - [`init(DetectLensSmudgeRequest.Revision?)`](https://developer.apple.com/documentation/vision/detectlenssmudgerequest/init(_:))
 - [`DetectLensSmudgeRequest.Revision`](https://developer.apple.com/documentation/vision/detectlenssmudgerequest/revision-swift.enum)
-- … and 4218 more (`isim/data/api-coverage.json.gz`)
+- … and 4084 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

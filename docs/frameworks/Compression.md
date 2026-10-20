@@ -1,6 +1,7 @@
 # Compression
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 92.3% of Apple's iOS API (72 of 78, exact) · **Rows:** 11: 10 ✅ 1 ❌ · **iOS:** 9.0+
 <!-- /generated:header -->
 
 **Area:** [Foundation & CoreFoundation](../COVERAGE.md#foundation) · **Apple:** [Compression](https://developer.apple.com/documentation/compression) · **Issues:** [`area:foundation`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Afoundation)
@@ -47,4 +48,16 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+6 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`case brotli`](https://developer.apple.com/documentation/compression/algorithm/brotli)
+- [`case lzbitmap`](https://developer.apple.com/documentation/compression/algorithm/lzbitmap)
+- [`var COMPRESSION_LZMESH: compression_algorithm`](https://developer.apple.com/documentation/compression/compression_lzmesh)
+- [`var COMPRESSION_LZMESH: compression_algorithm`](https://developer.apple.com/documentation/compression/compression_lzmesh)
+- [`var COMPRESSION_LZRAVEN: compression_algorithm`](https://developer.apple.com/documentation/compression/compression_lzraven)
+- [`var COMPRESSION_LZRAVEN: compression_algorithm`](https://developer.apple.com/documentation/compression/compression_lzraven)
+
+</details>
 <!-- /generated:missing -->

@@ -1,7 +1,7 @@
 # QuartzCore
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 86.9% of Apple's iOS API (610 of 702, exact) · **Rows:** 24: 21 ✅ 1 🟡 2 ❌ · **iOS:** 2.0+
+**Symbols:** 87.7% of Apple's iOS API (616 of 702, exact) · **Rows:** 27: 24 ✅ 1 🟡 2 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Graphics & text](../COVERAGE.md#graphics) · **Apple:** [QuartzCore](https://developer.apple.com/documentation/quartzcore) · **Issues:** [`area:graphics`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agraphics)
@@ -47,7 +47,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-92 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+86 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -65,7 +65,6 @@
 - [`class var isAvailable: Bool`](https://developer.apple.com/documentation/quartzcore/caedrmetadata/isavailable)
 - [`class func defaultValue(forKey: String) -> Any?`](https://developer.apple.com/documentation/quartzcore/caemittercell/defaultvalue(forkey:))
 - [`func shouldArchiveValue(forKey: String) -> Bool`](https://developer.apple.com/documentation/quartzcore/caemittercell/shouldarchivevalue(forkey:))
-- [`static let `default`: CAFrameRateRange`](https://developer.apple.com/documentation/quartzcore/caframeraterange/default)
 - [`func contentsAreFlipped() -> Bool`](https://developer.apple.com/documentation/quartzcore/calayer/contentsareflipped())
 - [`var contentsHeadroom: CGFloat`](https://developer.apple.com/documentation/quartzcore/calayer/contentsheadroom)
 - [`class func cornerCurveExpansionFactor(CALayerCornerCurve) -> CGFloat`](https://developer.apple.com/documentation/quartzcore/calayer/cornercurveexpansionfactor(_:))
@@ -134,11 +133,6 @@
 - [`func render()`](https://developer.apple.com/documentation/quartzcore/carenderer/render())
 - [`func setDestination(any MTLTexture)`](https://developer.apple.com/documentation/quartzcore/carenderer/setdestination(_:))
 - [`func updateBounds() -> CGRect`](https://developer.apple.com/documentation/quartzcore/carenderer/updatebounds())
-- [`CATiledLayer`](https://developer.apple.com/documentation/quartzcore/catiledlayer)
-- [`class func fadeDuration() -> CFTimeInterval`](https://developer.apple.com/documentation/quartzcore/catiledlayer/fadeduration())
-- [`var levelsOfDetail: Int`](https://developer.apple.com/documentation/quartzcore/catiledlayer/levelsofdetail)
-- [`var levelsOfDetailBias: Int`](https://developer.apple.com/documentation/quartzcore/catiledlayer/levelsofdetailbias)
-- [`var tileSize: CGSize`](https://developer.apple.com/documentation/quartzcore/catiledlayer/tilesize)
 - [`let kCAOnOrderIn: String`](https://developer.apple.com/documentation/quartzcore/kcaonorderin)
 - [`let kCAOnOrderOut: String`](https://developer.apple.com/documentation/quartzcore/kcaonorderout)
 - [`let kCARendererColorSpace: String`](https://developer.apple.com/documentation/quartzcore/kcarenderercolorspace)

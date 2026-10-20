@@ -1,7 +1,7 @@
 # Foundation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 45.0% of Apple's iOS API (12431 of 27607, exact) · **Rows:** 100: 93 ✅ 4 🟡 3 ❌ · **iOS:** 2.0+
+**Symbols:** 46.0% of Apple's iOS API (12700 of 27607, exact) · **Rows:** 104: 96 ✅ 5 🟡 3 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Foundation & CoreFoundation](../COVERAGE.md#foundation) · **Apple:** [Foundation](https://developer.apple.com/documentation/foundation) · **Issues:** [`area:foundation`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Afoundation)
@@ -163,7 +163,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-15176 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+14907 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -467,7 +467,7 @@
 - [`AttributeScopes.SwiftUIAttributes.BackgroundColorAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/backgroundcolorattribute)
 - [`let baselineOffset: AttributeScopes.SwiftUIAttributes.BaselineOffsetAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/baselineoffset)
 - [`AttributeScopes.SwiftUIAttributes.BaselineOffsetAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/baselineoffsetattribute)
-- … and 14876 more (`isim/data/api-coverage.json.gz`)
+- … and 14607 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

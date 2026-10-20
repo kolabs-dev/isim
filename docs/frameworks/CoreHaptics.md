@@ -1,7 +1,7 @@
 # CoreHaptics
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 67.2% of Apple's iOS API (168 of 250, exact) · **iOS:** 13.0+
+**Symbols:** 68.0% of Apple's iOS API (170 of 250, exact) · **Rows:** 5: 4 ✅ 1 🟡 · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [Core Haptics](https://developer.apple.com/documentation/corehaptics) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -24,12 +24,10 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-82 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+80 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
-- [`CHHapticAudioResourceKey`](https://developer.apple.com/documentation/corehaptics/chhapticaudioresourcekey)
-- [`CHHapticAudioResourceKey`](https://developer.apple.com/documentation/corehaptics/chhapticaudioresourcekey)
 - [`let CHHapticAudioResourceKeyLoopEnabled: String`](https://developer.apple.com/documentation/corehaptics/chhapticaudioresourcekeyloopenabled)
 - [`let CHHapticAudioResourceKeyLoopEnabled: String`](https://developer.apple.com/documentation/corehaptics/chhapticaudioresourcekeyloopenabled)
 - [`let CHHapticAudioResourceKeyUseVolumeEnvelope: String`](https://developer.apple.com/documentation/corehaptics/chhapticaudioresourcekeyusevolumeenvelope)
