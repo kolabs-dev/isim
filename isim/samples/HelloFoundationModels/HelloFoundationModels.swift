@@ -68,6 +68,35 @@ enum Demo {
         case .unavailable(let why): return "unavailable(\(why))"
         }
     }
+    /// with a model configured (ISIM_LLM_URL / ISIM_LLM_MODEL): text, a Generable response, a stream, a tool call
+    static func live() async {
+        do {
+            let session = LanguageModelSession(tools: [WeatherTool()], instructions: "You are a cook.")
+            let hello = try await session.respond(to: "Say hello", options: GenerationOptions(temperature: 0.2))
+            log("live text '\(hello.content)'")
+            let recipe = try await session.respond(to: "A recipe, please", generating: Recipe.self)
+            log("live recipe \(recipe.content.name) \(recipe.content.minutes) \(recipe.content.steps.count) steps \(recipe.content.difficulty)")
+            var snapshots = 0, names: [String] = []
+            for try await snapshot in session.streamResponse(to: "Stream a recipe", generating: Recipe.self) {
+                snapshots += 1
+                if let n = snapshot.content.name, names.last != n { names.append(n) }
+            }
+            log("live stream snapshots>1 \(snapshots > 1) names \(names)")
+            let weather = try await session.respond(to: "What is the weather in Paris?")
+            let kinds = weather.transcriptEntries.map { e -> String in
+                switch e {
+                case .prompt: return "prompt"
+                case .toolCalls(let c): return "calls(\(c.map(\.toolName).joined()))"
+                case .toolOutput(let o): return "output(\(o.segments.map(\.description).joined()))"
+                case .response: return "response"
+                case .instructions: return "instructions"
+                @unknown default: return "?"
+                }
+            }
+            log("live tool '\(weather.content)' entries \(kinds)")
+            log("live transcript \(session.transcript.count) responding \(session.isResponding)")
+        } catch { log("live error \(error)") }
+    }
     static func run() async {
         let model = SystemLanguageModel.default
         log("availability \(availabilityText()) isAvailable \(model.isAvailable) english \(model.supportsLocale(Locale(identifier: "en_US")))")
@@ -97,7 +126,10 @@ enum Demo {
             log("properties \(made.jsonString)")
         } catch { log("content error \(error)") }
 
-        /* a session: instructions, a tool, a request without a model */
+        if model.isAvailable { await live() }
+
+        /* a session: instructions, a tool, a request (without a model: it fails, and the transcript keeps it) */
+        guard !model.isAvailable else { return }
         let session = LanguageModelSession(tools: [WeatherTool()]) {
             "You are a cook."
             "Answer briefly."

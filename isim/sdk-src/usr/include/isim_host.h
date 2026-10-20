@@ -344,6 +344,8 @@ char *_Nullable isim_vision_barcodes(const unsigned char *bgra, int w, int h, in
 char *_Nullable isim_vision_barcodes_ex(const unsigned char *bgra, int w, int h, int stride, int extended);
 char *_Nullable isim_vision_text(const unsigned char *bgra, int w, int h, int stride, const char *_Nullable langs);
 char *_Nullable isim_vision_text_languages(void);
+/* llama.cpp's llama-server for a GGUF model, started once: its OpenAI-compatible base URL in out; 0 if it cannot run */
+int isim_llm_server(const char *gguf, char *out, int cap);
 /* RAW photos with LibRaw's tools (libraw-bin): identify returns raw-identify -v text; decode gives linear 16-bit RGB
    (sRGB primaries, as-shot white balance, unrotated; half: half size; highlight: dcraw -H mode); free with
    isim_media_free. camera_list: supported cameras, one per line (libraw.so.23) */

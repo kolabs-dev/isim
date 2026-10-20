@@ -129,10 +129,11 @@ public final class SystemLanguageModel: Sendable, Observable {
     public init(useCase: UseCase = .general, guardrails: Guardrails = .default) { self.useCase = useCase; _guardrails = guardrails }
 
     /// Apple Intelligence runs on the iPhone 15 Pro and later and on iPads with an M chip; on those, isim's model is
-    /// the one configured on the host (none: Apple Intelligence counts as not enabled)
+    /// the one configured on the host (ISIM_LLM_URL or ISIM_LLM_MODEL, Backend.swift; none: Apple Intelligence counts
+    /// as not enabled)
     public var availability: Availability {
         guard _LanguageModelHost.deviceIsEligible else { return .unavailable(.deviceNotEligible) }
-        return _LanguageModelHost.backend == nil ? .unavailable(.appleIntelligenceNotEnabled) : .available
+        return _LanguageModelHost.isConfigured ? .available : .unavailable(.appleIntelligenceNotEnabled)
     }
     public var isAvailable: Bool { availability == .available }
     public var supportedLanguages: Set<Locale.Language> {
@@ -141,31 +142,6 @@ public final class SystemLanguageModel: Sendable, Observable {
     public func supportsLocale(_ locale: Locale = Locale.current) -> Bool {
         supportedLanguages.contains { $0.languageCode == locale.language.languageCode }
     }
-}
-
-/// What answers a session's requests: nothing yet (a host model backend plugs in here).
-@available(iOS 26.0, macOS 26.0, *)
-struct _LanguageModelHost {
-    static var deviceIsEligible: Bool {
-        let model = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] ?? "iPhone17,1"
-        /* iPhone 15 Pro / Pro Max (iPhone16,1 / 16,2), every iPhone 16 and 17 (iPhone17,x, iPhone18,x); iPads with an M
-           chip (iPad13,4 and later Pros, iPad14,8+ Airs, iPad16,x) or the A17 Pro (iPad mini, iPad16,1) */
-        func ver(_ p: String) -> (Int, Int)? {
-            guard model.hasPrefix(p) else { return nil }
-            let parts = model.dropFirst(p.count).split(separator: ",").compactMap { Int($0) }
-            return parts.count == 2 ? (parts[0], parts[1]) : nil
-        }
-        if let (a, b) = ver("iPhone") { return a > 16 || (a == 16 && b >= 1) }
-        if let (a, b) = ver("iPad") { return a >= 16 || (a == 14 && b >= 8) || (a == 13 && b >= 4) }
-        return false
-    }
-    static var backend: (any _LanguageModelBackend)? { nil }
-}
-/// A model that answers prompts: the text so far after each step (a structured response's text is its JSON).
-@available(iOS 26.0, macOS 26.0, *)
-protocol _LanguageModelBackend: Sendable {
-    func generate(instructions: String?, history: [(role: String, text: String)], prompt: String, schema: GenerationSchema?,
-                  options: GenerationOptions) -> AsyncThrowingStream<String, Error>
 }
 
 // MARK: - the session
@@ -343,20 +319,25 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
 
     // MARK: the request
 
-    /// records the prompt, asks the backend and records the response; the text and the new transcript entries
-    func _respond(_ prompt: String, schema: GenerationSchema?, includeSchema: Bool, options: GenerationOptions) async throws -> (String, ArraySlice<Transcript.Entry>) {
-        var last = ""
-        let (stream, start) = try _begin(prompt, schema: schema, includeSchema: includeSchema, options: options)
-        do {
-            for try await text in stream { last = text }
-        } catch { _end(nil); throw error }
-        return (last, _end((last, schema != nil, start)))
-    }
-    func _begin(_ prompt: String, schema: GenerationSchema?, includeSchema: Bool, options: GenerationOptions) throws -> (AsyncThrowingStream<String, Error>, Int) {
+    func _append(_ e: Transcript.Entry) { lock.lock(); transcript._entries.append(e); lock.unlock() }
+
+    /// records the prompt and returns what to send: the conversation so far and the backend
+    func _begin(_ prompt: String, schema: GenerationSchema?, includeSchema: Bool, options: GenerationOptions) throws -> ([_ChatMessage], any _LanguageModelBackend, Int) {
         lock.lock()
         defer { lock.unlock() }
         if isResponding {
             throw GenerationError.concurrentRequests(.init(debugDescription: "a session answers one request at a time; this one is still responding"))
+        }
+        /* the conversation before this prompt */
+        var messages: [_ChatMessage] = []
+        for e in transcript._entries {
+            switch e {
+            case .instructions(let i): messages.append(_ChatMessage(role: "system", content: i.segments.map(\._text).joined(separator: "\n")))
+            case .prompt(let p): messages.append(_ChatMessage(role: "user", content: p.segments.map(\._text).joined(separator: "\n")))
+            case .response(let r): messages.append(_ChatMessage(role: "assistant", content: r.segments.map(\._text).joined(separator: "\n")))
+            case .toolCalls(let c): messages.append(_ChatMessage(role: "assistant", content: nil, toolCalls: c.map { (id: $0.id, name: $0.toolName, arguments: $0.arguments.jsonString) }))
+            case .toolOutput(let o): messages.append(_ChatMessage(role: "tool", content: o.segments.map(\._text).joined(separator: "\n"), toolCallID: o.id))
+            }
         }
         let start = transcript._entries.count
         transcript._entries.append(.prompt(Transcript.Prompt(segments: [.text(.init(content: prompt))], options: options,
@@ -365,26 +346,53 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
             let why: String
             switch _model.availability {
             case .unavailable(.deviceNotEligible): why = "this device does not support Apple Intelligence"
-            default: why = "no language model is configured on this host (Apple Intelligence is not enabled)"
+            case .available: why = "the configured model (ISIM_LLM_MODEL) could not be started"
+            default: why = "no language model is configured on this host (Apple Intelligence is not enabled; set ISIM_LLM_URL or ISIM_LLM_MODEL)"
             }
             throw GenerationError.assetsUnavailable(.init(debugDescription: "the system language model is unavailable: \(why)"))
         }
         isResponding = true
-        let instructions = transcript._entries.compactMap { e -> String? in
-            if case .instructions(let i) = e { return i.segments.map(\._text).joined(separator: "\n") }
-            return nil
-        }.first
-        var history: [(role: String, text: String)] = []
-        for e in transcript._entries.dropLast() {
-            switch e {
-            case .prompt(let p): history.append(("user", p.segments.map(\._text).joined(separator: "\n")))
-            case .response(let r): history.append(("assistant", r.segments.map(\._text).joined(separator: "\n")))
-            default: break
+        let text = includeSchema ? schema.map { "\(prompt)\n\nRespond with JSON that matches this schema: \($0._jsonString)" } ?? prompt : prompt
+        messages.append(_ChatMessage(role: "user", content: text))
+        return (messages, backend, start)
+    }
+    /// asks the backend, calling the session's tools when the model asks for them (recorded in the transcript), until it
+    /// answers; `onText` gets the answer so far
+    func _generate(_ messages: [_ChatMessage], _ backend: any _LanguageModelBackend, schema: GenerationSchema?, options: GenerationOptions,
+                   onText: (String) throws -> Void) async throws -> String {
+        var msgs = messages
+        for _ in 0..<8 {
+            var last = ""
+            var calls: [(id: String, name: String, arguments: String)] = []
+            for try await ev in backend.generate(messages: msgs, tools: _tools, schema: schema, options: options) {
+                switch ev {
+                case .text(let t): last = t; try onText(t)
+                case .toolCalls(let c): calls = c
+                }
+            }
+            if calls.isEmpty { return last }
+            let recorded = calls.map {
+                Transcript.ToolCall(id: $0.id, toolName: $0.name,
+                                    arguments: (try? GeneratedContent(json: $0.arguments)) ?? GeneratedContent(kind: .structure(properties: [:], orderedKeys: [])))
+            }
+            _append(.toolCalls(Transcript.ToolCalls(recorded)))
+            msgs.append(_ChatMessage(role: "assistant", content: nil, toolCalls: calls))
+            for call in recorded {
+                guard let tool = _tools.first(where: { $0.name == call.toolName }) else {
+                    throw GenerationError.decodingFailure(.init(debugDescription: "the model called \(call.toolName), which the session does not have"))
+                }
+                let output: String
+                do { output = try await _callTool(tool, call.arguments) } catch { throw ToolCallError(tool: tool, underlyingError: error) }
+                _append(.toolOutput(Transcript.ToolOutput(id: call.id, toolName: call.toolName, segments: [.text(.init(content: output))])))
+                msgs.append(_ChatMessage(role: "tool", content: output, toolCallID: call.id))
             }
         }
-        let p = includeSchema ? schema.map { "\(prompt)\n\nRespond with JSON that matches this schema: \($0._jsonString)" } ?? prompt : prompt
-        return (backend.generate(instructions: instructions, history: history, prompt: p, schema: schema, options: options), start)
+        throw GenerationError.decodingFailure(.init(debugDescription: "the model kept calling tools without answering"))
     }
+    func _callTool<T: Tool>(_ tool: T, _ arguments: GeneratedContent) async throws -> String {
+        try await tool.call(arguments: try T.Arguments(arguments)).promptRepresentation._text
+    }
+    /// records the response (nil: the request failed) and returns this request's transcript entries
     @discardableResult
     func _end(_ result: (text: String, structured: Bool, start: Int)?) -> ArraySlice<Transcript.Entry> {
         lock.lock()
@@ -397,6 +405,12 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
         transcript._entries.append(.response(Transcript.Response(assetIDs: [], segments: [segment])))
         return transcript._entries[result.start...]
     }
+    func _respond(_ prompt: String, schema: GenerationSchema?, includeSchema: Bool, options: GenerationOptions) async throws -> (String, ArraySlice<Transcript.Entry>) {
+        let (messages, backend, start) = try _begin(prompt, schema: schema, includeSchema: includeSchema, options: options)
+        let text: String
+        do { text = try await _generate(messages, backend, schema: schema, options: options) { _ in } } catch { _end(nil); throw error }
+        return (text, _end((text, schema != nil, start)))
+    }
     func _stream<Content: Generable>(_ prompt: String, schema: GenerationSchema?, includeSchema: Bool, options: GenerationOptions,
                                      _ content: @escaping @Sendable (String, GeneratedContent) -> GeneratedContent) -> ResponseStream<Content> {
         let run = _StreamRun<Content>(), lock = NSLock()
@@ -404,15 +418,12 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
         let structured = schema != nil
         let stream = AsyncThrowingStream<ResponseStream<Content>.Snapshot, Error> { cont in
             Task {
-                var last = ""
                 do {
                     if let e = run.error { throw e }
-                    guard let (texts, start) = run.started else { throw GenerationError.assetsUnavailable(.init(debugDescription: "no response")) }
-                    for try await text in texts {
-                        last = text
+                    guard let (messages, backend, start) = run.started else { throw GenerationError.assetsUnavailable(.init(debugDescription: "no response")) }
+                    let last = try await self._generate(messages, backend, schema: schema, options: options) { text in
                         let raw = structured ? try GeneratedContent(json: text) : GeneratedContent(text)
-                        let c = content(text, raw)
-                        cont.yield(.init(content: try Content.PartiallyGenerated(c), rawContent: raw))
+                        cont.yield(.init(content: try Content.PartiallyGenerated(content(text, raw)), rawContent: raw))
                     }
                     let entries = self._end((last, structured, start))
                     let raw = structured ? try GeneratedContent(json: last) : GeneratedContent(last)
@@ -443,7 +454,7 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
 /// a streamed request's state, shared by the stream and collect()
 @available(iOS 26.0, macOS 26.0, *)
 final class _StreamRun<Content: Generable>: @unchecked Sendable {
-    var started: (AsyncThrowingStream<String, Error>, Int)?, error: Error?, final: LanguageModelSession.Response<Content>?
+    var started: ([_ChatMessage], any _LanguageModelBackend, Int)?, error: Error?, final: LanguageModelSession.Response<Content>?
     var waiters: [CheckedContinuation<Void, Never>] = []
     var done = false
     init() {}
