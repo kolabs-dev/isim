@@ -103,6 +103,7 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_BACKGROUND_TASK_SECONDS=S` | how long `beginBackgroundTask` / BackgroundTasks tasks run in the background before their expiration handler (default 30; processing tasks 180) |
 | `ISIM_GAMEPADS=0` | ignore host game controllers |
 | `ISIM_MAIL=1`, `ISIM_MESSAGES=1` | make `MFMailComposeViewController` / `MFMessageComposeViewController` available; sent items are saved under `$ISIM_DATA/Library` |
+| `ISIM_APPLE_PAY=0` | leaves the device's Wallet without Apple Pay cards: `canMakePayments()` is false and payment sheets do not present (by default it has four test cards, [PassKit](frameworks/PassKit.md)) |
 | `ISIM_GAMECENTER=DIR` | the local Game Center network the isim devices on this computer share (default `~/.local/share/isim-gamecenter`): players, friends, scores, challenges, matches ([GAMECENTER.md](GAMECENTER.md)) |
 | `ISIM_ICLOUD=noAccount` | no iCloud account (also `restricted`, `temporarilyUnavailable`): CloudKit fails with `notAuthenticated`, `url(forUbiquityContainerIdentifier:)` and `ubiquityIdentityToken` are nil, `NSUbiquitousKeyValueStore` keeps nothing |
 | `ISIM_LANGUAGES=ru,en` | preferred languages for one run (overrides Settings > Language & Region): localized strings and plural rules |

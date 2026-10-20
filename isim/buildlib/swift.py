@@ -785,6 +785,7 @@ CoreData -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswift
 SwiftData -lswiftObjectiveC -lswiftFoundation -lswiftSwiftUI -lswiftCombine -lswiftObservation -lswift_Concurrency -framework Foundation
 StoreKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCryptoKit -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 StoreKitTest -lswiftObjectiveC -lswiftFoundation -lswiftStoreKit -lswiftUIKit -lswift_Concurrency -framework Foundation   # SKTestSession over the local store
+PassKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftContacts -lswiftCryptoKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit   # Apple Pay: isim's simulated sheet and test token
 CoreLocation -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 QuartzCore -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit
 AVFAudio -lswiftObjectiveC -lswiftFoundation -lswiftAVFoundation -framework Foundation   # import AVFAudio: re-exports AVFoundation
@@ -832,7 +833,7 @@ HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayK
 GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Security os OSLog Compression LocalAuthentication
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices
 QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision NaturalLanguage FoundationModels Speech VisionKit WebKit SafariServices MessageUI MapKit
-MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit""".split())
+MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer".split())
 # modules that also compile overlays/_AdAttribution (the conversion values SKAdNetwork and AdAttributionKit share)
