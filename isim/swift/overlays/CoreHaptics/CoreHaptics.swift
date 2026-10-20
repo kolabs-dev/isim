@@ -1,9 +1,16 @@
-// isim CoreHaptics (self-authored). isim has no haptic hardware, like Apple's Simulator:
-// CHHapticEngine.capabilitiesForHardware().supportsHaptics is false. Engines, patterns (events, parameters,
-// parameter curves, AHAP dictionaries/files) and players are fully modelled: patterns are validated, players keep
-// time (start/stop/pause/resume/seek/loop/rate) and run their completion handlers after the pattern's duration,
-// and each playback is logged on stderr ("CoreHaptics: ..."). Nothing is felt or heard (audio events are silent).
+// isim CoreHaptics (self-authored). Adapted: isim has no Taptic Engine, like Apple's Simulator
+// (capabilitiesForHardware().supportsHaptics is false), so the device's haptic events are shown as UIKit's feedback
+// ring and logged on stderr ("CoreHaptics: ..."); a gamepad's engine (GCController.haptics) sends them to the pad's
+// rumble motors. Audio events play through isim's audio output: audioContinuous is synthesised, audioCustom plays a
+// registered resource. Patterns (events, parameters, parameter curves, AHAP dictionaries/files) are validated;
+// players schedule each event at its time (start/stop/pause/resume/seek/loop/rate) and run their completion handlers
+// after the pattern's duration.
 import Foundation
+import AVFoundation
+import AudioToolbox
+
+@_silgen_name("_isim_haptic_vibrate") func _isimHapticVibrate()      // UIKit: the feedback ring, mid-screen
+public let CHHapticErrorDomain = "com.apple.CoreHaptics"
 
 public typealias CHHapticAudioResourceID = Int
 public let CHHapticTimeImmediate: TimeInterval = 0
@@ -19,7 +26,7 @@ public struct CHHapticError: Error, CustomNSError, Hashable {
     }
     public let code: Code
     public init(_ code: Code) { self.code = code }
-    public static var errorDomain: String { "com.apple.CoreHaptics" }
+    public static var errorDomain: String { CHHapticErrorDomain }
     public var errorCode: Int { code.rawValue }
     public static var engineNotRunning: Code { .engineNotRunning }
     public static var invalidPatternData: Code { .invalidPatternData }
@@ -89,14 +96,17 @@ public class CHHapticEvent: NSObject {
     public init(eventType: EventType, parameters: [CHHapticEventParameter], relativeTime: TimeInterval, duration: TimeInterval) {
         type = eventType; eventParameters = parameters; self.relativeTime = relativeTime; self.duration = duration
     }
+    /// the registered audio resource an audioCustom event plays
+    var _resource: CHHapticAudioResourceID?
     public init(audioResourceID: CHHapticAudioResourceID, parameters: [CHHapticEventParameter], relativeTime: TimeInterval) {
-        type = .audioCustom; eventParameters = parameters; self.relativeTime = relativeTime; duration = 0
+        type = .audioCustom; eventParameters = parameters; self.relativeTime = relativeTime; duration = 0; _resource = audioResourceID
     }
     public init(audioResourceID: CHHapticAudioResourceID, parameters: [CHHapticEventParameter], relativeTime: TimeInterval, duration: TimeInterval) {
-        type = .audioCustom; eventParameters = parameters; self.relativeTime = relativeTime; self.duration = duration
+        type = .audioCustom; eventParameters = parameters; self.relativeTime = relativeTime; self.duration = duration; _resource = audioResourceID
     }
     /// how long the event lasts in a pattern (transients ~ 22 ms on device)
     var _span: TimeInterval { type == .hapticTransient ? 0.022 : duration }
+    func _value(_ id: CHHapticEvent.ParameterID, _ fallback: Float) -> Float { eventParameters.last { $0.parameterID == id }?.value ?? fallback }
 }
 extension CHHapticEvent_EventType {
     public static let hapticTransient = Self(rawValue: "HapticTransient"), hapticContinuous = Self(rawValue: "HapticContinuous")
@@ -195,7 +205,7 @@ public protocol CHHapticDeviceCapability {
 extension CHHapticEvent { public typealias ParameterID = CHHapticEventParameter.ID }
 struct _IsimHapticCapability: CHHapticDeviceCapability {
     var supportsHaptics: Bool { false }        // like the Simulator: no Taptic Engine
-    var supportsAudio: Bool { false }
+    var supportsAudio: Bool { true }           // audio events play through isim's audio output
     func attributes(forEventParameter p: CHHapticEvent.ParameterID, eventType type: CHHapticEvent.EventType) throws -> any CHHapticParameterAttributes {
         switch p {
         case .audioPitch, .audioPan: return _ParamAttrs(minValue: -1, maxValue: 1, defaultValue: 0)
@@ -252,12 +262,21 @@ final class _IsimHapticPlayer: CHHapticAdvancedPatternPlayer {
             _hapticLog("pattern started: \(ev.count) event(s) (\(ev.filter { $0.type == .hapticTransient }.count) transient, \(ev.filter { $0.type == .hapticContinuous }.count) continuous), duration \(String(format: "%.3f", pattern.duration)) s\(isMuted ? ", muted" : "") — not felt (no haptic hardware)")
         }
     }
+    /// dynamic parameters: multipliers of the events' intensity and volume
+    var intensityControl: Float = 1, volumeControl: Float = 1
     func begin() {
         generation += 1
         let g = generation
         startedAt = engine?.currentTime ?? 0
         engine?._active.insert(ObjectIdentifier(self))
-        let remaining = max(0, length - offset) / Double(max(playbackRate, 0.01))
+        let rate = Double(max(playbackRate, 0.01))
+        for e in pattern.events where e.relativeTime >= offset && (loopEnd <= 0 || e.relativeTime < loopEnd) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + (e.relativeTime - offset) / rate) { [self] in
+                guard g == generation, startedAt != nil, !isMuted, let engine else { return }
+                engine._play(e, player: self, rate: rate)
+            }
+        }
+        let remaining = max(0, length - offset) / rate
         DispatchQueue.main.asyncAfter(deadline: .now() + remaining) { [self] in
             guard g == generation, startedAt != nil else { return }
             if loopEnabled && length > 0 { offset = 0; begin(); return }
@@ -266,6 +285,7 @@ final class _IsimHapticPlayer: CHHapticAdvancedPatternPlayer {
     }
     func finish(_ error: Error?) {
         startedAt = nil; generation += 1
+        _IsimHapticAudio.shared.stop(player: ObjectIdentifier(self))
         completionHandler?(error)
         engine?._playerFinished(self, error)
     }
@@ -275,15 +295,22 @@ final class _IsimHapticPlayer: CHHapticAdvancedPatternPlayer {
         at(time) { [self] in
             guard let s = startedAt else { return }
             offset += ((engine?.currentTime ?? 0) - s) * Double(playbackRate); startedAt = nil; generation += 1
+            _IsimHapticAudio.shared.stop(player: ObjectIdentifier(self))
         }
     }
     func resume(atTime time: TimeInterval) throws { at(time) { [self] in if startedAt == nil { begin() } } }
     func seek(toOffset offsetTime: TimeInterval) throws {
         offset = max(0, offsetTime)
-        if startedAt != nil { begin() }
+        if startedAt != nil { _IsimHapticAudio.shared.stop(player: ObjectIdentifier(self)); begin() }
     }
     func sendParameters(_ parameters: [CHHapticDynamicParameter], atTime time: TimeInterval) throws {
         guard engine?._running == true else { throw CHHapticError(.engineNotRunning) }
+        at(time) { [self] in
+            for p in parameters {
+                if p.parameterID == .hapticIntensityControl { intensityControl = max(0, min(1, p.value)) }
+                if p.parameterID == .audioVolumeControl { volumeControl = max(0, min(1, p.value)) }
+            }
+        }
     }
     func scheduleParameterCurve(_ parameterCurve: CHHapticParameterCurve, atTime time: TimeInterval) throws {
         guard engine?._running == true else { throw CHHapticError(.engineNotRunning) }
@@ -315,9 +342,13 @@ public class CHHapticEngine: NSObject {
     var _startTime = Date()
     var _active = Set<ObjectIdentifier>()
     var _finished: FinishedHandler?
-    var _resources: [CHHapticAudioResourceID: URL] = [:]
+    var _resources: [CHHapticAudioResourceID: (url: URL, options: [AnyHashable: Any])] = [:]
+    /// a gamepad's engine: its haptic events drive the pad's motors (low, high, seconds)
+    var _rumble: ((Double, Double, Double) -> Void)?
 
     public override init() { super.init() }
+    /// isim (GameController): an engine whose haptic events rumble a gamepad
+    @_spi(isim) public init(_isimRumble rumble: @escaping (Double, Double, Double) -> Void) { _rumble = rumble; super.init() }
     public init(audioSession: AnyObject?) throws { super.init() }
     public var currentTime: TimeInterval { Date().timeIntervalSince(_startTime) }
 
@@ -331,6 +362,7 @@ public class CHHapticEngine: NSObject {
     public func stop(completionHandler: CompletionHandler? = nil) {
         let was = _running
         _running = false; _active.removeAll()
+        _IsimHapticAudio.shared.stop(engine: ObjectIdentifier(self))
         if was { _hapticLog("engine stopped") }
         DispatchQueue.main.async { completionHandler?(nil) }
     }
@@ -358,10 +390,133 @@ public class CHHapticEngine: NSObject {
     public func registerAudioResource(_ resourceURL: URL, options: [AnyHashable: Any] = [:]) throws -> CHHapticAudioResourceID {
         guard FileManager.default.fileExists(atPath: resourceURL.path) else { throw CHHapticError(.fileNotFound) }
         let id = (_resources.keys.max() ?? 0) + 1
-        _resources[id] = resourceURL
+        _resources[id] = (resourceURL, options)
         return id
     }
     public func unregisterAudioResource(_ resourceID: CHHapticAudioResourceID) throws {
         guard _resources.removeValue(forKey: resourceID) != nil else { throw CHHapticError(.invalidAudioResource) }
+    }
+
+    /// one event, now: haptics on the gamepad's motors or as the on-screen ring; audio through the mixer
+    func _play(_ e: CHHapticEvent, player: _IsimHapticPlayer, rate: Double) {
+        let haptic = e.type == .hapticTransient || e.type == .hapticContinuous
+        if haptic {
+            guard !playsAudioOnly, !isMutedForHaptics else { return }
+            let intensity = Double(e._value(.hapticIntensity, 1) * player.intensityControl), sharpness = Double(e._value(.hapticSharpness, 0.5))
+            let seconds = e.type == .hapticTransient ? 0.05 : e.duration / rate
+            if let rumble = _rumble {
+                // the low-frequency motor carries the dull part, the high-frequency one the sharp part
+                let low = intensity * (1 - 0.5 * sharpness), high = intensity * (0.5 + 0.5 * sharpness)
+                rumble(low, high, seconds)
+                _hapticLog(String(format: "%@ on the gamepad: rumble %.2f %.2f for %.2f s", e.type == .hapticTransient ? "transient" : "continuous", low, high, seconds))
+            } else {
+                _isimHapticVibrate()
+                _hapticLog(String(format: "%@ intensity %.2f sharpness %.2f: shown, not felt (no haptic hardware)", e.type == .hapticTransient ? "transient" : "continuous", intensity, sharpness))
+            }
+            return
+        }
+        guard !playsHapticsOnly, !isMutedForAudio else { return }
+        let volume = e._value(.audioVolume, 1) * player.volumeControl, pitch = e._value(.audioPitch, 0), pan = e._value(.audioPan, 0)
+        var stereo: [Float]
+        if e.type == .audioContinuous {
+            stereo = _IsimHapticAudio.tone(seconds: e.duration / rate, pitch: pitch, brightness: e._value(.audioBrightness, 0.5),
+                                           attack: e._value(.attackTime, 0), release: e._value(.releaseTime, 0))
+            _hapticLog(String(format: "audio continuous %.2f s volume %.2f pitch %.2f", e.duration, volume, pitch))
+        } else {
+            guard let id = e._resource, let r = _resources[id], let pcm = _IsimHapticAudio.load(r.url) else {
+                _hapticLog("audio custom: no such audio resource"); return
+            }
+            stereo = _IsimHapticAudio.resample(pcm, speed: pow(2, Double(pitch)) * rate)
+            let loop = (r.options[CHHapticAudioResourceKey.loopEnabled] as? Bool) ?? (r.options[CHHapticAudioResourceKey.loopEnabled.rawValue] as? Bool) ?? false
+            if e.duration > 0 {
+                let n = Int(e.duration / rate * _IsimAudioOutput.sampleRate) * 2
+                if loop && !stereo.isEmpty { while stereo.count < n { stereo += stereo } }
+                if stereo.count > n { stereo = Array(stereo[0 ..< n]) }
+            }
+            _hapticLog(String(format: "audio custom resource %d %.2f s volume %.2f", id, Double(stereo.count / 2) / _IsimAudioOutput.sampleRate, volume))
+        }
+        let l = Float(min(1, 1 - pan)), r = Float(min(1, 1 + pan))
+        for i in stride(from: 0, to: stereo.count - 1, by: 2) { stereo[i] *= volume * l; stereo[i + 1] *= volume * r }
+        _IsimHapticAudio.shared.play(stereo, player: ObjectIdentifier(player), engine: ObjectIdentifier(self))
+    }
+}
+
+public struct CHHapticAudioResourceKey: Hashable, RawRepresentable, Sendable {
+    public var rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+    public static let useVolumeEnvelope = CHHapticAudioResourceKey(rawValue: "UseVolumeEnvelope")
+    public static let loopEnabled = CHHapticAudioResourceKey(rawValue: "LoopEnabled")
+}
+
+/// audio events: voices mixed into one output stream at 48 kHz stereo
+final class _IsimHapticAudio: @unchecked Sendable {
+    static let shared = _IsimHapticAudio()
+    struct Voice { var samples: [Float]; var pos: Int; let player: ObjectIdentifier; let engine: ObjectIdentifier }
+    let lock = NSLock()
+    var voices: [Voice] = []
+    var output: _IsimAudioOutput?
+    func play(_ stereo: [Float], player: ObjectIdentifier, engine: ObjectIdentifier) {
+        lock.lock()
+        voices.append(Voice(samples: stereo, pos: 0, player: player, engine: engine))
+        if output == nil {
+            let o = _IsimAudioOutput { [weak self] frames, _ in self?.render(frames) ?? [[Float](repeating: 0, count: frames)] }
+            output = o
+            o.start()
+        }
+        lock.unlock()
+    }
+    func stop(player: ObjectIdentifier) { lock.lock(); voices.removeAll { $0.player == player }; lock.unlock() }
+    func stop(engine: ObjectIdentifier) { lock.lock(); voices.removeAll { $0.engine == engine }; lock.unlock() }
+    func render(_ frames: Int) -> [[Float]] {
+        var l = [Float](repeating: 0, count: frames), r = l
+        lock.lock(); defer { lock.unlock() }
+        for v in voices.indices {
+            let n = min(frames, (voices[v].samples.count - voices[v].pos) / 2)
+            for i in 0 ..< max(0, n) { l[i] += voices[v].samples[voices[v].pos + 2 * i]; r[i] += voices[v].samples[voices[v].pos + 2 * i + 1] }
+            voices[v].pos += max(0, n) * 2
+        }
+        voices.removeAll { $0.pos >= $0.samples.count }
+        return [l, r]
+    }
+    /// audioContinuous: a tone around 440 Hz (pitch -1...1: an octave down or up), brighter with odd harmonics
+    static func tone(seconds: Double, pitch: Float, brightness: Float, attack: Float, release: Float) -> [Float] {
+        let rate = _IsimAudioOutput.sampleRate, n = max(0, Int(seconds * rate))
+        let f = 440 * pow(2, Double(pitch)), b = Double(max(0, min(1, brightness)))
+        let a = max(0.005, Double(attack) * 0.3) * rate, rel = max(0.01, Double(release) * 0.3) * rate
+        var out = [Float](repeating: 0, count: n * 2)
+        for i in 0 ..< n {
+            let t = Double(i) / rate, w = 2 * Double.pi * f * t
+            let env = min(1, Double(i) / a, Double(n - i) / rel)
+            let v = Float(0.4 * env * (sin(w) + b * (sin(3 * w) / 3 + sin(5 * w) / 5)) / (1 + b * 0.5))
+            out[2 * i] = v; out[2 * i + 1] = v
+        }
+        return out
+    }
+    /// a resource's samples (channels) and rate, decoded once
+    nonisolated(unsafe) static var cache: [URL: ([[Float]], Double)] = [:]
+    static func load(_ url: URL) -> ([[Float]], Double)? {
+        if let c = cache[url] { return c }
+        guard let f = try? AVAudioFile(forReading: url) else { return nil }
+        let fmt = f.processingFormat, n = AVAudioFrameCount(f.length)
+        guard n > 0, let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: n), (try? f.read(into: buf)) != nil, let ch = buf.floatChannelData else { return nil }
+        let channels = (0 ..< Int(fmt.channelCount)).map { Array(UnsafeBufferPointer(start: ch[$0], count: Int(buf.frameLength))) }
+        cache[url] = (channels, fmt.sampleRate)
+        return (channels, fmt.sampleRate)
+    }
+    /// interleaved stereo at 48 kHz, played `speed` times faster (linear interpolation)
+    static func resample(_ pcm: ([[Float]], Double), speed: Double) -> [Float] {
+        let (ch, rate) = pcm
+        guard let first = ch.first, !first.isEmpty, rate > 0 else { return [] }
+        let step = rate * speed / _IsimAudioOutput.sampleRate, n = Int(Double(first.count) / step)
+        var out = [Float](repeating: 0, count: n * 2)
+        for i in 0 ..< n {
+            let x = Double(i) * step, j = Int(x), t = Float(x - Double(j))
+            let a = min(j, first.count - 1), b = min(j + 1, first.count - 1)
+            for c in 0 ..< 2 {
+                let s = ch[min(c, ch.count - 1)]
+                out[2 * i + c] = s[a] * (1 - t) + s[b] * t
+            }
+        }
+        return out
     }
 }

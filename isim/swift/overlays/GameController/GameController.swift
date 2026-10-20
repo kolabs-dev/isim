@@ -3,6 +3,7 @@
 // the app's window. Physical game controllers on the host appear as GCControllers (GCHostGamepads.swift).
 @_exported import Foundation
 @_exported import UIKit
+@_exported @_spi(isim) import CoreHaptics      // GCDeviceHaptics makes CHHapticEngines (GameController.h imports CoreHaptics)
 import isim_host
 
 // MARK: - Notifications
@@ -294,7 +295,10 @@ open class GCController: NSObject, GCDevice {
     open var physicalInputProfile: GCPhysicalInputProfile { extendedGamepad ?? microGamepad ?? GCPhysicalInputProfile() }
     open var battery: AnyObject? { nil }
     open var light: AnyObject? { nil }
-    open var haptics: AnyObject? { nil }
+    /// a host pad's rumble motors (nil for snapshots and pads without one)
+    open var haptics: GCDeviceHaptics? { _hostPadID.map { GCDeviceHaptics(pad: $0) } }
+    /// isim: the haptics getter of apps built before #283 (typed AnyObject?), kept under its old symbols (-alias)
+    public var _isimHapticsV1: AnyObject? { haptics }
     open var motion: AnyObject? { nil }
 
     init(extended: Bool) {
@@ -604,5 +608,38 @@ final class _GCVirtualControllerView: UIView {
                 }
             }
         }
+    }
+}
+
+// MARK: - haptics
+
+public struct GCHapticsLocality: Hashable, RawRepresentable, Sendable {
+    public var rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
+    public static let `default` = GCHapticsLocality(rawValue: "Default")
+    public static let all = GCHapticsLocality(rawValue: "All")
+    public static let handles = GCHapticsLocality(rawValue: "Handles")
+    public static let leftHandle = GCHapticsLocality(rawValue: "LeftHandle")
+    public static let rightHandle = GCHapticsLocality(rawValue: "RightHandle")
+    public static let triggers = GCHapticsLocality(rawValue: "Triggers")
+    public static let leftTrigger = GCHapticsLocality(rawValue: "LeftTrigger")
+    public static let rightTrigger = GCHapticsLocality(rawValue: "RightTrigger")
+}
+public let GCHapticDurationInfinite: Float = Float.greatestFiniteMagnitude
+
+/// A gamepad's haptics (adapted): CoreHaptics engines whose haptic events drive the pad's two rumble motors through
+/// the host (SDL): the handles; trigger motors are not reached.
+open class GCDeviceHaptics: NSObject {
+    let pad: Int32
+    init(pad: Int32) { self.pad = pad; super.init() }
+    open var supportedLocalities: Set<GCHapticsLocality> { [.default, .all, .handles, .leftHandle, .rightHandle] }
+    open func createEngine(withLocality locality: GCHapticsLocality) -> CHHapticEngine? {
+        guard supportedLocalities.contains(locality) else { return nil }
+        let pad = pad
+        return CHHapticEngine(_isimRumble: { low, high, seconds in
+            let l = locality == .rightHandle ? 0 : locality == .leftHandle ? max(low, high) : low
+            let h = locality == .leftHandle ? 0 : locality == .rightHandle ? max(low, high) : high
+            _ = isim_gamepad_rumble(pad, l, h, seconds)
+        })
     }
 }

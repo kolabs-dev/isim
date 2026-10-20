@@ -2,7 +2,8 @@
 SKMutableTexture / SKTexture(data:), SKVideoNode, SKAction.reversed(), GKObstacleGraph, GKMeshGraph,
 GKMinmaxStrategist, GKMonteCarloStrategist, GKDecisionTree (manual, ID3), GKQuadtree / GKOctree / GKRTree, and a host
 gamepad: the `gamepad` script command attaches an SDL virtual joystick, which reaches the app through the same SDL
-gamepad path as a physical pad (GCController connect / buttons / sticks / triggers / disconnect). A second run with
+gamepad path as a physical pad (GCController connect / buttons / sticks / triggers / disconnect, rumble through
+GCDeviceHaptics). A second run with
 ISIM_GAMEPADS=0 proves host pads can be turned off. Port of tests/ui/spritekit2.sh and spritekit2_check.py (the
 screenshots keep the script's timeline: the scene animates)."""
 import re
@@ -49,6 +50,9 @@ LINES = {   # check: log lines (all must be present)
         ["pad A pressed", "pad A released", "pad left stick x=1.00 y=0.00", "pad dpad up pressed yAxis=1.00",
          "pad dpad up released yAxis=0.00", "pad right trigger 1.00 pressed=true", "pad menu pressed (via valueChangedHandler)"],
     "gamepad disconnect notification": ["gamepad disconnected: isim Test Pad remaining 0"],
+    "gamepad haptics: a GCDeviceHaptics engine rumbles the pad (issue #283)":
+        ["pad haptics localities 5 default engine true triggers engine false", "pad haptics played",
+         "CoreHaptics: continuous on the gamepad: rumble 0.60 0.60 for 0.20 s", "isim gamepad: rumble 0.60 0.60"],
 }
 
 BG = (20, 23, 36)

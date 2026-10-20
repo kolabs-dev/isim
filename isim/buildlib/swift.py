@@ -756,7 +756,8 @@ AVFoundation -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurr
 simd
 SpriteKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswiftCombine -lswiftSwiftUI -lswift_Concurrency -lswiftsimd -lswiftAVFoundation -lswiftCoreImage -lswiftCoreVideo -lswiftCoreMedia -lswiftAudioToolbox -framework Foundation -framework UIKit -framework CoreGraphics -framework CoreImage -lisim_host
 GameplayKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswiftsimd -lswiftSpriteKit -lswift_Concurrency -framework Foundation -framework UIKit
-GameController -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
+CoreHaptics -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftAVFoundation -lswiftAudioToolbox -framework Foundation -framework UIKit   # audio events; UIKit's feedback ring
+GameController -lswiftCoreHaptics -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host -alias _$s14GameController12GCControllerC14_isimHapticsV1yXlSgvgTj _$s14GameController12GCControllerC7hapticsyXlSgvgTj -alias _$s14GameController12GCControllerC14_isimHapticsV1yXlSgvgTq _$s14GameController12GCControllerC7hapticsyXlSgvgTq -alias _$s14GameController12GCControllerC14_isimHapticsV1yXlSgvpMV _$s14GameController12GCControllerC7hapticsyXlSgvpMV   # GCController.haptics as AnyObject? (before #283)
 CryptoKit -lswiftObjectiveC -lswiftFoundation -lswiftSecurity -lswiftLocalAuthentication -lswiftUIKit -framework Foundation -lisim_host
 Security -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 os -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
@@ -785,7 +786,6 @@ QuartzCore -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundatio
 AVFAudio -lswiftObjectiveC -lswiftFoundation -lswiftAVFoundation -framework Foundation   # import AVFAudio: re-exports AVFoundation
 AudioUnit -lswiftObjectiveC -lswiftFoundation -lswiftAudioToolbox -framework Foundation   # re-exports AudioToolbox
 CoreAudio -lswiftObjectiveC -lswiftFoundation -lswiftAudioToolbox -framework Foundation   # re-exports AudioToolbox
-CoreHaptics -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation
 CoreMotion -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation
 CoreBluetooth -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation
 CoreNFC -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -framework Foundation -framework UIKit

@@ -270,6 +270,19 @@ final class CoreAnimationViewController: UIViewController, UIDynamicAnimatorDele
         print("dynamics rest maxY=\(f0(ball.frame.maxY)) x=\(f0(ball.frame.minX))")
     }
 
+    /// a mono 16-bit 44.1 kHz WAV of a sine
+    func writeWAV(_ url: URL, frequency: Double, seconds: Double) throws {
+        let rate = 44100, n = Int(seconds * Double(rate))
+        var d = Data()
+        func u32(_ v: UInt32) { withUnsafeBytes(of: v.littleEndian) { d.append(contentsOf: $0) } }
+        func u16(_ v: UInt16) { withUnsafeBytes(of: v.littleEndian) { d.append(contentsOf: $0) } }
+        d.append(contentsOf: Array("RIFF".utf8)); u32(UInt32(36 + n * 2)); d.append(contentsOf: Array("WAVEfmt ".utf8))
+        u32(16); u16(1); u16(1); u32(UInt32(rate)); u32(UInt32(rate * 2)); u16(2); u16(16)
+        d.append(contentsOf: Array("data".utf8)); u32(UInt32(n * 2))
+        for i in 0 ..< n { u16(UInt16(bitPattern: Int16(16000 * sin(2 * Double.pi * frequency * Double(i) / Double(rate))))) }
+        try d.write(to: url)
+    }
+
     @objc func haptics() {
         let caps = CHHapticEngine.capabilitiesForHardware()
         print("haptics supportsHaptics=\(caps.supportsHaptics)")
@@ -278,7 +291,14 @@ final class CoreAnimationViewController: UIViewController, UIDynamicAnimatorDele
             try e.start()
             let tap = CHHapticEvent(eventType: .hapticTransient, parameters: [CHHapticEventParameter(parameterID: .hapticIntensity, value: 1)], relativeTime: 0)
             let buzz = CHHapticEvent(eventType: .hapticContinuous, parameters: [CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.5)], relativeTime: 0.1, duration: 0.3)
-            let pattern = try CHHapticPattern(events: [tap, buzz], parameters: [])
+            // audio events: a 440 Hz tone (audioContinuous, pure: brightness 0), then a registered 880 Hz WAV (audioCustom)
+            let tone = CHHapticEvent(eventType: .audioContinuous, parameters: [CHHapticEventParameter(parameterID: .audioBrightness, value: 0),
+                                                                               CHHapticEventParameter(parameterID: .audioVolume, value: 1)], relativeTime: 0.5, duration: 0.4)
+            let wav = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("chime.wav")
+            try writeWAV(wav, frequency: 880, seconds: 0.4)
+            let chime = CHHapticEvent(audioResourceID: try e.registerAudioResource(wav), parameters: [], relativeTime: 1.1, duration: 0.4)
+            print("haptics supportsAudio=\(caps.supportsAudio) error domain \(CHHapticErrorDomain)")
+            let pattern = try CHHapticPattern(events: [tap, buzz, tone, chime], parameters: [])
             print("haptics pattern duration=\(f2(pattern.duration))")
             let p = try e.makePlayer(with: pattern)
             try p.start(atTime: CHHapticTimeImmediate)
