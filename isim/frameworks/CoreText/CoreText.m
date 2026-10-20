@@ -40,6 +40,14 @@ const CFStringRef kCTFontUniqueNameKey = CFSTR("CTFontUniqueName");
 const CFStringRef kCTFontFullNameKey = CFSTR("CTFontFullName");
 const CFStringRef kCTFontVersionNameKey = CFSTR("CTFontVersionName");
 const CFStringRef kCTFontPostScriptNameKey = CFSTR("CTFontPostScriptName");
+const CFStringRef kCTFontVariationAxisIdentifierKey = CFSTR("NSCTVariationAxisIdentifier");
+const CFStringRef kCTFontVariationAxisMinimumValueKey = CFSTR("NSCTVariationAxisMinimumValue");
+const CFStringRef kCTFontVariationAxisMaximumValueKey = CFSTR("NSCTVariationAxisMaximumValue");
+const CFStringRef kCTFontVariationAxisDefaultValueKey = CFSTR("NSCTVariationAxisDefaultValue");
+const CFStringRef kCTFontVariationAxisNameKey = CFSTR("NSCTVariationAxisName");
+const CFStringRef kCTFontVariationAxisHiddenKey = CFSTR("NSCTVariationAxisHidden");
+const CFStringRef kCTFontManagerErrorDomain = CFSTR("com.apple.CoreText.CTFontManagerErrorDomain");
+const CFStringRef kCTFontManagerErrorFontURLsKey = CFSTR("CTFontManagerErrorFontURLs");
 #define K(x) ((__bridge NSString *)(x))
 
 @implementation __NSCTFont { void *_host; BOOL _loaded; struct isim_ct_font_info _info; }
@@ -614,11 +622,195 @@ CFArrayRef CTFontDescriptorCreateMatchingFontDescriptors(CTFontDescriptorRef d, 
 }
 
 /* ---- font registration ---- */
-bool CTFontManagerRegisterFontsForURL(CFURLRef url, CTFontManagerScope scope, CFErrorRef *error) {
-    NSString *path = ((__bridge NSURL *)url).path;
-    if (path && isim_font_register(path.UTF8String)) return true;
-    if (error) *error = (CFErrorRef)CFBridgingRetain([NSError errorWithDomain:@"com.apple.CoreText.CTFontManagerErrorDomain" code:105
-                                                                      userInfo:@{ NSLocalizedDescriptionKey: @"The file could not be registered." }]);
-    return false;
+static NSError *fm_error(CTFontManagerError code, NSURL *url, NSString *what) {
+    NSMutableDictionary *info = [@{ NSLocalizedDescriptionKey: what } mutableCopy];
+    if (url) info[K(kCTFontManagerErrorFontURLsKey)] = @[ url ];
+    return [NSError errorWithDomain:K(kCTFontManagerErrorDomain) code:code userInfo:info];
 }
-bool CTFontManagerUnregisterFontsForURL(CFURLRef url, CTFontManagerScope scope, CFErrorRef *error) { return true; }
+static NSMutableSet<NSString *> *registered_paths(void) {
+    static NSMutableSet *s;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ s = [NSMutableSet set]; });
+    return s;
+}
+/* registers a font file for the process; the error when it cannot */
+static NSError *register_url(NSURL *url) {
+    NSString *path = url.path;
+    NSMutableSet *done = registered_paths();
+    if (!path || ![[NSFileManager defaultManager] fileExistsAtPath:path]) return fm_error(kCTFontManagerErrorFileNotFound, url, @"The file does not exist.");
+    @synchronized (done) { if ([done containsObject:path]) return fm_error(kCTFontManagerErrorAlreadyRegistered, url, @"The file is already registered."); }
+    if (!isim_font_register(path.UTF8String)) return fm_error(kCTFontManagerErrorUnrecognizedFormat, url, @"The file is not a font.");
+    @synchronized (done) { [done addObject:path]; }
+    return nil;
+}
+static NSError *unregister_url(NSURL *url) {
+    NSMutableSet *done = registered_paths();
+    @synchronized (done) {
+        if (!url.path || ![done containsObject:url.path]) return fm_error(kCTFontManagerErrorNotRegistered, url, @"The file is not registered.");
+        [done removeObject:url.path];
+    }
+    return nil;
+}
+bool CTFontManagerRegisterFontsForURL(CFURLRef url, CTFontManagerScope scope, CFErrorRef *error) {
+    NSError *e = register_url((__bridge NSURL *)url);
+    if (e && error) *error = (CFErrorRef)CFBridgingRetain(e);
+    return !e;
+}
+bool CTFontManagerUnregisterFontsForURL(CFURLRef url, CTFontManagerScope scope, CFErrorRef *error) {
+    NSError *e = unregister_url((__bridge NSURL *)url);
+    if (e && error) *error = (CFErrorRef)CFBridgingRetain(e);
+    return !e;
+}
+static void each_url(CFArrayRef urls, NSError *(*fn)(NSURL *), bool (^handler)(CFArrayRef, bool)) {
+    NSMutableArray *errors = [NSMutableArray array];
+    for (NSURL *u in (__bridge NSArray *)urls) { NSError *e = fn(u); if (e) [errors addObject:e]; }
+    if (handler) handler((__bridge CFArrayRef)errors, true);
+}
+void CTFontManagerRegisterFontURLs(CFArrayRef urls, CTFontManagerScope scope, bool enabled, bool (^handler)(CFArrayRef, bool)) {
+    each_url(urls, register_url, handler);
+}
+void CTFontManagerUnregisterFontURLs(CFArrayRef urls, CTFontManagerScope scope, bool (^handler)(CFArrayRef, bool)) {
+    each_url(urls, unregister_url, handler);
+}
+/* font data, written once to a file in the temporary directory (fontconfig loads files) */
+static NSString *data_file(NSData *data) {
+    const unsigned char *b = data.bytes;
+    uint64_t x = 1469598103934665603ULL;                               /* FNV-1a of the bytes names the file */
+    for (NSUInteger i = 0; i < data.length; i++) { x ^= b[i]; x *= 1099511628211ULL; }
+    NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:
+                      [NSString stringWithFormat:@"isim-font-%016llx-%lu.font", (unsigned long long)x, (unsigned long)data.length]];
+    if (![[NSFileManager defaultManager] fileExistsAtPath:path] && ![data writeToFile:path atomically:YES]) return nil;
+    return path;
+}
+static NSArray *descriptors_of_data(NSData *data) {
+    if (!data.length) return nil;
+    int cap = 1 << 16;
+    char *buf = malloc((size_t)cap);
+    int n = isim_font_data_faces(data.bytes, (long)data.length, buf, cap);
+    NSString *list = n > 0 ? [NSString stringWithUTF8String:buf] : nil;
+    free(buf);
+    if (!list) return nil;
+    NSString *path = data_file(data);
+    if (path) isim_font_register_listed(path.UTF8String, 0);           /* usable by name, as on iOS */
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *line in [list componentsSeparatedByString:@"\n"]) {
+        NSArray *c = [line componentsSeparatedByString:@"\t"];
+        if (c.count < 3) continue;
+        NSMutableDictionary *a = [@{ K(kCTFontNameAttribute): c[0], K(kCTFontFamilyNameAttribute): c[1], K(kCTFontStyleNameAttribute): c[2] } mutableCopy];
+        if (path) a[K(kCTFontURLAttribute)] = [NSURL fileURLWithPath:path];
+        [out addObject:CFBridgingRelease(descriptor(a))];
+    }
+    return out.count ? out : nil;
+}
+CFArrayRef CTFontManagerCreateFontDescriptorsFromData(CFDataRef data) {
+    NSArray *a = descriptors_of_data((__bridge NSData *)data);
+    return a ? (CFArrayRef)CFBridgingRetain(a) : NULL;
+}
+CTFontDescriptorRef CTFontManagerCreateFontDescriptorFromData(CFDataRef data) {
+    NSArray *a = descriptors_of_data((__bridge NSData *)data);
+    return a.count ? (CTFontDescriptorRef)CFBridgingRetain(a[0]) : NULL;
+}
+CFArrayRef CTFontManagerCreateFontDescriptorsFromURL(CFURLRef url) {
+    NSData *d = url ? [NSData dataWithContentsOfURL:(__bridge NSURL *)url] : nil;
+    NSArray *a = descriptors_of_data(d);
+    return a ? (CFArrayRef)CFBridgingRetain(a) : NULL;
+}
+extern CFDataRef isim_CGFontGetData(CGFontRef font);                  /* CoreGraphics (private) */
+static NSMutableSet<NSString *> *graphics_fonts(void) {
+    static NSMutableSet *s;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ s = [NSMutableSet set]; });
+    return s;
+}
+bool CTFontManagerRegisterGraphicsFont(CGFontRef font, CFErrorRef *error) {
+    NSData *data = (__bridge NSData *)isim_CGFontGetData(font);
+    NSString *name = CFBridgingRelease(CGFontCopyPostScriptName(font)), *path = data ? data_file(data) : nil;
+    NSError *e = nil;
+    NSMutableSet *done = graphics_fonts();
+    @synchronized (done) {
+        if (!path) e = fm_error(kCTFontManagerErrorInvalidFontData, nil, @"The font has no data.");
+        else if ([done containsObject:name ?: @""]) e = fm_error(kCTFontManagerErrorAlreadyRegistered, nil, @"The font is already registered.");
+        else if (!isim_font_register(path.UTF8String)) e = fm_error(kCTFontManagerErrorInvalidFontData, nil, @"The font could not be registered.");
+        else [done addObject:name ?: @""];
+    }
+    if (e && error) *error = (CFErrorRef)CFBridgingRetain(e);
+    return !e;
+}
+bool CTFontManagerUnregisterGraphicsFont(CGFontRef font, CFErrorRef *error) {
+    NSString *name = CFBridgingRelease(CGFontCopyPostScriptName(font));
+    NSMutableSet *done = graphics_fonts();
+    BOOL had;
+    @synchronized (done) { had = [done containsObject:name ?: @""]; [done removeObject:name ?: @""]; }
+    if (!had && error) *error = (CFErrorRef)CFBridgingRetain(fm_error(kCTFontManagerErrorNotRegistered, nil, @"The font is not registered."));
+    return had;
+}
+
+/* ---- tables, variations ---- */
+CFDataRef CTFontCopyTable(CTFontRef font, CTFontTableTag tag, CTFontTableOptions options) {
+    void *h = [F(font) host];
+    int n = isim_ct_font_table(h, tag, NULL, 0);
+    if (n < 0) return NULL;
+    NSMutableData *d = [NSMutableData dataWithLength:(NSUInteger)n];
+    isim_ct_font_table(h, tag, d.mutableBytes, n);
+    return (CFDataRef)CFBridgingRetain(d);
+}
+CFArrayRef CTFontCopyAvailableTables(CTFontRef font, CTFontTableOptions options) {
+    void *h = [F(font) host];
+    int n = isim_ct_font_table_tags(h, NULL, 0);
+    if (n <= 0) return NULL;
+    unsigned *tags = calloc((size_t)n, sizeof *tags);
+    isim_ct_font_table_tags(h, tags, n);
+    NSMutableArray *a = [NSMutableArray arrayWithCapacity:(NSUInteger)n];
+    for (int i = 0; i < n; i++) [a addObject:@(tags[i])];
+    free(tags);
+    return (CFArrayRef)CFBridgingRetain(a);
+}
+static NSArray *axes(__NSCTFont *f) {
+    void *h = [f host];
+    int n = isim_ct_font_axes(h, NULL, 0);
+    if (n <= 0) return nil;
+    struct isim_ct_axis *ax = calloc((size_t)n, sizeof *ax);
+    n = MIN(n, isim_ct_font_axes(h, ax, n));
+    NSMutableArray *a = [NSMutableArray array];
+    for (int i = 0; i < n && i < 64; i++)
+        [a addObject:@{ K(kCTFontVariationAxisIdentifierKey): @(ax[i].tag), K(kCTFontVariationAxisMinimumValueKey): @(ax[i].min),
+                        K(kCTFontVariationAxisMaximumValueKey): @(ax[i].max), K(kCTFontVariationAxisDefaultValueKey): @(ax[i].def),
+                        K(kCTFontVariationAxisNameKey): @(ax[i].name), K(kCTFontVariationAxisHiddenKey): @(ax[i].hidden != 0) }];
+    free(ax);
+    return a;
+}
+CFArrayRef CTFontCopyVariationAxes(CTFontRef font) {
+    NSArray *a = axes(F(font));
+    return a.count ? (CFArrayRef)CFBridgingRetain(a) : NULL;
+}
+CFDictionaryRef CTFontCopyVariation(CTFontRef font) {
+    NSArray *a = axes(F(font));
+    if (!a.count) return NULL;
+    NSMutableDictionary *d = [NSMutableDictionary dictionary];
+    for (NSDictionary *x in a) d[x[K(kCTFontVariationAxisIdentifierKey)]] = x[K(kCTFontVariationAxisDefaultValueKey)];
+    return (CFDictionaryRef)CFBridgingRetain(d);
+}
+
+/* ---- the font for a string ---- */
+CTFontRef CTFontCreateForStringWithLanguage(CTFontRef current, CFStringRef string, CFRange range, CFStringRef language) {
+    NSString *s = (__bridge NSString *)string;
+    if (!current) return CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, 12, NULL) ?: CTFontCreateWithName(CFSTR(".SFUI-Regular"), 12, NULL);
+    if (!s || range.location < 0 || range.length <= 0 || (NSUInteger)(range.location + range.length) > s.length) return CFRetain(current);
+    NSString *sub = [s substringWithRange:NSMakeRange((NSUInteger)range.location, (NSUInteger)range.length)];
+    NSMutableDictionary *attrs = [@{ K(kCTFontAttributeName): (__bridge id)current } mutableCopy];
+    if (language) attrs[K(kCTLanguageAttributeName)] = (__bridge NSString *)language;
+    CTLineRef line = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)[[NSAttributedString alloc] initWithString:sub attributes:attrs]);
+    CFArrayRef runs = CTLineGetGlyphRuns(line);
+    CTFontRef best = NULL;
+    for (CFIndex i = 0; i < CFArrayGetCount(runs) && !best; i++) {          /* the run of the range's first character */
+        CTRunRef run = CFArrayGetValueAtIndex(runs, i);
+        CFRange r = CTRunGetStringRange(run);
+        if (r.location == 0) best = CFDictionaryGetValue(CTRunGetAttributes(run), kCTFontAttributeName);
+    }
+    CTFontRef out = CFRetain(best ?: current);
+    CFRelease(line);
+    return out;
+}
+CTFontRef CTFontCreateForString(CTFontRef current, CFStringRef string, CFRange range) {
+    return CTFontCreateForStringWithLanguage(current, string, range, NULL);
+}

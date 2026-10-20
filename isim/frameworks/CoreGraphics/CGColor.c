@@ -314,6 +314,7 @@ static void font_fin(void *o) {
     struct CGFont *f = o;
     if (f->name) CFRelease(f->name);
     if (f->fullName) CFRelease(f->fullName);
+    if (f->data) CFRelease(f->data);
 }
 static CFStringRef string_from_utf8(const char *s) {
     Class cls = objc_getClass("NSString");
@@ -334,8 +335,11 @@ CGFontRef CGFontCreateWithDataProvider(CGDataProviderRef p) {
     f->name = string_from_utf8(ps);
     f->fullName = string_from_utf8(full[0] ? full : ps);
     f->unitsPerEm = units;
+    f->data = CFDataCreate(NULL, bytes, (CFIndex)n);
     return f;
 }
+/* for CoreText (private): the font data of a CGFont made from a data provider, NULL for one made by name */
+CFDataRef isim_CGFontGetData(CGFontRef f) { return f ? f->data : NULL; }
 CGFontRef CGFontRetain(CGFontRef f) { return f ? objc_retain(f) : NULL; }
 void CGFontRelease(CGFontRef f) { if (f) objc_release(f); }
 CFStringRef CGFontCopyPostScriptName(CGFontRef f) { return f && f->name ? CFRetain(f->name) : NULL; }

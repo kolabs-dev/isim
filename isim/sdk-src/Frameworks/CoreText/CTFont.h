@@ -69,6 +69,53 @@ CT_EXPORT CGFontRef CTFontCopyGraphicsFont(CTFontRef font, CTFontDescriptorRef _
 CT_EXPORT CTFontRef CTFontCreateWithGraphicsFont(CGFontRef graphicsFont, CGFloat size, const CGAffineTransform *_Nullable matrix, CTFontDescriptorRef _Nullable attributes);
 CT_EXPORT CFArrayRef _Nullable CTFontCopyFeatures(CTFontRef font);
 CT_EXPORT CFArrayRef _Nullable CTFontCopyFeatureSettings(CTFontRef font);
+
+/* fonts' tables (CTFontCopyTable) */
+typedef uint32_t FourCharCode;                  /* MacTypes */
+typedef FourCharCode CTFontTableTag;
+enum {
+    kCTFontTableBASE = 'BASE', kCTFontTableCFF = 'CFF ', kCTFontTableCFF2 = 'CFF2', kCTFontTableDSIG = 'DSIG',
+    kCTFontTableEBDT = 'EBDT', kCTFontTableEBLC = 'EBLC', kCTFontTableEBSC = 'EBSC', kCTFontTableGDEF = 'GDEF',
+    kCTFontTableGPOS = 'GPOS', kCTFontTableGSUB = 'GSUB', kCTFontTableJSTF = 'JSTF', kCTFontTableLTSH = 'LTSH',
+    kCTFontTableMATH = 'MATH', kCTFontTableOS2 = 'OS/2', kCTFontTablePCLT = 'PCLT', kCTFontTableVDMX = 'VDMX',
+    kCTFontTableVORG = 'VORG', kCTFontTableZapf = 'Zapf', kCTFontTableAcnt = 'acnt',
+    kCTFontTableAnkr = 'ankr', kCTFontTableAvar = 'avar', kCTFontTableBdat = 'bdat', kCTFontTableBhed = 'bhed',
+    kCTFontTableBloc = 'bloc', kCTFontTableBsln = 'bsln', kCTFontTableCidg = 'cidg', kCTFontTableCmap = 'cmap',
+    kCTFontTableCvar = 'cvar', kCTFontTableCvt = 'cvt ', kCTFontTableFdsc = 'fdsc', kCTFontTableFeat = 'feat',
+    kCTFontTableFmtx = 'fmtx', kCTFontTableFond = 'fond', kCTFontTableFpgm = 'fpgm', kCTFontTableFvar = 'fvar',
+    kCTFontTableGasp = 'gasp', kCTFontTableGlyf = 'glyf', kCTFontTableGvar = 'gvar', kCTFontTableHdmx = 'hdmx',
+    kCTFontTableHead = 'head', kCTFontTableHhea = 'hhea', kCTFontTableHmtx = 'hmtx', kCTFontTableHsty = 'hsty',
+    kCTFontTableJust = 'just', kCTFontTableKern = 'kern', kCTFontTableKerx = 'kerx', kCTFontTableLcar = 'lcar',
+    kCTFontTableLtag = 'ltag', kCTFontTableLoca = 'loca', kCTFontTableMaxp = 'maxp', kCTFontTableMeta = 'meta',
+    kCTFontTableMort = 'mort', kCTFontTableMorx = 'morx', kCTFontTableName = 'name', kCTFontTableOpbd = 'opbd',
+    kCTFontTablePost = 'post', kCTFontTablePrep = 'prep', kCTFontTableProp = 'prop', kCTFontTableSbit = 'sbit',
+    kCTFontTableSbix = 'sbix', kCTFontTableTrak = 'trak', kCTFontTableVhea = 'vhea', kCTFontTableVmtx = 'vmtx',
+    kCTFontTableXref = 'xref', kCTFontTableCOLR = 'COLR', kCTFontTableCPAL = 'CPAL', kCTFontTableSVG = 'SVG ',
+    kCTFontTableCBDT = 'CBDT', kCTFontTableCBLC = 'CBLC', kCTFontTableSTAT = 'STAT', kCTFontTableHVAR = 'HVAR',
+    kCTFontTableVVAR = 'VVAR', kCTFontTableMVAR = 'MVAR'
+};
+typedef CF_OPTIONS(uint32_t, CTFontTableOptions) { kCTFontTableOptionNoOptions = 0, kCTFontTableOptionExcludeSynthetic = (1 << 0) };
+/* the bytes of a table of the font's file (HarfBuzz); NULL when it has none */
+CT_EXPORT CFDataRef _Nullable CTFontCopyTable(CTFontRef font, CTFontTableTag table, CTFontTableOptions options);
+/* the tags of the font's tables (CFNumbers) */
+CT_EXPORT CFArrayRef _Nullable CTFontCopyAvailableTables(CTFontRef font, CTFontTableOptions options);
+
+/* variable fonts: the axes of the font's fvar table */
+CT_EXPORT const CFStringRef kCTFontVariationAxisIdentifierKey;
+CT_EXPORT const CFStringRef kCTFontVariationAxisMinimumValueKey;
+CT_EXPORT const CFStringRef kCTFontVariationAxisMaximumValueKey;
+CT_EXPORT const CFStringRef kCTFontVariationAxisDefaultValueKey;
+CT_EXPORT const CFStringRef kCTFontVariationAxisNameKey;
+CT_EXPORT const CFStringRef kCTFontVariationAxisHiddenKey API_AVAILABLE(macos(10.13), ios(11.0));
+CT_EXPORT CFArrayRef _Nullable CTFontCopyVariationAxes(CTFontRef font);
+/* isim: the axes' default values (isim draws a variable font's default instance) */
+CT_EXPORT CFDictionaryRef _Nullable CTFontCopyVariation(CTFontRef font);
+
+/* the font that best renders the start of the string range: the font itself when it has the characters, else the one
+ * the host's Pango falls back to */
+CT_EXPORT CTFontRef CTFontCreateForString(CTFontRef currentFont, CFStringRef string, CFRange range);
+CT_EXPORT CTFontRef CTFontCreateForStringWithLanguage(CTFontRef currentFont, CFStringRef string, CFRange range, CFStringRef _Nullable language)
+    API_AVAILABLE(macos(10.15), ios(13.0));
 #pragma clang assume_nonnull end
 #pragma clang arc_cf_code_audited end
 __END_DECLS

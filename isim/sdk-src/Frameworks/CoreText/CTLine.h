@@ -2,6 +2,7 @@
 #include <CoreText/CTFont.h>
 #include <CoreText/CTParagraphStyle.h>
 #include <CoreText/CTRun.h>
+#include <CoreText/CTStringAttributes.h>
 __BEGIN_DECLS
 #pragma clang arc_cf_code_audited begin
 #pragma clang assume_nonnull begin
@@ -15,16 +16,6 @@ typedef CF_OPTIONS(CFOptionFlags, CTLineBoundsOptions) {
     kCTLineBoundsExcludeTypographicLeading = 1 << 0, kCTLineBoundsExcludeTypographicShifts = 1 << 1, kCTLineBoundsUseHangingPunctuation = 1 << 2,
     kCTLineBoundsUseGlyphPathBounds = 1 << 3, kCTLineBoundsUseOpticalBounds = 1 << 4, kCTLineBoundsIncludeLanguageExtents = 1 << 5
 };
-
-/* attribute keys (the same strings as UIKit's NSAttributedString keys where they overlap) */
-CT_EXPORT const CFStringRef kCTFontAttributeName;
-CT_EXPORT const CFStringRef kCTForegroundColorAttributeName;
-CT_EXPORT const CFStringRef kCTForegroundColorFromContextAttributeName;
-CT_EXPORT const CFStringRef kCTKernAttributeName;
-CT_EXPORT const CFStringRef kCTParagraphStyleAttributeName;
-CT_EXPORT const CFStringRef kCTUnderlineStyleAttributeName;
-CT_EXPORT const CFStringRef kCTStrokeWidthAttributeName;
-CT_EXPORT const CFStringRef kCTBaselineOffsetAttributeName;
 
 
 CT_EXPORT CFTypeID CTLineGetTypeID(void);

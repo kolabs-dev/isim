@@ -19,6 +19,12 @@ const CFStringRef kCTParagraphStyleAttributeName = CFSTR("NSParagraphStyle");
 const CFStringRef kCTUnderlineStyleAttributeName = CFSTR("NSUnderline");
 const CFStringRef kCTStrokeWidthAttributeName = CFSTR("NSStrokeWidth");
 const CFStringRef kCTBaselineOffsetAttributeName = CFSTR("CTBaselineOffset");
+const CFStringRef kCTStrokeColorAttributeName = CFSTR("CTStrokeColor");
+const CFStringRef kCTUnderlineColorAttributeName = CFSTR("CTUnderlineColor");
+const CFStringRef kCTLigatureAttributeName = CFSTR("NSLigature");
+const CFStringRef kCTSuperscriptAttributeName = CFSTR("NSSuperScript");
+const CFStringRef kCTTrackingAttributeName = CFSTR("CTTracking");
+const CFStringRef kCTLanguageAttributeName = CFSTR("NSLanguage");
 const CFStringRef kCTTabColumnTerminatorsAttributeName = CFSTR("NSTabColumnTerminatorsAttributeName");
 #define K(x) ((__bridge NSString *)(x))
 
@@ -179,15 +185,17 @@ static void escape_into(NSMutableString *m, NSString *s) {
 }
 static NSString *const STRETCH[] = { @"ultracondensed", @"extracondensed", @"condensed", @"semicondensed", @"normal",
                                      @"semiexpanded", @"expanded", @"extraexpanded", @"ultraexpanded" };
-static void font_attrs(NSMutableString *m, id font) {
+/* the font's span attributes; extra: feature settings to add (ligatures) */
+static void font_attrs(NSMutableString *m, id font, NSString *extra) {
     __NSCTFont *c = isim_ct_font(font);
-    if (!c) return;
+    if (!c) { if (extra.length) [m appendFormat:@" font_features=\"%@\"", extra]; return; }
     [m appendFormat:@" size=\"%ld\" weight=\"%d\"", lround(c.size * 1024), isim_ct_pango_weight(c.bold && c.weight < 0.3 ? 0.4 : c.weight)];
     NSString *family = isim_ct_family(c);
     if (family.length) { [m appendString:@" font_family=\""]; escape_into(m, family); [m appendString:@"\""]; }
     if (c.italic) [m appendString:@" style=\"italic\""];
     if (c.stretch != 4 && c.stretch >= 0 && c.stretch <= 8) [m appendFormat:@" stretch=\"%@\"", STRETCH[c.stretch]];
     NSString *ft = isim_ct_feature_tags(c.features);
+    if (extra.length) ft = ft.length ? [ft stringByAppendingFormat:@",%@", extra] : extra;
     if (ft.length) [m appendFormat:@" font_features=\"%@\"", ft];
 }
 @interface NSObject (IsimCTColorDuck)
@@ -209,15 +217,26 @@ NSString *isim_ct_markup(NSAttributedString *s, BOOL *fromContext) {
     [s enumerateAttributesInRange:NSMakeRange(0, s.length) options:0 usingBlock:^(NSDictionary *attrs, NSRange r, BOOL *stop) {
         if (fromContext && [attrs[K(kCTForegroundColorFromContextAttributeName)] boolValue]) *fromContext = YES;
         NSMutableString *span = [NSMutableString stringWithString:@"<span"];
-        font_attrs(span, attrs[K(kCTFontAttributeName)]);
+        id lig = attrs[K(kCTLigatureAttributeName)];
+        NSString *ligatures = !lig ? nil : [lig integerValue] == 0 ? @"liga 0,clig 0" : [lig integerValue] >= 2 ? @"dlig 1" : nil;
+        font_attrs(span, attrs[K(kCTFontAttributeName)], ligatures);
         double c[4];
-        if (color_rgba(attrs[K(kCTForegroundColorAttributeName)] ?: attrs[@"NSColor"], c))
+        if ([attrs[K(kCTStrokeWidthAttributeName)] doubleValue] > 0)
+            [span appendString:@" fgalpha=\"1\""];                     /* stroke only: the outline is drawn over the hidden fill */
+        else if (color_rgba(attrs[K(kCTForegroundColorAttributeName)] ?: attrs[@"NSColor"], c))
             [span appendFormat:@" foreground=\"%@\" fgalpha=\"%d%%\"", hex(c), (int)fmax(1, lround(c[3] * 100))];
         if (color_rgba(attrs[@"NSBackgroundColor"], c)) [span appendFormat:@" background=\"%@\" bgalpha=\"%d%%\"", hex(c), (int)fmax(1, lround(c[3] * 100))];
-        double kern = [attrs[K(kCTKernAttributeName)] doubleValue];
+        double kern = [attrs[K(kCTKernAttributeName)] doubleValue] + [attrs[K(kCTTrackingAttributeName)] doubleValue];
         if (kern) [span appendFormat:@" letter_spacing=\"%ld\"", lround(kern * 1024)];
         NSInteger ul = [attrs[K(kCTUnderlineStyleAttributeName)] integerValue];
-        if (ul) [span appendFormat:@" underline=\"%@\"", (ul & 0xff) == 0x09 ? @"double" : @"single"];
+        if (ul & 0xff) {                                               /* thick and patterned underlines: single and solid */
+            [span appendFormat:@" underline=\"%@\"", (ul & 0xff) == kCTUnderlineStyleDouble ? @"double" : @"single"];
+            if (color_rgba(attrs[K(kCTUnderlineColorAttributeName)] ?: attrs[@"NSUnderlineColor"], c)) [span appendFormat:@" underline_color=\"%@\"", hex(c)];
+        }
+        NSInteger sup = [attrs[K(kCTSuperscriptAttributeName)] integerValue];
+        if (sup) [span appendFormat:@" baseline_shift=\"%@\" font_scale=\"%@\"", sup > 0 ? @"superscript" : @"subscript", sup > 0 ? @"superscript" : @"subscript"];
+        NSString *lang = attrs[K(kCTLanguageAttributeName)];
+        if ([lang isKindOfClass:[NSString class]] && lang.length) { [span appendString:@" lang=\""]; escape_into(span, lang); [span appendString:@"\""]; }
         if ([attrs[@"NSStrikethrough"] integerValue]) [span appendString:@" strikethrough=\"true\""];
         double rise = [(attrs[K(kCTBaselineOffsetAttributeName)] ?: attrs[@"NSBaselineOffset"]) doubleValue];
         if (rise) [span appendFormat:@" rise=\"%ld\"", lround(rise * 1024)];
@@ -468,9 +487,47 @@ CGFloat CTLineGetOffsetForStringIndex(CTLineRef line, CFIndex idx, CGFloat *seco
     if (secondary) *secondary = x;
     return x;
 }
+/* kCTStrokeWidthAttributeName: the outlines of a run's glyphs stroked at width percent of its font's size (in text
+ * space), in the stroke color, else the foreground color, else the context's fill color when the color is from it */
+static void stroke_runs(__NSCTLine *l, CGContextRef c, double dx, double dy) {
+    NSArray *runs = l.runs;
+    BOOL any = NO;
+    for (id r in runs) if ([((__bridge NSDictionary *)CTRunGetAttributes((__bridge CTRunRef)r))[K(kCTStrokeWidthAttributeName)] doubleValue] != 0) { any = YES; break; }
+    if (!any) return;
+    CGPoint p = CGContextGetTextPosition(c);
+    CGAffineTransform tm = CGContextGetTextMatrix(c), t = CGAffineTransformMake(tm.a, tm.b, tm.c, tm.d, p.x + tm.tx, p.y + tm.ty);
+    for (id r in runs) {
+        CTRunRef run = (__bridge CTRunRef)r;
+        NSDictionary *a = (__bridge NSDictionary *)CTRunGetAttributes(run);
+        double w = [a[K(kCTStrokeWidthAttributeName)] doubleValue];
+        CTFontRef font = (__bridge CTFontRef)a[K(kCTFontAttributeName)];
+        if (!w || !font) continue;
+        CFIndex n = CTRunGetGlyphCount(run);
+        const CGGlyph *g = CTRunGetGlyphsPtr(run);
+        const CGPoint *pos = CTRunGetPositionsPtr(run);
+        CGMutablePathRef path = CGPathCreateMutable();
+        for (CFIndex i = 0; i < n; i++) {
+            CGAffineTransform at = CGAffineTransformTranslate(t, pos[i].x + dx, pos[i].y + dy);
+            CGPathRef gp = CTFontCreatePathForGlyph(font, g[i], &at);
+            if (gp) { CGPathAddPath(path, NULL, gp); CGPathRelease(gp); }
+        }
+        double rgba[4] = { 0, 0, 0, 1 };
+        BOOL fromContext = l->_para->_fromContext && !a[K(kCTStrokeColorAttributeName)];
+        if (!color_rgba(a[K(kCTStrokeColorAttributeName)] ?: a[@"NSStrokeColor"], rgba)) color_rgba(a[K(kCTForegroundColorAttributeName)] ?: a[@"NSColor"], rgba);
+        CGContextSaveGState(c);
+        if (!fromContext) CGContextSetRGBStrokeColor(c, rgba[0], rgba[1], rgba[2], rgba[3]);
+        CGContextSetLineWidth(c, fabs(w) * CTFontGetSize(font) / 100);
+        CGContextSetLineJoin(c, kCGLineJoinRound);
+        CGContextAddPath(c, path);
+        CGContextStrokePath(c);
+        CGContextRestoreGState(c);
+        CGPathRelease(path);
+    }
+}
 static void draw_line(__NSCTLine *l, CGContextRef c, double dx, double dy) {
     double black[4] = { 0, 0, 0, 1 };
     isim_cg_context_draw_text_line(c, l->_para->_l, l->_line, dx, dy, l->_para->_fromContext ? NULL : black, 0);
+    stroke_runs(l, c, dx, dy);
 }
 void CTLineDraw(CTLineRef line, CGContextRef c) { if (line && c) draw_line(L(line), c, 0, 0); }
 
