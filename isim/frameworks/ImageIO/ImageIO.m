@@ -5,6 +5,7 @@
 #include <isim_host.h>
 #include <isim_host_cg.h>
 #include <math.h>
+#import "ImageIOPrivate.h"
 
 #define K(name, value) const CFStringRef name = CFSTR(value);
 K(kCGImagePropertyFileSize, "FileSize") K(kCGImagePropertyPixelWidth, "PixelWidth") K(kCGImagePropertyPixelHeight, "PixelHeight")
@@ -22,18 +23,28 @@ K(kCGImageSourceCreateThumbnailFromImageIfAbsent, "kCGImageSourceCreateThumbnail
 K(kCGImageSourceCreateThumbnailFromImageAlways, "kCGImageSourceCreateThumbnailFromImageAlways")
 K(kCGImageSourceThumbnailMaxPixelSize, "kCGImageSourceThumbnailMaxPixelSize") K(kCGImageSourceCreateThumbnailWithTransform, "kCGImageSourceCreateThumbnailWithTransform")
 K(kCGImageDestinationLossyCompressionQuality, "kCGImageDestinationLossyCompressionQuality") K(kCGImageDestinationBackgroundColor, "kCGImageDestinationBackgroundColor")
+K(kCGImageDestinationMetadata, "kCGImageDestinationMetadata") K(kCGImageDestinationMergeMetadata, "kCGImageDestinationMergeMetadata")
+K(kCGImageDestinationDateTime, "kCGImageDestinationDateTime") K(kCGImageDestinationOrientation, "kCGImageDestinationOrientation")
+#include "PropertyKeys.inc"
 #define S(k) ((__bridge NSString *)(k))
 
 /* ---------------- sources ---------------- */
 @interface __CGImageSource : NSObject {
 @public NSData *_data; int _frames, _w, _h, _orientation, _alpha, _loops; char _type[64]; BOOL _final; NSMutableDictionary *_cache;
+    NSDictionary *_meta; NSString *_xmp; BOOL _metaRead;
 }
+- (NSDictionary *)meta;
 @end
 @implementation __CGImageSource
 - (NSString *)description { return [NSString stringWithFormat:@"<CGImageSource %p> %s, %d image(s)", self, _type, _frames]; }
 - (void)dealloc { for (NSArray *c in _cache.allValues) isim_image_free([c[0] intValue]); }
+/* the image's metadata dictionaries and XMP packet, read once (ImageIOMetadata.m) */
+- (NSDictionary *)meta {
+    if (!_metaRead) { _metaRead = YES; NSString *x = nil; _meta = isim_io_read_metadata(_data, @(_type), &x); _xmp = x; }
+    return _meta;
+}
 - (void)scan {
-    _frames = 0; _type[0] = 0;
+    _frames = 0; _type[0] = 0; _metaRead = NO; _meta = nil; _xmp = nil;
     if (_data.length) isim_imgsrc_info(_data.bytes, (long)_data.length, &_frames, &_w, &_h, _type, sizeof _type, &_orientation, &_alpha, &_loops);
 }
 @end
@@ -137,9 +148,19 @@ CFDictionaryRef CGImageSourceCopyPropertiesAtIndex(CGImageSourceRef src, size_t 
     d[S(kCGImagePropertyDepth)] = @8; d[S(kCGImagePropertyColorModel)] = S(kCGImagePropertyColorModelRGB);
     d[S(kCGImagePropertyHasAlpha)] = @(s->_alpha != 0);
     d[S(kCGImagePropertyDPIWidth)] = @72; d[S(kCGImagePropertyDPIHeight)] = @72;
-    if (s->_orientation != 1 || is(s, "public.jpeg") || is(s, "public.tiff")) {
+    NSDictionary *meta = s.meta;
+    [d addEntriesFromDictionary:meta];                                  /* {TIFF}, {Exif}, {GPS}, {IPTC} */
+    if (s->_orientation != 1 || is(s, "public.jpeg") || is(s, "public.tiff") || meta[S(kCGImagePropertyTIFFDictionary)]) {
         d[S(kCGImagePropertyOrientation)] = @(s->_orientation);
-        d[S(kCGImagePropertyTIFFDictionary)] = @{ S(kCGImagePropertyTIFFOrientation): @(s->_orientation) };
+        NSMutableDictionary *tiff = [meta[S(kCGImagePropertyTIFFDictionary)] mutableCopy] ?: [NSMutableDictionary dictionary];
+        tiff[S(kCGImagePropertyTIFFOrientation)] = @(s->_orientation);
+        d[S(kCGImagePropertyTIFFDictionary)] = tiff;
+    }
+    NSDictionary *tiff = meta[S(kCGImagePropertyTIFFDictionary)];
+    if (tiff[S(kCGImagePropertyTIFFXResolution)] && tiff[S(kCGImagePropertyTIFFYResolution)]) {   /* the DPI the file records */
+        double unit = [tiff[S(kCGImagePropertyTIFFResolutionUnit)] intValue] == 3 ? 2.54 : 1;
+        d[S(kCGImagePropertyDPIWidth)] = @([tiff[S(kCGImagePropertyTIFFXResolution)] doubleValue] * unit);
+        d[S(kCGImagePropertyDPIHeight)] = @([tiff[S(kCGImagePropertyTIFFYResolution)] doubleValue] * unit);
     }
     if (is(s, "public.png")) d[S(kCGImagePropertyPNGDictionary)] = @{};
     if (is(s, "public.jpeg")) d[S(kCGImagePropertyJFIFDictionary)] = @{};
@@ -153,6 +174,13 @@ CFDictionaryRef CGImageSourceCopyPropertiesAtIndex(CGImageSourceRef src, size_t 
         d[S(kCGImagePropertyWebPDictionary)] = @{ S(kCGImagePropertyWebPDelayTime): @(delay), S(kCGImagePropertyWebPUnclampedDelayTime): @(delay) };
     }
     return (CFDictionaryRef)CFBridgingRetain(d);
+}
+CGImageMetadataRef CGImageSourceCopyMetadataAtIndex(CGImageSourceRef src, size_t i, CFDictionaryRef opts) {
+    __CGImageSource *s = SRC(src);
+    if (i >= (size_t)s->_frames) return NULL;
+    NSDictionary *props = (__bridge_transfer NSDictionary *)CGImageSourceCopyPropertiesAtIndex(src, i, NULL);
+    [s meta];
+    return isim_io_metadata_create(props, s->_xmp);
 }
 static CGImageRef image_of_frame(__CGImageSource *s, size_t i) {
     int h = frame_handle(s, i, NULL);
@@ -220,6 +248,8 @@ CGImageRef CGImageSourceCreateThumbnailAtIndex(CGImageSourceRef src, size_t i, C
 @interface __CGImageDestination : NSObject {
 @public NSMutableData *_data; NSString *_path; CGDataConsumerRef _consumer; NSString *_type; size_t _count;
     NSMutableArray *_images; NSMutableArray<NSNumber *> *_delays; double _quality; int _loops; BOOL _done;
+    NSMutableDictionary *_props;   /* metadata dictionaries (SetProperties, then the image's) */
+    NSString *_xmp;                /* the image's XMP packet (AddImageAndMetadata, a source's) */
 }
 @end
 @implementation __CGImageDestination
@@ -242,6 +272,7 @@ static CGImageDestinationRef dest(NSString *type, size_t count) {
     if (fmt_of(type) < 0) { NSLog(@"isim: CGImageDestination: unsupported type %@ (isim writes public.png, public.jpeg, com.compuserve.gif, and public.heic with ffmpeg's libx265)", type); return NULL; }
     __CGImageDestination *d = [__CGImageDestination new];
     d->_type = [type copy]; d->_count = count; d->_images = [NSMutableArray array]; d->_delays = [NSMutableArray array]; d->_quality = 0.9; d->_loops = 0;
+    d->_props = [NSMutableDictionary dictionary];
     return (CGImageDestinationRef)CFBridgingRetain(d);
 }
 CGImageDestinationRef CGImageDestinationCreateWithData(CFMutableDataRef data, CFStringRef type, size_t count, CFDictionaryRef opts) {
@@ -259,7 +290,18 @@ CGImageDestinationRef CGImageDestinationCreateWithDataConsumer(CGDataConsumerRef
     if (r) DST(r)->_consumer = (CGDataConsumerRef)CFRetain(c);
     return r;
 }
+/* the metadata dictionaries (and Orientation) of properties, merged key by key over the ones already given */
+static void merge_metadata(NSMutableDictionary *into, NSDictionary *p) {
+    for (NSString *k in @[ S(kCGImagePropertyTIFFDictionary), S(kCGImagePropertyExifDictionary), S(kCGImagePropertyGPSDictionary), S(kCGImagePropertyIPTCDictionary) ]) {
+        if (![p[k] isKindOfClass:[NSDictionary class]]) continue;
+        NSMutableDictionary *m = [into[k] mutableCopy] ?: [NSMutableDictionary dictionary];
+        [m addEntriesFromDictionary:p[k]];
+        into[k] = m;
+    }
+    if (p[S(kCGImagePropertyOrientation)]) into[S(kCGImagePropertyOrientation)] = p[S(kCGImagePropertyOrientation)];
+}
 static void read_props(__CGImageDestination *d, NSDictionary *p, double *delay) {
+    merge_metadata(d->_props, p);
     if (p[S(kCGImageDestinationLossyCompressionQuality)]) d->_quality = [p[S(kCGImageDestinationLossyCompressionQuality)] doubleValue];
     NSDictionary *gif = p[S(kCGImagePropertyGIFDictionary)];
     if (gif[S(kCGImagePropertyGIFLoopCount)]) d->_loops = [gif[S(kCGImagePropertyGIFLoopCount)] intValue];
@@ -278,8 +320,72 @@ void CGImageDestinationAddImage(CGImageDestinationRef dst, CGImageRef image, CFD
 void CGImageDestinationAddImageFromSource(CGImageDestinationRef dst, CGImageSourceRef src, size_t i, CFDictionaryRef props) {
     CGImageRef im = CGImageSourceCreateImageAtIndex(src, i, NULL);
     if (!im) return;
+    __CGImageDestination *d = DST(dst);
+    if (!d->_images.count) {                                            /* the source's metadata, then the properties given */
+        NSDictionary *sp = (__bridge_transfer NSDictionary *)CGImageSourceCopyPropertiesAtIndex(src, i, NULL);
+        merge_metadata(d->_props, sp);
+        [SRC(src) meta];
+        d->_xmp = SRC(src)->_xmp;
+    }
     CGImageDestinationAddImage(dst, im, props);
     CGImageRelease(im);
+}
+void CGImageDestinationAddImageAndMetadata(CGImageDestinationRef dst, CGImageRef image, CGImageMetadataRef metadata, CFDictionaryRef opts) {
+    __CGImageDestination *d = DST(dst);
+    if (metadata && !d->_images.count) {                                /* XMP, and the EXIF / TIFF / GPS / IPTC it maps to */
+        merge_metadata(d->_props, isim_io_props_of_metadata(metadata));
+        d->_xmp = isim_io_xmp_of_metadata(metadata);
+    }
+    CGImageDestinationAddImage(dst, image, opts);
+}
+/* new metadata for a source's image data, as it is: JPEG and PNG */
+bool CGImageDestinationCopyImageSource(CGImageDestinationRef dst, CGImageSourceRef src, CFDictionaryRef options, CFErrorRef *err) {
+    __CGImageDestination *d = DST(dst);
+    __CGImageSource *s = SRC(src);
+    NSDictionary *o = (__bridge NSDictionary *)options;
+    BOOL jpeg = is(s, "public.jpeg"), png = is(s, "public.png");
+    if (d->_done || !(jpeg || png) || ![d->_type isEqualToString:@(s->_type)]) {
+        if (err) *err = (CFErrorRef)CFBridgingRetain([NSError errorWithDomain:S(kCFErrorDomainCGImageMetadata) code:kCGImageMetadataErrorUnsupportedFormat userInfo:nil]);
+        return false;
+    }
+    CGImageMetadataRef given = (__bridge CGImageMetadataRef)o[S(kCGImageDestinationMetadata)];
+    CGMutableImageMetadataRef m;
+    if ([o[S(kCGImageDestinationMergeMetadata)] boolValue] || !given) {
+        m = (CGMutableImageMetadataRef)CGImageSourceCopyMetadataAtIndex(src, 0, NULL) ?: CGImageMetadataCreateMutable();
+        if (given) CGImageMetadataEnumerateTagsUsingBlock(given, NULL, NULL, ^bool(CFStringRef path, CGImageMetadataTagRef tag) {
+            CGImageMetadataSetTagWithPath(m, NULL, path, tag);
+            return true;
+        });
+    } else m = CGImageMetadataCreateMutableCopy(given);
+    if (o[S(kCGImageDestinationDateTime)]) {
+        id v = o[S(kCGImageDestinationDateTime)];
+        NSString *t = v;
+        if ([v isKindOfClass:[NSDate class]]) {
+            NSDateFormatter *f = [NSDateFormatter new];
+            f.dateFormat = @"yyyy:MM:dd HH:mm:ss"; f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+            t = [f stringFromDate:v];
+        }
+        CGImageMetadataSetValueMatchingImageProperty(m, kCGImagePropertyTIFFDictionary, kCGImagePropertyTIFFDateTime, (__bridge CFStringRef)t);
+    }
+    if (o[S(kCGImageDestinationOrientation)])
+        CGImageMetadataSetValueMatchingImageProperty(m, kCGImagePropertyTIFFDictionary, kCGImagePropertyTIFFOrientation, (__bridge CFTypeRef)o[S(kCGImageDestinationOrientation)]);
+    NSMutableDictionary *props = [isim_io_props_of_metadata(m) mutableCopy];
+    if ([o[S(kCGImageMetadataShouldExcludeGPS)] boolValue]) {
+        [props removeObjectForKey:S(kCGImagePropertyGPSDictionary)];
+        CGImageMetadataEnumerateTagsUsingBlock(CGImageMetadataCreateMutableCopy(m), NULL, NULL, ^bool(CFStringRef path, CGImageMetadataTagRef tag) {
+            if ([(__bridge NSString *)path hasPrefix:@"exif:GPS"]) CGImageMetadataRemoveTagWithPath(m, NULL, path);
+            return true;
+        });
+    }
+    NSString *xmp = [o[S(kCGImageMetadataShouldExcludeXMP)] boolValue] ? nil : isim_io_xmp_of_metadata(m);
+    CFRelease(m);
+    NSData *bytes = isim_io_embed_metadata(s->_data, props, xmp);
+    d->_done = YES;
+    BOOL ok = YES;
+    if (d->_data) [d->_data appendData:bytes];
+    else if (d->_path) ok = [bytes writeToFile:d->_path atomically:YES];
+    else if (d->_consumer) ok = isim_cg_consumer_put(d->_consumer, bytes.bytes, bytes.length) == bytes.length;
+    return ok;
 }
 /* a host image with exactly the CGImage's pixels (crops included) */
 static int host_copy(CGImageRef im) {
@@ -308,10 +414,12 @@ bool CGImageDestinationFinalize(CGImageDestinationRef dst) {
         if (h) isim_image_free(h);
     }
     if (n <= 0) { isim_image_bytes_free(bytes); return false; }
-    BOOL ok = YES;
-    if (d->_data) [d->_data appendBytes:bytes length:(NSUInteger)n];
-    else if (d->_path) ok = [[NSData dataWithBytes:bytes length:(NSUInteger)n] writeToFile:d->_path atomically:YES];
-    else if (d->_consumer) ok = isim_cg_consumer_put(d->_consumer, bytes, (size_t)n) == (size_t)n;
+    NSData *out = [NSData dataWithBytes:bytes length:(NSUInteger)n];
     isim_image_bytes_free(bytes);
+    if (fmt == 0 || fmt == 1) out = isim_io_embed_metadata(out, d->_props, d->_xmp);   /* PNG, JPEG: the metadata */
+    BOOL ok = YES;
+    if (d->_data) [d->_data appendData:out];
+    else if (d->_path) ok = [out writeToFile:d->_path atomically:YES];
+    else if (d->_consumer) ok = isim_cg_consumer_put(d->_consumer, out.bytes, out.length) == out.length;
     return ok;
 }

@@ -109,6 +109,25 @@ final class ImagingViewController: UIViewController {
         _ = tile(UIImage(cgImage: upright), "exif", CGRect(x: 76, y: 74, width: 25, height: 50), nearest: true)
 
         // unsupported data
+        // metadata: EXIF, GPS and IPTC written with a JPEG, read back as properties and as XMP metadata
+        let tagged = NSMutableData()
+        let md = CGImageMetadataCreateMutable()
+        CGImageMetadataSetValueWithPath(md, nil, "dc:title" as CFString, "Hello metadata" as CFString)
+        let mdst = CGImageDestinationCreateWithData(tagged as CFMutableData, "public.jpeg" as CFString, 1, nil)!
+        CGImageDestinationAddImageAndMetadata(mdst, solid(.systemTeal, 32, 16), md, [
+            kCGImagePropertyExifDictionary: [kCGImagePropertyExifLensModel: "Sample Lens", kCGImagePropertyExifFNumber: 2.2],
+            kCGImagePropertyGPSDictionary: [kCGImagePropertyGPSLatitude: 38.7223, kCGImagePropertyGPSLatitudeRef: "N",
+                                            kCGImagePropertyGPSLongitude: 9.1393, kCGImagePropertyGPSLongitudeRef: "W"],
+            kCGImagePropertyIPTCDictionary: [kCGImagePropertyIPTCKeywords: ["isim", "sample"]]] as CFDictionary)
+        _ = CGImageDestinationFinalize(mdst)
+        let msrc = CGImageSourceCreateWithData(tagged as CFData, nil)!
+        let mprops = CGImageSourceCopyPropertiesAtIndex(msrc, 0, nil) as! [CFString: Any]
+        let exif = mprops[kCGImagePropertyExifDictionary] as? [CFString: Any] ?? [:], gps = mprops[kCGImagePropertyGPSDictionary] as? [CFString: Any] ?? [:]
+        let keywords = (mprops[kCGImagePropertyIPTCDictionary] as? [CFString: Any])?[kCGImagePropertyIPTCKeywords] as? [String] ?? []
+        let meta = CGImageSourceCopyMetadataAtIndex(msrc, 0, nil)!
+        let title = CGImageMetadataCopyStringValueWithPath(meta, nil, "dc:title" as CFString) as String? ?? "-"
+        let latTag = CGImageMetadataCopyTagMatchingImageProperty(meta, kCGImagePropertyGPSDictionary, kCGImagePropertyGPSLatitude)
+        print("metadata lens \(exif[kCGImagePropertyExifLensModel] ?? "-") f \(String(format: "%.1f", exif[kCGImagePropertyExifFNumber] as? Double ?? 0)) lat \(String(format: "%.4f", gps[kCGImagePropertyGPSLatitude] as? Double ?? 0))\(gps[kCGImagePropertyGPSLatitudeRef] ?? "") keywords \(keywords.joined(separator: ",")) title \(title) xmp lat \(latTag.flatMap { CGImageMetadataTagCopyValue($0) as? String } ?? "-")")
         let junk = CGImageSourceCreateWithData(Data([1, 2, 3, 4]) as CFData, nil)!
         print("junk count \(CGImageSourceGetCount(junk)) status \(CGImageSourceGetStatus(junk).rawValue)")
     }
