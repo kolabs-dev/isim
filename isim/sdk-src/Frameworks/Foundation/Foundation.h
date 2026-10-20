@@ -32,6 +32,7 @@
 #import <Foundation/NSURLAuthenticationChallenge.h>
 #import <Foundation/NSURLCredentialStorage.h>
 #import <Foundation/NSURLSession.h>
+#import <Foundation/NSURLProtocol.h>
 #import <Foundation/NSFileManager.h>
 #import <Foundation/NSFileWrapper.h>
 #import <Foundation/NSTimeZone.h>

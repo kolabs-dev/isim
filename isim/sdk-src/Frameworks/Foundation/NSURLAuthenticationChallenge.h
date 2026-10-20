@@ -5,7 +5,15 @@
    uses URLSession, URLRequest... from the overlay, so this header is hidden from Swift. */
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
-@class NSURLProtectionSpace, NSURLCredential, NSURLResponse, NSError;
+@class NSURLProtectionSpace, NSURLCredential, NSURLResponse, NSError, NSURLAuthenticationChallenge;
+@protocol NSURLAuthenticationChallengeSender <NSObject>
+- (void)useCredential:(NSURLCredential *)credential forAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge;
+- (void)continueWithoutCredentialForAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge;
+- (void)cancelAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge;
+@optional
+- (void)performDefaultHandlingForAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge;
+- (void)rejectProtectionSpaceAndContinueWithChallenge:(NSURLAuthenticationChallenge *)challenge;
+@end
 ISIM_RUNTIME_VISIBLE
 @interface NSURLAuthenticationChallenge : NSObject
 @property (readonly, copy) NSURLProtectionSpace *protectionSpace;
@@ -13,7 +21,11 @@ ISIM_RUNTIME_VISIBLE
 @property (readonly) NSInteger previousFailureCount;
 @property (nullable, readonly, copy) NSURLResponse *failureResponse;
 @property (nullable, readonly, copy) NSError *error;
-@property (nullable, readonly, retain) id sender;
+@property (nullable, readonly, retain) id<NSURLAuthenticationChallengeSender> sender;
+- (instancetype)initWithProtectionSpace:(NSURLProtectionSpace *)space proposedCredential:(nullable NSURLCredential *)credential
+                   previousFailureCount:(NSInteger)previousFailureCount failureResponse:(nullable NSURLResponse *)response
+                                  error:(nullable NSError *)error sender:(id<NSURLAuthenticationChallengeSender>)sender;
+- (instancetype)initWithAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge sender:(id<NSURLAuthenticationChallengeSender>)sender;
 @end
 NS_ASSUME_NONNULL_END
 #endif

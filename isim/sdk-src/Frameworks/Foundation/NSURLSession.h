@@ -55,6 +55,7 @@ ISIM_RUNTIME_VISIBLE
 @property (nullable, retain) NSHTTPCookieStorage *HTTPCookieStorage;
 @property (nullable, retain) NSURLCache *URLCache;
 @property (nullable, retain) NSURLCredentialStorage *URLCredentialStorage;
+@property (nullable, copy) NSArray<Class> *protocolClasses;
 @end
 
 ISIM_RUNTIME_VISIBLE

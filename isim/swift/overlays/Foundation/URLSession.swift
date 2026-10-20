@@ -159,6 +159,13 @@ public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeD
     static let _shared = URLSession(configuration: .default)
     /// no delegate; completion handlers run on a background serial queue
     open class var shared: URLSession { _shared }
+    /// the URLProtocol subclass that loads `req`: the configuration's classes in order, then (the shared session) the
+    /// registered ones, the latest first
+    func _protocolClass(for req: URLRequest, task: URLSessionTask) -> AnyClass? {
+        var classes = configuration.protocolClasses ?? []
+        if self === URLSession._shared { classes += _isimURLProtocolRegistered().compactMap { $0 as AnyObject as? AnyClass } }
+        return classes.first { _isimURLProtocolCanInit($0, task) }      /* through the runtime: Objective-C subclasses too */
+    }
 
     public let configuration: URLSessionConfiguration
     public let delegateQueue: OperationQueue
@@ -449,6 +456,17 @@ public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeD
         while true {
             if _isCancelled { return (URLError._make(NSURLErrorCancelled, url: req.url), nil) }
             _lock.lock(); _current = req; _lock.unlock()
+            if let cls = _session._protocolClass(for: req, task: self) {      /* a URLProtocol loads it (URLProtocol.swift) */
+                switch _loadThroughProtocol(cls, req, onResponse, onData) {
+                case .done(let result): return result
+                case .redirect(let next):
+                    redirects += 1
+                    _metrics.redirectCount = redirects
+                    if redirects > 16 { return (URLError._make(NSURLErrorHTTPTooManyRedirects, url: req.url), nil) }
+                    req = next; body = next.httpBody
+                    continue
+                }
+            }
             guard let url = req.url, let scheme = url.scheme?.lowercased() else { return (URLError._make(NSURLErrorBadURL, url: req.url), nil) }
             if scheme == "file" || scheme == "data" {
                 guard let (resp, data) = URLSessionTask._loadLocal(url) else { return (URLError._make(scheme == "file" ? NSURLErrorFileDoesNotExist : NSURLErrorBadURL, url: url), nil) }
@@ -509,7 +527,7 @@ public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeD
                 if !_trustAccepted {
                     let space = URLProtectionSpace(host: host, port: port, protocol: "https", realm: nil, authenticationMethod: NSURLAuthenticationMethodServerTrust)
                     space._serverTrust = SecTrust(host: host, chain: probe?.chain ?? [])
-                    let ch = URLAuthenticationChallenge(protectionSpace: space, proposedCredential: nil, previousFailureCount: 0, failureResponse: nil, error: nil, sender: nil)
+                    let ch = URLAuthenticationChallenge(protectionSpace: space, proposedCredential: nil, previousFailureCount: 0, failureResponse: nil, error: nil, sender: _URLSessionChallengeSender.shared)
                     switch _askChallenge(ch, sessionWide: true) {
                     case (.cancelAuthenticationChallenge, _): return (URLError._make(NSURLErrorCancelled, url: url), nil)
                     case (.useCredential, let c?) where c._trust != nil: _trustAccepted = true
@@ -521,7 +539,7 @@ public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeD
                     let space = URLProtectionSpace(host: host, port: port, protocol: "https", realm: nil, authenticationMethod: NSURLAuthenticationMethodClientCertificate)
                     space._distinguishedNames = probe?.distinguishedNames ?? []
                     let stored = config.urlCredentialStorage?.defaultCredential(for: space)
-                    let ch = URLAuthenticationChallenge(protectionSpace: space, proposedCredential: stored, previousFailureCount: 0, failureResponse: nil, error: nil, sender: nil)
+                    let ch = URLAuthenticationChallenge(protectionSpace: space, proposedCredential: stored, previousFailureCount: 0, failureResponse: nil, error: nil, sender: _URLSessionChallengeSender.shared)
                     switch _askChallenge(ch, sessionWide: true) {
                     case (.cancelAuthenticationChallenge, _): return (URLError._make(NSURLErrorCancelled, url: url), nil)
                     case (.useCredential, let c?) where c._clientPEM != nil:
@@ -631,7 +649,7 @@ public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeD
                 _authFailures[space._key] = failures + 1
                 let stored = config.urlCredentialStorage?.defaultCredential(for: space)
                 let ch = URLAuthenticationChallenge(protectionSpace: space, proposedCredential: stored, previousFailureCount: failures,
-                                                    failureResponse: resp, error: nil, sender: nil)
+                                                    failureResponse: resp, error: nil, sender: _URLSessionChallengeSender.shared)
                 var (disp, cred) = _askChallenge(ch, sessionWide: false)
                 if disp == .performDefaultHandling || disp == .rejectProtectionSpace { cred = failures == 0 ? stored : nil; disp = cred == nil ? .rejectProtectionSpace : .useCredential }
                 if disp == .cancelAuthenticationChallenge { return (URLError._make(NSURLErrorCancelled, url: url), nil) }
@@ -665,6 +683,68 @@ public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeD
             return (nil, cacheable ? (resp, req) : nil)
         }
     }
+    enum _ProtocolOutcome { case done((Error?, cacheable: (HTTPURLResponse, URLRequest)?)), redirect(URLRequest) }
+    /// a URLProtocol subclass loads `req`: its client's events, in order, become the response, data and completion
+    func _loadThroughProtocol(_ cls: AnyClass, _ req: URLRequest, _ onResponse: (URLResponse) -> Bool,
+                              _ onData: (Data) -> Void) -> _ProtocolOutcome {
+        let canonical = (_isimURLProtocolCanonical(cls, req as NSURLRequest) as? NSURLRequest).map { $0._r } ?? req
+        _lock.lock(); _current = canonical; _lock.unlock()
+        let client = _URLProtocolSessionClient(task: self)
+        let cache = _session.configuration.urlCache
+        let cached = (canonical.httpMethod ?? "GET") == "GET" && canonical.cachePolicy != .reloadIgnoringLocalCacheData &&
+            canonical.cachePolicy != .reloadIgnoringLocalAndRemoteCacheData ? cache?.cachedResponse(for: canonical) : nil
+        let proto = _isimURLProtocolCreate(cls, self, cached, client)
+        _lock.lock(); _protocol = proto; let cancelledNow = _cancelled; _lock.unlock()
+        defer { _lock.lock(); _protocol = nil; _lock.unlock() }
+        let tm = URLSessionTaskTransactionMetrics(request: canonical)
+        tm.fetchStartDate = Date(); tm.resourceFetchType = .networkLoad
+        _metrics.transactionMetrics.append(tm)
+        if cancelledNow { return .done((URLError._make(NSURLErrorCancelled, url: canonical.url), nil)) }
+        proto.startLoading()
+        var response: URLResponse?, policy = URLCache.StoragePolicy.notAllowed
+        while true {
+            guard let event = client.next(cancelled: { self._isCancelled }) else {
+                proto.stopLoading()
+                return .done((URLError._make(NSURLErrorCancelled, url: canonical.url), nil))
+            }
+            switch event {
+            case .response(let r, let p):
+                response = r; policy = p
+                tm.response = r; tm.responseStartDate = Date()
+                _setResponse(r)
+                guard onResponse(r) else { proto.stopLoading(); return .done((URLError._make(NSURLErrorCancelled, url: canonical.url), nil)) }
+            case .data(let d):
+                if !d.isEmpty { _addReceived(Int64(d.count)); onData(d) }
+            case .finished:
+                proto.stopLoading()
+                tm.responseEndDate = Date()
+                let cacheable = policy != .notAllowed && (canonical.httpMethod ?? "GET") == "GET" && cache != nil
+                return .done((nil, cacheable ? (response as? HTTPURLResponse).map { ($0, canonical) } : nil))
+            case .failed(let e):
+                proto.stopLoading()
+                return .done((e, nil))
+            case .cached(let c):
+                proto.stopLoading()
+                return .done(_deliverCached(c, onResponse, onData))
+            case .redirected(let next, let r):
+                proto.stopLoading()
+                var decided: URLRequest? = next
+                if let d = _sessionTaskDelegate, let http = r as? HTTPURLResponse {
+                    let sem = DispatchSemaphore(value: 0), box = _URLBox<URLRequest?>(nil)
+                    _session.delegateQueue.addOperation {
+                        d.urlSession(self._session, task: self, willPerformHTTPRedirection: http, newRequest: next) { box.value = $0; sem.signal() }
+                    }
+                    sem.wait()
+                    decided = box.value
+                }
+                if let n = decided { return .redirect(n) }
+                _setResponse(r)                                    /* nil: the redirect response is the result */
+                guard onResponse(r) else { return .done((URLError._make(NSURLErrorCancelled, url: canonical.url), nil)) }
+                return .done((nil, nil))
+            }
+        }
+    }
+    var _protocol: _URLProtocolBase?
     /// asks the task delegate (or for session-wide challenges the session delegate first) and waits for the answer
     func _askChallenge(_ ch: URLAuthenticationChallenge, sessionWide: Bool) -> (URLSession.AuthChallengeDisposition, URLCredential?) {
         let sem = DispatchSemaphore(value: 0)

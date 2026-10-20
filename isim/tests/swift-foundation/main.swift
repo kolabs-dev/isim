@@ -25,6 +25,126 @@ func coreFoundationChecks() {
     check("中文".applyingTransform(.mandarinToLatin, reverse: false) == nil, "an unknown transform is nil")
 }
 
+/// a URLProtocol that serves https://mock.test/... from memory (the mock-server pattern of networking tests)
+final class MockProtocol: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var started = 0, stopped = 0
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.host == "mock.test" && URLProtocol.property(forKey: "mock.handled", in: request) == nil
+    }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        var r = request
+        r.setValue("yes", forHTTPHeaderField: "X-Canonical")
+        return r
+    }
+    override func startLoading() {
+        MockProtocol.started += 1
+        let url = request.url!
+        switch url.path {
+        case "/hello":
+            let r = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1",
+                                    headerFields: ["Content-Type": "text/plain", "Cache-Control": "max-age=60", "X-Seen": request.value(forHTTPHeaderField: "X-Canonical") ?? "no"])!
+            client?.urlProtocol(self, didReceive: r, cacheStoragePolicy: .allowed)
+            client?.urlProtocol(self, didLoad: Data("hello ".utf8))
+            client?.urlProtocol(self, didLoad: Data("mock".utf8))
+            client?.urlProtocolDidFinishLoading(self)
+        case "/fail":
+            client?.urlProtocol(self, didFailWithError: URLError(.timedOut))
+        case "/moved":
+            let r = HTTPURLResponse(url: url, statusCode: 302, httpVersion: "HTTP/1.1", headerFields: ["Location": "https://mock.test/hello"])!
+            client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: URL(string: "https://mock.test/hello")!), redirectResponse: r)
+        case "/later":                                   // answers from another thread, after startLoading returned
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) {
+                self.client?.urlProtocol(self, didReceive: URLResponse(url: url, mimeType: "application/json", expectedContentLength: 2, textEncodingName: nil),
+                                         cacheStoragePolicy: .notAllowed)
+                self.client?.urlProtocol(self, didLoad: Data("{}".utf8))
+                self.client?.urlProtocolDidFinishLoading(self)
+            }
+        case "/hang": break                               // never answers: cancelled by the test
+        default:
+            client?.urlProtocol(self, didFailWithError: URLError(.fileDoesNotExist))
+        }
+    }
+    override func stopLoading() { MockProtocol.stopped += 1 }
+}
+
+/// a protocol registered for the shared session
+final class SharedProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { request.url?.scheme == "isim-shared" }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        client?.urlProtocol(self, didReceive: URLResponse(url: request.url!, mimeType: "text/plain", expectedContentLength: 6, textEncodingName: "utf-8"),
+                            cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data("shared".utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
+func fetch(_ session: URLSession, _ url: String) -> (Data?, URLResponse?, Error?) {
+    let sem = DispatchSemaphore(value: 0)
+    nonisolated(unsafe) var result: (Data?, URLResponse?, Error?) = (nil, nil, nil)
+    session.dataTask(with: URL(string: url)!) { d, r, e in result = (d, r, e); sem.signal() }.resume()
+    _ = sem.wait(timeout: .now() + 10)
+    return result
+}
+
+final class RedirectWatcher: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    var redirects: [String] = []
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
+                    completionHandler: @escaping @Sendable (URLRequest?) -> Void) {
+        redirects.append("\(response.statusCode) \(request.url?.path ?? "")")
+        completionHandler(request)
+    }
+}
+
+func urlProtocolChecks() {
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [MockProtocol.self]
+    let watcher = RedirectWatcher()
+    let session = URLSession(configuration: config, delegate: watcher, delegateQueue: nil)
+    let (data, resp, err) = fetch(session, "https://mock.test/hello")
+    let http = resp as? HTTPURLResponse
+    check(err == nil && data.map { String(decoding: $0, as: UTF8.self) } == "hello mock" && http?.statusCode == 200,
+          "URLSessionConfiguration.protocolClasses: a URLProtocol answers the request")
+    check(http?.value(forHTTPHeaderField: "X-Seen") == "yes", "the protocol loads canonicalRequest(for:)")
+    check(config.urlCache?.cachedResponse(for: URLRequest(url: URL(string: "https://mock.test/hello")!))?.data == Data("hello mock".utf8),
+          "a response the protocol allows to be cached goes into the session's URLCache")
+    let (_, _, failErr) = fetch(session, "https://mock.test/fail")
+    check((failErr as? URLError)?.code == .timedOut, "didFailWithError: the task fails with the protocol's error")
+    let (moved, movedResp, _) = fetch(session, "https://mock.test/moved")
+    check(moved.map { String(decoding: $0, as: UTF8.self) } == "hello mock" && movedResp?.url?.path == "/hello" && watcher.redirects == ["302 /hello"],
+          "wasRedirectedTo: the delegate's willPerformHTTPRedirection, then the new request")
+    let (later, laterResp, _) = fetch(session, "https://mock.test/later")
+    check(later == Data("{}".utf8) && laterResp?.mimeType == "application/json", "a protocol answering from another thread")
+    let before = MockProtocol.stopped
+    let sem = DispatchSemaphore(value: 0)
+    nonisolated(unsafe) var cancelError: Error?
+    let task = session.dataTask(with: URL(string: "https://mock.test/hang")!) { _, _, e in cancelError = e; sem.signal() }
+    task.resume()
+    DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) { task.cancel() }
+    _ = sem.wait(timeout: .now() + 10)
+    check((cancelError as? URLError)?.code == .cancelled && MockProtocol.stopped > before, "cancel(): stopLoading, then URLError.cancelled")
+
+    var marked = URLRequest(url: URL(string: "https://mock.test/hello")!)
+    let mutable = (marked as NSURLRequest).mutableCopy() as! NSMutableURLRequest
+    URLProtocol.setProperty(true, forKey: "mock.handled", in: mutable)
+    marked = mutable as URLRequest
+    check(URLProtocol.property(forKey: "mock.handled", in: marked) as? Bool == true && !MockProtocol.canInit(with: marked),
+          "URLProtocol.setProperty / property(forKey:in:) travel with the request")
+    URLProtocol.removeProperty(forKey: "mock.handled", in: mutable)
+    check(URLProtocol.property(forKey: "mock.handled", in: mutable as URLRequest) == nil, "URLProtocol.removeProperty")
+
+    check(URLProtocol.registerClass(SharedProtocol.self) && !URLProtocol.registerClass(NSObject.self), "URLProtocol.registerClass (URLProtocol subclasses only)")
+    let (shared, _, _) = fetch(URLSession.shared, "isim-shared://x")
+    check(shared == Data("shared".utf8), "a registered class answers the shared session")
+    let (other, _, otherErr) = fetch(URLSession(configuration: .ephemeral), "isim-shared://x")
+    check(other == nil && (otherErr as? URLError)?.code == .unsupportedURL, "other sessions use their configuration's classes only")
+    URLProtocol.unregisterClass(SharedProtocol.self)
+    let (_, _, gone) = fetch(URLSession.shared, "isim-shared://x")
+    check((gone as? URLError)?.code == .unsupportedURL, "URLProtocol.unregisterClass")
+    check(MockProtocol.started >= 5, "startLoading for each load")
+}
+
 /// XMLParser with a delegate (the RSS-reader pattern), namespaces, errors and abortParsing
 final class FeedReader: NSObject, XMLParserDelegate {
     var titles: [String] = [], events: [String] = [], text = "", errorCode = 0, lines: [Int] = []
@@ -889,6 +1009,7 @@ func lockingChecks() {
         localeChecks()
         coreFoundationChecks()
         xmlParserChecks()
+        urlProtocolChecks()
         print("swift foundation test: \(checks - failures)/\(checks) passed")
         exit(Int32(failures))
     }

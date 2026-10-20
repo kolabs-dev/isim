@@ -102,19 +102,48 @@ public let NSURLProtectionSpaceHTTPSProxy = "https"
     open override var description: String { "<URLProtectionSpace \(_key)>" }
 }
 
+/// what answers a challenge a URLProtocol raised (the protocol, usually)
+@objc(NSURLAuthenticationChallengeSender)
+public protocol URLAuthenticationChallengeSender: NSObjectProtocol {
+    @objc(useCredential:forAuthenticationChallenge:)
+    func use(_ credential: URLCredential, for challenge: URLAuthenticationChallenge)
+    @objc(continueWithoutCredentialForAuthenticationChallenge:)
+    func continueWithoutCredential(for challenge: URLAuthenticationChallenge)
+    @objc(cancelAuthenticationChallenge:)
+    func cancel(_ challenge: URLAuthenticationChallenge)
+    @objc(performDefaultHandlingForAuthenticationChallenge:)
+    optional func performDefaultHandling(for challenge: URLAuthenticationChallenge)
+    @objc(rejectProtectionSpaceAndContinueWithChallenge:)
+    optional func rejectProtectionSpaceAndContinue(with challenge: URLAuthenticationChallenge)
+}
+
 @objc(NSURLAuthenticationChallenge) open class URLAuthenticationChallenge: NSObject, @unchecked Sendable {
     open private(set) var protectionSpace: URLProtectionSpace
     open private(set) var proposedCredential: URLCredential?
     open private(set) var previousFailureCount: Int
     open private(set) var failureResponse: URLResponse?
     open private(set) var error: Error?
-    open var sender: AnyObject? { nil }
+    let _sender: URLAuthenticationChallengeSender?
+    open var sender: URLAuthenticationChallengeSender? { _sender }
     public init(protectionSpace space: URLProtectionSpace, proposedCredential credential: URLCredential?, previousFailureCount: Int,
-                failureResponse response: URLResponse?, error: Error?, sender: AnyObject?) {
+                failureResponse response: URLResponse?, error: Error?, sender: URLAuthenticationChallengeSender) {
         protectionSpace = space; proposedCredential = credential; self.previousFailureCount = previousFailureCount
-        failureResponse = response; self.error = error
+        failureResponse = response; self.error = error; _sender = sender
         super.init()
     }
+    /// the same challenge, answered by another sender (a URLProtocol passing on its connection's challenge)
+    public convenience init(authenticationChallenge challenge: URLAuthenticationChallenge, sender: URLAuthenticationChallengeSender) {
+        self.init(protectionSpace: challenge.protectionSpace, proposedCredential: challenge.proposedCredential,
+                  previousFailureCount: challenge.previousFailureCount, failureResponse: challenge.failureResponse, error: challenge.error, sender: sender)
+    }
+}
+
+/// the sender of the challenges a session gives its delegates (they answer through the completion handler instead)
+final class _URLSessionChallengeSender: NSObject, URLAuthenticationChallengeSender, @unchecked Sendable {
+    static let shared = _URLSessionChallengeSender()
+    func use(_ credential: URLCredential, for challenge: URLAuthenticationChallenge) {}
+    func continueWithoutCredential(for challenge: URLAuthenticationChallenge) {}
+    func cancel(_ challenge: URLAuthenticationChallenge) {}
 }
 
 extension URLSession {
