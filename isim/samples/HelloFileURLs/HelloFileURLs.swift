@@ -75,5 +75,22 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         print("versions after remove=\(NSFileVersion.otherVersionsOfItem(at: doc)?.count ?? -1)")
         try NSFileVersion.removeOtherVersionsOfItem(at: doc)
         do { try current?.remove(); print("versions current removed") } catch { print("versions current remove error=\((error as NSError).code)") }
+        // for-in over directory enumerators (fast enumeration), then a turn of the run loop: the objects stay owned
+        let tree = docs.appending(path: "tree", directoryHint: .isDirectory)
+        try? FileManager.default.removeItem(at: tree)
+        for i in 0..<12 {
+            let sub = tree.appending(path: "d\(i % 3)", directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+            try Data("\(i)".utf8).write(to: sub.appending(path: "f\(i).txt"))
+        }
+        var paths = 0, urls = 0
+        for _ in 0..<3 {
+            for case let p as String in FileManager.default.enumerator(atPath: tree.path)! where p.hasSuffix(".txt") { paths += 1 }
+            for case let u as URL in FileManager.default.enumerator(at: tree, includingPropertiesForKeys: nil)! where u.pathExtension == "txt" { urls += 1 }
+        }
+        DispatchQueue.main.async {
+            let names = (0..<200).map { "name \($0)" as NSString }        // reuses memory the enumerators' objects had
+            print("enumerated paths=\(paths) urls=\(urls) still alive=\(names.count)")
+        }
     }
 }

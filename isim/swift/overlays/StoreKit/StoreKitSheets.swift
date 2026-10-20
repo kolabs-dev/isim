@@ -35,6 +35,7 @@ final class _SKHostingController: UIHostingController<AnyView> {
     }
 
     static func notice(title: String, message: String) async {
+        if _SKTesting.disableDialogs { NSLog("isim StoreKit: notice skipped (SKTestSession disableDialogs): %@", title); return }
         await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in
             guard let top = _SKPurchaseSheet.topController() else { k.resume(); return }
             let a = UIAlertController(title: title, message: message, preferredStyle: .alert)

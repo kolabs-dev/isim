@@ -310,7 +310,9 @@ extension NSPointerArray: Sequence {
 public struct NSFastEnumerationIterator: IteratorProtocol {
     let enumerable: NSFastEnumeration
     var state = [NSFastEnumerationState(state: 0, itemsPtr: nil, mutationsPtr: nil, extra: (0, 0, 0, 0, 0))]
-    var buffer = [AnyObject?](repeating: nil, count: 16)
+    /// raw words: countByEnumerating stores unretained objects in it (__unsafe_unretained), so Swift must not release
+    /// them when it overwrites or frees the buffer, as it would with [AnyObject?]
+    var buffer = [UInt](repeating: 0, count: 16)
     var index = 0, count = 0
     public init(_ enumerable: NSFastEnumeration) { self.enumerable = enumerable }
     public mutating func next() -> Any? {
@@ -319,7 +321,8 @@ public struct NSFastEnumerationIterator: IteratorProtocol {
             let e = enumerable
             count = state.withUnsafeMutableBufferPointer { s in
                 buffer.withUnsafeMutableBufferPointer { b in
-                    Int(e.countByEnumerating(with: s.baseAddress!, objects: AutoreleasingUnsafeMutablePointer(b.baseAddress!), count: 16))
+                    let objects = UnsafeMutableRawPointer(b.baseAddress!).assumingMemoryBound(to: Optional<AnyObject>.self)
+                    return Int(e.countByEnumerating(with: s.baseAddress!, objects: AutoreleasingUnsafeMutablePointer(objects), count: 16))
                 }
             }
             if count == 0 { return nil }

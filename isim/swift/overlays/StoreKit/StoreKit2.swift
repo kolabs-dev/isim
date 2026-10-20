@@ -176,20 +176,22 @@ enum _SKTimeRate: Equatable {
 struct _SKConfig {
     let items: [_SKItem]
     let groups: [String: String]           // group id -> display name
-    let timeRate: _SKTimeRate
-    let storefront: String
+    var timeRate: _SKTimeRate
+    var storefront: String
     /// Xcode's "Enable Billing Grace Period": a renewal that fails keeps the subscription for the grace period
-    let gracePeriod: Bool
+    var gracePeriod: Bool
     /// Xcode's "Enable Ask To Buy" (or ISIM_STOREKIT_ASK_TO_BUY=1): purchases wait for the family organizer
     var askToBuy = false
     nonisolated(unsafe) static var cached: _SKConfig?
+    /// a configuration file an SKTestSession loaded, instead of the bundle's
+    nonisolated(unsafe) static var overridePath: String?
     func item(_ id: String) -> _SKItem? { items.first { $0.id == id } }
     static func load() -> _SKConfig {
         if let c = cached { return c }
         var items: [_SKItem] = [], groups: [String: String] = [:]
         var rate = _SKTimeRate.realTime, storefront = "USA", grace = false, askToBuy = false
         let name = Bundle.main.object(forInfoDictionaryKey: "ISIMStoreKitConfiguration") as? String ?? "isim-StoreKitConfiguration.storekit"
-        let path = (Bundle.main.bundlePath as NSString).appendingPathComponent(name)
+        let path = overridePath ?? (Bundle.main.bundlePath as NSString).appendingPathComponent(name)
         if let data = FileManager.default.contents(atPath: path),
            let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
             let locale = Locale.current.identifier
@@ -340,6 +342,7 @@ struct _SKAskRequest: Codable, Hashable, Sendable {
     var requested: Double
     var state: String               // "pending" | "approved" | "declined"
     var api: String?
+    var interrupted: Bool?          // an interrupted purchase (SKTestSession), not Ask to Buy
 }
 
 /// Thread-safe ledger: the purchase history of this app on the device's account (like the App Store keeps it), as JSON
@@ -405,10 +408,10 @@ final class _SKLedger: @unchecked Sendable {
         lastBytes = bytes
     }
     func read<R>(_ f: (_SKLedgerData) -> R) -> R { lock.lock(); defer { lock.unlock() }; return f(data) }
-    func mutate<R>(_ f: (inout _SKLedgerData) -> R) -> R {
+    func mutate<R>(_ f: (inout _SKLedgerData) throws -> R) rethrows -> R {
         lock.lock(); defer { lock.unlock() }
         reload()
-        let r = f(&data)
+        let r = try f(&data)
         save()
         return r
     }
@@ -518,12 +521,12 @@ final class _SKLedger: @unchecked Sendable {
     }
 
     /// an Ask to Buy request; its number identifies it to `isim storekit approve|decline`
-    func askToBuy(_ item: _SKItem, quantity: Int, token: UUID?, offer: Product.SubscriptionOffer?, api: String?) -> UInt64 {
+    func askToBuy(_ item: _SKItem, quantity: Int, token: UUID?, offer: Product.SubscriptionOffer?, api: String?, interrupted: Bool = false) -> UInt64 {
         mutate { d in
             let id = newID(&d)
             d.askToBuy = (d.askToBuy ?? []) + [_SKAskRequest(id: id, productID: item.id, quantity: quantity, appAccountToken: token?.uuidString,
                                                              offerType: offer?.type.rawValue, offerID: offer?.id, requested: Date().timeIntervalSince1970,
-                                                             state: "pending", api: api)]
+                                                             state: "pending", api: api, interrupted: interrupted ? true : nil)]
             return id
         }
     }
@@ -860,7 +863,7 @@ public struct Product: Identifiable, Hashable, Sendable {
         _SKUpdates.start()
         guard let item = _SKConfig.load().item(id) else { throw PurchaseError.productUnavailable }
         var quantity = 1, token: UUID?, promo: String?, winBack: String?, promoOption: PurchaseOption.Kind?
-        var askToBuy = _SKConfig.load().askToBuy
+        var askToBuy = _SKTesting.askToBuy ?? _SKConfig.load().askToBuy
         for o in options {
             switch o.kind {
             case .simulatesAskToBuy(let a): askToBuy = askToBuy || a
@@ -904,6 +907,12 @@ public struct Product: Identifiable, Hashable, Sendable {
         }
         guard await _SKPurchaseSheet.confirm(self, quantity: quantity, offer: offer) else { return .userCancelled }
         if let nonce { _SKLedger.shared.mutate { d in d.usedOfferNonces = (d.usedOfferNonces ?? []) + [nonce] } }
+        if _SKTesting.interruptedPurchases {
+            // an interrupted purchase (SKTestSession): it completes when the issue is resolved, in Transaction.updates
+            let req = _SKLedger.shared.askToBuy(item, quantity: quantity, token: token, offer: offer, api: api, interrupted: true)
+            NSLog("isim StoreKit: purchase %llu of %@ interrupted (SKTestSession.resolveIssueForTransaction)", req, id)
+            return .pending
+        }
         if askToBuy {
             // Ask to Buy: the purchase waits for the family organizer; an approved one arrives in Transaction.updates
             let req = _SKLedger.shared.askToBuy(item, quantity: quantity, token: token, offer: offer, api: api)
@@ -1416,7 +1425,8 @@ enum _SKOffers {
 
 @MainActor enum _SKPurchaseSheet {
     static func confirm(_ p: Product, quantity: Int = 1, offer: Product.SubscriptionOffer?) async -> Bool {
-        await withCheckedContinuation { (k: CheckedContinuation<Bool, Never>) in
+        if _SKTesting.disableDialogs { NSLog("isim StoreKit: purchase of %@ confirmed (SKTestSession disableDialogs)", p.id); return true }
+        return await withCheckedContinuation { (k: CheckedContinuation<Bool, Never>) in
             guard let top = topController() else { k.resume(returning: false); return }
             let title: String, message: String, button: String
             if let s = p.subscription {
