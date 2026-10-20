@@ -41,6 +41,8 @@ public protocol AVAsynchronousKeyValueLoading {
     let _url: URL?
     private var _info: _AVMediaInfo?
     private let _lock = NSLock()
+    var _streamCache: [_AVStream]?                          // media selection (AVPlayerOutputs.swift)
+    var _groupCache: [String: AVMediaSelectionGroup?] = [:]
     init(_url: URL?) { self._url = _url }
     public convenience init(url URL: URL) { self.init(_url: URL) }
     /// The probed media (blocking the first time).

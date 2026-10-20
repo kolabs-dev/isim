@@ -3,6 +3,7 @@
 // AVPlayerItemDidPlayToEndTime, AVQueuePlayer, AVPlayerLooper, AVAssetImageGenerator, CMTime, and AVKit's
 // AVPlayerViewController (full screen) and SwiftUI VideoPlayer.
 // clip.mp4 (made by the build with ffmpeg, buildlib/apps.py): 3 s, 320x180 — red for 1 s, then green, then blue — with a 440 Hz tone.
+// -outputs (Outputs.swift): media selection, player item outputs, access / error logs and rate change reasons.
 import UIKit
 import AVFoundation
 import AVKit
@@ -14,7 +15,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = VideoViewController()
+        window?.rootViewController = CommandLine.arguments.contains("-outputs") ? OutputsViewController() : VideoViewController()
         window?.makeKeyAndVisible()
         return true
     }

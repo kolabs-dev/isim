@@ -487,6 +487,87 @@ def _(a):
     # a 12 s test pattern with a tone, for Picture in Picture
     a.ffmpeg("-f", "lavfi", "-i", "testsrc2=s=320x180:r=25:d=12", "-f", "lavfi", "-i", "sine=frequency=330:duration=12",
              "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "64k", "-shortest", f"{b}/long.mp4")
+    # -outputs: the clip's video with two soundtracks (English 440 Hz, French 880 Hz) and two subtitle tracks
+    tmp = os.path.join(OBJ, "HelloVideo-media")
+    os.makedirs(tmp, exist_ok=True)
+    for lang, lines in (("en", ("Hello", "Goodbye")), ("es", ("Hola", "Adiós"))):
+        with open(os.path.join(tmp, f"{lang}.srt"), "w", encoding="utf-8") as f:
+            f.write(f"1\n00:00:00,500 --> 00:00:01,200\n{lines[0]}\n\n2\n00:00:01,800 --> 00:00:02,500\n{lines[1]}\n")
+    a.ffmpeg("-i", f"{b}/clip.mp4", "-f", "lavfi", "-i", "sine=frequency=880:duration=3", "-i", f"{tmp}/en.srt", "-i", f"{tmp}/es.srt",
+             "-map", "0:v", "-map", "0:a", "-map", "1:a", "-map", "2", "-map", "3", "-c:v", "copy", "-c:a", "aac", "-b:a", "64k",
+             "-c:s", "mov_text", "-metadata:s:a:0", "language=eng", "-metadata:s:a:1", "language=fra",
+             "-metadata:s:s:0", "language=eng", "-metadata:s:s:1", "language=spa", "-metadata:s:s:1", "title=Español",
+             "-disposition:a:0", "default", "-disposition:a:1", "0", "-disposition:s:0", "0", "-disposition:s:1", "0", f"{b}/tracks.mp4")
+    # timed ID3 metadata in MPEG-TS (as in HLS segments): a soundtrack with ID3 tags at 0.5 s and 1.5 s
+    a.ffmpeg("-f", "lavfi", "-i", "sine=frequency=440:duration=3", "-c:a", "aac", "-b:a", "64k", "-f", "mpegts", f"{tmp}/audio.ts")
+    _add_id3_to_ts(f"{tmp}/audio.ts", f"{b}/id3.ts", [(0.5, "TIT2", "First cue"), (1.5, "TXXX", "chapter\0two")])
+
+
+def _add_id3_to_ts(src, dst, tags):
+    """copies an MPEG-TS adding a timed ID3 stream (stream type 0x15 with an 'ID3 ' metadata descriptor, PID 0x1F0) whose
+    PES packets carry an ID3v2.4 tag with one text frame each, at the given seconds after the first PTS"""
+    data = open(src, "rb").read()
+    packets = [data[i:i + 188] for i in range(0, len(data) - 187, 188)]
+
+    def crc(b):                                         # MPEG-2 CRC-32
+        c = 0xFFFFFFFF
+        for x in b:
+            c ^= x << 24
+            for _ in range(8):
+                c = (c << 1) ^ 0x04C11DB7 if c & 0x80000000 else c << 1
+            c &= 0xFFFFFFFF
+        return c
+
+    def pts_of(p):
+        pl = p[4 + (1 + p[4] if p[3] & 0x20 else 0):]
+        if p[1] & 0x40 and pl[:3] == b"\0\0\1" and pl[7] & 0x80:
+            return ((pl[9] & 0x0E) << 29) | (pl[10] << 22) | ((pl[11] & 0xFE) << 14) | (pl[12] << 7) | (pl[13] >> 1)
+        return None
+    pmt_pid = None
+    out, first, added = [], None, False
+    for p in packets:
+        pid = (p[1] & 0x1F) << 8 | p[2]
+        if pid == 0 and pmt_pid is None:
+            sec = p[5 + p[4]:]
+            pmt_pid = (sec[10] & 0x1F) << 8 | sec[11]
+        if pid == pmt_pid and p[1] & 0x40 and not added:
+            sec = bytearray(p[5 + p[4]:])
+            length = (sec[1] & 0x0F) << 8 | sec[2]
+            body = bytes(sec[:3 + length - 4])
+            desc = bytes([0x26, 13, 0xFF, 0xFF]) + b"ID3 " + bytes([0xFF]) + b"ID3 " + bytes([0x00, 0x0F])
+            es = bytes([0x15, 0xE1, 0xF0, 0xF0, len(desc)]) + desc
+            body = body + es
+            length = len(body) - 3 + 4
+            body = bytearray(body); body[1] = (body[1] & 0xF0) | (length >> 8); body[2] = length & 0xFF
+            body = bytes(body) + crc(body).to_bytes(4, "big")
+            p = p[:5] + body + b"\xFF" * (188 - 5 - len(body))
+            added = True
+        if first is None:
+            first = pts_of(p)
+        out.append(p)
+    cc = 0
+    for t, frame, text in tags:
+        enc = text.encode("utf-8")
+        body = b"\x03" + enc                            # UTF-8; TXXX: description \0 value
+        size = len(body)
+        fr = frame.encode() + bytes([(size >> 21) & 0x7F, (size >> 14) & 0x7F, (size >> 7) & 0x7F, size & 0x7F]) + b"\0\0" + body
+        n = len(fr)
+        tag = b"ID3\x04\x00\x00" + bytes([(n >> 21) & 0x7F, (n >> 14) & 0x7F, (n >> 7) & 0x7F, n & 0x7F]) + fr
+        pts = (first or 0) + int(t * 90000)
+        ph = bytes([0x21 | ((pts >> 29) & 0x0E), (pts >> 22) & 0xFF, 0x01 | ((pts >> 14) & 0xFE), (pts >> 7) & 0xFF, 0x01 | ((pts << 1) & 0xFE)])
+        pes = b"\0\0\1\xBD" + (3 + 5 + len(tag)).to_bytes(2, "big") + b"\x80\x80\x05" + ph + tag
+        assert len(pes) <= 184
+        stuffing = 184 - len(pes)
+        if stuffing:
+            af = bytes([stuffing - 1]) + (b"\x00" + b"\xFF" * (stuffing - 2) if stuffing > 1 else b"")
+            pkt = bytes([0x47, 0x41, 0xF0, 0x30 | cc]) + af + pes
+        else:
+            pkt = bytes([0x47, 0x41, 0xF0, 0x10 | cc]) + pes
+        cc = (cc + 1) & 0xF
+        # insert after the first audio packet whose PTS reaches the tag's time
+        k = next((i for i, q in enumerate(out) if (pts_of(q) or 0) >= pts), len(out))
+        out.insert(k, pkt)
+    open(dst, "wb").write(b"".join(out))
 
 
 @app("samples/HelloMedia", needs=("ffmpeg",))

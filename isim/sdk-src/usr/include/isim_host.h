@@ -258,6 +258,14 @@ long isim_xml_sax(const char *xml, long len, int flags, char *out, long cap);
 int isim_media_open(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume);
 /* the same at a playback rate: the soundtrack is time-stretched (pitch kept) */
 int isim_media_open_rate(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume, double rate);
+/* with the audio stream `audio_index` (0-based among audio streams; < 0: the default one) as the soundtrack */
+int isim_media_open_tracks(const char *url, double start, double width, double height, double fps, int want_video, int want_audio,
+                           double volume, double rate, int audio_index);
+/* the shown frame's BGRA pixels (size in *w, *h; copied when dst holds w*h*4 bytes); 0 before the first frame */
+int isim_media_frame_pixels(int h, void *_Nullable dst, long cap, int *_Nullable w, int *_Nullable hh, double *_Nullable pts);
+/* the streams (ffprobe compact lines) / a subtitle stream as WebVTT; free *out with isim_media_free */
+int isim_media_streams(const char *url, char *_Nullable *_Nonnull out, long *len);
+int isim_media_subtitles(const char *url, int sub_index, char *_Nullable *_Nonnull out, long *len);
 /* UI thread: image handle of the frame for time t (0 before the first frame); eof once all frames were shown */
 int isim_media_video_frame(int media, double t, int *eof, double *pts);
 void isim_media_set_audio(int media, int paused, double volume);

@@ -126,6 +126,7 @@ struct media {
     pid_t vpid; int vfd; pthread_t vth; int vthread;
     unsigned char *ring[RING]; double pts[RING]; int rhead, rcount, veof; long nframes;
     int img; double shown_pts;
+    unsigned char *last;        /* a copy of the shown frame (AVPlayerItemVideoOutput) */
     /* audio */
     pid_t apid; int afd; pthread_t ath; int athread; int astream;
 };
@@ -187,7 +188,15 @@ ISIM_GUEST_ABI int isim_media_open(const char *url, double start, double width, 
     return isim_media_open_rate(url, start, width, height, fps, want_video, want_audio, volume, 1);
 }
 /* the same at a playback rate: the soundtrack is time-stretched (ffmpeg's atempo keeps the pitch) */
+ISIM_GUEST_ABI int isim_media_open_tracks(const char *url, double start, double width, double height, double fps, int want_video, int want_audio,
+                                          double volume, double rate, int audio_index);
 ISIM_GUEST_ABI int isim_media_open_rate(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume, double rate) {
+    return isim_media_open_tracks(url, start, width, height, fps, want_video, want_audio, volume, rate, -1);
+}
+/* the same with the audio-only stream number `audio_index` (0 = the first audio stream; < 0: ffmpeg's default) as the
+ * soundtrack (AVPlayerItem.select(_:in:) on the audible group) */
+ISIM_GUEST_ABI int isim_media_open_tracks(const char *url, double start, double width, double height, double fps, int want_video, int want_audio,
+                                          double volume, double rate, int audio_index) {
     struct media *md = calloc(1, sizeof *md);
     md->url = strdup(url); md->start = start > 0 ? start : 0; md->fps = fps > 0 ? fps : 30;
     md->vpid = md->apid = -1; md->vfd = md->afd = -1;
@@ -214,8 +223,13 @@ ISIM_GUEST_ABI int isim_media_open_rate(const char *url, double start, double wi
             while (r < 0.5 && n < 6) { strcat(af, n++ ? ",atempo=0.5" : "atempo=0.5"); r /= 0.5; }
             char last[40]; snprintf(last, sizeof last, "%satempo=%.6f", n ? "," : "", r); strcat(af, last);
         }
+        char map[24]; snprintf(map, sizeof map, "0:a:%d", audio_index > 0 ? audio_index : 0);
         char *argv[] = { "ffmpeg", "-nostdin", "-v", "error", "-ss", ss, "-i", md->url, "-vn", "-sn", "-af", af,
-                         "-f", "f32le", "-ac", "2", "-ar", "48000", "-", NULL };
+                         "-f", "f32le", "-ac", "2", "-ar", "48000", "-", NULL, NULL, NULL };
+        if (audio_index >= 0) {                           /* insert -map after the input */
+            memmove(&argv[10], &argv[8], sizeof(char *) * 12);   /* -vn ... "-" and the NULL */
+            argv[8] = "-map"; argv[9] = map;
+        }
         md->apid = spawn_reader(argv, &md->afd);
         if (md->apid > 0) md->athread = pthread_create(&md->ath, NULL, audio_thread, md) == 0;
     }
@@ -246,6 +260,8 @@ ISIM_GUEST_ABI int isim_media_video_frame(int h, double t, int *eof, double *pts
     if (k > 0) {
         int last = (md->rhead + k - 1) % RING;
         isim_image_update_bgra(md->img, md->ring[last], md->w, md->h);
+        if (!md->last) md->last = malloc((size_t)md->w * md->h * 4);
+        memcpy(md->last, md->ring[last], (size_t)md->w * md->h * 4);
         md->shown_pts = md->pts[last];
         md->rhead = (md->rhead + k) % RING; md->rcount -= k;
         pthread_cond_signal(&md->cv);
@@ -277,8 +293,47 @@ ISIM_GUEST_ABI void isim_media_close(int h) {
     if (md->astream > 0) isim_audio_stream_close(md->astream);
     if (md->img) isim_image_free(md->img);
     for (int i = 0; i < RING; i++) free(md->ring[i]);
+    free(md->last);
     pthread_mutex_destroy(&md->m); pthread_cond_destroy(&md->cv);
     free(md->url); free(md);
+}
+
+/* The shown frame's BGRA pixels (AVPlayerItemVideoOutput): its size in *w, *h, its time in *pts; copied into dst when
+ * dst holds w*h*4 bytes (pass NULL to ask the size). Returns 0 until a frame was shown. */
+ISIM_GUEST_ABI int isim_media_frame_pixels(int h, void *dst, long cap, int *w, int *hh, double *pts) {
+    struct media *md = lookup(h);
+    if (!md || md->w <= 0) return 0;
+    pthread_mutex_lock(&md->m);
+    int ok = md->last != NULL;
+    if (w) *w = md->w;
+    if (hh) *hh = md->h;
+    if (pts) *pts = md->shown_pts;
+    if (ok && dst && cap >= (long)md->w * md->h * 4) memcpy(dst, md->last, (size_t)md->w * md->h * 4);
+    pthread_mutex_unlock(&md->m);
+    return ok;
+}
+
+/* The media's streams, one line each (ffprobe's compact output: index, codec_type, codec_name, the default / forced
+ * dispositions, the language and title tags), for media selection. Free *out with isim_media_free. */
+ISIM_GUEST_ABI int isim_media_streams(const char *url, char **out, long *len) {
+    char *argv[] = { "ffprobe", "-v", "error", "-show_entries",
+                     "stream=index,codec_type,codec_name:stream_disposition=default,forced:stream_tags=language,title",
+                     "-of", "compact=p=0", (char *)url, NULL };
+    size_t n; char *text = run_capture(argv, &n);
+    if (!text) return 0;
+    *out = text; *len = (long)n;
+    return 1;
+}
+
+/* The `sub_index`-th subtitle stream (0-based among subtitles) as WebVTT text (ffmpeg converts mov_text / tx3g, SRT,
+ * SSA and WebVTT). Free *out with isim_media_free. */
+ISIM_GUEST_ABI int isim_media_subtitles(const char *url, int sub_index, char **out, long *len) {
+    char map[24]; snprintf(map, sizeof map, "0:s:%d", sub_index);
+    char *argv[] = { "ffmpeg", "-nostdin", "-v", "error", "-i", (char *)url, "-map", map, "-f", "webvtt", "-", NULL };
+    size_t n; char *text = run_capture(argv, &n);
+    if (!text) return 0;
+    *out = text; *len = (long)n;
+    return 1;
 }
 
 /* One frame at time t as PNG bytes (AVAssetImageGenerator), scaled to fit max_side (0 = native).
