@@ -24,3 +24,7 @@
 #include <CoreFoundation/CFError.h>
 #include <CoreFoundation/CFUUID.h>
 #include <CoreFoundation/CFRunLoop.h>
+#include <CoreFoundation/CFURL.h>
+#include <CoreFoundation/CFLocale.h>
+#include <CoreFoundation/CFDateFormatter.h>
+#include <CoreFoundation/CFPreferences.h>

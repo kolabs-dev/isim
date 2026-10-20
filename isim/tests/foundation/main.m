@@ -12,6 +12,7 @@
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 static int failures, checks;
 #define CHECK(cond) do { checks++; if (cond) printf("PASS  %s\n", #cond); else { failures++; printf("FAIL  %s  (%s:%d)\n", #cond, __FILE__, __LINE__); } } while (0)
@@ -422,6 +423,122 @@ static void cf_runloop_checks(void) {
     CFRunLoopWakeUp(worker);
     CHECK(spin_until(^{ return stopped; }, 2) && workerPerformed == 0);
     CFRelease(obs); CFRelease(timer); CFRelease(shot); CFRelease(elsewhere); CFRelease(one); CFRelease(src);
+}
+
+static void cf_release_all(CFTypeRef first, ...) {          /* NULL-terminated */
+    va_list ap; va_start(ap, first);
+    for (CFTypeRef o = first; o; o = va_arg(ap, CFTypeRef)) CFRelease(o);
+    va_end(ap);
+}
+#define CF_SET(ms, str) [(__bridge NSMutableString *)(ms) setString:(str)]
+/* CFURL (toll-free with NSURL), CFBundle resources, CFPreferences, CFLocale, CFDateFormatter and CFStringTransform */
+static void cf_url_locale_checks(void) {
+    CFURLRef url = CFURLCreateWithString(NULL, CFSTR("https://user:pw@example.com:8443/a%20b/c.json?x=1&y=%41#frag"), NULL);
+    CHECK(url && [(__bridge NSURL *)url isKindOfClass:[NSURL class]] && CFGetTypeID(url) == CFURLGetTypeID());
+    CFStringRef path = CFURLCopyPath(url), scheme = CFURLCopyScheme(url), host = CFURLCopyHostName(url), query = CFURLCopyQueryString(url, NULL);
+    CFStringRef queryDecoded = CFURLCopyQueryString(url, CFSTR("")), frag = CFURLCopyFragment(url, NULL), last = CFURLCopyLastPathComponent(url);
+    CFStringRef ext = CFURLCopyPathExtension(url), user = CFURLCopyUserName(url), pass = CFURLCopyPassword(url), net = CFURLCopyNetLocation(url);
+    CHECK(CFEqual(path, CFSTR("/a%20b/c.json")) && CFEqual(scheme, CFSTR("https")) && CFEqual(host, CFSTR("example.com")) && CFURLGetPortNumber(url) == 8443);
+    CHECK(CFEqual(query, CFSTR("x=1&y=%41")) && CFEqual(queryDecoded, CFSTR("x=1&y=A")) && CFEqual(frag, CFSTR("frag")) && CFEqual(last, CFSTR("c.json")));
+    CHECK(CFEqual(ext, CFSTR("json")) && CFEqual(user, CFSTR("user")) && CFEqual(pass, CFSTR("pw")) && CFEqual(net, CFSTR("user:pw@example.com:8443")));
+    CHECK(CFURLCanBeDecomposed(url) && !CFURLHasDirectoryPath(url));
+    CFURLRef up = CFURLCreateCopyDeletingLastPathComponent(NULL, url), more = CFURLCreateCopyAppendingPathComponent(NULL, up, CFSTR("d"), true);
+    CHECK(CFURLHasDirectoryPath(more) && [((__bridge NSURL *)more).absoluteString hasPrefix:@"https://user:pw@example.com:8443/a%20b/d/"]);
+    CFURLRef rel = CFURLCreateWithString(NULL, CFSTR("../z.txt"), more), abs = CFURLCopyAbsoluteURL(rel);
+    CHECK([((__bridge NSURL *)abs).absoluteString hasSuffix:@"/a%20b/z.txt"] && CFEqual(CFURLGetString(abs), (__bridge CFStringRef)((__bridge NSURL *)abs).absoluteString));
+    CFStringRef unescaped = CFURLCreateStringByReplacingPercentEscapes(NULL, CFSTR("caf%C3%A9%2Fbar"), CFSTR("/"));
+    CHECK(unescaped && CFEqual(unescaped, CFSTR("café%2Fbar")) && !CFURLCreateStringByReplacingPercentEscapes(NULL, CFSTR("bad%zz"), CFSTR("")));
+    CFURLRef file = CFURLCreateWithFileSystemPath(NULL, CFSTR("/tmp/isim cf/x.txt"), kCFURLPOSIXPathStyle, false);
+    CFStringRef fsPath = CFURLCopyFileSystemPath(file, kCFURLPOSIXPathStyle);
+    UInt8 buf[256];
+    CHECK(CFEqual(fsPath, CFSTR("/tmp/isim cf/x.txt")) && CFURLGetFileSystemRepresentation(file, true, buf, sizeof buf) && !strcmp((char *)buf, "/tmp/isim cf/x.txt"));
+    CFURLRef dir = CFURLCreateFromFileSystemRepresentation(NULL, (const UInt8 *)"/tmp", 4, true);
+    CHECK(CFURLHasDirectoryPath(dir) && CFURLResourceIsReachable(dir, NULL));
+    cf_release_all(path, scheme, host, query, queryDecoded, frag, last, ext, user, pass, net, up, more, rel, abs, unescaped, file, fsPath, dir, url, NULL);
+    // CFBundle: the main bundle's resources and localized strings
+    CFBundleRef main = CFBundleGetMainBundle();
+    CFURLRef bundleURL = CFBundleCopyBundleURL(main), info = CFBundleCopyResourceURL(main, CFSTR("Info"), CFSTR("plist"), NULL);
+    CFURLRef exe = CFBundleCopyExecutableURL(main);
+    CHECK(bundleURL && info && [((__bridge NSURL *)info).path hasSuffix:@"FoundationTest.app/Info.plist"] && exe && CFGetTypeID(main) == CFBundleGetTypeID());
+    CFArrayRef plists = CFBundleCopyResourceURLsOfType(main, CFSTR("plist"), NULL);
+    CHECK(CFArrayGetCount(plists) >= 1);
+    CFStringRef missing = CFCopyLocalizedString(CFSTR("isim.no.such.key"), "comment");
+    CHECK(missing && CFEqual(missing, CFSTR("isim.no.such.key")));
+    CFBundleRef again = CFBundleCreate(NULL, bundleURL);
+    CHECK(again && CFEqual(CFBundleGetIdentifier(again), CFBundleGetIdentifier(main)));
+    CHECK(CFBundleGetFunctionPointerForName(main, CFSTR("CFURLCreateWithString")) == (void *)CFURLCreateWithString);
+    CFArrayRef locs = CFBundleCopyLocalizationsForPreferences((__bridge CFArrayRef)@[@"en", @"fr", @"de"], (__bridge CFArrayRef)@[@"fr-CA", @"en"]);
+    CHECK(CFArrayGetCount(locs) == 1 && CFEqual(CFArrayGetValueAtIndex(locs, 0), CFSTR("fr")));
+    CFRelease(bundleURL); CFRelease(info); CFRelease(exe); CFRelease(plists); CFRelease(missing); CFRelease(again); CFRelease(locs);
+    // CFPreferences: the app's own defaults, a suite, typed reads
+    CFPreferencesSetAppValue(CFSTR("isim.cf.count"), (__bridge CFNumberRef)@42, kCFPreferencesCurrentApplication);
+    CFPreferencesSetAppValue(CFSTR("isim.cf.flag"), kCFBooleanTrue, kCFPreferencesCurrentApplication);
+    CHECK(CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication));
+    CHECK([[NSUserDefaults.standardUserDefaults objectForKey:@"isim.cf.count"] isEqual:@42]);   // the same defaults
+    bool valid = false;
+    CHECK(CFPreferencesGetAppIntegerValue(CFSTR("isim.cf.count"), kCFPreferencesCurrentApplication, &valid) == 42 && valid);
+    CHECK(CFPreferencesGetAppBooleanValue(CFSTR("isim.cf.flag"), kCFPreferencesCurrentApplication, &valid) && valid);
+    CHECK(!CFPreferencesGetAppBooleanValue(CFSTR("isim.cf.none"), kCFPreferencesCurrentApplication, &valid) && !valid);
+    CFPreferencesSetAppValue(CFSTR("theme"), CFSTR("dark"), CFSTR("dev.isim.cf.suite"));
+    CFPropertyListRef theme = CFPreferencesCopyAppValue(CFSTR("theme"), CFSTR("dev.isim.cf.suite"));
+    CHECK(theme && CFEqual(theme, CFSTR("dark")) && !CFPreferencesCopyAppValue(CFSTR("theme"), kCFPreferencesCurrentApplication));
+    CFRelease(theme);
+    CFPreferencesSetAppValue(CFSTR("isim.cf.count"), NULL, kCFPreferencesCurrentApplication);
+    CHECK(!CFPreferencesCopyAppValue(CFSTR("isim.cf.count"), kCFPreferencesCurrentApplication));
+    // CFLocale (toll-free with NSLocale)
+    CFLocaleRef fr = CFLocaleCreate(NULL, CFSTR("fr_FR"));
+    CHECK([(__bridge NSLocale *)fr isKindOfClass:[NSLocale class]] && CFEqual(CFLocaleGetIdentifier(fr), CFSTR("fr_FR")));
+    CHECK(CFEqual(CFLocaleGetValue(fr, kCFLocaleLanguageCode), CFSTR("fr")) && CFEqual(CFLocaleGetValue(fr, kCFLocaleCountryCode), CFSTR("FR")));
+    CHECK(CFEqual(CFLocaleGetValue(fr, kCFLocaleDecimalSeparator), CFSTR(",")) && CFEqual(CFLocaleGetValue(fr, kCFLocaleUsesMetricSystem), kCFBooleanTrue));
+    CHECK(CFEqual(CFLocaleGetValue(fr, kCFLocaleQuotationBeginDelimiterKey), CFSTR("«")) && CFEqual(CFLocaleGetValue(fr, kCFLocaleCurrencyCode), CFSTR("EUR")));
+    CFLocaleRef en = CFLocaleCreate(NULL, CFSTR("en_US"));
+    CFStringRef french = CFLocaleCopyDisplayNameForPropertyValue(en, kCFLocaleLanguageCode, CFSTR("fr"));
+    CHECK(french && CFEqual(french, CFSTR("French")) && CFEqual(CFLocaleGetValue(en, kCFLocaleMeasurementSystem), CFSTR("U.S.")));
+    CFLocaleRef current = CFLocaleCopyCurrent();
+    CFArrayRef langs = CFLocaleCopyPreferredLanguages(), countries = CFLocaleCopyISOCountryCodes();
+    CHECK(current && CFArrayGetCount(langs) >= 1 && [(__bridge NSArray *)countries containsObject:@"FR"]);
+    CFStringRef canon = CFLocaleCreateCanonicalLocaleIdentifierFromString(NULL, CFSTR("ZH-hant-tw"));
+    CFDictionaryRef parts = CFLocaleCreateComponentsFromLocaleIdentifier(NULL, CFSTR("sr_Latn_RS@calendar=gregorian"));
+    CFStringRef joined = CFLocaleCreateLocaleIdentifierFromComponents(NULL, parts);
+    CHECK(CFEqual(canon, CFSTR("zh_Hant_TW")) && CFEqual(CFDictionaryGetValue(parts, kCFLocaleScriptCode), CFSTR("Latn")) &&
+          CFEqual(joined, CFSTR("sr_Latn_RS@calendar=gregorian")));
+    CHECK(CFLocaleGetLanguageCharacterDirection(CFSTR("ar")) == kCFLocaleLanguageDirectionRightToLeft &&
+          CFLocaleGetLanguageCharacterDirection(CFSTR("en")) == kCFLocaleLanguageDirectionLeftToRight);
+    // CFDateFormatter
+    CFDateFormatterRef df = CFDateFormatterCreate(NULL, en, kCFDateFormatterNoStyle, kCFDateFormatterNoStyle);
+    CFDateFormatterSetFormat(df, CFSTR("yyyy-MM-dd HH:mm"));
+    CFDateFormatterSetProperty(df, kCFDateFormatterTimeZone, (__bridge CFTypeRef)[NSTimeZone timeZoneForSecondsFromGMT:0]);
+    CFStringRef formatted = CFDateFormatterCreateStringWithAbsoluteTime(NULL, df, 0);   // 1 January 2001 00:00 GMT
+    CFAbsoluteTime at = -1;
+    CHECK(CFEqual(formatted, CFSTR("2001-01-01 00:00")) && CFDateFormatterGetAbsoluteTimeFromString(df, CFSTR("2001-01-02 00:00"), NULL, &at) && at == 86400);
+    CHECK(CFEqual(CFDateFormatterGetFormat(df), CFSTR("yyyy-MM-dd HH:mm")) && CFDateFormatterGetLocale(df) == en);
+    CFDateFormatterRef styled = CFDateFormatterCreate(NULL, en, kCFDateFormatterLongStyle, kCFDateFormatterNoStyle);
+    CFStringRef longDate = CFDateFormatterCreateStringWithAbsoluteTime(NULL, styled, 86400 * 10);
+    CHECK(longDate && [(__bridge NSString *)longDate containsString:@"January"] && CFDateFormatterGetDateStyle(styled) == kCFDateFormatterLongStyle);
+    CFDateFormatterRef iso = CFDateFormatterCreateISO8601Formatter(NULL, kCFISO8601DateFormatWithInternetDateTime);
+    CFStringRef isoString = CFDateFormatterCreateStringWithAbsoluteTime(NULL, iso, 0);
+    CHECK(isoString && CFEqual(isoString, CFSTR("2001-01-01T00:00:00Z")));
+    CFStringRef tmpl = CFDateFormatterCreateDateFormatFromTemplate(NULL, CFSTR("yMMMd"), 0, en);
+    CHECK(tmpl && [(__bridge NSString *)tmpl containsString:@"MMM"]);
+    // CFStringTransform (and -applyingTransform:reverse:)
+    CFMutableStringRef ms = CFStringCreateMutableCopy(NULL, 0, CFSTR("Crème Brûlée"));
+    CHECK(CFStringTransform(ms, NULL, kCFStringTransformStripCombiningMarks, false) && CFEqual(ms, CFSTR("Creme Brulee")));
+    CF_SET(ms, @"Привет, Αθήνα");
+    CHECK(CFStringTransform(ms, NULL, kCFStringTransformToLatin, false) && CFEqual(ms, CFSTR("Privet, Athḗna")));
+    CF_SET(ms, @"ひらがな");
+    CHECK(CFStringTransform(ms, NULL, kCFStringTransformHiraganaKatakana, false) && CFEqual(ms, CFSTR("ヒラガナ")));
+    CHECK(CFStringTransform(ms, NULL, kCFStringTransformToLatin, false) && CFEqual(ms, CFSTR("hiragana")));
+    CHECK(CFStringTransform(ms, NULL, kCFStringTransformLatinHiragana, false) && CFEqual(ms, CFSTR("ひらがな")));
+    CF_SET(ms, @"ＡＢＣ１２３");
+    CFRange r = CFRangeMake(0, 3);
+    CHECK(CFStringTransform(ms, &r, kCFStringTransformFullwidthHalfwidth, false) && CFEqual(ms, CFSTR("ABC１２３")) && r.length == 3);
+    CF_SET(ms, @"é");
+    CHECK(CFStringTransform(ms, NULL, kCFStringTransformToXMLHex, false) && CFEqual(ms, CFSTR("&#xE9;")) &&
+          CFStringTransform(ms, NULL, kCFStringTransformToXMLHex, true) && CFEqual(ms, CFSTR("é")));
+    CHECK(!CFStringTransform(ms, NULL, kCFStringTransformMandarinLatin, false) && CFEqual(ms, CFSTR("é")));   // not in isim: unchanged
+    CHECK([[@"Straße Œuvre" stringByApplyingTransform:@"Latin-ASCII" reverse:NO] isEqualToString:@"Strasse OEuvre"] &&
+          [[@"Moskva" stringByApplyingTransform:NSStringTransformLatinToCyrillic reverse:NO] isEqualToString:@"Москва"]);
+    cf_release_all(fr, en, french, current, langs, countries, canon, parts, joined, df, formatted, styled, longDate, iso, isoString, tmpl, ms, NULL);
 }
 
 static int initialized;
@@ -1517,6 +1634,7 @@ int main(int argc, char *argv[]) {
         CHECK([fm removeItemAtPath:fmDir error:NULL]);
         thread_checks();
         cf_runloop_checks();
+        cf_url_locale_checks();
         file_checks();
         objc_networking_checks();
         locale_checks();

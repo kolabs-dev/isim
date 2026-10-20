@@ -19,6 +19,10 @@ CFTypeID CFGetTypeID(CFTypeRef cf) {
     if ([o isKindOfClass:[NSSet class]]) return 17;                     /* CFCore.mrc.m: CFSetGetTypeID ... */
     if ([o isKindOfClass:[NSDate class]]) return 42;
     if ([o isKindOfClass:[NSError class]]) return 43;
+    if ([o isKindOfClass:[NSURL class]]) return 29;                     /* CFURL.m: CFURLGetTypeID ... */
+    if ([o isKindOfClass:[NSBundle class]]) return 31;
+    if ([o isKindOfClass:[NSLocale class]]) return 41;                  /* CFLocale.m */
+    if ([o isKindOfClass:[NSDateFormatter class]] || [o isKindOfClass:[NSISO8601DateFormatter class]]) return 50;
     if ([NSStringFromClass([o class]) isEqualToString:@"__NSCFUUID"]) return 44;
     /* Security's CF types that are Swift classes (no Objective-C methods): their ...GetTypeID values (Certificates.swift,
        SecKey.swift; SecTrust is Foundation's) */

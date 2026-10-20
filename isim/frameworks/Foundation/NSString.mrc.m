@@ -612,8 +612,9 @@ static NSString *map_case(NSString *s, int mode) {   /* mode: 0 lower, 1 upper, 
 - (NSString *)uppercaseString { return map_case(self, 1); }
 - (NSString *)capitalizedString { return map_case(self, 2); }
 /* isim: Unicode normalization not implemented yet; strings are returned unchanged (exact for ASCII/NFC input) */
-- (NSString *)decomposedStringWithCanonicalMapping { return [[self copy] autorelease]; }
-- (NSString *)precomposedStringWithCanonicalMapping { return [[self copy] autorelease]; }
+/* Unicode NFD / NFC (Normalization.m) */
+- (NSString *)decomposedStringWithCanonicalMapping { extern NSString *isim_nfd(NSString *); return isim_nfd(self); }
+- (NSString *)precomposedStringWithCanonicalMapping { extern NSString *isim_nfc(NSString *); return isim_nfc(self); }
 - (double)doubleValue { return strtod([self UTF8String], NULL); }
 - (float)floatValue { return strtof([self UTF8String], NULL); }
 - (int)intValue { return (int)strtol([self UTF8String], NULL, 10); }

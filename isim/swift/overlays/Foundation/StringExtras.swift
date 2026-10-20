@@ -157,3 +157,12 @@ let _isimComposeTable: [String: Unicode.Scalar] = {
 
 // like Apple's overlay: print(object) and string interpolation use -description / -debugDescription
 extension NSObject: @retroactive CustomStringConvertible, @retroactive CustomDebugStringConvertible {}
+
+// MARK: transforms (Foundation's NSString API)
+extension StringProtocol {
+    /// The string transliterated or converted (isim's transforms: Foundation's Transform.m); nil when the transform
+    /// is not one isim knows.
+    public func applyingTransform(_ transform: StringTransform, reverse: Bool) -> String? {
+        (String(self) as NSString).applyingTransform(transform, reverse: reverse)
+    }
+}
