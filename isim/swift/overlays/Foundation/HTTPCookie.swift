@@ -293,7 +293,7 @@ extension Notification.Name {
 
 // MARK: - URLCache
 @objc(NSCachedURLResponse) open class CachedURLResponse: NSObject, @unchecked Sendable {
-    public enum StoragePolicy: UInt, Sendable { case allowed = 0, allowedInMemoryOnly = 1, notAllowed = 2 }
+    @objc(NSURLCacheStoragePolicy) public enum StoragePolicy: UInt, Sendable { case allowed = 0, allowedInMemoryOnly = 1, notAllowed = 2 }
     public let response: URLResponse
     public let data: Data
     public let userInfo: [AnyHashable: Any]?

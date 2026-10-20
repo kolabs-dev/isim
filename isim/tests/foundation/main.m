@@ -935,6 +935,55 @@ static void file_checks(void) {
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error { self.error = error; self.completed = YES; }
 @end
 
+/* an NSURLProtocol subclass written in Objective-C: serves objc-mock: URLs, registered and through protocolClasses */
+@interface ObjCMockProtocol : NSURLProtocol
+@end
+@implementation ObjCMockProtocol
+static int objc_mock_started, objc_mock_stopped;
++ (BOOL)canInitWithRequest:(NSURLRequest *)request { return [request.URL.scheme isEqualToString:@"objc-mock"]; }
++ (NSURLRequest *)canonicalRequestForRequest:(NSURLRequest *)request {
+    NSMutableURLRequest *m = [request mutableCopy];
+    [NSURLProtocol setProperty:@"seen" forKey:@"objc.mock" inRequest:m];
+    return m;
+}
+- (void)startLoading {
+    objc_mock_started++;
+    NSString *mark = [NSURLProtocol propertyForKey:@"objc.mock" inRequest:self.request];
+    NSURLResponse *r = [[NSURLResponse alloc] initWithURL:self.request.URL MIMEType:@"text/plain" expectedContentLength:-1 textEncodingName:@"utf-8"];
+    [self.client URLProtocol:self didReceiveResponse:r cacheStoragePolicy:NSURLCacheStorageNotAllowed];
+    [self.client URLProtocol:self didLoadData:[[NSString stringWithFormat:@"objc %@ %@", self.request.URL.host, mark] dataUsingEncoding:NSUTF8StringEncoding]];
+    [self.client URLProtocolDidFinishLoading:self];
+}
+- (void)stopLoading { objc_mock_stopped++; }
+@end
+
+static NSString *objc_fetch(NSURLSession *session, NSString *url, NSError **err) {
+    __block NSData *got = nil; __block NSError *e = nil; __block BOOL done = NO;
+    [[session dataTaskWithURL:[NSURL URLWithString:url] completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        got = data; e = error; done = YES;
+    }] resume];
+    spin_until(^BOOL { return done; }, 10);
+    if (err) *err = e;
+    return got ? [[NSString alloc] initWithData:got encoding:NSUTF8StringEncoding] : nil;
+}
+
+static void url_protocol_checks(void) {
+    NSURLSessionConfiguration *config = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+    config.protocolClasses = @[ObjCMockProtocol.class];
+    CHECK(config.protocolClasses.count == 1 && config.protocolClasses[0] == ObjCMockProtocol.class);
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
+    NSError *err = nil;
+    NSString *body = objc_fetch(session, @"objc-mock://alpha/x", &err);
+    CHECK([body isEqualToString:@"objc alpha seen"] && err == nil && objc_mock_started == 1 && objc_mock_stopped == 1);   // subclass overrides run
+    CHECK(objc_fetch(NSURLSession.sharedSession, @"objc-mock://beta/x", &err) == nil && err.code == NSURLErrorUnsupportedURL);
+    CHECK([NSURLProtocol registerClass:ObjCMockProtocol.class] && ![NSURLProtocol registerClass:NSString.class]);
+    CHECK([objc_fetch(NSURLSession.sharedSession, @"objc-mock://beta/x", &err) isEqualToString:@"objc beta seen"]);
+    [NSURLProtocol unregisterClass:ObjCMockProtocol.class];
+    CHECK(objc_fetch(NSURLSession.sharedSession, @"objc-mock://gamma/x", &err) == nil);
+    CHECK([NSURLProtocol canInitWithRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"objc-mock://x"]]] == NO &&
+          [ObjCMockProtocol canInitWithRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"objc-mock://x"]]]);
+}
+
 static void objc_networking_checks(void) {
     NSURLComponents *c = [NSURLComponents componentsWithString:@"https://user@example.com:8443/a%20b?q=swift%20ui#frag"];
     CHECK((c && [c.host isEqualToString:@"example.com"] && c.port.intValue == 8443 && [c.path isEqualToString:@"/a b"]));
@@ -1720,6 +1769,7 @@ int main(int argc, char *argv[]) {
         cf_url_locale_checks();
         xml_parser_checks();
         file_checks();
+        url_protocol_checks();
         objc_networking_checks();
         locale_checks();
 

@@ -295,7 +295,17 @@ extension URLAuthenticationChallenge {
     @objc(previousFailureCount) var _objc_previousFailureCount: Int { previousFailureCount }
     @objc(failureResponse) var _objc_failureResponse: URLResponse? { failureResponse }
     @objc(error) var _objc_error: Error? { error }
-    @objc(sender) var _objc_sender: AnyObject? { sender }
+    @objc(sender) var _objc_sender: URLAuthenticationChallengeSender? { sender }
+    @objc(initWithProtectionSpace:proposedCredential:previousFailureCount:failureResponse:error:sender:)
+    convenience init(_objcSpace space: URLProtectionSpace, proposedCredential: URLCredential?, previousFailureCount: Int, failureResponse: URLResponse?,
+                     error: Error?, sender: URLAuthenticationChallengeSender) {
+        self.init(protectionSpace: space, proposedCredential: proposedCredential, previousFailureCount: previousFailureCount,
+                  failureResponse: failureResponse, error: error, sender: sender)
+    }
+    @objc(initWithAuthenticationChallenge:sender:)
+    convenience init(_objcChallenge challenge: URLAuthenticationChallenge, sender: URLAuthenticationChallengeSender) {
+        self.init(authenticationChallenge: challenge, sender: sender)
+    }
 }
 extension URLCredentialStorage {
     @objc(sharedCredentialStorage) class var _objc_shared: URLCredentialStorage { shared }
@@ -343,6 +353,7 @@ extension URLSessionConfiguration {
     @objc(HTTPCookieStorage) var _objc_httpCookieStorage: HTTPCookieStorage? { get { httpCookieStorage } set { httpCookieStorage = newValue } }
     @objc(URLCache) var _objc_urlCache: URLCache? { get { urlCache } set { urlCache = newValue } }
     @objc(URLCredentialStorage) var _objc_urlCredentialStorage: URLCredentialStorage? { get { urlCredentialStorage } set { urlCredentialStorage = newValue } }
+    @objc(protocolClasses) var _objc_protocolClasses: [AnyClass]? { get { protocolClasses } set { protocolClasses = newValue } }
 }
 
 // MARK: - session

@@ -197,6 +197,8 @@ public struct URLRequest: Hashable, @unchecked Sendable, CustomStringConvertible
     public var attribution: Attribution = .developer
     var _method: String?
     var _headers: [(String, String)] = []
+    /// URLProtocol.setProperty(_:forKey:in:) (not part of equality, like Apple's)
+    var _protocolProperties: [String: Any] = [:]
 
     public init(url: URL, cachePolicy: CachePolicy = .useProtocolCachePolicy, timeoutInterval: TimeInterval = 60.0) {
         self.url = url; self.cachePolicy = cachePolicy; self.timeoutInterval = timeoutInterval

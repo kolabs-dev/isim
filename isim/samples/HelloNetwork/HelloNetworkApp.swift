@@ -1,6 +1,6 @@
 // Sample: networking on isim — URLSession with async/await and completion handlers, JSONDecoder, cookies
 // (sign in, then an authenticated request), HTTP status and URLError handling, a WebSocket echo,
-// Combine's dataTaskPublisher, NWPathMonitor and an RSS feed read with XMLParser.
+// Combine's dataTaskPublisher, NWPathMonitor, an RSS feed read with XMLParser and a URLProtocol that answers app: URLs.
 // The server is server.py next to this file; pass its address as a launch argument:
 //   python3 samples/HelloNetwork/server.py 8765 &
 //   isim run out/apps/HelloNetwork.app -server http://127.0.0.1:8765
@@ -27,6 +27,20 @@ final class FeedParser: NSObject, XMLParserDelegate {
     }
 }
 
+/// answers app://greeting from memory (URLSessionConfiguration.protocolClasses)
+final class GreetingProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { request.url?.scheme == "app" }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let body = Data("Hello from a URLProtocol".utf8)
+        client?.urlProtocol(self, didReceive: URLResponse(url: request.url!, mimeType: "text/plain", expectedContentLength: body.count, textEncodingName: "utf-8"),
+                            cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
 @MainActor
 final class NetworkModel: ObservableObject {
     @Published var path = "checking…"
@@ -38,6 +52,7 @@ final class NetworkModel: ObservableObject {
     @Published var socketText = "—"
     @Published var combineText = "—"
     @Published var feed: [String] = []
+    @Published var greeting = "—"
 
     let base: URL
     let monitor = NWPathMonitor()
@@ -67,6 +82,18 @@ final class NetworkModel: ObservableObject {
             todosStatus = error.localizedDescription
             print("todos error \(error)")
         }
+    }
+
+    /// a session whose own URLProtocol answers app: URLs
+    func loadGreeting() async {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [GreetingProtocol.self]
+        let session = URLSession(configuration: config)
+        do {
+            let (data, _) = try await session.data(from: URL(string: "app://greeting")!)
+            greeting = String(decoding: data, as: UTF8.self)
+        } catch { greeting = "\(error)" }
+        print("protocol \(greeting)")
     }
 
     /// an RSS feed parsed with XMLParser
@@ -186,6 +213,9 @@ struct ContentView: View {
                 Section("Feed · XMLParser") {
                     ForEach(model.feed, id: \.self) { Text($0) }
                 }
+                Section("URLProtocol") {
+                    Text(model.greeting)
+                }
                 Section("Message · completion handler") {
                     Text(model.message).accessibilityIdentifier("message")
                     Button("Reload") { model.loadMessage() }.accessibilityIdentifier("reload")
@@ -212,6 +242,7 @@ struct ContentView: View {
             await model.loadTodos()
             model.loadMessage()
             await model.loadFeed()
+            await model.loadGreeting()
         }
     }
 }
