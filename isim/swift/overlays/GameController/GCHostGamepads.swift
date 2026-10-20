@@ -18,10 +18,12 @@ public let GCProductCategoryHID = "HID"
     nonisolated(unsafe) static var pads: [Int32: GCController] = [:]
     nonisolated(unsafe) static var disabled = false
 
+    /// motion sensors the app turned on (GCMotion.sensorsActive)
+    nonisolated(unsafe) static var activeMotion: [GCMotion] = []
+    /// the pads, their sensors and the host mouse (which works with host pads disabled too)
     static func start() {
-        guard timer == nil, !disabled else { return }
+        guard timer == nil else { return }
         poll()
-        guard !disabled else { return }
         timer = Timer._isimScheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { _ in MainActor.assumeIsolated { poll() } }
     }
 
@@ -42,9 +44,12 @@ public let GCProductCategoryHID = "HID"
     }
 
     static func poll() {
+        GCMouse._poll()
+        for m in activeMotion { m._poll() }
+        guard !disabled else { return }
         var buf = [isim_gamepad](repeating: isim_gamepad(), count: 8)
         let n = buf.withUnsafeMutableBufferPointer { isim_gamepad_poll($0.baseAddress, 8) }
-        if n < 0 { disabled = true; timer?.invalidate(); timer = nil; return }
+        if n < 0 { disabled = true; return }
         var seen = Set<Int32>()
         for i in 0..<Int(n) {
             let p = buf[i]

@@ -1647,6 +1647,9 @@ static int script_step(struct isim_event *ev) {
     } else if (!strcmp(cmd, "openurl") && sscanf(args, " %511[^; ]", arg) == 1) {   /* the app alone (isim run): open the URL in it (custom schemes, universal links) */
         pending[npending++] = (struct isim_event){ .type = EV_OPEN_URL }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s", arg);
         script_resume = now() + 0.3;
+    } else if (!strcmp(cmd, "mouse") && sscanf(args, " %511[^;]", arg) == 1) {      /* the host mouse as GCMouse sees it */
+        void isim_mouse_script(const char *args);
+        isim_mouse_script(arg);
     } else if (!strcmp(cmd, "gamepad") && sscanf(args, " %511[^;]", arg) == 1) {    /* virtual SDL gamepad (host_gamepad.c) */
         void isim_gamepad_script(const char *args);
         isim_gamepad_script(arg);
@@ -1701,6 +1704,39 @@ ISIM_GUEST_ABI int isim_next_event(struct isim_event *ev, double timeout) {
     if (r && (ev->type == EV_TOUCH_DOWN || ev->type == EV_ID_DOWN)) home_touch_t = now();
     return r;
 }
+/* ---- the host pointer as a mouse (GameController's GCMouse): relative motion, buttons and the scroll wheel since
+   the last poll. The window's mouse counts once it moved over the device; the `mouse` script command drives it too:
+   mouse move DX DY | mouse button left|right|middle 0|1 | mouse scroll DX DY ---- */
+static struct { double dx, dy, sx, sy; unsigned buttons; int present; } host_mouse;
+static void mouse_buttons(int sdl_button, int down) {
+    unsigned bit = sdl_button == SDL_BUTTON_LEFT ? 1 : sdl_button == SDL_BUTTON_RIGHT ? 2 : sdl_button == SDL_BUTTON_MIDDLE ? 4
+                 : sdl_button == SDL_BUTTON_X1 ? 8 : sdl_button == SDL_BUTTON_X2 ? 16 : 0;
+    if (down) host_mouse.buttons |= bit; else host_mouse.buttons &= ~bit;
+    host_mouse.present = 1;
+}
+/* 1 while there is a mouse; the deltas (points, y down) and scroll since the last call, the pressed buttons
+   (1 left, 2 right, 4 middle, 8 / 16 the side buttons) */
+ISIM_GUEST_ABI int isim_mouse_poll(double *dx, double *dy, double *sx, double *sy, unsigned *buttons) {
+    if (dx) *dx = host_mouse.dx;
+    if (dy) *dy = host_mouse.dy;
+    if (sx) *sx = host_mouse.sx;
+    if (sy) *sy = host_mouse.sy;
+    if (buttons) *buttons = host_mouse.buttons;
+    host_mouse.dx = host_mouse.dy = host_mouse.sx = host_mouse.sy = 0;
+    return host_mouse.present;
+}
+void isim_mouse_script(const char *args) {
+    char verb[16] = {0}, name[16] = {0}; double a = 0, b = 0;
+    if (sscanf(args, " %15s", verb) != 1) return;
+    host_mouse.present = 1;
+    if (!strcmp(verb, "move") && sscanf(args, " %*s %lf %lf", &a, &b) == 2) { host_mouse.dx += a; host_mouse.dy += b; }
+    else if (!strcmp(verb, "scroll") && sscanf(args, " %*s %lf %lf", &a, &b) == 2) { host_mouse.sx += a; host_mouse.sy += b; }
+    else if (!strcmp(verb, "button") && sscanf(args, " %*s %15s %lf", name, &a) == 2) {
+        int bt = !strcmp(name, "left") ? SDL_BUTTON_LEFT : !strcmp(name, "right") ? SDL_BUTTON_RIGHT : !strcmp(name, "middle") ? SDL_BUTTON_MIDDLE : 0;
+        if (bt) mouse_buttons(bt, a != 0); else fprintf(stderr, "isim host: mouse: bad button '%s'\n", name);
+    } else fprintf(stderr, "isim host: bad mouse command '%s'\n", args);
+}
+
 static int next_event(struct isim_event *ev, double timeout) {
     memset(ev, 0, sizeof *ev);
     double deadline = now() + timeout;
@@ -1743,6 +1779,12 @@ static int next_event(struct isim_event *ev, double timeout) {
         if (ch == 2) return 1;
         if (ch == 1) continue;
         if (input_sdl_event(&e, ev)) return 1;
+        switch (e.type) {                         /* GCMouse sees every pointer event over the device (as well as the touches) */
+        case SDL_EVENT_MOUSE_MOTION: host_mouse.dx += e.motion.xrel / zoom; host_mouse.dy += e.motion.yrel / zoom; host_mouse.present = 1; break;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN: case SDL_EVENT_MOUSE_BUTTON_UP: mouse_buttons(e.button.button, e.type == SDL_EVENT_MOUSE_BUTTON_DOWN); break;
+        case SDL_EVENT_MOUSE_WHEEL: host_mouse.sx += e.wheel.x; host_mouse.sy += e.wheel.y; host_mouse.present = 1; break;
+        default: break;
+        }
         switch (e.type) {
         case SDL_EVENT_USER: return 0;
         case SDL_EVENT_QUIT: case SDL_EVENT_WINDOW_CLOSE_REQUESTED: ev->type = EV_QUIT; return 1;
@@ -2101,6 +2143,9 @@ ISIM_GUEST_ABI char *isim_xcui_screenshot(int h, double timeout, long *size); vo
 struct isim_gamepad;
 ISIM_GUEST_ABI int isim_gamepad_poll(struct isim_gamepad *out, int max);
 ISIM_GUEST_ABI int isim_gamepad_rumble(int id, double low, double high, double seconds);
+ISIM_GUEST_ABI int isim_gamepad_battery(int id, int *percent);
+ISIM_GUEST_ABI int isim_gamepad_set_light(int id, double r, double g, double b);
+ISIM_GUEST_ABI int isim_gamepad_motion(int id, int enable, float *accel, float *gyro);
 ISIM_GUEST_ABI int isim_image_create_bgra(int w, int h);
 ISIM_GUEST_ABI void isim_image_update_bgra(int hd, const unsigned char *px, int w, int h);
 ISIM_GUEST_ABI void isim_image_draw_quad(int handle, const double *quad, double alpha);           /* host_ca.c */
@@ -2210,7 +2255,7 @@ static const struct shim isim_table[] = {
     H(isim_web_available), H(isim_web_send), H(isim_web_next), H(isim_web_free), H(isim_web_frame), H(isim_web_release),
     H(isim_tls_connect), H(isim_tls_start), H(isim_tls_peer_chain), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close), H(isim_tls_read_nb), H(isim_tls_write_nb), H(isim_tls_probe),
     H(isim_xcui_launch), H(isim_xcui_running), H(isim_xcui_send), H(isim_xcui_snapshot), H(isim_xcui_screenshot), H(isim_xcui_terminate_all), H(isim_xcui_free), H(isim_xcui_terminate),
-    H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_image_create_bgra), H(isim_image_update_bgra),
+    H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_gamepad_battery), H(isim_gamepad_set_light), H(isim_gamepad_motion), H(isim_mouse_poll), H(isim_image_create_bgra), H(isim_image_update_bgra),
     H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_glass), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),
     H(isim_gfx_pop_group_filtered), H(isim_set_home_indicator_autohide), H(isim_set_deferred_system_edges), H(isim_gfx_glass_shapes),
     H(isim_icu_version), H(isim_icu_collate), H(isim_icu_date_format), H(isim_icu_date_parse), H(isim_icu_date_pattern),

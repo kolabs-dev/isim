@@ -113,8 +113,9 @@ open class GCControllerButtonInput: GCControllerElement {
 open class GCControllerAxisInput: GCControllerElement {
     open var valueChangedHandler: GCControllerAxisValueChangedHandler?
     open private(set) var value: Float = 0
+    var _unclamped = false                       // a mouse's scroll wheel (GCDeviceCursor): deltas beyond ±1
     open func setValue(_ v: Float) {
-        let nv = max(-1, min(1, v))
+        let nv = _unclamped ? v : max(-1, min(1, v))
         guard nv != value else { return }
         value = nv
         valueChangedHandler?(self, value)
@@ -293,13 +294,34 @@ open class GCController: NSObject, GCDevice {
     open internal(set) var extendedGamepad: GCExtendedGamepad?
     open internal(set) var microGamepad: GCMicroGamepad?
     open var physicalInputProfile: GCPhysicalInputProfile { extendedGamepad ?? microGamepad ?? GCPhysicalInputProfile() }
-    open var battery: AnyObject? { nil }
-    open var light: AnyObject? { nil }
+    /// a host pad's battery, when SDL reports one (GCDeviceFeatures.swift)
+    open var battery: GCDeviceBattery? {
+        guard let id = _hostPadID else { return nil }
+        var pct: Int32 = -1
+        return isim_gamepad_battery(id, &pct) == -1 ? nil : GCDeviceBattery(pad: id)
+    }
+    /// a host pad's light bar (every host pad: SDL ignores the colour on pads without one)
+    open var light: GCDeviceLight? {
+        guard let id = _hostPadID else { return nil }
+        if _light == nil { _light = GCDeviceLight(pad: id) }
+        return _light
+    }
+    var _light: GCDeviceLight?
     /// a host pad's rumble motors (nil for snapshots and pads without one)
     open var haptics: GCDeviceHaptics? { _hostPadID.map { GCDeviceHaptics(pad: $0) } }
     /// isim: the haptics getter of apps built before #283 (typed AnyObject?), kept under its old symbols (-alias)
     public var _isimHapticsV1: AnyObject? { haptics }
-    open var motion: AnyObject? { nil }
+    /// a host pad's accelerometer and gyroscope, when it has them
+    open var motion: GCMotion? {
+        guard let id = _hostPadID else { return nil }
+        if _motion == nil, isim_gamepad_motion(id, -1, nil, nil) != 0 { _motion = GCMotion(pad: id, controller: self) }
+        return _motion
+    }
+    var _motion: GCMotion?
+    /// isim: the getters of apps built before #290 (typed AnyObject?), kept under their old symbols (-alias)
+    public var _isimBatteryV1: AnyObject? { battery }
+    public var _isimLightV1: AnyObject? { light }
+    public var _isimMotionV1: AnyObject? { motion }
 
     init(extended: Bool) {
         super.init()
@@ -394,10 +416,6 @@ open class GCKeyboard: NSObject, GCDevice {
     override init() { super.init(); input.device = self }
 }
 
-open class GCMouse: NSObject {
-    open class var current: GCMouse? { nil }
-    open class func mice() -> [GCMouse] { [] }
-}
 
 // MARK: - Virtual controller
 

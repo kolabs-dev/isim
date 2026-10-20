@@ -6,7 +6,10 @@
  *   gamepad button NAME 0|1          a b x y back guide start leftstick rightstick leftshoulder rightshoulder dpup ...
  *   gamepad axis NAME VALUE          leftx lefty rightx righty (-1...1, y down like SDL), lefttrigger righttrigger (0...1)
  *   gamepad disconnect               detach it
- * Rumble requests to the virtual pad are logged ("isim gamepad: rumble LOW HIGH"). */
+ *   gamepad battery PERCENT [discharging|charging|full|unknown]   the virtual pad's battery (SDL has no setter)
+ *   gamepad motion AX AY AZ GX GY GZ  accelerometer (m/s², SDL's axes) and gyroscope (rad/s) samples
+ * Rumble requests to the virtual pad are logged ("isim gamepad: rumble LOW HIGH"), so are its light colour
+ * ("isim gamepad: led R G B") and sensor switches ("isim gamepad: sensors on|off"). */
 #include "guest_abi.h"
 #include <SDL3/SDL.h>
 #include <stdio.h>
@@ -92,6 +95,61 @@ ISIM_GUEST_ABI int isim_gamepad_rumble(int id, double low, double high, double s
 static SDL_JoystickID vid;
 static SDL_Joystick *vjoy;
 static char vname[64];
+static int vbattery_state = -2, vbattery_percent = -1;    /* -2: not set by a script */
+
+static SDL_Gamepad *pad_for(int id) {
+    for (int i = 0; i < nopen; i++) if ((int)open_pads[i].id == id) return open_pads[i].pad;
+    return NULL;
+}
+/* battery: 0 unknown, 1 discharging, 2 charging, 3 full, -1 none (wired); *percent 0...100 or -1 */
+ISIM_GUEST_ABI int isim_gamepad_battery(int id, int *percent) {
+    if (percent) *percent = -1;
+    if (vjoy && id == (int)vid && vbattery_state != -2) { if (percent) *percent = vbattery_percent; return vbattery_state; }
+    SDL_Gamepad *g = pad_for(id);
+    if (!g) return 0;
+    int pct = -1;
+    SDL_PowerState st = SDL_GetGamepadPowerInfo(g, &pct);
+    if (percent) *percent = pct;
+    switch (st) {
+    case SDL_POWERSTATE_ON_BATTERY: return 1;
+    case SDL_POWERSTATE_CHARGING: return 2;
+    case SDL_POWERSTATE_CHARGED: return 3;
+    case SDL_POWERSTATE_NO_BATTERY: return -1;
+    default: return 0;
+    }
+}
+/* the pad's light bar (0...1 per channel); 1 if the pad has one */
+ISIM_GUEST_ABI int isim_gamepad_set_light(int id, double r, double g, double b) {
+    SDL_Gamepad *p = pad_for(id);
+    if (!p) return 0;
+    Uint8 R = (Uint8)lround(fmin(1, fmax(0, r)) * 255), G = (Uint8)lround(fmin(1, fmax(0, g)) * 255), B = (Uint8)lround(fmin(1, fmax(0, b)) * 255);
+    return SDL_SetGamepadLED(p, R, G, B) ? 1 : 0;
+}
+/* motion sensors: enable 1 / 0 switches them (-1 leaves them); fills the latest accelerometer (m/s²) and gyroscope
+ * (rad/s) values; returns 1 (accelerometer) | 2 (gyroscope) for the sensors the pad has */
+ISIM_GUEST_ABI int isim_gamepad_motion(int id, int enable, float *accel, float *gyro) {
+    SDL_Gamepad *p = pad_for(id);
+    if (!p) return 0;
+    int has = (SDL_GamepadHasSensor(p, SDL_SENSOR_ACCEL) ? 1 : 0) | (SDL_GamepadHasSensor(p, SDL_SENSOR_GYRO) ? 2 : 0);
+    if (enable >= 0) {
+        if (has & 1) SDL_SetGamepadSensorEnabled(p, SDL_SENSOR_ACCEL, enable != 0);
+        if (has & 2) SDL_SetGamepadSensorEnabled(p, SDL_SENSOR_GYRO, enable != 0);
+    }
+    if (accel) { memset(accel, 0, 3 * sizeof *accel); if (has & 1) SDL_GetGamepadSensorData(p, SDL_SENSOR_ACCEL, accel, 3); }
+    if (gyro) { memset(gyro, 0, 3 * sizeof *gyro); if (has & 2) SDL_GetGamepadSensorData(p, SDL_SENSOR_GYRO, gyro, 3); }
+    return has;
+}
+
+static bool SDLCALL v_led(void *ud, Uint8 r, Uint8 g, Uint8 b) {
+    (void)ud;
+    fprintf(stderr, "isim gamepad: led %u %u %u\n", r, g, b);
+    return true;
+}
+static bool SDLCALL v_sensors(void *ud, bool on) {
+    (void)ud;
+    fprintf(stderr, "isim gamepad: sensors %s\n", on ? "on" : "off");
+    return true;
+}
 
 static bool SDLCALL v_rumble(void *ud, Uint16 lo, Uint16 hi) {
     (void)ud;
@@ -116,13 +174,29 @@ void isim_gamepad_script(const char *args) {
         d.naxes = SDL_GAMEPAD_AXIS_COUNT; d.axis_mask = (1u << SDL_GAMEPAD_AXIS_COUNT) - 1;
         d.name = vname;
         d.Rumble = v_rumble;
+        d.SetLED = v_led;
+        d.SetSensorsEnabled = v_sensors;
+        static const SDL_VirtualJoystickSensorDesc sensors[2] = { { SDL_SENSOR_ACCEL, 100.0f }, { SDL_SENSOR_GYRO, 100.0f } };
+        d.nsensors = 2; d.sensors = sensors;
         vid = SDL_AttachVirtualJoystick(&d);
         if (!vid || !(vjoy = SDL_OpenJoystick(vid))) { fprintf(stderr, "isim host: gamepad connect failed: %s\n", SDL_GetError()); return; }
         /* triggers rest at 0 (the virtual axis starts at the middle of its range) */
         SDL_SetJoystickVirtualAxis(vjoy, SDL_GAMEPAD_AXIS_LEFT_TRIGGER, -32768);
         SDL_SetJoystickVirtualAxis(vjoy, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, -32768);
         fprintf(stderr, "isim host: virtual gamepad '%s' connected\n", vname);
+    } else if (!strcmp(verb, "battery") && sscanf(args, " %*s %lf %63s", &v, name) >= 1) {
+        vbattery_percent = (int)fmin(100, fmax(0, v));
+        vbattery_state = !strcmp(name, "charging") ? 2 : !strcmp(name, "full") ? 3 : !strcmp(name, "unknown") ? 0 : 1;
+    } else if (!strcmp(verb, "motion")) {
+        float a[3] = {0}, g[3] = {0};
+        if (!vjoy || sscanf(args, " %*s %f %f %f %f %f %f", &a[0], &a[1], &a[2], &g[0], &g[1], &g[2]) != 6) {
+            fprintf(stderr, "isim host: gamepad motion AX AY AZ GX GY GZ (needs a connected virtual pad)\n"); return;
+        }
+        Uint64 t = SDL_GetTicksNS();
+        SDL_SendJoystickVirtualSensorData(vjoy, SDL_SENSOR_ACCEL, t, a, 3);
+        SDL_SendJoystickVirtualSensorData(vjoy, SDL_SENSOR_GYRO, t, g, 3);
     } else if (!strcmp(verb, "disconnect")) {
+        vbattery_state = -2; vbattery_percent = -1;
         if (!vjoy) return;
         SDL_CloseJoystick(vjoy); vjoy = NULL;
         SDL_DetachVirtualJoystick(vid); vid = 0;
