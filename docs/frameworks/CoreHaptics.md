@@ -8,12 +8,18 @@
 
 ## How isim implements it
 
-- **Adapted:** a fully modelled engine (patterns, players, parameter curves, AHAP files). `supportsHaptics` is false, like the Simulator, and playback is logged; audio events are silent. Rows: [UIKit](UIKit.md) (Haptics & feedback).
+- **Adapted:** a fully modelled engine (patterns, players, parameter curves, AHAP files). `supportsHaptics` is false, like the Simulator: the device's haptic events are shown as UIKit's feedback ring and logged; a gamepad's engine (`GCController.haptics`) drives the pad's rumble motors ([GameController](GameController.md)). Audio events play through isim's audio output. Rows: [UIKit](UIKit.md) (Haptics & feedback).
+- **Objective-C / C interface:** none yet (Swift only; #548).
 
 ## API
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
+| `CHHapticEngine` (`start`, `stop`, `capabilitiesForHardware()`, `makePlayer` / `makeAdvancedPlayer`, `notifyWhenPlayersFinished`, `playPattern(from:)`, `isMutedForAudio` / `isMutedForHaptics`, `playsHapticsOnly` / `playsAudioOnly`, stopped / reset handlers) | ✅ | ≤17 | adapted: `supportsHaptics` false (no Taptic Engine, like the Simulator), `supportsAudio` true; each haptic event of the device's engine is shown as UIKit's feedback ring at mid-screen and logged (`CoreHaptics: transient intensity …`); a gamepad's engine rumbles the pad instead; tested (HelloCoreAnimation, test_coreanimation) |
+| `CHHapticEvent`, `CHHapticEventParameter`, `CHHapticPattern` (events, dynamic parameters, parameter curves, AHAP dictionaries and files, `exportDictionary`) | ✅ | ≤17 | patterns are validated and timed as on iOS (a transient lasts about 22 ms); tested (HelloCoreAnimation) |
+| Players: `CHHapticPatternPlayer`, `CHHapticAdvancedPatternPlayer` (start / stop / pause / resume / seek, loops, `playbackRate`, `isMuted`, completion), `sendParameters` | 🟡 | ≤17 | adapted: each event fires at its time; `hapticIntensityControl` and `audioVolumeControl` scale the events that follow; parameter curves are accepted but not applied |
+| Audio events: `audioContinuous`, `audioCustom` with `registerAudioResource(_:options:)` / `unregisterAudioResource`, `CHHapticAudioResourceKey` (`useVolumeEnvelope`, `loopEnabled`) | ✅ | ≤17 | adapted: audioContinuous is a synthesised tone around 440 Hz (`AudioPitch` an octave down or up, `AudioBrightness` adds odd harmonics, attack and release times shape it); audioCustom plays the resource (any file AVAudioFile reads) with `AudioVolume`, `AudioPitch` (speed) and `AudioPan`, looped with `loopEnabled`, cut to the event's duration; mixed into isim's audio output; tested (HelloCoreAnimation, test_coreanimation: 440 Hz then 880 Hz on the mixed output) |
+| `CHHapticError` (codes), `CHHapticErrorDomain` | ✅ | ≤17 | `com.apple.CoreHaptics`; tested (HelloCoreAnimation) |
 
 ## Not yet in isim
 

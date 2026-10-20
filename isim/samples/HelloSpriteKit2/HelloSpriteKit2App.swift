@@ -37,6 +37,7 @@ func solidPixels(_ w: Int, _ h: Int, _ rgba: [UInt8]) -> Data {
 }
 
 final class LabScene: SKScene {
+    var rumble: CHHapticEngine?
     var padIndicator: SKShapeNode!
     var stickDot: SKShapeNode!
     var observers: [NSObjectProtocol] = []
@@ -234,8 +235,21 @@ final class LabScene: SKScene {
     func connected(_ c: GCController) {
         guard let pad = c.extendedGamepad else { return }
         log("gamepad connected: \(c.vendorName ?? "?") category=\(c.productCategory) extended=true player=\(c.playerIndex.rawValue) current=\(GCController.current === c)")
+        // the pad's rumble: a CoreHaptics engine from GCDeviceHaptics, played when A is pressed
+        let haptics = c.haptics
+        let engine = haptics?.createEngine(withLocality: .default)
+        try? engine?.start()
+        log("pad haptics localities \(haptics?.supportedLocalities.count ?? 0) default engine \(engine != nil) triggers engine \(haptics?.createEngine(withLocality: .triggers) != nil)")
+        rumble = engine
         pad.buttonA.pressedChangedHandler = { [weak self] _, _, pressed in
             log("pad A \(pressed ? "pressed" : "released")")
+            if pressed, let e = self?.rumble {
+                let hit = CHHapticEvent(eventType: .hapticContinuous, parameters: [CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.8),
+                                                                                     CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.5)],
+                                        relativeTime: 0, duration: 0.2)
+                do { try e.makePlayer(with: CHHapticPattern(events: [hit], parameters: [])).start(atTime: CHHapticTimeImmediate); log("pad haptics played") }
+                catch { log("pad haptics error \(error)") }
+            }
             self?.padIndicator.fillColor = pressed ? UIColor(red: 0.1, green: 0.85, blue: 0.3, alpha: 1) : UIColor(white: 0.35, alpha: 1)
         }
         pad.leftThumbstick.valueChangedHandler = { [weak self] _, x, y in

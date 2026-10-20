@@ -2,8 +2,10 @@
 CAGradientLayer, CAReplicatorLayer, perspective CATransform3D (a layer and a view drawn as trapezoids), layer and view
 masks, blurred shadow falloff, CAKeyframeAnimation positions at given times, CATransaction implicit animation +
 completion + disableActions, CA animations on a view's layer with delegates, CASpringAnimation / CAAnimationGroup, an
-item falling under gravity onto a collision boundary, and CoreHaptics (no hardware). Port of
+item falling under gravity onto a collision boundary, and CoreHaptics (no hardware: haptic events shown as the
+feedback ring; audio events heard on the mixed output, ISIM_AUDIO_TAP). Port of
 tests/ui/coreanimation.sh."""
+import array
 from isimtest import rgb
 
 RED = lambda c: c[0] > 200 and c[1] < 60 and c[2] < 60                      # noqa: E731
@@ -28,8 +30,35 @@ def runs(img, y, x0, x1, pred):
     return n
 
 
-def test_coreanimation(launch):
-    app = launch("HelloCoreAnimation")
+def tap_tones(path):
+    """the frequency of each burst of sound in an ISIM_AUDIO_TAP capture (raw float32 stereo, 48 kHz), from zero
+    crossings; bursts are separated by 50 ms or more of silence (the last may end with the capture)"""
+    a = array.array("f")
+    a.frombytes(path.read_bytes())
+    left = a[0::2]
+    tones, start, quiet = [], None, 0
+    for i, v in enumerate(left):
+        if abs(v) > 0.02:
+            if start is None:
+                start = i
+            quiet = 0
+        elif start is not None:
+            quiet += 1
+            if quiet > 2400:
+                seg = left[start:i - quiet]
+                if len(seg) > 4800:
+                    crossings = sum(1 for x, y in zip(seg, seg[1:]) if x < 0 <= y)
+                    tones.append(crossings / (len(seg) / 48000))
+                start, quiet = None, 0
+    if start is not None and len(left) - start > 4800:          # the last burst, cut off when the app quit
+        seg = left[start:len(left) - quiet]
+        tones.append(sum(1 for x, y in zip(seg, seg[1:]) if x < 0 <= y) / (len(seg) / 48000))
+    return tones
+
+
+def test_coreanimation(launch, device_data):
+    tap = device_data / "tap.f32"
+    app = launch("HelloCoreAnimation", env={"ISIM_AUDIO": "1", "SDL_AUDIO_DRIVER": "dummy", "ISIM_AUDIO_TAP": str(tap)})
     main = app.wait_shot(lambda s: RED(rgb(s, 195, 100)) and runs(s, 200, 10, 395, GREEN) == 5, "layers drawn")
     app.tap_id("btn-Report")
     app.wait_log(r"keyframe keys=")
@@ -84,6 +113,12 @@ def test_coreanimation(launch):
     c = rgb(drop, 200, 770)
     assert "dynamics rest maxY=780 x=180" in log and c[0] > 220 and c[1] < 120, \
         "dynamics: rests on the collision boundary"
-    assert "haptics supportsHaptics=false" in log and "haptics pattern duration=0.40" in log and \
-        "CoreHaptics: pattern started: 2 event" in log and "haptics players finished" in log, \
+    assert "haptics supportsHaptics=false" in log and "haptics pattern duration=1.50" in log and \
+        "CoreHaptics: pattern started: 4 event" in log and "haptics players finished" in log, \
         "CoreHaptics: no haptic hardware, pattern plays out"
+    assert "CoreHaptics: transient intensity 1.00 sharpness 0.50: shown, not felt" in log and \
+        "CoreHaptics: continuous intensity 1.00 sharpness 0.50: shown, not felt" in log, "haptic events: the feedback ring"
+    assert "haptics supportsAudio=true error domain com.apple.CoreHaptics" in log and \
+        "CoreHaptics: audio continuous 0.40 s" in log and "CoreHaptics: audio custom resource 1 0.40 s" in log, "audio events"
+    tones = tap_tones(tap)
+    assert len(tones) == 2 and 420 < tones[0] < 460 and 840 < tones[1] < 920, f"audio events heard: 440 Hz then 880 Hz ({tones})"
