@@ -4,7 +4,7 @@
 #import <CoreData/NSFetchRequest.h>
 NS_ASSUME_NONNULL_BEGIN
 @class NSEntityDescription, NSPropertyDescription, NSAttributeDescription, NSRelationshipDescription,
-       NSManagedObjectContext, NSManagedObjectModel, NSManagedObject;
+       NSManagedObjectContext, NSManagedObjectModel, NSManagedObject, NSFetchIndexDescription;
 
 /// isim: +mergedModelFromBundles: and NSPersistentContainer read isim-compiled models (<Name>.momd with
 /// JSON .mom files written by `isim build`); see docs/COREDATA.md for the format.
@@ -51,6 +51,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nullable, copy) NSString *renamingIdentifier;
 @property (strong) NSArray<NSArray<id> *> *uniquenessConstraints;
 @property (nullable, copy) NSString *coreSpotlightDisplayNameExpression;
+/// isim: each index is an SQLite index on the entity's table, created when a store opens.
+@property (copy) NSArray<NSFetchIndexDescription *> *indexes;
 @end
 
 @interface NSPropertyDescription : NSObject <NSCoding, NSCopying>
@@ -96,8 +98,18 @@ typedef NS_ENUM(NSUInteger, NSAttributeType) {
 @property BOOL allowsExternalBinaryDataStorage;
 @property BOOL preservesValueInHistoryOnDeletion;
 @property BOOL allowsCloudEncryption;
-/// Expression recomputed when an inserted or updated object is saved.
+@end
+
+/// An attribute whose value is computed from `derivationExpression` (isim: when an inserted or updated object is
+/// saved, in memory).
+@interface NSDerivedAttributeDescription : NSAttributeDescription
 @property (nullable, strong) NSExpression *derivationExpression;
+@end
+
+/// An attribute made of `elements` (iOS 17): its value is a dictionary from element names to values. isim: stored in
+/// one column; fetches with predicates on its elements ("location.latitude > 0") filter in memory.
+@interface NSCompositeAttributeDescription : NSAttributeDescription
+@property (copy) NSArray<NSAttributeDescription *> *elements;
 @end
 
 typedef NS_ENUM(NSUInteger, NSDeleteRule) {
@@ -124,6 +136,30 @@ typedef NS_ENUM(NSUInteger, NSDeleteRule) {
 @interface NSExpressionDescription : NSPropertyDescription
 @property (nullable, strong) NSExpression *expression;
 @property NSAttributeType expressionResultType;
+@end
+
+typedef NS_ENUM(NSUInteger, NSFetchIndexElementType) {
+    NSFetchIndexElementTypeBinary,
+    NSFetchIndexElementTypeRTree,
+};
+
+/// isim: an R-tree element is indexed like a binary one (an ordinary SQLite index).
+@interface NSFetchIndexElementDescription : NSObject <NSCoding, NSCopying>
+- (instancetype)initWithProperty:(NSPropertyDescription *)property collationType:(NSFetchIndexElementType)collationType;
+@property (readonly, nullable, strong) NSPropertyDescription *property;
+@property (readonly, nullable, strong) NSString *propertyName;
+@property (assign) NSFetchIndexElementType collationType;
+@property (getter=isAscending) BOOL ascending;
+@property (readonly, nonatomic, nullable, assign) NSFetchIndexDescription *indexDescription;
+@end
+
+@interface NSFetchIndexDescription : NSObject <NSCoding, NSCopying>
+- (instancetype)initWithName:(NSString *)name elements:(nullable NSArray<NSFetchIndexElementDescription *> *)elements;
+@property (copy) NSString *name;
+@property (copy) NSArray<NSFetchIndexElementDescription *> *elements;
+@property (readonly, nonatomic, nullable, assign) NSEntityDescription *entity;
+/// isim: the index is partial (CREATE INDEX ... WHERE) when the predicate translates to SQL; otherwise it covers every row.
+@property (nullable, copy) NSPredicate *partialIndexPredicate;
 @end
 
 NS_ASSUME_NONNULL_END

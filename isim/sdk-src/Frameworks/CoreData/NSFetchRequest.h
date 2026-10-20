@@ -55,6 +55,33 @@ typedef NS_OPTIONS(NSUInteger, NSFetchRequestResultType) {
 @interface NSPersistentStoreResult : NSObject
 @end
 
+@class NSManagedObjectContext;
+@class NSAsynchronousFetchRequest<ResultType : id<NSFetchRequestResult>>;
+/// isim: an asynchronous request runs on its context's queue (a perform block), after the call that started it.
+@interface NSPersistentStoreAsynchronousResult : NSPersistentStoreResult
+@property (strong, readonly) NSManagedObjectContext *managedObjectContext;
+@property (nullable, strong, readonly) NSError *operationError;
+@property (nullable, strong, readonly) NSProgress *progress;
+/// Before the request has run: it does not run, and its completion block is not called.
+- (void)cancel;
+@end
+
+@interface NSAsynchronousFetchResult<ResultType : id<NSFetchRequestResult>> : NSPersistentStoreAsynchronousResult
+@property (strong, readonly) NSAsynchronousFetchRequest<ResultType> *fetchRequest;
+@property (nullable, strong, readonly) NSArray<ResultType> *finalResult;
+@end
+
+typedef void (^NSPersistentStoreAsynchronousFetchResultCompletionBlock)(NSAsynchronousFetchResult *result);
+
+/// Executed with -[NSManagedObjectContext executeRequest:error:], which returns its NSAsynchronousFetchResult at once;
+/// the fetch then runs on the context's queue, and the completion block is called there with the same result.
+@interface NSAsynchronousFetchRequest<ResultType : id<NSFetchRequestResult>> : NSPersistentStoreRequest
+@property (strong, readonly) NSFetchRequest<ResultType> *fetchRequest;
+@property (nullable, strong, readonly) NSPersistentStoreAsynchronousFetchResultCompletionBlock completionBlock;
+@property (nonatomic) NSInteger estimatedResultCount;
+- (instancetype)initWithFetchRequest:(NSFetchRequest<ResultType> *)request completionBlock:(nullable void (^)(NSAsynchronousFetchResult<ResultType> *))blk;
+@end
+
 typedef NS_ENUM(NSUInteger, NSBatchDeleteRequestResultType) {
     NSBatchDeleteResultTypeStatusOnly NS_SWIFT_NAME(resultTypeStatusOnly) = 0x0,
     NSBatchDeleteResultTypeObjectIDs NS_SWIFT_NAME(resultTypeObjectIDs) = 0x1,

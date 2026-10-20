@@ -5,7 +5,7 @@
 /* ================= NSPersistentStore ================= */
 @implementation NSPersistentStore {
     __weak NSPersistentStoreCoordinator *_psc;
-    NSString *_config;
+    NSString *_config, *_typeName;
     NSDictionary *_options, *_metadata;
 }
 + (NSDictionary *)metadataForPersistentStoreWithURL:(NSURL *)url error:(NSError **)error {
@@ -19,9 +19,14 @@
 - (NSPersistentStoreCoordinator *)persistentStoreCoordinator { return _psc; }
 - (NSString *)configurationName { return _config; }
 - (NSDictionary *)options { return _options; }
-- (NSString *)type { return NSSQLiteStoreType; }
+- (NSString *)type { return _typeName ?: NSSQLiteStoreType; }
+- (void)_cd_setTypeName:(NSString *)type { _typeName = [type copy]; }
 - (NSDictionary *)metadata { return _metadata; }
-- (void)setMetadata:(NSDictionary *)m { _metadata = [m copy] ?: @{}; }
+/* the store's identifier is its metadata's NSStoreUUIDKey (an incremental store sets it in loadMetadata:) */
+- (void)setMetadata:(NSDictionary *)m {
+    _metadata = [m copy] ?: @{};
+    if ([_metadata[NSStoreUUIDKey] isKindOfClass:[NSString class]] && [_metadata[NSStoreUUIDKey] length]) _identifier = [_metadata[NSStoreUUIDKey] copy];
+}
 - (void)didAddToPersistentStoreCoordinator:(NSPersistentStoreCoordinator *)c {}
 - (void)willRemoveFromPersistentStoreCoordinator:(NSPersistentStoreCoordinator *)c {}
 - (NSString *)description { return [NSString stringWithFormat:@"<%@: %p> (URL: %@)", [self class], self, self.URL]; }
@@ -109,6 +114,23 @@
 - (NSURL *)URLForPersistentStore:(NSPersistentStore *)store { return store.URL; }
 - (BOOL)setURL:(NSURL *)url forPersistentStore:(NSPersistentStore *)store { store.URL = url; return YES; }
 - (NSPersistentStore *)addPersistentStoreWithType:(NSString *)type configuration:(NSString *)configuration URL:(NSURL *)url options:(NSDictionary *)options error:(NSError **)error {
+    Class registered = CDRegisteredStoreClass(type);
+    if (registered) {                                            /* an app's store class (an NSIncrementalStore) */
+        NSPersistentStore *s = [[registered alloc] initWithPersistentStoreCoordinator:self configurationName:configuration URL:url ?: [NSURL fileURLWithPath:@"/dev/null"] options:options];
+        [s _cd_setTypeName:type];
+        if (![s loadMetadata:error]) return nil;
+        if (![s.metadata[NSStoreUUIDKey] length]) {
+            id ident = [registered respondsToSelector:@selector(identifierForNewStoreAtURL:)] ? [(id)registered identifierForNewStoreAtURL:url] : [NSUUID UUID].UUIDString;
+            NSMutableDictionary *md = [s.metadata mutableCopy] ?: [NSMutableDictionary dictionary];
+            md[NSStoreUUIDKey] = [ident description]; if (!md[NSStoreTypeKey]) md[NSStoreTypeKey] = type;
+            s.metadata = md;
+        }
+        [self lock];
+        [_stores addObject:(CDSQLStore *)s];
+        [s didAddToPersistentStoreCoordinator:self];
+        [self unlock];
+        return s;
+    }
     if (![type isEqualToString:NSSQLiteStoreType] && ![type isEqualToString:NSInMemoryStoreType]) {
         if (error) *error = CDError(NSPersistentStoreInvalidTypeError, [NSString stringWithFormat:@"Unsupported store type %@ (isim: SQLite and InMemory)", type], nil);
         return nil;
@@ -144,7 +166,7 @@
 - (BOOL)removePersistentStore:(NSPersistentStore *)store error:(NSError **)error {
     if (![_stores containsObject:(CDSQLStore *)store]) { if (error) *error = CDError(NSPersistentStoreOperationError, @"The store is not in this coordinator.", nil); return NO; }
     [store willRemoveFromPersistentStoreCoordinator:self];
-    [(CDSQLStore *)store _cd_close];
+    if ([store isKindOfClass:[CDSQLStore class]]) [(CDSQLStore *)store _cd_close];
     [_stores removeObject:(CDSQLStore *)store];
     return YES;
 }
@@ -157,9 +179,16 @@
     NSString *ent = parts[parts.count - 2], *last = parts.lastObject;
     NSEntityDescription *e = _managedObjectModel.entitiesByName[ent];
     if (!e || ![last hasPrefix:@"p"]) return nil;
-    NSString *storeID = url.host;
-    for (CDSQLStore *s in _stores) if (!storeID.length || [s.identifier isEqualToString:storeID])
-        return [NSManagedObjectID _cd_idWithEntity:e store:s pk:[last substringFromIndex:1].longLongValue];
+    NSString *storeID = url.host, *ref = [[last substringFromIndex:1] stringByRemovingPercentEncoding];
+    for (NSPersistentStore *s in _stores) {
+        if (storeID.length && ![s.identifier isEqualToString:storeID]) continue;
+        if ([s isKindOfClass:[NSIncrementalStore class]]) {        /* its reference objects: numbers or strings */
+            NSScanner *sc = [NSScanner scannerWithString:ref]; long long n = 0;
+            id refObject = [sc scanLongLong:&n] && sc.isAtEnd ? (id)@(n) : ref;
+            return [(NSIncrementalStore *)s newObjectIDForEntity:e referenceObject:refObject];
+        }
+        return [NSManagedObjectID _cd_idWithEntity:e store:s pk:ref.longLongValue];
+    }
     return nil;
 }
 - (id)executeRequest:(NSPersistentStoreRequest *)request withContext:(NSManagedObjectContext *)context error:(NSError **)error {
@@ -167,7 +196,8 @@
     CDSQLStore *s = _stores.firstObject;
     if (!s) { if (error) *error = CDError(NSCoreDataError, @"This NSPersistentStoreCoordinator has no persistent stores.", nil); return nil; }
     [self lock];
-    id r = [s _cd_executeBatch:request context:context error:error];
+    id r = [s isKindOfClass:[NSIncrementalStore class]] ? [(NSIncrementalStore *)(id)s executeRequest:request withContext:context error:error]
+                                                       : [s _cd_executeBatch:request context:context error:error];
     [self unlock];
     return r;
 }

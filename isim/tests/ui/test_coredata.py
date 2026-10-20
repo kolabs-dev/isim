@@ -1,7 +1,9 @@
 """Core Data (HelloCoreData, built from HelloCoreData.xcodeproj with its .xcdatamodeld by `isim build`): SwiftUI
 @FetchRequest / @SectionedFetchRequest list, add and delete through the viewContext, @ObservedObject rows, a
 background save merged into the view, a predicate change, and persistence of the SQLite store across a relaunch,
-with its persistent history (issue #301: transactions and their authors kept in the store across launches).
+with its persistent history (issue #301: transactions and their authors kept in the store across launches), and
+(issue #302) an asynchronous fetch at launch, remote change notifications, and the titles indexed by
+NSCoreDataCoreSpotlightDelegate, which the home screen's Spotlight finds.
 Port of tests/ui/coredata.sh."""
 
 
@@ -9,6 +11,7 @@ def test_coredata(launch):
     app = launch("HelloCoreData")
     app.wait_log(r"launch items 0")
     assert "launch history 0 transactions" in app.log, "no history in a new store"
+    app.wait_log(r"async fetch 0 items")
     first = app.wait_view(r"text=count 0")
     assert "text=No items" in first, "@FetchRequest: empty list on first launch"
     for n in (1, 2, 3):
@@ -23,6 +26,7 @@ def test_coredata(launch):
     app.wait_view(r"text=count 2", what="delete + save removes the row")
     app.wait_tap_id("star-Item_3")
     app.wait_view(r"text=★", what="@ObservedObject row updates when its object changes")
+    app.wait_log(r"spotlight index updated")
     assert app.quit() == 0, "exits cleanly"
     assert "store loaded HelloCoreData.sqlite" in app.log, \
         "model compiled from the .xcdatamodeld, SQLite store in the app container"
@@ -31,11 +35,13 @@ def test_coredata(launch):
     app.wait_log(r"launch items 2")
     assert "launch history 5 transactions, authors app" in app.log, \
         "the first launch's five saves are in the store's history, with their author"
+    app.wait_log(r"async fetch 2 items")                               # NSAsynchronousFetchRequest's completion
     relaunched = app.wait_view(r"text=Item 3")
     assert "text=Item 2" not in relaunched, "store persists across a relaunch"
     assert "text=★" in relaunched, "starred flag persisted"
     app.wait_tap_id("addBackground")
     app.wait_log(r"background saved")
+    app.wait_log(r"remote change HelloCoreData.sqlite, history token true")   # NSPersistentStoreRemoteChange
     app.wait_view(lambda d: "text=Background item" in d and "text=count 3" in d,
                   what="background context save merges into the list")
     app.wait_tap_id("starredOnly")
@@ -47,3 +53,13 @@ def test_coredata(launch):
     app = launch("HelloCoreData")
     app.wait_log(r"launch history 6 transactions, authors app,background")    # the background context's author
     assert app.quit() == 0, "exits cleanly"
+
+    dev = launch(None, install=["HelloCoreData"])                      # the home screen's Spotlight finds the indexed titles
+    dev.send("spotlight")
+    dev.wait_view(r"id=spotlight-field")
+    dev.type("background")
+    dev.wait_log(r"Spotlight “background”: 0 app\(s\), 1 item\(s\)")
+    dev.wait_view(r"text=Background item")
+    dev.wait_still()
+    dev.screenshot("spotlight")
+    assert dev.quit() == 0, "exits cleanly"

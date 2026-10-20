@@ -76,6 +76,12 @@ COREDATA_EXTERN NSString * const NSInferMappingModelAutomaticallyOption;
 COREDATA_EXTERN NSString * const NSSQLitePragmasOption;
 COREDATA_EXTERN NSString * const NSPersistentHistoryTrackingKey;
 COREDATA_EXTERN NSString * const NSPersistentStoreRemoteChangeNotificationPostOptionKey;
+/// Posted (object: the coordinator) after a write to a store that has NSPersistentStoreRemoteChangeNotificationPostOptionKey
+/// on, by any coordinator or process; userInfo: NSStoreUUIDKey, NSPersistentStoreURLKey and, with persistent history,
+/// NSPersistentHistoryTokenKey. isim: delivered on a background queue through a Darwin notification named after the file.
+COREDATA_EXTERN NSNotificationName const NSPersistentStoreRemoteChangeNotification;
+COREDATA_EXTERN NSString * const NSPersistentStoreURLKey;
+COREDATA_EXTERN NSString * const NSPersistentHistoryTokenKey;
 COREDATA_EXTERN NSString * const NSPersistentStoreFileProtectionKey;
 COREDATA_EXTERN NSString * const NSPersistentStoreTimeoutOption;
 COREDATA_EXTERN NSString * const NSStoreModelVersionHashesKey;

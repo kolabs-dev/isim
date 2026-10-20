@@ -36,6 +36,11 @@ Class CDClassNamed(NSString *name);                         /* ObjC name, Module
 - (NSString *)_cd_column;
 @end
 
+/* derivationExpression is NSDerivedAttributeDescription's (Apple's API); apps built before isim had that class set it on
+ * NSAttributeDescription, so the attribute keeps the storage */
+@interface NSAttributeDescription ()
+@property (strong) NSExpression *derivationExpression;
+@end
 @interface NSAttributeDescription (CDPrivate)
 @property (nonatomic, copy) NSString *_cd_minValue, *_cd_maxValue, *_cd_regex;
 - (id)_cd_valueFromData:(NSData *)data;                      /* Transformable */
@@ -50,11 +55,22 @@ Class CDClassNamed(NSString *name);                         /* ObjC name, Module
 - (NSString *)_cd_entColumn;                                /* to-one: column with the destination's entity number */
 @end
 
+@interface NSFetchIndexDescription (CDPrivate)
+- (void)_cd_setEntity:(NSEntityDescription *)entity;
+@end
+@interface NSFetchIndexElementDescription (CDPrivate)
+- (instancetype)_cd_initWithPropertyName:(NSString *)name collationType:(NSFetchIndexElementType)type __attribute__((objc_method_family(init)));
+- (void)_cd_setIndexDescription:(NSFetchIndexDescription *)index;
+- (void)_cd_resolveInEntity:(NSEntityDescription *)entity;     /* propertyName -> property */
+@end
+
 /* ---------------- object IDs ---------------- */
 @interface NSManagedObjectID (CDPrivate)
 + (instancetype)_cd_idWithEntity:(NSEntityDescription *)entity store:(NSPersistentStore *)store pk:(int64_t)pk;
 + (instancetype)_cd_temporaryIDWithEntity:(NSEntityDescription *)entity;
++ (instancetype)_cd_idWithEntity:(NSEntityDescription *)entity store:(NSPersistentStore *)store reference:(id)reference;  /* an incremental store's */
 @property (readonly) int64_t _cd_pk;
+@property (readonly) id _cd_reference;                       /* the incremental store's reference object (else the primary key) */
 @end
 
 /* a row as exchanged between a store (or parent context) and a context: attribute values (NSNull for nil),
@@ -116,8 +132,43 @@ NSArray *CDToManyArray(id value);                           /* NSSet / NSOrdered
 - (NSString *)_cd_sqlForSortDescriptors:(NSArray<NSSortDescriptor *> *)sorts entity:(NSEntityDescription *)entity;
 @end
 
+/* query generations: a read transaction on its own connection (one per store), shared by the contexts pinned to it */
+@interface NSQueryGenerationToken (CDPrivate)
++ (instancetype)_cd_snapshotOfStores:(NSArray<NSPersistentStore *> *)stores error:(NSError **)error;
+- (BOOL)_cd_coversStores:(NSArray<NSPersistentStore *> *)stores;
+@end
+/* runs `block` with `store`'s reads going through the token's snapshot of it (no token: the store's own connection) */
+void CDReadInGeneration(NSQueryGenerationToken *token, NSPersistentStore *store, void (NS_NOESCAPE ^block)(void));
+
+/* incremental stores (Incremental.m) */
+@interface NSIncrementalStore (CDPrivate)
+- (CDSnapshot *)_cd_snapshotForObjectID:(NSManagedObjectID *)oid context:(NSManagedObjectContext *)ctx;
+- (NSArray<NSManagedObjectID *> *)_cd_relatedIDs:(NSManagedObjectID *)oid relationship:(NSRelationshipDescription *)r context:(NSManagedObjectContext *)ctx;
+- (NSArray *)_cd_fetch:(NSFetchRequest *)request context:(NSManagedObjectContext *)ctx error:(NSError **)error;
+- (BOOL)_cd_saveInserted:(NSArray *)ins updated:(NSArray *)upd deleted:(NSArray *)del context:(NSManagedObjectContext *)ctx error:(NSError **)error;
+@end
+Class CDRegisteredStoreClass(NSString *type);
+@interface NSPersistentStore (CDPrivate)
+- (void)_cd_setTypeName:(NSString *)type;
+@end
+
 @interface NSPersistentStoreDescription (CDPrivate)
 - (NSDictionary *)_cd_storeOptions;
+@end
+
+@interface NSAsynchronousFetchResult (CDPrivate)
++ (instancetype)_cd_startRequest:(NSAsynchronousFetchRequest *)request context:(NSManagedObjectContext *)context;
+@end
+
+/* ---------------- conflicts ---------------- */
+NSDictionary *CDSnapshotDictionary(CDSnapshot *s);           /* values as an NSMergeConflict / NSConstraintConflict snapshot */
+@interface NSMergeConflict (CDPrivate)
+@property (nonatomic, strong) CDSnapshot *_cd_snapshot;      /* the persisted row (nil: deleted in the store) */
+@end
+@interface NSConstraintConflict (CDPrivate)
+@property (nonatomic) int64_t _cd_version;                   /* the database row's version */
+@property (nonatomic) BOOL _cd_merged;                       /* resolved: the conflicting object is now the database row */
+@property (nonatomic) BOOL _cd_write;                        /* ... and its values are written over the row's */
 @end
 
 /* ---------------- coordinator ---------------- */
