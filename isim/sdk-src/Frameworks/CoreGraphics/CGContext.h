@@ -12,8 +12,6 @@ __BEGIN_DECLS
  * context over app memory, or a PDF context */
 typedef struct __attribute__((objc_bridge(id))) CGContext *CGContextRef;
 typedef CF_ENUM(int32_t, CGPathDrawingMode) { kCGPathFill, kCGPathEOFill, kCGPathStroke, kCGPathFillStroke, kCGPathEOFillStroke };
-typedef CF_ENUM(int32_t, CGLineJoin) { kCGLineJoinMiter, kCGLineJoinRound, kCGLineJoinBevel };
-typedef CF_ENUM(int32_t, CGLineCap) { kCGLineCapButt, kCGLineCapRound, kCGLineCapSquare };
 typedef CF_ENUM(int32_t, CGBlendMode) {
     kCGBlendModeNormal, kCGBlendModeMultiply, kCGBlendModeScreen, kCGBlendModeOverlay, kCGBlendModeDarken, kCGBlendModeLighten,
     kCGBlendModeColorDodge, kCGBlendModeColorBurn, kCGBlendModeSoftLight, kCGBlendModeHardLight, kCGBlendModeDifference,

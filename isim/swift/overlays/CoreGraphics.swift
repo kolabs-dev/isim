@@ -104,6 +104,55 @@ extension CGPath {
         }
     }
 }
+// stroked, dashed and transformed copies, and (iOS 16) boolean operations: isim's CGPathOps.c (curves come back flattened)
+extension CGPath {
+    public func copy(strokingWithWidth lineWidth: CGFloat, lineCap: CGLineCap, lineJoin: CGLineJoin, miterLimit: CGFloat,
+                     transform: CGAffineTransform = .identity) -> CGPath {
+        var t = transform
+        return CGPathCreateCopyByStrokingPath(self, &t, lineWidth, lineCap, lineJoin, miterLimit) ?? CGMutablePath()
+    }
+    public func copy(dashingWithPhase phase: CGFloat, lengths: [CGFloat], transform: CGAffineTransform = .identity) -> CGPath {
+        var t = transform
+        return CGPathCreateCopyByDashingPath(self, &t, phase, lengths, lengths.count) ?? CGMutablePath()
+    }
+    public func copy(using transform: UnsafePointer<CGAffineTransform>?) -> CGPath? { CGPathCreateCopyByTransformingPath(self, transform) }
+    public func mutableCopy(using transform: UnsafePointer<CGAffineTransform>?) -> CGMutablePath? { CGPathCreateMutableCopyByTransformingPath(self, transform) }
+    public func isRect(_ rect: UnsafeMutablePointer<CGRect>?) -> Bool { CGPathIsRect(self, rect) }
+    @available(iOS 16.0, macOS 13.0, *)
+    public func normalized(using rule: CGPathFillRule = .winding) -> CGPath { CGPathCreateCopyByNormalizing(self, rule == .evenOdd) ?? CGMutablePath() }
+    @available(iOS 16.0, macOS 13.0, *)
+    public func union(_ other: CGPath, using rule: CGPathFillRule = .winding) -> CGPath { CGPathCreateCopyByUnioningPath(self, other, rule == .evenOdd) ?? CGMutablePath() }
+    @available(iOS 16.0, macOS 13.0, *)
+    public func intersection(_ other: CGPath, using rule: CGPathFillRule = .winding) -> CGPath {
+        CGPathCreateCopyByIntersectingPath(self, other, rule == .evenOdd) ?? CGMutablePath()
+    }
+    @available(iOS 16.0, macOS 13.0, *)
+    public func subtracting(_ other: CGPath, using rule: CGPathFillRule = .winding) -> CGPath {
+        CGPathCreateCopyBySubtractingPath(self, other, rule == .evenOdd) ?? CGMutablePath()
+    }
+    @available(iOS 16.0, macOS 13.0, *)
+    public func symmetricDifference(_ other: CGPath, using rule: CGPathFillRule = .winding) -> CGPath {
+        CGPathCreateCopyBySymmetricDifferenceOfPath(self, other, rule == .evenOdd) ?? CGMutablePath()
+    }
+    @available(iOS 16.0, macOS 13.0, *)
+    public func lineIntersection(_ other: CGPath, using rule: CGPathFillRule = .winding) -> CGPath {
+        CGPathCreateCopyOfLineByIntersectingPath(self, other, rule == .evenOdd) ?? CGMutablePath()
+    }
+    @available(iOS 16.0, macOS 13.0, *)
+    public func lineSubtracting(_ other: CGPath, using rule: CGPathFillRule = .winding) -> CGPath {
+        CGPathCreateCopyOfLineBySubtractingPath(self, other, rule == .evenOdd) ?? CGMutablePath()
+    }
+    @available(iOS 16.0, macOS 13.0, *)
+    public func componentsSeparated(using rule: CGPathFillRule = .winding) -> [CGPath] {
+        guard let a = CGPathCreateSeparateComponentsOfPath(self, rule == .evenOdd) else { return [] }
+        return (0..<CFArrayGetCount(a)).map { unsafeBitCast(CFArrayGetValueAtIndex(a, $0), to: CGPath.self) }
+    }
+    @available(iOS 16.0, macOS 13.0, *)
+    public func flattened(threshold: CGFloat) -> CGPath { CGPathCreateCopyByFlattening(self, threshold) ?? CGMutablePath() }
+    @available(iOS 16.0, macOS 13.0, *)
+    public func intersects(_ other: CGPath, using rule: CGPathFillRule = .winding) -> Bool { CGPathIntersectsPath(self, other, rule == .evenOdd) }
+}
+
 public enum CGPathFillRule: Int, Sendable { case winding, evenOdd }
 
 extension CGMutablePath {
@@ -129,6 +178,9 @@ extension CGMutablePath {
     }
     public func addRelativeArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, delta: CGFloat, transform: CGAffineTransform = .identity) {
         var t = transform; CGPathAddRelativeArc(self, &t, center.x, center.y, radius, startAngle, delta)
+    }
+    public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat, transform: CGAffineTransform = .identity) {
+        var t = transform; CGPathAddArcToPoint(self, &t, tangent1End.x, tangent1End.y, tangent2End.x, tangent2End.y, radius)
     }
     public func addPath(_ path: CGPath, transform: CGAffineTransform = .identity) { var t = transform; CGPathAddPath(self, &t, path) }
     public func closeSubpath() { CGPathCloseSubpath(self) }
