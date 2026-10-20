@@ -185,6 +185,11 @@ def _(a):
                  "-preset", "veryfast", f"{b}/clip.mp4")
 
 
+@app("samples/HelloAccelerate")
+def _(a):
+    a.swift_app()
+
+
 @app("samples/HelloFoundationModels")
 def _(a):
     a.swift_app()
@@ -812,6 +817,13 @@ def _(a):
 @app("tests/cgpath", products=["CGPathTest.app"], swift=False)
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "CoreGraphics"], name="CGPathTest")
+
+
+@app("tests/accelerate", products=["AccelerateTest.app", "AccelerateCTest.app"])
+def _(a):
+    a.swift_app("AccelerateTest", srcs=["AccelerateTest.swift"], plist="Info.plist")
+    b = a.objc_app(["main.m"], "C-Info.plist", ["-framework", "Accelerate"], name="AccelerateCTest")
+    os.replace(os.path.join(b, "C-Info.plist"), os.path.join(b, "Info.plist"))
 
 
 @app("tests/uttypes", products=["UTTypesTest.app", "UTTypesObjCTest.app"])
