@@ -3,7 +3,9 @@
 // - Now Playing info goes to the device's Control Center and lock screen (isim boot: the shell draws title, artist,
 //   artwork, progress and the transport buttons), and is logged when it changes.
 // - Remote commands come from those buttons and from the `remote NAME [ARG]` script/control command (play, pause,
-//   toggle, stop, next, previous, skipforward [s], skipback [s], seek SECONDS, rate R, like, dislike, bookmark).
+//   toggle, stop, next, previous, skipforward [s], skipback [s], seek SECONDS, rate R, like, dislike, bookmark,
+//   repeat off|one|all, shuffle off|items|collections, rating N, language ID, nolanguage ID).
+// - MPNowPlayingSession (iOS 16): per-session info centers and command centers, published from AVPlayers.
 // - MPVolumeView's slider is the device volume (isim's own, shared with Control Center and the `volume up|down`
 //   command: every app of the device plays at it; the host's volume never changes).
 @_exported import Foundation
@@ -31,6 +33,16 @@ public let MPNowPlayingInfoPropertyMediaType = "MPNowPlayingInfoPropertyMediaTyp
 public let MPNowPlayingInfoPropertyIsLiveStream = "MPNowPlayingInfoPropertyIsLiveStream"
 public let MPNowPlayingInfoPropertyAssetURL = "MPNowPlayingInfoPropertyAssetURL"
 public let MPNowPlayingInfoPropertyCurrentPlaybackDate = "MPNowPlayingInfoPropertyCurrentPlaybackDate"
+public let MPNowPlayingInfoPropertyPlaybackProgress = "MPNowPlayingInfoPropertyPlaybackProgress"
+public let MPNowPlayingInfoPropertyChapterNumber = "MPNowPlayingInfoPropertyChapterNumber"
+public let MPNowPlayingInfoPropertyChapterCount = "MPNowPlayingInfoPropertyChapterCount"
+public let MPNowPlayingInfoPropertyAvailableLanguageOptions = "MPNowPlayingInfoPropertyAvailableLanguageOptions"
+public let MPNowPlayingInfoPropertyCurrentLanguageOptions = "MPNowPlayingInfoPropertyCurrentLanguageOptions"
+public let MPNowPlayingInfoCollectionIdentifier = "MPNowPlayingInfoCollectionIdentifier"
+public let MPNowPlayingInfoPropertyExternalContentIdentifier = "MPNowPlayingInfoPropertyExternalContentIdentifier"
+public let MPNowPlayingInfoPropertyExternalUserProfileIdentifier = "MPNowPlayingInfoPropertyExternalUserProfileIdentifier"
+public let MPNowPlayingInfoPropertyServiceIdentifier = "MPNowPlayingInfoPropertyServiceIdentifier"
+public let MPNowPlayingInfoPropertyExcludeFromSuggestions = "MPNowPlayingInfoPropertyExcludeFromSuggestions"
 
 public enum MPNowPlayingInfoMediaType: UInt, Sendable { case none = 0, audio, video }
 public enum MPNowPlayingPlaybackState: UInt, Sendable { case unknown = 0, playing, paused, stopped, interrupted }
@@ -53,7 +65,9 @@ open class MPNowPlayingInfoCenter: NSObject {
             let title = nowPlayingInfo?[MPMediaItemPropertyTitle] as? String ?? "-"
             let artist = nowPlayingInfo?[MPMediaItemPropertyArtist] as? String
             let elapsed = Self.number(nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime])
+            let progress = Self.number(nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackProgress])
             let summary = nowPlayingInfo == nil ? "cleared" : title + (artist.map { " — \($0)" } ?? "") + (elapsed.map { String(format: " @ %.1f s", $0) } ?? "")
+                + (progress.map { String(format: " (%.0f%%)", $0 * 100) } ?? "")
             if summary != lastSummary { lastSummary = summary; NSLog("isim MediaPlayer: now playing %@", summary) }
             publish()
         }
@@ -86,8 +100,10 @@ open class MPNowPlayingInfoCenter: NSObject {
             }
         }
         let b = [field(MPMediaItemPropertyTitle), field(MPMediaItemPropertyArtist), field(MPMediaItemPropertyAlbumTitle), art].joined(separator: "\u{1f}")
-        let c = String(format: "%.3f %.3f %.3f", Self.number(info[MPMediaItemPropertyPlaybackDuration]) ?? 0,
-                       Self.number(info[MPNowPlayingInfoPropertyElapsedPlaybackTime]) ?? 0, rate)
+        let duration = Self.number(info[MPMediaItemPropertyPlaybackDuration]) ?? 0
+        // the elapsed time, or the playback progress (0...1) of the duration
+        let elapsed = Self.number(info[MPNowPlayingInfoPropertyElapsedPlaybackTime]) ?? Self.number(info[MPNowPlayingInfoPropertyPlaybackProgress]).map { $0 * duration } ?? 0
+        let c = String(format: "%.3f %.3f %.3f", duration, elapsed, rate)
         isim_shell_request(40, "nowplaying", b.isEmpty ? " " : b, c)
     }
 }
@@ -119,6 +135,67 @@ open class MPSeekCommandEvent: MPRemoteCommandEvent {
 open class MPFeedbackCommandEvent: MPRemoteCommandEvent {
     public let isNegative: Bool
     init(command: MPRemoteCommand, negative: Bool) { isNegative = negative; super.init(command: command) }
+}
+public enum MPRepeatType: Int, Sendable { case off = 0, one, all }
+public enum MPShuffleType: Int, Sendable { case off = 0, items, collections }
+open class MPChangeRepeatModeCommandEvent: MPRemoteCommandEvent {
+    public let repeatType: MPRepeatType
+    public let preservesRepeatMode: Bool
+    init(command: MPRemoteCommand, repeatType: MPRepeatType) { self.repeatType = repeatType; preservesRepeatMode = false; super.init(command: command) }
+}
+open class MPChangeShuffleModeCommandEvent: MPRemoteCommandEvent {
+    public let shuffleType: MPShuffleType
+    public let preservesShuffleMode: Bool
+    init(command: MPRemoteCommand, shuffleType: MPShuffleType) { self.shuffleType = shuffleType; preservesShuffleMode = false; super.init(command: command) }
+}
+open class MPRatingCommandEvent: MPRemoteCommandEvent {
+    public let rating: Float
+    init(command: MPRemoteCommand, rating: Float) { self.rating = rating; super.init(command: command) }
+}
+public enum MPChangeLanguageOptionSetting: Int, Sendable { case none = 0, nowPlayingItemOnly, permanent }
+open class MPChangeLanguageOptionCommandEvent: MPRemoteCommandEvent {
+    public let languageOption: MPNowPlayingInfoLanguageOption
+    public let setting: MPChangeLanguageOptionSetting
+    init(command: MPRemoteCommand, option: MPNowPlayingInfoLanguageOption) { languageOption = option; setting = .nowPlayingItemOnly; super.init(command: command) }
+}
+
+// MARK: - language options
+
+public enum MPNowPlayingInfoLanguageOptionType: UInt, Sendable { case audible = 0, legible }
+public let MPLanguageOptionCharacteristicIsMainProgramContent = "public.main-program-content"
+public let MPLanguageOptionCharacteristicIsAuxiliaryContent = "public.auxiliary-content"
+public let MPLanguageOptionCharacteristicContainsOnlyForcedSubtitles = "public.subtitles.forced-only"
+public let MPLanguageOptionCharacteristicTranscribesSpokenDialog = "public.accessibility.transcribes-spoken-dialog"
+public let MPLanguageOptionCharacteristicDescribesMusicAndSound = "public.accessibility.describes-music-and-sound"
+public let MPLanguageOptionCharacteristicEasyToRead = "public.easy-to-read"
+public let MPLanguageOptionCharacteristicDescribesVideo = "public.accessibility.describes-video"
+public let MPLanguageOptionCharacteristicLanguageTranslation = "public.translation"
+public let MPLanguageOptionCharacteristicDubbedTranslation = "public.translation.dubbed"
+public let MPLanguageOptionCharacteristicVoiceOverTranslation = "public.translation.voice-over"
+
+/// an audio track or subtitles the app offers (MPNowPlayingInfoPropertyAvailableLanguageOptions)
+open class MPNowPlayingInfoLanguageOption: NSObject {
+    public let languageOptionType: MPNowPlayingInfoLanguageOptionType
+    public let languageTag: String?
+    public let languageOptionCharacteristics: [String]?
+    public let displayName: String?
+    public let identifier: String?
+    public init(type languageOptionType: MPNowPlayingInfoLanguageOptionType, languageTag: String, characteristics languageOptionCharacteristics: [String]?,
+                displayName: String, identifier: String) {
+        self.languageOptionType = languageOptionType; self.languageTag = languageTag; self.languageOptionCharacteristics = languageOptionCharacteristics
+        self.displayName = displayName; self.identifier = identifier
+    }
+    /// the system's "Auto" subtitles choice
+    open var isAutomaticLegibleLanguageOption: Bool { languageOptionType == .legible && identifier == "isim.automatic" }
+    open var isAutomaticAudibleLanguageOption: Bool { languageOptionType == .audible && identifier == "isim.automatic" }
+}
+open class MPNowPlayingInfoLanguageOptionGroup: NSObject {
+    public let languageOptions: [MPNowPlayingInfoLanguageOption]
+    public let defaultLanguageOption: MPNowPlayingInfoLanguageOption?
+    public let allowEmptySelection: Bool
+    public init(languageOptions: [MPNowPlayingInfoLanguageOption], defaultLanguageOption: MPNowPlayingInfoLanguageOption?, allowEmptySelection: Bool) {
+        self.languageOptions = languageOptions; self.defaultLanguageOption = defaultLanguageOption; self.allowEmptySelection = allowEmptySelection
+    }
 }
 
 open class MPRemoteCommand: NSObject {
@@ -161,8 +238,12 @@ open class MPFeedbackCommand: MPRemoteCommand {
 }
 open class MPChangePlaybackRateCommand: MPRemoteCommand { open var supportedPlaybackRates: [NSNumber] = [0.5, 1, 1.5, 2].map { NSNumber(value: $0) } }
 open class MPChangePlaybackPositionCommand: MPRemoteCommand {}
-open class MPChangeRepeatModeCommand: MPRemoteCommand {}
-open class MPChangeShuffleModeCommand: MPRemoteCommand {}
+open class MPChangeRepeatModeCommand: MPRemoteCommand { open var currentRepeatType: MPRepeatType = .off }
+open class MPChangeShuffleModeCommand: MPRemoteCommand { open var currentShuffleType: MPShuffleType = .off }
+open class MPRatingCommand: MPRemoteCommand {
+    open var minimumRating: Float = 0
+    open var maximumRating: Float = 5
+}
 
 open class MPRemoteCommandCenter: NSObject {
     nonisolated(unsafe) static let _shared = MPRemoteCommandCenter()
@@ -184,9 +265,13 @@ open class MPRemoteCommandCenter: NSObject {
     public let likeCommand = MPFeedbackCommand(name: "like")
     public let dislikeCommand = MPFeedbackCommand(name: "dislike")
     public let bookmarkCommand = MPFeedbackCommand(name: "bookmark")
-    public let enableLanguageOptionCommand = MPRemoteCommand(name: "enablelanguage")
-    public let disableLanguageOptionCommand = MPRemoteCommand(name: "disablelanguage")
+    public let enableLanguageOptionCommand = MPRemoteCommand(name: "language")
+    public let disableLanguageOptionCommand = MPRemoteCommand(name: "nolanguage")
+    public let ratingCommand = MPRatingCommand(name: "rating")
     var timer: Timer?
+    /// the session's info center, for the language options a command names (MPNowPlayingSession)
+    weak var _infoCenter: MPNowPlayingInfoCenter?
+    public override init() { super.init() }
 
     func _startPolling() {
         guard timer == nil else { return }
@@ -198,16 +283,38 @@ open class MPRemoteCommandCenter: NSObject {
         var buf = [CChar](repeating: 0, count: 64)
         while isim_remote_command_poll(&buf, 64) != 0 {
             let line = String(cString: buf).trimmingCharacters(in: .whitespaces)
+            // an active Now Playing session takes the commands, as on iOS
+            (MPNowPlayingSession._active?.remoteCommandCenter ?? self)._deliver(line)
+        }
+    }
+    func _deliver(_ line: String) {
+        do {
             let parts = line.split(separator: " ").map(String.init)
-            guard let name = parts.first?.lowercased() else { continue }
+            guard let name = parts.first?.lowercased() else { return }
             let arg = parts.count > 1 ? Double(parts[1]) : nil
             let all: [MPRemoteCommand] = [playCommand, pauseCommand, stopCommand, togglePlayPauseCommand, nextTrackCommand, previousTrackCommand,
                                           skipForwardCommand, skipBackwardCommand, seekForwardCommand, seekBackwardCommand, changePlaybackPositionCommand,
                                           changePlaybackRateCommand, changeRepeatModeCommand, changeShuffleModeCommand, likeCommand, dislikeCommand,
-                                          bookmarkCommand]
-            guard let cmd = all.first(where: { $0.name == name }) else { NSLog("isim MediaPlayer: unknown remote command '%@'", line); continue }
+                                          bookmarkCommand, ratingCommand, enableLanguageOptionCommand, disableLanguageOptionCommand]
+            guard let cmd = all.first(where: { $0.name == name }) else { NSLog("isim MediaPlayer: unknown remote command '%@'", line); return }
+            let word = parts.count > 1 ? parts[1].lowercased() : ""
             let event: MPRemoteCommandEvent
             switch cmd {
+            case let c as MPChangeRepeatModeCommand:
+                event = MPChangeRepeatModeCommandEvent(command: c, repeatType: word == "one" ? .one : word == "all" ? .all : .off)
+            case let c as MPChangeShuffleModeCommand:
+                event = MPChangeShuffleModeCommandEvent(command: c, shuffleType: word == "items" ? .items : word == "collections" ? .collections : .off)
+            case let c as MPRatingCommand:
+                event = MPRatingCommandEvent(command: c, rating: max(c.minimumRating, min(c.maximumRating, Float(arg ?? 0))))
+            case _ where cmd === enableLanguageOptionCommand || cmd === disableLanguageOptionCommand:
+                // the option the app offered with that identifier (or display name)
+                let id = parts.count > 1 ? parts[1] : ""
+                let info = (_infoCenter ?? MPNowPlayingInfoCenter.shared).nowPlayingInfo
+                let groups = info?[MPNowPlayingInfoPropertyAvailableLanguageOptions] as? [MPNowPlayingInfoLanguageOptionGroup] ?? []
+                guard let option = groups.flatMap(\.languageOptions).first(where: { $0.identifier == id || $0.displayName == id }) else {
+                    NSLog("isim MediaPlayer: no language option '%@' in the Now Playing info", id); return
+                }
+                event = MPChangeLanguageOptionCommandEvent(command: cmd, option: option)
             case let c as MPSkipIntervalCommand: event = MPSkipIntervalCommandEvent(command: c, interval: arg ?? c.preferredIntervals.first?.doubleValue ?? 15)
             case let c as MPChangePlaybackPositionCommand: event = MPChangePlaybackPositionCommandEvent(command: c, position: arg ?? 0)
             case let c as MPChangePlaybackRateCommand: event = MPChangePlaybackRateCommandEvent(command: c, rate: Float(arg ?? 1))
@@ -223,6 +330,84 @@ open class MPRemoteCommandCenter: NSObject {
             let status = target._send(sent)
             NSLog("isim MediaPlayer: remote command %@ -> %@", line, status == .success ? "success" : "status \(status.rawValue)")
         }
+    }
+}
+
+// MARK: - Now Playing sessions (iOS 16)
+
+public protocol MPNowPlayingSessionDelegate: NSObjectProtocol {
+    func nowPlayingSessionDidChangeActive(_ nowPlayingSession: MPNowPlayingSession)
+    func nowPlayingSessionDidChangeCanBecomeActive(_ nowPlayingSession: MPNowPlayingSession)
+}
+extension MPNowPlayingSessionDelegate {
+    public func nowPlayingSessionDidChangeActive(_ nowPlayingSession: MPNowPlayingSession) {}
+    public func nowPlayingSessionDidChangeCanBecomeActive(_ nowPlayingSession: MPNowPlayingSession) {}
+}
+
+/// An app's Now Playing for some players: its own info center and command center. The active session is what the
+/// system shows and sends commands to; with automaticallyPublishesNowPlayingInfo its info follows the first player.
+open class MPNowPlayingSession: NSObject {
+    nonisolated(unsafe) static weak var _active: MPNowPlayingSession?
+    public private(set) var players: [AVPlayer]
+    public let nowPlayingInfoCenter = MPNowPlayingInfoCenter()
+    public let remoteCommandCenter = MPRemoteCommandCenter()
+    open weak var delegate: MPNowPlayingSessionDelegate?
+    open var automaticallyPublishesNowPlayingInfo = false { didSet { if automaticallyPublishesNowPlayingInfo { _publish() } } }
+    var timer: Timer?
+    public init(players: [AVPlayer]) {
+        self.players = players
+        super.init()
+        remoteCommandCenter._infoCenter = nowPlayingInfoCenter
+        timer = Timer._isimScheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?._publish() }
+    }
+    deinit { timer?.invalidate() }
+    open var isActive: Bool { Self._active === self }
+    /// a session can become active while it has a player
+    open var canBecomeActive: Bool { !players.isEmpty }
+    open func becomeActiveIfPossible(completion: ((Bool) -> Void)? = nil) {
+        let ok = canBecomeActive
+        if ok && !isActive {
+            let old = Self._active
+            Self._active = self
+            remoteCommandCenter._startPolling()
+            NSLog("isim MediaPlayer: Now Playing session active")
+            old?.delegate?.nowPlayingSessionDidChangeActive(old!)
+            delegate?.nowPlayingSessionDidChangeActive(self)
+            _publish(force: true)
+        }
+        DispatchQueue.main.async { completion?(ok) }
+    }
+    open func becomeActiveIfPossible() async -> Bool { await withCheckedContinuation { k in becomeActiveIfPossible { k.resume(returning: $0) } } }
+    open func addPlayer(_ player: AVPlayer) {
+        let could = canBecomeActive
+        players.append(player)
+        if could != canBecomeActive { delegate?.nowPlayingSessionDidChangeCanBecomeActive(self) }
+    }
+    open func removePlayer(_ player: AVPlayer) {
+        let could = canBecomeActive
+        players.removeAll { $0 === player }
+        if could != canBecomeActive { delegate?.nowPlayingSessionDidChangeCanBecomeActive(self) }
+    }
+    /// the first player's item: duration, elapsed time and rate (the app's own keys kept)
+    var lastPublished = ""
+    func _publish(force: Bool = false) {
+        guard automaticallyPublishesNowPlayingInfo, let p = players.first, let item = p.currentItem else {
+            if force && isActive { MPNowPlayingInfoCenter.shared.nowPlayingInfo = nowPlayingInfoCenter.nowPlayingInfo }
+            return
+        }
+        var info = nowPlayingInfoCenter.nowPlayingInfo ?? [:]
+        let d = item.duration.seconds, t = p.currentTime().seconds
+        if d.isFinite { info[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: d) }
+        if t.isFinite { info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = NSNumber(value: t) }
+        info[MPNowPlayingInfoPropertyPlaybackRate] = NSNumber(value: p.rate)
+        info[MPNowPlayingInfoPropertyMediaType] = NSNumber(value: MPNowPlayingInfoMediaType.audio.rawValue)
+        let key = String(format: "%.0f %.0f %.1f", d.isFinite ? d : 0, t.isFinite ? t : 0, p.rate)
+        guard force || key != lastPublished else { return }
+        lastPublished = key
+        nowPlayingInfoCenter.nowPlayingInfo = info
+        nowPlayingInfoCenter.playbackState = p.rate > 0 ? .playing : .paused
+        // the active session is what the system shows
+        if isActive { MPNowPlayingInfoCenter.shared.nowPlayingInfo = info; MPNowPlayingInfoCenter.shared.playbackState = nowPlayingInfoCenter.playbackState }
     }
 }
 
