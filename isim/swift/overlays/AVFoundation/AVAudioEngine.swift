@@ -17,36 +17,37 @@ import isim_host
 
 // MARK: - time
 
-public struct AVAudioTime: Sendable {
-    public var sampleTime: AVAudioFramePosition
-    public var sampleRate: Double
-    public init(sampleTime: AVAudioFramePosition, atRate rate: Double) { self.sampleTime = sampleTime; sampleRate = rate; _flags = 1 }
-    var _hostTime: UInt64 = 0
-    var _flags: UInt8 = 0                      // 1 sample time valid, 2 host time valid
-    public init(hostTime: UInt64) { sampleTime = 0; sampleRate = 0; _hostTime = hostTime; _flags = 2 }
+/// A moment in the engine's timeline: a sample time at a rate, a host time, or both. A class (NSObject), as on iOS:
+/// isim before 0.26 had a struct (issue #287).
+open class AVAudioTime: NSObject, @unchecked Sendable {
+    public let sampleTime: AVAudioFramePosition
+    public let sampleRate: Double
+    public let hostTime: UInt64
+    let _flags: UInt8                          // 1 sample time valid, 2 host time valid
+    public init(sampleTime: AVAudioFramePosition, atRate rate: Double) { self.sampleTime = sampleTime; sampleRate = rate; hostTime = 0; _flags = 1 }
+    public init(hostTime: UInt64) { sampleTime = 0; sampleRate = 0; self.hostTime = hostTime; _flags = 2 }
     public init(hostTime: UInt64, sampleTime: AVAudioFramePosition, atRate rate: Double) {
-        self.sampleTime = sampleTime; sampleRate = rate; _hostTime = hostTime; _flags = 3
+        self.sampleTime = sampleTime; sampleRate = rate; self.hostTime = hostTime; _flags = 3
     }
     public init(audioTimeStamp ts: UnsafePointer<AudioTimeStamp>, sampleRate: Double) {
         let t = ts.pointee
-        sampleTime = AVAudioFramePosition(t.mSampleTime); self.sampleRate = sampleRate; _hostTime = t.mHostTime
+        sampleTime = AVAudioFramePosition(t.mSampleTime); self.sampleRate = sampleRate; hostTime = t.mHostTime
         _flags = (t.mFlags.contains(.sampleTimeValid) ? 1 : 0) | (t.mFlags.contains(.hostTimeValid) ? 2 : 0)
     }
-    public var hostTime: UInt64 { _hostTime }
-    public var isSampleTimeValid: Bool { _flags & 1 != 0 }
-    public var isHostTimeValid: Bool { _flags & 2 != 0 }
-    public var audioTimeStamp: AudioTimeStamp {
+    open var isSampleTimeValid: Bool { _flags & 1 != 0 }
+    open var isHostTimeValid: Bool { _flags & 2 != 0 }
+    open var audioTimeStamp: AudioTimeStamp {
         var t = AudioTimeStamp()
-        t.mSampleTime = Double(sampleTime); t.mHostTime = _hostTime; t.mRateScalar = 1
+        t.mSampleTime = Double(sampleTime); t.mHostTime = hostTime; t.mRateScalar = 1
         if isSampleTimeValid { t.mFlags.insert(.sampleTimeValid) }
         if isHostTimeValid { t.mFlags.insert(.hostTimeValid) }
         return t
     }
     /// host times are nanoseconds of the uptime clock (mach_absolute_time)
-    public static func hostTime(forSeconds seconds: TimeInterval) -> UInt64 { UInt64(max(0, seconds) * 1e9) }
-    public static func seconds(forHostTime hostTime: UInt64) -> TimeInterval { Double(hostTime) / 1e9 }
+    open class func hostTime(forSeconds seconds: TimeInterval) -> UInt64 { UInt64(max(0, seconds) * 1e9) }
+    open class func seconds(forHostTime hostTime: UInt64) -> TimeInterval { Double(hostTime) / 1e9 }
     /// fills in the missing time (sample or host) from an anchor that has both
-    public func extrapolateTime(fromAnchor anchor: AVAudioTime) -> AVAudioTime? {
+    open func extrapolateTime(fromAnchor anchor: AVAudioTime) -> AVAudioTime? {
         guard anchor.isSampleTimeValid, anchor.isHostTimeValid, anchor.sampleRate > 0 else { return nil }
         let rate = sampleRate > 0 ? sampleRate : anchor.sampleRate
         if isSampleTimeValid && !isHostTimeValid {
@@ -58,6 +59,14 @@ public struct AVAudioTime: Sendable {
             return AVAudioTime(hostTime: hostTime, sampleTime: anchor.sampleTime + AVAudioFramePosition((dt * anchor.sampleRate).rounded()), atRate: anchor.sampleRate)
         }
         return self
+    }
+    open override func isEqual(_ object: Any?) -> Bool {
+        guard let o = object as? AVAudioTime else { return false }
+        return o._flags == _flags && o.sampleTime == sampleTime && o.sampleRate == sampleRate && o.hostTime == hostTime
+    }
+    open override var hash: Int { sampleTime.hashValue ^ hostTime.hashValue }
+    open override var description: String {
+        "<AVAudioTime \(isHostTimeValid ? "host \(hostTime)" : "") \(isSampleTimeValid ? "\(sampleTime) @ \(sampleRate) Hz" : "")>"
     }
     static func now() -> UInt64 { DispatchTime.now().uptimeNanoseconds }
 }
@@ -124,7 +133,7 @@ final class _MixSettings {
 
 func _mixSettings(_ n: AVAudioNode) -> _MixSettings? {
     (n as? AVAudioPlayerNode)?._mix ?? (n as? AVAudioMixerNode)?._mix ?? (n as? AVAudioInputNode)?._mix ?? (n as? AVAudioSourceNode)?._mix
-        ?? (n as? AVAudioEnvironmentNode)?._mix
+        ?? (n as? AVAudioEnvironmentNode)?._mix ?? (n as? AVAudioUnitGenerator)?._mix
 }
 
 /// One connection of a source node to a mixer.
@@ -367,6 +376,7 @@ open class AVAudioPlayerNode: AVAudioNode, AVAudioMixing {
     override var _naturalOutputFormat: AVAudioFormat { _formatHint ?? AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 2)! }
 
     func _schedule(_ item: Item) {
+        item.buffer._syncFromRaw()                           // Int16 or interleaved buffers play from their float view
         engine?._lock.lock(); defer { engine?._lock.unlock() }
         if _formatHint == nil { _formatHint = item.buffer.format }
         if item.options.contains(.interrupts) {
@@ -777,9 +787,12 @@ open class AVAudioUnit: AVAudioNode {
     open class func instantiate(with audioComponentDescription: AudioComponentDescription, options: AudioComponentInstantiationOptions = [],
                                 completionHandler: @escaping (AVAudioUnit?, Error?) -> Void) {
         let d = audioComponentDescription
-        let node: AVAudioUnit? = _IsimAudioUnit.make(type: d.componentType, subType: d.componentSubType).map {
-            d.componentType == kAudioUnitType_Effect || d.componentType == kAudioUnitType_FormatConverter ? AVAudioUnitEffect(_unit: $0) : AVAudioUnit(_unit: $0)
-        }
+        // the node class follows the component type, as on iOS (effects, time effects; generators always, rendering silence)
+        let node: AVAudioUnit? = d.componentType == kAudioUnitType_Generator ? AVAudioUnitGenerator(audioComponentDescription: d)
+            : _IsimAudioUnit.make(type: d.componentType, subType: d.componentSubType).map {
+                d.componentType == kAudioUnitType_Effect ? AVAudioUnitEffect(_unit: $0)
+                    : d.componentType == kAudioUnitType_FormatConverter ? AVAudioUnitTimeEffect(_unit: $0) : AVAudioUnit(_unit: $0)
+            }
         DispatchQueue.main.async {
             completionHandler(node, node == nil ? NSError(domain: NSOSStatusErrorDomain, code: Int(kAudioUnitErr_FailedInitialization)) : nil)
         }
@@ -872,13 +885,60 @@ open class AVAudioUnitEQ: AVAudioUnitEffect {
     public override convenience init() { self.init(numberOfBands: 1) }
 }
 
+/// Units that change the timing of audio (format converters such as AUVarispeed and AUNewTimePitch): their input and
+/// output run at different rates. As on iOS, the varispeed and time-pitch nodes are time effects (isim before 0.26 made
+/// them AVAudioUnitEffects, issue #287).
+open class AVAudioUnitTimeEffect: AVAudioUnit {
+    public init(audioComponentDescription: AudioComponentDescription) {
+        super.init(_unit: _IsimAudioUnit.make(type: audioComponentDescription.componentType, subType: audioComponentDescription.componentSubType))
+    }
+    override init(_unit u: _IsimAudioUnit?) { super.init(_unit: u) }
+    public override init() { super.init() }
+    open var bypass: Bool { get { _unit?.bypass ?? _bypass } set { _unit?.bypass = newValue; _bypass = newValue } }
+    var _bypass = false
+}
+
+/// A source node made from a generator Audio Unit (kAudioUnitType_Generator). Adapted: isim has none of Apple's
+/// generator units (AUAudioFilePlayer, AUScheduledSoundPlayer), so a generator node renders silence; its mixing
+/// settings (volume, pan, 3D) apply like a player node's.
+open class AVAudioUnitGenerator: AVAudioUnit, AVAudioMixing {
+    let _mix = _MixSettings()
+    public init(audioComponentDescription: AudioComponentDescription) {
+        _desc = audioComponentDescription
+        super.init(_unit: _IsimAudioUnit.make(type: audioComponentDescription.componentType, subType: audioComponentDescription.componentSubType))
+    }
+    let _desc: AudioComponentDescription
+    open override var audioComponentDescription: AudioComponentDescription { _desc }
+    open var bypass = false
+    open var volume: Float { get { _mix.volume } set { _mix.volume = max(0, newValue) } }
+    open var pan: Float { get { _mix.pan } set { _mix.pan = max(-1, min(1, newValue)) } }
+    open var renderingAlgorithm: AVAudio3DMixingRenderingAlgorithm { get { _mix.renderingAlgorithm } set { _mix.renderingAlgorithm = newValue } }
+    open var sourceMode: AVAudio3DMixingSourceMode { get { _mix.sourceMode } set { _mix.sourceMode = newValue } }
+    open var pointSourceInHeadMode: AVAudio3DMixingPointSourceInHeadMode { get { _mix.pointSourceInHeadMode } set { _mix.pointSourceInHeadMode = newValue } }
+    open var rate: Float { get { _mix.rate } set { _mix.rate = max(0.5, min(2, newValue)) } }
+    open var reverbBlend: Float { get { _mix.reverbBlend } set { _mix.reverbBlend = max(0, min(1, newValue)) } }
+    open var obstruction: Float { get { _mix.obstruction } set { _mix.obstruction = max(-100, min(0, newValue)) } }
+    open var occlusion: Float { get { _mix.occlusion } set { _mix.occlusion = max(-100, min(0, newValue)) } }
+    open var position: AVAudio3DPoint { get { _mix.position } set { _mix.position = newValue } }
+    open func destination(forMixer mixer: AVAudioNode, bus: AVAudioNodeBus) -> AVAudioMixingDestination? {
+        guard let e = engine, e._outputConnections(of: self, bus: 0).contains(where: { $0.dst === mixer && $0.dstBus == bus }) else { return nil }
+        return AVAudioMixingDestination(_mix, AVAudioConnectionPoint(node: mixer, bus: bus))
+    }
+    open override var numberOfInputs: Int { 0 }
+    override func _render(_ n: Int, _ c: _Cycle) -> [[Float]] {
+        _IsimChannels.silence(Int(outputFormat(forBus: 0).channelCount), n)
+    }
+    override func _rate() -> Double { outputFormat(forBus: 0).sampleRate }
+    override var _naturalOutputFormat: AVAudioFormat { _defaultFormat }
+}
+
 /// Rate change by resampling, pitch follows (AUVarispeed).
-open class AVAudioUnitVarispeed: AVAudioUnitEffect {
+open class AVAudioUnitVarispeed: AVAudioUnitTimeEffect {
     public override init() { super.init(_unit: _IsimAudioUnit.make(type: kAudioUnitType_FormatConverter, subType: kAudioUnitSubType_Varispeed)) }
     open var rate: Float { get { _param(kVarispeedParam_PlaybackRate) } set { _setParam(kVarispeedParam_PlaybackRate, max(0.25, min(4, newValue))) } }
 }
 /// Rate without pitch change and pitch without rate change (AUNewTimePitch; adapted: WSOLA time stretch + resampling).
-open class AVAudioUnitTimePitch: AVAudioUnitEffect {
+open class AVAudioUnitTimePitch: AVAudioUnitTimeEffect {
     public override init() { super.init(_unit: _IsimAudioUnit.make(type: kAudioUnitType_FormatConverter, subType: kAudioUnitSubType_NewTimePitch)) }
     open var rate: Float { get { _param(kNewTimePitchParam_Rate) } set { _setParam(kNewTimePitchParam_Rate, max(1.0 / 32, min(32, newValue))) } }
     /// cents

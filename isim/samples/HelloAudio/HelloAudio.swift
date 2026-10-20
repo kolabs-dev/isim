@@ -136,7 +136,7 @@ final class AudioViewController: UIViewController, AVSpeechSynthesizerDelegate, 
         return b
     }
     /// Renders `seconds` of a 1 s, 440 Hz tone through `effect`; returns the output and when the buffer finished.
-    func render(_ effect: AVAudioUnitEffect?, seconds: Double = 2) -> (AVAudioPCMBuffer, Double) {
+    func render(_ effect: AVAudioUnit?, seconds: Double = 2) -> (AVAudioPCMBuffer, Double) {
         let engine = AVAudioEngine(), player = AVAudioPlayerNode()
         let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)!
         engine.attach(player)

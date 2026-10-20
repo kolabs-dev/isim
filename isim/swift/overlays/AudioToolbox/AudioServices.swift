@@ -905,8 +905,9 @@ public func AudioConverterConvertComplexBuffer(_ inAudioConverter: AudioConverte
     _ = _PCM.fill(UnsafeMutableAudioBufferListPointer(outOutputData), _PCM.adapt(x, from: c.from, to: c.to), c.to, from: 0, count: Int(inNumberPCMFrames))
     return noErr_
 }
-/// Pulls input through `inInputDataProc` until *ioOutputDataPacketSize packets are produced or the input ends (the proc
-/// returns no packets or an error).
+/// Pulls input through `inInputDataProc` until *ioOutputDataPacketSize packets are produced or the input stops: no
+/// packets and noErr ends the stream; an error (with no packets) ends this call only and is returned, as on iOS, so a
+/// later call continues the stream (AVAudioConverter's noDataNow).
 public func AudioConverterFillComplexBuffer(_ inAudioConverter: AudioConverterRef, _ inInputDataProc: AudioConverterComplexInputDataProc,
                                             _ inInputDataProcUserData: UnsafeMutableRawPointer?, _ ioOutputDataPacketSize: UnsafeMutablePointer<UInt32>,
                                             _ outOutputData: UnsafeMutablePointer<AudioBufferList>,
@@ -914,6 +915,7 @@ public func AudioConverterFillComplexBuffer(_ inAudioConverter: AudioConverterRe
     guard let c = _object(inAudioConverter, _AudioConverter.self) else { return kAudio_ParamError }
     let want = Int(ioOutputDataPacketSize.pointee)
     var status = noErr_
+    var failed = false                                   // the proc returned an error: stop this call, keep the stream
     /// asks the app for input; false when it has none (the end, or an error kept in `status`)
     func pull(_ packets: Int, _ use: (UnsafeMutableAudioBufferListPointer, Int, UnsafeMutablePointer<AudioStreamPacketDescription>?) -> Void) -> Bool {
         let ich = Int(max(1, c.from.mChannelsPerFrame))
@@ -924,7 +926,8 @@ public func AudioConverterFillComplexBuffer(_ inAudioConverter: AudioConverterRe
         status = withUnsafeMutablePointer(to: &descs) { d in
             inInputDataProc(inAudioConverter, &n, list.unsafeMutablePointer, c.mode == .decode ? d : nil, inInputDataProcUserData)
         }
-        guard n > 0, status == noErr_ else { return false }
+        if status != noErr_ { failed = true; return false }
+        guard n > 0 else { return false }
         use(list, Int(n), descs)
         return true
     }
@@ -935,10 +938,10 @@ public func AudioConverterFillComplexBuffer(_ inAudioConverter: AudioConverterRe
         func feed(_ k: Int) {
             if c.inputEnded { return }
             let ok = pull(k) { list, n, _ in c.rate.feed(_PCM.adapt(_PCM.read(list, c.from, frames: n), from: c.from, to: toPCM)) }
-            if !ok { c.inputEnded = true; c.rate.ended = true }
+            if !ok && !failed { c.inputEnded = true; c.rate.ended = true }
         }
         if c.mode == .pcm {
-            while c.rate.available < want && !c.inputEnded { feed(max(1, Int(Double(want - c.rate.available) * c.rate.step) + 1)) }
+            while c.rate.available < want && !c.inputEnded && !failed { feed(max(1, Int(Double(want - c.rate.available) * c.rate.step) + 1)) }
             let y = c.rate.take(want)
             let n = _PCM.fill(UnsafeMutableAudioBufferListPointer(outOutputData), y, c.to, from: 0, count: y.first?.count ?? 0)
             ioOutputDataPacketSize.pointee = UInt32(n)
@@ -957,6 +960,7 @@ public func AudioConverterFillComplexBuffer(_ inAudioConverter: AudioConverterRe
                 continue
             }
             feed(1024)
+            if failed { break }
             let y = c.rate.take(c.rate.available)
             let n = y.first?.count ?? 0
             if n > 0 {
@@ -997,7 +1001,7 @@ public func AudioConverterFillComplexBuffer(_ inAudioConverter: AudioConverterRe
                     c.drainDecoder()
                 }
             }
-            if !ok { c.inputEnded = true }
+            if !ok { if failed { break }; c.inputEnded = true }
         }
         let y = c.rate.take(want)
         let n = _PCM.fill(UnsafeMutableAudioBufferListPointer(outOutputData), y, c.to, from: 0, count: y.first?.count ?? 0)

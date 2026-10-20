@@ -146,6 +146,8 @@ public let AVEncoderAudioQualityKey = "AVEncoderAudioQualityKey"
 public let AVEncoderBitRateKey = "AVEncoderBitRateKey"
 public let AVEncoderBitDepthHintKey = "AVEncoderBitDepthHintKey"
 public let AVSampleRateConverterAudioQualityKey = "AVSampleRateConverterAudioQualityKey"
+public let AVSampleRateConverterAlgorithmKey = "AVSampleRateConverterAlgorithmKey"
+public let AVChannelLayoutKey = "AVChannelLayoutKey"
 public enum AVAudioQuality: Int, Sendable { case min = 0, low = 0x20, medium = 0x40, high = 0x60, max = 0x7F }
 
 /// Collects PCM and writes WAV/CAF (16/24/32-bit int or 32-bit float); other containers via the host's ffmpeg.
@@ -167,6 +169,7 @@ final class _AudioFileWriter {
         }
     }
     func append(_ b: AVAudioPCMBuffer) {
+        b._syncFromRaw()
         let n = Int(b.frameLength)
         let src = b.channels.map { Array(UnsafeBufferPointer(start: $0, count: n)) }
         let conv = b.format.sampleRate == rate ? src : src.map { _resample($0, by: b.format.sampleRate / rate) }
