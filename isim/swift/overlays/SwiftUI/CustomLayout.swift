@@ -104,7 +104,18 @@ final class _AlignmentGuideNode: _WrapperNode {
 }
 @MainActor func _hasGuides(_ nodes: [_Node], horizontal: Bool, _ id: Int) -> Bool {
     if id >= 100 { return true }
-    return nodes.contains { _explicitGuide($0, .zero, horizontal: horizontal, id) != nil }
+    return nodes.contains { _containsGuide($0, horizontal: horizontal, id) }
+}
+/// Whether _explicitGuide finds a guide in n, without measuring anything (measuring stacks there to look for guides
+/// made every stack re-measure its whole subtree: exponential in the nesting depth).
+@MainActor func _containsGuide(_ n: _Node?, horizontal: Bool, _ id: Int) -> Bool {
+    var x = n
+    while let c = x {
+        if let g = c as? _AlignmentGuideNode, g.horizontal == horizontal, g.id == id { return true }
+        if let st = c as? _StackNode { return _flatten(st.children).contains { _containsGuide($0, horizontal: horizontal, id) } }
+        x = c.children.count == 1 && !(c is _ZStackNode) ? c.children[0] : nil
+    }
+    return false
 }
 /// Offsets that line up the children's guides along one axis, and the extent they cover (nil: no explicit guides,
 /// the stack's plain leading/center/trailing placement applies).
