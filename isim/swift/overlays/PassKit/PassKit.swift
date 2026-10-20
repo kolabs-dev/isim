@@ -407,6 +407,8 @@ open class PKPayment: NSObject, @unchecked Sendable {
 open class PKPaymentAuthorizationResult: NSObject, @unchecked Sendable {
     open var status: PKPaymentAuthorizationStatus
     open var errors: [Error]!
+    /// the Wallet order the payment creates (isim's Wallet records it)
+    open var orderDetails: PKPaymentOrderDetails?
     public init(status: PKPaymentAuthorizationStatus, errors: [Error]?) {
         self.status = status; self.errors = errors ?? []
         super.init()

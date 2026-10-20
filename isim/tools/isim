@@ -27,6 +27,7 @@
 #   isim storekit <app> list|refund|expire|cancel|resume|billing-issue|resolve|clear ...   local StoreKit Transaction Manager
 #   isim storekit <app> purchase-intent PRODUCT [OFFER] | promotions   a purchase started on the App Store; promotion settings
 #   isim storekit <app> approve|decline [ID|all] | age-rating [CODE|none]   Ask to Buy answers; AppStore.ageRatingCode
+#   isim wallet list|add FILE|remove TYPE SERIAL|orders|clear   the device's Wallet: passes and Apple Pay orders
 #   isim storekit certificate|offer-key   the device's StoreKit testing certificate and subscription offers key
 #   isim gamecenter [<app>] players|friends|score|challenge|activity|saved-games|...   local Game Center network
 #   isim openurl <URL> [--control FIFO]   open a URL (custom scheme or universal link) in the running device's foreground app
@@ -563,7 +564,7 @@ PY
     desktop_cmd "${1:-}" ;;
   test)
     exec python3 "$BIN/isim-test.py" "$@" ;;
-  storekit|gamecenter|appleid)
+  storekit|gamecenter|appleid|wallet)
     ISIM_DATA=$DATA exec python3 "$BIN/isim-services.py" "$cmd" "$@" ;;
   metrickit)   # Debug > Simulate MetricKit Payloads: running apps' MXMetricManager subscribers get sample payloads
     mkdir -p "$DATA/Library/isim"

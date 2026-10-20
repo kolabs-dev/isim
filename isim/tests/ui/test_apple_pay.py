@@ -5,7 +5,12 @@ reports as unserviceable (Pay is disabled until another is chosen), and authoriz
 donation (PKPaymentAuthorizationController) is declined once ("Payment Not Completed") and retried. SwiftUI's
 PayWithApplePayButton cancels, then pays with the price its onApplePayPaymentMethodChange sets. With ISIM_APPLE_PAY=0
 the device has no cards: canMakePayments() is false and the button shows its fallback."""
+import os
+import subprocess
+
 import pytest
+
+from isimtest import ISIM
 
 
 def total(app, text):
@@ -13,7 +18,7 @@ def total(app, text):
 
 
 @pytest.mark.os_matrix
-def test_apple_pay(launch):
+def test_apple_pay(launch, device_data):
     app = launch("HelloApplePay")
     app.wait_log(r"can pay: true visa\+mc\+amex true jcb false debit true")
     app.wait_log(r"networks: Visa,MasterCard,AmEx,Discover")
@@ -66,7 +71,11 @@ def test_apple_pay(launch):
     app.wait_log(r"coffee: authorized method=Visa 4242 network=Visa type=2 token=isim-test amount=15\.8 id=64 shipping=express "
                  r"contact=Jane Appleseed / 1 Test Street, Cupertino / jane\.appleseed@example\.com")
     app.wait_log(r"isim PassKit: authorization result success")
+    app.wait_log(r"isim PassKit: Wallet added order order\.dev\.isim\.samples\.coffee coffee-42")
     app.wait_log(r"coffee: finished paid=true")
+    orders = subprocess.run([str(ISIM), "wallet", "orders"], env=dict(os.environ, ISIM_DATA=str(device_data)),
+                            stdout=subprocess.PIPE, text=True, timeout=60).stdout
+    assert "order.dev.isim.samples.coffee coffee-42  $15.80  merchant.dev.isim.samples.coffee  https://orders.example.com/" in orders, orders
     app.wait_view(r"text=coffee paid")
 
     # the donation: declined once, then retried on the same sheet
