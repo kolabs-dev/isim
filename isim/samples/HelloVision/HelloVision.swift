@@ -1,5 +1,6 @@
 // Sample: on-device intelligence APIs on isim — Vision (VNDetectBarcodesRequest with region of interest and
-// orientation, VNRecognizeTextRequest, VNDetectFaceRectanglesRequest), Core ML (MLModel.compileModel, model
+// orientation, VNRecognizeTextRequest, faces and landmarks, rectangles, text rectangles, contours, the horizon and
+// saliency on pictures the app draws), Core ML (MLModel.compileModel, model
 // descriptions, MLMultiArray, GLM regressor/classifier predictions, models isim cannot run), NaturalLanguage
 // (NLTokenizer, NLLanguageRecognizer, NLTagger), Speech (authorization alert, recognition) and VisionKit
 // (DataScannerViewController support check). Pictures and model specs are made by the build (buildlib/apps.py).
@@ -30,6 +31,7 @@ func message(_ e: Error) -> String { (e as NSError).userInfo[NSLocalizedDescript
 final class VisionViewController: UIViewController {
     let picture = UIImageView()
     let speechLabel = UILabel()
+    let detected = UIImageView()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -40,9 +42,12 @@ final class VisionViewController: UIViewController {
         view.addSubview(picture)
         speechLabel.frame = CGRect(x: 20, y: 300, width: 362, height: 22); speechLabel.accessibilityIdentifier = "speech"
         view.addSubview(speechLabel)
+        detected.frame = CGRect(x: 51, y: 330, width: 300, height: 225); detected.accessibilityIdentifier = "detected"
+        view.addSubview(detected)
         barcodes()
         text()
         faces()
+        detectors()
         coreML()
         language()
         visionKit()
@@ -95,11 +100,106 @@ final class VisionViewController: UIViewController {
             log("text recognized \(lines)")
         } catch { log("text unavailable: \(message(error))") }
     }
+    /// faces and landmarks in NASA's astronaut portrait (face.jpg, also HelloCoreImage's)
     func faces() {
-        guard let img = UIImage(contentsOfFile: res.appendingPathComponent("text.png").path)?.cgImage else { return }
+        guard let img = UIImage(contentsOfFile: res.appendingPathComponent("face.jpg").path)?.cgImage else { log("faces: no test picture"); return }
         let req = VNDetectFaceRectanglesRequest { req, err in log("face completion error=\(err.map(message) ?? "none")") }
-        do { try VNImageRequestHandler(cgImage: img).perform([req]); log("faces \(req.results?.count ?? 0)") }
-        catch { log("faces error \((error as NSError).domain) \((error as NSError).code)") }
+        let marks = VNDetectFaceLandmarksRequest()
+        do {
+            try VNImageRequestHandler(cgImage: img).perform([req, marks])
+            let found = req.results as? [VNFaceObservation] ?? []
+            log("faces \(found.count) box=\(found.first.map { rect($0.boundingBox) } ?? "-") roll=\(found.first?.roll.map { f2($0.doubleValue) } ?? "nil")")
+            if let lm = (marks.results as? [VNFaceObservation])?.first?.landmarks, let le = lm.leftPupil?.normalizedPoints.first,
+               let re = lm.rightPupil?.normalizedPoints.first, let lips = lm.outerLips?.normalizedPoints {
+                let mouthY = lips.map(\.y).reduce(0, +) / CGFloat(lips.count)
+                log("landmarks pupils \(f2(le.x)),\(f2(le.y)) \(f2(re.x)),\(f2(re.y)) mouth below eyes \(mouthY < min(le.y, re.y)) " +
+                    "contour \(lm.faceContour?.pointCount ?? 0) all \(lm.allPoints?.pointCount ?? 0) closed \(lm.leftEye?.pointsClassification == .closedPath)")
+            }
+            /* landmarks for a face given by the app (inputFaceObservations), here the detected one */
+            let given = VNDetectFaceLandmarksRequest()
+            given.inputFaceObservations = found
+            try VNImageRequestHandler(cgImage: img).perform([given])
+            log("given faces landmarks \((given.results as? [VNFaceObservation] ?? []).filter { $0.landmarks != nil }.count)")
+        } catch { log("faces error \((error as NSError).domain) \((error as NSError).code)") }
+    }
+
+    /// a picture drawn with UIKit (top-left origin, 1 pixel per point)
+    func render(_ w: CGFloat, _ h: CGFloat, _ draw: (CGContext) -> Void) -> CGImage {
+        let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
+        return UIGraphicsImageRenderer(size: CGSize(width: w, height: h), format: fmt).image { draw($0.cgContext) }.cgImage!
+    }
+    /// rectangles, text rectangles, contours, the horizon and saliency, on pictures with known answers (issue #276)
+    func detectors() {
+        /* shapes: a 160x100 rectangle, an 80 pt square turned 20 degrees, and a ring around a dot */
+        let shapes = render(400, 300) { c in
+            c.setFillColor(UIColor.white.cgColor); c.fill(CGRect(x: 0, y: 0, width: 400, height: 300))
+            c.setFillColor(UIColor.black.cgColor); c.fill(CGRect(x: 40, y: 40, width: 160, height: 100))
+            c.saveGState(); c.translateBy(x: 300, y: 200); c.rotate(by: 20 * .pi / 180); c.fill(CGRect(x: -40, y: -40, width: 80, height: 80)); c.restoreGState()
+            c.fillEllipse(in: CGRect(x: 55, y: 185, width: 90, height: 90))
+            c.setFillColor(UIColor.white.cgColor); c.fillEllipse(in: CGRect(x: 75, y: 205, width: 50, height: 50))
+            c.setFillColor(UIColor.black.cgColor); c.fillEllipse(in: CGRect(x: 92, y: 222, width: 16, height: 16))
+        }
+        let rects = VNDetectRectanglesRequest()
+        rects.maximumObservations = 0; rects.minimumAspectRatio = 0.3; rects.minimumSize = 0.1
+        let contours = VNDetectContoursRequest()
+        do {
+            try VNImageRequestHandler(cgImage: shapes).perform([rects, contours])
+            let found = rects.results as? [VNRectangleObservation] ?? []
+            log("rectangles \(found.count): " + found.map { rect($0.boundingBox) }.joined(separator: "; ") +
+                (found.first.map { " first topLeft \(f2($0.topLeft.x)),\(f2($0.topLeft.y)) bottomRight \(f2($0.bottomRight.x)),\(f2($0.bottomRight.y))" } ?? ""))
+            if let obs = contours.results?.first as? VNContoursObservation {
+                let ring = try obs.contour(at: IndexPath(indexes: [2]))
+                let dot = try obs.contour(at: IndexPath(indexes: [2, 0, 0]))
+                let box = try obs.contour(at: IndexPath(index: 0)).polygonApproximation(epsilon: 0.01)
+                log("contours \(obs.contourCount) top \(obs.topLevelContourCount) ring children \(ring.childContourCount) " +
+                    "dot path \(dot.indexPath.map(String.init).joined(separator: ".")) box corners \(box.pointCount) aspect \(f2(Double(box.aspectRatio)))")
+                detected.image = UIImage(cgImage: render(400, 300) { c in
+                    UIImage(cgImage: shapes).draw(in: CGRect(x: 0, y: 0, width: 400, height: 300))   // UIKit: upright
+                    c.translateBy(x: 0, y: 300); c.scaleBy(x: 400, y: -300)           // Vision's normalized, y-up space
+                    c.addPath(obs.normalizedPath); c.setStrokeColor(UIColor.systemRed.cgColor); c.setLineWidth(3 / 400); c.strokePath()
+                    c.setStrokeColor(UIColor.systemGreen.cgColor); c.setLineWidth(6 / 400)
+                    for r in found { c.addLines(between: [r.topLeft, r.topRight, r.bottomRight, r.bottomLeft, r.topLeft]) }
+                    c.strokePath()
+                })
+            }
+        } catch { log("shapes error \(message(error))") }
+
+        /* text rectangles: two words, without OCR */
+        let words = render(480, 120) { c in
+            c.setFillColor(UIColor.white.cgColor); c.fill(CGRect(x: 0, y: 0, width: 480, height: 120))
+            ("HELLO ISIM" as NSString).draw(at: CGPoint(x: 40, y: 30), withAttributes: [.font: UIFont.systemFont(ofSize: 48, weight: .bold), .foregroundColor: UIColor.black])
+        }
+        let textRects = VNDetectTextRectanglesRequest(); textRects.reportCharacterBoxes = true
+        try? VNImageRequestHandler(cgImage: words).perform([textRects])
+        let tr = textRects.results as? [VNTextObservation] ?? []
+        log("text rectangles \(tr.count) chars \(tr.map { $0.characterBoxes?.count ?? 0 })")
+
+        /* the horizon: sky over ground, the line turned 10 degrees counterclockwise */
+        let tilted = render(320, 240) { c in
+            c.setFillColor(UIColor(red: 0.6, green: 0.8, blue: 1, alpha: 1).cgColor); c.fill(CGRect(x: 0, y: 0, width: 320, height: 240))
+            let t = tan(10 * Double.pi / 180)
+            c.setFillColor(UIColor(red: 0.1, green: 0.35, blue: 0.1, alpha: 1).cgColor)
+            c.addLines(between: [CGPoint(x: 0, y: 120 + 160 * t), CGPoint(x: 320, y: 120 - 160 * t), CGPoint(x: 320, y: 240), CGPoint(x: 0, y: 240)])
+            c.fillPath()
+        }
+        let horizon = VNDetectHorizonRequest()
+        try? VNImageRequestHandler(cgImage: tilted).perform([horizon])
+        if let h = horizon.results?.first as? VNHorizonObservation {
+            log("horizon \(String(format: "%.1f", h.angle * 180 / .pi)) levels \(f2(atan2(h.transform.b, h.transform.a) * 180 / .pi))")
+        } else { log("horizon none") }
+
+        /* saliency: a red disk off-centre on grey */
+        let disk = render(300, 300) { c in
+            c.setFillColor(UIColor(white: 0.5, alpha: 1).cgColor); c.fill(CGRect(x: 0, y: 0, width: 300, height: 300))
+            c.setFillColor(UIColor.red.cgColor); c.fillEllipse(in: CGRect(x: 175, y: 55, width: 70, height: 70))
+        }
+        let saliency = VNGenerateAttentionBasedSaliencyImageRequest()
+        try? VNImageRequestHandler(cgImage: disk).perform([saliency])
+        if let s = saliency.results?.first as? VNSaliencyImageObservation, let o = s.salientObjects?.first {
+            let pb = s.pixelBuffer
+            log("saliency \(CVPixelBufferGetWidth(pb))x\(CVPixelBufferGetHeight(pb)) float \(CVPixelBufferGetPixelFormatType(pb) == kCVPixelFormatType_OneComponent32Float) " +
+                "objects \(s.salientObjects?.count ?? 0) first center \(f2(o.boundingBox.midX)),\(f2(o.boundingBox.midY))")
+        } else { log("saliency none") }
     }
 
     // MARK: Core ML
