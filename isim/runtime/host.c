@@ -2077,6 +2077,10 @@ ISIM_GUEST_ABI int isim_acodec_receive_pcm(struct isim_acodec *h, float *out, in
 struct isim_vcodec; ISIM_GUEST_ABI struct isim_vcodec *isim_vcodec_open(const char *name); int isim_vcodec_send(struct isim_vcodec *h, const unsigned char *d, int n);
 ISIM_GUEST_ABI int isim_vcodec_receive(struct isim_vcodec *h, int *w, int *hh); void isim_vcodec_frame_bgra(struct isim_vcodec *h, unsigned char *out);
 ISIM_GUEST_ABI void isim_vcodec_flush(struct isim_vcodec *h); void isim_vcodec_close(struct isim_vcodec *h);
+struct isim_venc; ISIM_GUEST_ABI struct isim_venc *isim_venc_open(const char *codec, int w, int h, double fps, long bitrate, int gop, const char *profile, int realtime);
+ISIM_GUEST_ABI int isim_venc_send_bgra(struct isim_venc *e, const unsigned char *bgra, long long pts, int key);
+ISIM_GUEST_ABI int isim_venc_receive(struct isim_venc *e, unsigned char *out, int cap, long long *pts, long long *dts, int *key);
+ISIM_GUEST_ABI void isim_venc_close(struct isim_venc *e);
 ISIM_GUEST_ABI int isim_web_available(char *why, int cap); void isim_web_send(const char *line); char *isim_web_next(double timeout);
 ISIM_GUEST_ABI void isim_web_free(char *s); int isim_web_frame(int view, int *w, int *h); void isim_web_release(int view);
 struct isim_tls; struct isim_tls *isim_tls_connect(int fd, const char *host, int verify, const char *alpn, int min_version, char *err, int errlen, int *code);
@@ -2196,7 +2200,7 @@ static const struct shim isim_table[] = {
     H(isim_audio_stream_open), H(isim_audio_stream_write), H(isim_audio_stream_control), H(isim_audio_stream_close),
     H(isim_acodec_open), H(isim_acodec_frame_size), H(isim_acodec_send_pcm), H(isim_acodec_receive_packet), H(isim_acodec_send_packet),
     H(isim_acodec_receive_pcm), H(isim_acodec_close), H(isim_vcodec_open), H(isim_vcodec_send), H(isim_vcodec_receive),
-    H(isim_vcodec_frame_bgra), H(isim_vcodec_flush), H(isim_vcodec_close), H(isim_device_volume), H(isim_device_volume_set), H(isim_media_remote_post),
+    H(isim_vcodec_frame_bgra), H(isim_vcodec_flush), H(isim_vcodec_close), H(isim_venc_open), H(isim_venc_send_bgra), H(isim_venc_receive), H(isim_venc_close), H(isim_device_volume), H(isim_device_volume_set), H(isim_media_remote_post),
     ISIM_CG_EXPORTS(H),
     H(isim_web_available), H(isim_web_send), H(isim_web_next), H(isim_web_free), H(isim_web_frame), H(isim_web_release),
     H(isim_tls_connect), H(isim_tls_start), H(isim_tls_peer_chain), H(isim_tls_read), H(isim_tls_write), H(isim_tls_info), H(isim_tls_close), H(isim_tls_read_nb), H(isim_tls_write_nb), H(isim_tls_probe),

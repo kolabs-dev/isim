@@ -3,7 +3,7 @@ AVSampleBufferDisplayLayer (decoded by the host's libavcodec) shows red, green a
 AVSampleBufferRenderSynchronizer's clock; a 440 Hz LPCM tone plays through an AVSampleBufferAudioRenderer (checked
 on the mixed output, ISIM_AUDIO_TAP); periodic and boundary time observers fire; pausing holds the frame; a second
 layer shows uncompressed pixel buffers as they arrive; the first layer floats in Picture in Picture with a
-sample-buffer content source and its playback delegate."""
+sample-buffer content source and its playback delegate; VideoToolbox encodes three frames and decodes them back."""
 import array
 import re
 
@@ -76,5 +76,6 @@ def test_sample_buffers(launch, device_data):
         "periodic observer: copyDisplayedPixelBuffer follows the clock"
     assert near(held, BLUE, 40), "pausing the synchronizer holds the frame"
     assert has(r"pip possible true") and has(r"pip render size true"), "Picture in Picture of sample-buffer content"
+    assert has(r"videotoolbox encoded 3 decoded red green blue"), "VideoToolbox: compression and decompression sessions (issue #284)"
     freq, rms = tone_frequency(tap)
     assert 420 < freq < 460 and rms > 0.1, f"the 440 Hz tone plays (measured {freq:.0f} Hz, RMS {rms:.2f})"

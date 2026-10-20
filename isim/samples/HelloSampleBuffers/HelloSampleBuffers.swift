@@ -6,10 +6,12 @@
 //   the frame.
 // - A second layer shows uncompressed CVPixelBuffers as soon as they are enqueued (DisplayImmediately).
 // - The first layer can float in Picture in Picture (ContentSource(sampleBufferDisplayLayer:playbackDelegate:)).
+// - VideoToolbox: three frames encoded with a VTCompressionSession and decoded back with a VTDecompressionSession.
 // Every step logs a line the test reads.
 import UIKit
 import AVFoundation
 import AVKit
+import VideoToolbox
 
 func log(_ s: String) { NSLog("HelloSampleBuffers: %@", s) }
 
@@ -154,6 +156,37 @@ final class Player: NSObject, AVPictureInPictureSampleBufferPlaybackDelegate, @u
     }
 }
 
+/// VideoToolbox: red, green and blue encoded to H.264 and decoded back
+func videoToolboxRoundTrip() {
+    var encoder: VTCompressionSession?
+    var samples: [CMSampleBuffer] = []
+    VTCompressionSessionCreate(allocator: nil, width: 64, height: 48, codecType: kCMVideoCodecType_H264, encoderSpecification: nil, imageBufferAttributes: nil,
+                               compressedDataAllocator: nil, outputCallback: nil, refcon: nil, compressionSessionOut: &encoder)
+    guard let e = encoder else { log("videotoolbox: no encoder"); return }
+    let colours: [(UInt8, UInt8, UInt8)] = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+    for (i, c) in colours.enumerated() {
+        VTCompressionSessionEncodeFrame(e, imageBuffer: pixelBuffer(c, 64, 48), presentationTimeStamp: CMTime(value: Int64(i), timescale: 10),
+                                        duration: CMTime(value: 1, timescale: 10), frameProperties: nil, infoFlagsOut: nil) { status, _, sb in
+            if status == noErr, let sb { samples.append(sb) }
+        }
+    }
+    VTCompressionSessionCompleteFrames(e, untilPresentationTimeStamp: .invalid)
+    VTCompressionSessionInvalidate(e)
+    guard let format = samples.first.flatMap({ CMSampleBufferGetFormatDescription($0) }) else { log("videotoolbox: nothing encoded"); return }
+    var decoder: VTDecompressionSession?
+    VTDecompressionSessionCreate(allocator: nil, formatDescription: format, decoderSpecification: nil,
+                                 imageBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA] as CFDictionary,
+                                 outputCallback: nil, decompressionSessionOut: &decoder)
+    var names: [String] = []
+    for sb in samples {
+        VTDecompressionSessionDecodeFrame(decoder!, sampleBuffer: sb, flags: [], infoFlagsOut: nil) { status, _, image, _, _ in
+            names.append(status == noErr ? colourName(image) : "error \(status)")
+        }
+    }
+    VTDecompressionSessionInvalidate(decoder!)
+    log("videotoolbox encoded \(samples.count) decoded \(names.joined(separator: " "))")
+}
+
 final class ViewController: UIViewController, AVPictureInPictureControllerDelegate {
     let top = LayerView(), bottom = LayerView()
     var player: Player!
@@ -184,6 +217,7 @@ final class ViewController: UIViewController, AVPictureInPictureControllerDelega
         pipButton.frame = CGRect(x: 20 + w / 2 + 20, y: bottom.frame.minY + 50, width: w / 2 - 20, height: 44)
         [status, top, bottom, pause, pipButton].forEach(view.addSubview)
 
+        videoToolboxRoundTrip()
         player = Player(top.displayLayer)
         do { try player.start() } catch { log("start failed \(error)") }
         // uncompressed frames, shown as soon as they are enqueued

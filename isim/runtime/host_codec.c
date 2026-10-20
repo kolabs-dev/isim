@@ -1,11 +1,13 @@
 /* libisim_host codecs through the host's libavcodec, loaded with dlopen only when an app needs one: audio (AAC, and MP3
- * decoding) for AudioToolbox's AudioConverter, and video decoding (H.264, HEVC) for AVSampleBufferDisplayLayer.
+ * decoding) for AudioToolbox's AudioConverter, and video decoding and encoding (H.264, HEVC) for
+ * AVSampleBufferDisplayLayer and VideoToolbox.
  * Without libavcodec the functions report that the codec is unavailable and AudioConverterNew returns
  * kAudioConverterErr_FormatNotSupported (the display layer fails to decode).
  *
  * No FFmpeg headers are needed: the few functions are declared here, options are set through AVOptions, and the
  * fields that are not options are found at run time (stable since FFmpeg 5.1):
- *   - AVPacket: data, size (offsets 24, 32 since FFmpeg 4);
+ *   - AVPacket: pts, dts, data, size, flags (offsets 8, 16, 24, 32, 40 since FFmpeg 4);
+ *   - AVCodecContext.pix_fmt: after gop_size (the "g" option); AVFrame.pts: the first AV_NOPTS_VALUE of a new frame;
  *   - AVFrame: data[], linesize[], extended_data, width, height, nb_samples, format (offsets 0, 64, 96, 104, 108, 112,
  *     116); sample_rate and ch_layout are
  *     located by decoding one PCM packet and finding the values the decoder wrote;
@@ -329,4 +331,105 @@ ISIM_GUEST_ABI void isim_vcodec_close(struct isim_vcodec *h) {
     if (!h) return;
     av.frame_free(&h->frame); av.packet_free(&h->pkt); av.free_ctx(&h->ctx);
     free(h);
+}
+
+/* ---- video encoding: BGRA frames in, Annex-B access units out (libx264 / libx265, parameter sets on key frames) ---- */
+#define PKT_PTS(p) (*(int64_t *)((char *)(p) + 8))
+#define PKT_DTS(p) (*(int64_t *)((char *)(p) + 16))
+#define PKT_FLAGS(p) (*(int *)((char *)(p) + 40))
+
+struct isim_venc {
+    void *ctx, *frame, *pkt;
+    int w, h, pts_off, flushed;
+    uint8_t *planes;
+};
+
+/* codec "h264" or "hevc"; profile "baseline" / "main" / "high" or NULL; bitrate in bits/s (0: quality-based);
+   gop: frames between key frames (0: the encoder's); realtime: tuned for low latency. NULL when unavailable. */
+ISIM_GUEST_ABI struct isim_venc *isim_venc_open(const char *codec, int w, int h, double fps, long bitrate, int gop, const char *profile, int realtime) {
+    if (!load() || w <= 0 || h <= 0 || (w & 1) || (h & 1)) return NULL;
+    int hevc = codec && !strcmp(codec, "hevc");
+    void *enc = av.find_encoder(hevc ? "libx265" : "libx264");
+    if (!enc) return NULL;
+    void *ctx = av.alloc_ctx(enc);
+    char size[32]; snprintf(size, sizeof size, "%dx%d", w, h);
+    av.opt_set(ctx, "video_size", size, 0);
+    /* libx264 takes the frame rate from the time base: pts count frames (the caller keeps the real timestamps,
+       frames come out in order) */
+    char tb[32]; snprintf(tb, sizeof tb, "1/%d", fps > 0 ? (int)(fps + 0.5) : 30);
+    av.opt_set(ctx, "time_base", tb, 0);
+    const avopt *g = av.opt_find(ctx, "g", NULL, 0, 0);
+    if (!g) { av.free_ctx(&ctx); return NULL; }
+    *(int *)((char *)ctx + g->offset + 4) = PIX_YUV420P;           /* pix_fmt follows gop_size */
+    if (gop > 0) av.opt_set_int(ctx, "g", gop, 0);
+    av.opt_set_int(ctx, "bf", 0, 0);                              /* no reordering: decode order is presentation order */
+    av.opt_set_int(ctx, "threads", 1, 0);
+    if (bitrate > 0) av.opt_set_int(ctx, "b", bitrate, 0);
+    av.opt_set(ctx, "preset", "veryfast", 1);                     /* AV_OPT_SEARCH_CHILDREN: the encoder's private options */
+    if (realtime) av.opt_set(ctx, "tune", "zerolatency", 1);
+    if (profile && *profile && !hevc) av.opt_set(ctx, "profile", profile, 1);
+    if (hevc) av.opt_set(ctx, "x265-params", "log-level=error", 1);
+    if (av.open2(ctx, enc, NULL) < 0) { av.free_ctx(&ctx); return NULL; }
+    struct isim_venc *e = calloc(1, sizeof *e);
+    e->ctx = ctx; e->w = w; e->h = h; e->frame = av.frame_alloc(); e->pkt = av.packet_alloc();
+    for (int o = 120; o < 512; o += 8) if (*(int64_t *)((char *)e->frame + o) == INT64_MIN) { e->pts_off = o; break; }
+    e->planes = malloc((size_t)w * h * 3 / 2);
+    return e;
+}
+/* one frame of tightly packed BGRA, pts its frame number; key forces a key frame; bgra NULL ends the stream.
+   0 accepted, -1 rejected */
+ISIM_GUEST_ABI int isim_venc_send_bgra(struct isim_venc *e, const unsigned char *bgra, long long pts, int key) {
+    if (!e || e->flushed) return -1;
+    if (!bgra) { e->flushed = 1; return av.send_frame(e->ctx, NULL) < 0 ? -1 : 0; }
+    if (!e->pts_off) return -1;
+    int w = e->w, h = e->h;
+    uint8_t *Y = e->planes, *U = Y + (size_t)w * h, *V = U + (size_t)(w / 2) * (h / 2);
+    for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) {               /* BT.601, limited range */
+        const unsigned char *p = bgra + ((size_t)y * w + x) * 4;
+        int b = p[0], g = p[1], r = p[2];
+        Y[(size_t)y * w + x] = clamp8(((66 * r + 129 * g + 25 * b + 128) >> 8) + 16);
+        if (!(x & 1) && !(y & 1)) {
+            /* the chroma of the 2x2 block */
+            int rr = 0, gg = 0, bb = 0;
+            for (int dy = 0; dy < 2; dy++) for (int dx = 0; dx < 2; dx++) {
+                const unsigned char *q = bgra + ((size_t)(y + dy) * w + x + dx) * 4;
+                bb += q[0]; gg += q[1]; rr += q[2];
+            }
+            rr /= 4; gg /= 4; bb /= 4;
+            U[(size_t)(y / 2) * (w / 2) + x / 2] = clamp8(((-38 * rr - 74 * gg + 112 * bb + 128) >> 8) + 128);
+            V[(size_t)(y / 2) * (w / 2) + x / 2] = clamp8(((112 * rr - 94 * gg - 18 * bb + 128) >> 8) + 128);
+        }
+    }
+    void *f = e->frame;
+    FR_DATA(f)[0] = Y; FR_DATA(f)[1] = U; FR_DATA(f)[2] = V;
+    FR_LINESIZE(f)[0] = w; FR_LINESIZE(f)[1] = w / 2; FR_LINESIZE(f)[2] = w / 2;
+    FR_EXT(f) = FR_DATA(f);
+    FR_WIDTH(f) = w; FR_HEIGHT(f) = h; FR_FORMAT(f) = PIX_YUV420P;
+    *(int64_t *)((char *)f + e->pts_off) = pts;
+    /* a forced key frame: pict_type I (pict_type, 8-byte sample_aspect_ratio, pts: offsets 124, 128, 136 since FFmpeg 5) */
+    int pict = e->pts_off == 136 ? e->pts_off - 12 : 0;
+    if (pict) *(int *)((char *)f + pict) = key ? 1 : 0;
+    int st = av.send_frame(e->ctx, f);
+    if (pict) *(int *)((char *)f + pict) = 0;
+    return st < 0 ? -1 : 0;
+}
+/* the next access unit: its size (Annex-B, written to out, cap bytes at most), 0 when the encoder needs more
+   frames, -1 at the end; pts, dts its frame numbers, key: a key frame */
+ISIM_GUEST_ABI int isim_venc_receive(struct isim_venc *e, unsigned char *out, int cap, long long *pts, long long *dts, int *key) {
+    if (!e) return -1;
+    if (av.receive_packet(e->ctx, e->pkt) < 0) return e->flushed ? -1 : 0;
+    int n = PKT_SIZE(e->pkt);
+    if (n > cap) n = cap;
+    memcpy(out, PKT_DATA(e->pkt), (size_t)n);
+    if (pts) *pts = PKT_PTS(e->pkt);
+    if (dts) *dts = PKT_DTS(e->pkt);
+    if (key) *key = PKT_FLAGS(e->pkt) & 1;
+    av.packet_unref(e->pkt);
+    return n;
+}
+ISIM_GUEST_ABI void isim_venc_close(struct isim_venc *e) {
+    if (!e) return;
+    memset(e->frame, 0, 120);                                     /* the frame points at our planes */
+    av.frame_free(&e->frame); av.packet_free(&e->pkt); av.free_ctx(&e->ctx);
+    free(e->planes); free(e);
 }

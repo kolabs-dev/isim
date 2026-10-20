@@ -320,6 +320,15 @@ int isim_vcodec_receive(struct isim_vcodec *_Nullable codec, int *_Nullable widt
 void isim_vcodec_frame_bgra(struct isim_vcodec *_Nullable codec, unsigned char *out);
 void isim_vcodec_flush(struct isim_vcodec *_Nullable codec);
 void isim_vcodec_close(struct isim_vcodec *_Nullable codec);
+/* video encoding (libx264 "h264", libx265 "hevc"): BGRA frames in (pts: frame numbers), Annex-B access units out with
+   the parameter sets on key frames */
+struct isim_venc;
+struct isim_venc *_Nullable isim_venc_open(const char *codec, int width, int height, double fps, long bitrate, int gop,
+                                           const char *_Nullable profile, int realtime);
+int isim_venc_send_bgra(struct isim_venc *_Nullable encoder, const unsigned char *_Nullable bgra, long long pts, int key);
+int isim_venc_receive(struct isim_venc *_Nullable encoder, unsigned char *out, int cap, long long *_Nullable pts,
+                      long long *_Nullable dts, int *_Nullable key);
+void isim_venc_close(struct isim_venc *_Nullable encoder);
 /* stereo balance of a playing voice: -1 left .. 1 right */
 void isim_audio_set_pan(long voice, double pan);
 /* copies pixels of an image as premultiplied BGRA (rows packed, w*4 bytes) */
