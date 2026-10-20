@@ -28,6 +28,8 @@ PDFKIT_EXTERN PDFDocumentWriteOption const PDFDocumentSaveTextFromOCROption API_
 PDFKIT_EXTERN PDFDocumentWriteOption const PDFDocumentSaveImagesAsJPEGOption API_AVAILABLE(macos(14.0), ios(17.0));
 PDFKIT_EXTERN PDFDocumentWriteOption const PDFDocumentOptimizeImagesForScreenOption API_AVAILABLE(macos(14.0), ios(17.0));
 
+typedef NS_ENUM(NSInteger, PDFPrintScalingMode) { kPDFPrintPageScaleNone = 0, kPDFPrintPageScaleToFit = 1, kPDFPrintPageScaleDownToFit = 2 };
+
 typedef NS_ENUM(NSInteger, PDFDocumentPermissions) {
     kPDFDocumentPermissionsNone = 0, kPDFDocumentPermissionsUser = 1, kPDFDocumentPermissionsOwner = 2
 } PDFKIT_AVAILABLE(10_13, 11_0);
