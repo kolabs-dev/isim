@@ -13,11 +13,15 @@ struct HelloSensorsApp: App {
     var body: some Scene { WindowGroup { ContentView(model: model) } }
 }
 
-final class SensorModel: NSObject, ObservableObject, CBCentralManagerDelegate, NFCNDEFReaderSessionDelegate {
+final class SensorModel: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralManagerDelegate, NFCNDEFReaderSessionDelegate,
+                         NFCTagReaderSessionDelegate, NFCVASReaderSessionDelegate {
     let motion = CMMotionManager()
     let health = HKHealthStore()
     var central: CBCentralManager?
     var nfc: NFCNDEFReaderSession?
+    var peripheral: CBPeripheralManager?
+    var tagSession: NFCTagReaderSession?
+    var vasSession: NFCVASReaderSession?
     @Published var motionText = "—"
     @Published var bluetooth = "—"
     @Published var healthText = "—"
@@ -79,7 +83,54 @@ final class SensorModel: NSObject, ObservableObject, CBCentralManagerDelegate, N
         central.scanForPeripherals(withServices: [CBUUID(string: "180D")])
     }
 
+    // the peripheral role: a heart-rate service the app would publish and advertise
+    func startPeripheral() { peripheral = CBPeripheralManager(delegate: self, queue: nil, options: [CBPeripheralManagerOptionShowPowerAlertKey: false]) }
+    func peripheralManagerDidUpdateState(_ p: CBPeripheralManager) {
+        let names = ["unknown", "resetting", "unsupported", "unauthorized", "poweredOff", "poweredOn"]
+        let rate = CBMutableCharacteristic(type: CBUUID(string: "2A37"), properties: [.read, .notify], value: nil, permissions: [.readable])
+        rate.descriptors = [CBMutableDescriptor(type: CBUUID(string: CBUUIDCharacteristicUserDescriptionString), value: "Heart rate")]
+        let service = CBMutableService(type: CBUUID(string: "180D"), primary: true)
+        service.characteristics = [rate]
+        print("peripheral state \(names[p.state.rawValue]) service \(service.uuid) primary \(service.isPrimary) characteristics \(service.characteristics?.count ?? 0) descriptor \(rate.descriptors?.first?.value as? String ?? "-") linked \(rate.service === service)")
+        p.add(service)
+        p.startAdvertising([CBAdvertisementDataLocalNameKey: "Sensors", CBAdvertisementDataServiceUUIDsKey: [service.uuid]])
+        let sent = p.updateValue(Data([0, 72]), for: rate, onSubscribedCentrals: nil)
+        print("peripheral advertising \(p.isAdvertising) sent \(sent) attError \(CBATTError(.readNotPermitted).errorCode) \(CBATTError.errorDomain)")
+    }
+    func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
+        request.value = Data([0, 72])
+        peripheral.respond(to: request, withResult: .success)
+    }
+
     // MARK: NFC
+    func startTagReader() {
+        print("nfc tags readingAvailable \(NFCTagReaderSession.readingAvailable) vas \(NFCVASReaderSession.readingAvailable)")
+        tagSession = NFCTagReaderSession(pollingOption: [.iso14443, .iso15693, .iso18092], delegate: self, queue: nil)
+        tagSession?.alertMessage = "Hold your iPhone near a card"
+        tagSession?.begin()
+        let loyalty = NFCVASCommandConfiguration(vasMode: .normal, passTypeIdentifier: "pass.dev.isim.loyalty", url: nil)
+        vasSession = NFCVASReaderSession(vasCommandConfigurations: [loyalty], delegate: self, queue: nil)
+        vasSession?.begin()
+        let select = NFCISO7816APDU(data: Data([0x00, 0xA4, 0x04, 0x00, 0x02, 0x3F, 0x00, 0x00]))
+        print("nfc apdu ins \(select.map { String(format: "%02X", $0.instructionCode) } ?? "-") data \(select?.data?.count ?? 0) le \(select?.expectedResponseLength ?? 0)")
+    }
+    func tagReaderSessionDidBecomeActive(_ session: NFCTagReaderSession) { print("nfc tag session active") }
+    func tagReaderSession(_ session: NFCTagReaderSession, didInvalidateWithError error: Error) {
+        print("nfc tag session invalidated \((error as? NFCReaderError)?.code.rawValue ?? -1)")
+    }
+    func tagReaderSession(_ session: NFCTagReaderSession, didDetect tags: [NFCTag]) {
+        guard let tag = tags.first else { return }
+        session.connect(to: tag) { error in
+            guard error == nil, case .iso7816(let card) = tag else { return }
+            card.sendCommand(apdu: NFCISO7816APDU(instructionClass: 0, instructionCode: 0xB0, p1Parameter: 0, p2Parameter: 0, data: Data(), expectedResponseLength: 16)) { data, sw1, sw2, _ in
+                print("nfc read \(data.count) bytes status \(sw1) \(sw2)")
+            }
+        }
+    }
+    func readerSession(_ session: NFCVASReaderSession, didInvalidateWithError error: Error) {
+        print("nfc vas session invalidated \((error as? NFCReaderError)?.code.rawValue ?? -1)")
+    }
+    func readerSession(_ session: NFCVASReaderSession, didReceive responses: [NFCVASResponse]) { print("nfc vas \(responses.count)") }
     func startNFC() {
         print("nfc readingAvailable \(NFCNDEFReaderSession.readingAvailable)")
         nfc = NFCNDEFReaderSession(delegate: self, queue: nil, invalidateAfterFirstRead: true)
@@ -147,6 +198,8 @@ struct ContentView: View {
                     Text("Bluetooth: \(model.bluetooth)").accessibilityIdentifier("bluetoothText")
                     Button("Start Bluetooth") { model.startBluetooth() }.accessibilityIdentifier("bluetooth")
                     Button("Scan NFC Tag") { model.startNFC() }.accessibilityIdentifier("nfc")
+                    Button("Start Peripheral") { model.startPeripheral() }.accessibilityIdentifier("peripheral")
+                    Button("Read Cards and Passes") { model.startTagReader() }.accessibilityIdentifier("nfcTags")
                 }
                 Section("Health") {
                     Text(model.healthText).accessibilityIdentifier("healthText")
