@@ -9,10 +9,10 @@ import SpriteKit
 
 /// Subclasses whose methods share a selector with a superclass property, as an iOS app may write: isim's overlay classes
 /// mark their members @objc one by one rather than with @objcMembers, which subclasses would inherit (issue #636).
-final class LabelNode: SCNNode {
+final class LabelNode: SCNNode, @unchecked Sendable {
     func childNodes() -> String { "label" }
 }
-final class TaggedAnchor: ARAnchor {
+final class TaggedAnchor: ARAnchor, @unchecked Sendable {
     func transform() -> String { "tagged" }
 }
 
