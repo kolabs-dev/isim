@@ -95,6 +95,8 @@ SWIFT_VERSION=6.2.4
 swift_version_of() { "$1/bin/swift-frontend" --version 2>/dev/null | head -1 || true; }   # "Swift version 6.2.4 (swift-6.2.4-RELEASE)"
 swift_ok() { case "$(swift_version_of "$1")" in *"(swift-$SWIFT_VERSION-RELEASE)"*) return 0 ;; esac; return 1; }
 swiftly_toolchain() { echo "${SWIFTLY_TOOLCHAINS_DIR:-${SWIFTLY_HOME_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/swiftly}/toolchains}/$SWIFT_VERSION/usr"; }
+# swift.org's tarball, which `isim toolchain install` unpacks here when swiftly cannot install the toolchain
+tarball_toolchain() { echo "${XDG_DATA_HOME:-$HOME/.local/share}/isim-swift/$SWIFT_VERSION/usr"; }
 path_toolchain() {   # the toolchain of the swiftc on PATH (its usr directory), if it is a toolchain's own swiftc
   local p d; p=$(command -v swiftc 2>/dev/null) || return 1
   d=$(dirname -- "$(dirname -- "$(readlink -f -- "$p")")")
@@ -116,6 +118,8 @@ swift_toolchain() {   # SWIFT_TC: the toolchain's usr directory; SWIFT_WHY: how 
   fi
   d=$(swiftly_toolchain)
   if [ -x "$d/bin/swift-frontend" ] && swift_ok "$d"; then SWIFT_TC=$d SWIFT_WHY="swiftly"; return 0; fi
+  d=$(tarball_toolchain)
+  if [ -x "$d/bin/swift-frontend" ] && swift_ok "$d"; then SWIFT_TC=$d SWIFT_WHY="swift.org tarball"; return 0; fi
   if d=$(path_toolchain) && swift_ok "$d"; then SWIFT_TC=$d SWIFT_WHY="swiftc on PATH"; return 0; fi
   echo "isim: compiling Swift needs Swift $SWIFT_VERSION: install it with \`isim toolchain install\` (swiftly)" >&2
   return 1
@@ -136,32 +140,85 @@ toolchain_ready() {   # the toolchain $1 is installed: say so, or why its swift 
   if why=$(swift_run_error "$1"); then echo "isim: Swift $SWIFT_VERSION is installed ($1), but $why" >&2; return 1; fi
   echo "isim: Swift $SWIFT_VERSION is installed ($1)"
 }
-toolchain_install() {   # Swift $SWIFT_VERSION with swiftly (https://www.swift.org/install/linux/), swiftly first when it is missing
-  local d swiftly tmp
+swiftorg_platform() {   # swift.org's name for this Linux distribution (its tarballs: ubuntu24.04, debian12, ...), if it has one
+  local ID= VERSION_ID= arch
+  [ -r /etc/os-release ] && . /etc/os-release
+  arch=$(uname -m); [ "$arch" = x86_64 ] && arch= || arch=-$arch
+  case "$ID:$VERSION_ID" in
+    ubuntu:20.04|ubuntu:22.04|ubuntu:24.04) echo "ubuntu$VERSION_ID$arch" ;;
+    debian:12) echo "debian12$arch" ;;
+    fedora:39) echo "fedora39$arch" ;;
+    amzn:2) echo "amazonlinux2$arch" ;;
+    *) return 1 ;;
+  esac
+}
+tarball_install() {   # swift.org's signed tarball for this distribution into $(tarball_toolchain), when swiftly cannot
+  local platform name url tmp dir
+  platform=$(swiftorg_platform) || { echo "isim: swift.org has no Swift $SWIFT_VERSION tarball for this distribution" >&2; return 1; }
+  command -v gpg >/dev/null || { echo "isim: checking swift.org's tarball needs gpg (install gnupg)" >&2; return 1; }
+  name=swift-$SWIFT_VERSION-RELEASE-$platform
+  url=https://download.swift.org/swift-$SWIFT_VERSION-release/${platform//./}/swift-$SWIFT_VERSION-RELEASE/$name.tar.gz
+  dir=$(dirname -- "$(tarball_toolchain)")
+  echo "isim: downloading $url"
+  tmp=$(mktemp -d)
+  if curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o "$tmp/swift.tar.gz" "$url" \
+     && curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o "$tmp/swift.tar.gz.sig" "$url.sig" \
+     && curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o "$tmp/keys.asc" https://www.swift.org/keys/all-keys.asc \
+     && mkdir -m 700 "$tmp/gnupg" && gpg --homedir "$tmp/gnupg" --quiet --import "$tmp/keys.asc" 2>/dev/null \
+     && gpg --homedir "$tmp/gnupg" --quiet --verify "$tmp/swift.tar.gz.sig" "$tmp/swift.tar.gz" 2>/dev/null; then
+    rm -rf -- "$dir" && mkdir -p -- "$dir" && tar -xzf "$tmp/swift.tar.gz" -C "$dir" --strip-components=1
+    rm -rf -- "$tmp"
+    return 0
+  fi
+  rm -rf -- "$tmp"
+  echo "isim: downloading or checking swift.org's Swift $SWIFT_VERSION tarball failed" >&2
+  return 1
+}
+toolchain_install() {   # Swift $SWIFT_VERSION with swiftly (https://www.swift.org/install/linux/), swiftly first when it is missing;
+                        # swift.org's tarball when swiftly cannot (download.swift.org sometimes answers 403 for a while)
+  local d swiftly tmp attempt=0 delay
   d=$(swiftly_toolchain)
   if [ -x "$d/bin/swift-frontend" ] && swift_ok "$d"; then toolchain_ready "$d"; return; fi
+  if [ -x "$(tarball_toolchain)/bin/swift-frontend" ] && swift_ok "$(tarball_toolchain)"; then toolchain_ready "$(tarball_toolchain)"; return; fi
   swiftly=$(command -v swiftly 2>/dev/null) || swiftly=${SWIFTLY_BIN_DIR:-${SWIFTLY_HOME_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/swiftly}/bin}/swiftly
   if [ ! -x "$swiftly" ]; then
     echo "isim: installing swiftly, the Swift toolchain manager (download.swift.org; your shell profile is not changed)"
     tmp=$(mktemp -d)
-    curl -fsSL -o "$tmp/swiftly.tar.gz" "https://download.swift.org/swiftly/linux/swiftly-$(uname -m).tar.gz" \
-      && tar -xzf "$tmp/swiftly.tar.gz" -C "$tmp" \
-      && "$tmp/swiftly" init --assume-yes --skip-install --no-modify-profile --quiet-shell-followup \
-      || { rm -rf "$tmp"; echo "isim: installing swiftly failed (https://www.swift.org/install/linux/ installs it by hand)" >&2; return 1; }
+    if curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o "$tmp/swiftly.tar.gz" "https://download.swift.org/swiftly/linux/swiftly-$(uname -m).tar.gz" \
+       && tar -xzf "$tmp/swiftly.tar.gz" -C "$tmp" \
+       && "$tmp/swiftly" init --assume-yes --skip-install --no-modify-profile --quiet-shell-followup; then
+      swiftly=${SWIFTLY_BIN_DIR:-${SWIFTLY_HOME_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/swiftly}/bin}/swiftly
+    else
+      echo "isim: installing swiftly failed; trying swift.org's tarball instead" >&2
+      swiftly=
+    fi
     rm -rf "$tmp"
-    swiftly=${SWIFTLY_BIN_DIR:-${SWIFTLY_HOME_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/swiftly}/bin}/swiftly
   fi
-  echo "isim: swiftly install $SWIFT_VERSION"
-  # swiftly exits non-zero when it suggests system packages (written to the post-install file), so the toolchain itself decides
-  tmp=$(mktemp)
-  "$swiftly" install "$SWIFT_VERSION" --assume-yes --post-install-file "$tmp" || true
-  if [ -s "$tmp" ]; then
-    echo "isim: swiftly suggests these system packages for Swift on Linux (reading Swift packages needs their libraries):"
-    sed 's/^/  /' "$tmp"
+  if [ -n "$swiftly" ]; then
+    # swiftly exits non-zero when it suggests system packages (written to the post-install file), so the toolchain itself
+    # decides; a failed download (download.swift.org sometimes answers 403 for a while) is tried again with a backoff
+    tmp=$(mktemp)
+    for delay in ${ISIM_TOOLCHAIN_RETRY_DELAYS:-10 30 60} ""; do      # (the tests shorten the delays)
+      attempt=$((attempt + 1))
+      if [ "$attempt" = 1 ]; then echo "isim: swiftly install $SWIFT_VERSION"; else echo "isim: swiftly install $SWIFT_VERSION (attempt $attempt)"; fi
+      "$swiftly" install "$SWIFT_VERSION" --assume-yes --post-install-file "$tmp" || true
+      if [ -x "$d/bin/swift-frontend" ] && swift_ok "$d"; then break; fi
+      [ -z "$delay" ] || { echo "isim: swiftly did not install Swift $SWIFT_VERSION; trying again in $delay s" >&2; sleep "$delay"; }
+    done
+    if [ -s "$tmp" ]; then
+      echo "isim: swiftly suggests these system packages for Swift on Linux (reading Swift packages needs their libraries):"
+      sed 's/^/  /' "$tmp"
+    fi
+    rm -f "$tmp"
+    if [ -x "$d/bin/swift-frontend" ] && swift_ok "$d"; then toolchain_ready "$d"; return; fi
+    if [ -n "$(ls -A "$(dirname -- "$d")" 2>/dev/null)" ]; then
+      echo "isim: swiftly installed Swift $SWIFT_VERSION somewhere else than $d; point ISIM_SWIFT_TOOLCHAIN at it" >&2
+      return 1
+    fi
+    echo "isim: swiftly could not download Swift $SWIFT_VERSION (its error is above); trying swift.org's tarball instead" >&2
   fi
-  rm -f "$tmp"
-  if [ -x "$d/bin/swift-frontend" ] && swift_ok "$d"; then toolchain_ready "$d"; return; fi
-  echo "isim: swiftly installed Swift $SWIFT_VERSION somewhere else than $d; point ISIM_SWIFT_TOOLCHAIN at it" >&2
+  if tarball_install && swift_ok "$(tarball_toolchain)"; then toolchain_ready "$(tarball_toolchain)"; return; fi
+  echo "isim: Swift $SWIFT_VERSION is not installed. download.swift.org may be failing for a while: run \`isim toolchain install\` again later, or set ISIM_SWIFT_TOOLCHAIN to a Swift $SWIFT_VERSION toolchain (https://www.swift.org/install/linux/)" >&2
   return 1
 }
 # Linking: LLVM's own clang and lld. A Swift toolchain's (swiftly's proxies on PATH, a toolchain's usr/bin) are Apple's
