@@ -58,7 +58,10 @@ A compiler newer than CI's may warn about more; `ISIM_WERROR=0 isim/build.py` bu
   (`@objc(WKWebView)`) and members Apple's selectors, add the old `_TtC…` class symbols to `OBJC_NAMES` (`swift.py`),
   headers in `isim/sdk-src/Frameworks/<Name>` wrapped in `#if !defined(__swift__)`, C constants or categories in
   `isim/frameworks/<Name>`, and a line in `SWIFT_FRAMEWORKS` (`graph.py`): the framework re-exports the overlay.
-  Every Swift-implemented framework needs one (AGENTS.md).
+  Every Swift-implemented framework needs one (AGENTS.md). Mark the members `@objc` one by one: never put
+  `@objcMembers` on an `open` class, because apps' Swift subclasses inherit it and their own members then clash with
+  the superclass's selectors (a method `constraints()` against a `constraints` property), which iOS code doesn't
+  (issue #636).
 - **A host function guests call** (a new entry in a symbol table, `struct shim`): define it `ISIM_GUEST_ABI`, and use
   the platform layer for anything the operating system provides ([Portability](#portability)).
 - **Its coverage page**: `docs/frameworks/<Name>.md` from `docs/frameworks/_template.md` (how isim implements it, the
