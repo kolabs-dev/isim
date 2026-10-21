@@ -991,6 +991,37 @@ void isim_sys_privacy_reset_at_launch(void) {
     unsetenv("ISIM_PRIVACY_RESET");
 }
 
+/* script "biometry …", like the Simulator's Features > Face ID menu: "enrolled on|off" (enrolling again changes the
+   domain state), "match" / "nomatch" (answer the scan on screen), "lockout" / "reset" (five failures, or none), and
+   bare "biometry" (the state). The state is device-wide, in the global domain LocalAuthentication reads. */
+static void biometry_command(NSString *args) {
+    NSUserDefaults *g = [[NSUserDefaults alloc] initWithSuiteName:@".GlobalPreferences"];
+    NSArray *p = [args componentsSeparatedByCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+    NSString *what = p.count ? p[0] : @"";
+    if ([what isEqualToString:@"enrolled"] && p.count == 2) {
+        BOOL on = [p[1] isEqualToString:@"on"];
+        const char *env = getenv("ISIM_BIOMETRY_ENROLLED");
+        BOOL was = env ? strcmp(env, "0") != 0 : ([g objectForKey:@"ISIMBiometryEnrolled"] ? [g boolForKey:@"ISIMBiometryEnrolled"] : YES);
+        unsetenv("ISIM_BIOMETRY_ENROLLED");
+        if (on && !was) [g setInteger:MAX(1, [g integerForKey:@"ISIMBiometryEnrollment"]) + 1 forKey:@"ISIMBiometryEnrollment"];
+        [g setBool:on forKey:@"ISIMBiometryEnrolled"];
+        [g setInteger:0 forKey:@"ISIMBiometryFailures"];
+        NSLog(@"isim: biometry enrolled %@", on ? @"on" : @"off");
+    } else if ([what isEqualToString:@"match"] || [what isEqualToString:@"nomatch"]) {
+        void (*answer)(int) = (void (*)(int))dlsym(RTLD_DEFAULT, "isim_la_script_answer");   /* LocalAuthentication, when loaded */
+        if (answer) answer([what isEqualToString:@"match"]);
+        else NSLog(@"isim: biometry %@: the app does not use LocalAuthentication", what);
+    } else if ([what isEqualToString:@"lockout"] || [what isEqualToString:@"reset"]) {
+        [g setInteger:[what isEqualToString:@"lockout"] ? 5 : 0 forKey:@"ISIMBiometryFailures"];
+        NSLog(@"isim: biometry %@", what);
+    } else if (!what.length) {
+        const char *env = getenv("ISIM_BIOMETRY_ENROLLED");
+        BOOL enrolled = env ? strcmp(env, "0") != 0 : ([g objectForKey:@"ISIMBiometryEnrolled"] ? [g boolForKey:@"ISIMBiometryEnrolled"] : YES);
+        NSLog(@"isim: biometry enrolled=%d failures=%ld lockedout=%d enrollment=%ld", enrolled, (long)[g integerForKey:@"ISIMBiometryFailures"],
+              [g integerForKey:@"ISIMBiometryFailures"] >= 5, (long)MAX(1, [g integerForKey:@"ISIMBiometryEnrollment"]));
+    } else NSLog(@"isim: biometry [enrolled on|off | match | nomatch | lockout | reset]");
+}
+
 /* EV_SYSTEM: "<verb> <arguments>" from the shell */
 void isim_sys_event(const char *text) {
     NSString *t = @(text), *verb = t, *args = @"";
@@ -1019,6 +1050,7 @@ void isim_sys_event(const char *text) {
         if (p.count != 2 || ![p[0] isEqualToString:@"reset"] || !privacy_reset(p[1]))
             NSLog(@"isim: privacy reset all|camera|microphone|photos|location|contacts|calendar|reminders|speech|medialibrary|siri|paste|health|notifications|tracking");
     }
+    else if ([verb isEqualToString:@"biometry"]) biometry_command(args);
     else if ([verb isEqualToString:@"fullpage"]) full_page(args);
     else if ([verb isEqualToString:@"tilt"]) { extern void isim_ui_tilt(NSString *); isim_ui_tilt(args); }
     else if ([verb isEqualToString:@"guidedaccess"]) { extern void isim_ui_guided_access_command(NSString *); isim_ui_guided_access_command(args); }

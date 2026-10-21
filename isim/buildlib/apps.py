@@ -393,7 +393,7 @@ def _(a):
 @app("samples/HelloKeychainObjC")   # after the overlays: Security.framework re-exports libswiftSecurity
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Security",
-                                          "-framework", "CoreGraphics"])
+                                          "-framework", "LocalAuthentication", "-framework", "CoreGraphics"])
 
 
 @app("samples/HelloDragDropObjC")   # UIKit loads its Swift overlay for the drag and drop classes (issue #245)

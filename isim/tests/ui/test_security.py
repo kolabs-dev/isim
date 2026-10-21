@@ -85,6 +85,106 @@ def test_security_app(launch):
     assert "biometry touchID" in app.log and "auth Unlocked" in app.log, "Touch ID on iPhone SE"
 
 
+def test_local_authentication(launch):
+    """LocalAuthentication beyond evaluatePolicy (issue #307), on HelloSecurity's LocalAuthentication section: three failed
+    scans end an evaluation (authenticationFailed), five in a row lock biometry out (biometryLockout, LAEnvironment
+    observers hear it) until the passcode is entered; the `biometry` script command (nomatch / match / enrolled);
+    LADomainState; rights saved with a key and a secret (signing and the secret need the right authorized); a
+    .biometryCurrentSet right refused after re-enrolling; evaluateAccessControl; LocalAuthenticationView."""
+    app = launch("HelloSecurity")
+
+    def scan(answer):
+        """the scan alert is up: answer it (a `biometry` script command, or a tap on its button)"""
+        app.wait_view(r"text=Matching Face")
+        app.wait_still()
+        if answer in ("match", "nomatch"):
+            app.send(f"biometry {answer}")
+        else:
+            app.tap_text(answer)
+        app.wait_view(r"text=Matching Face", gone=True)
+
+    def retry():
+        app.wait_view(r"text=Try Face ID Again")
+        app.wait_still()
+        app.tap_text("Try Face ID Again")
+
+    # three failures end the evaluation
+    app.wait_tap_id("la-biometrics")
+    app.wait_log(r"^la environment biometry=Face ID enrolled=true locked=false passcode=true mechanisms=2$")
+    app.wait_view(r"text=OK")                      # the Face ID permission alert
+    app.tap_text("OK")
+    scan("nomatch")
+    retry()
+    scan("Non-matching Face")
+    retry()
+    scan("nomatch")
+    app.wait_log(r"^la biometrics ok=false code=-1$")
+    # two more: biometry locks out
+    app.wait_still()
+    app.tap_id("la-biometrics")
+    scan("nomatch")
+    retry()
+    scan("nomatch")
+    app.wait_log(r"^la biometrics ok=false code=-8$")
+    app.wait_log(r"biometry locked out after 5 failed attempts")
+    app.wait_log(r"^la environment changed enrolled=true locked=true was=false$")
+    app.wait_still()
+    app.tap_id("la-biometrics")
+    app.wait_log(r"^la biometrics unavailable code=-8$")
+    # the passcode ends the lockout
+    app.tap_id("la-passcode")
+    app.wait_view(r"text=Enter Passcode")
+    app.screenshot("passcode-after-lockout")
+    app.wait_still()
+    app.tap_text("Enter Passcode")
+    app.wait_log(r"^la passcode ok=true biometrics=true$")
+    app.wait_log(r"^la environment changed enrolled=true locked=false was=true$")
+
+    # domain state, rights
+    app.wait_still()
+    app.tap_id("la-domain")
+    first = app.wait_log(r"^la domain state biometry=faceID hash=(\S+) same=true companions=0$")
+    app.tap_id("la-rights")
+    app.wait_log(r"^la right saved state=0 loaded=true$")
+    app.wait_log(r"^la right sign before authorize code=-1$")
+    scan("match")
+    app.wait_log(r"^la right authorized state=2 signed=true verified=true secret=s3cret public=65$")
+    app.wait_log(r"^la right deauthorized state=3 secret refused$")
+    app.wait_still()
+    app.tap_id("la-current-set")
+    app.wait_log(r"^la current set can authorize$")
+    # enrolling again: a new domain state, and the .biometryCurrentSet right no longer authorizes
+    app.send("biometry enrolled off")
+    app.wait_log(r"^la environment changed enrolled=false locked=false was=false$")
+    app.send("biometry enrolled on")
+    app.wait_log(r"^la environment changed enrolled=true locked=false was=false$")
+    app.tap_id("la-current-set")
+    app.wait_log(r"^la current set refused code=-10$")
+    app.tap_id("la-domain")
+    app.wait_log(r"^la domain state biometry=faceID hash=", count=2)
+
+    # access control and LocalAuthenticationView
+    app.tap_id("la-access")
+    scan("Matching Face")
+    app.wait_log(r"^la access control ok=true code=0$")
+    app.wait_still()
+    app.tap_id("la-authentication-view")
+    scan("match")
+    app.wait_log(r"^la view authenticated$")
+    app.send("biometry")
+    app.wait_log(r"isim: biometry enrolled=1 failures=0 lockedout=0 enrollment=2")
+    assert app.quit() == 0, "exits cleanly"
+    hashes = re.findall(r"^la domain state biometry=faceID hash=(\S+)", app.log, re.M)
+    assert len(hashes) == 2 and hashes[0] != hashes[1] and hashes[0] == first.group(1), "re-enrolling changes the domain state"
+
+    # iOS 17: no LAEnvironment
+    app = launch("HelloSecurity", device="iphone15", os_version="17.0")
+    app.wait_tap_id("la-domain")
+    app.wait_log(r"^la domain state hash=")
+    app.tap_id("la-biometrics")
+    app.wait_log(r"^la environment needs iOS 18$")
+    app.quit()
+
 def test_security_boot(launch, tmp_path):
     """Under the device shell: the app goes home, the shell shows its banner over the home screen, tapping it reopens
     the app."""

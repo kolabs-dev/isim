@@ -3,6 +3,7 @@
 // duplicates and missing items, SecCopyErrorMessageString, and an item protected by SecAccessControl
 // (biometryCurrentSet) whose data asks for Face ID when it is read. Logs "kc ..." lines.
 #import <Security/Security.h>
+#import <LocalAuthentication/LocalAuthentication.h>
 #import <UIKit/UIKit.h>
 #include <stdio.h>
 
@@ -84,6 +85,48 @@ static void addProtected(void) {
     say(@"protected noui fail=%d skip=%d attributes=%d", (int)fail, (int)skip, (int)attrs);
 }
 
+
+/* LocalAuthentication from Objective-C (issue #307): a context that evaluated the item's access control opens it
+   without asking again; a right saved with a secret that loads once authorized; LAEnvironment (iOS 18). */
+static void localAuth(void) {
+    LAContext *c = [LAContext new];
+    NSError *e = nil;
+    BOOL can = [c canEvaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics error:&e];
+    NSError *empty = nil;
+    BOOL bad = [c canEvaluatePolicy:(LAPolicy)99 error:&empty];
+    say(@"la can=%d type=%ld domain=%d bad=%d %@/%ld", can, (long)c.biometryType, c.evaluatedPolicyDomainState.length > 0, bad, empty.domain, (long)empty.code);
+    if (@available(iOS 18.0, *)) {
+        LAEnvironmentState *st = LAEnvironment.currentUser.state;
+        say(@"la environment %@ usable=%d passcode=%d hash=%d", st.biometry.localizedName, st.biometry.isUsable, st.userPassword.isSet,
+            [c.domainState.stateHash isEqualToData:c.evaluatedPolicyDomainState]);
+    }
+    SecAccessControlRef ac = SecAccessControlCreateWithFlags(kCFAllocatorDefault, kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+                                                             kSecAccessControlBiometryCurrentSet, NULL);
+    [c evaluateAccessControl:ac operation:LAAccessControlOperationUseItem localizedReason:@"Open the vault" reply:^(BOOL ok, NSError *error) {
+        say(@"la access control ok=%d", ok);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            CFTypeRef data = NULL;
+            OSStatus s = SecItemCopyMatching((__bridge CFDictionaryRef)with(base(@"vault"), @{(__bridge id)kSecReturnData: @YES,
+                                             (__bridge id)kSecUseAuthenticationContext: c}), &data);
+            say(@"la vault %d %@", (int)s, string(data));
+            if (data) CFRelease(data);
+            LARight *r = [[LARight alloc] initWithRequirement:LAAuthenticationRequirement.biometryRequirement];
+            [LARightStore.sharedStore removeRightForIdentifier:@"objc" completion:^(NSError *ignored) {
+                [LARightStore.sharedStore saveRight:r identifier:@"objc" secret:[@"objc secret" dataUsingEncoding:NSUTF8StringEncoding]
+                                         completion:^(LAPersistedRight *right, NSError *saveError) {
+                    say(@"la right saved=%d state=%ld", right != nil, (long)right.state);
+                    [right authorizeWithLocalizedReason:@"Read the secret" completion:^(NSError *authError) {
+                        [right.secret loadDataWithCompletion:^(NSData *d, NSError *loadError) {
+                            say(@"la right secret=%@ state=%ld", string((__bridge CFTypeRef)d), (long)right.state);
+                        }];
+                    }];
+                }];
+            }];
+        });
+    }];
+    CFRelease(ac);
+}
+
 @interface VaultController : UIViewController
 @end
 @implementation VaultController
@@ -96,7 +139,14 @@ static void addProtected(void) {
     b.frame = CGRectMake(40, 200, 300, 44);
     [b addTarget:self action:@selector(open) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:b];
+    UIButton *la = [UIButton buttonWithType:UIButtonTypeSystem];
+    [la setTitle:@"LocalAuthentication" forState:UIControlStateNormal];
+    la.accessibilityIdentifier = @"la-objc";
+    la.frame = CGRectMake(40, 260, 300, 44);
+    [la addTarget:self action:@selector(localAuth) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:la];
 }
+- (void)localAuth { localAuth(); }
 - (void)open {
     CFTypeRef data = NULL;
     OSStatus s = SecItemCopyMatching((__bridge CFDictionaryRef)with(base(@"vault"), @{(__bridge id)kSecReturnData: @YES,

@@ -4,11 +4,18 @@
 // Touch ID on iPhone SE and the other iPads. The first evaluation asks for Face ID permission (the iOS
 // "Do you want to allow … to use Face ID?" alert, remembered per app). A scan shows an alert standing in for
 // the Simulator's Features ▸ Face ID menu: "Matching Face" / "Non-matching Face" / "Cancel" ("… Touch").
-// Automation hooks (environment):
+// Like iOS, three failed scans end an evaluation (authenticationFailed, or the passcode for deviceOwnerAuthentication)
+// and five in a row lock biometry out (biometryLockout) until the device passcode is entered. The device's biometry
+// state (enrolled, the failures, the enrollment, which changes the domain state hash) is device-wide, in the global
+// preferences every app reads.
+// Automation hooks:
+//   script `biometry enrolled on|off`, `biometry match`, `biometry nomatch` (the Simulator's Features ▸ Face ID menu:
+//   Enrolled, Matching Face, Non-matching Face), `biometry lockout`, `biometry reset`, `biometry` (prints the state)
 //   ISIM_BIOMETRY=match|nomatch|cancel   answer every scan without the alert (a short Face ID HUD still shows)
 //   ISIM_BIOMETRY_ENROLLED=0             no face/finger enrolled (biometryNotEnrolled)
 // Scripts can also tap the alert buttons: `taptext Matching Face`.
 import UIKit
+import Security
 internal import isim_host
 
 public enum LAPolicy: Int, Sendable {
@@ -27,6 +34,15 @@ public enum LABiometryType: Int, Sendable {
     case touchID = 1
     case faceID = 2
     case opticID = 4
+}
+
+public enum LAAccessControlOperation: Int, Sendable {
+    case createItem = 0, useItem = 1, createKey = 2, useKeySign = 3, useKeyDecrypt = 4, useKeyKeyExchange = 5
+}
+
+public enum LACredentialType: Int, Sendable {
+    case applicationPassword = 0
+    @available(iOS, unavailable) case smartCardPIN = -3
 }
 
 public let LAErrorDomain = "com.apple.LocalAuthentication"
@@ -95,7 +111,7 @@ public struct LAError: CustomNSError, LocalizedError, Hashable, Sendable {
 }
 public func ~= (code: LAError.Code, error: Error) -> Bool { (error as? LAError)?.code == code }
 
-open class LAContext: NSObject, @unchecked Sendable {
+@objc(LAContext) open class LAContext: NSObject, @unchecked Sendable {
     private var checkedBiometry = false
     fileprivate var invalidated = false
     fileprivate var succeeded = false
@@ -106,7 +122,11 @@ open class LAContext: NSObject, @unchecked Sendable {
     open var interactionNotAllowed = false
     /// set after canEvaluatePolicy is called, like iOS
     open var biometryType: LABiometryType { checkedBiometry ? _LADevice.biometry : .none }
-    open var evaluatedPolicyDomainState: Data? { checkedBiometry && _LADevice.enrolled ? Data("isim-\(_LADevice.biometry == .faceID ? "face" : "finger")-enrollment-1".utf8) : nil }
+    /// changes when the enrolled faces / fingers change (`biometry enrolled off`, then `on`)
+    open var evaluatedPolicyDomainState: Data? { checkedBiometry && _LADevice.enrolled ? _LADevice.enrollmentData : nil }
+    /// iOS 18: the biometry and companion state, after canEvaluatePolicy
+    @available(iOS 18.0, *)
+    open var domainState: LADomainState { LADomainState(checked: checkedBiometry) }
 
     public override init() { super.init() }
 
@@ -124,6 +144,7 @@ open class LAContext: NSObject, @unchecked Sendable {
                 return LAError(.biometryNotAvailable, message: "User has denied the use of biometry for this app.")
             }
             if !_LADevice.enrolled { return LAError(.biometryNotEnrolled) }
+            if _LADevice.lockedOut { return LAError(.biometryLockout) }
             return nil
         default: return LAError(LAError.Code(rawValue: -11)! /* companionNotAvailable */, message: "No paired companion device is nearby.")
         }
@@ -137,8 +158,10 @@ open class LAContext: NSObject, @unchecked Sendable {
         if interactionNotAllowed { finish(false, LAError(.notInteractive)); return }
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
+                _LAEvaluation.post(self, 1)
                 _LAPrompt.run(context: self, policy: policy, reason: localizedReason) { ok, e in
                     if ok { self.succeeded = true }
+                    _LAEvaluation.post(self, ok ? 2 : 3)
                     finish(ok, e)
                 }
             }
@@ -151,11 +174,47 @@ open class LAContext: NSObject, @unchecked Sendable {
             }
         }
     }
+    /// what the access control asks for before `operation` (iOS 9): its biometry or user-presence constraint, like a
+    /// keychain item or key with that access control; afterwards, items and keys used with this context don't ask again
+    open func evaluateAccessControl(_ accessControl: SecAccessControl, operation: LAAccessControlOperation, localizedReason: String,
+                                    reply: @escaping @Sendable (Bool, Error?) -> Void) {
+        let flags = accessControl._isimFlags
+        let biometry: UInt = 1 << 1 | 1 << 3, presence: UInt = 1 << 0 | 1 << 4      // biometryAny / CurrentSet; userPresence / devicePasscode
+        guard flags & (biometry | presence) != 0 else {
+            checkedBiometry = true
+            succeeded = true
+            DispatchQueue.global().async { reply(true, nil) }
+            return
+        }
+        let policy: LAPolicy = flags & presence == 0 ? .deviceOwnerAuthenticationWithBiometrics : .deviceOwnerAuthentication
+        NSLog("isim LocalAuthentication: access control (flags 0x%lx) for %@", flags, String(describing: operation))
+        evaluatePolicy(policy, localizedReason: localizedReason, reply: reply)
+    }
+    open func evaluateAccessControl(_ accessControl: SecAccessControl, operation: LAAccessControlOperation, localizedReason: String) async throws -> Bool {
+        try await withCheckedThrowingContinuation { (k: CheckedContinuation<Bool, Error>) in
+            evaluateAccessControl(accessControl, operation: operation, localizedReason: localizedReason) { ok, e in
+                if let e { k.resume(throwing: e) } else { k.resume(returning: ok) }
+            }
+        }
+    }
+    /// an application-provided credential (the password of keychain items with `.applicationPassword`), kept by the context
+    open func setCredential(_ credential: Data?, type: LACredentialType) -> Bool {
+        if let credential { credentials[type.rawValue] = credential } else { credentials[type.rawValue] = nil }
+        return true
+    }
+    open func isCredentialSet(_ type: LACredentialType) -> Bool { credentials[type.rawValue] != nil }
+    var credentials: [Int: Data] = [:]
     open func invalidate() {
         invalidated = true
         DispatchQueue.main.async { MainActor.assumeIsolated { _LAPrompt.cancel(context: self) } }
     }
     var isInvalidated: Bool { invalidated }
+}
+
+/// a context's evaluation started (1), succeeded (2) or failed (3): LocalAuthenticationView shows it
+enum _LAEvaluation {
+    static let name = Notification.Name("_ISIMLAContextEvaluation")
+    static func post(_ c: LAContext, _ phase: Int) { NotificationCenter.default.post(name: name, object: c, userInfo: ["phase": phase]) }
 }
 
 // MARK: - Device state
@@ -169,7 +228,25 @@ enum _LADevice {
         if name.hasPrefix("iPad") { return name.hasPrefix("iPad Pro") ? .faceID : .touchID }
         return d.safe_bottom > 0 ? .faceID : .touchID
     }()
-    static var enrolled: Bool { getenv("ISIM_BIOMETRY_ENROLLED").map { String(cString: $0) != "0" } ?? true }
+    // device-wide state, in the global preferences (every app reads it)
+    static var global: UserDefaults { UserDefaults(suiteName: ".GlobalPreferences") ?? .standard }
+    static var enrolled: Bool {
+        if let e = getenv("ISIM_BIOMETRY_ENROLLED") { return String(cString: e) != "0" }
+        return global.object(forKey: "ISIMBiometryEnrolled") as? Bool ?? true
+    }
+    /// counts enrollments: enrolling again gives a new domain state
+    static var enrollment: Int { max(1, global.integer(forKey: "ISIMBiometryEnrollment")) }
+    static var enrollmentData: Data { Data("isim-\(biometry == .faceID ? "face" : "finger")-enrollment-\(enrollment)".utf8) }
+    /// failed scans in a row, device-wide: five lock biometry out until the passcode is entered
+    static var failures: Int { get { global.integer(forKey: "ISIMBiometryFailures") } set { global.set(newValue, forKey: "ISIMBiometryFailures") } }
+    static let lockoutFailures = 5
+    static var lockedOut: Bool { failures >= lockoutFailures }
+    static func failed() {
+        failures += 1
+        if failures == lockoutFailures { NSLog("isim LocalAuthentication: biometry locked out after %d failed attempts", lockoutFailures) }
+        _LAEnvironmentWatch.changed()
+    }
+    static func matched() { if failures != 0 { failures = 0; _LAEnvironmentWatch.changed() } }
     static let permissionKey = "_ISIMFaceIDPermission"
     /// nil: not asked yet
     static var permission: Bool? {
@@ -197,6 +274,16 @@ enum _LADevice {
         current = (context, alert, done)
         vc.present(alert, animated: true, completion: nil)
     }
+    /// `biometry match|nomatch`: the Simulator's Matching / Non-matching Face (Touch) for the scan on screen
+    static func answer(match: Bool) {
+        guard let c = current, let s = scanAnswers, s.alert === c.alert else {
+            NSLog("isim LocalAuthentication: biometry %@: no scan in progress", match ? "match" : "nomatch"); return
+        }
+        NSLog("isim LocalAuthentication: biometry %@ (script)", match ? "match" : "nomatch")
+        c.alert.dismiss(animated: true) { MainActor.assumeIsolated { match ? s.match() : s.nomatch() } }
+    }
+    /// the scan alert on screen and what its Matching / Non-matching buttons do
+    static var scanAnswers: (alert: UIAlertController, match: () -> Void, nomatch: () -> Void)?
     static func cancel(context: LAContext) {
         guard let c = current, c.context === context else { return }
         current = nil
@@ -235,16 +322,27 @@ enum _LADevice {
         scan(context: context, policy: policy, reason: reason, done: done)
     }
 
-    static func scan(context: LAContext, policy: LAPolicy, reason: String, done: @escaping (Bool, LAError?) -> Void) {
+    static func scan(context: LAContext, policy: LAPolicy, reason: String, attempt: Int = 1, done: @escaping (Bool, LAError?) -> Void) {
         let face = _LADevice.biometry == .faceID
         let kind = face ? "Face" : "Touch"
-        func matched() { NSLog("isim LocalAuthentication: %@ ID matched", kind); done(true, nil) }
+        if _LADevice.lockedOut {
+            NSLog("isim LocalAuthentication: biometry is locked out")
+            if policy == .deviceOwnerAuthentication { passcode(context: context, reason: reason, done: done) } else { done(false, LAError(.biometryLockout)) }
+            return
+        }
+        func matched() { NSLog("isim LocalAuthentication: %@ ID matched", kind); _LADevice.matched(); done(true, nil) }
         func failed() {
             NSLog("isim LocalAuthentication: %@ ID did not match", kind)
+            _LADevice.failed()
+            if _LADevice.lockedOut || attempt >= 3 {     // iOS: three tries per evaluation
+                if policy == .deviceOwnerAuthentication { passcode(context: context, reason: reason, done: done) }
+                else { done(false, LAError(_LADevice.lockedOut ? .biometryLockout : .authenticationFailed)) }
+                return
+            }
             let title = face ? "Face Not Recognized" : "Touch ID"
             let alert = UIAlertController(title: title, message: face ? nil : "Try Again\n\(reason)", preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: face ? "Try Face ID Again" : "Try Again", style: .default) { _ in
-                current = nil; scan(context: context, policy: policy, reason: reason, done: done)
+                current = nil; scan(context: context, policy: policy, reason: reason, attempt: attempt + 1, done: done)
             })
             if policy == .deviceOwnerAuthentication {
                 alert.addAction(UIAlertAction(title: "Enter Passcode", style: .default) { _ in current = nil; passcode(context: context, reason: reason, done: done) })
@@ -262,15 +360,20 @@ enum _LADevice {
                     switch s {
                     case "match", "1", "yes": matched()
                     case "cancel": done(false, LAError(.userCancel))
-                    default: NSLog("isim LocalAuthentication: %@ ID did not match", kind); done(false, LAError(.authenticationFailed))
+                    default:
+                        NSLog("isim LocalAuthentication: %@ ID did not match", kind)
+                        _LADevice.failed()
+                        done(false, LAError(_LADevice.lockedOut ? .biometryLockout : .authenticationFailed))
                     }
                 }
             }
             return
         }
         let alert = UIAlertController(title: "\(kind) ID", message: "“\(_LADevice.appName)”: \(reason)\n\nSimulate the \(face ? "face scan" : "fingerprint"):", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Matching \(kind)", style: .default) { _ in current = nil; matched() })
-        alert.addAction(UIAlertAction(title: "Non-matching \(kind)", style: .default) { _ in current = nil; failed() })
+        let match = { current = nil; scanAnswers = nil; matched() }, nomatch = { current = nil; scanAnswers = nil; failed() }
+        alert.addAction(UIAlertAction(title: "Matching \(kind)", style: .default) { _ in match() })
+        alert.addAction(UIAlertAction(title: "Non-matching \(kind)", style: .default) { _ in nomatch() })
+        scanAnswers = (alert, match, nomatch)
         alert.addAction(UIAlertAction(title: context.localizedCancelTitle ?? "Cancel", style: .cancel) { _ in current = nil; done(false, LAError(.userCancel)) })
         present(alert, context, done)
     }
@@ -279,7 +382,12 @@ enum _LADevice {
     static func passcode(context: LAContext, reason: String, done: @escaping (Bool, LAError?) -> Void) {
         if let s = _LADevice.scripted { done(s == "cancel" ? false : true, s == "cancel" ? LAError(.userCancel) : nil); return }
         let alert = UIAlertController(title: "Enter iPhone Passcode", message: "“\(_LADevice.appName)”: \(reason)", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Enter Passcode", style: .default) { _ in current = nil; NSLog("isim LocalAuthentication: passcode accepted"); done(true, nil) })
+        alert.addAction(UIAlertAction(title: "Enter Passcode", style: .default) { _ in
+            current = nil; NSLog("isim LocalAuthentication: passcode accepted")
+            if _LADevice.lockedOut { NSLog("isim LocalAuthentication: biometry unlocked by the passcode") }
+            _LADevice.matched()     // the passcode ends a lockout
+            done(true, nil)
+        })
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in current = nil; done(false, LAError(.userCancel)) })
         present(alert, context, done)
     }
