@@ -13,7 +13,7 @@ public enum GKGameActivityState: UInt, Sendable { case initialized = 0, active =
 
 /// An activity the game offers (from the configuration's `activities`).
 @available(iOS 26.0, *)
-open class GKGameActivityDefinition: NSObject {
+@objc(GKGameActivityDefinition) @objcMembers open class GKGameActivityDefinition: NSObject {
     let def: _GCActivityDef
     init(_ d: _GCActivityDef) { def = d }
     open var identifier: String { def.id }
@@ -33,12 +33,12 @@ open class GKGameActivityDefinition: NSObject {
     public class func loadGameActivityDefinitions(completionHandler: @escaping ([GKGameActivityDefinition]?, Error?) -> Void) {
         loadGameActivityDefinitions(IDs: nil, completionHandler: completionHandler)
     }
-    public class func loadGameActivityDefinitions() async throws -> [GKGameActivityDefinition] { _GCConfig.activities.map(GKGameActivityDefinition.init) }
+    @nonobjc public class func loadGameActivityDefinitions() async throws -> [GKGameActivityDefinition] { _GCConfig.activities.map(GKGameActivityDefinition.init) }
     public class func loadGameActivityDefinitions(IDs: [String]?, completionHandler: @escaping ([GKGameActivityDefinition]?, Error?) -> Void) {
         let list = _GCConfig.activities.filter { IDs?.contains($0.id) ?? true }.map(GKGameActivityDefinition.init)
         DispatchQueue.main.async { completionHandler(list, nil) }
     }
-    public class func loadGameActivityDefinitions(IDs: [String]?) async throws -> [GKGameActivityDefinition] {
+    @nonobjc public class func loadGameActivityDefinitions(IDs: [String]?) async throws -> [GKGameActivityDefinition] {
         _GCConfig.activities.filter { IDs?.contains($0.id) ?? true }.map(GKGameActivityDefinition.init)
     }
     /// the achievements the activity is about
@@ -46,7 +46,7 @@ open class GKGameActivityDefinition: NSObject {
         let list = _GCConfig.achievements.filter { def.achievements.contains($0.id) }.map(GKAchievementDescription.init)
         DispatchQueue.main.async { completionHandler(list, nil) }
     }
-    open func loadAchievementDescriptions() async throws -> [GKAchievementDescription] {
+    @nonobjc open func loadAchievementDescriptions() async throws -> [GKAchievementDescription] {
         _GCConfig.achievements.filter { def.achievements.contains($0.id) }.map(GKAchievementDescription.init)
     }
     /// the leaderboards the activity is about
@@ -54,13 +54,13 @@ open class GKGameActivityDefinition: NSObject {
         let list = def.leaderboards.map { GKLeaderboard.make($0) }
         DispatchQueue.main.async { completionHandler(list, nil) }
     }
-    open func loadLeaderboards() async throws -> [GKLeaderboard] { def.leaderboards.map { GKLeaderboard.make($0) } }
+    @nonobjc open func loadLeaderboards() async throws -> [GKLeaderboard] { def.leaderboards.map { GKLeaderboard.make($0) } }
     /// The activity's image from the configuration, or a generated placeholder.
     open func loadImage(completionHandler: @escaping (UIImage?, Error?) -> Void) {
         let img = _GCImages.bundleImage(def.image) ?? _GCImages.leaderboard("activity-\(def.id)")
         DispatchQueue.main.async { completionHandler(img, nil) }
     }
-    open func loadImage() async throws -> UIImage {
+    @nonobjc open func loadImage() async throws -> UIImage {
         guard let i = _GCImages.bundleImage(def.image) ?? _GCImages.leaderboard("activity-\(def.id)") else { throw GKError.unsupported }
         return i
     }
@@ -69,7 +69,7 @@ open class GKGameActivityDefinition: NSObject {
 /// One play of an activity: start, pause, resume, end; the scores and achievement progress it collects are posted
 /// when it ends.
 @available(iOS 26.0, *)
-open class GKGameActivity: NSObject {
+@objc(GKGameActivity) @objcMembers open class GKGameActivity: NSObject {
     public let identifier: String
     public let activityDefinition: GKGameActivityDefinition
     open var properties: [String: String]
@@ -127,7 +127,7 @@ open class GKGameActivity: NSObject {
         let pending = _GCActivities.pending
         DispatchQueue.main.async { completionHandler(pending) }
     }
-    public class func checkPendingGameActivityExistence() async -> Bool { _GCActivities.pending }
+    @nonobjc public class func checkPendingGameActivityExistence() async -> Bool { _GCActivities.pending }
 
     open func start() {
         guard state == .initialized else { return }
@@ -155,17 +155,17 @@ open class GKGameActivity: NSObject {
         if !progress.isEmpty { GKAchievement.report(Array(achievements), withCompletionHandler: nil) }
         NSLog("isim GameKit: activity %@ ended after %.1f s (%ld scores, %ld achievements)", activityDefinition.identifier, played, scores.count, progress.count)
     }
-    open func setScore(on leaderboard: GKLeaderboard, to score: Int, context: UInt) {
+    @objc(setScoreOnLeaderboard:toScore:context:) open func setScore(on leaderboard: GKLeaderboard, to score: Int, context: UInt) {
         let s = GKLeaderboardScore()
         s.leaderboardID = leaderboard.baseLeaderboardID; s.value = score; s.context = Int(context)
         scores[leaderboard.baseLeaderboardID] = s
     }
-    open func setScore(on leaderboard: GKLeaderboard, to score: Int) { setScore(on: leaderboard, to: score, context: 0) }
-    open func score(on leaderboard: GKLeaderboard) -> GKLeaderboardScore? { scores[leaderboard.baseLeaderboardID] }
-    open func removeScores(from leaderboards: [GKLeaderboard]) { for b in leaderboards { scores[b.baseLeaderboardID] = nil } }
-    open func setProgress(on achievement: GKAchievement, to percentComplete: Double) { progress[achievement.identifier] = min(100, max(0, percentComplete)) }
+    @objc(setScoreOnLeaderboard:toScore:) open func setScore(on leaderboard: GKLeaderboard, to score: Int) { setScore(on: leaderboard, to: score, context: 0) }
+    @objc(scoreOnLeaderboard:) open func score(on leaderboard: GKLeaderboard) -> GKLeaderboardScore? { scores[leaderboard.baseLeaderboardID] }
+    @objc(removeScoresFromLeaderboards:) open func removeScores(from leaderboards: [GKLeaderboard]) { for b in leaderboards { scores[b.baseLeaderboardID] = nil } }
+    @objc(setProgressOnAchievement:toPercentComplete:) open func setProgress(on achievement: GKAchievement, to percentComplete: Double) { progress[achievement.identifier] = min(100, max(0, percentComplete)) }
     open func setAchievementCompleted(_ achievement: GKAchievement) { progress[achievement.identifier] = 100 }
-    open func progress(on achievement: GKAchievement) -> Double { progress[achievement.identifier] ?? 0 }
+    @objc(progressOnAchievement:) open func progress(on achievement: GKAchievement) -> Double { progress[achievement.identifier] ?? 0 }
     open func removeAchievements(_ achievements: [GKAchievement]) { for a in achievements { progress[a.identifier] = nil } }
     /// A match request for the activity's player counts (nil for single-player activities).
     open func makeMatchRequest() -> GKMatchRequest? {
@@ -181,7 +181,7 @@ open class GKGameActivity: NSObject {
         r.playerGroup = partyCode.map { abs($0.hashValue % 1_000_000) + 1 } ?? 0
         GKMatchmaker.shared().findMatch(for: r, withCompletionHandler: completionHandler)
     }
-    open func findMatch() async throws -> GKMatch {
+    @nonobjc open func findMatch() async throws -> GKMatch {
         try await withCheckedThrowingContinuation { k in findMatch { m, e in if let m { k.resume(returning: m) } else { k.resume(throwing: e ?? GKError(code: .unknown)) } } }
     }
     open override var description: String { "<GKGameActivity \(activityDefinition.identifier) state \(state.rawValue)\(partyCode.map { " party \($0)" } ?? "")>" }

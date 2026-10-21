@@ -217,6 +217,7 @@ SWIFT_FRAMEWORKS = [
     ("PhotosUI", "-framework Foundation -framework UIKit -framework Photos"),
     ("CoreHaptics", "-framework Foundation"),   # issue #548: CoreHaptics and GameController from Objective-C
     ("GameController", "-framework Foundation -framework UIKit -framework CoreHaptics"),
+    ("GameKit", "-framework Foundation -framework UIKit"),   # issue #559: GameKit from Objective-C
     ("AudioUnit", "-framework Foundation -framework AudioToolbox -reexport_framework AudioToolbox"),
     ("CoreAudio", "-framework Foundation"),
     # issue #231: the frameworks ad, login and VoIP SDKs use from Objective-C

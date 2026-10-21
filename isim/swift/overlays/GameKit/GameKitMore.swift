@@ -6,7 +6,7 @@ import SwiftUI
 
 // MARK: - Achievement descriptions
 
-open class GKAchievementDescription: NSObject {
+@objc(GKAchievementDescription) @objcMembers open class GKAchievementDescription: NSObject {
     public let identifier: String
     public let groupIdentifier: String?
     public let title: String
@@ -26,12 +26,12 @@ open class GKAchievementDescription: NSObject {
         let list = _GCConfig.achievements.map(GKAchievementDescription.init)
         DispatchQueue.main.async { completionHandler?(list, nil) }
     }
-    public class func loadAchievementDescriptions() async throws -> [GKAchievementDescription] { _GCConfig.achievements.map(GKAchievementDescription.init) }
+    @nonobjc public class func loadAchievementDescriptions() async throws -> [GKAchievementDescription] { _GCConfig.achievements.map(GKAchievementDescription.init) }
     open func loadImage(completionHandler: ((UIImage?, Error?) -> Void)? = nil) {
         let img = _GCImages.achievement(identifier, completed: true)
         DispatchQueue.main.async { completionHandler?(img, nil) }
     }
-    open func loadImage() async throws -> UIImage {
+    @nonobjc open func loadImage() async throws -> UIImage {
         guard let i = _GCImages.achievement(identifier, completed: true) else { throw GKError.unsupported }
         return i
     }
@@ -41,7 +41,7 @@ open class GKAchievementDescription: NSObject {
 
 // MARK: - Leaderboard sets
 
-open class GKLeaderboardSet: NSObject {
+@objc(GKLeaderboardSet) @objcMembers open class GKLeaderboardSet: NSObject {
     open var title: String
     open var identifier: String?
     open var groupIdentifier: String?
@@ -51,18 +51,18 @@ open class GKLeaderboardSet: NSObject {
         let list = _GCConfig.sets.map(GKLeaderboardSet.init)
         DispatchQueue.main.async { completionHandler?(list, nil) }
     }
-    public class func loadLeaderboardSets() async throws -> [GKLeaderboardSet] { _GCConfig.sets.map(GKLeaderboardSet.init) }
+    @nonobjc public class func loadLeaderboardSets() async throws -> [GKLeaderboardSet] { _GCConfig.sets.map(GKLeaderboardSet.init) }
     open func loadLeaderboards(handler: @escaping ([GKLeaderboard]?, Error?) -> Void) {
         let list = boards.map { GKLeaderboard.make($0) }
         DispatchQueue.main.async { handler(list, nil) }
     }
-    open func loadLeaderboards() async throws -> [GKLeaderboard] { boards.map { GKLeaderboard.make($0) } }
+    @nonobjc open func loadLeaderboards() async throws -> [GKLeaderboard] { boards.map { GKLeaderboard.make($0) } }
     /// The set's image from the configuration (a file or asset in the bundle), or a generated placeholder.
     open func loadImage(completionHandler: ((UIImage?, Error?) -> Void)? = nil) {
         let img = _GCImages.set(identifier ?? "")
         DispatchQueue.main.async { completionHandler?(img, nil) }
     }
-    open func loadImage() async throws -> UIImage {
+    @nonobjc open func loadImage() async throws -> UIImage {
         guard let i = _GCImages.set(identifier ?? "") else { throw GKError.unsupported }
         return i
     }
@@ -117,7 +117,7 @@ extension GKLocalPlayerListener {
 /// Saved games live in the device data ($ISIM_DATA/Library/GameCenter/<bundle id>/SavedGames), like
 /// iCloud-backed Game Center saves outlive the app's container. A name with several versions (from
 /// different devices: `isim gamecenter <app> conflict <name>`) is a conflict to resolve.
-open class GKSavedGame: NSObject, @unchecked Sendable {
+@objc(GKSavedGame) @objcMembers open class GKSavedGame: NSObject, @unchecked Sendable {
     public let name: String?
     public let deviceName: String?
     public let modificationDate: Date?
@@ -127,7 +127,7 @@ open class GKSavedGame: NSObject, @unchecked Sendable {
         let d = FileManager.default.contents(atPath: (_GCSaves.dir(name ?? "") as NSString).appendingPathComponent(file))
         DispatchQueue.main.async { handler?(d, d == nil ? GKError(code: .unknown) : nil) }
     }
-    open func loadData() async throws -> Data {
+    @nonobjc open func loadData() async throws -> Data {
         try await withCheckedThrowingContinuation { k in loadData { d, e in if let d { k.resume(returning: d) } else { k.resume(throwing: e ?? GKError(code: .unknown)) } } }
     }
 }
@@ -176,7 +176,7 @@ extension GKLocalPlayer {
         NSLog("isim GameKit: saved game \"%@\" (%ld bytes)", name, data.count)
         DispatchQueue.main.async { MainActor.assumeIsolated { for l in self.listeners { l.player(self, didModifySavedGame: g) } }; handler?(g, nil) }
     }
-    public func saveGameData(_ data: Data, withName name: String) async throws -> GKSavedGame {
+    @nonobjc public func saveGameData(_ data: Data, withName name: String) async throws -> GKSavedGame {
         try await withCheckedThrowingContinuation { k in saveGameData(data, withName: name) { g, e in if let g { k.resume(returning: g) } else { k.resume(throwing: e ?? GKError(code: .unknown)) } } }
     }
     /// All saved games; a name listed more than once is a conflict (listeners are told).
@@ -195,7 +195,7 @@ extension GKLocalPlayer {
             MainActor.assumeIsolated { for c in conflicts { for l in self.listeners { l.player(self, hasConflictingSavedGames: c) } } }
         }
     }
-    public func fetchSavedGames() async throws -> [GKSavedGame] {
+    @nonobjc public func fetchSavedGames() async throws -> [GKSavedGame] {
         try await withCheckedThrowingContinuation { k in fetchSavedGames { g, e in if let g { k.resume(returning: g) } else { k.resume(throwing: e ?? GKError(code: .unknown)) } } }
     }
     public func deleteSavedGames(withName name: String, completionHandler handler: ((Error?) -> Void)? = nil) {
@@ -203,16 +203,16 @@ extension GKLocalPlayer {
         NSLog("isim GameKit: deleted saved game \"%@\"", name)
         DispatchQueue.main.async { handler?(nil) }
     }
-    public func deleteSavedGames(withName name: String) async throws { deleteSavedGames(withName: name, completionHandler: nil) }
+    @nonobjc public func deleteSavedGames(withName name: String) async throws { deleteSavedGames(withName: name, completionHandler: nil) }
     /// Replaces the conflicting versions with one saved game holding `data`.
-    public func resolveConflictingSavedGames(_ conflictingSavedGames: [GKSavedGame], with data: Data, completionHandler handler: (([GKSavedGame]?, Error?) -> Void)? = nil) {
+    @objc(resolveConflictingSavedGames:withData:completionHandler:) public func resolveConflictingSavedGames(_ conflictingSavedGames: [GKSavedGame], with data: Data, completionHandler handler: (([GKSavedGame]?, Error?) -> Void)? = nil) {
         let names = Set(conflictingSavedGames.compactMap { $0.name })
         let files = Set(conflictingSavedGames.map { $0.file })
         let result = names.sorted().map { n in _GCSaves.store(data, name: n) { files.contains($0["file"] as? String ?? "") } }
         NSLog("isim GameKit: resolved saved-game conflict (%@)", names.sorted().joined(separator: ", "))
         DispatchQueue.main.async { handler?(result, nil) }
     }
-    public func resolveConflictingSavedGames(_ conflictingSavedGames: [GKSavedGame], with data: Data) async throws -> [GKSavedGame] {
+    @nonobjc public func resolveConflictingSavedGames(_ conflictingSavedGames: [GKSavedGame], with data: Data) async throws -> [GKSavedGame] {
         try await withCheckedThrowingContinuation { k in resolveConflictingSavedGames(conflictingSavedGames, with: data) { g, e in if let g { k.resume(returning: g) } else { k.resume(throwing: e ?? GKError(code: .unknown)) } } }
     }
 }
@@ -225,19 +225,19 @@ public protocol GKFriendRequestComposeViewControllerDelegate: AnyObject {
 
 /// The friend request composer: the request goes to the player with that nickname on isim's local Game Center
 /// network (test players accept at once; a device's player accepts in Settings > Game Center).
-open class GKFriendRequestComposeViewController: UINavigationControllerStandIn {
+@objc(GKFriendRequestComposeViewController) @objcMembers open class GKFriendRequestComposeViewController: UINavigationControllerStandIn {
     weak open var composeViewDelegate: GKFriendRequestComposeViewControllerDelegate?
     var recipients: [String] = []
-    var message = ""
+    var _message = ""
     public class func maxNumberOfRecipients() -> Int { 1 }
-    open func setMessage(_ message: String?) { self.message = message ?? "" }
+    open func setMessage(_ message: String?) { self._message = message ?? "" }
     open func addRecipients(withEmailAddresses emailAddresses: [String]) { recipients += emailAddresses }
     open func addRecipients(withPhoneNumbers phoneNumbers: [String]) { recipients += phoneNumbers }
     open func addRecipientPlayers(_ players: [GKPlayer]) { recipients += players.map { $0.alias } }
     open override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
-        embed(_GCFriendRequestView(to: recipients.joined(separator: ", "), message: message) { [weak self] sent, to, text in
+        embed(_GCFriendRequestView(to: recipients.joined(separator: ", "), message: _message) { [weak self] sent, to, text in
             guard let self else { return }
             if sent { for r in to.split(separator: ",") { _GCSocial.sendRequest(to: String(r), message: text) } } else { NSLog("isim GameKit: friend request cancelled") }
             if let d = self.composeViewDelegate { d.friendRequestComposeViewControllerDidFinish(self) } else { self.dismiss(animated: true, completion: nil) }
