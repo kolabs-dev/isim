@@ -94,7 +94,13 @@ public enum ASUserDetectionStatus: Int, Sendable { case unsupported = 0, unknown
     public let authorizationRequests: [ASAuthorizationRequest]
     weak open var delegate: ASAuthorizationControllerDelegate?
     weak open var presentationContextProvider: ASAuthorizationControllerPresentationContextProviding?
-    open var customAuthorizationMethods: [Any] = []
+    /// shown on tvOS only (as on iOS, isim offers none)
+    open var customAuthorizationMethods: [ASAuthorizationCustomMethod] = []
+    /// customAuthorizationMethods as [Any] (before #306): apps built earlier reach it under the old symbols (buildlib/swift.py)
+    open var _isimCustomAuthorizationMethodsV1: [Any] {
+        get { customAuthorizationMethods.map(\.rawValue) }
+        set { customAuthorizationMethods = newValue.compactMap { ($0 as? ASAuthorizationCustomMethod) ?? ($0 as? String).map(ASAuthorizationCustomMethod.init(rawValue:)) } }
+    }
     /// keeps the controller alive while its sheet is up (apps often don't hold on to it)
     nonisolated(unsafe) static var active: Set<ASAuthorizationController> = []
     weak var sheet: UIViewController?
@@ -190,11 +196,30 @@ public enum ASUserDetectionStatus: Int, Sendable { case unsupported = 0, unknown
         let registrations = authorizationRequests.compactMap { $0 as? ASAuthorizationPlatformPublicKeyCredentialRegistrationRequest }
         let assertions = authorizationRequests.compactMap { $0 as? ASAuthorizationPlatformPublicKeyCredentialAssertionRequest }
         let passwords = authorizationRequests.compactMap { $0 as? ASAuthorizationPasswordRequest }
+        let keyRegistrations = authorizationRequests.compactMap { $0 as? ASAuthorizationSecurityKeyPublicKeyCredentialRegistrationRequest }
+        let keyAssertions = authorizationRequests.compactMap { $0 as? ASAuthorizationSecurityKeyPublicKeyCredentialAssertionRequest }
         guard !authorizationRequests.isEmpty else { fail(.unknown); return }
 
         if let reg = registrations.first {
+            if reg._requestStyle == 1 { _ASSheets.registerConditionally(self, reg); return }
             if options.contains(.preferImmediatelyAvailableCredentials) { fail(.notInteractive); return }
+            if _ASPasskeys.excluded(reg) {
+                NSLog("isim AuthenticationServices: a passkey in excludedCredentials is already saved for %@", reg.relyingPartyIdentifier)
+                fail(.matchedExcludedCredential); return
+            }
             _ASSheets.presentPasskeyRegistration(self, reg); return
+        }
+        if let reg = keyRegistrations.first {
+            if options.contains(.preferImmediatelyAvailableCredentials) { fail(.notInteractive); return }
+            if _ASPasskeys.excluded(reg) {
+                NSLog("isim AuthenticationServices: the virtual security key has a credential in excludedCredentials for %@", reg.relyingPartyIdentifier)
+                fail(.matchedExcludedCredential); return
+            }
+            guard reg.credentialParameters.isEmpty || reg.credentialParameters.contains(where: { $0.algorithm == .ES256 }) else {
+                NSLog("isim AuthenticationServices: the virtual security key supports ES256 (-7) only")
+                fail(.failed); return
+            }
+            _ASSheets.presentSecurityKeyRegistration(self, reg); return
         }
         // saved credentials the user can pick: passkeys for the relying party, the app's saved passwords
         var choices: [_ASChoice] = []
@@ -202,6 +227,9 @@ public enum ASUserDetectionStatus: Int, Sendable { case unsupported = 0, unknown
             for k in _ASPasskeys.load(a.relyingPartyIdentifier) where a.allowedCredentials.isEmpty || a.allowedCredentials.contains(where: { $0.credentialID == k.credentialID }) {
                 choices.append(.passkey(a, k))
             }
+        }
+        for a in keyAssertions {
+            choices += _ASPasskeys.securityKeyCredentials(a).map { _ASChoice.securityKey(a, $0.0, appID: $0.appID) }
         }
         if !passwords.isEmpty { choices += _ASPasswords.saved().map { _ASChoice.password(passwords[0], $0) } }
         if !choices.isEmpty { _ASSheets.presentChooser(self, choices, appleID: appleID.first); return }
@@ -212,6 +240,10 @@ public enum ASUserDetectionStatus: Int, Sendable { case unsupported = 0, unknown
         if let a = appleID.first { _ASSheets.presentAppleID(self, a); return }
         if !assertions.isEmpty {
             NSLog("isim AuthenticationServices: no passkey saved for %@ (iOS would offer a passkey from a nearby device; isim cancels)", assertions[0].relyingPartyIdentifier)
+            fail(.canceled); return
+        }
+        if !keyAssertions.isEmpty {
+            NSLog("isim AuthenticationServices: the virtual security key has no credential for %@ (isim cancels)", keyAssertions[0].relyingPartyIdentifier)
             fail(.canceled); return
         }
         NSLog("isim AuthenticationServices: no saved passwords for this app (isim keychain internet passwords)")
@@ -225,6 +257,11 @@ enum _ASData {
     static var dataDir: String {
         let env = ProcessInfo.processInfo.environment
         return env["ISIM_DATA"].flatMap { $0.isEmpty ? nil : $0 } ?? ((env["HOME"] ?? "/tmp") as NSString).appendingPathComponent(".local/share/isim")
+    }
+    static var securityKeyDir: String {
+        let p = (dataDir as NSString).appendingPathComponent("Library/isim/SecurityKey")
+        try? FileManager.default.createDirectory(atPath: p, withIntermediateDirectories: true, attributes: nil)
+        return p
     }
     static func dir(_ sub: String) -> String {
         let p = (dataDir as NSString).appendingPathComponent("Library/isim/AppleAccount/" + sub)

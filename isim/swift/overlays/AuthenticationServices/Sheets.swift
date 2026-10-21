@@ -8,10 +8,12 @@ import SwiftUI
 enum _ASChoice {
     case passkey(ASAuthorizationPlatformPublicKeyCredentialAssertionRequest, _ASPasskey)
     case password(ASAuthorizationPasswordRequest, _ASSavedPassword)
-    var title: String { switch self { case .passkey(_, let k): k.name; case .password(_, let p): p.user } }
+    case securityKey(ASAuthorizationSecurityKeyPublicKeyCredentialAssertionRequest, _ASPasskey, appID: Bool)
+    var title: String { switch self { case .passkey(_, let k), .securityKey(_, let k, _): k.name; case .password(_, let p): p.user } }
     var subtitle: String {
         switch self {
         case .passkey(let r, _): "Passkey for \(r.relyingPartyIdentifier)"
+        case .securityKey(let r, _, _): "Security key · \(r.relyingPartyIdentifier)"
         case .password(_, let p): p.server.isEmpty ? "Saved password" : "Saved password · \(p.server)"
         }
     }
@@ -91,6 +93,7 @@ final class _ASSheetDelegate: NSObject, UISheetPresentationControllerDelegate {
         NSLog("isim AuthenticationServices: sign-in sheet with %d saved credential(s)", choices.count)
         let site: String = {
             if case .passkey(let r, _) = choices[0] { return r.relyingPartyIdentifier }
+            if case .securityKey(let r, _, _) = choices[0] { return r.relyingPartyIdentifier }
             return _ASData.appName
         }()
         present(c, height: min(700, 360 + CGFloat(choices.count) * 62), _ASChooserSheet(site: site, choices: choices,
@@ -102,8 +105,91 @@ final class _ASSheetDelegate: NSObject, UISheetPresentationControllerDelegate {
                     catch { finish(c) { c.fail(.failed) } }
                 case .password(let r, let p):
                     finish(c) { c.complete(r.provider, ASPasswordCredential(user: p.user, password: p.password)) }
+                case .securityKey(let r, let k, let appID):
+                    NSLog("isim AuthenticationServices: virtual security key used for %@ (%@)", k.name, r.relyingPartyIdentifier)
+                    do { let cred = try _ASPasskeys.assert(r, k, appID: appID); finish(c) { c.complete(r.provider, cred) } }
+                    catch { finish(c) { c.fail(.failed) } }
                 }
             }))
+    }
+
+    // MARK: Security keys (the virtual USB key; iOS asks to insert or tap a real one)
+    static func presentSecurityKeyRegistration(_ c: ASAuthorizationController, _ r: ASAuthorizationSecurityKeyPublicKeyCredentialRegistrationRequest) {
+        NSLog("isim AuthenticationServices: security key sheet: set up a security key for %@ on %@", r.name, r.relyingPartyIdentifier)
+        present(c, height: 430, _ASSecurityKeySheet(rp: r.relyingPartyIdentifier,
+            onCancel: { finish(c) { c.fail(.canceled) } },
+            onContinue: { let cred = _ASPasskeys.register(r); finish(c) { c.complete(r.provider, cred) } }))
+    }
+
+    // MARK: Conditional passkey registration (iOS 18): no sheet, a notification afterwards
+    static func registerConditionally(_ c: ASAuthorizationController, _ r: ASAuthorizationPlatformPublicKeyCredentialRegistrationRequest) {
+        guard _ASPasswords.saved().contains(where: { $0.user == r.name }) else {
+            NSLog("isim AuthenticationServices: conditional passkey registration for %@: no saved password for this account, no passkey created", r.name)
+            c.fail(.failed); return
+        }
+        guard !_ASPasskeys.excluded(r) else { c.fail(.matchedExcludedCredential); return }
+        do {
+            let cred = try _ASPasskeys.register(r)
+            NSLog("isim AuthenticationServices: conditional passkey registration for %@ (%@): created without a sheet", r.name, r.relyingPartyIdentifier)
+            _ASBanner.show(title: "Passkey Saved", body: "A passkey for “\(r.name)” was saved to Passwords. You can use it to sign in to \(r.relyingPartyIdentifier).")
+            c.complete(r.provider, cred)
+        } catch { c.fail(.failed) }
+    }
+}
+
+/// a Passwords notification banner like iOS's, at the top of the screen for a few seconds (accessibility identifier
+/// "as-banner"); touches elsewhere go to the app
+@MainActor enum _ASBanner {
+    static var window: UIWindow?
+    static func show(title: String, body: String) {
+        window?.isHidden = true
+        let w = _ASPassthroughWindow(frame: UIScreen.main.bounds)
+        w.windowLevel = UIWindow.Level(rawValue: 2100)
+        w.backgroundColor = .clear
+        let width = min(UIScreen.main.bounds.width - 16, 390), height: CGFloat = 84
+        let host = UIHostingController(rootView: _ASBannerView(title: title, message: body))
+        host.view.backgroundColor = .clear
+        let root = UIViewController(); root.view.backgroundColor = .clear
+        root.addChild(host)
+        let card = host.view!
+        card.accessibilityIdentifier = "as-banner"
+        card.accessibilityLabel = title
+        w.content = card
+        card.frame = CGRect(x: (UIScreen.main.bounds.width - width) / 2, y: -height - 10, width: width, height: height)
+        root.view.addSubview(card)
+        host.didMove(toParent: root)
+        w.rootViewController = root
+        window = w
+        w.isHidden = false
+        NSLog("isim AuthenticationServices: notification: %@ — %@", title, body)
+        let top = max(w.safeAreaInsets.top, 20)
+        UIView.animate(withDuration: 0.5, delay: 0, usingSpringWithDamping: 0.8, initialSpringVelocity: 0, options: [], animations: {
+            card.frame.origin.y = top + 2
+        }, completion: nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+            MainActor.assumeIsolated {
+                guard window === w else { return }
+                UIView.animate(withDuration: 0.35, delay: 0, options: [.curveEaseIn], animations: {
+                    card.frame.origin.y = -height - 10
+                }, completion: nil)
+                // gone after the slide (not in the completion, so it holds with animations off)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    MainActor.assumeIsolated {
+                        card.removeFromSuperview()
+                        w.isHidden = true
+                        if window === w { window = nil }
+                    }
+                }
+            }
+        }
+    }
+}
+
+final class _ASPassthroughWindow: UIWindow {
+    weak var content: UIView?
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard let content, let v = super.hitTest(point, with: event), v.isDescendant(of: content) else { return nil }
+        return v
     }
 }
 
@@ -271,6 +357,51 @@ struct _ASPasskeySheet: View {
                 .font(.system(size: 15)).foregroundStyle(.secondary).multilineTextAlignment(.center).padding(.horizontal, 32).padding(.top, 8)
             Spacer(minLength: 16)
             _ASContinueButton(id: "passkey-continue", action: onContinue)
+            _ASSimulationNote()
+        }
+    }
+}
+
+struct _ASBannerView: View {
+    let title: String, message: String
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 9).fill(Color(uiColor: .systemBlue)).frame(width: 38, height: 38)
+                Image(systemName: "key.fill").font(.system(size: 18, weight: .semibold)).foregroundStyle(.white)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                HStack {
+                    Text(verbatim: title).font(.system(size: 15, weight: .semibold)).foregroundStyle(.primary).lineLimit(1)
+                    Spacer()
+                    Text(verbatim: "now").font(.system(size: 13)).foregroundStyle(.secondary)
+                }
+                Text(verbatim: message).font(.system(size: 15)).foregroundStyle(.primary).lineLimit(2)
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
+        .shadow(color: .black.opacity(0.15), radius: 10, y: 3)
+    }
+}
+
+struct _ASSecurityKeySheet: View {
+    let rp: String
+    let onCancel: () -> Void, onContinue: () -> Void
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack { Spacer(); _ASCloseButton(id: "securitykey-cancel", action: onCancel) }.padding(.horizontal, 16).padding(.top, 16)
+            ZStack {
+                Circle().fill(Color(uiColor: .systemBlue).opacity(0.12)).frame(width: 72, height: 72)
+                Image(systemName: "key.fill").font(.system(size: 28, weight: .medium)).foregroundStyle(Color(uiColor: .systemBlue))
+            }
+            Text(verbatim: "Set Up a Security Key").font(.system(size: 22, weight: .bold)).multilineTextAlignment(.center)
+                .accessibilityIdentifier("securitykey-title").padding(.horizontal, 28).padding(.top, 14)
+            Text(verbatim: "Insert your security key to save a passkey for \(rp) on it. isim uses a virtual USB security key kept on this simulated device.")
+                .font(.system(size: 15)).foregroundStyle(.secondary).multilineTextAlignment(.center).padding(.horizontal, 32).padding(.top, 8)
+            Spacer(minLength: 16)
+            _ASContinueButton(id: "securitykey-continue", action: onContinue)
             _ASSimulationNote()
         }
     }

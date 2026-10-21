@@ -1,7 +1,10 @@
 // Sample: isim's local AuthenticationServices — Sign in with Apple (SwiftUI SignInWithAppleButton and the UIKit
 // ASAuthorizationAppleIDButton), credential state + revocation, passkey registration and sign-in (the app plays
 // the relying-party server too: it parses the attestation object, keeps the COSE public key and verifies the
-// assertion signature with CryptoKit; also from the QuickType bar with performAutoFillAssistedRequests), saved-password sign-in from the keychain, and AppTrackingTransparency +
+// assertion signature with CryptoKit; also from the QuickType bar with performAutoFillAssistedRequests), the passkey
+// extensions PRF (the same key at registration and sign-in) and largeBlob (written, then read back), conditional
+// passkey registration (iOS 18) for an account with a saved password, a security key through SwiftUI's
+// authorizationController, saved-password sign-in from the keychain, and AppTrackingTransparency +
 // the advertising identifier (AdSupport). Results are printed for tests/ui/test_signin.py.
 import SwiftUI
 import UIKit
@@ -20,6 +23,10 @@ struct HelloSignInApp: App {
 enum Server {
     static let rp = "login.example.com"
     static var challenge = Data()
+    static let prfSalt = Data("hello-signin prf salt".utf8)
+    static var prfKey: Data?          // the PRF output at registration: sign-ins must give the same key
+    static var securityKeyID: Data?
+    static func bytes(_ k: SymmetricKey?) -> Data? { k?.withUnsafeBytes { Data($0) } }
     static func newChallenge() -> Data { challenge = Data((0..<32).map { _ in UInt8.random(in: 0...255) }); return challenge }
     static var publicKey: Data? {
         get { UserDefaults.standard.object(forKey: "passkeyPublicKey") as? Data }
@@ -78,7 +85,9 @@ final class Auth: NSObject, ObservableObject, ASAuthorizationControllerDelegate,
     func autoFill() {
         assisted?.cancel()
         let p = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: Server.rp)
-        let c = ASAuthorizationController(authorizationRequests: [p.createCredentialAssertionRequest(challenge: Server.newChallenge())])
+        let a = p.createCredentialAssertionRequest(challenge: Server.newChallenge())
+        a.largeBlob = .read
+        let c = ASAuthorizationController(authorizationRequests: [a])
         c.delegate = self
         c.presentationContextProvider = self
         c.performAutoFillAssistedRequests()
@@ -127,8 +136,18 @@ final class Auth: NSObject, ObservableObject, ASAuthorizationControllerDelegate,
             status = "Signed in"
         case let c as ASAuthorizationPlatformPublicKeyCredentialRegistration:
             Server.register(c)
+            if let k = Server.bytes(c.prf?.first) { Server.prfKey = k }
+            print("passkey extensions: prf=\(c.prf?.isSupported == true) key=\(c.prf?.first != nil) largeBlob=\(c.largeBlob?.isSupported == true)")
         case let c as ASAuthorizationPlatformPublicKeyCredentialAssertion:
             Server.verify(c)
+            let blob: String
+            switch c.largeBlob?.result {
+            case .read(let d)?: blob = "read \(d.map { String(decoding: $0, as: UTF8.self) } ?? "nothing")"
+            case .write(let ok)?: blob = "written \(ok)"
+            case nil: blob = "-"
+            @unknown default: blob = "?"
+            }
+            print("passkey assertion extensions: prf=\(c.prf.map { Server.bytes($0.first) == Server.prfKey }.map(String.init) ?? "-") largeBlob=\(blob)")
             DispatchQueue.main.async { MainActor.assumeIsolated { _ = UsernameField.field?.resignFirstResponder() } }
         case let c as ASPasswordCredential:
             print("password credential: \(c.user) / \(String(repeating: "•", count: c.password.count)) matches=\(c.password == "correct horse")")
@@ -181,6 +200,7 @@ struct UIKitAppleIDButton: UIViewRepresentable {
 
 struct RootView: View {
     @ObservedObject var auth = Auth.shared
+    @Environment(\.authorizationController) private var authorizationController
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -205,11 +225,17 @@ struct RootView: View {
                     row("Credential state", "state") { auth.checkState() }
                     row("Create passkey", "passkey-register") {
                         let p = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: Server.rp)
-                        auth.run([p.createCredentialRegistrationRequest(challenge: Server.newChallenge(), name: "taylor", userID: Data("user-42".utf8))])
+                        let r = p.createCredentialRegistrationRequest(challenge: Server.newChallenge(), name: "taylor", userID: Data("user-42".utf8))
+                        r.prf = .inputValues(.saltInput1(Server.prfSalt, saltInput2: nil))
+                        r.largeBlob = .supportPreferred
+                        auth.run([r])
                     }
                     row("Sign in with passkey", "passkey-signin") {
                         let p = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: Server.rp)
-                        auth.run([p.createCredentialAssertionRequest(challenge: Server.newChallenge())])
+                        let a = p.createCredentialAssertionRequest(challenge: Server.newChallenge())
+                        a.prf = .inputValues(.saltInput1(Server.prfSalt, saltInput2: nil))
+                        a.largeBlob = .write(Data("hello from isim".utf8))
+                        auth.run([a])
                     }
                     row("Passkey AutoFill", "passkey-autofill") { auth.autoFill() }
                     UsernameField().frame(height: 40)
@@ -220,6 +246,17 @@ struct RootView: View {
                         print("password saved: \(SecItemAdd(q as CFDictionary, nil) == errSecSuccess)")
                     }
                     row("Sign in with password", "password-signin") { auth.run([ASAuthorizationPasswordProvider().createRequest()]) }
+                    row("Upgrade to a passkey (conditional)", "passkey-conditional") {
+                        if #available(iOS 18.0, *) {
+                            let p = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: Server.rp)
+                            auth.run([p.createCredentialRegistrationRequest(challenge: Server.newChallenge(), name: "pat@example.com",
+                                                                            userID: Data("user-77".utf8), requestStyle: .conditional)])
+                        } else {
+                            print("conditional registration: needs iOS 18")
+                        }
+                    }
+                    row("Set up a security key", "securitykey-register") { Task { await registerSecurityKey() } }
+                    row("Sign in with a security key", "securitykey-signin") { Task { await signInWithSecurityKey() } }
                     row("Quick sign-in (no UI if none)", "quick-signin") {
                         let p = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: "nobody.example.org")
                         auth.run([p.createCredentialAssertionRequest(challenge: Server.newChallenge())], options: .preferImmediatelyAvailableCredentials)
@@ -241,6 +278,35 @@ struct RootView: View {
                 Auth.shared.status = "Signed out"
             }
             print("launched; stored user: \(Auth.shared.userID != nil)")
+        }
+    }
+    /// a security key through SwiftUI's authorizationController (async, ASAuthorizationResult)
+    func registerSecurityKey() async {
+        let p = ASAuthorizationSecurityKeyPublicKeyCredentialProvider(relyingPartyIdentifier: Server.rp)
+        let r = p.createCredentialRegistrationRequest(challenge: Server.newChallenge(), displayName: "Taylor Appleseed", name: "taylor",
+                                                      userID: Data("user-42".utf8))
+        r.credentialParameters = [ASAuthorizationPublicKeyCredentialParameters(algorithm: .ES256)]
+        r.residentKeyPreference = .discouraged
+        r.prf = .checkForSupport
+        do {
+            guard case .securityKeyRegistration(let c) = try await authorizationController.performRequest(r) else { print("security key: unexpected result"); return }
+            Server.securityKeyID = c.credentialID
+            print("security key registered: transports=\(c.transports.map(\.rawValue).joined(separator: ",")) crossPlatform=\(c.attachment == .crossPlatform) prf=\(c.prf?.isSupported == true) attestation=\(c.rawAttestationObject != nil) clientData=\(Server.clientDataOK(c.rawClientDataJSON, type: "webauthn.create"))")
+        } catch {
+            print("security key registration failed: \((error as NSError).domain) \((error as NSError).code)")
+        }
+    }
+    func signInWithSecurityKey() async {
+        let p = ASAuthorizationSecurityKeyPublicKeyCredentialProvider(relyingPartyIdentifier: Server.rp)
+        let a = p.createCredentialAssertionRequest(challenge: Server.newChallenge())
+        a.allowedCredentials = [ASAuthorizationSecurityKeyPublicKeyCredentialDescriptor(credentialID: Server.securityKeyID ?? Data(),
+                                                                                         transports: ASAuthorizationSecurityKeyPublicKeyCredentialDescriptor.Transport.allSupported)]
+        a.prf = .inputValues(.saltInput1(Server.prfSalt, saltInput2: Data("second".utf8)))
+        do {
+            guard case .securityKeyAssertion(let c) = try await authorizationController.performRequest(a) else { print("security key: unexpected result"); return }
+            print("security key assertion: credential=\(c.credentialID == Server.securityKeyID) user=\(String(decoding: c.userID, as: UTF8.self)) appID=\(c.appID) prf=\(c.prf != nil) second=\(c.prf?.second != nil) differs=\(Server.bytes(c.prf?.first) != Server.prfKey) clientData=\(Server.clientDataOK(c.rawClientDataJSON, type: "webauthn.get"))")
+        } catch {
+            print("security key sign-in failed: \((error as NSError).domain) \((error as NSError).code)")
         }
     }
     func row(_ title: String, _ id: String, _ action: @escaping () -> Void) -> some View {
