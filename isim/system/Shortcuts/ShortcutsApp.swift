@@ -66,8 +66,11 @@ func loadSuggestions(_ bundle: String) -> [Suggestion] {
     let list = (NSDictionary(contentsOfFile: f)?["interactions"] as? [[String: Any]]) ?? []
     var seen = Set<String>(), out: [Suggestion] = []
     for e in list.reversed() {
-        guard let id = e["identifier"] as? String, let intent = e["intent"] as? [String: Any] else { continue }
-        let t = describeIntent(intent)
+        guard let id = e["identifier"] as? String else { continue }
+        let t: String
+        if let intent = e["intent"] as? [String: Any] { t = describeIntent(intent) }
+        else if e["appIntent"] != nil, let title = e["title"] as? String { t = title }      // IntentDonationManager
+        else { continue }
         if seen.insert(t).inserted { out.append(Suggestion(id: id, title: t)) }
         if out.count >= 6 { break }
     }

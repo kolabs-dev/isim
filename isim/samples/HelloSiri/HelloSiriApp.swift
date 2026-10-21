@@ -8,6 +8,7 @@
 // - SiriKit: the Intents extension (messages, calls, the shopping list, music), INCreateNoteIntent handled in the app
 //   (application(_:handlerFor:)), music played in the app (application(_:handle:)), a call continued in the app
 //   (NSUserActivity with its INInteraction), Siri authorization, a donation, Add to Siri.
+// - Discovery.swift: App Intents donations, Spotlight entities, URL representations and the other intent kinds.
 import SwiftUI
 import AppIntents
 import Intents
@@ -228,6 +229,9 @@ struct ContentView: View {
                         INInteraction(intent: i, response: nil).donate { e in log("donated \(e == nil ? "ok" : "failed")") }
                     }.accessibilityIdentifier("donate")
                     Button("Add to Siri") { addToSiri = true }.accessibilityIdentifier("addToSiri")
+                    Button("Donate an order") { Discovery.donate() }.accessibilityIdentifier("donateOrder")
+                    Button("Delete order donations") { Discovery.deleteDonations() }.accessibilityIdentifier("deleteDonations")
+                    Button("Index cafes") { Discovery.index() }.accessibilityIdentifier("indexCafes")
                     Button("Voice shortcuts") {
                         INVoiceShortcutCenter.shared.getAllVoiceShortcuts { list, _ in
                             log("voice shortcuts: \((list ?? []).map { $0.invocationPhrase }.joined(separator: ", "))")
@@ -249,6 +253,7 @@ struct ContentView: View {
             model.last = "Calling \(call?.contacts?.first?.displayName ?? "?")"
             log("continued \(a.activityType): \(model.last)")
         }
+        .onOpenURL { url in log("opened \(url.absoluteString)") }
         .onAppear { log("launched, \(orders) order(s), cafe \(model.cafe), Siri \(model.siri.rawValue)") }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in tick += 1 }
     }

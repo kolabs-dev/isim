@@ -403,10 +403,19 @@ enum _IsimValues {
             }
         }
         do {
+            for (name, p) in params where !p._isimHasValue {           /* a unique entity is filled in, not asked for */
+                if #available(iOS 18.0, *), let u = p._isimValueType as? any UniqueAppEntity.Type, let v = await _isimUnique(u), p._isimSet(v) {
+                    NSLog("isim AppIntents: %@ = %@ (the unique entity)", name, _IsimValues.describe(v))
+                }
+            }
             for (name, p) in params where !p._isimOptional && !p._isimHasValue {
                 let v = try await _IsimRun.ask(p, dialog: nil, among: nil)
                 _ = p._isimSet(v)
                 NSLog("isim AppIntents: %@ = %@", name, _IsimValues.describe(v))
+            }
+            if let url = _IsimOpenURL.url(for: intent) {              /* a URLRepresentableIntent OpenIntent: its URL opens */
+                _IsimOpenURL.open(url)
+                ch.write(["type": "result", "outcome": "success", "dialog": "", "open": true, "url": url.absoluteString]); return
             }
             _ = _IsimSceneIntents.route(intent)                      /* intents directed to scenes (Scenes.swift) */
             defer { _IsimSceneIntents.current = nil }
@@ -433,6 +442,11 @@ enum _IsimValues {
             if let d = r?._dialog?.text { step["dialog"] = d }
             if let v = r?._valueAny { step["value"] = _IsimValues.describe(v) }
             if let s = r?._snippetView, let png = _IsimRun.render(s) { step["snippet"] = png }
+            if let si = r?._snippetIntentAny {                         /* .result(snippetIntent:): its view is the snippet */
+                _IsimSnippets.shown[_isimTypeName(type(of: si))] = si
+                if let v = await _IsimSnippets.view(si), let png = _IsimRun.render(v) { step["snippet"] = png }
+                NSLog("isim AppIntents: snippet intent %@", _isimTypeName(type(of: si)))
+            }
             if type(of: intent).openAppWhenRun { step["open"] = true }
             NSLog("isim AppIntents: %@ -> “%@”", title, step["dialog"] as? String ?? "")
             ch.write(step)
@@ -451,6 +465,12 @@ enum _IsimValues {
     let p = String(cString: path)
     Task { @MainActor in await _IsimRunner.run(p) }
 }
+
+@available(iOS 18.0, *)
+func _isimUnique<E: UniqueAppEntity>(_ t: E.Type) async -> Any? { try? await E.defaultQuery.uniqueEntity() }
+
+/// the entity type an OpenIntent opens (Spotlight runs it for indexed entities of that type)
+func _isimOpenTarget<O: OpenIntent>(_ o: O) -> String { _isimTypeName(O.Value.self) }
 
 // MARK: - metadata (what the system reads)
 
@@ -474,6 +494,8 @@ enum _IsimValues {
         var d: [String: Any] = ["title": t.title.description, "openAppWhenRun": t.openAppWhenRun, "discoverable": t.isDiscoverable,
                                 "authentication": ["alwaysAllowed", "requiresAuthentication", "requiresLocalDeviceAuthentication"][policyIndex(t.authenticationPolicy)],
                                 "parameters": params, "widgetConfiguration": probe is any WidgetConfigurationIntent, "open": probe is any OpenIntent]
+        if let o = probe as? any OpenIntent { d["openTarget"] = _isimOpenTarget(o) }
+        if let schema = (t as? any _IsimSchemaConforming.Type)?._isimSchemaName { d["schema"] = schema }
         if let desc = t.description { d["description"] = desc.text; if !desc.searchKeywords.isEmpty { d["keywords"] = desc.searchKeywords } }
         if let summary = _summary(probe) {
             d["summary"] = summary.sentence

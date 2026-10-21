@@ -5,7 +5,9 @@ for, a confirmation with a snippet view, the result dialog and snippet), Siri ma
 updateAppShortcutParameters()), asks for a required String parameter (requestValueDialog, Type to Siri), opens the app
 for an OpenIntent, keeps a value and a dialog, refuses an intent that requires authentication while locked, and
 Spotlight lists App Shortcuts and runs them. The Siri UI follows the iOS version: the orb (iOS 17), the glowing edge
-(iOS 18+)."""
+(iOS 18+). Also (issue #308): an intent donation listed and run from the Shortcuts app's Siri Suggestions, indexed
+entities in Spotlight running the OpenIntent, OpenURLIntent from a URL representation, unique and transient entities,
+camera capture and audio recording intents, relevant intents, schema intents, and (iOS 26) a snippet intent."""
 import re
 
 import pytest
@@ -17,7 +19,7 @@ APP = "dev.isim.samples.HelloSiri"
 
 def boot(launch):
     dev = launch(None, install=["HelloSiri"])
-    dev.wait_log(r"SpringBoard: Coffee Club: 4 App Shortcut\(s\), 6 intent\(s\)")
+    dev.wait_log(r"SpringBoard: Coffee Club: 4 App Shortcut\(s\), 16 intent\(s\)")
     return dev
 
 
@@ -60,7 +62,7 @@ def test_shortcuts_app(launch):
     siri(dev, r"id=siri-card text=Orders cleared\.")
     assert dev.quit() == 0, "exits cleanly"
     log = dev.log
-    assert re.search(r"isim AppIntents: 4 App Shortcut\(s\), 6 intent\(s\)", log), "the app's metadata mode lists them"
+    assert re.search(r"isim AppIntents: 4 App Shortcut\(s\), 16 intent\(s\)", log), "the app's metadata mode lists them"
     assert re.search(r"SpringBoard: running “Order Coffee” \(HelloSiri.OrderCoffeeIntent\) in Coffee Club \(in the background\)", log), \
         "the intent runs in the app, launched in the background"
     assert re.search(r"SpringBoard: Siri asks “Order 1 latte\?” \(Order / Cancel\)", log), "requestConfirmation with the action name"
@@ -160,3 +162,91 @@ def test_spotlight_app_shortcuts(launch):
     log = dev.log
     assert "SpringBoard: Spotlight runs the App Shortcut “Order Coffee”" in log and \
         re.search(r"isim AppIntents: Order Coffee cancelled", log), "Spotlight runs it; Cancel ends it"
+
+
+def test_app_intents_discovery(launch):
+    dev = boot(launch)
+    dev.wait_log(r"SpringBoard: Coffee Club: schema intents: system\.search \(HelloSiri\.SearchCafesIntent\), "
+                 r"system\.searchInApp \(HelloSiri\.FindInMenuIntent\)")
+    dev.send(f"launch {APP}")
+    dev.wait_tap_id("donateOrder")
+    dev.wait_log(r"HelloSiri: donated an order [0-9A-F-]{36}")
+    dev.tap_id("indexCafes")
+    dev.wait_log(r"HelloSiri: indexed 3 cafes, Harbor is coffeeclub://cafe/Harbor, schema intent true assistant only false")
+    dev.wait_log(r"1 relevant intent\(s\) for CafeWidget")
+    dev.wait_log(r"HelloSiri: packages 0")
+
+    # the donation in the Shortcuts app's Siri Suggestions, run with its values
+    dev.send("launch dev.isim.shortcuts")
+    dev.wait_tap_id(f"app-shortcuts-{APP}")
+    dev.wait_view(r"text=Order Coffee · Latte, 2")
+    dev.wait_still()
+    dev.screenshot("siri-suggestions")
+    dev.tap_text("Order Coffee · Latte, 2")
+    siri(dev, r"id=siri-card text=Order 2 latte\?")
+    dev.tap_id("siri-confirm")
+    siri(dev, r"id=siri-card text=Your latte is on its way\.")
+    dev.wait_log(r"HelloSiri: ordered 2 latte")
+    # the unique entity is filled in; a transient entity is the value
+    dev.wait_still()
+    dev.tap_id("action-ToggleDecafIntent")
+    siri(dev, r"id=siri-card text=Decaf is on\.")
+    dev.wait_still()
+    dev.tap_id("action-CafeWeatherIntent")
+    siri(dev, r"id=siri-card text=It’s sunny, 21° at Downtown\.")
+    dev.wait_still()
+    dev.tap_id("action-RecordTastingIntent")
+    siri(dev, r"id=siri-card text=Recording your tasting\.")
+    dev.wait_still()
+    dev.tap_id("action-LatteArtCameraIntent")                            # in the app, in the foreground
+    dev.wait_log(r"HelloSiri: camera capture: last photo none, now latte-art-1")
+    dev.wait_view(r"id=donateOrder")
+    dev.send("home")
+    dev.send("launch dev.isim.shortcuts")
+    page = dev.wait_view(lambda d: f"id=app-shortcuts-{APP}" in d or "id=action-DirectionsIntent" in d, what="the Shortcuts app")
+    if "id=action-DirectionsIntent" not in page:
+        dev.tap_id(f"app-shortcuts-{APP}")
+    dev.wait_tap_id("action-DirectionsIntent")                           # OpenURLIntent(urlRepresentable:): the app's URL
+    siri(dev, r"id=siri-option-1 text=Harbor")
+    dev.tap_id("siri-option-1")
+    dev.wait_log(r"HelloSiri: directions to Harbor")
+    dev.wait_log(r"HelloSiri: opened coffeeclub://cafe/Harbor")
+
+    # an indexed entity in Spotlight runs the app's OpenIntent for it
+    dev.wait_view(r"id=cafe text=Cafe:")
+    dev.send("home")
+    dev.wait_view(r"id=home-dock")                                       # Spotlight opens from the home screen
+    dev.wait_still()
+    dev.send("spotlight")
+    dev.wait_view(r"id=spotlight-field")
+    dev.type("Harbor")
+    dev.wait_view(r"id=spotlight-item-appentity_HelloSiri\.CafeEntity_Harbor")
+    dev.wait_still()
+    dev.screenshot("spotlight-entity")
+    dev.tap_id("spotlight-item-appentity_HelloSiri.CafeEntity_Harbor")
+    dev.wait_log(r"SpringBoard: Spotlight opens HelloSiri\.CafeEntity Harbor with HelloSiri\.ShowCafeIntent")
+    dev.wait_log(r"HelloSiri: showing cafe Harbor", count=1)
+    dev.wait_view(r"id=cafe text=Cafe: Harbor")
+    dev.wait_tap_id("deleteDonations")
+    dev.wait_log(r"HelloSiri: deleted 1 donation\(s\)")
+    assert dev.quit() == 0, "exits cleanly"
+    log = dev.log
+    assert re.search(r"isim AppIntents: donated “Order Coffee · Latte, 2”", log), "the donation's title names its values"
+    assert re.search(r"isim AppIntents: settings = Settings \(the unique entity\)", log), "the unique entity is not asked for"
+    assert re.search(r"isim AppIntents: 3 Cafe entities indexed in Spotlight", log)
+
+
+def test_snippet_intent(launch):
+    """iOS 26: a snippet intent's view in Siri's card"""
+    dev = launch(None, install=["HelloSiri"], os_version="26.0", device="iphone17")
+    dev.wait_log(r"SpringBoard: Coffee Club: 4 App Shortcut\(s\), 16 intent\(s\)")
+    dev.send("launch dev.isim.shortcuts")
+    dev.wait_tap_id(f"app-shortcuts-{APP}")
+    dev.wait_tap_id("action-OrderStatusIntent")
+    siri(dev, r"id=siri-card text=Here’s your order\.")
+    dev.wait_dump(r"id=siri-snippet")
+    dev.wait_still()
+    dev.screenshot("snippet-intent")
+    assert dev.quit() == 0, "exits cleanly"
+    assert re.search(r"isim AppIntents: snippet intent HelloSiri\.OrderStatusSnippet", dev.log)
+
