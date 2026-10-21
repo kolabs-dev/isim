@@ -113,9 +113,12 @@ enum _PUAssets {
     }
 }
 
-open class PHPickerViewController: UIViewController {
+@objc(PHPickerViewController) open class PHPickerViewController: UIViewController {
     public let configuration: PHPickerConfiguration
     open weak var delegate: PHPickerViewControllerDelegate?
+    /// Objective-C's delegate and configuration (ObjC.swift; PhotosUI.m has the configuration class)
+    weak var _objcDelegate: _PUObjCPickerDelegate?
+    var _objcConfiguration: NSObject?
     let nav = UINavigationController()
     var finished = false
 
@@ -149,11 +152,12 @@ open class PHPickerViewController: UIViewController {
             .map { PHPickerResult(itemProvider: _PUAssets.provider($0), assetIdentifier: configuration.identifiers ? $0.localIdentifier : nil) }
         NSLog("isim PhotosUI: picked %d item(s)", results.count)
         if let delegate { delegate.picker(self, didFinishPicking: results) }
+        else if let d = _objcDelegate { d.picker(self, didFinishPicking: results.compactMap(_PUObjC.result)) }
         else { presentingViewController?.dismiss(animated: true, completion: nil) }
     }
-    open func deselectAssets(withIdentifiers identifiers: [String]) {}
-    open func moveAsset(withIdentifier identifier: String, afterAssetWithIdentifier: String?) {}
-    open func scrollToInitialPosition() {}
+    @objc open func deselectAssets(withIdentifiers identifiers: [String]) {}
+    @objc open func moveAsset(withIdentifier identifier: String, afterAssetWithIdentifier: String?) {}
+    @objc open func scrollToInitialPosition() {}
 }
 
 // MARK: - SwiftUI

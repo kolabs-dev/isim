@@ -9,6 +9,7 @@
 ## How isim implements it
 
 - **Adapted:** a grid picker drawn by isim (images only).
+- **Objective-C:** `#import <PhotosUI/PhotosUI.h>` and `-framework PhotosUI`: `PHPickerViewController` is the Swift class; `PHPickerConfiguration`, `PHPickerFilter` and `PHPickerResult` are Swift structs, so Objective-C has classes of its own (`isim/frameworks/PhotosUI/PhotosUI.m`), which the picker reads and makes (`isim/swift/overlays/PhotosUI/ObjC.swift`).
 
 ## API
 
@@ -16,6 +17,7 @@
 |---|---|---|---|
 | PhotosUI `PhotosPicker` / `PHPickerViewController` | 🟡 | ≤17 | adapted: a grid of the device photo library, outside the app's permission; single and multiple selection; `NSItemProvider` results (photos as data, videos as files: `loadFileRepresentation`); `PhotosPickerItem.loadTransferable(type:)` for `Data`, `Image` and file-based `Transferable` types (a movie); videos show their duration; tested (HelloPhotos, test_photos, test_photos_videos_albums). Missing: inline picker configuration (iOS 17) |
 | `PHPickerFilter` (`images`, `videos`, `any(of:)`, `all(of:)`, `not(_:)`) | ✅ | ≤17 | adapted: the picker offers only the items the filter matches; isim's library has photos and videos only, so `livePhotos`, `screenshots`, `panoramas`, `depthEffectPhotos`, `bursts`, `slomoVideos`, `timelapseVideos`, `cinematicVideos` and `spatialMedia` match nothing; tested (test_photos_videos_albums) |
+| PhotosUI's Objective-C interface: `PHPickerViewController` (`initWithConfiguration:`, `configuration`, `delegate`, `deselectAssetsWithIdentifiers:`, `moveAssetWithIdentifier:afterAssetWithIdentifier:`, `scrollToInitialPosition`), `PHPickerConfiguration` (`initWithPhotoLibrary:`, `selectionLimit`, `filter`, `selection`, `preferredAssetRepresentationMode`, `preselectedAssetIdentifiers`), `PHPickerFilter` (the kinds, `anyFilterMatchingSubfilters:`, `allFilterMatchingSubfilters:`, `notFilterOfSubfilter:`, `playbackStyleFilter:`), `PHPickerResult`, `PHPickerViewControllerDelegate` | ✅ | ≤17 | adapted: as the Swift picker; the configuration's `mode`, `edgesWithoutContentMargins` and `disabledCapabilities` (iOS 17's inline picker) are not declared. Tested (tests/photos-objc: a photo-library configuration with a limit of two and a combined filter, two picks with identifiers, loaded as an image) |
 | Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `PHContentEditingController`, `PHLivePhotoView` (2 types; with their members under "Not yet in isim") |
 | Types not yet in isim (iOS 27) | ❌ | 27.0 | not implemented, found by the 2026-10 sweep: `PHPickerMetadataOptions`, `PHPickerSearchText`, `PHSharedAlbumCreationConfiguration`, `PHSharedAlbumCreationResult`, `PHSharedAlbumCreationSharingPolicy`, `PHSharedAlbumCreationViewController`, `PHSharedAlbumCustomizationViewController`, `PHSharedAlbumPostingViewController` (8 types; with their members under "Not yet in isim") |
 

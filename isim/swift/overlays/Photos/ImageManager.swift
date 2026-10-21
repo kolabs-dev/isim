@@ -4,24 +4,24 @@
 import UIKit
 import AVFoundation
 
-open class PHImageRequestOptions: NSObject, NSCopying, @unchecked Sendable {
+@objc(PHImageRequestOptions) @objcMembers open class PHImageRequestOptions: NSObject, NSCopying, @unchecked Sendable {
     open var version: PHImageRequestOptionsVersion = .current
     open var deliveryMode: PHImageRequestOptionsDeliveryMode = .opportunistic
     open var resizeMode: PHImageRequestOptionsResizeMode = .fast
     open var normalizedCropRect: CGRect = .zero
-    open var isNetworkAccessAllowed = false
-    open var isSynchronous = false
+    @nonobjc open var isNetworkAccessAllowed = false
+    @nonobjc open var isSynchronous = false
     open var allowSecondaryDegradedImage = false
     open var progressHandler: ((Double, Error?, UnsafeMutablePointer<ObjCBool>, [AnyHashable: Any]?) -> Void)?
     public override init() { super.init() }
     public func copy(with zone: OpaquePointer? = nil) -> Any { self }
 }
 
-open class PHImageManager: NSObject, @unchecked Sendable {
+@objc(PHImageManager) @objcMembers open class PHImageManager: NSObject, @unchecked Sendable {
     static let shared = PHImageManager()
     nonisolated(unsafe) static var nextID: PHImageRequestID = 1
     nonisolated(unsafe) static var cancelled = Set<PHImageRequestID>()
-    open class func `default`() -> PHImageManager { shared }
+    @objc(defaultManager) open class func `default`() -> PHImageManager { shared }
     public override init() { super.init() }
 
     static func newID() -> PHImageRequestID { let i = nextID; nextID += 1; return i }
@@ -39,6 +39,7 @@ open class PHImageManager: NSObject, @unchecked Sendable {
     }
 
     @discardableResult
+    @objc(requestImageForAsset:targetSize:contentMode:options:resultHandler:)
     open func requestImage(for asset: PHAsset, targetSize: CGSize, contentMode: PHImageContentMode, options: PHImageRequestOptions?,
                            resultHandler: @escaping (UIImage?, [AnyHashable: Any]?) -> Void) -> PHImageRequestID {
         let id = Self.newID()
@@ -53,7 +54,7 @@ open class PHImageManager: NSObject, @unchecked Sendable {
         return id
     }
     @discardableResult
-    open func requestImageDataAndOrientation(for asset: PHAsset, options: PHImageRequestOptions?,
+    @nonobjc open func requestImageDataAndOrientation(for asset: PHAsset, options: PHImageRequestOptions?,
                                              resultHandler: @escaping (Data?, String?, CGImagePropertyOrientation, [AnyHashable: Any]?) -> Void) -> PHImageRequestID {
         let id = Self.newID()
         let work = {
@@ -87,6 +88,7 @@ open class PHImageManager: NSObject, @unchecked Sendable {
         }
     }
     @discardableResult
+    @objc(requestAVAssetForVideo:options:resultHandler:)
     open func requestAVAsset(forVideo asset: PHAsset, options: PHVideoRequestOptions?,
                              resultHandler: @escaping (AVAsset?, AVAudioMix?, [AnyHashable: Any]?) -> Void) -> PHImageRequestID {
         let id = Self.newID()
@@ -97,6 +99,7 @@ open class PHImageManager: NSObject, @unchecked Sendable {
         return id
     }
     @discardableResult
+    @objc(requestPlayerItemForVideo:options:resultHandler:)
     open func requestPlayerItem(forVideo asset: PHAsset, options: PHVideoRequestOptions?,
                                 resultHandler: @escaping (AVPlayerItem?, [AnyHashable: Any]?) -> Void) -> PHImageRequestID {
         let id = Self.newID()
@@ -107,6 +110,7 @@ open class PHImageManager: NSObject, @unchecked Sendable {
         return id
     }
     @discardableResult
+    @objc(requestExportSessionForVideo:options:exportPreset:resultHandler:)
     open func requestExportSession(forVideo asset: PHAsset, options: PHVideoRequestOptions?, exportPreset: String,
                                    resultHandler: @escaping (AVAssetExportSession?, [AnyHashable: Any]?) -> Void) -> PHImageRequestID {
         let id = Self.newID()
@@ -123,8 +127,8 @@ open class PHImageManager: NSObject, @unchecked Sendable {
 public typealias PHAssetVideoProgressHandler = (Double, Error?, UnsafeMutablePointer<ObjCBool>, [AnyHashable: Any]?) -> Void
 
 /// isim keeps one version of each video (no edits, no iCloud): every option gets the library file
-open class PHVideoRequestOptions: NSObject, @unchecked Sendable {
-    open var isNetworkAccessAllowed = false
+@objc(PHVideoRequestOptions) @objcMembers open class PHVideoRequestOptions: NSObject, @unchecked Sendable {
+    @nonobjc open var isNetworkAccessAllowed = false
     open var version: PHVideoRequestOptionsVersion = .current
     open var deliveryMode: PHVideoRequestOptionsDeliveryMode = .automatic
     open var progressHandler: PHAssetVideoProgressHandler?
@@ -133,15 +137,15 @@ open class PHVideoRequestOptions: NSObject, @unchecked Sendable {
 
 public enum CGImagePropertyOrientation: UInt32, Sendable { case up = 1, upMirrored, down, downMirrored, leftMirrored, right, rightMirrored, left }
 
-open class PHCachingImageManager: PHImageManager, @unchecked Sendable {
+@objc(PHCachingImageManager) @objcMembers open class PHCachingImageManager: PHImageManager, @unchecked Sendable {
     open var allowsCachingHighQualityImages = true
     public override init() { super.init() }
-    open func startCachingImages(for assets: [PHAsset], targetSize: CGSize, contentMode: PHImageContentMode, options: PHImageRequestOptions?) {}
-    open func stopCachingImages(for assets: [PHAsset], targetSize: CGSize, contentMode: PHImageContentMode, options: PHImageRequestOptions?) {}
+    @objc(startCachingImagesForAssets:targetSize:contentMode:options:) open func startCachingImages(for assets: [PHAsset], targetSize: CGSize, contentMode: PHImageContentMode, options: PHImageRequestOptions?) {}
+    @objc(stopCachingImagesForAssets:targetSize:contentMode:options:) open func stopCachingImages(for assets: [PHAsset], targetSize: CGSize, contentMode: PHImageContentMode, options: PHImageRequestOptions?) {}
     open func stopCachingImagesForAllAssets() {}
 }
 
-open class PHAssetResource: NSObject, @unchecked Sendable {
+@objc(PHAssetResource) @objcMembers open class PHAssetResource: NSObject, @unchecked Sendable {
     public let type: PHAssetResourceType
     public let assetLocalIdentifier: String
     public let originalFilename: String
@@ -156,14 +160,14 @@ open class PHAssetResource: NSObject, @unchecked Sendable {
                                  "m4v": "com.apple.m4v-video"][ext] ?? "public.jpeg"
     }
     /// the asset's one resource: its photo or its video (isim keeps no paired or adjusted resources)
-    open class func assetResources(for asset: PHAsset) -> [PHAssetResource] { [PHAssetResource(asset)] }
+    @objc(assetResourcesForAsset:) open class func assetResources(for asset: PHAsset) -> [PHAssetResource] { [PHAssetResource(asset)] }
 }
 
 public typealias PHAssetResourceDataRequestID = Int32
 public typealias PHAssetResourceProgressHandler = (Double) -> Void
 
-open class PHAssetResourceRequestOptions: NSObject, NSCopying, @unchecked Sendable {
-    open var isNetworkAccessAllowed = false
+@objc(PHAssetResourceRequestOptions) @objcMembers open class PHAssetResourceRequestOptions: NSObject, NSCopying, @unchecked Sendable {
+    @nonobjc open var isNetworkAccessAllowed = false
     open var progressHandler: PHAssetResourceProgressHandler?
     public override init() { super.init() }
     public func copy(with zone: OpaquePointer? = nil) -> Any {
@@ -172,16 +176,17 @@ open class PHAssetResourceRequestOptions: NSObject, NSCopying, @unchecked Sendab
 }
 
 /// A resource's bytes from the library file, in chunks on a background queue (adapted: everything is local).
-open class PHAssetResourceManager: NSObject, @unchecked Sendable {
+@objc(PHAssetResourceManager) @objcMembers open class PHAssetResourceManager: NSObject, @unchecked Sendable {
     static let shared = PHAssetResourceManager()
     nonisolated(unsafe) static var nextID: PHAssetResourceDataRequestID = 1
     nonisolated(unsafe) static var cancelled = Set<PHAssetResourceDataRequestID>()
     static let lock = NSLock()
     static let chunk = 256 * 1024
-    open class func `default`() -> PHAssetResourceManager { shared }
+    @objc(defaultManager) open class func `default`() -> PHAssetResourceManager { shared }
     public override init() { super.init() }
 
     @discardableResult
+    @objc(requestDataForAssetResource:options:dataReceivedHandler:completionHandler:)
     open func requestData(for resource: PHAssetResource, options: PHAssetResourceRequestOptions?,
                           dataReceivedHandler handler: @escaping (Data) -> Void, completionHandler: @escaping (Error?) -> Void) -> PHAssetResourceDataRequestID {
         Self.lock.lock(); let id = Self.nextID; Self.nextID += 1; Self.lock.unlock()
@@ -207,6 +212,7 @@ open class PHAssetResourceManager: NSObject, @unchecked Sendable {
         Self.lock.lock(); Self.cancelled.insert(requestID); Self.lock.unlock()
     }
     /// fails when a file already exists at fileURL, as on iOS
+    @objc(writeDataForAssetResource:toFile:options:completionHandler:)
     open func writeData(for resource: PHAssetResource, toFile fileURL: URL, options: PHAssetResourceRequestOptions?,
                         completionHandler: @escaping (Error?) -> Void) {
         DispatchQueue.global().async {
@@ -220,7 +226,7 @@ open class PHAssetResourceManager: NSObject, @unchecked Sendable {
             } catch { completionHandler(error) }
         }
     }
-    open func writeData(for resource: PHAssetResource, toFile fileURL: URL, options: PHAssetResourceRequestOptions?) async throws {
+    @nonobjc open func writeData(for resource: PHAssetResource, toFile fileURL: URL, options: PHAssetResourceRequestOptions?) async throws {
         try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
             writeData(for: resource, toFile: fileURL, options: options) { e in if let e { k.resume(throwing: e) } else { k.resume() } }
         }
