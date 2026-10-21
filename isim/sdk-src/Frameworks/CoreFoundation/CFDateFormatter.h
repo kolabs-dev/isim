@@ -6,7 +6,7 @@
 #include <CoreFoundation/CFLocale.h>
 
 __BEGIN_DECLS
-#pragma clang arc_cf_code_audited begin
+CF_IMPLICIT_BRIDGING_ENABLED
 
 typedef CFStringRef CFDateFormatterKey CF_STRING_ENUM;
 typedef struct __CFDateFormatter *CFDateFormatterRef;
@@ -68,5 +68,5 @@ CF_EXPORT const CFDateFormatterKey kCFDateFormatterAMSymbol;
 CF_EXPORT const CFDateFormatterKey kCFDateFormatterPMSymbol;
 CF_EXPORT const CFDateFormatterKey kCFDateFormatterDoesRelativeDateFormattingKey;
 
-#pragma clang arc_cf_code_audited end
+CF_IMPLICIT_BRIDGING_DISABLED
 __END_DECLS

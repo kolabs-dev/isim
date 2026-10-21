@@ -7,8 +7,7 @@
 #include <CoreFoundation/CFString.h>
 
 __BEGIN_DECLS
-#pragma clang arc_cf_code_audited begin
-/* Boolean parameters are C bool here (the same one-byte ABI) so Swift sees Bool, as with Apple's SDK (#523) */
+CF_IMPLICIT_BRIDGING_ENABLED
 
 #ifndef CF_EXTENSIBLE_STRING_ENUM
 #define CF_EXTENSIBLE_STRING_ENUM __attribute__((swift_wrapper(struct)))
@@ -44,9 +43,9 @@ CF_EXPORT void CFNotificationCenterAddObserver(CFNotificationCenterRef center, c
 CF_EXPORT void CFNotificationCenterRemoveObserver(CFNotificationCenterRef center, const void *observer, CFNotificationName name, const void *object);
 CF_EXPORT void CFNotificationCenterRemoveEveryObserver(CFNotificationCenterRef center, const void *observer);
 CF_EXPORT void CFNotificationCenterPostNotification(CFNotificationCenterRef center, CFNotificationName name, const void *object,
-                                                    CFDictionaryRef userInfo, bool deliverImmediately);
+                                                    CFDictionaryRef userInfo, Boolean deliverImmediately);
 CF_EXPORT void CFNotificationCenterPostNotificationWithOptions(CFNotificationCenterRef center, CFNotificationName name, const void *object,
                                                                CFDictionaryRef userInfo, CFOptionFlags options);
 
-#pragma clang arc_cf_code_audited end
+CF_IMPLICIT_BRIDGING_DISABLED
 __END_DECLS

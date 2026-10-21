@@ -2,6 +2,7 @@
 /* isim SDK CoreFoundation subset: CFBoolean (toll-free bridged to NSNumber). Self-authored. */
 #include <CoreFoundation/CFBase.h>
 __BEGIN_DECLS
+CF_IMPLICIT_BRIDGING_ENABLED
 typedef const struct __attribute__((objc_bridge(NSNumber))) __CFBoolean *CFBooleanRef;
 typedef const struct __attribute__((objc_bridge(NSNumber))) __CFNumber *CFNumberRef;
 CF_EXPORT const CFBooleanRef kCFBooleanTrue;
@@ -26,4 +27,5 @@ CF_EXPORT CFComparisonResult CFNumberCompare(CFNumberRef number, CFNumberRef oth
 CF_EXPORT const CFNumberRef kCFNumberPositiveInfinity;
 CF_EXPORT const CFNumberRef kCFNumberNegativeInfinity;
 CF_EXPORT const CFNumberRef kCFNumberNaN;
+CF_IMPLICIT_BRIDGING_DISABLED
 __END_DECLS

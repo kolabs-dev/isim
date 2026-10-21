@@ -17,14 +17,6 @@ import Foundation
 import isim_host
 @_exported import _AudioToolboxTypes
 
-/// Darwin's Boolean (isim has no Darwin overlay for C's MacTypes Boolean)
-public struct DarwinBoolean: ExpressibleByBooleanLiteral, Equatable, Sendable, CustomStringConvertible {
-    public var _value: UInt8
-    public init(_ value: Bool) { _value = value ? 1 : 0 }
-    public init(booleanLiteral value: Bool) { self.init(value) }
-    public var boolValue: Bool { _value != 0 }
-    public var description: String { boolValue.description }
-}
 public typealias AudioFileTypeID = UInt32
 public typealias AudioFilePropertyID = UInt32
 public typealias ExtAudioFilePropertyID = UInt32

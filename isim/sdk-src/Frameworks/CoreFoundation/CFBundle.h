@@ -4,7 +4,7 @@
 #include <CoreFoundation/CFURL.h>
 __BEGIN_DECLS
 /* audited for ARC like Apple's CF headers: Swift manages Copy / Create results and takes Get results unretained */
-#pragma clang arc_cf_code_audited begin
+CF_IMPLICIT_BRIDGING_ENABLED
 /* isim: a CFBundleRef is the NSBundle of the same bundle (Apple's CFBundle is not toll-free bridged) */
 typedef struct __CFBundle *CFBundleRef;
 CF_EXPORT const CFStringRef kCFBundleInfoDictionaryVersionKey;
@@ -46,7 +46,7 @@ CF_EXPORT bool CFBundleIsExecutableLoaded(CFBundleRef bundle);
 CF_EXPORT bool CFBundleLoadExecutable(CFBundleRef bundle);
 CF_EXPORT void *CFBundleGetFunctionPointerForName(CFBundleRef bundle, CFStringRef functionName);
 CF_EXPORT void *CFBundleGetDataPointerForName(CFBundleRef bundle, CFStringRef symbolName);
-#pragma clang arc_cf_code_audited end
+CF_IMPLICIT_BRIDGING_DISABLED
 
 #define CFCopyLocalizedString(key, comment) CFBundleCopyLocalizedString(CFBundleGetMainBundle(), (key), (key), NULL)
 #define CFCopyLocalizedStringFromTable(key, tbl, comment) CFBundleCopyLocalizedString(CFBundleGetMainBundle(), (key), (key), (tbl))

@@ -23,6 +23,20 @@ func coreFoundationChecks() {
     check("Crème brûlée".applyingTransform(.stripDiacritics, reverse: false) == "Creme brulee", "applyingTransform(.stripDiacritics)")
     check("カタカナ".applyingTransform(.hiraganaToKatakana, reverse: true) == "かたかな", "applyingTransform(.hiraganaToKatakana, reverse:)")
     check("中文".applyingTransform(.mandarinToLatin, reverse: false) == nil, "an unknown transform is nil")
+
+    // as with Apple's SDK (#523): C Boolean is Bool in parameters and results (DarwinBoolean through a pointer), and the
+    // audited CF headers return managed objects, not Unmanaged (the annotated types are checked by the compiler)
+    let s: CFString? = CFStringCreateWithCString(nil, "x", CFStringBuiltInEncodings.UTF8.rawValue)
+    let same: Bool = s.map { CFEqual($0, "x" as CFString) } ?? false
+    check(same && CFBooleanGetValue(kCFBooleanTrue), "CF Boolean results are Bool")
+    let dir: CFURL? = CFURLCreateWithFileSystemPath(nil, "/tmp" as CFString, .cfurlposixPathStyle, true)
+    check(dir.map { CFURLHasDirectoryPath($0) } ?? false, "CF Boolean parameters are Bool")
+    var valid: DarwinBoolean = true
+    _ = CFPreferencesGetAppBooleanValue("isim.swift.none" as CFString, kCFPreferencesCurrentApplication, &valid)
+    check(!valid.boolValue && "\(valid)" == "false", "a Boolean pointer is DarwinBoolean")
+    let err: CFError = CFErrorCreate(nil, "isim.domain" as CFString, 7, nil)
+    let domain: CFErrorDomain? = CFErrorGetDomain(err)                                   // a Get result, not retained
+    check(domain as String? == "isim.domain" && CFErrorGetCode(err) == 7, "CF Get results are managed")
 }
 
 /// a URLProtocol that serves https://mock.test/... from memory (the mock-server pattern of networking tests)

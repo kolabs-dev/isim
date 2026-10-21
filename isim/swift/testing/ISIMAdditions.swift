@@ -7,10 +7,6 @@ internal import _TestingInternals
 /// isim's libSystem maps Darwin clock 8 to Linux CLOCK_MONOTONIC_RAW.
 var CLOCK_UPTIME_RAW: clockid_t { _CLOCK_UPTIME_RAW }
 
-/// Darwin overlay: `DarwinBoolean` (C `Boolean`); only used to call `_CFErrorSetCallStackCaptureEnabled`, which
-/// isim's CoreFoundation does not have, so the call is never made.
-typealias DarwinBoolean = Bool
-
 extension UnsafeRawBufferPointer {
   /// Foundation: `UnsafeRawBufferPointer: ContiguousBytes` (isim's Foundation does not declare that conformance).
   func withUnsafeBytes<R>(_ body: (UnsafeRawBufferPointer) throws -> R) rethrows -> R {

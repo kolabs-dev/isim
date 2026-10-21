@@ -43,6 +43,7 @@
 | `POSIXErrorCode`, `MachErrorCode` | ✅ | ≤17 | passthrough: Apple's Darwin overlay enums (Swift's `stdlib/public/Platform`), Darwin's values; `POSIXErrorCode(rawValue: errno)`. Before 0.22 isim had a partial `POSIXErrorCode` in Network. Tested: HelloBytes (test_bytes) |
 | `fcntl`, `ioctl`, `open`/`openat` from Swift | ✅ | ≤17 | the Darwin Swift overlay wraps the variadic C functions like Apple's: `fcntl` with no argument, an `Int32` or a pointer (`F_GETFL`/`F_SETFL` `O_NONBLOCK`, `F_GETFD`/`F_SETFD`, `F_DUPFD`), `ioctl` (`FIONREAD`, `FIONBIO`, `FIOCLEX`), `open`/`openat` with a mode (`AT_FDCWD`, `O_DIRECTORY`, `O_NOFOLLOW`); Darwin flags translated to the host's. Tested (swift-extras POSIXTests) |
 | `stdin` / `stdout` / `stderr` in Swift, `FILE` (`UnsafeMutablePointer<FILE>`) | ✅ | ≤17 | as Apple's Darwin overlay: the standard streams over `__stdinp` / `__stdoutp` / `__stderrp`; `FILE` has Darwin's layout so Swift imports `FILE *` as on iOS (only pointers cross isim's libSystem; the host owns the object). Tested (HelloAudioModules -policies: `fflush(stdout)`) |
+| `DarwinBoolean` (C's MacTypes `Boolean`) | ✅ | ≤17 | passthrough: Apple's Darwin overlay type and the conversion functions Swift's Clang importer uses, so C `Boolean` parameters and results import as `Bool` (a `Boolean *` as `UnsafeMutablePointer<DarwinBoolean>`). Before 0.28 AudioToolbox had its own copy (rebuild apps that used it). Tested (test_swift_foundation) |
 
 ## Not yet in isim
 

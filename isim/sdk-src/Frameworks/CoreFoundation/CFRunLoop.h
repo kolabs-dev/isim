@@ -11,12 +11,7 @@
 #include <mach/mach_types.h>
 
 __BEGIN_DECLS
-/* audited for ARC like Apple's CF headers (CF_IMPLICIT_BRIDGING_ENABLED): Swift manages Create / Copy results and
-   takes Get results unretained */
-#pragma clang arc_cf_code_audited begin
-
-/* the functions' Boolean parameters and results are C bool here (the same one-byte ABI), so that Swift sees Bool as
-   with Apple's SDK: isim's Darwin module has no DarwinBoolean, which Swift's Boolean-to-Bool mapping needs (#523) */
+CF_IMPLICIT_BRIDGING_ENABLED
 
 #ifndef CF_EXTENSIBLE_STRING_ENUM
 #define CF_EXTENSIBLE_STRING_ENUM __attribute__((swift_wrapper(struct)))
@@ -57,19 +52,19 @@ CF_EXPORT CFArrayRef CFRunLoopCopyAllModes(CFRunLoopRef rl) CF_RETURNS_RETAINED;
 CF_EXPORT void CFRunLoopAddCommonMode(CFRunLoopRef rl, CFRunLoopMode mode);
 CF_EXPORT CFAbsoluteTime CFRunLoopGetNextTimerFireDate(CFRunLoopRef rl, CFRunLoopMode mode);
 CF_EXPORT void CFRunLoopRun(void);
-CF_EXPORT CFRunLoopRunResult CFRunLoopRunInMode(CFRunLoopMode mode, CFTimeInterval seconds, bool returnAfterSourceHandled);
-CF_EXPORT bool CFRunLoopIsWaiting(CFRunLoopRef rl);
+CF_EXPORT CFRunLoopRunResult CFRunLoopRunInMode(CFRunLoopMode mode, CFTimeInterval seconds, Boolean returnAfterSourceHandled);
+CF_EXPORT Boolean CFRunLoopIsWaiting(CFRunLoopRef rl);
 CF_EXPORT void CFRunLoopWakeUp(CFRunLoopRef rl);
 CF_EXPORT void CFRunLoopStop(CFRunLoopRef rl);
 CF_EXPORT void CFRunLoopPerformBlock(CFRunLoopRef rl, CFTypeRef mode, void (^block)(void));
 
-CF_EXPORT bool CFRunLoopContainsSource(CFRunLoopRef rl, CFRunLoopSourceRef source, CFRunLoopMode mode);
+CF_EXPORT Boolean CFRunLoopContainsSource(CFRunLoopRef rl, CFRunLoopSourceRef source, CFRunLoopMode mode);
 CF_EXPORT void CFRunLoopAddSource(CFRunLoopRef rl, CFRunLoopSourceRef source, CFRunLoopMode mode);
 CF_EXPORT void CFRunLoopRemoveSource(CFRunLoopRef rl, CFRunLoopSourceRef source, CFRunLoopMode mode);
-CF_EXPORT bool CFRunLoopContainsObserver(CFRunLoopRef rl, CFRunLoopObserverRef observer, CFRunLoopMode mode);
+CF_EXPORT Boolean CFRunLoopContainsObserver(CFRunLoopRef rl, CFRunLoopObserverRef observer, CFRunLoopMode mode);
 CF_EXPORT void CFRunLoopAddObserver(CFRunLoopRef rl, CFRunLoopObserverRef observer, CFRunLoopMode mode);
 CF_EXPORT void CFRunLoopRemoveObserver(CFRunLoopRef rl, CFRunLoopObserverRef observer, CFRunLoopMode mode);
-CF_EXPORT bool CFRunLoopContainsTimer(CFRunLoopRef rl, CFRunLoopTimerRef timer, CFRunLoopMode mode);
+CF_EXPORT Boolean CFRunLoopContainsTimer(CFRunLoopRef rl, CFRunLoopTimerRef timer, CFRunLoopMode mode);
 CF_EXPORT void CFRunLoopAddTimer(CFRunLoopRef rl, CFRunLoopTimerRef timer, CFRunLoopMode mode);
 CF_EXPORT void CFRunLoopRemoveTimer(CFRunLoopRef rl, CFRunLoopTimerRef timer, CFRunLoopMode mode);
 
@@ -103,7 +98,7 @@ CF_EXPORT CFTypeID CFRunLoopSourceGetTypeID(void);
 CF_EXPORT CFRunLoopSourceRef CFRunLoopSourceCreate(CFAllocatorRef allocator, CFIndex order, CFRunLoopSourceContext *context) CF_RETURNS_RETAINED;
 CF_EXPORT CFIndex CFRunLoopSourceGetOrder(CFRunLoopSourceRef source);
 CF_EXPORT void CFRunLoopSourceInvalidate(CFRunLoopSourceRef source);
-CF_EXPORT bool CFRunLoopSourceIsValid(CFRunLoopSourceRef source);
+CF_EXPORT Boolean CFRunLoopSourceIsValid(CFRunLoopSourceRef source);
 CF_EXPORT void CFRunLoopSourceGetContext(CFRunLoopSourceRef source, CFRunLoopSourceContext *context);
 CF_EXPORT void CFRunLoopSourceSignal(CFRunLoopSourceRef source);
 
@@ -119,15 +114,15 @@ typedef struct {
 typedef void (*CFRunLoopObserverCallBack)(CFRunLoopObserverRef observer, CFRunLoopActivity activity, void *info);
 
 CF_EXPORT CFTypeID CFRunLoopObserverGetTypeID(void);
-CF_EXPORT CFRunLoopObserverRef CFRunLoopObserverCreate(CFAllocatorRef allocator, CFOptionFlags activities, bool repeats, CFIndex order,
+CF_EXPORT CFRunLoopObserverRef CFRunLoopObserverCreate(CFAllocatorRef allocator, CFOptionFlags activities, Boolean repeats, CFIndex order,
                                                        CFRunLoopObserverCallBack callout, CFRunLoopObserverContext *context) CF_RETURNS_RETAINED;
-CF_EXPORT CFRunLoopObserverRef CFRunLoopObserverCreateWithHandler(CFAllocatorRef allocator, CFOptionFlags activities, bool repeats, CFIndex order,
+CF_EXPORT CFRunLoopObserverRef CFRunLoopObserverCreateWithHandler(CFAllocatorRef allocator, CFOptionFlags activities, Boolean repeats, CFIndex order,
                                                                   void (^block)(CFRunLoopObserverRef observer, CFRunLoopActivity activity)) CF_RETURNS_RETAINED;
 CF_EXPORT CFOptionFlags CFRunLoopObserverGetActivities(CFRunLoopObserverRef observer);
-CF_EXPORT bool CFRunLoopObserverDoesRepeat(CFRunLoopObserverRef observer);
+CF_EXPORT Boolean CFRunLoopObserverDoesRepeat(CFRunLoopObserverRef observer);
 CF_EXPORT CFIndex CFRunLoopObserverGetOrder(CFRunLoopObserverRef observer);
 CF_EXPORT void CFRunLoopObserverInvalidate(CFRunLoopObserverRef observer);
-CF_EXPORT bool CFRunLoopObserverIsValid(CFRunLoopObserverRef observer);
+CF_EXPORT Boolean CFRunLoopObserverIsValid(CFRunLoopObserverRef observer);
 CF_EXPORT void CFRunLoopObserverGetContext(CFRunLoopObserverRef observer, CFRunLoopObserverContext *context);
 
 /* timers */
@@ -149,13 +144,13 @@ CF_EXPORT CFRunLoopTimerRef CFRunLoopTimerCreateWithHandler(CFAllocatorRef alloc
 CF_EXPORT CFAbsoluteTime CFRunLoopTimerGetNextFireDate(CFRunLoopTimerRef timer);
 CF_EXPORT void CFRunLoopTimerSetNextFireDate(CFRunLoopTimerRef timer, CFAbsoluteTime fireDate);
 CF_EXPORT CFTimeInterval CFRunLoopTimerGetInterval(CFRunLoopTimerRef timer);
-CF_EXPORT bool CFRunLoopTimerDoesRepeat(CFRunLoopTimerRef timer);
+CF_EXPORT Boolean CFRunLoopTimerDoesRepeat(CFRunLoopTimerRef timer);
 CF_EXPORT CFIndex CFRunLoopTimerGetOrder(CFRunLoopTimerRef timer);
 CF_EXPORT void CFRunLoopTimerInvalidate(CFRunLoopTimerRef timer);
-CF_EXPORT bool CFRunLoopTimerIsValid(CFRunLoopTimerRef timer);
+CF_EXPORT Boolean CFRunLoopTimerIsValid(CFRunLoopTimerRef timer);
 CF_EXPORT void CFRunLoopTimerGetContext(CFRunLoopTimerRef timer, CFRunLoopTimerContext *context);
 CF_EXPORT CFTimeInterval CFRunLoopTimerGetTolerance(CFRunLoopTimerRef timer);
 CF_EXPORT void CFRunLoopTimerSetTolerance(CFRunLoopTimerRef timer, CFTimeInterval tolerance);
 
-#pragma clang arc_cf_code_audited end
+CF_IMPLICIT_BRIDGING_DISABLED
 __END_DECLS

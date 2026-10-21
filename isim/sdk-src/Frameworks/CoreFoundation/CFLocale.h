@@ -6,7 +6,7 @@
 #include <CoreFoundation/CFString.h>
 
 __BEGIN_DECLS
-#pragma clang arc_cf_code_audited begin
+CF_IMPLICIT_BRIDGING_ENABLED
 
 #ifndef CF_EXTENSIBLE_STRING_ENUM
 #define CF_EXTENSIBLE_STRING_ENUM __attribute__((swift_wrapper(struct)))
@@ -88,5 +88,5 @@ CF_EXPORT const CFCalendarIdentifier kCFPersianCalendar;
 CF_EXPORT const CFCalendarIdentifier kCFIndianCalendar;
 CF_EXPORT const CFCalendarIdentifier kCFISO8601Calendar;
 
-#pragma clang arc_cf_code_audited end
+CF_IMPLICIT_BRIDGING_DISABLED
 __END_DECLS

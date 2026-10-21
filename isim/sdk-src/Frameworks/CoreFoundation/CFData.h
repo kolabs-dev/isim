@@ -2,6 +2,7 @@
 /* isim SDK CoreFoundation subset: CFData (toll-free bridged to NSData). Self-authored. */
 #include <CoreFoundation/CFBase.h>
 __BEGIN_DECLS
+CF_IMPLICIT_BRIDGING_ENABLED
 typedef const struct __attribute__((objc_bridge(NSData))) __CFData *CFDataRef;
 typedef struct __attribute__((objc_bridge_mutable(NSMutableData))) __CFData *CFMutableDataRef;
 CF_EXPORT CFTypeID CFDataGetTypeID(void);
@@ -14,4 +15,5 @@ CF_EXPORT UInt8 *CFDataGetMutableBytePtr(CFMutableDataRef data);
 CF_EXPORT void CFDataGetBytes(CFDataRef data, CFRange range, UInt8 *buffer);
 CF_EXPORT void CFDataAppendBytes(CFMutableDataRef data, const UInt8 *bytes, CFIndex length);
 CF_EXPORT void CFDataSetLength(CFMutableDataRef data, CFIndex length);
+CF_IMPLICIT_BRIDGING_DISABLED
 __END_DECLS
