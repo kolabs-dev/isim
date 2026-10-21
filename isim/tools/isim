@@ -161,9 +161,10 @@ tarball_install() {   # swift.org's signed tarball for this distribution into $(
   dir=$(dirname -- "$(tarball_toolchain)")
   echo "isim: downloading $url"
   tmp=$(mktemp -d)
+  # --compressed: www.swift.org sends its key file gzip-encoded even to clients that did not ask for it
   if ! curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o "$tmp/swift.tar.gz" "$url" \
      || ! curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o "$tmp/swift.tar.gz.sig" "$url.sig" \
-     || ! curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o "$tmp/keys.asc" https://www.swift.org/keys/all-keys.asc; then
+     || ! curl -fsSL --compressed --retry 5 --retry-all-errors --retry-delay 10 -o "$tmp/keys.asc" https://www.swift.org/keys/all-keys.asc; then
     rm -rf -- "$tmp"; echo "isim: downloading swift.org's Swift $SWIFT_VERSION tarball failed" >&2; return 1
   fi
   # swift.org's signing keys as a keyring file for gpgv (no gpg-agent, no keyring of the user's touched)
