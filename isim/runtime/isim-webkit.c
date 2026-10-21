@@ -110,6 +110,7 @@ struct view {
     char *bf_alt;                    /* a back/forward navigation to such a URL is under way */
     int alt_reloading;               /* re-showing it: the guest already saw "started" */
     int skip_finish;                 /* the replaced load's "finished" is not reported */
+    const char *next_download;       /* the policy that turns the next load into a download: "action" or "response" */
 };
 static GHashTable *views;            /* id -> struct view */
 static WebKitNetworkSession *persistent, *ephemeral;
@@ -117,8 +118,12 @@ static char *persistent_dir;
 static GHashTable *schemes;          /* registered custom URL schemes */
 static GHashTable *scheme_reqs;      /* request id -> WebKitURISchemeRequest */
 static int next_scheme_req = 1;
+/* downloads (WKDownload): id -> struct dl; the app decides each one's destination */
+struct dl { WebKitDownload *d; int id, view, req; char *origin; };
+static GHashTable *downloads;
+static int next_dl = 1;
 
-enum { P_POLICY = 1, P_DIALOG, P_REPLY };
+enum { P_POLICY = 1, P_DIALOG, P_REPLY, P_AUTH, P_PERM };
 struct pend { int kind; gpointer obj; };
 
 static struct view *view_get(int id) { return views ? g_hash_table_lookup(views, GINT_TO_POINTER(id)) : NULL; }
@@ -417,6 +422,93 @@ static gboolean on_dialog(WebKitWebView *wv, WebKitScriptDialog *d, gpointer dat
 static void on_crash(WebKitWebView *wv, WebKitWebProcessTerminationReason r, gpointer data) {
     struct view *v = view_get(GPOINTER_TO_INT(data)); if (v) SEND(v->id, "terminated", itoa_(r));
 }
+/* HTTP authentication (WKNavigationDelegate didReceive challenge): the app answers with "auth req disposition ..." */
+static gboolean on_authenticate(WebKitWebView *wv, WebKitAuthenticationRequest *r, gpointer data) {
+    struct view *v = view_get(GPOINTER_TO_INT(data)); if (!v) return FALSE;
+    WebKitCredential *pc = webkit_authentication_request_get_proposed_credential(r);
+    char *host = json_esc(webkit_authentication_request_get_host(r) ?: ""), *realm = json_esc(webkit_authentication_request_get_realm(r) ?: "");
+    char *user = json_esc(pc && webkit_credential_get_username(pc) ? webkit_credential_get_username(pc) : "");
+    char *u = json_esc(webkit_web_view_get_uri(wv) ?: "");
+    GString *j = g_string_new(NULL);
+    g_string_append_printf(j, "{\"host\":\"%s\",\"port\":%u,\"realm\":\"%s\",\"scheme\":%d,\"proxy\":%s,\"retry\":%s,\"user\":\"%s\",\"url\":\"%s\"}",
+                           host, webkit_authentication_request_get_port(r), realm, (int)webkit_authentication_request_get_scheme(r),
+                           webkit_authentication_request_is_for_proxy(r) ? "true" : "false", webkit_authentication_request_is_retry(r) ? "true" : "false", user, u);
+    if (pc) webkit_credential_free(pc);
+    g_free(host); g_free(realm); g_free(user); g_free(u);
+    g_object_ref(r);
+    int req = pend_add(v, P_AUTH, r);
+    SEND(v->id, "auth", itoa_(req), j->str);
+    g_string_free(j, TRUE);
+    return TRUE;
+}
+/* camera and microphone (getUserMedia: WKUIDelegate requestMediaCapturePermissionFor); other requests keep the default */
+static gboolean on_permission(WebKitWebView *wv, WebKitPermissionRequest *r, gpointer data) {
+    struct view *v = view_get(GPOINTER_TO_INT(data)); if (!v) return FALSE;
+    if (!WEBKIT_IS_USER_MEDIA_PERMISSION_REQUEST(r)) return FALSE;
+    WebKitUserMediaPermissionRequest *m = WEBKIT_USER_MEDIA_PERMISSION_REQUEST(r);
+    int audio = webkit_user_media_permission_is_for_audio_device(m), video = webkit_user_media_permission_is_for_video_device(m);
+    g_object_ref(r);
+    int req = pend_add(v, P_PERM, r);
+    SEND(v->id, "media", itoa_(req), video && audio ? "2" : audio ? "1" : "0", webkit_web_view_get_uri(wv) ?: "");
+    return TRUE;
+}
+
+/* ---------------- downloads ---------------- */
+static struct dl *dl_of(WebKitDownload *d) { return g_object_get_data(G_OBJECT(d), "isim-dl"); }
+static gboolean on_dl_destination(WebKitDownload *d, const char *suggested, gpointer data) {
+    struct dl *x = dl_of(d); if (!x) return FALSE;
+    WebKitURIResponse *resp = webkit_download_get_response(d);
+    char *mime = json_esc(resp ? webkit_uri_response_get_mime_type(resp) ?: "" : ""), *u = json_esc(resp ? webkit_uri_response_get_uri(resp) ?: "" : "");
+    char *j = g_strdup_printf("{\"url\":\"%s\",\"mime\":\"%s\",\"status\":%u,\"length\":%" G_GUINT64_FORMAT "}", u, mime,
+                              resp ? webkit_uri_response_get_status_code(resp) : 0, resp ? webkit_uri_response_get_content_length(resp) : 0);
+    SEND(x->view, "dldest", itoa_(x->id), suggested ?: "", j);
+    g_free(mime); g_free(u); g_free(j);
+    return TRUE;                                        /* the app answers with "dldest id path" */
+}
+static void on_dl_data(WebKitDownload *d, guint64 len, gpointer data) {
+    struct dl *x = dl_of(d); if (!x) return;
+    WebKitURIResponse *resp = webkit_download_get_response(d);
+    char total[32]; g_snprintf(total, sizeof total, "%" G_GUINT64_FORMAT, resp ? webkit_uri_response_get_content_length(resp) : 0);
+    char got[32]; g_snprintf(got, sizeof got, "%" G_GUINT64_FORMAT, webkit_download_get_received_data_length(d));
+    SEND(x->view, "dlprogress", itoa_(x->id), got, total);
+}
+static void on_dl_finished(WebKitDownload *d, gpointer data) {
+    struct dl *x = dl_of(d); if (!x) return;
+    if (!g_object_get_data(G_OBJECT(d), "isim-failed")) SEND(x->view, "dldone", itoa_(x->id));
+    g_hash_table_remove(downloads, GINT_TO_POINTER(x->id));
+}
+static void on_dl_failed(WebKitDownload *d, GError *e, gpointer data) {
+    struct dl *x = dl_of(d); if (!x) return;
+    g_object_set_data(G_OBJECT(d), "isim-failed", GINT_TO_POINTER(1));
+    SEND(x->view, "dlfail", itoa_(x->id), e && e->domain == WEBKIT_DOWNLOAD_ERROR && e->code == WEBKIT_DOWNLOAD_ERROR_CANCELLED_BY_USER ? "cancelled" : "failed",
+         e ? e->message : "");
+}
+static void dl_free(gpointer p) { struct dl *x = p; g_object_set_data(G_OBJECT(x->d), "isim-dl", NULL); g_object_unref(x->d); g_free(x->origin); g_free(x); }
+/* a download began: from the app (startDownload, req > 0) or from a navigation policy (.download) */
+static struct dl *dl_track(WebKitDownload *d, int view, int req, const char *origin) {
+    if (dl_of(d)) return dl_of(d);
+    struct dl *x = g_new0(struct dl, 1);
+    x->d = g_object_ref(d); x->id = next_dl++; x->view = view; x->req = req; x->origin = g_strdup(origin);
+    g_object_set_data(G_OBJECT(d), "isim-dl", x);
+    g_hash_table_insert(downloads, GINT_TO_POINTER(x->id), x);
+    webkit_download_set_allow_overwrite(d, TRUE);
+    g_signal_connect(d, "decide-destination", G_CALLBACK(on_dl_destination), NULL);
+    g_signal_connect(d, "received-data", G_CALLBACK(on_dl_data), NULL);
+    g_signal_connect(d, "finished", G_CALLBACK(on_dl_finished), NULL);
+    g_signal_connect(d, "failed", G_CALLBACK(on_dl_failed), NULL);
+    char *rq = request_json(webkit_download_get_request(d));
+    SEND(view, "dlstart", itoa_(x->id), itoa_(req), origin, rq);
+    g_free(rq);
+    return x;
+}
+static void on_download_started(WebKitNetworkSession *ns, WebKitDownload *d, gpointer data) {
+    WebKitWebView *wv = webkit_download_get_web_view(d);
+    int view = wv ? GPOINTER_TO_INT(g_object_get_data(G_OBJECT(wv), "isim-view")) : 0;
+    struct view *v = view_get(view);
+    const char *origin = v && v->next_download ? v->next_download : "response";
+    if (v) v->next_download = NULL;
+    dl_track(d, view, 0, origin);
+}
 /* messages from the private "isim" world: scroll position, focus */
 static void on_isim_message(WebKitUserContentManager *m, JSCValue *val, gpointer data) {
     struct view *v = view_get(GPOINTER_TO_INT(data)); if (!v) return;
@@ -539,12 +631,16 @@ static const char *isim_world_script =
 static void view_new(int id, double w, double h, double scale, int ephem, const char *datadir, const char *ua, int js, const char *bg) {
     if (view_get(id)) return;
     WebKitNetworkSession *ns;
-    if (ephem) { if (!ephemeral) ephemeral = webkit_network_session_new_ephemeral(); ns = ephemeral; }
+    if (ephem) {
+        if (!ephemeral) { ephemeral = webkit_network_session_new_ephemeral(); g_signal_connect(ephemeral, "download-started", G_CALLBACK(on_download_started), NULL); }
+        ns = ephemeral;
+    }
     else {
         if (!persistent) {
             persistent_dir = g_strdup(datadir && *datadir ? datadir : g_get_tmp_dir());
             char *data = g_build_filename(persistent_dir, "WebsiteData", NULL), *cache = g_build_filename(persistent_dir, "Caches", NULL);
             persistent = webkit_network_session_new(data, cache);
+            g_signal_connect(persistent, "download-started", G_CALLBACK(on_download_started), NULL);
             WebKitCookieManager *cm = webkit_network_session_get_cookie_manager(persistent);
             char *cookies = g_build_filename(persistent_dir, "Cookies.sqlite", NULL);
             webkit_cookie_manager_set_persistent_storage(cm, cookies, WEBKIT_COOKIE_PERSISTENT_STORAGE_SQLITE);
@@ -567,6 +663,9 @@ static void view_new(int id, double w, double h, double scale, int ephem, const 
     webkit_settings_set_default_font_family(st, "sans-serif");
     webkit_settings_set_hardware_acceleration_policy(st, WEBKIT_HARDWARE_ACCELERATION_POLICY_NEVER);
     if (ua && *ua) webkit_settings_set_user_agent(st, ua);
+    /* getUserMedia: WebKit's mock camera and microphone (isim has no capture devices in the engine) */
+    webkit_settings_set_enable_media_stream(st, TRUE);
+    webkit_settings_set_enable_mock_capture_devices(st, TRUE);
     v->wv = WEBKIT_WEB_VIEW(g_object_new(WEBKIT_TYPE_WEB_VIEW, "network-session", ns, "user-content-manager", v->ucm, "settings", st, NULL));
     g_object_unref(st);
     g_object_set_data(G_OBJECT(v->wv), "isim-view", GINT_TO_POINTER(id));
@@ -591,6 +690,8 @@ static void view_new(int id, double w, double h, double scale, int ephem, const 
     g_signal_connect(v->wv, "close", G_CALLBACK(on_close), GINT_TO_POINTER(id));
     g_signal_connect(v->wv, "script-dialog", G_CALLBACK(on_dialog), GINT_TO_POINTER(id));
     g_signal_connect(v->wv, "web-process-terminated", G_CALLBACK(on_crash), GINT_TO_POINTER(id));
+    g_signal_connect(v->wv, "authenticate", G_CALLBACK(on_authenticate), GINT_TO_POINTER(id));
+    g_signal_connect(v->wv, "permission-request", G_CALLBACK(on_permission), GINT_TO_POINTER(id));
     g_signal_connect(webkit_web_view_get_back_forward_list(v->wv), "changed", G_CALLBACK(on_bf), GINT_TO_POINTER(id));
 
     /* an undecorated window on the private display; the view gets its full pixel size inside a scrolled
@@ -629,6 +730,8 @@ static void view_close(struct view *v) {
         struct pend *p = val;
         if (p->kind == P_POLICY) { webkit_policy_decision_ignore(p->obj); g_object_unref(p->obj); }
         else if (p->kind == P_DIALOG) { webkit_script_dialog_close(p->obj); webkit_script_dialog_unref(p->obj); }
+        else if (p->kind == P_AUTH) { webkit_authentication_request_cancel(p->obj); g_object_unref(p->obj); }
+        else if (p->kind == P_PERM) { webkit_permission_request_deny(p->obj); g_object_unref(p->obj); }
         else { webkit_script_message_reply_return_error_message(p->obj, "web view closed"); webkit_script_message_reply_unref(p->obj); }
     }
     g_hash_table_destroy(v->pending);
@@ -919,6 +1022,13 @@ static void cmd(char **f, int n) {
         g_object_unref(s->rq); g_free(s->mime); g_free(s->headers); if (s->body) g_byte_array_free(s->body, TRUE); g_free(s);
         return;
     }
+    if (!strcmp(c, "dldest") || !strcmp(c, "dlcancel")) {     /* download id [path: empty cancels] */
+        struct dl *x = g_hash_table_lookup(downloads, GINT_TO_POINTER(atoi(ARG(2))));
+        if (!x) return;
+        if (!strcmp(c, "dldest") && *ARG(3)) webkit_download_set_destination(x->d, ARG(3));
+        else webkit_download_cancel(x->d);
+        return;
+    }
     if (!v) return;
     hot(v);
     if (!strcmp(c, "close")) view_close(v);
@@ -1002,9 +1112,36 @@ static void cmd(char **f, int n) {
         if (!p) return;
         int d = atoi(ARG(3));
         if (d == 1) webkit_policy_decision_use(p->obj);
-        else if (d == 2) webkit_policy_decision_download(p->obj);
+        else if (d == 2) {
+            v->next_download = WEBKIT_IS_RESPONSE_POLICY_DECISION(p->obj) ? "response" : "action";
+            webkit_policy_decision_download(p->obj);
+        }
         else { v->policy_cancelled = 1; webkit_policy_decision_ignore(p->obj); }
         g_object_unref(p->obj); g_free(p);
+    }
+    else if (!strcmp(c, "auth")) {            /* req disposition(0 use, 1 default, 2 cancel, 3 reject) user password persistence */
+        struct pend *p = pend_take(v, atoi(ARG(2)));
+        if (!p) return;
+        int disp = atoi(ARG(3));
+        if (disp == 0) {
+            int per = atoi(ARG(6));
+            WebKitCredential *cr = webkit_credential_new(ARG(4), ARG(5), per == 2 ? WEBKIT_CREDENTIAL_PERSISTENCE_PERMANENT
+                                                         : per == 1 ? WEBKIT_CREDENTIAL_PERSISTENCE_FOR_SESSION : WEBKIT_CREDENTIAL_PERSISTENCE_NONE);
+            webkit_authentication_request_authenticate(p->obj, cr);
+            webkit_credential_free(cr);
+        } else if (disp == 2) webkit_authentication_request_cancel(p->obj);
+        else webkit_authentication_request_authenticate(p->obj, NULL);      /* continue without credentials: the 401 page */
+        g_object_unref(p->obj); g_free(p);
+    }
+    else if (!strcmp(c, "media")) {           /* req allow */
+        struct pend *p = pend_take(v, atoi(ARG(2)));
+        if (!p) return;
+        if (atoi(ARG(3))) webkit_permission_request_allow(p->obj); else webkit_permission_request_deny(p->obj);
+        g_object_unref(p->obj); g_free(p);
+    }
+    else if (!strcmp(c, "download")) {        /* req url headers(name: value lines) */
+        WebKitDownload *d = webkit_web_view_download_uri(v->wv, ARG(3));
+        if (d) { dl_track(d, v->id, atoi(ARG(2)), "api"); g_object_unref(d); }
     }
     else if (!strcmp(c, "dialog")) {          /* req ok text */
         struct pend *p = pend_take(v, atoi(ARG(2)));
@@ -1147,6 +1284,7 @@ int main(int argc, char **argv) {
     views = g_hash_table_new(g_direct_hash, g_direct_equal);
     schemes = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
     scheme_reqs = g_hash_table_new(g_direct_hash, g_direct_equal);
+    downloads = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, dl_free);
     inbuf = g_string_new(NULL);
     GIOChannel *ch = g_io_channel_unix_new(PROTO_FD);
     g_io_add_watch(ch, G_IO_IN | G_IO_HUP | G_IO_ERR, on_input, NULL);

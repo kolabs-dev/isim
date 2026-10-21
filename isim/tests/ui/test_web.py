@@ -196,15 +196,48 @@ def test_web_objc(launch):
     app = launch("HelloWebObjC")
     app.wait_log(r"^HelloWebObjC: classes WKWebView WKWebViewConfiguration WKUserContentController domain=WKErrorDomain")
     app.wait_log(r"^HelloWebObjC: config media=0 inline=1 persistent=0 scripts=1")
+    app.wait_log(r"^HelloWebObjC: scheme handler kept 1")
     app.wait_log(r"^HelloWebObjC: didStartProvisionalNavigation", timeout=30)
     for line in ( "didCommitNavigation", r"didFinishNavigation https://objc\.example/ loading=0",
                  "kvo loading=1", "kvo loading=0", r"kvo estimatedProgress=1\.0", "kvo title=ObjC page",
                  r"message native: kind=script href=https://objc\.example/ controller=SampleContentController",
                  "evaluateJavaScript: ObjC page / 42 error=none", "exception: domain=WKErrorDomain code=4",
-                 "isolated world: typeof show = undefined", "callAsyncJavaScript: 42", r"snapshot \d+x\d+"):
+                 "isolated world: typeof show = undefined", "callAsyncJavaScript: 42", r"snapshot \d+x\d+",
+                 r"scheme task GET isim-objc://files/note\.txt", "fetched: a note served by an Objective-C scheme handler",
+                 r"download started data:text/plain.* user=0", r"download destination Unknown\.txt", "download finished: a downloaded note progress=1"):
         app.wait_log(r"^HelloWebObjC: " + line)
     shot = app.wait_until(lambda: (lambda s: s if red(rgb(s, 60, 120)) else None)(app.screenshot("objc")), what="the page is drawn")
     assert red(rgb(shot, 120, 160))
     app.tap(50, 210)                                                    # the page link "Blocked link"
     app.wait_log(r"^HelloWebObjC: policy https://blocked\.example/ type=0 main=1 -> cancel")
+    assert app.quit() == 0
+
+
+def test_web_transfers(launch, web):
+    """HTTP authentication challenges (Basic with default handling: the server's 401 page; Digest with a credential),
+    downloads (a navigation response made a download, startDownload with progress, cancel with resume data and resume),
+    and a camera permission request (getUserMedia: the delegate's .prompt shows iOS's alert, Allow grants WebKit's mock
+    camera)."""
+    port, _ = web
+    app = launch("HelloWeb", args=["-transfers", "-server", f"http://127.0.0.1:{port}"])
+    app.wait_log(r"^HelloWeb: challenge 127\.0\.0\.1 realm=isim method=NSURLAuthenticationMethodHTTPBasic failures=0", timeout=30)
+    app.wait_log(r"^HelloWeb: page /basic: auth required")
+    app.wait_log(r"^HelloWeb: challenge 127\.0\.0\.1 realm=isim-digest method=NSURLAuthenticationMethodHTTPDigest failures=0")
+    app.wait_log(r"^HelloWeb: page /digest: digest ok: welcome ada")
+    app.wait_log(r"^HelloWeb: navigationResponse became a download /attachment")
+    app.wait_log(r"^HelloWeb: destination report\.txt expected=1088")
+    app.wait_log(r"^HelloWeb: finished report\.txt 1088 bytes progress done")
+    app.wait_log(r"^HelloWeb: startDownload user=false url=/bytes/50000")
+    app.wait_log(r"^HelloWeb: finished 50000 50000 bytes progress done")
+    app.wait_log(r"^HelloWeb: cancelled resumeData true")
+    app.wait_log(r"^HelloWeb: resumed")
+    app.wait_log(r"^HelloWeb: finished 400000 400000 bytes progress done", timeout=30)
+    app.wait_log(r"^HelloWeb: media capture 127\.0\.0\.1 type 0")
+    alert = app.wait_view(r"text=Allow “127\.0\.0\.1” to use your camera\?")
+    app.screenshot("camera-permission")
+    assert "text=Don’t Allow" in alert
+    app.tap_text("Allow")
+    app.wait_log(r"^HelloWeb: title camera 1")
+    app.wait_still()
+    app.screenshot("camera-granted")
     assert app.quit() == 0

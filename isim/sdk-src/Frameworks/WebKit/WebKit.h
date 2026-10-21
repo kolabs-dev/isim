@@ -3,8 +3,8 @@
    Apple's Objective-C names and selectors, so Objective-C apps and binary SDKs use them, subclass them and add
    categories. Swift code uses the overlay itself, so these declarations are hidden from Swift (headers of other
    frameworks that mention a WebKit class still parse: the classes are forward-declared). Not available from
-   Objective-C yet: custom URL schemes (WKURLSchemeHandler), content rule lists' compilation results beyond identifiers,
-   downloads (WKDownload), and the iOS 26 WebPage API (Swift only, as on iOS). */
+   Objective-C yet: content rule lists' compilation results beyond identifiers, and the iOS 26 WebPage API (Swift only, as
+   on iOS). */
 #import <WebKit/WKFoundation.h>
 #if !defined(__swift__)
 #import <WebKit/WKError.h>
@@ -35,6 +35,10 @@
 #import <WebKit/WKFindConfiguration.h>
 #import <WebKit/WKFindResult.h>
 #import <WebKit/WKContextMenuElementInfo.h>
+#import <WebKit/WKURLSchemeTask.h>
+#import <WebKit/WKURLSchemeHandler.h>
+#import <WebKit/WKDownloadDelegate.h>
+#import <WebKit/WKDownload.h>
 #import <WebKit/WKWebViewConfiguration.h>
 #import <WebKit/WKNavigationDelegate.h>
 #import <WebKit/WKUIDelegate.h>

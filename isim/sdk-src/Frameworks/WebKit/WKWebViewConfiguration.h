@@ -2,6 +2,7 @@
 #import <WebKit/WKFoundation.h>
 NS_ASSUME_NONNULL_BEGIN
 @class WKPreferences, WKProcessPool, WKUserContentController, WKWebpagePreferences, WKWebsiteDataStore;
+@protocol WKURLSchemeHandler;
 typedef NS_ENUM(NSInteger, WKSelectionGranularity) { WKSelectionGranularityDynamic, WKSelectionGranularityCharacter };
 typedef NS_OPTIONS(NSUInteger, WKDataDetectorTypes) {
     WKDataDetectorTypeNone = 0, WKDataDetectorTypePhoneNumber = 1 << 0, WKDataDetectorTypeLink = 1 << 1, WKDataDetectorTypeAddress = 1 << 2,
@@ -31,5 +32,7 @@ typedef NS_ENUM(NSInteger, WKUserInterfaceDirectionPolicy) { WKUserInterfaceDire
 @property (nonatomic) BOOL limitsNavigationsToAppBoundDomains;
 @property (nonatomic) BOOL upgradeKnownHostsToHTTPS;
 @property (nonatomic) BOOL allowsInlinePredictions;
+- (void)setURLSchemeHandler:(nullable id<WKURLSchemeHandler>)urlSchemeHandler forURLScheme:(NSString *)urlScheme;
+- (nullable id<WKURLSchemeHandler>)urlSchemeHandlerForURLScheme:(NSString *)urlScheme;
 @end
 NS_ASSUME_NONNULL_END
