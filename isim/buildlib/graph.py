@@ -215,6 +215,7 @@ SWIFT_FRAMEWORKS = [
     ("CoreAudio", "-framework Foundation"),
     # issue #231: the frameworks ad, login and VoIP SDKs use from Objective-C
     ("SafariServices", "-framework Foundation -framework UIKit"),
+    ("LinkPresentation", "-framework Foundation -framework UIKit"),   # issue #323
     ("CallKit", "-framework Foundation -framework AVFoundation"),
     ("PushKit", "-framework Foundation"),
     ("BackgroundTasks", "-framework Foundation"),

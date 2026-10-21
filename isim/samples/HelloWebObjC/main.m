@@ -2,10 +2,12 @@
 // WKUserContentController subclass, a category on WKWebView, script message handlers (plain and with a reply), a user
 // script, the navigation delegate (action policy with a cancelled link, start/commit/finish), the UI delegate (alert),
 // KVO on Apple's key paths (estimatedProgress, loading, title), evaluateJavaScript (page and an isolated world),
-// callAsyncJavaScript, takeSnapshot, website data stores and WebKit's constants. Logs "HelloWebObjC: ...".
+// callAsyncJavaScript, takeSnapshot, website data stores and WebKit's constants; LinkPresentation (a provider for a file
+// URL, a link view, an unsupported scheme, a provider started twice). Logs "HelloWebObjC: ...".
 //   isim run out/apps/HelloWebObjC.app
 #import <UIKit/UIKit.h>
 #import <WebKit/WebKit.h>
+#import <LinkPresentation/LinkPresentation.h>
 
 static void say(NSString *s) { fprintf(stderr, "HelloWebObjC: %s\n", s.UTF8String); }
 
@@ -95,6 +97,30 @@ static NSString *const kHTML =
     for (NSString *key in @[@"estimatedProgress", @"loading", @"title"])
         [self.webView addObserver:self forKeyPath:key options:NSKeyValueObservingOptionNew context:NULL];
     [self.webView loadHTMLString:kHTML baseURL:[NSURL URLWithString:@"https://objc.example/"]];
+    [self linkPresentation];
+}
+
+- (void)linkPresentation {
+    LPMetadataProvider *provider = [LPMetadataProvider new];
+    NSURL *file = [NSBundle.mainBundle URLForResource:@"Info" withExtension:@"plist"];
+    [provider startFetchingMetadataForURL:file completionHandler:^(LPLinkMetadata *metadata, NSError *error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            LPLinkView *card = [[LPLinkView alloc] initWithMetadata:metadata];
+            CGSize size = [card sizeThatFits:CGSizeMake(300, CGFLOAT_MAX)];
+            say([NSString stringWithFormat:@"link metadata title=%@ file=%d subresources=%d timeout=%.0f view=%@ height=%.0f", metadata.title,
+                 metadata.URL.isFileURL, provider.shouldFetchSubresources, provider.timeout, NSStringFromClass(card.class), size.height]);
+        });
+    }];
+    @try {
+        [provider startFetchingMetadataForURL:file completionHandler:^(LPLinkMetadata *m, NSError *e) {}];
+        say(@"link provider started twice");
+    } @catch (NSException *e) {
+        say([NSString stringWithFormat:@"link provider one-shot: %@", e.name]);
+    }
+    [[LPMetadataProvider new] startFetchingMetadataForURL:[NSURL URLWithString:@"ftp://example.com/x"] completionHandler:^(LPLinkMetadata *m, NSError *e) {
+        say([NSString stringWithFormat:@"link ftp error %@ %ld failed=%d", e.domain, (long)e.code,
+             [e.domain isEqual:LPErrorDomain] && e.code == LPErrorMetadataFetchFailed]);
+    }];
 }
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
