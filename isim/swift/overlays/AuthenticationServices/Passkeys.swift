@@ -19,12 +19,12 @@ public struct ASAuthorizationPublicKeyCredentialAttestationKind: RawRepresentabl
 }
 public enum ASAuthorizationPublicKeyCredentialAttachment: Int, Sendable { case platform = 0, crossPlatform = 1 }
 
-open class ASAuthorizationPlatformPublicKeyCredentialDescriptor: NSObject {
+@objc(ASAuthorizationPlatformPublicKeyCredentialDescriptor) open class ASAuthorizationPlatformPublicKeyCredentialDescriptor: NSObject {
     open var credentialID: Data
     public init(credentialID: Data) { self.credentialID = credentialID }
 }
 
-open class ASAuthorizationPlatformPublicKeyCredentialProvider: NSObject, ASAuthorizationProvider {
+@objc(ASAuthorizationPlatformPublicKeyCredentialProvider) open class ASAuthorizationPlatformPublicKeyCredentialProvider: NSObject, ASAuthorizationProvider {
     public let relyingPartyIdentifier: String
     public init(relyingPartyIdentifier: String) { self.relyingPartyIdentifier = relyingPartyIdentifier }
     open func createCredentialRegistrationRequest(challenge: Data, name: String, userID: Data) -> ASAuthorizationPlatformPublicKeyCredentialRegistrationRequest {
@@ -35,7 +35,7 @@ open class ASAuthorizationPlatformPublicKeyCredentialProvider: NSObject, ASAutho
     }
 }
 
-open class ASAuthorizationPlatformPublicKeyCredentialRegistrationRequest: ASAuthorizationRequest {
+@objc(ASAuthorizationPlatformPublicKeyCredentialRegistrationRequest) open class ASAuthorizationPlatformPublicKeyCredentialRegistrationRequest: ASAuthorizationRequest {
     open var relyingPartyIdentifier: String
     open var challenge: Data
     open var name: String
@@ -50,7 +50,7 @@ open class ASAuthorizationPlatformPublicKeyCredentialRegistrationRequest: ASAuth
     }
 }
 
-open class ASAuthorizationPlatformPublicKeyCredentialAssertionRequest: ASAuthorizationRequest {
+@objc(ASAuthorizationPlatformPublicKeyCredentialAssertionRequest) open class ASAuthorizationPlatformPublicKeyCredentialAssertionRequest: ASAuthorizationRequest {
     open var relyingPartyIdentifier: String
     open var challenge: Data
     open var allowedCredentials: [ASAuthorizationPlatformPublicKeyCredentialDescriptor] = []
@@ -61,7 +61,7 @@ open class ASAuthorizationPlatformPublicKeyCredentialAssertionRequest: ASAuthori
     }
 }
 
-open class ASAuthorizationPlatformPublicKeyCredentialRegistration: NSObject, ASAuthorizationCredential {
+@objc(ASAuthorizationPlatformPublicKeyCredentialRegistration) open class ASAuthorizationPlatformPublicKeyCredentialRegistration: NSObject, ASAuthorizationCredential {
     public let rawAttestationObject: Data?
     public let rawClientDataJSON: Data
     public let credentialID: Data
@@ -69,7 +69,7 @@ open class ASAuthorizationPlatformPublicKeyCredentialRegistration: NSObject, ASA
     init(attestation: Data, clientData: Data, id: Data) { rawAttestationObject = attestation; rawClientDataJSON = clientData; credentialID = id }
 }
 
-open class ASAuthorizationPlatformPublicKeyCredentialAssertion: NSObject, ASAuthorizationCredential {
+@objc(ASAuthorizationPlatformPublicKeyCredentialAssertion) open class ASAuthorizationPlatformPublicKeyCredentialAssertion: NSObject, ASAuthorizationCredential {
     public let rawAuthenticatorData: Data
     public let rawClientDataJSON: Data
     public let credentialID: Data

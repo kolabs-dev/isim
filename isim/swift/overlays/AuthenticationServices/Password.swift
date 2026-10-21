@@ -5,13 +5,13 @@
 import Foundation
 import Security
 
-open class ASAuthorizationPasswordProvider: NSObject, ASAuthorizationProvider {
+@objc(ASAuthorizationPasswordProvider) open class ASAuthorizationPasswordProvider: NSObject, ASAuthorizationProvider {
     public override init() { super.init() }
     open func createRequest() -> ASAuthorizationPasswordRequest { ASAuthorizationPasswordRequest(provider: self) }
 }
-open class ASAuthorizationPasswordRequest: ASAuthorizationRequest {}
+@objc(ASAuthorizationPasswordRequest) open class ASAuthorizationPasswordRequest: ASAuthorizationRequest {}
 
-open class ASPasswordCredential: NSObject, ASAuthorizationCredential {
+@objc(ASPasswordCredential) open class ASPasswordCredential: NSObject, ASAuthorizationCredential {
     public let user: String
     public let password: String
     public init(user: String, password: String) { self.user = user; self.password = password }

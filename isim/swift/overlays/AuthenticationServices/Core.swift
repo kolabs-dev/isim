@@ -45,15 +45,15 @@ public func ~= (code: ASAuthorizationError.Code, error: Error) -> Bool {
 
 // MARK: - Base types
 
-@objc public protocol ASAuthorizationProvider: NSObjectProtocol {}
-@objc public protocol ASAuthorizationCredential: NSObjectProtocol {}
+@objc(ASAuthorizationProvider) public protocol ASAuthorizationProvider: NSObjectProtocol {}
+@objc(ASAuthorizationCredential) public protocol ASAuthorizationCredential: NSObjectProtocol {}
 
-open class ASAuthorizationRequest: NSObject {
+@objc(ASAuthorizationRequest) open class ASAuthorizationRequest: NSObject {
     public let provider: ASAuthorizationProvider
     init(provider: ASAuthorizationProvider) { self.provider = provider }
 }
 
-open class ASAuthorization: NSObject {
+@objc(ASAuthorization) open class ASAuthorization: NSObject {
     public let provider: ASAuthorizationProvider
     public let credential: ASAuthorizationCredential
     init(provider: ASAuthorizationProvider, credential: ASAuthorizationCredential) { self.provider = provider; self.credential = credential }
@@ -77,20 +77,20 @@ open class ASAuthorization: NSObject {
 
 public enum ASUserDetectionStatus: Int, Sendable { case unsupported = 0, unknown = 1, likelyReal = 2 }
 
-@objc public protocol ASAuthorizationControllerDelegate: NSObjectProtocol {
+@objc(ASAuthorizationControllerDelegate) public protocol ASAuthorizationControllerDelegate: NSObjectProtocol {
     @objc(authorizationController:didCompleteWithAuthorization:) optional func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization)
     @objc(authorizationController:didCompleteWithError:) optional func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error)
 }
 
-@objc public protocol ASAuthorizationControllerPresentationContextProviding: NSObjectProtocol {
-    @MainActor func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor
+@objc(ASAuthorizationControllerPresentationContextProviding) public protocol ASAuthorizationControllerPresentationContextProviding: NSObjectProtocol {
+    @MainActor @objc(presentationAnchorForAuthorizationController:) func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor
 }
 
 // MARK: - Controller
 
 @_silgen_name("isim_ui_autofill_set_assisted") func _isimSetAutoFillAssisted(_ provider: (@convention(block) () -> NSArray)?)
 
-open class ASAuthorizationController: NSObject {
+@objc(ASAuthorizationController) open class ASAuthorizationController: NSObject {
     public let authorizationRequests: [ASAuthorizationRequest]
     weak open var delegate: ASAuthorizationControllerDelegate?
     weak open var presentationContextProvider: ASAuthorizationControllerPresentationContextProviding?
@@ -162,7 +162,9 @@ open class ASAuthorizationController: NSObject {
 
     @MainActor func anchorController() -> UIViewController? {
         var vc: UIViewController?
-        if let p = presentationContextProvider { vc = p.presentationAnchor(for: self).rootViewController }
+        if let p = presentationContextProvider {
+            vc = (_ASLegacy.anchor(p, "presentationAnchorForAuthorizationController:", self) ?? p.presentationAnchor(for: self)).rootViewController
+        }
         if vc == nil { vc = UIApplication.shared.windows.first(where: { $0.isKeyWindow })?.rootViewController ?? UIApplication.shared.windows.first?.rootViewController }
         while let p = vc?.presentedViewController { vc = p }
         return vc

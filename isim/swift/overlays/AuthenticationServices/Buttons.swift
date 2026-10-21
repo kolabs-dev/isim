@@ -39,7 +39,7 @@ final class _ASLogoView: UIView {
     }
 }
 
-open class ASAuthorizationAppleIDButton: UIControl {
+@objc(ASAuthorizationAppleIDButton) open class ASAuthorizationAppleIDButton: UIControl {
     public struct ButtonType: RawRepresentable, Hashable, Sendable {
         public let rawValue: Int
         public init(rawValue: Int) { self.rawValue = rawValue }

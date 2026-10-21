@@ -13,8 +13,8 @@ import SwiftUI
 
 /* ASPresentationAnchor is declared in Core.swift */
 
-@objc public protocol ASWebAuthenticationPresentationContextProviding: NSObjectProtocol {
-    @MainActor func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor
+@objc(ASWebAuthenticationPresentationContextProviding) public protocol ASWebAuthenticationPresentationContextProviding: NSObjectProtocol {
+    @MainActor @objc(presentationAnchorForWebAuthenticationSession:) func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor
 }
 
 public let ASWebAuthenticationSessionErrorDomain = "com.apple.AuthenticationServices.WebAuthenticationSession"
@@ -38,10 +38,10 @@ public struct ASWebAuthenticationSessionError: Error, CustomNSError, Hashable, L
 }
 
 @MainActor
-open class ASWebAuthenticationSession: NSObject {
+@objc(ASWebAuthenticationSession) open class ASWebAuthenticationSession: NSObject {
     public typealias CompletionHandler = (URL?, Error?) -> Void
     /// iOS 17.4: what ends the session
-    public final class Callback: NSObject, @unchecked Sendable {
+    @objc(ASWebAuthenticationSessionCallback) public final class Callback: NSObject, @unchecked Sendable {
         enum Kind { case scheme(String), https(host: String, path: String) }
         let kind: Kind
         init(_ k: Kind) { kind = k }
@@ -90,7 +90,7 @@ open class ASWebAuthenticationSession: NSObject {
         guard let provider = presentationContextProvider else {
             finish(nil, ASWebAuthenticationSessionError(.presentationContextNotProvided)); return false
         }
-        let anchor = provider.presentationAnchor(for: self)
+        let anchor = _ASLegacy.anchor(provider, "presentationAnchorForWebAuthenticationSession:", self) ?? provider.presentationAnchor(for: self)
         guard let root = anchor.rootViewController else {
             finish(nil, ASWebAuthenticationSessionError(.presentationContextInvalid)); return false
         }
