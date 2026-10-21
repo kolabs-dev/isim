@@ -1,7 +1,8 @@
 // HelloWidgets app: the counter its widget shows (app group defaults + WidgetCenter.reloadTimelines), widget URLs
 // (widgetURL / Link taps open the app), the widgets in use (WidgetCenter.currentConfigurations), and delivery Live
 // Activities: request with a push token, update (with an alert, with a stale date), a second activity, end
-// (immediately or after a delay), push-to-start; contentUpdates / activityStateUpdates / activityUpdates are logged.
+// (immediately or after a delay), push-to-start; contentUpdates / activityStateUpdates / activityUpdates are logged; a
+// timer Live Activity (iOS 18, drawn small too).
 import SwiftUI
 import WidgetKit
 import ActivityKit
@@ -80,6 +81,14 @@ struct ContentView: View {
                         log("ended activity, dismissal in 3 s")
                     }
                 }.accessibilityIdentifier("endDeliveryLater")
+                Button("Start timer") {                  /* iOS 18: also drawn at the small size */
+                    if #available(iOS 18.0, *) {
+                        do {
+                            _ = try Activity.request(attributes: TimerAttributes(name: "Pasta"), content: .init(state: .init(seconds: 90), staleDate: nil))
+                            log("started timer")
+                        } catch { log("timer failed \(error)") }
+                    } else { log("the timer needs iOS 18") }
+                }.accessibilityIdentifier("startTimer")
                 Button("End all") {
                     Task { for a in Activity<DeliveryAttributes>.activities { await a.end(nil, dismissalPolicy: .immediate) }; log("ended all") }
                 }.accessibilityIdentifier("endAll")

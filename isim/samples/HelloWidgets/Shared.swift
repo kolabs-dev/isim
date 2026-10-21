@@ -2,6 +2,7 @@
 import Foundation
 import AppIntents
 import ActivityKit
+import Intents
 
 let appGroup = "group.dev.isim.samples.hellowidgets"
 var sharedDefaults: UserDefaults { UserDefaults(suiteName: appGroup)! }
@@ -40,4 +41,26 @@ struct WeatherIntent: WidgetConfigurationIntent {
 struct DeliveryAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable { var minutes: Int; var status: String }
     var orderNumber: String
+}
+
+/// the theme widget's configuration (IntentConfiguration): a SiriKit custom intent from Extension/Theme.intentdefinition,
+/// the classes Xcode generates from it
+@objc public enum ThemeColor: Int {
+    case unknown = 0, sunrise = 1, forest = 2, ocean = 3
+}
+@objc(ThemeIntent)
+public class ThemeIntent: INIntent {
+    @NSManaged public var color: ThemeColor
+    @NSManaged public var title: String?
+    @NSManaged public var showsDate: NSNumber?
+}
+
+/// a kitchen timer (iOS 18): its Live Activity also draws at the small size (Apple Watch, CarPlay)
+struct TimerAttributes: ActivityAttributes {
+    struct ContentState: Codable, Hashable { var seconds: Int }
+    var name: String
+}
+var headlineReloads: Int {
+    get { sharedDefaults.integer(forKey: "headlineReloads") }
+    set { sharedDefaults.set(newValue, forKey: "headlineReloads") }
 }

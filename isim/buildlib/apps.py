@@ -327,8 +327,10 @@ def _(a):
 
 @app("samples/HelloWidgets")
 def _(a):
-    b = a.swift_app(srcs=["HelloWidgetsApp.swift", "Shared.swift"])
-    x = a.appex(b, "HelloWidgetsExtension", ["Extension/Widgets.swift", "Shared.swift"], "Extension/Info.plist", extension=False)
+    b = a.swift_app(srcs=["HelloWidgetsApp.swift", "Shared.swift"], link=["-framework", "Intents"])
+    x = a.appex(b, "HelloWidgetsExtension", ["Extension/Widgets.swift", "Shared.swift"], "Extension/Info.plist", extension=False,
+                link=["-framework", "Intents"])
+    a.copy("Extension/Theme.intentdefinition", f"{x}/Theme.intentdefinition")   # the theme widget's SiriKit intent
     for d in (b, x):                                           # the app group both share
         a.copy("HelloWidgets.entitlements", f"{d}/archived-expanded-entitlements.xcent")
 

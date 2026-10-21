@@ -20,6 +20,7 @@ import UIKit
 import SwiftUI
 import AppIntents
 import ActivityKit
+import Intents
 import isim_host
 
 // MARK: - families, environment
@@ -159,6 +160,10 @@ struct _WKWidgetSpec {
     var params: (@MainActor ([String: Any]) -> (title: String, description: String, params: [[String: Any]]))? = nil
     /// the view of any entry of the provider's entry type (#Preview(as:widget:timeline:), Previews.swift)
     var render: (@MainActor (Any) -> AnyView?)? = nil
+    /// the provider's recommendations (their descriptions; Configurations.swift)
+    var recommendations: [String] = []
+    /// pushHandler(_:): tells the handler the push token (with the widgets in use), returns the token
+    var pushHandler: (@MainActor ([WidgetCenter.WidgetInfo]) -> Data)? = nil
 }
 /// build an entry's view and catch its widgetURL
 @MainActor func _wkEntry(_ date: Date, _ make: () -> AnyView) -> _WKEntry {
@@ -168,6 +173,8 @@ struct _WKWidgetSpec {
 }
 struct _WKActivitySpec {
     var typeName: String
+    /// the ActivityFamily sizes it is drawn in: medium (the Lock Screen), and small with supplementalActivityFamilies
+    var families: Set<String> = ["medium"]
     var render: @MainActor (_ attributes: Data, _ state: Data, _ isStale: Bool, _ id: String) -> (lock: AnyView, leading: AnyView, trailing: AnyView, minimal: AnyView, expanded: AnyView)?
 }
 public protocol WidgetConfiguration { }
@@ -188,7 +195,7 @@ public struct StaticConfiguration<Content: View>: WidgetConfiguration, _WKConfig
     var _widgets: [_WKWidgetSpec] { [spec] }
 }
 public struct AppIntentConfiguration<Intent: WidgetConfigurationIntent, Content: View>: WidgetConfiguration, _WKConfig {
-    let spec: _WKWidgetSpec
+    var spec: _WKWidgetSpec
     public init<P: AppIntentTimelineProvider>(kind: String, intent: Intent.Type = Intent.self, provider: P, @ViewBuilder content: @escaping (P.Entry) -> Content) where P.Intent == Intent {
         spec = _WKWidgetSpec(kind: kind, timeline: { ctx, config in      /* the configuration chosen in Edit Widget (else the defaults) */
             let tl = await provider.timeline(for: _wkIntent(Intent.self, config), in: ctx)
@@ -199,13 +206,16 @@ public struct AppIntentConfiguration<Intent: WidgetConfigurationIntent, Content:
         }, params: { config in
             (Intent.title.description, Intent.description?.text ?? "", _wkParameters(_wkIntent(Intent.self, config)))
         }, render: { e in (e as? P.Entry).map { AnyView(content($0)) } })
+        if #available(iOS 16.0, *) { spec.recommendations = provider.recommendations().map(\.text) }
     }
     var _widgets: [_WKWidgetSpec] { [spec] }
 }
 public struct _ModifiedConfiguration<C: WidgetConfiguration>: WidgetConfiguration, _WKConfig {
-    let base: C; let edit: (inout _WKWidgetSpec) -> Void
+    let base: C; let edit: (inout _WKWidgetSpec) -> Void; let activity: (inout _WKActivitySpec) -> Void
+    init(base: C, edit: @escaping (inout _WKWidgetSpec) -> Void) { self.base = base; self.edit = edit; activity = { _ in } }
+    init(base: C, activity: @escaping (inout _WKActivitySpec) -> Void) { self.base = base; edit = { _ in }; self.activity = activity }
     var _widgets: [_WKWidgetSpec] { ((base as? _WKConfig)?._widgets ?? []).map { var s = $0; edit(&s); return s } }
-    var _activities: [_WKActivitySpec] { (base as? _WKConfig)?._activities ?? [] }
+    var _activities: [_WKActivitySpec] { ((base as? _WKConfig)?._activities ?? []).map { var s = $0; activity(&s); return s } }
 }
 extension WidgetConfiguration {
     public func configurationDisplayName(_ name: String) -> some WidgetConfiguration { _ModifiedConfiguration(base: self) { $0.name = name } }
@@ -332,11 +342,27 @@ extension WidgetBundle {
 
 // MARK: - WidgetCenter
 
+/// a widget in use (WidgetCenter.currentConfigurations; WidgetPushHandler)
+public typealias WidgetInfo = WidgetCenter.WidgetInfo
+
 public final class WidgetCenter: @unchecked Sendable {
     public static let shared = WidgetCenter()
     public func reloadTimelines(ofKind kind: String) { isim_shell_request(Int32(ISIM_SHELL_SYSTEM), "widget-reload", nil, kind); NSLog("isim WidgetKit: reload timelines of %@", kind) }
     public func reloadAllTimelines() { isim_shell_request(Int32(ISIM_SHELL_SYSTEM), "widget-reload", nil, "*"); NSLog("isim WidgetKit: reload all timelines") }
-    public struct WidgetInfo: Sendable { public let kind: String; public let family: WidgetFamily }
+    public struct WidgetInfo: Sendable {
+        public let kind: String
+        public let family: WidgetFamily
+        /// the values chosen in Edit Widget (by parameter name)
+        let _config: [String: String]
+        init(kind: String, family: WidgetFamily, config: [String: String] = [:]) { self.kind = kind; self.family = family; _config = config }
+        /// an IntentConfiguration's intent (isim: nil; a widget's SiriKit intent is built in its extension)
+        public var configuration: INIntent? { nil }
+        /// an AppIntentConfiguration's intent with the values chosen in Edit Widget
+        @available(iOS 17.0, *)
+        public func widgetConfigurationIntent<Intent: WidgetConfigurationIntent>(of type: Intent.Type = Intent.self) -> Intent? {
+            _wkIntent(type, _config)
+        }
+    }
     /// isim: reads the home screen's arrangement (every page) and the Lock Screen's widgets for this app's widgets
     public func getCurrentConfigurations(_ completion: @escaping (Result<[WidgetInfo], Error>) -> Void) {
         let data = ProcessInfo.processInfo.environment["ISIM_DATA"] ?? ""
@@ -350,7 +376,8 @@ public final class WidgetCenter: @unchecked Sendable {
         let infos: [WidgetInfo] = items.compactMap { it in
             guard let d = it as? [String: Any], let k = d["widget"] as? String, (d["app"] as? String).map({ me.hasPrefix($0) }) ?? false,
                   let f = WidgetFamily(rawValue: d["family"] as? String ?? "") else { return nil }
-            return WidgetInfo(kind: k, family: f)
+            let config = (d["config"] as? [String: Any] ?? [:]).mapValues { "\($0)" }
+            return WidgetInfo(kind: k, family: f, config: config)
         }
         DispatchQueue.global().async { completion(.success(infos)) }
     }
@@ -436,6 +463,8 @@ struct _WKLook {
     nonisolated(unsafe) static var showsBackground = true
     nonisolated(unsafe) static var opened: URL?                 /* a Link the tap hit */
     nonisolated(unsafe) static var hidingAccentable = false     /* the accented pass without the widgetAccentable content */
+    nonisolated(unsafe) static var hidingImageModes: Set<Int> = []   /* a pass without the images of these accented rendering modes */
+    nonisolated(unsafe) static var usedImageModes: Set<Int> = []     /* the modes the views use (Image.widgetAccentedRenderingMode) */
     static func run(_ c: [_WKConfig]) {
         configs = c
         let env = ProcessInfo.processInfo.environment
@@ -473,7 +502,16 @@ struct _WKLook {
             plain.view.setNeedsLayout(); plain.view.layoutIfNeeded()
             let rest = r.image { _ in _ = plain.view.drawHierarchy(in: CGRect(origin: .zero, size: size), afterScreenUpdates: false) }
             hidingAccentable = false
-            if let d = accented(all, rest, tint: look.tint) { return (d, host.view) }
+            var images: [(Int, UIImage)] = []                   /* per image mode: a pass without those images */
+            for m in usedImageModes.sorted() {
+                hidingImageModes = [m]
+                let without = UIHostingController(rootView: root)
+                without.view.frame = host.view.frame; without.view.backgroundColor = .clear
+                without.view.setNeedsLayout(); without.view.layoutIfNeeded()
+                images.append((m, r.image { _ in _ = without.view.drawHierarchy(in: CGRect(origin: .zero, size: size), afterScreenUpdates: false) }))
+                hidingImageModes = []
+            }
+            if let d = accented(all, rest, tint: look.tint, images: images) { return (d, host.view) }
             return (all.pngData() ?? Data(), host.view)
         }
         if look.mode == .vibrant {
@@ -504,7 +542,7 @@ struct _WKLook {
     }
     /// the tinted Home Screen's accented rendering (adapted): luminance as opacity, like vibrant, in white for most of the
     /// content and in the tint where the widgetAccentable content is (what differs between the two passes)
-    static func accented(_ all: UIImage, _ rest: UIImage, tint: (CGFloat, CGFloat, CGFloat)) -> Data? {
+    static func accented(_ all: UIImage, _ rest: UIImage, tint: (CGFloat, CGFloat, CGFloat), images: [(Int, UIImage)] = []) -> Data? {
         guard let a = all.cgImage, let b = rest.cgImage, a.width == b.width, a.height == b.height else { return nil }
         let w = a.width, h = a.height, cs = CGColorSpaceCreateDeviceRGB(), info = CGImageAlphaInfo.premultipliedLast.rawValue
         guard let ca = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: cs, bitmapInfo: info),
@@ -523,6 +561,28 @@ struct _WKLook {
             } else {
                 let l = UInt8(lum(q, o))
                 p[o] = l; p[o + 1] = l; p[o + 2] = l; p[o + 3] = l
+            }
+        }
+        /* images with a WidgetAccentedRenderingMode: where a pass without them differs, their own pixels in that mode */
+        guard !images.isEmpty, let co = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: cs, bitmapInfo: info),
+              let ro = co.data else { return ca.makeImage().flatMap { UIImage(cgImage: $0).pngData() } }
+        co.draw(a, in: CGRect(x: 0, y: 0, width: w, height: h))
+        let orig = ro.bindMemory(to: UInt8.self, capacity: w * h * 4)
+        for (mode, img) in images {
+            guard let c = img.cgImage, c.width == w, c.height == h,
+                  let cx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: cs, bitmapInfo: info), let rx = cx.data else { continue }
+            cx.draw(c, in: CGRect(x: 0, y: 0, width: w, height: h))
+            let x = rx.bindMemory(to: UInt8.self, capacity: w * h * 4)
+            for i in 0..<(w * h) {
+                let o = i * 4
+                let diff = abs(Int(orig[o]) - Int(x[o])) + abs(Int(orig[o + 1]) - Int(x[o + 1])) + abs(Int(orig[o + 2]) - Int(x[o + 2])) + abs(Int(orig[o + 3]) - Int(x[o + 3]))
+                guard diff > 24 else { continue }
+                let l = lum(orig, o), al = orig[o + 3]
+                switch mode {
+                case 3: p[o] = orig[o]; p[o + 1] = orig[o + 1]; p[o + 2] = orig[o + 2]; p[o + 3] = al                  /* fullColor */
+                case 1: p[o] = UInt8(l); p[o + 1] = UInt8(l); p[o + 2] = UInt8(l); p[o + 3] = al                       /* desaturated */
+                default: p[o] = UInt8(tr * l / 255); p[o + 1] = UInt8(tg * l / 255); p[o + 2] = UInt8(tb * l / 255); p[o + 3] = al   /* accentedDesaturated */
+                }
             }
         }
         guard let out = ca.makeImage() else { return nil }
@@ -592,6 +652,17 @@ struct _WKLook {
         NSLog("isim WidgetKit: rendered %@ (%@%@): %ld entr%@, policy %@", spec.kind, family.rawValue, look.mode == .vibrant ? ", vibrant" : look.mode == .accented ? ", accented" : !look.background ? ", no background" : "",
               entries.count, entries.count == 1 ? "y" : "ies", info["policy"] as! String)
     }
+    /// the push token, told to the widget's WidgetPushHandler once (it does not change on isim)
+    static func pushToken(_ push: @MainActor ([WidgetCenter.WidgetInfo]) -> Data, kind: String, family: WidgetFamily, out: String) async {
+        let file = (out as NSString).appendingPathComponent("push-token-\(kind).plist")
+        guard !FileManager.default.fileExists(atPath: file) else { return }
+        var inUse = (try? await WidgetCenter.shared.currentConfigurations) ?? []
+        if !inUse.contains(where: { $0.kind == kind && $0.family == family }) { inUse.append(WidgetCenter.WidgetInfo(kind: kind, family: family)) }
+        let token = push(inUse)
+        let hex = token.map { String(format: "%02x", $0) }.joined()
+        (["token": hex] as NSDictionary).write(toFile: file, atomically: true)
+        NSLog("isim WidgetKit: push token %@ for %@ (%ld widget(s))", hex, kind, inUse.count)
+    }
     static func currentEntry(_ entries: [_WKEntry]) -> _WKEntry? {
         let now = Date()
         return entries.last(where: { $0.date <= now }) ?? entries.first
@@ -608,14 +679,19 @@ struct _WKLook {
         switch mode {
         case "list":
             let list: [[String: Any]] = widgets.map { ["kind": $0.kind, "name": $0.name.isEmpty ? $0.kind : $0.name, "description": $0.description,
-                                                       "families": $0.families.map { $0.rawValue }, "configurable": !($0.params?([:]).params.isEmpty ?? true)] }
+                                                       "families": $0.families.map { $0.rawValue }, "configurable": !($0.params?([:]).params.isEmpty ?? true),
+                                                       "push": $0.pushHandler != nil, "recommendations": $0.recommendations] }
             (["widgets": list, "activities": activities.map { $0.typeName }] as NSDictionary).write(toFile: (out as NSString).appendingPathComponent("widgets.plist"), atomically: true)
             NSLog("isim WidgetKit: %ld widget kind(s), %ld Live Activity configuration(s)", list.count, activities.count)
+            for w in widgets where !w.recommendations.isEmpty {
+                NSLog("isim WidgetKit: %@ recommends %@", w.kind, w.recommendations.map { "“\($0)”" }.joined(separator: ", "))
+            }
         case "render", "tap":
             guard let spec else { NSLog("isim WidgetKit: no widget of kind %@", kind); break }
             var tap: CGPoint?
             if mode == "tap", let x = req["x"] as? Double, let y = req["y"] as? Double { tap = CGPoint(x: x, y: y) }
             await renderWidget(spec, family: family, out: out, tap: tap, req: req)
+            if let push = spec.pushHandler { await pushToken(push, kind: kind, family: family, out: out) }
         case "placeholder":                                   /* placeholder(in:), redacted: shown until the first timeline arrives */
             guard let spec else { break }
             var look = lookFor(req, family, spec); look.redacted = true
@@ -649,14 +725,16 @@ struct _WKLook {
             guard let aspec = activities.first(where: { $0.typeName == rec.type }), let views = aspec.render(rec.attributes, rec.state, isStale, info["id"] as? String ?? "") else {
                 NSLog("isim WidgetKit: no ActivityConfiguration for %@", rec.type); break
             }
-            let parts: [(String, AnyView, CGSize)] = [("lock", views.lock, CGSize(width: 370, height: 160)), ("leading", views.leading, CGSize(width: 64, height: 37)),
+            var parts: [(String, AnyView, CGSize)] = [("lock", views.lock, CGSize(width: 370, height: 160)), ("leading", views.leading, CGSize(width: 64, height: 37)),
                                                       ("trailing", views.trailing, CGSize(width: 64, height: 37)), ("minimal", views.minimal, CGSize(width: 37, height: 37)),
                                                       ("expanded", views.expanded, CGSize(width: 370, height: 160))]
+            if aspec.families.contains("small") { parts.append(("small", views.lock, CGSize(width: 172, height: 76))) }   /* the Smart Stack, CarPlay */
             var files: [String: String] = [:]
             for (name, v, size) in parts {
                 var styled = AnyView(v.foregroundColor(.white).environment(\.colorScheme, .dark))
-                if name == "lock" {                       /* the lock-screen presentation is filled with the tint */
-                    styled = AnyView(ZStack { Rectangle().fill(_WKHost.tint ?? Color(white: 0.95)); v }.frame(width: size.width, height: size.height))
+                if name == "lock" || name == "small" {    /* the lock-screen presentation is filled with the tint */
+                    styled = AnyView(ZStack { Rectangle().fill(_WKHost.tint ?? Color(white: 0.95)); v }.frame(width: size.width, height: size.height)
+                        .environment(\._isimActivityFamily, name == "small" ? "small" : "medium"))
                 }
                 let (data, _) = png(styled, size: size, look: _WKLook())
                 let f = (out as NSString).appendingPathComponent("\(name).png")
@@ -665,7 +743,7 @@ struct _WKLook {
             if let u = _WKHost.url { files["url"] = u.absoluteString }
             if isStale { files["stale"] = "1" }
             (files as NSDictionary).write(toFile: (out as NSString).appendingPathComponent("activity.plist"), atomically: true)
-            NSLog("isim WidgetKit: rendered Live Activity %@ (lock screen, Dynamic Island)%@", rec.type, isStale ? " stale" : "")
+            NSLog("isim WidgetKit: rendered Live Activity %@ (lock screen, Dynamic Island%@)%@", rec.type, files["small"] != nil ? ", small" : "", isStale ? " stale" : "")
         case "controls", "control-run": await _CWHost.handle(mode: mode, request: req, out: out)     /* Controls.swift */
         default: break
         }
