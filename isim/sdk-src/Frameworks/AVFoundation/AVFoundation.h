@@ -1,9 +1,10 @@
 #pragma once
 /* isim AVFoundation for Objective-C: the classes are the AVFoundation Swift overlay's (AVFoundation.framework re-exports
    libswiftAVFoundation.dylib): the audio session, assets, players, player items and the player layer (media decoded
-   by the host's FFmpeg; see the overlay). Swift uses the overlay; these declarations are hidden from Swift. Not
-   available from Objective-C yet: capture, editing and export, audio players and engines, readers and writers. The
-   classes are not subclassable from Objective-C. */
+   by the host's FFmpeg; see the overlay). Swift uses the overlay; these declarations are hidden from Swift. AVFAudio's
+   classes (the engine, formats, buffers, audio players and recorders) are in <AVFAudio/AVFAudio.h>, imported at the end.
+   Not available from Objective-C yet: capture, editing and export, readers and writers. The classes are not
+   subclassable from Objective-C. */
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <CoreMedia/CoreMedia.h>
@@ -171,6 +172,7 @@ typedef NS_ENUM(NSInteger, AVPlayerActionAtItemEnd) { AVPlayerActionAtItemEndAdv
 @property (nonatomic, readonly) CGRect videoRect;
 @end
 NS_ASSUME_NONNULL_END
+#import <AVFAudio/AVFAudio.h>
 #else
 @class AVAudioSession, AVAsset, AVURLAsset, AVPlayer, AVPlayerItem, AVPlayerLayer;
 #endif

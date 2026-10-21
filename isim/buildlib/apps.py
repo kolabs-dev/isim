@@ -905,6 +905,10 @@ def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "CoreHaptics",
                                           "-framework", "GameController", "-framework", "CoreGraphics"], name="GamesObjCTest")
 
+@app("tests/avfaudio-objc", products=["AVFAudioObjCTest.app"])   # after the overlays: AVFAudio re-exports AVFoundation (issue #553)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "AVFAudio"], name="AVFAudioObjCTest")
+
 
 @app("tests/photos-objc", products=["PhotosObjCTest.app"])   # after the overlays: Photos.framework re-exports libswiftPhotos (issue #545)
 def _(a):

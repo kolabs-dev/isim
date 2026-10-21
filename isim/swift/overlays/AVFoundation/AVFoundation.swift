@@ -135,7 +135,7 @@ enum _IsimBackgroundAudio {
 
 public enum AVAudioCommonFormat: UInt, Sendable { case otherFormat = 0, pcmFormatFloat32 = 1, pcmFormatFloat64 = 2, pcmFormatInt16 = 3, pcmFormatInt32 = 4 }
 
-open class AVAudioFormat: NSObject {
+@objc(AVAudioFormat) @objcMembers open class AVAudioFormat: NSObject {
     public let sampleRate: Double
     public let channelCount: AVAudioChannelCount
     public let commonFormat: AVAudioCommonFormat
@@ -143,7 +143,7 @@ open class AVAudioFormat: NSObject {
     /// a stream description that is not one of the common PCM formats (compressed: AAC, ALAC, ...; or other PCM)
     var _other: AudioStreamBasicDescription?
     var _layout: AVAudioChannelLayout?
-    public init?(standardFormatWithSampleRate rate: Double, channels: AVAudioChannelCount) {
+    @objc(initStandardFormatWithSampleRate:channels:) public init?(standardFormatWithSampleRate rate: Double, channels: AVAudioChannelCount) {
         guard rate > 0, channels > 0 else { return nil }
         sampleRate = rate; channelCount = channels; commonFormat = .pcmFormatFloat32; isInterleaved = false
     }
@@ -151,7 +151,7 @@ open class AVAudioFormat: NSObject {
         guard sampleRate > 0, channels > 0 else { return nil }
         self.sampleRate = sampleRate; channelCount = channels; self.commonFormat = commonFormat; isInterleaved = interleaved
     }
-    public init(standardFormatWithSampleRate rate: Double, channelLayout layout: AVAudioChannelLayout) {
+    @objc(initStandardFormatWithSampleRate:channelLayout:) public init(standardFormatWithSampleRate rate: Double, channelLayout layout: AVAudioChannelLayout) {
         sampleRate = rate; channelCount = layout.channelCount; commonFormat = .pcmFormatFloat32; isInterleaved = false; _layout = layout
     }
     public init(commonFormat: AVAudioCommonFormat, sampleRate: Double, interleaved: Bool, channelLayout layout: AVAudioChannelLayout) {
@@ -270,7 +270,7 @@ func _fourCC(_ v: UInt32) -> String { String(decoding: [UInt8(v >> 24 & 0xFF), U
 func _PCMDescription(_ d: AudioStreamBasicDescription) -> String { "\(d.mBitsPerChannel)-bit \(d._isFloat ? "float" : "integer")" }
 
 /// A buffer of audio in an AVAudioFormat: PCM (AVAudioPCMBuffer) or compressed packets (AVAudioCompressedBuffer).
-open class AVAudioBuffer: NSObject, NSCopying, NSMutableCopying {
+@objc(AVAudioBuffer) @objcMembers open class AVAudioBuffer: NSObject, NSCopying, NSMutableCopying {
     public let format: AVAudioFormat
     init(format: AVAudioFormat) { self.format = format }
     /// the buffer's data as a buffer list (sizes follow the valid data)
@@ -284,7 +284,7 @@ open class AVAudioBuffer: NSObject, NSCopying, NSMutableCopying {
 /// is stored per channel and read by floatChannelData; Int16 / Int32 / Float64 and interleaved formats have their own
 /// storage in that layout (int16ChannelData, int32ChannelData, `stride`), converted to floats where isim's engine
 /// and files read them.
-open class AVAudioPCMBuffer: AVAudioBuffer {
+@objc(AVAudioPCMBuffer) @objcMembers open class AVAudioPCMBuffer: AVAudioBuffer {
     public let frameCapacity: AVAudioFrameCount
     open var frameLength: AVAudioFrameCount {
         didSet { if frameLength > frameCapacity { frameLength = frameCapacity }; invalidate() }
@@ -296,7 +296,7 @@ open class AVAudioPCMBuffer: AVAudioBuffer {
     let _raw: [UnsafeMutableRawPointer]
     let _rawTable: UnsafeMutablePointer<UnsafeMutableRawPointer>
     var hostBuffer: Int32 = 0
-    public init?(pcmFormat: AVAudioFormat, frameCapacity: AVAudioFrameCount) {
+    @objc(initWithPCMFormat:frameCapacity:) public init?(pcmFormat: AVAudioFormat, frameCapacity: AVAudioFrameCount) {
         guard frameCapacity > 0, pcmFormat._isPCM else { return nil }
         self.frameCapacity = frameCapacity
         frameLength = 0
@@ -321,7 +321,7 @@ open class AVAudioPCMBuffer: AVAudioBuffer {
         super.init(format: pcmFormat)
     }
     /// iOS 15: a buffer over memory the caller owns; isim copies the samples in (deallocator runs right away)
-    public convenience init?(pcmFormat: AVAudioFormat, bufferListNoCopy: UnsafePointer<AudioBufferList>,
+    @objc(initWithPCMFormat:bufferListNoCopy:deallocator:) public convenience init?(pcmFormat: AVAudioFormat, bufferListNoCopy: UnsafePointer<AudioBufferList>,
                              deallocator: ((UnsafePointer<AudioBufferList>) -> Void)? = nil) {
         let list = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: bufferListNoCopy))
         let d = pcmFormat._asbd
@@ -507,7 +507,7 @@ enum _AudioDecoder {
     }
 }
 
-open class AVAudioFile: NSObject {
+@objc(AVAudioFile) @objcMembers open class AVAudioFile: NSObject {
     public let url: URL
     public let fileFormat: AVAudioFormat
     public let processingFormat: AVAudioFormat
@@ -535,7 +535,7 @@ open class AVAudioFile: NSObject {
     public convenience init(forWriting url: URL, settings: [String: Any], commonFormat: AVAudioCommonFormat, interleaved: Bool) throws {
         try self.init(forWriting: url, settings: settings)
     }
-    open func write(from buffer: AVAudioPCMBuffer) throws {
+    @objc(writeFromBuffer:error:) open func write(from buffer: AVAudioPCMBuffer) throws {
         guard let w = _writer else { throw _avError("isim AVFoundation: \(url.lastPathComponent) is not open for writing") }
         w.append(buffer)
         framePosition = AVAudioFramePosition(w.frames)
@@ -544,8 +544,8 @@ open class AVAudioFile: NSObject {
     open func close() { try? _writer?.finish() }
     deinit { try? _writer?.finish() }
     public convenience init(forReading url: URL, commonFormat: AVAudioCommonFormat, interleaved: Bool) throws { try self.init(forReading: url) }
-    open func read(into buffer: AVAudioPCMBuffer) throws { try read(into: buffer, frameCount: buffer.frameCapacity) }
-    open func read(into buffer: AVAudioPCMBuffer, frameCount: AVAudioFrameCount) throws {
+    @objc(readIntoBuffer:error:) open func read(into buffer: AVAudioPCMBuffer) throws { try read(into: buffer, frameCount: buffer.frameCapacity) }
+    @objc(readIntoBuffer:frameCount:error:) open func read(into buffer: AVAudioPCMBuffer, frameCount: AVAudioFrameCount) throws {
         let n = Int(min(AVAudioFramePosition(min(frameCount, buffer.frameCapacity)), length - framePosition))
         guard n >= 0 else { return }
         let start = Int(framePosition)
@@ -561,12 +561,12 @@ open class AVAudioFile: NSObject {
 
 // MARK: - AVAudioPlayer
 
-@objc public protocol AVAudioPlayerDelegate: NSObjectProtocol {
+@objc(AVAudioPlayerDelegate) public protocol AVAudioPlayerDelegate: NSObjectProtocol {
     @objc optional func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool)
     @objc optional func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?)
 }
 
-open class AVAudioPlayer: NSObject {
+@objc(AVAudioPlayer) @objcMembers open class AVAudioPlayer: NSObject {
     public let url: URL?
     public let data: Data?
     let buffer: Int32
@@ -596,7 +596,7 @@ open class AVAudioPlayer: NSObject {
     open var format: AVAudioFormat { AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: AVAudioChannelCount(max(1, _pcm.count)))! }
     open var deviceCurrentTime: TimeInterval { isim_time() }
 
-    public init(contentsOf url: URL) throws {
+    @objc(initWithContentsOfURL:error:) public init(contentsOf url: URL) throws {
         let d = try _AudioDecoder.decode(url)
         self.url = url; data = nil
         sampleRate = d.rate; frames = d.channels.first?.count ?? 0; _pcm = d.channels
@@ -604,7 +604,7 @@ open class AVAudioPlayer: NSObject {
         super.init()
         _AudioSessionEvents.register(self)
     }
-    public convenience init(contentsOf url: URL, fileTypeHint: String?) throws { try self.init(contentsOf: url) }
+    @objc(initWithContentsOfURL:fileTypeHint:error:) public convenience init(contentsOf url: URL, fileTypeHint: String?) throws { try self.init(contentsOf: url) }
     public init(data: Data) throws {
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("isim-avplayer-\(UUID().uuidString)")
         try data.write(to: tmp)

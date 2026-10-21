@@ -100,3 +100,126 @@ static CMTime time_of(NSArray<NSNumber *> *p) {
     return [self _isim_addBoundaryTimeObserverForTimes:times usingBlock:^{ if (q) dispatch_async(q, block); else block(); }];
 }
 @end
+
+/* AVFAudio (issue #553): the constants, the class factories, Apple's setters where the overlay's Bool properties are
+   named isX (Swift's Objective-C setter is setIsX:), and the AVAudio3D… and prime-info structs, which go through the
+   overlay's `_isim_` NSArray entry points (AVFAudioObjC.swift). */
+NSNotificationName const AVAudioEngineConfigurationChangeNotification = @"AVAudioEngineConfigurationChangeNotification";
+NSString * const AVFormatIDKey = @"AVFormatIDKey";
+NSString * const AVSampleRateKey = @"AVSampleRateKey";
+NSString * const AVNumberOfChannelsKey = @"AVNumberOfChannelsKey";
+NSString * const AVChannelLayoutKey = @"AVChannelLayoutKey";
+NSString * const AVLinearPCMBitDepthKey = @"AVLinearPCMBitDepthKey";
+NSString * const AVLinearPCMIsBigEndianKey = @"AVLinearPCMIsBigEndianKey";
+NSString * const AVLinearPCMIsFloatKey = @"AVLinearPCMIsFloatKey";
+NSString * const AVLinearPCMIsNonInterleaved = @"AVLinearPCMIsNonInterleaved";
+NSString * const AVEncoderAudioQualityKey = @"AVEncoderAudioQualityKey";
+NSString * const AVEncoderBitRateKey = @"AVEncoderBitRateKey";
+NSString * const AVEncoderBitRatePerChannelKey = @"AVEncoderBitRatePerChannelKey";
+NSString * const AVEncoderBitRateStrategyKey = @"AVEncoderBitRateStrategyKey";
+NSString * const AVEncoderBitDepthHintKey = @"AVEncoderBitDepthHintKey";
+NSString * const AVSampleRateConverterAlgorithmKey = @"AVSampleRateConverterAlgorithmKey";
+NSString * const AVSampleRateConverterAudioQualityKey = @"AVSampleRateConverterAudioQualityKey";
+NSString * const AVSampleRateConverterAlgorithm_Normal = @"AVSampleRateConverterAlgorithm_Normal";
+NSString * const AVSampleRateConverterAlgorithm_Mastering = @"AVSampleRateConverterAlgorithm_Mastering";
+NSString * const AVSampleRateConverterAlgorithm_MinimumPhase = @"AVSampleRateConverterAlgorithm_MinimumPhase";
+NSString * const AVAudioBitRateStrategy_Constant = @"AVAudioBitRateStrategy_Constant";
+NSString * const AVAudioBitRateStrategy_LongTermAverage = @"AVAudioBitRateStrategy_LongTermAverage";
+NSString * const AVAudioBitRateStrategy_VariableConstrained = @"AVAudioBitRateStrategy_VariableConstrained";
+NSString * const AVAudioBitRateStrategy_Variable = @"AVAudioBitRateStrategy_Variable";
+
+static NSArray<NSNumber *> *point_parts(AVAudio3DPoint p) { return @[@(p.x), @(p.y), @(p.z)]; }
+static AVAudio3DPoint point_of(NSArray<NSNumber *> *a, NSUInteger i) {
+    return a.count >= i + 3 ? AVAudioMake3DPoint(a[i].floatValue, a[i + 1].floatValue, a[i + 2].floatValue) : AVAudioMake3DPoint(0, 0, 0);
+}
+
+@interface NSObject (ISIMAVFAudio)
+- (void)setIsMeteringEnabled:(BOOL)v;
+- (void)setIsAutoShutdownEnabled:(BOOL)v;
+- (void)setIsListenerHeadTrackingEnabled:(BOOL)v;
+- (void)setIsVoiceProcessingBypassed:(BOOL)v;
+- (void)setIsVoiceProcessingAGCEnabled:(BOOL)v;
+- (void)setIsVoiceProcessingInputMuted:(BOOL)v;
+- (NSArray<NSNumber *> *)_isim_position;
+- (void)set_isim_position:(NSArray<NSNumber *> *)p;
+- (NSArray<NSNumber *> *)_isim_listenerPosition;
+- (void)set_isim_listenerPosition:(NSArray<NSNumber *> *)p;
+- (NSArray<NSNumber *> *)_isim_listenerAngularOrientation;
+- (void)set_isim_listenerAngularOrientation:(NSArray<NSNumber *> *)p;
+- (NSArray<NSNumber *> *)_isim_listenerVectorOrientation;
+- (void)set_isim_listenerVectorOrientation:(NSArray<NSNumber *> *)p;
+- (NSArray<NSNumber *> *)_isim_primeInfo;
+- (void)set_isim_primeInfo:(NSArray<NSNumber *> *)p;
+@end
+
+@implementation AVAudioChannelLayout (ISIMFactories)
++ (instancetype)layoutWithLayoutTag:(AudioChannelLayoutTag)layoutTag { return [[self alloc] initWithLayoutTag:layoutTag]; }
++ (instancetype)layoutWithLayout:(const AudioChannelLayout *)layout { return [[self alloc] initWithLayout:layout]; }
+@end
+@implementation AVAudioTime (ISIMFactories)
++ (instancetype)timeWithAudioTimeStamp:(const AudioTimeStamp *)ts sampleRate:(double)sampleRate {
+    return [[self alloc] initWithAudioTimeStamp:ts sampleRate:sampleRate];
+}
++ (instancetype)timeWithHostTime:(uint64_t)hostTime { return [[self alloc] initWithHostTime:hostTime]; }
++ (instancetype)timeWithSampleTime:(AVAudioFramePosition)sampleTime atRate:(double)sampleRate {
+    return [[self alloc] initWithSampleTime:sampleTime atRate:sampleRate];
+}
++ (instancetype)timeWithHostTime:(uint64_t)hostTime sampleTime:(AVAudioFramePosition)sampleTime atRate:(double)sampleRate {
+    return [[self alloc] initWithHostTime:hostTime sampleTime:sampleTime atRate:sampleRate];
+}
+@end
+
+@implementation AVAudioConverter (ISIMStructs)
+- (AVAudioConverterPrimeInfo)primeInfo {
+    NSArray<NSNumber *> *a = [self _isim_primeInfo];
+    return (AVAudioConverterPrimeInfo){ a[0].unsignedIntValue, a[1].unsignedIntValue };
+}
+- (void)setPrimeInfo:(AVAudioConverterPrimeInfo)p { [self set_isim_primeInfo:@[@(p.leadingFrames), @(p.trailingFrames)]]; }
+@end
+@implementation AVAudioPlayer (ISIMSetters)
+- (void)setMeteringEnabled:(BOOL)v { [self setIsMeteringEnabled:v]; }
+@end
+@implementation AVAudioRecorder (ISIMSetters)
+- (void)setMeteringEnabled:(BOOL)v { [self setIsMeteringEnabled:v]; }
+@end
+@implementation AVAudioEngine (ISIMSetters)
+- (void)setAutoShutdownEnabled:(BOOL)v { [self setIsAutoShutdownEnabled:v]; }
+@end
+@implementation AVAudioInputNode (ISIMSetters)
+- (void)setVoiceProcessingBypassed:(BOOL)v { [self setIsVoiceProcessingBypassed:v]; }
+- (void)setVoiceProcessingAGCEnabled:(BOOL)v { [self setIsVoiceProcessingAGCEnabled:v]; }
+- (void)setVoiceProcessingInputMuted:(BOOL)v { [self setIsVoiceProcessingInputMuted:v]; }
+@end
+@implementation AVAudioEnvironmentNode (ISIMStructs)
+- (void)setListenerHeadTrackingEnabled:(BOOL)v { [self setIsListenerHeadTrackingEnabled:v]; }
+- (AVAudio3DPoint)listenerPosition { return point_of([self _isim_listenerPosition], 0); }
+- (void)setListenerPosition:(AVAudio3DPoint)p { [self set_isim_listenerPosition:point_parts(p)]; }
+- (AVAudio3DAngularOrientation)listenerAngularOrientation {
+    NSArray<NSNumber *> *a = [self _isim_listenerAngularOrientation];
+    return AVAudioMake3DAngularOrientation(a[0].floatValue, a[1].floatValue, a[2].floatValue);
+}
+- (void)setListenerAngularOrientation:(AVAudio3DAngularOrientation)o {
+    [self set_isim_listenerAngularOrientation:@[@(o.yaw), @(o.pitch), @(o.roll)]];
+}
+- (AVAudio3DVectorOrientation)listenerVectorOrientation {
+    NSArray<NSNumber *> *a = [self _isim_listenerVectorOrientation];
+    return AVAudioMake3DVectorOrientation(point_of(a, 0), point_of(a, 3));
+}
+- (void)setListenerVectorOrientation:(AVAudio3DVectorOrientation)o {
+    [self set_isim_listenerVectorOrientation:[point_parts(o.forward) arrayByAddingObjectsFromArray:point_parts(o.up)]];
+}
+@end
+
+/* AVAudio3DMixing's position on each class that adopts AVAudioMixing */
+#define ISIM_MIXING_POSITION(C) \
+    @implementation C (ISIMPosition) \
+    - (AVAudio3DPoint)position { return point_of([self _isim_position], 0); } \
+    - (void)setPosition:(AVAudio3DPoint)p { [self set_isim_position:point_parts(p)]; } \
+    @end
+ISIM_MIXING_POSITION(AVAudioMixingDestination)
+ISIM_MIXING_POSITION(AVAudioMixerNode)
+ISIM_MIXING_POSITION(AVAudioPlayerNode)
+ISIM_MIXING_POSITION(AVAudioSourceNode)
+ISIM_MIXING_POSITION(AVAudioInputNode)
+ISIM_MIXING_POSITION(AVAudioEnvironmentNode)
+ISIM_MIXING_POSITION(AVAudioUnitGenerator)

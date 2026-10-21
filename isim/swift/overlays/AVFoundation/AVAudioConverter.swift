@@ -12,7 +12,7 @@ public typealias AVAudioPacketCount = UInt32
 // MARK: - channel layouts
 
 /// A channel layout: a layout tag, or a bitmap or list of channel descriptions (AudioChannelLayout).
-open class AVAudioChannelLayout: NSObject, NSSecureCoding, @unchecked Sendable {
+@objc(AVAudioChannelLayout) @objcMembers open class AVAudioChannelLayout: NSObject, NSSecureCoding, @unchecked Sendable {
     let _storage: UnsafeMutableRawPointer
     let _size: Int
     static func size(descriptions n: Int) -> Int {
@@ -67,7 +67,7 @@ open class AVAudioChannelLayout: NSObject, NSSecureCoding, @unchecked Sendable {
 // MARK: - compressed buffers
 
 /// Packets of a compressed format (AAC, ALAC, ...) with their packet descriptions.
-open class AVAudioCompressedBuffer: AVAudioBuffer {
+@objc(AVAudioCompressedBuffer) @objcMembers open class AVAudioCompressedBuffer: AVAudioBuffer {
     public let packetCapacity: AVAudioPacketCount
     public let maximumPacketSize: Int
     public let byteCapacity: UInt32
@@ -167,12 +167,12 @@ private let _converterInputProc: AudioConverterComplexInputDataProc = { _, ioPac
     return noErr
 }
 
-open class AVAudioConverter: NSObject {
+@objc(AVAudioConverter) @objcMembers open class AVAudioConverter: NSObject {
     public let inputFormat: AVAudioFormat
     public let outputFormat: AVAudioFormat
     var _ref: AudioConverterRef?
     var _ended = false
-    public init?(from fromFormat: AVAudioFormat, to toFormat: AVAudioFormat) {
+    @objc(initFromFormat:toFormat:) public init?(from fromFormat: AVAudioFormat, to toFormat: AVAudioFormat) {
         inputFormat = fromFormat; outputFormat = toFormat
         var ref: AudioConverterRef?
         guard AudioConverterNew(fromFormat.streamDescription, toFormat.streamDescription, &ref) == noErr, let ref else { return nil }
@@ -262,7 +262,7 @@ open class AVAudioConverter: NSObject {
 
     /// Linear PCM to linear PCM in one call: sample format, interleaving and channels (channelMap, downmix), at the
     /// same sample rate (as on iOS; use convert(to:error:withInputFrom:) to resample).
-    open func convert(to outputBuffer: AVAudioPCMBuffer, from inputBuffer: AVAudioPCMBuffer) throws {
+    @objc(convertToBuffer:fromBuffer:error:) open func convert(to outputBuffer: AVAudioPCMBuffer, from inputBuffer: AVAudioPCMBuffer) throws {
         guard inputFormat._isPCM, outputFormat._isPCM, inputFormat.sampleRate == outputFormat.sampleRate else {
             throw Self._error(kAudioConverterErr_FormatNotSupported)
         }
