@@ -115,7 +115,7 @@ public enum PKPaymentAuthorizationStatus: Int, Sendable {
 // MARK: - Summary items and shipping methods
 
 /// A line of the payment sheet's summary: the last item is the total, its label the business's name.
-open class PKPaymentSummaryItem: NSObject {
+@objc(PKPaymentSummaryItem) @objcMembers open class PKPaymentSummaryItem: NSObject {
     open var label: String
     open var amount: NSDecimalNumber
     open var type: PKPaymentSummaryItemType = .final
@@ -130,7 +130,7 @@ open class PKPaymentSummaryItem: NSObject {
 }
 
 /// A payment billed on a schedule (a subscription).
-open class PKRecurringPaymentSummaryItem: PKPaymentSummaryItem {
+@objc(PKRecurringPaymentSummaryItem) @objcMembers open class PKRecurringPaymentSummaryItem: PKPaymentSummaryItem {
     open var startDate: Date?
     open var intervalUnit: NSCalendar.Unit = .month
     open var intervalCount: Int = 1
@@ -138,17 +138,17 @@ open class PKRecurringPaymentSummaryItem: PKPaymentSummaryItem {
 }
 
 /// A payment billed later, on a date.
-open class PKDeferredPaymentSummaryItem: PKPaymentSummaryItem {
+@objc(PKDeferredPaymentSummaryItem) @objcMembers open class PKDeferredPaymentSummaryItem: PKPaymentSummaryItem {
     open var deferredDate = Date()
 }
 
 /// A payment that reloads a stored-value balance when it falls below a threshold.
-open class PKAutomaticReloadPaymentSummaryItem: PKPaymentSummaryItem {
+@objc(PKAutomaticReloadPaymentSummaryItem) @objcMembers open class PKAutomaticReloadPaymentSummaryItem: PKPaymentSummaryItem {
     open var thresholdAmount: NSDecimalNumber = .zero
 }
 
 /// The start and end of a shipping method's delivery estimate.
-open class PKDateComponentsRange: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
+@objc(PKDateComponentsRange) @objcMembers open class PKDateComponentsRange: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
     public let startDateComponents: DateComponents
     public let endDateComponents: DateComponents
     public init?(start: DateComponents, end: DateComponents) {
@@ -172,7 +172,7 @@ open class PKDateComponentsRange: NSObject, NSCopying, NSSecureCoding, @unchecke
 }
 
 /// A way to ship the order, with its cost.
-open class PKShippingMethod: PKPaymentSummaryItem {
+@objc(PKShippingMethod) @objcMembers open class PKShippingMethod: PKPaymentSummaryItem {
     open var identifier: String?
     open var detail: String?
     open var dateComponentsRange: PKDateComponentsRange?
@@ -180,7 +180,7 @@ open class PKShippingMethod: PKPaymentSummaryItem {
 
 // MARK: - Recurring, deferred and automatic reload requests, multi-token contexts
 
-open class PKRecurringPaymentRequest: NSObject {
+@objc(PKRecurringPaymentRequest) @objcMembers open class PKRecurringPaymentRequest: NSObject {
     open var paymentDescription: String
     open var regularBilling: PKRecurringPaymentSummaryItem
     open var trialBilling: PKRecurringPaymentSummaryItem?
@@ -193,7 +193,7 @@ open class PKRecurringPaymentRequest: NSObject {
     }
 }
 
-open class PKDeferredPaymentRequest: NSObject {
+@objc(PKDeferredPaymentRequest) @objcMembers open class PKDeferredPaymentRequest: NSObject {
     open var paymentDescription: String
     open var deferredBilling: PKDeferredPaymentSummaryItem
     open var billingAgreement: String?
@@ -207,7 +207,7 @@ open class PKDeferredPaymentRequest: NSObject {
     }
 }
 
-open class PKAutomaticReloadPaymentRequest: NSObject {
+@objc(PKAutomaticReloadPaymentRequest) @objcMembers open class PKAutomaticReloadPaymentRequest: NSObject {
     open var paymentDescription: String
     open var automaticReloadBilling: PKAutomaticReloadPaymentSummaryItem
     open var billingAgreement: String?
@@ -220,7 +220,7 @@ open class PKAutomaticReloadPaymentRequest: NSObject {
 }
 
 /// One merchant's part of a payment with several tokens (a marketplace order).
-open class PKPaymentTokenContext: NSObject {
+@objc(PKPaymentTokenContext) @objcMembers open class PKPaymentTokenContext: NSObject {
     open var merchantIdentifier: String
     open var externalIdentifier: String
     open var merchantName: String
@@ -236,7 +236,7 @@ open class PKPaymentTokenContext: NSObject {
 // MARK: - Contacts
 
 /// The customer's name, address, email and phone, as the payment sheet hands them to the app.
-open class PKContact: NSObject, @unchecked Sendable {
+@objc(PKContact) @objcMembers open class PKContact: NSObject, @unchecked Sendable {
     open var name: PersonNameComponents?
     open var postalAddress: CNPostalAddress?
     open var emailAddress: String?
@@ -254,7 +254,7 @@ open class PKContact: NSObject, @unchecked Sendable {
 // MARK: - Payment request
 
 /// What the customer is asked to pay, and how.
-open class PKPaymentRequest: NSObject {
+@objc(PKPaymentRequest) @objcMembers open class PKPaymentRequest: NSObject {
     open var merchantIdentifier = ""
     open var countryCode = ""
     open var supportedNetworks: [PKPaymentNetwork] = []
@@ -369,7 +369,7 @@ public struct PKPaymentError: CustomNSError, Hashable, @unchecked Sendable {
 // MARK: - Payment methods, tokens, payments
 
 /// The card the customer pays with, as the app sees it (no card number).
-open class PKPaymentMethod: NSObject, @unchecked Sendable {
+@objc(PKPaymentMethod) @objcMembers open class PKPaymentMethod: NSObject, @unchecked Sendable {
     open internal(set) var displayName: String?
     open internal(set) var network: PKPaymentNetwork?
     open internal(set) var type: PKPaymentMethodType = .unknown
@@ -380,7 +380,7 @@ open class PKPaymentMethod: NSObject, @unchecked Sendable {
 
 /// The payment's credentials for the merchant's payment processor. On isim it is a test token, not Apple's: its
 /// paymentData is JSON with "version": "isim-test" and no cryptogram, so a payment processor rejects it.
-open class PKPaymentToken: NSObject, @unchecked Sendable {
+@objc(PKPaymentToken) @objcMembers open class PKPaymentToken: NSObject, @unchecked Sendable {
     open internal(set) var paymentMethod: PKPaymentMethod
     open internal(set) var transactionIdentifier: String
     open internal(set) var paymentData: Data
@@ -393,7 +393,7 @@ open class PKPaymentToken: NSObject, @unchecked Sendable {
 }
 
 /// An authorized payment: the token and the contacts and shipping method the customer chose.
-open class PKPayment: NSObject, @unchecked Sendable {
+@objc(PKPayment) @objcMembers open class PKPayment: NSObject, @unchecked Sendable {
     open internal(set) var token: PKPaymentToken
     open internal(set) var billingContact: PKContact?
     open internal(set) var shippingContact: PKContact?
@@ -404,7 +404,7 @@ open class PKPayment: NSObject, @unchecked Sendable {
 // MARK: - Results and request updates
 
 /// The app's answer to an authorized payment: success, or failure with what to fix.
-open class PKPaymentAuthorizationResult: NSObject, @unchecked Sendable {
+@objc(PKPaymentAuthorizationResult) @objcMembers open class PKPaymentAuthorizationResult: NSObject, @unchecked Sendable {
     open var status: PKPaymentAuthorizationStatus
     open var errors: [Error]!
     /// the Wallet order the payment creates (isim's Wallet records it)
@@ -417,7 +417,7 @@ open class PKPaymentAuthorizationResult: NSObject, @unchecked Sendable {
 }
 
 /// New summary items (and shipping methods) for the sheet after the customer changed something.
-open class PKPaymentRequestUpdate: NSObject, @unchecked Sendable {
+@objc(PKPaymentRequestUpdate) @objcMembers open class PKPaymentRequestUpdate: NSObject, @unchecked Sendable {
     open var status: PKPaymentAuthorizationStatus = .success
     open var paymentSummaryItems: [PKPaymentSummaryItem]
     open var shippingMethods: [PKShippingMethod] = []
@@ -437,9 +437,9 @@ open class PKPaymentRequestUpdate: NSObject, @unchecked Sendable {
     var _unchanged = false
 }
 
-open class PKPaymentRequestShippingMethodUpdate: PKPaymentRequestUpdate, @unchecked Sendable {}
+@objc(PKPaymentRequestShippingMethodUpdate) @objcMembers open class PKPaymentRequestShippingMethodUpdate: PKPaymentRequestUpdate, @unchecked Sendable {}
 
-open class PKPaymentRequestShippingContactUpdate: PKPaymentRequestUpdate, @unchecked Sendable {
+@objc(PKPaymentRequestShippingContactUpdate) @objcMembers open class PKPaymentRequestShippingContactUpdate: PKPaymentRequestUpdate, @unchecked Sendable {
     open var errors: [Error]!
     public init(errors: [Error]?, paymentSummaryItems: [PKPaymentSummaryItem], shippingMethods: [PKShippingMethod]) {
         self.errors = errors ?? []
@@ -453,7 +453,7 @@ open class PKPaymentRequestShippingContactUpdate: PKPaymentRequestUpdate, @unche
     override var _errors: [Error] { errors ?? [] }
 }
 
-open class PKPaymentRequestPaymentMethodUpdate: PKPaymentRequestUpdate, @unchecked Sendable {
+@objc(PKPaymentRequestPaymentMethodUpdate) @objcMembers open class PKPaymentRequestPaymentMethodUpdate: PKPaymentRequestUpdate, @unchecked Sendable {
     open var errors: [Error]!
     public init(errors: [Error]?, paymentSummaryItems: [PKPaymentSummaryItem]) {
         self.errors = errors ?? []
@@ -466,7 +466,7 @@ open class PKPaymentRequestPaymentMethodUpdate: PKPaymentRequestUpdate, @uncheck
     override var _errors: [Error] { errors ?? [] }
 }
 
-open class PKPaymentRequestCouponCodeUpdate: PKPaymentRequestUpdate, @unchecked Sendable {
+@objc(PKPaymentRequestCouponCodeUpdate) @objcMembers open class PKPaymentRequestCouponCodeUpdate: PKPaymentRequestUpdate, @unchecked Sendable {
     open var errors: [Error]!
     public init(errors: [Error]?, paymentSummaryItems: [PKPaymentSummaryItem], shippingMethods: [PKShippingMethod]) {
         self.errors = errors ?? []

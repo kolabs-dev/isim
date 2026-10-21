@@ -86,7 +86,7 @@ enum _PKZip {
 // MARK: - Passes
 
 /// The base class of PassKit's pass objects.
-open class PKObject: NSObject {}
+@objc(PKObject) @objcMembers open class PKObject: NSObject {}
 
 public enum PKPassType: UInt, Sendable {
     case barcode = 0, secureElement = 1, any = 0xFFFF_FFFF
@@ -94,14 +94,14 @@ public enum PKPassType: UInt, Sendable {
 }
 
 /// A date or interval when a pass is relevant (pass.json "relevantDates", iOS 18).
-open class PKPassRelevantDate: NSObject, @unchecked Sendable {
+@objc(PKPassRelevantDate) @objcMembers open class PKPassRelevantDate: NSObject, @unchecked Sendable {
     open internal(set) var date: Date?
     open internal(set) var interval: DateInterval?
     init(date: Date?, interval: DateInterval?) { self.date = date; self.interval = interval; super.init() }
 }
 
 /// A Wallet pass: a boarding pass, coupon, event ticket, store card or generic pass, read from its .pkpass archive.
-open class PKPass: PKObject, @unchecked Sendable {
+@objc(PKPass) @objcMembers open class PKPass: PKObject, @unchecked Sendable {
     let archive: Data
     let files: [String: Data]
     let json: [String: Any]
@@ -330,7 +330,7 @@ enum _PKWalletStore {
 }
 
 /// The passes in Wallet.
-open class PKPassLibrary: NSObject {
+@objc(PKPassLibrary) @objcMembers open class PKPassLibrary: NSObject {
     public override init() { super.init() }
 
     open class func isPassLibraryAvailable() -> Bool { true }
@@ -396,7 +396,7 @@ open class PKPassLibrary: NSObject {
 // MARK: - Orders
 
 /// The Wallet order an Apple Pay payment created (PKPaymentAuthorizationResult.orderDetails).
-open class PKPaymentOrderDetails: NSObject, @unchecked Sendable {
+@objc(PKPaymentOrderDetails) @objcMembers open class PKPaymentOrderDetails: NSObject, @unchecked Sendable {
     open var orderTypeIdentifier: String
     open var orderIdentifier: String
     open var webServiceURL: URL

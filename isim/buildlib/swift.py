@@ -735,6 +735,12 @@ OBJC_NAMES["ARKit"] = {**{c: c for c in """ARConfiguration ARWorldTrackingConfig
     ARReferenceObject ARWorldMap ARSCNView ARSKView ARCoachingOverlayView""".split()}, "ARConfiguration.VideoFormat": "ARVideoFormat"}
 OBJC_NAMES["SceneKit"] = {c: c for c in ("SCNNode", "SCNScene", "SCNView")}
 OBJC_NAMES["StoreKitTest"] = {c: c for c in ("SKTestSession", "SKTestTransaction")}   # issue #564
+# issue #566: Apple Pay and Wallet from Objective-C
+OBJC_NAMES["PassKit"] = {c: c for c in """PKAddPassButton PKAddPassesViewController PKAutomaticReloadPaymentRequest PKAutomaticReloadPaymentSummaryItem PKContact PKDateComponentsRange
+    PKDeferredPaymentRequest PKDeferredPaymentSummaryItem PKObject PKPass PKPassLibrary PKPassRelevantDate PKPayment PKPaymentAuthorizationController
+    PKPaymentAuthorizationResult PKPaymentAuthorizationViewController PKPaymentButton PKPaymentMethod PKPaymentOrderDetails PKPaymentRequest
+    PKPaymentRequestCouponCodeUpdate PKPaymentRequestPaymentMethodUpdate PKPaymentRequestShippingContactUpdate PKPaymentRequestShippingMethodUpdate
+    PKPaymentRequestUpdate PKPaymentSummaryItem PKPaymentToken PKPaymentTokenContext PKRecurringPaymentRequest PKRecurringPaymentSummaryItem PKShippingMethod""".split()}
 OBJC_NAMES["MessageUI"] = {c: c for c in ("MFMailComposeViewController", "MFMessageComposeViewController")}
 OBJC_NAMES["CoreBluetooth"] = {c: c for c in """CBUUID CBAttribute CBService CBMutableService CBCharacteristic CBMutableCharacteristic
     CBDescriptor CBMutableDescriptor CBPeer CBCentral CBATTRequest CBL2CAPChannel CBPeripheral CBManager CBCentralManager CBPeripheralManager""".split()}

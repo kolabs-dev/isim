@@ -926,6 +926,12 @@ def _(a):
     a.copy("../../samples/HelloStoreTesting/HelloStoreTestingTests/Products.storekit", b)   # HelloStoreTesting's configuration
 
 
+@app("tests/passkit-objc", products=["PassKitObjCTest.app"])   # after the overlays: PassKit re-exports its own (issue #566)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "PassKit", "-framework", "Contacts"],
+               name="PassKitObjCTest")
+
+
 @app("tests/photos-objc", products=["PhotosObjCTest.app"])   # after the overlays: Photos.framework re-exports libswiftPhotos (issue #545)
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Photos", "-framework", "PhotosUI",

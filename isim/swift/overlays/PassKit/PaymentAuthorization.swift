@@ -177,7 +177,7 @@ public protocol PKPaymentAuthorizationControllerDelegate: NSObjectProtocol {
 }
 
 /// Presents the Apple Pay sheet over the app (no view controller of the app's).
-open class PKPaymentAuthorizationController: NSObject {
+@objc(PKPaymentAuthorizationController) @objcMembers open class PKPaymentAuthorizationController: NSObject {
     open weak var delegate: (any PKPaymentAuthorizationControllerDelegate)?
     let request: PKPaymentRequest
     var host: UIViewController?
@@ -300,7 +300,7 @@ public protocol PKPaymentAuthorizationViewControllerDelegate: NSObjectProtocol {
 }
 
 /// The Apple Pay sheet as a view controller the app presents (and dismisses in paymentAuthorizationViewControllerDidFinish).
-open class PKPaymentAuthorizationViewController: UIViewController {
+@objc(PKPaymentAuthorizationViewController) @objcMembers open class PKPaymentAuthorizationViewController: UIViewController {
     open weak var delegate: (any PKPaymentAuthorizationViewControllerDelegate)?
     let request: PKPaymentRequest
     var model: _PKSheetModel?

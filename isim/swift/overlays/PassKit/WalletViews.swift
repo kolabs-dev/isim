@@ -14,7 +14,7 @@ public protocol PKAddPassesViewControllerDelegate: NSObjectProtocol {
 }
 
 /// The sheet that shows passes and lets the person add them to Wallet.
-open class PKAddPassesViewController: UIViewController {
+@objc(PKAddPassesViewController) @objcMembers open class PKAddPassesViewController: UIViewController {
     open weak var delegate: (any PKAddPassesViewControllerDelegate)?
     let passes: [PKPass]
 
@@ -176,7 +176,7 @@ public enum PKAddPassButtonStyle: Int, Sendable {
 }
 
 /// The "Add to Apple Wallet" button.
-open class PKAddPassButton: UIButton {
+@objc(PKAddPassButton) @objcMembers open class PKAddPassButton: UIButton {
     open var addPassButtonStyle: PKAddPassButtonStyle { didSet { restyle() } }
 
     public init(addPassButtonStyle style: PKAddPassButtonStyle) {
