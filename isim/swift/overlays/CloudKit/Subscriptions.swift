@@ -1,7 +1,7 @@
 // CKSubscription / CKNotification (isim: subscriptions are stored locally; notifications are delivered in-process).
 import Foundation
 
-open class CKSubscription: NSObject, @unchecked Sendable {
+@objc(CKSubscription) @objcMembers open class CKSubscription: NSObject, @unchecked Sendable {
     public typealias ID = String
     public enum SubscriptionType: Int, Sendable { case query = 1, recordZone = 2, database = 3 }
     public let subscriptionID: ID
@@ -9,7 +9,7 @@ open class CKSubscription: NSObject, @unchecked Sendable {
     open var notificationInfo: NotificationInfo?
     init(_ id: ID, _ t: SubscriptionType) { subscriptionID = id; subscriptionType = t }
 
-    open class NotificationInfo: NSObject, @unchecked Sendable {
+    @objc(CKNotificationInfo) @objcMembers open class NotificationInfo: NSObject, @unchecked Sendable {
         open var alertBody: String?
         open var title: String?
         open var subtitle: String?
@@ -61,7 +61,7 @@ open class CKSubscription: NSObject, @unchecked Sendable {
     }
 }
 
-open class CKQuerySubscription: CKSubscription, @unchecked Sendable {
+@objc(CKQuerySubscription) @objcMembers open class CKQuerySubscription: CKSubscription, @unchecked Sendable {
     public struct Options: OptionSet, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -79,11 +79,11 @@ open class CKQuerySubscription: CKSubscription, @unchecked Sendable {
         super.init(subscriptionID, .query)
     }
 }
-open class CKDatabaseSubscription: CKSubscription, @unchecked Sendable {
+@objc(CKDatabaseSubscription) @objcMembers open class CKDatabaseSubscription: CKSubscription, @unchecked Sendable {
     open var recordType: CKRecord.RecordType?
     public init(subscriptionID: CKSubscription.ID = UUID().uuidString) { super.init(subscriptionID, .database) }
 }
-open class CKRecordZoneSubscription: CKSubscription, @unchecked Sendable {
+@objc(CKRecordZoneSubscription) @objcMembers open class CKRecordZoneSubscription: CKSubscription, @unchecked Sendable {
     public let zoneID: CKRecordZone.ID
     open var recordType: CKRecord.RecordType?
     public init(zoneID: CKRecordZone.ID, subscriptionID: CKSubscription.ID = UUID().uuidString) { self.zoneID = zoneID; super.init(subscriptionID, .recordZone) }
@@ -91,7 +91,7 @@ open class CKRecordZoneSubscription: CKSubscription, @unchecked Sendable {
 
 // MARK: - Notifications
 
-open class CKNotification: NSObject, @unchecked Sendable {
+@objc(CKNotification) @objcMembers open class CKNotification: NSObject, @unchecked Sendable {
     public enum NotificationType: Int, Sendable { case query = 1, recordZone = 2, readNotification = 3, database = 4 }
     public struct ID: Hashable, Sendable { let raw: String }
     public let notificationType: NotificationType
@@ -130,7 +130,7 @@ open class CKNotification: NSObject, @unchecked Sendable {
     }
 }
 
-open class CKQueryNotification: CKNotification, @unchecked Sendable {
+@objc(CKQueryNotification) @objcMembers open class CKQueryNotification: CKNotification, @unchecked Sendable {
     public enum Reason: Int, Sendable { case recordCreated = 1, recordUpdated = 2, recordDeleted = 3 }
     public let queryNotificationReason: Reason
     public let recordFields: [String: Any]?
@@ -150,7 +150,7 @@ open class CKQueryNotification: CKNotification, @unchecked Sendable {
         self.init(ck, info["aps"] as? [String: Any] ?? [:])
     }
 }
-open class CKDatabaseNotification: CKNotification, @unchecked Sendable {
+@objc(CKDatabaseNotification) @objcMembers open class CKDatabaseNotification: CKNotification, @unchecked Sendable {
     public let databaseScope: CKDatabase.Scope
     init(_ ck: [String: Any], _ aps: [String: Any]) {
         let m = ck["met"] as? [String: Any] ?? [:]
@@ -163,7 +163,7 @@ open class CKDatabaseNotification: CKNotification, @unchecked Sendable {
         self.init(ck, info["aps"] as? [String: Any] ?? [:])
     }
 }
-open class CKRecordZoneNotification: CKNotification, @unchecked Sendable {
+@objc(CKRecordZoneNotification) @objcMembers open class CKRecordZoneNotification: CKNotification, @unchecked Sendable {
     public let recordZoneID: CKRecordZone.ID?
     public let databaseScope: CKDatabase.Scope
     init(_ ck: [String: Any], _ aps: [String: Any]) {

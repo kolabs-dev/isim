@@ -53,7 +53,7 @@ extension CKContainer {
         return saved.flatMap { ($0 as? CKShare).map(Result.success) ?? .failure(CKError(.internalError)) }
     }
 
-    public func fetchShareMetadata(with url: URL, completionHandler: @escaping @Sendable (CKShare.Metadata?, Error?) -> Void) {
+    @objc(fetchShareMetadataWithURL:completionHandler:) public func fetchShareMetadata(with url: URL, completionHandler: @escaping @Sendable (CKShare.Metadata?, Error?) -> Void) {
         CKDatabase.reply {
             switch (try? Self._shareMetadata(url, fetchRoot: false, desiredKeys: nil)) ?? .failure(CKError(.internalError)) {
             case .success(let m): completionHandler(m, nil)
@@ -64,15 +64,15 @@ extension CKContainer {
     public func fetchShareMetadatas(for urls: [URL], completionHandler: @escaping @Sendable (Result<[URL: Result<CKShare.Metadata, Error>], Error>) -> Void) {
         CKDatabase.reply { completionHandler(.success(Dictionary(uniqueKeysWithValues: urls.map { ($0, (try? Self._shareMetadata($0, fetchRoot: false, desiredKeys: nil)) ?? .failure(CKError(.internalError))) }))) }
     }
-    public func shareMetadata(for url: URL) async throws -> CKShare.Metadata { try Self._shareMetadata(url, fetchRoot: false, desiredKeys: nil).get() }
-    public func shareMetadatas(for urls: [URL]) async throws -> [URL: Result<CKShare.Metadata, Error>] {
+    @nonobjc public func shareMetadata(for url: URL) async throws -> CKShare.Metadata { try Self._shareMetadata(url, fetchRoot: false, desiredKeys: nil).get() }
+    @nonobjc public func shareMetadatas(for urls: [URL]) async throws -> [URL: Result<CKShare.Metadata, Error>] {
         Dictionary(uniqueKeysWithValues: urls.map { ($0, (try? Self._shareMetadata($0, fetchRoot: false, desiredKeys: nil)) ?? .failure(CKError(.internalError))) })
     }
-    public func accept(_ metadata: CKShare.Metadata, completionHandler: @escaping @Sendable (CKShare?, Error?) -> Void) {
+    @objc(acceptShareMetadata:completionHandler:) public func accept(_ metadata: CKShare.Metadata, completionHandler: @escaping @Sendable (CKShare?, Error?) -> Void) {
         CKDatabase.reply { switch Self._accept(metadata) { case .success(let s): completionHandler(s, nil); case .failure(let e): completionHandler(nil, e) } }
     }
-    public func accept(_ metadata: CKShare.Metadata) async throws -> CKShare { try Self._accept(metadata).get() }
-    public func accept(_ metadatas: [CKShare.Metadata]) async throws -> [CKShare.Metadata: Result<CKShare, Error>] {
+    @nonobjc public func accept(_ metadata: CKShare.Metadata) async throws -> CKShare { try Self._accept(metadata).get() }
+    @nonobjc public func accept(_ metadatas: [CKShare.Metadata]) async throws -> [CKShare.Metadata: Result<CKShare, Error>] {
         Dictionary(metadatas.map { ($0, Self._accept($0)) }, uniquingKeysWith: { a, _ in a })
     }
     public func accept(_ metadatas: [CKShare.Metadata], completionHandler: @escaping @Sendable (Result<[CKShare.Metadata: Result<CKShare, Error>], Error>) -> Void) {
@@ -80,7 +80,7 @@ extension CKContainer {
     }
 }
 
-open class CKFetchShareMetadataOperation: CKOperation, @unchecked Sendable {
+@objc(CKFetchShareMetadataOperation) @objcMembers open class CKFetchShareMetadataOperation: CKOperation, @unchecked Sendable {
     open var shareURLs: [URL]?
     open var shouldFetchRootRecord = false
     open var rootRecordDesiredKeys: [CKRecord.FieldKey]?
@@ -98,7 +98,7 @@ open class CKFetchShareMetadataOperation: CKOperation, @unchecked Sendable {
     }
 }
 
-open class CKAcceptSharesOperation: CKOperation, @unchecked Sendable {
+@objc(CKAcceptSharesOperation) @objcMembers open class CKAcceptSharesOperation: CKOperation, @unchecked Sendable {
     open var shareMetadatas: [CKShare.Metadata]?
     open var perShareResultBlock: ((CKShare.Metadata, Result<CKShare, Error>) -> Void)?
     open var acceptSharesResultBlock: ((Result<Void, Error>) -> Void)?
@@ -112,7 +112,7 @@ open class CKAcceptSharesOperation: CKOperation, @unchecked Sendable {
     }
 }
 
-open class CKFetchRecordZonesOperation: CKDatabaseOperation, @unchecked Sendable {
+@objc(CKFetchRecordZonesOperation) @objcMembers open class CKFetchRecordZonesOperation: CKDatabaseOperation, @unchecked Sendable {
     open var recordZoneIDs: [CKRecordZone.ID]?
     open var perRecordZoneResultBlock: ((CKRecordZone.ID, Result<CKRecordZone, Error>) -> Void)?
     open var fetchRecordZonesResultBlock: ((Result<Void, Error>) -> Void)?
@@ -136,7 +136,7 @@ open class CKFetchRecordZonesOperation: CKDatabaseOperation, @unchecked Sendable
     }
 }
 
-open class CKFetchSubscriptionsOperation: CKDatabaseOperation, @unchecked Sendable {
+@objc(CKFetchSubscriptionsOperation) @objcMembers open class CKFetchSubscriptionsOperation: CKDatabaseOperation, @unchecked Sendable {
     open var subscriptionIDs: [CKSubscription.ID]?
     open var perSubscriptionResultBlock: ((CKSubscription.ID, Result<CKSubscription, Error>) -> Void)?
     open var fetchSubscriptionsResultBlock: ((Result<Void, Error>) -> Void)?
@@ -176,7 +176,7 @@ public struct CKSharingParticipantPermissionOption: OptionSet, Sendable {
 }
 
 /// The sharing choices the system sharing UI offers (isim: kept; its sheet offers the standard ones).
-open class CKAllowedSharingOptions: NSObject, NSSecureCoding, NSCopying, @unchecked Sendable {
+@objc(CKAllowedSharingOptions) @objcMembers open class CKAllowedSharingOptions: NSObject, NSSecureCoding, NSCopying, @unchecked Sendable {
     open var allowedParticipantPermissionOptions: CKSharingParticipantPermissionOption
     open var allowedParticipantAccessOptions: CKSharingParticipantAccessOption
     open var allowsAccessRequests = false
@@ -205,7 +205,7 @@ open class CKAllowedSharingOptions: NSObject, NSSecureCoding, NSCopying, @unchec
 }
 
 /// Hears isim's sharing sheet (UICloudSharingController) save a share or stop sharing, for shares of its container.
-open class CKSystemSharingUIObserver: NSObject, @unchecked Sendable {
+@objc(CKSystemSharingUIObserver) @objcMembers open class CKSystemSharingUIObserver: NSObject, @unchecked Sendable {
     open var systemSharingUIDidSaveShareBlock: ((CKRecord.ID, Result<CKShare, Error>) -> Void)?
     open var systemSharingUIDidStopSharingBlock: ((CKRecord.ID, Result<Void, Error>) -> Void)?
     private let container: CKContainer

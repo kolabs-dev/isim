@@ -107,8 +107,8 @@ indirect enum _CKValue: Codable, Equatable {
 
 // MARK: - IDs and zones
 
-open class CKRecordZone: NSObject, @unchecked Sendable {
-    open class ID: NSObject, NSCopying, @unchecked Sendable {
+@objc(CKRecordZone) @objcMembers open class CKRecordZone: NSObject, @unchecked Sendable {
+    @objc(CKRecordZoneID) @objcMembers open class ID: NSObject, NSCopying, @unchecked Sendable {
         public let zoneName: String
         public let ownerName: String
         public init(zoneName: String = CKRecordZoneDefaultName, ownerName: String = CKCurrentUserDefaultName) { self.zoneName = zoneName; self.ownerName = ownerName }
@@ -135,7 +135,7 @@ open class CKRecordZone: NSObject, @unchecked Sendable {
 }
 
 extension CKRecord {
-    open class ID: NSObject, NSCopying, @unchecked Sendable {
+    @objc(CKRecordID) @objcMembers open class ID: NSObject, NSCopying, @unchecked Sendable {
         public let recordName: String
         public let zoneID: CKRecordZone.ID
         public init(recordName: String = UUID().uuidString, zoneID: CKRecordZone.ID = .default) { self.recordName = recordName; self.zoneID = zoneID }
@@ -146,7 +146,7 @@ extension CKRecord {
         var key: String { "\(zoneID.key)/\(recordName)" }
     }
     public enum ReferenceAction: UInt, Sendable { case none = 0, deleteSelf = 1 }
-    open class Reference: NSObject, NSCopying, @unchecked Sendable {
+    @objc(CKReference) @objcMembers open class Reference: NSObject, NSCopying, @unchecked Sendable {
         public let recordID: CKRecord.ID
         public let action: ReferenceAction
         public init(recordID: CKRecord.ID, action: ReferenceAction) { self.recordID = recordID; self.action = action }
@@ -164,14 +164,14 @@ public typealias CKRecordID = CKRecord.ID
 public typealias CKRecordZoneID = CKRecordZone.ID
 public typealias CKReference = CKRecord.Reference
 
-open class CKAsset: NSObject, @unchecked Sendable {
+@objc(CKAsset) @objcMembers open class CKAsset: NSObject, @unchecked Sendable {
     public let fileURL: URL?
     public init(fileURL: URL) { self.fileURL = fileURL }
 }
 
 // MARK: - Records
 
-open class CKRecord: NSObject, NSCopying, @unchecked Sendable {
+@objc(CKRecord) @objcMembers open class CKRecord: NSObject, NSCopying, @unchecked Sendable {
     public let recordType: RecordType
     public let recordID: ID
     public internal(set) var creationDate: Date?
@@ -222,8 +222,8 @@ open class CKRecord: NSObject, NSCopying, @unchecked Sendable {
     open func changedKeys() -> [FieldKey] { changed }
     /// isim stores encrypted values like the others (the store is local; not encrypted at rest)
     open var encryptedValues: CKRecordKeyValueSetting { _CKEncrypted(self) }
-    open func setParent(_ parentRecord: CKRecord?) { parent = parentRecord.map { Reference(record: $0, action: .none) } }
-    open func setParent(_ parentRecordID: ID?) { parent = parentRecordID.map { Reference(recordID: $0, action: .none) } }
+    @objc(setParentReferenceFromRecord:) open func setParent(_ parentRecord: CKRecord?) { parent = parentRecord.map { Reference(record: $0, action: .none) } }
+    @objc(setParentReferenceFromRecordID:) open func setParent(_ parentRecordID: ID?) { parent = parentRecordID.map { Reference(recordID: $0, action: .none) } }
 
     open func copy(with zone: OpaquePointer? = nil) -> Any {
         let r = CKRecord(recordType: recordType, recordID: recordID)

@@ -16,9 +16,9 @@ extension NSNotification.Name {
     public static let CKAccountChanged = NSNotification.Name("CKAccountChangedNotification")
 }
 
-open class CKContainer: NSObject, @unchecked Sendable {
+@objc(CKContainer) @objcMembers open class CKContainer: NSObject, @unchecked Sendable {
     public let containerIdentifier: String?
-    nonisolated(unsafe) static var defaultContainer: CKContainer?
+    @nonobjc nonisolated(unsafe) static var defaultContainer: CKContainer?
     public init(identifier: String) { containerIdentifier = identifier; super.init(); CKContainer._watchSharingUI() }
     /// the app's default container: "iCloud.<bundle id>" (iOS takes it from the entitlements)
     open class func `default`() -> CKContainer {
@@ -38,13 +38,13 @@ open class CKContainer: NSObject, @unchecked Sendable {
         let s = _CKEnv.accountStatus
         DispatchQueue.global().async { completionHandler(s, nil) }
     }
-    open func accountStatus() async throws -> CKAccountStatus { _CKEnv.accountStatus }
+    @nonobjc open func accountStatus() async throws -> CKAccountStatus { _CKEnv.accountStatus }
 
     open func fetchUserRecordID(completionHandler: @escaping @Sendable (CKRecord.ID?, Error?) -> Void) {
         let id = userRecordIDOrError()
         DispatchQueue.global().async { completionHandler(id.0, id.1) }
     }
-    open func userRecordID() async throws -> CKRecord.ID {
+    @nonobjc open func userRecordID() async throws -> CKRecord.ID {
         let id = userRecordIDOrError()
         if let e = id.1 { throw e }
         return id.0!
@@ -69,7 +69,7 @@ open class CKContainer: NSObject, @unchecked Sendable {
     public enum ApplicationPermissionStatus: Int, Sendable { case initialState = 0, couldNotComplete = 1, denied = 2, granted = 3 }
 }
 
-open class CKDatabase: NSObject, @unchecked Sendable {
+@objc(CKDatabase) @objcMembers open class CKDatabase: NSObject, @unchecked Sendable {
     public enum Scope: Int, Sendable { case `public` = 1, `private` = 2, shared = 3 }
     public let databaseScope: Scope
     unowned let container: CKContainer
@@ -339,7 +339,7 @@ open class CKDatabase: NSObject, @unchecked Sendable {
     }
 }
 
-open class CKQuery: NSObject, @unchecked Sendable {
+@objc(CKQuery) @objcMembers open class CKQuery: NSObject, @unchecked Sendable {
     public let recordType: CKRecord.RecordType
     public let predicate: NSPredicate
     open var sortDescriptors: [NSSortDescriptor]?
