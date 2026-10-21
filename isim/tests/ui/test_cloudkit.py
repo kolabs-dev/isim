@@ -61,9 +61,20 @@ def test_cloudkit(launch, device_data):
     app.wait_log(r"metrickit: diagnostic payload crashes=1 signal=11 hangs=1 callStack=true json=true")
     app.tap_id("sheet")                                                  # the sharing sheet saves: CKSystemSharingUIObserver
     app.wait_view(r"text=Stop Sharing")
+    app.wait_view(r"id=cloudSharing-title text=Notes")                   # iOS's sheet: the item, People, Share Options
+    app.wait_view(r"text=Taylor \w+ \(Me\)")                            # the owner: the device's account
+    app.wait_view(r"text=Invited · Can make changes")
+    app.wait_view(r"text=Anyone with the link")
     app.wait_still()
-    app.screenshot("sharing-sheet")                                      # PR visual evidence: the sheet with Done and Stop Sharing
-    app.wait_tap_id("cloudSharing-done")
+    app.screenshot("sharing-sheet")                                      # PR visual evidence: the sharing sheet
+    app.wait_tap_id("cloudSharing-options")                              # the link's permission: view only -> can make changes
+    app.wait_tap_id("cloudSharing-permission-readWrite")
+    app.wait_log(r"sharing sheet options: Anyone with the link, Can make changes")
+    app.wait_still()
+    app.screenshot("sharing-options")
+    app.wait_tap_id("nav-back")
+    app.wait_view(r"text=Anyone with the link can make changes\.")
+    app.wait_tap_id("cloudSharing-done")                                 # Done saves the share (checked below, as Jordan)
     app.wait_log(r"sharing sheet: did save")
     app.wait_log(r"sharing ui saved n3 ok=true")
     app.tap_id("delete")
@@ -93,10 +104,10 @@ def test_cloudkit(launch, device_data):
     app.wait_log(r"share metadata: role=privateUser permission=3 status=pending root=.+ owner=Taylor")
     app.wait_log(r"accepted: me=accepted participants=2")
     assert app.quit() == 0
-    sign_in("Jordan", "jordan@example.com")                              # not invited: the share's public permission
+    sign_in("Jordan", "jordan@example.com")                              # not invited: the link's permission, set in the sheet
     app = launch("HelloCloudKit")
     app.wait_tap_id("accept")
-    app.wait_log(r"share metadata: role=publicUser permission=2 status=unknown root=.+ owner=Taylor")
+    app.wait_log(r"share metadata: role=publicUser permission=3 status=unknown root=.+ owner=Taylor")
     app.wait_log(r"accepted: me=accepted participants=3")
     assert app.quit() == 0
     sign_in("Taylor", "taylor@example.com")                              # the owner stops sharing in the sheet
