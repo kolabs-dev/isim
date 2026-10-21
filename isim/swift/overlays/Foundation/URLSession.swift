@@ -495,6 +495,10 @@ public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeD
                 if useCached, let c = cached { return _deliverCached(c, onResponse, onData) }
             }
 
+            // App Transport Security (AppTransportSecurity.swift), for each hop of a redirect chain
+            if scheme == "http" && !_ATSPolicy.main.allowsCleartext(url) { return (_ATSPolicy.blockedError(url), nil) }
+            let tls = scheme == "https" ? _ATSPolicy.main.tlsRequirements(url) : (minimum: Int32(0), forwardSecrecy: false)
+
             // headers: session additions < request headers; cookies; conditional request for a stale cache entry
             var headers: [(String, String)] = []
             func set(_ k: String, _ v: String) {
@@ -551,6 +555,7 @@ public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeD
                 }
             }
             if _trustAccepted { curlFlags |= 2 }
+            curlFlags |= tls.minimum << 4 | (tls.forwardSecrecy ? 0x100 : 0)
             let headerText = headers.map { "\($0.0): \($0.1)" }.joined(separator: "\n")
 
             let sendBody = method == "GET" || method == "HEAD" ? (body?.isEmpty == false ? body : nil) : body

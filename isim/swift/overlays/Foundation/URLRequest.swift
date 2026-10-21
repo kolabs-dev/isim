@@ -124,6 +124,7 @@ public struct URLError: Error, CustomNSError, LocalizedError, Hashable, @uncheck
         case .secureConnectionFailed: return "An SSL error has occurred and a secure connection to the server cannot be made."
         case .serverCertificateUntrusted: return "The certificate for this server is invalid."
         case .clientCertificateRequired: return "The server requires a client certificate."
+        case .appTransportSecurityRequiresSecureConnection: return "The resource could not be loaded because the App Transport Security policy requires the use of a secure connection."
         case .cannotWriteToFile: return "cannot write to file"
         default: return "The operation couldn’t be completed. (NSURLErrorDomain error \(c.rawValue).)"
         }
