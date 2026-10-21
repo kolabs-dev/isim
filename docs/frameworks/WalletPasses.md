@@ -18,7 +18,7 @@ Apple's Wallet Passes documentation is the pass package format (`pass.json`, its
   - The manifest's SHA-1 hashes must match every file, and the archive must have a `signature`.
   - The signature's certificate chain to Apple's WWDR certificate is not checked: isim has no Apple trust store for passes (*adapted*). A pass iOS refuses for its signature, isim may accept.
 - **The add sheet** draws each pass from its `pass.json`: the style's background, foreground and label colors, logo and logo text, header, primary, secondary and auxiliary fields, and the barcode (QR, PDF417, Aztec, Code 128, drawn with Core Image's generators). Its buttons are Cancel and Add (Update for passes already in Wallet). Wallet's real pass layouts (the boarding pass's transit icon, strip and thumbnail images, the back of the pass) are simplified.
-- **Objective-C / C interface:** Swift only for now (issue #566).
+- **Objective-C / C interface:** `#import <PassKit/PassKit.h>` ([#566](https://github.com/kolabs-dev/isim/issues/566)): `PKPass`, `PKPassLibrary`, `PKAddPassesViewController` (its delegate through a Swift box, as on [PassKit](PassKit.md)), `PKAddPassButton`, `PKPassKitErrorDomain` and the library's notifications. Tested (PassKitObjCTest: a refused pass, the library, the button).
 - **Versus Apple's Simulator:**
   - The Simulator has a Wallet app; isim has none: `passURL` names the pass but opens nothing, and `isim wallet list` shows the passes.
   - An app sees every pass in isim's Wallet. iOS limits it to the pass type identifiers of its entitlements.
@@ -35,6 +35,7 @@ Apple's Wallet Passes documentation is the pass package format (`pass.json`, its
 | `PKAddPassesViewController` (`init?(pass:)`, `init?(passes:)`, `init?(passesData:)`, `init?(passesArchiveData:)`, `init?(passesArchiveAt:)`, `canAddPasses()`), `PKAddPassesViewControllerDelegate` | ✅ | ≤17 | adapted: the sheet above; Add stores the passes before `addPassesViewControllerDidFinish`; tested |
 | `PKAddPassButton` (`init(addPassButtonStyle:)`, `addPassButtonStyle`), `PKAddPassButtonStyle` | ✅ | ≤17 | adapted: "Add to Apple Wallet" in words for Apple's artwork; tested |
 | SwiftUI `AddPassToWalletButton` (`init(_:onCompletion:)` with and without a fallback, `init(action:)`), `AddPassToWalletButtonStyle`, `addPassToWalletButtonStyle(_:)` | ✅ | ≤17 | presents the add sheet; `onCompletion(true)` when the passes were added; tested |
+| Objective-C: `PKPass` (`initWithData:error:`, `passType`), `PKPassLibrary` (`passesOfType:`, `replacePassWithPass:`, `addPasses:withCompletionHandler:`), `PKAddPassesViewController` and its delegate, `PKAddPassButton` (`+addPassButtonWithStyle:`), `PKPassKitErrorDomain`, the library's notifications and keys | ✅ | ≤17 | adapted: an Objective-C delegate goes through a Swift box. Tested (PassKitObjCTest, `test_passkit_objc`: a refused pass, the library, the button) |
 | Secure element and payment passes (`PKSecureElementPass`, `secureElementPass`, issuer provisioning: `PKAddPaymentPassViewController`, `AddPassToWalletButton`'s provisioning forms, `PKAddSecureElementPassViewController`), `PKPassLibrary`'s secure element and FeliCa members, automatic pass presentation suppression, `PKAddPassesViewController(issuerData:signature:)` | ❌ | ≤17 | not yet (no secure element on isim); `canAddFelicaPass()` is false |
 
 ## Not yet in isim

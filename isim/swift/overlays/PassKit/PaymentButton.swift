@@ -45,7 +45,7 @@ public enum PKPaymentButtonStyle: Int, Sendable {
 }
 
 /// The Apple Pay button: start a payment with Apple Pay (or set it up).
-open class PKPaymentButton: UIButton {
+@objc(PKPaymentButton) @objcMembers open class PKPaymentButton: UIButton {
     let paymentType: PKPaymentButtonType
     let paymentStyle: PKPaymentButtonStyle
     /// 4 points by default, as iOS's
