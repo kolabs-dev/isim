@@ -17,7 +17,7 @@ public typealias SKColor = UIColor
 
 public enum SKTextureFilteringMode: Int, Sendable { case nearest, linear }
 
-open class SKTexture: NSObject {
+@objc(SKTexture) open class SKTexture: NSObject {
     let handle: Int32
     /// pixel rectangle in the host image
     let pixels: CGRect
@@ -25,12 +25,12 @@ open class SKTexture: NSObject {
     let owner: AnyObject?
     var unitRect = CGRect(x: 0, y: 0, width: 1, height: 1)
     open var filteringMode: SKTextureFilteringMode = .linear
-    open var usesMipmaps = false
+    @objc open var usesMipmaps = false
 
     init(handle: Int32, pixels: CGRect, scale: CGFloat, owner: AnyObject?) {
         self.handle = handle; self.pixels = pixels; pointScale = scale; self.owner = owner
     }
-    public convenience init(imageNamed name: String) {
+    @objc public convenience init(imageNamed name: String) {
         if let img = UIImage(named: name) { self.init(image: img) }
         else if let atlas = SKTextureAtlas.all().first(where: { $0.has(name) }) {
             // SpriteKit also finds textures by name in the app's texture atlases
@@ -41,18 +41,18 @@ open class SKTexture: NSObject {
             self.init(handle: 0, pixels: .zero, scale: 1, owner: nil)
         }
     }
-    public convenience init(image: UIImage) {
+    @objc public convenience init(image: UIImage) {
         if let cg = image.cgImage { self.init(cgImage: cg, scale: image.scale) }
         else { self.init(handle: 0, pixels: .zero, scale: 1, owner: nil) }
     }
-    public convenience init(cgImage: CGImage) { self.init(cgImage: cgImage, scale: 1) }
+    @objc(initWithCGImage:) public convenience init(cgImage: CGImage) { self.init(cgImage: cgImage, scale: 1) }
     convenience init(cgImage: CGImage, scale: CGFloat) {
         var r = CGRect.zero
         let h = isim_cg_image_handle(cgImage, &r)
         self.init(handle: h, pixels: r, scale: scale, owner: cgImage)
     }
     /// A sub-texture; rect is in unit coordinates of the parent with the origin at the bottom left.
-    public convenience init(rect: CGRect, in texture: SKTexture) {
+    @objc(initWithRect:inTexture:) public convenience init(rect: CGRect, in texture: SKTexture) {
         let p = texture.pixels
         let r = CGRect(x: p.minX + rect.minX * p.width, y: p.minY + (1 - rect.minY - rect.height) * p.height,
                        width: rect.width * p.width, height: rect.height * p.height)
@@ -61,44 +61,44 @@ open class SKTexture: NSObject {
         let u = texture.unitRect
         unitRect = CGRect(x: u.minX + rect.minX * u.width, y: u.minY + rect.minY * u.height, width: rect.width * u.width, height: rect.height * u.height)
     }
-    open func size() -> CGSize { CGSize(width: pixels.width / pointScale, height: pixels.height / pointScale) }
-    open func textureRect() -> CGRect { unitRect }
-    open func cgImage() -> CGImage? { _cgImage() }
-    open func preload(completionHandler: @escaping () -> Void) { DispatchQueue.main.async(execute: completionHandler) }
-    open class func preload(_ textures: [SKTexture], withCompletionHandler h: @escaping () -> Void) { DispatchQueue.main.async(execute: h) }
-    open override var description: String { "<SKTexture> \(size())" }
+    @objc open func size() -> CGSize { CGSize(width: pixels.width / pointScale, height: pixels.height / pointScale) }
+    @objc open func textureRect() -> CGRect { unitRect }
+    @objc(CGImage) open func cgImage() -> CGImage? { _cgImage() }
+    @objc open func preload(completionHandler: @escaping () -> Void) { DispatchQueue.main.async(execute: completionHandler) }
+    @objc(preloadTextures:withCompletionHandler:) open class func preload(_ textures: [SKTexture], withCompletionHandler h: @escaping () -> Void) { DispatchQueue.main.async(execute: h) }
+    @objc open override var description: String { "<SKTexture> \(size())" }
 }
 
 // MARK: - Node
 
-open class SKNode: UIResponder, NSCopying {
-    open var position: CGPoint = .zero
-    open var zPosition: CGFloat = 0
-    open var zRotation: CGFloat = 0
-    open var xScale: CGFloat = 1
-    open var yScale: CGFloat = 1
-    open var alpha: CGFloat = 1
-    open var isHidden = false
-    open var isPaused = false
-    open var speed: CGFloat = 1
-    open var name: String?
-    open var userData: NSMutableDictionary?
-    open var isUserInteractionEnabled = false
-    open private(set) var children: [SKNode] = []
-    open private(set) weak var parent: SKNode?
+@objc(SKNode) open class SKNode: UIResponder, NSCopying {
+    @objc open var position: CGPoint = .zero
+    @objc open var zPosition: CGFloat = 0
+    @objc open var zRotation: CGFloat = 0
+    @objc open var xScale: CGFloat = 1
+    @objc open var yScale: CGFloat = 1
+    @objc open var alpha: CGFloat = 1
+    @objc open var isHidden = false
+    @objc open var isPaused = false
+    @objc open var speed: CGFloat = 1
+    @objc open var name: String?
+    @objc open var userData: NSMutableDictionary?
+    @objc open var isUserInteractionEnabled = false
+    @objc open private(set) var children: [SKNode] = []
+    @objc open private(set) weak var parent: SKNode?
     var runners: [_ActionRunner] = []
-    open var physicsBody: SKPhysicsBody? {
+    @objc open var physicsBody: SKPhysicsBody? {
         didSet {
             if oldValue !== physicsBody { oldValue?.node = nil }
             physicsBody?.node = self; physicsBody?.wasPlaced = false
         }
     }
-    open var constraints: [SKConstraint]?
-    open var reachConstraints: SKReachConstraints?
-    open var attributeValues: [String: SKAttributeValue] = [:]
+    @objc open var constraints: [SKConstraint]?
+    @objc open var reachConstraints: SKReachConstraints?
+    @objc open var attributeValues: [String: SKAttributeValue] = [:]
 
-    public override init() { super.init() }
-    public required init?(coder: NSCoder) {
+    @objc public override init() { super.init() }
+    @objc public required init?(coder: NSCoder) {
         super.init()
         guard let c = coder as? _SKCoder else { return }
         name = c.string("name")
@@ -114,10 +114,10 @@ open class SKNode: UIResponder, NSCopying {
         if let v = c.bool("userInteractionEnabled") ?? c.bool("isUserInteractionEnabled") { isUserInteractionEnabled = v }
         for u in c.uids("children") { if let child = c.node(uid: u), child.parent == nil { addChild(child) } }
     }
-    open func value(forAttributeNamed key: String) -> SKAttributeValue? { attributeValues[key] }
-    open func setValue(_ value: SKAttributeValue, forAttribute key: String) { attributeValues[key] = value }
+    @objc open func value(forAttributeNamed key: String) -> SKAttributeValue? { attributeValues[key] }
+    @objc(setValue:forAttributeNamed:) open func setValue(_ value: SKAttributeValue, forAttribute key: String) { attributeValues[key] = value }
     /// Loads a node (scene, emitter, ...) from an .sks file in the main bundle.
-    public convenience init?(fileNamed filename: String) {
+    @objc public convenience init?(fileNamed filename: String) {
         guard let a = _SKArchive.load(named: filename), let root = a.rootUID else {
             NSLog("isim SpriteKit: could not load %@.sks", filename)
             return nil
@@ -125,21 +125,21 @@ open class SKNode: UIResponder, NSCopying {
         self.init(coder: _SKCoder(archive: a, uid: root))
     }
 
-    open var scene: SKScene? {
+    @objc open var scene: SKScene? {
         var n: SKNode? = self
         while let x = n { if let s = x as? SKScene { return s }; n = x.parent }
         return nil
     }
-    open var inParentHierarchy: Bool { parent != nil }
-    open func setScale(_ s: CGFloat) { xScale = s; yScale = s }
+    @objc open var inParentHierarchy: Bool { parent != nil }
+    @objc open func setScale(_ s: CGFloat) { xScale = s; yScale = s }
 
-    open func addChild(_ node: SKNode) {
+    @objc open func addChild(_ node: SKNode) {
         precondition(node.parent == nil, "SKNode: attemped to add a node that already has a parent")
         node.parent = self
         children.append(node)
         node.didAttach()
     }
-    open func insertChild(_ node: SKNode, at index: Int) {
+    @objc(insertChild:atIndex:) open func insertChild(_ node: SKNode, at index: Int) {
         precondition(node.parent == nil, "SKNode: attemped to add a node that already has a parent")
         node.parent = self
         children.insert(node, at: max(0, min(index, children.count)))
@@ -147,33 +147,33 @@ open class SKNode: UIResponder, NSCopying {
     }
     func didAttach() { for c in children { c.didAttach() } }
     func didDetach() { for c in children { c.didDetach() } }
-    open func removeFromParent() {
+    @objc open func removeFromParent() {
         guard let p = parent else { return }
         p.children.removeAll { $0 === self }
         parent = nil
         didDetach()
     }
-    open func removeAllChildren() { let old = children; for c in old { c.parent = nil }; children.removeAll(); for c in old { c.didDetach() } }
-    open func removeChildren(in nodes: [SKNode]) { for n in nodes where n.parent === self { n.removeFromParent() } }
-    open func move(toParent p: SKNode) {
+    @objc open func removeAllChildren() { let old = children; for c in old { c.parent = nil }; children.removeAll(); for c in old { c.didDetach() } }
+    @objc(removeChildrenInArray:) open func removeChildren(in nodes: [SKNode]) { for n in nodes where n.parent === self { n.removeFromParent() } }
+    @objc open func move(toParent p: SKNode) {
         let pos = parent.map { p.convert(position, from: $0) } ?? position
         removeFromParent(); position = pos; p.addChild(self)
     }
-    open func childNode(withName name: String) -> SKNode? {
+    @objc open func childNode(withName name: String) -> SKNode? {
         if name.hasPrefix("//") { return descendants().first { $0.name == String(name.dropFirst(2)) } }
         return children.first { $0.name == name }
     }
-    open func enumerateChildNodes(withName name: String, using block: (SKNode, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    @objc(enumerateChildNodesWithName:usingBlock:) open func enumerateChildNodes(withName name: String, using block: (SKNode, UnsafeMutablePointer<ObjCBool>) -> Void) {
         var stop: ObjCBool = false
         let list = name.hasPrefix("//") ? descendants().filter { $0.name == String(name.dropFirst(2)) } : children.filter { $0.name == name }
         for n in list { block(n, &stop); if stop.boolValue { return } }
     }
-    open subscript(name: String) -> [SKNode] {
+    @objc open subscript(name: String) -> [SKNode] {
         name.hasPrefix("//") ? descendants().filter { $0.name == String(name.dropFirst(2)) } : children.filter { $0.name == name }
     }
     func descendants() -> [SKNode] { children.flatMap { [$0] + $0.descendants() } }
-    open func isEqual(to node: SKNode) -> Bool { self === node }
-    open func inParentHierarchy(_ p: SKNode) -> Bool {
+    @objc(isEqualToNode:) open func isEqual(to node: SKNode) -> Bool { self === node }
+    @objc open func inParentHierarchy(_ p: SKNode) -> Bool {
         var n: SKNode? = self
         while let x = n { if x === p { return true }; n = x.parent }
         return false
@@ -190,24 +190,24 @@ open class SKNode: UIResponder, NSCopying {
         while let x = n, !(x is SKScene) { t = t.concatenating(x.localTransform); n = x.parent }
         return t
     }
-    open func convert(_ point: CGPoint, from node: SKNode) -> CGPoint {
+    @objc(convertPoint:fromNode:) open func convert(_ point: CGPoint, from node: SKNode) -> CGPoint {
         point.applying(node.sceneTransform).applying(sceneTransform.inverted())
     }
-    open func convert(_ point: CGPoint, to node: SKNode) -> CGPoint {
+    @objc(convertPoint:toNode:) open func convert(_ point: CGPoint, to node: SKNode) -> CGPoint {
         point.applying(sceneTransform).applying(node.sceneTransform.inverted())
     }
     /// The node's own content rectangle in its parent's coordinates.
-    open var frame: CGRect { contentRect.applying(localTransform) }
+    @objc open var frame: CGRect { contentRect.applying(localTransform) }
     var contentRect: CGRect { .zero }
-    open func calculateAccumulatedFrame() -> CGRect {
+    @objc open func calculateAccumulatedFrame() -> CGRect {
         var r = frame
         let t = localTransform
         for c in children { r = r.union(c.calculateAccumulatedFrame().applying(t)) }
         return r
     }
-    open func contains(_ p: CGPoint) -> Bool { calculateAccumulatedFrame().contains(p) }
-    open func atPoint(_ p: CGPoint) -> SKNode { nodes(at: p).first ?? self }
-    open func nodes(at p: CGPoint) -> [SKNode] {
+    @objc(containsPoint:) open func contains(_ p: CGPoint) -> Bool { calculateAccumulatedFrame().contains(p) }
+    @objc(nodeAtPoint:) open func atPoint(_ p: CGPoint) -> SKNode { nodes(at: p).first ?? self }
+    @objc(nodesAtPoint:) open func nodes(at p: CGPoint) -> [SKNode] {
         var out: [SKNode] = []
         for c in children.reversed() {
             let q = p.applying(c.localTransform.inverted())
@@ -218,21 +218,21 @@ open class SKNode: UIResponder, NSCopying {
     }
 
     // actions
-    open func run(_ action: SKAction) { run(action, completion: nil, key: nil) }
-    open func run(_ action: SKAction, withKey key: String) { run(action, completion: nil, key: key) }
-    open func run(_ action: SKAction, completion block: @escaping () -> Void) { run(action, completion: block, key: nil) }
+    @objc(runAction:) open func run(_ action: SKAction) { run(action, completion: nil, key: nil) }
+    @objc(runAction:withKey:) open func run(_ action: SKAction, withKey key: String) { run(action, completion: nil, key: key) }
+    @objc(runAction:completion:) open func run(_ action: SKAction, completion block: @escaping () -> Void) { run(action, completion: block, key: nil) }
     func run(_ action: SKAction, completion: (() -> Void)?, key: String?) {
         if let key { removeAction(forKey: key) }
         let r = action.makeRunner(self)
         r.key = key; r.completion = completion
         runners.append(r)
     }
-    open func action(forKey key: String) -> SKAction? { runners.first { $0.key == key }?.action }
-    open func removeAction(forKey key: String) { runners.removeAll { $0.key == key } }
-    open func removeAllActions() { runners.removeAll() }
+    @objc open func action(forKey key: String) -> SKAction? { runners.first { $0.key == key }?.action }
+    @objc open func removeAction(forKey key: String) { runners.removeAll { $0.key == key } }
+    @objc open func removeAllActions() { runners.removeAll() }
     /// A copy of the node and its subtree, as SpriteKit's (NSCopying): its properties, copies of its children, and
     /// its running actions (adapted: they start over on the copy).
-    open func copy(with zone: NSZone? = nil) -> Any {
+    @objc open func copy(with zone: NSZone? = nil) -> Any {
         let n = (type(of: self) as NSObject.Type).init() as! SKNode
         _copyState(to: n)
         return n
@@ -247,7 +247,7 @@ open class SKNode: UIResponder, NSCopying {
         for c in children { if let cc = c.copy() as? SKNode { n.addChild(cc) } }
         for r in runners { if let a = r.action { n.run(a, completion: nil, key: r.key) } }
     }
-    open func hasActions() -> Bool { !runners.isEmpty }
+    @objc open func hasActions() -> Bool { !runners.isEmpty }
 
     func evaluateActions(_ dt: TimeInterval) {
         guard !isPaused else { return }
@@ -270,26 +270,26 @@ open class SKNode: UIResponder, NSCopying {
 
 // MARK: - Sprite
 
-open class SKSpriteNode: SKNode {
-    open var texture: SKTexture? { didSet { if sizeFromTexture, let t = texture, size == .zero { size = t.size() } } }
-    open var color: UIColor = .white
-    open var colorBlendFactor: CGFloat = 0
-    open var size: CGSize = .zero
-    open var anchorPoint = CGPoint(x: 0.5, y: 0.5)
+@objc(SKSpriteNode) open class SKSpriteNode: SKNode {
+    @objc open var texture: SKTexture? { didSet { if sizeFromTexture, let t = texture, size == .zero { size = t.size() } } }
+    @objc open var color: UIColor = .white
+    @objc open var colorBlendFactor: CGFloat = 0
+    @objc open var size: CGSize = .zero
+    @objc open var anchorPoint = CGPoint(x: 0.5, y: 0.5)
     open var blendMode: SKBlendMode = .alpha
-    open var centerRect = CGRect(x: 0, y: 0, width: 1, height: 1)
+    @objc open var centerRect = CGRect(x: 0, y: 0, width: 1, height: 1)
     var sizeFromTexture = false
-    open var normalTexture: SKTexture?
-    open var lightingBitMask: UInt32 = 0
-    open var shadowCastBitMask: UInt32 = 0
-    open var shadowedBitMask: UInt32 = 0
-    open var shader: SKShader?
+    @objc open var normalTexture: SKTexture?
+    @objc open var lightingBitMask: UInt32 = 0
+    @objc open var shadowCastBitMask: UInt32 = 0
+    @objc open var shadowedBitMask: UInt32 = 0
+    @objc open var shader: SKShader?
     /// drawn as a warped triangle mesh (SKExtras.swift)
-    open var warpGeometry: SKWarpGeometry?
-    open var subdivisionLevels = 2
+    @objc open var warpGeometry: SKWarpGeometry?
+    @objc open var subdivisionLevels = 2
 
-    public override init() { super.init() }
-    public required init?(coder: NSCoder) {
+    @objc public override init() { super.init() }
+    @objc public required init?(coder: NSCoder) {
         super.init(coder: coder)
         guard let c = coder as? _SKCoder else { return }
         texture = c.texture("texture")
@@ -307,15 +307,15 @@ open class SKSpriteNode: SKNode {
         s.lightingBitMask = lightingBitMask; s.shadowCastBitMask = shadowCastBitMask; s.shadowedBitMask = shadowedBitMask
         s.shader = shader; s.warpGeometry = warpGeometry; s.subdivisionLevels = subdivisionLevels
     }
-    public convenience init(imageNamed name: String, normalMapped: Bool) { self.init(imageNamed: name) }
-    public init(texture: SKTexture?, color: UIColor, size: CGSize) {
+    @objc public convenience init(imageNamed name: String, normalMapped: Bool) { self.init(imageNamed: name) }
+    @objc public init(texture: SKTexture?, color: UIColor, size: CGSize) {
         super.init(); self.texture = texture; self.color = color; self.size = size
     }
-    public convenience init(texture: SKTexture?) { self.init(texture: texture, color: .white, size: texture?.size() ?? .zero) }
-    public convenience init(texture: SKTexture?, size: CGSize) { self.init(texture: texture, color: .white, size: size) }
-    public convenience init(color: UIColor, size: CGSize) { self.init(texture: nil, color: color, size: size) }
-    public convenience init(imageNamed name: String) { self.init(texture: SKTexture(imageNamed: name)) }
-    open func scale(to s: CGSize) { size = s }
+    @objc public convenience init(texture: SKTexture?) { self.init(texture: texture, color: .white, size: texture?.size() ?? .zero) }
+    @objc public convenience init(texture: SKTexture?, size: CGSize) { self.init(texture: texture, color: .white, size: size) }
+    @objc public convenience init(color: UIColor, size: CGSize) { self.init(texture: nil, color: color, size: size) }
+    @objc public convenience init(imageNamed name: String) { self.init(texture: SKTexture(imageNamed: name)) }
+    @objc(scaleToSize:) open func scale(to s: CGSize) { size = s }
 
     override var contentRect: CGRect { CGRect(x: -anchorPoint.x * size.width, y: -anchorPoint.y * size.height, width: size.width, height: size.height) }
 
@@ -371,23 +371,23 @@ func _rgba(_ c: UIColor) -> [Double] {
 
 // MARK: - Shape
 
-open class SKShapeNode: SKNode {
-    open var path: CGPath?
-    open var fillColor: UIColor = .clear
-    open var strokeColor: UIColor = .white
-    open var lineWidth: CGFloat = 1
-    open var glowWidth: CGFloat = 0
-    open var isAntialiased = true
-    open var lineCap: CGLineCap = .butt
-    open var lineJoin: CGLineJoin = .miter
-    open var fillTexture: SKTexture?
-    open var strokeTexture: SKTexture?
-    open var fillShader: SKShader?
-    open var strokeShader: SKShader?
+@objc(SKShapeNode) open class SKShapeNode: SKNode {
+    @objc open var path: CGPath?
+    @objc open var fillColor: UIColor = .clear
+    @objc open var strokeColor: UIColor = .white
+    @objc open var lineWidth: CGFloat = 1
+    @objc open var glowWidth: CGFloat = 0
+    @objc open var isAntialiased = true
+    @objc open var lineCap: CGLineCap = .butt
+    @objc open var lineJoin: CGLineJoin = .miter
+    @objc open var fillTexture: SKTexture?
+    @objc open var strokeTexture: SKTexture?
+    @objc open var fillShader: SKShader?
+    @objc open var strokeShader: SKShader?
     open var blendMode: SKBlendMode = .alpha
-    open var miterLimit: CGFloat = 10
+    @objc open var miterLimit: CGFloat = 10
     /// length of the path's outline in points
-    open var lineLength: CGFloat {
+    @objc open var lineLength: CGFloat {
         guard let path else { return 0 }
         var total: CGFloat = 0
         for sp in _pathPoints(path) { for i in 1..<sp.count { total += _len(_sub(sp[i], sp[i - 1])) } }
@@ -402,8 +402,8 @@ open class SKShapeNode: SKNode {
         s.strokeTexture = strokeTexture; s.fillShader = fillShader; s.strokeShader = strokeShader; s.blendMode = blendMode
         s.miterLimit = miterLimit
     }
-    public override init() { super.init() }
-    public required init?(coder: NSCoder) {
+    @objc public override init() { super.init() }
+    @objc public required init?(coder: NSCoder) {
         super.init(coder: coder)
         guard let c = coder as? _SKCoder else { return }
         if let col = c.color("fillColor") { fillColor = col }
@@ -416,7 +416,7 @@ open class SKShapeNode: SKNode {
         else if let sz = c.size("rectSize") ?? c.size("size") { path = CGPath(rect: CGRect(x: -sz.width / 2, y: -sz.height / 2, width: sz.width, height: sz.height), transform: nil) }
     }
     /// a Catmull-Rom spline through the points
-    public convenience init(splinePoints points: UnsafeMutablePointer<CGPoint>, count: Int) {
+    @objc public convenience init(splinePoints points: UnsafeMutablePointer<CGPoint>, count: Int) {
         self.init()
         let p = CGMutablePath()
         let pts = (0..<count).map { points[$0] }
@@ -431,23 +431,23 @@ open class SKShapeNode: SKNode {
         }
         path = p
     }
-    public convenience init(path: CGPath) { self.init(); self.path = path }
-    public convenience init(path: CGPath, centered: Bool) {
+    @objc public convenience init(path: CGPath) { self.init(); self.path = path }
+    @objc public convenience init(path: CGPath, centered: Bool) {
         self.init(); self.path = path
         if centered { let b = path.boundingBox; position = .zero; self.path = path.copy(using: CGAffineTransform(translationX: -b.midX, y: -b.midY)) }
     }
-    public convenience init(rect: CGRect) { self.init(); path = CGPath(rect: rect, transform: nil) }
-    public convenience init(rect: CGRect, cornerRadius r: CGFloat) { self.init(); path = CGPath(roundedRect: rect, cornerWidth: r, cornerHeight: r, transform: nil) }
-    public convenience init(rectOf size: CGSize) { self.init(rect: CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height)) }
-    public convenience init(rectOf size: CGSize, cornerRadius r: CGFloat) {
+    @objc public convenience init(rect: CGRect) { self.init(); path = CGPath(rect: rect, transform: nil) }
+    @objc public convenience init(rect: CGRect, cornerRadius r: CGFloat) { self.init(); path = CGPath(roundedRect: rect, cornerWidth: r, cornerHeight: r, transform: nil) }
+    @objc(initWithRectOfSize:) public convenience init(rectOf size: CGSize) { self.init(rect: CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height)) }
+    @objc(initWithRectOfSize:cornerRadius:) public convenience init(rectOf size: CGSize, cornerRadius r: CGFloat) {
         self.init(rect: CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height), cornerRadius: r)
     }
-    public convenience init(circleOfRadius r: CGFloat) { self.init(); path = CGPath(ellipseIn: CGRect(x: -r, y: -r, width: 2 * r, height: 2 * r), transform: nil) }
-    public convenience init(ellipseOf size: CGSize) {
+    @objc public convenience init(circleOfRadius r: CGFloat) { self.init(); path = CGPath(ellipseIn: CGRect(x: -r, y: -r, width: 2 * r, height: 2 * r), transform: nil) }
+    @objc(initWithEllipseOfSize:) public convenience init(ellipseOf size: CGSize) {
         self.init(); path = CGPath(ellipseIn: CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height), transform: nil)
     }
-    public convenience init(ellipseIn rect: CGRect) { self.init(); path = CGPath(ellipseIn: rect, transform: nil) }
-    public convenience init(points: UnsafeMutablePointer<CGPoint>, count: Int) {
+    @objc(initWithEllipseInRect:) public convenience init(ellipseIn rect: CGRect) { self.init(); path = CGPath(ellipseIn: rect, transform: nil) }
+    @objc public convenience init(points: UnsafeMutablePointer<CGPoint>, count: Int) {
         self.init()
         let p = CGMutablePath()
         for i in 0..<count { if i == 0 { p.move(to: points[i]) } else { p.addLine(to: points[i]) } }
@@ -495,22 +495,22 @@ extension CGPath {
 public enum SKLabelHorizontalAlignmentMode: Int, Sendable { case center, left, right }
 public enum SKLabelVerticalAlignmentMode: Int, Sendable { case baseline, center, top, bottom }
 
-open class SKLabelNode: SKNode {
-    open var text: String?
-    open var fontName: String? = "HelveticaNeue-UltraLight"
-    open var fontSize: CGFloat = 32
-    open var fontColor: UIColor? = .white
-    open var color: UIColor?
-    open var colorBlendFactor: CGFloat = 0
+@objc(SKLabelNode) open class SKLabelNode: SKNode {
+    @objc open var text: String?
+    @objc open var fontName: String? = "HelveticaNeue-UltraLight"
+    @objc open var fontSize: CGFloat = 32
+    @objc open var fontColor: UIColor? = .white
+    @objc open var color: UIColor?
+    @objc open var colorBlendFactor: CGFloat = 0
     open var horizontalAlignmentMode: SKLabelHorizontalAlignmentMode = .center
     open var verticalAlignmentMode: SKLabelVerticalAlignmentMode = .baseline
-    open var numberOfLines = 1
-    open var preferredMaxLayoutWidth: CGFloat = 0
-    open var lineBreakMode: NSLineBreakMode = .byTruncatingTail
+    @objc open var numberOfLines = 1
+    @objc open var preferredMaxLayoutWidth: CGFloat = 0
+    @objc open var lineBreakMode: NSLineBreakMode = .byTruncatingTail
     open var blendMode: SKBlendMode = .alpha
     /// styled text: each run's font, color, kerning, underline / strikethrough and the paragraph alignment and line
     /// spacing are drawn (through UIKit's attributed string drawing); fontName / fontSize / fontColor are ignored
-    open var attributedText: NSAttributedString? { didSet { if let a = attributedText { text = a.string } } }
+    @objc open var attributedText: NSAttributedString? { didSet { if let a = attributedText { text = a.string } } }
 
     override func _copyState(to n: SKNode) {
         super._copyState(to: n)
@@ -521,9 +521,9 @@ open class SKLabelNode: SKNode {
         l.preferredMaxLayoutWidth = preferredMaxLayoutWidth; l.lineBreakMode = lineBreakMode; l.blendMode = blendMode
         l.attributedText = attributedText
     }
-    public override init() { super.init() }
-    public convenience init(attributedText: NSAttributedString?) { self.init(); self.attributedText = attributedText; text = attributedText?.string }
-    public required init?(coder: NSCoder) {
+    @objc public override init() { super.init() }
+    @objc public convenience init(attributedText: NSAttributedString?) { self.init(); self.attributedText = attributedText; text = attributedText?.string }
+    @objc public required init?(coder: NSCoder) {
         super.init(coder: coder)
         guard let c = coder as? _SKCoder else { return }
         text = c.string("text")
@@ -535,8 +535,8 @@ open class SKLabelNode: SKNode {
         if let v = c.int("numberOfLines") { numberOfLines = v }
         if let v = c.cg("preferredMaxLayoutWidth") { preferredMaxLayoutWidth = v }
     }
-    public convenience init(text: String?) { self.init(); self.text = text }
-    public convenience init(fontNamed name: String?) { self.init(); fontName = name }
+    @objc public convenience init(text: String?) { self.init(); self.text = text }
+    @objc public convenience init(fontNamed name: String?) { self.init(); fontName = name }
 
     var font: UIFont { fontName.flatMap { UIFont(name: $0, size: fontSize) } ?? .systemFont(ofSize: fontSize) }
     var attributedBoundsWidth: CGFloat { numberOfLines != 1 && preferredMaxLayoutWidth > 0 ? preferredMaxLayoutWidth : 100_000 }
@@ -619,31 +619,31 @@ public enum SKSceneScaleMode: Int, Sendable { case fill, aspectFill, aspectFit, 
 /// while loading an .sks scene, sceneDidLoad runs after the content is decoded
 nonisolated(unsafe) var _skDecodingScene = 0
 
-open class SKScene: SKNode {
-    open var size: CGSize {
-        didSet { if size != oldValue { didChangeSize(oldValue) } }
+@objc(SKScene) open class SKScene: SKNode {
+    @objc open var size: CGSize {
+        didSet { if size != oldValue { _SKHook.callSize(self, #selector(didChangeSize(_:)), oldValue) { didChangeSize(oldValue) } } }
     }
     open var scaleMode: SKSceneScaleMode = .fill
-    open var backgroundColor = UIColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1)
-    open var anchorPoint: CGPoint = .zero
-    open private(set) weak var view: SKView?
+    @objc open var backgroundColor = UIColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1)
+    @objc open var anchorPoint: CGPoint = .zero
+    @objc open private(set) weak var view: SKView?
     open var delegate: SKSceneDelegate?
-    open var camera: SKCameraNode?
+    @objc open var camera: SKCameraNode?
     // isim ABI: until 0.19 this property was typed SKNode?; keep its getter/setter entry points for apps built then
     @usableFromInline @_silgen_name("$s9SpriteKit7SKSceneC6cameraAA6SKNodeCSgvgTj")
     final func _abi_cameraNode() -> SKNode? { camera }
     @usableFromInline @_silgen_name("$s9SpriteKit7SKSceneC6cameraAA6SKNodeCSgvsTj")
     final func _abi_setCameraNode(_ n: __owned SKNode?) { camera = n as? SKCameraNode }
-    open var listener: SKNode?
-    public let physicsWorld = SKPhysicsWorld()
-    open private(set) lazy var audioEngine = AVAudioEngine()
+    @objc open var listener: SKNode?
+    @objc public let physicsWorld = SKPhysicsWorld()
+    @objc open private(set) lazy var audioEngine = AVAudioEngine()
 
-    public init(size: CGSize) {
+    @objc public init(size: CGSize) {
         self.size = size; super.init(); isUserInteractionEnabled = true; physicsWorld.scene = self
-        if _skDecodingScene == 0 { sceneDidLoad() }
+        if _skDecodingScene == 0 { _SKHook.call0(self, #selector(sceneDidLoad)) { sceneDidLoad() } }
     }
-    public override convenience init() { self.init(size: CGSize(width: 1, height: 1)) }
-    public required init?(coder: NSCoder) {
+    @objc public override convenience init() { self.init(size: CGSize(width: 1, height: 1)) }
+    @objc public required init?(coder: NSCoder) {
         size = CGSize(width: 1, height: 1)
         _skDecodingScene += 1
         super.init(coder: coder)
@@ -658,7 +658,7 @@ open class SKScene: SKNode {
             if let g = c.vector("gravity") ?? c.coder(forKey: "physicsWorld")?.vector("gravity") { physicsWorld.gravity = g }
             if let u = c.coder(forKey: "camera")?.uid { camera = c.node(uid: u) as? SKCameraNode }
         }
-        if _skDecodingScene == 0 { sceneDidLoad() }
+        if _skDecodingScene == 0 { _SKHook.call0(self, #selector(sceneDidLoad)) { sceneDidLoad() } }
     }
 
     override func _copyState(to n: SKNode) {
@@ -668,21 +668,21 @@ open class SKScene: SKNode {
         sc.physicsWorld.gravity = physicsWorld.gravity; sc.physicsWorld.speed = physicsWorld.speed
     }
 
-    open func sceneDidLoad() {}
-    open func didMove(to view: SKView) {}
-    open func willMove(from view: SKView) {}
-    open func didChangeSize(_ oldSize: CGSize) {}
-    open func update(_ currentTime: TimeInterval) {}
-    open func didEvaluateActions() {}
-    open func didSimulatePhysics() {}
-    open func didApplyConstraints() {}
-    open func didFinishUpdate() {}
+    @objc open func sceneDidLoad() {}
+    @objc(didMoveToView:) open func didMove(to view: SKView) {}
+    @objc(willMoveFromView:) open func willMove(from view: SKView) {}
+    @objc open func didChangeSize(_ oldSize: CGSize) {}
+    @objc open func update(_ currentTime: TimeInterval) {}
+    @objc open func didEvaluateActions() {}
+    @objc open func didSimulatePhysics() {}
+    @objc open func didApplyConstraints() {}
+    @objc open func didFinishUpdate() {}
     override var contentRect: CGRect { CGRect(origin: CGPoint(x: -anchorPoint.x * size.width, y: -anchorPoint.y * size.height), size: size) }
-    open override var frame: CGRect { contentRect }
+    @objc open override var frame: CGRect { contentRect }
 
     func attach(_ v: SKView?) { view = v }
-    open func convertPoint(fromView p: CGPoint) -> CGPoint { view?.convert(p, to: self) ?? p }
-    open func convertPoint(toView p: CGPoint) -> CGPoint { view?.convert(p, from: self) ?? p }
+    @objc open func convertPoint(fromView p: CGPoint) -> CGPoint { view?.convert(p, to: self) ?? p }
+    @objc open func convertPoint(toView p: CGPoint) -> CGPoint { view?.convert(p, from: self) ?? p }
 
     // touches go to the deepest interactive node under the touch, else to the scene
     func responder(at viewPoint: CGPoint) -> SKNode {
@@ -692,19 +692,19 @@ open class SKScene: SKNode {
 
     /// one frame of the SpriteKit loop (update, actions, physics, constraints, particles)
     func runFrame(_ now: TimeInterval, _ dt: TimeInterval) {
-        update(now)
+        _SKHook.callTime(self, #selector(update(_:)), now) { update(now) }
         delegate?.update(now, for: self)
         evaluateActions(dt)
-        didEvaluateActions()
+        _SKHook.call0(self, #selector(didEvaluateActions)) { didEvaluateActions() }
         delegate?.didEvaluateActions(for: self)
         physicsWorld.simulate(dt)
-        didSimulatePhysics()
+        _SKHook.call0(self, #selector(didSimulatePhysics)) { didSimulatePhysics() }
         delegate?.didSimulatePhysics(for: self)
         applyConstraints(self)
-        didApplyConstraints()
+        _SKHook.call0(self, #selector(didApplyConstraints)) { didApplyConstraints() }
         delegate?.didApplyConstraints(for: self)
         advanceNodes(self, dt)
-        didFinishUpdate()
+        _SKHook.call0(self, #selector(didFinishUpdate)) { didFinishUpdate() }
         delegate?.didFinishUpdate(for: self)
     }
     func applyConstraints(_ n: SKNode) {
@@ -758,7 +758,7 @@ extension UITouch {
 
 // MARK: - View
 
-open class SKTransition: NSObject {
+@objc(SKTransition) open class SKTransition: NSObject {
     enum Kind: Int { case crossFade, fade, push, moveIn, reveal, doorway, doorsOpenH, doorsOpenV, doorsCloseH, doorsCloseV, flipH, flipV, ciFilter }
     let duration: TimeInterval
     var kind: Kind = .crossFade
@@ -767,84 +767,84 @@ open class SKTransition: NSObject {
     var ciFilter: CIFilter?
     init(duration: TimeInterval) { self.duration = duration }
     /// a Core Image transition filter (inputImage: the outgoing scene, inputTargetImage: the incoming one, inputTime)
-    public convenience init(ciFilter filter: CIFilter, duration sec: TimeInterval) { self.init(.ciFilter, sec); ciFilter = filter }
+    @objc(initWithCIFilter:duration:) public convenience init(ciFilter filter: CIFilter, duration sec: TimeInterval) { self.init(.ciFilter, sec); ciFilter = filter }
     convenience init(_ kind: Kind, _ d: TimeInterval, _ dir: SKTransitionDirection = .left, _ color: UIColor = .black) {
         self.init(duration: d); self.kind = kind; direction = dir; self.color = color
     }
-    open class func crossFade(withDuration d: TimeInterval) -> SKTransition { SKTransition(.crossFade, d) }
-    open class func fade(withDuration d: TimeInterval) -> SKTransition { SKTransition(.fade, d) }
-    open class func fade(with color: UIColor, duration d: TimeInterval) -> SKTransition { SKTransition(.fade, d, .left, color) }
+    @objc open class func crossFade(withDuration d: TimeInterval) -> SKTransition { SKTransition(.crossFade, d) }
+    @objc open class func fade(withDuration d: TimeInterval) -> SKTransition { SKTransition(.fade, d) }
+    @objc(fadeWithColor:duration:) open class func fade(with color: UIColor, duration d: TimeInterval) -> SKTransition { SKTransition(.fade, d, .left, color) }
     open class func push(with direction: SKTransitionDirection, duration d: TimeInterval) -> SKTransition { SKTransition(.push, d, direction) }
     open class func moveIn(with direction: SKTransitionDirection, duration d: TimeInterval) -> SKTransition { SKTransition(.moveIn, d, direction) }
     open class func reveal(with direction: SKTransitionDirection, duration d: TimeInterval) -> SKTransition { SKTransition(.reveal, d, direction) }
-    open class func doorway(withDuration d: TimeInterval) -> SKTransition { SKTransition(.doorway, d) }
-    open class func doorsOpenHorizontal(withDuration d: TimeInterval) -> SKTransition { SKTransition(.doorsOpenH, d) }
-    open class func doorsOpenVertical(withDuration d: TimeInterval) -> SKTransition { SKTransition(.doorsOpenV, d) }
-    open class func doorsCloseHorizontal(withDuration d: TimeInterval) -> SKTransition { SKTransition(.doorsCloseH, d) }
-    open class func doorsCloseVertical(withDuration d: TimeInterval) -> SKTransition { SKTransition(.doorsCloseV, d) }
-    open class func flipHorizontal(withDuration d: TimeInterval) -> SKTransition { SKTransition(.flipH, d) }
-    open class func flipVertical(withDuration d: TimeInterval) -> SKTransition { SKTransition(.flipV, d) }
-    open var pausesIncomingScene = true
-    open var pausesOutgoingScene = true
+    @objc open class func doorway(withDuration d: TimeInterval) -> SKTransition { SKTransition(.doorway, d) }
+    @objc open class func doorsOpenHorizontal(withDuration d: TimeInterval) -> SKTransition { SKTransition(.doorsOpenH, d) }
+    @objc open class func doorsOpenVertical(withDuration d: TimeInterval) -> SKTransition { SKTransition(.doorsOpenV, d) }
+    @objc open class func doorsCloseHorizontal(withDuration d: TimeInterval) -> SKTransition { SKTransition(.doorsCloseH, d) }
+    @objc open class func doorsCloseVertical(withDuration d: TimeInterval) -> SKTransition { SKTransition(.doorsCloseV, d) }
+    @objc open class func flipHorizontal(withDuration d: TimeInterval) -> SKTransition { SKTransition(.flipH, d) }
+    @objc open class func flipVertical(withDuration d: TimeInterval) -> SKTransition { SKTransition(.flipV, d) }
+    @objc open var pausesIncomingScene = true
+    @objc open var pausesOutgoingScene = true
 }
 public enum SKTransitionDirection: Int, Sendable { case up, down, right, left }
 
-open class SKView: UIView {
-    open private(set) var scene: SKScene?
-    open var isPaused = false { didSet { if !isPaused { lastTime = nil } } }
-    open var preferredFramesPerSecond = 60 { didSet { restartTimer() } }
-    open var ignoresSiblingOrder = false
-    open var showsFPS = false
-    open var showsNodeCount = false
-    open var showsDrawCount = false
-    open var showsPhysics = false
-    open var showsFields = false
-    open var allowsTransparency = false
-    open var isAsynchronous = true
-    open var shouldCullNonVisibleNodes = true
-    weak open var delegate: AnyObject?
+@objc(SKView) open class SKView: UIView {
+    @objc open private(set) var scene: SKScene?
+    @objc open var isPaused = false { didSet { if !isPaused { lastTime = nil } } }
+    @objc open var preferredFramesPerSecond = 60 { didSet { restartTimer() } }
+    @objc open var ignoresSiblingOrder = false
+    @objc open var showsFPS = false
+    @objc open var showsNodeCount = false
+    @objc open var showsDrawCount = false
+    @objc open var showsPhysics = false
+    @objc open var showsFields = false
+    @objc open var allowsTransparency = false
+    @objc open var isAsynchronous = true
+    @objc open var shouldCullNonVisibleNodes = true
+    @objc weak open var delegate: AnyObject?
     var timer: Timer?
     var lastTime: TimeInterval?
     var frameCount = 0, fpsStart = 0.0, fps = 0.0
     var transitioning: (old: SKScene, transition: SKTransition, start: TimeInterval)?
     weak var swiftUIScene: SKScene?
     var pendingPresentation: SKScene?
-    open var showsQuadCount = false
-    open var disableDepthStencilBuffer = false
+    @objc open var showsQuadCount = false
+    @objc open var disableDepthStencilBuffer = false
 
-    public override init(frame: CGRect) { super.init(frame: frame); isMultipleTouchEnabled = true }
-    public required init?(coder: NSCoder) { super.init(coder: coder) }
+    @objc public override init(frame: CGRect) { super.init(frame: frame); isMultipleTouchEnabled = true }
+    @objc public required init?(coder: NSCoder) { super.init(coder: coder) }
 
-    open func presentScene(_ scene: SKScene?) {
+    @objc open func presentScene(_ scene: SKScene?) {
         if let t = transitioning { t.old.attach(nil); transitioning = nil }
-        if let old = self.scene { old.willMove(from: self); old.attach(nil) }
+        if let old = self.scene { _SKHook.callObject(old, #selector(SKScene.willMove(from:)), self) { old.willMove(from: self) }; old.attach(nil) }
         self.scene = scene
         lastTime = nil
         if let s = scene {
             s.attach(self)
             if s.scaleMode == .resizeFill, bounds.size.width > 0 { s.size = bounds.size }
-            s.didMove(to: self)
+            _SKHook.callObject(s, #selector(SKScene.didMove(to:)), self) { s.didMove(to: self) }
         }
         restartTimer()
         setNeedsDisplay()
     }
     /// Presents a scene with an animated transition; the outgoing scene stays visible until it completes.
-    open func presentScene(_ scene: SKScene, transition: SKTransition) {
+    @objc open func presentScene(_ scene: SKScene, transition: SKTransition) {
         guard let old = self.scene, old !== scene, transition.duration > 0 else { presentScene(scene); return }
         if let t = transitioning { t.old.attach(nil) }
-        old.willMove(from: self)
+        _SKHook.callObject(old, #selector(SKScene.willMove(from:)), self) { old.willMove(from: self) }
         self.scene = scene
         lastTime = nil
         scene.attach(self)
         if scene.scaleMode == .resizeFill, bounds.size.width > 0 { scene.size = bounds.size }
-        scene.didMove(to: self)
+        _SKHook.callObject(scene, #selector(SKScene.didMove(to:)), self) { scene.didMove(to: self) }
         transitioning = (old, transition, ProcessInfo.processInfo.systemUptime)
         restartTimer()
         setNeedsDisplay()
     }
 
-    open override func didMoveToWindow() { super.didMoveToWindow(); restartTimer() }
-    open override func layoutSubviews() {
+    @objc open override func didMoveToWindow() { super.didMoveToWindow(); restartTimer() }
+    @objc open override func layoutSubviews() {
         super.layoutSubviews()
         if let p = pendingPresentation, bounds.size.width > 0, bounds.size.height > 0 { pendingPresentation = nil; presentScene(p) }
         if let s = scene, s.scaleMode == .resizeFill, bounds.size.width > 0, s.size != bounds.size { s.size = bounds.size }
@@ -904,11 +904,11 @@ open class SKView: UIView {
         // y up: scene (0,0) at the bottom-left of the scene rect (shifted by anchorPoint)
         return CGAffineTransform(a: sx, b: 0, c: 0, d: -sy, tx: ox + s.anchorPoint.x * w, ty: oy + h - s.anchorPoint.y * h)
     }
-    open func convert(_ p: CGPoint, to scene: SKScene) -> CGPoint { p.applying(sceneToView(for: scene).inverted()) }
-    open func convert(_ p: CGPoint, from scene: SKScene) -> CGPoint { p.applying(sceneToView(for: scene)) }
+    @objc(convertPoint:toScene:) open func convert(_ p: CGPoint, to scene: SKScene) -> CGPoint { p.applying(sceneToView(for: scene).inverted()) }
+    @objc(convertPoint:fromScene:) open func convert(_ p: CGPoint, from scene: SKScene) -> CGPoint { p.applying(sceneToView(for: scene)) }
     /// renders the node and its children into a texture (SKImaging.swift)
-    open func texture(from node: SKNode) -> SKTexture? { _texture(from: node, crop: nil) }
-    open func texture(from node: SKNode, crop: CGRect) -> SKTexture? { _texture(from: node, crop: crop) }
+    @objc(textureFromNode:) open func texture(from node: SKNode) -> SKTexture? { _texture(from: node, crop: nil) }
+    @objc(textureFromNode:crop:) open func texture(from node: SKNode, crop: CGRect) -> SKTexture? { _texture(from: node, crop: crop) }
 
     struct Item { let node: SKNode; let z: CGFloat; let order: Int; let t: CGAffineTransform; let alpha: CGFloat }
     var drawnNodes = 0
@@ -1027,7 +1027,7 @@ open class SKView: UIView {
         isim_gfx_restore()
     }
 
-    open override func draw(_ rect: CGRect) {
+    @objc open override func draw(_ rect: CGRect) {
         guard let s = scene else { return }
         drawnNodes = 0; drawCount = 0; quadCount = 0; lastBatch = nil
         _skFrame += 1
@@ -1099,7 +1099,7 @@ open class SKView: UIView {
 
     // touches -> scene / nodes
     var touchTargets: [ObjectIdentifier: SKNode] = [:]
-    open override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+    @objc open override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let s = scene else { return super.touchesBegan(touches, with: event) }
         for t in touches {
             let target = s.responder(at: t.location(in: self))
@@ -1107,13 +1107,13 @@ open class SKView: UIView {
             target.touchesBegan([t], with: event)
         }
     }
-    open override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+    @objc open override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches { touchTargets[ObjectIdentifier(t)]?.touchesMoved([t], with: event) }
     }
-    open override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+    @objc open override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches { touchTargets.removeValue(forKey: ObjectIdentifier(t))?.touchesEnded([t], with: event) }
     }
-    open override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+    @objc open override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches { touchTargets.removeValue(forKey: ObjectIdentifier(t))?.touchesCancelled([t], with: event) }
     }
 }
@@ -1123,11 +1123,11 @@ open class SKView: UIView {
 public enum SKActionTimingMode: Int, Sendable { case linear, easeIn, easeOut, easeInEaseOut }
 public typealias SKActionTimingFunction = (Float) -> Float
 
-open class SKAction: NSObject {
-    open var duration: TimeInterval
+@objc(SKAction) open class SKAction: NSObject {
+    @objc open var duration: TimeInterval
     open var timingMode: SKActionTimingMode = .linear
-    open var timingFunction: SKActionTimingFunction?
-    open var speed: CGFloat = 1
+    @objc open var timingFunction: SKActionTimingFunction?
+    @objc open var speed: CGFloat = 1
     /// builds the per-node state for one run; `progress` drives timed actions
     let factory: (SKNode, SKAction) -> _ActionRunner
 
@@ -1147,7 +1147,7 @@ open class SKAction: NSObject {
     /// builds the reverse action (nil: not reversible, reversed() returns the action itself like iOS)
     var reverser: (() -> SKAction)?
     func rev(_ f: @escaping () -> SKAction) -> SKAction { reverser = f; return self }
-    open func reversed() -> SKAction {
+    @objc(reversedAction) open func reversed() -> SKAction {
         guard let r = reverser?() else { return self }
         r.speed = speed
         // the reverse plays the timing curve backwards
@@ -1155,7 +1155,7 @@ open class SKAction: NSObject {
         if let f = timingFunction { r.timingFunction = { t in 1 - f(1 - t) } }
         return r
     }
-    open override func copy() -> Any {
+    @objc open override func copy() -> Any {
         let c = SKAction(duration: duration, factory: factory)
         c.timingMode = timingMode; c.timingFunction = timingFunction; c.speed = speed; c.reverser = reverser
         return c
@@ -1170,21 +1170,21 @@ open class SKAction: NSObject {
     }
 
     // movement
-    open class func move(by v: CGVector, duration d: TimeInterval) -> SKAction { moveBy(x: v.dx, y: v.dy, duration: d) }
-    open class func moveBy(x: CGFloat, y: CGFloat, duration d: TimeInterval) -> SKAction {
+    @objc open class func move(by v: CGVector, duration d: TimeInterval) -> SKAction { moveBy(x: v.dx, y: v.dy, duration: d) }
+    @objc open class func moveBy(x: CGFloat, y: CGFloat, duration d: TimeInterval) -> SKAction {
         timed(d) { n in var last = 0.0; return { f in let df = f - last; last = f; n.position.x += x * df; n.position.y += y * df } }
             .rev { moveBy(x: -x, y: -y, duration: d) }
     }
-    open class func move(to p: CGPoint, duration d: TimeInterval) -> SKAction {
+    @objc open class func move(to p: CGPoint, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let s = n.position; return { f in n.position = CGPoint(x: s.x + (p.x - s.x) * f, y: s.y + (p.y - s.y) * f) } }
     }
-    open class func moveTo(x: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in let s = n.position.x; return { f in n.position.x = s + (x - s) * f } } }
-    open class func moveTo(y: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in let s = n.position.y; return { f in n.position.y = s + (y - s) * f } } }
-    open class func rotate(byAngle a: CGFloat, duration d: TimeInterval) -> SKAction {
+    @objc open class func moveTo(x: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in let s = n.position.x; return { f in n.position.x = s + (x - s) * f } } }
+    @objc open class func moveTo(y: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in let s = n.position.y; return { f in n.position.y = s + (y - s) * f } } }
+    @objc open class func rotate(byAngle a: CGFloat, duration d: TimeInterval) -> SKAction {
         timed(d) { n in var last = 0.0; return { f in n.zRotation += a * (f - last); last = f } }.rev { rotate(byAngle: -a, duration: d) }
     }
-    open class func rotate(toAngle a: CGFloat, duration d: TimeInterval) -> SKAction { rotate(toAngle: a, duration: d, shortestUnitArc: false) }
-    open class func rotate(toAngle a: CGFloat, duration d: TimeInterval, shortestUnitArc: Bool) -> SKAction {
+    @objc open class func rotate(toAngle a: CGFloat, duration d: TimeInterval) -> SKAction { rotate(toAngle: a, duration: d, shortestUnitArc: false) }
+    @objc open class func rotate(toAngle a: CGFloat, duration d: TimeInterval, shortestUnitArc: Bool) -> SKAction {
         timed(d) { n in
             let s = n.zRotation
             var delta = a - s
@@ -1193,26 +1193,26 @@ open class SKAction: NSObject {
         }
     }
     // scale
-    open class func scale(by k: CGFloat, duration d: TimeInterval) -> SKAction { scaleX(by: k, y: k, duration: d) }
-    open class func scaleX(by kx: CGFloat, y ky: CGFloat, duration d: TimeInterval) -> SKAction {
+    @objc open class func scale(by k: CGFloat, duration d: TimeInterval) -> SKAction { scaleX(by: k, y: k, duration: d) }
+    @objc open class func scaleX(by kx: CGFloat, y ky: CGFloat, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let sx = n.xScale, sy = n.yScale; return { f in n.xScale = sx * (1 + (kx - 1) * f); n.yScale = sy * (1 + (ky - 1) * f) } }
             .rev { scaleX(by: kx != 0 ? 1 / kx : 0, y: ky != 0 ? 1 / ky : 0, duration: d) }
     }
-    open class func scale(to k: CGFloat, duration d: TimeInterval) -> SKAction { scaleX(to: k, y: k, duration: d) }
-    open class func scaleX(to kx: CGFloat, y ky: CGFloat, duration d: TimeInterval) -> SKAction {
+    @objc open class func scale(to k: CGFloat, duration d: TimeInterval) -> SKAction { scaleX(to: k, y: k, duration: d) }
+    @objc open class func scaleX(to kx: CGFloat, y ky: CGFloat, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let sx = n.xScale, sy = n.yScale; return { f in n.xScale = sx + (kx - sx) * f; n.yScale = sy + (ky - sy) * f } }
     }
-    open class func scaleX(to kx: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in let s = n.xScale; return { f in n.xScale = s + (kx - s) * f } } }
-    open class func scaleY(to ky: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in let s = n.yScale; return { f in n.yScale = s + (ky - s) * f } } }
-    open class func scale(to size: CGSize, duration d: TimeInterval) -> SKAction { resize(toWidth: size.width, height: size.height, duration: d) }
-    open class func resize(toWidth w: CGFloat, height h: CGFloat, duration d: TimeInterval) -> SKAction {
+    @objc open class func scaleX(to kx: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in let s = n.xScale; return { f in n.xScale = s + (kx - s) * f } } }
+    @objc open class func scaleY(to ky: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in let s = n.yScale; return { f in n.yScale = s + (ky - s) * f } } }
+    @objc(scaleToSize:duration:) open class func scale(to size: CGSize, duration d: TimeInterval) -> SKAction { resize(toWidth: size.width, height: size.height, duration: d) }
+    @objc open class func resize(toWidth w: CGFloat, height h: CGFloat, duration d: TimeInterval) -> SKAction {
         timed(d) { n in
             guard let sp = n as? SKSpriteNode else { return { _ in } }
             let s = sp.size
             return { f in sp.size = CGSize(width: s.width + (w - s.width) * f, height: s.height + (h - s.height) * f) }
         }
     }
-    open class func resize(byWidth w: CGFloat, height h: CGFloat, duration d: TimeInterval) -> SKAction {
+    @objc open class func resize(byWidth w: CGFloat, height h: CGFloat, duration d: TimeInterval) -> SKAction {
         timed(d) { n in
             guard let sp = n as? SKSpriteNode else { return { _ in } }
             let s = sp.size
@@ -1220,18 +1220,18 @@ open class SKAction: NSObject {
         }.rev { resize(byWidth: -w, height: -h, duration: d) }
     }
     // fading
-    open class func fadeIn(withDuration d: TimeInterval) -> SKAction { fadeAlpha(to: 1, duration: d).rev { fadeOut(withDuration: d) } }
-    open class func fadeOut(withDuration d: TimeInterval) -> SKAction { fadeAlpha(to: 0, duration: d).rev { fadeIn(withDuration: d) } }
-    open class func fadeAlpha(to a: CGFloat, duration d: TimeInterval) -> SKAction {
+    @objc open class func fadeIn(withDuration d: TimeInterval) -> SKAction { fadeAlpha(to: 1, duration: d).rev { fadeOut(withDuration: d) } }
+    @objc open class func fadeOut(withDuration d: TimeInterval) -> SKAction { fadeAlpha(to: 0, duration: d).rev { fadeIn(withDuration: d) } }
+    @objc open class func fadeAlpha(to a: CGFloat, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let s = n.alpha; return { f in n.alpha = s + (a - s) * f } }
     }
-    open class func fadeAlpha(by a: CGFloat, duration d: TimeInterval) -> SKAction {
+    @objc open class func fadeAlpha(by a: CGFloat, duration d: TimeInterval) -> SKAction {
         timed(d) { n in var last = 0.0; return { f in n.alpha += a * (f - last); last = f } }.rev { fadeAlpha(by: -a, duration: d) }
     }
-    open class func hide() -> SKAction { instant { $0.isHidden = true }.rev { unhide() } }
-    open class func unhide() -> SKAction { instant { $0.isHidden = false }.rev { hide() } }
+    @objc open class func hide() -> SKAction { instant { $0.isHidden = true }.rev { unhide() } }
+    @objc open class func unhide() -> SKAction { instant { $0.isHidden = false }.rev { hide() } }
     // color
-    open class func colorize(with color: UIColor, colorBlendFactor k: CGFloat, duration d: TimeInterval) -> SKAction {
+    @objc(colorizeWithColor:colorBlendFactor:duration:) open class func colorize(with color: UIColor, colorBlendFactor k: CGFloat, duration d: TimeInterval) -> SKAction {
         timed(d) { n in
             guard let sp = n as? SKSpriteNode else { return { _ in } }
             let from = _rgba(sp.color), to = _rgba(color), sk = sp.colorBlendFactor
@@ -1242,7 +1242,7 @@ open class SKAction: NSObject {
             }
         }
     }
-    open class func colorize(withColorBlendFactor k: CGFloat, duration d: TimeInterval) -> SKAction {
+    @objc open class func colorize(withColorBlendFactor k: CGFloat, duration d: TimeInterval) -> SKAction {
         timed(d) { n in
             guard let sp = n as? SKSpriteNode else { return { _ in } }
             let s = sp.colorBlendFactor
@@ -1250,14 +1250,14 @@ open class SKAction: NSObject {
         }
     }
     // textures
-    open class func setTexture(_ t: SKTexture) -> SKAction { instant { ($0 as? SKSpriteNode)?.texture = t } }
-    open class func setTexture(_ t: SKTexture, resize: Bool) -> SKAction {
+    @objc open class func setTexture(_ t: SKTexture) -> SKAction { instant { ($0 as? SKSpriteNode)?.texture = t } }
+    @objc open class func setTexture(_ t: SKTexture, resize: Bool) -> SKAction {
         instant { n in guard let sp = n as? SKSpriteNode else { return }; sp.texture = t; if resize { sp.size = t.size() } }
     }
-    open class func animate(with textures: [SKTexture], timePerFrame: TimeInterval) -> SKAction {
+    @objc(animateWithTextures:timePerFrame:) open class func animate(with textures: [SKTexture], timePerFrame: TimeInterval) -> SKAction {
         animate(with: textures, timePerFrame: timePerFrame, resize: false, restore: false)
     }
-    open class func animate(with textures: [SKTexture], timePerFrame: TimeInterval, resize: Bool, restore: Bool) -> SKAction {
+    @objc(animateWithTextures:timePerFrame:resize:restore:) open class func animate(with textures: [SKTexture], timePerFrame: TimeInterval, resize: Bool, restore: Bool) -> SKAction {
         let d = timePerFrame * Double(textures.count)
         let reverse = { animate(with: textures.reversed(), timePerFrame: timePerFrame, resize: resize, restore: restore) }
         return SKAction(duration: d) { node, action in
@@ -1276,41 +1276,41 @@ open class SKAction: NSObject {
         }.rev(reverse)
     }
     // timing & structure
-    open class func wait(forDuration d: TimeInterval) -> SKAction { timed(d) { _ in { _ in } } }
-    open class func wait(forDuration d: TimeInterval, withRange r: TimeInterval) -> SKAction {
+    @objc open class func wait(forDuration d: TimeInterval) -> SKAction { timed(d) { _ in { _ in } } }
+    @objc open class func wait(forDuration d: TimeInterval, withRange r: TimeInterval) -> SKAction {
         let actual = max(0, d + Double.random(in: -r / 2...r / 2))
         return timed(actual) { _ in { _ in } }
     }
     /// reversed: the reversed actions in reverse order
-    open class func sequence(_ actions: [SKAction]) -> SKAction {
+    @objc open class func sequence(_ actions: [SKAction]) -> SKAction {
         SKAction(duration: actions.reduce(0) { $0 + $1.duration }) { node, _ in _SequenceRunner(node: node, actions: actions) }
             .rev { sequence(actions.reversed().map { $0.reversed() }) }
     }
     /// reversed: each action reversed, delayed so that they all end together (as they started together)
-    open class func group(_ actions: [SKAction]) -> SKAction {
+    @objc open class func group(_ actions: [SKAction]) -> SKAction {
         let total = actions.map(\.duration).max() ?? 0
         return SKAction(duration: total) { node, _ in _GroupRunner(node: node, actions: actions) }
             .rev { group(actions.map { a in a.duration < total && total.isFinite ? sequence([wait(forDuration: total - a.duration), a.reversed()]) : a.reversed() }) }
     }
-    open class func `repeat`(_ action: SKAction, count: Int) -> SKAction {
+    @objc(repeatAction:count:) open class func `repeat`(_ action: SKAction, count: Int) -> SKAction {
         SKAction(duration: action.duration * Double(count)) { node, _ in _RepeatRunner(node: node, action: action, count: count) }
             .rev { `repeat`(action.reversed(), count: count) }
     }
-    open class func repeatForever(_ action: SKAction) -> SKAction {
+    @objc(repeatActionForever:) open class func repeatForever(_ action: SKAction) -> SKAction {
         SKAction(duration: .infinity) { node, _ in _RepeatRunner(node: node, action: action, count: -1) }.rev { repeatForever(action.reversed()) }
     }
-    open class func removeFromParent() -> SKAction { instant { $0.removeFromParent() } }
-    open class func run(_ block: @escaping () -> Void) -> SKAction { instant { _ in block() } }
+    @objc open class func removeFromParent() -> SKAction { instant { $0.removeFromParent() } }
+    @objc(runBlock:) open class func run(_ block: @escaping () -> Void) -> SKAction { instant { _ in block() } }
     open class func run(_ block: @escaping () -> Void, queue: DispatchQueue) -> SKAction { instant { _ in queue.async(execute: block) } }
-    open class func run(_ action: SKAction, onChildWithName name: String) -> SKAction {
+    @objc(runAction:onChildWithName:) open class func run(_ action: SKAction, onChildWithName name: String) -> SKAction {
         instant { n in n.childNode(withName: name)?.run(action) }
     }
-    open class func customAction(withDuration d: TimeInterval, actionBlock: @escaping (SKNode, CGFloat) -> Void) -> SKAction {
+    @objc open class func customAction(withDuration d: TimeInterval, actionBlock: @escaping (SKNode, CGFloat) -> Void) -> SKAction {
         timed(d) { n in { f in actionBlock(n, CGFloat(f * d)) } }
     }
-    open class func speed(to s: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in let s0 = n.speed; return { f in n.speed = s0 + (s - s0) * f } } }
-    open class func speed(by s: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in var last = 0.0; return { f in n.speed += s * (f - last); last = f } }.rev { speed(by: -s, duration: d) } }
-    open class func follow(_ path: CGPath, asOffset: Bool, orientToPath: Bool, duration d: TimeInterval) -> SKAction {
+    @objc open class func speed(to s: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in let s0 = n.speed; return { f in n.speed = s0 + (s - s0) * f } } }
+    @objc open class func speed(by s: CGFloat, duration d: TimeInterval) -> SKAction { timed(d) { n in var last = 0.0; return { f in n.speed += s * (f - last); last = f } }.rev { speed(by: -s, duration: d) } }
+    @objc(followPath:asOffset:orientToPath:duration:) open class func follow(_ path: CGPath, asOffset: Bool, orientToPath: Bool, duration d: TimeInterval) -> SKAction {
         // straight segments between the path's points
         var pts: [CGPoint] = []
         path.applyWithBlock { e in
@@ -1338,7 +1338,7 @@ open class SKAction: NSObject {
         }
     }
     /// Plays a sound file from the main bundle (CAF/WAV; compressed formats need the host's ffmpeg or GStreamer).
-    open class func playSoundFileNamed(_ name: String, waitForCompletion wait: Bool) -> SKAction {
+    @objc open class func playSoundFileNamed(_ name: String, waitForCompletion wait: Bool) -> SKAction {
         if !wait { return instant { _ in _SKSound.play(name) } }
         let d = (try? AVAudioPlayer(contentsOf: _SKSound.url(for: name) ?? URL(fileURLWithPath: "/nonexistent")))?.duration ?? 0
         return SKAction(duration: d) { node, action in
@@ -1346,17 +1346,17 @@ open class SKAction: NSObject {
         }
     }
     // audio node actions
-    open class func play() -> SKAction { instant { ($0 as? SKAudioNode)?._play() } }
-    open class func pause() -> SKAction { instant { ($0 as? SKAudioNode)?.player?.pause() } }
-    open class func stop() -> SKAction { instant { ($0 as? SKAudioNode)?.player?.stop() } }
-    open class func changeVolume(to v: Float, duration d: TimeInterval) -> SKAction {
+    @objc open class func play() -> SKAction { instant { ($0 as? SKAudioNode)?._play() } }
+    @objc open class func pause() -> SKAction { instant { ($0 as? SKAudioNode)?.player?.pause() } }
+    @objc open class func stop() -> SKAction { instant { ($0 as? SKAudioNode)?.player?.stop() } }
+    @objc open class func changeVolume(to v: Float, duration d: TimeInterval) -> SKAction {
         timed(d) { n in
             guard let a = n as? SKAudioNode else { return { _ in } }
             let s = a.volume
             return { f in a.volume = s + (v - s) * Float(f) }
         }
     }
-    open class func changeVolume(by v: Float, duration d: TimeInterval) -> SKAction {
+    @objc open class func changeVolume(by v: Float, duration d: TimeInterval) -> SKAction {
         timed(d) { n in
             guard let a = n as? SKAudioNode else { return { _ in } }
             let s = a.volume
@@ -1371,74 +1371,74 @@ open class SKAction: NSObject {
             return { f in set(m, s + (target - s) * Float(f)) }
         }
     }
-    open class func changePlaybackRate(to v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.rate }, { $0.rate = $1 }, to: v, by: nil) }
-    open class func changePlaybackRate(by v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.rate }, { $0.rate = $1 }, to: nil, by: v).rev { changePlaybackRate(by: -v, duration: d) } }
-    open class func stereoPan(to v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.pan }, { $0.pan = $1 }, to: v, by: nil) }
-    open class func stereoPan(by v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.pan }, { $0.pan = $1 }, to: nil, by: v).rev { stereoPan(by: -v, duration: d) } }
-    open class func changeObstruction(to v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.obstruction }, { $0.obstruction = $1 }, to: v, by: nil) }
-    open class func changeObstruction(by v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.obstruction }, { $0.obstruction = $1 }, to: nil, by: v) }
-    open class func changeOcclusion(to v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.occlusion }, { $0.occlusion = $1 }, to: v, by: nil) }
-    open class func changeOcclusion(by v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.occlusion }, { $0.occlusion = $1 }, to: nil, by: v) }
-    open class func changeReverb(to v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.reverbBlend }, { $0.reverbBlend = $1 }, to: v, by: nil) }
-    open class func changeReverb(by v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.reverbBlend }, { $0.reverbBlend = $1 }, to: nil, by: v) }
+    @objc open class func changePlaybackRate(to v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.rate }, { $0.rate = $1 }, to: v, by: nil) }
+    @objc open class func changePlaybackRate(by v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.rate }, { $0.rate = $1 }, to: nil, by: v).rev { changePlaybackRate(by: -v, duration: d) } }
+    @objc open class func stereoPan(to v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.pan }, { $0.pan = $1 }, to: v, by: nil) }
+    @objc open class func stereoPan(by v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.pan }, { $0.pan = $1 }, to: nil, by: v).rev { stereoPan(by: -v, duration: d) } }
+    @objc open class func changeObstruction(to v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.obstruction }, { $0.obstruction = $1 }, to: v, by: nil) }
+    @objc open class func changeObstruction(by v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.obstruction }, { $0.obstruction = $1 }, to: nil, by: v) }
+    @objc open class func changeOcclusion(to v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.occlusion }, { $0.occlusion = $1 }, to: v, by: nil) }
+    @objc open class func changeOcclusion(by v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.occlusion }, { $0.occlusion = $1 }, to: nil, by: v) }
+    @objc open class func changeReverb(to v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.reverbBlend }, { $0.reverbBlend = $1 }, to: v, by: nil) }
+    @objc open class func changeReverb(by v: Float, duration d: TimeInterval) -> SKAction { mix(d, { $0.reverbBlend }, { $0.reverbBlend = $1 }, to: nil, by: v) }
 
     // physics
-    open class func applyForce(_ f: CGVector, duration d: TimeInterval) -> SKAction {
+    @objc open class func applyForce(_ f: CGVector, duration d: TimeInterval) -> SKAction {
         timed(d) { n in { _ in n.physicsBody?.applyForce(f) } }
     }
-    open class func applyForce(_ f: CGVector, at p: CGPoint, duration d: TimeInterval) -> SKAction {
+    @objc(applyForce:atPoint:duration:) open class func applyForce(_ f: CGVector, at p: CGPoint, duration d: TimeInterval) -> SKAction {
         timed(d) { n in { _ in n.physicsBody?.applyForce(f, at: p) } }
     }
-    open class func applyTorque(_ t: CGFloat, duration d: TimeInterval) -> SKAction {
+    @objc open class func applyTorque(_ t: CGFloat, duration d: TimeInterval) -> SKAction {
         timed(d) { n in { _ in n.physicsBody?.applyTorque(t) } }
     }
     /// the impulse is spread over the duration
-    open class func applyImpulse(_ j: CGVector, duration d: TimeInterval) -> SKAction {
+    @objc open class func applyImpulse(_ j: CGVector, duration d: TimeInterval) -> SKAction {
         timed(d) { n in var last = 0.0; return { f in let k = CGFloat(f - last); last = f; n.physicsBody?.applyImpulse(CGVector(dx: j.dx * k, dy: j.dy * k)) } }
     }
-    open class func applyImpulse(_ j: CGVector, at p: CGPoint, duration d: TimeInterval) -> SKAction {
+    @objc(applyImpulse:atPoint:duration:) open class func applyImpulse(_ j: CGVector, at p: CGPoint, duration d: TimeInterval) -> SKAction {
         timed(d) { n in var last = 0.0; return { f in let k = CGFloat(f - last); last = f; n.physicsBody?.applyImpulse(CGVector(dx: j.dx * k, dy: j.dy * k), at: p) } }
     }
-    open class func applyAngularImpulse(_ j: CGFloat, duration d: TimeInterval) -> SKAction {
+    @objc open class func applyAngularImpulse(_ j: CGFloat, duration d: TimeInterval) -> SKAction {
         timed(d) { n in var last = 0.0; return { f in let k = CGFloat(f - last); last = f; n.physicsBody?.applyAngularImpulse(j * k) } }
     }
-    open class func changeCharge(to v: Float, duration d: TimeInterval) -> SKAction {
+    @objc open class func changeCharge(to v: Float, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let s = n.physicsBody?.charge ?? 0; return { f in n.physicsBody?.charge = s + (CGFloat(v) - s) * CGFloat(f) } }
     }
-    open class func changeCharge(by v: Float, duration d: TimeInterval) -> SKAction {
+    @objc open class func changeCharge(by v: Float, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let s = n.physicsBody?.charge ?? 0; return { f in n.physicsBody?.charge = s + CGFloat(v) * CGFloat(f) } }.rev { changeCharge(by: -v, duration: d) }
     }
-    open class func changeMass(to v: Float, duration d: TimeInterval) -> SKAction {
+    @objc open class func changeMass(to v: Float, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let s = n.physicsBody?.mass ?? 0; return { f in n.physicsBody?.mass = s + (CGFloat(v) - s) * CGFloat(f) } }
     }
-    open class func changeMass(by v: Float, duration d: TimeInterval) -> SKAction {
+    @objc open class func changeMass(by v: Float, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let s = n.physicsBody?.mass ?? 0; return { f in n.physicsBody?.mass = s + CGFloat(v) * CGFloat(f) } }.rev { changeMass(by: -v, duration: d) }
     }
-    open class func strength(to v: Float, duration d: TimeInterval) -> SKAction {
+    @objc open class func strength(to v: Float, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let s = (n as? SKFieldNode)?.strength ?? 0; return { f in (n as? SKFieldNode)?.strength = s + (v - s) * Float(f) } }
     }
-    open class func strength(by v: Float, duration d: TimeInterval) -> SKAction {
+    @objc open class func strength(by v: Float, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let s = (n as? SKFieldNode)?.strength ?? 0; return { f in (n as? SKFieldNode)?.strength = s + v * Float(f) } }.rev { strength(by: -v, duration: d) }
     }
-    open class func falloff(to v: Float, duration d: TimeInterval) -> SKAction {
+    @objc open class func falloff(to v: Float, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let s = (n as? SKFieldNode)?.falloff ?? 0; return { f in (n as? SKFieldNode)?.falloff = s + (v - s) * Float(f) } }
     }
-    open class func falloff(by v: Float, duration d: TimeInterval) -> SKAction {
+    @objc open class func falloff(by v: Float, duration d: TimeInterval) -> SKAction {
         timed(d) { n in let s = (n as? SKFieldNode)?.falloff ?? 0; return { f in (n as? SKFieldNode)?.falloff = s + v * Float(f) } }.rev { falloff(by: -v, duration: d) }
     }
     // paths at a speed (points per second)
-    open class func follow(_ path: CGPath, speed: CGFloat) -> SKAction { follow(path, asOffset: true, orientToPath: true, speed: speed) }
-    open class func follow(_ path: CGPath, duration d: TimeInterval) -> SKAction { follow(path, asOffset: true, orientToPath: true, duration: d) }
-    open class func follow(_ path: CGPath, asOffset: Bool, orientToPath: Bool, speed: CGFloat) -> SKAction {
+    @objc(followPath:speed:) open class func follow(_ path: CGPath, speed: CGFloat) -> SKAction { follow(path, asOffset: true, orientToPath: true, speed: speed) }
+    @objc(followPath:duration:) open class func follow(_ path: CGPath, duration d: TimeInterval) -> SKAction { follow(path, asOffset: true, orientToPath: true, duration: d) }
+    @objc(followPath:asOffset:orientToPath:speed:) open class func follow(_ path: CGPath, asOffset: Bool, orientToPath: Bool, speed: CGFloat) -> SKAction {
         var length: CGFloat = 0
         for sp in _pathPoints(path) { for i in 1..<sp.count { length += _len(_sub(sp[i], sp[i - 1])) } }
         return follow(path, asOffset: asOffset, orientToPath: orientToPath, duration: speed > 0 ? TimeInterval(length / speed) : 0)
     }
     /// inverse kinematics: the node's ancestors up to rootNode turn so that it reaches a scene point (SKInverseKinematics.swift)
-    open class func reach(to p: CGPoint, rootNode: SKNode, duration d: TimeInterval) -> SKAction { _reach(.point(p), rootNode, duration: d, velocity: nil) }
-    open class func reach(to p: CGPoint, rootNode: SKNode, velocity v: CGFloat) -> SKAction { _reach(.point(p), rootNode, duration: nil, velocity: v) }
-    open class func reach(to node: SKNode, rootNode: SKNode, duration d: TimeInterval) -> SKAction { _reach(.node(node), rootNode, duration: d, velocity: nil) }
-    open class func reach(to node: SKNode, rootNode: SKNode, velocity v: CGFloat) -> SKAction { _reach(.node(node), rootNode, duration: nil, velocity: v) }
+    @objc open class func reach(to p: CGPoint, rootNode: SKNode, duration d: TimeInterval) -> SKAction { _reach(.point(p), rootNode, duration: d, velocity: nil) }
+    @objc open class func reach(to p: CGPoint, rootNode: SKNode, velocity v: CGFloat) -> SKAction { _reach(.point(p), rootNode, duration: nil, velocity: v) }
+    @objc(reachToNode:rootNode:duration:) open class func reach(to node: SKNode, rootNode: SKNode, duration d: TimeInterval) -> SKAction { _reach(.node(node), rootNode, duration: d, velocity: nil) }
+    @objc(reachToNode:rootNode:velocity:) open class func reach(to node: SKNode, rootNode: SKNode, velocity v: CGFloat) -> SKAction { _reach(.node(node), rootNode, duration: nil, velocity: v) }
 }
 
 // MARK: - Action runners
@@ -1549,5 +1549,34 @@ final class _RepeatRunner: _ActionRunner {
         }
         leftover = t
         return true
+    }
+}
+
+
+/// The scene callbacks SpriteKit makes. Swift calls them through the vtable; an Objective-C subclass's overrides (an
+/// Objective-C game's SKScene subclass) are reached only by message, so a callback the object's class implements in
+/// Objective-C (or as an @objc Swift override) goes by message, and the others through Swift as before.
+enum _SKHook {
+    static func imp(_ o: AnyObject, _ sel: Selector) -> IMP? {
+        guard let cls = object_getClass(o), cls != SKScene.self, let imp = class_getMethodImplementation(cls, sel),
+              let base = class_getMethodImplementation(SKScene.self, sel),
+              unsafeBitCast(imp, to: UnsafeRawPointer.self) != unsafeBitCast(base, to: UnsafeRawPointer.self) else { return nil }
+        return imp
+    }
+    static func call0(_ o: AnyObject, _ sel: Selector, swift: () -> Void) {
+        guard let i = imp(o, sel) else { return swift() }
+        unsafeBitCast(i, to: (@convention(c) (AnyObject, Selector) -> Void).self)(o, sel)
+    }
+    static func callTime(_ o: AnyObject, _ sel: Selector, _ t: TimeInterval, swift: () -> Void) {
+        guard let i = imp(o, sel) else { return swift() }
+        unsafeBitCast(i, to: (@convention(c) (AnyObject, Selector, TimeInterval) -> Void).self)(o, sel, t)
+    }
+    static func callSize(_ o: AnyObject, _ sel: Selector, _ v: CGSize, swift: () -> Void) {
+        guard let i = imp(o, sel) else { return swift() }
+        unsafeBitCast(i, to: (@convention(c) (AnyObject, Selector, CGSize) -> Void).self)(o, sel, v)
+    }
+    static func callObject(_ o: AnyObject, _ sel: Selector, _ v: AnyObject, swift: () -> Void) {
+        guard let i = imp(o, sel) else { return swift() }
+        unsafeBitCast(i, to: (@convention(c) (AnyObject, Selector, AnyObject) -> Void).self)(o, sel, v)
     }
 }

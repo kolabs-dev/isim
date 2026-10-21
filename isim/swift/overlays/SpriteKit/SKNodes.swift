@@ -6,9 +6,9 @@ import isim_host
 
 // MARK: - Camera
 
-open class SKCameraNode: SKNode {
-    public override init() { super.init() }
-    public required init?(coder: NSCoder) { super.init(coder: coder) }
+@objc(SKCameraNode) open class SKCameraNode: SKNode {
+    @objc public override init() { super.init() }
+    @objc public required init?(coder: NSCoder) { super.init(coder: coder) }
     /// the scene rectangle the camera shows (in the camera's parent coordinates)
     func viewRect() -> CGRect? {
         guard let s = scene, let v = s.view else { return nil }
@@ -17,13 +17,13 @@ open class SKCameraNode: SKNode {
         let xs = corners.map(\.x), ys = corners.map(\.y)
         return CGRect(x: xs.min()!, y: ys.min()!, width: xs.max()! - xs.min()!, height: ys.max()! - ys.min()!)
     }
-    open func contains(_ node: SKNode) -> Bool {
+    @objc(containsNode:) open func contains(_ node: SKNode) -> Bool {
         guard let r = viewRect(), let s = scene else { return false }
         let f = node.calculateAccumulatedFrame()
         let sf = node.parent.map { p in p === s ? f : f.applying(p.sceneTransform) } ?? f
         return r.intersects(sf)
     }
-    open func containedNodeSet() -> Set<SKNode> {
+    @objc open func containedNodeSet() -> Set<SKNode> {
         guard let s = scene else { return [] }
         return Set(s.descendants().filter { !($0 is SKCameraNode) && contains($0) })
     }
@@ -31,26 +31,26 @@ open class SKCameraNode: SKNode {
 
 // MARK: - Effect & crop nodes
 
-open class SKEffectNode: SKNode {
-    open var shouldEnableEffects = false
-    open var shouldRasterize = false
-    open var shouldCenterFilter = true
+@objc(SKEffectNode) open class SKEffectNode: SKNode {
+    @objc open var shouldEnableEffects = false
+    @objc open var shouldRasterize = false
+    @objc open var shouldCenterFilter = true
     open var blendMode: SKBlendMode = .alpha
-    open var shader: SKShader?
+    @objc open var shader: SKShader?
     /// a Core Image filter applied to the children (with shouldEnableEffects; SKEffects.swift)
-    open var filter: CIFilter?
-    public override init() { super.init() }
-    public required init?(coder: NSCoder) {
+    @objc open var filter: CIFilter?
+    @objc public override init() { super.init() }
+    @objc public required init?(coder: NSCoder) {
         super.init(coder: coder)
         if let c = coder as? _SKCoder { shouldEnableEffects = c.bool("shouldEnableEffects") ?? false; shouldRasterize = c.bool("shouldRasterize") ?? false }
     }
 }
 
-open class SKCropNode: SKNode {
+@objc(SKCropNode) open class SKCropNode: SKNode {
     /// children are drawn only where the mask node's content is opaque
-    open var maskNode: SKNode?
-    public override init() { super.init() }
-    public required init?(coder: NSCoder) {
+    @objc open var maskNode: SKNode?
+    @objc public override init() { super.init() }
+    @objc public required init?(coder: NSCoder) {
         super.init(coder: coder)
         if let c = coder as? _SKCoder, let u = c.coder(forKey: "maskNode")?.uid { maskNode = c.node(uid: u) }
     }
@@ -61,11 +61,11 @@ open class SKCropNode: SKNode {
 public enum SKUniformType: Int, Sendable { case none, float, floatVector2, floatVector3, floatVector4, floatMatrix2, floatMatrix3, floatMatrix4, texture }
 public enum SKAttributeType: Int, Sendable { case none, float, vectorFloat2, vectorFloat3, vectorFloat4, halfFloat, vectorHalfFloat2, vectorHalfFloat3, vectorHalfFloat4 }
 
-open class SKUniform: NSObject {
-    open var name: String
+@objc(SKUniform) open class SKUniform: NSObject {
+    @objc open var name: String
     open var uniformType: SKUniformType = .none
-    open var textureValue: SKTexture?
-    open var floatValue: Float = 0
+    @objc open var textureValue: SKTexture?
+    @objc open var floatValue: Float = 0
     open var vectorFloat2Value: vector_float2 = .zero
     open var vectorFloat3Value: vector_float3 = .zero
     open var vectorFloat4Value: vector_float4 = .zero
@@ -81,96 +81,96 @@ open class SKUniform: NSObject {
         default: return []
         }
     }
-    public init(name: String) { self.name = name }
+    @objc public init(name: String) { self.name = name }
     public convenience init(name: String, matrixFloat2x2 v: matrix_float2x2) { self.init(name: name); matrixFloat2x2Value = v; uniformType = .floatMatrix2 }
     public convenience init(name: String, matrixFloat3x3 v: matrix_float3x3) { self.init(name: name); matrixFloat3x3Value = v; uniformType = .floatMatrix3 }
     public convenience init(name: String, matrixFloat4x4 v: matrix_float4x4) { self.init(name: name); matrixFloat4x4Value = v; uniformType = .floatMatrix4 }
-    public convenience init(name: String, float value: Float) { self.init(name: name); floatValue = value; uniformType = .float }
-    public convenience init(name: String, texture: SKTexture?) { self.init(name: name); textureValue = texture; uniformType = .texture }
+    @objc public convenience init(name: String, float value: Float) { self.init(name: name); floatValue = value; uniformType = .float }
+    @objc public convenience init(name: String, texture: SKTexture?) { self.init(name: name); textureValue = texture; uniformType = .texture }
     public convenience init(name: String, vectorFloat2 v: vector_float2) { self.init(name: name); vectorFloat2Value = v; uniformType = .floatVector2 }
     public convenience init(name: String, vectorFloat3 v: vector_float3) { self.init(name: name); vectorFloat3Value = v; uniformType = .floatVector3 }
     public convenience init(name: String, vectorFloat4 v: vector_float4) { self.init(name: name); vectorFloat4Value = v; uniformType = .floatVector4 }
 }
 
-open class SKAttribute: NSObject {
-    open var name: String
+@objc(SKAttribute) open class SKAttribute: NSObject {
+    @objc open var name: String
     open var type: SKAttributeType
     public init(name: String, type: SKAttributeType) { self.name = name; self.type = type }
 }
 
-open class SKAttributeValue: NSObject {
-    open var floatValue: Float = 0
+@objc(SKAttributeValue) open class SKAttributeValue: NSObject {
+    @objc open var floatValue: Float = 0
     open var vectorFloat2Value: vector_float2 = .zero
     open var vectorFloat3Value: vector_float3 = .zero
     open var vectorFloat4Value: vector_float4 = .zero
-    public override init() { super.init() }
-    public convenience init(float v: Float) { self.init(); floatValue = v }
+    @objc public override init() { super.init() }
+    @objc public convenience init(float v: Float) { self.init(); floatValue = v }
     public convenience init(vectorFloat2 v: vector_float2) { self.init(); vectorFloat2Value = v }
     public convenience init(vectorFloat3 v: vector_float3) { self.init(); vectorFloat3Value = v }
     public convenience init(vectorFloat4 v: vector_float4) { self.init(); vectorFloat4Value = v }
 }
 
 /// Custom fragment shaders, run on the CPU through Core Image's kernel interpreter (SKShading.swift).
-open class SKShader: NSObject {
-    open var source: String?
-    open var uniforms: [SKUniform] = []
-    open var attributes: [SKAttribute] = []
-    public override init() { super.init() }
-    public convenience init(source: String) { self.init(); self.source = source }
-    public convenience init(source: String, uniforms: [SKUniform]) { self.init(source: source); self.uniforms = uniforms }
-    public convenience init(fileNamed name: String) {
+@objc(SKShader) open class SKShader: NSObject {
+    @objc open var source: String?
+    @objc open var uniforms: [SKUniform] = []
+    @objc open var attributes: [SKAttribute] = []
+    @objc public override init() { super.init() }
+    @objc public convenience init(source: String) { self.init(); self.source = source }
+    @objc public convenience init(source: String, uniforms: [SKUniform]) { self.init(source: source); self.uniforms = uniforms }
+    @objc public convenience init(fileNamed name: String) {
         self.init()
         let n = name as NSString
         if let p = Bundle.main.path(forResource: n.deletingPathExtension, ofType: n.pathExtension.isEmpty ? "fsh" : n.pathExtension) {
             source = try? String(contentsOfFile: p, encoding: .utf8)
         }
     }
-    public convenience init(source: String, uniforms: [SKUniform], attributes: [SKAttribute]) { self.init(source: source, uniforms: uniforms); self.attributes = attributes }
-    open func addUniform(_ u: SKUniform) { uniforms.append(u) }
-    open func uniformNamed(_ name: String) -> SKUniform? { uniforms.first { $0.name == name } }
-    open func removeUniformNamed(_ name: String) { uniforms.removeAll { $0.name == name } }
-    open override func copy() -> Any { let s = SKShader(); s.source = source; s.uniforms = uniforms; s.attributes = attributes; return s }
+    @objc public convenience init(source: String, uniforms: [SKUniform], attributes: [SKAttribute]) { self.init(source: source, uniforms: uniforms); self.attributes = attributes }
+    @objc open func addUniform(_ u: SKUniform) { uniforms.append(u) }
+    @objc open func uniformNamed(_ name: String) -> SKUniform? { uniforms.first { $0.name == name } }
+    @objc open func removeUniformNamed(_ name: String) { uniforms.removeAll { $0.name == name } }
+    @objc open override func copy() -> Any { let s = SKShader(); s.source = source; s.uniforms = uniforms; s.attributes = attributes; return s }
 }
 
 /// Lights are stored but do not light or shadow sprites on isim.
-open class SKLightNode: SKNode {
-    open var isEnabled = true
-    open var lightColor: UIColor = .white
-    open var ambientColor: UIColor = .black
-    open var shadowColor: UIColor = .clear
-    open var falloff: CGFloat = 1
-    open var categoryBitMask: UInt32 = 1
-    public override init() { super.init() }
-    public required init?(coder: NSCoder) { super.init(coder: coder) }
+@objc(SKLightNode) open class SKLightNode: SKNode {
+    @objc open var isEnabled = true
+    @objc open var lightColor: UIColor = .white
+    @objc open var ambientColor: UIColor = .black
+    @objc open var shadowColor: UIColor = .clear
+    @objc open var falloff: CGFloat = 1
+    @objc open var categoryBitMask: UInt32 = 1
+    @objc public override init() { super.init() }
+    @objc public required init?(coder: NSCoder) { super.init(coder: coder) }
 }
 
 // MARK: - Fields
 
 public typealias SKFieldForceEvaluator = (vector_float3, vector_float3, Float, Float, TimeInterval) -> vector_float3
 
-open class SKRegion: NSObject {
+@objc(SKRegion) open class SKRegion: NSObject {
     let test: (CGPoint) -> Bool
-    open private(set) var path: CGPath?
+    @objc open private(set) var path: CGPath?
     init(test: @escaping (CGPoint) -> Bool, path: CGPath?) { self.test = test; self.path = path }
-    public convenience init(radius: Float) {
+    @objc public convenience init(radius: Float) {
         let r = CGFloat(radius)
         self.init(test: { _len($0) <= r }, path: CGPath(ellipseIn: CGRect(x: -r, y: -r, width: 2 * r, height: 2 * r), transform: nil))
     }
-    public convenience init(size: CGSize) {
+    @objc public convenience init(size: CGSize) {
         let rect = CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height)
         self.init(test: { rect.contains($0) }, path: CGPath(rect: rect, transform: nil))
     }
-    public convenience init(path: CGPath) {
+    @objc public convenience init(path: CGPath) {
         let polys = _pathPoints(path)
         self.init(test: { p in polys.contains { _pointInPolygon(p, $0) } }, path: path)
     }
-    open class func infinite() -> SKRegion { SKRegion(test: { _ in true }, path: nil) }
-    open func inverse() -> SKRegion { let t = test; return SKRegion(test: { !t($0) }, path: nil) }
-    open func byUnion(with r: SKRegion) -> SKRegion { let a = test, b = r.test; return SKRegion(test: { a($0) || b($0) }, path: nil) }
-    open func byDifference(from r: SKRegion) -> SKRegion { let a = test, b = r.test; return SKRegion(test: { a($0) && !b($0) }, path: nil) }
-    open func byIntersection(with r: SKRegion) -> SKRegion { let a = test, b = r.test; return SKRegion(test: { a($0) && b($0) }, path: nil) }
-    open func contains(_ p: CGPoint) -> Bool { test(p) }
-    open override func copy() -> Any { self }
+    @objc(infiniteRegion) open class func infinite() -> SKRegion { SKRegion(test: { _ in true }, path: nil) }
+    @objc(inverseRegion) open func inverse() -> SKRegion { let t = test; return SKRegion(test: { !t($0) }, path: nil) }
+    @objc(regionByUnionWithRegion:) open func byUnion(with r: SKRegion) -> SKRegion { let a = test, b = r.test; return SKRegion(test: { a($0) || b($0) }, path: nil) }
+    @objc(regionByDifferenceFromRegion:) open func byDifference(from r: SKRegion) -> SKRegion { let a = test, b = r.test; return SKRegion(test: { a($0) && !b($0) }, path: nil) }
+    @objc(regionByIntersectionWithRegion:) open func byIntersection(with r: SKRegion) -> SKRegion { let a = test, b = r.test; return SKRegion(test: { a($0) && b($0) }, path: nil) }
+    @objc(containsPoint:) open func contains(_ p: CGPoint) -> Bool { test(p) }
+    @objc open override func copy() -> Any { self }
 }
 
 func _pointInPolygon(_ p: CGPoint, _ poly: [CGPoint]) -> Bool {
@@ -184,41 +184,41 @@ func _pointInPolygon(_ p: CGPoint, _ poly: [CGPoint]) -> Bool {
     return inside
 }
 
-open class SKFieldNode: SKNode {
+@objc(SKFieldNode) open class SKFieldNode: SKNode {
     enum Kind { case linearGravity, radialGravity, spring, drag, vortex, velocity, noise, turbulence, electric, magnetic, custom }
     var kind: Kind = .radialGravity
     var evaluator: SKFieldForceEvaluator?
-    open var region: SKRegion?
-    open var minimumRadius: Float = 0
-    open var isEnabled = true
-    open var isExclusive = false
-    open var strength: Float = 1
-    open var falloff: Float = 0
-    open var animationSpeed: Float = 1
-    open var smoothness: Float = 0
+    @objc open var region: SKRegion?
+    @objc open var minimumRadius: Float = 0
+    @objc open var isEnabled = true
+    @objc open var isExclusive = false
+    @objc open var strength: Float = 1
+    @objc open var falloff: Float = 0
+    @objc open var animationSpeed: Float = 1
+    @objc open var smoothness: Float = 0
     open var direction: vector_float3 = vector_float3(0, 0, 0)
-    open var texture: SKTexture?
-    open var categoryBitMask: UInt32 = 0xFFFF_FFFF
+    @objc open var texture: SKTexture?
+    @objc open var categoryBitMask: UInt32 = 0xFFFF_FFFF
 
-    public override init() { super.init() }
-    public required init?(coder: NSCoder) { super.init(coder: coder) }
+    @objc public override init() { super.init() }
+    @objc public required init?(coder: NSCoder) { super.init(coder: coder) }
     convenience init(kind: Kind) { self.init(); self.kind = kind }
 
-    open class func dragField() -> SKFieldNode { SKFieldNode(kind: .drag) }
-    open class func vortexField() -> SKFieldNode { SKFieldNode(kind: .vortex) }
-    open class func radialGravityField() -> SKFieldNode { SKFieldNode(kind: .radialGravity) }
+    @objc open class func dragField() -> SKFieldNode { SKFieldNode(kind: .drag) }
+    @objc open class func vortexField() -> SKFieldNode { SKFieldNode(kind: .vortex) }
+    @objc open class func radialGravityField() -> SKFieldNode { SKFieldNode(kind: .radialGravity) }
     open class func linearGravityField(withVector v: vector_float3) -> SKFieldNode { let f = SKFieldNode(kind: .linearGravity); f.direction = v; return f }
     open class func velocityField(withVector v: vector_float3) -> SKFieldNode { let f = SKFieldNode(kind: .velocity); f.direction = v; return f }
-    open class func velocityField(with texture: SKTexture) -> SKFieldNode { let f = SKFieldNode(kind: .velocity); f.texture = texture; return f }
-    open class func noiseField(withSmoothness s: CGFloat, animationSpeed a: CGFloat) -> SKFieldNode {
+    @objc(velocityFieldWithTexture:) open class func velocityField(with texture: SKTexture) -> SKFieldNode { let f = SKFieldNode(kind: .velocity); f.texture = texture; return f }
+    @objc open class func noiseField(withSmoothness s: CGFloat, animationSpeed a: CGFloat) -> SKFieldNode {
         let f = SKFieldNode(kind: .noise); f.smoothness = Float(s); f.animationSpeed = Float(a); return f
     }
-    open class func turbulenceField(withSmoothness s: CGFloat, animationSpeed a: CGFloat) -> SKFieldNode {
+    @objc open class func turbulenceField(withSmoothness s: CGFloat, animationSpeed a: CGFloat) -> SKFieldNode {
         let f = SKFieldNode(kind: .turbulence); f.smoothness = Float(s); f.animationSpeed = Float(a); return f
     }
-    open class func springField() -> SKFieldNode { SKFieldNode(kind: .spring) }
-    open class func electricField() -> SKFieldNode { SKFieldNode(kind: .electric) }
-    open class func magneticField() -> SKFieldNode { SKFieldNode(kind: .magnetic) }
+    @objc open class func springField() -> SKFieldNode { SKFieldNode(kind: .spring) }
+    @objc open class func electricField() -> SKFieldNode { SKFieldNode(kind: .electric) }
+    @objc open class func magneticField() -> SKFieldNode { SKFieldNode(kind: .magnetic) }
     open class func customField(evaluationBlock block: @escaping SKFieldForceEvaluator) -> SKFieldNode {
         let f = SKFieldNode(kind: .custom); f.evaluator = block; return f
     }
@@ -298,25 +298,25 @@ open class SKFieldNode: SKNode {
 
 // MARK: - Ranges & constraints
 
-open class SKRange: NSObject {
-    open var lowerLimit: CGFloat
-    open var upperLimit: CGFloat
-    public init(lowerLimit lower: CGFloat, upperLimit upper: CGFloat) { lowerLimit = lower; upperLimit = upper }
-    public convenience init(lowerLimit lower: CGFloat) { self.init(lowerLimit: lower, upperLimit: .greatestFiniteMagnitude) }
-    public convenience init(upperLimit upper: CGFloat) { self.init(lowerLimit: -.greatestFiniteMagnitude, upperLimit: upper) }
-    public convenience init(constantValue v: CGFloat) { self.init(lowerLimit: v, upperLimit: v) }
-    public convenience init(value v: CGFloat, variance: CGFloat) { self.init(lowerLimit: v - variance, upperLimit: v + variance) }
-    open class func withNoLimits() -> SKRange { SKRange(lowerLimit: -.greatestFiniteMagnitude, upperLimit: .greatestFiniteMagnitude) }
-    open override func copy() -> Any { SKRange(lowerLimit: lowerLimit, upperLimit: upperLimit) }
+@objc(SKRange) open class SKRange: NSObject {
+    @objc open var lowerLimit: CGFloat
+    @objc open var upperLimit: CGFloat
+    @objc public init(lowerLimit lower: CGFloat, upperLimit upper: CGFloat) { lowerLimit = lower; upperLimit = upper }
+    @objc public convenience init(lowerLimit lower: CGFloat) { self.init(lowerLimit: lower, upperLimit: .greatestFiniteMagnitude) }
+    @objc public convenience init(upperLimit upper: CGFloat) { self.init(lowerLimit: -.greatestFiniteMagnitude, upperLimit: upper) }
+    @objc public convenience init(constantValue v: CGFloat) { self.init(lowerLimit: v, upperLimit: v) }
+    @objc public convenience init(value v: CGFloat, variance: CGFloat) { self.init(lowerLimit: v - variance, upperLimit: v + variance) }
+    @objc(rangeWithNoLimits) open class func withNoLimits() -> SKRange { SKRange(lowerLimit: -.greatestFiniteMagnitude, upperLimit: .greatestFiniteMagnitude) }
+    @objc open override func copy() -> Any { SKRange(lowerLimit: lowerLimit, upperLimit: upperLimit) }
     func clamp(_ v: CGFloat) -> CGFloat { min(max(v, lowerLimit), upperLimit) }
 }
 
-open class SKConstraint: NSObject {
-    open var enabled = true
-    open var referenceNode: SKNode?
+@objc(SKConstraint) open class SKConstraint: NSObject {
+    @objc open var enabled = true
+    @objc open var referenceNode: SKNode?
     let apply: (SKConstraint, SKNode) -> Void
     init(_ apply: @escaping (SKConstraint, SKNode) -> Void) { self.apply = apply }
-    open override func copy() -> Any { let c = SKConstraint(apply); c.enabled = enabled; c.referenceNode = referenceNode; return c }
+    @objc open override func copy() -> Any { let c = SKConstraint(apply); c.enabled = enabled; c.referenceNode = referenceNode; return c }
 
     /// a point in `node`'s parent coordinates from `ref` space (nil = scene/parent space)
     static func toParent(_ p: CGPoint, of node: SKNode, from ref: SKNode?) -> CGPoint {
@@ -328,25 +328,25 @@ open class SKConstraint: NSObject {
         return parent.convert(p, to: ref)
     }
 
-    open class func positionX(_ range: SKRange) -> SKConstraint { positionX(range, y: SKRange.withNoLimits()) }
-    open class func positionY(_ range: SKRange) -> SKConstraint { positionX(SKRange.withNoLimits(), y: range) }
-    open class func positionX(_ xr: SKRange, y yr: SKRange) -> SKConstraint {
+    @objc open class func positionX(_ range: SKRange) -> SKConstraint { positionX(range, y: SKRange.withNoLimits()) }
+    @objc open class func positionY(_ range: SKRange) -> SKConstraint { positionX(SKRange.withNoLimits(), y: range) }
+    @objc(positionX:Y:) open class func positionX(_ xr: SKRange, y yr: SKRange) -> SKConstraint {
         SKConstraint { c, n in
             var p = fromParent(n.position, of: n, to: c.referenceNode)
             p.x = xr.clamp(p.x); p.y = yr.clamp(p.y)
             n.position = toParent(p, of: n, from: c.referenceNode)
         }
     }
-    open class func zRotation(_ range: SKRange) -> SKConstraint { SKConstraint { _, n in n.zRotation = range.clamp(n.zRotation) } }
-    open class func scaleX(_ range: SKRange) -> SKConstraint { SKConstraint { _, n in n.xScale = range.clamp(n.xScale) } }
-    open class func scaleY(_ range: SKRange) -> SKConstraint { SKConstraint { _, n in n.yScale = range.clamp(n.yScale) } }
-    open class func scaleX(_ xr: SKRange, y yr: SKRange) -> SKConstraint { SKConstraint { _, n in n.xScale = xr.clamp(n.xScale); n.yScale = yr.clamp(n.yScale) } }
+    @objc open class func zRotation(_ range: SKRange) -> SKConstraint { SKConstraint { _, n in n.zRotation = range.clamp(n.zRotation) } }
+    @objc open class func scaleX(_ range: SKRange) -> SKConstraint { SKConstraint { _, n in n.xScale = range.clamp(n.xScale) } }
+    @objc open class func scaleY(_ range: SKRange) -> SKConstraint { SKConstraint { _, n in n.yScale = range.clamp(n.yScale) } }
+    @objc(scaleX:scaleY:) open class func scaleX(_ xr: SKRange, y yr: SKRange) -> SKConstraint { SKConstraint { _, n in n.xScale = xr.clamp(n.xScale); n.yScale = yr.clamp(n.yScale) } }
 
-    open class func distance(_ range: SKRange, to node: SKNode) -> SKConstraint { distance(range, to: .zero, in: node) }
-    open class func distance(_ range: SKRange, to point: CGPoint) -> SKConstraint {
+    @objc(distance:toNode:) open class func distance(_ range: SKRange, to node: SKNode) -> SKConstraint { distance(range, to: .zero, in: node) }
+    @objc(distance:toPoint:) open class func distance(_ range: SKRange, to point: CGPoint) -> SKConstraint {
         SKConstraint { c, n in clampDistance(n, target: toParent(point, of: n, from: c.referenceNode), range) }
     }
-    open class func distance(_ range: SKRange, to point: CGPoint, in node: SKNode) -> SKConstraint {
+    @objc(distance:toPoint:inNode:) open class func distance(_ range: SKRange, to point: CGPoint, in node: SKNode) -> SKConstraint {
         SKConstraint { _, n in
             guard let parent = n.parent, node.scene != nil else { return }
             clampDistance(n, target: parent.convert(point, from: node), range)
@@ -359,11 +359,11 @@ open class SKConstraint: NSObject {
         n.position = _add(target, _mul(l > 1e-9 ? _mul(d, 1 / l) : CGPoint(x: 1, y: 0), c))
     }
 
-    open class func orient(to node: SKNode, offset: SKRange) -> SKConstraint { orient(to: .zero, in: node, offset: offset) }
-    open class func orient(to point: CGPoint, offset: SKRange) -> SKConstraint {
+    @objc(orientToNode:offset:) open class func orient(to node: SKNode, offset: SKRange) -> SKConstraint { orient(to: .zero, in: node, offset: offset) }
+    @objc(orientToPoint:offset:) open class func orient(to point: CGPoint, offset: SKRange) -> SKConstraint {
         SKConstraint { c, n in orient(n, toward: toParent(point, of: n, from: c.referenceNode), offset) }
     }
-    open class func orient(to point: CGPoint, in node: SKNode, offset: SKRange) -> SKConstraint {
+    @objc(orientToPoint:inNode:offset:) open class func orient(to point: CGPoint, in node: SKNode, offset: SKRange) -> SKConstraint {
         SKConstraint { _, n in
             guard let parent = n.parent, node.scene != nil else { return }
             orient(n, toward: parent.convert(point, from: node), offset)
@@ -381,25 +381,25 @@ open class SKConstraint: NSObject {
 }
 
 /// The angle limits of a joint for reach actions (SKInverseKinematics.swift).
-open class SKReachConstraints: NSObject {
-    open var lowerAngleLimit: CGFloat
-    open var upperAngleLimit: CGFloat
-    public init(lowerAngleLimit: CGFloat, upperAngleLimit: CGFloat) { self.lowerAngleLimit = lowerAngleLimit; self.upperAngleLimit = upperAngleLimit }
+@objc(SKReachConstraints) open class SKReachConstraints: NSObject {
+    @objc open var lowerAngleLimit: CGFloat
+    @objc open var upperAngleLimit: CGFloat
+    @objc public init(lowerAngleLimit: CGFloat, upperAngleLimit: CGFloat) { self.lowerAngleLimit = lowerAngleLimit; self.upperAngleLimit = upperAngleLimit }
 }
 
 // MARK: - Reference node
 
-open class SKReferenceNode: SKNode {
+@objc(SKReferenceNode) open class SKReferenceNode: SKNode {
     var fileName: String?
     var fileURL: URL?
-    public init(fileNamed name: String?) { fileName = name; super.init(); resolve() }
-    public init(url: URL?) { fileURL = url; super.init(); resolve() }
-    public required init?(coder: NSCoder) {
+    @objc public init(fileNamed name: String?) { fileName = name; super.init(); resolve() }
+    @objc(initWithURL:) public init(url: URL?) { fileURL = url; super.init(); resolve() }
+    @objc public required init?(coder: NSCoder) {
         super.init(coder: coder)
         if let c = coder as? _SKCoder, let n = c.string("fileName") ?? c.string("referenceFileName") { fileName = n; resolve() }
     }
-    open func didLoad(_ node: SKNode?) {}
-    open func resolve() {
+    @objc(didLoadReferenceNode:) open func didLoad(_ node: SKNode?) {}
+    @objc(resolveReferenceNode) open func resolve() {
         var loaded: SKNode?
         if let fileName { loaded = SKNode(fileNamed: fileName) }
         else if let fileURL {
@@ -459,40 +459,40 @@ public struct SKTileAdjacencyMask: OptionSet, Sendable {
 }
 public enum SKTileDefinitionRotation: UInt, Sendable { case rotation0 = 0, rotation90, rotation180, rotation270 }
 
-open class SKTileDefinition: NSObject {
-    open var textures: [SKTexture]
-    open var normalTextures: [SKTexture] = []
-    open var userData: NSMutableDictionary?
-    open var name: String?
-    open var size: CGSize
-    open var timePerFrame: CGFloat = 0
-    open var placementWeight: Int = 1
+@objc(SKTileDefinition) open class SKTileDefinition: NSObject {
+    @objc open var textures: [SKTexture]
+    @objc open var normalTextures: [SKTexture] = []
+    @objc open var userData: NSMutableDictionary?
+    @objc open var name: String?
+    @objc open var size: CGSize
+    @objc open var timePerFrame: CGFloat = 0
+    @objc open var placementWeight: Int = 1
     open var rotation: SKTileDefinitionRotation = .rotation0
-    open var flipVertically = false
-    open var flipHorizontally = false
-    public init(texture: SKTexture) { textures = [texture]; size = texture.size() }
-    public init(texture: SKTexture, size: CGSize) { textures = [texture]; self.size = size }
-    public init(texture: SKTexture, normalTexture: SKTexture, size: CGSize) { textures = [texture]; normalTextures = [normalTexture]; self.size = size }
-    public init(textures: [SKTexture], size: CGSize, timePerFrame: CGFloat) { self.textures = textures; self.size = size; self.timePerFrame = timePerFrame }
-    public init(textures: [SKTexture], normalTextures: [SKTexture], size: CGSize, timePerFrame: CGFloat) {
+    @objc open var flipVertically = false
+    @objc open var flipHorizontally = false
+    @objc public init(texture: SKTexture) { textures = [texture]; size = texture.size() }
+    @objc public init(texture: SKTexture, size: CGSize) { textures = [texture]; self.size = size }
+    @objc public init(texture: SKTexture, normalTexture: SKTexture, size: CGSize) { textures = [texture]; normalTextures = [normalTexture]; self.size = size }
+    @objc public init(textures: [SKTexture], size: CGSize, timePerFrame: CGFloat) { self.textures = textures; self.size = size; self.timePerFrame = timePerFrame }
+    @objc public init(textures: [SKTexture], normalTextures: [SKTexture], size: CGSize, timePerFrame: CGFloat) {
         self.textures = textures; self.normalTextures = normalTextures; self.size = size; self.timePerFrame = timePerFrame
     }
-    open override func copy() -> Any { self }
+    @objc open override func copy() -> Any { self }
 }
 
-open class SKTileGroupRule: NSObject {
+@objc(SKTileGroupRule) open class SKTileGroupRule: NSObject {
     open var adjacency: SKTileAdjacencyMask
-    open var tileDefinitions: [SKTileDefinition]
-    open var name: String?
+    @objc open var tileDefinitions: [SKTileDefinition]
+    @objc open var name: String?
     public init(adjacency: SKTileAdjacencyMask, tileDefinitions: [SKTileDefinition]) { self.adjacency = adjacency; self.tileDefinitions = tileDefinitions }
 }
 
-open class SKTileGroup: NSObject {
-    open var rules: [SKTileGroupRule]
-    open var name: String?
-    public init(tileDefinition: SKTileDefinition) { rules = [SKTileGroupRule(adjacency: .adjacencyAll, tileDefinitions: [tileDefinition])] }
-    public init(rules: [SKTileGroupRule]) { self.rules = rules }
-    open class func empty() -> SKTileGroup { SKTileGroup(rules: []) }
+@objc(SKTileGroup) open class SKTileGroup: NSObject {
+    @objc open var rules: [SKTileGroupRule]
+    @objc open var name: String?
+    @objc public init(tileDefinition: SKTileDefinition) { rules = [SKTileGroupRule(adjacency: .adjacencyAll, tileDefinitions: [tileDefinition])] }
+    @objc public init(rules: [SKTileGroupRule]) { self.rules = rules }
+    @objc(emptyTileGroup) open class func empty() -> SKTileGroup { SKTileGroup(rules: []) }
     /// the rule for a cell whose neighbours of the same group are `mask`: an exact match, else the one asking for
     /// the fewest more neighbours, else the first
     func rule(for mask: SKTileAdjacencyMask) -> SKTileGroupRule? {
@@ -512,22 +512,22 @@ open class SKTileGroup: NSObject {
     }
 }
 
-open class SKTileSet: NSObject {
-    open var tileGroups: [SKTileGroup]
-    open var name: String?
+@objc(SKTileSet) open class SKTileSet: NSObject {
+    @objc open var tileGroups: [SKTileGroup]
+    @objc open var name: String?
     open var type: SKTileSetType = .grid
-    open var defaultTileGroup: SKTileGroup?
-    open var defaultTileSize: CGSize = CGSize(width: 32, height: 32)
-    public init(tileGroups: [SKTileGroup]) { self.tileGroups = tileGroups }
+    @objc open var defaultTileGroup: SKTileGroup?
+    @objc open var defaultTileSize: CGSize = CGSize(width: 32, height: 32)
+    @objc public init(tileGroups: [SKTileGroup]) { self.tileGroups = tileGroups }
     public init(tileGroups: [SKTileGroup], tileSetType: SKTileSetType) { self.tileGroups = tileGroups; type = tileSetType }
-    public convenience init?(named name: String) { NSLog("isim SpriteKit: SKTileSet(named: %@): tile sets from .sks files are not supported", name); return nil }
+    @objc public convenience init?(named name: String) { NSLog("isim SpriteKit: SKTileSet(named: %@): tile sets from .sks files are not supported", name); return nil }
 }
 
-open class SKTileMapNode: SKNode {
-    open var numberOfColumns: Int { didSet { resize() } }
-    open var numberOfRows: Int { didSet { resize() } }
-    open var tileSize: CGSize
-    open var mapSize: CGSize {
+@objc(SKTileMapNode) open class SKTileMapNode: SKNode {
+    @objc open var numberOfColumns: Int { didSet { resize() } }
+    @objc open var numberOfRows: Int { didSet { resize() } }
+    @objc open var tileSize: CGSize
+    @objc open var mapSize: CGSize {
         let C = CGFloat(numberOfColumns), R = CGFloat(numberOfRows), w = tileSize.width, h = tileSize.height
         switch tileSet.type {
         case .grid: return CGSize(width: C * w, height: R * h)
@@ -536,31 +536,31 @@ open class SKTileMapNode: SKNode {
         case .hexagonalFlat: return CGSize(width: (C * 0.75 + 0.25) * w, height: (R + 0.5) * h)
         }
     }
-    open var tileSet: SKTileSet
-    open var colorBlendFactor: CGFloat = 0
-    open var color: UIColor = .white
+    @objc open var tileSet: SKTileSet
+    @objc open var colorBlendFactor: CGFloat = 0
+    @objc open var color: UIColor = .white
     open var blendMode: SKBlendMode = .alpha
-    open var anchorPoint = CGPoint(x: 0.5, y: 0.5)
-    open var shader: SKShader?
-    open var lightingBitMask: UInt32 = 0
-    open var enableAutomapping = false
+    @objc open var anchorPoint = CGPoint(x: 0.5, y: 0.5)
+    @objc open var shader: SKShader?
+    @objc open var lightingBitMask: UInt32 = 0
+    @objc open var enableAutomapping = false
     var cells: [SKTileGroup?] = []
     /// the rule automapping chose for each cell
     var cellRules: [SKTileGroupRule?] = []
     var elapsed: CGFloat = 0
 
-    public init(tileSet: SKTileSet, columns: Int, rows: Int, tileSize: CGSize) {
+    @objc public init(tileSet: SKTileSet, columns: Int, rows: Int, tileSize: CGSize) {
         self.tileSet = tileSet; numberOfColumns = columns; numberOfRows = rows; self.tileSize = tileSize
         super.init(); resize()
     }
-    public convenience init(tileSet: SKTileSet, columns: Int, rows: Int, tileSize: CGSize, fillWith g: SKTileGroup) {
+    @objc(initWithTileSet:columns:rows:tileSize:fillWithTileGroup:) public convenience init(tileSet: SKTileSet, columns: Int, rows: Int, tileSize: CGSize, fillWith g: SKTileGroup) {
         self.init(tileSet: tileSet, columns: columns, rows: rows, tileSize: tileSize); fill(with: g)
     }
-    public convenience init(tileSet: SKTileSet, columns: Int, rows: Int, tileSize: CGSize, tileGroupLayout: [SKTileGroup]) {
+    @objc public convenience init(tileSet: SKTileSet, columns: Int, rows: Int, tileSize: CGSize, tileGroupLayout: [SKTileGroup]) {
         self.init(tileSet: tileSet, columns: columns, rows: rows, tileSize: tileSize)
         for (i, g) in tileGroupLayout.prefix(cells.count).enumerated() { cells[i] = g }
     }
-    public required init?(coder: NSCoder) {
+    @objc public required init?(coder: NSCoder) {
         tileSet = SKTileSet(tileGroups: []); numberOfColumns = 0; numberOfRows = 0; tileSize = CGSize(width: 32, height: 32)
         super.init(coder: coder)
     }
@@ -569,8 +569,8 @@ open class SKTileMapNode: SKNode {
         if cells.count != n { cells = Array(cells.prefix(n)) + Array(repeating: nil, count: max(0, n - cells.count)) }
         if cellRules.count != n { cellRules = Array(repeating: nil, count: n) }
     }
-    open func fill(with g: SKTileGroup?) { for i in cells.indices { cells[i] = g }; if enableAutomapping { automapAll() } }
-    open func setTileGroup(_ g: SKTileGroup?, forColumn c: Int, row r: Int) {
+    @objc(fillWithTileGroup:) open func fill(with g: SKTileGroup?) { for i in cells.indices { cells[i] = g }; if enableAutomapping { automapAll() } }
+    @objc open func setTileGroup(_ g: SKTileGroup?, forColumn c: Int, row r: Int) {
         guard c >= 0, r >= 0, c < numberOfColumns, r < numberOfRows else { return }
         cells[r * numberOfColumns + c] = g
         if enableAutomapping { for dr in -1...1 { for dc in -1...1 { automap(c + dc, r + dr) } } }
@@ -602,12 +602,12 @@ open class SKTileMapNode: SKNode {
         cellRules[r * numberOfColumns + c] = g.rule(for: SKTileAdjacencyMask(rawValue: mask))
     }
     func automapAll() { for r in 0..<numberOfRows { for c in 0..<numberOfColumns { automap(c, r) } } }
-    open func setTileGroup(_ g: SKTileGroup, andTileDefinition d: SKTileDefinition, forColumn c: Int, row r: Int) { setTileGroup(g, forColumn: c, row: r) }
-    open func tileGroup(atColumn c: Int, row r: Int) -> SKTileGroup? {
+    @objc open func setTileGroup(_ g: SKTileGroup, andTileDefinition d: SKTileDefinition, forColumn c: Int, row r: Int) { setTileGroup(g, forColumn: c, row: r) }
+    @objc open func tileGroup(atColumn c: Int, row r: Int) -> SKTileGroup? {
         guard c >= 0, r >= 0, c < numberOfColumns, r < numberOfRows else { return nil }
         return cells[r * numberOfColumns + c]
     }
-    open func tileDefinition(atColumn c: Int, row r: Int) -> SKTileDefinition? {
+    @objc open func tileDefinition(atColumn c: Int, row r: Int) -> SKTileDefinition? {
         let i = r * numberOfColumns + c
         return tileGroup(atColumn: c, row: r)?.definition(forCell: i, rule: enableAutomapping && i < cellRules.count ? cellRules[i] : nil)
     }
@@ -642,9 +642,9 @@ open class SKTileMapNode: SKNode {
         } }
         return best
     }
-    open func tileColumnIndex(fromPosition p: CGPoint) -> Int { _cell(at: _sub(p, origin)).0 }
-    open func tileRowIndex(fromPosition p: CGPoint) -> Int { _cell(at: _sub(p, origin)).1 }
-    open func centerOfTile(atColumn c: Int, row r: Int) -> CGPoint { _add(origin, _center(c, r)) }
+    @objc open func tileColumnIndex(fromPosition p: CGPoint) -> Int { _cell(at: _sub(p, origin)).0 }
+    @objc open func tileRowIndex(fromPosition p: CGPoint) -> Int { _cell(at: _sub(p, origin)).1 }
+    @objc open func centerOfTile(atColumn c: Int, row r: Int) -> CGPoint { _add(origin, _center(c, r)) }
     override var contentRect: CGRect { CGRect(origin: origin, size: mapSize) }
 
     override func drawContent(alpha a: CGFloat) {

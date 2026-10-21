@@ -6,7 +6,7 @@ import AVFoundation
 
 // MARK: - Texture atlas
 
-open class SKTextureAtlas: NSObject {
+@objc(SKTextureAtlas) open class SKTextureAtlas: NSObject {
     /// texture name -> image file path (loose .atlas folder) or asset name (asset catalog)
     var entries: [String: (path: String?, asset: String?)] = [:]
     var cache: [String: SKTexture] = [:]
@@ -15,7 +15,7 @@ open class SKTextureAtlas: NSObject {
 
     init(name: String) { atlasName = name; super.init() }
 
-    public convenience init(named name: String) {
+    @objc public convenience init(named name: String) {
         self.init(name: name)
         let stem = (name as NSString).deletingPathExtension
         if let dir = SKTextureAtlas.folder(named: stem) { loadFolder(dir) }
@@ -23,7 +23,7 @@ open class SKTextureAtlas: NSObject {
         else { NSLog("isim SpriteKit: SKTextureAtlas(named: \"%@\"): no %@.atlas folder or sprite atlas in the bundle", name, stem) }
     }
     /// values: UIImage objects or paths of image files
-    public convenience init(dictionary: [String: Any]) {
+    @objc public convenience init(dictionary: [String: Any]) {
         self.init(name: "")
         for (k, v) in dictionary {
             let key = SKTextureAtlas.textureName(k)
@@ -33,9 +33,9 @@ open class SKTextureAtlas: NSObject {
         }
     }
 
-    open var textureNames: [String] { Array(Set(entries.keys).union(images.keys)).sorted().map { $0 + (entries[$0]?.path.map { "." + ($0 as NSString).pathExtension } ?? "") } }
+    @objc open var textureNames: [String] { Array(Set(entries.keys).union(images.keys)).sorted().map { $0 + (entries[$0]?.path.map { "." + ($0 as NSString).pathExtension } ?? "") } }
 
-    open func textureNamed(_ name: String) -> SKTexture {
+    @objc open func textureNamed(_ name: String) -> SKTexture {
         let key = SKTextureAtlas.textureName(name)
         if let t = cache[key] { return t }
         var t: SKTexture?
@@ -50,15 +50,15 @@ open class SKTextureAtlas: NSObject {
     }
     func has(_ name: String) -> Bool { let k = SKTextureAtlas.textureName(name); return entries[k] != nil || images[k] != nil }
 
-    open func preload(completionHandler: @escaping () -> Void) {
+    @objc open func preload(completionHandler: @escaping () -> Void) {
         for n in Set(entries.keys).union(images.keys) { _ = textureNamed(n) }
         DispatchQueue.main.async(execute: completionHandler)
     }
-    open class func preloadTextureAtlases(_ atlases: [SKTextureAtlas], withCompletionHandler h: @escaping () -> Void) {
+    @objc open class func preloadTextureAtlases(_ atlases: [SKTextureAtlas], withCompletionHandler h: @escaping () -> Void) {
         for a in atlases { for n in Set(a.entries.keys).union(a.images.keys) { _ = a.textureNamed(n) } }
         DispatchQueue.main.async(execute: h)
     }
-    open class func preloadTextureAtlasesNamed(_ names: [String], withCompletionHandler h: @escaping (Error?, [SKTextureAtlas]) -> Void) {
+    @objc open class func preloadTextureAtlasesNamed(_ names: [String], withCompletionHandler h: @escaping (Error?, [SKTextureAtlas]) -> Void) {
         let atlases = names.map { SKTextureAtlas(named: $0) }
         let missing = names.filter { folder(named: ($0 as NSString).deletingPathExtension) == nil && catalogAtlases()[($0 as NSString).deletingPathExtension] == nil }
         preloadTextureAtlases(atlases) {
@@ -157,27 +157,27 @@ enum _SKSound {
 /// Positional nodes go through an AVAudioEnvironmentNode: each frame the source is placed where the node is relative
 /// to the scene's listener (150 points per meter, like physics), which pans it and attenuates it with distance;
 /// obstruction and occlusion attenuate it, reverbBlend feeds the environment's reverb. Others go to the main mixer.
-open class SKAudioNode: SKNode {
-    open var autoplayLooped = true
-    open var isPositional = true
+@objc(SKAudioNode) open class SKAudioNode: SKNode {
+    @objc open var autoplayLooped = true
+    @objc open var isPositional = true
     var url: URL?
     var buffer: AVAudioPCMBuffer?
-    open var avAudioNode: AVAudioNode?
+    @objc open var avAudioNode: AVAudioNode?
     weak var _engine: AVAudioEngine?
     var _positional = false
     var mixing: AVAudioMixing? { avAudioNode as? AVAudioMixing }
     var volume: Float { get { mixing?.volume ?? 1 } set { mixing?.volume = max(0, newValue) } }
     var player: AVAudioPlayerNode? { avAudioNode as? AVAudioPlayerNode }
 
-    public init(fileNamed name: String) {
+    @objc public init(fileNamed name: String) {
         super.init()
         url = _SKSound.url(for: name)
         if url == nil { NSLog("isim SpriteKit: SKAudioNode: no sound file \"%@\" in the bundle", name) }
         load()
     }
-    public init(url: URL) { super.init(); self.url = url; load() }
-    public init(avAudioNode node: AVAudioNode?) { super.init(); avAudioNode = node }
-    public required init?(coder: NSCoder) {
+    @objc(initWithURL:) public init(url: URL) { super.init(); self.url = url; load() }
+    @objc(initWithAVAudioNode:) public init(avAudioNode node: AVAudioNode?) { super.init(); avAudioNode = node }
+    @objc public required init?(coder: NSCoder) {
         super.init(coder: coder)
         if let c = coder as? _SKCoder, let n = c.string("fileName") ?? c.string("soundFileName") { url = _SKSound.url(for: n); load() }
         if let c = coder as? _SKCoder { autoplayLooped = c.bool("autoplayLooped") ?? true; isPositional = c.bool("positional") ?? c.bool("isPositional") ?? true }

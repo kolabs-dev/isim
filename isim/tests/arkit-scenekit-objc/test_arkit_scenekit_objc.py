@@ -4,7 +4,7 @@ node transforms through SCNVector3 / SCNMatrix4 and simd, the SCNMatrix4 C funct
 SCNView's render loop calling an Objective-C SCNSceneRendererDelegate. ARKit: unsupported configurations (as in the
 Simulator) and their settings, an anchor and a raycast query with simd values, a session whose run fails with
 ARErrorCodeUnsupportedConfiguration through its Objective-C delegate, an ARSCNView whose delegate gets its session's
-failure, and the coaching overlay."""
+failure, an ARSKView (an SKView, issue #618) whose ARSKViewDelegate does too, and the coaching overlay."""
 from isimtest import need_apps
 
 
@@ -21,6 +21,8 @@ def test_arkit_scenekit_objc(launch):
     app.wait_log(p + r"ar view delegate 1 session 1 frame nil coaching goal 1")
     app.wait_log(p + r"session failed domain com\.apple\.arkit\.error code 100 unsupported 1")
     app.wait_log(p + r"view session failed domain com\.apple\.arkit\.error code 100 unsupported 1")
+    app.wait_log(p + r"sk view delegate 1 is SKView 1 scene 1")
+    app.wait_log(p + r"sk view session failed domain com\.apple\.arkit\.error code 100 unsupported 1")
     app.wait_log(p + r"view playing 1 delegate 1 antialiasing 1 project 4,5,6")
     app.wait_log(p + r"render loop 5 frames scene time 1")
     app.wait_log(p + r"did render")

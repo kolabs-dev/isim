@@ -916,7 +916,8 @@ def _(a):
 
 @app("tests/arkit-scenekit-objc", products=["ARSceneObjCTest.app"])   # after the overlays: ARKit and SceneKit re-export theirs (issue #560)
 def _(a):
-    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "ARKit", "-framework", "SceneKit"],
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "ARKit", "-framework", "SceneKit",
+                "-framework", "SpriteKit"],
                name="ARSceneObjCTest")
 
 @app("tests/storekittest-objc", products=["StoreKitTestObjCTest.app"])   # after the overlays: StoreKitTest re-exports its own (issue #564)
@@ -936,6 +937,13 @@ def _(a):
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "CloudKit", "-framework", "CoreLocation"],
                name="CloudKitObjCTest")
+
+
+@app("tests/spritekit-objc", products=["SpriteKitObjCTest.app"])   # after the overlays: SpriteKit re-exports its own (issue #618)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "SpriteKit",
+                "-framework", "CoreGraphics"],
+               name="SpriteKitObjCTest")
 
 
 @app("tests/cloudkit-share-objc", products=["CloudKitShareObjCTest.app"])   # issue #575: CloudKit share links (an app delegate)

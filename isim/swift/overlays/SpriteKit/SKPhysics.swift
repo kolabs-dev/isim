@@ -93,41 +93,41 @@ struct _WShape {
 
 // MARK: - Physics body
 
-open class SKPhysicsBody: NSObject {
+@objc(SKPhysicsBody) open class SKPhysicsBody: NSObject {
     var shapes: [_PShape]
     var isEdge = false
     var areaPoints: CGFloat = 0     // in points^2
     var localCentroid = CGPoint.zero
     var unitInertia: CGFloat = 0    // inertia about the centroid per unit mass (points^2)
 
-    open var isDynamic = true { didSet { if isEdge { isDynamic = false } } }
-    open var usesPreciseCollisionDetection = false
-    open var allowsRotation = true
-    open var pinned = false
-    open var isResting = false
-    open var friction: CGFloat = 0.2
-    open var charge: CGFloat = 0
-    open var restitution: CGFloat = 0.2
-    open var linearDamping: CGFloat = 0.1
-    open var angularDamping: CGFloat = 0.1
-    open var density: CGFloat = 1 { didSet { massOverride = nil } }
+    @objc open var isDynamic = true { didSet { if isEdge { isDynamic = false } } }
+    @objc open var usesPreciseCollisionDetection = false
+    @objc open var allowsRotation = true
+    @objc open var pinned = false
+    @objc open var isResting = false
+    @objc open var friction: CGFloat = 0.2
+    @objc open var charge: CGFloat = 0
+    @objc open var restitution: CGFloat = 0.2
+    @objc open var linearDamping: CGFloat = 0.1
+    @objc open var angularDamping: CGFloat = 0.1
+    @objc open var density: CGFloat = 1 { didSet { massOverride = nil } }
     var massOverride: CGFloat?
-    open var mass: CGFloat {
+    @objc open var mass: CGFloat {
         get { massOverride ?? density * area }
         set { let a = area; if a > 0 { density = newValue / a }; massOverride = newValue }
     }
     /// in square meters
-    open var area: CGFloat { areaPoints / (_ptm * _ptm) }
-    open var affectedByGravity = true
-    open var fieldBitMask: UInt32 = 0xFFFF_FFFF
-    open var categoryBitMask: UInt32 = 0xFFFF_FFFF
-    open var collisionBitMask: UInt32 = 0xFFFF_FFFF
-    open var contactTestBitMask: UInt32 = 0
-    open internal(set) weak var node: SKNode?
-    open var joints: [SKPhysicsJoint] { _joints.compactMap { $0.value } }
+    @objc open var area: CGFloat { areaPoints / (_ptm * _ptm) }
+    @objc open var affectedByGravity = true
+    @objc open var fieldBitMask: UInt32 = 0xFFFF_FFFF
+    @objc open var categoryBitMask: UInt32 = 0xFFFF_FFFF
+    @objc open var collisionBitMask: UInt32 = 0xFFFF_FFFF
+    @objc open var contactTestBitMask: UInt32 = 0
+    @objc open internal(set) weak var node: SKNode?
+    @objc open var joints: [SKPhysicsJoint] { _joints.compactMap { $0.value } }
     var _joints: [_WeakJoint] = []
-    open var velocity = CGVector.zero
-    open var angularVelocity: CGFloat = 0
+    @objc open var velocity = CGVector.zero
+    @objc open var angularVelocity: CGFloat = 0
 
     // simulation state (scene space)
     var com = CGPoint.zero          // center of mass
@@ -147,28 +147,28 @@ open class SKPhysicsBody: NSObject {
         if edge { isDynamic = false }
         computeMassProperties()
     }
-    public override init() { shapes = []; super.init() }
+    @objc public override init() { shapes = []; super.init() }
 
-    public convenience init(circleOfRadius r: CGFloat) { self.init(circleOfRadius: r, center: .zero) }
-    public convenience init(circleOfRadius r: CGFloat, center: CGPoint) { self.init(shapes: [.circle(center, max(r, 0.001))], edge: false) }
-    public convenience init(rectangleOf s: CGSize) { self.init(rectangleOf: s, center: .zero) }
-    public convenience init(rectangleOf s: CGSize, center c: CGPoint) {
+    @objc public convenience init(circleOfRadius r: CGFloat) { self.init(circleOfRadius: r, center: .zero) }
+    @objc public convenience init(circleOfRadius r: CGFloat, center: CGPoint) { self.init(shapes: [.circle(center, max(r, 0.001))], edge: false) }
+    @objc public convenience init(rectangleOf s: CGSize) { self.init(rectangleOf: s, center: .zero) }
+    @objc public convenience init(rectangleOf s: CGSize, center c: CGPoint) {
         let w = s.width / 2, h = s.height / 2
         self.init(shapes: [.polygon([CGPoint(x: c.x - w, y: c.y - h), CGPoint(x: c.x + w, y: c.y - h), CGPoint(x: c.x + w, y: c.y + h), CGPoint(x: c.x - w, y: c.y + h)])], edge: false)
     }
     /// A polygon from a path; concave ones are split into convex pieces (SKPhysics2.swift).
-    public convenience init(polygonFrom path: CGPath) {
+    @objc public convenience init(polygonFrom path: CGPath) {
         let pts = _pathPoints(path).first ?? []
         if pts.count >= 3 { self.init(shapes: SKPhysicsBody._pieces(pts, fallback: path.boundingBox), edge: false) }
         else { let b = path.boundingBox; self.init(rectangleOf: b.size, center: CGPoint(x: b.midX, y: b.midY)) }
     }
-    public convenience init(edgeFrom p1: CGPoint, to p2: CGPoint) { self.init(shapes: [.segment(p1, p2)], edge: true) }
-    public convenience init(edgeChainFrom path: CGPath) {
+    @objc public convenience init(edgeFrom p1: CGPoint, to p2: CGPoint) { self.init(shapes: [.segment(p1, p2)], edge: true) }
+    @objc public convenience init(edgeChainFrom path: CGPath) {
         var segs: [_PShape] = []
         for sp in _pathPoints(path) { for i in 1..<sp.count where sp[i] != sp[i - 1] { segs.append(.segment(sp[i - 1], sp[i])) } }
         self.init(shapes: segs, edge: true)
     }
-    public convenience init(edgeLoopFrom path: CGPath) {
+    @objc(initWithEdgeLoopFromPath:) public convenience init(edgeLoopFrom path: CGPath) {
         var segs: [_PShape] = []
         for sp in _pathPoints(path) {
             for i in 1..<sp.count where sp[i] != sp[i - 1] { segs.append(.segment(sp[i - 1], sp[i])) }
@@ -176,19 +176,19 @@ open class SKPhysicsBody: NSObject {
         }
         self.init(shapes: segs, edge: true)
     }
-    public convenience init(edgeLoopFrom r: CGRect) { self.init(edgeLoopFrom: CGPath(rect: r, transform: nil)) }
+    @objc(initWithEdgeLoopFromRect:) public convenience init(edgeLoopFrom r: CGRect) { self.init(edgeLoopFrom: CGPath(rect: r, transform: nil)) }
     /// The outline of the texture's opaque pixels (traced from its alpha), scaled to size and centered on the node.
-    public convenience init(texture: SKTexture, size: CGSize) { self.init(texture: texture, alphaThreshold: 0, size: size) }
-    public convenience init(texture: SKTexture, alphaThreshold: Float, size: CGSize) {
+    @objc public convenience init(texture: SKTexture, size: CGSize) { self.init(texture: texture, alphaThreshold: 0, size: size) }
+    @objc public convenience init(texture: SKTexture, alphaThreshold: Float, size: CGSize) {
         let box = CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height)
         if let outline = _alphaOutline(texture, threshold: alphaThreshold, size: size) { self.init(shapes: SKPhysicsBody._pieces(outline, fallback: box), edge: false) }
         else { self.init(rectangleOf: size) }
     }
-    public convenience init(bodies: [SKPhysicsBody]) {
+    @objc public convenience init(bodies: [SKPhysicsBody]) {
         self.init(shapes: bodies.flatMap { $0.shapes }, edge: bodies.allSatisfy { $0.isEdge } && !bodies.isEmpty)
     }
 
-    open override func copy() -> Any {
+    @objc open override func copy() -> Any {
         let b = SKPhysicsBody(shapes: shapes, edge: isEdge)
         b.isDynamic = isDynamic; b.usesPreciseCollisionDetection = usesPreciseCollisionDetection; b.allowsRotation = allowsRotation
         b.pinned = pinned; b.friction = friction; b.charge = charge; b.restitution = restitution; b.linearDamping = linearDamping
@@ -225,24 +225,24 @@ open class SKPhysicsBody: NSObject {
     }
 
     // forces (Newtons / meters, as in SpriteKit)
-    open func applyForce(_ f: CGVector) { force.x += f.dx * _ptm; force.y += f.dy * _ptm }
-    open func applyForce(_ f: CGVector, at p: CGPoint) {
+    @objc open func applyForce(_ f: CGVector) { force.x += f.dx * _ptm; force.y += f.dy * _ptm }
+    @objc(applyForce:atPoint:) open func applyForce(_ f: CGVector, at p: CGPoint) {
         applyForce(f)
         torque += _cross(_sub(p, com), CGPoint(x: f.dx * _ptm, y: f.dy * _ptm))
     }
-    open func applyTorque(_ t: CGFloat) { torque += t * _ptm * _ptm }
-    open func applyImpulse(_ j: CGVector) {
+    @objc open func applyTorque(_ t: CGFloat) { torque += t * _ptm * _ptm }
+    @objc open func applyImpulse(_ j: CGVector) {
         guard isDynamic, mass > 0 else { return }
         velocity.dx += j.dx * _ptm / mass; velocity.dy += j.dy * _ptm / mass
         isResting = false; restTime = 0
     }
-    open func applyImpulse(_ j: CGVector, at p: CGPoint) {
+    @objc(applyImpulse:atPoint:) open func applyImpulse(_ j: CGVector, at p: CGPoint) {
         applyImpulse(j)
         guard isDynamic, allowsRotation else { return }
         let I = inertiaInternal
         if I > 0 { angularVelocity += _cross(_sub(p, com), CGPoint(x: j.dx * _ptm, y: j.dy * _ptm)) / I }
     }
-    open func applyAngularImpulse(_ j: CGFloat) {
+    @objc open func applyAngularImpulse(_ j: CGFloat) {
         guard isDynamic, allowsRotation else { return }
         let I = inertiaInternal
         if I > 0 { angularVelocity += j * _ptm * _ptm / I }
@@ -251,11 +251,11 @@ open class SKPhysicsBody: NSObject {
     var inertiaInternal: CGFloat { mass * unitInertia }
 
     /// bodies currently touching this one
-    open func allContactedBodies() -> [SKPhysicsBody] {
+    @objc open func allContactedBodies() -> [SKPhysicsBody] {
         guard let w = node?.scene?.physicsWorld else { return [] }
         return w.lastBodies.filter { touching.contains(ObjectIdentifier($0)) }
     }
-    open override var description: String {
+    @objc open override var description: String {
         var kind = "Polygon"
         if isEdge { kind = "Edge" } else if case .circle? = shapes.first { kind = "Circle" }
         return "<SKPhysicsBody> type:<\(kind)> representedObject:[\(node?.name ?? node.map { "\(type(of: $0))" } ?? "nil")]"
@@ -333,16 +333,16 @@ func _closestOnSegment(_ p: CGPoint, _ a: CGPoint, _ b: CGPoint) -> CGPoint {
 
 // MARK: - Contact
 
-open class SKPhysicsContact: NSObject {
-    open internal(set) var bodyA: SKPhysicsBody
-    open internal(set) var bodyB: SKPhysicsBody
-    open internal(set) var contactPoint: CGPoint
-    open internal(set) var contactNormal: CGVector
-    open internal(set) var collisionImpulse: CGFloat
+@objc(SKPhysicsContact) open class SKPhysicsContact: NSObject {
+    @objc open internal(set) var bodyA: SKPhysicsBody
+    @objc open internal(set) var bodyB: SKPhysicsBody
+    @objc open internal(set) var contactPoint: CGPoint
+    @objc open internal(set) var contactNormal: CGVector
+    @objc open internal(set) var collisionImpulse: CGFloat
     init(a: SKPhysicsBody, b: SKPhysicsBody, point: CGPoint, normal: CGVector, impulse: CGFloat) {
         bodyA = a; bodyB = b; contactPoint = point; contactNormal = normal; collisionImpulse = impulse
     }
-    open override var description: String { "<SKPhysicsContact> \(bodyA) <-> \(bodyB) at \(contactPoint)" }
+    @objc open override var description: String { "<SKPhysicsContact> \(bodyA) <-> \(bodyB) at \(contactPoint)" }
 }
 
 public protocol SKPhysicsContactDelegate: NSObjectProtocol {
@@ -490,9 +490,9 @@ enum _Collide {
 
 // MARK: - World
 
-open class SKPhysicsWorld: NSObject {
-    open var gravity = CGVector(dx: 0, dy: -9.8)
-    open var speed: CGFloat = 1
+@objc(SKPhysicsWorld) open class SKPhysicsWorld: NSObject {
+    @objc open var gravity = CGVector(dx: 0, dy: -9.8)
+    @objc open var speed: CGFloat = 1
     open weak var contactDelegate: SKPhysicsContactDelegate?
     // isim ABI: until 0.19 this property was typed AnyObject?; keep its getter/setter entry points for apps built then
     @usableFromInline @_silgen_name("$s9SpriteKit14SKPhysicsWorldC15contactDelegateyXlSgvgTj")
@@ -504,37 +504,37 @@ open class SKPhysicsWorld: NSObject {
     var touchingPairs: [_PairKey: (SKPhysicsBody, SKPhysicsBody)] = [:]
     weak var scene: SKScene?
 
-    open func add(_ joint: SKPhysicsJoint) {
+    @objc(addJoint:) open func add(_ joint: SKPhysicsJoint) {
         guard !jointList.contains(where: { $0 === joint }) else { return }
         jointList.append(joint)
         joint.prepare()
         joint.bodyA.map { $0._joints.append(_WeakJoint(joint)) }
         joint.bodyB.map { $0._joints.append(_WeakJoint(joint)) }
     }
-    open func remove(_ joint: SKPhysicsJoint) {
+    @objc(removeJoint:) open func remove(_ joint: SKPhysicsJoint) {
         jointList.removeAll { $0 === joint }
         joint.bodyA?._joints.removeAll { $0.value === joint || $0.value == nil }
         joint.bodyB?._joints.removeAll { $0.value === joint || $0.value == nil }
     }
-    open func removeAllJoints() { for j in jointList { remove(j) } }
+    @objc open func removeAllJoints() { for j in jointList { remove(j) } }
 
-    open func body(at p: CGPoint) -> SKPhysicsBody? { lastBodies.first { $0.containsPoint(p) } }
-    open func body(in r: CGRect) -> SKPhysicsBody? { lastBodies.first { $0.aabb.intersects(r) } }
-    open func enumerateBodies(at p: CGPoint, using block: (SKPhysicsBody, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    @objc(bodyAtPoint:) open func body(at p: CGPoint) -> SKPhysicsBody? { lastBodies.first { $0.containsPoint(p) } }
+    @objc(bodyInRect:) open func body(in r: CGRect) -> SKPhysicsBody? { lastBodies.first { $0.aabb.intersects(r) } }
+    @objc(enumerateBodiesAtPoint:usingBlock:) open func enumerateBodies(at p: CGPoint, using block: (SKPhysicsBody, UnsafeMutablePointer<ObjCBool>) -> Void) {
         var stop: ObjCBool = false
         for b in lastBodies where b.containsPoint(p) { block(b, &stop); if stop.boolValue { return } }
     }
-    open func enumerateBodies(in r: CGRect, using block: (SKPhysicsBody, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    @objc(enumerateBodiesInRect:usingBlock:) open func enumerateBodies(in r: CGRect, using block: (SKPhysicsBody, UnsafeMutablePointer<ObjCBool>) -> Void) {
         var stop: ObjCBool = false
         for b in lastBodies where b.aabb.intersects(r) { block(b, &stop); if stop.boolValue { return } }
     }
     /// ray casts: bodies whose shapes the segment crosses, nearest first
-    open func enumerateBodies(alongRayStart start: CGPoint, end: CGPoint,
+    @objc(enumerateBodiesAlongRayStart:end:usingBlock:) open func enumerateBodies(alongRayStart start: CGPoint, end: CGPoint,
                               using block: (SKPhysicsBody, CGPoint, CGVector, UnsafeMutablePointer<ObjCBool>) -> Void) {
         var stop: ObjCBool = false
         for (b, p, n) in rayHits(start, end) { block(b, p, n, &stop); if stop.boolValue { return } }
     }
-    open func body(alongRayStart start: CGPoint, end: CGPoint) -> SKPhysicsBody? { rayHits(start, end).first?.0 }
+    @objc open func body(alongRayStart start: CGPoint, end: CGPoint) -> SKPhysicsBody? { rayHits(start, end).first?.0 }
 
     func rayHits(_ s: CGPoint, _ e: CGPoint) -> [(SKPhysicsBody, CGPoint, CGVector)] {
         var hits: [(CGFloat, SKPhysicsBody, CGPoint, CGVector)] = []
@@ -867,11 +867,11 @@ struct _PairKey: Hashable {
 
 // MARK: - Joints
 
-open class SKPhysicsJoint: NSObject {
-    open var bodyA: SKPhysicsBody!
-    open var bodyB: SKPhysicsBody!
-    open var reactionForce: CGVector { CGVector(dx: lastImpulse.x / max(lastDt, 1e-6) / _ptm, dy: lastImpulse.y / max(lastDt, 1e-6) / _ptm) }
-    open var reactionTorque: CGFloat { lastAngularImpulse / max(lastDt, 1e-6) / (_ptm * _ptm) }
+@objc(SKPhysicsJoint) open class SKPhysicsJoint: NSObject {
+    @objc open var bodyA: SKPhysicsBody!
+    @objc open var bodyB: SKPhysicsBody!
+    @objc open var reactionForce: CGVector { CGVector(dx: lastImpulse.x / max(lastDt, 1e-6) / _ptm, dy: lastImpulse.y / max(lastDt, 1e-6) / _ptm) }
+    @objc open var reactionTorque: CGFloat { lastAngularImpulse / max(lastDt, 1e-6) / (_ptm * _ptm) }
     var lastImpulse = CGPoint.zero, lastAngularImpulse: CGFloat = 0, lastDt: CGFloat = 0
     /// anchors in each body's local frame (relative to its center of mass, unrotated)
     var localA = CGPoint.zero, localB = CGPoint.zero
@@ -927,14 +927,14 @@ extension SKPhysicsBody {
     }
 }
 
-open class SKPhysicsJointPin: SKPhysicsJoint {
-    open var shouldEnableLimits = false
-    open var lowerAngleLimit: CGFloat = 0
-    open var upperAngleLimit: CGFloat = 0
-    open var frictionTorque: CGFloat = 0
-    open var rotationSpeed: CGFloat = 0
+@objc(SKPhysicsJointPin) open class SKPhysicsJointPin: SKPhysicsJoint {
+    @objc open var shouldEnableLimits = false
+    @objc open var lowerAngleLimit: CGFloat = 0
+    @objc open var upperAngleLimit: CGFloat = 0
+    @objc open var frictionTorque: CGFloat = 0
+    @objc open var rotationSpeed: CGFloat = 0
     var anchor = CGPoint.zero
-    open class func joint(withBodyA a: SKPhysicsBody, bodyB b: SKPhysicsBody, anchor: CGPoint) -> SKPhysicsJointPin {
+    @objc open class func joint(withBodyA a: SKPhysicsBody, bodyB b: SKPhysicsBody, anchor: CGPoint) -> SKPhysicsJointPin {
         let j = SKPhysicsJointPin(); j.bodyA = a; j.bodyB = b; j.anchor = anchor; return j
     }
     override func prepare() { localA = local(bodyA, anchor); localB = local(bodyB, anchor); refAngle = bodyB.angle - bodyA.angle }
@@ -967,9 +967,9 @@ open class SKPhysicsJointPin: SKPhysicsJoint {
     }
 }
 
-open class SKPhysicsJointFixed: SKPhysicsJoint {
+@objc(SKPhysicsJointFixed) open class SKPhysicsJointFixed: SKPhysicsJoint {
     var anchor = CGPoint.zero
-    open class func joint(withBodyA a: SKPhysicsBody, bodyB b: SKPhysicsBody, anchor: CGPoint) -> SKPhysicsJointFixed {
+    @objc open class func joint(withBodyA a: SKPhysicsBody, bodyB b: SKPhysicsBody, anchor: CGPoint) -> SKPhysicsJointFixed {
         let j = SKPhysicsJointFixed(); j.bodyA = a; j.bodyB = b; j.anchor = anchor; return j
     }
     override func prepare() { localA = local(bodyA, anchor); localB = local(bodyB, anchor); refAngle = bodyB.angle - bodyA.angle }
@@ -986,11 +986,11 @@ open class SKPhysicsJointFixed: SKPhysicsJoint {
     }
 }
 
-open class SKPhysicsJointSpring: SKPhysicsJoint {
-    open var damping: CGFloat = 0
-    open var frequency: CGFloat = 0
+@objc(SKPhysicsJointSpring) open class SKPhysicsJointSpring: SKPhysicsJoint {
+    @objc open var damping: CGFloat = 0
+    @objc open var frequency: CGFloat = 0
     var anchorA = CGPoint.zero, anchorB = CGPoint.zero, rest: CGFloat = 0
-    open class func joint(withBodyA a: SKPhysicsBody, bodyB b: SKPhysicsBody, anchorA: CGPoint, anchorB: CGPoint) -> SKPhysicsJointSpring {
+    @objc open class func joint(withBodyA a: SKPhysicsBody, bodyB b: SKPhysicsBody, anchorA: CGPoint, anchorB: CGPoint) -> SKPhysicsJointSpring {
         let j = SKPhysicsJointSpring(); j.bodyA = a; j.bodyB = b; j.anchorA = anchorA; j.anchorB = anchorB; return j
     }
     override func prepare() { localA = local(bodyA, anchorA); localB = local(bodyB, anchorB); rest = _len(_sub(anchorB, anchorA)) }
@@ -1014,10 +1014,10 @@ open class SKPhysicsJointSpring: SKPhysicsJoint {
     }
 }
 
-open class SKPhysicsJointLimit: SKPhysicsJoint {
-    open var maxLength: CGFloat = 0
+@objc(SKPhysicsJointLimit) open class SKPhysicsJointLimit: SKPhysicsJoint {
+    @objc open var maxLength: CGFloat = 0
     var anchorA = CGPoint.zero, anchorB = CGPoint.zero
-    open class func joint(withBodyA a: SKPhysicsBody, bodyB b: SKPhysicsBody, anchorA: CGPoint, anchorB: CGPoint) -> SKPhysicsJointLimit {
+    @objc open class func joint(withBodyA a: SKPhysicsBody, bodyB b: SKPhysicsBody, anchorA: CGPoint, anchorB: CGPoint) -> SKPhysicsJointLimit {
         let j = SKPhysicsJointLimit(); j.bodyA = a; j.bodyB = b; j.anchorA = anchorA; j.anchorB = anchorB
         j.maxLength = _len(_sub(anchorB, anchorA)); return j
     }
@@ -1049,12 +1049,12 @@ open class SKPhysicsJointLimit: SKPhysicsJoint {
     }
 }
 
-open class SKPhysicsJointSliding: SKPhysicsJoint {
-    open var shouldEnableLimits = false
-    open var lowerDistanceLimit: CGFloat = 0
-    open var upperDistanceLimit: CGFloat = 0
+@objc(SKPhysicsJointSliding) open class SKPhysicsJointSliding: SKPhysicsJoint {
+    @objc open var shouldEnableLimits = false
+    @objc open var lowerDistanceLimit: CGFloat = 0
+    @objc open var upperDistanceLimit: CGFloat = 0
     var anchor = CGPoint.zero, axis = CGVector(dx: 1, dy: 0), localAxis = CGPoint(x: 1, y: 0)
-    open class func joint(withBodyA a: SKPhysicsBody, bodyB b: SKPhysicsBody, anchor: CGPoint, axis: CGVector) -> SKPhysicsJointSliding {
+    @objc open class func joint(withBodyA a: SKPhysicsBody, bodyB b: SKPhysicsBody, anchor: CGPoint, axis: CGVector) -> SKPhysicsJointSliding {
         let j = SKPhysicsJointSliding(); j.bodyA = a; j.bodyB = b; j.anchor = anchor; j.axis = axis; return j
     }
     override func prepare() {

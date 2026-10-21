@@ -1,12 +1,9 @@
 #pragma once
 /* isim ARKit: ARSCNView (SceneKit's SCNView, which draws nothing yet, #330: the view shows black; no camera feed on isim)
- * and ARSKView (SpriteKit over black; declared once SpriteKit has Objective-C headers, #618). Their delegates get the
- * session's events. */
+ * and ARSKView (SpriteKit over black). Their delegates get the session's events. */
 #import <ARKit/ARSession.h>
 #import <SceneKit/SceneKit.h>
-#if __has_include(<SpriteKit/SpriteKit.h>)
 #import <SpriteKit/SpriteKit.h>
-#endif
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
 @protocol ARSCNViewDelegate <SCNSceneRendererDelegate, ARSessionObserver>
@@ -28,7 +25,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable SCNNode *)nodeForAnchor:(ARAnchor *)anchor;
 - (nullable ARRaycastQuery *)raycastQueryFromPoint:(CGPoint)point allowingTarget:(ARRaycastTarget)target alignment:(ARRaycastTargetAlignment)alignment;
 @end
-#if __has_include(<SpriteKit/SpriteKit.h>)
 @class ARSKView;
 @protocol ARSKViewDelegate <SKViewDelegate, ARSessionObserver>
 @optional
@@ -44,7 +40,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable ARAnchor *)anchorForNode:(SKNode *)node;
 - (nullable SKNode *)nodeForAnchor:(ARAnchor *)anchor;
 @end
-#endif
 typedef NS_ENUM(NSInteger, ARCoachingGoal) {
     ARCoachingGoalTracking = 0, ARCoachingGoalHorizontalPlane, ARCoachingGoalVerticalPlane, ARCoachingGoalAnyPlane, ARCoachingGoalGeoTracking
 };

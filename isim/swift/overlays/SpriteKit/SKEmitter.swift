@@ -8,18 +8,18 @@ import isim_host
 public enum SKInterpolationMode: Int, Sendable { case linear = 1, spline = 2, step = 3 }
 public enum SKRepeatMode: Int, Sendable { case clamp = 1, loop = 2 }
 
-open class SKKeyframeSequence: NSObject {
+@objc(SKKeyframeSequence) open class SKKeyframeSequence: NSObject {
     var values: [Any] = []
     var times: [CGFloat] = []
     open var interpolationMode: SKInterpolationMode = .linear
     open var repeatMode: SKRepeatMode = .clamp
 
-    public init(keyframeValues values: [Any], times: [NSNumber]) {
+    @objc public init(keyframeValues values: [Any], times: [NSNumber]) {
         super.init()
         for (v, t) in zip(values, times) { addKeyframeValue(v, time: CGFloat(t.doubleValue)) }
     }
-    public convenience init(capacity numItems: Int) { self.init(keyframeValues: [], times: []) }
-    public required init?(coder: NSCoder) {
+    @objc public convenience init(capacity numItems: Int) { self.init(keyframeValues: [], times: []) }
+    @objc public required init?(coder: NSCoder) {
         super.init()
         guard let c = coder as? _SKCoder else { return }
         if let m = c.int("interpolationMode").flatMap(SKInterpolationMode.init(rawValue:)) { interpolationMode = m }
@@ -43,27 +43,27 @@ open class SKKeyframeSequence: NSObject {
             if let value = c.keyframeValue(v), let time = t.double { addKeyframeValue(value, time: CGFloat(time)) }
         }
     }
-    open override func copy() -> Any {
+    @objc open override func copy() -> Any {
         let s = SKKeyframeSequence(keyframeValues: values, times: times.map { NSNumber(value: Double($0)) })
         s.interpolationMode = interpolationMode; s.repeatMode = repeatMode
         return s
     }
 
-    open func count() -> Int { values.count }
-    open func addKeyframeValue(_ value: Any, time: CGFloat) {
+    @objc open func count() -> Int { values.count }
+    @objc open func addKeyframeValue(_ value: Any, time: CGFloat) {
         let i = times.firstIndex { $0 > time } ?? times.count
         values.insert(value, at: i); times.insert(time, at: i)
     }
-    open func removeLastKeyframe() { if !values.isEmpty { values.removeLast(); times.removeLast() } }
-    open func removeKeyframe(at index: Int) { guard index < values.count else { return }; values.remove(at: index); times.remove(at: index) }
-    open func setKeyframeValue(_ value: Any, for index: Int) { if index < values.count { values[index] = value } }
-    open func setKeyframeTime(_ time: CGFloat, for index: Int) { if index < times.count { times[index] = time } }
-    open func setKeyframeValue(_ value: Any, time: CGFloat, for index: Int) { if index < values.count { values[index] = value; times[index] = time } }
-    open func getKeyframeValue(for index: Int) -> Any { values[index] }
-    open func getKeyframeTime(for index: Int) -> CGFloat { times[index] }
+    @objc open func removeLastKeyframe() { if !values.isEmpty { values.removeLast(); times.removeLast() } }
+    @objc(removeKeyframeAtIndex:) open func removeKeyframe(at index: Int) { guard index < values.count else { return }; values.remove(at: index); times.remove(at: index) }
+    @objc(setKeyframeValue:forIndex:) open func setKeyframeValue(_ value: Any, for index: Int) { if index < values.count { values[index] = value } }
+    @objc(setKeyframeTime:forIndex:) open func setKeyframeTime(_ time: CGFloat, for index: Int) { if index < times.count { times[index] = time } }
+    @objc(setKeyframeValue:time:forIndex:) open func setKeyframeValue(_ value: Any, time: CGFloat, for index: Int) { if index < values.count { values[index] = value; times[index] = time } }
+    @objc(getKeyframeValueForIndex:) open func getKeyframeValue(for index: Int) -> Any { values[index] }
+    @objc(getKeyframeTimeForIndex:) open func getKeyframeTime(for index: Int) -> CGFloat { times[index] }
 
     /// interpolated value at a time: numbers and colors interpolate, other values step
-    open func sample(atTime time: CGFloat) -> Any? {
+    @objc open func sample(atTime time: CGFloat) -> Any? {
         guard !values.isEmpty else { return nil }
         var t = time
         if repeatMode == .loop, let last = times.last, let first = times.first, last > first {
@@ -120,49 +120,49 @@ struct _Particle {
     var z: CGFloat
 }
 
-open class SKEmitterNode: SKNode {
-    open var particleTexture: SKTexture?
-    open var particleZPosition: CGFloat = 0
-    open var particleZPositionRange: CGFloat = 0
-    open var particleZPositionSpeed: CGFloat = 0
+@objc(SKEmitterNode) open class SKEmitterNode: SKNode {
+    @objc open var particleTexture: SKTexture?
+    @objc open var particleZPosition: CGFloat = 0
+    @objc open var particleZPositionRange: CGFloat = 0
+    @objc open var particleZPositionSpeed: CGFloat = 0
     open var particleRenderOrder: SKParticleRenderOrder = .oldestLast
     open var particleBlendMode: SKBlendMode = .alpha
-    open var particleColor: UIColor = .white
-    open var particleColorRedRange: CGFloat = 0, particleColorGreenRange: CGFloat = 0, particleColorBlueRange: CGFloat = 0, particleColorAlphaRange: CGFloat = 0
-    open var particleColorRedSpeed: CGFloat = 0, particleColorGreenSpeed: CGFloat = 0, particleColorBlueSpeed: CGFloat = 0, particleColorAlphaSpeed: CGFloat = 0
-    open var particleColorSequence: SKKeyframeSequence?
-    open var particleColorBlendFactor: CGFloat = 0
-    open var particleColorBlendFactorRange: CGFloat = 0
-    open var particleColorBlendFactorSpeed: CGFloat = 0
-    open var particleColorBlendFactorSequence: SKKeyframeSequence?
-    open var particleBirthRate: CGFloat = 0
-    open var numParticlesToEmit: Int = 0
-    open var particleLifetime: CGFloat = 0
-    open var particleLifetimeRange: CGFloat = 0
-    open var particlePosition: CGPoint = .zero
-    open var particlePositionRange: CGVector = .zero
-    open var particleSpeed: CGFloat = 0
-    open var particleSpeedRange: CGFloat = 0
-    open var emissionAngle: CGFloat = 0
-    open var emissionAngleRange: CGFloat = 0
-    open var xAcceleration: CGFloat = 0
-    open var yAcceleration: CGFloat = 0
-    open var particleAlpha: CGFloat = 1
-    open var particleAlphaRange: CGFloat = 0
-    open var particleAlphaSpeed: CGFloat = 0
-    open var particleAlphaSequence: SKKeyframeSequence?
-    open var particleScale: CGFloat = 1
-    open var particleScaleRange: CGFloat = 0
-    open var particleScaleSpeed: CGFloat = 0
-    open var particleScaleSequence: SKKeyframeSequence?
-    open var particleRotation: CGFloat = 0
-    open var particleRotationRange: CGFloat = 0
-    open var particleRotationSpeed: CGFloat = 0
-    open var particleSize: CGSize = .zero
-    open var fieldBitMask: UInt32 = 0
-    open weak var targetNode: SKNode?
-    open var shader: SKShader?
-    open var particleAction: SKAction?
+    @objc open var particleColor: UIColor = .white
+    @objc open var particleColorRedRange: CGFloat = 0, particleColorGreenRange: CGFloat = 0, particleColorBlueRange: CGFloat = 0, particleColorAlphaRange: CGFloat = 0
+    @objc open var particleColorRedSpeed: CGFloat = 0, particleColorGreenSpeed: CGFloat = 0, particleColorBlueSpeed: CGFloat = 0, particleColorAlphaSpeed: CGFloat = 0
+    @objc open var particleColorSequence: SKKeyframeSequence?
+    @objc open var particleColorBlendFactor: CGFloat = 0
+    @objc open var particleColorBlendFactorRange: CGFloat = 0
+    @objc open var particleColorBlendFactorSpeed: CGFloat = 0
+    @objc open var particleColorBlendFactorSequence: SKKeyframeSequence?
+    @objc open var particleBirthRate: CGFloat = 0
+    @objc open var numParticlesToEmit: Int = 0
+    @objc open var particleLifetime: CGFloat = 0
+    @objc open var particleLifetimeRange: CGFloat = 0
+    @objc open var particlePosition: CGPoint = .zero
+    @objc open var particlePositionRange: CGVector = .zero
+    @objc open var particleSpeed: CGFloat = 0
+    @objc open var particleSpeedRange: CGFloat = 0
+    @objc open var emissionAngle: CGFloat = 0
+    @objc open var emissionAngleRange: CGFloat = 0
+    @objc open var xAcceleration: CGFloat = 0
+    @objc open var yAcceleration: CGFloat = 0
+    @objc open var particleAlpha: CGFloat = 1
+    @objc open var particleAlphaRange: CGFloat = 0
+    @objc open var particleAlphaSpeed: CGFloat = 0
+    @objc open var particleAlphaSequence: SKKeyframeSequence?
+    @objc open var particleScale: CGFloat = 1
+    @objc open var particleScaleRange: CGFloat = 0
+    @objc open var particleScaleSpeed: CGFloat = 0
+    @objc open var particleScaleSequence: SKKeyframeSequence?
+    @objc open var particleRotation: CGFloat = 0
+    @objc open var particleRotationRange: CGFloat = 0
+    @objc open var particleRotationSpeed: CGFloat = 0
+    @objc open var particleSize: CGSize = .zero
+    @objc open var fieldBitMask: UInt32 = 0
+    @objc open weak var targetNode: SKNode?
+    @objc open var shader: SKShader?
+    @objc open var particleAction: SKAction?
 
     var particles: [_Particle] = []
     var birthDebt: CGFloat = 0
@@ -222,8 +222,8 @@ open class SKEmitterNode: SKNode {
         e.particleAction = particleAction
         e.targetNode = targetNode
     }
-    public override init() { super.init() }
-    public required init?(coder: NSCoder) {
+    @objc public override init() { super.init() }
+    @objc public required init?(coder: NSCoder) {
         super.init(coder: coder)
         guard let c = coder as? _SKCoder else { return }
         particleTexture = c.texture("particleTexture") ?? c.texture("texture")
@@ -257,11 +257,11 @@ open class SKEmitterNode: SKNode {
         particleColorBlendFactorSequence = c.keyframes("particleColorBlendFactorSequence")
     }
 
-    open func advanceSimulationTime(_ sec: TimeInterval) {
+    @objc open func advanceSimulationTime(_ sec: TimeInterval) {
         var left = sec
         while left > 0 { let h = min(left, 1.0 / 60); simulate(h); left -= h }
     }
-    open func resetSimulation() { particles.removeAll(); birthDebt = 0; emitted = 0 }
+    @objc open func resetSimulation() { particles.removeAll(); birthDebt = 0; emitted = 0 }
 
     /// the emitter's frame of reference: particles live in the target node's space when it is set
     func emitterToTarget() -> CGAffineTransform {
