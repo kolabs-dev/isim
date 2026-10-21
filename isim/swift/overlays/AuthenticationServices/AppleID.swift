@@ -3,18 +3,18 @@ import Foundation
 import UIKit
 import CryptoKit
 
-open class ASAuthorizationOpenIDRequest: ASAuthorizationRequest {
+@objc(ASAuthorizationOpenIDRequest) open class ASAuthorizationOpenIDRequest: ASAuthorizationRequest {
     open var requestedScopes: [ASAuthorization.Scope]?
     open var state: String?
     open var nonce: String?
     open var requestedOperation: ASAuthorization.OpenIDOperation = .operationImplicit
 }
 
-open class ASAuthorizationAppleIDRequest: ASAuthorizationOpenIDRequest {
+@objc(ASAuthorizationAppleIDRequest) open class ASAuthorizationAppleIDRequest: ASAuthorizationOpenIDRequest {
     open var user: String?
 }
 
-open class ASAuthorizationAppleIDProvider: NSObject, ASAuthorizationProvider {
+@objc(ASAuthorizationAppleIDProvider) open class ASAuthorizationAppleIDProvider: NSObject, ASAuthorizationProvider {
     public enum CredentialState: Int, Sendable { case revoked = 0, authorized = 1, notFound = 2, transferred = 3 }
 
     public override init() { super.init(); _ASAppleID.watchRevocation() }
@@ -33,7 +33,7 @@ open class ASAuthorizationAppleIDProvider: NSObject, ASAuthorizationProvider {
     }
 }
 
-open class ASAuthorizationAppleIDCredential: NSObject, ASAuthorizationCredential {
+@objc(ASAuthorizationAppleIDCredential) open class ASAuthorizationAppleIDCredential: NSObject, ASAuthorizationCredential {
     public let user: String
     public let state: String?
     public let authorizedScopes: [ASAuthorization.Scope]

@@ -219,6 +219,7 @@ SWIFT_FRAMEWORKS = [
     ("ContactsUI", "-framework Foundation -framework UIKit -framework Contacts"),
     ("EventKit", "-framework Foundation"),
     ("EventKitUI", "-framework Foundation -framework UIKit -framework EventKit"),
+    ("AuthenticationServices", "-framework Foundation -framework UIKit"),   # issue #305: sign-in SDKs are Objective-C
 ]
 
 GUEST_CFLAGS = ["-target", f"x86_64-apple-ios{MINOS}-simulator", "-nostdlibinc", "-isystem", f"{SDK}/usr/include",

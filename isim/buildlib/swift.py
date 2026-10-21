@@ -720,6 +720,15 @@ OBJC_NAMES["EventKit"] = {c: c for c in """EKObject EKSource EKCalendar EKAlarm 
 OBJC_NAMES["EventKitUI"] = {c: c for c in "EKEventEditViewController EKEventViewController".split()}
 OBJC_NAMES["MultipeerConnectivity"] = {c: c for c in """MCPeerID MCSession MCNearbyServiceAdvertiser MCNearbyServiceBrowser MCBrowserViewController
     MCAdvertiserAssistant""".split()}
+# issue #305: sign-in from Objective-C (AppAuth, GoogleSignIn, Facebook Login)
+OBJC_NAMES["AuthenticationServices"] = {**{c: c for c in """ASAuthorizationRequest ASAuthorization ASAuthorizationController
+    ASAuthorizationOpenIDRequest ASAuthorizationAppleIDRequest ASAuthorizationAppleIDProvider ASAuthorizationAppleIDCredential
+    ASAuthorizationAppleIDButton ASAuthorizationPasswordProvider ASAuthorizationPasswordRequest ASPasswordCredential
+    ASAuthorizationPlatformPublicKeyCredentialDescriptor ASAuthorizationPlatformPublicKeyCredentialProvider
+    ASAuthorizationPlatformPublicKeyCredentialRegistrationRequest ASAuthorizationPlatformPublicKeyCredentialAssertionRequest
+    ASAuthorizationPlatformPublicKeyCredentialRegistration ASAuthorizationPlatformPublicKeyCredentialAssertion
+    ASWebAuthenticationSession""".split()},
+                                        "ASWebAuthenticationSession.Callback": "ASWebAuthenticationSessionCallback"}
 
 
 def objc_aliases(module):

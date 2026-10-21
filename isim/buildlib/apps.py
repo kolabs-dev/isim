@@ -384,6 +384,12 @@ def _(a):
                                           "-framework", "SafariServices", "-framework", "MultipeerConnectivity", "-framework", "CoreGraphics"])
 
 
+@app("samples/HelloAuthObjC")   # after the overlays: AuthenticationServices.framework re-exports its Swift overlay (issue #305)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "AuthenticationServices",
+                                          "-framework", "CoreGraphics"])
+
+
 @app("samples/HelloKeychainObjC")   # after the overlays: Security.framework re-exports libswiftSecurity
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Security",
