@@ -175,6 +175,11 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
     ("CoreTelephony", "-framework Foundation"),
     # the Objective-C API over JavaScriptCore's C API, which the host's JavaScriptCore (libisim_jsc) implements
     ("JavaScriptCore", "-framework Foundation -framework CoreGraphics -reexport-lisim_jsc"),
+    # issue #314: frameworks for other devices, each like Apple's Simulator (none paired, nearby or connected)
+    ("WatchConnectivity", "-framework Foundation"),
+    ("ExternalAccessory", "-framework Foundation"),
+    ("AccessorySetupKit", "-framework Foundation -framework UIKit"),
+    ("CoreLocationUI", "-framework Foundation -framework UIKit -framework CoreGraphics"),   # LocationButton is its Swift overlay's
 ]
 
 # Objective-C frameworks whose classes are a Swift overlay's (`@objc(WKWebView)`...): headers in sdk-src/Frameworks/<Name>
@@ -183,6 +188,7 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
 # They link after the overlays (swift.py): name, link arguments of the C/Objective-C part[, the overlay if not <name>]
 SWIFT_FRAMEWORKS = [
     ("WebKit", "-framework Foundation -framework UIKit"),
+    ("NearbyInteraction", "-framework Foundation"),   # issue #314
     ("AdSupport", "-framework Foundation"),
     ("AppTrackingTransparency", "-framework Foundation"),
     ("CoreMotion", "-framework Foundation"),
