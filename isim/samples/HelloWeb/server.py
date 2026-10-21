@@ -14,6 +14,9 @@ GET /oauth/approve      302 to redirect_uri?code=abc123&state=...
 GET /hello.txt          text
 GET /attachment         a text file sent as an attachment (Content-Disposition: attachment; filename="report.txt")
 GET /camera             a page that asks for the camera (getUserMedia) and shows the result in its title
+GET /rules              a page with an "ad" image (/ads/pixel.png) and a .banner element; its title reports whether
+                        content rule lists blocked the image and hid the banner
+GET /ads/pixel.png      a 1x1 PNG
 """
 import hashlib, os, sys, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -58,6 +61,17 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(200, "hello from the local server\n")
         elif path == "/attachment":
             self.reply(200, "quarterly report\n" * 64, headers=[("Content-Disposition", 'attachment; filename="report.txt"')])
+        elif path == "/rules":
+            self.reply(200, "<!doctype html><html><head><meta name=viewport content='width=device-width'><title>Rules</title></head>"
+                            "<body style='font:20px sans-serif;margin:16px'><h1>Content rules</h1>"
+                            "<div class=banner style='background:#ff9500;padding:12px'>Banner ad</div><p>Article text.</p><script>"
+                            "var img=new Image();function report(s){var b=document.querySelector('.banner');"
+                            "document.title='img '+s+' banner '+getComputedStyle(b).display}"
+                            "img.onload=function(){report('loaded')};img.onerror=function(){report('blocked')};img.src='/ads/pixel.png?'+Date.now()"
+                            "</script></body></html>", "text/html; charset=utf-8")
+        elif path.startswith("/ads/"):
+            import base64
+            self.reply(200, base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="), "image/png")
         elif path == "/camera":
             self.reply(200, "<!doctype html><html><head><meta name=viewport content='width=device-width'><title>Camera</title></head>"
                             "<body style='font:20px sans-serif;margin:16px'><h1>Camera</h1><video id=v autoplay playsinline width=200></video><script>"

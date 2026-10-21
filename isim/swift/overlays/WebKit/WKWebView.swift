@@ -281,6 +281,7 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
                                _WKProto.num(Double(UIScreen.main.scale)), store.isPersistent ? "0" : "1", dir, _userAgent, js ? "1" : "0", _bgString()])
         for s in configuration.userContentController.userScripts { _installScript(s) }
         for h in configuration.userContentController._handlers { _installHandler(h) }
+        for l in configuration.userContentController._ruleLists { _send(["addrule", l._store, l.identifier]) }
     }
     private func _bgString() -> String {
         if !isOpaque { return "rgba(0,0,0,0)" }

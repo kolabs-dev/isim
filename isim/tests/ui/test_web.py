@@ -241,3 +241,27 @@ def test_web_transfers(launch, web):
     app.wait_still()
     app.screenshot("camera-granted")
     assert app.quit() == 0
+
+
+def test_web_content_rules(launch, web):
+    """Content rule lists (WebKitGTK's content filters, Apple's JSON): a block rule stops an image, css-display-none hides
+    an element; removing the list from the controller lets both through; invalid rules fail to compile; the store lists,
+    looks up and removes compiled lists."""
+    port, _ = web
+    app = launch("HelloWeb", args=["-rules", "-server", f"http://127.0.0.1:{port}"])
+    app.wait_log(r"^HelloWeb: invalid rules: list nil error 6", timeout=30)        # contentRuleListStoreCompileFailed
+    app.wait_log(r"^HelloWeb: compiled isim-blocker")
+    app.wait_log(r"^HelloWeb: rules page with the list: img blocked banner none")
+    orange = lambda c: c[0] > 240 and 130 < c[1] < 170 and c[2] < 30
+    text = lambda s: any(sum(s.getpixel((x, y))[:3]) < 200 for x in range(20, 300, 2) for y in range(120, 180, 2))
+    shot = app.wait_shot(text, "the page is drawn")
+    assert not any(orange(shot.getpixel((x, y))) for x in range(30, 370, 10) for y in range(100, 400, 10)), "the banner is hidden"
+    app.screenshot("rules-applied")
+    app.wait_tap_id("rules-off")
+    app.wait_log(r"^HelloWeb: rules page without the list: img loaded banner block")
+    app.wait_shot(lambda s: any(orange(s.getpixel((x, y))) for x in range(30, 370, 10) for y in range(100, 400, 10)), "the banner shows")
+    app.screenshot("rules-removed")
+    app.wait_log(r"^HelloWeb: identifiers isim-blocker")
+    app.wait_log(r"^HelloWeb: looked up isim-blocker")
+    app.wait_log(r"^HelloWeb: after removal: lookup error 7")                        # contentRuleListStoreLookUpFailed
+    assert app.quit() == 0

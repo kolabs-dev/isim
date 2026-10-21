@@ -169,3 +169,41 @@ def test_safari(launch, device_data):
     assert re.search(r"^HelloSafari: canSendMail=false canSendText=false", log2, re.M) and \
         "HelloSafari: mail unavailable" in log2 and "HelloSafari: messages unavailable" in log2, \
         "like the Simulator: no mail account, no texts"
+
+
+ORANGE = lambda c: near(c, (255, 149, 0), 40)                                      # noqa: E731  /rules' banner ad
+
+
+def test_safari_content_blocker(launch, device_data):
+    """SFContentBlockerManager: reloadContentBlocker runs the Blocker extension (blockerList.json) and compiles it into
+    Safari's store; with the blocker allowed (ISIM_CONTENTBLOCKER_PERMISSION=allow, adapted: Settings > Safari >
+    Extensions) SFSafariViewController blocks /ads/ and hides .banner. Without the extension: SFErrorDomain 1."""
+    log_file = device_data / "server.log"
+    with local_server(ROOT / "samples/HelloWeb/server.py", log_file) as port:
+        app = launch("HelloSafari", args=["-server", f"http://127.0.0.1:{port}"],
+                     env={"ISIM_CONTENTBLOCKER_PERMISSION": "allow"})
+        app.wait_tap_id("blocker")
+        app.wait_log(r"content blocker reloaded error none enabled true", timeout=30)
+        app.wait_log(r"missing blocker error SFErrorDomain 1")
+        app.tap_id("safari-ads")
+        app.wait_view(r"id=safari-domain text=127.0.0.1", what="SFSafariViewController on the page with ads")
+        app.wait_until(lambda: "GET /rules" in log_file.read_text(), what="the page is requested")
+        app.wait_still()
+        shot = app.wait_shot(lambda s: count_px(s, (0, 120, 402, 400), lambda c: near(c, (0, 0, 0), 60)) > 50 and
+                             count_px(s, (0, 120, 402, 400), ORANGE) == 0, "the page drawn without its banner", timeout=20)
+        app.quit()
+
+        off = launch("HelloSafari", args=["-server", f"http://127.0.0.1:{port}"])   # off by default, as on iOS
+        off.wait_tap_id("blocker")
+        off.wait_log(r"content blocker reloaded error none enabled false", timeout=30)
+        off.tap_id("safari-ads")
+        off.wait_view(r"id=safari-domain text=127.0.0.1", what="SFSafariViewController on the page with ads")
+        shown = off.wait_shot(lambda s: count_px(s, (0, 120, 402, 400), ORANGE) > 500, "the banner ad shown", timeout=20)
+        off.quit()
+    stored = list((device_data / "Library/Safari/ContentBlockers").iterdir())
+    assert stored, "the compiled rules are in Safari's store"
+    assert count_px(shot, (0, 120, 402, 400), ORANGE) == 0, "the .banner element is hidden (css-display-none)"
+    requests = log_file.read_text()
+    assert requests.count("GET /ads/") == 1 and requests.index("GET /ads/") > requests.index("GET /rules"), \
+        "the ad image is blocked (block on /ads/), and loads once the blocker is off"
+    assert count_px(shown, (0, 120, 402, 400), ORANGE) > 500, "a disabled blocker leaves the page alone"

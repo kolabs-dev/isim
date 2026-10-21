@@ -301,6 +301,11 @@ static NSError *bundle_error(NSBundle *b, NSInteger code, NSString *why, NSStrin
     if (p) return p;
     for (NSString *loc in [self.preferredLocalizations arrayByAddingObjectsFromArray:@[@"Base", self.developmentLocalization]])
         if ((p = [self pathForResource:name ofType:ext inDirectory:nil forLocalization:loc])) return p;
+    /* an extension running in-process asks Bundle.main for its own resources (blockerList.json, ...) */
+    if (self == NSBundle.mainBundle) {
+        NSArray *exts; @synchronized ([NSBundle class]) { exts = [extension_bundles copy]; }
+        for (NSBundle *b in exts) if ((p = [b pathForResource:name ofType:ext])) return p;
+    }
     return nil;
 }
 void isim_bundle_register_extension(NSString *path) {

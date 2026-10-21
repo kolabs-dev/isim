@@ -202,28 +202,72 @@ public struct WKDataDetectorTypes: OptionSet, Sendable {
 
 @objc(WKContentRuleList) open class WKContentRuleList: NSObject, @unchecked Sendable {
     @objc public let identifier: String
-    init(identifier: String) { self.identifier = identifier }
+    let _store: String
+    init(identifier: String, store: String = "") { self.identifier = identifier; _store = store }
 }
-/// Content blockers are compiled and stored but not applied on isim.
+/// Compiled content blockers: a passthrough to WebKitGTK's WebKitUserContentFilterStore (the same JSON rules), kept in
+/// the store's directory across launches; WKUserContentController applies them to its web views.
 @objc(WKContentRuleListStore) open class WKContentRuleListStore: NSObject, @unchecked Sendable {
-    static let _default = WKContentRuleListStore()
-    var lists: [String: WKContentRuleList] = [:]
+    static let _default = WKContentRuleListStore(url: URL(fileURLWithPath: (NSHomeDirectory() as NSString).appendingPathComponent("Library/WebKit/ContentRuleLists")))
+    let _path: String
     @objc(defaultStore) open class dynamic func `default`() -> WKContentRuleListStore { _default }
-    public convenience init(url: URL) { self.init() }
+    public init(url: URL) { _path = url.path; super.init() }
+    public override convenience init() { self.init(url: WKContentRuleListStore._default._url) }
+    var _url: URL { URL(fileURLWithPath: _path) }
+    /// a store operation in the engine; the reply is "ok" [json] or "error" message
+    func _op(_ fields: [String], _ done: @escaping (Bool, String) -> Void) {
+        let eng = _WKEngine.shared
+        guard eng.start() else { DispatchQueue.main.async { done(false, eng.unavailableReason) }; return }
+        let req = eng.newRequestID()
+        eng.storeCallbacks[req] = { r in
+            let parts = r.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+            done(parts.first == "ok", parts.count > 1 ? parts[1] : "")
+        }
+        eng.send([fields[0], "0", String(req)] + fields.dropFirst())
+    }
     @objc dynamic open func compileContentRuleList(forIdentifier identifier: String, encodedContentRuleList: String, completionHandler: @escaping (WKContentRuleList?, Error?) -> Void) {
-        let l = WKContentRuleList(identifier: identifier); lists[identifier] = l
-        DispatchQueue.main.async { completionHandler(l, nil) }
+        // WebKit wants a JSON array of rules; report a malformed list the way WebKit does
+        guard let d = encodedContentRuleList.data(using: .utf8), (try? JSONSerialization.jsonObject(with: d)) is [Any] else {
+            DispatchQueue.main.async { completionHandler(nil, WKError(.contentRuleListStoreCompileFailed, userInfo: [NSLocalizedDescriptionKey: "Failed to parse the JSON String."])) }
+            return
+        }
+        _op(["rulecompile", _path, identifier, encodedContentRuleList]) { ok, msg in
+            completionHandler(ok ? WKContentRuleList(identifier: identifier, store: self._path) : nil,
+                              ok ? nil : WKError(.contentRuleListStoreCompileFailed, userInfo: [NSLocalizedDescriptionKey: msg]))
+        }
     }
     @objc dynamic open func lookUpContentRuleList(forIdentifier identifier: String, completionHandler: @escaping (WKContentRuleList?, Error?) -> Void) {
-        let l = lists[identifier]
-        DispatchQueue.main.async { completionHandler(l, l == nil ? WKError(.contentRuleListStoreLookUpFailed) : nil) }
+        _op(["ruleload", _path, identifier]) { ok, msg in
+            completionHandler(ok ? WKContentRuleList(identifier: identifier, store: self._path) : nil,
+                              ok ? nil : WKError(.contentRuleListStoreLookUpFailed, userInfo: [NSLocalizedDescriptionKey: msg]))
+        }
     }
     @objc dynamic open func removeContentRuleList(forIdentifier identifier: String, completionHandler: @escaping (Error?) -> Void) {
-        let had = lists.removeValue(forKey: identifier) != nil
-        DispatchQueue.main.async { completionHandler(had ? nil : WKError(.contentRuleListStoreRemoveFailed)) }
+        _op(["ruleremove", _path, identifier]) { ok, msg in
+            completionHandler(ok ? nil : WKError(.contentRuleListStoreRemoveFailed, userInfo: [NSLocalizedDescriptionKey: msg]))
+        }
     }
     @objc dynamic open func getAvailableContentRuleListIdentifiers(_ completionHandler: @escaping ([String]?) -> Void) {
-        let ids = Array(lists.keys); DispatchQueue.main.async { completionHandler(ids) }
+        _op(["ruleids", _path]) { ok, json in completionHandler(ok ? (_wkJSONValue(json) as? [String]) ?? [] : nil) }
+    }
+    // the async forms
+    public final func compileContentRuleList(forIdentifier identifier: String, encodedContentRuleList: String) async throws -> WKContentRuleList? {
+        try await withCheckedThrowingContinuation { k in
+            compileContentRuleList(forIdentifier: identifier, encodedContentRuleList: encodedContentRuleList) { l, e in if let e { k.resume(throwing: e) } else { k.resume(returning: l) } }
+        }
+    }
+    public final func contentRuleList(forIdentifier identifier: String) async throws -> WKContentRuleList? {
+        try await withCheckedThrowingContinuation { k in
+            lookUpContentRuleList(forIdentifier: identifier) { l, e in if let e { k.resume(throwing: e) } else { k.resume(returning: l) } }
+        }
+    }
+    public final func removeContentRuleList(forIdentifier identifier: String) async throws {
+        try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
+            removeContentRuleList(forIdentifier: identifier) { e in if let e { k.resume(throwing: e) } else { k.resume() } }
+        }
+    }
+    public final func availableIdentifiers() async -> [String]? {
+        await withCheckedContinuation { k in getAvailableContentRuleListIdentifiers { k.resume(returning: $0) } }
     }
 }
 
@@ -276,9 +320,20 @@ public struct WKDataDetectorTypes: OptionSet, Sendable {
         for h in _handlers where h.world === contentWorld { removeScriptMessageHandler(forName: h.name, contentWorld: contentWorld) }
     }
     @objc dynamic open func removeAllScriptMessageHandlers() { for h in _handlers { removeScriptMessageHandler(forName: h.name, contentWorld: h.world) } }
-    @objc(addContentRuleList:) dynamic open func add(_ contentRuleList: WKContentRuleList) { _ruleLists.append(contentRuleList) }
-    @objc(removeContentRuleList:) dynamic open func remove(_ contentRuleList: WKContentRuleList) { _ruleLists.removeAll { $0 === contentRuleList } }
-    @objc dynamic open func removeAllContentRuleLists() { _ruleLists.removeAll() }
+    // content blockers: applied to every web view using this controller (WebKitGTK's content filters)
+    @objc(addContentRuleList:) dynamic open func add(_ contentRuleList: WKContentRuleList) {
+        _ruleLists.removeAll { $0.identifier == contentRuleList.identifier }
+        _ruleLists.append(contentRuleList)
+        each { $0._send(["addrule", contentRuleList._store, contentRuleList.identifier]) }
+    }
+    @objc(removeContentRuleList:) dynamic open func remove(_ contentRuleList: WKContentRuleList) {
+        _ruleLists.removeAll { $0 === contentRuleList || $0.identifier == contentRuleList.identifier }
+        each { $0._send(["rmrule", contentRuleList.identifier]) }
+    }
+    @objc dynamic open func removeAllContentRuleLists() {
+        _ruleLists.removeAll()
+        each { $0._send(["clearrules"]) }
+    }
 }
 
 // MARK: - navigation objects

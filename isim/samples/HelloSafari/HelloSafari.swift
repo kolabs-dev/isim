@@ -3,7 +3,8 @@
 // ephemeral session cancelled; SwiftUI's webAuthenticationSession environment action), MessageUI composers
 // (canSendMail/canSendText; mail and message sheets when the device has accounts), universal links
 // (associated domains in HelloSafari.entitlements -> application(_:continue:restorationHandler:)) and a custom
-// URL scheme (application(_:open:options:)).
+// URL scheme (application(_:open:options:)), and a Safari content blocker extension (Blocker: blockerList.json)
+// reloaded with SFContentBlockerManager and applied in SFSafariViewController.
 //   isim run out/apps/HelloSafari.app -server http://127.0.0.1:8765   (samples/HelloWeb/server.py)
 import UIKit
 import SafariServices
@@ -81,7 +82,9 @@ final class HomeViewController: UIViewController, SFSafariViewControllerDelegate
                              ("Sign in (ASWebAuthenticationSession)", "signin", #selector(signIn)),
                              ("Sign in (ephemeral)", "signin-eph", #selector(signInEphemeral)),
                              ("Compose mail", "mail", #selector(composeMail)),
-                             ("Compose message", "message", #selector(composeMessage))] as [(String, String, Selector)] {
+                             ("Compose message", "message", #selector(composeMessage)),
+                             ("Reload content blocker", "blocker", #selector(reloadBlocker)),
+                             ("Open a page with ads", "safari-ads", #selector(openAdPage))] as [(String, String, Selector)] {
             var c = UIButton.Configuration.filled(); c.title = t; c.cornerStyle = .large; c.baseBackgroundColor = .systemBlue
             let b = UIButton(configuration: c); b.accessibilityIdentifier = id
             b.addTarget(self, action: sel, for: .touchUpInside)
@@ -115,6 +118,24 @@ final class HomeViewController: UIViewController, SFSafariViewControllerDelegate
     }
     func safariViewController(_ controller: SFSafariViewController, initialLoadDidRedirectTo URL: URL) { log("safari redirected to \(URL.path)") }
     func safariViewControllerDidFinish(_ controller: SFSafariViewController) { log("safari done"); status.text = "safari closed" }
+
+    // MARK: content blocker (the Blocker extension's blockerList.json)
+    @objc func reloadBlocker() {
+        let id = "dev.isim.samples.HelloSafari.Blocker"
+        SFContentBlockerManager.reloadContentBlocker(withIdentifier: id) { error in
+            SFContentBlockerManager.getStateOfContentBlocker(withIdentifier: id) { state, _ in
+                log("content blocker reloaded error \(error.map { "\(($0 as NSError).code)" } ?? "none") enabled \(state?.isEnabled ?? false)")
+            }
+        }
+        SFContentBlockerManager.reloadContentBlocker(withIdentifier: "dev.isim.samples.Missing") { error in
+            log("missing blocker error \((error as NSError?)?.domain ?? "-") \((error as NSError?)?.code ?? 0)")
+        }
+    }
+    @objc func openAdPage() {
+        let vc = SFSafariViewController(url: URL(string: serverURL + "/rules")!)
+        vc.delegate = self
+        present(vc, animated: true)
+    }
 
     // MARK: ASWebAuthenticationSession
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor { view.window! }
