@@ -36,6 +36,7 @@ usr/lib/swift/libswiftSwiftData.dylib 0.23.0
 usr/lib/swift/libswiftSwiftData.dylib 0.27.0
 # 0.27.0 (issue #303): CKSyncEngine has Apple's API (PendingRecordZoneChange an enum, Apple's events and their types,
 # options with scopes, contexts with a reason, an opaque State.Serialization), and CKOperationGroup and
-# CKDatabase.RecordZoneChange / DatabaseChange are added. Swift apps built with 0.26 or earlier that use CloudKit must
+# CKDatabase.RecordZoneChange / DatabaseChange are added; (issue #304) shares keep their participants in the store and
+# CKShare.currentUserParticipant is optional, like Apple's. Swift apps built with 0.26 or earlier that use CloudKit must
 # be rebuilt (the same release as SwiftData's break).
 usr/lib/swift/libswiftCloudKit.dylib 0.27.0

@@ -81,6 +81,7 @@ final class CloudViewController: UIViewController {
     var db: CKDatabase { container.privateCloudDatabase }
     let status = UILabel()
     private var syncDelegates: [SyncDelegate] = []
+    private var sharingObserver: CKSystemSharingUIObserver?
     private var syncEngines: [CKSyncEngine] = []
 
     override func viewDidLoad() {
@@ -101,7 +102,7 @@ final class CloudViewController: UIViewController {
         stack.addArrangedSubview(status)
         for (title, id, action) in [("Save notes", "save", save), ("Query (paged)", "query", query), ("Fetch typed values", "fetch", fetch),
                                     ("Conflict + resolve", "conflict", conflict), ("Subscribe + push", "subscribe", subscribe),
-                                    ("Zone, atomic batch, changes", "zone", zone), ("Share + discovery", "share", share), ("Delete (cascade)", "delete", delete),
+                                    ("Zone, atomic batch, changes", "zone", zone), ("Share + discovery", "share", share), ("Accept share", "accept", accept), ("Sharing sheet", "sheet", sheet), ("Delete (cascade)", "delete", delete),
                                     ("CKSyncEngine", "sync", sync), ("SwiftData", "swiftdata", swiftData),
                                     ("Core Data + CloudKit container", "coredata", coreData), ("List records", "list", list)] as [(String, String, () -> Void)] {
             var cfg = UIButton.Configuration.filled()
@@ -311,7 +312,63 @@ final class CloudViewController: UIViewController {
                 let sheet = UICloudSharingController(share: share, container: container)
                 sheet.availablePermissions = [.allowPrivate, .allowReadWrite]
                 print("sharing: saved=\(saved is CKShare) participants=\(share.participants.count) permission=\(share.publicPermission.rawValue) discovered=\(identity.userRecordID != nil) sheet=true")
+                // the link participants open (kept for the accept step, which may run as another account)
+                let url = (saved as? CKShare)?.url
+                UserDefaults.standard.set(url?.absoluteString, forKey: "shareURL")
+                print("share url: \(url?.absoluteString.hasPrefix("https://www.icloud.com/share/") == true), allowed=\(CKAllowedSharingOptions.standard.allowedParticipantPermissionOptions == .any)")
+                // zones and subscriptions through their fetch operations, in an operation group
+                let group = CKOperationGroup(); group.name = "Inspect"
+                var zones: [String] = [], subs: [String] = []
+                let fetchZones = CKFetchRecordZonesOperation.fetchAllRecordZonesOperation()
+                fetchZones.group = group
+                fetchZones.perRecordZoneResultBlock = { _, result in if let z = try? result.get() { zones.append(z.zoneID.zoneName) } }
+                let fetchSubs = CKFetchSubscriptionsOperation.fetchAllSubscriptionsOperation()
+                fetchSubs.group = group
+                fetchSubs.perSubscriptionResultBlock = { id, result in if (try? result.get()) != nil { subs.append(id) } }
+                fetchSubs.fetchSubscriptionsResultBlock = { _ in print("operations: zones=\(zones.sorted().joined(separator: ",")) subscriptions=\(subs.count) group=\(fetchSubs.group?.name ?? "-")") }
+                db.add(fetchZones); db.add(fetchSubs)
             } catch { print("sharing error: \(code(error))") }
+        }
+    }
+
+    /// Opens the saved share link as the device's current account: metadata, then accept.
+    func accept() {
+        guard let link = UserDefaults.standard.string(forKey: "shareURL"), let url = URL(string: link) else { print("accept: no share yet"); return }
+        let fetch = CKFetchShareMetadataOperation(shareURLs: [url])
+        fetch.shouldFetchRootRecord = true
+        fetch.perShareMetadataResultBlock = { _, result in
+            switch result {
+            case .failure(let error): print("share metadata error: \(self.code(error))")
+            case .success(let metadata):
+                let roles = [1: "owner", 3: "privateUser", 4: "publicUser"], statuses = [1: "pending", 2: "accepted"]
+                print("share metadata: role=\(roles[metadata.participantRole.rawValue] ?? "unknown") permission=\(metadata.participantPermission.rawValue) status=\(statuses[metadata.participantStatus.rawValue] ?? "unknown") root=\(metadata.rootRecord?["title"] as? String ?? "-") owner=\(metadata.ownerIdentity.nameComponents?.givenName ?? "-")")
+                let accept = CKAcceptSharesOperation(shareMetadatas: [metadata])
+                accept.perShareResultBlock = { _, result in
+                    switch result {
+                    case .success(let share): print("accepted: me=\(statuses[share.currentUserParticipant?.acceptanceStatus.rawValue ?? 0] ?? "unknown") participants=\(share.participants.count)")
+                    case .failure(let error): print("accept error: \(self.code(error))")
+                    }
+                }
+                self.container.add(accept)
+            }
+        }
+        container.add(fetch)
+    }
+
+    /// The sharing sheet; a CKSystemSharingUIObserver hears it save the share or stop sharing.
+    func sheet() {
+        Task { @MainActor in
+            guard let share = try? await db.record(for: CKRecord.ID(recordName: "Share-n3")) as? CKShare else { print("sheet: no share"); return }
+            let observer = CKSystemSharingUIObserver(container: container)
+            observer.systemSharingUIDidSaveShareBlock = { id, result in print("sharing ui saved \(id.recordName) ok=\((try? result.get()) != nil)") }
+            observer.systemSharingUIDidStopSharingBlock = { id, _ in
+                Task { let gone = (try? await self.db.record(for: CKRecord.ID(recordName: "Share-n3"))) == nil; print("sharing ui stopped \(id.recordName) share deleted=\(gone)") }
+            }
+            sharingObserver = observer
+            let controller = UICloudSharingController(share: share, container: container)
+            controller.delegate = self
+            await present(controller, animated: true)
+            print("sheet: presented")
         }
     }
 
@@ -399,4 +456,10 @@ final class CloudViewController: UIViewController {
         print("coredata: items=\(n) isContainer=\((c as NSPersistentContainer) is NSPersistentCloudKitContainer)")
         NotificationCenter.default.removeObserver(eventObserver)
     }
+}
+
+extension CloudViewController: UICloudSharingControllerDelegate {
+    func cloudSharingControllerDidSaveShare(_ csc: UICloudSharingController) { print("sharing sheet: did save") }
+    func cloudSharingControllerDidStopSharing(_ csc: UICloudSharingController) { print("sharing sheet: did stop") }
+    func itemTitle(for csc: UICloudSharingController) -> String? { "Notes" }
 }

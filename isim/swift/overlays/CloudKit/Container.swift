@@ -19,7 +19,7 @@ extension NSNotification.Name {
 open class CKContainer: NSObject, @unchecked Sendable {
     public let containerIdentifier: String?
     nonisolated(unsafe) static var defaultContainer: CKContainer?
-    public init(identifier: String) { containerIdentifier = identifier }
+    public init(identifier: String) { containerIdentifier = identifier; super.init(); CKContainer._watchSharingUI() }
     /// the app's default container: "iCloud.<bundle id>" (iOS takes it from the entitlements)
     open class func `default`() -> CKContainer {
         if let c = defaultContainer { return c }
@@ -98,7 +98,9 @@ open class CKDatabase: NSObject, @unchecked Sendable {
     var user: CKRecord.ID { CKRecord.ID(recordName: _CKEnv.userRecordName) }
 
     func record(from s: _CKStoredRecord, id: CKRecord.ID, desiredKeys: [String]? = nil) -> CKRecord {
-        let r: CKRecord = s.type == CKRecordTypeShare ? CKShare(recordID: id) : CKRecord(recordType: s.type, recordID: id)
+        let r: CKRecord
+        if s.type == CKRecordTypeShare { let share = CKShare(recordID: id); share.restore(s.share, container: container.containerIdentifier ?? "default"); r = share }
+        else { r = CKRecord(recordType: s.type, recordID: id) }
         r.fields = desiredKeys.map { keys in s.fields.filter { keys.contains($0.key) } } ?? s.fields
         r.recordChangeTag = s.tag
         r.creationDate = Date(timeIntervalSinceReferenceDate: s.created)
@@ -161,8 +163,9 @@ open class CKDatabase: NSObject, @unchecked Sendable {
                 if let assetError { out.append((id, .failure(assetError))); continue }
                 work.counter += 1
                 let now = Date().timeIntervalSinceReferenceDate
-                let s = _CKStoredRecord(type: rec.recordType, fields: fields, tag: String(work.counter, radix: 36) + String(Int(now) % 1296, radix: 36),
+                var s = _CKStoredRecord(type: rec.recordType, fields: fields, tag: String(work.counter, radix: 36) + String(Int(now) % 1296, radix: 36),
                                         created: created, modified: now, seq: work.counter, parent: rec.parent?.recordID.recordName)
+                if let share = rec as? CKShare { s.share = share.stored }
                 work.records[key] = s
                 work.tombstones.removeAll { $0.name == id.recordName && $0.zone == id.zoneID.zoneName && $0.owner == id.zoneID.ownerName }
                 if !work.recordTypes.contains(rec.recordType) { work.recordTypes.append(rec.recordType) }
