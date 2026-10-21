@@ -98,16 +98,23 @@ optionally ending with `using|with|in|on|via APP` (or starting with `APP,`):
 | `send a message to NAME [saying\|that says\|with TEXT]`, `message NAME saying TEXT`, `tell NAME [that] TEXT` | `INSendMessageIntent` |
 | `call NAME`, `facetime NAME`, `video call NAME` | `INStartCallIntent` |
 | `show my messages [from NAME]`, `read my messages`, `search for messages from NAME` | `INSearchForMessagesIntent` |
+| `edit my last message to say TEXT`, `change my message to TEXT` | `INEditMessageIntent` (the last message Siri sent with the app) |
+| `unsend my last message`, `take back my message` | `INUnsendMessagesIntent` (the last message Siri sent with the app) |
 | `play NAME`, `shuffle NAME` | `INPlayMediaIntent` (`mediaSearch.mediaName`) |
+| `add NAME to my library`, `add NAME to my PLAYLIST playlist`, `add this song to …` | `INAddMediaIntent` (`mediaSearch`, `mediaDestination`; "this" is what's playing) |
+| `search for NAME`, `find NAME`, `look up NAME` | `INSearchForMediaIntent` |
 | `add TASK to [my] LIST [list]`, `remind me to TASK` | `INAddTasksIntent` |
 | `create a note [saying TEXT]`, `note TEXT` | `INCreateNoteIntent` |
 
 `siri intent CLASS KEY=VALUE …` (`CLASS`: `INSendMessageIntent` or `SendMessage`; quote values with spaces) takes
 `recipients=A,B content=TEXT` (messages), `contacts=A video=1` (calls), `senders=A terms=X,Y` (message search),
-`media=NAME shuffle=1`, `tasks=A,B list=NAME`, `title=… content=… folder=…` (notes) and `app=BUNDLE_ID`. A custom intent
+`message=ID content=TEXT` (editing), `messages=ID,ID` (unsending), `media=NAME shuffle=1` (playing),
+`media=NAME playlist=NAME|library=1` (adding media), `media=NAME` (media search), `tasks=A,B list=NAME`, `title=… content=… folder=…` (notes) and `app=BUNDLE_ID`. A custom intent
 (from an `.intentdefinition`) is named by its class, `siri intent OrderSoupIntent soup=Tomato quantity=2 size=bowl`:
 each value is converted to its parameter's type (numbers, booleans, enum cases by name, custom types by display
-string, people), Siri asks for missing values with the definition's prompts and speaks the response code's dialog. A SiriKit
+string, people), Siri asks for missing values with the definition's prompts (listing the handler's dynamic options,
+`provide<Parameter>OptionsCollection`, as choices) and speaks the response code's dialog. Before it sends an intent,
+Siri spells the names in it the app's way when they match its vocabulary (`INVocabulary`). A SiriKit
 intent goes to the app that supports it (its Intents extension's `IntentsSupported`, or `INIntentsSupported` in the
 app's Info.plist; Siri asks "Which app?" when several do); the app must have the `com.apple.developer.siri`
 entitlement and have been allowed to use Siri (`INPreferences.requestSiriAuthorization`).

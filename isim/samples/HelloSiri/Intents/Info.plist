@@ -21,10 +21,16 @@
 				<string>INStartCallIntent</string>
 				<string>INAddTasksIntent</string>
 				<string>INPlayMediaIntent</string>
+				<string>INEditMessageIntent</string>
+				<string>INUnsendMessagesIntent</string>
+				<string>INAddMediaIntent</string>
+				<string>INSearchForMediaIntent</string>
 			</array>
 			<key>IntentsRestrictedWhileLocked</key>
 			<array>
 				<string>INSendMessageIntent</string>
+				<string>INEditMessageIntent</string>
+				<string>INUnsendMessagesIntent</string>
 			</array>
 		</dict>
 		<key>NSExtensionPointIdentifier</key>

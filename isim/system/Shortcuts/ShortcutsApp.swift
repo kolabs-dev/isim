@@ -60,11 +60,30 @@ func intentTitle(_ i: [String: Any]?) -> String { i?["title"] as? String ?? "" }
     }
     return out.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 }
-/// interactions the app donated (INInteraction.donate) or Siri handled, newest first, one per intent and value
+/// the app's relevant shortcuts (INRelevantShortcutStore) relevant now: a date provider's interval holds now; isim has no
+/// daily routine or location signals, so those providers count as relevant
+func relevantNow(_ bundle: String) -> [Suggestion] {
+    let f = (dataDir() as NSString).appendingPathComponent("Containers/\(bundle)/Library/isim/RelevantShortcuts.plist")
+    let list = (NSDictionary(contentsOfFile: f)?["shortcuts"] as? [[String: Any]]) ?? []
+    let now = Date()
+    return list.enumerated().compactMap { i, e in
+        let providers = e["relevanceProviders"] as? [[String: Any]] ?? []
+        let relevant = providers.isEmpty || providers.contains { p in
+            guard p["$class"] as? String == "INDateRelevanceProvider" else { return true }
+            let start = p["startDate"] as? Date ?? .distantPast, end = p["endDate"] as? Date ?? .distantFuture
+            return start <= now && now <= end
+        }
+        guard relevant else { return nil }
+        let title = e["title"] as? String ?? ""
+        return Suggestion(id: "relevant-\(i)", title: title.isEmpty ? "Shortcut" : title)
+    }
+}
+/// interactions the app donated (INInteraction.donate) or Siri handled, newest first, one per intent and value; the
+/// app's relevant shortcuts come first
 func loadSuggestions(_ bundle: String) -> [Suggestion] {
     let f = (dataDir() as NSString).appendingPathComponent("Containers/\(bundle)/Library/isim/Interactions.plist")
     let list = (NSDictionary(contentsOfFile: f)?["interactions"] as? [[String: Any]]) ?? []
-    var seen = Set<String>(), out: [Suggestion] = []
+    var out = relevantNow(bundle), seen = Set(out.map(\.title))
     for e in list.reversed() {
         guard let id = e["identifier"] as? String else { continue }
         let t: String
@@ -86,6 +105,13 @@ func describeIntent(_ i: [String: Any]) -> String {
     case "INPlayMediaIntent": return "Play " + (((i["mediaSearch"] as? [String: Any])?["mediaName"] as? String) ?? (((i["mediaItems"] as? [[String: Any]])?.first?["title"] as? String) ?? ""))
     case "INAddTasksIntent": return "Add “\(((i["taskTitles"] as? [Any]) ?? []).map { speak($0) }.joined(separator: ", "))”" + (speak((i["targetTaskList"] as? [String: Any])?["title"]).isEmpty ? "" : " to \(speak((i["targetTaskList"] as? [String: Any])?["title"]))")
     case "INCreateNoteIntent": return "Note “\(speak(i["title"]))”"
+    case "INAddMediaIntent":
+        let what = ((i["mediaSearch"] as? [String: Any])?["mediaName"] as? String) ?? (((i["mediaItems"] as? [[String: Any]])?.first?["title"] as? String) ?? "")
+        let dest = i["mediaDestination"] as? [String: Any]
+        return "Add \(what)" + ((dest?["playlistName"] as? String).map { " to \($0)" } ?? (dest != nil ? " to Library" : ""))
+    case "INSearchForMediaIntent": return "Search for " + (((i["mediaSearch"] as? [String: Any])?["mediaName"] as? String) ?? "")
+    case "INEditMessageIntent": return "Edit message" + ((i["editedContent"] as? String).map { ": “\($0)”" } ?? "")
+    case "INUnsendMessagesIntent": return "Unsend message"
     default: return i["$class"] as? String ?? "Shortcut"
     }
 }
@@ -259,7 +285,7 @@ struct AppShortcutsView: View {
                 }
                 if !app.suggestions.isEmpty {
                     Text("Siri Suggestions").font(.title3.weight(.bold)).padding(.top, 8)
-                    rows(app.suggestions.map { ($0.id, $0.title, "") }, prefix: "suggestion") { run(app.id, "donation", $0) }
+                    rows(app.suggestions.map { ($0.id, $0.title, "") }, prefix: "suggestion") { run(app.id, $0.hasPrefix("relevant-") ? "relevant" : "donation", $0) }
                 }
                 if !app.actions.isEmpty {
                     Text("Actions").font(.title3.weight(.bold)).padding(.top, 8)

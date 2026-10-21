@@ -8,6 +8,7 @@
 // - SiriKit: the Intents extension (messages, calls, the shopping list, music), INCreateNoteIntent handled in the app
 //   (application(_:handlerFor:)), music played in the app (application(_:handle:)), a call continued in the app
 //   (NSUserActivity with its INInteraction), Siri authorization, a donation, Add to Siri.
+// - SiriKitTypes.swift: the app's vocabulary, relevant shortcuts, INObjectCollection and INCurrencyAmount.
 // - Discovery.swift: App Intents donations, Spotlight entities, URL representations and the other intent kinds.
 import SwiftUI
 import AppIntents
@@ -144,6 +145,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     /// music Siri resolved in the extension (.handleInApp)
     func application(_ application: UIApplication, handle intent: INIntent, completionHandler: @escaping (INIntentResponse) -> Void) {
         let title = (intent as? INPlayMediaIntent)?.mediaItems?.first?.title ?? "?"
+        nowPlaying = title
         log("playing \(title)")
         completionHandler(INPlayMediaIntentResponse(code: .success, userActivity: nil))
     }
@@ -232,6 +234,8 @@ struct ContentView: View {
                     Button("Donate an order") { Discovery.donate() }.accessibilityIdentifier("donateOrder")
                     Button("Delete order donations") { Discovery.deleteDonations() }.accessibilityIdentifier("deleteDonations")
                     Button("Index cafes") { Discovery.index() }.accessibilityIdentifier("indexCafes")
+                    Button("Relevant shortcuts") { SiriKitTypes.relevantShortcuts() }.accessibilityIdentifier("relevant")
+                    Button("Shared types") { SiriKitTypes.values() }.accessibilityIdentifier("sharedTypes")
                     Button("Voice shortcuts") {
                         INVoiceShortcutCenter.shared.getAllVoiceShortcuts { list, _ in
                             log("voice shortcuts: \((list ?? []).map { $0.invocationPhrase }.joined(separator: ", "))")
@@ -254,7 +258,10 @@ struct ContentView: View {
             log("continued \(a.activityType): \(model.last)")
         }
         .onOpenURL { url in log("opened \(url.absoluteString)") }
-        .onAppear { log("launched, \(orders) order(s), cafe \(model.cafe), Siri \(model.siri.rawValue)") }
+        .onAppear {
+            SiriKitTypes.vocabulary()
+            log("launched, \(orders) order(s), cafe \(model.cafe), Siri \(model.siri.rawValue)")
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in tick += 1 }
     }
 }

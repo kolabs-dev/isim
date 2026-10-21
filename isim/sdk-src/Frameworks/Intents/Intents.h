@@ -16,13 +16,14 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <Intents/INFocusStatusCenter.h>   /* the Focus status of the device (INFocusStatusCenter.h) */
+#import <CoreLocation/CoreLocation.h>      /* CLRegion (INLocationRelevanceProvider; from Swift, the overlay's) */
 NS_ASSUME_NONNULL_BEGIN
 
 #ifndef INTENTS_EXTERN
 #define INTENTS_EXTERN extern __attribute__((visibility("default")))
 #endif
 
-@class INIntent, INIntentResponse, INImage, INPerson, INPersonHandle, INSpeakableString, INMessage, INMediaItem, INTask, INTaskList, INNote, INNoteContent;
+@class INIntent, INIntentResponse, INImage, INShortcut, INPerson, INPersonHandle, INSpeakableString, INMessage, INMediaItem, INTask, INTaskList, INNote, INNoteContent;
 
 /* ---------------- authorization ---------------- */
 typedef NS_ENUM(NSInteger, INSiriAuthorizationStatus) {
@@ -40,6 +41,37 @@ typedef NS_ENUM(NSInteger, INSiriAuthorizationStatus) {
 + (NSString *)siriLanguageCode;
 @end
 
+/* ---------------- vocabulary ---------------- */
+typedef NS_ENUM(NSInteger, INVocabularyStringType) {
+    INVocabularyStringTypeContactName = 1,
+    INVocabularyStringTypeContactGroupName,
+    INVocabularyStringTypePhotoTag = 100,
+    INVocabularyStringTypePhotoAlbumName,
+    INVocabularyStringTypeWorkoutActivityName = 200,
+    INVocabularyStringTypeCarProfileName = 300,
+    INVocabularyStringTypeCarName,
+    INVocabularyStringTypePaymentsOrganizationName = 400,
+    INVocabularyStringTypePaymentsAccountNickname,
+    INVocabularyStringTypeNotebookItemTitle = 500,
+    INVocabularyStringTypeNotebookItemGroupName,
+    INVocabularyStringTypeMediaPlaylistTitle = 700,
+    INVocabularyStringTypeMediaMusicArtistName,
+    INVocabularyStringTypeMediaAudiobookTitle,
+    INVocabularyStringTypeMediaAudiobookAuthorName,
+    INVocabularyStringTypeMediaShowTitle,
+};
+@protocol INSpeakable;
+/* isim (adapted): the app's user-specific vocabulary is kept in its container (Library/isim/Vocabulary.plist, per string
+   type, newest first as on iOS). The simulated Siri has no speech recognition: it uses the vocabulary to spell what was
+   said the app's way, matching a spoken name case- and diacritic-insensitively, or one of a speakable's
+   alternativeSpeakableMatches ("cafe noir" -> "Café Noir"), before it sends the intent to the app. */
+@interface INVocabulary : NSObject
++ (instancetype)sharedVocabulary NS_SWIFT_NAME(shared());
+- (void)setVocabularyStrings:(NSOrderedSet<NSString *> *)vocabulary ofType:(INVocabularyStringType)type;
+- (void)setVocabulary:(NSOrderedSet<id<INSpeakable>> *)vocabulary ofType:(INVocabularyStringType)type API_AVAILABLE(ios(11.0));
+- (void)removeAllVocabularyStrings;
+@end
+
 /* ---------------- shared types ---------------- */
 @interface INImage : NSObject <NSCopying, NSSecureCoding>
 + (instancetype)imageNamed:(NSString *)name;
@@ -49,7 +81,15 @@ typedef NS_ENUM(NSInteger, INSiriAuthorizationStatus) {
 + (instancetype)imageWithUIImage:(UIImage *)image;
 @end
 
-@interface INSpeakableString : NSObject <NSCopying, NSSecureCoding>
+/* something Siri can say and recognize: a speakable string, a custom type */
+@protocol INSpeakable <NSObject>
+@property (readonly, copy) NSString *spokenPhrase;
+@property (readonly, copy, nullable) NSString *pronunciationHint;
+@property (readonly, copy, nullable) NSString *vocabularyIdentifier;
+@property (readonly, copy, nullable) NSArray<id<INSpeakable>> *alternativeSpeakableMatches;
+@property (readonly, copy, nullable) NSString *identifier API_AVAILABLE(ios(11.0));
+@end
+@interface INSpeakableString : NSObject <INSpeakable, NSCopying, NSSecureCoding>
 - (instancetype)initWithVocabularyIdentifier:(NSString *)vocabularyIdentifier spokenPhrase:(NSString *)spokenPhrase pronunciationHint:(nullable NSString *)pronunciationHint;
 - (instancetype)initWithIdentifier:(NSString *)identifier spokenPhrase:(NSString *)spokenPhrase pronunciationHint:(nullable NSString *)pronunciationHint;
 - (instancetype)initWithSpokenPhrase:(NSString *)spokenPhrase;
@@ -57,6 +97,7 @@ typedef NS_ENUM(NSInteger, INSiriAuthorizationStatus) {
 @property (readonly, copy, nullable) NSString *identifier;
 @property (readonly, copy) NSString *spokenPhrase;
 @property (readonly, copy, nullable) NSString *pronunciationHint;
+@property (readonly, copy, nullable) NSArray<id<INSpeakable>> *alternativeSpeakableMatches;
 @end
 
 typedef NS_ENUM(NSInteger, INPersonHandleType) {
@@ -127,15 +168,43 @@ typedef NS_ENUM(NSInteger, INInteractionDirection) {
 
 /* A custom type of an intent definition (an object with an identifier and a display string) */
 API_AVAILABLE(ios(13.0))
-@interface INObject : NSObject <NSCopying, NSSecureCoding>
+@interface INObject : NSObject <INSpeakable, NSCopying, NSSecureCoding>
+- (instancetype)initWithIdentifier:(nullable NSString *)identifier displayString:(NSString *)displayString pronunciationHint:(nullable NSString *)pronunciationHint subtitleString:(nullable NSString *)subtitleString displayImage:(nullable INImage *)displayImage NS_SWIFT_NAME(init(identifier:display:pronunciationHint:subtitle:image:)) API_AVAILABLE(ios(14.0));
+- (instancetype)initWithIdentifier:(nullable NSString *)identifier displayString:(NSString *)displayString subtitleString:(nullable NSString *)subtitleString displayImage:(nullable INImage *)displayImage NS_SWIFT_NAME(init(identifier:display:subtitle:image:)) API_AVAILABLE(ios(14.0));
 - (instancetype)initWithIdentifier:(nullable NSString *)identifier displayString:(NSString *)displayString pronunciationHint:(nullable NSString *)pronunciationHint NS_SWIFT_NAME(init(identifier:display:pronunciationHint:));
 - (instancetype)initWithIdentifier:(nullable NSString *)identifier displayString:(NSString *)displayString NS_SWIFT_NAME(init(identifier:display:));
-- (instancetype)initWithIdentifier:(nullable NSString *)identifier displayString:(NSString *)displayString subtitleString:(nullable NSString *)subtitleString displayImage:(nullable id)displayImage NS_SWIFT_NAME(init(identifier:display:subtitle:image:)) API_AVAILABLE(ios(14.0));
 @property (readonly, copy, nullable) NSString *identifier;
 @property (readonly, copy) NSString *displayString;
 @property (readonly, copy, nullable) NSString *pronunciationHint;
 @property (readwrite, copy, nullable) NSString *subtitleString API_AVAILABLE(ios(14.0));
+@property (readwrite, copy, nullable) INImage *displayImage API_AVAILABLE(ios(14.0));
+@property (readwrite, copy, nullable) NSArray<INSpeakableString *> *alternativeSpeakableMatches;
 @property (readonly, copy) NSString *spokenPhrase;
+@property (readonly, copy, nullable) NSString *vocabularyIdentifier;
+@end
+
+/* Dynamic options (a parameter's provide<Parameter>OptionsCollection(for:with:)): the values, in sections. Siri lists
+   them when the parameter needs a value (isim: its choice list, one row per item, section titles as subtitles). */
+API_AVAILABLE(ios(14.0))
+@interface INObjectSection<__covariant ObjectType> : NSObject <NSCopying, NSSecureCoding>
+- (instancetype)initWithTitle:(nullable NSString *)title items:(NSArray<ObjectType> *)items NS_DESIGNATED_INITIALIZER;
+@property (readonly, copy, nullable) NSString *title;
+@property (readonly, copy) NSArray<ObjectType> *items;
+@end
+API_AVAILABLE(ios(14.0))
+@interface INObjectCollection<__covariant ObjectType> : NSObject <NSCopying, NSSecureCoding>
+- (instancetype)initWithSections:(NSArray<INObjectSection<ObjectType> *> *)sections NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithItems:(NSArray<ObjectType> *)items;
+@property (readonly, copy) NSArray<INObjectSection<ObjectType> *> *sections;
+@property (readonly, copy) NSArray<ObjectType> *allItems;
+@property (assign) BOOL usesIndexedCollation;
+@end
+
+/* an amount of money */
+@interface INCurrencyAmount : NSObject <NSCopying, NSSecureCoding>
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount currencyCode:(NSString *)currencyCode NS_DESIGNATED_INITIALIZER;
+@property (readonly, copy, nullable) NSDecimalNumber *amount;
+@property (readonly, copy, nullable) NSString *currencyCode;
 @end
 
 /* ---------------- resolution results ---------------- */
@@ -196,6 +265,12 @@ API_AVAILABLE(ios(13.0))
 + (instancetype)successWithResolvedDateComponents:(NSDateComponents *)resolvedDateComponents NS_SWIFT_NAME(success(with:));
 + (instancetype)disambiguationWithDateComponentsToDisambiguate:(NSArray<NSDateComponents *> *)dateComponentsToDisambiguate NS_SWIFT_NAME(disambiguation(with:));
 + (instancetype)confirmationRequiredWithDateComponentsToConfirm:(nullable NSDateComponents *)dateComponentsToConfirm NS_SWIFT_NAME(confirmationRequired(with:));
+@end
+API_AVAILABLE(ios(11.0))
+@interface INCurrencyAmountResolutionResult : INIntentResolutionResult
++ (instancetype)successWithResolvedCurrencyAmount:(INCurrencyAmount *)resolvedCurrencyAmount NS_SWIFT_NAME(success(with:));
++ (instancetype)disambiguationWithCurrencyAmountsToDisambiguate:(NSArray<INCurrencyAmount *> *)currencyAmountsToDisambiguate NS_SWIFT_NAME(disambiguation(with:));
++ (instancetype)confirmationRequiredWithCurrencyAmountToConfirm:(nullable INCurrencyAmount *)currencyAmountToConfirm NS_SWIFT_NAME(confirmationRequired(with:));
 @end
 
 /* ---------------- messages ---------------- */
@@ -317,6 +392,76 @@ typedef NS_ENUM(NSInteger, INSearchForMessagesIntentResponseCode) {
 - (void)confirmSearchForMessages:(INSearchForMessagesIntent *)intent completion:(void (^)(INSearchForMessagesIntentResponse *response))completion NS_SWIFT_NAME(confirm(intent:completion:));
 - (void)resolveRecipientsForSearchForMessages:(INSearchForMessagesIntent *)intent withCompletion:(void (^)(NSArray<INPersonResolutionResult *> *resolutionResults))completion NS_SWIFT_NAME(resolveRecipients(for:with:));
 - (void)resolveSendersForSearchForMessages:(INSearchForMessagesIntent *)intent withCompletion:(void (^)(NSArray<INPersonResolutionResult *> *resolutionResults))completion NS_SWIFT_NAME(resolveSenders(for:with:));
+@end
+
+/* editing and unsending a sent message (iOS 16). isim: "edit my last message to say TEXT", "unsend my last message" (or
+   `siri intent EditMessage message=ID content=TEXT`, `siri intent UnsendMessages messages=ID,ID`); Siri finds the last
+   message it sent with the app (its INSendMessageIntentResponse's sentMessage) when none is named. */
+API_AVAILABLE(ios(16.0))
+@interface INEditMessageIntent : INIntent
+- (instancetype)initWithMessageIdentifier:(nullable NSString *)messageIdentifier editedContent:(nullable NSString *)editedContent NS_DESIGNATED_INITIALIZER;
+@property (readonly, copy, nullable) NSString *messageIdentifier;
+@property (readonly, copy, nullable) NSString *editedContent;
+@end
+API_AVAILABLE(ios(16.0))
+typedef NS_ENUM(NSInteger, INEditMessageIntentResponseCode) {
+    INEditMessageIntentResponseCodeUnspecified = 0,
+    INEditMessageIntentResponseCodeReady,
+    INEditMessageIntentResponseCodeInProgress,
+    INEditMessageIntentResponseCodeSuccess,
+    INEditMessageIntentResponseCodeFailure,
+    INEditMessageIntentResponseCodeFailureRequiringAppLaunch,
+    INEditMessageIntentResponseCodeFailureMessageNotFound,
+    INEditMessageIntentResponseCodeFailurePastEditTimeLimit,
+    INEditMessageIntentResponseCodeFailureMessageTypeUnsupported,
+    INEditMessageIntentResponseCodeFailureUnsupportedOnService,
+    INEditMessageIntentResponseCodeFailureMessageServiceNotAvailable,
+    INEditMessageIntentResponseCodeFailureRequiringInAppAuthentication,
+};
+API_AVAILABLE(ios(16.0))
+@interface INEditMessageIntentResponse : INIntentResponse
+- (instancetype)initWithCode:(INEditMessageIntentResponseCode)code userActivity:(nullable NSUserActivity *)userActivity NS_DESIGNATED_INITIALIZER;
+@property (readonly) INEditMessageIntentResponseCode code;
+@end
+API_AVAILABLE(ios(16.0))
+@protocol INEditMessageIntentHandling <NSObject>
+@required
+- (void)handleEditMessage:(INEditMessageIntent *)intent completion:(void (^)(INEditMessageIntentResponse *response))completion NS_SWIFT_NAME(handle(intent:completion:));
+@optional
+- (void)confirmEditMessage:(INEditMessageIntent *)intent completion:(void (^)(INEditMessageIntentResponse *response))completion NS_SWIFT_NAME(confirm(intent:completion:));
+- (void)resolveEditedContentForEditMessage:(INEditMessageIntent *)intent withCompletion:(void (^)(INStringResolutionResult *resolutionResult))completion NS_SWIFT_NAME(resolveEditedContent(for:with:));
+@end
+API_AVAILABLE(ios(16.0))
+@interface INUnsendMessagesIntent : INIntent
+- (instancetype)initWithMessageIdentifiers:(nullable NSArray<NSString *> *)messageIdentifiers NS_DESIGNATED_INITIALIZER;
+@property (readonly, copy, nullable) NSArray<NSString *> *messageIdentifiers;
+@end
+API_AVAILABLE(ios(16.0))
+typedef NS_ENUM(NSInteger, INUnsendMessagesIntentResponseCode) {
+    INUnsendMessagesIntentResponseCodeUnspecified = 0,
+    INUnsendMessagesIntentResponseCodeReady,
+    INUnsendMessagesIntentResponseCodeInProgress,
+    INUnsendMessagesIntentResponseCodeSuccess,
+    INUnsendMessagesIntentResponseCodeFailure,
+    INUnsendMessagesIntentResponseCodeFailureRequiringAppLaunch,
+    INUnsendMessagesIntentResponseCodeFailureMessageNotFound,
+    INUnsendMessagesIntentResponseCodeFailurePastUnsendTimeLimit,
+    INUnsendMessagesIntentResponseCodeFailureMessageTypeUnsupported,
+    INUnsendMessagesIntentResponseCodeFailureUnsupportedOnService,
+    INUnsendMessagesIntentResponseCodeFailureMessageServiceNotAvailable,
+    INUnsendMessagesIntentResponseCodeFailureRequiringInAppAuthentication,
+};
+API_AVAILABLE(ios(16.0))
+@interface INUnsendMessagesIntentResponse : INIntentResponse
+- (instancetype)initWithCode:(INUnsendMessagesIntentResponseCode)code userActivity:(nullable NSUserActivity *)userActivity NS_DESIGNATED_INITIALIZER;
+@property (readonly) INUnsendMessagesIntentResponseCode code;
+@end
+API_AVAILABLE(ios(16.0))
+@protocol INUnsendMessagesIntentHandling <NSObject>
+@required
+- (void)handleUnsendMessages:(INUnsendMessagesIntent *)intent completion:(void (^)(INUnsendMessagesIntentResponse *response))completion NS_SWIFT_NAME(handle(intent:completion:));
+@optional
+- (void)confirmUnsendMessages:(INUnsendMessagesIntent *)intent completion:(void (^)(INUnsendMessagesIntentResponse *response))completion NS_SWIFT_NAME(confirm(intent:completion:));
 @end
 
 /* ---------------- calls ---------------- */
@@ -532,6 +677,131 @@ typedef NS_ENUM(NSInteger, INPlayMediaMediaItemUnsupportedReason) {
 - (void)resolvePlayShuffledForPlayMedia:(INPlayMediaIntent *)intent withCompletion:(void (^)(INBooleanResolutionResult *resolutionResult))completion NS_SWIFT_NAME(resolvePlayShuffled(for:with:));
 @end
 
+/* adding media to the library or a playlist, and searching for it (iOS 13). isim: "add NAME to my library", "add NAME
+   to my PLAYLIST playlist", "add this song to ...", "search for NAME in APP" / "find NAME in APP" (or `siri intent
+   AddMedia media=NAME playlist=NAME`, `siri intent SearchForMedia media=NAME`). */
+typedef NS_ENUM(NSInteger, INMediaDestinationType) {
+    INMediaDestinationTypeUnknown = 0,
+    INMediaDestinationTypeLibrary,
+    INMediaDestinationTypePlaylist,
+} API_AVAILABLE(ios(13.0));
+/* Swift: INMediaDestinationReference; the API uses the INMediaDestination enum (.library, .playlist(name)) */
+API_AVAILABLE(ios(13.0)) NS_SWIFT_NAME(INMediaDestinationReference)
+@interface INMediaDestination : NSObject <NSCopying, NSSecureCoding>
++ (instancetype)libraryDestination NS_SWIFT_NAME(library());
++ (instancetype)playlistDestinationWithName:(NSString *)playlistName NS_SWIFT_NAME(playlistDestination(withName:));
+@property (readonly) INMediaDestinationType mediaDestinationType;
+@property (readonly, copy, nullable) NSString *playlistName;
+@end
+API_AVAILABLE(ios(13.0))
+@interface INMediaDestinationResolutionResult : INIntentResolutionResult
++ (instancetype)successWithResolvedMediaDestination:(INMediaDestination *)resolvedMediaDestination NS_SWIFT_NAME(__success(with:));
++ (instancetype)disambiguationWithMediaDestinationsToDisambiguate:(NSArray<INMediaDestination *> *)mediaDestinationsToDisambiguate NS_SWIFT_NAME(__disambiguation(with:));
++ (instancetype)confirmationRequiredWithMediaDestinationToConfirm:(nullable INMediaDestination *)mediaDestinationToConfirm NS_SWIFT_NAME(__confirmationRequired(with:));
+@end
+
+API_AVAILABLE(ios(13.0))
+@interface INAddMediaIntent : INIntent
+- (instancetype)initWithMediaItems:(nullable NSArray<INMediaItem *> *)mediaItems mediaSearch:(nullable INMediaSearch *)mediaSearch mediaDestination:(nullable INMediaDestination *)mediaDestination NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(__mediaItems:mediaSearch:mediaDestination:));
+@property (readonly, copy, nullable) NSArray<INMediaItem *> *mediaItems;
+@property (readonly, copy, nullable) INMediaSearch *mediaSearch;
+@property (readonly, copy, nullable) INMediaDestination *mediaDestination NS_SWIFT_NAME(__mediaDestination);
+@end
+typedef NS_ENUM(NSInteger, INAddMediaIntentResponseCode) {
+    INAddMediaIntentResponseCodeUnspecified = 0,
+    INAddMediaIntentResponseCodeReady,
+    INAddMediaIntentResponseCodeInProgress,
+    INAddMediaIntentResponseCodeSuccess,
+    INAddMediaIntentResponseCodeHandleInApp,
+    INAddMediaIntentResponseCodeFailure,
+    INAddMediaIntentResponseCodeFailureRequiringAppLaunch,
+} API_AVAILABLE(ios(13.0));
+API_AVAILABLE(ios(13.0))
+@interface INAddMediaIntentResponse : INIntentResponse
+- (instancetype)initWithCode:(INAddMediaIntentResponseCode)code userActivity:(nullable NSUserActivity *)userActivity NS_DESIGNATED_INITIALIZER;
+@property (readonly) INAddMediaIntentResponseCode code;
+@end
+typedef NS_ENUM(NSInteger, INAddMediaMediaItemUnsupportedReason) {
+    INAddMediaMediaItemUnsupportedReasonLoginRequired = 1,
+    INAddMediaMediaItemUnsupportedReasonSubscriptionRequired,
+    INAddMediaMediaItemUnsupportedReasonUnsupportedMediaType,
+    INAddMediaMediaItemUnsupportedReasonExplicitContentSettings,
+    INAddMediaMediaItemUnsupportedReasonCellularDataSettings,
+    INAddMediaMediaItemUnsupportedReasonRestrictedContent,
+    INAddMediaMediaItemUnsupportedReasonServiceUnavailable,
+    INAddMediaMediaItemUnsupportedReasonRegionRestriction,
+};
+API_AVAILABLE(ios(13.0))
+@interface INAddMediaMediaItemResolutionResult : INMediaItemResolutionResult
++ (NSArray<INAddMediaMediaItemResolutionResult *> *)successesWithResolvedMediaItems:(NSArray<INMediaItem *> *)resolvedMediaItems NS_SWIFT_NAME(successes(with:));
++ (instancetype)unsupportedForReason:(INAddMediaMediaItemUnsupportedReason)reason NS_SWIFT_NAME(unsupported(forReason:));
+- (instancetype)initWithMediaItemResolutionResult:(INMediaItemResolutionResult *)mediaItemResolutionResult;
+@end
+typedef NS_ENUM(NSInteger, INAddMediaMediaDestinationUnsupportedReason) {
+    INAddMediaMediaDestinationUnsupportedReasonPlaylistNameNotFound = 1,
+    INAddMediaMediaDestinationUnsupportedReasonPlaylistNotEditable,
+} API_AVAILABLE(ios(13.0));
+API_AVAILABLE(ios(13.0))
+@interface INAddMediaMediaDestinationResolutionResult : INMediaDestinationResolutionResult
++ (instancetype)unsupportedForReason:(INAddMediaMediaDestinationUnsupportedReason)reason NS_SWIFT_NAME(unsupported(forReason:));
+- (instancetype)initWithMediaDestinationResolutionResult:(INMediaDestinationResolutionResult *)mediaDestinationResolutionResult;
+@end
+API_AVAILABLE(ios(13.0))
+@protocol INAddMediaIntentHandling <NSObject>
+@required
+- (void)handleAddMedia:(INAddMediaIntent *)intent completion:(void (^)(INAddMediaIntentResponse *response))completion NS_SWIFT_NAME(handle(intent:completion:));
+@optional
+- (void)confirmAddMedia:(INAddMediaIntent *)intent completion:(void (^)(INAddMediaIntentResponse *response))completion NS_SWIFT_NAME(confirm(intent:completion:));
+- (void)resolveMediaItemsForAddMedia:(INAddMediaIntent *)intent withCompletion:(void (^)(NSArray<INAddMediaMediaItemResolutionResult *> *resolutionResults))completion NS_SWIFT_NAME(resolveMediaItems(for:with:));
+- (void)resolveMediaDestinationForAddMedia:(INAddMediaIntent *)intent withCompletion:(void (^)(INAddMediaMediaDestinationResolutionResult *resolutionResult))completion NS_SWIFT_NAME(resolveMediaDestination(for:with:));
+@end
+
+API_AVAILABLE(ios(13.0))
+@interface INSearchForMediaIntent : INIntent
+- (instancetype)initWithMediaItems:(nullable NSArray<INMediaItem *> *)mediaItems mediaSearch:(nullable INMediaSearch *)mediaSearch NS_DESIGNATED_INITIALIZER;
+@property (readonly, copy, nullable) NSArray<INMediaItem *> *mediaItems;
+@property (readonly, copy, nullable) INMediaSearch *mediaSearch;
+@end
+typedef NS_ENUM(NSInteger, INSearchForMediaIntentResponseCode) {
+    INSearchForMediaIntentResponseCodeUnspecified = 0,
+    INSearchForMediaIntentResponseCodeReady,
+    INSearchForMediaIntentResponseCodeContinueInApp,
+    INSearchForMediaIntentResponseCodeInProgress,
+    INSearchForMediaIntentResponseCodeSuccess,
+    INSearchForMediaIntentResponseCodeFailure,
+    INSearchForMediaIntentResponseCodeFailureRequiringAppLaunch,
+} API_AVAILABLE(ios(13.0));
+API_AVAILABLE(ios(13.0))
+@interface INSearchForMediaIntentResponse : INIntentResponse
+- (instancetype)initWithCode:(INSearchForMediaIntentResponseCode)code userActivity:(nullable NSUserActivity *)userActivity NS_DESIGNATED_INITIALIZER;
+@property (readonly) INSearchForMediaIntentResponseCode code;
+@property (copy, nullable) NSArray<INMediaItem *> *mediaItems;
+@end
+typedef NS_ENUM(NSInteger, INSearchForMediaMediaItemUnsupportedReason) {
+    INSearchForMediaMediaItemUnsupportedReasonLoginRequired = 1,
+    INSearchForMediaMediaItemUnsupportedReasonSubscriptionRequired,
+    INSearchForMediaMediaItemUnsupportedReasonUnsupportedMediaType,
+    INSearchForMediaMediaItemUnsupportedReasonExplicitContentSettings,
+    INSearchForMediaMediaItemUnsupportedReasonCellularDataSettings,
+    INSearchForMediaMediaItemUnsupportedReasonRestrictedContent,
+    INSearchForMediaMediaItemUnsupportedReasonServiceUnavailable,
+    INSearchForMediaMediaItemUnsupportedReasonRegionRestriction,
+};
+API_AVAILABLE(ios(13.0))
+@interface INSearchForMediaMediaItemResolutionResult : INMediaItemResolutionResult
++ (NSArray<INSearchForMediaMediaItemResolutionResult *> *)successesWithResolvedMediaItems:(NSArray<INMediaItem *> *)resolvedMediaItems NS_SWIFT_NAME(successes(with:));
++ (instancetype)unsupportedForReason:(INSearchForMediaMediaItemUnsupportedReason)reason NS_SWIFT_NAME(unsupported(forReason:));
+- (instancetype)initWithMediaItemResolutionResult:(INMediaItemResolutionResult *)mediaItemResolutionResult;
+@end
+API_AVAILABLE(ios(13.0))
+@protocol INSearchForMediaIntentHandling <NSObject>
+@required
+- (void)handleSearchForMedia:(INSearchForMediaIntent *)intent completion:(void (^)(INSearchForMediaIntentResponse *response))completion NS_SWIFT_NAME(handle(intent:completion:));
+@optional
+- (void)confirmSearchForMedia:(INSearchForMediaIntent *)intent completion:(void (^)(INSearchForMediaIntentResponse *response))completion NS_SWIFT_NAME(confirm(intent:completion:));
+- (void)resolveMediaItemsForSearchForMedia:(INSearchForMediaIntent *)intent withCompletion:(void (^)(NSArray<INSearchForMediaMediaItemResolutionResult *> *resolutionResults))completion NS_SWIFT_NAME(resolveMediaItems(for:with:));
+@end
+
 /* ---------------- lists and notes ---------------- */
 typedef NS_ENUM(NSInteger, INTaskStatus) {
     INTaskStatusUnknown = 0,
@@ -697,6 +967,73 @@ typedef NS_ENUM(NSInteger, INCreateNoteIntentResponseCode) {
 - (void)getAllVoiceShortcutsWithCompletion:(void (^)(NSArray<INVoiceShortcut *> *_Nullable voiceShortcuts, NSError *_Nullable error))completionHandler;
 - (void)getVoiceShortcutWithIdentifier:(NSUUID *)identifier completion:(void (^)(INVoiceShortcut *_Nullable voiceShortcut, NSError *_Nullable error))completionHandler NS_SWIFT_NAME(getVoiceShortcut(with:completion:));
 - (void)setShortcutSuggestions:(NSArray<INShortcut *> *)suggestions;
+@end
+
+/* ---------------- relevant shortcuts ---------------- */
+/* isim (adapted): INRelevantShortcutStore keeps the app's relevant shortcuts in its container
+   (Library/isim/RelevantShortcuts.plist). isim has no Siri watch face or Smart Stack: the Shortcuts app lists the ones
+   relevant now among the app's Siri Suggestions (a date provider's interval holds now; daily-routine and location
+   providers count as relevant), titled by the watch template, and running one runs its intent or user activity. */
+API_AVAILABLE(ios(12.0))
+@interface INRelevanceProvider : NSObject <NSCopying, NSSecureCoding>
+@end
+API_AVAILABLE(ios(12.0))
+@interface INDateRelevanceProvider : INRelevanceProvider
+- (instancetype)initWithStartDate:(NSDate *)startDate endDate:(nullable NSDate *)endDate NS_DESIGNATED_INITIALIZER NS_SWIFT_NAME(init(start:end:));
+@property (readonly, copy) NSDate *startDate;
+@property (readonly, copy, nullable) NSDate *endDate;
+@end
+API_AVAILABLE(ios(12.0))
+@interface INLocationRelevanceProvider : INRelevanceProvider
+#if !defined(__swift__)
+- (instancetype)initWithRegion:(CLRegion *)region NS_DESIGNATED_INITIALIZER;
+@property (readonly, copy) CLRegion *region;
+#else   /* CLRegion is the CoreLocation Swift overlay's class: init(region:) and region are in the Intents overlay */
+- (instancetype)initWithRegion:(id)region NS_DESIGNATED_INITIALIZER NS_REFINED_FOR_SWIFT;
+@property (readonly, copy) id region NS_REFINED_FOR_SWIFT;
+#endif
+@end
+typedef NS_ENUM(NSInteger, INDailyRoutineSituation) {
+    INDailyRoutineSituationMorning = 0,
+    INDailyRoutineSituationEvening,
+    INDailyRoutineSituationHome,
+    INDailyRoutineSituationWork,
+    INDailyRoutineSituationSchool,
+    INDailyRoutineSituationGym,
+    INDailyRoutineSituationCommute API_AVAILABLE(ios(13.0)),
+    INDailyRoutineSituationHeadphonesConnected API_AVAILABLE(ios(13.0)),
+    INDailyRoutineSituationActiveWorkout API_AVAILABLE(ios(13.0)),
+    INDailyRoutineSituationPhysicalActivityIncomplete API_AVAILABLE(ios(13.0)),
+} API_AVAILABLE(ios(12.0)) NS_SWIFT_NAME(INDailyRoutineRelevanceProvider.Situation);
+API_AVAILABLE(ios(12.0))
+@interface INDailyRoutineRelevanceProvider : INRelevanceProvider
+- (instancetype)initWithSituation:(INDailyRoutineSituation)situation NS_DESIGNATED_INITIALIZER;
+@property (readonly) INDailyRoutineSituation situation;
+@end
+API_AVAILABLE(ios(12.0))
+@interface INDefaultCardTemplate : NSObject <NSCopying, NSSecureCoding>
+- (instancetype)initWithTitle:(NSString *)title NS_DESIGNATED_INITIALIZER;
+@property (copy) NSString *title;
+@property (copy, nullable) NSString *subtitle;
+@property (copy, nullable) INImage *image;
+@end
+typedef NS_ENUM(NSInteger, INRelevantShortcutRole) {
+    INRelevantShortcutRoleAction = 0,
+    INRelevantShortcutRoleInformation,
+} API_AVAILABLE(ios(12.0));
+API_AVAILABLE(ios(12.0))
+@interface INRelevantShortcut : NSObject <NSSecureCoding, NSCopying>
+- (instancetype)initWithShortcut:(INShortcut *)shortcut NS_DESIGNATED_INITIALIZER;
+@property (readonly, copy) INShortcut *shortcut;
+@property (copy) NSArray<INRelevanceProvider *> *relevanceProviders;
+@property (copy, nullable) INDefaultCardTemplate *watchTemplate;
+@property (assign) INRelevantShortcutRole shortcutRole;
+@property (copy, nullable) NSString *widgetKind API_AVAILABLE(ios(15.0));
+@end
+API_AVAILABLE(ios(12.0))
+@interface INRelevantShortcutStore : NSObject
+@property (class, readonly, strong) INRelevantShortcutStore *defaultStore NS_SWIFT_NAME(default);
+- (void)setRelevantShortcuts:(NSArray<INRelevantShortcut *> *)shortcuts completionHandler:(void (^_Nullable)(NSError *_Nullable error))completionHandler;
 @end
 
 /* ---------------- handling ---------------- */

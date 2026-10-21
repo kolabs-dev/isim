@@ -784,6 +784,7 @@ INTENT_TYPES = {   # INIntentParameterType -> (Swift type, resolution result, Si
     'DateComponents': ('DateComponents', 'INDateComponentsResolutionResult'),
     'Date': ('DateComponents', 'INDateComponentsResolutionResult'),
     'URL': ('URL', 'INURLResolutionResult'),
+    'CurrencyAmount': ('INCurrencyAmount', 'INCurrencyAmountResolutionResult'),
 }
 SYSTEM_CODES = ['unspecified', 'ready', 'continueInApp', 'inProgress', 'success', 'failure', 'failureRequiringAppLaunch']
 
@@ -801,6 +802,14 @@ def _intent_param_type(p):
     else:
         t, res = INTENT_TYPES.get(kind, ('String', 'INStringResolutionResult'))
     return (f'[{t}]' if many else t), True, res
+
+
+def _options_item_type(p):
+    """the element type of a parameter's dynamic options (INObjectCollection<...>), or None"""
+    kind = p.get('INIntentParameterType') or 'String'
+    if kind == 'Object' and p.get('INIntentParameterObjectType'):
+        return p['INIntentParameterObjectType']
+    return {'String': 'NSString', 'Person': 'INPerson'}.get(kind)
 
 
 def intents_swift(defn):
@@ -868,6 +877,11 @@ def intents_swift(defn):
             arg = f'[{res}]' if many else res
             L += [f'    @objc(resolve{cap}For{base}:withCompletion:)',
                   f'    optional func resolve{cap}(for intent: {cls}, with completion: @escaping ({arg}) -> Swift.Void)', '']
+            item = _options_item_type(p)
+            if p.get('INIntentParameterSupportsDynamicEnumeration') and item:
+                L += [f'    @available(iOS 14.0, macOS 11.0, watchOS 7.0, *)',
+                      f'    @objc(provide{cap}OptionsCollectionFor{base}:withCompletion:)',
+                      f'    optional func provide{cap}OptionsCollection(for intent: {cls}, with completion: @escaping (INObjectCollection<{item}>?, Swift.Error?) -> Swift.Void)', '']
         L += [f'    @objc(confirm{base}:completion:)',
               f'    optional func confirm(intent: {cls}, completion: @escaping ({rcls}) -> Swift.Void)', '',
               f'    @objc(handle{base}:completion:)',
