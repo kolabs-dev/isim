@@ -440,7 +440,8 @@ class Swift:
         libraries in lib/swift/host): isim's SwiftCompilerPlugin module (what macro packages import; `isim build`
         compiles their macro targets against it), isim's PreviewsMacros plugin (`#Preview`), SwiftUIMacros plugin
         (`@Entry`, `@Animatable`), SwiftDataMacros plugin (`@Model`), FoundationModelsMacros plugin (`@Generable`,
-        `@Guide`) and AppIntentsMacros plugin (`@AssistantIntent(schema:)`, …), in out/swift/host
+        `@Guide`), AppIntentsMacros plugin (`@AssistantIntent(schema:)`, …) and TipKitMacros plugin (`#Rule`, `@Parameter`), in
+        out/swift/host
         (`isim swiftc` passes -plugin-path out/swift/host/plugins)"""
         H = f"{SW}/host"
         os.makedirs(os.path.join(self.c.root, H, "plugins"), exist_ok=True)
@@ -476,7 +477,12 @@ class Swift:
                           "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
                           "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libAppIntentsMacros.so"],
                          ["swift/macro-support/AppIntentsMacros.swift"], implicit=cp, plain=True, desc="SWIFT AppIntentsMacros (host)")
-        return cp + pm + um + sm + fm + am
+        tm = self.swiftc([f"{H}/plugins/libTipKitMacros.so"],
+                         ["-O", "-emit-library", "-parse-as-library", "-module-name", "TipKitMacros", *WERROR, *host, "-I", H, "-L", H,
+                          "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
+                          "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libTipKitMacros.so"],
+                         ["swift/macro-support/TipKitMacros.swift"], implicit=cp, plain=True, desc="SWIFT TipKitMacros (host)")
+        return cp + pm + um + sm + fm + am + tm
 
     def onone(self):
         src = f"{self.src}/stdlib/public/SwiftOnoneSupport/SwiftOnoneSupport.swift"
@@ -832,6 +838,7 @@ MultipeerConnectivity -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftNe
 XCTest -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit -framework XCTest
 AppIntents -lswiftObjectiveC -reexport-lswiftFoundation -lswiftCoreSpotlight -lswiftCoreLocation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit
 ActivityKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation -lisim_host
+TipKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftObservation -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 WidgetKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftAppIntents -lswiftActivityKit -lswiftIntents -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -framework Intents -lisim_host
 CoreSpotlight -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUniformTypeIdentifiers -framework Foundation
 AppClip -lswiftObjectiveC -lswiftFoundation -lswiftCoreLocation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
@@ -848,13 +855,13 @@ HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayK
 GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Security os OSLog Compression LocalAuthentication
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices
 QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision NaturalLanguage FoundationModels Speech VisionKit WebKit SafariServices MessageUI MapKit
-MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit""".split())
+MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit TipKit Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer".split())
 # modules that also compile overlays/_AdAttribution (the conversion values SKAdNetwork and AdAttributionKit share)
 ATTRIBUTION = set("StoreKit AdAttributionKit".split())
 # overlays that declare macros of isim's compiler plugins (host_plugins): they compile after the plugin is built
 MACRO_PLUGINS = {"UIKit": ["PreviewsMacros"], "SwiftUI": ["PreviewsMacros", "SwiftUIMacros"], "SwiftData": ["SwiftDataMacros"],
-                 "FoundationModels": ["FoundationModelsMacros"],
+                 "FoundationModels": ["FoundationModelsMacros"], "TipKit": ["TipKitMacros"],
                  "AppIntents": ["SwiftDataMacros", "AppIntentsMacros"]}   # @ComputedProperty uses SwiftData's no-op property macro
 
