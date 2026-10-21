@@ -39,14 +39,13 @@ CFTypeID CFHostGetTypeID(void) { return 0x5C1; }
 
 static ISIMCFHost *H(CFHostRef h) { return (__bridge ISIMCFHost *)h; }
 
+/* the arguments are non-null, as in Apple's header (a host with a too-short address fails to resolve) */
 CFHostRef CFHostCreateWithName(CFAllocatorRef allocator, CFStringRef hostname) {
-    if (!hostname) return NULL;
     ISIMCFHost *h = [ISIMCFHost new];
     h->name = [(__bridge NSString *)hostname copy];
     return (CFHostRef)CFBridgingRetain(h);
 }
 CFHostRef CFHostCreateWithAddress(CFAllocatorRef allocator, CFDataRef addr) {
-    if (!addr || CFDataGetLength(addr) < (CFIndex)sizeof(struct sockaddr)) return NULL;
     ISIMCFHost *h = [ISIMCFHost new];
     h->address = [(__bridge NSData *)addr copy];
     h->addresses = @[h->address];
@@ -54,7 +53,6 @@ CFHostRef CFHostCreateWithAddress(CFAllocatorRef allocator, CFDataRef addr) {
 }
 CFHostRef CFHostCreateCopy(CFAllocatorRef alloc, CFHostRef host) {
     ISIMCFHost *s = H(host);
-    if (!s) return NULL;
     ISIMCFHost *h = [ISIMCFHost new];
     h->name = s->name; h->address = s->address;
     h->addresses = s->addresses; h->names = s->names; h->reachability = s->reachability;
@@ -81,11 +79,13 @@ static resolution resolve(NSString *name, NSData *address, CFHostInfoType info) 
         r.addresses = list;
     } else if (info == kCFHostNames) {
         if (!address) { r.names = name ? @[name] : @[]; return r; }
+        if (address.length < sizeof(struct sockaddr)) { r.error = (CFStreamError){ kCFStreamErrorDomainNetDB, EAI_FAMILY }; return r; }
         char host[NI_MAXHOST];
         int e = getnameinfo(address.bytes, (socklen_t)address.length, host, sizeof host, NULL, 0, NI_NAMEREQD);
         if (e) { r.error = (CFStreamError){ kCFStreamErrorDomainNetDB, e }; return r; }
         r.names = @[@(host)];
     } else if (info == kCFHostReachability) {
+        if (!name && address.length < sizeof(struct sockaddr)) { r.error = (CFStreamError){ kCFStreamErrorDomainSystemConfiguration, -1 }; return r; }
         SCNetworkReachabilityRef reach = name ? SCNetworkReachabilityCreateWithName(NULL, name.UTF8String)
                                               : SCNetworkReachabilityCreateWithAddress(NULL, address.bytes);
         SCNetworkReachabilityFlags flags = 0;
