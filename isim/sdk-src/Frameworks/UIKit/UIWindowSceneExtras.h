@@ -11,8 +11,9 @@
 #import <UIKit/UIWindow.h>
 #import <UIKit/UIViewController.h>
 #import <UIKit/UIApplicationShortcutItem.h>
+#import <_CKShareMetadata/_CKShareMetadata.h>   /* CKShareMetadata, which Swift resolves to CloudKit's CKShare.Metadata (#630) */
 NS_ASSUME_NONNULL_BEGIN
-@class UNNotificationResponse, CKShareMetadata, GCGameControllerActivationContext, CNContact, UITargetedPreview, UIGestureRecognizer, UILayoutGuide;
+@class UNNotificationResponse, GCGameControllerActivationContext, CNContact, UITargetedPreview, UIGestureRecognizer, UILayoutGuide;
 
 /* ---------------- UIApplication ---------------- */
 /* the URL strings for Settings: the app's page, its notification settings, the default apps page */

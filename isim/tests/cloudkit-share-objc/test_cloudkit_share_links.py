@@ -4,7 +4,8 @@ screen's launch for a link of the app's container), hands the share's metadata t
 Objective-C without scenes: UIApplicationLaunchOptionsCloudKitShareMetadataKey and
 application:userDidAcceptCloudKitShareWithMetadata:. With a scene delegate: the connection options' cloudKitShareMetadata
 and windowScene:userDidAcceptCloudKitShareWithMetadata:. Swift: UIScene.ConnectionOptions.cloudKitShareMetadata
-(CKShare.Metadata) at launch."""
+(CKShare.Metadata) at launch, and windowScene(_:userDidAcceptCloudKitShareWith:) for a link opened while it runs, written
+without @objc (issue #630); CKShare.SystemFieldKey.title as a record field key; the metadata archived and decoded."""
 import base64
 
 from isimtest import need_apps
@@ -56,8 +57,12 @@ def test_share_link_swift(launch, device_data):
     p = "CKShareLinkSwift: "
     app = launch("CloudKitShareSwiftTest")
     app.wait_log(p + "launch options key UIApplicationLaunchOptionsCloudKitShareMetadataKey")
+    app.wait_log(p + "app delegate method objc true")
     app.wait_log(p + "scene options share none")
     url = share_url(app, p)
+    app.send(f"openurl {url}")
+    app.wait_log(p + r"scene delegate share Share-todo role 1 title Todo archived true")
+    assert "app delegate share" not in app.log
     assert app.quit() == 0
     app = launch("CloudKitShareSwiftTest", data=device_data, env={"ISIM_LAUNCH_URL": f"isim-cloudkit-share:{url}"})
     app.wait_log(p + r"scene options share Share-todo role 1")

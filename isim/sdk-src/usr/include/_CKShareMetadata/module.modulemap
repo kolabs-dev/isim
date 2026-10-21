@@ -1,0 +1,6 @@
+// isim: Objective-C's CKShareMetadata for UIKit's headers (issue #630). Its Swift overlay, _CKShareMetadata, holds the
+// class, so Swift resolves UIKit's CKShareMetadata parameters to it (CloudKit's CKShare.Metadata).
+module _CKShareMetadata [system] {
+  header "_CKShareMetadata.h"
+  export *
+}
