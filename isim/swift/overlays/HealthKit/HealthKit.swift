@@ -288,6 +288,7 @@ enum _HKUnits {
     @objc open internal(set) var uuid: UUID = UUID()
     @objc open internal(set) var metadata: [String: Any]?
     @objc open internal(set) var sourceRevision: HKSourceRevision = HKSourceRevision(source: .default(), version: nil)
+    var _seq = 0
     open var device: HKDevice? { nil }
     @available(*, deprecated) open var source: HKSource { sourceRevision.source }
 }
