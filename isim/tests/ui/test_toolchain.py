@@ -3,7 +3,11 @@ local packages depending on each other, an XCFramework and .xcconfig files runs 
 `isim test` runs the hosted unit tests (Swift + ObjC XCTest), the Swift Testing bundle and the XCUITest bundle and
 reports success; deliberately failing tests (skipped by the scheme, selected with -only-testing) are reported as
 failures with exit status 65; Release configuration; arm64-only XCFrameworks are rejected with a clear message.
-Port of tests/ui/toolchain.sh."""
+A Swift package on its own (issue #619): `isim test` in the Units package's folder runs its .testTarget (XCTest with
+@testable import and Bundle.module, an XCTestCase made with init(), Swift Testing) like `xcodebuild test -scheme
+Units`; `isim build -list` lists a package's schemes (one per product, one for the package) and a product's scheme
+tests only the test targets that depend on it. Port of tests/ui/toolchain.sh."""
+import json
 import os
 import plistlib
 import re
@@ -24,10 +28,10 @@ def built():
     need_apps("HelloToolchain")
 
 
-def isim(device_data, *args, timeout=900):
+def isim(device_data, *args, timeout=900, cwd=PROJ, env=None):
     env = dict(os.environ, ISIM_DATA=str(device_data), ISIM_DEVICE=DEFAULT_DEVICE, ISIM_HEADLESS="1",
-               ISIM_SHOT_SCALE="1")
-    p = subprocess.run([str(ISIM), *args], cwd=PROJ, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+               ISIM_SHOT_SCALE="1", **(env or {}))
+    p = subprocess.run([str(ISIM), *args], cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                        text=True, errors="replace", timeout=timeout)
     return p.returncode, p.stdout
 
@@ -190,3 +194,61 @@ def test_arm64_only_xcframework_rejected(tmp_path):
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True).stdout
     assert "Arm.xcframework has no x86_64 iOS-simulator slice (it has: ios-arm64 (arm64), ios-arm64_arm64-simulator (arm64))" \
         in out, out
+
+
+def test_package_tests(device_data, tmp_path):
+    units = PROJ / "Packages/Units"
+    out = str(tmp_path / "build")                                     # (not <package>/.build/isim: keeps the sample clean)
+    rc, log = isim(device_data, "build", "-list", "-o", out, cwd=units)
+    assert rc == 0 and re.search(r'^Information about workspace "Units":\n    Schemes:\n        Units$', log, re.M), log
+    rc, log = isim(device_data, "test", "-scheme", "Units", "-o", out, cwd=units)
+    tail = log[-6000:]
+    assert rc == 0 and re.search(r"^\*\* TEST SUCCEEDED \*\*", log, re.M), f"the package's tests pass (exit {rc})\n{tail}"
+    for t in ("testTableFromBundleModule", "testConvertThroughCore", "testInternalSymbol", "testMakesAnotherTestCase"):
+        assert re.search(rf"Test Case .-\[UnitsTests\.UnitsTests {t}\]. passed", log), f"{t} passes\n{tail}"
+    assert "Executed 5 tests, with 0 failures" in log and re.search(r"Test swiftTestingConvert\(\) passed", log), tail
+    res = tmp_path / "results"
+    rc, log = isim(device_data, "test", "-scheme", "Units", "-o", out, "-resultBundlePath", str(res),
+                   "-only-testing:UnitsTests/UnitsTests/testFailsOnRequest", cwd=units, env={"UNITS_FAIL": "1"})
+    assert rc == 65 and re.search(r"^\*\* TEST FAILED \*\*", log, re.M), f"a failing package test exits 65 (exit {rc})\n{log[-4000:]}"
+    assert "Executed 1 test, with 1 failure" in log and "UNITS_FAIL is set" in log, log[-4000:]
+    assert 'failures="1"' in (res / "UnitsTests.junit.xml").read_text()
+
+
+def test_package_schemes(device_data, tmp_path):
+    pkg = tmp_path / "Shapes"
+    files = {
+        "Package.swift": """// swift-tools-version:5.9
+import PackageDescription
+let package = Package(
+    name: "Shapes",
+    platforms: [.iOS(.v17)],
+    products: [.library(name: "Square", targets: ["Square"]), .library(name: "Circle", targets: ["Circle"])],
+    targets: [
+        .target(name: "Square"), .target(name: "Circle"),
+        .testTarget(name: "SquareTests", dependencies: ["Square"]),
+        .testTarget(name: "CircleTests", dependencies: ["Circle"]),
+    ]
+)
+""",
+        "Sources/Square/Square.swift": "public func area(side: Int) -> Int { side * side }\n",
+        "Sources/Circle/Circle.swift": "public func diameter(radius: Int) -> Int { 2 * radius }\n",
+        "Tests/SquareTests/SquareTests.swift": "import XCTest\nimport Square\n"
+            "final class SquareTests: XCTestCase { func testArea() { XCTAssertEqual(area(side: 3), 9) } }\n",
+        "Tests/CircleTests/CircleTests.swift": "import XCTest\nimport Circle\n"
+            "final class CircleTests: XCTestCase { func testDiameter() { XCTAssertEqual(diameter(radius: 2), 4) } }\n",
+    }
+    for name, text in files.items():
+        (pkg / name).parent.mkdir(parents=True, exist_ok=True)
+        (pkg / name).write_text(text)
+    rc, log = isim(device_data, "build", "-package-path", str(pkg), "-list", "-json", cwd=tmp_path)
+    assert rc == 0, log
+    assert json.loads(log[log.index("{"):])["workspace"] == {"name": "Shapes", "schemes": ["Circle", "Square", "Shapes", "Shapes-Package"]}
+    out = str(tmp_path / "build")
+    rc, log = isim(device_data, "test", "-scheme", "Square", "-o", out, cwd=pkg)
+    assert rc == 0 and re.search(r"-\[SquareTests\.SquareTests testArea\]. passed", log), log[-4000:]
+    assert "CircleTests" not in log, "a product's scheme runs only the test targets that depend on it"
+    rc, log = isim(device_data, "test", "-scheme", "Shapes-Package", "-o", out, cwd=pkg)
+    assert rc == 0 and re.search(r"CircleTests testDiameter\]. passed", log) and re.search(r"SquareTests testArea\]. passed", log), log[-4000:]
+    rc, log = isim(device_data, "test", "-scheme", "Triangle", "-o", out, cwd=pkg)
+    assert rc != 0 and "package Shapes has no scheme named Triangle (schemes: Circle, Square, Shapes, Shapes-Package)" in log, log

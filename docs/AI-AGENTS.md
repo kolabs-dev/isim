@@ -32,7 +32,8 @@ This page is for people building **their own apps** with an agent. Working on is
    - Always `export ISIM_DATA=$PWD/.isim-data` first for your own runs. The default device data is mine: never boot,
      install into or reset it.
    - Build: `isim build -project MyApp.xcodeproj -scheme MyApp` (products in `./build`, last line: `done: <path to .app>`).
-   - Test: `isim test -project MyApp.xcodeproj -scheme MyApp` (exit 65 on failures).
+   - Test: `isim test -project MyApp.xcodeproj -scheme MyApp` (exit 65 on failures). A local Swift package's own
+     tests: `isim test -scheme MyAppCore` in the package's folder (`isim build -list` there lists its schemes).
    - Look at it: `ISIM_ANIMATIONS=0 isim run <the .app from the done: line> --headless --script "wait 2; dump; shot /tmp/s.png; quit"`,
      then read the dump and the screenshot. Script commands: docs/SCRIPTING.md in the isim repository.
    - Give every control you need to tap an `accessibilityIdentifier`, and use `tapid` rather than coordinates.

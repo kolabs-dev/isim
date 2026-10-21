@@ -20,3 +20,6 @@ __pycache__/
 
 # release packages (published on GitHub Releases)
 isim/dist/
+
+# SwiftPM / isim build output of packages (isim build or isim test in a package folder)
+.build/
