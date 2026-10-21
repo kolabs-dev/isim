@@ -1,8 +1,8 @@
 #pragma once
 /* isim Core Motion for Objective-C: the classes are the CoreMotion Swift overlay's (CoreMotion.framework re-exports
    libswiftCoreMotion.dylib): an iPhone held upright and at rest (see the overlay). Swift uses the overlay; these
-   declarations are hidden from Swift. Not available from Objective-C yet: the pedometer, motion activity, the
-   altimeter and headphone motion. The classes are not subclassable from Objective-C. */
+   declarations are hidden from Swift. Like the Simulator, the pedometer, motion activity, the altimeter and headphone
+   motion are not available. The classes are not subclassable from Objective-C. */
 #import <Foundation/Foundation.h>
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
@@ -91,6 +91,95 @@ typedef void (^CMDeviceMotionHandler)(CMDeviceMotion * _Nullable motion, NSError
                                         withHandler:(CMDeviceMotionHandler)handler;
 - (void)stopDeviceMotionUpdates;
 @property (assign, nonatomic) BOOL showsDeviceMovementDisplay;
+@end
+
+typedef NS_ENUM(NSInteger, CMAuthorizationStatus) {
+    CMAuthorizationStatusNotDetermined = 0, CMAuthorizationStatusRestricted, CMAuthorizationStatusDenied, CMAuthorizationStatusAuthorized,
+};
+typedef NS_ENUM(NSInteger, CMError) {
+    CMErrorNULL = 100, CMErrorDeviceRequiresMovement, CMErrorTrueNorthNotAvailable, CMErrorUnknown, CMErrorMotionActivityNotAvailable,
+    CMErrorMotionActivityNotAuthorized, CMErrorMotionActivityNotEntitled, CMErrorInvalidParameter, CMErrorInvalidAction,
+    CMErrorNotAvailable, CMErrorNotEntitled, CMErrorNotAuthorized, CMErrorNilData, CMErrorSize,
+};
+
+/* the pedometer, motion activity and the altimeter: unavailable like the Simulator; queries fail with
+   CMErrorMotionActivityNotAvailable (CMErrorMotionActivityNotAuthorized without NSMotionUsageDescription) */
+@interface CMPedometerData : NSObject
+@property (readonly, nonatomic) NSDate *startDate;
+@property (readonly, nonatomic) NSDate *endDate;
+@property (readonly, nonatomic) NSNumber *numberOfSteps;
+@property (readonly, nonatomic, nullable) NSNumber *distance;
+@property (readonly, nonatomic, nullable) NSNumber *floorsAscended;
+@property (readonly, nonatomic, nullable) NSNumber *floorsDescended;
+@property (readonly, nonatomic, nullable) NSNumber *currentPace;
+@property (readonly, nonatomic, nullable) NSNumber *currentCadence;
+@property (readonly, nonatomic, nullable) NSNumber *averageActivePace;
+@end
+typedef NS_ENUM(NSInteger, CMPedometerEventType) { CMPedometerEventTypePause, CMPedometerEventTypeResume };
+@interface CMPedometerEvent : NSObject
+@property (readonly, nonatomic) NSDate *date;
+@property (readonly, nonatomic) CMPedometerEventType type;
+@end
+typedef void (^CMPedometerHandler)(CMPedometerData * _Nullable pedometerData, NSError * _Nullable error);
+typedef void (^CMPedometerEventHandler)(CMPedometerEvent * _Nullable pedometerEvent, NSError * _Nullable error);
+@interface CMPedometer : NSObject
++ (BOOL)isStepCountingAvailable;
++ (BOOL)isDistanceAvailable;
++ (BOOL)isFloorCountingAvailable;
++ (BOOL)isPaceAvailable;
++ (BOOL)isCadenceAvailable;
++ (BOOL)isPedometerEventTrackingAvailable;
++ (CMAuthorizationStatus)authorizationStatus;
+- (void)queryPedometerDataFromDate:(NSDate *)start toDate:(NSDate *)end withHandler:(CMPedometerHandler)handler;
+- (void)startPedometerUpdatesFromDate:(NSDate *)start withHandler:(CMPedometerHandler)handler;
+- (void)stopPedometerUpdates;
+- (void)startPedometerEventUpdatesWithHandler:(CMPedometerEventHandler)handler;
+- (void)stopPedometerEventUpdates;
+@end
+
+typedef NS_ENUM(NSInteger, CMMotionActivityConfidence) { CMMotionActivityConfidenceLow = 0, CMMotionActivityConfidenceMedium, CMMotionActivityConfidenceHigh };
+@interface CMMotionActivity : CMLogItem
+@property (readonly, nonatomic) CMMotionActivityConfidence confidence;
+@property (readonly, nonatomic) NSDate *startDate;
+@property (readonly, nonatomic) BOOL unknown;
+@property (readonly, nonatomic) BOOL stationary;
+@property (readonly, nonatomic) BOOL walking;
+@property (readonly, nonatomic) BOOL running;
+@property (readonly, nonatomic) BOOL automotive;
+@property (readonly, nonatomic) BOOL cycling;
+@end
+typedef void (^CMMotionActivityHandler)(CMMotionActivity * _Nullable activity);
+typedef void (^CMMotionActivityQueryHandler)(NSArray<CMMotionActivity *> * _Nullable activities, NSError * _Nullable error);
+@interface CMMotionActivityManager : NSObject
++ (BOOL)isActivityAvailable;
++ (CMAuthorizationStatus)authorizationStatus;
+- (void)queryActivityStartingFromDate:(NSDate *)start toDate:(NSDate *)end toQueue:(NSOperationQueue *)queue withHandler:(CMMotionActivityQueryHandler)handler;
+- (void)startActivityUpdatesToQueue:(NSOperationQueue *)queue withHandler:(CMMotionActivityHandler)handler;
+- (void)stopActivityUpdates;
+@end
+
+@interface CMAltitudeData : CMLogItem
+@property (readonly, nonatomic) NSNumber *relativeAltitude;
+@property (readonly, nonatomic) NSNumber *pressure;
+@end
+typedef void (^CMAltitudeHandler)(CMAltitudeData * _Nullable altitudeData, NSError * _Nullable error);
+@interface CMAltimeter : NSObject
++ (BOOL)isRelativeAltitudeAvailable;
++ (BOOL)isAbsoluteAltitudeAvailable;
++ (CMAuthorizationStatus)authorizationStatus;
+- (void)startRelativeAltitudeUpdatesToQueue:(NSOperationQueue *)queue withHandler:(CMAltitudeHandler)handler;
+- (void)stopRelativeAltitudeUpdates;
+@end
+
+/* AirPods head tracking: no headphones are connected */
+@interface CMHeadphoneMotionManager : NSObject
++ (CMAuthorizationStatus)authorizationStatus;
+@property (readonly, nonatomic, getter=isDeviceMotionAvailable) BOOL deviceMotionAvailable;
+@property (readonly, nonatomic, getter=isDeviceMotionActive) BOOL deviceMotionActive;
+@property (readonly, nonatomic, nullable) CMDeviceMotion *deviceMotion;
+- (void)startDeviceMotionUpdates;
+- (void)startDeviceMotionUpdatesToQueue:(NSOperationQueue *)queue withHandler:(CMDeviceMotionHandler)handler;
+- (void)stopDeviceMotionUpdates;
 @end
 NS_ASSUME_NONNULL_END
 #else

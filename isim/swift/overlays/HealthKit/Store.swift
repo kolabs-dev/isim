@@ -53,7 +53,7 @@ enum _HKAuth {
 
 public typealias HKObserverQueryCompletionHandler = () -> Void
 
-open class HKHealthStore: NSObject, @unchecked Sendable {
+@objc(HKHealthStore) open class HKHealthStore: NSObject, @unchecked Sendable {
     public override init() { super.init() }
     /// true on iPhone (and on iPad from iPadOS 17), like the Simulator
     open class func isHealthDataAvailable() -> Bool {
@@ -196,11 +196,11 @@ open class HKHealthStore: NSObject, @unchecked Sendable {
     open func stop(_ query: HKQuery) { query.running = false; _HKObservers.remove(query) }
 }
 
-open class HKBiologicalSexObject: NSObject, @unchecked Sendable { open var biologicalSex: HKBiologicalSex { .notSet } }
+@objc(HKBiologicalSexObject) open class HKBiologicalSexObject: NSObject, @unchecked Sendable { open var biologicalSex: HKBiologicalSex { .notSet } }
 
 // MARK: - Queries
 
-open class HKQuery: NSObject, @unchecked Sendable {
+@objc(HKQuery) open class HKQuery: NSObject, @unchecked Sendable {
     open var objectType: HKObjectType?
     open var sampleType: HKSampleType? { objectType as? HKSampleType }
     open var predicate: NSPredicate?
@@ -255,7 +255,7 @@ open class HKQuery: NSObject, @unchecked Sendable {
     }
 }
 
-open class HKSampleQuery: HKQuery, @unchecked Sendable {
+@objc(HKSampleQuery) open class HKSampleQuery: HKQuery, @unchecked Sendable {
     public let limit: Int
     public let sortDescriptors: [NSSortDescriptor]?
     let handler: (HKSampleQuery, [HKSample]?, Error?) -> Void
@@ -290,7 +290,7 @@ public struct HKStatisticsOptions: OptionSet, Sendable {
     public static let duration = HKStatisticsOptions(rawValue: 64)
 }
 
-open class HKStatistics: NSObject, @unchecked Sendable {
+@objc(HKStatistics) open class HKStatistics: NSObject, @unchecked Sendable {
     public let quantityType: HKQuantityType
     public let startDate: Date
     public let endDate: Date
@@ -317,7 +317,7 @@ open class HKStatistics: NSObject, @unchecked Sendable {
     open var sources: [HKSource]? { Array(Set(samples.map(\.sourceRevision.source))) }
 }
 
-open class HKStatisticsQuery: HKQuery, @unchecked Sendable {
+@objc(HKStatisticsQuery) open class HKStatisticsQuery: HKQuery, @unchecked Sendable {
     let options: HKStatisticsOptions
     let handler: (HKStatisticsQuery, HKStatistics?, Error?) -> Void
     public init(quantityType: HKQuantityType, quantitySamplePredicate: NSPredicate?, options: HKStatisticsOptions,
@@ -332,7 +332,7 @@ open class HKStatisticsQuery: HKQuery, @unchecked Sendable {
     }
 }
 
-open class HKStatisticsCollection: NSObject, @unchecked Sendable {
+@objc(HKStatisticsCollection) open class HKStatisticsCollection: NSObject, @unchecked Sendable {
     let items: [HKStatistics]
     init(_ items: [HKStatistics]) { self.items = items }
     open func statistics() -> [HKStatistics] { items.filter { !$0.samples.isEmpty } }
@@ -347,7 +347,7 @@ open class HKStatisticsCollection: NSObject, @unchecked Sendable {
     open func sources() -> Set<HKSource> { Set(items.flatMap { $0.sources ?? [] }) }
 }
 
-open class HKStatisticsCollectionQuery: HKQuery, @unchecked Sendable {
+@objc(HKStatisticsCollectionQuery) open class HKStatisticsCollectionQuery: HKQuery, @unchecked Sendable {
     public let anchorDate: Date
     public let options: HKStatisticsOptions
     public let intervalComponents: DateComponents
@@ -389,7 +389,7 @@ open class HKStatisticsCollectionQuery: HKQuery, @unchecked Sendable {
     func update() { let c = collection(); statisticsUpdateHandler?(self, nil, c, nil) }
 }
 
-open class HKObserverQuery: HKQuery, @unchecked Sendable {
+@objc(HKObserverQuery) open class HKObserverQuery: HKQuery, @unchecked Sendable {
     let handler: (HKObserverQuery, @escaping HKObserverQueryCompletionHandler, Error?) -> Void
     public init(sampleType: HKSampleType, predicate: NSPredicate?, updateHandler: @escaping (HKObserverQuery, @escaping HKObserverQueryCompletionHandler, Error?) -> Void) {
         handler = updateHandler

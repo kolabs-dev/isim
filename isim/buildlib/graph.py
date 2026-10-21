@@ -189,6 +189,10 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
 SWIFT_FRAMEWORKS = [
     ("WebKit", "-framework Foundation -framework UIKit"),
     ("NearbyInteraction", "-framework Foundation"),   # issue #314
+    # issue #315: sensors and health from Objective-C
+    ("CoreBluetooth", "-framework Foundation"),
+    ("CoreNFC", "-framework Foundation"),
+    ("HealthKit", "-framework Foundation"),
     ("AdSupport", "-framework Foundation"),
     ("AppTrackingTransparency", "-framework Foundation"),
     ("CoreMotion", "-framework Foundation"),

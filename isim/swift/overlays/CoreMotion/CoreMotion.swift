@@ -220,7 +220,7 @@ enum _CMMotionUsage {
     }
 }
 
-open class CMPedometerData: NSObject, @unchecked Sendable {
+@objc(CMPedometerData) open class CMPedometerData: NSObject, @unchecked Sendable {
     open private(set) var startDate = Date(), endDate = Date()
     open private(set) var numberOfSteps: NSNumber = 0
     open private(set) var distance: NSNumber?
@@ -228,13 +228,13 @@ open class CMPedometerData: NSObject, @unchecked Sendable {
     open private(set) var currentPace: NSNumber?, currentCadence: NSNumber?, averageActivePace: NSNumber?
 }
 public enum CMPedometerEventType: Int, Sendable { case pause = 0, resume }
-open class CMPedometerEvent: NSObject, @unchecked Sendable {
+@objc(CMPedometerEvent) open class CMPedometerEvent: NSObject, @unchecked Sendable {
     open private(set) var date = Date()
     open private(set) var type: CMPedometerEventType = .pause
 }
 public typealias CMPedometerHandler = (CMPedometerData?, Error?) -> Void
 
-open class CMPedometer: NSObject, @unchecked Sendable {
+@objc(CMPedometer) open class CMPedometer: NSObject, @unchecked Sendable {
     public override init() { super.init() }
     open class func isStepCountingAvailable() -> Bool { false }
     open class func isDistanceAvailable() -> Bool { false }
@@ -260,13 +260,13 @@ open class CMPedometer: NSObject, @unchecked Sendable {
 }
 
 public enum CMMotionActivityConfidence: Int, Sendable { case low = 0, medium, high }
-open class CMMotionActivity: CMLogItem, @unchecked Sendable {
+@objc(CMMotionActivity) open class CMMotionActivity: CMLogItem, @unchecked Sendable {
     open private(set) var confidence: CMMotionActivityConfidence = .low
     open private(set) var startDate = Date()
     open private(set) var unknown = true, stationary = false, walking = false, running = false, automotive = false, cycling = false
 }
 public typealias CMMotionActivityHandler = (CMMotionActivity?) -> Void
-open class CMMotionActivityManager: NSObject, @unchecked Sendable {
+@objc(CMMotionActivityManager) open class CMMotionActivityManager: NSObject, @unchecked Sendable {
     public override init() { super.init() }
     open class func isActivityAvailable() -> Bool { false }
     open class func authorizationStatus() -> CMAuthorizationStatus { _CMMotionUsage.status }
@@ -278,11 +278,11 @@ open class CMMotionActivityManager: NSObject, @unchecked Sendable {
     open func stopActivityUpdates() {}
 }
 
-open class CMAltitudeData: CMLogItem, @unchecked Sendable {
+@objc(CMAltitudeData) open class CMAltitudeData: CMLogItem, @unchecked Sendable {
     open private(set) var relativeAltitude: NSNumber = 0
     open private(set) var pressure: NSNumber = 101.325
 }
-open class CMAltimeter: NSObject, @unchecked Sendable {
+@objc(CMAltimeter) open class CMAltimeter: NSObject, @unchecked Sendable {
     public override init() { super.init() }
     open class func isRelativeAltitudeAvailable() -> Bool { false }
     open class func isAbsoluteAltitudeAvailable() -> Bool { false }
@@ -294,7 +294,7 @@ open class CMAltimeter: NSObject, @unchecked Sendable {
     open func stopRelativeAltitudeUpdates() {}
 }
 
-open class CMHeadphoneMotionManager: NSObject, @unchecked Sendable {
+@objc(CMHeadphoneMotionManager) open class CMHeadphoneMotionManager: NSObject, @unchecked Sendable {
     public override init() { super.init() }
     open var isDeviceMotionAvailable: Bool { false }
     open var isDeviceMotionActive: Bool { false }
@@ -318,4 +318,90 @@ extension CMMotionManager {
 extension CMDeviceMotion {
     @objc(heading) var _objc_heading: Double { heading }
     @objc(sensorLocation) var _objc_sensorLocation: Int { sensorLocation.rawValue }
+}
+
+// Objective-C entry points of the pedometer, motion activity, the altimeter and headphone motion (Swift enums as their
+// raw values)
+extension CMPedometerData {
+    @objc(startDate) var _objc_startDate: Date { startDate }
+    @objc(endDate) var _objc_endDate: Date { endDate }
+    @objc(numberOfSteps) var _objc_numberOfSteps: NSNumber { numberOfSteps }
+    @objc(distance) var _objc_distance: NSNumber? { distance }
+    @objc(floorsAscended) var _objc_floorsAscended: NSNumber? { floorsAscended }
+    @objc(floorsDescended) var _objc_floorsDescended: NSNumber? { floorsDescended }
+    @objc(currentPace) var _objc_currentPace: NSNumber? { currentPace }
+    @objc(currentCadence) var _objc_currentCadence: NSNumber? { currentCadence }
+    @objc(averageActivePace) var _objc_averageActivePace: NSNumber? { averageActivePace }
+}
+extension CMPedometerEvent {
+    @objc(date) var _objc_date: Date { date }
+    @objc(type) var _objc_type: Int { type.rawValue }
+}
+extension CMPedometer {
+    @objc(isStepCountingAvailable) class func _objc_steps() -> Bool { isStepCountingAvailable() }
+    @objc(isDistanceAvailable) class func _objc_distance() -> Bool { isDistanceAvailable() }
+    @objc(isFloorCountingAvailable) class func _objc_floors() -> Bool { isFloorCountingAvailable() }
+    @objc(isPaceAvailable) class func _objc_pace() -> Bool { isPaceAvailable() }
+    @objc(isCadenceAvailable) class func _objc_cadence() -> Bool { isCadenceAvailable() }
+    @objc(isPedometerEventTrackingAvailable) class func _objc_events() -> Bool { isPedometerEventTrackingAvailable() }
+    @objc(authorizationStatus) class func _objc_authorizationStatus() -> Int { authorizationStatus().rawValue }
+    @objc(queryPedometerDataFromDate:toDate:withHandler:)
+    func _objc_query(_ start: Date, to end: Date, handler: @escaping (CMPedometerData?, NSError?) -> Void) {
+        queryPedometerData(from: start, to: end) { d, e in handler(d, e.map { $0 as NSError }) }
+    }
+    @objc(startPedometerUpdatesFromDate:withHandler:)
+    func _objc_start(_ start: Date, handler: @escaping (CMPedometerData?, NSError?) -> Void) {
+        startUpdates(from: start) { d, e in handler(d, e.map { $0 as NSError }) }
+    }
+    @objc(stopPedometerUpdates) func _objc_stop() { stopUpdates() }
+    @objc(startPedometerEventUpdatesWithHandler:)
+    func _objc_startEvents(_ handler: @escaping (CMPedometerEvent?, NSError?) -> Void) {
+        startEventUpdates { ev, e in handler(ev, e.map { $0 as NSError }) }
+    }
+    @objc(stopPedometerEventUpdates) func _objc_stopEvents() { stopEventUpdates() }
+}
+extension CMMotionActivity {
+    @objc(confidence) var _objc_confidence: Int { confidence.rawValue }
+    @objc(startDate) var _objc_startDate: Date { startDate }
+    @objc(unknown) var _objc_unknown: Bool { unknown }
+    @objc(stationary) var _objc_stationary: Bool { stationary }
+    @objc(walking) var _objc_walking: Bool { walking }
+    @objc(running) var _objc_running: Bool { running }
+    @objc(automotive) var _objc_automotive: Bool { automotive }
+    @objc(cycling) var _objc_cycling: Bool { cycling }
+}
+extension CMMotionActivityManager {
+    @objc(isActivityAvailable) class func _objc_available() -> Bool { isActivityAvailable() }
+    @objc(authorizationStatus) class func _objc_authorizationStatus() -> Int { authorizationStatus().rawValue }
+    @objc(queryActivityStartingFromDate:toDate:toQueue:withHandler:)
+    func _objc_query(_ start: Date, to end: Date, queue: OperationQueue, handler: @escaping ([CMMotionActivity]?, NSError?) -> Void) {
+        queryActivityStarting(from: start, to: end, to: queue) { a, e in handler(a, e.map { $0 as NSError }) }
+    }
+    @objc(startActivityUpdatesToQueue:withHandler:)
+    func _objc_start(_ queue: OperationQueue, handler: @escaping (CMMotionActivity?) -> Void) { startActivityUpdates(to: queue, withHandler: handler) }
+    @objc(stopActivityUpdates) func _objc_stop() { stopActivityUpdates() }
+}
+extension CMAltitudeData {
+    @objc(relativeAltitude) var _objc_relativeAltitude: NSNumber { relativeAltitude }
+    @objc(pressure) var _objc_pressure: NSNumber { pressure }
+}
+extension CMAltimeter {
+    @objc(isRelativeAltitudeAvailable) class func _objc_relative() -> Bool { isRelativeAltitudeAvailable() }
+    @objc(isAbsoluteAltitudeAvailable) class func _objc_absolute() -> Bool { isAbsoluteAltitudeAvailable() }
+    @objc(authorizationStatus) class func _objc_authorizationStatus() -> Int { authorizationStatus().rawValue }
+    @objc(startRelativeAltitudeUpdatesToQueue:withHandler:)
+    func _objc_start(_ queue: OperationQueue, handler: @escaping (CMAltitudeData?, NSError?) -> Void) {
+        startRelativeAltitudeUpdates(to: queue) { d, e in handler(d, e.map { $0 as NSError }) }
+    }
+    @objc(stopRelativeAltitudeUpdates) func _objc_stop() { stopRelativeAltitudeUpdates() }
+}
+extension CMHeadphoneMotionManager {
+    @objc(isDeviceMotionAvailable) var _objc_available: Bool { isDeviceMotionAvailable }
+    @objc(isDeviceMotionActive) var _objc_active: Bool { isDeviceMotionActive }
+    @objc(deviceMotion) var _objc_deviceMotion: CMDeviceMotion? { deviceMotion }
+    @objc(authorizationStatus) class func _objc_authorizationStatus() -> Int { authorizationStatus().rawValue }
+    @objc(startDeviceMotionUpdates) func _objc_start() { startDeviceMotionUpdates() }
+    @objc(startDeviceMotionUpdatesToQueue:withHandler:)
+    func _objc_start(_ queue: OperationQueue, handler: @escaping CMDeviceMotionHandler) { startDeviceMotionUpdates(to: queue, withHandler: handler) }
+    @objc(stopDeviceMotionUpdates) func _objc_stop() { stopDeviceMotionUpdates() }
 }

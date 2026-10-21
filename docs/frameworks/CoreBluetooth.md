@@ -9,6 +9,8 @@
 ## How isim implements it
 
 - **Stub,** like the Simulator: managers report `.unsupported`.
+- **Objective-C / C interface:** headers in `isim/sdk-src/Frameworks/CoreBluetooth` over the overlay's classes; the
+  delegates are Apple's protocols. A manager made from Objective-C calls its delegate on the main queue.
 
 ## API
 
@@ -16,6 +18,7 @@
 |---|---|---|---|
 | Core Bluetooth, central role (`CBCentralManager`, `CBPeripheral`, `CBService`, `CBCharacteristic`, `CBUUID`, `CBError`) | 🧩 | ≤17 | stub, like the Simulator: managers report `.unsupported` (`.unauthorized` without `NSBluetoothAlwaysUsageDescription`), scans log iOS's API MISUSE and find nothing. `CBPeer.identifier` stays the same for a peer. Tested (HelloSensors: test_sensors) |
 | Peripheral role: `CBPeripheralManager` (services, advertising, `updateValue`, `respond(to:withResult:)`, L2CAP channels, connection latency, the delegate's methods, option and restore keys), `CBMutableService`, `CBMutableCharacteristic`, `CBAttributePermissions`, `CBDescriptor`, `CBMutableDescriptor` and the descriptor UUID strings, `CBATTRequest`, `CBCentral`, `CBL2CAPChannel`, `CBATTError` | 🧩 | ≤17 | stub, like the Simulator: the types work as values (a mutable service keeps its characteristics, which keep their descriptors and point back at it), but the manager stays `.unsupported`, so `add`, `startAdvertising` and `updateValue` log iOS's API MISUSE message and do nothing (`updateValue` returns false). `CBMutableDescriptor` logs a misuse for descriptors other than the user description and the format, like iOS. Tested (HelloSensors: test_sensors) |
+| Objective-C interface: every class above under Apple's names and selectors, `CBCentralManagerDelegate`, `CBPeripheralDelegate`, `CBPeripheralManagerDelegate`, the option, advertisement and descriptor constants, `CBErrorDomain`, `CBATTErrorDomain` | 🧩 | ≤17 | stub, like the Swift API. Tested (HelloSensorsObjC: test_sensors_objc) |
 | Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `CBATTError`, `CBMutableDescriptor` (2 types; with their members under "Not yet in isim") |
 | Types not yet in isim (iOS 27) | ❌ | 27.0 | not implemented, found by the 2026-10 sweep: `CBChannelSoundingProcedureResults`, `CBChannelSoundingSessionConfiguration` (2 types; with their members under "Not yet in isim") |
 
