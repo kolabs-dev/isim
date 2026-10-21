@@ -1,7 +1,8 @@
 // Swift 6.2 self-test: Span, MutableSpan, RawSpan (back-deployed like Apple's: ContiguousArray's spans run on every
 // iOS, Array / String / InlineArray spans need iOS 26), InlineArray and Observations (iOS 26), TaskExecutor and
 // withTaskExecutorPreference (iOS 18). Checks newer than the selected --os are skipped, like on a device; the
-// "available:" line says which ran. Last line: "swift 6.2 test: N/M passed".
+// "available:" line says which ran. Last line: "swift 6.2 test: N/M passed". A check group that does not finish within
+// 30 s ends the run with "HANG in <group>" (exit 1), so a lost wake-up names its group instead of timing out silently.
 import Foundation
 import Observation
 
@@ -10,6 +11,13 @@ nonisolated(unsafe) var checks = 0
 func check(_ ok: Bool, _ what: @autoclosure () -> String) {
     checks += 1
     if ok { print("PASS  \(what())") } else { failures += 1; print("FAIL  \(what())") }
+}
+
+/// the check group running now, for the watchdog
+nonisolated(unsafe) var group = ""
+func start(_ name: String) {
+    group = name
+    print("--- \(name)")
 }
 
 func spanTests() {
@@ -125,8 +133,11 @@ func taskExecutorTests() async {
     var celsius = 20
 }
 
+/// On the main actor, like the mutations: Observations emits from its willSet notification, and only a closure isolated
+/// to the mutating actor reads the value after the mutation finished (issue #631). A nonisolated closure, read on
+/// another thread during the setter, could see the old value and then wait for a change that had already happened.
 @available(iOS 26.0, *)
-func observationsTests() async {
+@MainActor func observationsTests() async {
     let t = Temperature()
     let values = Observations { t.celsius }
     var seen: [Int] = []
@@ -150,11 +161,16 @@ func observationsTests() async {
 
 @main struct Main {
     static func main() async {
-        print("--- Span"); spanTests()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 30) {
+            print("HANG in \(group)")
+            exit(1)
+        }
+        start("Span"); spanTests()
         var ran: [String] = ["Span"]
-        if #available(iOS 18.0, *) { print("--- TaskExecutor"); await taskExecutorTests(); ran.append("TaskExecutor") }
+        if #available(iOS 18.0, *) { start("TaskExecutor"); await taskExecutorTests(); ran.append("TaskExecutor") }
         if #available(iOS 26.0, *) {
-            print("--- iOS 26"); span26Tests(); inlineArrayTests(); await observationsTests()
+            start("iOS 26"); span26Tests(); inlineArrayTests()
+            start("Observations"); await observationsTests()
             ran += ["InlineArray", "Observations"]
         }
         print("available: \(ran.joined(separator: " "))")
