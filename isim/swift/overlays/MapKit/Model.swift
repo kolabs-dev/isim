@@ -270,6 +270,7 @@ public struct MKPointOfInterestFilter: Sendable {
     open var url: URL?
     open var timeZone: TimeZone?
     open var pointOfInterestCategory: MKPointOfInterestCategory?
+    var _isimAddress: MKAddress?                                  // init(location:address:) (iOS 26)
     open var identifier: Identifier? { nil }
     public struct Identifier: Hashable, Sendable { public let rawValue: String; public init?(rawValue: String) { self.rawValue = rawValue } }
     public init(placemark: MKPlacemark) { self.placemark = placemark; name = placemark.name; timeZone = placemark.timeZone; super.init() }

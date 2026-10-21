@@ -79,6 +79,7 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
         map.setRegion(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 37.3335, longitude: -122.0180), latitudinalMeters: 4000, longitudinalMeters: 4000), animated: false)
         if ProcessInfo.processInfo.arguments.contains("-overlays") { addOverlayDemo(); return }
         if ProcessInfo.processInfo.arguments.contains("-lookaround") { lookAround(); return }
+        if ProcessInfo.processInfo.arguments.contains("-geocode") { geocodeDemo(); return }
         let park = MKPointAnnotation(coordinate: applePark, title: "Apple Park", subtitle: "Cupertino")
         let loop = MKPointAnnotation(coordinate: infiniteLoop, title: "Infinite Loop", subtitle: "1 Infinite Loop")
         map.addAnnotations([park, loop, Landmark(visitorCenter, "Visitor Center", "Apple Park Visitor Center")])
@@ -129,6 +130,55 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
                 log("look around snapshot \(Int(snap?.image.size.width ?? 0))x\(Int(snap?.image.size.height ?? 0))")
             }
         }
+    }
+    /// -geocode: geocoding requests (iOS 26), addresses, the distance formatter, GeoJSON shapes on the map, launch options
+    func geocodeDemo() {
+        if #available(iOS 26.0, *) {
+            Task { @MainActor in
+                do {
+                    let items = try await MKGeocodingRequest(addressString: "1 Infinite Loop, Cupertino")!.mapItems
+                    let item = items[0]
+                    log("geocode \(items.count) \(item.name ?? "-") at \(fmt(item.location.coordinate)) address \(item.address?.fullAddress ?? "-")")
+                    log("geocode short \(item.address?.shortAddress ?? "-") city \(item.addressRepresentations?.cityWithContext ?? "-") region \(item.addressRepresentations?.regionCode ?? "-")")
+                    let back = try await MKReverseGeocodingRequest(location: CLLocation(latitude: 51.5081, longitude: -0.1281))!.mapItems
+                    log("reverse \(back.first?.name ?? "-") city \(back.first?.addressRepresentations?.cityWithContext ?? "-")")
+                    let custom = MKMapItem(location: CLLocation(latitude: 37.33, longitude: -122.01), address: MKAddress(fullAddress: "10600 N Tantau Ave, Cupertino, CA 95014", shortAddress: "10600 N Tantau Ave"))
+                    log("custom address \(custom.address?.shortAddress ?? "-")")
+                    _ = try await MKGeocodingRequest(addressString: "Nowhere Street, Atlantis")!.mapItems
+                } catch { log("geocode error \((error as? MKError)?.code.rawValue ?? 0)") }
+            }
+        } else { log("geocode needs iOS 26") }
+        let metric = MKDistanceFormatter(); metric.units = .metric
+        let imperial = MKDistanceFormatter(); imperial.units = .imperial; imperial.unitStyle = .full
+        let yards = MKDistanceFormatter(); yards.units = .imperialWithYards; yards.unitStyle = .abbreviated
+        log("distance \(metric.string(fromDistance: 1234)) | \(metric.string(fromDistance: 87)) | \(imperial.string(fromDistance: 1234)) | \(imperial.string(fromDistance: 120)) | \(yards.string(fromDistance: 120)) | parsed \(Int(metric.distance(from: "1.2 km")))")
+        let geojson = """
+        {"type": "FeatureCollection", "features": [
+          {"type": "Feature", "id": "campus", "properties": {"name": "Campus"}, "geometry": {"type": "Polygon", "coordinates": [
+            [[-122.0140, 37.3370], [-122.0040, 37.3370], [-122.0040, 37.3310], [-122.0140, 37.3310], [-122.0140, 37.3370]],
+            [[-122.0110, 37.3355], [-122.0070, 37.3355], [-122.0070, 37.3325], [-122.0110, 37.3325], [-122.0110, 37.3355]]]}},
+          {"type": "Feature", "id": 7, "properties": null, "geometry": {"type": "LineString", "coordinates": [[-122.0310, 37.3318], [-122.0200, 37.3330], [-122.0140, 37.3340]]}},
+          {"type": "Feature", "properties": {"name": "Visitor Center"}, "geometry": {"type": "Point", "coordinates": [-122.0055, 37.3326]}}
+        ]}
+        """
+        do {
+            let objects = try MKGeoJSONDecoder().decode(Data(geojson.utf8))
+            var kinds: [String] = []
+            for case let feature as MKGeoJSONFeature in objects {
+                for shape in feature.geometry {
+                    kinds.append(String(describing: type(of: shape)))
+                    if let overlay = shape as? MKOverlay { map.addOverlay(overlay) } else { map.addAnnotation(shape) }
+                }
+                if let p = feature.properties, let props = try? JSONSerialization.jsonObject(with: p) as? [String: Any], let name = props["name"] as? String {
+                    (feature.geometry.first as? MKPointAnnotation)?.title = name
+                }
+            }
+            let ids = objects.compactMap { ($0 as? MKGeoJSONFeature)?.identifier ?? "nil" }
+            log("geojson \(objects.count) features ids \(ids.joined(separator: ",")) shapes \(kinds.joined(separator: ",")) holes \(((objects.first as? MKGeoJSONFeature)?.geometry.first as? MKPolygon)?.interiorPolygons?.count ?? 0)")
+            _ = try MKGeoJSONDecoder().decode(Data("{\"type\": \"Polygon\"}".utf8))
+        } catch { log("geojson error \((error as? MKError)?.code.rawValue ?? 0)") }
+        let item = MKMapItem(placemark: MKPlacemark(coordinate: applePark)); item.name = "Apple Park"
+        log("open in maps \(item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])) key \(MKLaunchOptionsDirectionsModeKey)")
     }
     /// -overlays: a dashed line, a polygon with a hole, a renderer drawing itself (draw(_:zoomScale:in:)), a gradient line
     func addOverlayDemo() {

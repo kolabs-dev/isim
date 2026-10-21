@@ -318,3 +318,21 @@ def test_map_services(launch, tmp_path):
     east = app.wait_shot(lambda s: near(s.getpixel((s.width // 2, s.height // 2)), (30, 80, 220)), "turned to face east (blue)")
     assert app.quit() == 0
     assert 60 <= heading <= 100 and north and east, "dragging left turns the view right (toward the east)"
+
+
+def test_geocoding_addresses_geojson(launch):
+    """Geocoding requests (iOS 26) from the offline gazetteer, MKAddress and MKAddressRepresentations, MKDistanceFormatter,
+    MKGeoJSONDecoder (features, ids, properties, a polygon with a hole, drawn on the map) and the launch option keys."""
+    app = launch("HelloMaps", args=["-geocode"], env=ENV, os_version="26")
+    app.wait_log(r"HelloMaps: geocode 1 1 Infinite Loop at 37\.3318,-122\.0312 address 1 Infinite Loop, Cupertino, CA 95014, United States")
+    app.wait_log(r"HelloMaps: geocode short 1 Infinite Loop, Cupertino, CA 95014 city Cupertino, CA region US")
+    app.wait_log(r"HelloMaps: reverse Trafalgar Square city London, United Kingdom")
+    app.wait_log(r"HelloMaps: custom address 10600 N Tantau Ave")
+    app.wait_log(r"HelloMaps: geocode error 4")                                   # placemarkNotFound
+    app.wait_log(r"HelloMaps: distance 1\.2 km \| 85 m \| 0\.8 miles \| 390 feet \| 130 yd \| parsed 1200")
+    app.wait_log(r"HelloMaps: geojson 3 features ids campus,7,nil shapes MKPolygon,MKPolyline,MKPointAnnotation holes 1")
+    app.wait_log(r"HelloMaps: geojson error 6")                                   # decodingFailed
+    app.wait_log(r"HelloMaps: open in maps false key MKLaunchOptionsDirectionsMode")
+    app.wait_view(r"text=MKMarkerAnnotationView Visitor Center")                # the GeoJSON point, named from its properties
+    app.wait_view(r"id=map text=.* annotations 1 overlays 2 ")                    # the polygon and the line
+    app.screenshot("geojson")

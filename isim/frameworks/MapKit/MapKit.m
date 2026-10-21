@@ -137,3 +137,16 @@ static NSArray<NSNumber *> *pairs(const CLLocationCoordinate2D *coords, NSUInteg
 @implementation MKLocalSearchResponse (ISIMStructs)
 - (MKCoordinateRegion)boundingRegion { return regionFrom([self _isim_boundingRegion]); }
 @end
+
+/* the launch option keys and directions modes (MKMapItem.openInMaps) */
+NSString * const MKLaunchOptionsDirectionsModeKey = @"MKLaunchOptionsDirectionsMode";
+NSString * const MKLaunchOptionsMapTypeKey = @"MKLaunchOptionsMapType";
+NSString * const MKLaunchOptionsMapCenterKey = @"MKLaunchOptionsMapCenter";
+NSString * const MKLaunchOptionsMapSpanKey = @"MKLaunchOptionsMapSpan";
+NSString * const MKLaunchOptionsShowsTrafficKey = @"MKLaunchOptionsShowsTraffic";
+NSString * const MKLaunchOptionsCameraKey = @"MKLaunchOptionsCamera";
+NSString * const MKLaunchOptionsDirectionsModeDefault = @"MKLaunchOptionsDirectionsModeDefault";
+NSString * const MKLaunchOptionsDirectionsModeDriving = @"MKLaunchOptionsDirectionsModeDriving";
+NSString * const MKLaunchOptionsDirectionsModeWalking = @"MKLaunchOptionsDirectionsModeWalking";
+NSString * const MKLaunchOptionsDirectionsModeTransit = @"MKLaunchOptionsDirectionsModeTransit";
+NSString * const MKLaunchOptionsDirectionsModeCycling = @"MKLaunchOptionsDirectionsModeCycling";
