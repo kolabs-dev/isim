@@ -1,5 +1,6 @@
 // Sample: security, persistence and system services on isim — CryptoKit (hash, HMAC, AES-GCM), the keychain
-// (SecItem*), SQLite3, os.Logger, Face ID (LocalAuthentication) and a local notification (UserNotifications).
+// (SecItem*), SQLite3, os.Logger, Face ID (LocalAuthentication: also lockout, rights, LAEnvironment, access control and
+// LocalAuthenticationView) and a local notification (UserNotifications).
 import SwiftUI
 import CryptoKit
 import Security
@@ -74,6 +75,7 @@ struct ContentView: View {
                     if !notifier.opened.isEmpty { Text("Opened \(notifier.opened)").accessibilityIdentifier("opened") }
                     Button("Notify in 3 seconds") { notify() }.accessibilityIdentifier("notify")
                 }
+                LADemoSection()
             }
             .navigationTitle("Security")
         }
@@ -201,5 +203,134 @@ final class Notes {
         while sqlite3_step(stmt) == SQLITE_ROW { out.append(String(cString: sqlite3_column_text(stmt, 0))) }
         sqlite3_finalize(stmt)
         return out
+    }
+}
+
+/// LocalAuthentication beyond evaluatePolicy (issue #307): biometry lockout and LAEnvironment, LADomainState (iOS 18),
+/// rights (LARight, LARightStore, a persisted right's key and secret, .biometryCurrentSet), evaluateAccessControl and
+/// LocalAuthenticationView. Prints "la ..." lines for tests/ui/test_security.py.
+final class LADemo: NSObject, ObservableObject {
+    static let shared = LADemo()
+    @Published var status = "—"
+    var watching = false
+    func say(_ s: String) { print("la \(s)"); DispatchQueue.main.async { self.status = s } }
+
+    func watch() {
+        guard !watching else { return }
+        watching = true
+        if #available(iOS 18.0, *) {
+            LAEnvironment.currentUser.addObserver(EnvironmentObserver.shared)
+            let b = LAEnvironment.currentUser.state.biometry
+            say("environment biometry=\(b?.localizedName ?? "-") enrolled=\(b?.isEnrolled ?? false) locked=\(b?.isLockedOut ?? false) " +
+                "passcode=\(LAEnvironment.currentUser.state.userPassword?.isSet ?? false) mechanisms=\(LAEnvironment.currentUser.state.allMechanisms.count)")
+        } else {
+            say("environment needs iOS 18")
+        }
+    }
+
+    /// biometrics only: three failed scans end it, five in a row lock biometry out
+    func biometrics() {
+        watch()
+        let c = LAContext()
+        var e: NSError?
+        guard c.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &e) else { say("biometrics unavailable code=\(e?.code ?? 0)"); return }
+        c.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: "Check the lockout") { ok, error in
+            self.say("biometrics ok=\(ok) code=\((error as NSError?)?.code ?? 0)")
+        }
+    }
+    /// the passcode ends a lockout
+    func passcode() {
+        LAContext().evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Unlock with the passcode") { ok, error in
+            var e: NSError?
+            let again = LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &e)
+            self.say("passcode ok=\(ok) biometrics=\(again)")
+        }
+    }
+    func domainState() {
+        let c = LAContext()
+        _ = c.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
+        if #available(iOS 18.0, *) {
+            let s = c.domainState
+            say("domain state biometry=\(s.biometry.biometryType == .faceID ? "faceID" : "other") hash=\(s.stateHash?.base64EncodedString() ?? "-") " +
+                "same=\(s.biometry.stateHash == c.evaluatedPolicyDomainState) companions=\(s.companion.availableCompanionTypes.count)")
+        } else {
+            say("domain state hash=\(c.evaluatedPolicyDomainState?.base64EncodedString() ?? "-")")
+        }
+    }
+
+    /// a right saved with a key and a secret; signing and the secret need it authorized
+    func rights() {
+        Task {
+            let store = LARightStore.shared
+            try? await store.removeAllRights()
+            do {
+                let saved = try await store.saveRight(LARight(), identifier: "notes", secret: Data("s3cret".utf8))
+                _ = try await store.saveRight(LARight(requirement: .biometryCurrentSet), identifier: "current-set")
+                let right = try await store.right(forIdentifier: "notes")
+                say("right saved state=\(saved.state.rawValue) loaded=\(right.state == .unknown)")
+                do { _ = try await right.key.sign(Data("note".utf8), algorithm: .ecdsaSignatureMessageX962SHA256) } catch {
+                    say("right sign before authorize code=\((error as NSError).code)")
+                }
+                try await right.authorize(localizedReason: "Open your notes")
+                let sig = try await right.key.sign(Data("note".utf8), algorithm: .ecdsaSignatureMessageX962SHA256)
+                try await right.key.publicKey.verify(Data("note".utf8), signature: sig, algorithm: .ecdsaSignatureMessageX962SHA256)
+                let secret = String(decoding: try await right.secret.load(), as: UTF8.self)
+                let exported = try await right.key.publicKey.exportBytes()
+                say("right authorized state=\(right.state.rawValue) signed=true verified=true secret=\(secret) public=\(exported.count)")
+                await right.deauthorize()
+                do { _ = try await right.secret.load() } catch { say("right deauthorized state=\(right.state.rawValue) secret refused") }
+            } catch {
+                say("right failed \(error)")
+            }
+        }
+    }
+    /// a .biometryCurrentSet right stops authorizing once the enrollment changes
+    func currentSet() {
+        Task {
+            do {
+                let r = try await LARightStore.shared.right(forIdentifier: "current-set")
+                try await r.checkCanAuthorize()
+                say("current set can authorize")
+            } catch {
+                say("current set refused code=\((error as NSError).code)")
+            }
+        }
+    }
+    /// what a keychain item's access control asks for
+    func accessControl() {
+        guard let ac = SecAccessControlCreateWithFlags(nil, kSecAttrAccessibleWhenUnlockedThisDeviceOnly, .biometryAny, nil) else { return }
+        LAContext().evaluateAccessControl(ac, operation: .useItem, localizedReason: "Read the token") { ok, error in
+            self.say("access control ok=\(ok) code=\((error as NSError?)?.code ?? 0)")
+        }
+    }
+}
+
+struct LADemoSection: View {
+    @ObservedObject var demo = LADemo.shared
+    var body: some View {
+        Section("LocalAuthentication") {
+            Text(demo.status).font(.footnote).accessibilityIdentifier("la-status")
+            Button("Biometrics only") { demo.biometrics() }.accessibilityIdentifier("la-biometrics")
+            Button("Passcode") { demo.passcode() }.accessibilityIdentifier("la-passcode")
+            Button("Domain state") { demo.domainState() }.accessibilityIdentifier("la-domain")
+            Button("Rights") { demo.rights() }.accessibilityIdentifier("la-rights")
+            Button("Current-set right") { demo.currentSet() }.accessibilityIdentifier("la-current-set")
+            Button("Access control") { demo.accessControl() }.accessibilityIdentifier("la-access")
+            LocalAuthenticationView("Show the secret", reason: Text("Show the secret note")) { result in
+                switch result {
+                case .success: demo.say("view authenticated")
+                case .failure(let e): demo.say("view failed code=\((e as NSError).code)")
+                }
+            }
+        }
+    }
+}
+
+@available(iOS 18.0, *)
+final class EnvironmentObserver: NSObject, LAEnvironment.Observer {
+    static let shared = EnvironmentObserver()
+    func environment(_ environment: LAEnvironment, stateDidChangeFromOldState oldState: LAEnvironment.State) {
+        let b = environment.state.biometry
+        LADemo.shared.say("environment changed enrolled=\(b?.isEnrolled ?? false) locked=\(b?.isLockedOut ?? false) was=\(oldState.biometry?.isLockedOut ?? false)")
     }
 }

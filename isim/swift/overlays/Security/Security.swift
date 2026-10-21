@@ -135,6 +135,8 @@ public final class SecAccessControl: NSObject {
     /// CFGetTypeID(_:) of a SecAccessControlRef (Foundation's CFGetTypeID asks objects it does not know)
     @objc var _isimCFTypeID: UInt { SecAccessControlGetTypeID() }
     init(protection: String, flags: SecAccessControlCreateFlags) { self.protection = protection; self.flags = flags }
+    /// the flags, for LocalAuthentication's evaluateAccessControl
+    public var _isimFlags: UInt { flags.rawValue }
     /// for isim's CryptoKit (Secure Enclave keys): whether using the key asks for the device owner, and biometry only
     @_spi(isim) public var _requiresOwner: Bool { !flags.isDisjoint(with: [.userPresence, .biometryAny, .biometryCurrentSet, .devicePasscode]) }
     @_spi(isim) public var _biometryOnly: Bool {

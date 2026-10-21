@@ -30,3 +30,19 @@ def test_keychain_objc(launch):
     app.wait_view(r"text=Matching Face")
     app.tap_text("Cancel")
     app.wait_log(r"^kc vault -128 -$")                                 # errSecUserCanceled
+
+    # LocalAuthentication (issue #307): the context that evaluated the access control opens the item without asking;
+    # a right with a secret
+    app.wait_still()
+    app.tap_id("la-objc")
+    app.wait_log(r"^kc la can=1 type=2 domain=1 bad=0 com\.apple\.LocalAuthentication/-10$")
+    app.wait_log(r"^kc la environment Face ID usable=1 passcode=1 hash=1$")
+    app.wait_view(r"text=Matching Face")
+    app.tap_text("Matching Face")
+    app.wait_log(r"^kc la access control ok=1$")
+    app.wait_log(r"^kc la vault 0 open sesame$")
+    app.wait_log(r"^kc la right saved=1 state=0$")
+    app.wait_view(r"text=Matching Face")
+    app.wait_still()
+    app.tap_text("Matching Face")
+    app.wait_log(r"^kc la right secret=objc secret state=2$")

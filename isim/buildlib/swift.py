@@ -730,6 +730,7 @@ OBJC_NAMES["AuthenticationServices"] = {**{c: c for c in """ASAuthorizationReque
     ASWebAuthenticationSession""".split()},
                                         "ASWebAuthenticationSession.Callback": "ASWebAuthenticationSessionCallback"}
 
+OBJC_NAMES["LocalAuthentication"] = {"LAContext": "LAContext"}   # issue #307
 
 def objc_aliases(module):
     out = []
@@ -776,7 +777,7 @@ os -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 Accelerate -framework Accelerate
 Compression -lswiftObjectiveC -lswiftFoundation -framework Foundation -lcompression
 OSLog -lswiftos -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
-LocalAuthentication -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
+LocalAuthentication -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSecurity -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 DeviceCheck -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCryptoKit -lswiftSecurity -framework Foundation
 BackgroundTasks -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 UserNotifications -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit -framework UserNotifications
