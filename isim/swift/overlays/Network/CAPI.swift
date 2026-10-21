@@ -12,6 +12,7 @@ final class _NWCPathMonitor: NSObject {
             if let oldValue { dispatch_release(UnsafeMutableRawPointer(oldValue)) }
         }
     }
+    var swiftQueue: DispatchQueue?               // the queue a Swift caller set
     var update: ((NSObject) -> Void)?
     var cancelHandler: (() -> Void)?
     init(_ m: NWPathMonitor) { monitor = m }
@@ -43,11 +44,14 @@ public func _c_nw_path_monitor_create_with_type(_ t: Int32) -> UnsafeMutableRawP
 public func _c_nw_path_monitor_set_queue(_ m: UnsafeRawPointer, _ q: OpaquePointer?) { obj(m, _NWCPathMonitor.self).queue = q }
 /// runs `work` on the C caller's queue (the main queue when none was set)
 private func onQueue(_ mon: _NWCPathMonitor, _ work: @escaping () -> Void) {
-    if let q = mon.queue { dispatch_async(q, work) } else { work() }
+    if let q = mon.swiftQueue { q.async(execute: work) } else if let q = mon.queue { dispatch_async(q, work) } else { work() }
 }
 @_cdecl("nw_path_monitor_set_update_handler")
 public func _c_nw_path_monitor_set_update_handler(_ m: UnsafeRawPointer, _ handler: @escaping @convention(block) (NSObject) -> Void) {
-    let mon = obj(m, _NWCPathMonitor.self)
+    _nw_path_monitor_set_update_handler(obj(m, _NWCPathMonitor.self)) { handler($0) }
+}
+/// Swift callers (CAPISwift.swift) pass closures here, C callers blocks through the entry point above
+func _nw_path_monitor_set_update_handler(_ mon: _NWCPathMonitor, _ handler: @escaping (NSObject) -> Void) {
     mon.update = handler
     mon.monitor.pathUpdateHandler = { [weak mon] p in
         guard let mon else { return }
@@ -56,7 +60,7 @@ public func _c_nw_path_monitor_set_update_handler(_ m: UnsafeRawPointer, _ handl
 }
 @_cdecl("nw_path_monitor_set_cancel_handler")
 public func _c_nw_path_monitor_set_cancel_handler(_ m: UnsafeRawPointer, _ handler: @escaping @convention(block) () -> Void) {
-    obj(m, _NWCPathMonitor.self).cancelHandler = handler
+    obj(m, _NWCPathMonitor.self).cancelHandler = { handler() }
 }
 @_cdecl("nw_path_monitor_start")
 public func _c_nw_path_monitor_start(_ m: UnsafeRawPointer) {

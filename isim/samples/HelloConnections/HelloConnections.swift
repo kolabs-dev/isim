@@ -90,6 +90,7 @@ final class Runner: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate
     func runAll() async {
         if ProcessInfo.processInfo.arguments.contains("-mdns") { await mdns(); report("done", "mdns"); return }
         await tcpEcho()
+        await cAPI()
         await udpEcho()
         await refused()
         await dnsFailure()
@@ -140,6 +141,37 @@ final class Runner: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate
             report("tcp echo", "\(d.map { String(decoding: $0, as: UTF8.self) } ?? "nil") error=\(e.map { "\($0)" } ?? "none") remote=\(remote == "127.0.0.1:\(port.rawValue)" ? "ok" : remote)")
             c.cancel()
         } catch { report("tcp echo", "listener error \(error)") }
+    }
+    /// Network's C API from Swift (nw_*): a connection to the echo listener, a final message, the server's close
+    func cAPI() async {
+        do {
+            let l = try echoListener(.tcp)
+            guard let port = l.port else { report("c api", "no port"); return }
+            let endpoint = nw_endpoint_create_host("127.0.0.1", String(port.rawValue))
+            let parameters = nw_parameters_create_secure_tcp(_nw_parameters_configure_protocol_disable) { options in
+                nw_tcp_options_set_no_delay(options, true)
+            }
+            let c = nw_connection_create(endpoint, parameters)
+            nw_connection_set_queue(c, .main)
+            let result: String = await withCheckedContinuation { k in
+                nw_connection_set_state_changed_handler(c) { state, error in
+                    if state == nw_connection_state_ready {
+                        let remote = nw_connection_copy_current_path(c).flatMap { nw_path_copy_effective_remote_endpoint($0) }
+                        let ok = remote.map { nw_endpoint_get_port($0) == port.rawValue } ?? false
+                        nw_connection_send(c, nil, _nw_content_context_final_send, true) { _ in }
+                        nw_connection_receive(c, 1, 64) { _, _, complete, e in
+                            k.resume(returning: "ready remote=\(ok ? "ok" : "-") type=\(nw_endpoint_get_type(endpoint) == nw_endpoint_type_address) closed=\(complete) error=\(e == nil ? "none" : "\(nw_error_get_error_code(e!))")")
+                            nw_connection_cancel(c)
+                        }
+                    } else if state == nw_connection_state_failed || state == nw_connection_state_waiting {
+                        k.resume(returning: "state \(state.rawValue) error \(error.map { nw_error_get_error_code($0) } ?? 0)")
+                        nw_connection_cancel(c)
+                    }
+                }
+                nw_connection_start(c)
+            }
+            report("c api", result)
+        } catch { report("c api", "listener error \(error)") }
     }
     func udpEcho() async {
         do {

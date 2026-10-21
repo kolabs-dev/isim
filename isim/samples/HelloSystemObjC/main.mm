@@ -96,6 +96,111 @@ static void security(void) {
     if (key) CFRelease(key);
 }
 
+// Network's C API: a TCP echo listener advertised over Bonjour, a browser that finds it, a connection to the service
+// that echoes a message, a host endpoint, and TLS against the plain echo server (fails with a TLS error)
+static nw_listener_t echoListener;
+static nw_browser_t echoBrowser;
+static void echo(nw_connection_t c) {
+    nw_connection_receive(c, 1, 65536, ^(dispatch_data_t content, nw_content_context_t context, bool complete, nw_error_t error) {
+        if (content) nw_connection_send(c, content, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, false, NW_CONNECTION_SEND_IDEMPOTENT_CONTENT);
+        if (complete || error) nw_connection_cancel(c); else echo(c);
+    });
+}
+static void tlsAttempt(uint16_t port) {
+    char p[8];
+    snprintf(p, sizeof p, "%u", port);
+    nw_endpoint_t host = nw_endpoint_create_host("127.0.0.1", p);
+    nw_parameters_t tls = nw_parameters_create_secure_tcp(NW_PARAMETERS_DEFAULT_CONFIGURATION, NW_PARAMETERS_DEFAULT_CONFIGURATION);
+    nw_connection_t c = nw_connection_create(host, tls);
+    nw_connection_set_queue(c, dispatch_get_main_queue());
+    nw_connection_set_state_changed_handler(c, ^(nw_connection_state_t state, nw_error_t error) {
+        if (state == nw_connection_state_failed) {
+            say([NSString stringWithFormat:@"nw tls failed domain=%d", nw_error_get_error_domain(error)]);
+            nw_connection_cancel(c);
+        } else if (state == nw_connection_state_cancelled) {
+            nw_listener_cancel(echoListener);
+            echoListener = nil;
+        }
+    });
+    nw_connection_start(c);
+}
+static void talk(nw_endpoint_t service, uint16_t port) {
+    nw_parameters_t tcp = nw_parameters_create_secure_tcp(NW_PARAMETERS_DISABLE_PROTOCOL, ^(nw_protocol_options_t options) {
+        nw_tcp_options_set_no_delay(options, true);
+    });
+    nw_connection_t c = nw_connection_create(service, tcp);
+    nw_connection_set_queue(c, dispatch_get_main_queue());
+    nw_connection_set_state_changed_handler(c, ^(nw_connection_state_t state, nw_error_t error) {
+        if (state == nw_connection_state_ready) {
+            nw_path_t path = nw_connection_copy_current_path(c);
+            nw_endpoint_t remote = path ? nw_path_copy_effective_remote_endpoint(path) : nil;
+            say([NSString stringWithFormat:@"nw connected type=%d remote port=%d", nw_endpoint_get_type(remote), remote && nw_endpoint_get_port(remote) == port]);
+            const char *text = "hello over nw";
+            dispatch_data_t d = dispatch_data_create(text, strlen(text), NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+            nw_connection_send(c, d, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, true, ^(nw_error_t sendError) {
+                say([NSString stringWithFormat:@"nw sent error=%d", sendError != nil]);
+            });
+            nw_connection_receive(c, 13, 13, ^(dispatch_data_t content, nw_content_context_t context, bool complete, nw_error_t receiveError) {
+                const void *bytes = NULL; size_t n = 0;
+                dispatch_data_t map = content ? dispatch_data_create_map(content, &bytes, &n) : nil;
+                say([NSString stringWithFormat:@"nw echo %.*s final=%d", (int)n, (const char *)bytes,
+                     nw_content_context_get_is_final(NW_CONNECTION_FINAL_MESSAGE_CONTEXT)]);
+                (void)map;
+                nw_connection_cancel(c);
+                tlsAttempt(port);
+            });
+        } else if (state == nw_connection_state_failed) {
+            say([NSString stringWithFormat:@"nw connection failed domain=%d code=%d", nw_error_get_error_domain(error), nw_error_get_error_code(error)]);
+        }
+    });
+    nw_connection_start(c);
+}
+static void networkC(void) {
+    nw_endpoint_t host = nw_endpoint_create_host("example.com", "https");
+    nw_endpoint_t address = nw_endpoint_create_host("127.0.0.1", "8080");
+    char *addressString = nw_endpoint_copy_address_string(address);
+    say([NSString stringWithFormat:@"nw endpoint host=%s port=%d type=%d address=%s type=%d", nw_endpoint_get_hostname(host),
+         nw_endpoint_get_port(host), nw_endpoint_get_type(host), addressString, nw_endpoint_get_type(address)]);
+    free(addressString);
+    nw_content_context_t first = nw_content_context_create("first"), second = nw_content_context_create("second");
+    nw_content_context_set_antecedent(second, first);
+    say([NSString stringWithFormat:@"nw context %s after %s", nw_content_context_get_identifier(second),
+         nw_content_context_get_identifier(nw_content_context_copy_antecedent(second))]);
+
+    nw_parameters_t parameters = nw_parameters_create_secure_tcp(NW_PARAMETERS_DISABLE_PROTOCOL, NW_PARAMETERS_DEFAULT_CONFIGURATION);
+    nw_parameters_set_reuse_local_address(parameters, true);
+    echoListener = nw_listener_create(parameters);
+    nw_advertise_descriptor_t advertise = nw_advertise_descriptor_create_bonjour_service("isim echo", "_isimecho._tcp", NULL);
+    nw_listener_set_advertise_descriptor(echoListener, advertise);
+    nw_listener_set_queue(echoListener, dispatch_get_main_queue());
+    nw_listener_set_new_connection_handler(echoListener, ^(nw_connection_t connection) {
+        nw_connection_set_queue(connection, dispatch_get_main_queue());
+        nw_connection_start(connection);
+        echo(connection);
+    });
+    nw_listener_set_state_changed_handler(echoListener, ^(nw_listener_state_t state, nw_error_t error) {
+        if (state != nw_listener_state_ready) return;
+        uint16_t port = nw_listener_get_port(echoListener);
+        say([NSString stringWithFormat:@"nw listener ready port=%d", port > 0]);
+        nw_browse_descriptor_t d = nw_browse_descriptor_create_bonjour_service("_isimecho._tcp", NULL);
+        echoBrowser = nw_browser_create(d, NULL);
+        nw_browser_set_queue(echoBrowser, dispatch_get_main_queue());
+        nw_browser_set_browse_results_changed_handler(echoBrowser, ^(nw_browse_result_t old, nw_browse_result_t found, bool batchComplete) {
+            if (!(nw_browse_result_get_changes(old, found) & nw_browse_result_change_result_added)) return;
+            nw_endpoint_t service = nw_browse_result_copy_endpoint(found);
+            if (strcmp(nw_endpoint_get_bonjour_service_name(service), "isim echo") != 0) return;
+            say([NSString stringWithFormat:@"nw browse found %s %s batch=%d browsing=%s", nw_endpoint_get_bonjour_service_name(service),
+                 nw_endpoint_get_bonjour_service_type(service), batchComplete,
+                 nw_browse_descriptor_get_bonjour_service_type(nw_browser_copy_browse_descriptor(echoBrowser))]);
+            nw_browser_cancel(echoBrowser);
+            echoBrowser = nil;
+            talk(service, port);
+        });
+        nw_browser_start(echoBrowser);
+    });
+    nw_listener_start(echoListener);
+}
+
 static void reachabilityChanged(SCNetworkReachabilityRef target, SCNetworkReachabilityFlags flags, void *info) {}
 
 static void network(void) {
@@ -116,6 +221,7 @@ static void network(void) {
         keep = nil;
     });
     nw_path_monitor_start(m);
+    networkC();
     CTTelephonyNetworkInfo *info = [CTTelephonyNetworkInfo new];
     say([NSString stringWithFormat:@"telephony carriers=%lu", (unsigned long)info.serviceSubscriberCellularProviders.count]);
 }
