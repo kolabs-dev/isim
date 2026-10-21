@@ -1,7 +1,7 @@
 # GameKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 71.0% of Apple's iOS API (537 of 756, exact) · **Rows:** 20: 15 ✅ 3 🟡 2 ❌ · **iOS:** 3.0+
+**Symbols:** 77.2% of Apple's iOS API (584 of 756, exact) · **Rows:** 23: 18 ✅ 3 🟡 2 ❌ · **iOS:** 3.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [GameKit](https://developer.apple.com/documentation/gamekit) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)
@@ -42,7 +42,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-219 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+172 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -119,8 +119,6 @@
 - [`static var unexpectedConnection: GKError.Code`](https://developer.apple.com/documentation/gamekit/gkerror/unexpectedconnection)
 - [`static var unknown: GKError.Code`](https://developer.apple.com/documentation/gamekit/gkerror/unknown)
 - [`static var userDenied: GKError.Code`](https://developer.apple.com/documentation/gamekit/gkerror/userdenied)
-- [`var GKExchangeTimeoutDefault: TimeInterval`](https://developer.apple.com/documentation/gamekit/gkexchangetimeoutdefault)
-- [`var GKExchangeTimeoutNone: TimeInterval`](https://developer.apple.com/documentation/gamekit/gkexchangetimeoutnone)
 - [`GKFriendsAuthorizationStatus`](https://developer.apple.com/documentation/gamekit/gkfriendsauthorizationstatus)
 - [`case authorized`](https://developer.apple.com/documentation/gamekit/gkfriendsauthorizationstatus/authorized)
 - [`case denied`](https://developer.apple.com/documentation/gamekit/gkfriendsauthorizationstatus/denied)
@@ -169,19 +167,6 @@
 - [`func queryQueueActivity(String, withCompletionHandler: ((Int, (any Error)?) -> Void)?)`](https://developer.apple.com/documentation/gamekit/gkmatchmaker/queryqueueactivity(_:withcompletionhandler:))
 - [`func startGroupActivity(playerHandler: (GKPlayer) -> Void)`](https://developer.apple.com/documentation/gamekit/gkmatchmaker/startgroupactivity(playerhandler:))
 - [`func stopGroupActivity()`](https://developer.apple.com/documentation/gamekit/gkmatchmaker/stopgroupactivity())
-- [`var matchmakingMode: GKMatchmakingMode`](https://developer.apple.com/documentation/gamekit/gkmatchmakerviewcontroller/matchmakingmode)
-- [`GKMatchmakingMode`](https://developer.apple.com/documentation/gamekit/gkmatchmakingmode)
-- [`GKMatchmakingMode`](https://developer.apple.com/documentation/gamekit/gkmatchmakingmode)
-- [`case automatchOnly`](https://developer.apple.com/documentation/gamekit/gkmatchmakingmode/automatchonly)
-- [`case automatchOnly`](https://developer.apple.com/documentation/gamekit/gkmatchmakingmode/automatchonly)
-- [`case `default``](https://developer.apple.com/documentation/gamekit/gkmatchmakingmode/default)
-- [`case `default``](https://developer.apple.com/documentation/gamekit/gkmatchmakingmode/default)
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/gamekit/gkmatchmakingmode/init(rawvalue:))
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/gamekit/gkmatchmakingmode/init(rawvalue:))
-- [`case inviteOnly`](https://developer.apple.com/documentation/gamekit/gkmatchmakingmode/inviteonly)
-- [`case inviteOnly`](https://developer.apple.com/documentation/gamekit/gkmatchmakingmode/inviteonly)
-- [`case nearbyOnly`](https://developer.apple.com/documentation/gamekit/gkmatchmakingmode/nearbyonly)
-- [`case nearbyOnly`](https://developer.apple.com/documentation/gamekit/gkmatchmakingmode/nearbyonly)
 - [`GKMatchType`](https://developer.apple.com/documentation/gamekit/gkmatchtype)
 - [`case hosted`](https://developer.apple.com/documentation/gamekit/gkmatchtype/hosted)
 - [`init?(rawValue: UInt)`](https://developer.apple.com/documentation/gamekit/gkmatchtype/init(rawvalue:))
@@ -213,38 +198,6 @@
 - [`func player(GKPlayer, receivedExchangeRequest: GKTurnBasedExchange, for: GKTurnBasedMatch)`](https://developer.apple.com/documentation/gamekit/gkturnbasedeventlistener/player(_:receivedexchangerequest:for:))
 - [`func player(GKPlayer, receivedTurnEventFor: GKTurnBasedMatch, didBecomeActive: Bool)`](https://developer.apple.com/documentation/gamekit/gkturnbasedeventlistener/player(_:receivedturneventfor:didbecomeactive:))
 - [`func player(GKPlayer, wantsToQuitMatch: GKTurnBasedMatch)`](https://developer.apple.com/documentation/gamekit/gkturnbasedeventlistener/player(_:wantstoquitmatch:))
-- [`GKTurnBasedExchange`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchange)
-- [`func cancel(withLocalizableMessageKey: String, arguments: [String], completionHandler: (((any Error)?) -> Void)?)`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchange/cancel(withlocalizablemessagekey:arguments:completionhandler:))
-- [`var completionDate: Date?`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchange/completiondate)
-- [`var data: Data?`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchange/data)
-- [`var exchangeID: String`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchange/exchangeid)
-- [`var message: String?`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchange/message)
-- [`var recipients: [GKTurnBasedParticipant]`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchange/recipients)
-- [`var replies: [GKTurnBasedExchangeReply]?`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchange/replies)
-- [`func reply(withLocalizableMessageKey: String, arguments: [String], data: Data, completionHandler: (((any Error)?) -> Void)?)`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchange/reply(withlocalizablemessagekey:arguments:data:completionhandler:))
-- [`var sendDate: Date`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchange/senddate)
-- [`var sender: GKTurnBasedParticipant`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchange/sender)
-- [`var status: GKTurnBasedExchangeStatus`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchange/status)
-- [`var timeoutDate: Date?`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchange/timeoutdate)
-- [`GKTurnBasedExchangeReply`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchangereply)
-- [`var data: Data?`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchangereply/data)
-- [`var message: String?`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchangereply/message)
-- [`var recipient: GKTurnBasedParticipant`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchangereply/recipient)
-- [`var replyDate: Date`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchangereply/replydate)
-- [`GKTurnBasedExchangeStatus`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchangestatus)
-- [`case active`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchangestatus/active)
-- [`case canceled`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchangestatus/canceled)
-- [`case complete`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchangestatus/complete)
-- [`init?(rawValue: Int8)`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchangestatus/init(rawvalue:))
-- [`case resolved`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchangestatus/resolved)
-- [`case unknown`](https://developer.apple.com/documentation/gamekit/gkturnbasedexchangestatus/unknown)
-- [`var activeExchanges: [GKTurnBasedExchange]?`](https://developer.apple.com/documentation/gamekit/gkturnbasedmatch/activeexchanges)
-- [`var completedExchanges: [GKTurnBasedExchange]?`](https://developer.apple.com/documentation/gamekit/gkturnbasedmatch/completedexchanges)
-- [`var exchangeDataMaximumSize: Int`](https://developer.apple.com/documentation/gamekit/gkturnbasedmatch/exchangedatamaximumsize)
-- [`var exchangeMaxInitiatedExchangesPerPlayer: Int`](https://developer.apple.com/documentation/gamekit/gkturnbasedmatch/exchangemaxinitiatedexchangesperplayer)
-- [`var exchanges: [GKTurnBasedExchange]?`](https://developer.apple.com/documentation/gamekit/gkturnbasedmatch/exchanges)
-- [`func saveMergedMatch(Data, withResolvedExchanges: [GKTurnBasedExchange], completionHandler: (((any Error)?) -> Void)?)`](https://developer.apple.com/documentation/gamekit/gkturnbasedmatch/savemergedmatch(_:withresolvedexchanges:completionhandler:))
-- [`func sendExchange(to: [GKTurnBasedParticipant], data: Data, localizableMessageKey: String, arguments: [String], timeout: TimeInterval, completionHandler: ((GKTurnBasedExchange?, (any Error)?) -> Void)?)`](https://developer.apple.com/documentation/gamekit/gkturnbasedmatch/sendexchange(to:data:localizablemessagekey:arguments:timeout:completionhandler:))
 - [`func sendReminder(to: [GKTurnBasedParticipant], localizableMessageKey: String, arguments: [String], completionHandler: (((any Error)?) -> Void)?)`](https://developer.apple.com/documentation/gamekit/gkturnbasedmatch/sendreminder(to:localizablemessagekey:arguments:completionhandler:))
 - [`GKVoiceChat`](https://developer.apple.com/documentation/gamekit/gkvoicechat)
 - [`var isActive: Bool`](https://developer.apple.com/documentation/gamekit/gkvoicechat/isactive)

@@ -1,7 +1,7 @@
 # AudioUnit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 0.0% of Apple's iOS API (0 of 1, exact) · **Rows:** 2: 1 ✅ 1 🟡 · **iOS:** 2.0+
+**Symbols:** 0.0% of Apple's iOS API (0 of 1, exact) · **Rows:** 2: 2 ✅ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [Audio Unit](https://developer.apple.com/documentation/audiounit) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)

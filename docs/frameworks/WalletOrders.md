@@ -1,6 +1,7 @@
 # WalletOrders
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Rows:** 2: 1 ✅ 1 ❌ · **iOS:** 16.0+
 <!-- /generated:header -->
 
 **Area:** [Commerce & privacy](../COVERAGE.md#commerce) · **Apple:** [Wallet Orders](https://developer.apple.com/documentation/walletorders) · **Issues:** [`area:commerce`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Acommerce)
@@ -25,4 +26,5 @@ Apple's Wallet Orders documentation is the order package format and its update w
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+Nothing (or not measured yet).
 <!-- /generated:missing -->

@@ -1,6 +1,7 @@
 # WalletPasses
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Rows:** 8: 7 ✅ 1 ❌ · **iOS:** 6.0+
 <!-- /generated:header -->
 
 **Area:** [Commerce & privacy](../COVERAGE.md#commerce) · **Apple:** [Wallet Passes](https://developer.apple.com/documentation/walletpasses) and [PassKit's passes](https://developer.apple.com/documentation/passkit/wallet) · **Issues:** [`area:commerce`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Acommerce)
@@ -39,4 +40,5 @@ Apple's Wallet Passes documentation is the pass package format (`pass.json`, its
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+Nothing (or not measured yet).
 <!-- /generated:missing -->
