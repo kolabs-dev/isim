@@ -8,7 +8,7 @@
 #import <CoreLocation/CoreLocation.h>
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
-@class MKMapView, MKAnnotationView, MKOverlayRenderer, MKUserLocation, MKPolyline, MKPolygon, MKCircle;
+@class MKMapView, MKAnnotationView, MKOverlayRenderer, MKUserLocation, MKPolyline, MKPolygon, MKCircle, MKShape, MKAddress, MKAddressRepresentations;
 
 typedef struct { CLLocationDegrees latitudeDelta; CLLocationDegrees longitudeDelta; } MKCoordinateSpan;
 typedef struct { CLLocationCoordinate2D center; MKCoordinateSpan span; } MKCoordinateRegion;
@@ -216,6 +216,24 @@ __attribute__((objc_class_stub)) __attribute__((objc_subclassing_restricted))
 @end
 
 /* map items and local search */
+/* addresses (iOS 26) */
+API_AVAILABLE(ios(26.0))
+@interface MKAddress : NSObject
+- (nullable instancetype)initWithFullAddress:(NSString *)fullAddress shortAddress:(nullable NSString *)shortAddress;
+@property (nonatomic, readonly, copy) NSString *fullAddress;
+@property (nonatomic, readonly, copy, nullable) NSString *shortAddress;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+API_AVAILABLE(ios(26.0))
+@interface MKAddressRepresentations : NSObject
+- (nullable NSString *)fullAddressIncludingRegion:(BOOL)includingRegion singleLine:(BOOL)singleLine;
+@property (nonatomic, readonly, copy, nullable) NSString *cityName;
+@property (nonatomic, readonly, copy, nullable) NSString *cityWithContext;
+@property (nonatomic, readonly, copy, nullable) NSString *regionName;
+@property (nonatomic, readonly, copy, nullable) NSString *regionCode;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+
 @interface MKMapItem : NSObject
 + (MKMapItem *)mapItemForCurrentLocation;
 - (instancetype)initWithPlacemark:(MKPlacemark *)placemark;
@@ -226,6 +244,11 @@ __attribute__((objc_class_stub)) __attribute__((objc_subclassing_restricted))
 @property (nonatomic, strong, nullable) NSURL *url;
 @property (nonatomic, copy, nullable) NSTimeZone *timeZone;
 @property (nonatomic, copy, nullable) MKPointOfInterestCategory pointOfInterestCategory;
+/* iOS 26: the location and its address */
+- (instancetype)initWithLocation:(CLLocation *)location address:(nullable MKAddress *)address API_AVAILABLE(ios(26.0));
+@property (nonatomic, readonly) CLLocation *location API_AVAILABLE(ios(26.0));
+@property (nonatomic, readonly, nullable) MKAddress *address API_AVAILABLE(ios(26.0));
+@property (nonatomic, readonly, nullable) MKAddressRepresentations *addressRepresentations API_AVAILABLE(ios(26.0));
 @end
 @interface MKLocalSearchRequest : NSObject
 - (instancetype)init;
@@ -245,6 +268,70 @@ typedef void (^MKLocalSearchCompletionHandler)(MKLocalSearchResponse * _Nullable
 - (void)cancel;
 @property (nonatomic, readonly, getter=isSearching) BOOL searching;
 @end
+
+/* geocoding (iOS 26): answered from isim's offline gazetteer, like CLGeocoder */
+API_AVAILABLE(ios(26.0))
+@interface MKGeocodingRequest : NSObject
+- (nullable instancetype)initWithAddressString:(NSString *)addressString;
+@property (nonatomic, readonly, copy) NSString *addressString;
+@property (nonatomic, copy, nullable) NSLocale *preferredLocale;
+@property (nonatomic, readonly, getter=isCancelled) BOOL cancelled;
+@property (nonatomic, readonly, getter=isLoading) BOOL loading;
+- (void)getMapItemsWithCompletionHandler:(void (^)(NSArray<MKMapItem *> * _Nullable mapItems, NSError * _Nullable error))completionHandler;
+- (void)cancel;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+API_AVAILABLE(ios(26.0))
+@interface MKReverseGeocodingRequest : NSObject
+- (nullable instancetype)initWithLocation:(CLLocation *)location;
+@property (nonatomic, readonly, copy) CLLocation *location;
+@property (nonatomic, copy, nullable) NSLocale *preferredLocale;
+@property (nonatomic, readonly, getter=isCancelled) BOOL cancelled;
+@property (nonatomic, readonly, getter=isLoading) BOOL loading;
+- (void)getMapItemsWithCompletionHandler:(void (^)(NSArray<MKMapItem *> * _Nullable mapItems, NSError * _Nullable error))completionHandler;
+- (void)cancel;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+
+/* the distance formatter: metric (m, km) or imperial (ft then mi; yd) */
+typedef NS_ENUM(NSUInteger, MKDistanceFormatterUnits) {
+    MKDistanceFormatterUnitsDefault, MKDistanceFormatterUnitsMetric, MKDistanceFormatterUnitsImperial, MKDistanceFormatterUnitsImperialWithYards,
+};
+typedef NS_ENUM(NSUInteger, MKDistanceFormatterUnitStyle) {
+    MKDistanceFormatterUnitStyleDefault = 0, MKDistanceFormatterUnitStyleAbbreviated, MKDistanceFormatterUnitStyleFull,
+};
+@interface MKDistanceFormatter : NSFormatter
+- (NSString *)stringFromDistance:(CLLocationDistance)distance;
+- (CLLocationDistance)distanceFromString:(NSString *)distance;
+@property (copy, null_resettable) NSLocale *locale;
+@property (assign) MKDistanceFormatterUnits units;
+@property (assign) MKDistanceFormatterUnitStyle unitStyle;
+@end
+
+/* GeoJSON */
+@protocol MKGeoJSONObject <NSObject>
+@end
+@interface MKGeoJSONFeature : NSObject <MKGeoJSONObject>
+@property (nonatomic, readonly, nullable) NSString *identifier;
+@property (nonatomic, readonly, nullable) NSData *properties;
+@property (nonatomic, readonly) NSArray<__kindof MKShape<MKGeoJSONObject> *> *geometry;
+@end
+@interface MKGeoJSONDecoder : NSObject
+- (nullable NSArray<id<MKGeoJSONObject>> *)geoJSONObjectsWithData:(NSData *)data error:(NSError **)errorPtr;
+@end
+
+typedef NSString * MKLaunchOptionsKey;
+FOUNDATION_EXPORT NSString * const MKLaunchOptionsDirectionsModeKey;
+FOUNDATION_EXPORT NSString * const MKLaunchOptionsMapTypeKey;
+FOUNDATION_EXPORT NSString * const MKLaunchOptionsMapCenterKey;
+FOUNDATION_EXPORT NSString * const MKLaunchOptionsMapSpanKey;
+FOUNDATION_EXPORT NSString * const MKLaunchOptionsShowsTrafficKey;
+FOUNDATION_EXPORT NSString * const MKLaunchOptionsCameraKey;
+FOUNDATION_EXPORT NSString * const MKLaunchOptionsDirectionsModeDefault;
+FOUNDATION_EXPORT NSString * const MKLaunchOptionsDirectionsModeDriving;
+FOUNDATION_EXPORT NSString * const MKLaunchOptionsDirectionsModeWalking;
+FOUNDATION_EXPORT NSString * const MKLaunchOptionsDirectionsModeTransit;
+FOUNDATION_EXPORT NSString * const MKLaunchOptionsDirectionsModeCycling;
 
 NS_ASSUME_NONNULL_END
 #endif
