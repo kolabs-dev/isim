@@ -63,7 +63,7 @@ id isim_in_decode(id v);
 @end
 
 /* ---------------- the domains: parameters, Siri's sentences ---------------- */
-/* a parameter: key, kind (persons | string | speakable | speakables | bool | mediaItems | taskList | noteContent),
+/* a parameter: key, kind (persons | string | speakable | speakables | bool | mediaItems | mediaDestination | taskList | noteContent),
    resolve selectors (the first the handler implements), the question */
 static NSArray<NSDictionary *> *intent_params(NSString *cls) {
     static NSDictionary *t;
@@ -80,6 +80,14 @@ static NSArray<NSDictionary *> *intent_params(NSString *cls) {
         @"INPlayMediaIntent": @[
             @{ @"key": @"mediaItems", @"kind": @"mediaItems", @"sel": @[@"resolveMediaItemsForPlayMedia:withCompletion:"], @"prompt": @"What do you want to play?" },
             @{ @"key": @"playShuffled", @"kind": @"bool", @"sel": @[@"resolvePlayShuffledForPlayMedia:withCompletion:"], @"prompt": @"Shuffle it?" } ],
+        @"INEditMessageIntent": @[
+            @{ @"key": @"editedContent", @"kind": @"string", @"sel": @[@"resolveEditedContentForEditMessage:withCompletion:"], @"prompt": @"What do you want it to say?" } ],
+        @"INUnsendMessagesIntent": @[],
+        @"INAddMediaIntent": @[
+            @{ @"key": @"mediaItems", @"kind": @"mediaItems", @"sel": @[@"resolveMediaItemsForAddMedia:withCompletion:"], @"prompt": @"What do you want to add?" },
+            @{ @"key": @"mediaDestination", @"kind": @"mediaDestination", @"sel": @[@"resolveMediaDestinationForAddMedia:withCompletion:"], @"prompt": @"Which playlist?" } ],
+        @"INSearchForMediaIntent": @[
+            @{ @"key": @"mediaItems", @"kind": @"mediaItems", @"sel": @[@"resolveMediaItemsForSearchForMedia:withCompletion:"], @"prompt": @"What are you looking for?" } ],
         @"INAddTasksIntent": @[
             @{ @"key": @"targetTaskList", @"kind": @"taskList", @"sel": @[@"resolveTargetTaskListForAddTasks:completion:"], @"prompt": @"Which list?" },
             @{ @"key": @"taskTitles", @"kind": @"speakables", @"sel": @[@"resolveTaskTitlesForAddTasks:withCompletion:"], @"prompt": @"What do you want to add?" } ],
@@ -143,6 +151,8 @@ static NSArray<NSDictionary *> *custom_params(NSString *cls) {
                 if ([en[@"INEnumName"] isEqual:p[@"INIntentParameterEnumType"]]) e[@"enum"] = en[@"INEnumValues"] ?: @[];
         }
         if (p[@"INIntentParameterObjectType"]) e[@"objectType"] = p[@"INIntentParameterObjectType"];
+        if ([p[@"INIntentParameterSupportsDynamicEnumeration"] boolValue])    /* dynamic options: an INObjectCollection */
+            e[@"options"] = [NSString stringWithFormat:@"provide%@OptionsCollectionFor%@:withCompletion:", capitalized(name), base];
         [out addObject:e];
     }
     return out;
@@ -190,6 +200,8 @@ static NSString *title_of(id v) {
     if ([v isKindOfClass:[NSString class]]) return v;
     if ([v isKindOfClass:[INSpeakableString class]]) return [v spokenPhrase];
     if ([v isKindOfClass:[INMediaItem class]]) return [v title] ?: [v identifier] ?: @"";
+    if ([v isKindOfClass:[INMediaDestination class]]) return [v mediaDestinationType] == INMediaDestinationTypeLibrary ? @"Library" : [v playlistName] ?: @"";
+    if ([v isKindOfClass:[INObject class]]) return [v displayString];
     if ([v isKindOfClass:[INTaskList class]]) return ((INTaskList *)v).title.spokenPhrase;
     if ([v isKindOfClass:[INTextNoteContent class]]) return [v text] ?: @"";
     if ([v isKindOfClass:[NSNumber class]]) return [v boolValue] ? @"Yes" : @"No";
@@ -198,6 +210,7 @@ static NSString *title_of(id v) {
 static NSString *subtitle_of(id v) {
     if ([v isKindOfClass:[INPerson class]]) return [[v personHandle] value] ?: @"";
     if ([v isKindOfClass:[INMediaItem class]]) return [v artist] ?: @"";
+    if ([v isKindOfClass:[INObject class]]) return [v subtitleString] ?: @"";
     return @"";
 }
 /* a value from what the user said */
@@ -223,6 +236,8 @@ static id value_from_text(NSString *kind, NSString *text, INIntent *intent) {
     if ([kind isEqualToString:@"bool"]) { NSString *l = text.lowercaseString; return @([l hasPrefix:@"y"] || [l isEqualToString:@"ok"] || [l isEqualToString:@"sure"]); }
     if ([kind isEqualToString:@"taskList"]) return [[INTaskList alloc] initWithTitle:[[INSpeakableString alloc] initWithSpokenPhrase:text] tasks:@[] groupName:nil createdDateComponents:nil modifiedDateComponents:nil identifier:nil];
     if ([kind isEqualToString:@"noteContent"]) return [[INTextNoteContent alloc] initWithText:text];
+    if ([kind isEqualToString:@"mediaDestination"])
+        return [text.lowercaseString hasSuffix:@"library"] ? [INMediaDestination libraryDestination] : [INMediaDestination playlistDestinationWithName:text];
     if ([kind isEqualToString:@"mediaItems"]) {             /* Siri searches by name: the app resolves mediaSearch into items */
         [intent _set:[[INMediaSearch alloc] initWithMediaType:INMediaItemTypeUnknown sortOrder:INMediaSortOrderUnknown mediaName:text artistName:nil albumName:nil
                                                    genreNames:nil moodNames:nil releaseDate:nil reference:INMediaReferenceUnknown mediaIdentifier:nil] forKey:@"mediaSearch"];
@@ -247,6 +262,13 @@ static NSDictionary *custom_code(NSString *cls, NSInteger code) {
     }
     return nil;
 }
+/* "€4.50": an amount as Siri says it in English */
+static NSString *currency_text(INCurrencyAmount *a) {
+    NSDictionary *symbols = @{ @"USD": @"$", @"EUR": @"€", @"GBP": @"£", @"JPY": @"¥" };
+    NSString *n = a.amount ? [NSString stringWithFormat:@"%.2f", a.amount.doubleValue] : @"0";
+    NSString *sym = symbols[a.currencyCode ?: @""];
+    return sym ? [sym stringByAppendingString:n] : [NSString stringWithFormat:@"%@ %@", n, a.currencyCode ?: @""];
+}
 static NSString *custom_dialog(INIntentResponse *r, NSDictionary *c) {
     NSString *f = c[@"INIntentResponseCodeFormatString"] ?: c[@"INIntentResponseCodeConciseFormatString"] ?: @"";
     NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:@"\\$\\{([A-Za-z0-9_]+)\\}" options:0 error:NULL];
@@ -254,7 +276,7 @@ static NSString *custom_dialog(INIntentResponse *r, NSDictionary *c) {
     for (NSTextCheckingResult *m in [[re matchesInString:f options:0 range:NSMakeRange(0, f.length)] reverseObjectEnumerator]) {
         NSString *key = [f substringWithRange:[m rangeAtIndex:1]];
         id v = [r respondsToSelector:NSSelectorFromString(key)] ? [r valueForKey:key] : nil;
-        NSString *text = [v respondsToSelector:@selector(displayString)] ? [v displayString] : v ? [v description] : @"";
+        NSString *text = [v respondsToSelector:@selector(displayString)] ? [v displayString] : [v isKindOfClass:[INCurrencyAmount class]] ? currency_text(v) : v ? [v description] : @"";
         [out replaceCharactersInRange:m.range withString:text];
     }
     return out;
@@ -269,6 +291,10 @@ static NSString *outcome_of(NSString *cls, NSInteger code) {
     if ([cls isEqualToString:@"INStartCallIntent"]) return code == 2 || code == 1 ? @"continueInApp" : code == 5 ? @"appLaunch" : code >= 4 ? @"failure" : @"failure";
     if ([cls isEqualToString:@"INPlayMediaIntent"])
         return code == 4 ? @"success" : code == 2 ? @"continueInApp" : code == 5 ? @"handleInApp" : code == 3 || code == 1 ? @"success" : code == 7 ? @"appLaunch" : @"failure";
+    if ([cls isEqualToString:@"INAddMediaIntent"])
+        return code == 3 || code == 2 || code == 1 ? @"success" : code == 4 ? @"handleInApp" : code == 6 ? @"appLaunch" : @"failure";
+    if ([cls isEqualToString:@"INSearchForMediaIntent"])
+        return code == 4 || code == 3 || code == 1 ? @"success" : code == 2 ? @"continueInApp" : code == 6 ? @"appLaunch" : @"failure";
     return code == 3 || code == 2 || code == 1 ? @"success" : code == 5 ? @"appLaunch" : @"failure";
 }
 static NSString *success_dialog(INIntent *intent, INIntentResponse *r, NSString *app, NSString **detail) {
@@ -290,6 +316,31 @@ static NSString *success_dialog(INIntent *intent, INIntentResponse *r, NSString 
         INPlayMediaIntent *p = (INPlayMediaIntent *)intent;
         NSString *t = [p.mediaItems.firstObject title] ?: p.mediaSearch.mediaName;
         return t.length ? [NSString stringWithFormat:@"Now playing %@.", t] : [NSString stringWithFormat:@"OK, here’s %@.", app];
+    }
+    if ([cls isEqualToString:@"INAddMediaIntent"]) {
+        INAddMediaIntent *a = (INAddMediaIntent *)intent;
+        NSString *t = [a.mediaItems.firstObject title] ?: a.mediaSearch.mediaName;
+        INMediaDestination *d = a.mediaDestination;
+        NSString *where = d.mediaDestinationType == INMediaDestinationTypePlaylist ? [NSString stringWithFormat:@" to your %@ playlist", d.playlistName]
+                        : d.mediaDestinationType == INMediaDestinationTypeLibrary ? @" to your library" : @"";
+        return [NSString stringWithFormat:@"OK, I added %@%@.", t.length ? t : @"it", where];
+    }
+    if ([cls isEqualToString:@"INSearchForMediaIntent"]) {
+        NSArray *items = [(INSearchForMediaIntentResponse *)r mediaItems] ?: [(INSearchForMediaIntent *)intent mediaItems];
+        NSMutableArray *lines = [NSMutableArray array];
+        for (INMediaItem *m in items) [lines addObject:m.artist.length ? [NSString stringWithFormat:@"%@ — %@", m.title ?: @"", m.artist] : m.title ?: @""];
+        *detail = [lines componentsJoinedByString:@"\n"];
+        return items.count ? [NSString stringWithFormat:@"I found %lu result%@ in %@.", (unsigned long)items.count, items.count == 1 ? @"" : @"s", app]
+                           : [NSString stringWithFormat:@"I didn’t find anything in %@.", app];
+    }
+    if ([cls isEqualToString:@"INEditMessageIntent"]) {
+        NSString *c = [intent _get:@"editedContent"];          /* INEditMessageIntent (iOS 16) */
+        *detail = c ?: @"";
+        return @"OK, I edited your message.";
+    }
+    if ([cls isEqualToString:@"INUnsendMessagesIntent"]) {
+        NSUInteger n = [[intent _get:@"messageIdentifiers"] count];   /* INUnsendMessagesIntent (iOS 16) */
+        return n > 1 ? [NSString stringWithFormat:@"OK, I unsent %lu messages.", (unsigned long)n] : @"OK, I unsent your message.";
     }
     if ([cls isEqualToString:@"INAddTasksIntent"]) {
         INAddTasksIntent *a = (INAddTasksIntent *)intent;
@@ -373,11 +424,15 @@ static NSString *success_dialog(INIntent *intent, INIntentResponse *r, NSString 
             [self fail:what.length ? [NSString stringWithFormat:@"Sorry, %@ can’t do that with “%@”.", self.app, what] : [NSString stringWithFormat:@"Sorry, %@ can’t do that.", self.app]];
             return;
         }
+        if ([rk isEqualToString:@"needsValue"] && p[@"options"] && [self.handler respondsToSelector:NSSelectorFromString(p[@"options"])]) {
+            [self offerOptions:p params:params index:i];
+            return;
+        }
         if ([rk isEqualToString:@"needsValue"]) {
             [self.channel ask:@{ @"type": @"value", @"param": key, @"prompt": p[@"prompt"], @"kind": @"text" } reply:^(NSDictionary *a) {
                 if (![a[@"kind"] isEqual:@"text"]) { [self cancelled]; return; }
                 id v = p[@"type"] ? custom_value(p, a[@"text"] ?: @"") : value_from_text(kind, a[@"text"] ?: @"", self.intent);
-                if ([kind isEqualToString:@"string"] || [kind isEqualToString:@"speakable"] || [kind isEqualToString:@"taskList"] || [kind isEqualToString:@"noteContent"] || [kind isEqualToString:@"bool"]) [self.intent _set:v forKey:key];
+                if ([kind isEqualToString:@"string"] || [kind isEqualToString:@"speakable"] || [kind isEqualToString:@"taskList"] || [kind isEqualToString:@"noteContent"] || [kind isEqualToString:@"bool"] || [kind isEqualToString:@"mediaDestination"]) [self.intent _set:v forKey:key];
                 else if (v) [self.intent _set:v forKey:key];
                 [self resolve:params index:i];
             }];
@@ -409,6 +464,36 @@ static NSString *success_dialog(INIntent *intent, INIntentResponse *r, NSString 
     if (values.count) [self.intent _set:array && ![kind isEqualToString:@"bool"] ? values : values.firstObject forKey:key];
     [self resolve:params index:i + 1];
 }
+/* a parameter with dynamic options: the handler's INObjectCollection, offered as a choice (section titles as subtitles) */
+- (void)offerOptions:(NSDictionary *)p params:(NSArray *)params index:(NSUInteger)i {
+    __weak _INConversation *weakSelf = self;
+    NSLog(@"isim Intents: options for %@", p[@"key"]);
+    ((void (*)(id, SEL, id, id))objc_msgSend)(self.handler, NSSelectorFromString(p[@"options"]), self.intent, ^(INObjectCollection *c, NSError *error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            _INConversation *me = weakSelf;
+            if (!me) return;
+            NSMutableArray *items = [NSMutableArray array], *shown = [NSMutableArray array];
+            for (INObjectSection *sec in c.sections)
+                for (id o in sec.items) {
+                    [items addObject:o];
+                    NSString *sub = subtitle_of(o);
+                    [shown addObject:@{ @"title": title_of(o), @"subtitle": sub.length ? sub : sec.title ?: @"" }];
+                }
+            NSLog(@"isim Intents: %@: %lu option(s) in %lu section(s)%@", p[@"key"], (unsigned long)items.count, (unsigned long)c.sections.count, error ? [@" error " stringByAppendingString:error.localizedDescription] : @"");
+            if (!items.count) { [me fail:[NSString stringWithFormat:@"Sorry, %@ doesn’t have any options for that.", me.app]]; return; }
+            [me.channel ask:@{ @"type": @"choice", @"param": p[@"key"], @"prompt": p[@"prompt"], @"options": shown } reply:^(NSDictionary *a) {
+                NSInteger idx = [a[@"index"] integerValue];
+                if ([a[@"kind"] isEqual:@"text"]) {                   /* a value that is not among the options */
+                    [me.intent _set:custom_value(p, a[@"text"] ?: @"") forKey:p[@"key"]];
+                    [me resolve:params index:i]; return;
+                }
+                if (![a[@"kind"] isEqual:@"option"] || idx < 0 || idx >= (NSInteger)items.count) { [me cancelled]; return; }
+                [me.intent _set:[p[@"many"] boolValue] ? @[items[idx]] : items[idx] forKey:p[@"key"]];
+                [me resolve:params index:i];
+            }];
+        });
+    });
+}
 - (void)replace:(NSString *)key at:(NSUInteger)k with:(id)v array:(BOOL)array {
     if (!v) return;
     if (array) {
@@ -435,7 +520,7 @@ static NSString *success_dialog(INIntent *intent, INIntentResponse *r, NSString 
     NSString *cls = NSStringFromClass(self.intent.class);
     NSInteger code = r ? [self codeOf:r] : 1;
     if (r) NSLog(@"isim Intents: confirm -> code %ld", (long)code);
-    BOOL failed = [cls isEqualToString:@"INStartCallIntent"] ? code >= 4 : [cls isEqualToString:@"INPlayMediaIntent"] ? code >= 6 : code >= 4;
+    BOOL failed = [cls isEqualToString:@"INPlayMediaIntent"] ? code >= 6 : [cls isEqualToString:@"INAddMediaIntent"] || [cls isEqualToString:@"INSearchForMediaIntent"] ? code >= 5 : code >= 4;
     if (failed) { [self respond:r]; return; }
     if ([cls isEqualToString:@"INSendMessageIntent"]) {       /* iOS reads the message back before sending it */
         INSendMessageIntent *m = (INSendMessageIntent *)self.intent;
@@ -477,6 +562,9 @@ static NSString *success_dialog(INIntent *intent, INIntentResponse *r, NSString 
     else if ([outcome isEqualToString:@"continueInApp"]) res[@"dialog"] = [cls isEqualToString:@"INStartCallIntent"] ? success_dialog(self.intent, r, self.app, &detail) : [NSString stringWithFormat:@"Opening %@…", self.app];
     else if ([outcome isEqualToString:@"appLaunch"]) res[@"dialog"] = [NSString stringWithFormat:@"You’ll need to continue in %@.", self.app];
     else if ([outcome isEqualToString:@"handleInApp"]) res[@"dialog"] = success_dialog(self.intent, r, self.app, &detail);
+    else if (([cls isEqualToString:@"INEditMessageIntent"] || [cls isEqualToString:@"INUnsendMessagesIntent"]) && code >= 6 && code <= 7)
+        res[@"dialog"] = code == 6 ? @"Sorry, I couldn’t find that message."
+                                   : [NSString stringWithFormat:@"Sorry, it’s too late to %@ that message.", [cls isEqualToString:@"INEditMessageIntent"] ? @"edit" : @"unsend"];
     else res[@"dialog"] = [NSString stringWithFormat:@"Sorry, there was a problem with %@.", self.app];
     if (detail.length) res[@"detail"] = detail;
     if ([outcome isEqualToString:@"continueInApp"] || [outcome isEqualToString:@"appLaunch"]) {
@@ -525,7 +613,7 @@ void isim_in_run_request(const char *path) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 NSInteger code = [r respondsToSelector:@selector(code)] ? ((NSInteger (*)(id, SEL))objc_msgSend)(r, @selector(code)) : 0;
                 NSLog(@"isim Intents: handled in the app, code %ld", (long)code);
-                [ch finish:@{ @"type": @"result", @"dialog": @"", @"outcome": code == INPlayMediaIntentResponseCodeSuccess ? @"success" : @"failure", @"code": @(code), @"inApp": @YES }];
+                [ch finish:@{ @"type": @"result", @"dialog": @"", @"outcome": [outcome_of(NSStringFromClass(intent.class), code) isEqual:@"success"] ? @"success" : @"failure", @"code": @(code), @"inApp": @YES }];
                 finish();
             });
         }];

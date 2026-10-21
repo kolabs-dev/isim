@@ -1,9 +1,11 @@
 // HelloSiri's Intents extension: messages to club members (resolution with disambiguation, confirmation), message
-// search, calls (continued in the app), the shopping list and music (played by the app: .handleInApp).
+// search, editing and unsending a sent message, calls (continued in the app), the shopping list, music (played by the
+// app: .handleInApp), adding music to a playlist and searching for it.
 import Intents
 
 class IntentHandler: INExtension, INSendMessageIntentHandling, INSearchForMessagesIntentHandling, INStartCallIntentHandling,
-                     INAddTasksIntentHandling, INPlayMediaIntentHandling {
+                     INAddTasksIntentHandling, INPlayMediaIntentHandling, INEditMessageIntentHandling, INUnsendMessagesIntentHandling,
+                     INAddMediaIntentHandling, INSearchForMediaIntentHandling {
     override func handler(for intent: INIntent) -> Any {
         log("extension: handler for \(type(of: intent))")
         return self
@@ -28,9 +30,40 @@ class IntentHandler: INExtension, INSendMessageIntentHandling, INSearchForMessag
     }
     func handle(intent: INSendMessageIntent, completion: @escaping (INSendMessageIntentResponse) -> Void) {
         let to = (intent.recipients ?? []).map { $0.displayName }.joined(separator: ", ")
+        let id = "msg-\(sentIDs.count + 1)"
         sentMessages.append("\(to): \(intent.content ?? "")")
+        sentIDs.append(id)
         log("extension: sent “\(intent.content ?? "")” to \(to)")
-        completion(INSendMessageIntentResponse(code: .success, userActivity: nil))
+        let r = INSendMessageIntentResponse(code: .success, userActivity: nil)
+        r.sentMessage = INMessage(identifier: id, content: intent.content, dateSent: Date(), sender: nil, recipients: intent.recipients)
+        completion(r)
+    }
+
+    // MARK: editing and unsending (Siri names the last message it sent)
+    func resolveEditedContent(for intent: INEditMessageIntent, with completion: @escaping (INStringResolutionResult) -> Void) {
+        if let text = intent.editedContent, !text.isEmpty { completion(.success(with: text)) } else { completion(.needsValue()) }
+    }
+    func handle(intent: INEditMessageIntent, completion: @escaping (INEditMessageIntentResponse) -> Void) {
+        guard let id = intent.messageIdentifier, let i = sentIDs.firstIndex(of: id), i < sentMessages.count else {
+            log("extension: no message \(intent.messageIdentifier ?? "-") to edit")
+            completion(INEditMessageIntentResponse(code: .failureMessageNotFound, userActivity: nil)); return
+        }
+        let to = sentMessages[i].components(separatedBy: ": ").first ?? ""
+        sentMessages[i] = "\(to): \(intent.editedContent ?? "")"
+        log("extension: edited \(id) to “\(intent.editedContent ?? "")”")
+        completion(INEditMessageIntentResponse(code: .success, userActivity: nil))
+    }
+    func handle(intent: INUnsendMessagesIntent, completion: @escaping (INUnsendMessagesIntentResponse) -> Void) {
+        let found = (intent.messageIdentifiers ?? []).filter { sentIDs.contains($0) }
+        guard !found.isEmpty else {
+            log("extension: no message \((intent.messageIdentifiers ?? []).joined(separator: ", ")) to unsend")
+            completion(INUnsendMessagesIntentResponse(code: .failureMessageNotFound, userActivity: nil)); return
+        }
+        for id in found {
+            if let i = sentIDs.firstIndex(of: id) { sentIDs.remove(at: i); if i < sentMessages.count { sentMessages.remove(at: i) } }
+        }
+        log("extension: unsent \(found.joined(separator: ", "))")
+        completion(INUnsendMessagesIntentResponse(code: .success, userActivity: nil))
     }
 
     // MARK: message search (async form)
@@ -82,5 +115,43 @@ class IntentHandler: INExtension, INSendMessageIntentHandling, INSearchForMessag
     }
     func handle(intent: INPlayMediaIntent, completion: @escaping (INPlayMediaIntentResponse) -> Void) {
         completion(INPlayMediaIntentResponse(code: .handleInApp, userActivity: nil))
+    }
+
+    // MARK: adding music to the library or a playlist
+    func resolveMediaItems(for intent: INAddMediaIntent, with completion: @escaping ([INAddMediaMediaItemResolutionResult]) -> Void) {
+        if intent.mediaSearch?.reference == .currentlyPlaying {
+            completion(INAddMediaMediaItemResolutionResult.successes(with: [INMediaItem(identifier: "now", title: nowPlaying, type: .song, artwork: nil)])); return
+        }
+        guard let name = intent.mediaSearch?.mediaName else { completion([INAddMediaMediaItemResolutionResult.needsValue()]); return }
+        completion(INAddMediaMediaItemResolutionResult.successes(with: [INMediaItem(identifier: "mix-\(name)", title: "\(name) Mix", type: .playlist, artwork: nil)]))
+    }
+    func resolveMediaDestination(for intent: INAddMediaIntent, with completion: @escaping (INAddMediaMediaDestinationResolutionResult) -> Void) {
+        switch intent.mediaDestination {
+        case .none, .library?:
+            completion(.success(with: .library))
+        case .playlist(let name)?:
+            log("extension: playlist “\(name)”")
+            completion(playlists.contains(name) ? .success(with: .playlist(name)) : .unsupported(forReason: .playlistNameNotFound))
+        @unknown default:
+            completion(.unsupported(forReason: .playlistNotEditable))
+        }
+    }
+    func handle(intent: INAddMediaIntent, completion: @escaping (INAddMediaIntentResponse) -> Void) {
+        let item = intent.mediaItems?.first?.title ?? "?", to = intent.mediaDestination?.playlistName ?? "Library"
+        playlistLog.append("\(to): \(item)")
+        log("extension: added \(item) to \(to)")
+        completion(INAddMediaIntentResponse(code: .success, userActivity: nil))
+    }
+
+    // MARK: searching the club's music
+    func resolveMediaItems(for intent: INSearchForMediaIntent, with completion: @escaping ([INSearchForMediaMediaItemResolutionResult]) -> Void) {
+        guard let name = intent.mediaSearch?.mediaName else { completion([INSearchForMediaMediaItemResolutionResult.needsValue()]); return }
+        completion(INSearchForMediaMediaItemResolutionResult.successes(with: catalog.filter { $0.title?.localizedCaseInsensitiveContains(name) ?? false }))
+    }
+    func handle(intent: INSearchForMediaIntent, completion: @escaping (INSearchForMediaIntentResponse) -> Void) {
+        let r = INSearchForMediaIntentResponse(code: .success, userActivity: nil)
+        r.mediaItems = intent.mediaItems
+        log("extension: found \(r.mediaItems?.count ?? 0) media item(s)")
+        completion(r)
     }
 }

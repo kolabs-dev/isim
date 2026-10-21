@@ -28,6 +28,26 @@ var sentMessages: [String] {
     get { shared.array(forKey: "sent") as? [String] ?? [] }
     set { shared.set(newValue, forKey: "sent") }
 }
+/// their identifiers (INSendMessageIntentResponse.sentMessage; Siri edits and unsends messages by identifier)
+var sentIDs: [String] {
+    get { shared.array(forKey: "sentIDs") as? [String] ?? [] }
+    set { shared.set(newValue, forKey: "sentIDs") }
+}
+/// the club's playlists (Siri adds music to them; the app's vocabulary spells their names) and what was added
+let playlists = ["Café Noir", "Morning Brew"]
+var playlistLog: [String] {
+    get { shared.array(forKey: "playlistLog") as? [String] ?? [] }
+    set { shared.set(newValue, forKey: "playlistLog") }
+}
+/// what the app plays (Siri's "this song")
+var nowPlaying: String {
+    get { shared.string(forKey: "nowPlaying") ?? "House Blend Radio" }
+    set { shared.set(newValue, forKey: "nowPlaying") }
+}
+/// the club's music, for Siri's media search
+let catalog = [INMediaItem(identifier: "morning-jazz", title: "Morning Jazz Mix", type: .playlist, artwork: nil, artist: "Coffee Club DJs"),
+               INMediaItem(identifier: "brew-podcast", title: "Morning Brew Podcast", type: .podcastShow, artwork: nil, artist: "Ben Ito"),
+               INMediaItem(identifier: "evening-jazz", title: "Evening Jazz", type: .playlist, artwork: nil, artist: "Anna Lee")]
 var tasks: [String] {
     get { shared.array(forKey: "tasks") as? [String] ?? [] }
     set { shared.set(newValue, forKey: "tasks") }

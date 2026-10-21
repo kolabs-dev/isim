@@ -786,7 +786,7 @@ LocalAuthentication -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSecu
 DeviceCheck -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCryptoKit -lswiftSecurity -framework Foundation
 BackgroundTasks -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 UserNotifications -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit -framework UserNotifications
-Intents -lswiftObjectiveC -lswiftFoundation -framework Foundation -framework Intents   # INFocusStatus.isFocused as Bool?
+Intents -lswiftObjectiveC -lswiftFoundation -lswiftCoreLocation -framework Foundation -framework Intents   # INFocusStatus.isFocused as Bool?, INMediaDestination
 CoreML -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreVideo -lswiftCoreGraphics -framework Foundation -framework CoreGraphics
 Vision -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreVideo -lswiftCoreImage -lswiftCoreMedia -lswiftAudioToolbox -lswiftCoreML -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics -framework CoreImage -framework ImageIO -lisim_host
 NaturalLanguage -lswiftObjectiveC -lswiftFoundation -lswift_Concurrency -framework Foundation

@@ -4,7 +4,10 @@ the Intents UI extension's view, sent; missing values asked for; an unsupported 
 from the structured script form (an async handler), INStartCallIntent continued in the app (NSUserActivity with its
 INInteraction), INAddTasksIntent, INPlayMediaIntent played in the app (.handleInApp), INCreateNoteIntent handled in
 the app (application(_:handlerFor:)), donations as Siri Suggestions in the Shortcuts app, and a voice shortcut added
-with INUIAddVoiceShortcutViewController and run by saying its phrase."""
+with INUIAddVoiceShortcutViewController and run by saying its phrase. The shared types: INAddMediaIntent with the
+app's vocabulary (INVocabulary), INSearchForMediaIntent, INEditMessageIntent and INUnsendMessagesIntent on the last
+message Siri sent, relevant shortcuts (INRelevantShortcutStore) in the Shortcuts app, INObjectCollection and
+INCurrencyAmount."""
 import re
 
 import pytest
@@ -124,3 +127,60 @@ def test_sirikit_app_handling(launch):
     assert "SpringBoard: Siri matched the voice shortcut “On my way” of Coffee Club" in log
     assert "isim Intents: donated INSendMessageIntent" in log and re.search(r"Message Anna Haro: “Flat white\?”", page), \
         "the donated interaction is a Siri Suggestion"
+
+
+@pytest.mark.os_matrix
+def test_sirikit_shared_types(launch):
+    dev = launch(None, install=["HelloSiri"], env={"ISIM_SIRI_PERMISSION": "allow"})
+    dev.wait_log(r"SpringBoard: Coffee Club: 4 App Shortcut")
+    dev.send(f"launch {APP}")
+    dev.wait_log(r"isim Intents: 2 vocabulary string\(s\) of type 700")      # INVocabulary at launch
+    dev.wait_tap_id("allowSiri")
+    dev.wait_log(r"HelloSiri: Siri authorization 3")
+    dev.wait_tap_id("relevant")
+    dev.wait_log(r"HelloSiri: relevant shortcuts set: 2 provider\(s\), role 0")
+    dev.wait_tap_id("sharedTypes")
+    dev.wait_log(r"HelloSiri: shared types: tip 4\.5 EUR equal true, menu 2 section\(s\): Latte, Flat White, Cold Brew, flat 1 section, Double shot")
+    dev.send("home")
+
+    dev.send("siri add Morning Jazz to my cafe noir playlist")             # spelled the app's way
+    siri(dev, r"id=siri-card text=OK, I added Morning Jazz Mix to your Café Noir playlist\.")
+    dev.send("siri add this song to my breakfast playlist")                 # an alternative match; what's playing
+    siri(dev, r"id=siri-card text=OK, I added House Blend Radio to your Morning Brew playlist\.")
+    dev.send("siri add Morning Jazz to my Jazz Nights playlist")            # unsupported(forReason: .playlistNameNotFound)
+    siri(dev, r"id=siri-card text=Sorry, Coffee Club can’t do that with “Jazz Nights”\.")
+    dev.send("siri search for jazz in Coffee Club")
+    siri(dev, r"id=siri-card text=I found 2 results in Coffee Club\.")
+    dev.wait_dump(r"id=siri-detail text=Morning Jazz Mix — Coffee Club DJs")
+    dev.wait_still()
+    dev.screenshot("sirikit-search-media")
+
+    dev.send("siri send a message to Ben saying Meet at 8")
+    siri(dev, r"id=siri-confirm text=Send")
+    dev.send("siri send")
+    siri(dev, r"id=siri-card text=OK, I sent your message to Ben Ito\.")
+    dev.send("siri edit my last message to say Meet at 9")                  # the message Siri sent
+    siri(dev, r"id=siri-card text=OK, I edited your message\.")
+    dev.send("siri unsend my last message")
+    siri(dev, r"id=siri-card text=OK, I unsent your message\.")
+    dev.send("siri intent UnsendMessages messages=msg-42")
+    siri(dev, r"id=siri-card text=Sorry, I couldn’t find that message\.")
+    dev.send("siri dismiss")
+
+    dev.send("launch dev.isim.shortcuts")                                   # relevant now: a Siri Suggestion
+    dev.wait_tap_id(f"app-shortcuts-{APP}")
+    page = dev.wait_view(r"id=suggestion-relevant-0")
+    assert "text=Morning Jazz" in page, "titled by its card template"
+    assert "suggestion-relevant-1" not in page and "Last Night" not in page, "last night's shortcut is no longer relevant"
+    dev.wait_still()
+    dev.screenshot("relevant-shortcut")
+    dev.tap_id("suggestion-relevant-0")
+    siri(dev, r"id=siri-card text=Now playing Morning Jazz Mix\.")
+    assert dev.quit() == 0, "exits cleanly"
+    log = dev.log
+    assert "SpringBoard: Siri used the vocabulary of Coffee Club: “cafe noir” is “Café Noir”" in log
+    assert "SpringBoard: Siri used the vocabulary of Coffee Club: “breakfast” is “Morning Brew”" in log
+    assert "HelloSiri: extension: added Morning Jazz Mix to Café Noir" in log and "HelloSiri: extension: playlist “Jazz Nights”" in log
+    assert "SpringBoard: Siri's last message with Coffee Club: msg-1" in log
+    assert "HelloSiri: extension: edited msg-1 to “Meet at 9”" in log and "HelloSiri: extension: unsent msg-1" in log
+    assert "HelloSiri: extension: no message msg-42 to unsend" in log

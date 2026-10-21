@@ -134,6 +134,18 @@ static NSDictionary *intent_plist(NSString *cls, NSDictionary<NSString *, NSStri
     } else if ([cls isEqualToString:@"INPlayMediaIntent"]) {
         if (v[@"media"]) p[@"mediaSearch"] = @{ @"$class": @"INMediaSearch", @"mediaName": v[@"media"], @"mediaType": @0 };
         if (v[@"shuffle"]) p[@"playShuffled"] = @([v[@"shuffle"] boolValue]);
+    } else if ([cls isEqualToString:@"INEditMessageIntent"]) {
+        if (v[@"message"]) p[@"messageIdentifier"] = v[@"message"];
+        if (v[@"content"]) p[@"editedContent"] = v[@"content"];
+    } else if ([cls isEqualToString:@"INUnsendMessagesIntent"]) {
+        if (v[@"messages"]) p[@"messageIdentifiers"] = [v[@"messages"] componentsSeparatedByString:@","];
+    } else if ([cls isEqualToString:@"INAddMediaIntent"] || [cls isEqualToString:@"INSearchForMediaIntent"]) {
+        NSString *m = v[@"media"];
+        if ([m.lowercaseString isEqualToString:@"this"] || [m.lowercaseString hasPrefix:@"this "] || [m.lowercaseString isEqualToString:@"what's playing"])
+            p[@"mediaSearch"] = @{ @"$class": @"INMediaSearch", @"mediaType": @0, @"reference": @1 };          /* INMediaReferenceCurrentlyPlaying */
+        else if (m) p[@"mediaSearch"] = @{ @"$class": @"INMediaSearch", @"mediaName": m, @"mediaType": @0 };
+        if (v[@"playlist"]) p[@"mediaDestination"] = @{ @"$class": @"INMediaDestination", @"mediaDestinationType": @2, @"playlistName": v[@"playlist"] };
+        else if ([v[@"library"] boolValue]) p[@"mediaDestination"] = @{ @"$class": @"INMediaDestination", @"mediaDestinationType": @1 };
     } else if ([cls isEqualToString:@"INAddTasksIntent"]) {
         if (v[@"tasks"]) { NSMutableArray *t = [NSMutableArray array]; for (NSString *s in [v[@"tasks"] componentsSeparatedByString:@","]) [t addObject:speakable(s)]; p[@"taskTitles"] = t; }
         if (v[@"list"]) p[@"targetTaskList"] = @{ @"$class": @"INTaskList", @"title": speakable(v[@"list"]), @"tasks": @[] };
@@ -157,7 +169,8 @@ static NSString *rx(NSString *pattern, NSString *text, NSArray **groups) {
     return @"";
 }
 /* "send a message to Anna saying Hello", "message Anna Hello", "tell Anna that ...", "call Anna", "facetime Anna",
-   "show my messages [from Anna]", "play NAME", "shuffle NAME", "add TASK to [my] LIST [list]", "remind me to TASK",
+   "show my messages [from Anna]", "edit my last message to say TEXT", "unsend my last message", "play NAME", "shuffle NAME",
+   "add NAME to my library", "add NAME to my PLAYLIST playlist", "search for NAME", "add TASK to [my] LIST [list]", "remind me to TASK",
    "create / make / take a note [saying TEXT]", "note TEXT"; each may end with "using|with|in|on APP" */
 static NSDictionary *siri_parse(NSString *text, NSString **cls) {
     NSArray *g = nil;
@@ -179,6 +192,12 @@ static NSDictionary *siri_parse(NSString *text, NSString **cls) {
         *cls = @"INSearchForMessagesIntent";
         return [g[0] length] ? @{ @"senders": g[0] } : @{};
     }
+    if (rx(@"^(?:edit|change|fix) my (?:last )?message to (?:say |read )?(.+)$", t, &g)) { *cls = @"INEditMessageIntent"; return @{ @"content": g[0] }; }
+    if (rx(@"^(?:edit|change|fix) my (?:last )?message$", t, &g)) { *cls = @"INEditMessageIntent"; return @{}; }
+    if (rx(@"^(?:unsend|undo send|take back) my (?:last )?message$", t, &g)) { *cls = @"INUnsendMessagesIntent"; return @{}; }
+    if (rx(@"^add (.+?) to (?:my |the )?library$", t, &g)) { *cls = @"INAddMediaIntent"; return @{ @"media": g[0], @"library": @"1" }; }
+    if (rx(@"^add (.+?) to (?:my |the )?(.+?) playlist$", t, &g)) { *cls = @"INAddMediaIntent"; return @{ @"media": g[0], @"playlist": g[1] }; }
+    if (rx(@"^(?:search for|look for|look up|find) (.+)$", t, &g)) { *cls = @"INSearchForMediaIntent"; return @{ @"media": g[0] }; }
     if (rx(@"^(play|shuffle) (.+)$", t, &g)) {
         *cls = @"INPlayMediaIntent";
         return @{ @"media": g[1], @"shuffle": [[g[0] lowercaseString] isEqual:@"shuffle"] ? @"1" : @"0" };
@@ -585,8 +604,55 @@ static BOOL locked_out(NSString *auth) { return siri_locked && auth.length && ![
     if (foreground) [self launch:a url:marker];
     else isim_shell_request(ISIM_SHELL_SYSTEM, "launch-bg", a.path.UTF8String, [NSString stringWithFormat:@"%@\x1f%@", a.executable, marker].UTF8String);
 }
+/* the app's vocabulary (INVocabulary): a name said its way is spelled the app's way */
+static NSString *fold(NSString *s) {
+    return [[s stringByFoldingWithOptions:NSCaseInsensitiveSearch | NSDiacriticInsensitiveSearch locale:nil] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+}
+static id with_vocabulary(id v, NSArray *vocab, HSApp *a) {
+    if ([v isKindOfClass:[NSArray class]]) { NSMutableArray *o = [NSMutableArray array]; for (id x in v) [o addObject:with_vocabulary(x, vocab, a)]; return o; }
+    if (![v isKindOfClass:[NSDictionary class]]) return v;
+    NSMutableDictionary *d = [v mutableCopy];
+    for (NSString *k in v) {
+        if (![@[@"mediaName", @"playlistName", @"displayName", @"spokenPhrase", @"artistName", @"albumName"] containsObject:k] || ![v[k] isKindOfClass:[NSString class]]) {
+            d[k] = with_vocabulary(v[k], vocab, a); continue;
+        }
+        NSString *said = fold(v[k]);
+        for (NSDictionary *e in vocab) {
+            NSMutableArray *forms = [NSMutableArray arrayWithObject:e[@"spokenPhrase"] ?: @""];
+            [forms addObjectsFromArray:e[@"alternatives"] ?: @[]];
+            BOOL hit = NO;
+            for (NSString *f in forms) if (f.length && [fold(f) isEqualToString:said]) hit = YES;
+            if (!hit || [e[@"spokenPhrase"] isEqualToString:v[k]]) continue;
+            NSLog(@"SpringBoard: Siri used the vocabulary of %@: “%@” is “%@”", a.name, v[k], e[@"spokenPhrase"]);
+            d[k] = e[@"spokenPhrase"];
+            if ([k isEqualToString:@"spokenPhrase"] && e[@"identifier"]) d[@"vocabularyIdentifier"] = d[@"identifier"] = e[@"identifier"];
+            break;
+        }
+    }
+    return d;
+}
+/* the last message Siri sent with the app (for "edit / unsend my last message") */
+static NSString *last_sent_message(HSApp *a) {
+    for (NSDictionary *e in [container_plist(a, @"Interactions.plist")[@"interactions"] reverseObjectEnumerator]) {
+        if (![e[@"intent"][@"$class"] isEqual:@"INSendMessageIntent"]) continue;
+        NSDictionary *r = e[@"intentResponse"];
+        NSString *ident = r[@"sentMessage"][@"identifier"] ?: [r[@"sentMessages"] lastObject][@"identifier"];
+        if (ident.length) return ident;
+    }
+    return nil;
+}
 - (void)runSiriKit:(NSDictionary *)intent app:(HSApp *)a source:(NSString *)source {
     NSString *cls = intent[@"$class"];
+    NSMutableArray *vocab = [NSMutableArray array];
+    for (NSArray *entries in [container_plist(a, @"Vocabulary.plist")[@"types"] allValues]) [vocab addObjectsFromArray:entries];
+    if (vocab.count) intent = with_vocabulary(intent, vocab, a);
+    if (([cls isEqualToString:@"INEditMessageIntent"] && !intent[@"messageIdentifier"]) || ([cls isEqualToString:@"INUnsendMessagesIntent"] && !intent[@"messageIdentifiers"])) {
+        NSString *last = last_sent_message(a);
+        NSMutableDictionary *m = [intent mutableCopy];
+        if (last) { if ([cls isEqualToString:@"INEditMessageIntent"]) m[@"messageIdentifier"] = last; else m[@"messageIdentifiers"] = @[last]; }
+        NSLog(@"SpringBoard: Siri's last message with %@: %@", a.name, last ?: @"none");
+        intent = m;
+    }
     NSString *siri = [app_default(a, @"_ISIMPrivacy.siri") description];
     if (![entitlements(a)[@"com.apple.developer.siri"] boolValue]) {
         NSLog(@"SpringBoard: %@ does not have the com.apple.developer.siri entitlement: Siri does not use it", a.name);
@@ -598,7 +664,7 @@ static BOOL locked_out(NSString *auth) { return siri_locked && auth.length && ![
                              : [NSString stringWithFormat:@"You’ll need to open %@ and allow it to use Siri first.", a.name], a, nil);
         return;
     }
-    if (siri_locked && ([cls isEqualToString:@"INSendMessageIntent"] || [cls isEqualToString:@"INSearchForMessagesIntent"])) {
+    if (siri_locked && [@[@"INSendMessageIntent", @"INSearchForMessagesIntent", @"INEditMessageIntent", @"INUnsendMessagesIntent"] containsObject:cls]) {
         siri_say(@"You’ll need to unlock your iPhone first.", a, nil); return;
     }
     NSDictionary *ext = extension_for_point(a, @"com.apple.intents-service", cls);
@@ -747,6 +813,14 @@ static BOOL locked_out(NSString *auth) { return siri_locked && auth.length && ![
             if (!s) { NSLog(@"SpringBoard: %@ has no App Shortcut %@", a.name, ident); return; }
             [self runAppIntent:s[@"intent"] shortcut:s[@"index"] params:s[@"params"] app:a source:source];
         } else if ([kind isEqualToString:@"intent"]) [self runAppIntent:ident shortcut:nil params:nil app:a source:source];
+        else if ([kind isEqualToString:@"relevant"]) {                /* INRelevantShortcutStore: "relevant-N" */
+            NSArray *list = container_plist(a, @"RelevantShortcuts.plist")[@"shortcuts"];
+            NSInteger n = [[ident componentsSeparatedByString:@"-"].lastObject integerValue];
+            NSDictionary *sc = n >= 0 && n < (NSInteger)list.count ? list[n][@"shortcut"] : nil;
+            if ([sc[@"intent"] isKindOfClass:[NSDictionary class]]) [self runSiriKit:sc[@"intent"] app:a source:source];
+            else if (sc[@"userActivity"][@"activity"]) [self continueActivity:sc[@"userActivity"][@"activity"] inApp:a dialog:nil];
+            else NSLog(@"SpringBoard: %@ has no relevant shortcut %@", a.name, ident);
+        }
         else if ([kind isEqualToString:@"donation"]) {
             for (NSDictionary *e in container_plist(a, @"Interactions.plist")[@"interactions"]) {
                 if (![e[@"identifier"] isEqual:ident]) continue;

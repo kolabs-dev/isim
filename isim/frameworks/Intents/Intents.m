@@ -13,6 +13,7 @@ NSString *isim_data_dir(void);
 /* ---------------- the property-list form ---------------- */
 static id in_encode(id v);
 static id in_decode(id v);
+static NSSet *in_plist_classes(void);
 @interface NSObject (INPlist)
 - (NSDictionary *)_isim_plist;
 + (id)_isim_fromPlist:(NSDictionary *)p;
@@ -55,15 +56,27 @@ static id values_from_plist(Class cls, NSDictionary *p) {
 + (BOOL)supportsSecureCoding { return YES; } \
 - (void)encodeWithCoder:(NSCoder *)c { [c encodeObject:[self _isim_plist] forKey:@"isim"]; } \
 - (instancetype)initWithCoder:(NSCoder *)c { \
-    if ((self = [self init])) { NSDictionary *p = [c decodeObjectForKey:@"isim"]; for (NSString *k in p) if (![k hasPrefix:@"$"]) { id x = in_decode(p[k]); if (x) self._in_values[k] = x; } } \
+    if ((self = [self init])) { NSDictionary *p = [c decodeObjectOfClasses:in_plist_classes() forKey:@"isim"]; for (NSString *k in p) if (![k hasPrefix:@"$"]) { id x = in_decode(p[k]); if (x) self._in_values[k] = x; } } \
     return self; \
 } \
 - (NSDictionary *)_isim_plist { return values_plist(self); } \
 + (instancetype)_isim_fromPlist:(NSDictionary *)p { return values_from_plist(self, p); } \
 - (NSString *)description { return [NSString stringWithFormat:@"<%@ %@>", NSStringFromClass([self class]), self._in_values]; }
 
+/* what the property-list form is made of (secure decoding) */
+static NSSet *in_plist_classes(void) {
+    static NSSet *s;
+    if (!s) s = [NSSet setWithObjects:[NSDictionary class], [NSArray class], [NSString class], [NSNumber class], [NSDate class], [NSData class], nil];
+    return s;
+}
 static id in_encode(id v) {
     if (!v || v == NSNull.null) return nil;
+    if ([v isKindOfClass:[NSDecimalNumber class]]) return @{ @"$class": @"NSDecimalNumber", @"value": [v stringValue] };
+    if ([NSStringFromClass([v class]) hasPrefix:@"CL"] && [v respondsToSelector:NSSelectorFromString(@"identifier")]) {   /* a CLRegion: kept for the record */
+        NSMutableDictionary *d = [@{ @"$class": @"CLRegion", @"identifier": [v valueForKey:@"identifier"] ?: @"" } mutableCopy];
+        if ([v respondsToSelector:NSSelectorFromString(@"radius")]) d[@"radius"] = [v valueForKey:@"radius"];
+        return d;
+    }
     if ([v isKindOfClass:[NSString class]] || [v isKindOfClass:[NSNumber class]] || [v isKindOfClass:[NSDate class]] || [v isKindOfClass:[NSData class]]) return v;
     if ([v isKindOfClass:[NSArray class]]) { NSMutableArray *a = [NSMutableArray array]; for (id e in v) { id x = in_encode(e); if (x) [a addObject:x]; } return a; }
     if ([v isKindOfClass:[NSDictionary class]]) {
@@ -97,6 +110,7 @@ static id in_decode(id v) {
     NSString *cls = v[@"$class"];
     if ([cls isEqualToString:@"NSDictionary"]) { NSMutableDictionary *d = [NSMutableDictionary dictionary]; for (NSString *k in v) if (![k isEqualToString:@"$class"]) d[k] = in_decode(v[k]); return d; }
     if ([cls isEqualToString:@"NSUUID"]) return [[NSUUID alloc] initWithUUIDString:v[@"uuid"]];
+    if ([cls isEqualToString:@"NSDecimalNumber"]) return [NSDecimalNumber decimalNumberWithString:v[@"value"] ?: @"0"];
     if ([cls isEqualToString:@"NSURL"]) return [NSURL URLWithString:v[@"url"]];
     if ([cls isEqualToString:@"NSUserActivity"]) return [NSUserActivity _isim_activityWithPlist:v[@"activity"]];
     if ([cls isEqualToString:@"NSPersonNameComponents"]) {
@@ -178,6 +192,42 @@ static NSString *app_display_name(void) {
 }
 @end
 
+/* ---------------- vocabulary ---------------- */
+static NSString *library_isim(NSString *file);
+@implementation INVocabulary
++ (instancetype)sharedVocabulary { static INVocabulary *v; static dispatch_once_t once; dispatch_once(&once, ^{ v = [self new]; }); return v; }
+- (void)_store:(NSArray *)entries ofType:(INVocabularyStringType)type {
+    NSString *f = library_isim(@"Vocabulary.plist");
+    NSMutableDictionary *all = [[NSDictionary dictionaryWithContentsOfFile:f][@"types"] mutableCopy] ?: [NSMutableDictionary dictionary];
+    all[[NSString stringWithFormat:@"%ld", (long)type]] = entries;
+    [@{ @"types": all } writeToFile:f atomically:YES];
+    NSLog(@"isim Intents: %lu vocabulary string(s) of type %ld", (unsigned long)entries.count, (long)type);
+}
+- (void)setVocabularyStrings:(NSOrderedSet<NSString *> *)vocabulary ofType:(INVocabularyStringType)type {
+    NSMutableArray *a = [NSMutableArray array];
+    for (id x in vocabulary) if ([x isKindOfClass:[NSString class]]) [a addObject:@{ @"spokenPhrase": x }];
+    [self _store:a ofType:type];
+}
+- (void)setVocabulary:(NSOrderedSet<id<INSpeakable>> *)vocabulary ofType:(INVocabularyStringType)type {
+    NSMutableArray *a = [NSMutableArray array];
+    for (id<INSpeakable> x in vocabulary) {
+        if (![x respondsToSelector:@selector(spokenPhrase)]) continue;
+        NSMutableDictionary *e = [@{ @"spokenPhrase": x.spokenPhrase ?: @"" } mutableCopy];
+        if (x.vocabularyIdentifier ?: x.identifier) e[@"identifier"] = x.vocabularyIdentifier ?: x.identifier;
+        if (x.pronunciationHint) e[@"pronunciationHint"] = x.pronunciationHint;
+        NSMutableArray *alt = [NSMutableArray array];
+        for (id<INSpeakable> m in x.alternativeSpeakableMatches) if (m.spokenPhrase) [alt addObject:m.spokenPhrase];
+        if (alt.count) e[@"alternatives"] = alt;
+        [a addObject:e];
+    }
+    [self _store:a ofType:type];
+}
+- (void)removeAllVocabularyStrings {
+    [NSFileManager.defaultManager removeItemAtPath:library_isim(@"Vocabulary.plist") error:NULL];
+    NSLog(@"isim Intents: removed the vocabulary");
+}
+@end
+
 /* ---------------- shared types ---------------- */
 @implementation INImage
 VALUE_CLASS
@@ -198,6 +248,7 @@ VALUE_CLASS
 - (instancetype)initWithSpokenPhrase:(NSString *)p { if ((self = [self init])) SET("spokenPhrase", p ?: @""); return self; }
 OBJ(NSString *, vocabularyIdentifier) OBJ(NSString *, identifier) OBJ(NSString *, pronunciationHint)
 - (NSString *)spokenPhrase { return [self _get:@"spokenPhrase"] ?: @""; }
+- (NSArray *)alternativeSpeakableMatches { return nil; }
 @end
 
 @implementation INPersonHandle
@@ -285,19 +336,48 @@ static BOOL resolve_dynamic(Class cls, SEL sel) {
 @implementation INObject
 VALUE_CLASS
 DYNAMIC_PROPERTIES
-- (instancetype)initWithIdentifier:(NSString *)identifier displayString:(NSString *)displayString pronunciationHint:(NSString *)hint {
-    if ((self = [super init])) { SET("identifier", identifier); SET("displayString", displayString ?: @""); SET("pronunciationHint", hint); }
+- (instancetype)initWithIdentifier:(NSString *)identifier displayString:(NSString *)displayString pronunciationHint:(NSString *)hint subtitleString:(NSString *)subtitle displayImage:(INImage *)image {
+    if ((self = [super init])) { SET("identifier", identifier); SET("displayString", displayString ?: @""); SET("pronunciationHint", hint); SET("subtitleString", subtitle); SET("displayImage", image); }
     return self;
+}
+- (instancetype)initWithIdentifier:(NSString *)identifier displayString:(NSString *)displayString pronunciationHint:(NSString *)hint {
+    return [self initWithIdentifier:identifier displayString:displayString pronunciationHint:hint subtitleString:nil displayImage:nil];
 }
 - (instancetype)initWithIdentifier:(NSString *)identifier displayString:(NSString *)displayString { return [self initWithIdentifier:identifier displayString:displayString pronunciationHint:nil]; }
-- (instancetype)initWithIdentifier:(NSString *)identifier displayString:(NSString *)displayString subtitleString:(NSString *)subtitle displayImage:(id)image {
-    if ((self = [self initWithIdentifier:identifier displayString:displayString pronunciationHint:nil])) SET("subtitleString", subtitle);
-    return self;
+- (instancetype)initWithIdentifier:(NSString *)identifier displayString:(NSString *)displayString subtitleString:(NSString *)subtitle displayImage:(INImage *)image {
+    return [self initWithIdentifier:identifier displayString:displayString pronunciationHint:nil subtitleString:subtitle displayImage:image];
 }
-OBJ(NSString *, identifier) OBJ(NSString *, pronunciationHint) OBJ(NSString *, subtitleString)
+OBJ(NSString *, identifier) OBJ(NSString *, pronunciationHint) OBJ(NSString *, subtitleString) OBJ(INImage *, displayImage) OBJ(NSArray *, alternativeSpeakableMatches)
 - (NSString *)displayString { return [self _get:@"displayString"] ?: @""; }
-- (void)setSubtitleString:(NSString *)s { SET("subtitleString", s); }
+- (void)setSubtitleString:(NSString *)s { SET("subtitleString", [s copy]); }
+- (void)setDisplayImage:(INImage *)i { SET("displayImage", [i copy]); }
+- (void)setAlternativeSpeakableMatches:(NSArray *)a { SET("alternativeSpeakableMatches", [a copy]); }
 - (NSString *)spokenPhrase { return self.displayString; }
+- (NSString *)vocabularyIdentifier { return self.identifier; }
+@end
+
+@implementation INObjectSection
+VALUE_CLASS
+- (instancetype)init { return [self initWithTitle:nil items:@[]]; }
+- (instancetype)initWithTitle:(NSString *)title items:(NSArray *)items { if ((self = [super init])) { SET("title", title); SET("items", [items copy] ?: @[]); } return self; }
+OBJ(NSString *, title)
+- (NSArray *)items { return [self _get:@"items"] ?: @[]; }
+@end
+@implementation INObjectCollection
+VALUE_CLASS
+- (instancetype)init { return [self initWithSections:@[]]; }
+- (instancetype)initWithSections:(NSArray *)sections { if ((self = [super init])) SET("sections", [sections copy] ?: @[]); return self; }
+- (instancetype)initWithItems:(NSArray *)items { return [self initWithSections:@[[[INObjectSection alloc] initWithTitle:nil items:items]]]; }
+- (NSArray *)sections { return [self _get:@"sections"] ?: @[]; }
+- (NSArray *)allItems { NSMutableArray *a = [NSMutableArray array]; for (INObjectSection *s in self.sections) [a addObjectsFromArray:s.items]; return a; }
+- (BOOL)usesIndexedCollation { return [self _int:@"usesIndexedCollation"] != 0; }
+- (void)setUsesIndexedCollation:(BOOL)u { SETI("usesIndexedCollation", u); }
+@end
+
+@implementation INCurrencyAmount
+VALUE_CLASS
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount currencyCode:(NSString *)code { if ((self = [super init])) { SET("amount", amount); SET("currencyCode", code); } return self; }
+OBJ(NSDecimalNumber *, amount) OBJ(NSString *, currencyCode)
 @end
 
 /* ---------------- intents ---------------- */
@@ -344,6 +424,16 @@ RESPONSE(INAddTasksIntentResponse, INAddTasksIntentResponseCode)
 OBJ(INTaskList *, modifiedTaskList) OBJ(NSArray *, addedTasks)
 - (void)setModifiedTaskList:(INTaskList *)l { SET("modifiedTaskList", l); }
 - (void)setAddedTasks:(NSArray *)t { SET("addedTasks", t); }
+@end
+RESPONSE(INEditMessageIntentResponse, INEditMessageIntentResponseCode)
+@end
+RESPONSE(INUnsendMessagesIntentResponse, INUnsendMessagesIntentResponseCode)
+@end
+RESPONSE(INAddMediaIntentResponse, INAddMediaIntentResponseCode)
+@end
+RESPONSE(INSearchForMediaIntentResponse, INSearchForMediaIntentResponseCode)
+OBJ(NSArray *, mediaItems)
+- (void)setMediaItems:(NSArray *)m { SET("mediaItems", [m copy]); }
 @end
 RESPONSE(INCreateNoteIntentResponse, INCreateNoteIntentResponseCode)
 OBJ(INNote *, createdNote)
@@ -432,6 +522,26 @@ RESULT_SUCCESS(successWithResolvedMediaItem:, INMediaItem *) RESULT_DISAMBIG(dis
 + (instancetype)unsupportedForReason:(INPlayMediaMediaItemUnsupportedReason)reason { return [self unsupportedWithReason:reason]; }
 - (instancetype)initWithMediaItemResolutionResult:(INMediaItemResolutionResult *)r { if ((self = [super init])) copy_result(self, r); return self; }
 @end
+@implementation INAddMediaMediaItemResolutionResult
++ (NSArray *)successesWithResolvedMediaItems:(NSArray<INMediaItem *> *)items { return [super successesWithResolvedMediaItems:items]; }
++ (instancetype)unsupportedForReason:(INAddMediaMediaItemUnsupportedReason)reason { return [self unsupportedWithReason:reason]; }
+- (instancetype)initWithMediaItemResolutionResult:(INMediaItemResolutionResult *)r { if ((self = [super init])) copy_result(self, r); return self; }
+@end
+@implementation INSearchForMediaMediaItemResolutionResult
++ (NSArray *)successesWithResolvedMediaItems:(NSArray<INMediaItem *> *)items { return [super successesWithResolvedMediaItems:items]; }
++ (instancetype)unsupportedForReason:(INSearchForMediaMediaItemUnsupportedReason)reason { return [self unsupportedWithReason:reason]; }
+- (instancetype)initWithMediaItemResolutionResult:(INMediaItemResolutionResult *)r { if ((self = [super init])) copy_result(self, r); return self; }
+@end
+@implementation INMediaDestinationResolutionResult
+RESULT_SUCCESS(successWithResolvedMediaDestination:, INMediaDestination *) RESULT_DISAMBIG(disambiguationWithMediaDestinationsToDisambiguate:) RESULT_CONFIRM(confirmationRequiredWithMediaDestinationToConfirm:, INMediaDestination *)
+@end
+@implementation INAddMediaMediaDestinationResolutionResult
++ (instancetype)unsupportedForReason:(INAddMediaMediaDestinationUnsupportedReason)reason { return [self unsupportedWithReason:reason]; }
+- (instancetype)initWithMediaDestinationResolutionResult:(INMediaDestinationResolutionResult *)r { if ((self = [super init])) copy_result(self, r); return self; }
+@end
+@implementation INCurrencyAmountResolutionResult
+RESULT_SUCCESS(successWithResolvedCurrencyAmount:, INCurrencyAmount *) RESULT_DISAMBIG(disambiguationWithCurrencyAmountsToDisambiguate:) RESULT_CONFIRM(confirmationRequiredWithCurrencyAmountToConfirm:, INCurrencyAmount *)
+@end
 @implementation INTaskListResolutionResult
 RESULT_SUCCESS(successWithResolvedTaskList:, INTaskList *) RESULT_DISAMBIG(disambiguationWithTaskListsToDisambiguate:) RESULT_CONFIRM(confirmationRequiredWithTaskListToConfirm:, INTaskList *)
 @end
@@ -481,6 +591,16 @@ OBJ(NSArray *, recipients) OBJ(NSArray *, senders) OBJ(NSArray *, searchTerms) I
 OBJ(NSArray *, identifiers) OBJ(NSArray *, speakableGroupNames) OBJ(NSArray *, conversationIdentifiers)
 - (NSString *)intentDescription { return @"Search for messages"; }
 @end
+@implementation INEditMessageIntent
+- (instancetype)initWithMessageIdentifier:(NSString *)i editedContent:(NSString *)c { if ((self = [super init])) { SET("messageIdentifier", i); SET("editedContent", c); } return self; }
+OBJ(NSString *, messageIdentifier) OBJ(NSString *, editedContent)
+- (NSString *)intentDescription { return @"Edit a message"; }
+@end
+@implementation INUnsendMessagesIntent
+- (instancetype)initWithMessageIdentifiers:(NSArray *)ids { if ((self = [super init])) SET("messageIdentifiers", [ids copy]); return self; }
+OBJ(NSArray *, messageIdentifiers)
+- (NSString *)intentDescription { return @"Unsend messages"; }
+@end
 
 /* ---------------- calls ---------------- */
 @implementation INStartCallIntent
@@ -522,6 +642,27 @@ OBJ(NSArray *, genreNames) OBJ(NSArray *, moodNames) OBJ(NSString *, mediaIdenti
 OBJ(NSArray *, mediaItems) OBJ(INMediaItem *, mediaContainer) OBJ(NSNumber *, playShuffled) INT(INPlaybackRepeatMode, playbackRepeatMode) OBJ(NSNumber *, resumePlayback)
 INT(INPlaybackQueueLocation, playbackQueueLocation) OBJ(NSNumber *, playbackSpeed) OBJ(INMediaSearch *, mediaSearch)
 - (NSString *)intentDescription { return @"Play media"; }
+@end
+@implementation INMediaDestination
+VALUE_CLASS
++ (instancetype)libraryDestination { INMediaDestination *d = [self new]; [d _set:@(INMediaDestinationTypeLibrary) forKey:@"mediaDestinationType"]; return d; }
++ (instancetype)playlistDestinationWithName:(NSString *)n {
+    INMediaDestination *d = [self new]; [d _set:@(INMediaDestinationTypePlaylist) forKey:@"mediaDestinationType"]; [d _set:[n copy] ?: @"" forKey:@"playlistName"]; return d;
+}
+INT(INMediaDestinationType, mediaDestinationType) OBJ(NSString *, playlistName)
+@end
+@implementation INAddMediaIntent
+- (instancetype)initWithMediaItems:(NSArray *)items mediaSearch:(INMediaSearch *)search mediaDestination:(INMediaDestination *)dest {
+    if ((self = [super init])) { SET("mediaItems", [items copy]); SET("mediaSearch", [search copy]); SET("mediaDestination", [dest copy]); }
+    return self;
+}
+OBJ(NSArray *, mediaItems) OBJ(INMediaSearch *, mediaSearch) OBJ(INMediaDestination *, mediaDestination)
+- (NSString *)intentDescription { return @"Add media"; }
+@end
+@implementation INSearchForMediaIntent
+- (instancetype)initWithMediaItems:(NSArray *)items mediaSearch:(INMediaSearch *)search { if ((self = [super init])) { SET("mediaItems", [items copy]); SET("mediaSearch", [search copy]); } return self; }
+OBJ(NSArray *, mediaItems) OBJ(INMediaSearch *, mediaSearch)
+- (NSString *)intentDescription { return @"Search for media"; }
 @end
 
 /* ---------------- lists and notes ---------------- */
@@ -615,7 +756,8 @@ INT(INInteractionDirection, direction)
     NSInteger code = [(id)r code];
     NSString *cls = NSStringFromClass(r.class);
     /* each domain's success code */
-    NSInteger success = [cls isEqualToString:@"INPlayMediaIntentResponse"] ? 4 : 3;
+    NSInteger success = [cls isEqualToString:@"INPlayMediaIntentResponse"] || [cls isEqualToString:@"INSearchForMediaIntentResponse"] ? 4 : 3;
+    if ([cls isEqualToString:@"INAddMediaIntentResponse"] && code == INAddMediaIntentResponseCodeHandleInApp) return INIntentHandlingStatusDeferredToApplication;
     if ([cls isEqualToString:@"INStartCallIntentResponse"]) return code == 2 ? INIntentHandlingStatusDeferredToApplication : code == 3 ? INIntentHandlingStatusUserConfirmationRequired : code >= 4 ? INIntentHandlingStatusFailure : code == 1 ? INIntentHandlingStatusReady : INIntentHandlingStatusUnspecified;
     if (code == success) return INIntentHandlingStatusSuccess;
     if (code == 1) return INIntentHandlingStatusReady;
@@ -746,6 +888,61 @@ void isim_in_update_voice_shortcut(NSUUID *ident, NSString *phrase, BOOL remove)
     for (INShortcut *s in suggestions) { NSMutableDictionary *e = [[s _isim_plist] mutableCopy]; e[@"title"] = shortcut_title(s) ?: @""; [list addObject:e]; }
     [@{ @"suggestions": list } writeToFile:library_isim(@"ShortcutSuggestions.plist") atomically:YES];
     NSLog(@"isim Intents: %lu shortcut suggestion(s)", (unsigned long)list.count);
+}
+@end
+
+/* ---------------- relevant shortcuts ---------------- */
+@implementation INRelevanceProvider
+VALUE_CLASS
+@end
+@implementation INDateRelevanceProvider
+- (instancetype)initWithStartDate:(NSDate *)start endDate:(NSDate *)end { if ((self = [super init])) { SET("startDate", [start copy] ?: [NSDate date]); SET("endDate", [end copy]); } return self; }
+- (NSDate *)startDate { return [self _get:@"startDate"] ?: [NSDate distantPast]; }
+OBJ(NSDate *, endDate)
+@end
+@implementation INLocationRelevanceProvider
+- (instancetype)initWithRegion:(CLRegion *)region { if ((self = [super init])) SET("region", [(id)region copy]); return self; }
+OBJ(CLRegion *, region)
+@end
+@implementation INDailyRoutineRelevanceProvider
+- (instancetype)initWithSituation:(INDailyRoutineSituation)s { if ((self = [super init])) SETI("situation", s); return self; }
+INT(INDailyRoutineSituation, situation)
+@end
+@implementation INDefaultCardTemplate
+VALUE_CLASS
+- (instancetype)init { return [self initWithTitle:@""]; }
+- (instancetype)initWithTitle:(NSString *)t { if ((self = [super init])) SET("title", [t copy] ?: @""); return self; }
+- (NSString *)title { return [self _get:@"title"] ?: @""; }
+- (void)setTitle:(NSString *)t { SET("title", [t copy] ?: @""); }
+OBJ(NSString *, subtitle) OBJ(INImage *, image)
+- (void)setSubtitle:(NSString *)t { SET("subtitle", [t copy]); }
+- (void)setImage:(INImage *)i { SET("image", [i copy]); }
+@end
+@implementation INRelevantShortcut
+VALUE_CLASS
+- (instancetype)init { return [self initWithShortcut:[INShortcut new]]; }
+- (instancetype)initWithShortcut:(INShortcut *)s { if ((self = [super init])) SET("shortcut", [s copy]); return self; }
+OBJ(INShortcut *, shortcut) OBJ(INDefaultCardTemplate *, watchTemplate) OBJ(NSString *, widgetKind)
+- (NSArray *)relevanceProviders { return [self _get:@"relevanceProviders"] ?: @[]; }
+- (void)setRelevanceProviders:(NSArray *)p { SET("relevanceProviders", [p copy]); }
+- (void)setWatchTemplate:(INDefaultCardTemplate *)t { SET("watchTemplate", [t copy]); }
+- (void)setWidgetKind:(NSString *)k { SET("widgetKind", [k copy]); }
+INT(INRelevantShortcutRole, shortcutRole)
+- (void)setShortcutRole:(INRelevantShortcutRole)r { SETI("shortcutRole", r); }
+@end
+@implementation INRelevantShortcutStore
++ (INRelevantShortcutStore *)defaultStore { static INRelevantShortcutStore *s; static dispatch_once_t once; dispatch_once(&once, ^{ s = [INRelevantShortcutStore new]; }); return s; }
+- (void)setRelevantShortcuts:(NSArray<INRelevantShortcut *> *)shortcuts completionHandler:(void (^)(NSError *))completion {
+    NSMutableArray *list = [NSMutableArray array];
+    for (INRelevantShortcut *r in shortcuts) {
+        NSMutableDictionary *e = [[r _isim_plist] mutableCopy];
+        e[@"title"] = r.watchTemplate.title.length ? r.watchTemplate.title : shortcut_title(r.shortcut) ?: @"";
+        if (r.watchTemplate.subtitle) e[@"subtitle"] = r.watchTemplate.subtitle;
+        [list addObject:e];
+    }
+    BOOL ok = [@{ @"shortcuts": list } writeToFile:library_isim(@"RelevantShortcuts.plist") atomically:YES];
+    NSLog(@"isim Intents: %lu relevant shortcut(s)", (unsigned long)list.count);
+    if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion(ok ? nil : [NSError errorWithDomain:@"IntentsErrorDomain" code:1901 userInfo:nil]); });
 }
 @end
 

@@ -3,13 +3,25 @@
 // OrderSoupIntentResponse (.success(soup:quantity:waitTime:), .soldOut(soup:)), Soup (an INObject) and the
 // resolution results. The app handles the intent (INIntentsSupported, application(_:handlerFor:)); isim's Siri runs
 // it from `siri intent OrderSoupIntent soup=Tomato quantity=2 size=bowl`, asks for a missing soup with the
-// definition's prompt and speaks the response's dialog. Each step logs a "soup" line.
+// definition's prompt and speaks the response's dialog. The soup has dynamic options (provideSoupOptionsCollection: an
+// INObjectCollection in sections, which Siri lists when the soup is missing) and the response a price (INCurrencyAmount).
+// Each step logs a "soup" line.
 import SwiftUI
 import Intents
 
 func log(_ s: String) { print("soup \(s)") }
 
+let menu = INObjectCollection(sections: [
+    INObjectSection(title: "Today’s soups", items: [Soup(identifier: "tomato", display: "Tomato", subtitle: "With basil", image: nil),
+                                                   Soup(identifier: "minestrone", display: "Minestrone")]),
+    INObjectSection(title: "Cold", items: [Soup(identifier: "gazpacho", display: "Gazpacho")])])
+func price(_ quantity: Int) -> INCurrencyAmount { INCurrencyAmount(amount: NSDecimalNumber(value: 4.5 * Double(quantity)), currencyCode: "EUR") }
+
 final class OrderSoupHandler: NSObject, OrderSoupIntentHandling {
+    func provideSoupOptionsCollection(for intent: OrderSoupIntent, with completion: @escaping (INObjectCollection<Soup>?, Error?) -> Void) {
+        log("soup options: \(menu.allItems.count)")
+        completion(menu, nil)
+    }
     func resolveSoup(for intent: OrderSoupIntent, with completion: @escaping (SoupResolutionResult) -> Void) {
         guard let soup = intent.soup else { log("resolve soup: needs value"); completion(.needsValue()); return }
         log("resolve soup: \(soup.displayString)")
@@ -27,7 +39,7 @@ final class OrderSoupHandler: NSObject, OrderSoupIntentHandling {
         let quantity = intent.quantity ?? 1
         log("handle: \(quantity) \(soup.displayString) size \(intent.size.rawValue)")
         if soup.displayString == "Gazpacho" { completion(.soldOut(soup: soup)); return }
-        completion(.success(soup: soup, quantity: quantity, waitTime: NSNumber(value: 5 * quantity.intValue)))
+        completion(.success(soup: soup, quantity: quantity, waitTime: NSNumber(value: 5 * quantity.intValue), price: price(Int(quantity.intValue))))
     }
 }
 
@@ -59,8 +71,8 @@ struct ContentView: View {
             intent.quantity = 2
             intent.size = .bowl
             log("intent: \(intent.soup?.displayString ?? "-") \(intent.quantity ?? 0) size \(intent.size.rawValue)")
-            let r = OrderSoupIntentResponse.success(soup: intent.soup!, quantity: 2, waitTime: 10)
-            log("response: code \(r.code.rawValue) wait \(r.waitTime ?? 0)")
+            let r = OrderSoupIntentResponse.success(soup: intent.soup!, quantity: 2, waitTime: 10, price: price(2))
+            log("response: code \(r.code.rawValue) wait \(r.waitTime ?? 0) price \(r.price?.amount ?? 0) \(r.price?.currencyCode ?? "")")
         }
     }
 }
