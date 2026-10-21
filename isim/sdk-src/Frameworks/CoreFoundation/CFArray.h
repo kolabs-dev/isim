@@ -4,6 +4,7 @@
  * (adapted: collections always retain their values, as with the kCFType* callbacks). */
 #include <CoreFoundation/CFBase.h>
 __BEGIN_DECLS
+CF_IMPLICIT_BRIDGING_ENABLED
 typedef struct { CFIndex version; const void *retain, *release, *copyDescription, *equal; } CFArrayCallBacks;
 typedef struct { CFIndex version; const void *retain, *release, *copyDescription, *equal, *hash; } CFDictionaryKeyCallBacks;
 typedef struct { CFIndex version; const void *retain, *release, *copyDescription, *equal; } CFDictionaryValueCallBacks;
@@ -66,4 +67,5 @@ CF_EXPORT void CFSetAddValue(CFMutableSetRef theSet, const void *value);
 CF_EXPORT void CFSetSetValue(CFMutableSetRef theSet, const void *value);
 CF_EXPORT void CFSetRemoveValue(CFMutableSetRef theSet, const void *value);
 CF_EXPORT void CFSetRemoveAllValues(CFMutableSetRef theSet);
+CF_IMPLICIT_BRIDGING_DISABLED
 __END_DECLS

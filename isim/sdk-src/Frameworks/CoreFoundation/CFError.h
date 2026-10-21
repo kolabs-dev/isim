@@ -3,6 +3,7 @@
 #include <CoreFoundation/CFBase.h>
 #include <CoreFoundation/CFArray.h>
 __BEGIN_DECLS
+CF_IMPLICIT_BRIDGING_ENABLED
 typedef CFStringRef CFErrorDomain;
 CF_EXPORT const CFErrorDomain kCFErrorDomainPOSIX;
 CF_EXPORT const CFErrorDomain kCFErrorDomainOSStatus;
@@ -25,4 +26,5 @@ CF_EXPORT CFDictionaryRef CFErrorCopyUserInfo(CFErrorRef err) CF_RETURNS_RETAINE
 CF_EXPORT CFStringRef CFErrorCopyDescription(CFErrorRef err) CF_RETURNS_RETAINED;
 CF_EXPORT CFStringRef CFErrorCopyFailureReason(CFErrorRef err) CF_RETURNS_RETAINED;
 CF_EXPORT CFStringRef CFErrorCopyRecoverySuggestion(CFErrorRef err) CF_RETURNS_RETAINED;
+CF_IMPLICIT_BRIDGING_DISABLED
 __END_DECLS

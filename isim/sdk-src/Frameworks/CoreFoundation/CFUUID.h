@@ -2,6 +2,7 @@
 /* isim SDK CoreFoundation subset: CFUUID (a CF type of its own, not bridged to NSUUID, as on iOS). Self-authored. */
 #include <CoreFoundation/CFBase.h>
 __BEGIN_DECLS
+CF_IMPLICIT_BRIDGING_ENABLED
 typedef const struct __attribute__((objc_bridge(id))) __CFUUID *CFUUIDRef;
 typedef struct {
     UInt8 byte0, byte1, byte2, byte3, byte4, byte5, byte6, byte7, byte8, byte9, byte10, byte11, byte12, byte13, byte14, byte15;
@@ -15,4 +16,5 @@ CF_EXPORT CFUUIDRef CFUUIDCreateFromString(CFAllocatorRef alloc, CFStringRef uui
 CF_EXPORT CFStringRef CFUUIDCreateString(CFAllocatorRef alloc, CFUUIDRef uuid) CF_RETURNS_RETAINED;
 CF_EXPORT CFUUIDRef CFUUIDCreateFromUUIDBytes(CFAllocatorRef alloc, CFUUIDBytes bytes) CF_RETURNS_RETAINED;
 CF_EXPORT CFUUIDBytes CFUUIDGetUUIDBytes(CFUUIDRef uuid);
+CF_IMPLICIT_BRIDGING_DISABLED
 __END_DECLS

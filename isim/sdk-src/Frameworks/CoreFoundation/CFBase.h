@@ -20,8 +20,10 @@ __BEGIN_DECLS
 #endif
 #define CF_RETURNS_RETAINED __attribute__((cf_returns_retained))
 #define CF_RETURNS_NOT_RETAINED __attribute__((cf_returns_not_retained))
-#define CF_IMPLICIT_BRIDGING_ENABLED
-#define CF_IMPLICIT_BRIDGING_DISABLED
+/* like Apple's: declarations between these are audited for ARC, so Swift manages the CF objects they return (Create /
+   Copy results retained, others not) instead of handing out Unmanaged */
+#define CF_IMPLICIT_BRIDGING_ENABLED _Pragma("clang arc_cf_code_audited begin")
+#define CF_IMPLICIT_BRIDGING_DISABLED _Pragma("clang arc_cf_code_audited end")
 typedef unsigned char Boolean;
 typedef unsigned char UInt8;
 typedef unsigned short UInt16;
@@ -54,6 +56,7 @@ typedef CF_ENUM(CFIndex, CFComparisonResult) { kCFCompareLessThan = -1L, kCFComp
 #ifndef CFSTR
 #define CFSTR(cStr) ((CFStringRef)__builtin___CFStringMakeConstantString("" cStr ""))
 #endif
+CF_IMPLICIT_BRIDGING_ENABLED
 CF_EXPORT CFTypeID CFGetTypeID(CFTypeRef cf);
 CF_EXPORT CFTypeRef CFRetain(CFTypeRef cf);
 CF_EXPORT void CFRelease(CFTypeRef cf);
@@ -74,4 +77,5 @@ CF_EXPORT CFTypeID CFStringGetTypeID(void);
 CF_EXPORT CFIndex CFStringGetLength(CFStringRef s);
 CF_EXPORT CFHashCode CFStringHashNSString(CFStringRef s);
 CF_EXPORT CFHashCode CFStringHashCString(const uint8_t *bytes, CFIndex len);
+CF_IMPLICIT_BRIDGING_DISABLED
 __END_DECLS

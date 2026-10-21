@@ -558,7 +558,7 @@ static void cf_url_locale_checks(void) {
     CFPreferencesSetAppValue(CFSTR("isim.cf.flag"), kCFBooleanTrue, kCFPreferencesCurrentApplication);
     CHECK(CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication));
     CHECK([[NSUserDefaults.standardUserDefaults objectForKey:@"isim.cf.count"] isEqual:@42]);   // the same defaults
-    bool valid = false;
+    Boolean valid = false;
     CHECK(CFPreferencesGetAppIntegerValue(CFSTR("isim.cf.count"), kCFPreferencesCurrentApplication, &valid) == 42 && valid);
     CHECK(CFPreferencesGetAppBooleanValue(CFSTR("isim.cf.flag"), kCFPreferencesCurrentApplication, &valid) && valid);
     CHECK(!CFPreferencesGetAppBooleanValue(CFSTR("isim.cf.none"), kCFPreferencesCurrentApplication, &valid) && !valid);

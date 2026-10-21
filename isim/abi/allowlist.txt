@@ -658,3 +658,32 @@ usr/lib/swift/libswiftMapKit.dylib _$s6MapKit9MKMapViewC010selectableA8FeaturesS
 # Rebuild apps built with 0.27 or earlier that subclass EKEvent and override organizer, or use its key path.
 usr/lib/swift/libswiftEventKit.dylib _$s8EventKit7EKEventC9organizeryXlSgvgTq
 usr/lib/swift/libswiftEventKit.dylib _$s8EventKit7EKEventC9organizeryXlSgvpMV
+# 0.28 (issue #523): DarwinBoolean (C's Boolean) moved from AudioToolbox, which declared its own copy, to the Darwin
+# overlay, where Apple's is and where Swift's Clang importer needs it to import C Boolean as Bool. AudioToolbox's copy of the
+# type and the eight AudioToolbox functions that take a DarwinBoolean pointer (AUGraphIsOpen, ...GetPropertyInfo, ...)
+# are now mangled with Darwin's type. Rebuild Swift apps built with 0.6 to 0.27 that use DarwinBoolean or those functions.
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox03ExtA19FileGetPropertyInfoys5Int32Vs13OpaquePointerV_s6UInt32VSpyAHGSgSpyAA13DarwinBooleanVGSgtF
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox0A19QueueGetCurrentTimeys5Int32Vs13OpaquePointerV_AFSgSpySo0aF5StampVGSgSpyAA13DarwinBooleanVGSgtF
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox0A19UnitGetPropertyInfoys5Int32Vs13OpaquePointerV_s6UInt32VA2HSpyAHGSgSpyAA13DarwinBooleanVGSgtF
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox0A24ConverterGetPropertyInfoys5Int32Vs13OpaquePointerV_s6UInt32VSpyAHGSgSpyAA13DarwinBooleanVGSgtF
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13AUGraphIsOpenys5Int32Vs13OpaquePointerV_SpyAA13DarwinBooleanVGtF
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13AUGraphUpdateys5Int32Vs13OpaquePointerV_SpyAA13DarwinBooleanVGSgtF
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanV11descriptionSSvg
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanV11descriptionSSvpMV
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanV14booleanLiteralACSb_tcfC
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanV2eeoiySbAC_ACtFZ
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanV6_values5UInt8VvM
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanV6_values5UInt8Vvg
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanV6_values5UInt8VvpMV
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanV6_values5UInt8Vvs
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanV9boolValueSbvg
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanV9boolValueSbvpMV
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanVMa
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanVMn
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanVN
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanVSQAAMc
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanVs013ExpressibleByD7LiteralAAMc
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanVs23CustomStringConvertibleAAMc
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox13DarwinBooleanVyACSbcfC
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox16AUGraphIsRunningys5Int32Vs13OpaquePointerV_SpyAA13DarwinBooleanVGtF
+usr/lib/swift/libswiftAudioToolbox.dylib _$s12AudioToolbox20AUGraphIsInitializedys5Int32Vs13OpaquePointerV_SpyAA13DarwinBooleanVGtF
