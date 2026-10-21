@@ -51,6 +51,12 @@ final class RotationViewController: UIViewController {
         NotificationCenter.default.addObserver(forName: UIDevice.orientationDidChangeNotification, object: nil, queue: .main) { _ in
             print("device orientation \(UIDevice.current.orientation.rawValue)")
         }
+        // the status bar orientation notifications (deprecated, still sent: binary SDKs observe them by name, #606)
+        for (when, name) in [("will", "UIApplicationWillChangeStatusBarOrientationNotification"), ("did", "UIApplicationDidChangeStatusBarOrientationNotification")] {
+            NotificationCenter.default.addObserver(forName: Notification.Name(name), object: nil, queue: .main) { n in
+                print("status bar orientation \(when) change, userInfo \(n.userInfo?["UIApplicationStatusBarOrientationUserInfoKey"] as? Int ?? -1)")
+            }
+        }
         refresh()
     }
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { portraitOnly ? .portrait : .allButUpsideDown }

@@ -832,6 +832,12 @@ Globals:
   SwiftName: UIApplication.didFinishLaunchingNotification
 - Name: UIApplicationDidBecomeActiveNotification
   SwiftName: UIApplication.didBecomeActiveNotification
+- Name: UIApplicationWillChangeStatusBarOrientationNotification
+  SwiftName: UIApplication.willChangeStatusBarOrientationNotification
+- Name: UIApplicationDidChangeStatusBarOrientationNotification
+  SwiftName: UIApplication.didChangeStatusBarOrientationNotification
+- Name: UIApplicationStatusBarOrientationUserInfoKey
+  SwiftName: UIApplication.statusBarOrientationUserInfoKey
 - Name: UIApplicationWillResignActiveNotification
   SwiftName: UIApplication.willResignActiveNotification
 - Name: UIApplicationDidEnterBackgroundNotification

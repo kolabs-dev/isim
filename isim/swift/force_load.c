@@ -12,3 +12,6 @@ MARK(swift_DarwinFoundation3) MARK(swiftSystem) MARK(swiftDistributed) MARK(swif
 MARK(swift_StringProcessing) MARK(swiftNetwork) MARK(swiftUIKit) MARK(swiftCoreGraphics) MARK(swiftQuartzCore)
 MARK(swiftCoreImage) MARK(swiftMetal) MARK(swiftCoreMedia) MARK(swiftCoreAudio) MARK(swiftAVFoundation) MARK(swiftsimd)
 MARK(swiftCoreLocation) MARK(swiftWebKit) MARK(swiftCombine) MARK(swiftSwiftUI) MARK(swiftCryptoKit) MARK(swiftUniformTypeIdentifiers)
+// Darwin's per-header Swift overlays of newer Apple toolchains (Xcode 26: _errno, _signal, _stdio, _math, _time,
+// sys_time, unistd), which isim's Darwin overlay covers (Google Mobile Ads 12.14: issue #606)
+MARK(swift_errno) MARK(swift_signal) MARK(swift_stdio) MARK(swift_math) MARK(swift_time) MARK(swiftsys_time) MARK(swiftunistd)
