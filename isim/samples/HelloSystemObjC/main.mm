@@ -224,6 +224,16 @@ static void network(void) {
     networkC();
     CTTelephonyNetworkInfo *info = [CTTelephonyNetworkInfo new];
     say([NSString stringWithFormat:@"telephony carriers=%lu", (unsigned long)info.serviceSubscriberCellularProviders.count]);
+    CTCellularData *cellular = [CTCellularData new];
+    CTError err = {kCTErrorDomainNoError, 0};
+    say([NSString stringWithFormat:@"telephony restricted=%lu subscribers=%lu error domain=%d", (unsigned long)cellular.restrictedState,
+         (unsigned long)CTSubscriberInfo.subscribers.count, err.domain]);
+    CTCellularPlanProvisioningRequest *plan = [CTCellularPlanProvisioningRequest new];
+    plan.address = @"sm-dp.example.com";
+    plan.matchingID = @"ABC-123";
+    [[CTCellularPlanProvisioning new] addPlanWith:plan completionHandler:^(CTCellularPlanProvisioningAddPlanResult result) {
+        say([NSString stringWithFormat:@"telephony add plan result=%ld fail=%d", (long)result, result == CTCellularPlanProvisioningAddPlanResultFail]);
+    }];
 }
 
 static void types(void) {

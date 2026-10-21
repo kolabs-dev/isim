@@ -8,6 +8,7 @@
 import SwiftUI
 import Combine
 import Network
+import CoreTelephony
 
 struct Todo: Decodable, Identifiable { let id: Int; let title: String; let done: Bool }
 struct Me: Decodable { let user: String }
@@ -83,6 +84,14 @@ final class NetworkModel: ObservableObject {
             Task { @MainActor in self?.path = text }
         }
         monitor.start(queue: DispatchQueue(label: "path"))
+        // cellular: like the Simulator, no radio (no subscribers, restriction unknown, no eSIM)
+        let cellular = CTCellularData()
+        cellular.cellularDataRestrictionDidUpdateNotifier = { state in print("cellular restriction changed \(state.rawValue)") }
+        let subscribers = CTSubscriberInfo.subscribers()
+        var sim = false
+        if #available(iOS 18.0, *) { sim = subscribers.contains { $0.isSIMInserted } }
+        print("cellular restricted=\(cellular.restrictedState == .restrictedStateUnknown ? "unknown" : "\(cellular.restrictedState.rawValue)") " +
+              "subscribers=\(subscribers.count) sim=\(sim) esim=\(CTCellularPlanProvisioning().supportsCellularPlan())")
     }
 
     /// async/await + JSONDecoder

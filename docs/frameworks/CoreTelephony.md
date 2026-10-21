@@ -9,12 +9,18 @@
 ## How isim implements it
 
 - **Stub,** like the Simulator: there is no cellular radio. Rows: [SystemConfiguration](SystemConfiguration.md).
+- **Objective-C / C interface:** isim's Objective-C framework (`isim/frameworks/CoreTelephony`, header in
+  `isim/sdk-src/Frameworks/CoreTelephony`); Swift imports it through the header.
 
 ## API
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `CTCellularData`, `CTCellularPlanProvisioning`, `CTCellularPlanProvisioningRequest`, `CTError`, `CTSubscriber`, `CTSubscriberDelegate`, `CTSubscriberInfo` (7 types; with their members under "Not yet in isim") |
+| `CTTelephonyNetworkInfo`, `CTCarrier`, radio access technology constants and notifications | 🧩 | ≤17 | stub, like the Simulator: no carriers, no radio access technology (`nil`), no change notifications. Tested (HelloSystemObjC) |
+| `CTCellularData` (`restrictedState`, `cellularDataRestrictionDidUpdateNotifier`), `CTCellularDataRestrictedState` | 🧩 | ≤17 | stub, like the Simulator: the state is `restrictedStateUnknown` and no change is ever reported. Tested (HelloNetwork from Swift, tests/ui/test_network.py; HelloSystemObjC, tests/ui/test_system_objc.py) |
+| `CTSubscriberInfo` (`subscribers()`, deprecated `subscriber()`), `CTSubscriber` (`identifier`, `carrierToken`, `refreshCarrierToken()`, `isSIMInserted`, `delegate`), `CTSubscriberDelegate`, `CTSubscriberTokenRefreshed` | 🧩 | ≤17 | stub, like the Simulator: no SIM, so `subscribers()` is empty; the deprecated `subscriber()` gives one with an empty identifier, no carrier token and `isSIMInserted` false; its delegate is never called. Tested (HelloNetwork, HelloSystemObjC) |
+| `CTCellularPlanProvisioning` (`supportsCellularPlan()`, `supportsEmbeddedSIM`, `addPlan(with:completionHandler:)`), `CTCellularPlanProvisioningRequest` (`NSSecureCoding`), `CTCellularPlanProvisioningAddPlanResult` | 🧩 | ≤17 | stub: no eSIM, so `supportsCellularPlan()` is false and `addPlan(with:)` completes with `.fail` (logged). Tested (HelloSystemObjC) |
+| `CTError`, `kCTErrorDomainNoError` / `POSIX` / `Mach` | ✅ | ≤17 | Apple's C struct and constants. Tested (HelloSystemObjC) |
 | Types not yet in isim (iOS 26) | ❌ | 26.0 | not implemented, found by the 2026-10 sweep: `CTCellularPlanCapability`, `CTCellularPlanProperties`, `CTCellularPlanStatus`, `CTSlicingManager` (4 types; with their members under "Not yet in isim") |
 | Types not yet in isim (iOS 27) | ❌ | 27.0 | not implemented, found by the 2026-10 sweep: `CTQuickSwitchManager`, `CTQuickSwitchManager.Delegate`, `CTQuickSwitchState` (3 types; with their members under "Not yet in isim") |
 
