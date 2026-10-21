@@ -39,7 +39,7 @@ func _hapticLog(_ s: String) { FileHandle.standardError.write(("CoreHaptics: " +
 
 // MARK: - parameters
 public struct CHHapticEventParameter_ID: Hashable, RawRepresentable, Sendable { public var rawValue: String; public init(rawValue: String) { self.rawValue = rawValue } }
-public class CHHapticEventParameter: NSObject {
+@objc(CHHapticEventParameter) @objcMembers public class CHHapticEventParameter: NSObject {
     public typealias ID = CHHapticEventParameter_ID
     public let parameterID: ID
     public var value: Float
@@ -52,7 +52,7 @@ extension CHHapticEventParameter_ID {
     public static let audioPan = Self(rawValue: "AudioPan"), audioBrightness = Self(rawValue: "AudioBrightness")
 }
 public struct CHHapticDynamicParameter_ID: Hashable, RawRepresentable, Sendable { public var rawValue: String; public init(rawValue: String) { self.rawValue = rawValue } }
-public class CHHapticDynamicParameter: NSObject {
+@objc(CHHapticDynamicParameter) @objcMembers public class CHHapticDynamicParameter: NSObject {
     public typealias ID = CHHapticDynamicParameter_ID
     public let parameterID: ID
     public var value: Float
@@ -67,8 +67,8 @@ extension CHHapticDynamicParameter_ID {
     public static let audioPitchControl = Self(rawValue: "AudioPitchControl"), audioAttackTimeControl = Self(rawValue: "AudioAttackTimeControl")
     public static let audioDecayTimeControl = Self(rawValue: "AudioDecayTimeControl"), audioReleaseTimeControl = Self(rawValue: "AudioReleaseTimeControl")
 }
-public class CHHapticParameterCurve: NSObject {
-    public class ControlPoint: NSObject {
+@objc(CHHapticParameterCurve) @objcMembers public class CHHapticParameterCurve: NSObject {
+    @objc(CHHapticParameterCurveControlPoint) @objcMembers public class ControlPoint: NSObject {
         public var relativeTime: TimeInterval
         public var value: Float
         public init(relativeTime: TimeInterval, value: Float) { self.relativeTime = relativeTime; self.value = value }
@@ -83,7 +83,7 @@ public class CHHapticParameterCurve: NSObject {
 
 // MARK: - events and patterns
 public struct CHHapticEvent_EventType: Hashable, RawRepresentable, Sendable { public var rawValue: String; public init(rawValue: String) { self.rawValue = rawValue } }
-public class CHHapticEvent: NSObject {
+@objc(CHHapticEvent) @objcMembers public class CHHapticEvent: NSObject {
     public typealias EventType = CHHapticEvent_EventType
     public var type: EventType
     public var eventParameters: [CHHapticEventParameter]
@@ -114,7 +114,7 @@ extension CHHapticEvent_EventType {
 }
 
 public struct CHHapticPattern_Key: Hashable, RawRepresentable, Sendable { public var rawValue: String; public init(rawValue: String) { self.rawValue = rawValue } }
-public class CHHapticPattern: NSObject {
+@objc(CHHapticPattern) @objcMembers public class CHHapticPattern: NSObject {
     public typealias Key = CHHapticPattern_Key
     let events: [CHHapticEvent]
     let parameters: [CHHapticDynamicParameter]
@@ -155,7 +155,7 @@ public class CHHapticPattern: NSObject {
         }
         try self.init(events: events, parameterCurves: curves)
     }
-    public convenience init(contentsOf url: URL) throws {
+    @objc(initWithContentsOfURL:error:) public convenience init(contentsOf url: URL) throws {
         guard let data = try? Data(contentsOf: url) else { throw CHHapticError(.fileNotFound) }
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw CHHapticError(.invalidPatternData) }
         var d: [Key: Any] = [:]; for (k, v) in obj { d[Key(rawValue: k)] = v }
@@ -239,7 +239,8 @@ public protocol CHHapticAdvancedPatternPlayer: CHHapticPatternPlayer {
 }
 public typealias CHHapticAdvancedPatternPlayerCompletionHandler = (Error?) -> Void
 
-final class _IsimHapticPlayer: CHHapticAdvancedPatternPlayer {
+/// an NSObject so that Objective-C's id<CHHapticAdvancedPatternPlayer> can message it (Apple's selectors)
+@objcMembers final class _IsimHapticPlayer: NSObject, CHHapticAdvancedPatternPlayer {
     weak var engine: CHHapticEngine?
     let pattern: CHHapticPattern
     var isMuted = false, loopEnabled = false, loopEnd: TimeInterval = 0, playbackRate: Float = 1
@@ -247,7 +248,7 @@ final class _IsimHapticPlayer: CHHapticAdvancedPatternPlayer {
     var offset: TimeInterval = 0          // pattern time when (re)started
     var startedAt: TimeInterval? = nil     // engine clock when running
     var generation = 0
-    init(engine: CHHapticEngine, pattern: CHHapticPattern) { self.engine = engine; self.pattern = pattern }
+    init(engine: CHHapticEngine, pattern: CHHapticPattern) { self.engine = engine; self.pattern = pattern; super.init() }
     var length: TimeInterval { loopEnd > 0 ? loopEnd : pattern.duration }
     func at(_ time: TimeInterval, _ body: @escaping () -> Void) {
         let now = engine?.currentTime ?? 0
@@ -318,7 +319,7 @@ final class _IsimHapticPlayer: CHHapticAdvancedPatternPlayer {
 }
 
 // MARK: - engine
-public class CHHapticEngine: NSObject {
+@objc(CHHapticEngine) @objcMembers public class CHHapticEngine: NSObject {
     public enum StoppedReason: Int, Sendable {
         case audioSessionInterrupt = 1, applicationSuspended = 2, idleTimeout = 3, notifyWhenFinished = 4, engineDestroyed = 5,
              gameControllerDisconnect = 6, systemError = -1
@@ -337,7 +338,7 @@ public class CHHapticEngine: NSObject {
     public var playsAudioOnly = false
     public var isMutedForAudio = false
     public var isMutedForHaptics = false
-    public var isAutoShutdownEnabled = false
+    @nonobjc public var isAutoShutdownEnabled = false
     var _running = false
     var _startTime = Date()
     var _active = Set<ObjectIdentifier>()
@@ -358,7 +359,7 @@ public class CHHapticEngine: NSObject {
     public func start(completionHandler: CompletionHandler? = nil) {
         do { try start(); DispatchQueue.main.async { completionHandler?(nil) } } catch { DispatchQueue.main.async { completionHandler?(error) } }
     }
-    public func startAndReturnError() throws { try start() }
+    @nonobjc public func startAndReturnError() throws { try start() }
     public func stop(completionHandler: CompletionHandler? = nil) {
         let was = _running
         _running = false; _active.removeAll()
@@ -378,11 +379,11 @@ public class CHHapticEngine: NSObject {
         _finished = nil
         if h(error) == .stopEngine { stop(); stoppedHandler(.notifyWhenFinished) }
     }
-    public func playPattern(from url: URL) throws {
+    @objc(playPatternFromURL:error:) public func playPattern(from url: URL) throws {
         let p = try CHHapticPattern(contentsOf: url)
         try makePlayer(with: p).start(atTime: CHHapticTimeImmediate)
     }
-    public func playPattern(from data: Data) throws {
+    @objc(playPatternFromData:error:) public func playPattern(from data: Data) throws {
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw CHHapticError(.invalidPatternData) }
         var d: [CHHapticPattern.Key: Any] = [:]; for (k, v) in obj { d[.init(rawValue: k)] = v }
         try makePlayer(with: CHHapticPattern(dictionary: d)).start(atTime: CHHapticTimeImmediate)

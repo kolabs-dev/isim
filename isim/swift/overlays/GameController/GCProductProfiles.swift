@@ -18,7 +18,7 @@ public let GCInputDualShockTouchpadButton = "Touchpad Button"
 public typealias GCControllerTouchpadHandler = (GCControllerTouchpad, Float, Float, Float, Bool) -> Void
 
 /// A touch surface with a button (DualShock 4 / DualSense): one finger's position, -1...1 (y up).
-open class GCControllerTouchpad: GCControllerElement {
+@objc(GCControllerTouchpad) @objcMembers open class GCControllerTouchpad: GCControllerElement {
     @objc public enum TouchState: Int, Sendable { case up = 0, down = 1, moving = 2 }
     public let button = GCControllerButtonInput(name: "Button")
     public let touchSurface = GCControllerDirectionPad(name: "Touch Surface", analog: true)
@@ -56,7 +56,7 @@ protocol _GCTouchpadProfile { var _touchpads: [String: GCControllerTouchpad] { g
 
 // MARK: - Xbox
 
-open class GCXboxGamepad: GCExtendedGamepad {
+@objc(GCXboxGamepad) @objcMembers open class GCXboxGamepad: GCExtendedGamepad {
     /// Elite paddles (nil on pads without them)
     open internal(set) var paddleButton1: GCControllerButtonInput?
     open internal(set) var paddleButton2: GCControllerButtonInput?
@@ -85,7 +85,7 @@ open class GCXboxGamepad: GCExtendedGamepad {
 
 // MARK: - DualShock 4 / DualSense
 
-open class GCDualShockGamepad: GCExtendedGamepad, _GCTouchpadProfile {
+@objc(GCDualShockGamepad) @objcMembers open class GCDualShockGamepad: GCExtendedGamepad, _GCTouchpadProfile {
     let _tb = GCControllerButtonInput(name: GCInputDualShockTouchpadButton)
     let _tp = GCControllerDirectionPad(name: GCInputDualShockTouchpadOne, analog: true)
     let _ts = GCControllerDirectionPad(name: GCInputDualShockTouchpadTwo, analog: true)
@@ -104,7 +104,7 @@ open class GCDualShockGamepad: GCExtendedGamepad, _GCTouchpadProfile {
     override func _hostUpdate(_ p: isim_gamepad, bit: (Int) -> Float) { _GCTouch.update(p, bit(20), _tb, _tp, _ts, _touchpad) }
 }
 
-open class GCDualSenseGamepad: GCExtendedGamepad, _GCTouchpadProfile {
+@objc(GCDualSenseGamepad) @objcMembers open class GCDualSenseGamepad: GCExtendedGamepad, _GCTouchpadProfile {
     public let touchpadButton = GCControllerButtonInput(name: GCInputDualShockTouchpadButton)
     public let touchpadPrimary = GCControllerDirectionPad(name: GCInputDualShockTouchpadOne, analog: true)
     public let touchpadSecondary = GCControllerDirectionPad(name: GCInputDualShockTouchpadTwo, analog: true)
@@ -152,7 +152,7 @@ enum _GCTouch {
 }
 
 /// A DualSense trigger with resistance and vibration modes (sent to the pad as effect reports).
-open class GCDualSenseAdaptiveTrigger: GCControllerButtonInput {
+@objc(GCDualSenseAdaptiveTrigger) @objcMembers open class GCDualSenseAdaptiveTrigger: GCControllerButtonInput {
     @objc public enum Mode: Int, Sendable { case off = 0, feedback = 1, weapon = 2, vibration = 3, slopeFeedback = 4 }
     @objc public enum Status: Int, Sendable {
         case unknown = -1, feedbackNoLoad = 0, feedbackLoadApplied = 1, weaponReady = 2, weaponFiring = 3, weaponFired = 4
@@ -211,6 +211,6 @@ open class GCDualSenseAdaptiveTrigger: GCControllerButtonInput {
 // MARK: - directional gamepads
 
 /// A micro gamepad with a d-pad (Siri Remote style); isim's host pads are extended gamepads, so none appear.
-open class GCDirectionalGamepad: GCMicroGamepad {
+@objc(GCDirectionalGamepad) @objcMembers open class GCDirectionalGamepad: GCMicroGamepad {
     public override init() { super.init() }
 }

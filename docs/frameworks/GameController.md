@@ -10,11 +10,13 @@
 
 - **Passthrough:** host gamepads through SDL3 (`isim/runtime/host_gamepad.c`).
 - **Adapted:** `GCVirtualController` is drawn by isim; the keyboard comes from the host.
+- **Objective-C:** `#import <GameController/GameController.h>` and `-framework GameController` (`isim/sdk-src/Frameworks/GameController`) reach the Swift overlay's classes under their Objective-C names; `isim/swift/overlays/GameController/ObjC.swift` has the entry points for the Swift-only types (`GCKeyCode`, the player index, haptic localities, `GCDevice`) and `isim/frameworks/GameController/GameController.m` the constants, GCMotion's C structs, and the start of controller discovery when an Objective-C app runs.
 
 ## API
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
+| GameController's Objective-C interface: `GCController` (`controllers`, `current`, `controllerWithExtendedGamepad` / `MicroGamepad`, discovery, `playerIndex`, profiles, `battery`, `light`, `haptics`, `motion`), `GCExtendedGamepad`, `GCMicroGamepad`, `GCDirectionalGamepad`, `GCXboxGamepad`, `GCDualShockGamepad`, `GCDualSenseGamepad` / `GCDualSenseAdaptiveTrigger`, `GCPhysicalInputProfile`, the elements (`GCControllerButtonInput`, `GCControllerAxisInput`, `GCControllerDirectionPad`, `GCControllerTouchpad`, `GCDeviceCursor`), `GCKeyboard` / `GCKeyboardInput` and the `GCKeyCode…` values, `GCMouse` / `GCMouseInput`, `GCVirtualController` and its configurations, `GCDeviceHaptics`, `GCDeviceBattery`, `GCDeviceLight` / `GCColor`, `GCMotion`, the `GCDevice` protocol, the notification, input-name, product-category and haptic-locality constants | ✅ | ≤17 | adapted: as the Swift classes; Swift-only: the iOS 17 physical-input API (`GCDevicePhysicalInput` and its protocols), `GCEventViewController`, `GCEventInteraction`, the DualSense positional strengths; the classes are not subclassable from Objective-C. Tested (tests/games-objc: a snapshot gamepad, the host keyboard, a tapped GCVirtualController) |
 | `GCController` (`controllers()`, `current`, connect / disconnect / current notifications, `playerIndex`) | ✅ | ≤17 | virtual controller and host gamepads |
 | `GCExtendedGamepad`, `GCMicroGamepad` (buttons, d-pad, thumbsticks, triggers, value / pressed / touched handlers) | ✅ | ≤17 | tested with the virtual controller |
 | Physical game controllers on the host | ✅ | ≤17 | SDL3 gamepads (Xbox / PlayStation / Switch / generic via SDL's mapping database) polled at 60 Hz: each becomes a `GCController` with `GCExtendedGamepad` (+ micro profile), `vendorName` from SDL, `productCategory` from the SDL pad type; `ISIM_GAMEPADS=0` disables. Tested through an SDL virtual joystick (`gamepad` script command), not a physical pad |
