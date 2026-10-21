@@ -41,6 +41,25 @@ static NSString *str(dispatch_data_t d) {
     return s ?: @"";
 }
 
+/* once-blocks that run other once-blocks: another control from inside the init function (Darwin allows it; Google
+   Mobile Ads 12 does, #609), and a once-block waiting for a thread that runs a different one. isim's single lock for
+   every once-block deadlocked on both */
+static pthread_once_t onceOuter = PTHREAD_ONCE_INIT, onceInner = PTHREAD_ONCE_INIT;
+static int onceOrder;
+static void innerOnce(void) { onceOrder = onceOrder * 10 + 2; }
+static void outerOnce(void) { onceOrder = onceOrder * 10 + 1; pthread_once(&onceInner, innerOnce); }
+static void testOnce(void) {
+    CHECK(pthread_once(&onceOuter, outerOnce) == 0 && pthread_once(&onceOuter, outerOnce) == 0 && onceOrder == 12);
+    static dispatch_once_t a, b, c, d;
+    __block int runs = 0, other = 0;
+    dispatch_once(&a, ^{ runs++; dispatch_once(&b, ^{ runs++; }); });
+    dispatch_once(&a, ^{ runs++; });
+    CHECK(runs == 2 && a == ~0L && b == ~0L);
+    dispatch_queue_t bg = dispatch_queue_create("dispatch.test.once", NULL);
+    dispatch_once(&c, ^{ dispatch_sync(bg, ^{ dispatch_once(&d, ^{ other = 1; }); }); });
+    CHECK(other == 1);
+}
+
 static void testData(void) {
     CHECK(dispatch_data_get_size(dispatch_data_empty) == 0);
     char stackbuf[] = "hello";
@@ -386,6 +405,7 @@ int main(int argc, char **argv) {
         q = dispatch_queue_create("dispatch.test", NULL);
         dir = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"dispatch-test-%d", getpid()]];
         [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:NULL];
+        testOnce();
         testData();
         testIO();
         testFunctions();
