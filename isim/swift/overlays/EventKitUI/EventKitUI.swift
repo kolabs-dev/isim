@@ -144,3 +144,89 @@ final class _EKEditForm: UIViewController, UITextFieldDelegate {
         if let c = event?.calendar { let l = UILabel(); l.text = "Calendar: \(c.title)"; l.textColor = .secondaryLabel; stack.addArrangedSubview(l) }
     }
 }
+
+// MARK: - EKCalendarChooser
+
+@objc public enum EKCalendarChooserSelectionStyle: Int, Sendable { case single = 0, multiple }
+@objc public enum EKCalendarChooserDisplayStyle: Int, Sendable { case allCalendars = 0, writableCalendarsOnly }
+
+@objc public protocol EKCalendarChooserDelegate: NSObjectProtocol {
+    @objc optional func calendarChooserSelectionDidChange(_ calendarChooser: EKCalendarChooser)
+    @objc optional func calendarChooserDidFinish(_ calendarChooser: EKCalendarChooser)
+    @objc optional func calendarChooserDidCancel(_ calendarChooser: EKCalendarChooser)
+}
+
+/// lists the device's calendars (or reminder lists) with a checkmark on the selected ones; push it on a navigation
+/// controller to get its Done and Cancel buttons
+@objc(EKCalendarChooser) open class EKCalendarChooser: UIViewController, UITableViewDataSource, UITableViewDelegate {
+    open private(set) var selectionStyle: EKCalendarChooserSelectionStyle
+    let displayStyle: EKCalendarChooserDisplayStyle
+    let entityType: EKEntityType
+    let store: EKEventStore
+    open weak var delegate: EKCalendarChooserDelegate?
+    open var showsDoneButton = false { didSet { updateButtons() } }
+    open var showsCancelButton = false { didSet { updateButtons() } }
+    open var selectedCalendars: Set<EKCalendar> = [] { didSet { if isViewLoaded { table.reloadData() } } }
+    let table = UITableView(frame: .zero, style: .insetGrouped)
+    var calendars: [EKCalendar] = []
+
+    public convenience init(selectionStyle: EKCalendarChooserSelectionStyle, displayStyle: EKCalendarChooserDisplayStyle, eventStore: EKEventStore) {
+        self.init(selectionStyle: selectionStyle, displayStyle: displayStyle, entityType: .event, eventStore: eventStore)
+    }
+    public init(selectionStyle: EKCalendarChooserSelectionStyle, displayStyle: EKCalendarChooserDisplayStyle, entityType: EKEntityType, eventStore: EKEventStore) {
+        self.selectionStyle = selectionStyle; self.displayStyle = displayStyle; self.entityType = entityType; store = eventStore
+        super.init(nibName: nil, bundle: nil)
+    }
+    public required init?(coder: NSCoder) { fatalError("EKCalendarChooser is made in code") }
+
+    open override func viewDidLoad() {
+        super.viewDidLoad()
+        title = entityType == .reminder ? "Lists" : selectionStyle == .single ? "Choose Calendar" : "Calendars"
+        view.backgroundColor = .systemGroupedBackground
+        calendars = store._isimCalendars(for: entityType).filter { displayStyle == .allCalendars || $0.allowsContentModifications }
+        table.dataSource = self; table.delegate = self
+        table.accessibilityIdentifier = "calendar-chooser"
+        table.frame = view.bounds; table.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(table)
+        updateButtons()
+    }
+    func updateButtons() {
+        guard isViewLoaded else { return }
+        navigationItem.leftBarButtonItem = showsCancelButton ? item("Cancel", false, "calendar-chooser-cancel", #selector(isimEKChooserCancel)) : nil
+        navigationItem.rightBarButtonItem = showsDoneButton ? item("Done", true, "calendar-chooser-done", #selector(isimEKChooserDone)) : nil
+    }
+    func item(_ t: String, _ bold: Bool, _ id: String, _ sel: Selector) -> UIBarButtonItem {
+        let b = UIButton(type: .system)
+        b.setTitle(t, for: .normal)
+        b.titleLabel?.font = bold ? .systemFont(ofSize: 17, weight: .semibold) : .systemFont(ofSize: 17)
+        b.addTarget(self, action: sel, for: .touchUpInside)
+        b.accessibilityIdentifier = id
+        b.sizeToFit()
+        return UIBarButtonItem(customView: b)
+    }
+    @objc func isimEKChooserDone() { delegate?.calendarChooserDidFinish?(self) }
+    @objc func isimEKChooserCancel() { delegate?.calendarChooserDidCancel?(self) }
+
+    public func numberOfSections(in tableView: UITableView) -> Int { 1 }
+    public func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? { "On My iPhone" }
+    public func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { calendars.count }
+    public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cal = calendars[indexPath.row]
+        let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
+        cell.textLabel?.text = cal.title
+        // the calendar's colour as a dot, like Calendar's list
+        cell.imageView?.image = UIGraphicsImageRenderer(size: CGSize(width: 12, height: 12)).image { _ in
+            UIColor(cgColor: cal.cgColor).setFill(); UIBezierPath(ovalIn: CGRect(x: 0, y: 0, width: 12, height: 12)).fill()
+        }
+        cell.accessoryType = selectedCalendars.contains(cal) ? .checkmark : .none
+        cell.accessibilityIdentifier = "calendar-" + cal.title
+        return cell
+    }
+    public func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        let cal = calendars[indexPath.row]
+        if selectionStyle == .single { selectedCalendars = [cal] }
+        else if selectedCalendars.contains(cal) { selectedCalendars.remove(cal) } else { selectedCalendars.insert(cal) }
+        delegate?.calendarChooserSelectionDidChange?(self)
+    }
+}

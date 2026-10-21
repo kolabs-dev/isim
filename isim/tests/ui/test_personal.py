@@ -141,3 +141,68 @@ def test_personal_ios17(launch):
     app.quit()
     assert "text=Limit Access…" not in alert and re.search(r"^contacts access true status 3", app.log, re.M), \
         "iOS 17 contacts alert (Don’t Allow / OK)"
+
+
+def seed_invitation(device_data):
+    """An invitation in the device calendar: apps cannot add attendees, they come from the calendar (an account)."""
+    import json
+    import time
+    d = device_data / "Library" / "Calendar"
+    d.mkdir(parents=True, exist_ok=True)
+    start = time.time() + 86400
+    person = lambda name, mail, status, role, kind, me=False: {"name": name, "url": "mailto:" + mail, "status": status, "role": role, "type": kind, "me": me}
+    (d / "calendar.json").write_text(json.dumps({
+        "calendars": [
+            {"id": "isim-calendar-default", "title": "Calendar", "type": 0, "color": [0.94, 0.22, 0.22], "readOnly": False},
+            {"id": "isim-calendar-work", "title": "Work", "type": 0, "color": [0.2, 0.6, 0.9], "readOnly": False},
+            {"id": "isim-reminders-default", "title": "Reminders", "type": 1, "color": [0.0, 0.48, 1.0], "readOnly": False},
+        ],
+        "items": [{
+            "id": "isim-invitation-1", "kind": 0, "calendar": "isim-calendar-work", "title": "Design review", "start": start,
+            "end": start + 3600, "allDay": False, "completed": False, "priority": 0, "alarms": [], "availability": 0,
+            "created": start - 86400, "modified": start - 86400, "app": "com.apple.mobilecal", "status": 1,
+            "attendees": [person("Ada Lovelace", "ada@example.com", 2, 1, 1), person("Conference Room B", "room-b@example.com", 2, 4, 2),
+                          person("Kevin", "kevin@example.com", 1, 2, 1, True)],
+            "organizer": person("Grace Hopper", "grace@example.com", 2, 3, 1),
+        }],
+    }))
+
+
+@pytest.mark.os_matrix
+def test_eventkit_recurrence_alarms_attendees(launch, device_data):
+    """Recurring events expanded in date-range queries (weekly on three days with a count, the second Tuesday of the
+    month, the last day of the month), one occurrence detached (.thisEvent), one removed, the rest of the series removed
+    (.futureEvents); a structured location and location / email alarms stored; attendees and the organizer of a seeded
+    invitation; an alarm firing as Calendar's alert banner; EKCalendarChooser (multiple selection, Done)."""
+    seed_invitation(device_data)
+    app = launch("HelloPersonal", env={"ISIM_CALENDAR_PERMISSION": "allow"})
+    app.wait_tap_id("calendarAccess")
+    app.wait_log(r"^calendar access true status 3")
+    app.tap_id("recurring")
+    app.wait_log(r"^recurring 6 Mon,Wed,Fri,Mon,Wed,Fri one id true rule MO,WE,FR")
+    app.wait_log(r"^monthly 3 second tuesdays true")
+    app.wait_log(r"^month ends 2 last days true")
+    app.wait_log(r'^detached \["Standup \(moved\)"\] count 6 series 5')
+    app.wait_log(r"^after removing one 5 Mon,Wed,Mon,Wed,Fri")
+    app.wait_log(r"^after removing future 3 Mon,Wed,Mon")
+    app.wait_log(r"^location Apple Park 37\.3349,-122\.0090 radius 150 text Apple Park alarms 1/0,0/3")
+    app.wait_log(r"^attendees Design review Ada Lovelace 2/1/1, Conference Room B 2/4/2, Kevin 1/2/1 organizer Grace Hopper mailto:grace@example\.com")
+    app.wait_log(r"^alarm set")
+    app.wait_log(r"isim EventKit: alarm “Coffee” event")
+    app.wait_view(r"id=isim-calendar-alarm")
+    banner = app.wait_view(r"text=Coffee")
+    app.wait_still()
+    app.screenshot("calendar-alarm")
+    assert "Caffè Macs" in banner
+    app.wait_view(r"id=isim-calendar-alarm", gone=True, timeout=15)
+    app.tap_id("chooseCalendars")
+    chooser = app.wait_view(r"id=calendar-Work")
+    app.wait_still()
+    app.screenshot("calendar-chooser")
+    assert "text=Calendars" in chooser and "id=calendar-Calendar" in chooser and "Reminders" not in chooser.split("id=calendar-chooser")[1]
+    app.tap_id("calendar-Work")
+    app.wait_log(r'^chooser selected \["Work"\]')
+    app.tap_id("calendar-Calendar")
+    app.wait_log(r'^chooser selected \["Calendar", "Work"\]')
+    app.tap_id("calendar-chooser-done")
+    app.wait_log(r'^chooser finished \["Calendar", "Work"\]')

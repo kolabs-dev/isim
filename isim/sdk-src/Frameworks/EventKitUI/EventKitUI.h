@@ -37,5 +37,27 @@ typedef NS_ENUM(NSInteger, EKEventViewAction) { EKEventViewActionDone = 0, EKEve
 @property (nonatomic) BOOL allowsCalendarPreview;
 @end
 
+/* the calendar chooser (adapted: lists the device's calendars in the app, like the event editor) */
+typedef NS_ENUM(NSInteger, EKCalendarChooserSelectionStyle) { EKCalendarChooserSelectionStyleSingle = 0, EKCalendarChooserSelectionStyleMultiple };
+typedef NS_ENUM(NSInteger, EKCalendarChooserDisplayStyle) { EKCalendarChooserDisplayAllCalendars = 0, EKCalendarChooserDisplayWritableCalendarsOnly };
+@class EKCalendarChooser;
+@protocol EKCalendarChooserDelegate <NSObject>
+@optional
+- (void)calendarChooserSelectionDidChange:(EKCalendarChooser *)calendarChooser;
+- (void)calendarChooserDidFinish:(EKCalendarChooser *)calendarChooser;
+- (void)calendarChooserDidCancel:(EKCalendarChooser *)calendarChooser;
+@end
+@interface EKCalendarChooser : UIViewController
+- (instancetype)initWithSelectionStyle:(EKCalendarChooserSelectionStyle)selectionStyle displayStyle:(EKCalendarChooserDisplayStyle)displayStyle
+                            eventStore:(EKEventStore *)eventStore;
+- (instancetype)initWithSelectionStyle:(EKCalendarChooserSelectionStyle)selectionStyle displayStyle:(EKCalendarChooserDisplayStyle)displayStyle
+                            entityType:(EKEntityType)entityType eventStore:(EKEventStore *)eventStore;
+@property (nonatomic, readonly) EKCalendarChooserSelectionStyle selectionStyle;
+@property (nonatomic, weak, nullable) id<EKCalendarChooserDelegate> delegate;
+@property (nonatomic) BOOL showsDoneButton;
+@property (nonatomic) BOOL showsCancelButton;
+@property (nonatomic, copy) NSSet<EKCalendar *> *selectedCalendars;
+@end
+
 NS_ASSUME_NONNULL_END
 #endif

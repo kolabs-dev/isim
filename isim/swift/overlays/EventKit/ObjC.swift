@@ -1,6 +1,7 @@
 // isim EventKit for Objective-C (sdk-src/Frameworks/EventKit): the classes carry Apple's Objective-C names and these
 // members Apple's selectors.
 import Foundation
+import CoreLocation
 
 extension EKObject {
     @objc(hasChanges) var _objc_hasChanges: Bool { hasChanges }
@@ -161,4 +162,60 @@ extension EKEventStore {
         fetchReminders(matching: p) { completion($0) }
     }
     @objc(cancelFetchRequest:) func _objc_cancelFetch(_ id: Any) { cancelFetchRequest(id) }
+}
+
+// MARK: - recurrence, alarms, locations, participants (0.28)
+
+extension EKAlarm {
+    @objc(structuredLocation) var _objc_structuredLocation: EKStructuredLocation? { get { structuredLocation } set { structuredLocation = newValue } }
+    @objc(proximity) var _objc_proximity: EKAlarmProximity { get { proximity } set { proximity = newValue } }
+    @objc(type) var _objc_type: EKAlarmType { type }
+    @objc(emailAddress) var _objc_emailAddress: String? { get { emailAddress } set { emailAddress = newValue } }
+    @objc(soundName) var _objc_soundName: String? { get { soundName } set { soundName = newValue } }
+}
+extension EKRecurrenceDayOfWeek {
+    @objc(dayOfWeek:) class func _objc_day(_ d: EKWeekday) -> EKRecurrenceDayOfWeek { EKRecurrenceDayOfWeek(d) }
+    @objc(dayOfWeek:weekNumber:) class func _objc_day(_ d: EKWeekday, weekNumber: Int) -> EKRecurrenceDayOfWeek { EKRecurrenceDayOfWeek(d, weekNumber: weekNumber) }
+    @objc(initWithDayOfTheWeek:weekNumber:) convenience init(_objcDay d: EKWeekday, weekNumber: Int) { self.init(d, weekNumber: weekNumber) }
+    @objc(dayOfTheWeek) var _objc_dayOfTheWeek: EKWeekday { dayOfTheWeek }
+    @objc(weekNumber) var _objc_weekNumber: Int { weekNumber }
+}
+extension EKRecurrenceRule {
+    @objc(initRecurrenceWithFrequency:interval:daysOfTheWeek:daysOfTheMonth:monthsOfTheYear:weeksOfTheYear:daysOfTheYear:setPositions:end:)
+    convenience init(_objcFrequency f: EKRecurrenceFrequency, interval: Int, daysOfTheWeek: [EKRecurrenceDayOfWeek]?, daysOfTheMonth: [NSNumber]?,
+                     monthsOfTheYear: [NSNumber]?, weeksOfTheYear: [NSNumber]?, daysOfTheYear: [NSNumber]?, setPositions: [NSNumber]?, end: EKRecurrenceEnd?) {
+        self.init(recurrenceWith: f, interval: interval, daysOfTheWeek: daysOfTheWeek, daysOfTheMonth: daysOfTheMonth, monthsOfTheYear: monthsOfTheYear,
+                  weeksOfTheYear: weeksOfTheYear, daysOfTheYear: daysOfTheYear, setPositions: setPositions, end: end)
+    }
+    @objc(calendarIdentifier) var _objc_calendarIdentifier: String { calendarIdentifier }
+    @objc(firstDayOfTheWeek) var _objc_firstDayOfTheWeek: Int { firstDayOfTheWeek }
+    @objc(daysOfTheWeek) var _objc_daysOfTheWeek: [EKRecurrenceDayOfWeek]? { daysOfTheWeek }
+    @objc(daysOfTheMonth) var _objc_daysOfTheMonth: [NSNumber]? { daysOfTheMonth }
+    @objc(daysOfTheYear) var _objc_daysOfTheYear: [NSNumber]? { daysOfTheYear }
+    @objc(weeksOfTheYear) var _objc_weeksOfTheYear: [NSNumber]? { weeksOfTheYear }
+    @objc(monthsOfTheYear) var _objc_monthsOfTheYear: [NSNumber]? { monthsOfTheYear }
+    @objc(setPositions) var _objc_setPositions: [NSNumber]? { setPositions }
+}
+extension EKStructuredLocation {
+    @objc(locationWithTitle:) class func _objc_location(_ title: String) -> EKStructuredLocation { EKStructuredLocation(title: title) }
+    @objc(title) var _objc_title: String? { get { title } set { title = newValue } }
+    @objc(geoLocation) var _objc_geoLocation: CLLocation? { get { geoLocation } set { geoLocation = newValue } }
+    @objc(radius) var _objc_radius: Double { get { radius } set { radius = newValue } }
+}
+extension EKParticipant {
+    @objc(URL) var _objc_URL: URL { url }
+    @objc(name) var _objc_name: String? { name }
+    @objc(participantStatus) var _objc_status: EKParticipantStatus { participantStatus }
+    @objc(participantRole) var _objc_role: EKParticipantRole { participantRole }
+    @objc(participantType) var _objc_type: EKParticipantType { participantType }
+    @objc(isCurrentUser) var _objc_isCurrentUser: Bool { isCurrentUser }
+    @objc(contactPredicate) var _objc_contactPredicate: NSPredicate { contactPredicate }
+}
+extension EKCalendarItem {
+    @objc(hasAttendees) var _objc_hasAttendees: Bool { hasAttendees }
+    @objc(attendees) var _objc_attendees: [EKParticipant]? { attendees }
+}
+extension EKEvent {
+    @objc(organizer) var _objc_organizer: EKParticipant? { organizer }
+    @objc(structuredLocation) var _objc_structuredLocation: EKStructuredLocation? { get { structuredLocation } set { structuredLocation = newValue } }
 }

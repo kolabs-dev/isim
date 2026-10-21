@@ -13,9 +13,9 @@
 ## API
 
 | API / feature | Status | iOS | Notes |
-| Objective-C interface (`EventKitUI.framework`): `EKEventEditViewController` and `EKEventEditViewDelegate`, `EKEventViewController` and `EKEventViewDelegate` | ✅ | ≤17 | adapted: headers over the Swift overlay's classes (Apple's Objective-C names). The delegates' selectors are now Apple's (`...didCompleteWithAction:`); Swift apps built with 0.22 or earlier still get the editor's call. Tested (HelloPersonalObjC: the editor, tests/ui/test_personal_objc.py) |
 |---|---|---|---|
-| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `EKCalendarChooser` (1 type; with its members under "Not yet in isim") |
+| Objective-C interface (`EventKitUI.framework`): `EKEventEditViewController` and `EKEventEditViewDelegate`, `EKEventViewController` and `EKEventViewDelegate`, `EKCalendarChooser` and `EKCalendarChooserDelegate` | ✅ | ≤17 | adapted: headers over the Swift overlay's classes (Apple's Objective-C names). The delegates' selectors are now Apple's (`...didCompleteWithAction:`); Swift apps built with 0.22 or earlier still get the editor's call. Tested (HelloPersonalObjC: the editor, tests/ui/test_personal_objc.py) |
+| `EKCalendarChooser` (`init(selectionStyle:displayStyle:eventStore:)`, `init(selectionStyle:displayStyle:entityType:eventStore:)`, `selectionStyle`, `selectedCalendars`, `showsDoneButton`, `showsCancelButton`, `delegate`), `EKCalendarChooserDelegate`, `EKCalendarChooserSelectionStyle`, `EKCalendarChooserDisplayStyle` | ✅ | ≤17 | adapted: drawn in the app (on iOS it runs out of process), so it lists the device's calendars (or reminder lists) without calendar access: the calendar's colour, a checkmark on the selected ones, single or multiple selection, writable calendars only; Done and Cancel in its navigation bar call the delegate. Tested (HelloPersonal: test_eventkit_recurrence_alarms_attendees) |
 
 ## Not yet in isim
 

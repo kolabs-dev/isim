@@ -40,6 +40,7 @@ def test_personal_objc(launch):
 
     app.wait_log(r"^po contacts granted=1 saved=1 found=1 name=Dana Objc phone=\+1 555 0100 label=mobile email=dana@example\.com error=nil$")
     app.wait_log(r"^po calendar granted=1 status=3 saved=1 found=1 title=Objective-C sync alarms=1 error=nil$")
+    app.wait_log(r"^po recurring saved=1 occurrences=2 weekdays=2 days=5 positions=-1 location=Office radius=100 proximity=1$")
 
     app.tap_id("pick")                                    # the contact picker, its delegate told of the choice
     app.wait_view(r"text=Dana Objc")

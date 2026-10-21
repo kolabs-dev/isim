@@ -191,6 +191,34 @@ static NSString *errText(NSError *e) { return e ? [NSString stringWithFormat:@"%
         say(@"calendar granted=%d status=%ld saved=%d found=%lu title=%@ alarms=%lu error=%@", granted,
             (long)[EKEventStore authorizationStatusForEntityType:EKEntityTypeEvent], ok, (unsigned long)found.count, f.title,
             (unsigned long)f.alarms.count, errText(err));
+        // the last weekday of each month, twice; a structured location; a location alarm
+        NSMutableArray *weekdays = [NSMutableArray array];
+        for (NSInteger d = EKWeekdayMonday; d <= EKWeekdayFriday; d++) [weekdays addObject:[EKRecurrenceDayOfWeek dayOfWeek:(EKWeekday)d]];
+        EKRecurrenceRule *rule = [[EKRecurrenceRule alloc] initRecurrenceWithFrequency:EKRecurrenceFrequencyMonthly interval:1 daysOfTheWeek:weekdays
+            daysOfTheMonth:nil monthsOfTheYear:nil weeksOfTheYear:nil daysOfTheYear:nil setPositions:@[@-1] end:[EKRecurrenceEnd recurrenceEndWithOccurrenceCount:2]];
+        EKEvent *r = [EKEvent eventWithEventStore:self.events];
+        r.title = @"Month-end review"; r.calendar = self.events.defaultCalendarForNewEvents;
+        r.startDate = [NSDate dateWithTimeIntervalSinceNow:600]; r.endDate = [r.startDate dateByAddingTimeInterval:1800];
+        [r addRecurrenceRule:rule];
+        EKStructuredLocation *office = [EKStructuredLocation locationWithTitle:@"Office"];
+        office.geoLocation = [[CLLocation alloc] initWithLatitude:37.3349 longitude:-122.00902]; office.radius = 100;
+        r.structuredLocation = office;
+        EKAlarm *arrive = [EKAlarm alarmWithRelativeOffset:0]; arrive.structuredLocation = office; arrive.proximity = EKAlarmProximityEnter;
+        [r addAlarm:arrive];
+        BOOL saved = [self.events saveEvent:r span:EKSpanFutureEvents error:nil];
+        NSArray<EKEvent *> *months = [self.events eventsMatchingPredicate:[self.events predicateForEventsWithStartDate:[NSDate date]
+            endDate:[NSDate dateWithTimeIntervalSinceNow:75 * 86400] calendars:nil]];
+        NSUInteger n = 0, weekday = 0;
+        NSDateFormatter *day = [[NSDateFormatter alloc] init];
+        day.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"]; day.dateFormat = @"EEE";
+        for (EKEvent *o in months) if ([o.title isEqualToString:@"Month-end review"]) {
+            n++; if (![@[@"Sat", @"Sun"] containsObject:[day stringFromDate:o.startDate]]) weekday++;
+        }
+        EKEvent *back = [self.events eventWithIdentifier:r.eventIdentifier];
+        EKRecurrenceRule *br = back.recurrenceRules.firstObject;
+        say(@"recurring saved=%d occurrences=%lu weekdays=%lu days=%lu positions=%@ location=%@ radius=%.0f proximity=%ld", saved, (unsigned long)n,
+            (unsigned long)weekday, (unsigned long)br.daysOfTheWeek.count, br.setPositions.firstObject, back.structuredLocation.title,
+            back.structuredLocation.radius, (long)back.alarms.firstObject.proximity);
     }];
 }
 - (void)editEvent {
