@@ -707,6 +707,13 @@ OBJC_NAMES["StoreKit"] = {**{c: c for c in """SKAdImpression SKAdNetwork SKOverl
                           "SKOverlay.AppClipConfiguration": "SKOverlayAppClipConfiguration", "SKOverlay.TransitionContext": "SKOverlayTransitionContext"}
 OBJC_NAMES["AVFoundation"] = {c: c for c in """AVAudioSession AVAudioSessionPortDescription AVAudioSessionRouteDescription AVAsset AVURLAsset
     AVAssetTrack AVPlayerItem AVPlayerItemTrack AVPlayer AVQueuePlayer AVPlayerLayer""".split()}
+# issue #553: AVFAudio's engine, formats, buffers, converter, file, player and recorder from Objective-C
+OBJC_NAMES["AVFoundation"].update({c: c for c in """AVAudioChannelLayout AVAudioCompressedBuffer AVAudioConverter AVAudioTime AVAudioMixingDestination
+    AVAudioConnectionPoint AVAudioNode AVAudioMixerNode AVAudioIONode AVAudioOutputNode AVAudioPlayerNode AVAudioSourceNode AVAudioSinkNode
+    AVAudioInputNode AVAudioEnvironmentDistanceAttenuationParameters AVAudioEnvironmentReverbParameters AVAudioEnvironmentNode AVAudioUnit
+    AVAudioUnitEffect AVAudioUnitReverb AVAudioUnitEQFilterParameters AVAudioUnitEQ AVAudioUnitTimeEffect AVAudioUnitGenerator AVAudioUnitVarispeed
+    AVAudioUnitTimePitch AVAudioUnitDelay AVAudioUnitDistortion AVAudioEngine AVAudioRecorder AVAudioFormat AVAudioBuffer AVAudioPCMBuffer
+    AVAudioFile AVAudioPlayer""".split()})
 OBJC_NAMES["MessageUI"] = {c: c for c in ("MFMailComposeViewController", "MFMessageComposeViewController")}
 OBJC_NAMES["CoreBluetooth"] = {c: c for c in """CBUUID CBAttribute CBService CBMutableService CBCharacteristic CBMutableCharacteristic
     CBDescriptor CBMutableDescriptor CBPeer CBCentral CBATTRequest CBL2CAPChannel CBPeripheral CBManager CBCentralManager CBPeripheralManager""".split()}

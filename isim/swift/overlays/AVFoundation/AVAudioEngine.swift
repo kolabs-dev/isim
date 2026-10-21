@@ -19,7 +19,7 @@ import isim_host
 
 /// A moment in the engine's timeline: a sample time at a rate, a host time, or both. A class (NSObject), as on iOS:
 /// isim before 0.26 had a struct (issue #287).
-open class AVAudioTime: NSObject, @unchecked Sendable {
+@objc(AVAudioTime) @objcMembers open class AVAudioTime: NSObject, @unchecked Sendable {
     public let sampleTime: AVAudioFramePosition
     public let sampleRate: Double
     public let hostTime: UInt64
@@ -137,7 +137,7 @@ func _mixSettings(_ n: AVAudioNode) -> _MixSettings? {
 }
 
 /// One connection of a source node to a mixer.
-open class AVAudioMixingDestination: NSObject, AVAudioMixing {
+@objc(AVAudioMixingDestination) @objcMembers open class AVAudioMixingDestination: NSObject, AVAudioMixing {
     let settings: _MixSettings
     public let connectionPoint: AVAudioConnectionPoint
     init(_ s: _MixSettings, _ p: AVAudioConnectionPoint) { settings = s; connectionPoint = p }
@@ -154,7 +154,7 @@ open class AVAudioMixingDestination: NSObject, AVAudioMixing {
     open func destination(forMixer mixer: AVAudioNode, bus: AVAudioNodeBus) -> AVAudioMixingDestination? { nil }
 }
 
-open class AVAudioConnectionPoint: NSObject {
+@objc(AVAudioConnectionPoint) @objcMembers open class AVAudioConnectionPoint: NSObject {
     open private(set) weak var node: AVAudioNode?
     public let bus: AVAudioNodeBus
     public init(node: AVAudioNode, bus: AVAudioNodeBus) { self.node = node; self.bus = bus }
@@ -184,7 +184,7 @@ final class _Tap {
     init(size: Int, format: AVAudioFormat?, block: @escaping AVAudioNodeTapBlock) { self.size = size; self.format = format; self.block = block }
 }
 
-open class AVAudioNode: NSObject {
+@objc(AVAudioNode) @objcMembers open class AVAudioNode: NSObject {
     /// the engine the node is attached to
     public internal(set) weak var engine: AVAudioEngine?
     var _tap: _Tap?
@@ -247,7 +247,7 @@ open class AVAudioNode: NSObject {
 }
 
 /// Sums its inputs (converting rate and channels) with each input's volume and pan.
-open class AVAudioMixerNode: AVAudioNode, AVAudioMixing {
+@objc(AVAudioMixerNode) @objcMembers open class AVAudioMixerNode: AVAudioNode, AVAudioMixing {
     let _mix = _MixSettings()
     var _resamplers: [Int: _IsimResampler] = [:]
     /// the mixer's own output gain
@@ -304,7 +304,7 @@ open class AVAudioMixerNode: AVAudioNode, AVAudioMixing {
     open override func reset() { _resamplers = [:] }
 }
 
-open class AVAudioIONode: AVAudioNode {
+@objc(AVAudioIONode) @objcMembers open class AVAudioIONode: AVAudioNode {
     var _voiceProcessing = false
     open var presentationLatency: TimeInterval { 0.005 }
     open var isVoiceProcessingEnabled: Bool { _voiceProcessing }
@@ -313,7 +313,7 @@ open class AVAudioIONode: AVAudioNode {
 }
 
 /// The speaker: 48 kHz stereo (the host mixer's format).
-open class AVAudioOutputNode: AVAudioIONode {
+@objc(AVAudioOutputNode) @objcMembers open class AVAudioOutputNode: AVAudioIONode {
     let _resampler = _IsimResampler()
     open override func outputFormat(forBus bus: AVAudioNodeBus) -> AVAudioFormat { AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2)! }
     open override func inputFormat(forBus bus: AVAudioNodeBus) -> AVAudioFormat {
@@ -340,7 +340,7 @@ public struct AVAudioPlayerNodeBufferOptions: OptionSet, Sendable {
 public enum AVAudioPlayerNodeCompletionCallbackType: Int, Sendable { case dataConsumed, dataRendered, dataPlayedBack }
 
 /// Plays scheduled buffers and file segments one after another.
-open class AVAudioPlayerNode: AVAudioNode, AVAudioMixing {
+@objc(AVAudioPlayerNode) @objcMembers open class AVAudioPlayerNode: AVAudioNode, AVAudioMixing {
     let _mix = _MixSettings()
     open var volume: Float { get { _mix.volume } set { _mix.volume = max(0, newValue) } }
     open var pan: Float { get { _mix.pan } set { _mix.pan = max(-1, min(1, newValue)) } }
@@ -408,7 +408,7 @@ open class AVAudioPlayerNode: AVAudioNode, AVAudioMixing {
                              completionHandler: ((AVAudioPlayerNodeCompletionCallbackType) -> Void)? = nil) {
         _schedule(Item(buffer: buffer, start: 0, count: Int(buffer.frameLength), options: options, at: when, callbackType: callbackType, completion: completionHandler))
     }
-    open func scheduleFile(_ file: AVAudioFile, at when: AVAudioTime?, completionHandler: (() -> Void)? = nil) {
+    @objc(scheduleFile:atTime:completionHandler:) open func scheduleFile(_ file: AVAudioFile, at when: AVAudioTime?, completionHandler: (() -> Void)? = nil) {
         scheduleSegment(file, startingFrame: 0, frameCount: AVAudioFrameCount(max(0, file.length)), at: when, completionHandler: completionHandler)
     }
     open func scheduleFile(_ file: AVAudioFile, at when: AVAudioTime?, completionCallbackType callbackType: AVAudioPlayerNodeCompletionCallbackType,
@@ -416,7 +416,7 @@ open class AVAudioPlayerNode: AVAudioNode, AVAudioMixing {
         scheduleSegment(file, startingFrame: 0, frameCount: AVAudioFrameCount(max(0, file.length)), at: when, completionCallbackType: callbackType,
                         completionHandler: completionHandler)
     }
-    open func scheduleSegment(_ file: AVAudioFile, startingFrame: AVAudioFramePosition, frameCount: AVAudioFrameCount, at when: AVAudioTime?,
+    @objc(scheduleSegment:startingFrame:frameCount:atTime:completionHandler:) open func scheduleSegment(_ file: AVAudioFile, startingFrame: AVAudioFramePosition, frameCount: AVAudioFrameCount, at when: AVAudioTime?,
                               completionHandler: (() -> Void)? = nil) {
         scheduleSegment(file, startingFrame: startingFrame, frameCount: frameCount, at: when, completionCallbackType: .dataConsumed,
                         completionHandler: completionHandler.map { f in { _ in f() } })
@@ -436,18 +436,18 @@ open class AVAudioPlayerNode: AVAudioNode, AVAudioMixing {
         _schedule(Item(buffer: b, start: 0, count: Int(b.frameLength), options: [], at: when, callbackType: callbackType, completion: completionHandler))
     }
     @discardableResult
-    open func scheduleBuffer(_ buffer: AVAudioPCMBuffer, at when: AVAudioTime? = nil, options: AVAudioPlayerNodeBufferOptions = [],
+    @nonobjc open func scheduleBuffer(_ buffer: AVAudioPCMBuffer, at when: AVAudioTime? = nil, options: AVAudioPlayerNodeBufferOptions = [],
                              completionCallbackType callbackType: AVAudioPlayerNodeCompletionCallbackType) async -> AVAudioPlayerNodeCompletionCallbackType {
         await withCheckedContinuation { k in scheduleBuffer(buffer, at: when, options: options, completionCallbackType: callbackType) { k.resume(returning: $0) } }
     }
-    open func scheduleBuffer(_ buffer: AVAudioPCMBuffer, at when: AVAudioTime? = nil, options: AVAudioPlayerNodeBufferOptions = []) async {
+    @nonobjc open func scheduleBuffer(_ buffer: AVAudioPCMBuffer, at when: AVAudioTime? = nil, options: AVAudioPlayerNodeBufferOptions = []) async {
         await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in scheduleBuffer(buffer, at: when, options: options) { k.resume() } }
     }
     @discardableResult
-    open func scheduleFile(_ file: AVAudioFile, at when: AVAudioTime?, completionCallbackType callbackType: AVAudioPlayerNodeCompletionCallbackType) async -> AVAudioPlayerNodeCompletionCallbackType {
+    @nonobjc open func scheduleFile(_ file: AVAudioFile, at when: AVAudioTime?, completionCallbackType callbackType: AVAudioPlayerNodeCompletionCallbackType) async -> AVAudioPlayerNodeCompletionCallbackType {
         await withCheckedContinuation { k in scheduleFile(file, at: when, completionCallbackType: callbackType) { k.resume(returning: $0) } }
     }
-    open func scheduleFile(_ file: AVAudioFile, at when: AVAudioTime?) async {
+    @nonobjc open func scheduleFile(_ file: AVAudioFile, at when: AVAudioTime?) async {
         await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in scheduleFile(file, at: when) { k.resume() } }
     }
     open func prepare(withFrameCount frameCount: AVAudioFrameCount) {}
@@ -456,7 +456,7 @@ open class AVAudioPlayerNode: AVAudioNode, AVAudioMixing {
         guard let e = engine, e.isRunning else { NSLog("isim AVFoundation: player started while the engine is not running"); return }
         e._lock.lock(); _playing = true; _startAt = nil; e._lock.unlock()
     }
-    open func play(at when: AVAudioTime?) {
+    @objc(playAtTime:) open func play(at when: AVAudioTime?) {
         guard let when, let e = engine, e.isRunning else { play(); return }
         e._lock.lock(); defer { e._lock.unlock() }
         _playing = true
@@ -532,7 +532,7 @@ open class AVAudioPlayerNode: AVAudioNode, AVAudioMixing {
 
 /// A node whose audio comes from the app's render block.
 public typealias AVAudioSourceNodeRenderBlock = (UnsafeMutablePointer<ObjCBool>, UnsafePointer<AudioTimeStamp>, AVAudioFrameCount, UnsafeMutablePointer<AudioBufferList>) -> OSStatus
-open class AVAudioSourceNode: AVAudioNode, AVAudioMixing {
+@objc(AVAudioSourceNode) @objcMembers open class AVAudioSourceNode: AVAudioNode, AVAudioMixing {
     let _mix = _MixSettings()
     open var volume: Float { get { _mix.volume } set { _mix.volume = max(0, newValue) } }
     open var pan: Float { get { _mix.pan } set { _mix.pan = max(-1, min(1, newValue)) } }
@@ -575,7 +575,7 @@ open class AVAudioSourceNode: AVAudioNode, AVAudioMixing {
 
 /// A node that hands its input to the app's block (connected from the input node).
 public typealias AVAudioSinkNodeReceiverBlock = (UnsafePointer<AudioTimeStamp>, AVAudioFrameCount, UnsafePointer<AudioBufferList>) -> OSStatus
-open class AVAudioSinkNode: AVAudioNode {
+@objc(AVAudioSinkNode) @objcMembers open class AVAudioSinkNode: AVAudioNode {
     let block: AVAudioSinkNodeReceiverBlock
     public init(receiverBlock block: @escaping AVAudioSinkNodeReceiverBlock) { self.block = block }
     open override var numberOfOutputs: Int { 0 }
@@ -600,7 +600,7 @@ open class AVAudioSinkNode: AVAudioNode {
 
 /// The microphone (isim: ISIM_AUDIO_INPUT, see AudioToolbox's _IsimAudioInput): 48 kHz mono; in manual rendering, the
 /// input block given to setManualRenderingInputPCMFormat.
-open class AVAudioInputNode: AVAudioIONode, AVAudioMixing {
+@objc(AVAudioInputNode) @objcMembers open class AVAudioInputNode: AVAudioIONode, AVAudioMixing {
     let _mix = _MixSettings()
     var fifo: _IsimInputFIFO?
     var _manualBlock: AVAudioIONodeInputBlock?
@@ -658,7 +658,7 @@ public typealias AVAudioIONodeInputBlock = (AVAudioFrameCount) -> UnsafePointer<
 // MARK: - environment (3D)
 
 public enum AVAudioEnvironmentDistanceAttenuationModel: Int, Sendable { case exponential = 1, inverse = 2, linear = 3 }
-open class AVAudioEnvironmentDistanceAttenuationParameters: NSObject {
+@objc(AVAudioEnvironmentDistanceAttenuationParameters) @objcMembers open class AVAudioEnvironmentDistanceAttenuationParameters: NSObject {
     open var distanceAttenuationModel: AVAudioEnvironmentDistanceAttenuationModel = .inverse
     open var referenceDistance: Float = 1
     open var maximumDistance: Float = 100000
@@ -672,7 +672,7 @@ open class AVAudioEnvironmentDistanceAttenuationParameters: NSObject {
         }
     }
 }
-open class AVAudioEnvironmentReverbParameters: NSObject {
+@objc(AVAudioEnvironmentReverbParameters) @objcMembers open class AVAudioEnvironmentReverbParameters: NSObject {
     open var enable = false
     /// dB
     open var level: Float = 0
@@ -683,7 +683,7 @@ open class AVAudioEnvironmentReverbParameters: NSObject {
 public enum AVAudioEnvironmentOutputType: Int, Sendable { case auto = 0, headphones = 1, builtInSpeakers = 2, externalSpeakers = 3 }
 
 /// Spatializes its inputs around a listener (adapted: equal-power panning by azimuth, distance attenuation).
-open class AVAudioEnvironmentNode: AVAudioNode, AVAudioMixing {
+@objc(AVAudioEnvironmentNode) @objcMembers open class AVAudioEnvironmentNode: AVAudioNode, AVAudioMixing {
     let _mix = _MixSettings()
     open var outputVolume: Float = 1
     open var outputType: AVAudioEnvironmentOutputType = .auto
@@ -769,7 +769,7 @@ open class AVAudioEnvironmentNode: AVAudioNode, AVAudioMixing {
 
 // MARK: - Audio Unit nodes
 
-open class AVAudioUnit: AVAudioNode {
+@objc(AVAudioUnit) @objcMembers open class AVAudioUnit: AVAudioNode {
     let _unit: _IsimAudioUnit?
     init(_unit u: _IsimAudioUnit?) { _unit = u; super.init() }
     public override init() { _unit = nil; super.init() }
@@ -797,7 +797,7 @@ open class AVAudioUnit: AVAudioNode {
             completionHandler(node, node == nil ? NSError(domain: NSOSStatusErrorDomain, code: Int(kAudioUnitErr_FailedInitialization)) : nil)
         }
     }
-    open class func instantiate(with audioComponentDescription: AudioComponentDescription, options: AudioComponentInstantiationOptions = []) async throws -> AVAudioUnit {
+    @nonobjc open class func instantiate(with audioComponentDescription: AudioComponentDescription, options: AudioComponentInstantiationOptions = []) async throws -> AVAudioUnit {
         try await withCheckedThrowingContinuation { k in
             instantiate(with: audioComponentDescription, options: options) { u, e in if let u { k.resume(returning: u) } else { k.resume(throwing: e!) } }
         }
@@ -822,7 +822,7 @@ open class AVAudioUnit: AVAudioNode {
     open override func reset() { _unit?.kernel?.reset() }
 }
 
-open class AVAudioUnitEffect: AVAudioUnit {
+@objc(AVAudioUnitEffect) @objcMembers open class AVAudioUnitEffect: AVAudioUnit {
     public init(audioComponentDescription: AudioComponentDescription) {
         super.init(_unit: _IsimAudioUnit.make(type: audioComponentDescription.componentType, subType: audioComponentDescription.componentSubType))
     }
@@ -836,7 +836,7 @@ public enum AVAudioUnitReverbPreset: Int, Sendable {
     case smallRoom = 0, mediumRoom, largeRoom, mediumHall, largeHall, plate, mediumChamber, largeChamber, cathedral, largeRoom2, mediumHall2, mediumHall3, largeHall2
 }
 /// Reverb (AUReverb2; adapted: Freeverb-style).
-open class AVAudioUnitReverb: AVAudioUnitEffect {
+@objc(AVAudioUnitReverb) @objcMembers open class AVAudioUnitReverb: AVAudioUnitEffect {
     public override init() { super.init(_unit: _IsimAudioUnit.make(type: kAudioUnitType_Effect, subType: kAudioUnitSubType_Reverb2)) }
     open var wetDryMix: Float { get { _param(kReverb2Param_DryWetMix) } set { _setParam(kReverb2Param_DryWetMix, max(0, min(100, newValue))) } }
     open func loadFactoryPreset(_ p: AVAudioUnitReverbPreset) {
@@ -850,7 +850,7 @@ open class AVAudioUnitReverb: AVAudioUnitEffect {
 public enum AVAudioUnitEQFilterType: Int, Sendable {
     case parametric = 0, lowPass, highPass, resonantLowPass, resonantHighPass, bandPass, bandStop, lowShelf, highShelf, resonantLowShelf, resonantHighShelf
 }
-open class AVAudioUnitEQFilterParameters: NSObject {
+@objc(AVAudioUnitEQFilterParameters) @objcMembers open class AVAudioUnitEQFilterParameters: NSObject {
     weak var _owner: AVAudioUnitEQ?
     var _index: UInt32 = 0
     var _local = _IsimEQBand()
@@ -871,7 +871,7 @@ open class AVAudioUnitEQFilterParameters: NSObject {
     open var bypass: Bool { get { (_get(kAUNBandEQParam_BypassBand) ?? (_local.bypass ? 1 : 0)) != 0 } set { _local.bypass = newValue; _set(kAUNBandEQParam_BypassBand, newValue ? 1 : 0) } }
 }
 /// N-band equalizer (AUNBandEQ; adapted: RBJ biquads).
-open class AVAudioUnitEQ: AVAudioUnitEffect {
+@objc(AVAudioUnitEQ) @objcMembers open class AVAudioUnitEQ: AVAudioUnitEffect {
     public let bands: [AVAudioUnitEQFilterParameters]
     open var globalGain: Float { get { _param(kAUNBandEQParam_GlobalGain) } set { _setParam(kAUNBandEQParam_GlobalGain, newValue) } }
     public init(numberOfBands: Int) {
@@ -888,7 +888,7 @@ open class AVAudioUnitEQ: AVAudioUnitEffect {
 /// Units that change the timing of audio (format converters such as AUVarispeed and AUNewTimePitch): their input and
 /// output run at different rates. As on iOS, the varispeed and time-pitch nodes are time effects (isim before 0.26 made
 /// them AVAudioUnitEffects, issue #287).
-open class AVAudioUnitTimeEffect: AVAudioUnit {
+@objc(AVAudioUnitTimeEffect) @objcMembers open class AVAudioUnitTimeEffect: AVAudioUnit {
     public init(audioComponentDescription: AudioComponentDescription) {
         super.init(_unit: _IsimAudioUnit.make(type: audioComponentDescription.componentType, subType: audioComponentDescription.componentSubType))
     }
@@ -901,7 +901,7 @@ open class AVAudioUnitTimeEffect: AVAudioUnit {
 /// A source node made from a generator Audio Unit (kAudioUnitType_Generator). Adapted: isim has none of Apple's
 /// generator units (AUAudioFilePlayer, AUScheduledSoundPlayer), so a generator node renders silence; its mixing
 /// settings (volume, pan, 3D) apply like a player node's.
-open class AVAudioUnitGenerator: AVAudioUnit, AVAudioMixing {
+@objc(AVAudioUnitGenerator) @objcMembers open class AVAudioUnitGenerator: AVAudioUnit, AVAudioMixing {
     let _mix = _MixSettings()
     public init(audioComponentDescription: AudioComponentDescription) {
         _desc = audioComponentDescription
@@ -933,19 +933,19 @@ open class AVAudioUnitGenerator: AVAudioUnit, AVAudioMixing {
 }
 
 /// Rate change by resampling, pitch follows (AUVarispeed).
-open class AVAudioUnitVarispeed: AVAudioUnitTimeEffect {
+@objc(AVAudioUnitVarispeed) @objcMembers open class AVAudioUnitVarispeed: AVAudioUnitTimeEffect {
     public override init() { super.init(_unit: _IsimAudioUnit.make(type: kAudioUnitType_FormatConverter, subType: kAudioUnitSubType_Varispeed)) }
     open var rate: Float { get { _param(kVarispeedParam_PlaybackRate) } set { _setParam(kVarispeedParam_PlaybackRate, max(0.25, min(4, newValue))) } }
 }
 /// Rate without pitch change and pitch without rate change (AUNewTimePitch; adapted: WSOLA time stretch + resampling).
-open class AVAudioUnitTimePitch: AVAudioUnitTimeEffect {
+@objc(AVAudioUnitTimePitch) @objcMembers open class AVAudioUnitTimePitch: AVAudioUnitTimeEffect {
     public override init() { super.init(_unit: _IsimAudioUnit.make(type: kAudioUnitType_FormatConverter, subType: kAudioUnitSubType_NewTimePitch)) }
     open var rate: Float { get { _param(kNewTimePitchParam_Rate) } set { _setParam(kNewTimePitchParam_Rate, max(1.0 / 32, min(32, newValue))) } }
     /// cents
     open var pitch: Float { get { _param(kNewTimePitchParam_Pitch) } set { _setParam(kNewTimePitchParam_Pitch, max(-2400, min(2400, newValue))) } }
     open var overlap: Float { get { _param(kNewTimePitchParam_Overlap) } set { _setParam(kNewTimePitchParam_Overlap, max(3, min(32, newValue))) } }
 }
-open class AVAudioUnitDelay: AVAudioUnitEffect {
+@objc(AVAudioUnitDelay) @objcMembers open class AVAudioUnitDelay: AVAudioUnitEffect {
     public override init() {
         super.init(_unit: _IsimAudioUnit.make(type: kAudioUnitType_Effect, subType: kAudioUnitSubType_Delay))
         wetDryMix = 100
@@ -962,7 +962,7 @@ public enum AVAudioUnitDistortionPreset: Int, Sendable {
          speechRadioTower, speechWaves
 }
 /// Soft-clipping overdrive (every preset maps to a drive amount).
-open class AVAudioUnitDistortion: AVAudioUnitEffect {
+@objc(AVAudioUnitDistortion) @objcMembers open class AVAudioUnitDistortion: AVAudioUnitEffect {
     public override init() { super.init(_unit: _IsimAudioUnit.make(type: kAudioUnitType_Effect, subType: kAudioUnitSubType_Distortion)) }
     open var preGain: Float { get { _param(kDistortionParam_SoftClipGain) } set { _setParam(kDistortionParam_SoftClipGain, max(-80, min(20, newValue))) } }
     open var wetDryMix: Float { get { _param(kDistortionParam_FinalMix) } set { _setParam(kDistortionParam_FinalMix, max(0, min(100, newValue))) } }
@@ -979,7 +979,7 @@ struct _Conn {
     let format: AVAudioFormat?
 }
 
-open class AVAudioEngine: NSObject {
+@objc(AVAudioEngine) @objcMembers open class AVAudioEngine: NSObject {
     public let outputNode = AVAudioOutputNode()
     var _mainMixer: AVAudioMixerNode?
     var nodes: [AVAudioNode] = []
@@ -1020,12 +1020,12 @@ open class AVAudioEngine: NSObject {
         if let i = _inputNode { s.insert(i) }
         return s
     }
-    open func attach(_ node: AVAudioNode) {
+    @objc(attachNode:) open func attach(_ node: AVAudioNode) {
         _lock.lock(); defer { _lock.unlock() }
         node.engine = self
         if !nodes.contains(node) { nodes.append(node) }
     }
-    open func detach(_ node: AVAudioNode) {
+    @objc(detachNode:) open func detach(_ node: AVAudioNode) {
         (node as? AVAudioPlayerNode)?.stop()
         _lock.lock(); defer { _lock.unlock() }
         _conns.removeAll { $0.src === node || $0.dst === node }
@@ -1046,7 +1046,7 @@ open class AVAudioEngine: NSObject {
         _conns.removeAll { ($0.src === a && $0.srcBus == fromBus) || ($0.dst === b && $0.dstBus == toBus) || $0.src == nil || $0.dst == nil }
         _conns.append(_Conn(src: a, srcBus: fromBus, dst: b, dstBus: toBus, format: format))
     }
-    open func connect(_ sourceNode: AVAudioNode, to destNodes: [AVAudioConnectionPoint], fromBus sourceBus: AVAudioNodeBus, format: AVAudioFormat?) {
+    @objc(connect:toConnectionPoints:fromBus:format:) open func connect(_ sourceNode: AVAudioNode, to destNodes: [AVAudioConnectionPoint], fromBus sourceBus: AVAudioNodeBus, format: AVAudioFormat?) {
         _lock.lock(); defer { _lock.unlock() }
         _owned(sourceNode)
         _conns.removeAll { $0.src === sourceNode && $0.srcBus == sourceBus }
@@ -1061,10 +1061,10 @@ open class AVAudioEngine: NSObject {
     open func disconnectNodeOutput(_ node: AVAudioNode, bus: AVAudioNodeBus) { _lock.lock(); _conns.removeAll { $0.src === node && $0.srcBus == bus }; _lock.unlock() }
     open func disconnectNodeInput(_ node: AVAudioNode) { _lock.lock(); _conns.removeAll { $0.dst === node }; _lock.unlock() }
     open func disconnectNodeInput(_ node: AVAudioNode, bus: AVAudioNodeBus) { _lock.lock(); _conns.removeAll { $0.dst === node && $0.dstBus == bus }; _lock.unlock() }
-    open func outputConnectionPoints(for node: AVAudioNode, outputBus bus: AVAudioNodeBus) -> [AVAudioConnectionPoint] {
+    @objc(outputConnectionPointsForNode:outputBus:) open func outputConnectionPoints(for node: AVAudioNode, outputBus bus: AVAudioNodeBus) -> [AVAudioConnectionPoint] {
         _outputConnections(of: node, bus: bus).compactMap { c in c.dst.map { AVAudioConnectionPoint(node: $0, bus: c.dstBus) } }
     }
-    open func inputConnectionPoint(for node: AVAudioNode, inputBus bus: AVAudioNodeBus) -> AVAudioConnectionPoint? {
+    @objc(inputConnectionPointForNode:inputBus:) open func inputConnectionPoint(for node: AVAudioNode, inputBus bus: AVAudioNodeBus) -> AVAudioConnectionPoint? {
         _inputConnection(of: node, bus: bus).flatMap { c in c.src.map { AVAudioConnectionPoint(node: $0, bus: c.srcBus) } }
     }
     func _outputConnections(of n: AVAudioNode, bus: AVAudioNodeBus) -> [_Conn] {

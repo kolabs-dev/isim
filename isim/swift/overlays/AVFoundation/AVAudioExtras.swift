@@ -128,7 +128,7 @@ open class AVAudioApplication: NSObject {
     public static let inputMuteStateChangeNotification = Notification.Name("AVAudioApplicationInputMuteStateChangeNotification")
     public static let muteStateKey = "AVAudioApplicationMuteStateKey"
     open class func requestRecordPermission(completionHandler response: @escaping (Bool) -> Void) { AVAudioSession.shared.requestRecordPermission(response) }
-    open class func requestRecordPermission() async -> Bool {
+    @nonobjc open class func requestRecordPermission() async -> Bool {
         await withCheckedContinuation { k in requestRecordPermission { k.resume(returning: $0) } }
     }
 }
@@ -245,12 +245,12 @@ final class _AudioFileWriter {
 
 // MARK: - AVAudioRecorder
 
-@objc public protocol AVAudioRecorderDelegate: NSObjectProtocol {
+@objc(AVAudioRecorderDelegate) public protocol AVAudioRecorderDelegate: NSObjectProtocol {
     @objc optional func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool)
     @objc optional func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: Error?)
 }
 
-open class AVAudioRecorder: NSObject {
+@objc(AVAudioRecorder) @objcMembers open class AVAudioRecorder: NSObject {
     public let url: URL
     public let settings: [String: Any]
     public let format: AVAudioFormat
@@ -264,13 +264,13 @@ open class AVAudioRecorder: NSObject {
     var avgDB: Float = -160, peakDB: Float = -160
     var subscribed = false
 
-    public init(url: URL, settings: [String: Any]) throws {
+    @objc(initWithURL:settings:error:) public init(url: URL, settings: [String: Any]) throws {
         _AVSessionPrefs.installMicrophonePrompt()
         self.url = url; self.settings = settings
         writer = try _AudioFileWriter(url: url, settings: settings)
         format = AVAudioFormat(standardFormatWithSampleRate: writer.rate, channels: AVAudioChannelCount(writer.channelCount))!
     }
-    public convenience init(url: URL, format: AVAudioFormat) throws {
+    @objc(initWithURL:format:error:) public convenience init(url: URL, format: AVAudioFormat) throws {
         try self.init(url: url, settings: [AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: format.sampleRate, AVNumberOfChannelsKey: Int(format.channelCount)])
     }
     deinit { if subscribed { _IsimAudioInput.unsubscribe(self) } }
