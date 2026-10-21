@@ -1,7 +1,7 @@
 # Photos
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 49.4% of Apple's iOS API (346 of 701, exact) · **Rows:** 8: 4 ✅ 1 🟡 3 ❌ · **iOS:** 8.0+
+**Symbols:** 49.4% of Apple's iOS API (346 of 701, exact) · **Rows:** 9: 5 ✅ 1 🟡 3 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [Photos](https://developer.apple.com/documentation/photos) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)

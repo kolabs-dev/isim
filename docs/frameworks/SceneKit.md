@@ -1,7 +1,7 @@
 # SceneKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 11.2% of Apple's iOS API (186 of 1668, exact) · **Rows:** 4: 3 🟡 1 ❌ · **iOS:** 8.0+
+**Symbols:** 11.2% of Apple's iOS API (186 of 1668, exact) · **Rows:** 5: 1 ✅ 3 🟡 1 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [SceneKit](https://developer.apple.com/documentation/scenekit) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)

@@ -1,7 +1,7 @@
 # Vision
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 8.3% of Apple's iOS API (398 of 4782, exact) · **Rows:** 15: 5 ✅ 5 🟡 1 🧩 4 ❌ · **iOS:** None+
+**Symbols:** 8.3% of Apple's iOS API (398 of 4782, exact) · **Rows:** 16: 6 ✅ 5 🟡 1 🧩 4 ❌ · **iOS:** None+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [Vision](https://developer.apple.com/documentation/vision) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)

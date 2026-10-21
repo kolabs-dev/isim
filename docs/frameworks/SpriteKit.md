@@ -1,7 +1,7 @@
 # SpriteKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 96.0% of Apple's iOS API (1130 of 1177, exact) · **Rows:** 49: 42 ✅ 5 🟡 2 ❌ · **iOS:** 7.0+
+**Symbols:** 96.0% of Apple's iOS API (1130 of 1177, exact) · **Rows:** 50: 42 ✅ 6 🟡 2 ❌ · **iOS:** 7.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [SpriteKit](https://developer.apple.com/documentation/spritekit) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)

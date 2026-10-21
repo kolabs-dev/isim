@@ -1,7 +1,7 @@
 # HealthKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 15.8% of Apple's iOS API (422 of 2672, exact) · **Rows:** 5: 1 🟡 4 ❌ · **iOS:** 8.0+
+**Symbols:** 22.0% of Apple's iOS API (589 of 2673, exact) · **Rows:** 11: 6 ✅ 1 🟡 4 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [HealthKit](https://developer.apple.com/documentation/healthkit) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -31,7 +31,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-2250 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+2084 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -83,27 +83,6 @@
 - [`HKActivitySummaryQueryDescriptor.Results.Iterator`](https://developer.apple.com/documentation/healthkit/hkactivitysummaryquerydescriptor/results/iterator)
 - [`HKActivitySummaryQueryDescriptor.Results.Iterator`](https://developer.apple.com/documentation/healthkit/hkactivitysummaryquerydescriptor/results/iterator)
 - [`HKActivitySummaryType`](https://developer.apple.com/documentation/healthkit/hkactivitysummarytype)
-- [`HKAnchoredObjectQuery`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquery)
-- [`init(queryDescriptors: [HKQueryDescriptor], anchor: HKQueryAnchor?, limit: Int, resultsHandler: (HKAnchoredObjectQuery, [HKSample]?, [HKDeletedObject]?, HKQueryAnchor?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquery/init(querydescriptors:anchor:limit:resultshandler:))
-- [`init(type: HKSampleType, predicate: NSPredicate?, anchor: HKQueryAnchor?, limit: Int, resultsHandler: (HKAnchoredObjectQuery, [HKSample]?, [HKDeletedObject]?, HKQueryAnchor?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquery/init(type:predicate:anchor:limit:resultshandler:))
-- [`var updateHandler: ((HKAnchoredObjectQuery, [HKSample]?, [HKDeletedObject]?, HKQueryAnchor?, (any Error)?) -> Void)?`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquery/updatehandler)
-- [`HKAnchoredObjectQueryDescriptor`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerydescriptor)
-- [`var anchor: HKQueryAnchor?`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerydescriptor/anchor)
-- [`init(predicates: [HKSamplePredicate<Sample>], anchor: HKQueryAnchor?, limit: Int?)`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerydescriptor/init(predicates:anchor:limit:))
-- [`var limit: Int?`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerydescriptor/limit)
-- [`var predicates: [HKSamplePredicate<Sample>]`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerydescriptor/predicates)
-- [`HKAnchoredObjectQueryDescriptor.Result`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerydescriptor/result)
-- [`func result(for: HKHealthStore) async throws -> HKAnchoredObjectQueryDescriptor<Sample>.Result`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerydescriptor/result(for:))
-- [`func result(for: HKHealthStore) async throws -> HKAnchoredObjectQueryDescriptor<Sample>.Result`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerydescriptor/result(for:))
-- [`let addedSamples: [Sample]`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerydescriptor/result/addedsamples)
-- [`let deletedObjects: [HKDeletedObject]`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerydescriptor/result/deletedobjects)
-- [`let newAnchor: HKQueryAnchor`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerydescriptor/result/newanchor)
-- [`HKAnchoredObjectQueryDescriptor.Results`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerydescriptor/results)
-- [`func results(for: HKHealthStore) -> HKAnchoredObjectQueryDescriptor<Sample>.Results`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerydescriptor/results(for:))
-- [`func results(for: HKHealthStore) -> HKAnchoredObjectQueryDescriptor<Sample>.Results`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerydescriptor/results(for:))
-- [`HKAnchoredObjectQueryDescriptor.Results.Iterator`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerydescriptor/results/iterator)
-- [`var HKAnchoredObjectQueryNoAnchor: Int32`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerynoanchor)
-- [`var HKAnchoredObjectQueryNoAnchor: Int32`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquerynoanchor)
 - [`HKAppleECGAlgorithmVersion`](https://developer.apple.com/documentation/healthkit/hkappleecgalgorithmversion)
 - [`HKAppleECGAlgorithmVersion`](https://developer.apple.com/documentation/healthkit/hkappleecgalgorithmversion)
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/healthkit/hkappleecgalgorithmversion/init(rawvalue:))
@@ -137,12 +116,6 @@
 - [`case ok`](https://developer.apple.com/documentation/healthkit/hkapplewalkingsteadinessclassification/ok)
 - [`case veryLow`](https://developer.apple.com/documentation/healthkit/hkapplewalkingsteadinessclassification/verylow)
 - [`case veryLow`](https://developer.apple.com/documentation/healthkit/hkapplewalkingsteadinessclassification/verylow)
-- [`HKAsyncQuery`](https://developer.apple.com/documentation/healthkit/hkasyncquery)
-- [`Output`](https://developer.apple.com/documentation/healthkit/hkasyncquery/output)
-- [`func result(for: HKHealthStore) async throws -> Self.Output`](https://developer.apple.com/documentation/healthkit/hkasyncquery/result(for:))
-- [`HKAsyncSequenceQuery`](https://developer.apple.com/documentation/healthkit/hkasyncsequencequery)
-- [`func results(for: HKHealthStore) -> Self.Sequence`](https://developer.apple.com/documentation/healthkit/hkasyncsequencequery/results(for:))
-- [`Sequence`](https://developer.apple.com/documentation/healthkit/hkasyncsequencequery/sequence)
 - [`HKAttachment`](https://developer.apple.com/documentation/healthkit/hkattachment)
 - [`HKAttachment`](https://developer.apple.com/documentation/healthkit/hkattachment)
 - [`HKAttachment.AsyncBytes`](https://developer.apple.com/documentation/healthkit/hkattachment/asyncbytes)
@@ -335,7 +308,34 @@
 - [`static let appetiteChanges: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/appetitechanges)
 - [`static let appetiteChanges: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/appetitechanges)
 - [`static let appleWalkingSteadinessEvent: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/applewalkingsteadinessevent)
-- … and 1950 more (`isim/data/api-coverage.json.gz`)
+- [`static let appleWalkingSteadinessEvent: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/applewalkingsteadinessevent)
+- [`static let bladderIncontinence: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/bladderincontinence)
+- [`static let bladderIncontinence: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/bladderincontinence)
+- [`static let bleedingAfterMenopause: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/bleedingaftermenopause)
+- [`static let bleedingAfterMenopause: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/bleedingaftermenopause)
+- [`static let bleedingAfterMenopause: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/bleedingaftermenopause)
+- [`static let bleedingAfterPregnancy: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/bleedingafterpregnancy)
+- [`static let bleedingDuringPregnancy: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/bleedingduringpregnancy)
+- [`static let bloating: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/bloating)
+- [`static let bloating: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/bloating)
+- [`static let breastPain: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/breastpain)
+- [`static let breastPain: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/breastpain)
+- [`static let cervicalMucusQuality: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/cervicalmucusquality)
+- [`static let cervicalMucusQuality: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/cervicalmucusquality)
+- [`static let chestTightnessOrPain: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/chesttightnessorpain)
+- [`static let chestTightnessOrPain: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/chesttightnessorpain)
+- [`static let chills: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/chills)
+- [`static let chills: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/chills)
+- [`static let constipation: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/constipation)
+- [`static let constipation: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/constipation)
+- [`static let contraceptive: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/contraceptive)
+- [`static let contraceptive: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/contraceptive)
+- [`static let coughing: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/coughing)
+- [`static let coughing: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/coughing)
+- [`static let diarrhea: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/diarrhea)
+- [`static let diarrhea: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/diarrhea)
+- [`static let dizziness: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/dizziness)
+- … and 1784 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

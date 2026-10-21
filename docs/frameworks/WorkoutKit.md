@@ -1,6 +1,7 @@
 # WorkoutKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 71.7% of Apple's iOS API (109 of 152, exact) · **Rows:** 2: 1 ✅ 1 🧩 · **iOS:** 17.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [WorkoutKit](https://developer.apple.com/documentation/workoutkit) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -23,4 +24,53 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+43 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`var targetQuantityLowerBound: HKQuantity`](https://developer.apple.com/documentation/workoutkit/cadencerangealert/targetquantitylowerbound)
+- [`var targetQuantityUpperBound: HKQuantity`](https://developer.apple.com/documentation/workoutkit/cadencerangealert/targetquantityupperbound)
+- [`CadenceThresholdAlert`](https://developer.apple.com/documentation/workoutkit/cadencethresholdalert)
+- [`init(target: Measurement<UnitFrequency>)`](https://developer.apple.com/documentation/workoutkit/cadencethresholdalert/init(target:))
+- [`var target: Measurement<UnitFrequency>`](https://developer.apple.com/documentation/workoutkit/cadencethresholdalert/target)
+- [`var targetQuantity: HKQuantity`](https://developer.apple.com/documentation/workoutkit/cadencethresholdalert/targetquantity)
+- [`static func supportsAlert(any WorkoutAlert, activity: HKWorkoutActivityType, location: HKWorkoutSessionLocationType) -> Bool`](https://developer.apple.com/documentation/workoutkit/customworkout/supportsalert(_:activity:location:))
+- [`var targetQuantityLowerBound: HKQuantity`](https://developer.apple.com/documentation/workoutkit/heartraterangealert/targetquantitylowerbound)
+- [`var targetQuantityUpperBound: HKQuantity`](https://developer.apple.com/documentation/workoutkit/heartraterangealert/targetquantityupperbound)
+- [`var targetQuantityLowerBound: HKQuantity`](https://developer.apple.com/documentation/workoutkit/powerrangealert/targetquantitylowerbound)
+- [`var targetQuantityUpperBound: HKQuantity`](https://developer.apple.com/documentation/workoutkit/powerrangealert/targetquantityupperbound)
+- [`PowerThresholdAlert`](https://developer.apple.com/documentation/workoutkit/powerthresholdalert)
+- [`init(target: Measurement<UnitPower>)`](https://developer.apple.com/documentation/workoutkit/powerthresholdalert/init(target:))
+- [`init(target: Measurement<UnitPower>, metric: WorkoutAlertMetric)`](https://developer.apple.com/documentation/workoutkit/powerthresholdalert/init(target:metric:))
+- [`var target: Measurement<UnitPower>`](https://developer.apple.com/documentation/workoutkit/powerthresholdalert/target)
+- [`var targetQuantity: HKQuantity`](https://developer.apple.com/documentation/workoutkit/powerthresholdalert/targetquantity)
+- [`PowerZoneAlert`](https://developer.apple.com/documentation/workoutkit/powerzonealert)
+- [`init(zone: Int)`](https://developer.apple.com/documentation/workoutkit/powerzonealert/init(zone:))
+- [`var zone: Int`](https://developer.apple.com/documentation/workoutkit/powerzonealert/zone)
+- [`var targetQuantityLowerBound: HKQuantity`](https://developer.apple.com/documentation/workoutkit/speedrangealert/targetquantitylowerbound)
+- [`var targetQuantityUpperBound: HKQuantity`](https://developer.apple.com/documentation/workoutkit/speedrangealert/targetquantityupperbound)
+- [`SpeedThresholdAlert`](https://developer.apple.com/documentation/workoutkit/speedthresholdalert)
+- [`init(target: Measurement<UnitSpeed>, metric: WorkoutAlertMetric)`](https://developer.apple.com/documentation/workoutkit/speedthresholdalert/init(target:metric:))
+- [`var target: Measurement<UnitSpeed>`](https://developer.apple.com/documentation/workoutkit/speedthresholdalert/target)
+- [`var targetQuantity: HKQuantity`](https://developer.apple.com/documentation/workoutkit/speedthresholdalert/targetquantity)
+- [`StateError`](https://developer.apple.com/documentation/workoutkit/stateerror)
+- [`case watchNotPaired`](https://developer.apple.com/documentation/workoutkit/stateerror/watchnotpaired)
+- [`case workoutApplicationNotInstalled`](https://developer.apple.com/documentation/workoutkit/stateerror/workoutapplicationnotinstalled)
+- [`static func cadence(Double, unit: UnitFrequency) -> Self`](https://developer.apple.com/documentation/workoutkit/workoutalert/cadence(_:unit:)-3fnpg)
+- [`static func cadence(ClosedRange<Double>, unit: UnitFrequency) -> Self`](https://developer.apple.com/documentation/workoutkit/workoutalert/cadence(_:unit:)-y8da)
+- [`static func heartRate(ClosedRange<Double>, unit: UnitFrequency) -> Self`](https://developer.apple.com/documentation/workoutkit/workoutalert/heartrate(_:unit:))
+- [`static func heartRate(zone: Int) -> Self`](https://developer.apple.com/documentation/workoutkit/workoutalert/heartrate(zone:))
+- [`static func power(Double, unit: UnitPower) -> Self`](https://developer.apple.com/documentation/workoutkit/workoutalert/power(_:unit:)-289mz)
+- [`static func power(ClosedRange<Double>, unit: UnitPower) -> Self`](https://developer.apple.com/documentation/workoutkit/workoutalert/power(_:unit:)-57ekz)
+- [`static func power(Double, unit: UnitPower, metric: WorkoutAlertMetric) -> Self`](https://developer.apple.com/documentation/workoutkit/workoutalert/power(_:unit:metric:)-2847m)
+- [`static func power(ClosedRange<Double>, unit: UnitPower, metric: WorkoutAlertMetric) -> Self`](https://developer.apple.com/documentation/workoutkit/workoutalert/power(_:unit:metric:)-5c94p)
+- [`static func power(zone: Int) -> Self`](https://developer.apple.com/documentation/workoutkit/workoutalert/power(zone:))
+- [`static func speed(ClosedRange<Double>, unit: UnitSpeed, metric: WorkoutAlertMetric) -> Self`](https://developer.apple.com/documentation/workoutkit/workoutalert/speed(_:unit:metric:)-1o2j)
+- [`static func speed(Double, unit: UnitSpeed, metric: WorkoutAlertMetric) -> Self`](https://developer.apple.com/documentation/workoutkit/workoutalert/speed(_:unit:metric:)-4zald)
+- [`func supports(activity: HKWorkoutActivityType, location: HKWorkoutSessionLocationType) -> Bool`](https://developer.apple.com/documentation/workoutkit/workoutalert/supports(activity:location:))
+- [`static var countPerMinute: UnitFrequency`](https://developer.apple.com/documentation/workoutkit/workoutalertmetric/countperminute)
+- [`var dataRepresentation: Data`](https://developer.apple.com/documentation/workoutkit/workoutplan/datarepresentation)
+- [`var activity: HKWorkoutActivityType`](https://developer.apple.com/documentation/workoutkit/workoutplan/workout-swift.enum/activity)
+
+</details>
 <!-- /generated:missing -->
