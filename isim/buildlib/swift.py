@@ -439,8 +439,8 @@ class Swift:
         """Swift macros on the compiler's side (Linux, the Swift toolchain's host, against its swift-syntax
         libraries in lib/swift/host): isim's SwiftCompilerPlugin module (what macro packages import; `isim build`
         compiles their macro targets against it), isim's PreviewsMacros plugin (`#Preview`), SwiftUIMacros plugin
-        (`@Entry`, `@Animatable`), SwiftDataMacros plugin (`@Model`) and FoundationModelsMacros plugin (`@Generable`,
-        `@Guide`), in out/swift/host
+        (`@Entry`, `@Animatable`), SwiftDataMacros plugin (`@Model`), FoundationModelsMacros plugin (`@Generable`,
+        `@Guide`) and AppIntentsMacros plugin (`@AssistantIntent(schema:)`, …), in out/swift/host
         (`isim swiftc` passes -plugin-path out/swift/host/plugins)"""
         H = f"{SW}/host"
         os.makedirs(os.path.join(self.c.root, H, "plugins"), exist_ok=True)
@@ -471,7 +471,12 @@ class Swift:
                           "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
                           "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libFoundationModelsMacros.so"],
                          ["swift/macro-support/FoundationModelsMacros.swift"], implicit=cp, plain=True, desc="SWIFT FoundationModelsMacros (host)")
-        return cp + pm + um + sm + fm
+        am = self.swiftc([f"{H}/plugins/libAppIntentsMacros.so"],
+                         ["-O", "-emit-library", "-parse-as-library", "-module-name", "AppIntentsMacros", *WERROR, *host, "-I", H, "-L", H,
+                          "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
+                          "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libAppIntentsMacros.so"],
+                         ["swift/macro-support/AppIntentsMacros.swift"], implicit=cp, plain=True, desc="SWIFT AppIntentsMacros (host)")
+        return cp + pm + um + sm + fm + am
 
     def onone(self):
         src = f"{self.src}/stdlib/public/SwiftOnoneSupport/SwiftOnoneSupport.swift"
@@ -825,7 +830,7 @@ MessageUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswi
 MapKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftCoreLocation -lswiftContacts -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit
 MultipeerConnectivity -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftNetwork -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit
 XCTest -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit -framework XCTest
-AppIntents -lswiftObjectiveC -reexport-lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit
+AppIntents -lswiftObjectiveC -reexport-lswiftFoundation -lswiftCoreSpotlight -lswiftCoreLocation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit
 ActivityKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation -lisim_host
 WidgetKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftAppIntents -lswiftActivityKit -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 CoreSpotlight -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUniformTypeIdentifiers -framework Foundation
@@ -851,5 +856,5 @@ ATTRIBUTION = set("StoreKit AdAttributionKit".split())
 # overlays that declare macros of isim's compiler plugins (host_plugins): they compile after the plugin is built
 MACRO_PLUGINS = {"UIKit": ["PreviewsMacros"], "SwiftUI": ["PreviewsMacros", "SwiftUIMacros"], "SwiftData": ["SwiftDataMacros"],
                  "FoundationModels": ["FoundationModelsMacros"],
-                 "AppIntents": ["SwiftDataMacros"]}   # @ComputedProperty uses SwiftData's no-op property macro
+                 "AppIntents": ["SwiftDataMacros", "AppIntentsMacros"]}   # @ComputedProperty uses SwiftData's no-op property macro
 

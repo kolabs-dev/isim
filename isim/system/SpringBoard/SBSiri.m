@@ -315,6 +315,9 @@ static void siri_say(NSString *text, HSApp *app, NSDictionary *extra) {
         [m writeToFile:meta_file(a) atomically:YES];
         [NSFileManager.defaultManager removeItemAtPath:req error:NULL]; [NSFileManager.defaultManager removeItemAtPath:out error:NULL];
         NSLog(@"SpringBoard: %@: %lu App Shortcut(s), %lu intent(s)", a.name, (unsigned long)[m[@"shortcuts"] count], (unsigned long)[m[@"intents"] count]);
+        NSMutableArray *schemas = [NSMutableArray array];                 /* @AssistantIntent(schema:) / @AppIntent(schema:) */
+        for (NSString *k in m[@"intents"]) if (m[@"intents"][k][@"schema"]) [schemas addObject:[NSString stringWithFormat:@"%@ (%@)", m[@"intents"][k][@"schema"], k]];
+        if (schemas.count) NSLog(@"SpringBoard: %@: schema intents: %@", a.name, [[schemas sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@", "]);
         done();
     };
     NSLog(@"SpringBoard: reading %@'s App Intents metadata (attempt %d)", a.name, attempt);
@@ -745,8 +748,11 @@ static BOOL locked_out(NSString *auth) { return siri_locked && auth.length && ![
             [self runAppIntent:s[@"intent"] shortcut:s[@"index"] params:s[@"params"] app:a source:source];
         } else if ([kind isEqualToString:@"intent"]) [self runAppIntent:ident shortcut:nil params:nil app:a source:source];
         else if ([kind isEqualToString:@"donation"]) {
-            for (NSDictionary *e in container_plist(a, @"Interactions.plist")[@"interactions"])
-                if ([e[@"identifier"] isEqual:ident] && [e[@"intent"] isKindOfClass:[NSDictionary class]]) { [self runSiriKit:e[@"intent"] app:a source:source]; return; }
+            for (NSDictionary *e in container_plist(a, @"Interactions.plist")[@"interactions"]) {
+                if (![e[@"identifier"] isEqual:ident]) continue;
+                if ([e[@"intent"] isKindOfClass:[NSDictionary class]]) { [self runSiriKit:e[@"intent"] app:a source:source]; return; }
+                if (e[@"appIntent"]) { [self runAppIntent:e[@"appIntent"] shortcut:nil params:e[@"params"] app:a source:source]; return; }   /* IntentDonationManager */
+            }
         } else if ([kind isEqualToString:@"voice"]) {
             NSString *vf = [dir_named(@"Library/Siri") stringByAppendingPathComponent:@"VoiceShortcuts.plist"];
             for (NSDictionary *v in [NSDictionary dictionaryWithContentsOfFile:vf][@"shortcuts"]) {

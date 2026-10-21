@@ -173,6 +173,23 @@ static BOOL matches(NSString *q, NSArray *texts) {
     for (NSDictionary *it in [NSDictionary dictionaryWithContentsOfFile:file][@"items"]) if ([it[@"id"] isEqual:parts[1]]) item = it;
     [self hideSpotlight];
     if (!a || !item) return;
+    if (item[@"appEntity"]) {                                 /* an indexed app entity: the app's OpenIntent for its type */
+        NSDictionary *entity = item;
+        [self refreshAppIntents:^{
+            NSDictionary *intents = HSAppIntentsMetadata(a)[@"intents"];
+            for (NSString *name in [intents.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
+                if (![intents[name][@"openTarget"] isEqual:entity[@"appEntity"]]) continue;
+                NSLog(@"SpringBoard: Spotlight opens %@ %@ with %@", entity[@"appEntity"], entity[@"entityID"], name);
+                [self runAppIntent:name shortcut:nil params:@{ @"target": entity[@"entityID"] ?: @"" } app:a source:@"spotlight"];
+                return;
+            }
+            [self continueSpotlightItem:entity app:a];
+        }];
+        return;
+    }
+    [self continueSpotlightItem:item app:a];
+}
+- (void)continueSpotlightItem:(NSDictionary *)item app:(HSApp *)a {
     /* the activity to continue: the indexed NSUserActivity, or CSSearchableItemActionType for a CoreSpotlight item */
     NSDictionary *activity = [item[@"kind"] isEqual:@"activity"] ? item[@"activity"]
         : @{ @"activityType": @"com.apple.corespotlightitem", @"title": item[@"title"] ?: @"",

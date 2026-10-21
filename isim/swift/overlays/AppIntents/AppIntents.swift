@@ -9,7 +9,8 @@
 // The protocols the system looks up at run time keep their conformances in apps compiled with -O
 // (@_alwaysEmitConformanceMetadata, as Apple's AppIntents does), even for intents nothing references.
 // Focus filters (SetFocusFilterIntent): Focus.swift.
-// Not on isim: App Intents extensions, parameter summaries, intent donations.
+// Donations, Spotlight entities, URL representations, schemas and snippet intents: Donations.swift, Entities.swift,
+// SchemaMacros.swift. Not on isim: App Intents extensions.
 import Foundation
 import SwiftUI
 
@@ -60,6 +61,8 @@ public struct _IntentResultValue<Value>: IntentResult, ReturnsValue, ProvidesDia
     public let dialog: IntentDialog?
     var _snippet: AnyView? = nil
     var _opens: (any AppIntent)? = nil
+    /// .result(snippetIntent:) (Entities.swift): performed for the snippet the system shows
+    var _snippetIntent: (any AppIntent)? = nil
     public init(value: Value?, dialog: IntentDialog?) { self.value = value; self.dialog = dialog }
     init(value: Value?, dialog: IntentDialog?, snippet: AnyView?, opens: (any AppIntent)?) {
         self.value = value; self.dialog = dialog; _snippet = snippet; _opens = opens
@@ -118,16 +121,16 @@ extension AppIntent {
     public static var authenticationPolicy: IntentAuthenticationPolicy { .alwaysAllowed }
 }
 /// intents that configure a widget (AppIntentConfiguration)
-public protocol WidgetConfigurationIntent: AppIntent {}
+@_alwaysEmitConformanceMetadata public protocol WidgetConfigurationIntent: AppIntent {}
 extension WidgetConfigurationIntent {
     @MainActor public func perform() async throws -> some IntentResult { _IntentResultValue<Void>(value: nil, dialog: nil) }
 }
-public protocol SetValueIntent: AppIntent { associatedtype ValueType; var value: ValueType { get set } }
-public protocol AudioPlaybackIntent: AppIntent {}
-public protocol LiveActivityIntent: AppIntent {}
-public protocol ForegroundContinuableIntent: AppIntent {}
+@_alwaysEmitConformanceMetadata public protocol SetValueIntent: AppIntent { associatedtype ValueType; var value: ValueType { get set } }
+@_alwaysEmitConformanceMetadata public protocol AudioPlaybackIntent: AppIntent {}
+@_alwaysEmitConformanceMetadata public protocol LiveActivityIntent: AppIntent {}
+@_alwaysEmitConformanceMetadata public protocol ForegroundContinuableIntent: AppIntent {}
 /// Opens the app to an entity (the system runs it in the app, in the foreground).
-public protocol OpenIntent: AppIntent {
+@_alwaysEmitConformanceMetadata public protocol OpenIntent: AppIntent {
     associatedtype Value: AppEntity
     var target: Value { get set }
 }
@@ -177,10 +180,12 @@ protocol _ResultCarrying: _DialogCarrying {
     var _snippetView: AnyView? { get }
     var _opensIntent: (any AppIntent)? { get }
     var _valueAny: Any? { get }
+    var _snippetIntentAny: (any AppIntent)? { get }
 }
 extension _IntentResultValue: _ResultCarrying {
     var _snippetView: AnyView? { _snippet }
     var _opensIntent: (any AppIntent)? { _opens }
+    var _snippetIntentAny: (any AppIntent)? { _snippetIntent }
     var _valueAny: Any? { Value.self == Void.self ? nil : value.map { $0 as Any } }
 }
 

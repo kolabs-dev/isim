@@ -37,6 +37,8 @@ public let CSSearchQueryString = "kCSSearchQueryString"
     open var domainIdentifier: String?
     open var attributeSet: CSSearchableItemAttributeSet
     open var expirationDate: Date!
+    /// the app entity the item stands for (AppIntents' IndexedEntity, associateAppEntity): type and identifier
+    public var _isimAppEntity: [String: String]?
     public init(uniqueIdentifier: String?, domainIdentifier: String?, attributeSet: CSSearchableItemAttributeSet) {
         self.uniqueIdentifier = uniqueIdentifier ?? UUID().uuidString
         self.domainIdentifier = domainIdentifier
@@ -83,6 +85,7 @@ public struct CSIndexError: Swift.Error, Sendable {
                                         "contentType": it.attributeSet.contentType]
                 if let d = it.attributeSet.contentDescription { e["description"] = d }
                 if let k = it.attributeSet.keywords { e["keywords"] = k }
+                if let entity = it._isimAppEntity { e["appEntity"] = entity["type"]; e["entityID"] = entity["id"] }
                 list.append(e)
             }
         }
