@@ -3,10 +3,10 @@
 import CoreFoundation
 
 extension CFString: @retroactive Equatable, @retroactive Hashable {
-    public static func == (a: CFString, b: CFString) -> Bool { CFEqual(a, b) != 0 }
+    public static func == (a: CFString, b: CFString) -> Bool { CFEqual(a, b) }
     public func hash(into h: inout Hasher) { h.combine(CFHash(self)) }
 }
 extension CFData: @retroactive Equatable, @retroactive Hashable {
-    public static func == (a: CFData, b: CFData) -> Bool { CFEqual(a, b) != 0 }
+    public static func == (a: CFData, b: CFData) -> Bool { CFEqual(a, b) }
     public func hash(into h: inout Hasher) { h.combine(CFHash(self)) }
 }
