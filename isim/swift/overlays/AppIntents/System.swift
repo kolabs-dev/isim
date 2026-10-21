@@ -437,6 +437,7 @@ enum _IsimValues {
             if let opened = r?._opensIntent {                          /* .result(opensIntent:): it runs next, in the foreground */
                 NSLog("isim AppIntents: opens “%@”", type(of: opened).title.description)
                 step["open"] = true
+                if #available(iOS 18.0, *), let u = opened as? OpenURLIntent { step["url"] = u.url.absoluteString }   /* its URL brings its app forward */
                 if let r2 = try? await _perform(opened) as? any _ResultCarrying, r?._dialog == nil { r = r2 }
             }
             if let d = r?._dialog?.text { step["dialog"] = d }

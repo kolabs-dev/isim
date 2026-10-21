@@ -772,7 +772,9 @@ static NSString *last_sent_message(HSApp *a) {
         NSLog(@"SpringBoard: %@ opens", r.app.name);
         if (dialog.length && ![dialog isEqualToString:@"Done."]) NSLog(@"SpringBoard: Siri says “%@”", dialog);
         siri_ui(@{ @"mode": @"hidden" });
-        [self launch:r.app];
+        /* an opened URL (OpenURLIntent, a URL-representable OpenIntent) already brought forward the app that claims it:
+           launching again would cover that app, or bring this one back after the user went home */
+        if (!step[@"url"]) [self launch:r.app];
         return;
     }
     ui[@"mode"] = @"result"; ui[@"text"] = dialog;
