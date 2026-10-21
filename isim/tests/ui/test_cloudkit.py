@@ -25,7 +25,12 @@ STEPS = [   # (button, log lines it leads to)
     ("zone", [r"zones: _defaultZone,Work", r"atomic batch: CKError 22,CKError 16", r"database changes: Work,_defaultZone more=false", r"zone changes: w1,w3",
               r"zone changes since token: changed=0 deleted=w3:Note"]),
     ("share", [r"sharing: saved=true participants=2 permission=2 discovered=true sheet=true"]),
-    ("sync", [r"sync engine: saved=1 failed=0 pending=0"]),
+    ("sync", [r"sync engine: saved=1 failed=0 pending=0",
+              r"sync engine A events: accountChange\(signIn\), willSendChanges, sentRecordZoneChanges\(1 saved, 0 deleted, 0 failed\), "
+              r"stateUpdate, didSendChanges",
+              r"sync engine B fetched sync1=true, A fetched its own=false, state saved=true",
+              r"sync engine B: sync1 failed, serverRecordChanged=true",
+              r"sync engine C: zones saved=\[\"Synced\"\]", r"sync engine: saved=1 failed=0 pending=0"]),
     ("swiftdata", [r"swiftdata: models=1 title=Local model changes=false"]),
     ("coredata", [r"coredata event: setup succeeded=true", r"coredata store: loaded=true options=iCloud\.dev\.isim\.samples\.HelloCloudKit",
                   r"coredata event: export succeeded=true",
