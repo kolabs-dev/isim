@@ -6,6 +6,7 @@ modification time alone when its content did not change, so Ninja (restat) skips
       mirror files into place (DST paths are files or directories); remove files no longer mapped from the
       directories it owns; touch STAMP when anything changed
   keep OUT... -- CMD...     run CMD; outputs whose content is unchanged get their old modification time back
+  reldeps DEPFILE -- CMD... run CMD, then make the paths in its dependency file DEPFILE relative (swiftc writes absolute)
   stamp STAMP PATH...       write STAMP (a content hash of PATHs: files, directory trees or globs) only when it changes
   tbd RUNTIME INSTALL_NAME OUT   a .tbd stub listing the exports of one of isim-runtime's host libraries
   copy SRC DST              copy when the content differs (keeps the executable bit)
@@ -137,6 +138,23 @@ def cmd_keep(args):
     return rc
 
 
+def cmd_reldeps(args):
+    """run a command, then make the paths in its dependency file relative to the isim directory (where Ninja runs):
+    swiftc writes absolute ones, which Ninja would take for files no edge makes, so a header synced into the SDK in
+    the same build would not make the compile dirty until the next build (issue #608)"""
+    i = args.index("--")
+    depfile, cmd = args[0], args[i + 1:]
+    rc = subprocess.call(cmd)
+    if rc == 0 and os.path.isfile(depfile):
+        with open(depfile) as f:
+            text = f.read()
+        rel = text.replace(os.getcwd() + os.sep, "")
+        if rel != text:
+            with open(depfile, "w") as f:
+                f.write(rel)
+    return rc
+
+
 def tree_hash(paths):
     h = hashlib.sha256()
     for p in paths:
@@ -195,7 +213,7 @@ def cmd_tbd(args):
 
 
 def main(argv):
-    actions = {"sync": cmd_sync, "keep": cmd_keep, "stamp": cmd_stamp, "tbd": cmd_tbd,
+    actions = {"sync": cmd_sync, "keep": cmd_keep, "reldeps": cmd_reldeps, "stamp": cmd_stamp, "tbd": cmd_tbd,
                "copy": lambda a: (copy_if_changed(a[0], a[1]), 0)[1]}
     if not argv or argv[0] not in actions:
         print(__doc__)

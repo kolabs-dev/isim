@@ -38,9 +38,13 @@ class Ctx:
     def glob(self, pattern):
         return sorted(glob.glob(pattern, root_dir=self.root, recursive=True))
 
-    def compile(self, src, obj, cmd, desc=None, implicit=(), order_only=()):
-        """a C/ObjC/C++ compile edge (clang dependency file)"""
-        return self.n.build(obj, list(cmd) + ["-MMD", "-MF", f"{obj}.d", "-c", src, "-o", obj], inputs=[src],
+    def compile(self, src, obj, cmd, desc=None, implicit=(), order_only=(), reldeps=False):
+        """a C/ObjC/C++ compile edge (clang dependency file: -MD, with the system headers, as the SDK's are included
+        through -isystem / -iframework; -MMD left them out, so header changes rebuilt nothing, issue #608)"""
+        cmd = list(cmd) + ["-MD", "-MF", f"{obj}.d", "-c", src, "-o", obj]
+        if reldeps:                                    # isim cc names the SDK by its absolute path (act.py reldeps)
+            cmd = self.act("reldeps", f"{obj}.d", "--") + cmd
+        return self.n.build(obj, cmd, inputs=[src],
                             implicit=implicit, order_only=list(order_only), desc=desc or f"CC {src}", rule="cc")[0]
 
     def sync(self, stamp, spec, desc, implicit=()):
@@ -325,8 +329,8 @@ def tools(c):
                       inputs=["data/frameworks.json"], desc="INSTALL frameworks.json")
     # xctest: the runner for test bundles (isim test)
     xc = f"{SDK}/usr/bin/xctest"
-    outs += c.n.build(xc, [f"{OUT}/bin/isim", "cc", "-O1", "-g", "-MMD", "-MF", f"{xc}.d", "frameworks/XCTest/runner/xctest.m",
-                           "-o", xc, "-framework", "Foundation", "-framework", "XCTest"],
+    outs += c.n.build(xc, [*c.act("reldeps", f"{xc}.d", "--"), f"{OUT}/bin/isim", "cc", "-O1", "-g", "-MD", "-MF", f"{xc}.d",
+                           "frameworks/XCTest/runner/xctest.m", "-o", xc, "-framework", "Foundation", "-framework", "XCTest"],
                       inputs=["frameworks/XCTest/runner/xctest.m"],
                       implicit=[f"{OUT}/bin/isim", "tbds", *link_deps(["-framework", "Foundation", "-framework", "XCTest"])],
                       order_only=c.header_stamps, desc="CC xctest", rule="cc")
