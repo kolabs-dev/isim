@@ -1,6 +1,5 @@
 #pragma once
-/* isim GameKit: the matchmaking sheet. On isim GameKit's view controllers are UIViewControllers that host their
- * content (UINavigationControllers on iOS). */
+/* isim GameKit: the matchmaking sheet, a UINavigationController (as on iOS) whose root hosts its content. */
 #import <GameKit/GKMatchmaker.h>
 #import <GameKit/GKMatch.h>
 #if !defined(__swift__)
@@ -18,7 +17,7 @@ typedef NS_ENUM(NSInteger, GKMatchmakingMode) {
 - (void)matchmakerViewController:(GKMatchmakerViewController *)viewController didFindHostedPlayers:(NSArray<GKPlayer *> *)players;
 - (void)matchmakerViewController:(GKMatchmakerViewController *)viewController hostedPlayerDidAccept:(GKPlayer *)player;
 @end
-@interface GKMatchmakerViewController : UIViewController
+@interface GKMatchmakerViewController : UINavigationController
 - (nullable instancetype)initWithMatchRequest:(GKMatchRequest *)request;
 - (nullable instancetype)initWithInvite:(GKInvite *)invite;
 @property (nonatomic, weak, nullable) id<GKMatchmakerViewControllerDelegate> matchmakerDelegate;

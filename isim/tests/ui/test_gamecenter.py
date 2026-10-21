@@ -150,6 +150,7 @@ def test_gamecenter(launch, device_data):
     assert (device_data / f"Library/GameCenter/{APP}/SavedGames/slot1/versions.json").is_file(), \
         "saved game stored in device data"
     app.wait_tap_id("match")
+    app.wait_log(r"matchmaker navigation controller true root 1")      # a UINavigationController, as on iOS (#615)
     app.wait_tap_id("gc-match-find")
     app.wait_log(r"looking for 2-2 players")
     trees.append(app.wait_view(r"id=gc-match-note text=Finding Players…"))  # nobody else is looking

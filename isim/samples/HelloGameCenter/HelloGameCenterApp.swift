@@ -236,7 +236,10 @@ struct RootView: View {
         if let vc = GKMatchmakerViewController(matchRequest: r) {
             vc.matchmakingMode = mode
             vc.matchmakerDelegate = MatchDelegate.shared
-            top().present(vc, animated: true)
+            let nav: UINavigationController = vc                     // as on iOS, a navigation controller
+            top().present(vc, animated: true) {
+                print("matchmaker navigation controller \(vc.isKind(of: UINavigationController.self)) root \(nav.viewControllers.count)")
+            }
         }
     }
     /// automatching without UI

@@ -7,7 +7,7 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol GKFriendRequestComposeViewControllerDelegate <NSObject>
 - (void)friendRequestComposeViewControllerDidFinish:(GKFriendRequestComposeViewController *)viewController;
 @end
-@interface GKFriendRequestComposeViewController : UIViewController
+@interface GKFriendRequestComposeViewController : UINavigationController
 + (NSUInteger)maxNumberOfRecipients;
 - (void)setMessage:(nullable NSString *)message;
 - (void)addRecipientPlayers:(NSArray<GKPlayer *> *)players;

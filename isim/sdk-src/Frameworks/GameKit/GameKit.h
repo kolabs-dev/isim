@@ -3,7 +3,7 @@
  * libswiftGameKit.dylib): a local Game Center (the device's player, the other isim devices on this computer and test
  * players), with leaderboards, achievements, the dashboard and access point, real-time and turn-based matches, saved
  * games, challenges and game activities. Swift uses the overlay; these declarations are hidden from Swift. The classes
- * are not subclassable from Objective-C, and GameKit's view controllers are UIViewControllers on isim. */
+ * are not subclassable from Objective-C; the matchmakers and the friend request composer are UINavigationControllers. */
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <GameKit/GKDefines.h>

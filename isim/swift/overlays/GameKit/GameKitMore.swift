@@ -225,7 +225,7 @@ public protocol GKFriendRequestComposeViewControllerDelegate: AnyObject {
 
 /// The friend request composer: the request goes to the player with that nickname on isim's local Game Center
 /// network (test players accept at once; a device's player accepts in Settings > Game Center).
-@objc(GKFriendRequestComposeViewController) @objcMembers open class GKFriendRequestComposeViewController: UINavigationControllerStandIn {
+@objc(GKFriendRequestComposeViewController) @objcMembers open class GKFriendRequestComposeViewController: UINavigationController {
     weak open var composeViewDelegate: GKFriendRequestComposeViewControllerDelegate?
     var recipients: [String] = []
     var _message = ""
@@ -234,10 +234,13 @@ public protocol GKFriendRequestComposeViewControllerDelegate: AnyObject {
     open func addRecipients(withEmailAddresses emailAddresses: [String]) { recipients += emailAddresses }
     open func addRecipients(withPhoneNumbers phoneNumbers: [String]) { recipients += phoneNumbers }
     open func addRecipientPlayers(_ players: [GKPlayer]) { recipients += players.map { $0.alias } }
+    open override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); _gcSheetWillAppear() }
+    open override func viewWillDisappear(_ animated: Bool) { super.viewWillDisappear(animated); _gcSheetWillDisappear() }
+    open override func viewDidDisappear(_ animated: Bool) { super.viewDidDisappear(animated); _gcSheetDidDisappear() }
     open override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
-        embed(_GCFriendRequestView(to: recipients.joined(separator: ", "), message: _message) { [weak self] sent, to, text in
+        _gcEmbed(_GCFriendRequestView(to: recipients.joined(separator: ", "), message: _message) { [weak self] sent, to, text in
             guard let self else { return }
             if sent { for r in to.split(separator: ",") { _GCSocial.sendRequest(to: String(r), message: text) } } else { NSLog("isim GameKit: friend request cancelled") }
             if let d = self.composeViewDelegate { d.friendRequestComposeViewControllerDidFinish(self) } else { self.dismiss(animated: true, completion: nil) }
@@ -245,24 +248,16 @@ public protocol GKFriendRequestComposeViewControllerDelegate: AnyObject {
     }
 }
 
-/// A plain view controller hosting SwiftUI content (GameKit's controllers are UINavigationControllers on iOS).
-open class UINavigationControllerStandIn: UIViewController {
-    // Game Center UI: the access point hides while it is on screen
-    open override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); GKAccessPoint.shared.setPresenting(true) }
-    // like iOS, the keyboard goes away with the sheet
-    open override func viewWillDisappear(_ animated: Bool) { super.viewWillDisappear(animated); view.endEditing(true) }
-    open override func viewDidDisappear(_ animated: Bool) {
-        super.viewDidDisappear(animated)
-        if presentingViewController == nil { GKAccessPoint.shared.setPresenting(false) }
+/// GameKit's sheets (the matchmakers, the friend request and challenge composers) are UINavigationControllers, as on
+/// iOS: their root is the SwiftUI content, whose NavigationStack title and toolbar go to this controller's bar. While
+/// one is on screen the access point hides, and like iOS the keyboard goes away with the sheet.
+extension UINavigationController {
+    func _gcEmbed<V: View>(_ v: V) {
+        setViewControllers([UIHostingController(rootView: v)], animated: false)
     }
-    func embed<V: View>(_ v: V) {
-        let host = UIHostingController(rootView: v)
-        addChild(host)
-        host.view.frame = view.bounds
-        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.addSubview(host.view)
-        host.didMove(toParent: self)
-    }
+    func _gcSheetWillAppear() { GKAccessPoint.shared.setPresenting(true) }
+    func _gcSheetWillDisappear() { view.endEditing(true) }
+    func _gcSheetDidDisappear() { if presentingViewController == nil { GKAccessPoint.shared.setPresenting(false) } }
 }
 
 struct _GCFriendRequestView: View {
