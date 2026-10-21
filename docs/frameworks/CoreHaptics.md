@@ -1,7 +1,7 @@
 # CoreHaptics
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 68.0% of Apple's iOS API (170 of 250, exact) · **Rows:** 5: 4 ✅ 1 🟡 · **iOS:** 13.0+
+**Symbols:** 68.0% of Apple's iOS API (170 of 250, exact) · **Rows:** 6: 5 ✅ 1 🟡 · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [Core Haptics](https://developer.apple.com/documentation/corehaptics) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)

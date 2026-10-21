@@ -1,7 +1,7 @@
 # XCTest
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 66.7% of Apple's iOS API (285 of 427, exact) · **Rows:** 15: 9 ✅ 4 🟡 2 ❌ · **iOS:** None+
+**Symbols:** 66.7% of Apple's iOS API (285 of 427, exact) · **Rows:** 16: 10 ✅ 4 🟡 2 ❌ · **iOS:** None+
 <!-- /generated:header -->
 
 **Area:** [Developer tools](../COVERAGE.md#devtools) · **Apple:** [XCTest](https://developer.apple.com/documentation/xctest) · **Issues:** [`area:devtools`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Adevtools)

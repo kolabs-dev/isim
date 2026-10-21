@@ -1,7 +1,7 @@
 # PassKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 48.6% of Apple's iOS API (664 of 1366, exact) · **Rows:** 11: 9 ✅ 1 🟡 1 ❌ · **iOS:** 6.0+
+**Symbols:** 48.6% of Apple's iOS API (664 of 1366, exact) · **Rows:** 12: 10 ✅ 1 🟡 1 ❌ · **iOS:** 6.0+
 <!-- /generated:header -->
 
 **Area:** [Commerce & privacy](../COVERAGE.md#commerce) · **Apple:** [PassKit (Apple Pay)](https://developer.apple.com/documentation/passkit/apple-pay) · **Issues:** [`area:commerce`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Acommerce)

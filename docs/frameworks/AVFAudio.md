@@ -1,7 +1,7 @@
 # AVFAudio
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 58.1% of Apple's iOS API (843 of 1450, exact) · **Rows:** 10: 8 ✅ 2 ❌ · **iOS:** 14.5+
+**Symbols:** 58.1% of Apple's iOS API (843 of 1450, exact) · **Rows:** 11: 9 ✅ 2 ❌ · **iOS:** 14.5+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [AVFAudio](https://developer.apple.com/documentation/avfaudio) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)

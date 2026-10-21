@@ -1,7 +1,7 @@
 # CloudKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 79.4% of Apple's iOS API (1135 of 1429, exact) · **Rows:** 10: 8 ✅ 2 ❌ · **iOS:** 8.0+
+**Symbols:** 78.1% of Apple's iOS API (1115 of 1427, exact) · **Rows:** 11: 9 ✅ 2 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Data & persistence](../COVERAGE.md#data) · **Apple:** [CloudKit](https://developer.apple.com/documentation/cloudkit) · **Issues:** [`area:data`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Adata)
@@ -36,7 +36,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-294 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+312 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -161,6 +161,24 @@
 - [`var userIdentity: CKUserIdentity`](https://developer.apple.com/documentation/cloudkit/ckshare/blockedidentity/useridentity)
 - [`func blockRequesters([CKShare.AccessRequester])`](https://developer.apple.com/documentation/cloudkit/ckshare/blockrequesters(_:))
 - [`func denyRequesters([CKShare.AccessRequester])`](https://developer.apple.com/documentation/cloudkit/ckshare/denyrequesters(_:))
+- [`var containerIdentifier: String`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/containeridentifier)
+- [`var containerIdentifier: String`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/containeridentifier)
+- [`var hierarchicalRootRecordID: CKRecord.ID?`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/hierarchicalrootrecordid)
+- [`var hierarchicalRootRecordID: CKRecord.ID?`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/hierarchicalrootrecordid)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/init(coder:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/init(coder:))
+- [`var ownerIdentity: CKUserIdentity`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/owneridentity)
+- [`var ownerIdentity: CKUserIdentity`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/owneridentity)
+- [`var participantPermission: CKShare.ParticipantPermission`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/participantpermission)
+- [`var participantPermission: CKShare.ParticipantPermission`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/participantpermission)
+- [`var participantRole: CKShare.ParticipantRole`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/participantrole)
+- [`var participantRole: CKShare.ParticipantRole`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/participantrole)
+- [`var participantStatus: CKShare.ParticipantAcceptanceStatus`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/participantstatus)
+- [`var participantStatus: CKShare.ParticipantAcceptanceStatus`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/participantstatus)
+- [`var rootRecord: CKRecord?`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/rootrecord)
+- [`var rootRecord: CKRecord?`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/rootrecord)
+- [`var share: CKShare`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/share)
+- [`var share: CKShare`](https://developer.apple.com/documentation/cloudkit/ckshare/metadata/share)
 - [`func oneTimeURL(for: CKShare.Participant.ID) -> URL?`](https://developer.apple.com/documentation/cloudkit/ckshare/onetimeurl(for:))
 - [`var dateAddedToShare: Date?`](https://developer.apple.com/documentation/cloudkit/ckshare/participant/dateaddedtoshare)
 - [`var dateAddedToShare: Date?`](https://developer.apple.com/documentation/cloudkit/ckshare/participant/dateaddedtoshare)
@@ -322,18 +340,7 @@
 - [`var description: String`](https://developer.apple.com/documentation/cloudkit/cksyncengine-5sie5/sendchangesoptions/description)
 - [`var description: String`](https://developer.apple.com/documentation/cloudkit/cksyncengine-5sie5/syncreason/description)
 - [`var description: String`](https://developer.apple.com/documentation/cloudkit/cksyncengine-5sie5/syncreason/description)
-- [`var description: String`](https://developer.apple.com/documentation/cloudkit/cksyncengine-5sie5/syncreason/description)
-- [`var description: String`](https://developer.apple.com/documentation/cloudkit/cksyncengine-5sie5/syncreason/description)
-- [`var description: String`](https://developer.apple.com/documentation/cloudkit/cksyncengine-5sie5/syncreason/description)
-- [`var description: String`](https://developer.apple.com/documentation/cloudkit/cksyncengine-5sie5/syncreason/description)
-- [`var description: String`](https://developer.apple.com/documentation/cloudkit/cksyncengine-5sie5/syncreason/description)
-- [`var description: String`](https://developer.apple.com/documentation/cloudkit/cksyncengine-5sie5/syncreason/description)
-- [`class func lookupInfos(with: [CKRecord.ID]) -> [CKUserIdentity.LookupInfo]`](https://developer.apple.com/documentation/cloudkit/ckuseridentity/lookupinfo-swift.class/lookupinfos(with:))
-- [`class func lookupInfos(with: [CKRecord.ID]) -> [CKUserIdentity.LookupInfo]`](https://developer.apple.com/documentation/cloudkit/ckuseridentity/lookupinfo-swift.class/lookupinfos(with:))
-- [`class func lookupInfos(withEmails: [String]) -> [CKUserIdentity.LookupInfo]`](https://developer.apple.com/documentation/cloudkit/ckuseridentity/lookupinfo-swift.class/lookupinfos(withemails:))
-- [`class func lookupInfos(withEmails: [String]) -> [CKUserIdentity.LookupInfo]`](https://developer.apple.com/documentation/cloudkit/ckuseridentity/lookupinfo-swift.class/lookupinfos(withemails:))
-- [`class func lookupInfos(withPhoneNumbers: [String]) -> [CKUserIdentity.LookupInfo]`](https://developer.apple.com/documentation/cloudkit/ckuseridentity/lookupinfo-swift.class/lookupinfos(withphonenumbers:))
-- [`class func lookupInfos(withPhoneNumbers: [String]) -> [CKUserIdentity.LookupInfo]`](https://developer.apple.com/documentation/cloudkit/ckuseridentity/lookupinfo-swift.class/lookupinfos(withphonenumbers:))
+- … and 12 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

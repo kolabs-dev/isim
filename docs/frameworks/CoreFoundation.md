@@ -1,7 +1,7 @@
 # CoreFoundation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 28.8% of Apple's iOS API (720 of 2504, exact) · **Rows:** 12: 8 ✅ 3 🟡 1 ❌ · **iOS:** 2.0+
+**Symbols:** 29.2% of Apple's iOS API (730 of 2504, exact) · **Rows:** 13: 9 ✅ 3 🟡 1 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Foundation & CoreFoundation](../COVERAGE.md#foundation) · **Apple:** [CoreFoundation](https://developer.apple.com/documentation/corefoundation) · **Issues:** [`area:foundation`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Afoundation)
@@ -32,7 +32,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1784 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1774 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -336,7 +336,7 @@
 - [`func CFDataFind(CFData!, CFData!, CFRange, CFDataSearchFlags) -> CFRange`](https://developer.apple.com/documentation/corefoundation/cfdatafind(_:_:_:_:))
 - [`func CFDataIncreaseLength(CFMutableData!, CFIndex)`](https://developer.apple.com/documentation/corefoundation/cfdataincreaselength(_:_:))
 - [`func CFDataReplaceBytes(CFMutableData!, CFRange, UnsafePointer<UInt8>!, CFIndex)`](https://developer.apple.com/documentation/corefoundation/cfdatareplacebytes(_:_:_:_:))
-- … and 1484 more (`isim/data/api-coverage.json.gz`)
+- … and 1474 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

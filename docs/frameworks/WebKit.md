@@ -1,7 +1,7 @@
 # WebKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 35.3% of Apple's iOS API (548 of 1551, exact) · **Rows:** 10: 6 ✅ 4 ❌ · **iOS:** 16.0+
+**Symbols:** 38.6% of Apple's iOS API (598 of 1551, exact) · **Rows:** 14: 10 ✅ 4 ❌ · **iOS:** 16.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [WebKit](https://developer.apple.com/documentation/webkit) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)
@@ -32,7 +32,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1003 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+953 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -336,7 +336,7 @@
 - [`var jsHandleCreationEnabled: Bool`](https://developer.apple.com/documentation/webkit/wkcontentworld/configuration/jshandlecreationenabled)
 - [`var legacyBuiltinOverridesEnabled: Bool`](https://developer.apple.com/documentation/webkit/wkcontentworld/configuration/legacybuiltinoverridesenabled)
 - [`var nodeSnapshotCreationEnabled: Bool`](https://developer.apple.com/documentation/webkit/wkcontentworld/configuration/nodesnapshotcreationenabled)
-- … and 703 more (`isim/data/api-coverage.json.gz`)
+- … and 653 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

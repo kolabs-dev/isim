@@ -1,7 +1,7 @@
 # WidgetKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 55.5% of Apple's iOS API (151 of 272, exact) · **Rows:** 5: 1 ✅ 1 🟡 3 ❌ · **iOS:** 14.0+
+**Symbols:** 69.1% of Apple's iOS API (188 of 272, exact) · **Rows:** 9: 5 ✅ 1 🟡 3 ❌ · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [WidgetKit](https://developer.apple.com/documentation/widgetkit) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -27,24 +27,14 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-121 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+84 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
-- [`ActivityFamily`](https://developer.apple.com/documentation/widgetkit/activityfamily)
-- [`case medium`](https://developer.apple.com/documentation/widgetkit/activityfamily/medium)
-- [`case small`](https://developer.apple.com/documentation/widgetkit/activityfamily/small)
 - [`ActivityPreviewViewKind.DynamicIslandPreviewViewState`](https://developer.apple.com/documentation/widgetkit/activitypreviewviewkind/dynamicislandpreviewviewstate)
 - [`case compact`](https://developer.apple.com/documentation/widgetkit/activitypreviewviewkind/dynamicislandpreviewviewstate/compact)
 - [`case expanded`](https://developer.apple.com/documentation/widgetkit/activitypreviewviewkind/dynamicislandpreviewviewstate/expanded)
 - [`case minimal`](https://developer.apple.com/documentation/widgetkit/activitypreviewviewkind/dynamicislandpreviewviewstate/minimal)
-- [`AppIntentRecommendation`](https://developer.apple.com/documentation/widgetkit/appintentrecommendation)
-- [`init(intent: Intent, description: LocalizedStringKey)`](https://developer.apple.com/documentation/widgetkit/appintentrecommendation/init(intent:description:)-2p4dh)
-- [`init(intent: Intent, description: LocalizedStringResource)`](https://developer.apple.com/documentation/widgetkit/appintentrecommendation/init(intent:description:)-3j1cv)
-- [`init(intent: Intent, description: Text)`](https://developer.apple.com/documentation/widgetkit/appintentrecommendation/init(intent:description:)-65igj)
-- [`init(intent: Intent, description: some StringProtocol)`](https://developer.apple.com/documentation/widgetkit/appintentrecommendation/init(intent:description:)-7zn32)
-- [`func recommendations() -> [AppIntentRecommendation<Self.Intent>]`](https://developer.apple.com/documentation/widgetkit/appintenttimelineprovider/recommendations())
-- [`func recommendations() -> [AppIntentRecommendation<Self.Intent>]`](https://developer.apple.com/documentation/widgetkit/appintenttimelineprovider/recommendations()-5xfj5)
 - [`func relevance() async -> WidgetRelevance<Self.Intent>`](https://developer.apple.com/documentation/widgetkit/appintenttimelineprovider/relevance())
 - [`func relevance() async -> WidgetRelevance<Self.Intent>`](https://developer.apple.com/documentation/widgetkit/appintenttimelineprovider/relevance()-9vl5j)
 - [`func configurationIntent<Intent>(of: Intent.Type) -> Intent?`](https://developer.apple.com/documentation/widgetkit/controlinfo/configurationintent(of:))
@@ -72,22 +62,6 @@
 - [`static let `default`: DynamicIslandExpandedRegionVerticalPlacement`](https://developer.apple.com/documentation/widgetkit/dynamicislandexpandedregionverticalplacement/default)
 - [`static let compactLeading: DynamicIslandMode`](https://developer.apple.com/documentation/widgetkit/dynamicislandmode/compactleading)
 - [`static let compactTrailing: DynamicIslandMode`](https://developer.apple.com/documentation/widgetkit/dynamicislandmode/compacttrailing)
-- [`IntentConfiguration`](https://developer.apple.com/documentation/widgetkit/intentconfiguration)
-- [`init<Provider>(kind: String, intent: Intent.Type, provider: Provider, content: (Provider.Entry) -> Content)`](https://developer.apple.com/documentation/widgetkit/intentconfiguration/init(kind:intent:provider:content:))
-- [`IntentRecommendation`](https://developer.apple.com/documentation/widgetkit/intentrecommendation)
-- [`init(intent: T, description: LocalizedStringKey)`](https://developer.apple.com/documentation/widgetkit/intentrecommendation/init(intent:description:)-1zh33)
-- [`init(intent: T, description: Text)`](https://developer.apple.com/documentation/widgetkit/intentrecommendation/init(intent:description:)-4epo2)
-- [`init(intent: T, description: LocalizedStringResource)`](https://developer.apple.com/documentation/widgetkit/intentrecommendation/init(intent:description:)-6o8yy)
-- [`init<S>(intent: T, description: S)`](https://developer.apple.com/documentation/widgetkit/intentrecommendation/init(intent:description:)-6v7dj)
-- [`IntentTimelineProvider`](https://developer.apple.com/documentation/widgetkit/intenttimelineprovider)
-- [`IntentTimelineProvider.Context`](https://developer.apple.com/documentation/widgetkit/intenttimelineprovider/context)
-- [`Entry`](https://developer.apple.com/documentation/widgetkit/intenttimelineprovider/entry)
-- [`func getSnapshot(for: Self.Intent, in: Self.Context, completion: (Self.Entry) -> Void)`](https://developer.apple.com/documentation/widgetkit/intenttimelineprovider/getsnapshot(for:in:completion:))
-- [`func getTimeline(for: Self.Intent, in: Self.Context, completion: (Timeline<Self.Entry>) -> Void)`](https://developer.apple.com/documentation/widgetkit/intenttimelineprovider/gettimeline(for:in:completion:))
-- [`Intent`](https://developer.apple.com/documentation/widgetkit/intenttimelineprovider/intent)
-- [`func placeholder(in: Self.Context) -> Self.Entry`](https://developer.apple.com/documentation/widgetkit/intenttimelineprovider/placeholder(in:))
-- [`func recommendations() -> [IntentRecommendation<Self.Intent>]`](https://developer.apple.com/documentation/widgetkit/intenttimelineprovider/recommendations())
-- [`func recommendations() -> [IntentRecommendation<Self.Intent>]`](https://developer.apple.com/documentation/widgetkit/intenttimelineprovider/recommendations()-5qmcg)
 - [`func relevance() async -> WidgetRelevance<Self.Intent>`](https://developer.apple.com/documentation/widgetkit/intenttimelineprovider/relevance())
 - [`func relevance() async -> WidgetRelevance<Self.Intent>`](https://developer.apple.com/documentation/widgetkit/intenttimelineprovider/relevance()-4bbqo)
 - [`LevelOfDetail`](https://developer.apple.com/documentation/widgetkit/levelofdetail)
@@ -109,11 +83,6 @@
 - [`TimelineProviderContext.EnvironmentVariants`](https://developer.apple.com/documentation/widgetkit/timelineprovidercontext/environmentvariants-swift.struct)
 - [`subscript<T>(WritableKeyPath<EnvironmentValues, T>) -> [T]?`](https://developer.apple.com/documentation/widgetkit/timelineprovidercontext/environmentvariants-swift.struct/subscript(_:))
 - [`subscript<T>(dynamicMember _: WritableKeyPath<EnvironmentValues, T>) -> [T]?`](https://developer.apple.com/documentation/widgetkit/timelineprovidercontext/environmentvariants-swift.struct/subscript(dynamicmember:))
-- [`WidgetAccentedRenderingMode`](https://developer.apple.com/documentation/widgetkit/widgetaccentedrenderingmode)
-- [`static let accented: WidgetAccentedRenderingMode`](https://developer.apple.com/documentation/widgetkit/widgetaccentedrenderingmode/accented)
-- [`static let accentedDesaturated: WidgetAccentedRenderingMode`](https://developer.apple.com/documentation/widgetkit/widgetaccentedrenderingmode/accenteddesaturated)
-- [`static let desaturated: WidgetAccentedRenderingMode`](https://developer.apple.com/documentation/widgetkit/widgetaccentedrenderingmode/desaturated)
-- [`static let fullColor: WidgetAccentedRenderingMode`](https://developer.apple.com/documentation/widgetkit/widgetaccentedrenderingmode/fullcolor)
 - [`var currentPushInfo: WidgetPushInfo?`](https://developer.apple.com/documentation/widgetkit/widgetcenter/currentpushinfo)
 - [`func invalidateConfigurationRecommendations()`](https://developer.apple.com/documentation/widgetkit/widgetcenter/invalidateconfigurationrecommendations())
 - [`func invalidateRelevance(ofKind: String)`](https://developer.apple.com/documentation/widgetkit/widgetcenter/invalidaterelevance(ofkind:))
@@ -122,7 +91,6 @@
 - [`static let family: String`](https://developer.apple.com/documentation/widgetkit/widgetcenter/userinfokey/family)
 - [`static let kind: String`](https://developer.apple.com/documentation/widgetkit/widgetcenter/userinfokey/kind)
 - [`case systemExtraLargePortrait`](https://developer.apple.com/documentation/widgetkit/widgetfamily/systemextralargeportrait)
-- [`WidgetInfo`](https://developer.apple.com/documentation/widgetkit/widgetinfo)
 - [`let configuration: INIntent?`](https://developer.apple.com/documentation/widgetkit/widgetinfo/configuration)
 - [`let family: WidgetFamily`](https://developer.apple.com/documentation/widgetkit/widgetinfo/family)
 - [`var id: WidgetInfo`](https://developer.apple.com/documentation/widgetkit/widgetinfo/id)
@@ -138,11 +106,6 @@
 - [`WidgetMountingStyle`](https://developer.apple.com/documentation/widgetkit/widgetmountingstyle)
 - [`static let elevated: WidgetMountingStyle`](https://developer.apple.com/documentation/widgetkit/widgetmountingstyle/elevated)
 - [`static let recessed: WidgetMountingStyle`](https://developer.apple.com/documentation/widgetkit/widgetmountingstyle/recessed)
-- [`WidgetPushHandler`](https://developer.apple.com/documentation/widgetkit/widgetpushhandler)
-- [`init()`](https://developer.apple.com/documentation/widgetkit/widgetpushhandler/init())
-- [`func pushTokenDidChange(WidgetPushInfo, widgets: [WidgetInfo])`](https://developer.apple.com/documentation/widgetkit/widgetpushhandler/pushtokendidchange(_:widgets:))
-- [`WidgetPushInfo`](https://developer.apple.com/documentation/widgetkit/widgetpushinfo)
-- [`let token: Data`](https://developer.apple.com/documentation/widgetkit/widgetpushinfo/token)
 - [`WidgetRelevance`](https://developer.apple.com/documentation/widgetkit/widgetrelevance)
 - [`init([WidgetRelevanceAttribute<Configuration>])`](https://developer.apple.com/documentation/widgetkit/widgetrelevance/init(_:))
 - [`WidgetRelevanceAttribute`](https://developer.apple.com/documentation/widgetkit/widgetrelevanceattribute)

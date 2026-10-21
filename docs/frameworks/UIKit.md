@@ -1,7 +1,7 @@
 # UIKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 92.7% of Apple's iOS API (13716 of 14790, exact) · **Rows:** 322: 313 ✅ 7 🟡 2 ❌ · **iOS:** 2.0+
+**Symbols:** 92.8% of Apple's iOS API (13721 of 14793, exact) · **Rows:** 323: 314 ✅ 7 🟡 2 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [UIKit](../COVERAGE.md#uikit) · **Apple:** [UIKit](https://developer.apple.com/documentation/uikit) · **Issues:** [`area:uikit`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Auikit)
@@ -407,7 +407,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1074 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1072 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -558,8 +558,6 @@
 - [`static let bluetoothCentrals: UIApplication.LaunchOptionsKey`](https://developer.apple.com/documentation/uikit/uiapplication/launchoptionskey/bluetoothcentrals)
 - [`static let bluetoothPeripherals: UIApplication.LaunchOptionsKey`](https://developer.apple.com/documentation/uikit/uiapplication/launchoptionskey/bluetoothperipherals)
 - [`static let bluetoothPeripherals: UIApplication.LaunchOptionsKey`](https://developer.apple.com/documentation/uikit/uiapplication/launchoptionskey/bluetoothperipherals)
-- [`static let cloudKitShareMetadata: UIApplication.LaunchOptionsKey`](https://developer.apple.com/documentation/uikit/uiapplication/launchoptionskey/cloudkitsharemetadata)
-- [`static let cloudKitShareMetadata: UIApplication.LaunchOptionsKey`](https://developer.apple.com/documentation/uikit/uiapplication/launchoptionskey/cloudkitsharemetadata)
 - [`static let newsstandDownloads: UIApplication.LaunchOptionsKey`](https://developer.apple.com/documentation/uikit/uiapplication/launchoptionskey/newsstanddownloads)
 - [`static let newsstandDownloads: UIApplication.LaunchOptionsKey`](https://developer.apple.com/documentation/uikit/uiapplication/launchoptionskey/newsstanddownloads)
 - [`static let annotation: UIApplication.OpenURLOptionsKey`](https://developer.apple.com/documentation/uikit/uiapplication/openurloptionskey/annotation)
@@ -711,7 +709,9 @@
 - [`func preferredContentSizeDidChange(forChildContentContainer: any UIContentContainer)`](https://developer.apple.com/documentation/uikit/uicontentcontainer/preferredcontentsizedidchange(forchildcontentcontainer:))
 - [`func preferredContentSizeDidChange(forChildContentContainer: any UIContentContainer)`](https://developer.apple.com/documentation/uikit/uicontentcontainer/preferredcontentsizedidchange(forchildcontentcontainer:))
 - [`func preferredContentSizeDidChange(forChildContentContainer: any UIContentContainer)`](https://developer.apple.com/documentation/uikit/uicontentcontainer/preferredcontentsizedidchange(forchildcontentcontainer:))
-- … and 774 more (`isim/data/api-coverage.json.gz`)
+- [`func size(forChildContentContainer: any UIContentContainer, withParentContainerSize: CGSize) -> CGSize`](https://developer.apple.com/documentation/uikit/uicontentcontainer/size(forchildcontentcontainer:withparentcontainersize:))
+- [`func size(forChildContentContainer: any UIContentContainer, withParentContainerSize: CGSize) -> CGSize`](https://developer.apple.com/documentation/uikit/uicontentcontainer/size(forchildcontentcontainer:withparentcontainersize:))
+- … and 772 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->
