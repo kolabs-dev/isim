@@ -3,7 +3,7 @@
 //  HelloStoreTestingTests
 //
 //  StoreKit tests with SKTestSession (StoreKitTest): purchases without dialogs, Ask to Buy, interrupted purchases,
-//  subscriptions (renewal, expiration, auto-renew), refunds and the session's transaction list.
+//  subscriptions (renewal, expiration, auto-renew), refunds, the session's transaction list and simulated errors.
 //
 
 import Testing
@@ -88,5 +88,28 @@ import StoreKitTest
         session.clearTransactions()
         #expect(session.allTransactions().isEmpty)
         #expect(throws: (any Error).self) { try session.refundTransaction(identifier: 999) }
+    }
+
+    @Test func simulatedErrors() async throws {
+        try await session.setSimulatedError(.generic(.networkError(URLError(.notConnectedToInternet))), forAPI: .loadProducts)
+        await #expect(throws: StoreKitError.self) { _ = try await Product.products(for: [Store.fullGame]) }
+        #expect(await session.simulatedError(forAPI: .loadProducts) != nil)
+        try await session.setSimulatedError(nil, forAPI: .loadProducts)
+        let game = try await product(Store.fullGame)
+
+        try await session.setSimulatedError(.purchase(.productUnavailable), forAPI: .purchase)
+        await #expect(throws: Product.PurchaseError.self) { _ = try await game.purchase() }
+        try await session.setSimulatedError(nil, forAPI: .purchase)
+
+        try await session.setSimulatedError(.verification(.invalidSignature), forAPI: .verification)
+        guard case .success(.unverified(_, let e)) = try await game.purchase() else { Issue.record("verified"); return }
+        #expect(e == .invalidSignature)
+        try await session.setSimulatedError(nil, forAPI: .verification)
+
+        try await session.setSimulatedError(.generic(.unknown), forAPI: .appStoreSync)
+        await #expect(throws: StoreKitError.self) { try await AppStore.sync() }
+        session.resetToDefaultState()
+        #expect(await session.simulatedError(forAPI: .appStoreSync) == nil, "reset clears the simulated errors")
+        try await AppStore.sync()
     }
 }

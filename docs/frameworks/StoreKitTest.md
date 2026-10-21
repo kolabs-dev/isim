@@ -15,9 +15,9 @@
 - **Configuration files:** `SKTestSession(configurationFileNamed:)` looks in the test and app bundles, then in the
   project's folders: Xcode does not copy `.storekit` files into products, so `isim test` passes the project's root to
   the test process (`ISIM_SRCROOT`).
-- **Objective-C / C interface:** Swift only for now (Apple's `SKTestSession` is an Objective-C class).
+- **Objective-C / C interface:** `#import <StoreKitTest/StoreKitTest.h>`, `-framework StoreKitTest` ([#564](https://github.com/kolabs-dev/isim/issues/564)). `SKTestSession` and `SKTestTransaction` are the overlay's classes under Apple's names. `timeRate`, `failureError` and `state` are their C enums. Simulated errors are Swift-only, as in Apple's SDK.
 - **Versus Xcode:** the same session operations. Price increase consent is accepted without effect, because isim's
-  local store has no price increases. Simulated errors (`setSimulatedError(_:forAPI:)`) are not there yet.
+  local store has no price increases. Simulated errors make the StoreKit API throw them, as in Xcode.
 
 ## API
 
@@ -30,7 +30,8 @@
 | `SKTestTransaction` (`identifier`, `productIdentifier`, `state`, `purchaseDate`, `expirationDate`, `autoRenewingEnabled`, `hasPurchaseIssue`, `pendingAskToBuyConfirmation`, `refunded`, ...) | ✅ | ≤17 | the local store's transactions and waiting requests, oldest first; tested |
 | Price increase consent (`requestPriceIncreaseConsentForTransaction`, `consentToPriceIncreaseForTransaction`, `declinePriceIncreaseForTransaction`) | 🟡 | ≤17 | stub: accepted for existing transactions, without effect (no price increases in isim's local store) |
 | `failTransactionsEnabled`, `failureError` (deprecated in iOS 17) | 🟡 | ≤17 | stub: kept; purchases do not fail |
-| Simulated errors (`setSimulatedError(_:forAPI:)`, `simulatedError(forAPI:)`) | ❌ | 17.0 | not yet |
+| Simulated errors (`setSimulatedError(_:forAPI:)`, `simulatedError(forAPI:)`, `FailableStoreKitAPI` and its API structs: `.loadProducts`, `.purchase`, `.verification`, `.appStoreSync`, `.appTransaction`, `.subscriptionStatus`, `.refundRequest`, `.manageSubscriptions`, `.offerCodeRedeem`; `SKTestFailures` and `SKTestFailure`) | ✅ | 17.0 | adapted: while a failure is set, the StoreKit API throws its error (`StoreKitError`, `Product.PurchaseError`, `Transaction.RefundRequestError`). A verification failure makes purchases' and `Transaction.latest(for:)`'s results `.unverified` with the error. `resetToDefaultState()` clears them. Tested (HelloStoreTesting's `simulatedErrors`: loading products, a purchase, verification, `AppStore.sync`) |
+| Objective-C: `SKTestSession` (configuration, settings, transactions, Ask to Buy, interrupted purchases, subscriptions, refunds, `buyProductWithProductIdentifier:error:`), `SKTestTransaction`, `SKTestTimeRate`, `SKTestErrorDomain` | ✅ | ≤17 | the overlay's classes under Apple's selectors. Tested (StoreKitTestObjCTest: a session from Products.storekit, a purchase, a refund, SKTestErrorDomain errors, clearing) |
 
 ## Not yet in isim
 

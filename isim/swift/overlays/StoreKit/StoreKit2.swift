@@ -835,6 +835,7 @@ public struct Product: Identifiable, Hashable, Sendable {
 
     public static func products<C: Collection>(for identifiers: C) async throws -> [Product] where C.Element == String {
         _SKUpdates.start()
+        try _SKTesting.check("loadProducts")
         let wanted = Set(identifiers)
         return _SKConfig.load().items.filter { wanted.contains($0.id) }.map(Product.init)
     }
@@ -861,6 +862,7 @@ public struct Product: Identifiable, Hashable, Sendable {
 
     @MainActor func _purchase(options: Set<PurchaseOption>, api: String?) async throws -> PurchaseResult {
         _SKUpdates.start()
+        try _SKTesting.check("purchase")
         guard let item = _SKConfig.load().item(id) else { throw PurchaseError.productUnavailable }
         var quantity = 1, token: UUID?, promo: String?, winBack: String?, promoOption: PurchaseOption.Kind?
         var askToBuy = _SKTesting.askToBuy ?? _SKConfig.load().askToBuy
@@ -898,12 +900,12 @@ public struct Product: Identifiable, Hashable, Sendable {
         // already owned?
         if type == .nonConsumable, let owned = _SKLedger.shared.entitlements().first(where: { $0.productID == id }) {
             await _SKSheets.notice(title: "You’ve already purchased this. Would you like to get it again for free?", message: "[Environment: isim StoreKit testing]")
-            return .success(.verified(Transaction(owned)))
+            return .success(_SKTesting.verify(Transaction(owned)))
         }
         if let g = subscription?.subscriptionGroupID, let cur = _SKLedger.shared.entitlements().first(where: { $0.groupID == g }), cur.productID == id,
            _SKLedger.shared.read({ $0.subscriptions[g]?.willAutoRenew ?? true }) {
             await _SKSheets.notice(title: "You’re currently subscribed to this.", message: "\(displayName)\n[Environment: isim StoreKit testing]")
-            return .success(.verified(Transaction(cur)))
+            return .success(_SKTesting.verify(Transaction(cur)))
         }
         guard await _SKPurchaseSheet.confirm(self, quantity: quantity, offer: offer) else { return .userCancelled }
         if let nonce { _SKLedger.shared.mutate { d in d.usedOfferNonces = (d.usedOfferNonces ?? []) + [nonce] } }
@@ -922,12 +924,12 @@ public struct Product: Identifiable, Hashable, Sendable {
         if type == .autoRenewable {
             switch _SKLedger.shared.subscribe(item, offer: offer, token: token, api: api) {
             case .new(let t), .deferred(let t), .already(let t):
-                return .success(.verified(Transaction(t)))
+                return .success(_SKTesting.verify(Transaction(t)))
             }
         }
         let t = _SKLedger.shared.purchase(item, quantity: quantity, token: token, api: api)
         NSLog("isim StoreKit: purchased %@ (local testing, nothing charged)", id)
-        return .success(.verified(Transaction(t)))
+        return .success(_SKTesting.verify(Transaction(t)))
     }
 
     // MARK: subscription info
@@ -947,6 +949,7 @@ public struct Product: Identifiable, Hashable, Sendable {
         public var status: [Status] { get async throws { try await SubscriptionInfo.status(for: subscriptionGroupID) } }
         public static func status(for groupID: String) async throws -> [Status] {
             _SKUpdates.start()
+            try _SKTesting.check("subscriptionStatus")
             _SKLedger.shared.tick()
             return _SKLedger.shared.read { _SKLedger.statuses($0, group: groupID, now: Date()) }
         }
@@ -1239,11 +1242,12 @@ public struct Transaction: Identifiable, Hashable, Sendable {
     }
     public static func latest(for productID: String) async -> VerificationResult<Transaction>? {
         _SKUpdates.start(); _SKLedger.shared.tick()
-        return _SKLedger.shared.read { $0.transactions.filter { $0.productID == productID }.max { $0.id < $1.id } }.map { .verified(Transaction($0)) }
+        return _SKLedger.shared.read { $0.transactions.filter { $0.productID == productID }.max { $0.id < $1.id } }.map { _SKTesting.verify(Transaction($0)) }
     }
 
     /// The refund request sheet. In isim's local testing a submitted request is approved at once.
     @MainActor public static func beginRefundRequest(for transactionID: UInt64, in scene: UIWindowScene) async throws -> RefundRequestStatus {
+        try _SKTesting.check("refundRequest")
         guard let t = _SKLedger.shared.transaction(transactionID) else { throw RefundRequestError.failed }
         if t.revocationDate != nil { throw RefundRequestError.duplicateRequest }
         return await _SKSheets.refund(Transaction(t)) ? .success : .userCancelled
@@ -1307,6 +1311,7 @@ public enum AppStore {
     /// Like Xcode's local testing, there is no sign-in prompt.
     public static func sync() async throws {
         _SKUpdates.start()
+        try _SKTesting.check("appStoreSync")
         let ledger = _SKLedger.shared
         ledger.tick()
         let (unfinished, groups) = ledger.read { d in (d.transactions.filter { !$0.finished }, Set(d.transactions.compactMap { $0.groupID }).sorted()) }
@@ -1319,9 +1324,9 @@ public enum AppStore {
     public static var canMakePayments: Bool { true }
     /// the device's identifier for the app's vendor, as on iOS (UIDevice.identifierForVendor)
     public static var deviceVerificationID: UUID? { _SKDevice.verificationID }
-    @MainActor public static func showManageSubscriptions(in scene: UIWindowScene) async throws { await _SKSheets.manageSubscriptions(group: nil) }
-    @MainActor public static func showManageSubscriptions(in scene: UIWindowScene, subscriptionGroupID: String) async throws { await _SKSheets.manageSubscriptions(group: subscriptionGroupID) }
-    @MainActor public static func presentOfferCodeRedeemSheet(in scene: UIWindowScene) async throws { await _SKSheets.redeemCode() }
+    @MainActor public static func showManageSubscriptions(in scene: UIWindowScene) async throws { try _SKTesting.check("manageSubscriptions"); await _SKSheets.manageSubscriptions(group: nil) }
+    @MainActor public static func showManageSubscriptions(in scene: UIWindowScene, subscriptionGroupID: String) async throws { try _SKTesting.check("manageSubscriptions"); await _SKSheets.manageSubscriptions(group: subscriptionGroupID) }
+    @MainActor public static func presentOfferCodeRedeemSheet(in scene: UIWindowScene) async throws { try _SKTesting.check("offerCodeRedeem"); await _SKSheets.redeemCode() }
     @MainActor public static func requestReview(in scene: UIWindowScene) { _ISIMReviewPrompt.request() }
 }
 
@@ -1359,9 +1364,9 @@ public struct AppTransaction: Sendable {
                          "deviceVerification": deviceVerification.base64EncodedString(),
                          "deviceVerificationNonce": deviceVerificationNonce.uuidString.lowercased()])
     }
-    public static var shared: VerificationResult<AppTransaction> { get async throws { make() } }
+    public static var shared: VerificationResult<AppTransaction> { get async throws { try _SKTesting.check("appTransaction"); return make() } }
     /// signs it again (a new signed date), as refreshing does on iOS
-    public static func refresh() async throws -> VerificationResult<AppTransaction> { signed = Date(); return make() }
+    public static func refresh() async throws -> VerificationResult<AppTransaction> { try _SKTesting.check("appTransaction"); signed = Date(); return make() }
     nonisolated(unsafe) static var signed = Date()
     static func make() -> VerificationResult<AppTransaction> {
         let (first, version) = _SKLedger.shared.read { ($0.firstLaunch ?? Date().timeIntervalSince1970, $0.firstAppVersion ?? "1") }

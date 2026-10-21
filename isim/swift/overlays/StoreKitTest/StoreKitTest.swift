@@ -2,14 +2,15 @@
 // file, transactions to inspect and edit, Ask to Buy, interrupted purchases, renewals, expirations, refunds and
 // billing retry — over isim's local store (the same ledger `isim storekit` edits). Self-authored, iOS API names.
 // Adapted: changes take effect in the app's process at once, as with Xcode's StoreKit testing; price increase
-// consent is accepted and has no effect (isim's local store has no price increases); simulated errors are not there.
+// consent is accepted and has no effect (isim's local store has no price increases). Simulated errors
+// (setSimulatedError(_:forAPI:)) make the StoreKit API throw them, as Xcode's StoreKit testing does.
 import Foundation
 @_exported import StoreKit
 
 public let SKTestErrorDomain = "SKTestErrorDomain"
 
 /// A local StoreKit testing session (Xcode's StoreKit Testing in Xcode, for tests).
-open class SKTestSession: NSObject {
+@objc(SKTestSession) @objcMembers open class SKTestSession: NSObject {
     public enum TimeRate: Int, Sendable {
         case realTime = 0, oneSecondIsOneDay = 1, oneRenewalEveryTwoSeconds = 2, oneRenewalEveryTenSeconds = 3, oneRenewalEveryFifteenSeconds = 4
         case oneRenewalEveryThirtySeconds = 5, oneRenewalEveryMinute = 6, monthlyRenewalEveryThirtySeconds = 7, monthlyRenewalEveryMinute = 8
@@ -56,6 +57,7 @@ open class SKTestSession: NSObject {
     open func resetToDefaultState() {
         _SKTesting.clear()
         disableDialogs = false; askToBuyEnabled = false; interruptedPurchasesEnabled = false
+        for key in _SKTestFailureStore.clear() { _SKTesting.setSimulatedError(nil, forAPI: key) }
         shouldEnterBillingRetryOnRenewal = false
         try? _SKTesting.load(url.path)
     }
@@ -107,12 +109,24 @@ open class SKTestSession: NSObject {
     // purchases outside the app
     open func refundTransaction(identifier: Int) throws { try wrap { try _SKTesting.refund(identifier) } }
     /// buys as the customer would outside the app (no sheet); the transaction also arrives in Transaction.updates
-    @MainActor open func buyProduct(identifier: Product.ID, options: Set<Product.PurchaseOption> = []) async throws -> Transaction {
+    @MainActor @nonobjc open func buyProduct(identifier: Product.ID, options: Set<Product.PurchaseOption> = []) async throws -> Transaction {
         try await _SKTesting.buy(identifier, options: options)
     }
     @available(*, deprecated, message: "Use buyProduct(identifier:options:)")
     open func buyProduct(productIdentifier: String) throws {
         Task { @MainActor in _ = try? await _SKTesting.buy(productIdentifier, options: []) }
+    }
+
+    // simulated errors (iOS 17): the StoreKit API fails with the failure while it is set
+    @available(iOS 17.0, *)
+    @nonobjc open func setSimulatedError<API: FailableStoreKitAPI>(_ error: API.Failure?, forAPI api: API) async throws {
+        let key = API._isimName
+        _SKTestFailureStore.set(error, key)
+        _SKTesting.setSimulatedError(error.map(SKTestFailures._error), forAPI: key)
+    }
+    @available(iOS 17.0, *)
+    @nonobjc open func simulatedError<API: FailableStoreKitAPI>(forAPI api: API) async -> API.Failure? {
+        _SKTestFailureStore.get(API._isimName) as? API.Failure
     }
 
     func existing(_ id: Int) throws {
@@ -132,7 +146,7 @@ open class SKTestSession: NSObject {
 }
 
 /// A transaction of the test session, as Xcode's Transaction Manager shows it.
-open class SKTestTransaction: NSObject {
+@objc(SKTestTransaction) @objcMembers open class SKTestTransaction: NSObject {
     public let identifier: Int
     public let originalTransactionIdentifier: Int
     public let productIdentifier: String
@@ -153,4 +167,133 @@ open class SKTestTransaction: NSObject {
         autoRenewingEnabled = r.willAutoRenew; hasPurchaseIssue = r.interrupted || r.billingIssue
         pendingAskToBuyConfirmation = r.pendingAskToBuy; isUpgraded = r.isUpgraded
     }
+}
+
+// MARK: - simulated errors (iOS 17)
+
+/// A failure a StoreKit API can be made to throw (SKTestFailures' enums).
+@available(iOS 17.0, *)
+public protocol SKTestFailure: Error, Sendable {}
+
+/// A StoreKit API that SKTestSession can make fail (`.loadProducts`, `.purchase`, …).
+@available(iOS 17.0, *)
+public protocol FailableStoreKitAPI: Sendable {
+    associatedtype Failure: SKTestFailure
+}
+@available(iOS 17.0, *)
+extension FailableStoreKitAPI {
+    /// the StoreKit overlay's name for the API (isim)
+    static var _isimName: String {
+        switch self {
+        case is StoreKitLoadProductsAPI.Type: return "loadProducts"
+        case is StoreKitPurchaseAPI.Type: return "purchase"
+        case is StoreKitVerificationAPI.Type: return "verification"
+        case is StoreKitAppStoreSyncAPI.Type: return "appStoreSync"
+        case is StoreKitAppTransactionAPI.Type: return "appTransaction"
+        case is StoreKitSubscriptionStatusAPI.Type: return "subscriptionStatus"
+        case is StoreKitRefundRequestAPI.Type: return "refundRequest"
+        case is StoreKitManageSubscriptionsAPI.Type: return "manageSubscriptions"
+        case is StoreKitOfferCodeRedeemAPI.Type: return "offerCodeRedeem"
+        default: return String(describing: self)
+        }
+    }
+}
+@available(iOS 17.0, *) extension FailableStoreKitAPI where Self == StoreKitLoadProductsAPI { public static var loadProducts: StoreKitLoadProductsAPI { .init() } }
+@available(iOS 17.0, *) extension FailableStoreKitAPI where Self == StoreKitPurchaseAPI { public static var purchase: StoreKitPurchaseAPI { .init() } }
+@available(iOS 17.0, *) extension FailableStoreKitAPI where Self == StoreKitVerificationAPI { public static var verification: StoreKitVerificationAPI { .init() } }
+@available(iOS 17.0, *) extension FailableStoreKitAPI where Self == StoreKitAppStoreSyncAPI { public static var appStoreSync: StoreKitAppStoreSyncAPI { .init() } }
+@available(iOS 17.0, *) extension FailableStoreKitAPI where Self == StoreKitAppTransactionAPI { public static var appTransaction: StoreKitAppTransactionAPI { .init() } }
+@available(iOS 17.0, *) extension FailableStoreKitAPI where Self == StoreKitSubscriptionStatusAPI {
+    public static var subscriptionStatus: StoreKitSubscriptionStatusAPI { .init() }
+}
+@available(iOS 17.0, *) extension FailableStoreKitAPI where Self == StoreKitRefundRequestAPI { public static var refundRequest: StoreKitRefundRequestAPI { .init() } }
+@available(iOS 17.0, *) extension FailableStoreKitAPI where Self == StoreKitManageSubscriptionsAPI {
+    public static var manageSubscriptions: StoreKitManageSubscriptionsAPI { .init() }
+}
+@available(iOS 17.0, *) extension FailableStoreKitAPI where Self == StoreKitOfferCodeRedeemAPI { public static var offerCodeRedeem: StoreKitOfferCodeRedeemAPI { .init() } }
+
+@available(iOS 17.0, *) public struct StoreKitLoadProductsAPI: FailableStoreKitAPI { public typealias Failure = SKTestFailures.LoadProducts; public init() {} }
+@available(iOS 17.0, *) public struct StoreKitPurchaseAPI: FailableStoreKitAPI { public typealias Failure = SKTestFailures.Purchase; public init() {} }
+@available(iOS 17.0, *) public struct StoreKitVerificationAPI: FailableStoreKitAPI { public typealias Failure = SKTestFailures.Verification; public init() {} }
+@available(iOS 17.0, *) public struct StoreKitAppStoreSyncAPI: FailableStoreKitAPI { public typealias Failure = SKTestFailures.AppStoreSync; public init() {} }
+@available(iOS 17.0, *) public struct StoreKitAppTransactionAPI: FailableStoreKitAPI { public typealias Failure = SKTestFailures.AppTransaction; public init() {} }
+@available(iOS 17.0, *) public struct StoreKitSubscriptionStatusAPI: FailableStoreKitAPI { public typealias Failure = SKTestFailures.SubscriptionStatus; public init() {} }
+@available(iOS 17.0, *) public struct StoreKitRefundRequestAPI: FailableStoreKitAPI { public typealias Failure = SKTestFailures.RefundRequest; public init() {} }
+@available(iOS 17.0, *) public struct StoreKitManageSubscriptionsAPI: FailableStoreKitAPI { public typealias Failure = SKTestFailures.ManageSubscriptions; public init() {} }
+@available(iOS 17.0, *) public struct StoreKitOfferCodeRedeemAPI: FailableStoreKitAPI { public typealias Failure = SKTestFailures.OfferCodeRedeem; public init() {} }
+
+/// The failures each failable StoreKit API can be made to throw.
+@available(iOS 17.0, *)
+public enum SKTestFailures: Sendable {
+    public enum LoadProducts: SKTestFailure { case generic(StoreKitError) }
+    public enum Purchase: SKTestFailure { case generic(StoreKitError), purchase(Product.PurchaseError) }
+    /// (VerificationResult<Any>'s error, as on iOS: its errors are values, though Any is not Sendable)
+    public enum Verification: SKTestFailure, @unchecked Sendable { case verification(VerificationResult<Any>.VerificationError) }
+    public enum AppStoreSync: SKTestFailure { case generic(StoreKitError) }
+    public enum AppTransaction: SKTestFailure { case generic(StoreKitError) }
+    public enum SubscriptionStatus: SKTestFailure { case generic(StoreKitError) }
+    public enum RefundRequest: SKTestFailure { case generic(StoreKitError), refundRequest(Transaction.RefundRequestError) }
+    public enum ManageSubscriptions: SKTestFailure { case generic(StoreKitError) }
+    public enum OfferCodeRedeem: SKTestFailure { case generic(StoreKitError) }
+
+    /// the error the StoreKit API throws (or, for verification, reports) for a failure
+    static func _error(_ f: any SKTestFailure) -> Error {
+        switch f {
+        case let f as LoadProducts: if case .generic(let e) = f { return e }
+        case let f as Purchase: switch f { case .generic(let e): return e; case .purchase(let e): return e }
+        case let f as Verification:
+            if case .verification(let e) = f { return _transactionVerificationError(e) }
+        case let f as AppStoreSync: if case .generic(let e) = f { return e }
+        case let f as AppTransaction: if case .generic(let e) = f { return e }
+        case let f as SubscriptionStatus: if case .generic(let e) = f { return e }
+        case let f as RefundRequest: switch f { case .generic(let e): return e; case .refundRequest(let e): return e }
+        case let f as ManageSubscriptions: if case .generic(let e) = f { return e }
+        case let f as OfferCodeRedeem: if case .generic(let e) = f { return e }
+        default: break
+        }
+        return f
+    }
+}
+
+/// the same verification error for transactions (VerificationError is nested in the generic VerificationResult)
+@available(iOS 17.0, *)
+func _transactionVerificationError(_ e: VerificationResult<Any>.VerificationError) -> VerificationResult<Transaction>.VerificationError {
+    switch e {
+    case .revokedCertificate: return .revokedCertificate
+    case .invalidCertificateChain: return .invalidCertificateChain
+    case .invalidDeviceVerification: return .invalidDeviceVerification
+    case .invalidEncoding: return .invalidEncoding
+    case .invalidSignature: return .invalidSignature
+    case .missingRequiredProperties: return .missingRequiredProperties
+    @unknown default: return .invalidSignature
+    }
+}
+
+/// the failures set on the session, by API (what simulatedError(forAPI:) returns)
+enum _SKTestFailureStore {
+    nonisolated(unsafe) static var failures: [String: Any] = [:]
+    static let lock = NSLock()
+    static func set(_ f: Any?, _ key: String) { lock.lock(); failures[key] = f; lock.unlock() }
+    static func get(_ key: String) -> Any? { lock.lock(); defer { lock.unlock() }; return failures[key] }
+    /// clears them; returns their keys
+    static func clear() -> [String] { lock.lock(); defer { lock.unlock() }; let k = Array(failures.keys); failures = [:]; return k }
+}
+
+// MARK: - Objective-C (sdk-src/Frameworks/StoreKitTest, issue #564): the Swift-only enums as raw values
+
+extension SKTestSession {
+    /// SKTestTimeRate's raw value
+    @objc(timeRate) var _objcTimeRate: Int {
+        get { timeRate.rawValue }
+        set { timeRate = TimeRate(rawValue: newValue) ?? .realTime }
+    }
+    /// SKErrorCode's raw value
+    @objc(failureError) var _objcFailureError: Int {
+        get { failureError.rawValue }
+        set { failureError = SKError.Code(rawValue: newValue) ?? .unknown }
+    }
+}
+extension SKTestTransaction {
+    /// SKPaymentTransactionState's raw value
+    @objc(state) var _objcState: Int { state.rawValue }
 }
