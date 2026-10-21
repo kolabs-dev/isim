@@ -287,6 +287,40 @@ public struct Map: View {
     let selection: Binding<AnyHashable?>?
     var legacyUser = false
     var legacyTracking: Binding<MapUserTrackingMode>?
+    /// feature selection (selection: Binding<MapFeature?> or Binding<MapSelection<V>?>)
+    var onFeature: ((MapFeature?) -> Void)?
+    var currentFeature: (() -> MapFeature?)?
+
+    public init(position: Binding<MapCameraPosition>, bounds: MapCameraBounds? = nil, interactionModes: MapInteractionModes = .all,
+                selection: Binding<MapFeature?>, scope: Namespace.ID? = nil, @MapContentBuilder content: () -> _MapContentList) {
+        camera = .binding(position); items = content()._items; self.bounds = bounds; modes = interactionModes; self.selection = nil
+        onFeature = { selection.wrappedValue = $0 }; currentFeature = { selection.wrappedValue }
+    }
+    public init(initialPosition: MapCameraPosition = .automatic, bounds: MapCameraBounds? = nil, interactionModes: MapInteractionModes = .all,
+                selection: Binding<MapFeature?>, scope: Namespace.ID? = nil, @MapContentBuilder content: () -> _MapContentList) {
+        camera = .initial(initialPosition); items = content()._items; self.bounds = bounds; modes = interactionModes; self.selection = nil
+        onFeature = { selection.wrappedValue = $0 }; currentFeature = { selection.wrappedValue }
+    }
+    @available(iOS 18.0, *)
+    public init<V: Hashable>(position: Binding<MapCameraPosition>, bounds: MapCameraBounds? = nil, interactionModes: MapInteractionModes = .all,
+                             selection: Binding<MapSelection<V>?>, scope: Namespace.ID? = nil, @MapContentBuilder content: () -> _MapContentList) {
+        camera = .binding(position); items = content()._items; self.bounds = bounds; modes = interactionModes
+        (self.selection, onFeature, currentFeature) = Map._mapSelection(selection)
+    }
+    @available(iOS 18.0, *)
+    public init<V: Hashable>(initialPosition: MapCameraPosition = .automatic, bounds: MapCameraBounds? = nil, interactionModes: MapInteractionModes = .all,
+                             selection: Binding<MapSelection<V>?>, scope: Namespace.ID? = nil, @MapContentBuilder content: () -> _MapContentList) {
+        camera = .initial(initialPosition); items = content()._items; self.bounds = bounds; modes = interactionModes
+        (self.selection, onFeature, currentFeature) = Map._mapSelection(selection)
+    }
+    /// a MapSelection binding as a tag selection plus a feature selection
+    @available(iOS 18.0, *)
+    static func _mapSelection<V: Hashable>(_ b: Binding<MapSelection<V>?>) -> (Binding<AnyHashable?>, (MapFeature?) -> Void, () -> MapFeature?) {
+        let tags = Binding<AnyHashable?>(get: { b.wrappedValue?.value.map(AnyHashable.init) },
+                                         set: { v in if let v = v?.base as? V { b.wrappedValue = MapSelection(v) } else if b.wrappedValue?.value != nil { b.wrappedValue = nil } })
+        return (tags, { f in if let f { b.wrappedValue = MapSelection(f) } else if b.wrappedValue?.feature != nil { b.wrappedValue = nil } },
+                { b.wrappedValue?.feature })
+    }
 
     public init(position: Binding<MapCameraPosition>, bounds: MapCameraBounds? = nil, interactionModes: MapInteractionModes = .all, scope: Namespace.ID? = nil,
                 @MapContentBuilder content: () -> _MapContentList) {
@@ -372,8 +406,25 @@ struct _MapRepresentable: UIViewRepresentable {
         var lastSerial = -1
         var applying = false
         var overlayStyles: [ObjectIdentifier: _MapStyledOverlay] = [:]
+        var features = _MapFeatureEnv()
         init(_ p: _MapRepresentable) { parent = p }
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            if let f = annotation as? MKMapFeatureAnnotation, let item = features.content?(MapFeature(f)).first {
+                // the app's content for the selected feature: its Marker or Annotation stands at the feature
+                switch item {
+                case .marker(_, _, let tint, let glyph, let image, _):
+                    let v = MKMarkerAnnotationView(annotation: f, reuseIdentifier: nil)
+                    v.markerTintColor = tint ?? f.iconStyle?.backgroundColor
+                    v.glyphText = glyph
+                    if let i = image { v.glyphImage = UIImage(systemName: i) ?? UIImage(named: i) } else if glyph == nil { v.glyphImage = f.iconStyle?.image }
+                    return v
+                case .annotation(_, _, let anchor, let view, _):
+                    let v = _MapHostingAnnotationView(annotation: f, reuseIdentifier: nil)
+                    v.setContent(view, anchor: anchor)
+                    return v
+                default: break
+                }
+            }
             if let m = annotation as? _MapMarkerAnnotation {
                 let v = MKMarkerAnnotationView(annotation: m, reuseIdentifier: nil)
                 v.markerTintColor = m.tint
@@ -429,10 +480,23 @@ struct _MapRepresentable: UIViewRepresentable {
             }
         }
         func mapView(_ mapView: MKMapView, didSelect annotation: MKAnnotation) {
+            if let a = annotation as? MKMapFeatureAnnotation {
+                let f = MapFeature(a)
+                guard let on = parent.map.onFeature, features.disabled?(f) != true else {
+                    DispatchQueue.main.async { mapView.deselectAnnotation(a, animated: false) }
+                    return
+                }
+                DispatchQueue.main.async { on(f) }
+                return
+            }
             let tag = (annotation as? _MapMarkerAnnotation)?.tagValue ?? (annotation as? _MapHostAnnotation)?.tagValue
             if let s = parent.map.selection, let tag { DispatchQueue.main.async { s.wrappedValue = tag } }
         }
         func mapView(_ mapView: MKMapView, didDeselect annotation: MKAnnotation) {
+            if annotation is MKMapFeatureAnnotation {
+                if let on = parent.map.onFeature { DispatchQueue.main.async { if self.parent.map.currentFeature?() != nil { on(nil) } } }
+                return
+            }
             if let s = parent.map.selection { DispatchQueue.main.async { if s.wrappedValue != nil { s.wrappedValue = nil } } }
         }
     }
@@ -448,6 +512,10 @@ struct _MapRepresentable: UIViewRepresentable {
         let c = context.coordinator
         c.parent = self
         c.envActions = context.environment._mapCameraChange
+        c.features = context.environment._mapFeature
+        context.environment._mapProxy?.map = m
+        let selectable: MKMapFeatureOptions = map.onFeature == nil ? [] : [.pointsOfInterest, .territories, .physicalFeatures]
+        if m.selectableMapFeatures != selectable { m.selectableMapFeatures = selectable }
         m.mapType = context.environment._mapStyle?.type ?? .standard
         m.isScrollEnabled = map.modes.contains(.pan); m.isZoomEnabled = map.modes.contains(.zoom)
         m.isRotateEnabled = map.modes.contains(.rotate); m.isPitchEnabled = map.modes.contains(.pitch)
@@ -518,8 +586,11 @@ struct _MapRepresentable: UIViewRepresentable {
             if want != curTag {
                 if let want, let a = m.annotations.first(where: { (($0 as? _MapMarkerAnnotation)?.tagValue ?? ($0 as? _MapHostAnnotation)?.tagValue) == want }) {
                     m.selectAnnotation(a, animated: false)
-                } else if want == nil, let cur { m.deselectAnnotation(cur, animated: false) }
+                } else if want == nil, let cur, !(cur is MKMapFeatureAnnotation) { m.deselectAnnotation(cur, animated: false) }
             }
+        }
+        if let get = map.currentFeature, get() == nil, let cur = m.selectedAnnotations.first as? MKMapFeatureAnnotation {
+            m.deselectAnnotation(cur, animated: false)
         }
     }
     func apply(_ p: MapCameraPosition, to m: MKMapView, coordinator c: Coordinator, items: [_MapItem]) {

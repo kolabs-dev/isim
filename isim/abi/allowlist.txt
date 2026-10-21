@@ -644,3 +644,12 @@ usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation17AVAudioPlayerNodeC8n
 # that read the triggers of an extended gamepad must be rebuilt (a minor release, with the AVFoundation break of #287).
 usr/lib/swift/libswiftGameController.dylib _$s14GameController17GCExtendedGamepadC11leftTriggerAA23GCControllerButtonInputCvg
 usr/lib/swift/libswiftGameController.dylib _$s14GameController17GCExtendedGamepadC12rightTriggerAA23GCControllerButtonInputCvg
+# 0.26 (issue #317): MKMapView.selectableMapFeatures was typed Int (iOS types it MKMapFeatureOptions). Its getter and
+# setter dispatch thunks are still exported under the 0.25 names (MKMapView.swift); the modify coroutine and the
+# method/property descriptors (subclass overrides, key paths) cannot be declared next to the option-set property.
+# Rebuild apps built with 0.25 or earlier that override the property or use its key path (it did nothing before 0.26).
+usr/lib/swift/libswiftMapKit.dylib _$s6MapKit9MKMapViewC010selectableA8FeaturesSivMTj
+usr/lib/swift/libswiftMapKit.dylib _$s6MapKit9MKMapViewC010selectableA8FeaturesSivMTq
+usr/lib/swift/libswiftMapKit.dylib _$s6MapKit9MKMapViewC010selectableA8FeaturesSivgTq
+usr/lib/swift/libswiftMapKit.dylib _$s6MapKit9MKMapViewC010selectableA8FeaturesSivpMV
+usr/lib/swift/libswiftMapKit.dylib _$s6MapKit9MKMapViewC010selectableA8FeaturesSivsTq

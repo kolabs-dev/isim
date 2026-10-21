@@ -7,6 +7,8 @@ import math
 import os
 import re
 
+import pytest
+
 from isimtest import count_px
 from PIL import Image
 
@@ -336,3 +338,48 @@ def test_geocoding_addresses_geojson(launch):
     app.wait_view(r"text=MKMarkerAnnotationView Visitor Center")                # the GeoJSON point, named from its properties
     app.wait_view(r"id=map text=.* annotations 1 overlays 2 ")                    # the polygon and the line
     app.screenshot("geojson")
+
+
+def test_map_features(launch, tmp_path):
+    """MKMapView.selectableMapFeatures: a tap on a landmark's label selects an MKMapFeatureAnnotation (a point of
+    interest; its MKMapItemRequest finds the place), a tap elsewhere deselects and removes it, a city's label is a
+    territory; MKUserTrackingBarButtonItem cycles the tracking mode."""
+    app = maps(launch, tmp_path, "features", args=["-features"])
+    m = app.wait_log(r"HelloMaps: features 3 point (\d+) (\d+)")
+    x, y = (int(v) for v in m.groups())
+    app.tap(x, y)
+    app.wait_log(r"HelloMaps: feature Apple Park poi category MKPOICategoryLandmark icon yes")
+    app.wait_view(r"text=MKMarkerAnnotationView Apple Park")
+    app.wait_log(r"HelloMaps: feature item Apple Park at 37\.33\d+,-122\.0\d+ error none")
+    app.screenshot("feature")
+    app.tap(200, 650)
+    app.wait_log(r"HelloMaps: deselected Apple Park")
+    app.wait_log(r"HelloMaps: feature annotations left 0")
+    app.tap_id("user-tracking-bar-button")
+    app.wait_log(r"HelloMaps: tracking mode 1")
+    app.tap_id("user-tracking-bar-button")
+    app.wait_log(r"HelloMaps: tracking mode 2")
+    app.tap_id("user-tracking-bar-button")
+    app.wait_log(r"HelloMaps: tracking mode 0")
+    assert app.quit() == 0
+
+
+@pytest.mark.os_matrix
+def test_swiftui_map_features(launch, tmp_path):
+    """SwiftUI: a tap on a landmark's label selects it as a MapFeature (MapSelection from iOS 18, Binding<MapFeature?>
+    on iOS 17) shown with mapFeatureSelectionContent; a tagged marker is a MapSelection value; MapReader's MapProxy
+    converts a coordinate to a point and back; LookAroundPreview without a scene says so."""
+    app = maps(launch, tmp_path, "swiftui-features", args=["-swiftui-features"])
+    app.wait_view(r"text=Look Around isn't available")
+    app.wait_tap_id("where")
+    m = app.wait_log(r"HelloMaps: reader point (\d+) (\d+) back 37\.334\d,-122\.009\d camera 37\.3349,-122\.0090 \d+")
+    x, y = (int(v) for v in m.groups())
+    app.tap(x, y)
+    app.wait_log(r"HelloMaps: swiftui (selection|feature) (feature )?Apple Park poi")
+    app.wait_view(r"UILabel .* text=feature Apple Park poi$")
+    app.wait_view(r"text=★ Apple Park")                               # the feature's selection content
+    app.screenshot("swiftui-feature")
+    app.tap(30, 300)                                                  # empty map: deselects
+    app.wait_log(r"HelloMaps: swiftui (selection|feature) nil")
+    app.wait_view(r"text=★ Apple Park", gone=True)
+    assert app.quit() == 0
