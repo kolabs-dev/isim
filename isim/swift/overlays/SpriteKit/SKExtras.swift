@@ -7,22 +7,22 @@ import isim_host
 // MARK: - Video
 
 /// Shows an AVPlayer's video. The node's size defaults to the video's size once the asset has loaded.
-open class SKVideoNode: SKNode {
+@objc(SKVideoNode) open class SKVideoNode: SKNode {
     let avPlayer: AVPlayer
-    open var size: CGSize = .zero
-    open var anchorPoint = CGPoint(x: 0.5, y: 0.5)
+    @objc open var size: CGSize = .zero
+    @objc open var anchorPoint = CGPoint(x: 0.5, y: 0.5)
 
-    public init(avPlayer player: AVPlayer) { avPlayer = player; super.init() }
+    @objc(initWithAVPlayer:) public init(avPlayer player: AVPlayer) { avPlayer = player; super.init() }
     /// a movie file in the main bundle
-    public convenience init(fileNamed videoFile: String) {
+    @objc public convenience init(fileNamed videoFile: String) {
         let url = Bundle.main.url(forResource: videoFile, withExtension: nil) ?? URL(fileURLWithPath: videoFile)
         self.init(url: url)
     }
-    public convenience init(url: URL) { self.init(avPlayer: AVPlayer(url: url)) }
-    public required init?(coder: NSCoder) { avPlayer = AVPlayer(); super.init(coder: coder) }
+    @objc(initWithURL:) public convenience init(url: URL) { self.init(avPlayer: AVPlayer(url: url)) }
+    @objc public required init?(coder: NSCoder) { avPlayer = AVPlayer(); super.init(coder: coder) }
 
-    open func play() { avPlayer.play() }
-    open func pause() { avPlayer.pause() }
+    @objc open func play() { avPlayer.play() }
+    @objc open func pause() { avPlayer.pause() }
 
     func resolveSize() {
         if size == .zero, let s = avPlayer.currentItem?.presentationSize, s.width > 0, s.height > 0 { size = s }
@@ -49,12 +49,12 @@ open class SKVideoNode: SKNode {
 
 /// A node rotated in 3D (x, y and z rotations). Its children are drawn with the rotation projected orthographically
 /// onto the scene plane (a rotation around x squashes them vertically, around y horizontally).
-open class SKTransformNode: SKNode {
-    open var xRotation: CGFloat = 0
-    open var yRotation: CGFloat = 0
+@objc(SKTransformNode) open class SKTransformNode: SKNode {
+    @objc open var xRotation: CGFloat = 0
+    @objc open var yRotation: CGFloat = 0
 
-    public override init() { super.init() }
-    public required init?(coder: NSCoder) { super.init(coder: coder) }
+    @objc public override init() { super.init() }
+    @objc public required init?(coder: NSCoder) { super.init(coder: coder) }
 
     /// (x, y, z) rotations in radians; applied z first, then y, then x
     open func eulerAngles() -> vector_float3 { vector_float3(Float(xRotation), Float(yRotation), Float(zRotation)) }
@@ -97,19 +97,19 @@ open class SKTransformNode: SKNode {
 
 // MARK: - Warp geometry
 
-open class SKWarpGeometry: NSObject, NSCopying {
-    public override init() { super.init() }
-    open func copy(with zone: NSZone? = nil) -> Any { self }
+@objc(SKWarpGeometry) open class SKWarpGeometry: NSObject, NSCopying {
+    @objc public override init() { super.init() }
+    @objc open func copy(with zone: NSZone? = nil) -> Any { self }
 }
 
 /// A grid of (columns + 1) x (rows + 1) vertices, row by row from the bottom left, in unit coordinates of the
 /// node: each source position (a point of the texture) is drawn at its destination position.
-open class SKWarpGeometryGrid: SKWarpGeometry {
-    open private(set) var numberOfColumns: Int
-    open private(set) var numberOfRows: Int
+@objc(SKWarpGeometryGrid) open class SKWarpGeometryGrid: SKWarpGeometry {
+    @objc open private(set) var numberOfColumns: Int
+    @objc open private(set) var numberOfRows: Int
     var src: [vector_float2]
     var dst: [vector_float2]
-    open var vertexCount: Int { (numberOfColumns + 1) * (numberOfRows + 1) }
+    @objc open var vertexCount: Int { (numberOfColumns + 1) * (numberOfRows + 1) }
 
     static func regular(_ cols: Int, _ rows: Int) -> [vector_float2] {
         var out: [vector_float2] = []
@@ -127,7 +127,7 @@ open class SKWarpGeometryGrid: SKWarpGeometry {
         }
         super.init()
     }
-    open class func grid() -> SKWarpGeometryGrid { SKWarpGeometryGrid(columns: 1, rows: 1) }
+    @objc open class func grid() -> SKWarpGeometryGrid { SKWarpGeometryGrid(columns: 1, rows: 1) }
     open func sourcePosition(at index: Int) -> vector_float2 { src[index] }
     open func destPosition(at index: Int) -> vector_float2 { dst[index] }
     open func replacingBySourcePositions(positions: [vector_float2]) -> Self {
@@ -143,7 +143,7 @@ open class SKWarpGeometryGrid: SKWarpGeometry {
         SKWarpGeometryGrid(columns: to.numberOfColumns, rows: to.numberOfRows, sourcePositions: to.src,
                            destinationPositions: zip(dst, to.dst).map { $0 + ($1 - $0) * f })
     }
-    open override var description: String { "<SKWarpGeometryGrid \(numberOfColumns)x\(numberOfRows)>" }
+    @objc open override var description: String { "<SKWarpGeometryGrid \(numberOfColumns)x\(numberOfRows)>" }
 }
 
 public protocol SKWarpable: NSObjectProtocol {
@@ -154,7 +154,7 @@ extension SKSpriteNode: SKWarpable {}
 
 extension SKAction {
     /// the node's current warp (or a regular grid of the same shape) to `warp`; nil if `warp` is not a grid
-    public class func warp(to warp: SKWarpGeometry, duration d: TimeInterval) -> SKAction? {
+    @objc public class func warp(to warp: SKWarpGeometry, duration d: TimeInterval) -> SKAction? {
         guard let target = warp as? SKWarpGeometryGrid else { return nil }
         return timed(d) { n in
             guard let w = n as? SKSpriteNode else { return { _ in } }
@@ -163,11 +163,11 @@ extension SKAction {
             return { f in w.warpGeometry = f >= 1 ? target : start.mixed(to: target, Float(f)) }
         }
     }
-    public class func animate(withWarps warps: [SKWarpGeometry], times: [NSNumber]) -> SKAction? {
+    @objc public class func animate(withWarps warps: [SKWarpGeometry], times: [NSNumber]) -> SKAction? {
         animate(withWarps: warps, times: times, restore: false)
     }
     /// interpolates through the warps, reaching warps[i] at times[i] seconds; `restore` puts the original warp back
-    public class func animate(withWarps warps: [SKWarpGeometry], times: [NSNumber], restore: Bool) -> SKAction? {
+    @objc public class func animate(withWarps warps: [SKWarpGeometry], times: [NSNumber], restore: Bool) -> SKAction? {
         let grids = warps.compactMap { $0 as? SKWarpGeometryGrid }
         let ts = times.map(\.doubleValue)
         guard !grids.isEmpty, grids.count == warps.count, ts.count == grids.count,
@@ -297,16 +297,16 @@ func _skUploadRGBA(_ handle: Int32, _ bytes: UnsafeRawBufferPointer, _ w: Int, _
 
 extension SKTexture {
     /// RGBA pixels (8 bits per channel, straight alpha), the first row at the bottom
-    public convenience init(data pixelData: Data, size: CGSize) { self.init(data: pixelData, size: size, flipped: false) }
+    @objc public convenience init(data pixelData: Data, size: CGSize) { self.init(data: pixelData, size: size, flipped: false) }
     /// flipped: the first row is the top of the image
-    public convenience init(data pixelData: Data, size: CGSize, flipped: Bool) {
+    @objc public convenience init(data pixelData: Data, size: CGSize, flipped: Bool) {
         let w = max(1, Int(size.width)), h = max(1, Int(size.height))
         let handle = isim_image_create_bgra(Int32(w), Int32(h))
         self.init(handle: handle, pixels: CGRect(x: 0, y: 0, width: w, height: h), scale: 1, owner: nil)
         pixelData.withUnsafeBytes { _skUploadRGBA(handle, $0, w, h, rowBytes: w * 4, bottomUp: !flipped) }
     }
     /// rowLength: pixels per row in the data (0: the width); alignment: row alignment in bytes
-    public convenience init(data pixelData: Data, size: CGSize, rowLength: UInt32, alignment: UInt32) {
+    @objc public convenience init(data pixelData: Data, size: CGSize, rowLength: UInt32, alignment: UInt32) {
         let w = max(1, Int(size.width)), h = max(1, Int(size.height))
         let handle = isim_image_create_bgra(Int32(w), Int32(h))
         self.init(handle: handle, pixels: CGRect(x: 0, y: 0, width: w, height: h), scale: 1, owner: nil)
@@ -317,19 +317,19 @@ extension SKTexture {
 }
 
 /// A texture whose pixels the app changes (RGBA, 8 bits per channel, straight alpha, first row at the bottom).
-open class SKMutableTexture: SKTexture {
+@objc(SKMutableTexture) open class SKMutableTexture: SKTexture {
     let width: Int, height: Int
     var rgba: [UInt8]
 
-    public convenience init(size: CGSize) { self.init(size: size, pixelFormat: 0x5247_4241 /* 'RGBA' */) }
-    public init(size: CGSize, pixelFormat format: Int32) {
+    @objc public convenience init(size: CGSize) { self.init(size: size, pixelFormat: 0x5247_4241 /* 'RGBA' */) }
+    @objc public init(size: CGSize, pixelFormat format: Int32) {
         width = max(1, Int(size.width)); height = max(1, Int(size.height))
         rgba = [UInt8](repeating: 0, count: width * height * 4)
         let handle = isim_image_create_bgra(Int32(width), Int32(height))
         super.init(handle: handle, pixels: CGRect(x: 0, y: 0, width: width, height: height), scale: 1, owner: nil)
     }
     /// The block gets the pixel buffer and its length in bytes; the texture shows the new pixels afterwards.
-    open func modifyPixelData(_ block: @escaping (UnsafeMutableRawPointer?, Int) -> Void) {
+    @objc(modifyPixelDataWithBlock:) open func modifyPixelData(_ block: @escaping (UnsafeMutableRawPointer?, Int) -> Void) {
         rgba.withUnsafeMutableBytes { block($0.baseAddress, $0.count) }
         let (h, w, hh) = (handle, width, height)
         rgba.withUnsafeBytes { _skUploadRGBA(h, $0, w, hh, rowBytes: w * 4, bottomUp: true) }

@@ -10,6 +10,17 @@
 
 - **Adapted:** isim's own Swift engine (`isim/swift/overlays/SpriteKit`), drawn with cairo on the CPU.
 - Physics is isim's own solver; shaders go through Core Image's interpreter.
+- **Objective-C:** `#import <SpriteKit/SpriteKit.h>`, `-framework SpriteKit` (`isim/sdk-src/Frameworks/SpriteKit`,
+  [#618](https://github.com/kolabs-dev/isim/issues/618)).
+  - The headers sit over the overlay's classes, which are `@objc(SK…)` with Apple's selectors.
+  - Their members are marked `@objc` one by one, not with `@objcMembers`: an app's Swift subclasses would inherit
+    `@objcMembers`, and their own methods could then clash with SpriteKit's selectors.
+  - Enums and option sets have internal entry points (`swift/overlays/SpriteKit/ObjC.swift`). Apple's class factories
+    whose Swift forms are initializers live in `frameworks/SpriteKit/SpriteKit.m`.
+  - Objective-C `SKPhysicsContactDelegate` and `SKSceneDelegate` delegates are held through forwarding boxes.
+  - The frame loop calls an Objective-C scene's overrides (`update:`, `didMoveToView:`, …).
+  - The runtime gives Objective-C subclasses of the Swift classes (an `SKScene` or `SKSpriteNode` subclass) their
+    Swift metadata.
 
 ## API
 
@@ -62,6 +73,7 @@
 | `SKView.texture(from:)`, `texture(from:crop:)` | ✅ | ≤17 | renders the node tree offscreen at the screen's scale (pixels and crop checked) |
 | `SKVideoNode` (`init(avPlayer:)`, `init(fileNamed:)`, `init(url:)`, `play`, `pause`, `size`, `anchorPoint`) | ✅ | ≤17 | draws isim AVPlayer's current frame (host ffmpeg decodes); size defaults to the video size; red→green clip checked by pixels |
 | `SKTransformNode` (`xRotation`/`yRotation`/`zRotation`, euler angles, `quaternion`, `rotationMatrix`) | ✅ | ≤17 | R = Rx·Ry·Rz, children projected orthographically (no perspective); width halving at 60° checked by pixels |
+| Objective-C: `SKView` (with `SKViewDelegate`), `SKScene` (with `SKSceneDelegate`), `SKNode` and its subclasses (sprite, label, shape, emitter, camera, crop, effect, light, audio, video, reference, field, transform, tile map), `SKAction`, `SKTexture` / `SKMutableTexture`, `SKTextureAtlas`, `SKShader`, `SKUniform`, `SKAttribute` / `SKAttributeValue`, `SKWarpGeometryGrid`, `SKTransition`, `SKPhysicsBody` / `World` / `Contact`, the joints, `SKPhysicsContactDelegate`, `SKConstraint`, `SKRange`, `SKReachConstraints`, `SKRegion`, `SKKeyframeSequence`, `SKTileSet` / `Group` / `GroupRule` / `Definition`, `UITouch (SKNodeTouches)` | 🟡 | ≤17 | adapted: the Swift classes under Apple's Objective-C names and selectors; Objective-C subclasses of them (scenes, nodes) work, with their overrides called by the frame loop; delegates through forwarding boxes. `SKViewDelegate` is declared but not consulted (every frame renders). Tested (SpriteKitObjCTest: an `SKScene` subclass and its delegate, an `SKSpriteNode` subclass taking touches, textures from data, labels, shapes, actions, physics contacts, a constraint, a transition) |
 | `SK3DNode`, `SKRenderer` | ❌ | ≤17 | need SceneKit and Metal, which isim does not have |
 | Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `SKNodeFocusBehavior` (1 type; with its members under "Not yet in isim") |
 

@@ -18,6 +18,13 @@ func tileGroup(_ rules: [(SKTileAdjacencyMask, String, UIColor)]) -> SKTileGroup
     })
 }
 
+// A subclass of an SDK class from another module reaches Objective-C as a class stub: the @objc members of its
+// extensions (put in __objc_catlist2) must still be attached, and its own Swift methods (constraints() below, a getter
+// of SKNode in Objective-C) must stay Swift, as on iOS.
+extension NodesScene {
+    @objc func objcPing() {}
+}
+
 final class NodesScene: SKScene {
     /// runs f after t seconds of scene time (the simulation's clock, which lags the wall clock when frames are slow)
     func later(_ t: TimeInterval, _ f: @escaping () -> Void) { run(.sequence([.wait(forDuration: t), .run(f)])) }
@@ -30,6 +37,7 @@ final class NodesScene: SKScene {
         view.showsNodeCount = true; view.showsDrawCount = true; view.showsQuadCount = true; view.showsFPS = true
         pending = 4
         inverseKinematics(); constraints(); tileMaps(view); referenceNodes()
+        log("sk3 nodes objc extension \(responds(to: #selector(objcPing))) \(NodesScene.instancesRespond(to: #selector(objcPing)))")
     }
 
     /// a two-segment arm: shoulder (root) -> upper -> lower -> hand, each segment `len` long along +x

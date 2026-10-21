@@ -7,22 +7,22 @@ import Foundation
 
 extension SKAction {
     /// The action of that name in the app's action files (Actions.sks first, then the bundle's other .sks files).
-    public convenience init?(named name: String) {
+    @objc public convenience init?(named name: String) {
         guard let a = _SKActionFile.action(named: name, url: nil) else { return nil }
         self.init(_copying: a)
     }
     /// The named action, sped up or slowed down to last `duration`.
-    public convenience init?(named name: String, duration sec: TimeInterval) {
+    @objc public convenience init?(named name: String, duration sec: TimeInterval) {
         guard let a = _SKActionFile.action(named: name, url: nil) else { return nil }
         self.init(_copying: a)
         _retime(sec)
     }
     /// The named action from an action file at a URL.
-    public convenience init?(named name: String, from url: URL) {
+    @objc public convenience init?(named name: String, from url: URL) {
         guard let a = _SKActionFile.action(named: name, url: url) else { return nil }
         self.init(_copying: a)
     }
-    public convenience init?(named name: String, from url: URL, duration sec: TimeInterval) {
+    @objc public convenience init?(named name: String, from url: URL, duration sec: TimeInterval) {
         guard let a = _SKActionFile.action(named: name, url: url) else { return nil }
         self.init(_copying: a)
         _retime(sec)

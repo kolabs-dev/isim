@@ -172,22 +172,22 @@ extension SKTexture {
 
 extension SKTexture {
     /// random colors (or gray levels), smoother as smoothness goes from 0 to 1
-    public convenience init(noiseWithSmoothness smoothness: CGFloat, size: CGSize, grayscale: Bool) {
+    @objc public convenience init(noiseWithSmoothness smoothness: CGFloat, size: CGSize, grayscale: Bool) {
         let p = SKTexture._noise(smoothness, size, channels: grayscale ? 1 : 3, vectors: false)
         let hd = isim_image_create_bgra(Int32(p.w), Int32(p.h))
         p.px.withUnsafeBufferPointer { isim_image_update_bgra(hd, $0.baseAddress, Int32(p.w), Int32(p.h)) }
         self.init(handle: hd, pixels: CGRect(x: 0, y: 0, width: p.w, height: p.h), scale: 1, owner: nil)
     }
     /// random unit vectors (a normal map), smoother as smoothness goes from 0 to 1
-    public convenience init(vectorNoiseWithSmoothness smoothness: CGFloat, size: CGSize) {
+    @objc public convenience init(vectorNoiseWithSmoothness smoothness: CGFloat, size: CGSize) {
         let p = SKTexture._noise(smoothness, size, channels: 3, vectors: true)
         let hd = isim_image_create_bgra(Int32(p.w), Int32(p.h))
         p.px.withUnsafeBufferPointer { isim_image_update_bgra(hd, $0.baseAddress, Int32(p.w), Int32(p.h)) }
         self.init(handle: hd, pixels: CGRect(x: 0, y: 0, width: p.w, height: p.h), scale: 1, owner: nil)
     }
     /// a normal map treating the texture's brightness as height
-    public func generatingNormalMap() -> Self { generatingNormalMap(withSmoothness: 0, contrast: 1) }
-    public func generatingNormalMap(withSmoothness smoothness: CGFloat, contrast: CGFloat) -> Self {
+    @objc(textureByGeneratingNormalMap) public func generatingNormalMap() -> Self { generatingNormalMap(withSmoothness: 0, contrast: 1) }
+    @objc(textureByGeneratingNormalMapWithSmoothness:contrast:) public func generatingNormalMap(withSmoothness smoothness: CGFloat, contrast: CGFloat) -> Self {
         guard let p = _normalMap(smoothness: smoothness, contrast: contrast) else { return self }
         let hd = isim_image_create_bgra(Int32(p.w), Int32(p.h))
         p.px.withUnsafeBufferPointer { isim_image_update_bgra(hd, $0.baseAddress, Int32(p.w), Int32(p.h)) }

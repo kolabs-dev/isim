@@ -752,6 +752,13 @@ OBJC_NAMES["CloudKit"] = {**{c: c for c in """CKAcceptSharesOperation CKAllowedS
                          "CKFetchRecordZoneChangesOperation.ZoneConfiguration": "CKFetchRecordZoneChangesConfiguration",
                          "CKShare.Participant": "CKShareParticipant", "CKUserIdentity.LookupInfo": "CKUserIdentityLookupInfo",
                          "CKSubscription.NotificationInfo": "CKNotificationInfo"}
+# issue #618: SpriteKit from Objective-C
+OBJC_NAMES["SpriteKit"] = {c: c for c in """SKAction SKAttribute SKAttributeValue SKAudioNode SKCameraNode SKConstraint SKCropNode SKEffectNode SKEmitterNode SKFieldNode
+    SKKeyframeSequence SKLabelNode SKLightNode SKMutableTexture SKNode SKPhysicsBody SKPhysicsContact SKPhysicsJoint
+    SKPhysicsJointFixed SKPhysicsJointLimit SKPhysicsJointPin SKPhysicsJointSliding SKPhysicsJointSpring SKPhysicsWorld SKRange
+    SKReachConstraints SKReferenceNode SKRegion SKScene SKShader SKShapeNode SKSpriteNode SKTexture SKTextureAtlas SKTileDefinition
+    SKTileGroup SKTileGroupRule SKTileMapNode SKTileSet SKTransformNode SKTransition SKUniform SKVideoNode SKView SKWarpGeometry
+    SKWarpGeometryGrid""".split()}
 OBJC_NAMES["MessageUI"] = {c: c for c in ("MFMailComposeViewController", "MFMessageComposeViewController")}
 OBJC_NAMES["CoreBluetooth"] = {c: c for c in """CBUUID CBAttribute CBService CBMutableService CBCharacteristic CBMutableCharacteristic
     CBDescriptor CBMutableDescriptor CBPeer CBCentral CBATTRequest CBL2CAPChannel CBPeripheral CBManager CBCentralManager CBPeripheralManager""".split()}

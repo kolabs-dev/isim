@@ -2,20 +2,22 @@
 // -framework ARKit -framework SceneKit. SceneKit: the scene graph, node transforms (SCNVector3 / SCNMatrix4 and simd),
 // the matrix functions, NSValue's additions and SCNView's render loop calling an Objective-C delegate. ARKit: the
 // configurations (unsupported, as in the Simulator), anchors and raycast queries with simd values, a session whose run
-// fails through its Objective-C delegate, an ARSCNView whose delegate gets the session's failure too, and the coaching
+// fails through its Objective-C delegate, an ARSCNView and an ARSKView whose delegates get their sessions' failures too, and the coaching
 // overlay. Results go to the log ("ARSceneObjC: ...").
 #import <UIKit/UIKit.h>
 #import <SceneKit/SceneKit.h>
 #import <ARKit/ARKit.h>
+#import <SpriteKit/SpriteKit.h>
 #include <math.h>
 
 static void say(NSString *s) { NSLog(@"ARSceneObjC: %@", s); }
 static BOOL near(float a, float b) { return fabsf(a - b) < 1e-4f; }
 
-@interface TestViewController : UIViewController <SCNSceneRendererDelegate, ARSessionDelegate, ARSCNViewDelegate>
+@interface TestViewController : UIViewController <SCNSceneRendererDelegate, ARSessionDelegate, ARSCNViewDelegate, ARSKViewDelegate>
 @property (nonatomic, strong) SCNView *scnView;
 @property (nonatomic, strong) ARSession *session;
 @property (nonatomic, strong) ARSCNView *arView;
+@property (nonatomic, strong) ARSKView *skView;
 @property (nonatomic) int frames;
 @end
 
@@ -108,11 +110,20 @@ static BOOL near(float a, float b) { return fabsf(a - b) < 1e-4f; }
     [self.arView addSubview:coach];
     say([NSString stringWithFormat:@"ar view delegate %d session %d frame %@ coaching goal %ld", self.arView.delegate == self, self.arView.session != nil,
          self.session.currentFrame ? @"yes" : @"nil", (long)coach.goal]);
+    // ARSKView (issue #618): an SKView subclass presenting a scene, with an Objective-C ARSKViewDelegate
+    self.skView = [[ARSKView alloc] initWithFrame:CGRectMake(200, 400, 200, 150)];
+    self.skView.delegate = self;
+    [self.view addSubview:self.skView];
+    [self.skView presentScene:[SKScene sceneWithSize:CGSizeMake(200, 150)]];
+    [self.skView.session runWithConfiguration:[[ARWorldTrackingConfiguration alloc] init]];
+    say([NSString stringWithFormat:@"sk view delegate %d is SKView %d scene %d", self.skView.delegate == self,
+         [self.skView isKindOfClass:[SKView class]], self.skView.scene != nil]);
 }
 
 - (void)session:(ARSession *)session didFailWithError:(NSError *)error {
     BOOL view = session == self.arView.session;
-    say([NSString stringWithFormat:@"%@ failed domain %@ code %ld unsupported %d", view ? @"view session" : @"session", error.domain, (long)error.code,
+    if (session == self.skView.session) view = NO;
+    say([NSString stringWithFormat:@"%@ failed domain %@ code %ld unsupported %d", session == self.skView.session ? @"sk view session" : view ? @"view session" : @"session", error.domain, (long)error.code,
          [error.domain isEqualToString:ARErrorDomain] && error.code == ARErrorCodeUnsupportedConfiguration]);
 }
 

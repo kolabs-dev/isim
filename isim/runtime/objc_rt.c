@@ -673,6 +673,76 @@ void objc_rt_map_image(const struct objc_image *img) {
     pthread_mutex_unlock(&rt_lock);
 }
 
+/* ================= Objective-C subclasses of Swift classes ================= */
+/* An Objective-C class whose superclass is a Swift class (an Objective-C game's SKScene subclass, a binary SDK's
+ * subclass of a class isim implements in Swift) needs Swift class metadata: the Swift code it inherits dispatches its
+ * open members through the class's vtable, which follows the Objective-C part of a Swift class object, and Swift
+ * allocates and casts through the metadata's fields. clang emits a plain 40-byte Objective-C class, so when the image
+ * is ready (Swift's metadata initializers can run) each such class gets a copy of its superclass's metadata, with the
+ * Objective-C part, the superclass and the instance size its own, and the image's class references, the class table
+ * and its subclasses move to it. Swift code calling an open member on such an object reaches the inherited (Swift)
+ * implementation; Objective-C overrides are reached through Objective-C dispatch (messages, UIKit's callbacks, and the
+ * hooks Swift frameworks call by message, such as SpriteKit's scene callbacks). Apple's SDK forbids these subclasses
+ * (objc_subclassing_restricted); isim's frameworks are Objective-C ones on Apple's, so it allows them. */
+#define SWIFT_CLASS_FIELD(c, off, type) (*(type *)((uint8_t *)(c) + (off)))
+static int is_swift_class(Class c) { return c && !is_class_stub(c) && (c->data & 3); }
+static struct { Class from, to; } *subclass_moves;
+static size_t nmoves, capmoves;
+static Class moved(Class c) {
+    for (size_t i = 0; i < nmoves; i++) if (subclass_moves[i].from == c) return subclass_moves[i].to;
+    return c;
+}
+static int has_swift_ancestor(Class c) {
+    for (Class s = c ? c->superclass : NULL; s; s = s->superclass) if (is_swift_class(moved(s))) return 1;
+    return 0;
+}
+static Class swift_subclass(Class c) {
+    Class sup = moved(c->superclass);
+    if (is_swift_class(c) || !is_swift_class(sup)) return c;
+    swift_initialize(sup);                               /* the superclass's real size and vtable */
+    c->superclass = sup;
+    slide_ivars(c);
+    uint32_t size = SWIFT_CLASS_FIELD(sup, 56, uint32_t), ap = SWIFT_CLASS_FIELD(sup, 60, uint32_t);
+    if (size < 80 || ap >= size || ap > 64) {
+        fprintf(stderr, "isim objc: %s: superclass %s has no Swift class metadata (size %u, address point %u)\n", cls_name(c), cls_name(sup), size, ap);
+        return c;
+    }
+    uint8_t *blob = malloc(size);
+    memcpy(blob, (uint8_t *)sup - ap, size);
+    Class n = (Class)(blob + ap);
+    n->isa = c->isa; n->superclass = sup; n->cache = c->cache; n->rt = c->rt;
+    n->data = c->data | (sup->data & 3);
+    SWIFT_CLASS_FIELD(n, 48, uint32_t) = ro_of(c)->instance_size;      /* instanceSize */
+    if (n->rt) { n->rt->cls = n; n->rt->nonmeta = n; }
+    if (c->isa->rt) c->isa->rt->nonmeta = n;
+    const char *name = class_name_of(c);
+    pthread_mutex_lock(&rt_lock);
+    if (nmoves == capmoves) { capmoves = capmoves ? capmoves * 2 : 16; subclass_moves = realloc(subclass_moves, capmoves * sizeof *subclass_moves); }
+    subclass_moves[nmoves].from = c; subclass_moves[nmoves++].to = n;
+    if (name) *strmap_slot(&classes, name, 1) = n;
+    cache_flush();
+    pthread_mutex_unlock(&rt_lock);
+    if (isim_verbose) fprintf(stderr, "isim objc: %s: Swift class metadata from %s (%u bytes, instance size %u)\n", cls_name(n), cls_name(sup), size, ro_of(n)->instance_size);
+    return n;
+}
+static Class swift_subclass_chain(Class c) {
+    Class s = c->superclass;
+    if (s && !is_swift_class(moved(s)) && has_swift_ancestor(s)) c->superclass = swift_subclass_chain(moved(s));   /* superclasses first */
+    return moved(c) != c ? moved(c) : swift_subclass(c);
+}
+static void swift_subclasses_of_image(const struct objc_image *img) {
+    uint64_t n;
+    Class *cl = img->find_section(img, "__objc_classlist", &n);
+    int any = 0;
+    for (uint64_t i = 0; i < n / 8; i++) if (!is_swift_class(cl[i]) && has_swift_ancestor(cl[i])) { swift_subclass_chain(cl[i]); any = 1; }
+    if (!any && !nmoves) return;
+    static const char *const refsects[] = { "__objc_classrefs", "__objc_superrefs" };
+    for (int k = 0; k < 2; k++) {
+        Class *refs = img->find_section(img, refsects[k], &n);
+        for (uint64_t i = 0; i < n / 8; i++) refs[i] = moved(refs[i]);
+    }
+}
+
 void objc_rt_load_image(const struct objc_image *img) {
     uint64_t n;
     static const char *const refsects[] = { "__objc_classrefs", "__objc_superrefs" };
@@ -680,21 +750,28 @@ void objc_rt_load_image(const struct objc_image *img) {
         Class *refs = img->find_section(img, refsects[k], &n);
         for (uint64_t i = 0; i < n / 8; i++) if (is_class_stub(refs[i])) refs[i] = resolve_stub_unlocked(refs[i]);
     }
-    struct category_t **cats = img->find_section(img, "__objc_catlist", &n);
+    swift_subclasses_of_image(img);
     int attached = 0;
-    for (uint64_t i = 0; i < n / 8; i++) {
-        if (!is_class_stub(cats[i]->cls)) continue;
-        Class c = resolve_stub_unlocked(cats[i]->cls);
-        pthread_mutex_lock(&rt_lock);
-        attach_category_to(cats[i], c);
-        pthread_mutex_unlock(&rt_lock);
-        attached = 1;
+    /* categories on Swift class stubs: in __objc_catlist, and in __objc_catlist2, where Swift puts its own extensions of
+     * a class it emits as a stub (one with a resilient superclass from another module) */
+    static const char *const catsects[] = { "__objc_catlist", "__objc_catlist2" };
+    for (int k = 0; k < 2; k++) {
+        struct category_t **cats = img->find_section(img, catsects[k], &n);
+        for (uint64_t i = 0; i < n / 8; i++) {
+            if (!is_class_stub(cats[i]->cls)) continue;
+            Class c = resolve_stub_unlocked(cats[i]->cls);
+            pthread_mutex_lock(&rt_lock);
+            attach_category_to(cats[i], c);
+            pthread_mutex_unlock(&rt_lock);
+            attached = 1;
+        }
     }
     if (attached) { pthread_mutex_lock(&rt_lock); cache_flush(); pthread_mutex_unlock(&rt_lock); }
     Class *nl = img->find_section(img, "__objc_nlclslist", &n);
     for (uint64_t i = 0; i < n / 8; i++) {
-        IMP load = find_in_list(ro_of(nl[i]->isa)->base_methods, s_load);
-        if (load) { ensure_initialized(nl[i]->superclass); ((void (*)(Class, SEL))load)(nl[i], s_load); }
+        Class k = moved(nl[i]);
+        IMP load = find_in_list(ro_of(k->isa)->base_methods, s_load);
+        if (load) { ensure_initialized(k->superclass); ((void (*)(Class, SEL))load)(k, s_load); }
     }
     struct category_t **nc = img->find_section(img, "__objc_nlcatlist", &n);
     for (uint64_t i = 0; i < n / 8; i++) {

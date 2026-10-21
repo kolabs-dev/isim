@@ -52,6 +52,7 @@ NODES = [
     "sk3 nodes tiles grid center top corner after center - drawn true",
     "sk3 nodes tiles iso true size 160x80 pointy true flat true hex inner edge inner edge",
     "sk3 nodes reference name true url ref children 2",
+    "sk3 nodes objc extension true true",
 ]
 
 
