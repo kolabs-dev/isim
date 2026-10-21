@@ -12,6 +12,8 @@ GET /slowbytes/<n>      n bytes sent in 16 KB chunks 50 ms apart (for progress /
 GET /oauth/authorize    a sign-in page; its button goes to /oauth/approve?redirect_uri=...&state=...
 GET /oauth/approve      302 to redirect_uri?code=abc123&state=...
 GET /hello.txt          text
+GET /attachment         a text file sent as an attachment (Content-Disposition: attachment; filename="report.txt")
+GET /camera             a page that asks for the camera (getUserMedia) and shows the result in its title
 """
 import hashlib, os, sys, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -54,6 +56,14 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(302, "", headers=[("Location", "/page3")])
         elif path == "/hello.txt":
             self.reply(200, "hello from the local server\n")
+        elif path == "/attachment":
+            self.reply(200, "quarterly report\n" * 64, headers=[("Content-Disposition", 'attachment; filename="report.txt"')])
+        elif path == "/camera":
+            self.reply(200, "<!doctype html><html><head><meta name=viewport content='width=device-width'><title>Camera</title></head>"
+                            "<body style='font:20px sans-serif;margin:16px'><h1>Camera</h1><video id=v autoplay playsinline width=200></video><script>"
+                            "navigator.mediaDevices.getUserMedia({video:true}).then(function(s){document.getElementById('v').srcObject=s;"
+                            "document.title='camera '+s.getVideoTracks().length}).catch(function(e){document.title='camera '+e.name})"
+                            "</script></body></html>", "text/html; charset=utf-8")
         elif path == "/basic":
             import base64
             auth = self.headers.get("Authorization", "")

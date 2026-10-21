@@ -147,7 +147,7 @@ final class _URLSessionChallengeSender: NSObject, URLAuthenticationChallengeSend
 }
 
 extension URLSession {
-    public enum AuthChallengeDisposition: Int, Sendable { case useCredential = 0, performDefaultHandling, cancelAuthenticationChallenge, rejectProtectionSpace }
+    @objc(NSURLSessionAuthChallengeDisposition) public enum AuthChallengeDisposition: Int, Sendable { case useCredential = 0, performDefaultHandling, cancelAuthenticationChallenge, rejectProtectionSpace }
 }
 
 /// Credentials by protection space. `.permanent` credentials of the shared storage are kept for this run only

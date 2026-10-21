@@ -31,6 +31,14 @@ import isim_host
     @MainActor @objc(webView:didFinishNavigation:) optional func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!)
     @MainActor @objc(webView:didFailNavigation:withError:) optional func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error)
     @MainActor @objc optional func webViewWebContentProcessDidTerminate(_ webView: WKWebView)
+    // HTTP authentication: answer with a credential, or default handling (the server's 401 page)
+    @MainActor @objc(webView:didReceiveAuthenticationChallenge:completionHandler:) optional func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge,
+                                           completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+    @MainActor @objc(webView:respondToAuthenticationChallenge:asyncCompletionHandler:) optional func webView(_ webView: WKWebView, respondTo challenge: URLAuthenticationChallenge) async
+        -> (URLSession.AuthChallengeDisposition, URLCredential?)
+    // a navigation the policy made a download (.download)
+    @MainActor @objc(webView:navigationAction:didBecomeDownload:) optional func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload)
+    @MainActor @objc(webView:navigationResponse:didBecomeDownload:) optional func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload)
 }
 
 @objc(WKUIDelegate) public protocol WKUIDelegate: NSObjectProtocol {
@@ -54,6 +62,13 @@ import isim_host
     @MainActor @objc optional func webView(_ webView: WKWebView, contextMenuForElement elementInfo: WKContextMenuElementInfo,
                                            willCommitWithAnimator animator: UIContextMenuInteractionCommitAnimating)
     @MainActor @objc optional func webView(_ webView: WKWebView, contextMenuDidEndForElement elementInfo: WKContextMenuElementInfo)
+    // camera and microphone (getUserMedia): grant, deny, or prompt (iOS's alert)
+    @MainActor @objc(webView:requestMediaCapturePermissionForOrigin:initiatedByFrame:type:decisionHandler:) optional func webView(_ webView: WKWebView,
+                                           requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo,
+                                           type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void)
+    @MainActor @objc(webView:requestMediaCapturePermissionForOrigin:initiatedByFrame:type:asyncDecisionHandler:) optional func webView(_ webView: WKWebView,
+                                           requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo,
+                                           type: WKMediaCaptureType) async -> WKPermissionDecision
 }
 
 // MARK: - scroll view
@@ -649,6 +664,8 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
         case "message": _messageEvent(f)
         case "page": _pageEvent(f.first ?? "")
         case "terminated": _engineExited()
+        case "auth": _authEvent(f)
+        case "media": _mediaEvent(f)
         default: break
         }
     }
@@ -736,11 +753,11 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
         }
         let action = _action(o, newWindow: kind == "newwindow")
         if let d, _wkHas(d, "webView:decidePolicyForNavigationAction:preferences:decisionHandler:") {
-            d.webView?(self, decidePolicyFor: action, preferences: configuration.defaultWebpagePreferences, decisionHandler: { p, _ in answer(p == .download ? 0 : p.rawValue) })
+            d.webView?(self, decidePolicyFor: action, preferences: configuration.defaultWebpagePreferences, decisionHandler: { p, _ in answer(p.rawValue) })
         } else if let d, _wkHas(d, "webView:decidePolicyForNavigationAction:decisionHandler:") {
-            d.webView?(self, decidePolicyFor: action, decisionHandler: { p in answer(p == .download ? 0 : p.rawValue) })
+            d.webView?(self, decidePolicyFor: action, decisionHandler: { p in answer(p.rawValue) })
         } else if let d, _wkHas(d, "webView:decidePolicyForNavigationAction:completionHandler:") {
-            _wkAsyncCast(d).webView(self, asyncAction: action, completionHandler: { p in answer(p == .download ? 0 : p.rawValue) })
+            _wkAsyncCast(d).webView(self, asyncAction: action, completionHandler: { p in answer(p.rawValue) })
         } else { answer(1) }
     }
     private func _createEvent(_ f: [String]) {
@@ -862,5 +879,11 @@ func _wkHas(_ o: NSObjectProtocol, _ selector: String) -> Bool { o.responds(to: 
     func webView(_ w: WKWebView, asyncPrompt p: String, defaultText: String?, initiatedByFrame f: WKFrameInfo, completionHandler: @escaping (String?) -> Void)
     @objc(userContentController:didReceiveScriptMessage:asyncReplyHandler:)
     func userContentController(_ c: WKUserContentController, asyncMessage m: WKScriptMessage, completionHandler: @escaping (Any?, String?) -> Void)
+    @objc(webView:respondToAuthenticationChallenge:asyncCompletionHandler:)
+    func webView(_ w: WKWebView, asyncChallenge c: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+    @objc(webView:requestMediaCapturePermissionForOrigin:initiatedByFrame:type:asyncDecisionHandler:)
+    func webView(_ w: WKWebView, asyncMedia o: WKSecurityOrigin, initiatedByFrame f: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void)
+    @objc(download:decideDestinationUsingResponse:suggestedFilename:asyncCompletionHandler:)
+    func download(_ d: WKDownload, asyncDestination r: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void)
 }
 func _wkAsyncCast(_ o: AnyObject) -> _WKAsync { unsafeBitCast(o, to: _WKAsync.self) }

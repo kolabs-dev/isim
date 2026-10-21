@@ -37,10 +37,26 @@ static NSString *const kHTML =
     @"<div id=out style='position:absolute;left:16px;top:240px;font-size:20px'>ready</div>"
     @"<script>function show(s){document.getElementById('out').textContent=s}</script></body></html>";
 
-@interface WebViewController : UIViewController <WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, WKScriptMessageHandlerWithReply>
+// a custom URL scheme served by the app (isim-objc://files/note.txt)
+@interface NoteSchemeHandler : NSObject <WKURLSchemeHandler>
+@end
+@implementation NoteSchemeHandler
+- (void)webView:(WKWebView *)webView startURLSchemeTask:(id<WKURLSchemeTask>)task {
+    say([NSString stringWithFormat:@"scheme task %@ %@", task.request.HTTPMethod ?: @"GET", task.request.URL.absoluteString]);
+    NSData *body = [@"a note served by an Objective-C scheme handler\n" dataUsingEncoding:NSUTF8StringEncoding];
+    [task didReceiveResponse:[[NSHTTPURLResponse alloc] initWithURL:task.request.URL statusCode:200 HTTPVersion:@"HTTP/1.1"
+        headerFields:@{@"Content-Type": @"text/plain; charset=utf-8", @"Access-Control-Allow-Origin": @"*"}]];
+    [task didReceiveData:body];
+    [task didFinish];
+}
+- (void)webView:(WKWebView *)webView stopURLSchemeTask:(id<WKURLSchemeTask>)task {}
+@end
+
+@interface WebViewController : UIViewController <WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, WKScriptMessageHandlerWithReply, WKDownloadDelegate>
 @property (nonatomic, strong) WKWebView *webView;
 @property (nonatomic, strong) SampleContentController *contentController;
 @property (nonatomic) BOOL ranChecks;
+@property (nonatomic, copy) NSString *downloadName;
 @end
 
 @implementation WebViewController
@@ -58,6 +74,9 @@ static NSString *const kHTML =
     config.preferences.javaScriptCanOpenWindowsAutomatically = YES;
     config.defaultWebpagePreferences.preferredContentMode = WKContentModeMobile;
     config.websiteDataStore = [WKWebsiteDataStore nonPersistentDataStore];
+    NoteSchemeHandler *notes = [NoteSchemeHandler new];
+    [config setURLSchemeHandler:notes forURLScheme:@"isim-objc"];
+    say([NSString stringWithFormat:@"scheme handler kept %d", [config urlSchemeHandlerForURLScheme:@"isim-objc"] == notes]);
     WKUserScript *script = [[WKUserScript alloc] initWithSource:@"window.webkit.messageHandlers.native.postMessage({kind:'script', href: location.href})"
                                                   injectionTime:WKUserScriptInjectionTimeAtDocumentEnd forMainFrameOnly:YES];
     [self.contentController addUserScript:script];
@@ -113,6 +132,33 @@ static NSString *const kHTML =
     [webView takeSnapshotWithConfiguration:nil completionHandler:^(UIImage *image, NSError *error) {
         say([NSString stringWithFormat:@"snapshot %.0fx%.0f", image.size.width, image.size.height]);
     }];
+    // the custom scheme from the page, and a download saved where the download delegate says
+    [webView callAsyncJavaScript:@"return await (await fetch('isim-objc://files/note.txt')).text()" arguments:nil inFrame:nil
+                  inContentWorld:WKContentWorld.pageWorld completionHandler:^(id result, NSError *error) {
+        say([NSString stringWithFormat:@"fetched: %@", [result stringByTrimmingCharactersInSet:NSCharacterSet.newlineCharacterSet]]);
+    }];
+    [webView startDownloadUsingRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"data:text/plain;charset=utf-8,a%20downloaded%20note%0A"]]
+                     completionHandler:^(WKDownload *download) {
+        say([NSString stringWithFormat:@"download started %@ user=%d", download.originalRequest.URL.absoluteString, download.isUserInitiated]);
+        download.delegate = self;
+    }];
+}
+- (void)download:(WKDownload *)download decideDestinationUsingResponse:(NSURLResponse *)response suggestedFilename:(NSString *)suggestedFilename
+        completionHandler:(void (^)(NSURL *))completionHandler {
+    NSURL *dest = [[NSURL fileURLWithPath:NSTemporaryDirectory()] URLByAppendingPathComponent:suggestedFilename];
+    [NSFileManager.defaultManager removeItemAtURL:dest error:nil];
+    say([NSString stringWithFormat:@"download destination %@", suggestedFilename]);
+    self.downloadName = suggestedFilename;
+    completionHandler(dest);
+}
+- (void)downloadDidFinish:(WKDownload *)download {
+    NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:self.downloadName ?: @"-"];
+    NSString *text = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil];
+    say([NSString stringWithFormat:@"download finished: %@ progress=%.0f", [text stringByTrimmingCharactersInSet:NSCharacterSet.newlineCharacterSet],
+         download.progress.fractionCompleted]);
+}
+- (void)download:(WKDownload *)download didFailWithError:(NSError *)error resumeData:(NSData *)resumeData {
+    say([NSString stringWithFormat:@"download failed %@", error]);
 }
 - (void)webView:(WKWebView *)webView didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error {
     say([NSString stringWithFormat:@"didFailProvisionalNavigation %@ %ld", error.domain, (long)error.code]);

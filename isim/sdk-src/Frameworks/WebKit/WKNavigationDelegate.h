@@ -1,7 +1,7 @@
 #pragma once
 #import <WebKit/WKFoundation.h>
 NS_ASSUME_NONNULL_BEGIN
-@class WKWebView, WKNavigation, WKNavigationAction, WKNavigationResponse, WKWebpagePreferences;
+@class WKWebView, WKNavigation, WKNavigationAction, WKNavigationResponse, WKWebpagePreferences, WKDownload;
 typedef NS_ENUM(NSInteger, WKNavigationActionPolicy) { WKNavigationActionPolicyCancel, WKNavigationActionPolicyAllow, WKNavigationActionPolicyDownload };
 typedef NS_ENUM(NSInteger, WKNavigationResponsePolicy) { WKNavigationResponsePolicyCancel, WKNavigationResponsePolicyAllow, WKNavigationResponsePolicyDownload };
 @protocol WKNavigationDelegate <NSObject>
@@ -19,5 +19,11 @@ typedef NS_ENUM(NSInteger, WKNavigationResponsePolicy) { WKNavigationResponsePol
 - (void)webView:(WKWebView *)webView didFinishNavigation:(null_unspecified WKNavigation *)navigation;
 - (void)webView:(WKWebView *)webView didFailNavigation:(null_unspecified WKNavigation *)navigation withError:(NSError *)error;
 - (void)webViewWebContentProcessDidTerminate:(WKWebView *)webView;
+/* HTTP authentication (Basic, Digest, NTLM): a credential, default handling (the server's 401 page), or cancel */
+- (void)webView:(WKWebView *)webView didReceiveAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge
+        completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential * _Nullable credential))completionHandler;
+/* a navigation the policy made a download (WKNavigationActionPolicyDownload / WKNavigationResponsePolicyDownload) */
+- (void)webView:(WKWebView *)webView navigationAction:(WKNavigationAction *)navigationAction didBecomeDownload:(WKDownload *)download;
+- (void)webView:(WKWebView *)webView navigationResponse:(WKNavigationResponse *)navigationResponse didBecomeDownload:(WKDownload *)download;
 @end
 NS_ASSUME_NONNULL_END

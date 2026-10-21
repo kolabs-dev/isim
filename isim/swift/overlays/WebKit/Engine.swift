@@ -103,6 +103,7 @@ final class _WKEngine: @unchecked Sendable {
                 return
             }
             if ev == "scheme", f.count >= 2 { _WKSchemeRouter.request(id: Int(f[0]) ?? 0, viewID: id, json: f[1]); return }
+            if ev.hasPrefix("dl") { _WKDownloads.event(ev, viewID: id, f); return }      // downloads outlive their web view
             if ev == "done", f.count >= 1, let req = Int(f[0]), let cb = storeCallbacks.removeValue(forKey: req) {
                 cb(f.count > 1 ? f[1] : ""); return
             }

@@ -9,6 +9,6 @@
        WKScriptMessage, WKContentWorld, WKNavigation, WKNavigationAction, WKNavigationResponse, WKFrameInfo, WKSecurityOrigin,
        WKWindowFeatures, WKBackForwardList, WKBackForwardListItem, WKWebsiteDataStore, WKWebsiteDataRecord, WKHTTPCookieStore,
        WKSnapshotConfiguration, WKPDFConfiguration, WKFindConfiguration, WKFindResult, WKContentRuleList, WKContentRuleListStore,
-       WKContextMenuElementInfo;
-@protocol WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, WKScriptMessageHandlerWithReply, WKHTTPCookieStoreObserver;
+       WKContextMenuElementInfo, WKDownload;
+@protocol WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, WKScriptMessageHandlerWithReply, WKHTTPCookieStoreObserver, WKDownloadDelegate;
 #endif

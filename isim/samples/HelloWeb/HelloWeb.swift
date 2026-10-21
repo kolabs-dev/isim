@@ -4,7 +4,9 @@
 // and an isolated world, evaluateJavaScript / callAsyncJavaScript, KVO on title/URL/progress/canGoBack,
 // back/forward, typing into a page field, scrolling, cookies and snapshots. With -interact: long-press context
 // menus and text selection, <select> menus, pinch zoom, the find navigator, createPDF and web archives. With -webpage
-// (iOS 26): SwiftUI's WebView showing a WebPage, its navigation events, title and callJavaScript.
+// (iOS 26): SwiftUI's WebView showing a WebPage, its navigation events, title and callJavaScript. With -transfers: HTTP
+// authentication challenges, downloads (startDownload, a navigation response made a download, cancel and resume) and
+// a camera permission request.
 //   isim run out/apps/HelloWeb.app -server http://127.0.0.1:8765   (samples/HelloWeb/server.py)
 import UIKit
 import WebKit
@@ -19,7 +21,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         if args.contains("-webpage"), #available(iOS 26.0, *) {
             window?.rootViewController = UIHostingController(rootView: WebPageScreen())
         } else {
-            window?.rootViewController = UINavigationController(rootViewController: args.contains("-interact") ? InteractViewController() : WebViewController())
+            let root: UIViewController = args.contains("-interact") ? InteractViewController() : args.contains("-transfers") ? TransfersViewController() : WebViewController()
+            window?.rootViewController = UINavigationController(rootViewController: root)
         }
         window?.makeKeyAndVisible()
         return true
@@ -380,5 +383,109 @@ struct WebPageScreen: View {
                 log("loaded title=\(page.title) loading=\(page.isLoading) url=\(page.url?.absoluteString ?? "-")")
             } catch { log("load failed \(error)") }
         }
+    }
+}
+
+// MARK: - -transfers: authentication challenges, downloads, camera permission
+
+final class TransfersViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
+    let web = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
+    var step = 0
+    var resumable: Data?
+    var cancelling = false
+    var observation: NSKeyValueObservation?
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Transfers"
+        view.backgroundColor = .systemBackground
+        web.translatesAutoresizingMaskIntoConstraints = false
+        web.navigationDelegate = self; web.uiDelegate = self
+        web.accessibilityIdentifier = "web"
+        view.addSubview(web)
+        let g = view.safeAreaLayoutGuide
+        NSLayoutConstraint.activate([web.topAnchor.constraint(equalTo: g.topAnchor), web.bottomAnchor.constraint(equalTo: g.bottomAnchor),
+                                     web.leadingAnchor.constraint(equalTo: view.leadingAnchor), web.trailingAnchor.constraint(equalTo: view.trailingAnchor)])
+        observation = web.observe(\.title) { w, _ in
+            if let t = w.title, t.hasPrefix("camera ") { log("title \(t)") }
+        }
+        next()
+    }
+    /// basic auth (default handling: the 401 page), digest auth (a credential), a download made from a response,
+    /// startDownload, cancel and resume, the camera
+    func next() {
+        step += 1
+        switch step {
+        case 1: web.load(URLRequest(url: URL(string: serverURL + "/basic")!))
+        case 2: web.load(URLRequest(url: URL(string: serverURL + "/digest")!))
+        case 3: web.load(URLRequest(url: URL(string: serverURL + "/attachment")!))
+        case 4:
+            web.startDownload(using: URLRequest(url: URL(string: serverURL + "/bytes/50000")!)) { d in
+                log("startDownload user=\(d.isUserInitiated) url=\(d.originalRequest?.url?.path ?? "-")")
+                d.delegate = self
+            }
+        case 5:
+            web.startDownload(using: URLRequest(url: URL(string: serverURL + "/slowbytes/400000")!)) { d in d.delegate = self; self.watchToCancel(d) }
+        case 6: web.load(URLRequest(url: URL(string: serverURL + "/camera")!))
+        default: break
+        }
+    }
+    func watchToCancel(_ d: WKDownload) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            guard d.progress.completedUnitCount > 0 else { self.watchToCancel(d); return }
+            self.cancelling = true
+            d.cancel { data in
+                log("cancelled resumeData \(data != nil)")
+                self.resumable = data
+                guard let data else { return }
+                self.web.resumeDownload(fromResumeData: data) { r in r.delegate = self; log("resumed") }
+            }
+        }
+    }
+    // challenges
+    func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge,
+                 completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        let s = challenge.protectionSpace
+        log("challenge \(s.host) realm=\(s.realm ?? "-") method=\(s.authenticationMethod) failures=\(challenge.previousFailureCount)")
+        if step == 1 { completionHandler(.performDefaultHandling, nil) }
+        else { completionHandler(.useCredential, URLCredential(user: "ada", password: "lovelace", persistence: .forSession)) }
+    }
+    func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        let disposition = (navigationResponse.response as? HTTPURLResponse)?.allHeaderFields["Content-Disposition"] as? String ?? ""
+        decisionHandler(disposition.hasPrefix("attachment") ? .download : .allow)
+    }
+    func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
+        log("navigationResponse became a download \(download.originalRequest?.url?.path ?? "-")")
+        download.delegate = self
+    }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard step <= 2 else { return }
+        webView.evaluateJavaScript("document.body.innerText") { r, _ in
+            log("page \(webView.url?.path ?? "-"): \((r as? String ?? "-").trimmingCharacters(in: .whitespacesAndNewlines))")
+            self.next()
+        }
+    }
+    // downloads
+    func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
+        let dest = FileManager.default.temporaryDirectory.appendingPathComponent(suggestedFilename)
+        try? FileManager.default.removeItem(at: dest)
+        log("destination \(suggestedFilename) expected=\(response.expectedContentLength)")
+        completionHandler(dest)
+    }
+    func downloadDidFinish(_ download: WKDownload) {
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent(download.originalRequest?.url?.lastPathComponent ?? "-")
+        let name = download.originalRequest?.url?.path == "/attachment" ? "report.txt" : path.lastPathComponent
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int) ?? -1
+        log("finished \(name) \(size) bytes progress \(download.progress.fractionCompleted == 1 ? "done" : "\(download.progress.fractionCompleted)")")
+        next()
+    }
+    func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
+        log("failed \((error as? URLError)?.code == .cancelled ? "cancelled" : "\(error)") resumeData \(resumeData != nil)")
+    }
+    // camera
+    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo,
+                 type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        log("media capture \(origin.host) type \(type.rawValue)")
+        decisionHandler(.prompt)
     }
 }

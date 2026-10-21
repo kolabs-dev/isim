@@ -1,7 +1,7 @@
 #pragma once
 #import <WebKit/WKFoundation.h>
 NS_ASSUME_NONNULL_BEGIN
-@class WKWebViewConfiguration, WKBackForwardList, WKBackForwardListItem, WKNavigation, WKSnapshotConfiguration, WKPDFConfiguration,
+@class WKDownload, WKWebViewConfiguration, WKBackForwardList, WKBackForwardListItem, WKNavigation, WKSnapshotConfiguration, WKPDFConfiguration,
        WKFindConfiguration, WKFindResult, WKFrameInfo, WKContentWorld;
 @protocol WKNavigationDelegate, WKUIDelegate;
 /* isim: the page is rendered by the host's WebKitGTK (see the Swift overlay's WKWebView.swift for what is adapted) */
@@ -46,6 +46,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)createWebArchiveDataWithCompletionHandler:(void (^)(NSData *, NSError *))completionHandler;
 - (void)findString:(NSString *)string withConfiguration:(nullable WKFindConfiguration *)configuration completionHandler:(void (^)(WKFindResult *result))completionHandler;
 + (BOOL)handlesURLScheme:(NSString *)urlScheme;
+- (void)startDownloadUsingRequest:(NSURLRequest *)request completionHandler:(void (^)(WKDownload *download))completionHandler;
+- (void)resumeDownloadFromResumeData:(NSData *)resumeData completionHandler:(void (^)(WKDownload *download))completionHandler;
 @property (nonatomic) BOOL allowsBackForwardNavigationGestures;
 @property (nullable, nonatomic, copy) NSString *customUserAgent;
 @property (nonatomic) BOOL allowsLinkPreview;

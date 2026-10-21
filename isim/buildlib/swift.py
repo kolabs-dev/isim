@@ -524,8 +524,11 @@ class Swift:
     def overlays(self):
         c, n = self.c, self.n
         objdir = f"{SW}/obj/overlays"
-        compat = c.compile("swift/overlays/Combine/compat.c", f"{objdir}/Combine-compat.o", [ISIM, "cc"], implicit=[ISIM],
-                           order_only=c.header_stamps + ["tbds"])
+        # <Module>-compat.o: swift/overlays/<Module>/compat.c, symbols kept for apps built against an older ABI
+        def compat(a):
+            m = a[:-len("-compat.o")]
+            return c.compile(f"swift/overlays/{m}/compat.c", f"{objdir}/{a}", [ISIM, "cc"], implicit=[ISIM],
+                             order_only=c.header_stamps + ["tbds"])
         base = [mod("Swift"), mod("_Concurrency")] + ([mod("_StringProcessing")] if os.path.isdir(os.path.join(
             c.root, f"{c.tp}/swift-experimental-string-processing/Sources")) else [])
         from .graph import SWIFT_FRAMEWORKS, swift_framework
@@ -539,7 +542,7 @@ class Swift:
             line = line.split("#")[0].split()
             if not line:
                 continue
-            m, args = line[0], [compat if a == "Combine-compat.o" else a for a in line[1:]]
+            m, args = line[0], [compat(a) if a.endswith("-compat.o") else a for a in line[1:]]
             srcs = c.glob(f"swift/overlays/{m}/*.swift") if os.path.isdir(os.path.join(c.root, f"swift/overlays/{m}")) else [f"swift/overlays/{m}.swift"]
             srcs += c.glob(f"swift/overlays/{m}+*.swift")
             if m in PRIVACY:
@@ -766,7 +769,7 @@ ObjectiveC -framework Foundation   # NSObject lives in isim Foundation, not libo
 Combine Combine-compat.o           # enum case symbols for apps built before Completion was @frozen
 Dispatch -lswift_Concurrency -framework Foundation
 FoundationEssentials -lswift_Concurrency  # Predicate, Expression: Swift-only, so the #Predicate expansions' module name resolves
-Foundation -lswiftFoundationEssentials -lswiftObjectiveC -lswiftDispatch -lswiftCombine -lswift_Concurrency -framework Foundation -lisim_host
+Foundation Foundation-compat.o -lswiftFoundationEssentials -lswiftObjectiveC -lswiftDispatch -lswiftCombine -lswift_Concurrency -framework Foundation -lisim_host
 UniformTypeIdentifiers -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation -alias _$s22UniformTypeIdentifiers6UTTypeV11_isimTagsV1SDySSSaySSGGvg _$s22UniformTypeIdentifiers6UTTypeV4tagsSDySSSaySSGGvg -alias _$s22UniformTypeIdentifiers6UTTypeV11_isimTagsV1SDySSSaySSGGvpMV _$s22UniformTypeIdentifiers6UTTypeV4tagsSDySSSaySSGGvpMV   # UTType.tags as [String: [String]] (before #278)
 CoreTransferable -lswiftObjectiveC -lswiftFoundation -lswiftUniformTypeIdentifiers -lswiftCombine -lswift_Concurrency -framework Foundation
 Symbols
