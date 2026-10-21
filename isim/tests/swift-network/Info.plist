@@ -12,5 +12,19 @@
 	<string>1</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<!-- the unknown-host check loads http://no-such-host.invalid/ -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>invalid</key>
+			<dict>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
 </dict>
 </plist>

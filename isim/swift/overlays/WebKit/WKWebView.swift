@@ -753,13 +753,26 @@ final class _WKScrollView: UIScrollView, UIScrollViewDelegate {
             return
         }
         let action = _action(o, newWindow: kind == "newwindow")
+        // App Transport Security: a cleartext navigation (or redirect) the app allowed still fails provisionally, as on iOS
+        let atsError = kind == "newwindow" ? nil : action.request.url.flatMap(_isimATSWebContentError)
+        let decide: (Int) -> Void = { [weak self] p in
+            guard p != 0, let atsError else { answer(p); return }
+            answer(0)
+            if action.targetFrame?.isMainFrame ?? true { self?._failProvisionally(atsError, url: action.request.url) }
+        }
         if let d, _wkHas(d, "webView:decidePolicyForNavigationAction:preferences:decisionHandler:") {
-            d.webView?(self, decidePolicyFor: action, preferences: configuration.defaultWebpagePreferences, decisionHandler: { p, _ in answer(p.rawValue) })
+            d.webView?(self, decidePolicyFor: action, preferences: configuration.defaultWebpagePreferences, decisionHandler: { p, _ in decide(p.rawValue) })
         } else if let d, _wkHas(d, "webView:decidePolicyForNavigationAction:decisionHandler:") {
-            d.webView?(self, decidePolicyFor: action, decisionHandler: { p in answer(p.rawValue) })
+            d.webView?(self, decidePolicyFor: action, decisionHandler: { p in decide(p.rawValue) })
         } else if let d, _wkHas(d, "webView:decidePolicyForNavigationAction:completionHandler:") {
-            _wkAsyncCast(d).webView(self, asyncAction: action, completionHandler: { p in answer(p.rawValue) })
-        } else { answer(1) }
+            _wkAsyncCast(d).webView(self, asyncAction: action, completionHandler: { p in decide(p.rawValue) })
+        } else { decide(1) }
+    }
+    private func _failProvisionally(_ error: Error, url: URL?) {
+        _lastFailedURL = url
+        let nav = _currentNavigation ?? _requestedNavigation
+        _requestedNavigation = nil
+        navigationDelegate?.webView?(self, didFailProvisionalNavigation: nav, withError: error)
     }
     private func _createEvent(_ f: [String]) {
         guard let json = f.first else { return }

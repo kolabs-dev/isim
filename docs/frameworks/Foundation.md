@@ -144,7 +144,7 @@
 | `URLRequest` (method, headers, body, timeout, cache policy, cookies flag) | ✅ | ≤17 | tested |
 | `URLResponse`, `HTTPURLResponse` (status, `allHeaderFields`, `value(forHTTPHeaderField:)`, MIME type, length) | ✅ | ≤17 | tested |
 | `URLError` (codes, `failingURL`, `catch URLError.code`, NSError bridging) | ✅ | ≤17 | host errors mapped (refused, DNS, timeout, TLS, offline, cancelled); tested |
-| `URLSession` data/download/upload tasks (completion and async) | ✅ | ≤17 | Swift API; HTTP/HTTPS through the host's libcurl (dlopen'd, needed at run time); handlers on the session's background `delegateQueue`; cancellation; redirects; `ISIM_NETWORK=offline` simulates no network; tested (self-test + HelloNetwork) |
+| `URLSession` data/download/upload tasks (completion and async) | ✅ | ≤17 | Swift API; HTTP/HTTPS through the host's libcurl (dlopen'd, needed at run time); handlers on the session's background `delegateQueue`; cancellation; redirects; `ISIM_NETWORK=offline` simulates no network; App Transport Security from the app's Info.plist (see the BundleResources page); tested (self-test + HelloNetwork, HelloTransportSecurity) |
 | `URLSession` delegates (data, download, redirect, completion) | ✅ | ≤17 | Swift protocols with default implementations (Apple's are `@objc` optional methods); tested; `didCreateTask`, `willCacheResponse` unverified |
 | `bytes(from:)` / `bytes(for:)`, `AsyncBytes.lines` | ✅ | ≤17 | `lines` skips empty lines like Apple's; tested |
 | `URLSessionConfiguration` (`.default`, `.ephemeral`, timeouts, extra headers, cache/cookie settings) | ✅ | ≤17 | `timeoutIntervalForRequest` is an idle timeout as on iOS; `waitsForConnectivity`, `allowsCellularAccess` and service types are stored only |

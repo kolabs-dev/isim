@@ -101,7 +101,7 @@ static int url_error(CURL *c, int rc) {
     case 28: return -1001;                   /* TimedOut */
     case 42: return -999;                    /* aborted by us -> Cancelled */
     case 47: return -1007;                   /* HTTPTooManyRedirects */
-    case 35: case 77: return -1200;          /* SecureConnectionFailed */
+    case 35: case 59: case 77: return -1200; /* SecureConnectionFailed (59: no cipher suite allowed) */
     case 58: return -1206;                   /* ClientCertificateRequired */
     case 60: case 83: case 90: return -1202; /* ServerCertificateUntrusted (90: not the pinned key) */
     case 61: return -1016;                   /* CannotDecodeContentData */
@@ -190,6 +190,9 @@ static void *http_thread(void *arg) {
     curl.setopt(c, O_ACCEPT_ENCODING, "");            /* like CFNetwork: advertise and transparently decode gzip etc. */
     if (!(h->flags & 1)) { curl.setopt(c, O_FOLLOWLOCATION, 1L); curl.setopt(c, O_MAXREDIRS, 16L); }
     if (h->flags & 2) { curl.setopt(c, 64 /* CURLOPT_SSL_VERIFYPEER */, 0L); curl.setopt(c, 81 /* CURLOPT_SSL_VERIFYHOST */, 0L); }   /* the app trusted the server */
+    /* App Transport Security's TLS requirements: the minimum version, forward-secrecy (ECDHE) suites for TLS 1.2 and older */
+    if ((h->flags >> 4) & 15) curl.setopt(c, 32 /* CURLOPT_SSLVERSION */, (long)((h->flags >> 4) & 15));
+    if (h->flags & 0x100) curl.setopt(c, 10083 /* CURLOPT_SSL_CIPHER_LIST */, "ECDHE+AESGCM:ECDHE+CHACHA20:ECDHE+AES:!aNULL:!eNULL");
     /* the server key the app's trust challenge saw: a different server certificate fails the transfer */
     if (h->pinned) curl.setopt(c, 10230 /* CURLOPT_PINNEDPUBLICKEY */, h->pinned);
     if (h->client_pem) {                                  /* the identity of a client-certificate challenge */
@@ -236,7 +239,8 @@ static void *http_thread(void *arg) {
     return NULL;
 }
 
-/* Starts a transfer. headers: "Name: value" lines separated by '\n'. flags: 1 = do not follow redirects, 2 = accept any server certificate.
+/* Starts a transfer. headers: "Name: value" lines separated by '\n'. flags: 1 = do not follow redirects, 2 = accept any server certificate,
+ * bits 4-7 = the minimum TLS version (CURL_SSLVERSION_*, 0: libcurl's default), 0x100 = forward-secrecy cipher suites only.
  * timeout: idle timeout (s); resource_timeout: whole transfer (s, <= 0 none). NULL if libcurl is missing. */
 ISIM_GUEST_ABI struct isim_http *isim_http_start_tls(const char *method, const char *url, const char *headers, const void *body, long body_len,
                                       double timeout, double resource_timeout, int flags, const char *pinned_key,

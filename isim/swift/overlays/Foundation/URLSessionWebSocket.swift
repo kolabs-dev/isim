@@ -56,6 +56,11 @@ open class URLSessionWebSocketTask: URLSessionTask, @unchecked Sendable {
         if url.scheme == "http" || url.scheme == "https", var c = URLComponents(url: url, resolvingAgainstBaseURL: false) {
             c.scheme = url.scheme == "https" ? "wss" : "ws"; url = c.url ?? url
         }
+        if url.scheme?.lowercased() == "ws" && !_ATSPolicy.main.allowsCleartext(url) {     /* App Transport Security */
+            let e = _ATSPolicy.blockedError(url)
+            _lock.lock(); _openError = e; _lock.unlock()
+            _openSignal.signal(); _failAll(e); _finish(e); return
+        }
         var headers = (originalRequest?._headers ?? []).map { "\($0.0): \($0.1)" }
         if let jar = _session.configuration.httpCookieStorage, _session.configuration.httpShouldSetCookies,
            var hc = URLComponents(url: url, resolvingAgainstBaseURL: false) {
