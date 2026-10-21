@@ -12,6 +12,7 @@ def test_network(launch, device_data):
     with local_server(ROOT / "samples/HelloNetwork/server.py", log) as port:
         server = ["-server", f"http://127.0.0.1:{port}"]
         app = launch("HelloNetwork", args=server)
+        app.wait_log(r"^cellular restricted=unknown subscribers=0 sim=false esim=false$")     # CoreTelephony, like the Simulator
         app.wait_log(r"^todos 3 ")
         app.wait_log(r"^message ")
         app.wait_log(r"^feed ")
