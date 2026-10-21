@@ -20,6 +20,8 @@
 // ("apns-push-type": "widgets", iOS 26) reload the app's widgets that have a WidgetPushHandler.
 #import "SpringBoard.h"
 #import <UserNotifications/UserNotifications.h>
+#include <math.h>
+#include <strings.h>
 
 void isim_un_write_record_sidecar(NSDictionary *rec, NSString *recordPath, NSString *appPath, NSString *container);   /* UserNotifications */
 
@@ -242,6 +244,7 @@ static void collect_icons(UIView *v, NSMutableArray *out) {
         @"thread": content[@"thread"] ?: aps[@"thread-id"] ?: @"", @"userInfo": content[@"userInfo"] ?: payload, @"date": [NSDate date],
         @"attachments": attachments, @"push": @YES, @"app": a.bundleID } mutableCopy];
     if (badge) rec[@"badge"] = badge;
+    if ([content[@"avatar"] isKindOfClass:[NSString class]]) rec[@"avatar"] = content[@"avatar"];   /* a communication notification */
     rec[@"listed"] = @(hasAlert && mayAlert);
     if (content[@"sound"]) rec[@"sound"] = content[@"sound"];
     else if (aps[@"sound"]) {                                  /* "default", a file name or { name, critical, volume } */
@@ -270,7 +273,7 @@ static void collect_icons(UIView *v, NSMutableArray *out) {
     NSString *bodyText = subtitle.length ? [NSString stringWithFormat:@"%@\n%@", subtitle, body] : body;
     NSString *side = [push_dir() stringByAppendingPathComponent:[ident stringByAppendingPathExtension:@"txt"]];
     NSString *sidecar = [NSString stringWithFormat:@"file=%@\nflags=%@\nid=%@\ntitle=%@\nbody=%@\nicon=%@\nrecord=%@\nthumb=%@\n",
-                         file, flags, ident, flat(title.length ? title : a.name), flat(bodyText), a.iconPath ?: @"", record, thumb];
+                         file, flags, ident, flat(title.length ? title : a.name), flat(bodyText), rec[@"avatar"] ?: a.iconPath ?: @"", record, thumb];
     [sidecar writeToFile:side atomically:YES encoding:NSUTF8StringEncoding error:NULL];
     NSString *c = [NSString stringWithFormat:@"%@\x1f%@", a.executable, side];
     isim_shell_request(ISIM_SHELL_SYSTEM, "push-deliver", a.path.UTF8String, c.UTF8String);
@@ -279,9 +282,63 @@ static void collect_icons(UIView *v, NSMutableArray *out) {
 static NSMutableDictionary<NSString *, NSArray *> *sched_cache;        /* prefs path -> [mtime, pending] */
 static NSMutableSet<NSString *> *sched_sent;                         /* "bundle\x1fid\x1ffire" asked for already */
 static NSString *prefs_path(HSApp *a) { return [a.containerPath stringByAppendingPathComponent:[NSString stringWithFormat:@"Library/Preferences/%@.plist", a.bundleID]]; }
+/* the simulated location, as Core Location reads it: $ISIM_DATA/Library/isim/SimulatedLocation ("LAT LON" or "none"),
+   else ISIM_LOCATION's first point, else Apple Park (NO: no location) */
+static BOOL simulated_location(double *lat, double *lon) {
+    const char *data = getenv("ISIM_DATA"), *home = getenv("HOME");
+    NSString *dir = data && *data ? @(data) : [@(home ?: "/tmp") stringByAppendingPathComponent:@".local/share/isim"];
+    NSString *file = [NSString stringWithContentsOfFile:[dir stringByAppendingPathComponent:@"Library/isim/SimulatedLocation"] encoding:NSUTF8StringEncoding error:NULL];
+    const char *spec = file ? file.UTF8String : getenv("ISIM_LOCATION");
+    if (spec && !strncasecmp(spec, "none", 4)) return NO;
+    if (spec && (sscanf(spec, "%lf %lf", lat, lon) == 2 || sscanf(spec, "%lf,%lf", lat, lon) == 2)) return YES;
+    *lat = 37.334900; *lon = -122.009020;
+    return YES;
+}
+static double geo_distance(double lat1, double lon1, double lat2, double lon2) {
+    const double r = 6371008.8, rad = M_PI / 180;
+    double dLat = (lat2 - lat1) * rad, dLon = (lon2 - lon1) * rad;
+    double h = sin(dLat / 2) * sin(dLat / 2) + cos(lat1 * rad) * cos(lat2 * rad) * sin(dLon / 2) * sin(dLon / 2);
+    return 2 * r * atan2(sqrt(h), sqrt(1 - h));
+}
+/* location triggers of an app (its pending requests in its preferences): a crossing of a region's boundary records the
+   new side; one the region notifies on is due now (the next scan delivers it). The app may not be running, or suspended (the shell resumes it, and
+   it delivers the notification itself). Needs the app's location authorization, like iOS. */
+- (void)scanLocationTriggers:(HSApp *)a pending:(NSArray *)pending lat:(double)lat lon:(double)lon {
+    NSDictionary *prefs = nil; NSMutableArray *updated = nil; NSMutableArray *due = [NSMutableArray array];
+    double now = [NSDate date].timeIntervalSince1970;
+    for (NSUInteger i = 0; i < pending.count; i++) {
+        NSDictionary *d = pending[i], *t = [d isKindOfClass:[NSDictionary class]] ? d[@"trigger"] : nil;
+        if (![t[@"type"] isEqual:@"location"]) continue;
+        if (!prefs) {
+            prefs = [NSDictionary dictionaryWithContentsOfFile:prefs_path(a)];
+            NSInteger auth = [prefs[@"_ISIMPrivacy.location"] integerValue];
+            if (auth != 3 && auth != 4) return;                 /* authorizedAlways, authorizedWhenInUse */
+        }
+        NSDictionary *r = t[@"region"];
+        if (![r isKindOfClass:[NSDictionary class]] || !r[@"radius"]) continue;
+        int inside = geo_distance([r[@"latitude"] doubleValue], [r[@"longitude"] doubleValue], lat, lon) <= [r[@"radius"] doubleValue];
+        int was = t[@"inside"] ? [t[@"inside"] intValue] : -1;
+        if (inside == was) continue;
+        NSMutableDictionary *nd = [d mutableCopy], *nt = [t mutableCopy];
+        nt[@"inside"] = @(inside);
+        BOOL fires = was >= 0 && (inside ? (r[@"notifyOnEntry"] ? [r[@"notifyOnEntry"] boolValue] : YES) : (r[@"notifyOnExit"] ? [r[@"notifyOnExit"] boolValue] : YES));
+        if (fires) nt[@"fire"] = @(now);                       /* localNotificationShown finds it by this time */
+        nd[@"trigger"] = nt;
+        if (!updated) updated = [pending mutableCopy];
+        updated[i] = nd;
+        if (fires) [due addObject:nd];
+    }
+    if (!updated) return;
+    NSMutableDictionary *p = [prefs mutableCopy];
+    p[@"_ISIMPendingNotifications"] = updated;
+    [p writeToFile:prefs_path(a) atomically:YES];
+    for (NSDictionary *d in due)                              /* the next scan finds them due */
+        NSLog(@"SpringBoard: the location %@ the region of %@'s local notification %@", [d[@"trigger"][@"inside"] boolValue] ? @"entered" : @"left", a.name, d[@"id"]);
+}
 - (void)scanLocalNotifications {
     if (!sched_cache) { sched_cache = [NSMutableDictionary dictionary]; sched_sent = [NSMutableSet set]; }
-    double now = [NSDate date].timeIntervalSince1970;
+    double now = [NSDate date].timeIntervalSince1970, lat = 0, lon = 0;
+    BOOL located = simulated_location(&lat, &lon);
     for (HSApp *a in self.apps) {
         if (a.system || !a.bundleID.length) continue;
         NSString *pf = prefs_path(a);
@@ -293,6 +350,7 @@ static NSString *prefs_path(HSApp *a) { return [a.containerPath stringByAppendin
             c = @[ m, [pending isKindOfClass:[NSArray class]] ? pending : @[] ];
             sched_cache[pf] = c;
         }
+        if (located) [self scanLocationTriggers:a pending:c[1] lat:lat lon:lon];
         for (NSDictionary *d in c[1]) {
             if (![d isKindOfClass:[NSDictionary class]]) continue;
             double fire = [d[@"trigger"][@"fire"] doubleValue];
@@ -328,7 +386,7 @@ static NSString *prefs_path(HSApp *a) { return [a.containerPath stringByAppendin
     NSString *bodyText = subtitle.length ? [NSString stringWithFormat:@"%@\n%@", subtitle, body] : body;
     NSString *side = [push_dir() stringByAppendingPathComponent:[NSString stringWithFormat:@"local-%@-%u.txt", safe, arc4random()]];
     NSString *sidecar = [NSString stringWithFormat:@"file=\nflags=%@\nid=%@\ntitle=%@\nbody=%@\nicon=%@\nrecord=%@\nthumb=%@\nfire=%.3f\nbundle=%@\n",
-                         flags, ident, flat(title.length ? title : a.name), flat(bodyText), a.iconPath ?: @"", record, thumb, fire, a.bundleID];
+                         flags, ident, flat(title.length ? title : a.name), flat(bodyText), d[@"avatar"] ?: a.iconPath ?: @"", record, thumb, fire, a.bundleID];
     [sidecar writeToFile:side atomically:YES encoding:NSUTF8StringEncoding error:NULL];
     NSString *c = [NSString stringWithFormat:@"%@\x1f%@", a.executable, side];
     isim_shell_request(ISIM_SHELL_SYSTEM, "local-due", a.path.UTF8String, c.UTF8String);

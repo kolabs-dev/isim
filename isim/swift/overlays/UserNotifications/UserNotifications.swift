@@ -1,7 +1,14 @@
 // isim UserNotifications Swift overlay: DateComponents for calendar triggers (isim's Objective-C framework
-// keeps the components as a dictionary because isim's Foundation has no NSDateComponents).
+// keeps the components as a dictionary because isim's Foundation has no NSDateComponents), and CLRegion for location
+// triggers (CLRegion is the CoreLocation overlay's Swift class, so the Objective-C header types it `id` for Swift).
 @_exported import UserNotifications
 import Foundation
+import CoreLocation
+
+extension UNLocationNotificationTrigger {
+    public convenience init(region: CLRegion, repeats: Bool) { self.init(__region: region, repeats: repeats) }
+    public var region: CLRegion { __region as! CLRegion }
+}
 
 extension UNCalendarNotificationTrigger {
     public convenience init(dateMatching dateComponents: DateComponents, repeats: Bool) {

@@ -142,8 +142,14 @@ static BOOL type_is_audio(NSString *t) { return [@[@"public.aiff-audio", @"com.m
 #define CONTENT_FIELDS \
     NSString *_title, *_subtitle, *_body, *_categoryIdentifier, *_threadIdentifier, *_launchImageName, *_targetContentIdentifier, *_summaryArgument, *_filterCriteria; \
     NSNumber *_badge; UNNotificationSound *_sound; NSDictionary *_userInfo; NSArray *_attachments; NSUInteger _summaryArgumentCount; \
-    UNNotificationInterruptionLevel _interruptionLevel; double _relevanceScore;
+    UNNotificationInterruptionLevel _interruptionLevel; double _relevanceScore; \
+    NSString *_isimAvatar;   /* a communication notification's icon (the sender's image with the app icon), a PNG path */
 
+@interface UNNotificationContent ()
+- (NSString *)isim_avatar;
+- (void)isim_setAvatar:(NSString *)p;
+@end
+static UNNotificationContent *isim_un_content_updating(UNNotificationContent *c, id provider, NSError **outError);
 @implementation UNNotificationContent { @protected CONTENT_FIELDS }
 - (instancetype)init {
     if ((self = [super init])) {
@@ -173,6 +179,12 @@ static BOOL type_is_audio(NSString *t) { return [@[@"public.aiff-audio", @"com.m
     c->_categoryIdentifier = _categoryIdentifier; c->_threadIdentifier = _threadIdentifier; c->_launchImageName = _launchImageName;
     c->_targetContentIdentifier = _targetContentIdentifier; c->_summaryArgument = _summaryArgument; c->_summaryArgumentCount = _summaryArgumentCount;
     c->_attachments = _attachments; c->_interruptionLevel = _interruptionLevel; c->_relevanceScore = _relevanceScore; c->_filterCriteria = _filterCriteria;
+    c->_isimAvatar = _isimAvatar;
+}
+- (NSString *)isim_avatar { return _isimAvatar; }
+- (void)isim_setAvatar:(NSString *)p { _isimAvatar = [p copy]; }
+- (UNNotificationContent *)contentByUpdatingWithProvider:(id<UNNotificationContentProviding>)provider error:(NSError **)outError {
+    return isim_un_content_updating(self, provider, outError);
 }
 - (id)copyWithZone:(NSZone *)zone {
     if ([self isMemberOfClass:[UNNotificationContent class]]) return self;
@@ -270,6 +282,77 @@ static double next_calendar_date(NSDictionary<NSString *, NSNumber *> *c, double
 - (NSString *)description { return [NSString stringWithFormat:@"<UNCalendarNotificationTrigger: repeats: %@, dateComponents: %@>", _repeats ? @"YES" : @"NO", _values]; }
 @end
 
+/* location triggers: circular regions (CoreLocation's CLCircularRegion, reached through the selectors of its Objective-C
+   interface: this framework does not link CoreLocation). inside: where the simulated location was last seen
+   (-1: not known yet), so only a crossing fires */
+static double geo_distance(double lat1, double lon1, double lat2, double lon2) {
+    const double r = 6371008.8, rad = M_PI / 180;
+    double dLat = (lat2 - lat1) * rad, dLon = (lon2 - lon1) * rad;
+    double h = sin(dLat / 2) * sin(dLat / 2) + cos(lat1 * rad) * cos(lat2 * rad) * sin(dLon / 2) * sin(dLon / 2);
+    return 2 * r * atan2(sqrt(h), sqrt(1 - h));
+}
+@interface UNLocationNotificationTrigger ()
+- (instancetype)initWithRegion:(id)region repeats:(BOOL)repeats;
+@property (nonatomic) int isimInside;
+- (BOOL)isim_circular;
+- (NSDictionary *)isim_regionPlist;
+- (BOOL)isim_contains:(double)lat longitude:(double)lon;
+- (BOOL)isim_notifyOnEntry;
+- (BOOL)isim_notifyOnExit;
+@end
+@implementation UNLocationNotificationTrigger { id _region; }
++ (instancetype)triggerWithRegion:(id)region repeats:(BOOL)repeats { return [[self alloc] initWithRegion:region repeats:repeats]; }
+- (instancetype)initWithRegion:(id)region repeats:(BOOL)repeats {
+    if ((self = [self initISIMBase])) {
+        _region = [region copy]; _repeats = repeats; _isimInside = -1;
+        if (![self isim_circular]) NSLog(@"isim UserNotifications: location triggers watch circular regions (CLCircularRegion); %@ never fires", region);
+    }
+    return self;
+}
+- (id)region { return _region; }
+- (BOOL)isim_circular { return [_region respondsToSelector:NSSelectorFromString(@"_isim_latitude")] && [_region respondsToSelector:NSSelectorFromString(@"radius")]; }
+static double region_double(id r, NSString *sel) { return ((double (*)(id, SEL))objc_msgSend)(r, NSSelectorFromString(sel)); }
+static BOOL region_bool(id r, NSString *sel) { SEL s = NSSelectorFromString(sel); return [r respondsToSelector:s] ? ((BOOL (*)(id, SEL))objc_msgSend)(r, s) : YES; }
+- (BOOL)isim_notifyOnEntry { return region_bool(_region, @"notifyOnEntry"); }
+- (BOOL)isim_notifyOnExit { return region_bool(_region, @"notifyOnExit"); }
+- (BOOL)isim_contains:(double)lat longitude:(double)lon {
+    if (![self isim_circular]) return NO;
+    return geo_distance(region_double(_region, @"_isim_latitude"), region_double(_region, @"_isim_longitude"), lat, lon) <= region_double(_region, @"radius");
+}
+- (NSDictionary *)isim_regionPlist {
+    if (![self isim_circular]) return @{};
+    return @{ @"identifier": [_region valueForKey:@"identifier"] ?: @"", @"latitude": @(region_double(_region, @"_isim_latitude")),
+              @"longitude": @(region_double(_region, @"_isim_longitude")), @"radius": @(region_double(_region, @"radius")),
+              @"notifyOnEntry": @([self isim_notifyOnEntry]), @"notifyOnExit": @([self isim_notifyOnExit]) };
+}
+/* a region rebuilt from its plist (a pending request after a relaunch) */
++ (id)isim_regionFromPlist:(NSDictionary *)d {
+    Class cls = NSClassFromString(@"CLCircularRegion");
+    SEL init = NSSelectorFromString(@"_isim_initWithLatitude:longitude:radius:identifier:");
+    if (!cls || ![cls instancesRespondToSelector:init]) return nil;
+    id r = ((id (*)(id, SEL, double, double, double, id))objc_msgSend)([cls alloc], init, [d[@"latitude"] doubleValue], [d[@"longitude"] doubleValue],
+                                                                   [d[@"radius"] doubleValue], d[@"identifier"] ?: @"");
+    ((void (*)(id, SEL, BOOL))objc_msgSend)(r, NSSelectorFromString(@"setNotifyOnEntry:"), d[@"notifyOnEntry"] ? [d[@"notifyOnEntry"] boolValue] : YES);
+    ((void (*)(id, SEL, BOOL))objc_msgSend)(r, NSSelectorFromString(@"setNotifyOnExit:"), d[@"notifyOnExit"] ? [d[@"notifyOnExit"] boolValue] : YES);
+    return r;
+}
+- (NSString *)description { return [NSString stringWithFormat:@"<UNLocationNotificationTrigger: repeats: %@, region: %@>", _repeats ? @"YES" : @"NO", _region]; }
+@end
+
+/* the simulated location, as Core Location gives it to the app (NO: no location, CoreLocation is not loaded, or the app
+   may not use the location: location triggers need when-in-use authorization, like iOS) */
+static BOOL current_location(double *lat, double *lon) {
+    Class cl = NSClassFromString(@"CLLocationManager");
+    SEL sim = NSSelectorFromString(@"_isim_simulatedLocation"), status = NSSelectorFromString(@"authorizationStatus");
+    if (!cl || ![cl respondsToSelector:sim] || ![cl respondsToSelector:status]) return NO;
+    int st = ((int (*)(id, SEL))objc_msgSend)(cl, status);
+    if (st != 3 && st != 4) return NO;                         /* authorizedAlways, authorizedWhenInUse */
+    id loc = ((id (*)(id, SEL))objc_msgSend)(cl, sim);
+    if (!loc) return NO;
+    *lat = region_double(loc, @"_isim_latitude"); *lon = region_double(loc, @"_isim_longitude");
+    return YES;
+}
+
 @implementation UNNotificationRequest { NSString *_identifier; UNNotificationContent *_content; UNNotificationTrigger *_trigger; }
 + (instancetype)requestWithIdentifier:(NSString *)identifier content:(UNNotificationContent *)content trigger:(UNNotificationTrigger *)trigger {
     UNNotificationRequest *r = [super alloc];
@@ -295,6 +378,14 @@ static double next_calendar_date(NSDictionary<NSString *, NSNumber *> *c, double
 + (instancetype)isim_responseWithNotification:(UNNotification *)n action:(NSString *)a { UNNotificationResponse *r = [super alloc]; r->_notification = n; r->_action = a; return r; }
 - (UNNotification *)notification { return _notification; }
 - (NSString *)actionIdentifier { return _action; }
+- (UIScene *)targetScene {
+    UIScene *first = nil;
+    for (UIScene *sc in UIApplication.sharedApplication.connectedScenes) {
+        if (sc.activationState == UISceneActivationStateForegroundActive) return sc;
+        if (!first) first = sc;
+    }
+    return first;
+}
 - (id)copyWithZone:(NSZone *)zone { return self; }
 @end
 @implementation UNTextInputNotificationResponse { NSString *_userText; }
@@ -435,6 +526,7 @@ static NSMutableDictionary *encode_content(UNNotificationContent *c) {
     if (c.interruptionLevel != UNNotificationInterruptionLevelActive) d[@"level"] = @(c.interruptionLevel);
     if (c.relevanceScore != 0) d[@"relevance"] = @(c.relevanceScore);
     if (c.filterCriteria) d[@"filterCriteria"] = c.filterCriteria;
+    if (c.isim_avatar) d[@"avatar"] = c.isim_avatar;
     return d;
 }
 static void apply_content(UNMutableNotificationContent *c, NSDictionary *d) {
@@ -450,6 +542,7 @@ static void apply_content(UNMutableNotificationContent *c, NSDictionary *d) {
     if (d[@"level"]) c.interruptionLevel = (UNNotificationInterruptionLevel)[d[@"level"] unsignedIntegerValue];
     c.relevanceScore = [d[@"relevance"] doubleValue];
     if (d[@"filterCriteria"]) c.filterCriteria = d[@"filterCriteria"];
+    if ([d[@"avatar"] isKindOfClass:[NSString class]]) [c isim_setAvatar:d[@"avatar"]];
 }
 /* a pending request as plist; fire: when it is next due (seconds since 1970; the home screen delivers it then when
    the app is not running) */
@@ -461,6 +554,9 @@ static NSDictionary *encode_request(UNNotificationRequest *r, double fire) {
         d[@"trigger"] = @{ @"type": @"interval", @"interval": @(((UNTimeIntervalNotificationTrigger *)t).timeInterval), @"repeats": @(t.repeats), @"fire": @(fire) };
     else if ([t isKindOfClass:[UNCalendarNotificationTrigger class]])
         d[@"trigger"] = @{ @"type": @"calendar", @"components": ((UNCalendarNotificationTrigger *)t).componentValues, @"repeats": @(t.repeats), @"fire": @(fire) };
+    else if ([t isKindOfClass:[UNLocationNotificationTrigger class]])   /* the home screen watches the region when the app is not running */
+        d[@"trigger"] = @{ @"type": @"location", @"region": [(UNLocationNotificationTrigger *)t isim_regionPlist], @"repeats": @(t.repeats),
+                           @"inside": @(((UNLocationNotificationTrigger *)t).isimInside), @"fire": @(fire) };
     return d;
 }
 static UNNotificationRequest *decode_request(NSDictionary *d, double *fire) {
@@ -473,6 +569,11 @@ static UNNotificationRequest *decode_request(NSDictionary *d, double *fire) {
     } else if ([t[@"type"] isEqual:@"calendar"]) {
         trigger = [[UNCalendarNotificationTrigger alloc] initWithComponentValues:t[@"components"] repeats:[t[@"repeats"] boolValue]];
         *fire = [t[@"fire"] doubleValue];
+    } else if ([t[@"type"] isEqual:@"location"]) {
+        id region = [UNLocationNotificationTrigger isim_regionFromPlist:t[@"region"]];
+        UNLocationNotificationTrigger *lt = [[UNLocationNotificationTrigger alloc] initWithRegion:region repeats:[t[@"repeats"] boolValue]];
+        lt.isimInside = t[@"inside"] ? [t[@"inside"] intValue] : -1;
+        trigger = lt;
     }
     return [UNNotificationRequest requestWithIdentifier:d[@"id"] content:c trigger:trigger];
 }
@@ -645,11 +746,13 @@ static NSString *app_name(void) {
     return info[@"CFBundleDisplayName"] ?: info[@"CFBundleName"] ?: @"App";
 }
 /* the app icon file (asset-catalog app icon, largest; else icon.png), like the home screen picks it */
-static NSString *app_icon_path(void) {
-    NSString *app = NSBundle.mainBundle.bundlePath;
+static NSString *bundle_icon_path(NSBundle *bundle);
+static NSString *app_icon_path(void) { return bundle_icon_path(NSBundle.mainBundle); }
+static NSString *bundle_icon_path(NSBundle *bundle) {
+    NSString *app = bundle.bundlePath;
     NSDictionary *assets = [NSDictionary dictionaryWithContentsOfFile:[app stringByAppendingPathComponent:@"isim-assets.plist"]];
     NSDictionary *icons = assets[@"appIcons"];
-    NSArray *files = icons[NSBundle.mainBundle.infoDictionary[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"] ?: @"AppIcon"] ?: icons.allValues.firstObject;
+    NSArray *files = icons[bundle.infoDictionary[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"] ?: @"AppIcon"] ?: icons.allValues.firstObject;
     NSString *best = nil; double bestPx = -1;
     for (NSDictionary *f in files) {
         if ([f[@"appearance"] length]) continue;
@@ -658,7 +761,7 @@ static NSString *app_icon_path(void) {
     }
     if (best) return best;
     /* CFBundleIconFiles names ("AppIcon60x60" -> AppIcon60x60@3x.png): the largest matching file */
-    NSArray *names = NSBundle.mainBundle.infoDictionary[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"];
+    NSArray *names = bundle.infoDictionary[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"];
     unsigned long long bestSize = 0;
     if ([names isKindOfClass:[NSArray class]])
         for (NSString *f in [NSFileManager.defaultManager contentsOfDirectoryAtPath:app error:NULL])
@@ -750,7 +853,8 @@ static UIWindow *bannerWindow; static UIView *bannerCard; static void (^bannerTa
     card.accessibilityIdentifier = @"isim-notification-banner";
     UIImageView *icon = [[UIImageView alloc] initWithFrame:CGRectMake(12, (height - 38) / 2, 38, 38)];
     icon.layer.cornerRadius = 9; icon.clipsToBounds = YES;
-    UIImage *img = app_icon();
+    UIImage *avatar = c.isim_avatar ? [UIImage imageWithContentsOfFile:c.isim_avatar] : nil, *img = avatar ?: app_icon();
+    if (avatar) { icon.layer.cornerRadius = 0; icon.accessibilityIdentifier = @"isim-notification-avatar"; }
     if (img) icon.image = img;
     else {
         icon.backgroundColor = UIColor.systemBlueColor;
@@ -787,6 +891,134 @@ static UIWindow *bannerWindow; static UIView *bannerCard; static void (^bannerTa
     });
 }
 @end
+
+/* ---------------- communication notifications ----------------
+ * contentByUpdatingWithProvider: with a message or call intent (Intents, looked up at run time: this framework does not
+ * link it). The sender's image (an INImage: data, a file URL, a bundle image or an SF Symbol; else a monogram of the
+ * name's initials on grey, like iOS) is drawn in a circle with the app icon in its lower right corner and kept in the
+ * attachment store (the Notification Service extension, the app and the home screen all read it there). */
+@implementation UNNotificationAttributedMessageContext { id _intent; NSAttributedString *_attributedContent; }
++ (instancetype)contextWithSendMessageIntent:(INSendMessageIntent *)intent attributedContent:(NSAttributedString *)content {
+    UNNotificationAttributedMessageContext *c = [super alloc];
+    c->_intent = intent; c->_attributedContent = [content copy];
+    return c;
+}
+- (id)isim_intent { return _intent; }
+- (NSAttributedString *)isim_attributedContent { return _attributedContent; }
+@end
+
+static BOOL has_communication_entitlement(void) {
+    NSString *b = NSBundle.mainBundle.bundlePath;
+    NSMutableArray *paths = [NSMutableArray arrayWithObject:b];
+    NSRange r = [b rangeOfString:@"/PlugIns/"];                 /* an extension: also the app it is in */
+    if (r.location != NSNotFound) [paths addObject:[b substringToIndex:r.location]];
+    for (NSString *p in paths) {
+        NSDictionary *ent = [NSDictionary dictionaryWithContentsOfFile:[p stringByAppendingPathComponent:@"archived-expanded-entitlements.xcent"]];
+        if ([ent[@"com.apple.developer.usernotifications.communication"] boolValue]) return YES;
+    }
+    return NO;
+}
+static id msg(id o, NSString *sel) { SEL s = NSSelectorFromString(sel); return [o respondsToSelector:s] ? ((id (*)(id, SEL))objc_msgSend)(o, s) : nil; }
+static UIImage *person_image(id person) {
+    id img = msg(person, @"image");
+    if (!img) return nil;
+    SEL get = NSSelectorFromString(@"_get:");
+    if (![img respondsToSelector:get]) return nil;
+    id (*f)(id, SEL, id) = (id (*)(id, SEL, id))objc_msgSend;
+    NSData *data = f(img, get, @"data"); NSString *url = f(img, get, @"url"), *name = f(img, get, @"name"), *sys = f(img, get, @"systemName");
+    if ([data isKindOfClass:[NSData class]] && data.length) return [UIImage imageWithData:data];
+    if ([url isKindOfClass:[NSString class]]) { NSURL *u = [NSURL URLWithString:url]; if (u.isFileURL) return [UIImage imageWithContentsOfFile:u.path]; }
+    if ([name isKindOfClass:[NSString class]] && name.length) return [UIImage imageNamed:name];
+    if ([sys isKindOfClass:[NSString class]] && sys.length) return [UIImage systemImageNamed:sys];
+    return nil;
+}
+static NSString *initials(NSString *name) {
+    NSMutableString *s = [NSMutableString string];
+    for (NSString *w in [name componentsSeparatedByCharactersInSet:NSCharacterSet.whitespaceCharacterSet])
+        if (w.length && s.length < 2) [s appendString:[w substringToIndex:1].uppercaseString];
+    return s;
+}
+/* the avatar PNG: the sender's image (or monogram) in a circle, the app icon small in the corner */
+static NSString *write_avatar(UIImage *photo, NSString *name) {
+    const CGFloat size = 120, d = 108, badge = 46;
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 1);
+    CGRect circle = CGRectMake(0, 0, d, d);
+    UIBezierPath *clip = [UIBezierPath bezierPathWithOvalInRect:circle];
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    CGContextSaveGState(ctx);
+    [clip addClip];
+    if (photo && photo.size.width > 0 && photo.size.height > 0) {
+        CGFloat k = MAX(d / photo.size.width, d / photo.size.height);
+        CGSize s = CGSizeMake(photo.size.width * k, photo.size.height * k);
+        [photo drawInRect:CGRectMake((d - s.width) / 2, (d - s.height) / 2, s.width, s.height)];
+    } else {                                                  /* iOS's monogram: grey gradient, white initials */
+        CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+        CGFloat comps[] = { 0.66, 0.67, 0.70, 1, 0.53, 0.54, 0.58, 1 }, locs[] = { 0, 1 };
+        CGGradientRef g = CGGradientCreateWithColorComponents(cs, comps, locs, 2);
+        CGContextDrawLinearGradient(ctx, g, CGPointMake(0, 0), CGPointMake(0, d), 0);
+        CGGradientRelease(g); CGColorSpaceRelease(cs);
+        NSString *t = initials(name ?: @"");
+        NSDictionary *attrs = @{ NSFontAttributeName: [UIFont systemFontOfSize:44 weight:UIFontWeightMedium], NSForegroundColorAttributeName: UIColor.whiteColor };
+        CGSize ts = [t sizeWithAttributes:attrs];
+        [t drawAtPoint:CGPointMake((d - ts.width) / 2, (d - ts.height) / 2) withAttributes:attrs];
+    }
+    CGContextRestoreGState(ctx);
+    NSString *b = NSBundle.mainBundle.bundlePath;               /* in an extension: the icon of the app it is in */
+    NSRange pi = [b rangeOfString:@"/PlugIns/"];
+    NSString *iconPath = pi.location == NSNotFound ? app_icon_path() : bundle_icon_path([NSBundle bundleWithPath:[b substringToIndex:pi.location]]);
+    UIImage *icon = iconPath ? [UIImage imageWithContentsOfFile:iconPath] : nil;
+    if (icon) {                                                /* the app icon, with a ring of the background around it */
+        CGRect br = CGRectMake(size - badge - 1, size - badge - 1, badge, badge);
+        [UIColor.whiteColor setFill];
+        [[UIBezierPath bezierPathWithRoundedRect:CGRectInset(br, -2, -2) cornerRadius:badge * 0.25] fill];
+        CGContextSaveGState(ctx);
+        [[UIBezierPath bezierPathWithRoundedRect:br cornerRadius:badge * 0.225] addClip];
+        [icon drawInRect:br];
+        CGContextRestoreGState(ctx);
+    }
+    UIImage *out = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    NSData *png = UIImagePNGRepresentation(out);
+    if (!png) return nil;
+    NSString *dir = [isim_data_dir() stringByAppendingPathComponent:@"Library/UserNotifications/Avatars"];
+    [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:NULL];
+    NSString *f = [dir stringByAppendingPathComponent:[NSUUID.UUID.UUIDString stringByAppendingPathExtension:@"png"]];
+    return [png writeToFile:f atomically:YES] ? f : nil;
+}
+static UNNotificationContent *isim_un_content_updating(UNNotificationContent *content, id provider, NSError **outError) {
+    NSError *(^fail)(UNErrorCode, NSString *) = ^(UNErrorCode code, NSString *why) {
+        return [NSError errorWithDomain:UNErrorDomain code:code userInfo:@{ NSLocalizedDescriptionKey: why }];
+    };
+    id intent = provider; NSAttributedString *attributed = nil;
+    if ([provider isKindOfClass:NSClassFromString(@"UNNotificationAttributedMessageContext")]) {   /* iOS 18 */
+        intent = [provider isim_intent]; attributed = [provider isim_attributedContent];
+    }
+    Class msgClass = NSClassFromString(@"INSendMessageIntent"), callClass = NSClassFromString(@"INStartCallIntent");
+    id sender = nil; NSString *group = nil;
+    if (msgClass && [intent isKindOfClass:msgClass]) {
+        sender = msg(intent, @"sender");
+        group = msg(msg(intent, @"speakableGroupName"), @"spokenPhrase");
+        if (!sender) { if (outError) *outError = fail(UNErrorCodeContentProvidingInvalid, @"The message intent has no sender."); return nil; }
+    } else if (callClass && [intent isKindOfClass:callClass] && !attributed) {
+        sender = [msg(intent, @"contacts") firstObject];
+        if (!sender) { if (outError) *outError = fail(UNErrorCodeContentProvidingInvalid, @"The call intent has no contacts."); return nil; }
+    } else {
+        if (outError) *outError = fail(UNErrorCodeContentProvidingObjectNotAllowed, [NSString stringWithFormat:@"%@ cannot provide notification content.", NSStringFromClass([provider class])]);
+        return nil;
+    }
+    if (!has_communication_entitlement()) {
+        NSLog(@"isim UserNotifications: the app lacks the Communication Notifications capability (com.apple.developer.usernotifications.communication): the content is not updated");
+        return [content copy];
+    }
+    UNMutableNotificationContent *c = [content mutableCopy];
+    NSString *name = msg(sender, @"displayName") ?: @"";
+    if (group.length) { c.title = group; if (name.length) c.subtitle = name; }
+    else if (name.length) c.title = name;
+    if (attributed) c.body = attributed.string ?: @"";
+    [c isim_setAvatar:write_avatar(person_image(sender), name)];
+    NSLog(@"isim UserNotifications: communication notification from %@%@", name, group.length ? [NSString stringWithFormat:@" in %@", group] : @"");
+    return [c copy];
+}
 
 /* ---------------- sounds ----------------
  * The sound a delivered notification plays (its record's sidecar: a file, "default", "ringtone", critical:...). Under
@@ -841,6 +1073,7 @@ static void play_sound(NSString *record) {
     NSSet<UNNotificationCategory *> *_categories;
     BOOL _asking;
     NSMutableArray *_authWaiters;
+    NSTimer *_locationTimer;                                     /* while location triggers are pending */
 }
 
 + (UNUserNotificationCenter *)currentNotificationCenter {
@@ -1002,6 +1235,11 @@ static BOOL appclip_ephemeral(void) {
         [self->_fire removeObjectForKey:request.identifier];
         if ([request.trigger isKindOfClass:[UNTimeIntervalNotificationTrigger class]])
             self->_fire[request.identifier] = @([NSDate date].timeIntervalSince1970 + ((UNTimeIntervalNotificationTrigger *)request.trigger).timeInterval);
+        if ([request.trigger isKindOfClass:[UNLocationNotificationTrigger class]]) {   /* where the device is now does not fire */
+            double lat, lon;
+            ((UNLocationNotificationTrigger *)request.trigger).isimInside =
+                current_location(&lat, &lon) ? [(UNLocationNotificationTrigger *)request.trigger isim_contains:lat longitude:lon] : -1;
+        }
         [self->_pending addObject:request];
         [self save];
         [self schedule:request];
@@ -1019,7 +1257,35 @@ static BOOL appclip_ephemeral(void) {
     }
     return 0;
 }
+/* location triggers: the simulated location, checked every second while one is pending; a crossing of a region's
+   boundary that the region notifies on fires it */
+- (void)watchLocation {
+    if (_locationTimer) return;
+    _locationTimer = [NSTimer scheduledTimerWithTimeInterval:1 repeats:YES block:^(NSTimer *timer) { [self checkLocation]; }];
+}
+- (void)checkLocation {
+    NSMutableArray *watched = [NSMutableArray array];
+    for (UNNotificationRequest *r in _pending) if ([r.trigger isKindOfClass:[UNLocationNotificationTrigger class]]) [watched addObject:r];
+    if (!watched.count) { [_locationTimer invalidate]; _locationTimer = nil; return; }
+    double lat, lon;
+    if (!current_location(&lat, &lon)) return;
+    BOOL changed = NO;
+    for (UNNotificationRequest *r in watched) {
+        UNLocationNotificationTrigger *t = (UNLocationNotificationTrigger *)r.trigger;
+        int inside = [t isim_contains:lat longitude:lon], was = t.isimInside;
+        if (inside == was) continue;
+        t.isimInside = inside; changed = YES;
+        if (was < 0) continue;
+        if (inside ? [t isim_notifyOnEntry] : [t isim_notifyOnExit]) {
+            NSLog(@"isim UserNotifications: the location %@ the region of “%@”", inside ? @"entered" : @"left", r.identifier);
+            [self fire:r];
+            changed = NO;                                          /* fire: saved */
+        }
+    }
+    if (changed) [self save];
+}
 - (void)schedule:(UNNotificationRequest *)r {
+    if ([r.trigger isKindOfClass:[UNLocationNotificationTrigger class]]) { [self watchLocation]; return; }
     double fire = [self nextFire:r];
     if (fire <= 0) return;
     NSUInteger gen = _generation[r.identifier].unsignedIntegerValue + 1;
@@ -1067,7 +1333,7 @@ static BOOL appclip_ephemeral(void) {
         if (r.content.badge && (granted0 & UNAuthorizationOptionBadge)) app.applicationIconBadgeNumber = r.content.badge.integerValue;
         if (!isim_shell_present()) play_sound(record);             /* under the shell, the shell plays it with the banner */
         if (isim_shell_present() && mayList) {
-            NSString *a = [NSString stringWithFormat:@"%@\x1f%@\x1f%@\x1f%@\x1f%@", r.identifier, app_icon_path() ?: @"", record ?: @"", thumb, focus_flags(r.content)];
+            NSString *a = [NSString stringWithFormat:@"%@\x1f%@\x1f%@\x1f%@\x1f%@", r.identifier, r.content.isim_avatar ?: app_icon_path() ?: @"", record ?: @"", thumb, focus_flags(r.content)];
             NSString *body = r.content.subtitle.length ? [NSString stringWithFormat:@"%@\n%@", r.content.subtitle, r.content.body] : r.content.body;
             isim_shell_request(ISIM_SHELL_NOTIFY, a.UTF8String, (r.content.title.length ? r.content.title : app_name()).UTF8String, body.UTF8String);
         }
@@ -1085,7 +1351,7 @@ static BOOL appclip_ephemeral(void) {
             if (((o & UNNotificationPresentationOptionList) || banner) && record) write_record(n, push, YES);
             else for (NSUInteger i = 0; i < self->_delivered.count; i++) if (self->_delivered[i] == n) { [self->_delivered removeObjectAtIndex:i]; break; }
             if ((o & UNNotificationPresentationOptionList) || banner) {      /* the shell's Notification Center lists it */
-                NSString *a = [NSString stringWithFormat:@"%@\x1f%@\x1f%@\x1f%@", r.identifier, app_icon_path() ?: @"", record ?: @"", thumb];
+                NSString *a = [NSString stringWithFormat:@"%@\x1f%@\x1f%@\x1f%@", r.identifier, r.content.isim_avatar ?: app_icon_path() ?: @"", record ?: @"", thumb];
                 NSString *tb = [NSString stringWithFormat:@"%@\x1f%@", r.content.title.length ? r.content.title : app_name(), r.content.body ?: @""];
                 isim_shell_request(ISIM_SHELL_SYSTEM, "notified", a.UTF8String, tb.UTF8String);
             }

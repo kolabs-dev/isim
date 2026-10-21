@@ -287,8 +287,8 @@ def _(a):
 @app("samples/HelloPush")
 def _(a):
     b = a.swift_app(srcs=["HelloPush.swift"])
-    a.copy("HelloPush.entitlements", f"{b}/archived-expanded-entitlements.xcent")     # aps-environment
-    a.appex(b, "PushService", ["Service/NotificationService.swift"], "Service/Info.plist", link=["-framework", "UserNotifications"])
+    a.copy("HelloPush.entitlements", f"{b}/archived-expanded-entitlements.xcent")     # aps-environment, communication notifications
+    a.appex(b, "PushService", ["Service/NotificationService.swift"], "Service/Info.plist", link=["-framework", "UserNotifications", "-framework", "Intents"])
     a.appex(b, "PushContent", ["Content/NotificationViewController.swift"], "Content/Info.plist",
             link=["-framework", "UserNotifications", "-framework", "UserNotificationsUI"])
     a.icon(f"{b}/AppIcon60x60@3x.png", "#ff3b30", "#c41d14", "P")

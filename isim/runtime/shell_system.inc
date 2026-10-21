@@ -2294,7 +2294,8 @@ static void sys_push_deliver(const char *path, const char *exe, const char *side
 }
 
 /* a local notification the home screen's scheduler found due (the sidecar: flags=, id=, title=, body=, icon=, record=,
-   thumb=, fire=, bundle=). A running app delivers its own (a suspended one is woken for it: bg-wake); for an app that
+   thumb=, fire=, bundle=). A running app delivers its own (a suspended one is woken for it: bg-wake, or now for a
+   location trigger, which the home screen watches); for an app that
    is not running the system shows it, like a remote one (tapping it launches the app with the response), and tells the
    home screen ("local-shown"), which updates the app's pending requests. */
 static void sys_local_deliver(const char *path, const char *exe, const char *sidecar) {
@@ -2314,7 +2315,11 @@ static void sys_local_deliver(const char *path, const char *exe, const char *sid
     fclose(f);
     unlink(sidecar);
     int i = shell_find(path);
-    if (i >= 0) { fprintf(stderr, "isim shell: local notification %s is due in the running %s (the app delivers it)\n", id, short_name(i)); return; }
+    if (i >= 0) {                                         /* a suspended app is resumed to deliver it (a location trigger) */
+        fprintf(stderr, "isim shell: local notification %s is due in the running %s (the app delivers it)\n", id, short_name(i));
+        bg_resume(i, "local notification");
+        return;
+    }
     fprintf(stderr, "isim shell: local notification %s for %s, which is not running: the system delivers it\n", id, path);
     sys_send_text(0, "local-shown %s\x1f%s\x1f%s", bundle, id, fire);
     if (!strchr(flags, 'a')) { fprintf(stderr, "isim shell: local notification %s for %s not shown (the app may not show alerts)\n", id, path); return; }

@@ -1,0 +1,11 @@
+{
+  "apns-collapse-id": "chat-1",
+  "aps": {
+    "alert": { "title": "Chat", "body": "Bring the rope, I have the chalk" },
+    "mutable-content": 1,
+    "category": "MESSAGE"
+  },
+  "sender": "Ravi Patel",
+  "group": "Climbing Club",
+  "item": "c1"
+}

@@ -1,10 +1,13 @@
 // HelloPush: remote notifications on isim (UIKit, Swift).
 // Registration (device token), foreground / background / not-running delivery of `isim push` payloads,
 // content-available background fetches, notification categories with actions (text input included), a Notification
-// Service extension (PushService.appex) and a Notification Content extension (PushContent.appex), icon badges, and a
-// share button (the share sheet lists the installed apps' Share / Action extensions).
+// Service extension (PushService.appex, which also turns chat pushes into communication notifications) and a
+// Notification Content extension (PushContent.appex), icon badges, location triggers, a communication notification
+// from a message intent, and a share button (the share sheet lists the installed apps' Share / Action extensions).
 import UIKit
 import UserNotifications
+import CoreLocation
+import Intents
 
 func log(_ s: String) { NSLog("HelloPush: %@", s) }
 func stateName(_ a: UIApplication) -> String { a.applicationState == .background ? "background" : a.applicationState == .active ? "foreground" : "inactive" }
@@ -63,14 +66,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let text = (response as? UNTextInputNotificationResponse)?.userText
         let c = response.notification.request.content
-        log("response \(response.actionIdentifier) to “\(c.title)” id=\(response.notification.request.identifier) text=\(text ?? "-") state=\(stateName(UIApplication.shared))")
+        log("response \(response.actionIdentifier) to “\(c.title)” id=\(response.notification.request.identifier) text=\(text ?? "-") state=\(stateName(UIApplication.shared)) scene=\(response.targetScene != nil)")
         vc.last.text = "\(response.actionIdentifier.components(separatedBy: ".").last ?? "") \(text ?? c.title)"
         completionHandler()
     }
 }
 
-class ViewController: UIViewController {
+class ViewController: UIViewController, CLLocationManagerDelegate {
     let token = UILabel(), last = UILabel()
+    let location = CLLocationManager()
+    var wantsReminders = false
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
@@ -81,6 +86,8 @@ class ViewController: UIViewController {
             button("Badge 5", "badge5") { UNUserNotificationCenter.current().setBadgeCount(5) { e in log("setBadgeCount 5 error=\(e.map { "\($0)" } ?? "nil")") } },
             button("Clear Badge", "badge0") { UNUserNotificationCenter.current().setBadgeCount(0) { _ in log("badge cleared") } },
             button("Local Notification", "local") { [weak self] in self?.scheduleLocal() },
+            button("Location Reminders", "locationReminders") { [weak self] in self?.askLocation() },
+            button("Message from Kate", "message") { [weak self] in self?.scheduleMessage() },
             button("Share", "share") { [weak self] in self?.share() }])
         stack.axis = .vertical; stack.spacing = 12; stack.alignment = .leading
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -102,6 +109,62 @@ class ViewController: UIViewController {
         c.title = "Local message"; c.body = "Scheduled by HelloPush"; c.categoryIdentifier = "MESSAGE"
         let r = UNNotificationRequest(identifier: "local-1", content: c, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 3, repeats: false))
         UNUserNotificationCenter.current().add(r) { e in log("scheduled local-1 error=\(e.map { "\($0)" } ?? "nil")") }
+    }
+    // location triggers need location authorization (when in use is enough)
+    func askLocation() {
+        wantsReminders = true
+        location.delegate = self
+        if location.authorizationStatus == .notDetermined { location.requestWhenInUseAuthorization() } else { scheduleLocationReminders() }
+    }
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        if wantsReminders && manager.authorizationStatus != .notDetermined { scheduleLocationReminders() }
+    }
+    func scheduleLocationReminders() {
+        wantsReminders = false
+        let ferry = CLLocationCoordinate2D(latitude: 37.7955, longitude: -122.3937)
+        let arrive = CLCircularRegion(center: ferry, radius: 300, identifier: "ferry-building")
+        arrive.notifyOnEntry = true; arrive.notifyOnExit = false
+        let leave = CLCircularRegion(center: ferry, radius: 300, identifier: "ferry-building-exit")
+        leave.notifyOnEntry = false; leave.notifyOnExit = true
+        let a = UNMutableNotificationContent(); a.title = "Ferry Building"; a.body = "Pick up the tickets at the kiosk"
+        let l = UNMutableNotificationContent(); l.title = "Leaving the Ferry Building"; l.body = "Did you pick up the tickets?"
+        let center = UNUserNotificationCenter.current()
+        for (id, content, region, repeats) in [("arrive-ferry", a, arrive, false), ("leave-ferry", l, leave, true)] {
+            let t = UNLocationNotificationTrigger(region: region, repeats: repeats)
+            center.add(UNNotificationRequest(identifier: id, content: content, trigger: t)) { e in
+                log("scheduled \(id) region=\(t.region.identifier) repeats=\(t.repeats) authorized=\(self.location.authorizationStatus == .authorizedWhenInUse) error=\(e.map { "\($0)" } ?? "nil")")
+            }
+        }
+    }
+    // a communication notification: the message intent's sender becomes the title, their image the icon
+    func scheduleMessage() {
+        let kate = INPerson(personHandle: INPersonHandle(value: "kate@example.com", type: .emailAddress), nameComponents: nil,
+                            displayName: "Kate Bell", image: INImage(imageData: avatar()), contactIdentifier: nil, customIdentifier: "kate")
+        let text = "Are we still on for climbing tonight?"
+        let intent = INSendMessageIntent(recipients: nil, outgoingMessageType: .outgoingMessageText, content: text, speakableGroupName: nil,
+                                         conversationIdentifier: "kate", serviceName: nil, sender: kate, attachments: nil)
+        let interaction = INInteraction(intent: intent, response: nil)
+        interaction.direction = .incoming
+        interaction.donate(completion: nil)
+        let c = UNMutableNotificationContent(); c.body = text; c.categoryIdentifier = "MESSAGE"
+        do {
+            let updated = try c.updating(from: intent)
+            log("communication notification title=\(updated.title) body=\(updated.body)")
+            UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "chat-kate", content: updated, trigger: nil)) { e in
+                log("scheduled chat-kate error=\(e.map { "\($0)" } ?? "nil")")
+            }
+        } catch { log("updating failed: \(error)") }
+        let call = INStartCallIntent(audioRoute: .unknown, destinationType: .normal, contacts: [], recordTypeForRedialing: .unknown, callCapability: .audioCall)
+        do { _ = try c.updating(from: call) } catch let e as NSError { log("call without contacts: error \(e.domain) \(e.code)") }
+    }
+    func avatar() -> Data {
+        UIGraphicsImageRenderer(size: CGSize(width: 120, height: 120)).image { ctx in
+            UIColor(red: 0.20, green: 0.70, blue: 0.45, alpha: 1).setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 120, height: 120))
+            UIColor(red: 0.98, green: 0.85, blue: 0.70, alpha: 1).setFill()
+            ctx.cgContext.fillEllipse(in: CGRect(x: 35, y: 22, width: 50, height: 50))
+            ctx.cgContext.fillEllipse(in: CGRect(x: 15, y: 78, width: 90, height: 80))
+        }.pngData() ?? Data()
     }
     func share() {
         let avc = UIActivityViewController(activityItems: ["Hello from Push", URL(string: "https://example.com/push")!], applicationActivities: nil)

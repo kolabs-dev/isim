@@ -603,6 +603,10 @@ OBJ(NSArray *, messageIdentifiers)
 @end
 
 /* ---------------- calls ---------------- */
+@implementation INSendMessageIntent (UNNotificationContentProviding)
+@end
+@implementation INStartCallIntent (UNNotificationContentProviding)
+@end
 @implementation INStartCallIntent
 - (instancetype)initWithCallRecordFilter:(id)f callRecordToCallBack:(id)cb audioRoute:(INCallAudioRoute)ar destinationType:(INCallDestinationType)dt contacts:(NSArray *)c callCapability:(INCallCapability)cap {
     if ((self = [self init])) { SETI("audioRoute", ar); SETI("destinationType", dt); SET("contacts", c); SETI("callCapability", cap); }

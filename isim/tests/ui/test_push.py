@@ -10,6 +10,8 @@ import os
 import re
 import subprocess
 
+import pytest
+
 from isimtest import ISIM, ROOT, count_px
 
 APP = "dev.isim.samples.HelloPush"
@@ -110,6 +112,7 @@ def test_push_running(launch):
     assert has("notification action reply on msg-1 with text: Hi there") and \
         has("response reply to “Hello” id=msg-1 text=Hi there state=background"), \
         "text input action reaches the backgrounded app"
+    assert has("text=Hi there state=background scene=false"), "targetScene: nil in an app without scenes"
     assert has("expanded notification svc-1: 4 action(s)") and \
         has("response com.apple.UNNotificationDismissActionIdentifier to “Photo [modified]”"), \
         "category without a content extension: actions only; custom dismiss"
@@ -175,3 +178,52 @@ def test_push_not_running(launch, device_data):
         "isim push with Simulator Target Bundle while the device runs"
     assert has("app icon badge 5") and has("badge 5 on HelloPush") and count_px(badge5, BADGE, RED) > 60 and \
         count_px(badge0, BADGE, RED) < 10, "setBadgeCount shows and clears the badge"
+
+
+GREEN = fuzzy((0x33, 0xb3, 0x73), 0.12)                                # HelloPush's drawn avatar for Kate
+GREY = fuzzy((0x99, 0x9b, 0xa3), 0.10)                                 # the monogram's grey
+
+
+@pytest.mark.os_matrix
+def test_location_and_communication(launch):
+    """Location triggers (entering a region fires in the app; leaving it, with the app not running, from the system)
+    and communication notifications (the sender's name as title, their image as the icon; a group chat pushed through
+    the Notification Service extension: the group as title, a monogram)."""
+    env = dict(ENV, ISIM_LOCATION_PERMISSION="allow", ISIM_LOCATION="37.3349,-122.00902")
+    dev = launch(None, install=["HelloPush"], env=env)
+    dev.send(f"launch {APP}")
+    dev.wait_log(r"HelloPush: device token ")
+    dev.wait_tap_id("locationReminders")
+    dev.wait_log(r"scheduled leave-ferry region=ferry-building-exit repeats=true authorized=true error=nil")
+    dev.wait_log(r"scheduled arrive-ferry region=ferry-building repeats=false")
+    dev.send("location 37.7955 -122.3937")                            # the Ferry Building: the arrival fires
+    dev.wait_log(r"the location entered the region of “arrive-ferry”")
+    dev.wait_log(r"delivered “arrive-ferry” in the foreground \(banner\)")
+    dev.wait_tap_id("message")
+    dev.wait_log(r"delivered “chat-kate” in the foreground \(banner\)")
+    dev.wait_view(r"id=isim-notification-avatar")
+    kate = dev.wait_shot(lambda s: count_px(s, (8, 50, 80, 120), GREEN) > 200, "the banner shows Kate's image")
+    dev.screenshot("communication-foreground")
+    dev.send(f"terminate {APP}")
+    dev.wait_log(r"isim shell: \S*HelloPush.app exited")
+    dev.send("location 37.3349 -122.00902")                           # back to Apple Park: leaving fires, from the system
+    dev.wait_log(r"SpringBoard: the location left the region of Push's local notification leave-ferry")
+    dev.wait_log(r"SpringBoard: delivered the local notification leave-ferry of Push \(not running\); it repeats")
+    dev.wait_log(r"notification banner from")
+    push(dev, "group.apns")                                            # a group chat through the service extension
+    dev.wait_log(r"remote notification “chat-1”|push chat-1 for Push")
+    dev.wait_dump(r"IsimNotificationBanner .*notification=chat-1 text=Climbing Club")
+    group = dev.wait_shot(lambda s: count_px(s, (8, 50, 80, 120), GREY) > 200, "the banner shows the sender's monogram")
+    dev.screenshot("communication-group")
+    assert dev.quit() == 0, "exits cleanly"
+    log = dev.log
+
+    def has(s):
+        return s in log
+    assert not has("delivered “leave-ferry”") or log.index("delivered “leave-ferry”") > log.index("terminate"), \
+        "arriving does not fire the exit-only reminder"
+    assert has("communication notification title=Kate Bell body=Are we still on for climbing tonight?") and \
+        count_px(kate, (8, 50, 80, 120), GREEN) > 200, "updating(from:) a message intent: the sender's name and image"
+    assert has("call without contacts: error UNErrorDomain 1501"), "a call intent without contacts is invalid content"
+    assert has("PushService: communication notification title=Climbing Club subtitle=Ravi Patel") and \
+        count_px(group, (8, 50, 80, 120), GREY) > 200, "a group chat: the group's name, the sender, a monogram"
