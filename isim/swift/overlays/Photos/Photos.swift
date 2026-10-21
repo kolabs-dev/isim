@@ -180,9 +180,9 @@ enum _PHAuth {
 public protocol PHPhotoLibraryChangeObserver: AnyObject { func photoLibraryDidChange(_ changeInstance: PHChange) }
 public protocol PHPhotoLibraryAvailabilityObserver: AnyObject { func photoLibraryDidBecomeUnavailable(_ photoLibrary: PHPhotoLibrary) }
 
-@objc(PHChange) @objcMembers open class PHChange: NSObject, @unchecked Sendable {
-    let changedIDs: Set<String>
-    init(_ ids: Set<String>) { changedIDs = ids }
+@objc(PHChange) open class PHChange: NSObject, @unchecked Sendable {
+    @objc let changedIDs: Set<String>
+    @objc init(_ ids: Set<String>) { changedIDs = ids }
     open func changeDetails<T: PHObject>(for object: T) -> PHObjectChangeDetails<T>? { changedIDs.contains(object.localIdentifier) ? PHObjectChangeDetails(object) : nil }
     open func changeDetails<T: PHObject>(for fetchResult: PHFetchResult<T>) -> PHFetchResultChangeDetails<T>? { PHFetchResultChangeDetails(fetchResult) }
 }
@@ -207,20 +207,20 @@ open class PHFetchResultChangeDetails<T: PHObject>: NSObject, @unchecked Sendabl
     open var hasMoves: Bool { false }
 }
 
-@objc(PHPhotoLibrary) @objcMembers open class PHPhotoLibrary: NSObject, @unchecked Sendable {
-    static let sharedLibrary = PHPhotoLibrary()
+@objc(PHPhotoLibrary) open class PHPhotoLibrary: NSObject, @unchecked Sendable {
+    @objc static let sharedLibrary = PHPhotoLibrary()
     var observers: [() -> PHPhotoLibraryChangeObserver?] = []
     @objc(sharedPhotoLibrary) open class func shared() -> PHPhotoLibrary { sharedLibrary }
-    open var unavailabilityReason: Error? { nil }
+    @objc open var unavailabilityReason: Error? { nil }
 
-    open class func authorizationStatus() -> PHAuthorizationStatus {
+    @objc open class func authorizationStatus() -> PHAuthorizationStatus {
         let s = _PHAuth.status
         return s == .limited ? .authorized : s                  // the old API reports limited as authorized, like iOS
     }
     @objc(authorizationStatusForAccessLevel:) open class func authorizationStatus(for accessLevel: PHAccessLevel) -> PHAuthorizationStatus {
         accessLevel == .addOnly ? _PHAuth.addStatus : _PHAuth.status
     }
-    open class func requestAuthorization(_ handler: @escaping (PHAuthorizationStatus) -> Void) {
+    @objc open class func requestAuthorization(_ handler: @escaping (PHAuthorizationStatus) -> Void) {
         requestAuthorization(for: .readWrite) { s in handler(s == .limited ? .authorized : s) }
     }
     @objc(requestAuthorizationForAccessLevel:handler:)
@@ -290,13 +290,13 @@ open class PHFetchResultChangeDetails<T: PHObject>: NSObject, @unchecked Sendabl
         }
     }
 
-    func notify(_ ids: Set<String>) {
+    @objc func notify(_ ids: Set<String>) {
         let change = PHChange(ids)
         for o in observers { if let ob = o() { DispatchQueue.global().async { ob.photoLibraryDidChange(change) } } }
     }
 
     // MARK: changes
-    open func performChanges(_ changeBlock: @escaping () -> Void, completionHandler: ((Bool, Error?) -> Void)? = nil) {
+    @objc open func performChanges(_ changeBlock: @escaping () -> Void, completionHandler: ((Bool, Error?) -> Void)? = nil) {
         DispatchQueue.global().async {
             do { try self.performChangesAndWait(changeBlock); completionHandler?(true, nil) }
             catch { completionHandler?(false, error) }
@@ -403,35 +403,35 @@ open class PHFetchResultChangeDetails<T: PHObject>: NSObject, @unchecked Sendabl
 
 // MARK: - Objects
 
-@objc(PHObject) @objcMembers open class PHObject: NSObject, NSCopying, @unchecked Sendable {
-    public internal(set) var localIdentifier: String
-    init(id: String) { localIdentifier = id }
-    public func copy(with zone: OpaquePointer? = nil) -> Any { self }
-    open override func isEqual(_ object: Any?) -> Bool { (object as? PHObject)?.localIdentifier == localIdentifier }
-    open override var hash: Int { localIdentifier.hashValue }
+@objc(PHObject) open class PHObject: NSObject, NSCopying, @unchecked Sendable {
+    @objc public internal(set) var localIdentifier: String
+    @objc init(id: String) { localIdentifier = id }
+    @objc public func copy(with zone: OpaquePointer? = nil) -> Any { self }
+    @objc open override func isEqual(_ object: Any?) -> Bool { (object as? PHObject)?.localIdentifier == localIdentifier }
+    @objc open override var hash: Int { localIdentifier.hashValue }
 }
-@objc(PHObjectPlaceholder) @objcMembers open class PHObjectPlaceholder: PHObject, @unchecked Sendable {}
+@objc(PHObjectPlaceholder) open class PHObjectPlaceholder: PHObject, @unchecked Sendable {}
 
-@objc(PHAsset) @objcMembers open class PHAsset: PHObject, @unchecked Sendable {
+@objc(PHAsset) open class PHAsset: PHObject, @unchecked Sendable {
     let rec: _PHRecord
     init(_ r: _PHRecord) { rec = r; super.init(id: r.id) }
-    open var mediaType: PHAssetMediaType { rec.isVideo ? .video : .image }
+    @objc open var mediaType: PHAssetMediaType { rec.isVideo ? .video : .image }
     open var mediaSubtypes: PHAssetMediaSubtype { [] }
     @objc(mediaSubtypes) var _objcMediaSubtypes: UInt { mediaSubtypes.rawValue }
-    open var sourceType: PHAssetSourceType { .typeUserLibrary }
-    open var pixelWidth: Int { rec.width }
-    open var pixelHeight: Int { rec.height }
-    open var creationDate: Date? { Date(timeIntervalSince1970: rec.created) }
-    open var modificationDate: Date? { creationDate }
-    open var location: AnyObject? { nil }
-    open var duration: TimeInterval { rec.duration }
-    open var isHidden: Bool { false }
-    open var isFavorite: Bool { rec.favorite }
-    open var burstIdentifier: String? { nil }
-    open var representsBurst: Bool { false }
+    @objc open var sourceType: PHAssetSourceType { .typeUserLibrary }
+    @objc open var pixelWidth: Int { rec.width }
+    @objc open var pixelHeight: Int { rec.height }
+    @objc open var creationDate: Date? { Date(timeIntervalSince1970: rec.created) }
+    @objc open var modificationDate: Date? { creationDate }
+    @objc open var location: AnyObject? { nil }
+    @objc open var duration: TimeInterval { rec.duration }
+    @objc open var isHidden: Bool { false }
+    @objc open var isFavorite: Bool { rec.favorite }
+    @objc open var burstIdentifier: String? { nil }
+    @objc open var representsBurst: Bool { false }
     @objc(canPerformEditOperation:) open func canPerform(_ editOperation: Int) -> Bool { true }
     /// the keys fetch predicates use (NSPredicate reads them with key-value coding)
-    open override func value(forKey key: String) -> Any? {
+    @objc open override func value(forKey key: String) -> Any? {
         switch key {
         case "localIdentifier": return localIdentifier
         case "mediaType": return NSNumber(value: mediaType.rawValue)
@@ -446,7 +446,7 @@ open class PHFetchResultChangeDetails<T: PHObject>: NSObject, @unchecked Sendabl
         default: return super.value(forKey: key)
         }
     }
-    open override var description: String { "<PHAsset: \(localIdentifier)> mediaType=\(mediaType.rawValue)/0, sourceType=1, (\(rec.width)x\(rec.height)), creationDate=\(creationDate!), favorite=\(isFavorite ? "YES" : "NO")" }
+    @objc open override var description: String { "<PHAsset: \(localIdentifier)> mediaType=\(mediaType.rawValue)/0, sourceType=1, (\(rec.width)x\(rec.height)), creationDate=\(creationDate!), favorite=\(isFavorite ? "YES" : "NO")" }
 
     static func fetch(_ recs: [_PHRecord], _ options: PHFetchOptions?) -> PHFetchResult<PHAsset> {
         var assets = recs.map(PHAsset.init)
@@ -499,10 +499,10 @@ open class PHFetchResultChangeDetails<T: PHObject>: NSObject, @unchecked Sendabl
     }
 }
 
-@objc(PHCollection) @objcMembers open class PHCollection: PHObject, @unchecked Sendable {
-    open var localizedTitle: String? { nil }
-    open var canContainAssets: Bool { true }
-    open var canContainCollections: Bool { false }
+@objc(PHCollection) open class PHCollection: PHObject, @unchecked Sendable {
+    @objc open var localizedTitle: String? { nil }
+    @objc open var canContainAssets: Bool { true }
+    @objc open var canContainCollections: Bool { false }
     /// user albums can be renamed, deleted and edited; smart albums cannot
     @objc(canPerformEditOperation:) open func canPerform(_ anOperation: PHCollectionEditOperation) -> Bool { false }
     /// the user's albums (isim has no folders)
@@ -511,12 +511,12 @@ open class PHFetchResultChangeDetails<T: PHObject>: NSObject, @unchecked Sendabl
         return PHFetchResult(r.items) { r.refetched().items }
     }
 }
-@objc(PHAssetCollection) @objcMembers open class PHAssetCollection: PHCollection, @unchecked Sendable {
-    public let assetCollectionType: PHAssetCollectionType
-    public let assetCollectionSubtype: PHAssetCollectionSubtype
-    let title: String
-    let created: Date?
-    init(_ type: PHAssetCollectionType, _ sub: PHAssetCollectionSubtype, _ title: String) {
+@objc(PHAssetCollection) open class PHAssetCollection: PHCollection, @unchecked Sendable {
+    @objc public let assetCollectionType: PHAssetCollectionType
+    @objc public let assetCollectionSubtype: PHAssetCollectionSubtype
+    @objc let title: String
+    @objc let created: Date?
+    @objc init(_ type: PHAssetCollectionType, _ sub: PHAssetCollectionSubtype, _ title: String) {
         assetCollectionType = type; assetCollectionSubtype = sub; self.title = title; created = nil
         super.init(id: "isim-collection-\(sub.rawValue)/L0/040")
     }
@@ -526,14 +526,14 @@ open class PHFetchResultChangeDetails<T: PHObject>: NSObject, @unchecked Sendabl
         created = Date(timeIntervalSince1970: album.created)
         super.init(id: album.id)
     }
-    open override var localizedTitle: String? { title }
-    open var estimatedAssetCount: Int { PHAsset.fetchAssets(in: self, options: nil).count }
-    open var startDate: Date? { nil }
-    open var endDate: Date? { nil }
-    open override func canPerform(_ anOperation: PHCollectionEditOperation) -> Bool {
+    @objc open override var localizedTitle: String? { title }
+    @objc open var estimatedAssetCount: Int { PHAsset.fetchAssets(in: self, options: nil).count }
+    @objc open var startDate: Date? { nil }
+    @objc open var endDate: Date? { nil }
+    @objc open override func canPerform(_ anOperation: PHCollectionEditOperation) -> Bool {
         assetCollectionType == .album && anOperation != .createContent
     }
-    open override func value(forKey key: String) -> Any? {
+    @objc open override func value(forKey key: String) -> Any? {
         switch key {
         case "localIdentifier": return localIdentifier
         case "title", "localizedTitle": return title
@@ -543,7 +543,7 @@ open class PHFetchResultChangeDetails<T: PHObject>: NSObject, @unchecked Sendabl
         default: return super.value(forKey: key)
         }
     }
-    static func userAlbums(_ options: PHFetchOptions?) -> [PHAssetCollection] {
+    @objc static func userAlbums(_ options: PHFetchOptions?) -> [PHAssetCollection] {
         var r = _PHStore.albums().map(PHAssetCollection.init)
         if let p = options?.predicate { r = r.filter { p.evaluate(with: $0) } }
         for s in (options?.sortDescriptors ?? []).reversed() where s.key == "title" || s.key == "localizedTitle" || s.key == "startDate" {
@@ -553,7 +553,7 @@ open class PHFetchResultChangeDetails<T: PHObject>: NSObject, @unchecked Sendabl
         if let lim = options?.fetchLimit, lim > 0, r.count > lim { r = Array(r.prefix(lim)) }
         return r
     }
-    static let smart: [PHAssetCollection] = [PHAssetCollection(.smartAlbum, .smartAlbumUserLibrary, "Recents"),
+    @objc static let smart: [PHAssetCollection] = [PHAssetCollection(.smartAlbum, .smartAlbumUserLibrary, "Recents"),
                                              PHAssetCollection(.smartAlbum, .smartAlbumFavorites, "Favorites"),
                                              PHAssetCollection(.smartAlbum, .smartAlbumVideos, "Videos")]
     open class func fetchAssetCollections(with type: PHAssetCollectionType, subtype: PHAssetCollectionSubtype, options: PHFetchOptions?) -> PHFetchResult<PHAssetCollection> {
@@ -580,16 +580,16 @@ open class PHFetchResultChangeDetails<T: PHObject>: NSObject, @unchecked Sendabl
     }
 }
 
-@objc(PHFetchOptions) @objcMembers open class PHFetchOptions: NSObject, NSCopying, @unchecked Sendable {
-    open var predicate: NSPredicate?
-    open var sortDescriptors: [NSSortDescriptor]?
-    open var includeHiddenAssets = false
-    open var includeAllBurstAssets = false
-    open var includeAssetSourceTypes: PHAssetSourceType = .typeUserLibrary
-    open var fetchLimit = 0
-    open var wantsIncrementalChangeDetails = true
-    public override init() { super.init() }
-    public func copy(with zone: OpaquePointer? = nil) -> Any {
+@objc(PHFetchOptions) open class PHFetchOptions: NSObject, NSCopying, @unchecked Sendable {
+    @objc open var predicate: NSPredicate?
+    @objc open var sortDescriptors: [NSSortDescriptor]?
+    @objc open var includeHiddenAssets = false
+    @objc open var includeAllBurstAssets = false
+    @objc open var includeAssetSourceTypes: PHAssetSourceType = .typeUserLibrary
+    @objc open var fetchLimit = 0
+    @objc open var wantsIncrementalChangeDetails = true
+    @objc public override init() { super.init() }
+    @objc public func copy(with zone: OpaquePointer? = nil) -> Any {
         let o = PHFetchOptions(); o.predicate = predicate; o.sortDescriptors = sortDescriptors; o.fetchLimit = fetchLimit; return o
     }
 }
@@ -632,21 +632,21 @@ enum _PHChanges {
 }
 final class _PHDeleteRequest: NSObject { let ids: [String]; init(_ ids: [String]) { self.ids = ids } }
 
-@objc(PHAssetChangeRequest) @objcMembers open class PHAssetChangeRequest: NSObject, @unchecked Sendable {
-    var creating = false
-    var image: UIImage?, fileURL: URL?, resourceData: Data?
+@objc(PHAssetChangeRequest) open class PHAssetChangeRequest: NSObject, @unchecked Sendable {
+    @objc var creating = false
+    @objc var image: UIImage?, fileURL: URL?, resourceData: Data?
     /// a movie to add (creationRequestForAssetFromVideo, or a .video resource)
-    var videoFile: URL?
-    var target: String?
-    let placeholder = PHObjectPlaceholder(id: "\(UUID().uuidString)/L0/001")   // assigned up front, like iOS
-    open var creationDate: Date?
+    @objc var videoFile: URL?
+    @objc var target: String?
+    @objc let placeholder = PHObjectPlaceholder(id: "\(UUID().uuidString)/L0/001")   // assigned up front, like iOS
+    @objc open var creationDate: Date?
     @nonobjc open var isFavorite = false
     @nonobjc open var isHidden = false
-    open var location: AnyObject?
-    open var placeholderForCreatedAsset: PHObjectPlaceholder? { creating ? placeholder : nil }
+    @objc open var location: AnyObject?
+    @objc open var placeholderForCreatedAsset: PHObjectPlaceholder? { creating ? placeholder : nil }
 
-    public required override init() { super.init() }
-    public convenience init(for asset: PHAsset) {
+    @objc public required override init() { super.init() }
+    @objc public convenience init(for asset: PHAsset) {
         self.init()
         target = asset.localIdentifier; isFavorite = asset.isFavorite
         _PHChanges.add(self)
@@ -654,22 +654,22 @@ final class _PHDeleteRequest: NSObject { let ids: [String]; init(_ ids: [String]
     @objc(creationRequestForAssetFromImage:) open class func creationRequestForAsset(from image: UIImage) -> Self {
         let r = Self.init(); r.creating = true; r.image = image; _PHChanges.add(r); return r
     }
-    open class func creationRequestForAssetFromImage(atFileURL fileURL: URL) -> Self? {
+    @objc open class func creationRequestForAssetFromImage(atFileURL fileURL: URL) -> Self? {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
         let r = Self.init(); r.creating = true; r.fileURL = fileURL; _PHChanges.add(r); return r
     }
-    open class func creationRequestForAssetFromVideo(atFileURL fileURL: URL) -> Self? {
+    @objc open class func creationRequestForAssetFromVideo(atFileURL fileURL: URL) -> Self? {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
         let r = Self.init(); r.creating = true; r.videoFile = fileURL; _PHChanges.add(r); return r
     }
-    open class func deleteAssets(_ assets: Any) {
+    @objc open class func deleteAssets(_ assets: Any) {
         var ids: [String] = []
         if let a = assets as? [PHAsset] { ids = a.map(\.localIdentifier) }
         else if let r = assets as? PHFetchResult<PHAsset> { ids = r.items.map(\.localIdentifier) }
         else { ids = _PHObjC.objects(assets).compactMap { ($0 as? PHAsset)?.localIdentifier } }   // [Any], Objective-C's PHFetchResult
         _PHChanges.add(_PHDeleteRequest(ids))
     }
-    open func revertAssetContentToOriginal() {}
+    @objc open func revertAssetContentToOriginal() {}
 
     /// data, extension and pixel size of the asset to create
     func payload() -> (Data, String, Int, Int)? {
@@ -685,16 +685,16 @@ final class _PHDeleteRequest: NSObject { let ids: [String]; init(_ ids: [String]
     }
 }
 
-@objc(PHAssetResourceCreationOptions) @objcMembers open class PHAssetResourceCreationOptions: NSObject, @unchecked Sendable {
-    open var originalFilename: String?
-    open var uniformTypeIdentifier: String?
-    open var shouldMoveFile = false
-    public override init() { super.init() }
+@objc(PHAssetResourceCreationOptions) open class PHAssetResourceCreationOptions: NSObject, @unchecked Sendable {
+    @objc open var originalFilename: String?
+    @objc open var uniformTypeIdentifier: String?
+    @objc open var shouldMoveFile = false
+    @objc public override init() { super.init() }
 }
-@objc(PHAssetCreationRequest) @objcMembers open class PHAssetCreationRequest: PHAssetChangeRequest, @unchecked Sendable {
+@objc(PHAssetCreationRequest) open class PHAssetCreationRequest: PHAssetChangeRequest, @unchecked Sendable {
     @objc(creationRequestForAsset) open class func forAsset() -> PHAssetCreationRequest { let r = PHAssetCreationRequest(); r.creating = true; _PHChanges.add(r); return r }
     /// one photo or one video (isim has no paired resources: Live Photos, adjustment data)
-    open class func supportsAssetResourceTypes(_ types: [NSNumber]) -> Bool {
+    @objc open class func supportsAssetResourceTypes(_ types: [NSNumber]) -> Bool {
         types.count == 1 && [PHAssetResourceType.photo.rawValue, PHAssetResourceType.video.rawValue].contains(types[0].integerValue)
     }
     @objc(addResourceWithType:data:options:) open func addResource(with type: PHAssetResourceType, data: Data, options: PHAssetResourceCreationOptions?) {
@@ -712,21 +712,21 @@ final class _PHDeleteRequest: NSObject { let ids: [String]; init(_ ids: [String]
 
 // MARK: - Albums
 
-@objc(PHAssetCollectionChangeRequest) @objcMembers open class PHAssetCollectionChangeRequest: NSObject, @unchecked Sendable {
-    var target: String?
-    var deleting = false
+@objc(PHAssetCollectionChangeRequest) open class PHAssetCollectionChangeRequest: NSObject, @unchecked Sendable {
+    @objc var target: String?
+    @objc var deleting = false
     /// edits of the album's asset identifiers, applied in order
     var edits: [([String]) -> [String]] = []
-    let placeholder = PHObjectPlaceholder(id: "\(UUID().uuidString)/L0/040")
-    open var title: String
-    open var placeholderForCreatedAssetCollection: PHObjectPlaceholder { placeholder }
+    @objc let placeholder = PHObjectPlaceholder(id: "\(UUID().uuidString)/L0/040")
+    @objc open var title: String
+    @objc open var placeholderForCreatedAssetCollection: PHObjectPlaceholder { placeholder }
 
-    init(title: String, target: String?) { self.title = title; self.target = target; super.init() }
-    open class func creationRequestForAssetCollection(withTitle title: String) -> Self {
+    @objc init(title: String, target: String?) { self.title = title; self.target = target; super.init() }
+    @objc open class func creationRequestForAssetCollection(withTitle title: String) -> Self {
         let r = PHAssetCollectionChangeRequest(title: title, target: nil); _PHChanges.add(r); return r as! Self
     }
     /// nil for a smart album (it cannot be edited)
-    public convenience init?(for assetCollection: PHAssetCollection) {
+    @objc public convenience init?(for assetCollection: PHAssetCollection) {
         guard assetCollection.assetCollectionType == .album else { return nil }
         self.init(title: assetCollection.title, target: assetCollection.localIdentifier)
         _PHChanges.add(self)
@@ -737,12 +737,12 @@ final class _PHDeleteRequest: NSObject { let ids: [String]; init(_ ids: [String]
         let ids = assets.items.map(\.localIdentifier)
         edits.append { _ in ids }
     }
-    open class func deleteAssetCollections(_ assetCollections: Any) {
+    @objc open class func deleteAssetCollections(_ assetCollections: Any) {
         for id in Self._ids(assetCollections) {
             let r = PHAssetCollectionChangeRequest(title: "", target: id); r.deleting = true; _PHChanges.add(r)
         }
     }
-    static func _ids(_ objects: Any) -> [String] {
+    @objc static func _ids(_ objects: Any) -> [String] {
         if let a = objects as? [PHObject] { return a.map(\.localIdentifier) }
         if let r = objects as? PHFetchResult<PHAssetCollection> { return r.items.map(\.localIdentifier) }
         if let r = objects as? PHFetchResult<PHAsset> { return r.items.map(\.localIdentifier) }
@@ -750,7 +750,7 @@ final class _PHDeleteRequest: NSObject { let ids: [String]; init(_ ids: [String]
         if let a = objects as? NSArray { return (0 ..< a.count).compactMap { (a.object(at: $0) as? PHObject)?.localIdentifier } }
         return _PHObjC.objects(objects).compactMap { ($0 as? PHObject)?.localIdentifier }   // Objective-C's PHFetchResult
     }
-    open func addAssets(_ assets: Any) {
+    @objc open func addAssets(_ assets: Any) {
         let ids = Self._ids(assets)
         edits.append { $0 + ids }
     }
@@ -762,7 +762,7 @@ final class _PHDeleteRequest: NSObject { let ids: [String]; init(_ ids: [String]
             return out
         }
     }
-    open func removeAssets(_ assets: Any) {
+    @objc open func removeAssets(_ assets: Any) {
         let ids = Set(Self._ids(assets))
         edits.append { $0.filter { !ids.contains($0) } }
     }

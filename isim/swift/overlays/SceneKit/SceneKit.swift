@@ -152,16 +152,16 @@ enum _SCN {
 // MARK: - nodes and scenes
 
 /// A node of the scene graph: a transform (position, orientation, scale) and children.
-@objc(SCNNode) @objcMembers open class SCNNode: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
-    public override init() { super.init() }
-    open var name: String?
-    open internal(set) weak var parent: SCNNode?
-    open private(set) var childNodes: [SCNNode] = []
-    open var isHidden = false
-    open var opacity: CGFloat = 1
-    open var renderingOrder = 0
-    open var castsShadow = true
-    open var categoryBitMask = 1
+@objc(SCNNode) open class SCNNode: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
+    @objc public override init() { super.init() }
+    @objc open var name: String?
+    @objc open internal(set) weak var parent: SCNNode?
+    @objc open private(set) var childNodes: [SCNNode] = []
+    @objc open var isHidden = false
+    @objc open var opacity: CGFloat = 1
+    @objc open var renderingOrder = 0
+    @objc open var castsShadow = true
+    @objc open var categoryBitMask = 1
     var _t = SIMD3<Float>(repeating: 0), _q = simd_quatf(), _s = SIMD3<Float>(repeating: 1)
 
     // transform
@@ -194,7 +194,7 @@ enum _SCN {
     open var worldTransform: SCNMatrix4 { SCNMatrix4(simdWorldTransform) }
     open var worldPosition: SCNVector3 { get { SCNVector3(simdWorldPosition) } set { simdWorldPosition = SIMD3(newValue) } }
     open func setWorldTransform(_ worldTransform: SCNMatrix4) { simdWorldTransform = simd_float4x4(worldTransform) }
-    open var presentation: SCNNode { self }
+    @objc open var presentation: SCNNode { self }
     open func convertPosition(_ position: SCNVector3, to node: SCNNode?) -> SCNVector3 {
         let w = simdWorldTransform * SIMD4(SIMD3(position), 1)
         let l = node.map { _SCN.inverse($0.simdWorldTransform) * w } ?? w
@@ -207,29 +207,29 @@ enum _SCN {
     }
 
     // hierarchy
-    open func addChildNode(_ child: SCNNode) { insertChildNode(child, at: childNodes.count) }
-    open func insertChildNode(_ child: SCNNode, at index: Int) {
+    @objc open func addChildNode(_ child: SCNNode) { insertChildNode(child, at: childNodes.count) }
+    @objc open func insertChildNode(_ child: SCNNode, at index: Int) {
         child.removeFromParentNode()
         childNodes.insert(child, at: min(index, childNodes.count))
         child.parent = self
     }
-    open func removeFromParentNode() {
+    @objc open func removeFromParentNode() {
         parent?.childNodes.removeAll { $0 === self }
         parent = nil
     }
-    open func replaceChildNode(_ oldChild: SCNNode, with newChild: SCNNode) {
+    @objc open func replaceChildNode(_ oldChild: SCNNode, with newChild: SCNNode) {
         guard let i = childNodes.firstIndex(where: { $0 === oldChild }) else { return }
         oldChild.removeFromParentNode()
         insertChildNode(newChild, at: i)
     }
-    open func childNode(withName name: String, recursively: Bool) -> SCNNode? {
+    @objc open func childNode(withName name: String, recursively: Bool) -> SCNNode? {
         for c in childNodes {
             if c.name == name { return c }
             if recursively, let f = c.childNode(withName: name, recursively: true) { return f }
         }
         return nil
     }
-    open func childNodes(passingTest predicate: (SCNNode, UnsafeMutablePointer<ObjCBool>) -> Bool) -> [SCNNode] {
+    @objc open func childNodes(passingTest predicate: (SCNNode, UnsafeMutablePointer<ObjCBool>) -> Bool) -> [SCNNode] {
         var out: [SCNNode] = [], stop = ObjCBool(false)
         func walk(_ n: SCNNode) {
             for c in n.childNodes where !stop.boolValue {
@@ -240,35 +240,35 @@ enum _SCN {
         walk(self)
         return out
     }
-    open func enumerateChildNodes(_ block: (SCNNode, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    @objc open func enumerateChildNodes(_ block: (SCNNode, UnsafeMutablePointer<ObjCBool>) -> Void) {
         _ = childNodes { n, stop in block(n, stop); return false }
     }
-    open func enumerateHierarchy(_ block: (SCNNode, UnsafeMutablePointer<ObjCBool>) -> Void) {
+    @objc open func enumerateHierarchy(_ block: (SCNNode, UnsafeMutablePointer<ObjCBool>) -> Void) {
         var stop = ObjCBool(false)
         block(self, &stop)
         if !stop.boolValue { enumerateChildNodes(block) }
     }
 
-    open func clone() -> Self {
+    @objc open func clone() -> Self {
         let n = copy() as! SCNNode
         for c in childNodes { n.addChildNode(c.clone()) }
         return n as! Self
     }
-    open func flattenedClone() -> Self { clone() }
-    open func copy(with zone: NSZone? = nil) -> Any {
+    @objc open func flattenedClone() -> Self { clone() }
+    @objc open func copy(with zone: NSZone? = nil) -> Any {
         let n = (Swift.type(of: self) as NSObject.Type).init() as! SCNNode
         n.name = name; n._t = _t; n._q = _q; n._s = _s; n.isHidden = isHidden; n.opacity = opacity
         n.renderingOrder = renderingOrder; n.castsShadow = castsShadow; n.categoryBitMask = categoryBitMask
         return n
     }
-    public static var supportsSecureCoding: Bool { true }
-    open func encode(with coder: NSCoder) {
+    @objc public static var supportsSecureCoding: Bool { true }
+    @objc open func encode(with coder: NSCoder) {
         coder.encode(name, forKey: "name")
         coder.encode([_t.x, _t.y, _t.z, _q.vector.x, _q.vector.y, _q.vector.z, _q.vector.w, _s.x, _s.y, _s.z].map(NSNumber.init(value:)), forKey: "trs")
         coder.encode(childNodes, forKey: "children")
         coder.encode(isHidden, forKey: "hidden")
     }
-    public required init?(coder: NSCoder) {
+    @objc public required init?(coder: NSCoder) {
         super.init()
         name = coder.decodeObject(of: NSString.self, forKey: "name") as String?
         if let v = (coder.decodeObject(of: [NSArray.self, NSNumber.self], forKey: "trs") as? [NSNumber])?.map({ $0.floatValue }), v.count == 10 {
@@ -280,26 +280,26 @@ enum _SCN {
 }
 
 /// A scene: a root node. Scene files do not load yet (#330).
-@objc(SCNScene) @objcMembers open class SCNScene: NSObject, NSSecureCoding, @unchecked Sendable {
-    public override init() { super.init() }
-    open private(set) var rootNode = SCNNode()
-    open var isPaused = false
-    open var fogStartDistance: CGFloat = 0
-    open var fogEndDistance: CGFloat = 0
-    open var fogDensityExponent: CGFloat = 1
-    var _attributes: [String: Any] = [:]
+@objc(SCNScene) open class SCNScene: NSObject, NSSecureCoding, @unchecked Sendable {
+    @objc public override init() { super.init() }
+    @objc open private(set) var rootNode = SCNNode()
+    @objc open var isPaused = false
+    @objc open var fogStartDistance: CGFloat = 0
+    @objc open var fogEndDistance: CGFloat = 0
+    @objc open var fogDensityExponent: CGFloat = 1
+    @objc var _attributes: [String: Any] = [:]
     /// nil: isim cannot read .scn / .dae / .usdz files yet
-    public convenience init?(named name: String) { return nil }
-    public convenience init?(named name: String, inDirectory directory: String?, options: [String: Any]? = nil) { return nil }
-    public convenience init(url: URL, options: [String: Any]? = nil) throws {
+    @objc public convenience init?(named name: String) { return nil }
+    @objc public convenience init?(named name: String, inDirectory directory: String?, options: [String: Any]? = nil) { return nil }
+    @objc public convenience init(url: URL, options: [String: Any]? = nil) throws {
         throw NSError(domain: NSCocoaErrorDomain, code: NSFileReadUnknownError,
                       userInfo: [NSLocalizedDescriptionKey: "isim's SceneKit cannot read scene files yet", NSURLErrorKey: url])
     }
-    open func attribute(forKey key: String) -> Any? { _attributes[key] }
-    open func setAttribute(_ attribute: Any?, forKey key: String) { _attributes[key] = attribute }
-    public static var supportsSecureCoding: Bool { true }
-    open func encode(with coder: NSCoder) { coder.encode(rootNode, forKey: "root") }
-    public required init?(coder: NSCoder) {
+    @objc open func attribute(forKey key: String) -> Any? { _attributes[key] }
+    @objc open func setAttribute(_ attribute: Any?, forKey key: String) { _attributes[key] = attribute }
+    @objc public static var supportsSecureCoding: Bool { true }
+    @objc open func encode(with coder: NSCoder) { coder.encode(rootNode, forKey: "root") }
+    @objc public required init?(coder: NSCoder) {
         super.init()
         if let r = coder.decodeObject(of: SCNNode.self, forKey: "root") { rootNode = r }
     }
@@ -344,40 +344,40 @@ public protocol SCNSceneRenderer: AnyObject {
 
 /// A view that shows a scene. Stub: it draws its background colour only (no 3D renderer yet, #330); the render loop
 /// still runs at `preferredFramesPerSecond` while playing (or `rendersContinuously`) and calls the delegate.
-@MainActor @objc(SCNView) @objcMembers open class SCNView: UIView, @preconcurrency SCNSceneRenderer {
-    public override init(frame: CGRect) { super.init(frame: frame) }
-    public init(frame: CGRect, options: [String: Any]? = nil) { super.init(frame: frame) }
-    public required init?(coder: NSCoder) { super.init(coder: coder) }
+@MainActor @objc(SCNView) open class SCNView: UIView, @preconcurrency SCNSceneRenderer {
+    @objc public override init(frame: CGRect) { super.init(frame: frame) }
+    @objc public init(frame: CGRect, options: [String: Any]? = nil) { super.init(frame: frame) }
+    @objc public required init?(coder: NSCoder) { super.init(coder: coder) }
     /// SCNScene! (iOS: optional on SCNView, non-optional on ARSCNView; Swift cannot narrow an inherited property)
-    open var scene: SCNScene! { didSet { _restart() } }
-    open var sceneTime: TimeInterval = 0
+    @objc open var scene: SCNScene! { didSet { _restart() } }
+    @objc open var sceneTime: TimeInterval = 0
     open weak var delegate: (any SCNSceneRendererDelegate)?
-    open var isPlaying = false { didSet { _restart() } }
-    open var loops = true
-    open var pointOfView: SCNNode?
-    open var autoenablesDefaultLighting = false
-    open var isJitteringEnabled = false
-    open var showsStatistics = false
-    open var allowsCameraControl = false
-    open var rendersContinuously = false { didSet { _restart() } }
-    open var preferredFramesPerSecond = 60 { didSet { _restart() } }
+    @objc open var isPlaying = false { didSet { _restart() } }
+    @objc open var loops = true
+    @objc open var pointOfView: SCNNode?
+    @objc open var autoenablesDefaultLighting = false
+    @objc open var isJitteringEnabled = false
+    @objc open var showsStatistics = false
+    @objc open var allowsCameraControl = false
+    @objc open var rendersContinuously = false { didSet { _restart() } }
+    @objc open var preferredFramesPerSecond = 60 { didSet { _restart() } }
     open var antialiasingMode: SCNAntialiasingMode = .multisampling4X
-    open func play(_ sender: Any?) { isPlaying = true }
-    open func pause(_ sender: Any?) { isPlaying = false }
-    open func stop(_ sender: Any?) { isPlaying = false; sceneTime = 0 }
-    open func snapshot() -> UIImage {
+    @objc open func play(_ sender: Any?) { isPlaying = true }
+    @objc open func pause(_ sender: Any?) { isPlaying = false }
+    @objc open func stop(_ sender: Any?) { isPlaying = false; sceneTime = 0 }
+    @objc open func snapshot() -> UIImage {
         UIGraphicsImageRenderer(bounds: bounds).image { _ in drawHierarchy(in: bounds, afterScreenUpdates: false) }
     }
-    open func isNode(_ node: SCNNode, insideFrustumOf pointOfView: SCNNode) -> Bool { false }
-    open func nodesInsideFrustum(of pointOfView: SCNNode) -> [SCNNode] { [] }
+    @objc open func isNode(_ node: SCNNode, insideFrustumOf pointOfView: SCNNode) -> Bool { false }
+    @objc open func nodesInsideFrustum(of pointOfView: SCNNode) -> [SCNNode] { [] }
     /// no camera projection without a renderer: points pass through
     open func projectPoint(_ point: SCNVector3) -> SCNVector3 { point }
     open func unprojectPoint(_ point: SCNVector3) -> SCNVector3 { point }
 
-    var _timer: Timer?
+    @objc var _timer: Timer?
     var _start: TimeInterval?
-    open override func didMoveToWindow() { super.didMoveToWindow(); _restart() }
-    func _restart() {
+    @objc open override func didMoveToWindow() { super.didMoveToWindow(); _restart() }
+    @objc func _restart() {
         _timer?.invalidate(); _timer = nil
         guard window != nil, scene != nil, isPlaying || rendersContinuously else { return }
         let fps = max(1, preferredFramesPerSecond)
@@ -386,7 +386,7 @@ public protocol SCNSceneRenderer: AnyObject {
         }
     }
     /// one turn of SceneKit's render loop, without the drawing
-    func _frame() {
+    @objc func _frame() {
         guard let scene, !scene.isPaused else { return }
         let now = ProcessInfo.processInfo.systemUptime
         if _start == nil { _start = now - sceneTime }
@@ -401,5 +401,5 @@ public protocol SCNSceneRenderer: AnyObject {
         d?.renderer(self, didRenderScene: scene, atTime: now)
     }
     /// subclasses' per-frame work (ARSCNView updates its anchors' nodes)
-    func _renderFrame(_ time: TimeInterval) {}
+    @objc func _renderFrame(_ time: TimeInterval) {}
 }

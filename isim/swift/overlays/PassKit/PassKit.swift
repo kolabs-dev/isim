@@ -115,118 +115,118 @@ public enum PKPaymentAuthorizationStatus: Int, Sendable {
 // MARK: - Summary items and shipping methods
 
 /// A line of the payment sheet's summary: the last item is the total, its label the business's name.
-@objc(PKPaymentSummaryItem) @objcMembers open class PKPaymentSummaryItem: NSObject {
-    open var label: String
-    open var amount: NSDecimalNumber
+@objc(PKPaymentSummaryItem) open class PKPaymentSummaryItem: NSObject {
+    @objc open var label: String
+    @objc open var amount: NSDecimalNumber
     open var type: PKPaymentSummaryItemType = .final
-    public override init() { label = ""; amount = .zero; super.init() }
-    public convenience init(label: String, amount: NSDecimalNumber) {
+    @objc public override init() { label = ""; amount = .zero; super.init() }
+    @objc public convenience init(label: String, amount: NSDecimalNumber) {
         self.init(); self.label = label; self.amount = amount
     }
     public convenience init(label: String, amount: NSDecimalNumber, type: PKPaymentSummaryItemType) {
         self.init(label: label, amount: amount); self.type = type
     }
-    open override var description: String { "<\(Swift.type(of: self)) \(label): \(amount)\(type == .pending ? " (pending)" : "")>" }
+    @objc open override var description: String { "<\(Swift.type(of: self)) \(label): \(amount)\(type == .pending ? " (pending)" : "")>" }
 }
 
 /// A payment billed on a schedule (a subscription).
-@objc(PKRecurringPaymentSummaryItem) @objcMembers open class PKRecurringPaymentSummaryItem: PKPaymentSummaryItem {
-    open var startDate: Date?
-    open var intervalUnit: NSCalendar.Unit = .month
-    open var intervalCount: Int = 1
-    open var endDate: Date?
+@objc(PKRecurringPaymentSummaryItem) open class PKRecurringPaymentSummaryItem: PKPaymentSummaryItem {
+    @objc open var startDate: Date?
+    @objc open var intervalUnit: NSCalendar.Unit = .month
+    @objc open var intervalCount: Int = 1
+    @objc open var endDate: Date?
 }
 
 /// A payment billed later, on a date.
-@objc(PKDeferredPaymentSummaryItem) @objcMembers open class PKDeferredPaymentSummaryItem: PKPaymentSummaryItem {
-    open var deferredDate = Date()
+@objc(PKDeferredPaymentSummaryItem) open class PKDeferredPaymentSummaryItem: PKPaymentSummaryItem {
+    @objc open var deferredDate = Date()
 }
 
 /// A payment that reloads a stored-value balance when it falls below a threshold.
-@objc(PKAutomaticReloadPaymentSummaryItem) @objcMembers open class PKAutomaticReloadPaymentSummaryItem: PKPaymentSummaryItem {
-    open var thresholdAmount: NSDecimalNumber = .zero
+@objc(PKAutomaticReloadPaymentSummaryItem) open class PKAutomaticReloadPaymentSummaryItem: PKPaymentSummaryItem {
+    @objc open var thresholdAmount: NSDecimalNumber = .zero
 }
 
 /// The start and end of a shipping method's delivery estimate.
-@objc(PKDateComponentsRange) @objcMembers open class PKDateComponentsRange: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
-    public let startDateComponents: DateComponents
-    public let endDateComponents: DateComponents
-    public init?(start: DateComponents, end: DateComponents) {
+@objc(PKDateComponentsRange) open class PKDateComponentsRange: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
+    @objc public let startDateComponents: DateComponents
+    @objc public let endDateComponents: DateComponents
+    @objc public init?(start: DateComponents, end: DateComponents) {
         startDateComponents = start; endDateComponents = end
         super.init()
     }
-    public convenience init?(startDateComponents: DateComponents, endDateComponents: DateComponents) {
+    @objc public convenience init?(startDateComponents: DateComponents, endDateComponents: DateComponents) {
         self.init(start: startDateComponents, end: endDateComponents)
     }
-    public static var supportsSecureCoding: Bool { true }
-    public func encode(with coder: NSCoder) {
+    @objc public static var supportsSecureCoding: Bool { true }
+    @objc public func encode(with coder: NSCoder) {
         coder.encode(startDateComponents as NSDateComponents, forKey: "start")
         coder.encode(endDateComponents as NSDateComponents, forKey: "end")
     }
-    public required init?(coder: NSCoder) {
+    @objc public required init?(coder: NSCoder) {
         guard let s = coder.decodeObject(of: NSDateComponents.self, forKey: "start"), let e = coder.decodeObject(of: NSDateComponents.self, forKey: "end") else { return nil }
         startDateComponents = s as DateComponents; endDateComponents = e as DateComponents
         super.init()
     }
-    public func copy(with zone: NSZone? = nil) -> Any { self }
+    @objc public func copy(with zone: NSZone? = nil) -> Any { self }
 }
 
 /// A way to ship the order, with its cost.
-@objc(PKShippingMethod) @objcMembers open class PKShippingMethod: PKPaymentSummaryItem {
-    open var identifier: String?
-    open var detail: String?
-    open var dateComponentsRange: PKDateComponentsRange?
+@objc(PKShippingMethod) open class PKShippingMethod: PKPaymentSummaryItem {
+    @objc open var identifier: String?
+    @objc open var detail: String?
+    @objc open var dateComponentsRange: PKDateComponentsRange?
 }
 
 // MARK: - Recurring, deferred and automatic reload requests, multi-token contexts
 
-@objc(PKRecurringPaymentRequest) @objcMembers open class PKRecurringPaymentRequest: NSObject {
-    open var paymentDescription: String
-    open var regularBilling: PKRecurringPaymentSummaryItem
-    open var trialBilling: PKRecurringPaymentSummaryItem?
-    open var billingAgreement: String?
-    open var managementURL: URL
-    open var tokenNotificationURL: URL?
-    public init(paymentDescription: String, regularBilling: PKRecurringPaymentSummaryItem, managementURL: URL) {
+@objc(PKRecurringPaymentRequest) open class PKRecurringPaymentRequest: NSObject {
+    @objc open var paymentDescription: String
+    @objc open var regularBilling: PKRecurringPaymentSummaryItem
+    @objc open var trialBilling: PKRecurringPaymentSummaryItem?
+    @objc open var billingAgreement: String?
+    @objc open var managementURL: URL
+    @objc open var tokenNotificationURL: URL?
+    @objc public init(paymentDescription: String, regularBilling: PKRecurringPaymentSummaryItem, managementURL: URL) {
         self.paymentDescription = paymentDescription; self.regularBilling = regularBilling; self.managementURL = managementURL
         super.init()
     }
 }
 
-@objc(PKDeferredPaymentRequest) @objcMembers open class PKDeferredPaymentRequest: NSObject {
-    open var paymentDescription: String
-    open var deferredBilling: PKDeferredPaymentSummaryItem
-    open var billingAgreement: String?
-    open var managementURL: URL
-    open var tokenNotificationURL: URL?
-    open var freeCancellationDate: Date?
-    open var freeCancellationDateTimeZone: TimeZone?
-    public init(paymentDescription: String, deferredBilling: PKDeferredPaymentSummaryItem, managementURL: URL) {
+@objc(PKDeferredPaymentRequest) open class PKDeferredPaymentRequest: NSObject {
+    @objc open var paymentDescription: String
+    @objc open var deferredBilling: PKDeferredPaymentSummaryItem
+    @objc open var billingAgreement: String?
+    @objc open var managementURL: URL
+    @objc open var tokenNotificationURL: URL?
+    @objc open var freeCancellationDate: Date?
+    @objc open var freeCancellationDateTimeZone: TimeZone?
+    @objc public init(paymentDescription: String, deferredBilling: PKDeferredPaymentSummaryItem, managementURL: URL) {
         self.paymentDescription = paymentDescription; self.deferredBilling = deferredBilling; self.managementURL = managementURL
         super.init()
     }
 }
 
-@objc(PKAutomaticReloadPaymentRequest) @objcMembers open class PKAutomaticReloadPaymentRequest: NSObject {
-    open var paymentDescription: String
-    open var automaticReloadBilling: PKAutomaticReloadPaymentSummaryItem
-    open var billingAgreement: String?
-    open var managementURL: URL
-    open var tokenNotificationURL: URL?
-    public init(paymentDescription: String, automaticReloadBilling: PKAutomaticReloadPaymentSummaryItem, managementURL: URL) {
+@objc(PKAutomaticReloadPaymentRequest) open class PKAutomaticReloadPaymentRequest: NSObject {
+    @objc open var paymentDescription: String
+    @objc open var automaticReloadBilling: PKAutomaticReloadPaymentSummaryItem
+    @objc open var billingAgreement: String?
+    @objc open var managementURL: URL
+    @objc open var tokenNotificationURL: URL?
+    @objc public init(paymentDescription: String, automaticReloadBilling: PKAutomaticReloadPaymentSummaryItem, managementURL: URL) {
         self.paymentDescription = paymentDescription; self.automaticReloadBilling = automaticReloadBilling; self.managementURL = managementURL
         super.init()
     }
 }
 
 /// One merchant's part of a payment with several tokens (a marketplace order).
-@objc(PKPaymentTokenContext) @objcMembers open class PKPaymentTokenContext: NSObject {
-    open var merchantIdentifier: String
-    open var externalIdentifier: String
-    open var merchantName: String
-    open var merchantDomain: String?
-    open var amount: NSDecimalNumber
-    public init(merchantIdentifier: String, externalIdentifier: String, merchantName: String, merchantDomain: String?, amount: NSDecimalNumber) {
+@objc(PKPaymentTokenContext) open class PKPaymentTokenContext: NSObject {
+    @objc open var merchantIdentifier: String
+    @objc open var externalIdentifier: String
+    @objc open var merchantName: String
+    @objc open var merchantDomain: String?
+    @objc open var amount: NSDecimalNumber
+    @objc public init(merchantIdentifier: String, externalIdentifier: String, merchantName: String, merchantDomain: String?, amount: NSDecimalNumber) {
         self.merchantIdentifier = merchantIdentifier; self.externalIdentifier = externalIdentifier; self.merchantName = merchantName
         self.merchantDomain = merchantDomain; self.amount = amount
         super.init()
@@ -236,15 +236,15 @@ public enum PKPaymentAuthorizationStatus: Int, Sendable {
 // MARK: - Contacts
 
 /// The customer's name, address, email and phone, as the payment sheet hands them to the app.
-@objc(PKContact) @objcMembers open class PKContact: NSObject, @unchecked Sendable {
-    open var name: PersonNameComponents?
-    open var postalAddress: CNPostalAddress?
-    open var emailAddress: String?
-    open var phoneNumber: CNPhoneNumber?
+@objc(PKContact) open class PKContact: NSObject, @unchecked Sendable {
+    @objc open var name: PersonNameComponents?
+    @objc open var postalAddress: CNPostalAddress?
+    @objc open var emailAddress: String?
+    @objc open var phoneNumber: CNPhoneNumber?
     @available(*, deprecated, message: "Use postalAddress.subLocality")
-    open var supplementarySubLocality: String?
-    public override init() { super.init() }
-    open override var description: String {
+    @objc open var supplementarySubLocality: String?
+    @objc public override init() { super.init() }
+    @objc open override var description: String {
         let a = postalAddress.map { [$0.street, $0.city, $0.state, $0.postalCode, $0.isoCountryCode].filter { !$0.isEmpty }.joined(separator: ", ") }
         let n = name.map { PersonNameComponentsFormatter().string(from: $0) }
         return "<PKContact" + [n, a, emailAddress, phoneNumber?.stringValue].compactMap { $0 }.map { " " + $0 }.joined() + ">"
@@ -254,32 +254,32 @@ public enum PKPaymentAuthorizationStatus: Int, Sendable {
 // MARK: - Payment request
 
 /// What the customer is asked to pay, and how.
-@objc(PKPaymentRequest) @objcMembers open class PKPaymentRequest: NSObject {
-    open var merchantIdentifier = ""
-    open var countryCode = ""
+@objc(PKPaymentRequest) open class PKPaymentRequest: NSObject {
+    @objc open var merchantIdentifier = ""
+    @objc open var countryCode = ""
     open var supportedNetworks: [PKPaymentNetwork] = []
     open var merchantCapabilities: PKMerchantCapability = .threeDSecure
-    open var supportedCountries: Set<String>?
-    open var currencyCode = ""
-    open var paymentSummaryItems: [PKPaymentSummaryItem] = []
+    @objc open var supportedCountries: Set<String>?
+    @objc open var currencyCode = ""
+    @objc open var paymentSummaryItems: [PKPaymentSummaryItem] = []
     open var requiredBillingContactFields: Set<PKContactField> = []
-    open var billingContact: PKContact?
+    @objc open var billingContact: PKContact?
     open var requiredShippingContactFields: Set<PKContactField> = []
-    open var shippingContact: PKContact?
-    open var shippingMethods: [PKShippingMethod]?
+    @objc open var shippingContact: PKContact?
+    @objc open var shippingMethods: [PKShippingMethod]?
     open var shippingType: PKShippingType = .shipping
     open var shippingContactEditingMode: PKShippingContactEditingMode = .available
-    open var applicationData: Data?
-    open var couponCode: String?
-    open var supportsCouponCode = false
-    open var recurringPaymentRequest: PKRecurringPaymentRequest?
-    open var deferredPaymentRequest: PKDeferredPaymentRequest?
-    open var automaticReloadPaymentRequest: PKAutomaticReloadPaymentRequest?
-    open var multiTokenContexts: [PKPaymentTokenContext] = []
-    open var attributionIdentifier: String?
-    open var isDelegatedRequest = false
-    open var unsupportedPrimaryAccountIdentifiers: [String] = []
-    public override init() { super.init() }
+    @objc open var applicationData: Data?
+    @objc open var couponCode: String?
+    @objc open var supportsCouponCode = false
+    @objc open var recurringPaymentRequest: PKRecurringPaymentRequest?
+    @objc open var deferredPaymentRequest: PKDeferredPaymentRequest?
+    @objc open var automaticReloadPaymentRequest: PKAutomaticReloadPaymentRequest?
+    @objc open var multiTokenContexts: [PKPaymentTokenContext] = []
+    @objc open var attributionIdentifier: String?
+    @objc open var isDelegatedRequest = false
+    @objc open var unsupportedPrimaryAccountIdentifiers: [String] = []
+    @objc public override init() { super.init() }
 
     /// the networks the device can pay with: those of its test cards
     open class func availableNetworks() -> [PKPaymentNetwork] { _PKWallet.cards.map(\.network) }
@@ -287,26 +287,26 @@ public enum PKPaymentAuthorizationStatus: Int, Sendable {
     open class func paymentContactInvalidError(withContactField field: PKContactField, localizedDescription: String?) -> Error {
         PKPaymentError(.shippingContactInvalidError, localizedDescription, [PKPaymentErrorKey.contactFieldUserInfoKey.rawValue: field.rawValue])
     }
-    open class func paymentShippingAddressInvalidError(withKey postalAddressKey: String, localizedDescription: String?) -> Error {
+    @objc open class func paymentShippingAddressInvalidError(withKey postalAddressKey: String, localizedDescription: String?) -> Error {
         PKPaymentError(.shippingContactInvalidError, localizedDescription, [PKPaymentErrorKey.contactFieldUserInfoKey.rawValue: PKContactField.postalAddress.rawValue,
                                                                             PKPaymentErrorKey.postalAddressUserInfoKey.rawValue: postalAddressKey])
     }
-    open class func paymentBillingAddressInvalidError(withKey postalAddressKey: String, localizedDescription: String?) -> Error {
+    @objc open class func paymentBillingAddressInvalidError(withKey postalAddressKey: String, localizedDescription: String?) -> Error {
         PKPaymentError(.billingContactInvalidError, localizedDescription, [PKPaymentErrorKey.contactFieldUserInfoKey.rawValue: PKContactField.postalAddress.rawValue,
                                                                            PKPaymentErrorKey.postalAddressUserInfoKey.rawValue: postalAddressKey])
     }
-    open class func paymentShippingAddressUnserviceableError(withLocalizedDescription localizedDescription: String?) -> Error {
+    @objc open class func paymentShippingAddressUnserviceableError(withLocalizedDescription localizedDescription: String?) -> Error {
         PKPaymentError(.shippingAddressUnserviceableError, localizedDescription, [:])
     }
-    public static func paymentCouponCodeInvalidError(localizedDescription: String?) -> Error {
+    @objc public static func paymentCouponCodeInvalidError(localizedDescription: String?) -> Error {
         PKPaymentError(.couponCodeInvalidError, localizedDescription, [:])
     }
-    public static func paymentCouponCodeExpiredError(localizedDescription: String?) -> Error {
+    @objc public static func paymentCouponCodeExpiredError(localizedDescription: String?) -> Error {
         PKPaymentError(.couponCodeExpiredError, localizedDescription, [:])
     }
 
     /// why the sheet cannot show this request (iOS raises or refuses to present), nil when it can
-    var problem: String? {
+    @objc var problem: String? {
         if merchantIdentifier.isEmpty { return "merchantIdentifier is empty" }
         if countryCode.count != 2 { return "countryCode must be a two-letter ISO 3166 code" }
         if currencyCode.count != 3 { return "currencyCode must be a three-letter ISO 4217 code" }
@@ -369,113 +369,113 @@ public struct PKPaymentError: CustomNSError, Hashable, @unchecked Sendable {
 // MARK: - Payment methods, tokens, payments
 
 /// The card the customer pays with, as the app sees it (no card number).
-@objc(PKPaymentMethod) @objcMembers open class PKPaymentMethod: NSObject, @unchecked Sendable {
-    open internal(set) var displayName: String?
+@objc(PKPaymentMethod) open class PKPaymentMethod: NSObject, @unchecked Sendable {
+    @objc open internal(set) var displayName: String?
     open internal(set) var network: PKPaymentNetwork?
     open internal(set) var type: PKPaymentMethodType = .unknown
-    open internal(set) var billingAddress: CNContact?
-    public override init() { super.init() }
-    open override var description: String { "<PKPaymentMethod \(displayName ?? "?") \(network?.rawValue ?? "?") type=\(type.rawValue)>" }
+    @objc open internal(set) var billingAddress: CNContact?
+    @objc public override init() { super.init() }
+    @objc open override var description: String { "<PKPaymentMethod \(displayName ?? "?") \(network?.rawValue ?? "?") type=\(type.rawValue)>" }
 }
 
 /// The payment's credentials for the merchant's payment processor. On isim it is a test token, not Apple's: its
 /// paymentData is JSON with "version": "isim-test" and no cryptogram, so a payment processor rejects it.
-@objc(PKPaymentToken) @objcMembers open class PKPaymentToken: NSObject, @unchecked Sendable {
-    open internal(set) var paymentMethod: PKPaymentMethod
-    open internal(set) var transactionIdentifier: String
-    open internal(set) var paymentData: Data
-    @available(*, deprecated, message: "Use paymentMethod.displayName") open var paymentInstrumentName: String { paymentMethod.displayName ?? "" }
-    @available(*, deprecated, message: "Use paymentMethod.network") open var paymentNetwork: String { paymentMethod.network?.rawValue ?? "" }
-    init(paymentMethod: PKPaymentMethod, transactionIdentifier: String, paymentData: Data) {
+@objc(PKPaymentToken) open class PKPaymentToken: NSObject, @unchecked Sendable {
+    @objc open internal(set) var paymentMethod: PKPaymentMethod
+    @objc open internal(set) var transactionIdentifier: String
+    @objc open internal(set) var paymentData: Data
+    @objc @available(*, deprecated, message: "Use paymentMethod.displayName") open var paymentInstrumentName: String { paymentMethod.displayName ?? "" }
+    @objc @available(*, deprecated, message: "Use paymentMethod.network") open var paymentNetwork: String { paymentMethod.network?.rawValue ?? "" }
+    @objc init(paymentMethod: PKPaymentMethod, transactionIdentifier: String, paymentData: Data) {
         self.paymentMethod = paymentMethod; self.transactionIdentifier = transactionIdentifier; self.paymentData = paymentData
         super.init()
     }
 }
 
 /// An authorized payment: the token and the contacts and shipping method the customer chose.
-@objc(PKPayment) @objcMembers open class PKPayment: NSObject, @unchecked Sendable {
-    open internal(set) var token: PKPaymentToken
-    open internal(set) var billingContact: PKContact?
-    open internal(set) var shippingContact: PKContact?
-    open internal(set) var shippingMethod: PKShippingMethod?
-    init(token: PKPaymentToken) { self.token = token; super.init() }
+@objc(PKPayment) open class PKPayment: NSObject, @unchecked Sendable {
+    @objc open internal(set) var token: PKPaymentToken
+    @objc open internal(set) var billingContact: PKContact?
+    @objc open internal(set) var shippingContact: PKContact?
+    @objc open internal(set) var shippingMethod: PKShippingMethod?
+    @objc init(token: PKPaymentToken) { self.token = token; super.init() }
 }
 
 // MARK: - Results and request updates
 
 /// The app's answer to an authorized payment: success, or failure with what to fix.
-@objc(PKPaymentAuthorizationResult) @objcMembers open class PKPaymentAuthorizationResult: NSObject, @unchecked Sendable {
+@objc(PKPaymentAuthorizationResult) open class PKPaymentAuthorizationResult: NSObject, @unchecked Sendable {
     open var status: PKPaymentAuthorizationStatus
-    open var errors: [Error]!
+    @objc open var errors: [Error]!
     /// the Wallet order the payment creates (isim's Wallet records it)
-    open var orderDetails: PKPaymentOrderDetails?
+    @objc open var orderDetails: PKPaymentOrderDetails?
     public init(status: PKPaymentAuthorizationStatus, errors: [Error]?) {
         self.status = status; self.errors = errors ?? []
         super.init()
     }
-    public override convenience init() { self.init(status: .success, errors: nil) }
+    @objc public override convenience init() { self.init(status: .success, errors: nil) }
 }
 
 /// New summary items (and shipping methods) for the sheet after the customer changed something.
-@objc(PKPaymentRequestUpdate) @objcMembers open class PKPaymentRequestUpdate: NSObject, @unchecked Sendable {
+@objc(PKPaymentRequestUpdate) open class PKPaymentRequestUpdate: NSObject, @unchecked Sendable {
     open var status: PKPaymentAuthorizationStatus = .success
-    open var paymentSummaryItems: [PKPaymentSummaryItem]
-    open var shippingMethods: [PKShippingMethod] = []
-    open var multiTokenContexts: [PKPaymentTokenContext]?
-    open var recurringPaymentRequest: PKRecurringPaymentRequest?
-    open var deferredPaymentRequest: PKDeferredPaymentRequest?
-    open var automaticReloadPaymentRequest: PKAutomaticReloadPaymentRequest?
-    public init(paymentSummaryItems: [PKPaymentSummaryItem]) {
+    @objc open var paymentSummaryItems: [PKPaymentSummaryItem]
+    @objc open var shippingMethods: [PKShippingMethod] = []
+    @objc open var multiTokenContexts: [PKPaymentTokenContext]?
+    @objc open var recurringPaymentRequest: PKRecurringPaymentRequest?
+    @objc open var deferredPaymentRequest: PKDeferredPaymentRequest?
+    @objc open var automaticReloadPaymentRequest: PKAutomaticReloadPaymentRequest?
+    @objc public init(paymentSummaryItems: [PKPaymentSummaryItem]) {
         self.paymentSummaryItems = paymentSummaryItems
         super.init()
     }
     /// the errors to show (the subclasses that carry them)
-    var _errors: [Error] { [] }
+    @objc var _errors: [Error] { [] }
     /// whether the update replaced the shipping methods (the subclasses that carry them)
-    var _setsShippingMethods = false
+    @objc var _setsShippingMethods = false
     /// returned by a delegate's default method: nothing changes
-    var _unchanged = false
+    @objc var _unchanged = false
 }
 
-@objc(PKPaymentRequestShippingMethodUpdate) @objcMembers open class PKPaymentRequestShippingMethodUpdate: PKPaymentRequestUpdate, @unchecked Sendable {}
+@objc(PKPaymentRequestShippingMethodUpdate) open class PKPaymentRequestShippingMethodUpdate: PKPaymentRequestUpdate, @unchecked Sendable {}
 
-@objc(PKPaymentRequestShippingContactUpdate) @objcMembers open class PKPaymentRequestShippingContactUpdate: PKPaymentRequestUpdate, @unchecked Sendable {
-    open var errors: [Error]!
-    public init(errors: [Error]?, paymentSummaryItems: [PKPaymentSummaryItem], shippingMethods: [PKShippingMethod]) {
+@objc(PKPaymentRequestShippingContactUpdate) open class PKPaymentRequestShippingContactUpdate: PKPaymentRequestUpdate, @unchecked Sendable {
+    @objc open var errors: [Error]!
+    @objc public init(errors: [Error]?, paymentSummaryItems: [PKPaymentSummaryItem], shippingMethods: [PKShippingMethod]) {
         self.errors = errors ?? []
         super.init(paymentSummaryItems: paymentSummaryItems)
         self.shippingMethods = shippingMethods; _setsShippingMethods = true
     }
-    public override init(paymentSummaryItems: [PKPaymentSummaryItem]) {
+    @objc public override init(paymentSummaryItems: [PKPaymentSummaryItem]) {
         errors = []
         super.init(paymentSummaryItems: paymentSummaryItems)
     }
-    override var _errors: [Error] { errors ?? [] }
+    @objc override var _errors: [Error] { errors ?? [] }
 }
 
-@objc(PKPaymentRequestPaymentMethodUpdate) @objcMembers open class PKPaymentRequestPaymentMethodUpdate: PKPaymentRequestUpdate, @unchecked Sendable {
-    open var errors: [Error]!
-    public init(errors: [Error]?, paymentSummaryItems: [PKPaymentSummaryItem]) {
+@objc(PKPaymentRequestPaymentMethodUpdate) open class PKPaymentRequestPaymentMethodUpdate: PKPaymentRequestUpdate, @unchecked Sendable {
+    @objc open var errors: [Error]!
+    @objc public init(errors: [Error]?, paymentSummaryItems: [PKPaymentSummaryItem]) {
         self.errors = errors ?? []
         super.init(paymentSummaryItems: paymentSummaryItems)
     }
-    public override init(paymentSummaryItems: [PKPaymentSummaryItem]) {
+    @objc public override init(paymentSummaryItems: [PKPaymentSummaryItem]) {
         errors = []
         super.init(paymentSummaryItems: paymentSummaryItems)
     }
-    override var _errors: [Error] { errors ?? [] }
+    @objc override var _errors: [Error] { errors ?? [] }
 }
 
-@objc(PKPaymentRequestCouponCodeUpdate) @objcMembers open class PKPaymentRequestCouponCodeUpdate: PKPaymentRequestUpdate, @unchecked Sendable {
-    open var errors: [Error]!
-    public init(errors: [Error]?, paymentSummaryItems: [PKPaymentSummaryItem], shippingMethods: [PKShippingMethod]) {
+@objc(PKPaymentRequestCouponCodeUpdate) open class PKPaymentRequestCouponCodeUpdate: PKPaymentRequestUpdate, @unchecked Sendable {
+    @objc open var errors: [Error]!
+    @objc public init(errors: [Error]?, paymentSummaryItems: [PKPaymentSummaryItem], shippingMethods: [PKShippingMethod]) {
         self.errors = errors ?? []
         super.init(paymentSummaryItems: paymentSummaryItems)
         self.shippingMethods = shippingMethods; _setsShippingMethods = true
     }
-    public override init(paymentSummaryItems: [PKPaymentSummaryItem]) {
+    @objc public override init(paymentSummaryItems: [PKPaymentSummaryItem]) {
         errors = []
         super.init(paymentSummaryItems: paymentSummaryItems)
     }
-    override var _errors: [Error] { errors ?? [] }
+    @objc override var _errors: [Error] { errors ?? [] }
 }

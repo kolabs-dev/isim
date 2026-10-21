@@ -47,10 +47,10 @@ private func _vnFaces(_ img: _VNImage) throws -> [_VNFace] {
     }
 }
 
-@objc(VNDetectFaceRectanglesRequest) @objcMembers open class VNDetectFaceRectanglesRequest: VNImageBasedRequest, @unchecked Sendable {
-    open override class var supportedRevisions: IndexSet { IndexSet([2, 3]) }
-    open override class var defaultRevision: Int { 3 }
-    open override class var currentRevision: Int { 3 }
+@objc(VNDetectFaceRectanglesRequest) open class VNDetectFaceRectanglesRequest: VNImageBasedRequest, @unchecked Sendable {
+    @objc open override class var supportedRevisions: IndexSet { IndexSet([2, 3]) }
+    @objc open override class var defaultRevision: Int { 3 }
+    @objc open override class var currentRevision: Int { 3 }
     override func _run(_ img: _VNImage) throws -> [VNObservation] {
         try _vnFaces(img).map { f in
             let o = VNFaceObservation(boundingBox: f.box)
@@ -60,14 +60,14 @@ private func _vnFaces(_ img: _VNImage) throws -> [_VNFace] {
     }
 }
 @objc public enum VNRequestFaceLandmarksConstellation: UInt, Sendable { case constellationNotDefined = 0, constellation65Points = 1, constellation76Points = 2 }
-@objc(VNDetectFaceLandmarksRequest) @objcMembers open class VNDetectFaceLandmarksRequest: VNImageBasedRequest, @unchecked Sendable {
+@objc(VNDetectFaceLandmarksRequest) open class VNDetectFaceLandmarksRequest: VNImageBasedRequest, @unchecked Sendable {
     /// faces to find landmarks in (from an earlier face request); nil: detect the faces too
-    open var inputFaceObservations: [VNFaceObservation]?
-    open var constellation: VNRequestFaceLandmarksConstellation = .constellation65Points
-    open override class var supportedRevisions: IndexSet { IndexSet([2, 3]) }
-    open override class var defaultRevision: Int { 3 }
-    open override class var currentRevision: Int { 3 }
-    open class func revision(_ requestRevision: Int, supportsConstellation constellation: VNRequestFaceLandmarksConstellation) -> Bool {
+    @objc open var inputFaceObservations: [VNFaceObservation]?
+    @objc open var constellation: VNRequestFaceLandmarksConstellation = .constellation65Points
+    @objc open override class var supportedRevisions: IndexSet { IndexSet([2, 3]) }
+    @objc open override class var defaultRevision: Int { 3 }
+    @objc open override class var currentRevision: Int { 3 }
+    @objc open class func revision(_ requestRevision: Int, supportsConstellation constellation: VNRequestFaceLandmarksConstellation) -> Bool {
         constellation == .constellation65Points || (constellation == .constellation76Points && requestRevision >= 3)
     }
     override func _run(_ img: _VNImage) throws -> [VNObservation] {
@@ -93,15 +93,15 @@ private func _vnFaces(_ img: _VNImage) throws -> [_VNFace] {
 }
 private extension CGRect { var area: CGFloat { isNull ? 0 : width * height } }
 
-@objc(VNFaceLandmarkRegion) @objcMembers open class VNFaceLandmarkRegion: NSObject, @unchecked Sendable {
-    open var requestRevision: Int { 3 }
+@objc(VNFaceLandmarkRegion) open class VNFaceLandmarkRegion: NSObject, @unchecked Sendable {
+    @objc open var requestRevision: Int { 3 }
 }
 @objc public enum VNPointsClassification: Int, Sendable { case disconnected = 0, openPath = 1, closedPath = 2 }
-@objc(VNFaceLandmarkRegion2D) @objcMembers open class VNFaceLandmarkRegion2D: VNFaceLandmarkRegion, @unchecked Sendable {
-    let _points: [CGPoint], _box: CGRect
-    public let pointsClassification: VNPointsClassification
-    init(points: [CGPoint], box: CGRect, classification: VNPointsClassification) { _points = points; _box = box; pointsClassification = classification }
-    open var pointCount: Int { _points.count }
+@objc(VNFaceLandmarkRegion2D) open class VNFaceLandmarkRegion2D: VNFaceLandmarkRegion, @unchecked Sendable {
+    @objc let _points: [CGPoint], _box: CGRect
+    @objc public let pointsClassification: VNPointsClassification
+    @objc init(points: [CGPoint], box: CGRect, classification: VNPointsClassification) { _points = points; _box = box; pointsClassification = classification }
+    @objc open var pointCount: Int { _points.count }
     /// the points, normalized to the face's bounding box (lower-left origin)
     @nonobjc open var normalizedPoints: [CGPoint] { _points }
     /// the points in an image of `imageSize` (lower-left origin)
@@ -109,11 +109,11 @@ private extension CGRect { var area: CGFloat { isNull ? 0 : width * height } }
         _points.map { CGPoint(x: (_box.minX + $0.x * _box.width) * imageSize.width, y: (_box.minY + $0.y * _box.height) * imageSize.height) }
     }
     /// isim: a model's points, not measured ones: a nominal precision of a twentieth of the face
-    open var precisionEstimatesPerPoint: [NSNumber]? { _points.map { _ in NSNumber(value: 0.05) } }
+    @objc open var precisionEstimatesPerPoint: [NSNumber]? { _points.map { _ in NSNumber(value: 0.05) } }
     /// C copies of the points for Objective-C (ObjC.swift): 0 normalizedPoints, 1 the last pointsInImageOfSize:
     private var _c: [UnsafeMutablePointer<CGPoint>?] = [nil, nil]
     private let _cLock = NSLock()
-    func _cPoints(_ slot: Int, _ points: [CGPoint]) -> UnsafeMutablePointer<CGPoint> {
+    @objc func _cPoints(_ slot: Int, _ points: [CGPoint]) -> UnsafeMutablePointer<CGPoint> {
         _cLock.lock(); defer { _cLock.unlock() }
         if slot == 0, let p = _c[0] { return p }
         let p = _c[slot] ?? UnsafeMutablePointer<CGPoint>.allocate(capacity: max(1, _points.count))
@@ -123,27 +123,27 @@ private extension CGRect { var area: CGFloat { isNull ? 0 : width * height } }
     }
     deinit { for p in _c { p?.deallocate() } }
 }
-@objc(VNFaceLandmarks) @objcMembers open class VNFaceLandmarks: NSObject, @unchecked Sendable {
-    open var confidence: VNConfidence { _confidence }
-    var _confidence: VNConfidence = 0.5
-    open var requestRevision: Int { 3 }
+@objc(VNFaceLandmarks) open class VNFaceLandmarks: NSObject, @unchecked Sendable {
+    @objc open var confidence: VNConfidence { _confidence }
+    @objc var _confidence: VNConfidence = 0.5
+    @objc open var requestRevision: Int { 3 }
 }
 /// adapted: a geometric face model (eyes, brows, nose, lips, the jaw) placed by the eyes and the mouth Core Image
 /// finds, rotated with the eye line; without them, the average face's proportions in the box
-@objc(VNFaceLandmarks2D) @objcMembers open class VNFaceLandmarks2D: VNFaceLandmarks, @unchecked Sendable {
-    public let allPoints: VNFaceLandmarkRegion2D?
-    public let faceContour: VNFaceLandmarkRegion2D?
-    public let leftEye: VNFaceLandmarkRegion2D?
-    public let rightEye: VNFaceLandmarkRegion2D?
-    public let leftEyebrow: VNFaceLandmarkRegion2D?
-    public let rightEyebrow: VNFaceLandmarkRegion2D?
-    public let nose: VNFaceLandmarkRegion2D?
-    public let noseCrest: VNFaceLandmarkRegion2D?
-    public let medianLine: VNFaceLandmarkRegion2D?
-    public let outerLips: VNFaceLandmarkRegion2D?
-    public let innerLips: VNFaceLandmarkRegion2D?
-    public let leftPupil: VNFaceLandmarkRegion2D?
-    public let rightPupil: VNFaceLandmarkRegion2D?
+@objc(VNFaceLandmarks2D) open class VNFaceLandmarks2D: VNFaceLandmarks, @unchecked Sendable {
+    @objc public let allPoints: VNFaceLandmarkRegion2D?
+    @objc public let faceContour: VNFaceLandmarkRegion2D?
+    @objc public let leftEye: VNFaceLandmarkRegion2D?
+    @objc public let rightEye: VNFaceLandmarkRegion2D?
+    @objc public let leftEyebrow: VNFaceLandmarkRegion2D?
+    @objc public let rightEyebrow: VNFaceLandmarkRegion2D?
+    @objc public let nose: VNFaceLandmarkRegion2D?
+    @objc public let noseCrest: VNFaceLandmarkRegion2D?
+    @objc public let medianLine: VNFaceLandmarkRegion2D?
+    @objc public let outerLips: VNFaceLandmarkRegion2D?
+    @objc public let innerLips: VNFaceLandmarkRegion2D?
+    @objc public let leftPupil: VNFaceLandmarkRegion2D?
+    @objc public let rightPupil: VNFaceLandmarkRegion2D?
 
     init(box: CGRect, face: _VNFace?, imageAspect: Double, points76: Bool) {
         /* face-box coordinates (0...1, lower-left origin); boxes are measured in a square space so circles stay round */
@@ -196,16 +196,16 @@ private extension CGRect { var area: CGFloat { isNull ? 0 : width * height } }
 
 // MARK: - rectangles
 
-@objc(VNDetectRectanglesRequest) @objcMembers open class VNDetectRectanglesRequest: VNImageBasedRequest, @unchecked Sendable {
-    open var minimumAspectRatio: VNAspectRatio = 0.5
-    open var maximumAspectRatio: VNAspectRatio = 1
+@objc(VNDetectRectanglesRequest) open class VNDetectRectanglesRequest: VNImageBasedRequest, @unchecked Sendable {
+    @objc open var minimumAspectRatio: VNAspectRatio = 0.5
+    @objc open var maximumAspectRatio: VNAspectRatio = 1
     /// degrees a corner may differ from 90
-    open var quadratureTolerance: VNDegrees = 30
+    @objc open var quadratureTolerance: VNDegrees = 30
     /// the shorter side, as a fraction of the image's shorter side
-    open var minimumSize: Float = 0.2
-    open var minimumConfidence: VNConfidence = 0
+    @objc open var minimumSize: Float = 0.2
+    @objc open var minimumConfidence: VNConfidence = 0
     /// 0: any number
-    open var maximumObservations = 1
+    @objc open var maximumObservations = 1
     override func _run(_ img: _VNImage) throws -> [VNObservation] {
         let g = _VNGray(img, maxSide: 480)
         let W = g.width, H = g.height, t = g.otsu()
@@ -292,8 +292,8 @@ func _vnRectangleObservation(_ q: [CGPoint], _ W: Int, _ H: Int, confidence: Flo
 
 // MARK: - text rectangles
 
-@objc(VNDetectTextRectanglesRequest) @objcMembers open class VNDetectTextRectanglesRequest: VNImageBasedRequest, @unchecked Sendable {
-    open var reportCharacterBoxes = false
+@objc(VNDetectTextRectanglesRequest) open class VNDetectTextRectanglesRequest: VNImageBasedRequest, @unchecked Sendable {
+    @objc open var reportCharacterBoxes = false
     override func _run(_ img: _VNImage) throws -> [VNObservation] {
         let g = _VNGray(img, maxSide: 1200)
         let W = g.width, H = g.height, t = g.otsu()
@@ -342,14 +342,14 @@ func _vnRectangleObservation(_ q: [CGPoint], _ W: Int, _ H: Int, confidence: Flo
 
 // MARK: - contours
 
-@objc(VNDetectContoursRequest) @objcMembers open class VNDetectContoursRequest: VNImageBasedRequest, @unchecked Sendable {
-    open var contrastAdjustment: Float = 2
+@objc(VNDetectContoursRequest) open class VNDetectContoursRequest: VNImageBasedRequest, @unchecked Sendable {
+    @objc open var contrastAdjustment: Float = 2
     /// the grey level that separates the two sides (0...1); nil: Otsu's threshold of the image
-    open var contrastPivot: NSNumber? = 0.5
-    open var detectsDarkOnLight = true
+    @objc open var contrastPivot: NSNumber? = 0.5
+    @objc open var detectsDarkOnLight = true
     @available(*, deprecated, renamed: "detectsDarkOnLight")
-    open var detectDarkOnLight: Bool { get { detectsDarkOnLight } set { detectsDarkOnLight = newValue } }
-    open var maximumImageDimension = 512
+    @objc open var detectDarkOnLight: Bool { get { detectsDarkOnLight } set { detectsDarkOnLight = newValue } }
+    @objc open var maximumImageDimension = 512
     override func _run(_ img: _VNImage) throws -> [VNObservation] {
         let g = _VNGray(img, maxSide: max(16, maximumImageDimension))
         /* contrast about the pivot, then the pivot divides the two sides (adapted: a hard threshold; the contrast
@@ -439,28 +439,28 @@ func _vnCompressChain(_ p: [SIMD2<Int32>]) -> [SIMD2<Int32>] {
     return out.isEmpty ? [p[0]] : out
 }
 
-@objc(VNContour) @objcMembers open class VNContour: NSObject, NSCopying, @unchecked Sendable {
-    public let indexPath: IndexPath
+@objc(VNContour) open class VNContour: NSObject, NSCopying, @unchecked Sendable {
+    @objc public let indexPath: IndexPath
     @nonobjc public let normalizedPoints: [SIMD2<Float>]
-    let _children: [VNContour]
+    @objc let _children: [VNContour]
     /// width / height of the image the points are normalized to
-    public let aspectRatio: Float
+    @objc public let aspectRatio: Float
     init(indexPath: IndexPath, points: [SIMD2<Float>], children: [VNContour], aspectRatio: Float) {
         self.indexPath = indexPath; normalizedPoints = points; _children = children; self.aspectRatio = aspectRatio
     }
-    public func copy(with zone: NSZone? = nil) -> Any { self }
+    @objc public func copy(with zone: NSZone? = nil) -> Any { self }
     var _cPoints: UnsafeMutablePointer<SIMD2<Float>>?   // normalizedPoints for Objective-C (ObjC.swift)
-    let _lock = NSLock()
+    @objc let _lock = NSLock()
     deinit { _cPoints?.deallocate() }
-    open var requestRevision: Int { 1 }
-    open var pointCount: Int { normalizedPoints.count }
-    open var childContourCount: Int { _children.count }
-    open var childContours: [VNContour] { _children }
+    @objc open var requestRevision: Int { 1 }
+    @objc open var pointCount: Int { normalizedPoints.count }
+    @objc open var childContourCount: Int { _children.count }
+    @objc open var childContours: [VNContour] { _children }
     @objc(childContourAtIndex:error:) open func childContour(at childContourIndex: Int) throws -> VNContour {
         guard _children.indices.contains(childContourIndex) else { throw _vnError(.outOfBoundsError, "no child contour \(childContourIndex)") }
         return _children[childContourIndex]
     }
-    open var normalizedPath: CGPath {
+    @objc open var normalizedPath: CGPath {
         let p = CGMutablePath()
         if let f = normalizedPoints.first {
             p.move(to: CGPoint(x: Double(f.x), y: Double(f.y)))
@@ -470,13 +470,13 @@ func _vnCompressChain(_ p: [SIMD2<Int32>]) -> [SIMD2<Int32>] {
         return p
     }
     /// Douglas–Peucker with `epsilon` in normalized units
-    open func polygonApproximation(epsilon: Float) throws -> VNContour {
+    @objc open func polygonApproximation(epsilon: Float) throws -> VNContour {
         VNContour(indexPath: indexPath, points: _vnSimplifyClosed(normalizedPoints, epsilon: epsilon), children: _children, aspectRatio: aspectRatio)
     }
 }
-@objc(VNContoursObservation) @objcMembers open class VNContoursObservation: VNObservation, @unchecked Sendable {
-    public let topLevelContours: [VNContour]
-    let _all: [VNContour]
+@objc(VNContoursObservation) open class VNContoursObservation: VNObservation, @unchecked Sendable {
+    @objc public let topLevelContours: [VNContour]
+    @objc let _all: [VNContour]
     init(_ borders: [_VNBorder], width: Int, height: Int) {
         let aspect = Float(width) / Float(max(1, height))
         var children = [[Int]](repeating: [], count: borders.count)
@@ -493,8 +493,8 @@ func _vnCompressChain(_ p: [SIMD2<Int32>]) -> [SIMD2<Int32>] {
         _all = all
         super.init()
     }
-    open var contourCount: Int { _all.count }
-    open var topLevelContourCount: Int { topLevelContours.count }
+    @objc open var contourCount: Int { _all.count }
+    @objc open var topLevelContourCount: Int { topLevelContours.count }
     /// every contour, depth first (children before their parent, as found)
     @objc(contourAtIndex:error:) open func contour(at contourIndex: Int) throws -> VNContour {
         guard _all.indices.contains(contourIndex) else { throw _vnError(.outOfBoundsError, "no contour \(contourIndex)") }
@@ -506,7 +506,7 @@ func _vnCompressChain(_ p: [SIMD2<Int32>]) -> [SIMD2<Int32>] {
         for i in indexPath.dropFirst() { c = try c.childContour(at: i) }
         return c
     }
-    open var normalizedPath: CGPath {
+    @objc open var normalizedPath: CGPath {
         let p = CGMutablePath()
         for c in _all { p.addPath(c.normalizedPath) }
         return p
@@ -515,7 +515,7 @@ func _vnCompressChain(_ p: [SIMD2<Int32>]) -> [SIMD2<Int32>] {
 
 // MARK: - horizon
 
-@objc(VNDetectHorizonRequest) @objcMembers open class VNDetectHorizonRequest: VNImageBasedRequest, @unchecked Sendable {
+@objc(VNDetectHorizonRequest) open class VNDetectHorizonRequest: VNImageBasedRequest, @unchecked Sendable {
     override func _run(_ img: _VNImage) throws -> [VNObservation] {
         let g0 = _VNGray(img, maxSide: 320)
         let W = g0.width, H = g0.height
@@ -566,37 +566,37 @@ func _vnCompressChain(_ p: [SIMD2<Int32>]) -> [SIMD2<Int32>] {
         return [VNHorizonObservation(angle: degrees * .pi / 180, aspect: Double(W) / Double(H))]
     }
 }
-@objc(VNHorizonObservation) @objcMembers open class VNHorizonObservation: VNObservation, @unchecked Sendable {
+@objc(VNHorizonObservation) open class VNHorizonObservation: VNObservation, @unchecked Sendable {
     /// radians, counterclockwise from horizontal
-    public let angle: CGFloat
-    let _aspect: Double
-    init(angle: CGFloat, aspect: Double) { self.angle = angle; _aspect = aspect; super.init() }
+    @objc public let angle: CGFloat
+    @objc let _aspect: Double
+    @objc init(angle: CGFloat, aspect: Double) { self.angle = angle; _aspect = aspect; super.init() }
     /// the rotation that levels the horizon, about the normalized image's center
-    open var transform: CGAffineTransform {
+    @objc open var transform: CGAffineTransform {
         CGAffineTransform(translationX: 0.5, y: 0.5).rotated(by: -angle).translatedBy(x: -0.5, y: -0.5)
     }
     /// the rotation that levels the horizon in an image of that size (pixels), about its center
-    open func transform(forImageWidth width: Int, height: Int) -> CGAffineTransform {
+    @objc open func transform(forImageWidth width: Int, height: Int) -> CGAffineTransform {
         CGAffineTransform(translationX: Double(width) / 2, y: Double(height) / 2).rotated(by: -angle).translatedBy(x: -Double(width) / 2, y: -Double(height) / 2)
     }
 }
 
 // MARK: - saliency
 
-@objc(VNPixelBufferObservation) @objcMembers open class VNPixelBufferObservation: VNObservation, @unchecked Sendable {
+@objc(VNPixelBufferObservation) open class VNPixelBufferObservation: VNObservation, @unchecked Sendable {
     public let pixelBuffer: CVPixelBuffer
-    public let featureName: String?
+    @objc public let featureName: String?
     init(pixelBuffer: CVPixelBuffer, featureName: String?) { self.pixelBuffer = pixelBuffer; self.featureName = featureName; super.init() }
 }
-@objc(VNSaliencyImageObservation) @objcMembers open class VNSaliencyImageObservation: VNPixelBufferObservation, @unchecked Sendable {
-    let _objects: [VNRectangleObservation]
+@objc(VNSaliencyImageObservation) open class VNSaliencyImageObservation: VNPixelBufferObservation, @unchecked Sendable {
+    @objc let _objects: [VNRectangleObservation]
     init(pixelBuffer: CVPixelBuffer, objects: [VNRectangleObservation]) { _objects = objects; super.init(pixelBuffer: pixelBuffer, featureName: nil) }
-    open var salientObjects: [VNRectangleObservation]? { _objects }
+    @objc open var salientObjects: [VNRectangleObservation]? { _objects }
 }
-@objc(VNGenerateAttentionBasedSaliencyImageRequest) @objcMembers open class VNGenerateAttentionBasedSaliencyImageRequest: VNImageBasedRequest, @unchecked Sendable {
-    open override class var supportedRevisions: IndexSet { IndexSet([1, 2]) }
-    open override class var defaultRevision: Int { 2 }
-    open override class var currentRevision: Int { 2 }
+@objc(VNGenerateAttentionBasedSaliencyImageRequest) open class VNGenerateAttentionBasedSaliencyImageRequest: VNImageBasedRequest, @unchecked Sendable {
+    @objc open override class var supportedRevisions: IndexSet { IndexSet([1, 2]) }
+    @objc open override class var defaultRevision: Int { 2 }
+    @objc open override class var currentRevision: Int { 2 }
     override func _run(_ img: _VNImage) throws -> [VNObservation] {
         let N = 68
         /* the image in CIELAB at 68x68 (area average) */

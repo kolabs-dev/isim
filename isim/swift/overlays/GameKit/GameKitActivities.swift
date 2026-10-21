@@ -13,28 +13,28 @@ public enum GKGameActivityState: UInt, Sendable { case initialized = 0, active =
 
 /// An activity the game offers (from the configuration's `activities`).
 @available(iOS 26.0, *)
-@objc(GKGameActivityDefinition) @objcMembers open class GKGameActivityDefinition: NSObject {
+@objc(GKGameActivityDefinition) open class GKGameActivityDefinition: NSObject {
     let def: _GCActivityDef
     init(_ d: _GCActivityDef) { def = d }
-    open var identifier: String { def.id }
-    open var groupIdentifier: String? { def.group }
-    open var title: String { def.title }
-    open var details: String? { def.details }
-    open var defaultProperties: [String: String] { def.properties }
-    open var fallbackURL: URL? { def.fallbackURL.flatMap { URL(string: $0) } }
-    open var supportsPartyCode: Bool { def.partyCode }
-    open var maxPlayers: NSNumber? { def.maxPlayers.map { NSNumber(value: $0) } }
-    open var minPlayers: NSNumber? { def.minPlayers.map { NSNumber(value: $0) } }
-    open var supportsUnlimitedPlayers: Bool { def.unlimited }
+    @objc open var identifier: String { def.id }
+    @objc open var groupIdentifier: String? { def.group }
+    @objc open var title: String { def.title }
+    @objc open var details: String? { def.details }
+    @objc open var defaultProperties: [String: String] { def.properties }
+    @objc open var fallbackURL: URL? { def.fallbackURL.flatMap { URL(string: $0) } }
+    @objc open var supportsPartyCode: Bool { def.partyCode }
+    @objc open var maxPlayers: NSNumber? { def.maxPlayers.map { NSNumber(value: $0) } }
+    @objc open var minPlayers: NSNumber? { def.minPlayers.map { NSNumber(value: $0) } }
+    @objc open var supportsUnlimitedPlayers: Bool { def.unlimited }
     open var playStyle: GKGameActivityPlayStyle {
         switch def.playStyle { case "synchronous": return .synchronous; case "asynchronous": return .asynchronous; default: return .unspecified }
     }
-    open override var description: String { "<GKGameActivityDefinition \(identifier) \"\(title)\">" }
-    public class func loadGameActivityDefinitions(completionHandler: @escaping ([GKGameActivityDefinition]?, Error?) -> Void) {
+    @objc open override var description: String { "<GKGameActivityDefinition \(identifier) \"\(title)\">" }
+    @objc public class func loadGameActivityDefinitions(completionHandler: @escaping ([GKGameActivityDefinition]?, Error?) -> Void) {
         loadGameActivityDefinitions(IDs: nil, completionHandler: completionHandler)
     }
     @nonobjc public class func loadGameActivityDefinitions() async throws -> [GKGameActivityDefinition] { _GCConfig.activities.map(GKGameActivityDefinition.init) }
-    public class func loadGameActivityDefinitions(IDs: [String]?, completionHandler: @escaping ([GKGameActivityDefinition]?, Error?) -> Void) {
+    @objc public class func loadGameActivityDefinitions(IDs: [String]?, completionHandler: @escaping ([GKGameActivityDefinition]?, Error?) -> Void) {
         let list = _GCConfig.activities.filter { IDs?.contains($0.id) ?? true }.map(GKGameActivityDefinition.init)
         DispatchQueue.main.async { completionHandler(list, nil) }
     }
@@ -42,7 +42,7 @@ public enum GKGameActivityState: UInt, Sendable { case initialized = 0, active =
         _GCConfig.activities.filter { IDs?.contains($0.id) ?? true }.map(GKGameActivityDefinition.init)
     }
     /// the achievements the activity is about
-    open func loadAchievementDescriptions(completionHandler: @escaping ([GKAchievementDescription]?, Error?) -> Void) {
+    @objc open func loadAchievementDescriptions(completionHandler: @escaping ([GKAchievementDescription]?, Error?) -> Void) {
         let list = _GCConfig.achievements.filter { def.achievements.contains($0.id) }.map(GKAchievementDescription.init)
         DispatchQueue.main.async { completionHandler(list, nil) }
     }
@@ -50,13 +50,13 @@ public enum GKGameActivityState: UInt, Sendable { case initialized = 0, active =
         _GCConfig.achievements.filter { def.achievements.contains($0.id) }.map(GKAchievementDescription.init)
     }
     /// the leaderboards the activity is about
-    open func loadLeaderboards(completionHandler: @escaping ([GKLeaderboard]?, Error?) -> Void) {
+    @objc open func loadLeaderboards(completionHandler: @escaping ([GKLeaderboard]?, Error?) -> Void) {
         let list = def.leaderboards.map { GKLeaderboard.make($0) }
         DispatchQueue.main.async { completionHandler(list, nil) }
     }
     @nonobjc open func loadLeaderboards() async throws -> [GKLeaderboard] { def.leaderboards.map { GKLeaderboard.make($0) } }
     /// The activity's image from the configuration, or a generated placeholder.
-    open func loadImage(completionHandler: @escaping (UIImage?, Error?) -> Void) {
+    @objc open func loadImage(completionHandler: @escaping (UIImage?, Error?) -> Void) {
         let img = _GCImages.bundleImage(def.image) ?? _GCImages.leaderboard("activity-\(def.id)")
         DispatchQueue.main.async { completionHandler(img, nil) }
     }
@@ -69,28 +69,28 @@ public enum GKGameActivityState: UInt, Sendable { case initialized = 0, active =
 /// One play of an activity: start, pause, resume, end; the scores and achievement progress it collects are posted
 /// when it ends.
 @available(iOS 26.0, *)
-@objc(GKGameActivity) @objcMembers open class GKGameActivity: NSObject {
-    public let identifier: String
-    public let activityDefinition: GKGameActivityDefinition
-    open var properties: [String: String]
+@objc(GKGameActivity) open class GKGameActivity: NSObject {
+    @objc public let identifier: String
+    @objc public let activityDefinition: GKGameActivityDefinition
+    @objc open var properties: [String: String]
     open private(set) var state: GKGameActivityState = .initialized
-    open internal(set) var partyCode: String?
-    open var partyURL: URL? { partyCode.map { URL(string: "https://games.apple.com/party/\($0)")! } }
-    public let creationDate = Date()
-    open private(set) var startDate: Date?
-    open private(set) var lastResumeDate: Date?
-    open private(set) var endDate: Date?
-    var played: TimeInterval = 0
+    @objc open internal(set) var partyCode: String?
+    @objc open var partyURL: URL? { partyCode.map { URL(string: "https://games.apple.com/party/\($0)")! } }
+    @objc public let creationDate = Date()
+    @objc open private(set) var startDate: Date?
+    @objc open private(set) var lastResumeDate: Date?
+    @objc open private(set) var endDate: Date?
+    @objc var played: TimeInterval = 0
     /// time spent active (pauses excluded)
-    open var duration: TimeInterval { played + (state == .active ? lastResumeDate.map { Date().timeIntervalSince($0) } ?? 0 : 0) }
-    var scores: [String: GKLeaderboardScore] = [:]
-    var progress: [String: Double] = [:]
-    open var achievements: Set<GKAchievement> {
+    @objc open var duration: TimeInterval { played + (state == .active ? lastResumeDate.map { Date().timeIntervalSince($0) } ?? 0 : 0) }
+    @objc var scores: [String: GKLeaderboardScore] = [:]
+    @objc var progress: [String: Double] = [:]
+    @objc open var achievements: Set<GKAchievement> {
         Set(progress.map { id, p in let a = GKAchievement(identifier: id); a.percentComplete = p; return a })
     }
-    open var leaderboardScores: Set<GKLeaderboardScore> { Set(scores.values) }
+    @objc open var leaderboardScores: Set<GKLeaderboardScore> { Set(scores.values) }
 
-    public init(definition: GKGameActivityDefinition) {
+    @objc public init(definition: GKGameActivityDefinition) {
         identifier = UUID().uuidString
         activityDefinition = definition
         properties = definition.defaultProperties
@@ -98,56 +98,56 @@ public enum GKGameActivityState: UInt, Sendable { case initialized = 0, active =
     }
 
     /// Party codes: two groups of four characters from this alphabet ("ABCD-2345").
-    public class var validPartyCodeAlphabet: [String] { "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".map { String($0) } }
-    public class func isValidPartyCode(_ partyCode: String) -> Bool {
+    @objc public class var validPartyCodeAlphabet: [String] { "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".map { String($0) } }
+    @objc public class func isValidPartyCode(_ partyCode: String) -> Bool {
         let parts = partyCode.uppercased().split(separator: "-", omittingEmptySubsequences: false)
         let alphabet = Set(validPartyCodeAlphabet.joined())
         return parts.count == 2 && parts.allSatisfy { $0.count == 4 && $0.allSatisfy { alphabet.contains($0) } }
     }
-    static func newPartyCode() -> String {
+    @objc static func newPartyCode() -> String {
         let a = validPartyCodeAlphabet
         return (0..<2).map { _ in (0..<4).map { _ in a.randomElement()! }.joined() }.joined(separator: "-")
     }
     /// Starts an activity of the definition (with a party code when it supports them).
-    public class func start(definition: GKGameActivityDefinition, partyCode: String) throws -> GKGameActivity {
+    @objc public class func start(definition: GKGameActivityDefinition, partyCode: String) throws -> GKGameActivity {
         guard definition.supportsPartyCode, isValidPartyCode(partyCode) else { throw GKError(code: .invalidParameter) }
         let a = GKGameActivity(definition: definition)
         a.partyCode = partyCode.uppercased()
         a.start()
         return a
     }
-    public class func start(definition: GKGameActivityDefinition) throws -> GKGameActivity {
+    @objc public class func start(definition: GKGameActivityDefinition) throws -> GKGameActivity {
         let a = GKGameActivity(definition: definition)
         a.start()
         return a
     }
     /// Whether the Games app (on isim: `isim gamecenter … activity`) has asked to play an activity that no listener
     /// took yet.
-    public class func checkPendingGameActivityExistence(completionHandler: @escaping (Bool) -> Void) {
+    @objc public class func checkPendingGameActivityExistence(completionHandler: @escaping (Bool) -> Void) {
         let pending = _GCActivities.pending
         DispatchQueue.main.async { completionHandler(pending) }
     }
     @nonobjc public class func checkPendingGameActivityExistence() async -> Bool { _GCActivities.pending }
 
-    open func start() {
+    @objc open func start() {
         guard state == .initialized else { return }
         if activityDefinition.supportsPartyCode && partyCode == nil { partyCode = GKGameActivity.newPartyCode() }
         state = .active; startDate = Date(); lastResumeDate = startDate
         NSLog("isim GameKit: activity %@ started%@", activityDefinition.identifier, partyCode.map { " (party code \($0))" } ?? "")
     }
-    open func pause() {
+    @objc open func pause() {
         guard state == .active else { return }
         played += lastResumeDate.map { Date().timeIntervalSince($0) } ?? 0
         state = .paused
         NSLog("isim GameKit: activity %@ paused", activityDefinition.identifier)
     }
-    open func resume() {
+    @objc open func resume() {
         guard state == .paused else { return }
         state = .active; lastResumeDate = Date()
         NSLog("isim GameKit: activity %@ resumed", activityDefinition.identifier)
     }
     /// Ends the activity: its scores are submitted and its achievement progress reported.
-    open func end() {
+    @objc open func end() {
         guard state == .active || state == .paused else { return }
         if state == .active { played += lastResumeDate.map { Date().timeIntervalSince($0) } ?? 0 }
         state = .ended; endDate = Date()
@@ -164,11 +164,11 @@ public enum GKGameActivityState: UInt, Sendable { case initialized = 0, active =
     @objc(scoreOnLeaderboard:) open func score(on leaderboard: GKLeaderboard) -> GKLeaderboardScore? { scores[leaderboard.baseLeaderboardID] }
     @objc(removeScoresFromLeaderboards:) open func removeScores(from leaderboards: [GKLeaderboard]) { for b in leaderboards { scores[b.baseLeaderboardID] = nil } }
     @objc(setProgressOnAchievement:toPercentComplete:) open func setProgress(on achievement: GKAchievement, to percentComplete: Double) { progress[achievement.identifier] = min(100, max(0, percentComplete)) }
-    open func setAchievementCompleted(_ achievement: GKAchievement) { progress[achievement.identifier] = 100 }
+    @objc open func setAchievementCompleted(_ achievement: GKAchievement) { progress[achievement.identifier] = 100 }
     @objc(progressOnAchievement:) open func progress(on achievement: GKAchievement) -> Double { progress[achievement.identifier] ?? 0 }
-    open func removeAchievements(_ achievements: [GKAchievement]) { for a in achievements { progress[a.identifier] = nil } }
+    @objc open func removeAchievements(_ achievements: [GKAchievement]) { for a in achievements { progress[a.identifier] = nil } }
     /// A match request for the activity's player counts (nil for single-player activities).
-    open func makeMatchRequest() -> GKMatchRequest? {
+    @objc open func makeMatchRequest() -> GKMatchRequest? {
         guard let max = activityDefinition.def.maxPlayers, max > 1 else { return nil }
         let r = GKMatchRequest()
         r.minPlayers = Swift.max(2, activityDefinition.def.minPlayers ?? 2); r.maxPlayers = Swift.min(4, max)
@@ -176,7 +176,7 @@ public enum GKGameActivityState: UInt, Sendable { case initialized = 0, active =
         return r
     }
     /// Finds a real-time match for the activity: players with the same party code are matched together.
-    open func findMatch(completionHandler: @escaping (GKMatch?, Error?) -> Void) {
+    @objc open func findMatch(completionHandler: @escaping (GKMatch?, Error?) -> Void) {
         guard let r = makeMatchRequest() else { DispatchQueue.main.async { completionHandler(nil, GKError(code: .matchRequestInvalid)) }; return }
         r.playerGroup = partyCode.map { abs($0.hashValue % 1_000_000) + 1 } ?? 0
         GKMatchmaker.shared().findMatch(for: r, withCompletionHandler: completionHandler)
@@ -184,7 +184,7 @@ public enum GKGameActivityState: UInt, Sendable { case initialized = 0, active =
     @nonobjc open func findMatch() async throws -> GKMatch {
         try await withCheckedThrowingContinuation { k in findMatch { m, e in if let m { k.resume(returning: m) } else { k.resume(throwing: e ?? GKError(code: .unknown)) } } }
     }
-    open override var description: String { "<GKGameActivity \(activityDefinition.identifier) state \(state.rawValue)\(partyCode.map { " party \($0)" } ?? "")>" }
+    @objc open override var description: String { "<GKGameActivity \(activityDefinition.identifier) state \(state.rawValue)\(partyCode.map { " party \($0)" } ?? "")>" }
 }
 
 enum _GCActivities {

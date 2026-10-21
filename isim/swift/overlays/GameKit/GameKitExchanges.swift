@@ -23,27 +23,27 @@ public enum GKTurnBasedExchangeStatus: Int8, Sendable { case unknown = 0, active
 
 /// A request one participant sends others in a turn-based match, out of turn (a trade, a vote); the current
 /// participant merges the answered ones into the match data.
-@objc(GKTurnBasedExchange) @objcMembers open class GKTurnBasedExchange: NSObject, @unchecked Sendable {
-    let _rec: [String: Any]
-    let _match: GKTurnBasedMatch
-    init(_ rec: [String: Any], match: GKTurnBasedMatch) { _rec = rec; _match = match }
-    open var exchangeID: String { _rec["id"] as? String ?? "" }
-    open var sender: GKTurnBasedParticipant { _match._participant(_rec["sender"] as? String) }
-    open var recipients: [GKTurnBasedParticipant] { (_rec["recipients"] as? [String] ?? []).map { _match._participant($0) } }
+@objc(GKTurnBasedExchange) open class GKTurnBasedExchange: NSObject, @unchecked Sendable {
+    @objc let _rec: [String: Any]
+    @objc let _match: GKTurnBasedMatch
+    @objc init(_ rec: [String: Any], match: GKTurnBasedMatch) { _rec = rec; _match = match }
+    @objc open var exchangeID: String { _rec["id"] as? String ?? "" }
+    @objc open var sender: GKTurnBasedParticipant { _match._participant(_rec["sender"] as? String) }
+    @objc open var recipients: [GKTurnBasedParticipant] { (_rec["recipients"] as? [String] ?? []).map { _match._participant($0) } }
     open var status: GKTurnBasedExchangeStatus { GKTurnBasedExchangeStatus(rawValue: Int8(_rec["status"] as? Int ?? 0)) ?? .unknown }
-    open var message: String? { _rec["message"] as? String }
-    open var data: Data? { (_rec["data"] as? String).flatMap { Data(base64Encoded: $0) } }
-    open var sendDate: Date { Date(timeIntervalSince1970: _rec["sent"] as? Double ?? 0) }
-    open var timeoutDate: Date? { (_rec["timeout"] as? Double).map { Date(timeIntervalSince1970: $0) } }
-    open var completionDate: Date? { (_rec["completed"] as? Double).map { Date(timeIntervalSince1970: $0) } }
-    open var replies: [GKTurnBasedExchangeReply]? {
+    @objc open var message: String? { _rec["message"] as? String }
+    @objc open var data: Data? { (_rec["data"] as? String).flatMap { Data(base64Encoded: $0) } }
+    @objc open var sendDate: Date { Date(timeIntervalSince1970: _rec["sent"] as? Double ?? 0) }
+    @objc open var timeoutDate: Date? { (_rec["timeout"] as? Double).map { Date(timeIntervalSince1970: $0) } }
+    @objc open var completionDate: Date? { (_rec["completed"] as? Double).map { Date(timeIntervalSince1970: $0) } }
+    @objc open var replies: [GKTurnBasedExchangeReply]? {
         let r = _rec["replies"] as? [[String: Any]] ?? []
         return r.isEmpty ? nil : r.map { GKTurnBasedExchangeReply($0, match: _match) }
     }
-    open override var description: String { "<GKTurnBasedExchange \(exchangeID) status \(status.rawValue) from \(sender.player?.alias ?? "-")>" }
+    @objc open override var description: String { "<GKTurnBasedExchange \(exchangeID) status \(status.rawValue) from \(sender.player?.alias ?? "-")>" }
 
     /// Withdraws an active or completed exchange (the sender only); the recipients are told.
-    open func cancel(withLocalizableMessageKey key: String, arguments: [String], completionHandler h: ((Error?) -> Void)? = nil) {
+    @objc open func cancel(withLocalizableMessageKey key: String, arguments: [String], completionHandler h: ((Error?) -> Void)? = nil) {
         let id = exchangeID, msg = _GCExchanges.localized(key, arguments)
         var gone: [String: Any] = [:]
         _match.change({ d, _ in
@@ -75,7 +75,7 @@ public enum GKTurnBasedExchangeStatus: Int8, Sendable { case unknown = 0, active
 
     /// Answers the exchange (a recipient, once); when every recipient answered, the sender and the current
     /// participant get the replies.
-    open func reply(withLocalizableMessageKey key: String, arguments: [String], data: Data, completionHandler h: ((Error?) -> Void)? = nil) {
+    @objc open func reply(withLocalizableMessageKey key: String, arguments: [String], data: Data, completionHandler h: ((Error?) -> Void)? = nil) {
         let id = exchangeID, msg = _GCExchanges.localized(key, arguments), max = _match.exchangeDataMaximumSize
         var done: [String: Any]?
         _match.change({ d, _ in
@@ -107,25 +107,25 @@ public enum GKTurnBasedExchangeStatus: Int8, Sendable { case unknown = 0, active
 }
 
 /// One recipient's answer to an exchange.
-@objc(GKTurnBasedExchangeReply) @objcMembers open class GKTurnBasedExchangeReply: NSObject, @unchecked Sendable {
-    let _rec: [String: Any]
-    let _match: GKTurnBasedMatch
-    init(_ rec: [String: Any], match: GKTurnBasedMatch) { _rec = rec; _match = match }
-    open var recipient: GKTurnBasedParticipant { _match._participant(_rec["pid"] as? String) }
-    open var message: String? { (_rec["message"] as? String).flatMap { $0.isEmpty ? nil : $0 } }
-    open var data: Data? { (_rec["data"] as? String).flatMap { Data(base64Encoded: $0) } }
-    open var replyDate: Date { Date(timeIntervalSince1970: _rec["date"] as? Double ?? 0) }
+@objc(GKTurnBasedExchangeReply) open class GKTurnBasedExchangeReply: NSObject, @unchecked Sendable {
+    @objc let _rec: [String: Any]
+    @objc let _match: GKTurnBasedMatch
+    @objc init(_ rec: [String: Any], match: GKTurnBasedMatch) { _rec = rec; _match = match }
+    @objc open var recipient: GKTurnBasedParticipant { _match._participant(_rec["pid"] as? String) }
+    @objc open var message: String? { (_rec["message"] as? String).flatMap { $0.isEmpty ? nil : $0 } }
+    @objc open var data: Data? { (_rec["data"] as? String).flatMap { Data(base64Encoded: $0) } }
+    @objc open var replyDate: Date { Date(timeIntervalSince1970: _rec["date"] as? Double ?? 0) }
 }
 
 extension GKTurnBasedMatch {
-    func _participant(_ pid: String?) -> GKTurnBasedParticipant {
+    @objc func _participant(_ pid: String?) -> GKTurnBasedParticipant {
         _parts.first { $0.pid != nil && $0.pid == pid } ?? { let p = GKTurnBasedParticipant(); if let pid { p._rec = ["pid": pid] }; return p }()
     }
     func _exchanges(_ keep: (GKTurnBasedExchangeStatus) -> Bool) -> [GKTurnBasedExchange]? {
         let xs = (_rec["exchanges"] as? [[String: Any]] ?? []).map { GKTurnBasedExchange($0, match: self) }.filter { keep($0.status) }
         return xs.isEmpty ? nil : xs
     }
-    func _sendExchange(_ to: [GKTurnBasedParticipant], _ data: Data, _ msg: String, _ timeout: TimeInterval,
+    @objc func _sendExchange(_ to: [GKTurnBasedParticipant], _ data: Data, _ msg: String, _ timeout: TimeInterval,
                        _ h: ((GKTurnBasedExchange?, Error?) -> Void)?) {
         let recipients = to.compactMap { $0.pid }
         let max = exchangeDataMaximumSize, most = exchangeMaxInitiatedExchangesPerPlayer
@@ -153,7 +153,7 @@ extension GKTurnBasedMatch {
             h?(GKTurnBasedExchange(x, match: self), nil)
         })
     }
-    func _saveMerged(_ matchData: Data, _ ids: [String], _ h: ((Error?) -> Void)?) {
+    @objc func _saveMerged(_ matchData: Data, _ ids: [String], _ h: ((Error?) -> Void)?) {
         change({ d, mine in
             if let e = GKTurnBasedMatch.dataTooLarge(matchData) { return e }
             guard let mine, (d["current"] as? Int) == mine, (d["ended"] as? Bool) != true else { return GKError(code: .turnBasedInvalidTurn) }

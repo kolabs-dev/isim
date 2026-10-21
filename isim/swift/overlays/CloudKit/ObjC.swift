@@ -209,7 +209,7 @@ extension CKFetchRecordZonesOperation {
         get { _CKObjC.state(self)["all", as: (([CKRecordZone.ID: CKRecordZone]?, Error?) -> Void).self] }
         set { _CKObjC.state(self).blocks["all"] = newValue; _objcInstall() }
     }
-    func _objcInstall() {
+    @objc func _objcInstall() {
         let s = _CKObjC.state(self)
         perRecordZoneResultBlock = { id, r in
             switch r { case .success(let z): s.found[id] = z; case .failure(let e): s.partial[id] = e }
@@ -232,7 +232,7 @@ extension CKFetchSubscriptionsOperation {
         get { _CKObjC.state(self)["all", as: (([String: CKSubscription]?, Error?) -> Void).self] }
         set { _CKObjC.state(self).blocks["all"] = newValue; _objcInstall() }
     }
-    func _objcInstall() {
+    @objc func _objcInstall() {
         let s = _CKObjC.state(self)
         perSubscriptionResultBlock = { id, r in
             switch r { case .success(let x): s.found[id] = x; case .failure(let e): s.partial[id] = e }

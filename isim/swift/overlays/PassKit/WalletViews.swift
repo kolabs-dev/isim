@@ -14,34 +14,34 @@ public protocol PKAddPassesViewControllerDelegate: NSObjectProtocol {
 }
 
 /// The sheet that shows passes and lets the person add them to Wallet.
-@objc(PKAddPassesViewController) @objcMembers open class PKAddPassesViewController: UIViewController {
+@objc(PKAddPassesViewController) open class PKAddPassesViewController: UIViewController {
     open weak var delegate: (any PKAddPassesViewControllerDelegate)?
-    let passes: [PKPass]
+    @objc let passes: [PKPass]
 
-    open class func canAddPasses() -> Bool { true }
+    @objc open class func canAddPasses() -> Bool { true }
 
-    public convenience init?(pass: PKPass) { self.init(passes: [pass]) }
-    public init?(passes: [PKPass]) {
+    @objc public convenience init?(pass: PKPass) { self.init(passes: [pass]) }
+    @objc public init?(passes: [PKPass]) {
         guard !passes.isEmpty else { return nil }
         self.passes = passes
         super.init(nibName: nil, bundle: nil)
         modalPresentationStyle = .pageSheet
     }
-    public convenience init?(passesData: [Data]) {
+    @objc public convenience init?(passesData: [Data]) {
         let list = passesData.compactMap { try? PKPass(data: $0) }
         guard list.count == passesData.count else { return nil }
         self.init(passes: list)
     }
     /// a .pkpasses archive (a ZIP of .pkpass files)
-    public convenience init?(passesArchiveData data: Data) { self.init(passesData: PKPassLibrary.archivePasses(data)) }
-    public convenience init?(passesArchiveAt url: URL) {
+    @objc public convenience init?(passesArchiveData data: Data) { self.init(passesData: PKPassLibrary.archivePasses(data)) }
+    @objc public convenience init?(passesArchiveAt url: URL) {
         guard let d = try? Data(contentsOf: url) else { return nil }
         self.init(passesArchiveData: d)
     }
-    public convenience init?(passesArchiveAtFileURL url: URL) { self.init(passesArchiveAt: url) }
-    public required init?(coder: NSCoder) { return nil }
+    @objc public convenience init?(passesArchiveAtFileURL url: URL) { self.init(passesArchiveAt: url) }
+    @objc public required init?(coder: NSCoder) { return nil }
 
-    open override func viewDidLoad() {
+    @objc open override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
         let inWallet = passes.allSatisfy { PKPassLibrary().containsPass($0) }
@@ -56,8 +56,8 @@ public protocol PKAddPassesViewControllerDelegate: NSObjectProtocol {
         NSLog("isim PassKit: add passes sheet: %@", passes.map { "\($0.passTypeIdentifier) \($0.serialNumber)" }.joined(separator: ", "))
     }
 
-    var finished = false, added = false
-    func finish(added: Bool) {
+    @objc var finished = false, added = false
+    @objc func finish(added: Bool) {
         guard !finished else { return }
         finished = true; self.added = added
         if added { _ = _PKWalletStore.add(passes) } else { NSLog("isim PassKit: add passes sheet canceled") }
@@ -176,7 +176,7 @@ public enum PKAddPassButtonStyle: Int, Sendable {
 }
 
 /// The "Add to Apple Wallet" button.
-@objc(PKAddPassButton) @objcMembers open class PKAddPassButton: UIButton {
+@objc(PKAddPassButton) open class PKAddPassButton: UIButton {
     open var addPassButtonStyle: PKAddPassButtonStyle { didSet { restyle() } }
 
     public init(addPassButtonStyle style: PKAddPassButtonStyle) {
@@ -189,18 +189,18 @@ public enum PKAddPassButtonStyle: Int, Sendable {
         accessibilityLabel = "Add to Apple Wallet"
         restyle()
     }
-    public required init?(coder: NSCoder) {
+    @objc public required init?(coder: NSCoder) {
         addPassButtonStyle = .black
         super.init(coder: coder)
     }
-    func restyle() {
+    @objc func restyle() {
         backgroundColor = .black
         setTitleColor(.white, for: .normal)
         setTitleColor(UIColor(white: 1, alpha: 0.6), for: .highlighted)
         layer.borderColor = UIColor.white.cgColor
         layer.borderWidth = addPassButtonStyle == .blackOutline ? 1 : 0
     }
-    open override var intrinsicContentSize: CGSize { CGSize(width: 260, height: 48) }
+    @objc open override var intrinsicContentSize: CGSize { CGSize(width: 260, height: 48) }
 }
 
 /// The colors of an AddPassToWalletButton.

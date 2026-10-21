@@ -7,6 +7,15 @@ import ARKit
 import SceneKit
 import SpriteKit
 
+/// Subclasses whose methods share a selector with a superclass property, as an iOS app may write: isim's overlay classes
+/// mark their members @objc one by one rather than with @objcMembers, which subclasses would inherit (issue #636).
+final class LabelNode: SCNNode, @unchecked Sendable {
+    func childNodes() -> String { "label" }
+}
+final class TaggedAnchor: ARAnchor, @unchecked Sendable {
+    func transform() -> String { "tagged" }
+}
+
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
@@ -95,6 +104,9 @@ final class ARViewController: UIViewController, ARSCNViewDelegate, ARSessionDele
         print("clone: \(copy.name ?? "-") children \(copy.childNodes.count) separate \(copy.childNodes.first !== hand)")
         hand.removeFromParentNode()
         print("removed: arm children \(arm.childNodes.count) hand parent \(hand.parent == nil ? "nil" : "some")")
+        let label = LabelNode(), tagged = TaggedAnchor(name: "tag", transform: matrix_identity_float4x4)
+        label.addChildNode(SCNNode())
+        print("subclasses: \(label.childNodes()) \(label.childNodes.count) \(tagged.transform()) \(tagged.name ?? "-")")
     }
 
     func valueTypes() {

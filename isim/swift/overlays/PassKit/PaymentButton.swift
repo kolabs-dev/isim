@@ -45,11 +45,11 @@ public enum PKPaymentButtonStyle: Int, Sendable {
 }
 
 /// The Apple Pay button: start a payment with Apple Pay (or set it up).
-@objc(PKPaymentButton) @objcMembers open class PKPaymentButton: UIButton {
+@objc(PKPaymentButton) open class PKPaymentButton: UIButton {
     let paymentType: PKPaymentButtonType
     let paymentStyle: PKPaymentButtonStyle
     /// 4 points by default, as iOS's
-    open var cornerRadius: CGFloat = 4 { didSet { layer.cornerRadius = cornerRadius } }
+    @objc open var cornerRadius: CGFloat = 4 { didSet { layer.cornerRadius = cornerRadius } }
 
     public init(paymentButtonType type: PKPaymentButtonType, paymentButtonStyle style: PKPaymentButtonStyle) {
         paymentType = type; paymentStyle = style
@@ -71,11 +71,11 @@ public enum PKPaymentButtonStyle: Int, Sendable {
     public convenience init(type: PKPaymentButtonType, style: PKPaymentButtonStyle, disableCardArt: Bool) {
         self.init(paymentButtonType: type, paymentButtonStyle: style)
     }
-    public required init?(coder: NSCoder) {
+    @objc public required init?(coder: NSCoder) {
         paymentType = .plain; paymentStyle = .black
         super.init(coder: coder)
     }
-    open override var intrinsicContentSize: CGSize {
+    @objc open override var intrinsicContentSize: CGSize {
         let w = (titleLabel?.intrinsicContentSize.width ?? 100) + 40
         return CGSize(width: max(140, w), height: 44)
     }

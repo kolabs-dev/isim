@@ -175,43 +175,43 @@ struct _GCBannerView: View {
 
 // MARK: - Players
 
-@objc(GKBasePlayer) @objcMembers open class GKBasePlayer: NSObject {
-    open var displayName: String { _GC.alias }
+@objc(GKBasePlayer) open class GKBasePlayer: NSObject {
+    @objc open var displayName: String { _GC.alias }
 }
 /// A Game Center player: the local player, another isim device on this computer, or a test player
 /// (`isim gamecenter player add`). Players are equal when they are the same player.
-@objc(GKPlayer) @objcMembers open class GKPlayer: GKBasePlayer {
+@objc(GKPlayer) open class GKPlayer: GKBasePlayer {
     /// the player's id on isim's local Game Center network ("" for a guest)
-    var _id = ""
-    var _alias = ""
-    var _guest: String?
-    static func _make(_ id: String) -> GKPlayer {
+    @objc var _id = ""
+    @objc var _alias = ""
+    @objc var _guest: String?
+    @objc static func _make(_ id: String) -> GKPlayer {
         if id == _GCNet.me { return GKLocalPlayer.local }
         let p = GKPlayer()
         p._id = id
         p._alias = _GCNet.player(id)?.alias ?? "Player"
         return p
     }
-    open var alias: String { _alias }
-    open override var displayName: String { alias }
-    open var gamePlayerID: String { _guest.map { "G:\($0)" } ?? "A:_\(_id)" }
-    open var teamPlayerID: String { _guest.map { "G:\($0)" } ?? "T:_\(_id)" }
-    open var guestIdentifier: String? { _guest }
+    @objc open var alias: String { _alias }
+    @objc open override var displayName: String { alias }
+    @objc open var gamePlayerID: String { _guest.map { "G:\($0)" } ?? "A:_\(_id)" }
+    @objc open var teamPlayerID: String { _guest.map { "G:\($0)" } ?? "T:_\(_id)" }
+    @objc open var guestIdentifier: String? { _guest }
     /// Invitable: another device's player (test players cannot play matches).
-    open var isInvitable: Bool { !(_GCNet.player(_id)?.test ?? true) }
-    public class func anonymousGuestPlayer(withIdentifier guestIdentifier: String?) -> Self {
+    @objc open var isInvitable: Bool { !(_GCNet.player(_id)?.test ?? true) }
+    @objc public class func anonymousGuestPlayer(withIdentifier guestIdentifier: String?) -> Self {
         let p = self.init()
         p._guest = guestIdentifier ?? UUID().uuidString
         p._alias = "Guest"
         return p
     }
-    public required override init() { super.init() }
-    open override func isEqual(_ object: Any?) -> Bool {
+    @objc public required override init() { super.init() }
+    @objc open override func isEqual(_ object: Any?) -> Bool {
         guard let o = object as? GKPlayer else { return false }
         return o._id == _id && o._guest == _guest
     }
-    open override var hash: Int { _id.hashValue ^ (_guest?.hashValue ?? 0) }
-    open override var description: String { "<GKPlayer: \(alias) \(gamePlayerID)>" }
+    @objc open override var hash: Int { _id.hashValue ^ (_guest?.hashValue ?? 0) }
+    @objc open override var description: String { "<GKPlayer: \(alias) \(gamePlayerID)>" }
     /// A generated monogram (the player's initials on a gray circle), like Game Center's default avatar.
     open func loadPhoto(for size: PhotoSize, withCompletionHandler h: ((UIImage?, Error?) -> Void)? = nil) {
         let img = _GCImages.monogram(alias, size: size == .small ? 64 : 128)
@@ -220,28 +220,28 @@ struct _GCBannerView: View {
     @nonobjc open func loadPhoto(for size: PhotoSize) async throws -> UIImage {
         try await withCheckedThrowingContinuation { k in loadPhoto(for: size) { i, e in if let i { k.resume(returning: i) } else { k.resume(throwing: e ?? GKError.unsupported) } } }
     }
-    open func scopedIDsArePersistent() -> Bool { true }
+    @objc open func scopedIDsArePersistent() -> Bool { true }
     public enum PhotoSize: Int, Sendable { case small, normal }
 }
 
-@objc(GKLocalPlayer) @objcMembers open class GKLocalPlayer: GKPlayer {
-    nonisolated(unsafe) public static let local = GKLocalPlayer()
-    @available(*, deprecated) public class func localPlayer() -> GKLocalPlayer { local }
+@objc(GKLocalPlayer) open class GKLocalPlayer: GKPlayer {
+    @objc nonisolated(unsafe) public static let local = GKLocalPlayer()
+    @objc @available(*, deprecated) public class func localPlayer() -> GKLocalPlayer { local }
     private var authenticated = false
-    open override var alias: String { _GC.alias }
-    open override var displayName: String { _GC.alias }
-    open override var gamePlayerID: String { "A:_\(_GCNet.me)" }
-    open override var teamPlayerID: String { "T:_\(_GCNet.me)" }
-    open override var isInvitable: Bool { true }
-    open override func isEqual(_ object: Any?) -> Bool { (object as? GKPlayer).map { $0 === self || ($0._guest == nil && $0._id == _GCNet.me) } ?? false }
-    open override var hash: Int { _GCNet.me.hashValue }
-    public required init() { super.init(); _id = _GCNet.me }
-    open var isAuthenticated: Bool { authenticated && _GC.signedIn }
-    open var isUnderage: Bool { false }
+    @objc open override var alias: String { _GC.alias }
+    @objc open override var displayName: String { _GC.alias }
+    @objc open override var gamePlayerID: String { "A:_\(_GCNet.me)" }
+    @objc open override var teamPlayerID: String { "T:_\(_GCNet.me)" }
+    @objc open override var isInvitable: Bool { true }
+    @objc open override func isEqual(_ object: Any?) -> Bool { (object as? GKPlayer).map { $0 === self || ($0._guest == nil && $0._id == _GCNet.me) } ?? false }
+    @objc open override var hash: Int { _GCNet.me.hashValue }
+    @objc public required init() { super.init(); _id = _GCNet.me }
+    @objc open var isAuthenticated: Bool { authenticated && _GC.signedIn }
+    @objc open var isUnderage: Bool { false }
     /// Matches are played with the other isim devices on this computer.
-    open var isMultiplayerGamingRestricted: Bool { false }
-    open var isPersonalizedCommunicationRestricted: Bool { false }
-    open var authenticateHandler: ((UIViewController?, Error?) -> Void)? {
+    @objc open var isMultiplayerGamingRestricted: Bool { false }
+    @objc open var isPersonalizedCommunicationRestricted: Bool { false }
+    @objc open var authenticateHandler: ((UIViewController?, Error?) -> Void)? {
         didSet {
             guard let h = authenticateHandler else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
@@ -263,13 +263,13 @@ struct _GCBannerView: View {
         }
     }
     /// The player's friends on isim's local Game Center (asks for access first, like iOS 14.5 and later).
-    open func loadFriends(_ h: @escaping ([GKPlayer]?, Error?) -> Void) { _GCSocial.loadFriends(nil, h) }
+    @objc open func loadFriends(_ h: @escaping ([GKPlayer]?, Error?) -> Void) { _GCSocial.loadFriends(nil, h) }
     @nonobjc open func loadFriends() async throws -> [GKPlayer] {
         try await withCheckedThrowingContinuation { k in loadFriends { f, e in if let f { k.resume(returning: f) } else { k.resume(throwing: e ?? GKError(code: .unknown)) } } }
     }
     @objc(loadFriendsIdentifiedByGamePlayerIDs:completionHandler:) open func loadFriends(identifiedBy identifiers: [String], completionHandler h: @escaping ([GKPlayer]?, Error?) -> Void) { _GCSocial.loadFriends(identifiers, h) }
     /// Players met in matches, newest first.
-    open func loadRecentPlayers(completionHandler h: (([GKPlayer]?, Error?) -> Void)? = nil) {
+    @objc open func loadRecentPlayers(completionHandler h: (([GKPlayer]?, Error?) -> Void)? = nil) {
         guard isAuthenticated else { DispatchQueue.main.async { h?(nil, GKError.notAuthenticated) }; return }
         let list = _GCNet.recentIDs().map(GKPlayer._make)
         DispatchQueue.main.async { h?(list, nil) }
@@ -278,7 +278,7 @@ struct _GCBannerView: View {
         try await withCheckedThrowingContinuation { k in loadRecentPlayers { f, e in if let f { k.resume(returning: f) } else { k.resume(throwing: e ?? GKError(code: .unknown)) } } }
     }
     /// Friends who can be challenged (all of them on isim).
-    open func loadChallengableFriends(completionHandler h: (([GKPlayer]?, Error?) -> Void)? = nil) {
+    @objc open func loadChallengableFriends(completionHandler h: (([GKPlayer]?, Error?) -> Void)? = nil) {
         guard isAuthenticated else { DispatchQueue.main.async { h?(nil, GKError.notAuthenticated) }; return }
         let list = _GCNet.friendIDs().map(GKPlayer._make).sorted { $0.alias < $1.alias }
         DispatchQueue.main.async { h?(list, nil) }
@@ -304,25 +304,25 @@ struct _GCBannerView: View {
         DispatchQueue.main.async { MainActor.assumeIsolated { _GCEvents.flush() } }
     }
     open func unregisterListener(_ listener: GKLocalPlayerListener) { listeners.removeAll { $0 === listener } }
-    open func unregisterAllListeners() { listeners.removeAll() }
+    @objc open func unregisterAllListeners() { listeners.removeAll() }
 }
 
 // MARK: - Leaderboards
 
-@objc(GKLeaderboard) @objcMembers open class GKLeaderboard: NSObject {
+@objc(GKLeaderboard) open class GKLeaderboard: NSObject {
     public enum PlayerScope: Int, Sendable { case global = 0, friendsOnly = 1 }
     public enum TimeScope: Int, Sendable { case today = 0, week = 1, allTime = 2 }
     public enum LeaderboardType: Int, Sendable { case classic, recurring }
-    open var baseLeaderboardID: String = ""
-    open var title: String?
+    @objc open var baseLeaderboardID: String = ""
+    @objc open var title: String?
     open var type: LeaderboardType = .classic
-    open var groupIdentifier: String?
+    @objc open var groupIdentifier: String?
     /// recurring leaderboards: the occurrence this object describes
-    open var startDate: Date?
-    open var nextStartDate: Date?
-    open var duration: TimeInterval = 0
-    var occurrenceOffset = 0
-    static func make(_ id: String, offset: Int = 0) -> GKLeaderboard {
+    @objc open var startDate: Date?
+    @objc open var nextStartDate: Date?
+    @objc open var duration: TimeInterval = 0
+    @objc var occurrenceOffset = 0
+    @objc static func make(_ id: String, offset: Int = 0) -> GKLeaderboard {
         let def = _GCConfig.board(id), b = GKLeaderboard()
         b.baseLeaderboardID = id; b.title = def.title; b.type = def.recurring ? .recurring : .classic
         if def.recurring {
@@ -332,7 +332,7 @@ struct _GCBannerView: View {
         return b
     }
     /// recurring: the previous occurrence (its own scores)
-    open func loadPreviousOccurrence(completionHandler h: @escaping (GKLeaderboard?, Error?) -> Void) {
+    @objc open func loadPreviousOccurrence(completionHandler h: @escaping (GKLeaderboard?, Error?) -> Void) {
         let b: GKLeaderboard? = type == .recurring ? GKLeaderboard.make(baseLeaderboardID, offset: occurrenceOffset - 1) : nil
         DispatchQueue.main.async { h(b, nil) }
     }
@@ -340,7 +340,7 @@ struct _GCBannerView: View {
         await withCheckedContinuation { k in loadPreviousOccurrence { b, _ in k.resume(returning: b) } }
     }
     /// The leaderboard's image from the configuration (a file or asset in the bundle), or a generated placeholder.
-    open func loadImage(completionHandler h: ((UIImage?, Error?) -> Void)? = nil) {
+    @objc open func loadImage(completionHandler h: ((UIImage?, Error?) -> Void)? = nil) {
         let img = _GCImages.leaderboard(baseLeaderboardID)
         DispatchQueue.main.async { h?(img, nil) }
     }
@@ -373,7 +373,7 @@ struct _GCBannerView: View {
         return best.enumerated().map { i, r in Entry(player: GKPlayer._make(r.0), rank: i + 1, score: r.1, context: r.2, date: r.3, board: def) }
     }
 
-    public class func submitScore(_ score: Int, context: Int, player: GKPlayer, leaderboardIDs: [String], completionHandler: @escaping (Error?) -> Void) {
+    @objc public class func submitScore(_ score: Int, context: Int, player: GKPlayer, leaderboardIDs: [String], completionHandler: @escaping (Error?) -> Void) {
         guard GKLocalPlayer.local.isAuthenticated else { DispatchQueue.main.async { completionHandler(GKError.notAuthenticated) }; return }
         guard player === GKLocalPlayer.local || player.isEqual(GKLocalPlayer.local) else { DispatchQueue.main.async { completionHandler(GKError(code: .invalidPlayer)) }; return }
         for id in leaderboardIDs { _GC.addScore(score, context: context, board: id) }
@@ -386,7 +386,7 @@ struct _GCBannerView: View {
             submitScore(score, context: context, player: player, leaderboardIDs: leaderboardIDs) { e in if let e { k.resume(throwing: e) } else { k.resume() } }
         }
     }
-    public class func loadLeaderboards(IDs: [String]?, completionHandler: @escaping ([GKLeaderboard]?, Error?) -> Void) {
+    @objc public class func loadLeaderboards(IDs: [String]?, completionHandler: @escaping ([GKLeaderboard]?, Error?) -> Void) {
         let ids = IDs ?? Array(Set(_GC.scores().keys).union(_GCConfig.boards.map { $0.id })).sorted()
         let boards = ids.map { GKLeaderboard.make($0) }
         DispatchQueue.main.async { completionHandler(boards, nil) }
@@ -395,16 +395,16 @@ struct _GCBannerView: View {
         await withCheckedContinuation { k in loadLeaderboards(IDs: IDs) { b, _ in k.resume(returning: b ?? []) } }
     }
     /// A player's best score; `formattedScore` follows the leaderboard's score format from the configuration.
-    @objc(GKLeaderboardEntry) @objcMembers open class Entry: NSObject {
-        public let player: GKPlayer
-        public let rank: Int, score: Int, context: Int
-        public let date: Date
+    @objc(GKLeaderboardEntry) open class Entry: NSObject {
+        @objc public let player: GKPlayer
+        @objc public let rank: Int, score: Int, context: Int
+        @objc public let date: Date
         let board: _GCBoardDef
-        open var formattedScore: String { board.formatted(score) }
+        @objc open var formattedScore: String { board.formatted(score) }
         init(player: GKPlayer, rank: Int, score: Int, context: Int, date: Date, board: _GCBoardDef) {
             self.player = player; self.rank = rank; self.score = score; self.context = context; self.date = date; self.board = board
         }
-        open override var description: String { "<GKLeaderboard.Entry #\(rank) \(player.alias) \(formattedScore)>" }
+        @objc open override var description: String { "<GKLeaderboard.Entry #\(rank) \(player.alias) \(formattedScore)>" }
     }
     /// The local player's entry, the entries in `range` (1-based ranks) and the number of players with a score.
     /// `.friendsOnly`: the local player and their friends.
@@ -435,7 +435,7 @@ struct _GCBannerView: View {
     @nonobjc open func loadEntries(for players: [GKPlayer], timeScope: TimeScope) async throws -> (Entry?, [Entry]) {
         await withCheckedContinuation { k in loadEntries(for: players, timeScope: timeScope) { a, b, _ in k.resume(returning: (a, b ?? [])) } }
     }
-    open func submitScore(_ score: Int, context: Int, player: GKPlayer, completionHandler: @escaping (Error?) -> Void) {
+    @objc open func submitScore(_ score: Int, context: Int, player: GKPlayer, completionHandler: @escaping (Error?) -> Void) {
         GKLeaderboard.submitScore(score, context: context, player: player, leaderboardIDs: [baseLeaderboardID], completionHandler: completionHandler)
     }
     @nonobjc open func submitScore(_ score: Int, context: Int, player: GKPlayer) async throws {
@@ -445,14 +445,14 @@ struct _GCBannerView: View {
 
 // MARK: - Achievements
 
-@objc(GKAchievement) @objcMembers open class GKAchievement: NSObject {
-    open var identifier: String
-    open var percentComplete: Double = 0
-    open var showsCompletionBanner = false
-    open var isCompleted: Bool { percentComplete >= 100 }
-    open var lastReportedDate = Date()
-    public init(identifier: String?) { self.identifier = identifier ?? "" }
-    public override convenience init() { self.init(identifier: nil) }
+@objc(GKAchievement) open class GKAchievement: NSObject {
+    @objc open var identifier: String
+    @objc open var percentComplete: Double = 0
+    @objc open var showsCompletionBanner = false
+    @objc open var isCompleted: Bool { percentComplete >= 100 }
+    @objc open var lastReportedDate = Date()
+    @objc public init(identifier: String?) { self.identifier = identifier ?? "" }
+    @objc public override convenience init() { self.init(identifier: nil) }
     @objc(reportAchievements:withCompletionHandler:) public class func report(_ achievements: [GKAchievement], withCompletionHandler completionHandler: ((Error?) -> Void)? = nil) {
         guard GKLocalPlayer.local.isAuthenticated else { DispatchQueue.main.async { completionHandler?(GKError.notAuthenticated) }; return }
         for a in achievements {
@@ -471,7 +471,7 @@ struct _GCBannerView: View {
             report(achievements) { e in if let e { k.resume(throwing: e) } else { k.resume() } }
         }
     }
-    public class func loadAchievements(completionHandler: (([GKAchievement]?, Error?) -> Void)? = nil) {
+    @objc public class func loadAchievements(completionHandler: (([GKAchievement]?, Error?) -> Void)? = nil) {
         guard GKLocalPlayer.local.isAuthenticated else { DispatchQueue.main.async { completionHandler?(nil, GKError.notAuthenticated) }; return }
         let list = _GC.achievements().map { id, v -> GKAchievement in
             let a = GKAchievement(identifier: id); a.percentComplete = v["percent"] as? Double ?? 0
@@ -482,7 +482,7 @@ struct _GCBannerView: View {
     @nonobjc public class func loadAchievements() async throws -> [GKAchievement] {
         await withCheckedContinuation { k in loadAchievements { l, _ in k.resume(returning: l ?? []) } }
     }
-    public class func resetAchievements(completionHandler: ((Error?) -> Void)? = nil) {
+    @objc public class func resetAchievements(completionHandler: ((Error?) -> Void)? = nil) {
         _GC.reset()
         DispatchQueue.main.async { completionHandler?(nil) }
     }
@@ -497,31 +497,31 @@ struct _GCBannerView: View {
 public enum GKGameCenterViewControllerState: Int, Sendable { case `default` = -1, leaderboards = 0, achievements = 1, challenges = 2, localPlayerProfile = 3, dashboard = 4, localPlayerFriendsList = 5 }
 
 /// The player's Game Center: leaderboards (best score per board) and achievements, as stored on isim.
-@objc(GKGameCenterViewController) @objcMembers open class GKGameCenterViewController: UIViewController {
-    weak open var gameCenterDelegate: GKGameCenterControllerDelegate?
-    var onFinish: (() -> Void)?
-    open var leaderboardIdentifier: String? { get { focusLeaderboard } set { focusLeaderboard = newValue } }
+@objc(GKGameCenterViewController) open class GKGameCenterViewController: UIViewController {
+    @objc weak open var gameCenterDelegate: GKGameCenterControllerDelegate?
+    @objc var onFinish: (() -> Void)?
+    @objc open var leaderboardIdentifier: String? { get { focusLeaderboard } set { focusLeaderboard = newValue } }
     open var viewState: GKGameCenterViewControllerState { get { state } set { state = newValue } }
     var state: GKGameCenterViewControllerState = .dashboard
-    var focusLeaderboard: String?
+    @objc var focusLeaderboard: String?
     public init(state: GKGameCenterViewControllerState) { self.state = state; super.init(nibName: nil, bundle: nil) }
     public init(leaderboardID: String, playerScope: GKLeaderboard.PlayerScope, timeScope: GKLeaderboard.TimeScope) {
         state = .leaderboards; focusLeaderboard = leaderboardID; super.init(nibName: nil, bundle: nil)
     }
-    public init(achievementID: String) { state = .achievements; super.init(nibName: nil, bundle: nil) }
-    public init(leaderboardSetID: String) { state = .leaderboards; focusSet = leaderboardSetID; super.init(nibName: nil, bundle: nil) }
-    public init(player: GKPlayer) { state = .localPlayerProfile; super.init(nibName: nil, bundle: nil) }
-    var focusSet: String?
-    public required init?(coder: NSCoder) { super.init(nibName: nil, bundle: nil) }
+    @objc public init(achievementID: String) { state = .achievements; super.init(nibName: nil, bundle: nil) }
+    @objc public init(leaderboardSetID: String) { state = .leaderboards; focusSet = leaderboardSetID; super.init(nibName: nil, bundle: nil) }
+    @objc public init(player: GKPlayer) { state = .localPlayerProfile; super.init(nibName: nil, bundle: nil) }
+    @objc var focusSet: String?
+    @objc public required init?(coder: NSCoder) { super.init(nibName: nil, bundle: nil) }
 
     // the access point hides while Game Center is on screen
-    open override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); GKAccessPoint.shared.setPresenting(true) }
-    open override func viewDidDisappear(_ animated: Bool) {
+    @objc open override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); GKAccessPoint.shared.setPresenting(true) }
+    @objc open override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         if presentingViewController == nil { GKAccessPoint.shared.setPresenting(false) }
     }
 
-    open override func viewDidLoad() {
+    @objc open override func viewDidLoad() {
         super.viewDidLoad()
         // like iOS: a material backdrop, so the game shows through (blurred) behind Game Center
         view.backgroundColor = .clear
@@ -552,20 +552,20 @@ public enum GKGameCenterViewControllerState: Int, Sendable { case `default` = -1
 
 /// The Game Center access point: a floating bubble with the player's monogram in a corner of the
 /// screen while `isActive` (and the player is signed in); tapping it opens the dashboard.
-@objc(GKAccessPoint) @objcMembers open class GKAccessPoint: NSObject {
-    nonisolated(unsafe) public static let shared = GKAccessPoint()
+@objc(GKAccessPoint) open class GKAccessPoint: NSObject {
+    @objc nonisolated(unsafe) public static let shared = GKAccessPoint()
     public enum Location: Int, Sendable { case topLeading, topTrailing, bottomLeading, bottomTrailing }
-    open var isActive = false { didSet { DispatchQueue.main.async { MainActor.assumeIsolated { self.update() } } } }
+    @objc open var isActive = false { didSet { DispatchQueue.main.async { MainActor.assumeIsolated { self.update() } } } }
     open var location: Location = .topLeading { didSet { if isActive { DispatchQueue.main.async { MainActor.assumeIsolated { self.update() } } } } }
-    open var showHighlights = false
-    open var isFocused = false
-    open private(set) var isPresentingGameCenter = false
-    @MainActor func setPresenting(_ on: Bool) { isPresentingGameCenter = on; update() }
-    open var isVisible: Bool { MainActor.assumeIsolated { window != nil && !(window?.isHidden ?? true) } }
-    open var frameInScreenCoordinates: CGRect { MainActor.assumeIsolated { window?.frame ?? .zero } }
-    @MainActor var window: UIWindow?
+    @objc open var showHighlights = false
+    @objc open var isFocused = false
+    @objc open private(set) var isPresentingGameCenter = false
+    @objc @MainActor func setPresenting(_ on: Bool) { isPresentingGameCenter = on; update() }
+    @objc open var isVisible: Bool { MainActor.assumeIsolated { window != nil && !(window?.isHidden ?? true) } }
+    @objc open var frameInScreenCoordinates: CGRect { MainActor.assumeIsolated { window?.frame ?? .zero } }
+    @objc @MainActor var window: UIWindow?
 
-    @MainActor func update() {
+    @objc @MainActor func update() {
         let show = isActive && GKLocalPlayer.local.isAuthenticated && !isPresentingGameCenter
         guard show else { window?.isHidden = true; window = nil; return }
         let size: CGFloat = 48, screen = UIScreen.main.bounds
@@ -601,7 +601,7 @@ public enum GKGameCenterViewControllerState: Int, Sendable { case `default` = -1
     @objc(triggerAccessPointWithAchievementID:handler:) @available(iOS 18.0, *) open func trigger(achievementID: String, handler: @escaping () -> Void) {
         DispatchQueue.main.async { MainActor.assumeIsolated { self.present(GKGameCenterViewController(achievementID: achievementID), handler) } }
     }
-    @MainActor func present(_ vc: GKGameCenterViewController, _ handler: @escaping () -> Void) {
+    @objc @MainActor func present(_ vc: GKGameCenterViewController, _ handler: @escaping () -> Void) {
         guard var top = UIApplication.shared.windows.first(where: { $0.isKeyWindow })?.rootViewController ?? UIApplication.shared.windows.first?.rootViewController else { return }
         while let p = top.presentedViewController { top = p }
         NSLog("isim GameKit: access point opens Game Center")

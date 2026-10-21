@@ -2,7 +2,7 @@
 import Foundation
 
 extension CKDatabase {
-    static func reply(_ body: @escaping @Sendable () -> Void) { CKDatabase.queue.async(execute: body) }
+    @objc static func reply(_ body: @escaping @Sendable () -> Void) { CKDatabase.queue.async(execute: body) }
 
     // MARK: records
     @objc(saveRecord:completionHandler:) public func save(_ record: CKRecord, completionHandler: @escaping @Sendable (CKRecord?, Error?) -> Void) {
