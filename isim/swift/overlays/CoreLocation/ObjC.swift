@@ -167,3 +167,12 @@ extension CLGeocoder {
 extension CLLocationManager {
     @objc(_isim_simulatedLocation) class func _isim_simulatedLocation() -> CLLocation? { _CLSim.shared.current() }
 }
+
+// isim-private: CoreLocationUI's location button grants when-in-use authorization for this run only (like iOS's
+// temporary authorization), unless the app already has it
+extension CLLocationManager {
+    @objc(_isim_grantLocationButtonAuthorization) class func _isim_grantLocationButtonAuthorization() {
+        if _CLAuth.authorized { return }
+        _CLAuth.set(.authorizedWhenInUse, once: true)
+    }
+}
