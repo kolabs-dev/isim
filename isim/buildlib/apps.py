@@ -914,6 +914,11 @@ def _(a):
     b = a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "GameKit"], name="GameKitObjCTest")
     a.copy("isim-GameCenter.json", b)
 
+@app("tests/arkit-scenekit-objc", products=["ARSceneObjCTest.app"])   # after the overlays: ARKit and SceneKit re-export theirs (issue #560)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "ARKit", "-framework", "SceneKit"],
+               name="ARSceneObjCTest")
+
 
 @app("tests/photos-objc", products=["PhotosObjCTest.app"])   # after the overlays: Photos.framework re-exports libswiftPhotos (issue #545)
 def _(a):

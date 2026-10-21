@@ -152,7 +152,7 @@ enum _SCN {
 // MARK: - nodes and scenes
 
 /// A node of the scene graph: a transform (position, orientation, scale) and children.
-open class SCNNode: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
+@objc(SCNNode) @objcMembers open class SCNNode: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
     public override init() { super.init() }
     open var name: String?
     open internal(set) weak var parent: SCNNode?
@@ -280,7 +280,7 @@ open class SCNNode: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
 }
 
 /// A scene: a root node. Scene files do not load yet (#330).
-open class SCNScene: NSObject, NSSecureCoding, @unchecked Sendable {
+@objc(SCNScene) @objcMembers open class SCNScene: NSObject, NSSecureCoding, @unchecked Sendable {
     public override init() { super.init() }
     open private(set) var rootNode = SCNNode()
     open var isPaused = false
@@ -344,7 +344,7 @@ public protocol SCNSceneRenderer: AnyObject {
 
 /// A view that shows a scene. Stub: it draws its background colour only (no 3D renderer yet, #330); the render loop
 /// still runs at `preferredFramesPerSecond` while playing (or `rendersContinuously`) and calls the delegate.
-@MainActor open class SCNView: UIView, @preconcurrency SCNSceneRenderer {
+@MainActor @objc(SCNView) @objcMembers open class SCNView: UIView, @preconcurrency SCNSceneRenderer {
     public override init(frame: CGRect) { super.init(frame: frame) }
     public init(frame: CGRect, options: [String: Any]? = nil) { super.init(frame: frame) }
     public required init?(coder: NSCoder) { super.init(coder: coder) }

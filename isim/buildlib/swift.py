@@ -720,6 +720,13 @@ OBJC_NAMES["GameKit"] = {**{c: c for c in """GKBasePlayer GKPlayer GKLocalPlayer
     GKFriendRequestComposeViewController GKMatchRequest GKInvite GKMatch GKMatchmaker GKMatchmakerViewController GKTurnBasedParticipant
     GKTurnBasedMatch GKLeaderboardScore GKTurnBasedMatchmakerViewController GKChallenge GKScoreChallenge GKAchievementChallenge""".split()},
                         "GKLeaderboard.Entry": "GKLeaderboardEntry"}
+# issue #560: ARKit and SceneKit from Objective-C
+OBJC_NAMES["ARKit"] = {**{c: c for c in """ARConfiguration ARWorldTrackingConfiguration AROrientationTrackingConfiguration ARFaceTrackingConfiguration
+    ARImageTrackingConfiguration ARObjectScanningConfiguration ARBodyTrackingConfiguration ARPositionalTrackingConfiguration
+    ARGeoTrackingConfiguration ARSession ARFrame ARCamera ARLightEstimate ARPointCloud ARAnchor ARPlaneAnchor ARPlaneExtent ARPlaneGeometry
+    ARImageAnchor ARObjectAnchor ARFaceAnchor AREnvironmentProbeAnchor ARRaycastQuery ARRaycastResult ARTrackedRaycast ARReferenceImage
+    ARReferenceObject ARWorldMap ARSCNView ARSKView ARCoachingOverlayView""".split()}, "ARConfiguration.VideoFormat": "ARVideoFormat"}
+OBJC_NAMES["SceneKit"] = {c: c for c in ("SCNNode", "SCNScene", "SCNView")}
 OBJC_NAMES["MessageUI"] = {c: c for c in ("MFMailComposeViewController", "MFMessageComposeViewController")}
 OBJC_NAMES["CoreBluetooth"] = {c: c for c in """CBUUID CBAttribute CBService CBMutableService CBCharacteristic CBMutableCharacteristic
     CBDescriptor CBMutableDescriptor CBPeer CBCentral CBATTRequest CBL2CAPChannel CBPeripheral CBManager CBCentralManager CBPeripheralManager""".split()}
