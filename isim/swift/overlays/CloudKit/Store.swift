@@ -12,7 +12,13 @@ struct _CKStoredRecord: Codable {
     var modified: Double
     var seq: Int
     var parent: String?
+    var share: _CKStoredShare? = nil                  // a CKShare's owner, permissions and participants
 }
+struct _CKStoredParticipant: Codable {
+    var user: String, firstName: String?, lastName: String?, contact: String?
+    var role: Int, permission: Int, status: Int
+}
+struct _CKStoredShare: Codable { var owner: _CKStoredParticipant; var root: String?; var publicPermission: Int; var participants: [_CKStoredParticipant] }
 struct _CKStoredZone: Codable { var name: String; var owner: String; var seq: Int }
 struct _CKTombstone: Codable { var name: String; var zone: String; var owner: String; var type: String; var seq: Int }
 struct _CKStoredSub: Codable {
@@ -85,11 +91,15 @@ enum _CKEnv {
         default: return .available
         }
     }
-    /// the signed-in user's record name: stable per simulated account (the device's fake Apple Account email)
-    static var userRecordName: String {
+    /// the device's simulated Apple Account (AppleAccount/account.json; Taylor Appleseed <taylor@example.com> by default)
+    static var account: (first: String, last: String, email: String) {
         let acct = (dataDir as NSString).appendingPathComponent("Library/isim/AppleAccount/account.json")
-        var email = "taylor@example.com"
-        if let d = FileManager.default.contents(atPath: acct), let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any], let e = o["email"] as? String { email = e }
+        let o = FileManager.default.contents(atPath: acct).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+        return (o["firstName"] as? String ?? "Taylor", o["lastName"] as? String ?? "Appleseed", o["email"] as? String ?? "taylor@example.com")
+    }
+    /// the signed-in user's record name: stable per simulated account (the device's fake Apple Account email)
+    static var userRecordName: String { recordName(forEmail: account.email) }
+    static func recordName(forEmail email: String) -> String {
         var h1: UInt64 = 0xcbf29ce484222325, h2: UInt64 = 0x84222325cbf29ce4
         for b in email.lowercased().utf8 { h1 = (h1 ^ UInt64(b)) &* 0x100000001b3; h2 = (h2 ^ UInt64(b)) &* 0x100000001b3 &+ 7 }
         return "_" + String(format: "%016llx%016llx", h1, h2)

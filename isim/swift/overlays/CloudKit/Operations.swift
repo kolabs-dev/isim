@@ -21,6 +21,8 @@ open class CKOperation: NSObject, @unchecked Sendable {
     open var completionBlock: (() -> Void)?
     open var qualityOfService: QualityOfService = .default
     open var name: String?
+    /// The group the operation belongs to (isim: kept for the app; it does not change how the operation runs).
+    open var group: CKOperationGroup?
     open var longLivedOperationWasPersistedBlock: (() -> Void)?
     public private(set) var isCancelled = false
     public private(set) var isExecuting = false
