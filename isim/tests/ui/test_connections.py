@@ -15,6 +15,7 @@ from isimtest import ROOT, local_server
 
 EXPECTED = {   # check: the line HelloConnections logs
     "NWListener + NWConnection TCP echo, currentPath": "tcp echo: echo:hello tcp error=none remote=ok",
+    "Network's C API from Swift: nw_connection_*, a final message, the server's close": "c api: ready remote=ok type=true closed=true error=none",
     "UDP echo (listener datagram connection)": "udp echo: echo:datagram",
     "refused -> .waiting(ECONNREFUSED)": "refused: waiting ECONNREFUSED",
     "DNS failure -> .waiting(.dns)": "dns: waiting dns -65554",

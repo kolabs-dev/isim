@@ -524,10 +524,11 @@ class Swift:
     def overlays(self):
         c, n = self.c, self.n
         objdir = f"{SW}/obj/overlays"
-        # <Module>-compat.o: swift/overlays/<Module>/compat.c, symbols kept for apps built against an older ABI
-        def compat(a):
-            m = a[:-len("-compat.o")]
-            return c.compile(f"swift/overlays/{m}/compat.c", f"{objdir}/{a}", [ISIM, "cc"], implicit=[ISIM],
+        # <Module>-<name>.o: swift/overlays/<Module>/<name>.c, C linked into the overlay (compat.c: symbols kept for apps
+        # built against an older ABI; capi.c: C globals of a framework's C API)
+        def cobj(a):
+            m, name = a[:-len(".o")].split("-", 1)
+            return c.compile(f"swift/overlays/{m}/{name}.c", f"{objdir}/{a}", [ISIM, "cc"], implicit=[ISIM],
                              order_only=c.header_stamps + ["tbds"])
         base = [mod("Swift"), mod("_Concurrency")] + ([mod("_StringProcessing")] if os.path.isdir(os.path.join(
             c.root, f"{c.tp}/swift-experimental-string-processing/Sources")) else [])
@@ -542,7 +543,7 @@ class Swift:
             line = line.split("#")[0].split()
             if not line:
                 continue
-            m, args = line[0], [compat(a) if a.endswith("-compat.o") else a for a in line[1:]]
+            m, args = line[0], [cobj(a) if a.endswith(".o") else a for a in line[1:]]
             srcs = c.glob(f"swift/overlays/{m}/*.swift") if os.path.isdir(os.path.join(c.root, f"swift/overlays/{m}")) else [f"swift/overlays/{m}.swift"]
             srcs += c.glob(f"swift/overlays/{m}+*.swift")
             if m in PRIVACY:
@@ -834,7 +835,7 @@ EventKitUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftEventKit -lsw
 Photos -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -lswiftAVFoundation -lswiftCoreMedia -framework Foundation -framework UIKit -framework CoreGraphics
 PhotosUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftPhotos -lswiftUniformTypeIdentifiers -lswiftCoreTransferable -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics
 QuickLook -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework QuickLook   # SwiftUI's quickLookPreview
-Network -lswiftObjectiveC -lswiftFoundation -lswiftSecurity -lswiftDispatch -lswift_Concurrency -framework Foundation -lisim_host
+Network Network-capi.o -lswiftObjectiveC -lswiftFoundation -lswiftSecurity -lswiftDispatch -lswift_Concurrency -framework Foundation -lisim_host
 WebKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftObservation -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 SafariServices -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftWebKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit
 AdSupport -lswiftObjectiveC -lswiftFoundation -framework Foundation
