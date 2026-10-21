@@ -52,6 +52,19 @@ def test_sensors_and_health(launch):
     app.tap_id("healthQuery")
     app.wait_log(r"^health steps sum 2450")
     app.wait_log(r"^health weight none")
+    app.tap_id("healthChanges")                                                      # anchored object queries
+    app.wait_log(r"^health anchored added 3 deleted 0 error none")
+    app.wait_log(r"^health anchor archived equal true")
+    app.wait_log(r"^health sources Sensors$")
+    app.wait_log(r"^health source descriptor Sensors$")
+    app.wait_log(r"^health descriptor 2 1200 800$")                                   # newest first, limit 2
+    app.wait_log(r"^health background true")
+    app.wait_log(r"isim HealthKit: Sensors background delivery for Steps \(hourly\)")
+    app.wait_log(r"^health anchored update added 1 deleted 0")                        # saved, then deleted
+    app.wait_log(r"^health deleted true")
+    app.wait_log(r"^health anchored update added 0 deleted 1")
+    app.wait_log(r"^health descriptor since added 0 deleted 1 newer true")
+    app.wait_log(r"^health sequence added 3 deleted 0")
     app.wait_view(r"text=2450 steps")                                                # statistics sum + sample query
     assert app.quit() == 0
 

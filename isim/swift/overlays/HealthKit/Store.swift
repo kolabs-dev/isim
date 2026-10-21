@@ -4,12 +4,24 @@ import UIKit
 struct _HKRecord: Codable {
     var uuid: String, kind: String, type: String, start: Double, end: Double, value: Double
     var bundle: String, source: String, metadata: [String: String]?
+    /// the order of changes (an HKQueryAnchor is the last one a query saw); nil for samples saved before anchors (0)
+    var seq: Int?
 }
+/// a deleted sample (HKDeletedObject), kept for anchored object queries
+struct _HKTombstone: Codable { var uuid: String, type: String, seq: Int, bundle: String, metadata: [String: String]? }
 
 enum _HKDB {
     static var path: String { (_Privacy.deviceDir("Library/Health") as NSString).appendingPathComponent("healthdb.json") }
     static func load() -> [_HKRecord] { _Privacy.readJSON([_HKRecord].self, path) ?? [] }
     static func save(_ r: [_HKRecord]) { _Privacy.writeJSON(r, path) }
+    static var deletedPath: String { (_Privacy.deviceDir("Library/Health") as NSString).appendingPathComponent("healthdeleted.json") }
+    static func deleted() -> [_HKTombstone] { _Privacy.readJSON([_HKTombstone].self, deletedPath) ?? [] }
+    static func saveDeleted(_ d: [_HKTombstone]) { _Privacy.writeJSON(d, deletedPath) }
+    /// the last change's number
+    static func lastSeq(_ records: [_HKRecord], _ gone: [_HKTombstone]) -> Int {
+        max(records.compactMap(\.seq).max() ?? 0, gone.map(\.seq).max() ?? 0)
+    }
+    static func canSee(_ type: String, _ bundle: String) -> Bool { _HKAuth.read(type) == true || bundle == _Privacy.bundleID }
     static func sample(_ r: _HKRecord) -> HKSample {
         let s: HKSample
         if r.kind == "c" {
@@ -20,6 +32,7 @@ enum _HKDB {
         }
         s.uuid = UUID(uuidString: r.uuid) ?? UUID()
         s.sourceRevision = HKSourceRevision(source: HKSource(name: r.source, bundleIdentifier: r.bundle), version: nil)
+        s._seq = r.seq ?? 0
         return s
     }
     static func record(_ o: HKObject) -> _HKRecord? {
@@ -157,7 +170,10 @@ public typealias HKObserverQueryCompletionHandler = () -> Void
             records.append(r)
         }
         DispatchQueue.main.async {
-            _HKDB.save(_HKDB.load() + records)
+            let all = _HKDB.load()
+            var seq = _HKDB.lastSeq(all, _HKDB.deleted())
+            for i in records.indices { seq += 1; records[i].seq = seq }
+            _HKDB.save(all + records)
             for o in objects { o.sourceRevision = HKSourceRevision(source: .default(), version: nil) }
             _HKObservers.changed(Set(records.map(\.type)))
             _Privacy.reply { completion(true, nil) }
@@ -174,9 +190,14 @@ public typealias HKObserverQueryCompletionHandler = () -> Void
         DispatchQueue.main.async {
             let ids = Set(objects.map(\.uuid.uuidString))
             let all = _HKDB.load()
-            // apps can delete only the samples they saved
+            // apps can delete only the samples they saved; each leaves a tombstone for anchored object queries
+            let gone = all.filter { ids.contains($0.uuid) && $0.bundle == _Privacy.bundleID }
+            var tombs = _HKDB.deleted()
+            var seq = _HKDB.lastSeq(all, tombs)
+            for r in gone { seq += 1; tombs.append(_HKTombstone(uuid: r.uuid, type: r.type, seq: seq, bundle: r.bundle, metadata: r.metadata)) }
             _HKDB.save(all.filter { !(ids.contains($0.uuid) && $0.bundle == _Privacy.bundleID) })
-            _HKObservers.changed(Set(all.filter { ids.contains($0.uuid) }.map(\.type)))
+            if !gone.isEmpty { _HKDB.saveDeleted(tombs) }
+            _HKObservers.changed(Set(gone.map(\.type)))
             _Privacy.reply { completion(true, nil) }
         }
     }
@@ -407,6 +428,7 @@ enum _HKObservers {
             DispatchQueue.global().async {
                 if let o = q as? HKObserverQuery { o.handler(o, {}, nil) }
                 if let c = q as? HKStatisticsCollectionQuery { c.update() }
+                if let a = q as? HKAnchoredObjectQuery { a.update() }
             }
         }
     }

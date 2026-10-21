@@ -247,6 +247,29 @@ typedef void (^HKObserverQueryCompletionHandler)(void);
                      updateHandler:(void (^)(HKObserverQuery *query, HKObserverQueryCompletionHandler completionHandler, NSError * _Nullable error))updateHandler;
 @end
 
+/* anchored object queries: the samples added and deleted since an anchor (the device's Health database numbers its changes) */
+@interface HKQueryAnchor : NSObject <NSSecureCoding, NSCopying>
++ (instancetype)anchorFromValue:(NSUInteger)value;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+@interface HKDeletedObject : NSObject
+@property (readonly, strong) NSUUID *UUID;
+@property (readonly, copy, nullable) NSDictionary<NSString *, id> *metadata;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+@interface HKAnchoredObjectQuery : HKQuery
+- (instancetype)initWithType:(HKSampleType *)type predicate:(nullable NSPredicate *)predicate anchor:(nullable HKQueryAnchor *)anchor limit:(NSUInteger)limit
+              resultsHandler:(void (^)(HKAnchoredObjectQuery *query, NSArray<__kindof HKSample *> * _Nullable sampleObjects,
+                                       NSArray<HKDeletedObject *> * _Nullable deletedObjects, HKQueryAnchor * _Nullable newAnchor, NSError * _Nullable error))handler;
+@property (nonatomic, copy, nullable) void (^updateHandler)(HKAnchoredObjectQuery *query, NSArray<__kindof HKSample *> * _Nullable addedObjects,
+                                                           NSArray<HKDeletedObject *> * _Nullable deletedObjects, HKQueryAnchor * _Nullable newAnchor, NSError * _Nullable error);
+@end
+@interface HKSourceQuery : HKQuery
+- (instancetype)initWithSampleType:(HKSampleType *)sampleType samplePredicate:(nullable NSPredicate *)objectPredicate
+                 completionHandler:(void (^)(HKSourceQuery *query, NSSet<HKSource *> * _Nullable sources, NSError * _Nullable error))completionHandler;
+@end
+typedef NS_ENUM(NSInteger, HKUpdateFrequency) { HKUpdateFrequencyImmediate = 1, HKUpdateFrequencyHourly, HKUpdateFrequencyDaily, HKUpdateFrequencyWeekly };
+
 @interface HKHealthStore : NSObject
 + (BOOL)isHealthDataAvailable;
 - (BOOL)supportsHealthRecords;
@@ -262,6 +285,11 @@ typedef void (^HKObserverQueryCompletionHandler)(void);
 - (nullable HKBiologicalSexObject *)biologicalSexWithError:(NSError **)error;
 - (void)executeQuery:(HKQuery *)query;
 - (void)stopQuery:(HKQuery *)query;
+/* background delivery (adapted: kept per app; while the app runs its observer queries fire on changes) */
+- (void)enableBackgroundDeliveryForType:(HKObjectType *)type frequency:(HKUpdateFrequency)frequency
+                         withCompletion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+- (void)disableBackgroundDeliveryForType:(HKObjectType *)type withCompletion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+- (void)disableAllBackgroundDeliveryWithCompletion:(void (^)(BOOL success, NSError * _Nullable error))completion;
 @end
 
 NS_ASSUME_NONNULL_END

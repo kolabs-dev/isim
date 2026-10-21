@@ -1,6 +1,7 @@
 // Sample: device sensors and health data on isim — Core Motion (a simulated iPhone held upright at rest; no
 // pedometer, like the Simulator), Core Bluetooth (unsupported, like the Simulator), Core NFC (no reader) and
-// HealthKit (the Health Access sheet, saving samples, statistics and sample queries).
+// HealthKit (the Health Access sheet, saving samples, statistics and sample queries, anchored object queries and
+// their descriptors, source queries, background delivery).
 import SwiftUI
 import CoreMotion
 import CoreBluetooth
@@ -183,6 +184,59 @@ final class SensorModel: NSObject, ObservableObject, CBCentralManagerDelegate, C
         }
         health.execute(q)
     }
+    /// what changed since an anchor: the first results, then a saved sample and its deletion as updates; the anchor
+    /// archived; the sources; the Swift descriptors; background delivery
+    var changes: HKAnchoredObjectQuery?
+    func healthChanges() {
+        let q = HKAnchoredObjectQuery(type: steps, predicate: nil, anchor: nil, limit: HKObjectQueryNoLimit) { _, added, deleted, anchor, error in
+            print("health anchored added \(added?.count ?? -1) deleted \(deleted?.count ?? -1) error \(error == nil ? "none" : "\(error!)")")
+            guard let anchor else { return }
+            let data = try? NSKeyedArchiver.archivedData(withRootObject: anchor, requiringSecureCoding: true)
+            let back = data.flatMap { try? NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: $0) }
+            print("health anchor archived equal \(back == anchor)")
+            Task { await self.afterAnchor(anchor) }
+        }
+        q.updateHandler = { query, added, deleted, _, _ in
+            print("health anchored update added \(added?.count ?? 0) deleted \(deleted?.count ?? 0)")
+            if let s = added?.first { self.health.delete(s) { ok, _ in print("health deleted \(ok)") } }
+            else if deleted?.isEmpty == false { self.health.stop(query) }
+        }
+        changes = q
+        health.execute(q)
+    }
+    func afterAnchor(_ first: HKQueryAnchor) async {
+        let sources: Set<HKSource> = await withCheckedContinuation { k in
+            health.execute(HKSourceQuery(sampleType: steps, samplePredicate: nil) { _, s, _ in k.resume(returning: s ?? []) })
+        }
+        print("health sources \(sources.map(\.name).sorted().joined(separator: ","))")
+        let named = (try? await HKSourceQueryDescriptor(predicate: .quantitySample(type: steps)).result(for: health)) ?? []
+        print("health source descriptor \(named.map(\.name).joined(separator: ","))")
+        let latest = HKSampleQueryDescriptor(predicates: [.quantitySample(type: steps)], sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)], limit: 2)
+        let two = (try? await latest.result(for: health)) ?? []
+        print("health descriptor \(two.count) " + two.map { "\(Int($0.quantity.doubleValue(for: .count())))" }.joined(separator: " "))
+        do {
+            try await health.enableBackgroundDelivery(for: steps, frequency: .hourly)
+            print("health background true")
+        } catch { print("health background error \(error)") }
+        // a sample saved, then deleted by the update handler
+        let now = Date()
+        try? await health.save(HKQuantitySample(type: steps, quantity: HKQuantity(unit: .count(), doubleValue: 100), start: now.addingTimeInterval(-60), end: now))
+        // the deletion, seen from the first anchor once the update handler made it
+        for _ in 0..<400 {
+            let since = HKAnchoredObjectQueryDescriptor(predicates: [.quantitySample(type: steps)], anchor: first)
+            if let r = try? await since.result(for: health), !r.deletedObjects.isEmpty {
+                print("health descriptor since added \(r.addedSamples.count) deleted \(r.deletedObjects.count) newer \(r.newAnchor != first)")
+                break
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        do {
+            for try await r in HKAnchoredObjectQueryDescriptor(predicates: [.quantitySample(type: steps)], anchor: nil).results(for: health) {
+                print("health sequence added \(r.addedSamples.count) deleted \(r.deletedObjects.count)")
+                break
+            }
+        } catch { print("health sequence error \(error)") }
+    }
 }
 
 struct ContentView: View {
@@ -206,6 +260,7 @@ struct ContentView: View {
                     Button("Connect to Health") { model.requestHealth() }.accessibilityIdentifier("healthAuth")
                     Button("Save Steps & Weight") { model.saveSteps() }.accessibilityIdentifier("healthSave")
                     Button("Read Health Data") { model.queryHealth() }.accessibilityIdentifier("healthQuery")
+                    Button("Health Changes") { model.healthChanges() }.accessibilityIdentifier("healthChanges")
                 }
             }
             .navigationTitle("Sensors")

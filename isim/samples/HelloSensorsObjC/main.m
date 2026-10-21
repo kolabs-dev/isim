@@ -61,13 +61,33 @@ static NSString *errText(NSError *e) { return e ? [NSString stringWithFormat:@"%
                     HKStatisticsQuery *sum = [[HKStatisticsQuery alloc] initWithQuantityType:steps quantitySamplePredicate:p
                         options:HKStatisticsOptionCumulativeSum completionHandler:^(HKStatisticsQuery *sq, HKStatistics *st, NSError *ste) {
                             say(@"health sum %.0f", [st.sumQuantity doubleValueForUnit:HKUnit.countUnit]);
-                            dispatch_async(dispatch_get_main_queue(), ^{ [self motion]; });
+                            [self changes:steps];
                         }];
                     [self.health executeQuery:sum];
                 }];
             [self.health executeQuery:q];
         }];
     }];
+}
+
+// anchored object query (archived anchor), source query, background delivery
+- (void)changes:(HKQuantityType *)steps {
+    HKAnchoredObjectQuery *q = [[HKAnchoredObjectQuery alloc] initWithType:steps predicate:nil anchor:nil limit:HKObjectQueryNoLimit
+        resultsHandler:^(HKAnchoredObjectQuery *query, NSArray<HKSample *> *added, NSArray<HKDeletedObject *> *deleted, HKQueryAnchor *anchor, NSError *e) {
+            NSData *data = [NSKeyedArchiver archivedDataWithRootObject:anchor requiringSecureCoding:YES error:nil];
+            HKQueryAnchor *back = [NSKeyedUnarchiver unarchivedObjectOfClass:HKQueryAnchor.class fromData:data error:nil];
+            say(@"health anchored added %lu deleted %lu archived %d", (unsigned long)added.count, (unsigned long)deleted.count, [back isEqual:anchor]);
+            HKSourceQuery *sq = [[HKSourceQuery alloc] initWithSampleType:steps samplePredicate:nil
+                completionHandler:^(HKSourceQuery *sourceQuery, NSSet<HKSource *> *sources, NSError *se) {
+                    say(@"health sources %lu %@", (unsigned long)sources.count, sources.anyObject.bundleIdentifier);
+                    [self.health enableBackgroundDeliveryForType:steps frequency:HKUpdateFrequencyImmediate withCompletion:^(BOOL ok, NSError *be) {
+                        say(@"health background %d error %@", ok, errText(be));
+                        dispatch_async(dispatch_get_main_queue(), ^{ [self motion]; });
+                    }];
+                }];
+            [self.health executeQuery:sq];
+        }];
+    [self.health executeQuery:q];
 }
 
 // MARK: Core Motion
