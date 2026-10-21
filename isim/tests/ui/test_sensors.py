@@ -27,6 +27,15 @@ def test_sensors_and_health(launch):
     app.tap_id("nfc")
     app.wait_log(r"^nfc readingAvailable false")
     app.wait_log(r"^nfc invalidated 1")                                              # NFC: no reader
+    app.tap_id("peripheral")                                                         # the peripheral role
+    app.wait_log(r"^peripheral state unsupported service 180D primary true characteristics 1 descriptor Heart rate linked true")
+    app.wait_log(r"^peripheral advertising false sent false attError 2 CBATTErrorDomain")
+    app.wait_log(r"API MISUSE: <CBPeripheralManager")
+    app.tap_id("nfcTags")                                                            # tag and Wallet pass readers
+    app.wait_log(r"^nfc tags readingAvailable false vas false")
+    app.wait_log(r"^nfc apdu ins A4 data 2 le 256")
+    app.wait_log(r"^nfc tag session invalidated 1")
+    app.wait_log(r"^nfc vas session invalidated 1")
     app.tap_id("healthAuth")
     app.wait_log(r"^health available true")
     sheet = app.wait_view(r"text=Health Access")
