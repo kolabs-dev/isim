@@ -504,7 +504,7 @@ extension GKMatchmakerViewControllerDelegate {
 
 /// The matchmaking sheet: the local player, a slot per player to find; Find Players automatches with the other isim
 /// devices, a slot's Invite lists friends to invite. The delegate gets the match once every player is connected.
-@objc(GKMatchmakerViewController) @objcMembers open class GKMatchmakerViewController: UINavigationControllerStandIn {
+@objc(GKMatchmakerViewController) @objcMembers open class GKMatchmakerViewController: UINavigationController {
     weak open var matchmakerDelegate: GKMatchmakerViewControllerDelegate?
     public let matchRequest: GKMatchRequest
     open var isHosted = false
@@ -536,7 +536,7 @@ extension GKMatchmakerViewControllerDelegate {
         model.mode = matchmakingMode
         if matchmakingMode == .nearbyOnly { _GCRealtime.advertiseNearby(true) }
         NSLog("isim GameKit: matchmaker for %ld-%ld players, mode %ld", matchRequest.minPlayers, matchRequest.maxPlayers, matchmakingMode.rawValue)
-        embed(_GCMatchmakerView(model: model) { [weak self] in
+        _gcEmbed(_GCMatchmakerView(model: model) { [weak self] in
             guard let self else { return }
             self.model.cancel()
             if let inv = self.invite, self.model.match == nil { _GCRealtime.respond(inv._match, accept: false) }
@@ -545,8 +545,11 @@ extension GKMatchmakerViewControllerDelegate {
         if let invite { model.join(invite) }
         else if let r = matchRequest.recipients, !r.isEmpty { model.invite(r) }
     }
+    open override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); _gcSheetWillAppear() }
+    open override func viewWillDisappear(_ animated: Bool) { super.viewWillDisappear(animated); _gcSheetWillDisappear() }
     open override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
+        _gcSheetDidDisappear()
         if matchmakingMode == .nearbyOnly { _GCRealtime.advertiseNearby(false) }
     }
 }
@@ -1077,7 +1080,7 @@ extension GKTurnBasedMatchmakerViewControllerDelegate {
 
 /// The turn-based matchmaker: the player's matches (your turn / their turn / ended) and Start a New Match. A chosen
 /// or new match reaches the listeners as `player(_:receivedTurnEventFor:didBecomeActive: true)`.
-@objc(GKTurnBasedMatchmakerViewController) @objcMembers open class GKTurnBasedMatchmakerViewController: UINavigationControllerStandIn {
+@objc(GKTurnBasedMatchmakerViewController) @objcMembers open class GKTurnBasedMatchmakerViewController: UINavigationController {
     weak open var turnBasedMatchmakerDelegate: GKTurnBasedMatchmakerViewControllerDelegate?
     public let matchRequest: GKMatchRequest
     open var showExistingMatches = true
@@ -1094,7 +1097,7 @@ extension GKTurnBasedMatchmakerViewControllerDelegate {
         let mode = matchmakingMode
         if mode == .nearbyOnly { _GCRealtime.advertiseNearby(true) }
         NSLog("isim GameKit: turn-based matchmaker mode %ld", mode.rawValue)
-        embed(_GCTurnBasedView(matches: matches, mode: mode, start: { [weak self] invite in
+        _gcEmbed(_GCTurnBasedView(matches: matches, mode: mode, start: { [weak self] invite in
             guard let self else { return }
             let r = self.matchRequest
             if let invite {                                    // a new match with the chosen player invited
@@ -1114,8 +1117,11 @@ extension GKTurnBasedMatchmakerViewControllerDelegate {
             if let d = self.turnBasedMatchmakerDelegate { d.turnBasedMatchmakerViewControllerWasCancelled(self) } else { self.dismiss(animated: true, completion: nil) }
         }))
     }
+    open override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); _gcSheetWillAppear() }
+    open override func viewWillDisappear(_ animated: Bool) { super.viewWillDisappear(animated); _gcSheetWillDisappear() }
     open override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
+        _gcSheetDidDisappear()
         if matchmakingMode == .nearbyOnly { _GCRealtime.advertiseNearby(false) }
     }
     func chose(_ m: GKTurnBasedMatch) {

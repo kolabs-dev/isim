@@ -254,18 +254,21 @@ extension GKAchievement {
     }
 }
 
-final class _GCChallengeComposeController: UINavigationControllerStandIn {
+final class _GCChallengeComposeController: UINavigationController {
     let base: [String: Any], what: String, message: String?, players: [GKPlayer], done: GKChallengeComposeHandler?
     init(base: [String: Any], title: String, message: String?, players: [GKPlayer], done: GKChallengeComposeHandler?) {
         self.base = base; what = title; self.message = message; self.players = players; self.done = done
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError() }
+    override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); _gcSheetWillAppear() }
+    override func viewWillDisappear(_ animated: Bool) { super.viewWillDisappear(animated); _gcSheetWillDisappear() }
+    override func viewDidDisappear(_ animated: Bool) { super.viewDidDisappear(animated); _gcSheetDidDisappear() }
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
         let friends = _GCNet.friendIDs().map(GKPlayer._make).sorted { $0.alias < $1.alias }
-        embed(_GCChallengeComposeView(what: what, message: message ?? "", friends: friends, chosen: Set(players.map { $0._id })) { [weak self] sent, ids, text in
+        _gcEmbed(_GCChallengeComposeView(what: what, message: message ?? "", friends: friends, chosen: Set(players.map { $0._id })) { [weak self] sent, ids, text in
             guard let self else { return }
             let chosen = friends.filter { ids.contains($0._id) }
             if sent { _GCChallenges.issue(self.base, to: chosen, message: text) } else { NSLog("isim GameKit: challenge cancelled") }

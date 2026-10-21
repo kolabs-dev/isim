@@ -1,5 +1,5 @@
 #pragma once
-/* isim GameKit: the turn-based matchmaker (a UIViewController on isim, a UINavigationController on iOS). */
+/* isim GameKit: the turn-based matchmaker, a UINavigationController as on iOS. */
 #import <GameKit/GKTurnBasedMatch.h>
 #import <GameKit/GKMatchmakerViewController.h>
 #if !defined(__swift__)
@@ -13,7 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)turnBasedMatchmakerViewController:(GKTurnBasedMatchmakerViewController *)viewController didFindMatch:(GKTurnBasedMatch *)match
     API_DEPRECATED("use GKTurnBasedEventListener's player:receivedTurnEventForMatch:didBecomeActive:", ios(5.0, 9.0));
 @end
-@interface GKTurnBasedMatchmakerViewController : UIViewController
+@interface GKTurnBasedMatchmakerViewController : UINavigationController
 - (instancetype)initWithMatchRequest:(GKMatchRequest *)request;
 @property (nonatomic, weak, nullable) id<GKTurnBasedMatchmakerViewControllerDelegate> turnBasedMatchmakerDelegate;
 @property (nonatomic) BOOL showExistingMatches;
