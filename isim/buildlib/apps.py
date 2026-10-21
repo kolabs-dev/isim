@@ -439,7 +439,8 @@ def _(a):
 
 @app("samples/HelloWebObjC", swift=False)
 def _(a):
-    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "WebKit"], minos="17.0")
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "WebKit",
+                                          "-framework", "LinkPresentation"], minos="17.0")
 
 
 @app("samples/HelloCounterSwift")

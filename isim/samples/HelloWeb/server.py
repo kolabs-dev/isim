@@ -17,13 +17,30 @@ GET /camera             a page that asks for the camera (getUserMedia) and shows
 GET /rules              a page with an "ad" image (/ads/pixel.png) and a .banner element; its title reports whether
                         content rule lists blocked the image and hid the banner
 GET /ads/pixel.png      a 1x1 PNG
+GET /article            a page with Open Graph tags (title, image /og.png, video) and an apple-touch-icon (/icon.png)
+GET /plain              a page with a <title> and an icon link only (/icon.png)
+GET /og.png, /icon.png  the article's image (600x314) and the icon (64x64), PNGs drawn here
+GET /slowpage           a page sent after 5 s (for timeouts and cancelling)
 """
-import hashlib, os, sys, time
+import hashlib, os, struct, sys, time, zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, quote
 
 USER, PASSWORD = "ada", "lovelace"
 NONCE = "dcd98b7102dd2f0e8b11d0f600bfb0c093"
+
+
+def png(w, h, pixel):
+    """a PNG of w x h RGB pixels, pixel(x, y) -> (r, g, b)"""
+    rows = b"".join(b"\0" + bytes(c for x in range(w) for c in pixel(x, y)) for y in range(h))
+    chunk = lambda t, d: struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xffffffff)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) +
+            chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+
+
+# the article image: a teal-to-blue gradient with a white disc; the icon: an orange square with a white bar
+OG_PNG = png(600, 314, lambda x, y: (255, 255, 255) if (x - 300) ** 2 + (y - 157) ** 2 < 60 ** 2 else (0, 120 + x * 80 // 600, 200 + y * 55 // 314))
+ICON_PNG = png(64, 64, lambda x, y: (255, 255, 255) if 14 < x < 50 and 28 < y < 36 else (255, 149, 0))
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -69,6 +86,25 @@ class Handler(BaseHTTPRequestHandler):
                             "document.title='img '+s+' banner '+getComputedStyle(b).display}"
                             "img.onload=function(){report('loaded')};img.onerror=function(){report('blocked')};img.src='/ads/pixel.png?'+Date.now()"
                             "</script></body></html>", "text/html; charset=utf-8")
+        elif path == "/article":
+            self.reply(200, "<!doctype html><html><head><title>Fallback title</title>"
+                            "<meta property='og:title' content='Building iOS apps on Linux &amp; more'>"
+                            "<meta property=\"og:image\" content=\"/og.png\"><meta property='og:video' content='/video.mp4'>"
+                            "<link rel='apple-touch-icon' href='/icon.png'><link rel=icon href='/favicon.ico'></head>"
+                            "<body><h1>Article</h1></body></html>", "text/html; charset=utf-8")
+        elif path == "/plain":
+            self.reply(200, "<!doctype html><html><head><title>\n  A plain page\n</title><link rel='icon' href='icon.png'></head>"
+                            "<body>plain</body></html>", "text/html; charset=utf-8")
+        elif path == "/og.png":
+            self.reply(200, OG_PNG, "image/png")
+        elif path == "/icon.png":
+            self.reply(200, ICON_PNG, "image/png")
+        elif path == "/slowpage":
+            time.sleep(5)
+            try:
+                self.reply(200, "<title>Slow</title>", "text/html")
+            except (BrokenPipeError, ConnectionResetError):
+                pass
         elif path.startswith("/ads/"):
             import base64
             self.reply(200, base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="), "image/png")

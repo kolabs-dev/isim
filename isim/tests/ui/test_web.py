@@ -197,6 +197,9 @@ def test_web_objc(launch):
     app.wait_log(r"^HelloWebObjC: classes WKWebView WKWebViewConfiguration WKUserContentController domain=WKErrorDomain")
     app.wait_log(r"^HelloWebObjC: config media=0 inline=1 persistent=0 scripts=1")
     app.wait_log(r"^HelloWebObjC: scheme handler kept 1")
+    app.wait_log(r"^HelloWebObjC: link metadata title=Info\.plist file=1 subresources=1 timeout=30 view=LPLinkView height=64$")
+    app.wait_log(r"^HelloWebObjC: link provider one-shot: NSInternalInconsistencyException$")
+    app.wait_log(r"^HelloWebObjC: link ftp error LPErrorDomain 2 failed=1$")
     app.wait_log(r"^HelloWebObjC: didStartProvisionalNavigation", timeout=30)
     for line in ( "didCommitNavigation", r"didFinishNavigation https://objc\.example/ loading=0",
                  "kvo loading=1", "kvo loading=0", r"kvo estimatedProgress=1\.0", "kvo title=ObjC page",
@@ -265,3 +268,32 @@ def test_web_content_rules(launch, web):
     app.wait_log(r"^HelloWeb: looked up isim-blocker")
     app.wait_log(r"^HelloWeb: after removal: lookup error 7")                        # contentRuleListStoreLookUpFailed
     assert app.quit() == 0
+
+
+def test_web_links(launch, web):
+    """LinkPresentation: LPMetadataProvider reads Open Graph metadata (title, image, video, apple-touch-icon) and downloads
+    the subresources; follows redirects; a page with only a <title> and an icon; NSSecureCoding; errors (timeout, cancel,
+    unreachable, 404, unsupported scheme). LPLinkView draws the large card, the compact card, an app's own metadata and
+    the URL placeholder; a tap opens the link."""
+    port, _ = web
+    app = launch("HelloWeb", args=["-links", "-server", f"http://127.0.0.1:{port}"])
+    app.wait_log(r"^HelloWeb: links done", timeout=40)
+    log = app.log
+    for line in [r"links article title=Building iOS apps on Linux & more url=/article original=/article icon=true image=true video=/video.mp4",
+                 r"links archived title=Building iOS apps on Linux & more image=true",
+                 r"links redirect title=Server Page url=/page3 original=/redirect icon=false image=false video=- main=false",
+                 r"links plain title=A plain page url=/plain original=/plain icon=true image=false video=-",
+                 r"links timeout LPErrorDomain 4", r"links cancel LPErrorDomain 3", r"links unreachable LPErrorDomain 2",
+                 r"links 404 LPErrorDomain 2", r"links ftp LPErrorDomain 2"]:
+        assert re.search(r"^HelloWeb: " + line + "$", log, re.M), line
+    cards = app.wait_view(lambda d: all(f"id=link-{n}" in d for n in ("article", "plain", "own", "placeholder")), what="the four link cards")
+    teal = lambda c: c[0] < 40 and c[1] > 110 and c[2] > 190                                  # noqa: E731  the article's image
+    orange = lambda c: c[0] > 240 and 130 < c[1] < 170 and c[2] < 30                         # noqa: E731  the plain page's icon
+    shot = app.wait_shot(lambda s: count_px(s, (16, 100, 370, 500), teal) > 2000 and count_px(s, (16, 100, 370, 750), orange) > 100,
+                         "the article's image and the plain page's icon drawn")
+    yellow = lambda c: c[0] > 230 and c[1] > 180 and c[2] < 60                                # noqa: E731  the app's own image
+    app.wait_shot(lambda s: count_px(s, (16, 520, 370, 230), yellow) > 5000, "the app's own image provider drawn: the card grew")
+    app.screenshot("links")
+    app.tap_id("link-article")
+    app.wait_log(r"isim: open URL http://127\.0\.0\.1:\d+/article")
+    assert shot and cards and app.quit() == 0

@@ -7,11 +7,12 @@
 // (iOS 26): SwiftUI's WebView showing a WebPage, its navigation events, title and callJavaScript. With -transfers: HTTP
 // authentication challenges, downloads (startDownload, a navigation response made a download, cancel and resume) and
 // a camera permission request. With -rules: content rule lists (WKContentRuleListStore) blocking an image and hiding
-// an element.
+// an element. With -links: LinkPresentation (LPMetadataProvider fetching Open Graph metadata, LPLinkView cards, errors).
 //   isim run out/apps/HelloWeb.app -server http://127.0.0.1:8765   (samples/HelloWeb/server.py)
 import UIKit
 import WebKit
 import SwiftUI
+import LinkPresentation
 
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -23,7 +24,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             window?.rootViewController = UIHostingController(rootView: WebPageScreen())
         } else {
             let root: UIViewController = args.contains("-interact") ? InteractViewController() : args.contains("-transfers") ? TransfersViewController()
-                : args.contains("-rules") ? RulesViewController() : WebViewController()
+                : args.contains("-rules") ? RulesViewController() : args.contains("-links") ? LinksViewController() : WebViewController()
             window?.rootViewController = UINavigationController(rootViewController: root)
         }
         window?.makeKeyAndVisible()
@@ -547,5 +548,91 @@ final class RulesViewController: UIViewController, WKNavigationDelegate {
         try? await store.removeContentRuleList(forIdentifier: "isim-blocker")
         do { _ = try await store.contentRuleList(forIdentifier: "isim-blocker"); log("still there") }
         catch { log("after removal: lookup error \((error as? WKError)?.code.rawValue ?? -1)") }
+    }
+}
+
+// MARK: - -links: LinkPresentation
+
+/// the cards in a column, sized for the width (a card that grows asks for this layout again)
+final class LinkCardsView: UIScrollView {
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        var y: CGFloat = 12
+        for card in subviews.compactMap({ $0 as? LPLinkView }) {
+            let size = card.sizeThatFits(CGSize(width: bounds.width - 32, height: .greatestFiniteMagnitude))
+            card.frame = CGRect(x: 16, y: y, width: size.width, height: size.height)
+            y += size.height + 12
+        }
+        contentSize = CGSize(width: bounds.width, height: y)
+    }
+}
+
+final class LinksViewController: UIViewController {
+    let cards = LinkCardsView()
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Links"
+        view.backgroundColor = .systemBackground
+        cards.frame = view.bounds
+        cards.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(cards)
+        let placeholder = LPLinkView(url: URL(string: serverURL + "/plain")!)
+        placeholder.accessibilityIdentifier = "link-placeholder"
+        add(placeholder)
+        Task { await run() }
+    }
+    func add(_ card: LPLinkView) { cards.addSubview(card) }
+    nonisolated func describe(_ m: LPLinkMetadata) -> String {
+        "title=\(m.title ?? "-") url=\(m.url?.path ?? "-") original=\(m.originalURL?.path ?? "-") icon=\(m.iconProvider != nil) image=\(m.imageProvider != nil) video=\(m.remoteVideoURL?.path ?? "-")"
+    }
+    nonisolated func code(_ e: Error) -> String { "\((e as NSError).domain) \((e as? LPError)?.code.rawValue ?? -1)" }
+    func run() async {
+        do {
+            // the article: Open Graph title, image and video, an apple-touch-icon; async/await (the Objective-C completion handler)
+            let article = try await LPMetadataProvider().startFetchingMetadata(for: URL(string: serverURL + "/article")!)
+            log("links article \(describe(article))")
+            let card = LPLinkView(metadata: article)
+            card.accessibilityIdentifier = "link-article"
+            add(card)
+            // NSSecureCoding keeps the downloaded image
+            let data = try NSKeyedArchiver.archivedData(withRootObject: article, requiringSecureCoding: true)
+            let back = try NSKeyedUnarchiver.unarchivedObject(ofClass: LPLinkMetadata.self, from: data)
+            log("links archived title=\(back?.title ?? "-") image=\(back?.imageProvider != nil)")
+        } catch { log("links article error \(code(error))") }
+        // a redirect to a page with only a <title> (compact card, no icon: Safari's compass), then the plain page with an icon
+        let provider = LPMetadataProvider()
+        provider.shouldFetchSubresources = false
+        provider.startFetchingMetadata(for: URL(string: serverURL + "/redirect")!) { m, e in
+            log("links redirect \(m.map(self.describe) ?? "error \(self.code(e!))") main=\(Thread.isMainThread)")
+        }
+        if let plain = try? await LPMetadataProvider().startFetchingMetadata(for: URL(string: serverURL + "/plain")!) {
+            log("links plain \(describe(plain))")
+            let card = LPLinkView(metadata: plain)
+            card.accessibilityIdentifier = "link-plain"
+            add(card)
+        }
+        // metadata an app builds itself: its image provider is drawn
+        let own = LPLinkMetadata()
+        own.url = URL(string: "https://example.com/own")
+        own.title = "Built by the app"
+        let banner = UIGraphicsImageRenderer(size: CGSize(width: 382, height: 200)).image { c in
+            UIColor.systemYellow.setFill(); c.fill(CGRect(x: 0, y: 0, width: 382, height: 200))
+            UIImage(systemName: "star.fill")?.withTintColor(.white, renderingMode: .alwaysOriginal).draw(in: CGRect(x: 151, y: 60, width: 80, height: 80))
+        }
+        own.imageProvider = NSItemProvider(object: banner)
+        let ownCard = LPLinkView(metadata: own)
+        ownCard.accessibilityIdentifier = "link-own"
+        add(ownCard)
+        // errors: a timeout, a cancel, an unreachable host, HTTP 404, an unsupported scheme
+        let slow = LPMetadataProvider()
+        slow.timeout = 1
+        do { _ = try await slow.startFetchingMetadata(for: URL(string: serverURL + "/slowpage")!) } catch { log("links timeout \(code(error))") }
+        let cancelled = LPMetadataProvider()
+        cancelled.startFetchingMetadata(for: URL(string: serverURL + "/slowpage")!) { _, e in log("links cancel \(e.map(self.code) ?? "none")") }
+        cancelled.cancel()
+        do { _ = try await LPMetadataProvider().startFetchingMetadata(for: URL(string: "http://127.0.0.1:1/")!) } catch { log("links unreachable \(code(error))") }
+        do { _ = try await LPMetadataProvider().startFetchingMetadata(for: URL(string: serverURL + "/missing")!) } catch { log("links 404 \(code(error))") }
+        do { _ = try await LPMetadataProvider().startFetchingMetadata(for: URL(string: "ftp://example.com/x")!) } catch { log("links ftp \(code(error))") }
+        log("links done")
     }
 }
