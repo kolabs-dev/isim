@@ -8,7 +8,8 @@
 
 ## How isim implements it
 
-- **Approach:** isim's own Objective-C framework (`isim/frameworks/Accessibility`); the assistive technologies it
+- **Approach:** isim's own Objective-C framework (`isim/frameworks/Accessibility`), with a Swift overlay
+  (`isim/swift/overlays/Accessibility`) for the Swift-only API; the assistive technologies it
   feeds are isim's simulated VoiceOver, Switch Control and Voice Control in UIKit (`isim/frameworks/UIKit/UIAccessibilityRuntime.m`,
   script commands `voiceover …` in [SCRIPTING.md](../SCRIPTING.md)).
 - **Objective-C / C interface:** headers in `isim/sdk-src/Frameworks/Accessibility`; Swift imports them (`AXCustomContent.Importance`).
@@ -20,7 +21,11 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | `AXCustomContent` (`init(label:value:)`, `init(attributedLabel:attributedValue:)`, `label`, `value`, `attributedLabel`, `attributedValue`, `importance`), `AXCustomContent.Importance`, `AXCustomContentProvider` (`accessibilityCustomContent`, `accessibilityCustomContentBlock`), `AXCustomContentReturnBlock` | ✅ | ≤17 | adapted: isim's VoiceOver reads an element's custom content (its `accessibilityCustomContent` or block, or SwiftUI's `accessibilityCustomContent`): high-importance entries after the element's description ("label, value"), default-importance ones one at a time in the rotor's More Content. NSCopying / NSSecureCoding. Tested through SwiftUI (HelloSwiftUI -accessibility, test_swiftui_accessibility) |
-| The rest of the framework (`AXChart` / audio graphs, `AXBrailleMap`, math, the settings and notifications) | ❌ | ≤17 | not provided yet (issues #325, #425, #426) |
+| `AccessibilityNotification` (`Announcement` from a `String`, `AttributedString` or `NSAttributedString`; `LayoutChanged`; `ScreenChanged`; `PageScrolled`; each with `post()`) | ✅ | 17.0 | adapted: posted through UIKit's `UIAccessibility.post`, so isim's VoiceOver speaks announcements and page scrolls (and posts `UIAccessibility.announcementDidFinishNotification`), and moves its focus on layout and screen changes; each is logged (`isim: accessibility notification …`). Tested (HelloAccessibility `-extras`, tests/ui/test_accessibility_extras.py) |
+| `AccessibilitySettings`: `animatedImagesEnabled`, `prefersHorizontalTextLayout`, `prefersNonBlinkingTextInsertionIndicator`, `isAssistiveAccessEnabled`, `prefersHeadAnchorAlternative` and their `…DidChangeNotification`s; `openSettings(for:)`, `Feature` | ✅ | 18.0 | adapted: the device's Settings > Accessibility values, read like UIKit's `UIAccessibility` settings. Defaults are iOS's: animated images on, the rest off; head-anchored content is visionOS's, so always off. The `accessibility` script command changes them and posts the notifications ([SCRIPTING.md](../SCRIPTING.md)). `openSettings(for:)` opens isim's Settings app at Accessibility. `Feature`'s raw values after `personalVoiceAllowAppsToRequestToUse` (1) are proposed. Tested (HelloAccessibility `-extras`, os_matrix) |
+| `AccessibilitySettings` (iOS 26.1–27): `showBordersEnabled`, `prefersActionSliderAlternative`, `isReduceHighlightingEffectsEnabled`, `isApplicationAccessibilityEnabled` (VoiceOver or Switch Control running), `canOpenSettings(for:)`, their notifications, `ApplicationAccessibilityEnabledDidChangeMessage` | ✅ | 26.1 | adapted, like the iOS 18 settings; `canOpenSettings(for:)` is always true. `isApplicationAccessibilityEnabled`'s notification is not posted yet (declared). Not tested by a sample |
+| `AXAnimatedImagesEnabled()`, `AXPrefersHorizontalTextLayout()`, `AXAnimatedImagesEnabledDidChangeNotification`, `AXPrefersHorizontalTextLayoutDidChangeNotification` (C, also Swift) | ✅ | 17.0 | the same settings, from C and Objective-C (`<Accessibility/AXSettings.h>`). Tested (`AXAnimatedImagesEnabled` from Swift) |
+| The rest of the framework (`AXChart` / audio graphs, `AXBrailleMap`, math) | ❌ | ≤17 | not provided yet (issues #425, #426) |
 
 ## Not yet in isim
 

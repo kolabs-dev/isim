@@ -163,7 +163,8 @@ struct RootView: View {
                 let s = url.absoluteString
                 if s.hasPrefix("app-settings:") {
                     let id = String(s.dropFirst("app-settings:".count))
-                    if id.hasSuffix("/notifications") { path = [.app(String(id.dropLast("/notifications".count))), .appNotifications(String(id.dropLast("/notifications".count)))] }
+                    if id == "@accessibility" { path = [.accessibility] }      // AccessibilitySettings.openSettings(for:)
+                    else if id.hasSuffix("/notifications") { path = [.app(String(id.dropLast("/notifications".count))), .appNotifications(String(id.dropLast("/notifications".count)))] }
                     else { path = id.isEmpty ? [] : [.app(id)] }
                 }
             }

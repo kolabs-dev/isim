@@ -883,7 +883,8 @@ static BOOL may_query_scheme(NSString *scheme) {
     NSString *scheme = url.scheme.lowercaseString ?: @"";
     if ([scheme isEqualToString:@"app-settings"] && isim_shell_present()) {
         NSString *settings = [isim_ui_system_apps_dir() stringByAppendingPathComponent:@"Settings.app"];
-        NSString *target = [NSString stringWithFormat:@"app-settings:%@%@", NSBundle.mainBundle.bundleIdentifier ?: @"",
+        NSString *target = [url.absoluteString isEqualToString:@"app-settings:accessibility"] ? @"app-settings:@accessibility"   /* AccessibilitySettings.openSettings */
+            : [NSString stringWithFormat:@"app-settings:%@%@", NSBundle.mainBundle.bundleIdentifier ?: @"",
                             [url.absoluteString isEqualToString:@"app-settings:notifications"] ? @"/notifications" : @""];
         isim_shell_request(ISIM_SHELL_LAUNCH, settings.UTF8String, [settings stringByAppendingPathComponent:@"Settings"].UTF8String, target.UTF8String);
         NSLog(@"isim: open URL %@ -> Settings", url.absoluteString);
