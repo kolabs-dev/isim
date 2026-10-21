@@ -15,15 +15,28 @@ import SwiftData
     init(title: String) { self.title = title }
 }
 
+/// A CKSyncEngine delegate: logs the events, keeps the state, sends its records' pending changes.
 final class SyncDelegate: CKSyncEngineDelegate, @unchecked Sendable {
+    let name: String
     var records: [CKRecord.ID: CKRecord] = [:]
+    var fetched: [String] = [], events: [String] = []
+    var serialization: CKSyncEngine.State.Serialization?
+    init(_ name: String) { self.name = name }
     func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) async {
-        if case .sentRecordZoneChanges(let result) = event {
+        events.append("\(event)")
+        switch event {
+        case .stateUpdate(let update): serialization = update.stateSerialization
+        case .fetchedRecordZoneChanges(let changes): fetched += changes.modifications.map(\.record.recordID.recordName)
+        case .sentDatabaseChanges(let result): print("sync engine \(name): zones saved=\(result.savedZones.map(\.zoneID.zoneName))")
+        case .sentRecordZoneChanges(let result):
             print("sync engine: saved=\(result.savedRecords.count) failed=\(result.failedRecordSaves.count) pending=\(syncEngine.state.pendingRecordZoneChanges.count)")
+            for f in result.failedRecordSaves { print("sync engine \(name): \(f.record.recordID.recordName) failed, serverRecordChanged=\(f.error.code == .serverRecordChanged)") }
+        default: break
         }
     }
     func nextRecordZoneChangeBatch(_ context: CKSyncEngine.SendChangesContext, syncEngine: CKSyncEngine) async -> CKSyncEngine.RecordZoneChangeBatch? {
-        CKSyncEngine.RecordZoneChangeBatch(pendingChanges: context.pendingRecordZoneChanges) { records[$0] }
+        let pending = syncEngine.state.pendingRecordZoneChanges.filter { context.options.scope.contains($0) }
+        return await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: pending) { self.records[$0] }
     }
 }
 
@@ -67,8 +80,8 @@ final class CloudViewController: UIViewController {
     let container = CKContainer.default()
     var db: CKDatabase { container.privateCloudDatabase }
     let status = UILabel()
-    private var syncDelegate: SyncDelegate?
-    private var syncEngine: CKSyncEngine?
+    private var syncDelegates: [SyncDelegate] = []
+    private var syncEngines: [CKSyncEngine] = []
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -302,17 +315,43 @@ final class CloudViewController: UIViewController {
         }
     }
 
+    /// Two sync engines on the device's database (like two devices): A sends a record, B fetches it.
     func sync() {
-        let delegate = SyncDelegate()
+        let a = SyncDelegate("A"), b = SyncDelegate("B")
         let record = note("sync1", "From CKSyncEngine", 40)
-        delegate.records[record.recordID] = record
-        var configuration = CKSyncEngine.Configuration(database: db, delegate: delegate)
-        configuration.automaticallySync = false
-        let engine = CKSyncEngine(configuration)
-        syncDelegate = delegate
-        syncEngine = engine
-        engine.state.add(pendingRecordZoneChanges: [.init(recordID: record.recordID, type: .saveRecord)])
-        Task { try await engine.sendChanges() }
+        a.records[record.recordID] = record
+        var configA = CKSyncEngine.Configuration(database: db, stateSerialization: nil, delegate: a)
+        configA.automaticallySync = false
+        var configB = CKSyncEngine.Configuration(database: db, stateSerialization: nil, delegate: b)
+        configB.automaticallySync = false
+        let engineA = CKSyncEngine(configA), engineB = CKSyncEngine(configB)
+        syncDelegates = [a, b]; syncEngines = [engineA, engineB]
+        engineA.state.add(pendingRecordZoneChanges: [.saveRecord(record.recordID)])
+        Task {
+            do {
+                try await engineA.sendChanges()
+                try await engineB.fetchChanges()
+                try await engineA.fetchChanges()
+                print("sync engine A events: \(a.events.prefix(5).joined(separator: ", "))")
+                print("sync engine B fetched sync1=\(b.fetched.contains("sync1")), A fetched its own=\(a.fetched.contains("sync1")), state saved=\(a.serialization != nil)")
+                // B saves a copy of sync1 that never saw A's version: the store rejects it
+                let stale = CKRecord(recordType: "Note", recordID: record.recordID)
+                stale["title"] = "Stale copy"
+                b.records[stale.recordID] = stale
+                engineB.state.add(pendingRecordZoneChanges: [.saveRecord(stale.recordID)])
+                try await engineB.sendChanges()
+                // C starts from A's saved state and syncs by itself: a new zone first, then a record in it
+                let c = SyncDelegate("C")
+                let engineC = CKSyncEngine(CKSyncEngine.Configuration(database: self.db, stateSerialization: a.serialization, delegate: c))
+                self.syncDelegates.append(c); self.syncEngines.append(engineC)
+                let zone = CKRecordZone(zoneName: "Synced")
+                let zoned = CKRecord(recordType: "Note", recordID: CKRecord.ID(recordName: "zoned1", zoneID: zone.zoneID))
+                zoned["title"] = "In a synced zone"
+                c.records[zoned.recordID] = zoned
+                engineC.state.add(pendingDatabaseChanges: [.saveZone(zone)])
+                engineC.state.add(pendingRecordZoneChanges: [.saveRecord(zoned.recordID)])
+            } catch { print("sync engine error: \(code(error))") }
+        }
     }
 
     func swiftData() {
