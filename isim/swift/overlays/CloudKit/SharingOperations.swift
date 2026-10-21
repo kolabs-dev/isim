@@ -232,14 +232,20 @@ extension Notification.Name {
 }
 
 extension CKContainer {
-    /// Stopping sharing in the sharing sheet deletes the share, like the system's.
-    nonisolated(unsafe) static var _sharingUIWatch: NSObjectProtocol?
+    /// Stopping sharing in the sharing sheet deletes the share, like the system's; Done saves the share options changed
+    /// in the sheet (userInfo "changed").
+    nonisolated(unsafe) static var _sharingUIWatch: [NSObjectProtocol] = []
     static func _watchSharingUI() {
         _CKStore.lock.lock(); defer { _CKStore.lock.unlock() }
-        guard _sharingUIWatch == nil else { return }
-        _sharingUIWatch = NotificationCenter.default.addObserver(forName: ._isimCloudSharingDidStop, object: nil, queue: nil) { note in
+        guard _sharingUIWatch.isEmpty else { return }
+        _sharingUIWatch.append(NotificationCenter.default.addObserver(forName: ._isimCloudSharingDidStop, object: nil, queue: nil) { note in
             guard let share = note.userInfo?["share"] as? CKShare, let container = note.userInfo?["container"] as? CKContainer else { return }
             _ = container.privateCloudDatabase._delete([share.recordID])
-        }
+        })
+        _sharingUIWatch.append(NotificationCenter.default.addObserver(forName: ._isimCloudSharingDidSave, object: nil, queue: nil) { note in
+            guard note.userInfo?["changed"] as? Bool == true, let share = note.userInfo?["share"] as? CKShare,
+                  let container = note.userInfo?["container"] as? CKContainer else { return }
+            _ = container.privateCloudDatabase._save([share], policy: .allKeys, atomic: false)
+        })
     }
 }

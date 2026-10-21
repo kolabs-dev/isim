@@ -713,6 +713,8 @@ typedef struct { NSInteger rows; CGFloat headerH, footerH, top; CGFloat *heights
 
 /* self-sizing rows measure again (new width, edit mode) */
 - (void)_invalidateHeights {
+    /* title headers and footers wrap to the width: measured before the first layout (width 0) they were far too tall */
+    for (NSInteger s = 0; s < _nsecs; s++) { _secs[s].headerH = [self _headerHeight:s]; _secs[s].footerH = [self _footerHeight:s]; }
     for (NSInteger s = 0; s < _nsecs; s++) for (NSInteger r = 0; r < _secs[s].rows; r++) {
         BOOL fixed = _secs[s].measured[r] && _rowHeight >= 0;
         /* a height from the delegate stays; UITableViewAutomaticDimension from it self-sizes like no delegate height */
