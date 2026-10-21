@@ -6,7 +6,10 @@
 //   focused element, announcement priority
 // - custom actions and rotors (attributed names, images, categories, system types), location descriptors, screen
 //   coordinate conversions, accessibilityHitTest, image views that grow at the accessibility text sizes
+// - the Accessibility framework: AccessibilityNotification (iOS 17) and AccessibilitySettings (iOS 18; script
+//   `accessibility animatedimages|nonblinkingcursor|... on|off`), AXAnimatedImagesEnabled
 import UIKit
+import Accessibility
 
 private func log(_ s: String) { print("ax \(s)") }
 
@@ -144,7 +147,7 @@ final class AccessibilityExtrasViewController: UIViewController, UIPickerViewDat
 
     func observe() {
         let nc = NotificationCenter.default
-        let notes: [(NSNotification.Name, String, () -> Bool)] = [
+        var notes: [(NSNotification.Name, String, () -> Bool)] = [
             (UIAccessibility.monoAudioStatusDidChangeNotification, "monoAudio", { UIAccessibility.isMonoAudioEnabled }),
             (UIAccessibility.speakScreenStatusDidChangeNotification, "speakScreen", { UIAccessibility.isSpeakScreenEnabled }),
             (UIAccessibility.shakeToUndoDidChangeNotification, "shakeToUndo", { UIAccessibility.isShakeToUndoEnabled }),
@@ -152,6 +155,11 @@ final class AccessibilityExtrasViewController: UIViewController, UIPickerViewDat
             (NSNotification.Name("UIAccessibilityShouldDifferentiateWithoutColorDidChangeNotification"), "shouldDifferentiate", { UIAccessibility.shouldDifferentiateWithoutColor }),
             (UIAccessibility.guidedAccessStatusDidChangeNotification, "guidedAccess", { UIAccessibility.isGuidedAccessEnabled }),
         ]
+        if #available(iOS 18.0, *) {
+            notes += [(AccessibilitySettings.animatedImagesEnabledDidChangeNotification, "animatedImages", { AccessibilitySettings.animatedImagesEnabled }),
+                      (AccessibilitySettings.prefersNonBlinkingTextInsertionIndicatorDidChangeNotification, "nonBlinking",
+                       { AccessibilitySettings.prefersNonBlinkingTextInsertionIndicator })]
+        }
         for (name, what, value) in notes {
             observers.append(nc.addObserver(forName: name, object: nil, queue: .main) { _ in
                 MainActor.assumeIsolated {
@@ -219,6 +227,18 @@ final class AccessibilityExtrasViewController: UIViewController, UIPickerViewDat
             let note = NSAttributedString(string: "Saved", attributes: [.accessibilitySpeechAnnouncementPriority: UIAccessibilityPriority.high,
                                                                          .accessibilitySpeechQueueAnnouncement: true])
             UIAccessibility.post(notification: .announcement, argument: note)
+            // the Accessibility framework's Swift API
+            AccessibilityNotification.Announcement("Uploaded").post()
+            AccessibilityNotification.PageScrolled(AttributedString("Page 2 of 3")).post()
+            if #available(iOS 18.0, *) {
+                log("framework settings animatedImages \(AccessibilitySettings.animatedImagesEnabled) c \(AXAnimatedImagesEnabled()) " +
+                    "horizontal \(AccessibilitySettings.prefersHorizontalTextLayout) nonBlinking \(AccessibilitySettings.prefersNonBlinkingTextInsertionIndicator) " +
+                    "assistiveAccess \(AccessibilitySettings.isAssistiveAccessEnabled) headAnchor \(AccessibilitySettings.prefersHeadAnchorAlternative)")
+                Task {
+                    do { try await AccessibilitySettings.openSettings(for: .personalVoiceAllowAppsToRequestToUse); log("open settings done") }
+                    catch { log("open settings error \(error)") }
+                }
+            }
             UIAccessibility.registerGestureConflictWithZoom()
             log("ready")
         }

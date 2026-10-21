@@ -1065,7 +1065,10 @@ void isim_sys_event(const char *text) {
         NSDictionary *keys = @{ @"monoaudio": @"ISIMMonoAudio", @"speakscreen": @"ISIMSpeakScreen", @"speakselection": @"ISIMSpeakSelection",
                                 @"assistivetouch": @"ISIMAssistiveTouch", @"shaketoundo": @"ISIMShakeToUndo", @"buttonshapes": @"ISIMButtonShapes",
                                 @"onofflabels": @"ISIMOnOffLabels", @"differentiate": @"ISIMDifferentiateWithoutColor", @"reducemotion": @"ISIMReduceMotion",
-                                @"reducetransparency": @"ISIMReduceTransparency" };
+                                @"reducetransparency": @"ISIMReduceTransparency", @"animatedimages": @"ISIMAnimatedImages",
+                                @"horizontaltext": @"ISIMPrefersHorizontalText", @"nonblinkingcursor": @"ISIMNonBlinkingCursor",
+                                @"showborders": @"ISIMShowBorders", @"reducehighlighting": @"ISIMReduceHighlightingEffects",
+                                @"actionslider": @"ISIMPrefersActionSlider", @"assistiveaccess": @"ISIMAssistiveAccess" };
         NSArray *p = [args componentsSeparatedByString:@" "];
         NSString *key = p.count == 2 ? keys[p[0]] : nil;
         if (!key || !([p[1] isEqualToString:@"on"] || [p[1] isEqualToString:@"off"])) {

@@ -218,6 +218,10 @@ def test_app_intents_discovery(launch):
 
     # an indexed entity in Spotlight runs the app's OpenIntent for it
     dev.wait_view(r"id=cafe text=Cafe:")
+    # Siri's card closes after the URL opened and brings the app forward once more: press Home after that
+    dev.wait_until(lambda: dev.log.rfind("isim shell: Siri hidden") > dev.log.rfind("HelloSiri: opened coffeeclub://cafe/Harbor"),
+                   what="the Siri card closes after the app opened the URL")
+    dev.wait_still()
     dev.send("home")
     dev.wait_view(r"id=home-dock")                                       # Spotlight opens from the home screen
     assert len(re.findall(relaunch, dev.log, re.M)) == relaunches, "the opened URL brought the app forward: no second launch"

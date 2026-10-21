@@ -27,6 +27,17 @@ def test_accessibility_extras(launch, ios):
     assert "ax screen rect 11,22 3x4" in log and "ax screen path 10,20" in log
     assert "ax image size 17 category false" in log
     assert 'isim: accessibility notification announcement "Saved" priority high queued' in log
+    # the Accessibility framework: AccessibilityNotification posts through UIAccessibility
+    assert 'isim: accessibility notification announcement "Uploaded"' in log
+    assert 'isim: accessibility notification pageScrolled "Page 2 of 3"' in log
+    if v >= 18:
+        assert ("ax framework settings animatedImages true c true horizontal false nonBlinking false assistiveAccess false "
+                "headAnchor false") in log, "AccessibilitySettings: the defaults"
+        app.wait_log(r"^ax open settings done$")
+        app.send("accessibility animatedimages off")
+        app.wait_log(r"^ax note animatedImages false$")
+        app.send("accessibility nonblinkingcursor on")
+        app.wait_log(r"^ax note nonBlinking true$")
     if v >= 18:
         assert "ax hit test Details" in log
 
