@@ -19,7 +19,12 @@
  * onContinueUserActivity / onOpenURL. A browser (the com.apple.developer.web-browser entitlement, like isim's
  * Safari) gets other web URLs as URLs to open; in other apps they "open in Safari" (under the shell the home screen
  * routes them there before they reach the app; with `isim run` logged, or on the host browser with
- * ISIM_OPEN_URLS=1). */
+ * ISIM_OPEN_URLS=1).
+ *
+ * CloudKit share links (https://www.icloud.com/share/<token>, the URLs of isim's local CloudKit shares, Sharing.swift)
+ * are not universal links: the token names the share's container, and the link opens the app whose container it is
+ * (iCloud.<bundle ID>, or one of the entitlements' com.apple.developer.icloud-container-identifiers), which gets the
+ * share's metadata (UISystemIntegration.m, isim_sys_accept_share_link). */
 #import "UIKitPrivate.h"
 
 static NSDictionary *app_entitlements(void) {
@@ -213,10 +218,39 @@ BOOL isim_ui_app_claims_link(NSString *appPath, NSURL *url) {
     return NO;
 }
 
+/* ---- CloudKit share links ---- */
+/* the container a share link names (nil: not a share link) */
+NSString *isim_ui_share_link_container(NSURL *url) {
+    NSArray *parts = url.path.pathComponents;
+    if (![url.host.lowercaseString isEqualToString:@"www.icloud.com"] || parts.count < 3 || ![parts[1] isEqualToString:@"share"]) return nil;
+    NSString *b = [[parts[2] stringByReplacingOccurrencesOfString:@"-" withString:@"+"] stringByReplacingOccurrencesOfString:@"_" withString:@"/"];
+    while (b.length % 4) b = [b stringByAppendingString:@"="];
+    NSData *d = [[NSData alloc] initWithBase64EncodedString:b options:0];
+    NSString *token = d ? [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding] : nil;
+    NSArray *p = [token componentsSeparatedByString:@"\x1f"];
+    return p.count == 4 && [p[0] length] ? p[0] : nil;
+}
+/* YES if the share link names a container of the app at appPath */
+BOOL isim_ui_app_owns_share_link(NSString *appPath, NSURL *url) {
+    NSString *container = isim_ui_share_link_container(url);
+    if (!container) return NO;
+    NSDictionary *info = [NSDictionary dictionaryWithContentsOfFile:[appPath stringByAppendingPathComponent:@"Info.plist"]];
+    if ([info[@"CFBundleIdentifier"] isKindOfClass:[NSString class]] && [container isEqualToString:[@"iCloud." stringByAppendingString:info[@"CFBundleIdentifier"]]]) return YES;
+    NSData *d = [NSData dataWithContentsOfFile:[appPath stringByAppendingPathComponent:@"archived-expanded-entitlements.xcent"]];
+    id ent = d ? [NSPropertyListSerialization propertyListWithData:d options:0 format:NULL error:NULL] : nil;
+    id list = [ent isKindOfClass:[NSDictionary class]] ? ent[@"com.apple.developer.icloud-container-identifiers"] : nil;
+    return [list isKindOfClass:[NSArray class]] && [list containsObject:container];
+}
+
 /* YES if the URL was handled as a web URL (an app link of this app, or opened "in Safari") */
 BOOL isim_ui_open_web_url(NSURL *url) {
     NSString *scheme = url.scheme.lowercaseString;
     if (![scheme isEqualToString:@"http"] && ![scheme isEqualToString:@"https"]) return NO;
+    if (isim_ui_app_owns_share_link(NSBundle.mainBundle.bundlePath, url)) {
+        extern void isim_sys_accept_share_link(NSURL *url);
+        isim_sys_accept_share_link(url);
+        return YES;
+    }
     BOOL mine = isim_ui_app_claims_link(NSBundle.mainBundle.bundlePath, url);
     if (!mine && [app_entitlements()[@"com.apple.developer.web-browser"] boolValue]) return NO;   /* a browser (isim's Safari): application(_:open:options:) */
     if (!mine) {

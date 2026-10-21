@@ -10,6 +10,7 @@
 //   - the enums and option sets as their raw values, and QualityOfService as NSQualityOfService.
 import Foundation
 import ObjectiveC
+import UIKit
 
 typealias _CKItemBlock<ID, T> = (ID, T?, Error?) -> Void
 
@@ -351,5 +352,26 @@ extension CKAllowedSharingOptions {
     @objc(_isim_optionsWithPermissions:access:) class func _isimOptions(_ p: UInt, access a: UInt) -> CKAllowedSharingOptions {
         CKAllowedSharingOptions(allowedParticipantPermissionOptions: CKSharingParticipantPermissionOption(rawValue: p),
                                 allowedParticipantAccessOptions: CKSharingParticipantAccessOption(rawValue: a))
+    }
+}
+
+// MARK: - share links (UIKit, issue #575)
+
+extension CKContainer {
+    /// the metadata UIKit hands an app for a CloudKit share link it opened (UISystemIntegration.m); nil, logged, when
+    /// the share cannot be read
+    @objc(_isim_shareMetadataWithURL:) class func _isimShareMetadata(_ url: URL) -> CKShare.Metadata? {
+        switch (try? _shareMetadata(url, fetchRoot: false, desiredKeys: nil)) ?? .failure(CKError(.internalError)) {
+        case .success(let m): return m
+        case .failure(let e): NSLog("isim CloudKit: share link %@: %@", url.absoluteString, e.localizedDescription); return nil
+        }
+    }
+}
+
+extension UIScene.ConnectionOptions {
+    /// The CloudKit share link that launched the app. UIKit declares it with Objective-C's CKShareMetadata, which
+    /// isim's Swift CloudKit implements as CKShare.Metadata, so the typed property lives here.
+    public var cloudKitShareMetadata: CKShare.Metadata? {
+        perform(NSSelectorFromString("cloudKitShareMetadata"))?.takeUnretainedValue() as? CKShare.Metadata
     }
 }

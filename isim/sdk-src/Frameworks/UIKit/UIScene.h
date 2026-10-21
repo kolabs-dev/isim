@@ -87,6 +87,7 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.0))
 @property (nullable, nonatomic, strong) UISceneActivationRequestOptions *options;
 @end
 
+@class CKShareMetadata;
 NS_SWIFT_UI_ACTOR
 @protocol UIWindowSceneDelegate <UISceneDelegate>
 @optional
@@ -97,6 +98,8 @@ NS_SWIFT_UI_ACTOR
 /* iOS 26: replaces UISupportedInterfaceOrientations for this scene */
 - (UIInterfaceOrientationMask)supportedInterfaceOrientationsForWindowScene:(UIWindowScene *)windowScene API_AVAILABLE(ios(26.0));
 - (UISceneWindowingControlStyle *)preferredWindowingControlStyleForScene:(UIWindowScene *)windowScene NS_SWIFT_NAME(preferredWindowingControlStyle(for:)) API_AVAILABLE(ios(26.0));
+/* a CloudKit share link of the app's container opened while the scene runs (at launch: connectionOptions.cloudKitShareMetadata) */
+- (void)windowScene:(UIWindowScene *)windowScene userDidAcceptCloudKitShareWithMetadata:(CKShareMetadata *)cloudKitShareMetadata;
 @end
 
 /* iPad: the smallest / largest size the scene accepts (split view widths honour minimumSize) */

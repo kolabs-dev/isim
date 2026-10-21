@@ -938,6 +938,22 @@ def _(a):
                name="CloudKitObjCTest")
 
 
+@app("tests/cloudkit-share-objc", products=["CloudKitShareObjCTest.app"])   # issue #575: CloudKit share links (an app delegate)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "CloudKit"], name="CloudKitShareObjCTest")
+
+
+@app("tests/cloudkit-share-scene-objc", products=["CloudKitShareSceneObjCTest.app"])   # the same app with a scene delegate
+def _(a):
+    a.objc_app(["../cloudkit-share-objc/main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "CloudKit"],
+               name="CloudKitShareSceneObjCTest")
+
+
+@app("tests/cloudkit-share-swift", products=["CloudKitShareSwiftTest.app"])   # Swift: UIScene.ConnectionOptions.cloudKitShareMetadata
+def _(a):
+    a.swift_app("CloudKitShareSwiftTest")
+
+
 @app("tests/photos-objc", products=["PhotosObjCTest.app"])   # after the overlays: Photos.framework re-exports libswiftPhotos (issue #545)
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Photos", "-framework", "PhotosUI",

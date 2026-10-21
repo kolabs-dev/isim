@@ -5,6 +5,11 @@
  *   launches/activates the app with the isim-private URL "isim-shortcut:<type>".
  * - User activities: "isim-activity:<plist file>" (Spotlight results, handoff of NSUserActivity between processes)
  *   and "isim-universal:<https URL>" (universal links) arrive as NSUserActivity continuations.
+ * - CloudKit share links: "isim-cloudkit-share:<https URL>" (or the link opened in the app) hands the share's metadata,
+ *   read through CloudKit (CKContainer's _isim_shareMetadataWithURL:), to the app: at launch in the scene's connection
+ *   options (cloudKitShareMetadata) or the launch options (UIApplicationLaunchOptionsCloudKitShareMetadataKey, then
+ *   application:userDidAcceptCloudKitShareWithMetadata:), later to windowScene:userDidAcceptCloudKitShareWithMetadata:
+ *   or the app delegate.
  * - State restoration: stateRestorationActivity(for:) is saved when the scene goes to the background
  *   (Library/isim/SceneState.plist) and handed back on the next launch (session.stateRestorationActivity).
  * - Background work: beginBackgroundTask (expires after ISIM_BACKGROUND_TASK_SECONDS, default 30), launches into the
@@ -19,6 +24,7 @@
  * UIApplication.m calls the isim_sys_* hooks at launch, on URL/system events and on lifecycle changes. */
 #import "UIKitPrivate.h"
 #import <objc/runtime.h>
+#import <objc/message.h>
 #include <float.h>
 #include <stdlib.h>
 #include <dlfcn.h>
@@ -249,6 +255,7 @@ UIApplicationLaunchOptionsKey const UIApplicationLaunchOptionsURLKey = @"UIAppli
     UIApplicationLaunchOptionsRemoteNotificationKey = @"UIApplicationLaunchOptionsRemoteNotificationKey",
     UIApplicationLaunchOptionsLocationKey = @"UIApplicationLaunchOptionsLocationKey";
 NSString * const UIApplicationLaunchOptionsUserActivityKey = @"UIApplicationLaunchOptionsUserActivityKey";
+UIApplicationLaunchOptionsKey const UIApplicationLaunchOptionsCloudKitShareMetadataKey = @"UIApplicationLaunchOptionsCloudKitShareMetadataKey";
 UIApplicationOpenURLOptionsKey const UIApplicationOpenURLOptionsSourceApplicationKey = @"UIApplicationOpenURLOptionsSourceApplicationKey",
     UIApplicationOpenURLOptionsOpenInPlaceKey = @"UIApplicationOpenURLOptionsOpenInPlaceKey";
 UIApplicationOpenExternalURLOptionsKey const UIApplicationOpenURLOptionUniversalLinksOnly = @"UIApplicationOpenURLOptionUniversalLinksOnly";
@@ -697,6 +704,39 @@ static NSUserActivity *activity_from_marker(NSString *s) {
     return nil;
 }
 
+/* ---- CloudKit share links ---- */
+/* the share's metadata, through CloudKit when the app links it (nil, logged, otherwise or when the share is gone) */
+static id share_metadata(NSURL *url) {
+    Class c = NSClassFromString(@"CKContainer");
+    SEL sel = NSSelectorFromString(@"_isim_shareMetadataWithURL:");
+    if (!url || !c || ![c respondsToSelector:sel]) { NSLog(@"isim: CloudKit share link %@: the app does not use CloudKit", url.absoluteString); return nil; }
+    return ((id (*)(id, SEL, NSURL *))objc_msgSend)(c, sel, url);
+}
+static BOOL scene_based;
+/* a share link opened while the app runs (launch: the launch options' metadata, delivered after didFinishLaunching) */
+static void accept_share(id metadata, BOOL launch) {
+    if (!metadata) return;
+    UIApplication *app = UIApplication.sharedApplication; id<UIApplicationDelegate> d = app.delegate;
+    BOOL handled = NO;
+    if (!launch) for (UIScene *s in app.connectedScenes) {
+        id sd = s.delegate;
+        if ([s isKindOfClass:[UIWindowScene class]] && [sd respondsToSelector:@selector(windowScene:userDidAcceptCloudKitShareWithMetadata:)]) {
+            NSLog(@"isim: CloudKit share link -> the scene delegate");
+            [sd windowScene:(UIWindowScene *)s userDidAcceptCloudKitShareWithMetadata:metadata];
+            handled = YES;
+        }
+    }
+    if (handled || scene_based) return;
+    if ([d respondsToSelector:@selector(application:userDidAcceptCloudKitShareWithMetadata:)]) {
+        NSLog(@"isim: CloudKit share link -> the app delegate");
+        [d application:app userDidAcceptCloudKitShareWithMetadata:metadata];
+    } else NSLog(@"isim: CloudKit share link: the app delegate does not implement application:userDidAcceptCloudKitShareWithMetadata:");
+}
+void isim_sys_accept_share_link(NSURL *url) {
+    NSLog(@"isim: CloudKit share link %@ opened in the app", url.absoluteString);
+    accept_share(share_metadata(url), NO);
+}
+
 /* ---- intents (the intent run protocol: INSiriRunner.m, the AppIntents overlay, SBSiri.m) ---- */
 static void run_intent_marker(NSString *path) {
     NSDictionary *req = [NSDictionary dictionaryWithContentsOfFile:path];
@@ -728,7 +768,9 @@ static NSString *launch_marker;                 /* any isim-... marker (the laun
 static NSString *launch_url;
 static UIApplicationShortcutItem *launch_shortcut;
 static NSUserActivity *launch_activity;
-static BOOL launch_parsed, scene_based, launch_finished_yes = YES;
+static BOOL launch_parsed, launch_finished_yes = YES;
+static NSURL *launch_share;                     /* a CloudKit share link (isim-cloudkit-share:) */
+static id launch_share_metadata;
 /* App Clips (Info.plist NSAppClip): each launch is recorded in Library/isim/AppClip.plist (UserNotifications' 8 hours of
    ephemeral notifications count from it; the home screen adds the invocation). Like Xcode, the _XCAppClipURL variable of
    a launch without another payload (`isim run Clip.app` with it set) is the invocation URL: the clip is launched with a
@@ -762,6 +804,7 @@ static void parse_launch(void) {
     else if ([s hasPrefix:@"isim-push-open:"]) { launch_push = read_push([s substringFromIndex:15]); launch_push_open = YES; }
     else if ([s hasPrefix:@"isim-nc-action:"]) launch_action = [s substringFromIndex:15];
     else if ([s hasPrefix:@"isim-intent:"]) launch_intent = [s substringFromIndex:12];
+    else if ([s hasPrefix:@"isim-cloudkit-share:"]) { launch_share = [NSURL URLWithString:[s substringFromIndex:20]]; launch_share_metadata = share_metadata(launch_share); }
     else if ([s hasPrefix:@"isim-"]) {}                          /* isim-bgtask:... (background launch) */
     else launch_url = s;
 }
@@ -773,7 +816,8 @@ NSDictionary *isim_sys_launch_options(void) {
                                                                                      UIApplicationLaunchOptionsUserActivityKey: launch_activity };
     if (launch_url) { NSURL *url = [NSURL URLWithString:launch_url]; if (url) o[UIApplicationLaunchOptionsURLKey] = url; }
     if (launch_push[@"payload"]) o[UIApplicationLaunchOptionsRemoteNotificationKey] = launch_push[@"payload"];
-    if (launch_shortcut || launch_activity || launch_url || launch_push) NSLog(@"isim: launch options %@", [o.allKeys componentsJoinedByString:@", "]);
+    if (launch_share_metadata) o[UIApplicationLaunchOptionsCloudKitShareMetadataKey] = launch_share_metadata;
+    if (launch_shortcut || launch_activity || launch_url || launch_push || launch_share_metadata) NSLog(@"isim: launch options %@", [o.allKeys componentsJoinedByString:@", "]);
     return o.count ? o : nil;
 }
 void isim_sys_did_finish_launching(BOOL result) { launch_finished_yes = result; }
@@ -792,6 +836,7 @@ void isim_sys_configure_connection(UISceneConnectionOptions *options, UISceneSes
     if (launch_activity) { options.userActivities = [NSSet setWithObject:launch_activity]; options.handoffUserActivityType = launch_activity.activityType; }
     if (launch_url) { NSURL *url = [NSURL URLWithString:launch_url]; if (url) options.URLContexts = [NSSet setWithObject:url_context(url)]; }
     if (launch_marker) objc_setAssociatedObject(options, "_isim_launchMarker", launch_marker, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    if (launch_share_metadata) objc_setAssociatedObject(options, "_isim_cloudKitShareMetadata", launch_share_metadata, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     session.stateRestorationActivity = saved_scene_activity();
     if (session.stateRestorationActivity) NSLog(@"isim: restoring scene state (%@)", session.stateRestorationActivity.activityType);
 }
@@ -870,6 +915,11 @@ BOOL isim_sys_deliver_launch(void) {
     if (launch_push) { NSDictionary *w = launch_push; int m = launch_push_open ? 2 : 0; dispatch_async(dispatch_get_main_queue(), ^{ deliver_remote(w, m); }); return YES; }
     if (launch_action) { NSString *a = launch_action; dispatch_async(dispatch_get_main_queue(), ^{ notification_action(a); }); return YES; }
     if (launch_intent) { NSString *p = launch_intent; dispatch_async(dispatch_get_main_queue(), ^{ run_intent_marker(p); }); return YES; }
+    if (launch_share) {      /* scene apps have it in the connection options; others in the launch options, then the delegate */
+        id m = launch_share_metadata;
+        if (!scene_based && launch_finished_yes) dispatch_async(dispatch_get_main_queue(), ^{ accept_share(m, YES); });
+        return YES;
+    }
     if (launch_url && scene_based) {      /* scene apps get the URL in the connection options (scene(_:willConnectTo:options:)) */
         NSURL *url = [NSURL URLWithString:launch_url];
         dispatch_async(dispatch_get_main_queue(), ^{ NSLog(@"isim: opening URL %@ in the app", url); [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimOpenURL" object:url]; });
@@ -884,6 +934,7 @@ BOOL isim_sys_open_url(NSString *s) {
     if ([s hasPrefix:@"isim-shortcut:"]) { perform_shortcut(shortcut_item_of_type([s substringFromIndex:14]), NO); return YES; }
     if ([s hasPrefix:@"isim-activity:"] || [s hasPrefix:@"isim-universal:"]) { continue_activity(activity_from_marker(s), NO); return YES; }
     if ([s hasPrefix:@"isim-intent:"]) { run_intent_marker([s substringFromIndex:12]); return YES; }
+    if ([s hasPrefix:@"isim-cloudkit-share:"]) { isim_sys_accept_share_link([NSURL URLWithString:[s substringFromIndex:20]]); return YES; }
     if ([s hasPrefix:@"isim-bgtask:"] || [s hasPrefix:@"isim-urlsession:"] || [s hasPrefix:@"isim-push"] || [s hasPrefix:@"isim-nc-action:"]) return YES;
     NSURL *url = [NSURL URLWithString:s];
     if (!url) return NO;
@@ -1178,6 +1229,8 @@ static BOOL installed_app_handles(NSURL *url, BOOL *universal) {
                 if ([info[@"CFBundleIdentifier"] isEqual:me]) continue;       /* a universal link to the app itself opens in the browser */
                 extern BOOL isim_ui_app_claims_link(NSString *appPath, NSURL *url);   /* associated domain + AASA */
                 if (isim_ui_app_claims_link(app, url)) { *universal = YES; return YES; }
+                extern BOOL isim_ui_app_owns_share_link(NSString *appPath, NSURL *url);   /* a CloudKit share link of its container */
+                if (isim_ui_app_owns_share_link(app, url)) { *universal = YES; return YES; }
                 continue;
             }
             for (NSDictionary *t in info[@"CFBundleURLTypes"]) for (NSString *s in t[@"CFBundleURLSchemes"]) if ([s.lowercaseString isEqualToString:scheme]) return YES;
