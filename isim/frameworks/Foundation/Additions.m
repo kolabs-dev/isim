@@ -113,6 +113,7 @@ static NSCharacterSet *chars(NSString *extra) {
 @end
 
 @implementation NSBundle (IsimURLs)
+@dynamic bundleURL, resourceURL;                 /* implemented in NSBundle (IsimMore), below */
 - (NSURL *)URLForResource:(NSString *)name withExtension:(NSString *)ext {
     NSString *p = [self pathForResource:name ofType:ext];
     return p ? [NSURL fileURLWithPath:p] : nil;

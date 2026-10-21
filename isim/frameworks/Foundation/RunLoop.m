@@ -804,11 +804,11 @@ void CFRunLoopRun(void) {
     do r = run_in_mode(rl, NSDefaultRunLoopMode, 1e10, NO);
     while (r != kCFRunLoopRunStopped && r != kCFRunLoopRunFinished);
 }
-CFRunLoopRunResult CFRunLoopRunInMode(CFRunLoopMode mode, CFTimeInterval seconds, bool returnAfterSourceHandled) {
+CFRunLoopRunResult CFRunLoopRunInMode(CFRunLoopMode mode, CFTimeInterval seconds, Boolean returnAfterSourceHandled) {
     if (!mode) return kCFRunLoopRunFinished;
     return run_in_mode(NSRunLoop.currentRunLoop, MODE(mode), seconds, returnAfterSourceHandled);
 }
-bool CFRunLoopIsWaiting(CFRunLoopRef rl) { return RL(rl)->_waiting; }
+Boolean CFRunLoopIsWaiting(CFRunLoopRef rl) { return RL(rl)->_waiting; }
 void CFRunLoopWakeUp(CFRunLoopRef rl) { [RL(rl) _isim_wake]; }
 /* the innermost run of the loop returns (kCFRunLoopRunStopped); UIKit's main event loop itself is not stopped */
 void CFRunLoopStop(CFRunLoopRef rl) {
@@ -830,7 +830,7 @@ static __IsimCFRunLoopObserver *new_observer(CFOptionFlags activities, bool repe
     return o;
 }
 CFTypeID CFRunLoopObserverGetTypeID(void) { return ISIM_CF_RUNLOOP_OBSERVER; }
-CFRunLoopObserverRef CFRunLoopObserverCreate(CFAllocatorRef allocator, CFOptionFlags activities, bool repeats, CFIndex order,
+CFRunLoopObserverRef CFRunLoopObserverCreate(CFAllocatorRef allocator, CFOptionFlags activities, Boolean repeats, CFIndex order,
                                              CFRunLoopObserverCallBack callout, CFRunLoopObserverContext *context) {
     __IsimCFRunLoopObserver *o = new_observer(activities, repeats, order);
     o->callout = callout;
@@ -840,7 +840,7 @@ CFRunLoopObserverRef CFRunLoopObserverCreate(CFAllocatorRef allocator, CFOptionF
     }
     return (__bridge_retained CFRunLoopObserverRef)o;
 }
-CFRunLoopObserverRef CFRunLoopObserverCreateWithHandler(CFAllocatorRef allocator, CFOptionFlags activities, bool repeats, CFIndex order,
+CFRunLoopObserverRef CFRunLoopObserverCreateWithHandler(CFAllocatorRef allocator, CFOptionFlags activities, Boolean repeats, CFIndex order,
                                                         void (^block)(CFRunLoopObserverRef, CFRunLoopActivity)) {
     __IsimCFRunLoopObserver *o = new_observer(activities, repeats, order);
     o->block = [block copy];
@@ -848,9 +848,9 @@ CFRunLoopObserverRef CFRunLoopObserverCreateWithHandler(CFAllocatorRef allocator
 }
 #define OBS(x) ((__bridge __IsimCFRunLoopObserver *)(x))
 CFOptionFlags CFRunLoopObserverGetActivities(CFRunLoopObserverRef o) { return OBS(o)->activities; }
-bool CFRunLoopObserverDoesRepeat(CFRunLoopObserverRef o) { return OBS(o)->repeats; }
+Boolean CFRunLoopObserverDoesRepeat(CFRunLoopObserverRef o) { return OBS(o)->repeats; }
 CFIndex CFRunLoopObserverGetOrder(CFRunLoopObserverRef o) { return OBS(o)->order; }
-bool CFRunLoopObserverIsValid(CFRunLoopObserverRef o) { return OBS(o)->valid; }
+Boolean CFRunLoopObserverIsValid(CFRunLoopObserverRef o) { return OBS(o)->valid; }
 void CFRunLoopObserverGetContext(CFRunLoopObserverRef o, CFRunLoopObserverContext *context) { if (context) *context = OBS(o)->context; }
 /* removed from its loop; the callout is not called again */
 void CFRunLoopObserverInvalidate(CFRunLoopObserverRef ref) {
@@ -879,7 +879,7 @@ void CFRunLoopRemoveObserver(CFRunLoopRef r, CFRunLoopObserverRef ref, CFRunLoop
         if (!o->modes.count) [rl->_observers removeObjectIdenticalTo:o];
     }
 }
-bool CFRunLoopContainsObserver(CFRunLoopRef r, CFRunLoopObserverRef ref, CFRunLoopMode mode) {
+Boolean CFRunLoopContainsObserver(CFRunLoopRef r, CFRunLoopObserverRef ref, CFRunLoopMode mode) {
     __IsimCFRunLoopObserver *o = OBS(ref);
     NSRunLoop *rl = RL(r);
     if (!o || o->loop != rl || !o->valid) return NO;
@@ -904,7 +904,7 @@ CFRunLoopSourceRef CFRunLoopSourceCreate(CFAllocatorRef allocator, CFIndex order
     return (__bridge_retained CFRunLoopSourceRef)s;
 }
 CFIndex CFRunLoopSourceGetOrder(CFRunLoopSourceRef s) { return SRC(s)->order; }
-bool CFRunLoopSourceIsValid(CFRunLoopSourceRef s) { return SRC(s)->valid; }
+Boolean CFRunLoopSourceIsValid(CFRunLoopSourceRef s) { return SRC(s)->valid; }
 void CFRunLoopSourceGetContext(CFRunLoopSourceRef s, CFRunLoopSourceContext *context) { if (context) *context = SRC(s)->context; }
 /* marks it ready: it is performed the next time one of its loops runs in one of its modes (CFRunLoopWakeUp wakes a
    waiting loop, as on Apple platforms) */
@@ -952,7 +952,7 @@ void CFRunLoopRemoveSource(CFRunLoopRef r, CFRunLoopSourceRef ref, CFRunLoopMode
     if (empty) @synchronized (rl->_sources) { [rl->_sources removeObjectIdenticalTo:s]; }
     if (removed) source_cancel(s, rl, MODE(mode));
 }
-bool CFRunLoopContainsSource(CFRunLoopRef r, CFRunLoopSourceRef ref, CFRunLoopMode mode) {
+Boolean CFRunLoopContainsSource(CFRunLoopRef r, CFRunLoopSourceRef ref, CFRunLoopMode mode) {
     __IsimCFRunLoopSource *s = SRC(ref);
     NSRunLoop *rl = RL(r);
     if (!s || !rl || !s->valid) return NO;
@@ -993,10 +993,10 @@ void CFRunLoopTimerSetNextFireDate(CFRunLoopTimerRef t, CFAbsoluteTime fireDate)
     TMR(t).fireDate = [NSDate dateWithTimeIntervalSinceReferenceDate:fireDate];
 }
 CFTimeInterval CFRunLoopTimerGetInterval(CFRunLoopTimerRef t) { return TMR(t).item.repeats ? TMR(t).timeInterval : 0; }
-bool CFRunLoopTimerDoesRepeat(CFRunLoopTimerRef t) { return TMR(t).item.repeats; }
+Boolean CFRunLoopTimerDoesRepeat(CFRunLoopTimerRef t) { return TMR(t).item.repeats; }
 CFIndex CFRunLoopTimerGetOrder(CFRunLoopTimerRef t) { return TMR(t).isimOrder; }
 void CFRunLoopTimerInvalidate(CFRunLoopTimerRef t) { [TMR(t) invalidate]; }
-bool CFRunLoopTimerIsValid(CFRunLoopTimerRef t) { return TMR(t).isValid; }
+Boolean CFRunLoopTimerIsValid(CFRunLoopTimerRef t) { return TMR(t).isValid; }
 void CFRunLoopTimerGetContext(CFRunLoopTimerRef t, CFRunLoopTimerContext *context) { if (context) *context = TMR(t).isimContext; }
 CFTimeInterval CFRunLoopTimerGetTolerance(CFRunLoopTimerRef t) { return TMR(t).tolerance; }
 void CFRunLoopTimerSetTolerance(CFRunLoopTimerRef t, CFTimeInterval tolerance) { TMR(t).tolerance = tolerance; }
@@ -1012,7 +1012,7 @@ void CFRunLoopRemoveTimer(CFRunLoopRef r, CFRunLoopTimerRef t, CFRunLoopMode mod
     pthread_mutex_unlock(&rl->_lock);
     if (empty) { it.loop = nil; it.scheduled = nil; }
 }
-bool CFRunLoopContainsTimer(CFRunLoopRef r, CFRunLoopTimerRef t, CFRunLoopMode mode) {
+Boolean CFRunLoopContainsTimer(CFRunLoopRef r, CFRunLoopTimerRef t, CFRunLoopMode mode) {
     NSRunLoop *rl = RL(r);
     __IsimRunLoopItem *it = TMR(t).item;
     if (!it || it.loop != rl || !it.valid) return NO;

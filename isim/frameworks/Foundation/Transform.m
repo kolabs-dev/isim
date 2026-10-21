@@ -325,7 +325,7 @@ NSString *isim_apply_transform(NSString *s, NSString *transform, BOOL reverse) {
 }
 @end
 
-bool CFStringTransform(CFMutableStringRef string, CFRange *range, CFStringRef transform, bool reverse) {
+Boolean CFStringTransform(CFMutableStringRef string, CFRange *range, CFStringRef transform, Boolean reverse) {
     NSMutableString *s = (__bridge NSMutableString *)string;
     if (!s || !transform) return false;
     NSRange r = range ? NSMakeRange((NSUInteger)range->location, (NSUInteger)range->length) : NSMakeRange(0, s.length);
