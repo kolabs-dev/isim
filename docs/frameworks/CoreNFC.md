@@ -9,6 +9,9 @@
 ## How isim implements it
 
 - **Stub,** like the Simulator: reading is not available.
+- **Objective-C / C interface:** headers in `isim/sdk-src/Frameworks/CoreNFC` over the overlay's classes (the
+  sessions, NDEF messages and payloads, APDUs, VAS); Objective-C delegates are wrapped in adapters. Not yet: the tag
+  protocols (no tag is ever detected).
 
 ## API
 
@@ -17,6 +20,7 @@
 | Core NFC reader sessions (`NFCNDEFReaderSession`, `NFCTagReaderSession` with `connect(to:)`, `restartPolling()`, `connectedTag` and `didDetect`, `NFCVASReaderSession` with `NFCVASCommandConfiguration` and `NFCVASResponse`, `NFCReaderSessionProtocol`, `NFCReaderError`) | 🧩 | ≤17 | stub, like the Simulator: `readingAvailable` is false; a session that begins is invalidated with `readerErrorUnsupportedFeature` (`readerErrorSecurityViolation` without `NFCReaderUsageDescription`); no tag or pass is ever detected, and `connect(to:)` fails with `readerTransceiveErrorTagNotConnected`. Tested (HelloSensors: test_sensors) |
 | Tags: `NFCTag` (`.feliCa`, `.iso7816`, `.iso15693`, `.miFare`), `NFCNDEFTag`, `NFCISO7816Tag` (`NFCISO7816APDU`, `NFCISO7816ResponseAPDU`), `NFCMiFareTag` (`NFCMiFareFamily`), `NFCFeliCaTag` (polling, service and block commands), `NFCISO15693Tag` (block, AFI, DSFID and custom commands, `NFCISO15693RequestFlag`), `NFCNDEFStatus`, `NFCTagType` | 🧩 | ≤17 | stub: the protocols and their async forms exist so apps build; nothing conforms, since no tag is detected. `NFCISO7816APDU(data:)` parses short command APDUs. Tested (HelloSensors: test_sensors) |
 | NFC scene events (`NFCWindowSceneEvent`, `UIScene.ConnectionOptions.nfcEvent`) | 🧩 | 17.4 | stub: the event reaches an app only through the launch marker `isim-nfc:…` (see UIKit scene members) |
+| Objective-C interface: `NFCReaderSession`, `NFCNDEFReaderSession`, `NFCTagReaderSession`, `NFCVASReaderSession` and their delegates, `NFCNDEFMessage`, `NFCNDEFPayload`, `NFCISO7816APDU`, `NFCVASCommandConfiguration`, `NFCVASResponse`, `NFCReaderError` | 🧩 | ≤17 | stub, like the Swift API: sessions are invalidated with `NFCReaderErrorUnsupportedFeature`, through the Objective-C delegate. Tested (HelloSensorsObjC: test_sensors_objc) |
 | Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `NFCFeliCaEncryptionId`, `NFCFeliCaPollingRequestCode`, `NFCFeliCaPollingResponse`, `NFCFeliCaPollingTimeSlot`, `NFCFeliCaRequestSpecificationVersionResponse`, `NFCFeliCaRequsetServiceV2Response`, `NFCFeliCaStatusFlag`, `NFCFeliCaTag`, `NFCISO15693CustomCommandConfiguration`, `NFCISO15693MultipleBlockSecurityStatus`, `NFCISO15693ReadMultipleBlocksConfiguration`, `NFCISO15693RequestFlag`, `NFCISO15693ResponseFlag`, `NFCISO15693SystemInfo`, `NFCISO15693Tag`, `NFCISO7816Tag`, `NFCMiFareTag`, `NFCNDEFTag`, `NFCPresentmentIntentAssertion`, `NFCReaderSessionProtocol`, `NFCTagCommandConfiguration`, `NFCVASCommandConfiguration.Mode`, `NFCVASResponse.ErrorCode`, `NFCWindowSceneDelegate` (24 types; with their members under "Not yet in isim") |
 | Types not yet in isim (iOS 26) | ❌ | 26.0 | not implemented, found by the 2026-10 sweep: `NFCPaymentTagReaderSession` (1 type; with its members under "Not yet in isim") |
 

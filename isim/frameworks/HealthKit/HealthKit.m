@@ -1,0 +1,40 @@
+// isim HealthKit for Objective-C: the C constants (the classes are the Swift overlay's; the strings are its identifiers).
+#import <HealthKit/HealthKit.h>
+
+NSString * const HKErrorDomain = @"com.apple.healthkit";
+NSString * const HKQuantityTypeIdentifierStepCount = @"HKQuantityTypeIdentifierStepCount";
+NSString * const HKQuantityTypeIdentifierDistanceWalkingRunning = @"HKQuantityTypeIdentifierDistanceWalkingRunning";
+NSString * const HKQuantityTypeIdentifierDistanceCycling = @"HKQuantityTypeIdentifierDistanceCycling";
+NSString * const HKQuantityTypeIdentifierActiveEnergyBurned = @"HKQuantityTypeIdentifierActiveEnergyBurned";
+NSString * const HKQuantityTypeIdentifierBasalEnergyBurned = @"HKQuantityTypeIdentifierBasalEnergyBurned";
+NSString * const HKQuantityTypeIdentifierFlightsClimbed = @"HKQuantityTypeIdentifierFlightsClimbed";
+NSString * const HKQuantityTypeIdentifierAppleExerciseTime = @"HKQuantityTypeIdentifierAppleExerciseTime";
+NSString * const HKQuantityTypeIdentifierHeartRate = @"HKQuantityTypeIdentifierHeartRate";
+NSString * const HKQuantityTypeIdentifierRestingHeartRate = @"HKQuantityTypeIdentifierRestingHeartRate";
+NSString * const HKQuantityTypeIdentifierHeartRateVariabilitySDNN = @"HKQuantityTypeIdentifierHeartRateVariabilitySDNN";
+NSString * const HKQuantityTypeIdentifierOxygenSaturation = @"HKQuantityTypeIdentifierOxygenSaturation";
+NSString * const HKQuantityTypeIdentifierRespiratoryRate = @"HKQuantityTypeIdentifierRespiratoryRate";
+NSString * const HKQuantityTypeIdentifierBodyTemperature = @"HKQuantityTypeIdentifierBodyTemperature";
+NSString * const HKQuantityTypeIdentifierBloodPressureSystolic = @"HKQuantityTypeIdentifierBloodPressureSystolic";
+NSString * const HKQuantityTypeIdentifierBloodPressureDiastolic = @"HKQuantityTypeIdentifierBloodPressureDiastolic";
+NSString * const HKQuantityTypeIdentifierBodyMass = @"HKQuantityTypeIdentifierBodyMass";
+NSString * const HKQuantityTypeIdentifierBodyMassIndex = @"HKQuantityTypeIdentifierBodyMassIndex";
+NSString * const HKQuantityTypeIdentifierBodyFatPercentage = @"HKQuantityTypeIdentifierBodyFatPercentage";
+NSString * const HKQuantityTypeIdentifierHeight = @"HKQuantityTypeIdentifierHeight";
+NSString * const HKQuantityTypeIdentifierLeanBodyMass = @"HKQuantityTypeIdentifierLeanBodyMass";
+NSString * const HKQuantityTypeIdentifierDietaryWater = @"HKQuantityTypeIdentifierDietaryWater";
+NSString * const HKQuantityTypeIdentifierDietaryEnergyConsumed = @"HKQuantityTypeIdentifierDietaryEnergyConsumed";
+NSString * const HKQuantityTypeIdentifierDietaryProtein = @"HKQuantityTypeIdentifierDietaryProtein";
+NSString * const HKQuantityTypeIdentifierDietaryCaffeine = @"HKQuantityTypeIdentifierDietaryCaffeine";
+NSString * const HKCategoryTypeIdentifierSleepAnalysis = @"HKCategoryTypeIdentifierSleepAnalysis";
+NSString * const HKCategoryTypeIdentifierMindfulSession = @"HKCategoryTypeIdentifierMindfulSession";
+NSString * const HKCategoryTypeIdentifierAppleStandHour = @"HKCategoryTypeIdentifierAppleStandHour";
+NSString * const HKCategoryTypeIdentifierHighHeartRateEvent = @"HKCategoryTypeIdentifierHighHeartRateEvent";
+NSString * const HKCharacteristicTypeIdentifierBiologicalSex = @"HKCharacteristicTypeIdentifierBiologicalSex";
+NSString * const HKCharacteristicTypeIdentifierDateOfBirth = @"HKCharacteristicTypeIdentifierDateOfBirth";
+NSString * const HKCharacteristicTypeIdentifierBloodType = @"HKCharacteristicTypeIdentifierBloodType";
+NSString * const HKSampleSortIdentifierStartDate = @"startDate";
+NSString * const HKSampleSortIdentifierEndDate = @"endDate";
+NSString * const HKMetadataKeyWasUserEntered = @"HKWasUserEntered";
+NSString * const HKMetadataKeyExternalUUID = @"HKExternalUUID";
+NSUInteger const HKObjectQueryNoLimit = 0;

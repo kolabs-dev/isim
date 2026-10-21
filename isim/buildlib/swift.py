@@ -704,7 +704,15 @@ OBJC_NAMES["StoreKit"] = {**{c: c for c in """SKAdImpression SKAdNetwork SKOverl
 OBJC_NAMES["AVFoundation"] = {c: c for c in """AVAudioSession AVAudioSessionPortDescription AVAudioSessionRouteDescription AVAsset AVURLAsset
     AVAssetTrack AVPlayerItem AVPlayerItemTrack AVPlayer AVQueuePlayer AVPlayerLayer""".split()}
 OBJC_NAMES["MessageUI"] = {c: c for c in ("MFMailComposeViewController", "MFMessageComposeViewController")}
-OBJC_NAMES["CoreMotion"] = {c: c for c in "CMLogItem CMAccelerometerData CMGyroData CMMagnetometerData CMAttitude CMDeviceMotion CMMotionManager".split()}
+OBJC_NAMES["CoreBluetooth"] = {c: c for c in """CBUUID CBAttribute CBService CBMutableService CBCharacteristic CBMutableCharacteristic
+    CBDescriptor CBMutableDescriptor CBPeer CBCentral CBATTRequest CBL2CAPChannel CBPeripheral CBManager CBCentralManager CBPeripheralManager""".split()}
+OBJC_NAMES["CoreNFC"] = {c: c for c in """NFCNDEFPayload NFCNDEFMessage NFCReaderSession NFCNDEFReaderSession NFCTagReaderSession NFCISO7816APDU
+    NFCVASCommandConfiguration NFCVASResponse NFCVASReaderSession""".split()}
+OBJC_NAMES["HealthKit"] = {c: c for c in """HKObjectType HKCharacteristicType HKSampleType HKQuantityType HKCategoryType HKWorkoutType HKUnit
+    HKQuantity HKSource HKSourceRevision HKDevice HKObject HKSample HKQuantitySample HKCategorySample HKHealthStore HKBiologicalSexObject HKQuery
+    HKSampleQuery HKStatistics HKStatisticsQuery HKStatisticsCollection HKStatisticsCollectionQuery HKObserverQuery""".split()}
+OBJC_NAMES["CoreMotion"] = {c: c for c in """CMLogItem CMAccelerometerData CMGyroData CMMagnetometerData CMAttitude CMDeviceMotion CMMotionManager
+    CMPedometerData CMPedometerEvent CMPedometer CMMotionActivity CMMotionActivityManager CMAltitudeData CMAltimeter CMHeadphoneMotionManager""".split()}
 OBJC_NAMES["SafariServices"] = {"SFSafariViewController": "SFSafariViewController", "SSReadingList": "SSReadingList",
                                 "SFSafariViewController.Configuration": "SFSafariViewControllerConfiguration"}
 OBJC_NAMES["CallKit"] = {c: c for c in """CXHandle CXCallUpdate CXProviderConfiguration CXAction CXCallAction CXStartCallAction CXAnswerCallAction

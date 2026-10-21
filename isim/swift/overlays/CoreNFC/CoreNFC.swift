@@ -51,7 +51,7 @@ public struct NFCReaderError: CustomNSError, LocalizedError, Sendable {
 }
 
 public enum NFCTypeNameFormat: UInt8, Sendable { case empty = 0, nfcWellKnown, media, absoluteURI, nfcExternal, unknown, unchanged }
-open class NFCNDEFPayload: NSObject, @unchecked Sendable {
+@objc(NFCNDEFPayload) open class NFCNDEFPayload: NSObject, @unchecked Sendable {
     open var typeNameFormat: NFCTypeNameFormat
     open var type: Data, identifier: Data, payload: Data
     public init(format: NFCTypeNameFormat, type: Data, identifier: Data, payload: Data) {
@@ -65,7 +65,7 @@ open class NFCNDEFPayload: NSObject, @unchecked Sendable {
         return NFCNDEFPayload(format: .nfcWellKnown, type: Data("T".utf8), identifier: Data(), payload: Data([UInt8(lang.count)]) + lang + Data(text.utf8))
     }
 }
-open class NFCNDEFMessage: NSObject, @unchecked Sendable {
+@objc(NFCNDEFMessage) open class NFCNDEFMessage: NSObject, @unchecked Sendable {
     open var records: [NFCNDEFPayload]
     public init(records: [NFCNDEFPayload]) { self.records = records }
     open var length: Int { records.reduce(0) { $0 + $1.payload.count + $1.type.count + 3 } }
@@ -79,7 +79,7 @@ public protocol NFCReaderSessionProtocol: NSObjectProtocol {
     func invalidate()
     func invalidate(errorMessage: String)
 }
-open class NFCReaderSession: NSObject, NFCReaderSessionProtocol, @unchecked Sendable {
+@objc(NFCReaderSession) open class NFCReaderSession: NSObject, NFCReaderSessionProtocol, @unchecked Sendable {
     open class var readingAvailable: Bool { false }
     open private(set) var isReady = false
     open var alertMessage = ""
@@ -107,7 +107,7 @@ public protocol NFCNDEFReaderSessionDelegate: NSObjectProtocol {
 }
 extension NFCNDEFReaderSessionDelegate { public func readerSessionDidBecomeActive(_ session: NFCNDEFReaderSession) {} }
 
-open class NFCNDEFReaderSession: NFCReaderSession, @unchecked Sendable {
+@objc(NFCNDEFReaderSession) open class NFCNDEFReaderSession: NFCReaderSession, @unchecked Sendable {
     open weak var delegate: NFCNDEFReaderSessionDelegate?
     public let invalidateAfterFirstRead: Bool
     public init(delegate: NFCNDEFReaderSessionDelegate, queue: DispatchQueue?, invalidateAfterFirstRead: Bool) {
@@ -132,7 +132,7 @@ public protocol NFCTagReaderSessionDelegate: NSObjectProtocol {
     func tagReaderSession(_ session: NFCTagReaderSession, didDetect tags: [NFCTag])
 }
 extension NFCTagReaderSessionDelegate { public func tagReaderSession(_ session: NFCTagReaderSession, didDetect tags: [NFCTag]) {} }
-open class NFCTagReaderSession: NFCReaderSession, @unchecked Sendable {
+@objc(NFCTagReaderSession) open class NFCTagReaderSession: NFCReaderSession, @unchecked Sendable {
     public struct PollingOption: OptionSet, Sendable {
         public let rawValue: Int
         public init(rawValue: Int) { self.rawValue = rawValue }
@@ -186,7 +186,7 @@ extension NFCNDEFTag {
 }
 
 /// an ISO 7816 command (an APDU)
-open class NFCISO7816APDU: NSObject, NSCopying, @unchecked Sendable {
+@objc(NFCISO7816APDU) open class NFCISO7816APDU: NSObject, NSCopying, @unchecked Sendable {
     public let instructionClass: UInt8, instructionCode: UInt8, p1Parameter: UInt8, p2Parameter: UInt8
     public let data: Data?
     public let expectedResponseLength: Int
@@ -348,7 +348,7 @@ public enum NFCTag: @unchecked Sendable {
 }
 
 // MARK: - Value Added Services (Apple Wallet passes over NFC)
-open class NFCVASCommandConfiguration: NSObject, NSCopying, @unchecked Sendable {
+@objc(NFCVASCommandConfiguration) open class NFCVASCommandConfiguration: NSObject, NSCopying, @unchecked Sendable {
     public enum Mode: Int, @unchecked Sendable { case urlOnly = 0, normal = 1 }
     open var mode: Mode
     open var passTypeIdentifier: String
@@ -358,7 +358,7 @@ open class NFCVASCommandConfiguration: NSObject, NSCopying, @unchecked Sendable 
     }
     public func copy(with zone: NSZone? = nil) -> Any { NFCVASCommandConfiguration(vasMode: mode, passTypeIdentifier: passTypeIdentifier, url: url) }
 }
-open class NFCVASResponse: NSObject, NSCopying, @unchecked Sendable {
+@objc(NFCVASResponse) open class NFCVASResponse: NSObject, NSCopying, @unchecked Sendable {
     public enum ErrorCode: Int, @unchecked Sendable {
         case success = 0x9000, dataNotFound = 0x6A83, dataNotActivated = 0x6287, wrongParameters = 0x6B00, wrongLCField = 0x6700
         case userIntervention = 0x6984, incorrectData = 0x6A80, unsupportedApplicationVersion = 0x6340
@@ -377,7 +377,7 @@ public protocol NFCVASReaderSessionDelegate: NSObjectProtocol {
 }
 extension NFCVASReaderSessionDelegate { public func readerSessionDidBecomeActive(_ session: NFCVASReaderSession) {} }
 /// reads Apple Wallet passes (the VAS protocol); needs the NFC Pass Type Identifiers entitlement on iOS
-open class NFCVASReaderSession: NFCReaderSession, @unchecked Sendable {
+@objc(NFCVASReaderSession) open class NFCVASReaderSession: NFCReaderSession, @unchecked Sendable {
     open weak var delegate: NFCVASReaderSessionDelegate?
     public let vasCommandConfigurations: [NFCVASCommandConfiguration]
     public init(vasCommandConfigurations: [NFCVASCommandConfiguration], delegate: NFCVASReaderSessionDelegate, queue: DispatchQueue?) {

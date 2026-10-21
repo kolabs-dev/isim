@@ -104,7 +104,7 @@ public let CBUUIDCharacteristicAggregateFormatString = "2905"
 public let CBUUIDCharacteristicValidRangeString = "2906"
 public let CBUUIDL2CAPPSMCharacteristicString = "ABDD3056-28FA-441D-A470-55A75A52553A"
 
-open class CBUUID: NSObject, NSCopying, @unchecked Sendable {
+@objc(CBUUID) open class CBUUID: NSObject, NSCopying, @unchecked Sendable {
     public let uuidString: String
     public init(string theString: String) { uuidString = theString.uppercased() }
     public init(nsuuid theUUID: UUID) { uuidString = theUUID.uuidString }
@@ -120,11 +120,11 @@ open class CBUUID: NSObject, NSCopying, @unchecked Sendable {
     open override var description: String { uuidString }
 }
 
-open class CBAttribute: NSObject, @unchecked Sendable {
+@objc(CBAttribute) open class CBAttribute: NSObject, @unchecked Sendable {
     var _uuid = CBUUID(string: "0000")
     open var uuid: CBUUID { _uuid }
 }
-open class CBService: CBAttribute, @unchecked Sendable {
+@objc(CBService) open class CBService: CBAttribute, @unchecked Sendable {
     var _isPrimary = true, _characteristics: [CBCharacteristic]?, _includedServices: [CBService]?
     open var isPrimary: Bool { _isPrimary }
     open var characteristics: [CBCharacteristic]? { _characteristics }
@@ -132,7 +132,7 @@ open class CBService: CBAttribute, @unchecked Sendable {
     open weak var peripheral: CBPeripheral?
 }
 /// a service the app publishes with a peripheral manager (CBPeripheralManager.add(_:))
-open class CBMutableService: CBService, @unchecked Sendable {
+@objc(CBMutableService) open class CBMutableService: CBService, @unchecked Sendable {
     public init(type UUID: CBUUID, primary isPrimary: Bool) {
         super.init()
         _uuid = UUID; _isPrimary = isPrimary
@@ -161,7 +161,7 @@ public struct CBAttributePermissions: OptionSet, Sendable {
     public static let readable = CBAttributePermissions(rawValue: 1), writeable = CBAttributePermissions(rawValue: 2)
     public static let readEncryptionRequired = CBAttributePermissions(rawValue: 4), writeEncryptionRequired = CBAttributePermissions(rawValue: 8)
 }
-open class CBCharacteristic: CBAttribute, @unchecked Sendable {
+@objc(CBCharacteristic) open class CBCharacteristic: CBAttribute, @unchecked Sendable {
     var _properties: CBCharacteristicProperties = [], _value: Data?, _descriptors: [CBDescriptor]?
     open var properties: CBCharacteristicProperties { _properties }
     open var value: Data? { _value }
@@ -170,7 +170,7 @@ open class CBCharacteristic: CBAttribute, @unchecked Sendable {
     open weak var service: CBService?
 }
 /// a characteristic the app publishes: a value given here is cached and read-only (iOS requires `.read` alone then)
-open class CBMutableCharacteristic: CBCharacteristic, @unchecked Sendable {
+@objc(CBMutableCharacteristic) open class CBMutableCharacteristic: CBCharacteristic, @unchecked Sendable {
     open var permissions: CBAttributePermissions
     open var subscribedCentrals: [CBCentral]? { nil }
     public init(type UUID: CBUUID, properties: CBCharacteristicProperties, value: Data?, permissions: CBAttributePermissions) {
@@ -186,14 +186,14 @@ open class CBMutableCharacteristic: CBCharacteristic, @unchecked Sendable {
         set { _descriptors = newValue; newValue?.forEach { $0.characteristic = self } }
     }
 }
-open class CBDescriptor: CBAttribute, @unchecked Sendable {
+@objc(CBDescriptor) open class CBDescriptor: CBAttribute, @unchecked Sendable {
     var _value: Any?
     open weak var characteristic: CBCharacteristic?
     open var value: Any? { _value }
 }
 /// a descriptor of a published characteristic: only the user description (a String) and the presentation format
 /// (Data) can be added, like iOS
-open class CBMutableDescriptor: CBDescriptor, @unchecked Sendable {
+@objc(CBMutableDescriptor) open class CBMutableDescriptor: CBDescriptor, @unchecked Sendable {
     public init(type UUID: CBUUID, value: Any?) {
         super.init()
         _uuid = UUID; _value = value
@@ -202,16 +202,16 @@ open class CBMutableDescriptor: CBDescriptor, @unchecked Sendable {
         }
     }
 }
-open class CBPeer: NSObject, @unchecked Sendable {
+@objc(CBPeer) open class CBPeer: NSObject, @unchecked Sendable {
     let _identifier = UUID()
     open var identifier: UUID { _identifier }
 }
 /// a remote device connected to the app's peripheral manager
-open class CBCentral: CBPeer, @unchecked Sendable {
+@objc(CBCentral) open class CBCentral: CBPeer, @unchecked Sendable {
     open var maximumUpdateValueLength: Int { 20 }
 }
 /// a read or write of a published characteristic by a central
-open class CBATTRequest: NSObject, @unchecked Sendable {
+@objc(CBATTRequest) open class CBATTRequest: NSObject, @unchecked Sendable {
     public let central: CBCentral
     public let characteristic: CBCharacteristic
     public let offset: Int
@@ -221,7 +221,7 @@ open class CBATTRequest: NSObject, @unchecked Sendable {
     }
 }
 /// a connection-oriented L2CAP channel to a peer
-open class CBL2CAPChannel: NSObject, @unchecked Sendable {
+@objc(CBL2CAPChannel) open class CBL2CAPChannel: NSObject, @unchecked Sendable {
     open var peer: CBPeer! { _peer }
     open var inputStream: InputStream! { _input }
     open var outputStream: OutputStream! { _output }
@@ -231,7 +231,7 @@ open class CBL2CAPChannel: NSObject, @unchecked Sendable {
         _peer = peer; _psm = psm; _input = InputStream(data: Data()); _output = OutputStream(toMemory: ())
     }
 }
-open class CBPeripheral: CBPeer, @unchecked Sendable {
+@objc(CBPeripheral) open class CBPeripheral: CBPeer, @unchecked Sendable {
     open weak var delegate: CBPeripheralDelegate?
     open var name: String? { nil }
     open var state: CBPeripheralState { .disconnected }
@@ -252,12 +252,12 @@ open class CBPeripheral: CBPeer, @unchecked Sendable {
 }
 @objc public protocol CBPeripheralDelegate: NSObjectProtocol {
     @objc optional func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?)
-    @objc optional func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?)
-    @objc optional func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?)
-    @objc optional func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?)
-    @objc optional func peripheral(_ peripheral: CBPeripheral, didOpen channel: CBL2CAPChannel?, error: Error?)
+    @objc(peripheral:didDiscoverCharacteristicsForService:error:) optional func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?)
+    @objc(peripheral:didUpdateValueForCharacteristic:error:) optional func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?)
+    @objc(peripheral:didWriteValueForCharacteristic:error:) optional func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?)
+    @objc(peripheral:didOpenL2CAPChannel:error:) optional func peripheral(_ peripheral: CBPeripheral, didOpen channel: CBL2CAPChannel?, error: Error?)
     @objc optional func peripheralDidUpdateName(_ peripheral: CBPeripheral)
-    @objc optional func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral)
+    @objc(peripheralIsReadyToSendWriteWithoutResponse:) optional func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral)
 }
 
 /// Info.plist NSBluetoothAlwaysUsageDescription: Core Bluetooth needs it (iOS 13+ terminates an app without it; isim
@@ -272,7 +272,7 @@ enum _CBUsage {
     static var state: CBManagerState { declared ? .unsupported : .unauthorized }
 }
 
-open class CBManager: NSObject, @unchecked Sendable {
+@objc(CBManager) open class CBManager: NSObject, @unchecked Sendable {
     open var state: CBManagerState { .unknown }
     /// no Bluetooth permission prompt is shown on a device without Bluetooth; denied without the usage description
     open class var authorization: CBManagerAuthorization { _CBUsage.declared ? .allowedAlways : .denied }
@@ -285,13 +285,13 @@ open class CBManager: NSObject, @unchecked Sendable {
 @objc public protocol CBCentralManagerDelegate: NSObjectProtocol {
     func centralManagerDidUpdateState(_ central: CBCentralManager)
     @objc optional func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any])
-    @objc optional func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber)
-    @objc optional func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral)
-    @objc optional func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?)
-    @objc optional func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?)
+    @objc(centralManager:didDiscoverPeripheral:advertisementData:RSSI:) optional func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber)
+    @objc(centralManager:didConnectPeripheral:) optional func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral)
+    @objc(centralManager:didFailToConnectPeripheral:error:) optional func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?)
+    @objc(centralManager:didDisconnectPeripheral:error:) optional func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?)
 }
 
-open class CBCentralManager: CBManager, @unchecked Sendable {
+@objc(CBCentralManager) open class CBCentralManager: CBManager, @unchecked Sendable {
     open weak var delegate: CBCentralManagerDelegate?
     private var current: CBManagerState = .unknown
     open override var state: CBManagerState { current }
@@ -329,19 +329,19 @@ open class CBCentralManager: CBManager, @unchecked Sendable {
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager)
     @objc optional func peripheralManager(_ peripheral: CBPeripheralManager, willRestoreState dict: [String: Any])
     @objc optional func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: Error?)
-    @objc optional func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: Error?)
-    @objc optional func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic)
-    @objc optional func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic)
-    @objc optional func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest)
-    @objc optional func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest])
-    @objc optional func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager)
-    @objc optional func peripheralManager(_ peripheral: CBPeripheralManager, didPublishL2CAPChannel PSM: CBL2CAPPSM, error: Error?)
-    @objc optional func peripheralManager(_ peripheral: CBPeripheralManager, didUnpublishL2CAPChannel PSM: CBL2CAPPSM, error: Error?)
-    @objc optional func peripheralManager(_ peripheral: CBPeripheralManager, didOpen channel: CBL2CAPChannel?, error: Error?)
+    @objc(peripheralManager:didAddService:error:) optional func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: Error?)
+    @objc(peripheralManager:central:didSubscribeToCharacteristic:) optional func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic)
+    @objc(peripheralManager:central:didUnsubscribeFromCharacteristic:) optional func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic)
+    @objc(peripheralManager:didReceiveReadRequest:) optional func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest)
+    @objc(peripheralManager:didReceiveWriteRequests:) optional func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest])
+    @objc(peripheralManagerIsReadyToUpdateSubscribers:) optional func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager)
+    @objc(peripheralManager:didPublishL2CAPChannel:error:) optional func peripheralManager(_ peripheral: CBPeripheralManager, didPublishL2CAPChannel PSM: CBL2CAPPSM, error: Error?)
+    @objc(peripheralManager:didUnpublishL2CAPChannel:error:) optional func peripheralManager(_ peripheral: CBPeripheralManager, didUnpublishL2CAPChannel PSM: CBL2CAPPSM, error: Error?)
+    @objc(peripheralManager:didOpenL2CAPChannel:error:) optional func peripheralManager(_ peripheral: CBPeripheralManager, didOpen channel: CBL2CAPChannel?, error: Error?)
 }
 /// the app as a Bluetooth LE peripheral: it publishes services and advertises them. isim has no radio (like the
 /// Simulator), so the manager stays .unsupported and its commands log iOS's API MISUSE message and do nothing
-open class CBPeripheralManager: CBManager, @unchecked Sendable {
+@objc(CBPeripheralManager) open class CBPeripheralManager: CBManager, @unchecked Sendable {
     open weak var delegate: CBPeripheralManagerDelegate?
     private var current: CBManagerState = .unknown
     open override var state: CBManagerState { current }

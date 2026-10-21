@@ -83,7 +83,7 @@ public enum HKCategoryValue: Int, Sendable { case notApplicable = 0 }
 
 // MARK: - Object types
 
-open class HKObjectType: NSObject, NSCopying, @unchecked Sendable {
+@objc(HKObjectType) open class HKObjectType: NSObject, NSCopying, @unchecked Sendable {
     @objc public let identifier: String
     init(_ identifier: String) { self.identifier = identifier }
     public func copy(with zone: OpaquePointer? = nil) -> Any { self }
@@ -97,23 +97,23 @@ open class HKObjectType: NSObject, NSCopying, @unchecked Sendable {
     open class func workoutType() -> HKWorkoutType { HKWorkoutType("HKWorkoutTypeIdentifier") }
     open var _isimName: String { _HKNames.name(identifier) }
 }
-open class HKCharacteristicType: HKObjectType, @unchecked Sendable {}
-open class HKSampleType: HKObjectType, @unchecked Sendable {
+@objc(HKCharacteristicType) open class HKCharacteristicType: HKObjectType, @unchecked Sendable {}
+@objc(HKSampleType) open class HKSampleType: HKObjectType, @unchecked Sendable {
     open var isMinimumDurationRestricted: Bool { false }
     open var isMaximumDurationRestricted: Bool { false }
 }
 @objc public enum HKQuantityAggregationStyle: Int, Sendable { case cumulative = 0, discreteArithmetic, discreteTemporallyWeighted, discreteEquivalentContinuousLevel }
-open class HKQuantityType: HKSampleType, @unchecked Sendable {
+@objc(HKQuantityType) open class HKQuantityType: HKSampleType, @unchecked Sendable {
     public convenience init(_ identifier: HKQuantityTypeIdentifier) { self.init(identifier.rawValue as String) }
     override init(_ identifier: String) { super.init(identifier) }
     open var aggregationStyle: HKQuantityAggregationStyle { _HKUnits.cumulative.contains(identifier) ? .cumulative : .discreteArithmetic }
     open func `is`(compatibleWith unit: HKUnit) -> Bool { _HKUnits.canonical(identifier).dimension == unit.dimension }
 }
-open class HKCategoryType: HKSampleType, @unchecked Sendable {
+@objc(HKCategoryType) open class HKCategoryType: HKSampleType, @unchecked Sendable {
     public convenience init(_ identifier: HKCategoryTypeIdentifier) { self.init(identifier.rawValue as String) }
     override init(_ identifier: String) { super.init(identifier) }
 }
-open class HKWorkoutType: HKSampleType, @unchecked Sendable {}
+@objc(HKWorkoutType) open class HKWorkoutType: HKSampleType, @unchecked Sendable {}
 
 enum _HKNames {
     static func name(_ id: String) -> String {
@@ -144,7 +144,7 @@ enum _HKNames {
 
 @objc public enum HKMetricPrefix: Int, Sendable { case none = 0, femto = 13, pico = 1, nano, micro, milli, centi, deci, deca, hecto, kilo, mega, giga, tera }
 
-open class HKUnit: NSObject, NSCopying, @unchecked Sendable {
+@objc(HKUnit) open class HKUnit: NSObject, NSCopying, @unchecked Sendable {
     public let unitString: String
     let factor: Double          // value in canonical units = value * factor
     let dimension: String
@@ -245,7 +245,7 @@ enum _HKUnits {
     }
 }
 
-open class HKQuantity: NSObject, NSCopying, @unchecked Sendable {
+@objc(HKQuantity) open class HKQuantity: NSObject, NSCopying, @unchecked Sendable {
     let canonicalValue: Double      // value * unit.factor
     let dimension: String
     let unit: HKUnit
@@ -264,7 +264,7 @@ open class HKQuantity: NSObject, NSCopying, @unchecked Sendable {
 
 // MARK: - Objects and samples
 
-open class HKSource: NSObject, @unchecked Sendable {
+@objc(HKSource) open class HKSource: NSObject, @unchecked Sendable {
     @objc public let name: String
     @objc public let bundleIdentifier: String
     init(name: String, bundleIdentifier: String) { self.name = name; self.bundleIdentifier = bundleIdentifier }
@@ -272,26 +272,26 @@ open class HKSource: NSObject, @unchecked Sendable {
     open override func isEqual(_ object: Any?) -> Bool { (object as? HKSource)?.bundleIdentifier == bundleIdentifier }
     open override var hash: Int { bundleIdentifier.hashValue }
 }
-open class HKSourceRevision: NSObject, @unchecked Sendable {
+@objc(HKSourceRevision) open class HKSourceRevision: NSObject, @unchecked Sendable {
     @objc public let source: HKSource
     public let version: String?
     public init(source: HKSource, version: String?) { self.source = source; self.version = version }
 }
-open class HKDevice: NSObject, @unchecked Sendable {
+@objc(HKDevice) open class HKDevice: NSObject, @unchecked Sendable {
     open class func local() -> HKDevice { HKDevice() }
     open var name: String? { "iPhone" }
     open var manufacturer: String? { "Apple Inc." }
     open var model: String? { "iPhone" }
 }
 
-open class HKObject: NSObject, @unchecked Sendable {
+@objc(HKObject) open class HKObject: NSObject, @unchecked Sendable {
     @objc open internal(set) var uuid: UUID = UUID()
     @objc open internal(set) var metadata: [String: Any]?
     @objc open internal(set) var sourceRevision: HKSourceRevision = HKSourceRevision(source: .default(), version: nil)
     open var device: HKDevice? { nil }
     @available(*, deprecated) open var source: HKSource { sourceRevision.source }
 }
-open class HKSample: HKObject, @unchecked Sendable {
+@objc(HKSample) open class HKSample: HKObject, @unchecked Sendable {
     @objc open internal(set) var sampleType: HKSampleType
     @objc open internal(set) var startDate: Date
     @objc open internal(set) var endDate: Date
@@ -302,7 +302,7 @@ open class HKSample: HKObject, @unchecked Sendable {
         self.metadata = metadata
     }
 }
-open class HKQuantitySample: HKSample, @unchecked Sendable {
+@objc(HKQuantitySample) open class HKQuantitySample: HKSample, @unchecked Sendable {
     @objc open internal(set) var quantity: HKQuantity
     open var quantityType: HKQuantityType { sampleType as! HKQuantityType }
     open var count: Int { 1 }
@@ -318,7 +318,7 @@ open class HKQuantitySample: HKSample, @unchecked Sendable {
         self.init(type: quantityType, quantity: quantity, start: startDate, end: endDate, metadata: metadata)
     }
 }
-open class HKCategorySample: HKSample, @unchecked Sendable {
+@objc(HKCategorySample) open class HKCategorySample: HKSample, @unchecked Sendable {
     @objc open internal(set) var value: Int
     open var categoryType: HKCategoryType { sampleType as! HKCategoryType }
     public init(type: HKCategoryType, value: Int, start startDate: Date, end endDate: Date) {
