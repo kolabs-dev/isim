@@ -268,6 +268,15 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
                                                                        title:nil previewText:nil error:&e2];
     say(@"reading list ok=%d refused=%d error=%@ supports=%d", ok, !bad, errText(e2),
         [SSReadingList supportsURL:[NSURL URLWithString:@"https://example.com"]]);
+    // no content blocker extension in this app: SFErrorNoExtensionFound
+    [SFContentBlockerManager getStateOfContentBlockerWithIdentifier:@"dev.isim.samples.HelloServicesObjC.Blocker"
+                                                  completionHandler:^(SFContentBlockerState *state, NSError *error) {
+        [SFContentBlockerManager reloadContentBlockerWithIdentifier:@"dev.isim.samples.HelloServicesObjC.Blocker"
+                                                  completionHandler:^(NSError *reloadError) {
+            say(@"content blocker state=%d error=%@ reload=%@ missing=%d", state != nil, errText(error), errText(reloadError),
+                [reloadError.domain isEqual:SFErrorDomain] && reloadError.code == SFErrorNoExtensionFound);
+        }];
+    }];
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {

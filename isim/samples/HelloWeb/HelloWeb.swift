@@ -6,7 +6,8 @@
 // menus and text selection, <select> menus, pinch zoom, the find navigator, createPDF and web archives. With -webpage
 // (iOS 26): SwiftUI's WebView showing a WebPage, its navigation events, title and callJavaScript. With -transfers: HTTP
 // authentication challenges, downloads (startDownload, a navigation response made a download, cancel and resume) and
-// a camera permission request.
+// a camera permission request. With -rules: content rule lists (WKContentRuleListStore) blocking an image and hiding
+// an element.
 //   isim run out/apps/HelloWeb.app -server http://127.0.0.1:8765   (samples/HelloWeb/server.py)
 import UIKit
 import WebKit
@@ -21,7 +22,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         if args.contains("-webpage"), #available(iOS 26.0, *) {
             window?.rootViewController = UIHostingController(rootView: WebPageScreen())
         } else {
-            let root: UIViewController = args.contains("-interact") ? InteractViewController() : args.contains("-transfers") ? TransfersViewController() : WebViewController()
+            let root: UIViewController = args.contains("-interact") ? InteractViewController() : args.contains("-transfers") ? TransfersViewController()
+                : args.contains("-rules") ? RulesViewController() : WebViewController()
             window?.rootViewController = UINavigationController(rootViewController: root)
         }
         window?.makeKeyAndVisible()
@@ -487,5 +489,63 @@ final class TransfersViewController: UIViewController, WKNavigationDelegate, WKU
                  type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
         log("media capture \(origin.host) type \(type.rawValue)")
         decisionHandler(.prompt)
+    }
+}
+
+// MARK: - -rules: content rule lists
+
+final class RulesViewController: UIViewController, WKNavigationDelegate {
+    let web = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
+    var store: WKContentRuleListStore { WKContentRuleListStore.default() }
+    var list: WKContentRuleList?
+    var observation: NSKeyValueObservation?
+    let rules = """
+    [{"trigger": {"url-filter": "/ads/"}, "action": {"type": "block"}},
+     {"trigger": {"url-filter": ".*"}, "action": {"type": "css-display-none", "selector": ".banner"}}]
+    """
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Content Rules"
+        view.backgroundColor = .systemBackground
+        web.translatesAutoresizingMaskIntoConstraints = false
+        web.navigationDelegate = self
+        view.addSubview(web)
+        let g = view.safeAreaLayoutGuide
+        NSLayoutConstraint.activate([web.topAnchor.constraint(equalTo: g.topAnchor), web.bottomAnchor.constraint(equalTo: g.bottomAnchor),
+                                     web.leadingAnchor.constraint(equalTo: view.leadingAnchor), web.trailingAnchor.constraint(equalTo: view.trailingAnchor)])
+        var pass = 0
+        observation = web.observe(\.title) { [weak self] w, _ in
+            guard let self, let t = w.title, t.hasPrefix("img ") else { return }
+            pass += 1
+            log("rules page \(pass == 1 ? "with" : "without") the list: \(t)")
+            if pass == 2 { Task { await self.storeChecks() } }
+        }
+        let off = UIBarButtonItem(title: "Without Rules", style: .plain, target: self, action: #selector(rulesOff))
+        off.accessibilityIdentifier = "rules-off"
+        navigationItem.rightBarButtonItem = off
+        store.compileContentRuleList(forIdentifier: "bad", encodedContentRuleList: "[{\"trigger\": {}}]") { l, e in
+            log("invalid rules: list \(l == nil ? "nil" : "made") error \((e as? WKError)?.code.rawValue ?? -1)")
+        }
+        store.compileContentRuleList(forIdentifier: "isim-blocker", encodedContentRuleList: rules) { [weak self] l, e in
+            guard let self, let l else { log("compile error \(String(describing: e))"); return }
+            log("compiled \(l.identifier)")
+            self.list = l
+            self.web.configuration.userContentController.add(l)
+            self.web.load(URLRequest(url: URL(string: serverURL + "/rules")!))
+        }
+    }
+    @objc func rulesOff() {
+        guard let l = list else { return }
+        web.configuration.userContentController.remove(l)
+        web.reload()
+    }
+    func storeChecks() async {
+        let ids = await store.availableIdentifiers() ?? []
+        log("identifiers \(ids.sorted().joined(separator: ","))")
+        let found = try? await store.contentRuleList(forIdentifier: "isim-blocker")
+        log("looked up \(found?.identifier ?? "nil")")
+        try? await store.removeContentRuleList(forIdentifier: "isim-blocker")
+        do { _ = try await store.contentRuleList(forIdentifier: "isim-blocker"); log("still there") }
+        catch { log("after removal: lookup error \((error as? WKError)?.code.rawValue ?? -1)") }
     }
 }

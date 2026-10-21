@@ -668,6 +668,8 @@ extension Bundle {
     }
     public func url(forResource name: String?, withExtension ext: String?, subdirectory sub: String?) -> URL? {
         if let n = name, let p = path(forResource: n, ofType: ext, inDirectory: sub, forLocalization: nil) { return URL(fileURLWithPath: p) }
+        // the localized copy, or (Bundle.main) a resource of an extension running in this process, like Apple's lookup
+        if let n = name, sub == nil || sub == "", let p = path(forResource: n, ofType: ext) { return URL(fileURLWithPath: p) }
         if name == nil, let ext { return urls(forResourcesWithExtension: ext, subdirectory: sub)?.first }
         return nil
     }

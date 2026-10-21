@@ -2,3 +2,4 @@
 #import <SafariServices/SafariServices.h>
 
 NSString * const SSReadingListErrorDomain = @"SSReadingListErrorDomain";
+NSErrorDomain const SFErrorDomain = @"SFErrorDomain";

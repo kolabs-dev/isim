@@ -100,6 +100,9 @@ final class _WKEngine: @unchecked Sendable {
         default:
             if id == 0 {
                 if ev == "scheme", f.count >= 2 { _WKSchemeRouter.request(id: Int(f[0]) ?? 0, viewID: 0, json: f[1]) }
+                if ev == "done", let req = f.first.flatMap({ Int($0) }), let cb = storeCallbacks.removeValue(forKey: req) {
+                    cb(f.dropFirst().joined(separator: "\t"))
+                }
                 return
             }
             if ev == "scheme", f.count >= 2 { _WKSchemeRouter.request(id: Int(f[0]) ?? 0, viewID: id, json: f[1]); return }

@@ -122,6 +122,8 @@ static int next_scheme_req = 1;
 struct dl { WebKitDownload *d; int id, view, req; char *origin; };
 static GHashTable *downloads;
 static int next_dl = 1;
+/* content rule lists (WKContentRuleListStore): stores by directory, compiled filters by "directory\nidentifier" */
+static GHashTable *filter_stores, *filters;
 
 enum { P_POLICY = 1, P_DIALOG, P_REPLY, P_AUTH, P_PERM };
 struct pend { int kind; gpointer obj; };
@@ -451,6 +453,63 @@ static gboolean on_permission(WebKitWebView *wv, WebKitPermissionRequest *r, gpo
     int req = pend_add(v, P_PERM, r);
     SEND(v->id, "media", itoa_(req), video && audio ? "2" : audio ? "1" : "0", webkit_web_view_get_uri(wv) ?: "");
     return TRUE;
+}
+
+/* ---------------- content rule lists ---------------- */
+static WebKitUserContentFilterStore *filter_store(const char *path) {
+    WebKitUserContentFilterStore *st = g_hash_table_lookup(filter_stores, path);
+    if (!st) { g_mkdir_with_parents(path, 0755); st = webkit_user_content_filter_store_new(path); g_hash_table_insert(filter_stores, g_strdup(path), st); }
+    return st;
+}
+/* a store operation's reply: "done 0 req ok|error message [json]" (the app's WKContentRuleListStore completion) */
+struct rule_op { int req, view; char *path, *ident; };
+static void rule_op_free(struct rule_op *o) { g_free(o->path); g_free(o->ident); g_free(o); }
+static void rule_keep(struct rule_op *o, WebKitUserContentFilter *f) {
+    g_hash_table_replace(filters, g_strdup_printf("%s\n%s", o->path, o->ident), webkit_user_content_filter_ref(f));
+}
+static void rule_compiled(GObject *src, GAsyncResult *res, gpointer data) {
+    struct rule_op *o = data; GError *e = NULL;
+    WebKitUserContentFilter *f = webkit_user_content_filter_store_save_finish(WEBKIT_USER_CONTENT_FILTER_STORE(src), res, &e);
+    if (f) { rule_keep(o, f); webkit_user_content_filter_unref(f); SEND(0, "done", itoa_(o->req), "ok"); }
+    else { SEND(0, "done", itoa_(o->req), "error", e ? e->message : "compile failed"); }
+    if (e) g_error_free(e);
+    rule_op_free(o);
+}
+static void rule_apply(struct rule_op *o, WebKitUserContentFilter *f) {
+    struct view *v = view_get(o->view);
+    if (v && f) { webkit_user_content_manager_remove_filter_by_id(v->ucm, o->ident); webkit_user_content_manager_add_filter(v->ucm, f); }
+}
+static void rule_loaded(GObject *src, GAsyncResult *res, gpointer data) {
+    struct rule_op *o = data; GError *e = NULL;
+    WebKitUserContentFilter *f = webkit_user_content_filter_store_load_finish(WEBKIT_USER_CONTENT_FILTER_STORE(src), res, &e);
+    if (f) rule_keep(o, f);
+    if (o->view) rule_apply(o, f);
+    else if (f) SEND(0, "done", itoa_(o->req), "ok");
+    else SEND(0, "done", itoa_(o->req), "error", e ? e->message : "not found");
+    if (f) webkit_user_content_filter_unref(f);
+    if (e) g_error_free(e);
+    rule_op_free(o);
+}
+static void rule_removed(GObject *src, GAsyncResult *res, gpointer data) {
+    struct rule_op *o = data; GError *e = NULL;
+    gboolean ok = webkit_user_content_filter_store_remove_finish(WEBKIT_USER_CONTENT_FILTER_STORE(src), res, &e);
+    if (ok) { char *k = g_strdup_printf("%s\n%s", o->path, o->ident); g_hash_table_remove(filters, k); g_free(k); }
+    SEND(0, "done", itoa_(o->req), ok ? "ok" : "error", e ? e->message : "");
+    if (e) g_error_free(e);
+    rule_op_free(o);
+}
+static void rule_ids(GObject *src, GAsyncResult *res, gpointer data) {
+    struct rule_op *o = data;
+    char **ids = webkit_user_content_filter_store_fetch_identifiers_finish(WEBKIT_USER_CONTENT_FILTER_STORE(src), res);
+    GString *j = g_string_new("[");
+    for (char **i = ids; i && *i; i++) { char *x = json_esc(*i); g_string_append_printf(j, "%s\"%s\"", i == ids ? "" : ",", x); g_free(x); }
+    g_string_append(j, "]");
+    SEND(0, "done", itoa_(o->req), "ok", j->str);
+    g_string_free(j, TRUE); g_strfreev(ids);
+    rule_op_free(o);
+}
+static struct rule_op *rule_op(int req, int view, const char *path, const char *ident) {
+    struct rule_op *o = g_new0(struct rule_op, 1); o->req = req; o->view = view; o->path = g_strdup(path); o->ident = g_strdup(ident); return o;
 }
 
 /* ---------------- downloads ---------------- */
@@ -1022,6 +1081,24 @@ static void cmd(char **f, int n) {
         g_object_unref(s->rq); g_free(s->mime); g_free(s->headers); if (s->body) g_byte_array_free(s->body, TRUE); g_free(s);
         return;
     }
+    if (!strcmp(c, "rulecompile")) {       /* req path identifier json */
+        GBytes *b = g_bytes_new(ARG(5), strlen(ARG(5)));
+        webkit_user_content_filter_store_save(filter_store(ARG(3)), ARG(4), b, NULL, rule_compiled, rule_op(atoi(ARG(2)), 0, ARG(3), ARG(4)));
+        g_bytes_unref(b);
+        return;
+    }
+    if (!strcmp(c, "ruleload")) {          /* req path identifier */
+        webkit_user_content_filter_store_load(filter_store(ARG(3)), ARG(4), NULL, rule_loaded, rule_op(atoi(ARG(2)), 0, ARG(3), ARG(4)));
+        return;
+    }
+    if (!strcmp(c, "ruleremove")) {        /* req path identifier */
+        webkit_user_content_filter_store_remove(filter_store(ARG(3)), ARG(4), NULL, rule_removed, rule_op(atoi(ARG(2)), 0, ARG(3), ARG(4)));
+        return;
+    }
+    if (!strcmp(c, "ruleids")) {           /* req path */
+        webkit_user_content_filter_store_fetch_identifiers(filter_store(ARG(3)), NULL, rule_ids, rule_op(atoi(ARG(2)), 0, ARG(3), ""));
+        return;
+    }
     if (!strcmp(c, "dldest") || !strcmp(c, "dlcancel")) {     /* download id [path: empty cancels] */
         struct dl *x = g_hash_table_lookup(downloads, GINT_TO_POINTER(atoi(ARG(2))));
         if (!x) return;
@@ -1139,6 +1216,16 @@ static void cmd(char **f, int n) {
         if (atoi(ARG(3))) webkit_permission_request_allow(p->obj); else webkit_permission_request_deny(p->obj);
         g_object_unref(p->obj); g_free(p);
     }
+    else if (!strcmp(c, "addrule")) {         /* path identifier: apply a compiled content rule list */
+        char *k = g_strdup_printf("%s\n%s", ARG(2), ARG(3));
+        WebKitUserContentFilter *flt = g_hash_table_lookup(filters, k);
+        g_free(k);
+        struct rule_op *o = rule_op(0, v->id, ARG(2), ARG(3));
+        if (flt) { rule_apply(o, flt); rule_op_free(o); }
+        else webkit_user_content_filter_store_load(filter_store(ARG(2)), ARG(3), NULL, rule_loaded, o);
+    }
+    else if (!strcmp(c, "rmrule")) webkit_user_content_manager_remove_filter_by_id(v->ucm, ARG(2));
+    else if (!strcmp(c, "clearrules")) webkit_user_content_manager_remove_all_filters(v->ucm);
     else if (!strcmp(c, "download")) {        /* req url headers(name: value lines) */
         WebKitDownload *d = webkit_web_view_download_uri(v->wv, ARG(3));
         if (d) { dl_track(d, v->id, atoi(ARG(2)), "api"); g_object_unref(d); }
@@ -1285,6 +1372,8 @@ int main(int argc, char **argv) {
     schemes = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
     scheme_reqs = g_hash_table_new(g_direct_hash, g_direct_equal);
     downloads = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, dl_free);
+    filter_stores = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_object_unref);
+    filters = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, (GDestroyNotify)webkit_user_content_filter_unref);
     inbuf = g_string_new(NULL);
     GIOChannel *ch = g_io_channel_unix_new(PROTO_FD);
     g_io_add_watch(ch, G_IO_IN | G_IO_HUP | G_IO_ERR, on_input, NULL);

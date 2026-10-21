@@ -141,8 +141,10 @@ open class _SFBrowserViewController: UIViewController, WKNavigationDelegate, WKU
         _updateChrome()
         var rq = URLRequest(url: initialURL)
         for (k, v) in _headers { rq.setValue(v, forHTTPHeaderField: k) }
-        web.load(rq)
+        if let prepare = beforeLoad { prepare { [weak self] in self?.web.load(rq) } } else { web.load(rq) }
     }
+    /// runs before the first load (SFSafariViewController: the enabled content blockers)
+    var beforeLoad: ((@escaping () -> Void) -> Void)?
     func _updateChrome() {
         let u = web.url ?? initialURL
         var host = u.host ?? u.absoluteString
@@ -295,6 +297,10 @@ enum _SFCompass {
         b.onDismiss = { [weak self] in
             guard let self else { return }
             self.dismiss(animated: true) { self.delegate?.safariViewControllerDidFinish?(self) }
+        }
+        b.beforeLoad = { [weak b] go in
+            guard let b else { return }
+            SFContentBlockerManager.apply(to: b.web.configuration.userContentController, then: go)
         }
         b.onFirstLoad = { [weak self] ok in guard let self else { return }; self.delegate?.safariViewController?(self, didCompleteInitialLoad: ok) }
         b.onRedirect = { [weak self] u in

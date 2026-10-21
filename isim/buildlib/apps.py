@@ -266,8 +266,10 @@ def _(a):
 
 @app("samples/HelloSafari")
 def _(a):
-    b = a.swift_app()
+    b = a.swift_app(srcs=["HelloSafari.swift"])
     a.copy("HelloSafari.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # like Xcode simulator builds
+    x = a.appex(b, "Blocker", ["Blocker/ContentBlockerRequestHandler.swift"], "Blocker/Info.plist")   # a Safari content blocker
+    a.copy("Blocker/blockerList.json", f"{x}/blockerList.json")
 
 
 @app("samples/HelloSystem")
