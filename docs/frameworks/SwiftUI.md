@@ -1,7 +1,7 @@
 # SwiftUI
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 68.9% of Apple's iOS API (4716 of 6849, exact) · **Rows:** 296: 283 ✅ 7 🟡 6 ❌ · **iOS:** 13.0+
+**Symbols:** 69.1% of Apple's iOS API (4735 of 6849, exact) · **Rows:** 296: 283 ✅ 7 🟡 6 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [SwiftUI & Charts](../COVERAGE.md#swiftui) · **Apple:** [SwiftUI](https://developer.apple.com/documentation/swiftui) · **Issues:** [`area:swiftui`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aswiftui)
@@ -385,7 +385,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-2133 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+2114 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -689,7 +689,7 @@
 - [`DocumentBaseBox`](https://developer.apple.com/documentation/swiftui/documentbasebox)
 - [`var base: Self.Document?`](https://developer.apple.com/documentation/swiftui/documentbasebox/base)
 - [`Document`](https://developer.apple.com/documentation/swiftui/documentbasebox/document)
-- … and 1833 more (`isim/data/api-coverage.json.gz`)
+- … and 1814 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->
