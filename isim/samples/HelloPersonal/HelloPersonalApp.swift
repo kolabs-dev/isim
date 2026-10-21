@@ -1,10 +1,12 @@
 // Sample: personal data on isim — Contacts (permission alert, the seeded address book, predicates, save requests,
 // unfetched-key safety), ContactsUI (contact picker, new-contact form), EventKit (calendar/reminders access, saving
-// events and reminders, predicates) and EventKitUI (the New Event form).
+// events and reminders, predicates, recurring events and their occurrences, structured locations, alarms, attendees)
+// and EventKitUI (the New Event form, the calendar chooser).
 import SwiftUI
 import Contacts
 import ContactsUI
 import EventKit
+import CoreLocation
 import EventKitUI
 
 @main
@@ -19,7 +21,8 @@ struct HelloPersonalApp: App {
     return vc
 }
 
-final class PersonalModel: NSObject, ObservableObject, CNContactPickerDelegate, CNContactViewControllerDelegate, EKEventEditViewDelegate {
+final class PersonalModel: NSObject, ObservableObject, CNContactPickerDelegate, CNContactViewControllerDelegate, EKEventEditViewDelegate,
+                           EKCalendarChooserDelegate {
     let contacts = CNContactStore()
     let events = EKEventStore()
     @Published var contactText = "—"
@@ -183,6 +186,106 @@ final class PersonalModel: NSObject, ObservableObject, CNContactPickerDelegate, 
         controller.dismiss(animated: true)
         listEvents()
     }
+
+    // MARK: Recurrence, spans, locations, alarms, attendees
+    /// next Monday at 9:00 (a fixed weekday, so the occurrences below are the same every run)
+    var nextMonday: Date {
+        let c = Calendar.current
+        var d = c.startOfDay(for: Date().addingTimeInterval(86400))
+        while c.component(.weekday, from: d) != 2 { d = c.date(byAdding: .day, value: 1, to: d)! }
+        return c.date(bySettingHour: 9, minute: 0, second: 0, of: d)!
+    }
+    func occurrences(_ title: String, _ from: Date, _ days: Int) -> [EKEvent] {
+        events.events(matching: events.predicateForEvents(withStart: from, end: from.addingTimeInterval(Double(days) * 86400), calendars: nil))
+            .filter { $0.title.hasPrefix(title) }
+    }
+    func weekdays(_ list: [EKEvent]) -> String {
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "EEE"
+        return list.map { f.string(from: $0.startDate) }.joined(separator: ",")
+    }
+    func recurring() {
+        let cal = events.defaultCalendarForNewEvents
+        let monday = nextMonday
+        // weekly on Monday, Wednesday and Friday, six times
+        let standup = EKEvent(eventStore: events)
+        standup.title = "Standup"; standup.calendar = cal
+        standup.startDate = monday; standup.endDate = monday.addingTimeInterval(900)
+        let rule = EKRecurrenceRule(recurrenceWith: .weekly, interval: 1, daysOfTheWeek: [EKRecurrenceDayOfWeek(.monday), EKRecurrenceDayOfWeek(.wednesday), EKRecurrenceDayOfWeek(.friday)],
+                                    daysOfTheMonth: nil, monthsOfTheYear: nil, weeksOfTheYear: nil, daysOfTheYear: nil, setPositions: nil, end: EKRecurrenceEnd(occurrenceCount: 6))
+        standup.addRecurrenceRule(rule)
+        do { try events.save(standup, span: .futureEvents) } catch { print("recurring save error \(error)") }
+        var list = occurrences("Standup", monday, 21)
+        print("recurring \(list.count) \(weekdays(list)) one id \(Set(list.map(\.eventIdentifier)).count == 1) rule \(standup.recurrenceRules?.first?.daysOfTheWeek?.map(\.description).joined(separator: ",") ?? "-")")
+        // the second Tuesday of each month, three times; the last day of each month
+        let club = EKEvent(eventStore: events)
+        club.title = "Book club"; club.calendar = cal
+        club.startDate = monday; club.endDate = monday.addingTimeInterval(3600)
+        club.addRecurrenceRule(EKRecurrenceRule(recurrenceWith: .monthly, interval: 1, daysOfTheWeek: [EKRecurrenceDayOfWeek(.tuesday, weekNumber: 2)], daysOfTheMonth: nil,
+                                                monthsOfTheYear: nil, weeksOfTheYear: nil, daysOfTheYear: nil, setPositions: nil, end: EKRecurrenceEnd(occurrenceCount: 3)))
+        try? events.save(club, span: .futureEvents)
+        let clubs = occurrences("Book club", monday, 120)
+        let c = Calendar.current
+        print("monthly \(clubs.count) second tuesdays \(clubs.allSatisfy { c.component(.weekday, from: $0.startDate) == 3 && (8...14).contains(c.component(.day, from: $0.startDate)) })")
+        let rent = EKEvent(eventStore: events)
+        rent.title = "Rent"; rent.calendar = cal; rent.startDate = monday; rent.endDate = monday.addingTimeInterval(600)
+        rent.addRecurrenceRule(EKRecurrenceRule(recurrenceWith: .monthly, interval: 1, daysOfTheWeek: nil, daysOfTheMonth: [-1], monthsOfTheYear: nil,
+                                                weeksOfTheYear: nil, daysOfTheYear: nil, setPositions: nil, end: EKRecurrenceEnd(occurrenceCount: 2)))
+        try? events.save(rent, span: .futureEvents)
+        let rents = occurrences("Rent", monday, 70)
+        print("month ends \(rents.count) last days \(rents.allSatisfy { c.component(.day, from: $0.startDate.addingTimeInterval(86400)) == 1 })")
+        // this occurrence only: moved an hour later (detached); one removed; the rest of the series from the fifth
+        let wednesday = list[1]
+        wednesday.title = "Standup (moved)"
+        wednesday.startDate = wednesday.startDate.addingTimeInterval(3600); wednesday.endDate = wednesday.endDate.addingTimeInterval(3600)
+        try? events.save(wednesday, span: .thisEvent)
+        list = occurrences("Standup", monday, 21)
+        print("detached \(list.filter(\.isDetached).map(\.title!)) count \(list.count) series \(list.filter { !$0.isDetached }.count)")
+        if let friday = list.first(where: { !$0.isDetached && c.component(.weekday, from: $0.startDate) == 6 }) { try? events.remove(friday, span: .thisEvent) }
+        list = occurrences("Standup", monday, 21)
+        print("after removing one \(list.count) \(weekdays(list))")
+        if list.count > 3 { try? events.remove(list[3], span: .futureEvents) }
+        list = occurrences("Standup", monday, 21)
+        print("after removing future \(list.count) \(weekdays(list))")
+        // a structured location and a location alarm (stored; proximity alarms do not fire on isim)
+        let place = EKStructuredLocation(title: "Apple Park")
+        place.geoLocation = CLLocation(latitude: 37.3349, longitude: -122.00902); place.radius = 150
+        guard let series = events.event(withIdentifier: standup.eventIdentifier) else { return }
+        series.structuredLocation = place
+        let arrive = EKAlarm(relativeOffset: 0); arrive.structuredLocation = place; arrive.proximity = .enter
+        let mail = EKAlarm(relativeOffset: -600); mail.emailAddress = "ada@example.com"
+        series.alarms = [arrive, mail]
+        try? events.save(series, span: .futureEvents)
+        if let back = events.event(withIdentifier: standup.eventIdentifier), let loc = back.structuredLocation, let g = loc.geoLocation {
+            print(String(format: "location %@ %.4f,%.4f radius %.0f text %@ alarms %@", loc.title ?? "-", g.coordinate.latitude, g.coordinate.longitude, loc.radius,
+                         back.location ?? "-", (back.alarms ?? []).map { "\($0.proximity.rawValue)/\($0.type.rawValue)" }.joined(separator: ",")))
+        }
+        // attendees come from the calendar (an invitation in the seeded database)
+        let all = events.events(matching: events.predicateForEvents(withStart: Date().addingTimeInterval(-86400 * 2), end: Date().addingTimeInterval(86400 * 30), calendars: nil))
+        if let review = all.first(where: { $0.hasAttendees }) {
+            let people = (review.attendees ?? []).map { "\($0.name ?? "-") \($0.participantStatus.rawValue)/\($0.participantRole.rawValue)/\($0.participantType.rawValue)" }
+            print("attendees \(review.title!) \(people.joined(separator: ", ")) organizer \(review.organizer?.name ?? "-") \(review.organizer?.url.absoluteString ?? "-")")
+        }
+        // an alarm two seconds from now fires as Calendar's alert
+        let coffee = EKEvent(eventStore: events)
+        coffee.title = "Coffee"; coffee.location = "Caffè Macs"; coffee.calendar = cal
+        coffee.startDate = Date().addingTimeInterval(62); coffee.endDate = coffee.startDate.addingTimeInterval(1800)
+        coffee.addAlarm(EKAlarm(relativeOffset: -60))
+        do { try events.save(coffee, span: .thisEvent); print("alarm set") } catch { print("alarm error \(error)") }
+    }
+    @MainActor func chooseCalendars() {
+        let chooser = EKCalendarChooser(selectionStyle: .multiple, displayStyle: .allCalendars, entityType: .event, eventStore: events)
+        chooser.showsDoneButton = true; chooser.showsCancelButton = true
+        chooser.delegate = self
+        topController()?.present(UINavigationController(rootViewController: chooser), animated: true)
+    }
+    func calendarChooserSelectionDidChange(_ calendarChooser: EKCalendarChooser) {
+        print("chooser selected \(calendarChooser.selectedCalendars.map(\.title).sorted())")
+    }
+    func calendarChooserDidFinish(_ calendarChooser: EKCalendarChooser) {
+        print("chooser finished \(calendarChooser.selectedCalendars.map(\.title).sorted())")
+        calendarChooser.dismiss(animated: true)
+    }
+    func calendarChooserDidCancel(_ calendarChooser: EKCalendarChooser) { print("chooser cancelled"); calendarChooser.dismiss(animated: true) }
 }
 
 struct ContentView: View {
@@ -205,6 +308,8 @@ struct ContentView: View {
                     Button("Add Lunch") { model.addEvent() }.accessibilityIdentifier("addEvent")
                     Button("New Event Form") { model.editEvent() }.accessibilityIdentifier("editEvent")
                     Button("Reminders") { model.requestReminders() }.accessibilityIdentifier("reminders")
+                    Button("Recurring Events") { model.recurring() }.accessibilityIdentifier("recurring")
+                    Button("Choose Calendars") { model.chooseCalendars() }.accessibilityIdentifier("chooseCalendars")
                 }
             }
             .navigationTitle("Personal")

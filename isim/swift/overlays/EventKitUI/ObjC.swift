@@ -16,3 +16,19 @@ extension EKEventViewController {
     @objc(allowsEditing) var _objc_allowsEditing: Bool { get { allowsEditing } set { allowsEditing = newValue } }
     @objc(allowsCalendarPreview) var _objc_allowsCalendarPreview: Bool { get { allowsCalendarPreview } set { allowsCalendarPreview = newValue } }
 }
+
+extension EKCalendarChooser {
+    @objc(initWithSelectionStyle:displayStyle:eventStore:)
+    convenience init(_objcSelection s: EKCalendarChooserSelectionStyle, displayStyle: EKCalendarChooserDisplayStyle, eventStore: EKEventStore) {
+        self.init(selectionStyle: s, displayStyle: displayStyle, eventStore: eventStore)
+    }
+    @objc(initWithSelectionStyle:displayStyle:entityType:eventStore:)
+    convenience init(_objcSelection s: EKCalendarChooserSelectionStyle, displayStyle: EKCalendarChooserDisplayStyle, entityType: EKEntityType, eventStore: EKEventStore) {
+        self.init(selectionStyle: s, displayStyle: displayStyle, entityType: entityType, eventStore: eventStore)
+    }
+    @objc(selectionStyle) var _objc_selectionStyle: EKCalendarChooserSelectionStyle { selectionStyle }
+    @objc(delegate) var _objc_delegate: EKCalendarChooserDelegate? { get { delegate } set { delegate = newValue } }
+    @objc(showsDoneButton) var _objc_showsDoneButton: Bool { get { showsDoneButton } set { showsDoneButton = newValue } }
+    @objc(showsCancelButton) var _objc_showsCancelButton: Bool { get { showsCancelButton } set { showsCancelButton = newValue } }
+    @objc(selectedCalendars) var _objc_selectedCalendars: Set<EKCalendar> { get { selectedCalendars } set { selectedCalendars = newValue } }
+}

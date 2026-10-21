@@ -226,7 +226,7 @@ final class _MKAttributionView: UIView {
     open var cameraBoundary: MKMapCameraBoundary?
     /// the basemap's labels the person can select (landmarks: points of interest; cities: territories)
     open var selectableMapFeatures: MKMapFeatureOptions = []
-    // 0.25 typed selectableMapFeatures as Int: its getter and setter stay exported under those names for apps built
+    // 0.27 typed selectableMapFeatures as Int: its getter and setter stay exported under those names for apps built
     // then (isim/abi/allowlist.txt lists the rest)
     @usableFromInline @_silgen_name("$s6MapKit9MKMapViewC010selectableA8FeaturesSivgTj")
     final func _abi_selectableMapFeaturesInt() -> Int { selectableMapFeatures.rawValue }

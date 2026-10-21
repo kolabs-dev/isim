@@ -1,9 +1,11 @@
 // isim EventKit (self-authored, iOS API names): the device calendar database ($ISIM_DATA/Library/Calendar/calendar.json,
 // created on first use with the Simulator's default "Calendar" calendar and "Reminders" list), the iOS 17 access
 // prompts (full access / write-only for events, full access for reminders; remembered per app), events, reminders,
-// predicates and saving. Recurrence rules and alarms are stored but not expanded or fired (adapted).
+// predicates and saving. Recurring events are expanded into their occurrences in date-range queries, and display
+// alarms fire while an app that uses EventKit runs (Recurrence.swift; adapted).
 // Automation: ISIM_CALENDAR_PERMISSION / ISIM_REMINDERS_PERMISSION = allow|writeonly|deny.
 import UIKit
+import ObjectiveC
 
 @objc public enum EKEntityType: UInt, Sendable { case event = 0, reminder = 1 }
 public struct EKEntityMask: OptionSet, Sendable {
@@ -62,8 +64,13 @@ struct _EKItem: Codable {
     var start: Double?; var end: Double?; var allDay: Bool = false
     var location: String?; var notes: String?; var url: String?; var tz: String?
     var due: [Int?]?; var startComps: [Int?]?; var completed: Bool = false; var completedAt: Double?; var priority: Int = 0
-    var alarms: [Double] = []; var rule: [Int]?               // [frequency, interval]
+    var alarms: [Double] = []; var rule: [Int]?               // [frequency, interval] (before 0.28; read, not written)
     var availability: Int = 0; var created: Double = 0; var modified: Double = 0; var app: String = ""
+    // 0.28: full alarms and rules, the structured location, attendees, exceptions and detached occurrences
+    var alarmList: [_EKAlarmRec]?; var rules: [_EKRuleRec]?; var place: _EKPlace?
+    var attendees: [_EKPerson]?; var organizer: _EKPerson?; var status: Int?
+    var exdates: [Double]?                                   // occurrence start dates removed from a series
+    var master: String?; var occurrence: Double?             // a detached occurrence: its series and original start
 }
 struct _EKDB: Codable { var calendars: [_EKCal] = []; var items: [_EKItem] = [] }
 
@@ -131,11 +138,24 @@ enum _EKAuth {
 }
 
 @objc(EKAlarm) open class EKAlarm: EKObject, NSCopying, @unchecked Sendable {
-    open var relativeOffset: TimeInterval
-    open var absoluteDate: Date?
+    /// seconds from the item's start (an absolute date clears it, and the other way round)
+    open var relativeOffset: TimeInterval { didSet { if relativeOffset != 0 || absoluteDate == nil { _absolute = nil } } }
+    var _absolute: Date?
+    open var absoluteDate: Date? { get { _absolute } set { _absolute = newValue; if newValue != nil { relativeOffset = 0; _absolute = newValue } } }
+    open var structuredLocation: EKStructuredLocation?
+    open var proximity: EKAlarmProximity = .none
+    var _type: EKAlarmType = .display
+    open var type: EKAlarmType { emailAddress != nil ? .email : soundName != nil ? .audio : _type }
+    open var emailAddress: String?
+    open var soundName: String?
     public init(relativeOffset offset: TimeInterval) { relativeOffset = offset }
-    public init(absoluteDate date: Date) { relativeOffset = 0; absoluteDate = date }
-    public func copy(with zone: OpaquePointer? = nil) -> Any { self }
+    public init(absoluteDate date: Date) { relativeOffset = 0; _absolute = date }
+    public func copy(with zone: OpaquePointer? = nil) -> Any { EKAlarm(_EKAlarmRec(self)) }
+    init(_ r: _EKAlarmRec) {
+        relativeOffset = r.offset; _absolute = r.date.map(Date.init(timeIntervalSince1970:))
+        structuredLocation = r.place.map(EKStructuredLocation.init); proximity = EKAlarmProximity(rawValue: r.proximity ?? 0) ?? .none
+        _type = EKAlarmType(rawValue: r.type ?? 0) ?? .display; emailAddress = r.email; soundName = r.sound
+    }
 }
 @objc(EKRecurrenceEnd) open class EKRecurrenceEnd: NSObject, NSCopying, @unchecked Sendable {
     public let endDate: Date?, occurrenceCount: Int
@@ -147,8 +167,42 @@ enum _EKAuth {
     public let frequency: EKRecurrenceFrequency
     public let interval: Int
     open var recurrenceEnd: EKRecurrenceEnd?
-    public init(recurrenceWith type: EKRecurrenceFrequency, interval: Int, end: EKRecurrenceEnd?) { frequency = type; self.interval = interval; recurrenceEnd = end }
-    public func copy(with zone: OpaquePointer? = nil) -> Any { self }
+    var _r: _EKRuleRec
+    public init(recurrenceWith type: EKRecurrenceFrequency, interval: Int, end: EKRecurrenceEnd?) {
+        frequency = type; self.interval = interval; recurrenceEnd = end
+        _r = _EKRuleRec(freq: type.rawValue, interval: interval)
+    }
+    /// a rule with days of the week (with week numbers for monthly and yearly rules: the 2nd Tuesday, the last Friday),
+    /// days of the month (negative: from the end), months, weeks and days of the year, and set positions
+    public init(recurrenceWith type: EKRecurrenceFrequency, interval: Int, daysOfTheWeek days: [EKRecurrenceDayOfWeek]?, daysOfTheMonth monthDays: [NSNumber]?,
+                monthsOfTheYear months: [NSNumber]?, weeksOfTheYear: [NSNumber]?, daysOfTheYear: [NSNumber]?, setPositions: [NSNumber]?, end: EKRecurrenceEnd?) {
+        frequency = type; self.interval = interval; recurrenceEnd = end
+        _r = _EKRuleRec(freq: type.rawValue, interval: interval, days: days?.map { [$0.dayOfTheWeek.rawValue, $0.weekNumber] },
+                        monthDays: monthDays?.map { Int($0.intValue) }, months: months?.map { Int($0.intValue) }, weeks: weeksOfTheYear?.map { Int($0.intValue) },
+                        yearDays: daysOfTheYear?.map { Int($0.intValue) }, positions: setPositions?.map { Int($0.intValue) })
+    }
+    init(_ r: _EKRuleRec) {
+        frequency = EKRecurrenceFrequency(rawValue: r.freq) ?? .daily; interval = max(1, r.interval); _r = r
+        recurrenceEnd = r.end.map { EKRecurrenceEnd(end: Date(timeIntervalSince1970: $0)) } ?? r.count.map { EKRecurrenceEnd(occurrenceCount: $0) }
+    }
+    var record: _EKRuleRec {
+        var r = _r
+        r.freq = frequency.rawValue; r.interval = interval
+        r.end = recurrenceEnd?.endDate?.timeIntervalSince1970; r.count = recurrenceEnd.flatMap { $0.endDate == nil && $0.occurrenceCount > 0 ? $0.occurrenceCount : nil }
+        return r
+    }
+    open var calendarIdentifier: String { Calendar.Identifier.gregorian.rawValue }
+    open var firstDayOfTheWeek: Int { _r.firstDay ?? 0 }
+    open var daysOfTheWeek: [EKRecurrenceDayOfWeek]? {
+        _r.days.map { $0.map { EKRecurrenceDayOfWeek(EKWeekday(rawValue: $0[0]) ?? .sunday, weekNumber: $0.count > 1 ? $0[1] : 0) } }
+    }
+    open var daysOfTheMonth: [NSNumber]? { _r.monthDays.map { $0.map(NSNumber.init(value:)) } }
+    open var daysOfTheYear: [NSNumber]? { _r.yearDays.map { $0.map(NSNumber.init(value:)) } }
+    open var weeksOfTheYear: [NSNumber]? { _r.weeks.map { $0.map(NSNumber.init(value:)) } }
+    open var monthsOfTheYear: [NSNumber]? { _r.months.map { $0.map(NSNumber.init(value:)) } }
+    open var setPositions: [NSNumber]? { _r.positions.map { $0.map(NSNumber.init(value:)) } }
+    public func copy(with zone: OpaquePointer? = nil) -> Any { EKRecurrenceRule(record) }
+    open override var description: String { "EKRecurrenceRule <\(_EKRecurrence.rrule(record))>" }
 }
 
 @objc(EKCalendarItem) open class EKCalendarItem: EKObject, @unchecked Sendable {
@@ -166,36 +220,58 @@ enum _EKAuth {
     open var url: URL? { get { i.url.flatMap(URL.init(string:)) } set { i.url = newValue?.absoluteString } }
     open var timeZone: TimeZone? { get { i.tz.flatMap(TimeZone.init(identifier:)) } set { i.tz = newValue?.identifier } }
     open var hasNotes: Bool { !(i.notes ?? "").isEmpty }
-    open var hasAlarms: Bool { !i.alarms.isEmpty }
-    open var hasRecurrenceRules: Bool { i.rule != nil }
+    open var hasAlarms: Bool { !alarmRecords.isEmpty }
+    open var hasRecurrenceRules: Bool { !ruleRecords.isEmpty }
+    open var hasAttendees: Bool { !(i.attendees ?? []).isEmpty }
+    /// the people invited (from the calendar database: apps cannot add attendees)
+    open var attendees: [EKParticipant]? { i.attendees.flatMap { $0.isEmpty ? nil : $0.map(EKParticipant.init) } }
+    var alarmRecords: [_EKAlarmRec] { i.alarmList ?? i.alarms.map { _EKAlarmRec(offset: $0) } }
+    var ruleRecords: [_EKRuleRec] { i.rules ?? i.rule.map { [_EKRuleRec(freq: $0[0], interval: $0[1])] } ?? [] }
     open var creationDate: Date? { i.created > 0 ? Date(timeIntervalSince1970: i.created) : nil }
     open var lastModifiedDate: Date? { i.modified > 0 ? Date(timeIntervalSince1970: i.modified) : nil }
     open var alarms: [EKAlarm]? {
-        get { i.alarms.isEmpty ? nil : i.alarms.map { EKAlarm(relativeOffset: $0) } }
-        set { i.alarms = (newValue ?? []).map(\.relativeOffset) }
+        get { alarmRecords.isEmpty ? nil : alarmRecords.map(EKAlarm.init) }
+        set { i.alarmList = (newValue ?? []).map(_EKAlarmRec.init); i.alarms = [] }
     }
-    open func addAlarm(_ alarm: EKAlarm) { i.alarms.append(alarm.relativeOffset) }
-    open func removeAlarm(_ alarm: EKAlarm) { i.alarms.removeAll { $0 == alarm.relativeOffset } }
+    open func addAlarm(_ alarm: EKAlarm) { i.alarmList = alarmRecords + [_EKAlarmRec(alarm)]; i.alarms = [] }
+    open func removeAlarm(_ alarm: EKAlarm) {
+        let r = _EKAlarmRec(alarm)
+        var list = alarmRecords
+        if let k = list.firstIndex(where: { $0.offset == r.offset && $0.date == r.date }) { list.remove(at: k) }
+        i.alarmList = list; i.alarms = []
+    }
+    /// one rule, like iOS (it supports a single recurrence rule per item)
     open var recurrenceRules: [EKRecurrenceRule]? {
-        get { i.rule.map { [EKRecurrenceRule(recurrenceWith: EKRecurrenceFrequency(rawValue: $0[0]) ?? .daily, interval: $0[1], end: nil)] } }
-        set { i.rule = newValue?.first.map { [$0.frequency.rawValue, $0.interval] } }
+        get { ruleRecords.isEmpty ? nil : ruleRecords.map(EKRecurrenceRule.init) }
+        set { i.rules = newValue.flatMap { $0.first.map { [$0.record] } } ?? []; i.rule = nil }
     }
-    open func addRecurrenceRule(_ rule: EKRecurrenceRule) { i.rule = [rule.frequency.rawValue, rule.interval] }
-    open func removeRecurrenceRule(_ rule: EKRecurrenceRule) { i.rule = nil }
+    open func addRecurrenceRule(_ rule: EKRecurrenceRule) { i.rules = [rule.record]; i.rule = nil }
+    open func removeRecurrenceRule(_ rule: EKRecurrenceRule) { i.rules = []; i.rule = nil }
 }
 
 @objc(EKEvent) open class EKEvent: EKCalendarItem, @unchecked Sendable {
     public init(eventStore: EKEventStore) { super.init(_EKItem(id: UUID().uuidString, kind: 0, calendar: "", title: "")) }
     override init(_ i: _EKItem) { super.init(i) }
-    open var eventIdentifier: String! { i.id }
+    /// shared by every occurrence of a series (a detached occurrence too)
+    open var eventIdentifier: String! { i.master ?? i.id }
     open var startDate: Date! { get { i.start.map(Date.init(timeIntervalSince1970:)) } set { i.start = newValue?.timeIntervalSince1970 } }
     open var endDate: Date! { get { i.end.map(Date.init(timeIntervalSince1970:)) } set { i.end = newValue?.timeIntervalSince1970 } }
     open var isAllDay: Bool { get { i.allDay } set { i.allDay = newValue } }
     open var availability: EKEventAvailability { get { EKEventAvailability(rawValue: i.availability) ?? .busy } set { i.availability = newValue.rawValue } }
-    open var status: EKEventStatus { .none }
-    open var isDetached: Bool { false }
-    open var occurrenceDate: Date! { startDate }
-    open var organizer: AnyObject? { nil }
+    open var status: EKEventStatus { EKEventStatus(rawValue: i.status ?? 0) ?? .none }
+    /// an occurrence of a series changed on its own (saved with span .thisEvent)
+    open var isDetached: Bool { i.master != nil }
+    /// for an occurrence of a recurring event, its original start (also after it was moved)
+    var _occurrence: Double?
+    open var occurrenceDate: Date! { (_occurrence ?? i.occurrence ?? i.start).map(Date.init(timeIntervalSince1970:)) }
+    open var organizer: EKParticipant? { i.organizer.map(EKParticipant.init) }
+    // 0.27 typed organizer AnyObject? (always nil): its getter stays exported under that name for apps built with it
+    @usableFromInline @_silgen_name("$s8EventKit7EKEventC9organizeryXlSgvgTj")
+    final func _abi_organizerAnyObject() -> AnyObject? { organizer }
+    open var structuredLocation: EKStructuredLocation? {
+        get { i.place.map(EKStructuredLocation.init) }
+        set { i.place = newValue.map(_EKPlace.init); if let t = newValue?.title { i.location = t } }
+    }
     open var birthdayContactIdentifier: String? { nil }
     open func compareStartDate(with other: EKEvent) -> ComparisonResult {
         startDate < other.startDate ? .orderedAscending : startDate > other.startDate ? .orderedDescending : .orderedSame
@@ -228,8 +304,8 @@ enum _EKAuth {
 // MARK: - Store
 
 @objc(EKEventStore) open class EKEventStore: NSObject, @unchecked Sendable {
-    public override init() { super.init() }
-    public init(sources: [EKSource]) { super.init() }
+    public override init() { super.init(); _Privacy.onMain { _EKAlarms.start() } }
+    public init(sources: [EKSource]) { super.init(); _Privacy.onMain { _EKAlarms.start() } }
     open var eventStoreIdentifier: String { "isim-event-store" }
 
     open class func authorizationStatus(for entityType: EKEntityType) -> EKAuthorizationStatus { _EKAuth.status(entityType) }
@@ -343,10 +419,56 @@ enum _EKAuth {
         db.items.removeAll { $0.id == item.i.id }
         _EKStore.save(db); changed()
     }
-    open func save(_ event: EKEvent, span: EKSpan) throws { try put(event, .event) }
-    open func save(_ event: EKEvent, span: EKSpan, commit: Bool) throws { try put(event, .event) }
-    open func remove(_ event: EKEvent, span: EKSpan) throws { try drop(event, .event) }
-    open func remove(_ event: EKEvent, span: EKSpan, commit: Bool) throws { try drop(event, .event) }
+    open func save(_ event: EKEvent, span: EKSpan) throws { try save(event, span: span, commit: true) }
+    open func save(_ event: EKEvent, span: EKSpan, commit: Bool) throws {
+        // an occurrence of a series (from events(matching:)) other than the first
+        guard let occ = event._occurrence, var db = Optional(_EKStore.load()),
+              let mk = db.items.firstIndex(where: { $0.id == event.i.id }), let mStart = db.items[mk].start, occ != mStart || span == .thisEvent else {
+            try put(event, .event); event._occurrence = nil; return
+        }
+        guard _EKAuth.canWrite(.event) else { throw EKError(.eventStoreNotAuthorized) }
+        var master = db.items[mk]
+        var copy = event.i
+        copy.id = UUID().uuidString
+        if span == .thisEvent {
+            // detach this occurrence: the series skips it, a single event takes its place
+            master.exdates = (master.exdates ?? []) + [occ]
+            copy.rules = []; copy.rule = nil; copy.exdates = nil; copy.master = master.id; copy.occurrence = occ
+        } else {
+            // end the series before this occurrence; a new series starts here with the changes
+            let before = _EKRecurrence.countBefore(mStart, master.rules?.first ?? _EKRuleRec(freq: 0, interval: 1), occ)
+            if var r = copy.rules?.first, let n = r.count { r.count = max(1, n - before); copy.rules = [r] }
+            if var r = master.rules?.first { r.end = occ - 1; r.count = nil; master.rules = [r] }
+            copy.exdates = master.exdates?.filter { $0 > occ }
+        }
+        db.items[mk] = master
+        db.items.append(copy)
+        _EKStore.save(db); changed()
+        let fresh = EKEvent(copy)
+        try put(fresh, .event)
+        event.i = fresh.i; event._occurrence = nil
+    }
+    open func remove(_ event: EKEvent, span: EKSpan) throws { try remove(event, span: span, commit: true) }
+    open func remove(_ event: EKEvent, span: EKSpan, commit: Bool) throws {
+        guard let occ = event._occurrence, var db = Optional(_EKStore.load()),
+              let mk = db.items.firstIndex(where: { $0.id == event.i.id }), let mStart = db.items[mk].start, occ != mStart || span == .thisEvent else {
+            // the whole series (and its detached occurrences), or a single event
+            guard _EKAuth.canRead(.event) else { throw EKError(.eventStoreNotAuthorized) }
+            var db = _EKStore.load()
+            if event.i.master != nil, span == .thisEvent { db.items.removeAll { $0.id == event.i.id } }
+            else { let id = event.i.master ?? event.i.id; db.items.removeAll { $0.id == id || $0.master == id } }
+            _EKStore.save(db); changed(); return
+        }
+        guard _EKAuth.canRead(.event) else { throw EKError(.eventStoreNotAuthorized) }
+        if span == .thisEvent { db.items[mk].exdates = (db.items[mk].exdates ?? []) + [occ] }
+        else {
+            if var r = db.items[mk].rules?.first ?? db.items[mk].rule.map({ _EKRuleRec(freq: $0[0], interval: $0[1]) }) {
+                r.end = occ - 1; r.count = nil; db.items[mk].rules = [r]; db.items[mk].rule = nil
+            }
+            db.items.removeAll { $0.master == event.i.id && ($0.occurrence ?? 0) >= occ }
+        }
+        _EKStore.save(db); changed()
+    }
     open func save(_ reminder: EKReminder, commit: Bool) throws { try put(reminder, .reminder) }
     open func remove(_ reminder: EKReminder, commit: Bool) throws { try drop(reminder, .reminder) }
     open func commit() throws {}
@@ -363,15 +485,29 @@ enum _EKAuth {
     open func predicateForEvents(withStart startDate: Date, end endDate: Date, calendars: [EKCalendar]?) -> NSPredicate {
         let ids = calendars.map { Set($0.map(\.calendarIdentifier)) }
         let a = startDate.timeIntervalSince1970, b = endDate.timeIntervalSince1970
-        return NSPredicate { obj, _ in
+        let p = NSPredicate { obj, _ in
             guard let e = obj as? EKEvent, let s = e.i.start, let en = e.i.end else { return false }
-            return s < b && en > a && (ids?.contains(e.i.calendar) ?? true)
+            return s < b && (en > a || (en == s && s >= a)) && (ids?.contains(e.i.calendar) ?? true)
         }
+        objc_setAssociatedObject(p, &_ekRangeKey, _EKRange(a, b), .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        return p
     }
+    /// the events matching a predicate; with a date range (predicateForEvents), each occurrence of a recurring event
     open func events(matching predicate: NSPredicate) -> [EKEvent] {
         guard _EKAuth.canRead(.event) else { return [] }
-        return _EKStore.load().items.filter { $0.kind == 0 }.map { EKEvent($0) }.filter { predicate.evaluate(with: $0) }
-            .sorted { ($0.i.start ?? 0) < ($1.i.start ?? 0) }
+        let range = objc_getAssociatedObject(predicate, &_ekRangeKey) as? _EKRange
+        var out: [EKEvent] = []
+        for it in _EKStore.load().items where it.kind == 0 {
+            let e = EKEvent(it)
+            if let range, let rule = e.ruleRecords.first, let s = it.start, let en = it.end {
+                for o in _EKRecurrence.starts(s, en - s, rule, except: Set(it.exdates ?? []), from: range.a, to: range.b) {
+                    let occ = EKEvent(it)
+                    occ.i.start = o; occ.i.end = o + (en - s); occ._occurrence = o
+                    if predicate.evaluate(with: occ) { out.append(occ) }
+                }
+            } else if predicate.evaluate(with: e) { out.append(e) }
+        }
+        return out.sorted { ($0.i.start ?? 0) < ($1.i.start ?? 0) }
     }
     open func enumerateEvents(matching predicate: NSPredicate, using block: (EKEvent, UnsafeMutablePointer<ObjCBool>) -> Void) {
         var stop = ObjCBool(false)
@@ -418,5 +554,11 @@ extension EKEventStore {
         event.i.modified = now; event.i.app = _Privacy.bundleID
         if let k = db.items.firstIndex(where: { $0.id == event.i.id }) { db.items[k] = event.i } else { db.items.append(event.i) }
         _EKStore.save(db); changed()
+    }
+}
+extension EKEventStore {
+    /// isim's EKCalendarChooser lists the calendars itself (on iOS it runs out of process, like the event editor)
+    @_spi(isim) public func _isimCalendars(for entityType: EKEntityType) -> [EKCalendar] {
+        _EKStore.load().calendars.filter { $0.type == entityType.rawValue }.map { EKCalendar($0) }
     }
 }

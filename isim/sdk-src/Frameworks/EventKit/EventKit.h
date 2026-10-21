@@ -2,11 +2,12 @@
 /* isim EventKit for Objective-C: the classes are the EventKit Swift overlay's (EventKit.framework re-exports
    libswiftEventKit.dylib), on the same device calendar and reminders as Swift, with the same permission prompts
    (full or write-only access). Swift uses the overlay; these declarations are hidden from Swift. The classes are not
-   subclassable from Objective-C. Not from Objective-C yet: attendees, structured locations, virtual conferences. */
+   subclassable from Objective-C. Not from Objective-C yet: virtual conferences. */
 #import <Foundation/Foundation.h>
+#import <CoreLocation/CoreLocation.h>
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
-@class EKEventStore, EKCalendar, EKSource;
+@class EKEventStore, EKCalendar, EKSource, EKStructuredLocation, EKParticipant, MKMapItem;
 
 typedef NS_ENUM(NSUInteger, EKEntityType) { EKEntityTypeEvent = 0, EKEntityTypeReminder = 1 };
 typedef NS_OPTIONS(NSUInteger, EKEntityMask) { EKEntityMaskEvent = 1 << EKEntityTypeEvent, EKEntityMaskReminder = 1 << EKEntityTypeReminder };
@@ -72,11 +73,61 @@ FOUNDATION_EXPORT NSString * const EKEventStoreChangedNotification;
 @property (nonatomic, readonly) EKEntityMask allowedEntityTypes;
 @end
 
+typedef NS_ENUM(NSInteger, EKAlarmProximity) { EKAlarmProximityNone = 0, EKAlarmProximityEnter, EKAlarmProximityLeave };
+typedef NS_ENUM(NSInteger, EKAlarmType) { EKAlarmTypeDisplay = 0, EKAlarmTypeAudio, EKAlarmTypeProcedure, EKAlarmTypeEmail };
+typedef NS_ENUM(NSInteger, EKWeekday) {
+    EKWeekdaySunday = 1, EKWeekdayMonday, EKWeekdayTuesday, EKWeekdayWednesday, EKWeekdayThursday, EKWeekdayFriday, EKWeekdaySaturday,
+};
+typedef NS_ENUM(NSInteger, EKParticipantStatus) {
+    EKParticipantStatusUnknown = 0, EKParticipantStatusPending, EKParticipantStatusAccepted, EKParticipantStatusDeclined,
+    EKParticipantStatusTentative, EKParticipantStatusDelegated, EKParticipantStatusCompleted, EKParticipantStatusInProcess,
+};
+typedef NS_ENUM(NSInteger, EKParticipantRole) {
+    EKParticipantRoleUnknown = 0, EKParticipantRoleRequired, EKParticipantRoleOptional, EKParticipantRoleChair, EKParticipantRoleNonParticipant,
+};
+typedef NS_ENUM(NSInteger, EKParticipantType) {
+    EKParticipantTypeUnknown = 0, EKParticipantTypePerson, EKParticipantTypeRoom, EKParticipantTypeResource, EKParticipantTypeGroup,
+};
+
+/* a place with a title and optional coordinates and radius (an event's location, a location alarm's place) */
+@interface EKStructuredLocation : EKObject <NSCopying>
++ (instancetype)locationWithTitle:(NSString *)title;
++ (instancetype)locationWithMapItem:(MKMapItem *)mapItem;   /* with MapKit */
+@property (nonatomic, strong, nullable) NSString *title;
+@property (nonatomic, strong, nullable) CLLocation *geoLocation;
+@property (nonatomic) double radius;
+@end
+
+/* alarms: display alarms fire while an app that uses EventKit runs (the Calendar alert banner); proximity alarms never fire */
 @interface EKAlarm : EKObject <NSCopying>
 + (EKAlarm *)alarmWithAbsoluteDate:(NSDate *)date;
 + (EKAlarm *)alarmWithRelativeOffset:(NSTimeInterval)offset;
 @property (nonatomic) NSTimeInterval relativeOffset;
 @property (nonatomic, copy, nullable) NSDate *absoluteDate;
+@property (nonatomic, copy, nullable) EKStructuredLocation *structuredLocation;
+@property (nonatomic) EKAlarmProximity proximity;
+@property (nonatomic, readonly) EKAlarmType type;
+@property (nonatomic, copy, nullable) NSString *emailAddress;
+@property (nonatomic, copy, nullable) NSString *soundName;
+@end
+
+/* a person (room, resource, group) invited to an event: read from the calendar database */
+@interface EKParticipant : EKObject <NSCopying>
+@property (nonatomic, readonly) NSURL *URL;
+@property (nonatomic, readonly, nullable) NSString *name;
+@property (nonatomic, readonly) EKParticipantStatus participantStatus;
+@property (nonatomic, readonly) EKParticipantRole participantRole;
+@property (nonatomic, readonly) EKParticipantType participantType;
+@property (nonatomic, readonly, getter=isCurrentUser) BOOL currentUser;
+@property (nonatomic, readonly) NSPredicate *contactPredicate;
+@end
+
+@interface EKRecurrenceDayOfWeek : NSObject <NSCopying, NSSecureCoding>
++ (instancetype)dayOfWeek:(EKWeekday)dayOfTheWeek;
++ (instancetype)dayOfWeek:(EKWeekday)dayOfTheWeek weekNumber:(NSInteger)weekNumber;
+- (instancetype)initWithDayOfTheWeek:(EKWeekday)dayOfTheWeek weekNumber:(NSInteger)weekNumber;
+@property (nonatomic, readonly) EKWeekday dayOfTheWeek;
+@property (nonatomic, readonly) NSInteger weekNumber;
 @end
 
 @interface EKRecurrenceEnd : NSObject <NSCopying>
@@ -87,9 +138,22 @@ FOUNDATION_EXPORT NSString * const EKEventStoreChangedNotification;
 @end
 @interface EKRecurrenceRule : EKObject <NSCopying>
 - (instancetype)initRecurrenceWithFrequency:(EKRecurrenceFrequency)type interval:(NSInteger)interval end:(nullable EKRecurrenceEnd *)end;
+- (instancetype)initRecurrenceWithFrequency:(EKRecurrenceFrequency)type interval:(NSInteger)interval
+                              daysOfTheWeek:(nullable NSArray<EKRecurrenceDayOfWeek *> *)days daysOfTheMonth:(nullable NSArray<NSNumber *> *)monthDays
+                            monthsOfTheYear:(nullable NSArray<NSNumber *> *)months weeksOfTheYear:(nullable NSArray<NSNumber *> *)weeksOfTheYear
+                              daysOfTheYear:(nullable NSArray<NSNumber *> *)daysOfTheYear setPositions:(nullable NSArray<NSNumber *> *)setPositions
+                                        end:(nullable EKRecurrenceEnd *)end;
+@property (nonatomic, readonly) NSString *calendarIdentifier;
 @property (nonatomic, readonly) EKRecurrenceFrequency frequency;
 @property (nonatomic, readonly) NSInteger interval;
 @property (nonatomic, copy, nullable) EKRecurrenceEnd *recurrenceEnd;
+@property (nonatomic, readonly) NSInteger firstDayOfTheWeek;
+@property (nonatomic, readonly, nullable) NSArray<EKRecurrenceDayOfWeek *> *daysOfTheWeek;
+@property (nonatomic, readonly, nullable) NSArray<NSNumber *> *daysOfTheMonth;
+@property (nonatomic, readonly, nullable) NSArray<NSNumber *> *daysOfTheYear;
+@property (nonatomic, readonly, nullable) NSArray<NSNumber *> *weeksOfTheYear;
+@property (nonatomic, readonly, nullable) NSArray<NSNumber *> *monthsOfTheYear;
+@property (nonatomic, readonly, nullable) NSArray<NSNumber *> *setPositions;
 @end
 
 @interface EKCalendarItem : EKObject
@@ -112,6 +176,8 @@ FOUNDATION_EXPORT NSString * const EKEventStoreChangedNotification;
 @property (nonatomic, copy, nullable) NSArray<EKRecurrenceRule *> *recurrenceRules;
 - (void)addRecurrenceRule:(EKRecurrenceRule *)rule;
 - (void)removeRecurrenceRule:(EKRecurrenceRule *)rule;
+@property (nonatomic, readonly) BOOL hasAttendees;
+@property (nonatomic, readonly, nullable) NSArray<EKParticipant *> *attendees;
 @end
 
 @interface EKEvent : EKCalendarItem
@@ -124,6 +190,8 @@ FOUNDATION_EXPORT NSString * const EKEventStoreChangedNotification;
 @property (nonatomic, readonly) EKEventStatus status;
 @property (nonatomic, readonly) BOOL isDetached;
 @property (nonatomic, readonly, null_unspecified) NSDate *occurrenceDate;
+@property (nonatomic, readonly, nullable) EKParticipant *organizer;
+@property (nonatomic, copy, nullable) EKStructuredLocation *structuredLocation;
 - (NSComparisonResult)compareStartDateWithEvent:(EKEvent *)other;
 @end
 
