@@ -3,7 +3,9 @@
 // then asserted from the chooser sheet alongside a password request, preferImmediatelyAvailableCredentials with nothing
 // saved (notInteractive), and ASWebAuthenticationSession (the consent alert, cancelled), once with a presentation
 // provider that has Apple's selector and once with one that has only the selector Swift apps built before isim 0.27
-// implement. Each step prints an "au ..." line the test checks.
+// implement. Also (issue #306) the PRF and largeBlob extensions on the passkey, conditional registration (iOS 18,
+// refused: no saved password) and a virtual security key with its own PRF. Each step prints an "au ..." line the test
+// checks.
 #import <UIKit/UIKit.h>
 #import <AuthenticationServices/AuthenticationServices.h>
 
@@ -18,6 +20,9 @@ static NSString *errText(NSError *e) { return e ? [NSString stringWithFormat:@"%
 static NSData *bytes(const char *s) { return [NSData dataWithBytes:s length:strlen(s)]; }
 static NSString *text(NSData *d) { return [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding]; }
 static NSString *const RP = @"objc.example.com";
+static ASAuthorizationPublicKeyCredentialPRFAssertionInputValues *salt(void) {
+    return [[ASAuthorizationPublicKeyCredentialPRFAssertionInputValues alloc] initWithSaltInput1:bytes("objc prf salt") saltInput2:nil];
+}
 
 /* a presentation provider as an app built before isim 0.27 has it: only the selector Swift gave the method then */
 @interface LegacyAnchor : NSObject
@@ -37,6 +42,8 @@ static NSString *const RP = @"objc.example.com";
 @property (nonatomic, strong) ASWebAuthenticationSession *session;
 @property (nonatomic, strong) LegacyAnchor *legacy;
 @property (nonatomic, copy) NSData *challenge;
+@property (nonatomic, copy) NSData *prfKey;
+@property (nonatomic, copy) NSData *securityKeyID;
 @property (nonatomic) CGFloat y;
 @end
 
@@ -67,6 +74,9 @@ static NSString *const RP = @"objc.example.com";
     [self button:@"Sign in with a passkey" id:@"passkey-signin" action:@selector(signIn)];
     [self button:@"Web sign-in" id:@"web" action:@selector(webSignIn)];
     [self button:@"Web sign-in (legacy provider)" id:@"web-legacy" action:@selector(webSignInLegacy)];
+    [self button:@"Upgrade to a passkey" id:@"passkey-conditional" action:@selector(conditional)];
+    [self button:@"Set up a security key" id:@"securitykey-register" action:@selector(registerSecurityKey)];
+    [self button:@"Sign in with a security key" id:@"securitykey-signin" action:@selector(signInWithSecurityKey)];
     say(@"button %@ radius=%.0f", NSStringFromClass([siwa class]), siwa.cornerRadius);
 
     self.appleID = [[ASAuthorizationAppleIDProvider alloc] init];
@@ -118,6 +128,9 @@ static NSString *const RP = @"objc.example.com";
         [p createCredentialRegistrationRequestWithChallenge:self.challenge name:@"casey" userID:bytes("user-7")];
     r.displayName = @"Casey Objc";
     r.userVerificationPreference = ASAuthorizationPublicKeyCredentialUserVerificationPreferenceRequired;
+    r.prf = [[ASAuthorizationPublicKeyCredentialPRFRegistrationInput alloc] initWithInputValues:salt()];
+    r.largeBlob = [[ASAuthorizationPublicKeyCredentialLargeBlobRegistrationInput alloc]
+                   initWithSupportRequirement:ASAuthorizationPublicKeyCredentialLargeBlobSupportRequirementPreferred];
     say(@"registration rp=%@ attestation=%@ verification=%@", r.relyingPartyIdentifier, r.attestationPreference, r.userVerificationPreference);
     [self perform:@[r] options:0];
 }
@@ -125,7 +138,41 @@ static NSString *const RP = @"objc.example.com";
     ASAuthorizationPlatformPublicKeyCredentialProvider *p = [[ASAuthorizationPlatformPublicKeyCredentialProvider alloc] initWithRelyingPartyIdentifier:RP];
     self.challenge = bytes("objc-assertion-challenge-0002");
     ASAuthorizationPlatformPublicKeyCredentialAssertionRequest *a = [p createCredentialAssertionRequestWithChallenge:self.challenge];
+    a.prf = [[ASAuthorizationPublicKeyCredentialPRFAssertionInput alloc] initWithInputValues:salt() perCredentialInputValues:nil];
+    a.largeBlob = [[ASAuthorizationPublicKeyCredentialLargeBlobAssertionInput alloc] initWithOperation:ASAuthorizationPublicKeyCredentialLargeBlobAssertionOperationWrite];
+    a.largeBlob.dataToWrite = bytes("objc blob");
     [self perform:@[a, [[[ASAuthorizationPasswordProvider alloc] init] createRequest]] options:0];
+}
+- (void)conditional {   // nothing saved for the account: refused
+    if (@available(iOS 18.0, *)) {
+        ASAuthorizationPlatformPublicKeyCredentialProvider *p = [[ASAuthorizationPlatformPublicKeyCredentialProvider alloc] initWithRelyingPartyIdentifier:RP];
+        ASAuthorizationPlatformPublicKeyCredentialRegistrationRequest *r =
+            [p createCredentialRegistrationRequestWithChallenge:bytes("objc-conditional") name:@"casey" userID:bytes("user-7")
+                                                   requestStyle:ASAuthorizationPlatformPublicKeyCredentialRegistrationRequestStyleConditional];
+        say(@"conditional style=%ld", (long)r.requestStyle);
+        [self perform:@[r] options:0];
+    } else {
+        say(@"conditional needs iOS 18");
+    }
+}
+- (void)registerSecurityKey {
+    ASAuthorizationSecurityKeyPublicKeyCredentialProvider *p = [[ASAuthorizationSecurityKeyPublicKeyCredentialProvider alloc] initWithRelyingPartyIdentifier:RP];
+    ASAuthorizationSecurityKeyPublicKeyCredentialRegistrationRequest *r =
+        [p createCredentialRegistrationRequestWithChallenge:bytes("objc-key-registration") displayName:@"Casey Objc" name:@"casey" userID:bytes("user-7")];
+    r.credentialParameters = @[[[ASAuthorizationPublicKeyCredentialParameters alloc] initWithAlgorithm:ASCOSEAlgorithmIdentifierES256]];
+    r.residentKeyPreference = ASAuthorizationPublicKeyCredentialResidentKeyPreferenceRequired;
+    r.prf = [ASAuthorizationPublicKeyCredentialPRFRegistrationInput checkForSupport];
+    say(@"security key request algorithm=%ld resident=%@ prfCheck=%d", (long)r.credentialParameters[0].algorithm, r.residentKeyPreference,
+        r.prf.shouldCheckForSupport);
+    [self perform:@[r] options:0];
+}
+- (void)signInWithSecurityKey {
+    ASAuthorizationSecurityKeyPublicKeyCredentialProvider *p = [[ASAuthorizationSecurityKeyPublicKeyCredentialProvider alloc] initWithRelyingPartyIdentifier:RP];
+    ASAuthorizationSecurityKeyPublicKeyCredentialAssertionRequest *a = [p createCredentialAssertionRequestWithChallenge:bytes("objc-key-assertion")];
+    a.allowedCredentials = @[[[ASAuthorizationSecurityKeyPublicKeyCredentialDescriptor alloc] initWithCredentialID:self.securityKeyID
+                              transports:ASAuthorizationAllSupportedPublicKeyCredentialDescriptorTransports()]];
+    a.prf = [[ASAuthorizationPublicKeyCredentialPRFAssertionInput alloc] initWithInputValues:salt() perCredentialInputValues:nil];
+    [self perform:@[a] options:0];
 }
 
 #pragma mark ASAuthorizationControllerDelegate
@@ -147,11 +194,24 @@ static NSString *const RP = @"objc.example.com";
         NSDictionary *client = [NSJSONSerialization JSONObjectWithData:r.rawClientDataJSON options:0 error:nil];
         say(@"passkey registered id=%lu attestation=%d type=%@ attachment=%ld", (unsigned long)r.credentialID.length,
             r.rawAttestationObject.length > 0, client[@"type"], (long)r.attachment);
+        self.prfKey = r.prf.first;
+        say(@"passkey extensions prf=%d key=%lu largeBlob=%d", r.prf.isSupported, (unsigned long)r.prf.first.length, r.largeBlob.isSupported);
     } else if ([c isKindOfClass:[ASAuthorizationPlatformPublicKeyCredentialAssertion class]]) {
         ASAuthorizationPlatformPublicKeyCredentialAssertion *a = (ASAuthorizationPlatformPublicKeyCredentialAssertion *)c;
         NSDictionary *client = [NSJSONSerialization JSONObjectWithData:a.rawClientDataJSON options:0 error:nil];
         say(@"passkey assertion user=%@ authData=%lu signature=%d type=%@ origin=%@", text(a.userID), (unsigned long)a.rawAuthenticatorData.length,
             a.signature.length > 0, client[@"type"], client[@"origin"]);
+        say(@"passkey assertion extensions prf=%d written=%d", [a.prf.first isEqualToData:self.prfKey], a.largeBlob.didWrite);
+    } else if ([c isKindOfClass:[ASAuthorizationSecurityKeyPublicKeyCredentialRegistration class]]) {
+        ASAuthorizationSecurityKeyPublicKeyCredentialRegistration *r = (ASAuthorizationSecurityKeyPublicKeyCredentialRegistration *)c;
+        self.securityKeyID = r.credentialID;
+        say(@"security key registered id=%lu transports=%@ attachment=%ld prf=%d", (unsigned long)r.credentialID.length,
+            [r.transports componentsJoinedByString:@","], (long)r.attachment, r.prf.isSupported);
+    } else if ([c isKindOfClass:[ASAuthorizationSecurityKeyPublicKeyCredentialAssertion class]]) {
+        ASAuthorizationSecurityKeyPublicKeyCredentialAssertion *a = (ASAuthorizationSecurityKeyPublicKeyCredentialAssertion *)c;
+        say(@"security key assertion user=%@ same=%d appID=%d attachment=%ld prf=%lu differs=%d", text(a.userID),
+            [a.credentialID isEqualToData:self.securityKeyID], a.appID, (long)a.attachment, (unsigned long)a.prf.first.length,
+            ![a.prf.first isEqualToData:self.prfKey]);
     } else if ([c isKindOfClass:[ASPasswordCredential class]]) {
         say(@"password credential user=%@", ((ASPasswordCredential *)c).user);
     } else {
