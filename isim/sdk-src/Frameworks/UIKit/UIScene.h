@@ -5,6 +5,7 @@
 #import <UIKit/UITraitCollection.h>
 #import <UIKit/UIDevice.h>
 #import <UIKit/UIView.h>
+#import <_CKShareMetadata/_CKShareMetadata.h>   /* CKShareMetadata, which Swift resolves to CloudKit's CKShare.Metadata (#630) */
 NS_ASSUME_NONNULL_BEGIN
 @class UIWindow, UIScreen, UISceneSession, UISceneConnectionOptions, UISceneWindowingControlStyle;
 typedef NSString *UISceneSessionRole NS_TYPED_EXTENSIBLE_ENUM;
@@ -87,7 +88,6 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(17.0))
 @property (nullable, nonatomic, strong) UISceneActivationRequestOptions *options;
 @end
 
-@class CKShareMetadata;
 NS_SWIFT_UI_ACTOR
 @protocol UIWindowSceneDelegate <UISceneDelegate>
 @optional

@@ -47,12 +47,11 @@ public let CKRecordTypeShare = "cloudkit.share"
                       status: ParticipantAcceptanceStatus(rawValue: s.status) ?? .unknown)
         }
     }
-    public struct SystemFieldKey: RawRepresentable, Hashable, Sendable {
-        public let rawValue: String
-        public init(rawValue: String) { self.rawValue = rawValue }
-        public static let title = SystemFieldKey(rawValue: "cloudkit.title")
-        public static let thumbnailImageData = SystemFieldKey(rawValue: "cloudkit.thumbnailImageData")
-        public static let shareType = SystemFieldKey(rawValue: "cloudkit.shareType")
+    /// the keys of a share's system fields: record field keys, as in Apple's SDK (`share[CKShare.SystemFieldKey.title]`)
+    public enum SystemFieldKey {
+        public static let title: CKRecord.FieldKey = "cloudkit.title"
+        public static let thumbnailImageData: CKRecord.FieldKey = "cloudkit.thumbnailImageData"
+        public static let shareType: CKRecord.FieldKey = "cloudkit.shareType"
     }
     public enum ParticipantAccessOptions: UInt, Sendable { case anyoneWithLink = 1, specifiedRecipientsOnly = 2 }
     public internal(set) var rootRecordID: CKRecord.ID?
@@ -122,49 +121,39 @@ public let CKRecordTypeShare = "cloudkit.share"
         extraParticipants = s.participants.map(Participant.init)
     }
 
-    /// What a participant learns from a share's URL before accepting it.
-    @objc(CKShareMetadata) @objcMembers open class Metadata: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
-        public let containerIdentifier: String
-        public let share: CKShare
-        public let hierarchicalRootRecordID: CKRecord.ID?
-        public let participantRole: ParticipantRole
-        public let participantStatus: ParticipantAcceptanceStatus
-        public let participantPermission: ParticipantPermission
-        public let ownerIdentity: CKUserIdentity
-        /// Fetched when the operation's shouldFetchRootRecord is set.
-        public internal(set) var rootRecord: CKRecord?
-        /// The shared record, or for a zone-wide share the share's own record ID.
-        public var rootRecordID: CKRecord.ID { hierarchicalRootRecordID ?? share.recordID }
-        init(container: String, share: CKShare, root: CKRecord?) {
-            containerIdentifier = container; self.share = share; rootRecord = root
-            hierarchicalRootRecordID = share.rootRecordID
-            ownerIdentity = share.owner.userIdentity
-            if let me = share.currentUserParticipant {
-                participantRole = me.role; participantStatus = me.acceptanceStatus; participantPermission = me.permission
-            } else if share.publicPermission != .none {
-                participantRole = .publicUser; participantStatus = .unknown; participantPermission = share.publicPermission
-            } else {
-                participantRole = .unknown; participantStatus = .unknown; participantPermission = .none
-            }
+    /// What a participant learns from a share's URL before accepting it: the class of the _CKShareMetadata module, where
+    /// Swift finds the CKShareMetadata of UIKit's share-link delegate methods (issue #630)
+    public typealias Metadata = CKShareMetadata
+}
+
+extension CKShare.Metadata {
+    convenience init(container: String, share: CKShare, root: CKRecord?) {
+        let role: CKShare.ParticipantRole, status: CKShare.ParticipantAcceptanceStatus, permission: CKShare.ParticipantPermission
+        if let me = share.currentUserParticipant {
+            role = me.role; status = me.acceptanceStatus; permission = me.permission
+        } else if share.publicPermission != .none {
+            role = .publicUser; status = .unknown; permission = share.publicPermission
+        } else {
+            role = .unknown; status = .unknown; permission = .none
         }
-        public func copy(with zone: NSZone? = nil) -> Any { self }
-        public static var supportsSecureCoding: Bool { true }
-        public func encode(with coder: NSCoder) {
-            coder.encode(share.url?.absoluteString as NSString?, forKey: "url")
-        }
-        public required init?(coder: NSCoder) {                /* decoded from its share's URL, against the local store */
-            guard let s = coder.decodeObject(of: NSString.self, forKey: "url") as String?, let url = URL(string: s),
-                  case .success(let m)? = try? CKContainer._shareMetadata(url, fetchRoot: false, desiredKeys: nil) else { return nil }
-            containerIdentifier = m.containerIdentifier; share = m.share; hierarchicalRootRecordID = m.hierarchicalRootRecordID
-            participantRole = m.participantRole; participantStatus = m.participantStatus; participantPermission = m.participantPermission
-            ownerIdentity = m.ownerIdentity; rootRecord = nil
-        }
-        open override func isEqual(_ object: Any?) -> Bool {
-            guard let o = object as? Metadata else { return false }
-            return o.containerIdentifier == containerIdentifier && o.share.recordID == share.recordID
-        }
-        open override var hash: Int { containerIdentifier.hashValue ^ share.recordID.hashValue }
+        self.init(_containerIdentifier: container, share: share, shareURL: share.url,
+                  shareKey: "\(share.recordID.zoneID.ownerName)/\(share.recordID.zoneID.zoneName)/\(share.recordID.recordName)",
+                  hierarchicalRootRecordID: share.rootRecordID, participantRole: role.rawValue, participantStatus: status.rawValue,
+                  participantPermission: permission.rawValue, ownerIdentity: share.owner.userIdentity, rootRecord: root)
     }
+    @objc public var share: CKShare { _share as! CKShare }
+    @objc public var hierarchicalRootRecordID: CKRecord.ID? { _hierarchicalRootRecordID as? CKRecord.ID }
+    public var participantRole: CKShare.ParticipantRole { CKShare.ParticipantRole(rawValue: _participantRole) ?? .unknown }
+    public var participantStatus: CKShare.ParticipantAcceptanceStatus { CKShare.ParticipantAcceptanceStatus(rawValue: _participantStatus) ?? .unknown }
+    public var participantPermission: CKShare.ParticipantPermission { CKShare.ParticipantPermission(rawValue: _participantPermission) ?? .unknown }
+    @objc public var ownerIdentity: CKUserIdentity { _ownerIdentity as! CKUserIdentity }
+    /// Fetched when the operation's shouldFetchRootRecord is set.
+    @objc public internal(set) var rootRecord: CKRecord? {
+        get { _rootRecord as? CKRecord }
+        set { _rootRecord = newValue }
+    }
+    /// The shared record, or for a zone-wide share the share's own record ID.
+    public var rootRecordID: CKRecord.ID { hierarchicalRootRecordID ?? share.recordID }
 }
 
 /// The record name of a zone-wide share.

@@ -18,8 +18,8 @@ extension CKShare {
         }
         var info: [String: Any] = ["people": people, "publicPermission": publicPermission.rawValue]
         if let u = url { info["url"] = u }
-        if let t = self[SystemFieldKey.title.rawValue] as? String { info["title"] = t }
-        if let d = self[SystemFieldKey.thumbnailImageData.rawValue] as? Data { info["thumbnail"] = d }
+        if let t = self[SystemFieldKey.title] as? String { info["title"] = t }
+        if let d = self[SystemFieldKey.thumbnailImageData] as? Data { info["thumbnail"] = d }
         return info as NSDictionary
     }
 
