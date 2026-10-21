@@ -1,0 +1,35 @@
+#pragma once
+#import <Vision/VNDefines.h>
+#if !defined(__swift__)
+NS_ASSUME_NONNULL_BEGIN
+typedef float VNConfidence;
+typedef float VNAspectRatio;
+typedef float VNDegrees;
+typedef NS_ENUM(NSUInteger, VNElementType) { VNElementTypeUnknown = 0, VNElementTypeFloat = 1, VNElementTypeDouble = 2 };
+typedef NSString *VNBarcodeSymbology NS_TYPED_ENUM API_AVAILABLE(ios(11.0));
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyAztec;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyCode39;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyCode39Checksum;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyCode39FullASCII;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyCode39FullASCIIChecksum;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyCode93;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyCode93i;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyCode128;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyDataMatrix;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyEAN8;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyEAN13;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyI2of5;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyI2of5Checksum;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyITF14;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyPDF417;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyQR;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyUPCE;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyCodabar;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyGS1DataBar;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyGS1DataBarExpanded;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyGS1DataBarLimited;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyMicroPDF417;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyMicroQR;
+VN_EXPORT VNBarcodeSymbology const VNBarcodeSymbologyMSIPlessey;
+NS_ASSUME_NONNULL_END
+#endif

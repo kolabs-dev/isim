@@ -205,10 +205,8 @@ def _(a):
     a.swift_app()
 
 
-@app("samples/HelloVision", extra_inputs=["samples/HelloCoreImage/face.jpg"])
-def _(a):
-    b = a.swift_app()
-    a.run("python3", "gen_models.py", b)
+def vision_pictures(a, b):
+    """HelloVision's (and HelloVisionObjC's) pictures: a face, text and two QR codes (the last two need ImageMagick, qrencode)"""
     a.copy("../HelloCoreImage/face.jpg", b)                  # NASA's astronaut portrait (public domain): Vision's faces
     if shutil.which("magick"):
         a.run("magick", "-size", "640x200", "xc:white", "-fill", "black", "-pointsize", "72", "-gravity", "center",
@@ -220,6 +218,13 @@ def _(a):
                   f"{b}/qr-right.png", "-gravity", "east", "-geometry", "+40+0", "-composite", f"{b}/codes.png")
             os.remove(f"{b}/qr-left.png")
             os.remove(f"{b}/qr-right.png")
+
+
+@app("samples/HelloVision", extra_inputs=["samples/HelloCoreImage/face.jpg"])
+def _(a):
+    b = a.swift_app()
+    a.run("python3", "gen_models.py", b)
+    vision_pictures(a, b)
     if shutil.which("espeak-ng"):
         a.run("espeak-ng", "-w", f"{b}/speech.wav", "hello from isim", check=False, quiet=True)
 
@@ -403,6 +408,13 @@ def _(a):
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Security",
                                           "-framework", "LocalAuthentication", "-framework", "CoreGraphics"])
+
+
+@app("samples/HelloVisionObjC", extra_inputs=["samples/HelloCoreImage/face.jpg"])   # Vision.framework re-exports libswiftVision (issue #537)
+def _(a):
+    b = a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Vision",
+                                              "-framework", "CoreGraphics", "-framework", "CoreVideo"])
+    vision_pictures(a, b)
 
 
 @app("samples/HelloDragDropObjC")   # UIKit loads its Swift overlay for the drag and drop classes (issue #245)
