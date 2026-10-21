@@ -7,9 +7,12 @@ public struct UnitTable: Decodable {
 }
 
 public enum Units {
+    /// the resource the table is read from (internal: the tests see it through @testable import)
+    static let tableResource = "units"
+
     /// Read from units.json in the package's resource bundle (Bundle.module).
     public static func table() -> UnitTable? {
-        guard let url = Bundle.module.url(forResource: "units", withExtension: "json"),
+        guard let url = Bundle.module.url(forResource: tableResource, withExtension: "json"),
               let data = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(UnitTable.self, from: data)
     }

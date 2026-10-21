@@ -19,6 +19,7 @@
 #   isim build ... -list [-json] | -showBuildSettings [-json]   targets, configurations, schemes / resolved build settings
 #   isim project [X.xcodeproj|X.xcworkspace]   the project as a tree: targets -> build phases -> files, packages
 #   isim test -project X.xcodeproj -scheme S [-only-testing:T/C/m] [-resultBundlePath D]   build + run XCTest/XCUITest/Swift Testing
+#   isim test -scheme PKG [-package-path DIR]   a Swift package's test targets (in its folder; isim build -list: its schemes)
 #   isim info <App.app|binary>   show Mach-O platform / dependencies
 #   isim preview <App.app> [NAME|INDEX|--list] [-o FILE.png]   render a #Preview to a PNG (Xcode's canvas, one preview)
 #   isim privacy-report <App.app> [-o FILE] [--json] [--strict]   the app's privacy manifests, checked (Xcode's privacy report)

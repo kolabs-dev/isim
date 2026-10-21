@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """isim test: build an Xcode project's test targets and run them in the isim simulator, like `xcodebuild test`.
 
-  isim test (-project App.xcodeproj | -workspace App.xcworkspace) [-scheme NAME | -target TESTTARGET ...]
+  isim test [-project App.xcodeproj | -workspace App.xcworkspace | -package-path DIR] [-scheme NAME | -target TESTTARGET ...]
             [-testPlan NAME] [-only-test-configuration NAME] [-skip-test-configuration NAME] [-showTestPlans]
             [-configuration Debug] [-only-testing:Target[/Class[/test]]] [-skip-testing:...] [-o OUTDIR (default ./build)]
             [-resultBundlePath DIR] [-package-cache DIR] [--device NAME] [--os 17|18|26|27] [--windowed] [SETTING=VALUE ...]
@@ -9,6 +9,11 @@
 * unit-test bundles with a TEST_HOST run inside the host app (the app launches, then the tests run in it);
   bundles without one, and UI-test bundles, run in isim's `xctest` runner process. UI tests drive the
   TEST_TARGET_NAME app, which XCUIApplication launches as its own simulator process.
+* a Swift package on its own (a Package.swift in the current folder and no project there, or -package-path DIR), like
+  `xcodebuild test` in a package directory: the scheme named after the package (also <Package>-Package) runs every
+  .testTarget, a product's scheme the test targets that depend on its targets; each test target is linked with the
+  targets it depends on into <Target>.xctest (OUTDIR, by default <package>/.build/isim) and runs in the xctest
+  runner with isim's iOS XCTest / Swift Testing (not swift-corelibs-xctest). `isim build -list` lists the schemes.
 * XCTest (Objective-C and Swift) and Swift Testing (@Test, when the bundle has any) run in the same bundle.
 * Output follows Xcode's console format; ends with ** TEST SUCCEEDED ** / ** TEST FAILED ** (exit 65).
 * test plans (.xctestplan, a scheme's TestPlans; -testPlan NAME, else the default plan, also when the scheme has no
@@ -41,7 +46,7 @@ def log(msg):
 def main():
     argv = sys.argv[1:]
     only, skip, rest = [], [], []
-    opts = {'project': None, 'workspace': None, 'scheme': None, 'configuration': None, 'output': None,
+    opts = {'project': None, 'workspace': None, 'package_path': None, 'scheme': None, 'configuration': None, 'output': None,
             'result': None, 'device': None, 'os': None, 'windowed': False, 'targets': [], 'package_cache': [],
             'scripts': True, 'testPlan': None, 'show_plans': False, 'only_configs': [], 'skip_configs': []}
     i = 0
@@ -66,6 +71,8 @@ def main():
             opts['only_configs' if a.startswith('-only') else 'skip_configs'].append(nxt); i += 1
         elif a == '-showTestPlans':
             opts['show_plans'] = True
+        elif a == '-package-path':
+            opts['package_path'] = nxt; i += 1
         elif a == '-target':
             opts['targets'].append(nxt); i += 1
         elif a == '-package-cache':
@@ -89,6 +96,9 @@ def main():
         else:
             rest.append(a)
         i += 1
+    pkg_dir = None if opts['project'] or opts['workspace'] else ib.find_package(opts['package_path'])
+    if pkg_dir:
+        return package_tests(pkg_dir, opts, only, skip, rest)
     projects, containers = ib.open_container(opts['project'], opts['workspace'])
     overrides = ib.parse_overrides(rest)
     scheme = None
@@ -169,6 +179,38 @@ def main():
     sys.exit(65 if failed else 0)
 
 
+def package_tests(pkg_dir, opts, only, skip, rest):
+    """isim test for a Swift package on its own: the scheme's test targets, each built into an .xctest bundle"""
+    configuration = opts['configuration'] or 'Debug'
+    outdir = os.path.abspath(opts['output'] or os.path.join(pkg_dir, '.build', 'isim'))
+    os.makedirs(outdir, exist_ok=True)
+    b = ib.Builder([], configuration, outdir, ib.parse_overrides(rest), opts['package_cache'], opts['scripts'])
+    b.packages.resolved_file = os.path.join(pkg_dir, 'Package.resolved')
+    schemes = ib.PackageSchemes(b, pkg_dir)
+    schemes.check(opts['scheme'])
+    scheme = opts['scheme'] or schemes.name
+    if opts['show_plans']:
+        print(f'Test plans associated with the scheme "{scheme}":')            # a package's schemes have none
+        return
+    if opts['testPlan']:
+        ib.fail(f'scheme {scheme} has no test plan named {opts["testPlan"]} (a package\'s schemes have no test plans)')
+    for n in opts['targets']:
+        if schemes.targets.get(n, {}).get('type') != 'test':
+            ib.fail(f'package {schemes.name} has no test target named {n}')
+    names = opts['targets'] or schemes.test_targets(opts['scheme'])
+    if not names:
+        ib.fail(f'scheme {scheme} has no test targets (no .testTarget' + ('' if schemes.is_package_scheme(opts['scheme'])
+                                                                       else f' depends on product {scheme}') + ')')
+    results = os.path.abspath(opts['result']) if opts['result'] else None
+    if results:
+        os.makedirs(results, exist_ok=True)
+    log(f'package {schemes.name}, scheme {scheme}: {", ".join(names)}')
+    failed = run_testables(b, [(ib.PackageTarget(pkg_dir, n), [], []) for n in names], {}, [], opts, only, skip, results,
+                           configuration, build=schemes.build_test)
+    print('\n** TEST FAILED **' if failed else '\n** TEST SUCCEEDED **', flush=True)
+    sys.exit(65 if failed else 0)
+
+
 def plan_runs(b, plan, scheme, opts):
     """a test plan's runs: per configuration (filtered by -only/-skip-test-configuration) its name, the enabled test
     targets with their skipped and selected tests, and the environment and arguments (default options, then the
@@ -211,8 +253,9 @@ def plan_runs(b, plan, scheme, opts):
     return runs
 
 
-def run_testables(b, testables, env, args, opts, only, skip, results, configuration, suffix=''):
-    """build and run test bundles: [(target, skipped identifiers, selected identifiers)]; True when any failed"""
+def run_testables(b, testables, env, args, opts, only, skip, results, configuration, suffix='', build=None):
+    """build and run test bundles: [(target, skipped identifiers, selected identifiers)]; True when any failed
+    (build: how a target becomes its product, b.build for Xcode targets)"""
     failed = False
     for target, scheme_skips, selected in testables:
         tname = target.name
@@ -220,7 +263,7 @@ def run_testables(b, testables, env, args, opts, only, skip, results, configurat
         if only and not mine:
             continue
         mine = mine or selected                                      # a test plan's selected tests
-        product = b.build(target)
+        product = (build or b.build)(target)
         if not product or product['kind'] not in ('xctest', 'uitest'):
             log(f'{tname}: not a test bundle (skipped)')
             continue

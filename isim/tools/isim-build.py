@@ -6,7 +6,13 @@
              [-onlyUsePackageVersionsFromResolvedFile] [-resolvePackageDependencies] [-list | -showBuildSettings [-json]]
              [SETTING=VALUE ...]
 
+  isim build [-package-path DIR] [-scheme NAME | -target NAME] [-list [-json]] ...   (a Swift package on its own)
+
   Products (the .app, frameworks, intermediates in obj/) go to OUTDIR, by default ./build in the current folder.
+
+  With no -project / -workspace and no .xcodeproj / .xcworkspace in the current folder, a Package.swift there (or
+  -package-path DIR) is built like xcodebuild builds a package: its schemes are one per product and one named after
+  the package (every target; also <Package>-Package); products go to OUTDIR, by default <package>/.build/isim.
 
 What it does per target (dependencies first, also across the projects of a workspace):
   * product types: applications, app extensions, frameworks (dynamic, embedded in <App>.app/Frameworks and
@@ -64,6 +70,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from xcodeproj import Project, Workspace, Scheme, scheme_files, cross_dependencies, expand, PHASE_NAMES  # noqa: E402
@@ -1687,10 +1694,10 @@ class Packages:
         fail(f'binary target {t["name"]}: {url} has no .xcframework')
 
     def settings_of(self, t, tool):
-        """(defines, flags, header paths) of a package target for tool 'swift' or 'c'/'cxx'."""
+        """(defines, flags, header paths) of a package target for tool 'swift', 'c'/'cxx' or 'linker'."""
         defines, flags, headers = [], [], []
         for s in t.get('settings', []):
-            if s.get('tool') not in ((tool,) if tool == 'swift' else ('c', 'cxx')):
+            if s.get('tool') not in ((tool,) if tool in ('swift', 'linker') else ('c', 'cxx')):
                 continue
             cond = s.get('condition') or {}
             plats = cond.get('platformNames')
@@ -1709,6 +1716,10 @@ class Packages:
                 flags += ['-enable-upcoming-feature', kind['enableUpcomingFeature']['_0']]
             elif 'enableExperimentalFeature' in kind:
                 flags += ['-enable-experimental-feature', kind['enableExperimentalFeature']['_0']]
+            elif 'linkedFramework' in kind:
+                flags += ['-framework', kind['linkedFramework']['_0']]
+            elif 'linkedLibrary' in kind:
+                flags.append('-l' + kind['linkedLibrary']['_0'])
         return defines, flags, headers
 
     def source_target(self, pkg_dir, m, t, deps):
@@ -1820,6 +1831,7 @@ class Packages:
             res['objs'].append(obj)
         if not swift and not csrc:
             log(f'{tname}: package target has no sources')
+        res['link'] += self.settings_of(t, 'linker')[1]        # linkerSettings: linkedFramework / linkedLibrary / unsafeFlags
         return res
 
 
@@ -2899,6 +2911,136 @@ def parse_overrides(rest):
     return out
 
 
+# ---------------- a Swift package on its own (xcodebuild in a package directory) ----------------
+def find_package(path=None):
+    """The Swift package to build when there is no project: -package-path DIR, else a Package.swift in the current
+    directory (only when the directory has no .xcodeproj / .xcworkspace, which xcodebuild prefers)."""
+    if path:
+        d = os.path.abspath(path)
+        if not os.path.exists(os.path.join(d, 'Package.swift')):
+            fail(f'-package-path {path}: no Package.swift there')
+        return d
+    if any(f.endswith(('.xcworkspace', '.xcodeproj')) for f in os.listdir('.')):
+        return None
+    return os.path.abspath('.') if os.path.exists('Package.swift') else None
+
+
+class PackageTarget:
+    """A test target of a package opened on its own, in the shape isim test's runner expects of an Xcode target."""
+    def __init__(self, pkg_dir, name):
+        self.name = name
+        self.p = types.SimpleNamespace(root=pkg_dir, xcodeproj=pkg_dir)
+
+
+class PackageSchemes:
+    """The schemes Xcode makes for a package opened on its own: one per product (its targets; for testing, the test
+    targets that depend on them) and one named after the package (every target and every test target; Xcode calls it
+    <Package>-Package when a product has another name, and both names work here)."""
+
+    def __init__(self, b, pkg_dir):
+        self.b, self.dir = b, pkg_dir
+        self.m = b.packages.manifest(pkg_dir)
+        self.name = self.m['name']
+        self.targets = {t['name']: t for t in self.m.get('targets', [])}
+        self.products = {p['name']: p for p in self.m.get('products', [])}
+
+    def names(self):
+        out = list(dict.fromkeys(sorted(self.products) + [self.name]))
+        if any(p != self.name for p in self.products):
+            out.append(self.name + '-Package')
+        return out
+
+    def is_package_scheme(self, scheme):
+        return scheme in (None, self.name, self.name + '-Package')
+
+    def check(self, scheme):
+        if scheme is not None and scheme not in self.names() and not self.is_package_scheme(scheme):
+            fail(f'package {self.name} has no scheme named {scheme} (schemes: {", ".join(self.names())})')
+
+    def local_deps(self, tname, seen=None):
+        """tname and the targets of this package it depends on, transitively"""
+        seen = set() if seen is None else seen
+        if tname in seen or tname not in self.targets:
+            return seen
+        seen.add(tname)
+        for d in self.targets[tname].get('dependencies', []):
+            n = (d.get('byName') or d.get('target') or [None])[0]
+            if n:
+                self.local_deps(n, seen)
+        return seen
+
+    def build_targets(self, scheme):
+        if self.is_package_scheme(scheme):
+            return [n for n, t in self.targets.items() if t.get('type', 'regular') in ('regular', 'executable', 'system', 'binary')]
+        return list(self.products[scheme]['targets'])
+
+    def test_targets(self, scheme):
+        tests = [n for n, t in self.targets.items() if t.get('type') == 'test']
+        if self.is_package_scheme(scheme):
+            return tests
+        mine = set().union(*(self.local_deps(t) for t in self.products[scheme]['targets']))
+        return [n for n in tests if self.local_deps(n) & mine - {n}]
+
+    def build_test(self, target):
+        """A package test target -> <Target>.xctest (the target and everything it depends on linked into the bundle,
+        as SwiftPM does), run by isim's xctest runner."""
+        tname = target.name
+        res = self.b.packages.target(self.dir, tname)
+        out = self.b.outdir
+        path = os.path.join(out, tname + '.xctest')
+        shutil.rmtree(path, ignore_errors=True)
+        os.makedirs(path)
+        log(f'{tname}: package test target -> {os.path.relpath(path)}')
+        exe = os.path.join(path, tname)
+        link = [ISIM, 'cc'] + res['objs'] + ['-o', exe, '-F', out] + res['link']
+        link += ['-framework', 'Foundation', '-framework', 'XCTest', '-bundle',
+                 '-Wl,-rpath,@executable_path/Frameworks', '-Wl,-rpath,@loader_path/Frameworks']
+        if '-lc++' not in link and uses_cxx_runtime(link_inputs(res['objs'], link)):
+            link.append('-lc++')
+        run(link)
+        with open(os.path.join(path, 'Info.plist'), 'wb') as f:
+            plistlib.dump({'CFBundleExecutable': tname, 'CFBundleIdentifier': f'{self.name}.{tname}'.replace('_', '-'),
+                           'CFBundleName': tname, 'CFBundlePackageType': 'BNDL', 'CFBundleInfoDictionaryVersion': '6.0',
+                           'CFBundleShortVersionString': '1.0', 'CFBundleVersion': '1'}, f)
+        for bundle in res['bundles']:                  # resource bundles (Bundle.module) next to the test code
+            shutil.copytree(bundle, os.path.join(path, os.path.basename(bundle)), dirs_exist_ok=True)
+        for e in res['embed']:
+            Builder.embed(e, os.path.join(path, 'Frameworks'))
+        return {'kind': 'xctest', 'path': path, 'exe': exe, 'settings': {}}
+
+
+def package_list(schemes, as_json):
+    """xcodebuild -list in a package directory: Xcode shows the package as a workspace with its schemes."""
+    if as_json:
+        print(json.dumps({'workspace': {'name': schemes.name, 'schemes': schemes.names()}}, indent=2))
+        return
+    print(f'Information about workspace "{schemes.name}":')
+    print('    Schemes:')
+    for n in schemes.names():
+        print(f'        {n}')
+
+
+def package_build(a, rest, pkg_dir):
+    """isim build in a package directory (or with -package-path): the scheme's targets, built for the isim SDK."""
+    outdir = os.path.abspath(a.output or os.path.join(pkg_dir, '.build', 'isim'))
+    os.makedirs(outdir, exist_ok=True)
+    b = Builder([], a.configuration or 'Debug', outdir, parse_overrides(rest), a.package_cache, not a.skip_script_phases)
+    b.packages.resolved_file = os.path.join(pkg_dir, 'Package.resolved')
+    b.packages.automatic = not (a.disableAutomaticPackageResolution or a.onlyUsePackageVersionsFromResolvedFile)
+    schemes = PackageSchemes(b, pkg_dir)
+    if a.list:
+        return package_list(schemes, a.json)
+    schemes.check(a.scheme)
+    if a.resolvePackageDependencies:
+        b.packages.dependency_dirs(pkg_dir)
+        log(f'resolved package dependencies of {schemes.name}')
+        return
+    targets = a.target or schemes.build_targets(a.scheme)
+    for t in targets:
+        b.packages.target(pkg_dir, t)
+    log(f'done: package {schemes.name}, scheme {a.scheme or schemes.name} ({len(targets)} targets, {os.path.relpath(outdir)})')
+
+
 # ---------------- project view (xcodebuild -list / -showBuildSettings, isim project) ----------------
 def list_info(projects, containers, workspace, as_json):
     """xcodebuild -list: targets, build configurations and schemes of the project (or the schemes of a workspace)."""
@@ -3053,7 +3195,11 @@ def main():
     ap.add_argument('-disableAutomaticPackageResolution', action='store_true')
     ap.add_argument('-onlyUsePackageVersionsFromResolvedFile', action='store_true')
     ap.add_argument('-o', '--output', '-derivedDataPath', dest='output', default=None)
+    ap.add_argument('-package-path')
     a, rest = ap.parse_known_args()
+    pkg_dir = None if a.project or a.workspace else find_package(a.package_path)
+    if pkg_dir:
+        return package_build(a, rest, pkg_dir)
     projects, containers = open_container(a.project, a.workspace)
     workspace = os.path.abspath(a.workspace) if a.workspace else (containers[0] if containers[0].endswith('.xcworkspace') else None)
     if a.list:
