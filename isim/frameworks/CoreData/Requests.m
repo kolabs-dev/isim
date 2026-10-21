@@ -53,6 +53,56 @@
 
 @implementation NSPersistentStoreResult
 @end
+
+/* ---------------- asynchronous fetches ---------------- */
+@implementation NSAsynchronousFetchRequest
+- (instancetype)initWithFetchRequest:(NSFetchRequest *)request completionBlock:(void (^)(NSAsynchronousFetchResult *))blk {
+    if ((self = [super init])) { _fetchRequest = request; _completionBlock = [blk copy]; _estimatedResultCount = 0; }
+    return self;
+}
+- (NSPersistentStoreRequestType)requestType { return NSFetchRequestType; }
+- (id)copyWithZone:(NSZone *)zone {
+    NSAsynchronousFetchRequest *r = [[NSAsynchronousFetchRequest alloc] initWithFetchRequest:[_fetchRequest copy] completionBlock:_completionBlock];
+    r.estimatedResultCount = _estimatedResultCount; r.affectedStores = self.affectedStores;
+    return r;
+}
+@end
+
+@implementation NSPersistentStoreAsynchronousResult {
+    @package
+    NSManagedObjectContext *_cdContext;
+    NSError *_cdError;
+    NSProgress *_cdProgress;
+    BOOL _cdCancelled;
+}
+- (NSManagedObjectContext *)managedObjectContext { return _cdContext; }
+- (NSError *)operationError { return _cdError; }
+- (NSProgress *)progress { return _cdProgress; }
+- (void)cancel { @synchronized (self) { _cdCancelled = YES; } [_cdProgress cancel]; }
+@end
+
+@implementation NSAsynchronousFetchResult { NSAsynchronousFetchRequest *_cdRequest; NSArray *_cdFinal; }
+- (NSAsynchronousFetchRequest *)fetchRequest { return _cdRequest; }
+- (NSArray *)finalResult { return _cdFinal; }
+/* starts the fetch on the context's queue; the result's progress is a child of the current progress, if any */
++ (instancetype)_cd_startRequest:(NSAsynchronousFetchRequest *)request context:(NSManagedObjectContext *)context {
+    NSAsynchronousFetchResult *r = [[NSAsynchronousFetchResult alloc] init];
+    r->_cdRequest = request; r->_cdContext = context;
+    r->_cdProgress = [NSProgress progressWithTotalUnitCount:request.estimatedResultCount > 0 ? request.estimatedResultCount : 1];
+    r->_cdProgress.cancellable = YES;
+    [context performBlock:^{
+        @synchronized (r) { if (r->_cdCancelled) return; }
+        NSError *e = nil;
+        NSArray *objects = [context executeFetchRequest:request.fetchRequest error:&e];
+        @synchronized (r) { if (r->_cdCancelled) return; }
+        r->_cdFinal = objects; r->_cdError = objects ? nil : e;
+        r->_cdProgress.totalUnitCount = (int64_t)MAX(objects.count, 1u);
+        r->_cdProgress.completedUnitCount = r->_cdProgress.totalUnitCount;
+        if (request.completionBlock) request.completionBlock(r);
+    }];
+    return r;
+}
+@end
 @implementation NSBatchDeleteResult { id _result; NSBatchDeleteRequestResultType _type; }
 - (instancetype)_cd_initWithResult:(id)result type:(NSBatchDeleteRequestResultType)type { if ((self = [super init])) { _result = result; _type = type; } return self; }
 - (id)result { return _result; }

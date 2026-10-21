@@ -36,7 +36,8 @@ func gadgetModel() -> NSManagedObjectModel {
     e.managedObjectClassName = NSStringFromClass(Gadget.self)
     let info = attr("info", .transformableAttributeType)
     info.valueTransformerName = NSValueTransformerName.secureUnarchiveFromDataTransformerName.rawValue
-    let nameLength = attr("nameLength", .integer64AttributeType, defaultValue: 0)
+    let nameLength = NSDerivedAttributeDescription()
+    nameLength.name = "nameLength"; nameLength.attributeType = .integer64AttributeType; nameLength.defaultValue = 0
     nameLength.derivationExpression = NSExpression(forKeyPath: "name.length")
     e.properties = [attr("i16", .integer16AttributeType, defaultValue: 7), attr("i32", .integer32AttributeType), attr("i64", .integer64AttributeType),
                     attr("dbl", .doubleAttributeType), attr("flt", .floatAttributeType), attr("flag", .booleanAttributeType, defaultValue: true),

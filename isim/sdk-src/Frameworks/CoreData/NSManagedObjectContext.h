@@ -2,6 +2,7 @@
 #import <Foundation/Foundation.h>
 #import <CoreData/CoreDataDefines.h>
 #import <CoreData/NSFetchRequest.h>
+#import <CoreData/NSMergePolicy.h>
 NS_ASSUME_NONNULL_BEGIN
 @class NSManagedObject, NSManagedObjectID, NSPersistentStoreCoordinator, NSPersistentStoreRequest, NSPersistentStoreResult;
 
@@ -23,40 +24,17 @@ COREDATA_EXTERN NSString * const NSRefreshedObjectIDsKey;
 COREDATA_EXTERN NSString * const NSInvalidatedObjectIDsKey;
 COREDATA_EXTERN NSString * const NSManagedObjectContextQueryGenerationKey;
 
-/* merge policies */
-COREDATA_EXTERN id NSErrorMergePolicy;
-COREDATA_EXTERN id NSMergeByPropertyStoreTrumpMergePolicy;
-COREDATA_EXTERN id NSMergeByPropertyObjectTrumpMergePolicy;
-COREDATA_EXTERN id NSOverwriteMergePolicy;
-COREDATA_EXTERN id NSRollbackMergePolicy;
-
-typedef NS_ENUM(NSUInteger, NSMergePolicyType) {
-    NSErrorMergePolicyType NS_SWIFT_NAME(errorMergePolicyType) = 0x00,
-    NSMergeByPropertyStoreTrumpMergePolicyType NS_SWIFT_NAME(mergeByPropertyStoreTrumpMergePolicyType) = 0x01,
-    NSMergeByPropertyObjectTrumpMergePolicyType NS_SWIFT_NAME(mergeByPropertyObjectTrumpMergePolicyType) = 0x02,
-    NSOverwriteMergePolicyType NS_SWIFT_NAME(overwriteMergePolicyType) = 0x03,
-    NSRollbackMergePolicyType NS_SWIFT_NAME(rollbackMergePolicyType) = 0x04
-};
-
-/// isim: optimistic locking per row; on a conflicting save the policy decides per object (error: the save
-/// fails with NSManagedObjectMergeError; object trump / overwrite: this context's values win; store trump:
-/// the stored values win for the conflicting object's properties; rollback: this context's changes to it are dropped).
-@interface NSMergePolicy : NSObject
-@property (class, readonly, strong) NSMergePolicy *errorMergePolicy NS_SWIFT_NAME(error);
-@property (class, readonly, strong) NSMergePolicy *rollbackMergePolicy NS_SWIFT_NAME(rollback);
-@property (class, readonly, strong) NSMergePolicy *overwriteMergePolicy NS_SWIFT_NAME(overwrite);
-@property (class, readonly, strong) NSMergePolicy *mergeByPropertyObjectTrumpMergePolicy NS_SWIFT_NAME(mergeByPropertyObjectTrump);
-@property (class, readonly, strong) NSMergePolicy *mergeByPropertyStoreTrumpMergePolicy NS_SWIFT_NAME(mergeByPropertyStoreTrump);
-@property (readonly) NSMergePolicyType mergeType;
-- (id)initWithMergeType:(NSMergePolicyType)ty NS_DESIGNATED_INITIALIZER;
-- (instancetype)init NS_UNAVAILABLE;
-@end
-
 typedef NS_ENUM(NSUInteger, NSManagedObjectContextConcurrencyType) {
     NSConfinementConcurrencyType NS_SWIFT_NAME(confinementConcurrencyType) = 0x00,
     NSPrivateQueueConcurrencyType NS_SWIFT_NAME(privateQueueConcurrencyType) = 0x01,
     NSMainQueueConcurrencyType NS_SWIFT_NAME(mainQueueConcurrencyType) = 0x02
 };
+
+/// A snapshot of the stores' data that contexts can be pinned to. isim: an SQLite read transaction (WAL journal mode) on
+/// its own connection per store, kept open while the token lives; in-memory stores do not support it.
+@interface NSQueryGenerationToken : NSObject <NSSecureCoding, NSCopying>
+@property (class, readonly, strong) NSQueryGenerationToken *currentQueryGenerationToken NS_SWIFT_NAME(current);
+@end
 
 /// isim: a context keeps strong references to its registered objects (like retainsRegisteredObjects = YES).
 /// Fetches in child contexts go through the parent (so they see its unsaved changes); saves of a child push its
@@ -109,6 +87,11 @@ typedef NS_ENUM(NSUInteger, NSManagedObjectContextConcurrencyType) {
 + (void)mergeChangesFromRemoteContextSave:(NSDictionary *)changeNotificationData intoContexts:(NSArray<NSManagedObjectContext *> *)contexts NS_SWIFT_NAME(mergeChanges(fromRemoteContextSave:into:));
 @property (nonatomic) BOOL automaticallyMergesChangesFromParent;
 @property (nullable, copy) NSString *transactionAuthor;
+/// The generation the context reads (nil: unpinned, it reads the latest data). Saving, merging and resetting a pinned
+/// context move it to a new snapshot of the current data. isim: only root contexts pin; child contexts read through
+/// their parent.
+@property (nullable, nonatomic, strong, readonly) NSQueryGenerationToken *queryGenerationToken;
+- (BOOL)setQueryGenerationFromToken:(nullable NSQueryGenerationToken *)generation error:(NSError **)error NS_SWIFT_NAME(setQueryGenerationFrom(_:));
 @end
 
 NS_ASSUME_NONNULL_END

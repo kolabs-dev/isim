@@ -10,6 +10,8 @@
  * renaming identifiers); removed properties are left in place. */
 #import "CoreDataPrivate.h"
 #include <string.h>
+#include <ctype.h>
+#include <notify.h>
 
 NSString * const NSSQLiteStoreType = @"SQLite";
 NSString * const NSInMemoryStoreType = @"InMemory";
@@ -26,8 +28,15 @@ NSString * const NSPersistentStoreFileProtectionKey = @"NSPersistentStoreFilePro
 NSString * const NSPersistentStoreTimeoutOption = @"NSPersistentStoreTimeoutOption";
 NSString * const NSStoreModelVersionHashesKey = @"NSStoreModelVersionHashes";
 NSString * const NSStoreModelVersionIdentifiersKey = @"NSStoreModelVersionIdentifiers";
+NSNotificationName const NSPersistentStoreRemoteChangeNotification = @"NSPersistentStoreRemoteChangeNotification";
+NSString * const NSPersistentStoreURLKey = @"storeURL";
+NSString * const NSPersistentHistoryTokenKey = @"historyToken";
 
 #define SQLITE_TRANSIENT_ ((sqlite3_destructor_type)-1)
+
+/* the snapshot connection that this thread's reads of a store use (CDReadInGeneration) */
+static __thread __unsafe_unretained CDSQLStore *cd_readStore;
+static __thread sqlite3 *cd_readDB;
 
 static NSString *col_type(NSAttributeType t) {
     switch (t) {
@@ -52,11 +61,34 @@ static NSString *sql_quote(id v) {
     NSString *_storeType;
     BOOL _inTxn;
     BOOL _history;           /* NSPersistentHistoryTrackingKey: transactions in ATRANSACTION / ACHANGE */
+    int _remoteToken;        /* NSPersistentStoreRemoteChangeNotificationPostOptionKey: the Darwin notification it listens to */
 }
 - (NSString *)type { return _storeType ?: NSSQLiteStoreType; }
 - (void)_cd_setType:(NSString *)t { _storeType = [t copy]; }
 - (void)dealloc { [self _cd_close]; }
-- (void)_cd_close { if (_db) { sqlite3_close_v2(_db); _db = NULL; } }
+- (void)_cd_close {
+    if (_remoteToken > 0) { notify_cancel(_remoteToken); _remoteToken = 0; }
+    if (_db) { sqlite3_close_v2(_db); _db = NULL; }
+}
+/* every write to a store file is announced with a Darwin notification named after the file (any coordinator, any process) */
+- (NSString *)_cd_remoteChangeName {
+    NSString *path = self.URL.path.stringByStandardizingPath;
+    return path.length && ![path isEqualToString:@"/dev/null"] && ![_storeType isEqualToString:NSInMemoryStoreType] ? [@"com.apple.coredata.remotechange:" stringByAppendingString:path] : nil;
+}
+- (void)_cd_didWrite { NSString *n = self._cd_remoteChangeName; if (n) notify_post(n.UTF8String); }
+- (void)_cd_postRemoteChange {
+    NSPersistentStoreCoordinator *c = self.persistentStoreCoordinator;
+    if (!c || !_db) return;
+    NSMutableDictionary *info = [NSMutableDictionary dictionaryWithDictionary:@{ NSStoreUUIDKey: self.identifier ?: @"", NSPersistentStoreURLKey: self.URL }];
+    if (_history) {                                          /* the newest transaction, read on its own connection */
+        sqlite3 *db = NULL; sqlite3_stmt *st = NULL;
+        if (sqlite3_open_v2(self.URL.path.UTF8String, &db, SQLITE_OPEN_READONLY, NULL) == SQLITE_OK &&
+            sqlite3_prepare_v2(db, "SELECT MAX(Z_PK) FROM ATRANSACTION", -1, &st, NULL) == SQLITE_OK && sqlite3_step(st) == SQLITE_ROW && sqlite3_column_type(st, 0) != SQLITE_NULL)
+            info[NSPersistentHistoryTokenKey] = [NSPersistentHistoryToken _cd_token:sqlite3_column_int64(st, 0)];
+        sqlite3_finalize(st); if (db) sqlite3_close(db);
+    }
+    [[NSNotificationCenter defaultCenter] postNotificationName:NSPersistentStoreRemoteChangeNotification object:c userInfo:info];
+}
 
 /* ---------------- SQL helpers ---------------- */
 - (BOOL)_exec:(NSString *)sql error:(NSError **)error {
@@ -71,6 +103,13 @@ static NSString *sql_quote(id v) {
 - (sqlite3_stmt *)_prepare:(NSString *)sql {
     sqlite3_stmt *st = NULL;
     if (sqlite3_prepare_v2(_db, sql.UTF8String, -1, &st, NULL) != SQLITE_OK) { CD_LOG(@"SQLite prepare failed: %s (%@)", sqlite3_errmsg(_db), sql); return NULL; }
+    return st;
+}
+/* a read: through the query generation's connection when the reading context is pinned to one */
+- (sqlite3_stmt *)_prepareRead:(NSString *)sql {
+    sqlite3 *db = cd_readStore == self && cd_readDB ? cd_readDB : _db;
+    sqlite3_stmt *st = NULL;
+    if (sqlite3_prepare_v2(db, sql.UTF8String, -1, &st, NULL) != SQLITE_OK) { CD_LOG(@"SQLite prepare failed: %s (%@)", sqlite3_errmsg(db), sql); return NULL; }
     return st;
 }
 static int64_t pk_of(id v) {
@@ -95,6 +134,32 @@ static void bind(sqlite3_stmt *st, int i, id v) {
 static void bind_all(sqlite3_stmt *st, NSArray *args) { for (NSUInteger i = 0; i < args.count; i++) bind(st, (int)i + 1, args[i]); }
 static NSData *col_data(sqlite3_stmt *st, int i) { return [NSData dataWithBytes:sqlite3_column_blob(st, i) length:(NSUInteger)sqlite3_column_bytes(st, i)]; }
 static NSString *col_text(sqlite3_stmt *st, int i) { const unsigned char *t = sqlite3_column_text(st, i); return t ? @((const char *)t) : nil; }
+/* a composite attribute's dictionary <-> a binary plist (UUIDs and URLs as strings) */
+static NSData *composite_data(NSCompositeAttributeDescription *a, NSDictionary *v) {
+    if (![v isKindOfClass:[NSDictionary class]]) return nil;
+    NSMutableDictionary *out = [NSMutableDictionary dictionary];
+    for (NSAttributeDescription *el in a.elements) {
+        id x = v[el.name];
+        if (!x || x == [NSNull null]) continue;
+        if ([x isKindOfClass:[NSUUID class]]) x = [x UUIDString];
+        else if ([x isKindOfClass:[NSURL class]]) x = [x absoluteString];
+        if ([NSPropertyListSerialization propertyList:x isValidForFormat:NSPropertyListBinaryFormat_v1_0]) out[el.name] = x;
+    }
+    return [NSPropertyListSerialization dataWithPropertyList:out format:NSPropertyListBinaryFormat_v1_0 options:0 error:NULL];
+}
+static NSDictionary *composite_value(NSCompositeAttributeDescription *a, NSData *d) {
+    NSDictionary *in = d.length ? [NSPropertyListSerialization propertyListWithData:d options:0 format:NULL error:NULL] : nil;
+    if (![in isKindOfClass:[NSDictionary class]]) return nil;
+    NSMutableDictionary *out = [NSMutableDictionary dictionary];
+    for (NSAttributeDescription *el in a.elements) {
+        id x = in[el.name];
+        if (!x) continue;
+        if (el.attributeType == NSUUIDAttributeType && [x isKindOfClass:[NSString class]]) x = [[NSUUID alloc] initWithUUIDString:x];
+        else if (el.attributeType == NSURIAttributeType && [x isKindOfClass:[NSString class]]) x = [NSURL URLWithString:x];
+        if (x) out[el.name] = x;
+    }
+    return out;
+}
 /* SQL value -> object for an attribute */
 static id col_value(sqlite3_stmt *st, int i, NSAttributeDescription *a) {
     if (sqlite3_column_type(st, i) == SQLITE_NULL) return nil;
@@ -111,6 +176,7 @@ static id col_value(sqlite3_stmt *st, int i, NSAttributeDescription *a) {
     case NSUUIDAttributeType: { NSData *d = col_data(st, i); return d.length == 16 ? [[NSUUID alloc] initWithUUIDBytes:d.bytes] : nil; }
     case NSURIAttributeType: { NSString *s = col_text(st, i); return s ? [NSURL URLWithString:s] : nil; }
     case NSTransformableAttributeType: return [a _cd_valueFromData:col_data(st, i)];
+    case NSCompositeAttributeType: return [a isKindOfClass:[NSCompositeAttributeDescription class]] ? composite_value((NSCompositeAttributeDescription *)a, col_data(st, i)) : nil;
     default: { int t = sqlite3_column_type(st, i);
         if (t == SQLITE_INTEGER) return @((long long)sqlite3_column_int64(st, i));
         if (t == SQLITE_FLOAT) return @(sqlite3_column_double(st, i));
@@ -123,6 +189,7 @@ static id sql_value(NSAttributeDescription *a, id v) {
     if (!v || v == [NSNull null]) return [NSNull null];
     switch (a.attributeType) {
     case NSTransformableAttributeType: return [a _cd_dataFromValue:v] ?: [NSNull null];
+    case NSCompositeAttributeType: return ([a isKindOfClass:[NSCompositeAttributeDescription class]] ? composite_data((NSCompositeAttributeDescription *)a, v) : nil) ?: [NSNull null];
     case NSBooleanAttributeType: return @([v boolValue] ? 1 : 0);
     case NSInteger16AttributeType: case NSInteger32AttributeType: case NSInteger64AttributeType: return [v isKindOfClass:[NSNumber class]] ? @([v longLongValue]) : v;
     case NSDoubleAttributeType: case NSFloatAttributeType: case NSDecimalAttributeType: return [v isKindOfClass:[NSNumber class]] ? @([v doubleValue]) : v;
@@ -235,9 +302,38 @@ static id sql_value(NSAttributeDescription *a, id v) {
                     [cols addObject:c]; [cols addObject:r._cd_entColumn.uppercaseString];
                 }
             }
+            for (NSFetchIndexDescription *x in e.indexes) [self _createIndex:x entity:e table:table];
         }
     }
     return YES;
+}
+/* an entity's NSFetchIndexDescription as an SQLite index (partial when its predicate translates to SQL) */
+- (void)_createIndex:(NSFetchIndexDescription *)x entity:(NSEntityDescription *)e table:(NSString *)table {
+    NSMutableArray *cols = [NSMutableArray array];
+    for (NSFetchIndexElementDescription *el in x.elements) {
+        NSPropertyDescription *p = el.property ?: e.propertiesByName[el.propertyName];
+        if (!p || p.transient || ([p isKindOfClass:[NSRelationshipDescription class]] && ((NSRelationshipDescription *)p).toMany)) return;
+        [cols addObject:[p._cd_column stringByAppendingString:el.ascending ? @" ASC" : @" DESC"]];
+    }
+    if (!cols.count || !x.name.length) return;
+    NSMutableString *name = [NSMutableString stringWithFormat:@"Z_%@_%@", e.name.uppercaseString, x.name.uppercaseString];
+    for (NSUInteger i = 0; i < name.length; i++) { unichar c = [name characterAtIndex:i]; if (!isalnum(c) && c != '_') [name replaceCharactersInRange:NSMakeRange(i, 1) withString:@"_"]; }
+    NSString *where = @"";
+    if (x.partialIndexPredicate) {
+        NSMutableArray *args = [NSMutableArray array];
+        BOOL exact = YES;
+        NSString *sql = [self _cd_sqlForPredicate:x.partialIndexPredicate entity:e args:args exact:&exact];
+        if (exact && sql.length) {                           /* an index's WHERE has no parameters: inline them */
+            NSMutableString *inl = [NSMutableString string];
+            NSUInteger n = 0;
+            for (NSUInteger i = 0; i < sql.length; i++) {
+                unichar c = [sql characterAtIndex:i];
+                if (c == '?' && n < args.count) [inl appendString:sql_quote(args[n++])]; else [inl appendFormat:@"%C", c];
+            }
+            where = [@" WHERE " stringByAppendingString:inl];
+        }
+    }
+    [self _exec:[NSString stringWithFormat:@"CREATE INDEX IF NOT EXISTS %@ ON %@ (%@)%@", name, table, [cols componentsJoinedByString:@", "], where] error:NULL];
 }
 - (BOOL)_cd_openWithModel:(NSManagedObjectModel *)model options:(NSDictionary *)options error:(NSError **)error {
     _model = model;
@@ -308,6 +404,11 @@ static id sql_value(NSAttributeDescription *a, id v) {
         [self _exec:@"CREATE INDEX IF NOT EXISTS ACHANGE_TRANSACTION ON ACHANGE (ZTRANSACTIONID)" error:NULL];
     }
     self.identifier = md[NSStoreUUIDKey];
+    NSString *remote = self._cd_remoteChangeName;
+    if ([options[NSPersistentStoreRemoteChangeNotificationPostOptionKey] boolValue] && remote) {
+        __weak CDSQLStore *weakSelf = self;
+        notify_register_dispatch(remote.UTF8String, &_remoteToken, dispatch_get_global_queue(0, 0), ^(int token) { [weakSelf _cd_postRemoteChange]; });
+    }
     NSMutableDictionary *pub = [md mutableCopy];
     pub[NSStoreModelVersionHashesKey] = model.entityVersionHashesByName;
     pub[NSStoreModelVersionIdentifiersKey] = model.versionIdentifiers.allObjects ?: @[];
@@ -345,7 +446,7 @@ static id sql_value(NSAttributeDescription *a, id v) {
 }
 - (NSArray<CDSnapshot *> *)_rowsFromSQL:(NSString *)sql args:(NSArray *)args props:(NSArray *)props {
     NSMutableArray *out = [NSMutableArray array];
-    sqlite3_stmt *st = [self _prepare:sql];
+    sqlite3_stmt *st = [self _prepareRead:sql];
     if (!st) return out;
     bind_all(st, args);
     NSMutableDictionary *colIndex = [NSMutableDictionary dictionary];
@@ -401,7 +502,7 @@ static id sql_value(NSAttributeDescription *a, id v) {
     if (!_db || !family.count) return 0;
     NSMutableString *sql = [NSMutableString stringWithFormat:@"SELECT COUNT(*) FROM %@ WHERE Z_ENT IN (%@)", [family[0] _cd_table], [self _entList:family]];
     if (where.length) [sql appendFormat:@" AND (%@)", where];
-    sqlite3_stmt *st = [self _prepare:sql];
+    sqlite3_stmt *st = [self _prepareRead:sql];
     if (!st) return 0;
     bind_all(st, args);
     NSUInteger n = sqlite3_step(st) == SQLITE_ROW ? (NSUInteger)sqlite3_column_int64(st, 0) : 0;
@@ -416,7 +517,7 @@ static id sql_value(NSAttributeDescription *a, id v) {
 }
 - (NSArray<NSManagedObjectID *> *)_idsFromSQL:(NSString *)sql args:(NSArray *)args defaultEntity:(NSEntityDescription *)de {
     NSMutableArray *ids = [NSMutableArray array];
-    sqlite3_stmt *st = [self _prepare:sql];
+    sqlite3_stmt *st = [self _prepareRead:sql];
     if (!st) return ids;
     bind_all(st, args);
     while (sqlite3_step(st) == SQLITE_ROW) {
@@ -524,14 +625,34 @@ static id sql_value(NSAttributeDescription *a, id v) {
     }
     return YES;
 }
+/* the primary key of a stored row whose values for `constraint` equal the object's (0: none) */
+- (int64_t)_rowMatching:(NSManagedObject *)o constraint:(NSArray *)constraint {
+    if (!constraint.count) return 0;
+    NSMutableArray *where = [NSMutableArray arrayWithObject:[NSString stringWithFormat:@"Z_ENT IN (%@)", [self _entList:o.entity._cd_root._cd_family]]], *args = [NSMutableArray array];
+    for (id item in constraint) {
+        NSString *key = [item isKindOfClass:[NSPropertyDescription class]] ? [item name] : item;
+        NSPropertyDescription *p = o.entity.propertiesByName[key];
+        if (![p isKindOfClass:[NSAttributeDescription class]] && !([p isKindOfClass:[NSRelationshipDescription class]] && ![(NSRelationshipDescription *)p isToMany])) return 0;
+        [where addObject:[p._cd_column stringByAppendingString:@" IS ?"]];
+        id value = [o _cd_raw:key];
+        [args addObject:[p isKindOfClass:[NSAttributeDescription class]] ? sql_value((NSAttributeDescription *)p, value) : (value ? @(pk_of(value)) : [NSNull null])];
+    }
+    sqlite3_stmt *st = [self _prepare:[NSString stringWithFormat:@"SELECT Z_PK FROM %@ WHERE %@ AND Z_PK != ? LIMIT 1", o.entity._cd_table, [where componentsJoinedByString:@" AND "]]];
+    [args addObject:@(o.objectID._cd_pk)];
+    bind_all(st, args);
+    int64_t pk = st && sqlite3_step(st) == SQLITE_ROW ? sqlite3_column_int64(st, 0) : 0;
+    sqlite3_finalize(st);
+    return pk;
+}
 - (BOOL)_cd_saveInserted:(NSArray<NSManagedObject *> *)inserted updated:(NSArray<NSManagedObject *> *)updated deleted:(NSArray<NSManagedObject *> *)deleted
              mergePolicy:(NSMergePolicy *)policy author:(NSString *)author contextName:(NSString *)contextName error:(NSError **)error {
     if (!_db) { if (error) *error = CDError(NSPersistentStoreSaveError, @"The store is closed.", nil); return NO; }
     if (![self _exec:@"BEGIN IMMEDIATE" error:error]) return NO;
     _inTxn = YES;
     BOOL ok = YES;
-    NSMutableArray *conflicts = [NSMutableArray array], *write = [NSMutableArray array];
+    NSMutableArray *write = [NSMutableArray array];
     NSMutableArray *toInsert = [inserted mutableCopy];
+    NSMutableArray<NSMergeConflict *> *mergeConflicts = [NSMutableArray array];
     for (NSManagedObject *o in updated) {                          /* optimistic locking */
         sqlite3_stmt *st = [self _prepare:[NSString stringWithFormat:@"SELECT Z_OPT FROM %@ WHERE Z_PK = ?", o.entity._cd_table]];
         bind(st, 1, @(o.objectID._cd_pk));
@@ -539,95 +660,58 @@ static id sql_value(NSAttributeDescription *a, id v) {
         int64_t version = exists ? sqlite3_column_int64(st, 0) : -1;
         sqlite3_finalize(st);
         if (exists && version == o._cd_version) { [write addObject:o]; continue; }
-        if (!exists && policy.mergeType != NSErrorMergePolicyType) continue;       /* deleted elsewhere: nothing to write */
-        switch (policy.mergeType) {
-        case NSErrorMergePolicyType:
-            [conflicts addObject:@{ @"object": o, @"oldVersion": @(o._cd_version), @"newVersion": @(version) }];
-            break;
-        case NSRollbackMergePolicyType: {
-            CDSnapshot *s = [self _cd_rowForObjectID:o.objectID];
-            if (s) [o _cd_mergeSnapshot:s keepChanges:NO];
-            break; }
-        case NSOverwriteMergePolicyType:
-            [write addObject:o];
-            break;
-        case NSMergeByPropertyObjectTrumpMergePolicyType: {
-            CDSnapshot *s = [self _cd_rowForObjectID:o.objectID];
-            if (s) [o _cd_mergeSnapshot:s keepChanges:YES];
-            [write addObject:o];
-            break; }
-        case NSMergeByPropertyStoreTrumpMergePolicyType: {
-            CDSnapshot *s = [self _cd_rowForObjectID:o.objectID];
-            if (s) {
-                NSArray *mine = o._cd_changedKeys;
-                NSDictionary *committed = [o._cd_committed copy];
-                NSMutableDictionary *theirs = [NSMutableDictionary dictionary];
-                for (NSString *k in mine) {
-                    id sv = s.values[k], cv = committed[k];
-                    if ([cv isKindOfClass:[NSManagedObject class]]) cv = [cv objectID];
-                    if (sv == [NSNull null]) sv = nil;
-                    if (sv && ![sv isKindOfClass:[NSArray class]] && !(cv && [sv isEqual:cv])) theirs[k] = sv;
-                    else if (!sv && cv) theirs[k] = [NSNull null];
-                }
-                [o _cd_mergeSnapshot:s keepChanges:YES];
-                for (NSString *k in theirs) {
-                    id v = theirs[k] == [NSNull null] ? nil : theirs[k];
-                    if ([v isKindOfClass:[NSManagedObjectID class]]) v = [o.managedObjectContext objectWithID:v];
-                    [o _cd_setRaw:v forKey:k];
-                }
-            }
-            [write addObject:o];
-            break; }
-        }
+        CDSnapshot *row = exists ? [self _cd_rowForObjectID:o.objectID] : nil;
+        NSMutableDictionary *cached = [NSMutableDictionary dictionary];
+        [o._cd_committed enumerateKeysAndObjectsUsingBlock:^(NSString *k, id v, BOOL *stop) {
+            if ([v isKindOfClass:[NSManagedObject class]]) v = [v objectID];
+            if (![v isKindOfClass:[NSArray class]] && ![v isKindOfClass:[NSSet class]] && ![v isKindOfClass:[NSOrderedSet class]]) cached[k] = v;
+        }];
+        NSMergeConflict *mc = [[NSMergeConflict alloc] initWithSource:o newVersion:exists ? (NSUInteger)version : 0 oldVersion:(NSUInteger)o._cd_version
+                                                       cachedSnapshot:cached persistedSnapshot:CDSnapshotDictionary(row)];
+        mc._cd_snapshot = row;
+        [mergeConflicts addObject:mc];
     }
-    if (conflicts.count) {
-        [self _exec:@"ROLLBACK" error:NULL];
-        _inTxn = NO;
-        if (error) *error = CDError(NSManagedObjectMergeError, @"Could not merge changes.", @{ NSPersistentStoreSaveConflictsErrorKey: conflicts });
-        return NO;
-    }
-    /* Enforce model uniqueness constraints.  A conflicting insert is merged into the existing row using the
-     * context's merge policy; this is adapted but keeps the important invariant that a constraint is unique. */
-    for (NSManagedObject *o in [inserted copy]) {
+    /* model uniqueness constraints: an inserted object whose constraint values match a stored row */
+    NSMutableArray<NSConstraintConflict *> *constraintConflicts = [NSMutableArray array];
+    for (NSManagedObject *o in inserted) {
         for (NSArray *constraint in o.entity.uniquenessConstraints) {
-            if (!constraint.count) continue;
-            NSMutableArray *where = [NSMutableArray arrayWithObject:@"Z_ENT = ?"], *args = [NSMutableArray arrayWithObject:_entNums[o.entity.name] ?: @0];
-            BOOL supported = YES;
-            for (id item in constraint) {
-                NSString *key = [item isKindOfClass:[NSPropertyDescription class]] ? [item name] : item;
-                NSPropertyDescription *p = o.entity.propertiesByName[key];
-                if (![p isKindOfClass:[NSAttributeDescription class]] && !([p isKindOfClass:[NSRelationshipDescription class]] && ![(NSRelationshipDescription *)p isToMany])) { supported = NO; break; }
-                [where addObject:[p._cd_column stringByAppendingString:@" IS ?"]];
-                id value = [o _cd_raw:key];
-                [args addObject:[p isKindOfClass:[NSAttributeDescription class]] ? sql_value((NSAttributeDescription *)p, value) : (value ? @(pk_of(value)) : [NSNull null])];
-            }
-            if (!supported) continue;
-            sqlite3_stmt *st = [self _prepare:[NSString stringWithFormat:@"SELECT Z_PK FROM %@ WHERE %@ LIMIT 1", o.entity._cd_table, [where componentsJoinedByString:@" AND "]]];
-            bind_all(st, args);
-            BOOL found = st && sqlite3_step(st) == SQLITE_ROW;
-            int64_t pk = found ? sqlite3_column_int64(st, 0) : 0;
-            sqlite3_finalize(st);
-            if (!found) continue;
+            int64_t pk = [self _rowMatching:o constraint:constraint];
+            if (!pk) continue;
             NSManagedObjectID *existingID = [NSManagedObjectID _cd_idWithEntity:o.entity store:self pk:pk];
-            if (policy.mergeType == NSErrorMergePolicyType) {
-                [conflicts addObject:@{ @"object": o, @"constraint": constraint, @"databaseObject": existingID }];
-                continue;
-            }
-            [toInsert removeObject:o];
-            [o.managedObjectContext _cd_replaceObject:o withPermanentID:existingID];
-            CDSnapshot *snapshot = [self _cd_rowForObjectID:existingID];
-            if (policy.mergeType == NSMergeByPropertyStoreTrumpMergePolicyType || policy.mergeType == NSRollbackMergePolicyType) {
-                if (snapshot) [o _cd_mergeSnapshot:snapshot keepChanges:NO];
-            } else {
-                if (snapshot) { o._cd_version = snapshot.version; [write addObject:o]; }
-            }
+            CDSnapshot *row = [self _cd_rowForObjectID:existingID];
+            if (row) existingID = row.objectID;                    /* its actual entity (a subentity's row) */
+            NSMutableArray *names = [NSMutableArray array];
+            for (id item in constraint) [names addObject:[item isKindOfClass:[NSPropertyDescription class]] ? [item name] : item];
+            NSConstraintConflict *cc = [[NSConstraintConflict alloc] initWithConstraint:names databaseObject:[o.managedObjectContext objectWithID:existingID]
+                                                                      databaseSnapshot:CDSnapshotDictionary(row) conflictingObjects:@[o] conflictingSnapshots:@[@{}]];
+            cc._cd_version = row.version;
+            [constraintConflicts addObject:cc];
             break;
         }
     }
-    if (conflicts.count) {
-        [self _exec:@"ROLLBACK" error:NULL]; _inTxn = NO;
-        if (error) *error = CDError(NSManagedObjectConstraintMergeError, @"Could not merge objects because a uniqueness constraint was violated.", @{ NSPersistentStoreSaveConflictsErrorKey: conflicts });
-        return NO;
+    if (mergeConflicts.count || constraintConflicts.count) {      /* the context's merge policy resolves them (a subclass may override) */
+        NSError *e = nil;
+        if (![policy resolveConflicts:[(NSArray *)mergeConflicts arrayByAddingObjectsFromArray:constraintConflicts] error:&e]) {
+            [self _exec:@"ROLLBACK" error:NULL]; _inTxn = NO;
+            if (error) *error = e ?: CDError(NSManagedObjectMergeError, @"Could not merge changes.", nil);
+            return NO;
+        }
+        for (NSMergeConflict *mc in mergeConflicts) {
+            NSManagedObject *o = mc.sourceObject;
+            if (!mc.newVersionNumber) continue;                    /* deleted in the store: nothing to write */
+            o._cd_version = (int64_t)mc.newVersionNumber;
+            if (o._cd_changedKeys.count) [write addObject:o];
+        }
+        for (NSConstraintConflict *cc in constraintConflicts) {
+            NSManagedObject *o = cc.conflictingObjects.firstObject;
+            if (cc._cd_merged) { [toInsert removeObject:o]; if (cc._cd_write) [write addObject:o]; continue; }
+            for (NSArray *constraint in o.entity.uniquenessConstraints)   /* not merged: it still may not collide */
+                if ([self _rowMatching:o constraint:constraint]) {
+                    [self _exec:@"ROLLBACK" error:NULL]; _inTxn = NO;
+                    if (error) *error = CDError(NSManagedObjectConstraintMergeError, @"Could not merge objects because a uniqueness constraint was violated.", @{ NSPersistentStoreSaveConflictsErrorKey: @[cc] });
+                    return NO;
+                }
+        }
     }
     for (NSManagedObject *o in toInsert) {
         NSMutableArray *cols = [NSMutableArray arrayWithObjects:@"Z_PK", @"Z_ENT", @"Z_OPT", nil];
@@ -660,6 +744,7 @@ static id sql_value(NSAttributeDescription *a, id v) {
     if (!ok) { [self _exec:@"ROLLBACK" error:NULL]; _inTxn = NO; return NO; }
     if (![self _exec:@"COMMIT" error:error]) { [self _exec:@"ROLLBACK" error:NULL]; _inTxn = NO; return NO; }
     _inTxn = NO;
+    if (toInsert.count || write.count || deleted.count) [self _cd_didWrite];
     for (NSManagedObject *o in toInsert) o._cd_version = 1;
     for (NSManagedObject *o in write) {
         sqlite3_stmt *st = [self _prepare:[NSString stringWithFormat:@"SELECT Z_OPT FROM %@ WHERE Z_PK = ?", o.entity._cd_table]];
@@ -669,6 +754,9 @@ static id sql_value(NSAttributeDescription *a, id v) {
     }
     return YES;
 }
+
+/* ---------------- query generations ---------------- */
+- (NSString *)_cd_generationPath { return _db && ![_storeType isEqualToString:NSInMemoryStoreType] && self.URL.path.length && ![self.URL.path isEqualToString:@"/dev/null"] ? self.URL.path : nil; }
 
 /* ---------------- persistent history ---------------- */
 - (BOOL)_recordHistoryInserted:(NSArray<NSManagedObject *> *)inserted updated:(NSArray<NSManagedObject *> *)updated deleted:(NSArray<NSManagedObject *> *)deleted
@@ -824,6 +912,7 @@ static id sql_value(NSAttributeDescription *a, id v) {
         }
         [self _exec:ok ? @"COMMIT" : @"ROLLBACK" error:NULL];
         if (!ok) return nil;
+        [self _cd_didWrite];
         id result = req.resultType == NSBatchDeleteResultTypeObjectIDs ? ids : req.resultType == NSBatchDeleteResultTypeCount ? @(ids.count) : @YES;
         return [[NSBatchDeleteResult alloc] _cd_initWithResult:result type:req.resultType];
     }
@@ -854,6 +943,7 @@ static id sql_value(NSAttributeDescription *a, id v) {
         BOOL ok = !pks.count || [self _run:[NSString stringWithFormat:@"UPDATE %@ SET %@ WHERE Z_PK IN (%@)", e._cd_table, [sets componentsJoinedByString:@", "], [pks componentsJoinedByString:@", "]] args:args error:error];
         [self _exec:ok ? @"COMMIT" : @"ROLLBACK" error:NULL];
         if (!ok) return nil;
+        [self _cd_didWrite];
         id result = req.resultType == NSUpdatedObjectIDsResultType ? ids : req.resultType == NSUpdatedObjectsCountResultType ? @(ids.count) : @YES;
         return [[NSBatchUpdateResult alloc] _cd_initWithResult:result type:req.resultType];
     }
@@ -1034,3 +1124,65 @@ static NSString *pred_sql(NSPredicate *p, NSEntityDescription *entity, NSMutable
     return [parts componentsJoinedByString:@", "];
 }
 @end
+
+/* ---------------- query generations ---------------- */
+@interface CDGeneration : NSObject { @public sqlite3 *db; }
+@property (weak) CDSQLStore *store;
+@end
+@implementation CDGeneration
+- (void)dealloc { if (db) { sqlite3_exec(db, "ROLLBACK", NULL, NULL, NULL); sqlite3_close_v2(db); } }
+@end
+
+@implementation NSQueryGenerationToken { NSArray<CDGeneration *> *_generations; BOOL _current; }
++ (NSQueryGenerationToken *)currentQueryGenerationToken {
+    static NSQueryGenerationToken *t;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ t = [[NSQueryGenerationToken alloc] init]; t->_current = YES; });
+    return t;
+}
++ (instancetype)_cd_snapshotOfStores:(NSArray<NSPersistentStore *> *)stores error:(NSError **)error {
+    NSMutableArray *gens = [NSMutableArray array];
+    for (NSPersistentStore *s in stores) {
+        NSString *path = [s isKindOfClass:[CDSQLStore class]] ? [(CDSQLStore *)s _cd_generationPath] : nil;
+        sqlite3 *db = NULL;
+        if (!path || sqlite3_open_v2(path.UTF8String, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, NULL) != SQLITE_OK ||
+            sqlite3_exec(db, "BEGIN; SELECT COUNT(*) FROM Z_ENTITIES", NULL, NULL, NULL) != SQLITE_OK) {   /* the read starts the snapshot */
+            if (db) sqlite3_close_v2(db);
+            if (error) *error = CDError(NSPersistentStoreUnsupportedRequestTypeError, [NSString stringWithFormat:@"The store %@ does not support query generations (they need an SQLite store on disk).", s.URL.lastPathComponent ?: s.type], nil);
+            return nil;
+        }
+        sqlite3_busy_timeout(db, 5000);
+        CDGeneration *g = [[CDGeneration alloc] init];
+        g->db = db; g.store = (CDSQLStore *)s;
+        [gens addObject:g];
+    }
+    NSQueryGenerationToken *t = [[NSQueryGenerationToken alloc] init];
+    t->_generations = gens;
+    return t;
+}
+- (BOOL)_cd_coversStores:(NSArray<NSPersistentStore *> *)stores {
+    for (NSPersistentStore *s in stores) {
+        BOOL found = NO;
+        for (CDGeneration *g in _generations) if (g.store == s) found = YES;
+        if (!found) return NO;
+    }
+    return _generations.count > 0;
+}
+- (sqlite3 *)_cd_dbForStore:(NSPersistentStore *)store { for (CDGeneration *g in _generations) if (g.store == store) return g->db; return NULL; }
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)coder { [coder encodeBool:_current forKey:@"current"]; }
+- (instancetype)initWithCoder:(NSCoder *)coder {               /* a snapshot cannot outlive its connections: only .current survives */
+    return [coder decodeBoolForKey:@"current"] ? [NSQueryGenerationToken currentQueryGenerationToken] : [self init];
+}
+- (id)copyWithZone:(NSZone *)zone { return self; }
+- (NSString *)description { return _current ? @"<NSQueryGenerationToken: current>" : [NSString stringWithFormat:@"<NSQueryGenerationToken: %p> %lu stores", self, (unsigned long)_generations.count]; }
+@end
+
+void CDReadInGeneration(NSQueryGenerationToken *token, NSPersistentStore *store, void (NS_NOESCAPE ^block)(void)) {
+    sqlite3 *db = token && [store isKindOfClass:[CDSQLStore class]] ? [token _cd_dbForStore:store] : NULL;
+    if (!db) { block(); return; }
+    CDSQLStore *prevStore = cd_readStore; sqlite3 *prevDB = cd_readDB;
+    cd_readStore = (CDSQLStore *)store; cd_readDB = db;
+    block();
+    cd_readStore = prevStore; cd_readDB = prevDB;
+}

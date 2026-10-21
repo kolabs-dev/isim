@@ -36,7 +36,121 @@ static NSMergePolicy *policy(NSMergePolicyType t) {
 + (NSMergePolicy *)mergeByPropertyObjectTrumpMergePolicy { return policy(NSMergeByPropertyObjectTrumpMergePolicyType); }
 + (NSMergePolicy *)mergeByPropertyStoreTrumpMergePolicy { return policy(NSMergeByPropertyStoreTrumpMergePolicyType); }
 - (NSString *)description { return [NSString stringWithFormat:@"<NSMergePolicy: %p> type %lu", self, (unsigned long)_mergeType]; }
+- (BOOL)resolveConflicts:(NSArray *)list error:(NSError **)error {
+    NSMutableArray *merge = [NSMutableArray array], *constraint = [NSMutableArray array];
+    for (id c in list) {
+        if ([c isKindOfClass:[NSMergeConflict class]]) [merge addObject:c];
+        else if ([c isKindOfClass:[NSConstraintConflict class]]) [constraint addObject:c];
+    }
+    if (merge.count && ![self resolveOptimisticLockingVersionConflicts:merge error:error]) return NO;
+    if (constraint.count && ![self resolveConstraintConflicts:constraint error:error]) return NO;
+    return YES;
+}
+static CDSnapshot *conflict_snapshot(NSManagedObjectID *oid, NSDictionary *values, CDSnapshot *s, int64_t version) {
+    if (s || !values) return s;
+    s = [[CDSnapshot alloc] init];
+    s.objectID = oid;
+    [s.values addEntriesFromDictionary:values];
+    s.version = version;
+    return s;
+}
+- (BOOL)resolveOptimisticLockingVersionConflicts:(NSArray<NSMergeConflict *> *)list error:(NSError **)error {
+    if (_mergeType == NSErrorMergePolicyType) {
+        if (error) *error = CDError(NSManagedObjectMergeError, @"Could not merge changes.", @{ NSPersistentStoreSaveConflictsErrorKey: list });
+        return NO;
+    }
+    for (NSMergeConflict *mc in list) {
+        NSManagedObject *o = mc.sourceObject;
+        CDSnapshot *s = conflict_snapshot(o.objectID, mc.persistedSnapshot, mc._cd_snapshot, (int64_t)mc.newVersionNumber);
+        if (!s) continue;                                         /* deleted in the store: nothing to merge into */
+        switch (_mergeType) {
+        case NSRollbackMergePolicyType: [o _cd_mergeSnapshot:s keepChanges:NO]; break;
+        case NSMergeByPropertyObjectTrumpMergePolicyType: [o _cd_mergeSnapshot:s keepChanges:YES]; break;
+        case NSMergeByPropertyStoreTrumpMergePolicyType: {        /* the store's changed values win over this context's */
+            NSArray *mine = o._cd_changedKeys;
+            NSDictionary *committed = [o._cd_committed copy];
+            NSMutableDictionary *theirs = [NSMutableDictionary dictionary];
+            for (NSString *k in mine) {
+                id sv = s.values[k], cv = committed[k];
+                if ([cv isKindOfClass:[NSManagedObject class]]) cv = [cv objectID];
+                if (sv == [NSNull null]) sv = nil;
+                if (sv && ![sv isKindOfClass:[NSArray class]] && !(cv && [sv isEqual:cv])) theirs[k] = sv;
+                else if (!sv && cv) theirs[k] = [NSNull null];
+            }
+            [o _cd_mergeSnapshot:s keepChanges:YES];
+            for (NSString *k in theirs) {
+                id v = theirs[k] == [NSNull null] ? nil : theirs[k];
+                if ([v isKindOfClass:[NSManagedObjectID class]]) v = [o.managedObjectContext objectWithID:v];
+                [o _cd_setRaw:v forKey:k];
+            }
+            break; }
+        default: break;                                           /* overwrite: this context's values are written as they are */
+        }
+    }
+    return YES;
+}
+- (BOOL)resolveConstraintConflicts:(NSArray<NSConstraintConflict *> *)list error:(NSError **)error {
+    if (_mergeType == NSErrorMergePolicyType) {
+        if (error) *error = CDError(NSManagedObjectConstraintMergeError, @"Could not merge objects because a uniqueness constraint was violated.", @{ NSPersistentStoreSaveConflictsErrorKey: list });
+        return NO;
+    }
+    for (NSConstraintConflict *cc in list) {
+        NSManagedObject *db = cc.databaseObject, *o = cc.conflictingObjects.firstObject;
+        if (!db || !o || cc._cd_merged) continue;                 /* conflicts between inserted objects: not merged by isim */
+        [o.managedObjectContext _cd_replaceObject:o withPermanentID:db.objectID];   /* the inserted object becomes the row */
+        CDSnapshot *s = conflict_snapshot(db.objectID, cc.databaseSnapshot, nil, cc._cd_version);
+        cc._cd_merged = YES;
+        if (_mergeType == NSMergeByPropertyStoreTrumpMergePolicyType || _mergeType == NSRollbackMergePolicyType) {
+            if (s) [o _cd_mergeSnapshot:s keepChanges:NO];
+        } else { o._cd_version = cc._cd_version; cc._cd_write = YES; }
+    }
+    return YES;
+}
 @end
+
+NSDictionary *CDSnapshotDictionary(CDSnapshot *s) { return s ? [s.values copy] : nil; }
+@implementation NSMergeConflict { CDSnapshot *_cdSnapshot; }
+- (instancetype)initWithSource:(NSManagedObject *)srcObject newVersion:(NSUInteger)newvers oldVersion:(NSUInteger)oldvers cachedSnapshot:(NSDictionary *)cachesnap persistedSnapshot:(NSDictionary *)persnap {
+    if ((self = [super init])) {
+        _sourceObject = srcObject; _newVersionNumber = newvers; _oldVersionNumber = oldvers;
+        _cachedSnapshot = [cachesnap copy]; _persistedSnapshot = [persnap copy];
+        NSMutableDictionary *now = [NSMutableDictionary dictionary];   /* the object's values in memory */
+        for (NSPropertyDescription *p in srcObject.entity.properties) {
+            if (p.transient || ([p isKindOfClass:[NSRelationshipDescription class]] && ((NSRelationshipDescription *)p).toMany)) continue;
+            if (![p isKindOfClass:[NSAttributeDescription class]] && ![p isKindOfClass:[NSRelationshipDescription class]]) continue;
+            id v = [srcObject _cd_raw:p.name];
+            if ([v isKindOfClass:[NSManagedObject class]]) v = [v objectID];
+            now[p.name] = v ?: [NSNull null];
+        }
+        _objectSnapshot = now;
+    }
+    return self;
+}
+- (CDSnapshot *)_cd_snapshot { return _cdSnapshot; }
+- (void)set_cd_snapshot:(CDSnapshot *)s { _cdSnapshot = s; }
+- (NSString *)description { return [NSString stringWithFormat:@"<NSMergeConflict: %p> source %@, version %lu -> %lu", self, _sourceObject.objectID, (unsigned long)_oldVersionNumber, (unsigned long)_newVersionNumber]; }
+@end
+@implementation NSConstraintConflict { int64_t _cdVersion; BOOL _cdMerged, _cdWrite; }
+- (instancetype)initWithConstraint:(NSArray<NSString *> *)constraint databaseObject:(NSManagedObject *)databaseObject databaseSnapshot:(NSDictionary *)databaseSnapshot conflictingObjects:(NSArray<NSManagedObject *> *)conflictingObjects conflictingSnapshots:(NSArray *)conflictingSnapshots {
+    if ((self = [super init])) {
+        _constraint = [constraint copy]; _databaseObject = databaseObject; _databaseSnapshot = [databaseSnapshot copy];
+        _conflictingObjects = [conflictingObjects copy]; _conflictingSnapshots = [conflictingSnapshots copy];
+        NSMutableDictionary *values = [NSMutableDictionary dictionary];
+        NSManagedObject *o = conflictingObjects.firstObject;
+        for (NSString *k in constraint) { id v = [o valueForKey:k]; if ([v isKindOfClass:[NSManagedObject class]]) v = [v objectID]; values[k] = v ?: [NSNull null]; }
+        _constraintValues = values;
+    }
+    return self;
+}
+- (int64_t)_cd_version { return _cdVersion; }
+- (void)set_cd_version:(int64_t)v { _cdVersion = v; }
+- (BOOL)_cd_merged { return _cdMerged; }
+- (void)set_cd_merged:(BOOL)v { _cdMerged = v; }
+- (BOOL)_cd_write { return _cdWrite; }
+- (void)set_cd_write:(BOOL)v { _cdWrite = v; }
+- (NSString *)description { return [NSString stringWithFormat:@"<NSConstraintConflict: %p> %@ = %@, database object %@", self, _constraint, _constraintValues, _databaseObject.objectID]; }
+@end
+
 id NSErrorMergePolicy, NSMergeByPropertyStoreTrumpMergePolicy, NSMergeByPropertyObjectTrumpMergePolicy, NSOverwriteMergePolicy, NSRollbackMergePolicy;
 __attribute__((constructor)) static void cd_policies(void) {
     NSErrorMergePolicy = policy(NSErrorMergePolicyType);
@@ -62,6 +176,7 @@ static __thread __unsafe_unretained NSManagedObjectContext *cd_current;
     NSMutableDictionary *_userInfo;
     NSPersistentStoreCoordinator *_psc;
     NSManagedObjectContext *_parent;
+    NSQueryGenerationToken *_generation;         /* pinned: reads go through this snapshot of the stores */
 }
 @synthesize userInfo = _userInfo;
 + (NSManagedObjectContext *)_cd_current { return cd_current; }
@@ -125,6 +240,8 @@ static __thread __unsafe_unretained NSManagedObjectContext *cd_current;
 - (void)_cd_registerObject:(NSManagedObject *)o {
     _registered[o.objectID] = o;
     [o _cd_setContext:self];
+    NSPersistentStore *s = o.objectID.persistentStore;
+    if ([s isKindOfClass:[NSIncrementalStore class]]) [(NSIncrementalStore *)s managedObjectContextDidRegisterObjectsWithIDs:@[o.objectID]];
 }
 - (void)_cd_unregister:(NSManagedObject *)o {
     [_registered removeObjectForKey:o.objectID];
@@ -186,9 +303,16 @@ static __thread __unsafe_unretained NSManagedObjectContext *cd_current;
     NSPersistentStoreCoordinator *c = self.persistentStoreCoordinator;
     if (oid.temporaryID) return nil;
     CDSQLStore *store = (CDSQLStore *)oid.persistentStore ?: [c _cd_storeForEntity:oid.entity];
+    if ([store isKindOfClass:[NSIncrementalStore class]]) {
+        [c lock];
+        CDSnapshot *s = [(NSIncrementalStore *)(id)store _cd_snapshotForObjectID:oid context:self];
+        [c unlock];
+        return s;
+    }
     if (![store isKindOfClass:[CDSQLStore class]]) return nil;
     [c lock];
-    CDSnapshot *s = [store _cd_rowForObjectID:oid];
+    __block CDSnapshot *s = nil;
+    CDReadInGeneration(_generation, store, ^{ s = [store _cd_rowForObjectID:oid]; });
     [c unlock];
     return s;
 }
@@ -209,9 +333,16 @@ static __thread __unsafe_unretained NSManagedObjectContext *cd_current;
     if (oid.temporaryID) return @[];
     NSPersistentStoreCoordinator *c = self.persistentStoreCoordinator;
     CDSQLStore *store = (CDSQLStore *)oid.persistentStore ?: [c _cd_storeForEntity:oid.entity];
+    if ([store isKindOfClass:[NSIncrementalStore class]]) {
+        [c lock];
+        NSArray *ids = [(NSIncrementalStore *)(id)store _cd_relatedIDs:oid relationship:r context:self];
+        [c unlock];
+        return ids;
+    }
     if (![store isKindOfClass:[CDSQLStore class]]) return @[];
     [c lock];
-    NSArray *ids = [store _cd_relatedIDs:oid relationship:r];
+    __block NSArray *ids = nil;
+    CDReadInGeneration(_generation, store, ^{ ids = [store _cd_relatedIDs:oid relationship:r]; });
     [c unlock];
     return ids;
 }
@@ -317,7 +448,42 @@ static __thread __unsafe_unretained NSManagedObjectContext *cd_current;
     if (upd.count) info[NSRefreshedObjectsKey] = upd;
     if (info.count) [[NSNotificationCenter defaultCenter] postNotificationName:NSManagedObjectContextObjectsDidChangeNotification object:self userInfo:info];
 }
+/* query generations */
+- (NSQueryGenerationToken *)queryGenerationToken { return _generation; }
+- (BOOL)setQueryGenerationFromToken:(NSQueryGenerationToken *)generation error:(NSError **)error {
+    if (!generation) { _generation = nil; return YES; }
+    if (_parent) { if (error) *error = CDError(NSPersistentStoreUnsupportedRequestTypeError, @"isim pins query generations on root contexts; a child context reads through its parent.", nil); return NO; }
+    NSArray *stores = self.persistentStoreCoordinator.persistentStores;
+    if (generation == [NSQueryGenerationToken currentQueryGenerationToken]) {
+        NSQueryGenerationToken *t = [NSQueryGenerationToken _cd_snapshotOfStores:stores error:error];
+        if (!t) return NO;
+        _generation = t;
+        return YES;
+    }
+    if (![generation _cd_coversStores:stores]) {
+        if (error) *error = CDError(NSPersistentStoreOperationError, @"The query generation token is not from this context's persistent stores.", nil);
+        return NO;
+    }
+    _generation = generation;
+    return YES;
+}
+/* a pinned context moves to a new snapshot of the current data when it saves, merges or resets */
+- (void)_cd_advanceGeneration {
+    if (!_generation) return;
+    NSQueryGenerationToken *t = [NSQueryGenerationToken _cd_snapshotOfStores:self.persistentStoreCoordinator.persistentStores error:NULL];
+    if (t) _generation = t;
+}
 - (void)reset {
+    [self _cd_advanceGeneration];
+    NSMutableDictionary<NSValue *, NSMutableArray *> *gone = [NSMutableDictionary dictionary];   /* incremental stores hear of the unregistered IDs */
+    for (NSManagedObjectID *i in _registered) {
+        NSPersistentStore *s = i.persistentStore;
+        if (![s isKindOfClass:[NSIncrementalStore class]]) continue;
+        NSValue *k = [NSValue valueWithNonretainedObject:s];
+        if (!gone[k]) gone[k] = [NSMutableArray array];
+        [gone[k] addObject:i];
+    }
+    for (NSValue *k in gone) [(NSIncrementalStore *)k.nonretainedObjectValue managedObjectContextDidUnregisterObjectsWithIDs:gone[k]];
     for (NSManagedObject *o in _registered.allValues) { [o _cd_turnIntoFault]; [o _cd_setContext:nil]; }
     [_registered removeAllObjects]; [_tempToPermanent removeAllObjects];
     [_inserted removeAllObjects]; [_updated removeAllObjects]; [_deleted removeAllObjects];
@@ -424,21 +590,35 @@ static NSArray *apply_window(NSArray *a, NSUInteger offset, NSUInteger limit) {
         }
         [c lock];
         for (CDSQLStore *store in stores) {
+            if ([store isKindOfClass:[NSIncrementalStore class]]) {  /* the store filters, sorts and windows */
+                NSFetchRequest *sr = [req copy];
+                sr.entity = entity; sr.predicate = pred; sr.resultType = NSManagedObjectResultType;
+                if (pending) { sr.fetchLimit = 0; sr.fetchOffset = 0; }
+                NSArray *found = [(NSIncrementalStore *)(id)store _cd_fetch:sr context:self error:error];
+                if (!found) { [c unlock]; return nil; }
+                [objects addObjectsFromArray:found];
+                done = !pending && stores.count == 1; filtered = YES;
+                continue;
+            }
             NSMutableArray *args = [NSMutableArray array];
             BOOL exact = YES;
             NSString *where = pred ? [store _cd_sqlForPredicate:pred entity:entity args:args exact:&exact] : nil;
             NSString *order = req.sortDescriptors.count ? [store _cd_sqlForSortDescriptors:req.sortDescriptors entity:entity] : nil;
             BOOL sqlAll = !pending && exact && stores.count == 1 && (order || !req.sortDescriptors.count);
             if (sqlAll && countOnly && countOut) {
-                NSUInteger n = [store _cd_countForEntities:family where:where args:args];
+                __block NSUInteger n = 0;
+                CDReadInGeneration(_generation, store, ^{ n = [store _cd_countForEntities:family where:where args:args]; });
                 n = req.fetchOffset >= n ? 0 : n - req.fetchOffset;
                 if (req.fetchLimit && req.fetchLimit < n) n = req.fetchLimit;
                 *countOut = n;
                 [c unlock];
                 return nil;
             }
-            NSArray *rows = [store _cd_rowsForEntities:family where:where args:args order:sqlAll ? order : nil
-                                                 limit:sqlAll ? req.fetchLimit : 0 offset:sqlAll ? req.fetchOffset : 0];
+            __block NSArray *rows = nil;
+            CDReadInGeneration(_generation, store, ^{
+                rows = [store _cd_rowsForEntities:family where:where args:args order:sqlAll ? order : nil
+                                            limit:sqlAll ? req.fetchLimit : 0 offset:sqlAll ? req.fetchOffset : 0];
+            });
             for (CDSnapshot *s in rows) [objects addObject:[self _cd_objectForSnapshot:s]];
             done = sqlAll; filtered = exact;
         }
@@ -550,9 +730,10 @@ static id aggregate(NSExpression *e, NSArray *objects) {
 - (NSArray *)executeFetchRequest:(NSFetchRequest *)request error:(NSError **)error { return [self _cd_executeFetch:request error:error]; }
 - (NSUInteger)countForFetchRequest:(NSFetchRequest *)request error:(NSError **)error { return [self _cd_count:request error:error]; }
 - (NSPersistentStoreResult *)executeRequest:(NSPersistentStoreRequest *)request error:(NSError **)error {
+    if ([request isKindOfClass:[NSAsynchronousFetchRequest class]]) return [NSAsynchronousFetchResult _cd_startRequest:(NSAsynchronousFetchRequest *)request context:self];
     if ([request isKindOfClass:[NSBatchInsertRequest class]] || [request isKindOfClass:[NSBatchDeleteRequest class]] || [request isKindOfClass:[NSBatchUpdateRequest class]] || [request isKindOfClass:[NSPersistentHistoryChangeRequest class]])
         return [self.persistentStoreCoordinator executeRequest:request withContext:self error:error];
-    if (error) *error = CDError(NSPersistentStoreUnsupportedRequestTypeError, @"executeRequest: supports batch insert/delete/update requests on isim (use executeFetchRequest:error: for fetches)", nil);
+    if (error) *error = CDError(NSPersistentStoreUnsupportedRequestTypeError, @"executeRequest: supports asynchronous fetch, batch insert/delete/update and history requests on isim (use executeFetchRequest:error: for fetches)", nil);
     return nil;
 }
 
@@ -578,8 +759,10 @@ static id aggregate(NSExpression *e, NSArray *objects) {
     CDSQLStore *store = [c _cd_storeForEntity:entities[0]];
     if (!store) { if (error) *error = CDError(NSCoreDataError, @"This NSPersistentStoreCoordinator has no persistent stores. It cannot perform a save operation.", nil); return NO; }
     [c lock];
-    NSArray *ids = [store _cd_permanentIDsForEntities:entities error:error];
+    NSArray *ids = [store isKindOfClass:[NSIncrementalStore class]] ? [(NSIncrementalStore *)(id)store obtainPermanentIDsForObjects:temp error:error]
+                                                                   : [store _cd_permanentIDsForEntities:entities error:error];
     [c unlock];
+    if (ids && ids.count != temp.count) { if (error) *error = CDError(NSPersistentStoreOperationError, @"The store returned a different number of permanent IDs than objects.", nil); return NO; }
     if (!ids) return NO;
     for (NSUInteger i = 0; i < temp.count; i++) [self _cd_replaceID:temp[i] with:ids[i]];
     return YES;
@@ -596,7 +779,8 @@ static NSSet *ids_of(NSArray *objects) { NSMutableSet *s = [NSMutableSet set]; f
     if (![self _cd_assignPermanentIDs:ins error:error]) return NO;
     NSMergePolicy *mp = [self.mergePolicy isKindOfClass:[NSMergePolicy class]] ? self.mergePolicy : NSErrorMergePolicy;
     [c lock];
-    BOOL ok = [store _cd_saveInserted:ins updated:upd deleted:del mergePolicy:mp author:self.transactionAuthor contextName:self.name error:error];
+    BOOL ok = [store isKindOfClass:[NSIncrementalStore class]] ? [(NSIncrementalStore *)(id)store _cd_saveInserted:ins updated:upd deleted:del context:self error:error]
+                                                              : [store _cd_saveInserted:ins updated:upd deleted:del mergePolicy:mp author:self.transactionAuthor contextName:self.name error:error];
     [c unlock];
     return ok;
 }
@@ -698,11 +882,13 @@ static NSSet *ids_of(NSArray *objects) { NSMutableSet *s = [NSMutableSet set]; f
     [[NSNotificationCenter defaultCenter] postNotificationName:NSManagedObjectContextDidSaveObjectIDsNotification object:self userInfo:idChanges];
     if (!_parent) [self.persistentStoreCoordinator _cd_rootContext:self didSave:idChanges];
     [self _cd_notifyChildren:idChanges except:nil];
+    [self _cd_advanceGeneration];
     return YES;
 }
 
 /* ---------------- merging ---------------- */
 - (void)_cd_mergeIDChanges:(NSDictionary *)changes {
+    [self _cd_advanceGeneration];
     NSMutableSet *ins = [NSMutableSet set], *ref = [NSMutableSet set], *del = [NSMutableSet set];
     for (NSManagedObjectID *i in changes[NSDeletedObjectIDsKey]) {
         NSManagedObject *o = [self objectRegisteredForID:i];

@@ -9,8 +9,11 @@
 #import <CoreData/NSManagedObjectModel.h>
 #import <CoreData/NSManagedObject.h>
 #import <CoreData/NSFetchRequest.h>
+#import <CoreData/NSMergePolicy.h>
 #import <CoreData/NSManagedObjectContext.h>
 #import <CoreData/NSPersistentStoreCoordinator.h>
 #import <CoreData/NSFetchedResultsController.h>
 #import <CoreData/NSPersistentHistory.h>
 #import <CoreData/NSMigrationManager.h>
+#import <CoreData/NSIncrementalStore.h>
+#import <CoreData/NSCoreDataCoreSpotlightDelegate.h>

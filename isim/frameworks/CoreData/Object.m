@@ -24,12 +24,19 @@ NSArray *CDToManyArray(id v) {
     __weak NSPersistentStore *_store;
     NSString *_storeID, *_temp, *_rootName;
     int64_t _pk;
+    id _ref;                                       /* an incremental store's reference object */
 }
 + (instancetype)_cd_idWithEntity:(NSEntityDescription *)e store:(NSPersistentStore *)s pk:(int64_t)pk {
     NSManagedObjectID *o = [[self alloc] init];
     o->_entity = e; o->_store = s; o->_storeID = s.identifier ?: @""; o->_pk = pk; o->_rootName = e._cd_root.name;
     return o;
 }
++ (instancetype)_cd_idWithEntity:(NSEntityDescription *)e store:(NSPersistentStore *)s reference:(id)ref {
+    NSManagedObjectID *o = [self _cd_idWithEntity:e store:s pk:[ref isKindOfClass:[NSNumber class]] ? [ref longLongValue] : 0];
+    o->_ref = [ref conformsToProtocol:@protocol(NSCopying)] ? [ref copy] : ref;
+    return o;
+}
+- (id)_cd_reference { return _ref ?: @(_pk); }
 + (instancetype)_cd_temporaryIDWithEntity:(NSEntityDescription *)e {
     NSManagedObjectID *o = [[self alloc] init];
     o->_entity = e; o->_temp = [NSUUID UUID].UUIDString; o->_rootName = e._cd_root.name;
@@ -41,6 +48,10 @@ NSArray *CDToManyArray(id v) {
 - (int64_t)_cd_pk { return _pk; }
 - (NSURL *)URIRepresentation {
     if (_temp) return [NSURL URLWithString:[NSString stringWithFormat:@"x-coredata:///%@/t%@", _entity.name, _temp]];
+    if (_ref && ![_ref isKindOfClass:[NSNumber class]]) {
+        NSString *ref = [[_ref description] stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLPathAllowedCharacterSet]];
+        return [NSURL URLWithString:[NSString stringWithFormat:@"x-coredata://%@/%@/p%@", _storeID, _entity.name, ref]];
+    }
     return [NSURL URLWithString:[NSString stringWithFormat:@"x-coredata://%@/%@/p%lld", _storeID, _entity.name, (long long)_pk]];
 }
 - (BOOL)isEqual:(id)other {
@@ -48,9 +59,10 @@ NSArray *CDToManyArray(id v) {
     if (![other isKindOfClass:[NSManagedObjectID class]]) return NO;
     NSManagedObjectID *o = other;
     if (_temp || o->_temp) return _temp && o->_temp && [_temp isEqualToString:o->_temp];
+    if (_ref || o->_ref) return [self._cd_reference isEqual:o._cd_reference] && [_rootName isEqualToString:o->_rootName] && [_storeID isEqualToString:o->_storeID];
     return _pk == o->_pk && [_rootName isEqualToString:o->_rootName] && [_storeID isEqualToString:o->_storeID];
 }
-- (NSUInteger)hash { return _temp ? _temp.hash : (NSUInteger)_pk * 2654435761u ^ _rootName.hash; }
+- (NSUInteger)hash { return _temp ? _temp.hash : _ref && ![_ref isKindOfClass:[NSNumber class]] ? [_ref hash] ^ _rootName.hash : (NSUInteger)_pk * 2654435761u ^ _rootName.hash; }
 - (id)copyWithZone:(NSZone *)zone { return self; }
 - (NSString *)description { return [NSString stringWithFormat:@"%@", self.URIRepresentation.absoluteString]; }
 @end

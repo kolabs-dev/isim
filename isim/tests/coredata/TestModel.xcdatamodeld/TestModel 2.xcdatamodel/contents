@@ -4,6 +4,9 @@
         <attribute name="name" attributeType="String"/>
         <attribute name="born" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <relationship name="books" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Book" inverseName="author" inverseEntity="Book"/>
+        <fetchIndex name="byName">
+            <fetchIndexElement property="name" type="Binary" order="ascending"/>
+        </fetchIndex>
     </entity>
     <entity name="Book" representedClassName="Book" syncable="YES" codeGenerationType="class">
         <attribute name="title" optional="YES" attributeType="String"/>

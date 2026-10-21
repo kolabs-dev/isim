@@ -31,11 +31,14 @@ Each `.mom` is a dictionary:
 | `versionIdentifiers` | `[userDefinedModelVersionIdentifier]` |
 
 Entity: `name`, `className` (representedClassName), `codeGenerationType` (`class` / `category` / `none`),
-`parent`, `abstract`, `renamingIdentifier`, `uniquenessConstraints`, `userInfo`, and
+`parent`, `abstract`, `renamingIdentifier`, `uniquenessConstraints`, `userInfo`, `indexes` (`[{name, elements:
+[{property, type ("Binary" / "RTree"), ascending}], partialIndexPredicate}]`, from `<fetchIndex>`), and
 
 - `attributes`: `{name, type ("Integer 16" … "Transformable", Xcode's names), optional, scalar, transient, indexed,
   defaultValue, valueTransformerName, customClassName, minValue, maxValue, regularExpression, renamingIdentifier,
-  derivationExpression}`; both `attribute` and `derivedAttribute` elements are compiled;
+  derivationExpression, spotlightIndexingEnabled, elements}`; both `attribute` and `derivedAttribute` elements are
+  compiled (one with a `derivationExpression` loads as an `NSDerivedAttributeDescription`); a `Composite` attribute
+  carries its `<composite>`'s attributes as `elements` and loads as an `NSCompositeAttributeDescription`;
   date defaults are seconds since 2001-01-01.
 - `relationships`: `{name, destination, inverse, optional, toMany, ordered, minCount, maxCount, deleteRule ("Nullify",
   "Cascade", "Deny", "No Action"), transient, renamingIdentifier}`

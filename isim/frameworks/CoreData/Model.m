@@ -196,6 +196,61 @@ static BOOL unarchiving_transformer(NSString *name, NSValueTransformer *t) {
 - (NSString *)description { return [NSString stringWithFormat:@"%@, attributeType %lu, attributeValueClassName %@, defaultValue %@", [super description], (unsigned long)self.attributeType, self.attributeValueClassName, self.defaultValue]; }
 @end
 
+@implementation NSDerivedAttributeDescription
+@dynamic derivationExpression;
+@end
+
+@implementation NSCompositeAttributeDescription { NSArray<NSAttributeDescription *> *_elements; }
+- (instancetype)init { if ((self = [super init])) { self.attributeType = NSCompositeAttributeType; _elements = @[]; } return self; }
+- (NSArray<NSAttributeDescription *> *)elements { return _elements; }
+- (void)setElements:(NSArray<NSAttributeDescription *> *)elements { _elements = [elements copy] ?: @[]; }
+- (NSString *)attributeValueClassName { return @"NSDictionary"; }
+@end
+
+/* ================= fetch indexes ================= */
+@implementation NSFetchIndexElementDescription { __weak NSFetchIndexDescription *_index; }
+- (instancetype)initWithProperty:(NSPropertyDescription *)property collationType:(NSFetchIndexElementType)collationType {
+    if ((self = [super init])) { _property = property; _propertyName = [property.name copy]; _collationType = collationType; _ascending = YES; }
+    return self;
+}
+- (instancetype)_cd_initWithPropertyName:(NSString *)name collationType:(NSFetchIndexElementType)type {
+    if ((self = [super init])) { _propertyName = [name copy]; _collationType = type; _ascending = YES; }
+    return self;
+}
+- (void)_cd_resolveInEntity:(NSEntityDescription *)entity { if (!_property && _propertyName) _property = entity.propertiesByName[_propertyName]; }
+- (NSFetchIndexDescription *)indexDescription { return _index; }
+- (void)_cd_setIndexDescription:(NSFetchIndexDescription *)index { _index = index; }
+- (id)copyWithZone:(NSZone *)zone { return self; }
+- (void)encodeWithCoder:(NSCoder *)coder { [coder encodeObject:_propertyName forKey:@"property"]; [coder encodeInteger:(NSInteger)_collationType forKey:@"type"]; [coder encodeBool:_ascending forKey:@"ascending"]; }
+- (instancetype)initWithCoder:(NSCoder *)coder {
+    if ((self = [self _cd_initWithPropertyName:[coder decodeObjectOfClass:[NSString class] forKey:@"property"] collationType:(NSFetchIndexElementType)[coder decodeIntegerForKey:@"type"]])) _ascending = [coder decodeBoolForKey:@"ascending"];
+    return self;
+}
+- (NSString *)description { return [NSString stringWithFormat:@"<NSFetchIndexElementDescription: %p> %@ %@%@", self, _propertyName, _ascending ? @"ascending" : @"descending", _collationType == NSFetchIndexElementTypeRTree ? @" (R-tree)" : @""]; }
+@end
+
+@implementation NSFetchIndexDescription { __weak NSEntityDescription *_entity; NSArray<NSFetchIndexElementDescription *> *_elements; }
+- (instancetype)initWithName:(NSString *)name elements:(NSArray<NSFetchIndexElementDescription *> *)elements {
+    if ((self = [super init])) { _name = [name copy]; self.elements = elements ?: @[]; }
+    return self;
+}
+- (NSArray<NSFetchIndexElementDescription *> *)elements { return _elements; }
+- (void)setElements:(NSArray<NSFetchIndexElementDescription *> *)elements {
+    _elements = [elements copy] ?: @[];
+    for (NSFetchIndexElementDescription *e in _elements) { [e _cd_setIndexDescription:self]; if (_entity) [e _cd_resolveInEntity:_entity]; }
+}
+- (NSEntityDescription *)entity { return _entity; }
+- (void)_cd_setEntity:(NSEntityDescription *)entity { _entity = entity; for (NSFetchIndexElementDescription *e in _elements) [e _cd_resolveInEntity:entity]; }
+- (id)copyWithZone:(NSZone *)zone { return self; }
+- (void)encodeWithCoder:(NSCoder *)coder { [coder encodeObject:_name forKey:@"name"]; [coder encodeObject:_elements forKey:@"elements"]; [coder encodeObject:_partialIndexPredicate forKey:@"partial"]; }
+- (instancetype)initWithCoder:(NSCoder *)coder {
+    if ((self = [self initWithName:[coder decodeObjectOfClass:[NSString class] forKey:@"name"] elements:[coder decodeObjectForKey:@"elements"]]))
+        _partialIndexPredicate = [coder decodeObjectForKey:@"partial"];
+    return self;
+}
+- (NSString *)description { return [NSString stringWithFormat:@"<NSFetchIndexDescription: %p> %@ %@", self, _name, _elements]; }
+@end
+
 /* ================= NSRelationshipDescription ================= */
 @implementation NSRelationshipDescription {
     __weak NSEntityDescription *_destination;
@@ -246,6 +301,7 @@ static BOOL unarchiving_transformer(NSString *name, NSValueTransformer *t) {
     NSArray *_own, *_subs;
     NSString *_className, *_parentName, *_codegen;
     Class _cls;
+    NSArray<NSFetchIndexDescription *> *_indexes;
 }
 + (NSEntityDescription *)entityForName:(NSString *)name inManagedObjectContext:(NSManagedObjectContext *)context {
     return [context _cd_entityNamed:name];
@@ -255,7 +311,9 @@ static BOOL unarchiving_transformer(NSString *name, NSValueTransformer *t) {
     if (!e) { [NSException raise:NSInternalInconsistencyException format:@"+entityForName: could not locate an entity named '%@' in this model.", name]; return nil; }
     return [[e._cd_objectClass alloc] initWithEntity:e insertIntoManagedObjectContext:context];
 }
-- (instancetype)init { if ((self = [super init])) { _own = @[]; _subs = @[]; _uniquenessConstraints = @[]; } return self; }
+- (instancetype)init { if ((self = [super init])) { _own = @[]; _subs = @[]; _uniquenessConstraints = @[]; _indexes = @[]; } return self; }
+- (NSArray<NSFetchIndexDescription *> *)indexes { return _indexes; }
+- (void)setIndexes:(NSArray<NSFetchIndexDescription *> *)indexes { _indexes = [indexes copy] ?: @[]; for (NSFetchIndexDescription *i in _indexes) [i _cd_setEntity:self]; }
 - (NSManagedObjectModel *)managedObjectModel { return _model; }
 - (void)_cd_setModel:(NSManagedObjectModel *)m { _model = m; }
 - (NSEntityDescription *)superentity { return _super; }
@@ -291,7 +349,11 @@ static BOOL unarchiving_transformer(NSString *name, NSValueTransformer *t) {
     [all addObjectsFromArray:_own];
     return all;
 }
-- (void)setProperties:(NSArray *)props { _own = [props copy] ?: @[]; for (NSPropertyDescription *p in _own) [p _cd_setEntity:self]; }
+- (void)setProperties:(NSArray *)props {
+    _own = [props copy] ?: @[];
+    for (NSPropertyDescription *p in _own) [p _cd_setEntity:self];
+    for (NSFetchIndexDescription *i in _indexes) [i _cd_setEntity:self];
+}
 - (NSDictionary *)propertiesByName { NSMutableDictionary *d = [NSMutableDictionary dictionary]; for (NSPropertyDescription *p in self.properties) d[p.name] = p; return d; }
 - (NSDictionary *)attributesByName {
     NSMutableDictionary *d = [NSMutableDictionary dictionary];
@@ -410,7 +472,11 @@ static BOOL unarchiving_transformer(NSString *name, NSValueTransformer *t) {
         NSMutableDictionary *attrs = [NSMutableDictionary dictionary], *rels = [NSMutableDictionary dictionary];
         for (NSPropertyDescription *p in e.properties) {
             if (p.transient) continue;
-            if ([p isKindOfClass:[NSAttributeDescription class]]) attrs[p.name] = CDAttributeTypeName(((NSAttributeDescription *)p).attributeType);
+            if ([p isKindOfClass:[NSCompositeAttributeDescription class]]) {
+                NSMutableArray *els = [NSMutableArray array];
+                for (NSAttributeDescription *el in ((NSCompositeAttributeDescription *)p).elements) [els addObject:[NSString stringWithFormat:@"%@:%@", el.name, CDAttributeTypeName(el.attributeType)]];
+                attrs[p.name] = [NSString stringWithFormat:@"Composite(%@)", [els componentsJoinedByString:@","]];
+            } else if ([p isKindOfClass:[NSAttributeDescription class]]) attrs[p.name] = CDAttributeTypeName(((NSAttributeDescription *)p).attributeType);
             else if ([p isKindOfClass:[NSRelationshipDescription class]]) {
                 NSRelationshipDescription *r = (NSRelationshipDescription *)p;
                 rels[p.name] = [NSString stringWithFormat:@"%@ %@%@%@", r.destinationEntity.name, r.toMany ? @"many" : @"one",
@@ -429,6 +495,31 @@ static id plist_default(id v, NSAttributeType t) {
     if (t == NSUUIDAttributeType && [v isKindOfClass:[NSString class]]) return [[NSUUID alloc] initWithUUIDString:v];
     if (t == NSURIAttributeType && [v isKindOfClass:[NSString class]]) return [NSURL URLWithString:v];
     return v;
+}
+static NSAttributeDescription *attribute_from_plist(NSDictionary *ad) {
+    NSAttributeType type = CDAttributeTypeFromName(ad[@"type"]);
+    NSAttributeDescription *a = [ad[@"derivationExpression"] length] ? [[NSDerivedAttributeDescription alloc] init]
+                              : type == NSCompositeAttributeType ? [[NSCompositeAttributeDescription alloc] init] : [[NSAttributeDescription alloc] init];
+    a.name = ad[@"name"];
+    a.attributeType = type;
+    a.optional = [ad[@"optional"] boolValue];
+    a.transient = [ad[@"transient"] boolValue];
+    a.indexed = [ad[@"indexed"] boolValue];
+    a.indexedBySpotlight = [ad[@"spotlightIndexingEnabled"] boolValue];
+    a.defaultValue = plist_default(ad[@"defaultValue"], a.attributeType);
+    a.valueTransformerName = ad[@"valueTransformerName"];
+    if (ad[@"customClassName"]) a.attributeValueClassName = ad[@"customClassName"];
+    a.allowsExternalBinaryDataStorage = [ad[@"allowsExternalBinaryDataStorage"] boolValue];
+    a.renamingIdentifier = ad[@"renamingIdentifier"];
+    a.userInfo = ad[@"userInfo"];
+    if ([ad[@"derivationExpression"] length]) a.derivationExpression = [NSExpression expressionWithFormat:ad[@"derivationExpression"] argumentArray:@[]];
+    if ([a isKindOfClass:[NSCompositeAttributeDescription class]]) {
+        NSMutableArray *elements = [NSMutableArray array];
+        for (NSDictionary *el in ad[@"elements"]) [elements addObject:attribute_from_plist(el)];
+        ((NSCompositeAttributeDescription *)a).elements = elements;
+    }
+    a._cd_minValue = ad[@"minValue"]; a._cd_maxValue = ad[@"maxValue"]; a._cd_regex = ad[@"regularExpression"];
+    return a;
 }
 + (instancetype)_cd_modelWithPlist:(NSDictionary *)plist error:(NSError **)error {
     if (![plist isKindOfClass:[NSDictionary class]] || ![plist[@"isimFormat"] isEqual:@"isim-managed-object-model"]) {
@@ -449,23 +540,7 @@ static id plist_default(id v, NSAttributeType t) {
         e.versionHashModifier = ed[@"versionHashModifier"];
         if (ed[@"uniquenessConstraints"]) e.uniquenessConstraints = ed[@"uniquenessConstraints"];
         NSMutableArray *props = [NSMutableArray array];
-        for (NSDictionary *ad in ed[@"attributes"]) {
-            NSAttributeDescription *a = [[NSAttributeDescription alloc] init];
-            a.name = ad[@"name"];
-            a.attributeType = CDAttributeTypeFromName(ad[@"type"]);
-            a.optional = [ad[@"optional"] boolValue];
-            a.transient = [ad[@"transient"] boolValue];
-            a.indexed = [ad[@"indexed"] boolValue];
-            a.defaultValue = plist_default(ad[@"defaultValue"], a.attributeType);
-            a.valueTransformerName = ad[@"valueTransformerName"];
-            if (ad[@"customClassName"]) a.attributeValueClassName = ad[@"customClassName"];
-            a.allowsExternalBinaryDataStorage = [ad[@"allowsExternalBinaryDataStorage"] boolValue];
-            a.renamingIdentifier = ad[@"renamingIdentifier"];
-            a.userInfo = ad[@"userInfo"];
-            if ([ad[@"derivationExpression"] length]) a.derivationExpression = [NSExpression expressionWithFormat:ad[@"derivationExpression"] argumentArray:@[]];
-            a._cd_minValue = ad[@"minValue"]; a._cd_maxValue = ad[@"maxValue"]; a._cd_regex = ad[@"regularExpression"];
-            [props addObject:a];
-        }
+        for (NSDictionary *ad in ed[@"attributes"]) [props addObject:attribute_from_plist(ad)];
         for (NSDictionary *rd in ed[@"relationships"]) {
             NSRelationshipDescription *r = [[NSRelationshipDescription alloc] init];
             r.name = rd[@"name"];
@@ -492,6 +567,20 @@ static id plist_default(id v, NSAttributeType t) {
             [props addObject:f];
         }
         e.properties = props;
+        NSMutableArray *indexes = [NSMutableArray array];
+        for (NSDictionary *xd in ed[@"indexes"]) {
+            NSMutableArray *elements = [NSMutableArray array];
+            for (NSDictionary *el in xd[@"elements"]) {
+                NSFetchIndexElementDescription *x = [[NSFetchIndexElementDescription alloc] _cd_initWithPropertyName:el[@"property"]
+                    collationType:[el[@"type"] isEqual:@"RTree"] ? NSFetchIndexElementTypeRTree : NSFetchIndexElementTypeBinary];
+                x.ascending = el[@"ascending"] ? [el[@"ascending"] boolValue] : YES;
+                [elements addObject:x];
+            }
+            NSFetchIndexDescription *x = [[NSFetchIndexDescription alloc] initWithName:xd[@"name"] elements:elements];
+            if ([xd[@"partialIndexPredicate"] length]) x.partialIndexPredicate = [NSPredicate predicateWithFormat:xd[@"partialIndexPredicate"] argumentArray:nil];
+            [indexes addObject:x];
+        }
+        e.indexes = indexes;
         [entities addObject:e];
     }
     m.entities = entities;

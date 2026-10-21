@@ -39,9 +39,36 @@ def typed_default(atype, s):
     return s
 
 
+def parse_attribute(a, composites):
+    """<attribute> (or <derivedAttribute>) -> isim attribute dict; a Composite one gets its <composite>'s elements."""
+    t = a.get('attributeType', 'Undefined')
+    d = {'name': a.get('name'), 'type': t, 'optional': yes(a.get('optional')),
+         'scalar': yes(a.get('usesScalarValueType', 'YES' if t in ('Integer 16', 'Integer 32', 'Integer 64', 'Double', 'Float', 'Boolean') else 'NO'))}
+    for key, flag in (('transient', 'transient'), ('indexed', 'indexed'), ('allowsExternalBinaryDataStorage', 'allowsExternalBinaryDataStorage'),
+                      ('spotlightIndexingEnabled', 'spotlightIndexingEnabled')):
+        if yes(a.get(flag)):
+            d[key] = True
+    dv = typed_default(t, a.get('defaultValueString'))
+    if a.get('defaultDateTimeInterval') is not None:
+        dv = float(a.get('defaultDateTimeInterval'))
+    if dv is not None:
+        d['defaultValue'] = dv
+    for key, xmlk in (('valueTransformerName', 'valueTransformerName'), ('customClassName', 'customClassName'),
+                      ('minValue', 'minValueString'), ('maxValue', 'maxValueString'),
+                      ('regularExpression', 'regularExpressionString'), ('renamingIdentifier', 'elementID'),
+                      ('derivationExpression', 'derivationExpression')):
+        if a.get(xmlk):
+            d[key] = a.get(xmlk)
+    if t == 'Composite':
+        c = composites.get(a.get('composite'))
+        d['elements'] = [parse_attribute(x, composites) for x in c.findall('attribute')] if c is not None else []
+    return d
+
+
 def parse_contents(path):
     """contents XML -> isim model dict (plist-able)."""
     root = ET.parse(path).getroot()
+    composites = {c.get('name'): c for c in root.findall('composite')}     # Xcode 15: <composite> types for Composite attributes
     entities = []
     for e in root.findall('entity'):
         ent = {'name': e.get('name'), 'className': e.get('representedClassName') or e.get('name'),
@@ -56,24 +83,7 @@ def parse_contents(path):
             ent['versionHashModifier'] = e.get('versionHashModifier')
         attrs, rels, fetched = [], [], []
         for a in list(e.findall('attribute')) + list(e.findall('derivedAttribute')):
-            t = a.get('attributeType', 'Undefined')
-            d = {'name': a.get('name'), 'type': t, 'optional': yes(a.get('optional')),
-                 'scalar': yes(a.get('usesScalarValueType', 'YES' if t in ('Integer 16', 'Integer 32', 'Integer 64', 'Double', 'Float', 'Boolean') else 'NO'))}
-            for key, flag in (('transient', 'transient'), ('indexed', 'indexed'), ('allowsExternalBinaryDataStorage', 'allowsExternalBinaryDataStorage')):
-                if yes(a.get(flag)):
-                    d[key] = True
-            dv = typed_default(t, a.get('defaultValueString'))
-            if a.get('defaultDateTimeInterval') is not None:
-                dv = float(a.get('defaultDateTimeInterval'))
-            if dv is not None:
-                d['defaultValue'] = dv
-            for key, xmlk in (('valueTransformerName', 'valueTransformerName'), ('customClassName', 'customClassName'),
-                              ('minValue', 'minValueString'), ('maxValue', 'maxValueString'),
-                              ('regularExpression', 'regularExpressionString'), ('renamingIdentifier', 'elementID'),
-                              ('derivationExpression', 'derivationExpression')):
-                if a.get(xmlk):
-                    d[key] = a.get(xmlk)
-            attrs.append(d)
+            attrs.append(parse_attribute(a, composites))
         for r in e.findall('relationship'):
             d = {'name': r.get('name'), 'destination': r.get('destinationEntity'), 'optional': yes(r.get('optional')),
                  'toMany': yes(r.get('toMany')), 'ordered': yes(r.get('ordered')),
@@ -93,6 +103,14 @@ def parse_contents(path):
         ent['attributes'], ent['relationships'] = attrs, rels
         if fetched:
             ent['fetchedProperties'] = fetched
+        indexes = []
+        for x in e.findall('fetchIndex'):
+            els = [{'property': el.get('property'), 'type': el.get('type', 'Binary'), 'ascending': el.get('order', 'ascending') != 'descending'}
+                   for el in x.findall('fetchIndexElement')]
+            if els:
+                indexes.append({'name': x.get('name'), 'elements': els})
+        if indexes:
+            ent['indexes'] = indexes
         cons = []
         for uc in e.findall('uniquenessConstraints/uniquenessConstraint'):
             cons.append([c.get('value') for c in uc.findall('constraint')])
@@ -152,6 +170,8 @@ def swift_type(a):
         return SCALARS[t] if a.get('scalar') else 'NSNumber?'
     if t == 'Transformable':
         return (a.get('customClassName') or 'NSObject') + '?'
+    if t == 'Composite':
+        return '[String: Any]?'
     return OBJECTS.get(t, 'NSObject') + '?'
 
 
