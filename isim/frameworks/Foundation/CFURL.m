@@ -30,7 +30,7 @@ CFURLRef CFURLCreateWithBytes(CFAllocatorRef a, const UInt8 *bytes, CFIndex leng
     NSString *s = [[NSString alloc] initWithBytes:bytes length:(NSUInteger)length encoding:CFStringConvertEncodingToNSStringEncoding(encoding)];
     return s ? ret_url([NSURL URLWithString:s relativeToURL:URL(base)]) : NULL;
 }
-CFURLRef CFURLCreateAbsoluteURLWithBytes(CFAllocatorRef a, const UInt8 *bytes, CFIndex length, CFStringEncoding encoding, CFURLRef base, bool compat) {
+CFURLRef CFURLCreateAbsoluteURLWithBytes(CFAllocatorRef a, const UInt8 *bytes, CFIndex length, CFStringEncoding encoding, CFURLRef base, Boolean compat) {
     CFURLRef rel = CFURLCreateWithBytes(a, bytes, length, encoding, base);
     if (!rel) return NULL;
     NSURL *abs = URL(rel).absoluteURL;
@@ -38,22 +38,22 @@ CFURLRef CFURLCreateAbsoluteURLWithBytes(CFAllocatorRef a, const UInt8 *bytes, C
     return ret_url(abs);
 }
 /* POSIX paths (the only style on iOS; HFS and Windows paths are taken as POSIX paths) */
-CFURLRef CFURLCreateWithFileSystemPath(CFAllocatorRef a, CFStringRef path, CFURLPathStyle style, bool isDirectory) {
+CFURLRef CFURLCreateWithFileSystemPath(CFAllocatorRef a, CFStringRef path, CFURLPathStyle style, Boolean isDirectory) {
     if (!path) return NULL;
     return ret_url([NSURL fileURLWithPath:STR(path) isDirectory:isDirectory]);
 }
-CFURLRef CFURLCreateWithFileSystemPathRelativeToBase(CFAllocatorRef a, CFStringRef path, CFURLPathStyle style, bool isDirectory, CFURLRef base) {
+CFURLRef CFURLCreateWithFileSystemPathRelativeToBase(CFAllocatorRef a, CFStringRef path, CFURLPathStyle style, Boolean isDirectory, CFURLRef base) {
     if (!path) return NULL;
     NSString *p = STR(path);
     if (base && !p.isAbsolutePath) p = [URL(base).path stringByAppendingPathComponent:p];
     return ret_url([NSURL fileURLWithPath:p isDirectory:isDirectory]);
 }
-CFURLRef CFURLCreateFromFileSystemRepresentation(CFAllocatorRef a, const UInt8 *buffer, CFIndex length, bool isDirectory) {
+CFURLRef CFURLCreateFromFileSystemRepresentation(CFAllocatorRef a, const UInt8 *buffer, CFIndex length, Boolean isDirectory) {
     if (!buffer) return NULL;
     NSString *path = [[NSString alloc] initWithBytes:buffer length:(NSUInteger)length encoding:NSUTF8StringEncoding];
     return path ? ret_url([NSURL fileURLWithPath:path isDirectory:isDirectory]) : NULL;
 }
-bool CFURLGetFileSystemRepresentation(CFURLRef url, bool resolveAgainstBase, UInt8 *buffer, CFIndex max) {
+Boolean CFURLGetFileSystemRepresentation(CFURLRef url, Boolean resolveAgainstBase, UInt8 *buffer, CFIndex max) {
     NSURL *u = resolveAgainstBase ? URL(url).absoluteURL : URL(url);
     NSString *path = u.isFileURL || !u.scheme ? (resolveAgainstBase ? u.path : (u.relativePath ?: u.path)) : nil;
     const char *c = path.fileSystemRepresentation;
@@ -61,7 +61,7 @@ bool CFURLGetFileSystemRepresentation(CFURLRef url, bool resolveAgainstBase, UIn
     memcpy(buffer, c, strlen(c) + 1);
     return true;
 }
-CFDataRef CFURLCreateData(CFAllocatorRef a, CFURLRef url, CFStringEncoding encoding, bool escapeWhitespace) {
+CFDataRef CFURLCreateData(CFAllocatorRef a, CFURLRef url, CFStringEncoding encoding, Boolean escapeWhitespace) {
     NSData *d = [URL(url).relativeString dataUsingEncoding:CFStringConvertEncodingToNSStringEncoding(encoding)];
     return d ? (__bridge_retained CFDataRef)d : NULL;
 }
@@ -69,7 +69,7 @@ CFURLRef CFURLCopyAbsoluteURL(CFURLRef url) { return ret_url(URL(url).absoluteUR
 CFStringRef CFURLGetString(CFURLRef url) { return (__bridge CFStringRef)URL(url).relativeString; }
 CFURLRef CFURLGetBaseURL(CFURLRef url) { return (__bridge CFURLRef)URL(url).baseURL; }      /* adapted: always NULL */
 /* a URL decomposes when it follows RFC 1808's generic syntax: no scheme, or a scheme followed by "//" or "/" */
-bool CFURLCanBeDecomposed(CFURLRef url) {
+Boolean CFURLCanBeDecomposed(CFURLRef url) {
     NSURL *u = URL(url).absoluteURL;
     if (!u.scheme) return true;
     NSString *rest = [u.absoluteString substringFromIndex:u.scheme.length + 1];
@@ -90,7 +90,7 @@ CFStringRef CFURLCopyPath(CFURLRef url) {
     NSURLComponents *c = [NSURLComponents componentsWithURL:URL(url) resolvingAgainstBaseURL:NO];
     return ret_str(c ? c.percentEncodedPath : URL(url).relativePath);
 }
-CFStringRef CFURLCopyStrictPath(CFURLRef url, bool *isAbsolute) {
+CFStringRef CFURLCopyStrictPath(CFURLRef url, Boolean *isAbsolute) {
     NSString *p = [NSURLComponents componentsWithURL:URL(url) resolvingAgainstBaseURL:NO].percentEncodedPath ?: @"";
     if (isAbsolute) *isAbsolute = [p hasPrefix:@"/"];
     if ([p hasPrefix:@"/"]) p = [p substringFromIndex:1];
@@ -102,7 +102,7 @@ CFStringRef CFURLCopyFileSystemPath(CFURLRef url, CFURLPathStyle style) {
     if (p.length > 1 && [p hasSuffix:@"/"]) p = [p substringToIndex:p.length - 1];
     return ret_str(p);
 }
-bool CFURLHasDirectoryPath(CFURLRef url) {          /* the path (not the query or fragment) ends in "/" */
+Boolean CFURLHasDirectoryPath(CFURLRef url) {          /* the path (not the query or fragment) ends in "/" */
     NSString *p = [NSURLComponents componentsWithURL:URL(url) resolvingAgainstBaseURL:YES].percentEncodedPath;
     return p ? [p hasSuffix:@"/"] : URL(url).hasDirectoryPath;
 }
@@ -144,7 +144,7 @@ static NSString *encode_component(NSString *s) {          /* a path component: "
     NSString *e = [s stringByAddingPercentEncodingWithAllowedCharacters:NSCharacterSet.URLPathAllowedCharacterSet] ?: s;
     return [e stringByReplacingOccurrencesOfString:@"/" withString:@"%2F"];
 }
-CFURLRef CFURLCreateCopyAppendingPathComponent(CFAllocatorRef a, CFURLRef url, CFStringRef component, bool isDirectory) {
+CFURLRef CFURLCreateCopyAppendingPathComponent(CFAllocatorRef a, CFURLRef url, CFStringRef component, Boolean isDirectory) {
     if (!url || !component) return NULL;
     if (URL(url).isFileURL) return ret_url([URL(url) URLByAppendingPathComponent:STR(component) isDirectory:isDirectory]);
     return with_path(url, ^NSString *(NSString *p) {
@@ -213,7 +213,7 @@ CFStringRef CFURLCreateStringByReplacingPercentEscapes(CFAllocatorRef a, CFStrin
     }
     return ret_str(out);
 }
-bool CFURLResourceIsReachable(CFURLRef url, CFErrorRef *error) {
+Boolean CFURLResourceIsReachable(CFURLRef url, CFErrorRef *error) {
     NSError *e = nil;
     BOOL ok = [URL(url) checkResourceIsReachableAndReturnError:&e];
     if (!ok && error) *error = (__bridge_retained CFErrorRef)e;
@@ -305,8 +305,8 @@ CFArrayRef CFBundleCopyLocalizationsForPreferences(CFArrayRef list, CFArrayRef p
     return (__bridge_retained CFArrayRef)(have.count ? @[have.firstObject] : @[]);
 }
 CFDictionaryRef CFBundleGetLocalInfoDictionary(CFBundleRef b) { return (__bridge CFDictionaryRef)BUNDLE(b).localizedInfoDictionary; }
-bool CFBundleIsExecutableLoaded(CFBundleRef b) { return BUNDLE(b).isLoaded; }
-bool CFBundleLoadExecutable(CFBundleRef b) { return [BUNDLE(b) load]; }
+Boolean CFBundleIsExecutableLoaded(CFBundleRef b) { return BUNDLE(b).isLoaded; }
+Boolean CFBundleLoadExecutable(CFBundleRef b) { return [BUNDLE(b) load]; }
 /* a symbol of the bundle's executable (the main bundle: every image the app has loaded), loading it first */
 static void *bundle_symbol(CFBundleRef b, CFStringRef name) {
     if (!b || !name) return NULL;

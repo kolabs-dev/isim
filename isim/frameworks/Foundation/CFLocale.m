@@ -265,7 +265,7 @@ CFDateRef CFDateFormatterCreateDateFromString(CFAllocatorRef a, CFDateFormatterR
     NSDate *d = parse(f, string, rangep);
     return d ? (__bridge_retained CFDateRef)d : NULL;
 }
-bool CFDateFormatterGetAbsoluteTimeFromString(CFDateFormatterRef f, CFStringRef string, CFRange *rangep, CFAbsoluteTime *atp) {
+Boolean CFDateFormatterGetAbsoluteTimeFromString(CFDateFormatterRef f, CFStringRef string, CFRange *rangep, CFAbsoluteTime *atp) {
     NSDate *d = parse(f, string, rangep);
     if (d && atp) *atp = d.timeIntervalSinceReferenceDate;
     return d != nil;
@@ -349,14 +349,14 @@ CFPropertyListRef CFPreferencesCopyAppValue(CFStringRef key, CFStringRef appID) 
     if (!v && d != domain(kCFPreferencesAnyApplication)) v = copy_value(domain(kCFPreferencesAnyApplication), key);   /* the search list */
     return v;
 }
-bool CFPreferencesGetAppBooleanValue(CFStringRef key, CFStringRef appID, bool *valid) {
+Boolean CFPreferencesGetAppBooleanValue(CFStringRef key, CFStringRef appID, Boolean *valid) {
     id v = (__bridge_transfer id)CFPreferencesCopyAppValue(key, appID);
     BOOL ok = [v isKindOfClass:NSNumber.class] || ([v isKindOfClass:NSString.class] &&
               [@[@"yes", @"no", @"true", @"false", @"1", @"0"] containsObject:[v lowercaseString]]);
     if (valid) *valid = ok;
     return ok ? [v boolValue] : false;
 }
-CFIndex CFPreferencesGetAppIntegerValue(CFStringRef key, CFStringRef appID, bool *valid) {
+CFIndex CFPreferencesGetAppIntegerValue(CFStringRef key, CFStringRef appID, Boolean *valid) {
     id v = (__bridge_transfer id)CFPreferencesCopyAppValue(key, appID);
     BOOL ok = [v isKindOfClass:NSNumber.class] || ([v isKindOfClass:NSString.class] && [[NSScanner scannerWithString:v] scanInteger:NULL]);
     if (valid) *valid = ok;
@@ -369,7 +369,7 @@ void CFPreferencesSetAppValue(CFStringRef key, CFPropertyListRef value, CFString
 }
 void CFPreferencesAddSuitePreferencesToApp(CFStringRef appID, CFStringRef suiteID) { if (suiteID) [domain(appID) addSuiteNamed:STR(suiteID)]; }
 void CFPreferencesRemoveSuitePreferencesFromApp(CFStringRef appID, CFStringRef suiteID) { if (suiteID) [domain(appID) removeSuiteNamed:STR(suiteID)]; }
-bool CFPreferencesAppSynchronize(CFStringRef appID) { return [domain(appID) synchronize]; }
+Boolean CFPreferencesAppSynchronize(CFStringRef appID) { return [domain(appID) synchronize]; }
 CFPropertyListRef CFPreferencesCopyValue(CFStringRef key, CFStringRef appID, CFStringRef user, CFStringRef host) { return copy_value(domain(appID), key); }
 CFDictionaryRef CFPreferencesCopyMultiple(CFArrayRef keys, CFStringRef appID, CFStringRef user, CFStringRef host) {
     NSUserDefaults *d = domain(appID);
@@ -386,7 +386,7 @@ void CFPreferencesSetMultiple(CFDictionaryRef set, CFArrayRef remove, CFStringRe
     [(__bridge NSDictionary *)set enumerateKeysAndObjectsUsingBlock:^(id k, id v, BOOL *stop) { [d setObject:v forKey:k]; }];
     for (NSString *k in (__bridge NSArray *)remove) [d removeObjectForKey:k];
 }
-bool CFPreferencesSynchronize(CFStringRef appID, CFStringRef user, CFStringRef host) { return [domain(appID) synchronize]; }
+Boolean CFPreferencesSynchronize(CFStringRef appID, CFStringRef user, CFStringRef host) { return [domain(appID) synchronize]; }
 /* the keys stored in the domain itself (not the registration domain or the global one) */
 CFArrayRef CFPreferencesCopyKeyList(CFStringRef appID, CFStringRef user, CFStringRef host) {
     NSUserDefaults *d = domain(appID);
@@ -395,4 +395,4 @@ CFArrayRef CFPreferencesCopyKeyList(CFStringRef appID, CFStringRef user, CFStrin
     NSArray *keys = name ? [d persistentDomainForName:name].allKeys : nil;
     return keys.count ? (__bridge_retained CFArrayRef)[keys sortedArrayUsingSelector:@selector(compare:)] : NULL;
 }
-bool CFPreferencesAppValueIsForced(CFStringRef key, CFStringRef appID) { return false; }      /* no managed (MDM) preferences */
+Boolean CFPreferencesAppValueIsForced(CFStringRef key, CFStringRef appID) { return false; }      /* no managed (MDM) preferences */

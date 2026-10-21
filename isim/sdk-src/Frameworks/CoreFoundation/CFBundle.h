@@ -41,9 +41,9 @@ CF_EXPORT CFArrayRef CFBundleCopyBundleLocalizations(CFBundleRef bundle);
 CF_EXPORT CFArrayRef CFBundleCopyPreferredLocalizationsFromArray(CFArrayRef locArray);
 CF_EXPORT CFArrayRef CFBundleCopyLocalizationsForPreferences(CFArrayRef locArray, CFArrayRef prefArray);
 CF_EXPORT CFDictionaryRef CFBundleGetLocalInfoDictionary(CFBundleRef bundle);
-/* the bundle's executable (dlopen): C bool results so Swift sees Bool, as with Apple's SDK (#523) */
-CF_EXPORT bool CFBundleIsExecutableLoaded(CFBundleRef bundle);
-CF_EXPORT bool CFBundleLoadExecutable(CFBundleRef bundle);
+/* the bundle's executable (dlopen) */
+CF_EXPORT Boolean CFBundleIsExecutableLoaded(CFBundleRef bundle);
+CF_EXPORT Boolean CFBundleLoadExecutable(CFBundleRef bundle);
 CF_EXPORT void *CFBundleGetFunctionPointerForName(CFBundleRef bundle, CFStringRef functionName);
 CF_EXPORT void *CFBundleGetDataPointerForName(CFBundleRef bundle, CFStringRef symbolName);
 CF_IMPLICIT_BRIDGING_DISABLED

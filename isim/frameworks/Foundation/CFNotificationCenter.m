@@ -96,6 +96,6 @@ void CFNotificationCenterPostNotificationWithOptions(CFNotificationCenterRef cen
     }
 }
 void CFNotificationCenterPostNotification(CFNotificationCenterRef center, CFNotificationName name, const void *object,
-                                          CFDictionaryRef userInfo, bool deliverImmediately) {
+                                          CFDictionaryRef userInfo, Boolean deliverImmediately) {
     CFNotificationCenterPostNotificationWithOptions(center, name, object, userInfo, deliverImmediately ? kCFNotificationDeliverImmediately : 0);
 }
