@@ -21,6 +21,8 @@ class Ninja:
         self.outputs = set()
         self.rule("cmd", "$cmd", description="$desc", restat=True)
         self.rule("cc", "$cmd", description="$desc", depfile="$out.d", deps="gcc")
+        # swiftc -emit-dependencies: the Swift modules and Clang headers (SDK headers too) a module compile read
+        self.rule("swiftc", "$cmd", description="$desc", depfile="$depfile", deps="gcc", restat=True)
 
     def rule(self, name, command, description=None, depfile=None, deps=None, restat=False, pool=None):
         self.lines.append(f"rule {name}")
@@ -35,7 +37,7 @@ class Ninja:
     def pool(self, name, depth):
         self.lines += [f"pool {name}", f"  depth = {depth}", ""]
 
-    def build(self, outputs, cmd, inputs=(), implicit=(), order_only=(), desc=None, rule="cmd", pool=None):
+    def build(self, outputs, cmd, inputs=(), implicit=(), order_only=(), desc=None, rule="cmd", pool=None, depfile=None):
         """an edge running cmd (an argument list, or a string for the shell) to produce outputs"""
         outputs = [str(o) for o in ([outputs] if isinstance(outputs, (str, os.PathLike)) else outputs)]
         dup = self.outputs.intersection(outputs)
@@ -53,6 +55,8 @@ class Ninja:
         self.lines.append("  desc = " + (desc or os.path.basename(outputs[0])).replace("$", "$$"))
         if pool:
             self.lines.append(f"  pool = {pool}")
+        if depfile:
+            self.lines.append(f"  depfile = {_path(depfile)}")
         return outputs
 
     def phony(self, name, inputs):

@@ -88,13 +88,20 @@ class Swift:
                             desc=f"GYB {os.path.basename(out)}")[0]
 
     def swiftc(self, outs, args, srcs, implicit=(), order_only=(), desc=None, plain=False, keep=()):
-        """a Swift compile edge; outputs listed in keep keep their timestamp when the compiler rewrote them unchanged"""
-        cmd = (self.plain_swiftc(*args) if plain else [ISIM, "swiftc", *args]) + list(srcs)
+        """a Swift compile edge; outputs listed in keep keep their timestamp when the compiler rewrote them unchanged.
+        A compile against the SDK (-c -o X.o) also writes X.d, the Swift modules and Clang headers (the SDK's are
+        system headers: -track-system-dependencies) it read, so changing one rebuilds it (issue #608)"""
+        obj = next((o for o in outs if str(o).endswith(".o")), None) if not plain and "-c" in args else None
+        deps = ["-emit-dependencies", "-Xfrontend", "-track-system-dependencies"] if obj else []
+        cmd = (self.plain_swiftc(*args) if plain else [ISIM, "swiftc", *args, *deps]) + list(srcs)
+        if obj:
+            cmd = self.c.act("reldeps", str(obj)[:-2] + ".d", "--") + cmd
         if keep:
             cmd = self.c.act("keep", *keep, "--") + cmd
         imp = [self.key, *implicit] + ([] if plain else [ISIM])
         oo = list(order_only) + ([] if plain else [f"{SW}/resource/.stamp", "tbds", *self.c.header_stamps])
-        return self.n.build(outs, cmd, inputs=srcs, implicit=imp, order_only=oo, desc=desc, pool="swift")
+        return self.n.build(outs, cmd, inputs=srcs, implicit=imp, order_only=oo, desc=desc, pool="swift",
+                            rule="swiftc" if obj else "cmd", depfile=str(obj)[:-2] + ".d" if obj else None)
 
     def link(self, name, objs, args=(), implicit=(), minos="15.0"):
         """libNAME.dylib in /usr/lib/swift"""
@@ -529,7 +536,7 @@ class Swift:
         def cobj(a):
             m, name = a[:-len(".o")].split("-", 1)
             return c.compile(f"swift/overlays/{m}/{name}.c", f"{objdir}/{a}", [ISIM, "cc"], implicit=[ISIM],
-                             order_only=c.header_stamps + ["tbds"])
+                             order_only=c.header_stamps + ["tbds"], reldeps=True)
         base = [mod("Swift"), mod("_Concurrency")] + ([mod("_StringProcessing")] if os.path.isdir(os.path.join(
             c.root, f"{c.tp}/swift-experimental-string-processing/Sources")) else [])
         from .graph import SWIFT_FRAMEWORKS, swift_framework
