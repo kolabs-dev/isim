@@ -215,6 +215,7 @@ def test_app_intents_discovery(launch):
     # an indexed entity in Spotlight runs the app's OpenIntent for it
     dev.wait_view(r"id=cafe text=Cafe:")
     dev.send("home")
+    dev.wait_view(r"id=home-dock")                                       # Spotlight opens from the home screen
     dev.wait_still()
     dev.send("spotlight")
     dev.wait_view(r"id=spotlight-field")
