@@ -129,12 +129,10 @@ static simd_float3x3 tom3(NSArray<NSNumber *> *a) {
 - (id<ARSCNViewDelegate>)delegate { return [self _isim_ARDelegate]; }
 - (void)setDelegate:(id<ARSCNViewDelegate>)delegate { [self _isim_setARDelegate:delegate]; }
 @end
-#if __has_include(<SpriteKit/SpriteKit.h>)
 @implementation ARSKView (ISIMDelegate)
 - (id<ARSKViewDelegate>)delegate { return [self _isim_ARDelegate]; }
 - (void)setDelegate:(id<ARSKViewDelegate>)delegate { [self _isim_setARDelegate:delegate]; }
 @end
-#endif
 
 @implementation ARConfiguration (ISIMSetters)
 - (void)setLightEstimationEnabled:(BOOL)v { [self setIsLightEstimationEnabled:v]; }
