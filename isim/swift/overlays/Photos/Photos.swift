@@ -180,7 +180,7 @@ enum _PHAuth {
 public protocol PHPhotoLibraryChangeObserver: AnyObject { func photoLibraryDidChange(_ changeInstance: PHChange) }
 public protocol PHPhotoLibraryAvailabilityObserver: AnyObject { func photoLibraryDidBecomeUnavailable(_ photoLibrary: PHPhotoLibrary) }
 
-open class PHChange: NSObject, @unchecked Sendable {
+@objc(PHChange) @objcMembers open class PHChange: NSObject, @unchecked Sendable {
     let changedIDs: Set<String>
     init(_ ids: Set<String>) { changedIDs = ids }
     open func changeDetails<T: PHObject>(for object: T) -> PHObjectChangeDetails<T>? { changedIDs.contains(object.localIdentifier) ? PHObjectChangeDetails(object) : nil }
@@ -207,22 +207,23 @@ open class PHFetchResultChangeDetails<T: PHObject>: NSObject, @unchecked Sendabl
     open var hasMoves: Bool { false }
 }
 
-open class PHPhotoLibrary: NSObject, @unchecked Sendable {
+@objc(PHPhotoLibrary) @objcMembers open class PHPhotoLibrary: NSObject, @unchecked Sendable {
     static let sharedLibrary = PHPhotoLibrary()
     var observers: [() -> PHPhotoLibraryChangeObserver?] = []
-    open class func shared() -> PHPhotoLibrary { sharedLibrary }
+    @objc(sharedPhotoLibrary) open class func shared() -> PHPhotoLibrary { sharedLibrary }
     open var unavailabilityReason: Error? { nil }
 
     open class func authorizationStatus() -> PHAuthorizationStatus {
         let s = _PHAuth.status
         return s == .limited ? .authorized : s                  // the old API reports limited as authorized, like iOS
     }
-    open class func authorizationStatus(for accessLevel: PHAccessLevel) -> PHAuthorizationStatus {
+    @objc(authorizationStatusForAccessLevel:) open class func authorizationStatus(for accessLevel: PHAccessLevel) -> PHAuthorizationStatus {
         accessLevel == .addOnly ? _PHAuth.addStatus : _PHAuth.status
     }
     open class func requestAuthorization(_ handler: @escaping (PHAuthorizationStatus) -> Void) {
         requestAuthorization(for: .readWrite) { s in handler(s == .limited ? .authorized : s) }
     }
+    @objc(requestAuthorizationForAccessLevel:handler:)
     open class func requestAuthorization(for accessLevel: PHAccessLevel, handler: @escaping (PHAuthorizationStatus) -> Void) {
         let reply: (PHAuthorizationStatus) -> Void = { s in _Privacy.reply { handler(s) } }
         let current = authorizationStatus(for: accessLevel)
@@ -265,7 +266,7 @@ open class PHPhotoLibrary: NSObject, @unchecked Sendable {
             }
         }
     }
-    open class func requestAuthorization(for accessLevel: PHAccessLevel) async -> PHAuthorizationStatus {
+    @nonobjc open class func requestAuthorization(for accessLevel: PHAccessLevel) async -> PHAuthorizationStatus {
         await withCheckedContinuation { k in requestAuthorization(for: accessLevel) { k.resume(returning: $0) } }
     }
 
@@ -275,9 +276,10 @@ open class PHPhotoLibrary: NSObject, @unchecked Sendable {
     open func unregisterAvailabilityObserver(_ observer: PHPhotoLibraryAvailabilityObserver) {}
 
     /// iOS 14+: lets a limited-access app change its selection
-    @MainActor open func presentLimitedLibraryPicker(from controller: UIViewController) {
+    @objc(presentLimitedLibraryPickerFromViewController:) @MainActor open func presentLimitedLibraryPicker(from controller: UIViewController) {
         presentLimitedLibraryPicker(from: controller) { _ in }
     }
+    @objc(presentLimitedLibraryPickerFromViewController:completionHandler:)
     @MainActor open func presentLimitedLibraryPicker(from controller: UIViewController, completionHandler: @escaping ([String]) -> Void) {
         guard _PHAuth.status == .limited else { completionHandler([]); return }
         let before = _PHAuth.limited
@@ -300,12 +302,12 @@ open class PHPhotoLibrary: NSObject, @unchecked Sendable {
             catch { completionHandler?(false, error) }
         }
     }
-    open func performChanges(_ changeBlock: @escaping @Sendable () -> Void) async throws {
+    @nonobjc open func performChanges(_ changeBlock: @escaping @Sendable () -> Void) async throws {
         try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
             performChanges(changeBlock) { _, e in if let e { k.resume(throwing: e) } else { k.resume() } }
         }
     }
-    open func performChangesAndWait(_ changeBlock: () -> Void) throws {
+    @objc(performChangesAndWait:error:) open func performChangesAndWait(_ changeBlock: () -> Void) throws {
         _PHChanges.begin()
         changeBlock()
         let reqs = _PHChanges.end()
@@ -401,20 +403,21 @@ open class PHPhotoLibrary: NSObject, @unchecked Sendable {
 
 // MARK: - Objects
 
-open class PHObject: NSObject, NSCopying, @unchecked Sendable {
+@objc(PHObject) @objcMembers open class PHObject: NSObject, NSCopying, @unchecked Sendable {
     public internal(set) var localIdentifier: String
     init(id: String) { localIdentifier = id }
     public func copy(with zone: OpaquePointer? = nil) -> Any { self }
     open override func isEqual(_ object: Any?) -> Bool { (object as? PHObject)?.localIdentifier == localIdentifier }
     open override var hash: Int { localIdentifier.hashValue }
 }
-open class PHObjectPlaceholder: PHObject, @unchecked Sendable {}
+@objc(PHObjectPlaceholder) @objcMembers open class PHObjectPlaceholder: PHObject, @unchecked Sendable {}
 
-open class PHAsset: PHObject, @unchecked Sendable {
+@objc(PHAsset) @objcMembers open class PHAsset: PHObject, @unchecked Sendable {
     let rec: _PHRecord
     init(_ r: _PHRecord) { rec = r; super.init(id: r.id) }
     open var mediaType: PHAssetMediaType { rec.isVideo ? .video : .image }
     open var mediaSubtypes: PHAssetMediaSubtype { [] }
+    @objc(mediaSubtypes) var _objcMediaSubtypes: UInt { mediaSubtypes.rawValue }
     open var sourceType: PHAssetSourceType { .typeUserLibrary }
     open var pixelWidth: Int { rec.width }
     open var pixelHeight: Int { rec.height }
@@ -426,7 +429,7 @@ open class PHAsset: PHObject, @unchecked Sendable {
     open var isFavorite: Bool { rec.favorite }
     open var burstIdentifier: String? { nil }
     open var representsBurst: Bool { false }
-    open func canPerform(_ editOperation: Int) -> Bool { true }
+    @objc(canPerformEditOperation:) open func canPerform(_ editOperation: Int) -> Bool { true }
     /// the keys fetch predicates use (NSPredicate reads them with key-value coding)
     open override func value(forKey key: String) -> Any? {
         switch key {
@@ -496,19 +499,19 @@ open class PHAsset: PHObject, @unchecked Sendable {
     }
 }
 
-open class PHCollection: PHObject, @unchecked Sendable {
+@objc(PHCollection) @objcMembers open class PHCollection: PHObject, @unchecked Sendable {
     open var localizedTitle: String? { nil }
     open var canContainAssets: Bool { true }
     open var canContainCollections: Bool { false }
     /// user albums can be renamed, deleted and edited; smart albums cannot
-    open func canPerform(_ anOperation: PHCollectionEditOperation) -> Bool { false }
+    @objc(canPerformEditOperation:) open func canPerform(_ anOperation: PHCollectionEditOperation) -> Bool { false }
     /// the user's albums (isim has no folders)
     open class func fetchTopLevelUserCollections(with options: PHFetchOptions?) -> PHFetchResult<PHCollection> {
         let r = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .albumRegular, options: options)
         return PHFetchResult(r.items) { r.refetched().items }
     }
 }
-open class PHAssetCollection: PHCollection, @unchecked Sendable {
+@objc(PHAssetCollection) @objcMembers open class PHAssetCollection: PHCollection, @unchecked Sendable {
     public let assetCollectionType: PHAssetCollectionType
     public let assetCollectionSubtype: PHAssetCollectionSubtype
     let title: String
@@ -577,7 +580,7 @@ open class PHAssetCollection: PHCollection, @unchecked Sendable {
     }
 }
 
-open class PHFetchOptions: NSObject, NSCopying, @unchecked Sendable {
+@objc(PHFetchOptions) @objcMembers open class PHFetchOptions: NSObject, NSCopying, @unchecked Sendable {
     open var predicate: NSPredicate?
     open var sortDescriptors: [NSSortDescriptor]?
     open var includeHiddenAssets = false
@@ -629,7 +632,7 @@ enum _PHChanges {
 }
 final class _PHDeleteRequest: NSObject { let ids: [String]; init(_ ids: [String]) { self.ids = ids } }
 
-open class PHAssetChangeRequest: NSObject, @unchecked Sendable {
+@objc(PHAssetChangeRequest) @objcMembers open class PHAssetChangeRequest: NSObject, @unchecked Sendable {
     var creating = false
     var image: UIImage?, fileURL: URL?, resourceData: Data?
     /// a movie to add (creationRequestForAssetFromVideo, or a .video resource)
@@ -637,8 +640,8 @@ open class PHAssetChangeRequest: NSObject, @unchecked Sendable {
     var target: String?
     let placeholder = PHObjectPlaceholder(id: "\(UUID().uuidString)/L0/001")   // assigned up front, like iOS
     open var creationDate: Date?
-    open var isFavorite = false
-    open var isHidden = false
+    @nonobjc open var isFavorite = false
+    @nonobjc open var isHidden = false
     open var location: AnyObject?
     open var placeholderForCreatedAsset: PHObjectPlaceholder? { creating ? placeholder : nil }
 
@@ -648,7 +651,7 @@ open class PHAssetChangeRequest: NSObject, @unchecked Sendable {
         target = asset.localIdentifier; isFavorite = asset.isFavorite
         _PHChanges.add(self)
     }
-    open class func creationRequestForAsset(from image: UIImage) -> Self {
+    @objc(creationRequestForAssetFromImage:) open class func creationRequestForAsset(from image: UIImage) -> Self {
         let r = Self.init(); r.creating = true; r.image = image; _PHChanges.add(r); return r
     }
     open class func creationRequestForAssetFromImage(atFileURL fileURL: URL) -> Self? {
@@ -663,7 +666,7 @@ open class PHAssetChangeRequest: NSObject, @unchecked Sendable {
         var ids: [String] = []
         if let a = assets as? [PHAsset] { ids = a.map(\.localIdentifier) }
         else if let r = assets as? PHFetchResult<PHAsset> { ids = r.items.map(\.localIdentifier) }
-        else if let a = assets as? [Any] { ids = a.compactMap { ($0 as? PHAsset)?.localIdentifier } }
+        else { ids = _PHObjC.objects(assets).compactMap { ($0 as? PHAsset)?.localIdentifier } }   // [Any], Objective-C's PHFetchResult
         _PHChanges.add(_PHDeleteRequest(ids))
     }
     open func revertAssetContentToOriginal() {}
@@ -682,19 +685,19 @@ open class PHAssetChangeRequest: NSObject, @unchecked Sendable {
     }
 }
 
-open class PHAssetResourceCreationOptions: NSObject, @unchecked Sendable {
+@objc(PHAssetResourceCreationOptions) @objcMembers open class PHAssetResourceCreationOptions: NSObject, @unchecked Sendable {
     open var originalFilename: String?
     open var uniformTypeIdentifier: String?
     open var shouldMoveFile = false
     public override init() { super.init() }
 }
-open class PHAssetCreationRequest: PHAssetChangeRequest, @unchecked Sendable {
-    open class func forAsset() -> PHAssetCreationRequest { let r = PHAssetCreationRequest(); r.creating = true; _PHChanges.add(r); return r }
+@objc(PHAssetCreationRequest) @objcMembers open class PHAssetCreationRequest: PHAssetChangeRequest, @unchecked Sendable {
+    @objc(creationRequestForAsset) open class func forAsset() -> PHAssetCreationRequest { let r = PHAssetCreationRequest(); r.creating = true; _PHChanges.add(r); return r }
     /// one photo or one video (isim has no paired resources: Live Photos, adjustment data)
     open class func supportsAssetResourceTypes(_ types: [NSNumber]) -> Bool {
         types.count == 1 && [PHAssetResourceType.photo.rawValue, PHAssetResourceType.video.rawValue].contains(types[0].integerValue)
     }
-    open func addResource(with type: PHAssetResourceType, data: Data, options: PHAssetResourceCreationOptions?) {
+    @objc(addResourceWithType:data:options:) open func addResource(with type: PHAssetResourceType, data: Data, options: PHAssetResourceCreationOptions?) {
         if type == .photo { resourceData = data }
         else if type == .video {
             let ext = options?.originalFilename.map { ($0 as NSString).pathExtension }.flatMap { $0.isEmpty ? nil : $0 } ?? "mov"
@@ -702,14 +705,14 @@ open class PHAssetCreationRequest: PHAssetChangeRequest, @unchecked Sendable {
             if (try? data.write(to: url)) != nil { videoFile = url }
         }
     }
-    open func addResource(with type: PHAssetResourceType, fileURL: URL, options: PHAssetResourceCreationOptions?) {
+    @objc(addResourceWithType:fileURL:options:) open func addResource(with type: PHAssetResourceType, fileURL: URL, options: PHAssetResourceCreationOptions?) {
         if type == .photo { self.fileURL = fileURL } else if type == .video { videoFile = fileURL }
     }
 }
 
 // MARK: - Albums
 
-open class PHAssetCollectionChangeRequest: NSObject, @unchecked Sendable {
+@objc(PHAssetCollectionChangeRequest) @objcMembers open class PHAssetCollectionChangeRequest: NSObject, @unchecked Sendable {
     var target: String?
     var deleting = false
     /// edits of the album's asset identifiers, applied in order
@@ -745,13 +748,13 @@ open class PHAssetCollectionChangeRequest: NSObject, @unchecked Sendable {
         if let r = objects as? PHFetchResult<PHAsset> { return r.items.map(\.localIdentifier) }
         if let a = objects as? [Any] { return a.compactMap { ($0 as? PHObject)?.localIdentifier } }
         if let a = objects as? NSArray { return (0 ..< a.count).compactMap { (a.object(at: $0) as? PHObject)?.localIdentifier } }
-        return []
+        return _PHObjC.objects(objects).compactMap { ($0 as? PHObject)?.localIdentifier }   // Objective-C's PHFetchResult
     }
     open func addAssets(_ assets: Any) {
         let ids = Self._ids(assets)
         edits.append { $0 + ids }
     }
-    open func insertAssets(_ assets: Any, at indexes: IndexSet) {
+    @objc(insertAssets:atIndexes:) open func insertAssets(_ assets: Any, at indexes: IndexSet) {
         let ids = Self._ids(assets)
         edits.append { cur in
             var out = cur
@@ -763,10 +766,10 @@ open class PHAssetCollectionChangeRequest: NSObject, @unchecked Sendable {
         let ids = Set(Self._ids(assets))
         edits.append { $0.filter { !ids.contains($0) } }
     }
-    open func removeAssets(at indexes: IndexSet) {
+    @objc(removeAssetsAtIndexes:) open func removeAssets(at indexes: IndexSet) {
         edits.append { cur in cur.enumerated().filter { !indexes.contains($0.offset) }.map(\.element) }
     }
-    open func replaceAssets(at indexes: IndexSet, withAssets assets: Any) {
+    @objc(replaceAssetsAtIndexes:withAssets:) open func replaceAssets(at indexes: IndexSet, withAssets assets: Any) {
         let ids = Self._ids(assets)
         edits.append { cur in
             var out = cur
@@ -774,7 +777,7 @@ open class PHAssetCollectionChangeRequest: NSObject, @unchecked Sendable {
             return out
         }
     }
-    open func moveAssets(at fromIndexes: IndexSet, to toIndex: Int) {
+    @objc(moveAssetsAtIndexes:toIndex:) open func moveAssets(at fromIndexes: IndexSet, to toIndex: Int) {
         edits.append { cur in
             let moving = fromIndexes.filter { $0 < cur.count }.map { cur[$0] }
             var rest = cur.enumerated().filter { !fromIndexes.contains($0.offset) }.map(\.element)

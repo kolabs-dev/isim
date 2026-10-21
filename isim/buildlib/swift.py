@@ -754,6 +754,12 @@ OBJC_NAMES["AuthenticationServices"] = {**{c: c for c in """ASAuthorizationReque
                                         "ASWebAuthenticationSession.Callback": "ASWebAuthenticationSessionCallback"}
 
 OBJC_NAMES["LocalAuthentication"] = {"LAContext": "LAContext"}   # issue #307
+# issue #545: Photos and PhotosUI from Objective-C (PHFetchResult and the change details are Objective-C classes of their own)
+OBJC_NAMES["Photos"] = {c: c for c in """PHImageRequestOptions PHImageManager PHVideoRequestOptions PHCachingImageManager PHAssetResource
+    PHAssetResourceRequestOptions PHAssetResourceManager PHChange PHPhotoLibrary PHObject PHObjectPlaceholder PHAsset PHCollection
+    PHAssetCollection PHFetchOptions PHAssetChangeRequest PHAssetResourceCreationOptions PHAssetCreationRequest
+    PHAssetCollectionChangeRequest""".split()}
+OBJC_NAMES["PhotosUI"] = {"PHPickerViewController": "PHPickerViewController"}
 # issue #537: Vision from Objective-C
 OBJC_NAMES["Vision"] = {c: c for c in """VNRequest VNImageBasedRequest VNDetectBarcodesRequest VNRecognizeTextRequest
     VNDetectFaceCaptureQualityRequest VNDetectHumanRectanglesRequest VNClassifyImageRequest VNGenerateImageFeaturePrintRequest VNCoreMLModel
