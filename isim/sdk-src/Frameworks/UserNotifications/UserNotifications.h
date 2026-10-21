@@ -1,6 +1,6 @@
 #pragma once
 /* isim SDK (self-authored): UserNotifications — local and remote (push) notifications.
- * isim: authorization asks with the iOS permission alert (remembered per app); time-interval and calendar
+ * isim: authorization asks with the iOS permission alert (remembered per app); time-interval, calendar and location
  * triggers fire while the app runs (a suspended app is woken for them); for an app that is not running under
  * `isim boot` the system (the home screen's scheduler) delivers them. In the foreground the delegate's willPresent
  * decides whether a banner shows (tapping it calls didReceive). Pending requests persist with the app's data.
@@ -16,6 +16,7 @@
 #define NS_SWIFT_UNAVAILABLE(_msg) __attribute__((availability(swift, unavailable, message=_msg)))
 #endif
 NS_ASSUME_NONNULL_BEGIN
+@class CLRegion, UIScene, INSendMessageIntent;
 
 typedef NS_OPTIONS(NSUInteger, UNAuthorizationOptions) {
     UNAuthorizationOptionBadge = (1 << 0),
@@ -111,6 +112,12 @@ FOUNDATION_EXPORT NSString * const UNNotificationAttachmentOptionsThumbnailTimeK
 - (instancetype)init NS_UNAVAILABLE;
 @end
 
+/* something a notification's content can be updated from (communication notifications): INSendMessageIntent and
+ * INStartCallIntent (Intents) and UNNotificationAttributedMessageContext */
+API_AVAILABLE(ios(15.0))
+@protocol UNNotificationContentProviding <NSObject>
+@end
+
 @interface UNNotificationContent : NSObject <NSCopying, NSMutableCopying>
 @property (nonatomic, readonly, copy) NSString *title;
 @property (nonatomic, readonly, copy) NSString *subtitle;
@@ -128,6 +135,19 @@ FOUNDATION_EXPORT NSString * const UNNotificationAttachmentOptionsThumbnailTimeK
 @property (nonatomic, readonly) UNNotificationInterruptionLevel interruptionLevel;
 @property (nonatomic, readonly) double relevanceScore;
 @property (nonatomic, readonly, copy, nullable) NSString *filterCriteria;
+/* isim: with the Communication Notifications capability (com.apple.developer.usernotifications.communication), the
+ * sender's name becomes the title (a group conversation: the group's name, with the sender as subtitle) and the
+ * sender's image, with the app icon in its corner, replaces the app icon where the notification is shown. Without the
+ * capability the content comes back unchanged. Other objects fail with UNErrorCodeContentProvidingObjectNotAllowed;
+ * a message intent without a sender, or a call intent without contacts, with UNErrorCodeContentProvidingInvalid. */
+- (nullable UNNotificationContent *)contentByUpdatingWithProvider:(id<UNNotificationContentProviding>)provider error:(NSError *__autoreleasing _Nullable * _Nullable)outError NS_SWIFT_NAME(updating(from:)) API_AVAILABLE(ios(15.0));
+@end
+
+/* a message with formatted text (mentions, styles): the attributed content is the notification's body */
+API_AVAILABLE(ios(18.0))
+@interface UNNotificationAttributedMessageContext : NSObject <UNNotificationContentProviding>
++ (instancetype)contextWithSendMessageIntent:(INSendMessageIntent *)sendMessageIntent attributedContent:(NSAttributedString *)attributedContent;
+- (instancetype)init NS_UNAVAILABLE;
 @end
 
 @interface UNMutableNotificationContent : UNNotificationContent
@@ -172,6 +192,20 @@ FOUNDATION_EXPORT NSString * const UNNotificationAttachmentOptionsThumbnailTimeK
 - (nullable NSDate *)nextTriggerDate;
 @end
 
+/* isim: the simulated location (the `location` script command, the device window's Features > Location, ISIM_LOCATION)
+ * entering or leaving a circular region (as its notifyOnEntry / notifyOnExit say) fires it; where the device already
+ * is when the request is added does not. The app needs location authorization (when in use is enough). The app
+ * watches the location while it runs; for an app that is not running (or suspended) the home screen does. */
+@interface UNLocationNotificationTrigger : UNNotificationTrigger
+#if !defined(__swift__)
+@property (nonatomic, readonly, copy) CLRegion *region;
++ (instancetype)triggerWithRegion:(CLRegion *)region repeats:(BOOL)repeats;
+#else   /* CLRegion is the CoreLocation Swift overlay's class: init(region:repeats:) and region are in the overlay */
+@property (nonatomic, readonly, copy) id region NS_REFINED_FOR_SWIFT;
+- (instancetype)initWithRegion:(id)region repeats:(BOOL)repeats NS_REFINED_FOR_SWIFT;
+#endif
+@end
+
 @interface UNNotificationRequest : NSObject <NSCopying>
 @property (nonatomic, readonly, copy) NSString *identifier;
 @property (nonatomic, readonly, copy) UNNotificationContent *content;
@@ -189,6 +223,8 @@ FOUNDATION_EXPORT NSString * const UNNotificationAttachmentOptionsThumbnailTimeK
 @interface UNNotificationResponse : NSObject <NSCopying>
 @property (nonatomic, readonly, copy) UNNotification *notification;
 @property (nonatomic, readonly, copy) NSString *actionIdentifier;
+/* isim: the app's foreground-active scene, else its first connected scene; nil in an app without scenes */
+@property (nonatomic, readonly, nullable) UIScene *targetScene API_AVAILABLE(ios(13.0));
 - (instancetype)init NS_UNAVAILABLE;
 @end
 

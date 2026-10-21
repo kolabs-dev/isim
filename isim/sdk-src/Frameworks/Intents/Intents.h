@@ -17,6 +17,7 @@
 #import <UIKit/UIKit.h>
 #import <Intents/INFocusStatusCenter.h>   /* the Focus status of the device (INFocusStatusCenter.h) */
 #import <CoreLocation/CoreLocation.h>      /* CLRegion (INLocationRelevanceProvider; from Swift, the overlay's) */
+#import <UserNotifications/UserNotifications.h>   /* UNNotificationContentProviding (communication notifications) */
 NS_ASSUME_NONNULL_BEGIN
 
 #ifndef INTENTS_EXTERN
@@ -307,6 +308,10 @@ typedef NS_ENUM(NSInteger, INMessageType) {
 @property (readonly, copy, nullable) NSString *serviceName;
 @property (readonly, copy, nullable) INPerson *sender;
 @end
+/* communication notifications: UNNotificationContent.updating(from:) (UserNotifications) */
+API_AVAILABLE(ios(15.0))
+@interface INSendMessageIntent (UNNotificationContentProviding) <UNNotificationContentProviding>
+@end
 typedef NS_ENUM(NSInteger, INSendMessageIntentResponseCode) {
     INSendMessageIntentResponseCodeUnspecified = 0,
     INSendMessageIntentResponseCodeReady,
@@ -501,6 +506,9 @@ typedef NS_ENUM(NSInteger, INCallRecordType) {
 @property (readonly) INCallDestinationType destinationType;
 @property (readonly, copy, nullable) NSArray<INPerson *> *contacts;
 @property (readonly) INCallCapability callCapability;
+@end
+API_AVAILABLE(ios(15.0))
+@interface INStartCallIntent (UNNotificationContentProviding) <UNNotificationContentProviding>
 @end
 typedef NS_ENUM(NSInteger, INStartCallIntentResponseCode) {
     INStartCallIntentResponseCodeUnspecified = 0,

@@ -162,3 +162,8 @@ extension CLGeocoder {
     }
     @objc(cancelGeocode) func _objc_cancel() { cancelGeocode() }
 }
+
+// isim-private: the simulated location as the app sees it (UserNotifications' location triggers read it)
+extension CLLocationManager {
+    @objc(_isim_simulatedLocation) class func _isim_simulatedLocation() -> CLLocation? { _CLSim.shared.current() }
+}
