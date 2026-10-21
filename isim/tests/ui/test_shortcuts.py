@@ -206,16 +206,21 @@ def test_app_intents_discovery(launch):
     page = dev.wait_view(lambda d: f"id=app-shortcuts-{APP}" in d or "id=action-DirectionsIntent" in d, what="the Shortcuts app")
     if "id=action-DirectionsIntent" not in page:
         dev.tap_id(f"app-shortcuts-{APP}")
+    relaunch = rf"^.*SpringBoard: launching Coffee Club \({re.escape(APP)}\)$"   # a launch without a URL
+    relaunches = len(re.findall(relaunch, dev.log, re.M))
+    opens = len(re.findall(r"SpringBoard: Coffee Club opens", dev.log))
     dev.wait_tap_id("action-DirectionsIntent")                           # OpenURLIntent(urlRepresentable:): the app's URL
     siri(dev, r"id=siri-option-1 text=Harbor")
     dev.tap_id("siri-option-1")
     dev.wait_log(r"HelloSiri: directions to Harbor")
     dev.wait_log(r"HelloSiri: opened coffeeclub://cafe/Harbor")
+    dev.wait_log(r"SpringBoard: Coffee Club opens", count=opens + 1)     # the run is over
 
     # an indexed entity in Spotlight runs the app's OpenIntent for it
     dev.wait_view(r"id=cafe text=Cafe:")
     dev.send("home")
     dev.wait_view(r"id=home-dock")                                       # Spotlight opens from the home screen
+    assert len(re.findall(relaunch, dev.log, re.M)) == relaunches, "the opened URL brought the app forward: no second launch"
     dev.wait_still()
     dev.send("spotlight")
     dev.wait_view(r"id=spotlight-field")
