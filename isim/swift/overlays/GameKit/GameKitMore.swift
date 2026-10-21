@@ -6,28 +6,28 @@ import SwiftUI
 
 // MARK: - Achievement descriptions
 
-@objc(GKAchievementDescription) @objcMembers open class GKAchievementDescription: NSObject {
-    public let identifier: String
-    public let groupIdentifier: String?
-    public let title: String
-    public let achievedDescription: String
-    public let unachievedDescription: String
-    public let maximumPoints: Int
-    public let isHidden: Bool
-    public let isReplayable: Bool
-    public var rarityPercent: NSNumber? { nil }
-    public var releaseState: Int { 1 }
+@objc(GKAchievementDescription) open class GKAchievementDescription: NSObject {
+    @objc public let identifier: String
+    @objc public let groupIdentifier: String?
+    @objc public let title: String
+    @objc public let achievedDescription: String
+    @objc public let unachievedDescription: String
+    @objc public let maximumPoints: Int
+    @objc public let isHidden: Bool
+    @objc public let isReplayable: Bool
+    @objc public var rarityPercent: NSNumber? { nil }
+    @objc public var releaseState: Int { 1 }
     init(_ d: _GCAchievementDef) {
         identifier = d.id; groupIdentifier = d.group; title = d.title; achievedDescription = d.achieved; unachievedDescription = d.unachieved
         maximumPoints = d.points; isHidden = d.hidden; isReplayable = d.replayable
     }
     /// From the app's isim-GameCenter.json (App Store Connect metadata isn't available locally).
-    public class func loadAchievementDescriptions(completionHandler: (([GKAchievementDescription]?, Error?) -> Void)? = nil) {
+    @objc public class func loadAchievementDescriptions(completionHandler: (([GKAchievementDescription]?, Error?) -> Void)? = nil) {
         let list = _GCConfig.achievements.map(GKAchievementDescription.init)
         DispatchQueue.main.async { completionHandler?(list, nil) }
     }
     @nonobjc public class func loadAchievementDescriptions() async throws -> [GKAchievementDescription] { _GCConfig.achievements.map(GKAchievementDescription.init) }
-    open func loadImage(completionHandler: ((UIImage?, Error?) -> Void)? = nil) {
+    @objc open func loadImage(completionHandler: ((UIImage?, Error?) -> Void)? = nil) {
         let img = _GCImages.achievement(identifier, completed: true)
         DispatchQueue.main.async { completionHandler?(img, nil) }
     }
@@ -35,30 +35,30 @@ import SwiftUI
         guard let i = _GCImages.achievement(identifier, completed: true) else { throw GKError.unsupported }
         return i
     }
-    public class func incompleteAchievementImage() -> UIImage { _GCImages.achievement("", completed: false) ?? UIImage() }
-    public class func placeholderCompletedAchievementImage() -> UIImage { _GCImages.achievement("", completed: true) ?? UIImage() }
+    @objc public class func incompleteAchievementImage() -> UIImage { _GCImages.achievement("", completed: false) ?? UIImage() }
+    @objc public class func placeholderCompletedAchievementImage() -> UIImage { _GCImages.achievement("", completed: true) ?? UIImage() }
 }
 
 // MARK: - Leaderboard sets
 
-@objc(GKLeaderboardSet) @objcMembers open class GKLeaderboardSet: NSObject {
-    open var title: String
-    open var identifier: String?
-    open var groupIdentifier: String?
-    let boards: [String]
+@objc(GKLeaderboardSet) open class GKLeaderboardSet: NSObject {
+    @objc open var title: String
+    @objc open var identifier: String?
+    @objc open var groupIdentifier: String?
+    @objc let boards: [String]
     init(_ d: _GCSetDef) { title = d.title; identifier = d.id; boards = d.boards }
-    public class func loadLeaderboardSets(completionHandler: (([GKLeaderboardSet]?, Error?) -> Void)? = nil) {
+    @objc public class func loadLeaderboardSets(completionHandler: (([GKLeaderboardSet]?, Error?) -> Void)? = nil) {
         let list = _GCConfig.sets.map(GKLeaderboardSet.init)
         DispatchQueue.main.async { completionHandler?(list, nil) }
     }
     @nonobjc public class func loadLeaderboardSets() async throws -> [GKLeaderboardSet] { _GCConfig.sets.map(GKLeaderboardSet.init) }
-    open func loadLeaderboards(handler: @escaping ([GKLeaderboard]?, Error?) -> Void) {
+    @objc open func loadLeaderboards(handler: @escaping ([GKLeaderboard]?, Error?) -> Void) {
         let list = boards.map { GKLeaderboard.make($0) }
         DispatchQueue.main.async { handler(list, nil) }
     }
     @nonobjc open func loadLeaderboards() async throws -> [GKLeaderboard] { boards.map { GKLeaderboard.make($0) } }
     /// The set's image from the configuration (a file or asset in the bundle), or a generated placeholder.
-    open func loadImage(completionHandler: ((UIImage?, Error?) -> Void)? = nil) {
+    @objc open func loadImage(completionHandler: ((UIImage?, Error?) -> Void)? = nil) {
         let img = _GCImages.set(identifier ?? "")
         DispatchQueue.main.async { completionHandler?(img, nil) }
     }
@@ -117,13 +117,13 @@ extension GKLocalPlayerListener {
 /// Saved games live in the device data ($ISIM_DATA/Library/GameCenter/<bundle id>/SavedGames), like
 /// iCloud-backed Game Center saves outlive the app's container. A name with several versions (from
 /// different devices: `isim gamecenter <app> conflict <name>`) is a conflict to resolve.
-@objc(GKSavedGame) @objcMembers open class GKSavedGame: NSObject, @unchecked Sendable {
-    public let name: String?
-    public let deviceName: String?
-    public let modificationDate: Date?
-    let file: String
-    init(name: String, deviceName: String, date: Date, file: String) { self.name = name; self.deviceName = deviceName; modificationDate = date; self.file = file }
-    open func loadData(completionHandler handler: ((Data?, Error?) -> Void)? = nil) {
+@objc(GKSavedGame) open class GKSavedGame: NSObject, @unchecked Sendable {
+    @objc public let name: String?
+    @objc public let deviceName: String?
+    @objc public let modificationDate: Date?
+    @objc let file: String
+    @objc init(name: String, deviceName: String, date: Date, file: String) { self.name = name; self.deviceName = deviceName; modificationDate = date; self.file = file }
+    @objc open func loadData(completionHandler handler: ((Data?, Error?) -> Void)? = nil) {
         let d = FileManager.default.contents(atPath: (_GCSaves.dir(name ?? "") as NSString).appendingPathComponent(file))
         DispatchQueue.main.async { handler?(d, d == nil ? GKError(code: .unknown) : nil) }
     }
@@ -169,7 +169,7 @@ enum _GCSaves {
 
 extension GKLocalPlayer {
     /// Saves (or replaces this device's version of) a saved game.
-    public func saveGameData(_ data: Data, withName name: String, completionHandler handler: ((GKSavedGame?, Error?) -> Void)? = nil) {
+    @objc public func saveGameData(_ data: Data, withName name: String, completionHandler handler: ((GKSavedGame?, Error?) -> Void)? = nil) {
         guard isAuthenticated else { DispatchQueue.main.async { handler?(nil, GKError.notAuthenticated) }; return }
         let dev = _GCSaves.deviceName
         let g = _GCSaves.store(data, name: name) { ($0["deviceName"] as? String) == dev }
@@ -180,7 +180,7 @@ extension GKLocalPlayer {
         try await withCheckedThrowingContinuation { k in saveGameData(data, withName: name) { g, e in if let g { k.resume(returning: g) } else { k.resume(throwing: e ?? GKError(code: .unknown)) } } }
     }
     /// All saved games; a name listed more than once is a conflict (listeners are told).
-    public func fetchSavedGames(completionHandler handler: (([GKSavedGame]?, Error?) -> Void)? = nil) {
+    @objc public func fetchSavedGames(completionHandler handler: (([GKSavedGame]?, Error?) -> Void)? = nil) {
         guard isAuthenticated else { DispatchQueue.main.async { handler?(nil, GKError.notAuthenticated) }; return }
         let names = (try? FileManager.default.contentsOfDirectory(atPath: _GCSaves.root)) ?? []
         var all: [GKSavedGame] = []
@@ -198,7 +198,7 @@ extension GKLocalPlayer {
     @nonobjc public func fetchSavedGames() async throws -> [GKSavedGame] {
         try await withCheckedThrowingContinuation { k in fetchSavedGames { g, e in if let g { k.resume(returning: g) } else { k.resume(throwing: e ?? GKError(code: .unknown)) } } }
     }
-    public func deleteSavedGames(withName name: String, completionHandler handler: ((Error?) -> Void)? = nil) {
+    @objc public func deleteSavedGames(withName name: String, completionHandler handler: ((Error?) -> Void)? = nil) {
         try? FileManager.default.removeItem(atPath: _GCSaves.dir(name))
         NSLog("isim GameKit: deleted saved game \"%@\"", name)
         DispatchQueue.main.async { handler?(nil) }
@@ -225,19 +225,19 @@ public protocol GKFriendRequestComposeViewControllerDelegate: AnyObject {
 
 /// The friend request composer: the request goes to the player with that nickname on isim's local Game Center
 /// network (test players accept at once; a device's player accepts in Settings > Game Center).
-@objc(GKFriendRequestComposeViewController) @objcMembers open class GKFriendRequestComposeViewController: UINavigationController {
+@objc(GKFriendRequestComposeViewController) open class GKFriendRequestComposeViewController: UINavigationController {
     weak open var composeViewDelegate: GKFriendRequestComposeViewControllerDelegate?
-    var recipients: [String] = []
-    var _message = ""
-    public class func maxNumberOfRecipients() -> Int { 1 }
-    open func setMessage(_ message: String?) { self._message = message ?? "" }
-    open func addRecipients(withEmailAddresses emailAddresses: [String]) { recipients += emailAddresses }
-    open func addRecipients(withPhoneNumbers phoneNumbers: [String]) { recipients += phoneNumbers }
-    open func addRecipientPlayers(_ players: [GKPlayer]) { recipients += players.map { $0.alias } }
-    open override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); _gcSheetWillAppear() }
-    open override func viewWillDisappear(_ animated: Bool) { super.viewWillDisappear(animated); _gcSheetWillDisappear() }
-    open override func viewDidDisappear(_ animated: Bool) { super.viewDidDisappear(animated); _gcSheetDidDisappear() }
-    open override func viewDidLoad() {
+    @objc var recipients: [String] = []
+    @objc var _message = ""
+    @objc public class func maxNumberOfRecipients() -> Int { 1 }
+    @objc open func setMessage(_ message: String?) { self._message = message ?? "" }
+    @objc open func addRecipients(withEmailAddresses emailAddresses: [String]) { recipients += emailAddresses }
+    @objc open func addRecipients(withPhoneNumbers phoneNumbers: [String]) { recipients += phoneNumbers }
+    @objc open func addRecipientPlayers(_ players: [GKPlayer]) { recipients += players.map { $0.alias } }
+    @objc open override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); _gcSheetWillAppear() }
+    @objc open override func viewWillDisappear(_ animated: Bool) { super.viewWillDisappear(animated); _gcSheetWillDisappear() }
+    @objc open override func viewDidDisappear(_ animated: Bool) { super.viewDidDisappear(animated); _gcSheetDidDisappear() }
+    @objc open override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
         _gcEmbed(_GCFriendRequestView(to: recipients.joined(separator: ", "), message: _message) { [weak self] sent, to, text in

@@ -1,28 +1,28 @@
 // CKSubscription / CKNotification (isim: subscriptions are stored locally; notifications are delivered in-process).
 import Foundation
 
-@objc(CKSubscription) @objcMembers open class CKSubscription: NSObject, @unchecked Sendable {
+@objc(CKSubscription) open class CKSubscription: NSObject, @unchecked Sendable {
     public typealias ID = String
     public enum SubscriptionType: Int, Sendable { case query = 1, recordZone = 2, database = 3 }
-    public let subscriptionID: ID
+    @objc public let subscriptionID: ID
     public let subscriptionType: SubscriptionType
-    open var notificationInfo: NotificationInfo?
+    @objc open var notificationInfo: NotificationInfo?
     init(_ id: ID, _ t: SubscriptionType) { subscriptionID = id; subscriptionType = t }
 
-    @objc(CKNotificationInfo) @objcMembers open class NotificationInfo: NSObject, @unchecked Sendable {
-        open var alertBody: String?
-        open var title: String?
-        open var subtitle: String?
-        open var alertLocalizationKey: String?
-        open var soundName: String?
-        open var shouldBadge = false
-        open var shouldSendContentAvailable = false
-        open var shouldSendMutableContent = false
-        open var desiredKeys: [CKRecord.FieldKey]?
-        open var category: String?
-        open var collapseIDKey: String?
-        public override init() {}
-        public convenience init(alertBody: String? = nil, title: String? = nil, shouldBadge: Bool = false, shouldSendContentAvailable: Bool = false, desiredKeys: [CKRecord.FieldKey]? = nil) {
+    @objc(CKNotificationInfo) open class NotificationInfo: NSObject, @unchecked Sendable {
+        @objc open var alertBody: String?
+        @objc open var title: String?
+        @objc open var subtitle: String?
+        @objc open var alertLocalizationKey: String?
+        @objc open var soundName: String?
+        @objc open var shouldBadge = false
+        @objc open var shouldSendContentAvailable = false
+        @objc open var shouldSendMutableContent = false
+        @objc open var desiredKeys: [CKRecord.FieldKey]?
+        @objc open var category: String?
+        @objc open var collapseIDKey: String?
+        @objc public override init() {}
+        @objc public convenience init(alertBody: String? = nil, title: String? = nil, shouldBadge: Bool = false, shouldSendContentAvailable: Bool = false, desiredKeys: [CKRecord.FieldKey]? = nil) {
             self.init(); self.alertBody = alertBody; self.title = title; self.shouldBadge = shouldBadge
             self.shouldSendContentAvailable = shouldSendContentAvailable; self.desiredKeys = desiredKeys
         }
@@ -61,7 +61,7 @@ import Foundation
     }
 }
 
-@objc(CKQuerySubscription) @objcMembers open class CKQuerySubscription: CKSubscription, @unchecked Sendable {
+@objc(CKQuerySubscription) open class CKQuerySubscription: CKSubscription, @unchecked Sendable {
     public struct Options: OptionSet, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -70,38 +70,38 @@ import Foundation
         public static let firesOnRecordDeletion = Options(rawValue: 4)
         public static let firesOnce = Options(rawValue: 8)
     }
-    public let recordType: CKRecord.RecordType
-    public let predicate: NSPredicate
+    @objc public let recordType: CKRecord.RecordType
+    @objc public let predicate: NSPredicate
     public let querySubscriptionOptions: Options
-    open var zoneID: CKRecordZone.ID?
+    @objc open var zoneID: CKRecordZone.ID?
     public init(recordType: CKRecord.RecordType, predicate: NSPredicate, subscriptionID: CKSubscription.ID = UUID().uuidString, options: Options) {
         self.recordType = recordType; self.predicate = predicate; querySubscriptionOptions = options
         super.init(subscriptionID, .query)
     }
 }
-@objc(CKDatabaseSubscription) @objcMembers open class CKDatabaseSubscription: CKSubscription, @unchecked Sendable {
-    open var recordType: CKRecord.RecordType?
-    public init(subscriptionID: CKSubscription.ID = UUID().uuidString) { super.init(subscriptionID, .database) }
+@objc(CKDatabaseSubscription) open class CKDatabaseSubscription: CKSubscription, @unchecked Sendable {
+    @objc open var recordType: CKRecord.RecordType?
+    @objc public init(subscriptionID: CKSubscription.ID = UUID().uuidString) { super.init(subscriptionID, .database) }
 }
-@objc(CKRecordZoneSubscription) @objcMembers open class CKRecordZoneSubscription: CKSubscription, @unchecked Sendable {
-    public let zoneID: CKRecordZone.ID
-    open var recordType: CKRecord.RecordType?
-    public init(zoneID: CKRecordZone.ID, subscriptionID: CKSubscription.ID = UUID().uuidString) { self.zoneID = zoneID; super.init(subscriptionID, .recordZone) }
+@objc(CKRecordZoneSubscription) open class CKRecordZoneSubscription: CKSubscription, @unchecked Sendable {
+    @objc public let zoneID: CKRecordZone.ID
+    @objc open var recordType: CKRecord.RecordType?
+    @objc public init(zoneID: CKRecordZone.ID, subscriptionID: CKSubscription.ID = UUID().uuidString) { self.zoneID = zoneID; super.init(subscriptionID, .recordZone) }
 }
 
 // MARK: - Notifications
 
-@objc(CKNotification) @objcMembers open class CKNotification: NSObject, @unchecked Sendable {
+@objc(CKNotification) open class CKNotification: NSObject, @unchecked Sendable {
     public enum NotificationType: Int, Sendable { case query = 1, recordZone = 2, readNotification = 3, database = 4 }
     public struct ID: Hashable, Sendable { let raw: String }
     public let notificationType: NotificationType
     public let notificationID: ID?
-    public let containerIdentifier: String?
-    public let subscriptionID: CKSubscription.ID?
-    public let alertBody: String?
-    public let title: String?
-    public let isPruned = false
-    let ck: [String: Any]
+    @objc public let containerIdentifier: String?
+    @objc public let subscriptionID: CKSubscription.ID?
+    @objc public let alertBody: String?
+    @objc public let title: String?
+    @objc public let isPruned = false
+    @objc let ck: [String: Any]
     init(_ t: NotificationType, _ ck: [String: Any], _ aps: [String: Any], sid: String?) {
         notificationType = t; self.ck = ck
         notificationID = (ck["nid"] as? String).map { ID(raw: $0) }
@@ -111,7 +111,7 @@ import Foundation
         alertBody = alert?["body"] as? String; title = alert?["title"] as? String
     }
     /// parses the `userInfo` of a CloudKit push (isim delivers them in-process)
-    public convenience init?(fromRemoteNotificationDictionary info: [AnyHashable: Any]) {
+    @objc public convenience init?(fromRemoteNotificationDictionary info: [AnyHashable: Any]) {
         guard let ck = info["ck"] as? [String: Any] else { return nil }
         let aps = info["aps"] as? [String: Any] ?? [:]
         if let q = ck["qry"] as? [String: Any] { self.init(.query, ck, aps, sid: q["sid"] as? String) }
@@ -120,7 +120,7 @@ import Foundation
         else { return nil }
     }
     /// returns the concrete subclass, like CloudKit's factory
-    static func make(fromRemoteNotificationDictionary info: [AnyHashable: Any]) -> CKNotification? {
+    @objc static func make(fromRemoteNotificationDictionary info: [AnyHashable: Any]) -> CKNotification? {
         guard let ck = info["ck"] as? [String: Any] else { return nil }
         let aps = info["aps"] as? [String: Any] ?? [:]
         if ck["qry"] != nil { return CKQueryNotification(ck, aps) }
@@ -130,13 +130,13 @@ import Foundation
     }
 }
 
-@objc(CKQueryNotification) @objcMembers open class CKQueryNotification: CKNotification, @unchecked Sendable {
+@objc(CKQueryNotification) open class CKQueryNotification: CKNotification, @unchecked Sendable {
     public enum Reason: Int, Sendable { case recordCreated = 1, recordUpdated = 2, recordDeleted = 3 }
     public let queryNotificationReason: Reason
-    public let recordFields: [String: Any]?
-    public let recordID: CKRecord.ID?
+    @objc public let recordFields: [String: Any]?
+    @objc public let recordID: CKRecord.ID?
     public let databaseScope: CKDatabase.Scope
-    init(_ ck: [String: Any], _ aps: [String: Any]) {
+    @objc init(_ ck: [String: Any], _ aps: [String: Any]) {
         let q = ck["qry"] as? [String: Any] ?? [:]
         queryNotificationReason = Reason(rawValue: q["fo"] as? Int ?? 1) ?? .recordCreated
         recordFields = q["af"] as? [String: Any]
@@ -145,35 +145,35 @@ import Foundation
         super.init(.query, ck, aps, sid: q["sid"] as? String)
     }
     /// isim: CKNotification(fromRemoteNotificationDictionary:) returns the base class; ask the subclass for its details
-    public convenience init?(fromRemoteNotificationDictionary info: [AnyHashable: Any]) {
+    @objc public convenience init?(fromRemoteNotificationDictionary info: [AnyHashable: Any]) {
         guard let ck = info["ck"] as? [String: Any], ck["qry"] != nil else { return nil }
         self.init(ck, info["aps"] as? [String: Any] ?? [:])
     }
 }
-@objc(CKDatabaseNotification) @objcMembers open class CKDatabaseNotification: CKNotification, @unchecked Sendable {
+@objc(CKDatabaseNotification) open class CKDatabaseNotification: CKNotification, @unchecked Sendable {
     public let databaseScope: CKDatabase.Scope
-    init(_ ck: [String: Any], _ aps: [String: Any]) {
+    @objc init(_ ck: [String: Any], _ aps: [String: Any]) {
         let m = ck["met"] as? [String: Any] ?? [:]
         databaseScope = CKDatabase.Scope(rawValue: m["dbs"] as? Int ?? 2) ?? .private
         super.init(.database, ck, aps, sid: m["sid"] as? String)
     }
     /// isim: CKNotification(fromRemoteNotificationDictionary:) returns the base class; ask the subclass for its details
-    public convenience init?(fromRemoteNotificationDictionary info: [AnyHashable: Any]) {
+    @objc public convenience init?(fromRemoteNotificationDictionary info: [AnyHashable: Any]) {
         guard let ck = info["ck"] as? [String: Any], ck["met"] != nil else { return nil }
         self.init(ck, info["aps"] as? [String: Any] ?? [:])
     }
 }
-@objc(CKRecordZoneNotification) @objcMembers open class CKRecordZoneNotification: CKNotification, @unchecked Sendable {
-    public let recordZoneID: CKRecordZone.ID?
+@objc(CKRecordZoneNotification) open class CKRecordZoneNotification: CKNotification, @unchecked Sendable {
+    @objc public let recordZoneID: CKRecordZone.ID?
     public let databaseScope: CKDatabase.Scope
-    init(_ ck: [String: Any], _ aps: [String: Any]) {
+    @objc init(_ ck: [String: Any], _ aps: [String: Any]) {
         let f = ck["fet"] as? [String: Any] ?? [:]
         recordZoneID = (f["zid"] as? String).map { CKRecordZone.ID(zoneName: $0, ownerName: f["zoid"] as? String ?? CKCurrentUserDefaultName) }
         databaseScope = CKDatabase.Scope(rawValue: f["dbs"] as? Int ?? 2) ?? .private
         super.init(.recordZone, ck, aps, sid: f["sid"] as? String)
     }
     /// isim: CKNotification(fromRemoteNotificationDictionary:) returns the base class; ask the subclass for its details
-    public convenience init?(fromRemoteNotificationDictionary info: [AnyHashable: Any]) {
+    @objc public convenience init?(fromRemoteNotificationDictionary info: [AnyHashable: Any]) {
         guard let ck = info["ck"] as? [String: Any], ck["fet"] != nil else { return nil }
         self.init(ck, info["aps"] as? [String: Any] ?? [:])
     }

@@ -103,22 +103,22 @@ public typealias GKSavedGameListener = GKLocalPlayerListener
 public enum GKChallengeState: Int, Sendable { case invalid = 0, pending = 1, completed = 2, declined = 3 }
 
 /// A score or achievement challenge between friends, kept on the local network (games/<bundle id>/challenges).
-@objc(GKChallenge) @objcMembers open class GKChallenge: NSObject {
-    var _id = ""
-    var _rec: [String: Any] = [:]
-    static func _make(_ rec: [String: Any]) -> GKChallenge {
+@objc(GKChallenge) open class GKChallenge: NSObject {
+    @objc var _id = ""
+    @objc var _rec: [String: Any] = [:]
+    @objc static func _make(_ rec: [String: Any]) -> GKChallenge {
         let c: GKChallenge = (rec["kind"] as? String) == "achievement" ? GKAchievementChallenge() : GKScoreChallenge()
         c._id = rec["id"] as? String ?? ""; c._rec = rec
         return c
     }
-    open var issuingPlayer: GKPlayer? { (_rec["from"] as? String).map(GKPlayer._make) }
-    open var receivingPlayer: GKPlayer? { (_rec["to"] as? String).map(GKPlayer._make) }
+    @objc open var issuingPlayer: GKPlayer? { (_rec["from"] as? String).map(GKPlayer._make) }
+    @objc open var receivingPlayer: GKPlayer? { (_rec["to"] as? String).map(GKPlayer._make) }
     open var state: GKChallengeState { GKChallengeState(rawValue: _rec["state"] as? Int ?? 0) ?? .invalid }
-    open var issueDate: Date { Date(timeIntervalSince1970: _rec["issued"] as? Double ?? 0) }
-    open var completionDate: Date? { (_rec["completed"] as? Double).map { Date(timeIntervalSince1970: $0) } }
-    open var message: String? { _rec["message"] as? String }
+    @objc open var issueDate: Date { Date(timeIntervalSince1970: _rec["issued"] as? Double ?? 0) }
+    @objc open var completionDate: Date? { (_rec["completed"] as? Double).map { Date(timeIntervalSince1970: $0) } }
+    @objc open var message: String? { _rec["message"] as? String }
     /// The pending challenges other players sent the local player.
-    public class func loadReceivedChallenges(completionHandler: (([GKChallenge]?, Error?) -> Void)? = nil) {
+    @objc public class func loadReceivedChallenges(completionHandler: (([GKChallenge]?, Error?) -> Void)? = nil) {
         guard GKLocalPlayer.local.isAuthenticated else { DispatchQueue.main.async { completionHandler?(nil, GKError.notAuthenticated) }; return }
         let list = _GCChallenges.all().filter { ($0["to"] as? String) == _GCNet.me && ($0["state"] as? Int) == GKChallengeState.pending.rawValue }
             .sorted { ($0["issued"] as? Double ?? 0) < ($1["issued"] as? Double ?? 0) }.map(GKChallenge._make)
@@ -128,29 +128,29 @@ public enum GKChallengeState: Int, Sendable { case invalid = 0, pending = 1, com
         try await withCheckedThrowingContinuation { k in loadReceivedChallenges { l, e in if let l { k.resume(returning: l) } else { k.resume(throwing: e ?? GKError(code: .unknown)) } } }
     }
     /// Declines a received challenge (the issuer sees it declined).
-    open func decline() {
+    @objc open func decline() {
         guard (_rec["to"] as? String) == _GCNet.me, state == .pending else { return }
         _rec = _GCChallenges.set(_id) { $0["state"] = GKChallengeState.declined.rawValue }
         NSLog("isim GameKit: challenge %@ declined", _id)
     }
-    open override func isEqual(_ object: Any?) -> Bool { (object as? GKChallenge)?._id == _id }
-    open override var hash: Int { _id.hashValue }
+    @objc open override func isEqual(_ object: Any?) -> Bool { (object as? GKChallenge)?._id == _id }
+    @objc open override var hash: Int { _id.hashValue }
 }
 
 /// Beat a friend's score on a leaderboard.
-@objc(GKScoreChallenge) @objcMembers open class GKScoreChallenge: GKChallenge {
-    open var leaderboardEntry: GKLeaderboard.Entry? {
+@objc(GKScoreChallenge) open class GKScoreChallenge: GKChallenge {
+    @objc open var leaderboardEntry: GKLeaderboard.Entry? {
         guard let board = _rec["board"] as? String, let from = _rec["from"] as? String else { return nil }
         return GKLeaderboard.Entry(player: GKPlayer._make(from), rank: 0, score: _rec["score"] as? Int ?? 0, context: _rec["context"] as? Int ?? 0,
                                    date: issueDate, board: _GCConfig.board(board))
     }
     /// the leaderboard the challenge is on
-    open var leaderboardID: String? { _rec["board"] as? String }
+    @objc open var leaderboardID: String? { _rec["board"] as? String }
 }
 
 /// Earn an achievement a friend has.
-@objc(GKAchievementChallenge) @objcMembers open class GKAchievementChallenge: GKChallenge {
-    open var achievement: GKAchievement? {
+@objc(GKAchievementChallenge) open class GKAchievementChallenge: GKChallenge {
+    @objc open var achievement: GKAchievement? {
         guard let id = _rec["achievement"] as? String else { return nil }
         let a = GKAchievement(identifier: id); a.percentComplete = 100
         return a
@@ -235,7 +235,7 @@ public typealias GKChallengeComposeHandler = (UIViewController, Bool, [GKPlayer]
 
 extension GKLeaderboard.Entry {
     /// The challenge composer for this score: pick friends and a message; Send challenges them to beat it.
-    @MainActor public func challengeComposeController(withMessage message: String?, players: [GKPlayer]?, completion completionHandler: GKChallengeComposeHandler? = nil) -> UIViewController {
+    @objc @MainActor public func challengeComposeController(withMessage message: String?, players: [GKPlayer]?, completion completionHandler: GKChallengeComposeHandler? = nil) -> UIViewController {
         let base: [String: Any] = ["kind": "score", "board": board.id, "score": score, "context": context]
         return _GCChallengeComposeController(base: base, title: "Beat \(formattedScore) on \(board.title)", message: message, players: players ?? [], done: completionHandler)
     }
@@ -243,12 +243,12 @@ extension GKLeaderboard.Entry {
 
 extension GKAchievement {
     /// The challenge composer for this achievement: Send challenges the friends to earn it.
-    @MainActor public func challengeComposeController(withMessage message: String?, players: [GKPlayer]?, completion completionHandler: GKChallengeComposeHandler? = nil) -> UIViewController {
+    @objc @MainActor public func challengeComposeController(withMessage message: String?, players: [GKPlayer]?, completion completionHandler: GKChallengeComposeHandler? = nil) -> UIViewController {
         _GCChallengeComposeController(base: ["kind": "achievement", "achievement": identifier], title: "Earn “\(_GCText.title(identifier))”",
                                       message: message, players: players ?? [], done: completionHandler)
     }
     /// Challenges players to earn this achievement without showing the composer.
-    public func issueChallenge(toPlayers playerIDs: [GKPlayer]?, message: String?) {
+    @objc public func issueChallenge(toPlayers playerIDs: [GKPlayer]?, message: String?) {
         let id = identifier
         DispatchQueue.main.async { MainActor.assumeIsolated { _GCChallenges.issue(["kind": "achievement", "achievement": id], to: playerIDs ?? [], message: message) } }
     }

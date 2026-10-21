@@ -7,9 +7,9 @@ import Foundation
 import UIKit
 
 extension CKContainer {
-    nonisolated(unsafe) static var _byIdentifier: [String: CKContainer] = [:]
+    @objc nonisolated(unsafe) static var _byIdentifier: [String: CKContainer] = [:]
     /// a container kept alive for its databases (they refer to it unowned)
-    static func _container(_ identifier: String) -> CKContainer {
+    @objc static func _container(_ identifier: String) -> CKContainer {
         _CKStore.lock.lock(); defer { _CKStore.lock.unlock() }
         if let d = defaultContainer, d.containerIdentifier == identifier { return d }
         if let c = _byIdentifier[identifier] { return c }
@@ -80,15 +80,15 @@ extension CKContainer {
     }
 }
 
-@objc(CKFetchShareMetadataOperation) @objcMembers open class CKFetchShareMetadataOperation: CKOperation, @unchecked Sendable {
-    open var shareURLs: [URL]?
-    open var shouldFetchRootRecord = false
-    open var rootRecordDesiredKeys: [CKRecord.FieldKey]?
+@objc(CKFetchShareMetadataOperation) open class CKFetchShareMetadataOperation: CKOperation, @unchecked Sendable {
+    @objc open var shareURLs: [URL]?
+    @objc open var shouldFetchRootRecord = false
+    @objc open var rootRecordDesiredKeys: [CKRecord.FieldKey]?
     open var perShareMetadataResultBlock: ((URL, Result<CKShare.Metadata, Error>) -> Void)?
     open var fetchShareMetadataResultBlock: ((Result<Void, Error>) -> Void)?
-    public override init() { super.init() }
-    public convenience init(shareURLs: [URL]) { self.init(); self.shareURLs = shareURLs }
-    open override func main() {
+    @objc public override init() { super.init() }
+    @objc public convenience init(shareURLs: [URL]) { self.init(); self.shareURLs = shareURLs }
+    @objc open override func main() {
         if isCancelled { fetchShareMetadataResultBlock?(.failure(cancelledError)); return }
         if _CKEnv.accountStatus != .available { fetchShareMetadataResultBlock?(.failure(CKError(.notAuthenticated))); return }
         for url in shareURLs ?? [] {
@@ -98,13 +98,13 @@ extension CKContainer {
     }
 }
 
-@objc(CKAcceptSharesOperation) @objcMembers open class CKAcceptSharesOperation: CKOperation, @unchecked Sendable {
-    open var shareMetadatas: [CKShare.Metadata]?
+@objc(CKAcceptSharesOperation) open class CKAcceptSharesOperation: CKOperation, @unchecked Sendable {
+    @objc open var shareMetadatas: [CKShare.Metadata]?
     open var perShareResultBlock: ((CKShare.Metadata, Result<CKShare, Error>) -> Void)?
     open var acceptSharesResultBlock: ((Result<Void, Error>) -> Void)?
-    public override init() { super.init() }
-    public convenience init(shareMetadatas: [CKShare.Metadata]) { self.init(); self.shareMetadatas = shareMetadatas }
-    open override func main() {
+    @objc public override init() { super.init() }
+    @objc public convenience init(shareMetadatas: [CKShare.Metadata]) { self.init(); self.shareMetadatas = shareMetadatas }
+    @objc open override func main() {
         if isCancelled { acceptSharesResultBlock?(.failure(cancelledError)); return }
         if _CKEnv.accountStatus != .available { acceptSharesResultBlock?(.failure(CKError(.notAuthenticated))); return }
         for m in shareMetadatas ?? [] { perShareResultBlock?(m, CKContainer._accept(m)) }
@@ -112,15 +112,15 @@ extension CKContainer {
     }
 }
 
-@objc(CKFetchRecordZonesOperation) @objcMembers open class CKFetchRecordZonesOperation: CKDatabaseOperation, @unchecked Sendable {
-    open var recordZoneIDs: [CKRecordZone.ID]?
+@objc(CKFetchRecordZonesOperation) open class CKFetchRecordZonesOperation: CKDatabaseOperation, @unchecked Sendable {
+    @objc open var recordZoneIDs: [CKRecordZone.ID]?
     open var perRecordZoneResultBlock: ((CKRecordZone.ID, Result<CKRecordZone, Error>) -> Void)?
     open var fetchRecordZonesResultBlock: ((Result<Void, Error>) -> Void)?
-    public required override init() { super.init() }
-    public convenience init(recordZoneIDs: [CKRecordZone.ID]) { self.init(); self.recordZoneIDs = recordZoneIDs }
+    @objc public required override init() { super.init() }
+    @objc public convenience init(recordZoneIDs: [CKRecordZone.ID]) { self.init(); self.recordZoneIDs = recordZoneIDs }
     /// Fetches every zone of the database.
-    open class func fetchAllRecordZonesOperation() -> Self { Self() }
-    open override func main() {
+    @objc open class func fetchAllRecordZonesOperation() -> Self { Self() }
+    @objc open override func main() {
         if isCancelled { fetchRecordZonesResultBlock?(.failure(cancelledError)); return }
         switch db._allZones() {
         case .failure(let e): fetchRecordZonesResultBlock?(.failure(e))
@@ -136,15 +136,15 @@ extension CKContainer {
     }
 }
 
-@objc(CKFetchSubscriptionsOperation) @objcMembers open class CKFetchSubscriptionsOperation: CKDatabaseOperation, @unchecked Sendable {
-    open var subscriptionIDs: [CKSubscription.ID]?
+@objc(CKFetchSubscriptionsOperation) open class CKFetchSubscriptionsOperation: CKDatabaseOperation, @unchecked Sendable {
+    @objc open var subscriptionIDs: [CKSubscription.ID]?
     open var perSubscriptionResultBlock: ((CKSubscription.ID, Result<CKSubscription, Error>) -> Void)?
     open var fetchSubscriptionsResultBlock: ((Result<Void, Error>) -> Void)?
-    public required override init() { super.init() }
-    public convenience init(subscriptionIDs: [CKSubscription.ID]) { self.init(); self.subscriptionIDs = subscriptionIDs }
+    @objc public required override init() { super.init() }
+    @objc public convenience init(subscriptionIDs: [CKSubscription.ID]) { self.init(); self.subscriptionIDs = subscriptionIDs }
     /// Fetches every subscription of the database.
-    open class func fetchAllSubscriptionsOperation() -> Self { Self() }
-    open override func main() {
+    @objc open class func fetchAllSubscriptionsOperation() -> Self { Self() }
+    @objc open override func main() {
         if isCancelled { fetchSubscriptionsResultBlock?(.failure(cancelledError)); return }
         switch db._allSubs() {
         case .failure(let e): fetchSubscriptionsResultBlock?(.failure(e))
@@ -176,28 +176,28 @@ public struct CKSharingParticipantPermissionOption: OptionSet, Sendable {
 }
 
 /// The sharing choices the system sharing UI offers (isim: kept; its sheet offers the standard ones).
-@objc(CKAllowedSharingOptions) @objcMembers open class CKAllowedSharingOptions: NSObject, NSSecureCoding, NSCopying, @unchecked Sendable {
+@objc(CKAllowedSharingOptions) open class CKAllowedSharingOptions: NSObject, NSSecureCoding, NSCopying, @unchecked Sendable {
     open var allowedParticipantPermissionOptions: CKSharingParticipantPermissionOption
     open var allowedParticipantAccessOptions: CKSharingParticipantAccessOption
-    open var allowsAccessRequests = false
-    open var allowsParticipantsToInviteOthers = false
+    @objc open var allowsAccessRequests = false
+    @objc open var allowsParticipantsToInviteOthers = false
     public init(allowedParticipantPermissionOptions: CKSharingParticipantPermissionOption, allowedParticipantAccessOptions: CKSharingParticipantAccessOption) {
         self.allowedParticipantPermissionOptions = allowedParticipantPermissionOptions; self.allowedParticipantAccessOptions = allowedParticipantAccessOptions
         super.init()
     }
-    open class var standard: CKAllowedSharingOptions { CKAllowedSharingOptions(allowedParticipantPermissionOptions: .any, allowedParticipantAccessOptions: .any) }
-    public static var supportsSecureCoding: Bool { true }
-    public required init?(coder: NSCoder) {
+    @objc open class var standard: CKAllowedSharingOptions { CKAllowedSharingOptions(allowedParticipantPermissionOptions: .any, allowedParticipantAccessOptions: .any) }
+    @objc public static var supportsSecureCoding: Bool { true }
+    @objc public required init?(coder: NSCoder) {
         allowedParticipantPermissionOptions = CKSharingParticipantPermissionOption(rawValue: UInt(coder.decodeInteger(forKey: "permission")))
         allowedParticipantAccessOptions = CKSharingParticipantAccessOption(rawValue: UInt(coder.decodeInteger(forKey: "access")))
         allowsAccessRequests = coder.decodeBool(forKey: "accessRequests"); allowsParticipantsToInviteOthers = coder.decodeBool(forKey: "inviteOthers")
         super.init()
     }
-    open func encode(with coder: NSCoder) {
+    @objc open func encode(with coder: NSCoder) {
         coder.encode(Int(allowedParticipantPermissionOptions.rawValue), forKey: "permission"); coder.encode(Int(allowedParticipantAccessOptions.rawValue), forKey: "access")
         coder.encode(allowsAccessRequests, forKey: "accessRequests"); coder.encode(allowsParticipantsToInviteOthers, forKey: "inviteOthers")
     }
-    open func copy(with zone: NSZone? = nil) -> Any {
+    @objc open func copy(with zone: NSZone? = nil) -> Any {
         let c = CKAllowedSharingOptions(allowedParticipantPermissionOptions: allowedParticipantPermissionOptions, allowedParticipantAccessOptions: allowedParticipantAccessOptions)
         c.allowsAccessRequests = allowsAccessRequests; c.allowsParticipantsToInviteOthers = allowsParticipantsToInviteOthers
         return c
@@ -205,12 +205,12 @@ public struct CKSharingParticipantPermissionOption: OptionSet, Sendable {
 }
 
 /// Hears isim's sharing sheet (UICloudSharingController) save a share or stop sharing, for shares of its container.
-@objc(CKSystemSharingUIObserver) @objcMembers open class CKSystemSharingUIObserver: NSObject, @unchecked Sendable {
+@objc(CKSystemSharingUIObserver) open class CKSystemSharingUIObserver: NSObject, @unchecked Sendable {
     open var systemSharingUIDidSaveShareBlock: ((CKRecord.ID, Result<CKShare, Error>) -> Void)?
     open var systemSharingUIDidStopSharingBlock: ((CKRecord.ID, Result<Void, Error>) -> Void)?
     private let container: CKContainer
     private var tokens: [NSObjectProtocol] = []
-    public init(container: CKContainer) {
+    @objc public init(container: CKContainer) {
         self.container = container
         super.init()
         CKContainer._watchSharingUI()
@@ -234,8 +234,8 @@ extension Notification.Name {
 extension CKContainer {
     /// Stopping sharing in the sharing sheet deletes the share, like the system's; Done saves the share options changed
     /// in the sheet (userInfo "changed").
-    nonisolated(unsafe) static var _sharingUIWatch: [NSObjectProtocol] = []
-    static func _watchSharingUI() {
+    @objc nonisolated(unsafe) static var _sharingUIWatch: [NSObjectProtocol] = []
+    @objc static func _watchSharingUI() {
         _CKStore.lock.lock(); defer { _CKStore.lock.unlock() }
         guard _sharingUIWatch.isEmpty else { return }
         _sharingUIWatch.append(NotificationCenter.default.addObserver(forName: ._isimCloudSharingDidStop, object: nil, queue: nil) { note in

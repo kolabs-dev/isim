@@ -107,17 +107,17 @@ indirect enum _CKValue: Codable, Equatable {
 
 // MARK: - IDs and zones
 
-@objc(CKRecordZone) @objcMembers open class CKRecordZone: NSObject, @unchecked Sendable {
-    @objc(CKRecordZoneID) @objcMembers open class ID: NSObject, NSCopying, @unchecked Sendable {
-        public let zoneName: String
-        public let ownerName: String
-        public init(zoneName: String = CKRecordZoneDefaultName, ownerName: String = CKCurrentUserDefaultName) { self.zoneName = zoneName; self.ownerName = ownerName }
-        public static let `default` = ID()
-        open override func isEqual(_ o: Any?) -> Bool { (o as? ID).map { $0.zoneName == zoneName && $0.ownerName == ownerName } ?? false }
-        open override var hash: Int { zoneName.hashValue ^ ownerName.hashValue }
-        open func copy(with zone: OpaquePointer? = nil) -> Any { self }
-        open override var description: String { "<CKRecordZoneID: zoneName=\(zoneName), ownerName=\(ownerName)>" }
-        var key: String { "\(ownerName)/\(zoneName)" }
+@objc(CKRecordZone) open class CKRecordZone: NSObject, @unchecked Sendable {
+    @objc(CKRecordZoneID) open class ID: NSObject, NSCopying, @unchecked Sendable {
+        @objc public let zoneName: String
+        @objc public let ownerName: String
+        @objc public init(zoneName: String = CKRecordZoneDefaultName, ownerName: String = CKCurrentUserDefaultName) { self.zoneName = zoneName; self.ownerName = ownerName }
+        @objc public static let `default` = ID()
+        @objc open override func isEqual(_ o: Any?) -> Bool { (o as? ID).map { $0.zoneName == zoneName && $0.ownerName == ownerName } ?? false }
+        @objc open override var hash: Int { zoneName.hashValue ^ ownerName.hashValue }
+        @objc open func copy(with zone: OpaquePointer? = nil) -> Any { self }
+        @objc open override var description: String { "<CKRecordZoneID: zoneName=\(zoneName), ownerName=\(ownerName)>" }
+        @objc var key: String { "\(ownerName)/\(zoneName)" }
     }
     public struct Capabilities: OptionSet, Sendable {
         public let rawValue: UInt
@@ -127,67 +127,67 @@ indirect enum _CKValue: Codable, Equatable {
         public static let sharing = Capabilities(rawValue: 4)
         public static let zoneWideSharing = Capabilities(rawValue: 8)
     }
-    public let zoneID: ID
+    @objc public let zoneID: ID
     open var capabilities: Capabilities
-    public init(zoneName: String) { zoneID = ID(zoneName: zoneName); capabilities = [.fetchChanges, .atomic, .sharing] }
-    public init(zoneID: ID) { self.zoneID = zoneID; capabilities = [.fetchChanges, .atomic, .sharing] }
-    open class func `default`() -> CKRecordZone { let z = CKRecordZone(zoneID: .default); z.capabilities = []; return z }
+    @objc public init(zoneName: String) { zoneID = ID(zoneName: zoneName); capabilities = [.fetchChanges, .atomic, .sharing] }
+    @objc public init(zoneID: ID) { self.zoneID = zoneID; capabilities = [.fetchChanges, .atomic, .sharing] }
+    @objc open class func `default`() -> CKRecordZone { let z = CKRecordZone(zoneID: .default); z.capabilities = []; return z }
 }
 
 extension CKRecord {
-    @objc(CKRecordID) @objcMembers open class ID: NSObject, NSCopying, @unchecked Sendable {
-        public let recordName: String
-        public let zoneID: CKRecordZone.ID
-        public init(recordName: String = UUID().uuidString, zoneID: CKRecordZone.ID = .default) { self.recordName = recordName; self.zoneID = zoneID }
-        open override func isEqual(_ o: Any?) -> Bool { (o as? ID).map { $0.recordName == recordName && $0.zoneID == zoneID } ?? false }
-        open override var hash: Int { recordName.hashValue ^ zoneID.hash }
-        open func copy(with zone: OpaquePointer? = nil) -> Any { self }
-        open override var description: String { "<CKRecordID: \(recordName); zoneID=\(zoneID.zoneName):\(zoneID.ownerName)>" }
-        var key: String { "\(zoneID.key)/\(recordName)" }
+    @objc(CKRecordID) open class ID: NSObject, NSCopying, @unchecked Sendable {
+        @objc public let recordName: String
+        @objc public let zoneID: CKRecordZone.ID
+        @objc public init(recordName: String = UUID().uuidString, zoneID: CKRecordZone.ID = .default) { self.recordName = recordName; self.zoneID = zoneID }
+        @objc open override func isEqual(_ o: Any?) -> Bool { (o as? ID).map { $0.recordName == recordName && $0.zoneID == zoneID } ?? false }
+        @objc open override var hash: Int { recordName.hashValue ^ zoneID.hash }
+        @objc open func copy(with zone: OpaquePointer? = nil) -> Any { self }
+        @objc open override var description: String { "<CKRecordID: \(recordName); zoneID=\(zoneID.zoneName):\(zoneID.ownerName)>" }
+        @objc var key: String { "\(zoneID.key)/\(recordName)" }
     }
     public enum ReferenceAction: UInt, Sendable { case none = 0, deleteSelf = 1 }
-    @objc(CKReference) @objcMembers open class Reference: NSObject, NSCopying, @unchecked Sendable {
-        public let recordID: CKRecord.ID
+    @objc(CKReference) open class Reference: NSObject, NSCopying, @unchecked Sendable {
+        @objc public let recordID: CKRecord.ID
         public let action: ReferenceAction
         public init(recordID: CKRecord.ID, action: ReferenceAction) { self.recordID = recordID; self.action = action }
         public convenience init(record: CKRecord, action: ReferenceAction) { self.init(recordID: record.recordID, action: action) }
-        open override func isEqual(_ o: Any?) -> Bool { (o as? Reference).map { $0.recordID == recordID } ?? false }
-        open override var hash: Int { recordID.hash }
-        open func copy(with zone: OpaquePointer? = nil) -> Any { self }
-        open override var description: String { "<CKReference: \(recordID.recordName)>" }
+        @objc open override func isEqual(_ o: Any?) -> Bool { (o as? Reference).map { $0.recordID == recordID } ?? false }
+        @objc open override var hash: Int { recordID.hash }
+        @objc open func copy(with zone: OpaquePointer? = nil) -> Any { self }
+        @objc open override var description: String { "<CKReference: \(recordID.recordName)>" }
     }
     public typealias RecordType = String
     public typealias FieldKey = String
-    public static let SystemType = "CKRecordTypeSystem"
+    @objc public static let SystemType = "CKRecordTypeSystem"
 }
 public typealias CKRecordID = CKRecord.ID
 public typealias CKRecordZoneID = CKRecordZone.ID
 public typealias CKReference = CKRecord.Reference
 
-@objc(CKAsset) @objcMembers open class CKAsset: NSObject, @unchecked Sendable {
-    public let fileURL: URL?
-    public init(fileURL: URL) { self.fileURL = fileURL }
+@objc(CKAsset) open class CKAsset: NSObject, @unchecked Sendable {
+    @objc public let fileURL: URL?
+    @objc public init(fileURL: URL) { self.fileURL = fileURL }
 }
 
 // MARK: - Records
 
-@objc(CKRecord) @objcMembers open class CKRecord: NSObject, NSCopying, @unchecked Sendable {
-    public let recordType: RecordType
-    public let recordID: ID
-    public internal(set) var creationDate: Date?
-    public internal(set) var modificationDate: Date?
-    public internal(set) var recordChangeTag: String?
-    public internal(set) var creatorUserRecordID: ID?
-    public internal(set) var lastModifiedUserRecordID: ID?
-    open var parent: Reference?
+@objc(CKRecord) open class CKRecord: NSObject, NSCopying, @unchecked Sendable {
+    @objc public let recordType: RecordType
+    @objc public let recordID: ID
+    @objc public internal(set) var creationDate: Date?
+    @objc public internal(set) var modificationDate: Date?
+    @objc public internal(set) var recordChangeTag: String?
+    @objc public internal(set) var creatorUserRecordID: ID?
+    @objc public internal(set) var lastModifiedUserRecordID: ID?
+    @objc open var parent: Reference?
     var fields: [String: _CKValue] = [:]
-    var changed: [String] = []
+    @objc var changed: [String] = []
 
-    public init(recordType: RecordType, recordID: ID = ID()) { self.recordType = recordType; self.recordID = recordID }
-    public convenience init(recordType: RecordType, zoneID: CKRecordZone.ID) { self.init(recordType: recordType, recordID: ID(zoneID: zoneID)) }
+    @objc public init(recordType: RecordType, recordID: ID = ID()) { self.recordType = recordType; self.recordID = recordID }
+    @objc public convenience init(recordType: RecordType, zoneID: CKRecordZone.ID) { self.init(recordType: recordType, recordID: ID(zoneID: zoneID)) }
 
     /// restores a record from `encodeSystemFields(with:)` data (no field values, like CloudKit)
-    public init?(coder: NSCoder) {
+    @objc public init?(coder: NSCoder) {
         guard let d = coder.decodeObject(forKey: "isimCKSystemFields") as? Data,
               let s = try? JSONDecoder().decode(_CKSystemFields.self, from: d) else { return nil }
         recordType = s.type
@@ -197,7 +197,7 @@ public typealias CKReference = CKRecord.Reference
         modificationDate = s.modified.map { Date(timeIntervalSinceReferenceDate: $0) }
     }
     /// the system fields (type, ID, change tag, dates) — keep them to save changes later without a fetch
-    open func encodeSystemFields(with coder: NSCoder) {
+    @objc open func encodeSystemFields(with coder: NSCoder) {
         let s = _CKSystemFields(type: recordType, name: recordID.recordName, zone: recordID.zoneID.zoneName, owner: recordID.zoneID.ownerName,
                                 tag: recordChangeTag, created: creationDate?.timeIntervalSinceReferenceDate, modified: modificationDate?.timeIntervalSinceReferenceDate)
         if let d = try? JSONEncoder().encode(s) { coder.encode(d as NSData, forKey: "isimCKSystemFields") }
@@ -207,7 +207,7 @@ public typealias CKReference = CKRecord.Reference
         get { fields[key]?.value }
         set { setField(key, newValue) }
     }
-    func setField(_ key: String, _ v: Any?) {
+    @objc func setField(_ key: String, _ v: Any?) {
         if let v {
             guard let x = _CKValue(v) else { NSLog("isim CloudKit: unsupported value type %@ for key %@", String(describing: type(of: v)), key); return }
             fields[key] = x
@@ -216,27 +216,27 @@ public typealias CKReference = CKRecord.Reference
     }
     open func object(forKey key: FieldKey) -> CKRecordValue? { self[key] }
     open func setObject(_ object: CKRecordValue?, forKey key: FieldKey) { self[key] = object }
-    open override func value(forKey key: String) -> Any? { self[key] }
-    open override func setValue(_ value: Any?, forKey key: String) { setField(key, value) }
-    open func allKeys() -> [FieldKey] { fields.keys.sorted() }
-    open func changedKeys() -> [FieldKey] { changed }
+    @objc open override func value(forKey key: String) -> Any? { self[key] }
+    @objc open override func setValue(_ value: Any?, forKey key: String) { setField(key, value) }
+    @objc open func allKeys() -> [FieldKey] { fields.keys.sorted() }
+    @objc open func changedKeys() -> [FieldKey] { changed }
     /// isim stores encrypted values like the others (the store is local; not encrypted at rest)
     open var encryptedValues: CKRecordKeyValueSetting { _CKEncrypted(self) }
     @objc(setParentReferenceFromRecord:) open func setParent(_ parentRecord: CKRecord?) { parent = parentRecord.map { Reference(record: $0, action: .none) } }
     @objc(setParentReferenceFromRecordID:) open func setParent(_ parentRecordID: ID?) { parent = parentRecordID.map { Reference(recordID: $0, action: .none) } }
 
-    open func copy(with zone: OpaquePointer? = nil) -> Any {
+    @objc open func copy(with zone: OpaquePointer? = nil) -> Any {
         let r = CKRecord(recordType: recordType, recordID: recordID)
         r.fields = fields; r.changed = changed; r.creationDate = creationDate; r.modificationDate = modificationDate
         r.recordChangeTag = recordChangeTag; r.creatorUserRecordID = creatorUserRecordID; r.lastModifiedUserRecordID = lastModifiedUserRecordID; r.parent = parent
         return r
     }
-    open override var description: String {
+    @objc open override var description: String {
         "<CKRecord: \(recordType) \(recordID.recordName) tag=\(recordChangeTag ?? "nil") \(allKeys().map { "\($0)=\(fields[$0]!)" }.joined(separator: " "))>"
     }
 
     /// an NSPredicate / NSSortDescriptor target: field values as Objective-C objects plus system keys
-    var evaluationObject: NSDictionary {
+    @objc var evaluationObject: NSDictionary {
         let d = NSMutableDictionary()
         for (k, v) in fields { d[k as NSString] = v.object }
         if let c = creationDate { d["creationDate" as NSString] = c as NSDate }

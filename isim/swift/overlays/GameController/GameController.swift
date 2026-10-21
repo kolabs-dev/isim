@@ -68,21 +68,21 @@ public let GCProductCategoryMouse = "Mouse"
 
 // MARK: - Elements
 
-@objc(GCControllerElement) @objcMembers open class GCControllerElement: NSObject {
-    open internal(set) weak var collection: GCControllerElement?
-    open internal(set) var isAnalog = false
-    open var localizedName: String?
-    open var unmappedLocalizedName: String?
-    open var sfSymbolsName: String?
-    open var unmappedSfSymbolsName: String?
-    open internal(set) var aliases: Set<String> = []
+@objc(GCControllerElement) open class GCControllerElement: NSObject {
+    @objc open internal(set) weak var collection: GCControllerElement?
+    @objc open internal(set) var isAnalog = false
+    @objc open var localizedName: String?
+    @objc open var unmappedLocalizedName: String?
+    @objc open var sfSymbolsName: String?
+    @objc open var unmappedSfSymbolsName: String?
+    @objc open internal(set) var aliases: Set<String> = []
     @objc(isBoundToSystemGesture) open var isBoundToSystemGesture = false
-    open var preferredSystemGestureState: Int = 0
-    weak var profile: GCPhysicalInputProfile?
-    init(name: String?, analog: Bool = false) { localizedName = name; isAnalog = analog; if let name { aliases = [name] } }
+    @objc open var preferredSystemGestureState: Int = 0
+    @objc weak var profile: GCPhysicalInputProfile?
+    @objc init(name: String?, analog: Bool = false) { localizedName = name; isAnalog = analog; if let name { aliases = [name] } }
     /// isim: the iOS 17 physical-input wrappers watching this element (GCPhysicalInput.swift)
     var _observers: [(GCControllerElement) -> Void] = []
-    func changed() { profile?.elementChanged(self); for o in _observers { o(self) } }
+    @objc func changed() { profile?.elementChanged(self); for o in _observers { o(self) } }
 }
 
 public typealias GCControllerButtonValueChangedHandler = (GCControllerButtonInput, Float, Bool) -> Void
@@ -90,16 +90,16 @@ public typealias GCControllerButtonTouchedChangedHandler = (GCControllerButtonIn
 public typealias GCControllerAxisValueChangedHandler = (GCControllerAxisInput, Float) -> Void
 public typealias GCControllerDirectionPadValueChangedHandler = (GCControllerDirectionPad, Float, Float) -> Void
 
-@objc(GCControllerButtonInput) @objcMembers open class GCControllerButtonInput: GCControllerElement {
-    open var valueChangedHandler: GCControllerButtonValueChangedHandler?
-    open var pressedChangedHandler: GCControllerButtonValueChangedHandler?
-    open var touchedChangedHandler: GCControllerButtonTouchedChangedHandler?
+@objc(GCControllerButtonInput) open class GCControllerButtonInput: GCControllerElement {
+    @objc open var valueChangedHandler: GCControllerButtonValueChangedHandler?
+    @objc open var pressedChangedHandler: GCControllerButtonValueChangedHandler?
+    @objc open var touchedChangedHandler: GCControllerButtonTouchedChangedHandler?
     @nonobjc open private(set) var value: Float = 0
     @objc(value) var _objcValue: Float { value }   // read-only in Objective-C, where -setValue: is the method below
-    open private(set) var isPressed = false
-    open private(set) var isTouched = false
+    @objc open private(set) var isPressed = false
+    @objc open private(set) var isTouched = false
     /// sets the value (0...1); pressed above 0.5 for analog buttons, above 0 otherwise
-    open func setValue(_ v: Float) {
+    @objc open func setValue(_ v: Float) {
         let nv = max(0, min(1, v))
         let pressed = isAnalog ? nv > 0.5 : nv > 0
         guard nv != value || pressed != isPressed else { return }
@@ -113,12 +113,12 @@ public typealias GCControllerDirectionPadValueChangedHandler = (GCControllerDire
     }
 }
 
-@objc(GCControllerAxisInput) @objcMembers open class GCControllerAxisInput: GCControllerElement {
-    open var valueChangedHandler: GCControllerAxisValueChangedHandler?
+@objc(GCControllerAxisInput) open class GCControllerAxisInput: GCControllerElement {
+    @objc open var valueChangedHandler: GCControllerAxisValueChangedHandler?
     @nonobjc open private(set) var value: Float = 0
     @objc(value) var _objcValue: Float { value }   // read-only in Objective-C, where -setValue: is the method below
-    var _unclamped = false                       // a mouse's scroll wheel (GCDeviceCursor): deltas beyond ±1
-    open func setValue(_ v: Float) {
+    @objc var _unclamped = false                       // a mouse's scroll wheel (GCDeviceCursor): deltas beyond ±1
+    @objc open func setValue(_ v: Float) {
         let nv = _unclamped ? v : max(-1, min(1, v))
         guard nv != value else { return }
         value = nv
@@ -127,22 +127,22 @@ public typealias GCControllerDirectionPadValueChangedHandler = (GCControllerDire
     }
 }
 
-@objc(GCControllerDirectionPad) @objcMembers open class GCControllerDirectionPad: GCControllerElement {
-    open var valueChangedHandler: GCControllerDirectionPadValueChangedHandler?
-    public let xAxis = GCControllerAxisInput(name: nil, analog: true)
-    public let yAxis = GCControllerAxisInput(name: nil, analog: true)
-    public let up = GCControllerButtonInput(name: "Up")
-    public let down = GCControllerButtonInput(name: "Down")
-    public let left = GCControllerButtonInput(name: "Left")
-    public let right = GCControllerButtonInput(name: "Right")
-    var settingBoth = false
-    override init(name: String?, analog: Bool = false) {
+@objc(GCControllerDirectionPad) open class GCControllerDirectionPad: GCControllerElement {
+    @objc open var valueChangedHandler: GCControllerDirectionPadValueChangedHandler?
+    @objc public let xAxis = GCControllerAxisInput(name: nil, analog: true)
+    @objc public let yAxis = GCControllerAxisInput(name: nil, analog: true)
+    @objc public let up = GCControllerButtonInput(name: "Up")
+    @objc public let down = GCControllerButtonInput(name: "Down")
+    @objc public let left = GCControllerButtonInput(name: "Left")
+    @objc public let right = GCControllerButtonInput(name: "Right")
+    @objc var settingBoth = false
+    @objc override init(name: String?, analog: Bool = false) {
         super.init(name: name, analog: analog)
         for e in [xAxis, yAxis, up, down, left, right] as [GCControllerElement] { e.collection = self }
         for b in [up, down, left, right] { b.isAnalog = analog }
     }
     /// sets both axes (-1...1) and the four direction buttons
-    open func setValueForXAxis(_ x: Float, yAxis y: Float) {
+    @objc open func setValueForXAxis(_ x: Float, yAxis y: Float) {
         settingBoth = true
         xAxis.setValue(x); yAxis.setValue(y)
         right.setValue(max(0, x)); left.setValue(max(0, -x)); up.setValue(max(0, y)); down.setValue(max(0, -y))
@@ -150,7 +150,7 @@ public typealias GCControllerDirectionPadValueChangedHandler = (GCControllerDire
         valueChangedHandler?(self, xAxis.value, yAxis.value)
         changed()
     }
-    func childChanged() {
+    @objc func childChanged() {
         guard !settingBoth else { return }
         // a direction button set alone (keyboard, d-pad buttons): derive the axes
         settingBoth = true
@@ -162,75 +162,75 @@ public typealias GCControllerDirectionPadValueChangedHandler = (GCControllerDire
 
 // MARK: - Profiles
 
-@objc(GCPhysicalInputProfile) @objcMembers open class GCPhysicalInputProfile: NSObject {
+@objc(GCPhysicalInputProfile) open class GCPhysicalInputProfile: NSObject {
     open internal(set) weak var device: GCDevice?
-    open internal(set) var lastEventTimestamp: TimeInterval = 0
-    open var hasRemappedElements = false
-    open var valueDidChangeHandler: ((GCPhysicalInputProfile, GCControllerElement) -> Void)?
-    open internal(set) var elements: [String: GCControllerElement] = [:]
-    open var buttons: [String: GCControllerButtonInput] { elements.compactMapValues { $0 as? GCControllerButtonInput } }
-    open var axes: [String: GCControllerAxisInput] { elements.compactMapValues { $0 as? GCControllerAxisInput } }
-    open var dpads: [String: GCControllerDirectionPad] { elements.compactMapValues { $0 as? GCControllerDirectionPad } }
-    open var allElements: Set<GCControllerElement> { Set(elements.values) }
-    open var allButtons: Set<GCControllerButtonInput> { Set(buttons.values) }
-    open var allAxes: Set<GCControllerAxisInput> { Set(axes.values) }
-    open var allDpads: Set<GCControllerDirectionPad> { Set(dpads.values) }
-    open subscript(key: String) -> GCControllerElement? { elements[key] }
-    open func capture() -> Self { self }
-    open func mappedElementAlias(forPhysicalInputName name: String) -> String { name }
-    open func mappedPhysicalInputNames(forElementAlias alias: String) -> Set<String> { [alias] }
+    @objc open internal(set) var lastEventTimestamp: TimeInterval = 0
+    @objc open var hasRemappedElements = false
+    @objc open var valueDidChangeHandler: ((GCPhysicalInputProfile, GCControllerElement) -> Void)?
+    @objc open internal(set) var elements: [String: GCControllerElement] = [:]
+    @objc open var buttons: [String: GCControllerButtonInput] { elements.compactMapValues { $0 as? GCControllerButtonInput } }
+    @objc open var axes: [String: GCControllerAxisInput] { elements.compactMapValues { $0 as? GCControllerAxisInput } }
+    @objc open var dpads: [String: GCControllerDirectionPad] { elements.compactMapValues { $0 as? GCControllerDirectionPad } }
+    @objc open var allElements: Set<GCControllerElement> { Set(elements.values) }
+    @objc open var allButtons: Set<GCControllerButtonInput> { Set(buttons.values) }
+    @objc open var allAxes: Set<GCControllerAxisInput> { Set(axes.values) }
+    @objc open var allDpads: Set<GCControllerDirectionPad> { Set(dpads.values) }
+    @objc open subscript(key: String) -> GCControllerElement? { elements[key] }
+    @objc open func capture() -> Self { self }
+    @objc open func mappedElementAlias(forPhysicalInputName name: String) -> String { name }
+    @objc open func mappedPhysicalInputNames(forElementAlias alias: String) -> Set<String> { [alias] }
 
-    func register(_ e: GCControllerElement, _ name: String) {
+    @objc func register(_ e: GCControllerElement, _ name: String) {
         elements[name] = e
         e.profile = self
         if let d = e as? GCControllerDirectionPad { for c in [d.xAxis, d.yAxis, d.up, d.down, d.left, d.right] as [GCControllerElement] { c.profile = self } }
     }
-    func elementChanged(_ e: GCControllerElement) {
+    @objc func elementChanged(_ e: GCControllerElement) {
         lastEventTimestamp = ProcessInfo.processInfo.systemUptime
         valueDidChangeHandler?(self, e)
         profileChanged(e)
     }
-    func profileChanged(_ e: GCControllerElement) {}
+    @objc func profileChanged(_ e: GCControllerElement) {}
 }
 
 public typealias GCExtendedGamepadValueChangedHandler = (GCExtendedGamepad, GCControllerElement) -> Void
 public typealias GCMicroGamepadValueChangedHandler = (GCMicroGamepad, GCControllerElement) -> Void
 
-@objc(GCExtendedGamepad) @objcMembers open class GCExtendedGamepad: GCPhysicalInputProfile {
-    open internal(set) weak var controller: GCController?
-    open var valueChangedHandler: GCExtendedGamepadValueChangedHandler?
-    public let dpad = GCControllerDirectionPad(name: GCInputDirectionPad)
-    public let buttonA = GCControllerButtonInput(name: GCInputButtonA)
-    public let buttonB = GCControllerButtonInput(name: GCInputButtonB)
-    public let buttonX = GCControllerButtonInput(name: GCInputButtonX)
-    public let buttonY = GCControllerButtonInput(name: GCInputButtonY)
-    public let leftShoulder = GCControllerButtonInput(name: GCInputLeftShoulder)
-    public let rightShoulder = GCControllerButtonInput(name: GCInputRightShoulder)
+@objc(GCExtendedGamepad) open class GCExtendedGamepad: GCPhysicalInputProfile {
+    @objc open internal(set) weak var controller: GCController?
+    @objc open var valueChangedHandler: GCExtendedGamepadValueChangedHandler?
+    @objc public let dpad = GCControllerDirectionPad(name: GCInputDirectionPad)
+    @objc public let buttonA = GCControllerButtonInput(name: GCInputButtonA)
+    @objc public let buttonB = GCControllerButtonInput(name: GCInputButtonB)
+    @objc public let buttonX = GCControllerButtonInput(name: GCInputButtonX)
+    @objc public let buttonY = GCControllerButtonInput(name: GCInputButtonY)
+    @objc public let leftShoulder = GCControllerButtonInput(name: GCInputLeftShoulder)
+    @objc public let rightShoulder = GCControllerButtonInput(name: GCInputRightShoulder)
     /// the triggers (a DualSense's are adaptive triggers: GCDualSenseGamepad narrows their type)
-    open var leftTrigger: GCControllerButtonInput { _leftTrigger }
-    open var rightTrigger: GCControllerButtonInput { _rightTrigger }
-    let _leftTrigger: GCControllerButtonInput, _rightTrigger: GCControllerButtonInput
-    public let leftThumbstick = GCControllerDirectionPad(name: GCInputLeftThumbstick, analog: true)
-    public let rightThumbstick = GCControllerDirectionPad(name: GCInputRightThumbstick, analog: true)
-    public let buttonMenu = GCControllerButtonInput(name: GCInputButtonMenu)
-    public let buttonOptions: GCControllerButtonInput? = GCControllerButtonInput(name: GCInputButtonOptions)
-    public let buttonHome: GCControllerButtonInput? = GCControllerButtonInput(name: GCInputButtonHome)
-    public let leftThumbstickButton: GCControllerButtonInput? = GCControllerButtonInput(name: GCInputLeftThumbstickButton)
-    public let rightThumbstickButton: GCControllerButtonInput? = GCControllerButtonInput(name: GCInputRightThumbstickButton)
+    @objc open var leftTrigger: GCControllerButtonInput { _leftTrigger }
+    @objc open var rightTrigger: GCControllerButtonInput { _rightTrigger }
+    @objc let _leftTrigger: GCControllerButtonInput, _rightTrigger: GCControllerButtonInput
+    @objc public let leftThumbstick = GCControllerDirectionPad(name: GCInputLeftThumbstick, analog: true)
+    @objc public let rightThumbstick = GCControllerDirectionPad(name: GCInputRightThumbstick, analog: true)
+    @objc public let buttonMenu = GCControllerButtonInput(name: GCInputButtonMenu)
+    @objc public let buttonOptions: GCControllerButtonInput? = GCControllerButtonInput(name: GCInputButtonOptions)
+    @objc public let buttonHome: GCControllerButtonInput? = GCControllerButtonInput(name: GCInputButtonHome)
+    @objc public let leftThumbstickButton: GCControllerButtonInput? = GCControllerButtonInput(name: GCInputLeftThumbstickButton)
+    @objc public let rightThumbstickButton: GCControllerButtonInput? = GCControllerButtonInput(name: GCInputRightThumbstickButton)
 
-    public override init() {
+    @objc public override init() {
         _leftTrigger = GCControllerButtonInput(name: GCInputLeftTrigger, analog: true)
         _rightTrigger = GCControllerButtonInput(name: GCInputRightTrigger, analog: true)
         super.init()
         _registerElements()
     }
     /// isim: a profile whose triggers are of a subclass (GCDualSenseAdaptiveTrigger)
-    init(_leftTrigger l: GCControllerButtonInput, rightTrigger r: GCControllerButtonInput) {
+    @objc init(_leftTrigger l: GCControllerButtonInput, rightTrigger r: GCControllerButtonInput) {
         _leftTrigger = l; _rightTrigger = r
         super.init()
         _registerElements()
     }
-    func _registerElements() {
+    @objc func _registerElements() {
         let (leftTrigger, rightTrigger) = (_leftTrigger, _rightTrigger)
         let all: [(GCControllerElement, String)] = [(dpad, GCInputDirectionPad), (buttonA, GCInputButtonA), (buttonB, GCInputButtonB), (buttonX, GCInputButtonX),
             (buttonY, GCInputButtonY), (leftShoulder, GCInputLeftShoulder), (rightShoulder, GCInputRightShoulder), (leftTrigger, GCInputLeftTrigger),
@@ -239,15 +239,15 @@ public typealias GCMicroGamepadValueChangedHandler = (GCMicroGamepad, GCControll
             (leftThumbstickButton!, GCInputLeftThumbstickButton), (rightThumbstickButton!, GCInputRightThumbstickButton)]
         for (e, n) in all { register(e, n) }
     }
-    override func profileChanged(_ e: GCControllerElement) {
+    @objc override func profileChanged(_ e: GCControllerElement) {
         var top = e
         while let c = top.collection { top = c }
         valueChangedHandler?(self, top)
     }
     /// isim: a product profile's extra inputs from the host pad (GCProductProfiles.swift)
-    func _hostUpdate(_ p: isim_gamepad, bit: (Int) -> Float) {}
-    open func saveSnapshot() -> GCExtendedGamepad { self }
-    open func setStateFromExtendedGamepad(_ other: GCExtendedGamepad) {
+    @objc func _hostUpdate(_ p: isim_gamepad, bit: (Int) -> Float) {}
+    @objc open func saveSnapshot() -> GCExtendedGamepad { self }
+    @objc open func setStateFromExtendedGamepad(_ other: GCExtendedGamepad) {
         dpad.setValueForXAxis(other.dpad.xAxis.value, yAxis: other.dpad.yAxis.value)
         leftThumbstick.setValueForXAxis(other.leftThumbstick.xAxis.value, yAxis: other.leftThumbstick.yAxis.value)
         rightThumbstick.setValueForXAxis(other.rightThumbstick.xAxis.value, yAxis: other.rightThumbstick.yAxis.value)
@@ -257,20 +257,20 @@ public typealias GCMicroGamepadValueChangedHandler = (GCMicroGamepad, GCControll
     }
 }
 
-@objc(GCMicroGamepad) @objcMembers open class GCMicroGamepad: GCPhysicalInputProfile {
-    open internal(set) weak var controller: GCController?
-    open var valueChangedHandler: GCMicroGamepadValueChangedHandler?
-    public let dpad = GCControllerDirectionPad(name: GCInputDirectionPad, analog: true)
-    public let buttonA = GCControllerButtonInput(name: GCInputButtonA)
-    public let buttonX = GCControllerButtonInput(name: GCInputButtonX)
-    public let buttonMenu = GCControllerButtonInput(name: GCInputButtonMenu)
-    open var reportsAbsoluteDpadValues = false
-    open var allowsRotation = false
-    public override init() {
+@objc(GCMicroGamepad) open class GCMicroGamepad: GCPhysicalInputProfile {
+    @objc open internal(set) weak var controller: GCController?
+    @objc open var valueChangedHandler: GCMicroGamepadValueChangedHandler?
+    @objc public let dpad = GCControllerDirectionPad(name: GCInputDirectionPad, analog: true)
+    @objc public let buttonA = GCControllerButtonInput(name: GCInputButtonA)
+    @objc public let buttonX = GCControllerButtonInput(name: GCInputButtonX)
+    @objc public let buttonMenu = GCControllerButtonInput(name: GCInputButtonMenu)
+    @objc open var reportsAbsoluteDpadValues = false
+    @objc open var allowsRotation = false
+    @objc public override init() {
         super.init()
         register(dpad, GCInputDirectionPad); register(buttonA, GCInputButtonA); register(buttonX, GCInputButtonX); register(buttonMenu, GCInputButtonMenu)
     }
-    override func profileChanged(_ e: GCControllerElement) {
+    @objc override func profileChanged(_ e: GCControllerElement) {
         var top = e
         while let c = top.collection { top = c }
         valueChangedHandler?(self, top)
@@ -288,76 +288,76 @@ public protocol GCDevice: NSObjectProtocol {
 
 public enum GCControllerPlayerIndex: Int, Sendable { case indexUnset = -1, index1 = 0, index2 = 1, index3 = 2, index4 = 3 }
 
-@objc(GCController) @objcMembers open class GCController: NSObject, GCDevice {
-    nonisolated(unsafe) static var connected: [GCController] = []
-    nonisolated(unsafe) static var _current: GCController?
-    open class func controllers() -> [GCController] { _GCSystem.start(); return connected }
-    open class var current: GCController? { _current }
-    nonisolated(unsafe) open class var shouldMonitorBackgroundEvents: Bool { get { false } set {} }
+@objc(GCController) open class GCController: NSObject, GCDevice {
+    @objc nonisolated(unsafe) static var connected: [GCController] = []
+    @objc nonisolated(unsafe) static var _current: GCController?
+    @objc open class func controllers() -> [GCController] { _GCSystem.start(); return connected }
+    @objc open class var current: GCController? { _current }
+    @objc nonisolated(unsafe) open class var shouldMonitorBackgroundEvents: Bool { get { false } set {} }
     /// no wireless controllers can be discovered on isim; completes immediately
-    open class func startWirelessControllerDiscovery(completionHandler: (() -> Void)? = nil) {
+    @objc open class func startWirelessControllerDiscovery(completionHandler: (() -> Void)? = nil) {
         _GCSystem.start()
         DispatchQueue.main.async { completionHandler?() }
     }
-    open class func stopWirelessControllerDiscovery() {}
+    @objc open class func stopWirelessControllerDiscovery() {}
     @objc(controllerWithExtendedGamepad) open class func withExtendedGamepad() -> GCController { let c = GCController(extended: true); c.isSnapshot = true; return c }
     @objc(controllerWithMicroGamepad) open class func withMicroGamepad() -> GCController { let c = GCController(extended: false); c.isSnapshot = true; return c }
 
     open var handlerQueue: DispatchQueue = .main
-    open var controllerPausedHandler: ((GCController) -> Void)?
-    open internal(set) var vendorName: String?
-    open internal(set) var productCategory: String = "Generic"
-    open internal(set) var isAttachedToDevice = false
-    open internal(set) var isSnapshot = false
+    @objc open var controllerPausedHandler: ((GCController) -> Void)?
+    @objc open internal(set) var vendorName: String?
+    @objc open internal(set) var productCategory: String = "Generic"
+    @objc open internal(set) var isAttachedToDevice = false
+    @objc open internal(set) var isSnapshot = false
     open var playerIndex: GCControllerPlayerIndex = .indexUnset
     var _hostPadID: Int32?
-    open internal(set) var extendedGamepad: GCExtendedGamepad?
-    open internal(set) var microGamepad: GCMicroGamepad?
-    open var physicalInputProfile: GCPhysicalInputProfile { extendedGamepad ?? microGamepad ?? GCPhysicalInputProfile() }
+    @objc open internal(set) var extendedGamepad: GCExtendedGamepad?
+    @objc open internal(set) var microGamepad: GCMicroGamepad?
+    @objc open var physicalInputProfile: GCPhysicalInputProfile { extendedGamepad ?? microGamepad ?? GCPhysicalInputProfile() }
     /// a host pad's battery, when SDL reports one (GCDeviceFeatures.swift)
-    open var battery: GCDeviceBattery? {
+    @objc open var battery: GCDeviceBattery? {
         guard let id = _hostPadID else { return nil }
         var pct: Int32 = -1
         return isim_gamepad_battery(id, &pct) == -1 ? nil : GCDeviceBattery(pad: id)
     }
     /// a host pad's light bar (every host pad: SDL ignores the colour on pads without one)
-    open var light: GCDeviceLight? {
+    @objc open var light: GCDeviceLight? {
         guard let id = _hostPadID else { return nil }
         if _light == nil { _light = GCDeviceLight(pad: id) }
         return _light
     }
-    var _light: GCDeviceLight?
-    var _liveInput: GCControllerLiveInput?
+    @objc var _light: GCDeviceLight?
+    @objc var _liveInput: GCControllerLiveInput?
     /// a host pad's rumble motors (nil for snapshots and pads without one)
-    open var haptics: GCDeviceHaptics? { _hostPadID.map { GCDeviceHaptics(pad: $0) } }
+    @objc open var haptics: GCDeviceHaptics? { _hostPadID.map { GCDeviceHaptics(pad: $0) } }
     /// isim: the haptics getter of apps built before #283 (typed AnyObject?), kept under its old symbols (-alias)
-    public var _isimHapticsV1: AnyObject? { haptics }
+    @objc public var _isimHapticsV1: AnyObject? { haptics }
     /// a host pad's accelerometer and gyroscope, when it has them
-    open var motion: GCMotion? {
+    @objc open var motion: GCMotion? {
         guard let id = _hostPadID else { return nil }
         if _motion == nil, isim_gamepad_motion(id, -1, nil, nil) != 0 { _motion = GCMotion(pad: id, controller: self) }
         return _motion
     }
-    var _motion: GCMotion?
+    @objc var _motion: GCMotion?
     /// isim: the getters of apps built before #290 (typed AnyObject?), kept under their old symbols (-alias)
-    public var _isimBatteryV1: AnyObject? { battery }
-    public var _isimLightV1: AnyObject? { light }
-    public var _isimMotionV1: AnyObject? { motion }
+    @objc public var _isimBatteryV1: AnyObject? { battery }
+    @objc public var _isimLightV1: AnyObject? { light }
+    @objc public var _isimMotionV1: AnyObject? { motion }
 
-    init(extended: Bool) {
+    @objc init(extended: Bool) {
         super.init()
         if extended { let g = GCExtendedGamepad(); g.controller = self; g.device = self; extendedGamepad = g }
         let m = GCMicroGamepad(); m.controller = self; m.device = self; microGamepad = m
     }
     /// isim: a host pad with its product profile (GCXboxGamepad, GCDualShockGamepad, GCDualSenseGamepad)
-    init(profile g: GCExtendedGamepad) {
+    @objc init(profile g: GCExtendedGamepad) {
         super.init()
         g.controller = self; g.device = self; extendedGamepad = g
         let m = GCMicroGamepad(); m.controller = self; m.device = self; microGamepad = m
     }
-    open func capture() -> GCController { self }
+    @objc open func capture() -> GCController { self }
 
-    static func connect(_ c: GCController) {
+    @objc static func connect(_ c: GCController) {
         guard !connected.contains(where: { $0 === c }) else { return }
         connected.append(c)
         if c.playerIndex == .indexUnset { c.playerIndex = GCControllerPlayerIndex(rawValue: connected.count - 1) ?? .indexUnset }
@@ -366,7 +366,7 @@ public enum GCControllerPlayerIndex: Int, Sendable { case indexUnset = -1, index
         NotificationCenter.default.post(name: NSNotification.Name(GCControllerDidConnectNotification), object: c)
         if becomesCurrent { NotificationCenter.default.post(name: NSNotification.Name("GCControllerDidBecomeCurrentNotification"), object: c) }
     }
-    static func disconnect(_ c: GCController) {
+    @objc static func disconnect(_ c: GCController) {
         guard connected.contains(where: { $0 === c }) else { return }
         connected.removeAll { $0 === c }
         if _current === c {
@@ -410,10 +410,10 @@ public struct GCKeyCode: RawRepresentable, Hashable, Sendable {
 
 public typealias GCKeyboardValueChangedHandler = (GCKeyboardInput, GCControllerButtonInput, GCKeyCode, Bool) -> Void
 
-@objc(GCKeyboardInput) @objcMembers open class GCKeyboardInput: GCPhysicalInputProfile {
+@objc(GCKeyboardInput) open class GCKeyboardInput: GCPhysicalInputProfile {
     open var keyChangedHandler: GCKeyboardValueChangedHandler?
-    var keys: [Int: GCControllerButtonInput] = [:]
-    open var isAnyKeyPressed: Bool { keys.values.contains { $0.isPressed } }
+    @objc var keys: [Int: GCControllerButtonInput] = [:]
+    @objc open var isAnyKeyPressed: Bool { keys.values.contains { $0.isPressed } }
     open func button(forKeyCode code: GCKeyCode) -> GCControllerButtonInput? {
         guard code.rawValue > 0, code.rawValue < 256 else { return nil }
         if let b = keys[code.rawValue] { return b }
@@ -427,46 +427,46 @@ public typealias GCKeyboardValueChangedHandler = (GCKeyboardInput, GCControllerB
         b.setValue(down ? 1 : 0)
         keyChangedHandler?(self, b, code, down)
     }
-    func releaseAll() { for (k, b) in keys where b.isPressed { key(GCKeyCode(k), down: false) } }
+    @objc func releaseAll() { for (k, b) in keys where b.isPressed { key(GCKeyCode(k), down: false) } }
 }
 
-@objc(GCKeyboard) @objcMembers open class GCKeyboard: NSObject, GCDevice {
-    nonisolated(unsafe) static let shared = GCKeyboard()
-    let input = GCKeyboardInput()
+@objc(GCKeyboard) open class GCKeyboard: NSObject, GCDevice {
+    @objc nonisolated(unsafe) static let shared = GCKeyboard()
+    @objc let input = GCKeyboardInput()
     /// the hardware keyboard (on isim: the host keyboard, always connected)
     @objc(coalescedKeyboard) open class var coalesced: GCKeyboard? { _GCSystem.start(); return shared }
-    open var keyboardInput: GCKeyboardInput? { input }
+    @objc open var keyboardInput: GCKeyboardInput? { input }
     open var handlerQueue: DispatchQueue = .main
-    open var vendorName: String? { "isim host keyboard" }
-    open var productCategory: String { GCProductCategoryKeyboard }
-    open var physicalInputProfile: GCPhysicalInputProfile { input }
-    override init() { super.init(); input.device = self }
+    @objc open var vendorName: String? { "isim host keyboard" }
+    @objc open var productCategory: String { GCProductCategoryKeyboard }
+    @objc open var physicalInputProfile: GCPhysicalInputProfile { input }
+    @objc override init() { super.init(); input.device = self }
 }
 
 
 // MARK: - Virtual controller
 
-@objc(GCVirtualController) @objcMembers open class GCVirtualController: NSObject {
-    @objc(GCVirtualControllerConfiguration) @objcMembers open class Configuration: NSObject {
-        open var elements: Set<String> = []
+@objc(GCVirtualController) open class GCVirtualController: NSObject {
+    @objc(GCVirtualControllerConfiguration) open class Configuration: NSObject {
+        @objc open var elements: Set<String> = []
         @nonobjc open var isHidden = false
-        public override init() { super.init() }
+        @objc public override init() { super.init() }
     }
-    @objc(GCVirtualControllerElementConfiguration) @objcMembers open class ElementConfiguration: NSObject {
+    @objc(GCVirtualControllerElementConfiguration) open class ElementConfiguration: NSObject {
         @nonobjc open var isHidden = false
-        open var path: UIBezierPath?
-        open var actsAsTouchpad = false
-        public override init() { super.init() }
+        @objc open var path: UIBezierPath?
+        @objc open var actsAsTouchpad = false
+        @objc public override init() { super.init() }
     }
-    public let configuration: Configuration
-    open private(set) var controller: GCController?
-    var overlay: _GCVirtualControllerView?
-    var hidden: Set<String> = []
+    @objc public let configuration: Configuration
+    @objc open private(set) var controller: GCController?
+    @objc var overlay: _GCVirtualControllerView?
+    @objc var hidden: Set<String> = []
 
-    public init(configuration: Configuration) { self.configuration = configuration; super.init(); _GCSystem.start() }
+    @objc public init(configuration: Configuration) { self.configuration = configuration; super.init(); _GCSystem.start() }
 
     /// Shows the on-screen controller and connects its GCController.
-    open func connect(replyHandler: ((Error?) -> Void)? = nil) {
+    @objc open func connect(replyHandler: ((Error?) -> Void)? = nil) {
         if controller == nil {
             let c = GCController(extended: true)
             c.vendorName = "Virtual Controller"; c.productCategory = "Virtual Controller"
@@ -483,17 +483,17 @@ public typealias GCKeyboardValueChangedHandler = (GCKeyboardInput, GCControllerB
             connect { e in if let e { k.resume(throwing: e) } else { k.resume() } }
         }
     }
-    open func disconnect() {
+    @objc open func disconnect() {
         overlay?.removeFromSuperview(); overlay = nil
         if let c = controller { GCController.disconnect(c) }
     }
-    open func updateConfiguration(forElement element: String, configuration: (ElementConfiguration) -> ElementConfiguration) {
+    @objc open func updateConfiguration(forElement element: String, configuration: (ElementConfiguration) -> ElementConfiguration) {
         let e = configuration(ElementConfiguration())
         if e.isHidden { hidden.insert(element) } else { hidden.remove(element) }
         overlay?.hiddenElements = hidden
         overlay?.setNeedsDisplay()
     }
-    func attach(tries: Int, done: @escaping (Bool) -> Void) {
+    @objc func attach(tries: Int, done: @escaping (Bool) -> Void) {
         let app = UIApplication.shared
         if let w = app.windows.first(where: { $0.isKeyWindow }) ?? app.windows.first {
             let v = _GCVirtualControllerView(frame: w.bounds, controller: self)
@@ -674,9 +674,9 @@ public let GCHapticDurationInfinite: Float = Float.greatestFiniteMagnitude
 
 /// A gamepad's haptics (adapted): CoreHaptics engines whose haptic events drive the pad's two rumble motors through
 /// the host (SDL): the handles; trigger motors are not reached.
-@objc(GCDeviceHaptics) @objcMembers open class GCDeviceHaptics: NSObject {
-    let pad: Int32
-    init(pad: Int32) { self.pad = pad; super.init() }
+@objc(GCDeviceHaptics) open class GCDeviceHaptics: NSObject {
+    @objc let pad: Int32
+    @objc init(pad: Int32) { self.pad = pad; super.init() }
     open var supportedLocalities: Set<GCHapticsLocality> { [.default, .all, .handles, .leftHandle, .rightHandle] }
     open func createEngine(withLocality locality: GCHapticsLocality) -> CHHapticEngine? {
         guard supportedLocalities.contains(locality) else { return nil }

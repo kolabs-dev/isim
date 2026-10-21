@@ -18,6 +18,7 @@ LINES = [
     "matrices: translation 1.00 2.00 3.00 scale 2.00 inverse identity true",
     "clone: arm children 1 separate true",
     "removed: arm children 0 hand parent nil",
+    "subclasses: label 1 tagged tag",            # selectors shared with superclass properties compile (#636)
     "anchor: marker z -1.00 archived true copy true",
     "raycast: results 0 tracked nil query from view nil",
     "reference image: poster physical 0.20x0.10 valid true group nil",

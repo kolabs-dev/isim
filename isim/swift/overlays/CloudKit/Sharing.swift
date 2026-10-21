@@ -5,30 +5,30 @@ import UIKit
 
 public let CKRecordTypeShare = "cloudkit.share"
 
-@objc(CKUserIdentity) @objcMembers open class CKUserIdentity: NSObject, @unchecked Sendable {
-    @objc(CKUserIdentityLookupInfo) @objcMembers open class LookupInfo: NSObject, @unchecked Sendable {
-        public let emailAddress: String?
-        public let phoneNumber: String?
-        public let userRecordID: CKRecord.ID?
-        public init(emailAddress: String) { self.emailAddress = emailAddress; phoneNumber = nil; userRecordID = nil }
-        public init(phoneNumber: String) { emailAddress = nil; self.phoneNumber = phoneNumber; userRecordID = nil }
-        public init(userRecordID: CKRecord.ID) { emailAddress = nil; phoneNumber = nil; self.userRecordID = userRecordID }
+@objc(CKUserIdentity) open class CKUserIdentity: NSObject, @unchecked Sendable {
+    @objc(CKUserIdentityLookupInfo) open class LookupInfo: NSObject, @unchecked Sendable {
+        @objc public let emailAddress: String?
+        @objc public let phoneNumber: String?
+        @objc public let userRecordID: CKRecord.ID?
+        @objc public init(emailAddress: String) { self.emailAddress = emailAddress; phoneNumber = nil; userRecordID = nil }
+        @objc public init(phoneNumber: String) { emailAddress = nil; self.phoneNumber = phoneNumber; userRecordID = nil }
+        @objc public init(userRecordID: CKRecord.ID) { emailAddress = nil; phoneNumber = nil; self.userRecordID = userRecordID }
     }
-    public let userRecordID: CKRecord.ID?
-    public let nameComponents: PersonNameComponents?
-    public let contactIdentifiers: [String]
-    public let hasiCloudAccount: Bool
-    init(recordID: CKRecord.ID?, name: PersonNameComponents?, contacts: [String] = [], account: Bool = true) {
+    @objc public let userRecordID: CKRecord.ID?
+    @objc public let nameComponents: PersonNameComponents?
+    @objc public let contactIdentifiers: [String]
+    @objc public let hasiCloudAccount: Bool
+    @objc init(recordID: CKRecord.ID?, name: PersonNameComponents?, contacts: [String] = [], account: Bool = true) {
         userRecordID = recordID; nameComponents = name; contactIdentifiers = contacts; hasiCloudAccount = account
     }
 }
 
-@objc(CKShare) @objcMembers open class CKShare: CKRecord, @unchecked Sendable {
+@objc(CKShare) open class CKShare: CKRecord, @unchecked Sendable {
     public enum ParticipantAcceptanceStatus: Int, Sendable { case unknown = 0, pending = 1, accepted = 2, removed = 3 }
     public enum ParticipantPermission: Int, Sendable { case unknown = 0, none = 1, readOnly = 2, readWrite = 3 }
     public enum ParticipantRole: Int, Sendable { case unknown = 0, owner = 1, privateUser = 3, publicUser = 4 }
-    @objc(CKShareParticipant) @objcMembers open class Participant: NSObject, @unchecked Sendable {
-        public let userIdentity: CKUserIdentity
+    @objc(CKShareParticipant) open class Participant: NSObject, @unchecked Sendable {
+        @objc public let userIdentity: CKUserIdentity
         public internal(set) var role: ParticipantRole
         public internal(set) var acceptanceStatus: ParticipantAcceptanceStatus
         open var permission: ParticipantPermission
@@ -54,18 +54,18 @@ public let CKRecordTypeShare = "cloudkit.share"
         public static let shareType: CKRecord.FieldKey = "cloudkit.shareType"
     }
     public enum ParticipantAccessOptions: UInt, Sendable { case anyoneWithLink = 1, specifiedRecipientsOnly = 2 }
-    public internal(set) var rootRecordID: CKRecord.ID?
+    @objc public internal(set) var rootRecordID: CKRecord.ID?
     open var publicPermission: ParticipantPermission = .none
     private var ownerParticipant: Participant = CKShare.currentUser(role: .owner, permission: .readWrite, status: .accepted)
     private var extraParticipants: [Participant] = []
-    var containerIdentifier: String?                      // set on shares read from (or saved to) a database
-    public var owner: Participant { ownerParticipant }
+    @objc var containerIdentifier: String?                      // set on shares read from (or saved to) a database
+    @objc public var owner: Participant { ownerParticipant }
     /// The participant that is the device's current user (nil when the user has no part in the share).
-    public var currentUserParticipant: Participant? { participants.first { $0.userIdentity.userRecordID?.recordName == _CKEnv.userRecordName } }
-    public var participants: [Participant] { [ownerParticipant] + extraParticipants }
+    @objc public var currentUserParticipant: Participant? { participants.first { $0.userIdentity.userRecordID?.recordName == _CKEnv.userRecordName } }
+    @objc public var participants: [Participant] { [ownerParticipant] + extraParticipants }
     /// The link participants open: set once the share is saved (isim: it names the share's container, zone and record,
     /// which is how any app on the device finds the share in the local store).
-    open var url: URL? {
+    @objc open var url: URL? {
         guard recordChangeTag != nil, let c = containerIdentifier else { return nil }
         let token = [c, recordID.zoneID.ownerName, recordID.zoneID.zoneName, recordID.recordName].joined(separator: "\u{1f}")
         let b64 = Data(token.utf8).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
@@ -81,32 +81,32 @@ public let CKRecordTypeShare = "cloudkit.share"
         return (p[0], CKRecord.ID(recordName: p[3], zoneID: CKRecordZone.ID(zoneName: p[2], ownerName: p[1])))
     }
 
-    public init(rootRecord: CKRecord) {
+    @objc public init(rootRecord: CKRecord) {
         rootRecordID = rootRecord.recordID
         super.init(recordType: CKRecordTypeShare, recordID: CKRecord.ID(recordName: "Share-" + rootRecord.recordID.recordName, zoneID: rootRecord.recordID.zoneID))
         rootRecord.parent = CKRecord.Reference(recordID: recordID, action: .none)
     }
-    public init(rootRecord: CKRecord, shareID: CKRecord.ID) {
+    @objc public init(rootRecord: CKRecord, shareID: CKRecord.ID) {
         rootRecordID = rootRecord.recordID
         super.init(recordType: CKRecordTypeShare, recordID: shareID)
         rootRecord.parent = CKRecord.Reference(recordID: recordID, action: .none)
     }
-    public init(recordZoneID: CKRecordZone.ID) {
+    @objc public init(recordZoneID: CKRecordZone.ID) {
         rootRecordID = nil
         super.init(recordType: CKRecordTypeShare, recordID: CKRecord.ID(recordName: CKRecordNameZoneWideShare, zoneID: recordZoneID))
     }
-    init(recordID: CKRecord.ID) { rootRecordID = nil; super.init(recordType: CKRecordTypeShare, recordID: recordID) }
-    public override init?(coder: NSCoder) { rootRecordID = nil; super.init(coder: coder) }
+    @objc init(recordID: CKRecord.ID) { rootRecordID = nil; super.init(recordType: CKRecordTypeShare, recordID: recordID) }
+    @objc public override init?(coder: NSCoder) { rootRecordID = nil; super.init(coder: coder) }
     static func currentUser(role: ParticipantRole, permission: ParticipantPermission, status: ParticipantAcceptanceStatus) -> Participant {
         let a = _CKEnv.account
         var name = PersonNameComponents(); name.givenName = a.first; name.familyName = a.last
         return Participant(CKUserIdentity(recordID: CKRecord.ID(recordName: _CKEnv.userRecordName), name: name, contacts: [a.email]), role: role, permission: permission, status: status)
     }
-    open func addParticipant(_ participant: Participant) {
+    @objc open func addParticipant(_ participant: Participant) {
         if participant.userIdentity.userRecordID == ownerParticipant.userIdentity.userRecordID { return }
         if !extraParticipants.contains(where: { $0.userIdentity.userRecordID == participant.userIdentity.userRecordID }) { extraParticipants.append(participant) }
     }
-    open func removeParticipant(_ participant: Participant) { extraParticipants.removeAll { $0 === participant || $0.userIdentity.userRecordID == participant.userIdentity.userRecordID } }
+    @objc open func removeParticipant(_ participant: Participant) { extraParticipants.removeAll { $0 === participant || $0.userIdentity.userRecordID == participant.userIdentity.userRecordID } }
 
     /// what the local store keeps of a share beyond its fields
     var stored: _CKStoredShare {
@@ -182,35 +182,35 @@ extension CKContainer {
     public func status(forApplicationPermission applicationPermission: ApplicationPermissions, completionHandler: @escaping @Sendable (ApplicationPermissionStatus, Error?) -> Void) {
         requestApplicationPermission(applicationPermission, completionHandler: completionHandler)
     }
-    public func discoverUserIdentity(withEmailAddress email: String, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
+    @objc public func discoverUserIdentity(withEmailAddress email: String, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
         discoverUserIdentity(with: CKUserIdentity.LookupInfo(emailAddress: email), completionHandler: completionHandler)
     }
-    public func discoverUserIdentity(withPhoneNumber phoneNumber: String, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
+    @objc public func discoverUserIdentity(withPhoneNumber phoneNumber: String, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
         discoverUserIdentity(with: CKUserIdentity.LookupInfo(phoneNumber: phoneNumber), completionHandler: completionHandler)
     }
-    public func discoverUserIdentity(withUserRecordID recordID: CKRecord.ID, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
+    @objc public func discoverUserIdentity(withUserRecordID recordID: CKRecord.ID, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
         discoverUserIdentity(with: CKUserIdentity.LookupInfo(userRecordID: recordID), completionHandler: completionHandler)
     }
     @objc(discoverUserIdentityWithLookupInfo:completionHandler:) public func discoverUserIdentity(with lookupInfo: CKUserIdentity.LookupInfo, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
         guard _CKEnv.accountStatus == .available else { CKDatabase.reply { completionHandler(nil, CKError(.notAuthenticated)) }; return }
         let result = identity(lookupInfo); CKDatabase.reply { completionHandler(result, nil) }
     }
-    public func discoverAllIdentities(with lookupInfos: [CKUserIdentity.LookupInfo], completionHandler: @escaping @Sendable ([CKUserIdentity]?, Error?) -> Void) {
+    @objc public func discoverAllIdentities(with lookupInfos: [CKUserIdentity.LookupInfo], completionHandler: @escaping @Sendable ([CKUserIdentity]?, Error?) -> Void) {
         guard _CKEnv.accountStatus == .available else { CKDatabase.reply { completionHandler(nil, CKError(.notAuthenticated)) }; return }
         let results = lookupInfos.map(identity); CKDatabase.reply { completionHandler(results, nil) }
     }
     @nonobjc public func userIdentity(forUserRecordID recordID: CKRecord.ID) async throws -> CKUserIdentity { identity(CKUserIdentity.LookupInfo(userRecordID: recordID)) }
     @nonobjc public func userIdentity(forEmailAddress email: String) async throws -> CKUserIdentity { identity(CKUserIdentity.LookupInfo(emailAddress: email)) }
     @nonobjc public func userIdentity(forPhoneNumber phoneNumber: String) async throws -> CKUserIdentity { identity(CKUserIdentity.LookupInfo(phoneNumber: phoneNumber)) }
-    public func fetchShareParticipant(withEmailAddress email: String, completionHandler: @escaping @Sendable (CKShare.Participant?, Error?) -> Void) {
+    @objc public func fetchShareParticipant(withEmailAddress email: String, completionHandler: @escaping @Sendable (CKShare.Participant?, Error?) -> Void) {
         let p = CKShare.Participant(identity(CKUserIdentity.LookupInfo(emailAddress: email)), role: .privateUser, permission: .readOnly, status: .pending)
         CKDatabase.reply { completionHandler(p, nil) }
     }
-    public func fetchShareParticipant(withPhoneNumber phoneNumber: String, completionHandler: @escaping @Sendable (CKShare.Participant?, Error?) -> Void) {
+    @objc public func fetchShareParticipant(withPhoneNumber phoneNumber: String, completionHandler: @escaping @Sendable (CKShare.Participant?, Error?) -> Void) {
         let p = CKShare.Participant(identity(CKUserIdentity.LookupInfo(phoneNumber: phoneNumber)), role: .privateUser, permission: .readOnly, status: .pending)
         CKDatabase.reply { completionHandler(p, nil) }
     }
-    public func fetchShareParticipant(withUserRecordID recordID: CKRecord.ID, completionHandler: @escaping @Sendable (CKShare.Participant?, Error?) -> Void) {
+    @objc public func fetchShareParticipant(withUserRecordID recordID: CKRecord.ID, completionHandler: @escaping @Sendable (CKShare.Participant?, Error?) -> Void) {
         let p = CKShare.Participant(identity(CKUserIdentity.LookupInfo(userRecordID: recordID)), role: .privateUser, permission: .readOnly, status: .pending)
         CKDatabase.reply { completionHandler(p, nil) }
     }

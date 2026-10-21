@@ -86,7 +86,7 @@ enum _PKZip {
 // MARK: - Passes
 
 /// The base class of PassKit's pass objects.
-@objc(PKObject) @objcMembers open class PKObject: NSObject {}
+@objc(PKObject) open class PKObject: NSObject {}
 
 public enum PKPassType: UInt, Sendable {
     case barcode = 0, secureElement = 1, any = 0xFFFF_FFFF
@@ -94,22 +94,22 @@ public enum PKPassType: UInt, Sendable {
 }
 
 /// A date or interval when a pass is relevant (pass.json "relevantDates", iOS 18).
-@objc(PKPassRelevantDate) @objcMembers open class PKPassRelevantDate: NSObject, @unchecked Sendable {
-    open internal(set) var date: Date?
-    open internal(set) var interval: DateInterval?
-    init(date: Date?, interval: DateInterval?) { self.date = date; self.interval = interval; super.init() }
+@objc(PKPassRelevantDate) open class PKPassRelevantDate: NSObject, @unchecked Sendable {
+    @objc open internal(set) var date: Date?
+    @objc open internal(set) var interval: DateInterval?
+    @objc init(date: Date?, interval: DateInterval?) { self.date = date; self.interval = interval; super.init() }
 }
 
 /// A Wallet pass: a boarding pass, coupon, event ticket, store card or generic pass, read from its .pkpass archive.
-@objc(PKPass) @objcMembers open class PKPass: PKObject, @unchecked Sendable {
-    let archive: Data
-    let files: [String: Data]
-    let json: [String: Any]
-    let strings: [String: String]
+@objc(PKPass) open class PKPass: PKObject, @unchecked Sendable {
+    @objc let archive: Data
+    @objc let files: [String: Data]
+    @objc let json: [String: Any]
+    @objc let strings: [String: String]
 
     /// reads a .pkpass archive: pass.json, its images and localizations; the manifest must list every file with its
     /// SHA-1 and the archive must have a signature (its certificate chain is not checked)
-    public init(data: Data) throws {
+    @objc public init(data: Data) throws {
         let files = try _PKZip.files(data)
         guard let pj = files["pass.json"], let json = (try? JSONSerialization.jsonObject(with: pj)) as? [String: Any] else {
             throw PKPassKitError(.invalidDataError, "The pass has no valid pass.json")
@@ -139,7 +139,7 @@ public enum PKPassType: UInt, Sendable {
     }
 
     /// the pass.strings of the preferred language that the pass has (else English, else none)
-    static func localization(_ files: [String: Data]) -> [String: String] {
+    @objc static func localization(_ files: [String: Data]) -> [String: String] {
         let langs = Locale.preferredLanguages.flatMap { [$0, String($0.prefix(while: { $0 != "-" && $0 != "_" }))] } + ["en", "Base"]
         guard let lang = langs.first(where: { files["\($0).lproj/pass.strings"] != nil }), let d = files["\(lang).lproj/pass.strings"] else { return [:] }
         let text: String
@@ -154,39 +154,39 @@ public enum PKPassType: UInt, Sendable {
         return out
     }
 
-    func string(_ key: String) -> String? { (json[key] as? String).map { strings[$0] ?? $0 } }
-    func date(_ s: Any?) -> Date? {
+    @objc func string(_ key: String) -> String? { (json[key] as? String).map { strings[$0] ?? $0 } }
+    @objc func date(_ s: Any?) -> Date? {
         guard let s = s as? String else { return nil }
         let f = ISO8601DateFormatter()
         if let d = f.date(from: s) { return d }
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f.date(from: s)
     }
-    var key: String { "\(passTypeIdentifier)|\(serialNumber)" }
+    @objc var key: String { "\(passTypeIdentifier)|\(serialNumber)" }
 
     open var passType: PKPassType { .barcode }
-    open var passTypeIdentifier: String { json["passTypeIdentifier"] as? String ?? "" }
-    open var serialNumber: String { json["serialNumber"] as? String ?? "" }
-    open var organizationName: String { string("organizationName") ?? "" }
+    @objc open var passTypeIdentifier: String { json["passTypeIdentifier"] as? String ?? "" }
+    @objc open var serialNumber: String { json["serialNumber"] as? String ?? "" }
+    @objc open var organizationName: String { string("organizationName") ?? "" }
     /// the pass's name in Wallet: its organization's (iOS shows the app's for some passes)
-    open var localizedName: String { organizationName }
-    open var localizedDescription: String { string("description") ?? "" }
-    open var webServiceURL: URL? { (json["webServiceURL"] as? String).flatMap(URL.init(string:)) }
-    open var authenticationToken: String? { json["authenticationToken"] as? String }
-    open var userInfo: [AnyHashable: Any]? { json["userInfo"] as? [String: Any] }
-    open var deviceName: String { UIDevice.current.name }
-    open var isRemotePass: Bool { false }
+    @objc open var localizedName: String { organizationName }
+    @objc open var localizedDescription: String { string("description") ?? "" }
+    @objc open var webServiceURL: URL? { (json["webServiceURL"] as? String).flatMap(URL.init(string:)) }
+    @objc open var authenticationToken: String? { json["authenticationToken"] as? String }
+    @objc open var userInfo: [AnyHashable: Any]? { json["userInfo"] as? [String: Any] }
+    @objc open var deviceName: String { UIDevice.current.name }
+    @objc open var isRemotePass: Bool { false }
     /// opens the pass in Wallet (isim has no Wallet app: the URL names the pass)
-    open var passURL: URL? { URL(string: "shoebox://card/\(passTypeIdentifier.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")/\(serialNumber.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")") }
-    open var icon: UIImage {
+    @objc open var passURL: URL? { URL(string: "shoebox://card/\(passTypeIdentifier.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")/\(serialNumber.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")") }
+    @objc open var icon: UIImage {
         let scale = UIScreen.main.scale
         let order = scale >= 3 ? ["icon@3x.png", "icon@2x.png", "icon.png"] : scale >= 2 ? ["icon@2x.png", "icon@3x.png", "icon.png"] : ["icon.png", "icon@2x.png", "icon@3x.png"]
         for n in order { if let d = files[n], let i = UIImage(data: d, scale: n.contains("@3x") ? 3 : n.contains("@2x") ? 2 : 1) { return i } }
         return UIImage()
     }
     @available(*, deprecated, message: "Use relevantDates")
-    open var relevantDate: Date? { date(json["relevantDate"]) ?? relevantDates.first?.date ?? relevantDates.first?.interval?.start }
-    open var relevantDates: [PKPassRelevantDate] {
+    @objc open var relevantDate: Date? { date(json["relevantDate"]) ?? relevantDates.first?.date ?? relevantDates.first?.interval?.start }
+    @objc open var relevantDates: [PKPassRelevantDate] {
         if let list = json["relevantDates"] as? [[String: Any]] {
             return list.compactMap { e -> PKPassRelevantDate? in
                 if let d = date(e["date"]) { return PKPassRelevantDate(date: d, interval: nil) }
@@ -198,7 +198,7 @@ public enum PKPassType: UInt, Sendable {
     }
 
     /// a field's value (localized), by its key, from any of the pass's field lists
-    open func localizedValue(forFieldKey key: String) -> Any? {
+    @objc open func localizedValue(forFieldKey key: String) -> Any? {
         guard let f = fields.first(where: { $0.key == key }) else { return nil }
         if f.raw["dateStyle"] != nil || f.raw["timeStyle"] != nil, let d = date(f.raw["value"]) { return d }
         if let s = f.raw["value"] as? String { return strings[s] ?? s }
@@ -206,7 +206,7 @@ public enum PKPassType: UInt, Sendable {
     }
 
     var style: _PKPassStyle { _PKPassStyle.allCases.first { json[$0.rawValue] is [String: Any] } ?? .generic }
-    var styleDictionary: [String: Any] { json[style.rawValue] as? [String: Any] ?? [:] }
+    @objc var styleDictionary: [String: Any] { json[style.rawValue] as? [String: Any] ?? [:] }
     struct Field { let key: String, label: String?, value: String, raw: [String: Any] }
     func fields(_ list: String) -> [Field] {
         (styleDictionary[list] as? [[String: Any]] ?? []).compactMap { f -> Field? in
@@ -229,19 +229,19 @@ public enum PKPassType: UInt, Sendable {
         guard let b, let format = b["format"] as? String, let message = b["message"] as? String else { return nil }
         return (format, message, b["altText"] as? String)
     }
-    func color(_ key: String) -> UIColor? {
+    @objc func color(_ key: String) -> UIColor? {
         guard let s = json[key] as? String else { return nil }
         let n = s.components(separatedBy: CharacterSet(charactersIn: "0123456789.").inverted).compactMap(Double.init)
         guard n.count >= 3 else { return nil }
         return UIColor(red: n[0] / 255, green: n[1] / 255, blue: n[2] / 255, alpha: 1)
     }
-    var logo: UIImage? {
+    @objc var logo: UIImage? {
         for n in ["logo@3x.png", "logo@2x.png", "logo.png"] { if let d = files[n], let i = UIImage(data: d, scale: n.contains("@3x") ? 3 : n.contains("@2x") ? 2 : 1) { return i } }
         return nil
     }
-    open override var description: String { "<PKPass \(passTypeIdentifier) \(serialNumber) \(style.rawValue)>" }
-    open override func isEqual(_ object: Any?) -> Bool { (object as? PKPass).map { $0.key == key } ?? false }
-    open override var hash: Int { key.hashValue }
+    @objc open override var description: String { "<PKPass \(passTypeIdentifier) \(serialNumber) \(style.rawValue)>" }
+    @objc open override func isEqual(_ object: Any?) -> Bool { (object as? PKPass).map { $0.key == key } ?? false }
+    @objc open override var hash: Int { key.hashValue }
 }
 
 enum _PKPassStyle: String, CaseIterable { case boardingPass, coupon, eventTicket, generic, storeCard }
@@ -330,26 +330,26 @@ enum _PKWalletStore {
 }
 
 /// The passes in Wallet.
-@objc(PKPassLibrary) @objcMembers open class PKPassLibrary: NSObject {
-    public override init() { super.init() }
+@objc(PKPassLibrary) open class PKPassLibrary: NSObject {
+    @objc public override init() { super.init() }
 
-    open class func isPassLibraryAvailable() -> Bool { true }
-    open class func isSuppressingAutomaticPassPresentation() -> Bool { false }
+    @objc open class func isPassLibraryAvailable() -> Bool { true }
+    @objc open class func isSuppressingAutomaticPassPresentation() -> Bool { false }
 
-    open func passes() -> [PKPass] { _PKWalletStore.passes() }
+    @objc open func passes() -> [PKPass] { _PKWalletStore.passes() }
     open func passes(of passType: PKPassType) -> [PKPass] { passType == .secureElement ? [] : passes() }
-    open func pass(withPassTypeIdentifier identifier: String, serialNumber: String) -> PKPass? {
+    @objc open func pass(withPassTypeIdentifier identifier: String, serialNumber: String) -> PKPass? {
         passes().first { $0.passTypeIdentifier == identifier && $0.serialNumber == serialNumber }
     }
-    open func containsPass(_ pass: PKPass) -> Bool { passes().contains { $0.key == pass.key } }
-    open func removePass(_ pass: PKPass) {
+    @objc open func containsPass(_ pass: PKPass) -> Bool { passes().contains { $0.key == pass.key } }
+    @objc open func removePass(_ pass: PKPass) {
         guard containsPass(pass) else { return }
         _PKWalletStore.remove(pass)
         NSLog("isim PassKit: Wallet removed pass %@ %@", pass.passTypeIdentifier, pass.serialNumber)
         _PKWalletStore.changed(removed: [pass])
     }
     /// replaces a pass already in Wallet with a newer version of it (false when it is not in Wallet)
-    open func replacePass(with pass: PKPass) -> Bool {
+    @objc open func replacePass(with pass: PKPass) -> Bool {
         guard containsPass(pass) else { return false }
         _ = _PKWalletStore.add([pass])
         return true
@@ -383,25 +383,25 @@ enum _PKWalletStore {
     @MainActor open func addPasses(fromArchiveAt url: URL, completion: @escaping (PKPassLibraryAddPassesStatus) -> Void) {
         addPasses(fromArchiveData: (try? Data(contentsOf: url)) ?? Data(), completion: completion)
     }
-    static func archivePasses(_ data: Data) -> [Data] {
+    @objc static func archivePasses(_ data: Data) -> [Data] {
         ((try? _PKZip.files(data)) ?? [:]).filter { $0.key.hasSuffix(".pkpass") }.sorted { $0.key < $1.key }.map(\.value)
     }
 
     /// Apple Pay card setup (Wallet's "Add Card"): isim's Wallet has fixed test cards
-    open func openPaymentSetup() { NSLog("isim PassKit: openPaymentSetup: isim's Wallet has fixed test cards (ISIM_APPLE_PAY=0 removes them)") }
-    open func openPaymentSetup(merchantIdentifier: String) { openPaymentSetup() }
-    open func canAddFelicaPass() -> Bool { false }
+    @objc open func openPaymentSetup() { NSLog("isim PassKit: openPaymentSetup: isim's Wallet has fixed test cards (ISIM_APPLE_PAY=0 removes them)") }
+    @objc open func openPaymentSetup(merchantIdentifier: String) { openPaymentSetup() }
+    @objc open func canAddFelicaPass() -> Bool { false }
 }
 
 // MARK: - Orders
 
 /// The Wallet order an Apple Pay payment created (PKPaymentAuthorizationResult.orderDetails).
-@objc(PKPaymentOrderDetails) @objcMembers open class PKPaymentOrderDetails: NSObject, @unchecked Sendable {
-    open var orderTypeIdentifier: String
-    open var orderIdentifier: String
-    open var webServiceURL: URL
-    open var authenticationToken: String
-    public init(orderTypeIdentifier: String, orderIdentifier: String, webServiceURL: URL, authenticationToken: String) {
+@objc(PKPaymentOrderDetails) open class PKPaymentOrderDetails: NSObject, @unchecked Sendable {
+    @objc open var orderTypeIdentifier: String
+    @objc open var orderIdentifier: String
+    @objc open var webServiceURL: URL
+    @objc open var authenticationToken: String
+    @objc public init(orderTypeIdentifier: String, orderIdentifier: String, webServiceURL: URL, authenticationToken: String) {
         self.orderTypeIdentifier = orderTypeIdentifier; self.orderIdentifier = orderIdentifier
         self.webServiceURL = webServiceURL; self.authenticationToken = authenticationToken
         super.init()

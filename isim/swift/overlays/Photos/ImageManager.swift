@@ -4,29 +4,29 @@
 import UIKit
 import AVFoundation
 
-@objc(PHImageRequestOptions) @objcMembers open class PHImageRequestOptions: NSObject, NSCopying, @unchecked Sendable {
-    open var version: PHImageRequestOptionsVersion = .current
-    open var deliveryMode: PHImageRequestOptionsDeliveryMode = .opportunistic
-    open var resizeMode: PHImageRequestOptionsResizeMode = .fast
-    open var normalizedCropRect: CGRect = .zero
+@objc(PHImageRequestOptions) open class PHImageRequestOptions: NSObject, NSCopying, @unchecked Sendable {
+    @objc open var version: PHImageRequestOptionsVersion = .current
+    @objc open var deliveryMode: PHImageRequestOptionsDeliveryMode = .opportunistic
+    @objc open var resizeMode: PHImageRequestOptionsResizeMode = .fast
+    @objc open var normalizedCropRect: CGRect = .zero
     @nonobjc open var isNetworkAccessAllowed = false
     @nonobjc open var isSynchronous = false
-    open var allowSecondaryDegradedImage = false
-    open var progressHandler: ((Double, Error?, UnsafeMutablePointer<ObjCBool>, [AnyHashable: Any]?) -> Void)?
-    public override init() { super.init() }
-    public func copy(with zone: OpaquePointer? = nil) -> Any { self }
+    @objc open var allowSecondaryDegradedImage = false
+    @objc open var progressHandler: ((Double, Error?, UnsafeMutablePointer<ObjCBool>, [AnyHashable: Any]?) -> Void)?
+    @objc public override init() { super.init() }
+    @objc public func copy(with zone: OpaquePointer? = nil) -> Any { self }
 }
 
-@objc(PHImageManager) @objcMembers open class PHImageManager: NSObject, @unchecked Sendable {
-    static let shared = PHImageManager()
-    nonisolated(unsafe) static var nextID: PHImageRequestID = 1
-    nonisolated(unsafe) static var cancelled = Set<PHImageRequestID>()
+@objc(PHImageManager) open class PHImageManager: NSObject, @unchecked Sendable {
+    @objc static let shared = PHImageManager()
+    @objc nonisolated(unsafe) static var nextID: PHImageRequestID = 1
+    @objc nonisolated(unsafe) static var cancelled = Set<PHImageRequestID>()
     @objc(defaultManager) open class func `default`() -> PHImageManager { shared }
-    public override init() { super.init() }
+    @objc public override init() { super.init() }
 
-    static func newID() -> PHImageRequestID { let i = nextID; nextID += 1; return i }
+    @objc static func newID() -> PHImageRequestID { let i = nextID; nextID += 1; return i }
 
-    static func image(_ asset: PHAsset, _ target: CGSize, _ mode: PHImageContentMode) -> UIImage? {
+    @objc static func image(_ asset: PHAsset, _ target: CGSize, _ mode: PHImageContentMode) -> UIImage? {
         guard let img = UIImage(contentsOfFile: _PHStore.imagePath(asset.rec)) else { return nil }
         if target.width <= 0 || target.height <= 0 { return img }
         let w = CGFloat(asset.pixelWidth > 0 ? asset.pixelWidth : Int(img.size.width)), h = CGFloat(asset.pixelHeight > 0 ? asset.pixelHeight : Int(img.size.height))
@@ -66,7 +66,7 @@ import AVFoundation
         if options?.isSynchronous == true { work() } else { DispatchQueue.main.async(execute: work) }
         return id
     }
-    open func cancelImageRequest(_ requestID: PHImageRequestID) { Self.cancelled.insert(requestID) }
+    @objc open func cancelImageRequest(_ requestID: PHImageRequestID) { Self.cancelled.insert(requestID) }
 
     // MARK: videos (the handlers run on a background queue, as on iOS)
 
@@ -81,7 +81,7 @@ import AVFoundation
         }
         return (URL(fileURLWithPath: path), info)
     }
-    static func videoRequest(_ options: PHVideoRequestOptions?, _ work: @escaping () -> Void) {
+    @objc static func videoRequest(_ options: PHVideoRequestOptions?, _ work: @escaping () -> Void) {
         DispatchQueue.global().async {
             if let progress = options?.progressHandler { var stop = ObjCBool(false); progress(1, nil, &stop, nil) }
             work()
@@ -127,31 +127,31 @@ import AVFoundation
 public typealias PHAssetVideoProgressHandler = (Double, Error?, UnsafeMutablePointer<ObjCBool>, [AnyHashable: Any]?) -> Void
 
 /// isim keeps one version of each video (no edits, no iCloud): every option gets the library file
-@objc(PHVideoRequestOptions) @objcMembers open class PHVideoRequestOptions: NSObject, @unchecked Sendable {
+@objc(PHVideoRequestOptions) open class PHVideoRequestOptions: NSObject, @unchecked Sendable {
     @nonobjc open var isNetworkAccessAllowed = false
-    open var version: PHVideoRequestOptionsVersion = .current
-    open var deliveryMode: PHVideoRequestOptionsDeliveryMode = .automatic
-    open var progressHandler: PHAssetVideoProgressHandler?
-    public override init() { super.init() }
+    @objc open var version: PHVideoRequestOptionsVersion = .current
+    @objc open var deliveryMode: PHVideoRequestOptionsDeliveryMode = .automatic
+    @objc open var progressHandler: PHAssetVideoProgressHandler?
+    @objc public override init() { super.init() }
 }
 
 public enum CGImagePropertyOrientation: UInt32, Sendable { case up = 1, upMirrored, down, downMirrored, leftMirrored, right, rightMirrored, left }
 
-@objc(PHCachingImageManager) @objcMembers open class PHCachingImageManager: PHImageManager, @unchecked Sendable {
-    open var allowsCachingHighQualityImages = true
-    public override init() { super.init() }
+@objc(PHCachingImageManager) open class PHCachingImageManager: PHImageManager, @unchecked Sendable {
+    @objc open var allowsCachingHighQualityImages = true
+    @objc public override init() { super.init() }
     @objc(startCachingImagesForAssets:targetSize:contentMode:options:) open func startCachingImages(for assets: [PHAsset], targetSize: CGSize, contentMode: PHImageContentMode, options: PHImageRequestOptions?) {}
     @objc(stopCachingImagesForAssets:targetSize:contentMode:options:) open func stopCachingImages(for assets: [PHAsset], targetSize: CGSize, contentMode: PHImageContentMode, options: PHImageRequestOptions?) {}
-    open func stopCachingImagesForAllAssets() {}
+    @objc open func stopCachingImagesForAllAssets() {}
 }
 
-@objc(PHAssetResource) @objcMembers open class PHAssetResource: NSObject, @unchecked Sendable {
-    public let type: PHAssetResourceType
-    public let assetLocalIdentifier: String
-    public let originalFilename: String
-    public let uniformTypeIdentifier: String
-    let path: String
-    init(_ a: PHAsset) {
+@objc(PHAssetResource) open class PHAssetResource: NSObject, @unchecked Sendable {
+    @objc public let type: PHAssetResourceType
+    @objc public let assetLocalIdentifier: String
+    @objc public let originalFilename: String
+    @objc public let uniformTypeIdentifier: String
+    @objc let path: String
+    @objc init(_ a: PHAsset) {
         assetLocalIdentifier = a.localIdentifier; originalFilename = (a.rec.file as NSString).lastPathComponent
         path = _PHStore.path(a.rec)
         let ext = (originalFilename as NSString).pathExtension.lowercased()
@@ -166,24 +166,24 @@ public enum CGImagePropertyOrientation: UInt32, Sendable { case up = 1, upMirror
 public typealias PHAssetResourceDataRequestID = Int32
 public typealias PHAssetResourceProgressHandler = (Double) -> Void
 
-@objc(PHAssetResourceRequestOptions) @objcMembers open class PHAssetResourceRequestOptions: NSObject, NSCopying, @unchecked Sendable {
+@objc(PHAssetResourceRequestOptions) open class PHAssetResourceRequestOptions: NSObject, NSCopying, @unchecked Sendable {
     @nonobjc open var isNetworkAccessAllowed = false
-    open var progressHandler: PHAssetResourceProgressHandler?
-    public override init() { super.init() }
-    public func copy(with zone: OpaquePointer? = nil) -> Any {
+    @objc open var progressHandler: PHAssetResourceProgressHandler?
+    @objc public override init() { super.init() }
+    @objc public func copy(with zone: OpaquePointer? = nil) -> Any {
         let o = PHAssetResourceRequestOptions(); o.isNetworkAccessAllowed = isNetworkAccessAllowed; o.progressHandler = progressHandler; return o
     }
 }
 
 /// A resource's bytes from the library file, in chunks on a background queue (adapted: everything is local).
-@objc(PHAssetResourceManager) @objcMembers open class PHAssetResourceManager: NSObject, @unchecked Sendable {
-    static let shared = PHAssetResourceManager()
-    nonisolated(unsafe) static var nextID: PHAssetResourceDataRequestID = 1
-    nonisolated(unsafe) static var cancelled = Set<PHAssetResourceDataRequestID>()
-    static let lock = NSLock()
-    static let chunk = 256 * 1024
+@objc(PHAssetResourceManager) open class PHAssetResourceManager: NSObject, @unchecked Sendable {
+    @objc static let shared = PHAssetResourceManager()
+    @objc nonisolated(unsafe) static var nextID: PHAssetResourceDataRequestID = 1
+    @objc nonisolated(unsafe) static var cancelled = Set<PHAssetResourceDataRequestID>()
+    @objc static let lock = NSLock()
+    @objc static let chunk = 256 * 1024
     @objc(defaultManager) open class func `default`() -> PHAssetResourceManager { shared }
-    public override init() { super.init() }
+    @objc public override init() { super.init() }
 
     @discardableResult
     @objc(requestDataForAssetResource:options:dataReceivedHandler:completionHandler:)
@@ -208,7 +208,7 @@ public typealias PHAssetResourceProgressHandler = (Double) -> Void
         }
         return id
     }
-    open func cancelDataRequest(_ requestID: PHAssetResourceDataRequestID) {
+    @objc open func cancelDataRequest(_ requestID: PHAssetResourceDataRequestID) {
         Self.lock.lock(); Self.cancelled.insert(requestID); Self.lock.unlock()
     }
     /// fails when a file already exists at fileURL, as on iOS
@@ -362,7 +362,7 @@ enum _PHSelection {
 
 extension PHAsset {
     /// isim: the file holding the asset's image (used by PhotosUI's item providers)
-    @_spi(isim) public var _isimFilePath: String { _PHStore.path(rec) }
+    @objc @_spi(isim) public var _isimFilePath: String { _PHStore.path(rec) }
     /// every photo and video in the library (PHPickerViewController runs outside the app's permission)
-    @_spi(isim) public static func _isimAll() -> [PHAsset] { PHAsset.fetch(_PHStore.records(), nil).items }
+    @objc @_spi(isim) public static func _isimAll() -> [PHAsset] { PHAsset.fetch(_PHStore.records(), nil).items }
 }

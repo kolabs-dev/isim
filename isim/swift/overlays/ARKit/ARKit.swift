@@ -54,7 +54,7 @@ public struct ARError: CustomNSError, Hashable, Sendable {
 // MARK: - configurations
 
 /// What a session tracks. isim, like Apple's Simulator, supports none: `isSupported` is false for every kind.
-@objc(ARConfiguration) @objcMembers open class ARConfiguration: NSObject, NSCopying, @unchecked Sendable {
+@objc(ARConfiguration) open class ARConfiguration: NSObject, NSCopying, @unchecked Sendable {
     public enum WorldAlignment: Int, Sendable { case gravity = 0, gravityAndHeading = 1, camera = 2 }
     public struct FrameSemantics: OptionSet, Sendable {
         public let rawValue: UInt
@@ -72,38 +72,38 @@ public struct ARError: CustomNSError, Hashable, Sendable {
         public static let meshWithClassification = SceneReconstruction(rawValue: (1 << 0) | (1 << 1))
     }
     /// A camera mode a configuration can capture in.
-    @objc(ARVideoFormat) @objcMembers open class VideoFormat: NSObject, NSCopying, @unchecked Sendable {
-        public let imageResolution: CGSize
-        public let framesPerSecond: Int
-        init(resolution: CGSize, fps: Int) { imageResolution = resolution; framesPerSecond = fps }
-        open var isVideoHDRSupported: Bool { false }
-        open var isRecommendedForHighResolutionFrameCapturing: Bool { false }
-        open func copy(with zone: NSZone? = nil) -> Any { self }
+    @objc(ARVideoFormat) open class VideoFormat: NSObject, NSCopying, @unchecked Sendable {
+        @objc public let imageResolution: CGSize
+        @objc public let framesPerSecond: Int
+        @objc init(resolution: CGSize, fps: Int) { imageResolution = resolution; framesPerSecond = fps }
+        @objc open var isVideoHDRSupported: Bool { false }
+        @objc open var isRecommendedForHighResolutionFrameCapturing: Bool { false }
+        @objc open func copy(with zone: NSZone? = nil) -> Any { self }
     }
-    public override init() { super.init() }
+    @objc public override init() { super.init() }
     /// false: no camera tracking on isim (as in Apple's Simulator)
-    open class var isSupported: Bool { false }
-    open class var supportedVideoFormats: [VideoFormat] { [] }
+    @objc open class var isSupported: Bool { false }
+    @objc open class var supportedVideoFormats: [VideoFormat] { [] }
     open class func supportsFrameSemantics(_ frameSemantics: FrameSemantics) -> Bool { false }
-    open class var recommendedVideoFormatFor4KResolution: VideoFormat? { nil }
-    open class var recommendedVideoFormatForHighResolutionFrameCapturing: VideoFormat? { nil }
-    open class var configurableCaptureDeviceForPrimaryCamera: AnyObject? { nil }
-    open var videoFormat = VideoFormat(resolution: CGSize(width: 1920, height: 1440), fps: 60)
+    @objc open class var recommendedVideoFormatFor4KResolution: VideoFormat? { nil }
+    @objc open class var recommendedVideoFormatForHighResolutionFrameCapturing: VideoFormat? { nil }
+    @objc open class var configurableCaptureDeviceForPrimaryCamera: AnyObject? { nil }
+    @objc open var videoFormat = VideoFormat(resolution: CGSize(width: 1920, height: 1440), fps: 60)
     open var worldAlignment: WorldAlignment = .gravity
-    open var isLightEstimationEnabled = true
-    open var providesAudioData = false
+    @objc open var isLightEstimationEnabled = true
+    @objc open var providesAudioData = false
     open var frameSemantics: FrameSemantics = []
-    open var videoHDRAllowed = false
-    open func copy(with zone: NSZone? = nil) -> Any {
+    @objc open var videoHDRAllowed = false
+    @objc open func copy(with zone: NSZone? = nil) -> Any {
         let c = (Swift.type(of: self) as NSObject.Type).init() as! ARConfiguration
         c.videoFormat = videoFormat; c.worldAlignment = worldAlignment; c.isLightEstimationEnabled = isLightEstimationEnabled
         c.providesAudioData = providesAudioData; c.frameSemantics = frameSemantics; c.videoHDRAllowed = videoHDRAllowed
         return c
     }
-    var _kind: String { "\(Swift.type(of: self))" }
+    @objc var _kind: String { "\(Swift.type(of: self))" }
 }
 
-@objc(ARWorldTrackingConfiguration) @objcMembers open class ARWorldTrackingConfiguration: ARConfiguration, @unchecked Sendable {
+@objc(ARWorldTrackingConfiguration) open class ARWorldTrackingConfiguration: ARConfiguration, @unchecked Sendable {
     public struct PlaneDetection: OptionSet, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -111,83 +111,83 @@ public struct ARError: CustomNSError, Hashable, Sendable {
         public static let vertical = PlaneDetection(rawValue: 1 << 1)
     }
     public enum EnvironmentTexturing: Int, Sendable { case none = 0, manual = 1, automatic = 2 }
-    public override init() { super.init() }
-    open override class var isSupported: Bool { false }
+    @objc public override init() { super.init() }
+    @objc open override class var isSupported: Bool { false }
     open class func supportsSceneReconstruction(_ sceneReconstruction: ARConfiguration.SceneReconstruction) -> Bool { false }
-    open class var supportsUserFaceTracking: Bool { false }
-    open class var supportsAppClipCodeTracking: Bool { false }
+    @objc open class var supportsUserFaceTracking: Bool { false }
+    @objc open class var supportsAppClipCodeTracking: Bool { false }
     open var planeDetection: PlaneDetection = []
-    open var detectionImages: Set<ARReferenceImage>! = []
-    open var detectionObjects: Set<ARReferenceObject> = []
-    open var maximumNumberOfTrackedImages = 0
-    open var automaticImageScaleEstimationEnabled = false
+    @objc open var detectionImages: Set<ARReferenceImage>! = []
+    @objc open var detectionObjects: Set<ARReferenceObject> = []
+    @objc open var maximumNumberOfTrackedImages = 0
+    @objc open var automaticImageScaleEstimationEnabled = false
     open var environmentTexturing: EnvironmentTexturing = .none
-    open var wantsHDREnvironmentTextures = true
+    @objc open var wantsHDREnvironmentTextures = true
     open var sceneReconstruction: ARConfiguration.SceneReconstruction = []
-    open var isAutoFocusEnabled = true
-    open var isCollaborationEnabled = false
-    open var userFaceTrackingEnabled = false
-    open var appClipCodeTrackingEnabled = false
-    open var initialWorldMap: ARWorldMap?
+    @objc open var isAutoFocusEnabled = true
+    @objc open var isCollaborationEnabled = false
+    @objc open var userFaceTrackingEnabled = false
+    @objc open var appClipCodeTrackingEnabled = false
+    @objc open var initialWorldMap: ARWorldMap?
 }
 
-@objc(AROrientationTrackingConfiguration) @objcMembers open class AROrientationTrackingConfiguration: ARConfiguration, @unchecked Sendable {
-    public override init() { super.init() }
-    open override class var isSupported: Bool { false }
-    open var isAutoFocusEnabled = true
+@objc(AROrientationTrackingConfiguration) open class AROrientationTrackingConfiguration: ARConfiguration, @unchecked Sendable {
+    @objc public override init() { super.init() }
+    @objc open override class var isSupported: Bool { false }
+    @objc open var isAutoFocusEnabled = true
 }
 
-@objc(ARFaceTrackingConfiguration) @objcMembers open class ARFaceTrackingConfiguration: ARConfiguration, @unchecked Sendable {
-    public override init() { super.init() }
-    open override class var isSupported: Bool { false }
-    open class var supportedNumberOfTrackedFaces: Int { 0 }
-    open class var supportsWorldTracking: Bool { false }
-    open var maximumNumberOfTrackedFaces = 1
-    open var isWorldTrackingEnabled = false
+@objc(ARFaceTrackingConfiguration) open class ARFaceTrackingConfiguration: ARConfiguration, @unchecked Sendable {
+    @objc public override init() { super.init() }
+    @objc open override class var isSupported: Bool { false }
+    @objc open class var supportedNumberOfTrackedFaces: Int { 0 }
+    @objc open class var supportsWorldTracking: Bool { false }
+    @objc open var maximumNumberOfTrackedFaces = 1
+    @objc open var isWorldTrackingEnabled = false
 }
 
-@objc(ARImageTrackingConfiguration) @objcMembers open class ARImageTrackingConfiguration: ARConfiguration, @unchecked Sendable {
-    public override init() { super.init() }
-    open override class var isSupported: Bool { false }
-    open var trackingImages: Set<ARReferenceImage> = []
-    open var maximumNumberOfTrackedImages = 1
-    open var isAutoFocusEnabled = true
+@objc(ARImageTrackingConfiguration) open class ARImageTrackingConfiguration: ARConfiguration, @unchecked Sendable {
+    @objc public override init() { super.init() }
+    @objc open override class var isSupported: Bool { false }
+    @objc open var trackingImages: Set<ARReferenceImage> = []
+    @objc open var maximumNumberOfTrackedImages = 1
+    @objc open var isAutoFocusEnabled = true
 }
 
-@objc(ARObjectScanningConfiguration) @objcMembers open class ARObjectScanningConfiguration: ARConfiguration, @unchecked Sendable {
-    public override init() { super.init() }
-    open override class var isSupported: Bool { false }
+@objc(ARObjectScanningConfiguration) open class ARObjectScanningConfiguration: ARConfiguration, @unchecked Sendable {
+    @objc public override init() { super.init() }
+    @objc open override class var isSupported: Bool { false }
     open var planeDetection: ARWorldTrackingConfiguration.PlaneDetection = []
-    open var isAutoFocusEnabled = true
+    @objc open var isAutoFocusEnabled = true
 }
 
-@objc(ARBodyTrackingConfiguration) @objcMembers open class ARBodyTrackingConfiguration: ARConfiguration, @unchecked Sendable {
-    public override init() { super.init() }
-    open override class var isSupported: Bool { false }
+@objc(ARBodyTrackingConfiguration) open class ARBodyTrackingConfiguration: ARConfiguration, @unchecked Sendable {
+    @objc public override init() { super.init() }
+    @objc open override class var isSupported: Bool { false }
     open var planeDetection: ARWorldTrackingConfiguration.PlaneDetection = []
-    open var detectionImages: Set<ARReferenceImage>! = []
-    open var maximumNumberOfTrackedImages = 0
-    open var automaticSkeletonScaleEstimationEnabled = false
-    open var isAutoFocusEnabled = true
-    open var initialWorldMap: ARWorldMap?
+    @objc open var detectionImages: Set<ARReferenceImage>! = []
+    @objc open var maximumNumberOfTrackedImages = 0
+    @objc open var automaticSkeletonScaleEstimationEnabled = false
+    @objc open var isAutoFocusEnabled = true
+    @objc open var initialWorldMap: ARWorldMap?
 }
 
-@objc(ARPositionalTrackingConfiguration) @objcMembers open class ARPositionalTrackingConfiguration: ARConfiguration, @unchecked Sendable {
-    public override init() { super.init() }
-    open override class var isSupported: Bool { false }
+@objc(ARPositionalTrackingConfiguration) open class ARPositionalTrackingConfiguration: ARConfiguration, @unchecked Sendable {
+    @objc public override init() { super.init() }
+    @objc open override class var isSupported: Bool { false }
     open var planeDetection: ARWorldTrackingConfiguration.PlaneDetection = []
-    open var initialWorldMap: ARWorldMap?
+    @objc open var initialWorldMap: ARWorldMap?
 }
 
-@objc(ARGeoTrackingConfiguration) @objcMembers open class ARGeoTrackingConfiguration: ARConfiguration, @unchecked Sendable {
-    public override init() { super.init() }
-    open override class var isSupported: Bool { false }
+@objc(ARGeoTrackingConfiguration) open class ARGeoTrackingConfiguration: ARConfiguration, @unchecked Sendable {
+    @objc public override init() { super.init() }
+    @objc open override class var isSupported: Bool { false }
     /// never available on isim
-    open class func checkAvailability(completionHandler: @escaping (Bool, Error?) -> Void) {
+    @objc open class func checkAvailability(completionHandler: @escaping (Bool, Error?) -> Void) {
         DispatchQueue.main.async { completionHandler(false, ARError(.unsupportedConfiguration)) }
     }
     open var planeDetection: ARWorldTrackingConfiguration.PlaneDetection = []
-    open var maximumNumberOfTrackedImages = 0
+    @objc open var maximumNumberOfTrackedImages = 0
 }
 
 // MARK: - the session
@@ -224,7 +224,7 @@ extension ARSessionDelegate {
 
 /// Runs a configuration. On isim (as in Apple's Simulator) no configuration is supported, so running one fails:
 /// the delegate and the session's views get `session(_:didFailWithError:)` with `ARError.unsupportedConfiguration`.
-@objc(ARSession) @objcMembers open class ARSession: NSObject, @unchecked Sendable {
+@objc(ARSession) open class ARSession: NSObject, @unchecked Sendable {
     public struct RunOptions: OptionSet, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -233,16 +233,16 @@ extension ARSessionDelegate {
         public static let stopTrackedRaycasts = RunOptions(rawValue: 1 << 2)
         public static let resetSceneReconstruction = RunOptions(rawValue: 1 << 3)
     }
-    public override init() { super.init() }
-    public let identifier = UUID()
+    @objc public override init() { super.init() }
+    @objc public let identifier = UUID()
     open weak var delegate: (any ARSessionDelegate)?
     open var delegateQueue: DispatchQueue?
-    open private(set) var configuration: ARConfiguration?
+    @objc open private(set) var configuration: ARConfiguration?
     /// always nil: no frames without camera tracking
-    open var currentFrame: ARFrame? { nil }
-    var _anchors: [ARAnchor] = []
+    @objc open var currentFrame: ARFrame? { nil }
+    @objc var _anchors: [ARAnchor] = []
     /// ARSCNView / ARSKView / ARCoachingOverlayView observing this session
-    var _views = NSHashTable<AnyObject>.weakObjects()
+    @objc var _views = NSHashTable<AnyObject>.weakObjects()
 
     open func run(_ configuration: ARConfiguration, options: RunOptions = []) {
         self.configuration = configuration.copy() as? ARConfiguration
@@ -250,25 +250,25 @@ extension ARSessionDelegate {
         NSLog("isim ARKit: %@ is not supported on this device (no camera tracking, as in the Simulator)", configuration._kind)
         _tell { $0.session(self, didFailWithError: ARError(.unsupportedConfiguration)) }
     }
-    open func pause() {}
-    open func add(anchor: ARAnchor) { _anchors.append(anchor) }
-    open func remove(anchor: ARAnchor) { _anchors.removeAll { $0.identifier == anchor.identifier } }
+    @objc open func pause() {}
+    @objc open func add(anchor: ARAnchor) { _anchors.append(anchor) }
+    @objc open func remove(anchor: ARAnchor) { _anchors.removeAll { $0.identifier == anchor.identifier } }
     open func setWorldOrigin(relativeTransform: simd_float4x4) {}
-    open func getCurrentWorldMap(completionHandler: @escaping (ARWorldMap?, Error?) -> Void) {
+    @objc open func getCurrentWorldMap(completionHandler: @escaping (ARWorldMap?, Error?) -> Void) {
         _on { completionHandler(nil, ARError(.invalidWorldMap)) }
     }
     open func createReferenceObject(transform: simd_float4x4, center: simd_float3, extent: simd_float3,
                                     completionHandler: @escaping (ARReferenceObject?, Error?) -> Void) {
         _on { completionHandler(nil, ARError(.insufficientFeatures)) }
     }
-    open func captureHighResolutionFrame(completion: @escaping (ARFrame?, Error?) -> Void) {
+    @objc open func captureHighResolutionFrame(completion: @escaping (ARFrame?, Error?) -> Void) {
         _on { completion(nil, ARError(.highResolutionFrameCaptureFailed)) }
     }
     /// no tracked world: nothing to hit
-    open func raycast(_ query: ARRaycastQuery) -> [ARRaycastResult] { [] }
-    open func trackedRaycast(_ query: ARRaycastQuery, updateHandler: @escaping ([ARRaycastResult]) -> Void) -> ARTrackedRaycast? { nil }
+    @objc open func raycast(_ query: ARRaycastQuery) -> [ARRaycastResult] { [] }
+    @objc open func trackedRaycast(_ query: ARRaycastQuery, updateHandler: @escaping ([ARRaycastResult]) -> Void) -> ARTrackedRaycast? { nil }
 
-    func _on(_ f: @escaping () -> Void) { (delegateQueue ?? .main).async(execute: f) }
+    @objc func _on(_ f: @escaping () -> Void) { (delegateQueue ?? .main).async(execute: f) }
     /// the delegate (on its queue), then the views' delegates on the main queue (ARSCNView and ARSKView forward
     /// session events to theirs)
     func _tell(_ f: @escaping (any ARSessionObserver) -> Void) {
@@ -287,27 +287,27 @@ protocol _ARSessionViewing: AnyObject { var _sessionObserver: (any ARSessionObse
 // MARK: - frames and cameras
 
 /// A captured video frame with its tracking state. isim's sessions produce none (no camera tracking).
-@objc(ARFrame) @objcMembers open class ARFrame: NSObject, NSCopying, @unchecked Sendable {
+@objc(ARFrame) open class ARFrame: NSObject, NSCopying, @unchecked Sendable {
     public enum WorldMappingStatus: Int, Sendable { case notAvailable = 0, limited = 1, extending = 2, mapped = 3 }
     public enum SegmentationClass: UInt8, Sendable { case none = 0, person = 255 }
-    public let timestamp: TimeInterval
+    @objc public let timestamp: TimeInterval
     public let capturedImage: CVPixelBuffer
-    public let camera: ARCamera
-    public let anchors: [ARAnchor]
+    @objc public let camera: ARCamera
+    @objc public let anchors: [ARAnchor]
     init(timestamp: TimeInterval, image: CVPixelBuffer, camera: ARCamera, anchors: [ARAnchor]) {
         self.timestamp = timestamp; capturedImage = image; self.camera = camera; self.anchors = anchors
     }
-    open var lightEstimate: ARLightEstimate? { nil }
-    open var rawFeaturePoints: ARPointCloud? { nil }
+    @objc open var lightEstimate: ARLightEstimate? { nil }
+    @objc open var rawFeaturePoints: ARPointCloud? { nil }
     open var worldMappingStatus: WorldMappingStatus { .notAvailable }
-    open var capturedDepthData: AnyObject? { nil }
-    open var capturedDepthDataTimestamp: TimeInterval { 0 }
+    @objc open var capturedDepthData: AnyObject? { nil }
+    @objc open var capturedDepthDataTimestamp: TimeInterval { 0 }
     open var segmentationBuffer: CVPixelBuffer? { nil }
     open var estimatedDepthData: CVPixelBuffer? { nil }
-    open var cameraGrainIntensity: Float { 0 }
-    open var exifData: [String: Any] { [:] }
+    @objc open var cameraGrainIntensity: Float { 0 }
+    @objc open var exifData: [String: Any] { [:] }
     /// maps normalized image coordinates to the viewport (the image is landscape-right, as the camera captures it)
-    open func displayTransform(for orientation: UIInterfaceOrientation, viewportSize: CGSize) -> CGAffineTransform {
+    @objc open func displayTransform(for orientation: UIInterfaceOrientation, viewportSize: CGSize) -> CGAffineTransform {
         let img = camera.imageResolution
         let portrait = orientation == .portrait || orientation == .portraitUpsideDown
         let w = portrait ? img.height : img.width, h = portrait ? img.width : img.height
@@ -321,11 +321,11 @@ protocol _ARSessionViewing: AnyObject { var _sessionObserver: (any ARSessionObse
         let d = camera._ray(point)
         return ARRaycastQuery(origin: d.0, direction: d.1, allowing: target, alignment: alignment)
     }
-    open func copy(with zone: NSZone? = nil) -> Any { self }
+    @objc open func copy(with zone: NSZone? = nil) -> Any { self }
 }
 
 /// The camera's pose and optics for a frame.
-@objc(ARCamera) @objcMembers open class ARCamera: NSObject, NSCopying, @unchecked Sendable {
+@objc(ARCamera) open class ARCamera: NSObject, NSCopying, @unchecked Sendable {
     public enum TrackingState: Equatable, Sendable {
         public enum Reason: Equatable, Sendable { case initializing, excessiveMotion, insufficientFeatures, relocalizing }
         case notAvailable
@@ -334,7 +334,7 @@ protocol _ARSessionViewing: AnyObject { var _sessionObserver: (any ARSessionObse
     }
     public let transform: simd_float4x4
     public let intrinsics: simd_float3x3
-    public let imageResolution: CGSize
+    @objc public let imageResolution: CGSize
     public let trackingState: TrackingState
     init(transform: simd_float4x4 = matrix_identity_float4x4, imageResolution: CGSize = CGSize(width: 1920, height: 1440),
          focalLength: Float = 1500, trackingState: TrackingState = .notAvailable) {
@@ -347,8 +347,8 @@ protocol _ARSessionViewing: AnyObject { var _sessionObserver: (any ARSessionObse
         let m = transform
         return simd_float3(asinf(-m[2, 1]), atan2f(m[2, 0], m[2, 2]), atan2f(m[0, 1], m[1, 1]))
     }
-    open var exposureDuration: TimeInterval { 1.0 / 60 }
-    open var exposureOffset: Float { 0 }
+    @objc open var exposureDuration: TimeInterval { 1.0 / 60 }
+    @objc open var exposureOffset: Float { 0 }
     open var projectionMatrix: simd_float4x4 {
         projectionMatrix(for: .landscapeRight, viewportSize: imageResolution, zNear: 0.001, zFar: 1000)
     }
@@ -387,32 +387,32 @@ protocol _ARSessionViewing: AnyObject { var _sessionObserver: (any ARSessionObse
         let w = transform * SIMD4(local, 0)
         return (SIMD3(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z), simd_normalize(SIMD3(w.x, w.y, w.z)))
     }
-    open func copy(with zone: NSZone? = nil) -> Any { self }
+    @objc open func copy(with zone: NSZone? = nil) -> Any { self }
 }
 
 enum _ARMath {
     static func inverse(_ m: simd_float4x4) -> simd_float4x4 { SCNMatrix4ToMat4(SCNMatrix4Invert(SCNMatrix4FromMat4(m))) }
 }
 
-@objc(ARLightEstimate) @objcMembers open class ARLightEstimate: NSObject, @unchecked Sendable {
+@objc(ARLightEstimate) open class ARLightEstimate: NSObject, @unchecked Sendable {
     /// lumens; 1000 is neutral
-    open internal(set) var ambientIntensity: CGFloat = 1000
+    @objc open internal(set) var ambientIntensity: CGFloat = 1000
     /// kelvin; 6500 is pure white
-    open internal(set) var ambientColorTemperature: CGFloat = 6500
+    @objc open internal(set) var ambientColorTemperature: CGFloat = 6500
 }
 
 /// Feature points the session found (isim's sessions find none).
-@objc(ARPointCloud) @objcMembers open class ARPointCloud: NSObject, NSSecureCoding, @unchecked Sendable {
+@objc(ARPointCloud) open class ARPointCloud: NSObject, NSSecureCoding, @unchecked Sendable {
     public let points: [simd_float3]
-    public let identifiers: [UInt64]
+    @objc public let identifiers: [UInt64]
     init(points: [simd_float3], identifiers: [UInt64]) { self.points = points; self.identifiers = identifiers }
-    open var count: Int { points.count }
-    public static var supportsSecureCoding: Bool { true }
-    open func encode(with coder: NSCoder) {
+    @objc open var count: Int { points.count }
+    @objc public static var supportsSecureCoding: Bool { true }
+    @objc open func encode(with coder: NSCoder) {
         coder.encode(points.flatMap { [$0.x, $0.y, $0.z] }.map(NSNumber.init(value:)), forKey: "points")
         coder.encode(identifiers.map(NSNumber.init(value:)), forKey: "ids")
     }
-    public required init?(coder: NSCoder) {
+    @objc public required init?(coder: NSCoder) {
         let p = (coder.decodeObject(of: [NSArray.self, NSNumber.self], forKey: "points") as? [NSNumber] ?? []).map { $0.floatValue }
         points = stride(from: 0, to: p.count - 2, by: 3).map { simd_float3(p[$0], p[$0 + 1], p[$0 + 2]) }
         identifiers = (coder.decodeObject(of: [NSArray.self, NSNumber.self], forKey: "ids") as? [NSNumber] ?? []).map { $0.uint64Value }
@@ -422,27 +422,27 @@ enum _ARMath {
 // MARK: - anchors
 
 /// A position and orientation in the world, added by the app or found by the session.
-@objc(ARAnchor) @objcMembers open class ARAnchor: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
-    public let identifier: UUID
-    public let name: String?
+@objc(ARAnchor) open class ARAnchor: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
+    @objc public let identifier: UUID
+    @objc public let name: String?
     public let transform: simd_float4x4
-    open internal(set) var sessionIdentifier: UUID?
+    @objc open internal(set) var sessionIdentifier: UUID?
     public init(transform: simd_float4x4) { identifier = UUID(); name = nil; self.transform = transform; super.init() }
     public init(name: String, transform: simd_float4x4) { identifier = UUID(); self.name = name; self.transform = transform; super.init() }
     /// a copy for an updated frame (subclasses call it from their copies)
-    public required init(anchor: ARAnchor) {
+    @objc public required init(anchor: ARAnchor) {
         identifier = anchor.identifier; name = anchor.name; transform = anchor.transform; sessionIdentifier = anchor.sessionIdentifier
         super.init()
     }
-    open func copy(with zone: NSZone? = nil) -> Any { Swift.type(of: self).init(anchor: self) }
-    public static var supportsSecureCoding: Bool { true }
-    open func encode(with coder: NSCoder) {
+    @objc open func copy(with zone: NSZone? = nil) -> Any { Swift.type(of: self).init(anchor: self) }
+    @objc public static var supportsSecureCoding: Bool { true }
+    @objc open func encode(with coder: NSCoder) {
         coder.encode(identifier.uuidString, forKey: "id")
         coder.encode(name, forKey: "name")
         let c = transform.columns
         coder.encode([c.0, c.1, c.2, c.3].flatMap { [$0.x, $0.y, $0.z, $0.w] }.map(NSNumber.init(value:)), forKey: "transform")
     }
-    public required init?(coder: NSCoder) {
+    @objc public required init?(coder: NSCoder) {
         identifier = (coder.decodeObject(of: NSString.self, forKey: "id") as String?).flatMap(UUID.init(uuidString:)) ?? UUID()
         name = coder.decodeObject(of: NSString.self, forKey: "name") as String?
         let v = (coder.decodeObject(of: [NSArray.self, NSNumber.self], forKey: "transform") as? [NSNumber] ?? []).map { $0.floatValue }
@@ -450,7 +450,7 @@ enum _ARMath {
                                                    SIMD4(v[8], v[9], v[10], v[11]), SIMD4(v[12], v[13], v[14], v[15])) : matrix_identity_float4x4
         super.init()
     }
-    open override var description: String { "<\(Swift.type(of: self)) identifier=\"\(identifier.uuidString)\"\(name.map { " name=\"\($0)\"" } ?? "")>" }
+    @objc open override var description: String { "<\(Swift.type(of: self)) identifier=\"\(identifier.uuidString)\"\(name.map { " name=\"\($0)\"" } ?? "")>" }
 }
 
 /// An anchor that the session tracks (images, faces, bodies).
@@ -459,72 +459,72 @@ public protocol ARTrackable: AnyObject {
 }
 
 /// A detected flat surface.
-@objc(ARPlaneAnchor) @objcMembers open class ARPlaneAnchor: ARAnchor, @unchecked Sendable {
+@objc(ARPlaneAnchor) open class ARPlaneAnchor: ARAnchor, @unchecked Sendable {
     public enum Alignment: Int, Sendable { case horizontal = 0, vertical = 1 }
     public enum Classification: Equatable, Sendable {
         public enum Status: Int, Sendable { case notAvailable = 0, undetermined = 1, unknown = 2 }
         case none(Status), wall, floor, ceiling, table, seat, window, door
     }
-    open class var isClassificationSupported: Bool { false }
+    @objc open class var isClassificationSupported: Bool { false }
     open internal(set) var alignment: Alignment = .horizontal
     open internal(set) var center = simd_float3()
-    open internal(set) var planeExtent = ARPlaneExtent()
-    open internal(set) var geometry = ARPlaneGeometry()
+    @objc open internal(set) var planeExtent = ARPlaneExtent()
+    @objc open internal(set) var geometry = ARPlaneGeometry()
     open internal(set) var classification: Classification = .none(.notAvailable)
-    public required init(anchor: ARAnchor) {
+    @objc public required init(anchor: ARAnchor) {
         super.init(anchor: anchor)
         if let p = anchor as? ARPlaneAnchor { alignment = p.alignment; center = p.center; planeExtent = p.planeExtent; classification = p.classification }
     }
-    public required init?(coder: NSCoder) { super.init(coder: coder) }
+    @objc public required init?(coder: NSCoder) { super.init(coder: coder) }
 }
 
-@objc(ARPlaneExtent) @objcMembers open class ARPlaneExtent: NSObject, NSSecureCoding, @unchecked Sendable {
-    open internal(set) var width: Float = 0
-    open internal(set) var height: Float = 0
-    open internal(set) var rotationOnYAxis: Float = 0
-    override init() { super.init() }
-    public static var supportsSecureCoding: Bool { true }
-    open func encode(with coder: NSCoder) { coder.encode(width, forKey: "w"); coder.encode(height, forKey: "h"); coder.encode(rotationOnYAxis, forKey: "r") }
-    public required init?(coder: NSCoder) { width = coder.decodeFloat(forKey: "w"); height = coder.decodeFloat(forKey: "h"); rotationOnYAxis = coder.decodeFloat(forKey: "r") }
+@objc(ARPlaneExtent) open class ARPlaneExtent: NSObject, NSSecureCoding, @unchecked Sendable {
+    @objc open internal(set) var width: Float = 0
+    @objc open internal(set) var height: Float = 0
+    @objc open internal(set) var rotationOnYAxis: Float = 0
+    @objc override init() { super.init() }
+    @objc public static var supportsSecureCoding: Bool { true }
+    @objc open func encode(with coder: NSCoder) { coder.encode(width, forKey: "w"); coder.encode(height, forKey: "h"); coder.encode(rotationOnYAxis, forKey: "r") }
+    @objc public required init?(coder: NSCoder) { width = coder.decodeFloat(forKey: "w"); height = coder.decodeFloat(forKey: "h"); rotationOnYAxis = coder.decodeFloat(forKey: "r") }
 }
 
-@objc(ARPlaneGeometry) @objcMembers open class ARPlaneGeometry: NSObject, NSSecureCoding, @unchecked Sendable {
+@objc(ARPlaneGeometry) open class ARPlaneGeometry: NSObject, NSSecureCoding, @unchecked Sendable {
     open internal(set) var vertices: [simd_float3] = []
     open internal(set) var textureCoordinates: [simd_float2] = []
     open internal(set) var triangleIndices: [Int16] = []
     open internal(set) var boundaryVertices: [simd_float3] = []
-    open var vertexCount: Int { vertices.count }
-    open var triangleCount: Int { triangleIndices.count / 3 }
-    override init() { super.init() }
-    public static var supportsSecureCoding: Bool { true }
-    open func encode(with coder: NSCoder) {}
-    public required init?(coder: NSCoder) {}
+    @objc open var vertexCount: Int { vertices.count }
+    @objc open var triangleCount: Int { triangleIndices.count / 3 }
+    @objc override init() { super.init() }
+    @objc public static var supportsSecureCoding: Bool { true }
+    @objc open func encode(with coder: NSCoder) {}
+    @objc public required init?(coder: NSCoder) {}
 }
 
 /// A detected reference image.
-@objc(ARImageAnchor) @objcMembers open class ARImageAnchor: ARAnchor, ARTrackable, @unchecked Sendable {
-    open internal(set) var referenceImage = ARReferenceImage._empty
-    open internal(set) var estimatedScaleFactor: CGFloat = 1
-    open internal(set) var isTracked = false
-    public required init(anchor: ARAnchor) {
+@objc(ARImageAnchor) open class ARImageAnchor: ARAnchor, ARTrackable, @unchecked Sendable {
+    @objc open internal(set) var referenceImage = ARReferenceImage._empty
+    @objc open internal(set) var estimatedScaleFactor: CGFloat = 1
+    @objc open internal(set) var isTracked = false
+    @objc public required init(anchor: ARAnchor) {
         super.init(anchor: anchor)
         if let a = anchor as? ARImageAnchor { referenceImage = a.referenceImage; estimatedScaleFactor = a.estimatedScaleFactor; isTracked = a.isTracked }
     }
-    public required init?(coder: NSCoder) { super.init(coder: coder) }
+    @objc public required init?(coder: NSCoder) { super.init(coder: coder) }
 }
 
 /// A detected reference object.
-@objc(ARObjectAnchor) @objcMembers open class ARObjectAnchor: ARAnchor, @unchecked Sendable {
-    open internal(set) var referenceObject = ARReferenceObject()
-    public required init(anchor: ARAnchor) {
+@objc(ARObjectAnchor) open class ARObjectAnchor: ARAnchor, @unchecked Sendable {
+    @objc open internal(set) var referenceObject = ARReferenceObject()
+    @objc public required init(anchor: ARAnchor) {
         super.init(anchor: anchor)
         if let a = anchor as? ARObjectAnchor { referenceObject = a.referenceObject }
     }
-    public required init?(coder: NSCoder) { super.init(coder: coder) }
+    @objc public required init?(coder: NSCoder) { super.init(coder: coder) }
 }
 
 /// A tracked face, with its expression.
-@objc(ARFaceAnchor) @objcMembers open class ARFaceAnchor: ARAnchor, ARTrackable, @unchecked Sendable {
+@objc(ARFaceAnchor) open class ARFaceAnchor: ARAnchor, ARTrackable, @unchecked Sendable {
     public struct BlendShapeLocation: RawRepresentable, Hashable, Sendable {
         public let rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -541,27 +541,27 @@ public protocol ARTrackable: AnyObject {
     open internal(set) var leftEyeTransform = matrix_identity_float4x4
     open internal(set) var rightEyeTransform = matrix_identity_float4x4
     open internal(set) var lookAtPoint = simd_float3()
-    open internal(set) var isTracked = false
-    public required init(anchor: ARAnchor) {
+    @objc open internal(set) var isTracked = false
+    @objc public required init(anchor: ARAnchor) {
         super.init(anchor: anchor)
         if let a = anchor as? ARFaceAnchor { blendShapes = a.blendShapes; isTracked = a.isTracked; lookAtPoint = a.lookAtPoint }
     }
-    public required init?(coder: NSCoder) { super.init(coder: coder) }
+    @objc public required init?(coder: NSCoder) { super.init(coder: coder) }
 }
 
 /// An environment probe for reflections.
-@objc(AREnvironmentProbeAnchor) @objcMembers open class AREnvironmentProbeAnchor: ARAnchor, @unchecked Sendable {
+@objc(AREnvironmentProbeAnchor) open class AREnvironmentProbeAnchor: ARAnchor, @unchecked Sendable {
     public init(transform: simd_float4x4, extent: simd_float3) { self.extent = extent; super.init(transform: transform) }
     public init(name: String, transform: simd_float4x4, extent: simd_float3) { self.extent = extent; super.init(name: name, transform: transform) }
     public let extent: simd_float3
-    open var environmentTexture: AnyObject? { nil }
-    public required init(anchor: ARAnchor) { extent = (anchor as? AREnvironmentProbeAnchor)?.extent ?? simd_float3(); super.init(anchor: anchor) }
-    public required init?(coder: NSCoder) { extent = simd_float3(); super.init(coder: coder) }
+    @objc open var environmentTexture: AnyObject? { nil }
+    @objc public required init(anchor: ARAnchor) { extent = (anchor as? AREnvironmentProbeAnchor)?.extent ?? simd_float3(); super.init(anchor: anchor) }
+    @objc public required init?(coder: NSCoder) { extent = simd_float3(); super.init(coder: coder) }
 }
 
 // MARK: - raycasting
 
-@objc(ARRaycastQuery) @objcMembers open class ARRaycastQuery: NSObject, @unchecked Sendable {
+@objc(ARRaycastQuery) open class ARRaycastQuery: NSObject, @unchecked Sendable {
     public enum Target: Int, Sendable { case existingPlaneGeometry = 0, existingPlaneInfinite = 1, estimatedPlane = 2 }
     public enum TargetAlignment: Int, Sendable { case horizontal = 0, vertical = 1, any = 2 }
     public let origin: simd_float3
@@ -573,35 +573,35 @@ public protocol ARTrackable: AnyObject {
     }
 }
 
-@objc(ARRaycastResult) @objcMembers open class ARRaycastResult: NSObject, @unchecked Sendable {
+@objc(ARRaycastResult) open class ARRaycastResult: NSObject, @unchecked Sendable {
     public let worldTransform: simd_float4x4
     public let target: ARRaycastQuery.Target
     public let targetAlignment: ARRaycastQuery.TargetAlignment
-    public let anchor: ARAnchor?
+    @objc public let anchor: ARAnchor?
     init(worldTransform: simd_float4x4, target: ARRaycastQuery.Target, alignment: ARRaycastQuery.TargetAlignment, anchor: ARAnchor?) {
         self.worldTransform = worldTransform; self.target = target; targetAlignment = alignment; self.anchor = anchor
     }
 }
 
-@objc(ARTrackedRaycast) @objcMembers open class ARTrackedRaycast: NSObject, @unchecked Sendable {
-    open func stopTracking() {}
+@objc(ARTrackedRaycast) open class ARTrackedRaycast: NSObject, @unchecked Sendable {
+    @objc open func stopTracking() {}
 }
 
 // MARK: - reference images, objects and world maps
 
 /// An image for the session to detect.
-@objc(ARReferenceImage) @objcMembers open class ARReferenceImage: NSObject, @unchecked Sendable {
-    open var name: String?
-    public let physicalSize: CGSize
-    open internal(set) var resourceGroupName: String?
-    let _pixels: CGSize
-    static let _empty = ARReferenceImage(size: .zero, physicalWidth: 0)
-    init(size: CGSize, physicalWidth: CGFloat) {
+@objc(ARReferenceImage) open class ARReferenceImage: NSObject, @unchecked Sendable {
+    @objc open var name: String?
+    @objc public let physicalSize: CGSize
+    @objc open internal(set) var resourceGroupName: String?
+    @objc let _pixels: CGSize
+    @objc static let _empty = ARReferenceImage(size: .zero, physicalWidth: 0)
+    @objc init(size: CGSize, physicalWidth: CGFloat) {
         _pixels = size
         physicalSize = CGSize(width: physicalWidth, height: size.width > 0 ? physicalWidth * size.height / size.width : 0)
         super.init()
     }
-    public convenience init(_ image: CGImage, orientation: CGImagePropertyOrientation, physicalWidth: CGFloat) {
+    @objc public convenience init(_ image: CGImage, orientation: CGImagePropertyOrientation, physicalWidth: CGFloat) {
         let rotated = orientation.rawValue >= 5                // left / right orientations swap width and height
         self.init(size: rotated ? CGSize(width: image.height, height: image.width) : CGSize(width: image.width, height: image.height), physicalWidth: physicalWidth)
     }
@@ -611,32 +611,32 @@ public protocol ARTrackable: AnyObject {
         self.init(size: rotated ? CGSize(width: h, height: w) : CGSize(width: w, height: h), physicalWidth: physicalWidth)
     }
     /// The AR resource group's images from the asset catalog. isim's asset catalogs carry no AR groups: nil.
-    open class func referenceImages(inGroupNamed name: String, bundle: Bundle?) -> Set<ARReferenceImage>? { nil }
+    @objc open class func referenceImages(inGroupNamed name: String, bundle: Bundle?) -> Set<ARReferenceImage>? { nil }
     /// checks the image is usable for detection (isim: big enough, a positive physical size)
-    open func validate(completionHandler: @escaping (Error?) -> Void) {
+    @objc open func validate(completionHandler: @escaping (Error?) -> Void) {
         let ok = _pixels.width >= 64 && _pixels.height >= 64 && physicalSize.width > 0
         DispatchQueue.main.async { completionHandler(ok ? nil : ARError(.invalidReferenceImage)) }
     }
 }
 
 /// A scanned 3D object for the session to detect.
-@objc(ARReferenceObject) @objcMembers open class ARReferenceObject: NSObject, NSSecureCoding, @unchecked Sendable {
-    open var name: String?
+@objc(ARReferenceObject) open class ARReferenceObject: NSObject, NSSecureCoding, @unchecked Sendable {
+    @objc open var name: String?
     open internal(set) var center = simd_float3()
     open internal(set) var extent = simd_float3()
     open internal(set) var scale = simd_float3(1, 1, 1)
-    open internal(set) var rawFeaturePoints = ARPointCloud(points: [], identifiers: [])
-    open internal(set) var resourceGroupName: String?
-    override init() { super.init() }
-    public static let archiveExtension = "arobject"
-    public convenience init(archiveURL url: URL) throws {
+    @objc open internal(set) var rawFeaturePoints = ARPointCloud(points: [], identifiers: [])
+    @objc open internal(set) var resourceGroupName: String?
+    @objc override init() { super.init() }
+    @objc public static let archiveExtension = "arobject"
+    @objc public convenience init(archiveURL url: URL) throws {
         guard let d = try? Data(contentsOf: url), let o = try? NSKeyedUnarchiver.unarchivedObject(ofClass: ARReferenceObject.self, from: d) else {
             throw ARError(.invalidReferenceObject)
         }
         self.init(); name = o.name; center = o.center; extent = o.extent
     }
-    open class func referenceObjects(inGroupNamed name: String, bundle: Bundle?) -> Set<ARReferenceObject>? { nil }
-    open func export(to url: URL, previewImage: UIImage?) throws {
+    @objc open class func referenceObjects(inGroupNamed name: String, bundle: Bundle?) -> Set<ARReferenceObject>? { nil }
+    @objc open func export(to url: URL, previewImage: UIImage?) throws {
         let d = try NSKeyedArchiver.archivedData(withRootObject: self, requiringSecureCoding: true)
         do { try d.write(to: url) } catch { throw ARError(.fileIOFailed) }
     }
@@ -645,13 +645,13 @@ public protocol ARTrackable: AnyObject {
         let c = transform * SIMD4(center, 1); o.center = SIMD3(c.x, c.y, c.z); o.extent = extent
         return o
     }
-    open func merging(_ object: ARReferenceObject) throws -> ARReferenceObject { throw ARError(.objectMergeFailed) }
-    public static var supportsSecureCoding: Bool { true }
-    open func encode(with coder: NSCoder) {
+    @objc open func merging(_ object: ARReferenceObject) throws -> ARReferenceObject { throw ARError(.objectMergeFailed) }
+    @objc public static var supportsSecureCoding: Bool { true }
+    @objc open func encode(with coder: NSCoder) {
         coder.encode(name, forKey: "name")
         coder.encode([center.x, center.y, center.z, extent.x, extent.y, extent.z].map(NSNumber.init(value:)), forKey: "box")
     }
-    public required init?(coder: NSCoder) {
+    @objc public required init?(coder: NSCoder) {
         name = coder.decodeObject(of: NSString.self, forKey: "name") as String?
         let v = (coder.decodeObject(of: [NSArray.self, NSNumber.self], forKey: "box") as? [NSNumber] ?? []).map { $0.floatValue }
         if v.count == 6 { center = SIMD3(v[0], v[1], v[2]); extent = SIMD3(v[3], v[4], v[5]) }
@@ -660,16 +660,16 @@ public protocol ARTrackable: AnyObject {
 }
 
 /// A saved world: anchors and feature points (isim's sessions never produce one; archived maps decode).
-@objc(ARWorldMap) @objcMembers open class ARWorldMap: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
-    open var anchors: [ARAnchor] = []
+@objc(ARWorldMap) open class ARWorldMap: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
+    @objc open var anchors: [ARAnchor] = []
     open internal(set) var center = simd_float3()
     open internal(set) var extent = simd_float3()
-    open internal(set) var rawFeaturePoints = ARPointCloud(points: [], identifiers: [])
-    override init() { super.init() }
-    open func copy(with zone: NSZone? = nil) -> Any { let m = ARWorldMap(); m.anchors = anchors; m.center = center; m.extent = extent; return m }
-    public static var supportsSecureCoding: Bool { true }
-    open func encode(with coder: NSCoder) { coder.encode(anchors, forKey: "anchors") }
-    public required init?(coder: NSCoder) {
+    @objc open internal(set) var rawFeaturePoints = ARPointCloud(points: [], identifiers: [])
+    @objc override init() { super.init() }
+    @objc open func copy(with zone: NSZone? = nil) -> Any { let m = ARWorldMap(); m.anchors = anchors; m.center = center; m.extent = extent; return m }
+    @objc public static var supportsSecureCoding: Bool { true }
+    @objc open func encode(with coder: NSCoder) { coder.encode(anchors, forKey: "anchors") }
+    @objc public required init?(coder: NSCoder) {
         anchors = coder.decodeObject(of: [NSArray.self, ARAnchor.self], forKey: "anchors") as? [ARAnchor] ?? []
         super.init()
     }
@@ -695,24 +695,24 @@ extension ARSCNViewDelegate {
 /// SceneKit content over the camera feed. On isim there is no camera feed (the session fails, as in the
 /// Simulator), and SceneKit draws nothing yet (#330): the view shows black. Its delegate gets the session's events.
 /// Adapted: `delegate` keeps SCNView's type (any SCNSceneRendererDelegate), since Swift cannot narrow it.
-@MainActor @objc(ARSCNView) @objcMembers open class ARSCNView: SCNView, _ARSessionViewing {
-    public override init(frame: CGRect) { super.init(frame: frame); _setUp() }
-    public override init(frame: CGRect, options: [String: Any]? = nil) { super.init(frame: frame, options: options); _setUp() }
-    public required init?(coder: NSCoder) { super.init(coder: coder); _setUp() }
-    func _setUp() { backgroundColor = .black; scene = SCNScene(); session._views.add(self) }
-    open var session = ARSession() {
+@MainActor @objc(ARSCNView) open class ARSCNView: SCNView, _ARSessionViewing {
+    @objc public override init(frame: CGRect) { super.init(frame: frame); _setUp() }
+    @objc public override init(frame: CGRect, options: [String: Any]? = nil) { super.init(frame: frame, options: options); _setUp() }
+    @objc public required init?(coder: NSCoder) { super.init(coder: coder); _setUp() }
+    @objc func _setUp() { backgroundColor = .black; scene = SCNScene(); session._views.add(self) }
+    @objc open var session = ARSession() {
         didSet { oldValue._views.remove(self); session._views.add(self) }
     }
-    open var automaticallyUpdatesLighting = true
-    open var rendersCameraGrain = true
-    open var rendersMotionBlur = false
+    @objc open var automaticallyUpdatesLighting = true
+    @objc open var rendersCameraGrain = true
+    @objc open var rendersMotionBlur = false
     nonisolated var _sessionObserver: (any ARSessionObserver)? { MainActor.assumeIsolated { delegate as? any ARSessionObserver } }
-    var _nodes: [UUID: SCNNode] = [:]
-    open func anchor(for node: SCNNode) -> ARAnchor? {
+    @objc var _nodes: [UUID: SCNNode] = [:]
+    @objc open func anchor(for node: SCNNode) -> ARAnchor? {
         guard let id = _nodes.first(where: { $0.value === node })?.key else { return nil }
         return session._anchors.first { $0.identifier == id }
     }
-    open func node(for anchor: ARAnchor) -> SCNNode? { _nodes[anchor.identifier] }
+    @objc open func node(for anchor: ARAnchor) -> SCNNode? { _nodes[anchor.identifier] }
     open func raycastQuery(from point: CGPoint, allowing target: ARRaycastQuery.Target, alignment: ARRaycastQuery.TargetAlignment) -> ARRaycastQuery? {
         session.currentFrame?.raycastQuery(from: point, allowing: target, alignment: alignment)
     }
@@ -737,16 +737,16 @@ extension ARSKViewDelegate {
 }
 
 /// SpriteKit content over the camera feed (no camera feed on isim: the scene draws over black).
-@MainActor @objc(ARSKView) @objcMembers open class ARSKView: SKView, _ARSessionViewing {
-    public override init(frame: CGRect) { super.init(frame: frame); _setUp() }
-    public required init?(coder: NSCoder) { super.init(coder: coder); _setUp() }
-    func _setUp() { backgroundColor = .black; session._views.add(self) }
-    open var session = ARSession() {
+@MainActor @objc(ARSKView) open class ARSKView: SKView, _ARSessionViewing {
+    @objc public override init(frame: CGRect) { super.init(frame: frame); _setUp() }
+    @objc public required init?(coder: NSCoder) { super.init(coder: coder); _setUp() }
+    @objc func _setUp() { backgroundColor = .black; session._views.add(self) }
+    @objc open var session = ARSession() {
         didSet { oldValue._views.remove(self); session._views.add(self) }
     }
     nonisolated var _sessionObserver: (any ARSessionObserver)? { MainActor.assumeIsolated { delegate as? any ARSessionObserver } }
-    open func anchor(for node: SKNode) -> ARAnchor? { nil }
-    open func node(for anchor: ARAnchor) -> SKNode? { nil }
+    @objc open func anchor(for node: SKNode) -> ARAnchor? { nil }
+    @objc open func node(for anchor: ARAnchor) -> SKNode? { nil }
 }
 
 public protocol ARCoachingOverlayViewDelegate: AnyObject {
@@ -762,25 +762,25 @@ extension ARCoachingOverlayViewDelegate {
 
 /// The "move your device" coaching overlay. Adapted: with no tracking it never activates on its own; `setActive`
 /// shows it (a translucent panel with the goal's instruction).
-@MainActor @objc(ARCoachingOverlayView) @objcMembers open class ARCoachingOverlayView: UIView {
+@MainActor @objc(ARCoachingOverlayView) open class ARCoachingOverlayView: UIView {
     public enum Goal: Int, Sendable { case tracking = 0, horizontalPlane = 1, verticalPlane = 2, anyPlane = 3, geoTracking = 4 }
-    public override init(frame: CGRect) { super.init(frame: frame); _setUp() }
-    public required init?(coder: NSCoder) { super.init(coder: coder); _setUp() }
+    @objc public override init(frame: CGRect) { super.init(frame: frame); _setUp() }
+    @objc public required init?(coder: NSCoder) { super.init(coder: coder); _setUp() }
     open weak var delegate: (any ARCoachingOverlayViewDelegate)?
-    open var session: ARSession?
+    @objc open var session: ARSession?
     open weak var sessionProvider: (any ARSessionProviding)?
     open var goal: Goal = .tracking { didSet { _label.text = _text } }
-    open var activatesAutomatically = true
-    open private(set) var isActive = false
-    let _label = UILabel()
-    func _setUp() {
+    @objc open var activatesAutomatically = true
+    @objc open private(set) var isActive = false
+    @objc let _label = UILabel()
+    @objc func _setUp() {
         isHidden = true
         backgroundColor = UIColor(white: 0, alpha: 0.55)
         _label.textColor = .white; _label.font = .systemFont(ofSize: 17, weight: .semibold)
         _label.textAlignment = .center; _label.numberOfLines = 0; _label.text = _text
         addSubview(_label)
     }
-    var _text: String {
+    @objc var _text: String {
         switch goal {
         case .horizontalPlane: return "Move iPhone to start\nFind a flat surface"
         case .verticalPlane: return "Move iPhone to start\nFind a wall"
@@ -789,8 +789,8 @@ extension ARCoachingOverlayViewDelegate {
         default: return "Move iPhone to start"
         }
     }
-    open override func layoutSubviews() { super.layoutSubviews(); _label.frame = bounds.insetBy(dx: 24, dy: 0) }
-    open func setActive(_ active: Bool, animated: Bool) {
+    @objc open override func layoutSubviews() { super.layoutSubviews(); _label.frame = bounds.insetBy(dx: 24, dy: 0) }
+    @objc open func setActive(_ active: Bool, animated: Bool) {
         guard active != isActive else { return }
         if active { delegate?.coachingOverlayViewWillActivate(self) }
         isActive = active; isHidden = !active
