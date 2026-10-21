@@ -6,9 +6,9 @@ import Foundation
 /// Foundation together with Operation/OperationQueue)
 public enum QualityOfService: Int, Sendable { case userInteractive = 0x21, userInitiated = 0x19, utility = 0x11, background = 0x09, `default` = -1 }
 
-open class CKOperation: NSObject, @unchecked Sendable {
+@objc(CKOperation) @objcMembers open class CKOperation: NSObject, @unchecked Sendable {
     public typealias ID = String
-    open class Configuration: NSObject, @unchecked Sendable {
+    @objc(CKOperationConfiguration) @objcMembers open class Configuration: NSObject, @unchecked Sendable {
         open var container: CKContainer?
         open var qualityOfService: QualityOfService = .default
         open var allowsCellularAccess = true
@@ -42,17 +42,17 @@ open class CKOperation: NSObject, @unchecked Sendable {
     var cancelledError: Error { CKError(.operationCancelled) }
 }
 
-open class CKDatabaseOperation: CKOperation, @unchecked Sendable {
+@objc(CKDatabaseOperation) @objcMembers open class CKDatabaseOperation: CKOperation, @unchecked Sendable {
     open var database: CKDatabase?
     var db: CKDatabase { database ?? (container ?? CKContainer.default()).privateCloudDatabase }
 }
 
 // MARK: - Query
 
-open class CKQueryOperation: CKDatabaseOperation, @unchecked Sendable {
+@objc(CKQueryOperation) @objcMembers open class CKQueryOperation: CKDatabaseOperation, @unchecked Sendable {
     public static let maximumResults = 0
     static let defaultPage = 100
-    open class Cursor: NSObject, @unchecked Sendable {
+    @objc(CKQueryCursor) @objcMembers open class Cursor: NSObject, @unchecked Sendable {
         let query: CKQuery, zoneID: CKRecordZone.ID?, offset: Int
         init(_ q: CKQuery, _ z: CKRecordZone.ID?, _ o: Int) { query = q; zoneID = z; offset = o }
     }
@@ -92,7 +92,7 @@ open class CKQueryOperation: CKDatabaseOperation, @unchecked Sendable {
 
 // MARK: - Modify / fetch records
 
-open class CKModifyRecordsOperation: CKDatabaseOperation, @unchecked Sendable {
+@objc(CKModifyRecordsOperation) @objcMembers open class CKModifyRecordsOperation: CKDatabaseOperation, @unchecked Sendable {
     public enum RecordSavePolicy: Int, Sendable { case ifServerRecordUnchanged = 0, changedKeys = 1, allKeys = 2 }
     open var recordsToSave: [CKRecord]?
     open var recordIDsToDelete: [CKRecord.ID]?
@@ -141,7 +141,7 @@ open class CKModifyRecordsOperation: CKDatabaseOperation, @unchecked Sendable {
     }
 }
 
-open class CKFetchRecordsOperation: CKDatabaseOperation, @unchecked Sendable {
+@objc(CKFetchRecordsOperation) @objcMembers open class CKFetchRecordsOperation: CKDatabaseOperation, @unchecked Sendable {
     open var recordIDs: [CKRecord.ID]?
     open var desiredKeys: [CKRecord.FieldKey]?
     open var perRecordResultBlock: ((CKRecord.ID, Result<CKRecord, Error>) -> Void)?
@@ -177,7 +177,7 @@ open class CKFetchRecordsOperation: CKDatabaseOperation, @unchecked Sendable {
 
 // MARK: - Zones and subscriptions
 
-open class CKModifyRecordZonesOperation: CKDatabaseOperation, @unchecked Sendable {
+@objc(CKModifyRecordZonesOperation) @objcMembers open class CKModifyRecordZonesOperation: CKDatabaseOperation, @unchecked Sendable {
     open var recordZonesToSave: [CKRecordZone]?
     open var recordZoneIDsToDelete: [CKRecordZone.ID]?
     open var perRecordZoneSaveBlock: ((CKRecordZone.ID, Result<CKRecordZone, Error>) -> Void)?
@@ -205,7 +205,7 @@ open class CKModifyRecordZonesOperation: CKDatabaseOperation, @unchecked Sendabl
     }
 }
 
-open class CKModifySubscriptionsOperation: CKDatabaseOperation, @unchecked Sendable {
+@objc(CKModifySubscriptionsOperation) @objcMembers open class CKModifySubscriptionsOperation: CKDatabaseOperation, @unchecked Sendable {
     open var subscriptionsToSave: [CKSubscription]?
     open var subscriptionIDsToDelete: [CKSubscription.ID]?
     open var perSubscriptionSaveBlock: ((CKSubscription.ID, Result<CKSubscription, Error>) -> Void)?
@@ -236,7 +236,7 @@ open class CKModifySubscriptionsOperation: CKDatabaseOperation, @unchecked Senda
 // MARK: - Change tracking
 
 /// a position in the database's change history (opaque; isim: a sequence number)
-open class CKServerChangeToken: NSObject, NSCopying, NSCoding, @unchecked Sendable {
+@objc(CKServerChangeToken) @objcMembers open class CKServerChangeToken: NSObject, NSCopying, NSCoding, @unchecked Sendable {
     let seq: Int
     init(_ s: Int) { seq = s }
     open func copy(with zone: OpaquePointer? = nil) -> Any { self }
@@ -247,7 +247,7 @@ open class CKServerChangeToken: NSObject, NSCopying, NSCoding, @unchecked Sendab
     open func encode(with coder: NSCoder) { coder.encode(seq, forKey: "seq") }
 }
 
-open class CKFetchDatabaseChangesOperation: CKDatabaseOperation, @unchecked Sendable {
+@objc(CKFetchDatabaseChangesOperation) @objcMembers open class CKFetchDatabaseChangesOperation: CKDatabaseOperation, @unchecked Sendable {
     open var previousServerChangeToken: CKServerChangeToken?
     open var resultsLimit = 0
     open var fetchAllChanges = true
@@ -283,8 +283,8 @@ open class CKFetchDatabaseChangesOperation: CKDatabaseOperation, @unchecked Send
     }
 }
 
-open class CKFetchRecordZoneChangesOperation: CKDatabaseOperation, @unchecked Sendable {
-    open class ZoneConfiguration: NSObject, @unchecked Sendable {
+@objc(CKFetchRecordZoneChangesOperation) @objcMembers open class CKFetchRecordZoneChangesOperation: CKDatabaseOperation, @unchecked Sendable {
+    @objc(CKFetchRecordZoneChangesConfiguration) @objcMembers open class ZoneConfiguration: NSObject, @unchecked Sendable {
         open var previousServerChangeToken: CKServerChangeToken?
         open var resultsLimit = 0
         open var desiredKeys: [CKRecord.FieldKey]?

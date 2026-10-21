@@ -14,7 +14,7 @@ extension CKSyncEngineDelegate {
 }
 
 /// A group of related operations (CloudKit's telemetry and default configuration for them); isim keeps the values.
-open class CKOperationGroup: NSObject, NSSecureCoding, @unchecked Sendable {
+@objc(CKOperationGroup) @objcMembers open class CKOperationGroup: NSObject, NSSecureCoding, @unchecked Sendable {
     public enum TransferSize: Int, Sendable {
         case unknown = 0, kilobytes = 1, megabytes = 2, tensOfMegabytes = 3, hundredsOfMegabytes = 4, gigabytes = 5, tensOfGigabytes = 6, hundredsOfGigabytes = 7
     }
@@ -359,10 +359,10 @@ public final class CKSyncEngine: @unchecked Sendable {
         }
     }
 
-    public func fetchChanges(_ options: FetchChangesOptions = FetchChangesOptions()) async throws { try await fetch(options, reason: .manual) }
-    public func sendChanges(_ options: SendChangesOptions = SendChangesOptions()) async throws { try await send(options, reason: .manual) }
+    @nonobjc public func fetchChanges(_ options: FetchChangesOptions = FetchChangesOptions()) async throws { try await fetch(options, reason: .manual) }
+    @nonobjc public func sendChanges(_ options: SendChangesOptions = SendChangesOptions()) async throws { try await send(options, reason: .manual) }
     /// Cancels the automatic syncs that are scheduled (isim's syncs run to completion once started).
-    public func cancelOperations() async { lock.lock(); cancelled = true; sendScheduled = false; lock.unlock() }
+    @nonobjc public func cancelOperations() async { lock.lock(); cancelled = true; sendScheduled = false; lock.unlock() }
 
     func scheduleSend() {
         guard automaticallySync else { return }

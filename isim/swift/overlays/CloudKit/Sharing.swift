@@ -5,8 +5,8 @@ import UIKit
 
 public let CKRecordTypeShare = "cloudkit.share"
 
-open class CKUserIdentity: NSObject, @unchecked Sendable {
-    open class LookupInfo: NSObject, @unchecked Sendable {
+@objc(CKUserIdentity) @objcMembers open class CKUserIdentity: NSObject, @unchecked Sendable {
+    @objc(CKUserIdentityLookupInfo) @objcMembers open class LookupInfo: NSObject, @unchecked Sendable {
         public let emailAddress: String?
         public let phoneNumber: String?
         public let userRecordID: CKRecord.ID?
@@ -23,11 +23,11 @@ open class CKUserIdentity: NSObject, @unchecked Sendable {
     }
 }
 
-open class CKShare: CKRecord, @unchecked Sendable {
+@objc(CKShare) @objcMembers open class CKShare: CKRecord, @unchecked Sendable {
     public enum ParticipantAcceptanceStatus: Int, Sendable { case unknown = 0, pending = 1, accepted = 2, removed = 3 }
     public enum ParticipantPermission: Int, Sendable { case unknown = 0, none = 1, readOnly = 2, readWrite = 3 }
     public enum ParticipantRole: Int, Sendable { case unknown = 0, owner = 1, privateUser = 3, publicUser = 4 }
-    open class Participant: NSObject, @unchecked Sendable {
+    @objc(CKShareParticipant) @objcMembers open class Participant: NSObject, @unchecked Sendable {
         public let userIdentity: CKUserIdentity
         public internal(set) var role: ParticipantRole
         public internal(set) var acceptanceStatus: ParticipantAcceptanceStatus
@@ -123,7 +123,7 @@ open class CKShare: CKRecord, @unchecked Sendable {
     }
 
     /// What a participant learns from a share's URL before accepting it.
-    @objc(CKShareMetadata) open class Metadata: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
+    @objc(CKShareMetadata) @objcMembers open class Metadata: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
         public let containerIdentifier: String
         public let share: CKShare
         public let hierarchicalRootRecordID: CKRecord.ID?
@@ -202,7 +202,7 @@ extension CKContainer {
     public func discoverUserIdentity(withUserRecordID recordID: CKRecord.ID, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
         discoverUserIdentity(with: CKUserIdentity.LookupInfo(userRecordID: recordID), completionHandler: completionHandler)
     }
-    public func discoverUserIdentity(with lookupInfo: CKUserIdentity.LookupInfo, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
+    @objc(discoverUserIdentityWithLookupInfo:completionHandler:) public func discoverUserIdentity(with lookupInfo: CKUserIdentity.LookupInfo, completionHandler: @escaping @Sendable (CKUserIdentity?, Error?) -> Void) {
         guard _CKEnv.accountStatus == .available else { CKDatabase.reply { completionHandler(nil, CKError(.notAuthenticated)) }; return }
         let result = identity(lookupInfo); CKDatabase.reply { completionHandler(result, nil) }
     }
@@ -210,9 +210,9 @@ extension CKContainer {
         guard _CKEnv.accountStatus == .available else { CKDatabase.reply { completionHandler(nil, CKError(.notAuthenticated)) }; return }
         let results = lookupInfos.map(identity); CKDatabase.reply { completionHandler(results, nil) }
     }
-    public func userIdentity(forUserRecordID recordID: CKRecord.ID) async throws -> CKUserIdentity { identity(CKUserIdentity.LookupInfo(userRecordID: recordID)) }
-    public func userIdentity(forEmailAddress email: String) async throws -> CKUserIdentity { identity(CKUserIdentity.LookupInfo(emailAddress: email)) }
-    public func userIdentity(forPhoneNumber phoneNumber: String) async throws -> CKUserIdentity { identity(CKUserIdentity.LookupInfo(phoneNumber: phoneNumber)) }
+    @nonobjc public func userIdentity(forUserRecordID recordID: CKRecord.ID) async throws -> CKUserIdentity { identity(CKUserIdentity.LookupInfo(userRecordID: recordID)) }
+    @nonobjc public func userIdentity(forEmailAddress email: String) async throws -> CKUserIdentity { identity(CKUserIdentity.LookupInfo(emailAddress: email)) }
+    @nonobjc public func userIdentity(forPhoneNumber phoneNumber: String) async throws -> CKUserIdentity { identity(CKUserIdentity.LookupInfo(phoneNumber: phoneNumber)) }
     public func fetchShareParticipant(withEmailAddress email: String, completionHandler: @escaping @Sendable (CKShare.Participant?, Error?) -> Void) {
         let p = CKShare.Participant(identity(CKUserIdentity.LookupInfo(emailAddress: email)), role: .privateUser, permission: .readOnly, status: .pending)
         CKDatabase.reply { completionHandler(p, nil) }
@@ -225,13 +225,13 @@ extension CKContainer {
         let p = CKShare.Participant(identity(CKUserIdentity.LookupInfo(userRecordID: recordID)), role: .privateUser, permission: .readOnly, status: .pending)
         CKDatabase.reply { completionHandler(p, nil) }
     }
-    public func shareParticipant(forEmailAddress email: String) async throws -> CKShare.Participant {
+    @nonobjc public func shareParticipant(forEmailAddress email: String) async throws -> CKShare.Participant {
         CKShare.Participant(identity(CKUserIdentity.LookupInfo(emailAddress: email)), role: .privateUser, permission: .readOnly, status: .pending)
     }
-    public func shareParticipant(forPhoneNumber phoneNumber: String) async throws -> CKShare.Participant {
+    @nonobjc public func shareParticipant(forPhoneNumber phoneNumber: String) async throws -> CKShare.Participant {
         CKShare.Participant(identity(CKUserIdentity.LookupInfo(phoneNumber: phoneNumber)), role: .privateUser, permission: .readOnly, status: .pending)
     }
-    public func shareParticipant(forUserRecordID recordID: CKRecord.ID) async throws -> CKShare.Participant {
+    @nonobjc public func shareParticipant(forUserRecordID recordID: CKRecord.ID) async throws -> CKShare.Participant {
         CKShare.Participant(identity(CKUserIdentity.LookupInfo(userRecordID: recordID)), role: .privateUser, permission: .readOnly, status: .pending)
     }
 }

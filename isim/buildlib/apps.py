@@ -932,6 +932,12 @@ def _(a):
                name="PassKitObjCTest")
 
 
+@app("tests/cloudkit-objc", products=["CloudKitObjCTest.app"])   # after the overlays: CloudKit re-exports its own (issue #573)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "CloudKit", "-framework", "CoreLocation"],
+               name="CloudKitObjCTest")
+
+
 @app("tests/photos-objc", products=["PhotosObjCTest.app"])   # after the overlays: Photos.framework re-exports libswiftPhotos (issue #545)
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Photos", "-framework", "PhotosUI",

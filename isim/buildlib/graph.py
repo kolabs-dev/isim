@@ -226,6 +226,7 @@ SWIFT_FRAMEWORKS = [
     ("ARKit", "-framework Foundation -framework UIKit -framework SceneKit"),
     ("StoreKitTest", "-framework Foundation -framework StoreKit"),   # issue #564: SKTestSession from Objective-C
     ("PassKit", "-framework Foundation -framework UIKit -framework Contacts"),   # issue #566: Apple Pay and Wallet from Objective-C
+    ("CloudKit", "-framework Foundation -framework UIKit -framework CoreLocation"),   # issue #573: CloudKit from Objective-C
     ("AudioUnit", "-framework Foundation -framework AudioToolbox -reexport_framework AudioToolbox"),
     ("CoreAudio", "-framework Foundation"),
     # issue #231: the frameworks ad, login and VoIP SDKs use from Objective-C

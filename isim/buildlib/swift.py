@@ -741,6 +741,17 @@ OBJC_NAMES["PassKit"] = {c: c for c in """PKAddPassButton PKAddPassesViewControl
     PKPaymentAuthorizationResult PKPaymentAuthorizationViewController PKPaymentButton PKPaymentMethod PKPaymentOrderDetails PKPaymentRequest
     PKPaymentRequestCouponCodeUpdate PKPaymentRequestPaymentMethodUpdate PKPaymentRequestShippingContactUpdate PKPaymentRequestShippingMethodUpdate
     PKPaymentRequestUpdate PKPaymentSummaryItem PKPaymentToken PKPaymentTokenContext PKRecurringPaymentRequest PKRecurringPaymentSummaryItem PKShippingMethod""".split()}
+# issue #573: CloudKit from Objective-C
+OBJC_NAMES["CloudKit"] = {**{c: c for c in """CKAcceptSharesOperation CKAllowedSharingOptions CKAsset CKContainer CKDatabase CKDatabaseNotification CKDatabaseOperation
+    CKDatabaseSubscription CKFetchDatabaseChangesOperation CKFetchRecordZoneChangesOperation CKFetchRecordZonesOperation CKFetchRecordsOperation
+    CKFetchShareMetadataOperation CKFetchSubscriptionsOperation CKModifyRecordZonesOperation CKModifyRecordsOperation CKModifySubscriptionsOperation
+    CKNotification CKOperation CKOperationGroup CKQuery CKQueryNotification CKQueryOperation CKQuerySubscription CKRecord CKRecordZone
+    CKRecordZoneNotification CKRecordZoneSubscription CKServerChangeToken CKShare CKSubscription CKSystemSharingUIObserver CKUserIdentity""".split()},
+                         "CKRecord.ID": "CKRecordID", "CKRecordZone.ID": "CKRecordZoneID", "CKRecord.Reference": "CKReference",
+                         "CKQueryOperation.Cursor": "CKQueryCursor", "CKOperation.Configuration": "CKOperationConfiguration",
+                         "CKFetchRecordZoneChangesOperation.ZoneConfiguration": "CKFetchRecordZoneChangesConfiguration",
+                         "CKShare.Participant": "CKShareParticipant", "CKUserIdentity.LookupInfo": "CKUserIdentityLookupInfo",
+                         "CKSubscription.NotificationInfo": "CKNotificationInfo"}
 OBJC_NAMES["MessageUI"] = {c: c for c in ("MFMailComposeViewController", "MFMessageComposeViewController")}
 OBJC_NAMES["CoreBluetooth"] = {c: c for c in """CBUUID CBAttribute CBService CBMutableService CBCharacteristic CBMutableCharacteristic
     CBDescriptor CBMutableDescriptor CBPeer CBCentral CBATTRequest CBL2CAPChannel CBPeripheral CBManager CBCentralManager CBPeripheralManager""".split()}
