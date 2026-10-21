@@ -20,6 +20,8 @@ UIKIT_EXTERN UIApplicationLaunchOptionsKey const UIApplicationLaunchOptionsURLKe
     UIApplicationLaunchOptionsShortcutItemKey, UIApplicationLaunchOptionsUserActivityDictionaryKey, UIApplicationLaunchOptionsUserActivityTypeKey,
     UIApplicationLaunchOptionsRemoteNotificationKey, UIApplicationLaunchOptionsLocationKey;
 UIKIT_EXTERN NSString * const UIApplicationLaunchOptionsUserActivityKey;   /* isim: the NSUserActivity in the activity dictionary */
+/* the CKShareMetadata of a CloudKit share link that launched the app (an app that is not scene-based) */
+UIKIT_EXTERN UIApplicationLaunchOptionsKey const UIApplicationLaunchOptionsCloudKitShareMetadataKey NS_SWIFT_NAME(cloudKitShareMetadata) API_AVAILABLE(ios(10.0));
 UIKIT_EXTERN UIApplicationOpenURLOptionsKey const UIApplicationOpenURLOptionsSourceApplicationKey, UIApplicationOpenURLOptionsOpenInPlaceKey;
 UIKIT_EXTERN UIApplicationOpenExternalURLOptionsKey const UIApplicationOpenURLOptionUniversalLinksOnly;
 /* a UIEventAttribution for private click measurement (UIEventAttribution.h) */
@@ -45,7 +47,7 @@ UIKIT_EXTERN NSNotificationName const UIApplicationUserDidTakeScreenshotNotifica
 UIKIT_EXTERN NSNotificationName const UIApplicationProtectedDataWillBecomeUnavailable NS_SWIFT_NAME(UIApplication.protectedDataWillBecomeUnavailableNotification);
 UIKIT_EXTERN NSNotificationName const UIApplicationProtectedDataDidBecomeAvailable NS_SWIFT_NAME(UIApplication.protectedDataDidBecomeAvailableNotification);
 
-@class NSUserActivity, INIntent, INIntentResponse;
+@class NSUserActivity, INIntent, INIntentResponse, CKShareMetadata;
 NS_SWIFT_UI_ACTOR
 @protocol UIUserActivityRestoring <NSObject>
 - (void)restoreUserActivityState:(NSUserActivity *)userActivity;
@@ -78,6 +80,10 @@ NS_SWIFT_UI_ACTOR
 - (void)application:(UIApplication *)application performActionForShortcutItem:(UIApplicationShortcutItem *)shortcutItem completionHandler:(void (^)(BOOL succeeded))completionHandler;
 - (BOOL)application:(UIApplication *)application willContinueUserActivityWithType:(NSString *)userActivityType;
 - (BOOL)application:(UIApplication *)application continueUserActivity:(NSUserActivity *)userActivity restorationHandler:(void (^)(NSArray<id<UIUserActivityRestoring>> * _Nullable restorableObjects))restorationHandler;
+/* the person opened a CloudKit share link of the app's container (https://www.icloud.com/share/…): accept it with
+   CKAcceptSharesOperation or -[CKContainer acceptShareMetadata:completionHandler:]. isim: Objective-C apps (Swift sees this
+   requirement only once CloudKit's types resolve for UIKit's headers; until then use the scene's or the launch options') */
+- (void)application:(UIApplication *)application userDidAcceptCloudKitShareWithMetadata:(CKShareMetadata *)cloudKitShareMetadata API_AVAILABLE(ios(10.0));
 - (void)application:(UIApplication *)application didFailToContinueUserActivityWithType:(NSString *)userActivityType error:(NSError *)error;
 - (void)application:(UIApplication *)application didUpdateUserActivity:(NSUserActivity *)userActivity;
 /* SiriKit (Intents): Siri asks the app for the handler of an intent it lists in INIntentsSupported (run in the

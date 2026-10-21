@@ -81,6 +81,7 @@ NSArray<NSDictionary *> *HSQuickActions(HSApp *app) {
 /* associated domains (<App>.app/archived-expanded-entitlements.xcent, "applinks:host") and the domain's
    apple-app-site-association decide which app a https link opens: UIKit's UIUniversalLinks.m */
 BOOL isim_ui_app_claims_link(NSString *appPath, NSURL *url);
+BOOL isim_ui_app_owns_share_link(NSString *appPath, NSURL *url);   /* UIUniversalLinks.m */
 HSApp *HSAppForURL(NSArray<HSApp *> *apps, NSURL *url, BOOL *universal) {
     NSString *scheme = url.scheme.lowercaseString ?: @"";
     *universal = NO;
@@ -118,6 +119,11 @@ HSApp *HSAppForURL(NSArray<HSApp *> *apps, NSURL *url, BOOL *universal) {
 - (void)openURLString:(NSString *)s {
     NSURL *url = [NSURL URLWithString:s];
     if (!url) { NSLog(@"SpringBoard: not a URL: %@", s); return; }
+    for (HSApp *owner in self.apps) if (isim_ui_app_owns_share_link(owner.path, url)) {   /* a CloudKit share link: the app of its container */
+        NSLog(@"SpringBoard: %@ opens the CloudKit share %@", owner.name, s);
+        [self launch:owner url:[@"isim-cloudkit-share:" stringByAppendingString:s]];
+        return;
+    }
     BOOL universal = NO;
     HSApp *a = HSAppForURL(self.apps, url, &universal);
     if (!a && [self openAppClipURL:url source:@"link"]) return;          /* an App Clip's URL: the App Clip card (SBAppClips.m) */

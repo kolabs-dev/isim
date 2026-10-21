@@ -203,7 +203,7 @@ UIScene *isim_ui_scene_for_target(NSString *ident) {
 - (BOOL)shouldHandleActiveWorkoutRecovery { return [self._isim_launchMarker isEqualToString:@"isim-workout-recovery"]; }
 /* isim delivers a launching notification response to the notification center's delegate only */
 - (UNNotificationResponse *)notificationResponse { return nil; }
-- (CKShareMetadata *)cloudKitShareMetadata { return nil; }
+- (CKShareMetadata *)cloudKitShareMetadata { return objc_getAssociatedObject(self, "_isim_cloudKitShareMetadata"); }
 - (GCGameControllerActivationContext *)gameControllerActivationContext { return nil; }
 @end
 

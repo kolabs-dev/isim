@@ -95,8 +95,9 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(26.0)) NS_REFINED_FOR_SWIFT
 @interface UISceneConnectionOptions (UISceneExtras)
 /* the notification response when a tap on a notification launched the app */
 @property (nullable, nonatomic, readonly) UNNotificationResponse *notificationResponse;
-/* isim has no CloudKit sharing and no game controller activation: always nil */
+/* the CloudKit share link that launched the app (isim's local CloudKit; Swift: the CloudKit overlay's typed property) */
 @property (nullable, nonatomic, readonly) CKShareMetadata *cloudKitShareMetadata;
+/* isim has no game controller activation: always nil */
 @property (nullable, nonatomic, readonly) GCGameControllerActivationContext *gameControllerActivationContext API_AVAILABLE(ios(18.0));
 /* iOS 26: the system relaunched the app to recover a workout that was running (isim: the launch marker
    isim-workout-recovery, ISIM_LAUNCH_URL) */
