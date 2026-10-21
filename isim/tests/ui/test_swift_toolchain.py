@@ -169,10 +169,11 @@ def test_install_falls_back_to_the_tarball(sandbox, tmp_path):
     subprocess.run(["tar", "-czf", str(tmp_path / "swift.tar.gz"), "-C", str(top.parent), top.name], check=True)
     executable(tmp_path / "bin" / "curl", f'#!/bin/sh\nwhile [ $# -gt 1 ]; do [ "$1" = -o ] && out=$2; shift; done\n'
                f'case "$1" in *.tar.gz) cp "{tmp_path}/swift.tar.gz" "$out" ;; *) echo x > "$out" ;; esac\n')
-    executable(tmp_path / "bin" / "gpg", "#!/bin/sh\ncase \"$*\" in *--verify*) exit 1 ;; esac\nexit 0\n")
+    executable(tmp_path / "bin" / "gpg", "#!/bin/sh\ncat\n")                       # gpg --dearmor
+    executable(tmp_path / "bin" / "gpgv", "#!/bin/sh\nexit 1\n")
     rc, out = sandbox("toolchain", "install", ISIM_TOOLCHAIN_RETRY_DELAYS="0 0 0")
-    assert rc == 1 and "checking swift.org's Swift" in out and "is not installed" in out, out   # bad signature: refused
-    executable(tmp_path / "bin" / "gpg", "#!/bin/sh\nexit 0\n")
+    assert rc == 1 and "does not match its signature" in out and "is not installed" in out, out   # refused
+    executable(tmp_path / "bin" / "gpgv", "#!/bin/sh\nexit 0\n")
     rc, out = sandbox("toolchain", "install", ISIM_TOOLCHAIN_RETRY_DELAYS="0 0 0")
     tc = tmp_path / "home" / ".local/share/isim-swift" / VERSION / "usr"
     assert rc == 0 and f"Swift {VERSION} is installed ({tc})" in out, out

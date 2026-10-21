@@ -155,24 +155,24 @@ swiftorg_platform() {   # swift.org's name for this Linux distribution (its tarb
 tarball_install() {   # swift.org's signed tarball for this distribution into $(tarball_toolchain), when swiftly cannot
   local platform name url tmp dir
   platform=$(swiftorg_platform) || { echo "isim: swift.org has no Swift $SWIFT_VERSION tarball for this distribution" >&2; return 1; }
-  command -v gpg >/dev/null || { echo "isim: checking swift.org's tarball needs gpg (install gnupg)" >&2; return 1; }
+  command -v gpg >/dev/null && command -v gpgv >/dev/null || { echo "isim: checking swift.org's tarball needs gpg and gpgv (install gnupg)" >&2; return 1; }
   name=swift-$SWIFT_VERSION-RELEASE-$platform
   url=https://download.swift.org/swift-$SWIFT_VERSION-release/${platform//./}/swift-$SWIFT_VERSION-RELEASE/$name.tar.gz
   dir=$(dirname -- "$(tarball_toolchain)")
   echo "isim: downloading $url"
   tmp=$(mktemp -d)
-  if curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o "$tmp/swift.tar.gz" "$url" \
-     && curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o "$tmp/swift.tar.gz.sig" "$url.sig" \
-     && curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o "$tmp/keys.asc" https://www.swift.org/keys/all-keys.asc \
-     && mkdir -m 700 "$tmp/gnupg" && gpg --homedir "$tmp/gnupg" --quiet --import "$tmp/keys.asc" 2>/dev/null \
-     && gpg --homedir "$tmp/gnupg" --quiet --verify "$tmp/swift.tar.gz.sig" "$tmp/swift.tar.gz" 2>/dev/null; then
-    rm -rf -- "$dir" && mkdir -p -- "$dir" && tar -xzf "$tmp/swift.tar.gz" -C "$dir" --strip-components=1
-    rm -rf -- "$tmp"
-    return 0
+  if ! curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o "$tmp/swift.tar.gz" "$url" \
+     || ! curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o "$tmp/swift.tar.gz.sig" "$url.sig" \
+     || ! curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o "$tmp/keys.asc" https://www.swift.org/keys/all-keys.asc; then
+    rm -rf -- "$tmp"; echo "isim: downloading swift.org's Swift $SWIFT_VERSION tarball failed" >&2; return 1
   fi
+  # swift.org's signing keys as a keyring file for gpgv (no gpg-agent, no keyring of the user's touched)
+  if ! gpg --dearmor <"$tmp/keys.asc" >"$tmp/keys.gpg" 2>/dev/null \
+     || ! gpgv --keyring "$tmp/keys.gpg" "$tmp/swift.tar.gz.sig" "$tmp/swift.tar.gz" 2>/dev/null; then
+    rm -rf -- "$tmp"; echo "isim: swift.org's Swift $SWIFT_VERSION tarball does not match its signature (gpgv); not installed" >&2; return 1
+  fi
+  rm -rf -- "$dir" && mkdir -p -- "$dir" && tar -xzf "$tmp/swift.tar.gz" -C "$dir" --strip-components=1
   rm -rf -- "$tmp"
-  echo "isim: downloading or checking swift.org's Swift $SWIFT_VERSION tarball failed" >&2
-  return 1
 }
 toolchain_install() {   # Swift $SWIFT_VERSION with swiftly (https://www.swift.org/install/linux/), swiftly first when it is missing;
                         # swift.org's tarball when swiftly cannot (download.swift.org sometimes answers 403 for a while)
