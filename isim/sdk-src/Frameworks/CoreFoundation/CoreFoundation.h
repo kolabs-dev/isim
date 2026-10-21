@@ -29,3 +29,4 @@
 #include <CoreFoundation/CFDateFormatter.h>
 #include <CoreFoundation/CFPreferences.h>
 #include <CoreFoundation/CFNotificationCenter.h>
+#include <CoreFoundation/CFStream.h>

@@ -445,7 +445,7 @@ def _(a):
 def _(a):
     a.objc_app(["main.mm"], "Info.plist", ["-std=c++17", "-framework", "UIKit", "-framework", "Foundation", "-framework", "JavaScriptCore",
                "-framework", "CoreMedia", "-framework", "AVFoundation", "-framework", "Security", "-framework", "SystemConfiguration",
-               "-framework", "Network", "-framework", "CoreTelephony", "-framework", "MobileCoreServices", "-framework", "AdSupport",
+               "-framework", "CFNetwork", "-framework", "Network", "-framework", "CoreTelephony", "-framework", "MobileCoreServices", "-framework", "AdSupport",
                "-framework", "StoreKit", "-lz", "-lcompression", "-lc++"], minos="17.0")
 
 

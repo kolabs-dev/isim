@@ -31,6 +31,11 @@ UIKIT_EXTERN const NSTimeInterval UIApplicationBackgroundFetchIntervalMinimum, U
 UIKIT_EXTERN NSNotificationName const UIApplicationDidFinishLaunchingNotification, UIApplicationDidBecomeActiveNotification,
     UIApplicationWillResignActiveNotification, UIApplicationDidEnterBackgroundNotification,
     UIApplicationWillEnterForegroundNotification, UIApplicationWillTerminateNotification;
+/* posted around an interface rotation (deprecated in iOS 13, still sent): userInfo UIApplicationStatusBarOrientationUserInfoKey,
+   the new orientation (will change) or the old one (did change) */
+UIKIT_EXTERN NSNotificationName const UIApplicationWillChangeStatusBarOrientationNotification API_DEPRECATED("Use viewWillTransitionToSize:withTransitionCoordinator: instead.", ios(2.0, 13.0));
+UIKIT_EXTERN NSNotificationName const UIApplicationDidChangeStatusBarOrientationNotification API_DEPRECATED("Use viewWillTransitionToSize:withTransitionCoordinator: instead.", ios(2.0, 13.0));
+UIKIT_EXTERN NSString *const UIApplicationStatusBarOrientationUserInfoKey API_DEPRECATED("Use viewWillTransitionToSize:withTransitionCoordinator: instead.", ios(2.0, 13.0));
 /* isim: sent by Debug > Simulate Memory Warning (script command memorywarning) */
 UIKIT_EXTERN NSNotificationName const UIApplicationDidReceiveMemoryWarningNotification;
 /* isim: at local midnight and when the time zone changes (Settings > General > Date & Time) */

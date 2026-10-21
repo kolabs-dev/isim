@@ -172,6 +172,7 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
     ("Intents", "-framework Foundation -framework UIKit -framework CoreGraphics"),
     ("IntentsUI", "-framework Foundation -framework UIKit -framework CoreGraphics -framework Intents"),
     ("SystemConfiguration", "-framework Foundation -lisim_host"),
+    ("CFNetwork", "-framework Foundation -framework SystemConfiguration"),   # CFHost over the host resolver
     ("CoreTelephony", "-framework Foundation"),
     # the Objective-C API over JavaScriptCore's C API, which the host's JavaScriptCore (libisim_jsc) implements
     ("JavaScriptCore", "-framework Foundation -framework CoreGraphics -reexport-lisim_jsc"),

@@ -15,6 +15,8 @@ def test_rotate(launch):
     app.send("rotate left")
     app.wait_log(r"^transitioned: view 874x402, safe left 62 bottom 21, scene 3")   # landscape safe areas + scene
     assert app.has(r"^device orientation 3"), "device orientation notification"
+    assert app.has(r"^status bar orientation will change, userInfo 3"), "the new interface orientation (landscape right)"
+    assert app.has(r"^status bar orientation did change, userInfo 1"), "the old one (portrait)"
     assert app.has(r"^will transition to 874x402"), "viewWillTransition to landscape"
     assert app.has(r"^traits h=1 v=1"), "compact height size class"
     assert "UIView (62 351; 750 x 30) id=bar" in app.view_dump(), "safe-area layout follows"

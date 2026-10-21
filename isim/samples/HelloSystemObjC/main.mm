@@ -10,11 +10,13 @@
 #import <AVFoundation/AVFoundation.h>
 #import <Security/Security.h>
 #import <SystemConfiguration/SystemConfiguration.h>
+#import <CFNetwork/CFNetwork.h>
 #import <Network/Network.h>
 #import <CoreTelephony/CoreTelephony.h>
 #import <MobileCoreServices/MobileCoreServices.h>
 #import <AdSupport/AdSupport.h>
 #import <StoreKit/StoreKit.h>
+#include <netinet/in.h>
 #include <zlib.h>
 #include <compression.h>
 #include <iostream>
@@ -203,6 +205,54 @@ static void networkC(void) {
 
 static void reachabilityChanged(SCNetworkReachabilityRef target, SCNetworkReachabilityFlags flags, void *info) {}
 
+/* CFNetwork's CFHost (Google Mobile Ads resolves its ad servers with it, #606): a name, an address, an unknown name,
+   and a resolution in the background whose client runs on the main run loop */
+static BOOL has_loopback(CFArrayRef addrs) {
+    for (CFIndex i = 0; addrs && i < CFArrayGetCount(addrs); i++) {
+        const struct sockaddr *sa = (const struct sockaddr *)CFDataGetBytePtr((CFDataRef)CFArrayGetValueAtIndex(addrs, i));
+        if (sa->sa_family == AF_INET && ((const struct sockaddr_in *)sa)->sin_addr.s_addr == htonl(INADDR_LOOPBACK)) return YES;
+    }
+    return NO;
+}
+static void hostResolved(CFHostRef host, CFHostInfoType type, const CFStreamError *error, void *info) {
+    Boolean resolved = false;
+    CFArrayRef addrs = CFHostGetAddressing(host, &resolved);
+    say([NSString stringWithFormat:@"cfhost async type=%d resolved=%d loopback=%d error=%ld main=%d", type, resolved, has_loopback(addrs),
+         (long)error->domain, NSThread.isMainThread]);
+    CFHostUnscheduleFromRunLoop(host, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
+    CFHostSetClient(host, NULL, NULL);
+    CFRelease(host);
+}
+static void cfhost(void) {
+    CFHostRef h = CFHostCreateWithName(NULL, CFSTR("localhost"));
+    CFStreamError err = {0, 0};
+    Boolean before = true, resolved = false;
+    CFHostGetAddressing(h, &before);
+    Boolean ok = CFHostStartInfoResolution(h, kCFHostAddresses, &err);
+    CFArrayRef addrs = CFHostGetAddressing(h, &resolved);
+    say([NSString stringWithFormat:@"cfhost localhost ok=%d before=%d resolved=%d loopback=%d typeid=%d", ok, before, resolved, has_loopback(addrs),
+         CFGetTypeID(h) == CFHostGetTypeID()]);
+    CFRelease(h);
+    CFHostRef unknown = CFHostCreateWithName(NULL, CFSTR("no-such-host.invalid"));
+    ok = CFHostStartInfoResolution(unknown, kCFHostAddresses, &err);
+    say([NSString stringWithFormat:@"cfhost unknown ok=%d netdb=%d", ok, err.domain == kCFStreamErrorDomainNetDB && err.error != 0]);
+    CFRelease(unknown);
+    struct sockaddr_in sin = {};
+    sin.sin_len = sizeof sin; sin.sin_family = AF_INET; sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    CFDataRef data = CFDataCreate(NULL, (const UInt8 *)&sin, sizeof sin);
+    CFHostRef byAddress = CFHostCreateWithAddress(NULL, data);
+    ok = CFHostStartInfoResolution(byAddress, kCFHostNames, &err);
+    CFArrayRef names = CFHostGetNames(byAddress, NULL);
+    say([NSString stringWithFormat:@"cfhost 127.0.0.1 names=%d addresses=%ld", ok && names && CFArrayGetCount(names) > 0,
+         (long)CFArrayGetCount(CFHostGetAddressing(byAddress, NULL))]);
+    CFRelease(byAddress); CFRelease(data);
+    CFHostRef later = CFHostCreateWithName(NULL, CFSTR("localhost"));
+    CFHostClientContext ctx = {0, NULL, NULL, NULL, NULL};
+    CFHostSetClient(later, hostResolved, &ctx);
+    CFHostScheduleWithRunLoop(later, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
+    CFHostStartInfoResolution(later, kCFHostAddresses, &err);
+}
+
 static void network(void) {
     SCNetworkReachabilityRef r = SCNetworkReachabilityCreateWithName(NULL, "example.com");
     SCNetworkReachabilityFlags flags = 0;
@@ -222,6 +272,7 @@ static void network(void) {
     });
     nw_path_monitor_start(m);
     networkC();
+    cfhost();
     CTTelephonyNetworkInfo *info = [CTTelephonyNetworkInfo new];
     say([NSString stringWithFormat:@"telephony carriers=%lu", (unsigned long)info.serviceSubscriberCellularProviders.count]);
     CTCellularData *cellular = [CTCellularData new];

@@ -5,8 +5,12 @@
  * Without UISupportedInterfaceOrientations in Info.plist an app stays portrait (isim's default). */
 #import "UIKitPrivate.h"
 #include <math.h>
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"   /* the status bar orientation notifications are still sent */
 
 NSNotificationName const UIDeviceOrientationDidChangeNotification = @"UIDeviceOrientationDidChangeNotification";
+NSNotificationName const UIApplicationWillChangeStatusBarOrientationNotification = @"UIApplicationWillChangeStatusBarOrientationNotification";
+NSNotificationName const UIApplicationDidChangeStatusBarOrientationNotification = @"UIApplicationDidChangeStatusBarOrientationNotification";
+NSString *const UIApplicationStatusBarOrientationUserInfoKey = @"UIApplicationStatusBarOrientationUserInfoKey";
 
 static UIDeviceOrientation device_orientation;            /* 0 = not read yet */
 static UIInterfaceOrientation interface_orientation = UIInterfaceOrientationPortrait;
@@ -197,6 +201,8 @@ static void rotate_interface(UIInterfaceOrientation o, BOOL animated) {
         [root viewWillTransitionToSize:newSize withTransitionCoordinator:coord];
     }
     UIInterfaceOrientation oldOrientation = interface_orientation;
+    [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationWillChangeStatusBarOrientationNotification object:UIApplication.sharedApplication
+                                                    userInfo:@{ UIApplicationStatusBarOrientationUserInfoKey: @(o) }];
     interface_orientation = o;
     isim_set_orientation((int)o);
     isim_ui_device_refresh();
@@ -220,6 +226,8 @@ static void rotate_interface(UIInterfaceOrientation o, BOOL animated) {
     else { [UIView performWithoutAnimation:apply]; finish(YES); }
     isim_ui_traits_flush();                           /* traitCollectionDidChange: with the previous traits */
     isim_ui_set_needs_layout();
+    [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidChangeStatusBarOrientationNotification object:UIApplication.sharedApplication
+                                                    userInfo:@{ UIApplicationStatusBarOrientationUserInfoKey: @(oldOrientation) }];
     NSLog(@"isim: interface orientation %ld (%gx%g)", (long)o, newSize.width, newSize.height);
 }
 

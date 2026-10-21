@@ -1,5 +1,5 @@
 """The C and Objective-C system APIs that binary SDKs link (HelloSystemObjC, #200): JavaScriptCore (JSContext, blocks,
-JSExport, the C API), CMTime, AVFoundation's Objective-C classes, Security, SystemConfiguration reachability, Network's
+JSExport, the C API), CMTime, AVFoundation's Objective-C classes, Security, SystemConfiguration reachability, CFNetwork's CFHost, Network's
 path monitor and C API (a Bonjour-advertised echo listener, browser, connection, TLS), CoreTelephony, MobileCoreServices, CoreFoundation strings, AdSupport, StoreKit, zlib, libcompression and
 libc++ iostreams, locales and regex."""
 import glob
@@ -16,7 +16,8 @@ def test_system_objc(launch):
     app.wait_log(r"^HelloSystemObjC: done")
     lines = [r"cmtime sum=1\.75 cmp=1 valid=1", "avaudiosession category=AVAudioSessionCategoryAmbient error=none",
              r"avplayer time=0\.0 class=AVPlayer", "security random=0 nonzero=1 key=1 verified=1",
-             "reachability flags=1 callback=1", "telephony carriers=0", "telephony restricted=0 subscribers=0 error domain=0", "telephony add plan result=1 fail=1",
+             "reachability flags=1 callback=1", "cfhost localhost ok=1 before=0 resolved=1 loopback=1 typeid=1", "cfhost unknown ok=0 netdb=1",
+             "cfhost 127.0.0.1 names=1 addresses=1", "cfhost async type=0 resolved=1 loopback=1 error=0 main=1", "telephony carriers=0", "telephony restricted=0 subscribers=0 error domain=0", "telephony add plan result=1 fail=1",
              "uttype png=public.png image=1", "cfstring length=15 text=core foundation", "idfa zero=1",
              "skadnetwork class=SKAdNetwork", r"zlib 1\.\d+(\.\d+)* crc=[0-9a-f]{8} roundtrip=1 compression=1",
              "compression lzfse=1 lz4=1 lzma=1 brotli=1 nsdata=1",
