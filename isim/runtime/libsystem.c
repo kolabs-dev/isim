@@ -256,11 +256,23 @@ ISIM_GUEST_ABI static int d_cond_signal(struct d_cond *c) { return d_errno(pthre
 ISIM_GUEST_ABI static int d_cond_broadcast(struct d_cond *c) { return d_errno(pthread_cond_broadcast(cond_ready(c))); }
 ISIM_GUEST_ABI static int d_cond_destroy(struct d_cond *c) { if (c->sig == SIG_COND) { pthread_cond_destroy(c->host); free(c->host); } c->sig = 0; return 0; }
 
+/* pthread_once: the first caller runs fn with no lock held, so fn may run other once-blocks (Darwin allows it; Google
+   Mobile Ads 12 does, #609); others calling with the same control wait for it. state: 0 not run, 1 running, 2 done */
 ISIM_GUEST_ABI static int d_once(struct d_once *o, void (*fn)(void)) {
     static pthread_mutex_t lk = PTHREAD_MUTEX_INITIALIZER;
+    static pthread_cond_t done = PTHREAD_COND_INITIALIZER;
     if (__atomic_load_n(&o->state, __ATOMIC_ACQUIRE) == 2) return 0;
-    pthread_mutex_lock(&lk);   /* coarse: one global lock for all once-blocks (recursion would deadlock) */
-    if (o->state != 2) { o->state = 1; fn(); __atomic_store_n(&o->state, 2, __ATOMIC_RELEASE); }
+    long idle = 0;
+    if (__atomic_compare_exchange_n(&o->state, &idle, 1, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+        fn();
+        pthread_mutex_lock(&lk);
+        __atomic_store_n(&o->state, 2, __ATOMIC_RELEASE);
+        pthread_cond_broadcast(&done);
+        pthread_mutex_unlock(&lk);
+        return 0;
+    }
+    pthread_mutex_lock(&lk);
+    while (__atomic_load_n(&o->state, __ATOMIC_ACQUIRE) != 2) pthread_cond_wait(&done, &lk);
     pthread_mutex_unlock(&lk);
     return 0;
 }

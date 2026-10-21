@@ -425,11 +425,23 @@ void dispatch_async_and_wait_f(dispatch_queue_t q, void *ctx, dispatch_function_
 void dispatch_barrier_async_and_wait_f(dispatch_queue_t q, void *ctx, dispatch_function_t f) { dispatch_async_and_wait_f(q, ctx, f); }
 void dispatch_apply_f(size_t n, dispatch_queue_t q, void *ctx, void (*f)(void *, size_t)) { for (size_t i = 0; i < n; i++) f(ctx, i); }
 
+/* the first caller runs f with no lock held, so f may run other once-blocks and wait for other threads that do (#609);
+   others calling with the same predicate wait for it. *pred: 0 not run, 1 running, ~0 done (Apple's header tests ~0) */
 void dispatch_once_f(dispatch_once_t *pred, void *ctx, dispatch_function_t f) {
-    static pthread_mutex_t lk = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
+    static pthread_mutex_t lk = PTHREAD_MUTEX_INITIALIZER;
+    static pthread_cond_t done = PTHREAD_COND_INITIALIZER;
     if (__atomic_load_n(pred, __ATOMIC_ACQUIRE) == ~0L) return;
+    long idle = 0;
+    if (__atomic_compare_exchange_n(pred, &idle, 1, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+        f(ctx);
+        pthread_mutex_lock(&lk);
+        __atomic_store_n(pred, ~0L, __ATOMIC_RELEASE);
+        pthread_cond_broadcast(&done);
+        pthread_mutex_unlock(&lk);
+        return;
+    }
     pthread_mutex_lock(&lk);
-    if (*pred != ~0L) { f(ctx); __atomic_store_n(pred, ~0L, __ATOMIC_RELEASE); }
+    while (__atomic_load_n(pred, __ATOMIC_ACQUIRE) != ~0L) pthread_cond_wait(&done, &lk);
     pthread_mutex_unlock(&lk);
 }
 
