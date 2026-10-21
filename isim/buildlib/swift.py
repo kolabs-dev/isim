@@ -714,6 +714,12 @@ OBJC_NAMES["AVFoundation"].update({c: c for c in """AVAudioChannelLayout AVAudio
     AVAudioUnitEffect AVAudioUnitReverb AVAudioUnitEQFilterParameters AVAudioUnitEQ AVAudioUnitTimeEffect AVAudioUnitGenerator AVAudioUnitVarispeed
     AVAudioUnitTimePitch AVAudioUnitDelay AVAudioUnitDistortion AVAudioEngine AVAudioRecorder AVAudioFormat AVAudioBuffer AVAudioPCMBuffer
     AVAudioFile AVAudioPlayer""".split()})
+# issue #559: GameKit from Objective-C
+OBJC_NAMES["GameKit"] = {**{c: c for c in """GKBasePlayer GKPlayer GKLocalPlayer GKLeaderboard GKAchievement GKGameCenterViewController GKAccessPoint
+    GKGameActivityDefinition GKGameActivity GKTurnBasedExchange GKTurnBasedExchangeReply GKAchievementDescription GKLeaderboardSet GKSavedGame
+    GKFriendRequestComposeViewController GKMatchRequest GKInvite GKMatch GKMatchmaker GKMatchmakerViewController GKTurnBasedParticipant
+    GKTurnBasedMatch GKLeaderboardScore GKTurnBasedMatchmakerViewController GKChallenge GKScoreChallenge GKAchievementChallenge""".split()},
+                        "GKLeaderboard.Entry": "GKLeaderboardEntry"}
 OBJC_NAMES["MessageUI"] = {c: c for c in ("MFMailComposeViewController", "MFMessageComposeViewController")}
 OBJC_NAMES["CoreBluetooth"] = {c: c for c in """CBUUID CBAttribute CBService CBMutableService CBCharacteristic CBMutableCharacteristic
     CBDescriptor CBMutableDescriptor CBPeer CBCentral CBATTRequest CBL2CAPChannel CBPeripheral CBManager CBCentralManager CBPeripheralManager""".split()}

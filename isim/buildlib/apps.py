@@ -909,6 +909,11 @@ def _(a):
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "AVFAudio"], name="AVFAudioObjCTest")
 
+@app("tests/gamekit-objc", products=["GameKitObjCTest.app"])   # after the overlays: GameKit.framework re-exports the overlay (issue #559)
+def _(a):
+    b = a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "GameKit"], name="GameKitObjCTest")
+    a.copy("isim-GameCenter.json", b)
+
 
 @app("tests/photos-objc", products=["PhotosObjCTest.app"])   # after the overlays: Photos.framework re-exports libswiftPhotos (issue #545)
 def _(a):

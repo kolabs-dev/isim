@@ -23,7 +23,7 @@ public enum GKTurnBasedExchangeStatus: Int8, Sendable { case unknown = 0, active
 
 /// A request one participant sends others in a turn-based match, out of turn (a trade, a vote); the current
 /// participant merges the answered ones into the match data.
-open class GKTurnBasedExchange: NSObject, @unchecked Sendable {
+@objc(GKTurnBasedExchange) @objcMembers open class GKTurnBasedExchange: NSObject, @unchecked Sendable {
     let _rec: [String: Any]
     let _match: GKTurnBasedMatch
     init(_ rec: [String: Any], match: GKTurnBasedMatch) { _rec = rec; _match = match }
@@ -67,7 +67,7 @@ open class GKTurnBasedExchange: NSObject, @unchecked Sendable {
             h?(e)
         })
     }
-    open func cancel(withLocalizableMessageKey key: String, arguments: [String]) async throws {
+    @nonobjc open func cancel(withLocalizableMessageKey key: String, arguments: [String]) async throws {
         try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
             cancel(withLocalizableMessageKey: key, arguments: arguments) { e in if let e { k.resume(throwing: e) } else { k.resume() } }
         }
@@ -99,7 +99,7 @@ open class GKTurnBasedExchange: NSObject, @unchecked Sendable {
             h?(e)
         })
     }
-    open func reply(withLocalizableMessageKey key: String, arguments: [String], data: Data) async throws {
+    @nonobjc open func reply(withLocalizableMessageKey key: String, arguments: [String], data: Data) async throws {
         try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
             reply(withLocalizableMessageKey: key, arguments: arguments, data: data) { e in if let e { k.resume(throwing: e) } else { k.resume() } }
         }
@@ -107,7 +107,7 @@ open class GKTurnBasedExchange: NSObject, @unchecked Sendable {
 }
 
 /// One recipient's answer to an exchange.
-open class GKTurnBasedExchangeReply: NSObject, @unchecked Sendable {
+@objc(GKTurnBasedExchangeReply) @objcMembers open class GKTurnBasedExchangeReply: NSObject, @unchecked Sendable {
     let _rec: [String: Any]
     let _match: GKTurnBasedMatch
     init(_ rec: [String: Any], match: GKTurnBasedMatch) { _rec = rec; _match = match }

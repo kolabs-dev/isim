@@ -175,12 +175,12 @@ struct _GCBannerView: View {
 
 // MARK: - Players
 
-open class GKBasePlayer: NSObject {
+@objc(GKBasePlayer) @objcMembers open class GKBasePlayer: NSObject {
     open var displayName: String { _GC.alias }
 }
 /// A Game Center player: the local player, another isim device on this computer, or a test player
 /// (`isim gamecenter player add`). Players are equal when they are the same player.
-open class GKPlayer: GKBasePlayer {
+@objc(GKPlayer) @objcMembers open class GKPlayer: GKBasePlayer {
     /// the player's id on isim's local Game Center network ("" for a guest)
     var _id = ""
     var _alias = ""
@@ -217,14 +217,14 @@ open class GKPlayer: GKBasePlayer {
         let img = _GCImages.monogram(alias, size: size == .small ? 64 : 128)
         DispatchQueue.main.async { h?(img, img == nil ? GKError(code: .playerPhotoFailure) : nil) }
     }
-    open func loadPhoto(for size: PhotoSize) async throws -> UIImage {
+    @nonobjc open func loadPhoto(for size: PhotoSize) async throws -> UIImage {
         try await withCheckedThrowingContinuation { k in loadPhoto(for: size) { i, e in if let i { k.resume(returning: i) } else { k.resume(throwing: e ?? GKError.unsupported) } } }
     }
     open func scopedIDsArePersistent() -> Bool { true }
     public enum PhotoSize: Int, Sendable { case small, normal }
 }
 
-open class GKLocalPlayer: GKPlayer {
+@objc(GKLocalPlayer) @objcMembers open class GKLocalPlayer: GKPlayer {
     nonisolated(unsafe) public static let local = GKLocalPlayer()
     @available(*, deprecated) public class func localPlayer() -> GKLocalPlayer { local }
     private var authenticated = false
@@ -264,17 +264,17 @@ open class GKLocalPlayer: GKPlayer {
     }
     /// The player's friends on isim's local Game Center (asks for access first, like iOS 14.5 and later).
     open func loadFriends(_ h: @escaping ([GKPlayer]?, Error?) -> Void) { _GCSocial.loadFriends(nil, h) }
-    open func loadFriends() async throws -> [GKPlayer] {
+    @nonobjc open func loadFriends() async throws -> [GKPlayer] {
         try await withCheckedThrowingContinuation { k in loadFriends { f, e in if let f { k.resume(returning: f) } else { k.resume(throwing: e ?? GKError(code: .unknown)) } } }
     }
-    open func loadFriends(identifiedBy identifiers: [String], completionHandler h: @escaping ([GKPlayer]?, Error?) -> Void) { _GCSocial.loadFriends(identifiers, h) }
+    @objc(loadFriendsIdentifiedByGamePlayerIDs:completionHandler:) open func loadFriends(identifiedBy identifiers: [String], completionHandler h: @escaping ([GKPlayer]?, Error?) -> Void) { _GCSocial.loadFriends(identifiers, h) }
     /// Players met in matches, newest first.
     open func loadRecentPlayers(completionHandler h: (([GKPlayer]?, Error?) -> Void)? = nil) {
         guard isAuthenticated else { DispatchQueue.main.async { h?(nil, GKError.notAuthenticated) }; return }
         let list = _GCNet.recentIDs().map(GKPlayer._make)
         DispatchQueue.main.async { h?(list, nil) }
     }
-    open func loadRecentPlayers() async throws -> [GKPlayer] {
+    @nonobjc open func loadRecentPlayers() async throws -> [GKPlayer] {
         try await withCheckedThrowingContinuation { k in loadRecentPlayers { f, e in if let f { k.resume(returning: f) } else { k.resume(throwing: e ?? GKError(code: .unknown)) } } }
     }
     /// Friends who can be challenged (all of them on isim).
@@ -283,7 +283,7 @@ open class GKLocalPlayer: GKPlayer {
         let list = _GCNet.friendIDs().map(GKPlayer._make).sorted { $0.alias < $1.alias }
         DispatchQueue.main.async { h?(list, nil) }
     }
-    open func loadChallengableFriends() async throws -> [GKPlayer] {
+    @nonobjc open func loadChallengableFriends() async throws -> [GKPlayer] {
         try await withCheckedThrowingContinuation { k in loadChallengableFriends { f, e in if let f { k.resume(returning: f) } else { k.resume(throwing: e ?? GKError(code: .unknown)) } } }
     }
     public enum FriendsAuthorizationStatus: Int, Sendable { case notDetermined = 0, restricted = 1, denied = 2, authorized = 3 }
@@ -291,9 +291,9 @@ open class GKLocalPlayer: GKPlayer {
         let s = _GCSocial.status
         DispatchQueue.main.async { h(s, nil) }
     }
-    open func loadFriendsAuthorizationStatus() async throws -> FriendsAuthorizationStatus { _GCSocial.status }
+    @nonobjc open func loadFriendsAuthorizationStatus() async throws -> FriendsAuthorizationStatus { _GCSocial.status }
     /// Shows the friend request composer; the request goes to the player with that nickname on the local network.
-    @MainActor open func presentFriendRequestCreator(from viewController: UIViewController) throws {
+    @objc(presentFriendRequestCreatorFromViewController:error:) @MainActor open func presentFriendRequestCreator(from viewController: UIViewController) throws {
         guard isAuthenticated else { throw GKError.notAuthenticated }
         viewController.present(GKFriendRequestComposeViewController(), animated: true, completion: nil)
     }
@@ -309,7 +309,7 @@ open class GKLocalPlayer: GKPlayer {
 
 // MARK: - Leaderboards
 
-open class GKLeaderboard: NSObject {
+@objc(GKLeaderboard) @objcMembers open class GKLeaderboard: NSObject {
     public enum PlayerScope: Int, Sendable { case global = 0, friendsOnly = 1 }
     public enum TimeScope: Int, Sendable { case today = 0, week = 1, allTime = 2 }
     public enum LeaderboardType: Int, Sendable { case classic, recurring }
@@ -336,7 +336,7 @@ open class GKLeaderboard: NSObject {
         let b: GKLeaderboard? = type == .recurring ? GKLeaderboard.make(baseLeaderboardID, offset: occurrenceOffset - 1) : nil
         DispatchQueue.main.async { h(b, nil) }
     }
-    open func loadPreviousOccurrence() async throws -> GKLeaderboard? {
+    @nonobjc open func loadPreviousOccurrence() async throws -> GKLeaderboard? {
         await withCheckedContinuation { k in loadPreviousOccurrence { b, _ in k.resume(returning: b) } }
     }
     /// The leaderboard's image from the configuration (a file or asset in the bundle), or a generated placeholder.
@@ -344,7 +344,7 @@ open class GKLeaderboard: NSObject {
         let img = _GCImages.leaderboard(baseLeaderboardID)
         DispatchQueue.main.async { h?(img, nil) }
     }
-    open func loadImage() async throws -> UIImage {
+    @nonobjc open func loadImage() async throws -> UIImage {
         try await withCheckedThrowingContinuation { k in loadImage { i, e in if let i { k.resume(returning: i) } else { k.resume(throwing: e ?? GKError.unsupported) } } }
     }
     /// every player's best score in this leaderboard's period (the current occurrence of a recurring one) and the
@@ -381,7 +381,7 @@ open class GKLeaderboard: NSObject {
         for id in leaderboardIDs { _GCChallenges.scoreSubmitted(score, board: id) }
         DispatchQueue.main.async { completionHandler(nil) }
     }
-    public class func submitScore(_ score: Int, context: Int, player: GKPlayer, leaderboardIDs: [String]) async throws {
+    @nonobjc public class func submitScore(_ score: Int, context: Int, player: GKPlayer, leaderboardIDs: [String]) async throws {
         try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
             submitScore(score, context: context, player: player, leaderboardIDs: leaderboardIDs) { e in if let e { k.resume(throwing: e) } else { k.resume() } }
         }
@@ -391,11 +391,11 @@ open class GKLeaderboard: NSObject {
         let boards = ids.map { GKLeaderboard.make($0) }
         DispatchQueue.main.async { completionHandler(boards, nil) }
     }
-    public class func loadLeaderboards(IDs: [String]?) async throws -> [GKLeaderboard] {
+    @nonobjc public class func loadLeaderboards(IDs: [String]?) async throws -> [GKLeaderboard] {
         await withCheckedContinuation { k in loadLeaderboards(IDs: IDs) { b, _ in k.resume(returning: b ?? []) } }
     }
     /// A player's best score; `formattedScore` follows the leaderboard's score format from the configuration.
-    open class Entry: NSObject {
+    @objc(GKLeaderboardEntry) @objcMembers open class Entry: NSObject {
         public let player: GKPlayer
         public let rank: Int, score: Int, context: Int
         public let date: Date
@@ -419,7 +419,7 @@ open class GKLeaderboard: NSObject {
         let page = Array(all.dropFirst(range.location - 1).prefix(range.length))
         DispatchQueue.main.async { completionHandler(local, page, all.count, nil) }
     }
-    open func loadEntries(for playerScope: PlayerScope, timeScope: TimeScope, range: NSRange) async throws -> (Entry?, [Entry], Int) {
+    @nonobjc open func loadEntries(for playerScope: PlayerScope, timeScope: TimeScope, range: NSRange) async throws -> (Entry?, [Entry], Int) {
         try await withCheckedThrowingContinuation { k in
             loadEntries(for: playerScope, timeScope: timeScope, range: range) { a, b, c, e in if let e { k.resume(throwing: e) } else { k.resume(returning: (a, b ?? [], c)) } }
         }
@@ -432,20 +432,20 @@ open class GKLeaderboard: NSObject {
         let list = all.filter { ids.contains($0.player === GKLocalPlayer.local ? _GCNet.me : $0.player._id) }
         DispatchQueue.main.async { completionHandler(local, list, nil) }
     }
-    open func loadEntries(for players: [GKPlayer], timeScope: TimeScope) async throws -> (Entry?, [Entry]) {
+    @nonobjc open func loadEntries(for players: [GKPlayer], timeScope: TimeScope) async throws -> (Entry?, [Entry]) {
         await withCheckedContinuation { k in loadEntries(for: players, timeScope: timeScope) { a, b, _ in k.resume(returning: (a, b ?? [])) } }
     }
     open func submitScore(_ score: Int, context: Int, player: GKPlayer, completionHandler: @escaping (Error?) -> Void) {
         GKLeaderboard.submitScore(score, context: context, player: player, leaderboardIDs: [baseLeaderboardID], completionHandler: completionHandler)
     }
-    open func submitScore(_ score: Int, context: Int, player: GKPlayer) async throws {
+    @nonobjc open func submitScore(_ score: Int, context: Int, player: GKPlayer) async throws {
         try await GKLeaderboard.submitScore(score, context: context, player: player, leaderboardIDs: [baseLeaderboardID])
     }
 }
 
 // MARK: - Achievements
 
-open class GKAchievement: NSObject {
+@objc(GKAchievement) @objcMembers open class GKAchievement: NSObject {
     open var identifier: String
     open var percentComplete: Double = 0
     open var showsCompletionBanner = false
@@ -453,7 +453,7 @@ open class GKAchievement: NSObject {
     open var lastReportedDate = Date()
     public init(identifier: String?) { self.identifier = identifier ?? "" }
     public override convenience init() { self.init(identifier: nil) }
-    public class func report(_ achievements: [GKAchievement], withCompletionHandler completionHandler: ((Error?) -> Void)? = nil) {
+    @objc(reportAchievements:withCompletionHandler:) public class func report(_ achievements: [GKAchievement], withCompletionHandler completionHandler: ((Error?) -> Void)? = nil) {
         guard GKLocalPlayer.local.isAuthenticated else { DispatchQueue.main.async { completionHandler?(GKError.notAuthenticated) }; return }
         for a in achievements {
             let completedNow = _GC.setAchievement(a.identifier, percent: min(100, max(0, a.percentComplete)))
@@ -466,7 +466,7 @@ open class GKAchievement: NSObject {
         }
         DispatchQueue.main.async { completionHandler?(nil) }
     }
-    public class func report(_ achievements: [GKAchievement]) async throws {
+    @nonobjc public class func report(_ achievements: [GKAchievement]) async throws {
         try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
             report(achievements) { e in if let e { k.resume(throwing: e) } else { k.resume() } }
         }
@@ -479,7 +479,7 @@ open class GKAchievement: NSObject {
         }
         DispatchQueue.main.async { completionHandler?(list, nil) }
     }
-    public class func loadAchievements() async throws -> [GKAchievement] {
+    @nonobjc public class func loadAchievements() async throws -> [GKAchievement] {
         await withCheckedContinuation { k in loadAchievements { l, _ in k.resume(returning: l ?? []) } }
     }
     public class func resetAchievements(completionHandler: ((Error?) -> Void)? = nil) {
@@ -490,14 +490,14 @@ open class GKAchievement: NSObject {
 
 // MARK: - Dashboard
 
-@objc public protocol GKGameCenterControllerDelegate: NSObjectProtocol {
+@objc(GKGameCenterControllerDelegate) public protocol GKGameCenterControllerDelegate: NSObjectProtocol {
     func gameCenterViewControllerDidFinish(_ gameCenterViewController: GKGameCenterViewController)
 }
 
 public enum GKGameCenterViewControllerState: Int, Sendable { case `default` = -1, leaderboards = 0, achievements = 1, challenges = 2, localPlayerProfile = 3, dashboard = 4, localPlayerFriendsList = 5 }
 
 /// The player's Game Center: leaderboards (best score per board) and achievements, as stored on isim.
-open class GKGameCenterViewController: UIViewController {
+@objc(GKGameCenterViewController) @objcMembers open class GKGameCenterViewController: UIViewController {
     weak open var gameCenterDelegate: GKGameCenterControllerDelegate?
     var onFinish: (() -> Void)?
     open var leaderboardIdentifier: String? { get { focusLeaderboard } set { focusLeaderboard = newValue } }
@@ -552,7 +552,7 @@ open class GKGameCenterViewController: UIViewController {
 
 /// The Game Center access point: a floating bubble with the player's monogram in a corner of the
 /// screen while `isActive` (and the player is signed in); tapping it opens the dashboard.
-open class GKAccessPoint: NSObject {
+@objc(GKAccessPoint) @objcMembers open class GKAccessPoint: NSObject {
     nonisolated(unsafe) public static let shared = GKAccessPoint()
     public enum Location: Int, Sendable { case topLeading, topTrailing, bottomLeading, bottomTrailing }
     open var isActive = false { didSet { DispatchQueue.main.async { MainActor.assumeIsolated { self.update() } } } }
@@ -591,14 +591,14 @@ open class GKAccessPoint: NSObject {
         NSLog("isim GameKit: access point shown (%@)", ["top leading", "top trailing", "bottom leading", "bottom trailing"][location.rawValue])
     }
     /// Opens the Game Center dashboard (like tapping the access point).
-    open func trigger(handler: @escaping () -> Void) { trigger(state: .dashboard, handler: handler) }
+    @objc(triggerAccessPointWithHandler:) open func trigger(handler: @escaping () -> Void) { trigger(state: .dashboard, handler: handler) }
     open func trigger(state: GKGameCenterViewControllerState, handler: @escaping () -> Void) {
         DispatchQueue.main.async { MainActor.assumeIsolated { self.present(GKGameCenterViewController(state: state), handler) } }
     }
     @available(iOS 18.0, *) open func trigger(leaderboardID: String, playerScope: GKLeaderboard.PlayerScope, timeScope: GKLeaderboard.TimeScope, handler: @escaping () -> Void) {
         DispatchQueue.main.async { MainActor.assumeIsolated { self.present(GKGameCenterViewController(leaderboardID: leaderboardID, playerScope: playerScope, timeScope: timeScope), handler) } }
     }
-    @available(iOS 18.0, *) open func trigger(achievementID: String, handler: @escaping () -> Void) {
+    @objc(triggerAccessPointWithAchievementID:handler:) @available(iOS 18.0, *) open func trigger(achievementID: String, handler: @escaping () -> Void) {
         DispatchQueue.main.async { MainActor.assumeIsolated { self.present(GKGameCenterViewController(achievementID: achievementID), handler) } }
     }
     @MainActor func present(_ vc: GKGameCenterViewController, _ handler: @escaping () -> Void) {

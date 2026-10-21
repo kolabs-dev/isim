@@ -103,7 +103,7 @@ public typealias GKSavedGameListener = GKLocalPlayerListener
 public enum GKChallengeState: Int, Sendable { case invalid = 0, pending = 1, completed = 2, declined = 3 }
 
 /// A score or achievement challenge between friends, kept on the local network (games/<bundle id>/challenges).
-open class GKChallenge: NSObject {
+@objc(GKChallenge) @objcMembers open class GKChallenge: NSObject {
     var _id = ""
     var _rec: [String: Any] = [:]
     static func _make(_ rec: [String: Any]) -> GKChallenge {
@@ -124,7 +124,7 @@ open class GKChallenge: NSObject {
             .sorted { ($0["issued"] as? Double ?? 0) < ($1["issued"] as? Double ?? 0) }.map(GKChallenge._make)
         DispatchQueue.main.async { completionHandler?(list, nil) }
     }
-    public class func loadReceivedChallenges() async throws -> [GKChallenge] {
+    @nonobjc public class func loadReceivedChallenges() async throws -> [GKChallenge] {
         try await withCheckedThrowingContinuation { k in loadReceivedChallenges { l, e in if let l { k.resume(returning: l) } else { k.resume(throwing: e ?? GKError(code: .unknown)) } } }
     }
     /// Declines a received challenge (the issuer sees it declined).
@@ -138,7 +138,7 @@ open class GKChallenge: NSObject {
 }
 
 /// Beat a friend's score on a leaderboard.
-open class GKScoreChallenge: GKChallenge {
+@objc(GKScoreChallenge) @objcMembers open class GKScoreChallenge: GKChallenge {
     open var leaderboardEntry: GKLeaderboard.Entry? {
         guard let board = _rec["board"] as? String, let from = _rec["from"] as? String else { return nil }
         return GKLeaderboard.Entry(player: GKPlayer._make(from), rank: 0, score: _rec["score"] as? Int ?? 0, context: _rec["context"] as? Int ?? 0,
@@ -149,7 +149,7 @@ open class GKScoreChallenge: GKChallenge {
 }
 
 /// Earn an achievement a friend has.
-open class GKAchievementChallenge: GKChallenge {
+@objc(GKAchievementChallenge) @objcMembers open class GKAchievementChallenge: GKChallenge {
     open var achievement: GKAchievement? {
         guard let id = _rec["achievement"] as? String else { return nil }
         let a = GKAchievement(identifier: id); a.percentComplete = 100
