@@ -68,7 +68,7 @@ public let GCProductCategoryMouse = "Mouse"
 
 // MARK: - Elements
 
-open class GCControllerElement: NSObject {
+@objc(GCControllerElement) @objcMembers open class GCControllerElement: NSObject {
     open internal(set) weak var collection: GCControllerElement?
     open internal(set) var isAnalog = false
     open var localizedName: String?
@@ -76,7 +76,7 @@ open class GCControllerElement: NSObject {
     open var sfSymbolsName: String?
     open var unmappedSfSymbolsName: String?
     open internal(set) var aliases: Set<String> = []
-    open var isBoundToSystemGesture = false
+    @objc(isBoundToSystemGesture) open var isBoundToSystemGesture = false
     open var preferredSystemGestureState: Int = 0
     weak var profile: GCPhysicalInputProfile?
     init(name: String?, analog: Bool = false) { localizedName = name; isAnalog = analog; if let name { aliases = [name] } }
@@ -90,11 +90,12 @@ public typealias GCControllerButtonTouchedChangedHandler = (GCControllerButtonIn
 public typealias GCControllerAxisValueChangedHandler = (GCControllerAxisInput, Float) -> Void
 public typealias GCControllerDirectionPadValueChangedHandler = (GCControllerDirectionPad, Float, Float) -> Void
 
-open class GCControllerButtonInput: GCControllerElement {
+@objc(GCControllerButtonInput) @objcMembers open class GCControllerButtonInput: GCControllerElement {
     open var valueChangedHandler: GCControllerButtonValueChangedHandler?
     open var pressedChangedHandler: GCControllerButtonValueChangedHandler?
     open var touchedChangedHandler: GCControllerButtonTouchedChangedHandler?
-    open private(set) var value: Float = 0
+    @nonobjc open private(set) var value: Float = 0
+    @objc(value) var _objcValue: Float { value }   // read-only in Objective-C, where -setValue: is the method below
     open private(set) var isPressed = false
     open private(set) var isTouched = false
     /// sets the value (0...1); pressed above 0.5 for analog buttons, above 0 otherwise
@@ -112,9 +113,10 @@ open class GCControllerButtonInput: GCControllerElement {
     }
 }
 
-open class GCControllerAxisInput: GCControllerElement {
+@objc(GCControllerAxisInput) @objcMembers open class GCControllerAxisInput: GCControllerElement {
     open var valueChangedHandler: GCControllerAxisValueChangedHandler?
-    open private(set) var value: Float = 0
+    @nonobjc open private(set) var value: Float = 0
+    @objc(value) var _objcValue: Float { value }   // read-only in Objective-C, where -setValue: is the method below
     var _unclamped = false                       // a mouse's scroll wheel (GCDeviceCursor): deltas beyond ±1
     open func setValue(_ v: Float) {
         let nv = _unclamped ? v : max(-1, min(1, v))
@@ -125,7 +127,7 @@ open class GCControllerAxisInput: GCControllerElement {
     }
 }
 
-open class GCControllerDirectionPad: GCControllerElement {
+@objc(GCControllerDirectionPad) @objcMembers open class GCControllerDirectionPad: GCControllerElement {
     open var valueChangedHandler: GCControllerDirectionPadValueChangedHandler?
     public let xAxis = GCControllerAxisInput(name: nil, analog: true)
     public let yAxis = GCControllerAxisInput(name: nil, analog: true)
@@ -160,7 +162,7 @@ open class GCControllerDirectionPad: GCControllerElement {
 
 // MARK: - Profiles
 
-open class GCPhysicalInputProfile: NSObject {
+@objc(GCPhysicalInputProfile) @objcMembers open class GCPhysicalInputProfile: NSObject {
     open internal(set) weak var device: GCDevice?
     open internal(set) var lastEventTimestamp: TimeInterval = 0
     open var hasRemappedElements = false
@@ -194,7 +196,7 @@ open class GCPhysicalInputProfile: NSObject {
 public typealias GCExtendedGamepadValueChangedHandler = (GCExtendedGamepad, GCControllerElement) -> Void
 public typealias GCMicroGamepadValueChangedHandler = (GCMicroGamepad, GCControllerElement) -> Void
 
-open class GCExtendedGamepad: GCPhysicalInputProfile {
+@objc(GCExtendedGamepad) @objcMembers open class GCExtendedGamepad: GCPhysicalInputProfile {
     open internal(set) weak var controller: GCController?
     open var valueChangedHandler: GCExtendedGamepadValueChangedHandler?
     public let dpad = GCControllerDirectionPad(name: GCInputDirectionPad)
@@ -255,7 +257,7 @@ open class GCExtendedGamepad: GCPhysicalInputProfile {
     }
 }
 
-open class GCMicroGamepad: GCPhysicalInputProfile {
+@objc(GCMicroGamepad) @objcMembers open class GCMicroGamepad: GCPhysicalInputProfile {
     open internal(set) weak var controller: GCController?
     open var valueChangedHandler: GCMicroGamepadValueChangedHandler?
     public let dpad = GCControllerDirectionPad(name: GCInputDirectionPad, analog: true)
@@ -286,7 +288,7 @@ public protocol GCDevice: NSObjectProtocol {
 
 public enum GCControllerPlayerIndex: Int, Sendable { case indexUnset = -1, index1 = 0, index2 = 1, index3 = 2, index4 = 3 }
 
-open class GCController: NSObject, GCDevice {
+@objc(GCController) @objcMembers open class GCController: NSObject, GCDevice {
     nonisolated(unsafe) static var connected: [GCController] = []
     nonisolated(unsafe) static var _current: GCController?
     open class func controllers() -> [GCController] { _GCSystem.start(); return connected }
@@ -298,8 +300,8 @@ open class GCController: NSObject, GCDevice {
         DispatchQueue.main.async { completionHandler?() }
     }
     open class func stopWirelessControllerDiscovery() {}
-    open class func withExtendedGamepad() -> GCController { let c = GCController(extended: true); c.isSnapshot = true; return c }
-    open class func withMicroGamepad() -> GCController { let c = GCController(extended: false); c.isSnapshot = true; return c }
+    @objc(controllerWithExtendedGamepad) open class func withExtendedGamepad() -> GCController { let c = GCController(extended: true); c.isSnapshot = true; return c }
+    @objc(controllerWithMicroGamepad) open class func withMicroGamepad() -> GCController { let c = GCController(extended: false); c.isSnapshot = true; return c }
 
     open var handlerQueue: DispatchQueue = .main
     open var controllerPausedHandler: ((GCController) -> Void)?
@@ -408,7 +410,7 @@ public struct GCKeyCode: RawRepresentable, Hashable, Sendable {
 
 public typealias GCKeyboardValueChangedHandler = (GCKeyboardInput, GCControllerButtonInput, GCKeyCode, Bool) -> Void
 
-open class GCKeyboardInput: GCPhysicalInputProfile {
+@objc(GCKeyboardInput) @objcMembers open class GCKeyboardInput: GCPhysicalInputProfile {
     open var keyChangedHandler: GCKeyboardValueChangedHandler?
     var keys: [Int: GCControllerButtonInput] = [:]
     open var isAnyKeyPressed: Bool { keys.values.contains { $0.isPressed } }
@@ -428,11 +430,11 @@ open class GCKeyboardInput: GCPhysicalInputProfile {
     func releaseAll() { for (k, b) in keys where b.isPressed { key(GCKeyCode(k), down: false) } }
 }
 
-open class GCKeyboard: NSObject, GCDevice {
+@objc(GCKeyboard) @objcMembers open class GCKeyboard: NSObject, GCDevice {
     nonisolated(unsafe) static let shared = GCKeyboard()
     let input = GCKeyboardInput()
     /// the hardware keyboard (on isim: the host keyboard, always connected)
-    open class var coalesced: GCKeyboard? { _GCSystem.start(); return shared }
+    @objc(coalescedKeyboard) open class var coalesced: GCKeyboard? { _GCSystem.start(); return shared }
     open var keyboardInput: GCKeyboardInput? { input }
     open var handlerQueue: DispatchQueue = .main
     open var vendorName: String? { "isim host keyboard" }
@@ -444,14 +446,14 @@ open class GCKeyboard: NSObject, GCDevice {
 
 // MARK: - Virtual controller
 
-open class GCVirtualController: NSObject {
-    open class Configuration: NSObject {
+@objc(GCVirtualController) @objcMembers open class GCVirtualController: NSObject {
+    @objc(GCVirtualControllerConfiguration) @objcMembers open class Configuration: NSObject {
         open var elements: Set<String> = []
-        open var isHidden = false
+        @nonobjc open var isHidden = false
         public override init() { super.init() }
     }
-    open class ElementConfiguration: NSObject {
-        open var isHidden = false
+    @objc(GCVirtualControllerElementConfiguration) @objcMembers open class ElementConfiguration: NSObject {
+        @nonobjc open var isHidden = false
         open var path: UIBezierPath?
         open var actsAsTouchpad = false
         public override init() { super.init() }
@@ -476,7 +478,7 @@ open class GCVirtualController: NSObject {
             replyHandler?(ok ? nil : NSError(domain: "GCVirtualControllerErrorDomain", code: 1, userInfo: [NSLocalizedDescriptionKey: "no window to show the virtual controller in"]))
         }
     }
-    open func connect() async throws {
+    @nonobjc open func connect() async throws {
         try await withCheckedThrowingContinuation { (k: CheckedContinuation<Void, Error>) in
             connect { e in if let e { k.resume(throwing: e) } else { k.resume() } }
         }
@@ -672,7 +674,7 @@ public let GCHapticDurationInfinite: Float = Float.greatestFiniteMagnitude
 
 /// A gamepad's haptics (adapted): CoreHaptics engines whose haptic events drive the pad's two rumble motors through
 /// the host (SDL): the handles; trigger motors are not reached.
-open class GCDeviceHaptics: NSObject {
+@objc(GCDeviceHaptics) @objcMembers open class GCDeviceHaptics: NSObject {
     let pad: Int32
     init(pad: Int32) { self.pad = pad; super.init() }
     open var supportedLocalities: Set<GCHapticsLocality> { [.default, .all, .handles, .leftHandle, .rightHandle] }

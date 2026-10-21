@@ -11,7 +11,7 @@ import isim_host
 
 // MARK: - battery
 
-open class GCDeviceBattery: NSObject {
+@objc(GCDeviceBattery) @objcMembers open class GCDeviceBattery: NSObject {
     @objc public enum State: Int, Sendable { case unknown = -1, discharging = 0, charging = 1, full = 2 }
     let pad: Int32
     init(pad: Int32) { self.pad = pad; super.init() }
@@ -25,7 +25,7 @@ open class GCDeviceBattery: NSObject {
 
 // MARK: - light
 
-open class GCColor: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
+@objc(GCColor) @objcMembers open class GCColor: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
     public let red: Float, green: Float, blue: Float
     public init(red: Float, green: Float, blue: Float) { self.red = red; self.green = green; self.blue = blue }
     open func copy(with zone: NSZone? = nil) -> Any { self }
@@ -42,7 +42,7 @@ open class GCColor: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
 }
 
 /// The light bar of a pad that has one; setting the colour lights it.
-open class GCDeviceLight: NSObject {
+@objc(GCDeviceLight) @objcMembers open class GCDeviceLight: NSObject {
     let pad: Int32
     init(pad: Int32) { self.pad = pad; super.init() }
     open var color = GCColor(red: 0, green: 0, blue: 1) {
@@ -71,7 +71,7 @@ public typealias GCMotionValueChangedHandler = (GCMotion) -> Void
 
 /// A pad's motion sensors. Values: acceleration in g (gravity included), rotation rate in radians per second, in
 /// the controller's frame (x right, y up, z towards the player, like iOS); SDL's axes are mapped to it.
-open class GCMotion: NSObject {
+@objc(GCMotion) @objcMembers open class GCMotion: NSObject {
     open internal(set) weak var controller: GCController?
     open var valueChangedHandler: GCMotionValueChangedHandler?
     let pad: Int32
@@ -83,7 +83,7 @@ open class GCMotion: NSObject {
     }
     /// pads' sensors stay off until the app turns them on (they drain the battery), as on iOS
     open var sensorsRequireManualActivation: Bool { true }
-    open var sensorsActive = false {
+    @nonobjc open var sensorsActive = false {
         didSet {
             guard sensorsActive != oldValue else { return }
             _ = isim_gamepad_motion(pad, sensorsActive ? 1 : 0, nil, nil)
@@ -127,14 +127,14 @@ open class GCMotion: NSObject {
 public typealias GCMouseMoved = (GCMouseInput, Float, Float) -> Void
 
 /// A scroll wheel: a direction pad whose values are the scroll since the last change.
-open class GCDeviceCursor: GCControllerDirectionPad {
+@objc(GCDeviceCursor) @objcMembers open class GCDeviceCursor: GCControllerDirectionPad {
     override init(name: String?, analog: Bool = false) {
         super.init(name: name, analog: true)
         xAxis._unclamped = true; yAxis._unclamped = true
     }
 }
 
-open class GCMouseInput: GCPhysicalInputProfile {
+@objc(GCMouseInput) @objcMembers open class GCMouseInput: GCPhysicalInputProfile {
     open var mouseMovedHandler: GCMouseMoved?
     public let scroll = GCDeviceCursor(name: "Scroll")
     public let leftButton = GCControllerButtonInput(name: "Left Button")
@@ -150,7 +150,7 @@ open class GCMouseInput: GCPhysicalInputProfile {
     }
 }
 
-open class GCMouse: NSObject, GCDevice {
+@objc(GCMouse) @objcMembers open class GCMouse: NSObject, GCDevice {
     nonisolated(unsafe) static var _shared: GCMouse?
     nonisolated(unsafe) static var _connected = false
     let input = GCMouseInput()

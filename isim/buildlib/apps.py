@@ -900,6 +900,12 @@ def _(a):   # deployment target iOS 18 (Synchronization is iOS 18+)
                 link=["-target", "x86_64-apple-ios18.0-simulator", "-framework", "Foundation"])
 
 
+@app("tests/games-objc", products=["GamesObjCTest.app"])   # after the overlays: the frameworks re-export CoreHaptics and GameController (issue #548)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "CoreHaptics",
+                                          "-framework", "GameController", "-framework", "CoreGraphics"], name="GamesObjCTest")
+
+
 @app("tests/photos-objc", products=["PhotosObjCTest.app"])   # after the overlays: Photos.framework re-exports libswiftPhotos (issue #545)
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Photos", "-framework", "PhotosUI",

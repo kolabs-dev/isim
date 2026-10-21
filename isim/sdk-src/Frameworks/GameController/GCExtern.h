@@ -1,0 +1,64 @@
+#pragma once
+#import <Foundation/Foundation.h>
+#if !defined(__swift__)
+NS_ASSUME_NONNULL_BEGIN
+#ifdef __cplusplus
+#define GAMECONTROLLER_EXTERN extern "C" __attribute__((visibility ("default")))
+#else
+#define GAMECONTROLLER_EXTERN extern __attribute__((visibility ("default")))
+#endif
+GAMECONTROLLER_EXTERN NSString * const GCInputButtonA;
+GAMECONTROLLER_EXTERN NSString * const GCInputButtonB;
+GAMECONTROLLER_EXTERN NSString * const GCInputButtonX;
+GAMECONTROLLER_EXTERN NSString * const GCInputButtonY;
+GAMECONTROLLER_EXTERN NSString * const GCInputDirectionPad;
+GAMECONTROLLER_EXTERN NSString * const GCInputLeftThumbstick;
+GAMECONTROLLER_EXTERN NSString * const GCInputRightThumbstick;
+GAMECONTROLLER_EXTERN NSString * const GCInputLeftShoulder;
+GAMECONTROLLER_EXTERN NSString * const GCInputRightShoulder;
+GAMECONTROLLER_EXTERN NSString * const GCInputLeftTrigger;
+GAMECONTROLLER_EXTERN NSString * const GCInputRightTrigger;
+GAMECONTROLLER_EXTERN NSString * const GCInputLeftThumbstickButton;
+GAMECONTROLLER_EXTERN NSString * const GCInputRightThumbstickButton;
+GAMECONTROLLER_EXTERN NSString * const GCInputButtonHome;
+GAMECONTROLLER_EXTERN NSString * const GCInputButtonMenu;
+GAMECONTROLLER_EXTERN NSString * const GCInputButtonOptions;
+GAMECONTROLLER_EXTERN NSString * const GCInputButtonShare;
+GAMECONTROLLER_EXTERN NSString * const GCInputXboxPaddleOne;
+GAMECONTROLLER_EXTERN NSString * const GCInputXboxPaddleTwo;
+GAMECONTROLLER_EXTERN NSString * const GCInputXboxPaddleThree;
+GAMECONTROLLER_EXTERN NSString * const GCInputXboxPaddleFour;
+GAMECONTROLLER_EXTERN NSString * const GCInputDualShockTouchpadOne;
+GAMECONTROLLER_EXTERN NSString * const GCInputDualShockTouchpadTwo;
+GAMECONTROLLER_EXTERN NSString * const GCInputDualShockTouchpadButton;
+GAMECONTROLLER_EXTERN NSString * const GCProductCategoryDualSense;
+GAMECONTROLLER_EXTERN NSString * const GCProductCategoryDualShock4;
+GAMECONTROLLER_EXTERN NSString * const GCProductCategoryMFi;
+GAMECONTROLLER_EXTERN NSString * const GCProductCategoryXboxOne;
+GAMECONTROLLER_EXTERN NSString * const GCProductCategorySwitchPro;
+GAMECONTROLLER_EXTERN NSString * const GCProductCategorySwitchJoyConPair;
+GAMECONTROLLER_EXTERN NSString * const GCProductCategoryHID;
+GAMECONTROLLER_EXTERN NSString * const GCProductCategoryKeyboard;
+GAMECONTROLLER_EXTERN NSString * const GCProductCategoryMouse;
+GAMECONTROLLER_EXTERN NSNotificationName const GCControllerDidConnectNotification;
+GAMECONTROLLER_EXTERN NSNotificationName const GCControllerDidDisconnectNotification;
+GAMECONTROLLER_EXTERN NSNotificationName const GCControllerDidBecomeCurrentNotification;
+GAMECONTROLLER_EXTERN NSNotificationName const GCControllerDidStopBeingCurrentNotification;
+GAMECONTROLLER_EXTERN NSNotificationName const GCKeyboardDidConnectNotification;
+GAMECONTROLLER_EXTERN NSNotificationName const GCKeyboardDidDisconnectNotification;
+GAMECONTROLLER_EXTERN NSNotificationName const GCMouseDidConnectNotification;
+GAMECONTROLLER_EXTERN NSNotificationName const GCMouseDidDisconnectNotification;
+GAMECONTROLLER_EXTERN NSNotificationName const GCMouseDidBecomeCurrentNotification;
+GAMECONTROLLER_EXTERN NSNotificationName const GCMouseDidStopBeingCurrentNotification;
+typedef NSString *GCHapticsLocality NS_TYPED_ENUM;
+GAMECONTROLLER_EXTERN GCHapticsLocality const GCHapticsLocalityDefault;
+GAMECONTROLLER_EXTERN GCHapticsLocality const GCHapticsLocalityAll;
+GAMECONTROLLER_EXTERN GCHapticsLocality const GCHapticsLocalityHandles;
+GAMECONTROLLER_EXTERN GCHapticsLocality const GCHapticsLocalityLeftHandle;
+GAMECONTROLLER_EXTERN GCHapticsLocality const GCHapticsLocalityRightHandle;
+GAMECONTROLLER_EXTERN GCHapticsLocality const GCHapticsLocalityTriggers;
+GAMECONTROLLER_EXTERN GCHapticsLocality const GCHapticsLocalityLeftTrigger;
+GAMECONTROLLER_EXTERN GCHapticsLocality const GCHapticsLocalityRightTrigger;
+GAMECONTROLLER_EXTERN const float GCHapticDurationInfinite;
+NS_ASSUME_NONNULL_END
+#endif

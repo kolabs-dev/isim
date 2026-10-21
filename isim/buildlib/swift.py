@@ -760,6 +760,15 @@ OBJC_NAMES["Photos"] = {c: c for c in """PHImageRequestOptions PHImageManager PH
     PHAssetCollection PHFetchOptions PHAssetChangeRequest PHAssetResourceCreationOptions PHAssetCreationRequest
     PHAssetCollectionChangeRequest""".split()}
 OBJC_NAMES["PhotosUI"] = {"PHPickerViewController": "PHPickerViewController"}
+# issue #548: CoreHaptics and GameController from Objective-C
+OBJC_NAMES["CoreHaptics"] = {**{c: c for c in "CHHapticEventParameter CHHapticDynamicParameter CHHapticParameterCurve CHHapticEvent CHHapticPattern CHHapticEngine".split()},
+                             "CHHapticParameterCurve.ControlPoint": "CHHapticParameterCurveControlPoint"}
+OBJC_NAMES["GameController"] = {**{c: c for c in """GCControllerElement GCControllerButtonInput GCControllerAxisInput GCControllerDirectionPad
+    GCPhysicalInputProfile GCExtendedGamepad GCMicroGamepad GCController GCKeyboardInput GCKeyboard GCVirtualController GCDeviceHaptics
+    GCDeviceBattery GCColor GCDeviceLight GCMotion GCDeviceCursor GCMouseInput GCMouse GCControllerTouchpad GCXboxGamepad GCDualShockGamepad
+    GCDualSenseGamepad GCDualSenseAdaptiveTrigger GCDirectionalGamepad""".split()},
+                                "GCVirtualController.Configuration": "GCVirtualControllerConfiguration",
+                                "GCVirtualController.ElementConfiguration": "GCVirtualControllerElementConfiguration"}
 # issue #537: Vision from Objective-C
 OBJC_NAMES["Vision"] = {c: c for c in """VNRequest VNImageBasedRequest VNDetectBarcodesRequest VNRecognizeTextRequest
     VNDetectFaceCaptureQualityRequest VNDetectHumanRectanglesRequest VNClassifyImageRequest VNGenerateImageFeaturePrintRequest VNCoreMLModel
