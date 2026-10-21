@@ -754,6 +754,15 @@ OBJC_NAMES["AuthenticationServices"] = {**{c: c for c in """ASAuthorizationReque
                                         "ASWebAuthenticationSession.Callback": "ASWebAuthenticationSessionCallback"}
 
 OBJC_NAMES["LocalAuthentication"] = {"LAContext": "LAContext"}   # issue #307
+# issue #537: Vision from Objective-C
+OBJC_NAMES["Vision"] = {c: c for c in """VNRequest VNImageBasedRequest VNDetectBarcodesRequest VNRecognizeTextRequest
+    VNDetectFaceCaptureQualityRequest VNDetectHumanRectanglesRequest VNClassifyImageRequest VNGenerateImageFeaturePrintRequest VNCoreMLModel
+    VNCoreMLFeatureValueObservation VNCoreMLRequest VNObservation VNDetectedObjectObservation VNRectangleObservation VNBarcodeObservation
+    VNTextObservation VNRecognizedText VNRecognizedTextObservation VNFaceObservation VNClassificationObservation VNHumanObservation
+    VNImageRequestHandler VNSequenceRequestHandler VNDetectFaceRectanglesRequest VNDetectFaceLandmarksRequest VNFaceLandmarkRegion
+    VNFaceLandmarkRegion2D VNFaceLandmarks VNFaceLandmarks2D VNDetectRectanglesRequest VNDetectTextRectanglesRequest VNDetectContoursRequest
+    VNContour VNContoursObservation VNDetectHorizonRequest VNHorizonObservation VNPixelBufferObservation VNSaliencyImageObservation
+    VNGenerateAttentionBasedSaliencyImageRequest""".split()}
 
 def objc_aliases(module):
     out = []

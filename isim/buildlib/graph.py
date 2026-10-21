@@ -211,6 +211,7 @@ SWIFT_FRAMEWORKS = [
     # module shims (issue #223): headers over isim's AVFoundation and AudioToolbox; AVFAudio's classes are AVFoundation's
     ("AVFAudio", "-framework Foundation -framework AVFoundation -reexport_framework AVFoundation"),
     ("AudioToolbox", "-framework Foundation"),   # issue #286: the C interface over isim's Swift AudioToolbox (CAPI.swift)
+    ("Vision", "-framework Foundation -framework CoreGraphics"),   # issue #537: Vision from Objective-C
     ("AudioUnit", "-framework Foundation -framework AudioToolbox -reexport_framework AudioToolbox"),
     ("CoreAudio", "-framework Foundation"),
     # issue #231: the frameworks ad, login and VoIP SDKs use from Objective-C

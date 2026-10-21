@@ -37,6 +37,8 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 #if !defined(__swift__)   /* Objective-C only: Swift has its own Foundation API for these */
 @interface NSBundle (IsimURLs)
+@property (readonly, copy) NSURL *bundleURL;
+@property (readonly, copy, nullable) NSURL *resourceURL;
 - (nullable NSURL *)URLForResource:(nullable NSString *)name withExtension:(nullable NSString *)ext;
 - (nullable NSURL *)URLForResource:(nullable NSString *)name withExtension:(nullable NSString *)ext subdirectory:(nullable NSString *)subpath;
 @end

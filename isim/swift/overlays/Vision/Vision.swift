@@ -101,7 +101,7 @@ struct _VNImage {
 
 public typealias VNRequestCompletionHandler = (VNRequest, Error?) -> Void
 
-open class VNRequest: NSObject, @unchecked Sendable {
+@objc(VNRequest) @objcMembers open class VNRequest: NSObject, @unchecked Sendable {
     public let completionHandler: VNRequestCompletionHandler?
     open var results: [VNObservation]? { _results }
     var _results: [VNObservation]?
@@ -118,7 +118,7 @@ open class VNRequest: NSObject, @unchecked Sendable {
     /// subclasses: runs on the (cropped, upright) image and returns observations in ROI-relative coordinates
     func _run(_ img: _VNImage) throws -> [VNObservation] { throw _vnError(.unsupportedRequest, "\(type(of: self)) is not supported on isim") }
 }
-open class VNImageBasedRequest: VNRequest, @unchecked Sendable {
+@objc(VNImageBasedRequest) @objcMembers open class VNImageBasedRequest: VNRequest, @unchecked Sendable {
     /// normalized, lower-left origin; results are relative to it (like iOS)
     open var regionOfInterest = CGRect(x: 0, y: 0, width: 1, height: 1)
 }
@@ -162,7 +162,7 @@ public struct VNBarcodeSymbology: RawRepresentable, Hashable, Sendable {
     static var available: Bool { isim_vision_available(1) != 0 || isim_vision_available(3) != 0 }
 }
 
-open class VNDetectBarcodesRequest: VNImageBasedRequest, @unchecked Sendable {
+@objc(VNDetectBarcodesRequest) @objcMembers open class VNDetectBarcodesRequest: VNImageBasedRequest, @unchecked Sendable {
     open var symbologies: [VNBarcodeSymbology] = VNBarcodeSymbology.hostSupported
     open var coalesceCompositeSymbologies = false
     open class var supportedSymbologies: [VNBarcodeSymbology] { VNBarcodeSymbology.hostSupported }
@@ -208,7 +208,7 @@ open class VNDetectBarcodesRequest: VNImageBasedRequest, @unchecked Sendable {
 }
 
 public enum VNRequestTextRecognitionLevel: Int, Sendable { case accurate = 0, fast = 1 }
-open class VNRecognizeTextRequest: VNImageBasedRequest, @unchecked Sendable {
+@objc(VNRecognizeTextRequest) @objcMembers open class VNRecognizeTextRequest: VNImageBasedRequest, @unchecked Sendable {
     open var recognitionLevel: VNRequestTextRecognitionLevel = .accurate
     open var recognitionLanguages: [String] = ["en-US"]
     open var usesLanguageCorrection = true
@@ -276,23 +276,23 @@ open class VNRecognizeTextRequest: VNImageBasedRequest, @unchecked Sendable {
 }
 
 /// Requests with no backend on isim: they fail with VNError.unsupportedRequest.
-open class VNDetectFaceCaptureQualityRequest: VNImageBasedRequest, @unchecked Sendable {
+@objc(VNDetectFaceCaptureQualityRequest) @objcMembers open class VNDetectFaceCaptureQualityRequest: VNImageBasedRequest, @unchecked Sendable {
     open var inputFaceObservations: [VNFaceObservation]?
     override func _run(_ img: _VNImage) throws -> [VNObservation] {
         throw _vnError(.unsupportedRequest, "face capture quality is not available on isim (it needs Apple's models)")
     }
 }
-open class VNDetectHumanRectanglesRequest: VNImageBasedRequest, @unchecked Sendable {
+@objc(VNDetectHumanRectanglesRequest) @objcMembers open class VNDetectHumanRectanglesRequest: VNImageBasedRequest, @unchecked Sendable {
     open var upperBodyOnly = true
     override func _run(_ img: _VNImage) throws -> [VNObservation] { throw _vnError(.unsupportedRequest, "human detection is not available on isim (no host detector)") }
 }
-open class VNClassifyImageRequest: VNImageBasedRequest, @unchecked Sendable {
+@objc(VNClassifyImageRequest) @objcMembers open class VNClassifyImageRequest: VNImageBasedRequest, @unchecked Sendable {
     override func _run(_ img: _VNImage) throws -> [VNObservation] { throw _vnError(.unsupportedRequest, "image classification is not available on isim (it needs Apple's models)") }
 }
-open class VNGenerateImageFeaturePrintRequest: VNImageBasedRequest, @unchecked Sendable {
+@objc(VNGenerateImageFeaturePrintRequest) @objcMembers open class VNGenerateImageFeaturePrintRequest: VNImageBasedRequest, @unchecked Sendable {
     override func _run(_ img: _VNImage) throws -> [VNObservation] { throw _vnError(.unsupportedRequest, "image feature prints are not available on isim (they need Apple's models)") }
 }
-open class VNCoreMLModel: NSObject, @unchecked Sendable {
+@objc(VNCoreMLModel) @objcMembers open class VNCoreMLModel: NSObject, @unchecked Sendable {
     let _model: MLModel
     open var inputImageFeatureName: String
     open var featureProvider: MLFeatureProvider?
@@ -303,12 +303,12 @@ open class VNCoreMLModel: NSObject, @unchecked Sendable {
         super.init()
     }
 }
-open class VNCoreMLFeatureValueObservation: VNObservation, @unchecked Sendable {
+@objc(VNCoreMLFeatureValueObservation) @objcMembers open class VNCoreMLFeatureValueObservation: VNObservation, @unchecked Sendable {
     public let featureValue: MLFeatureValue
     public let featureName: String
     init(featureValue: MLFeatureValue, featureName: String) { self.featureValue = featureValue; self.featureName = featureName; super.init() }
 }
-open class VNCoreMLRequest: VNImageBasedRequest, @unchecked Sendable {
+@objc(VNCoreMLRequest) @objcMembers open class VNCoreMLRequest: VNImageBasedRequest, @unchecked Sendable {
     public let model: VNCoreMLModel
     @objc public enum ImageCropAndScaleOption: UInt, Sendable { case centerCrop = 0, scaleFit = 1, scaleFill = 2, scaleFitRotate90CCW = 0x101, scaleFillRotate90CCW = 0x102 }
     open var imageCropAndScaleOption: ImageCropAndScaleOption = .centerCrop
@@ -322,25 +322,25 @@ open class VNCoreMLRequest: VNImageBasedRequest, @unchecked Sendable {
 // MARK: - observations
 
 public typealias VNConfidence = Float
-open class VNObservation: NSObject, @unchecked Sendable {
+@objc(VNObservation) @objcMembers open class VNObservation: NSObject, @unchecked Sendable {
     public let uuid = UUID()
     open var confidence: VNConfidence = 1
     open var timeRange: CMTimeRange = .zero
     open var requestRevision: Int { 1 }
 }
-open class VNDetectedObjectObservation: VNObservation, @unchecked Sendable {
+@objc(VNDetectedObjectObservation) @objcMembers open class VNDetectedObjectObservation: VNObservation, @unchecked Sendable {
     open var boundingBox: CGRect
     public init(boundingBox: CGRect) { self.boundingBox = boundingBox; super.init() }
     public override convenience init() { self.init(boundingBox: .zero) }
 }
-open class VNRectangleObservation: VNDetectedObjectObservation, @unchecked Sendable {
+@objc(VNRectangleObservation) @objcMembers open class VNRectangleObservation: VNDetectedObjectObservation, @unchecked Sendable {
     var _topLeft: CGPoint?, _topRight: CGPoint?, _bottomLeft: CGPoint?, _bottomRight: CGPoint?
     open var topLeft: CGPoint { _topLeft ?? CGPoint(x: boundingBox.minX, y: boundingBox.maxY) }
     open var topRight: CGPoint { _topRight ?? CGPoint(x: boundingBox.maxX, y: boundingBox.maxY) }
     open var bottomLeft: CGPoint { _bottomLeft ?? CGPoint(x: boundingBox.minX, y: boundingBox.minY) }
     open var bottomRight: CGPoint { _bottomRight ?? CGPoint(x: boundingBox.maxX, y: boundingBox.minY) }
 }
-open class VNBarcodeObservation: VNRectangleObservation, @unchecked Sendable {
+@objc(VNBarcodeObservation) @objcMembers open class VNBarcodeObservation: VNRectangleObservation, @unchecked Sendable {
     public let symbology: VNBarcodeSymbology
     let _payload: Data
     init(symbology: VNBarcodeSymbology, payload: Data, boundingBox: CGRect) { self.symbology = symbology; _payload = payload; super.init(boundingBox: boundingBox) }
@@ -350,12 +350,12 @@ open class VNBarcodeObservation: VNRectangleObservation, @unchecked Sendable {
     open var isColorInverted: Bool { false }
     open var supplementalPayloadString: String? { nil }
 }
-open class VNTextObservation: VNRectangleObservation, @unchecked Sendable {
+@objc(VNTextObservation) @objcMembers open class VNTextObservation: VNRectangleObservation, @unchecked Sendable {
     var _characterBoxes: [VNRectangleObservation]?
     /// VNDetectTextRectanglesRequest with reportCharacterBoxes: one box per character
     open var characterBoxes: [VNRectangleObservation]? { _characterBoxes }
 }
-open class VNRecognizedText: NSObject, @unchecked Sendable {
+@objc(VNRecognizedText) @objcMembers open class VNRecognizedText: NSObject, @unchecked Sendable {
     public let string: String
     public let confidence: VNConfidence
     let _ranges: [(Range<String.Index>, CGRect)]
@@ -367,13 +367,13 @@ open class VNRecognizedText: NSObject, @unchecked Sendable {
         return VNRectangleObservation(boundingBox: boxes.dropFirst().reduce(first) { $0.union($1) })
     }
 }
-open class VNRecognizedTextObservation: VNTextObservation, @unchecked Sendable {
+@objc(VNRecognizedTextObservation) @objcMembers open class VNRecognizedTextObservation: VNTextObservation, @unchecked Sendable {
     let _text: VNRecognizedText
     init(text: VNRecognizedText, boundingBox: CGRect) { _text = text; super.init(boundingBox: boundingBox); confidence = text.confidence }
     /// isim: one candidate per line
     open func topCandidates(_ maxCandidateCount: Int) -> [VNRecognizedText] { maxCandidateCount > 0 ? [_text] : [] }
 }
-open class VNFaceObservation: VNDetectedObjectObservation, @unchecked Sendable {
+@objc(VNFaceObservation) @objcMembers open class VNFaceObservation: VNDetectedObjectObservation, @unchecked Sendable {
     var _roll: NSNumber?, _yaw: NSNumber?, _pitch: NSNumber?, _landmarks: VNFaceLandmarks2D?
     /// radians, from the eye line (isim measures no yaw or pitch: nil unless given)
     open var roll: NSNumber? { _roll }
@@ -391,15 +391,15 @@ open class VNFaceObservation: VNDetectedObjectObservation, @unchecked Sendable {
     }
     public override init(boundingBox: CGRect) { super.init(boundingBox: boundingBox) }
 }
-open class VNClassificationObservation: VNObservation, @unchecked Sendable {
+@objc(VNClassificationObservation) @objcMembers open class VNClassificationObservation: VNObservation, @unchecked Sendable {
     public let identifier: String
     public init(identifier: String, confidence: VNConfidence) { self.identifier = identifier; super.init(); self.confidence = confidence }
 }
-open class VNHumanObservation: VNDetectedObjectObservation, @unchecked Sendable {}
+@objc(VNHumanObservation) @objcMembers open class VNHumanObservation: VNDetectedObjectObservation, @unchecked Sendable {}
 
 // MARK: - handlers
 
-open class VNImageRequestHandler: NSObject, @unchecked Sendable {
+@objc(VNImageRequestHandler) @objcMembers open class VNImageRequestHandler: NSObject, @unchecked Sendable {
     let _load: () -> _VNImage?
     let _orientation: CGImagePropertyOrientation
     public init(cgImage image: CGImage, orientation: CGImagePropertyOrientation = .up, options: [VNImageOption: Any] = [:]) {
@@ -428,7 +428,7 @@ open class VNImageRequestHandler: NSObject, @unchecked Sendable {
 
     /// Runs the requests in order (synchronously, like iOS), filling each request's results and calling its completion handler.
     /// Throws the first request's error.
-    open func perform(_ requests: [VNRequest]) throws {
+    @objc(performRequests:error:) open func perform(_ requests: [VNRequest]) throws {
         guard let img0 = _load() else {
             let e = _vnError(.invalidImage, "the image could not be read")
             for r in requests { r._results = nil; r.completionHandler?(r, e) }
@@ -453,7 +453,7 @@ open class VNImageRequestHandler: NSObject, @unchecked Sendable {
         if let first { throw first }
     }
 }
-open class VNSequenceRequestHandler: NSObject, @unchecked Sendable {
+@objc(VNSequenceRequestHandler) @objcMembers open class VNSequenceRequestHandler: NSObject, @unchecked Sendable {
     public override init() { super.init() }
     open func perform(_ requests: [VNRequest], on image: CGImage, orientation: CGImagePropertyOrientation = .up) throws {
         try VNImageRequestHandler(cgImage: image, orientation: orientation).perform(requests)
