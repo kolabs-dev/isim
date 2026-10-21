@@ -3,7 +3,10 @@
 rectangular under the clock; a tap opens the app), configurable widgets (Edit Widget: the WidgetConfigurationIntent's
 parameters, the timeline reloads with them), the redacted placeholder while the first timeline loads, gallery
 snapshots (isPreview), widgetURL / Link taps, WidgetCenter.currentConfigurations, and StandBy (`standby on`: two
-widgets side by side, landscape, without their container backgrounds)."""
+widgets side by side, landscape, without their container backgrounds). Also: a widget configured by a SiriKit intent
+(IntentConfiguration: Edit Widget from its .intentdefinition, recommendations), images in their accented rendering
+modes on the tinted Home Screen, a Live Activity drawn at the small size (ActivityFamily), and widget pushes
+(WidgetPushHandler, iOS 26)."""
 import re
 
 import pytest
@@ -32,8 +35,8 @@ def open_gallery(dev):
         dev.tap_id("home-add-widget")
 
 
-def boot(launch):
-    dev = launch(None, install=["HelloWidgets"], env={"ISIM_LOCK_TIME": "9:41", "ISIM_SUSPEND": "0"})
+def boot(launch, **kw):
+    dev = launch(None, install=["HelloWidgets"], env={"ISIM_LOCK_TIME": "9:41", "ISIM_SUSPEND": "0"}, **kw)
     dev.wait_log(r"isim WidgetKit: \d+ widget kind")
     dev.wait_view(rf"id=app-{re.escape(APP)}")
     dev.wait_still()
@@ -288,4 +291,93 @@ def test_lock_screen_widget_sizes(launch):
     png = next(p for p in (dev.data / "Library/SpringBoard/Widgets" / APP / "lock").glob("Counter-accessoryCircular-*.png"))
     from PIL import Image
     assert Image.open(png).size[0] in (76, 152, 228), f"the extension renders at the 76 pt size ({Image.open(png).size})"
+    assert dev.quit() == 0
+
+
+@pytest.mark.os_matrix
+def test_intent_configured_widget(launch):
+    """IntentConfiguration: the SiriKit intent's parameters (from Theme.intentdefinition) in Edit Widget, the values on
+    the intent the IntentTimelineProvider gets; its recommendations are listed"""
+    dev = boot(launch)
+    add_home_widget(dev, "Theme", "systemSmall")
+    dev.wait_log(r"theme timeline \(systemSmall\), color 3, title My Theme, date hidden")
+    dev.wait_log(r"widget Theme shows Theme-systemSmall-0.png")
+    dev.send("holdid widget-Theme-systemSmall 0.8")
+    dev.wait_tap_id("menu-widget-edit")
+    dev.wait_log(r"isim WidgetKit: Theme has 3 parameter\(s\): color, title, showsDate")
+    dev.wait_tap_id("widget-param-color")
+    dev.wait_tap_id("widget-choice-1")                                  # Sunrise (the enum's index)
+    dev.wait_log(r"widget parameter color = 1")
+    dev.wait_tap_id("widget-param-showsDate")
+    dev.wait_log(r"widget parameter showsDate = true")
+    dev.wait_tap_id("widget-param-title")
+    dev.type("Breakfast")
+    dev.send("key return")                                              # the keyboard goes
+    dev.wait_for(type="keyboard", gone=True)
+    dev.wait_still()
+    dev.screenshot("edit-intent-widget")
+    dev.tap(200, 120)                                                   # outside the card: Done (its centre is a field)
+    dev.wait_log(r"widget Theme configured: color=1, showsDate=true, title=Breakfast")
+    dev.wait_log(r"theme timeline \(systemSmall\), color 1, title Breakfast, date shown")
+    dev.wait_log(r"widget Theme shows Theme-systemSmall-0.png", count=2)
+    assert dev.quit() == 0
+    assert re.search(r"isim WidgetKit: Theme recommends “Forest”", dev.log), "IntentRecommendation"
+
+
+def test_accented_image_modes(launch):
+    """iOS 18 tinted Home Screen: Image.widgetAccentedRenderingMode: the .fullColor star stays yellow, the .desaturated
+    leaf turns grey, the rest of the widget is white and in the tint"""
+    dev = boot(launch, os_version="18.0")
+    add_home_widget(dev, "Theme", "systemSmall")
+    dev.wait_log(r"widget Theme shows Theme-systemSmall-0.png")
+    dev.send("iconstyle tinted #ff3b30")
+    dev.wait_log(r"rendered Theme \(systemSmall, accented\)")
+    dev.wait_log(r"widget Theme shows Theme-systemSmall-0.png", count=2)
+    dev.wait_still()
+    x, y, w, h = screen_frames(dev.view_dump())["widget-Theme-systemSmall"]
+
+    def colours(s):
+        """(yellow pixels in the star's corner, green pixels in the leaf's, grey ones there)"""
+        star = s.crop((int(x + 16), int(y + h - 22 - 52), int(x + 56), int(y + h - 22 - 14))).tobytes()
+        leaf = s.crop((int(x + 60), int(y + h - 22 - 52), int(x + 100), int(y + h - 22 - 14))).tobytes()
+        yellow = sum(1 for i in range(0, len(star), 3) if star[i] > 180 and star[i + 1] > 150 and star[i + 2] < 90)
+        green = sum(1 for i in range(0, len(leaf), 3) if leaf[i + 1] > leaf[i] + 60 and leaf[i + 1] > leaf[i + 2] + 60)
+        grey = sum(1 for i in range(0, len(leaf), 3) if leaf[i] > 60 and abs(leaf[i] - leaf[i + 1]) < 12 and abs(leaf[i + 1] - leaf[i + 2]) < 12)
+        return yellow, green, grey
+    shot = dev.wait_shot(lambda s: colours(s)[0] > 40 and colours(s)[1] == 0 and colours(s)[2] > 40, "the star in colour, the leaf grey")
+    dev.screenshot("accented-image-modes")
+    assert dev.quit() == 0
+    assert colours(shot)[0] > 40
+
+
+def test_small_live_activity(launch):
+    """iOS 18: a Live Activity with supplementalActivityFamilies([.small]) is drawn .medium on the Lock Screen and at the
+    small size (activityFamily .small) too"""
+    dev = boot(launch, os_version="18.0")
+    dev.send(f"launch {APP}")
+    dev.wait_tap_id("startTimer")
+    dev.wait_log(r"HelloWidgets: started timer")
+    dev.wait_log(r"isim WidgetKit: rendered Live Activity TimerAttributes \(lock screen, Dynamic Island, small\)")
+    assert dev.quit() == 0
+    log = dev.log
+    assert "HelloWidgets extension: timer view (small)" in log and "HelloWidgets extension: timer view (medium)" in log
+    small = list((dev.data / "Library/SpringBoard/Widgets" / APP).rglob("small.png"))
+    assert small, "the small presentation is saved"
+    from PIL import Image
+    assert Image.open(small[0]).size == (172 * 3, 76 * 3), Image.open(small[0]).size
+
+
+def test_widget_push(launch, tmp_path):
+    """iOS 26: the extension's WidgetPushHandler gets the push token for its widgets; a widgets push reloads them"""
+    dev = boot(launch, os_version="26.0", device="iphone17")
+    add_home_widget(dev, "Headlines", "systemSmall")
+    dev.wait_log(r"headlines timeline 1")
+    m = dev.wait_log(r"isim WidgetKit: push token ([0-9a-f]{64}) for Headlines")
+    dev.wait_log(rf"HelloWidgets extension: widget push token {m.group(1)} for Headlines systemSmall")
+    payload = tmp_path / "widgets.apns"
+    payload.write_text('{"apns-push-type": "widgets", "aps": {"content-changed": true}}')
+    dev.send(f"push {APP} {payload}")
+    dev.wait_log(r"SpringBoard: widgets push for Widgets \(Headlines\): reloading 1 widget\(s\)")
+    dev.wait_log(r"headlines timeline 2")
+    dev.wait_log(r"widget Headlines shows Headlines-systemSmall-0.png", count=2)
     assert dev.quit() == 0

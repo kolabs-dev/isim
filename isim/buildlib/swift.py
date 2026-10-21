@@ -832,7 +832,7 @@ MultipeerConnectivity -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftNe
 XCTest -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit -framework XCTest
 AppIntents -lswiftObjectiveC -reexport-lswiftFoundation -lswiftCoreSpotlight -lswiftCoreLocation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit
 ActivityKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation -lisim_host
-WidgetKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftAppIntents -lswiftActivityKit -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
+WidgetKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftAppIntents -lswiftActivityKit -lswiftIntents -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -framework Intents -lisim_host
 CoreSpotlight -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUniformTypeIdentifiers -framework Foundation
 AppClip -lswiftObjectiveC -lswiftFoundation -lswiftCoreLocation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 SecureElementCredential -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit

@@ -16,7 +16,8 @@
 // answers "local-shown", and the home screen then takes the request off the app's pending list (or moves a repeating
 // one to its next time) and records the delivered notification in the app's container.
 // VoIP pushes (a top-level "apns-push-type": "voip", standing in for that APNs header) go to apps with
-// UIBackgroundModes voip, launched in the background if needed; UIKit hands them to PushKit.
+// UIBackgroundModes voip, launched in the background if needed; UIKit hands them to PushKit. Widget pushes
+// ("apns-push-type": "widgets", iOS 26) reload the app's widgets that have a WidgetPushHandler.
 #import "SpringBoard.h"
 #import <UserNotifications/UserNotifications.h>
 
@@ -152,6 +153,7 @@ static void collect_icons(UIView *v, NSMutableArray *out) {
     for (HSApp *x in self.apps) if ([x.bundleID isEqualToString:bundle]) a = x;
     if (!a) { NSLog(@"SpringBoard: push: no installed app '%@'", bundle); return; }
     if ([pushType isEqual:@"voip"]) { [self deliverVoIPPush:payload app:a]; return; }
+    if ([pushType isEqual:@"widgets"]) { [self deliverWidgetsPush:payload app:a]; return; }          /* WidgetPushHandler (iOS 26) */
     if ([self deliverLiveActivityPush:payload app:a]) return;         /* a liveactivity payload (aps.event): SBLiveActivities.m */
     NSDictionary *aps = payload[@"aps"];
     /* the APNs apns-collapse-id header becomes the request identifier on iOS; a payload file has no headers, so isim reads

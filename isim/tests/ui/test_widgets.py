@@ -33,8 +33,11 @@ def open_gallery(dev):
         dev.tap_id("home-add-widget")
 
 
-def test_widgets(launch):
+def test_widgets(launch, ios):
     dev = launch(None, install=["HelloWidgets"])
+    major = int((ios[0] or "18").split(".")[0])
+    kinds = 4 + (major >= 26)                    # Headlines (WidgetPushHandler) is iOS 26+
+    activities = 1 + (major >= 18)               # the timer (ActivityFamily) is iOS 18+
     dev.wait_log(r"isim WidgetKit: \d+ widget kind")
     dev.wait_view(rf"id=app-{re.escape(APP)}")
     dev.wait_still()
@@ -119,7 +122,7 @@ def test_widgets(launch):
 
     def has(p):
         return re.search(p, log, re.M)
-    assert has(r"isim WidgetKit: 3 widget kind\(s\), 1 Live Activity configuration\(s\)") and \
+    assert has(rf"isim WidgetKit: {kinds} widget kind\(s\), {activities} Live Activity configuration\(s\)") and \
         "id=widget-add-Counter-systemSmall" in gallery and "id=widget-add-Ticker-systemMedium" in gallery, \
         "the extension lists its widgets; the gallery offers them"
     assert has(r"added widget Counter \(systemSmall\)") and \

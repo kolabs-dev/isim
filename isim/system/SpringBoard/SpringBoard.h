@@ -112,6 +112,7 @@ NSString *HSCategoryName(NSString *category);
 - (void)installWidgetObservers;
 - (void)showWidgetGallery;
 - (void)discoverWidgets;
+- (void)deliverWidgetsPush:(NSDictionary *)payload app:(HSApp *)app;          /* "apns-push-type": "widgets" (SBWidgets.m) */
 @end
 @interface HomeViewController (Controls)
 - (void)installControlObservers;         /* Control Center controls, Focus filters (SBControls.m) */

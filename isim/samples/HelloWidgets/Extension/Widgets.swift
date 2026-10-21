@@ -1,11 +1,14 @@
 // HelloWidgets widget extension: an interactive counter (Button(intent:); also a Lock Screen circle), a ticker with a
 // timeline and a Link, a configurable weather widget (AppIntentConfiguration: Edit Widget; a slow timeline, so the
-// redacted placeholder shows first; Lock Screen rectangle and inline), and the delivery Live Activity (lock screen +
-// Dynamic Island, stale content).
+// redacted placeholder shows first; Lock Screen rectangle and inline), a theme widget configured by a SiriKit intent
+// (IntentConfiguration, with recommendations and images in their accented rendering modes), the delivery Live Activity
+// (lock screen + Dynamic Island, stale content), on iOS 18 a timer Live Activity that also draws small, and on iOS 26
+// headlines that reload on a widget push (WidgetPushHandler).
 import WidgetKit
 import SwiftUI
 import AppIntents
 import ActivityKit
+import Intents
 
 @main
 struct HelloWidgetsBundle: WidgetBundle {
@@ -13,7 +16,10 @@ struct HelloWidgetsBundle: WidgetBundle {
         CounterWidget()
         TickerWidget()
         WeatherWidget()
+        ThemeWidget()
         DeliveryLiveActivity()
+        if #available(iOS 18.0, *) { TimerLiveActivity() }
+        if #available(iOS 26.0, *) { HeadlinesWidget() }
     }
 }
 
@@ -151,6 +157,146 @@ struct WeatherWidget: Widget {
         .configurationDisplayName("Weather")
         .description("The weather in a city you choose")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular, .accessoryInline])
+    }
+}
+
+// MARK: - configured by a SiriKit intent
+
+struct ThemeEntry: TimelineEntry { let date: Date; let color: ThemeColor; let title: String; let showsDate: Bool }
+struct ThemeProvider: IntentTimelineProvider {
+    func placeholder(in context: Context) -> ThemeEntry { ThemeEntry(date: Date(), color: .ocean, title: "My Theme", showsDate: false) }
+    func getSnapshot(for configuration: ThemeIntent, in context: Context, completion: @escaping (ThemeEntry) -> Void) { completion(entry(configuration)) }
+    func getTimeline(for configuration: ThemeIntent, in context: Context, completion: @escaping (Timeline<ThemeEntry>) -> Void) {
+        let e = entry(configuration)
+        NSLog("HelloWidgets extension: theme timeline (%@), color %ld, title %@, date %@", context.family.description, e.color.rawValue, e.title, e.showsDate ? "shown" : "hidden")
+        completion(Timeline(entries: [e], policy: .never))
+    }
+    func recommendations() -> [IntentRecommendation<ThemeIntent>] {
+        let forest = ThemeIntent(); forest.color = .forest; forest.title = "Forest"
+        return [IntentRecommendation(intent: forest, description: "Forest")]
+    }
+    func entry(_ c: ThemeIntent) -> ThemeEntry {
+        ThemeEntry(date: Date(), color: c.color == .unknown ? .ocean : c.color, title: c.title ?? "My Theme", showsDate: c.showsDate?.boolValue ?? false)
+    }
+}
+struct ThemeView: View {
+    let entry: ThemeEntry
+    var background: Color {
+        switch entry.color {
+        case .sunrise: return Color(red: 0.95, green: 0.45, blue: 0.2)
+        case .forest: return Color(red: 0.1, green: 0.45, blue: 0.25)
+        default: return Color(red: 0.1, green: 0.3, blue: 0.6)
+        }
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(entry.title).font(.headline).foregroundColor(.white).widgetAccentable()
+            if entry.showsDate { Text(entry.date, style: .date).font(.caption).foregroundColor(.white) }
+            Spacer(minLength: 0)
+            HStack(spacing: 10) {                          /* the tinted Home Screen: the star in colour, the leaf grey */
+                if #available(iOS 18.0, *) {
+                    Image(systemName: "star.fill").widgetAccentedRenderingMode(.fullColor).font(.system(size: 34)).foregroundColor(.yellow)
+                    Image(systemName: "leaf.fill").widgetAccentedRenderingMode(.desaturated).font(.system(size: 34)).foregroundColor(.green)
+                } else {
+                    Image(systemName: "star.fill").font(.system(size: 34)).foregroundColor(.yellow)
+                    Image(systemName: "leaf.fill").font(.system(size: 34)).foregroundColor(.green)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .containerBackground(background, for: .widget)
+    }
+}
+struct ThemeWidget: Widget {
+    var body: some WidgetConfiguration {
+        IntentConfiguration(kind: "Theme", intent: ThemeIntent.self, provider: ThemeProvider()) { entry in
+            ThemeView(entry: entry)
+        }
+        .configurationDisplayName("Theme")
+        .description("Colours you choose")
+        .supportedFamilies([.systemSmall, .systemMedium])
+    }
+}
+
+// MARK: - iOS 26: widget pushes
+
+@available(iOS 26.0, *)
+struct HeadlinesPushHandler: WidgetPushHandler {
+    func pushTokenDidChange(_ pushInfo: WidgetPushInfo, widgets: [WidgetInfo]) {
+        NSLog("HelloWidgets extension: widget push token %@ for %@", pushInfo.token.map { String(format: "%02x", $0) }.joined(),
+              widgets.map { "\($0.kind) \($0.family)" }.sorted().joined(separator: ", "))
+    }
+}
+struct HeadlineEntry: TimelineEntry { let date: Date; let reloads: Int }
+struct HeadlinesProvider: TimelineProvider {
+    func placeholder(in context: Context) -> HeadlineEntry { HeadlineEntry(date: Date(), reloads: 0) }
+    func getSnapshot(in context: Context, completion: @escaping (HeadlineEntry) -> Void) { completion(placeholder(in: context)) }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<HeadlineEntry>) -> Void) {
+        headlineReloads += 1
+        NSLog("HelloWidgets extension: headlines timeline %ld", headlineReloads)
+        completion(Timeline(entries: [HeadlineEntry(date: Date(), reloads: headlineReloads)], policy: .never))
+    }
+}
+@available(iOS 26.0, *)
+struct HeadlinesWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "Headlines", provider: HeadlinesProvider()) { entry in
+            VStack(alignment: .leading, spacing: 4) {
+                Text("HEADLINES").font(.caption.bold()).foregroundColor(.red)
+                Text("Edition \(entry.reloads)").font(.title2.bold())
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .containerBackground(Color.white, for: .widget)
+        }
+        .configurationDisplayName("Headlines")
+        .description("Updated by pushes")
+        .supportedFamilies([.systemSmall])
+        .pushHandler(HeadlinesPushHandler.self)
+    }
+}
+
+// MARK: - Live Activities
+
+@available(iOS 18.0, *)
+struct TimerView: View {
+    let context: ActivityViewContext<TimerAttributes>
+    @Environment(\.activityFamily) var family
+    var body: some View {
+        let _ = NSLog("HelloWidgets extension: timer view (%@)", family == .small ? "small" : "medium")
+        if family == .small {                              /* Apple Watch, CarPlay: just the time */
+            HStack {
+                Image(systemName: "timer").foregroundColor(.orange)
+                Text("\(context.state.seconds) s").font(.headline)
+            }
+        } else {
+            HStack {
+                Text(context.attributes.name).font(.headline)
+                Spacer()
+                Text("\(context.state.seconds) s left").font(.title2.bold()).foregroundColor(.orange)
+            }
+            .padding(20)
+        }
+    }
+}
+@available(iOS 18.0, *)
+struct TimerLiveActivity: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: TimerAttributes.self) { context in
+            TimerView(context: context).activityBackgroundTint(Color.black)
+        } dynamicIsland: { context in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) { Text(context.attributes.name) }
+                DynamicIslandExpandedRegion(.trailing) { Text("\(context.state.seconds) s") }
+            } compactLeading: {
+                Image(systemName: "timer").foregroundColor(.orange)
+            } compactTrailing: {
+                Text("\(context.state.seconds)").foregroundColor(.orange)
+            } minimal: {
+                Image(systemName: "timer").foregroundColor(.orange)
+            }
+        }
+        .supplementalActivityFamilies([.small])
     }
 }
 

@@ -407,6 +407,7 @@ static NSMutableDictionary *config_edit;                        /* { item, view,
                 f.accessibilityIdentifier = [@"widget-param-" stringByAppendingString:name];
                 objc_setAssociatedObject(f, "hsparam", name, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
                 [f addTarget:self action:@selector(widgetText:) forControlEvents:UIControlEventEditingChanged];
+                [f addTarget:f action:@selector(resignFirstResponder) forControlEvents:UIControlEventEditingDidEndOnExit];   /* return: the keyboard goes */
                 [row addSubview:f];
             }
             [card addSubview:row];
@@ -539,6 +540,21 @@ static void collect_previews(UIView *v, NSMutableArray *out) {
     [self _layoutChanged];
 }
 /* ask each app's widget extension what it offers (cached per app) */
+/* a widget push (iOS 26, "apns-push-type": "widgets"): the app's widgets whose configuration has a WidgetPushHandler
+   reload their timelines */
+- (void)deliverWidgetsPush:(NSDictionary *)payload app:(HSApp *)a {
+    NSDictionary *list = [NSDictionary dictionaryWithContentsOfFile:[widgets_dir(a.bundleID) stringByAppendingPathComponent:@"widgets.plist"]];
+    NSMutableSet *kinds = [NSMutableSet set];
+    for (NSDictionary *w in list[@"widgets"]) if ([w[@"push"] boolValue]) [kinds addObject:w[@"kind"]];
+    if (os_major() < 26 || !kinds.count) {
+        NSLog(@"SpringBoard: widgets push for %@ dropped (%@)", a.name, os_major() < 26 ? @"widget pushes are iOS 26+" : @"no widget has a WidgetPushHandler");
+        return;
+    }
+    NSUInteger n = 0;
+    for (HSWidgetView *w in [widget_views() copy])
+        if (w.window && [w.item[@"app"] isEqual:a.bundleID] && [kinds containsObject:w.item[@"widget"]]) { [self renderWidget:w tapAt:nil]; n++; }
+    NSLog(@"SpringBoard: widgets push for %@ (%@): reloading %lu widget(s)", a.name, [kinds.allObjects componentsJoinedByString:@", "], (unsigned long)n);
+}
 - (void)discoverWidgets {
     for (HSApp *a in self.apps) {
         NSDictionary *ext = widget_extension(a);
