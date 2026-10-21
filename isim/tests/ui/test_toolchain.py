@@ -198,9 +198,9 @@ def test_arm64_only_xcframework_rejected(tmp_path):
 
 def test_package_tests(device_data, tmp_path):
     units = PROJ / "Packages/Units"
-    rc, log = isim(device_data, "build", "-list", cwd=units)
-    assert rc == 0 and re.search(r'^Information about workspace "Units":\n    Schemes:\n        Units$', log, re.M), log
     out = str(tmp_path / "build")                                     # (not <package>/.build/isim: keeps the sample clean)
+    rc, log = isim(device_data, "build", "-list", "-o", out, cwd=units)
+    assert rc == 0 and re.search(r'^Information about workspace "Units":\n    Schemes:\n        Units$', log, re.M), log
     rc, log = isim(device_data, "test", "-scheme", "Units", "-o", out, cwd=units)
     tail = log[-6000:]
     assert rc == 0 and re.search(r"^\*\* TEST SUCCEEDED \*\*", log, re.M), f"the package's tests pass (exit {rc})\n{tail}"
