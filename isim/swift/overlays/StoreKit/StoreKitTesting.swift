@@ -11,6 +11,26 @@ public enum _SKTesting {
     /// purchases need the customer's action before they complete (SKTestSession.interruptedPurchasesEnabled)
     nonisolated(unsafe) public static var interruptedPurchases = false
 
+    /// SKTestSession.setSimulatedError(_:forAPI:): the error each failable StoreKit API throws while it is set, by
+    /// the API's name (loadProducts, purchase, verification, appStoreSync, appTransaction, subscriptionStatus,
+    /// refundRequest, manageSubscriptions, offerCodeRedeem)
+    nonisolated(unsafe) static var simulatedErrors: [String: Error] = [:]
+    static let simulatedLock = NSLock()
+    public static func setSimulatedError(_ error: Error?, forAPI api: String) {
+        simulatedLock.lock(); simulatedErrors[api] = error; simulatedLock.unlock()
+        NSLog("isim StoreKit: simulated error for %@: %@", api, error.map { String(describing: $0) } ?? "none")
+    }
+    static func simulatedError(_ api: String) -> Error? { simulatedLock.lock(); defer { simulatedLock.unlock() }; return simulatedErrors[api] }
+    /// throws the API's simulated error, if one is set
+    static func check(_ api: String) throws {
+        if let e = simulatedError(api) { NSLog("isim StoreKit: %@ fails with the simulated error %@", api, String(describing: e)); throw e }
+    }
+    /// a transaction as a verification result: unverified with the simulated verification error, if one is set
+    static func verify(_ t: Transaction) -> VerificationResult<Transaction> {
+        if let e = simulatedError("verification") as? VerificationResult<Transaction>.VerificationError { return .unverified(t, e) }
+        return .verified(t)
+    }
+
     /// uses the .storekit file at `path` instead of the bundle's
     public static func load(_ path: String) throws {
         guard let d = FileManager.default.contents(atPath: path), (try? JSONSerialization.jsonObject(with: d)) is [String: Any] else {

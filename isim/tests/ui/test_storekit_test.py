@@ -2,7 +2,8 @@
 SKTestSession — the project's Products.storekit (found in the project, as Xcode does not copy .storekit files into
 products), purchases without dialogs, refunds, Ask to Buy (approve, decline of an answered request), interrupted
 purchases (resolveIssueForTransaction), a subscription's auto-renew, forced renewal and expiration, time rate,
-clearing, and errors for unknown transactions. `isim test` runs it like `xcodebuild test`."""
+clearing, errors for unknown transactions, and simulated errors (setSimulatedError(_:forAPI:): loading products,
+purchases, verification, AppStore.sync, cleared by resetToDefaultState). `isim test` runs it like `xcodebuild test`."""
 import os
 import re
 import subprocess
@@ -20,8 +21,9 @@ def test_storekit_test_session(device_data, tmp_path):
     log = p.stdout
     assert p.returncode == 0 and re.search(r"^\*\* TEST SUCCEEDED \*\*", log, re.M), log[-4000:]
     for name in ("productsFromTheConfiguration", "purchaseAndRefund", "askToBuy", "interruptedPurchase", "subscriptionLifecycle",
-                 "timeRateAndClearing"):
+                 "timeRateAndClearing", "simulatedErrors"):
         assert re.search(rf"✔ Test {name}\(\) passed", log), f"{name} passes\n{log[-4000:]}"
     assert "isim StoreKit: SKTestSession uses Products.storekit (5 products)" in log
     assert re.search(r"Ask to Buy: request [0-9]+ approved: transaction", log), "an approved Ask to Buy request"
     assert re.search(r"purchase [0-9]+ of dev\.isim\.store\.full_game interrupted", log), "an interrupted purchase"
+    assert "isim StoreKit: loadProducts fails with the simulated error" in log, "a simulated error"
