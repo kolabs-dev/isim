@@ -2,7 +2,8 @@
 only in the compiler that built them, so `isim toolchain` picks exactly Swift 6.2.4: ISIM_SWIFT_TOOLCHAIN (a toolchain
 directory), else swiftly's 6.2.4 (`isim toolchain install`), else a swiftc on PATH that is 6.2.4; another version is
 refused with a message, never used. The toolchain runs on the host, so sources and products can be anywhere.
-A toolchain whose swift driver cannot run (a missing system library) is reported, and `isim cc` links with LLVM's
+A toolchain whose swift driver cannot run (a missing system library) is reported, `isim toolchain install` retries
+swiftly and falls back to swift.org's signed tarball (#622), and `isim cc` links with LLVM's
 clang and lld, never a Swift toolchain's (Apple's fork of lld refuses to link for iOS)."""
 import os
 import shutil
@@ -107,6 +108,77 @@ def test_swift_cannot_run(sandbox, tmp_path):
     assert rc == 1 and "is installed" in out and "libncurses.so.6 is missing" in out, out
     rc, out = sandbox("toolchain", "which")                    # compiling Swift does not need the driver
     assert rc == 0 and out.strip() == str(tc), out
+
+
+def install_sandbox(sandbox, tmp_path, swiftly_script):
+    """isim toolchain install with a fake swiftly (swiftly_script: its shell body; $count is how many times it ran) and
+    the programs the tarball fallback uses; the retry delays are 0"""
+    for p in ("uname", "sleep", "ls", "mkdir", "tar", "gzip", "cp", "chmod", "ln"):
+        if shutil.which(p):
+            sandbox.put_on_path(p, shutil.which(p))
+    swiftly = executable(tmp_path / "home" / ".local/share/swiftly/bin/swiftly",
+                         f'#!/bin/sh\ncount=$(($(cat "{tmp_path}/swiftly-count" 2>/dev/null || echo 0) + 1))\n'
+                         f'echo $count > "{tmp_path}/swiftly-count"\n' + swiftly_script)
+    return swiftly
+
+
+def fake_frontend_script(dest):
+    return (f'mkdir -p "{dest}/usr/bin"\nprintf \'#!/bin/sh\\necho "Swift version {VERSION} (swift-{VERSION}-RELEASE)"\\n\' '
+            f'> "{dest}/usr/bin/swift-frontend"\nchmod +x "{dest}/usr/bin/swift-frontend"\n'
+            f'ln -s swift-frontend "{dest}/usr/bin/swift"\n')
+
+
+DENIED = 'echo "Error: Unexpected response, expected status code: ok, response: undocumented(statusCode: 403)" >&2\nexit 1\n'
+
+
+def test_install_retries_swiftly(sandbox, tmp_path):
+    """download.swift.org answering 403 for a moment (#622): swiftly is tried again, and the second attempt installs"""
+    install_sandbox(sandbox, tmp_path, f'[ $count -ge 2 ] || {{ {DENIED} }}\n' + fake_frontend_script(tmp_path / "swiftly" / VERSION))
+    rc, out = sandbox("toolchain", "install", ISIM_TOOLCHAIN_RETRY_DELAYS="0 0 0")
+    assert rc == 0 and "trying again" in out and f"swiftly install {VERSION} (attempt 2)" in out, out
+    assert f"Swift {VERSION} is installed ({tmp_path / 'swiftly' / VERSION / 'usr'})" in out, out
+
+
+def test_install_failure_says_why(sandbox, tmp_path):
+    """swiftly failing every time, and no tarball to fall back on: isim says the download failed, not that the toolchain
+    went somewhere else (#622)"""
+    install_sandbox(sandbox, tmp_path, DENIED)
+    executable(tmp_path / "bin" / "curl", "#!/bin/sh\necho 'curl: (22) The requested URL returned error: 403' >&2\nexit 22\n")
+    rc, out = sandbox("toolchain", "install", ISIM_TOOLCHAIN_RETRY_DELAYS="0 0 0")
+    assert rc == 1 and (tmp_path / "swiftly-count").read_text().strip() == "4", out
+    assert "swiftly could not download" in out and "is not installed" in out and "run `isim toolchain install` again" in out, out
+    assert "somewhere else" not in out, out
+
+
+def os_release_platform():
+    try:
+        info = dict(l.strip().split("=", 1) for l in open("/etc/os-release") if "=" in l)
+    except OSError:
+        return None
+    return {"ubuntu": "ubuntu", "debian": "debian"}.get(info.get("ID", "").strip('"')) and info.get("VERSION_ID", "").strip('"')
+
+
+def test_install_falls_back_to_the_tarball(sandbox, tmp_path):
+    """swiftly failing every time: swift.org's tarball, checked with gpg, is unpacked into isim-swift and used (#622);
+    a tarball whose signature does not check out is refused"""
+    if not os_release_platform() or not shutil.which("tar"):
+        pytest.skip("needs a distribution swift.org has tarballs for")
+    install_sandbox(sandbox, tmp_path, DENIED)
+    top = tmp_path / "tarball" / f"swift-{VERSION}-RELEASE"
+    fake_toolchain(top, VERSION)
+    subprocess.run(["tar", "-czf", str(tmp_path / "swift.tar.gz"), "-C", str(top.parent), top.name], check=True)
+    executable(tmp_path / "bin" / "curl", f'#!/bin/sh\nwhile [ $# -gt 1 ]; do [ "$1" = -o ] && out=$2; shift; done\n'
+               f'case "$1" in *.tar.gz) cp "{tmp_path}/swift.tar.gz" "$out" ;; *) echo x > "$out" ;; esac\n')
+    executable(tmp_path / "bin" / "gpg", "#!/bin/sh\ncat\n")                       # gpg --dearmor
+    executable(tmp_path / "bin" / "gpgv", "#!/bin/sh\nexit 1\n")
+    rc, out = sandbox("toolchain", "install", ISIM_TOOLCHAIN_RETRY_DELAYS="0 0 0")
+    assert rc == 1 and "does not match its signature" in out and "is not installed" in out, out   # refused
+    executable(tmp_path / "bin" / "gpgv", "#!/bin/sh\nexit 0\n")
+    rc, out = sandbox("toolchain", "install", ISIM_TOOLCHAIN_RETRY_DELAYS="0 0 0")
+    tc = tmp_path / "home" / ".local/share/isim-swift" / VERSION / "usr"
+    assert rc == 0 and f"Swift {VERSION} is installed ({tc})" in out, out
+    rc, out = sandbox("toolchain", "status")
+    assert rc == 0 and out.strip() == f"Swift {VERSION}: {tc} (swift.org tarball)", out
 
 
 def test_cc_skips_swift_toolchain_clang(sandbox, tmp_path):
