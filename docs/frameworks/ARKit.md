@@ -15,7 +15,8 @@
 - The value types hold their data: anchors (copied and archived), raycast queries, reference images (validated), world
   maps and reference objects (archived). `ARSCNView` is a SceneKit `SCNView`, which draws nothing yet (#330), and
   `ARSKView` is a SpriteKit `SKView`. Both show black where the camera feed would be.
-- Not yet: a simulated session (scripted camera poses, planes from the scene), and the Objective-C interface.
+- **Objective-C:** `#import <ARKit/ARKit.h>`, `-framework ARKit` (`isim/sdk-src/Frameworks/ARKit`, [#560](https://github.com/kolabs-dev/isim/issues/560)). The headers sit over the overlay's classes, which are `@objc(AR…)`. The enums and option sets have internal entry points (`swift/overlays/ARKit/ObjC.swift`), and the simd values go through categories in `frameworks/ARKit/ARKit.m`. The SDK has no C `<simd/simd.h>`, so `SceneKitTypes.h` falls back to minimal simd typedefs with Apple's layout. Objective-C delegates (the session's, `ARSCNView`'s, the coaching overlay's) are held through forwarding boxes. `ARSKView` waits for SpriteKit's Objective-C headers (#618). `delegateQueue` is Swift-only.
+- Not yet: a simulated session (scripted camera poses, planes from the scene).
 
 ## API
 
@@ -28,6 +29,7 @@
 | `ARRaycastQuery` (`Target`, `TargetAlignment`), `ARRaycastResult`, `ARTrackedRaycast`, `ARReferenceImage` (from a `CGImage` / `CVPixelBuffer`, `validate`, `referenceImages(inGroupNamed:bundle:)`), `ARReferenceObject`, `ARWorldMap` | 🟡 | ≤17 | the queries and images hold their data (an image's physical height follows its aspect); asset catalog AR resource groups are not read (nil); tested (HelloAR) |
 | `ARSCNView` (`session`, `delegate`, `anchor(for:)`, `node(for:)`, `raycastQuery`, `unprojectPoint`), `ARSCNViewDelegate`, `ARSKView`, `ARSKViewDelegate` | 🟡 | ≤17 | adapted: the views own a session and forward its events to their delegates; they show black (no camera feed) and SceneKit draws nothing yet (#330); `ARSCNView.delegate` keeps `SCNView`'s type (`any SCNSceneRendererDelegate`), since Swift cannot narrow an inherited property: assigning an `ARSCNViewDelegate` works as on iOS; tested (HelloAR) |
 | `ARCoachingOverlayView` (`goal`, `session`, `sessionProvider`, `activatesAutomatically`, `setActive(_:animated:)`, `isActive`, the delegate), `ARSessionProviding` | 🟡 | ≤17 | adapted: with no tracking it never activates on its own; `setActive(true)` shows a translucent panel with the goal's instruction (not Apple's animated device graphic); tested (HelloAR) |
+| Objective-C: `ARSession` and its delegate, the configurations, `ARFrame`, `ARCamera`, `ARLightEstimate`, the anchors, `ARRaycastQuery` / `Result`, `ARTrackedRaycast`, `ARReferenceImage` / `Object`, `ARPointCloud`, `ARWorldMap`, `ARSCNView` and `ARSCNViewDelegate`, `ARCoachingOverlayView`, `ARErrorDomain` / `ARErrorCode` | 🟡 | ≤17 | adapted: the Swift classes under Apple's Objective-C names and selectors; simd values through categories; delegates through forwarding boxes; `ARSKView` needs SpriteKit's Objective-C interface (#618). Tested (ARSceneObjCTest: unsupported configurations, an anchor and a raycast query, a session and an `ARSCNView` failing through their Objective-C delegates, the coaching overlay) |
 
 ## Not yet in isim
 

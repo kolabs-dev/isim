@@ -14,6 +14,11 @@
   but draws only its background colour. It is enough for apps (and ARKit's `ARSCNView`) to build and run.
 - Not yet (#330): the renderer, geometry, materials, lights, cameras, actions, physics and scene files (`.scn`, `.dae`,
   `.usdz`). `SCNScene(named:)` returns nil.
+- **Objective-C:** `#import <SceneKit/SceneKit.h>`, `-framework SceneKit` (`isim/sdk-src/Frameworks/SceneKit`, [#560](https://github.com/kolabs-dev/isim/issues/560)).
+  - `SCNVector3`, `SCNVector4` and `SCNMatrix4` are C structs with the overlay's layout.
+  - SceneKit's functions are C functions in `frameworks/SceneKit/SceneKit.m`.
+  - The node and view properties that take structs or simd values go through categories over `_isim_` entry points (`swift/overlays/SceneKit/ObjC.swift`).
+  - An Objective-C `SCNSceneRendererDelegate` is held through a forwarding box.
 
 ## API
 
@@ -22,6 +27,7 @@
 | `SCNNode` (`position`, `eulerAngles`, `orientation`, `rotation`, `scale`, `transform`, the `simd` variants, `worldTransform` / `worldPosition`, `convertPosition`, `addChildNode`, `insertChildNode`, `removeFromParentNode`, `replaceChildNode`, `childNode(withName:recursively:)`, `childNodes(passingTest:)`, `enumerateChildNodes`, `enumerateHierarchy`, `clone`, `isHidden`, `opacity`, copying and secure coding) | 🟡 | ≤17 | adapted: the transform is kept as translation, rotation and scale (`transform` decomposes into them); Euler angles follow SceneKit's order (roll, then yaw, then pitch); `geometry`, `light`, `camera`, constraints and actions are not there yet (#330); tested (HelloAR: world positions, Euler angles, clone, removal) |
 | `SCNScene` (`rootNode`, `isPaused`, attributes, secure coding), `SCNVector3`, `SCNVector4`, `SCNQuaternion`, `SCNMatrix4` and its functions (`SCNMatrix4MakeTranslation` / `Scale` / `Rotation`, `Mult`, `Invert`, `Translate`, `Scale`, `Rotate`, `IsIdentity`, `ToMat4` / `FromMat4`, `SCNVector3Make`, …) | 🟡 | ≤17 | stub for scene files: `SCNScene(named:)` is nil and `init(url:)` throws; the math is complete; tested (HelloAR: translation, scale, inverse) |
 | `SCNView` (`scene`, `delegate`, `isPlaying`, `loops`, `rendersContinuously`, `preferredFramesPerSecond`, `allowsCameraControl`, `antialiasingMode`, `play` / `pause` / `stop`, `snapshot`), `SCNSceneRenderer`, `SCNSceneRendererDelegate` | 🟡 | ≤17 | stub for drawing (the background colour only, #330); adapted: the render loop runs at `preferredFramesPerSecond` while playing or rendering continuously and calls the delegate's update, animation, physics, constraint and render callbacks in SceneKit's order; `projectPoint` / `unprojectPoint` pass points through; tested (HelloAR: the render loop's updates) |
+| Objective-C: `SCNNode`, `SCNScene`, `SCNView`, `SCNSceneRenderer`, `SCNSceneRendererDelegate`, `SCNVector3` / `SCNVector4` / `SCNMatrix4` with `SCNMatrix4Mult` / `Invert` / `MakeRotation` / `Translate` / `Scale` / `IsIdentity`, the equality and simd conversion functions, `SCNVector3Zero`, `SCNMatrix4Identity`, `NSValue (SceneKitAdditions)` | ✅ | ≤17 | adapted: the Swift classes under Apple's Objective-C names; the C functions in SceneKit.framework; the delegate through a forwarding box. Tested (ARSceneObjCTest: the scene graph, transforms, the matrix functions, the render loop calling an Objective-C delegate) |
 | Geometry, materials, lights, cameras, actions, physics, scene files, `SceneView` (SwiftUI), `SK3DNode` | ❌ | ≤17 | the 3D renderer: #330 |
 
 ## Not yet in isim
