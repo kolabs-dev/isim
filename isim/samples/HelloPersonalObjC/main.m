@@ -100,6 +100,10 @@ static NSString *errText(NSError *e) { return e ? [NSString stringWithFormat:@"%
     [self.map setRegion:MKCoordinateRegionMakeWithDistance(park, 2000, 2000) animated:NO];
     MKCoordinateRegion r = self.map.region;
     say(@"map region %.3f,%.3f span=%.3f", r.center.latitude, r.center.longitude, r.span.latitudeDelta);
+    // map features: the basemap's landmarks and cities can be selected; a bar button cycles the tracking mode
+    self.map.selectableMapFeatures = MKMapFeatureOptionPointsOfInterest | MKMapFeatureOptionTerritories;
+    MKUserTrackingBarButtonItem *tracking = [[MKUserTrackingBarButtonItem alloc] initWithMapView:self.map];
+    say(@"map features=%lu tracking item map=%d", (unsigned long)self.map.selectableMapFeatures, tracking.mapView == self.map);
     MKPointAnnotation *pin = [[MKPointAnnotation alloc] init];
     pin.coordinate = park;
     pin.title = @"Apple Park";

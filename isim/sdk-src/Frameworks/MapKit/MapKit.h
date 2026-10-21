@@ -8,7 +8,7 @@
 #import <CoreLocation/CoreLocation.h>
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
-@class MKMapView, MKAnnotationView, MKOverlayRenderer, MKUserLocation, MKPolyline, MKPolygon, MKCircle, MKShape, MKAddress, MKAddressRepresentations;
+@class MKMapView, MKAnnotationView, MKOverlayRenderer, MKUserLocation, MKPolyline, MKPolygon, MKCircle, MKShape, MKAddress, MKAddressRepresentations, MKMapItem;
 
 typedef struct { CLLocationDegrees latitudeDelta; CLLocationDegrees longitudeDelta; } MKCoordinateSpan;
 typedef struct { CLLocationCoordinate2D center; MKCoordinateSpan span; } MKCoordinateRegion;
@@ -213,6 +213,44 @@ __attribute__((objc_class_stub)) __attribute__((objc_subclassing_restricted))
 - (void)addOverlay:(id<MKOverlay>)overlay;
 - (void)removeOverlay:(id<MKOverlay>)overlay;
 - (nullable MKOverlayRenderer *)rendererForOverlay:(id<MKOverlay>)overlay;
+@end
+
+/* map features: isim's basemap labels (landmarks are points of interest, cities territories) */
+typedef NS_ENUM(NSInteger, MKMapFeatureType) { MKMapFeatureTypePointOfInterest = 0, MKMapFeatureTypeTerritory, MKMapFeatureTypePhysicalFeature } API_AVAILABLE(ios(16.0));
+typedef NS_OPTIONS(NSUInteger, MKMapFeatureOptions) {
+    MKMapFeatureOptionPointsOfInterest = 1 << MKMapFeatureTypePointOfInterest,
+    MKMapFeatureOptionTerritories = 1 << MKMapFeatureTypeTerritory,
+    MKMapFeatureOptionPhysicalFeatures = 1 << MKMapFeatureTypePhysicalFeature,
+} API_AVAILABLE(ios(16.0));
+@interface MKMapView (MKMapFeatures)
+@property (nonatomic) MKMapFeatureOptions selectableMapFeatures API_AVAILABLE(ios(16.0));
+@end
+API_AVAILABLE(ios(16.0))
+@interface MKIconStyle : NSObject
+@property (nonatomic, readonly) UIColor *backgroundColor;
+@property (nonatomic, readonly) UIImage *image;
+@end
+API_AVAILABLE(ios(16.0))
+@interface MKMapFeatureAnnotation : NSObject <MKAnnotation>
+@property (nonatomic, readonly) MKMapFeatureType featureType;
+@property (nonatomic, readonly, nullable) MKPointOfInterestCategory pointOfInterestCategory;
+@property (nonatomic, readonly, nullable) MKIconStyle *iconStyle;
+@end
+API_AVAILABLE(ios(16.0))
+@interface MKMapItemRequest : NSObject
+- (instancetype)initWithMapFeatureAnnotation:(MKMapFeatureAnnotation *)mapFeatureAnnotation;
+@property (nonatomic, readonly) MKMapFeatureAnnotation *featureAnnotation;
+- (void)getMapItemWithCompletionHandler:(void (^)(MKMapItem * _Nullable mapItem, NSError * _Nullable error))completionHandler;
+- (void)cancel;
+@property (nonatomic, readonly, getter=isCancelled) BOOL cancelled;
+@property (nonatomic, readonly, getter=isLoading) BOOL loading;
+@end
+typedef NS_ENUM(NSInteger, MKLookAroundBadgePosition) {
+    MKLookAroundBadgePositionTopLeading = 0, MKLookAroundBadgePositionTopTrailing, MKLookAroundBadgePositionBottomTrailing,
+} API_AVAILABLE(ios(16.0));
+@interface MKUserTrackingBarButtonItem : UIBarButtonItem
+- (instancetype)initWithMapView:(nullable MKMapView *)mapView;
+@property (nonatomic, strong, nullable) MKMapView *mapView;
 @end
 
 /* map items and local search */

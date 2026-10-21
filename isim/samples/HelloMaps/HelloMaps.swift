@@ -22,6 +22,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window = UIWindow(frame: UIScreen.main.bounds)
         if ProcessInfo.processInfo.arguments.contains("-swiftui-legacy") {
             window?.rootViewController = UIHostingController(rootView: LegacyMapScreen())
+        } else if ProcessInfo.processInfo.arguments.contains("-swiftui-features") {
+            window?.rootViewController = UIHostingController(rootView: SwiftUIFeaturesScreen())
         } else if ProcessInfo.processInfo.arguments.contains("-swiftui") {
             window?.rootViewController = UIHostingController(rootView: SwiftUIMapScreen())
         } else {
@@ -80,6 +82,7 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
         if ProcessInfo.processInfo.arguments.contains("-overlays") { addOverlayDemo(); return }
         if ProcessInfo.processInfo.arguments.contains("-lookaround") { lookAround(); return }
         if ProcessInfo.processInfo.arguments.contains("-geocode") { geocodeDemo(); return }
+        if ProcessInfo.processInfo.arguments.contains("-features") { featuresDemo(); return }
         let park = MKPointAnnotation(coordinate: applePark, title: "Apple Park", subtitle: "Cupertino")
         let loop = MKPointAnnotation(coordinate: infiniteLoop, title: "Infinite Loop", subtitle: "1 Infinite Loop")
         map.addAnnotations([park, loop, Landmark(visitorCenter, "Visitor Center", "Apple Park Visitor Center")])
@@ -114,6 +117,7 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
         }
         let v = mapView.dequeueReusableAnnotationView(withIdentifier: "marker", for: annotation) as! MKMarkerAnnotationView
         if annotation.title == "Infinite Loop" { v.markerTintColor = .systemBlue; v.glyphText = "1" } else { v.markerTintColor = .systemRed; v.glyphText = nil }
+        if let f = annotation as? MKMapFeatureAnnotation, let icon = f.iconStyle { v.markerTintColor = icon.backgroundColor; v.glyphImage = icon.image }
         v.accessibilityIdentifier = "marker-" + (annotation.title.flatMap { $0 } ?? "")
         return v
     }
@@ -222,8 +226,41 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
     func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
         let t = view.annotation?.title.flatMap { $0 } ?? "-"
         log("selected \(t)"); status.text = "selected \(t)"
+        if let f = view.annotation as? MKMapFeatureAnnotation {
+            let kind = f.featureType == .pointOfInterest ? "poi" : f.featureType == .territory ? "territory" : "physical"
+            log("feature \(t) \(kind) category \(f.pointOfInterestCategory?.rawValue ?? "-") icon \(f.iconStyle == nil ? "no" : "yes")")
+            MKMapItemRequest(mapFeatureAnnotation: f).getMapItem { item, error in
+                log("feature item \(item?.name ?? "-") at \(item.map { fmt($0.placemark.coordinate) } ?? "-") error \(error == nil ? "none" : "yes")")
+            }
+        }
     }
-    func mapView(_ mapView: MKMapView, didDeselect view: MKAnnotationView) { log("deselected \(view.annotation?.title.flatMap { $0 } ?? "-")") }
+    func mapView(_ mapView: MKMapView, didDeselect view: MKAnnotationView) {
+        log("deselected \(view.annotation?.title.flatMap { $0 } ?? "-")")
+        if view.annotation is MKMapFeatureAnnotation {
+            DispatchQueue.main.async { log("feature annotations left \(mapView.annotations.filter { $0 is MKMapFeatureAnnotation }.count)") }
+        }
+    }
+    func mapView(_ mapView: MKMapView, didChange mode: MKUserTrackingMode, animated: Bool) {
+        log("tracking mode \(mode.rawValue)"); status.text = "tracking \(mode.rawValue)"
+    }
+    /// -features: the basemap's labels are map features: landmarks (points of interest) and cities (territories) can be
+    /// selected; a toolbar with MKUserTrackingBarButtonItem
+    func featuresDemo() {
+        map.selectableMapFeatures = [.pointsOfInterest, .territories]
+        let bar = UIToolbar()
+        bar.translatesAutoresizingMaskIntoConstraints = false
+        bar.items = [MKUserTrackingBarButtonItem(mapView: map)]
+        view.addSubview(bar)
+        NSLayoutConstraint.activate([bar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor), bar.heightAnchor.constraint(equalToConstant: 44),
+                                     bar.leadingAnchor.constraint(equalTo: view.leadingAnchor), bar.trailingAnchor.constraint(equalTo: view.trailingAnchor)])
+        location.delegate = self
+        location.requestWhenInUseAuthorization()
+        DispatchQueue.main.async {
+            self.view.layoutIfNeeded()
+            let p = self.map.convert(applePark, toPointTo: nil)
+            log(String(format: "features %d point %.0f %.0f", self.map.selectableMapFeatures.rawValue, p.x, p.y))
+        }
+    }
     func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
         log("callout accessory tapped for \(view.annotation?.title.flatMap { $0 } ?? "-")"); status.text = "info: Visitor Center"
     }
@@ -372,6 +409,70 @@ struct SwiftUIMapScreen: View {
         }
         .onChange(of: selection) { _, s in log("swiftui selection \(s ?? "nil")") }
         .onAppear { locationManager.requestWhenInUseAuthorization() }
+    }
+}
+
+/// -swiftui-features: map features selected in a SwiftUI Map (MapSelection on iOS 18, MapFeature before), MapReader /
+/// MapProxy conversions, the selected feature's content, and LookAroundPreview (no scene here)
+struct SwiftUIFeaturesScreen: View {
+    @State private var status = "none"
+    let region = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 37.3335, longitude: -122.0180), latitudinalMeters: 4000, longitudinalMeters: 4000)
+    var body: some View {
+        MapReader { proxy in
+            VStack(spacing: 0) {
+                map
+                    .mapFeatureSelectionContent { f in
+                        Annotation(f.title ?? "", coordinate: f.coordinate) {
+                            Text("★ " + (f.title ?? "")).font(.caption).bold().padding(6).background(Color.orange).cornerRadius(8)
+                        }
+                    }
+                    .accessibilityIdentifier("swiftui-map")
+                Text(status).font(.footnote).padding(6).accessibilityIdentifier("features-status")
+                HStack {
+                    Button("Where") {
+                        if let p = proxy.convert(applePark, to: .global), let back = proxy.convert(p, from: .global) {
+                            let cam = proxy.camera(framing: MKCoordinateRegion(center: applePark, latitudinalMeters: 2000, longitudinalMeters: 2000))
+                            log(String(format: "reader point %.0f %.0f back %@ camera %@ %.0f", p.x, p.y, fmt(back), fmt(cam.centerCoordinate), cam.distance))
+                        }
+                    }.accessibilityIdentifier("where")
+                    LookAroundPreview(initialScene: nil).frame(width: 180, height: 60).cornerRadius(8)
+                }.padding(.bottom, 8)
+            }
+        }
+    }
+    @ViewBuilder var map: some View {
+        if #available(iOS 18.0, *) { SelectionMap(region: region, status: $status) } else { FeatureMap(region: region, status: $status) }
+    }
+}
+private func describe(_ f: MapFeature) -> String {
+    let kind = f.kind == .pointOfInterest ? "poi" : f.kind == .territory ? "territory" : "physical"
+    return "\(f.title ?? "-") \(kind)"
+}
+/// iOS 17: Map(selection: Binding<MapFeature?>)
+struct FeatureMap: View {
+    let region: MKCoordinateRegion
+    @Binding var status: String
+    @State private var feature: MapFeature?
+    var body: some View {
+        Map(initialPosition: .region(region), selection: $feature) { Marker("Infinite Loop", coordinate: infiniteLoop) }
+            .onChange(of: feature) { _, f in
+                status = f.map { "feature " + describe($0) } ?? "none"
+                log("swiftui feature \(f.map(describe) ?? "nil")")
+            }
+    }
+}
+/// iOS 18: Map(selection: Binding<MapSelection<String>?>): a tagged marker or a feature
+@available(iOS 18.0, *)
+struct SelectionMap: View {
+    let region: MKCoordinateRegion
+    @Binding var status: String
+    @State private var selection: MapSelection<String>?
+    var body: some View {
+        Map(initialPosition: .region(region), selection: $selection) { Marker("Infinite Loop", coordinate: infiniteLoop).tag("loop") }
+            .onChange(of: selection) { _, s in
+                status = s?.feature.map { "feature " + describe($0) } ?? s?.value.map { "value " + $0 } ?? "none"
+                log("swiftui selection \(s?.feature.map { "feature " + describe($0) } ?? s?.value.map { "value " + $0 } ?? "nil")")
+            }
     }
 }
 

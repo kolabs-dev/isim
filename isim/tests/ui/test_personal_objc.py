@@ -21,6 +21,7 @@ def test_personal_objc(launch):
     app.wait_log(r"^po geocode Cupertino error=nil$")
 
     app.wait_log(r"^po map region 37\.335,-122\.009 span=0\.0[1-4]\d$")     # 2 km, fitted to the tall view
+    app.wait_log(r"^po map features=3 tracking item map=1$")
     app.wait_log(r"^po annotations 2 cafe=1$")
     app.wait_log(r"^po view for Caffè Macs is cafe=1$")
     app.wait_log(r"^po overlay points=3$")

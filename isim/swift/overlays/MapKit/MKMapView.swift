@@ -146,8 +146,10 @@ final class _MKBaseView: UIView {
     weak var map: MKMapView?
     /// the place names the last draw showed (the map's dump text lists them)
     var labels: [String] = []
+    /// the labels' places and boxes (view points) from the last draw: the map features a tap can select
+    var featureHits: [(_MKPlace, CGRect)] = []
     override func draw(_ rect: CGRect) {
-        labels = []
+        labels = []; featureHits = []
         guard let m = map, let ctx = UIGraphicsGetCurrentContext() else { return }
         let dark = traitCollection.userInterfaceStyle == .dark
         let a = m._baseAnchor, h = m._heading * Double.pi / 180, s = m._scale, c = m._center
@@ -183,7 +185,7 @@ final class _MKBaseView: UIView {
         // place names stay upright
         if m.pointOfInterestFilter.map({ $0.includes(.landmark) }) ?? true, !_MKBasemap.usesTiles {
             labels = _MKBasemap.drawPlaces(visible: visible, scale: s, rect: bounds, st: _MKBasemap.style(m._effectiveType, dark: dark),
-                                           avoid: m._annotationRects(in: self)) { p in
+                                           avoid: m._annotationRects(in: self), hit: { self.featureHits.append(($0, $1)) }) { p in
                 let q = flat(p), r = MKMapView._rotate(Double(q.x), Double(q.y), -h)
                 return CGPoint(x: a.x + CGFloat(r.0), y: a.y + CGFloat(r.1))
             }
@@ -222,7 +224,14 @@ final class _MKAttributionView: UIView {
     var _showsPitchButton = false { didSet { setNeedsLayout() } }
     open var cameraZoomRange: MKMapCameraZoomRange! = MKMapCameraZoomRange(minCenterCoordinateDistance: 0)
     open var cameraBoundary: MKMapCameraBoundary?
-    open var selectableMapFeatures: Int = 0
+    /// the basemap's labels the person can select (landmarks: points of interest; cities: territories)
+    open var selectableMapFeatures: MKMapFeatureOptions = []
+    // 0.25 typed selectableMapFeatures as Int: its getter and setter stay exported under those names for apps built
+    // then (isim/abi/allowlist.txt lists the rest)
+    @usableFromInline @_silgen_name("$s6MapKit9MKMapViewC010selectableA8FeaturesSivgTj")
+    final func _abi_selectableMapFeaturesInt() -> Int { selectableMapFeatures.rawValue }
+    @usableFromInline @_silgen_name("$s6MapKit9MKMapViewC010selectableA8FeaturesSivsTj")
+    final func _abi_setSelectableMapFeaturesInt(_ v: Int) { selectableMapFeatures = MKMapFeatureOptions(rawValue: v) }
     open private(set) var userLocation = MKUserLocation()
     open var isUserLocationVisible: Bool { showsUserLocation && userLocation.location.map { visibleMapRect.contains(MKMapPoint($0.coordinate)) } ?? false }
     open var userTrackingMode: MKUserTrackingMode = .none {
@@ -672,6 +681,7 @@ final class _MKAttributionView: UIView {
             delegate?.mapView(self, didDeselect: v)
         }
         delegate?.mapView(self, didDeselect: s)
+        if s is MKMapFeatureAnnotation { removeAnnotation(s) }      // a selected map feature is shown only while selected
         _layoutAnnotations()
     }
     @objc func _accessoryTapped(_ c: UIControl) {
@@ -843,6 +853,18 @@ final class _MKAttributionView: UIView {
             if a === _selected { return }
             selectAnnotation(a, animated: true)
             return
+        }
+        if !selectableMapFeatures.isEmpty {                          // a tap on a selectable map feature (a label)
+            let q = _base.convert(g.location(in: self), from: self)
+            if let (place, _) = _base.featureHits.last(where: { $0.1.contains(q) }) {
+                let feature = MKMapFeatureAnnotation(place)
+                if selectableMapFeatures.contains(MKMapFeatureOptions(rawValue: 1 << feature.featureType.rawValue)) {
+                    if let s = _selected { deselectAnnotation(s, animated: true) }
+                    addAnnotation(feature)
+                    selectAnnotation(feature, animated: true)
+                    return
+                }
+            }
         }
         if let s = _selected { deselectAnnotation(s, animated: true) }
     }
