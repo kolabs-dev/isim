@@ -2,7 +2,8 @@
 file: Xcode's autocreated scheme), run, and with --tests tested with `isim test -scheme` (the autocreated scheme tests
 the targets that depend on the app). Xcode's own test templates use XCTAttachment(screenshot:), add(_:), measure(metrics:
 [XCTApplicationLaunchMetric()]) and runsForEachTargetApplicationUIConfiguration, so they run here too. The generated
-Info.plist has what Xcode generates for INFOPLIST_KEY_*_Generation: UILaunchScreen and UIApplicationSceneManifest."""
+Info.plist has what Xcode generates for INFOPLIST_KEY_*_Generation: UILaunchScreen and UIApplicationSceneManifest, and the
+versions from MARKETING_VERSION / CURRENT_PROJECT_VERSION (issue #640), also over the --uikit template's Info.plist file."""
 import json
 import os
 import plistlib
@@ -62,6 +63,7 @@ def test_new_swiftui(tmp_path, launch):
     app = build(proj, "Hello")
     info = plistlib.loads((app / "Info.plist").read_bytes())
     assert info["CFBundleIdentifier"] == "com.example.Hello" and info["MinimumOSVersion"] == "17.0"
+    assert (info["CFBundleShortVersionString"], info["CFBundleVersion"]) == ("1.0", "1"), "MARKETING_VERSION, CURRENT_PROJECT_VERSION"
     assert info["UILaunchScreen"] == {}, "INFOPLIST_KEY_UILaunchScreen_Generation: an empty launch screen, like Xcode"
     assert info["UIApplicationSceneManifest"] == {"UIApplicationSupportsMultipleScenes": True}
     assert "UILaunchScreen_Generation" not in info and "UIApplicationSceneManifest_Generation" not in info
@@ -121,6 +123,8 @@ def test_new_uikit(tmp_path, launch):
     assert scene["UISceneDelegateClassName"] == "Board.SceneDelegate" and scene["UISceneStoryboardFile"] == "Main"
     assert info["UILaunchStoryboardName"] == "LaunchScreen" and info["UIMainStoryboardFile"] == "Main"
     assert info["CFBundleExecutable"] == "Board", "the Info.plist file is the target's (processed), not a resource"
+    assert (info.get("CFBundleShortVersionString"), info.get("CFBundleVersion")) == ("1.0", "1"), \
+        "GENERATE_INFOPLIST_FILE adds the versions to a source Info.plist without them, like Xcode"
     assert list(app.rglob("Main.storyboardc")) and list(app.rglob("LaunchScreen.storyboardc")), sorted(map(str, app.rglob("*")))
     a = launch(app)
     a.wait_log(r"isim: launch screen: storyboard LaunchScreen")

@@ -14,7 +14,9 @@
   - the home screen (`isim/system/SpringBoard`);
   - each framework's privacy checks (`isim/swift/overlays/_Privacy`).
 - **Who writes it:** `isim build` (`isim/tools/isim-build.py`), from the project's `INFOPLIST_FILE` and
-  `INFOPLIST_KEY_*` settings.
+  `INFOPLIST_KEY_*` settings; with `GENERATE_INFOPLIST_FILE = YES` also `CFBundleShortVersionString` and
+  `CFBundleVersion` from `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` when the file doesn't set them, like Xcode
+  (issue #640; tested by `test_new_project.py`).
 - **A key nobody reads** is accepted silently. An app can then pass on isim and fail on a device, so ignored keys are
   ❌ rows here.
 
