@@ -141,17 +141,27 @@ toolchain_ready() {   # the toolchain $1 is installed: say so, or why its swift 
   if why=$(swift_run_error "$1"); then echo "isim: Swift $SWIFT_VERSION is installed ($1), but $why" >&2; return 1; fi
   echo "isim: Swift $SWIFT_VERSION is installed ($1)"
 }
-swiftorg_platform() {   # swift.org's name for this Linux distribution (its tarballs: ubuntu24.04, debian12, ...), if it has one
-  local ID= VERSION_ID= arch
-  [ -r /etc/os-release ] && . /etc/os-release
-  arch=$(uname -m); [ "$arch" = x86_64 ] && arch= || arch=-$arch
-  case "$ID:$VERSION_ID" in
-    ubuntu:20.04|ubuntu:22.04|ubuntu:24.04) echo "ubuntu$VERSION_ID$arch" ;;
-    debian:12) echo "debian12$arch" ;;
-    fedora:39) echo "fedora39$arch" ;;
-    amzn:2) echo "amazonlinux2$arch" ;;
+swiftorg_distro() {   # the swift.org platform whose Swift $SWIFT_VERSION build runs on this Linux distribution (swiftly's
+                      # --platform name), if any: its own, or for a release newer than swift.org builds Swift for, the newest
+                      # of its family. Swift 6.2.4 has ubuntu22.04, ubuntu24.04, debian12, fedora39, fedora41, ubi9 and
+                      # amazonlinux2, not debian13 or ubuntu26.04 (Debian 13 runs debian12's: issue #643).
+  local ID= VERSION_ID= major
+  [ -r "${ISIM_OS_RELEASE:-/etc/os-release}" ] && . "${ISIM_OS_RELEASE:-/etc/os-release}"   # (the tests pass their own)
+  major=${VERSION_ID%%.*}
+  case "$ID" in
+    ubuntu) if [ "${major:-0}" -ge 24 ]; then echo ubuntu24.04; elif [ "${major:-0}" -ge 22 ]; then echo ubuntu22.04; else return 1; fi ;;
+    debian) [ "${major:-99}" -ge 12 ] && echo debian12 || return 1 ;;            # testing and sid have no VERSION_ID
+    fedora) if [ "${major:-0}" -ge 41 ]; then echo fedora41; elif [ "${major:-0}" -ge 39 ]; then echo fedora39; else return 1; fi ;;
+    rhel|rocky|almalinux|centos) [ "$major" = 9 ] && echo ubi9 || return 1 ;;
+    amzn) [ "$VERSION_ID" = 2 ] && echo amazonlinux2 || return 1 ;;
     *) return 1 ;;
   esac
+}
+swiftorg_platform() {   # swift.org's name for that build's tarball (ubuntu24.04, debian12-aarch64, ...)
+  local p arch
+  p=$(swiftorg_distro) || return 1
+  arch=$(uname -m); [ "$arch" = x86_64 ] && arch= || arch=-$arch
+  echo "$p$arch"
 }
 tarball_install() {   # swift.org's signed tarball for this distribution into $(tarball_toolchain), when swiftly cannot
   local platform name url tmp dir
@@ -178,7 +188,7 @@ tarball_install() {   # swift.org's signed tarball for this distribution into $(
 }
 toolchain_install() {   # Swift $SWIFT_VERSION with swiftly (https://www.swift.org/install/linux/), swiftly first when it is missing;
                         # swift.org's tarball when swiftly cannot (download.swift.org sometimes answers 403 for a while)
-  local d swiftly tmp attempt=0 delay
+  local d swiftly tmp out attempt=0 delay platform
   d=$(swiftly_toolchain)
   if [ -x "$d/bin/swift-frontend" ] && swift_ok "$d"; then toolchain_ready "$d"; return; fi
   if [ -x "$(tarball_toolchain)/bin/swift-frontend" ] && swift_ok "$(tarball_toolchain)"; then toolchain_ready "$(tarball_toolchain)"; return; fi
@@ -186,9 +196,12 @@ toolchain_install() {   # Swift $SWIFT_VERSION with swiftly (https://www.swift.o
   if [ ! -x "$swiftly" ]; then
     echo "isim: installing swiftly, the Swift toolchain manager (download.swift.org; your shell profile is not changed)"
     tmp=$(mktemp -d)
+    # the platform swift.org builds Swift $SWIFT_VERSION for: swiftly would pick this release's own (debian13), which may
+    # have no build yet
+    platform=$(swiftorg_distro) && platform="--platform $platform" || platform=
     if curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o "$tmp/swiftly.tar.gz" "https://download.swift.org/swiftly/linux/swiftly-$(uname -m).tar.gz" \
        && tar -xzf "$tmp/swiftly.tar.gz" -C "$tmp" \
-       && "$tmp/swiftly" init --assume-yes --skip-install --no-modify-profile --quiet-shell-followup; then
+       && "$tmp/swiftly" init --assume-yes --skip-install --no-modify-profile --quiet-shell-followup $platform; then
       swiftly=${SWIFTLY_BIN_DIR:-${SWIFTLY_HOME_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/swiftly}/bin}/swiftly
     else
       echo "isim: installing swiftly failed; trying swift.org's tarball instead" >&2
@@ -199,14 +212,20 @@ toolchain_install() {   # Swift $SWIFT_VERSION with swiftly (https://www.swift.o
   if [ -n "$swiftly" ]; then
     # swiftly exits non-zero when it suggests system packages (written to the post-install file), so the toolchain itself
     # decides; a failed download (download.swift.org sometimes answers 403 for a while) is tried again with a backoff
-    tmp=$(mktemp)
+    tmp=$(mktemp); out=$(mktemp)
     for delay in ${ISIM_TOOLCHAIN_RETRY_DELAYS:-10 30 60} ""; do      # (the tests shorten the delays)
       attempt=$((attempt + 1))
       if [ "$attempt" = 1 ]; then echo "isim: swiftly install $SWIFT_VERSION"; else echo "isim: swiftly install $SWIFT_VERSION (attempt $attempt)"; fi
-      "$swiftly" install "$SWIFT_VERSION" --assume-yes --post-install-file "$tmp" || true
+      "$swiftly" install "$SWIFT_VERSION" --assume-yes --post-install-file "$tmp" 2>&1 | tee "$out" || true
       if [ -x "$d/bin/swift-frontend" ] && swift_ok "$d"; then break; fi
+      # no build for swiftly's platform (a swiftly set up for a release swift.org has no Swift $SWIFT_VERSION for, like
+      # debian13): trying again will not help
+      if grep -q "does not exist at URL" "$out"; then
+        echo "isim: swift.org has no Swift $SWIFT_VERSION for swiftly's platform" >&2; break
+      fi
       [ -z "$delay" ] || { echo "isim: swiftly did not install Swift $SWIFT_VERSION; trying again in $delay s" >&2; sleep "$delay"; }
     done
+    rm -f "$out"
     if [ -s "$tmp" ]; then
       echo "isim: swiftly suggests these system packages for Swift on Linux (reading Swift packages needs their libraries):"
       sed 's/^/  /' "$tmp"

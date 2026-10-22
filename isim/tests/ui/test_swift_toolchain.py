@@ -113,7 +113,7 @@ def test_swift_cannot_run(sandbox, tmp_path):
 def install_sandbox(sandbox, tmp_path, swiftly_script):
     """isim toolchain install with a fake swiftly (swiftly_script: its shell body; $count is how many times it ran) and
     the programs the tarball fallback uses; the retry delays are 0"""
-    for p in ("uname", "sleep", "ls", "mkdir", "tar", "gzip", "cp", "chmod", "ln"):
+    for p in ("uname", "sleep", "ls", "mkdir", "tar", "gzip", "cp", "chmod", "ln", "tee"):
         if shutil.which(p):
             sandbox.put_on_path(p, shutil.which(p))
     swiftly = executable(tmp_path / "home" / ".local/share/swiftly/bin/swiftly",
@@ -248,3 +248,70 @@ def test_compile_outside_workspace():
         nm = shutil.which("llvm-nm") or shutil.which("nm")
         syms = subprocess.run([nm, "-j", str(d / "probe.o")], capture_output=True, text=True, check=True).stdout
         assert "Preview" in syms and "ProbeView" in syms, "the #Preview macro expanded"
+
+
+NO_BUILD = ('echo "Error: Swift 6.2.4 does not exist at URL https://download.swift.org/swift-6.2.4-release/debian13/'
+            'swift-6.2.4-RELEASE/swift-6.2.4-RELEASE-debian13.tar.gz, exiting" >&2\nexit 1\n')
+
+
+def os_release(tmp_path, text):
+    f = tmp_path / "os-release"
+    f.write_text(text)
+    return str(f)
+
+
+def test_install_on_a_newer_release(sandbox, tmp_path):
+    """Debian 13 (#643): swift.org has no Swift 6.2.4 for debian13, so a swiftly set up for it fails with a 404. isim does
+    not retry that, and installs swift.org's debian12 tarball, which runs on Debian 13"""
+    if not shutil.which("tar"):
+        pytest.skip("needs tar")
+    install_sandbox(sandbox, tmp_path, NO_BUILD)
+    top = tmp_path / "tarball" / f"swift-{VERSION}-RELEASE"
+    fake_toolchain(top, VERSION)
+    subprocess.run(["tar", "-czf", str(tmp_path / "swift.tar.gz"), "-C", str(top.parent), top.name], check=True)
+    executable(tmp_path / "bin" / "curl", f'#!/bin/sh\nwhile [ $# -gt 1 ]; do [ "$1" = -o ] && out=$2; shift; done\n'
+               f'echo "$1" >> "{tmp_path}/urls"\n'
+               f'case "$1" in *.tar.gz) cp "{tmp_path}/swift.tar.gz" "$out" ;; *) echo x > "$out" ;; esac\n')
+    executable(tmp_path / "bin" / "gpg", "#!/bin/sh\ncat\n")
+    executable(tmp_path / "bin" / "gpgv", "#!/bin/sh\nexit 0\n")
+    debian13 = os_release(tmp_path, 'PRETTY_NAME="Debian GNU/Linux 13 (trixie)"\nNAME="Debian GNU/Linux"\nVERSION_ID="13"\nID=debian\n')
+    rc, out = sandbox("toolchain", "install", ISIM_TOOLCHAIN_RETRY_DELAYS="0 0 0", ISIM_OS_RELEASE=debian13)
+    assert (tmp_path / "swiftly-count").read_text().strip() == "1", "a missing build is not retried\n" + out
+    assert f"swift.org has no Swift {VERSION} for swiftly's platform" in out and "trying again" not in out, out
+    arch = "" if os.uname().machine == "x86_64" else "-" + os.uname().machine
+    assert f"/swift-{VERSION}-RELEASE-debian12{arch}.tar.gz" in (tmp_path / "urls").read_text(), (tmp_path / "urls").read_text()
+    tc = tmp_path / "home" / ".local/share/isim-swift" / VERSION / "usr"
+    assert rc == 0 and f"Swift {VERSION} is installed ({tc})" in out, out
+
+
+@pytest.mark.parametrize("release, platform", [
+    ('ID=debian\nVERSION_ID="13"\n', "debian12"),
+    ('ID=debian\nPRETTY_NAME="Debian GNU/Linux forky/sid"\n', "debian12"),     # testing / sid: no VERSION_ID
+    ('ID=debian\nVERSION_ID="12"\n', "debian12"),
+    ('ID=ubuntu\nVERSION_ID="25.10"\n', "ubuntu24.04"),
+    ('ID=ubuntu\nVERSION_ID="22.04"\n', "ubuntu22.04"),
+    ('ID=fedora\nVERSION_ID=43\n', "fedora41"),
+    ('ID=rocky\nVERSION_ID="9.6"\n', "ubi9"),
+    ('ID=arch\n', None),                                                        # swiftly decides (Ubuntu's build)
+])
+def test_swiftly_init_platform(sandbox, tmp_path, release, platform):
+    """installing swiftly, isim sets it up for the platform swift.org builds Swift 6.2.4 for: the release's own, or the
+    newest of its family for a newer release (#643)"""
+    if not shutil.which("tar"):
+        pytest.skip("needs tar")
+    install_sandbox(sandbox, tmp_path, "")
+    shutil.rmtree(tmp_path / "home" / ".local/share/swiftly")                   # no swiftly yet: isim downloads it
+    pkg = tmp_path / "pkg"
+    executable(pkg / "swiftly", f'#!/bin/sh\nif [ "$1" = init ]; then echo "$*" > "{tmp_path}/init-args"\n'
+               f'mkdir -p "$HOME/.local/share/swiftly/bin"; cp "$0" "$HOME/.local/share/swiftly/bin/swiftly"; exit 0; fi\n'
+               + fake_frontend_script(tmp_path / "swiftly" / VERSION))
+    subprocess.run(["tar", "-czf", str(tmp_path / "swiftly.tar.gz"), "-C", str(pkg), "swiftly"], check=True)
+    executable(tmp_path / "bin" / "curl", f'#!/bin/sh\nwhile [ $# -gt 1 ]; do [ "$1" = -o ] && out=$2; shift; done\n'
+               f'cp "{tmp_path}/swiftly.tar.gz" "$out"\n')
+    rc, out = sandbox("toolchain", "install", ISIM_OS_RELEASE=os_release(tmp_path, release))
+    args = (tmp_path / "init-args").read_text().split()
+    assert rc == 0, out
+    if platform:
+        assert args[-2:] == ["--platform", platform], args
+    else:
+        assert "--platform" not in args, args
