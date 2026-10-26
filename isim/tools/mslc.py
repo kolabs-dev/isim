@@ -7,7 +7,7 @@ into a guest dylib that Metal.framework loads (frameworks/Metal). Adapted: kerne
 
 Each kernel gets an entry point, __isim_k_<name>(const __isim_mtl_thread *), that binds its [[buffer(n)]],
 [[texture(n)]], [[sampler(n)]], [[threadgroup(n)]] and thread-position arguments from the dispatch
-(__isim_metal_abi.h); the library lists its functions in __isim_mtl_functions. Errors point at the .metal lines.
+(isim_metal_abi.h); the library lists its functions in __isim_mtl_functions. Errors point at the .metal lines.
 isim build (isim-build.py) imports compile(); isim metal-compile and Metal's run-time compiles run the command."""
 import os
 import re
@@ -239,6 +239,12 @@ def translate(text, unit):
             j = matching(toks, i, "[[", "]]")
             inner = "".join(x for _, x in toks[i + 1:j]).strip()
             m = re.fullmatch(r"(\w+)(?:\((.*)\))?", inner)
+            if m and m.group(1) in ("stitchable", "visible"):
+                pending = {"type": 5, "attrs": {}, "stitchable": m.group(1) == "stitchable"}
+                out.append("static")
+                paren -= 1
+                i = j + 1
+                continue
             if m and m.group(1) in QUALIFIERS:
                 pending = {"type": QUALIFIERS[m.group(1)], "attrs": {}}
                 out.append("static")
@@ -339,6 +345,9 @@ def wrappers(unit):
         lines.append("    const __isim_mtl_args *__a = __isim_mtl_cur; (void)__a; (void)__t;")
         lines.append(f'    {f["name"]}({", ".join(args)});')
         lines.append("}")
+    for f in unit.functions:
+        if f.get("stitchable"):
+            lines += stitch_wrapper(f)
     lines.append(f'extern "C" void __isim_mtl_prepare_{unit.index}(const __isim_mtl_args *__a) {{')
     for idx, ty, name in unit.constants:
         lines.append(f"    __isim_fcdef_{name} = __a->constant_value && __a->constant_value(__a->constants, {idx}, &{name}, sizeof {name});")
@@ -346,15 +355,46 @@ def wrappers(unit):
     return "\n".join(lines) + "\n"
 
 
+def stitch_wrapper(f):
+    """a [[stitchable]] function's entry point for SwiftUI's shader effects: one pixel. Parameters bind by role: the
+    position, then the pixel's color (colorEffect) or the layer (layerEffect), then the Shader.Arguments in order
+    (values, arrays as a pointer and a count, images as textures)"""
+    body = ['    uint32_t __i = 0; int32_t __n = 0; (void)__i; (void)__n;']
+    names = []
+    params = f["params"]
+    for k, (ty, nm, at, ar) in enumerate(params):
+        v = f"__p{k}"
+        names.append(v)
+        base = ty.replace("const ", "").replace("&", "").strip()
+        if k == 0:
+            body.append(f"    {base} {v} = {base}{{__s->position[0], __s->position[1]}};")
+        elif "Layer" in base and "SwiftUI" in base:
+            body.append(f"    SwiftUI::Layer {v}(__s->layer);")
+        elif "*" in ty:
+            body.append(f"    {ty} {v} = ({ty})__isim_arg_ptr(__s, __i, __n);")
+        elif k > 0 and "*" in params[k - 1][0] and re.fullmatch(r"(u?int|u?short|u?long|size_t|int32_t|uint32_t)", base):
+            body.append(f"    {base} {v} = ({base})__n;")
+        elif re.match(r"(metal::)?texture", base):
+            body.append(f"    {base} {v}(__isim_arg_tex(__s, __i));")
+        elif k == 1 and base in ("half4", "float4"):
+            body.append(f"    {base} {v} = __s->effect == ISIM_MTL_EFFECT_COLOR ? __isim_effect_color<{base}>(__s) : __isim_arg_value<{base}>(__s, __i);")
+        else:
+            body.append(f"    {base} {v} = __isim_arg_value<{base}>(__s, __i);")
+    return ([f'extern "C" __attribute__((visibility("default"))) void __isim_s_{f["name"]}(__isim_mtl_stitch *__s) {{']
+            + body + [f'    __isim_effect_result(__s, {f["name"]}({", ".join(names)}));', "}"])
+
+
 def table(units):
     """the library's function table and its prepare step"""
-    lines = ['#include "__isim_metal_abi.h"', "thread_local const __isim_mtl_args *__isim_mtl_cur;"]
+    lines = ['#include <isim_metal_abi.h>', "thread_local const __isim_mtl_args *__isim_mtl_cur;"]
     consts = ";".join(f"{i}:{DATA_TYPES.get(ty.replace('const ', '').strip(), 0)}:{n}" for u in units for i, ty, n in u.constants)
     for u in units:
         lines.append(f'extern "C" void __isim_mtl_prepare_{u.index}(const __isim_mtl_args *);')
         for f in u.functions:
             if f["type"] == 3:
                 lines.append(f'extern "C" void __isim_k_{f["name"]}(const __isim_mtl_thread *);')
+            if f.get("stitchable"):
+                lines.append(f'extern "C" void __isim_s_{f["name"]}(__isim_mtl_stitch *);')
     lines.append('extern "C" __attribute__((visibility("default"))) const int __isim_mtl_abi = ISIM_MTL_ABI;')
     lines.append('extern "C" __attribute__((visibility("default"))) void __isim_mtl_prepare(const __isim_mtl_args *a) {')
     lines.append("    __isim_mtl_cur = a;")
@@ -366,8 +406,9 @@ def table(units):
             name = f["attrs"].get("host_name", "").strip('"') or f["name"]
             entry = f'__isim_k_{f["name"]}' if f["type"] == 3 else "0"
             mt = f["attrs"].get("max_total_threads_per_threadgroup") or 0
-            lines.append(f'    {{"{name}", {f["type"]}, {entry}, {int(f["barrier"])}, {mt}, "{consts}"}},')
-    lines.append("    {0, 0, 0, 0, 0, 0}\n};")
+            stitch = f'__isim_s_{f["name"]}' if f.get("stitchable") else "0"
+            lines.append(f'    {{"{name}", {f["type"]}, {entry}, {int(f["barrier"])}, {mt}, "{consts}", {stitch}}},')
+    lines.append("    {0, 0, 0, 0, 0, 0, 0}\n};")
     return "\n".join(lines) + "\n"
 
 

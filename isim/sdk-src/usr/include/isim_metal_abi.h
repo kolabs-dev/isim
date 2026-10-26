@@ -50,7 +50,33 @@ typedef struct __isim_mtl_thread {
     uint32_t index_in_threadgroup;
 } __isim_mtl_thread;
 
-enum { ISIM_MTL_FN_KERNEL = 3, ISIM_MTL_FN_VERTEX = 1, ISIM_MTL_FN_FRAGMENT = 2 };   /* MTLFunctionType */
+enum { ISIM_MTL_FN_KERNEL = 3, ISIM_MTL_FN_VERTEX = 1, ISIM_MTL_FN_FRAGMENT = 2, ISIM_MTL_FN_VISIBLE = 5 };   /* MTLFunctionType */
+
+/* SwiftUI's shader effects ([[stitchable]] functions, swift/overlays/SwiftUI/Shaders.swift): the layer a layerEffect
+ * samples (premultiplied ARGB pixels, x0 / y0: the user-space position of pixel (0, 0)'s corner, scale: pixels per point) */
+typedef struct __isim_mtl_layer {
+    const uint32_t *px;
+    int32_t width, height, stride;
+    float x0, y0, scale;
+} __isim_mtl_layer;
+/* one Shader.Argument: kind 0 a value (v, count components), 1 an array (ptr, count elements), 2 an image (tex) */
+typedef struct __isim_mtl_shader_arg {
+    uint32_t kind, count;
+    float v[4];
+    const void *ptr;
+    const __isim_mtl_texture *tex;
+} __isim_mtl_shader_arg;
+enum { ISIM_MTL_EFFECT_COLOR = 0, ISIM_MTL_EFFECT_LAYER = 1, ISIM_MTL_EFFECT_DISTORTION = 2 };
+/* one pixel of a shader effect: the inputs, and the result (a color, premultiplied, or a distortion's source position) */
+typedef struct __isim_mtl_stitch {
+    uint32_t effect;                              /* ISIM_MTL_EFFECT_* */
+    float position[2];
+    float color[4];                               /* colorEffect: the pixel's color, premultiplied RGBA */
+    const __isim_mtl_layer *layer;                /* layerEffect */
+    const __isim_mtl_shader_arg *args;
+    uint32_t nargs;
+    float result[4];
+} __isim_mtl_stitch;
 
 /* a library's functions (the __isim_mtl_functions table), ended by a NULL name */
 typedef struct __isim_mtl_function {
@@ -60,4 +86,5 @@ typedef struct __isim_mtl_function {
     uint32_t uses_barrier;                        /* calls threadgroup_barrier: threads run as fibers */
     uint32_t max_threads;                         /* [[max_total_threads_per_threadgroup(n)]], 0 if none */
     const char *constants;                        /* its library's function constants: "index:type:name;..." */
+    void (*stitch)(__isim_mtl_stitch *);          /* [[stitchable]] functions: one pixel of a SwiftUI shader effect */
 } __isim_mtl_function;

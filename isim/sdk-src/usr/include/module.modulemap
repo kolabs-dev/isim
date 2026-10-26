@@ -83,6 +83,7 @@ module notify [system] [extern_c] {
 }
 module isim_host [system] [extern_c] {
   header "isim_host.h"
+  header "isim_metal_abi.h"
   export *
 }
 module CoreAudioTypes [system] [extern_c] {
