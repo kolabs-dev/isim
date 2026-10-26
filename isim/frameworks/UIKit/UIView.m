@@ -1352,6 +1352,10 @@ void (^isim_ui_flushing_block(void (^a)(void)))(void) {
     double bz[4] = { cp.origin.x, cp.origin.y, cp.size.width, cp.size.height };
     isim_ui_animate_with_curve(d, delay, (int)curve, bz, damping, velocity, (int)plays, ar, a, c);
 }
++ (NSInteger)_isim_registerTimingSamples:(const double *)samples count:(NSInteger)count {
+    extern int isim_ui_register_timing_samples(const double *, int);
+    return isim_ui_register_timing_samples(samples, (int)count);
+}
 + (void)performWithoutAnimation:(void (^)(void))a { isim_ui_without_animation(a); }
 + (void)setAnimationsEnabled:(BOOL)e { isim_ui_set_animations_enabled(e); }
 + (BOOL)areAnimationsEnabled { return isim_ui_animations_enabled(); }
@@ -1500,8 +1504,31 @@ static double spring(double zeta, double v0, double dur, double t) {
     double w0 = 9.2 / dur, e = exp(-w0 * t);
     return 1 - e * (1 + (w0 - v0 * w0) * t);
 }
+/* sampled timing curves (SwiftUI's CustomAnimation): progress at 64 evenly spaced times, kept in a ring of tables
+   (a track names its table in bz[0]) */
+#define SAMPLED_N 64
+#define SAMPLED_TABLES 256
+static double sampled_tables[SAMPLED_TABLES][SAMPLED_N + 1];
+static int sampled_next;
+int isim_ui_register_timing_samples(const double *samples, int n) {
+    int id = sampled_next++ % SAMPLED_TABLES;
+    for (int i = 0; i <= SAMPLED_N; i++) {
+        double x = (double)i / SAMPLED_N * (n - 1);
+        int a = (int)floor(x), b = a + 1 < n ? a + 1 : n - 1;
+        sampled_tables[id][i] = n > 0 ? samples[a] + (samples[b] - samples[a]) * (x - a) : 1;
+    }
+    return id;
+}
+static double sampled(int id, double x) {
+    if (id < 0 || id >= SAMPLED_TABLES) return x;
+    if (x <= 0) return sampled_tables[id][0];
+    if (x >= 1) return sampled_tables[id][SAMPLED_N];
+    double f = x * SAMPLED_N; int a = (int)f;
+    return sampled_tables[id][a] + (sampled_tables[id][a + 1] - sampled_tables[id][a]) * (f - a);
+}
 static double curve_at(int curve, const double *bz, double damping, double velocity, double dur, double x) {
     switch (curve) {
+    case 6: return sampled((int)bz[0], x);
     case 1: return bezier(0.42, 0, 1, 1, x);
     case 2: return bezier(0, 0, 0.58, 1, x);
     case 3: return x;

@@ -174,11 +174,14 @@ CGRect isim_ui_space_convert_rect(id<UICoordinateSpace> space, CGRect rect, id<U
 - (CGRect)_isim_presentedFrame:(nullable CGFloat *)alpha radius:(nullable CGFloat *)radius;   /* isim: the frame (in the superview), alpha and corner radius as drawn now, mid-animation */
 - (void)_isim_removeAllAnimations;      /* isim: stops this view's running animations (layer.removeAllAnimations) */
 /* isim (SwiftUI animations): curve 0 ease in-out, 1 ease in, 2 ease out, 3 linear, 4 spring (damping, velocity),
-   5 cubic Bézier (controlPoints x1 y1 x2 y2); plays: 0 once, -1 forever, n times (with autoreverse every other play
+   5 cubic Bézier (controlPoints x1 y1 x2 y2), 6 sampled (controlPoints.origin.x: a table from _isim_registerTimingSamples); plays: 0 once, -1 forever, n times (with autoreverse every other play
    runs backwards, like SwiftUI's repeatCount) */
 + (void)_isim_animateWithDuration:(NSTimeInterval)duration delay:(NSTimeInterval)delay curve:(NSInteger)curve
                     controlPoints:(CGRect)controlPoints damping:(CGFloat)damping velocity:(CGFloat)velocity plays:(NSInteger)plays
                       autoreverse:(BOOL)autoreverse animations:(void (^)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion;
+/* isim (SwiftUI CustomAnimation): a timing curve as progress samples at evenly spaced times (0 ... 1); returns its id
+   for curve 6 (a ring of 256 tables) */
++ (NSInteger)_isim_registerTimingSamples:(const double *)samples count:(NSInteger)count;
 - (void)_isim_setVisualEffect:(nullable const double *)values;   /* isim: SwiftUI visual effects on the view and its subviews (32 values: colour matrix, blur, shadow, blend; see isim_host.h); NULL removes them */
 - (void)_isim_setPixelShader:(nullable void (*)(void *_Nullable ctx, uint32_t *_Nonnull px, int w, int h, int stride, double x0, double y0, double scale))fn
                      context:(nullable id)context margin:(CGFloat)margin;   /* isim: a pixel shader over the view and its subviews (SwiftUI's shader effects; isim_gfx_pop_group_shaded), the context retained and passed as ctx; NULL removes it */

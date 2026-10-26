@@ -2,8 +2,9 @@
 // `intersection`, `subtracting`, `symmetricDifference`, `lineIntersection`) and `strokedPath`; `fill().stroke()`; text
 // filled with a gradient; `ContainerRelativeShape` inside `.containerShape`; `MeshGradient` and `Color.mix`; timing
 // curves, springs and `repeatCount`; every transition kind; matchedGeometryEffect (an inserted view moving from its
-// match, and a view following its source with `isSource: false`).
-// The sub-page comes from the environment: PAGE=ops|fills|mesh|curves|transitions|matched.
+// match, and a view following its source with `isSource: false`); custom transitions (a `Transition` type,
+// `AnyTransition.modifier(active:identity:)`, `.blurReplace`, combined transition types) played with a `CustomAnimation`.
+// The sub-page comes from the environment: PAGE=ops|fills|mesh|curves|transitions|custom|matched.
 import SwiftUI
 
 fileprivate let env = ProcessInfo.processInfo.environment
@@ -15,6 +16,7 @@ struct ShapesRoot: View {
         case "mesh": if #available(iOS 18.0, *) { MeshPage() }
         case "curves": CurvesPage()
         case "transitions": TransitionsPage()
+        case "custom": CustomTransitionsPage()
         case "matched": MatchedPage()
         default: OpsPage()
         }
@@ -161,6 +163,57 @@ struct TransitionsPage: View {
                 }
             }
         }
+    }
+}
+
+/// A custom transition: the view turns a quarter, shrinks to half and fades while not present.
+struct Twirl: Transition {
+    func body(content: Content, phase: TransitionPhase) -> some View {
+        content.rotationEffect(.degrees(phase.isIdentity ? 0 : 90)).scaleEffect(phase.isIdentity ? 1 : 0.5).opacity(phase.isIdentity ? 1 : 0)
+    }
+}
+/// A modifier transition's state: moved right and faded.
+struct Drift: ViewModifier {
+    let x: CGFloat, opacity: Double
+    func body(content: Content) -> some View { content.offset(x: x).opacity(opacity) }
+}
+/// A custom animation: still for the first quarter of its duration, then linear to the end.
+struct LateLinear: CustomAnimation {
+    let duration: TimeInterval
+    func animate<V: VectorArithmetic>(value: V, time: TimeInterval, context: inout AnimationContext<V>) -> V? {
+        guard time < duration else { return nil }
+        let p = max(0, (time / duration - 0.25) / 0.75)
+        return value.scaled(by: p)
+    }
+}
+
+/// Custom transitions (slots as on TransitionsPage), toggled with a CustomAnimation.
+struct CustomTransitionsPage: View {
+    @State var shown = env["SHOWN"] == "1"
+    let d = Double(env["DURATION"] ?? "2") ?? 2
+    var body: some View {
+        VStack(spacing: 10) {
+            Button("Toggle") { withAnimation(Animation(LateLinear(duration: d))) { shown.toggle() } }.accessibilityIdentifier("toggle")
+            LazyVGrid(columns: [GridItem(.fixed(120), spacing: 30), GridItem(.fixed(120))], spacing: 20) {
+                slot("twirl") { Color(red: 1, green: 0, blue: 0).frame(width: 60, height: 60).transition(Twirl()) }
+                slot("modifier") {
+                    Color(red: 1, green: 0.5, blue: 0).frame(width: 60, height: 60)
+                        .transition(.modifier(active: Drift(x: 40, opacity: 0), identity: Drift(x: 0, opacity: 1)))
+                }
+                slot("blur") { Color(red: 0, green: 0.6, blue: 0).frame(width: 60, height: 60).transition(.blurReplace) }
+                slot("combined") {
+                    Color(red: 1, green: 0, blue: 1).frame(width: 60, height: 60).transition(MoveTransition(edge: .top).combined(with: OpacityTransition()))
+                }
+            }
+        }
+        .onAppear {
+            let a = Animation(LateLinear(duration: 2))
+            print("custom animation \(type(of: a.base)) equal \(a == Animation(LateLinear(duration: 2))) \(a == Animation(LateLinear(duration: 1)))")
+            print("phases \(TransitionPhase.willAppear.value) \(TransitionPhase.identity.isIdentity) \(TransitionPhase.didDisappear.value) motion \(Twirl.properties.hasMotion) \(OpacityTransition.properties.hasMotion)")
+        }
+    }
+    func slot(_ name: String, @ViewBuilder _ content: () -> some View) -> some View {
+        ZStack { if shown { content() } }.frame(width: 120, height: 90).accessibilityIdentifier("slot-\(name)")
     }
 }
 

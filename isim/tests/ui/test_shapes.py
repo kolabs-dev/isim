@@ -275,3 +275,60 @@ def test_matched_geometry(launch):
         f"matchedGeometryEffect: the inserted card moves from the removed one's frame to its own ({small} {big} {mid})"
     assert window_rect(dump, "highlight") == window_rect(dump, "tab-2"), "isSource: false follows the source's frame"
     assert window_rect(dump, "highlight")[2] > window_rect(dump, "tab-0")[2] + 20, "...including its size"
+
+
+CUSTOM = {"twirl": (255, 0, 0), "modifier": (255, 128, 0), "blur": (0, 153, 0), "combined": (255, 0, 255)}
+
+
+def custom_boxes(img, rects):
+    """Per slot: its colour's bounding box (window points), its strongest and weakest strength, and how much of the box
+    it fills."""
+    out = {}
+    for name, (x, y, w, h) in rects.items():
+        hits = [(px, py, a) for px in range(int(x - 70), int(x + w + 70), 2) for py in range(int(y - 60), int(y + h + 60), 2)
+                if 0 <= px < img.width and 0 <= py < img.height and (a := alpha_of(img.getpixel((px, py))[:3], CUSTOM[name])) is not None]
+        if len(hits) < 6:
+            out[name] = None
+            continue
+        xs, ys, al = [p[0] for p in hits], [p[1] for p in hits], [p[2] for p in hits]
+        w, h = max(xs) - min(xs), max(ys) - min(ys)
+        out[name] = (min(xs), min(ys), w, h, max(al), min(al), len(hits) * 4 / max(1, (w + 2) * (h + 2)))
+    return out
+
+
+def test_custom_transitions(launch):
+    """A Transition type, AnyTransition.modifier(active:identity:), .blurReplace and combined transition types, played
+    by a CustomAnimation (still for its first quarter, then linear)."""
+    app = launch("HelloDrawing", args=["-shapes"], env={"PAGE": "custom", "DURATION": "2"})
+    app.wait_log(r"custom animation LateLinear equal true false")
+    app.wait_log(r"phases -1\.0 true 1\.0 motion true false")
+    app.wait_view(r"id=slot-combined")
+    app.wait_still()
+    dump = app.view_dump()
+    rects = {k: window_rect(dump, f"slot-{k}") for k in CUSTOM}
+
+    def record(until):
+        frames, end = [], time.monotonic() + 12
+        while time.monotonic() < end:
+            frames.append(custom_boxes(app.screenshot(), rects))
+            if len(frames) > 6 and until(frames[-1]) and frames[-1] == frames[-2] == frames[-3]:
+                break
+        return frames
+    app.tap_id("toggle")
+    ins = record(lambda f: all(b and b[4] > 0.95 and abs(b[2] - 58) < 4 for b in f.values()))
+    final = ins[-1]
+    app.tap_id("toggle")
+    rem = record(lambda f: all(b is None for b in f.values()))
+    assert app.quit() == 0, "exits cleanly"
+    assert all(final[k] and abs(final[k][2] - 58) < 4 for k in CUSTOM), f"every square ends in place ({final})"
+    seen = lambda frames, k, pred: any(f[k] and pred(f[k], final[k]) for f in frames)
+    faded = lambda b, e: b[4] < 0.8
+    for frames, phase in ((ins, "insertion"), (rem, "removal")):
+        # turned 90° at half size: a smaller box, about the centre; a turned square is a square again only at 0° / 90°
+        assert seen(frames, "twirl", lambda b, e: faded(b, e) and 4 < b[2] < e[2] - 12 and abs((b[0] + b[2] / 2) - (e[0] + e[2] / 2)) < 6), \
+            f"Twirl shrinks and fades about the centre ({phase})"
+        assert seen(frames, "twirl", lambda b, e: faded(b, e) and b[2] > 16 and b[6] < 0.7), f"Twirl turns (a diamond fills half its box) ({phase})"
+        assert seen(frames, "modifier", lambda b, e: faded(b, e) and b[0] > e[0] + 8 and abs(b[2] - e[2]) < 4), \
+            f"modifier(active:identity:) drifts right and fades ({phase})"
+        assert seen(frames, "blur", lambda b, e: b[4] - b[5] > 0.3 and b[4] < 0.9), f".blurReplace blurs as it fades ({phase})"
+        assert seen(frames, "combined", lambda b, e: faded(b, e) and b[1] < e[1] - 8), f"MoveTransition.combined(with: OpacityTransition) ({phase})"
