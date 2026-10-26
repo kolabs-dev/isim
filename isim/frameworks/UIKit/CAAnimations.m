@@ -561,7 +561,7 @@ static NSMutableArray *tickers;
 void ca_driver_wake(void) {
     if (driver_link) return;
     if (!driver) driver = [__IsimCADriver new];
-    driver_link = [CADisplayLink displayLinkWithTarget:driver selector:@selector(tick:)];
+    driver_link = [CADisplayLink _isim_displayLinkWithWeakTarget:driver selector:@selector(tick:)];
     [driver_link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
     isim_ui_set_needs_display();
 }

@@ -60,7 +60,7 @@ final class _AVRenderTicker: NSObject {
         DispatchQueue.main.async { [self] in
             renderers[ObjectIdentifier(r)] = Weak(r: r)
             if link == nil {
-                let l = CADisplayLink(target: self, selector: #selector(tick))
+                let l = CADisplayLink(_isimWeakTarget: self, selector: #selector(tick))
                 l.add(to: RunLoop.main, forMode: .common)
                 link = l
             }

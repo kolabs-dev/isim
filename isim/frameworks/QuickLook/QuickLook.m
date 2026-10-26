@@ -120,7 +120,7 @@ static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfF
         else isim_media_set_audio(_media, 0, 1);
         if (_media <= 0) { NSLog(@"isim QuickLook: %@ cannot be played (needs ffmpeg)", _url.lastPathComponent); return; }
         _start = CACurrentMediaTime(); _playing = YES;
-        _link = [CADisplayLink displayLinkWithTarget:self selector:@selector(isimTick)];
+        _link = [CADisplayLink _isim_displayLinkWithWeakTarget:self selector:@selector(isimTick)];
         [_link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
         NSLog(@"isim QuickLook: playing %@", _url.lastPathComponent);
     }

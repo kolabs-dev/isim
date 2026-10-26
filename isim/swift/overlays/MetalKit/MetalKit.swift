@@ -172,7 +172,7 @@ import QuartzCore
     func _setUp() {
         _metalLayer.drawableSize = .zero
         _ticker.view = self
-        let link = CADisplayLink(target: _ticker, selector: #selector(_Ticker.tick))
+        let link = CADisplayLink(_isimWeakTarget: _ticker, selector: #selector(_Ticker.tick))
         link.preferredFramesPerSecond = preferredFramesPerSecond
         link.add(to: .main, forMode: .common)
         _link = link

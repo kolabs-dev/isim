@@ -169,7 +169,10 @@ UIKIT_EXTERN CAFrameRateRange CAFrameRateRangeMake(float minimum, float maximum,
 UIKIT_EXTERN bool CAFrameRateRangeIsEqualToRange(CAFrameRateRange range, CAFrameRateRange other) API_AVAILABLE(ios(15.0)) NS_SWIFT_NAME(CAFrameRateRange.isEqual(self:to:));
 NS_SWIFT_UI_ACTOR
 @interface CADisplayLink : NSObject
+/* retains the target until -invalidate, as on iOS */
 + (CADisplayLink *)displayLinkWithTarget:(id)target selector:(SEL)sel;
+/* isim's frameworks: holds the target weakly and invalidates itself once the target is gone (#648) */
++ (CADisplayLink *)_isim_displayLinkWithWeakTarget:(id)target selector:(SEL)sel NS_SWIFT_NAME(init(_isimWeakTarget:selector:));
 - (void)addToRunLoop:(NSRunLoop *)runloop forMode:(NSRunLoopMode)mode;
 - (void)removeFromRunLoop:(NSRunLoop *)runloop forMode:(NSRunLoopMode)mode;
 - (void)invalidate;

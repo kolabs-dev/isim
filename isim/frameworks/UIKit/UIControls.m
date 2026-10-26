@@ -429,7 +429,7 @@ void isim_ui_menu_chose(UIView *source, UIAction *a) {
 - (void)_isim_startSymbolTransitionFrom:(UIImage *)old {
     _transFrom = old; _transStart = CACurrentMediaTime();
     NSLog(@"isim: symbol content transition %@ -> %@", old._isim_symbolName ?: @"image", _configuration.image._isim_symbolName ?: @"image");
-    if (!_transLink) { _transLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(_isim_transitionTick:)]; [_transLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes]; }
+    if (!_transLink) { _transLink = [CADisplayLink _isim_displayLinkWithWeakTarget:self selector:@selector(_isim_transitionTick:)]; [_transLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes]; }
 }
 - (void)_isim_transitionTick:(CADisplayLink *)l {
     if ([self _isim_transitionProgress] >= 1) { [_transLink invalidate]; _transLink = nil; _transFrom = nil; _transStart = 0; }

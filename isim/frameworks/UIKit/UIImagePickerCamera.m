@@ -287,7 +287,7 @@ static void *record_loop(void *arg) {
     _camera = isim_camera_open(1280, 30, &_w, &_h);
     if (_camera <= 0) { NSLog(@"isim UIKit: the simulated camera could not start (see ISIM_CAMERA; needs ffmpeg)"); return; }
     _preview.camera = _camera;
-    _link = [CADisplayLink displayLinkWithTarget:self selector:@selector(isimFrame)];
+    _link = [CADisplayLink _isim_displayLinkWithWeakTarget:self selector:@selector(isimFrame)];
     [_link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
     NSLog(@"isim UIKit: camera picker preview %dx%d (%@)", _w, _h, self.cameraDevice == UIImagePickerControllerCameraDeviceFront ? @"front" : @"back");
 }

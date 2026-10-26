@@ -904,7 +904,7 @@ final class _MKCameraAnimation: NSObject {
     init(map: MKMapView, from: Camera, to: Camera) {
         self.map = map; self.from = from; self.to = to
         super.init()
-        let l = CADisplayLink(target: self, selector: #selector(step(_:)))
+        let l = CADisplayLink(_isimWeakTarget: self, selector: #selector(step(_:)))
         l.add(to: .main, forMode: .common)
         link = l
     }

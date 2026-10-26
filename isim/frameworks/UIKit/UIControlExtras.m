@@ -345,7 +345,7 @@ static char kPageBackground, kPageInteraction, kPageContinuous, kPageDirection, 
 - (void)resumeTimer {
     if (_running) return;
     _running = YES; _last = CACurrentMediaTime();
-    _link = [CADisplayLink displayLinkWithTarget:self selector:@selector(_isim_tick:)];
+    _link = [CADisplayLink _isim_displayLinkWithWeakTarget:self selector:@selector(_isim_tick:)];
     [_link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
     NSLog(@"isim: page control timer resumed");
     [self _isim_visibilityChanged]; [self _isim_changed];

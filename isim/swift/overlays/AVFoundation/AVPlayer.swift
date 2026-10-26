@@ -153,7 +153,7 @@ final class _AVTicker: NSObject {
     func add(_ p: AVPlayer) {
         players[ObjectIdentifier(p)] = p
         if link == nil {
-            let l = CADisplayLink(target: self, selector: #selector(tick))
+            let l = CADisplayLink(_isimWeakTarget: self, selector: #selector(tick))
             l.add(to: RunLoop.main, forMode: .common)
             link = l
         }

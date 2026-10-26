@@ -93,7 +93,7 @@
 }
 - (void)_isim_startSpinning {
     if (_spin) return;
-    _spin = [CADisplayLink displayLinkWithTarget:self selector:@selector(_isim_spinTick:)];
+    _spin = [CADisplayLink _isim_displayLinkWithWeakTarget:self selector:@selector(_isim_spinTick:)];
     [_spin addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
 }
 - (void)_isim_spinTick:(CADisplayLink *)l { if (self.window && !self.hidden) isim_ui_set_needs_display(); }
