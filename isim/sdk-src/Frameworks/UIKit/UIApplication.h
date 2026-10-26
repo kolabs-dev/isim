@@ -24,6 +24,11 @@ UIKIT_EXTERN NSString * const UIApplicationLaunchOptionsUserActivityKey;   /* is
 /* the CKShareMetadata of a CloudKit share link that launched the app (an app that is not scene-based) */
 UIKIT_EXTERN UIApplicationLaunchOptionsKey const UIApplicationLaunchOptionsCloudKitShareMetadataKey NS_SWIFT_NAME(cloudKitShareMetadata) API_AVAILABLE(ios(10.0));
 UIKIT_EXTERN UIApplicationOpenURLOptionsKey const UIApplicationOpenURLOptionsSourceApplicationKey, UIApplicationOpenURLOptionsOpenInPlaceKey;
+/* deprecated keys (isim: never in the options: no Bluetooth state restoration launches, no Newsstand, no annotation) */
+UIKIT_EXTERN UIApplicationOpenURLOptionsKey const UIApplicationOpenURLOptionsAnnotationKey API_DEPRECATED("not used by UIScene apps", ios(9.0, 26.0));
+UIKIT_EXTERN UIApplicationLaunchOptionsKey const UIApplicationLaunchOptionsNewsstandDownloadsKey API_DEPRECATED("Newsstand is gone", ios(5.0, 26.0));
+UIKIT_EXTERN UIApplicationLaunchOptionsKey const UIApplicationLaunchOptionsBluetoothCentralsKey, UIApplicationLaunchOptionsBluetoothPeripheralsKey
+    API_DEPRECATED("Use UIScene state restoration", ios(7.0, 26.0));
 UIKIT_EXTERN UIApplicationOpenExternalURLOptionsKey const UIApplicationOpenURLOptionUniversalLinksOnly;
 /* a UIEventAttribution for private click measurement (UIEventAttribution.h) */
 UIKIT_EXTERN UIApplicationOpenExternalURLOptionsKey const UIApplicationOpenExternalURLOptionsEventAttributionKey API_AVAILABLE(ios(14.5));

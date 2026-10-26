@@ -24,6 +24,8 @@ UIKIT_EXTERN const UIMenuIdentifier UIMenuAbout, UIMenuPreferences, UIMenuServic
 UIKIT_EXTERN const UIMenuIdentifier UIMenuNewItem API_AVAILABLE(ios(26.0));
 UIKIT_EXTERN const UIMenuIdentifier UIMenuOpen API_AVAILABLE(ios(14.0));
 UIKIT_EXTERN const UIMenuIdentifier UIMenuOpenRecent API_AVAILABLE(ios(14.0));
+/* the New Window group (UIMainMenuSystem's newScenePreference) */
+UIKIT_EXTERN const UIMenuIdentifier UIMenuNewScene API_DEPRECATED("Use UIMenuNewItem", ios(13.0, 26.0));
 UIKIT_EXTERN const UIMenuIdentifier UIMenuClose, UIMenuPrint;
 UIKIT_EXTERN const UIMenuIdentifier UIMenuDocument API_AVAILABLE(ios(16.0));
 UIKIT_EXTERN const UIMenuIdentifier UIMenuUndoRedo, UIMenuStandardEdit, UIMenuFind, UIMenuReplace, UIMenuShare, UIMenuTextStyle;

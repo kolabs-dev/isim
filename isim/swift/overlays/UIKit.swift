@@ -98,11 +98,19 @@ extension UIApplication.LaunchOptionsKey {
     public static var remoteNotification: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsRemoteNotificationKey") }
     public static var location: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsLocationKey") }
     public static var eventAttribution: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsEventAttributionKey") }
+    @available(iOS, introduced: 7.0, deprecated: 26.0, message: "Use UIScene state restoration")
+    public static var bluetoothCentrals: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsBluetoothCentralsKey") }
+    @available(iOS, introduced: 7.0, deprecated: 26.0, message: "Use UIScene state restoration")
+    public static var bluetoothPeripherals: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsBluetoothPeripheralsKey") }
+    @available(iOS, introduced: 5.0, deprecated: 26.0)
+    public static var newsstandDownloads: UIApplication.LaunchOptionsKey { UIApplication.LaunchOptionsKey(rawValue: "UIApplicationLaunchOptionsNewsstandDownloadsKey") }
 }
 extension UIApplication.OpenURLOptionsKey {
     public static var sourceApplication: UIApplication.OpenURLOptionsKey { UIApplication.OpenURLOptionsKey(rawValue: "UIApplicationOpenURLOptionsSourceApplicationKey") }
     public static var openInPlace: UIApplication.OpenURLOptionsKey { UIApplication.OpenURLOptionsKey(rawValue: "UIApplicationOpenURLOptionsOpenInPlaceKey") }
     public static var eventAttribution: UIApplication.OpenURLOptionsKey { UIApplication.OpenURLOptionsKey(rawValue: "UIApplicationOpenURLOptionsEventAttributionKey") }
+    @available(iOS, introduced: 9.0, deprecated: 26.0)
+    public static var annotation: UIApplication.OpenURLOptionsKey { UIApplication.OpenURLOptionsKey(rawValue: "UIApplicationOpenURLOptionsAnnotationKey") }
 }
 extension UIApplication.OpenExternalURLOptionsKey {
     public static var universalLinksOnly: UIApplication.OpenExternalURLOptionsKey { UIApplication.OpenExternalURLOptionsKey(rawValue: "UIApplicationOpenURLOptionUniversalLinksOnly") }

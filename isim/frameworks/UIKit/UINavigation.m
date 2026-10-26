@@ -312,6 +312,9 @@ static UIView *rightmost_first(NSArray<UIView *> *group) {   /* the member lowes
     for (UIView *v in group) if ([v.superview.subviews indexOfObjectIdenticalTo:v] < [low.superview.subviews indexOfObjectIdenticalTo:low]) low = v;
     return low;
 }
+@interface UIToolbar (IsimAppearance)
+- (UIToolbarAppearance *)_isim_effectiveAppearance;
+@end
 static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *items, CGFloat x0, CGFloat y, CGFloat h, BOOL rightAligned, CGFloat limit) {
     NSMutableArray *views = [NSMutableArray array], *group = [NSMutableArray array];
     BOOL glass = isim_ui_glass();
@@ -328,6 +331,10 @@ static NSArray<UIView *> *place_items(UIView *host, NSArray<UIBarButtonItem *> *
             v = [__IsimBarButton buttonFor:it host:host];
             if ([host isKindOfClass:[UINavigationBar class]]) {
                 UINavigationBarAppearance *ap = [(UINavigationBar *)host _isim_appearance];
+                ((__IsimBarButton *)v).appearance = it.style == UIBarButtonItemStyleDone ? ap.doneButtonAppearance
+                    : it.style == UIBarButtonItemStyleProminent ? ap.prominentButtonAppearance : ap.buttonAppearance;
+            } else if ([host isKindOfClass:[UIToolbar class]]) {
+                UIToolbarAppearance *ap = [(UIToolbar *)host _isim_effectiveAppearance];
                 ((__IsimBarButton *)v).appearance = it.style == UIBarButtonItemStyleDone ? ap.doneButtonAppearance
                     : it.style == UIBarButtonItemStyleProminent ? ap.prominentButtonAppearance : ap.buttonAppearance;
             }
@@ -543,7 +550,7 @@ static NSArray<UIBarButtonItem *> *group_items(NSArray<UIBarButtonItemGroup *> *
 - (instancetype)initWithCoder:(NSCoder *)c { return [self init]; }
 @end
 
-static char kProminentAppearance;
+static char kProminentAppearance, kToolbarPlainAppearance, kToolbarDoneAppearance;
 void isim_ui_copy_bar_extras(id to, id from);
 @implementation UIBarAppearance { int _kind; }   /* 0 default (material), 1 opaque, 2 transparent */
 - (instancetype)init { return [self initWithIdiom:UIDevice.currentDevice.userInterfaceIdiom]; }
@@ -592,7 +599,20 @@ void isim_ui_copy_bar_extras(id to, id from);
 }
 - (void)setBackIndicatorImage:(UIImage *)i transitionMaskImage:(UIImage *)m { _backIndicatorImage = i; _backIndicatorTransitionMaskImage = m; }
 @end
-@implementation UIToolbarAppearance @end
+@implementation UIToolbarAppearance
+/* (the button appearances are UIToolbarAppearanceExtras' associated values) */
+- (void)_isim_copyFrom:(UIBarAppearance *)a {
+    [super _isim_copyFrom:a];
+    if (![a isKindOfClass:[UIToolbarAppearance class]]) return;
+    UIToolbarAppearance *t = (UIToolbarAppearance *)a;
+    char *keys[] = { &kProminentAppearance, &kToolbarPlainAppearance, &kToolbarDoneAppearance };
+    for (int i = 0; i < 3; i++) {
+        char *k = keys[i];
+        id v = objc_getAssociatedObject(t, k);
+        if (v) objc_setAssociatedObject(self, k, [v copy], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+}
+@end
 @implementation UITabBarAppearance @end
 
 @interface UIView (IsimEdgeScroll)
@@ -2689,6 +2709,18 @@ static char kPreferredBehavioral, kTitleMenuViews, kRenameField;
     return a;
 }
 - (void)setProminentButtonAppearance:(UIBarButtonItemAppearance *)a { set_assoc(self, &kProminentAppearance, [a copy]); }
+- (UIBarButtonItemAppearance *)buttonAppearance {
+    UIBarButtonItemAppearance *a = assoc(self, &kToolbarPlainAppearance);
+    if (!a) { a = [[UIBarButtonItemAppearance alloc] initWithStyle:UIBarButtonItemStylePlain]; set_assoc(self, &kToolbarPlainAppearance, a); }
+    return a;
+}
+- (void)setButtonAppearance:(UIBarButtonItemAppearance *)a { set_assoc(self, &kToolbarPlainAppearance, [a copy]); }
+- (UIBarButtonItemAppearance *)doneButtonAppearance {
+    UIBarButtonItemAppearance *a = assoc(self, &kToolbarDoneAppearance);
+    if (!a) { a = [[UIBarButtonItemAppearance alloc] initWithStyle:UIBarButtonItemStyleDone]; set_assoc(self, &kToolbarDoneAppearance, a); }
+    return a;
+}
+- (void)setDoneButtonAppearance:(UIBarButtonItemAppearance *)a { set_assoc(self, &kToolbarDoneAppearance, [a copy]); }
 @end
 
 @implementation UIDocumentProperties { NSURL *_url; }

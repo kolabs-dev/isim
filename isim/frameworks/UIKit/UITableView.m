@@ -462,7 +462,7 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
 @interface UITableViewHeaderFooterView ()
 @property (nonatomic) int _isim_kind;                  /* bit 0: inset grouped, bit 1: footer */
 @end
-@implementation UITableViewHeaderFooterView { UIView *_content; UILabel *_label; BOOL _isimNeedsConfig; }
+@implementation UITableViewHeaderFooterView { UIView *_content; UILabel *_label, *_detail; BOOL _isimNeedsConfig; }
 - (void)setNeedsUpdateConfiguration { _isimNeedsConfig = YES; [self setNeedsLayout]; }
 - (void)didMoveToWindow { [super didMoveToWindow]; if (self.window) [self setNeedsUpdateConfiguration]; }
 - (instancetype)initWithReuseIdentifier:(NSString *)rid {
@@ -473,6 +473,10 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
 - (instancetype)initWithCoder:(NSCoder *)c { return isim_ib_init_with_coder(self, c); }   /* UIStoryboard.m */
 - (UIView *)contentView { return _content; }
 - (UILabel *)textLabel { if (!_label) { _label = [UILabel new]; _label.font = [UIFont systemFontOfSize:13]; _label.textColor = UIColor.secondaryLabelColor; _label.numberOfLines = 0; [_content addSubview:_label]; } return _label; }
+- (UILabel *)detailTextLabel {
+    if (!_detail) { _detail = [UILabel new]; _detail.font = [UIFont systemFontOfSize:12]; _detail.textColor = UIColor.secondaryLabelColor; _detail.numberOfLines = 0; [_content addSubview:_detail]; }
+    return _detail;
+}
 - (UIListContentConfiguration *)defaultContentConfiguration { return [UIListContentConfiguration groupedHeaderConfiguration]; }
 - (void)setContentConfiguration:(id<UIContentConfiguration>)c { _contentConfiguration = [(id)c copy]; [self setNeedsLayout]; }
 - (void)prepareForReuse {}
@@ -485,8 +489,13 @@ NSNotificationName const UITableViewSelectionDidChangeNotification = @"UITableVi
     if (_label) {
         BOOL inset = self._isim_kind & 1, footer = self._isim_kind & 2;
         CGFloat m = inset ? 16 + 20 : 20;
-        CGSize s = isim_ui_measure(_label.text ?: @"", _label.font, self.bounds.size.width - 2 * m, 0);
-        _label.frame = CGRectMake(m, footer ? 7 : self.bounds.size.height - s.height - 7, self.bounds.size.width - 2 * m, s.height);
+        CGFloat w = self.bounds.size.width - 2 * m;
+        CGSize s = isim_ui_measure(_label.text ?: @"", _label.font, w, 0);
+        CGSize d = _detail.text.length ? isim_ui_measure(_detail.text, _detail.font, w, 0) : CGSizeZero;
+        CGFloat gap = d.height > 0 ? 2 : 0;
+        CGFloat y = footer ? 7 : self.bounds.size.height - s.height - gap - d.height - 7;
+        _label.frame = CGRectMake(m, y, w, s.height);
+        _detail.frame = CGRectMake(m, y + s.height + gap, w, d.height);
     }
 }
 @end

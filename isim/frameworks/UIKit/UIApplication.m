@@ -164,6 +164,8 @@ NSNotificationName const UIDeviceBatteryStateDidChangeNotification = @"UIDeviceB
 + (UIScreen *)mainScreen { static UIScreen *s; if (!s) s = [UIScreen new]; return s; }
 + (NSArray<UIScreen *> *)screens { extern UIScreen *isim_ui_external_screen(void); UIScreen *x = isim_ui_external_screen(); return x ? @[UIScreen.mainScreen, x] : @[UIScreen.mainScreen]; }
 + (UIScreen *)_isim_externalScreenWithSize:(CGSize)size { UIScreen *x = [UIScreen new]; x->_isimExternal = YES; x->_isimSize = size; return x; }
+- (BOOL)isCaptured { return NO; }
+- (CADisplayLink *)displayLinkWithTarget:(id)target selector:(SEL)sel { return [CADisplayLink displayLinkWithTarget:target selector:sel]; }
 - (BOOL)_isim_isExternal { return _isimExternal; }
 - (CGRect)bounds { if (_isimExternal) return CGRectMake(0, 0, _isimSize.width, _isimSize.height); const struct isim_device *d = isim_ui_device(); return CGRectMake(0, 0, d->width, d->height); }
 - (CGRect)nativeBounds { CGRect b = self.bounds; CGFloat s = self.scale; return CGRectMake(0, 0, b.size.width * s, b.size.height * s); }
