@@ -369,6 +369,12 @@ def _(a):
     a.icon(f"{b}/AppIcon60x60@3x.png", "#5ac8fa", "#0a84ff", "S")
 
 
+@app("samples/HelloQuickLook")
+def _(a):
+    b = a.swift_app()
+    shutil.copytree(os.path.join(a.d, "Office"), os.path.join(b, "Office"), dirs_exist_ok=True)   # -office: Word, Excel, PowerPoint
+
+
 @app("samples/HelloQuickLookExtensions")
 def _(a):
     b = a.swift_app(srcs=["HelloQuickLookExtensions.swift"], link=["-framework", "QuickLook"])
