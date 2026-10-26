@@ -6,7 +6,7 @@
  *   xinput type TEXT             type TEXT (ASCII)
  *   xinput key NAME              press a key (X keysym name: Return, Escape, Tab, BackSpace, ...)
  *   xinput list                  every window titled isim..., shown or not (debugging)
- *   xinput resize W H            resize the window, as a window manager's maximize does (issue #652)
+ *   xinput resize W H            move the window to the screen's corner at W x H, as a maximize does (issue #652)
  *   xinput pixel X Y             the colour shown at window point X Y: "R G B"
  *
  * The window is the top-level window whose title starts with "isim". Build: cc xinput.c -lX11 -lXtst */
@@ -93,7 +93,7 @@ int main(int argc, char **argv) {
             key(d, ks, shift);
         }
     } else if (!strcmp(argv[1], "resize") && argc >= 4) {
-        XResizeWindow(d, w, (unsigned)atoi(argv[2]), (unsigned)atoi(argv[3])); XSync(d, False);
+        XMoveResizeWindow(d, w, 0, 0, (unsigned)atoi(argv[2]), (unsigned)atoi(argv[3])); XSync(d, False);   /* to the corner */
     } else if (!strcmp(argv[1], "pixel") && argc >= 4) {
         XImage *im = XGetImage(d, w, atoi(argv[2]), atoi(argv[3]), 1, 1, AllPlanes, ZPixmap);
         if (!im) { fprintf(stderr, "xinput: cannot read the pixel\n"); return 4; }
