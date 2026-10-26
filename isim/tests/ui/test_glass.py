@@ -62,3 +62,72 @@ def test_glass(launch):
     app.tap(seg.x + seg.w / 2, seg.y + seg.h / 2)                      # the middle segment
     app.wait_log(r"^glass segment 1$")
     assert app.quit() == 0
+
+
+def glass_spread(img, el):
+    """how much the stripes behind a glass circle still show: the colour range along its middle row"""
+    y = el.y + el.h / 2
+    row = [rgb(img, el.x + 16 + i, y) for i in range(int(el.w) - 32)]
+    return sum(max(p[c] for p in row) - min(p[c] for p in row) for c in range(3))
+
+
+@pytest.mark.parametrize("os_version", ["26.0", "27.0"])
+def test_glass_tint(launch, os_version):
+    """the Liquid Glass setting (issue #336; script glasstint, like Settings): the clearest glass shows the stripes
+    behind it most, the most tinted least; 0.5 is the default look"""
+    app = launch("HelloGlass", os_version=os_version)
+    app.wait_log(r"^glass ready$")
+    app.wait_still()
+    circle = app.wait_for(id="circle0")
+    default = glass_spread(app.screenshot("default"), circle)
+    app.send("glasstint 0")
+    app.wait_log(r"isim: glasstint 0\.00")
+    app.wait_still()
+    clear = glass_spread(app.screenshot("clear"), circle)
+    app.send("glasstint 1")
+    app.wait_log(r"isim: glasstint 1\.00")
+    app.wait_still()
+    tinted = glass_spread(app.screenshot("tinted"), circle)
+    assert clear > default + 20 > tinted + 40, f"clear {clear} > default {default} > tinted {tinted}"
+    assert app.quit() == 0
+
+
+def test_glass_ios27_edge(launch):
+    """iOS 27's refresh: a darkened edge inside the glass's rim (iOS 26 has none)"""
+    edges = {}
+    for v in ("26.0", "27.0"):
+        app = launch("HelloGlass", os_version=v)
+        app.wait_log(r"^glass ready$")
+        app.wait_still()
+        c = app.wait_for(id="circle0")
+        img = app.screenshot(f"edge{v[:2]}")
+        cx, cy = c.x + c.w / 2, c.y + c.h / 2
+        # just inside the bottom rim (the top one is lit), against the middle of the circle
+        edges[v] = (sum(rgb(img, cx, c.y + c.h - 3)), sum(rgb(img, cx, cy + 10)))
+        assert app.quit() == 0
+    d26 = edges["26.0"][1] - edges["26.0"][0]
+    d27 = edges["27.0"][1] - edges["27.0"][0]
+    assert d27 > d26 + 15, f"iOS 27's edge is darker than the body, more than iOS 26's: {edges}"
+
+
+@pytest.mark.parametrize("os_version", ["26.0", "27.0"])
+def test_liquid_glass_settings(launch, device_data, os_version):
+    """Settings: iOS 26 Display & Brightness › Liquid Glass (Clear / Tinted), iOS 27 Appearance › Liquid Glass (a slider
+    from Clear to Tinted); both write ISIMLiquidGlassTint to the global domain"""
+    prefs = device_data / "Library" / "Preferences" / ".GlobalPreferences.plist"
+    dev = launch(None, os_version=os_version)
+    dev.send("launch dev.isim.settings")
+    if os_version.startswith("27"):
+        dev.wait_tap_id("settings-appearance")
+        dev.wait_tap_id("settings-liquid-glass")
+        slider = dev.wait_for(label=r"^Clear, Tinted$")                # the list row: Clear, the slider, Tinted
+        y = slider.y + slider.h / 2
+        dev.drag(slider.x + slider.w / 2, y, slider.x + slider.w - 60, y)
+    else:
+        dev.wait_tap_id("settings-display")
+        dev.wait_tap_id("settings-liquid-glass")
+        dev.wait_tap_id("settings-glass-tinted")
+    dev.wait_log(r"isim Settings: Liquid Glass tint (0\.9\d|1\.00)")
+    dev.wait_until(lambda: prefs.exists() and "ISIMLiquidGlassTint" in prefs.read_text(errors="ignore"), what="the setting is written")
+    dev.wait_still()
+    dev.screenshot("liquid-glass")

@@ -156,6 +156,11 @@ Verified from Apple's documentation (developer.apple.com, "SwiftUI updates" / "U
   `reorderable()`, `reorderContainer` and `ReorderDifference`; `ReadableDocument` / `WritableDocument` / `Document`
   with their readers and writers and the DocumentGroup initializers that make them (signatures from Apple's
   documentation);
+- the appearance refresh (adapted from Apple's descriptions; no Xcode 27 reference screenshots yet; `tests/ui/test_glass.py`):
+  Liquid Glass gets a darkened edge inside its rim, brighter specular highlights and a more diffused backdrop; the
+  Liquid Glass setting is a slider from Clear to Tinted (Settings › Appearance › Liquid Glass; iOS 26.1's Display &
+  Brightness › Liquid Glass offers Clear / Tinted; script `glasstint`), and glass follows Reduce Transparency and
+  Increase Contrast;
 - not done: the `@State` macro / `ContentBuilder` (Xcode 27 compiler features: isim's toolchain is Swift 6.2.4, see
   [frameworks/Platform.md](frameworks/Platform.md)) and gesture input kinds;
 - **not done: iOS 27 visuals.** Apple describes an updated Liquid Glass appearance and a tint slider without

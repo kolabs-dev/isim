@@ -69,7 +69,7 @@ struct SettingsApp: App {
 
 enum Route: Hashable {
     case accessibility, textSize, voiceOver
-    case general, about, keyboard, keyboards, addKeyboard, keyboardDetail(String), language, region, dateTime, timeZone, display, gameCenter, homeScreen
+    case general, about, keyboard, keyboards, addKeyboard, keyboardDetail(String), language, region, dateTime, timeZone, display, appearance, liquidGlass, gameCenter, homeScreen
     case app(String), appKeyboards(String), appPaste(String)
     case passwords, pencil
     case developer, localExperiences, registerExperience                                   // DeveloperSettings.swift
@@ -112,8 +112,13 @@ struct RootView: View {
                 Section {
                     NavigationLink(value: Route.general) { Label { Text("General") } icon: { SettingsIcon(symbol: "gear", color: .gray) } }
                         .accessibilityIdentifier("settings-general")
-                    NavigationLink(value: Route.display) { Label { Text("Display & Brightness") } icon: { SettingsIcon(symbol: "sun.max", color: .blue) } }
-                        .accessibilityIdentifier("settings-display")
+                    if osMajor >= 27 {                  // iOS 27: Appearance gathers light / dark and Liquid Glass
+                        NavigationLink(value: Route.appearance) { Label { Text("Appearance") } icon: { SettingsIcon(symbol: "circle.lefthalf.filled", color: .blue) } }
+                            .accessibilityIdentifier("settings-appearance")
+                    } else {
+                        NavigationLink(value: Route.display) { Label { Text("Display & Brightness") } icon: { SettingsIcon(symbol: "sun.max", color: .blue) } }
+                            .accessibilityIdentifier("settings-display")
+                    }
                     NavigationLink(value: Route.accessibility) { Label { Text("Accessibility") } icon: { SettingsIcon(symbol: "accessibility", color: .blue) } }
                         .accessibilityIdentifier("settings-accessibility")
                     NavigationLink(value: Route.homeScreen) { Label { Text("Home Screen & App Library") } icon: { SettingsIcon(symbol: "square.grid.2x2", color: .indigo) } }
@@ -187,6 +192,8 @@ struct RootView: View {
         case .dateTime: DateTimeView()
         case .timeZone: TimeZoneView()
         case .display: DisplayView()
+        case .appearance: DisplayView(title: "Appearance")
+        case .liquidGlass: LiquidGlassView()
         case .homeScreen: HomeScreenSettingsView()
         case .gameCenter: GameCenterView()
         case .app(let id): AppSettingsView(id: id)
@@ -595,7 +602,11 @@ enum GCNetwork {
 
 // MARK: - Display & Brightness
 
+/// the emulated iOS version's major number (isim --os)
+let osMajor = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+
 struct DisplayView: View {
+    var title: LocalizedStringKey = "Display & Brightness"
     @State private var bump = 0
     var body: some View {
         let dark = (Store.global.object(forKey: "AppleInterfaceStyle") as? String) == "Dark"
@@ -609,8 +620,21 @@ struct DisplayView: View {
                 }
                 .padding(.vertical, 8)
             }
+            if osMajor >= 26 {
+                Section {
+                    NavigationLink(value: Route.liquidGlass) {
+                        HStack { Text("Liquid Glass"); Spacer(); Text(liquidGlassSummary).foregroundStyle(.secondary) }
+                    }
+                    .accessibilityIdentifier("settings-liquid-glass")
+                }
+            }
         }
-        .navigationTitle("Display & Brightness").navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
+    }
+    var liquidGlassSummary: LocalizedStringKey {
+        let t = liquidGlassTint
+        if osMajor < 27 { return t > 0.75 ? "Tinted" : "Clear" }
+        return abs(t - 0.5) < 0.01 ? "Default" : t < 0.5 ? "Clearer" : "More Tinted"
     }
     func appearanceOption(_ title: LocalizedStringKey, dark: Bool, selected: Bool, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -629,6 +653,74 @@ struct DisplayView: View {
             }
         }
         .accessibilityIdentifier(id)
+    }
+}
+
+// MARK: - Liquid Glass
+
+/// ISIMLiquidGlassTint in the global domain: 0 the clearest .. 0.5 the default .. 1 the most tinted (isim's glass
+/// renderer reads it in every process)
+@MainActor var liquidGlassTint: Double { Store.global.object(forKey: "ISIMLiquidGlassTint") as? Double ?? 0.5 }
+
+/// iOS 26: Clear or Tinted; iOS 27: a slider from Clear to Tinted (the middle is the default), with a preview
+struct LiquidGlassView: View {
+    @State private var tint = liquidGlassTint
+    var body: some View {
+        List {
+            Section {
+                ZStack {
+                    LinearGradient(colors: [.orange, .pink, .purple, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    HStack(spacing: 14) {
+                        ForEach(["house.fill", "magnifyingglass", "gearshape.fill"], id: \.self) { s in
+                            if #available(iOS 26.0, *) {
+                                Image(systemName: s).font(.system(size: 20, weight: .semibold)).frame(width: 52, height: 52)
+                                    .glassEffect(.regular, in: Circle())
+                            }
+                        }
+                    }
+                }
+                .frame(height: 140)
+                .listRowInsets(EdgeInsets())
+                .accessibilityIdentifier("settings-glass-preview")
+            }
+            if osMajor >= 27 {
+                Section {
+                    HStack {
+                        Text("Clear").font(.footnote).foregroundStyle(.secondary)
+                        Slider(value: $tint, in: 0...1) { Text("Liquid Glass") } onEditingChanged: { editing in
+                            if !editing { save(tint) }
+                        }
+                        .accessibilityIdentifier("settings-glass-slider")
+                        Text("Tinted").font(.footnote).foregroundStyle(.secondary)
+                    }
+                } footer: {
+                    Text("Choose how clear or tinted Liquid Glass looks across the system. The middle is the default.")
+                }
+            } else {
+                Section {
+                    option("Clear", value: 0.5, id: "settings-glass-clear")
+                    option("Tinted", value: 1, id: "settings-glass-tinted")
+                } footer: {
+                    Text("Tinted increases opacity and adds more contrast.")
+                }
+            }
+        }
+        .onChange(of: tint) { _, v in save(v) }
+        .navigationTitle("Liquid Glass").navigationBarTitleDisplayMode(.inline)
+    }
+    func option(_ title: LocalizedStringKey, value: Double, id: String) -> some View {
+        Button { tint = value } label: {
+            HStack {
+                Text(title).foregroundStyle(.primary)
+                Spacer()
+                if abs(tint - value) < 0.01 { Image(systemName: "checkmark").foregroundStyle(.blue) }
+            }
+        }
+        .accessibilityIdentifier(id)
+    }
+    func save(_ v: Double) {
+        Store.set("ISIMLiquidGlassTint", abs(v - 0.5) < 0.005 ? nil : v)
+        NSLog("isim Settings: Liquid Glass tint %.2f", v)
     }
 }
 
