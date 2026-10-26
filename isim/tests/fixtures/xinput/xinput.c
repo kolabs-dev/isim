@@ -6,6 +6,8 @@
  *   xinput type TEXT             type TEXT (ASCII)
  *   xinput key NAME              press a key (X keysym name: Return, Escape, Tab, BackSpace, ...)
  *   xinput list                  every window titled isim..., shown or not (debugging)
+ *   xinput resize W H            resize the window, as a window manager's maximize does (issue #652)
+ *   xinput pixel X Y             the colour shown at window point X Y: "R G B"
  *
  * The window is the top-level window whose title starts with "isim". Build: cc xinput.c -lX11 -lXtst */
 #include <X11/Xlib.h>
@@ -57,7 +59,7 @@ static void list(Display *d, Window w, int depth) {      /* every window titled 
 }
 
 int main(int argc, char **argv) {
-    if (argc < 2) { fprintf(stderr, "usage: xinput where | click X Y [shift] | type TEXT | key NAME\n"); return 1; }
+    if (argc < 2) { fprintf(stderr, "usage: xinput where | click X Y [shift] | type TEXT | key NAME | resize W H | pixel X Y\n"); return 1; }
     Display *d = XOpenDisplay(NULL);
     if (!d) { fprintf(stderr, "xinput: no display\n"); return 2; }
     if (!strcmp(argv[1], "list")) { list(d, DefaultRootWindow(d), 0); return 0; }
@@ -90,6 +92,14 @@ int main(int argc, char **argv) {
                       : c == '`' ? XK_grave : XStringToKeysym(ch);
             key(d, ks, shift);
         }
+    } else if (!strcmp(argv[1], "resize") && argc >= 4) {
+        XResizeWindow(d, w, (unsigned)atoi(argv[2]), (unsigned)atoi(argv[3])); XSync(d, False);
+    } else if (!strcmp(argv[1], "pixel") && argc >= 4) {
+        XImage *im = XGetImage(d, w, atoi(argv[2]), atoi(argv[3]), 1, 1, AllPlanes, ZPixmap);
+        if (!im) { fprintf(stderr, "xinput: cannot read the pixel\n"); return 4; }
+        unsigned long px = XGetPixel(im, 0, 0);
+        printf("%lu %lu %lu\n", (px & im->red_mask) >> 16, (px & im->green_mask) >> 8, px & im->blue_mask);
+        XDestroyImage(im);
     } else if (!strcmp(argv[1], "key") && argc >= 3) {
         key(d, XStringToKeysym(argv[2]), 0);
     } else {
