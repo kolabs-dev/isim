@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>QL Extensions</string>
+	<key>CFBundleExecutable</key>
+	<string>HelloQuickLookExtensions</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.isim.samples.HelloQuickLookExtensions</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>dev.isim.samples.recipe</string>
+			<key>UTTypeDescription</key>
+			<string>Recipe</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>recipe</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>dev.isim.samples.palette</string>
+			<key>UTTypeDescription</key>
+			<string>Colour Palette</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>palette</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>dev.isim.samples.memo</string>
+			<key>UTTypeDescription</key>
+			<string>Memo</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>memo</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>dev.isim.samples.invoice</string>
+			<key>UTTypeDescription</key>
+			<string>Invoice</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>invoice</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+</dict>
+</plist>

@@ -11,11 +11,12 @@
  * - anything else: an icon with the file's name, kind and size (as iOS shows files it cannot render).
  * Presented on its own the controller shows a bar with Done and Share (a UIActivityViewController with the file);
  * pushed onto a navigation controller it puts Share in the navigation item. Adapted: no Markup / editing, no list of
- * items, no zoom transition from frameForPreviewItem. */
+ * items, no zoom transition from frameForPreviewItem. Quick Look Preview extensions: QLPreviewExtensions.m. */
 #import <QuickLook/QuickLook.h>
 #import <isim_host.h>
 #import <dlfcn.h>
 #import <objc/runtime.h>
+#import "QLPrivate.h"
 
 /* WebKit is loaded when an HTML file is previewed (QuickLook links below it) */
 @interface NSObject (IsimQLWebView)
@@ -36,7 +37,7 @@ static Class web_view_class(void) {
 - (NSString *)previewItemTitle { return self.lastPathComponent; }
 @end
 
-typedef NS_ENUM(int, QLKind) { QLKindGeneric, QLKindImage, QLKindPDF, QLKindText, QLKindMedia, QLKindWeb, QLKindRich };
+typedef NS_ENUM(int, QLKind) { QLKindGeneric, QLKindImage, QLKindPDF, QLKindText, QLKindMedia, QLKindWeb, QLKindRich, QLKindExtension };
 static QLKind kind_of(NSURL *url) {
     NSString *e = url.pathExtension.lowercaseString;
     if ([@[@"png", @"jpg", @"jpeg", @"gif", @"bmp", @"tif", @"tiff", @"webp", @"heic", @"ico"] containsObject:e]) return QLKindImage;
@@ -58,9 +59,12 @@ static NSString *size_text(long long n) {
 static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfFile:url.path]; return (long long)d.length; }
 
 /* ---------------- pages ---------------- */
-@interface __IsimQLPage : UIView <UIScrollViewDelegate>
+@interface __IsimQLPage : UIView <UIScrollViewDelegate, __IsimQLExtensionHostDelegate>
 @property (nonatomic, strong) NSURL *url;
 @property (nonatomic, readonly) QLKind kind;
+@property (nonatomic, weak) QLPreviewController *owner;
+@property (nonatomic, copy, nullable) NSString *extensionTitle;   /* a data-based preview extension's reply title */
+@property (nonatomic, readonly, nullable) __IsimQLPage *inner;    /* what the extension's reply shows */
 - (void)appeared; - (void)disappeared;
 @end
 
@@ -164,12 +168,26 @@ static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfF
 - (void)dealloc { [_link invalidate]; if (_media > 0) isim_media_close(_media); }
 @end
 
-@implementation __IsimQLPage { UIScrollView *_scroll; UIView *_content; __IsimQLMedia *_media; }
-- (instancetype)initWithURL:(NSURL *)url {
+@interface QLPreviewController (IsimPages)
+- (void)_isimPageTitleChanged:(__IsimQLPage *)page;
+@end
+@implementation __IsimQLPage { UIScrollView *_scroll; UIView *_content; __IsimQLMedia *_media; __IsimQLExtensionHost *_host; }
+- (instancetype)initWithURL:(NSURL *)url { return [self initWithURL:url owner:nil extensions:NO]; }
+/* extensions: a Quick Look Preview extension for the file's type previews it */
+- (instancetype)initWithURL:(NSURL *)url owner:(QLPreviewController *)owner extensions:(BOOL)extensions {
     if (!(self = [super initWithFrame:CGRectZero])) return nil;
-    _url = url;
+    _url = url; _owner = owner;
     self.backgroundColor = UIColor.systemBackgroundColor;
     self.clipsToBounds = YES;
+    __IsimQLExtension *x = extensions ? isim_ql_extension_for(url) : nil;
+    if (x) {
+        _kind = QLKindExtension;
+        _host = [[__IsimQLExtensionHost alloc] initWithExtension:x url:url];
+        _host.delegate = self;
+        _content = _host;
+        [self addSubview:_host];
+        return self;
+    }
     _kind = [NSFileManager.defaultManager fileExistsAtPath:url.path] ? kind_of(url) : QLKindGeneric;
     if (_kind == QLKindImage && ![UIImage imageWithContentsOfFile:url.path]) _kind = QLKindGeneric;
     if (_kind == QLKindMedia) { struct isim_media_info i = {0}; if (!isim_media_probe(url.path.UTF8String, &i) || !(i.has_video || i.has_audio)) _kind = QLKindGeneric; }
@@ -260,6 +278,7 @@ static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfF
         _content = _media;
         [self addSubview:_media];
         break; }
+    case QLKindExtension: break;                             /* (built in init) */
     case QLKindGeneric: {
         UIView *v = [UIView new];
         v.accessibilityIdentifier = @"ql-generic";
@@ -277,6 +296,22 @@ static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfF
         [self addSubview:v];
         break; }
     }
+}
+- (UIViewController *)extensionHostParentViewController:(__IsimQLExtensionHost *)host { return _owner; }
+- (void)extensionHost:(__IsimQLExtensionHost *)host showFile:(NSURL *)file title:(NSString *)title {
+    if (!file) {                                            /* the extension failed: the file's generic page */
+        [_host removeFromSuperview]; _host = nil;
+        _kind = QLKindGeneric;
+        [self _build];
+        [self setNeedsLayout];
+        return;
+    }
+    _inner = [[__IsimQLPage alloc] initWithURL:file owner:_owner extensions:NO];
+    _inner.frame = self.bounds;
+    _inner.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [_host addSubview:_inner];
+    _extensionTitle = [title copy];
+    [_owner _isimPageTitleChanged:self];
 }
 - (UIView *)viewForZoomingInScrollView:(UIScrollView *)s { return _kind == QLKindImage ? _content : nil; }
 - (void)scrollViewDidZoom:(UIScrollView *)s { [self _centerImage]; }
@@ -331,7 +366,8 @@ static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfF
     }
 }
 - (void)appeared {}
-- (void)disappeared { [_media stop]; }
+- (void)disappeared { [_media stop]; [_inner disappeared]; }
+- (void)removeFromSuperview { [_host stop]; [super removeFromSuperview]; }
 @end
 
 /* ---------------- QLPreviewController ---------------- */
@@ -420,18 +456,30 @@ static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfF
     for (NSInteger i = _index - 1; i <= _index + 1; i++) {
         if (i < 0 || i >= _count || _pages[@(i)]) continue;
         NSURL *url = [self _item:i].previewItemURL;
-        __IsimQLPage *p = [[__IsimQLPage alloc] initWithURL:url ?: [NSURL fileURLWithPath:@"/nonexistent"]];
+        __IsimQLPage *p = [[__IsimQLPage alloc] initWithURL:url ?: [NSURL fileURLWithPath:@"/nonexistent"] owner:self extensions:YES];
         p.frame = CGRectMake(s.width * i, 0, s.width, s.height);
         [_pager addSubview:p];
         _pages[@(i)] = p;
     }
     for (NSNumber *k in _pages.allKeys) if (labs(k.integerValue - _index) > 1) { [_pages[k] disappeared]; [_pages[k] removeFromSuperview]; [_pages removeObjectForKey:k]; }
+    NSString *title = [self _updateTitle];
+    static const char *names[] = { "generic", "image", "pdf", "text", "media", "html", "rtf", "extension" };
+    __IsimQLPage *page = _pages[@(_index)];
+    if (_count) NSLog(@"isim QuickLook: item %ld of %ld: %@ (%s)", (long)_index + 1, (long)_count, title, names[page.kind]);
+}
+/* the current item's title: the data source's, a preview extension's reply title, else the file name */
+- (NSString *)_updateTitle {
     id<QLPreviewItem> item = self.currentPreviewItem;
-    NSString *title = [item respondsToSelector:@selector(previewItemTitle)] ? item.previewItemTitle : nil;
-    title = title ?: item.previewItemURL.lastPathComponent ?: @"";
+    NSString *title = [item isKindOfClass:[NSURL class]] ? nil : [item respondsToSelector:@selector(previewItemTitle)] ? item.previewItemTitle : nil;
+    title = title ?: _pages[@(_index)].extensionTitle ?: item.previewItemURL.lastPathComponent ?: @"";
     if (_bar) _bar.topItem.title = title; else self.title = title;
-    static const char *names[] = { "generic", "image", "pdf", "text", "media", "html", "rtf" };
-    if (_count) NSLog(@"isim QuickLook: item %ld of %ld: %@ (%s)", (long)_index + 1, (long)_count, title, names[_pages[@(_index)].kind]);
+    return title;
+}
+- (void)_isimPageTitleChanged:(__IsimQLPage *)page {
+    if (_pages[@(_index)] != page) return;
+    NSString *title = [self _updateTitle];
+    static const char *names[] = { "generic", "image", "pdf", "text", "media", "html", "rtf", "extension" };
+    NSLog(@"isim QuickLook: item %ld of %ld: %@ (extension reply: %s)", (long)_index + 1, (long)_count, title, page.inner ? names[page.inner.kind] : "none");
 }
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)s {
     if (s != _pager || s.bounds.size.width <= 0) return;
