@@ -61,7 +61,7 @@ isim run build/HelloWorld.app
 | `isim build (-project App.xcodeproj \| -workspace App.xcworkspace) [-scheme S \| -target T] [-configuration Release] [-o DIR]` | build an Xcode project or workspace: apps, extensions, frameworks, static libraries, Swift packages (remote ones fetched with git, pinned in `Package.resolved`), `.xcframework`s (x86_64 simulator slice), `.xcconfig` files, shell script phases, CocoaPods workspaces; products in `./build` of the current folder (or `-o DIR`), the last line is `done: <path to .app>` |
 | `isim build … -list` · `isim build … -showBuildSettings` (`-json`) · `isim project [App.xcodeproj]` | like `xcodebuild -list` / `-showBuildSettings`: targets, configurations, schemes / resolved build settings; the project as a tree (targets → build phases → files) |
 | `isim test -project App.xcodeproj -scheme S [-only-testing:Target/Class/test] [-resultBundlePath DIR]` | build and run the scheme's test targets like `xcodebuild test`: XCTest (hosted in the app or standalone), Swift Testing and XCUITest; exits 65 on failures. In a Swift package's folder (or `-package-path DIR`), `isim test -scheme <Package>` runs the package's `.testTarget`s with isim's iOS XCTest |
-| `isim cc …` · `isim swiftc …` | compile files for the isim SDK |
+| `isim cc …` · `isim swiftc …` · `isim metal-compile …` | compile files for the isim SDK (Metal Shading Language: for Metal on the CPU) |
 | `isim info App.app` | show Mach-O platform and dependencies |
 | `isim preview App.app [NAME\|INDEX\|--list] [-o FILE.png]` | render one of the app's `#Preview`s to a PNG (laid out by its traits) |
 | `isim push [BUNDLE_ID] payload.apns\|-` | send a remote notification to the running device, like `xcrun simctl push` (or drop a `.apns` file on it) |

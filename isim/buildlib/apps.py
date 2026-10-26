@@ -237,6 +237,12 @@ def _(a):
     a.isim_build().compile_metal([os.path.join(a.d, "Kernels.metal")], b)
 
 
+@app("samples/HelloMetal", extra_inputs=["samples/HelloMetal/Shaders.metal"])   # issue #328: Metal on the CPU
+def _(a):
+    b = a.swift_app()
+    a.isim_build().compile_metal([os.path.join(a.d, "Shaders.metal")], b)
+
+
 @app("samples/HelloGameCenter")
 def _(a):
     b = a.swift_app()
@@ -944,6 +950,12 @@ def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "SpriteKit",
                 "-framework", "CoreGraphics"],
                name="SpriteKitObjCTest")
+
+
+@app("tests/metal-objc", products=["MetalObjCTest.app"], extra_inputs=["tests/metal-objc/Shaders.metal"])   # issue #328
+def _(a):
+    b = a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Metal"], name="MetalObjCTest")
+    a.isim_build().compile_metal([os.path.join(a.d, "Shaders.metal")], b)
 
 
 @app("tests/cloudkit-share-objc", products=["CloudKitShareObjCTest.app"])   # issue #575: CloudKit share links (an app delegate)

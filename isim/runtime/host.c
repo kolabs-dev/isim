@@ -2090,6 +2090,7 @@ ISIM_GUEST_ABI long isim_camera_frame(int h, unsigned char *out, long seq, doubl
 ISIM_GUEST_ABI int isim_camera_preview(int h);
 ISIM_GUEST_ABI void isim_camera_close(int h);
 ISIM_GUEST_ABI int isim_ffmpeg_run(const char *const *args, int nargs, double *progress, volatile int *cancel, char *err, long errlen);
+ISIM_GUEST_ABI int isim_metal_compile(const char *source, const char *out, const char *const *flags, int nflags, char *err, long errlen);
 ISIM_GUEST_ABI int isim_media_reader_open(const char *url, int kind, double start, double duration, int w, int h, double rate, int channels);
 ISIM_GUEST_ABI long isim_media_reader_read(int hd, void *buf, long n);
 ISIM_GUEST_ABI void isim_media_reader_close(int hd);
@@ -2245,7 +2246,7 @@ static const struct shim isim_table[] = {
     H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
     H(isim_audio_set_pan), H(isim_image_read_bgra),
     H(isim_camera_source), H(isim_camera_open), H(isim_camera_frame), H(isim_camera_preview), H(isim_camera_close), H(isim_camera_source_at), H(isim_camera_open_at), H(isim_camera_set_effects), H(isim_vision_barcodes_ex), H(isim_heif_can_encode), H(isim_heif_encode_bgra), H(isim_heif_decode),
-    H(isim_ffmpeg_run), H(isim_media_reader_open), H(isim_media_reader_read), H(isim_media_reader_close),
+    H(isim_ffmpeg_run), H(isim_metal_compile), H(isim_media_reader_open), H(isim_media_reader_read), H(isim_media_reader_close),
     H(isim_vision_available), H(isim_vision_barcodes), H(isim_vision_text), H(isim_vision_text_languages), H(isim_llm_server), H(isim_raw_available), H(isim_raw_identify), H(isim_raw_decode), H(isim_raw_camera_list),
     H(isim_speech_available), H(isim_speech_transcribe), H(isim_audio_session_poll),
     H(isim_audio_stream_open), H(isim_audio_stream_write), H(isim_audio_stream_control), H(isim_audio_stream_close),

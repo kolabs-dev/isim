@@ -1,0 +1,22 @@
+#pragma once
+/* isim Metal (self-authored, iOS API names): see MTLDefines.h */
+#import <Metal/MTLDefines.h>
+#import <Metal/MTLTypes.h>
+#import <Metal/MTLPixelFormat.h>
+#import <Metal/MTLResource.h>
+#import <Metal/MTLHeap.h>
+#import <Metal/MTLBuffer.h>
+#import <Metal/MTLTexture.h>
+#import <Metal/MTLDepthStencil.h>
+#import <Metal/MTLSampler.h>
+#import <Metal/MTLArgument.h>
+#import <Metal/MTLFunctionConstantValues.h>
+#import <Metal/MTLLibrary.h>
+#import <Metal/MTLComputePipeline.h>
+#import <Metal/MTLCommandEncoder.h>
+#import <Metal/MTLComputeCommandEncoder.h>
+#import <Metal/MTLBlitCommandEncoder.h>
+#import <Metal/MTLDrawable.h>
+#import <Metal/MTLCommandBuffer.h>
+#import <Metal/MTLCommandQueue.h>
+#import <Metal/MTLDevice.h>

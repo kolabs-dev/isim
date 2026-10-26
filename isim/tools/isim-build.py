@@ -953,18 +953,35 @@ def compile_intentdefinition(path, bundle, gen_dir, codegen=True):
 
 def compile_metal(sources, bundle):
     """Metal sources -> <bundle>/default.metallib: isim's library format, the sources after an "ISIMMETALLIB 1" line.
-    isim's Core Image interprets the kernels in it (CIKernel(functionName:fromMetalLibraryData:)); it is not GPU code."""
+    isim's Core Image interprets the kernels in it (CIKernel(functionName:fromMetalLibraryData:)); it is not GPU code.
+    The Metal Shading Language functions are also compiled for Metal on the CPU (tools/mslc.py) into
+    <bundle>/default.metallib.dylib, which MTLDevice.makeDefaultLibrary() loads; Core Image kernel files (those that
+    include <CoreImage/CoreImage.h>) are left to Core Image."""
     if not sources:
         return None
     parts = ['ISIMMETALLIB 1\n']
+    texts = {}
     for f in sorted(sources):
         with open(f, encoding='utf-8') as fh:
-            parts.append(f'// file: {os.path.basename(f)}\n' + fh.read() + '\n')
+            texts[f] = fh.read()
+        parts.append(f'// file: {os.path.basename(f)}\n' + texts[f] + '\n')
     os.makedirs(bundle, exist_ok=True)
     out = os.path.join(bundle, 'default.metallib')
     with open(out, 'w', encoding='utf-8') as fh:
         fh.write(''.join(parts))
     log(f'{len(sources)} Metal source(s) -> {os.path.relpath(out, os.path.dirname(bundle))} (isim metallib: the sources)')
+    metal = [f for f in sorted(sources) if not re.search(r'#\s*include\s*<CoreImage/', texts[f])]
+    dylib = out + '.dylib'
+    if not metal:
+        if os.path.exists(dylib):
+            os.remove(dylib)
+        return out
+    import mslc
+    try:
+        names = mslc.compile(metal, dylib)
+    except mslc.MSLError as e:
+        fail(f'Metal: {e}')
+    log(f'{len(metal)} Metal source(s) -> {os.path.relpath(dylib, os.path.dirname(bundle))} (Metal on the CPU: {", ".join(names) or "no functions"})')
     return out
 
 

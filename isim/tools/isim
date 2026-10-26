@@ -9,6 +9,7 @@
 #     options: [--os 17|18|26|27] [--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16pro|iphone16promax|iphone17|iphoneair|iphone17pro|iphone17promax|ipadmini|ipadair11|ipadpro11|ipadpro13] [--zoom N] [--dark] [--headless --script "..."]
 #   isim cc  <clang args...>     compile/link for the isim iOS-simulator SDK (x86_64) with LLVM's clang / lld (CLANG=PATH)
 #   isim swiftc [-embedded] <swiftc args...>  compile Swift for the simulator (needs Swift 6.2.4: isim toolchain install)
+#   isim metal-compile -o lib.dylib [-I dir] [-D NAME=VALUE] file.metal...  Metal Shading Language for Metal on the CPU
 #   isim toolchain [status|install|which]   the Swift 6.2.4 toolchain isim compiles with: which one and why | install it
 #                                with swiftly | its usr directory (ISIM_SWIFT_TOOLCHAIN=DIR picks one)
 #   ISIM_MIN_IOS=17.0            deployment target used by cc/swiftc (default 17.0)
@@ -526,6 +527,8 @@ case "$cmd" in
         --open "$dst" "$dst/$name" "$@"
     fi
     exec "$BIN/isim-runtime" --root "$SDK" "$exe" "$@" ;;
+  metal-compile)   # issue #328: isim's MSL compiler (tools/mslc.py), as isim build and Metal's run-time compiles use it
+    exec python3 "$BIN/mslc.py" "$@" ;;
   cc)
     clang=${CLANG:-}
     if [ -z "$clang" ] && ! clang=$(llvm_tool clang); then

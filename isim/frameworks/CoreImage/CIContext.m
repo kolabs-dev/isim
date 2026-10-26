@@ -16,6 +16,10 @@ CIContextOption const kCIContextOutputColorSpace = @"output_color_space", kCICon
     @public BOOL _managed; ci_space _ws; id _wsObj, _outObj; BOOL _hq, _premul;
 }
 + (CIContext *)contextWithOptions:(NSDictionary *)o { return [[self alloc] initWithOptions:o]; }
++ (CIContext *)contextWithMTLDevice:(id<MTLDevice>)device { return [self contextWithOptions:nil]; }
++ (CIContext *)contextWithMTLDevice:(id<MTLDevice>)device options:(NSDictionary *)o { return [self contextWithOptions:o]; }
++ (CIContext *)contextWithMTLCommandQueue:(id<MTLCommandQueue>)queue { return [self contextWithOptions:nil]; }
++ (CIContext *)contextWithMTLCommandQueue:(id<MTLCommandQueue>)queue options:(NSDictionary *)o { return [self contextWithOptions:o]; }
 + (CIContext *)context { return [self new]; }
 + (CIContext *)contextWithCGContext:(CGContextRef)c options:(NSDictionary *)o {
     CIContext *x = [[self alloc] initWithOptions:o];

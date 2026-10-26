@@ -135,6 +135,11 @@ def sdk_headers(c):
         c.notes.append("libc++ headers: skipped (third_party/llvm-project missing; run build.py fetch)")
     # the sync of usr/include owns the whole tree, so the c++/v1 tree is part of the same edge
     c.header_stamps.append(c.sync(f"{OUT}/stamps/headers-usr-include", spec, "SDK headers"))
+    # Metal on the CPU (issue #328): isim's metal_stdlib for translated kernels, and the headers .metal files see while
+    # tools/mslc.py preprocesses them
+    c.header_stamps.append(c.sync(f"{OUT}/stamps/headers-metal", ["--tree", "sdk-src/metal/include", f"{SDK}/usr/lib/isim/metal/include",
+                                                                  "--tree", "sdk-src/metal/msl", f"{SDK}/usr/lib/isim/metal/msl"],
+                                  "Metal shading language headers"))
     # stubs for the host libraries, generated from the runtime's export tables
     tbds = []
     for name, lib in (("libSystem", "/usr/lib/libSystem.B.dylib"), ("libobjc", "/usr/lib/libobjc.A.dylib"),
@@ -164,6 +169,7 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
     ("CoreText", "-framework Foundation -framework CoreGraphics -lisim_host"),
     ("UIKit", "-framework Foundation -framework CoreGraphics -lisim_host"),
     ("ImageIO", "-framework Foundation -framework CoreGraphics -lisim_host"),
+    ("Metal", "-framework Foundation -lisim_host"),   # issue #328: Metal on the CPU (kernels from tools/mslc.py)
     ("CoreImage", "-framework Foundation -framework CoreGraphics -framework ImageIO -framework UIKit -lisim_host"),
     ("UserNotifications", "-framework Foundation -framework UIKit -framework CoreGraphics -lisim_host"),
     ("UserNotificationsUI", "-framework Foundation -framework UIKit -framework UserNotifications"),
@@ -322,7 +328,8 @@ def frameworks(c):
 
 TOOLS = [("isim", True), ("isim-build.py", True), ("isim-services.py", True), ("xcodeproj.py", False), ("momc.py", True),
          ("ibtool.py", True), ("isim-test.py", True), ("isim-preview.py", True), ("isim-crashlog.py", True),
-         ("isim-privacy.py", True), ("isim-adattribution.py", True), ("isim-devicecheck.py", True), ("isim-new.py", True)]
+         ("isim-privacy.py", True), ("isim-adattribution.py", True), ("isim-devicecheck.py", True), ("isim-new.py", True),
+         ("mslc.py", True)]
 
 
 def tools(c):
