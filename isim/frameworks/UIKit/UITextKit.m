@@ -1,7 +1,7 @@
 /* TextKit 1: NSTextStorage, NSTextContainer, NSLayoutManager, and NSTextAttachment.
  *
  * Adapted: NSLayoutManager lays its text storage out with isim's TextKit engine (UITextKitEngine.m: Pango, a layout
- * per paragraph) in its first text container; a glyph is a UTF-16 unit of the string, so glyph and character
+ * per paragraph) in its first text container, its lines flowing around the container's exclusion paths; a glyph is a UTF-16 unit of the string, so glyph and character
  * indexes are the same. The engine is rebuilt when the storage is edited or the container changes geometry; layout
  * results set by a typesetter (setLineFragmentRect:... etc.) are accepted and ignored. CGGlyph values come from
  * Core Text when the app links it (0 otherwise). NSTextStorage keeps its characters in a backing attributed string
@@ -266,7 +266,17 @@ NSNotificationName const NSTextStorageDidProcessEditingNotification = @"NSTextSt
     if (remaining) *remaining = CGRectZero;
     CGFloat w = _size.width > 0 ? _size.width : CGFLOAT_MAX;
     CGRect box = CGRectMake(0, 0, w, _size.height > 0 ? _size.height : CGFLOAT_MAX);
-    return CGRectIntersection(r, box);                        /* (exclusion paths are not applied) */
+    r = CGRectIntersection(r, box);
+    if (CGRectIsNull(r) || !_exclusionPaths.count) return CGRectIsNull(r) ? CGRectZero : r;
+    /* around the exclusion paths: the first free span (left to right), the rest of the proposed rect after it remains */
+    CGFloat sp[32];
+    int n = isim_text_free_spans(_exclusionPaths, CGRectGetMinX(r), CGRectGetMaxX(r), CGRectGetMinY(r), CGRectGetMaxY(r), sp, 16);
+    for (int k = 0; k < n; k++) {
+        if (sp[2 * k + 1] - sp[2 * k] <= 2 * _lineFragmentPadding) continue;
+        if (remaining && k + 1 < n) *remaining = CGRectMake(sp[2 * k + 2], r.origin.y, CGRectGetMaxX(r) - sp[2 * k + 2], r.size.height);
+        return CGRectMake(sp[2 * k], r.origin.y, sp[2 * k + 1] - sp[2 * k], r.size.height);
+    }
+    return CGRectZero;
 }
 @end
 
@@ -314,7 +324,8 @@ NSNotificationName const NSTextStorageDidProcessEditingNotification = @"NSTextSt
     NSTextContainer *c = _containers.firstObject;
     CGFloat w = c ? c.size.width : 0;
     _engine = [[__IsimTextEngine alloc] initWithString:_textStorage ? [_textStorage attributedSubstringFromRange:NSMakeRange(0, _textStorage.length)] : [NSAttributedString new]
-                                                 width:w padding:c ? c.lineFragmentPadding : 0 font:nil color:nil maxLines:c.maximumNumberOfLines];
+                                                 width:w padding:c ? c.lineFragmentPadding : 0 font:nil color:nil maxLines:c.maximumNumberOfLines
+                                             extraLine:YES exclusionPaths:c.exclusionPaths];
     if (!_notifiedDone) {
         _notifiedDone = YES;
         id<NSLayoutManagerDelegate> d = _delegate;

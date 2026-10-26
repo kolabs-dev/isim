@@ -38,6 +38,9 @@ NS_ASSUME_NONNULL_BEGIN
     /* how tl was made, for NSShadow's shadow passes (laid out the same, see isim_ui_shadow_markup) */
     CGFloat tlWidth, tlSpacing, tlIndent; int tlAlign; NSData *tlBytes, *tlBoxes; UIFont *tlFont; UIColor *tlColor;
     NSParagraphStyle *tlTabs; CGFloat tlHead;   /* its tab stops (nil: none) */
+    /* around exclusion paths a paragraph is laid out as pieces, one line each: the piece's text box (flowW != 0; < 0:
+       unwrapped) and whether it continues a paragraph (no list marker, not counted as a list item) */
+    CGFloat flowX, flowW; BOOL continued;
 }
 @property (nonatomic, copy) NSArray<__IsimTextLine *> *lines;
 @property (nonatomic, copy) NSArray<__IsimTextAttachmentSlot *> *attachments;
@@ -51,6 +54,10 @@ NS_ASSUME_NONNULL_BEGIN
 /* extraLine NO: no extra line fragment after a final paragraph separator (TextKit 2 paragraphs) */
 - (instancetype)initWithString:(NSAttributedString *)string width:(CGFloat)width padding:(CGFloat)padding font:(nullable UIFont *)font
                          color:(nullable UIColor *)color maxLines:(NSUInteger)maxLines extraLine:(BOOL)extraLine;
+/* exclusionPaths (NSTextContainer's, container coordinates): wrapped lines flow around them */
+- (instancetype)initWithString:(NSAttributedString *)string width:(CGFloat)width padding:(CGFloat)padding font:(nullable UIFont *)font
+                         color:(nullable UIColor *)color maxLines:(NSUInteger)maxLines extraLine:(BOOL)extraLine
+                exclusionPaths:(nullable NSArray<UIBezierPath *> *)exclusionPaths;
 @property (nonatomic, readonly) NSAttributedString *string;
 @property (nonatomic, readonly) NSArray<__IsimTextPara *> *paragraphs;
 @property (nonatomic, readonly) NSArray<__IsimTextLine *> *lines;          /* all, in order */
@@ -75,6 +82,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)drawRange:(NSRange)range atPoint:(CGPoint)origin skipAttachmentViews:(BOOL)skip;
 @property (nonatomic, readonly) NSArray<__IsimTextAttachmentSlot *> *attachments;
 @end
+
+/* the free spans of the band [y0, y1] between x0 and x1 once the exclusion paths (their flattened outlines, each
+   taken as the whole x-extent it covers in the band) are cut out, left to right: up to max (x, maxX) pairs in out;
+   returns how many */
+int isim_text_free_spans(NSArray<UIBezierPath *> *_Nullable paths, CGFloat x0, CGFloat x1, CGFloat y0, CGFloat y1, CGFloat *out, int max);
 
 /* the size of an attachment in a line: its bounds, else its image's size */
 CGRect isim_ui_attachment_bounds(NSTextAttachment *a);
