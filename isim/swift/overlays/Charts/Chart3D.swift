@@ -1,7 +1,10 @@
 // isim Charts: Chart3D (iOS 26) — 3D points, rules and rectangles (the 3D initializers of PointMark, RuleMark,
 // RectangleMark) and surfaces of y = f(x, z) (SurfacePlot), drawn in a Canvas: the data cube is rotated by the pose
-// (azimuth, inclination), projected orthographically or with perspective, and painted back to front (adapted: no
-// lighting model beyond a simple shade, no axis labels). chart3DPose(binding) makes it rotate with a drag.
+// (azimuth, inclination), projected orthographically or with perspective, and painted back to front (adapted: faces are
+// shaded by a fixed light; metalness / roughness only change a sphere's highlight). Points can be 3D symbols (sphere,
+// cube, cylinder, cone; sized and rotated); the axes show tick labels (chartXAxis / chartYAxis / chartZAxis: hidden, or
+// AxisMarks values) and titles (chartX/Y/ZAxisLabel). chart3DPose(binding) makes it rotate with a drag; a tap selects
+// the nearest point (chartXSelection / chartYSelection / chartZSelection).
 @_exported import Spatial
 import SwiftUI
 
@@ -147,11 +150,74 @@ extension Chart3DSurfaceStyle where Self == BasicChart3DSurfaceStyle {
     public static var normalBased: BasicChart3DSurfaceStyle { BasicChart3DSurfaceStyle(kind: .normalBased) }
 }
 
+// MARK: - Symbols and content modifiers
+
+/// A shape for 3D point marks.
+@available(iOS 26.0, *)
+public protocol Chart3DSymbolShape {}
+@available(iOS 26.0, *)
+public struct BasicChart3DSymbolShape: Chart3DSymbolShape, Sendable {
+    let kind: _Symbol3D
+}
+enum _Symbol3D: Sendable { case sphere, cube, cylinder, cone }
+@available(iOS 26.0, *)
+extension Chart3DSymbolShape where Self == BasicChart3DSymbolShape {
+    public static var sphere: BasicChart3DSymbolShape { BasicChart3DSymbolShape(kind: .sphere) }
+    public static var cube: BasicChart3DSymbolShape { BasicChart3DSymbolShape(kind: .cube) }
+    public static var cylinder: BasicChart3DSymbolShape { BasicChart3DSymbolShape(kind: .cylinder) }
+    public static var cone: BasicChart3DSymbolShape { BasicChart3DSymbolShape(kind: .cone) }
+}
+
+/// 3D content with modified items (symbol, size, rotation, style, material).
+@available(iOS 26.0, *)
+public struct _Chart3DModified<C: Chart3DContent>: Chart3DContent, _Chart3DPrimitive {
+    let base: C
+    let apply: (inout _Item3D) -> Void
+    public var body: Never { fatalError() }
+    func _items3D() -> [_Item3D] { _resolve3D(base).map { var it = $0; apply(&it); return it } }
+}
+
+@available(iOS 26.0, *)
+extension Chart3DContent {
+    /// The 3D shape of point marks.
+    public func symbol<S: Chart3DSymbolShape>(_ symbol: S) -> some Chart3DContent {
+        let k = (symbol as? BasicChart3DSymbolShape)?.kind ?? .sphere
+        return _Chart3DModified(base: self) { $0.symbol = k }
+    }
+    /// The size of point marks' symbols (their diameter, points).
+    @_disfavoredOverload
+    public func symbolSize(_ size: CGFloat) -> some Chart3DContent { _Chart3DModified(base: self) { $0.size = size } }
+    /// The rotation of point marks' symbols, about their centre.
+    public func symbolRotation(_ rotation: Rotation3D) -> some Chart3DContent { _Chart3DModified(base: self) { $0.rotation = rotation } }
+    @_disfavoredOverload
+    public func foregroundStyle<S: ShapeStyle>(_ style: S) -> some Chart3DContent {
+        _Chart3DModified(base: self) { it in
+            if case .surface(let f, _) = it.kind { it.kind = .surface(f, .shape(AnyShapeStyle(style))) } else { it.style = AnyShapeStyle(style) }
+        }
+    }
+    @_disfavoredOverload
+    public func foregroundStyle<S: Chart3DSurfaceStyle>(_ style: S) -> some Chart3DContent {
+        let k = (style as? BasicChart3DSurfaceStyle)?.kind ?? .standard
+        return _Chart3DModified(base: self) { it in if case .surface(let f, _) = it.kind { it.kind = .surface(f, k) } }
+    }
+    /// A style per series value (the chart's palette, or chartForegroundStyleScale).
+    @_disfavoredOverload
+    public func foregroundStyle<D: Plottable>(by value: PlottableValue<D>) -> some Chart3DContent {
+        let key = value._pv.category
+        return _Chart3DModified(base: self) { $0.styleKey = key }
+    }
+    /// How metallic the content looks (0 ... 1): a sharper, brighter highlight on spheres.
+    public func metalness(_ metalness: Double) -> some Chart3DContent { _Chart3DModified(base: self) { $0.metalness = metalness } }
+    /// How rough the content looks (0 ... 1): a wider, dimmer highlight on spheres.
+    public func roughness(_ roughness: Double) -> some Chart3DContent { _Chart3DModified(base: self) { $0.roughness = roughness } }
+}
+
 /// A resolved 3D item.
 struct _Item3D {
     enum Kind { case point([_V3]), rule([_V3]), rect([_V3]), surface((Double, Double) -> Double, _SurfaceStyle) }
     var kind: Kind
     var style: AnyShapeStyle?, styleKey: String?, opacity = 1.0, size: CGFloat?
+    var symbol: _Symbol3D?, rotation: Rotation3D?, metalness: Double?, roughness: Double?
     init(kind: Kind) { self.kind = kind }
     init?(mark m: _Mark) {
         guard let v = m.v3, v.count == 3 else { return nil }
@@ -193,10 +259,20 @@ final class _PoseBox { let get: () -> (Double, Double); let set: ((Double, Doubl
 struct _Pose3DKey: EnvironmentKey { static var defaultValue: _PoseBox? { nil } }
 struct _Projection3DKey: EnvironmentKey { static var defaultValue: Bool { false } }
 struct _ChartZScaleKey: EnvironmentKey { static var defaultValue: _ChartDomain? { nil } }
+struct _ChartZAxisVisKey: EnvironmentKey { static var defaultValue: Visibility { .automatic } }
+struct _ChartZAxisKey: EnvironmentKey { static var defaultValue: _AxisConfigBox? { nil } }
+struct _ChartZLabelKey: EnvironmentKey { static var defaultValue: _ViewBox? { nil } }
+struct _ZSelKey: EnvironmentKey { static var defaultValue: _SetterBox<_PV?>? { nil } }
+struct _ZRangeSelKey: EnvironmentKey { static var defaultValue: _SetterBox<(_PV, _PV)?>? { nil } }
 extension EnvironmentValues {
     var _chart3DPose: _PoseBox? { get { self[_Pose3DKey.self] } set { self[_Pose3DKey.self] = newValue } }
     var _chart3DPerspective: Bool { get { self[_Projection3DKey.self] } set { self[_Projection3DKey.self] = newValue } }
     var _chartZScale: _ChartDomain? { get { self[_ChartZScaleKey.self] } set { self[_ChartZScaleKey.self] = newValue } }
+    var _chartZAxisVisibility: Visibility { get { self[_ChartZAxisVisKey.self] } set { self[_ChartZAxisVisKey.self] = newValue } }
+    var _chartZAxis: _AxisConfigBox? { get { self[_ChartZAxisKey.self] } set { self[_ChartZAxisKey.self] = newValue } }
+    var _chartZLabel: _ViewBox? { get { self[_ChartZLabelKey.self] } set { self[_ChartZLabelKey.self] = newValue } }
+    var _chartZSelection: _SetterBox<_PV?>? { get { self[_ZSelKey.self] } set { self[_ZSelKey.self] = newValue } }
+    var _chartZRangeSelection: _SetterBox<(_PV, _PV)?>? { get { self[_ZRangeSelKey.self] } set { self[_ZRangeSelKey.self] = newValue } }
 }
 
 extension View {
@@ -217,6 +293,43 @@ extension View {
     public func chartZScale<D: ScaleDomain>(domain: D, type: ScaleType? = nil) -> some View { environment(\._chartZScale, domain._chartDomain) }
     @available(iOS 26.0, *)
     public func chartZScale<D: ScaleDomain>(domain: D, range: ClosedRange<CGFloat>, type: ScaleType? = nil) -> some View { environment(\._chartZScale, domain._chartDomain) }
+    /// The z scale's range in points (isim: the data cube's depth is fixed; accepted).
+    @available(iOS 26.0, *)
+    public func chartZScale(range: ClosedRange<CGFloat>, type: ScaleType? = nil) -> some View { self }
+
+    /// Whether a 3D chart shows its z axis (tick labels and title).
+    @available(iOS 26.0, *)
+    public func chartZAxis(_ visibility: Visibility) -> some View { environment(\._chartZAxisVisibility, visibility) }
+    /// The z axis' marks (their values; isim draws each as a tick label).
+    @available(iOS 26.0, *)
+    public func chartZAxis<C: AxisContent>(@AxisContentBuilder content: () -> C) -> some View { environment(\._chartZAxis, _AxisConfigBox(_axisSpecs(content()))) }
+    /// The z axis title, along the z edge of a 3D chart.
+    @available(iOS 26.0, *)
+    public func chartZAxisLabel<S: StringProtocol>(_ label: S, position: AnnotationPosition = .automatic, alignment: Alignment? = nil, spacing: CGFloat? = nil) -> some View {
+        environment(\._chartZLabel, _ViewBox(AnyView(Text(String(label))), position, alignment, spacing))
+    }
+    @available(iOS 26.0, *)
+    public func chartZAxisLabel(_ label: LocalizedStringKey, position: AnnotationPosition = .automatic, alignment: Alignment? = nil, spacing: CGFloat? = nil) -> some View {
+        environment(\._chartZLabel, _ViewBox(AnyView(Text(label)), position, alignment, spacing))
+    }
+    @available(iOS 26.0, *)
+    public func chartZAxisLabel(_ label: Text, position: AnnotationPosition = .automatic, alignment: Alignment? = nil, spacing: CGFloat? = nil) -> some View {
+        environment(\._chartZLabel, _ViewBox(AnyView(label), position, alignment, spacing))
+    }
+    @available(iOS 26.0, *)
+    public func chartZAxisLabel<C: View>(position: AnnotationPosition = .automatic, alignment: Alignment? = nil, spacing: CGFloat? = nil, @ViewBuilder content: () -> C) -> some View {
+        environment(\._chartZLabel, _ViewBox(AnyView(content()), position, alignment, spacing))
+    }
+    /// The z value of the point a tap selects in a 3D chart (nil: none near the tap).
+    @available(iOS 26.0, *)
+    public func chartZSelection<P: Plottable>(value: Binding<P?>) -> some View {
+        environment(\._chartZSelection, _SetterBox { pv in value.wrappedValue = pv.flatMap { _convert($0, to: P.self, depth: 0) } })
+    }
+    /// The z range selected in a 3D chart (a tap: the selected point's value).
+    @available(iOS 26.0, *)
+    public func chartZSelection<P: Plottable & Comparable>(range: Binding<ClosedRange<P>?>) -> some View {
+        environment(\._chartZRangeSelection, _SetterBox { r in range.wrappedValue = _rangeOf(r, P.self) })
+    }
 }
 
 // MARK: - Chart3D
@@ -231,6 +344,21 @@ public struct Chart3D<Content: Chart3DContent>: View {
     @Environment(\._chart3DPose) var pose
     @Environment(\._chart3DPerspective) var perspective
     @Environment(\._chartStyleScale) var styleScale
+    @Environment(\._chartXAxisVisibility) var xVis
+    @Environment(\._chartYAxisVisibility) var yVis
+    @Environment(\._chartZAxisVisibility) var zVis
+    @Environment(\._chartXAxis) var xAxis
+    @Environment(\._chartYAxis) var yAxis
+    @Environment(\._chartZAxis) var zAxis
+    @Environment(\._chartXLabel) var xLabel
+    @Environment(\._chartYLabel) var yLabel
+    @Environment(\._chartZLabel) var zLabel
+    @Environment(\._chartXSelection) var xSel
+    @Environment(\._chartYSelection) var ySel
+    @Environment(\._chartZSelection) var zSel
+    @Environment(\._chartXRangeSelection) var xRangeSel
+    @Environment(\._chartYRangeSelection) var yRangeSel
+    @Environment(\._chartZRangeSelection) var zRangeSel
     @State private var dragStart: (Double, Double)? = nil
 
     public init(@Chart3DContentBuilder content: () -> Content) { self.content = content() }
@@ -246,14 +374,33 @@ public struct Chart3D<Content: Chart3DContent>: View {
     public var body: some View {
         let items = _resolve3D(content)
         let (az, inc) = pose?.get() ?? (Chart3DPose.default.azimuth.radians, Chart3DPose.default.inclination.radians)
-        let r = _Chart3DRenderer(items: items, domains: [xScale, yScale, zScale], azimuth: az, inclination: inc, perspective: perspective,
+        var r = _Chart3DRenderer(items: items, domains: [xScale, yScale, zScale], azimuth: az, inclination: inc, perspective: perspective,
                                  styleScale: styleScale)
+        r.visible = [xVis != .hidden, yVis != .hidden, zVis != .hidden]
+        r.marks = [xAxis, yAxis, zAxis].map { $0?.specs.first?.values }
+        let titles = [xLabel, yLabel, zLabel]
         let setter = pose?.set
         let start = $dragStart
+        let selections = (xSel, ySel, zSel), ranges = (xRangeSel, yRangeSel, zRangeSel)
+        let selects = xSel != nil || ySel != nil || zSel != nil || xRangeSel != nil || yRangeSel != nil || zRangeSel != nil
         return GeometryReader { geo in
-            Canvas { ctx, size in r.draw(ctx, size) }
+            ZStack {
+                Canvas { ctx, size in r.draw(ctx, size) }
+                ForEach(0..<3, id: \.self) { a in
+                    if let t = titles[a], r.visible[a] {
+                        t.view.font(.caption).foregroundStyle(.secondary).fixedSize().position(r.titlePosition(a, geo.size))
+                    }
+                }
+            }
                 .frame(width: geo.size.width, height: geo.size.height)
                 .contentShape(Rectangle())
+                .onTapGesture(coordinateSpace: .local) { loc in
+                    guard selects else { return }
+                    let hit = r.nearestPoint(loc, geo.size)
+                    let v = hit.map { [_PV.num($0.0), _PV.num($0.1), _PV.num($0.2)] }
+                    selections.0?.set(v?[0]); selections.1?.set(v?[1]); selections.2?.set(v?[2])
+                    ranges.0?.set(v.map { ($0[0], $0[0]) }); ranges.1?.set(v.map { ($0[1], $0[1]) }); ranges.2?.set(v.map { ($0[2], $0[2]) })
+                }
                 .gesture(DragGesture(minimumDistance: 2).onChanged { v in
                     guard let set = setter else { return }
                     let s = start.wrappedValue ?? (az, inc)
@@ -272,6 +419,94 @@ struct _Chart3DRenderer {
     let azimuth: Double, inclination: Double
     let perspective: Bool
     let styleScale: _StyleScaleBox?
+    var visible = [true, true, true]             // chartX/Y/ZAxis(.hidden): no tick labels or title
+    var marks: [AxisMarkValues?] = [nil, nil, nil]
+    init(items: [_Item3D], domains: [_ChartDomain?], azimuth: Double, inclination: Double, perspective: Bool, styleScale: _StyleScaleBox?) {
+        self.items = items; self.domains = domains; self.azimuth = azimuth; self.inclination = inclination
+        self.perspective = perspective; self.styleScale = styleScale
+    }
+
+    /// The edge each axis' labels sit on (unit cube coordinates, the axis' own coordinate varying).
+    static func edge(_ a: Int, _ u: Double) -> (Double, Double, Double) {
+        a == 0 ? (u, -0.5, 0.5) : a == 1 ? (-0.5, u, 0.5) : (0.5, -0.5, u)
+    }
+    func projector(_ size: CGSize) -> ((Double, Double, Double)) -> (CGPoint, Double) {
+        let scale = Double(min(size.width, size.height)) / 1.9
+        let cx = Double(size.width) / 2, cy = Double(size.height) / 2
+        return { q in
+            let r = self.rotate(q)
+            let f = self.perspective ? 2.6 / (2.6 - r.2) : 1
+            return (CGPoint(x: cx + r.0 * scale * f, y: cy - r.1 * scale * f), r.2)
+        }
+    }
+    /// Where an axis title goes: beyond the middle of its edge, away from the chart's centre.
+    func titlePosition(_ a: Int, _ size: CGSize) -> CGPoint {
+        let (p, _) = projector(size)(Self.edge(a, 0))
+        let cx = Double(size.width) / 2, cy = Double(size.height) / 2
+        let dx = Double(p.x) - cx, dy = Double(p.y) - cy, len = max(1, (dx * dx + dy * dy).squareRoot())
+        return CGPoint(x: Double(p.x) + dx / len * 44, y: Double(p.y) + dy / len * 44)
+    }
+    /// The tick values of an axis: AxisMarks' explicit values or stride, else low, middle and high.
+    func tickValues(_ a: Int, _ lo: Double, _ hi: Double) -> [Double] {
+        switch marks[a]?.kind {
+        case .explicit(let vs)?: return vs.compactMap { $0.number }.filter { $0 >= lo - 1e-9 && $0 <= hi + 1e-9 }
+        case .stride(let step)? where step > 0:
+            var out: [Double] = [], v = (lo / step).rounded(.up) * step
+            while v <= hi + 1e-9 && out.count < 50 { out.append(v); v += step }
+            return out
+        case .automatic(let n?)? where n > 1: return (0..<n).map { lo + (hi - lo) * Double($0) / Double(n - 1) }
+        default: return [lo, (lo + hi) / 2, hi]
+        }
+    }
+    typealias V3 = (Double, Double, Double)
+    /// A symbol's faces (corners and outward normal) around the origin, h its half size (unit cube units).
+    static func solid(_ k: _Symbol3D, _ h: Double) -> [([V3], V3)] {
+        switch k {
+        case .sphere: return []
+        case .cube:
+            let c: [V3] = [(-h, -h, -h), (h, -h, -h), (h, h, -h), (-h, h, -h), (-h, -h, h), (h, -h, h), (h, h, h), (-h, h, h)]
+            let faces: [([Int], V3)] = [([4, 5, 6, 7], (0, 0, 1)), ([1, 0, 3, 2], (0, 0, -1)), ([5, 1, 2, 6], (1, 0, 0)),
+                                        ([0, 4, 7, 3], (-1, 0, 0)), ([7, 6, 2, 3], (0, 1, 0)), ([0, 1, 5, 4], (0, -1, 0))]
+            return faces.map { (f, n) in (f.map { c[$0] }, n) }
+        case .cylinder, .cone:
+            let n = 14, cone = k == .cone
+            let ring = (0..<n).map { i -> (Double, Double) in let t = Double(i) / Double(n) * 2 * .pi; return (cos(t) * h, sin(t) * h) }
+            var out: [([V3], V3)] = []
+            for i in 0..<n {
+                let (a, b) = (ring[i], ring[(i + 1) % n])
+                let mid = (Double(i) + 0.5) / Double(n) * 2 * .pi
+                if cone {
+                    let s = 1 / 5.0.squareRoot()          // the side's normal leans up (the cone is as tall as wide)
+                    out.append(([(a.0, -h, a.1), (b.0, -h, b.1), (0, h, 0)], (cos(mid) * 2 * s, s, sin(mid) * 2 * s)))
+                } else {
+                    out.append(([(a.0, -h, a.1), (b.0, -h, b.1), (b.0, h, b.1), (a.0, h, a.1)], (cos(mid), 0, sin(mid))))
+                }
+            }
+            out.append((ring.reversed().map { ($0.0, -h, $0.1) }, (0, -1, 0)))
+            if !cone { out.append((ring.map { ($0.0, h, $0.1) }, (0, 1, 0))) }
+            return out
+        }
+    }
+    /// A vector turned by a symbol's rotation (Rodrigues' formula).
+    static func turn(_ v: V3, _ r: Rotation3D?) -> V3 {
+        guard let r, r.angle.radians != 0 else { return v }
+        let (kx, ky, kz) = (r.axis.x, r.axis.y, r.axis.z), c = cos(r.angle.radians), s = sin(r.angle.radians)
+        let dot = kx * v.0 + ky * v.1 + kz * v.2
+        let cx = ky * v.2 - kz * v.1, cy = kz * v.0 - kx * v.2, cz = kx * v.1 - ky * v.0
+        return (v.0 * c + cx * s + kx * dot * (1 - c), v.1 * c + cy * s + ky * dot * (1 - c), v.2 * c + cz * s + kz * dot * (1 - c))
+    }
+    /// The data values of the point mark drawn nearest to a location (within 30 points).
+    func nearestPoint(_ loc: CGPoint, _ size: CGSize) -> (Double, Double, Double)? {
+        let dom = axisDomains(), project = projector(size)
+        func unit(_ v: Double, _ a: Int) -> Double { (v - dom[a].0) / (dom[a].1 - dom[a].0) - 0.5 }
+        var best: (Double, (Double, Double, Double))? = nil
+        for it in items { if case .point(let v) = it.kind {
+            let (p, _) = project((unit(v[0].lo, 0), unit(v[1].lo, 1), unit(v[2].lo, 2)))
+            let d = hypot(Double(p.x - loc.x), Double(p.y - loc.y))
+            if d < 30 && d < (best?.0 ?? .infinity) { best = (d, (v[0].lo, v[1].lo, v[2].lo)) }
+        } }
+        return best?.1
+    }
 
     /// The domain of each axis: chartX/Y/ZScale ranges, else the data's extent (surfaces: -1...1 for x and z, their
     /// sampled heights for y).
@@ -330,7 +565,7 @@ struct _Chart3DRenderer {
         }
         func world(_ x: Double, _ y: Double, _ z: Double) -> (Double, Double, Double) { (unit(x, 0), unit(y, 1), unit(z, 2)) }
 
-        enum Prim { case poly([CGPoint], AnyShapeStyle, Double, Double), line(CGPoint, CGPoint, AnyShapeStyle, CGFloat), dot(CGPoint, CGFloat, AnyShapeStyle) }
+        enum Prim { case poly([CGPoint], AnyShapeStyle, Double, Double), line(CGPoint, CGPoint, AnyShapeStyle, CGFloat), ball(CGPoint, CGFloat, AnyShapeStyle, Double, Double) }
         var prims: [(depth: Double, prim: Prim)] = []
         let edge = AnyShapeStyle(Color.gray.opacity(0.45))
         // the data cube's edges
@@ -352,8 +587,21 @@ struct _Chart3DRenderer {
         for it in items {
             switch it.kind {
             case .point(let v):
-                let (p, d) = project(world(v[0].lo, v[1].lo, v[2].lo))
-                prims.append((d, .dot(p, it.size ?? 8, style(it))))
+                let c = world(v[0].lo, v[1].lo, v[2].lo)
+                let (p, d) = project(c)
+                guard let sym = it.symbol, sym != .sphere else {
+                    prims.append((d, .ball(p, it.size ?? 8, style(it), it.metalness ?? 0, it.roughness ?? 0.5)))
+                    continue
+                }
+                // a solid: its faces in the data cube around the point, rotated, the ones facing the viewer shaded
+                let h = Double(it.size ?? 12) / 2 / scale
+                for (face, n) in Self.solid(sym, h) {
+                    let rf = face.map { Self.turn($0, it.rotation) }, rn = rotate(Self.turn(n, it.rotation))
+                    guard rn.2 > -1e-6 else { continue }
+                    let pts = rf.map { project((c.0 + $0.0, c.1 + $0.1, c.2 + $0.2)) }
+                    let light = max(0, rn.0 * -0.4 + rn.1 * 0.7 + rn.2 * 0.6) / 1.0296
+                    prims.append((pts.map(\.1).reduce(0, +) / Double(pts.count) + 1e-4, .poly(pts.map(\.0), style(it), it.opacity, 0.5 * (1 - light))))
+                }
             case .rule(let v):
                 let (a, da) = project(world(v[0].lo, v[1].lo, v[2].lo)), (b, db) = project(world(v[0].hi, v[1].hi, v[2].hi))
                 prims.append(((da + db) / 2, .line(a, b, style(it), 2)))
@@ -401,11 +649,10 @@ struct _Chart3DRenderer {
         }
         // tick labels: low, middle and high value of each axis along three front edges, pushed outwards
         var labels: [(String, CGPoint)] = []
-        let edges: [(Int, (Double) -> (Double, Double, Double))] = [(0, { (unit($0, 0), -0.5, 0.5) }), (1, { (-0.5, unit($0, 1), 0.5) }), (2, { (0.5, -0.5, unit($0, 2)) })]
-        for (a, at) in edges {
+        for a in 0..<3 where visible[a] {
             let (lo, hi) = dom[a]
-            for v in [lo, (lo + hi) / 2, hi] {
-                let (p, _) = project(at(v))
+            for v in tickValues(a, lo, hi) {
+                let (p, _) = project(Self.edge(a, unit(v, a)))
                 let dx = Double(p.x) - cx, dy = Double(p.y) - cy, len = max(1, (dx * dx + dy * dy).squareRoot())
                 labels.append((_ChartFormat.number3D(v, step: (hi - lo) / 2), CGPoint(x: Double(p.x) + dx / len * 12, y: Double(p.y) + dy / len * 12)))
             }
@@ -425,8 +672,17 @@ struct _Chart3DRenderer {
             case .line(let a, let b, let st, let w):
                 var path = Path(); path.move(to: a); path.addLine(to: b)
                 ctx.stroke(path, with: .style(st), style: StrokeStyle(lineWidth: w, lineCap: .round))
-            case .dot(let c, let d, let st):
-                ctx.fill(Path(ellipseIn: CGRect(x: c.x - d / 2, y: c.y - d / 2, width: d, height: d)), with: .style(st))
+            case .ball(let c, let d, let st, let metal, let rough):
+                // a sphere: the colour, darker towards the lower right, and a highlight at the upper left (metal: smaller and
+                // brighter, rough: wider and dimmer)
+                let r = CGRect(x: c.x - d / 2, y: c.y - d / 2, width: d, height: d)
+                ctx.fill(Path(ellipseIn: r), with: .style(st))
+                if d >= 6 {
+                    let hl = CGPoint(x: c.x - d * 0.18, y: c.y - d * 0.2)
+                    ctx.fill(Path(ellipseIn: r), with: .radialGradient(Gradient(colors: [.clear, .black.opacity(0.35)]), center: hl, startRadius: d * 0.2, endRadius: d * 0.75))
+                    let spot = d * (0.42 - 0.22 * metal + 0.2 * rough)
+                    ctx.fill(Path(ellipseIn: r), with: .radialGradient(Gradient(colors: [.white.opacity(0.75 + 0.25 * metal - 0.4 * rough), .clear]), center: hl, startRadius: 0, endRadius: spot))
+                }
             }
         }
         for (s, p) in labels { ctx.draw(ctx.resolve(Text(s).font(.system(size: 9)).foregroundColor(.gray)), at: p) }

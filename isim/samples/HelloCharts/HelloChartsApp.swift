@@ -4,7 +4,8 @@
 // - -more: symbols, axis titles, the proxy, selection, scrolling, plot style, iOS 18 plots and iOS 26 Chart3D
 //   (MoreCharts.swift);
 // - -styling: mark styling, annotations' overflow, bins (StylingCharts.swift);
-// - -axes: axes and scales (AxisCharts.swift).
+// - -axes: axes and scales (AxisCharts.swift);
+// - -3d: Chart3D's symbols, z axis, axis titles and selection (Chart3DPage.swift).
 // Charts sit at fixed screen positions so the UI tests can measure them.
 import SwiftUI
 import Charts
@@ -18,6 +19,7 @@ struct HelloChartsApp: App {
         if args.contains("-more") { MoreCharts() }
         else if args.contains("-styling") { StylingCharts() }
         else if args.contains("-axes") { AxisCharts() }
+        else if args.contains("-3d") { Chart3DPage() }
         else { ChartsGallery() }
     }
 }
