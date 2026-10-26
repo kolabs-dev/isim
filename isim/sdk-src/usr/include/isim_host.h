@@ -249,6 +249,9 @@ int isim_media_probe(const char *url, struct isim_media_info *info);            
 /* HTML parsed by the host's libxml2, flattened into records ('S' element start with attributes, 'E' end, 'T' text;
    \x1e between records, \x1f between fields): the stream's length (written up to cap), -1 without libxml2 */
 long isim_html_flatten(const char *html, long len, const char *_Nullable encoding, char *out, long cap);
+/* Office documents (host_office.c): Word, Excel, PowerPoint or OpenDocument src converted to outdir/<name>.pdf by the
+   host's LibreOffice; 1 and the PDF's path in out, 0 without LibreOffice or when it fails (slow: not on the main thread) */
+int isim_office_to_pdf(const char *src, const char *outdir, char *out, int cap);
 /* XML parsed by the host's libxml2 SAX parser (host_xml.c), its callbacks recorded for NSXMLParser to replay ('D' / 'd'
    document, 'S' / 'E' elements, 'T' text, 'A' CDATA, 'C' comment, 'P' instruction, DTD declarations, 'X' the first
    error; line and column first; \x1e between records, \x1f between fields). flags 1: resolve external entities.

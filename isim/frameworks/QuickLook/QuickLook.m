@@ -6,6 +6,9 @@
  * - text and source files (UTF-8): a read-only text view, monospaced for code and data;
  * - HTML: rendered in a WKWebView (WebKit, through the WebKitGTK helper), with the files next to it (images, styles);
  * - RTF: rendered as rich text (UIKit's RTF reader: fonts, sizes, styles, colours, paragraphs);
+ * - Word, Excel, PowerPoint and OpenDocument files: converted to PDF by the host's LibreOffice (host_office.c; a spinner
+ *   meanwhile) and shown like PDFs; without LibreOffice the generic page. iWork documents (an undocumented format) get
+ *   the generic page;
  * - audio and video (the host's ffprobe / ffmpeg): the first frame, a play / pause button and the time; video frames
  *   are drawn as they play, sound goes to isim's mixer;
  * - anything else: an icon with the file's name, kind and size (as iOS shows files it cannot render).
@@ -37,13 +40,14 @@ static Class web_view_class(void) {
 - (NSString *)previewItemTitle { return self.lastPathComponent; }
 @end
 
-typedef NS_ENUM(int, QLKind) { QLKindGeneric, QLKindImage, QLKindPDF, QLKindText, QLKindMedia, QLKindWeb, QLKindRich, QLKindExtension };
+typedef NS_ENUM(int, QLKind) { QLKindGeneric, QLKindImage, QLKindPDF, QLKindText, QLKindMedia, QLKindWeb, QLKindRich, QLKindExtension, QLKindOffice };
 static QLKind kind_of(NSURL *url) {
     NSString *e = url.pathExtension.lowercaseString;
     if ([@[@"png", @"jpg", @"jpeg", @"gif", @"bmp", @"tif", @"tiff", @"webp", @"heic", @"ico"] containsObject:e]) return QLKindImage;
     if ([e isEqualToString:@"pdf"]) return QLKindPDF;
     if ([@[@"html", @"htm", @"xhtml"] containsObject:e]) return QLKindWeb;
     if ([e isEqualToString:@"rtf"]) return QLKindRich;
+    if ([@[@"doc", @"docx", @"xls", @"xlsx", @"ppt", @"pptx", @"odt", @"ods", @"odp"] containsObject:e]) return QLKindOffice;
     if ([@[@"txt", @"text", @"md", @"markdown", @"json", @"csv", @"tsv", @"xml", @"plist", @"css", @"js", @"swift", @"m", @"mm", @"h",
            @"c", @"cc", @"cpp", @"py", @"rb", @"sh", @"yml", @"yaml", @"log", @"ini", @"strings"] containsObject:e]) return QLKindText;
     if ([@[@"mov", @"mp4", @"m4v", @"mp3", @"m4a", @"aac", @"wav", @"aif", @"aiff", @"caf", @"flac", @"ogg", @"webm", @"mkv"] containsObject:e]) return QLKindMedia;
@@ -279,6 +283,30 @@ static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfF
         [self addSubview:_media];
         break; }
     case QLKindExtension: break;                             /* (built in init) */
+    case QLKindOffice: {                                     /* converted to PDF by the host's LibreOffice, then shown */
+        UIActivityIndicatorView *spin = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleLarge];
+        spin.accessibilityIdentifier = @"ql-office-loading";
+        [spin startAnimating];
+        UIView *v = [UIView new];
+        [v addSubview:spin];
+        spin.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin | UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin;
+        _content = v;
+        [self addSubview:v];
+        NSURL *src = _url;
+        NSString *dir = [NSTemporaryDirectory() stringByAppendingPathComponent:[@"isim-quicklook/office-" stringByAppendingString:NSUUID.UUID.UUIDString]];
+        [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:NULL];
+        __weak __IsimQLPage *weak = self;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            char out[2048];
+            int ok = isim_office_to_pdf(src.path.fileSystemRepresentation, dir.fileSystemRepresentation, out, sizeof out);
+            NSURL *pdf = ok ? [NSURL fileURLWithPath:@(out)] : nil;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                __IsimQLPage *page = weak;
+                NSLog(@"isim QuickLook: %@ %@", src.lastPathComponent, pdf ? @"converted to PDF (LibreOffice)" : @"could not be converted (needs LibreOffice on the host)");
+                [page _showFile:pdf title:nil];
+            });
+        });
+        break; }
     case QLKindGeneric: {
         UIView *v = [UIView new];
         v.accessibilityIdentifier = @"ql-generic";
@@ -298,9 +326,12 @@ static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfF
     }
 }
 - (UIViewController *)extensionHostParentViewController:(__IsimQLExtensionHost *)host { return _owner; }
-- (void)extensionHost:(__IsimQLExtensionHost *)host showFile:(NSURL *)file title:(NSString *)title {
-    if (!file) {                                            /* the extension failed: the file's generic page */
+- (void)extensionHost:(__IsimQLExtensionHost *)host showFile:(NSURL *)file title:(NSString *)title { [self _showFile:file title:title]; }
+/* what an extension's reply or an Office document's conversion made (nil: it failed: the generic page) */
+- (void)_showFile:(NSURL *)file title:(NSString *)title {
+    if (!file) {                                            /* the extension or conversion failed: the file's generic page */
         [_host removeFromSuperview]; _host = nil;
+        if (_kind == QLKindOffice) [_content removeFromSuperview];
         _kind = QLKindGeneric;
         [self _build];
         [self setNeedsLayout];
@@ -309,7 +340,8 @@ static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfF
     _inner = [[__IsimQLPage alloc] initWithURL:file owner:_owner extensions:NO];
     _inner.frame = self.bounds;
     _inner.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    [_host addSubview:_inner];
+    if (_host) [_host addSubview:_inner];
+    else { [_content removeFromSuperview]; _content = _inner; [self addSubview:_inner]; }   /* an Office document's PDF */
     _extensionTitle = [title copy];
     [_owner _isimPageTitleChanged:self];
 }
@@ -463,7 +495,7 @@ static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfF
     }
     for (NSNumber *k in _pages.allKeys) if (labs(k.integerValue - _index) > 1) { [_pages[k] disappeared]; [_pages[k] removeFromSuperview]; [_pages removeObjectForKey:k]; }
     NSString *title = [self _updateTitle];
-    static const char *names[] = { "generic", "image", "pdf", "text", "media", "html", "rtf", "extension" };
+    static const char *names[] = { "generic", "image", "pdf", "text", "media", "html", "rtf", "extension", "office" };
     __IsimQLPage *page = _pages[@(_index)];
     if (_count) NSLog(@"isim QuickLook: item %ld of %ld: %@ (%s)", (long)_index + 1, (long)_count, title, names[page.kind]);
 }
@@ -478,8 +510,9 @@ static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfF
 - (void)_isimPageTitleChanged:(__IsimQLPage *)page {
     if (_pages[@(_index)] != page) return;
     NSString *title = [self _updateTitle];
-    static const char *names[] = { "generic", "image", "pdf", "text", "media", "html", "rtf", "extension" };
-    NSLog(@"isim QuickLook: item %ld of %ld: %@ (extension reply: %s)", (long)_index + 1, (long)_count, title, page.inner ? names[page.inner.kind] : "none");
+    static const char *names[] = { "generic", "image", "pdf", "text", "media", "html", "rtf", "extension", "office" };
+    NSLog(@"isim QuickLook: item %ld of %ld: %@ (%s reply: %s)", (long)_index + 1, (long)_count, title, page.kind == QLKindOffice ? "office" : "extension",
+          page.inner ? names[page.inner.kind] : "none");
 }
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)s {
     if (s != _pager || s.bounds.size.width <= 0) return;

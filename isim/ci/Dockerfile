@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       fontconfig fonts-noto-core fonts-noto-color-emoji fonts-dejavu-core adwaita-icon-theme imagemagick \
       ffmpeg espeak-ng libzbar0 zbar-tools zxing-cpp-tools qrencode tesseract-ocr tesseract-ocr-eng opencv-data libraw-bin libssl3 libcurl4 libpcre2-8-0 libsqlite3-0 libicu74 \
       libwebkitgtk-6.0-dev libgtk-4-dev libgtk-4-bin libpoppler-glib8 \
+      libreoffice-writer-nogui libreoffice-calc-nogui libreoffice-impress-nogui \
     && rm -rf /var/lib/apt/lists/*
 # clang/lld 22 from LLVM's official apt repository: isim's SDK ships libc++ 22, whose headers need clang 21 or newer
 ARG LLVM=22

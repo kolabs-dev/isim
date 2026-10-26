@@ -1,6 +1,8 @@
 // Sample: Quick Look and the dictionary on isim — QLPreviewController over the files in the app's Documents
 // (an image, a PDF, text and JSON written here; a video and an unknown file the test adds), presented on its own and
 // pushed in a navigation controller, swiping between items; UIReferenceLibraryViewController for a term.
+// Launch argument -office (issue #334): previews a Word, an Excel and a PowerPoint document instead (the bundle's
+// Office folder, copied to Documents/Office), from item -index N.
 import UIKit
 import QuickLook
 
@@ -43,7 +45,9 @@ final class QuickLookViewController: UIViewController, QLPreviewControllerDataSo
         view.backgroundColor = .systemBackground
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         files = ((try? FileManager.default.contentsOfDirectory(at: docs, includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.lastPathComponent != "Office" }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        if office { files = officeFiles(docs) }
         print("files \(files.map(\.lastPathComponent)) previewable=\(files.filter { QLPreviewController.canPreview($0 as QLPreviewItem) }.count)")
         let stack = UIStackView()
         stack.axis = .vertical; stack.spacing = 8; stack.alignment = .leading
@@ -57,6 +61,29 @@ final class QuickLookViewController: UIViewController, QLPreviewControllerDataSo
         }
         NSLayoutConstraint.activate([stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
                                      stack.leadingAnchor.constraint(equalTo: view.layoutMarginsGuide.leadingAnchor)])
+    }
+    var office: Bool { ProcessInfo.processInfo.arguments.contains("-office") }
+    /// the bundled Office documents, copied to Documents/Office
+    func officeFiles(_ docs: URL) -> [URL] {
+        let dir = docs.appendingPathComponent("Office")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let names = ["Report.docx", "Budget.xlsx", "Roadmap.pptx"]
+        return names.compactMap { name in
+            guard let src = Bundle.main.url(forResource: name, withExtension: nil, subdirectory: "Office") else { return nil }
+            let dst = dir.appendingPathComponent(name)
+            try? FileManager.default.removeItem(at: dst)
+            try? FileManager.default.copyItem(at: src, to: dst)
+            return dst
+        }
+    }
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        guard office, presentedViewController == nil else { return }
+        let args = ProcessInfo.processInfo.arguments
+        let q = QLPreviewController()
+        q.dataSource = self
+        if let i = args.firstIndex(of: "-index"), i + 1 < args.count { q.currentPreviewItemIndex = Int(args[i + 1]) ?? 0 }
+        present(q, animated: false)
     }
     @objc func present1() {
         let q = QLPreviewController()

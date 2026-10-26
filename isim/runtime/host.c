@@ -2058,6 +2058,7 @@ ISIM_GUEST_ABI int isim_regex_match(void *code, const char *subject, unsigned lo
 struct isim_media_info;
 ISIM_GUEST_ABI int isim_media_probe(const char *url, struct isim_media_info *info);
 ISIM_GUEST_ABI long isim_html_flatten(const char *html, long len, const char *encoding, char *out, long cap);
+ISIM_GUEST_ABI int isim_office_to_pdf(const char *src, const char *outdir, char *out, int cap);
 ISIM_GUEST_ABI long isim_xml_sax(const char *xml, long len, int flags, char *out, long cap);
 ISIM_GUEST_ABI int isim_media_open(const char *url, double start, double width, double height, double fps, int want_video, int want_audio, double volume);
 ISIM_GUEST_ABI int isim_media_video_frame(int h, double t, int *eof, double *pts);
@@ -2243,7 +2244,7 @@ static const struct shim isim_table[] = {
     H(isim_gfx_offscreen_begin), H(isim_gfx_offscreen_snapshot), H(isim_gfx_offscreen_end), H(isim_gfx_offscreen_depth),
     H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_text_ink_markup), H(isim_tl_create), H(isim_tl_free), H(isim_tl_size), H(isim_tl_line_count), H(isim_tl_line), H(isim_tl_index_rect), H(isim_tl_index_at), H(isim_tl_draw), H(isim_tl_set_tabs), H(isim_text_draw_markup),
     H(isim_regex_compile), H(isim_regex_free), H(isim_regex_capture_count), H(isim_regex_group_number), H(isim_regex_error_message), H(isim_regex_match),
-    H(isim_html_flatten), H(isim_xml_sax), H(isim_media_probe), H(isim_media_open), H(isim_media_open_rate), H(isim_media_open_tracks), H(isim_media_frame_pixels), H(isim_media_streams), H(isim_media_subtitles), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
+    H(isim_html_flatten), H(isim_office_to_pdf), H(isim_xml_sax), H(isim_media_probe), H(isim_media_open), H(isim_media_open_rate), H(isim_media_open_tracks), H(isim_media_frame_pixels), H(isim_media_streams), H(isim_media_subtitles), H(isim_media_video_frame), H(isim_media_set_audio), H(isim_media_close),
     H(isim_media_thumbnail_png), H(isim_media_transcode), H(isim_media_free), H(isim_tts_synthesize), H(isim_tts_available), H(isim_tts_render),
     H(isim_audio_input_start), H(isim_audio_input_read), H(isim_audio_input_stop), H(isim_remote_command_poll),
     H(isim_audio_set_pan), H(isim_image_read_bgra),

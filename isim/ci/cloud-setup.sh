@@ -16,7 +16,8 @@ apt-get install -y --no-install-recommends \
   libpulse-dev libasound2-dev libdbus-1-dev libudev-dev \
   fontconfig fonts-noto-core fonts-noto-color-emoji fonts-dejavu-core adwaita-icon-theme imagemagick \
   ffmpeg espeak-ng libzbar0 zbar-tools zxing-cpp-tools qrencode tesseract-ocr tesseract-ocr-eng opencv-data libraw-bin libssl3 libcurl4 libpcre2-8-0 libsqlite3-0 libicu74 \
-  libwebkitgtk-6.0-dev libgtk-4-dev libgtk-4-bin libpoppler-glib8
+  libwebkitgtk-6.0-dev libgtk-4-dev libgtk-4-bin libpoppler-glib8 \
+  libreoffice-writer-nogui libreoffice-calc-nogui libreoffice-impress-nogui
 
 # clang/lld 22 from LLVM's apt repository (Ubuntu 24.04 has clang 18; isim's libc++ 22 headers need 21 or newer)
 curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor --yes -o /usr/share/keyrings/llvm.gpg
