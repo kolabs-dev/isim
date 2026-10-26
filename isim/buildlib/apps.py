@@ -243,6 +243,12 @@ def _(a):
     a.isim_build().compile_metal([os.path.join(a.d, "Shaders.metal")], b)
 
 
+@app("samples/HelloMetalKit", extra_inputs=["samples/HelloMetalKit/Shaders.metal"])   # issue #329: MetalKit, render pipelines
+def _(a):
+    b = a.swift_app()
+    a.isim_build().compile_metal([os.path.join(a.d, "Shaders.metal")], b)
+
+
 @app("samples/HelloShaders", extra_inputs=["samples/HelloShaders/Shaders.metal"])   # issue #327: SwiftUI shaders
 def _(a):
     b = a.swift_app()
@@ -961,6 +967,13 @@ def _(a):
 @app("tests/metal-objc", products=["MetalObjCTest.app"], extra_inputs=["tests/metal-objc/Shaders.metal"])   # issue #328
 def _(a):
     b = a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Metal"], name="MetalObjCTest")
+    a.isim_build().compile_metal([os.path.join(a.d, "Shaders.metal")], b)
+
+
+@app("tests/metal-render-objc", products=["MetalRenderObjCTest.app"], extra_inputs=["tests/metal-render-objc/Shaders.metal"])   # issue #329
+def _(a):
+    b = a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Metal", "-framework", "QuartzCore",
+                                               "-framework", "MetalKit"], name="MetalRenderObjCTest")
     a.isim_build().compile_metal([os.path.join(a.d, "Shaders.metal")], b)
 
 

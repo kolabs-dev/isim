@@ -7,7 +7,10 @@ into a guest dylib that Metal.framework loads (frameworks/Metal). Adapted: kerne
 
 Each kernel gets an entry point, __isim_k_<name>(const __isim_mtl_thread *), that binds its [[buffer(n)]],
 [[texture(n)]], [[sampler(n)]], [[threadgroup(n)]] and thread-position arguments from the dispatch
-(isim_metal_abi.h); the library lists its functions in __isim_mtl_functions. Errors point at the .metal lines.
+(isim_metal_abi.h); vertex functions get __isim_v_<name> (one vertex: [[stage_in]] from the vertex descriptor's
+attributes, [[vertex_id]], [[instance_id]]) and __isim_i_<name> (their outputs interpolated), fragment functions
+__isim_f_<name> (one fragment: [[stage_in]], [[position]], [[front_facing]], [[color(n)]] in and out, [[depth]]);
+issue #329. The library lists its functions in __isim_mtl_functions. Errors point at the .metal lines.
 isim build (isim-build.py) imports compile(); isim metal-compile and Metal's run-time compiles run the command."""
 import os
 import re
@@ -115,6 +118,8 @@ class Unit:
         self.functions = []     # dict(name, type, params, barrier, max_threads, host_name, line)
         self.constants = []     # (index, type, name)
         self.text = ""
+        self.structs = {}       # name -> [(member, attribute, argument)]
+        self.discard = False
 
 
 def significant(tokens, i, step):
@@ -212,6 +217,60 @@ def binding(type_, name, attr, arg, where):
     raise MSLError(f"{where}: parameter '{name}': [[{attr or ''}]] is not supported by isim's Metal on the CPU")
 
 
+def structs(toks):
+    """the structs of a unit: name -> [(member name, attribute, attribute argument)] (vertex outputs, stage_in)"""
+    found = {}
+    sig = [(k, t) for k, t in toks if k not in ("ws", "nl", "pp")]
+    i = 0
+    while i < len(sig):
+        if sig[i][1] == "struct" and i + 2 < len(sig) and sig[i + 1][0] == "id" and sig[i + 2][1] == "{":
+            name, j, depth, start = sig[i + 1][1], i + 2, 0, i + 3
+            for j in range(i + 2, len(sig)):
+                if sig[j][1] == "{":
+                    depth += 1
+                elif sig[j][1] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        break
+            members, cur, d = [], [], 0
+            for k, t in sig[start:j]:
+                if t in ("(", "{", "[", "[["):
+                    d += 1
+                elif t in (")", "}", "]", "]]"):
+                    d -= 1
+                if t == ";" and d == 0:
+                    members.append(cur)
+                    cur = []
+                elif t == "}" and d == 0:     # the end of a member function's body
+                    cur = []
+                else:
+                    cur.append(t)
+            out = []
+            for m in members:
+                if not m or m[0] in ("static", "using", "typedef", "constexpr", "friend", "template"):
+                    continue
+                if "(" in (m[:m.index("[[")] if "[[" in m else m):     # a member function
+                    continue
+                attr, arg = None, None
+                if "[[" in m:
+                    a = m.index("[[")
+                    inner = m[a + 1:m.index("]]", a)] if "]]" in m[a:] else m[a + 1:]
+                    attr = inner[0] if inner else None
+                    if len(inner) > 2 and inner[1] == "(":
+                        arg = "".join(inner[2:-1])
+                    m = m[:a]
+                if "[" in m:                 # an array member: name [ n ]
+                    m = m[:m.index("[")]
+                for decl in " ".join(m).split(","):
+                    words = decl.split()
+                    if words and re.fullmatch(r"[A-Za-z_]\w*", words[-1]):
+                        out.append((words[-1], attr, arg))
+            found[name] = out
+            i = j
+        i += 1
+    return found
+
+
 def translate(text, unit):
     """MSL (preprocessed, with line markers) -> C++ for the shim; fills unit.functions and unit.constants"""
     toks = tokenize(text)
@@ -242,12 +301,14 @@ def translate(text, unit):
             if m and m.group(1) in ("stitchable", "visible"):
                 pending = {"type": 5, "attrs": {}, "stitchable": m.group(1) == "stitchable"}
                 out.append("static")
+                pending["ret_at"] = len(out)
                 paren -= 1
                 i = j + 1
                 continue
             if m and m.group(1) in QUALIFIERS:
                 pending = {"type": QUALIFIERS[m.group(1)], "attrs": {}}
                 out.append("static")
+                pending["ret_at"] = len(out)
                 paren -= 1
                 i = j + 1
                 continue
@@ -284,6 +345,7 @@ def translate(text, unit):
             if t in QUALIFIERS and brace == 0 and paren == 0 and prev_t not in (".", "->", "::"):
                 pending = {"type": QUALIFIERS[t], "attrs": {}}
                 out.append("static")
+                pending["ret_at"] = len(out)
                 i += 1
                 continue
             if t in ADDRESS_SPACES and prev_t not in (".", "->", "::"):
@@ -318,7 +380,10 @@ def translate(text, unit):
                 close = matching(toks, nxt, "(", ")")
                 params = split_params(toks[nxt + 1:close])
                 where = source_line(toks, i)
-                pending.update(name=t, where=where, params=[parse_param(p, where) for p in params])
+                ret = "".join(out[pending.pop("ret_at", len(out)):])
+                ret = re.sub(r"\[\[.*?\]\]", "", ret)
+                ret = " ".join(x for x in ret.split() if x not in ADDRESS_SPACES and x not in ("static", "inline"))
+                pending.update(name=t, where=where, params=[parse_param(p, where) for p in params], ret=ret.strip())
                 unit.functions.append(pending)
                 pending = None
         elif k == "num":
@@ -328,6 +393,8 @@ def translate(text, unit):
         out.append(t)
         i += 1
     unit.text = "".join(out)
+    unit.structs = structs(toks)
+    unit.discard = re.search(r"\bdiscard_fragment\b", unit.text) is not None
     barrier = re.search(r"\bthreadgroup_barrier\b", unit.text) is not None
     for f in unit.functions:
         f["barrier"] = barrier
@@ -348,11 +415,177 @@ def wrappers(unit):
     for f in unit.functions:
         if f.get("stitchable"):
             lines += stitch_wrapper(f)
+        if f["type"] == 1:
+            lines += vertex_wrapper(f, unit)
+        if f["type"] == 2:
+            lines += fragment_wrapper(f, unit)
     lines.append(f'extern "C" void __isim_mtl_prepare_{unit.index}(const __isim_mtl_args *__a) {{')
     for idx, ty, name in unit.constants:
         lines.append(f"    __isim_fcdef_{name} = __a->constant_value && __a->constant_value(__a->constants, {idx}, &{name}, sizeof {name});")
     lines.append("    (void)__a;\n}")
     return "\n".join(lines) + "\n"
+
+
+def struct_of(type_, unit):
+    """the struct named by a type ('Out', 'const VertexIn &', 'ns::Out'), or None"""
+    t = type_.replace("const ", "").replace("&", "").strip()
+    t = t.split("::")[-1].strip()
+    return unit.structs.get(t)
+
+
+def resource_binding(at, ar):
+    """buffers, textures and samplers, as for kernels"""
+    return at in ("buffer", "texture", "sampler")
+
+
+def members_table(f, S, members, unit):
+    """the __isim_mtl_member table of a stage struct"""
+    rows = []
+    for name, attr, arg in members:
+        flags = []
+        if attr == "position":
+            flags.append("ISIM_MTL_MEMBER_POSITION")
+        if attr == "flat":
+            flags.append("ISIM_MTL_MEMBER_FLAT")
+        if attr == "point_size":
+            flags.append("ISIM_MTL_MEMBER_POINT_SIZE")
+        key = f"user:{arg}" if attr == "user" and arg else name
+        rows.append(f'{{"{key}", (uint32_t)__builtin_offsetof({S}, {name}), (uint32_t)sizeof((({S} *)0)->{name}), {" | ".join(flags) or "0"}}}')
+    rows.append("{0, 0, 0, 0}")
+    return [f'static const __isim_mtl_member __isim_m_{f["name"]}[] = {{', "    " + ",\n    ".join(rows), "};"]
+
+
+def vertex_wrapper(f, unit):
+    """a vertex function's entry points: one vertex, and the interpolation of its outputs"""
+    body = ["    const __isim_mtl_args *__a = __v->args; (void)__a;"]
+    args = []
+    for k, (ty, nm, at, ar) in enumerate(f["params"]):
+        base = ty.replace("const ", "").replace("&", "").strip()
+        if at == "stage_in":
+            st = struct_of(ty, unit)
+            if st is None:
+                raise MSLError(f"{f['where']}: [[stage_in]] '{nm}': its struct was not found")
+            body.append(f"    {base} __s{k} = {{}};")
+            for mn, mattr, marg in st:
+                if mattr == "attribute":
+                    body.append(f"    __s{k}.{mn} = __isim_attr<__remove_cvref(decltype(__s{k}.{mn}))>(__v, (int)({marg}));")
+            args.append(f"__s{k}")
+        elif at == "vertex_id":
+            args.append(f"({base})__v->vertex_id")
+        elif at == "instance_id":
+            args.append(f"({base})__v->instance_id")
+        elif at == "base_vertex":
+            args.append(f"({base})__v->base_vertex")
+        elif at == "base_instance":
+            args.append(f"({base})__v->base_instance")
+        elif at == "amplification_id" or at == "amplification_count":
+            args.append(f"({base}){0 if at == 'amplification_id' else 1}")
+        elif resource_binding(at, ar):
+            args.append(binding(ty, nm, at, ar, f["where"]))
+        else:
+            raise MSLError(f"{f['where']}: vertex function parameter '{nm}': [[{at or ''}]] is not supported by isim's Metal on the CPU")
+    out = struct_of(f["ret"], unit)
+    name = f["name"]
+    lines = [f'extern "C" void __isim_v_{name}(const __isim_mtl_vertex_in *__v, float *__clip, float *__ps, void *__out) {{'] + body
+    lines.append(f'    auto __r = {name}({", ".join(args)});')
+    rec = {"vertex": f"__isim_v_{name}", "interpolate": "0", "fragment": "0", "size": "0", "members": "0", "count": "0", "colors": "0"}
+    tables = []
+    if out is not None:
+        S = f["ret"].replace("const ", "").strip()
+        pos = [m for m, a, _ in out if a == "position"]
+        ps = [m for m, a, _ in out if a == "point_size"]
+        if not pos:
+            raise MSLError(f"{f['where']}: the vertex function's output struct has no [[position]] member")
+        lines.append(f"    __isim_clip(__clip, __r.{pos[0]});")
+        if ps:
+            lines.append(f"    *__ps = (float)__r.{ps[0]};")
+        lines.append("    __builtin_memcpy(__out, &__r, sizeof __r);")
+        lines.append("}")
+        lines.append(f'extern "C" void __isim_i_{name}(const void *__a, const void *__b, const void *__c, const float *__w, void *__o) {{')
+        lines.append(f"    const {S} &A = *(const {S} *)__a, &B = *(const {S} *)__b, &C = *(const {S} *)__c; {S} &O = *({S} *)__o;")
+        lines.append("    (void)A; (void)B; (void)C; (void)O; (void)__w;")
+        for m, a, _ in out:
+            lines.append(f"    __isim_lerp(O.{m}, A.{m}, B.{m}, C.{m}, __w, {'true' if a == 'flat' else 'false'});")
+        lines.append("}")
+        tables = members_table(f, S, out, unit)
+        rec.update(interpolate=f"__isim_i_{name}", size=f"(uint32_t)sizeof({S})", members=f"__isim_m_{name}", count=str(len(out)))
+    else:
+        lines.append("    __isim_clip(__clip, __r);")
+        lines.append("}")
+    return lines + tables + render_record(name, rec)
+
+
+def render_record(name, r):
+    return [f'extern "C" __attribute__((visibility("hidden"))) const __isim_mtl_render __isim_r_{name} = {{',
+            f'    {r["vertex"]}, {r["interpolate"]}, {r["fragment"]}, {r["size"]}, {r["members"]}, {r["count"]}, {r["colors"]}, {r.get("depth", "0")}', "};"]
+
+
+def fragment_wrapper(f, unit):
+    """a fragment function's entry point: one fragment, 0 when it was discarded"""
+    name = f["name"]
+    body = ["    const __isim_mtl_args *__a = __f->args; (void)__a;"]
+    if unit.discard:
+        body.append("    void *__jb[5]; if (__builtin_setjmp(__jb)) return 0; __isim_discard_jb = __jb;")
+    args, stage = [], None
+    for k, (ty, nm, at, ar) in enumerate(f["params"]):
+        base = ty.replace("const ", "").replace("&", "").strip()
+        if at == "stage_in":
+            st = struct_of(ty, unit)
+            if st is None:
+                raise MSLError(f"{f['where']}: [[stage_in]] '{nm}': its struct was not found")
+            stage = (base, st)
+            body.append(f"    {base} __s{k}; __builtin_memcpy(&__s{k}, __f->varyings, sizeof __s{k});")
+            for mn, mattr, _ in st:
+                if mattr == "position":
+                    body.append(f"    __s{k}.{mn} = __isim_frag_position<__remove_cvref(decltype(__s{k}.{mn}))>(__f);")
+            args.append(f"__s{k}")
+        elif at == "position":
+            args.append(f"__isim_frag_position<{base}>(__f)")
+        elif at == "front_facing":
+            args.append(f"({base})__f->front_facing")
+        elif at == "point_coord":
+            args.append(f"{base}{{__f->point_coord[0], __f->point_coord[1]}}")
+        elif at == "primitive_id":
+            args.append(f"({base})__f->primitive_id")
+        elif at in ("sample_id", "render_target_array_index", "viewport_array_index", "amplification_id"):
+            args.append(f"({base})0")
+        elif at == "sample_mask":
+            args.append(f"({base})1")
+        elif at == "color":
+            args.append(f"__isim_color_in<{base}>(__f, (int)({ar or 0}))")
+        elif resource_binding(at, ar):
+            args.append(binding(ty, nm, at, ar, f["where"]))
+        else:
+            raise MSLError(f"{f['where']}: fragment function parameter '{nm}': [[{at or ''}]] is not supported by isim's Metal on the CPU")
+    lines = [f'extern "C" int __isim_f_{name}(__isim_mtl_fragment_in *__f) {{'] + body
+    call = f'{name}({", ".join(args)})'
+    out = struct_of(f["ret"], unit)
+    colors, depth = "0", "0"
+    if f["ret"] in ("void", ""):
+        lines.append(f"    {call};")
+    elif out is not None:
+        lines.append(f"    auto __r = {call};")
+        cs = []
+        for m, a, arg in out:
+            if a == "color":
+                lines.append(f"    __isim_color_out(__f, (int)({arg or 0}), __r.{m});")
+                cs.append(f"(1u << ({arg or 0}))")
+            elif a == "depth":
+                lines.append(f"    __isim_depth_out(__f, __r.{m});")
+                depth = "1"
+        colors = " | ".join(cs) or "0"
+    else:
+        lines.append(f"    __isim_color_out(__f, 0, {call});")
+        colors = "1"
+    lines += ["    return 1;", "}"]
+    rec = {"vertex": "0", "interpolate": "0", "fragment": f"__isim_f_{name}", "size": "0", "members": "0", "count": "0", "colors": colors,
+           "depth": depth}
+    tables = []
+    if stage:
+        S, st = stage
+        tables = members_table(f, S, st, unit)
+        rec.update(size=f"(uint32_t)sizeof({S})", members=f"__isim_m_{name}", count=str(len(st)))
+    return lines + tables + render_record(name, rec)
 
 
 def stitch_wrapper(f):
@@ -395,6 +628,8 @@ def table(units):
                 lines.append(f'extern "C" void __isim_k_{f["name"]}(const __isim_mtl_thread *);')
             if f.get("stitchable"):
                 lines.append(f'extern "C" void __isim_s_{f["name"]}(__isim_mtl_stitch *);')
+            if f["type"] in (1, 2):
+                lines.append(f'extern "C" __attribute__((visibility("hidden"))) const __isim_mtl_render __isim_r_{f["name"]};')
     lines.append('extern "C" __attribute__((visibility("default"))) const int __isim_mtl_abi = ISIM_MTL_ABI;')
     lines.append('extern "C" __attribute__((visibility("default"))) void __isim_mtl_prepare(const __isim_mtl_args *a) {')
     lines.append("    __isim_mtl_cur = a;")
@@ -407,8 +642,9 @@ def table(units):
             entry = f'__isim_k_{f["name"]}' if f["type"] == 3 else "0"
             mt = f["attrs"].get("max_total_threads_per_threadgroup") or 0
             stitch = f'__isim_s_{f["name"]}' if f.get("stitchable") else "0"
-            lines.append(f'    {{"{name}", {f["type"]}, {entry}, {int(f["barrier"])}, {mt}, "{consts}", {stitch}}},')
-    lines.append("    {0, 0, 0, 0, 0, 0, 0}\n};")
+            render = f'&__isim_r_{f["name"]}' if f["type"] in (1, 2) else "0"
+            lines.append(f'    {{"{name}", {f["type"]}, {entry}, {int(f["barrier"])}, {mt}, "{consts}", {stitch}, {render}}},')
+    lines.append("    {0, 0, 0, 0, 0, 0, 0, 0}\n};")
     return "\n".join(lines) + "\n"
 
 

@@ -509,11 +509,12 @@ struct lod_clamp { float lo, hi; constexpr lod_clamp(float a, float b) : lo(a), 
 struct sampler {
     unsigned char minf = 0, magf = 0, mipf = 0, s = 0, t = 0, r = 0, norm = 1, border = 0;
     float lodmin = 0, lodmax = 1000;
+    unsigned char cmp = 0;                       /* MTLCompareFunction + 1, 0 none */
     constexpr sampler() {}
     template <class... A> constexpr sampler(A... a) { (set(a), ...); }
     explicit sampler(const __isim_mtl_sampler *d) {
         if (d) { minf = d->min_filter; magf = d->mag_filter; mipf = d->mip_filter; s = d->s_address; t = d->t_address;
-                 r = d->r_address; norm = d->normalized; border = d->border; lodmin = d->lod_min; lodmax = d->lod_max; }
+                 r = d->r_address; norm = d->normalized; border = d->border; lodmin = d->lod_min; lodmax = d->lod_max; cmp = d->compare; }
     }
     constexpr void set(coord c) { norm = c == coord::normalized; }
     constexpr void set(filter f) { minf = magf = (unsigned char)f; }
@@ -525,7 +526,10 @@ struct sampler {
     constexpr void set(t_address a) { t = (unsigned char)a; }
     constexpr void set(r_address a) { r = (unsigned char)a; }
     constexpr void set(border_color b) { border = (unsigned char)b; }
-    constexpr void set(compare_func) {}
+    constexpr void set(compare_func c) {   /* as MTLCompareFunction + 1 */
+        const unsigned char m[] = {0, 2, 4, 5, 7, 3, 6, 8, 1};
+        cmp = m[(int)c];
+    }
     constexpr void set(max_anisotropy) {}
     constexpr void set(lod_clamp l) { lodmin = l.lo; lodmax = l.hi; }
 };
@@ -785,6 +789,63 @@ template <class T, access A = access::sample> struct texture_buffer : __texture_
     vec<T, 4> read(uint i) const { return __isim_tx::load<T>(__t, i, 0, 0, 0); }
     void write(vec<T, 4> v, uint i) const { __isim_tx::store<T>(__t, v, i, 0, 0, 0); }
 };
+/* a cube map: faces +X, -X, +Y, -Y, +Z, -Z are slices 0-5 */
+template <class T, access A = access::sample> struct texturecube : __texture_base {
+    using __texture_base::__texture_base;
+    static uint __face(float3 d, float2 &uv) {
+        float ax = __builtin_fabsf(d.x), ay = __builtin_fabsf(d.y), az = __builtin_fabsf(d.z), m; uint f; float s, t;
+        if (ax >= ay && ax >= az) { m = ax; f = d.x >= 0 ? 0 : 1; s = d.x >= 0 ? -d.z : d.z; t = -d.y; }
+        else if (ay >= az) { m = ay; f = d.y >= 0 ? 2 : 3; s = d.x; t = d.y >= 0 ? d.z : -d.z; }
+        else { m = az; f = d.z >= 0 ? 4 : 5; s = d.z >= 0 ? d.x : -d.x; t = -d.y; }
+        m = m > 0 ? m : 1;
+        uv = float2{(s / m + 1) * 0.5f, (t / m + 1) * 0.5f};
+        return f;
+    }
+    vec<T, 4> sample(sampler s, float3 d) const { float2 uv; uint f = __face(d, uv); s.norm = 1; return __isim_tx::sample2d<T>(__t, s, uv, f, 0); }
+    vec<T, 4> sample(sampler s, float3 d, level l) const { float2 uv; uint f = __face(d, uv); s.norm = 1; return __isim_tx::sample2d<T>(__t, s, uv, f, l.v); }
+    vec<T, 4> sample(sampler s, float3 d, bias) const { return sample(s, d); }
+    template <class C> vec<T, 4> read(C c, uint face, uint lod = 0) const { uint2 p = __isim_tx::u2(c); return __isim_tx::load<T>(__t, p.x, p.y, face, lod); }
+    template <class C> void write(vec<T, 4> v, C c, uint face, uint lod = 0) const { uint2 p = __isim_tx::u2(c); __isim_tx::store<T>(__t, v, p.x, p.y, face, lod); }
+};
+/* depth textures: one component; sample_compare compares with the sampler's compare function (1 passes, 0 fails) */
+inline float __isim_compare(unsigned char f, float ref, float v) {
+    switch (f) {
+    case 1: return 0; case 2: return ref < v; case 3: return ref == v; case 4: return ref <= v;
+    case 5: return ref > v; case 6: return ref != v; case 7: return ref >= v; default: return 1;
+    }
+}
+template <class T, access A = access::sample> struct depth2d : __texture_base {
+    using __texture_base::__texture_base;
+    template <class C> T read(C c, uint lod = 0) const { uint2 p = __isim_tx::u2(c); return __isim_tx::load<T>(__t, p.x, p.y, 0, lod).x; }
+    template <class C> void write(T v, C c, uint lod = 0) const { uint2 p = __isim_tx::u2(c); __isim_tx::store<T>(__t, vec<T, 4>{v, 0, 0, 1}, p.x, p.y, 0, lod); }
+    T sample(sampler s, float2 c) const { return __isim_tx::sample2d<T>(__t, s, c, 0, 0).x; }
+    T sample(sampler s, float2 c, level l) const { return __isim_tx::sample2d<T>(__t, s, c, 0, l.v).x; }
+    T sample(sampler s, float2 c, int2 o) const { return texture2d<T>(__t).sample(s, c, o).x; }
+    /* percentage-closer filtering: each of the (bilinear) texels compared, then weighted */
+    float sample_compare(sampler s, float2 c, float ref, int2 o = int2{0, 0}) const {
+        if (!__t) return 0;
+        float w = get_width(), h = get_height();
+        float x = (s.norm ? c.x * w : c.x) + o.x, y = (s.norm ? c.y * h : c.y) + o.y;
+        if (s.magf != 1 && s.minf != 1)
+            return __isim_compare(s.cmp, ref, (float)__isim_tx::texel<T>(__t, (int)__builtin_floorf(x), (int)__builtin_floorf(y), 0, 0, s).x);
+        x -= 0.5f; y -= 0.5f;
+        int x0 = (int)__builtin_floorf(x), y0 = (int)__builtin_floorf(y);
+        float fx = x - x0, fy = y - y0;
+        auto at = [&](int xx, int yy) { return __isim_compare(s.cmp, ref, (float)__isim_tx::texel<T>(__t, xx, yy, 0, 0, s).x); };
+        return (at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx) * (1 - fy) + (at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx) * fy;
+    }
+    float sample_compare(sampler s, float2 c, float ref, level) const { return sample_compare(s, c, ref); }
+    vec<T, 4> gather(sampler s, float2 c, int2 o = int2{0, 0}) const { return texture2d<T>(__t).gather(s, c, o); }
+};
+template <class T, access A = access::sample> struct depth2d_array : __texture_base {
+    using __texture_base::__texture_base;
+    template <class C> T read(C c, uint slice, uint lod = 0) const { uint2 p = __isim_tx::u2(c); return __isim_tx::load<T>(__t, p.x, p.y, slice, lod).x; }
+    T sample(sampler s, float2 c, uint slice) const { return __isim_tx::sample2d<T>(__t, s, c, slice, 0).x; }
+};
+template <class T, access A = access::sample> struct texture2d_ms : __texture_base {   /* one sample per pixel on isim */
+    using __texture_base::__texture_base;
+    template <class C> vec<T, 4> read(C c, uint = 0) const { uint2 p = __isim_tx::u2(c); return __isim_tx::load<T>(__t, p.x, p.y, 0, 0); }
+};
 }  // namespace metal
 
 /* ---- SwiftUI's shader effects ([[stitchable]] functions) ---- */
@@ -833,6 +894,110 @@ template <class T> inline void __isim_effect_result(__isim_mtl_stitch *s, T r) {
 }
 
 /* the wrappers' conversions of the thread-position attributes to the declared type */
+/* ---- render pipelines (issue #329) ---- */
+/* a vertex attribute (MTLVertexFormat) as T: normalized and float formats as float4, integer ones as int4 */
+inline float4 __isim_vfmt_f(uint32_t f, const uint8_t *p) {
+    using namespace __isim_tx;
+    auto u8 = [&](int i) { return (float)p[i]; }; auto s8 = [&](int i) { return (float)(signed char)p[i]; };
+    auto u16 = [&](int i) { return (float)rd<uint16_t>(p + 2 * i); }; auto s16 = [&](int i) { return (float)rd<int16_t>(p + 2 * i); };
+    auto h = [&](int i) { return half_f(rd<uint16_t>(p + 2 * i)); }; auto fl = [&](int i) { return rd<float>(p + 4 * i); };
+    auto sn = [](float v, float m) { v /= m; return v < -1 ? -1.0f : v; };
+    switch (f) {
+    case 1: return float4{u8(0), u8(1), 0, 1}; case 2: return float4{u8(0), u8(1), u8(2), 1}; case 3: return float4{u8(0), u8(1), u8(2), u8(3)};
+    case 4: return float4{s8(0), s8(1), 0, 1}; case 5: return float4{s8(0), s8(1), s8(2), 1}; case 6: return float4{s8(0), s8(1), s8(2), s8(3)};
+    case 7: return float4{u8(0) / 255, u8(1) / 255, 0, 1}; case 8: return float4{u8(0) / 255, u8(1) / 255, u8(2) / 255, 1};
+    case 9: return float4{u8(0), u8(1), u8(2), u8(3)} / 255.0f;
+    case 10: return float4{sn(s8(0), 127), sn(s8(1), 127), 0, 1}; case 11: return float4{sn(s8(0), 127), sn(s8(1), 127), sn(s8(2), 127), 1};
+    case 12: return float4{sn(s8(0), 127), sn(s8(1), 127), sn(s8(2), 127), sn(s8(3), 127)};
+    case 13: return float4{u16(0), u16(1), 0, 1}; case 14: return float4{u16(0), u16(1), u16(2), 1}; case 15: return float4{u16(0), u16(1), u16(2), u16(3)};
+    case 16: return float4{s16(0), s16(1), 0, 1}; case 17: return float4{s16(0), s16(1), s16(2), 1}; case 18: return float4{s16(0), s16(1), s16(2), s16(3)};
+    case 19: return float4{u16(0) / 65535, u16(1) / 65535, 0, 1}; case 20: return float4{u16(0) / 65535, u16(1) / 65535, u16(2) / 65535, 1};
+    case 21: return float4{u16(0), u16(1), u16(2), u16(3)} / 65535.0f;
+    case 22: return float4{sn(s16(0), 32767), sn(s16(1), 32767), 0, 1}; case 23: return float4{sn(s16(0), 32767), sn(s16(1), 32767), sn(s16(2), 32767), 1};
+    case 24: return float4{sn(s16(0), 32767), sn(s16(1), 32767), sn(s16(2), 32767), sn(s16(3), 32767)};
+    case 25: return float4{h(0), h(1), 0, 1}; case 26: return float4{h(0), h(1), h(2), 1}; case 27: return float4{h(0), h(1), h(2), h(3)};
+    case 28: return float4{fl(0), 0, 0, 1}; case 29: return float4{fl(0), fl(1), 0, 1}; case 30: return float4{fl(0), fl(1), fl(2), 1};
+    case 31: return float4{fl(0), fl(1), fl(2), fl(3)};
+    case 40: { int32_t v = rd<int32_t>(p); return float4{sn((float)(v << 22 >> 22), 511), sn((float)(v << 12 >> 22), 511), sn((float)(v << 2 >> 22), 511), sn((float)(v >> 30), 1)}; }
+    case 41: { uint32_t v = rd<uint32_t>(p); return float4{(v & 1023) / 1023.0f, (v >> 10 & 1023) / 1023.0f, (v >> 20 & 1023) / 1023.0f, (v >> 30) / 3.0f}; }
+    case 42: return float4{u8(2), u8(1), u8(0), u8(3)} / 255.0f;
+    case 45: return float4{u8(0), 0, 0, 1}; case 46: return float4{s8(0), 0, 0, 1}; case 47: return float4{u8(0) / 255, 0, 0, 1};
+    case 48: return float4{sn(s8(0), 127), 0, 0, 1}; case 49: return float4{u16(0), 0, 0, 1}; case 50: return float4{s16(0), 0, 0, 1};
+    case 51: return float4{u16(0) / 65535, 0, 0, 1}; case 52: return float4{sn(s16(0), 32767), 0, 0, 1}; case 53: return float4{h(0), 0, 0, 1};
+    default: return float4{0, 0, 0, 1};
+    }
+}
+inline int4 __isim_vfmt_i(uint32_t f, const uint8_t *p) {
+    using namespace __isim_tx;
+    switch (f) {
+    case 32: return int4{rd<int>(p), 0, 0, 1}; case 33: return int4{rd<int>(p), rd<int>(p + 4), 0, 1};
+    case 34: return int4{rd<int>(p), rd<int>(p + 4), rd<int>(p + 8), 1}; case 35: return int4{rd<int>(p), rd<int>(p + 4), rd<int>(p + 8), rd<int>(p + 12)};
+    case 36: case 37: case 38: case 39: { int n = (int)f - 35; int4 r = {0, 0, 0, 1}; for (int i = 0; i < n; i++) r[i] = (int)rd<uint32_t>(p + 4 * i); return r; }
+    default: return __builtin_convertvector(__isim_vfmt_f(f, p), int4);
+    }
+}
+template <class T> inline T __isim_attr(const __isim_mtl_vertex_in *v, int n) {
+    const uint8_t *p = v->attr[n]; uint32_t f = v->attr_format[n];
+    if (!p || !f) return T{};
+    using E = __isim_elem<T>;
+    if constexpr (__isim_float<E>) {
+        float4 c = __isim_vfmt_f(f, p);
+        if constexpr (__isim_is_vec<T>) { T r = {}; for (int i = 0; i < __builtin_vectorelements(T); i++) r[i] = (E)c[i]; return r; }
+        else return (T)c.x;
+    } else {
+        int4 c = (f >= 32 && f <= 39) ? __isim_vfmt_i(f, p) : __builtin_convertvector(__isim_vfmt_f(f, p), int4);
+        if constexpr (__isim_is_vec<T>) { T r = {}; for (int i = 0; i < __builtin_vectorelements(T); i++) r[i] = (E)c[i]; return r; }
+        else return (T)c.x;
+    }
+}
+/* a vertex output at weights w: floating-point members interpolated, others (and [[flat]] ones) from a */
+template <class T> inline void __isim_lerp(T &o, const T &a, const T &b, const T &c, const float *w, bool flat) {
+    if constexpr (__is_array(T)) {
+        for (unsigned i = 0; i < sizeof(T) / sizeof(a[0]); i++) __isim_lerp(o[i], a[i], b[i], c[i], w, flat);
+    } else if constexpr (__isim_is_vec<T>) {
+        if constexpr (__isim_float<__isim_elem<T>>) {
+            if (flat) { o = a; return; }
+            using F = vec<float, __builtin_vectorelements(T)>;
+            F r = __builtin_convertvector(a, F) * w[0] + __builtin_convertvector(b, F) * w[1] + __builtin_convertvector(c, F) * w[2];
+            o = __builtin_convertvector(r, T);
+        } else o = a;
+    } else if constexpr (__isim_float<T>) {
+        o = flat ? a : (T)((float)a * w[0] + (float)b * w[1] + (float)c * w[2]);
+    } else if constexpr (requires { a.columns[0]; }) {
+        for (unsigned i = 0; i < sizeof(a.columns) / sizeof(a.columns[0]); i++) __isim_lerp(o.columns[i], a.columns[i], b.columns[i], c.columns[i], w, flat);
+    } else {
+        o = a;
+    }
+}
+template <class T> inline void __isim_clip(float *clip, const T &p) {
+    if constexpr (__isim_is_vec<T>) { for (int i = 0; i < 4; i++) clip[i] = i < __builtin_vectorelements(T) ? (float)p[i] : (i == 3 ? 1.0f : 0.0f); }
+    else { clip[0] = (float)p; clip[1] = clip[2] = 0; clip[3] = 1; }
+}
+template <class T> inline T __isim_frag_position(const __isim_mtl_fragment_in *f) {
+    float4 p = {f->position[0], f->position[1], f->position[2], f->position[3]};
+    if constexpr (__isim_is_vec<T>) { T r = {}; for (int i = 0; i < __builtin_vectorelements(T); i++) r[i] = (__isim_elem<T>)p[i]; return r; }
+    else return (T)p.x;
+}
+template <class T> inline T __isim_color_in(const __isim_mtl_fragment_in *f, int n) {
+    float4 c = {f->color_in[n][0], f->color_in[n][1], f->color_in[n][2], f->color_in[n][3]};
+    if constexpr (__isim_is_vec<T>) { T r = {}; for (int i = 0; i < __builtin_vectorelements(T); i++) r[i] = (__isim_elem<T>)c[i]; return r; }
+    else return (T)c.x;
+}
+template <class T> inline void __isim_color_out(__isim_mtl_fragment_in *f, int n, const T &v) {
+    if constexpr (__isim_is_vec<T>) { for (int i = 0; i < 4; i++) f->color[n][i] = i < __builtin_vectorelements(T) ? (float)v[i] : (i == 3 ? 1.0f : 0.0f); }
+    else { f->color[n][0] = (float)v; f->color[n][1] = f->color[n][2] = 0; f->color[n][3] = 1; }
+}
+template <class T> inline void __isim_depth_out(__isim_mtl_fragment_in *f, const T &v) { f->depth = (float)v; f->depth_written = 1; }
+/* discard_fragment ends the fragment function: back to its entry point, which reports the fragment discarded */
+inline thread_local void **__isim_discard_jb;
+namespace metal {
+[[noreturn]] inline void discard_fragment() { __builtin_longjmp(__isim_discard_jb, 1); }
+/* derivatives: one fragment at a time on the CPU, so 0 (adapted) */
+template <class T> inline T dfdx(T) { return T{}; }
+template <class T> inline T dfdy(T) { return T{}; }
+template <class T> inline T fwidth(T) { return T{}; }
+}  // namespace metal
+
 template <class T> inline T __isim_pos(const uint32_t *v) {
     if constexpr (__isim_is_vec<T>) { T r = {}; for (int i = 0; i < __builtin_vectorelements(T) && i < 3; i++) r[i] = (__isim_elem<T>)v[i]; return r; }
     else return (T)v[0];

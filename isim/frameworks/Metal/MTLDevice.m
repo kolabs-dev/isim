@@ -91,7 +91,8 @@ static NSUInteger allocated;   /* bytes of buffers and textures alive (currentAl
 - (BOOL)supportsFamily:(MTLGPUFamily)family {
     return (family >= MTLGPUFamilyApple1 && family <= MTLGPUFamilyApple4) || family == MTLGPUFamilyCommon1 || family == MTLGPUFamilyCommon2;
 }
-- (BOOL)supportsTextureSampleCount:(NSUInteger)n { return n == 1; }
+/* multisample textures hold one sample per pixel on isim: rendering to them is not antialiased (adapted) */
+- (BOOL)supportsTextureSampleCount:(NSUInteger)n { return n == 1 || n == 2 || n == 4; }
 - (NSUInteger)minimumLinearTextureAlignmentForPixelFormat:(MTLPixelFormat)f { return 16; }
 - (NSUInteger)minimumTextureBufferAlignmentForPixelFormat:(MTLPixelFormat)f { return 16; }
 @end
@@ -257,7 +258,7 @@ static NSUInteger slices_of(MTLTextureDescriptor *d) {
 - (NSUInteger)height { return _d.height; }
 - (NSUInteger)depth { return _d.depth; }
 - (NSUInteger)mipmapLevelCount { return _desc.mip_levels; }
-- (NSUInteger)sampleCount { return 1; }
+- (NSUInteger)sampleCount { return MAX(_d.sampleCount, (NSUInteger)1); }
 - (NSUInteger)arrayLength { return MAX(_d.arrayLength, (NSUInteger)1); }
 - (MTLTextureUsage)usage { return _d.usage; }
 - (BOOL)isShareable { return NO; }
@@ -345,7 +346,7 @@ static NSUInteger slices_of(MTLTextureDescriptor *d) {
     _desc.min_filter = (uint8_t)d.minFilter; _desc.mag_filter = (uint8_t)d.magFilter; _desc.mip_filter = (uint8_t)d.mipFilter;
     _desc.s_address = (uint8_t)d.sAddressMode; _desc.t_address = (uint8_t)d.tAddressMode; _desc.r_address = (uint8_t)d.rAddressMode;
     _desc.normalized = d.normalizedCoordinates; _desc.border = (uint8_t)d.borderColor;
-    _desc.lod_min = d.lodMinClamp; _desc.lod_max = d.lodMaxClamp;
+    _desc.lod_min = d.lodMinClamp; _desc.lod_max = d.lodMaxClamp; _desc.compare = (uint8_t)(d.compareFunction + 1);
     _label = [d.label copy];
     return self;
 }
@@ -366,7 +367,7 @@ static NSUInteger slices_of(MTLTextureDescriptor *d) {
     return [[ISIMMTLBuffer alloc] initNoCopy:p length:length options:options deallocator:deallocator];
 }
 - (id<MTLTexture>)newTextureWithDescriptor:(MTLTextureDescriptor *)d {
-    if (d.pixelFormat == MTLPixelFormatInvalid || d.sampleCount > 1) return nil;
+    if (d.pixelFormat == MTLPixelFormatInvalid || d.sampleCount > 4) return nil;
     return [[ISIMMTLTexture alloc] initWithDescriptor:d buffer:nil offset:0 bytesPerRow:0];
 }
 - (id<MTLSamplerState>)newSamplerStateWithDescriptor:(MTLSamplerDescriptor *)d {

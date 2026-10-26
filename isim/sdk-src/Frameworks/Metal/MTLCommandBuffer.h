@@ -2,9 +2,10 @@
 #import <Metal/MTLDefines.h>
 #import <Metal/MTLTypes.h>
 #import <Metal/MTLComputeCommandEncoder.h>
+#import <Metal/MTLRenderCommandEncoder.h>
 NS_ASSUME_NONNULL_BEGIN
 @protocol MTLDevice, MTLCommandQueue, MTLComputeCommandEncoder, MTLBlitCommandEncoder, MTLCommandBuffer, MTLDrawable;
-@class MTLComputePassDescriptor;
+@class MTLComputePassDescriptor, MTLRenderPassDescriptor;
 typedef NS_ENUM(NSUInteger, MTLCommandBufferStatus) {
     MTLCommandBufferStatusNotEnqueued = 0, MTLCommandBufferStatusEnqueued = 1, MTLCommandBufferStatusCommitted = 2,
     MTLCommandBufferStatusScheduled = 3, MTLCommandBufferStatusCompleted = 4, MTLCommandBufferStatusError = 5,
@@ -42,11 +43,15 @@ typedef void (^MTLCommandBufferHandler)(id<MTLCommandBuffer>);
 - (void)addCompletedHandler:(MTLCommandBufferHandler)block;
 - (void)waitUntilScheduled;
 - (void)waitUntilCompleted;
+/* the drawable is presented when the command buffer has completed (its rendering is done on the CPU) */
 - (void)presentDrawable:(id<MTLDrawable>)drawable NS_SWIFT_NAME(present(_:));
 - (void)presentDrawable:(id<MTLDrawable>)drawable atTime:(CFTimeInterval)presentationTime NS_SWIFT_NAME(present(_:atTime:));
+- (void)presentDrawable:(id<MTLDrawable>)drawable afterMinimumDuration:(CFTimeInterval)duration NS_SWIFT_NAME(present(_:afterMinimumDuration:));
 - (nullable id<MTLBlitCommandEncoder>)blitCommandEncoder NS_SWIFT_NAME(makeBlitCommandEncoder());
 - (nullable id<MTLComputeCommandEncoder>)computeCommandEncoder NS_SWIFT_NAME(makeComputeCommandEncoder());
 - (nullable id<MTLComputeCommandEncoder>)computeCommandEncoderWithDispatchType:(MTLDispatchType)dispatchType NS_SWIFT_NAME(makeComputeCommandEncoder(dispatchType:));
+- (nullable id<MTLRenderCommandEncoder>)renderCommandEncoderWithDescriptor:(MTLRenderPassDescriptor *)renderPassDescriptor
+    NS_SWIFT_NAME(makeRenderCommandEncoder(descriptor:));
 - (void)pushDebugGroup:(NSString *)string;
 - (void)popDebugGroup;
 @end

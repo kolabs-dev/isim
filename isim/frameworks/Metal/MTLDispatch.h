@@ -11,7 +11,11 @@ typedef struct isim_mtl_dispatch {
     uint32_t group_size[3];                         /* threads per threadgroup */
     uint32_t grid[3];                               /* threads per grid (dispatchThreads: the edge groups are smaller) */
     size_t tgmem_length[ISIM_MTL_MAX_TGMEM];        /* setThreadgroupMemoryLength */
+    void (*task)(void *ctx, uint32_t i, int worker);   /* isim_mtl_parallel: instead of a kernel, task(ctx, group, worker) */
+    void *task_ctx;
 } isim_mtl_dispatch;
 /* runs every threadgroup of d; returns when they are done */
 void isim_mtl_run(const isim_mtl_dispatch *d);
 int isim_mtl_worker_count(void);
+/* runs fn(ctx, i, worker) for i in [0, n) on the worker threads (worker: 0 .. isim_mtl_worker_count() - 1) */
+void isim_mtl_parallel(uint32_t n, void (*fn)(void *ctx, uint32_t i, int worker), void *ctx);

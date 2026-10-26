@@ -63,7 +63,7 @@ public typealias simd_uint4 = SIMD4<UInt32>
 // MARK: - 3x3 matrices and quaternions (subset; used by SKTransformNode)
 
 /// A 3x3 matrix of Floats, stored as three columns.
-public struct simd_float3x3: Equatable, Sendable {
+@frozen public struct simd_float3x3: Equatable, Sendable, BitwiseCopyable {
     public var columns: (SIMD3<Float>, SIMD3<Float>, SIMD3<Float>)
     public init(columns: (SIMD3<Float>, SIMD3<Float>, SIMD3<Float>)) { self.columns = columns }
     public init() { columns = (.zero, .zero, .zero) }
@@ -103,7 +103,7 @@ public func simd_mul(_ m: simd_float3x3, _ v: SIMD3<Float>) -> SIMD3<Float> { m 
 public func simd_transpose(_ m: simd_float3x3) -> simd_float3x3 { m.transpose }
 
 /// A 2x2 matrix of Floats, stored as two columns.
-public struct simd_float2x2: Equatable, Sendable {
+@frozen public struct simd_float2x2: Equatable, Sendable, BitwiseCopyable {
     public var columns: (SIMD2<Float>, SIMD2<Float>)
     public init(columns: (SIMD2<Float>, SIMD2<Float>)) { self.columns = columns }
     public init() { columns = (.zero, .zero) }
@@ -132,7 +132,7 @@ extension simd_float3x3 {
 }
 
 /// A 4x4 matrix of Floats, stored as four columns.
-public struct simd_float4x4: Equatable, Sendable {
+@frozen public struct simd_float4x4: Equatable, Sendable, BitwiseCopyable {
     public var columns: (SIMD4<Float>, SIMD4<Float>, SIMD4<Float>, SIMD4<Float>)
     public init(columns: (SIMD4<Float>, SIMD4<Float>, SIMD4<Float>, SIMD4<Float>)) { self.columns = columns }
     public init() { columns = (.zero, .zero, .zero, .zero) }
@@ -140,6 +140,11 @@ public struct simd_float4x4: Equatable, Sendable {
     public init(diagonal d: SIMD4<Float>) { columns = (SIMD4(d.x, 0, 0, 0), SIMD4(0, d.y, 0, 0), SIMD4(0, 0, d.z, 0), SIMD4(0, 0, 0, d.w)) }
     public init(_ c0: SIMD4<Float>, _ c1: SIMD4<Float>, _ c2: SIMD4<Float>, _ c3: SIMD4<Float>) { columns = (c0, c1, c2, c3) }
     public init(_ columns: [SIMD4<Float>]) { precondition(columns.count == 4); self.columns = (columns[0], columns[1], columns[2], columns[3]) }
+    /// the rotation a unit quaternion describes (no translation)
+    public init(_ q: simd_quatf) {
+        let r = simd_float3x3(q)
+        columns = (SIMD4(r.columns.0, 0), SIMD4(r.columns.1, 0), SIMD4(r.columns.2, 0), SIMD4(0, 0, 0, 1))
+    }
     public init(rows r: [SIMD4<Float>]) {
         precondition(r.count == 4)
         columns = (SIMD4(r[0].x, r[1].x, r[2].x, r[3].x), SIMD4(r[0].y, r[1].y, r[2].y, r[3].y),
@@ -166,7 +171,7 @@ public func simd_transpose(_ m: simd_float2x2) -> simd_float2x2 { m.transpose }
 public func simd_transpose(_ m: simd_float4x4) -> simd_float4x4 { m.transpose }
 
 /// A quaternion of Floats: vector = (ix, iy, iz, r).
-public struct simd_quatf: Equatable, Sendable {
+@frozen public struct simd_quatf: Equatable, Sendable, BitwiseCopyable {
     public var vector: SIMD4<Float>
     public init() { vector = SIMD4(0, 0, 0, 1) }
     public init(vector: SIMD4<Float>) { self.vector = vector }

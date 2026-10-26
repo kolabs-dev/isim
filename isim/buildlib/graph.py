@@ -218,7 +218,9 @@ SWIFT_FRAMEWORKS = [
     ("AVFoundation", "-framework Foundation -framework UIKit -framework CoreMedia"),
     ("CoreVideo", "-framework Foundation -framework CoreGraphics"),
     # Core Animation's classes are UIKit's (UIKit/CALayer.h): QuartzCore re-exports UIKit as well as libswiftQuartzCore
-    ("QuartzCore", "-framework Foundation -framework UIKit -reexport_framework UIKit"),
+    # CAMetalLayer and CAMetalDisplayLink are the Metal overlay's (issue #329): QuartzCore re-exports it for Objective-C
+    ("QuartzCore", "-framework Foundation -framework UIKit -reexport_framework UIKit -reexport_library @SWIFT@/libswiftMetal.dylib"),
+    ("MetalKit", "-framework Foundation -framework UIKit -framework Metal"),   # issue #329: MTKView, MTKTextureLoader from Objective-C
     # module shims (issue #223): headers over isim's AVFoundation and AudioToolbox; AVFAudio's classes are AVFoundation's
     ("AVFAudio", "-framework Foundation -framework AVFoundation -reexport_framework AVFoundation"),
     ("AudioToolbox", "-framework Foundation"),   # issue #286: the C interface over isim's Swift AudioToolbox (CAPI.swift)
@@ -294,13 +296,15 @@ def swift_framework(c, name, link, overlay_name=None):
     """<name>.framework for a Swift overlay with an Objective-C interface (SWIFT_FRAMEWORKS): re-exports libswift<name>
     (or the overlay named third in the entry: MobileCoreServices re-exports UniformTypeIdentifiers)"""
     link = link.split() if isinstance(link, str) else link
+    link = [a.replace("@SWIFT@", f"{SDK}/usr/lib/swift") for a in link]   # @SWIFT@: the overlays' directory
     lib, overlay = f"{FW}/{name}.framework/{name}", f"{SDK}/usr/lib/swift/libswift{overlay_name or name}.dylib"
     objs = framework_objs(c, name)
     return c.n.build(lib, [c.ld, "-arch", "x86_64", "-platform_version", "ios-simulator", "17.0", "0", "-dylib",   # like the overlays
                            "-install_name", f"/System/Library/Frameworks/{name}.framework/{name}", "-o", lib, *objs,
                            "-syslibroot", SDK,   # finds what a linked framework re-exports (CoreMedia: libswiftCoreMedia)
                            f"-L{SDK}/usr/lib", f"-F{FW}", "-lSystem", "-lobjc", *link, "-reexport_library", overlay],
-                     inputs=objs, implicit=[overlay, *link_deps(["-lSystem", "-lobjc", *link])], desc=f"LINK {name}.framework")
+                     inputs=objs, implicit=[overlay, *link_deps(["-lSystem", "-lobjc", *link]), *[a for a in link if a.endswith(".dylib")]],
+                     desc=f"LINK {name}.framework")
 
 
 def frameworks(c):

@@ -564,6 +564,8 @@ void (*isim_ui_appearance_hook)(UIView *v);          /* UIAppearance.m: proxies 
 - (void)setNeedsDisplay { isim_ui_set_needs_display(); }
 - (void)setNeedsDisplayInRect:(CGRect)r { isim_ui_set_needs_display(); }
 - (void)drawRect:(CGRect)r {}
+/* YES: drawRect: is not part of the view's rendering (MTKView, MetalKit, calls it from its own frame loop) */
+- (BOOL)_isim_skipsDrawRect { return NO; }
 - (void)_isim_drawContent {}
 - (void)_isim_drawOverlay {}
 - (void)_isim_didSolve {}
@@ -1288,7 +1290,7 @@ static IMP base_drawRect;
     [self _isim_drawContent];
     [_layer _isim_renderLayerContents];      /* drawInContext: overrides (AVPlayerLayer) and sublayers */
     if (!base_drawRect) base_drawRect = class_getMethodImplementation([UIView class], @selector(drawRect:));
-    if (class_getMethodImplementation(object_getClass(self), @selector(drawRect:)) != base_drawRect) {
+    if (class_getMethodImplementation(object_getClass(self), @selector(drawRect:)) != base_drawRect && ![self _isim_skipsDrawRect]) {
         isim_gfx_save(); CGContextSaveGState(isim_cg_current_context());
         [self drawRect:self.bounds];
         CGContextRestoreGState(isim_cg_current_context()); isim_gfx_restore();

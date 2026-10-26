@@ -2,3 +2,4 @@
 // CATransform3D, CACurrentMediaTime) is implemented in isim's UIKit; this module re-exports it so that
 // `import QuartzCore` works. Self-authored.
 @_exported import UIKit
+@_exported import Metal   // CAMetalLayer and CAMetalDisplayLink (the Metal overlay: Metal/CAMetalLayer.swift)

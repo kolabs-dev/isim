@@ -9,6 +9,8 @@
 #define ISIM_MTL_MAX_SAMPLERS 16
 #define ISIM_MTL_MAX_TGMEM 31
 #define ISIM_MTL_MAX_LEVELS 16
+#define ISIM_MTL_MAX_ATTRIBUTES 31
+#define ISIM_MTL_MAX_COLORS 8
 
 /* a texture's storage, as kernels see it: mip level i of slice s starts at levels[i] + s * level_bpi[i] */
 typedef struct __isim_mtl_texture {
@@ -27,6 +29,7 @@ typedef struct __isim_mtl_sampler {
     uint8_t s_address, t_address, r_address;      /* MTLSamplerAddressMode */
     uint8_t normalized, border;                   /* border: MTLSamplerBorderColor */
     float lod_min, lod_max;
+    uint8_t compare;                              /* MTLCompareFunction + 1 (sample_compare), 0 none */
 } __isim_mtl_sampler;
 
 /* what a dispatch binds: the encoder's state when it was recorded */
@@ -78,6 +81,49 @@ typedef struct __isim_mtl_stitch {
     float result[4];
 } __isim_mtl_stitch;
 
+/* render pipelines (issue #329): one vertex of a draw, as a vertex function's entry point sees it */
+typedef struct __isim_mtl_vertex_in {
+    const __isim_mtl_args *args;                  /* the encoder's vertex buffers, textures and samplers */
+    uint32_t vertex_id, instance_id, base_vertex, base_instance;
+    const uint8_t *attr[ISIM_MTL_MAX_ATTRIBUTES]; /* [[stage_in]]: this vertex's data of attribute n (the vertex descriptor) */
+    uint32_t attr_format[ISIM_MTL_MAX_ATTRIBUTES];   /* MTLVertexFormat, 0 when the attribute is not set */
+} __isim_mtl_vertex_in;
+/* one fragment: the inputs, then what the fragment function wrote */
+typedef struct __isim_mtl_fragment_in {
+    const __isim_mtl_args *args;                  /* the encoder's fragment buffers, textures and samplers */
+    const void *varyings;                         /* [[stage_in]]: the interpolated outputs, in the fragment function's layout */
+    float position[4];                            /* [[position]]: window x, y (pixel centers), depth, 1 / w */
+    float point_coord[2];                         /* [[point_coord]] of a point primitive */
+    uint32_t front_facing, primitive_id;
+    float color_in[ISIM_MTL_MAX_COLORS][4];       /* [[color(n)]] arguments: the attachment's current color */
+    float color[ISIM_MTL_MAX_COLORS][4];          /* outputs: the colors of the attachments the function writes */
+    float depth;                                  /* [[depth(...)]] output (when depth_written) */
+    uint32_t depth_written;
+} __isim_mtl_fragment_in;
+/* a member of a vertex function's output or a fragment function's [[stage_in]] struct: the vertex outputs reach the
+ * fragment inputs by key ([[user(name)]], else the member's name) */
+typedef struct __isim_mtl_member {
+    const char *key;
+    uint32_t offset, size;
+    uint32_t flags;                               /* ISIM_MTL_MEMBER_* */
+} __isim_mtl_member;
+enum { ISIM_MTL_MEMBER_POSITION = 1, ISIM_MTL_MEMBER_FLAT = 2, ISIM_MTL_MEMBER_POINT_SIZE = 4 };
+
+/* a vertex or fragment function's entry points and stage struct */
+typedef struct __isim_mtl_render {
+    /* vertex functions: one vertex -> its clip-space position, point size and outputs (stage_size bytes) */
+    void (*vertex)(const __isim_mtl_vertex_in *, float clip[4], float *point_size, void *out);
+    /* vertex functions: the outputs at weights w of three vertices (perspective-corrected; flat members from a) */
+    void (*interpolate)(const void *a, const void *b, const void *c, const float w[3], void *out);
+    /* fragment functions: one fragment; 0 when it was discarded (discard_fragment) */
+    int (*fragment)(__isim_mtl_fragment_in *);
+    uint32_t stage_size;                          /* vertex: the output struct; fragment: the [[stage_in]] struct (0: none) */
+    const __isim_mtl_member *members;             /* that struct's members */
+    uint32_t stage_members;
+    uint32_t color_outputs;                       /* fragment: a bit per [[color(n)]] it writes */
+    uint32_t writes_depth;                        /* fragment: returns a [[depth(...)]] (the depth test follows it) */
+} __isim_mtl_render;
+
 /* a library's functions (the __isim_mtl_functions table), ended by a NULL name */
 typedef struct __isim_mtl_function {
     const char *name;
@@ -87,4 +133,5 @@ typedef struct __isim_mtl_function {
     uint32_t max_threads;                         /* [[max_total_threads_per_threadgroup(n)]], 0 if none */
     const char *constants;                        /* its library's function constants: "index:type:name;..." */
     void (*stitch)(__isim_mtl_stitch *);          /* [[stitchable]] functions: one pixel of a SwiftUI shader effect */
+    const struct __isim_mtl_render *render;       /* vertex and fragment functions */
 } __isim_mtl_function;

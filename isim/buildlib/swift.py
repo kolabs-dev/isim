@@ -860,7 +860,7 @@ GameKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftN
 AppTrackingTransparency -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit
 AudioToolbox -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation -lisim_host
 CoreVideo -lswiftObjectiveC -lswiftFoundation -lswiftCoreGraphics -framework Foundation -framework CoreGraphics
-Metal -lswiftObjectiveC -lswiftFoundation -framework Foundation -framework Metal   # issue #328: Apple's Swift forms (arrays, ranges)
+Metal -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftCoreGraphics -lswiftDispatch -framework Foundation -framework Metal -framework UIKit -framework CoreGraphics   # issue #328: Apple's Swift forms (arrays, ranges); #329: CAMetalLayer, CAMetalDisplayLink
 CoreImage -lswiftObjectiveC -lswiftFoundation -lswiftCoreVideo -lswiftCoreGraphics -framework Foundation -framework CoreGraphics -framework CoreImage   # CVPixelBuffer APIs
 CoreMedia -lswiftObjectiveC -lswiftFoundation -lswiftCoreVideo -lswiftAudioToolbox -lswiftCoreGraphics -framework Foundation -framework CoreGraphics
 VideoToolbox -lswiftObjectiveC -lswiftFoundation -lswiftAudioToolbox -lswiftCoreMedia -lswiftCoreVideo -lswiftCoreGraphics -framework Foundation -framework CoreGraphics -lisim_host
@@ -898,7 +898,8 @@ StoreKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswift
 StoreKitTest -lswiftObjectiveC -lswiftFoundation -lswiftStoreKit -lswiftUIKit -lswift_Concurrency -framework Foundation   # SKTestSession over the local store
 PassKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftContacts -lswiftCryptoKit -lswiftCompression -lswiftCoreImage -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreImage -lcompression   # Apple Pay (simulated sheet, test token) and Wallet passes
 CoreLocation -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
-QuartzCore -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit
+QuartzCore -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftMetal -framework Foundation -framework UIKit   # re-exports Metal (CAMetalLayer, #329)
+MetalKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftMetal -lswiftQuartzCore -lswiftCoreGraphics -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit -framework Metal -framework CoreGraphics   # MTKView, MTKTextureLoader (#329)
 AVFAudio -lswiftObjectiveC -lswiftFoundation -lswiftAVFoundation -framework Foundation   # import AVFAudio: re-exports AVFoundation
 AudioUnit -lswiftObjectiveC -lswiftFoundation -lswiftAudioToolbox -framework Foundation   # re-exports AudioToolbox
 CoreAudio -lswiftObjectiveC -lswiftFoundation -lswiftAudioToolbox -framework Foundation   # re-exports AudioToolbox
@@ -952,7 +953,7 @@ GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Se
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices
 QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision NaturalLanguage FoundationModels Speech VisionKit WebKit SafariServices LinkPresentation Accessibility MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit TipKit Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit
-CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit""".split())
+CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer".split())
 # modules that also compile overlays/_AdAttribution (the conversion values SKAdNetwork and AdAttributionKit share)
