@@ -1,9 +1,11 @@
 // isim QuickLook Swift overlay (issue #237): SwiftUI's quickLookPreview modifiers, which present a QLPreviewController
 // over a URL or a collection of URLs and clear the binding when it is dismissed (Apple declares them in the QuickLook
-// module, available with SwiftUI).
+// module, available with SwiftUI), and the Swift forms of Quick Look Preview extension replies (UTType, PDFDocument).
 @_exported import QuickLook
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
+import PDFKit
 
 @MainActor final class _QLPreviewPresenter: NSObject, @preconcurrency QLPreviewControllerDataSource, @preconcurrency QLPreviewControllerDelegate {
     var urls: [URL] = []
@@ -71,4 +73,39 @@ extension View {
         let index = selection.wrappedValue.flatMap { urls.firstIndex(of: $0) }
         return modifier(_QuickLookPreviewModifier(urls: urls, index: index, clear: { selection.wrappedValue = nil }))
     }
+}
+
+// MARK: - Quick Look Preview extensions (issue #333): the Swift forms of QLPreviewReply and QLPreviewReplyAttachment
+
+@available(iOS 15.0, *)
+extension QLPreviewReply {
+    /// a reply drawn into a context of `contextSize` (isim draws both kinds into a bitmap)
+    public convenience init(contextSize: CGSize, isBitmap: Bool, drawUsing drawingBlock: @escaping (CGContext, QLPreviewReply) throws -> Void) {
+        self.init(__contextSize: contextSize, isBitmap: isBitmap) { context, reply, errorOut in
+            do { try drawingBlock(context, reply); return true } catch { errorOut?.pointee = error as NSError; return false }
+        }
+    }
+    /// a reply with data of a content type (HTML may reference `attachments` as "cid:KEY")
+    public convenience init(dataOfContentType contentType: UTType, contentSize: CGSize, createDataUsing dataCreationBlock: @escaping (QLPreviewReply) throws -> Data) {
+        self.init(__isimContentTypeIdentifier: contentType.identifier, contentSize: contentSize) { reply, errorOut in
+            do { return try dataCreationBlock(reply) } catch { errorOut?.pointee = error as NSError; return nil }
+        }
+    }
+    /// a reply with a PDF document
+    public convenience init(forPDFWithPageSize defaultPageSize: CGSize, createDocumentUsing documentCreationBlock: @escaping (QLPreviewReply) throws -> PDFDocument) {
+        self.init(__forPDFWithPageSize: defaultPageSize) { reply, errorOut in
+            do { return try documentCreationBlock(reply) } catch { errorOut?.pointee = error as NSError; return nil }
+        }
+    }
+    /// the text encoding of a text reply's data
+    public var stringEncoding: String.Encoding {
+        get { String.Encoding(rawValue: __stringEncoding) }
+        set { __stringEncoding = newValue.rawValue }
+    }
+}
+
+@available(iOS 15.0, *)
+extension QLPreviewReplyAttachment {
+    public convenience init(data: Data, contentType: UTType) { self.init(data: data, _isimContentTypeIdentifier: contentType.identifier) }
+    public var contentType: UTType { UTType(_isimContentTypeIdentifier) ?? .data }
 }

@@ -369,6 +369,15 @@ def _(a):
     a.icon(f"{b}/AppIcon60x60@3x.png", "#5ac8fa", "#0a84ff", "S")
 
 
+@app("samples/HelloQuickLookExtensions")
+def _(a):
+    b = a.swift_app(srcs=["HelloQuickLookExtensions.swift"], link=["-framework", "QuickLook"])
+    a.appex(b, "RecipePreview", ["RecipePreview/PreviewViewController.swift"], "RecipePreview/Info.plist", link=["-framework", "QuickLook"])
+    a.appex(b, "PreviewProvider", ["PreviewProvider/PreviewProvider.swift"], "PreviewProvider/Info.plist",
+            link=["-framework", "QuickLook", "-framework", "PDFKit"])
+    a.icon(f"{b}/AppIcon60x60@3x.png", "#ff9f0a", "#ff6b00", "Q")
+
+
 @app("samples/HelloWidgets")
 def _(a):
     b = a.swift_app(srcs=["HelloWidgetsApp.swift", "Shared.swift"], link=["-framework", "Intents"])
@@ -956,6 +965,11 @@ def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "ARKit", "-framework", "SceneKit",
                 "-framework", "SpriteKit"],
                name="ARSceneObjCTest")
+
+@app("tests/quicklook-objc", products=["QuickLookObjCTest.app"])   # after the overlays: UTType is the UniformTypeIdentifiers overlay's (issue #333)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "QuickLook",
+                "-framework", "UniformTypeIdentifiers", "-framework", "CoreGraphics"], name="QuickLookObjCTest")
 
 @app("tests/storekittest-objc", products=["StoreKitTestObjCTest.app"])   # after the overlays: StoreKitTest re-exports its own (issue #564)
 def _(a):
