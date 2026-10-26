@@ -177,6 +177,15 @@ static void test_frame_rates_and_anchors(void) {
     CHECK(CGRectEqualToRect(box.frame, CGRectMake(0, 50, 100, 50)));
 }
 
+/* a display link's target that only the link holds (issue #648): the link retains it until -invalidate, as on iOS */
+static int proxy_ticks, proxy_released;
+@interface QCLinkProxy : NSObject
+@end
+@implementation QCLinkProxy
+- (void)tick:(CADisplayLink *)link { if (++proxy_ticks == 3) [link invalidate]; }
+- (void)dealloc { proxy_released = 1; }
+@end
+
 /* the tiled layer's delegate draws one colour per tile, into the rectangle it is clipped to */
 @interface TileDrawer : NSObject <CALayerDelegate>
 @property (nonatomic) int tiles;
@@ -270,6 +279,10 @@ static void test_frame_rates_and_anchors(void) {
     CHECK(self.slowLink.preferredFrameRateRange.preferred == 30);
     [self.slowLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
 
+    {   /* nothing but the link holds this target: it keeps firing until invalidated, then is released */
+        CADisplayLink *l = [CADisplayLink displayLinkWithTarget:[QCLinkProxy new] selector:@selector(tick:)];
+        [l addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+    }
     self.link = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
     CHECK(self.link != nil && !self.link.paused);
     [self.link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
@@ -295,6 +308,8 @@ static void test_frame_rates_and_anchors(void) {
     CHECK(self.ring.strokeEnd == 1.0);
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         CHECK(self.ticks == 30);                                   // invalidated: no more callbacks
+        printf("qc target-only link ticks %d released %d\n", proxy_ticks, proxy_released);
+        CHECK(proxy_ticks == 3 && proxy_released);                 // retained until -invalidate, then released (#648)
         printf("qc summary %d/%d\n", checks - failures, checks);
         printf("qc reported\n");
         fflush(stdout);

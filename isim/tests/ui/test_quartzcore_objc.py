@@ -33,5 +33,7 @@ def test_quartzcore_objc(launch):
     assert not near(rgb(img, w / 2 + 130, 600), (255, 0, 153), 60), "not drawn about the center"
     m = re.search(r"^qc display links fast (\d+) slow (\d+)$", app.log, re.M)
     assert m and 10 <= int(m[2]) <= 20, m and m[0]
+    # a link whose target only the link holds: retained (iOS), it fires until invalidated, then the target is freed (#648)
+    assert re.search(r"^qc target-only link ticks 3 released 1$", app.log, re.M), app.log[-2000:]
     m = re.search(r"^qc slow link interval ([\d.]+)$", app.log, re.M)
     assert m and abs(float(m[1]) - 1 / 30) < 0.002, m and m[0]

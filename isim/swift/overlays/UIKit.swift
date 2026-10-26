@@ -982,14 +982,11 @@ private final class _IsimDisplayLinkAction: NSObject {
     init(_ action: @escaping @Sendable (CADisplayLink) -> Void) { self.action = action }
     @objc func fire(_ link: CADisplayLink) { action(link) }
 }
-private var _isimDisplayLinkActionKey: UInt8 = 0
 @available(iOS 27.0, *)
 extension UIWindowScene {
     public func displayLink(action: @escaping @Sendable (CADisplayLink) -> Void) -> CADisplayLink? {
         let target = _IsimDisplayLinkAction(action)
-        guard let link = displayLink(target: target, selector: #selector(_IsimDisplayLinkAction.fire(_:))) else { return nil }
-        objc_setAssociatedObject(link, &_isimDisplayLinkActionKey, target, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)   // the link keeps its target
-        return link
+        return displayLink(target: target, selector: #selector(_IsimDisplayLinkAction.fire(_:)))   // (the link retains it)
     }
 }
 

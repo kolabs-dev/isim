@@ -185,7 +185,7 @@ final class _CAMetalDrawable: NSObject, CAMetalDrawable, @unchecked Sendable {
 
     @objc(initWithMetalLayer:) public init(metalLayer: CAMetalLayer) {
         _layer = metalLayer
-        _link = CADisplayLink(target: _ticker, selector: #selector(_Ticker.tick(_:)))
+        _link = CADisplayLink(_isimWeakTarget: _ticker, selector: #selector(_Ticker.tick(_:)))
         super.init()
         _ticker.owner = self
     }

@@ -1170,7 +1170,7 @@ final class _CaptureTicker: NSObject {
             layers.removeAll { $0.layer == nil || $0.layer === l }
             layers.append(Weak(l))
             if link == nil {
-                let k = CADisplayLink(target: self, selector: #selector(tick))
+                let k = CADisplayLink(_isimWeakTarget: self, selector: #selector(tick))
                 k.add(to: RunLoop.main, forMode: .common)
                 link = k
             }

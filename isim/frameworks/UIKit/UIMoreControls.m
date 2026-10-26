@@ -490,8 +490,14 @@ static double link_rate(CADisplayLink *l) {
     if (range.minimum > 0 && r < range.minimum) r = fmin(range.minimum, screen);
     return r;
 }
-@implementation CADisplayLink { __weak id _target; SEL _sel; BOOL _added; double _last; }
+/* the link retains its target until -invalidate, as on iOS ("The newly constructed display link retains the target", #648).
+   isim's own frameworks use _isim_displayLinkWithWeakTarget:selector:, whose link holds its target weakly and invalidates
+   itself once the target is gone, so their ticks stop with their owner */
+@implementation CADisplayLink { id _target; __weak id _weakTarget; BOOL _weak; SEL _sel; BOOL _added; double _last; }
 + (CADisplayLink *)displayLinkWithTarget:(id)target selector:(SEL)sel { CADisplayLink *l = [self new]; l->_target = target; l->_sel = sel; return l; }
++ (CADisplayLink *)_isim_displayLinkWithWeakTarget:(id)target selector:(SEL)sel {
+    CADisplayLink *l = [self new]; l->_weakTarget = target; l->_weak = YES; l->_sel = sel; return l;
+}
 - (instancetype)init { if ((self = [super init])) _preferredFrameRateRange = CAFrameRateRangeDefault; return self; }
 - (void)addToRunLoop:(NSRunLoop *)rl forMode:(NSString *)mode {
     if (_added) return;
@@ -501,11 +507,11 @@ static double link_rate(CADisplayLink *l) {
     isim_ui_set_needs_display();
 }
 - (void)removeFromRunLoop:(NSRunLoop *)rl forMode:(NSString *)mode { [self invalidate]; }
-- (void)invalidate { _added = NO; [display_links removeObjectIdenticalTo:self]; }
+- (void)invalidate { _added = NO; [display_links removeObjectIdenticalTo:self]; _target = nil; _weakTarget = nil; }
 - (double)duration { return 1.0 / UIScreen.mainScreen.maximumFramesPerSecond; }       /* the display's refresh interval */
 - (double)targetTimestamp { return _timestamp + 1.0 / link_rate(self); }               /* the next frame this link fires on */
 - (void)_isim_fire:(double)now {
-    id t = _target;
+    id t = _weak ? _weakTarget : _target;
     if (!t) { [self invalidate]; return; }
     /* below the screen's rate a link skips frames; a quarter frame of slack keeps 30 Hz on every other 60 Hz frame */
     double interval = 1.0 / link_rate(self), frame = 1.0 / UIScreen.mainScreen.maximumFramesPerSecond;
@@ -550,7 +556,7 @@ BOOL isim_ui_display_links_active(void) { for (CADisplayLink *l in display_links
 - (void)startAnimating {
     if (_animating) return;
     _animating = YES; self.hidden = NO;
-    _link = [CADisplayLink displayLinkWithTarget:self selector:@selector(_isim_tick:)];
+    _link = [CADisplayLink _isim_displayLinkWithWeakTarget:self selector:@selector(_isim_tick:)];
     [_link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
 }
 - (void)stopAnimating { _animating = NO; [_link invalidate]; _link = nil; if (_hidesWhenStopped) self.hidden = YES; isim_ui_set_needs_display(); }

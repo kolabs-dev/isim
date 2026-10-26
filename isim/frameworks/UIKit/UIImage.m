@@ -533,7 +533,7 @@ static NSDictionary<NSString *, NSArray<UIColor *> *> *multicolor_table(void) {
     _animStart = isim_time();
     if (!_animating) {
         _animating = YES;
-        _animLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(_isim_animTick:)];
+        _animLink = [CADisplayLink _isim_displayLinkWithWeakTarget:self selector:@selector(_isim_animTick:)];
         [_animLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
     }
     isim_ui_set_needs_display();
