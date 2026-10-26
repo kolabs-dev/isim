@@ -1,24 +1,24 @@
 // isim build's message for iOS frameworks isim does not have (issue #211). Without conditions this builds: the
-// imports are behind #if, as `#if canImport` code would be. USE_REALITYKIT imports RealityKit (not in isim yet), USE_GLKIT
+// imports are behind #if, as `#if canImport` code would be. USE_MODELIO imports ModelIO (not in isim yet), USE_GLKIT
 // GLKit (deprecated in iOS 12: out of isim's scope).
 import UIKit
-#if USE_REALITYKIT
-import RealityKit
+#if USE_MODELIO
+import ModelIO
 #endif
 #if USE_GLKIT
 import GLKit
 #endif
-#if canImport(RealityKit)
-let hasRealityKit = true
+#if canImport(ModelIO)
+let hasModelIO = true
 #else
-let hasRealityKit = false
+let hasModelIO = false
 #endif
 
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        print("absent: canImport(RealityKit) \(hasRealityKit) objc \(AbsentObjC())")
+        print("absent: canImport(ModelIO) \(hasModelIO) objc \(AbsentObjC())")
         window = UIWindow(frame: UIScreen.main.bounds)
         window?.rootViewController = UIViewController()
         window?.makeKeyAndVisible()

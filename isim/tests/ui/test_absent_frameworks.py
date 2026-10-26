@@ -32,17 +32,17 @@ def test_builds_without_the_framework(launch, src):
     assert re.search(r"warning: CarPlay is an iOS framework isim does not implement yet.*" + re.escape(f"{COVERAGE}#system")
                      + r".*\(not linked\)", log), f"linking CarPlay.framework warns with its coverage: {log[-2000:]}"
     app = launch(src / "build" / "AbsentFramework.app")
-    app.wait_log(r"absent: canImport\(RealityKit\) false objc ok")
+    app.wait_log(r"absent: canImport\(ModelIO\) false objc ok")
     assert app.quit() == 0
 
 
 def test_swift_import(src):
-    rc, log = build(src, "SWIFT_ACTIVE_COMPILATION_CONDITIONS=USE_REALITYKIT")
+    rc, log = build(src, "SWIFT_ACTIVE_COMPILATION_CONDITIONS=USE_MODELIO")
     assert rc != 0
-    assert "no such module 'RealityKit'" in log, log[-2000:]
-    assert re.search(r"isim build: error: RealityKit is an iOS framework isim does not implement yet, so code that uses it does "
+    assert "no such module 'ModelIO'" in log, log[-2000:]
+    assert re.search(r"isim build: error: ModelIO is an iOS framework isim does not implement yet, so code that uses it does "
                      r"not build on isim\. Its coverage: " + re.escape(f"{COVERAGE}#games"), log), log[-2000:]
-    assert "#if canImport(RealityKit)" in log
+    assert "#if canImport(ModelIO)" in log
 
 
 def test_out_of_scope_import(src):

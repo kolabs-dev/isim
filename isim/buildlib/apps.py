@@ -256,6 +256,13 @@ def _(a):
     a.copy("crystal.mtl", b)
 
 
+@app("samples/HelloRealityKit", extra_inputs=["samples/HelloRealityKit/crystal.obj", "samples/HelloRealityKit/crystal.mtl"])   # issue #331: RealityKit
+def _(a):
+    b = a.swift_app()
+    a.copy("crystal.obj", b)
+    a.copy("crystal.mtl", b)
+
+
 @app("samples/HelloShaders", extra_inputs=["samples/HelloShaders/Shaders.metal"])   # issue #327: SwiftUI shaders
 def _(a):
     b = a.swift_app()

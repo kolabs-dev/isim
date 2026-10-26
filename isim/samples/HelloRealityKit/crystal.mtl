@@ -1,0 +1,13 @@
+# HelloRealityKit's crystal materials
+newmtl Amethyst
+Kd 0.6 0.3 0.85
+Ks 1 1 1
+Ns 40
+illum 2
+
+newmtl Quartz
+Kd 0.9 0.9 0.95
+Ks 1 1 1
+Ns 40
+d 0.85
+illum 2
