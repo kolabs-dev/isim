@@ -1,6 +1,9 @@
 #pragma once
-/* isim SceneKit: SCNScene (scene files do not load yet: the 3D renderer is #330). */
+/* isim SceneKit: SCNScene (issue #330): a root node, a background, fog and a physics world. Scene files: Wavefront
+ * .obj (with .mtl) and the .scn archives isim writes. */
 #import <SceneKit/SCNNode.h>
+#import <SceneKit/SCNMaterial.h>
+#import <SceneKit/SCNPhysics.h>
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
 @interface SCNScene : NSObject <NSSecureCoding>
@@ -13,6 +16,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) CGFloat fogStartDistance;
 @property (nonatomic) CGFloat fogEndDistance;
 @property (nonatomic) CGFloat fogDensityExponent;
+@property (nonatomic, retain) id fogColor;
+@property (nonatomic, readonly) SCNMaterialProperty *background;
+@property (nonatomic, readonly) SCNMaterialProperty *lightingEnvironment;
+@property (nonatomic, readonly) SCNPhysicsWorld *physicsWorld;
 - (nullable id)attributeForKey:(NSString *)key;
 - (void)setAttribute:(nullable id)attribute forKey:(NSString *)key;
 @end

@@ -116,7 +116,7 @@
 | `EditButton`, `PasteButton`, `RenameButton` | ✅ | ≤17 | `EditButton` toggles `\.editMode` (tested, HelloLists); `PasteButton` is UIKit's paste control: enabled while the pasteboard has an accepted type, a tap pastes without the "Allow Paste" prompt and delivers `Transferable` payloads or item providers (tested, HelloSwiftUIControls); `RenameButton` runs `.renameAction { }` or focuses `.renameAction($focus)` (tested) |
 | `VideoPlayer` (AVKit) | ✅ | ≤17 | with `videoOverlay`: see AVKit (tested there) |
 | `Map` (MapKit) | ✅ | ≤17 | iOS 17 MapContent + iOS 14 `coordinateRegion` API on isim's MKMapView, with map controls: see the MapKit rows; tested (HelloMaps) |
-| `SceneView` (SceneKit) | ❌ | ≤17 | needs SceneKit, a 3D renderer isim does not have (see the SceneKit row); not part of SwiftUI itself |
+| `SceneView` (SceneKit) | ✅ | ≤17 | in the SceneKit overlay (an `SCNView` in the hierarchy), as on iOS where it comes with SceneKit: see [SceneKit](SceneKit.md) (issue #330). Tested (HelloSceneKit) |
 | `SpriteView` | ✅ | ≤17 | see SpriteKit |
 
 ### Containers & layout

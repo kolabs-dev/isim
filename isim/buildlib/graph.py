@@ -230,7 +230,7 @@ SWIFT_FRAMEWORKS = [
     ("CoreHaptics", "-framework Foundation"),   # issue #548: CoreHaptics and GameController from Objective-C
     ("GameController", "-framework Foundation -framework UIKit -framework CoreHaptics"),
     ("GameKit", "-framework Foundation -framework UIKit"),   # issue #559: GameKit from Objective-C
-    ("SceneKit", "-framework Foundation -framework UIKit"),   # issue #560: SceneKit and ARKit from Objective-C
+    ("SceneKit", "-framework Foundation -framework UIKit -framework Metal"),   # issue #560: SceneKit and ARKit from Objective-C
     ("ARKit", "-framework Foundation -framework UIKit -framework SceneKit"),
     ("StoreKitTest", "-framework Foundation -framework StoreKit"),   # issue #564: SKTestSession from Objective-C
     ("PassKit", "-framework Foundation -framework UIKit -framework Contacts"),   # issue #566: Apple Pay and Wallet from Objective-C
@@ -344,6 +344,13 @@ def tools(c):
     # the iOS frameworks and their coverage areas: isim build names the ones isim lacks (isim-build.py: ios_frameworks)
     outs += c.n.build(f"{OUT}/bin/frameworks.json", c.act("copy", "data/frameworks.json", f"{OUT}/bin/frameworks.json"),
                       inputs=["data/frameworks.json"], desc="INSTALL frameworks.json")
+    # SceneKit's shaders (issue #330), compiled for Metal on the CPU; the SceneKit overlay loads them from $ISIM_ROOT
+    scn = f"{SDK}/usr/lib/isim/scenekit/SceneKit.metallib.dylib"
+    outs += c.n.build(scn, ["env", f"ISIM_SDK={SDK}", "python3", "tools/mslc.py", "-o", scn, "frameworks/SceneKit/SceneKit.metal"],
+                      inputs=["frameworks/SceneKit/SceneKit.metal"],
+                      implicit=[f"{OUT}/bin/isim", "tbds", "tools/mslc.py", "sdk-src/metal/include/__isim_metal.h",
+                                "sdk-src/usr/include/isim_metal_abi.h"],
+                      order_only=c.header_stamps, desc="MSLC SceneKit")
     # xctest: the runner for test bundles (isim test)
     xc = f"{SDK}/usr/bin/xctest"
     outs += c.n.build(xc, [*c.act("reldeps", f"{xc}.d", "--"), f"{OUT}/bin/isim", "cc", "-O1", "-g", "-MD", "-MF", f"{xc}.d",

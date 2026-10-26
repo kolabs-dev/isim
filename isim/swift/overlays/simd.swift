@@ -216,5 +216,60 @@ public func simd_transpose(_ m: simd_float4x4) -> simd_float4x4 { m.transpose }
     }
 }
 public func simd_quaternion(_ angle: Float, _ axis: SIMD3<Float>) -> simd_quatf { simd_quatf(angle: angle, axis: axis) }
+extension simd_quatf {
+    /// the shortest rotation that turns one unit vector into another
+    public init(from: SIMD3<Float>, to: SIMD3<Float>) {
+        let a = simd_normalize(from), b = simd_normalize(to)
+        let d = simd_dot(a, b)
+        if d < -0.999999 {
+            // opposite: half a turn about any perpendicular axis
+            var axis = simd_cross(SIMD3<Float>(1, 0, 0), a)
+            if simd_length(axis) < 1e-6 { axis = simd_cross(SIMD3<Float>(0, 1, 0), a) }
+            self.init(angle: .pi, axis: axis)
+            return
+        }
+        let c = simd_cross(a, b)
+        self.init(vector: simd_normalize(SIMD4(c.x, c.y, c.z, 1 + d)))
+    }
+    /// the rotation of a 4x4 matrix's upper 3x3
+    public init(_ m: simd_float4x4) {
+        self.init(simd_float3x3(SIMD3(m.columns.0.x, m.columns.0.y, m.columns.0.z), SIMD3(m.columns.1.x, m.columns.1.y, m.columns.1.z),
+                                SIMD3(m.columns.2.x, m.columns.2.y, m.columns.2.z)))
+    }
+    public static func + (a: simd_quatf, b: simd_quatf) -> simd_quatf { simd_quatf(vector: a.vector + b.vector) }
+    public static func - (a: simd_quatf, b: simd_quatf) -> simd_quatf { simd_quatf(vector: a.vector - b.vector) }
+    public static prefix func - (a: simd_quatf) -> simd_quatf { simd_quatf(vector: -a.vector) }
+    public static func * (a: simd_quatf, s: Float) -> simd_quatf { simd_quatf(vector: a.vector * s) }
+    public static func * (s: Float, a: simd_quatf) -> simd_quatf { simd_quatf(vector: a.vector * s) }
+    public static func / (a: simd_quatf, s: Float) -> simd_quatf { simd_quatf(vector: a.vector / s) }
+    public static func / (a: simd_quatf, b: simd_quatf) -> simd_quatf { a * b.inverse }
+}
+public func simd_length(_ q: simd_quatf) -> Float { simd_length(q.vector) }
+public func simd_normalize(_ q: simd_quatf) -> simd_quatf { q.normalized }
+public func simd_dot(_ a: simd_quatf, _ b: simd_quatf) -> Float { simd_dot(a.vector, b.vector) }
+public func simd_conjugate(_ q: simd_quatf) -> simd_quatf { q.conjugate }
+public func simd_inverse(_ q: simd_quatf) -> simd_quatf { q.inverse }
+public func simd_mul(_ a: simd_quatf, _ b: simd_quatf) -> simd_quatf { a * b }
+public func simd_angle(_ q: simd_quatf) -> Float { q.angle }
+public func simd_axis(_ q: simd_quatf) -> SIMD3<Float> { q.axis }
+public func simd_imag(_ q: simd_quatf) -> SIMD3<Float> { q.imag }
+public func simd_real(_ q: simd_quatf) -> Float { q.real }
+public func simd_quaternion(_ m: simd_float3x3) -> simd_quatf { simd_quatf(m) }
+public func simd_quaternion(_ m: simd_float4x4) -> simd_quatf { simd_quatf(m) }
+public func simd_quaternion(_ from: SIMD3<Float>, _ to: SIMD3<Float>) -> simd_quatf { simd_quatf(from: from, to: to) }
+public func simd_matrix4x4(_ q: simd_quatf) -> simd_float4x4 { simd_float4x4(q) }
+/// spherical interpolation between two rotations; `simd_slerp` takes the shorter arc, `simd_slerp_longest` the longer
+public func simd_slerp(_ q0: simd_quatf, _ q1: simd_quatf, _ t: Float) -> simd_quatf {
+    _simd_slerp(q0, simd_dot(q0, q1) < 0 ? -q1 : q1, t)
+}
+public func simd_slerp_longest(_ q0: simd_quatf, _ q1: simd_quatf, _ t: Float) -> simd_quatf {
+    _simd_slerp(q0, simd_dot(q0, q1) >= 0 ? -q1 : q1, t)
+}
+func _simd_slerp(_ a: simd_quatf, _ b: simd_quatf, _ t: Float) -> simd_quatf {
+    let d = max(-1, min(1, simd_dot(a.vector, b.vector)))
+    if d > 0.9995 { return simd_quatf(vector: simd_normalize(a.vector + (b.vector - a.vector) * t)) }
+    let th = acosf(d), s = sinf(th)
+    return simd_quatf(vector: a.vector * (sinf((1 - t) * th) / s) + b.vector * (sinf(t * th) / s))
+}
 public func simd_matrix3x3(_ q: simd_quatf) -> simd_float3x3 { simd_float3x3(q) }
 public func simd_act(_ q: simd_quatf, _ v: SIMD3<Float>) -> SIMD3<Float> { q.act(v) }

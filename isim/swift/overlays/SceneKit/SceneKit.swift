@@ -1,7 +1,7 @@
-// isim SceneKit: the scene graph (SCNNode, SCNScene), SceneKit's vector and matrix types and SCNView with its render
-// loop, enough for apps (and ARKit's ARSCNView) to build and run. Self-authored, iOS API names. Stub: nothing is drawn
-// (the view shows its background colour) and scene files do not load; the 3D renderer is #330. Adapted: the render
-// loop runs at the view's frame rate and calls the renderer delegate as SceneKit does.
+// isim SceneKit: the scene graph (SCNNode, SCNScene) and SceneKit's vector and matrix types. Self-authored, iOS API
+// names. The renderer (Renderer.swift) draws scenes with isim's Metal, on the CPU (issue #330); SCNView (View.swift)
+// shows them. Geometry, materials, lights and cameras: Geometry.swift, Material.swift, LightCamera.swift; actions,
+// animations and constraints: Actions.swift; physics: Physics.swift; scene files: SceneLoading.swift.
 import UIKit
 import simd
 
@@ -151,59 +151,182 @@ enum _SCN {
 
 // MARK: - nodes and scenes
 
-/// A node of the scene graph: a transform (position, orientation, scale) and children.
-@objc(SCNNode) open class SCNNode: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
+public enum SCNMovabilityHint: Int, Sendable { case fixed = 0, movable = 1 }
+public enum SCNNodeFocusBehavior: Int, Sendable { case none = 0, occluding = 1, focusable = 2 }
+
+/// A node of the scene graph: a transform (position, orientation, scale), children, and what it shows (geometry,
+/// light, camera).
+@objc(SCNNode) open class SCNNode: NSObject, NSCopying, NSSecureCoding, SCNBoundingVolume, @unchecked Sendable {
     @objc public override init() { super.init() }
+    @objc public convenience init(geometry: SCNGeometry?) { self.init(); self.geometry = geometry }
     @objc open var name: String?
     @objc open internal(set) weak var parent: SCNNode?
-    @objc open private(set) var childNodes: [SCNNode] = []
-    @objc open var isHidden = false
-    @objc open var opacity: CGFloat = 1
-    @objc open var renderingOrder = 0
+    @objc open private(set) var childNodes: [SCNNode] = [] { didSet { _SCNDirty.bump() } }
+    @objc open var isHidden = false { didSet { _SCNDirty.bump() } }
+    @objc open var opacity: CGFloat = 1 { didSet { _SCNDirty.bump() } }
+    @objc open var renderingOrder = 0 { didSet { _SCNDirty.bump() } }
     @objc open var castsShadow = true
-    @objc open var categoryBitMask = 1
-    var _t = SIMD3<Float>(repeating: 0), _q = simd_quatf(), _s = SIMD3<Float>(repeating: 1)
+    @objc open var categoryBitMask = 1 { didSet { _SCNDirty.bump() } }
+    @objc open var geometry: SCNGeometry? { didSet { _SCNDirty.bump() } }
+    @objc open var light: SCNLight? { didSet { _SCNDirty.bump() } }
+    @objc open var camera: SCNCamera? { didSet { _SCNDirty.bump() } }
+    @objc open var physicsBody: SCNPhysicsBody? {
+        didSet { oldValue?._node = nil; physicsBody?._node = self; physicsBody?._reset() }
+    }
+    @objc open var constraints: [SCNConstraint]? { didSet { _SCNDirty.bump() } }
+    @objc open var isPaused = false
+    open var movabilityHint: SCNMovabilityHint = .fixed
+    open var focusBehavior: SCNNodeFocusBehavior = .none
+    var _t = SIMD3<Float>(repeating: 0) { didSet { _SCNDirty.bump() } }
+    var _q = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1) { didSet { _SCNDirty.bump() } }
+    var _s = SIMD3<Float>(repeating: 1) { didSet { _SCNDirty.bump() } }
+    var _pivot: simd_float4x4? { didSet { _SCNDirty.bump() } }
+    /// the world transform the renderer last drew, with constraints applied (the presentation)
+    var _presented: simd_float4x4?
+    // actions and animations (Actions.swift)
+    var _actions: [_SCNRunningAction] = []
+    var _animations: [(key: String, player: SCNAnimationPlayer)] = []
 
     // transform
     open var simdPosition: SIMD3<Float> { get { _t } set { _t = newValue } }
     open var simdOrientation: simd_quatf { get { _q } set { _q = newValue } }
     open var simdScale: SIMD3<Float> { get { _s } set { _s = newValue } }
     open var simdEulerAngles: SIMD3<Float> { get { _SCN.euler(_q) } set { _q = _SCN.quat(euler: newValue) } }
+    open var simdRotation: SIMD4<Float> {
+        get { let a = _q.angle == 0 ? SIMD3<Float>(0, 1, 0) : _q.axis; return SIMD4(a, _q.angle) }
+        set { _q = simd_quatf(angle: newValue.w, axis: simd_length(SIMD3(newValue.x, newValue.y, newValue.z)) > 0 ? SIMD3(newValue.x, newValue.y, newValue.z) : SIMD3(0, 1, 0)) }
+    }
     open var simdTransform: simd_float4x4 {
         get { _SCN.compose(_t, _q, _s) }
         set { (_t, _q, _s) = _SCN.decompose(newValue) }
     }
+    open var simdPivot: simd_float4x4 { get { _pivot ?? matrix_identity_float4x4 } set { _pivot = newValue == matrix_identity_float4x4 ? nil : newValue } }
+    open var pivot: SCNMatrix4 { get { SCNMatrix4(simdPivot) } set { simdPivot = simd_float4x4(newValue) } }
+    /// the transform with the pivot: what the node's content and children are placed by
+    var _local: simd_float4x4 { _pivot.map { simdTransform * _SCN.inverse($0) } ?? simdTransform }
     open var simdWorldTransform: simd_float4x4 {
-        get { (parent?.simdWorldTransform ?? matrix_identity_float4x4) * simdTransform }
-        set { simdTransform = parent.map { _SCN.inverse($0.simdWorldTransform) * newValue } ?? newValue }
+        get { (parent?.simdWorldTransform ?? matrix_identity_float4x4) * _local }
+        set {
+            let local = parent.map { _SCN.inverse($0.simdWorldTransform) * newValue } ?? newValue
+            simdTransform = _pivot.map { local * $0 } ?? local
+        }
     }
     open var simdWorldPosition: SIMD3<Float> {
         get { let c = simdWorldTransform.columns.3; return SIMD3(c.x, c.y, c.z) }
-        set { var w = simdWorldTransform; w.columns.3 = SIMD4(newValue, 1); simdWorldTransform = w }
+        set {
+            let p = parent.map { _SCN.inverse($0.simdWorldTransform) * SIMD4(newValue, 1) } ?? SIMD4(newValue, 1)
+            _t = SIMD3(p.x, p.y, p.z)
+        }
+    }
+    open var simdWorldOrientation: simd_quatf {
+        get { _SCN.decompose(simdWorldTransform).1 }
+        set { _q = (parent.map { _SCN.decompose($0.simdWorldTransform).1.inverse } ?? simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)) * newValue }
     }
     open var position: SCNVector3 { get { SCNVector3(_t) } set { _t = SIMD3(newValue) } }
     open var scale: SCNVector3 { get { SCNVector3(_s) } set { _s = SIMD3(newValue) } }
     open var eulerAngles: SCNVector3 { get { SCNVector3(simdEulerAngles) } set { simdEulerAngles = SIMD3(newValue) } }
     open var orientation: SCNQuaternion { get { SCNVector4(_q.vector) } set { _q = simd_quatf(vector: SIMD4(newValue)) } }
     /// axis (x, y, z) and angle (w)
-    open var rotation: SCNVector4 {
-        get { let a = _q.axis; return SCNVector4(a.x, a.y, a.z, _q.angle) }
-        set { _q = simd_quatf(angle: newValue.w, axis: SIMD3(newValue.x, newValue.y, newValue.z)) }
-    }
+    open var rotation: SCNVector4 { get { SCNVector4(simdRotation) } set { simdRotation = SIMD4(newValue) } }
     open var transform: SCNMatrix4 { get { SCNMatrix4(simdTransform) } set { simdTransform = simd_float4x4(newValue) } }
     open var worldTransform: SCNMatrix4 { SCNMatrix4(simdWorldTransform) }
     open var worldPosition: SCNVector3 { get { SCNVector3(simdWorldPosition) } set { simdWorldPosition = SIMD3(newValue) } }
+    open var worldOrientation: SCNQuaternion { get { SCNVector4(simdWorldOrientation.vector) } set { simdWorldOrientation = simd_quatf(vector: SIMD4(newValue)) } }
     open func setWorldTransform(_ worldTransform: SCNMatrix4) { simdWorldTransform = simd_float4x4(worldTransform) }
-    @objc open var presentation: SCNNode { self }
-    open func convertPosition(_ position: SCNVector3, to node: SCNNode?) -> SCNVector3 {
-        let w = simdWorldTransform * SIMD4(SIMD3(position), 1)
-        let l = node.map { _SCN.inverse($0.simdWorldTransform) * w } ?? w
-        return SCNVector3(l.x, l.y, l.z)
+
+    // directions
+    public static var simdLocalUp: SIMD3<Float> { SIMD3(0, 1, 0) }
+    public static var simdLocalRight: SIMD3<Float> { SIMD3(1, 0, 0) }
+    public static var simdLocalFront: SIMD3<Float> { SIMD3(0, 0, -1) }
+    public static var localUp: SCNVector3 { SCNVector3(simdLocalUp) }
+    public static var localRight: SCNVector3 { SCNVector3(simdLocalRight) }
+    public static var localFront: SCNVector3 { SCNVector3(simdLocalFront) }
+    open var simdWorldUp: SIMD3<Float> { simd_normalize(simdConvertVector(SCNNode.simdLocalUp, to: nil)) }
+    open var simdWorldRight: SIMD3<Float> { simd_normalize(simdConvertVector(SCNNode.simdLocalRight, to: nil)) }
+    open var simdWorldFront: SIMD3<Float> { simd_normalize(simdConvertVector(SCNNode.simdLocalFront, to: nil)) }
+    open var worldUp: SCNVector3 { SCNVector3(simdWorldUp) }
+    open var worldRight: SCNVector3 { SCNVector3(simdWorldRight) }
+    open var worldFront: SCNVector3 { SCNVector3(simdWorldFront) }
+
+    /// turns the node so that its front (-z) faces a world position
+    open func simdLook(at worldTarget: SIMD3<Float>) { simdLook(at: worldTarget, up: SIMD3(0, 1, 0), localFront: SCNNode.simdLocalFront) }
+    open func simdLook(at worldTarget: SIMD3<Float>, up worldUp: SIMD3<Float>, localFront: SIMD3<Float>) {
+        let from = simdWorldPosition
+        guard simd_length(worldTarget - from) > 1e-6 else { return }
+        let q = _SCN.look(from: from, to: worldTarget, up: worldUp)
+        // the rotation that takes localFront to -z, then -z to the target
+        let fix = simd_quatf(from: simd_normalize(localFront), to: SIMD3(0, 0, -1))
+        simdWorldOrientation = q * fix
     }
-    open func convertPosition(_ position: SCNVector3, from node: SCNNode?) -> SCNVector3 {
-        let w = (node?.simdWorldTransform ?? matrix_identity_float4x4) * SIMD4(SIMD3(position), 1)
+    open func look(at worldTarget: SCNVector3) { simdLook(at: SIMD3(worldTarget)) }
+    open func look(at worldTarget: SCNVector3, up worldUp: SCNVector3, localFront: SCNVector3) {
+        simdLook(at: SIMD3(worldTarget), up: SIMD3(worldUp), localFront: SIMD3(localFront))
+    }
+    open func simdLocalTranslate(by translation: SIMD3<Float>) { _t += _q.act(translation) }
+    open func localTranslate(by translation: SCNVector3) { simdLocalTranslate(by: SIMD3(translation)) }
+    open func simdLocalRotate(by rotation: simd_quatf) { _q = _q * rotation }
+    open func localRotate(by rotation: SCNQuaternion) { simdLocalRotate(by: simd_quatf(vector: SIMD4(rotation))) }
+    open func simdRotate(by worldRotation: simd_quatf, aroundTarget worldTarget: SIMD3<Float>) {
+        let p = simdWorldPosition
+        simdWorldOrientation = worldRotation * simdWorldOrientation
+        simdWorldPosition = worldTarget + worldRotation.act(p - worldTarget)
+    }
+    open func rotate(by worldRotation: SCNQuaternion, aroundTarget worldTarget: SCNVector3) {
+        simdRotate(by: simd_quatf(vector: SIMD4(worldRotation)), aroundTarget: SIMD3(worldTarget))
+    }
+
+    /// the node as it is drawn (with constraints applied); isim keeps one copy, so this is the node itself
+    @objc open var presentation: SCNNode { self }
+
+    // conversions
+    open func simdConvertPosition(_ position: SIMD3<Float>, to node: SCNNode?) -> SIMD3<Float> {
+        let w = simdWorldTransform * SIMD4(position, 1)
+        let l = node.map { _SCN.inverse($0.simdWorldTransform) * w } ?? w
+        return SIMD3(l.x, l.y, l.z)
+    }
+    open func simdConvertPosition(_ position: SIMD3<Float>, from node: SCNNode?) -> SIMD3<Float> {
+        let w = (node?.simdWorldTransform ?? matrix_identity_float4x4) * SIMD4(position, 1)
         let l = _SCN.inverse(simdWorldTransform) * w
-        return SCNVector3(l.x, l.y, l.z)
+        return SIMD3(l.x, l.y, l.z)
+    }
+    open func simdConvertVector(_ vector: SIMD3<Float>, to node: SCNNode?) -> SIMD3<Float> {
+        let w = simdWorldTransform * SIMD4(vector, 0)
+        let l = node.map { _SCN.inverse($0.simdWorldTransform) * w } ?? w
+        return SIMD3(l.x, l.y, l.z)
+    }
+    open func simdConvertVector(_ vector: SIMD3<Float>, from node: SCNNode?) -> SIMD3<Float> {
+        let w = (node?.simdWorldTransform ?? matrix_identity_float4x4) * SIMD4(vector, 0)
+        let l = _SCN.inverse(simdWorldTransform) * w
+        return SIMD3(l.x, l.y, l.z)
+    }
+    open func simdConvertTransform(_ transform: simd_float4x4, to node: SCNNode?) -> simd_float4x4 {
+        let w = simdWorldTransform * transform
+        return node.map { _SCN.inverse($0.simdWorldTransform) * w } ?? w
+    }
+    open func simdConvertTransform(_ transform: simd_float4x4, from node: SCNNode?) -> simd_float4x4 {
+        _SCN.inverse(simdWorldTransform) * (node?.simdWorldTransform ?? matrix_identity_float4x4) * transform
+    }
+    open func convertPosition(_ position: SCNVector3, to node: SCNNode?) -> SCNVector3 { SCNVector3(simdConvertPosition(SIMD3(position), to: node)) }
+    open func convertPosition(_ position: SCNVector3, from node: SCNNode?) -> SCNVector3 { SCNVector3(simdConvertPosition(SIMD3(position), from: node)) }
+    open func convertVector(_ vector: SCNVector3, to node: SCNNode?) -> SCNVector3 { SCNVector3(simdConvertVector(SIMD3(vector), to: node)) }
+    open func convertVector(_ vector: SCNVector3, from node: SCNNode?) -> SCNVector3 { SCNVector3(simdConvertVector(SIMD3(vector), from: node)) }
+    open func convertTransform(_ transform: SCNMatrix4, to node: SCNNode?) -> SCNMatrix4 { SCNMatrix4(simdConvertTransform(simd_float4x4(transform), to: node)) }
+    open func convertTransform(_ transform: SCNMatrix4, from node: SCNNode?) -> SCNMatrix4 { SCNMatrix4(simdConvertTransform(simd_float4x4(transform), from: node)) }
+
+    // bounds: the geometry's and the children's, in the node's space
+    var _box: (min: SCNVector3, max: SCNVector3)?
+    open var boundingBox: (min: SCNVector3, max: SCNVector3) {
+        get {
+            if let _box { return _box }
+            guard let b = _SCN.bounds(of: self, in: matrix_identity_float4x4) else { return (SCNVector3Zero, SCNVector3Zero) }
+            return (SCNVector3(b.0), SCNVector3(b.1))
+        }
+        set { _box = newValue }
+    }
+    open var boundingSphere: (center: SCNVector3, radius: Float) {
+        let b = boundingBox
+        let lo = SIMD3(b.min), hi = SIMD3(b.max)
+        return (SCNVector3((lo + hi) / 2), simd_length(hi - lo) / 2)
     }
 
     // hierarchy
@@ -249,6 +372,14 @@ enum _SCN {
         if !stop.boolValue { enumerateChildNodes(block) }
     }
 
+    /// geometry hit by the segment between two points (in the node's space)
+    open func hitTestWithSegment(from pointA: SCNVector3, to pointB: SCNVector3, options: [String: Any]? = nil) -> [SCNHitTestResult] {
+        let w = simdWorldTransform
+        let a = w * SIMD4(SIMD3(pointA), 1), b = w * SIMD4(SIMD3(pointB), 1)
+        return _SCNHitTest.segment(root: self, from: SIMD3(a.x, a.y, a.z), to: SIMD3(b.x, b.y, b.z), options: options ?? [:], segment: true)
+    }
+
+    /// a copy sharing geometry, lights and cameras, with copies of the children
     @objc open func clone() -> Self {
         let n = copy() as! SCNNode
         for c in childNodes { n.addChildNode(c.clone()) }
@@ -257,8 +388,11 @@ enum _SCN {
     @objc open func flattenedClone() -> Self { clone() }
     @objc open func copy(with zone: NSZone? = nil) -> Any {
         let n = (Swift.type(of: self) as NSObject.Type).init() as! SCNNode
-        n.name = name; n._t = _t; n._q = _q; n._s = _s; n.isHidden = isHidden; n.opacity = opacity
+        n.name = name; n._t = _t; n._q = _q; n._s = _s; n._pivot = _pivot; n.isHidden = isHidden; n.opacity = opacity
         n.renderingOrder = renderingOrder; n.castsShadow = castsShadow; n.categoryBitMask = categoryBitMask
+        n.geometry = geometry; n.light = light; n.camera = camera; n.constraints = constraints
+        n.physicsBody = physicsBody?.copy() as? SCNPhysicsBody; n.movabilityHint = movabilityHint
+        for (key, player) in _animations { n._animations.append((key, SCNAnimationPlayer(animation: player.animation))) }
         return n
     }
     @objc public static var supportsSecureCoding: Bool { true }
@@ -267,6 +401,7 @@ enum _SCN {
         coder.encode([_t.x, _t.y, _t.z, _q.vector.x, _q.vector.y, _q.vector.z, _q.vector.w, _s.x, _s.y, _s.z].map(NSNumber.init(value:)), forKey: "trs")
         coder.encode(childNodes, forKey: "children")
         coder.encode(isHidden, forKey: "hidden")
+        coder.encode(geometry, forKey: "geometry"); coder.encode(light, forKey: "light"); coder.encode(camera, forKey: "camera")
     }
     @objc public required init?(coder: NSCoder) {
         super.init()
@@ -276,130 +411,115 @@ enum _SCN {
         }
         for c in coder.decodeObject(of: [NSArray.self, SCNNode.self], forKey: "children") as? [SCNNode] ?? [] { addChildNode(c) }
         isHidden = coder.decodeBool(forKey: "hidden")
+        geometry = coder.decodeObject(of: [SCNGeometry.self, SCNBox.self, SCNSphere.self, SCNPlane.self, SCNPyramid.self, SCNCylinder.self,
+                                           SCNCone.self, SCNTorus.self, SCNTube.self, SCNCapsule.self, SCNFloor.self, SCNMaterial.self,
+                                           SCNMaterialProperty.self, SCNGeometrySource.self, SCNGeometryElement.self, NSArray.self], forKey: "geometry") as? SCNGeometry
+        light = coder.decodeObject(of: SCNLight.self, forKey: "light")
+        camera = coder.decodeObject(of: SCNCamera.self, forKey: "camera")
     }
 }
 
-/// A scene: a root node. Scene files do not load yet (#330).
+extension _SCN {
+    /// the rotation that turns -z toward `to` from `from`, with y toward `up`
+    static func look(from: SIMD3<Float>, to: SIMD3<Float>, up: SIMD3<Float>) -> simd_quatf {
+        let f = simd_normalize(to - from)
+        var r = simd_cross(f, up)
+        if simd_length(r) < 1e-5 { r = simd_cross(f, abs(f.y) < 0.9 ? SIMD3(0, 1, 0) : SIMD3(1, 0, 0)) }
+        r = simd_normalize(r)
+        let u = simd_cross(r, f)
+        return simd_quatf(simd_float3x3(columns: (r, u, -f)))
+    }
+    /// the box around a node's geometry and its children's, in a space `m` maps the node into
+    static func bounds(of node: SCNNode, in m: simd_float4x4) -> (SIMD3<Float>, SIMD3<Float>)? {
+        var lo = SIMD3<Float>(repeating: .infinity), hi = SIMD3<Float>(repeating: -.infinity), any = false
+        if let g = node.geometry {
+            let b = g.boundingBox
+            let a = SIMD3(b.min), c = SIMD3(b.max)
+            if a != c || g._renderMesh.count > 0 {
+                for i in 0..<8 {
+                    let p = SIMD3(i & 1 == 0 ? a.x : c.x, i & 2 == 0 ? a.y : c.y, i & 4 == 0 ? a.z : c.z)
+                    let q = m * SIMD4(p, 1)
+                    lo = simd_min(lo, SIMD3(q.x, q.y, q.z)); hi = simd_max(hi, SIMD3(q.x, q.y, q.z)); any = true
+                }
+            }
+        }
+        for c in node.childNodes where !c.isHidden {
+            if let b = bounds(of: c, in: m * c._local) { lo = simd_min(lo, b.0); hi = simd_max(hi, b.1); any = true }
+        }
+        return any ? (lo, hi) : nil
+    }
+}
+
+/// A scene: a root node, a background, fog and a physics world.
 @objc(SCNScene) open class SCNScene: NSObject, NSSecureCoding, @unchecked Sendable {
-    @objc public override init() { super.init() }
+    public struct Attribute: RawRepresentable, Hashable, Sendable {
+        public let rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public static let startTime = Attribute(rawValue: "kSceneStartTimeAttributeKey")
+        public static let endTime = Attribute(rawValue: "kSceneEndTimeAttributeKey")
+        public static let frameRate = Attribute(rawValue: "kSceneFrameRateAttributeKey")
+        public static let upAxis = Attribute(rawValue: "kSceneUpAxisAttributeKey")
+    }
+    @objc public override init() { super.init(); _physics._scene = self }
     @objc open private(set) var rootNode = SCNNode()
     @objc open var isPaused = false
-    @objc open var fogStartDistance: CGFloat = 0
-    @objc open var fogEndDistance: CGFloat = 0
-    @objc open var fogDensityExponent: CGFloat = 1
+    /// a colour or an image behind the scene
+    @objc open private(set) var background = SCNMaterialProperty(nil)
+    /// kept, not used for lighting
+    @objc open private(set) var lightingEnvironment = SCNMaterialProperty(nil)
+    @objc open var fogStartDistance: CGFloat = 0 { didSet { _SCNDirty.bump() } }
+    @objc open var fogEndDistance: CGFloat = 0 { didSet { _SCNDirty.bump() } }
+    @objc open var fogDensityExponent: CGFloat = 1 { didSet { _SCNDirty.bump() } }
+    @objc open var fogColor: Any = UIColor.white { didSet { _SCNDirty.bump() } }
+    @objc open var wantsScreenSpaceReflection = false
+    @objc open var screenSpaceReflectionSampleCount = 64
+    @objc open var screenSpaceReflectionMaximumDistance: CGFloat = 1000
+    @objc open var screenSpaceReflectionStride: CGFloat = 8
+    var _physics = SCNPhysicsWorld()
+    @objc open var physicsWorld: SCNPhysicsWorld { _physics }
     @objc var _attributes: [String: Any] = [:]
-    /// nil: isim cannot read .scn / .dae / .usdz files yet
-    @objc public convenience init?(named name: String) { return nil }
-    @objc public convenience init?(named name: String, inDirectory directory: String?, options: [String: Any]? = nil) { return nil }
-    @objc public convenience init(url: URL, options: [String: Any]? = nil) throws {
-        throw NSError(domain: NSCocoaErrorDomain, code: NSFileReadUnknownError,
-                      userInfo: [NSLocalizedDescriptionKey: "isim's SceneKit cannot read scene files yet", NSURLErrorKey: url])
+
+    /// a scene file in the main bundle: Wavefront .obj (with its .mtl), or a scene isim archived (.scn written by
+    /// write(to:)); nil for other formats (SceneLoading.swift)
+    @objc public convenience init?(named name: String) { self.init(named: name, inDirectory: nil, options: nil) }
+    @objc public convenience init?(named name: String, inDirectory directory: String?, options: [String: Any]? = nil) {
+        guard let url = _SCNSceneFile.find(name, directory: directory), let s = try? _SCNSceneFile.load(url) else { return nil }
+        self.init(root: s)
     }
-    @objc open func attribute(forKey key: String) -> Any? { _attributes[key] }
-    @objc open func setAttribute(_ attribute: Any?, forKey key: String) { _attributes[key] = attribute }
+    public convenience init(url: URL, options: [SCNSceneSource.LoadingOption: Any]? = nil) throws {
+        self.init(root: try _SCNSceneFile.load(url))
+    }
+    @objc public convenience init(mdlAsset: AnyObject) { self.init() }
+    convenience init(root: SCNNode) {
+        self.init()
+        rootNode = root
+    }
+    open func attribute(forKey key: String) -> Any? { _attributes[key] }
+    open func setAttribute(_ attribute: Any?, forKey key: String) { _attributes[key] = attribute }
+    /// writes the scene as isim's archive (a keyed archive of the scene graph); other formats fail
+    open func write(to url: URL, options: [String: Any]? = nil, delegate: (any SCNSceneExportDelegate)?,
+                    progressHandler: SCNSceneExportProgressHandler? = nil) -> Bool {
+        guard url.pathExtension.lowercased() == "scn",
+              let data = try? NSKeyedArchiver.archivedData(withRootObject: self, requiringSecureCoding: true) else {
+            var stop = ObjCBool(false); progressHandler?(1, NSError(domain: NSCocoaErrorDomain, code: NSFileWriteUnknownError), &stop)
+            return false
+        }
+        do { try data.write(to: url) } catch { return false }
+        var stop = ObjCBool(false); progressHandler?(1, nil, &stop)
+        return true
+    }
     @objc public static var supportsSecureCoding: Bool { true }
-    @objc open func encode(with coder: NSCoder) { coder.encode(rootNode, forKey: "root") }
+    @objc open func encode(with coder: NSCoder) {
+        coder.encode(rootNode, forKey: "root")
+        if let c = background.contents as? UIColor { coder.encode(c, forKey: "background") }
+    }
     @objc public required init?(coder: NSCoder) {
         super.init()
+        _physics._scene = self
         if let r = coder.decodeObject(of: SCNNode.self, forKey: "root") { rootNode = r }
+        if let c = coder.decodeObject(of: UIColor.self, forKey: "background") { background.contents = c }
     }
 }
 
-// MARK: - renderers and views
-
-public protocol SCNSceneRendererDelegate: AnyObject {
-    func renderer(_ renderer: any SCNSceneRenderer, updateAtTime time: TimeInterval)
-    func renderer(_ renderer: any SCNSceneRenderer, didApplyAnimationsAtTime time: TimeInterval)
-    func renderer(_ renderer: any SCNSceneRenderer, didSimulatePhysicsAtTime time: TimeInterval)
-    func renderer(_ renderer: any SCNSceneRenderer, didApplyConstraintsAtTime time: TimeInterval)
-    func renderer(_ renderer: any SCNSceneRenderer, willRenderScene scene: SCNScene, atTime time: TimeInterval)
-    func renderer(_ renderer: any SCNSceneRenderer, didRenderScene scene: SCNScene, atTime time: TimeInterval)
-}
-extension SCNSceneRendererDelegate {
-    public func renderer(_ renderer: any SCNSceneRenderer, updateAtTime time: TimeInterval) {}
-    public func renderer(_ renderer: any SCNSceneRenderer, didApplyAnimationsAtTime time: TimeInterval) {}
-    public func renderer(_ renderer: any SCNSceneRenderer, didSimulatePhysicsAtTime time: TimeInterval) {}
-    public func renderer(_ renderer: any SCNSceneRenderer, didApplyConstraintsAtTime time: TimeInterval) {}
-    public func renderer(_ renderer: any SCNSceneRenderer, willRenderScene scene: SCNScene, atTime time: TimeInterval) {}
-    public func renderer(_ renderer: any SCNSceneRenderer, didRenderScene scene: SCNScene, atTime time: TimeInterval) {}
-}
-
-public enum SCNAntialiasingMode: UInt, Sendable { case none = 0, multisampling2X = 1, multisampling4X = 2 }
-
-public protocol SCNSceneRenderer: AnyObject {
-    var scene: SCNScene! { get set }
-    var sceneTime: TimeInterval { get set }
-    var delegate: (any SCNSceneRendererDelegate)? { get set }
-    var isPlaying: Bool { get set }
-    var loops: Bool { get set }
-    var pointOfView: SCNNode? { get set }
-    var autoenablesDefaultLighting: Bool { get set }
-    var isJitteringEnabled: Bool { get set }
-    var showsStatistics: Bool { get set }
-    func isNode(_ node: SCNNode, insideFrustumOf pointOfView: SCNNode) -> Bool
-    func nodesInsideFrustum(of pointOfView: SCNNode) -> [SCNNode]
-    func projectPoint(_ point: SCNVector3) -> SCNVector3
-    func unprojectPoint(_ point: SCNVector3) -> SCNVector3
-}
-
-/// A view that shows a scene. Stub: it draws its background colour only (no 3D renderer yet, #330); the render loop
-/// still runs at `preferredFramesPerSecond` while playing (or `rendersContinuously`) and calls the delegate.
-@MainActor @objc(SCNView) open class SCNView: UIView, @preconcurrency SCNSceneRenderer {
-    @objc public override init(frame: CGRect) { super.init(frame: frame) }
-    @objc public init(frame: CGRect, options: [String: Any]? = nil) { super.init(frame: frame) }
-    @objc public required init?(coder: NSCoder) { super.init(coder: coder) }
-    /// SCNScene! (iOS: optional on SCNView, non-optional on ARSCNView; Swift cannot narrow an inherited property)
-    @objc open var scene: SCNScene! { didSet { _restart() } }
-    @objc open var sceneTime: TimeInterval = 0
-    open weak var delegate: (any SCNSceneRendererDelegate)?
-    @objc open var isPlaying = false { didSet { _restart() } }
-    @objc open var loops = true
-    @objc open var pointOfView: SCNNode?
-    @objc open var autoenablesDefaultLighting = false
-    @objc open var isJitteringEnabled = false
-    @objc open var showsStatistics = false
-    @objc open var allowsCameraControl = false
-    @objc open var rendersContinuously = false { didSet { _restart() } }
-    @objc open var preferredFramesPerSecond = 60 { didSet { _restart() } }
-    open var antialiasingMode: SCNAntialiasingMode = .multisampling4X
-    @objc open func play(_ sender: Any?) { isPlaying = true }
-    @objc open func pause(_ sender: Any?) { isPlaying = false }
-    @objc open func stop(_ sender: Any?) { isPlaying = false; sceneTime = 0 }
-    @objc open func snapshot() -> UIImage {
-        UIGraphicsImageRenderer(bounds: bounds).image { _ in drawHierarchy(in: bounds, afterScreenUpdates: false) }
-    }
-    @objc open func isNode(_ node: SCNNode, insideFrustumOf pointOfView: SCNNode) -> Bool { false }
-    @objc open func nodesInsideFrustum(of pointOfView: SCNNode) -> [SCNNode] { [] }
-    /// no camera projection without a renderer: points pass through
-    open func projectPoint(_ point: SCNVector3) -> SCNVector3 { point }
-    open func unprojectPoint(_ point: SCNVector3) -> SCNVector3 { point }
-
-    @objc var _timer: Timer?
-    var _start: TimeInterval?
-    @objc open override func didMoveToWindow() { super.didMoveToWindow(); _restart() }
-    @objc func _restart() {
-        _timer?.invalidate(); _timer = nil
-        guard window != nil, scene != nil, isPlaying || rendersContinuously else { return }
-        let fps = max(1, preferredFramesPerSecond)
-        _timer = Timer.scheduledTimer(withTimeInterval: 1.0 / Double(fps), repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?._frame() }
-        }
-    }
-    /// one turn of SceneKit's render loop, without the drawing
-    @objc func _frame() {
-        guard let scene, !scene.isPaused else { return }
-        let now = ProcessInfo.processInfo.systemUptime
-        if _start == nil { _start = now - sceneTime }
-        if isPlaying { sceneTime = now - (_start ?? now) }
-        let d = delegate
-        d?.renderer(self, updateAtTime: now)
-        d?.renderer(self, didApplyAnimationsAtTime: now)
-        d?.renderer(self, didSimulatePhysicsAtTime: now)
-        d?.renderer(self, didApplyConstraintsAtTime: now)
-        d?.renderer(self, willRenderScene: scene, atTime: now)
-        _renderFrame(now)
-        d?.renderer(self, didRenderScene: scene, atTime: now)
-    }
-    /// subclasses' per-frame work (ARSCNView updates its anchors' nodes)
-    @objc func _renderFrame(_ time: TimeInterval) {}
-}
+public protocol SCNSceneExportDelegate: NSObjectProtocol {}
+public typealias SCNSceneExportProgressHandler = (Float, (any Error)?, UnsafeMutablePointer<ObjCBool>) -> Void

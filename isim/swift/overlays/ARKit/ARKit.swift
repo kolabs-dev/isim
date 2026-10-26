@@ -2,7 +2,7 @@
 // configuration's isSupported is false, a session that runs one fails with ARError.unsupportedConfiguration (its
 // delegate's and its views' session(_:didFailWithError:)), and no frames arrive. Self-authored, iOS API names. Stub
 // for tracking; the value types (anchors, cameras, raycast queries, reference images, world maps) hold their data.
-// ARSCNView is SceneKit's SCNView (which draws nothing yet, #330); ARSKView is SpriteKit's SKView.
+// ARSCNView is SceneKit's SCNView (its scene drawn over black: there is no camera feed); ARSKView is SpriteKit's SKView.
 import UIKit
 import SpriteKit
 import SceneKit
@@ -693,7 +693,7 @@ extension ARSCNViewDelegate {
 }
 
 /// SceneKit content over the camera feed. On isim there is no camera feed (the session fails, as in the
-/// Simulator), and SceneKit draws nothing yet (#330): the view shows black. Its delegate gets the session's events.
+/// Simulator): the view draws its scene over black. Its delegate gets the session's events.
 /// Adapted: `delegate` keeps SCNView's type (any SCNSceneRendererDelegate), since Swift cannot narrow it.
 @MainActor @objc(ARSCNView) open class ARSCNView: SCNView, _ARSessionViewing {
     @objc public override init(frame: CGRect) { super.init(frame: frame); _setUp() }

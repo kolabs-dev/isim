@@ -1,6 +1,8 @@
 #pragma once
-/* isim SceneKit: the renderer protocol (SCNView adopts it) and the renderer delegate. */
+/* isim SceneKit: the renderer protocol (SCNView and SCNRenderer adopt it) and the renderer delegate. */
 #import <SceneKit/SCNScene.h>
+#import <SceneKit/SCNHitTest.h>
+#import <Metal/Metal.h>
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSUInteger, SCNAntialiasingMode) {
@@ -21,6 +23,13 @@ typedef NS_ENUM(NSUInteger, SCNAntialiasingMode) {
 - (NSArray<SCNNode *> *)nodesInsideFrustumWithPointOfView:(SCNNode *)pointOfView;
 - (SCNVector3)projectPoint:(SCNVector3)point;
 - (SCNVector3)unprojectPoint:(SCNVector3)point;
+- (NSArray<SCNHitTestResult *> *)hitTest:(CGPoint)point options:(nullable NSDictionary<SCNHitTestOption, id> *)options;
+@property (nonatomic, readonly, nullable) id<MTLDevice> device;
+@property (nonatomic, readonly, nullable) id<MTLCommandQueue> commandQueue;
+@property (nonatomic, readonly, nullable) id<MTLRenderCommandEncoder> currentRenderCommandEncoder;
+@property (nonatomic, readonly) MTLRenderPassDescriptor *currentRenderPassDescriptor;
+@property (nonatomic, readonly) CGRect currentViewport;
+@property (nonatomic) NSTimeInterval currentTime;
 @end
 @protocol SCNSceneRendererDelegate <NSObject>
 @optional
