@@ -51,7 +51,16 @@ static NSArray<NSString *> *files_under(NSString *path) {
     }
     return out;
 }
+/* a download, an eviction and the delayed "network" download change a file and several of its metadata keys: they run
+   one at a time, or an eviction could land between a download's steps and lose its keys to the download's last writes
+   (a coordinated read then saw nothing to download and read the empty placeholder: #659) */
+static NSObject *ubiquity_lock(void) {
+    static NSObject *lock; static dispatch_once_t once;
+    dispatch_once(&once, ^{ lock = [NSObject new]; });
+    return lock;
+}
 static void download_now(NSString *f) {
+  @synchronized (ubiquity_lock()) {
     NSString *stored = isim_file_meta(f, @"evictedStore");
     if (stored && [NSFileManager.defaultManager fileExistsAtPath:stored]) {
         [NSFileManager.defaultManager removeItemAtPath:f error:NULL];
@@ -60,11 +69,14 @@ static void download_now(NSString *f) {
     isim_file_meta_set(f, @"evicted", nil);
     isim_file_meta_set(f, @"evictedStore", nil);
     isim_file_meta_set(f, @"downloading", nil);
+  }
 }
 /* a coordinated read of an evicted item waits for its download (NSFileCoordinator) */
 static void ensure_downloaded(NSString *path) {
     if (!container_of(path)) return;
-    for (NSString *f in files_under(path)) if ([isim_file_meta(f, @"evicted") boolValue]) download_now(f);
+    @synchronized (ubiquity_lock()) {
+        for (NSString *f in files_under(path)) if ([isim_file_meta(f, @"evicted") boolValue]) download_now(f);
+    }
 }
 
 @implementation NSFileManager (IsimUbiquity)
@@ -80,14 +92,18 @@ static void ensure_downloaded(NSString *path) {
     if (!url.isFileURL || !container_of(url.path)) { if (error) *error = cocoa_error(4, url); return NO; }
     if (![self fileExistsAtPath:url.path]) { if (error) *error = cocoa_error(4, url); return NO; }
     NSMutableArray *pending = [NSMutableArray array];
-    for (NSString *f in files_under(url.path)) {
-        if (![isim_file_meta(f, @"evicted") boolValue]) continue;
-        isim_file_meta_set(f, @"downloading", @YES);
-        [pending addObject:f];
+    @synchronized (ubiquity_lock()) {
+        for (NSString *f in files_under(url.path)) {
+            if (![isim_file_meta(f, @"evicted") boolValue]) continue;
+            isim_file_meta_set(f, @"downloading", @YES);
+            [pending addObject:f];
+        }
     }
     if (pending.count)   /* the "download" finishes shortly after, like a fast network */
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-            for (NSString *f in pending) if ([isim_file_meta(f, @"downloading") boolValue]) download_now(f);
+            @synchronized (ubiquity_lock()) {
+                for (NSString *f in pending) if ([isim_file_meta(f, @"downloading") boolValue]) download_now(f);
+            }
         });
     return YES;
 }
@@ -95,14 +111,16 @@ static void ensure_downloaded(NSString *path) {
     if (!url.isFileURL || !container_of(url.path)) { if (error) *error = cocoa_error(4, url); return NO; }
     if (![self fileExistsAtPath:url.path]) { if (error) *error = cocoa_error(4, url); return NO; }
     [self createDirectoryAtPath:evicted_store() withIntermediateDirectories:YES attributes:nil error:NULL];
-    for (NSString *f in files_under(url.path)) {
-        if ([isim_file_meta(f, @"evicted") boolValue]) continue;
-        NSString *stored = [evicted_store() stringByAppendingPathComponent:NSUUID.UUID.UUIDString];
-        if (![self moveItemAtPath:f toPath:stored error:error]) return NO;
-        [self createFileAtPath:f contents:[NSData data] attributes:nil];
-        isim_file_meta_set(f, @"evicted", @YES);
-        isim_file_meta_set(f, @"evictedStore", stored);
-        isim_file_meta_set(f, @"downloading", nil);
+    @synchronized (ubiquity_lock()) {
+        for (NSString *f in files_under(url.path)) {
+            if ([isim_file_meta(f, @"evicted") boolValue]) continue;
+            NSString *stored = [evicted_store() stringByAppendingPathComponent:NSUUID.UUID.UUIDString];
+            if (![self moveItemAtPath:f toPath:stored error:error]) return NO;
+            [self createFileAtPath:f contents:[NSData data] attributes:nil];
+            isim_file_meta_set(f, @"evicted", @YES);
+            isim_file_meta_set(f, @"evictedStore", stored);
+            isim_file_meta_set(f, @"downloading", nil);
+        }
     }
     return YES;
 }
