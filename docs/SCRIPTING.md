@@ -284,7 +284,7 @@ Anything a click does in the window is also a command, so agents and tests reach
 | `window key escape\|return\|tab\|backspace\|delete\|left\|right\|home\|end\|selectall\|paste\|copy\|cut` | a key in the open menu, form or dialog |
 | `window bezel on\|off` | show or hide the device bezel (no restart; remembered) |
 | `window load FILE` | load an `.apns` payload into the push form's JSON tab |
-| `window state` | print what the toolbar shows: `appearance=dark locked=0 orientation=portrait location=… bezel=1 menu=none dialog=0 device=iphone15 ios=18 zoom=1` |
+| `window state` | print what the toolbar shows: `appearance=dark locked=0 orientation=portrait location=… bezel=1 menu=none dialog=0 device=iphone15 ios=18 zoom=1 layout=438x996 scale=1.000`. `layout` is the window's size in points; `scale` the scale the window shows it at, centred and never stretched: below 1 when the window was fitted to a smaller screen, above 1 when maximized (`window els` gives control centres in layout points) |
 | `restart [device=ID] [os=17\|18\|26\|27] [zoom=Z]` | restart the device with new boot options (what the restart dialog does, without asking); the device data stays |
 
 ## Push notifications

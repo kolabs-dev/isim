@@ -67,8 +67,12 @@ def xinput(tmp_path_factory):
 @pytest.fixture
 def display(xinput):
     """a virtual X display of this test's own (one window on it)"""
+    yield from xvfb("1800x1500")
+
+
+def xvfb(size):
     r, w = os.pipe()
-    p = subprocess.Popen(["Xvfb", "-displayfd", str(w), "-screen", "0", "1800x1500x24", "-nolisten", "tcp"],
+    p = subprocess.Popen(["Xvfb", "-displayfd", str(w), "-screen", "0", f"{size}x24", "-nolisten", "tcp"],
                          pass_fds=(w,), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     os.close(w)
     num = b""
@@ -101,6 +105,19 @@ class Window:
         _, _, w, h = map(int, self.x("where").split())
         return w, h
 
+    def layout(self) -> tuple[int, int, float]:
+        """the window's layout size (points) and the scale it is shown at (`window state`; below 1 when fitted to the
+        screen, above when maximized: #652)"""
+        m = re.search(r"layout=(\d+)x(\d+) scale=([\d.]+)", self.state())
+        return int(m.group(1)), int(m.group(2)), float(m.group(3))
+
+    def point(self, x: float, y: float) -> tuple[int, int]:
+        """where the window shows the layout point x, y: at one scale, centred"""
+        W, H, _ = self.layout()
+        w, h = self.size()
+        k = min(w / W, h / H)
+        return round((w - W * k) / 2 + x * k), round((h - H * k) / 2 + y * k)
+
     def ready(self):
         """wait until the window is on screen at the size of its current layout (after a boot or a restart)"""
         def shown():
@@ -108,7 +125,8 @@ class Window:
             if not more:
                 return False
             r = subprocess.run([str(self.xinput), "where"], env=self.env, capture_output=True, text=True)
-            return r.returncode == 0 and abs(int(r.stdout.split()[2]) - (more[0] + 6 + 16)) <= 1   # (rounded up)
+            k = self.layout()[2]                      # the toolbar's right end at the window's scale (rounded)
+            return r.returncode == 0 and abs(int(r.stdout.split()[2]) - (more[0] + 6 + 16) * k) <= 1.5
         self.dev.wait_until(shown, what="the window on screen with its toolbar")
 
     def controls(self) -> dict[str, tuple[int, int]]:
@@ -124,7 +142,7 @@ class Window:
         assert ident in els, f"no control {ident!r} shown; shown: {sorted(els)}"
         clicked = rf"^isim window: click {re.escape(ident)}$"
         n, counts = self.dev.count(clicked), [self.dev.count(e) for e in expect]
-        self.x("click", *els[ident], *(["shift"] if shift else []))
+        self.x("click", *self.point(*els[ident]), *(["shift"] if shift else []))
         self.dev.wait_log(clicked, count=n + 1)
         for e, n in zip(expect, counts):
             self.dev.wait_log(e, count=n + 1)
@@ -273,3 +291,43 @@ def test_restart_from_window(tmp_path, xinput, display):
         dev.wait_view(r"id=home-dock")               # the device has booted again
         win.click("rotate", r"^isim window: rotate left$")
         assert dev.quit() == 0
+
+
+@pytest.fixture
+def small_display(xinput):
+    """a 1366x768 screen (issue #652)"""
+    yield from xvfb("1366x768")
+
+
+def test_window_fits_a_small_screen(tmp_path, xinput, small_display):
+    """on a 1366x768 screen the window is never taller than the screen: the tallest phone's window (936 points) is
+    scaled down to fit, keeping its aspect ratio, and its controls still answer clicks where they are drawn (#652)"""
+    with boot(tmp_path, "iphone17promax", "26.0", small_display) as dev:
+        win = Window(dev, xinput, small_display)
+        win.ready()
+        W, H, k = win.layout()
+        w, h = win.size()
+        assert H > 768 and h <= 768 - 48, f"layout {W}x{H}, window {w}x{h}: fitted under the screen's height"
+        assert abs(w / h - W / H) < 0.01 and k < 1, f"layout {W}x{H}, window {w}x{h}, scale {k}: aspect ratio kept"
+        win.click("home", r"^isim window: home$")
+
+
+def test_window_keeps_its_aspect_ratio_when_maximized(tmp_path, xinput, display):
+    """a maximized window (here a window manager's resize to 1700x1400) shows the device at one scale, centred, with the
+    window's background around it, never stretched; clicks map to the controls where they are drawn (#652)"""
+    with boot(tmp_path, "iphone16pro", "18.0", display) as dev:
+        win = Window(dev, xinput, display)
+        win.ready()
+        W, H, k = win.layout()
+        assert abs(k - 1) < 0.01, k
+        win.x("resize", 1700, 1400)
+        dev.wait_until(lambda: win.size() == (1700, 1400) and win.layout()[2] > 1.2, what="the maximized window")
+        W, H, k = win.layout()
+        assert abs(k - min(1700 / W, 1400 / H)) < 0.01, (W, H, k)
+        side = round((1700 - W * k) / 2)                          # pillarboxed: the sides show the background
+        assert side > 100, (W, H, k)
+        left = win.x("pixel", side // 2, 700).split()
+        corner = win.x("pixel", 2, 2).split()
+        assert left == corner, f"left of the device: {left}, the window's background: {corner}"
+        win.click("home", r"^isim window: home$")
+        win.click("lock", r"^isim window: lock$")

@@ -162,10 +162,34 @@ static struct ch_geo ch_layout(void) {
     g.outer_r = cr0 > 0 ? cr0 + fmin(g.il, g.it) : (portrait_dev.width >= 700 ? 0 : fmax(14, 54 * zoom));
     return g;
 }
+/* a window bigger or smaller than its layout (maximized; or fitted to a small screen, window_size) shows the layout at one
+   scale, the largest that fits, centred: never stretched (issue #652). Window points map back to layout points the same
+   way (chrome_sdl_event). */
+struct ch_view { double k, ox, oy; };
+static struct ch_view ch_view_for(double ww, double wh, const struct ch_geo *g) {
+    struct ch_view v = { fmin(ww / g->W, wh / g->H), 0, 0 };
+    if (!(v.k > 0) || !isfinite(v.k)) v.k = 1;
+    v.ox = (ww - g->W * v.k) / 2; v.oy = (wh - g->H * v.k) / 2;
+    return v;
+}
+static struct ch_view ch_window_view(const struct ch_geo *g) {
+    int w = 0, h = 0;
+    if (win) SDL_GetWindowSize(win, &w, &h);
+    if (w <= 0 || h <= 0) return (struct ch_view){ 1, 0, 0 };
+    return ch_view_for(w, h, g);
+}
+#define CH_DECORATION 48     /* points left for the window manager's title bar and borders when fitting the window */
 static void window_size(int *w, int *h) {
     ch_init();
     struct ch_geo g = ch_layout();
     *w = (int)ceil(g.W - 1e-6); *h = (int)ceil(g.H - 1e-6);
+    /* never taller or wider than the screen's usable area (a 1366x768 screen and a 936-point window could not be
+       resized: issue #652): the same layout, scaled down to fit */
+    SDL_Rect r;
+    SDL_DisplayID d = win ? SDL_GetDisplayForWindow(win) : SDL_GetPrimaryDisplay();
+    if (!d || !SDL_GetDisplayUsableBounds(d, &r)) return;
+    double f = fmin((double)r.w / *w, (double)(r.h - CH_DECORATION) / *h);
+    if (f > 0 && f < 1) { *w = (int)floor(*w * f); *h = (int)floor(*h * f); }
 }
 static void window_resize(void) {
     if (!win) return;
@@ -1183,9 +1207,11 @@ static void ch_present(cairo_surface_t *screen) {
         ch_canvas = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, ws->w, ws->h);
     }
     struct ch_geo g = ch_layout();
+    struct ch_view v = ch_view_for(ws->w, ws->h, &g);          /* in pixels: one scale, centred */
     cairo_t *c = cairo_create(ch_canvas);
-    cairo_scale(c, ws->w / g.W, ws->h / g.H);
-    ch_paint(c, screen, ws->w / g.W);
+    cairo_translate(c, v.ox, v.oy);
+    cairo_scale(c, v.k, v.k);
+    ch_paint(c, screen, v.k);
     cairo_destroy(c);
     cairo_surface_flush(ch_canvas);
     SDL_Surface *src = SDL_CreateSurfaceFrom(ws->w, ws->h, SDL_PIXELFORMAT_ARGB8888, cairo_image_surface_get_data(ch_canvas), cairo_image_surface_get_stride(ch_canvas));
@@ -1211,8 +1237,13 @@ static int ch_window_png(const char *path) {
 }
 /* the element ids and rects of the current frame (headless: drawn offscreen first) */
 static void ch_refresh_els(void) {
+    /* at the scale the window draws at (ch_present): text measures differently at other scales (font hinting), so a
+       wrapped panel's controls would sit elsewhere than shown (a window fitted to the screen or maximized: #652) */
+    double k = 1;
+    int pw = 0, ph = 0;
+    if (win && SDL_GetWindowSizeInPixels(win, &pw, &ph) && pw > 0 && ph > 0) { struct ch_geo g = ch_layout(); k = ch_view_for(pw, ph, &g).k; }
     cairo_surface_t *s = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 8, 8);
-    cairo_t *c = cairo_create(s); ch_paint(c, surf, 1); cairo_destroy(c); cairo_surface_destroy(s);
+    cairo_t *c = cairo_create(s); cairo_scale(c, k, k); ch_paint(c, surf, k); cairo_destroy(c); cairo_surface_destroy(s);
 }
 
 /* ---- actions: every control runs a script command through the dispatcher (chrome_run) ---- */
@@ -1527,6 +1558,17 @@ static int chrome_sdl_event(SDL_Event *e, struct isim_event *ev) {
     (void)ev;
     ch_init();
     struct ch_geo g = ch_layout();
+    struct ch_view v = ch_window_view(&g);                     /* window points -> layout points, as ch_present draws */
+    switch (e->type) {
+    case SDL_EVENT_MOUSE_MOTION:
+        e->motion.x = (float)((e->motion.x - v.ox) / v.k); e->motion.y = (float)((e->motion.y - v.oy) / v.k);
+        e->motion.xrel = (float)(e->motion.xrel / v.k); e->motion.yrel = (float)(e->motion.yrel / v.k); break;
+    case SDL_EVENT_MOUSE_BUTTON_DOWN: case SDL_EVENT_MOUSE_BUTTON_UP:
+        e->button.x = (float)((e->button.x - v.ox) / v.k); e->button.y = (float)((e->button.y - v.oy) / v.k); break;
+    case SDL_EVENT_MOUSE_WHEEL:
+        e->wheel.mouse_x = (float)((e->wheel.mouse_x - v.ox) / v.k); e->wheel.mouse_y = (float)((e->wheel.mouse_y - v.oy) / v.k); break;
+    default: break;
+    }
     int modal = ch.pop || ch.dialog;
     static int dbg = -1;
     if (dbg < 0) dbg = getenv("ISIM_WINDOW_DEBUG") && *getenv("ISIM_WINDOW_DEBUG") == '1';
@@ -1616,9 +1658,11 @@ static void ch_log_state(void) {
     if (ch_location(&lat, &lon)) snprintf(loc, sizeof loc, "%.6f %.6f", lat, lon);
     static const char *pops[] = { "none", "device", "more", "location", "openurl", "push", "pushhelp" };
     char n[64]; ch_short_name(ch_cur_dev(), n, sizeof n);
-    fprintf(stderr, "isim window: state appearance=%s locked=%d orientation=%s location=%s bezel=%d menu=%s dialog=%d device=%s ios=%d zoom=%g\n",
+    struct ch_geo g = ch_layout();
+    struct ch_view v = ch_window_view(&g);       /* the window shows the layout (points) at scale, centred (#652) */
+    fprintf(stderr, "isim window: state appearance=%s locked=%d orientation=%s location=%s bezel=%d menu=%s dialog=%d device=%s ios=%d zoom=%g layout=%.0fx%.0f scale=%.3f\n",
             ch_dark() ? "dark" : "light", ch_locked(), ch_orient_name(dev.orientation ? dev.orientation : 1), loc, ch.bezel,
-            pops[ch.pop], ch.dialog, devices[ch_cur_dev()].id, ch_cur_major(), zoom);
+            pops[ch.pop], ch.dialog, devices[ch_cur_dev()].id, ch_cur_major(), zoom, g.W, g.H, v.k);
 }
 static int chrome_script_cmd(const char *cmd, const char *args) {
     char a[1024]; snprintf(a, sizeof a, "%.*s", (int)strcspn(args, ";"), args); ch_trim(a);
