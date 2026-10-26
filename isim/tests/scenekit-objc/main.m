@@ -118,6 +118,8 @@ static void say(NSString *s) { NSLog(@"SceneKitObjC: %@", s); }
 
 - (void)picking {
     SCNView *v = self.scnView;
+    [self.box removeActionForKey:@"spin"];                  // (picks the box face-on, however far a slow machine spun it)
+    self.box.eulerAngles = SCNVector3Make(0, 0, 0);
     SCNVector3 p = [v projectPoint:SCNVector3Make(0, 0, 0)];
     NSArray<SCNHitTestResult *> *hits = [v hitTest:CGPointMake(p.x, p.y) options:@{SCNHitTestBackFaceCullingKey: @YES}];
     SCNHitTestResult *h = hits.firstObject;
