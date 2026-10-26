@@ -24,6 +24,39 @@ extension MTLComputeCommandEncoder {
     }
 }
 
+// issue #329: the render encoder's array and range forms
+extension MTLRenderCommandEncoder {
+    public func setVertexBuffers(_ buffers: [MTLBuffer?], offsets: [Int], range: Range<Int>) {
+        precondition(buffers.count == range.count && offsets.count == range.count, "setVertexBuffers: counts differ from the range")
+        for (i, index) in range.enumerated() { setVertexBuffer(buffers[i], offset: offsets[i], index: index) }
+    }
+    public func setFragmentBuffers(_ buffers: [MTLBuffer?], offsets: [Int], range: Range<Int>) {
+        precondition(buffers.count == range.count && offsets.count == range.count, "setFragmentBuffers: counts differ from the range")
+        for (i, index) in range.enumerated() { setFragmentBuffer(buffers[i], offset: offsets[i], index: index) }
+    }
+    public func setVertexTextures(_ textures: [MTLTexture?], range: Range<Int>) {
+        for (i, index) in range.enumerated() where i < textures.count { setVertexTexture(textures[i], index: index) }
+    }
+    public func setFragmentTextures(_ textures: [MTLTexture?], range: Range<Int>) {
+        for (i, index) in range.enumerated() where i < textures.count { setFragmentTexture(textures[i], index: index) }
+    }
+    public func setVertexSamplerStates(_ samplers: [MTLSamplerState?], range: Range<Int>) {
+        for (i, index) in range.enumerated() where i < samplers.count { setVertexSamplerState(samplers[i], index: index) }
+    }
+    public func setFragmentSamplerStates(_ samplers: [MTLSamplerState?], range: Range<Int>) {
+        for (i, index) in range.enumerated() where i < samplers.count { setFragmentSamplerState(samplers[i], index: index) }
+    }
+    public func setViewports(_ viewports: [MTLViewport]) {
+        viewports.withUnsafeBufferPointer { p in if let b = p.baseAddress { __setViewports(b, count: p.count) } }
+    }
+    public func setScissorRects(_ rects: [MTLScissorRect]) {
+        rects.withUnsafeBufferPointer { p in if let b = p.baseAddress { __setScissorRects(b, count: p.count) } }
+    }
+    public func useResources(_ resources: [MTLResource], usage: MTLResourceUsage, stages: MTLRenderStages) {
+        for r in resources { useResource(r, usage: usage, stages: stages) }
+    }
+}
+
 extension MTLBlitCommandEncoder {
     public func fill(buffer: MTLBuffer, range: Range<Int>, value: UInt8) {
         __fill(buffer, range: NSRange(location: range.lowerBound, length: range.count), value: value)

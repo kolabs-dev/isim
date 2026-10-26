@@ -11,10 +11,8 @@ static CFTimeInterval now_s(void) { struct timespec t; clock_gettime(CLOCK_MONOT
 @interface ISIMMTLCommandQueue : NSObject <MTLCommandQueue>
 @property (nonatomic, readonly) dispatch_queue_t queue;
 @end
-@interface ISIMMTLCommandBuffer : NSObject <MTLCommandBuffer>
+@interface ISIMMTLCommandBuffer ()
 - (instancetype)initWithQueue:(ISIMMTLCommandQueue *)queue retained:(BOOL)retained;
-- (void)addCommand:(void (^)(void))command;
-- (void)encoderEnded;
 @end
 
 @implementation MTLCommandBufferDescriptor
@@ -279,8 +277,10 @@ static int texel_rw(MTLPixelFormat f, uint8_t *p, float c[4], int write) {
     NSMutableArray<MTLCommandBufferHandler> *_scheduled, *_completed;
     NSCondition *_cond;
     MTLCommandBufferStatus _status;
+    BOOL _handled;                       /* the completed handlers have run */
     CFTimeInterval _start, _end;
 }
+static __thread BOOL in_handlers;       /* this thread runs a command buffer's handlers */
 @synthesize label;
 - (instancetype)initWithQueue:(ISIMMTLCommandQueue *)queue retained:(BOOL)retained {
     if (!(self = [super init])) return nil;
@@ -322,16 +322,27 @@ static int texel_rw(MTLPixelFormat f, uint8_t *p, float c[4], int write) {
         self->_end = now_s();
         [self setStatus:MTLCommandBufferStatusCompleted];
         [self->_cond lock]; NSArray *completed = [self->_completed copy]; [self->_cond unlock];
+        in_handlers = YES;
         for (MTLCommandBufferHandler h in completed) h(self);
+        in_handlers = NO;
+        [self->_cond lock]; self->_handled = YES; [self->_cond broadcast]; [self->_cond unlock];
     });
 }
 - (void)waitUntilScheduled { [_cond lock]; while (_status < MTLCommandBufferStatusScheduled) [_cond wait]; [_cond unlock]; }
+/* returns once the completed handlers have run, as on a device (within a handler: once the commands have run) */
 - (void)waitUntilCompleted {
     if (self.status < MTLCommandBufferStatusCommitted) return;
-    [_cond lock]; while (_status < MTLCommandBufferStatusCompleted) [_cond wait]; [_cond unlock];
+    [_cond lock];
+    while (in_handlers ? _status < MTLCommandBufferStatusCompleted : !_handled) [_cond wait];
+    [_cond unlock];
 }
-- (void)presentDrawable:(id<MTLDrawable>)drawable { [self addScheduledHandler:^(id<MTLCommandBuffer> cb) { [drawable present]; }]; }
-- (void)presentDrawable:(id<MTLDrawable>)drawable atTime:(CFTimeInterval)t { [self addScheduledHandler:^(id<MTLCommandBuffer> cb) { [drawable presentAtTime:t]; }]; }
+/* presented when the commands have run (Metal presents once the GPU has rendered the drawable) */
+- (void)presentDrawable:(id<MTLDrawable>)drawable { [self addCompletedHandler:^(id<MTLCommandBuffer> cb) { [drawable present]; }]; }
+- (void)presentDrawable:(id<MTLDrawable>)drawable atTime:(CFTimeInterval)t { [self addCompletedHandler:^(id<MTLCommandBuffer> cb) { [drawable presentAtTime:t]; }]; }
+- (void)presentDrawable:(id<MTLDrawable>)drawable afterMinimumDuration:(CFTimeInterval)d {
+    [self addCompletedHandler:^(id<MTLCommandBuffer> cb) { [drawable presentAfterMinimumDuration:d]; }];
+}
+- (id<MTLRenderCommandEncoder>)renderCommandEncoderWithDescriptor:(MTLRenderPassDescriptor *)d { return isim_mtl_render_encoder(self, d); }
 - (id<MTLComputeCommandEncoder>)computeCommandEncoder { return [self computeCommandEncoderWithDispatchType:MTLDispatchTypeSerial]; }
 - (id<MTLComputeCommandEncoder>)computeCommandEncoderWithDispatchType:(MTLDispatchType)type {
     return [[ISIMMTLComputeCommandEncoder alloc] initWithCommandBuffer:self dispatchType:type];

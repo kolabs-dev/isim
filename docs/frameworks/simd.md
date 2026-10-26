@@ -14,6 +14,7 @@
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
+| `simd_float2x2`, `simd_float3x3`, `simd_float4x4`, `simd_quatf` (initializers, `columns`, multiplication, `transpose`; `simd_float3x3(_:)` and `simd_float4x4(_:)` of a quaternion) | 🟡 | ≤17 | Swift structs laid out as Apple's C structs and bitwise-copyable, so they can be passed by address (`setVertexBytes(&uniforms, …)`, issue #329). Tested (HelloMetalKit) |
 
 ## Not yet in isim
 

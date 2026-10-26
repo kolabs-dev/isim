@@ -166,7 +166,8 @@ static void run_groups(worker *w, const isim_mtl_dispatch *d) {
     for (;;) {
         uint32_t g = __atomic_fetch_add(&job_next, 1, __ATOMIC_RELAXED);
         if (g >= job_total) break;
-        run_group(w, d, g);
+        if (d->task) d->task(d->task_ctx, g, (int)(w - workers));
+        else run_group(w, d, g);
     }
     w->prepared = NULL;
 }
@@ -188,9 +189,16 @@ static void *worker_main(void *arg) {
     return NULL;
 }
 
+void isim_mtl_parallel(uint32_t n, void (*fn)(void *ctx, uint32_t i, int worker), void *ctx) {
+    isim_mtl_dispatch d = {0};
+    d.groups[0] = n; d.groups[1] = d.groups[2] = 1;
+    d.task = fn; d.task_ctx = ctx;
+    isim_mtl_run(&d);
+}
+
 void isim_mtl_run(const isim_mtl_dispatch *d) {
     uint32_t total = d->groups[0] * d->groups[1] * d->groups[2];
-    if (!total || !d->fn || !d->fn->entry) return;
+    if (!total || (!d->task && (!d->fn || !d->fn->entry))) return;
     pthread_mutex_lock(&run_lock);                /* one dispatch at a time across the process's queues */
     pthread_mutex_lock(&pool_lock);
     if (!workers) {

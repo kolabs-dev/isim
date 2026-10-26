@@ -11,6 +11,13 @@
 - **Adapted:** Core Animation is part of isim's UIKit (`isim/frameworks/UIKit/CoreAnimation.m`, `CALayerKinds.m`).
 - Layers are rendered with cairo every frame, with no render server.
 - Objective-C: `QuartzCore/QuartzCore.h` and `QuartzCore.framework` forward to UIKit (`isim/sdk-src/Frameworks/QuartzCore`).
+- `CAMetalLayer`, `CAMetalDrawable` and `CAMetalDisplayLink` ([#329](https://github.com/kolabs-dev/isim/issues/329)):
+  - Like the other layers, they belong below QuartzCore: they are in the Metal Swift overlay
+    (`isim/swift/overlays/Metal/CAMetalLayer.swift`). `import UIKit` with `import Metal` reaches them, and so does
+    `import QuartzCore`, which re-exports Metal as Apple's does.
+  - `QuartzCore.framework` re-exports them for Objective-C.
+  - A drawable's texture is rendered on the CPU (see [Metal](Metal.md)). Presenting it copies the pixels into the
+    layer's `contents`.
 
 ## API
 
@@ -41,7 +48,9 @@
 | `QuartzCore/QuartzCore.h` and the per-class headers (`CALayer.h`, `CADisplayLink.h`, `CATransaction.h`, …), `-framework QuartzCore` | ✅ | ≤17 | adapted: the headers forward to UIKit's declarations, and `QuartzCore.framework` re-exports UIKit and the Swift overlay, so Objective-C code links `-framework QuartzCore` alone. Tested (HelloQuartzCoreObjC: layers, transforms, a transaction, an animation, a display link drawing a ring) |
 | `CATransform3D` | ✅ | ≤17 | full 4x4 math (make/translate/scale/rotate/concat/invert/isAffine/affine conversions), NSValue boxing and Swift bridging. Tested |
 | `CAValueFunction`, `filters`/`compositingFilter`, `shouldRasterize` | ✅ | ≤17 | value functions (rotate / scale / translate, per axis or 3-vector) in basic, spring and keyframe animations of a transform: the numbers are interpolated, then made into the transform. `shouldRasterize`: the layer (with its shadow and sublayers) drawn into a bitmap of `rasterizationScale` pixels per point, opacity applied to the bitmap. `filters`, `backgroundFilters`, `compositingFilter`: stored, not applied, like iOS ("not supported on layers in iOS"). Tested (HelloCoreAnimation -layers) |
-| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `CAEDRMetadata`, `CAMetalDisplayLink`, `CAMetalDisplayLink.Update`, `CAMetalDisplayLinkDelegate`, `CAMetalDrawable`, `CAMetalLayer`, `CARenderer` (7 types; with their members under "Not yet in isim") |
+| `CAMetalLayer` (`device`, `pixelFormat`, `framebufferOnly`, `drawableSize`, `nextDrawable()`, `maximumDrawableCount`, `allowsNextDrawableTimeout`, `colorspace`), `CAMetalDrawable` (`texture`, `layer`, `present`, presented handlers) | ✅ | ≤17 | adapted: the drawables' textures are rendered by isim's Metal on the CPU; presenting one (when its command buffer completes) copies BGRA8 / RGBA8 (and their sRGB forms), RGBA16Float or 10-bit pixels into the layer's `contents`; up to `maximumDrawableCount` drawables in flight, `nextDrawable()` waits up to a second for one. Tested (HelloMetalKit, test_metalkit) |
+| `CAMetalDisplayLink`, `CAMetalDisplayLink.Update`, `CAMetalDisplayLinkDelegate` | ✅ | 17.0 | adapted: a `CADisplayLink` hands the delegate the layer's next drawable each frame, with target and presentation timestamps (`preferredFrameLatency` frames ahead); `preferredFrameRateRange`, `isPaused`. Tested (HelloMetalKit, test_metalkit) |
+| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `CAEDRMetadata`, `CARenderer` (2 types; with their members under "Not yet in isim") |
 | Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `CALayer.ToneMapMode` (1 type; with its members under "Not yet in isim") |
 
 ## Not yet in isim

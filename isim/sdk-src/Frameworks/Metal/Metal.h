@@ -15,6 +15,10 @@
 #import <Metal/MTLComputePipeline.h>
 #import <Metal/MTLCommandEncoder.h>
 #import <Metal/MTLComputeCommandEncoder.h>
+#import <Metal/MTLVertexDescriptor.h>
+#import <Metal/MTLRenderPipeline.h>
+#import <Metal/MTLRenderPass.h>
+#import <Metal/MTLRenderCommandEncoder.h>
 #import <Metal/MTLBlitCommandEncoder.h>
 #import <Metal/MTLDrawable.h>
 #import <Metal/MTLCommandBuffer.h>

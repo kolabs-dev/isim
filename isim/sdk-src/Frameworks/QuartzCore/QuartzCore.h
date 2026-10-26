@@ -2,7 +2,8 @@
 /* isim QuartzCore for Objective-C: Core Animation (CALayer and its subclasses, the animations, CATransaction,
  * CADisplayLink, CATransform3D, CAMediaTiming) is implemented in isim's UIKit; QuartzCore.framework re-exports it,
  * so `#import <QuartzCore/QuartzCore.h>` and `-framework QuartzCore` work as on iOS. Swift uses the QuartzCore
- * overlay, which re-exports UIKit, so these headers are hidden from Swift. Not in isim: CAMetalLayer, CAEAGLLayer. */
+ * overlay, which re-exports UIKit, so these headers are hidden from Swift. CAMetalLayer and CAMetalDisplayLink are the
+ * overlay's (issue #329). Not in isim: CAEAGLLayer (OpenGL ES). */
 #import <QuartzCore/CABase.h>
 #import <QuartzCore/CATransform3D.h>
 #import <QuartzCore/CAMediaTiming.h>
@@ -22,3 +23,5 @@
 #import <QuartzCore/CAEmitterLayer.h>
 #import <QuartzCore/CAEmitterCell.h>
 #import <QuartzCore/CAValueFunction.h>
+#import <QuartzCore/CAMetalLayer.h>
+#import <QuartzCore/CAMetalDisplayLink.h>

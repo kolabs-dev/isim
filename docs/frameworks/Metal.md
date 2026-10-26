@@ -33,23 +33,51 @@
   threadgroup at a time, so threadgroup memory is the worker's. The threads of a group run one after another; a kernel
   that calls `threadgroup_barrier` runs them as fibers that switch at each barrier. Command buffers run in commit order
   on their queue's background thread, then call their completed handlers.
+- **Render pipelines** ([#329](https://github.com/kolabs-dev/isim/issues/329)):
+  - **Entry points:** the compiler gives each `vertex` function an entry point for one vertex. It binds
+    `[[stage_in]]` from the vertex descriptor's attributes (any `MTLVertexFormat`), `[[vertex_id]]`, `[[instance_id]]`,
+    the base vertex and instance, and buffers, textures and samplers. It also generates an interpolation of the
+    function's output struct (`[[flat]]` members are taken from the provoking vertex).
+  - Each `fragment` function gets one entry point for one fragment. It binds `[[stage_in]]` (matched to the vertex
+    outputs by `[[user(name)]]`, else by member name), `[[position]]`, `[[front_facing]]`, `[[point_coord]]` and
+    `[[color(n)]]` inputs, and it writes `[[color(n)]]` and `[[depth(...)]]` outputs. `discard_fragment()` ends the
+    fragment.
+  - **Rasterizer:** isim's rasterizer (`isim/frameworks/Metal/MTLRaster.c`) runs a draw in phases:
+    1. the vertex function, in parallel;
+    2. primitive assembly, then clipping at the near and far planes and a guard band, in clip space;
+    3. culling and winding;
+    4. 64×64-pixel tiles in parallel, each drawing its primitives in order. Triangles use the top-left rule on a
+       1/256-pixel grid with perspective-correct interpolation; lines are 1 pixel wide; points are squares of their
+       `[[point_size]]`.
+  - Each fragment then goes through the depth and stencil tests (late when the function writes the depth), the
+    fragment function, blending (every `MTLBlendFactor` but the dual-source ones, every `MTLBlendOperation`), the write
+    mask, and sRGB encoding on `_srgb` targets.
+  - Render passes clear and resolve their attachments. A multisample texture holds one sample per pixel, so rendering
+    is not antialiased (adapted).
+  - Derivatives (`dfdx`, `dfdy`, `fwidth`) are 0, and implicit-LOD sampling in fragment functions uses mip level 0.
+  - `CAMetalLayer` and `CAMetalDisplayLink` are QuartzCore's (see [QuartzCore](QuartzCore.md)); `MTKView` and
+    `MTKTextureLoader` are MetalKit's (see [MetalKit](MetalKit.md)).
 - **Versus a device:** no GPU. `threadExecutionWidth` is 1. The supported families are Apple 1–4 and Common 1–2, the
-  compute features isim has. Render pipelines, `MTKView` and `CAMetalLayer` come with
-  [#329](https://github.com/kolabs-dev/isim/issues/329).
+  compute and render features isim has.
 
 ## API
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| `MTLCreateSystemDefaultDevice()`, `MTLDevice` (name, limits, `supportsFamily`, queues, buffers, textures, samplers, libraries, compute pipelines, async variants) | 🟡 | ≤17 | adapted: the CPU ("isim CPU"); no heaps, fences, events, argument encoders, indirect command buffers or render pipelines (#329). Tested (MetalObjCTest, HelloMetal) |
+| `MTLCreateSystemDefaultDevice()`, `MTLDevice` (name, limits, `supportsFamily`, queues, buffers, textures, samplers, libraries, compute and render pipelines, depth-stencil states, async variants) | 🟡 | ≤17 | adapted: the CPU ("isim CPU"); no heaps, fences, events, argument encoders or indirect command buffers. Tested (MetalObjCTest, MetalRenderObjCTest, HelloMetal, HelloMetalKit) |
 | `MTLBuffer` (`contents`, `length`, `makeBuffer(bytes:)`, `makeBuffer(bytesNoCopy:)`, `gpuAddress`, textures from buffers) | ✅ | ≤17 | adapted: process memory in every storage mode. Tested (MetalObjCTest, HelloMetal) |
-| `MTLTexture`, `MTLTextureDescriptor` (1D, 2D, arrays, cube, 3D, mip levels, `replace(region:)`, `getBytes`, views) | 🟡 | ≤17 | adapted: linear storage; kernels read and write the 8, 16 and 32-bit color formats, packed 565 and 10-10-10-2; compressed formats are stored but read as zero; no multisampling. Tested (MetalObjCTest, HelloMetal) |
-| `MTLSamplerState`, `MTLSamplerDescriptor`; constexpr `sampler` in kernels | ✅ | ≤17 | nearest and bilinear filtering, the address modes, border colors, mip filters; no anisotropy or compare functions. Tested (MetalObjCTest) |
+| `MTLTexture`, `MTLTextureDescriptor` (1D, 2D, arrays, cube, 3D, mip levels, `replace(region:)`, `getBytes`, views) | 🟡 | ≤17 | adapted: linear storage; kernels read and write the 8, 16 and 32-bit color formats, packed 565 and 10-10-10-2; compressed formats are stored but read as zero; multisample textures (`sampleCount` 2 or 4) hold one sample per pixel. Tested (MetalObjCTest, MetalRenderObjCTest, HelloMetal) |
+| `MTLSamplerState`, `MTLSamplerDescriptor`; constexpr `sampler` in kernels | ✅ | ≤17 | nearest and bilinear filtering, the address modes, border colors, mip filters, compare functions (`depth2d::sample_compare`); no anisotropy. Tested (MetalObjCTest, MetalRenderObjCTest) |
 | `MTLLibrary`, `MTLFunction`, `MTLCompileOptions` (macros), `MTLFunctionConstantValues`, `MTLFunctionConstant`, `MTLLibraryError` | ✅ | ≤17 | adapted: kernels translated to C++ and compiled for the CPU (`tools/mslc.py`); default.metallib from isim build; source compiled at run time. Tested (MetalObjCTest, HelloMetal) |
 | `MTLComputePipelineState`, `MTLComputePipelineDescriptor`, `MTLComputeCommandEncoder` (buffers, bytes, textures, samplers, threadgroup memory, `dispatchThreadgroups`, `dispatchThreads` with non-uniform groups, indirect dispatch) | ✅ | ≤17 | adapted: threadgroups on worker threads, fibers at barriers, SIMD width 1; reflection is empty. Tested (MetalObjCTest, HelloMetal) |
 | `MTLCommandQueue`, `MTLCommandBuffer` (status, scheduled and completed handlers, `waitUntilCompleted`, timestamps), `MTLBlitCommandEncoder` (copies, fills, `generateMipmaps`) | ✅ | ≤17 | adapted: buffers run in commit order on the queue's background thread; mipmaps box-filtered for 8-bit and float formats. Tested (MetalObjCTest, HelloMetal) |
 | Metal Shading Language (types, math, atomics, textures, barriers, SIMD-group functions) | 🟡 | ≤17 | adapted: C++ against isim's `metal_stdlib`; no ray tracing, mesh shaders, argument buffers, `imageblock`s or quad-group functions; `bool` vectors are `char` vectors. Tested (MetalObjCTest) |
-| Render pipelines, `MTLRenderCommandEncoder`, drawables, MetalKit, `CAMetalLayer` | ❌ | ≤17 | [#329](https://github.com/kolabs-dev/isim/issues/329) |
+| `MTLRenderPipelineState`, `MTLRenderPipelineDescriptor` (vertex and fragment functions, `MTLVertexDescriptor`, color attachments with blending and write masks, depth and stencil formats, `rasterizationEnabled`), `MTLRenderPipelineReflection` | ✅ | ≤17 | adapted: the functions run on the CPU through isim's rasterizer; a fragment input the vertex function does not write is an error at creation, as on a device; reflection is empty; dual-source blending and alpha to coverage are not provided. Tested (MetalRenderObjCTest, HelloMetalKit) |
+| `MTLRenderPassDescriptor` (color, depth and stencil attachments, load and store actions, clear values, multisample resolve, `visibilityResultBuffer`) | ✅ | ≤17 | adapted: a multisample attachment holds one sample per pixel; resolving copies it. Tested (MetalRenderObjCTest) |
+| `MTLRenderCommandEncoder` (vertex and fragment buffers, bytes, textures and samplers; viewport, scissor, cull mode, winding, fill mode, depth clip mode, depth bias, blend color, depth-stencil state, stencil references, visibility results; `drawPrimitives`, `drawIndexedPrimitives`, instancing, base vertex and instance, indirect draws) | ✅ | ≤17 | adapted: isim's tile rasterizer on the worker threads (points, lines, line strips, triangles, triangle strips); one viewport and scissor rectangle. Tested (MetalRenderObjCTest, HelloMetalKit) |
+| `MTLDepthStencilState`, `MTLDepthStencilDescriptor`, `MTLStencilDescriptor` | ✅ | ≤17 | the depth test and write, the stencil test and operations with read and write masks, per face. Tested (MetalRenderObjCTest) |
+| Metal Shading Language for rendering: `vertex` / `fragment` functions, `[[stage_in]]`, `[[position]]`, `[[flat]]`, `[[user(name)]]`, `[[point_size]]`, `[[color(n)]]`, `[[depth(...)]]`, `[[front_facing]]`, `[[point_coord]]`, `discard_fragment`, `depth2d` (`sample_compare`), `texturecube`, `texture2d_ms` | 🟡 | ≤17 | adapted: one fragment at a time, so `dfdx` / `dfdy` / `fwidth` are 0 and implicit-LOD sampling uses mip level 0; no tessellation, amplification, raster order groups or programmable blending beyond `[[color(n)]]` inputs. Tested (MetalRenderObjCTest, HelloMetalKit) |
+| `MTLDrawable`, `presentDrawable` | ✅ | ≤17 | presented when the command buffer completes (its rendering is done). Tested (HelloMetalKit) |
 
 ## Not yet in isim
 

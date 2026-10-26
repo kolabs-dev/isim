@@ -7,6 +7,7 @@
 #import <Metal/Metal.h>
 
 #include "MTLDispatch.h"
+#include "MTLRaster.h"
 
 /* pixel formats: bytes per pixel, or per block for the compressed ones */
 typedef struct { uint32_t bytes, block_w, block_h; } isim_mtl_format_info;
@@ -63,4 +64,13 @@ NSError *isim_mtl_error(NSErrorDomain domain, NSInteger code, NSString *message)
 @end
 @interface MTLFunctionConstantValues ()
 - (NSData *)isim_valuesWithNames:(NSDictionary<NSString *, MTLFunctionConstant *> *)constants;
+@end
+/* command buffers record the encoders' work as blocks, run in order when committed (MTLCommand.m) */
+@interface ISIMMTLCommandBuffer : NSObject <MTLCommandBuffer>
+- (void)addCommand:(void (^)(void))command;
+- (void)encoderEnded;
+@end
+/* render passes and pipelines (MTLRender.m, issue #329) */
+id<MTLRenderCommandEncoder> isim_mtl_render_encoder(ISIMMTLCommandBuffer *cb, MTLRenderPassDescriptor *d);
+@interface ISIMMTLDevice (Render)
 @end

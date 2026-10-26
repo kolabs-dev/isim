@@ -1,7 +1,7 @@
 #pragma once
 #import <Metal/MTLDefines.h>
 NS_ASSUME_NONNULL_BEGIN
-/* declared for MTLCommandBuffer; drawables come with render pipelines (issue #329) */
+/* a drawable of CAMetalLayer (QuartzCore): presenting it shows its texture in the layer (issue #329) */
 @protocol MTLDrawable;
 typedef void (^MTLDrawablePresentedHandler)(id<MTLDrawable>);
 @protocol MTLDrawable <NSObject>

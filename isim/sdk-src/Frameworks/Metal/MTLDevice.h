@@ -5,8 +5,11 @@
 #import <Metal/MTLResource.h>
 #import <Metal/MTLLibrary.h>
 #import <Metal/MTLComputePipeline.h>
+#import <Metal/MTLRenderPipeline.h>
+#import <Metal/MTLDepthStencil.h>
 NS_ASSUME_NONNULL_BEGIN
-@protocol MTLCommandQueue, MTLBuffer, MTLTexture, MTLSamplerState, MTLLibrary, MTLComputePipelineState, MTLFunction;
+@protocol MTLCommandQueue, MTLBuffer, MTLTexture, MTLSamplerState, MTLLibrary, MTLComputePipelineState, MTLFunction, MTLRenderPipelineState,
+    MTLDepthStencilState;
 @class MTLTextureDescriptor, MTLSamplerDescriptor, MTLCompileOptions, MTLComputePipelineDescriptor, MTLComputePipelineReflection;
 typedef NS_ENUM(NSInteger, MTLGPUFamily) {
     MTLGPUFamilyApple1 = 1001, MTLGPUFamilyApple2 = 1002, MTLGPUFamilyApple3 = 1003, MTLGPUFamilyApple4 = 1004,
@@ -20,6 +23,9 @@ typedef void (^MTLNewLibraryCompletionHandler)(id<MTLLibrary> _Nullable library,
 typedef void (^MTLNewComputePipelineStateCompletionHandler)(id<MTLComputePipelineState> _Nullable computePipelineState, NSError * _Nullable error);
 typedef void (^MTLNewComputePipelineStateWithReflectionCompletionHandler)(id<MTLComputePipelineState> _Nullable computePipelineState,
                                                                           MTLComputePipelineReflection * _Nullable reflection, NSError * _Nullable error);
+typedef void (^MTLNewRenderPipelineStateCompletionHandler)(id<MTLRenderPipelineState> _Nullable renderPipelineState, NSError * _Nullable error);
+typedef void (^MTLNewRenderPipelineStateWithReflectionCompletionHandler)(id<MTLRenderPipelineState> _Nullable renderPipelineState,
+                                                                         MTLRenderPipelineReflection * _Nullable reflection, NSError * _Nullable error);
 
 /* the system's device: isim's CPU ("isim CPU"), with the memory of the host */
 MTL_EXTERN id<MTLDevice> _Nullable MTLCreateSystemDefaultDevice(void) NS_RETURNS_RETAINED;
@@ -86,5 +92,19 @@ MTL_EXTERN id<MTLDevice> _Nullable MTLCreateSystemDefaultDevice(void) NS_RETURNS
 - (void)newComputePipelineStateWithFunction:(id<MTLFunction>)computeFunction options:(MTLPipelineOption)options
     completionHandler:(MTLNewComputePipelineStateWithReflectionCompletionHandler)completionHandler
     NS_SWIFT_NAME(makeComputePipelineState(function:options:completionHandler:));
+
+/* render pipelines (issue #329): vertex and fragment functions of isim-compiled libraries, drawn by isim's rasterizer */
+- (nullable id<MTLRenderPipelineState>)newRenderPipelineStateWithDescriptor:(MTLRenderPipelineDescriptor *)descriptor error:(NSError **)error
+    NS_SWIFT_NAME(makeRenderPipelineState(descriptor:));
+- (nullable id<MTLRenderPipelineState>)newRenderPipelineStateWithDescriptor:(MTLRenderPipelineDescriptor *)descriptor options:(MTLPipelineOption)options
+    reflection:(MTLRenderPipelineReflection * _Nullable __autoreleasing * _Nullable)reflection error:(NSError **)error
+    NS_SWIFT_NAME(makeRenderPipelineState(descriptor:options:reflection:));
+- (void)newRenderPipelineStateWithDescriptor:(MTLRenderPipelineDescriptor *)descriptor completionHandler:(MTLNewRenderPipelineStateCompletionHandler)completionHandler
+    NS_SWIFT_NAME(makeRenderPipelineState(descriptor:completionHandler:));
+- (void)newRenderPipelineStateWithDescriptor:(MTLRenderPipelineDescriptor *)descriptor options:(MTLPipelineOption)options
+    completionHandler:(MTLNewRenderPipelineStateWithReflectionCompletionHandler)completionHandler
+    NS_SWIFT_NAME(makeRenderPipelineState(descriptor:options:completionHandler:));
+- (nullable id<MTLDepthStencilState>)newDepthStencilStateWithDescriptor:(MTLDepthStencilDescriptor *)descriptor
+    NS_SWIFT_NAME(makeDepthStencilState(descriptor:));
 @end
 NS_ASSUME_NONNULL_END
