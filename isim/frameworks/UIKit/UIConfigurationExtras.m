@@ -57,6 +57,14 @@ const CGFloat UIListContentImageStandardDimension = -CGFLOAT_MAX;
 
 @implementation UIListContentConfiguration (UIListContentConfigurationExtras)
 + (instancetype)accompaniedSidebarCellConfiguration { UIListContentConfiguration *c = [self sidebarCellConfiguration]; c.textProperties.font = [UIFont systemFontOfSize:15]; return c; }
+/* the sidebar's subtitle cell (17 / 15 pt) and section header: 20 pt bold in the label colour (iPadOS 14–17 sidebars) */
++ (instancetype)sidebarSubtitleCellConfiguration { return [self subtitleCellConfiguration]; }
++ (instancetype)sidebarHeaderConfiguration {
+    UIListContentConfiguration *c = [self plainHeaderConfiguration];
+    c.textProperties.font = [UIFont systemFontOfSize:20 weight:UIFontWeightBold]; c.textProperties.color = UIColor.labelColor;
+    c.directionalLayoutMargins = NSDirectionalEdgeInsetsMake(14, 20, 6, 20);
+    return c;
+}
 + (instancetype)accompaniedSidebarSubtitleCellConfiguration {
     UIListContentConfiguration *c = [self subtitleCellConfiguration]; c.textProperties.font = [UIFont systemFontOfSize:15]; c.secondaryTextProperties.font = [UIFont systemFontOfSize:13];
     return c;
@@ -142,6 +150,10 @@ static char kTextGuide, kSecondaryGuide, kImageGuide;
 + (instancetype)listFooterConfiguration { UIBackgroundConfiguration *b = [self new]; b.backgroundColor = UIColor.clearColor; return b; }
 + (instancetype)listSidebarCellConfiguration { UIBackgroundConfiguration *b = [self new]; b.backgroundColor = UIColor.clearColor; b.cornerRadius = 10; return b; }
 + (instancetype)listAccompaniedSidebarCellConfiguration { return [self listSidebarCellConfiguration]; }
+/* plain headers sit on the table's background colour, grouped and sidebar headers on nothing */
++ (instancetype)listPlainHeaderFooterConfiguration { UIBackgroundConfiguration *b = [self new]; b.backgroundColor = UIColor.systemBackgroundColor; return b; }
++ (instancetype)listGroupedHeaderFooterConfiguration { return [self clearConfiguration]; }
++ (instancetype)listSidebarHeaderConfiguration { return [self clearConfiguration]; }
 - (UIView *)customView { return ex(self, @"customView"); }
 - (void)setCustomView:(UIView *)v { set_ex(self, @"customView", v); }
 - (NSDirectionalEdgeInsets)backgroundInsets { NSArray<NSNumber *> *v = ex(self, @"insets"); return v.count == 4 ? NSDirectionalEdgeInsetsMake(v[0].doubleValue, v[1].doubleValue, v[2].doubleValue, v[3].doubleValue) : NSDirectionalEdgeInsetsZero; }

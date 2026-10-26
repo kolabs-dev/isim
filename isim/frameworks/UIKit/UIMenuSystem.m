@@ -48,7 +48,8 @@ const UIMenuIdentifier UIMenuApplication = @"com.apple.menu.application", UIMenu
     UIMenuMinimizeAndZoom = @"com.apple.menu.minimize-and-zoom", UIMenuBringAllToFront = @"com.apple.menu.bring-all-to-front",
     UIMenuRoot = @"com.apple.menu.root", UIMenuAutoFill = @"com.apple.menu.autofill", UIMenuSidebar = @"com.apple.menu.sidebar";
 NSString *const UICommandTagShare = @"com.apple.menu.command.share";
-static NSString *const kInspector = @"com.apple.menu.inspector", *const kNewScene = @"com.apple.menu.new-scene";
+const UIMenuIdentifier UIMenuNewScene = @"com.apple.menu.new-scene";
+static NSString *const kInspector = @"com.apple.menu.inspector", *const kNewScene = UIMenuNewScene;
 
 /* ================= where commands go ================= */
 UIResponder *isim_ui_focus_responder(void);           /* UIGestures.m: the first responder, else the visible view controller */

@@ -2,6 +2,7 @@
 #import <UIKit/UIKitDefines.h>
 #import <UIKit/UIView.h>
 NS_ASSUME_NONNULL_BEGIN
+@class CADisplayLink;
 NS_SWIFT_UI_ACTOR
 @interface UIScreen : NSObject <UITraitEnvironment>
 @property (class, nonatomic, readonly) UIScreen *mainScreen;
@@ -16,6 +17,10 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, readonly) NSInteger maximumFramesPerSecond;
 @property (readonly) id<UICoordinateSpace> coordinateSpace;
 @property (nonatomic, readonly) CGRect applicationFrame __attribute__((deprecated("Use -[UIScreen bounds]")));
+/* whether the screen is recorded or mirrored (isim: NO, like the trait collection's sceneCaptureState) */
+@property (nonatomic, readonly, getter=isCaptured) BOOL captured API_DEPRECATED("Use UITraitCollection.sceneCaptureState", ios(11.0, 27.0));
+/* a display link for this screen (isim: the device's, as CADisplayLink displayLinkWithTarget:selector:) */
+- (nullable CADisplayLink *)displayLinkWithTarget:(id)target selector:(SEL)sel API_DEPRECATED("Use UIWindowScene.displayLink(target:selector:)", ios(4.0, 27.0));
 @end
 UIKIT_EXTERN NSNotificationName const UIScreenBrightnessDidChangeNotification;
 /* isim: never posted (no screen recording or mirroring, the device screen has one mode) */

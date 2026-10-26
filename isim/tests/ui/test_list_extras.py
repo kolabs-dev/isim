@@ -57,3 +57,17 @@ def test_list_extras(launch, ios):
     app.wait_log(r"pop-up menu accessory shows High")
     app.wait_tap_id("accessory-insert")
     app.wait_log(r"^lx insert ")
+
+
+def test_deprecated_uikit_members(launch):
+    """UIKit members deprecated in iOS 18–27 that isim still provides (issue #335)."""
+    app = launch("HelloListExtras")
+    app.wait_log(r"^lx deprecated sidebar header 20 bold true subtitle 15$")
+    app.wait_log(r"^lx deprecated backgrounds plain 100 grouped 0 sidebar 0$")
+    app.wait_log(r"^lx deprecated keys UIApplicationLaunchOptionsBluetoothCentralsKey,UIApplicationLaunchOptionsBluetoothPeripheralsKey,"
+                 r"UIApplicationLaunchOptionsNewsstandDownloadsKey UIApplicationOpenURLOptionsAnnotationKey$")
+    app.wait_log(r"^lx deprecated menu com\.apple\.menu\.new-scene$")
+    app.wait_log(r"^lx deprecated toolbar done font 21 plain true$")
+    app.wait_log(r"^lx deprecated screen captured false link true$")
+    app.wait_log(r"^lx deprecated header detail Detail below true$")
+    assert app.quit() == 0

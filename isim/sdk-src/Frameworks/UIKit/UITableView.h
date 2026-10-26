@@ -119,6 +119,8 @@ NS_SWIFT_UI_ACTOR
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
 @property (nonatomic, readonly, strong) UIView *contentView;
 @property (nullable, nonatomic, readonly, strong) UILabel *textLabel;
+/* a second line under textLabel (isim: shown when it has text) */
+@property (nullable, nonatomic, readonly, strong) UILabel *detailTextLabel API_DEPRECATED("Use UIListContentConfiguration", ios(6.0, 27.0));
 @property (nullable, nonatomic, readonly, copy) NSString *reuseIdentifier;
 @property (nullable, nonatomic, copy) id<UIContentConfiguration> contentConfiguration;
 - (UIListContentConfiguration *)defaultContentConfiguration;

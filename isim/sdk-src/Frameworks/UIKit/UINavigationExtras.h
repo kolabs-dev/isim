@@ -87,6 +87,9 @@ typedef NS_ENUM(NSUInteger, UIBehavioralStyle) { UIBehavioralStyleAutomatic = 0,
 @end
 @interface UIToolbarAppearance (UIToolbarAppearanceExtras)
 @property (nonatomic, copy) UIBarButtonItemAppearance *prominentButtonAppearance API_AVAILABLE(ios(26.0));
+/* plain and done items' appearance (done: deprecated, iOS 26 shows done items prominent) */
+@property (nonatomic, copy) UIBarButtonItemAppearance *buttonAppearance;
+@property (nonatomic, copy) UIBarButtonItemAppearance *doneButtonAppearance API_DEPRECATED("Use prominentButtonAppearance", ios(13.0, 26.0));
 @end
 
 /* the document a navigation item stands for (iOS 16): the title menu's header (isim: the title and icon are not

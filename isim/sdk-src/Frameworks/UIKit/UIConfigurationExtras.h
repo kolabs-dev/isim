@@ -36,6 +36,9 @@ UIKIT_EXTERN const CGFloat UIListContentImageStandardDimension NS_SWIFT_NAME(UIL
 + (instancetype)accompaniedSidebarSubtitleCellConfiguration NS_SWIFT_NAME(accompaniedSidebarSubtitleCell());
 + (instancetype)prominentInsetGroupedHeaderConfiguration NS_SWIFT_NAME(prominentInsetGroupedHeader()) API_AVAILABLE(ios(15.0));
 + (instancetype)extraProminentInsetGroupedHeaderConfiguration NS_SWIFT_NAME(extraProminentInsetGroupedHeader()) API_AVAILABLE(ios(15.0));
+/* sidebar styles (deprecated: iOS 18 sidebars use cell() / subtitleCell() / header()) */
++ (instancetype)sidebarSubtitleCellConfiguration NS_SWIFT_NAME(sidebarSubtitleCell()) API_DEPRECATED("Use subtitleCell()", ios(14.0, 18.0));
++ (instancetype)sidebarHeaderConfiguration NS_SWIFT_NAME(sidebarHeader()) API_DEPRECATED("Use header()", ios(14.0, 18.0));
 /* attributed texts are drawn instead of text / secondaryText */
 @property (nullable, nonatomic, copy) NSAttributedString *attributedText;
 @property (nullable, nonatomic, copy) NSAttributedString *secondaryAttributedText;
@@ -68,6 +71,10 @@ NS_SWIFT_UI_ACTOR API_AVAILABLE(ios(18.0))
 + (instancetype)listFooterConfiguration NS_SWIFT_NAME(listFooter()) API_AVAILABLE(ios(18.0));
 + (instancetype)listAccompaniedSidebarCellConfiguration NS_SWIFT_NAME(listAccompaniedSidebarCell());
 + (instancetype)listSidebarCellConfiguration NS_SWIFT_NAME(listSidebarCell());
+/* header and footer backgrounds (deprecated: listHeader() / listFooter()) */
++ (instancetype)listPlainHeaderFooterConfiguration NS_SWIFT_NAME(listPlainHeaderFooter()) API_DEPRECATED("Use listHeader() or listFooter()", ios(14.0, 18.0));
++ (instancetype)listGroupedHeaderFooterConfiguration NS_SWIFT_NAME(listGroupedHeaderFooter()) API_DEPRECATED("Use listHeader() or listFooter()", ios(14.0, 18.0));
++ (instancetype)listSidebarHeaderConfiguration NS_SWIFT_NAME(listSidebarHeader()) API_DEPRECATED("Use listHeader()", ios(14.0, 18.0));
 /* a view drawn under the background colour's layer (isim: added behind the cell's content) */
 @property (nullable, nonatomic, strong) UIView *customView;
 @property (nonatomic) NSDirectionalEdgeInsets backgroundInsets;

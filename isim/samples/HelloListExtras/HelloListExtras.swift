@@ -7,6 +7,7 @@
 // - Lists: accessories (insert, multiselect, pop-up menu), separator configurations, background configurations
 //   (stroke, insets, shadow), attributed and transformed list content, list content view layout guides, the
 //   Objective-C section snapshot (an outline)
+// - members deprecated in iOS 18–27 (Deprecated.swift)
 import UIKit
 
 func log(_ s: String) { print("lx \(s)") }
@@ -26,6 +27,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window = UIWindow(frame: UIScreen.main.bounds)
         window?.rootViewController = tabs
         window?.makeKeyAndVisible()
+        logDeprecatedMembers()
         return true
     }
 }
