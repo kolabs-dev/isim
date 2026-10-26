@@ -1,6 +1,6 @@
 #pragma once
-/* isim SceneKit: SCNView. Stub: it draws its background colour only (no 3D renderer yet, #330); the render loop runs at
- * preferredFramesPerSecond while playing (or rendersContinuously) and calls the delegate. */
+/* isim SceneKit: SCNView (issue #330): it draws its scene into its CAMetalLayer with isim's Metal on the CPU; the render
+ * loop runs at preferredFramesPerSecond, calls the delegate and redraws when the scene changes. */
 #import <SceneKit/SCNSceneRenderer.h>
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
@@ -12,6 +12,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) NSInteger preferredFramesPerSecond;
 @property (nonatomic) SCNAntialiasingMode antialiasingMode;
 - (UIImage *)snapshot;
+@property (nonatomic, getter=isTemporalAntialiasingEnabled) BOOL temporalAntialiasingEnabled;
 - (void)play:(nullable id)sender;
 - (void)pause:(nullable id)sender;
 - (void)stop:(nullable id)sender;

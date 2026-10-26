@@ -249,6 +249,13 @@ def _(a):
     a.isim_build().compile_metal([os.path.join(a.d, "Shaders.metal")], b)
 
 
+@app("samples/HelloSceneKit", extra_inputs=["samples/HelloSceneKit/crystal.obj", "samples/HelloSceneKit/crystal.mtl"])   # issue #330: SceneKit
+def _(a):
+    b = a.swift_app()
+    a.copy("crystal.obj", b)
+    a.copy("crystal.mtl", b)
+
+
 @app("samples/HelloShaders", extra_inputs=["samples/HelloShaders/Shaders.metal"])   # issue #327: SwiftUI shaders
 def _(a):
     b = a.swift_app()
@@ -931,6 +938,11 @@ def _(a):
 def _(a):
     b = a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "GameKit"], name="GameKitObjCTest")
     a.copy("isim-GameCenter.json", b)
+
+@app("tests/scenekit-objc", products=["SceneKitObjCTest.app"])   # after the overlays: SceneKit.framework re-exports the overlay (issue #330)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "SceneKit", "-framework", "Metal"],
+               name="SceneKitObjCTest")
 
 @app("tests/arkit-scenekit-objc", products=["ARSceneObjCTest.app"])   # after the overlays: ARKit and SceneKit re-export theirs (issue #560)
 def _(a):

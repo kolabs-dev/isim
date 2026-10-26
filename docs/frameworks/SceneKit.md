@@ -8,27 +8,97 @@
 
 ## How isim implements it
 
-- `isim/swift/overlays/SceneKit/SceneKit.swift`: the scene graph and the view, without a 3D renderer. Nodes hold
-  their transforms (position, orientation, scale, Euler angles, world transforms) and children; SceneKit's vector and
-  matrix types and functions convert to and from simd. `SCNView` runs SceneKit's render loop and calls its delegate,
-  but draws only its background colour. It is enough for apps (and ARKit's `ARSCNView`) to build and run.
-- Not yet (#330): the renderer, geometry, materials, lights, cameras, actions, physics and scene files (`.scn`, `.dae`,
-  `.usdz`). `SCNScene(named:)` returns nil.
-- **Objective-C:** `#import <SceneKit/SceneKit.h>`, `-framework SceneKit` (`isim/sdk-src/Frameworks/SceneKit`, [#560](https://github.com/kolabs-dev/isim/issues/560)).
+- **Adapted:** isim's Swift implementation (`isim/swift/overlays/SceneKit`) draws scenes with isim's Metal, which runs
+  on the CPU (see [Metal](Metal.md)).
+  - SceneKit's shaders (`isim/frameworks/SceneKit/SceneKit.metal`) are compiled for the CPU by `tools/mslc.py` when the
+    SDK is built, into `usr/lib/isim/scenekit`. The renderer loads them from `$ISIM_ROOT`.
+  - **Lighting:** per pixel, in linear colour (UIColors are sRGB, as on iOS). The lighting models are SceneKit's:
+    constant, Lambert, Blinn, Phong and physically based (Cook-Torrance). The shadow-only model is not drawn.
+  - **Lights:** ambient, omni, directional and spot (cone and attenuation), with intensity and temperature; up to 8 per
+    frame besides the ambient ones. `autoenablesDefaultLighting` adds SceneKit's omni light at the point of view.
+  - **Materials:** colours, numbers and images (with mipmaps) for diffuse, ambient, specular, emission, transparent
+    (A-one and RGB-zero), multiply, metalness, roughness and ambient occlusion. Also blend modes, culling,
+    double-sidedness, wireframe fill, depth reads and writes, vertex colours, and the diffuse contents transform's
+    scale and offset.
+  - **Fog:** the scene's fog.
+  - **Background:** a colour, or an image filling the view.
+- **Frames:** each frame walks the scene graph and applies constraints. It draws opaque geometry front to back, then
+  transparent geometry back to front, each by rendering order, with a depth buffer.
+- **The view and renderers:**
+  - `SCNView` draws into its `CAMetalLayer` (`bgra8Unorm_srgb`). Its render loop runs at `preferredFramesPerSecond`: it
+    runs actions, animations and physics, calls the delegate in SceneKit's order, and redraws when the scene changed,
+    or always while playing or rendering continuously.
+  - `SCNRenderer` draws into an app's Metal render pass, or into an image.
+  - **The point of view:** the renderer's, else the scene's first camera, else a default camera that frames the scene
+    from +z.
+  - **Camera control:** `allowsCameraControl` orbits a copy of the camera with one finger and zooms with a pinch.
+- **Geometry:**
+  - `SCNGeometry` reads its sources (float, half, double and normalized integer components, any stride) and elements
+    (triangles, strips, lines, points; polygons become triangle fans).
+  - The built-in shapes have Apple's dimensions, segment counts, texture coordinates and elements (one per face
+    group, so materials apply face by face).
+- **Actions, animations and constraints:**
+  - Actions run on nodes, in sequences, groups and repeats.
+  - Core Animation animations (`CABasicAnimation`, `CAKeyframeAnimation`, `CAAnimationGroup`) and `SCNAnimation` play
+    on nodes' position, scale, rotation, orientation, Euler angles, opacity and transform key paths (and their
+    components).
+  - Constraints apply before drawing: look-at, billboard, distance, transform and replicator.
+- **Physics:** isim's own solver (SceneKit uses Bullet). It has gravity, forces, impulses and damping; sphere and box
+  shapes (other shapes use their bounding box); collisions with restitution and friction; masks; resting; and the
+  contact delegate.
+- **Hit tests:**
+  - `hitTest(_:options:)` and `hitTestWithSegment(from:to:options:)` cast rays against geometry's triangles. They return
+    the coordinates, normals, face index and texture coordinates.
+  - `projectPoint` / `unprojectPoint` and the frustum tests use the camera that last drew.
+- **Scene files:** Wavefront `.obj` with its `.mtl` materials and textures, through `SCNScene(named:)`,
+  `SCNScene(url:)` and `SCNSceneSource`. Scenes that `write(to:)` archived (`.scn`, isim's keyed archive) load back.
+- **SwiftUI and SpriteKit:**
+  - `SceneView` is an `SCNView` in a SwiftUI hierarchy.
+  - SpriteKit's [`SK3DNode`](SpriteKit.md) draws its scene with an `SCNRenderer`.
+- **Versus Apple's Simulator:**
+  - Frames are drawn by the CPU, so large views animate at fewer frames per second.
+  - Multisampling holds one sample per pixel (not antialiased).
+  - No shadows, reflections (floors, the lighting environment), normal or displacement maps.
+  - No post effects (HDR, bloom, depth of field, SSAO), shader modifiers, `SCNProgram` or `SCNTechnique`. They are kept,
+    not run.
+  - No morphers, skinning or particle systems.
+  - `SCNText` and `SCNShape` are not provided.
+  - Chamfers and corner radii are not rounded.
+  - Implicit animation in `SCNTransaction`: changes apply at once, and the completion block runs after the duration.
+  - Nodes have no separate presentation copy: animations and constraints write the nodes, and an animation that ends
+    puts back the value it started from.
+- **ABI:** the SceneKit overlay (and ARKit's, which builds on it) is built with library evolution from 0.31.0. Apps
+  built with an earlier isim that use SceneKit or ARKit must be rebuilt (`isim/abi/epochs.txt`).
+- **Objective-C:** `#import <SceneKit/SceneKit.h>`, `-framework SceneKit` (`isim/sdk-src/Frameworks/SceneKit`,
+  [#560](https://github.com/kolabs-dev/isim/issues/560), and #330 for the renderer's classes).
   - `SCNVector3`, `SCNVector4` and `SCNMatrix4` are C structs with the overlay's layout.
-  - SceneKit's functions are C functions in `frameworks/SceneKit/SceneKit.m`.
-  - The node and view properties that take structs or simd values go through categories over `_isim_` entry points (`swift/overlays/SceneKit/ObjC.swift`).
-  - An Objective-C `SCNSceneRendererDelegate` is held through a forwarding box.
+  - SceneKit's functions, constants and class factories are in `frameworks/SceneKit/SceneKit.m`.
+  - Properties and methods that take structs or simd values go through categories over `_isim_` entry points
+    (`swift/overlays/SceneKit/ObjC.swift`).
+  - Objective-C `SCNSceneRendererDelegate` and `SCNPhysicsContactDelegate` objects are held through forwarding boxes.
 
 ## API
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| `SCNNode` (`position`, `eulerAngles`, `orientation`, `rotation`, `scale`, `transform`, the `simd` variants, `worldTransform` / `worldPosition`, `convertPosition`, `addChildNode`, `insertChildNode`, `removeFromParentNode`, `replaceChildNode`, `childNode(withName:recursively:)`, `childNodes(passingTest:)`, `enumerateChildNodes`, `enumerateHierarchy`, `clone`, `isHidden`, `opacity`, copying and secure coding) | 🟡 | ≤17 | adapted: the transform is kept as translation, rotation and scale (`transform` decomposes into them); Euler angles follow SceneKit's order (roll, then yaw, then pitch); `geometry`, `light`, `camera`, constraints and actions are not there yet (#330); tested (HelloAR: world positions, Euler angles, clone, removal) |
-| `SCNScene` (`rootNode`, `isPaused`, attributes, secure coding), `SCNVector3`, `SCNVector4`, `SCNQuaternion`, `SCNMatrix4` and its functions (`SCNMatrix4MakeTranslation` / `Scale` / `Rotation`, `Mult`, `Invert`, `Translate`, `Scale`, `Rotate`, `IsIdentity`, `ToMat4` / `FromMat4`, `SCNVector3Make`, …) | 🟡 | ≤17 | stub for scene files: `SCNScene(named:)` is nil and `init(url:)` throws; the math is complete; tested (HelloAR: translation, scale, inverse) |
-| `SCNView` (`scene`, `delegate`, `isPlaying`, `loops`, `rendersContinuously`, `preferredFramesPerSecond`, `allowsCameraControl`, `antialiasingMode`, `play` / `pause` / `stop`, `snapshot`), `SCNSceneRenderer`, `SCNSceneRendererDelegate` | 🟡 | ≤17 | stub for drawing (the background colour only, #330); adapted: the render loop runs at `preferredFramesPerSecond` while playing or rendering continuously and calls the delegate's update, animation, physics, constraint and render callbacks in SceneKit's order; `projectPoint` / `unprojectPoint` pass points through; tested (HelloAR: the render loop's updates) |
-| Objective-C: `SCNNode`, `SCNScene`, `SCNView`, `SCNSceneRenderer`, `SCNSceneRendererDelegate`, `SCNVector3` / `SCNVector4` / `SCNMatrix4` with `SCNMatrix4Mult` / `Invert` / `MakeRotation` / `Translate` / `Scale` / `IsIdentity`, the equality and simd conversion functions, `SCNVector3Zero`, `SCNMatrix4Identity`, `NSValue (SceneKitAdditions)` | ✅ | ≤17 | adapted: the Swift classes under Apple's Objective-C names; the C functions in SceneKit.framework; the delegate through a forwarding box. Tested (ARSceneObjCTest: the scene graph, transforms, the matrix functions, the render loop calling an Objective-C delegate) |
-| Geometry, materials, lights, cameras, actions, physics, scene files, `SceneView` (SwiftUI), `SK3DNode` | ❌ | ≤17 | the 3D renderer: #330 |
+| `SCNNode` (transforms and their `simd` variants, `pivot`, world transforms and positions, `worldUp` / `worldRight` / `worldFront`, `look(at:)`, `localTranslate` / `localRotate` / `rotate(by:aroundTarget:)`, `convertPosition` / `convertVector` / `convertTransform`, the hierarchy, `clone`, `geometry`, `light`, `camera`, `physicsBody`, `constraints`, `isHidden`, `opacity`, `renderingOrder`, `categoryBitMask`, `isPaused`, `boundingBox` / `boundingSphere`, `hitTestWithSegment(from:to:options:)`, copying and secure coding) | ✅ | ≤17 | adapted: the transform is kept as translation, rotation and scale; Euler angles follow SceneKit's order; `presentation` is the node itself. Tested (HelloSceneKit, HelloAR, SceneKitObjCTest) |
+| `SCNScene` (`rootNode`, `background`, fog, `physicsWorld`, `isPaused`, attributes, `init(named:)`, `init(url:options:)`, `write(to:options:delegate:progressHandler:)`, secure coding), `SCNSceneSource` | 🟡 | ≤17 | adapted: Wavefront `.obj` / `.mtl` and isim's own `.scn` archives load; Apple's `.scn` / `.dae` as Xcode compiles them, USDZ and Model I/O do not; `lightingEnvironment` is kept, not used. Tested (HelloSceneKit: an OBJ file with two materials) |
+| `SCNVector3`, `SCNVector4`, `SCNQuaternion`, `SCNMatrix4` and their functions, `NSValue(scnVector3:)` / `scnVector3Value` and the vector 4 / matrix forms | ✅ | ≤17 | the math is complete; tested (HelloAR, ARSceneObjCTest) |
+| `SCNView` (`scene`, `pointOfView`, `delegate`, `isPlaying`, `loops`, `rendersContinuously`, `preferredFramesPerSecond`, `allowsCameraControl`, `autoenablesDefaultLighting`, `antialiasingMode`, `backgroundColor`, `play` / `pause` / `stop`, `snapshot()`, `hitTest(_:options:)`, `projectPoint` / `unprojectPoint`, `isNode(_:insideFrustumOf:)`, `nodesInsideFrustum(of:)`, `device`, `commandQueue`, `currentRenderCommandEncoder`), `SCNSceneRenderer`, `SCNSceneRendererDelegate` | ✅ | ≤17 | adapted: drawn by isim's Metal on the CPU into a `CAMetalLayer`, one sample per pixel; camera control orbits and zooms (the camera controller's other modes are not provided). Tested (HelloSceneKit: pixels, picking, projection, snapshot) |
+| `SCNRenderer` (`init(device:options:)`, `render(atTime:viewport:commandBuffer:passDescriptor:)`, `render(withViewport:commandBuffer:passDescriptor:)`, `snapshot(atTime:with:antialiasingMode:)`, `update(atTime:)`, `nextFrameTime`) | ✅ | ≤17 | adapted: renders into the app's own Metal pass (isim's Metal on the CPU). Tested (HelloSceneKit, SceneKitObjCTest: snapshots) |
+| `SCNGeometry` (`sources`, `elements`, `materials`, `firstMaterial`, `material(named:)`, insert / remove / replace, `boundingBox` / `boundingSphere`), `SCNGeometrySource` (vertices, normals, texture coordinates, `init(data:semantic:…)`, `init(buffer:vertexFormat:…)`), `SCNGeometryElement` (indices of 1, 2 or 4 bytes, `primitiveRange`, `pointSize`) | ✅ | ≤17 | adapted: triangles, strips, lines and points are drawn; polygons become triangle fans; `subdivisionLevel` and `levelsOfDetail` are kept, not applied. Tested (SceneKitObjCTest: a triangle from sources) |
+| `SCNBox`, `SCNSphere`, `SCNPlane`, `SCNPyramid`, `SCNCylinder`, `SCNCone`, `SCNTorus`, `SCNTube`, `SCNCapsule`, `SCNFloor` | 🟡 | ≤17 | adapted: Apple's dimensions, segment counts and elements; chamfers and corner radii are not rounded, `isGeodesic` spheres are UV spheres, floors do not reflect (an endless floor is drawn 1000 units across). Tested (HelloSceneKit) |
+| `SCNText`, `SCNShape` | ❌ | ≤17 | not yet: extruded text and paths |
+| `SCNMaterial` (lighting models, `diffuse` / `ambient` / `specular` / `emission` / `transparent` / `multiply` / `metalness` / `roughness` / `ambientOcclusion`, `shininess`, `transparency`, `transparencyMode`, `isDoubleSided`, `cullMode`, `fillMode`, `blendMode`, `locksAmbientWithDiffuse`, depth reads and writes, `colorBufferWriteMask`), `SCNMaterialProperty` (`contents`: colours, numbers, images, image names, URLs, `MTLTexture`; `intensity`, `contentsTransform`, wrap modes, filters) | 🟡 | ≤17 | adapted: per-pixel lighting in linear colour; `normal`, `displacement`, `reflective`, `selfIllumination` and clear coat are kept, not drawn; shader modifiers and `SCNProgram` are kept, not run; the contents transform's scale and offset apply to the diffuse map. Tested (HelloSceneKit: Blinn with a checkerboard, physically based, transparent OBJ material) |
+| `SCNLight` (`type`: ambient, omni, directional, spot; `color`, `intensity`, `temperature`, attenuation, spot angles, `categoryBitMask`) | 🟡 | ≤17 | adapted: up to 8 omni / directional / spot lights a frame; shadows (`castsShadow` and its settings), IES, probe and area lights are kept, not drawn. Tested (HelloSceneKit) |
+| `SCNCamera` (`fieldOfView`, `projectionDirection`, `focalLength` / `sensorHeight`, `zNear` / `zFar`, `automaticallyAdjustsZRange`, `usesOrthographicProjection`, `orthographicScale`, `projectionTransform`) | 🟡 | ≤17 | adapted: post effects (HDR, exposure, bloom, depth of field, motion blur, SSAO, grain, colour grading) are kept, not drawn. Tested (HelloSceneKit, SceneKitObjCTest) |
+| `SCNAction` (move, rotate, scale, fade, hide, remove, wait, run block, custom, sequence, group, repeat, `reversed()`, timing modes and functions, `speed`), `SCNActionable` | ✅ | ≤17 | adapted: rotateBy turns about the node's own axes. Tested (HelloSceneKit, SceneKitObjCTest: completion handlers, keys) |
+| `SCNAnimatable` (`addAnimation(_:forKey:)` with `CABasicAnimation` / `CAKeyframeAnimation` / `CAAnimationGroup` or `SCNAnimation`, `SCNAnimationPlayer`, remove, keys), `SCNAnimation`, `SCNTimingFunction`, `SCNTransaction` | 🟡 | ≤17 | adapted: node transform and opacity key paths; the animation writes the node and an animation that ends puts back its start value; `CAAnimationDelegate` and `animationDidStart` / `animationDidStop` are called; `SCNTransaction` applies changes at once (no implicit animation) and runs `completionBlock` after `animationDuration`; animations in scene files are not read. Tested (HelloSceneKit: a CABasicAnimation on `position.y`) |
+| `SCNLookAtConstraint`, `SCNBillboardConstraint`, `SCNDistanceConstraint`, `SCNTransformConstraint`, `SCNReplicatorConstraint` | ✅ | ≤17 | adapted: solved each frame before drawing, with `influenceFactor`. Tested (HelloSceneKit, SceneKitObjCTest: a camera aimed by a look-at constraint) |
+| `SCNPhysicsWorld` (`gravity`, `speed`, `timeStep`, `contactDelegate`, `contactTest`, `rayTestWithSegment`), `SCNPhysicsBody` (static, dynamic, kinematic; mass, friction, restitution, damping, velocity, forces, impulses, torques, masks, resting), `SCNPhysicsShape`, `SCNPhysicsContact`, `SCNPhysicsContactDelegate` | 🟡 | ≤17 | adapted: isim's solver: sphere and box shapes (others use their bounding box), boxes collide aligned with the world axes, contacts do not make bodies spin; ray tests use bounding volumes; behaviors (joints), fields and vehicles are not simulated. Tested (HelloSceneKit, SceneKitObjCTest: a ball falling onto a floor, the contact delegate) |
+| `SCNHitTestResult`, `SCNHitTestOption` (first found, back-face culling, bounding box only, ignore children / hidden, category mask, root node, search mode) | ✅ | ≤17 | adapted: rays against triangles. Tested (HelloSceneKit, SceneKitObjCTest) |
+| `SceneView` (SwiftUI) | ✅ | ≤17 | an `SCNView` in a SwiftUI hierarchy (scene, point of view, options, frame rate, antialiasing mode, delegate); `technique` is kept, not run. Tested (HelloSceneKit) |
+| Objective-C: the classes above under Apple's names and their class factories (`+boxWithWidth:height:length:chamferRadius:`, `+nodeWithGeometry:`, `+material`, `+light`, `+camera`, `+geometrySourceWithVertices:count:`, …), the constants (`SCNLightTypeOmni`, `SCNLightingModelBlinn`, `SCNGeometrySourceSemanticVertex`, `SCNHitTest…Key`, `SCNPhysicsShape…`), the enums, `SCNPhysicsContactDelegate`, `SCNVector3` / `SCNVector4` / `SCNMatrix4` and their functions, `NSValue (SceneKitAdditions)` | 🟡 | ≤17 | adapted: the Swift classes under Apple's Objective-C names, not subclassable from Objective-C; struct members through categories; the delegates through forwarding boxes; `SCNTransformConstraint`'s blocks, `SCNSceneSource` and `SCNPhysicsWorld`'s tests are Swift-only. Tested (SceneKitObjCTest, ARSceneObjCTest) |
 
 ## Not yet in isim
 

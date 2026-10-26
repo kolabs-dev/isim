@@ -136,7 +136,8 @@ static BOOL near(float a, float b) { return fabsf(a - b) < 1e-4f; }
     self.scnView.antialiasingMode = SCNAntialiasingModeMultisampling2X;
     [self.view addSubview:self.scnView];
     self.scnView.playing = YES;
-    SCNVector3 p = [self.scnView projectPoint:SCNVector3Make(4, 5, 6)];
+    // projected into the view by the default camera, then back (issue #330)
+    SCNVector3 p = [self.scnView unprojectPoint:[self.scnView projectPoint:SCNVector3Make(4, 5, 6)]];
     say([NSString stringWithFormat:@"view playing %d delegate %d antialiasing %lu project %.0f,%.0f,%.0f", self.scnView.isPlaying, self.scnView.delegate == self,
          (unsigned long)self.scnView.antialiasingMode, p.x, p.y, p.z]);
 }

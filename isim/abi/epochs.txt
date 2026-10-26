@@ -40,3 +40,9 @@ usr/lib/swift/libswiftSwiftData.dylib 0.27.0
 # CKShare.currentUserParticipant is optional, like Apple's. Swift apps built with 0.26 or earlier that use CloudKit must
 # be rebuilt (the same release as SwiftData's break).
 usr/lib/swift/libswiftCloudKit.dylib 0.27.0
+# 0.31.0 (issue #330): SceneKit's renderer. The SceneKit overlay is built with library evolution (like Apple's), its
+# classes gain geometry, lights, cameras, physics, actions and animations, and SCNSceneRenderer gains Apple's members;
+# ARKit's overlay, whose ARSCNView subclasses SCNView, is built with library evolution too. Swift apps built with 0.30
+# or earlier that use SceneKit or ARKit must be rebuilt.
+usr/lib/swift/libswiftSceneKit.dylib 0.31.0
+usr/lib/swift/libswiftARKit.dylib 0.31.0

@@ -18,12 +18,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)isEqualToValue:(NSValue *)value;
 @property (readonly) const char *objCType NS_RETURNS_INNER_POINTER;
 @end
-#if !defined(__swift__)   /* Objective-C only: Swift has its own Foundation API for these */
 @interface NSValue (NSValueCreation)
-+ (NSValue *)valueWithBytes:(const void *)value objCType:(const char *)type;
-+ (NSValue *)value:(const void *)value withObjCType:(const char *)type;
 - (instancetype)initWithBytes:(const void *)value objCType:(const char *)type;
 - (void)getValue:(void *)value size:(NSUInteger)size;
+@end
+#if !defined(__swift__)   /* Objective-C only: Swift has its own Foundation API for these */
+@interface NSValue (NSValueCreationObjC)
++ (NSValue *)valueWithBytes:(const void *)value objCType:(const char *)type;
++ (NSValue *)value:(const void *)value withObjCType:(const char *)type;
 - (void)getValue:(void *)value;
 @end
 #endif

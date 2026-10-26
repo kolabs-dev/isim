@@ -1,11 +1,27 @@
 #pragma once
-/* isim SceneKit: SCNNode, the scene graph's node (its transform is kept as translation, orientation and scale). */
+/* isim SceneKit: SCNNode, the scene graph's node (its transform is kept as translation, orientation and scale), and what
+ * it shows: geometry, a light, a camera (issue #330). */
 #import <SceneKit/SceneKitTypes.h>
+#import <SceneKit/SCNGeometry.h>
+#import <SceneKit/SCNAction.h>
+#import <SceneKit/SCNAnimation.h>
 #import <UIKit/UIKit.h>
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
-@interface SCNNode : NSObject <NSCopying, NSSecureCoding>
+@class SCNLight, SCNCamera, SCNPhysicsBody, SCNConstraint, SCNHitTestResult;
+@interface SCNNode : NSObject <NSCopying, NSSecureCoding, SCNActionable, SCNAnimatable, SCNBoundingVolume>
 + (instancetype)node;
++ (instancetype)nodeWithGeometry:(nullable SCNGeometry *)geometry;
+@property (nonatomic, retain, nullable) SCNGeometry *geometry;
+@property (nonatomic, retain, nullable) SCNLight *light;
+@property (nonatomic, retain, nullable) SCNCamera *camera;
+@property (nonatomic, retain, nullable) SCNPhysicsBody *physicsBody;
+@property (nonatomic, copy, nullable) NSArray<SCNConstraint *> *constraints;
+@property (nonatomic, getter=isPaused) BOOL paused;
+@property (nonatomic) SCNMatrix4 pivot;
+- (void)lookAt:(SCNVector3)worldTarget;
+- (NSArray<SCNHitTestResult *> *)hitTestWithSegmentFromPoint:(SCNVector3)pointA toPoint:(SCNVector3)pointB
+                                                      options:(nullable NSDictionary<NSString *, id> *)options;
 @property (nonatomic, copy, nullable) NSString *name;
 @property (nonatomic, readonly, nullable) SCNNode *parentNode;
 @property (nonatomic, readonly) NSArray<SCNNode *> *childNodes;

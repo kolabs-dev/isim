@@ -733,7 +733,11 @@ OBJC_NAMES["ARKit"] = {**{c: c for c in """ARConfiguration ARWorldTrackingConfig
     ARGeoTrackingConfiguration ARSession ARFrame ARCamera ARLightEstimate ARPointCloud ARAnchor ARPlaneAnchor ARPlaneExtent ARPlaneGeometry
     ARImageAnchor ARObjectAnchor ARFaceAnchor AREnvironmentProbeAnchor ARRaycastQuery ARRaycastResult ARTrackedRaycast ARReferenceImage
     ARReferenceObject ARWorldMap ARSCNView ARSKView ARCoachingOverlayView""".split()}, "ARConfiguration.VideoFormat": "ARVideoFormat"}
-OBJC_NAMES["SceneKit"] = {c: c for c in ("SCNNode", "SCNScene", "SCNView")}
+OBJC_NAMES["SceneKit"] = {c: c for c in """SCNNode SCNScene SCNView SCNRenderer SCNGeometry SCNGeometrySource SCNGeometryElement SCNBox SCNSphere
+    SCNPlane SCNPyramid SCNCylinder SCNCone SCNTorus SCNTube SCNCapsule SCNFloor SCNMaterial SCNMaterialProperty SCNLight SCNCamera SCNAction
+    SCNAnimation SCNAnimationPlayer SCNTimingFunction SCNTransaction SCNConstraint SCNLookAtConstraint SCNBillboardConstraint
+    SCNDistanceConstraint SCNReplicatorConstraint SCNTransformConstraint SCNPhysicsBody SCNPhysicsShape SCNPhysicsWorld SCNPhysicsContact
+    SCNPhysicsBehavior SCNHitTestResult SCNSceneSource SCNTechnique SCNProgram SCNLevelOfDetail""".split()}   # issue #330
 OBJC_NAMES["StoreKitTest"] = {c: c for c in ("SKTestSession", "SKTestTransaction")}   # issue #564
 # issue #566: Apple Pay and Wallet from Objective-C
 OBJC_NAMES["PassKit"] = {c: c for c in """PKAddPassButton PKAddPassesViewController PKAutomaticReloadPaymentRequest PKAutomaticReloadPaymentSummaryItem PKContact PKDateComponentsRange
@@ -758,7 +762,7 @@ OBJC_NAMES["SpriteKit"] = {c: c for c in """SKAction SKAttribute SKAttributeValu
     SKPhysicsJointFixed SKPhysicsJointLimit SKPhysicsJointPin SKPhysicsJointSliding SKPhysicsJointSpring SKPhysicsWorld SKRange
     SKReachConstraints SKReferenceNode SKRegion SKScene SKShader SKShapeNode SKSpriteNode SKTexture SKTextureAtlas SKTileDefinition
     SKTileGroup SKTileGroupRule SKTileMapNode SKTileSet SKTransformNode SKTransition SKUniform SKVideoNode SKView SKWarpGeometry
-    SKWarpGeometryGrid""".split()}
+    SKWarpGeometryGrid SK3DNode""".split()}
 OBJC_NAMES["MessageUI"] = {c: c for c in ("MFMailComposeViewController", "MFMessageComposeViewController")}
 OBJC_NAMES["CoreBluetooth"] = {c: c for c in """CBUUID CBAttribute CBService CBMutableService CBCharacteristic CBMutableCharacteristic
     CBDescriptor CBMutableDescriptor CBPeer CBCentral CBATTRequest CBL2CAPChannel CBPeripheral CBManager CBCentralManager CBPeripheralManager""".split()}
@@ -866,9 +870,9 @@ CoreMedia -lswiftObjectiveC -lswiftFoundation -lswiftCoreVideo -lswiftAudioToolb
 VideoToolbox -lswiftObjectiveC -lswiftFoundation -lswiftAudioToolbox -lswiftCoreMedia -lswiftCoreVideo -lswiftCoreGraphics -framework Foundation -framework CoreGraphics -lisim_host
 AVFoundation -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreMedia -lswiftCoreVideo -lswiftAudioToolbox -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 simd
-SpriteKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswiftCombine -lswiftSwiftUI -lswift_Concurrency -lswiftsimd -lswiftAVFoundation -lswiftCoreImage -lswiftCoreVideo -lswiftCoreMedia -lswiftAudioToolbox -framework Foundation -framework UIKit -framework CoreGraphics -framework CoreImage -lisim_host
+SceneKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswiftsimd -lswiftMetal -lswiftSwiftUI -lswiftCombine -lswift_Concurrency -framework Foundation -framework UIKit -framework Metal -framework CoreGraphics   # issue #330: the renderer draws with Metal on the CPU
+SpriteKit -lswiftSceneKit -lswiftMetal -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswiftCombine -lswiftSwiftUI -lswift_Concurrency -lswiftsimd -lswiftAVFoundation -lswiftCoreImage -lswiftCoreVideo -lswiftCoreMedia -lswiftAudioToolbox -framework Foundation -framework UIKit -framework CoreGraphics -framework CoreImage -lisim_host
 GameplayKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswiftsimd -lswiftSpriteKit -lswift_Concurrency -framework Foundation -framework UIKit
-SceneKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswiftsimd -lswift_Concurrency -framework Foundation -framework UIKit   # scene graph, SCNView without a renderer (#330)
 ARKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswiftsimd -lswiftSceneKit -lswiftSpriteKit -lswiftCoreImage -lswiftCoreVideo -lswiftCoreMedia -lswiftAudioToolbox -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics -framework CoreImage   # unsupported, like the Simulator
 CoreHaptics -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftAVFoundation -lswiftAudioToolbox -framework Foundation -framework UIKit   # audio events; UIKit's feedback ring
 GameController -lswiftCoreHaptics -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftUIKit -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host -alias _$s14GameController12GCControllerC14_isimHapticsV1yXlSgvgTj _$s14GameController12GCControllerC7hapticsyXlSgvgTj -alias _$s14GameController12GCControllerC14_isimHapticsV1yXlSgvgTq _$s14GameController12GCControllerC7hapticsyXlSgvgTq -alias _$s14GameController12GCControllerC14_isimHapticsV1yXlSgvpMV _$s14GameController12GCControllerC7hapticsyXlSgvpMV -alias _$s14GameController12GCControllerC14_isimBatteryV1yXlSgvgTj _$s14GameController12GCControllerC7batteryyXlSgvgTj -alias _$s14GameController12GCControllerC14_isimBatteryV1yXlSgvgTq _$s14GameController12GCControllerC7batteryyXlSgvgTq -alias _$s14GameController12GCControllerC14_isimBatteryV1yXlSgvpMV _$s14GameController12GCControllerC7batteryyXlSgvpMV -alias _$s14GameController12GCControllerC12_isimLightV1yXlSgvgTj _$s14GameController12GCControllerC5lightyXlSgvgTj -alias _$s14GameController12GCControllerC12_isimLightV1yXlSgvgTq _$s14GameController12GCControllerC5lightyXlSgvgTq -alias _$s14GameController12GCControllerC12_isimLightV1yXlSgvpMV _$s14GameController12GCControllerC5lightyXlSgvpMV -alias _$s14GameController12GCControllerC13_isimMotionV1yXlSgvgTj _$s14GameController12GCControllerC6motionyXlSgvgTj -alias _$s14GameController12GCControllerC13_isimMotionV1yXlSgvgTq _$s14GameController12GCControllerC6motionyXlSgvgTq -alias _$s14GameController12GCControllerC13_isimMotionV1yXlSgvpMV _$s14GameController12GCControllerC6motionyXlSgvpMV   # GCController.haptics (before #283), battery / light / motion (before #290) as AnyObject?
@@ -953,7 +957,7 @@ GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Se
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices
 QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision NaturalLanguage FoundationModels Speech VisionKit WebKit SafariServices LinkPresentation Accessibility MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit TipKit Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit
-CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit""".split())
+CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer".split())
 # modules that also compile overlays/_AdAttribution (the conversion values SKAdNetwork and AdAttributionKit share)
