@@ -5,6 +5,7 @@
 //   NSTextLayoutManager / NSTextContentStorage: layout fragments, line fragments, text segments, rendering attributes),
 //   an inline image attachment, attachment view providers with the iOS 27 reuse policies and the layout manager
 //   delegate's provider cache, a standalone viewport layout controller delegate, and the switch to TextKit 1;
+// - -exclusion: text flowing around text container exclusion paths, TextKit 1 and 2 (TextExclusionPage.swift);
 // - -extras: text field, text view, responder, text input and keyboard members (TextExtrasPage.swift);
 // - -fidelity: text drawing fidelity: shadows, attachments, button image views, refresh titles (TextFidelityPage.swift);
 // - -find: text interactions for a custom text input, find and replace (TextFindPage.swift);
@@ -275,7 +276,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
         let args = ProcessInfo.processInfo.arguments
-        if args.contains("-extras") { window?.rootViewController = UINavigationController(rootViewController: TextViewController()) }
+        if args.contains("-exclusion") { window?.rootViewController = ExclusionViewController() }
+        else if args.contains("-extras") { window?.rootViewController = UINavigationController(rootViewController: TextViewController()) }
         else if args.contains("-fidelity") { window?.rootViewController = FidelityViewController() }
         else if args.contains("-find") { window?.rootViewController = UINavigationController(rootViewController: FindViewController()) }
         else if args.contains("-formatting") { window?.rootViewController = UINavigationController(rootViewController: FormatViewController()) }

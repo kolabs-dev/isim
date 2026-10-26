@@ -28,6 +28,67 @@ CGRect isim_ui_attachment_bounds(NSTextAttachment *a) {
     return CGRectMake(b.origin.x, b.origin.y, s.width, s.height);
 }
 
+/* ---- exclusion paths ---- */
+typedef struct { CGFloat y0, y1, lo, hi; CGPoint start, last; BOOL open; } band_scan;
+/* an edge's part inside the band widens the excluded extent */
+static void band_edge(band_scan *b, CGPoint p, CGPoint q) {
+    if ((p.y < b->y0 && q.y < b->y0) || (p.y > b->y1 && q.y > b->y1)) return;
+    CGPoint e[2] = { p, q };
+    for (int k = 0; k < 2; k++) {
+        CGFloat y = fmin(fmax(e[k].y, b->y0), b->y1);
+        CGFloat x = q.y == p.y ? e[k].x : p.x + (q.x - p.x) * (y - p.y) / (q.y - p.y);
+        b->lo = fmin(b->lo, x); b->hi = fmax(b->hi, x);
+    }
+}
+static void band_apply(void *info, const CGPathElement *el) {
+    band_scan *b = info;
+    CGPoint *pts = el->points;
+    switch (el->type) {
+    case kCGPathElementMoveToPoint:
+        if (b->open) band_edge(b, b->last, b->start);
+        b->start = b->last = pts[0]; b->open = YES; break;
+    case kCGPathElementAddLineToPoint: band_edge(b, b->last, pts[0]); b->last = pts[0]; break;
+    case kCGPathElementAddQuadCurveToPoint:
+    case kCGPathElementAddCurveToPoint: {                       /* flattened: 16 segments */
+        BOOL quad = el->type == kCGPathElementAddQuadCurveToPoint;
+        CGPoint p0 = b->last, prev = p0;
+        for (int i = 1; i <= 16; i++) {
+            CGFloat t = i / 16.0, u = 1 - t; CGPoint q;
+            if (quad) q = CGPointMake(u * u * p0.x + 2 * u * t * pts[0].x + t * t * pts[1].x, u * u * p0.y + 2 * u * t * pts[0].y + t * t * pts[1].y);
+            else q = CGPointMake(u * u * u * p0.x + 3 * u * u * t * pts[0].x + 3 * u * t * t * pts[1].x + t * t * t * pts[2].x,
+                                 u * u * u * p0.y + 3 * u * u * t * pts[0].y + 3 * u * t * t * pts[1].y + t * t * t * pts[2].y);
+            band_edge(b, prev, q); prev = q;
+        }
+        b->last = prev; break;
+    }
+    case kCGPathElementCloseSubpath: band_edge(b, b->last, b->start); b->last = b->start; b->open = NO; break;
+    }
+}
+int isim_text_free_spans(NSArray<UIBezierPath *> *paths, CGFloat x0, CGFloat x1, CGFloat y0, CGFloat y1, CGFloat *out, int max) {
+    CGFloat span[64][2]; int n = 0;
+    if (x1 > x0) { span[0][0] = x0; span[0][1] = x1; n = 1; }
+    for (UIBezierPath *path in paths) {
+        if (![path isKindOfClass:[UIBezierPath class]]) continue;
+        CGRect bb = path.bounds;
+        if (CGRectGetMaxY(bb) < y0 || CGRectGetMinY(bb) > y1) continue;
+        band_scan b = { y0, y1, CGFLOAT_MAX, -CGFLOAT_MAX, CGPointZero, CGPointZero, NO };
+        CGPathApply(path.CGPath, &b, band_apply);
+        if (b.open) band_edge(&b, b.last, b.start);
+        if (b.hi < b.lo) continue;
+        /* cut [lo, hi] out of every span */
+        CGFloat next[64][2]; int m = 0;
+        for (int i = 0; i < n && m < 63; i++) {
+            if (b.hi <= span[i][0] || b.lo >= span[i][1]) { next[m][0] = span[i][0]; next[m][1] = span[i][1]; m++; continue; }
+            if (b.lo > span[i][0]) { next[m][0] = span[i][0]; next[m][1] = b.lo; m++; }
+            if (b.hi < span[i][1]) { next[m][0] = b.hi; next[m][1] = span[i][1]; m++; }
+        }
+        memcpy(span, next, sizeof next); n = m;
+    }
+    int k = 0;
+    for (int i = 0; i < n && k < max; i++) { out[2 * k] = span[i][0]; out[2 * k + 1] = span[i][1]; k++; }
+    return k;
+}
+
 static int pango_align_for(NSTextAlignment a) {
     if (a == NSTextAlignmentNatural) a = isim_ui_drawing_rtl ? NSTextAlignmentRight : NSTextAlignmentLeft;
     return a == NSTextAlignmentCenter ? 1 : a == NSTextAlignmentRight ? 2 : 0;
@@ -44,14 +105,20 @@ static BOOL is_separator(unichar c) { return c == '\n' || c == '\r' || c == 0x20
     NSUInteger _laid;
     UIFont *_font; UIColor *_color;
     BOOL _extraLineWanted;
+    NSArray<UIBezierPath *> *_exclusions;
 }
 - (instancetype)initWithString:(NSAttributedString *)string width:(CGFloat)width padding:(CGFloat)padding font:(UIFont *)font color:(UIColor *)color maxLines:(NSUInteger)maxLines {
     return [self initWithString:string width:width padding:padding font:font color:color maxLines:maxLines extraLine:YES];
 }
 - (instancetype)initWithString:(NSAttributedString *)string width:(CGFloat)width padding:(CGFloat)padding font:(UIFont *)font color:(UIColor *)color
                       maxLines:(NSUInteger)maxLines extraLine:(BOOL)extraLine {
+    return [self initWithString:string width:width padding:padding font:font color:color maxLines:maxLines extraLine:extraLine exclusionPaths:nil];
+}
+- (instancetype)initWithString:(NSAttributedString *)string width:(CGFloat)width padding:(CGFloat)padding font:(UIFont *)font color:(UIColor *)color
+                      maxLines:(NSUInteger)maxLines extraLine:(BOOL)extraLine exclusionPaths:(NSArray<UIBezierPath *> *)exclusionPaths {
     if ((self = [super init])) {
         _extraLineWanted = extraLine;
+        _exclusions = exclusionPaths.count ? [exclusionPaths copy] : nil;
         _string = [string copy] ?: [NSAttributedString new];
         _width = width; _padding = padding;
         _font = font ?: [UIFont systemFontOfSize:12]; _color = color ?: UIColor.labelColor;
@@ -123,6 +190,8 @@ static void set_tabs(void *tl, NSParagraphStyle *ps, CGFloat head) {
         CGFloat right = tail > 0 ? tail : avail + tail;            /* tail: from the leading edge, or (<= 0) from the trailing edge */
         textW = fmax(1, right - head);
     }
+    CGFloat indent = first - head;
+    if (p->flowW) { textW = fmax(0, p->flowW); head = p->flowX - _padding; indent = 0; }   /* a piece: its own text box (< 0: unwrapped) */
     NSTextAlignment al = ps ? ps.alignment : NSTextAlignmentNatural; CGFloat spacing = ps.lineSpacing;
     NSString *mk = isim_ui_markup(s, _font, _color, &al, &spacing);
     /* attachments: inline boxes at their characters */
@@ -139,15 +208,101 @@ static void set_tabs(void *tl, NSParagraphStyle *ps, CGFloat head) {
             [slots addObject:sl];
         }
     }];
-    p->tl = isim_tl_create(mk.UTF8String, textW, pango_align_for(al), spacing, first - head, (int)slots.count, bytes.bytes, boxes.bytes);
+    p->tl = isim_tl_create(mk.UTF8String, textW, pango_align_for(al), spacing, indent, (int)slots.count, bytes.bytes, boxes.bytes);
     if (!empty && [str rangeOfString:@"\t"].location != NSNotFound) {
         p->tlTabs = ps ?: [NSParagraphStyle defaultParagraphStyle]; p->tlHead = head;
         set_tabs(p->tl, p->tlTabs, head);
     }
-    p->tlWidth = textW; p->tlAlign = pango_align_for(al); p->tlSpacing = spacing; p->tlIndent = first - head;
+    p->tlWidth = textW; p->tlAlign = pango_align_for(al); p->tlSpacing = spacing; p->tlIndent = indent;
     p->tlBytes = bytes; p->tlBoxes = boxes; p->tlFont = _font; p->tlColor = _color;
     p->textX = _padding + head;
     p.attachments = slots;
+}
+/* a laid out paragraph (or piece): its lines and attachments join the layout */
+- (void)_addParagraph:(__IsimTextPara *)p {
+    [_lines addObjectsFromArray:p.lines];
+    for (__IsimTextAttachmentSlot *sl in p.attachments) {
+        CGRect cr = [self _charRectIn:p index:sl->index];
+        CGRect bb = isim_ui_attachment_bounds(sl.attachment);
+        __IsimTextLine *ln = [self lineForIndex:sl->index];
+        CGFloat baseY = ln ? ln->rect.origin.y + ln->baseline : cr.origin.y;
+        sl->frame = CGRectMake(cr.origin.x, baseY - bb.origin.y - bb.size.height, bb.size.width, bb.size.height);
+        if (ln) [_slots addObject:sl];
+    }
+    [_paras addObject:p];
+}
+/* a piece of paragraph whole: its characters from..to, in a text box at x, w wide (-1: one unwrapped line) */
+- (__IsimTextPara *)_piece:(__IsimTextPara *)whole from:(NSUInteger)from to:(NSUInteger)to x:(CGFloat)x width:(CGFloat)w
+                     style:(NSParagraphStyle *)ps attrs:(NSDictionary *)attrs {
+    __IsimTextPara *q = [__IsimTextPara new];
+    q->range = q->content = NSMakeRange(from, to - from);
+    q.string = [_string attributedSubstringFromRange:q->content];
+    q->flowX = x; q->flowW = w;
+    q->continued = from > whole->content.location;
+    [self _layoutParagraph:q style:ps attrs:attrs];
+    return q;
+}
+/* a paragraph around the exclusion paths: band by band (a line's height), each band's free spans filled left to
+   right, one line per span; each line is a piece (__IsimTextPara) of its own. Returns the y below it. */
+- (CGFloat)_flowParagraph:(__IsimTextPara *)p style:(NSParagraphStyle *)ps attrs:(NSDictionary *)attrs y:(CGFloat)y last:(BOOL)last
+                 maxLines:(NSUInteger)maxLines lineCount:(NSUInteger *)nlines stopped:(BOOL *)stopped {
+    NSUInteger cur = p->content.location, end = NSMaxRange(p->content);
+    CGFloat avail = _width - 2 * _padding, head = ps.headIndent, tail = ps.tailIndent;
+    CGFloat right = _padding + (tail > 0 ? tail : avail + tail);
+    CGFloat by = y + (_paras.count ? ps.paragraphSpacingBefore : 0), bottom = by;
+    UIFont *font = attrs[NSFontAttributeName] ?: _font;
+    CGFloat minW = fmax(12, font.pointSize * 2);               /* narrower spans are skipped */
+    BOOL first = YES;
+    while (1) {
+        if (maxLines && *nlines >= maxLines) { *stopped = YES; break; }
+        CGFloat left = _padding + (first ? ps.firstLineHeadIndent : head);
+        /* the band: the next line's height at the full width */
+        __IsimTextPara *trial = [self _piece:p from:cur to:end x:left width:fmax(1, right - left) style:ps attrs:attrs];
+        int bs, bl; double r[4], base;
+        isim_tl_line(trial->tl, 0, &bs, &bl, r, &base);
+        CGFloat h = fmax(1, r[3]);
+        CGFloat sp[32];
+        int n = isim_text_free_spans(_exclusions, 0, _width, by, by + h, sp, 16);
+        BOOL clear = n == 1 && sp[0] <= 0 && sp[1] >= _width;       /* nothing excluded in this band */
+        BOOL placed = NO;
+        for (int i = 0; i < n && (cur < end || !placed); i++) {
+            CGFloat x0 = fmax(sp[2 * i] + _padding, left), x1 = fmin(sp[2 * i + 1] - _padding, right);
+            if (!clear && x1 - x0 < minW) continue;
+            CGFloat w = fmax(1, x1 - x0);
+            __IsimTextPara *q = [self _piece:p from:cur to:end x:x0 width:w style:ps attrs:attrs];
+            isim_tl_line(q->tl, 0, &bs, &bl, r, &base);
+            NSUInteger k = q->content.length ? [q _indexForByte:bs + bl] : 0;
+            if (!clear && (r[0] + r[2] > w + 1 || (k == 0 && cur < end))) continue;   /* its first word does not fit */
+            if (cur + k < end) {                                        /* only that line's characters */
+                q = [self _piece:p from:cur to:cur + k x:x0 width:w style:ps attrs:attrs];
+                if (isim_tl_line_count(q->tl) > 1) q = [self _piece:p from:cur to:cur + k x:x0 width:-1 style:ps attrs:attrs];
+                isim_tl_line(q->tl, 0, &bs, &bl, r, &base);
+            }
+            if (cur + k >= end) q->range.length = NSMaxRange(p->range) - q->range.location;   /* the separator: on the last piece */
+            q->y = q->textY = by;
+            __IsimTextLine *l = [__IsimTextLine new];
+            l->range = q->range;
+            l->rect = CGRectMake(sp[2 * i], by, sp[2 * i + 1] - sp[2 * i], h);
+            l->used = CGRectMake(q->textX + r[0] - _padding, by + r[1], (q->content.length ? r[2] : 0) + 2 * _padding, r[3]);
+            l->baseline = base - r[1];
+            q.lines = @[ l ];
+            q->height = h;
+            _used = CGRectUnion(_used, l->used);
+            _laid = NSMaxRange(l->range);
+            [self _addParagraph:q];
+            (*nlines)++;
+            cur += k; placed = YES; first = NO;
+            bottom = by + h;
+            if (maxLines && *nlines >= maxLines) break;
+        }
+        if (placed && cur >= end) break;
+        if (by > y + 100000) break;                                       /* (never: a clear band takes any text) */
+        by += placed ? h + ps.lineSpacing : fmax(1, h / 4);
+    }
+    CGFloat after = !last ? ps.paragraphSpacing : 0;
+    __IsimTextPara *lastPiece = _paras.lastObject;
+    if (lastPiece) lastPiece->height = bottom + after - lastPiece->y;
+    return bottom + after;
 }
 - (void)_layout:(NSUInteger)maxLines {
     NSString *str = _string.string;
@@ -165,6 +320,11 @@ static void set_tabs(void *tl, NSParagraphStyle *ps, CGFloat head) {
         NSDictionary *at = [_string attributesAtIndex:start effectiveRange:NULL];
         NSParagraphStyle *ps = at[NSParagraphStyleAttributeName];
         NSMutableDictionary *emptyAttrs = [typing mutableCopy]; [emptyAttrs addEntriesFromDictionary:at];
+        if (_exclusions && [self _wraps]) {                     /* around exclusion paths: line by line */
+            y = [self _flowParagraph:p style:ps attrs:emptyAttrs y:y last:end >= len maxLines:maxLines lineCount:&nlines stopped:&stopped];
+            start = sepEnd;
+            continue;
+        }
         [self _layoutParagraph:p style:ps attrs:emptyAttrs];
         CGFloat before = _paras.count ? ps.paragraphSpacingBefore : 0;
         p->y = y; p->textY = y + before;
@@ -194,16 +354,7 @@ static void set_tabs(void *tl, NSParagraphStyle *ps, CGFloat head) {
         CGFloat after = end < len ? ps.paragraphSpacing : 0;
         p->height = bottom + after - p->y;
         y = p->y + p->height;
-        [_lines addObjectsFromArray:lines];
-        for (__IsimTextAttachmentSlot *sl in p.attachments) {
-            CGRect cr = [self _charRectIn:p index:sl->index];
-            CGRect bb = isim_ui_attachment_bounds(sl.attachment);
-            __IsimTextLine *ln = [self lineForIndex:sl->index];
-            CGFloat baseY = ln ? ln->rect.origin.y + ln->baseline : cr.origin.y;
-            sl->frame = CGRectMake(cr.origin.x, baseY - bb.origin.y - bb.size.height, bb.size.width, bb.size.height);
-            if (ln) [_slots addObject:sl];
-        }
-        [_paras addObject:p];
+        [self _addParagraph:p];
         start = sepEnd;
     }
     /* the extra line fragment: an empty text, or one ending with a paragraph separator */
@@ -283,6 +434,14 @@ static void set_tabs(void *tl, NSParagraphStyle *ps, CGFloat head) {
     if (!_lines.count) return 0;
     __IsimTextLine *line = _lines.firstObject;
     for (__IsimTextLine *l in _lines) { line = l; if (pt.y < CGRectGetMaxY(l->rect)) break; }
+    if (_exclusions) {                                  /* lines side by side (around exclusion paths): the one nearest in x */
+        CGFloat best = CGFLOAT_MAX;
+        for (__IsimTextLine *l in _lines) {
+            if (l->rect.origin.y != line->rect.origin.y) continue;
+            CGFloat d = pt.x < CGRectGetMinX(l->rect) ? CGRectGetMinX(l->rect) - pt.x : pt.x > CGRectGetMaxX(l->rect) ? pt.x - CGRectGetMaxX(l->rect) : 0;
+            if (d < best) { best = d; line = l; }
+        }
+    }
     __IsimTextPara *p = [self paragraphForIndex:line->range.location];
     double ly = line->rect.origin.y - p->textY + line->rect.size.height / 2;
     int tr = 0, b = isim_tl_index_at(p->tl, pt.x - p->textX, ly, &tr);
@@ -322,7 +481,7 @@ static void set_tabs(void *tl, NSParagraphStyle *ps, CGFloat head) {
         CGFloat x1 = NSMaxRange(r) >= NSMaxRange(l->range) && NSMaxRange(r) > textEnd ? CGRectGetMaxX(l->used)
                    : NSMaxRange(r) >= textEnd ? CGRectGetMaxX([self rectForCharacterAtIndex:textEnd > l->range.location ? textEnd - 1 : textEnd])
                    : [self caretRectForIndex:NSMaxRange(r)].origin.x;
-        if (NSMaxRange(r) > NSMaxRange(l->range)) x1 = fmax(x1, [self _wraps] ? _width - _padding : CGRectGetMaxX(l->used));   /* continues on the next line */
+        if (NSMaxRange(r) > NSMaxRange(l->range)) x1 = fmax(x1, [self _wraps] ? CGRectGetMaxX(l->rect) - _padding : CGRectGetMaxX(l->used));   /* continues on the next line */
         [out addObject:[NSValue valueWithCGRect:CGRectMake(fmin(x0, x1), l->rect.origin.y, fabs(x1 - x0), l->rect.size.height)]];
     }
     return out;
@@ -341,7 +500,7 @@ static void set_tabs(void *tl, NSParagraphStyle *ps, CGFloat head) {
     NSParagraphStyle *ps = at[NSParagraphStyleAttributeName];
     NSTextList *list = ps.textLists.lastObject;
     __IsimTextLine *first = p.lines.firstObject;
-    if (!list || !first) return;
+    if (!list || !first || p->continued) return;
     /* the TextKit 1 format already has the marker in the text ("\t1.\t", HTML and RTF import) */
     NSString *head = [_string.string substringWithRange:NSMakeRange(p->content.location, MIN(p->content.length, (NSUInteger)16))];
     if ([head hasPrefix:@"\t"] && [head rangeOfString:@"\t" options:0 range:NSMakeRange(1, head.length - 1)].location != NSNotFound) return;
@@ -349,6 +508,7 @@ static void set_tabs(void *tl, NSParagraphStyle *ps, CGFloat head) {
     NSUInteger i = [_paras indexOfObjectIdenticalTo:p];
     while (i-- > 0) {
         __IsimTextPara *q = _paras[i];
+        if (q->continued) continue;
         NSParagraphStyle *qs = q->content.length ? [_string attribute:NSParagraphStyleAttributeName atIndex:q->content.location effectiveRange:NULL] : nil;
         if ([qs.textLists indexOfObjectIdenticalTo:list] == NSNotFound) break;
         if (qs.textLists.lastObject == list) n++;

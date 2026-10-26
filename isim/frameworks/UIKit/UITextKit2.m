@@ -508,7 +508,8 @@ static NSRange granularity_range(NSString *str, NSTextSelectionGranularity g, NS
         [out addObject:f];
         return YES;
     }];
-    __IsimTextEngine *engine = [[__IsimTextEngine alloc] initWithString:doc width:w padding:pad font:nil color:nil maxLines:0];
+    __IsimTextEngine *engine = [[__IsimTextEngine alloc] initWithString:doc width:w padding:pad font:nil color:nil maxLines:0
+                                                               extraLine:YES exclusionPaths:_textContainer.exclusionPaths];
     _engine = engine;
     for (NSTextLayoutFragment *f in out) {
         f->_engine = engine;

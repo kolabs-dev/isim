@@ -3,7 +3,7 @@
  * Adapted: isim lays text out with Pango, one layout per paragraph (its paragraph style: alignment, line and
  * paragraph spacing, indents). A glyph is a UTF-16 unit of the string (glyph index == character index), so glyph
  * ranges equal character ranges; CGGlyph values come from the font (isim's CoreText). A layout manager uses its
- * first text container (others get no text); exclusion paths are stored, not applied. Text tables / blocks
+ * first text container (others get no text); lines flow around its exclusion paths. Text tables / blocks
  * (NSTextBlock) are not laid out by TextKit (labels and string drawing show them). */
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
@@ -142,8 +142,8 @@ typedef NS_OPTIONS(NSInteger, NSControlCharacterAction) {
 
 /* glyphs (one per UTF-16 unit) */
 @property (readonly) NSUInteger numberOfGlyphs;
-- (CGGlyph)CGGlyphAtIndex:(NSUInteger)glyphIndex isValidIndex:(nullable BOOL *)isValidIndex NS_SWIFT_NAME(glyph(at:isValidIndex:));
-- (CGGlyph)CGGlyphAtIndex:(NSUInteger)glyphIndex NS_SWIFT_NAME(glyph(at:));
+- (CGGlyph)CGGlyphAtIndex:(NSUInteger)glyphIndex isValidIndex:(nullable BOOL *)isValidIndex NS_SWIFT_NAME(cgGlyph(at:isValidIndex:));
+- (CGGlyph)CGGlyphAtIndex:(NSUInteger)glyphIndex NS_SWIFT_NAME(cgGlyph(at:));
 - (BOOL)isValidGlyphIndex:(NSUInteger)glyphIndex;
 - (NSGlyphProperty)propertyForGlyphAtIndex:(NSUInteger)glyphIndex;
 - (NSUInteger)getGlyphsInRange:(NSRange)glyphRange glyphs:(nullable CGGlyph *)glyphBuffer properties:(nullable NSGlyphProperty *)props
@@ -166,21 +166,21 @@ typedef NS_OPTIONS(NSInteger, NSControlCharacterAction) {
 - (void)getFirstUnlaidCharacterIndex:(nullable NSUInteger *)charIndex glyphIndex:(nullable NSUInteger *)glyphIndex;
 - (NSUInteger)firstUnlaidCharacterIndex;
 - (NSUInteger)firstUnlaidGlyphIndex;
-- (nullable NSTextContainer *)textContainerForGlyphAtIndex:(NSUInteger)glyphIndex effectiveRange:(nullable NSRangePointer)effectiveGlyphRange;
-- (nullable NSTextContainer *)textContainerForGlyphAtIndex:(NSUInteger)glyphIndex effectiveRange:(nullable NSRangePointer)effectiveGlyphRange withoutAdditionalLayout:(BOOL)flag;
+- (nullable NSTextContainer *)textContainerForGlyphAtIndex:(NSUInteger)glyphIndex effectiveRange:(nullable NSRangePointer)effectiveGlyphRange NS_SWIFT_NAME(textContainer(forGlyphAt:effectiveRange:));
+- (nullable NSTextContainer *)textContainerForGlyphAtIndex:(NSUInteger)glyphIndex effectiveRange:(nullable NSRangePointer)effectiveGlyphRange withoutAdditionalLayout:(BOOL)flag NS_SWIFT_NAME(textContainer(forGlyphAt:effectiveRange:withoutAdditionalLayout:));
 - (CGRect)usedRectForTextContainer:(NSTextContainer *)container;
-- (CGRect)lineFragmentRectForGlyphAtIndex:(NSUInteger)glyphIndex effectiveRange:(nullable NSRangePointer)effectiveGlyphRange;
-- (CGRect)lineFragmentRectForGlyphAtIndex:(NSUInteger)glyphIndex effectiveRange:(nullable NSRangePointer)effectiveGlyphRange withoutAdditionalLayout:(BOOL)flag;
-- (CGRect)lineFragmentUsedRectForGlyphAtIndex:(NSUInteger)glyphIndex effectiveRange:(nullable NSRangePointer)effectiveGlyphRange;
-- (CGRect)lineFragmentUsedRectForGlyphAtIndex:(NSUInteger)glyphIndex effectiveRange:(nullable NSRangePointer)effectiveGlyphRange withoutAdditionalLayout:(BOOL)flag;
+- (CGRect)lineFragmentRectForGlyphAtIndex:(NSUInteger)glyphIndex effectiveRange:(nullable NSRangePointer)effectiveGlyphRange NS_SWIFT_NAME(lineFragmentRect(forGlyphAt:effectiveRange:));
+- (CGRect)lineFragmentRectForGlyphAtIndex:(NSUInteger)glyphIndex effectiveRange:(nullable NSRangePointer)effectiveGlyphRange withoutAdditionalLayout:(BOOL)flag NS_SWIFT_NAME(lineFragmentRect(forGlyphAt:effectiveRange:withoutAdditionalLayout:));
+- (CGRect)lineFragmentUsedRectForGlyphAtIndex:(NSUInteger)glyphIndex effectiveRange:(nullable NSRangePointer)effectiveGlyphRange NS_SWIFT_NAME(lineFragmentUsedRect(forGlyphAt:effectiveRange:));
+- (CGRect)lineFragmentUsedRectForGlyphAtIndex:(NSUInteger)glyphIndex effectiveRange:(nullable NSRangePointer)effectiveGlyphRange withoutAdditionalLayout:(BOOL)flag NS_SWIFT_NAME(lineFragmentUsedRect(forGlyphAt:effectiveRange:withoutAdditionalLayout:));
 @property (readonly) CGRect extraLineFragmentRect;
 @property (readonly) CGRect extraLineFragmentUsedRect;
 @property (nullable, readonly) NSTextContainer *extraLineFragmentTextContainer;
-- (CGPoint)locationForGlyphAtIndex:(NSUInteger)glyphIndex;
-- (BOOL)notShownAttributeForGlyphAtIndex:(NSUInteger)glyphIndex;
-- (BOOL)drawsOutsideLineFragmentForGlyphAtIndex:(NSUInteger)glyphIndex;
-- (CGSize)attachmentSizeForGlyphAtIndex:(NSUInteger)glyphIndex;
-- (NSRange)truncatedGlyphRangeInLineFragmentForGlyphAtIndex:(NSUInteger)glyphIndex;
+- (CGPoint)locationForGlyphAtIndex:(NSUInteger)glyphIndex NS_SWIFT_NAME(location(forGlyphAt:));
+- (BOOL)notShownAttributeForGlyphAtIndex:(NSUInteger)glyphIndex NS_SWIFT_NAME(notShownAttribute(forGlyphAt:));
+- (BOOL)drawsOutsideLineFragmentForGlyphAtIndex:(NSUInteger)glyphIndex NS_SWIFT_NAME(drawsOutsideLineFragment(forGlyphAt:));
+- (CGSize)attachmentSizeForGlyphAtIndex:(NSUInteger)glyphIndex NS_SWIFT_NAME(attachmentSize(forGlyphAt:));
+- (NSRange)truncatedGlyphRangeInLineFragmentForGlyphAtIndex:(NSUInteger)glyphIndex NS_SWIFT_NAME(truncatedGlyphRange(inLineFragmentForGlyphAt:));
 
 /* queries */
 - (NSRange)glyphRangeForTextContainer:(NSTextContainer *)container;
