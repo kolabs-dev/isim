@@ -315,7 +315,20 @@ static BOOL key_is(NSString *key, NSString *a, NSString *b) { return [key isEqua
 - (void)addOperation:(NSOperation *)op { if (op) [self _isim_enqueue:@[op]]; }
 - (void)addOperations:(NSArray<NSOperation *> *)ops waitUntilFinished:(BOOL)wait {
     [self _isim_enqueue:ops];
-    if (wait) for (NSOperation *op in ops) [op waitUntilFinished];
+    if (!wait) return;
+    for (NSOperation *op in ops) [op waitUntilFinished];
+    /* and until the queue has let go of them: an operation wakes its waiters before the queue removes it, so
+       operationCount could still count it here (#658) */
+    pthread_mutex_lock(&_lock);
+    for (;;) {
+        BOOL left = NO;
+        for (NSOperation *op in ops) if ([_ops containsObject:op]) { left = YES; break; }
+        if (!left) break;
+        struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_nsec += 100 * 1000000; if (ts.tv_nsec >= 1000000000) { ts.tv_sec++; ts.tv_nsec -= 1000000000; }
+        pthread_cond_timedwait(&_idle, &_lock, &ts);
+    }
+    pthread_mutex_unlock(&_lock);
 }
 - (void)addOperationWithBlock:(void (^)(void))block { [self addOperation:[NSBlockOperation blockOperationWithBlock:block]]; }
 /* runs after every operation added before it, and before every operation added after it */
@@ -393,7 +406,7 @@ static dispatch_queue_t queue_for(NSOperationQueue *q, BOOL isMain, NSOperation 
     [self didChangeValueForKey:@"operations"];
     pthread_mutex_lock(&_lock);
     _finishing--;
-    if (!_ops.count && !_finishing) pthread_cond_broadcast(&_idle);
+    pthread_cond_broadcast(&_idle);                    /* every removal: addOperations:waitUntilFinished: waits for its own */
     pthread_mutex_unlock(&_lock);
     NSProgress *p = _progress;
     if (p && p.totalUnitCount > 0) p.completedUnitCount += 1;
