@@ -16,20 +16,20 @@ extension NSNotification.Name {
     public static let CKAccountChanged = NSNotification.Name("CKAccountChangedNotification")
 }
 
-@objc(CKContainer) @objcMembers open class CKContainer: NSObject, @unchecked Sendable {
-    public let containerIdentifier: String?
+@objc(CKContainer) open class CKContainer: NSObject, @unchecked Sendable {
+    @objc public let containerIdentifier: String?
     @nonobjc nonisolated(unsafe) static var defaultContainer: CKContainer?
-    public init(identifier: String) { containerIdentifier = identifier; super.init(); CKContainer._watchSharingUI() }
+    @objc public init(identifier: String) { containerIdentifier = identifier; super.init(); CKContainer._watchSharingUI() }
     /// the app's default container: "iCloud.<bundle id>" (iOS takes it from the entitlements)
-    open class func `default`() -> CKContainer {
+    @objc open class func `default`() -> CKContainer {
         if let c = defaultContainer { return c }
         let c = CKContainer(identifier: "iCloud." + _CKEnv.bundleID)
         defaultContainer = c
         return c
     }
-    open lazy var privateCloudDatabase = CKDatabase(self, .private)
-    open lazy var publicCloudDatabase = CKDatabase(self, .public)
-    open lazy var sharedCloudDatabase = CKDatabase(self, .shared)
+    @objc open lazy var privateCloudDatabase = CKDatabase(self, .private)
+    @objc open lazy var publicCloudDatabase = CKDatabase(self, .public)
+    @objc open lazy var sharedCloudDatabase = CKDatabase(self, .shared)
     open func database(with scope: CKDatabase.Scope) -> CKDatabase {
         switch scope { case .public: publicCloudDatabase; case .private: privateCloudDatabase; case .shared: sharedCloudDatabase }
     }
@@ -40,7 +40,7 @@ extension NSNotification.Name {
     }
     @nonobjc open func accountStatus() async throws -> CKAccountStatus { _CKEnv.accountStatus }
 
-    open func fetchUserRecordID(completionHandler: @escaping @Sendable (CKRecord.ID?, Error?) -> Void) {
+    @objc open func fetchUserRecordID(completionHandler: @escaping @Sendable (CKRecord.ID?, Error?) -> Void) {
         let id = userRecordIDOrError()
         DispatchQueue.global().async { completionHandler(id.0, id.1) }
     }
@@ -55,7 +55,7 @@ extension NSNotification.Name {
     }
 
     /// runs a database operation in the private database (or the operation's own database)
-    open func add(_ operation: CKOperation) {
+    @objc open func add(_ operation: CKOperation) {
         if let op = operation as? CKDatabaseOperation, op.database == nil { op.database = privateCloudDatabase }
         operation.container = self
         operation._enqueue()
@@ -69,10 +69,10 @@ extension NSNotification.Name {
     public enum ApplicationPermissionStatus: Int, Sendable { case initialState = 0, couldNotComplete = 1, denied = 2, granted = 3 }
 }
 
-@objc(CKDatabase) @objcMembers open class CKDatabase: NSObject, @unchecked Sendable {
+@objc(CKDatabase) open class CKDatabase: NSObject, @unchecked Sendable {
     public enum Scope: Int, Sendable { case `public` = 1, `private` = 2, shared = 3 }
     public let databaseScope: Scope
-    unowned let container: CKContainer
+    @objc unowned let container: CKContainer
     let store: _CKStore
     init(_ c: CKContainer, _ scope: Scope) {
         container = c; databaseScope = scope
@@ -80,14 +80,14 @@ extension NSNotification.Name {
     }
     static let queue = DispatchQueue(label: "isim.cloudkit")
 
-    open func add(_ operation: CKDatabaseOperation) {
+    @objc open func add(_ operation: CKDatabaseOperation) {
         operation.database = self
         operation.container = container
         operation._enqueue()
     }
 
     // MARK: account gate
-    func check(write: Bool) -> Error? {
+    @objc func check(write: Bool) -> Error? {
         let s = _CKEnv.accountStatus
         if s == .available { return nil }
         if databaseScope == .public && !write { return nil }
@@ -95,7 +95,7 @@ extension NSNotification.Name {
     }
 
     // MARK: records (synchronous core)
-    var user: CKRecord.ID { CKRecord.ID(recordName: _CKEnv.userRecordName) }
+    @objc var user: CKRecord.ID { CKRecord.ID(recordName: _CKEnv.userRecordName) }
 
     func record(from s: _CKStoredRecord, id: CKRecord.ID, desiredKeys: [String]? = nil) -> CKRecord {
         let r: CKRecord
@@ -261,7 +261,7 @@ extension NSNotification.Name {
     }
 
     // MARK: subscription notifications (in-process)
-    nonisolated(unsafe) static var predicates: [String: NSPredicate] = [:]
+    @objc nonisolated(unsafe) static var predicates: [String: NSPredicate] = [:]
 
     func notify(_ changes: [Change]) {
         guard !changes.isEmpty else { return }
@@ -339,9 +339,9 @@ extension NSNotification.Name {
     }
 }
 
-@objc(CKQuery) @objcMembers open class CKQuery: NSObject, @unchecked Sendable {
-    public let recordType: CKRecord.RecordType
-    public let predicate: NSPredicate
-    open var sortDescriptors: [NSSortDescriptor]?
-    public init(recordType: CKRecord.RecordType, predicate: NSPredicate) { self.recordType = recordType; self.predicate = predicate }
+@objc(CKQuery) open class CKQuery: NSObject, @unchecked Sendable {
+    @objc public let recordType: CKRecord.RecordType
+    @objc public let predicate: NSPredicate
+    @objc open var sortDescriptors: [NSSortDescriptor]?
+    @objc public init(recordType: CKRecord.RecordType, predicate: NSPredicate) { self.recordType = recordType; self.predicate = predicate }
 }

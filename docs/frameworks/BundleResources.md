@@ -1,7 +1,7 @@
 # Info.plist keys (Bundle Resources)
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 0.0% of Apple's iOS API (0 of 3, approximate, by name) · **Rows:** 16: 9 ✅ 1 🟡 6 ❌ · **iOS:** 2.0+
+**Symbols:** 0.0% of Apple's iOS API (0 of 3, approximate, by name) · **Rows:** 16: 10 ✅ 1 🟡 5 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Accessibility & Info.plist](../COVERAGE.md#a11y) · **Apple:** [Bundle Resources](https://developer.apple.com/documentation/bundleresources) · **Issues:** [`area:a11y`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aa11y)
@@ -14,7 +14,9 @@
   - the home screen (`isim/system/SpringBoard`);
   - each framework's privacy checks (`isim/swift/overlays/_Privacy`).
 - **Who writes it:** `isim build` (`isim/tools/isim-build.py`), from the project's `INFOPLIST_FILE` and
-  `INFOPLIST_KEY_*` settings.
+  `INFOPLIST_KEY_*` settings; with `GENERATE_INFOPLIST_FILE = YES` also `CFBundleShortVersionString` and
+  `CFBundleVersion` from `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` when the file doesn't set them, like Xcode
+  (issue #640; tested by `test_new_project.py`).
 - **A key nobody reads** is accepted silently. An app can then pass on isim and fail on a device, so ignored keys are
   ❌ rows here.
 

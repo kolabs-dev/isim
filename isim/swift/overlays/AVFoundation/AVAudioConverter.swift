@@ -12,20 +12,20 @@ public typealias AVAudioPacketCount = UInt32
 // MARK: - channel layouts
 
 /// A channel layout: a layout tag, or a bitmap or list of channel descriptions (AudioChannelLayout).
-@objc(AVAudioChannelLayout) @objcMembers open class AVAudioChannelLayout: NSObject, NSSecureCoding, @unchecked Sendable {
-    let _storage: UnsafeMutableRawPointer
-    let _size: Int
-    static func size(descriptions n: Int) -> Int {
+@objc(AVAudioChannelLayout) open class AVAudioChannelLayout: NSObject, NSSecureCoding, @unchecked Sendable {
+    @objc let _storage: UnsafeMutableRawPointer
+    @objc let _size: Int
+    @objc static func size(descriptions n: Int) -> Int {
         MemoryLayout<AudioChannelLayout>.size + max(0, n - 1) * MemoryLayout<AudioChannelDescription>.stride
     }
     /// nil for the tags that need a bitmap or descriptions (UseChannelBitmap, UseChannelDescriptions)
-    public convenience init?(layoutTag: AudioChannelLayoutTag) {
+    @objc public convenience init?(layoutTag: AudioChannelLayoutTag) {
         guard layoutTag != kAudioChannelLayoutTag_UseChannelDescriptions, layoutTag != kAudioChannelLayoutTag_UseChannelBitmap else { return nil }
         var l = AudioChannelLayout()
         l.mChannelLayoutTag = layoutTag
         self.init(layout: &l)
     }
-    public init(layout: UnsafePointer<AudioChannelLayout>) {
+    @objc public init(layout: UnsafePointer<AudioChannelLayout>) {
         let n = layout.pointee.mChannelLayoutTag == kAudioChannelLayoutTag_UseChannelDescriptions ? Int(layout.pointee.mNumberChannelDescriptions) : 0
         _size = Self.size(descriptions: n)
         _storage = calloc(1, _size)!
@@ -36,9 +36,9 @@ public typealias AVAudioPacketCount = UInt32
         if n == 0 { _storage.assumingMemoryBound(to: AudioChannelLayout.self).pointee.mNumberChannelDescriptions = 0 }
     }
     deinit { free(_storage) }
-    open var layout: UnsafePointer<AudioChannelLayout> { UnsafePointer(_storage.assumingMemoryBound(to: AudioChannelLayout.self)) }
-    open var layoutTag: AudioChannelLayoutTag { layout.pointee.mChannelLayoutTag }
-    open var channelCount: AVAudioChannelCount {
+    @objc open var layout: UnsafePointer<AudioChannelLayout> { UnsafePointer(_storage.assumingMemoryBound(to: AudioChannelLayout.self)) }
+    @objc open var layoutTag: AudioChannelLayoutTag { layout.pointee.mChannelLayoutTag }
+    @objc open var channelCount: AVAudioChannelCount {
         let l = layout.pointee
         switch l.mChannelLayoutTag {
         case kAudioChannelLayoutTag_UseChannelDescriptions: return l.mNumberChannelDescriptions
@@ -47,16 +47,16 @@ public typealias AVAudioPacketCount = UInt32
         }
     }
     /// the layout's bytes (AVChannelLayoutKey)
-    var _data: Data { Data(bytes: _storage, count: _size) }
-    open override func isEqual(_ object: Any?) -> Bool {
+    @objc var _data: Data { Data(bytes: _storage, count: _size) }
+    @objc open override func isEqual(_ object: Any?) -> Bool {
         guard let o = object as? AVAudioChannelLayout else { return false }
         return o._data == _data
     }
-    open override var hash: Int { Int(layoutTag) }
-    open override var description: String { "<AVAudioChannelLayout tag 0x\(String(layoutTag, radix: 16)), \(channelCount) channels>" }
-    public static var supportsSecureCoding: Bool { true }
-    open func encode(with coder: NSCoder) { coder.encode(_data, forKey: "layout") }
-    public required convenience init?(coder: NSCoder) {
+    @objc open override var hash: Int { Int(layoutTag) }
+    @objc open override var description: String { "<AVAudioChannelLayout tag 0x\(String(layoutTag, radix: 16)), \(channelCount) channels>" }
+    @objc public static var supportsSecureCoding: Bool { true }
+    @objc open func encode(with coder: NSCoder) { coder.encode(_data, forKey: "layout") }
+    @objc public required convenience init?(coder: NSCoder) {
         guard let d = coder.decodeObject(forKey: "layout") as? Data, d.count >= MemoryLayout<AudioChannelLayout>.size - MemoryLayout<AudioChannelDescription>.stride else { return nil }
         var buf = [UInt8](d) + [UInt8](repeating: 0, count: MemoryLayout<AudioChannelLayout>.size)
         self.init(layout: buf.withUnsafeMutableBytes { UnsafePointer($0.baseAddress!.assumingMemoryBound(to: AudioChannelLayout.self)) })
@@ -67,16 +67,16 @@ public typealias AVAudioPacketCount = UInt32
 // MARK: - compressed buffers
 
 /// Packets of a compressed format (AAC, ALAC, ...) with their packet descriptions.
-@objc(AVAudioCompressedBuffer) @objcMembers open class AVAudioCompressedBuffer: AVAudioBuffer {
-    public let packetCapacity: AVAudioPacketCount
-    public let maximumPacketSize: Int
-    public let byteCapacity: UInt32
-    public let data: UnsafeMutableRawPointer
-    open var packetCount: AVAudioPacketCount = 0
-    open var byteLength: UInt32 = 0
-    let _descs: UnsafeMutablePointer<AudioStreamPacketDescription>?
+@objc(AVAudioCompressedBuffer) open class AVAudioCompressedBuffer: AVAudioBuffer {
+    @objc public let packetCapacity: AVAudioPacketCount
+    @objc public let maximumPacketSize: Int
+    @objc public let byteCapacity: UInt32
+    @objc public let data: UnsafeMutableRawPointer
+    @objc open var packetCount: AVAudioPacketCount = 0
+    @objc open var byteLength: UInt32 = 0
+    @objc let _descs: UnsafeMutablePointer<AudioStreamPacketDescription>?
     /// formats with variable packet sizes (AAC): `maximumPacketSize` bytes per packet at most
-    public init(format: AVAudioFormat, packetCapacity: AVAudioPacketCount, maximumPacketSize: Int) {
+    @objc public init(format: AVAudioFormat, packetCapacity: AVAudioPacketCount, maximumPacketSize: Int) {
         self.packetCapacity = packetCapacity
         let constant = Int(format.streamDescription.pointee.mBytesPerPacket)
         self.maximumPacketSize = constant > 0 ? constant : maximumPacketSize
@@ -89,25 +89,25 @@ public typealias AVAudioPacketCount = UInt32
         super.init(format: format)
     }
     /// formats with a constant packet size (bytes per packet in the stream description)
-    public convenience init(format: AVAudioFormat, packetCapacity: AVAudioPacketCount) {
+    @objc public convenience init(format: AVAudioFormat, packetCapacity: AVAudioPacketCount) {
         self.init(format: format, packetCapacity: packetCapacity, maximumPacketSize: Int(format.streamDescription.pointee.mBytesPerPacket))
     }
     deinit { free(data); _descs?.deallocate() }
-    open var packetDescriptions: UnsafeMutablePointer<AudioStreamPacketDescription>? { _descs }
+    @objc open var packetDescriptions: UnsafeMutablePointer<AudioStreamPacketDescription>? { _descs }
     var _abl: UnsafeMutableAudioBufferListPointer?
-    open override var mutableAudioBufferList: UnsafeMutablePointer<AudioBufferList> {
+    @objc open override var mutableAudioBufferList: UnsafeMutablePointer<AudioBufferList> {
         if _abl == nil { _abl = AudioBufferList.allocate(maximumBuffers: 1) }
         _abl![0] = AudioBuffer(mNumberChannels: format.channelCount, mDataByteSize: byteLength, mData: data)
         return _abl!.unsafeMutablePointer
     }
-    open override func copy(with zone: NSZone? = nil) -> Any {
+    @objc open override func copy(with zone: NSZone? = nil) -> Any {
         let b = AVAudioCompressedBuffer(format: format, packetCapacity: packetCapacity, maximumPacketSize: maximumPacketSize)
         b.data.copyMemory(from: data, byteCount: Int(byteLength))
         if let s = _descs, let d = b._descs { d.update(from: s, count: Int(packetCount)) }
         b.packetCount = packetCount; b.byteLength = byteLength
         return b
     }
-    open override func mutableCopy(with zone: NSZone? = nil) -> Any { copy(with: zone) }
+    @objc open override func mutableCopy(with zone: NSZone? = nil) -> Any { copy(with: zone) }
 }
 
 // MARK: - converter
@@ -167,11 +167,11 @@ private let _converterInputProc: AudioConverterComplexInputDataProc = { _, ioPac
     return noErr
 }
 
-@objc(AVAudioConverter) @objcMembers open class AVAudioConverter: NSObject {
-    public let inputFormat: AVAudioFormat
-    public let outputFormat: AVAudioFormat
-    var _ref: AudioConverterRef?
-    var _ended = false
+@objc(AVAudioConverter) open class AVAudioConverter: NSObject {
+    @objc public let inputFormat: AVAudioFormat
+    @objc public let outputFormat: AVAudioFormat
+    @objc var _ref: AudioConverterRef?
+    @objc var _ended = false
     @objc(initFromFormat:toFormat:) public init?(from fromFormat: AVAudioFormat, to toFormat: AVAudioFormat) {
         inputFormat = fromFormat; outputFormat = toFormat
         var ref: AudioConverterRef?
@@ -183,15 +183,15 @@ private let _converterInputProc: AudioConverterComplexInputDataProc = { _, ioPac
     }
     deinit { if let r = _ref { AudioConverterDispose(r) } }
     /// back to the start of a stream (after endOfStream, or to drop buffered input)
-    open func reset() { if let r = _ref { AudioConverterReset(r) }; _ended = false }
+    @objc open func reset() { if let r = _ref { AudioConverterReset(r) }; _ended = false }
 
     /// for each output channel the input channel it takes (-1: silence); empty: the default mapping
-    open var channelMap: [NSNumber] = []
+    @objc open var channelMap: [NSNumber] = []
     /// mix all input channels down when the output has fewer (otherwise the first ones are kept)
-    open var downmix = false
-    open var dither = false
-    open var sampleRateConverterQuality: Int = AVAudioQuality.max.rawValue
-    open var sampleRateConverterAlgorithm: String? = AVSampleRateConverterAlgorithm_Normal
+    @objc open var downmix = false
+    @objc open var dither = false
+    @objc open var sampleRateConverterQuality: Int = AVAudioQuality.max.rawValue
+    @objc open var sampleRateConverterAlgorithm: String? = AVSampleRateConverterAlgorithm_Normal
     open var primeMethod: AVAudioConverterPrimeMethod = .normal
     open var primeInfo: AVAudioConverterPrimeInfo {
         get {
@@ -204,7 +204,7 @@ private let _converterInputProc: AudioConverterComplexInputDataProc = { _, ioPac
     }
     var _primeInfo: AVAudioConverterPrimeInfo?
     /// the codec's magic cookie: the encoder's (an esds) when encoding; set the decoder's when decoding
-    open var magicCookie: Data? {
+    @objc open var magicCookie: Data? {
         get {
             guard let r = _ref else { return _cookie }
             var size: UInt32 = 0
@@ -219,16 +219,16 @@ private let _converterInputProc: AudioConverterComplexInputDataProc = { _, ioPac
             _ = d.withUnsafeBytes { AudioConverterSetProperty(r, kAudioConverterDecompressionMagicCookie, UInt32(d.count), $0.baseAddress!) }
         }
     }
-    var _cookie: Data?
-    open var maximumOutputPacketSize: Int {
+    @objc var _cookie: Data?
+    @objc open var maximumOutputPacketSize: Int {
         guard let r = _ref else { return 0 }
         var v: UInt32 = 0, size: UInt32 = 4
         _ = AudioConverterGetProperty(r, kAudioConverterPropertyMaximumOutputPacketSize, &size, &v)
         return Int(v)
     }
-    var _encodes: Bool { inputFormat._isPCM && !outputFormat._isPCM }
+    @objc var _encodes: Bool { inputFormat._isPCM && !outputFormat._isPCM }
     /// the encoder's bit rate (bits per second); 0 when not encoding
-    open var bitRate: Int {
+    @objc open var bitRate: Int {
         get {
             guard _encodes, let r = _ref else { return 0 }
             var v: UInt32 = 0, size: UInt32 = 4
@@ -241,24 +241,24 @@ private let _converterInputProc: AudioConverterComplexInputDataProc = { _, ioPac
             _ = AudioConverterSetProperty(r, kAudioConverterEncodeBitRate, 4, &v)
         }
     }
-    open var bitRateStrategy: String?
-    static let _aacRates: [NSNumber] = [8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000]
-    var _aacBitRates: [NSNumber] {
+    @objc open var bitRateStrategy: String?
+    @objc static let _aacRates: [NSNumber] = [8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000]
+    @objc var _aacBitRates: [NSNumber] {
         let ch = Int(max(1, outputFormat.channelCount))
         return [32000, 48000, 64000, 96000, 128000, 160000, 192000, 256000, 320000].filter { $0 <= 320000 * ch && $0 >= 16000 * ch }.map { NSNumber(value: $0) }
     }
-    open var availableEncodeBitRates: [NSNumber]? { _encodes ? _aacBitRates : nil }
-    open var applicableEncodeBitRates: [NSNumber]? { _encodes ? _aacBitRates : nil }
-    open var availableEncodeSampleRates: [NSNumber]? { _encodes ? Self._aacRates : nil }
-    open var applicableEncodeSampleRates: [NSNumber]? { _encodes ? Self._aacRates : nil }
-    open var availableEncodeChannelLayoutTags: [NSNumber]? {
+    @objc open var availableEncodeBitRates: [NSNumber]? { _encodes ? _aacBitRates : nil }
+    @objc open var applicableEncodeBitRates: [NSNumber]? { _encodes ? _aacBitRates : nil }
+    @objc open var availableEncodeSampleRates: [NSNumber]? { _encodes ? Self._aacRates : nil }
+    @objc open var applicableEncodeSampleRates: [NSNumber]? { _encodes ? Self._aacRates : nil }
+    @objc open var availableEncodeChannelLayoutTags: [NSNumber]? {
         guard _encodes else { return nil }
         return [kAudioChannelLayoutTag_Mono, kAudioChannelLayoutTag_Stereo, kAudioChannelLayoutTag_AAC_3_0, kAudioChannelLayoutTag_AAC_4_0,
                 kAudioChannelLayoutTag_AAC_5_0, kAudioChannelLayoutTag_AAC_5_1, kAudioChannelLayoutTag_AAC_6_0, kAudioChannelLayoutTag_AAC_6_1,
                 kAudioChannelLayoutTag_AAC_7_0, kAudioChannelLayoutTag_AAC_7_1].map { NSNumber(value: $0) }
     }
 
-    static func _error(_ status: OSStatus) -> NSError { NSError(domain: NSOSStatusErrorDomain, code: Int(status)) }
+    @objc static func _error(_ status: OSStatus) -> NSError { NSError(domain: NSOSStatusErrorDomain, code: Int(status)) }
 
     /// Linear PCM to linear PCM in one call: sample format, interleaving and channels (channelMap, downmix), at the
     /// same sample rate (as on iOS; use convert(to:error:withInputFrom:) to resample).
@@ -278,7 +278,7 @@ private let _converterInputProc: AudioConverterComplexInputDataProc = { _, ioPac
     }
     /// the output channels from the input ones: channelMap, else downmix (averaging), mono to every channel, or the
     /// first channels (extra outputs silent)
-    func _map(_ x: [[Float]], outputs: Int, frames n: Int) -> [[Float]] {
+    @objc func _map(_ x: [[Float]], outputs: Int, frames n: Int) -> [[Float]] {
         let silence = [Float](repeating: 0, count: n)
         if !channelMap.isEmpty {
             return (0..<outputs).map { c in

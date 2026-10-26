@@ -27,7 +27,8 @@ What it does per target (dependencies first, also across the projects of a works
     settings), $(VAR) expansion, SETTING=VALUE overrides on the command line; schemes pick the targets
   * links the product (apps: MH_EXECUTE; app extensions: entry point _NSExtensionMain; frameworks:
     install name @rpath/Name.framework/Name; test bundles: MH_BUNDLE with -bundle_loader for hosted tests)
-  * Info.plist: expands $(VARS) from build settings, applies INFOPLIST_KEY_*, sets MinimumOSVersion
+  * Info.plist: expands $(VARS) from build settings, applies INFOPLIST_KEY_*, sets MinimumOSVersion; a generated one
+    (GENERATE_INFOPLIST_FILE) gets the versions from MARKETING_VERSION / CURRENT_PROJECT_VERSION, like Xcode
   * resources: .xcstrings -> <lang>.lproj/<Table>.strings, .strings/.lproj copied,
     .xcassets -> <bundle>/isim-assets.json + images (isim's asset format; NOT Apple's Assets.car),
     .storyboard / .xib -> <Name>.storyboardc / <Name>.nib (isim's IB archive format, NOT Apple's compiled
@@ -1973,6 +1974,10 @@ def make_info_plist(target, settings, bundle, extra_localizations, package_type=
                     info.setdefault(GENERATED_KEYS[key][0], GENERATED_KEYS[key][1]())
                 continue
             info.setdefault(key, {'YES': True, 'NO': False}.get(v, v) if isinstance(v, str) else v)
+    if settings.get('GENERATE_INFOPLIST_FILE') == 'YES':   # Xcode always writes the versions into a generated Info.plist
+        for key, setting in (('CFBundleShortVersionString', 'MARKETING_VERSION'), ('CFBundleVersion', 'CURRENT_PROJECT_VERSION')):
+            if settings.get(setting):
+                info.setdefault(key, str(settings[setting]))
     info.setdefault('CFBundleExecutable', settings['EXECUTABLE_NAME'])
     info.setdefault('CFBundleIdentifier', settings.get('PRODUCT_BUNDLE_IDENTIFIER', ''))
     info.setdefault('CFBundleName', settings['PRODUCT_NAME'])

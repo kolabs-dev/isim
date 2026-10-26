@@ -250,19 +250,19 @@ final class _AudioFileWriter {
     @objc optional func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: Error?)
 }
 
-@objc(AVAudioRecorder) @objcMembers open class AVAudioRecorder: NSObject {
-    public let url: URL
-    public let settings: [String: Any]
-    public let format: AVAudioFormat
-    open weak var delegate: AVAudioRecorderDelegate?
-    open var isMeteringEnabled = false
-    open private(set) var isRecording = false
+@objc(AVAudioRecorder) open class AVAudioRecorder: NSObject {
+    @objc public let url: URL
+    @objc public let settings: [String: Any]
+    @objc public let format: AVAudioFormat
+    @objc open weak var delegate: AVAudioRecorderDelegate?
+    @objc open var isMeteringEnabled = false
+    @objc open private(set) var isRecording = false
     var writer: _AudioFileWriter
-    var captured = 0                       // 48 kHz frames
+    @objc var captured = 0                       // 48 kHz frames
     var limit: Double?
-    var last: [Float] = []                 // recent samples for metering
-    var avgDB: Float = -160, peakDB: Float = -160
-    var subscribed = false
+    @objc var last: [Float] = []                 // recent samples for metering
+    @objc var avgDB: Float = -160, peakDB: Float = -160
+    @objc var subscribed = false
 
     @objc(initWithURL:settings:error:) public init(url: URL, settings: [String: Any]) throws {
         _AVSessionPrefs.installMicrophonePrompt()
@@ -275,10 +275,10 @@ final class _AudioFileWriter {
     }
     deinit { if subscribed { _IsimAudioInput.unsubscribe(self) } }
 
-    open var currentTime: TimeInterval { Double(captured) / 48000 }
-    open var deviceCurrentTime: TimeInterval { isim_time() }
-    @discardableResult open func prepareToRecord() -> Bool { true }
-    @discardableResult open func record() -> Bool {
+    @objc open var currentTime: TimeInterval { Double(captured) / 48000 }
+    @objc open var deviceCurrentTime: TimeInterval { isim_time() }
+    @objc @discardableResult open func prepareToRecord() -> Bool { true }
+    @objc @discardableResult open func record() -> Bool {
         guard !isRecording else { return true }
         if writer.closed, let w = try? _AudioFileWriter(url: url, settings: settings) { writer = w; captured = 0 }
         if subscribed { _IsimAudioInput.poll() }      // (resuming) drop nothing, just catch up
@@ -286,15 +286,15 @@ final class _AudioFileWriter {
         if !subscribed { subscribed = true; _IsimAudioInput.subscribe(self) { [weak self] x in self?.received(x) } }
         return true
     }
-    @discardableResult open func record(atTime time: TimeInterval) -> Bool { record() }
-    @discardableResult open func record(forDuration duration: TimeInterval) -> Bool { limit = duration; return record() }
-    @discardableResult open func record(atTime time: TimeInterval, forDuration duration: TimeInterval) -> Bool { record(forDuration: duration) }
-    open func pause() {
+    @objc @discardableResult open func record(atTime time: TimeInterval) -> Bool { record() }
+    @objc @discardableResult open func record(forDuration duration: TimeInterval) -> Bool { limit = duration; return record() }
+    @objc @discardableResult open func record(atTime time: TimeInterval, forDuration duration: TimeInterval) -> Bool { record(forDuration: duration) }
+    @objc open func pause() {
         guard isRecording else { return }
         _IsimAudioInput.poll()
         isRecording = false
     }
-    open func stop() {
+    @objc open func stop() {
         if isRecording { _IsimAudioInput.poll() }
         isRecording = false
         if subscribed { _IsimAudioInput.unsubscribe(self); subscribed = false }
@@ -306,11 +306,11 @@ final class _AudioFileWriter {
         let flag = ok
         DispatchQueue.main.async { self.delegate?.audioRecorderDidFinishRecording?(self, successfully: flag) }
     }
-    @discardableResult open func deleteRecording() -> Bool {
+    @objc @discardableResult open func deleteRecording() -> Bool {
         guard !isRecording else { return false }
         return (try? FileManager.default.removeItem(at: url)) != nil
     }
-    func received(_ chunk: [Float]) {
+    @objc func received(_ chunk: [Float]) {
         guard isRecording else { return }
         var x = chunk
         if let l = limit {
@@ -322,7 +322,7 @@ final class _AudioFileWriter {
         if isMeteringEnabled { last = Array((last + x).suffix(4096)) }
         if let l = limit, Double(captured) >= l * 48000 { limit = nil; stop() }
     }
-    open func updateMeters() {
+    @objc open func updateMeters() {
         guard !last.isEmpty else { avgDB = -160; peakDB = -160; return }
         var sum: Float = 0, peak: Float = 0
         for v in last { sum += v * v; peak = max(peak, abs(v)) }
@@ -330,6 +330,6 @@ final class _AudioFileWriter {
         avgDB = rms > 0 ? max(-160, 20 * Float(log10(Double(rms)))) : -160
         peakDB = peak > 0 ? max(-160, 20 * Float(log10(Double(peak)))) : -160
     }
-    open func averagePower(forChannel channelNumber: Int) -> Float { avgDB }
-    open func peakPower(forChannel channelNumber: Int) -> Float { peakDB }
+    @objc open func averagePower(forChannel channelNumber: Int) -> Float { avgDB }
+    @objc open func peakPower(forChannel channelNumber: Int) -> Float { peakDB }
 }

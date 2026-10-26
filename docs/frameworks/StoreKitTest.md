@@ -1,7 +1,7 @@
 # StoreKitTest
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 19.6% of Apple's iOS API (56 of 286, exact) · **Rows:** 8: 5 ✅ 2 🟡 1 ❌ · **iOS:** 14.0+
+**Symbols:** 38.1% of Apple's iOS API (109 of 286, exact) · **Rows:** 9: 7 ✅ 2 🟡 · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [Developer tools](../COVERAGE.md#devtools) · **Apple:** [StoreKitTest](https://developer.apple.com/documentation/storekittest) · **Issues:** [`area:devtools`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Adevtools)
@@ -36,21 +36,10 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-230 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+177 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
-- [`FailableStoreKitAPI`](https://developer.apple.com/documentation/storekittest/failablestorekitapi)
-- [`static var appStoreSync: StoreKitAppStoreSyncAPI`](https://developer.apple.com/documentation/storekittest/failablestorekitapi/appstoresync)
-- [`static var appTransaction: StoreKitAppTransactionAPI`](https://developer.apple.com/documentation/storekittest/failablestorekitapi/apptransaction)
-- [`Failure`](https://developer.apple.com/documentation/storekittest/failablestorekitapi/failure)
-- [`static var loadProducts: StoreKitLoadProductsAPI`](https://developer.apple.com/documentation/storekittest/failablestorekitapi/loadproducts)
-- [`static var manageSubscriptions: StoreKitManageSubscriptionsAPI`](https://developer.apple.com/documentation/storekittest/failablestorekitapi/managesubscriptions)
-- [`static var offerCodeRedeem: StoreKitOfferCodeRedeemAPI`](https://developer.apple.com/documentation/storekittest/failablestorekitapi/offercoderedeem)
-- [`static var purchase: StoreKitPurchaseAPI`](https://developer.apple.com/documentation/storekittest/failablestorekitapi/purchase)
-- [`static var refundRequest: StoreKitRefundRequestAPI`](https://developer.apple.com/documentation/storekittest/failablestorekitapi/refundrequest)
-- [`static var subscriptionStatus: StoreKitSubscriptionStatusAPI`](https://developer.apple.com/documentation/storekittest/failablestorekitapi/subscriptionstatus)
-- [`static var verification: StoreKitVerificationAPI`](https://developer.apple.com/documentation/storekittest/failablestorekitapi/verification)
 - [`SKAdTestError`](https://developer.apple.com/documentation/storekittest/skadtesterror)
 - [`SKAdTestError.Code`](https://developer.apple.com/documentation/storekittest/skadtesterror/code)
 - [`case conflictingSource`](https://developer.apple.com/documentation/storekittest/skadtesterror/code/conflictingsource)
@@ -224,52 +213,10 @@
 - [`static var noSubscriptionFound: SKTestError.Code`](https://developer.apple.com/documentation/storekittest/sktesterror/nosubscriptionfound)
 - [`static var noTransactionFound: SKTestError.Code`](https://developer.apple.com/documentation/storekittest/sktesterror/notransactionfound)
 - [`static var serviceUnavailable: SKTestError.Code`](https://developer.apple.com/documentation/storekittest/sktesterror/serviceunavailable)
-- [`SKTestFailure`](https://developer.apple.com/documentation/storekittest/sktestfailure)
-- [`SKTestFailures`](https://developer.apple.com/documentation/storekittest/sktestfailures)
-- [`SKTestFailures.AppStoreSync`](https://developer.apple.com/documentation/storekittest/sktestfailures/appstoresync)
-- [`case generic(StoreKitError)`](https://developer.apple.com/documentation/storekittest/sktestfailures/appstoresync/generic(_:))
-- [`SKTestFailures.AppTransaction`](https://developer.apple.com/documentation/storekittest/sktestfailures/apptransaction)
-- [`case generic(StoreKitError)`](https://developer.apple.com/documentation/storekittest/sktestfailures/apptransaction/generic(_:))
-- [`SKTestFailures.LoadProducts`](https://developer.apple.com/documentation/storekittest/sktestfailures/loadproducts)
-- [`case generic(StoreKitError)`](https://developer.apple.com/documentation/storekittest/sktestfailures/loadproducts/generic(_:))
-- [`SKTestFailures.ManageSubscriptions`](https://developer.apple.com/documentation/storekittest/sktestfailures/managesubscriptions)
-- [`case generic(StoreKitError)`](https://developer.apple.com/documentation/storekittest/sktestfailures/managesubscriptions/generic(_:))
-- [`SKTestFailures.OfferCodeRedeem`](https://developer.apple.com/documentation/storekittest/sktestfailures/offercoderedeem)
-- [`case generic(StoreKitError)`](https://developer.apple.com/documentation/storekittest/sktestfailures/offercoderedeem/generic(_:))
-- [`SKTestFailures.Purchase`](https://developer.apple.com/documentation/storekittest/sktestfailures/purchase)
-- [`case generic(StoreKitError)`](https://developer.apple.com/documentation/storekittest/sktestfailures/purchase/generic(_:))
-- [`case purchase(Product.PurchaseError)`](https://developer.apple.com/documentation/storekittest/sktestfailures/purchase/purchase(_:))
-- [`SKTestFailures.RefundRequest`](https://developer.apple.com/documentation/storekittest/sktestfailures/refundrequest)
-- [`case generic(StoreKitError)`](https://developer.apple.com/documentation/storekittest/sktestfailures/refundrequest/generic(_:))
-- [`case refundRequest(Transaction.RefundRequestError)`](https://developer.apple.com/documentation/storekittest/sktestfailures/refundrequest/refundrequest(_:))
-- [`SKTestFailures.SubscriptionStatus`](https://developer.apple.com/documentation/storekittest/sktestfailures/subscriptionstatus)
-- [`case generic(StoreKitError)`](https://developer.apple.com/documentation/storekittest/sktestfailures/subscriptionstatus/generic(_:))
-- [`SKTestFailures.Verification`](https://developer.apple.com/documentation/storekittest/sktestfailures/verification)
-- [`case verification(VerificationResult<Any>.VerificationError)`](https://developer.apple.com/documentation/storekittest/sktestfailures/verification/verification(_:))
-- [`func setSimulatedError<API>(API.Failure?, forAPI: API) async throws`](https://developer.apple.com/documentation/storekittest/sktestsession/setsimulatederror(_:forapi:))
-- [`func simulatedError<API>(forAPI: API) async -> API.Failure?`](https://developer.apple.com/documentation/storekittest/sktestsession/simulatederror(forapi:))
 - [`case oneRenewalEveryFifteenMinutes`](https://developer.apple.com/documentation/storekittest/sktestsession/timerate-swift.enum/onerenewaleveryfifteenminutes)
 - [`case oneRenewalEveryFiveMinutes`](https://developer.apple.com/documentation/storekittest/sktestsession/timerate-swift.enum/onerenewaleveryfiveminutes)
 - [`var cancelDate: Date?`](https://developer.apple.com/documentation/storekittest/sktesttransaction/canceldate)
 - [`var isPendingPriceIncreaseConsent: Bool`](https://developer.apple.com/documentation/storekittest/sktesttransaction/ispendingpriceincreaseconsent)
-- [`StoreKitAppStoreSyncAPI`](https://developer.apple.com/documentation/storekittest/storekitappstoresyncapi)
-- [`init()`](https://developer.apple.com/documentation/storekittest/storekitappstoresyncapi/init())
-- [`StoreKitAppTransactionAPI`](https://developer.apple.com/documentation/storekittest/storekitapptransactionapi)
-- [`init()`](https://developer.apple.com/documentation/storekittest/storekitapptransactionapi/init())
-- [`StoreKitLoadProductsAPI`](https://developer.apple.com/documentation/storekittest/storekitloadproductsapi)
-- [`init()`](https://developer.apple.com/documentation/storekittest/storekitloadproductsapi/init())
-- [`StoreKitManageSubscriptionsAPI`](https://developer.apple.com/documentation/storekittest/storekitmanagesubscriptionsapi)
-- [`init()`](https://developer.apple.com/documentation/storekittest/storekitmanagesubscriptionsapi/init())
-- [`StoreKitOfferCodeRedeemAPI`](https://developer.apple.com/documentation/storekittest/storekitoffercoderedeemapi)
-- [`init()`](https://developer.apple.com/documentation/storekittest/storekitoffercoderedeemapi/init())
-- [`StoreKitPurchaseAPI`](https://developer.apple.com/documentation/storekittest/storekitpurchaseapi)
-- [`init()`](https://developer.apple.com/documentation/storekittest/storekitpurchaseapi/init())
-- [`StoreKitRefundRequestAPI`](https://developer.apple.com/documentation/storekittest/storekitrefundrequestapi)
-- [`init()`](https://developer.apple.com/documentation/storekittest/storekitrefundrequestapi/init())
-- [`StoreKitSubscriptionStatusAPI`](https://developer.apple.com/documentation/storekittest/storekitsubscriptionstatusapi)
-- [`init()`](https://developer.apple.com/documentation/storekittest/storekitsubscriptionstatusapi/init())
-- [`StoreKitVerificationAPI`](https://developer.apple.com/documentation/storekittest/storekitverificationapi)
-- [`init()`](https://developer.apple.com/documentation/storekittest/storekitverificationapi/init())
 
 </details>
 <!-- /generated:missing -->

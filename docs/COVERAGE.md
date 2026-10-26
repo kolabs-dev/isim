@@ -53,26 +53,26 @@ so pull requests don't conflict on them (AGENTS.md, "Coverage").
 <!-- generated:summary (isim/tools/coverage-summary.py; do not edit by hand) -->
 | Area | Symbols | ✅ | 🟡 | 🧩 | ❌ | ⛔ | Frameworks in isim |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| [UIKit](#uikit) | 93% | 316 | 7 | 0 | 3 | 0 | 2 of 2 |
+| [UIKit](#uikit) | 93% | 317 | 7 | 0 | 3 | 0 | 2 of 2 |
 | [SwiftUI & Charts](#swiftui) | 71% | 302 | 7 | 0 | 7 | 0 | 2 of 2 |
-| [Developer tools](#devtools) | 33% | 78 | 10 | 0 | 10 | 0 | 5 of 6 |
-| [Foundation & CoreFoundation](#foundation) | 38% | 115 | 8 | 0 | 5 | 0 | 3 of 8 |
-| [Swift, Darwin & runtimes](#runtime) | 88% | 101 | 6 | 0 | 11 | 0 | 14 of 16 |
+| [Developer tools](#devtools) | 36% | 81 | 10 | 0 | 9 | 0 | 5 of 6 |
+| [Foundation & CoreFoundation](#foundation) | 38% | 117 | 8 | 0 | 6 | 0 | 4 of 8 |
+| [Swift, Darwin & runtimes](#runtime) | 88% | 104 | 6 | 0 | 11 | 0 | 14 of 16 |
 | [Graphics & text](#graphics) | 32% | 82 | 14 | 0 | 13 | 0 | 7 of 12 |
 | [GPU](#gpu) | 0% | 0 | 0 | 0 | 1 | 0 | 1 of 7 |
-| [Imaging, photos & ML](#ml) | 20% | 40 | 25 | 3 | 23 | 0 | 13 of 30 |
-| [Media](#media) | 26% | 82 | 5 | 0 | 22 | 0 | 12 of 27 |
-| [Games & 3D](#games) | 21% | 82 | 27 | 0 | 10 | 0 | 7 of 13 |
-| [Commerce & privacy](#commerce) | 51% | 59 | 4 | 0 | 9 | 0 | 9 of 14 |
-| [Data & persistence](#data) | 77% | 37 | 1 | 0 | 6 | 0 | 3 of 3 |
-| [Identity & security](#security) | 28% | 22 | 1 | 0 | 11 | 0 | 5 of 14 |
-| [App extensions & system integration](#system) | 22% | 27 | 7 | 0 | 18 | 0 | 12 of 54 |
-| [Location, personal data & sensors](#location) | 8% | 14 | 6 | 0 | 20 | 0 | 10 of 30 |
-| [Web, network & communication](#web) | 21% | 17 | 0 | 1 | 15 | 0 | 8 of 12 |
-| [Accessibility & Info.plist](#a11y) | 3% | 10 | 1 | 0 | 7 | 0 | 2 of 2 |
-| **All areas** | **37%** | **1384** | **129** | **4** | **191** | **0** | **115 of 252** |
+| [Imaging, photos & ML](#ml) | 20% | 43 | 25 | 3 | 23 | 0 | 13 of 30 |
+| [Media](#media) | 26% | 84 | 5 | 0 | 22 | 0 | 12 of 27 |
+| [Games & 3D](#games) | 21% | 85 | 29 | 0 | 10 | 0 | 7 of 13 |
+| [Commerce & privacy](#commerce) | 51% | 61 | 4 | 0 | 9 | 0 | 9 of 14 |
+| [Data & persistence](#data) | 76% | 38 | 1 | 0 | 6 | 0 | 3 of 3 |
+| [Identity & security](#security) | 32% | 27 | 1 | 0 | 11 | 0 | 5 of 14 |
+| [App extensions & system integration](#system) | 40% | 56 | 9 | 0 | 16 | 0 | 13 of 54 |
+| [Location, personal data & sensors](#location) | 11% | 38 | 4 | 12 | 18 | 0 | 15 of 30 |
+| [Web, network & communication](#web) | 31% | 29 | 0 | 6 | 15 | 0 | 10 of 12 |
+| [Accessibility & Info.plist](#a11y) | 14% | 15 | 1 | 0 | 6 | 0 | 2 of 2 |
+| **All areas** | **39%** | **1479** | **131** | **21** | **186** | **0** | **124 of 252** |
 
-Symbols: 92319 of 252725 Apple iOS symbols in the frameworks isim has or tracks (exact; isim 135df2a, Apple snapshot 2026-10-14).
+Symbols: 98018 of 252764 Apple iOS symbols in the frameworks isim has or tracks (exact; isim baf911c5, Apple snapshot 2026-10-14).
 <!-- /generated:summary -->
 
 ### Per iOS version
@@ -84,8 +84,8 @@ N (iOS 17 when the snapshot does not say).
 | Area | iOS 17 | iOS 18 | iOS 26 | iOS 27 |
 |---|---:|---:|---:|---:|
 | UIKit | 92% | 92% | 93% | 93% |
-| SwiftUI & Charts | 79% | 74% | 71% | 71% |
-| Developer tools | 33% | 33% | 33% | 33% |
+| SwiftUI & Charts | 79% | 75% | 72% | 71% |
+| Developer tools | 36% | 36% | 36% | 36% |
 | Foundation & CoreFoundation | 38% | 38% | 38% | 38% |
 | Swift, Darwin & runtimes | 90% | 90% | 90% | 88% |
 | Graphics & text | 34% | 34% | 33% | 32% |
@@ -94,13 +94,13 @@ N (iOS 17 when the snapshot does not say).
 | Media | 30% | 29% | 27% | 26% |
 | Games & 3D | 21% | 21% | 21% | 21% |
 | Commerce & privacy | 58% | 55% | 52% | 51% |
-| Data & persistence | 84% | 80% | 79% | 77% |
-| Identity & security | 33% | 33% | 28% | 28% |
-| App extensions & system integration | 17% | 19% | 23% | 22% |
-| Location, personal data & sensors | 8% | 8% | 8% | 8% |
-| Web, network & communication | 25% | 23% | 21% | 21% |
-| Accessibility & Info.plist | 5% | 3% | 3% | 3% |
-| **All areas** | **38%** | **37%** | **37%** | **37%** |
+| Data & persistence | 84% | 79% | 78% | 76% |
+| Identity & security | 37% | 38% | 32% | 32% |
+| App extensions & system integration | 25% | 34% | 38% | 40% |
+| Location, personal data & sensors | 11% | 11% | 11% | 11% |
+| Web, network & communication | 38% | 35% | 32% | 31% |
+| Accessibility & Info.plist | 10% | 12% | 14% | 14% |
+| **All areas** | **39%** | **39%** | **39%** | **39%** |
 <!-- /generated:versions -->
 
 ## Frameworks
@@ -117,7 +117,7 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | Framework | iOS | In isim | Symbols | Rows | Page |
 |---|---|---|---:|---|---|
 | [Quick Look](https://developer.apple.com/documentation/quicklook) | 4.0 | ✅ | 54.2% | 4: 3 ✅ 1 ❌ | [QuickLook](frameworks/QuickLook.md) |
-| [UIKit](https://developer.apple.com/documentation/uikit) | 2.0 | ✅ | 92.7% | 322: 313 ✅ 7 🟡 2 ❌ | [UIKit](frameworks/UIKit.md) |
+| [UIKit](https://developer.apple.com/documentation/uikit) | 2.0 | ✅ | 92.8% | 323: 314 ✅ 7 🟡 2 ❌ | [UIKit](frameworks/UIKit.md) |
 
 ### SwiftUI & Charts
 
@@ -126,7 +126,7 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | Framework | iOS | In isim | Symbols | Rows | Page |
 |---|---|---|---:|---|---|
 | [Swift Charts](https://developer.apple.com/documentation/charts) | 16.0 | ✅ | 87.2% | 20: 19 ✅ 1 ❌ | [Charts](frameworks/Charts.md) |
-| [SwiftUI](https://developer.apple.com/documentation/swiftui) | 13.0 | ✅ | 69.1% | 296: 283 ✅ 7 🟡 6 ❌ | [SwiftUI](frameworks/SwiftUI.md) |
+| [SwiftUI](https://developer.apple.com/documentation/swiftui) | 13.0 | ✅ | 69.6% | 296: 283 ✅ 7 🟡 6 ❌ | [SwiftUI](frameworks/SwiftUI.md) |
 
 ### Developer tools
 
@@ -137,9 +137,9 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | [App Intents Testing](https://developer.apple.com/documentation/appintentstesting) | 27.0 | ❌ | 0.0%* | – | – |
 | [DeveloperToolsSupport](https://developer.apple.com/documentation/developertoolssupport) | 14.0 | ✅ | 64.1% | 7: 5 ✅ 2 ❌ | [DeveloperToolsSupport](frameworks/DeveloperToolsSupport.md) |
 | [Platform](https://developer.apple.com/documentation/platform) | – | ✅ | – | 58: 51 ✅ 3 🟡 4 ❌ | [Platform](frameworks/Platform.md) |
-| [StoreKit Test](https://developer.apple.com/documentation/storekittest) | 14.0 | ✅ | 19.6% | 8: 5 ✅ 2 🟡 1 ❌ | [StoreKitTest](frameworks/StoreKitTest.md) |
+| [StoreKit Test](https://developer.apple.com/documentation/storekittest) | 14.0 | ✅ | 38.1% | 9: 7 ✅ 2 🟡 | [StoreKitTest](frameworks/StoreKitTest.md) |
 | [Swift Testing](https://developer.apple.com/documentation/testing) | None | ✅ | 81.6% | 3: 2 ✅ 1 ❌ | [Testing](frameworks/Testing.md) |
-| [XCTest](https://developer.apple.com/documentation/xctest) | None | ✅ | 66.7% | 15: 9 ✅ 4 🟡 2 ❌ | [XCTest](frameworks/XCTest.md) |
+| [XCTest](https://developer.apple.com/documentation/xctest) | None | ✅ | 66.7% | 16: 10 ✅ 4 🟡 2 ❌ | [XCTest](frameworks/XCTest.md) |
 | [XCUIAutomation](https://developer.apple.com/documentation/xcuiautomation) | None | ✅ | 0.0%* | 7: 6 ✅ 1 🟡 | [XCUIAutomation](frameworks/XCUIAutomation.md) |
 | Platform (isim topic) | – | ✅ | – | 58: 51 ✅ 3 🟡 4 ❌ | [Platform](frameworks/Platform.md) |
 
@@ -150,11 +150,11 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | Framework | iOS | In isim | Symbols | Rows | Page |
 |---|---|---|---:|---|---|
 | [Apple Archive](https://developer.apple.com/documentation/applearchive) | 14.0 | ❌ | 0.0%* | – | – |
-| [CFNetwork](https://developer.apple.com/documentation/cfnetwork) | 2.0 | ❌ | 0.0%* | – | – |
+| [CFNetwork](https://developer.apple.com/documentation/cfnetwork) | 2.0 | ✅ | 10.0% | 2: 1 ✅ 1 ❌ | [CFNetwork](frameworks/CFNetwork.md) |
 | [Compression](https://developer.apple.com/documentation/compression) | 9.0 | ✅ | 92.3% | 11: 10 ✅ 1 ❌ | [Compression](frameworks/Compression.md) |
-| [Core Foundation](https://developer.apple.com/documentation/corefoundation) | 2.0 | ✅ | 28.8% | 12: 8 ✅ 3 🟡 1 ❌ | [CoreFoundation](frameworks/CoreFoundation.md) |
+| [Core Foundation](https://developer.apple.com/documentation/corefoundation) | 2.0 | ✅ | 29.2% | 13: 9 ✅ 3 🟡 1 ❌ | [CoreFoundation](frameworks/CoreFoundation.md) |
 | [Core Services](https://developer.apple.com/documentation/coreservices) | 12.0 | ❌ | 0.0%* | – | – |
-| [Foundation](https://developer.apple.com/documentation/foundation) | 2.0 | ✅ | 46.0% | 105: 97 ✅ 5 🟡 3 ❌ | [Foundation](frameworks/Foundation.md) |
+| [Foundation](https://developer.apple.com/documentation/foundation) | 2.0 | ✅ | 46.1% | 105: 97 ✅ 5 🟡 3 ❌ | [Foundation](frameworks/Foundation.md) |
 | [System](https://developer.apple.com/documentation/system) | 14.0 | ❌ | 0.0%* | – | – |
 | [XPC](https://developer.apple.com/documentation/xpc) | 17.4 | ❌ | 0.0%* | – | – |
 
@@ -166,9 +166,9 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 |---|---|---|---:|---|---|
 | [Combine](https://developer.apple.com/documentation/combine) | 13.0 | ✅ | 81.5% | 14: 14 ✅ | [Combine](frameworks/Combine.md) |
 | [CrashReportExtension](https://developer.apple.com/documentation/crashreportextension) | 27.0 | ❌ | 0.0%* | – | – |
-| [Darwin](https://developer.apple.com/documentation/darwin) | – | ✅ | – | 24: 21 ✅ 3 🟡 | [Darwin](frameworks/Darwin.md) |
+| [Darwin](https://developer.apple.com/documentation/darwin) | – | ✅ | – | 25: 22 ✅ 3 🟡 | [Darwin](frameworks/Darwin.md) |
 | [Darwin Notify](https://developer.apple.com/documentation/darwinnotify) | 9.3 | ✅ | 0.0%* | 5: 3 ✅ 1 🟡 1 ❌ | [DarwinNotify](frameworks/DarwinNotify.md) |
-| [Dispatch](https://developer.apple.com/documentation/dispatch) | 8.0 | ✅ | 90.8% | 13: 12 ✅ 1 🟡 | [Dispatch](frameworks/Dispatch.md) |
+| [Dispatch](https://developer.apple.com/documentation/dispatch) | 8.0 | ✅ | 90.8% | 14: 13 ✅ 1 🟡 | [Dispatch](frameworks/Dispatch.md) |
 | [Distributed](https://developer.apple.com/documentation/distributed) | 16.0 | ✅ | 100.0% | – | [Distributed](frameworks/Distributed.md) |
 | [JavaScriptCore](https://developer.apple.com/documentation/javascriptcore) | 16.0 | ✅ | 89.8% | 2: 1 ✅ 1 ❌ | [JavaScriptCore](frameworks/JavaScriptCore.md) |
 | [MetricKit](https://developer.apple.com/documentation/metrickit) | 13.0 | ✅ | 36.9% | 4: 1 ✅ 3 ❌ | [MetricKit](frameworks/MetricKit.md) |
@@ -179,9 +179,9 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | [RegexBuilder](https://developer.apple.com/documentation/regexbuilder) | 16.0 | ✅ | 99.6% | – | [RegexBuilder](frameworks/RegexBuilder.md) |
 | [simd](https://developer.apple.com/documentation/simd) | None | ✅ | 51.9% | – | [simd](frameworks/simd.md) |
 | [StateReporting](https://developer.apple.com/documentation/statereporting) | 27.0 | ❌ | 0.0%* | – | – |
-| [Swift](https://developer.apple.com/documentation/swift) | 8.0 | ✅ | 92.5% | 26: 24 ✅ 2 ❌ | [Swift](frameworks/Swift.md) |
+| [Swift](https://developer.apple.com/documentation/swift) | 8.0 | ✅ | 92.5% | 27: 25 ✅ 2 ❌ | [Swift](frameworks/Swift.md) |
 | [Synchronization](https://developer.apple.com/documentation/synchronization) | 18.0 | ✅ | 100.0% | – | [Synchronization](frameworks/Synchronization.md) |
-| Darwin (isim topic) | – | ✅ | – | 24: 21 ✅ 3 🟡 | [Darwin](frameworks/Darwin.md) |
+| Darwin (isim topic) | – | ✅ | – | 25: 22 ✅ 3 🟡 | [Darwin](frameworks/Darwin.md) |
 
 ### Graphics & text
 
@@ -239,8 +239,8 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | [ML Compute](https://developer.apple.com/documentation/mlcompute) | 14.0 | ❌ | 0.0%* | – | – |
 | [Music Understanding](https://developer.apple.com/documentation/musicunderstanding) | 27.0 | ❌ | 0.0%* | – | – |
 | [Natural Language](https://developer.apple.com/documentation/naturallanguage) | 12.0 | ✅ | 57.5% | 3: 2 🟡 1 ❌ | [NaturalLanguage](frameworks/NaturalLanguage.md) |
-| [PhotoKit](https://developer.apple.com/documentation/photokit) | 8.0 | ✅ | 49.4% | 8: 4 ✅ 1 🟡 3 ❌ | [Photos](frameworks/Photos.md) |
-| [PhotosUI](https://developer.apple.com/documentation/photokit) | 8.0 | ✅ | 54.1% | 4: 1 ✅ 1 🟡 2 ❌ | [PhotosUI](frameworks/PhotosUI.md) |
+| [PhotoKit](https://developer.apple.com/documentation/photokit) | 8.0 | ✅ | 49.4% | 9: 5 ✅ 1 🟡 3 ❌ | [Photos](frameworks/Photos.md) |
+| [PhotosUI](https://developer.apple.com/documentation/photokit) | 8.0 | ✅ | 54.1% | 5: 2 ✅ 1 🟡 2 ❌ | [PhotosUI](frameworks/PhotosUI.md) |
 | [Sensitive Content Analysis](https://developer.apple.com/documentation/sensitivecontentanalysis) | 17.0 | ❌ | 0.0%* | – | – |
 | [Sound Analysis](https://developer.apple.com/documentation/soundanalysis) | 13.0 | ❌ | 0.0%* | – | – |
 | [Spatial](https://developer.apple.com/documentation/spatial) | 16.0 | ✅ | 2.6% | 3: 3 ❌ | [Spatial](frameworks/Spatial.md) |
@@ -249,7 +249,7 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | [Translation](https://developer.apple.com/documentation/translation) | 17.4 | ❌ | 0.0%* | – | – |
 | [TranslationUIProvider](https://developer.apple.com/documentation/translationuiprovider) | 18.4 | ❌ | 0.0%* | – | – |
 | [Uniform Type Identifiers](https://developer.apple.com/documentation/uniformtypeidentifiers) | 14.0 | ✅ | 99.1% | 4: 4 ✅ | [UniformTypeIdentifiers](frameworks/UniformTypeIdentifiers.md) |
-| [Vision](https://developer.apple.com/documentation/vision) | None | ✅ | 8.3% | 15: 5 ✅ 5 🟡 1 🧩 4 ❌ | [Vision](frameworks/Vision.md) |
+| [Vision](https://developer.apple.com/documentation/vision) | None | ✅ | 8.3% | 16: 6 ✅ 5 🟡 1 🧩 4 ❌ | [Vision](frameworks/Vision.md) |
 | [VisionKit](https://developer.apple.com/documentation/visionkit) | 13.0 | ✅ | 52.5% | 2: 1 🧩 1 ❌ | [VisionKit](frameworks/VisionKit.md) |
 | [Visual Intelligence](https://developer.apple.com/documentation/visualintelligence) | 26.0 | ❌ | 0.0%* | – | – |
 
@@ -262,7 +262,7 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | [AudioAccessoryKit](https://developer.apple.com/documentation/audioaccessorykit) | 26.4 | ❌ | 0.0%* | – | – |
 | [Audio Toolbox](https://developer.apple.com/documentation/audiotoolbox) | 2.0 | ✅ | 17.8% | 10: 8 ✅ 2 ❌ | [AudioToolbox](frameworks/AudioToolbox.md) |
 | [Audio Unit](https://developer.apple.com/documentation/audiounit) | 2.0 | ✅ | 0.0% | 2: 2 ✅ | [AudioUnit](frameworks/AudioUnit.md) |
-| [AVFAudio](https://developer.apple.com/documentation/avfaudio) | 14.5 | ✅ | 58.1% | 10: 8 ✅ 2 ❌ | [AVFAudio](frameworks/AVFAudio.md) |
+| [AVFAudio](https://developer.apple.com/documentation/avfaudio) | 14.5 | ✅ | 58.1% | 11: 9 ✅ 2 ❌ | [AVFAudio](frameworks/AVFAudio.md) |
 | [AVFoundation](https://developer.apple.com/documentation/avfoundation) | 2.2 | ✅ | 35.3% | 46: 41 ✅ 1 🟡 4 ❌ | [AVFoundation](frameworks/AVFoundation.md) |
 | [AVKit](https://developer.apple.com/documentation/avkit) | 8.0 | ✅ | 35.2% | 7: 3 ✅ 1 🟡 3 ❌ | [AVKit](frameworks/AVKit.md) |
 | [AVRouting](https://developer.apple.com/documentation/avrouting) | 16.0 | ❌ | 0.0%* | – | – |
@@ -271,7 +271,7 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | [Core Audio](https://developer.apple.com/documentation/coreaudio) | 2.0 | ✅ | 12.5% | 2: 2 ✅ | [CoreAudio](frameworks/CoreAudio.md) |
 | [CoreAudioKit](https://developer.apple.com/documentation/coreaudiokit) | 8.0 | ❌ | 0.0%* | – | – |
 | [Core Audio Types](https://developer.apple.com/documentation/coreaudiotypes) | 13.0 | ✅ | 24.0% | 1: 1 ❌ | [CoreAudioTypes](frameworks/CoreAudioTypes.md) |
-| [Core Haptics](https://developer.apple.com/documentation/corehaptics) | 13.0 | ✅ | 68.0% | 5: 4 ✅ 1 🟡 | [CoreHaptics](frameworks/CoreHaptics.md) |
+| [Core Haptics](https://developer.apple.com/documentation/corehaptics) | 13.0 | ✅ | 68.0% | 6: 5 ✅ 1 🟡 | [CoreHaptics](frameworks/CoreHaptics.md) |
 | [Core Media](https://developer.apple.com/documentation/coremedia) | 4.0 | ✅ | 14.3% | 6: 2 ✅ 1 🟡 3 ❌ | [CoreMedia](frameworks/CoreMedia.md) |
 | [Core MIDI](https://developer.apple.com/documentation/coremidi) | 4.2 | ❌ | 0.0%* | – | – |
 | [Media Accessibility](https://developer.apple.com/documentation/mediaaccessibility) | 17.0 | ❌ | 0.0%* | – | – |
@@ -293,17 +293,17 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 
 | Framework | iOS | In isim | Symbols | Rows | Page |
 |---|---|---|---:|---|---|
-| [ARKit](https://developer.apple.com/documentation/arkit) | 11.0 | ✅ | 57.8% | 7: 1 ✅ 6 🟡 | [ARKit](frameworks/ARKit.md) |
-| [Game Controller](https://developer.apple.com/documentation/gamecontroller) | 7.0 | ✅ | 68.8% | 17: 11 ✅ 3 🟡 3 ❌ | [GameController](frameworks/GameController.md) |
-| [GameKit](https://developer.apple.com/documentation/gamekit) | 3.0 | ✅ | 77.2% | 23: 18 ✅ 3 🟡 2 ❌ | [GameKit](frameworks/GameKit.md) |
+| [ARKit](https://developer.apple.com/documentation/arkit) | 11.0 | ✅ | 57.8% | 8: 1 ✅ 7 🟡 | [ARKit](frameworks/ARKit.md) |
+| [Game Controller](https://developer.apple.com/documentation/gamecontroller) | 7.0 | ✅ | 68.8% | 18: 12 ✅ 3 🟡 3 ❌ | [GameController](frameworks/GameController.md) |
+| [GameKit](https://developer.apple.com/documentation/gamekit) | 3.0 | ✅ | 77.2% | 24: 19 ✅ 3 🟡 2 ❌ | [GameKit](frameworks/GameKit.md) |
 | [GameplayKit](https://developer.apple.com/documentation/gameplaykit) | 9.0 | ✅ | 91.2% | 18: 10 ✅ 7 🟡 1 ❌ | [GameplayKit](frameworks/GameplayKit.md) |
 | [GameSave](https://developer.apple.com/documentation/gamesave) | 26.0 | ❌ | 0.0%* | – | – |
 | [Group Activities](https://developer.apple.com/documentation/groupactivities) | 15.0 | ❌ | 0.0%* | – | – |
 | [Model I/O](https://developer.apple.com/documentation/modelio) | 9.0 | ❌ | 0.0%* | – | – |
 | [RealityKit](https://developer.apple.com/documentation/realitykit) | 13.0 | ✅ | 0.0%* | 1: 1 ❌ | [RealityKit](frameworks/RealityKit.md) |
 | [RoomPlan](https://developer.apple.com/documentation/roomplan) | 16.0 | ❌ | 0.0%* | – | – |
-| [SceneKit](https://developer.apple.com/documentation/scenekit) | 8.0 | ✅ | 11.2% | 4: 3 🟡 1 ❌ | [SceneKit](frameworks/SceneKit.md) |
-| [SpriteKit](https://developer.apple.com/documentation/spritekit) | 7.0 | ✅ | 96.0% | 49: 42 ✅ 5 🟡 2 ❌ | [SpriteKit](frameworks/SpriteKit.md) |
+| [SceneKit](https://developer.apple.com/documentation/scenekit) | 8.0 | ✅ | 11.2% | 5: 1 ✅ 3 🟡 1 ❌ | [SceneKit](frameworks/SceneKit.md) |
+| [SpriteKit](https://developer.apple.com/documentation/spritekit) | 7.0 | ✅ | 96.0% | 50: 42 ✅ 6 🟡 2 ❌ | [SpriteKit](frameworks/SpriteKit.md) |
 | [Touch Controller](https://developer.apple.com/documentation/touchcontroller) | 26.0 | ❌ | 0.0%* | – | – |
 | [USDKit](https://developer.apple.com/documentation/usdkit) | 27.0 | ❌ | 0.0%* | – | – |
 
@@ -322,11 +322,11 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | [FinanceKitUI](https://developer.apple.com/documentation/financekitui) | 17.0 | ❌ | 0.0%* | – | – |
 | [ManagedAppDistribution](https://developer.apple.com/documentation/managedappdistribution) | 17.2 | ❌ | 0.0%* | – | – |
 | [MarketplaceKit](https://developer.apple.com/documentation/marketplacekit) | 17.4 | ✅ | 7.6% | 3: 1 🟡 2 ❌ | [MarketplaceKit](frameworks/MarketplaceKit.md) |
-| [PassKit (Apple Pay and Wallet)](https://developer.apple.com/documentation/passkit) | 6.0 | ✅ | 48.6% | 11: 9 ✅ 1 🟡 1 ❌ | [PassKit](frameworks/PassKit.md) |
+| [PassKit (Apple Pay and Wallet)](https://developer.apple.com/documentation/passkit) | 6.0 | ✅ | 48.6% | 12: 10 ✅ 1 🟡 1 ❌ | [PassKit](frameworks/PassKit.md) |
 | [PermissionKit](https://developer.apple.com/documentation/permissionkit) | 26.0 | ❌ | 0.0%* | – | – |
 | [StoreKit](https://developer.apple.com/documentation/storekit) | 3.0 | ✅ | 63.5% | 44: 38 ✅ 2 🟡 4 ❌ | [StoreKit](frameworks/StoreKit.md) |
 | [Wallet Orders](https://developer.apple.com/documentation/walletorders) | 16.0 | ✅ | – | 2: 1 ✅ 1 ❌ | [WalletOrders](frameworks/WalletOrders.md) |
-| [Wallet Passes](https://developer.apple.com/documentation/walletpasses) | 6.0 | ✅ | – | 8: 7 ✅ 1 ❌ | [WalletPasses](frameworks/WalletPasses.md) |
+| [Wallet Passes](https://developer.apple.com/documentation/walletpasses) | 6.0 | ✅ | – | 9: 8 ✅ 1 ❌ | [WalletPasses](frameworks/WalletPasses.md) |
 
 ### Data & persistence
 
@@ -334,7 +334,7 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 
 | Framework | iOS | In isim | Symbols | Rows | Page |
 |---|---|---|---:|---|---|
-| [CloudKit](https://developer.apple.com/documentation/cloudkit) | 8.0 | ✅ | 79.4% | 10: 8 ✅ 2 ❌ | [CloudKit](frameworks/CloudKit.md) |
+| [CloudKit](https://developer.apple.com/documentation/cloudkit) | 8.0 | ✅ | 78.1% | 11: 9 ✅ 2 ❌ | [CloudKit](frameworks/CloudKit.md) |
 | [Core Data](https://developer.apple.com/documentation/coredata) | 3.0 | ✅ | 80.0% | 22: 20 ✅ 1 🟡 1 ❌ | [CoreData](frameworks/CoreData.md) |
 | [SwiftData](https://developer.apple.com/documentation/swiftdata) | 17.0 | ✅ | 65.4% | 12: 9 ✅ 3 ❌ | [SwiftData](frameworks/SwiftData.md) |
 
@@ -353,7 +353,7 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | [IdentityDocumentServices](https://developer.apple.com/documentation/identitydocumentservices) | 26.0 | ❌ | 0.0%* | – | – |
 | [IdentityDocumentServicesUI](https://developer.apple.com/documentation/identitydocumentservicesui) | 26.0 | ❌ | 0.0%* | – | – |
 | [LightweightCodeRequirements](https://developer.apple.com/documentation/lightweightcoderequirements) | 17.4 | ❌ | 0.0%* | – | – |
-| [Local Authentication](https://developer.apple.com/documentation/localauthentication) | 8.0 | ✅ | 30.0% | 3: 1 ✅ 2 ❌ | [LocalAuthentication](frameworks/LocalAuthentication.md) |
+| [Local Authentication](https://developer.apple.com/documentation/localauthentication) | 8.0 | ✅ | 98.5% | 8: 6 ✅ 2 ❌ | [LocalAuthentication](frameworks/LocalAuthentication.md) |
 | [Local Authentication Embedded UI](https://developer.apple.com/documentation/localauthenticationembeddedui) | 16.0 | ❌ | 0.0%* | – | – |
 | [Security](https://developer.apple.com/documentation/security) | 2.0 | ✅ | 25.9% | 10: 8 ✅ 1 🟡 1 ❌ | [Security](frameworks/Security.md) |
 | [ServicesAccountLinking](https://developer.apple.com/documentation/servicesaccountlinking) | 16.4 | ❌ | 0.0%* | – | – |
@@ -371,7 +371,7 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | [ActivityKit](https://developer.apple.com/documentation/activitykit) | 16.1 | ✅ | 56.0% | 1: 1 ✅ | [ActivityKit](frameworks/ActivityKit.md) |
 | [AlarmKit](https://developer.apple.com/documentation/alarmkit) | 26.0 | ❌ | 0.0%* | – | – |
 | [App Clips](https://developer.apple.com/documentation/appclip) | 14.0 | ✅ | 100.0% | 1: 1 ✅ | [AppClip](frameworks/AppClip.md) |
-| [App Intents](https://developer.apple.com/documentation/appintents) | 16.0 | ✅ | 39.6% | 14: 5 ✅ 5 🟡 4 ❌ | [AppIntents](frameworks/AppIntents.md) |
+| [App Intents](https://developer.apple.com/documentation/appintents) | 16.0 | ✅ | 82.1% | 22: 11 ✅ 7 🟡 4 ❌ | [AppIntents](frameworks/AppIntents.md) |
 | [AppMigrationKit](https://developer.apple.com/documentation/appmigrationkit) | 26.1 | ❌ | 0.0%* | – | – |
 | [Assignables](https://developer.apple.com/documentation/assignables) | 15.4 | ❌ | 0.0%* | – | – |
 | [Automated Device Enrollment](https://developer.apple.com/documentation/automateddeviceenrollment) | 16.1 | ❌ | – | – | – |
@@ -385,7 +385,7 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | [CarPlay](https://developer.apple.com/documentation/carplay) | 12.0 | ❌ | 0.0%* | – | – |
 | [ClassKit](https://developer.apple.com/documentation/classkit) | 11.4 | ❌ | 0.0%* | – | – |
 | [ContactProvider](https://developer.apple.com/documentation/contactprovider) | 18.0 | ❌ | 0.0%* | – | – |
-| [Core Spotlight](https://developer.apple.com/documentation/corespotlight) | 9.0 | ✅ | 8.9% | 4: 1 ✅ 1 🟡 2 ❌ | [CoreSpotlight](frameworks/CoreSpotlight.md) |
+| [Core Spotlight](https://developer.apple.com/documentation/corespotlight) | 9.0 | ✅ | 9.5% | 4: 1 ✅ 1 🟡 2 ❌ | [CoreSpotlight](frameworks/CoreSpotlight.md) |
 | [Device Activity](https://developer.apple.com/documentation/deviceactivity) | 15.0 | ❌ | 0.0%* | – | – |
 | [DeviceDiscoveryExtension](https://developer.apple.com/documentation/devicediscoveryextension) | 16.0 | ❌ | 0.0%* | – | – |
 | [DeviceDiscoveryUI](https://developer.apple.com/documentation/devicediscoveryui) | 26.0 | ❌ | 0.0%* | – | – |
@@ -397,7 +397,7 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | [File Provider](https://developer.apple.com/documentation/fileprovider) | 11.0 | ❌ | 0.0%* | – | – |
 | [File Provider UI](https://developer.apple.com/documentation/fileproviderui) | 11.0 | ❌ | 0.0%* | – | – |
 | [SMS and Call Reporting](https://developer.apple.com/documentation/identitylookup) | 11.0 | ❌ | 0.0%* | – | – |
-| [SiriKit](https://developer.apple.com/documentation/sirikit) | 10.0 | ✅ | 25.1% | 4: 2 ✅ 2 ❌ | [Intents](frameworks/Intents.md) |
+| [SiriKit](https://developer.apple.com/documentation/sirikit) | 10.0 | ✅ | 34.2% | 9: 7 ✅ 2 ❌ | [Intents](frameworks/Intents.md) |
 | [IntentsUI](https://developer.apple.com/documentation/sirikit) | 10.0 | ✅ | 95.8% | – | [IntentsUI](frameworks/IntentsUI.md) |
 | [Journaling Suggestions](https://developer.apple.com/documentation/journalingsuggestions) | 17.2 | ❌ | 0.0%* | – | – |
 | [LiveCommunicationKit](https://developer.apple.com/documentation/livecommunicationkit) | 17.4 | ❌ | 0.0%* | – | – |
@@ -414,11 +414,11 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 | [Shared with You](https://developer.apple.com/documentation/sharedwithyou) | 16.0 | ❌ | 0.0%* | – | – |
 | [Suggested Actions](https://developer.apple.com/documentation/suggestedactions) | 27.0 | ❌ | 0.0%* | – | – |
 | [TelephonyMessagingKit](https://developer.apple.com/documentation/telephonymessagingkit) | 26.0 | ❌ | 0.0%* | – | – |
-| [TipKit](https://developer.apple.com/documentation/tipkit) | 17.0 | ❌ | 0.0%* | – | – |
-| [User Notifications](https://developer.apple.com/documentation/usernotifications) | 10.0 | ✅ | 82.1% | 10: 8 ✅ 2 ❌ | [UserNotifications](frameworks/UserNotifications.md) |
+| [TipKit](https://developer.apple.com/documentation/tipkit) | 17.0 | ✅ | 100.0% | 10: 10 ✅ | [TipKit](frameworks/TipKit.md) |
+| [User Notifications](https://developer.apple.com/documentation/usernotifications) | 10.0 | ✅ | 84.9% | 12: 12 ✅ | [UserNotifications](frameworks/UserNotifications.md) |
 | [User Notifications UI](https://developer.apple.com/documentation/usernotificationsui) | 10.0 | ✅ | 100.0% | – | [UserNotificationsUI](frameworks/UserNotificationsUI.md) |
 | [Video Subscriber Account](https://developer.apple.com/documentation/videosubscriberaccount) | 10.0 | ❌ | 0.0%* | – | – |
-| [WidgetKit](https://developer.apple.com/documentation/widgetkit) | 14.0 | ✅ | 55.5% | 5: 1 ✅ 1 🟡 3 ❌ | [WidgetKit](frameworks/WidgetKit.md) |
+| [WidgetKit](https://developer.apple.com/documentation/widgetkit) | 14.0 | ✅ | 69.1% | 9: 5 ✅ 1 🟡 3 ❌ | [WidgetKit](frameworks/WidgetKit.md) |
 
 ### Location, personal data & sensors
 
@@ -426,36 +426,36 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 
 | Framework | iOS | In isim | Symbols | Rows | Page |
 |---|---|---|---:|---|---|
-| [AccessorySetupKit](https://developer.apple.com/documentation/accessorysetupkit) | 18.0 | ❌ | 0.0%* | – | – |
+| [AccessorySetupKit](https://developer.apple.com/documentation/accessorysetupkit) | 18.0 | ✅ | 39.5% | 1: 1 🧩 | [AccessorySetupKit](frameworks/AccessorySetupKit.md) |
 | [Contacts](https://developer.apple.com/documentation/contacts) | 9.0 | ✅ | 43.6% | 4: 2 ✅ 1 🟡 1 ❌ | [Contacts](frameworks/Contacts.md) |
 | [Contacts UI](https://developer.apple.com/documentation/contactsui) | 9.0 | ✅ | 79.2% | 2: 1 ✅ 1 ❌ | [ContactsUI](frameworks/ContactsUI.md) |
-| [Core Bluetooth](https://developer.apple.com/documentation/corebluetooth) | 5.0 | ✅ | 42.4% | 3: 1 🟡 2 ❌ | [CoreBluetooth](frameworks/CoreBluetooth.md) |
+| [Core Bluetooth](https://developer.apple.com/documentation/corebluetooth) | 5.0 | ✅ | 89.6% | 5: 3 🧩 2 ❌ | [CoreBluetooth](frameworks/CoreBluetooth.md) |
 | [Core Location](https://developer.apple.com/documentation/corelocation) | 2.0 | ✅ | 84.3% | 5: 3 ✅ 2 ❌ | [CoreLocation](frameworks/CoreLocation.md) |
-| [CoreLocationUI](https://developer.apple.com/documentation/corelocationui) | 15.0 | ❌ | 0.0%* | – | – |
-| [Core Motion](https://developer.apple.com/documentation/coremotion) | 4.0 | ✅ | 54.8% | 4: 1 ✅ 3 ❌ | [CoreMotion](frameworks/CoreMotion.md) |
-| [Core NFC](https://developer.apple.com/documentation/corenfc) | 11.0 | ✅ | 24.0% | 3: 1 🟡 2 ❌ | [CoreNFC](frameworks/CoreNFC.md) |
+| [CoreLocationUI](https://developer.apple.com/documentation/corelocationui) | 15.0 | ✅ | 100.0% | 2: 2 ✅ | [CoreLocationUI](frameworks/CoreLocationUI.md) |
+| [Core Motion](https://developer.apple.com/documentation/coremotion) | 4.0 | ✅ | 54.8% | 5: 1 ✅ 1 🧩 3 ❌ | [CoreMotion](frameworks/CoreMotion.md) |
+| [Core NFC](https://developer.apple.com/documentation/corenfc) | 11.0 | ✅ | 66.5% | 6: 4 🧩 2 ❌ | [CoreNFC](frameworks/CoreNFC.md) |
 | [DockKit](https://developer.apple.com/documentation/dockkit) | 17.0 | ❌ | 0.0%* | – | – |
 | [DriverKit](https://developer.apple.com/documentation/driverkit) | 16.0 | ❌ | 0.0%* | – | – |
-| [EventKit](https://developer.apple.com/documentation/eventkit) | 4.0 | ✅ | 58.2% | 3: 1 ✅ 1 🟡 1 ❌ | [EventKit](frameworks/EventKit.md) |
-| [EventKit UI](https://developer.apple.com/documentation/eventkitui) | 4.0 | ✅ | 53.1% | 2: 1 ✅ 1 ❌ | [EventKitUI](frameworks/EventKitUI.md) |
+| [EventKit](https://developer.apple.com/documentation/eventkit) | 4.0 | ✅ | 78.5% | 7: 5 ✅ 1 🟡 1 ❌ | [EventKit](frameworks/EventKit.md) |
+| [EventKit UI](https://developer.apple.com/documentation/eventkitui) | 4.0 | ✅ | 93.9% | 2: 2 ✅ | [EventKitUI](frameworks/EventKitUI.md) |
 | [Exposure Notification](https://developer.apple.com/documentation/exposurenotification) | 13.5 | ❌ | 0.0%* | – | – |
-| [External Accessory](https://developer.apple.com/documentation/externalaccessory) | 3.0 | ❌ | 0.0%* | – | – |
+| [External Accessory](https://developer.apple.com/documentation/externalaccessory) | 3.0 | ✅ | 36.5% | 1: 1 🧩 | [ExternalAccessory](frameworks/ExternalAccessory.md) |
 | [GeoToolbox](https://developer.apple.com/documentation/geotoolbox) | 26.0 | ❌ | 0.0%* | – | – |
-| [HealthKit](https://developer.apple.com/documentation/healthkit) | 8.0 | ✅ | 15.8% | 5: 1 🟡 4 ❌ | [HealthKit](frameworks/HealthKit.md) |
+| [HealthKit](https://developer.apple.com/documentation/healthkit) | 8.0 | ✅ | 22.0% | 11: 6 ✅ 1 🟡 4 ❌ | [HealthKit](frameworks/HealthKit.md) |
 | [HomeKit](https://developer.apple.com/documentation/homekit) | 8.0 | ❌ | 0.0%* | – | – |
 | [hvf](https://developer.apple.com/documentation/hvf) | 18.4 | ❌ | 0.0%* | – | – |
 | [IOKit](https://developer.apple.com/documentation/iokit) | 16.0 | ❌ | 0.0%* | – | – |
-| [MapKit](https://developer.apple.com/documentation/mapkit) | 3.0 | ✅ | 67.4% | 9: 5 ✅ 1 🟡 3 ❌ | [MapKit](frameworks/MapKit.md) |
+| [MapKit](https://developer.apple.com/documentation/mapkit) | 3.0 | ✅ | 78.5% | 18: 15 ✅ 1 🟡 2 ❌ | [MapKit](frameworks/MapKit.md) |
 | [Matter](https://developer.apple.com/documentation/matter) | 16.0 | ❌ | 0.0%* | – | – |
 | [MatterSupport](https://developer.apple.com/documentation/mattersupport) | 16.1 | ❌ | 0.0%* | – | – |
-| [Nearby Interaction](https://developer.apple.com/documentation/nearbyinteraction) | 14.0 | ❌ | 0.0%* | – | – |
+| [Nearby Interaction](https://developer.apple.com/documentation/nearbyinteraction) | 14.0 | ✅ | 51.4% | 1: 1 🧩 | [NearbyInteraction](frameworks/NearbyInteraction.md) |
 | [SensorKit](https://developer.apple.com/documentation/sensorkit) | 14.0 | ❌ | 0.0%* | – | – |
 | [ThreadNetwork](https://developer.apple.com/documentation/threadnetwork) | 15.0 | ❌ | 0.0%* | – | – |
 | [WeatherKit](https://developer.apple.com/documentation/weatherkit) | 16.0 | ❌ | 0.0%* | – | – |
 | [Wi-Fi Aware](https://developer.apple.com/documentation/wifiaware) | 26.0 | ❌ | 0.0%* | – | – |
 | [Wi-Fi Infrastructure](https://developer.apple.com/documentation/wifiinfrastructure) | 26.2 | ❌ | 0.0%* | – | – |
 | [WirelessInsights](https://developer.apple.com/documentation/wirelessinsights) | 26.0 | ❌ | 0.0%* | – | – |
-| [WorkoutKit](https://developer.apple.com/documentation/workoutkit) | 17.0 | ❌ | 0.0%* | – | – |
+| [WorkoutKit](https://developer.apple.com/documentation/workoutkit) | 17.0 | ✅ | 71.7% | 2: 1 ✅ 1 🧩 | [WorkoutKit](frameworks/WorkoutKit.md) |
 
 ### Web, network & communication
 
@@ -463,18 +463,18 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 
 | Framework | iOS | In isim | Symbols | Rows | Page |
 |---|---|---|---:|---|---|
-| [Core Telephony](https://developer.apple.com/documentation/coretelephony) | 4.0 | ✅ | 18.1% | 3: 3 ❌ | [CoreTelephony](frameworks/CoreTelephony.md) |
+| [Core Telephony](https://developer.apple.com/documentation/coretelephony) | 4.0 | ✅ | 46.4% | 7: 1 ✅ 4 🧩 2 ❌ | [CoreTelephony](frameworks/CoreTelephony.md) |
 | [dnssd](https://developer.apple.com/documentation/dnssd) | 10.0 | ❌ | 0.0%* | – | – |
-| [Link Presentation](https://developer.apple.com/documentation/linkpresentation) | 13.0 | ❌ | 0.0%* | – | – |
+| [Link Presentation](https://developer.apple.com/documentation/linkpresentation) | 13.0 | ✅ | 69.2% | 6: 5 ✅ 1 ❌ | [LinkPresentation](frameworks/LinkPresentation.md) |
 | [Message UI](https://developer.apple.com/documentation/messageui) | 3.0 | ✅ | 66.3% | 2: 1 ✅ 1 ❌ | [MessageUI](frameworks/MessageUI.md) |
 | [Multipeer Connectivity](https://developer.apple.com/documentation/multipeerconnectivity) | 7.0 | ✅ | 94.7% | 2: 2 ✅ | [MultipeerConnectivity](frameworks/MultipeerConnectivity.md) |
-| [Network](https://developer.apple.com/documentation/network) | 12.0 | ✅ | 23.5% | 9: 5 ✅ 1 🧩 3 ❌ | [Network](frameworks/Network.md) |
+| [Network](https://developer.apple.com/documentation/network) | 12.0 | ✅ | 42.0% | 10: 6 ✅ 1 🧩 3 ❌ | [Network](frameworks/Network.md) |
 | [Network Extension](https://developer.apple.com/documentation/networkextension) | 8.0 | ❌ | 0.0%* | – | – |
-| [Safari Services](https://developer.apple.com/documentation/safariservices) | 7.0 | ✅ | 34.8% | 4: 2 ✅ 2 ❌ | [SafariServices](frameworks/SafariServices.md) |
+| [Safari Services](https://developer.apple.com/documentation/safariservices) | 7.0 | ✅ | 62.5% | 5: 3 ✅ 2 ❌ | [SafariServices](frameworks/SafariServices.md) |
 | [Social](https://developer.apple.com/documentation/social) | 6.0 | ✅ | 42.9% | 1: 1 ❌ | [Social](frameworks/Social.md) |
 | [System Configuration](https://developer.apple.com/documentation/systemconfiguration) | 2.0 | ✅ | 20.4% | 2: 1 ✅ 1 ❌ | [SystemConfiguration](frameworks/SystemConfiguration.md) |
-| [Watch Connectivity](https://developer.apple.com/documentation/watchconnectivity) | 9.0 | ❌ | 0.0%* | – | – |
-| [WebKit](https://developer.apple.com/documentation/webkit) | 16.0 | ✅ | 35.3% | 10: 6 ✅ 4 ❌ | [WebKit](frameworks/WebKit.md) |
+| [Watch Connectivity](https://developer.apple.com/documentation/watchconnectivity) | 9.0 | ✅ | 48.4% | 1: 1 🧩 | [WatchConnectivity](frameworks/WatchConnectivity.md) |
+| [WebKit](https://developer.apple.com/documentation/webkit) | 16.0 | ✅ | 38.6% | 14: 10 ✅ 4 ❌ | [WebKit](frameworks/WebKit.md) |
 
 ### Accessibility & Info.plist
 
@@ -482,8 +482,8 @@ toward 100% are issues labelled `coverage`, each a checklist of APIs.
 
 | Framework | iOS | In isim | Symbols | Rows | Page |
 |---|---|---|---:|---|---|
-| [Accessibility](https://developer.apple.com/documentation/accessibility) | 14.0 | ✅ | 3.2% | 2: 1 ✅ 1 ❌ | [Accessibility](frameworks/Accessibility.md) |
-| [Bundle Resources](https://developer.apple.com/documentation/bundleresources) | 2.0 | ✅ | 0.0%* | 16: 9 ✅ 1 🟡 6 ❌ | [BundleResources](frameworks/BundleResources.md) |
+| [Accessibility](https://developer.apple.com/documentation/accessibility) | 14.0 | ✅ | 14.4% | 6: 5 ✅ 1 ❌ | [Accessibility](frameworks/Accessibility.md) |
+| [Bundle Resources](https://developer.apple.com/documentation/bundleresources) | 2.0 | ✅ | 0.0%* | 16: 10 ✅ 1 🟡 5 ❌ | [BundleResources](frameworks/BundleResources.md) |
 
 \* measured by name (approximate): not built into isim yet, or measured without a built SDK.
 <!-- /generated:index -->
@@ -523,6 +523,7 @@ Objective-C/C interface: headers in `isim/sdk-src/Frameworks/<Name>` over the Sw
 |---|---|
 | Accelerate | ✅ headers in isim/sdk-src/Frameworks/Accelerate |
 | Accessibility | ✅ headers in isim/sdk-src/Frameworks/Accessibility |
+| AccessorySetupKit | ✅ headers in isim/sdk-src/Frameworks/AccessorySetupKit |
 | ActivityKit | ❌ Swift only |
 | AdAttributionKit | ❌ Swift only |
 | AdServices | ❌ Swift only |
@@ -530,7 +531,7 @@ Objective-C/C interface: headers in `isim/sdk-src/Frameworks/<Name>` over the Sw
 | AppClip | ❌ Swift only |
 | AppIntents | ❌ Swift only |
 | AppTrackingTransparency | ✅ headers in isim/sdk-src/Frameworks/AppTrackingTransparency |
-| ARKit | ❌ Swift only |
+| ARKit | ✅ headers in isim/sdk-src/Frameworks/ARKit |
 | AudioToolbox | ✅ headers in isim/sdk-src/Frameworks/AudioToolbox |
 | AudioUnit | ✅ headers in isim/sdk-src/Frameworks/AudioUnit |
 | AuthenticationServices | ✅ headers in isim/sdk-src/Frameworks/AuthenticationServices |
@@ -539,25 +540,27 @@ Objective-C/C interface: headers in `isim/sdk-src/Frameworks/<Name>` over the Sw
 | AVKit | ❌ Swift only |
 | BackgroundTasks | ✅ headers in isim/sdk-src/Frameworks/BackgroundTasks |
 | CallKit | ✅ headers in isim/sdk-src/Frameworks/CallKit |
+| CFNetwork | ✅ headers in isim/sdk-src/Frameworks/CFNetwork |
 | Charts | ❌ Swift only |
-| CloudKit | ❌ Swift only |
+| CloudKit | ✅ headers in isim/sdk-src/Frameworks/CloudKit |
 | Combine | ❌ Swift only |
 | Compression | ❌ Swift only |
 | Contacts | ✅ headers in isim/sdk-src/Frameworks/Contacts |
 | ContactsUI | ✅ headers in isim/sdk-src/Frameworks/ContactsUI |
 | CoreAudio | ✅ headers in isim/sdk-src/Frameworks/CoreAudio |
 | CoreAudioTypes | ✅ headers in isim/sdk-src/Frameworks/CoreAudioTypes |
-| CoreBluetooth | ❌ Swift only |
+| CoreBluetooth | ✅ headers in isim/sdk-src/Frameworks/CoreBluetooth |
 | CoreData | ✅ headers in isim/sdk-src/Frameworks/CoreData |
 | CoreFoundation | ✅ headers in isim/sdk-src/Frameworks/CoreFoundation |
 | CoreGraphics | ✅ headers in isim/sdk-src/Frameworks/CoreGraphics |
-| CoreHaptics | ❌ Swift only |
+| CoreHaptics | ✅ headers in isim/sdk-src/Frameworks/CoreHaptics |
 | CoreImage | ✅ headers in isim/sdk-src/Frameworks/CoreImage |
 | CoreLocation | ✅ headers in isim/sdk-src/Frameworks/CoreLocation |
+| CoreLocationUI | ✅ headers in isim/sdk-src/Frameworks/CoreLocationUI |
 | CoreMedia | ✅ headers in isim/sdk-src/Frameworks/CoreMedia |
 | CoreML | ❌ Swift only |
 | CoreMotion | ✅ headers in isim/sdk-src/Frameworks/CoreMotion |
-| CoreNFC | ❌ Swift only |
+| CoreNFC | ✅ headers in isim/sdk-src/Frameworks/CoreNFC |
 | CoreSpotlight | ✅ headers in isim/sdk-src/Frameworks/CoreSpotlight |
 | CoreTelephony | ✅ headers in isim/sdk-src/Frameworks/CoreTelephony |
 | CoreText | ✅ headers in isim/sdk-src/Frameworks/CoreText |
@@ -570,17 +573,19 @@ Objective-C/C interface: headers in `isim/sdk-src/Frameworks/<Name>` over the Sw
 | Distributed | ❌ Swift only |
 | EventKit | ✅ headers in isim/sdk-src/Frameworks/EventKit |
 | EventKitUI | ✅ headers in isim/sdk-src/Frameworks/EventKitUI |
+| ExternalAccessory | ✅ headers in isim/sdk-src/Frameworks/ExternalAccessory |
 | Foundation | ✅ headers in isim/sdk-src/Frameworks/Foundation |
 | FoundationModels | ❌ Swift only |
-| GameController | ❌ Swift only |
-| GameKit | ❌ Swift only |
+| GameController | ✅ headers in isim/sdk-src/Frameworks/GameController |
+| GameKit | ✅ headers in isim/sdk-src/Frameworks/GameKit |
 | GameplayKit | ❌ Swift only |
-| HealthKit | ❌ Swift only |
+| HealthKit | ✅ headers in isim/sdk-src/Frameworks/HealthKit |
 | ImageIO | ✅ headers in isim/sdk-src/Frameworks/ImageIO |
 | Intents | ✅ headers in isim/sdk-src/Frameworks/Intents |
 | IntentsUI | ✅ headers in isim/sdk-src/Frameworks/IntentsUI |
 | JavaScriptCore | ✅ headers in isim/sdk-src/Frameworks/JavaScriptCore |
-| LocalAuthentication | ❌ Swift only |
+| LinkPresentation | ✅ headers in isim/sdk-src/Frameworks/LinkPresentation |
+| LocalAuthentication | ✅ headers in isim/sdk-src/Frameworks/LocalAuthentication |
 | MapKit | ✅ headers in isim/sdk-src/Frameworks/MapKit |
 | MarketplaceKit | ✅ headers in isim/sdk-src/Frameworks/MarketplaceKit |
 | MediaPlayer | ❌ Swift only |
@@ -589,29 +594,30 @@ Objective-C/C interface: headers in `isim/sdk-src/Frameworks/<Name>` over the Sw
 | MultipeerConnectivity | ✅ headers in isim/sdk-src/Frameworks/MultipeerConnectivity |
 | MusicKit | ❌ Swift only |
 | NaturalLanguage | ❌ Swift only |
+| NearbyInteraction | ✅ headers in isim/sdk-src/Frameworks/NearbyInteraction |
 | Network | ✅ headers in isim/sdk-src/Frameworks/Network |
 | ObjectiveC | ❌ Swift only |
 | Observation | ❌ Swift only |
 | os | ❌ Swift only |
 | OSLog | ❌ Swift only |
-| PassKit | ❌ Swift only |
+| PassKit | ✅ headers in isim/sdk-src/Frameworks/PassKit |
 | PDFKit | ✅ headers in isim/sdk-src/Frameworks/PDFKit |
-| Photos | ❌ Swift only |
-| PhotosUI | ❌ Swift only |
+| Photos | ✅ headers in isim/sdk-src/Frameworks/Photos |
+| PhotosUI | ✅ headers in isim/sdk-src/Frameworks/PhotosUI |
 | PushKit | ✅ headers in isim/sdk-src/Frameworks/PushKit |
 | QuartzCore | ✅ headers in isim/sdk-src/Frameworks/QuartzCore |
 | QuickLook | ✅ headers in isim/sdk-src/Frameworks/QuickLook |
 | RegexBuilder | ❌ Swift only |
 | SafariServices | ✅ headers in isim/sdk-src/Frameworks/SafariServices |
-| SceneKit | ❌ Swift only |
+| SceneKit | ✅ headers in isim/sdk-src/Frameworks/SceneKit |
 | Security | ✅ headers in isim/sdk-src/Frameworks/Security |
 | simd | ❌ Swift only |
 | Social | ✅ headers in isim/sdk-src/Frameworks/Social |
 | Spatial | ❌ Swift only |
 | Speech | ❌ Swift only |
-| SpriteKit | ❌ Swift only |
+| SpriteKit | ✅ headers in isim/sdk-src/Frameworks/SpriteKit |
 | StoreKit | ✅ headers in isim/sdk-src/Frameworks/StoreKit |
-| StoreKitTest | ❌ Swift only |
+| StoreKitTest | ✅ headers in isim/sdk-src/Frameworks/StoreKitTest |
 | Swift | ❌ Swift only |
 | SwiftData | ❌ Swift only |
 | SwiftUI | ❌ Swift only |
@@ -619,14 +625,17 @@ Objective-C/C interface: headers in `isim/sdk-src/Frameworks/<Name>` over the Sw
 | Synchronization | ❌ Swift only |
 | SystemConfiguration | ✅ headers in isim/sdk-src/Frameworks/SystemConfiguration |
 | Testing | ❌ Swift only |
+| TipKit | ❌ Swift only |
 | UIKit | ✅ headers in isim/sdk-src/Frameworks/UIKit |
 | UniformTypeIdentifiers | ✅ headers in isim/sdk-src/Frameworks/UniformTypeIdentifiers |
 | UserNotifications | ✅ headers in isim/sdk-src/Frameworks/UserNotifications |
 | UserNotificationsUI | ✅ headers in isim/sdk-src/Frameworks/UserNotificationsUI |
 | VideoToolbox | ❌ Swift only |
-| Vision | ❌ Swift only |
+| Vision | ✅ headers in isim/sdk-src/Frameworks/Vision |
 | VisionKit | ❌ Swift only |
+| WatchConnectivity | ✅ headers in isim/sdk-src/Frameworks/WatchConnectivity |
 | WebKit | ✅ headers in isim/sdk-src/Frameworks/WebKit |
 | WidgetKit | ❌ Swift only |
+| WorkoutKit | ❌ Swift only |
 | XCTest | ✅ headers in isim/sdk-src/Frameworks/XCTest |
 <!-- /generated:objc -->

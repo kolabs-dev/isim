@@ -18,21 +18,21 @@ public let GCInputDualShockTouchpadButton = "Touchpad Button"
 public typealias GCControllerTouchpadHandler = (GCControllerTouchpad, Float, Float, Float, Bool) -> Void
 
 /// A touch surface with a button (DualShock 4 / DualSense): one finger's position, -1...1 (y up).
-@objc(GCControllerTouchpad) @objcMembers open class GCControllerTouchpad: GCControllerElement {
+@objc(GCControllerTouchpad) open class GCControllerTouchpad: GCControllerElement {
     @objc public enum TouchState: Int, Sendable { case up = 0, down = 1, moving = 2 }
-    public let button = GCControllerButtonInput(name: "Button")
-    public let touchSurface = GCControllerDirectionPad(name: "Touch Surface", analog: true)
-    open var touchDown: GCControllerTouchpadHandler?
-    open var touchMoved: GCControllerTouchpadHandler?
-    open var touchUp: GCControllerTouchpadHandler?
-    open internal(set) var touchState: TouchState = .up
+    @objc public let button = GCControllerButtonInput(name: "Button")
+    @objc public let touchSurface = GCControllerDirectionPad(name: "Touch Surface", analog: true)
+    @objc open var touchDown: GCControllerTouchpadHandler?
+    @objc open var touchMoved: GCControllerTouchpadHandler?
+    @objc open var touchUp: GCControllerTouchpadHandler?
+    @objc open internal(set) var touchState: TouchState = .up
     /// isim reports absolute positions (iOS's default for these pads)
-    open var reportsAbsoluteTouchSurfaceValues = true
-    override init(name: String?, analog: Bool = false) {
+    @objc open var reportsAbsoluteTouchSurfaceValues = true
+    @objc override init(name: String?, analog: Bool = false) {
         super.init(name: name, analog: true)
         button.collection = self; touchSurface.collection = self
     }
-    open func setValueForXAxis(_ xAxis: Float, yAxis: Float, touchDown: Bool, buttonValue: Float) {
+    @objc open func setValueForXAxis(_ xAxis: Float, yAxis: Float, touchDown: Bool, buttonValue: Float) {
         let was = touchState
         touchSurface.setValueForXAxis(touchDown ? xAxis : 0, yAxis: touchDown ? yAxis : 0)
         if button.value != buttonValue { button.setValue(buttonValue) }
@@ -49,24 +49,24 @@ public typealias GCControllerTouchpadHandler = (GCControllerTouchpad, Float, Flo
 
 extension GCPhysicalInputProfile {
     /// the profile's touchpads (DualShock 4, DualSense), by name
-    public var touchpads: [String: GCControllerTouchpad] { (self as? _GCTouchpadProfile)?._touchpads ?? [:] }
-    public var allTouchpads: Set<GCControllerTouchpad> { Set(touchpads.values) }
+    @objc public var touchpads: [String: GCControllerTouchpad] { (self as? _GCTouchpadProfile)?._touchpads ?? [:] }
+    @objc public var allTouchpads: Set<GCControllerTouchpad> { Set(touchpads.values) }
 }
 protocol _GCTouchpadProfile { var _touchpads: [String: GCControllerTouchpad] { get } }
 
 // MARK: - Xbox
 
-@objc(GCXboxGamepad) @objcMembers open class GCXboxGamepad: GCExtendedGamepad {
+@objc(GCXboxGamepad) open class GCXboxGamepad: GCExtendedGamepad {
     /// Elite paddles (nil on pads without them)
-    open internal(set) var paddleButton1: GCControllerButtonInput?
-    open internal(set) var paddleButton2: GCControllerButtonInput?
-    open internal(set) var paddleButton3: GCControllerButtonInput?
-    open internal(set) var paddleButton4: GCControllerButtonInput?
+    @objc open internal(set) var paddleButton1: GCControllerButtonInput?
+    @objc open internal(set) var paddleButton2: GCControllerButtonInput?
+    @objc open internal(set) var paddleButton3: GCControllerButtonInput?
+    @objc open internal(set) var paddleButton4: GCControllerButtonInput?
     /// the Series X|S share button
-    open internal(set) var buttonShare: GCControllerButtonInput?
-    public override init() { super.init() }
+    @objc open internal(set) var buttonShare: GCControllerButtonInput?
+    @objc public override init() { super.init() }
     /// isim: the inputs this pad has (SDL's button bits)
-    func _configure(hasButtons has: UInt32) {
+    @objc func _configure(hasButtons has: UInt32) {
         func make(_ bit: UInt32, _ name: String) -> GCControllerButtonInput? {
             guard has & (1 << bit) != 0 else { return nil }
             let b = GCControllerButtonInput(name: name); register(b, name); return b
@@ -77,7 +77,7 @@ protocol _GCTouchpadProfile { var _touchpads: [String: GCControllerTouchpad] { g
         paddleButton3 = make(17, GCInputXboxPaddleThree)
         paddleButton4 = make(19, GCInputXboxPaddleFour)
     }
-    override func _hostUpdate(_ p: isim_gamepad, bit: (Int) -> Float) {
+    @objc override func _hostUpdate(_ p: isim_gamepad, bit: (Int) -> Float) {
         buttonShare?.setValue(bit(15))
         paddleButton1?.setValue(bit(16)); paddleButton2?.setValue(bit(18)); paddleButton3?.setValue(bit(17)); paddleButton4?.setValue(bit(19))
     }
@@ -85,34 +85,34 @@ protocol _GCTouchpadProfile { var _touchpads: [String: GCControllerTouchpad] { g
 
 // MARK: - DualShock 4 / DualSense
 
-@objc(GCDualShockGamepad) @objcMembers open class GCDualShockGamepad: GCExtendedGamepad, _GCTouchpadProfile {
-    let _tb = GCControllerButtonInput(name: GCInputDualShockTouchpadButton)
-    let _tp = GCControllerDirectionPad(name: GCInputDualShockTouchpadOne, analog: true)
-    let _ts = GCControllerDirectionPad(name: GCInputDualShockTouchpadTwo, analog: true)
-    open var touchpadButton: GCControllerButtonInput! { _tb }
+@objc(GCDualShockGamepad) open class GCDualShockGamepad: GCExtendedGamepad, _GCTouchpadProfile {
+    @objc let _tb = GCControllerButtonInput(name: GCInputDualShockTouchpadButton)
+    @objc let _tp = GCControllerDirectionPad(name: GCInputDualShockTouchpadOne, analog: true)
+    @objc let _ts = GCControllerDirectionPad(name: GCInputDualShockTouchpadTwo, analog: true)
+    @objc open var touchpadButton: GCControllerButtonInput! { _tb }
     /// the first and second finger on the touchpad, -1...1 (y up)
-    open var touchpadPrimary: GCControllerDirectionPad! { _tp }
-    open var touchpadSecondary: GCControllerDirectionPad! { _ts }
-    let _touchpad = GCControllerTouchpad(name: "Touchpad")
-    var _touchpads: [String: GCControllerTouchpad] { [GCInputDualShockTouchpadOne: _touchpad] }
-    public override init() { super.init(); _registerTouchpad() }
-    func _registerTouchpad() {
+    @objc open var touchpadPrimary: GCControllerDirectionPad! { _tp }
+    @objc open var touchpadSecondary: GCControllerDirectionPad! { _ts }
+    @objc let _touchpad = GCControllerTouchpad(name: "Touchpad")
+    @objc var _touchpads: [String: GCControllerTouchpad] { [GCInputDualShockTouchpadOne: _touchpad] }
+    @objc public override init() { super.init(); _registerTouchpad() }
+    @objc func _registerTouchpad() {
         register(_tb, GCInputDualShockTouchpadButton)
         register(_tp, GCInputDualShockTouchpadOne); register(_ts, GCInputDualShockTouchpadTwo)
         _touchpad.profile = self
     }
-    override func _hostUpdate(_ p: isim_gamepad, bit: (Int) -> Float) { _GCTouch.update(p, bit(20), _tb, _tp, _ts, _touchpad) }
+    @objc override func _hostUpdate(_ p: isim_gamepad, bit: (Int) -> Float) { _GCTouch.update(p, bit(20), _tb, _tp, _ts, _touchpad) }
 }
 
-@objc(GCDualSenseGamepad) @objcMembers open class GCDualSenseGamepad: GCExtendedGamepad, _GCTouchpadProfile {
-    public let touchpadButton = GCControllerButtonInput(name: GCInputDualShockTouchpadButton)
-    public let touchpadPrimary = GCControllerDirectionPad(name: GCInputDualShockTouchpadOne, analog: true)
-    public let touchpadSecondary = GCControllerDirectionPad(name: GCInputDualShockTouchpadTwo, analog: true)
-    let _touchpad = GCControllerTouchpad(name: "Touchpad")
-    var _touchpads: [String: GCControllerTouchpad] { [GCInputDualShockTouchpadOne: _touchpad] }
-    open override var leftTrigger: GCDualSenseAdaptiveTrigger { _leftTrigger as! GCDualSenseAdaptiveTrigger }
-    open override var rightTrigger: GCDualSenseAdaptiveTrigger { _rightTrigger as! GCDualSenseAdaptiveTrigger }
-    public override init() {
+@objc(GCDualSenseGamepad) open class GCDualSenseGamepad: GCExtendedGamepad, _GCTouchpadProfile {
+    @objc public let touchpadButton = GCControllerButtonInput(name: GCInputDualShockTouchpadButton)
+    @objc public let touchpadPrimary = GCControllerDirectionPad(name: GCInputDualShockTouchpadOne, analog: true)
+    @objc public let touchpadSecondary = GCControllerDirectionPad(name: GCInputDualShockTouchpadTwo, analog: true)
+    @objc let _touchpad = GCControllerTouchpad(name: "Touchpad")
+    @objc var _touchpads: [String: GCControllerTouchpad] { [GCInputDualShockTouchpadOne: _touchpad] }
+    @objc open override var leftTrigger: GCDualSenseAdaptiveTrigger { _leftTrigger as! GCDualSenseAdaptiveTrigger }
+    @objc open override var rightTrigger: GCDualSenseAdaptiveTrigger { _rightTrigger as! GCDualSenseAdaptiveTrigger }
+    @objc public override init() {
         super.init(_leftTrigger: GCDualSenseAdaptiveTrigger(name: GCInputLeftTrigger, left: true),
                    rightTrigger: GCDualSenseAdaptiveTrigger(name: GCInputRightTrigger, left: false))
         register(touchpadButton, GCInputDualShockTouchpadButton)
@@ -120,9 +120,9 @@ protocol _GCTouchpadProfile { var _touchpads: [String: GCControllerTouchpad] { g
         _touchpad.profile = self
         leftTrigger._owner = self; rightTrigger._owner = self
     }
-    override func _hostUpdate(_ p: isim_gamepad, bit: (Int) -> Float) { _GCTouch.update(p, bit(20), touchpadButton, touchpadPrimary, touchpadSecondary, _touchpad) }
+    @objc override func _hostUpdate(_ p: isim_gamepad, bit: (Int) -> Float) { _GCTouch.update(p, bit(20), touchpadButton, touchpadPrimary, touchpadSecondary, _touchpad) }
     /// both triggers' modes as one DualSense effect report (SDL's DS5 effects layout)
-    func _sendTriggerEffects() {
+    @objc func _sendTriggerEffects() {
         guard let pad = controller?._hostPadID else { return }
         var report = [UInt8](repeating: 0, count: 47)
         report[0] = 0x04 | 0x08                                // enable the right and left trigger effects
@@ -152,7 +152,7 @@ enum _GCTouch {
 }
 
 /// A DualSense trigger with resistance and vibration modes (sent to the pad as effect reports).
-@objc(GCDualSenseAdaptiveTrigger) @objcMembers open class GCDualSenseAdaptiveTrigger: GCControllerButtonInput {
+@objc(GCDualSenseAdaptiveTrigger) open class GCDualSenseAdaptiveTrigger: GCControllerButtonInput {
     @objc public enum Mode: Int, Sendable { case off = 0, feedback = 1, weapon = 2, vibration = 3, slopeFeedback = 4 }
     @objc public enum Status: Int, Sendable {
         case unknown = -1, feedbackNoLoad = 0, feedbackLoadApplied = 1, weaponReady = 2, weaponFiring = 3, weaponFired = 4
@@ -170,26 +170,26 @@ enum _GCTouch {
         public init(values: (Float, Float, Float, Float, Float, Float, Float, Float, Float, Float)) { self.values = values }
     }
     /// the number of zones of the positional modes
-    open class var discretePositionCount: Int { 10 }
-    weak var _owner: GCDualSenseGamepad?
-    let _left: Bool
+    @objc open class var discretePositionCount: Int { 10 }
+    @objc weak var _owner: GCDualSenseGamepad?
+    @objc let _left: Bool
     var _effect: [UInt8] = [0x05]
-    init(name: String, left: Bool) { _left = left; super.init(name: name, analog: true) }
-    open internal(set) var mode: Mode = .off
+    @objc init(name: String, left: Bool) { _left = left; super.init(name: name, analog: true) }
+    @objc open internal(set) var mode: Mode = .off
     /// isim cannot read the trigger's state back from the pad (SDL does not report it)
-    open var status: Status { .unknown }
+    @objc open var status: Status { .unknown }
     /// the trigger's travel (isim: its value)
-    open var armPosition: Float { value }
+    @objc open var armPosition: Float { value }
     func _set(_ m: Mode, _ bytes: [UInt8]) { mode = m; _effect = bytes; _owner?._sendTriggerEffects() }
-    static func u8(_ v: Float) -> UInt8 { UInt8(max(0, min(1, v)) * 255) }
-    open func setModeOff() { _set(.off, [0x05]) }
-    open func setModeFeedbackWithStartPosition(_ startPosition: Float, resistiveStrength: Float) {
+    @objc static func u8(_ v: Float) -> UInt8 { UInt8(max(0, min(1, v)) * 255) }
+    @objc open func setModeOff() { _set(.off, [0x05]) }
+    @objc open func setModeFeedbackWithStartPosition(_ startPosition: Float, resistiveStrength: Float) {
         _set(.feedback, [0x01, Self.u8(startPosition), Self.u8(resistiveStrength)])
     }
-    open func setModeWeaponWithStartPosition(_ startPosition: Float, endPosition: Float, resistiveStrength: Float) {
+    @objc open func setModeWeaponWithStartPosition(_ startPosition: Float, endPosition: Float, resistiveStrength: Float) {
         _set(.weapon, [0x02, Self.u8(startPosition), Self.u8(endPosition), Self.u8(resistiveStrength)])
     }
-    open func setModeVibrationWithStartPosition(_ startPosition: Float, amplitude: Float, frequency: Float) {
+    @objc open func setModeVibrationWithStartPosition(_ startPosition: Float, amplitude: Float, frequency: Float) {
         _set(.vibration, [0x06, Self.u8(frequency), Self.u8(amplitude), Self.u8(startPosition)])
     }
     /// positional modes: the strongest position's resistance from the first zone that has one (adapted: one zone)
@@ -203,7 +203,7 @@ enum _GCTouch {
         let start = v.firstIndex { $0 > 0 } ?? 0
         _set(.vibration, [0x06, Self.u8(frequency), Self.u8(v.max() ?? 0), Self.u8(Float(start) / 9)])
     }
-    open func setModeSlopeFeedback(startPosition: Float, endPosition: Float, startStrength: Float, endStrength: Float) {
+    @objc open func setModeSlopeFeedback(startPosition: Float, endPosition: Float, startStrength: Float, endStrength: Float) {
         _set(.slopeFeedback, [0x01, Self.u8(startPosition), Self.u8(max(startStrength, endStrength))])
     }
 }
@@ -211,6 +211,6 @@ enum _GCTouch {
 // MARK: - directional gamepads
 
 /// A micro gamepad with a d-pad (Siri Remote style); isim's host pads are extended gamepads, so none appear.
-@objc(GCDirectionalGamepad) @objcMembers open class GCDirectionalGamepad: GCMicroGamepad {
-    public override init() { super.init() }
+@objc(GCDirectionalGamepad) open class GCDirectionalGamepad: GCMicroGamepad {
+    @objc public override init() { super.init() }
 }

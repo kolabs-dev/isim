@@ -1,7 +1,7 @@
 # CoreSpotlight
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 8.9% of Apple's iOS API (74 of 828, exact) · **Rows:** 4: 1 ✅ 1 🟡 2 ❌ · **iOS:** 9.0+
+**Symbols:** 9.5% of Apple's iOS API (79 of 828, exact) · **Rows:** 4: 1 ✅ 1 🟡 2 ❌ · **iOS:** 9.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [CoreSpotlight](https://developer.apple.com/documentation/corespotlight) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -22,7 +22,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-754 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+749 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -77,12 +77,9 @@
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/corespotlight/csperson/init(coder:))
 - [`init(displayName: String?, handles: [String], handleIdentifier: String)`](https://developer.apple.com/documentation/corespotlight/csperson/init(displayname:handles:handleidentifier:))
 - [`func beginBatch()`](https://developer.apple.com/documentation/corespotlight/cssearchableindex/beginbatch())
-- [`func deleteAppEntities<Entity>(identifiedBy: [Entity.ID], ofType: Entity.Type) async throws`](https://developer.apple.com/documentation/corespotlight/cssearchableindex/deleteappentities(identifiedby:oftype:))
-- [`func deleteAppEntities<Entity>(ofType: Entity.Type) async throws`](https://developer.apple.com/documentation/corespotlight/cssearchableindex/deleteappentities(oftype:))
 - [`func endBatch(withClientState: Data, completionHandler: (((any Error)?) -> Void)?)`](https://developer.apple.com/documentation/corespotlight/cssearchableindex/endbatch(withclientstate:completionhandler:))
 - [`func endIndexBatch(expectedClientState: Data?, newClientState: Data, completionHandler: (((any Error)?) -> Void)?)`](https://developer.apple.com/documentation/corespotlight/cssearchableindex/endindexbatch(expectedclientstate:newclientstate:completionhandler:))
 - [`func fetchLastClientState(completionHandler: (Data?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/corespotlight/cssearchableindex/fetchlastclientstate(completionhandler:))
-- [`func indexAppEntities([some IndexedEntity], priority: Int) async throws`](https://developer.apple.com/documentation/corespotlight/cssearchableindex/indexappentities(_:priority:))
 - [`var indexDelegate: (any CSSearchableIndexDelegate)?`](https://developer.apple.com/documentation/corespotlight/cssearchableindex/indexdelegate)
 - [`var protectionClass: FileProtectionType`](https://developer.apple.com/documentation/corespotlight/cssearchableindex/protectionclass)
 - [`CSSearchableIndexDelegate`](https://developer.apple.com/documentation/corespotlight/cssearchableindexdelegate)
@@ -118,8 +115,6 @@
 - [`CSSearchableIndexDescription`](https://developer.apple.com/documentation/corespotlight/cssearchableindexdescription)
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/corespotlight/cssearchableindexdescription/init(coder:))
 - [`var protectionClass: FileProtectionType?`](https://developer.apple.com/documentation/corespotlight/cssearchableindexdescription/protectionclass)
-- [`func associateAppEntity(some IndexedEntity, priority: Int) async`](https://developer.apple.com/documentation/corespotlight/cssearchableitem/associateappentity(_:priority:)-6h7ym)
-- [`func associateAppEntity(some IndexedEntity, priority: Int)`](https://developer.apple.com/documentation/corespotlight/cssearchableitem/associateappentity(_:priority:)-736lx)
 - [`func compare(byRank: CSSearchableItem) -> ComparisonResult`](https://developer.apple.com/documentation/corespotlight/cssearchableitem/compare(byrank:))
 - [`var isUpdate: Bool`](https://developer.apple.com/documentation/corespotlight/cssearchableitem/isupdate)
 - [`var relatedAppEntityIdentifier: EntityIdentifier?`](https://developer.apple.com/documentation/corespotlight/cssearchableitem/relatedappentityidentifier)
@@ -326,7 +321,12 @@
 - [`case indexUnreachable`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/indexunreachable)
 - [`case indexUnreachable`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/indexunreachable)
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/init(rawvalue:))
-- … and 454 more (`isim/data/api-coverage.json.gz`)
+- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/init(rawvalue:))
+- [`case invalidQuery`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/invalidquery)
+- [`case invalidQuery`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/invalidquery)
+- [`case unknown`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/unknown)
+- [`case unknown`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/unknown)
+- … and 449 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

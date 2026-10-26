@@ -410,7 +410,7 @@ open class GCControllerLiveInput: GCControllerInputState, GCDevicePhysicalInput,
 
 extension GCController {
     /// iOS 17: the controller's input by element name (GCButtonElementName, GCDirectionPadElementName)
-    public var input: GCControllerLiveInput {
+    @objc public var input: GCControllerLiveInput {
         if let i = _liveInput { return i }
         let i = GCControllerLiveInput(controller: self)
         _liveInput = i

@@ -1,7 +1,7 @@
 # CoreTelephony
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 18.1% of Apple's iOS API (30 of 166, exact) · **Rows:** 3: 3 ❌ · **iOS:** 4.0+
+**Symbols:** 46.4% of Apple's iOS API (78 of 168, exact) · **Rows:** 7: 1 ✅ 4 🧩 2 ❌ · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [Core Telephony](https://developer.apple.com/documentation/coretelephony) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)
@@ -27,19 +27,10 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-136 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+90 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
-- [`CellularDataRestrictionDidUpdateNotifier`](https://developer.apple.com/documentation/coretelephony/cellulardatarestrictiondidupdatenotifier)
-- [`CTCellularData`](https://developer.apple.com/documentation/coretelephony/ctcellulardata)
-- [`var cellularDataRestrictionDidUpdateNotifier: CellularDataRestrictionDidUpdateNotifier?`](https://developer.apple.com/documentation/coretelephony/ctcellulardata/cellulardatarestrictiondidupdatenotifier)
-- [`var restrictedState: CTCellularDataRestrictedState`](https://developer.apple.com/documentation/coretelephony/ctcellulardata/restrictedstate)
-- [`CTCellularDataRestrictedState`](https://developer.apple.com/documentation/coretelephony/ctcellulardatarestrictedstate)
-- [`init?(rawValue: UInt)`](https://developer.apple.com/documentation/coretelephony/ctcellulardatarestrictedstate/init(rawvalue:))
-- [`case notRestricted`](https://developer.apple.com/documentation/coretelephony/ctcellulardatarestrictedstate/notrestricted)
-- [`case restricted`](https://developer.apple.com/documentation/coretelephony/ctcellulardatarestrictedstate/restricted)
-- [`case restrictedStateUnknown`](https://developer.apple.com/documentation/coretelephony/ctcellulardatarestrictedstate/restrictedstateunknown)
 - [`CTCellularPlanCapability`](https://developer.apple.com/documentation/coretelephony/ctcellularplancapability)
 - [`case dataAndVoice`](https://developer.apple.com/documentation/coretelephony/ctcellularplancapability/dataandvoice)
 - [`case dataOnly`](https://developer.apple.com/documentation/coretelephony/ctcellularplancapability/dataonly)
@@ -53,26 +44,7 @@
 - [`var lifecycleProperties: CTCellularPlanProperties.lifecycle?`](https://developer.apple.com/documentation/coretelephony/ctcellularplanproperties/lifecycleproperties)
 - [`var simCapability: CTCellularPlanCapability`](https://developer.apple.com/documentation/coretelephony/ctcellularplanproperties/simcapability)
 - [`var supportedRegionCodes: [Locale.Region]`](https://developer.apple.com/documentation/coretelephony/ctcellularplanproperties/supportedregioncodes-yhu5)
-- [`CTCellularPlanProvisioning`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioning)
-- [`func addPlan(request: CTCellularPlanProvisioningRequest, properties: CTCellularPlanProperties?, completionHandler: (CTCellularPlanProvisioningAddPlanResult) -> Void)`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioning/addplan(request:properties:completionhandler:))
-- [`func addPlan(with: CTCellularPlanProvisioningRequest, completionHandler: (CTCellularPlanProvisioningAddPlanResult) -> Void)`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioning/addplan(with:completionhandler:))
-- [`func supportsCellularPlan() -> Bool`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioning/supportscellularplan())
-- [`var supportsEmbeddedSIM: Bool`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioning/supportsembeddedsim)
 - [`func update(CTCellularPlanProperties, completionHandler: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioning/update(_:completionhandler:))
-- [`CTCellularPlanProvisioningAddPlanResult`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioningaddplanresult)
-- [`case cancel`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioningaddplanresult/cancel)
-- [`case fail`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioningaddplanresult/fail)
-- [`init?(rawValue: UInt)`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioningaddplanresult/init(rawvalue:))
-- [`case success`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioningaddplanresult/success)
-- [`case unknown`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioningaddplanresult/unknown)
-- [`CTCellularPlanProvisioningRequest`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioningrequest)
-- [`var address: String`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioningrequest/address)
-- [`var confirmationCode: String?`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioningrequest/confirmationcode)
-- [`var eid: String?`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioningrequest/eid)
-- [`var iccid: String?`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioningrequest/iccid)
-- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioningrequest/init(coder:))
-- [`var matchingID: String?`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioningrequest/matchingid)
-- [`var oid: String?`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioningrequest/oid)
 - [`CTCellularPlanStatus`](https://developer.apple.com/documentation/coretelephony/ctcellularplanstatus)
 - [`class func checkValidity(ofToken: String, completionHandler: (Bool, (any Error)?) -> Void)`](https://developer.apple.com/documentation/coretelephony/ctcellularplanstatus/checkvalidity(oftoken:completionhandler:))
 - [`class func getAuthorizationStatus(forPhoneNumber: String, completion: (CTCellularPlanStatusAuthorization, (any Error)?) -> Void)`](https://developer.apple.com/documentation/coretelephony/ctcellularplanstatus/getauthorizationstatus(forphonenumber:completion:))
@@ -93,11 +65,6 @@
 - [`case high`](https://developer.apple.com/documentation/coretelephony/ctcellularplanstatusavailabilityconfidence/high)
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/coretelephony/ctcellularplanstatusavailabilityconfidence/init(rawvalue:))
 - [`case low`](https://developer.apple.com/documentation/coretelephony/ctcellularplanstatusavailabilityconfidence/low)
-- [`CTError`](https://developer.apple.com/documentation/coretelephony/cterror)
-- [`var domain: Int32`](https://developer.apple.com/documentation/coretelephony/cterror/domain)
-- [`var error: Int32`](https://developer.apple.com/documentation/coretelephony/cterror/error)
-- [`init()`](https://developer.apple.com/documentation/coretelephony/cterror/init())
-- [`init(domain: Int32, error: Int32)`](https://developer.apple.com/documentation/coretelephony/cterror/init(domain:error:))
 - [`CTQuickSwitchManager`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager)
 - [`var delegate: (any CTQuickSwitchManager.Delegate)?`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager/delegate-swift.property)
 - [`var delegate: (any CTQuickSwitchManager.Delegate)?`](https://developer.apple.com/documentation/coretelephony/ctquickswitchmanager/delegate-swift.property)
@@ -152,21 +119,8 @@
 - [`case signaling`](https://developer.apple.com/documentation/coretelephony/ctslicingmanager/trafficclass/signaling)
 - [`case video`](https://developer.apple.com/documentation/coretelephony/ctslicingmanager/trafficclass/video)
 - [`case voice`](https://developer.apple.com/documentation/coretelephony/ctslicingmanager/trafficclass/voice)
-- [`CTSubscriber`](https://developer.apple.com/documentation/coretelephony/ctsubscriber)
-- [`var carrierToken: Data?`](https://developer.apple.com/documentation/coretelephony/ctsubscriber/carriertoken)
-- [`var delegate: (any CTSubscriberDelegate)?`](https://developer.apple.com/documentation/coretelephony/ctsubscriber/delegate)
-- [`var identifier: String`](https://developer.apple.com/documentation/coretelephony/ctsubscriber/identifier)
-- [`var isSIMInserted: Bool`](https://developer.apple.com/documentation/coretelephony/ctsubscriber/issiminserted)
-- [`func refreshCarrierToken() -> Bool`](https://developer.apple.com/documentation/coretelephony/ctsubscriber/refreshcarriertoken())
-- [`CTSubscriberDelegate`](https://developer.apple.com/documentation/coretelephony/ctsubscriberdelegate)
-- [`func subscriberTokenRefreshed(CTSubscriber)`](https://developer.apple.com/documentation/coretelephony/ctsubscriberdelegate/subscribertokenrefreshed(_:))
-- [`CTSubscriberInfo`](https://developer.apple.com/documentation/coretelephony/ctsubscriberinfo)
-- [`class func subscribers() -> [CTSubscriber]`](https://developer.apple.com/documentation/coretelephony/ctsubscriberinfo/subscribers())
 - [`CTTelephonyNetworkInfo.RadioAccessTechnologyDidChangeMessage`](https://developer.apple.com/documentation/coretelephony/cttelephonynetworkinfo/radioaccesstechnologydidchangemessage)
 - [`var serviceIdentifier: String`](https://developer.apple.com/documentation/coretelephony/cttelephonynetworkinfo/radioaccesstechnologydidchangemessage/serviceidentifier)
-- [`var kCTErrorDomainMach: Int`](https://developer.apple.com/documentation/coretelephony/kcterrordomainmach)
-- [`var kCTErrorDomainNoError: Int`](https://developer.apple.com/documentation/coretelephony/kcterrordomainnoerror)
-- [`var kCTErrorDomainPOSIX: Int`](https://developer.apple.com/documentation/coretelephony/kcterrordomainposix)
 
 </details>
 <!-- /generated:missing -->

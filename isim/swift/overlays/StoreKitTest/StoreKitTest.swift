@@ -10,18 +10,18 @@ import Foundation
 public let SKTestErrorDomain = "SKTestErrorDomain"
 
 /// A local StoreKit testing session (Xcode's StoreKit Testing in Xcode, for tests).
-@objc(SKTestSession) @objcMembers open class SKTestSession: NSObject {
+@objc(SKTestSession) open class SKTestSession: NSObject {
     public enum TimeRate: Int, Sendable {
         case realTime = 0, oneSecondIsOneDay = 1, oneRenewalEveryTwoSeconds = 2, oneRenewalEveryTenSeconds = 3, oneRenewalEveryFifteenSeconds = 4
         case oneRenewalEveryThirtySeconds = 5, oneRenewalEveryMinute = 6, monthlyRenewalEveryThirtySeconds = 7, monthlyRenewalEveryMinute = 8
         case monthlyRenewalEveryFiveMinutes = 9, monthlyRenewalEveryFifteenMinutes = 10, monthlyRenewalEveryThirtyMinutes = 11, monthlyRenewalEveryHour = 12
     }
-    let url: URL
+    @objc let url: URL
 
     /// a .storekit file of the project, by name without the extension: in the test or app bundle, else (as Xcode
     /// does not copy .storekit files into products) in the project's folders, which `isim test` passes as
     /// ISIM_SRCROOT
-    public convenience init(configurationFileNamed name: String) throws {
+    @objc public convenience init(configurationFileNamed name: String) throws {
         let base = name.hasSuffix(".storekit") ? String(name.dropLast(9)) : name
         let bundles = Bundle.allBundles + Bundle.allFrameworks + [Bundle.main]
         if let url = bundles.lazy.compactMap({ $0.url(forResource: base, withExtension: "storekit") }).first {
@@ -34,7 +34,7 @@ public let SKTestErrorDomain = "SKTestErrorDomain"
         try self.init(contentsOf: url)
     }
     /// the shallowest file of that name under root (build products and package checkouts are skipped)
-    static func find(_ file: String, in root: String) -> URL? {
+    @objc static func find(_ file: String, in root: String) -> URL? {
         var best: (depth: Int, url: URL)?
         let fm = FileManager.default
         guard let e = fm.enumerator(at: URL(fileURLWithPath: root), includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else { return nil }
@@ -46,15 +46,15 @@ public let SKTestErrorDomain = "SKTestErrorDomain"
         }
         return best?.url
     }
-    public init(contentsOf url: URL) throws {
+    @objc public init(contentsOf url: URL) throws {
         self.url = url
         try _SKTesting.load(url.path)
         super.init()
     }
-    public convenience init(contentsOfURL url: URL) throws { try self.init(contentsOf: url) }
+    @objc public convenience init(contentsOfURL url: URL) throws { try self.init(contentsOf: url) }
 
     /// clears the transactions and puts every setting back
-    open func resetToDefaultState() {
+    @objc open func resetToDefaultState() {
         _SKTesting.clear()
         disableDialogs = false; askToBuyEnabled = false; interruptedPurchasesEnabled = false
         for key in _SKTestFailureStore.clear() { _SKTesting.setSimulatedError(nil, forAPI: key) }
@@ -63,57 +63,57 @@ public let SKTestErrorDomain = "SKTestErrorDomain"
     }
 
     // environment
-    open var storefront: String { get { _SKTesting.storefront } set { _SKTesting.storefront = newValue } }
-    open var locale = Locale(identifier: "en_US")
+    @objc open var storefront: String { get { _SKTesting.storefront } set { _SKTesting.storefront = newValue } }
+    @objc open var locale = Locale(identifier: "en_US")
     /// purchases confirm without the sheet; StoreKit's notices are not shown
-    open var disableDialogs: Bool { get { _SKTesting.disableDialogs } set { _SKTesting.disableDialogs = newValue } }
+    @objc open var disableDialogs: Bool { get { _SKTesting.disableDialogs } set { _SKTesting.disableDialogs = newValue } }
 
     // transactions
-    open func allTransactions() -> [SKTestTransaction] { _SKTesting.transactions().map(SKTestTransaction.init) }
-    open func deleteTransaction(identifier: Int) throws { try wrap { try _SKTesting.delete(identifier) } }
-    open func clearTransactions() { _SKTesting.clear() }
+    @objc open func allTransactions() -> [SKTestTransaction] { _SKTesting.transactions().map(SKTestTransaction.init) }
+    @objc open func deleteTransaction(identifier: Int) throws { try wrap { try _SKTesting.delete(identifier) } }
+    @objc open func clearTransactions() { _SKTesting.clear() }
 
     // failures (deprecated in iOS 17; failed purchases are not simulated)
-    open var failTransactionsEnabled = false
+    @objc open var failTransactionsEnabled = false
     open var failureError: SKError.Code = .unknown
 
     // interrupted purchases
-    open var interruptedPurchasesEnabled: Bool {
+    @objc open var interruptedPurchasesEnabled: Bool {
         get { _SKTesting.interruptedPurchases } set { _SKTesting.interruptedPurchases = newValue }
     }
-    open func resolveIssueForTransaction(identifier: Int) throws { try wrap { try _SKTesting.resolveIssue(identifier) } }
+    @objc open func resolveIssueForTransaction(identifier: Int) throws { try wrap { try _SKTesting.resolveIssue(identifier) } }
 
     // Ask to Buy
-    open var askToBuyEnabled: Bool { get { _SKTesting.askToBuy ?? false } set { _SKTesting.askToBuy = newValue } }
-    open func approveAskToBuyTransaction(identifier: Int) throws { try wrap { try _SKTesting.answer(identifier, approve: true) } }
-    open func declineAskToBuyTransaction(identifier: Int) throws { try wrap { try _SKTesting.answer(identifier, approve: false) } }
+    @objc open var askToBuyEnabled: Bool { get { _SKTesting.askToBuy ?? false } set { _SKTesting.askToBuy = newValue } }
+    @objc open func approveAskToBuyTransaction(identifier: Int) throws { try wrap { try _SKTesting.answer(identifier, approve: true) } }
+    @objc open func declineAskToBuyTransaction(identifier: Int) throws { try wrap { try _SKTesting.answer(identifier, approve: false) } }
 
     // renewals
     open var timeRate: TimeRate {
         get { TimeRate(rawValue: _SKTesting.timeRate) ?? .realTime } set { _SKTesting.timeRate = newValue.rawValue }
     }
-    open func enableAutoRenewForTransaction(identifier: Int) throws { try wrap { try _SKTesting.setAutoRenew(transaction: identifier, true) } }
-    open func disableAutoRenewForTransaction(identifier: Int) throws { try wrap { try _SKTesting.setAutoRenew(transaction: identifier, false) } }
-    open func forceRenewalOfSubscription(productIdentifier: String) throws { try wrap { try _SKTesting.forceRenewal(productIdentifier) } }
-    open func expireSubscription(productIdentifier: String) throws { try wrap { try _SKTesting.expire(productIdentifier) } }
+    @objc open func enableAutoRenewForTransaction(identifier: Int) throws { try wrap { try _SKTesting.setAutoRenew(transaction: identifier, true) } }
+    @objc open func disableAutoRenewForTransaction(identifier: Int) throws { try wrap { try _SKTesting.setAutoRenew(transaction: identifier, false) } }
+    @objc open func forceRenewalOfSubscription(productIdentifier: String) throws { try wrap { try _SKTesting.forceRenewal(productIdentifier) } }
+    @objc open func expireSubscription(productIdentifier: String) throws { try wrap { try _SKTesting.expire(productIdentifier) } }
 
     // billing retry and grace period
-    open var billingGracePeriodIsEnabled: Bool { get { _SKTesting.billingGracePeriod } set { _SKTesting.billingGracePeriod = newValue } }
-    open var shouldEnterBillingRetryOnRenewal = false { didSet { _SKTesting.setBillingIssue(shouldEnterBillingRetryOnRenewal) } }
+    @objc open var billingGracePeriodIsEnabled: Bool { get { _SKTesting.billingGracePeriod } set { _SKTesting.billingGracePeriod = newValue } }
+    @objc open var shouldEnterBillingRetryOnRenewal = false { didSet { _SKTesting.setBillingIssue(shouldEnterBillingRetryOnRenewal) } }
 
     // price increases: accepted, without effect
-    open func requestPriceIncreaseConsentForTransaction(identifier: Int) throws { try existing(identifier) }
-    open func consentToPriceIncreaseForTransaction(identifier: Int) throws { try existing(identifier) }
-    open func declinePriceIncreaseForTransaction(identifier: Int) throws { try existing(identifier) }
+    @objc open func requestPriceIncreaseConsentForTransaction(identifier: Int) throws { try existing(identifier) }
+    @objc open func consentToPriceIncreaseForTransaction(identifier: Int) throws { try existing(identifier) }
+    @objc open func declinePriceIncreaseForTransaction(identifier: Int) throws { try existing(identifier) }
 
     // purchases outside the app
-    open func refundTransaction(identifier: Int) throws { try wrap { try _SKTesting.refund(identifier) } }
+    @objc open func refundTransaction(identifier: Int) throws { try wrap { try _SKTesting.refund(identifier) } }
     /// buys as the customer would outside the app (no sheet); the transaction also arrives in Transaction.updates
     @MainActor @nonobjc open func buyProduct(identifier: Product.ID, options: Set<Product.PurchaseOption> = []) async throws -> Transaction {
         try await _SKTesting.buy(identifier, options: options)
     }
     @available(*, deprecated, message: "Use buyProduct(identifier:options:)")
-    open func buyProduct(productIdentifier: String) throws {
+    @objc open func buyProduct(productIdentifier: String) throws {
         Task { @MainActor in _ = try? await _SKTesting.buy(productIdentifier, options: []) }
     }
 
@@ -129,11 +129,11 @@ public let SKTestErrorDomain = "SKTestErrorDomain"
         _SKTestFailureStore.get(API._isimName) as? API.Failure
     }
 
-    func existing(_ id: Int) throws {
+    @objc func existing(_ id: Int) throws {
         guard allTransactions().contains(where: { $0.identifier == id }) else { throw error(_SKTesting.Failure.noTransaction(id)) }
     }
     func wrap(_ f: () throws -> Void) throws { do { try f() } catch { throw self.error(error) } }
-    func error(_ e: Error) -> NSError {
+    @objc func error(_ e: Error) -> NSError {
         let text: String
         switch e as? _SKTesting.Failure {
         case .noTransaction(let id)?: text = "No transaction with identifier \(id)"
@@ -146,20 +146,20 @@ public let SKTestErrorDomain = "SKTestErrorDomain"
 }
 
 /// A transaction of the test session, as Xcode's Transaction Manager shows it.
-@objc(SKTestTransaction) @objcMembers open class SKTestTransaction: NSObject {
-    public let identifier: Int
-    public let originalTransactionIdentifier: Int
-    public let productIdentifier: String
-    public let purchaseDate: Date
-    public let expirationDate: Date?
-    public let revocationDate: Date?
-    public let webOrderLineItemID: String?
+@objc(SKTestTransaction) open class SKTestTransaction: NSObject {
+    @objc public let identifier: Int
+    @objc public let originalTransactionIdentifier: Int
+    @objc public let productIdentifier: String
+    @objc public let purchaseDate: Date
+    @objc public let expirationDate: Date?
+    @objc public let revocationDate: Date?
+    @objc public let webOrderLineItemID: String?
     public let state: SKPaymentTransactionState
-    public let autoRenewingEnabled: Bool
-    public let hasPurchaseIssue: Bool
-    public let pendingAskToBuyConfirmation: Bool
-    public let isUpgraded: Bool
-    public var refunded: Bool { revocationDate != nil }
+    @objc public let autoRenewingEnabled: Bool
+    @objc public let hasPurchaseIssue: Bool
+    @objc public let pendingAskToBuyConfirmation: Bool
+    @objc public let isUpgraded: Bool
+    @objc public var refunded: Bool { revocationDate != nil }
     init(_ r: _SKTesting.Record) {
         identifier = r.id; originalTransactionIdentifier = r.originalID; productIdentifier = r.productID; purchaseDate = r.purchaseDate
         expirationDate = r.expirationDate; revocationDate = r.revocationDate; webOrderLineItemID = r.webOrderLineItemID

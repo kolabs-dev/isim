@@ -1,7 +1,7 @@
 # UserNotifications
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 82.1% of Apple's iOS API (234 of 285, exact) · **Rows:** 10: 8 ✅ 2 ❌ · **iOS:** 10.0+
+**Symbols:** 84.9% of Apple's iOS API (242 of 285, exact) · **Rows:** 12: 12 ✅ · **iOS:** 10.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [UserNotifications](https://developer.apple.com/documentation/usernotifications) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -32,7 +32,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-51 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+43 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -78,15 +78,7 @@
 - [`static var notificationInvalidNoContent: UNError.Code`](https://developer.apple.com/documentation/usernotifications/unerror/notificationinvalidnocontent)
 - [`static var notificationInvalidNoDate: UNError.Code`](https://developer.apple.com/documentation/usernotifications/unerror/notificationinvalidnodate)
 - [`static var notificationsNotAllowed: UNError.Code`](https://developer.apple.com/documentation/usernotifications/unerror/notificationsnotallowed)
-- [`UNLocationNotificationTrigger`](https://developer.apple.com/documentation/usernotifications/unlocationnotificationtrigger)
-- [`convenience init(region: CLRegion, repeats: Bool)`](https://developer.apple.com/documentation/usernotifications/unlocationnotificationtrigger/init(region:repeats:))
-- [`var region: CLRegion`](https://developer.apple.com/documentation/usernotifications/unlocationnotificationtrigger/region)
 - [`var appEntityIdentifiers: [EntityIdentifier]`](https://developer.apple.com/documentation/usernotifications/unmutablenotificationcontent/appentityidentifiers)
-- [`UNNotificationAttributedMessageContext`](https://developer.apple.com/documentation/usernotifications/unnotificationattributedmessagecontext)
-- [`convenience init(sendMessageIntent: INSendMessageIntent, attributedContent: NSAttributedString)`](https://developer.apple.com/documentation/usernotifications/unnotificationattributedmessagecontext/init(sendmessageintent:attributedcontent:))
-- [`func updating(from: any UNNotificationContentProviding) throws -> UNNotificationContent`](https://developer.apple.com/documentation/usernotifications/unnotificationcontent/updating(from:))
-- [`UNNotificationContentProviding`](https://developer.apple.com/documentation/usernotifications/unnotificationcontentproviding)
-- [`var targetScene: UIScene?`](https://developer.apple.com/documentation/usernotifications/unnotificationresponse/targetscene)
 
 </details>
 <!-- /generated:missing -->

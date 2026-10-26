@@ -3,6 +3,7 @@
 #import <UIKit/UIResponder.h>
 #import <UIKit/UIView.h>
 #import <UIKit/UIApplicationShortcutItem.h>
+#import <_CKShareMetadata/_CKShareMetadata.h>   /* CKShareMetadata, which Swift resolves to CloudKit's CKShare.Metadata (#630) */
 NS_ASSUME_NONNULL_BEGIN
 @class UIApplication, UIWindow, UIScene, UISceneSession, UISceneConfiguration, UISceneConnectionOptions, UIEvent, UIViewController;
 typedef NS_ENUM(NSInteger, UIApplicationState) { UIApplicationStateActive, UIApplicationStateInactive, UIApplicationStateBackground };
@@ -47,7 +48,7 @@ UIKIT_EXTERN NSNotificationName const UIApplicationUserDidTakeScreenshotNotifica
 UIKIT_EXTERN NSNotificationName const UIApplicationProtectedDataWillBecomeUnavailable NS_SWIFT_NAME(UIApplication.protectedDataWillBecomeUnavailableNotification);
 UIKIT_EXTERN NSNotificationName const UIApplicationProtectedDataDidBecomeAvailable NS_SWIFT_NAME(UIApplication.protectedDataDidBecomeAvailableNotification);
 
-@class NSUserActivity, INIntent, INIntentResponse, CKShareMetadata;
+@class NSUserActivity, INIntent, INIntentResponse;
 NS_SWIFT_UI_ACTOR
 @protocol UIUserActivityRestoring <NSObject>
 - (void)restoreUserActivityState:(NSUserActivity *)userActivity;

@@ -1,6 +1,7 @@
 # LinkPresentation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 69.2% of Apple's iOS API (45 of 65, exact) · **Rows:** 6: 5 ✅ 1 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [LinkPresentation](https://developer.apple.com/documentation/linkpresentation) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)
@@ -51,4 +52,30 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+20 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`LinkMetadata`](https://developer.apple.com/documentation/linkpresentation/linkmetadata)
+- [`LinkMetadata.Attachment`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/attachment)
+- [`static var icon: LinkMetadata.Attachment`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/attachment/icon)
+- [`static var image: LinkMetadata.Attachment`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/attachment/image)
+- [`static var video: LinkMetadata.Attachment`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/attachment/video)
+- [`func containsMedia(LinkMetadata.Attachment, exportableAs: (some Transferable).Type) -> Bool`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/containsmedia(_:exportableas:))
+- [`static var defaultResolverSpecification: some ResolverSpecification`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/defaultresolverspecification)
+- [`init?(sending LPLinkMetadata)`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/init(_:))
+- [`init(fetching: URL, timeout: Duration, includeSubresources: Bool) async throws`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/init(fetching:timeout:includesubresources:)-69bj2)
+- [`init(fetching: URLRequest, timeout: Duration, includeSubresources: Bool) async throws`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/init(fetching:timeout:includesubresources:)-7rkd9)
+- [`init(url: URL)`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/init(url:))
+- [`func media<Media>(LinkMetadata.Attachment, as: Media.Type) async throws -> Media?`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/media(_:as:))
+- [`var originalURL: URL`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/originalurl)
+- [`var remoteVideo: URL?`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/remotevideo)
+- [`func setMedia(some Transferable, for: LinkMetadata.Attachment)`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/setmedia(_:for:))
+- [`LinkMetadata.Specification`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/specification)
+- [`var title: String?`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/title)
+- [`LinkMetadata.UnwrappedType`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/unwrappedtype)
+- [`var url: URL`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/url)
+- [`LinkMetadata.ValueType`](https://developer.apple.com/documentation/linkpresentation/linkmetadata/valuetype)
+
+</details>
 <!-- /generated:missing -->

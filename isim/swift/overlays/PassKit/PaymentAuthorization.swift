@@ -109,7 +109,7 @@ enum _PKWallet {
 
 extension PKPaymentRequestUpdate {
     /// marks the updates the delegates' default methods return: the sheet keeps what it shows
-    func _markUnchanged() -> Self { _unchanged = true; return self }
+    @objc func _markUnchanged() -> Self { _unchanged = true; return self }
 }
 
 // MARK: - PKPaymentAuthorizationController
@@ -177,14 +177,14 @@ public protocol PKPaymentAuthorizationControllerDelegate: NSObjectProtocol {
 }
 
 /// Presents the Apple Pay sheet over the app (no view controller of the app's).
-@objc(PKPaymentAuthorizationController) @objcMembers open class PKPaymentAuthorizationController: NSObject {
+@objc(PKPaymentAuthorizationController) open class PKPaymentAuthorizationController: NSObject {
     open weak var delegate: (any PKPaymentAuthorizationControllerDelegate)?
-    let request: PKPaymentRequest
-    var host: UIViewController?
+    @objc let request: PKPaymentRequest
+    @objc var host: UIViewController?
 
-    public init(paymentRequest request: PKPaymentRequest) { self.request = request; super.init() }
+    @objc public init(paymentRequest request: PKPaymentRequest) { self.request = request; super.init() }
 
-    open class func canMakePayments() -> Bool { !_PKWallet.cards.isEmpty }
+    @objc open class func canMakePayments() -> Bool { !_PKWallet.cards.isEmpty }
     open class func canMakePayments(usingNetworks supportedNetworks: [PKPaymentNetwork]) -> Bool {
         !_PKWallet.cards(networks: supportedNetworks, capabilities: nil).isEmpty
     }
@@ -192,7 +192,7 @@ public protocol PKPaymentAuthorizationControllerDelegate: NSObjectProtocol {
         !_PKWallet.cards(networks: supportedNetworks, capabilities: capabilities).isEmpty
     }
 
-    @MainActor open func present(completion: ((Bool) -> Void)? = nil) {
+    @objc @MainActor open func present(completion: ((Bool) -> Void)? = nil) {
         guard host == nil else { completion?(false); return }
         if let p = request.problem { NSLog("isim PassKit: cannot present the payment sheet: %@", p); completion?(false); return }
         guard !_PKWallet.cards(networks: request.supportedNetworks, capabilities: request.merchantCapabilities).isEmpty else {
@@ -209,15 +209,15 @@ public protocol PKPaymentAuthorizationControllerDelegate: NSObjectProtocol {
         top.present(h, animated: true) { completion?(true) }
         model.start()
     }
-    @MainActor open func present() async -> Bool {
+    @objc @MainActor open func present() async -> Bool {
         await withCheckedContinuation { k in present(completion: { k.resume(returning: $0) }) }
     }
-    @MainActor open func dismiss(completion: (() -> Void)? = nil) {
+    @objc @MainActor open func dismiss(completion: (() -> Void)? = nil) {
         guard let h = host else { completion?(); return }
         host = nil
         h.dismiss(animated: true, completion: completion)
     }
-    @MainActor open func dismiss() async {
+    @objc @MainActor open func dismiss() async {
         await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in dismiss(completion: { k.resume() }) }
     }
 
@@ -300,13 +300,13 @@ public protocol PKPaymentAuthorizationViewControllerDelegate: NSObjectProtocol {
 }
 
 /// The Apple Pay sheet as a view controller the app presents (and dismisses in paymentAuthorizationViewControllerDidFinish).
-@objc(PKPaymentAuthorizationViewController) @objcMembers open class PKPaymentAuthorizationViewController: UIViewController {
+@objc(PKPaymentAuthorizationViewController) open class PKPaymentAuthorizationViewController: UIViewController {
     open weak var delegate: (any PKPaymentAuthorizationViewControllerDelegate)?
-    let request: PKPaymentRequest
+    @objc let request: PKPaymentRequest
     var model: _PKSheetModel?
 
     /// nil when the device cannot pay with the request's networks, or the request is incomplete
-    public init?(paymentRequest request: PKPaymentRequest) {
+    @objc public init?(paymentRequest request: PKPaymentRequest) {
         if let p = request.problem { NSLog("isim PassKit: PKPaymentAuthorizationViewController: %@", p); return nil }
         guard !_PKWallet.cards(networks: request.supportedNetworks, capabilities: request.merchantCapabilities).isEmpty else {
             NSLog("isim PassKit: PKPaymentAuthorizationViewController: no card in Wallet for %@", request.supportedNetworks.map(\.rawValue).joined(separator: ", "))
@@ -317,9 +317,9 @@ public protocol PKPaymentAuthorizationViewControllerDelegate: NSObjectProtocol {
         modalPresentationStyle = .pageSheet
         isModalInPresentation = true
     }
-    public required init?(coder: NSCoder) { return nil }
+    @objc public required init?(coder: NSCoder) { return nil }
 
-    open class func canMakePayments() -> Bool { PKPaymentAuthorizationController.canMakePayments() }
+    @objc open class func canMakePayments() -> Bool { PKPaymentAuthorizationController.canMakePayments() }
     open class func canMakePayments(usingNetworks supportedNetworks: [PKPaymentNetwork]) -> Bool {
         PKPaymentAuthorizationController.canMakePayments(usingNetworks: supportedNetworks)
     }
@@ -327,7 +327,7 @@ public protocol PKPaymentAuthorizationViewControllerDelegate: NSObjectProtocol {
         PKPaymentAuthorizationController.canMakePayments(usingNetworks: supportedNetworks, capabilities: capabilities)
     }
 
-    open override func viewDidLoad() {
+    @objc open override func viewDidLoad() {
         super.viewDidLoad()
         let m = _PKSheetModel(request: request, handlers: handlers())
         model = m
@@ -339,7 +339,7 @@ public protocol PKPaymentAuthorizationViewControllerDelegate: NSObjectProtocol {
         h.didMove(toParent: self)
         view.backgroundColor = .systemGroupedBackground
     }
-    open override func viewDidAppear(_ animated: Bool) {
+    @objc open override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         model?.start()
     }

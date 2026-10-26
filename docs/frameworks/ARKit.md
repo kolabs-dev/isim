@@ -1,7 +1,7 @@
 # ARKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 57.8% of Apple's iOS API (572 of 989, exact) · **Rows:** 7: 1 ✅ 6 🟡 · **iOS:** 11.0+
+**Symbols:** 57.8% of Apple's iOS API (572 of 989, exact) · **Rows:** 8: 1 ✅ 7 🟡 · **iOS:** 11.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [ARKit](https://developer.apple.com/documentation/arkit) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)

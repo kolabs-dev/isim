@@ -14,19 +14,19 @@ extension CKSyncEngineDelegate {
 }
 
 /// A group of related operations (CloudKit's telemetry and default configuration for them); isim keeps the values.
-@objc(CKOperationGroup) @objcMembers open class CKOperationGroup: NSObject, NSSecureCoding, @unchecked Sendable {
+@objc(CKOperationGroup) open class CKOperationGroup: NSObject, NSSecureCoding, @unchecked Sendable {
     public enum TransferSize: Int, Sendable {
         case unknown = 0, kilobytes = 1, megabytes = 2, tensOfMegabytes = 3, hundredsOfMegabytes = 4, gigabytes = 5, tensOfGigabytes = 6, hundredsOfGigabytes = 7
     }
-    open private(set) var operationGroupID: String
-    open var defaultConfiguration: CKOperation.Configuration! = CKOperation.Configuration()
-    open var name: String?
-    open var quantity: Int = 0
+    @objc open private(set) var operationGroupID: String
+    @objc open var defaultConfiguration: CKOperation.Configuration! = CKOperation.Configuration()
+    @objc open var name: String?
+    @objc open var quantity: Int = 0
     open var expectedSendSize: TransferSize = .unknown
     open var expectedReceiveSize: TransferSize = .unknown
-    public override init() { operationGroupID = UUID().uuidString; super.init() }
-    public static var supportsSecureCoding: Bool { true }
-    public required init?(coder: NSCoder) {
+    @objc public override init() { operationGroupID = UUID().uuidString; super.init() }
+    @objc public static var supportsSecureCoding: Bool { true }
+    @objc public required init?(coder: NSCoder) {
         operationGroupID = coder.decodeObject(of: NSString.self, forKey: "operationGroupID") as String? ?? UUID().uuidString
         name = coder.decodeObject(of: NSString.self, forKey: "name") as String?
         quantity = coder.decodeInteger(forKey: "quantity")
@@ -34,7 +34,7 @@ extension CKSyncEngineDelegate {
         expectedReceiveSize = TransferSize(rawValue: coder.decodeInteger(forKey: "expectedReceiveSize")) ?? .unknown
         super.init()
     }
-    open func encode(with coder: NSCoder) {
+    @objc open func encode(with coder: NSCoder) {
         coder.encode(operationGroupID as NSString, forKey: "operationGroupID")
         if let name { coder.encode(name as NSString, forKey: "name") }
         coder.encode(quantity, forKey: "quantity")

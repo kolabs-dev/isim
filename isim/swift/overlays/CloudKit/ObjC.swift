@@ -209,7 +209,7 @@ extension CKFetchRecordZonesOperation {
         get { _CKObjC.state(self)["all", as: (([CKRecordZone.ID: CKRecordZone]?, Error?) -> Void).self] }
         set { _CKObjC.state(self).blocks["all"] = newValue; _objcInstall() }
     }
-    func _objcInstall() {
+    @objc func _objcInstall() {
         let s = _CKObjC.state(self)
         perRecordZoneResultBlock = { id, r in
             switch r { case .success(let z): s.found[id] = z; case .failure(let e): s.partial[id] = e }
@@ -232,7 +232,7 @@ extension CKFetchSubscriptionsOperation {
         get { _CKObjC.state(self)["all", as: (([String: CKSubscription]?, Error?) -> Void).self] }
         set { _CKObjC.state(self).blocks["all"] = newValue; _objcInstall() }
     }
-    func _objcInstall() {
+    @objc func _objcInstall() {
         let s = _CKObjC.state(self)
         perSubscriptionResultBlock = { id, r in
             switch r { case .success(let x): s.found[id] = x; case .failure(let e): s.partial[id] = e }
@@ -332,12 +332,6 @@ extension CKShare.Participant {
     }
 }
 
-extension CKShare.Metadata {
-    @objc(participantRole) var _objcRole: Int { participantRole.rawValue }
-    @objc(participantStatus) var _objcStatus: Int { participantStatus.rawValue }
-    @objc(participantPermission) var _objcPermission: Int { participantPermission.rawValue }
-}
-
 extension CKAllowedSharingOptions {
     @objc(standardOptions) class var _objcStandardOptions: CKAllowedSharingOptions { standard }
     @objc(allowedParticipantPermissionOptions) var _objcPermissionOptions: UInt {
@@ -365,13 +359,5 @@ extension CKContainer {
         case .success(let m): return m
         case .failure(let e): NSLog("isim CloudKit: share link %@: %@", url.absoluteString, e.localizedDescription); return nil
         }
-    }
-}
-
-extension UIScene.ConnectionOptions {
-    /// The CloudKit share link that launched the app. UIKit declares it with Objective-C's CKShareMetadata, which
-    /// isim's Swift CloudKit implements as CKShare.Metadata, so the typed property lives here.
-    public var cloudKitShareMetadata: CKShare.Metadata? {
-        perform(NSSelectorFromString("cloudKitShareMetadata"))?.takeUnretainedValue() as? CKShare.Metadata
     }
 }

@@ -304,7 +304,7 @@ final class CloudViewController: UIViewController {
                 let participant = try await container.shareParticipant(forEmailAddress: "casey@example.com")
                 participant.permission = .readWrite
                 let share = CKShare(rootRecord: root)
-                share[CKShare.SystemFieldKey.title.rawValue] = "Notes"
+                share[CKShare.SystemFieldKey.title] = "Notes"
                 share.publicPermission = .readOnly
                 share.addParticipant(participant)
                 let saved = try await db.save(share)

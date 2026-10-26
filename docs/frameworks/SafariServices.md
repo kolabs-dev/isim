@@ -1,7 +1,7 @@
 # SafariServices
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 34.8% of Apple's iOS API (39 of 112, exact) · **Rows:** 4: 2 ✅ 2 ❌ · **iOS:** 7.0+
+**Symbols:** 62.5% of Apple's iOS API (70 of 112, exact) · **Rows:** 5: 3 ✅ 2 ❌ · **iOS:** 7.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [SafariServices](https://developer.apple.com/documentation/safariservices) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)
@@ -23,7 +23,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-73 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+42 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -39,37 +39,6 @@
 - [`var websiteCookies: [HTTPCookie]`](https://developer.apple.com/documentation/safariservices/sfaddtohomescreeninfo/websitecookies)
 - [`SFAuthenticationSession.CompletionHandler`](https://developer.apple.com/documentation/safariservices/sfauthenticationsession/completionhandler)
 - [`SFAuthenticationSession.CompletionHandler`](https://developer.apple.com/documentation/safariservices/sfauthenticationsession/completionhandler)
-- [`SFContentBlockerManager`](https://developer.apple.com/documentation/safariservices/sfcontentblockermanager)
-- [`class func getStateOfContentBlocker(withIdentifier: String, completionHandler: (SFContentBlockerState?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/safariservices/sfcontentblockermanager/getstateofcontentblocker(withidentifier:completionhandler:))
-- [`class func reloadContentBlocker(withIdentifier: String, completionHandler: (((any Error)?) -> Void)?)`](https://developer.apple.com/documentation/safariservices/sfcontentblockermanager/reloadcontentblocker(withidentifier:completionhandler:))
-- [`SFContentBlockerState`](https://developer.apple.com/documentation/safariservices/sfcontentblockerstate)
-- [`var isEnabled: Bool`](https://developer.apple.com/documentation/safariservices/sfcontentblockerstate/isenabled)
-- [`SFError`](https://developer.apple.com/documentation/safariservices/sferror)
-- [`SFError.Code`](https://developer.apple.com/documentation/safariservices/sferror/code)
-- [`SFError.Code`](https://developer.apple.com/documentation/safariservices/sferror/code)
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/safariservices/sferror/code/init(rawvalue:))
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/safariservices/sferror/code/init(rawvalue:))
-- [`case internalError`](https://developer.apple.com/documentation/safariservices/sferror/code/internalerror)
-- [`case internalError`](https://developer.apple.com/documentation/safariservices/sferror/code/internalerror)
-- [`case loadingInterrupted`](https://developer.apple.com/documentation/safariservices/sferror/code/loadinginterrupted)
-- [`case loadingInterrupted`](https://developer.apple.com/documentation/safariservices/sferror/code/loadinginterrupted)
-- [`case maximumAttemptsExceeded`](https://developer.apple.com/documentation/safariservices/sferror/code/maximumattemptsexceeded)
-- [`case maximumAttemptsExceeded`](https://developer.apple.com/documentation/safariservices/sferror/code/maximumattemptsexceeded)
-- [`case missingEntitlement`](https://developer.apple.com/documentation/safariservices/sferror/code/missingentitlement)
-- [`case missingEntitlement`](https://developer.apple.com/documentation/safariservices/sferror/code/missingentitlement)
-- [`case noAttachmentFound`](https://developer.apple.com/documentation/safariservices/sferror/code/noattachmentfound)
-- [`case noAttachmentFound`](https://developer.apple.com/documentation/safariservices/sferror/code/noattachmentfound)
-- [`case noExtensionFound`](https://developer.apple.com/documentation/safariservices/sferror/code/noextensionfound)
-- [`case noExtensionFound`](https://developer.apple.com/documentation/safariservices/sferror/code/noextensionfound)
-- [`static var errorDomain: String`](https://developer.apple.com/documentation/safariservices/sferror/errordomain)
-- [`static var internalError: SFError.Code`](https://developer.apple.com/documentation/safariservices/sferror/internalerror)
-- [`static var loadingInterrupted: SFError.Code`](https://developer.apple.com/documentation/safariservices/sferror/loadinginterrupted)
-- [`static var maximumAttemptsExceeded: SFError.Code`](https://developer.apple.com/documentation/safariservices/sferror/maximumattemptsexceeded)
-- [`static var missingEntitlement: SFError.Code`](https://developer.apple.com/documentation/safariservices/sferror/missingentitlement)
-- [`static var noAttachmentFound: SFError.Code`](https://developer.apple.com/documentation/safariservices/sferror/noattachmentfound)
-- [`static var noExtensionFound: SFError.Code`](https://developer.apple.com/documentation/safariservices/sferror/noextensionfound)
-- [`let SFErrorDomain: String`](https://developer.apple.com/documentation/safariservices/sferrordomain)
-- [`let SFErrorDomain: String`](https://developer.apple.com/documentation/safariservices/sferrordomain)
 - [`let SFExtensionMessageKey: String`](https://developer.apple.com/documentation/safariservices/sfextensionmessagekey)
 - [`let SFExtensionProfileKey: String`](https://developer.apple.com/documentation/safariservices/sfextensionprofilekey)
 - [`let SFExtensionProfileKey: String`](https://developer.apple.com/documentation/safariservices/sfextensionprofilekey)

@@ -135,14 +135,14 @@ enum _IsimBackgroundAudio {
 
 public enum AVAudioCommonFormat: UInt, Sendable { case otherFormat = 0, pcmFormatFloat32 = 1, pcmFormatFloat64 = 2, pcmFormatInt16 = 3, pcmFormatInt32 = 4 }
 
-@objc(AVAudioFormat) @objcMembers open class AVAudioFormat: NSObject {
-    public let sampleRate: Double
-    public let channelCount: AVAudioChannelCount
+@objc(AVAudioFormat) open class AVAudioFormat: NSObject {
+    @objc public let sampleRate: Double
+    @objc public let channelCount: AVAudioChannelCount
     public let commonFormat: AVAudioCommonFormat
-    public let isInterleaved: Bool
+    @objc public let isInterleaved: Bool
     /// a stream description that is not one of the common PCM formats (compressed: AAC, ALAC, ...; or other PCM)
     var _other: AudioStreamBasicDescription?
-    var _layout: AVAudioChannelLayout?
+    @objc var _layout: AVAudioChannelLayout?
     @objc(initStandardFormatWithSampleRate:channels:) public init?(standardFormatWithSampleRate rate: Double, channels: AVAudioChannelCount) {
         guard rate > 0, channels > 0 else { return nil }
         sampleRate = rate; channelCount = channels; commonFormat = .pcmFormatFloat32; isInterleaved = false
@@ -157,20 +157,20 @@ public enum AVAudioCommonFormat: UInt, Sendable { case otherFormat = 0, pcmForma
     public init(commonFormat: AVAudioCommonFormat, sampleRate: Double, interleaved: Bool, channelLayout layout: AVAudioChannelLayout) {
         self.sampleRate = sampleRate; channelCount = layout.channelCount; self.commonFormat = commonFormat; isInterleaved = interleaved; _layout = layout
     }
-    init(_other asbd: AudioStreamBasicDescription, layout: AVAudioChannelLayout?) {
+    @objc init(_other asbd: AudioStreamBasicDescription, layout: AVAudioChannelLayout?) {
         sampleRate = asbd.mSampleRate; channelCount = asbd.mChannelsPerFrame; commonFormat = .otherFormat
         isInterleaved = !asbd._isNonInterleaved || asbd.mChannelsPerFrame <= 1; _other = asbd; _layout = layout
     }
-    open var isStandard: Bool { commonFormat == .pcmFormatFloat32 && !isInterleaved }
-    open var channelLayout: AVAudioChannelLayout? { _layout }
+    @objc open var isStandard: Bool { commonFormat == .pcmFormatFloat32 && !isInterleaved }
+    @objc open var channelLayout: AVAudioChannelLayout? { _layout }
     /// the codec's magic cookie (an AAC esds or AudioSpecificConfig), for compressed formats
-    open var magicCookie: Data?
-    var _sd: UnsafeMutablePointer<AudioStreamBasicDescription>?
+    @objc open var magicCookie: Data?
+    @objc var _sd: UnsafeMutablePointer<AudioStreamBasicDescription>?
     deinit { _sd?.deallocate() }
     /// isim: linear PCM or compressed
-    var _isPCM: Bool { _other.map { $0._isPCM } ?? true }
+    @objc var _isPCM: Bool { _other.map { $0._isPCM } ?? true }
     /// the stream description of this format
-    var _asbd: AudioStreamBasicDescription {
+    @objc var _asbd: AudioStreamBasicDescription {
         if let o = _other { return o }
         let bits: UInt32 = commonFormat == .pcmFormatInt16 ? 16 : commonFormat == .pcmFormatFloat64 ? 64 : 32
         let isFloat = commonFormat == .pcmFormatFloat32 || commonFormat == .pcmFormatFloat64 || commonFormat == .otherFormat
@@ -180,13 +180,13 @@ public enum AVAudioCommonFormat: UInt, Sendable { case otherFormat = 0, pcmForma
         return AudioStreamBasicDescription(mSampleRate: sampleRate, mFormatID: kAudioFormatLinearPCM, mFormatFlags: flags, mBytesPerPacket: frameBytes,
                                            mFramesPerPacket: 1, mBytesPerFrame: frameBytes, mChannelsPerFrame: channelCount, mBitsPerChannel: bits, mReserved: 0)
     }
-    open var streamDescription: UnsafePointer<AudioStreamBasicDescription> {
+    @objc open var streamDescription: UnsafePointer<AudioStreamBasicDescription> {
         if _sd == nil { _sd = .allocate(capacity: 1); _sd!.initialize(to: _asbd) }
         return UnsafePointer(_sd!)
     }
     /// Linear PCM (16/32-bit integer and 32/64-bit float are common formats, other PCM and compressed formats are
     /// `.otherFormat`). More than two channels need a layout, as on iOS.
-    public convenience init?(streamDescription asbd: UnsafePointer<AudioStreamBasicDescription>, channelLayout layout: AVAudioChannelLayout?) {
+    @objc public convenience init?(streamDescription asbd: UnsafePointer<AudioStreamBasicDescription>, channelLayout layout: AVAudioChannelLayout?) {
         let d = asbd.pointee
         guard d.mSampleRate > 0, d.mChannelsPerFrame > 0 else { return nil }
         if let layout, layout.channelCount != d.mChannelsPerFrame { return nil }
@@ -204,7 +204,7 @@ public enum AVAudioCommonFormat: UInt, Sendable { case otherFormat = 0, pcmForma
         }
         self.init(_other: d, layout: layout)
     }
-    public convenience init?(streamDescription asbd: UnsafePointer<AudioStreamBasicDescription>) {
+    @objc public convenience init?(streamDescription asbd: UnsafePointer<AudioStreamBasicDescription>) {
         self.init(streamDescription: asbd, channelLayout: nil)
     }
     public convenience init(cmAudioFormatDescription formatDescription: CMAudioFormatDescription) {
@@ -217,7 +217,7 @@ public enum AVAudioCommonFormat: UInt, Sendable { case otherFormat = 0, pcmForma
     /// the CoreMedia description of this format (made on each call)
     open var formatDescription: CMAudioFormatDescription { CMFormatDescription(_audio: _asbd) }
     /// Linear PCM (the common formats) or a compressed format (AVFormatIDKey: AAC, ALAC, FLAC, Opus, ...).
-    public convenience init?(settings: [String: Any]) {
+    @objc public convenience init?(settings: [String: Any]) {
         func num(_ k: String) -> Double? { (settings[k] as? NSNumber)?.doubleValue ?? (settings[k] as? Double) ?? (settings[k] as? Int).map(Double.init)
             ?? (settings[k] as? UInt32).map(Double.init) }
         let rate = num(AVSampleRateKey) ?? 44100, ch = AVAudioChannelCount(num(AVNumberOfChannelsKey) ?? 2)
@@ -241,7 +241,7 @@ public enum AVAudioCommonFormat: UInt, Sendable { case otherFormat = 0, pcmForma
         if let layout, layout.channelCount == ch { self.init(commonFormat: common, sampleRate: rate, interleaved: !nonInter, channelLayout: layout); return }
         self.init(commonFormat: common, sampleRate: rate, channels: ch, interleaved: !nonInter)
     }
-    open var settings: [String: Any] {
+    @objc open var settings: [String: Any] {
         var s: [String: Any]
         if let o = _other, !o._isPCM {
             s = [AVFormatIDKey: o.mFormatID, AVSampleRateKey: sampleRate, AVNumberOfChannelsKey: Int(channelCount)]
@@ -254,14 +254,14 @@ public enum AVAudioCommonFormat: UInt, Sendable { case otherFormat = 0, pcmForma
         if let l = _layout { s[AVChannelLayoutKey] = l._data }
         return s
     }
-    open override func isEqual(_ o: Any?) -> Bool {
+    @objc open override func isEqual(_ o: Any?) -> Bool {
         guard let f = o as? AVAudioFormat else { return false }
         if _other != nil || f._other != nil { return _asbd == f._asbd && (_layout == nil || f._layout == nil || _layout == f._layout) }
         return f.sampleRate == sampleRate && f.channelCount == channelCount && f.commonFormat == commonFormat && f.isInterleaved == isInterleaved
             && (_layout == nil || f._layout == nil || _layout == f._layout)
     }
-    open override var hash: Int { sampleRate.hashValue ^ Int(channelCount) ^ Int(commonFormat.rawValue) << 8 }
-    open override var description: String {
+    @objc open override var hash: Int { sampleRate.hashValue ^ Int(channelCount) ^ Int(commonFormat.rawValue) << 8 }
+    @objc open override var description: String {
         let d = _asbd
         return "<AVAudioFormat \(Int(channelCount)) ch, \(sampleRate) Hz, \(_isPCM ? (commonFormat == .otherFormat ? _PCMDescription(d) : "\(commonFormat)") : "'\(_fourCC(d.mFormatID))'")\(isInterleaved ? ", interleaved" : ", deinterleaved")>"
     }
@@ -270,32 +270,32 @@ func _fourCC(_ v: UInt32) -> String { String(decoding: [UInt8(v >> 24 & 0xFF), U
 func _PCMDescription(_ d: AudioStreamBasicDescription) -> String { "\(d.mBitsPerChannel)-bit \(d._isFloat ? "float" : "integer")" }
 
 /// A buffer of audio in an AVAudioFormat: PCM (AVAudioPCMBuffer) or compressed packets (AVAudioCompressedBuffer).
-@objc(AVAudioBuffer) @objcMembers open class AVAudioBuffer: NSObject, NSCopying, NSMutableCopying {
-    public let format: AVAudioFormat
-    init(format: AVAudioFormat) { self.format = format }
+@objc(AVAudioBuffer) open class AVAudioBuffer: NSObject, NSCopying, NSMutableCopying {
+    @objc public let format: AVAudioFormat
+    @objc init(format: AVAudioFormat) { self.format = format }
     /// the buffer's data as a buffer list (sizes follow the valid data)
-    open var audioBufferList: UnsafePointer<AudioBufferList> { UnsafePointer(mutableAudioBufferList) }
-    open var mutableAudioBufferList: UnsafeMutablePointer<AudioBufferList> { fatalError("AVAudioBuffer is abstract") }
-    open func copy(with zone: NSZone? = nil) -> Any { self }
-    open func mutableCopy(with zone: NSZone? = nil) -> Any { self }
+    @objc open var audioBufferList: UnsafePointer<AudioBufferList> { UnsafePointer(mutableAudioBufferList) }
+    @objc open var mutableAudioBufferList: UnsafeMutablePointer<AudioBufferList> { fatalError("AVAudioBuffer is abstract") }
+    @objc open func copy(with zone: NSZone? = nil) -> Any { self }
+    @objc open func mutableCopy(with zone: NSZone? = nil) -> Any { self }
 }
 
 /// PCM samples in the buffer's format. The common Float32 deinterleaved format (`isStandard`, what the engine renders)
 /// is stored per channel and read by floatChannelData; Int16 / Int32 / Float64 and interleaved formats have their own
 /// storage in that layout (int16ChannelData, int32ChannelData, `stride`), converted to floats where isim's engine
 /// and files read them.
-@objc(AVAudioPCMBuffer) @objcMembers open class AVAudioPCMBuffer: AVAudioBuffer {
-    public let frameCapacity: AVAudioFrameCount
-    open var frameLength: AVAudioFrameCount {
+@objc(AVAudioPCMBuffer) open class AVAudioPCMBuffer: AVAudioBuffer {
+    @objc public let frameCapacity: AVAudioFrameCount
+    @objc open var frameLength: AVAudioFrameCount {
         didSet { if frameLength > frameCapacity { frameLength = frameCapacity }; invalidate() }
     }
     /// the float view of the samples (the storage itself for standard formats)
     let channels: [UnsafeMutablePointer<Float>]
-    let channelTable: UnsafeMutablePointer<UnsafeMutablePointer<Float>>
+    @objc let channelTable: UnsafeMutablePointer<UnsafeMutablePointer<Float>>
     /// the samples in the format's own layout, for non-standard formats: one buffer per channel, or one interleaved
     let _raw: [UnsafeMutableRawPointer]
-    let _rawTable: UnsafeMutablePointer<UnsafeMutableRawPointer>
-    var hostBuffer: Int32 = 0
+    @objc let _rawTable: UnsafeMutablePointer<UnsafeMutableRawPointer>
+    @objc var hostBuffer: Int32 = 0
     @objc(initWithPCMFormat:frameCapacity:) public init?(pcmFormat: AVAudioFormat, frameCapacity: AVAudioFrameCount) {
         guard frameCapacity > 0, pcmFormat._isPCM else { return nil }
         self.frameCapacity = frameCapacity
@@ -342,19 +342,19 @@ func _PCMDescription(_ d: AudioStreamBasicDescription) -> String { "\(d.mBitsPer
         if let l = _abl { free(l.unsafeMutablePointer) }
     }
     /// Float32 samples: one pointer per channel (deinterleaved), or one interleaved pointer; nil for other formats.
-    open var floatChannelData: UnsafePointer<UnsafeMutablePointer<Float>>? {
+    @objc open var floatChannelData: UnsafePointer<UnsafeMutablePointer<Float>>? {
         guard format.commonFormat == .pcmFormatFloat32 else { return nil }
         return format.isStandard ? UnsafePointer(channelTable) : UnsafeRawPointer(_rawTable).assumingMemoryBound(to: UnsafeMutablePointer<Float>.self)
     }
-    open var int16ChannelData: UnsafePointer<UnsafeMutablePointer<Int16>>? {
+    @objc open var int16ChannelData: UnsafePointer<UnsafeMutablePointer<Int16>>? {
         format.commonFormat == .pcmFormatInt16 ? UnsafeRawPointer(_rawTable).assumingMemoryBound(to: UnsafeMutablePointer<Int16>.self) : nil
     }
-    open var int32ChannelData: UnsafePointer<UnsafeMutablePointer<Int32>>? {
+    @objc open var int32ChannelData: UnsafePointer<UnsafeMutablePointer<Int32>>? {
         format.commonFormat == .pcmFormatInt32 ? UnsafeRawPointer(_rawTable).assumingMemoryBound(to: UnsafeMutablePointer<Int32>.self) : nil
     }
     var _abl: UnsafeMutableAudioBufferListPointer?
     /// the samples in the format's layout (sizes follow frameLength)
-    open override var mutableAudioBufferList: UnsafeMutablePointer<AudioBufferList> {
+    @objc open override var mutableAudioBufferList: UnsafeMutablePointer<AudioBufferList> {
         let d = format._asbd
         let inter = _raw.count == 1 && channels.count > 1
         if _abl == nil {
@@ -368,8 +368,8 @@ func _PCMDescription(_ d: AudioStreamBasicDescription) -> String { "\(d.mBitsPer
         return l.unsafeMutablePointer
     }
     /// samples between one frame's and the next one's in a channel (the channel count when interleaved)
-    open var stride: Int { _raw.count == 1 && channels.count > 1 ? channels.count : 1 }
-    open override func copy(with zone: NSZone? = nil) -> Any {
+    @objc open var stride: Int { _raw.count == 1 && channels.count > 1 ? channels.count : 1 }
+    @objc open override func copy(with zone: NSZone? = nil) -> Any {
         let b = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCapacity)!
         let n = Int(frameCapacity)
         for (i, c) in channels.enumerated() { b.channels[i].update(from: c, count: n) }
@@ -381,22 +381,22 @@ func _PCMDescription(_ d: AudioStreamBasicDescription) -> String { "\(d.mBitsPer
         b.frameLength = frameLength
         return b
     }
-    open override func mutableCopy(with zone: NSZone? = nil) -> Any { copy(with: zone) }
+    @objc open override func mutableCopy(with zone: NSZone? = nil) -> Any { copy(with: zone) }
     /// isim: the float view from the format's storage (after code wrote int16ChannelData, ...), for non-standard formats
-    func _syncFromRaw() {
+    @objc func _syncFromRaw() {
         guard !format.isStandard else { return }
         let x = _IsimPCM.read(UnsafeMutableAudioBufferListPointer(mutableAudioBufferList), format._asbd, frames: Int(frameLength))
         for (c, dst) in channels.enumerated() where c < x.count { x[c].withUnsafeBufferPointer { dst.update(from: $0.baseAddress!, count: min($0.count, Int(frameCapacity))) } }
     }
     /// isim: the format's storage from the float view (after isim's code wrote floats), for non-standard formats
-    func _syncToRaw() {
+    @objc func _syncToRaw() {
         guard !format.isStandard else { return }
         let x = channels.map { Array(UnsafeBufferPointer(start: $0, count: Int(frameLength))) }
         _IsimPCM.fill(UnsafeMutableAudioBufferListPointer(mutableAudioBufferList), x, format._asbd, frames: Int(frameLength))
     }
-    func invalidate() { if hostBuffer > 0 { isim_audio_buffer_release(hostBuffer); hostBuffer = 0 } }
+    @objc func invalidate() { if hostBuffer > 0 { isim_audio_buffer_release(hostBuffer); hostBuffer = 0 } }
     /// Uploads the samples to the host mixer once (interleaved).
-    func host() -> Int32 {
+    @objc func host() -> Int32 {
         if hostBuffer > 0 { return hostBuffer }
         _syncFromRaw()
         let frames = Int(frameLength), ch = channels.count
@@ -507,15 +507,15 @@ enum _AudioDecoder {
     }
 }
 
-@objc(AVAudioFile) @objcMembers open class AVAudioFile: NSObject {
-    public let url: URL
-    public let fileFormat: AVAudioFormat
-    public let processingFormat: AVAudioFormat
-    open var length: AVAudioFramePosition { _writer.map { AVAudioFramePosition($0.frames) } ?? AVAudioFramePosition(decoded.channels.first?.count ?? 0) }
-    open var framePosition: AVAudioFramePosition = 0
+@objc(AVAudioFile) open class AVAudioFile: NSObject {
+    @objc public let url: URL
+    @objc public let fileFormat: AVAudioFormat
+    @objc public let processingFormat: AVAudioFormat
+    @objc open var length: AVAudioFramePosition { _writer.map { AVAudioFramePosition($0.frames) } ?? AVAudioFramePosition(decoded.channels.first?.count ?? 0) }
+    @objc open var framePosition: AVAudioFramePosition = 0
     let decoded: _DecodedAudio
     var _writer: _AudioFileWriter?      // files opened for writing (AVAudioExtras.swift)
-    public init(forReading url: URL) throws {
+    @objc public init(forReading url: URL) throws {
         self.url = url
         decoded = try _AudioDecoder.decode(url)
         let ch = AVAudioChannelCount(decoded.channels.count)
@@ -524,7 +524,7 @@ enum _AudioDecoder {
     }
     /// Writing: PCM WAV/CAF directly; other extensions (m4a, aac, mp3, flac, aiff) are encoded by the host's ffmpeg
     /// when the file is closed.
-    public init(forWriting url: URL, settings: [String: Any]) throws {
+    @objc public init(forWriting url: URL, settings: [String: Any]) throws {
         self.url = url
         let w = try _AudioFileWriter(url: url, settings: settings)
         _writer = w
@@ -540,8 +540,8 @@ enum _AudioDecoder {
         w.append(buffer)
         framePosition = AVAudioFramePosition(w.frames)
     }
-    open var isOpen: Bool { _writer.map { !$0.closed } ?? true }
-    open func close() { try? _writer?.finish() }
+    @objc open var isOpen: Bool { _writer.map { !$0.closed } ?? true }
+    @objc open func close() { try? _writer?.finish() }
     deinit { try? _writer?.finish() }
     public convenience init(forReading url: URL, commonFormat: AVAudioCommonFormat, interleaved: Bool) throws { try self.init(forReading: url) }
     @objc(readIntoBuffer:error:) open func read(into buffer: AVAudioPCMBuffer) throws { try read(into: buffer, frameCount: buffer.frameCapacity) }
@@ -566,35 +566,35 @@ enum _AudioDecoder {
     @objc optional func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?)
 }
 
-@objc(AVAudioPlayer) @objcMembers open class AVAudioPlayer: NSObject {
-    public let url: URL?
-    public let data: Data?
-    let buffer: Int32
-    let sampleRate: Double
-    let frames: Int
-    let _pcm: [[Float]]              // decoded samples (metering, rate changes)
-    var _rateBuffer: Int32 = 0       // time-stretched copy for the current rate
-    var _rateOf: Float = 1
-    var voice = 0
+@objc(AVAudioPlayer) open class AVAudioPlayer: NSObject {
+    @objc public let url: URL?
+    @objc public let data: Data?
+    @objc let buffer: Int32
+    @objc let sampleRate: Double
+    @objc let frames: Int
+    @objc let _pcm: [[Float]]              // decoded samples (metering, rate changes)
+    @objc var _rateBuffer: Int32 = 0       // time-stretched copy for the current rate
+    @objc var _rateOf: Float = 1
+    @objc var voice = 0
     var pausedAt: Double?
-    var startOffset = 0.0
-    var generation = 0
-    var _voiceRate: Float = 1        // rate of the buffer the voice plays (positions scale by it)
-    weak open var delegate: AVAudioPlayerDelegate?
-    open var numberOfLoops = 0
-    open var volume: Float = 1 { didSet { if voice != 0 { isim_audio_set_volume(voice, Double(volume)) } } }
-    open func setVolume(_ volume: Float, fadeDuration duration: TimeInterval) { self.volume = volume }
+    @objc var startOffset = 0.0
+    @objc var generation = 0
+    @objc var _voiceRate: Float = 1        // rate of the buffer the voice plays (positions scale by it)
+    @objc weak open var delegate: AVAudioPlayerDelegate?
+    @objc open var numberOfLoops = 0
+    @objc open var volume: Float = 1 { didSet { if voice != 0 { isim_audio_set_volume(voice, Double(volume)) } } }
+    @objc open func setVolume(_ volume: Float, fadeDuration duration: TimeInterval) { self.volume = volume }
     /// set before prepareToPlay()/play() to allow rate changes (like iOS)
-    open var enableRate = false
+    @objc open var enableRate = false
     /// 0.5...2.0; with enableRate, playback speed changes and pitch is kept (adapted: WSOLA time stretch)
-    open var rate: Float = 1 { didSet { rate = min(2, max(0.5, rate)); _rateChanged() } }
+    @objc open var rate: Float = 1 { didSet { rate = min(2, max(0.5, rate)); _rateChanged() } }
     /// -1 (left) ... 1 (right)
-    open var pan: Float = 0 { didSet { pan = min(1, max(-1, pan)); if voice != 0 { isim_audio_set_pan(voice, Double(pan)) } } }
-    open var isMeteringEnabled = false
-    var _avg: [Float] = [], _peak: [Float] = []
-    open var settings: [String: Any] { [AVSampleRateKey: sampleRate, AVNumberOfChannelsKey: _pcm.count, AVFormatIDKey: kAudioFormatLinearPCM] }
-    open var format: AVAudioFormat { AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: AVAudioChannelCount(max(1, _pcm.count)))! }
-    open var deviceCurrentTime: TimeInterval { isim_time() }
+    @objc open var pan: Float = 0 { didSet { pan = min(1, max(-1, pan)); if voice != 0 { isim_audio_set_pan(voice, Double(pan)) } } }
+    @objc open var isMeteringEnabled = false
+    @objc var _avg: [Float] = [], _peak: [Float] = []
+    @objc open var settings: [String: Any] { [AVSampleRateKey: sampleRate, AVNumberOfChannelsKey: _pcm.count, AVFormatIDKey: kAudioFormatLinearPCM] }
+    @objc open var format: AVAudioFormat { AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: AVAudioChannelCount(max(1, _pcm.count)))! }
+    @objc open var deviceCurrentTime: TimeInterval { isim_time() }
 
     @objc(initWithContentsOfURL:error:) public init(contentsOf url: URL) throws {
         let d = try _AudioDecoder.decode(url)
@@ -605,7 +605,7 @@ enum _AudioDecoder {
         _AudioSessionEvents.register(self)
     }
     @objc(initWithContentsOfURL:fileTypeHint:error:) public convenience init(contentsOf url: URL, fileTypeHint: String?) throws { try self.init(contentsOf: url) }
-    public init(data: Data) throws {
+    @objc public init(data: Data) throws {
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("isim-avplayer-\(UUID().uuidString)")
         try data.write(to: tmp)
         defer { try? FileManager.default.removeItem(at: tmp) }
@@ -616,27 +616,27 @@ enum _AudioDecoder {
         super.init()
         _AudioSessionEvents.register(self)
     }
-    public convenience init(data: Data, fileTypeHint: String?) throws { try self.init(data: data) }
+    @objc public convenience init(data: Data, fileTypeHint: String?) throws { try self.init(data: data) }
     deinit {
         if voice != 0 { isim_audio_stop(voice) }
         if buffer > 0 { isim_audio_buffer_release(buffer) }
         if _rateBuffer > 0 { isim_audio_buffer_release(_rateBuffer) }
     }
 
-    open var duration: TimeInterval { sampleRate > 0 ? Double(frames) / sampleRate : 0 }
-    open var isPlaying: Bool { voice != 0 && isim_audio_is_playing(voice) != 0 }
-    open var numberOfChannels: Int { _pcm.count }
+    @objc open var duration: TimeInterval { sampleRate > 0 ? Double(frames) / sampleRate : 0 }
+    @objc open var isPlaying: Bool { voice != 0 && isim_audio_is_playing(voice) != 0 }
+    @objc open var numberOfChannels: Int { _pcm.count }
     /// position in the file (seconds), whatever the rate
-    open var currentTime: TimeInterval {
+    @objc open var currentTime: TimeInterval {
         get { if let p = pausedAt { return p }; return voice != 0 ? isim_audio_position(voice) * Double(_voiceRate) : startOffset }
         set {
             if voice != 0 { isim_audio_seek(voice, newValue / Double(_voiceRate)) }
             if pausedAt != nil { pausedAt = newValue } else if voice == 0 { startOffset = newValue }
         }
     }
-    var _effectiveRate: Float { enableRate ? rate : 1 }
+    @objc var _effectiveRate: Float { enableRate ? rate : 1 }
     /// the host buffer for a rate (time-stretched once per rate)
-    func _buffer(for r: Float) -> Int32 {
+    @objc func _buffer(for r: Float) -> Int32 {
         if r == 1 { return buffer }
         if _rateBuffer > 0 && _rateOf == r { return _rateBuffer }
         if _rateBuffer > 0 { isim_audio_buffer_release(_rateBuffer); _rateBuffer = 0 }
@@ -645,14 +645,14 @@ enum _AudioDecoder {
         _rateOf = r
         return _rateBuffer
     }
-    func _rateChanged() {
+    @objc func _rateChanged() {
         guard enableRate, voice != 0, _effectiveRate != _voiceRate else { return }
         let pos = currentTime, wasPaused = pausedAt != nil
         isim_audio_stop(voice); voice = 0
         _startVoice(at: pos)
         if wasPaused, voice != 0 { isim_audio_pause(voice, 1) } else { watch() }
     }
-    func _startVoice(at pos: Double) {
+    @objc func _startVoice(at pos: Double) {
         let r = _effectiveRate
         let b = _buffer(for: r)
         voice = b > 0 ? isim_audio_play(b, Double(volume), Int32(numberOfLoops)) : 0
@@ -662,8 +662,8 @@ enum _AudioDecoder {
             if pos > 0 { isim_audio_seek(voice, pos / Double(r)) }
         }
     }
-    @discardableResult open func prepareToPlay() -> Bool { buffer > 0 }
-    @discardableResult open func play() -> Bool {
+    @objc @discardableResult open func prepareToPlay() -> Bool { buffer > 0 }
+    @objc @discardableResult open func play() -> Bool {
         guard buffer > 0 else { return false }
         if voice != 0, pausedAt != nil { isim_audio_pause(voice, 0); pausedAt = nil; watch(); return true }
         if isPlaying { return true }
@@ -672,20 +672,20 @@ enum _AudioDecoder {
         watch()
         return voice != 0
     }
-    @discardableResult open func play(atTime time: TimeInterval) -> Bool {
+    @objc @discardableResult open func play(atTime time: TimeInterval) -> Bool {
         let delay = time - deviceCurrentTime
         guard delay > 0.001 else { return play() }
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in _ = self?.play() }
         return buffer > 0
     }
-    open func pause() { guard voice != 0 else { return }; pausedAt = currentTime; isim_audio_pause(voice, 1); generation += 1 }
-    open func stop() {
+    @objc open func pause() { guard voice != 0 else { return }; pausedAt = currentTime; isim_audio_pause(voice, 1); generation += 1 }
+    @objc open func stop() {
         // like AVAudioPlayer: stop keeps the position; play() resumes from currentTime
         if voice != 0 { startOffset = currentTime; isim_audio_stop(voice); voice = 0 }
         pausedAt = nil; generation += 1
     }
     /// Metering: RMS and peak (dBFS, after volume) of the ~50 ms of audio at the playback position.
-    open func updateMeters() {
+    @objc open func updateMeters() {
         guard isMeteringEnabled else { return }
         let n = max(1, Int(sampleRate * 0.05))
         let end = isPlaying ? Int(currentTime * sampleRate) : 0
@@ -700,11 +700,11 @@ enum _AudioDecoder {
             _avg.append(db(rms)); _peak.append(db(pk))
         }
     }
-    open func averagePower(forChannel c: Int) -> Float { c >= 0 && c < _avg.count ? _avg[c] : -160 }
-    open func peakPower(forChannel c: Int) -> Float { c >= 0 && c < _peak.count ? _peak[c] : -160 }
+    @objc open func averagePower(forChannel c: Int) -> Float { c >= 0 && c < _avg.count ? _avg[c] : -160 }
+    @objc open func peakPower(forChannel c: Int) -> Float { c >= 0 && c < _peak.count ? _peak[c] : -160 }
 
     /// Reports the end of playback to the delegate.
-    func watch() {
+    @objc func watch() {
         generation += 1
         let gen = generation
         func poll() {
