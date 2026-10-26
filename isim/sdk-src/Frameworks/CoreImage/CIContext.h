@@ -1,6 +1,7 @@
 #pragma once
 #import <Foundation/Foundation.h>
 #import <CoreImage/CIImage.h>
+#import <Metal/Metal.h>
 NS_ASSUME_NONNULL_BEGIN
 @class CIFilter;
 typedef NSString *CIContextOption NS_TYPED_ENUM;
@@ -21,6 +22,11 @@ extern CIContextOption const kCIContextMemoryLimit;
 + (CIContext *)contextWithCGContext:(CGContextRef)cgctx options:(nullable NSDictionary<CIContextOption, id> *)options NS_SWIFT_NAME(init(cgContext:options:));
 + (CIContext *)contextWithOptions:(nullable NSDictionary<CIContextOption, id> *)options;
 + (CIContext *)context;
+/* Metal on the CPU (issue #328): a context for an MTLDevice or a queue renders on the CPU like any other */
++ (CIContext *)contextWithMTLDevice:(id<MTLDevice>)device;
++ (CIContext *)contextWithMTLDevice:(id<MTLDevice>)device options:(nullable NSDictionary<CIContextOption, id> *)options;
++ (CIContext *)contextWithMTLCommandQueue:(id<MTLCommandQueue>)commandQueue;
++ (CIContext *)contextWithMTLCommandQueue:(id<MTLCommandQueue>)commandQueue options:(nullable NSDictionary<CIContextOption, id> *)options;
 - (instancetype)initWithOptions:(nullable NSDictionary<CIContextOption, id> *)options;
 - (instancetype)init;
 @property (nullable, nonatomic, readonly) CGColorSpaceRef workingColorSpace;

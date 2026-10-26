@@ -2,11 +2,12 @@
 /* isim Core Image (self-authored, iOS API names): image recipes rendered on the CPU by CIContext in the working
  * space (extended linear sRGB by default, as on iOS), the CIFilter registry with iOS's built-in filters
  * (CIFilterBuiltins), kernels in the Core Image Kernel Language and Metal Core Image kernels (interpreted),
- * CIImageProcessorKernel, detectors, barcode descriptors and RAW decoding. No GPU: Metal textures and IOSurfaces are
- * not available as image sources or destinations. */
+ * CIImageProcessorKernel, detectors, barcode descriptors and RAW decoding. No GPU: a context for a Metal device
+ * (isim's Metal on the CPU) renders on the CPU too; Metal textures and IOSurfaces are not image sources or destinations. */
 #import <Foundation/Foundation.h>
 #include <CoreGraphics/CoreGraphics.h>
 #include <ImageIO/ImageIO.h>
+#import <Metal/Metal.h>
 #import <CoreImage/CIVector.h>
 #import <CoreImage/CIColor.h>
 #import <CoreImage/CIImage.h>

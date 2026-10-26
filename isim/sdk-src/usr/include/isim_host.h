@@ -356,6 +356,9 @@ int isim_camera_source_at(int position, char *_Nullable desc, int len);
 int isim_camera_open_at(int position, int max_side, double fps, int *w, int *h);
 /* runs ffmpeg with args (no shell); progress in seconds of output; *cancel != 0 stops it. 0 ok, -1 no ffmpeg, -2 cancelled */
 int isim_ffmpeg_run(const char *_Nullable const *_Nonnull args, int nargs, double *_Nullable progress, volatile int *_Nullable cancel, char *_Nullable err, long errlen);
+/* Metal on the CPU (frameworks/Metal): compiles a .metal file to a guest dylib with isim's MSL compiler (bin/mslc.py);
+ * flags are its options (-I dir, -DNAME=VALUE); 0 on success, else -1 with the messages in err */
+int isim_metal_compile(const char *_Nonnull source, const char *_Nonnull out, const char *_Nullable const *_Nullable flags, int nflags, char *_Nullable err, long errlen);
 /* decoded media streams: kind 0 video (BGRA w x h at rate fps; rate < 0: the source's own frames), 1 audio (float32
    interleaved at rate Hz, channels) */
 int isim_media_reader_open(const char *url, int kind, double start, double duration, int w, int h, double rate, int channels);

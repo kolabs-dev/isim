@@ -860,6 +860,7 @@ GameKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftN
 AppTrackingTransparency -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit
 AudioToolbox -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation -lisim_host
 CoreVideo -lswiftObjectiveC -lswiftFoundation -lswiftCoreGraphics -framework Foundation -framework CoreGraphics
+Metal -lswiftObjectiveC -lswiftFoundation -framework Foundation -framework Metal   # issue #328: Apple's Swift forms (arrays, ranges)
 CoreImage -lswiftObjectiveC -lswiftFoundation -lswiftCoreVideo -lswiftCoreGraphics -framework Foundation -framework CoreGraphics -framework CoreImage   # CVPixelBuffer APIs
 CoreMedia -lswiftObjectiveC -lswiftFoundation -lswiftCoreVideo -lswiftAudioToolbox -lswiftCoreGraphics -framework Foundation -framework CoreGraphics
 VideoToolbox -lswiftObjectiveC -lswiftFoundation -lswiftAudioToolbox -lswiftCoreMedia -lswiftCoreVideo -lswiftCoreGraphics -framework Foundation -framework CoreGraphics -lisim_host
