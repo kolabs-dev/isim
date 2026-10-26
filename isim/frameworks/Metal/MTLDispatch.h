@@ -1,6 +1,6 @@
 /* isim Metal: a compute dispatch, run on the worker threads (MTLDispatch.c; recorded by MTLCommand.m) */
 #pragma once
-#include "../../sdk-src/metal/include/__isim_metal_abi.h"
+#include <isim_metal_abi.h>
 #include <stddef.h>
 
 typedef struct isim_mtl_dispatch {

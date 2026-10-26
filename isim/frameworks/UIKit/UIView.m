@@ -201,6 +201,9 @@ ANCHORS(UILayoutGuide)
     UIViewTintAdjustmentMode _tintMode;
     id<UITraitOverrides> _traitOverrides;
     double *_vfx;                                                /* SwiftUI visual effects (_isim_setVisualEffect:), 32 values */
+    void (*_shade)(void *, uint32_t *, int, int, int, double, double, double);   /* SwiftUI shader effects (_isim_setPixelShader:...) */
+    id _shadeContext;
+    CGFloat _shadeMargin;
     UICornerConfiguration *_cornerConfig;                        /* iOS 26 corner configuration (nil: the layer's corner radius) */
 }
 @end
@@ -317,6 +320,12 @@ static char kContentScale;
     if (_vfx && !memcmp(_vfx, values, 32 * sizeof(double))) return;
     if (!_vfx) _vfx = malloc(32 * sizeof(double));
     memcpy(_vfx, values, 32 * sizeof(double));
+    isim_ui_set_needs_display();
+}
+/* a pixel shader over this view and its subviews (isim_gfx_pop_group_shaded): SwiftUI's colorEffect, layerEffect and
+   distortionEffect; the context is retained and passed to fn; NULL removes it */
+- (void)_isim_setPixelShader:(void (*)(void *, uint32_t *, int, int, int, double, double, double))fn context:(id)context margin:(CGFloat)margin {
+    _shade = fn; _shadeContext = fn ? context : nil; _shadeMargin = margin;
     isim_ui_set_needs_display();
 }
 - (NSString *)description {
@@ -1239,6 +1248,7 @@ static IMP base_drawRect;
     double a = alpha * caOpacity;
     CALayer *maskLayer = _layer.mask;
     BOOL group = a < 0.999 || maskLayer || _vfx;
+    if (_shade) isim_gfx_push_group();               /* a SwiftUI shader runs on everything below, last */
     if (_vfx) isim_gfx_push_group();                 /* the effects apply to the masked content */
     if (group && (!_vfx || maskLayer)) isim_gfx_push_group();
     BOOL caTransition = isim_ca_view_transition_begin(_layer, sz);
@@ -1300,6 +1310,7 @@ static IMP base_drawRect;
     if (group && maskLayer) { isim_gfx_push_group(); isim_gfx_save(); isim_ca_render_mask(maskLayer); isim_gfx_restore(); isim_gfx_pop_group_masked(_vfx ? 1 : a); }
     else if (group && !_vfx) isim_gfx_pop_group(a);
     if (_vfx) isim_gfx_pop_group_filtered(_vfx, a, 0, 0, sz.width, sz.height);
+    if (_shade) isim_gfx_pop_group_shaded(_shade, (__bridge void *)_shadeContext, _shadeMargin, 1, 0, 0, sz.width, sz.height);
     if (pushedStyle) isim_ui_pop_traits();
     isim_ui_drawing_rtl = wasRTL;
     isim_gfx_restore();

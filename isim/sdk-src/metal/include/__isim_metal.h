@@ -1,9 +1,9 @@
 #pragma once
 /* isim Metal on the CPU: the Metal Shading Language standard library (metal_stdlib) as C++, for kernels that
  * tools/mslc.py translates and clang compiles for the guest. Adapted: vectors are clang's ext_vector types (so
- * swizzles work), matrices are classes, textures read and write isim's texture storage (__isim_metal_abi.h), and the
+ * swizzles work), matrices are classes, textures read and write isim's texture storage (isim_metal_abi.h), and the
  * SIMD-group width is 1. Self-authored after Apple's Metal Shading Language Specification. */
-#include "__isim_metal_abi.h"
+#include <isim_metal_abi.h>
 
 /* ---- scalar types ---- */
 typedef _Float16 half;
@@ -786,6 +786,51 @@ template <class T, access A = access::sample> struct texture_buffer : __texture_
     void write(vec<T, 4> v, uint i) const { __isim_tx::store<T>(__t, v, i, 0, 0, 0); }
 };
 }  // namespace metal
+
+/* ---- SwiftUI's shader effects ([[stitchable]] functions) ---- */
+namespace SwiftUI {
+/* the layer of a layerEffect: its pixels, sampled bilinearly at a position in the view's coordinates */
+struct Layer {
+    const __isim_mtl_layer *__l = nullptr;
+    Layer() = default;
+    explicit Layer(const __isim_mtl_layer *l) : __l(l) {}
+    half4 sample(float2 p) const {
+        if (!__l || !__l->px) return half4{0, 0, 0, 0};
+        float x = (p.x - __l->x0) * __l->scale - 0.5f, y = (p.y - __l->y0) * __l->scale - 0.5f;
+        int x0 = (int)__builtin_floorf(x), y0 = (int)__builtin_floorf(y);
+        float fx = x - x0, fy = y - y0;
+        auto at = [&](int xx, int yy) -> float4 {
+            if (xx < 0 || yy < 0 || xx >= __l->width || yy >= __l->height) return float4{0, 0, 0, 0};
+            uint32_t v = __l->px[(size_t)yy * __l->stride + xx];
+            return float4{(float)((v >> 16) & 255), (float)((v >> 8) & 255), (float)(v & 255), (float)(v >> 24)} / 255.0f;
+        };
+        float4 c = (at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx) * (1 - fy) + (at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx) * fy;
+        return __builtin_convertvector(c, half4);
+    }
+};
+}  // namespace SwiftUI
+/* a stitchable function's parameters, bound by the generated entry point from the effect's Shader.Arguments */
+template <class T> inline T __isim_arg_value(const __isim_mtl_stitch *s, uint32_t &i) {
+    if (i >= s->nargs) return T{};
+    const __isim_mtl_shader_arg &a = s->args[i++];
+    if constexpr (__isim_is_vec<T>) { T r = {}; for (int k = 0; k < __builtin_vectorelements(T) && k < 4; k++) r[k] = (__isim_elem<T>)a.v[k]; return r; }
+    else return (T)a.v[0];
+}
+inline const void *__isim_arg_ptr(const __isim_mtl_stitch *s, uint32_t &i, int32_t &count) {
+    if (i >= s->nargs) { count = 0; return nullptr; }
+    const __isim_mtl_shader_arg &a = s->args[i++];
+    count = (int32_t)a.count;
+    return a.ptr;
+}
+inline const __isim_mtl_texture *__isim_arg_tex(const __isim_mtl_stitch *s, uint32_t &i) { return i < s->nargs ? s->args[i++].tex : nullptr; }
+template <class T> inline T __isim_effect_color(const __isim_mtl_stitch *s) {
+    float4 c = {s->color[0], s->color[1], s->color[2], s->color[3]};
+    if constexpr (__isim_is_vec<T>) return __builtin_convertvector(c, T); else return T{};
+}
+template <class T> inline void __isim_effect_result(__isim_mtl_stitch *s, T r) {
+    if constexpr (__isim_is_vec<T>) { for (int k = 0; k < __builtin_vectorelements(T) && k < 4; k++) s->result[k] = (float)r[k]; }
+    else s->result[0] = (float)r;
+}
 
 /* the wrappers' conversions of the thread-position attributes to the declared type */
 template <class T> inline T __isim_pos(const uint32_t *v) {

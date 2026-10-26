@@ -294,6 +294,11 @@ void isim_gfx_pop_group_tinted(const double *rgba, double alpha);       /* group
 /* group painted through SwiftUI-style effects (colour matrix, blur, drop shadow of its alpha, blend mode; layout of
    the 32 values in host_ca.c), limited to the rect (user space) and what blur/shadow need around it */
 void isim_gfx_pop_group_filtered(const double *v, double alpha, double x, double y, double w, double h);
+/* a pixel shader over the group (SwiftUI's shader effects): fn gets the premultiplied ARGB pixels of the rect (user
+ * space) widened by margin points, clipped to the surface; x0, y0: the user-space offset of the first pixel's corner
+ * from the rect's origin; scale: pixels per point. Then the group is painted with alpha. */
+void isim_gfx_pop_group_shaded(void (*_Nonnull fn)(void *_Nullable ctx, uint32_t *_Nonnull px, int w, int h, int stride, double x0, double y0, double scale),
+                               void *_Nullable ctx, double margin, double alpha, double x, double y, double w, double h);
 /* remote-control commands queued by the `remote NAME` script command */
 int isim_remote_command_poll(char *buf, int len);
 /* AVAudioSession events queued by the `audio` script command ("interrupt begin", "interrupt end resume", "route headphones") */

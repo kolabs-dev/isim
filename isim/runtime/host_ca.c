@@ -233,6 +233,45 @@ static void blur_argb(uint32_t *px, int w, int h, int stride, int r, int horizon
     free(tmp);
 }
 
+/* a guest pixel shader over a group pushed with isim_gfx_push_group (SwiftUI's colorEffect, layerEffect and
+   distortionEffect, swift/overlays/SwiftUI): pops the group, calls fn with the premultiplied ARGB pixels of `rect`
+   (user space) widened by `margin` points and clipped to the surface (x0, y0: the user-space offset of the first
+   pixel's corner from the rect's origin; scale: pixels per point), then paints the group with alpha */
+typedef void (ISIM_GUEST_CALLBACK *isim_shade_fn)(void *ctx, uint32_t *px, int w, int h, int stride, double x0, double y0, double scale);
+ISIM_GUEST_ABI void isim_gfx_pop_group_shaded(isim_shade_fn fn, void *ctx, double margin, double alpha, double x, double y, double w, double h);
+ISIM_GUEST_ABI void isim_gfx_pop_group_shaded(isim_shade_fn fn, void *ctx, double margin, double alpha, double x, double y, double w, double h) {
+    cairo_t *cr = isim_host_cairo();
+    cairo_pattern_t *pat = cairo_pop_group(cr);
+    cairo_surface_t *s = NULL;
+    if (fn && cairo_pattern_get_surface(pat, &s) == CAIRO_STATUS_SUCCESS && cairo_surface_get_type(s) == CAIRO_SURFACE_TYPE_IMAGE) {
+        cairo_surface_flush(s);
+        double ox, oy; cairo_surface_get_device_offset(s, &ox, &oy);
+        int sw = cairo_image_surface_get_width(s), sh = cairo_image_surface_get_height(s), ss = cairo_image_surface_get_stride(s) / 4;
+        uint32_t *px = (uint32_t *)cairo_image_surface_get_data(s);
+        cairo_matrix_t m; cairo_get_matrix(cr, &m);
+        double scale = sqrt(fabs(m.xx * m.yy - m.xy * m.yx)); if (scale <= 0) scale = 1;
+        double xs[4] = { x - margin, x + w + margin, x - margin, x + w + margin }, ys[4] = { y - margin, y - margin, y + h + margin, y + h + margin };
+        double bx0 = 1e18, by0 = 1e18, bx1 = -1e18, by1 = -1e18;
+        for (int i = 0; i < 4; i++) { cairo_user_to_device(cr, &xs[i], &ys[i]); bx0 = fmin(bx0, xs[i]); by0 = fmin(by0, ys[i]); bx1 = fmax(bx1, xs[i]); by1 = fmax(by1, ys[i]); }
+        int X0 = (int)floor(bx0 + ox), Y0 = (int)floor(by0 + oy), X1 = (int)ceil(bx1 + ox), Y1 = (int)ceil(by1 + oy);
+        if (X0 < 0) X0 = 0;
+        if (Y0 < 0) Y0 = 0;
+        if (X1 > sw) X1 = sw;
+        if (Y1 > sh) Y1 = sh;
+        if (X1 > X0 && Y1 > Y0) {
+            double ux = X0 - ox, uy = Y0 - oy;
+            cairo_device_to_user(cr, &ux, &uy);
+            fn(ctx, px + (size_t)Y0 * ss + X0, X1 - X0, Y1 - Y0, ss, ux - x, uy - y, scale);
+            cairo_surface_mark_dirty(s);
+        }
+    }
+    cairo_save(cr);
+    cairo_set_source(cr, pat);
+    if (alpha >= 0.999) cairo_paint(cr); else cairo_paint_with_alpha(cr, alpha);
+    cairo_restore(cr);
+    cairo_pattern_destroy(pat);
+}
+
 /* SwiftUI-style visual effects on a group pushed with isim_gfx_push_group (the content of one view):
    v[0..19]  4x5 colour matrix, rows R G B A, columns r g b a bias, on unpremultiplied 0..1 values (v[29] flag 1)
    v[20]     blur radius in points (Gaussian-like: three box passes); v[29] flag 4 = opaque (edges repeat, no fade)

@@ -2155,6 +2155,8 @@ ISIM_GUEST_ABI void isim_gfx_pop_group_shadow(const double *rgba, double radius,
 ISIM_GUEST_ABI int isim_gfx_screen_snapshot(double x, double y, double w, double h);
 ISIM_GUEST_ABI void isim_gfx_pop_group_tinted(const double *rgba, double alpha);
 ISIM_GUEST_ABI void isim_gfx_pop_group_filtered(const double *v, double alpha, double x, double y, double w, double h);
+typedef void (ISIM_GUEST_CALLBACK *isim_shade_fn)(void *ctx, uint32_t *px, int w, int h, int stride, double x0, double y0, double scale);
+ISIM_GUEST_ABI void isim_gfx_pop_group_shaded(isim_shade_fn fn, void *ctx, double margin, double alpha, double x, double y, double w, double h);
 
 /* ---------------- client side of the shell protocol (guest API) ---------------- */
 ISIM_GUEST_ABI int isim_shell_present(void) { return getenv("ISIM_CLIENT_SOCK") != NULL; }
@@ -2259,7 +2261,7 @@ static const struct shim isim_table[] = {
     H(isim_xcui_launch), H(isim_xcui_running), H(isim_xcui_send), H(isim_xcui_snapshot), H(isim_xcui_screenshot), H(isim_xcui_terminate_all), H(isim_xcui_free), H(isim_xcui_terminate),
     H(isim_gamepad_poll), H(isim_gamepad_rumble), H(isim_gamepad_battery), H(isim_gamepad_set_light), H(isim_gamepad_motion), H(isim_gamepad_effect), H(isim_mouse_poll), H(isim_image_create_bgra), H(isim_image_update_bgra),
     H(isim_image_draw_quad), H(isim_gfx_pop_group_shadow), H(isim_gfx_glass), H(isim_gfx_screen_snapshot), H(isim_gfx_pop_group_tinted),
-    H(isim_gfx_pop_group_filtered), H(isim_set_home_indicator_autohide), H(isim_set_deferred_system_edges), H(isim_gfx_glass_shapes),
+    H(isim_gfx_pop_group_filtered), H(isim_gfx_pop_group_shaded), H(isim_set_home_indicator_autohide), H(isim_set_deferred_system_edges), H(isim_gfx_glass_shapes),
     H(isim_icu_version), H(isim_icu_collate), H(isim_icu_date_format), H(isim_icu_date_parse), H(isim_icu_date_pattern),
     H(isim_icu_date_symbols), H(isim_icu_cal_fields), H(isim_icu_cal_date), H(isim_icu_cal_add), H(isim_icu_cal_limit),
     H(isim_icu_week_data), H(isim_icu_tz_name), H(isim_icu_number_skeleton), H(isim_icu_number_format), H(isim_icu_number_parse),

@@ -370,9 +370,12 @@ extern __int128 __divti3(__int128, __int128);
 extern __int128 __modti3(__int128, __int128);
 extern unsigned __int128 __udivti3(unsigned __int128, unsigned __int128);
 extern unsigned __int128 __umodti3(unsigned __int128, unsigned __int128);
-extern float __extendhfsf2(_Float16);
-extern _Float16 __truncdfhf2(double);
-extern _Float16 __truncsfhf2(float);
+
+/* the half-precision conversions differ: Darwin x86_64 code passes and returns the _Float16 as a 16-bit integer (edi /
+ * eax), libgcc in xmm0. Converted here, by the host compiler. */
+ISIM_GUEST_ABI static float d_extendhfsf2(uint16_t h) { _Float16 x; memcpy(&x, &h, 2); return (float)x; }
+ISIM_GUEST_ABI static uint16_t d_truncsfhf2(float f) { _Float16 x = (_Float16)f; uint16_t h; memcpy(&h, &x, 2); return h; }
+ISIM_GUEST_ABI static uint16_t d_truncdfhf2(double d) { _Float16 x = (_Float16)d; uint16_t h; memcpy(&h, &x, 2); return h; }
 
 static char *d_progname = "app";
 
@@ -661,7 +664,8 @@ static const struct shim libsystem_table[] = {
     A("_malloc_zone_from_ptr", d_malloc_zone_from_ptr), A("_malloc_zone_malloc", d_zone_malloc), A("_malloc_zone_calloc", d_zone_calloc),
     A("_malloc_zone_memalign", d_zone_memalign), A("_malloc_zone_free", d_zone_free),
     S("_os_retain", d_os_retain), S("_os_release", d_os_release),
-    P(__divti3), P(__modti3), P(__udivti3), P(__umodti3), P(__extendhfsf2), P(__truncdfhf2), P(__truncsfhf2),
+    P(__divti3), P(__modti3), P(__udivti3), P(__umodti3), A("___extendhfsf2", d_extendhfsf2), A("___truncdfhf2", d_truncdfhf2),
+    A("___truncsfhf2", d_truncsfhf2), A("___gnu_h2f_ieee", d_extendhfsf2), A("___gnu_f2h_ieee", d_truncsfhf2),
     A("_environ", &environ), A("___progname", &d_progname),
     /* sockets */
     SOCKET_SHIMS,

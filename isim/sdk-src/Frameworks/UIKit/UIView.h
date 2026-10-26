@@ -180,6 +180,8 @@ CGRect isim_ui_space_convert_rect(id<UICoordinateSpace> space, CGRect rect, id<U
                     controlPoints:(CGRect)controlPoints damping:(CGFloat)damping velocity:(CGFloat)velocity plays:(NSInteger)plays
                       autoreverse:(BOOL)autoreverse animations:(void (^)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion;
 - (void)_isim_setVisualEffect:(nullable const double *)values;   /* isim: SwiftUI visual effects on the view and its subviews (32 values: colour matrix, blur, shadow, blend; see isim_host.h); NULL removes them */
+- (void)_isim_setPixelShader:(nullable void (*)(void *_Nullable ctx, uint32_t *_Nonnull px, int w, int h, int stride, double x0, double y0, double scale))fn
+                     context:(nullable id)context margin:(CGFloat)margin;   /* isim: a pixel shader over the view and its subviews (SwiftUI's shader effects; isim_gfx_pop_group_shaded), the context retained and passed as ctx; NULL removes it */
 + (void)animateWithSpringDuration:(NSTimeInterval)duration bounce:(CGFloat)bounce initialSpringVelocity:(CGFloat)velocity delay:(NSTimeInterval)delay options:(UIViewAnimationOptions)options animations:(void (^)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion
     NS_SWIFT_NAME(animate(springDuration:bounce:initialSpringVelocity:delay:options:animations:completion:)) API_AVAILABLE(ios(17.0));
 + (void)transitionWithView:(UIView *)view duration:(NSTimeInterval)duration options:(UIViewAnimationOptions)options animations:(void (^ _Nullable)(void))animations completion:(void (^ _Nullable)(BOOL finished))completion;

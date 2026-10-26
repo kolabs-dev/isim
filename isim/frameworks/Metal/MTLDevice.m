@@ -1,6 +1,6 @@
 /* isim Metal: the device, buffers, textures and samplers (issue #328). Adapted: the device is the CPU ("isim CPU"),
  * resources live in the process's memory in every storage mode, and textures are linear (rows of texels, mip levels
- * and slices one after another) in the layout kernels read (__isim_metal_abi.h). */
+ * and slices one after another) in the layout kernels read (isim_metal_abi.h). */
 #import "MTLPrivate.h"
 #include <stdlib.h>
 #include <string.h>

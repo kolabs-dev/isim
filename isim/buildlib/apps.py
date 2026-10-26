@@ -243,6 +243,12 @@ def _(a):
     a.isim_build().compile_metal([os.path.join(a.d, "Shaders.metal")], b)
 
 
+@app("samples/HelloShaders", extra_inputs=["samples/HelloShaders/Shaders.metal"])   # issue #327: SwiftUI shaders
+def _(a):
+    b = a.swift_app()
+    a.isim_build().compile_metal([os.path.join(a.d, "Shaders.metal")], b)
+
+
 @app("samples/HelloGameCenter")
 def _(a):
     b = a.swift_app()
