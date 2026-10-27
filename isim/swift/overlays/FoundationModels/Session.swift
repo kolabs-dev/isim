@@ -65,19 +65,51 @@ public struct Instructions: Sendable, InstructionsRepresentable {
 @available(iOS 26.0, macOS 26.0, *)
 public struct GenerationOptions: Sendable, Equatable {
     public struct SamplingMode: Sendable, Equatable {
-        enum Kind: Sendable, Equatable { case greedy, top(Int, UInt64?), probability(Double, UInt64?) }
-        let _kind: Kind
+        /// the strategies for choosing the next token
+        @available(iOS 27.0, macOS 27.0, *)
+        public enum Kind: Sendable, Equatable { case greedy, randomTopK(Int, seed: UInt64?), randomProbabilityThreshold(Double, seed: UInt64?) }
+        enum _Kind: Sendable, Equatable { case greedy, top(Int, UInt64?), probability(Double, UInt64?) }
+        let _kind: _Kind
         public static var greedy: SamplingMode { SamplingMode(_kind: .greedy) }
         public static func random(top k: Int, seed: UInt64? = nil) -> SamplingMode { SamplingMode(_kind: .top(k, seed)) }
         public static func random(probabilityThreshold: Double, seed: UInt64? = nil) -> SamplingMode {
             SamplingMode(_kind: .probability(probabilityThreshold, seed))
         }
+        @available(iOS 27.0, macOS 27.0, *)
+        public var kind: Kind {
+            switch _kind {
+            case .greedy: return .greedy
+            case .top(let k, let seed): return .randomTopK(k, seed: seed)
+            case .probability(let p, let seed): return .randomProbabilityThreshold(p, seed: seed)
+            }
+        }
+    }
+    /// how the model uses the session's tools in a request: `allowed` (the model decides), `disallowed` (it answers
+    /// without them) or `required` (it calls one or more tools in every round, until a tool throws)
+    @available(iOS 27.0, macOS 27.0, *)
+    public struct ToolCallingMode: Sendable, Equatable {
+        public enum Kind: Sendable, Equatable { case allowed, disallowed, required }
+        public let kind: Kind
+        public static let allowed = ToolCallingMode(kind: .allowed)
+        public static let disallowed = ToolCallingMode(kind: .disallowed)
+        public static let required = ToolCallingMode(kind: .required)
     }
     public var sampling: SamplingMode?
     public var temperature: Double?
     public var maximumResponseTokens: Int?
+    var _toolCallingMode: String?                        // ToolCallingMode.Kind's name (the struct is iOS 27)
+    @available(iOS 27.0, macOS 27.0, *)
+    public var toolCallingMode: ToolCallingMode? {
+        get { _toolCallingMode.map { ToolCallingMode(kind: $0 == "required" ? .required : $0 == "disallowed" ? .disallowed : .allowed) } }
+        set { _toolCallingMode = newValue.map { "\($0.kind)" } }
+    }
     public init(sampling: SamplingMode? = nil, temperature: Double? = nil, maximumResponseTokens: Int? = nil) {
         self.sampling = sampling; self.temperature = temperature; self.maximumResponseTokens = maximumResponseTokens
+    }
+    @available(iOS 27.0, macOS 27.0, *)
+    public init(samplingMode: SamplingMode? = nil, temperature: Double? = nil, maximumResponseTokens: Int? = nil, toolCallingMode: ToolCallingMode?) {
+        self.init(sampling: samplingMode, temperature: temperature, maximumResponseTokens: maximumResponseTokens)
+        self.toolCallingMode = toolCallingMode
     }
 }
 
@@ -361,7 +393,8 @@ public final class LanguageModelSession: @unchecked Sendable, Observable {
     func _generate(_ messages: [_ChatMessage], _ backend: any _LanguageModelBackend, schema: GenerationSchema?, options: GenerationOptions,
                    onText: (String) throws -> Void) async throws -> String {
         var msgs = messages
-        for _ in 0..<8 {
+        let rounds = options._toolCallingMode == "required" ? 64 : 8   // `required` stops when a tool throws
+        for _ in 0..<rounds {
             var last = ""
             var calls: [(id: String, name: String, arguments: String)] = []
             for try await ev in backend.generate(messages: msgs, tools: _tools, schema: schema, options: options) {

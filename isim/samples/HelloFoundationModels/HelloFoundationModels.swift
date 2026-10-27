@@ -1,9 +1,12 @@
 // Sample: Foundation Models on isim (iOS 26) — the system model's availability (the device's eligibility, no model
 // configured), @Generable / @Guide types and their schema, generated content (JSON, partial JSON, properties),
 // sessions with instructions and tools, the transcript, prompt and instructions builders, generation options and
-// dynamic schemas. Every check logs a line the test reads.
+// dynamic schemas; on iOS 27 tool calling modes, Vision's OCR and barcode tools and GeneratedContent.ParsingError.
+// Every check logs a line the test reads.
 import UIKit
 import FoundationModels
+import Vision
+import CoreImage
 
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -58,6 +61,94 @@ struct WeatherTool: Tool {
         var city: String
     }
     func call(arguments: Arguments) async throws -> String { "Sunny in \(arguments.city)" }
+}
+
+/// a tool that counts its calls and throws on the third: `.required` tool calling stops when a tool throws
+@available(iOS 27.0, *)
+struct CountingTool: Tool {
+    final class Counter: @unchecked Sendable { var calls = 0 }
+    struct Done: Error {}
+    let name = "countUp"
+    let description = "Counts up"
+    let counter = Counter()
+    @Generable
+    struct Arguments { var step: Int }
+    func call(arguments: Arguments) async throws -> String {
+        counter.calls += 1
+        if counter.calls >= 3 { throw Done() }
+        return "count \(counter.calls)"
+    }
+}
+
+@available(iOS 27.0, *)
+enum Demo27 {
+    /// the checks that need no model: the options' kinds, ParsingError, the Vision tools' names and parameters
+    static func run() {
+        let sampling = GenerationOptions.SamplingMode.random(top: 5, seed: 42)
+        let options = GenerationOptions(samplingMode: sampling, toolCallingMode: .required)
+        log("ios27 sampling \(sampling.kind == .randomTopK(5, seed: 42)) greedy \(GenerationOptions.SamplingMode.greedy.kind == .greedy) mode \(options.toolCallingMode?.kind == .required) default \(GenerationOptions().toolCallingMode == nil)")
+        do { _ = try GeneratedContent(json: "[1, 2] x") } catch let e as GeneratedContent.ParsingError {
+            log("ios27 parsing error raw '\(e.rawContent)' underlying \(e.underlyingError != nil) '\(e.debugDescription)'")
+        } catch { log("ios27 parsing other \(error)") }
+        let ocr = OCRTool(), codes = BarcodeReaderTool(name: "scanQRCode", description: "Scan QR codes")
+        log("ios27 tools \(ocr.name) \(codes.name) '\(codes.description)' image parameter \(ocr.parameters.debugDescription.contains("\"image\""))")
+    }
+    /// a white picture with a QR code (Core Image's generator) or a line of text, as a PNG in the temporary directory
+    static func picture(_ name: String, qr: String? = nil, text: String? = nil) -> String? {
+        let size = CGSize(width: 480, height: 240)
+        let image = UIGraphicsImageRenderer(size: size).image { ctx in
+            UIColor.white.setFill(); ctx.fill(CGRect(origin: .zero, size: size))
+            if let qr, let f = CIFilter(name: "CIQRCodeGenerator") {
+                f.setValue(Data(qr.utf8), forKey: "inputMessage")
+                if let out = f.outputImage?.transformed(by: CGAffineTransform(scaleX: 6, y: 6)),
+                   let cg = CIContext().createCGImage(out, from: out.extent) {
+                    ctx.cgContext.interpolationQuality = .none
+                    UIImage(cgImage: cg).draw(in: CGRect(x: (size.width - out.extent.width) / 2, y: (size.height - out.extent.height) / 2,
+                                                         width: out.extent.width, height: out.extent.height))
+                }
+            }
+            if let text {
+                (text as NSString).draw(at: CGPoint(x: 30, y: 90), withAttributes: [.font: UIFont.boldSystemFont(ofSize: 48), .foregroundColor: UIColor.black])
+            }
+        }
+        let path = (NSTemporaryDirectory() as NSString).appendingPathComponent(name)
+        guard let png = image.pngData(), (try? png.write(to: URL(fileURLWithPath: path))) != nil else { return nil }
+        return path
+    }
+    static func outputs(_ entries: some Sequence<Transcript.Entry>) -> [String] {
+        entries.compactMap { if case .toolOutput(let o) = $0 { return "\(o.toolName): \(o.segments.map(\.description).joined())" }; return nil }
+    }
+    /// with a model: the tool calling modes, the barcode and text tools
+    static func live() async {
+        let counter = CountingTool()
+        let session = LanguageModelSession(tools: [counter, WeatherTool()], instructions: "You use tools.")
+        do {
+            let r = try await session.respond(to: "What is the weather in Paris?", options: GenerationOptions(toolCallingMode: .disallowed))
+            log("live27 disallowed '\(r.content)' calls \(r.transcriptEntries.filter { if case .toolCalls = $0 { return true }; return false }.count)")
+        } catch { log("live27 disallowed error \(error)") }
+        do {
+            _ = try await session.respond(to: "Count", options: GenerationOptions(toolCallingMode: .required))
+            log("live27 required answered")
+        } catch let e as LanguageModelSession.ToolCallError {
+            log("live27 required stops at \(e.tool.name) after \(counter.counter.calls) calls, outputs \(outputs(session.transcript).count)")
+        } catch { log("live27 required error \(error)") }
+
+        let tools = LanguageModelSession(tools: [BarcodeReaderTool(), OCRTool()], instructions: "You read pictures.")
+        if let qr = picture("fm-qr.png", qr: "isim tools") {
+            do {
+                let r = try await tools.respond(to: "Read the codes in \(qr)")
+                log("live27 barcodes \(outputs(r.transcriptEntries))")
+            } catch let e as LanguageModelSession.ToolCallError { log("live27 barcodes unavailable: \(e.tool.name) \(e.underlyingError.localizedDescription)") }
+            catch { log("live27 barcodes error \(error)") }
+        }
+        if let text = picture("fm-text.png", text: "HELLO ISIM") {
+            do {
+                let r = try await tools.respond(to: "Read the text in \(text)")
+                log("live27 text \(outputs(r.transcriptEntries))")
+            } catch let e as LanguageModelSession.ToolCallError { log("live27 text unavailable: \(e.tool.name) \(e.underlyingError.localizedDescription)") }
+            catch { log("live27 text error \(error)") }
+        }
+    }
 }
 
 @available(iOS 26.0, *)
@@ -126,7 +217,11 @@ enum Demo {
             log("properties \(made.jsonString)")
         } catch { log("content error \(error)") }
 
-        if model.isAvailable { await live() }
+        if #available(iOS 27.0, *) { Demo27.run() }
+        if model.isAvailable {
+            await live()
+            if #available(iOS 27.0, *) { await Demo27.live() }
+        }
 
         /* a session: instructions, a tool, a request (without a model: it fails, and the transcript keeps it) */
         guard !model.isAvailable else { return }

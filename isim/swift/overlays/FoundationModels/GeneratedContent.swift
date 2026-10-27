@@ -51,15 +51,38 @@ public struct GeneratedContent: Sendable, Equatable, Generable, CustomDebugStrin
     public init(_ value: some ConvertibleToGeneratedContent) { self = value.generatedContent }
     public init(_ value: some ConvertibleToGeneratedContent, id: GenerationID) { self = value.generatedContent; self.id = id }
     /// parses JSON (keeping the order of object keys); unfinished JSON is closed off and `isComplete` is false
+    /// (from iOS 27 a failure throws `ParsingError`, before it `GenerationError.decodingFailure`)
     public init(json: String) throws {
         var p = _JSONReader(Array(json.utf8))
-        p.skipSpace()
-        guard !p.atEnd else { throw LanguageModelSession.GenerationError.decodingFailure(.init(debugDescription: "empty JSON")) }
-        let v = try p.value()
-        p.skipSpace()
-        guard p.atEnd || p.truncated else { throw LanguageModelSession.GenerationError.decodingFailure(.init(debugDescription: "trailing characters after the JSON value")) }
-        self = v
+        do {
+            p.skipSpace()
+            guard !p.atEnd else { throw LanguageModelSession.GenerationError.decodingFailure(.init(debugDescription: "empty JSON")) }
+            let v = try p.value()
+            p.skipSpace()
+            guard p.atEnd || p.truncated else { throw LanguageModelSession.GenerationError.decodingFailure(.init(debugDescription: "trailing characters after the JSON value")) }
+            self = v
+        } catch {
+            if #available(iOS 27.0, macOS 27.0, *) {
+                let why = (error as? LanguageModelSession.GenerationError).map { e -> String in
+                    if case .decodingFailure(let c) = e { return c.debugDescription }
+                    return "\(e)"
+                } ?? "\(error)"
+                throw ParsingError(rawContent: json, underlyingError: error, debugDescription: "the string is not JSON: \(why)")
+            }
+            throw error
+        }
         if p.truncated { self.isComplete = false }
+    }
+    /// the failure to read a string as generated content (iOS 27)
+    @available(iOS 27.0, macOS 27.0, *)
+    public struct ParsingError: Error, LocalizedError, CustomDebugStringConvertible, @unchecked Sendable {
+        public var rawContent: String
+        public var underlyingError: (any Error)?
+        public var debugDescription: String
+        public init(rawContent: String, underlyingError: (any Error)?, debugDescription: String) {
+            self.rawContent = rawContent; self.underlyingError = underlyingError; self.debugDescription = debugDescription
+        }
+        public var errorDescription: String? { debugDescription }
     }
 
     public static func == (a: GeneratedContent, b: GeneratedContent) -> Bool { a.kind == b.kind }
