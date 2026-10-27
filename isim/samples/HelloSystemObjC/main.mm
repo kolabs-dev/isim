@@ -1,7 +1,7 @@
 // Sample: the C and Objective-C system APIs that binary SDKs (Google Mobile Ads, analytics, game engines) link from
 // Objective-C and C++ (issue #200): JavaScriptCore (JSContext, blocks, JSExport, the C API), CoreMedia's CMTime,
-// AVFoundation's Objective-C classes, Security (SecRandomCopyBytes, SecKey), SystemConfiguration reachability, Network's
-// path monitor, CoreTelephony, MobileCoreServices' UTType functions, CoreFoundation strings, zlib, libcompression and
+// AVFoundation's Objective-C classes, Security (SecRandomCopyBytes, SecKey), SystemConfiguration reachability, CFNetwork's
+// CFHost, CoreFoundation's streams and sockets, Network's path monitor, CoreTelephony, MobileCoreServices' UTType functions, CoreFoundation strings, zlib, libcompression and
 // libc++ iostreams and locales. Logs "HelloSystemObjC: ...".
 //   isim run out/apps/HelloSystemObjC.app
 #import <UIKit/UIKit.h>
@@ -253,6 +253,203 @@ static void cfhost(void) {
     CFHostStartInfoResolution(later, kCFHostAddresses, &err);
 }
 
+/* CoreFoundation's streams and sockets (SocketRocket and CocoaAsyncSocket use them): data, memory, file and bound
+   streams, a CFSocket listener whose accepted connections echo upper-cased over CFStreamCreatePairWithSocket streams,
+   clients to it by host name and by socket signature, a UDP data socket and a refused connection */
+static NSString *read_all(CFReadStreamRef r) {
+    NSMutableString *out = [NSMutableString string];
+    UInt8 buf[64];
+    CFIndex n;
+    while (CFReadStreamHasBytesAvailable(r) && (n = CFReadStreamRead(r, buf, sizeof buf)) > 0)
+        [out appendString:[[NSString alloc] initWithBytes:buf length:(NSUInteger)n encoding:NSUTF8StringEncoding]];
+    return out;
+}
+static void echoRead(CFReadStreamRef r, CFStreamEventType type, void *info) {
+    CFWriteStreamRef w = (CFWriteStreamRef)info;
+    if (type == kCFStreamEventHasBytesAvailable) {
+        NSData *up = [[read_all(r) uppercaseString] dataUsingEncoding:NSUTF8StringEncoding];
+        CFWriteStreamWrite(w, (const UInt8 *)up.bytes, (CFIndex)up.length);
+    } else if (type == kCFStreamEventEndEncountered || type == kCFStreamEventErrorOccurred) {
+        CFReadStreamSetClient(r, kCFStreamEventNone, NULL, NULL);
+        CFReadStreamClose(r); CFWriteStreamClose(w);
+        CFRelease(r); CFRelease(w);
+    }
+}
+static void accepted(CFSocketRef s, CFSocketCallBackType type, CFDataRef address, const void *data, void *info) {
+    static int count;
+    if (count++ == 0)
+        say([NSString stringWithFormat:@"cfsocket accepted address=%d main=%d", address && CFDataGetLength(address) >= (CFIndex)sizeof(struct sockaddr_in),
+             NSThread.isMainThread]);
+    CFReadStreamRef r; CFWriteStreamRef w;
+    CFStreamCreatePairWithSocket(NULL, *(const CFSocketNativeHandle *)data, &r, &w);
+    CFReadStreamSetProperty(r, kCFStreamPropertyShouldCloseNativeSocket, kCFBooleanTrue);
+    CFStreamClientContext ctx = {0, (void *)w, NULL, NULL, NULL};
+    CFReadStreamSetClient(r, kCFStreamEventHasBytesAvailable | kCFStreamEventEndEncountered | kCFStreamEventErrorOccurred, echoRead, &ctx);
+    CFReadStreamScheduleWithRunLoop(r, CFRunLoopGetMain(), kCFRunLoopCommonModes);
+    CFReadStreamOpen(r); CFWriteStreamOpen(w);
+}
+/* a client: writes its message once it can, logs the echo */
+@interface StreamClient : NSObject { @public CFReadStreamRef r; CFWriteStreamRef w; NSString *message, *label; BOOL sent; }
+@end
+@implementation StreamClient @end
+static void clientWrite(CFWriteStreamRef w, CFStreamEventType type, void *info) {
+    StreamClient *c = (__bridge StreamClient *)info;
+    if (type == kCFStreamEventCanAcceptBytes && !c->sent) {
+        c->sent = YES;
+        NSData *d = [c->message dataUsingEncoding:NSUTF8StringEncoding];
+        CFWriteStreamWrite(w, (const UInt8 *)d.bytes, (CFIndex)d.length);
+    }
+}
+static void clientRead(CFReadStreamRef r, CFStreamEventType type, void *info) {
+    StreamClient *c = (__bridge StreamClient *)info;
+    if (type == kCFStreamEventOpenCompleted && [c->label isEqualToString:@"tcp"]) {
+        NSString *host = CFBridgingRelease(CFReadStreamCopyProperty(r, kCFStreamPropertySocketRemoteHostName));
+        NSNumber *port = CFBridgingRelease(CFReadStreamCopyProperty(r, kCFStreamPropertySocketRemotePortNumber));
+        NSData *fd = CFBridgingRelease(CFReadStreamCopyProperty(r, kCFStreamPropertySocketNativeHandle));
+        say([NSString stringWithFormat:@"cfstream tcp open=%d remote=%@:%d handle=%d", CFReadStreamGetStatus(r) == kCFStreamStatusOpen, host,
+             port.intValue > 0, fd.length == sizeof(CFSocketNativeHandle)]);
+    } else if (type == kCFStreamEventHasBytesAvailable) {
+        say([NSString stringWithFormat:@"cfstream %@ echo=%@", c->label, read_all(r)]);
+        CFReadStreamSetClient(r, kCFStreamEventNone, NULL, NULL); CFWriteStreamSetClient(c->w, kCFStreamEventNone, NULL, NULL);
+        CFReadStreamClose(r); CFWriteStreamClose(c->w);
+        CFRelease(r); CFRelease(c->w);
+        CFBridgingRelease((__bridge CFTypeRef)c);
+    } else if (type == kCFStreamEventErrorOccurred) {
+        CFStreamError e = CFReadStreamGetError(r);
+        CFErrorRef err = CFReadStreamCopyError(r);
+        say([NSString stringWithFormat:@"cfstream %@ error=%@ posix=%d copied=%d", c->label, e.domain == kCFStreamErrorDomainPOSIX ? @"posix" : @"other",
+             e.error == ECONNREFUSED, err != NULL]);
+        if (err) CFRelease(err);
+        CFReadStreamClose(r); CFWriteStreamClose(c->w);
+        CFRelease(r); CFRelease(c->w);
+        CFBridgingRelease((__bridge CFTypeRef)c);
+    }
+}
+static void start_client(NSString *label, NSString *message, CFReadStreamRef r, CFWriteStreamRef w) {
+    StreamClient *c = [StreamClient new];
+    c->r = r; c->w = w; c->label = label; c->message = message;
+    CFStreamClientContext ctx = {0, (void *)CFBridgingRetain(c), NULL, NULL, NULL};
+    CFOptionFlags all = kCFStreamEventOpenCompleted | kCFStreamEventHasBytesAvailable | kCFStreamEventCanAcceptBytes |
+                        kCFStreamEventErrorOccurred | kCFStreamEventEndEncountered;
+    CFReadStreamSetClient(r, all, clientRead, &ctx);
+    CFWriteStreamSetClient(w, all, clientWrite, &ctx);
+    CFReadStreamScheduleWithRunLoop(r, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
+    CFWriteStreamScheduleWithRunLoop(w, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
+    CFReadStreamOpen(r); CFWriteStreamOpen(w);
+}
+static void datagram(CFSocketRef s, CFSocketCallBackType type, CFDataRef address, const void *data, void *info) {
+    NSData *d = (__bridge NSData *)data;
+    say([NSString stringWithFormat:@"cfsocket udp data=%@ address=%d type=%d", [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding],
+         address != NULL, type == kCFSocketDataCallBack]);
+    CFSocketInvalidate(s);
+    CFRelease(s);
+}
+static CFDataRef loopback(UInt16 port) {
+    struct sockaddr_in sin = {};
+    sin.sin_len = sizeof sin; sin.sin_family = AF_INET; sin.sin_port = htons(port); sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    return CFDataCreate(NULL, (const UInt8 *)&sin, sizeof sin);
+}
+static UInt16 port_of(CFDataRef a) { return ntohs(((const struct sockaddr_in *)CFDataGetBytePtr(a))->sin_port); }
+static void cfstreams(void) {
+    static const char hello[] = "hello";
+    CFReadStreamRef data = CFReadStreamCreateWithBytesNoCopy(NULL, (const UInt8 *)hello, 5, kCFAllocatorNull);
+    CFReadStreamOpen(data);
+    CFIndex got = 0;
+    const UInt8 *buf = CFReadStreamGetBuffer(data, 2, &got);
+    NSString *rest = read_all(data);
+    say([NSString stringWithFormat:@"cfstream data buffer=%.*s read=%@ status=%ld typeid=%d bridged=%d", (int)got, buf, rest, (long)CFReadStreamGetStatus(data),
+         CFGetTypeID(data) == CFReadStreamGetTypeID(), [(__bridge id)data isKindOfClass:[NSInputStream class]]]);
+    CFReadStreamClose(data); CFRelease(data);
+
+    CFWriteStreamRef mem = CFWriteStreamCreateWithAllocatedBuffers(NULL, NULL);
+    CFWriteStreamOpen(mem);
+    CFWriteStreamWrite(mem, (const UInt8 *)"abc", 3);
+    NSData *written = CFBridgingRelease(CFWriteStreamCopyProperty(mem, kCFStreamPropertyDataWritten));
+    say([NSString stringWithFormat:@"cfstream memory written=%@ typeid=%d", [[NSString alloc] initWithData:written encoding:NSUTF8StringEncoding],
+         CFGetTypeID(mem) == CFWriteStreamGetTypeID()]);
+    CFWriteStreamClose(mem); CFRelease(mem);
+
+    NSURL *url = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:@"cfstream.txt"]];
+    [NSFileManager.defaultManager removeItemAtURL:url error:nil];
+    for (NSString *part in @[@"one", @"two"]) {
+        CFWriteStreamRef f = CFWriteStreamCreateWithFile(NULL, (__bridge CFURLRef)url);
+        CFWriteStreamSetProperty(f, kCFStreamPropertyAppendToFile, kCFBooleanTrue);
+        CFWriteStreamOpen(f);
+        CFWriteStreamWrite(f, (const UInt8 *)part.UTF8String, 3);
+        CFWriteStreamClose(f); CFRelease(f);
+    }
+    CFReadStreamRef fr = CFReadStreamCreateWithFile(NULL, (__bridge CFURLRef)url);
+    CFReadStreamOpen(fr);
+    NSString *fileText = read_all(fr);
+    NSNumber *offset = CFBridgingRelease(CFReadStreamCopyProperty(fr, kCFStreamPropertyFileCurrentOffset));
+    say([NSString stringWithFormat:@"cfstream file appended=%@ offset=%@", fileText, offset]);
+    CFReadStreamClose(fr); CFRelease(fr);
+
+    CFReadStreamRef br; CFWriteStreamRef bw;
+    CFStreamCreateBoundPair(NULL, &br, &bw, 64);
+    dispatch_queue_t q = dispatch_queue_create("cfstream.bound", DISPATCH_QUEUE_SERIAL);
+    CFStreamClientContext bctx = {0, NULL, NULL, NULL, NULL};
+    CFReadStreamSetClient(br, kCFStreamEventHasBytesAvailable, [](CFReadStreamRef r, CFStreamEventType t, void *) {
+        NSString *text = read_all(r);
+        BOOL onQueue = !NSThread.isMainThread;
+        say([NSString stringWithFormat:@"cfstream bound read=%@ queue=%d", text, onQueue]);
+        CFReadStreamSetClient(r, kCFStreamEventNone, NULL, NULL);
+    }, &bctx);
+    CFReadStreamSetDispatchQueue(br, q);
+    CFReadStreamOpen(br); CFWriteStreamOpen(bw);
+    CFWriteStreamWrite(bw, (const UInt8 *)"xyz", 3);
+
+    /* the echo server */
+    CFSocketRef listener = CFSocketCreate(NULL, PF_INET, SOCK_STREAM, IPPROTO_TCP, kCFSocketAcceptCallBack, accepted, NULL);
+    CFDataRef any = loopback(0);
+    CFSocketError bound = CFSocketSetAddress(listener, any);
+    CFRelease(any);
+    CFDataRef addr = CFSocketCopyAddress(listener);
+    UInt16 port = port_of(addr);
+    CFRelease(addr);
+    CFRunLoopSourceRef src = CFSocketCreateRunLoopSource(NULL, listener, 0);
+    CFRunLoopAddSource(CFRunLoopGetMain(), src, kCFRunLoopCommonModes);
+    CFRelease(src);
+    say([NSString stringWithFormat:@"cfsocket listening bound=%d port=%d typeid=%d valid=%d", bound == kCFSocketSuccess, port > 0,
+         CFGetTypeID(listener) == CFSocketGetTypeID(), CFSocketIsValid(listener)]);
+
+    CFReadStreamRef r; CFWriteStreamRef w;
+    CFStreamCreatePairWithSocketToHost(NULL, CFSTR("127.0.0.1"), port, &r, &w);
+    start_client(@"tcp", @"ping", r, w);
+    CFDataRef peer = loopback(port);
+    CFSocketSignature sig = {PF_INET, SOCK_STREAM, IPPROTO_TCP, peer};
+    CFStreamCreatePairWithPeerSocketSignature(NULL, &sig, &r, &w);
+    start_client(@"signature", @"pong", r, w);
+    CFRelease(peer);
+
+    /* UDP: a data callback for a datagram sent with CFSocketSendData */
+    CFSocketRef receiver = CFSocketCreate(NULL, PF_INET, SOCK_DGRAM, IPPROTO_UDP, kCFSocketDataCallBack, datagram, NULL);
+    any = loopback(0);
+    CFSocketSetAddress(receiver, any);
+    CFRelease(any);
+    CFDataRef raddr = CFSocketCopyAddress(receiver);
+    CFRunLoopSourceRef rsrc = CFSocketCreateRunLoopSource(NULL, receiver, 0);
+    CFRunLoopAddSource(CFRunLoopGetMain(), rsrc, kCFRunLoopDefaultMode);
+    CFRelease(rsrc);
+    CFSocketRef sender = CFSocketCreate(NULL, PF_INET, SOCK_DGRAM, IPPROTO_UDP, kCFSocketNoCallBack, NULL, NULL);
+    NSData *dgram = [@"datagram" dataUsingEncoding:NSUTF8StringEncoding];
+    CFSocketError sent = CFSocketSendData(sender, raddr, (__bridge CFDataRef)dgram, 1);
+    say([NSString stringWithFormat:@"cfsocket udp sent=%d", sent == kCFSocketSuccess]);
+    CFSocketInvalidate(sender); CFRelease(sender); CFRelease(raddr);
+
+    /* a refused connection: a port nothing listens on */
+    CFSocketRef closed = CFSocketCreate(NULL, PF_INET, SOCK_STREAM, IPPROTO_TCP, kCFSocketNoCallBack, NULL, NULL);
+    any = loopback(0);
+    CFSocketSetAddress(closed, any);
+    CFRelease(any);
+    CFDataRef caddr = CFSocketCopyAddress(closed);
+    UInt16 dead = port_of(caddr);
+    CFRelease(caddr);
+    CFSocketInvalidate(closed); CFRelease(closed);
+    CFStreamCreatePairWithSocketToHost(NULL, CFSTR("127.0.0.1"), dead, &r, &w);
+    start_client(@"refused", @"x", r, w);
+}
+
 static void network(void) {
     SCNetworkReachabilityRef r = SCNetworkReachabilityCreateWithName(NULL, "example.com");
     SCNetworkReachabilityFlags flags = 0;
@@ -273,6 +470,7 @@ static void network(void) {
     nw_path_monitor_start(m);
     networkC();
     cfhost();
+    cfstreams();
     CTTelephonyNetworkInfo *info = [CTTelephonyNetworkInfo new];
     say([NSString stringWithFormat:@"telephony carriers=%lu", (unsigned long)info.serviceSubscriberCellularProviders.count]);
     CTCellularData *cellular = [CTCellularData new];
