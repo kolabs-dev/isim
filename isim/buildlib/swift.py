@@ -966,6 +966,7 @@ SafariServices -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftWebKit -l
 AdSupport -lswiftObjectiveC -lswiftFoundation -framework Foundation
 AdServices -lswiftObjectiveC -lswiftFoundation -framework Foundation
 AdAttributionKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit
+XPC -lswiftSystem -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation   # issue #357: sessions and listeners over Foundation's XPC (the C API)
 StateReporting -lswiftos -lswiftObjectiveC -lswiftFoundation -framework Foundation   # issue #354: the states MetricKit's MetricManager attributes measurements to
 MetricKit -lswiftos -lswiftStateReporting -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation -lisim_host
 CloudKit -reexport-lswift_CKShareMetadata -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreLocation -lswift_Concurrency -framework Foundation -framework UIKit
@@ -995,7 +996,7 @@ CallKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency 
 EVOLUTION = set("""ObjectiveC _CKShareMetadata Accelerate VideoToolbox Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI QuickLook EventKit EventKitUI Contacts ContactsUI
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
 GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Security os OSLog Compression LocalAuthentication
-DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport StateReporting MetricKit CloudKit AuthenticationServices
+DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport XPC StateReporting MetricKit CloudKit AuthenticationServices
 QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision NaturalLanguage FoundationModels Speech VisionKit WebKit SafariServices LinkPresentation Accessibility MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit TipKit Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit
 CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive""".split())
