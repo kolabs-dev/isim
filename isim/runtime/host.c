@@ -11,7 +11,7 @@
  *   ISIM_SCRIPT    "wait S; tap X Y; drag X1 Y1 X2 Y2; shot FILE.png; quit" (points)
  *                  "tapid ID; holdid ID S" (view by accessibilityIdentifier), "type TEXT", "key backspace|return|tab|escape", "dump" (view tree), "taptext TEXT" (view showing that text)
  *                  shell only: "home", "launch BUNDLE-ID", "lock", "unlock", "switcher", "notifications", "controlcenter",
- *                  "spotlight", "siri [PHRASE]", "island", "bgtask BUNDLE-ID TASK-ID", "openurl URL", "homepage N|library", "iconstyle STYLE [#RRGGBB] [small|large]", "swipehome left|right",
+ *                  "spotlight", "siri [PHRASE]", "visualintelligence LABEL[,LABEL...]", "island", "bgtask BUNDLE-ID TASK-ID", "openurl URL", "homepage N|library", "iconstyle STYLE [#RRGGBB] [small|large]", "swipehome left|right",
  *                  "push BUNDLE-ID FILE", "handoff TYPE [URL] [TITLE]", "terminate BUNDLE-ID", "appclip URL|register|unregister|expire|list ...",
  *                  "focus [dnd|personal|work|sleep|off]", "actionbutton [assign CONTROL]", "lockcontrol left|right CONTROL",
  *                  "silent [on|off]" (Silent Mode: the Ring/Silent switch),
@@ -1517,9 +1517,9 @@ static int script_step(struct isim_event *ev) {
     if (now() < script_resume) return 0;
     while (*script_pos == ' ' || *script_pos == ';' || *script_pos == '\n' || *script_pos == '\r') script_pos++;
     if (!*script_pos) { if (ctl_fd < 0) script_pos = NULL; return 0; }
-    char cmd[16] = {0}, arg[512] = {0}; double a, b, c, d; int n = 0;
+    char cmd[32] = {0}, arg[512] = {0}; double a, b, c, d; int n = 0;
     char *cmd_start = script_pos;
-    sscanf(script_pos, "%15[^;\n ]%n", cmd, &n);
+    sscanf(script_pos, "%31[^;\n ]%n", cmd, &n);
     char *args = script_pos + n;
     char *end = script_pos;                 /* the separator: ';' or a newline; "\;" is a literal ';' (in `type`) */
     while ((end = strpbrk(end, ";\n")) && *end == ';' && end > script_pos && end[-1] == '\\') end++;
@@ -1702,7 +1702,7 @@ static int script_step(struct isim_event *ev) {
                || !strcmp(cmd, "remote") || !strcmp(cmd, "volume") || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || (!strcmp(cmd, "handoff") && shell_mode) || (!strcmp(cmd, "appclip") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage") || !strcmp(cmd, "iconstyle")
                || (!strcmp(cmd, "focus") && shell_mode && args[strspn(args, " ")] && args[strspn(args, " ")] != ';')   /* `focus MODE`; bare `focus`: the window */
                || !strcmp(cmd, "actionbutton") || !strcmp(cmd, "lockcontrol") || (!strcmp(cmd, "silent") && shell_mode)
-               || (!strcmp(cmd, "push") && shell_mode) || (!strcmp(cmd, "terminate") && shell_mode) || (!strcmp(cmd, "siri") && shell_mode)) {
+               || (!strcmp(cmd, "push") && shell_mode) || (!strcmp(cmd, "terminate") && shell_mode) || (!strcmp(cmd, "siri") && shell_mode) || (!strcmp(cmd, "visualintelligence") && shell_mode)) {
         /* system UI and integration (shell_system.inc): lock/unlock, app switcher, Notification Center, Control Center,
            "bgtask BUNDLE-ID TASK-ID" (like Xcode's _simulateLaunchForTaskWithIdentifier), "island" (expand),
            "push BUNDLE-ID FILE" (a remote notification payload, like `xcrun simctl push`);
