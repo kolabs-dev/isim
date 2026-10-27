@@ -6,8 +6,8 @@
 //   - language recognition: the writing system decides non-Latin scripts; Latin-script text is scored against
 //     stop-word lists and letters of 14 languages (en, fr, de, es, it, pt, nl, sv, da, nb, fi, pl, tr, ro).
 //   - tagging: tokenType, language, script; lexicalClass from a small English lexicon and suffix rules (heuristic);
-//     sentimentScore from a small English word list (-1...1). nameType, lemma and NLEmbedding / NLModel / NLGazetteer
-//     are not available (nameType gives nil tags; NLEmbedding/NLModel return nil / throw).
+//     sentimentScore from a small English word list (-1...1); nameType and lemma give nil tags unless a gazetteer is
+//     set for the scheme. NLGazetteer, NLEmbedding, NLContextualEmbedding and NLModel are in NLEmbedding.swift.
 import Foundation
 
 public struct NLLanguage: RawRepresentable, Hashable, Sendable, ExpressibleByStringLiteral {
@@ -367,6 +367,10 @@ open class NLTagger: NSObject, @unchecked Sendable {
     public let tagSchemes: [NLTagScheme]
     open var string: String?
     var _language: NLLanguage?
+    var _gazetteers: [NLTagScheme: [NLGazetteer]] = [:]
+    /// gazetteers label the words (and phrases) they list, ahead of the scheme's own tags
+    open func setGazetteers(_ gazetteers: [NLGazetteer], for tagScheme: NLTagScheme) { _gazetteers[tagScheme] = gazetteers }
+    open func gazetteers(for tagScheme: NLTagScheme) -> [NLGazetteer] { _gazetteers[tagScheme] ?? [] }
     public init(tagSchemes: [NLTagScheme]) { self.tagSchemes = tagSchemes }
     open class func availableTagSchemes(for unit: NLTokenUnit, language: NLLanguage) -> [NLTagScheme] {
         switch unit {
@@ -423,11 +427,25 @@ open class NLTagger: NSObject, @unchecked Sendable {
                             using block: (NLTag?, Range<String.Index>) -> Bool) {
         guard let s = string, tagSchemes.contains(scheme) || scheme == .tokenType else { return }
         if unit == .word {
-            for (r, kind) in _segments(s, range) {
+            let segs = _segments(s, range)
+            var labels: [Int: (NLTag, Int)] = [:]     // segment -> (gazetteer label, last segment of the phrase)
+            for (a, b, label) in NLTagger._gazetteerMatches(s, segs, _gazetteers[scheme] ?? []) {
+                for k in a...b where segs[k].1 == .word { labels[k] = (NLTag(label), b) }
+            }
+            var k = 0
+            while k < segs.count {
+                var r = segs[k].0
+                let kind = segs[k].1
+                var tag: NLTag?
+                if let (label, last) = labels[k] {
+                    tag = label
+                    if options.contains(.joinNames) && last > k { r = r.lowerBound..<segs[last].0.upperBound; k = last }
+                }
+                k += 1
                 if options.contains(.omitWords) && kind == .word { continue }
                 if options.contains(.omitPunctuation) && kind == .punctuation { continue }
                 if options.contains(.omitWhitespace) && kind == .whitespace { continue }
-                if !block(_tag(s, r, kind, unit: unit, scheme: scheme), r) { return }
+                if !block(tag ?? _tag(s, r, kind, unit: unit, scheme: scheme), r) { return }
             }
         } else {
             for r in _NL.tokens(s, range, unit) { if !block(_tag(s, r, .word, unit: unit, scheme: scheme), r) { return } }
@@ -450,16 +468,5 @@ open class NLTagger: NSObject, @unchecked Sendable {
     open func tagHypotheses(at index: String.Index, unit: NLTokenUnit, scheme: NLTagScheme, maximumCount: Int) -> ([String: Double], Range<String.Index>) {
         let (t, r) = tag(at: index, unit: unit, scheme: scheme)
         return (t.map { [$0.rawValue: 1] } ?? [:], r)
-    }
-}
-
-/// isim: no embeddings or custom models (they need Apple's model files).
-open class NLEmbedding: NSObject, @unchecked Sendable {
-    open class func wordEmbedding(for language: NLLanguage) -> NLEmbedding? { nil }
-    open class func sentenceEmbedding(for language: NLLanguage) -> NLEmbedding? { nil }
-}
-open class NLModel: NSObject, @unchecked Sendable {
-    public init(contentsOf url: URL) throws {
-        throw NSError(domain: "NLNaturalLanguageErrorDomain", code: 1, userInfo: [NSLocalizedDescriptionKey: "NLModel is not available on isim (it needs Apple's Core ML runtime)"])
     }
 }

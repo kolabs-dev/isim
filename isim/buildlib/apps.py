@@ -1178,6 +1178,11 @@ def _(a):
     a.swift_app("SpeechTest", srcs=["SpeechTest.swift"], plist="Info.plist")
 
 
+@app("tests/naturallanguage", products=["NaturalLanguageTest.app"])
+def _(a):
+    a.swift_app("NaturalLanguageTest", srcs=["NaturalLanguageTest.swift"], plist="Info.plist")
+
+
 @app("tests/spatial", products=["SpatialTest.app"])
 def _(a):
     a.swift_app("SpatialTest", srcs=["SpatialTest.swift"], plist="Info.plist")
