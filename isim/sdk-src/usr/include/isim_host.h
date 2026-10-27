@@ -382,6 +382,12 @@ char *_Nullable isim_vision_text(const unsigned char *bgra, int w, int h, int st
 char *_Nullable isim_vision_text_languages(void);
 /* llama.cpp's llama-server for a GGUF model, started once: its OpenAI-compatible base URL in out; 0 if it cannot run */
 int isim_llm_server(const char *gguf, char *out, int cap);
+/* Sound Analysis: an ONNX audio classifier (a 16 kHz mono waveform in, class scores out) run with the host's ONNX
+   Runtime (ISIM_ONNXRUNTIME or libonnxruntime). open: a handle, 0 on failure; run: the scores averaged over the model's
+   frames into scores, the number of classes, -1 on failure; error: the last failure's reason */
+int isim_sound_model_open(const char *path);
+int isim_sound_model_run(int h, const float *wave, int n, float *scores, int cap);
+const char *isim_sound_error(void);
 /* RAW photos with LibRaw's tools (libraw-bin): identify returns raw-identify -v text; decode gives linear 16-bit RGB
    (sRGB primaries, as-shot white balance, unrotated; half: half size; highlight: dcraw -H mode); free with
    isim_media_free. camera_list: supported cameras, one per line (libraw.so.23) */

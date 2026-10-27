@@ -233,6 +233,7 @@ SWIFT_FRAMEWORKS = [
     ("AVFAudio", "-framework Foundation -framework AVFoundation -reexport_framework AVFoundation"),
     ("AudioToolbox", "-framework Foundation"),   # issue #286: the C interface over isim's Swift AudioToolbox (CAPI.swift)
     ("Vision", "-framework Foundation -framework CoreGraphics"),   # issue #537: Vision from Objective-C
+    ("SoundAnalysis", "-framework Foundation -framework AVFoundation -framework CoreMedia"),   # issue #368
     ("Photos", "-framework Foundation -framework UIKit -framework CoreGraphics"),   # issue #545: Photos and PhotosUI from Objective-C
     ("PhotosUI", "-framework Foundation -framework UIKit -framework Photos"),
     ("CoreHaptics", "-framework Foundation"),   # issue #548: CoreHaptics and GameController from Objective-C
