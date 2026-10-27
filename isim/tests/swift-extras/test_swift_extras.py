@@ -1,4 +1,4 @@
-"""Swift extras self-test (Combine operators, Dispatch sources/IO, Synchronization, Distributed)."""
+"""Swift extras self-test (Combine operators, Dispatch sources/IO, POSIX, System, Synchronization, Distributed)."""
 from isimtest import need_apps, selftest
 
 

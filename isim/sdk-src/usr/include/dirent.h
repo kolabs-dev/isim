@@ -12,8 +12,9 @@ __BEGIN_DECLS
 #define DT_LNK 10
 #define DT_SOCK 12
 struct dirent { uint64_t d_ino; uint64_t d_seekoff; uint16_t d_reclen; uint16_t d_namlen; uint8_t d_type; char d_name[1024]; };
-typedef struct __isim_DIR DIR;
+typedef struct __isim_DIR { int __dd_fd; } DIR;   /* complete, as Darwin's (Swift sees UnsafeMutablePointer<DIR>); libSystem owns the contents */
 DIR *opendir(const char *name);
+DIR *fdopendir(int fd);
 struct dirent *readdir(DIR *dir);
 int closedir(DIR *dir);
 void rewinddir(DIR *dir);

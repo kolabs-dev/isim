@@ -18,8 +18,19 @@ off_t lseek(int, off_t, int);
 #define SEEK_CUR 1
 #define SEEK_END 2
 #endif
+#ifndef SEEK_HOLE
+#define SEEK_HOLE 3
+#define SEEK_DATA 4
+#endif
 int access(const char *, int);
 int unlink(const char *);
+int unlinkat(int, const char *, int);
+/* confstr names; _CS_DARWIN_USER_TEMP_DIR / _USER_CACHE_DIR / _USER_DIR answer the app's container */
+#define _CS_PATH 1
+#define _CS_DARWIN_USER_DIR 65536
+#define _CS_DARWIN_USER_TEMP_DIR 65537
+#define _CS_DARWIN_USER_CACHE_DIR 65538
+size_t confstr(int, char *, size_t);
 int rmdir(const char *);
 int chown(const char *, uid_t, gid_t);
 int lchown(const char *, uid_t, gid_t);

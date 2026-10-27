@@ -296,10 +296,11 @@ class Swift:
         distributed = self.distributed()
         onone = self.onone()
         regex = self.string_processing()
+        system = self.system()
         cxx = self.cxx_interop()
         plugins = self.host_plugins()
         n.phony("swift-core", [*emb, *full, support, res, libcxx, core, *darwin, *concurrency, *observation, *sync, *distributed,
-                               *onone, *regex, *cxx, *plugins])
+                               *onone, *regex, *system, *cxx, *plugins])
 
     def isim_module(self, name, srcs, flags, link_args=(), extra_objs=(), implicit=(), link_name=None, objdir=None,
                     concurrency=True, minos="17.0", extra_outs=()):
@@ -526,6 +527,38 @@ class Swift:
                                 implicit=[mod("_RegexParser"), mod("_StringProcessing")],
                                 link_args=["-lSystem", "-lswiftCore", "-lswift_StringProcessing", "-lswift_RegexParser"])
         return out
+
+    def system(self):
+        """System (FilePath, FileDescriptor, Errno, FilePermissions): upstream swift-system built as Apple's System module,
+        with the availability Apple's SDK gives each System version (swift-system's Package.swift)"""
+        R = f"{self.c.tp}/swift-system/Sources/System"
+        if not os.path.isdir(os.path.join(self.c.root, R)):
+            self.c.notes.append("System: skipped (third_party/swift-system missing; run build.py fetch)")
+            return []
+        versions = [("0.0.1", "macOS 11.0, iOS 14.0, watchOS 7.0, tvOS 14.0"), ("0.0.2", "macOS 12.0, iOS 15.0, watchOS 8.0, tvOS 15.0")]
+        versions += [(v, "macOS 12.3, iOS 15.4, watchOS 8.5, tvOS 15.4") for v in ("0.0.3", "1.1.0")]
+        versions += [(v, "macOS 14.4, iOS 17.4, watchOS 10.4, tvOS 17.4, visionOS 1.0") for v in ("1.1.1", "1.2.0", "1.2.1", "1.3.0", "1.3.1", "1.3.2", "1.4.0")]
+        versions += [("1.7.0", "macOS 27.0, iOS 27.0, watchOS 27.0, tvOS 27.0, visionOS 27.0"),
+                     ("199", "macOS 9999, iOS 9999, watchOS 9999, tvOS 9999, visionOS 9999")]
+        avail = [a for v, plat in versions for a in ("-Xfrontend", "-define-availability", "-Xfrontend", f"System {v}:{plat}")]
+        # CSystem, swift-system's C shims, stays private: a build copy of the sources imports it `internal` (clients of
+        # System do not see it), and its two functions are linked in
+        objdir, inc = f"{SW}/obj/system", f"{R}/../CSystem/include"
+        srcs = []
+        for s in self.c.glob(f"{R}/**/*.swift"):
+            if "/IORing/" in s:                                  # (io_uring: Linux hosts only)
+                continue
+            copy = f"{SW}/system-src/{os.path.relpath(s, R)}"
+            srcs += self.n.build(copy, self.c.act("replace", s, copy, "import CSystem", "internal import CSystem",
+                                                         "COMPATIBILITY_O_CLOFORK", "O_CLOFORK"), inputs=[s],
+                                 desc="PATCH swift-system")
+        shims = self.c.compile(f"{R}/../CSystem/shims.c", f"{objdir}/shims.o", [ISIM, "cc", "-O2", "-I", inc],
+                               implicit=[ISIM], order_only=self.c.header_stamps)
+        flags = ["-swift-version", "5", "-O", "-wmo", "-enable-library-evolution", "-library-level", "api", "-DSYSTEM_PACKAGE_DARWIN",
+                 "-enable-experimental-feature", "Lifetimes", "-package-name", "swift-system", "-I", inc, "-Xfrontend",
+                 "-require-explicit-availability=ignore", *avail]
+        return self.isim_module("System", srcs, flags, implicit=[mod("Darwin")], minos="14.0", objdir=objdir, extra_objs=[shims],
+                                link_args=["-lSystem", "-lswiftCore", "-lswiftDarwin"])
 
     # ---- overlays ----
     def overlays(self):

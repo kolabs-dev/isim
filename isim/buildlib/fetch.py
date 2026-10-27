@@ -19,6 +19,7 @@ SOURCES = {
     "swift-experimental-string-processing": ("https://github.com/swiftlang/swift-experimental-string-processing.git",
                                              "swift-6.2.4-RELEASE", None),   # Regex, RegexBuilder
     "swift-testing": ("https://github.com/swiftlang/swift-testing.git", "swift-6.2.4-RELEASE", None),   # 5ee435b15ad40ec1f644b5eb9d247f263ccd2170
+    "swift-system": ("https://github.com/apple/swift-system.git", "1.8.1", ["/Sources/", "/LICENSE.txt"]),   # 869129b7bf4ecc57b97d0193ad29690ca2134750; System
     "lzfse": ("https://github.com/lzfse/lzfse.git", "lzfse-1.0", ["/src/", "/LICENSE"]),   # 88e2d2788b4021d0b2eb9fe2d97352ae9190f128; libcompression's LZFSE
 }
 

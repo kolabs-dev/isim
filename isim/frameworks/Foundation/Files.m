@@ -185,6 +185,7 @@ NSString *NSHomeDirectory(void) {
         } else home = [NSTemporaryDirectory_isim() stringByAppendingPathComponent:@"isim-app-home"];
         for (NSString *sub in @[@"Documents", @"Library/Preferences", @"Library/Caches", @"Library/Application Support", @"tmp"])
             mkdirs([home stringByAppendingPathComponent:sub]);
+        isim_set_container_home(home.fileSystemRepresentation);           /* (confstr's _CS_DARWIN_USER_TEMP_DIR, ...) */
     }
     return home;
 }

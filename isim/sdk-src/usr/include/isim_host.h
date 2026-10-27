@@ -493,6 +493,8 @@ void isim_log_record(int kind, int type, const char *subsystem, const char *cate
 long isim_log_range(long *_Nullable first);
 /* bytes this process has written (files, pipes, sockets), -1 if unknown */
 long long isim_process_bytes_written(void);
+/* the app container NSHomeDirectory settled on (libSystem's confstr answers _CS_DARWIN_USER_* from it) */
+void isim_set_container_home(const char *path);
 int isim_log_get(long seq, double *date, int *meta, uint64_t *ids, char *_Nullable *_Nonnull strs);
 void isim_signpost_print(const char *subsystem, const char *category, int sptype, uint64_t spid, const char *name, const char *msg);
 void isim_metric_add(const char *key, double v);

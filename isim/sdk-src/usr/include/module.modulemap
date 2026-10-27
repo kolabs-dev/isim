@@ -38,6 +38,7 @@ module Darwin [system] [extern_c] {
     header "syslog.h"
     header "pwd.h"
     header "termios.h"
+    header "dirent.h"
     export *
   }
   module Networking {

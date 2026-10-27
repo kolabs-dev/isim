@@ -22,6 +22,7 @@ struct stat {
 #define S_IFREG ((mode_t)0100000)
 #define S_IFLNK ((mode_t)0120000)
 #define S_IFSOCK ((mode_t)0140000)
+#define S_IFWHT ((mode_t)0160000)
 #define S_IRWXU ((mode_t)0000700)
 #define S_IRUSR ((mode_t)0000400)
 #define S_IWUSR ((mode_t)0000200)
@@ -45,4 +46,25 @@ int lstat(const char *path, struct stat *buf);
 int fstat(int fd, struct stat *buf);
 int mkdir(const char *, mode_t);
 int chmod(const char *, mode_t);
+int fstatat(int, const char *, struct stat *, int);
+mode_t umask(mode_t);
+/* st_flags (chflags); isim reports none set */
+#define UF_SETTABLE 0x0000ffff
+#define UF_NODUMP 0x00000001
+#define UF_IMMUTABLE 0x00000002
+#define UF_APPEND 0x00000004
+#define UF_OPAQUE 0x00000008
+#define UF_COMPRESSED 0x00000020
+#define UF_TRACKED 0x00000040
+#define UF_DATAVAULT 0x00000080
+#define UF_HIDDEN 0x00008000
+#define SF_SUPPORTED 0x009f0000
+#define SF_SETTABLE 0x3fff0000
+#define SF_ARCHIVED 0x00010000
+#define SF_IMMUTABLE 0x00020000
+#define SF_APPEND 0x00040000
+#define SF_RESTRICTED 0x00080000
+#define SF_NOUNLINK 0x00100000
+#define SF_FIRMLINK 0x00800000
+#define SF_DATALESS 0x40000000
 __END_DECLS
