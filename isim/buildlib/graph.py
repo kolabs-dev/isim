@@ -162,7 +162,7 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
                      "-U _CFDateCreate -U _CFArrayCreate -U _CFArrayCreateMutable -U _CFArrayAppendValue "
                      "-U _CFDictionaryCreateMutable -U _CFDictionarySetValue -U _CFNumberCreate -U _CFNumberGetValue "
                      "-U _CFStringGetCString -U _CFStringGetLength -U _CFStringGetMaximumSizeForEncoding "
-                     "-U _CFURLGetString -U _CFGetTypeID -U _CFStringGetTypeID -U _CFArrayGetTypeID "
+                     "-U _CFURLGetString -U _CFGetTypeID -U _CFStringGetTypeID -U _CFArrayGetTypeID -U _CFDataGetTypeID "
                      "-U _CFDictionaryGetTypeID -U _CFNumberGetTypeID -U _kCFTypeDictionaryKeyCallBacks "
                      "-U _kCFTypeDictionaryValueCallBacks -U _kCFTypeArrayCallBacks -lz"),
     ("Foundation", "-framework CoreGraphics -lisim_host -lcompression"),

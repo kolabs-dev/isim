@@ -1,5 +1,6 @@
 #pragma once
 #include <CoreGraphics/CGBase.h>
+#include <sys/types.h>
 __BEGIN_DECLS
 #pragma clang arc_cf_code_audited begin
 #pragma clang assume_nonnull begin
@@ -9,11 +10,37 @@ typedef void (*CGDataProviderReleaseDataCallback)(void *_Nullable info, const vo
 typedef size_t (*CGDataConsumerPutBytesCallback)(void *_Nullable info, const void *buffer, size_t count);
 typedef void (*CGDataConsumerReleaseInfoCallback)(void *_Nullable info);
 typedef struct CGDataConsumerCallbacks { CGDataConsumerPutBytesCallback _Nullable putBytes; CGDataConsumerReleaseInfoCallback _Nullable releaseConsumer; } CGDataConsumerCallbacks;
-/* isim: providers are direct-access (bytes in memory); sequential/callback providers are not implemented */
+typedef const void *_Nullable (*CGDataProviderGetBytePointerCallback)(void *_Nullable info);
+typedef void (*CGDataProviderReleaseBytePointerCallback)(void *_Nullable info, const void *pointer);
+typedef size_t (*CGDataProviderGetBytesAtPositionCallback)(void *_Nullable info, void *buffer, off_t pos, size_t cnt);
+typedef void (*CGDataProviderReleaseInfoCallback)(void *_Nullable info);
+typedef struct CGDataProviderDirectCallbacks {
+    unsigned int version;
+    CGDataProviderGetBytePointerCallback _Nullable getBytePointer;
+    CGDataProviderReleaseBytePointerCallback _Nullable releaseBytePointer;
+    CGDataProviderGetBytesAtPositionCallback _Nullable getBytesAtPosition;
+    CGDataProviderReleaseInfoCallback _Nullable releaseInfo;
+} CGDataProviderDirectCallbacks;
+typedef size_t (*CGDataProviderGetBytesCallback)(void *_Nullable info, void *buffer, size_t count);
+typedef off_t (*CGDataProviderSkipForwardCallback)(void *_Nullable info, off_t count);
+typedef void (*CGDataProviderRewindCallback)(void *_Nullable info);
+typedef struct CGDataProviderSequentialCallbacks {
+    unsigned int version;
+    CGDataProviderGetBytesCallback _Nullable getBytes;
+    CGDataProviderSkipForwardCallback _Nullable skipForward;
+    CGDataProviderRewindCallback _Nullable rewind;
+    CGDataProviderReleaseInfoCallback _Nullable releaseInfo;
+} CGDataProviderSequentialCallbacks;
+/* isim: providers hold their bytes in memory; direct and sequential providers read all of them through their
+ * callbacks when they are created (releaseInfo runs when the provider is freed) */
 CG_EXTERN CFTypeID CGDataProviderGetTypeID(void);
 CG_EXTERN CGDataProviderRef _Nullable CGDataProviderCreateWithCFData(CFDataRef _Nullable data) CF_RETURNS_RETAINED CG_SWIFT_NAME(CGDataProvider.init(data:));
 CG_EXTERN CGDataProviderRef _Nullable CGDataProviderCreateWithData(void *_Nullable info, const void *_Nullable data, size_t size,
     CGDataProviderReleaseDataCallback _Nullable releaseData) CF_RETURNS_RETAINED CG_SWIFT_NAME(CGDataProvider.init(dataInfo:data:size:releaseData:));
+CG_EXTERN CGDataProviderRef _Nullable CGDataProviderCreateDirect(void *_Nullable info, off_t size, const CGDataProviderDirectCallbacks *_Nullable callbacks)
+    CF_RETURNS_RETAINED CG_SWIFT_NAME(CGDataProvider.init(directInfo:size:callbacks:));
+CG_EXTERN CGDataProviderRef _Nullable CGDataProviderCreateSequential(void *_Nullable info, const CGDataProviderSequentialCallbacks *_Nullable callbacks)
+    CF_RETURNS_RETAINED CG_SWIFT_NAME(CGDataProvider.init(sequentialInfo:callbacks:));
 CG_EXTERN CGDataProviderRef _Nullable CGDataProviderCreateWithURL(CFURLRef _Nullable url) CF_RETURNS_RETAINED CG_SWIFT_NAME(CGDataProvider.init(url:));
 CG_EXTERN CGDataProviderRef _Nullable CGDataProviderCreateWithFilename(const char *_Nullable filename) CF_RETURNS_RETAINED CG_SWIFT_NAME(CGDataProvider.init(filename:));
 CG_EXTERN CGDataProviderRef _Nullable CGDataProviderRetain(CGDataProviderRef _Nullable provider);
