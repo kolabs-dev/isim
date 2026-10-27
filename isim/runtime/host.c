@@ -2191,6 +2191,7 @@ ISIM_GUEST_ABI int isim_raw_decode(const char *path, int half, int highlight, in
 ISIM_GUEST_ABI char *isim_raw_camera_list(void);
 ISIM_GUEST_ABI int isim_speech_available(void);
 ISIM_GUEST_ABI char *isim_speech_transcribe(const float *pcm, long frames, const char *lang);
+ISIM_GUEST_ABI char *isim_speech_transcribe_prompt(const float *pcm, long frames, const char *lang, const char *prompt);
 ISIM_GUEST_ABI int isim_audio_session_poll(char *buf, int len);
 ISIM_GUEST_ABI int isim_audio_stream_open(double volume);
 ISIM_GUEST_ABI long isim_audio_stream_write(int s, const float *pcm, long frames);
@@ -2337,7 +2338,7 @@ static const struct shim isim_table[] = {
     H(isim_camera_source), H(isim_camera_open), H(isim_camera_frame), H(isim_camera_preview), H(isim_camera_close), H(isim_camera_source_at), H(isim_camera_open_at), H(isim_camera_set_effects), H(isim_vision_barcodes_ex), H(isim_heif_can_encode), H(isim_heif_encode_bgra), H(isim_heif_decode),
     H(isim_ffmpeg_run), H(isim_metal_compile), H(isim_media_reader_open), H(isim_media_reader_read), H(isim_media_reader_close),
     H(isim_vision_available), H(isim_vision_barcodes), H(isim_vision_text), H(isim_vision_text_languages), H(isim_llm_server), H(isim_sound_model_open), H(isim_sound_model_run), H(isim_sound_error), H(isim_onnx_open), H(isim_onnx_input), H(isim_onnx_run), H(isim_onnx_error), H(isim_raw_available), H(isim_raw_identify), H(isim_raw_decode), H(isim_raw_camera_list),
-    H(isim_speech_available), H(isim_speech_transcribe), H(isim_audio_session_poll),
+    H(isim_speech_available), H(isim_speech_transcribe), H(isim_speech_transcribe_prompt), H(isim_audio_session_poll),
     H(isim_audio_stream_open), H(isim_audio_stream_write), H(isim_audio_stream_control), H(isim_audio_stream_close),
     H(isim_acodec_open), H(isim_acodec_frame_size), H(isim_acodec_send_pcm), H(isim_acodec_receive_packet), H(isim_acodec_send_packet),
     H(isim_acodec_receive_pcm), H(isim_acodec_close), H(isim_vcodec_open), H(isim_vcodec_send), H(isim_vcodec_receive),
