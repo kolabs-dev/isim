@@ -1640,6 +1640,12 @@ static char kToolbarItems, kTabBarItem, kHidesBottom, kEditing, kEditItem;
     };
     if (!animated || !host.window || !from || from == to) { finish(YES); return; }
     _transitioning = YES;
+    {   /* the transition as a signpost interval (XCTOSSignpostMetric.navigationTransitionMetric): until it finishes */
+        const char *sp = "NavigationTransition";
+        void (^inner)(BOOL) = finish;
+        isim_ui_perf_signpost(sp, 1, (__bridge void *)self);
+        finish = ^(BOOL f) { inner(f); isim_ui_perf_signpost(sp, 0, (__bridge void *)self); };
+    }
     CGFloat W = host.bounds.size.width;
     /* iOS 18 zoom (preferredTransition): the pushed view grows from its source view / shrinks back into it */
     extern BOOL isim_ui_zoom_transition(UIViewController *zoomed, UIViewController *source, UIView *zv, UIView *host, BOOL appearing, void (^done)(void));

@@ -22,6 +22,9 @@ extern BOOL isim_ui_in_layout;
 
 /* device / appearance */
 const struct isim_device *isim_ui_device(void);
+/* begin (1) or end (0) of performance interval `name` for object `obj`, as a signpost (subsystem com.apple.isim.UIKit,
+   category Performance; XCTOSSignpostMetric's navigation and scrolling metrics measure them) */
+void isim_ui_perf_signpost(const char *name, int begin, const void *obj);
 void isim_ui_device_refresh(void);                    /* re-read the screen geometry after a rotation */
 void isim_ui_device_orientation_changed(int deviceOrientation);   /* the device was turned (host event) */
 UIUserInterfaceStyle isim_ui_style(void);              /* style currently used to resolve dynamic colors */

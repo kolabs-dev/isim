@@ -491,6 +491,8 @@ int isim_icu_case(const char *_Nullable locale, const char *s, int kind, char *o
 void isim_log_record(int kind, int type, const char *subsystem, const char *category, const char *message,
                      const char *format, int sptype, uint64_t spid, const char *name);
 long isim_log_range(long *_Nullable first);
+/* bytes this process has written (files, pipes, sockets), -1 if unknown */
+long long isim_process_bytes_written(void);
 int isim_log_get(long seq, double *date, int *meta, uint64_t *ids, char *_Nullable *_Nonnull strs);
 void isim_signpost_print(const char *subsystem, const char *category, int sptype, uint64_t spid, const char *name, const char *msg);
 void isim_metric_add(const char *key, double v);

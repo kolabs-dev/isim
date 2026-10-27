@@ -96,6 +96,18 @@ int isim_self_path(char *buf, size_t cap) {
     return (int)n;
 }
 
+long long isim_self_bytes_written(void) {
+    char buf[1024];
+    int fd = open("/proc/self/io", O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return -1;
+    ssize_t n = read(fd, buf, sizeof buf - 1);
+    close(fd);
+    if (n <= 0) return -1;
+    buf[n] = 0;
+    const char *w = strstr(buf, "wchar:");
+    return w ? strtoll(w + 6, NULL, 10) : -1;
+}
+
 int isim_self_args(char *buf, size_t cap, char **argv, int max) {
     if (!cap || max < 1) return -1;
     size_t n = 0;

@@ -51,6 +51,15 @@ __attribute__((swift_attr("@objcMembers")))
     NS_SWIFT_NAME(measure(options:block:));
 - (void)measureWithMetrics:(NSArray<id<XCTMetric>> *)metrics options:(XCTMeasureOptions *)options
                      block:(void (NS_NOESCAPE ^)(void))block NS_SWIFT_NAME(measure(metrics:options:block:));
+/* within a measured block whose options say so (manuallyStart / manuallyStop), or a measureMetrics block that does
+ * not start automatically: where measuring starts and stops */
+- (void)startMeasuring;
+- (void)stopMeasuring;
+/* the older API: the block runs 10 times, measuring wall-clock time (XCTPerformanceMetric_WallClockTime); without
+ * automaticallyStartMeasuring the block calls startMeasuring (and may call stopMeasuring) */
+@property (class, readonly, copy) NSArray<XCTPerformanceMetric> *defaultPerformanceMetrics;
+- (void)measureMetrics:(NSArray<XCTPerformanceMetric> *)metrics automaticallyStartMeasuring:(BOOL)automaticallyStartMeasuring
+              forBlock:(void (NS_NOESCAPE ^)(void))block NS_SWIFT_NAME(measureMetrics(_:automaticallyStartMeasuring:for:));
 
 /* attachments: kept with the test's results (XCTAttachment's lifetime) */
 - (void)addAttachment:(XCTAttachment *)attachment NS_SWIFT_NAME(add(_:));

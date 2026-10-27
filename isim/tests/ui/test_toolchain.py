@@ -67,6 +67,18 @@ def test_scheme(device_data, tmp_path):
         assert has(rf"ModelTests {t}\]. passed"), f"expectations, inverted, async, fulfillment: {t}"
     assert has(r"ModelTests testSkipped\]. skipped") and has(r"ObjCTests testObjCSkip\]. skipped"), "XCTSkip (Swift, ObjC)"
     assert has(r"testMeasure\]. measured \[Time, seconds\] average:"), "measure reports an average"
+    for name in (r"Clock Monotonic Time, s", r"CPU Time, s", r"Memory Physical, kB", r"Memory Peak Physical, kB",
+                 r"Disk Logical Writes, kB", r"Duration \(Sum\), s"):
+        assert has(rf"testMetrics\]. measured \[{name}\] average: [0-9.-]+, relative standard deviation: [0-9.na%]+, "
+                   r"values: \[[^,\]]+, [^,\]]+, [^,\]]+\]"), f"measure(metrics:options:) reports {name}, 3 iterations"
+    m = re.search(r"testMetrics\]. measured \[Disk Logical Writes, kB\] average: ([0-9.]+)", log)
+    assert m and float(m.group(1)) >= 64, "XCTStorageMetric counts the 64 kB written each iteration"
+    m = re.search(r"testMetrics\]. measured \[Duration \(Sum\), s\] average: ([0-9.]+)", log)
+    assert m and float(m.group(1)) > 0, "XCTOSSignpostMetric times the Sum interval"
+    assert not has(r"warning: .*testMetrics"), "every metric measured"
+    assert has(r"testManualMeasuring\]. measured \[Clock Monotonic Time, s\] average: .*values: \[[^,\]]+, [^,\]]+\]") and \
+        has(r"testManualMeasuring\]. measured \[Time, seconds\] average:") and has(r"ModelTests testManualMeasuring\]. passed"), \
+        "startMeasuring / stopMeasuring, measureMetrics"
     assert has(r"ModelTests testZLifecycleOrder\]. passed"), "setUp/tearDown order"
     assert has(r"Test Case .-\[ObjCTests testCalculator\]. passed"), "ObjC XCTestCase in the same bundle"
     assert has(r"Test Case .-\[ObjCTests testExceptions\]. passed"), "ObjC XCTAssertThrows (@try/@catch)"

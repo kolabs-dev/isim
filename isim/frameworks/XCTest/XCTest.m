@@ -7,6 +7,10 @@
 #import <objc/runtime.h>
 #import <objc/message.h>
 #include <dlfcn.h>
+#include <math.h>
+#include <mach/mach.h>
+#include <mach/mach_time.h>
+#include <sys/resource.h>
 #include <pthread.h>
 #include <sys/time.h>
 #include <time.h>
@@ -362,19 +366,222 @@ static void save_attachments(XCTestCase *tc, BOOL failed, NSString *className, N
 }
 
 /* ================= performance metrics ================= */
+XCTPerformanceMetric const XCTPerformanceMetric_WallClockTime = @"com.apple.XCTPerformanceMetric_WallClockTime";
+
+@implementation XCTPerformanceMeasurementTimestamp
+- (instancetype)initWithAbsoluteTime:(uint64_t)t date:(NSDate *)date {
+    if ((self = [super init])) { _absoluteTime = t; _date = [date copy]; }
+    return self;
+}
+- (instancetype)init { return [self initWithAbsoluteTime:mach_absolute_time() date:[NSDate date]]; }
+- (uint64_t)absoluteTimeNanoSeconds {
+    mach_timebase_info_data_t tb; mach_timebase_info(&tb);
+    return tb.denom ? _absoluteTime * tb.numer / tb.denom : _absoluteTime;
+}
+- (id)copyWithZone:(NSZone *)zone { return self; }
+@end
+
+@implementation XCTPerformanceMeasurement
+- (instancetype)initWithIdentifier:(NSString *)i displayName:(NSString *)n doubleValue:(double)v unitSymbol:(NSString *)u {
+    return [self initWithIdentifier:i displayName:n doubleValue:v unitSymbol:u polarity:XCTPerformanceMeasurementPolarityUnspecified];
+}
+- (instancetype)initWithIdentifier:(NSString *)i displayName:(NSString *)n doubleValue:(double)v unitSymbol:(NSString *)u
+                          polarity:(XCTPerformanceMeasurementPolarity)p {
+    if ((self = [super init])) {
+        _identifier = [i copy]; _displayName = [n copy]; _doubleValue = v; _unitSymbol = [u copy]; _polarity = p;
+        _value = [[NSMeasurement alloc] initWithDoubleValue:v unit:[[NSUnit alloc] initWithSymbol:u]];
+    }
+    return self;
+}
+- (instancetype)initWithIdentifier:(NSString *)i displayName:(NSString *)n value:(NSMeasurement *)v {
+    return [self initWithIdentifier:i displayName:n value:v polarity:XCTPerformanceMeasurementPolarityUnspecified];
+}
+- (instancetype)initWithIdentifier:(NSString *)i displayName:(NSString *)n value:(NSMeasurement *)v polarity:(XCTPerformanceMeasurementPolarity)p {
+    if ((self = [super init])) {
+        _identifier = [i copy]; _displayName = [n copy]; _value = [v copy]; _doubleValue = v.doubleValue; _unitSymbol = [v.unit.symbol copy]; _polarity = p;
+    }
+    return self;
+}
+@end
+
+static double ts_seconds(XCTPerformanceMeasurementTimestamp *a, XCTPerformanceMeasurementTimestamp *b) {
+    return ((double)b.absoluteTimeNanoSeconds - (double)a.absoluteTimeNanoSeconds) / 1e9;
+}
+static XCTPerformanceMeasurement *seconds_measurement(NSString *ident, NSString *name, double s) {
+    return [[XCTPerformanceMeasurement alloc] initWithIdentifier:ident displayName:name doubleValue:s unitSymbol:@"s"
+                                                        polarity:XCTPerformanceMeasurementPolarityPrefersSmaller];
+}
+/* a metric of an XCUIApplication: the app runs in its own process, which isim's metrics do not read */
+static BOOL app_metric_unsupported(id metric, id app) {
+    if (!app) return NO;
+    say(@"<unknown>:0: warning: %@ : %@ of an application is not measured by isim (the app runs in its own process; "
+        @"measure the test process with init())", current_case.name, NSStringFromClass([metric class]));
+    return YES;
+}
+
 @implementation XCTClockMetric
 - (instancetype)init { return [super init]; }
 - (id)copyWithZone:(NSZone *)zone { return self; }
+- (NSArray<XCTPerformanceMeasurement *> *)reportMeasurementsFromStartTime:(XCTPerformanceMeasurementTimestamp *)a
+                                                                toEndTime:(XCTPerformanceMeasurementTimestamp *)b error:(NSError **)error {
+    return @[seconds_measurement(@"com.apple.dt.XCTMetric_Clock.time.monotonic", @"Clock Monotonic Time", ts_seconds(a, b))];
+}
 @end
+
+/* CPU time: the process's (getrusage) or the measuring thread's (thread_info) user + system time */
+static double cpu_seconds(BOOL thread) {
+    if (thread) {
+        thread_basic_info_data_t info; mach_msg_type_number_t n = THREAD_BASIC_INFO_COUNT;
+        mach_port_t th = mach_thread_self();
+        kern_return_t kr = thread_info(th, THREAD_BASIC_INFO, (thread_info_t)&info, &n);
+        mach_port_deallocate(mach_task_self(), th);
+        if (kr == KERN_SUCCESS)
+            return info.user_time.seconds + info.user_time.microseconds / 1e6 + info.system_time.seconds + info.system_time.microseconds / 1e6;
+    }
+    struct rusage ru; getrusage(RUSAGE_SELF, &ru);
+    return ru.ru_utime.tv_sec + ru.ru_utime.tv_usec / 1e6 + ru.ru_stime.tv_sec + ru.ru_stime.tv_usec / 1e6;
+}
+@implementation XCTCPUMetric { BOOL _thread; id _app; double _start, _end; }
+- (instancetype)init { return [super init]; }
+- (instancetype)initLimitingToCurrentThread:(BOOL)t { if ((self = [super init])) _thread = t; return self; }
+- (instancetype)initWithApplication:(XCUIApplication *)app { if ((self = [super init])) _app = app; return self; }
+- (id)copyWithZone:(NSZone *)zone { XCTCPUMetric *m = [[XCTCPUMetric alloc] init]; m->_thread = _thread; m->_app = _app; return m; }
+- (void)_isimDidStartMeasuring { _start = cpu_seconds(_thread); }
+- (void)didStopMeasuring { _end = cpu_seconds(_thread); }
+- (NSArray<XCTPerformanceMeasurement *> *)reportMeasurementsFromStartTime:(XCTPerformanceMeasurementTimestamp *)a
+                                                                toEndTime:(XCTPerformanceMeasurementTimestamp *)b error:(NSError **)error {
+    if (app_metric_unsupported(self, _app)) return @[];
+    return @[seconds_measurement(@"com.apple.dt.XCTMetric_CPU.time", @"CPU Time", fmax(0, _end - _start))];
+}
+@end
+
+/* the process's physical footprint and its peak (task_info TASK_VM_INFO), in kB */
+static BOOL footprint_kb(double *now, double *peak) {
+    task_vm_info_data_t vm; mach_msg_type_number_t n = TASK_VM_INFO_COUNT;
+    if (task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&vm, &n) != KERN_SUCCESS) return NO;
+    *now = vm.phys_footprint / 1024.0;
+    *peak = n >= TASK_VM_INFO_COUNT ? fmax(vm.ledger_phys_footprint_peak, vm.phys_footprint) / 1024.0 : *now;
+    return YES;
+}
+@implementation XCTMemoryMetric { id _app; double _start, _end, _peak; }
+- (instancetype)init { return [super init]; }
+- (instancetype)initWithApplication:(XCUIApplication *)app { if ((self = [super init])) _app = app; return self; }
+- (id)copyWithZone:(NSZone *)zone { XCTMemoryMetric *m = [[XCTMemoryMetric alloc] init]; m->_app = _app; return m; }
+- (void)_isimDidStartMeasuring { double p; footprint_kb(&_start, &p); }
+- (void)didStopMeasuring { footprint_kb(&_end, &_peak); }
+- (NSArray<XCTPerformanceMeasurement *> *)reportMeasurementsFromStartTime:(XCTPerformanceMeasurementTimestamp *)a
+                                                                toEndTime:(XCTPerformanceMeasurementTimestamp *)b error:(NSError **)error {
+    if (app_metric_unsupported(self, _app)) return @[];
+    return @[[[XCTPerformanceMeasurement alloc] initWithIdentifier:@"com.apple.dt.XCTMetric_Memory.physical" displayName:@"Memory Physical"
+                                                       doubleValue:_end - _start unitSymbol:@"kB" polarity:XCTPerformanceMeasurementPolarityPrefersSmaller],
+             [[XCTPerformanceMeasurement alloc] initWithIdentifier:@"com.apple.dt.XCTMetric_Memory.physical_peak" displayName:@"Memory Peak Physical"
+                                                       doubleValue:_peak unitSymbol:@"kB" polarity:XCTPerformanceMeasurementPolarityPrefersSmaller]];
+}
+@end
+
+@implementation XCTStorageMetric { id _app; long long _start, _end; }
+- (instancetype)init { return [super init]; }
+- (instancetype)initWithApplication:(XCUIApplication *)app { if ((self = [super init])) _app = app; return self; }
+- (id)copyWithZone:(NSZone *)zone { XCTStorageMetric *m = [[XCTStorageMetric alloc] init]; m->_app = _app; return m; }
+- (void)_isimDidStartMeasuring { _start = isim_process_bytes_written(); }
+- (void)didStopMeasuring { _end = isim_process_bytes_written(); }
+- (NSArray<XCTPerformanceMeasurement *> *)reportMeasurementsFromStartTime:(XCTPerformanceMeasurementTimestamp *)a
+                                                                toEndTime:(XCTPerformanceMeasurementTimestamp *)b error:(NSError **)error {
+    if (app_metric_unsupported(self, _app)) return @[];
+    if (_start < 0 || _end < 0) {
+        if (error) *error = [NSError errorWithDomain:@"com.apple.dt.xctest" code:1 userInfo:@{ NSLocalizedDescriptionKey: @"the host does not report bytes written" }];
+        return nil;
+    }
+    return @[[[XCTPerformanceMeasurement alloc] initWithIdentifier:@"com.apple.dt.XCTMetric_Disk.logical_writes" displayName:@"Disk Logical Writes"
+                                                       doubleValue:(_end - _start) / 1024.0 unitSymbol:@"kB" polarity:XCTPerformanceMeasurementPolarityPrefersSmaller]];
+}
+@end
+
+/* signposts: the intervals (begin, then end with the same id) named `name` logged since measuring started */
+@implementation XCTOSSignpostMetric { NSString *_subsystem, *_category, *_name; long _seq; BOOL _launch; NSArray<NSString *> *_names; }
+- (instancetype)initWithSubsystem:(NSString *)subsystem category:(NSString *)category name:(NSString *)name {
+    if ((self = [super init])) { _subsystem = [subsystem copy]; _category = [category copy]; _name = [name copy]; _names = @[_name]; }
+    return self;
+}
+- (id)copyWithZone:(NSZone *)zone { return self; }
+static XCTOSSignpostMetric *uikit_metric(NSArray<NSString *> *names) {
+    XCTOSSignpostMetric *m = [[XCTOSSignpostMetric alloc] initWithSubsystem:@"com.apple.isim.UIKit" category:@"Performance" name:names.firstObject];
+    m->_names = names;
+    return m;
+}
++ (id<XCTMetric>)navigationTransitionMetric { return uikit_metric(@[@"NavigationTransition"]); }
++ (id<XCTMetric>)customNavigationTransitionMetric { return uikit_metric(@[@"CustomNavigationTransition"]); }
++ (id<XCTMetric>)scrollDecelerationMetric { return uikit_metric(@[@"ScrollDeceleration"]); }
++ (id<XCTMetric>)scrollDraggingMetric { return uikit_metric(@[@"ScrollDragging"]); }
++ (id<XCTMetric>)scrollingAndDecelerationMetric { return uikit_metric(@[@"ScrollDragging", @"ScrollDeceleration"]); }
++ (XCTOSSignpostMetric *)applicationLaunchMetric {
+    XCTOSSignpostMetric *m = [[XCTOSSignpostMetric alloc] initWithSubsystem:@"com.apple.isim" category:@"Launch" name:@"AppLaunch"];
+    m->_launch = YES;
+    return m;
+}
+- (void)_isimDidStartMeasuring { _seq = isim_log_range(NULL); }
+- (NSArray<XCTPerformanceMeasurement *> *)reportMeasurementsFromStartTime:(XCTPerformanceMeasurementTimestamp *)a
+                                                                toEndTime:(XCTPerformanceMeasurementTimestamp *)b error:(NSError **)error {
+    if (_launch)                                           /* (the app's launch: timed like XCTApplicationLaunchMetric) */
+        return @[seconds_measurement(@"com.apple.dt.XCTMetric_ApplicationLaunch-AppLaunch.duration", @"Duration (AppLaunch)", ts_seconds(a, b))];
+    NSMutableArray *out = [NSMutableArray array];
+    long first = 0, end = isim_log_range(&first);
+    for (NSString *name in _names) {
+        NSMutableDictionary<NSNumber *, NSNumber *> *open = [NSMutableDictionary dictionary];
+        double total = 0; int intervals = 0;
+        for (long seq = MAX(_seq, first); seq < end; seq++) {
+            double date; int meta[3]; uint64_t ids[2]; char *strs[5];
+            if (!isim_log_get(seq, &date, meta, ids, strs)) continue;
+            BOOL match = meta[0] == 1 && !strcmp(strs[0], _subsystem.UTF8String) && !strcmp(strs[1], _category.UTF8String) && !strcmp(strs[4], name.UTF8String);
+            for (int i = 0; i < 5; i++) free(strs[i]);
+            if (!match) continue;
+            if (meta[2] == 1) open[@(ids[0])] = @(date);
+            else if (meta[2] == 2 && open[@(ids[0])]) { total += date - open[@(ids[0])].doubleValue; intervals++; [open removeObjectForKey:@(ids[0])]; }
+        }
+        if (!intervals)
+            say(@"<unknown>:0: warning: %@ : no %@ signpost interval (%@, %@) in this iteration", current_case.name, name, _subsystem, _category);
+        [out addObject:seconds_measurement([NSString stringWithFormat:@"com.apple.dt.XCTMetric_OSSignpost-%@.duration", name],
+                                           [NSString stringWithFormat:@"Duration (%@)", name], total)];
+    }
+    return out;
+}
+@end
+
 @implementation XCTApplicationLaunchMetric { BOOL _waitUntilResponsive; }
 - (instancetype)init { return [self initWithWaitUntilResponsive:NO]; }
 - (instancetype)initWithWaitUntilResponsive:(BOOL)w { if ((self = [super init])) _waitUntilResponsive = w; return self; }
 - (id)copyWithZone:(NSZone *)zone { return self; }
+- (NSArray<XCTPerformanceMeasurement *> *)reportMeasurementsFromStartTime:(XCTPerformanceMeasurementTimestamp *)a
+                                                                toEndTime:(XCTPerformanceMeasurementTimestamp *)b error:(NSError **)error {
+    return @[seconds_measurement(@"com.apple.dt.XCTMetric_ApplicationLaunch-AppLaunch.duration", @"Duration (AppLaunch)", ts_seconds(a, b))];
+}
 @end
 @implementation XCTMeasureOptions
 + (XCTMeasureOptions *)defaultOptions { return [XCTMeasureOptions new]; }
 - (instancetype)init { if ((self = [super init])) _iterationCount = 5; return self; }
-- (id)copyWithZone:(NSZone *)zone { XCTMeasureOptions *o = [XCTMeasureOptions new]; o.iterationCount = _iterationCount; return o; }
+- (id)copyWithZone:(NSZone *)zone {
+    XCTMeasureOptions *o = [XCTMeasureOptions new]; o.iterationCount = _iterationCount; o.invocationOptions = _invocationOptions; return o;
+}
+@end
+
+/* the measurement in progress (startMeasuring / stopMeasuring inside the block) */
+static struct {
+    BOOL active;                        /* in a measured block */
+    NSArray<id<XCTMetric>> *metrics;
+    XCTPerformanceMeasurementTimestamp *start, *end;
+} measuring;
+static void measuring_start(void) {
+    if (measuring.start) return;
+    for (id m in measuring.metrics) if ([m respondsToSelector:@selector(_isimDidStartMeasuring)]) [m _isimDidStartMeasuring];
+    measuring.start = [XCTPerformanceMeasurementTimestamp new];
+}
+static void measuring_stop(void) {
+    if (!measuring.start || measuring.end) return;
+    measuring.end = [XCTPerformanceMeasurementTimestamp new];
+    for (id<XCTMetric> m in measuring.metrics) if ([m respondsToSelector:@selector(didStopMeasuring)]) [m didStopMeasuring];
+}
+@interface NSObject (XCTIsimMetric)
+- (void)_isimDidStartMeasuring;
 @end
 static void record_measurement(NSArray<NSNumber *> *values, NSString *metric, NSString *_Nullable filePath, NSUInteger line);
 
@@ -470,17 +677,78 @@ static void fail_with_issue(XCTestCase *tc, XCTIssue *issue) {
 - (void)measureWithOptions:(XCTMeasureOptions *)options block:(void (^)(void))block {
     [self measureWithMetrics:[self.class defaultMetrics] options:options block:block];
 }
-/* every metric isim has is the block's wall-clock time: run it iterationCount times, report it once per metric */
+/* each iteration: the metrics are told measuring begins, the block runs (measured from its start, or from its
+   startMeasuring, to its end or its stopMeasuring), the metrics report; every value name is printed once, with the
+   values of all iterations, in Xcode's console format */
 - (void)measureWithMetrics:(NSArray<id<XCTMetric>> *)metrics options:(XCTMeasureOptions *)options block:(void (^)(void))block {
     NSUInteger n = options.iterationCount ?: 1;
-    NSMutableArray *values = [NSMutableArray array];
-    for (NSUInteger i = 0; i < n; i++) { double t = now_s(); block(); [values addObject:@(now_s() - t)]; }
-    for (id<XCTMetric> m in metrics) {
-        if ([(id)m isKindOfClass:[XCTApplicationLaunchMetric class]]) record_measurement(values, @"Duration (AppLaunch), s", nil, 0);
-        else if ([(id)m isKindOfClass:[XCTClockMetric class]]) record_measurement(values, @"Clock Monotonic Time, s", nil, 0);
-        else say(@"<unknown>:0: warning: %@ : %@ is not measured by isim (only XCTClockMetric and XCTApplicationLaunchMetric)",
-                 self.name, NSStringFromClass([(id)m class]));
+    XCTMeasurementInvocationOptions inv = options.invocationOptions;
+    NSMutableArray<NSString *> *order = [NSMutableArray array];
+    NSMutableDictionary<NSString *, NSMutableArray *> *values = [NSMutableDictionary dictionary];
+    for (NSUInteger i = 0; i < n; i++) {
+        NSMutableArray *copies = [NSMutableArray array];
+        for (id<XCTMetric> m in metrics) [copies addObject:[(id)m copyWithZone:nil]];
+        for (id<XCTMetric> m in copies) if ([m respondsToSelector:@selector(willBeginMeasuring)]) [m willBeginMeasuring];
+        measuring.active = YES; measuring.metrics = copies; measuring.start = measuring.end = nil;
+        if (!(inv & XCTMeasurementInvocationManuallyStart)) measuring_start();
+        block();
+        if ((inv & XCTMeasurementInvocationManuallyStop) && measuring.start && !measuring.end) {
+            [self recordFailureWithDescription:@"Measurement manually stopped: the block did not call stopMeasuring()" inFile:@"" atLine:0 expected:YES];
+        }
+        measuring_stop();
+        XCTPerformanceMeasurementTimestamp *start = measuring.start, *end = measuring.end;
+        measuring.active = NO; measuring.metrics = nil; measuring.start = measuring.end = nil;
+        if (!start) {
+            [self recordFailureWithDescription:@"Measurement manually started: the block did not call startMeasuring()" inFile:@"" atLine:0 expected:YES];
+            return;
+        }
+        for (id<XCTMetric> m in copies) {
+            NSError *err = nil;
+            NSArray<XCTPerformanceMeasurement *> *ms = [m reportMeasurementsFromStartTime:start toEndTime:end error:&err];
+            if (!ms) {
+                say(@"<unknown>:0: warning: %@ : %@ reported no measurements%@%@", self.name, NSStringFromClass([(id)m class]),
+                    err ? @": " : @"", err.localizedDescription ?: @"");
+                continue;
+            }
+            for (XCTPerformanceMeasurement *pm in ms) {
+                NSString *key = [NSString stringWithFormat:@"%@, %@", pm.displayName, pm.unitSymbol];
+                if (!values[key]) { values[key] = [NSMutableArray array]; [order addObject:key]; }
+                [values[key] addObject:@(pm.doubleValue)];
+            }
+        }
     }
+    for (NSString *key in order) record_measurement(values[key], key, nil, 0);
+}
+- (void)startMeasuring {
+    if (!measuring.active) { [self recordFailureWithDescription:@"startMeasuring() called outside a measured block" inFile:@"" atLine:0 expected:YES]; return; }
+    if (measuring.start) { [self recordFailureWithDescription:@"Cannot start measuring: it has already started" inFile:@"" atLine:0 expected:YES]; return; }
+    measuring_start();
+}
+- (void)stopMeasuring {
+    if (!measuring.active || !measuring.start) { [self recordFailureWithDescription:@"Cannot stop measuring before it has started" inFile:@"" atLine:0 expected:YES]; return; }
+    measuring_stop();
+}
++ (NSArray<XCTPerformanceMetric> *)defaultPerformanceMetrics { return @[XCTPerformanceMetric_WallClockTime]; }
+/* the older API: 10 iterations of wall-clock time; without automatic start the block starts (and may stop) measuring */
+- (void)measureMetrics:(NSArray<XCTPerformanceMetric> *)metrics automaticallyStartMeasuring:(BOOL)automatic forBlock:(void (^)(void))block {
+    XCTMeasureOptions *o = [XCTMeasureOptions new];
+    o.iterationCount = 10;
+    if (!automatic) o.invocationOptions = XCTMeasurementInvocationManuallyStart;
+    NSMutableArray *values = [NSMutableArray array];
+    for (NSUInteger i = 0; i < o.iterationCount; i++) {
+        XCTClockMetric *clock = [XCTClockMetric new];
+        measuring.active = YES; measuring.metrics = @[clock]; measuring.start = measuring.end = nil;
+        if (automatic) measuring_start();
+        block();
+        measuring_stop();
+        XCTPerformanceMeasurementTimestamp *start = measuring.start, *end = measuring.end;
+        measuring.active = NO; measuring.metrics = nil; measuring.start = measuring.end = nil;
+        if (!start) { [self recordFailureWithDescription:@"The block did not call startMeasuring()" inFile:@"" atLine:0 expected:YES]; return; }
+        [values addObject:@(ts_seconds(start, end))];
+    }
+    for (XCTPerformanceMetric m in metrics)
+        if ([m isEqualToString:XCTPerformanceMetric_WallClockTime]) _XCTIsimRecordMeasurement(values, nil, 0);
+        else say(@"<unknown>:0: warning: %@ : performance metric %@ is not measured by isim", self.name, m);
 }
 - (void)addAttachment:(XCTAttachment *)attachment {
     if (!attachment) return;

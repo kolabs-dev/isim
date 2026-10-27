@@ -2280,6 +2280,7 @@ ISIM_GUEST_ABI int isim_fs_stats(const char *path, unsigned long long out[4]) {
 }
 
 ISIM_GUEST_ABI long isim_log_range(long *first);
+ISIM_GUEST_ABI long long isim_process_bytes_written(void);
 ISIM_GUEST_ABI int isim_log_get(long seq, double *date, int meta[3], uint64_t ids[2], char *strs[5]);
 ISIM_GUEST_ABI void isim_signpost_print(const char *subsystem, const char *category, int sptype, uint64_t spid, const char *name, const char *msg);
 ISIM_GUEST_ABI int isim_resource_usage(double out[8]);
@@ -2290,7 +2291,7 @@ ISIM_GUEST_ABI int isim_sample_main_stack(char *out, int cap);
 ISIM_GUEST_ABI int isim_launch_stack(char *out, int cap);
 #define H(n) { "_" #n, (void *)n, "isim" }
 static const struct shim isim_table[] = {
-    H(isim_log_record), H(isim_log_range), H(isim_log_get), H(isim_signpost_print), H(isim_metric_add), H(isim_metric_max),
+    H(isim_log_record), H(isim_log_range), H(isim_log_get), H(isim_process_bytes_written), H(isim_signpost_print), H(isim_metric_add), H(isim_metric_max),
     H(isim_metric_get), H(isim_resource_usage), H(isim_hang_count), H(isim_hang_get), H(isim_diag_set_app), H(isim_diag_app),
     H(isim_diag_process_start), H(isim_sample_thread), H(isim_sample_main_stack), H(isim_launch_stack),
     H(isim_device_metrics), H(isim_set_phone_compatibility_mode), H(isim_os_version), H(isim_display_open), H(isim_frame_begin), H(isim_frame_end), H(isim_time),
