@@ -38,6 +38,11 @@ What it does per target (dependencies first, also across the projects of a works
     "ISIMMETALLIB 1"; NOT Apple's GPU binary): isim runs Core Image's Metal kernels from their source
   * Core Data models: .xcdatamodeld/.xcdatamodel -> <Name>.momd (isim's own model format, NOT Apple's binary
     .mom; see isim/tools/momc.py) plus the Swift classes Xcode's Class Definition / Category codegen makes
+  * iMessage apps: Messages extensions (...app-extension.messages) build like other app extensions; sticker packs
+    (...app-extension.messages-sticker-pack) are an .appex with no executable whose .xcstickers catalog becomes
+    Stickers/ (the images) + isim-stickers.json (packs, stickers, accessibility labels; isim's format, NOT Apple's
+    compiled catalog). watchOS targets (watch apps, WatchKit extensions, SDKROOT watchos) are not built: isim runs
+    iOS apps; the build says so and the iOS app is built without its Watch/ content
   * embeds app extensions into <App>.app/PlugIns/, App Clips (product type ...application.on-demand-install-capable)
     into <App>.app/AppClips/ and frameworks into <App>.app/Frameworks/ (copy-files phases)
   * Swift packages: local packages are built from source (Swift and C/ObjC targets, dependencies between
@@ -389,6 +394,70 @@ def appearance_key(appearances):
     lum = next((a.get('value') for a in appearances if a.get('appearance') == 'luminosity'), 'any')
     high = any(a.get('appearance') == 'contrast' and a.get('value') == 'high' for a in appearances)
     return lum + ('-high' if high else '')
+
+
+def compile_xcstickers(path, bundle):
+    """A sticker pack's .xcstickers catalog -> <bundle>/Stickers/<image> + <bundle>/isim-stickers.json:
+    {"packs": [{"name", "stickers": [{"name", "file", "accessibilityLabel"?, "frames"?}]}], "icon"?}."""
+    out = os.path.join(bundle, 'Stickers')
+    os.makedirs(out, exist_ok=True)
+    packs, icon = [], None
+    def contents(d):
+        try:
+            with open(os.path.join(d, 'Contents.json')) as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            return {}
+    for entry in sorted(os.listdir(path)):
+        d = os.path.join(path, entry)
+        if entry.endswith('.stickersiconset'):                 # the iMessage app icon: its largest image
+            imgs = [i.get('filename') for i in contents(d).get('images', []) if i.get('filename')]
+            imgs = [i for i in imgs if os.path.isfile(os.path.join(d, i))]
+            if imgs:
+                big = max(imgs, key=lambda i: os.path.getsize(os.path.join(d, i)))
+                shutil.copy2(os.path.join(d, big), os.path.join(out, 'icon' + os.path.splitext(big)[1]))
+                icon = 'Stickers/icon' + os.path.splitext(big)[1]
+            continue
+        if not entry.endswith('.stickerpack'):
+            continue
+        order = [s.get('filename') for s in contents(d).get('stickers', []) if s.get('filename')]
+        names = order + sorted(n for n in os.listdir(d) if n.endswith(('.sticker', '.stickersequence')) and n not in order)
+        stickers = []
+        for n in names:
+            sd = os.path.join(d, n)
+            if not os.path.isdir(sd):
+                continue
+            c = contents(sd)
+            props = c.get('properties', {})
+            item = {'name': os.path.splitext(n)[0]}
+            if props.get('accessibility-label'):
+                item['accessibilityLabel'] = props['accessibility-label']
+            if n.endswith('.stickersequence'):                 # an animated sticker: its frames in order
+                frames = [f.get('filename') for f in c.get('frames', []) if f.get('filename')]
+                item['frames'] = []
+                for i, fr in enumerate(frames):
+                    if os.path.isfile(os.path.join(sd, fr)):
+                        dst = f'{item["name"]}-{i}{os.path.splitext(fr)[1]}'
+                        shutil.copy2(os.path.join(sd, fr), os.path.join(out, dst))
+                        item['frames'].append('Stickers/' + dst)
+                if props.get('duration'):
+                    item['duration'] = props['duration']
+            else:
+                fname = props.get('filename') or next((f for f in sorted(os.listdir(sd)) if not f.endswith('.json')), None)
+                if not fname or not os.path.isfile(os.path.join(sd, fname)):
+                    log(f'{os.path.basename(path)}: {n} has no image (skipped)')
+                    continue
+                dst = item['name'] + os.path.splitext(fname)[1]
+                shutil.copy2(os.path.join(sd, fname), os.path.join(out, dst))
+                item['file'] = 'Stickers/' + dst
+            stickers.append(item)
+        packs.append({'name': os.path.splitext(entry)[0], 'stickers': stickers})
+    index = {'packs': packs}
+    if icon:
+        index['icon'] = icon
+    with open(os.path.join(bundle, 'isim-stickers.json'), 'w') as f:
+        json.dump(index, f, indent=1)
+    log(f'{os.path.basename(path)} -> isim-stickers.json ({sum(len(p["stickers"]) for p in packs)} stickers in {len(packs)} pack(s))')
 
 
 def compile_xcassets(path, bundle):
@@ -2028,6 +2097,8 @@ GENERATED_KEYS = {
 PRODUCT_KINDS = [   # productType suffix -> (kind, wrapper extension, CFBundlePackageType)
     ('.application.on-demand-install-capable', 'app', '.app', 'APPL'),   # App Clips
     ('.application', 'app', '.app', 'APPL'),
+    ('.app-extension.messages-sticker-pack', 'stickers', '.appex', 'XPC!'),  # resources only: no executable
+    ('.app-extension.messages', 'appex', '.appex', 'XPC!'),
     ('.app-extension', 'appex', '.appex', 'XPC!'),
     ('.extensionkit-extension', 'appex', '.appex', 'XPC!'),
     ('.framework.static', 'staticframework', '.framework', 'FMWK'),
@@ -2038,6 +2109,11 @@ PRODUCT_KINDS = [   # productType suffix -> (kind, wrapper extension, CFBundlePa
     ('.bundle.ui-testing', 'uitest', '.xctest', 'BNDL'),
     ('.bundle', 'bundle', '.bundle', 'BNDL'),
 ]
+
+
+def is_watch_target(ptype, s):
+    """watch apps (watchapp / watchapp2 and their containers), WatchKit extensions and targets for the watchOS SDK"""
+    return any(w in (ptype or '') for w in ('.watchapp', '.watchkit')) or str(s.get('SDKROOT', '')).startswith('watch')
 
 
 def product_kind(ptype):
@@ -2088,7 +2164,7 @@ class Builder:
         return None
 
     def settings(self, target):
-        kind, ext, _ = product_kind(target.product_type)
+        kind, ext, pkg = product_kind(target.product_type)
         out = self.outdir
         objdir = os.path.join(out, 'obj', target.name)
         defaults = {
@@ -2115,6 +2191,8 @@ class Builder:
         if kind not in ('static', 'dylib'):
             s.setdefault('INFOPLIST_PATH', wrapper + '/Info.plist')
         s.setdefault('TARGET_DEVICE_OS_VERSION', s.get('IPHONEOS_DEPLOYMENT_TARGET', '17.0'))
+        if pkg:
+            s.setdefault('PRODUCT_BUNDLE_PACKAGE_TYPE', pkg)        # (Xcode's, for Info.plists that use it)
         return s
 
     def swift_opt_flags(self, s=None):
@@ -2127,6 +2205,8 @@ class Builder:
             return compile_xcstrings(res, bundle)
         if res.endswith('.xcassets'):
             compile_xcassets(res, bundle)
+        elif res.rstrip('/').endswith('.xcstickers'):
+            compile_xcstickers(res.rstrip('/'), bundle)
         elif res.rstrip('/').endswith(('.xcdatamodeld', '.xcdatamodel')):
             momc.compile_model(res, bundle, os.path.join(bundle, '..', 'obj', 'coredata-unused'))
         elif res.rstrip('/').endswith('.lproj') and os.path.isdir(res):
@@ -2215,6 +2295,11 @@ class Builder:
         if for_testing or target.name in self.testing:
             s['ENABLE_TESTABILITY'] = 'YES'
         kind, ext, pkgtype = product_kind(target.product_type)
+        if is_watch_target(target.product_type, s):
+            what = 'WatchKit extension' if '.watchkit' in target.product_type else 'watchOS app'
+            log(f'{target.name}: {what} not built: isim runs iOS apps, not watchOS (build it with Xcode); '
+                f'apps that embed it are built without it')
+            return None
         if not kind:
             if not target.product_type:
                 log(f'{target.name}: aggregate target' + (' (script phases)' if target.script_phases() else ''))
@@ -2454,7 +2539,7 @@ class Builder:
             link_result['link'] += deps['link']
             link_result['embed'] += deps['embed']
             link_result['bundles'] += deps['bundles']
-        elif kind != 'bundle' or objs:
+        elif kind not in ('bundle', 'stickers') or objs:
             exe = os.path.join(path, s['EXECUTABLE_NAME']) if wrapper else path
             link = [ISIM, 'cc'] + objs + ['-o', exe, '-F', out] + deps['link']
             for fw in ['Foundation', 'UIKit']:
@@ -2555,11 +2640,14 @@ class Builder:
                     res = prod['path']
                 localizations.update(self.install_resource(res, path))
             info = make_info_plist(target, s, path, localizations, pkgtype)
+            if kind == 'stickers' and info.pop('CFBundleExecutable', None):     # (Xcode's stub executable: none in isim)
+                with open(os.path.join(path, 'Info.plist'), 'wb') as f:
+                    plistlib.dump(info, f)
             if kind == 'app':
                 apply_alternate_icons(s, path, info, name)
             apply_entitlements(target, s, path)
         bundles = deps['bundles']
-        if kind in ('app', 'appex', 'xctest', 'uitest', 'framework', 'bundle'):
+        if kind in ('app', 'appex', 'stickers', 'xctest', 'uitest', 'framework', 'bundle'):
             for b in bundles:                                  # package resource bundles land in the product
                 dst = os.path.join(path, os.path.basename(b))
                 shutil.rmtree(dst, ignore_errors=True)
