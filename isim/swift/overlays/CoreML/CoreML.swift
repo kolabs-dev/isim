@@ -268,8 +268,12 @@ open class MLModelDescription: NSObject, @unchecked Sendable {
     public let predictedProbabilitiesName: String?
     public let metadata: [MLModelMetadataKey: Any]
     public let classLabels: [Any]?
+    /// the model's states (iOS 18; stateful ML programs)
+    public let stateDescriptionsByName: [String: MLFeatureDescription]
     public var isUpdatable: Bool { false }
-    init(inputs: [MLFeatureDescription], outputs: [MLFeatureDescription], predicted: String?, probabilities: String?, metadata: [MLModelMetadataKey: Any], labels: [Any]?) {
+    init(inputs: [MLFeatureDescription], outputs: [MLFeatureDescription], predicted: String?, probabilities: String?, metadata: [MLModelMetadataKey: Any], labels: [Any]?,
+         states: [MLFeatureDescription] = []) {
+        stateDescriptionsByName = Dictionary(states.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
         inputDescriptionsByName = Dictionary(inputs.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
         outputDescriptionsByName = Dictionary(outputs.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
         predictedFeatureName = predicted; predictedProbabilitiesName = probabilities; self.metadata = metadata; classLabels = labels
@@ -350,6 +354,11 @@ struct _MLSpec {
     var transform = 0              // regressor: 0 none, 1 logit, 2 probit; classifier: 0 logit, 1 probit
     var encoding = 0               // 0 reference class, 1 one vs rest
     var labels: [Any] = []
+    // tree ensembles and neural networks (CoreMLRuntime.swift)
+    var trees: _MLTrees?
+    var layers: [_MLLayer] = []
+    var labelProbabilityLayer: String?
+    var states: [MLFeatureDescription] = []
 
     static let kinds: [Int: String] = [200: "pipelineClassifier", 201: "pipelineRegressor", 202: "pipeline", 300: "glmRegressor", 301: "supportVectorRegressor",
         302: "treeEnsembleRegressor", 303: "neuralNetworkRegressor", 304: "bayesianProbitRegressor", 400: "glmClassifier", 401: "supportVectorClassifier",
@@ -368,6 +377,11 @@ struct _MLSpec {
             case 2: try parseDescription(s)
             case 300: kind = "glmRegressor"; try parseGLM(s, classifier: false)
             case 400: kind = "glmClassifier"; try parseGLM(s, classifier: true)
+            case 302: kind = "treeEnsembleRegressor"; try parseTrees(s, classifier: false)
+            case 402: kind = "treeEnsembleClassifier"; try parseTrees(s, classifier: true)
+            case 303: kind = "neuralNetworkRegressor"; try parseNetwork(s, classifier: false)
+            case 403: kind = "neuralNetworkClassifier"; try parseNetwork(s, classifier: true)
+            case 500: kind = "neuralNetwork"; try parseNetwork(s, classifier: false)
             default: if let k = _MLSpec.kinds[f] { kind = k }
             }
         }
@@ -379,6 +393,7 @@ struct _MLSpec {
             switch f {
             case 1: inputs.append(try _MLSpec.feature(d))
             case 10: outputs.append(try _MLSpec.feature(d))
+            case 13: states.append(try _MLSpec.feature(d))
             case 11: predicted = _PB.string(d)
             case 12: probabilities = _PB.string(d)
             case 100:
@@ -494,7 +509,7 @@ open class MLModel: NSObject, @unchecked Sendable {
         _spec = try _MLSpec([UInt8](data))
         self.configuration = configuration
         modelDescription = MLModelDescription(inputs: _spec.inputs, outputs: _spec.outputs, predicted: _spec.predicted, probabilities: _spec.probabilities,
-                                              metadata: _spec.metadata, labels: _spec.labels.isEmpty ? nil : _spec.labels)
+                                              metadata: _spec.metadata, labels: _spec.labels.isEmpty ? nil : _spec.labels, states: _spec.states)
         super.init()
     }
     public convenience init(contentsOf url: URL) throws { try self.init(contentsOf: url, configuration: MLModelConfiguration()) }
@@ -519,7 +534,8 @@ open class MLModel: NSObject, @unchecked Sendable {
         return URL(fileURLWithPath: path, isDirectory: true)
     }
     open class func compileModel(at modelURL: URL) async throws -> URL { try _compile(modelURL) }
-    open class var availableComputeDevices: [Any] { [] }
+    /// isim runs models on the CPU
+    open class var availableComputeDevices: [MLComputeDevice] { MLComputeDevice.allComputeDevices }
     /// isim: "glmRegressor", "neuralNetwork", ... (the spec's model type)
     open var _isimModelType: String { _spec.kind }
 
@@ -527,8 +543,10 @@ open class MLModel: NSObject, @unchecked Sendable {
     open func prediction(from input: MLFeatureProvider, options: MLPredictionOptions) throws -> MLFeatureProvider {
         switch _spec.kind {
         case "glmRegressor", "glmClassifier": return try _glm(input)
+        case "treeEnsembleRegressor", "treeEnsembleClassifier": return try _treeEnsemble(input)
+        case "neuralNetwork", "neuralNetworkRegressor", "neuralNetworkClassifier": return try _neuralNetwork(input)
         default:
-            throw _mlError(.generic, "isim cannot run \(_spec.kind) models: only generalized linear models (GLMRegressor, GLMClassifier) run without Apple's Core ML runtime")
+            throw _mlError(.generic, "isim cannot run \(_spec.kind) models: generalized linear models, tree ensembles and neural networks (their common layers) run without Apple's Core ML runtime")
         }
     }
     open func prediction(from input: MLFeatureProvider) async throws -> MLFeatureProvider { try prediction(from: input, options: MLPredictionOptions()) }
