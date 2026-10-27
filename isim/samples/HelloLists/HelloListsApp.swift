@@ -1,11 +1,12 @@
 // Sample: SwiftUI lists and navigation on isim — onDelete / onMove / EditButton, swipeActions, contextMenu, row
 // badges, .searchable, .refreshable, navigationDestination(isPresented:), NavigationSplitView with List(selection:),
 // toolbar visibility and background, sheet detents.
+// -table: Table (sorting, selection, rows with context menus, an outline), Table.swift.
 import SwiftUI
 
 @main
 struct HelloListsApp: App {
-    var body: some Scene { WindowGroup { Root() } }
+    var body: some Scene { WindowGroup { if ProcessInfo.processInfo.arguments.contains("-table") { TablePage() } else { Root() } } }
 }
 
 struct Root: View {
