@@ -49,6 +49,7 @@ final class VisionViewController: UIViewController {
         faces()
         detectors()
         tracking()
+        Task { await swiftAPI() }
         coreML()
         language()
         visionKit()
@@ -128,6 +129,54 @@ final class VisionViewController: UIViewController {
     func render(_ w: CGFloat, _ h: CGFloat, _ draw: (CGContext) -> Void) -> CGImage {
         let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
         return UIGraphicsImageRenderer(size: CGSize(width: w, height: h), format: fmt).image { draw($0.cgContext) }.cgImage!
+    }
+    /// the iOS 18 Swift API (issue #374): ImageRequestHandler, value-type requests and observations
+    func swiftAPI() async {
+        /* geometry: a 200 x 100 rectangle at (100, 50) of a 400 x 200 image, normalized, flipped and back */
+        let r = NormalizedRect(imageRect: CGRect(x: 100, y: 50, width: 200, height: 100), in: CGSize(width: 400, height: 200))
+        let up = r.toImageCoordinates(CGSize(width: 400, height: 200), origin: .upperLeft)
+        let p = NormalizedPoint(x: 0.25, y: 0.75)
+        log("swift geometry \(rect(r.cgRect)) upper left \(Int(up.minX)),\(Int(up.minY)) flipped \(f2(r.verticallyFlipped().origin.y)) " +
+            "point \(Int(p.toImageCoordinates(CGSize(width: 400, height: 200), origin: .upperLeft).y)) full \(NormalizedRect.fullImage == NormalizedRect(x: 0, y: 0, width: 1, height: 1))")
+        if let codes = UIImage(contentsOfFile: res.appendingPathComponent("codes.png").path)?.cgImage {
+            do {
+                let found = try await DetectBarcodesRequest().perform(on: codes).sorted { $0.boundingBox.origin.x < $1.boundingBox.origin.x }
+                log("swift barcodes \(found.count): " + found.map { "\($0.symbology) '\($0.payloadString ?? "")' box=\(rect($0.boundingBox.cgRect))" }.joined(separator: "; ") +
+                    " descriptor \(found.first?.originatingRequestDescriptor.map(String.init(describing:)) ?? "nil")")
+                var right = DetectBarcodesRequest(); right.regionOfInterest = NormalizedRect(x: 0.5, y: 0, width: 0.5, height: 1)
+                let handler = ImageRequestHandler(codes)
+                let (all, inRight, faces) = try await handler.perform(DetectBarcodesRequest(), right, DetectFaceRectanglesRequest())
+                log("swift pack barcodes \(all.count) right \(inRight.compactMap(\.payloadString)) faces \(faces.count)")
+            } catch { log("swift barcodes error \(error)") }
+            var kinds: [String] = []
+            if #available(iOS 18.0, *) {
+            for await result in ImageRequestHandler(codes).performAll([DetectBarcodesRequest(), RecognizeTextRequest()] as [any VisionRequest]) {
+                switch result {
+                case .detectBarcodes(_, let b): kinds.append("barcodes \(b.count)")
+                case .recognizeText(_, let t): kinds.append("text \(t.count)")
+                case .error(let r, let e): kinds.append("error \(r) \(e is VisionError)")
+                default: kinds.append("other")
+                }
+            }
+            }
+            log("swift performAll \(kinds.joined(separator: ", "))")
+        }
+        if let face = UIImage(contentsOfFile: res.appendingPathComponent("face.jpg").path)?.cgImage {
+            do {
+                let found = try await DetectFaceRectanglesRequest().perform(on: face)
+                log("swift faces \(found.count) box=\(found.first.map { rect($0.boundingBox.cgRect) } ?? "-") roll degrees \(found.first.map { Int($0.roll.converted(to: .degrees).value.rounded()) } ?? 0)")
+            } catch VisionError.unsupportedRequest(let m) { log("swift faces unsupported: \(m)") }
+            catch { log("swift faces error \(error)") }
+        }
+        if let text = try? Data(contentsOf: res.appendingPathComponent("text.png")) {
+            do {
+                let lines = try await RecognizeTextRequest().perform(on: text)
+                log("swift text \(lines.map(\.transcript))")
+                let docs = try await RecognizeDocumentsRequest().perform(on: text)
+                log("swift document paragraphs \(docs.first?.document.paragraphs.count ?? 0) transcript \(docs.first?.document.text.transcript ?? "")")
+            } catch VisionError.unsupportedRequest(let m) { log("swift text unsupported: \(m)") }
+            catch { log("swift text error \(error)") }
+        }
     }
     /// tracking, registration and optical flow on drawn frames with known motion (issue #373)
     func tracking() {

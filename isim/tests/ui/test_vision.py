@@ -52,6 +52,8 @@ COMMON = [   # check, log regex
     ("VNTrackTranslationalImageRegistrationRequest: nothing for the first frame", r"track registration first 0 then -10\.0 6\.0"),
     ("VNGenerateOpticalFlowRequest: the square moved 6 right, 4 down",
      r"optical flow 200x150 two floats true object 6\.0,4\.0 elsewhere 0\.0,0\.0"),
+    ("NormalizedRect / NormalizedPoint (issue #374)",
+     r"swift geometry 0\.25,0\.25,0\.50,0\.50 upper left 100,50 flipped 0\.25 point 50 full true"),
     ("MLMultiArray shape/strides/subscripts", r"multiarray count=6 strides=\[3, 1\] \[1,2\]=7\.5 \[0\]=1\.0"),
     ("MLModel.compileModel + description + metadata", r'regressor inputs=\["x1", "x2"\] output=y meta=.y = 2 x1 \+ 3 x2 \+ 1.'),
     ("GLM regressor prediction", r"regressor y=9\.00"),
@@ -89,9 +91,11 @@ def test_vision(launch):
         app.wait_log(r"faces 1 box=0\.\d\d,0\.\d\d,0\.[1-4]\d,0\.[1-4]\d roll=-?0\.[0-3]\d")
         app.wait_log(r"landmarks pupils 0\.[2-4]\d,0\.[5-7]\d 0\.[6-8]\d,0\.[5-7]\d mouth below eyes true contour 11 all \d+ closed true")
         app.wait_log(r"given faces landmarks 1")
+        app.wait_log(r"swift faces 1 box=0\.\d\d,0\.\d\d,0\.[1-4]\d,0\.[1-4]\d roll degrees -?1?\d")
     else:
         app.wait_log(r"face completion error=face detection needs OpenCV.s Haar cascades")
         app.wait_log(r"faces error com\.apple\.Vision 19")
+        app.wait_log(r"swift faces unsupported: face detection needs OpenCV.s Haar cascades")
     if os.environ.get("ISIM_WHISPER_MODEL") or os.environ.get("ISIM_VOSK_MODEL"):
         app.wait_log(r"speech transcription .*hello.* final=true", timeout=60)       # speech recognition (host engine)
     else:
@@ -100,14 +104,25 @@ def test_vision(launch):
         app.wait_view(r"id=speech text=unavailable")                                   # unavailable without an engine
     if shutil.which("tesseract"):
         app.wait_log(r'text recognized \["HELLO ISIM"\]')
+        app.wait_log(r'swift text \["HELLO ISIM"\]')
+        app.wait_log(r"swift document paragraphs 1 transcript HELLO ISIM")
     else:
         app.wait_log(r"text unavailable: text recognition on isim needs the host.s tesseract command")
+        app.wait_log(r"swift text unsupported: text recognition on isim needs the host.s tesseract command")
     if (APP / "codes.png").exists() and has_zbar():
         app.wait_log(r"barcodes 2: qr .left code. box=0\.(0[6-9]|1[0-2]),0\.2[6-9],0\.(19|2[0-3]),0\.(39|4[0-4]); "
                      r"qr .right code. box=0\.(6[7-9]|7[0-3]),0\.2[6-9],0\.(19|2[0-3]),0\.(39|4[0-4])")
         app.wait_log(r'roi barcodes \["right code"\]')                                 # regionOfInterest (right half)
         app.wait_log(r"rotated barcodes 2")                                             # orientation .right
         app.wait_log(r"ean13 only 0")                                                   # symbology filter
+        # the iOS 18 Swift API (issue #374): perform(on:), a parameter pack, a region of interest, performAll
+        app.wait_log(r"swift barcodes 2: qr .left code. box=0\.(0[6-9]|1[0-2]),0\.2[6-9],0\.(19|2[0-3]),0\.(39|4[0-4]); "
+                     r"qr .right code. box=0\.(6[7-9]|7[0-3]),0\.2[6-9],0\.(19|2[0-3]),0\.(39|4[0-4]) descriptor DetectBarcodesRequest\(revision4\)")
+        app.wait_log(r'swift pack barcodes 2 right \["right code"\] faces 0')
+        if shutil.which("tesseract"):
+            app.wait_log(r"swift performAll barcodes 2, text \d+")
+        else:
+            app.wait_log(r"swift performAll barcodes 2, error RecognizeTextRequest\(revision3\) true")
         app.wait_until(lambda: (lambda s: greenish(rgb(s, 79, 190)) and greenish(rgb(s, 264, 190)))(app.screenshot()),
                        what="observation boxes drawn over the picture (pixels)")
     else:
