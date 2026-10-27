@@ -1,7 +1,8 @@
 """ImageIO, Core Image and UIImage extras (HelloImaging): animated GIF written and read back (frames, delays, loop
-count) and played by UIImageView, PNG/JPEG destinations and thumbnails, EXIF orientation, Core Image filters /
-generators / compositing on the CPU, a QR code (decoded with zbarimg when the host has it), nine-slice resizable
-images, flipped and rotated orientations, UIImageView.animationImages. Port of tests/ui/imaging.sh."""
+count) and played by UIImageView and CGAnimateImageDataWithBlock, auxiliary disparity data, PNG/JPEG destinations
+and thumbnails, EXIF orientation, Core Image filters / generators / compositing on the CPU, a QR code (decoded with
+zbarimg when the host has it), nine-slice resizable images, flipped and rotated orientations,
+UIImageView.animationImages. Port of tests/ui/imaging.sh."""
 import re
 import shutil
 import subprocess
@@ -16,6 +17,7 @@ def imaging(launch_module, tmp_path_factory):
     app = launch_module("HelloImaging")
     app.wait_log(r"animationImages \d+ animating")
     app.wait_log(r"rotated orientation")
+    app.wait_log(r"animate frames")         # CGAnimateImageDataWithBlock: three frames, 0.25 s apart
     a = app.wait_shot(lambda s: close(s, 20, 344, (255, 0, 0)) and close(s, 88, 80, (0, 0, 255), 5000), "drawn")
     # the GIF (0.25 s a frame) and animationImages (0.2 s) advance: the next screenshots where both changed, polled
     # rather than slept so that a loaded machine rendering few frames does not land on the same frame again
@@ -41,6 +43,8 @@ def test_imageio(imaging):
     assert "gif type com.compuserve.gif count 3 size 40x40 delay 0.25 loop 0" in log, \
         "GIF source: count, size, delay, loop"
     assert "gif frame colors [[255, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255]]" in log, "GIF frames decoded"
+    assert "animate status 0" in log and "animate frames [0, 1, 2] size 40x40" in log, "CGAnimateImageDataWithBlock (Swift)"
+    assert "aux disparity 8x8 min 1.00 max 3.00" in log, "auxiliary disparity data written and read back (Swift)"
     assert "animated image frames 3 duration 0.75 playing true" in log and \
         rgb(a, 41, 99) != rgb(b, 41, 99) and rgb(b, 41, 99) != rgb(c, 41, 99), "animated UIImage plays in UIImageView"
     assert re.search(r"png type public.png 64x32 alpha [01] thumb 16x8", log), "PNG destination + properties + thumbnail"

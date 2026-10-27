@@ -37,6 +37,13 @@ IMAGEIO_EXTERN CGImageRef _Nullable CGImageSourceCreateThumbnailAtIndex(CGImageS
 IMAGEIO_EXTERN CGImageSourceStatus CGImageSourceGetStatus(CGImageSourceRef isrc);
 IMAGEIO_EXTERN CGImageSourceStatus CGImageSourceGetStatusAtIndex(CGImageSourceRef isrc, size_t index);
 IMAGEIO_EXTERN size_t CGImageSourceGetPrimaryImageIndex(CGImageSourceRef isrc);
+IMAGEIO_EXTERN void CGImageSourceUpdateDataProvider(CGImageSourceRef isrc, CGDataProviderRef provider, bool final);
+IMAGEIO_EXTERN void CGImageSourceRemoveCacheAtIndex(CGImageSourceRef isrc, size_t index);
+/* the types sources made from then on read (the others give no images); all of them by default */
+IMAGEIO_EXTERN OSStatus CGImageSourceSetAllowableTypes(CFArrayRef allowableTypes);
+/* isim: JPEG images carrying depth, disparity or mattes as Multi-Picture Format images, as the iPhone camera writes them */
+IMAGEIO_EXTERN CFDictionaryRef _Nullable CGImageSourceCopyAuxiliaryDataInfoAtIndex(CGImageSourceRef isrc, size_t index, CFStringRef auxiliaryImageDataType)
+    CF_RETURNS_RETAINED;
 #pragma clang assume_nonnull end
 #pragma clang arc_cf_code_audited end
 __END_DECLS

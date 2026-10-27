@@ -1,7 +1,9 @@
 // ImageIO metadata from C / Objective-C (ImageIOTest.app, issue #272): the EXIF / TIFF / GPS tags Pillow wrote into
 // the fixtures (make_fixtures.py), their IPTC and XMP; CGImageMetadata (paths, values, structures, arrays, namespaces,
 // enumeration, XMP data both ways, image property matching); destinations writing properties, metadata, a source's
-// metadata, and CGImageDestinationCopyImageSource. The JPEG written last is printed (base64) for Pillow to check.
+// metadata, and CGImageDestinationCopyImageSource. The JPEG written is printed (base64) for Pillow to check. Issue #362:
+// CGAnimateImage*WithBlock, incremental sources, the cache, allowable types, and auxiliary data (disparity and a
+// portrait matte written into a JPEG and read back; Pillow reads its Multi-Picture Format images).
 #import <Foundation/Foundation.h>
 #include <ImageIO/ImageIO.h>
 #include <CoreGraphics/CoreGraphics.h>
@@ -249,6 +251,190 @@ static void writing(void) {
     CGImageRelease(im);
 }
 
+/* ---------------- animation (issue #362) ---------------- */
+static CGImageRef colored(int w, int h, double r, double g, double b) {
+    CGContextRef c = CGBitmapContextCreate(NULL, (size_t)w, (size_t)h, 8, 0, CGColorSpaceCreateDeviceRGB(), kCGImageAlphaPremultipliedLast);
+    CGContextSetRGBFillColor(c, r, g, b, 1);
+    CGContextFillRect(c, CGRectMake(0, 0, w, h));
+    CGImageRef im = CGBitmapContextCreateImage(c);
+    CGContextRelease(c);
+    return im;
+}
+static NSData *three_frame_gif(int loops) {
+    NSMutableData *gif = [NSMutableData data];
+    CGImageDestinationRef d = CGImageDestinationCreateWithData((__bridge CFMutableDataRef)gif, CFSTR("com.compuserve.gif"), 3, NULL);
+    CGImageDestinationSetProperties(d, (__bridge CFDictionaryRef)@{ S(kCGImagePropertyGIFDictionary): @{ S(kCGImagePropertyGIFLoopCount): @(loops) } });
+    double rgb[3][3] = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };
+    for (int i = 0; i < 3; i++) {
+        CGImageRef im = colored(8, 6, rgb[i][0], rgb[i][1], rgb[i][2]);
+        CGImageDestinationAddImage(d, im, (__bridge CFDictionaryRef)@{ S(kCGImagePropertyGIFDictionary): @{ S(kCGImagePropertyGIFDelayTime): @(0.02 * (i + 1)) } });
+        CGImageRelease(im);
+    }
+    CGImageDestinationFinalize(d);
+    CFRelease(d);
+    return gif;
+}
+static void spin(BOOL (^done)(void), double seconds) {
+    NSDate *until = [NSDate dateWithTimeIntervalSinceNow:seconds];
+    while (!done() && [until timeIntervalSinceNow] > 0) CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.01, false);
+}
+static int red_of(CGImageRef im) {
+    uint8_t px[4] = { 0 };
+    CGContextRef c = CGBitmapContextCreate(px, 1, 1, 8, 4, CGColorSpaceCreateDeviceRGB(), kCGImageAlphaPremultipliedLast);
+    CGContextDrawImage(c, CGRectMake(0, 0, 1, 1), im);
+    CGContextRelease(c);
+    return px[0] > 128 ? 0 : px[1] > 128 ? 1 : px[2] > 128 ? 2 : -1;   /* which of the three colors */
+}
+static void animation(void) {
+    NSData *gif = three_frame_gif(2);
+    CGImageSourceRef src = CGImageSourceCreateWithData((__bridge CFDataRef)gif, NULL);
+    NSDictionary *file = CFBridgingRelease(CGImageSourceCopyProperties(src, NULL));
+    NSDictionary *g = file[S(kCGImagePropertyGIFDictionary)];
+    NSArray *frames = g[S(kCGImagePropertyGIFFrameInfoArray)];
+    CHECK([g[S(kCGImagePropertyGIFLoopCount)] intValue] == 2 && [g[S(kCGImagePropertyGIFCanvasPixelWidth)] intValue] == 8 &&
+          [g[S(kCGImagePropertyGIFCanvasPixelHeight)] intValue] == 6 && frames.count == 3 &&
+          near(frames[2][S(kCGImagePropertyGIFDelayTime)], 0.06), "animation: the GIF's loop count, canvas and frame info");
+    CFRelease(src);
+
+    /* the file's loop count: 3 frames, twice, in order, each the right color */
+    NSMutableArray *seen = [NSMutableArray array];
+    __block BOOL colors = YES;
+    OSStatus st = CGAnimateImageDataWithBlock((__bridge CFDataRef)gif, NULL, ^(size_t index, CGImageRef image, bool *stop) {
+        [seen addObject:@(index)];
+        if (red_of(image) != (int)index) colors = NO;
+    });
+    CHECK(st == noErr && seen.count == 0, "animation: starts on the main queue, after returning");
+    spin(^BOOL { return seen.count >= 6; }, 10);
+    spin(^BOOL { return NO; }, 0.4);   /* and no more frames after the last loop */
+    CHECK([seen isEqual:(@[ @0, @1, @2, @0, @1, @2 ])] && colors, "animation: the frames of two loops (%s)", seen.description.UTF8String);
+
+    /* options: a start index, one loop, a fixed delay; the block stops it */
+    NSMutableArray *started = [NSMutableArray array];
+    NSDate *t0 = [NSDate date];
+    __block double last = 0;
+    CGAnimateImageDataWithBlock((__bridge CFDataRef)gif, (__bridge CFDictionaryRef)@{ S(kCGImageAnimationStartIndex): @1, S(kCGImageAnimationLoopCount): @0,
+                                                                                     S(kCGImageAnimationDelayTime): @0.25 }, ^(size_t index, CGImageRef image, bool *stop) {
+        [started addObject:@(index)];
+        last = -[t0 timeIntervalSinceNow];
+        if (started.count == 4) *stop = true;
+    });
+    spin(^BOOL { return started.count >= 4; }, 10);
+    spin(^BOOL { return NO; }, 0.6);
+    CHECK([started isEqual:(@[ @1, @2, @0, @1 ])] && last >= 0.7, "animation: start index, delay time, stopped by the block (%s, %.2fs)",
+          started.description.UTF8String, last);
+
+    /* a still image is one frame; bad input fails */
+    __block int stills = 0;
+    NSData *png = nil;
+    { NSMutableData *m = [NSMutableData data]; CGImageDestinationRef d = CGImageDestinationCreateWithData((__bridge CFMutableDataRef)m, CFSTR("public.png"), 1, NULL);
+      CGImageRef im = colored(4, 4, 1, 0, 0); CGImageDestinationAddImage(d, im, NULL); CGImageDestinationFinalize(d); CFRelease(d); CGImageRelease(im); png = m; }
+    NSURL *url = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:@"still.png"]];
+    [png writeToURL:url atomically:YES];
+    CHECK(CGAnimateImageAtURLWithBlock((__bridge CFURLRef)url, NULL, ^(size_t index, CGImageRef image, bool *stop) { stills++; }) == noErr,
+          "animation: from a URL");
+    spin(^BOOL { return stills > 0; }, 10);
+    spin(^BOOL { return NO; }, 0.3);
+    CHECK(stills == 1, "animation: a still image is shown once (%d)", stills);
+    CHECK(CGAnimateImageDataWithBlock((__bridge CFDataRef)[@"not an image" dataUsingEncoding:NSUTF8StringEncoding], NULL,
+                                      ^(size_t index, CGImageRef image, bool *stop) {}) == kCGImageAnimationStatus_UnsupportedFormat,
+          "animation: unknown data is an unsupported format");
+    CHECK(CGAnimateImageDataWithBlock((__bridge CFDataRef)gif, (__bridge CFDictionaryRef)@{ S(kCGImageAnimationStartIndex): @3 },
+                                      ^(size_t index, CGImageRef image, bool *stop) {}) == kCGImageAnimationStatus_ParameterError,
+          "animation: a start index past the frames");
+}
+
+/* ---------------- sources: incremental data, the cache, allowable types ---------------- */
+static void sources(void) {
+    NSData *gif = three_frame_gif(0);
+    CGImageSourceRef inc = CGImageSourceCreateIncremental(NULL);
+    CHECK(CGImageSourceGetStatus(inc) == kCGImageStatusReadingHeader && CGImageSourceGetCount(inc) == 0, "incremental: no data yet");
+    CGImageSourceUpdateData(inc, (__bridge CFDataRef)[gif subdataWithRange:NSMakeRange(0, 20)], false);
+    CHECK(CGImageSourceGetStatus(inc) == kCGImageStatusIncomplete, "incremental: part of the data");
+    CGDataProviderRef prov = CGDataProviderCreateWithCFData((__bridge CFDataRef)gif);
+    CGImageSourceUpdateDataProvider(inc, prov, true);
+    CGDataProviderRelease(prov);
+    CGImageRef im = CGImageSourceCreateImageAtIndex(inc, 2, NULL);
+    CHECK(CGImageSourceGetStatus(inc) == kCGImageStatusComplete && CGImageSourceGetCount(inc) == 3 && im && red_of(im) == 2,
+          "incremental: all of it, through a data provider");
+    CGImageRelease(im);
+    CGImageSourceRemoveCacheAtIndex(inc, 2);
+    im = CGImageSourceCreateImageAtIndex(inc, 2, NULL);
+    CHECK(im && red_of(im) == 2, "remove cache: the frame decodes again");
+    CGImageRelease(im);
+    CFRelease(inc);
+    CHECK(CGImageSourceSetAllowableTypes((__bridge CFArrayRef)@[ @"public.png" ]) == noErr, "allowable types: set");
+    CGImageSourceRef no = CGImageSourceCreateWithData((__bridge CFDataRef)gif, NULL);
+    CHECK(CGImageSourceGetCount(no) == 0 && CGImageSourceGetStatus(no) == kCGImageStatusUnknownType, "allowable types: a GIF is not read");
+    CFRelease(no);
+    CGImageSourceSetAllowableTypes((__bridge CFArrayRef)@[ @"public.png", @"com.compuserve.gif", @"public.jpeg" ]);
+    CGImageSourceRef yes = CGImageSourceCreateWithData((__bridge CFDataRef)gif, NULL);
+    CHECK(CGImageSourceGetCount(yes) == 3, "allowable types: allowed again");
+    CFRelease(yes);
+}
+
+/* ---------------- auxiliary data (issue #362) ---------------- */
+static uint16_t half_of(float f) { __fp16 h = (__fp16)f; uint16_t u; memcpy(&u, &h, 2); return u; }
+static float float_of_half(uint16_t u) { __fp16 h; memcpy(&h, &u, 2); return (float)h; }
+static void auxiliary(void) {
+    /* disparity (half floats, 1.0 to 3.0, a ramp) and a portrait matte (8 bits) */
+    const int W = 16, H = 12;
+    NSMutableData *disp = [NSMutableData dataWithLength:(size_t)W * H * 2];
+    uint16_t *dv = disp.mutableBytes;
+    for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) dv[y * W + x] = half_of(1.0f + 2.0f * (float)x / (W - 1));
+    NSMutableData *matte = [NSMutableData dataWithLength:(size_t)W * H];
+    uint8_t *mv = matte.mutableBytes;
+    for (int i = 0; i < W * H; i++) mv[i] = i % W < W / 2 ? 255 : 0;
+    CGMutableImageMetadataRef md = CGImageMetadataCreateMutable();
+    CGImageMetadataRegisterNamespaceForPrefix(md, CFSTR("http://isim.dev/ns/1.0/"), CFSTR("isim"), NULL);
+    CGImageMetadataSetValueWithPath(md, NULL, CFSTR("isim:Camera"), CFSTR("rear"));
+    NSDictionary *dispInfo = @{ S(kCGImageAuxiliaryDataInfoData): disp, S(kCGImageAuxiliaryDataInfoMetadata): (__bridge id)md,
+                                S(kCGImageAuxiliaryDataInfoDataDescription): @{ S(kCGImagePropertyWidth): @(W), S(kCGImagePropertyHeight): @(H),
+                                                                                S(kCGImagePropertyBytesPerRow): @(W * 2), S(kCGImagePropertyPixelFormat): @((uint32_t)'hdis') } };
+    NSDictionary *matteInfo = @{ S(kCGImageAuxiliaryDataInfoData): matte,
+                                 S(kCGImageAuxiliaryDataInfoDataDescription): @{ S(kCGImagePropertyWidth): @(W), S(kCGImagePropertyHeight): @(H),
+                                                                                 S(kCGImagePropertyBytesPerRow): @(W), S(kCGImagePropertyPixelFormat): @((uint32_t)'L008') } };
+    NSMutableData *jpg = [NSMutableData data];
+    CGImageDestinationRef d = CGImageDestinationCreateWithData((__bridge CFMutableDataRef)jpg, CFSTR("public.jpeg"), 1, NULL);
+    CGImageRef im = colored(32, 24, 0.2, 0.5, 0.8);
+    CGImageDestinationAddImage(d, im, (__bridge CFDictionaryRef)@{ S(kCGImagePropertyTIFFDictionary): @{ S(kCGImagePropertyTIFFMake): @"Aux" } });
+    CGImageDestinationAddAuxiliaryDataInfo(d, kCGImageAuxiliaryDataTypeDisparity, (__bridge CFDictionaryRef)dispInfo);
+    CGImageDestinationAddAuxiliaryDataInfo(d, kCGImageAuxiliaryDataTypePortraitEffectsMatte, (__bridge CFDictionaryRef)matteInfo);
+    CHECK(CGImageDestinationFinalize(d), "aux: a JPEG with disparity and a matte");
+    CFRelease(d); CGImageRelease(im); CFRelease(md);
+
+    CGImageSourceRef src = CGImageSourceCreateWithData((__bridge CFDataRef)jpg, NULL);
+    NSDictionary *p = CFBridgingRelease(CGImageSourceCopyPropertiesAtIndex(src, 0, NULL));
+    NSArray *list = p[S(kCGImagePropertyAuxiliaryData)];
+    CHECK(CGImageSourceGetCount(src) == 1 && [p[S(kCGImagePropertyPixelWidth)] intValue] == 32 &&
+          [p[S(kCGImagePropertyTIFFDictionary)][S(kCGImagePropertyTIFFMake)] isEqual:@"Aux"], "aux: the primary image and its metadata");
+    CHECK(list.count == 2 && [list[0][S(kCGImagePropertyAuxiliaryDataType)] isEqual:S(kCGImageAuxiliaryDataTypeDisparity)] &&
+          [list[1][S(kCGImagePropertyAuxiliaryDataType)] isEqual:S(kCGImageAuxiliaryDataTypePortraitEffectsMatte)] && [list[0][S(kCGImagePropertyWidth)] intValue] == W,
+          "aux: listed in the image's properties");
+    NSDictionary *back = CFBridgingRelease(CGImageSourceCopyAuxiliaryDataInfoAtIndex(src, 0, kCGImageAuxiliaryDataTypeDisparity));
+    NSDictionary *desc = back[S(kCGImageAuxiliaryDataInfoDataDescription)];
+    NSData *bd = back[S(kCGImageAuxiliaryDataInfoData)];
+    CHECK([desc[S(kCGImagePropertyWidth)] intValue] == W && [desc[S(kCGImagePropertyHeight)] intValue] == H && [desc[S(kCGImagePropertyBytesPerRow)] intValue] == W * 2 &&
+          [desc[S(kCGImagePropertyPixelFormat)] unsignedIntValue] == 'hdis' && bd.length == (NSUInteger)(W * H * 2), "aux: the disparity's description");
+    double worst = 0;
+    const uint16_t *bv = bd.bytes;
+    for (int i = 0; i < W * H && bv; i++) worst = fmax(worst, fabs(float_of_half(bv[i]) - float_of_half(dv[i])));
+    CHECK(bv && worst < 0.05, "aux: the disparity's values, within 8-bit precision (off by %.4f)", worst);
+    CGImageMetadataRef bm = (__bridge CGImageMetadataRef)back[S(kCGImageAuxiliaryDataInfoMetadata)];
+    CHECK(bm && [str(bm, @"isim:Camera") isEqual:@"rear"], "aux: its metadata");
+    NSDictionary *mback = CFBridgingRelease(CGImageSourceCopyAuxiliaryDataInfoAtIndex(src, 0, kCGImageAuxiliaryDataTypePortraitEffectsMatte));
+    NSData *mm = mback[S(kCGImageAuxiliaryDataInfoData)];
+    const uint8_t *mb = mm.bytes;
+    int wrong = 0;
+    for (int i = 0; i < W * H && mb; i++) wrong += abs((int)mb[i] - (int)mv[i]) > 24;
+    CHECK(mm.length == (NSUInteger)(W * H) && !wrong, "aux: the matte's pixels (%d wrong)", wrong);
+    CHECK(!CGImageSourceCopyAuxiliaryDataInfoAtIndex(src, 0, kCGImageAuxiliaryDataTypeDepth), "aux: a type the image lacks");
+    CGImageRef prim = CGImageSourceCreateImageAtIndex(src, 0, NULL);
+    CHECK(prim && CGImageGetWidth(prim) == 32, "aux: the primary image still decodes");
+    CGImageRelease(prim);
+    CFRelease(src);
+    printf("WROTE-AUX %s\n", [jpg base64EncodedStringWithOptions:0].UTF8String);
+}
+
 int main(void) {
     @autoreleasepool {
         reading(@"meta.jpg");
@@ -256,6 +442,9 @@ int main(void) {
         iptc();
         model();
         writing();
+        animation();
+        sources();
+        auxiliary();
         printf("imageio: %d/%d passed\n", checks - failures, checks);
     }
     return failures ? 1 : 0;

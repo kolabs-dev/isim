@@ -19,4 +19,9 @@ NSString *_Nullable isim_io_xmp_of_metadata(CGImageMetadataRef metadata);
 /* each property XMP keeps: its dictionary, key, XMP "prefix:name" and kind (a T_* kind, or for IPTC 's' string,
  * 'b' bag, 'q' seq, 'a' alternate text) */
 void isim_io_each_mapping(void (^block)(NSString *dict, NSString *key, NSString *xmp, int kind, BOOL iptc));
+/* auxiliary data in JPEG images (ImageIOAuxiliary.m): the {AuxiliaryDataType, Width, Height, PixelFormat} of each;
+ * one type's info dictionary; the JPEG with [type, info] pairs added */
+NSArray<NSDictionary *> *isim_io_auxiliary_list(NSData *jpeg);
+NSDictionary *_Nullable isim_io_auxiliary_info(NSData *jpeg, NSString *type);
+NSData *isim_io_jpeg_with_auxiliary(NSData *jpeg, NSArray<NSArray *> *aux);
 NS_ASSUME_NONNULL_END
