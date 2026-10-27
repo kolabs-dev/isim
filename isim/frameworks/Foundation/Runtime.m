@@ -518,6 +518,7 @@ static void mkdir_p(NSString *dir) {
     mkdir(buf, 0755);
 }
 
+NSNotificationName const NSUserDefaultsSizeLimitExceededNotification = @"NSUserDefaultsSizeLimitExceededNotification";
 @implementation NSUserDefaults { NSMutableDictionary *_d; NSString *_file; BOOL _global, _standard; }
 + (NSUserDefaults *)standardUserDefaults {
     static NSUserDefaults *u; static dispatch_once_t o;
@@ -585,8 +586,10 @@ static NSDictionary *argument_domain(void) {
     if (!v && _standard) v = isim_global_preferences()[k];        /* search list: app domain, then global domain */
     return v;
 }
-- (void)setObject:(id)v forKey:(NSString *)k { @synchronized (self) { if (v) _d[k] = v; else [_d removeObjectForKey:k]; [self _save]; } }
-- (void)removeObjectForKey:(NSString *)k { @synchronized (self) { [_d removeObjectForKey:k]; [self _save]; } }
+/* a change in this process is posted (NSUserDefaultsDidChangeNotification, object: these defaults), as on iOS */
+- (void)_isim_didChange { [NSNotificationCenter.defaultCenter postNotificationName:@"NSUserDefaultsDidChangeNotification" object:self]; }
+- (void)setObject:(id)v forKey:(NSString *)k { @synchronized (self) { if (v) _d[k] = v; else [_d removeObjectForKey:k]; [self _save]; } [self _isim_didChange]; }
+- (void)removeObjectForKey:(NSString *)k { @synchronized (self) { [_d removeObjectForKey:k]; [self _save]; } [self _isim_didChange]; }
 - (NSDictionary *)dictionaryRepresentation { @synchronized (self) { return [_d copy]; } }
 - (NSInteger)integerForKey:(NSString *)k { return [[self objectForKey:k] integerValue]; }
 - (void)setInteger:(NSInteger)v forKey:(NSString *)k { [self setObject:@(v) forKey:k]; }

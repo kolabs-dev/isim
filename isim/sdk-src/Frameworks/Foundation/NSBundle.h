@@ -1,5 +1,7 @@
 #pragma once
 #import <Foundation/NSObject.h>
+#import <Foundation/NSNotification.h>
+FOUNDATION_EXPORT NSNotificationName const NSBundleDidLoadNotification;
 NS_ASSUME_NONNULL_BEGIN
 @class NSString, NSArray<ObjectType>, NSDictionary<KeyType, ObjectType>, NSError;
 @interface NSBundle : NSObject
