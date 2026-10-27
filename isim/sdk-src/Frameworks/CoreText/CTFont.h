@@ -27,6 +27,9 @@ CT_EXPORT const CFStringRef kCTFontPostScriptNameKey;
 /* A font by PostScript or family name; unknown names give the system font (as on iOS). Names of iOS fonts that are
  * not on the host (Helvetica-Bold, Avenir-Heavy, ...) keep their weight/slant on the substitute. */
 CT_EXPORT CTFontRef CTFontCreateWithName(CFStringRef name, CGFloat size, const CGAffineTransform *_Nullable matrix);
+/* glyphs by their names in the font's post table (or CFF charset) */
+CT_EXPORT CGGlyph CTFontGetGlyphWithName(CTFontRef font, CFStringRef glyphName);
+CT_EXPORT CFStringRef _Nullable CTFontCopyNameForGlyph(CTFontRef font, CGGlyph glyph) CF_RETURNS_RETAINED;
 CT_EXPORT CTFontRef CTFontCreateWithFontDescriptor(CTFontDescriptorRef descriptor, CGFloat size, const CGAffineTransform *_Nullable matrix);
 CT_EXPORT CTFontRef _Nullable CTFontCreateUIFontForLanguage(CTFontUIFontType uiType, CGFloat size, CFStringRef _Nullable language);
 CT_EXPORT CTFontRef CTFontCreateCopyWithAttributes(CTFontRef font, CGFloat size, const CGAffineTransform *_Nullable matrix, CTFontDescriptorRef _Nullable attributes);

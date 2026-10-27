@@ -33,7 +33,18 @@ CT_EXPORT double CTLineGetTrailingWhitespaceWidth(CTLineRef line);
 CT_EXPORT CGRect CTLineGetImageBounds(CTLineRef line, CGContextRef _Nullable context);
 CT_EXPORT CFIndex CTLineGetStringIndexForPosition(CTLineRef line, CGPoint position);
 CT_EXPORT CGFloat CTLineGetOffsetForStringIndex(CTLineRef line, CFIndex charIndex, CGFloat *_Nullable secondaryOffset);
+/* each character's leading and trailing caret offsets, in string order */
+CT_EXPORT void CTLineEnumerateCaretOffsets(CTLineRef line, void (^block)(double offset, CFIndex charIndex, bool leadingEdge, bool *stop))
+    API_AVAILABLE(macos(10.11), ios(9.0));
 
+/* frame attributes: kept and returned by CTFrameGetFrameAttributes; isim lays out top to bottom in the path's bounding box */
+typedef CF_ENUM(uint32_t, CTFrameProgression) { kCTFrameProgressionTopToBottom = 0, kCTFrameProgressionRightToLeft = 1, kCTFrameProgressionLeftToRight = 2 };
+typedef CF_ENUM(uint32_t, CTFramePathFillRule) { kCTFramePathFillEvenOdd = 0, kCTFramePathFillWindingNumber = 1 };
+CT_EXPORT const CFStringRef kCTFrameProgressionAttributeName;
+CT_EXPORT const CFStringRef kCTFramePathFillRuleAttributeName;
+CT_EXPORT const CFStringRef kCTFramePathWidthAttributeName;
+CT_EXPORT const CFStringRef kCTFrameClippingPathsAttributeName;
+CT_EXPORT const CFStringRef kCTFramePathClippingPathAttributeName;
 CT_EXPORT CFTypeID CTFramesetterGetTypeID(void);
 CT_EXPORT CTFramesetterRef CTFramesetterCreateWithAttributedString(CFAttributedStringRef attrString);
 CT_EXPORT CTFrameRef CTFramesetterCreateFrame(CTFramesetterRef framesetter, CFRange stringRange, CGPathRef path, CFDictionaryRef _Nullable frameAttributes);
@@ -43,6 +54,7 @@ CT_EXPORT CFTypeID CTFrameGetTypeID(void);
 CT_EXPORT CFRange CTFrameGetStringRange(CTFrameRef frame);
 CT_EXPORT CFRange CTFrameGetVisibleStringRange(CTFrameRef frame);
 CT_EXPORT CGPathRef CTFrameGetPath(CTFrameRef frame);
+CT_EXPORT CFDictionaryRef _Nullable CTFrameGetFrameAttributes(CTFrameRef frame);
 CT_EXPORT CFArrayRef CTFrameGetLines(CTFrameRef frame);
 /* origins relative to the lower left of the path's bounding box (y up) */
 CT_EXPORT void CTFrameGetLineOrigins(CTFrameRef frame, CFRange range, CGPoint *origins);

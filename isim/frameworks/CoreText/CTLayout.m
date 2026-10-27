@@ -1,7 +1,8 @@
 // isim CoreText layout: CTLine, CTRun, CTFramesetter, CTFrame, CTParagraphStyle and CTTextTab over Pango layouts of
 // the attributed string's markup (host_cg.c). A framesetter lays out each paragraph on its own with its paragraph
 // style and places the lines itself: alignment, indents, line heights and spacing, paragraph spacing. String indices
-// are UTF-16 (NSString) indices, mapped from Pango's UTF-8.
+// are UTF-16 (NSString) indices, mapped from Pango's UTF-8. Typesetters break lines with the same layouts; run
+// delegates are Pango shapes; ruby is drawn over its base text.
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #include <CoreText/CoreText.h>
@@ -267,7 +268,8 @@ NSString *isim_ct_markup(NSAttributedString *s, BOOL *fromContext) {
 }
 @end
 static int wrap_of(CTLineBreakMode m) { return m == kCTLineBreakByCharWrapping ? 1 : m == kCTLineBreakByClipping ? 2 : m == kCTLineBreakByTruncatingHead ? 3 : m == kCTLineBreakByTruncatingTail ? 4 : m == kCTLineBreakByTruncatingMiddle ? 5 : 0; }
-/* width: the frame's width (0: unwrapped); single: a CTLine (1, or 2/3/4 truncated at the start / middle / end) */
+/* width: the frame's width (0: unwrapped); single: a CTLine (1, or 2/3/4 truncated at the start / middle / end, 5
+ * justified to width), or a typesetter's paragraph wrapped at width by words (6) or clusters (7) */
 static __NSCTPara *make_para(NSAttributedString *s, NSRange r, NSUInteger term, double width, int single) {
     __NSCTPara *p = [__NSCTPara new];
     p->_s = s; p->_loc = r.location; p->_len = r.length; p->_term = term;
@@ -283,7 +285,9 @@ static __NSCTPara *make_para(NSAttributedString *s, NSRange r, NSUInteger term, 
     hp.align = ps->align;
     if (single) {
         hp.single = 1;
-        if (single >= 2 && width > 0) { hp.width = width; hp.wrap = single == 2 ? 3 : single == 3 ? 5 : 4; }
+        if (single >= 2 && single <= 4 && width > 0) { hp.width = width; hp.wrap = single == 2 ? 3 : single == 3 ? 5 : 4; }
+        else if (single == 5) { hp.width = width; hp.align = 3; hp.justify_last = 1; }
+        else if (single >= 6) { hp.width = width; hp.wrap = single == 7 ? 1 : 0; }
         p->_base = 0; p->_end = width;
     } else {
         /* Pango wraps from the nearer indent; the first line's offset from it is Pango's indent (negative: hanging) */
@@ -315,6 +319,17 @@ static __NSCTPara *make_para(NSAttributedString *s, NSRange r, NSUInteger term, 
         if (fam.length) snprintf(hp.family, sizeof hp.family, "%s", fam.UTF8String);
         hp.weight = isim_ct_pango_weight(f.bold && f.weight < 0.3 ? 0.4 : f.weight); hp.italic = f.italic; hp.size = f.size;
     }
+    /* run delegates: their characters take the delegate's box (UTF-8 start, length, width, ascent, descent) */
+    NSMutableData *shapes = [NSMutableData data];
+    NSString *str = text.string;
+    [text enumerateAttribute:K(kCTRunDelegateAttributeName) inRange:NSMakeRange(0, text.length) options:0 usingBlock:^(id d, NSRange rr, BOOL *stop) {
+        if (![d isKindOfClass:[__NSCTRunDelegate class]]) return;
+        __NSCTRunDelegate *rd = d;
+        double v[5] = { (double)[[str substringToIndex:rr.location] lengthOfBytesUsingEncoding:NSUTF8StringEncoding],
+                        (double)[[str substringWithRange:rr] lengthOfBytesUsingEncoding:NSUTF8StringEncoding], fmax(0, rd.width), rd.ascent, rd.descent };
+        [shapes appendBytes:v length:sizeof v];
+    }];
+    hp.nshapes = (int)(shapes.length / (5 * sizeof(double))); hp.shapes = shapes.length ? shapes.bytes : NULL;
     p->_l = isim_ct_layout_create_para(mk.UTF8String, &hp);
     /* UTF-8 byte offset -> UTF-16 index (relative to _loc) */
     const char *u8 = text.string.UTF8String;
@@ -410,6 +425,10 @@ static NSDictionary *run_attributes(__NSCTRun *r) {
         NSUInteger a0 = [_para u16:info[i].start], a1 = [_para u16:info[i].start + info[i].len];
         r->_range = CFRangeMake((CFIndex)a0, (CFIndex)(a1 - a0));
         r->_status = (info[i].rtl ? kCTRunStatusRightToLeft : 0) | (mono ? 0 : kCTRunStatusNonMonotonic);
+        /* a run delegate's run has its metrics */
+        id del = r->_range.length && (NSUInteger)r->_range.location < _para->_s.length
+                     ? [_para->_s attribute:K(kCTRunDelegateAttributeName) atIndex:(NSUInteger)r->_range.location effectiveRange:NULL] : nil;
+        if ([del isKindOfClass:[__NSCTRunDelegate class]]) { r->_info.ascent = [del ascent]; r->_info.descent = [del descent]; r->_info.leading = 0; }
         [a addObject:r];
     }
     free(info);
@@ -453,7 +472,15 @@ CTLineRef CTLineCreateTruncatedLine(CTLineRef line, double width, CTLineTruncati
     NSRange r = NSMakeRange((NSUInteger)o->_range.location, (NSUInteger)o->_range.length);
     return (CTLineRef)CFBridgingRetain(single_line(o->_para->_s, r, width, type == kCTLineTruncationStart ? 2 : type == kCTLineTruncationMiddle ? 3 : 4));
 }
-CTLineRef CTLineCreateJustifiedLine(CTLineRef line, CGFloat factor, double width) { return CFBridgingRetain(L(line)); }
+/* the line laid out again at the width its content grows to (fully at factor 1), spaces widened by Pango */
+CTLineRef CTLineCreateJustifiedLine(CTLineRef line, CGFloat factor, double width) {
+    __NSCTLine *o = L(line);
+    double natural = o->_m.width - o->_m.trailing;
+    if (factor <= 0 || width <= natural) return CFBridgingRetain(o);
+    double target = natural + (width - natural) * fmin(factor, 1);
+    NSRange r = NSMakeRange((NSUInteger)o->_range.location, (NSUInteger)o->_range.length);
+    return (CTLineRef)CFBridgingRetain(single_line(o->_para->_s, r, target + o->_m.trailing, 5));
+}
 CFIndex CTLineGetGlyphCount(CTLineRef line) { CFIndex n = 0; for (__NSCTRun *r in [L(line) runs]) n += r->_n; return n; }
 CFArrayRef CTLineGetGlyphRuns(CTLineRef line) { return (__bridge CFArrayRef)[L(line) runs]; }
 CFRange CTLineGetStringRange(CTLineRef line) { return L(line)->_range; }
@@ -486,6 +513,65 @@ CGFloat CTLineGetOffsetForStringIndex(CTLineRef line, CFIndex idx, CGFloat *seco
     CGFloat x = isim_ct_line_x_at(l->_para->_l, l->_line, (int)[l->_para byte:(NSUInteger)idx]);
     if (secondary) *secondary = x;
     return x;
+}
+/* each character's leading and trailing edges (grapheme clusters share their edges), in string order */
+void CTLineEnumerateCaretOffsets(CTLineRef line, void (^block)(double offset, CFIndex charIndex, bool leadingEdge, bool *stop)) {
+    __NSCTLine *l = L(line);
+    if (!l || !block) return;
+    NSString *str = l->_para->_s.string;
+    CFIndex end = l->_range.location + l->_range.length;
+    if (end > (CFIndex)str.length) end = (CFIndex)str.length;
+    bool stop = false;
+    for (CFIndex i = l->_range.location; i < end && !stop;) {
+        CFIndex next = (CFIndex)NSMaxRange([str rangeOfComposedCharacterSequenceAtIndex:(NSUInteger)i]);
+        unichar c = [str characterAtIndex:(NSUInteger)i];
+        if (c == '\n' || c == '\r' || c == 0x2029) break;          /* the paragraph separator has no caret */
+        double lead = CTLineGetOffsetForStringIndex(line, i, NULL), trail = CTLineGetOffsetForStringIndex(line, next, NULL);
+        for (CFIndex k = i; k < next && !stop; k++) {
+            block(lead, k, true, &stop);
+            if (!stop) block(trail, k, false, &stop);
+        }
+        i = next;
+    }
+}
+/* kCTRubyAnnotationAttributeName: the ruby text of each annotated range, before (over) or after (under) it, at the
+ * annotation's size factor of the base font, placed for its alignment */
+static void draw_ruby(__NSCTLine *l, CGContextRef c, double dx, double dy) {
+    NSAttributedString *s = l->_para->_s;
+    NSRange lr = NSMakeRange((NSUInteger)l->_range.location, (NSUInteger)l->_range.length);
+    if (NSMaxRange(lr) > s.length) lr.length = s.length - lr.location;
+    if (!lr.length) return;
+    CGPoint p = CGContextGetTextPosition(c);
+    CGAffineTransform tm = CGContextGetTextMatrix(c);
+    [s enumerateAttribute:K(kCTRubyAnnotationAttributeName) inRange:lr options:0 usingBlock:^(id v, NSRange rr, BOOL *stop) {
+        if (![v isKindOfClass:[__NSCTRubyAnnotation class]]) return;
+        __NSCTRubyAnnotation *ruby = v;
+        CTLineRef line = (__bridge CTLineRef)l;
+        double x0 = CTLineGetOffsetForStringIndex(line, (CFIndex)rr.location, NULL), x1 = CTLineGetOffsetForStringIndex(line, (CFIndex)NSMaxRange(rr), NULL);
+        if (x1 < x0) { double t = x0; x0 = x1; x1 = t; }
+        NSDictionary *base = [s attributesAtIndex:rr.location effectiveRange:NULL];
+        CTFontRef baseFont = (__bridge CTFontRef)isim_ct_font(base[K(kCTFontAttributeName)]) ?: (__bridge CTFontRef)default_font();
+        for (int pos = kCTRubyPositionBefore; pos <= kCTRubyPositionAfter; pos++) {
+            NSString *text = ruby->_text[pos];
+            if (!text.length) continue;
+            NSMutableDictionary *a = [ruby->_attributes mutableCopy] ?: [NSMutableDictionary dictionary];
+            [a removeObjectForKey:K(kCTRubyAnnotationSizeFactorAttributeName)]; [a removeObjectForKey:K(kCTRubyAnnotationScaleToFitAttributeName)];
+            if (!a[K(kCTFontAttributeName)]) a[K(kCTFontAttributeName)] = CFBridgingRelease(CTFontCreateCopyWithAttributes(baseFont, CTFontGetSize(baseFont) * ruby->_sizeFactor, NULL, NULL));
+            id color = base[K(kCTForegroundColorAttributeName)] ?: base[@"NSColor"];
+            if (color && !a[K(kCTForegroundColorAttributeName)] && !a[@"NSColor"]) a[K(kCTForegroundColorAttributeName)] = color;
+            CTLineRef rl = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)[[NSAttributedString alloc] initWithString:text attributes:a]);
+            CGFloat ra = 0, rd = 0;
+            double rw = CTLineGetTypographicBounds(rl, &ra, &rd, NULL) - CTLineGetTrailingWhitespaceWidth(rl);
+            CTRubyAlignment al = ruby->_alignment;
+            double x = al == kCTRubyAlignmentStart ? x0 : al == kCTRubyAlignmentEnd ? x1 - rw : (x0 + x1 - rw) / 2;
+            double y = pos == kCTRubyPositionBefore ? CTFontGetAscent(baseFont) + rd : -(CTFontGetDescent(baseFont) + ra);
+            CGSize off = CGSizeApplyAffineTransform(CGSizeMake(dx + x, dy + y), tm);
+            CGContextSetTextPosition(c, p.x + off.width, p.y + off.height);
+            CTLineDraw(rl, c);
+            CFRelease(rl);
+        }
+    }];
+    CGContextSetTextPosition(c, p.x, p.y);
 }
 /* kCTStrokeWidthAttributeName: the outlines of a run's glyphs stroked at width percent of its font's size (in text
  * space), in the stroke color, else the foreground color, else the context's fill color when the color is from it */
@@ -528,6 +614,7 @@ static void draw_line(__NSCTLine *l, CGContextRef c, double dx, double dy) {
     double black[4] = { 0, 0, 0, 1 };
     isim_cg_context_draw_text_line(c, l->_para->_l, l->_line, dx, dy, l->_para->_fromContext ? NULL : black, 0);
     stroke_runs(l, c, dx, dy);
+    draw_ruby(l, c, dx, dy);
 }
 void CTLineDraw(CTLineRef line, CGContextRef c) { if (line && c) draw_line(L(line), c, 0, 0); }
 
@@ -591,11 +678,11 @@ void CTRunDraw(CTRunRef r, CGContextRef c, CFRange range) {
 }
 
 /* ---------------- framesetters and frames ---------------- */
-@interface __NSCTFramesetter : NSObject { @public NSAttributedString *_s; }
+@interface __NSCTFramesetter : NSObject { @public NSAttributedString *_s; id _typesetter; }
 @end
 @implementation __NSCTFramesetter
 @end
-@interface __NSCTFrame : NSObject { @public NSArray *_paras, *_lines; CGPoint *_origins; CGPathRef _path; CFRange _range, _visible; CGRect _rect; }
+@interface __NSCTFrame : NSObject { @public NSArray *_paras, *_lines; CGPoint *_origins; CGPathRef _path; CFRange _range, _visible; CGRect _rect; NSDictionary *_attrs; }
 @end
 @implementation __NSCTFrame
 - (void)dealloc { free(_origins); if (_path) CGPathRelease(_path); }
@@ -669,6 +756,7 @@ CTFrameRef CTFramesetterCreateFrame(CTFramesetterRef fs, CFRange range, CGPathRe
     __NSCTFrame *fr = [__NSCTFrame new];
     fr->_rect = CGPathGetBoundingBox(path);
     fr->_path = CGPathRetain(path);
+    fr->_attrs = [(__bridge NSDictionary *)attrs copy];
     fr->_paras = make_paras(f->_s, r, fr->_rect.size.width);
     fr->_lines = place(fr->_paras, fr->_rect.size.width, fr->_rect.size.height, NULL, NULL);
     NSUInteger n = fr->_lines.count;
@@ -698,6 +786,7 @@ static __NSCTFrame *FR(CTFrameRef f) { return (__bridge __NSCTFrame *)f; }
 CFRange CTFrameGetStringRange(CTFrameRef f) { return FR(f)->_range; }
 CFRange CTFrameGetVisibleStringRange(CTFrameRef f) { return FR(f)->_visible; }
 CGPathRef CTFrameGetPath(CTFrameRef f) { return FR(f)->_path; }
+CFDictionaryRef CTFrameGetFrameAttributes(CTFrameRef f) { return (__bridge CFDictionaryRef)FR(f)->_attrs; }
 CFArrayRef CTFrameGetLines(CTFrameRef f) { return (__bridge CFArrayRef)FR(f)->_lines; }
 void CTFrameGetLineOrigins(CTFrameRef f, CFRange range, CGPoint *origins) {
     __NSCTFrame *fr = FR(f);
@@ -714,4 +803,63 @@ void CTFrameDraw(CTFrameRef f, CGContextRef c) {
         draw_line(fr->_lines[i], c, 0, 0);
     }
     CGContextSetTextPosition(c, saved.x, saved.y);
+}
+
+/* ---------------- typesetters ---------------- */
+const CFStringRef kCTTypesetterOptionAllowUnboundedLayout = CFSTR("kCTTypesetterOptionAllowUnboundedLayout");
+const CFStringRef kCTTypesetterOptionForcedEmbeddingLevel = CFSTR("kCTTypesetterOptionForcedEmbeddingLevel");
+const CFStringRef kCTFrameProgressionAttributeName = CFSTR("CTFrameProgression");
+const CFStringRef kCTFramePathFillRuleAttributeName = CFSTR("CTFramePathFillRule");
+const CFStringRef kCTFramePathWidthAttributeName = CFSTR("CTFramePathWidth");
+const CFStringRef kCTFrameClippingPathsAttributeName = CFSTR("CTFrameClippingPaths");
+const CFStringRef kCTFramePathClippingPathAttributeName = CFSTR("CTFramePathClippingPath");
+@interface __NSCTTypesetter : NSObject { @public NSAttributedString *_s; NSDictionary *_options; }
+@end
+@implementation __NSCTTypesetter
+@end
+static __NSCTTypesetter *TS(CTTypesetterRef t) { return (__bridge __NSCTTypesetter *)t; }
+CFTypeID CTTypesetterGetTypeID(void) { return 0x4360; }
+CTTypesetterRef CTTypesetterCreateWithAttributedStringAndOptions(CFAttributedStringRef s, CFDictionaryRef options) {
+    if (!s) return NULL;
+    __NSCTTypesetter *t = [__NSCTTypesetter new];
+    t->_s = [(__bridge NSAttributedString *)s copy]; t->_options = [(__bridge NSDictionary *)options copy];
+    return (CTTypesetterRef)CFBridgingRetain(t);
+}
+CTTypesetterRef CTTypesetterCreateWithAttributedString(CFAttributedStringRef s) { return CTTypesetterCreateWithAttributedStringAndOptions(s, NULL); }
+CTLineRef CTTypesetterCreateLineWithOffset(CTTypesetterRef ts, CFRange range, double offset) {
+    NSAttributedString *s = TS(ts)->_s;
+    NSRange r = frame_range(s, range);
+    return (CTLineRef)CFBridgingRetain(single_line(s, r, 0, 1));
+}
+CTLineRef CTTypesetterCreateLine(CTTypesetterRef ts, CFRange range) { return CTTypesetterCreateLineWithOffset(ts, range, 0); }
+/* the length of the first line from start: the paragraph laid out at width, broken at words (or clusters) */
+static CFIndex suggest(CTTypesetterRef ts, CFIndex start, double width, BOOL clusters) {
+    NSAttributedString *s = TS(ts)->_s;
+    NSString *str = s.string;
+    if (start < 0 || (NSUInteger)start >= str.length) return 0;
+    NSUInteger j = (NSUInteger)start, term = 0;
+    while (j < str.length) { unichar c = [str characterAtIndex:j]; if (c == '\n' || c == '\r' || c == 0x2029) break; j++; }
+    if (j < str.length) term = [str characterAtIndex:j] == '\r' && j + 1 < str.length && [str characterAtIndex:j + 1] == '\n' ? 2 : 1;
+    __NSCTPara *p = make_para(s, NSMakeRange((NSUInteger)start, j - (NSUInteger)start), term, width > 0 ? width : 0, clusters ? 7 : 6);
+    NSUInteger end = j + term;
+    if (isim_ct_layout_lines(p->_l) > 1) {
+        struct isim_ct_line m; isim_ct_line_metrics(p->_l, 0, &m);
+        end = [p u16:m.start + m.len];
+    }
+    if (end <= (NSUInteger)start) end = NSMaxRange([str rangeOfComposedCharacterSequenceAtIndex:(NSUInteger)start]);
+    return (CFIndex)(end - (NSUInteger)start);
+}
+CFIndex CTTypesetterSuggestLineBreakWithOffset(CTTypesetterRef ts, CFIndex start, double width, double offset) { return suggest(ts, start, width, NO); }
+CFIndex CTTypesetterSuggestLineBreak(CTTypesetterRef ts, CFIndex start, double width) { return suggest(ts, start, width, NO); }
+CFIndex CTTypesetterSuggestClusterBreakWithOffset(CTTypesetterRef ts, CFIndex start, double width, double offset) { return suggest(ts, start, width, YES); }
+CFIndex CTTypesetterSuggestClusterBreak(CTTypesetterRef ts, CFIndex start, double width) { return suggest(ts, start, width, YES); }
+CTFramesetterRef CTFramesetterCreateWithTypesetter(CTTypesetterRef ts) {
+    __NSCTFramesetter *f = [__NSCTFramesetter new];
+    f->_s = TS(ts)->_s; f->_typesetter = (__bridge id)ts;
+    return (CTFramesetterRef)CFBridgingRetain(f);
+}
+CTTypesetterRef CTFramesetterGetTypesetter(CTFramesetterRef fs) {
+    __NSCTFramesetter *f = (__bridge __NSCTFramesetter *)fs;
+    if (!f->_typesetter) f->_typesetter = CFBridgingRelease(CTTypesetterCreateWithAttributedString((__bridge CFAttributedStringRef)f->_s));
+    return (__bridge CTTypesetterRef)f->_typesetter;
 }

@@ -7,6 +7,8 @@ __BEGIN_DECLS
 /* isim: a CGFont is a font name resolved by the host's fontconfig when text is drawn (no glyph tables) */
 typedef struct CGFont *CGFontRef;
 typedef unsigned short CGGlyph;
+typedef unsigned short CGFontIndex;
+enum : CGFontIndex { kCGFontIndexMax = ((1 << 16) - 2), kCGFontIndexInvalid = ((1 << 16) - 1), kCGGlyphMax = kCGFontIndexMax };
 CG_EXTERN CFTypeID CGFontGetTypeID(void);
 CG_EXTERN CGFontRef _Nullable CGFontCreateWithFontName(CFStringRef _Nullable name) CF_RETURNS_RETAINED CG_SWIFT_NAME(CGFont.init(_:));
 CG_EXTERN CGFontRef _Nullable CGFontCreateWithDataProvider(CGDataProviderRef provider) CF_RETURNS_RETAINED CG_SWIFT_NAME(CGFont.init(_:));

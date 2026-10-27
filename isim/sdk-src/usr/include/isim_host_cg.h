@@ -68,9 +68,11 @@ struct isim_ct_run { int start, len, glyphs, weight, italic, has_color; double x
  * (only justified (3) matters, lines are placed by the caller); wrap: 0 words, 1 characters, 2 none (clip), 3/4/5 one
  * line truncated at the start / end / middle; dir: -1 natural, 0 left-to-right, 1 right-to-left; tabs: -1 Pango's
  * default, else tab stops (tab_align: CTTextAlignment, 5 = decimal); family / weight / italic / size: the layout's
- * default font (empty family: the system font, 12 pt) */
+ * default font (empty family: the system font, 12 pt); justify_last: justify the last line too; shapes: nshapes
+ * (UTF-8 start, length, width, ascent, descent) of characters each taking that box and drawing nothing */
 struct isim_ct_para { double width, indent; int align, wrap, dir, single, tabs; double tab_pos[64]; int tab_align[64];
-                      char family[160]; int weight, italic; double size; };
+                      char family[160]; int weight, italic; double size;
+                      int justify_last, nshapes; const double *_Nullable shapes; };
 /* line metrics without any placement: ink is (x, y, w, h) y-up from the baseline; start/len in UTF-8 bytes */
 struct isim_ct_line { double ascent, descent, leading, width, trailing, ink[4]; int start, len, rtl, para_start; };
 /* a font's metrics (points), names and face: face_weight is the OpenType weight of the face file, synthetic 1 = bold
@@ -104,6 +106,9 @@ int isim_ct_font_glyphs(void *_Nullable f, const unsigned *cps, unsigned short *
 void isim_ct_font_glyph_metrics(void *_Nullable f, const unsigned short *glyphs, int n, double *_Nullable adv, double *_Nullable rects);
 /* outline: 0 move x y, 1 line x y, 2 quad cx cy x y, 3 cubic x1 y1 x2 y2 x y, 4 close; returns the doubles needed */
 int isim_ct_font_glyph_path(void *_Nullable f, unsigned short glyph, double *_Nullable ops, int max);
+/* a glyph by its name in the font (0: none); a glyph's name (0 when it has none) */
+int isim_ct_font_glyph_from_name(void *_Nullable f, const char *name);
+int isim_ct_font_glyph_name(void *_Nullable f, unsigned short glyph, char *out, int outlen);
 /* OpenType feature tags (GSUB, GPOS); returns the count, which may exceed max */
 int isim_ct_font_features(void *_Nullable f, unsigned *_Nullable tags, int max);
 /* the faces of font data: "PostScript name\tfamily\tstyle\n" per face; returns how many */

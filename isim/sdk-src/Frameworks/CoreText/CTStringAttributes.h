@@ -6,6 +6,12 @@ __BEGIN_DECLS
 /* the attributes of attributed strings Core Text lays out (the same strings as UIKit's NSAttributedString keys where
  * they overlap). isim: lines are laid out by the host's Pango; strokes are drawn from the glyph outlines. */
 CT_EXPORT const CFStringRef kCTFontAttributeName;
+/* a CTRunDelegate: each character takes its width, ascent and descent and draws nothing (CTRunDelegate.h) */
+CT_EXPORT const CFStringRef kCTRunDelegateAttributeName;
+/* a CTRubyAnnotation drawn with the characters (CTRubyAnnotation.h) */
+CT_EXPORT const CFStringRef kCTRubyAnnotationAttributeName;
+/* a CTGlyphInfo, kept on the run (CTGlyphInfo.h) */
+CT_EXPORT const CFStringRef kCTGlyphInfoAttributeName;
 CT_EXPORT const CFStringRef kCTForegroundColorFromContextAttributeName;
 CT_EXPORT const CFStringRef kCTKernAttributeName;
 /* points added between characters, like kern, without turning off ligatures */

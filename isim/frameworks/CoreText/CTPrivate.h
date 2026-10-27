@@ -44,3 +44,16 @@ void isim_ct_pstyle_of(id style, isim_ct_pstyle *out);
 
 /* markup of an attributed string (default font: 12pt system); colorFromContext: kCTForegroundColorFromContextAttributeName was set */
 NSString *isim_ct_markup(NSAttributedString *s, BOOL *colorFromContext);
+
+/* run delegates (kCTRunDelegateAttributeName) and ruby annotations (kCTRubyAnnotationAttributeName), CTObjects.m */
+@interface __NSCTRunDelegate : NSObject {
+@public CTRunDelegateCallbacks _callbacks; void *_refCon;
+}
+- (CGFloat)ascent;
+- (CGFloat)descent;
+- (CGFloat)width;
+@end
+@interface __NSCTRubyAnnotation : NSObject {
+@public CTRubyAlignment _alignment; CTRubyOverhang _overhang; CGFloat _sizeFactor; NSString *_text[kCTRubyPositionCount]; NSDictionary *_attributes;
+}
+@end
