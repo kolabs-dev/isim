@@ -5,7 +5,10 @@
   types, predicates, reverse order; the system scope throws. The `signposts` script command summarizes intervals.
 - MetricKit measured: a hang of the main thread is a hang diagnostic (with its stack) as soon as it ends;
   `metrickit deliver` brings this run's metric payload (CPU, memory, launch, hangs, foreground time, display
-  luminance, MetricKit signposts); GPU 0, no cellular.
+  luminance, MetricKit signposts, disk space usage); GPU 0, no cellular.
+- iOS 27 (issue #354): MetricManager's reports as async sequences: the metric report (one interval entry, a state entry
+  per StateReporting state with its metadata, Codable grouped by domain) and the hang's diagnostic report (call stack
+  tree, the states then); trackLaunchTask before the first frame, and too late after it; @ReportableMetadata.
 - Crash reports: a SIGSEGV in C, an uncaught NSRangeException and a Swift fatalError each write an .ips report
   (`isim crashlog list/show`); the next launch gets an MXCrashDiagnostic and the crashed run's metrics with its exit.
 - A slow launch (2.5 s) is an MXAppLaunchDiagnostic.
@@ -13,6 +16,7 @@
   waits, a CFRunLoopTimer fires, a CFRunLoopPerformBlock block runs in the default mode.
 """
 import os
+import re
 import subprocess
 
 from isimtest import ISIM
@@ -53,10 +57,23 @@ def test_log_store_signposts_metrickit(launch):
     m = app.wait_log(r"diag metric payload .*")
     line = m.group(0)
     for part in ("version=2.1", "cpu=true", "peak=true", "launch=1", "hangs=1", "fg=true", "gpu=0.0", "cellular=nil",
-                 "apl=true", "signposts=Diag:Mark=1/0,Diag:Work=2/1", "json=true"):
+                 "apl=true", "signposts=Diag:Mark=1/0,Diag:Work=2/1", "json=true", "disk=true"):
         assert part in line, f"measured metric payload: {part} in {line}"
     app.wait_log(r"diag past payloads 1")
     assert "no crash reports" in crashlog(app.data, "list")
+
+
+def test_metric_reports_ios27(launch):
+    """iOS 27 (issue #354): MetricManager's reports, StateReporting's states, trackLaunchTask, @ReportableMetadata."""
+    app = launch(APP, os_version="27", device="iphone17")
+    for line in ("diag launch task result=3 errors=0", "diag launch task late reason=pastDeadline", "diag state metadata items,name items=true",
+                 "isim state: dev.isim.diag.screen -> home"):
+        app.wait_log(re.escape(line))
+    app.wait_log(r"diag report hang duration=true frames=true named=true states=(home|detail) pid=true", timeout=30)
+    app.wait_log(r"isim state: dev\.isim\.diag\.screen -> detail")
+    app.send("metrickit deliver")
+    app.wait_log(r"diag report metrics intervals=1 cpu=true disk=true groups=\d+ signposts=Diag:Mark=1,Diag:Work=2 states=detail,home "
+                 r"home=true byDomain=2 json=true decoded=2 os=iOS")
 
 
 def test_crash_reports(launch):

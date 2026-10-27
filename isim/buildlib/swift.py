@@ -448,7 +448,7 @@ class Swift:
         libraries in lib/swift/host): isim's SwiftCompilerPlugin module (what macro packages import; `isim build`
         compiles their macro targets against it), isim's PreviewsMacros plugin (`#Preview`), SwiftUIMacros plugin
         (`@Entry`, `@Animatable`), SwiftDataMacros plugin (`@Model`), FoundationModelsMacros plugin (`@Generable`,
-        `@Guide`), AppIntentsMacros plugin (`@AssistantIntent(schema:)`, …) and TipKitMacros plugin (`#Rule`, `@Parameter`), in
+        `@Guide`), AppIntentsMacros plugin (`@AssistantIntent(schema:)`, …), TipKitMacros plugin (`#Rule`, `@Parameter`) and StateReportingMacros plugin (`@ReportableMetadata`), in
         out/swift/host
         (`isim swiftc` passes -plugin-path out/swift/host/plugins)"""
         H = f"{SW}/host"
@@ -490,7 +490,12 @@ class Swift:
                           "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
                           "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libTipKitMacros.so"],
                          ["swift/macro-support/TipKitMacros.swift"], implicit=cp, plain=True, desc="SWIFT TipKitMacros (host)")
-        return cp + pm + um + sm + fm + am + tm
+        rm = self.swiftc([f"{H}/plugins/libStateReportingMacros.so"],
+                         ["-O", "-emit-library", "-parse-as-library", "-module-name", "StateReportingMacros", *WERROR, *host, "-I", H, "-L", H,
+                          "-Xlinker", "-rpath", "-Xlinker", "$ORIGIN/..", "-lSwiftCompilerPlugin", "-lSwiftSyntaxMacros",
+                          "-lSwiftSyntaxBuilder", "-lSwiftSyntax", "-o", f"{H}/plugins/libStateReportingMacros.so"],
+                         ["swift/macro-support/StateReportingMacros.swift"], implicit=cp, plain=True, desc="SWIFT StateReportingMacros (host)")
+        return cp + pm + um + sm + fm + am + tm + rm
 
     def onone(self):
         src = f"{self.src}/stdlib/public/SwiftOnoneSupport/SwiftOnoneSupport.swift"
@@ -961,7 +966,8 @@ SafariServices -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftWebKit -l
 AdSupport -lswiftObjectiveC -lswiftFoundation -framework Foundation
 AdServices -lswiftObjectiveC -lswiftFoundation -framework Foundation
 AdAttributionKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswift_Concurrency -framework Foundation -framework UIKit
-MetricKit -lswiftos -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation -lisim_host
+StateReporting -lswiftos -lswiftObjectiveC -lswiftFoundation -framework Foundation   # issue #354: the states MetricKit's MetricManager attributes measurements to
+MetricKit -lswiftos -lswiftStateReporting -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation -lisim_host
 CloudKit -reexport-lswift_CKShareMetadata -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreLocation -lswift_Concurrency -framework Foundation -framework UIKit
 AuthenticationServices -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftWebKit -lswiftSafariServices -lswiftSwiftUI -lswiftCryptoKit -lswiftSecurity -lswiftDispatch -lswiftCoreGraphics -lswiftCombine -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics -alias _$s22AuthenticationServices25ASAuthorizationControllerC33_isimCustomAuthorizationMethodsV1SayypGvMTj _$s22AuthenticationServices25ASAuthorizationControllerC26customAuthorizationMethodsSayypGvMTj -alias _$s22AuthenticationServices25ASAuthorizationControllerC33_isimCustomAuthorizationMethodsV1SayypGvMTq _$s22AuthenticationServices25ASAuthorizationControllerC26customAuthorizationMethodsSayypGvMTq -alias _$s22AuthenticationServices25ASAuthorizationControllerC33_isimCustomAuthorizationMethodsV1SayypGvgTj _$s22AuthenticationServices25ASAuthorizationControllerC26customAuthorizationMethodsSayypGvgTj -alias _$s22AuthenticationServices25ASAuthorizationControllerC33_isimCustomAuthorizationMethodsV1SayypGvgTq _$s22AuthenticationServices25ASAuthorizationControllerC26customAuthorizationMethodsSayypGvgTq -alias _$s22AuthenticationServices25ASAuthorizationControllerC33_isimCustomAuthorizationMethodsV1SayypGvpMV _$s22AuthenticationServices25ASAuthorizationControllerC26customAuthorizationMethodsSayypGvpMV -alias _$s22AuthenticationServices25ASAuthorizationControllerC33_isimCustomAuthorizationMethodsV1SayypGvsTj _$s22AuthenticationServices25ASAuthorizationControllerC26customAuthorizationMethodsSayypGvsTj -alias _$s22AuthenticationServices25ASAuthorizationControllerC33_isimCustomAuthorizationMethodsV1SayypGvsTq _$s22AuthenticationServices25ASAuthorizationControllerC26customAuthorizationMethodsSayypGvsTq   # ASAuthorizationController.customAuthorizationMethods as [Any] (before #306)
 MessageUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit
@@ -989,7 +995,7 @@ CallKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency 
 EVOLUTION = set("""ObjectiveC _CKShareMetadata Accelerate VideoToolbox Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI QuickLook EventKit EventKitUI Contacts ContactsUI
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
 GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Security os OSLog Compression LocalAuthentication
-DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices
+DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport StateReporting MetricKit CloudKit AuthenticationServices
 QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision NaturalLanguage FoundationModels Speech VisionKit WebKit SafariServices LinkPresentation Accessibility MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit TipKit Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit
 CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive""".split())
@@ -999,6 +1005,6 @@ PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFounda
 ATTRIBUTION = set("StoreKit AdAttributionKit".split())
 # overlays that declare macros of isim's compiler plugins (host_plugins): they compile after the plugin is built
 MACRO_PLUGINS = {"UIKit": ["PreviewsMacros"], "SwiftUI": ["PreviewsMacros", "SwiftUIMacros"], "SwiftData": ["SwiftDataMacros"],
-                 "FoundationModels": ["FoundationModelsMacros"], "TipKit": ["TipKitMacros"],
+                 "FoundationModels": ["FoundationModelsMacros"], "TipKit": ["TipKitMacros"], "StateReporting": ["StateReportingMacros"],
                  "AppIntents": ["SwiftDataMacros", "AppIntentsMacros"]}   # @ComputedProperty uses SwiftData's no-op property macro
 
