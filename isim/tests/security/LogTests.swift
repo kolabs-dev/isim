@@ -30,4 +30,18 @@ func logTests() {
     for _ in 0..<8 { DispatchQueue.global().async(group: group) { for _ in 0..<1000 { counter.withLock { $0 += 1 } } } }
     group.wait()
     check(counter.withLock { $0 } == 8000, "OSAllocatedUnfairLock under contention")
+    check(counter.withLockIfAvailableUnchecked { $0 } == 8000 && OSAllocatedUnfairLock().withLockIfAvailableUnchecked { 5 } == 5 &&
+          OSAllocatedUnfairLockFlags.adaptiveSpin.rawValue != 0, "withLockIfAvailableUnchecked, OSAllocatedUnfairLockFlags")
+
+    // issue #353: activities and available memory (OSLogC.m), Logger.disabled / isEnabled, OSLogMessage, extended formats
+    check(cOSActivityTest() == 0, "os_activity_create / scope enter and leave / apply / initiate, os_proc_available_memory")
+    check(!Logger.disabled.isEnabled(type: .fault) && logger.isEnabled(type: .error), "Logger.disabled, Logger.isEnabled(type:)")
+    let message: OSLogMessage = "a \(1) b \(2.5) c"
+    check(message.bufferSize == 22 && maxOSLogArgumentCount == 48, "OSLogMessage.bufferSize (\(message.bufferSize)), maxOSLogArgumentCount")
+    var ts = timespec(tv_sec: 12, tv_nsec: 5)
+    withUnsafePointer(to: &ts) { p in
+        logger.info("bytes \(1_500_000, format: .byteCount, privacy: .public) errno \(Int32(2), format: .darwinErrno, privacy: .public) truth \(Int32(1), format: .truth, privacy: .public) time \(UnsafeRawPointer(p), format: .timespec, privacy: .public)")
+    }
+    let encoded = try? JSONEncoder().encode(signposter.beginInterval("coded"))
+    check(encoded.flatMap { try? JSONDecoder().decode(OSSignpostIntervalState.self, from: $0) } != nil, "OSSignpostIntervalState is Codable")
 }
