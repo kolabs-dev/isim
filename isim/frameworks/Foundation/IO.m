@@ -352,7 +352,7 @@ NSNotificationName const NSProcessInfoThermalStateDidChangeNotification = @"NSPr
 - (unsigned long long)physicalMemory {
     const char *d = getenv("ISIM_DEVICE"); NSString *dev = d ? @(d) : @"iphone15";
     unsigned long long gb = [dev hasPrefix:@"iphonese"] ? 4 : [dev hasPrefix:@"iphone13"] || [dev hasPrefix:@"iphone14"] ? 4 :
-                            [dev isEqualToString:@"iphone15"] || [dev isEqualToString:@"iphone15plus"] ? 6 :
+                            [dev isEqualToString:@"iphone15"] || [dev isEqualToString:@"iphone15plus"] || [dev isEqualToString:@"ipada16"] ? 6 :
                             [dev hasPrefix:@"ipadpro"] ? 16 : 8;
     return gb << 30;
 }

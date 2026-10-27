@@ -258,3 +258,23 @@ def test_device_pairing(tmp_path):
     assert re.search(r"^iphone17 +iPhone 17 +26.0 27.0$", dout, re.M) and \
         re.search(r"^iphone15 +iPhone 15 +17.0 18.0 26.0 27.0$", dout, re.M) and \
         re.search(r"^ipadpro11 .* 17.5 18.0 26.0 27.0$", dout, re.M), "isim devices shows the versions per device"
+
+
+def test_newer_device_presets(tmp_path):
+    """iPhone 16 Plus, iPhone 16e (a notch, iOS 18.3), iPad Air 13-inch (M2) and iPad (A16) (iOS 18.4): listed with
+    the iOS versions they run, their model identifiers, screen sizes and first iOS release."""
+    need_apps("HelloOSVersions")
+    app = str(APPS / "HelloOSVersions.app")
+    _, dout = isim("devices", data=tmp_path / "list")
+    for line in (r"^iphone16plus +iPhone 16 Plus +18.0 26.0 27.0$", r"^iphone16e +iPhone 16e +18.3 26.0 27.0$",
+                 r"^ipadair13 +iPad Air 13-inch \(M2\) +17.5 18.0 26.0 27.0$", r"^ipada16 +iPad \(A16\) +18.4 26.0 27.0$"):
+        assert re.search(line, dout, re.M), f"isim devices lists {line}"
+    rc, out = isim("run", app, "--os", "18", "--device", "iphone16e", data=tmp_path / "e", script="quit")
+    assert rc == 2 and "iPhone 16e requires iOS 18.3 or later" in out, "iOS 18.0 on iPhone 16e (first sold with 18.3) is rejected"
+    for dev, model, name, size in (("iphone16plus", "iPhone17,4", "iPhone 16 Plus", (860, 1864)), ("iphone16e", "iPhone17,5", "iPhone 16e", (780, 1688)),
+                                   ("ipadair13", "iPad14,10", "iPad Air 13-inch (M2)", (2048, 2732)), ("ipada16", "iPad15,7", "iPad (A16)", (1640, 2360))):
+        shot = tmp_path / f"{dev}.png"
+        rc, out = isim("run", app, "--device", dev, data=tmp_path / dev, script=f"wait 0.5; shot {shot}; quit")
+        assert f"hov simulator model={model} name={name} " in out, f"{dev}: SIMULATOR_MODEL_IDENTIFIER and the device name ({out[-400:]})"
+        from PIL import Image
+        assert Image.open(shot).size == size, f"{dev}: the screen size"
