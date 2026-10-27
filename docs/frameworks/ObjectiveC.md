@@ -1,7 +1,7 @@
 # Objective-C runtime
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 71.1% of Apple's iOS API (315 of 443, exact) · **Rows:** 22: 20 ✅ 1 🟡 1 ❌ · **iOS:** 2.0+
+**Symbols:** 71.3% of Apple's iOS API (316 of 443, exact) · **Rows:** 22: 20 ✅ 1 🟡 1 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [ObjectiveC](https://developer.apple.com/documentation/objectivec) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)
@@ -42,7 +42,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-128 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+127 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -59,7 +59,6 @@
 - [`func accessibilityLineStartPositionFromCurrentSelection() -> Int`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilitylinestartpositionfromcurrentselection())
 - [`func attemptRecovery(fromError: any Error, optionIndex: Int) -> Bool`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/attemptrecovery(fromerror:optionindex:))
 - [`func attemptRecovery(fromError: any Error, optionIndex: Int, delegate: Any?, didRecoverSelector: Selector?, contextInfo: UnsafeMutableRawPointer?)`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/attemptrecovery(fromerror:optionindex:delegate:didrecoverselector:contextinfo:))
-- [`var autoContentAccessingProxy: Any`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/autocontentaccessingproxy)
 - [`var automationElementsBlock: AXArrayReturnBlock?`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/automationelementsblock)
 - [`func browserAccessibilityAttributedValue(in: NSRange) -> NSAttributedString`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/browseraccessibilityattributedvalue(in:))
 - [`var browserAccessibilityContainerType: BEAccessibilityContainerType`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/browseraccessibilitycontainertype)

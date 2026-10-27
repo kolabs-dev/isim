@@ -1,7 +1,7 @@
 # SpriteKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 96.0% of Apple's iOS API (1130 of 1177, exact) · **Rows:** 50: 42 ✅ 6 🟡 2 ❌ · **iOS:** 7.0+
+**Symbols:** 97.1% of Apple's iOS API (1143 of 1177, exact) · **Rows:** 51: 43 ✅ 6 🟡 2 ❌ · **iOS:** 7.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [SpriteKit](https://developer.apple.com/documentation/spritekit) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)
@@ -81,24 +81,11 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-47 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+34 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
 - [`var PHYSICSKIT_MINUS_GL_IMPORTS: Int32`](https://developer.apple.com/documentation/spritekit/physicskit_minus_gl_imports)
-- [`SK3DNode`](https://developer.apple.com/documentation/spritekit/sk3dnode)
-- [`var autoenablesDefaultLighting: Bool`](https://developer.apple.com/documentation/spritekit/sk3dnode/autoenablesdefaultlighting)
-- [`func hitTest(CGPoint, options: [String : Any]?) -> [SCNHitTestResult]`](https://developer.apple.com/documentation/spritekit/sk3dnode/hittest(_:options:))
-- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/spritekit/sk3dnode/init(coder:))
-- [`init(viewportSize: CGSize)`](https://developer.apple.com/documentation/spritekit/sk3dnode/init(viewportsize:))
-- [`var isPlaying: Bool`](https://developer.apple.com/documentation/spritekit/sk3dnode/isplaying)
-- [`var loops: Bool`](https://developer.apple.com/documentation/spritekit/sk3dnode/loops)
-- [`var pointOfView: SCNNode?`](https://developer.apple.com/documentation/spritekit/sk3dnode/pointofview)
-- [`func projectPoint(vector_float3) -> vector_float3`](https://developer.apple.com/documentation/spritekit/sk3dnode/projectpoint(_:))
-- [`var sceneTime: TimeInterval`](https://developer.apple.com/documentation/spritekit/sk3dnode/scenetime)
-- [`var scnScene: SCNScene?`](https://developer.apple.com/documentation/spritekit/sk3dnode/scnscene)
-- [`func unprojectPoint(vector_float3) -> vector_float3`](https://developer.apple.com/documentation/spritekit/sk3dnode/unprojectpoint(_:))
-- [`var viewportSize: CGSize`](https://developer.apple.com/documentation/spritekit/sk3dnode/viewportsize)
 - [`var SK_VERSION: Int32`](https://developer.apple.com/documentation/spritekit/sk_version)
 - [`class func setNormalTexture(SKTexture) -> SKAction`](https://developer.apple.com/documentation/spritekit/skaction/setnormaltexture(_:))
 - [`class func setNormalTexture(SKTexture, resize: Bool) -> SKAction`](https://developer.apple.com/documentation/spritekit/skaction/setnormaltexture(_:resize:))

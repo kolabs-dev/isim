@@ -1,7 +1,7 @@
 # Darwin (C library, POSIX, Mach)
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Rows:** 25: 22 ✅ 3 🟡
+**Rows:** 26: 23 ✅ 3 🟡
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)

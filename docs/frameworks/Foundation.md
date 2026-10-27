@@ -1,7 +1,7 @@
 # Foundation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 46.1% of Apple's iOS API (12716 of 27607, exact) · **Rows:** 105: 97 ✅ 5 🟡 3 ❌ · **iOS:** 2.0+
+**Symbols:** 49.9% of Apple's iOS API (13786 of 27619, exact) · **Rows:** 118: 107 ✅ 8 🟡 3 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Foundation & CoreFoundation](../COVERAGE.md#foundation) · **Apple:** [Foundation](https://developer.apple.com/documentation/foundation) · **Issues:** [`area:foundation`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Afoundation)
@@ -177,7 +177,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-14891 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+13833 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -217,8 +217,6 @@
 - [`func isValid(within: some AttributedStringProtocol) -> Bool`](https://developer.apple.com/documentation/foundation/attributedstring/index/isvalid(within:)-8fw50)
 - [`func isValid(within: some AttributedStringProtocol) -> Bool`](https://developer.apple.com/documentation/foundation/attributedstring/index/isvalid(within:)-8fw50)
 - [`func isValid(within: some AttributedStringProtocol) -> Bool`](https://developer.apple.com/documentation/foundation/attributedstring/index/isvalid(within:)-8fw50)
-- [`func inflected() -> AttributedString`](https://developer.apple.com/documentation/foundation/attributedstring/inflected())
-- [`func inflected(locale: Locale, userTermOfAddress: TermOfAddress?, inflectionConcepts: [InflectionConcept]) -> AttributedString`](https://developer.apple.com/documentation/foundation/attributedstring/inflected(locale:usertermofaddress:inflectionconcepts:))
 - [`AttributedString.InterpolationOptions`](https://developer.apple.com/documentation/foundation/attributedstring/interpolationoptions)
 - [`static let insertAttributesWithoutMerging: AttributedString.InterpolationOptions`](https://developer.apple.com/documentation/foundation/attributedstring/interpolationoptions/insertattributeswithoutmerging)
 - [`AttributedString.LineHeight`](https://developer.apple.com/documentation/foundation/attributedstring/lineheight)
@@ -229,14 +227,6 @@
 - [`static var normal: AttributedString.LineHeight`](https://developer.apple.com/documentation/foundation/attributedstring/lineheight/normal)
 - [`static var tight: AttributedString.LineHeight`](https://developer.apple.com/documentation/foundation/attributedstring/lineheight/tight)
 - [`static var variable: AttributedString.LineHeight`](https://developer.apple.com/documentation/foundation/attributedstring/lineheight/variable)
-- [`AttributedString.LocalizationOptions`](https://developer.apple.com/documentation/foundation/attributedstring/localizationoptions)
-- [`var applyReplacementIndexAttribute: Bool`](https://developer.apple.com/documentation/foundation/attributedstring/localizationoptions/applyreplacementindexattribute)
-- [`var concepts: [InflectionConcept]?`](https://developer.apple.com/documentation/foundation/attributedstring/localizationoptions/concepts)
-- [`var inflect: Bool`](https://developer.apple.com/documentation/foundation/attributedstring/localizationoptions/inflect)
-- [`init()`](https://developer.apple.com/documentation/foundation/attributedstring/localizationoptions/init())
-- [`static func localizedPhraseConcept(String) -> AttributedString.LocalizationOptions`](https://developer.apple.com/documentation/foundation/attributedstring/localizationoptions/localizedphraseconcept(_:))
-- [`var replacements: [any CVarArg]?`](https://developer.apple.com/documentation/foundation/attributedstring/localizationoptions/replacements)
-- [`static func termsOfAddressConcept([TermOfAddress]) -> AttributedString.LocalizationOptions`](https://developer.apple.com/documentation/foundation/attributedstring/localizationoptions/termsofaddressconcept(_:))
 - [`func makeContainer(context: IntentValueContainer.ConversionContext) -> IntentValueContainer`](https://developer.apple.com/documentation/foundation/attributedstring/makecontainer(context:))
 - [`func rangeOfAudioTimeRangeAttributes(intersecting: CMTimeRange) -> Range<AttributedString.Index>?`](https://developer.apple.com/documentation/foundation/attributedstring/rangeofaudiotimerangeattributes(intersecting:))
 - [`func removeSubranges(RangeSet<AttributedString.Index>)`](https://developer.apple.com/documentation/foundation/attributedstring/removesubranges(_:))
@@ -403,10 +393,6 @@
 - [`case nanoseconds`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/durationfieldattribute/field/nanoseconds)
 - [`case seconds`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/durationfieldattribute/field/seconds)
 - [`case weeks`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/durationfieldattribute/field/weeks)
-- [`let inflect: AttributeScopes.FoundationAttributes.InflectionRuleAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/inflect)
-- [`let inflectionAlternative: AttributeScopes.FoundationAttributes.InflectionAlternativeAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/inflectionalternative)
-- [`AttributeScopes.FoundationAttributes.InflectionAlternativeAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/inflectionalternativeattribute)
-- [`AttributeScopes.FoundationAttributes.InflectionRuleAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/inflectionruleattribute)
 - [`let listItemDelimiter: AttributeScopes.FoundationAttributes.ListItemDelimiterAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/listitemdelimiter)
 - [`AttributeScopes.FoundationAttributes.ListItemDelimiterAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/listitemdelimiterattribute)
 - [`let localizedNumberFormat: AttributeScopes.FoundationAttributes.LocalizedNumberFormatAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/localizednumberformat)
@@ -435,8 +421,6 @@
 - [`AttributeScopes.FoundationAttributes.MeasurementAttribute.Component`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/measurementattribute/component)
 - [`case unit`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/measurementattribute/component/unit)
 - [`case value`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/measurementattribute/component/value)
-- [`let morphology: AttributeScopes.FoundationAttributes.MorphologyAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/morphology)
-- [`AttributeScopes.FoundationAttributes.MorphologyAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/morphologyattribute)
 - [`let numberFormat: AttributeScopes.FoundationAttributes.NumberFormatAttributes`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformat)
 - [`AttributeScopes.FoundationAttributes.NumberFormatAttributes`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformatattributes)
 - [`let numberPart: AttributeScopes.FoundationAttributes.NumberFormatAttributes.NumberPartAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/foundationattributes/numberformatattributes/numberpart)
@@ -481,7 +465,23 @@
 - [`AttributeScopes.SwiftUIAttributes.BackgroundColorAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/backgroundcolorattribute)
 - [`let baselineOffset: AttributeScopes.SwiftUIAttributes.BaselineOffsetAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/baselineoffset)
 - [`AttributeScopes.SwiftUIAttributes.BaselineOffsetAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/baselineoffsetattribute)
-- … and 14591 more (`isim/data/api-coverage.json.gz`)
+- [`let font: AttributeScopes.SwiftUIAttributes.FontAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/font)
+- [`AttributeScopes.SwiftUIAttributes.FontAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/fontattribute)
+- [`let foregroundColor: AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/foregroundcolor)
+- [`AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/foregroundcolorattribute)
+- [`let foundation: AttributeScopes.FoundationAttributes`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/foundation)
+- [`let kern: AttributeScopes.SwiftUIAttributes.KerningAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/kern)
+- [`AttributeScopes.SwiftUIAttributes.KerningAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/kerningattribute)
+- [`let lineHeight: AttributeScopes.CoreTextAttributes.LineHeightAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/lineheight)
+- [`let strikethroughStyle: AttributeScopes.SwiftUIAttributes.StrikethroughStyleAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/strikethroughstyle)
+- [`AttributeScopes.SwiftUIAttributes.StrikethroughStyleAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/strikethroughstyleattribute)
+- [`let tracking: AttributeScopes.SwiftUIAttributes.TrackingAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/tracking)
+- [`AttributeScopes.SwiftUIAttributes.TrackingAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/trackingattribute)
+- [`let underlineStyle: AttributeScopes.SwiftUIAttributes.UnderlineStyleAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/underlinestyle)
+- [`AttributeScopes.SwiftUIAttributes.UnderlineStyleAttribute`](https://developer.apple.com/documentation/foundation/attributescopes/swiftuiattributes/underlinestyleattribute)
+- [`var translation: AttributeScopes.TranslationAttributes.Type`](https://developer.apple.com/documentation/foundation/attributescopes/translation)
+- [`AttributeScopes.TranslationAttributes`](https://developer.apple.com/documentation/foundation/attributescopes/translationattributes)
+- … and 13533 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

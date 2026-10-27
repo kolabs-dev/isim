@@ -1,7 +1,7 @@
 # Swift (stdlib, runtime, concurrency)
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 92.5% of Apple's iOS API (21980 of 23770, exact) · **Rows:** 27: 25 ✅ 2 ❌ · **iOS:** 8.0+
+**Symbols:** 92.5% of Apple's iOS API (21983 of 23770, exact) · **Rows:** 27: 25 ✅ 2 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [Swift](https://developer.apple.com/documentation/swift) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)
@@ -46,7 +46,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1790 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1787 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -354,7 +354,7 @@
 - [`static func ..< (Self) -> PartialRangeUpTo<Self>`](https://developer.apple.com/documentation/swift/float/'.._(_:))
 - [`static func ..< (Self) -> PartialRangeUpTo<Self>`](https://developer.apple.com/documentation/swift/float/'.._(_:))
 - [`static func ..< (Self, Self) -> Range<Self>`](https://developer.apple.com/documentation/swift/float/'.._(_:_:))
-- … and 1490 more (`isim/data/api-coverage.json.gz`)
+- … and 1487 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->
