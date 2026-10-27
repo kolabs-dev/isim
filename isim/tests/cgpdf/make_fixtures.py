@@ -277,6 +277,51 @@ def text_document():
     ]
 
 
+def annots_document():
+    """two pages of text; the first has an annotation of each kind PDFKit reads (issue #358): a highlight, a note with
+    its popup, links (a URL and a page), ink, a square, a line with an arrow, free text, a text field (a kid of its
+    field) and a check box; the outline's items have a URL and a named action"""
+    t1 = b"BT /F1 20 Tf 72 700 Td (The quick brown fox) Tj 0 -30 Td (jumps over the lazy dog) Tj 0 -30 Td (The end) Tj ET\n"
+    t2 = b"BT /F1 20 Tf 72 700 Td (Second page fox) Tj ET\n"
+    return [
+        {"Type": N("Catalog"), "Pages": R(2), "Outlines": R(22), "AcroForm": {"Fields": [R(19), R(18)]}},          # 1
+        {"Type": N("Pages"), "Kids": [R(3), R(4)], "Count": 2, "MediaBox": [0, 0, 612, 792], "Resources": {"Font": {"F1": R(7)}}},
+        {"Type": N("Page"), "Parent": R(2), "Contents": R(5), "Annots": [R(n) for n in range(8, 19)]},          # 3
+        {"Type": N("Page"), "Parent": R(2), "Contents": R(6)},                                                     # 4
+        Stream({}, t1),                                                                                            # 5
+        Stream({}, t2),                                                                                            # 6
+        {"Type": N("Font"), "Subtype": N("Type1"), "BaseFont": N("Helvetica")},                                    # 7
+        {"Type": N("Annot"), "Subtype": N("Highlight"), "Rect": [70, 695, 280, 722], "C": [1, 1, 0], "Contents": b"Important",
+         "T": b"Kev", "QuadPoints": [72, 720, 270, 720, 72, 696, 270, 696], "F": 4},                                 # 8
+        {"Type": N("Annot"), "Subtype": N("Text"), "Rect": [400, 700, 420, 720], "Contents": b"A note", "Name": N("Comment"),
+         "Popup": R(10), "C": [1, 0.8, 0]},                                                                        # 9
+        {"Type": N("Annot"), "Subtype": N("Popup"), "Rect": [420, 600, 560, 700], "Parent": R(9), "Open": True},   # 10
+        {"Type": N("Annot"), "Subtype": N("Link"), "Rect": [72, 640, 150, 660], "Border": [0, 0, 0],
+         "A": {"S": N("URI"), "URI": b"https://example.com/fox"}},                                                  # 11
+        {"Type": N("Annot"), "Subtype": N("Link"), "Rect": [160, 640, 250, 660], "Border": [0, 0, 0],
+         "Dest": [R(4), N("XYZ"), 72, 720, 0]},                                                                    # 12
+        {"Type": N("Annot"), "Subtype": N("Ink"), "Rect": [100, 100, 200, 200], "C": [0, 0, 1], "BS": {"W": 3},
+         "InkList": [[110, 110, 150, 190, 190, 110]]},                                                             # 13
+        {"Type": N("Annot"), "Subtype": N("Square"), "Rect": [300, 100, 400, 200], "C": [1, 0, 0], "IC": [0, 1, 0],
+         "BS": {"W": 2, "S": N("D"), "D": [3, 2]}},                                                                # 14
+        {"Type": N("Annot"), "Subtype": N("Line"), "Rect": [50, 300, 250, 340], "L": [60, 320, 240, 320],
+         "LE": [N("None"), N("ClosedArrow")], "C": [0, 0, 0]},                                                     # 15
+        {"Type": N("Annot"), "Subtype": N("FreeText"), "Rect": [300, 300, 500, 340], "Contents": b"Free text",
+         "DA": b"/Helv 14 Tf 0 0 1 rg", "Q": 1},                                                                   # 16
+        {"Type": N("Annot"), "Subtype": N("Widget"), "Rect": [72, 400, 272, 424], "Parent": R(19),
+         "DA": b"/Helv 12 Tf 0 g", "MK": {"BG": [0.9, 0.9, 0.9], "BC": [0, 0, 0]}},                                # 17
+        {"Type": N("Annot"), "Subtype": N("Widget"), "Rect": [300, 400, 320, 420], "FT": N("Btn"), "T": b"agree",
+         "V": N("Yes"), "AS": N("Yes"), "AP": {"N": {"Yes": R(20), "Off": R(21)}}, "MK": {"BC": [0, 0, 0]}},        # 18
+        {"FT": N("Tx"), "T": b"name", "V": b"Ann", "Kids": [R(17)], "Ff": 0},                                      # 19
+        Stream({"Type": N("XObject"), "Subtype": N("Form"), "BBox": [0, 0, 20, 20]}, b"0 0 m 20 20 l S\n"),       # 20
+        Stream({"Type": N("XObject"), "Subtype": N("Form"), "BBox": [0, 0, 20, 20]}, b""),                         # 21
+        {"Type": N("Outlines"), "First": R(23), "Last": R(24), "Count": 2},                                        # 22
+        {"Title": b"Web", "Parent": R(22), "Next": R(24), "A": {"S": N("URI"), "URI": b"https://example.com/out"}}, # 23
+        {"Title": b"Next", "Parent": R(22), "Prev": R(23), "A": {"S": N("Named"), "N": N("NextPage")}},            # 24
+        {"Title": b"Annots"},                                                                                      # 25
+    ]
+
+
 def check(path, password=None, flag="-upw"):
     cmd = ["pdfinfo"] + ([flag, password] if password is not None else []) + [path]
     r = subprocess.run(cmd, capture_output=True, text=True)
@@ -292,6 +337,7 @@ def main():
         "objstm.pdf": objstm(),
         "damaged.pdf": classic(document(), broken_xref=True)[0],
         "text.pdf": classic(text_document(), info=8)[0],
+        "annots.pdf": classic(annots_document(), info=25)[0],
         "rc4.pdf": classic(document(), sec=Security(3, "user", "owner"))[0],
         "aes128.pdf": classic(document(), sec=Security(4, "", "owner"), version=b"1.6")[0],
         "aes256.pdf": classic(document(), sec=Security(6, "user", "owner"), version=b"1.7")[0],

@@ -1,10 +1,10 @@
 #pragma once
 #import <PDFKit/PDFKitPlatform.h>
 NS_ASSUME_NONNULL_BEGIN
-@class PDFDocument, PDFDestination;
+@class PDFDocument, PDFDestination, PDFAction;
 
-/* an item of a document's outline (bookmarks). isim: no `action` yet (PDFAction, issue #358); an item that only has a
- * GoTo action reports its destination */
+/* an item of a document's outline (bookmarks): a destination, or an action (a GoTo action also gives the
+ * destination) */
 PDFKIT_CLASS_AVAILABLE(10_4, 11_0)
 @interface PDFOutline : NSObject
 - (instancetype)init NS_DESIGNATED_INITIALIZER;
@@ -18,6 +18,7 @@ PDFKIT_CLASS_AVAILABLE(10_4, 11_0)
 @property (nonatomic, copy, nullable) NSString *label;
 @property (nonatomic) BOOL isOpen PDFKIT_AVAILABLE(10_5, 11_0);
 @property (nonatomic, strong, nullable) PDFDestination *destination;
+@property (nonatomic, strong, nullable) PDFAction *action PDFKIT_AVAILABLE(10_5, 11_0);
 @end
 
 NS_ASSUME_NONNULL_END

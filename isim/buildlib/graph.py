@@ -175,8 +175,8 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
     ("UserNotificationsUI", "-framework Foundation -framework UIKit -framework UserNotifications"),
     ("Social", "-framework Foundation -framework UIKit -framework CoreGraphics"),
     ("Accessibility", "-framework Foundation"),
-    ("QuickLook", "-framework Foundation -framework UIKit -framework CoreGraphics -lisim_host"),
     ("PDFKit", "-framework Foundation -framework UIKit -framework CoreGraphics"),
+    ("QuickLook", "-framework Foundation -framework UIKit -framework CoreGraphics -framework PDFKit -lisim_host"),   # PDF previews
     ("CoreData", "-framework Foundation -lsqlite3"),
     ("XCTest", "-framework Foundation -framework UIKit -framework CoreGraphics -lisim_host"),
     ("Intents", "-framework Foundation -framework UIKit -framework CoreGraphics"),

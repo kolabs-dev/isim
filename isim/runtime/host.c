@@ -972,6 +972,7 @@ static void measure_context(void) {
     static cairo_t *mcr;
     if (!mcr) { cairo_surface_t *s = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 1, 1); mcr = cairo_create(s); cairo_surface_destroy(s); }
     cairo_identity_matrix(mcr); cairo_scale(mcr, px_scale, px_scale);
+    if (!pctx) text_context(mcr);                  /* a process without an app surface (a test binary) */
     pango_cairo_update_context(mcr, pctx);
 }
 ISIM_GUEST_ABI void isim_text_measure_f(const char *utf8, const char *family, double size, double weight, int mono, double maxw, int lines, double *w, double *h) {
@@ -990,6 +991,7 @@ ISIM_GUEST_ABI void isim_text_end_point_f(const char *utf8, const char *family, 
 }
 ISIM_GUEST_ABI void isim_text_draw_f(const char *utf8, const char *family, double x, double y, double w, double size, double weight, int mono, int align, int lines, const double *rgba) {
     PangoLayout *l = layout_for_family(utf8, family, size, weight, mono, w, lines, align);
+    if (!pctx) text_context(cr);
     pango_cairo_update_context(cr, pctx);
     cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]);
     cairo_move_to(cr, x, y);
@@ -1958,6 +1960,7 @@ ISIM_GUEST_ABI void isim_text_ink_markup(const char *markup, double maxw, int li
 }
 ISIM_GUEST_ABI void isim_text_draw_markup(const char *markup, double x, double y, double w, int lines, int align, double spacing, const double *rgba) {
     PangoLayout *l = layout_markup(markup, w, lines, align, spacing);
+    if (!pctx) text_context(cr);
     pango_cairo_update_context(cr, pctx);
     pango_layout_context_changed(l);
     if (w > 0) {     /* text that fits on one line (with these drawing metrics) is not wrapped by a rounding error */
@@ -2042,6 +2045,7 @@ ISIM_GUEST_ABI int isim_tl_index_at(void *t, double x, double y, int *trailing) 
 }
 ISIM_GUEST_ABI void isim_tl_draw(void *t, double x, double y, const double *rgba) {
     PangoLayout *l = (PangoLayout *)t;
+    if (!pctx) text_context(cr);
     pango_cairo_update_context(cr, pctx);
     pango_layout_context_changed(l);
     cairo_set_source_rgba(cr, rgba[0], rgba[1], rgba[2], rgba[3]);

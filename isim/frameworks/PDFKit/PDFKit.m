@@ -2,12 +2,16 @@
  * pages, boxes, outline, labels, info, encryption) and poppler (drawing, through CGContextDrawPDFPage, and text). A
  * document is an array of pages; each page draws from the CGPDFDocument it came from, an image, or nothing. Writing
  * redraws the pages into a CGPDFContext (adapted: vector content stays vector; a rotated page is written turned). */
-#import <PDFKit/PDFKit.h>
+#import "pdfkit_internal.h"
 #include <float.h>
+#pragma clang diagnostic ignored "-Wincomplete-implementation"      /* selections and find: PDFSelection.m */
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
 
 /* CoreGraphics' private helpers for PDFKit (CGBitmap.c) */
 extern char *isim_CGPDFPageCopyText(CGPDFPageRef page, CGRect **rects, size_t *count);
 extern int isim_CGPDFDocumentGetUnlockLevel(CGPDFDocumentRef document);
+extern void *isim_CGPDFDataCopyAddingAnnotations(const void *data, size_t len, int count, const char *const *sources,
+                                                 const int *pageOf, size_t *outLen);
 
 const CGFloat kPDFDestinationUnspecifiedValue = FLT_MAX;
 NSNotificationName const PDFDocumentDidUnlockNotification = @"PDFDocumentDidUnlock";
@@ -35,13 +39,6 @@ PDFPageImageInitializationOption const PDFPageImageInitializationOptionCompressi
 
 @interface PDFOutline (Isim)
 - (void)_setDocument:(PDFDocument *)doc;
-@end
-@interface PDFPage (Isim)
-- (instancetype)_initWithDocument:(CGPDFDocumentRef)doc index:(size_t)index;
-- (CGPDFDocumentRef)_source;
-- (size_t)_sourceIndex;
-- (CGSize)_displaySize:(PDFDisplayBox)box;
-- (void)setDocument:(PDFDocument *)document;
 @end
 
 static BOOL is_low_surrogate(unichar c) { return c >= 0xDC00 && c <= 0xDFFF; }
@@ -128,6 +125,9 @@ static NSString *pdf_text(CGPDFDictionaryRef d, const char *key) {
     CGRect *_rects;
     size_t _nrects;
     BOOL _textRead;
+    CGRect *_units;                     /* a rectangle per UTF-16 unit of _text */
+    NSMutableArray<PDFAnnotation *> *_annotations;   /* nil until read */
+    NSMutableArray<PDFAnnotation *> *_removedWidgets;  /* source form fields removed (Core Graphics draws them) */
 }
 - (instancetype)init {
     if (!(self = [super init])) return nil;
@@ -163,7 +163,7 @@ static NSString *pdf_text(CGPDFDictionaryRef d, const char *key) {
 }
 - (void)dealloc {
     CGPDFDocumentRelease(_source);
-    free(_rects);
+    free(_rects); free(_units);
 }
 - (id)copyWithZone:(NSZone *)zone {
     PDFPage *p = [[[self class] alloc] init];
@@ -172,6 +172,9 @@ static NSString *pdf_text(CGPDFDictionaryRef d, const char *key) {
     memcpy(p->_boxes, _boxes, sizeof _boxes); memcpy(p->_boxSet, _boxSet, sizeof _boxSet);
     p->_rotation = _rotation; p->_rotationSet = _rotationSet;
     p->_displaysAnnotations = _displaysAnnotations;
+    p->_annotations = [NSMutableArray array];
+    for (PDFAnnotation *a in self._isim_annotations) { PDFAnnotation *c = [a copy]; c.page = p; [p->_annotations addObject:c]; }
+    p->_removedWidgets = [_removedWidgets mutableCopy];
     return p;
 }
 - (CGPDFDocumentRef)_source { return _source; }
@@ -239,6 +242,7 @@ static const char *const box_names[] = { "MediaBox", "CropBox", "BleedBox", "Tri
     [self transformContext:context forBox:box];
     CGContextClipToRect(context, [self boundsForBox:box]);
     [self _drawContentIn:context];
+    if (_displaysAnnotations) [self _isim_drawAnnotationsIn:context box:box printing:NO];
     CGContextRestoreGState(context);
 }
 - (void)drawWithBox:(PDFDisplayBox)box { [self drawWithBox:box toContext:UIGraphicsGetCurrentContext()]; }
@@ -352,6 +356,130 @@ static BOOL label_entry(CGPDFDictionaryRef node, NSInteger index, NSInteger *key
     }
     return -1;
 }
+- (const CGRect *)_isim_unitRects {
+    NSString *s = self.string;
+    if (!_units && s.length) {
+        _units = calloc(s.length, sizeof *_units);
+        size_t cp = 0;
+        for (NSUInteger i = 0; i < s.length; i++) {
+            if (i > 0 && is_low_surrogate([s characterAtIndex:i])) { _units[i] = _units[i - 1]; continue; }
+            _units[i] = cp < _nrects ? _rects[cp] : CGRectZero;
+            cp++;
+        }
+    }
+    return _units;
+}
+- (NSUInteger)_isim_characterNearPoint:(CGPoint)point {
+    NSString *s = self.string;
+    const CGRect *r = self._isim_unitRects;
+    NSUInteger best = NSNotFound;
+    CGFloat bestD = CGFLOAT_MAX;
+    for (NSUInteger i = 0; i < s.length; i++) {
+        if ([s characterAtIndex:i] == '\n' || CGRectIsEmpty(r[i])) continue;
+        if (CGRectContainsPoint(r[i], point)) return i;
+        CGFloat dx = MAX(0, MAX(CGRectGetMinX(r[i]) - point.x, point.x - CGRectGetMaxX(r[i])));
+        CGFloat dy = MAX(0, MAX(CGRectGetMinY(r[i]) - point.y, point.y - CGRectGetMaxY(r[i])));
+        CGFloat d = dx * dx + dy * dy * 4;                             /* the same line before the next one */
+        if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
+}
+- (NSRange)_isim_lineRangeAt:(NSUInteger)index {
+    NSString *s = self.string;
+    if (index >= s.length) return NSMakeRange(s.length, 0);
+    NSUInteger a = index, b = index;
+    while (a > 0 && [s characterAtIndex:a - 1] != '\n') a--;
+    while (b < s.length && [s characterAtIndex:b] != '\n') b++;
+    return NSMakeRange(a, b - a);
+}
+- (NSRange)_isim_wordRangeAt:(NSUInteger)index {
+    NSString *s = self.string;
+    if (index >= s.length) return NSMakeRange(s.length, 0);
+    NSCharacterSet *word = [NSCharacterSet alphanumericCharacterSet];
+    BOOL (^isWord)(NSUInteger) = ^BOOL(NSUInteger i) {
+        unichar c = [s characterAtIndex:i];
+        return [word characterIsMember:c] || c == '\'' || c == 0x2019 || isim_high_surrogate(c) || isim_low_surrogate(c);
+    };
+    if (!isWord(index)) return NSMakeRange(index, 1);
+    NSUInteger a = index, b = index;
+    while (a > 0 && isWord(a - 1)) a--;
+    while (b < s.length && isWord(b)) b++;
+    return NSMakeRange(a, b - a);
+}
+
+/* ---- annotations ---- */
+- (NSArray<PDFAnnotation *> *)_isim_annotations {
+    if (_annotations) return _annotations;
+    _annotations = [NSMutableArray array];
+    CGPDFDictionaryRef d = CGPDFPageGetDictionary(self.pageRef);
+    CGPDFArrayRef annots;
+    if (!d || !CGPDFDictionaryGetArray(d, "Annots", &annots)) return _annotations;
+    NSMutableDictionary<NSValue *, PDFAnnotation *> *bySource = [NSMutableDictionary dictionary];   /* by dictionary */
+    id<PDFDocumentDelegate> delegate = self.document.delegate;
+    for (size_t i = 0; i < CGPDFArrayGetCount(annots); i++) {
+        CGPDFDictionaryRef a; const char *sub = "";
+        if (!CGPDFArrayGetDictionary(annots, i, &a)) continue;
+        CGPDFDictionaryGetName(a, "Subtype", &sub);
+        Class cls = [PDFAnnotation class];
+        if ([delegate respondsToSelector:@selector(classForAnnotationType:)]) {
+            Class c = [delegate classForAnnotationType:@(sub)];
+            if ([c isSubclassOfClass:[PDFAnnotation class]]) cls = c;
+        }
+        PDFAnnotation *annotation = [[cls alloc] _initWithIsimDictionary:a page:self];
+        if (!annotation) continue;
+        [_annotations addObject:annotation];
+        bySource[[NSValue valueWithPointer:a]] = annotation;
+    }
+    for (PDFAnnotation *annotation in _annotations) {                 /* popups and their parents */
+        CGPDFDictionaryRef popup;
+        if (CGPDFDictionaryGetDictionary(annotation._isim_sourceDictionary, "Popup", &popup)) {
+            PDFAnnotation *p = bySource[[NSValue valueWithPointer:popup]];
+            if (p) annotation.popup = p;
+        }
+    }
+    return _annotations;
+}
+- (NSArray<PDFAnnotation *> *)annotations { return [self._isim_annotations copy]; }
+- (void)addAnnotation:(PDFAnnotation *)annotation {
+    if (!annotation) return;
+    PDFPage *old = annotation.page;
+    if (old && old != self) [old removeAnnotation:annotation];
+    if ([self._isim_annotations indexOfObjectIdenticalTo:annotation] == NSNotFound) [_annotations addObject:annotation];
+    annotation.page = self;
+    [_removedWidgets removeObjectIdenticalTo:annotation];
+}
+- (void)removeAnnotation:(PDFAnnotation *)annotation {
+    if (!annotation || [self._isim_annotations indexOfObjectIdenticalTo:annotation] == NSNotFound) return;
+    [_annotations removeObjectIdenticalTo:annotation];
+    if (annotation._isim_sourceDictionary && [annotation.type isEqual:@"Widget"]) {
+        if (!_removedWidgets) _removedWidgets = [NSMutableArray array];
+        [_removedWidgets addObject:annotation];
+    }
+    if (annotation.page == self) annotation.page = nil;
+}
+- (PDFAnnotation *)annotationAtPoint:(CGPoint)point {
+    for (PDFAnnotation *a in self._isim_annotations.reverseObjectEnumerator)
+        if (a.shouldDisplay && ![a.type isEqual:@"Popup"] && CGRectContainsPoint(a.bounds, point)) return a;
+    return nil;
+}
+/* poppler's print path (Core Graphics) may draw the page's own form fields: a source field is drawn here over a blank
+ * of its bounds, and a removed one is blanked */
+- (void)_isim_drawAnnotationsIn:(CGContextRef)ctx box:(PDFDisplayBox)box printing:(BOOL)printing {
+    for (PDFAnnotation *a in _removedWidgets) {
+        CGContextSetRGBFillColor(ctx, 1, 1, 1, 1);
+        CGContextFillRect(ctx, a.bounds);
+    }
+    for (PDFAnnotation *a in self._isim_annotations) {
+        if ([a.type isEqual:@"Popup"] || (printing && !a.shouldPrint)) continue;
+        if (a._isim_sourceDictionary && [a.type isEqual:@"Widget"] && self.pageRef) {
+            PDFAppearanceCharacteristics *mk = [a valueForAnnotationKey:PDFAnnotationKeyWidgetAppearanceDictionary];
+            CGContextSetFillColorWithColor(ctx, (mk.backgroundColor ?: [UIColor whiteColor]).CGColor);
+            CGContextFillRect(ctx, a.bounds);
+        }
+        [a drawWithBox:box inContext:ctx];
+    }
+}
+
 - (NSData *)dataRepresentation {
     PDFDocument *d = [[PDFDocument alloc] init];
     [d insertPage:[self copy] atIndex:0];
@@ -583,6 +711,7 @@ static CGPDFObjectRef name_tree(CGPDFDictionaryRef node, CGPDFStringRef key, int
         if (!a && CGPDFDictionaryGetDictionary(item, "A", &action) && CGPDFDictionaryGetName(action, "S", &type) && !strcmp(type, "GoTo") &&
             CGPDFDictionaryGetObject(action, "D", &dest)) a = [self _destArray:dest depth:0];
         if (a) o.destination = [self _destination:a];
+        if (CGPDFDictionaryGetDictionary(item, "A", &action)) o.action = [self _isim_actionForDictionary:action];
         [node insertChild:o atIndex:node.numberOfChildren];
         [self _readChildren:item into:o depth:depth + 1];
         CGPDFDictionaryRef next;
@@ -639,18 +768,46 @@ static CGPDFObjectRef name_tree(CGPDFDictionaryRef node, CGPDFStringRef key, int
     CGDataConsumerRelease(consumer);
     if (!ctx) return nil;
     NSArray *pages = [self._pages copy];
+    BOOL burnIn = [options[PDFDocumentBurnInAnnotationsOption] boolValue];
     for (PDFPage *p in pages) {
         CGSize sz = [p _displaySize:kPDFDisplayBoxCropBox];
         CGRect box = CGRectMake(0, 0, sz.width, sz.height);
         NSData *boxData = [NSData dataWithBytes:&box length:sizeof box];
         CGPDFContextBeginPage(ctx, (__bridge CFDictionaryRef)@{ (__bridge NSString *)kCGPDFContextMediaBox: boxData });
+        BOOL shows = p.displaysAnnotations;
+        p.displaysAnnotations = NO;                                    /* the annotations are written as annotations */
         [p drawWithBox:kPDFDisplayBoxCropBox toContext:ctx];
+        p.displaysAnnotations = shows;
+        if (burnIn) {
+            CGContextSaveGState(ctx);
+            [p transformContext:ctx forBox:kPDFDisplayBoxCropBox];
+            [p _isim_drawAnnotationsIn:ctx box:kPDFDisplayBoxCropBox printing:YES];
+            CGContextRestoreGState(ctx);
+        }
         CGPDFContextEndPage(ctx);
     }
     if (self.outlineRoot) CGPDFContextSetOutline(ctx, (__bridge CFDictionaryRef)[self _outlineDict:self.outlineRoot pages:pages]);
     CGPDFContextClose(ctx);
     CGContextRelease(ctx);
-    return out;
+    if (burnIn) return out;
+    /* the annotations: their dictionaries added to the written pages (Core Graphics rewrites the file) */
+    NSMutableArray<PDFAnnotation *> *all = [NSMutableArray array];
+    NSMutableArray<NSNumber *> *pageOf = [NSMutableArray array];
+    for (NSUInteger i = 0; i < pages.count; i++)
+        for (PDFAnnotation *a in [pages[i] _isim_annotations]) { [all addObject:a]; [pageOf addObject:@(i)]; }
+    if (!all.count) return out;
+    NSMutableArray<NSString *> *sources = [NSMutableArray array];
+    for (NSUInteger k = 0; k < all.count; k++) {
+        PDFPage *p = pages[pageOf[k].unsignedIntegerValue];
+        [sources addObject:[all[k] _isim_pdfSourceWithTransform:[p transformForBox:kPDFDisplayBoxCropBox] pages:pages all:all]];
+    }
+    const char **cs = calloc(sources.count, sizeof *cs);
+    int *po = calloc(sources.count, sizeof *po);
+    for (NSUInteger k = 0; k < sources.count; k++) { cs[k] = sources[k].UTF8String; po[k] = pageOf[k].intValue; }
+    size_t len = 0;
+    void *bytes = isim_CGPDFDataCopyAddingAnnotations(out.bytes, out.length, (int)sources.count, cs, po, &len);
+    free(cs); free(po);
+    return bytes ? [NSData dataWithBytesNoCopy:bytes length:len freeWhenDone:YES] : out;
 }
 - (NSData *)dataRepresentation { return [self dataRepresentationWithOptions:@{}]; }
 - (BOOL)writeToURL:(NSURL *)url withOptions:(NSDictionary<PDFDocumentWriteOption, id> *)options {

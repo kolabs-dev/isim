@@ -6,6 +6,7 @@
  * on access, as Core Graphics' accessors do. Also: the public CGPDFObject / Array / Dictionary / String / Stream API. */
 #include "cg_pdf.h"
 #include <CoreFoundation/CoreFoundation.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1085,4 +1086,161 @@ CFDataRef CGPDFStreamCopyData(CGPDFStreamRef s, CGPDFDataFormat *format) {
     CFDataRef d = CFDataCreate(NULL, p, (CFIndex)n);
     free(p);
     return d;
+}
+
+/* ---------------- rewriting (PDFKit's annotations) ---------------- */
+/* isim (PDFKit, issue #358): a document rewritten with every object it has (object streams and cross-reference
+ * streams written out as plain objects, a cross-reference table) plus new objects: the PDF sources `sources[k]`, each
+ * added to the /Annots of page `page_of[k]` (from 0). In a source, "@P<n>@" stands for page n's reference and
+ * "@A<n>@" for new object n's. Returns malloc'd bytes (*out_len), or NULL. */
+typedef struct { char *p; size_t n, cap; } obuf;
+static void ob_put(obuf *b, const void *s, size_t n) {
+    if (b->n + n + 1 > b->cap) { b->cap = (b->n + n + 1) * 2; b->p = realloc(b->p, b->cap); }
+    memcpy(b->p + b->n, s, n); b->n += n; b->p[b->n] = 0;
+}
+static void ob_str(obuf *b, const char *s) { ob_put(b, s, strlen(s)); }
+static void ob_fmt(obuf *b, const char *fmt, ...) {
+    char tmp[256]; va_list ap; va_start(ap, fmt); int n = vsnprintf(tmp, sizeof tmp, fmt, ap); va_end(ap);
+    if (n > 0) ob_put(b, tmp, (size_t)(n < (int)sizeof tmp ? n : (int)sizeof tmp - 1));
+}
+static void ob_name(obuf *b, const char *name) {
+    ob_str(b, "/");
+    for (const unsigned char *p = (const unsigned char *)name; *p; p++) {
+        if (*p > 32 && *p < 127 && !strchr("#()<>[]{}/%", *p)) ob_put(b, p, 1);
+        else ob_fmt(b, "#%02X", *p);
+    }
+}
+static void ob_real(obuf *b, double v) {
+    if (v == (double)(long)v && v < 1e12 && v > -1e12) { ob_fmt(b, "%ld", (long)v); return; }
+    char tmp[64]; snprintf(tmp, sizeof tmp, "%.6f", v);
+    size_t n = strlen(tmp);
+    while (n > 1 && tmp[n - 1] == '0') tmp[--n] = 0;
+    if (n > 1 && tmp[n - 1] == '.') tmp[--n] = 0;
+    ob_str(b, tmp);
+}
+static void ob_object(obuf *b, struct CGPDFObject *o, struct CGPDFDictionary *page_dict, const char *annots, int depth);
+static void ob_dict(obuf *b, struct CGPDFDictionary *d, const char *annots, int skip_length, int depth) {
+    ob_str(b, "<<");
+    int had_annots = 0;
+    for (size_t i = 0; i < d->n; i++) {
+        if (skip_length && !strcmp(d->keys[i], "Length")) continue;
+        ob_str(b, " "); ob_name(b, d->keys[i]); ob_str(b, " ");
+        if (annots && !strcmp(d->keys[i], "Annots")) {                /* the page's annotations, then the new ones */
+            had_annots = 1;
+            struct CGPDFObject *a = isim_pdf_resolve(d->doc, &d->vals[i]);
+            ob_str(b, "[");
+            if (a && a->type == kCGPDFObjectTypeArray)
+                for (size_t k = 0; k < a->v.arr->n; k++) { ob_str(b, " "); ob_object(b, &a->v.arr->items[k], NULL, NULL, depth + 1); }
+            ob_str(b, annots); ob_str(b, " ]");
+            continue;
+        }
+        ob_object(b, &d->vals[i], NULL, NULL, depth + 1);
+    }
+    if (annots && !had_annots) { ob_str(b, " /Annots ["); ob_str(b, annots); ob_str(b, " ]"); }
+    ob_str(b, " >>");
+}
+static void ob_object(obuf *b, struct CGPDFObject *o, struct CGPDFDictionary *page_dict, const char *annots, int depth) {
+    if (!o || depth > 64) { ob_str(b, "null"); return; }
+    switch (o->type) {
+        case PDF_REF: ob_fmt(b, "%d %d R", o->v.ref.num, o->v.ref.gen); break;
+        case kCGPDFObjectTypeBoolean: ob_str(b, o->v.b ? "true" : "false"); break;
+        case kCGPDFObjectTypeInteger: ob_fmt(b, "%ld", o->v.i); break;
+        case kCGPDFObjectTypeReal: ob_real(b, o->v.r); break;
+        case kCGPDFObjectTypeName: ob_name(b, o->v.name); break;
+        case kCGPDFObjectTypeString:
+            ob_str(b, "<");
+            for (size_t i = 0; i < o->v.str->len; i++) ob_fmt(b, "%02X", o->v.str->bytes[i]);
+            ob_str(b, ">");
+            break;
+        case kCGPDFObjectTypeArray:
+            ob_str(b, "[");
+            for (size_t i = 0; i < o->v.arr->n; i++) { ob_str(b, " "); ob_object(b, &o->v.arr->items[i], NULL, NULL, depth + 1); }
+            ob_str(b, " ]");
+            break;
+        case kCGPDFObjectTypeDictionary: ob_dict(b, o->v.dict, o->v.dict == page_dict ? annots : NULL, 0, depth); break;
+        case kCGPDFObjectTypeStream:
+            ob_dict(b, o->v.stream->dict, NULL, 1, depth);
+            b->n -= 2;                                                  /* reopen it for the length */
+            ob_fmt(b, "/Length %zu >>\nstream\n", o->v.stream->len);
+            ob_put(b, o->v.stream->raw, o->v.stream->len);
+            ob_str(b, "\nendstream");
+            break;
+        default: ob_str(b, "null");
+    }
+}
+/* a source with its placeholders replaced */
+static void ob_source(obuf *b, const char *s, const int *page_nums, int npages, int first_new) {
+    while (*s) {
+        if (*s == '@' && (s[1] == 'P' || s[1] == 'A')) {
+            char *end; long n = strtol(s + 2, &end, 10);
+            if (end != s + 2 && *end == '@') {
+                if (s[1] == 'P') { if (n >= 0 && n < npages) ob_fmt(b, "%d 0 R", page_nums[n]); else ob_str(b, "null"); }
+                else ob_fmt(b, "%ld 0 R", first_new + n);
+                s = end + 1;
+                continue;
+            }
+        }
+        ob_put(b, s, 1); s++;
+    }
+}
+void *isim_CGPDFDataCopyAddingAnnotations(const void *data, size_t len, int count, const char *const *sources, const int *page_of, size_t *out_len) {
+    *out_len = 0;
+    struct pdoc *d = isim_pdf_doc_open(data, len);
+    if (!d || d->encrypted) { isim_pdf_doc_free(d); return NULL; }
+    int npages = 0;
+    struct CGPDFDictionary **pages = isim_pdf_doc_pages(d, &npages);
+    int *page_nums = calloc((size_t)(npages ? npages : 1), sizeof *page_nums);
+    for (int num = 1; num < d->nx; num++) {                            /* each page's object number */
+        struct CGPDFObject *o = load_object(d, num);
+        if (o && o->type == kCGPDFObjectTypeDictionary)
+            for (int p = 0; p < npages; p++) if (pages[p] == o->v.dict) page_nums[p] = num;
+    }
+    int first_new = d->nx, total = d->nx + count;
+    size_t *offsets = calloc((size_t)total, sizeof *offsets);
+    obuf b = {0};
+    ob_fmt(&b, "%%PDF-%d.%d\n%%\xE2\xE3\xCF\xD3\n", d->major, d->minor);
+    for (int num = 1; num < d->nx; num++) {
+        struct CGPDFObject *o = load_object(d, num);
+        if (!o) continue;
+        if (o->type == kCGPDFObjectTypeStream) {
+            const char *type = dname(o->v.stream->dict, "Type");
+            if (type && (!strcmp(type, "ObjStm") || !strcmp(type, "XRef"))) continue;
+        }
+        char *annots = NULL;
+        if (o->type == kCGPDFObjectTypeDictionary)
+            for (int p = 0; p < npages; p++) {
+                if (page_nums[p] != num) continue;
+                obuf a = {0};
+                for (int k = 0; k < count; k++) if (page_of[k] == p) ob_fmt(&a, " %d 0 R", first_new + k);
+                annots = a.p;
+            }
+        offsets[num] = b.n;
+        ob_fmt(&b, "%d %d obj\n", num, d->x[num].type == 1 ? d->x[num].gen : 0);
+        ob_object(&b, o, o->type == kCGPDFObjectTypeDictionary ? o->v.dict : NULL, annots, 0);
+        ob_str(&b, "\nendobj\n");
+        free(annots);
+    }
+    for (int k = 0; k < count; k++) {
+        offsets[first_new + k] = b.n;
+        ob_fmt(&b, "%d 0 obj\n", first_new + k);
+        ob_source(&b, sources[k], page_nums, npages, first_new);
+        ob_str(&b, "\nendobj\n");
+    }
+    size_t xref = b.n;
+    ob_fmt(&b, "xref\n0 %d\n0000000000 65535 f \n", total);
+    for (int num = 1; num < total; num++) {
+        if (offsets[num]) ob_fmt(&b, "%010zu 00000 n \n", offsets[num]);
+        else ob_str(&b, "0000000000 65535 f \n");
+    }
+    ob_fmt(&b, "trailer\n<< /Size %d", total);
+    const char *keys[] = { "Root", "Info", "ID" };
+    for (int i = 0; i < 3; i++) {
+        struct CGPDFObject *o = dict_raw(d->trailer, keys[i]);
+        if (o) { ob_str(&b, " "); ob_name(&b, keys[i]); ob_str(&b, " "); ob_object(&b, o, NULL, NULL, 0); }
+    }
+    ob_fmt(&b, " >>\nstartxref\n%zu\n%%%%EOF\n", xref);
+    free(offsets); free(page_nums);
+    isim_pdf_doc_free(d);
+    *out_len = b.n;
+    return b.p;
 }
