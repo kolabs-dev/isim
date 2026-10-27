@@ -121,8 +121,8 @@ public struct Calendar: Hashable, Sendable, CustomStringConvertible {
         case isLeapMonth
     }
     public enum SearchDirection: Sendable { case forward, backward }
-    public enum RepeatedTimePolicy: Sendable { case first, last }
-    public enum MatchingPolicy: Sendable { case nextTime, nextTimePreservingSmallerComponents, previousTimePreservingSmallerComponents, strict }
+    public enum RepeatedTimePolicy: Codable, Sendable { case first, last }
+    public enum MatchingPolicy: Codable, Sendable { case nextTime, nextTimePreservingSmallerComponents, previousTimePreservingSmallerComponents, strict }
 
     public let identifier: Identifier
     public var timeZone: TimeZone

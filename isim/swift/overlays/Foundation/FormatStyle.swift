@@ -35,8 +35,24 @@ extension TimeZone: Codable {
     public func encode(to encoder: Encoder) throws { var c = encoder.singleValueContainer(); try c.encode(identifier) }
 }
 extension Calendar: Codable {
-    public init(from decoder: Decoder) throws { self.init(identifier: try decoder.singleValueContainer().decode(Identifier.self)) }
-    public func encode(to encoder: Encoder) throws { var c = encoder.singleValueContainer(); try c.encode(identifier) }
+    private enum CodingKeys: String, CodingKey { case identifier, locale, timezone, firstWeekday, minimumDaysInFirstWeek }
+    public init(from decoder: Decoder) throws {
+        if let c = try? decoder.singleValueContainer(), let id = try? c.decode(Identifier.self) { self.init(identifier: id); return }
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(identifier: try c.decode(Identifier.self, forKey: .identifier))
+        locale = try c.decodeIfPresent(Locale.self, forKey: .locale)
+        if let tz = try c.decodeIfPresent(TimeZone.self, forKey: .timezone) { timeZone = tz }
+        if let d = try c.decodeIfPresent(Int.self, forKey: .firstWeekday) { firstWeekday = d }
+        if let d = try c.decodeIfPresent(Int.self, forKey: .minimumDaysInFirstWeek) { minimumDaysInFirstWeek = d }
+    }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(identifier, forKey: .identifier)
+        try c.encodeIfPresent(locale, forKey: .locale)
+        try c.encode(timeZone, forKey: .timezone)
+        try c.encode(firstWeekday, forKey: .firstWeekday)
+        try c.encode(minimumDaysInFirstWeek, forKey: .minimumDaysInFirstWeek)
+    }
 }
 
 /// Errors thrown by isim's parse strategies (Apple throws CocoaError(.formatting)).
