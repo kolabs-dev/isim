@@ -8,7 +8,7 @@
 
 ## How isim implements it
 
-- **Passthrough:** Swift's `SIMD` types plus isim's `simd` overlay (`isim/swift/overlays/simd.swift`). Rows: [Swift](Swift.md).
+- **Passthrough:** Swift's `SIMD` types plus isim's `simd` overlay (`isim/swift/overlays/simd.swift`, `simd+Double.swift`). Rows: [Swift](Swift.md).
 
 ## API
 
@@ -17,6 +17,7 @@
 | `simd_float2x2`, `simd_float3x3`, `simd_float4x4`, `simd_quatf` (initializers, `columns`, multiplication, `transpose`; `simd_float3x3(_:)` and `simd_float4x4(_:)` of a quaternion) | 🟡 | ≤17 | Swift structs laid out as Apple's C structs and bitwise-copyable, so they can be passed by address (`setVertexBytes(&uniforms, …)`, issue #329). Tested (HelloMetalKit) |
 | `float2x2` / `float3x3` / `float4x4` (Apple's Swift names for the matrix types), `simd_float4x4.inverse`, `simd_inverse(_:)` of a 4x4 matrix | ✅ | ≤17 | issue #331. Tested (HelloRealityKit) |
 | `simd_quatf` functions: `init(from:to:)`, `init(_:)` of a 4x4 matrix, `+`, `-`, scalar `*` / `/`, `simd_slerp`, `simd_slerp_longest`, `simd_normalize`, `simd_length`, `simd_dot`, `simd_inverse`, `simd_conjugate`, `simd_mul`, `simd_angle`, `simd_axis`, `simd_imag`, `simd_real`, `simd_quaternion(_:)` of matrices and of two vectors, `simd_matrix4x4` | ✅ | ≤17 | spherical interpolation along the shorter (or longer) arc (issue #330). Tested (HelloSceneKit: rotations and look-at constraints) |
+| `simd_double3x3`, `simd_double4x3`, `simd_double4x4`, `simd_float4x3`, `simd_quatd` (`matrix_double*` / `double*x*` names, `matrix_identity_double3x3` / `4x4`), with `determinant`, `inverse`, `simd_mul`, `simd_transpose`, `simd_inverse`, `simd_determinant`, the `simd_quatd` functions (`simd_quaternion`, `simd_act`, `simd_slerp`, `simd_slerp_longest`, `simd_spline`, …) | ✅ | ≤17 | passthrough of Apple's layout: Swift structs laid out as Apple's C structs (`isim/swift/overlays/simd+Double.swift`), the double-precision types under Spatial (issue #370). Tested (SpatialTest: test_spatial) |
 
 ## Not yet in isim
 

@@ -1164,6 +1164,11 @@ def _(a):
     os.replace(os.path.join(b, "C-Info.plist"), os.path.join(b, "Info.plist"))
 
 
+@app("tests/spatial", products=["SpatialTest.app"])
+def _(a):
+    a.swift_app("SpatialTest", srcs=["SpatialTest.swift"], plist="Info.plist")
+
+
 @app("tests/uttypes", products=["UTTypesTest.app", "UTTypesObjCTest.app"])
 def _(a):
     a.swift_app("UTTypesTest", srcs=["UTTypesTest.swift"], plist="Info.plist")
