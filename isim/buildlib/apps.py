@@ -1067,6 +1067,7 @@ selftest("tests/swift-libraries", "SwiftLibrariesTest", "-enable-bare-slash-rege
 selftest("tests/swift-compression", "SwiftCompressionTest")
 selftest("tests/swift-applearchive", "SwiftAppleArchiveTest")
 selftest("tests/swift-inflection", "SwiftInflectionTest")
+selftest("tests/swift-formatstyles", "SwiftFormatStylesTest")
 
 
 @app("tests/compression", products=["CompressionTest.app"], swift=False)
