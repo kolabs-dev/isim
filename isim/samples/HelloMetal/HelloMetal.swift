@@ -2,10 +2,15 @@
 // in an image view, and checks printed as "metal ..." lines that tests/ui/test_metal.py reads: the device and the
 // default library (Shaders.metal, compiled by isim build), the kernel's texture read back to a CGImage, buffers and
 // the Swift overlay (setBuffers, fill(buffer:range:value:)), function constants, a library compiled at run time with
-// async/await, MTLLibraryError for a bad source, and a CIContext(mtlDevice:).
+// async/await, MTLLibraryError for a bad source, and a CIContext(mtlDevice:). Then (issue #365) the fractal through
+// Metal Performance Shaders (a Gaussian blur, a Lanczos downscale) and MetalFX (the spatial scaler back up), shown
+// below it; an MPSMatrix product; and an MPSGraph with a gradient.
 import UIKit
 import Metal
 import CoreImage
+import MetalPerformanceShaders
+import MetalPerformanceShadersGraph
+import MetalFX
 
 func log(_ s: String) { print("metal " + s) }
 
@@ -24,6 +29,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
 final class FractalViewController: UIViewController {
     let imageView = UIImageView()
+    let shadersView = UIImageView()
     let label = UILabel()
 
     override func viewDidLoad() {
@@ -36,7 +42,11 @@ final class FractalViewController: UIViewController {
         label.font = .preferredFont(forTextStyle: .headline)
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
+        shadersView.contentMode = .scaleAspectFit
+        shadersView.translatesAutoresizingMaskIntoConstraints = false
+        shadersView.accessibilityIdentifier = "shaders"
         view.addSubview(imageView)
+        view.addSubview(shadersView)
         view.addSubview(label)
         NSLayoutConstraint.activate([
             label.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
@@ -45,6 +55,10 @@ final class FractalViewController: UIViewController {
             imageView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             imageView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             imageView.heightAnchor.constraint(equalTo: imageView.widthAnchor),
+            shadersView.topAnchor.constraint(equalTo: imageView.bottomAnchor, constant: 8),
+            shadersView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            shadersView.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.5),
+            shadersView.heightAnchor.constraint(equalTo: shadersView.widthAnchor),
         ])
         Task.detached { await Checks.run(self) }
     }
@@ -53,6 +67,7 @@ final class FractalViewController: UIViewController {
         imageView.image = UIImage(cgImage: image)
         label.text = text
     }
+    @MainActor func showShaders(_ image: CGImage) { shadersView.image = UIImage(cgImage: image) }
 }
 
 enum Checks {
@@ -61,7 +76,7 @@ enum Checks {
               let library = device.makeDefaultLibrary() else { log("no device"); return }
         log("device \(device.name) library \(library.functionNames.sorted().joined(separator: ","))")
         do {
-            let (image, ms) = try fractal(device, queue, library)
+            let (image, ms, texture) = try fractal(device, queue, library)
             let p = pixel(image, 128, 128), edge = pixel(image, 2, 2)
             log("fractal \(image.width)x\(image.height) center \(p) edge bright \(edge[0] + edge[1] + edge[2] > 100)")
             print("metal fractal took \(ms) ms")
@@ -69,6 +84,9 @@ enum Checks {
             try saxpy(device, queue, library)
             try constants(device, queue, library)
             try await runtime(device, queue)
+            await vc.showShaders(performanceShaders(device, queue, texture))
+            matrices(device, queue)
+            graph(device)
         } catch {
             log("failed: \(error)")
         }
@@ -85,7 +103,7 @@ enum Checks {
         log("done")
     }
 
-    static func fractal(_ device: MTLDevice, _ queue: MTLCommandQueue, _ library: MTLLibrary) throws -> (CGImage, Int) {
+    static func fractal(_ device: MTLDevice, _ queue: MTLCommandQueue, _ library: MTLLibrary) throws -> (CGImage, Int, MTLTexture) {
         let pipeline = try device.makeComputePipelineState(function: library.makeFunction(name: "mandelbrot")!)
         let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm, width: 256, height: 256, mipmapped: false)
         d.usage = [.shaderWrite, .shaderRead]
@@ -104,11 +122,76 @@ enum Checks {
         let ms = Int(Date().timeIntervalSince(start) * 1000)
         var bytes = [UInt8](repeating: 0, count: 256 * 256 * 4)
         texture.getBytes(&bytes, bytesPerRow: 256 * 4, from: MTLRegionMake2D(0, 0, 256, 256), mipmapLevel: 0)
+        return (cgImage(texture), ms, texture)
+    }
+
+    static func cgImage(_ texture: MTLTexture) -> CGImage {
+        let w = texture.width, h = texture.height
+        var bytes = [UInt8](repeating: 0, count: w * h * 4)
+        texture.getBytes(&bytes, bytesPerRow: w * 4, from: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0)
         let provider = CGDataProvider(data: Data(bytes) as CFData)!
-        let image = CGImage(width: 256, height: 256, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: 1024,
-                            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
-                            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
-        return (image, ms)
+        return CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4,
+                       space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+                       provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+    }
+
+    /// the fractal blurred (MPS), down to 128 (MPS Lanczos) and back up to 256 (MetalFX), in one command buffer
+    static func performanceShaders(_ device: MTLDevice, _ queue: MTLCommandQueue, _ source: MTLTexture) -> CGImage {
+        func texture(_ size: Int) -> MTLTexture {
+            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm, width: size, height: size, mipmapped: false)
+            d.usage = [.shaderRead, .shaderWrite]
+            return device.makeTexture(descriptor: d)!
+        }
+        let blurred = texture(256), small = texture(128), upscaled = texture(256)
+        let desc = MTLFXSpatialScalerDescriptor()
+        desc.inputWidth = 128; desc.inputHeight = 128; desc.outputWidth = 256; desc.outputHeight = 256
+        desc.colorTextureFormat = .rgba8Unorm; desc.outputTextureFormat = .rgba8Unorm
+        let scaler = desc.makeSpatialScaler(device: device)!
+        scaler.colorTexture = small
+        scaler.outputTexture = upscaled
+        let cb = queue.makeCommandBuffer()!
+        MPSImageGaussianBlur(device: device, sigma: 2).encode(commandBuffer: cb, sourceTexture: source, destinationTexture: blurred)
+        MPSImageLanczosScale(device: device).encode(commandBuffer: cb, sourceTexture: blurred, destinationTexture: small)
+        scaler.encode(commandBuffer: cb)
+        cb.commit()
+        cb.waitUntilCompleted()
+        let image = cgImage(upscaled), center = pixel(image, 128, 128)
+        log("mps blur, lanczos to 128, metalfx to \(upscaled.width): center dark \(center[0] + center[1] + center[2] < 90)"
+            + " supported \(MPSSupportsMTLDevice(device)) \(MTLFXSpatialScalerDescriptor.supportsDevice(device))")
+        return image
+    }
+
+    /// a 2x3 by 3x2 product with MPSMatrixMultiplication
+    static func matrices(_ device: MTLDevice, _ queue: MTLCommandQueue) {
+        func matrix(_ rows: Int, _ cols: Int, _ values: [Float]) -> MPSMatrix {
+            let d = MPSMatrixDescriptor(rows: rows, columns: cols, rowBytes: cols * 4, dataType: .float32)
+            return MPSMatrix(buffer: device.makeBuffer(bytes: values, length: max(values.count, rows * cols) * 4, options: .storageModeShared)!, descriptor: d)
+        }
+        let a = matrix(2, 3, [1, 2, 3, 4, 5, 6]), b = matrix(3, 2, [7, 8, 9, 10, 11, 12]), c = matrix(2, 2, [0, 0, 0, 0])
+        let cb = queue.makeCommandBuffer()!
+        MPSMatrixMultiplication(device: device, resultRows: 2, resultColumns: 2, interiorColumns: 3).encode(commandBuffer: cb, leftMatrix: a, rightMatrix: b, resultMatrix: c)
+        cb.commit()
+        cb.waitUntilCompleted()
+        let r = c.data.contents().bindMemory(to: Float.self, capacity: 4)
+        log("mps matrix \([r[0], r[1], r[2], r[3]].map { Int($0) })")
+    }
+
+    /// y = x w, loss = sum(y^2), and d(loss)/dw
+    static func graph(_ device: MTLDevice) {
+        let g = MPSGraph()
+        let x = g.placeholder(shape: [1, 2], dataType: .float32, name: "x")
+        let w = g.variable(with: Data(bytes: [Float](arrayLiteral: 1, 2, 3, 4), count: 16), shape: [2, 2], dataType: .float32, name: "w")
+        let y = g.matrixMultiplication(primary: x, secondary: w, name: nil)
+        let loss = g.reductionSum(with: g.square(with: y, name: nil), axes: nil, name: nil)
+        let dw = g.gradients(of: loss, with: [w], name: nil)[w]!
+        let input = MPSGraphTensorData(device: MPSGraphDevice(mtlDevice: device), data: Data(bytes: [Float](arrayLiteral: 1, 1), count: 8), shape: [1, 2], dataType: .float32)
+        let results = g.run(feeds: [x: input], targetTensors: [y, dw], targetOperations: nil)
+        func floats(_ t: MPSGraphTensor, _ n: Int) -> [Int] {
+            var v = [Float](repeating: 0, count: n)
+            results[t]!.mpsndarray().readBytes(&v, strideBytes: nil)
+            return v.map { Int($0) }
+        }
+        log("mpsgraph y \(floats(y, 2)) dloss/dw \(floats(dw, 4))")
     }
 
     static func saxpy(_ device: MTLDevice, _ queue: MTLCommandQueue, _ library: MTLLibrary) throws {

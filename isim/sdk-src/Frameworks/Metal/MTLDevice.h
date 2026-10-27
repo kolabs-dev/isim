@@ -1,4 +1,5 @@
 #pragma once
+#import <Metal/MTLFence.h>
 #import <Metal/MTLDefines.h>
 #import <Metal/MTLTypes.h>
 #import <Metal/MTLPixelFormat.h>
@@ -57,6 +58,7 @@ MTL_EXTERN id<MTLDevice> _Nullable MTLCreateSystemDefaultDevice(void) NS_RETURNS
 - (NSUInteger)minimumTextureBufferAlignmentForPixelFormat:(MTLPixelFormat)format NS_SWIFT_NAME(minimumTextureBufferAlignment(for:));
 
 - (nullable id<MTLCommandQueue>)newCommandQueue NS_SWIFT_NAME(makeCommandQueue());
+- (nullable id<MTLFence>)newFence NS_SWIFT_NAME(makeFence()) API_AVAILABLE(ios(10.0));
 - (nullable id<MTLCommandQueue>)newCommandQueueWithMaxCommandBufferCount:(NSUInteger)maxCommandBufferCount NS_SWIFT_NAME(makeCommandQueue(maxCommandBufferCount:));
 
 - (nullable id<MTLBuffer>)newBufferWithLength:(NSUInteger)length options:(MTLResourceOptions)options NS_SWIFT_NAME(makeBuffer(length:options:));

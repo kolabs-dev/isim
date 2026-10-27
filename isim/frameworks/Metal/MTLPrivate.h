@@ -48,6 +48,7 @@ NSError *isim_mtl_error(NSErrorDomain domain, NSInteger code, NSString *message)
 @interface ISIMMTLTexture ()
 - (nullable instancetype)initWithDescriptor:(MTLTextureDescriptor *)d buffer:(nullable id<MTLBuffer>)buffer offset:(NSUInteger)offset bytesPerRow:(NSUInteger)bpr;
 - (instancetype)initViewOf:(ISIMMTLTexture *)parent format:(MTLPixelFormat)f;
+- (instancetype)initViewOf:(ISIMMTLTexture *)parent format:(MTLPixelFormat)f type:(MTLTextureType)type levels:(NSRange)levels slices:(NSRange)slices;
 @end
 @interface ISIMMTLSamplerState ()
 - (instancetype)initWithDescriptor:(MTLSamplerDescriptor *)d;
