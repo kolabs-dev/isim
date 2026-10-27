@@ -146,7 +146,7 @@ f("CIDepthBlurEffect", "Blur", [I, img("inputDisparityImage"), img("inputMatteIm
 f("CIDiscBlur", "Blur", [I, num("inputRadius", 8, 0, 100, atype="Distance")], ios=9)
 f("CIGaussianBlur", "Blur", [I, num("inputRadius", 10, 0, 100, atype="Distance")], ios=6)
 f("CIMaskedVariableBlur", "Blur", [I, img("inputMask", prop="mask"), num("inputRadius", 5, 0, 100, atype="Distance")], ios=8)
-f("CIMedianFilter", "Blur", [I], ios=9, factory="medianFilter", swift="median")
+f("CIMedianFilter", "Blur", [I], ios=9, factory="medianFilter", swift="median", proto="CIMedian")
 f("CIMorphologyGradient", "Blur", [I, num("inputRadius", 5, 0, 50, atype="Distance")], ios=11)
 f("CIMorphologyMaximum", "Blur", [I, num("inputRadius", 0, 0, 50, atype="Distance")], ios=11)
 f("CIMorphologyMinimum", "Blur", [I, num("inputRadius", 0, 0, 50, atype="Distance")], ios=11)
@@ -182,6 +182,8 @@ f("CIColorAbsoluteDifference", "ColorAdjustment", [I, img("inputImage2", prop="i
 f("CIColorThreshold", "ColorAdjustment", [I, num("inputThreshold", 0.5, 0, 1)], ios=14)
 f("CIColorThresholdOtsu", "ColorAdjustment", [I], ios=14)
 f("CIToneMapHeadroom", "ColorAdjustment", [I, num("inputSourceHeadroom", 1, 0.1, 16), num("inputTargetHeadroom", 1, 0.1, 16)], ios=18)
+f("CISystemToneMap", "ColorAdjustment", [I, num("inputDisplayHeadroom", 1, 1, 16),
+                                         obj("inputPreferredDynamicRange", "NSString", ptype="CIDynamicRangeOption")], ios=26)
 
 # -- color effect --
 f("CIColorCrossPolynomial", "ColorEffect", [I, vec("inputRedCoefficients", (1, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
@@ -197,8 +199,10 @@ f("CIColorInvert", "ColorEffect", [I], ios=5)
 f("CIColorMap", "ColorEffect", [I, img("inputGradientImage", atype="Gradient")], ios=6)
 f("CIColorMonochrome", "ColorEffect", [I, color("inputColor", (0.6, 0.45, 0.3), opaque=True), num("inputIntensity", 1, 0, 1)], ios=5)
 f("CIColorPosterize", "ColorEffect", [I, num("inputLevels", 6, 2, 30)], ios=6)
-f("CIConvertLabToRGB", "ColorEffect", [I, boolean("inputNormalize", False)], ios=16, factory="convertLabToRGBFilter", swift="convertLabToRGB")
-f("CIConvertRGBtoLab", "ColorEffect", [I, boolean("inputNormalize", False)], ios=16, factory="convertRGBtoLabFilter", swift="convertRGBtoLab")
+f("CIConvertLabToRGB", "ColorEffect", [I, boolean("inputNormalize", False)], ios=16, factory="convertLabToRGBFilter", swift="convertLabToRGB",
+  proto="CIConvertLab")
+f("CIConvertRGBtoLab", "ColorEffect", [I, boolean("inputNormalize", False)], ios=16, factory="convertRGBtoLabFilter", swift="convertRGBtoLab",
+  proto="CIConvertLab")
 f("CIDither", "ColorEffect", [I, num("inputIntensity", 0.1, 0, 5, 0, 0.5)], ios=12)
 f("CIDocumentEnhancer", "ColorEffect", [I, num("inputAmount", 1, 0, 10)], ios=12)
 f("CIFalseColor", "ColorEffect", [I, color("inputColor0", (0.3, 0, 0)), color("inputColor1", (1, 0.9, 0.8))], ios=5)
@@ -282,10 +286,19 @@ f("CIPDF417BarcodeGenerator", "Generator", [data("inputMessage"), num("inputMinW
 f("CIQRCodeGenerator", "Generator", [data("inputMessage"), string("inputCorrectionLevel", "M")], ios=7, factory="QRCodeGenerator",
   swift="qrCodeGenerator", video=False)
 f("CIRandomGenerator", "Generator", [], ios=6)
+f("CIRoundedQRCodeGenerator", "Generator", [data("inputMessage"), string("inputCorrectionLevel", "M"), num("inputScale", 10, 1, 100, 1, 20),
+                                            color("inputColor0", (0, 0, 0), opaque=True), color("inputColor1", (1, 1, 1), opaque=True),
+                                            num("inputRoundedMarkers", 0, 0, 3, atype="Integer", ptype="NSInteger"), boolean("inputRoundedData", True),
+                                            num("inputCenterSpaceSize", 0, 0, 0.5)], ios=26, factory="roundedQRCodeGenerator",
+  swift="roundedQRCodeGenerator", video=False)
 f("CIRoundedRectangleGenerator", "Generator", [rect("inputExtent", (0, 0, 100, 100)), num("inputRadius", 10, 0, 1000, 0, 100, "Distance"),
-                                               color("inputColor", (1, 1, 1))], ios=13)
+                                               color("inputColor", (1, 1, 1)), num("inputSmoothness", 0, 0, 1)], ios=13)
 f("CIRoundedRectangleStrokeGenerator", "Generator", [rect("inputExtent", (0, 0, 100, 100)), num("inputRadius", 10, 0, 1000, 0, 100, "Distance"),
-                                                     color("inputColor", (1, 1, 1)), num("inputWidth", 10, 0, 1000, 0, 100, "Distance")], ios=17)
+                                                     color("inputColor", (1, 1, 1)), num("inputWidth", 10, 0, 1000, 0, 100, "Distance"),
+                                                     num("inputSmoothness", 0, 0, 1)], ios=17)
+f("CIBlurredRoundedRectangleGenerator", "Generator", [rect("inputExtent", (0, 0, 100, 100)), num("inputRadius", 10, 0, 1000, 0, 100, "Distance"),
+                                                      num("inputSigma", 10, 0, 1000, 0, 100, "Distance"), color("inputColor", (1, 1, 1)),
+                                                      num("inputSmoothness", 0, 0, 1)], ios=26)
 f("CIBlurredRectangleGenerator", "Generator", [rect("inputExtent", (0, 0, 100, 100)), num("inputSigma", 10, 0, 1000, 0, 100, "Distance"),
                                                color("inputColor", (1, 1, 1))], ios=17)
 f("CIStarShineGenerator", "Generator", [CENTER, color("inputColor", (1, 0.8, 0.6)), num("inputRadius", 50, 0, 1000, 0, 300, "Distance"),
@@ -317,6 +330,7 @@ f("CIKeystoneCorrectionHorizontal", "GeometryAdjustment", [I, *FOUR, num("inputF
 f("CIKeystoneCorrectionVertical", "GeometryAdjustment", [I, *FOUR, num("inputFocalLength", 28, 0, 1000, 0, 100)], ios=13,
   base="CIFourCoordinateGeometryFilter")
 f("CILanczosScaleTransform", "GeometryAdjustment", [I, num("inputScale", 1, 0, 50, 0.05, 1.5), num("inputAspectRatio", 1, 0, 50, 0.05, 1.5)], ios=6)
+f("CIMaximumScaleTransform", "GeometryAdjustment", [I, num("inputScale", 1, 0, 50, 0.05, 1.5), num("inputAspectRatio", 1, 0, 50, 0.05, 1.5)], ios=18)
 f("CIPerspectiveCorrection", "GeometryAdjustment", [I, *FOUR, boolean("inputCrop", True)], ios=8, base="CIFourCoordinateGeometryFilter")
 f("CIPerspectiveRotate", "GeometryAdjustment", [I, num("inputFocalLength", 28, 0, 1000, 0, 100), num("inputPitch", 0, -PI / 2, PI / 2, atype="Angle"),
                                                 num("inputYaw", 0, -PI / 2, PI / 2, atype="Angle"), num("inputRoll", 0, -PI, PI, atype="Angle")], ios=13)
@@ -350,16 +364,20 @@ f("CILineScreen", "HalftoneEffect", [I, CENTER, ANGLE0, num("inputWidth", 6, 1, 
 # -- reduction --
 EXT = rect("inputExtent", (0, 0, 640, 80))
 for n, ios in (("CIAreaAverage", 9), ("CIAreaMaximum", 9), ("CIAreaMaximumAlpha", 9), ("CIAreaMinimum", 9), ("CIAreaMinimumAlpha", 9),
-               ("CIAreaMinMax", 12), ("CIAreaMinMaxRed", 11), ("CIColumnAverage", 9), ("CIRowAverage", 9)):
+               ("CIAreaMinMax", 12), ("CIAreaMinMaxRed", 11), ("CIColumnAverage", 9), ("CIRowAverage", 9), ("CIAreaBoundsRed", 18),
+               ("CIAreaAverageMaximumRed", 26)):
     f(n, "Reduction", [I, EXT], ios=ios, proto=n, base="CIAreaReductionFilter")
 f("CIAreaHistogram", "Reduction", [I, EXT, num("inputScale", 1, 0, 100, 0, 1), num("inputCount", 64, 1, 2048, 1, 256, "Count", ptype="NSInteger")],
   ios=8, base="CIAreaReductionFilter")
+f("CIAreaAlphaWeightedHistogram", "Reduction", [I, EXT, num("inputScale", 1, 0, 100, 0, 1),
+                                                num("inputCount", 64, 1, 2048, 1, 256, "Count", ptype="NSInteger")],
+  ios=18, base="CIAreaReductionFilter", proto="CIAreaHistogram")
 f("CIAreaLogarithmicHistogram", "Reduction", [I, EXT, num("inputScale", 1, 0, 100, 0, 1), num("inputCount", 64, 1, 2048, 1, 256, "Count", ptype="NSInteger"),
                                               num("inputMinimumStop", -10, -30, 30), num("inputMaximumStop", 4, -30, 30)], ios=16,
   base="CIAreaReductionFilter")
 f("CIHistogramDisplayFilter", "Reduction", [I, num("inputHeight", 100, 1, 200), num("inputHighLimit", 1, 0, 1), num("inputLowLimit", 0, 0, 1)],
   ios=8, factory="histogramDisplayFilter", swift="histogramDisplay", proto="CIHistogramDisplay")
-f("CIKMeans", "Reduction", [I, EXT, img("inputMeans"), num("inputCount", 8, 0, 128, atype="Count", ptype="NSInteger"),
+f("CIKMeans", "Reduction", [I, EXT, img("inputMeans", prop="inputMeans"), num("inputCount", 8, 0, 128, atype="Count", ptype="NSInteger"),
                             num("inputPasses", 5, 0, 20, atype="Count"), boolean("inputPerceptual", False)], ios=13,
   factory="KMeansFilter", swift="kMeans", base="CIAreaReductionFilter")
 
@@ -478,7 +496,8 @@ SHARED = {  # protocols shared by several filters / bases: their properties
     "CIFourCoordinateGeometryFilter": [img(), *FOUR],
     "CITransitionFilter": [img(), TARGET, TIME],
 }
-PROTO_IOS = {"CIPhotoEffect.extrapolate": 15}
+PROTO_IOS = {"CIPhotoEffect.extrapolate": 15, "CIRoundedRectangleGenerator.smoothness": 26,
+             "CIRoundedRectangleStrokeGenerator.smoothness": 26}
 
 CATS = {"Blur": "kCICategoryBlur", "ColorAdjustment": "kCICategoryColorAdjustment", "ColorEffect": "kCICategoryColorEffect",
         "CompositeOperation": "kCICategoryCompositeOperation", "DistortionEffect": "kCICategoryDistortionEffect",
@@ -516,6 +535,8 @@ def emit_header():
             mem = "copy" if t in ("NSString *", "NSAttributedString *", "NSData *", "NSArray *") else "retain"
             nullable = ", nullable" if t.startswith("CIImage") or i.default is None else ""
             return f"@property (nonatomic, {mem}{nullable}) {t}{i.prop}{av};"
+        if t == "CIDynamicRangeOption":
+            return f"@property (nonatomic, copy, nullable) CIDynamicRangeOption {i.prop}{av};"
         if t == "CGColorSpaceRef":
             return f"@property (nonatomic, nullable) CGColorSpaceRef {i.prop}{av};"
         return f"@property (nonatomic) {t} {i.prop}{av};"
@@ -535,7 +556,7 @@ def emit_header():
         out.append(f"@protocol {flt.proto} <{base}>")
         for i in flt.inputs:
             if i.prop not in have:
-                out.append(prop_line(i))
+                out.append(prop_line(i, PROTO_IOS.get(f"{flt.proto}.{i.prop}")))
         out += ["@end", ""]
     out.append("@interface CIFilter (Builtins)")
     for flt in FILTERS:

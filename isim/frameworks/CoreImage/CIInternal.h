@@ -89,6 +89,7 @@ typedef void (^ci_render_fn)(CGRect r, float *_Nonnull out, const ci_rctx *_Nonn
 @property (nonatomic, strong, nullable) id isimPixelBuffer;    /* CVPixelBuffer of the source (Swift object) */
 @property (nonatomic, copy, nullable) NSDictionary *isimAux;   /* auxiliary images (depth, mattes, gain map) */
 @property (nonatomic) double isimHeadroom;
+@property (nonatomic) double isimAverageLightLevel;   /* iOS 26 HDR metadata (0: unknown) */
 - (void)_render:(CGRect)r into:(float *_Nonnull)buf ctx:(const ci_rctx *_Nonnull)rc;
 - (CIImage *_Nonnull)_copyNode;                          /* a shallow copy that renders the same */
 @end

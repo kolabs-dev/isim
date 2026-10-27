@@ -400,6 +400,19 @@ void ci_register_color_filters(void) {
         });
     });
 
+    /* iOS 26: tone maps to what the display shows for the preferred dynamic range: standard 1 (SDR), constrainedHigh up
+       to 2, high the display's headroom; the image's headroom (contentHeadroom, 1 when unknown) is the source */
+    REG(@"CISystemToneMap", {
+        CIImage *im = IMG(kCIInputImageKey); if (!im) return nil;
+        float display = fmaxf(NUM(@"inputDisplayHeadroom", 1), 1);
+        NSString *pref = in[@"inputPreferredDynamicRange"];
+        float target = [pref isEqual:kCIDynamicRangeStandard] ? 1 : [pref isEqual:kCIDynamicRangeConstrainedHigh] ? fminf(display, 2) : display;
+        float source = fmaxf((float)im.isimHeadroom, 1);
+        if (source <= target) return im;
+        CIImage *r = [im imageByApplyingFilter:@"CIToneMapHeadroom" withInputParameters:@{ @"inputSourceHeadroom": @(source), @"inputTargetHeadroom": @(target) }];
+        return [r imageBySettingContentHeadroom:target];
+    });
+
     /* -------- color effect -------- */
     REG(@"CIColorCrossPolynomial", {
         CIImage *im = IMG(kCIInputImageKey); if (!im) return nil;

@@ -14,8 +14,10 @@ static NSData *region_pixels(CIImage *im, CGRect area, const ci_rctx *rc, id key
         return @[ d, [CIVector vectorWithCGRect:r] ];
     });
 }
-/* a reduction: compute(pixels, w, h, out) fills ow x oh result pixels, shown at (0, 0) */
-static CIImage *reduction(CIImage *im, CGRect area, int ow, int oh, void (^compute)(const float *px, int w, int h, float *out, const ci_rctx *rc)) {
+/* a reduction: compute(pixels, w, h, region, out) fills ow x oh result pixels, shown at (0, 0); the region is where the
+   pixels are (rows top-down) */
+static CIImage *reduction_at(CIImage *im, CGRect area, int ow, int oh,
+                             void (^compute)(const float *px, int w, int h, CGRect region, float *out, const ci_rctx *rc)) {
     id key = [NSObject new], key2 = [NSObject new];
     return ci_op(CGRectMake(0, 0, ow, oh), ^(CGRect r, float *out, const ci_rctx *rc) {
         NSData *res = ci_cache_get(rc, key2, ^id {
@@ -23,7 +25,7 @@ static CIImage *reduction(CIImage *im, CGRect area, int ow, int oh, void (^compu
             float *o = calloc((size_t)ow * oh * 4, sizeof(float));
             if ([got isKindOfClass:[NSArray class]]) {
                 CGRect rr = [got[1] CGRectValue];
-                compute([got[0] bytes], (int)rr.size.width, (int)rr.size.height, o, rc);
+                compute([got[0] bytes], (int)rr.size.width, (int)rr.size.height, rr, o, rc);
             }
             return [NSData dataWithBytesNoCopy:o length:sizeof(float) * 4 * (size_t)ow * oh];
         });
@@ -35,6 +37,9 @@ static CIImage *reduction(CIImage *im, CGRect area, int ow, int oh, void (^compu
             memcpy(out + ((size_t)j * W + i) * 4, o + ((size_t)(oh - 1 - y) * ow + x) * 4, 16);
         }
     });
+}
+static CIImage *reduction(CIImage *im, CGRect area, int ow, int oh, void (^compute)(const float *px, int w, int h, float *out, const ci_rctx *rc)) {
+    return reduction_at(im, area, ow, oh, ^(const float *px, int w, int h, CGRect region, float *out, const ci_rctx *rc) { compute(px, w, h, out, rc); });
 }
 #define AREA(in) ci_rect(in[kCIInputExtentKey], CGRectMake(0, 0, 640, 80))
 
@@ -136,6 +141,49 @@ void ci_register_reduction_filters(void) {
         });
     };
     histogram(@"CIAreaHistogram", NO);
+    /* iOS 18: each pixel counts by its alpha; the bins are fractions of the total alpha */
+    REG(@"CIAreaAlphaWeightedHistogram", {
+        CIImage *im = IMG(kCIInputImageKey); if (!im) return nil;
+        int count = (int)lround(fmin(2048, fmax(1, NUM(@"inputCount", 64))));
+        float scale = NUM(kCIInputScaleKey, 1);
+        return reduction(im, AREA(in), count, 1, ^(const float *px, int w, int h, float *o, const ci_rctx *rc) {
+            double total = 0;
+            for (size_t i = 0; i < (size_t)w * h; i++) {
+                const float *p = px + i * 4;
+                float a = p[3]; if (a <= 0) continue;
+                total += a;
+                for (int k = 0; k < 4; k++) {
+                    float v = k < 3 ? p[k] / a : a;
+                    if (k < 3 && rc->managed) v = ci_trc_encode(CI_TRC_SRGB, v);
+                    int bin = (int)floorf(ci_clamp01(v) * count); if (bin >= count) bin = count - 1;
+                    o[bin * 4 + k] += a;
+                }
+            }
+            for (int b = 0; b < count * 4; b++) o[b] = total > 0 ? (float)(o[b] / total) * scale : 0;
+        });
+    });
+    /* iOS 18: the bounding box (x, y, width, height) of the pixels whose red is above zero, in the image's coordinates */
+    REG(@"CIAreaBoundsRed", {
+        CIImage *im = IMG(kCIInputImageKey); if (!im) return nil;
+        return reduction_at(im, AREA(in), 1, 1, ^(const float *px, int w, int h, CGRect rr, float *o, const ci_rctx *rc) {
+            int x0 = INT_MAX, y0 = INT_MAX, x1 = -1, y1 = -1;
+            for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) if (px[((size_t)j * w + i) * 4] > 0) {
+                int y = h - 1 - j;
+                if (i < x0) x0 = i; if (i > x1) x1 = i; if (y < y0) y0 = y; if (y > y1) y1 = y;
+            }
+            if (x1 < 0) { o[0] = o[1] = o[2] = o[3] = 0; return; }
+            o[0] = (float)(rr.origin.x + x0); o[1] = (float)(rr.origin.y + y0); o[2] = (float)(x1 - x0 + 1); o[3] = (float)(y1 - y0 + 1);
+        });
+    });
+    /* iOS 26: the average and the maximum of red, as (average, maximum, 0, 1) */
+    REG(@"CIAreaAverageMaximumRed", {
+        CIImage *im = IMG(kCIInputImageKey); if (!im) return nil;
+        return reduction(im, AREA(in), 1, 1, ^(const float *px, int w, int h, float *o, const ci_rctx *rc) {
+            double s = 0; float mx = -INFINITY; size_t n = (size_t)w * h;
+            for (size_t i = 0; i < n; i++) { s += px[i * 4]; mx = fmaxf(mx, px[i * 4]); }
+            o[0] = n ? (float)(s / n) : 0; o[1] = n ? mx : 0; o[2] = 0; o[3] = 1;
+        });
+    });
     histogram(@"CIAreaLogarithmicHistogram", YES);
     REG(@"CIHistogramDisplayFilter", {
         CIImage *im = IMG(kCIInputImageKey); if (!im) return nil;

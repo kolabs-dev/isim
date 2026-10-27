@@ -86,7 +86,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) float radius;
 @end
 
-@protocol CIMedianFilter <CIFilter>
+@protocol CIMedian <CIFilter>
 @property (nonatomic, retain, nullable) CIImage *inputImage;
 @end
 
@@ -242,6 +242,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) float targetHeadroom;
 @end
 
+@protocol CISystemToneMap <CIFilter>
+@property (nonatomic, retain, nullable) CIImage *inputImage;
+@property (nonatomic) float displayHeadroom;
+@property (nonatomic, copy, nullable) CIDynamicRangeOption preferredDynamicRange;
+@end
+
 @protocol CIColorCrossPolynomial <CIFilter>
 @property (nonatomic, retain, nullable) CIImage *inputImage;
 @property (nonatomic, retain) CIVector *redCoefficients;
@@ -301,12 +307,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) float levels;
 @end
 
-@protocol CIConvertLabToRGB <CIFilter>
-@property (nonatomic, retain, nullable) CIImage *inputImage;
-@property (nonatomic) BOOL normalize;
-@end
-
-@protocol CIConvertRGBtoLab <CIFilter>
+@protocol CIConvertLab <CIFilter>
 @property (nonatomic, retain, nullable) CIImage *inputImage;
 @property (nonatomic) BOOL normalize;
 @end
@@ -581,10 +582,22 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol CIRandomGenerator <CIFilter>
 @end
 
+@protocol CIRoundedQRCodeGenerator <CIFilter>
+@property (nonatomic, copy, nullable) NSData *message;
+@property (nonatomic, copy) NSString *correctionLevel;
+@property (nonatomic) float scale;
+@property (nonatomic, retain) CIColor *color0;
+@property (nonatomic, retain) CIColor *color1;
+@property (nonatomic) NSInteger roundedMarkers;
+@property (nonatomic) BOOL roundedData;
+@property (nonatomic) float centerSpaceSize;
+@end
+
 @protocol CIRoundedRectangleGenerator <CIFilter>
 @property (nonatomic) CGRect extent;
 @property (nonatomic) float radius;
 @property (nonatomic, retain) CIColor *color;
+@property (nonatomic) float smoothness API_AVAILABLE(ios(26.0));
 @end
 
 @protocol CIRoundedRectangleStrokeGenerator <CIFilter>
@@ -592,6 +605,15 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) float radius;
 @property (nonatomic, retain) CIColor *color;
 @property (nonatomic) float width;
+@property (nonatomic) float smoothness API_AVAILABLE(ios(26.0));
+@end
+
+@protocol CIBlurredRoundedRectangleGenerator <CIFilter>
+@property (nonatomic) CGRect extent;
+@property (nonatomic) float radius;
+@property (nonatomic) float sigma;
+@property (nonatomic, retain) CIColor *color;
+@property (nonatomic) float smoothness;
 @end
 
 @protocol CIBlurredRectangleGenerator <CIFilter>
@@ -665,6 +687,12 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 @protocol CILanczosScaleTransform <CIFilter>
+@property (nonatomic, retain, nullable) CIImage *inputImage;
+@property (nonatomic) float scale;
+@property (nonatomic) float aspectRatio;
+@end
+
+@protocol CIMaximumScaleTransform <CIFilter>
 @property (nonatomic, retain, nullable) CIImage *inputImage;
 @property (nonatomic) float scale;
 @property (nonatomic) float aspectRatio;
@@ -799,6 +827,12 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol CIRowAverage <CIAreaReductionFilter>
 @end
 
+@protocol CIAreaBoundsRed <CIAreaReductionFilter>
+@end
+
+@protocol CIAreaAverageMaximumRed <CIAreaReductionFilter>
+@end
+
 @protocol CIAreaHistogram <CIAreaReductionFilter>
 @property (nonatomic) float scale;
 @property (nonatomic) NSInteger count;
@@ -819,7 +853,7 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 @protocol CIKMeans <CIAreaReductionFilter>
-@property (nonatomic, retain, nullable) CIImage *means;
+@property (nonatomic, retain, nullable) CIImage *inputMeans;
 @property (nonatomic) NSInteger count;
 @property (nonatomic) float passes;
 @property (nonatomic) BOOL perceptual;
@@ -1194,7 +1228,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (CIFilter<CIDiscBlur> *)discBlurFilter NS_SWIFT_NAME(discBlur());
 + (CIFilter<CIGaussianBlur> *)gaussianBlurFilter NS_SWIFT_NAME(gaussianBlur());
 + (CIFilter<CIMaskedVariableBlur> *)maskedVariableBlurFilter NS_SWIFT_NAME(maskedVariableBlur());
-+ (CIFilter<CIMedianFilter> *)medianFilter NS_SWIFT_NAME(median());
++ (CIFilter<CIMedian> *)medianFilter NS_SWIFT_NAME(median());
 + (CIFilter<CIMorphologyGradient> *)morphologyGradientFilter NS_SWIFT_NAME(morphologyGradient());
 + (CIFilter<CIMorphologyMaximum> *)morphologyMaximumFilter NS_SWIFT_NAME(morphologyMaximum());
 + (CIFilter<CIMorphologyMinimum> *)morphologyMinimumFilter NS_SWIFT_NAME(morphologyMinimum());
@@ -1222,6 +1256,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (CIFilter<CIColorThreshold> *)colorThresholdFilter NS_SWIFT_NAME(colorThreshold()) API_AVAILABLE(ios(14.0));
 + (CIFilter<CIColorThresholdOtsu> *)colorThresholdOtsuFilter NS_SWIFT_NAME(colorThresholdOtsu()) API_AVAILABLE(ios(14.0));
 + (CIFilter<CIToneMapHeadroom> *)toneMapHeadroomFilter NS_SWIFT_NAME(toneMapHeadroom()) API_AVAILABLE(ios(18.0));
++ (CIFilter<CISystemToneMap> *)systemToneMapFilter NS_SWIFT_NAME(systemToneMap()) API_AVAILABLE(ios(26.0));
 + (CIFilter<CIColorCrossPolynomial> *)colorCrossPolynomialFilter NS_SWIFT_NAME(colorCrossPolynomial());
 + (CIFilter<CIColorCube> *)colorCubeFilter NS_SWIFT_NAME(colorCube());
 + (CIFilter<CIColorCubeWithColorSpace> *)colorCubeWithColorSpaceFilter NS_SWIFT_NAME(colorCubeWithColorSpace());
@@ -1231,8 +1266,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (CIFilter<CIColorMap> *)colorMapFilter NS_SWIFT_NAME(colorMap());
 + (CIFilter<CIColorMonochrome> *)colorMonochromeFilter NS_SWIFT_NAME(colorMonochrome());
 + (CIFilter<CIColorPosterize> *)colorPosterizeFilter NS_SWIFT_NAME(colorPosterize());
-+ (CIFilter<CIConvertLabToRGB> *)convertLabToRGBFilter NS_SWIFT_NAME(convertLabToRGB()) API_AVAILABLE(ios(16.0));
-+ (CIFilter<CIConvertRGBtoLab> *)convertRGBtoLabFilter NS_SWIFT_NAME(convertRGBtoLab()) API_AVAILABLE(ios(16.0));
++ (CIFilter<CIConvertLab> *)convertLabToRGBFilter NS_SWIFT_NAME(convertLabToRGB()) API_AVAILABLE(ios(16.0));
++ (CIFilter<CIConvertLab> *)convertRGBtoLabFilter NS_SWIFT_NAME(convertRGBtoLab()) API_AVAILABLE(ios(16.0));
 + (CIFilter<CIDither> *)ditherFilter NS_SWIFT_NAME(dither());
 + (CIFilter<CIDocumentEnhancer> *)documentEnhancerFilter NS_SWIFT_NAME(documentEnhancer());
 + (CIFilter<CIFalseColor> *)falseColorFilter NS_SWIFT_NAME(falseColor());
@@ -1313,8 +1348,10 @@ NS_ASSUME_NONNULL_BEGIN
 + (CIFilter<CIPDF417BarcodeGenerator> *)PDF417BarcodeGenerator NS_SWIFT_NAME(pdf417BarcodeGenerator());
 + (CIFilter<CIQRCodeGenerator> *)QRCodeGenerator NS_SWIFT_NAME(qrCodeGenerator());
 + (CIFilter<CIRandomGenerator> *)randomGeneratorFilter NS_SWIFT_NAME(randomGenerator());
++ (CIFilter<CIRoundedQRCodeGenerator> *)roundedQRCodeGenerator NS_SWIFT_NAME(roundedQRCodeGenerator()) API_AVAILABLE(ios(26.0));
 + (CIFilter<CIRoundedRectangleGenerator> *)roundedRectangleGeneratorFilter NS_SWIFT_NAME(roundedRectangleGenerator()) API_AVAILABLE(ios(13.0));
 + (CIFilter<CIRoundedRectangleStrokeGenerator> *)roundedRectangleStrokeGeneratorFilter NS_SWIFT_NAME(roundedRectangleStrokeGenerator()) API_AVAILABLE(ios(17.0));
++ (CIFilter<CIBlurredRoundedRectangleGenerator> *)blurredRoundedRectangleGeneratorFilter NS_SWIFT_NAME(blurredRoundedRectangleGenerator()) API_AVAILABLE(ios(26.0));
 + (CIFilter<CIBlurredRectangleGenerator> *)blurredRectangleGeneratorFilter NS_SWIFT_NAME(blurredRectangleGenerator()) API_AVAILABLE(ios(17.0));
 + (CIFilter<CIStarShineGenerator> *)starShineGeneratorFilter NS_SWIFT_NAME(starShineGenerator());
 + (CIFilter<CIStripesGenerator> *)stripesGeneratorFilter NS_SWIFT_NAME(stripesGenerator());
@@ -1326,6 +1363,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (CIFilter<CIKeystoneCorrectionHorizontal> *)keystoneCorrectionHorizontalFilter NS_SWIFT_NAME(keystoneCorrectionHorizontal()) API_AVAILABLE(ios(13.0));
 + (CIFilter<CIKeystoneCorrectionVertical> *)keystoneCorrectionVerticalFilter NS_SWIFT_NAME(keystoneCorrectionVertical()) API_AVAILABLE(ios(13.0));
 + (CIFilter<CILanczosScaleTransform> *)lanczosScaleTransformFilter NS_SWIFT_NAME(lanczosScaleTransform());
++ (CIFilter<CIMaximumScaleTransform> *)maximumScaleTransformFilter NS_SWIFT_NAME(maximumScaleTransform()) API_AVAILABLE(ios(18.0));
 + (CIFilter<CIPerspectiveCorrection> *)perspectiveCorrectionFilter NS_SWIFT_NAME(perspectiveCorrection());
 + (CIFilter<CIPerspectiveRotate> *)perspectiveRotateFilter NS_SWIFT_NAME(perspectiveRotate()) API_AVAILABLE(ios(13.0));
 + (CIFilter<CIPerspectiveTransform> *)perspectiveTransformFilter NS_SWIFT_NAME(perspectiveTransform());
@@ -1350,7 +1388,10 @@ NS_ASSUME_NONNULL_BEGIN
 + (CIFilter<CIAreaMinMaxRed> *)areaMinMaxRedFilter NS_SWIFT_NAME(areaMinMaxRed());
 + (CIFilter<CIColumnAverage> *)columnAverageFilter NS_SWIFT_NAME(columnAverage());
 + (CIFilter<CIRowAverage> *)rowAverageFilter NS_SWIFT_NAME(rowAverage());
++ (CIFilter<CIAreaBoundsRed> *)areaBoundsRedFilter NS_SWIFT_NAME(areaBoundsRed()) API_AVAILABLE(ios(18.0));
++ (CIFilter<CIAreaAverageMaximumRed> *)areaAverageMaximumRedFilter NS_SWIFT_NAME(areaAverageMaximumRed()) API_AVAILABLE(ios(26.0));
 + (CIFilter<CIAreaHistogram> *)areaHistogramFilter NS_SWIFT_NAME(areaHistogram());
++ (CIFilter<CIAreaHistogram> *)areaAlphaWeightedHistogramFilter NS_SWIFT_NAME(areaAlphaWeightedHistogram()) API_AVAILABLE(ios(18.0));
 + (CIFilter<CIAreaLogarithmicHistogram> *)areaLogarithmicHistogramFilter NS_SWIFT_NAME(areaLogarithmicHistogram()) API_AVAILABLE(ios(16.0));
 + (CIFilter<CIHistogramDisplay> *)histogramDisplayFilter NS_SWIFT_NAME(histogramDisplay());
 + (CIFilter<CIKMeans> *)KMeansFilter NS_SWIFT_NAME(kMeans()) API_AVAILABLE(ios(13.0));

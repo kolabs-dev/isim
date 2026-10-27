@@ -108,7 +108,31 @@ static float rounded_rect_dist(double x, double y, CGRect r, double rad) {    /*
     double ox = fmax(qx, 0), oy = fmax(qy, 0);
     return (float)(hypot(ox, oy) + fmin(fmax(qx, qy), 0) - rad);
 }
+/* iOS 26 smoothness: 0 circular corners, toward 1 continuous ("squircle") corners that start earlier */
+static float smooth_rect_dist(double x, double y, CGRect r, double rad, double smooth) {
+    if (smooth <= 0) return rounded_rect_dist(x, y, r, rad);
+    double s = fmin(smooth, 1), R = fmin(rad * (1 + 0.6 * s), fmin(r.size.width, r.size.height) / 2), p = 2 + 2.5 * s;
+    double cx = CGRectGetMidX(r), cy = CGRectGetMidY(r), qx = fabs(x - cx) - (r.size.width / 2 - R), qy = fabs(y - cy) - (r.size.height / 2 - R);
+    double ox = fmax(qx, 0), oy = fmax(qy, 0), n = ox > 0 || oy > 0 ? pow(pow(ox, p) + pow(oy, p), 1 / p) : 0;
+    return (float)(n + fmin(fmax(qx, qy), 0) - R);
+}
 static double erf_(double x) { return erf(x); }
+/* a premultiplied sRGB bitmap of a color times a coverage (top-down rows), extent at `origin` */
+static CIImage *coverage_image(float *cov, int W, int H, CGPoint origin, CIColor *c) {
+    float *px = malloc(sizeof(float) * 4 * (size_t)W * H);
+    float a = (float)c.alpha;
+    for (size_t i = 0; i < (size_t)W * H; i++) {
+        float k = cov[i] * a;
+        px[i * 4] = (float)c.red * k; px[i * 4 + 1] = (float)c.green * k; px[i * 4 + 2] = (float)c.blue * k; px[i * 4 + 3] = k;
+    }
+    return ci_bitmap(px, W, H, CGRectMake(origin.x, origin.y, W, H), ci_space_srgb, NO);
+}
+/* QR finder patterns (7x7 modules at three corners), drawn with rounded corners by `level` (0 square ... 3 round) */
+static BOOL qr_in_finder(int n, double mx, double my, double *fx, double *fy) {
+    int ox[3] = { 0, n - 7, 0 }, oy[3] = { 0, 0, n - 7 };
+    for (int k = 0; k < 3; k++) if (mx >= ox[k] && mx < ox[k] + 7 && my >= oy[k] && my < oy[k] + 7) { *fx = mx - ox[k]; *fy = my - oy[k]; return YES; }
+    return NO;
+}
 
 void ci_register_generator_filters(void) {
     REG(@"CIConstantColorGenerator", {
@@ -206,9 +230,10 @@ void ci_register_generator_filters(void) {
         CGRect r = ci_rect(in[kCIInputExtentKey], CGRectMake(0, 0, 100, 100));
         double rad = fmin(fmax(NUM(kCIInputRadiusKey, 10), 0), fmin(r.size.width, r.size.height) / 2);
         CIColor *col = ci_colorv(in[kCIInputColorKey], [CIColor whiteColor]);
+        double sm = NUM(@"inputSmoothness", 0);
         return ci_gen(r, ^(double x, double y, float *out, const ci_rctx *rc) {
             float c[4]; ci_color_ws(col, rc, c);
-            float cov = ci_clamp01(0.5f - rounded_rect_dist(x, y, r, rad));
+            float cov = ci_clamp01(0.5f - smooth_rect_dist(x, y, r, rad, sm));
             for (int k = 0; k < 4; k++) out[k] = c[k] * cov;
         });
     });
@@ -216,9 +241,10 @@ void ci_register_generator_filters(void) {
         CGRect r = ci_rect(in[kCIInputExtentKey], CGRectMake(0, 0, 100, 100));
         double rad = fmin(fmax(NUM(kCIInputRadiusKey, 10), 0), fmin(r.size.width, r.size.height) / 2), w = fmax(NUM(kCIInputWidthKey, 10), 0);
         CIColor *col = ci_colorv(in[kCIInputColorKey], [CIColor whiteColor]);
+        double sm = NUM(@"inputSmoothness", 0);
         return ci_gen(CGRectInset(r, -w / 2 - 1, -w / 2 - 1), ^(double x, double y, float *out, const ci_rctx *rc) {
             float c[4]; ci_color_ws(col, rc, c);
-            float d = fabsf(rounded_rect_dist(x, y, r, rad)), cov = ci_clamp01((float)(w / 2) + 0.5f - d);
+            float d = fabsf(smooth_rect_dist(x, y, r, rad, sm)), cov = ci_clamp01((float)(w / 2) + 0.5f - d);
             for (int k = 0; k < 4; k++) out[k] = c[k] * cov;
         });
     });
@@ -233,6 +259,25 @@ void ci_register_generator_filters(void) {
             float cov = (float)(fx * fy);
             for (int q = 0; q < 4; q++) out[q] = c[q] * cov;
         });
+    });
+    REG(@"CIBlurredRoundedRectangleGenerator", {
+        CGRect r = ci_rect(in[kCIInputExtentKey], CGRectMake(0, 0, 100, 100));
+        double rad = fmin(fmax(NUM(kCIInputRadiusKey, 10), 0), fmin(r.size.width, r.size.height) / 2), sm = NUM(@"inputSmoothness", 0);
+        double s = fmax(NUM(@"inputSigma", 10), 0);
+        CIColor *col = ci_colorv(in[kCIInputColorKey], [CIColor whiteColor]);
+        CGRect e = ci_integral(CGRectInset(r, -ceil(3 * s) - 1, -ceil(3 * s) - 1));
+        int W = (int)e.size.width, H = (int)e.size.height;
+        if (W <= 0 || H <= 0 || (size_t)W * H > 64u << 20) return [CIImage emptyImage];
+        float *cov = malloc(sizeof(float) * 4 * (size_t)W * H);     /* the shape (RGBA for the blur), then its coverage */
+        for (int j = 0; j < H; j++) for (int i = 0; i < W; i++) {
+            float v = ci_clamp01(0.5f - smooth_rect_dist(e.origin.x + i + 0.5, e.origin.y + H - 1 - j + 0.5, r, rad, sm));
+            float *p = cov + ((size_t)j * W + i) * 4; p[0] = p[1] = p[2] = p[3] = v;
+        }
+        if (s > 0) ci_blur_buf(cov, W, H, s);
+        for (size_t i = 0; i < (size_t)W * H; i++) cov[i] = cov[i * 4 + 3];
+        CIImage *im = coverage_image(cov, W, H, e.origin, col);
+        free(cov);
+        return im;
     });
     REG(@"CIMeshGenerator", {
         NSArray *mesh = in[@"inputMesh"];
@@ -342,6 +387,49 @@ void ci_register_generator_filters(void) {
         CIImage *im = s ? modules_image(m, s, s, 1, 1, 1, 1) : nil;       /* one module of quiet zone, as Core Image */
         free(m);
         return im;
+    });
+    /* iOS 26: dots for the data modules (roundedData), rounded finder patterns (roundedMarkers 0 square ... 3 round), an
+       optional clear center (centerSpaceSize, a fraction of the symbol), color0 on color1, one module of margin */
+    REG(@"CIRoundedQRCodeGenerator", {
+        NSData *msg = message_of(in[@"inputMessage"]);
+        if (!msg) return nil;
+        NSString *lvl = [in[@"inputCorrectionLevel"] uppercaseString] ?: @"M";
+        int ecl = [lvl isEqualToString:@"L"] ? 0 : [lvl isEqualToString:@"Q"] ? 2 : [lvl isEqualToString:@"H"] ? 3 : 1;
+        uint8_t *m = malloc(177 * 177);
+        int n = isim_qr_encode_ex(msg.bytes, (int)msg.length, ecl, m, NULL, NULL, NULL, NULL, NULL);
+        if (!n) { free(m); return nil; }
+        double S = fmax(1, round(NUM(kCIInputScaleKey, 10)));
+        int level = (int)lround(fmin(3, fmax(0, NUM(@"inputRoundedMarkers", 0)))), dots = ci_num(in[@"inputRoundedData"], 1) != 0;
+        double center = fmin(0.5, fmax(0, NUM(@"inputCenterSpaceSize", 0))) * n;
+        CIColor *c0 = ci_colorv(in[@"inputColor0"], [CIColor blackColor]), *c1 = ci_colorv(in[@"inputColor1"], [CIColor whiteColor]);
+        int N = n + 2, W = (int)(N * S);
+        double ro[4] = { 0, 1.5, 2.5, 3.5 }, ri[4] = { 0, 0.6, 1.0, 1.5 };
+        float *px = malloc(sizeof(float) * 4 * (size_t)W * W);
+        for (int j = 0; j < W; j++) for (int i = 0; i < W; i++) {
+            double cov = 0;
+            for (int sy = 0; sy < 2; sy++) for (int sx = 0; sx < 2; sx++) {      /* 2x2 samples per pixel */
+                double mx = (i + 0.25 + 0.5 * sx) / S - 1, my = (j + 0.25 + 0.5 * sy) / S - 1, fx, fy;
+                BOOL dark = NO;
+                if (mx < 0 || my < 0 || mx >= n || my >= n) dark = NO;
+                else if (qr_in_finder(n, mx, my, &fx, &fy)) {
+                    double outer = smooth_rect_dist(fx, fy, CGRectMake(0, 0, 7, 7), ro[level], 0);
+                    double hole = smooth_rect_dist(fx, fy, CGRectMake(1, 1, 5, 5), fmax(ro[level] - 1, 0), 0);
+                    double eye = smooth_rect_dist(fx, fy, CGRectMake(2, 2, 3, 3), ri[level], 0);
+                    dark = (outer <= 0 && hole > 0) || eye <= 0;
+                } else if (center > 0 && fabs(mx - n / 2.0) < center / 2 && fabs(my - n / 2.0) < center / 2) dark = NO;
+                else if (m[(int)my * n + (int)mx]) {
+                    double u = mx - floor(mx) - 0.5, v = my - floor(my) - 0.5;
+                    dark = dots ? hypot(u, v) <= 0.45 : YES;
+                }
+                cov += dark ? 0.25 : 0;
+            }
+            float *p = px + ((size_t)j * W + i) * 4;
+            float a0 = (float)c0.alpha, a1 = (float)c1.alpha, k = (float)cov;
+            p[0] = (float)(c0.red * a0 * k + c1.red * a1 * (1 - k)); p[1] = (float)(c0.green * a0 * k + c1.green * a1 * (1 - k));
+            p[2] = (float)(c0.blue * a0 * k + c1.blue * a1 * (1 - k)); p[3] = a0 * k + a1 * (1 - k);
+        }
+        free(m);
+        return ci_bitmap(px, W, W, CGRectMake(0, 0, W, W), ci_space_srgb, NO);
     });
     REG(@"CICode128BarcodeGenerator", {
         NSData *msg = message_of(in[@"inputMessage"]);

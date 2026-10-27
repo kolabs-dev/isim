@@ -1184,6 +1184,11 @@ def _(a):
     a.swift_app("CoreMLTest", srcs=["CoreMLTest.swift"], plist="Info.plist")
 
 
+@app("tests/coreimage-hdr", products=["CoreImageHDRTest.app"])
+def _(a):
+    a.swift_app("CoreImageHDRTest", srcs=["CoreImageHDRTest.swift"], plist="Info.plist")
+
+
 @app("tests/speech", products=["SpeechTest.app"])
 def _(a):
     a.swift_app("SpeechTest", srcs=["SpeechTest.swift"], plist="Info.plist")

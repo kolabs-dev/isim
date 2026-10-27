@@ -31,6 +31,8 @@ extern NSString *const kCIOutputImageKey, *const kCIInputBackgroundImageKey, *co
     *const kCIInputColorKey, *const kCIInputBrightnessKey, *const kCIInputContrastKey, *const kCIInputBiasKey, *const kCIInputWeightsKey,
     *const kCIInputGradientImageKey, *const kCIInputMaskImageKey, *const kCIInputMatteImageKey, *const kCIInputShadingImageKey,
     *const kCIInputTargetImageKey, *const kCIInputExtentKey, *const kCIInputVersionKey;
+/* iOS 26 */
+extern NSString *const kCIInputBacksideImageKey, *const kCIInputBiasVectorKey, *const kCIInputColor0Key, *const kCIInputColor1Key, *const kCIInputColorSpaceKey, *const kCIInputCountKey, *const kCIInputExtrapolateKey, *const kCIInputPaletteImageKey, *const kCIInputPerceptualKey, *const kCIInputPoint0Key, *const kCIInputPoint1Key, *const kCIInputRadius0Key, *const kCIInputRadius1Key, *const kCIInputThresholdKey API_AVAILABLE(ios(26.0));
 /* options of -[CIFilter apply:arguments:options:] */
 extern NSString *const kCIApplyOptionExtent, *const kCIApplyOptionDefinition, *const kCIApplyOptionUserInfo, *const kCIApplyOptionColorSpace;
 
