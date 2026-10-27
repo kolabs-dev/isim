@@ -1,6 +1,6 @@
 // Sample: on-device intelligence APIs on isim — Vision (VNDetectBarcodesRequest with region of interest and
 // orientation, VNRecognizeTextRequest, faces and landmarks, rectangles, text rectangles, contours, the horizon and
-// saliency on pictures the app draws), Core ML (MLModel.compileModel, model
+// saliency on pictures the app draws; tracking, registration and optical flow on drawn frames), Core ML (MLModel.compileModel, model
 // descriptions, MLMultiArray, GLM regressor/classifier predictions, models isim cannot run), NaturalLanguage
 // (NLTokenizer, NLLanguageRecognizer, NLTagger), Speech (authorization alert, recognition) and VisionKit
 // (DataScannerViewController support check). Pictures and model specs are made by the build (buildlib/apps.py).
@@ -48,6 +48,7 @@ final class VisionViewController: UIViewController {
         text()
         faces()
         detectors()
+        tracking()
         coreML()
         language()
         visionKit()
@@ -127,6 +128,96 @@ final class VisionViewController: UIViewController {
     func render(_ w: CGFloat, _ h: CGFloat, _ draw: (CGContext) -> Void) -> CGImage {
         let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
         return UIGraphicsImageRenderer(size: CGSize(width: w, height: h), format: fmt).image { draw($0.cgContext) }.cgImage!
+    }
+    /// tracking, registration and optical flow on drawn frames with known motion (issue #373)
+    func tracking() {
+        /* a 200 x 150 frame: grey blobs (moved by `shift`, UIKit points, y down) and a 30 pt black square with a white
+           corner (at `object`) */
+        func frame(shift: CGPoint = .zero, scale: CGFloat = 1, object: CGPoint? = nil) -> CGImage {
+            render(200, 150) { c in
+                c.setFillColor(UIColor.white.cgColor); c.fill(CGRect(x: 0, y: 0, width: 200, height: 150))
+                c.saveGState()
+                c.translateBy(x: 100 + shift.x, y: 75 + shift.y); c.scaleBy(x: scale, y: scale); c.translateBy(x: -100, y: -75)
+                for i in 0..<70 {
+                    let x = CGFloat((i * 37) % 240) - 20, y = CGFloat((i * 53) % 190) - 20, r = CGFloat(5 + i % 6)
+                    c.setFillColor(UIColor(white: CGFloat(i % 4) * 0.2, alpha: 1).cgColor)
+                    c.fillEllipse(in: CGRect(x: x - r, y: y - r, width: 2 * r, height: 2 * r))
+                }
+                c.restoreGState()
+                if let o = object {
+                    c.setFillColor(UIColor.white.cgColor); c.fill(CGRect(x: o.x - 6, y: o.y - 6, width: 42, height: 42))
+                    c.setFillColor(UIColor.black.cgColor); c.fill(CGRect(x: o.x, y: o.y, width: 30, height: 30))
+                    c.setFillColor(UIColor.white.cgColor); c.fill(CGRect(x: o.x + 4, y: o.y + 4, width: 10, height: 10))
+                }
+            }
+        }
+        do {
+            /* VNTrackObjectRequest / VNTrackRectangleRequest over three frames: the square moves 12 right, 6 down each */
+            let box = CGRect(x: 40.0 / 200, y: 1 - 80.0 / 150, width: 30.0 / 200, height: 30.0 / 150)
+            let start = VNDetectedObjectObservation(boundingBox: box)
+            let object = VNTrackObjectRequest(detectedObjectObservation: start)
+            let rectangle = VNTrackRectangleRequest(rectangleObservation: VNRectangleObservation(boundingBox: box))
+            rectangle.trackingLevel = .fast
+            let sequence = VNSequenceRequestHandler()
+            var last: VNDetectedObjectObservation?
+            for k in 0..<3 {
+                let f = frame(object: CGPoint(x: 40 + 12 * k, y: 50 + 6 * k))
+                rectangle.isLastFrame = k == 2
+                try sequence.perform([object, rectangle], on: f)
+                last = object.results?.first as? VNDetectedObjectObservation
+                if let last { object.inputObservation = last }
+            }
+            let corner = (rectangle.results?.first as? VNRectangleObservation)?.topLeft ?? .zero
+            log("track object \(last.map { rect($0.boundingBox) } ?? "none") same uuid \(last?.uuid == start.uuid) confidence \(last.map { $0.confidence > 0.9 } ?? false) " +
+                "rectangle topLeft \(f2(corner.x)),\(f2(corner.y)) trackers \(object.supportedNumber(ofTrackersAndReturnError: nil))")
+
+            /* registration: the floating image is the reference moved 10 right and 6 down */
+            let reference = frame(), floating = frame(shift: CGPoint(x: 10, y: 6))
+            let translation = VNTranslationalImageRegistrationRequest(targetedCGImage: floating)
+            let homography = VNHomographicImageRegistrationRequest(targetedCGImage: frame(shift: CGPoint(x: 4, y: -3), scale: 1.05))
+            try VNImageRequestHandler(cgImage: reference).perform([translation, homography])
+            let t = (translation.results?.first as? VNImageTranslationAlignmentObservation)?.alignmentTransform ?? .identity
+            log("registration translation \(String(format: "%.1f %.1f", t.tx, t.ty))")
+            if let w = (homography.results?.first as? VNImageHomographicAlignmentObservation)?.warpTransform {
+                /* a reference point p (y down) is at A p in the floating image; the warp brings it back (y up) */
+                var worst = 0.0
+                for p in [CGPoint(x: 40, y: 30), CGPoint(x: 160, y: 30), CGPoint(x: 40, y: 120), CGPoint(x: 160, y: 120)] {
+                    let q = CGPoint(x: 100 + 4 + (p.x - 100) * 1.05, y: 75 - 3 + (p.y - 75) * 1.05)
+                    let r = w * SIMD3<Float>(Float(q.x), Float(150 - q.y), 1)
+                    worst = max(worst, hypot(Double(r.x / r.z) - p.x, Double(r.y / r.z) - (150 - p.y)))
+                }
+                log("registration homography error below 1.5 \(worst < 1.5) scale \(String(format: "%.2f", w.columns.0.x))")
+            }
+            /* the same between frames of a sequence */
+            let trackShift = VNTrackTranslationalImageRegistrationRequest()
+            let sequence2 = VNSequenceRequestHandler()
+            try sequence2.perform([trackShift], on: floating)
+            let first = trackShift.results?.count ?? -1
+            try sequence2.perform([trackShift], on: reference)
+            let t2 = (trackShift.results?.first as? VNImageTranslationAlignmentObservation)?.alignmentTransform ?? .identity
+            log("track registration first \(first) then \(String(format: "%.1f %.1f", t2.tx, t2.ty))")
+
+            /* optical flow: the square moves 6 right and 4 down over still blobs */
+            let flow = VNGenerateOpticalFlowRequest(targetedCGImage: frame(object: CGPoint(x: 80, y: 60)))
+            try VNImageRequestHandler(cgImage: frame(object: CGPoint(x: 86, y: 64))).perform([flow])
+            if let pb = (flow.results?.first as? VNPixelBufferObservation)?.pixelBuffer {
+                CVPixelBufferLockBaseAddress(pb, .readOnly)
+                let base = CVPixelBufferGetBaseAddress(pb)!, bpr = CVPixelBufferGetBytesPerRow(pb)
+                /* the median motion over the square's place in the second frame, and over the whole field */
+                func median(_ xs: Range<Int>, _ ys: Range<Int>) -> (Float, Float) {
+                    var us: [Float] = [], vs: [Float] = []
+                    for y in ys { for x in xs {
+                        us.append(base.load(fromByteOffset: y * bpr + x * 8, as: Float.self))
+                        vs.append(base.load(fromByteOffset: y * bpr + x * 8 + 4, as: Float.self))
+                    } }
+                    return (us.sorted()[us.count / 2], vs.sorted()[vs.count / 2])
+                }
+                let c = median(86..<116, 64..<94), all = median(0..<CVPixelBufferGetWidth(pb), 0..<CVPixelBufferGetHeight(pb))
+                CVPixelBufferUnlockBaseAddress(pb, .readOnly)
+                log("optical flow \(CVPixelBufferGetWidth(pb))x\(CVPixelBufferGetHeight(pb)) two floats \(CVPixelBufferGetPixelFormatType(pb) == kCVPixelFormatType_TwoComponent32Float) " +
+                    "object \(String(format: "%.1f,%.1f elsewhere %.1f,%.1f", c.0, c.1, all.0, all.1))")
+            }
+        } catch { log("tracking error \(message(error))") }
     }
     /// rectangles, text rectangles, contours, the horizon and saliency, on pictures with known answers (issue #276)
     func detectors() {

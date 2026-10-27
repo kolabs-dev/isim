@@ -44,6 +44,7 @@ static CGImageRef render(CGFloat w, CGFloat h, void (^draw)(CGContextRef c)) {
     [self faces];
     [self detectors];
     [self others];
+    [self tracking];
     say(@"done");
 }
 
@@ -248,6 +249,46 @@ static CGImageRef render(CGFloat w, CGFloat h, void (^draw)(CGContextRef c)) {
     say([NSString stringWithFormat:@"utils image %@ back %@ identity %d roi point %@,%@ landmark %@,%@ float size %zu",
          rect(imageRect), rect(back), VNNormalizedRectIsIdentityRect(VNNormalizedIdentityRect), f2(p.x), f2(p.y), f2(fp.x), f2(fp.y),
          VNElementTypeSize(VNElementTypeFloat)]);
+}
+
+
+/// tracking and registration (issue #373): a black square with a white corner over white, moved 12 right and 6 down
+- (void)tracking {
+    CGImageRef (^frame)(CGFloat, CGFloat) = ^CGImageRef(CGFloat x, CGFloat y) {
+        return render(200, 150, ^(CGContextRef c) {
+            CGContextSetFillColorWithColor(c, UIColor.whiteColor.CGColor); CGContextFillRect(c, CGRectMake(0, 0, 200, 150));
+            CGContextSetFillColorWithColor(c, UIColor.blackColor.CGColor); CGContextFillRect(c, CGRectMake(x, y, 30, 30));
+            CGContextSetFillColorWithColor(c, UIColor.whiteColor.CGColor); CGContextFillRect(c, CGRectMake(x + 4, y + 4, 10, 10));
+        });
+    };
+    CGImageRef a = frame(40, 50), b = frame(52, 56);
+    VNDetectedObjectObservation *start = [VNDetectedObjectObservation observationWithBoundingBox:CGRectMake(0.2, 1 - 80.0 / 150, 0.15, 0.2)];
+    VNTrackObjectRequest *track = [[VNTrackObjectRequest alloc] initWithDetectedObjectObservation:start];
+    track.trackingLevel = VNRequestTrackingLevelAccurate;
+    VNSequenceRequestHandler *sequence = [[VNSequenceRequestHandler alloc] init];
+    NSError *error = nil;
+    BOOL ok = [sequence performRequests:@[ track ] onCGImage:a error:&error];
+    track.inputObservation = track.results.firstObject;
+    track.lastFrame = YES;
+    ok = ok && [sequence performRequests:@[ track ] onCGImage:b error:&error];
+    VNDetectedObjectObservation *moved = track.results.firstObject;
+    VNTranslationalImageRegistrationRequest *shift = [[VNTranslationalImageRegistrationRequest alloc] initWithTargetedCGImage:b options:@{}];
+    VNHomographicImageRegistrationRequest *warp = [[VNHomographicImageRegistrationRequest alloc] initWithTargetedCGImage:b options:@{}];
+    ok = ok && [[[VNImageRequestHandler alloc] initWithCGImage:a options:@{}] performRequests:@[ shift, warp ] error:&error];
+    CGAffineTransform t = shift.results.firstObject.alignmentTransform;
+    matrix_float3x3 m = warp.results.firstObject.warpTransform;
+    VNTrackOpticalFlowRequest *flow = [[VNTrackOpticalFlowRequest alloc] init];
+    flow.computationAccuracy = VNTrackOpticalFlowRequestComputationAccuracyLow;
+    VNSequenceRequestHandler *sequence2 = [[VNSequenceRequestHandler alloc] init];
+    ok = ok && [sequence2 performRequests:@[ flow ] onCGImage:a error:&error];
+    NSUInteger firstFlow = flow.results.count;
+    ok = ok && [sequence2 performRequests:@[ flow ] onCGImage:b error:&error];
+    CVPixelBufferRef pb = flow.results.firstObject.pixelBuffer;
+    say([NSString stringWithFormat:@"tracking ok %d box %@ last %d registration %.1f %.1f warp tx %.0f ty %.0f flow first %lu then %zux%zu format %d trackers %lu",
+         ok, rect(moved.boundingBox), track.isLastFrame, t.tx, t.ty, m.columns[2][0], m.columns[2][1], (unsigned long)firstFlow,
+         pb ? CVPixelBufferGetWidth(pb) : 0, pb ? CVPixelBufferGetHeight(pb) : 0, pb && CVPixelBufferGetPixelFormatType(pb) == kCVPixelFormatType_TwoComponent32Float,
+         (unsigned long)[track supportedNumberOfTrackersAndReturnError:nil]]);
+    CGImageRelease(a); CGImageRelease(b);
 }
 
 @end

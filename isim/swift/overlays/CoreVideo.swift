@@ -30,6 +30,9 @@ public let kCVPixelFormatType_420YpCbCr8BiPlanarFullRange: OSType = 0x3432_3066 
 public let kCVPixelFormatType_OneComponent16: OSType = 0x4C30_3136            // 'L016'
 public let kCVPixelFormatType_OneComponent16Half: OSType = 0x4C30_3068        // 'L00h'
 public let kCVPixelFormatType_OneComponent32Float: OSType = 0x4C30_3066       // 'L00f'
+public let kCVPixelFormatType_TwoComponent8: OSType = 0x3243_3038            // '2C08'
+public let kCVPixelFormatType_TwoComponent16Half: OSType = 0x3243_3068        // '2C0h'
+public let kCVPixelFormatType_TwoComponent32Float: OSType = 0x3243_3066       // '2C0f'
 public let kCVPixelFormatType_DepthFloat16: OSType = 0x6864_6570              // 'hdep'
 public let kCVPixelFormatType_DepthFloat32: OSType = 0x6664_6570              // 'fdep'
 public let kCVPixelFormatType_DisparityFloat16: OSType = 0x6864_6973          // 'hdis'
@@ -106,6 +109,9 @@ public final class CVBuffer: @unchecked Sendable, Hashable {
         case kCVPixelFormatType_32BGRA, kCVPixelFormatType_32ARGB, kCVPixelFormatType_32RGBA: return 4
         case kCVPixelFormatType_24RGB: return 3
         case kCVPixelFormatType_OneComponent8: return 1
+        case kCVPixelFormatType_TwoComponent32Float: return 8
+        case kCVPixelFormatType_TwoComponent16Half: return 4
+        case kCVPixelFormatType_TwoComponent8: return 2
         case kCVPixelFormatType_OneComponent32Float, kCVPixelFormatType_DepthFloat32, kCVPixelFormatType_DisparityFloat32: return 4
         case kCVPixelFormatType_OneComponent16, kCVPixelFormatType_OneComponent16Half, kCVPixelFormatType_DepthFloat16, kCVPixelFormatType_DisparityFloat16,
              kCVPixelFormatType_14Bayer_RGGB, kCVPixelFormatType_14Bayer_GRBG, kCVPixelFormatType_14Bayer_GBRG, kCVPixelFormatType_14Bayer_BGGR: return 2

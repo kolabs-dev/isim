@@ -10,8 +10,11 @@
 typedef float simd_float2 __attribute__((__ext_vector_type__(2)));
 typedef float simd_float3 __attribute__((__ext_vector_type__(3)));
 typedef float simd_float4 __attribute__((__ext_vector_type__(4)));
+#ifndef ISIM_SIMD_MATRIX_TYPES   /* the matrices, shared with other frameworks' fallbacks (Vision) */
+#define ISIM_SIMD_MATRIX_TYPES 1
 typedef struct { simd_float3 columns[3]; } simd_float3x3;
 typedef struct { simd_float4 columns[4]; } simd_float4x4;
+#endif
 typedef struct { simd_float4 vector; } simd_quatf;
 typedef simd_float2 vector_float2;
 typedef simd_float3 vector_float3;

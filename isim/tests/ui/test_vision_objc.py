@@ -39,6 +39,7 @@ def test_vision_objc(launch):
         r"saliency 68x68 float true objects [1-3] first center 0\.(6[5-9]|7[0-5]),0\.(6[5-9]|7[0-5])",
         r"classify ok=0 domain=com\.apple\.Vision unsupported=1 results=nil",
         r"factories VNRectangleObservation 0\.25,0\.50,0\.50,0\.25 topLeft 0\.25,0\.75 face roll 0\.5 yaw nil timeRange valid [01] revision 3",
+        r"tracking ok 1 box 0\.26,0\.43,0\.15,0\.20 last 1 registration -12\.0 6\.0 warp tx -12 ty 6 flow first 0 then 160x120 format 1 trackers 16",
         r"utils image 100\.00,100\.00,200\.00,50\.00 back 0\.25,0\.50,0\.50,0\.25 identity 1 roi point 300\.00,100\.00 landmark 50\.00,50\.00 float size 4",
     ]:
         app.wait_log(p + rx)

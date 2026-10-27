@@ -15,6 +15,7 @@ import CoreImage
 @_exported import CoreML
 @_exported import CoreMedia
 @_exported import CoreVideo
+@_exported import simd
 import isim_host
 
 public let VNErrorDomain = "com.apple.Vision"
@@ -323,7 +324,8 @@ public enum VNRequestTextRecognitionLevel: Int, Sendable { case accurate = 0, fa
 
 public typealias VNConfidence = Float
 @objc(VNObservation) open class VNObservation: NSObject, @unchecked Sendable {
-    @objc public let uuid = UUID()
+    @objc public final var uuid: UUID { _uuid }
+    var _uuid = UUID()
     @objc open var confidence: VNConfidence = 1
     open var timeRange: CMTimeRange = .zero
     @objc open var requestRevision: Int { 1 }
@@ -440,7 +442,7 @@ public typealias VNConfidence = Float
             if r._cancelled { let e = _vnError(.requestCancelled, "the request was cancelled"); r.completionHandler?(r, e); first = first ?? e; continue }
             let roi = (r as? VNImageBasedRequest)?.regionOfInterest ?? CGRect(x: 0, y: 0, width: 1, height: 1)
             do {
-                let (crop, _) = img.cropped(roi)
+                let crop = r is _VNWholeFrame ? img : img.cropped(roi).0
                 r._results = try r._run(crop)
                 r.completionHandler?(r, nil)
             } catch {
@@ -463,6 +465,15 @@ public typealias VNConfidence = Float
     }
     open func perform(_ requests: [VNRequest], on sampleBuffer: CMSampleBuffer, orientation: CGImagePropertyOrientation = .up) throws {
         try VNImageRequestHandler(cmSampleBuffer: sampleBuffer, orientation: orientation).perform(requests)
+    }
+    open func perform(_ requests: [VNRequest], on image: CIImage, orientation: CGImagePropertyOrientation = .up) throws {
+        try VNImageRequestHandler(ciImage: image, orientation: orientation).perform(requests)
+    }
+    open func perform(_ requests: [VNRequest], onImageURL imageURL: URL, orientation: CGImagePropertyOrientation = .up) throws {
+        try VNImageRequestHandler(url: imageURL, orientation: orientation).perform(requests)
+    }
+    open func perform(_ requests: [VNRequest], onImageData imageData: Data, orientation: CGImagePropertyOrientation = .up) throws {
+        try VNImageRequestHandler(data: imageData, orientation: orientation).perform(requests)
     }
 }
 

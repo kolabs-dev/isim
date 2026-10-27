@@ -3,6 +3,7 @@
 #import <CoreGraphics/CoreGraphics.h>
 #import <CoreMedia/CMTime.h>
 #import <CoreVideo/CoreVideo.h>
+#import <Vision/VNDefines.h>
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
 @class VNFaceLandmarks2D, MLFeatureValue;
@@ -87,6 +88,19 @@ API_AVAILABLE(ios(13.0))
 @end
 API_AVAILABLE(ios(15.0))
 @interface VNHumanObservation : VNDetectedObjectObservation
+@end
+API_AVAILABLE(ios(11.0))
+@interface VNImageAlignmentObservation : VNObservation
+@end
+/* the translation (pixels, lower-left origin) that moves the floating image onto the reference image */
+API_AVAILABLE(ios(11.0))
+@interface VNImageTranslationAlignmentObservation : VNImageAlignmentObservation
+@property (readonly, nonatomic, assign) CGAffineTransform alignmentTransform;
+@end
+/* the homography (pixels, lower-left origin, applied to (x, y, 1)) that warps the floating image onto the reference */
+API_AVAILABLE(ios(11.0))
+@interface VNImageHomographicAlignmentObservation : VNImageAlignmentObservation
+@property (readonly, nonatomic, assign) matrix_float3x3 warpTransform;
 @end
 NS_ASSUME_NONNULL_END
 #endif

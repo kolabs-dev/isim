@@ -3,7 +3,8 @@
   the screenshot); region of interest and orientation; text recognition needs the host's tesseract (otherwise the
   request must fail with a clear message); faces and landmarks run Core Image's Haar cascades (the host's
   opencv-data; without it the requests fail with VNErrorCode.unsupportedRequest, 19); rectangles, text rectangles,
-  contours, the horizon and saliency run isim's own detectors on pictures the app draws (issue #276).
+  contours, the horizon and saliency run isim's own detectors on pictures the app draws (issue #276); tracking,
+  registration and optical flow run isim's own algorithms on drawn frames with known motion (issue #373).
 - Core ML: model specs written by gen_models.py: GLM regressor and classifier predictions, a neural network spec that
   loads but cannot run, an Xcode-compiled bundle that cannot load.
 - NaturalLanguage tokenization, language recognition, lexical classes, sentiment.
@@ -44,6 +45,13 @@ COMMON = [   # check, log regex
     ("VNDetectHorizonRequest: 10 degrees, levelled by the transform", r"horizon (9\.[5-9]|10\.[0-5]) levels -(9\.[5-9]|10\.[0-5])"),
     ("VNGenerateAttentionBasedSaliencyImageRequest: 68x68 float map, the red disk",
      r"saliency 68x68 float true objects [1-3] first center 0\.(6[5-9]|7[0-5]),0\.(6[5-9]|7[0-5])"),
+    ("VNTrackObjectRequest / VNTrackRectangleRequest over three frames (issue #373)",
+     r"track object 0\.32,0\.39,0\.15,0\.20 same uuid true confidence true rectangle topLeft 0\.3[12],0\.5[89] trackers 16"),
+    ("VNTranslationalImageRegistrationRequest: the floating image moved 10 right, 6 down", r"registration translation -10\.0 6\.0"),
+    ("VNHomographicImageRegistrationRequest: scaled 1.05 and moved", r"registration homography error below 1\.5 true scale 0\.9[45]"),
+    ("VNTrackTranslationalImageRegistrationRequest: nothing for the first frame", r"track registration first 0 then -10\.0 6\.0"),
+    ("VNGenerateOpticalFlowRequest: the square moved 6 right, 4 down",
+     r"optical flow 200x150 two floats true object 6\.0,4\.0 elsewhere 0\.0,0\.0"),
     ("MLMultiArray shape/strides/subscripts", r"multiarray count=6 strides=\[3, 1\] \[1,2\]=7\.5 \[0\]=1\.0"),
     ("MLModel.compileModel + description + metadata", r'regressor inputs=\["x1", "x2"\] output=y meta=.y = 2 x1 \+ 3 x2 \+ 1.'),
     ("GLM regressor prediction", r"regressor y=9\.00"),

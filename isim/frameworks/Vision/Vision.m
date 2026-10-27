@@ -91,3 +91,33 @@ size_t VNElementTypeSize(VNElementType t) { return t == VNElementTypeFloat ? siz
                           { v[4].longLongValue, v[5].intValue, v[6].unsignedIntValue, v[7].longLongValue } };
 }
 @end
+
+// MARK: - CMTime and matrix_float3x3 of the tracking and registration classes (issue #373)
+
+@interface VNStatefulRequest (ISIMSpacing)
+- (instancetype)_isim_initWithSpacing:(NSArray<NSNumber *> *)spacing completionHandler:(VNRequestCompletionHandler)completionHandler;
+- (NSArray<NSNumber *> *)_isim_frameAnalysisSpacing;
+@end
+@implementation VNStatefulRequest (ISIMStructs)
+- (instancetype)initWithFrameAnalysisSpacing:(CMTime)t completionHandler:(VNRequestCompletionHandler)completionHandler {
+    return [self _isim_initWithSpacing:@[ @(t.value), @(t.timescale), @(t.flags), @(t.epoch) ] completionHandler:completionHandler];
+}
+- (CMTime)frameAnalysisSpacing {
+    NSArray<NSNumber *> *v = [self _isim_frameAnalysisSpacing];
+    if (v.count < 4) return (CMTime){ 0, 0, 0, 0 };
+    return (CMTime){ v[0].longLongValue, v[1].intValue, v[2].unsignedIntValue, v[3].longLongValue };
+}
+@end
+
+@interface VNImageHomographicAlignmentObservation (ISIMWarp)
+- (NSArray<NSNumber *> *)_isim_warpTransform;
+@end
+@implementation VNImageHomographicAlignmentObservation (ISIMStructs)
+- (matrix_float3x3)warpTransform {
+    NSArray<NSNumber *> *v = [self _isim_warpTransform];
+    matrix_float3x3 m;
+    for (int c = 0; c < 3; c++)
+        for (int r = 0; r < 3; r++) m.columns[c][r] = v.count == 9 ? v[c * 3 + r].floatValue : (c == r);
+    return m;
+}
+@end
