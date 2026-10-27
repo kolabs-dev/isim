@@ -335,7 +335,8 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
             let container = CGRect(origin: sup.bounds.origin, size: oldSizes[ObjectIdentifier(sup)] ?? sup.bounds.size)   // (its size before the update)
             // (shifted by its container's move, so it leaves from where it was rather than riding along)
             let shift = originShift[ObjectIdentifier(sup)] ?? .zero
-            let out = { v._setFrameKeepingTransform(AnyTransition.apply(t?.kind ?? .opacity, insertion: false, to: v, frame: v._untransformedFrame, container: container).offsetBy(dx: shift.x, dy: shift.y)) }
+            let d = t?.animation.map { ($0.duration + $0.delayTime) / $0.speedFactor } ?? UIView.inheritedAnimationDuration
+            let out = { v._setFrameKeepingTransform(AnyTransition.apply(t?.kind ?? .opacity, insertion: false, to: v, frame: v._untransformedFrame, container: container, duration: d).offsetBy(dx: shift.x, dy: shift.y)) }
             if let a = t?.animation { a._run(out, completion: { v.removeFromSuperview() }) }
             else {
                 out()
@@ -365,6 +366,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
             // (a matched view moves from its match even inside a view inserted with it, which fades in around it)
             if !fresh.contains(ObjectIdentifier(parent)) || matched != nil, UIView.inheritedAnimationDuration > 0 || t?.animation != nil {
                 let alpha = v.alpha, transform = v.transform
+                let d = t?.animation.map { ($0.duration + $0.delayTime) / $0.speedFactor } ?? UIView.inheritedAnimationDuration
                 var skip = false
                 UIView.performWithoutAnimation {
                     if let matched {
@@ -376,7 +378,7 @@ extension CGSize { subscript(axis: Axis) -> CGFloat { axis == .horizontal ? widt
                     }
                     else if case .identity? = t?.kind { v.frame = node.frame; skip = true }
                     else {
-                        let f = AnyTransition.apply(t?.kind ?? .opacity, insertion: true, to: v, frame: node.frame, container: parent.bounds)
+                        let f = AnyTransition.apply(t?.kind ?? .opacity, insertion: true, to: v, frame: node.frame, container: parent.bounds, duration: d)
                         v._setFrameKeepingTransform(f.offsetBy(dx: -shift.x, dy: -shift.y))
                     }
                 }

@@ -10,7 +10,10 @@
 import UIKit
 
 public struct Animation: Equatable, Sendable {
-    enum Curve: Equatable, Sendable { case easeInOut, easeIn, easeOut, linear, spring(damping: Double), bezier(Double, Double, Double, Double) }
+    enum Curve: Equatable, Sendable {
+        case easeInOut, easeIn, easeOut, linear, spring(damping: Double), bezier(Double, Double, Double, Double)
+        case sampled([Double])           // a CustomAnimation's progress at evenly spaced times over `duration`
+    }
     var curve: Curve = .spring(damping: 1)
     var velocity: Double = 0             // springs: initial velocity (relative to the distance, per second)
     var duration: Double = 0.55          // springs: time to settle
@@ -18,6 +21,7 @@ public struct Animation: Equatable, Sendable {
     var speedFactor: Double = 1
     var repeats = 0                      // 0 once, -1 forever, n times
     var autoreverses = false
+    var _custom: _AnyCustomAnimation? = nil   // Animation(CustomAnimation): the animation's own type (base)
 
     public static let `default` = Animation()                                   // iOS 17: a smooth spring
     public static let easeInOut = Animation(curve: .easeInOut, duration: 0.35)
@@ -98,6 +102,10 @@ public struct Animation: Equatable, Sendable {
         case .linear: kind = 3
         case .spring(let z): kind = 4; damping = z
         case .bezier(let a, let b, let c, let e): kind = 5; cp = CGRect(x: a, y: b, width: c, height: e)
+        case .sampled(let samples):
+            kind = 6
+            let id = samples.withUnsafeBufferPointer { UIView._isim_registerTimingSamples($0.baseAddress!, count: $0.count) }
+            cp = CGRect(x: CGFloat(id), y: 0, width: 0, height: 0)
         }
         // repeatForever / repeatCount: plays (with autoreverse every other play backwards)
         let plays = repeats < 0 ? -1 : repeats
@@ -201,6 +209,8 @@ public struct AnyTransition: Sendable {
     indirect enum Kind: Sendable {
         case identity, opacity, scale(CGFloat, UnitPoint), move(Edge), offset(CGSize), slide
         case combined(Kind, Kind), asymmetric(Kind, Kind)
+        case effect(_TransitionEffect)                 // a custom transition's state (Transitions.swift)
+        case lazy(_LazyTransition)                     // resolved with its view (AnyTransition._resolved)
     }
     let kind: Kind
     var animation: Animation?
@@ -222,9 +232,22 @@ public struct AnyTransition: Sendable {
     public func animation(_ a: Animation?) -> AnyTransition { var t = self; t.animation = a; return t }
 
     /// The "not present" state of a view for this transition (insertion start / removal end).
-    @MainActor static func apply(_ k: Kind, insertion: Bool, to v: UIView, frame: CGRect, container: CGRect) -> CGRect {
+    /// (`duration`: of the transition's animation, which a blur follows on its own)
+    @MainActor static func apply(_ k: Kind, insertion: Bool, to v: UIView, frame: CGRect, container: CGRect, duration: Double = 0) -> CGRect {
         switch k {
-        case .identity: return frame
+        case .identity, .lazy: return frame
+        case .effect(let e):
+            v.alpha *= e.alpha
+            func about(_ a: UnitPoint, _ m: CGAffineTransform) -> CGAffineTransform {
+                let dx = (a.x - 0.5) * frame.width, dy = (a.y - 0.5) * frame.height
+                return CGAffineTransform(translationX: -dx, y: -dy).concatenating(m).concatenating(CGAffineTransform(translationX: dx, y: dy))
+            }
+            var m = CGAffineTransform.identity
+            if e.scale != CGSize(width: 1, height: 1) { m = m.concatenating(about(e.scaleAnchor, CGAffineTransform(scaleX: max(e.scale.width, 0.001), y: max(e.scale.height, 0.001)))) }
+            if e.rotation != 0 { m = m.concatenating(about(e.rotationAnchor, CGAffineTransform(rotationAngle: e.rotation))) }
+            v.transform = v.transform.concatenating(m)
+            if e.blur > 0 { _animateTransitionBlur(v, from: insertion ? e.blur : 0, to: insertion ? 0 : e.blur, duration: duration) }
+            return frame.offsetBy(dx: e.offset.width, dy: e.offset.height)
         case .opacity: v.alpha = 0; return frame
         case .scale(let s, let a):
             let dx = (a.x - 0.5) * frame.width, dy = (a.y - 0.5) * frame.height
@@ -241,16 +264,16 @@ public struct AnyTransition: Sendable {
         case .offset(let s): return frame.offsetBy(dx: s.width, dy: s.height)
         case .slide: return apply(.move(insertion ? .leading : .trailing), insertion: insertion, to: v, frame: frame, container: container)
         case .combined(let a, let b):
-            let f = apply(a, insertion: insertion, to: v, frame: frame, container: container)
-            return apply(b, insertion: insertion, to: v, frame: f, container: container)
-        case .asymmetric(let i, let r): return apply(insertion ? i : r, insertion: insertion, to: v, frame: frame, container: container)
+            let f = apply(a, insertion: insertion, to: v, frame: frame, container: container, duration: duration)
+            return apply(b, insertion: insertion, to: v, frame: f, container: container, duration: duration)
+        case .asymmetric(let i, let r): return apply(insertion ? i : r, insertion: insertion, to: v, frame: frame, container: container, duration: duration)
         }
     }
 }
 
 extension View {
     public func transition(_ t: AnyTransition) -> some View {
-        _modify { ctx, c in _TransitionNode(path: ctx.path, transition: t, child: _resolve(c, ctx.child("tr"))) }
+        _modify { ctx, c in _TransitionNode(path: ctx.path, transition: t._resolved(ctx.child("trt")), child: _resolve(c, ctx.child("tr"))) }
     }
     /// Animates the changes in this view when `value` changes (nil: changes in it are not animated).
     public func animation<V: Equatable>(_ animation: Animation?, value: V) -> some View {

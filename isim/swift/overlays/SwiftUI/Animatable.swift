@@ -152,6 +152,9 @@ extension Animation {
         case .easeInOut: return Animation._bezier(0.42, 0, 0.58, 1, x)
         case .spring(let d): return Animation._spring(d, duration, elapsed, v0: velocity)
         case .bezier(let a, let b, let c, let e): return Animation._bezier(a, b, c, e, x)
+        case .sampled(let s):                                            // a CustomAnimation (CustomAnimation.swift)
+            let f = min(1, max(0, x)) * Double(s.count - 1), i = min(s.count - 2, Int(f))
+            return s[i] + (s[i + 1] - s[i]) * (f - Double(i))
         }
     }
     /// Progress (0 -> 1, springs may overshoot) `t` seconds after the animation started, and whether it ended.
