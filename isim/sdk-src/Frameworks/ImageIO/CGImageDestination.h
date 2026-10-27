@@ -27,6 +27,8 @@ IMAGEIO_EXTERN void CGImageDestinationAddImageAndMetadata(CGImageDestinationRef 
  * Orientation); the destination is finalized */
 IMAGEIO_EXTERN bool CGImageDestinationCopyImageSource(CGImageDestinationRef idst, CGImageSourceRef isrc, CFDictionaryRef _Nullable options,
                                                       CFErrorRef _Nullable *_Nullable err);
+/* isim: written into JPEG images, as Multi-Picture Format images (8-bit, with the range of their values in XMP) */
+IMAGEIO_EXTERN void CGImageDestinationAddAuxiliaryDataInfo(CGImageDestinationRef idst, CFStringRef auxiliaryImageDataType, CFDictionaryRef auxiliaryDataInfoDictionary);
 IMAGEIO_EXTERN bool CGImageDestinationFinalize(CGImageDestinationRef idst);
 #pragma clang assume_nonnull end
 #pragma clang arc_cf_code_audited end

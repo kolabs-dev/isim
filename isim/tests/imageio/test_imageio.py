@@ -1,6 +1,7 @@
 """ImageIO metadata (issue #272): ImageIOTest.app reads the EXIF / TIFF / GPS tags Pillow wrote into the fixtures
 (make_fixtures.py) with their IPTC and XMP, works the CGImageMetadata model, and writes images with metadata. The
-JPEG it writes is read here by Pillow, independently of isim."""
+JPEG it writes is read here by Pillow, independently of isim. Issue #362: animation, incremental sources and auxiliary
+data, whose Multi-Picture Format images Pillow reads too."""
 import base64
 import io
 import re
@@ -28,3 +29,12 @@ def test_imageio(device_data):
     iptc = IptcImagePlugin.getiptcinfo(im)
     assert iptc[(2, 25)] == [b"a", b"b"] and iptc[(2, 90)] == b"Paris", f"IPTC {iptc}"
     assert im.size == (24, 16), "the image"
+    m = re.search(r"WROTE-AUX (\S+)", r.output)
+    assert m, "the JPEG with auxiliary data"
+    mpo = Image.open(io.BytesIO(base64.b64decode(m.group(1))))
+    assert mpo.format == "MPO" and mpo.n_frames == 3, f"three MPF images, not {mpo.format} {getattr(mpo, 'n_frames', 1)}"
+    sizes = []
+    for i in range(3):
+        mpo.seek(i)
+        sizes.append(mpo.size)
+    assert sizes == [(32, 24), (16, 12), (16, 12)], f"the primary image, the disparity and the matte: {sizes}"

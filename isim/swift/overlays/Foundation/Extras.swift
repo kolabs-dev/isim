@@ -110,6 +110,36 @@ extension UInt: _ObjectiveCBridgeable {
     public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout UInt?) -> Bool { result = x.unsignedLongValue; return true }
     public static func _unconditionallyBridgeFromObjectiveC(_ s: NSNumber?) -> UInt { s?.unsignedLongValue ?? 0 }
 }
+extension Int8: _ObjectiveCBridgeable {
+    public func _bridgeToObjectiveC() -> NSNumber { NSNumber(value: self) }
+    public static func _forceBridgeFromObjectiveC(_ x: NSNumber, result: inout Int8?) { result = x.int8Value }
+    public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout Int8?) -> Bool { result = x.int8Value; return true }
+    public static func _unconditionallyBridgeFromObjectiveC(_ s: NSNumber?) -> Int8 { s?.int8Value ?? 0 }
+}
+extension UInt8: _ObjectiveCBridgeable {
+    public func _bridgeToObjectiveC() -> NSNumber { NSNumber(value: self) }
+    public static func _forceBridgeFromObjectiveC(_ x: NSNumber, result: inout UInt8?) { result = x.uint8Value }
+    public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout UInt8?) -> Bool { result = x.uint8Value; return true }
+    public static func _unconditionallyBridgeFromObjectiveC(_ s: NSNumber?) -> UInt8 { s?.uint8Value ?? 0 }
+}
+extension Int16: _ObjectiveCBridgeable {
+    public func _bridgeToObjectiveC() -> NSNumber { NSNumber(value: self) }
+    public static func _forceBridgeFromObjectiveC(_ x: NSNumber, result: inout Int16?) { result = x.int16Value }
+    public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout Int16?) -> Bool { result = x.int16Value; return true }
+    public static func _unconditionallyBridgeFromObjectiveC(_ s: NSNumber?) -> Int16 { s?.int16Value ?? 0 }
+}
+extension UInt16: _ObjectiveCBridgeable {
+    public func _bridgeToObjectiveC() -> NSNumber { NSNumber(value: self) }
+    public static func _forceBridgeFromObjectiveC(_ x: NSNumber, result: inout UInt16?) { result = x.uint16Value }
+    public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout UInt16?) -> Bool { result = x.uint16Value; return true }
+    public static func _unconditionallyBridgeFromObjectiveC(_ s: NSNumber?) -> UInt16 { s?.uint16Value ?? 0 }
+}
+extension UInt32: _ObjectiveCBridgeable {
+    public func _bridgeToObjectiveC() -> NSNumber { NSNumber(value: self) }
+    public static func _forceBridgeFromObjectiveC(_ x: NSNumber, result: inout UInt32?) { result = x.uint32Value }
+    public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout UInt32?) -> Bool { result = x.uint32Value; return true }
+    public static func _unconditionallyBridgeFromObjectiveC(_ s: NSNumber?) -> UInt32 { s?.uint32Value ?? 0 }
+}
 extension Float: _ObjectiveCBridgeable {
     public func _bridgeToObjectiveC() -> NSNumber { NSNumber(value: self) }
     public static func _forceBridgeFromObjectiveC(_ x: NSNumber, result: inout Float?) { result = x.floatValue }

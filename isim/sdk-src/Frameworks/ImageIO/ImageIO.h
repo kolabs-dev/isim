@@ -9,3 +9,4 @@
 #include <ImageIO/CGImageMetadata.h>
 #include <ImageIO/CGImageSource.h>
 #include <ImageIO/CGImageDestination.h>
+#include <ImageIO/CGImageAnimation.h>

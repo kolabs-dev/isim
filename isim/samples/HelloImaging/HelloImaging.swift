@@ -1,6 +1,6 @@
 // Sample: images on isim, one page per launch argument:
 // - (none) ImageIO, Core Image and UIImage extras: CGImageSource (types, frames, GIF delays, EXIF orientation,
-//   thumbnails), CGImageDestination (PNG/JPEG/animated GIF), Core Image filters rendered by CIContext (sepia, blur,
+//   thumbnails, CGAnimateImageDataWithBlock, auxiliary disparity data), CGImageDestination (PNG/JPEG/animated GIF), Core Image filters rendered by CIContext (sepia, blur,
 //   color controls, invert, photo effects, compositing, QR code), animated images in UIImageView, resizable
 //   (nine-slice) images, flipped and rotated image orientations;
 // - -images: UIKit drawing (Images.swift).
@@ -83,6 +83,32 @@ final class ImagingViewController: UIViewController {
         let anim = UIImage.animatedImage(with: frames, duration: 0.75)!
         let animView = tile(anim, "gif", CGRect(x: 16, y: 74, width: 50, height: 50))
         print("animated image frames \(anim.images!.count) duration \(anim.duration) playing \(animView.isAnimating)")
+        // the same GIF played once by CGAnimateImageDataWithBlock: its frames on the main queue, at their delays
+        var played: [Int] = []
+        let status = CGAnimateImageDataWithBlock(gif as CFData, [kCGImageAnimationLoopCount: 1] as CFDictionary) { index, image, _ in
+            played.append(index)
+            if played.count == 3 { print("animate frames \(played) size \(image.width)x\(image.height)") }
+        }
+        print("animate status \(status)")
+
+        // auxiliary data: a disparity map (32-bit floats, 1 to 3) stored with a JPEG and read back
+        let disparity = (0..<64).map { Float($0 % 8) / 7 * 2 + 1 }
+        let djpg = NSMutableData()
+        let dd = CGImageDestinationCreateWithData(djpg as CFMutableData, "public.jpeg" as CFString, 1, nil)!
+        CGImageDestinationAddImage(dd, solid(.gray, 16, 16), nil)
+        let desc: [CFString: Any] = [kCGImagePropertyWidth: 8, kCGImagePropertyHeight: 8, kCGImagePropertyBytesPerRow: 32,
+                                     kCGImagePropertyPixelFormat: 0x6664_6973 as UInt32 /* kCVPixelFormatType_DisparityFloat32 */]
+        CGImageDestinationAddAuxiliaryDataInfo(dd, kCGImageAuxiliaryDataTypeDisparity, [kCGImageAuxiliaryDataInfoData: disparity.withUnsafeBytes { Data($0) },
+                                                                                         kCGImageAuxiliaryDataInfoDataDescription: desc] as CFDictionary)
+        _ = CGImageDestinationFinalize(dd)
+        let ds = CGImageSourceCreateWithData(djpg as CFData, nil)!
+        if let info = CGImageSourceCopyAuxiliaryDataInfoAtIndex(ds, 0, kCGImageAuxiliaryDataTypeDisparity) as? [CFString: Any],
+           let data = info[kCGImageAuxiliaryDataInfoData] as? Data, let d = info[kCGImageAuxiliaryDataInfoDataDescription] as? [CFString: Any] {
+            let values = data.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+            print("aux disparity \(d[kCGImagePropertyWidth]!)x\(d[kCGImagePropertyHeight]!) min \(String(format: "%.2f", values.min()!)) max \(String(format: "%.2f", values.max()!))")
+        } else {
+            print("aux disparity missing")
+        }
 
         // PNG / JPEG round trips with properties and thumbnails
         let png = NSMutableData()

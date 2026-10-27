@@ -1,5 +1,6 @@
 #pragma once
 #include <CoreFoundation/CoreFoundation.h>
+#include <MacTypes.h>
 __BEGIN_DECLS
 #define IMAGEIO_EXTERN extern __attribute__((visibility("default")))
 typedef CF_ENUM(uint32_t, CGImagePropertyOrientation) {
@@ -32,4 +33,60 @@ IMAGEIO_EXTERN const CFStringRef kCGImagePropertyWebPDelayTime;
 IMAGEIO_EXTERN const CFStringRef kCGImagePropertyWebPUnclampedDelayTime;
 IMAGEIO_EXTERN const CFStringRef kCGImagePropertyWebPLoopCount;
 IMAGEIO_EXTERN const CFStringRef kCGImagePropertyHEICSDictionary;
+/* the file's images (CGImageSourceCopyProperties) and an image's pixels (auxiliary data descriptions) */
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyImageCount;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyImages;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyImageIndex;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyPrimaryImage;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyThumbnailImages;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyWidth;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyHeight;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyBytesPerRow;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyPixelFormat;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyNamedColorSpace;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyAuxiliaryData;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyAuxiliaryDataType;
+/* animation: each frame's delays (FrameInfo) and the canvas, in the file's GIF, WebP, PNG (APNG) or HEICS dictionary */
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyGIFFrameInfoArray;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyGIFCanvasPixelWidth;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyGIFCanvasPixelHeight;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyGIFImageColorMap;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyWebPFrameInfoArray;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyWebPCanvasPixelWidth;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyWebPCanvasPixelHeight;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyAPNGLoopCount;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyAPNGDelayTime;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyAPNGUnclampedDelayTime;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyAPNGFrameInfoArray;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyAPNGCanvasPixelWidth;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyAPNGCanvasPixelHeight;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyHEICSLoopCount;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyHEICSDelayTime;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyHEICSUnclampedDelayTime;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyHEICSFrameInfoArray;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyHEICSCanvasPixelWidth;
+IMAGEIO_EXTERN const CFStringRef kCGImagePropertyHEICSCanvasPixelHeight;
+/* auxiliary data: depth, disparity and mattes (isim: JPEG, as Multi-Picture Format images) */
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataTypeDepth;
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataTypeDisparity;
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataTypePortraitEffectsMatte;
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataTypeSemanticSegmentationSkinMatte;
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataTypeSemanticSegmentationHairMatte;
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataTypeSemanticSegmentationTeethMatte;
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataTypeSemanticSegmentationGlassesMatte;
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataTypeSemanticSegmentationSkyMatte;
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataTypeHDRGainMap;
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataTypeISOGainMap;
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataInfoData;
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataInfoDataDescription;
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataInfoMetadata;
+IMAGEIO_EXTERN const CFStringRef kCGImageAuxiliaryDataInfoColorSpace;
+typedef CF_ENUM(uint32_t, CGImagePropertyTGACompression) { kCGImageTGACompressionNone = 0, kCGImageTGACompressionRLE };
+#define IMAGEIO_PNG_NO_FILTERS 0x00
+#define IMAGEIO_PNG_FILTER_NONE 0x08
+#define IMAGEIO_PNG_FILTER_SUB 0x10
+#define IMAGEIO_PNG_FILTER_UP 0x20
+#define IMAGEIO_PNG_FILTER_AVG 0x40
+#define IMAGEIO_PNG_FILTER_PAETH 0x80
+#define IIO_HAS_IOSURFACE 1
 __END_DECLS

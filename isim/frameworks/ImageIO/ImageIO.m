@@ -29,6 +29,7 @@ K(kCGImageDestinationDateTime, "kCGImageDestinationDateTime") K(kCGImageDestinat
 #define S(k) ((__bridge NSString *)(k))
 
 /* ---------------- sources ---------------- */
+static NSArray<NSString *> *allowed;   /* CGImageSourceSetAllowableTypes: nil, every type */
 @interface __CGImageSource : NSObject {
 @public NSData *_data; int _frames, _w, _h, _orientation, _alpha, _loops; char _type[64]; BOOL _final; NSMutableDictionary *_cache;
     NSDictionary *_meta; NSString *_xmp; BOOL _metaRead;
@@ -46,6 +47,7 @@ K(kCGImageDestinationDateTime, "kCGImageDestinationDateTime") K(kCGImageDestinat
 - (void)scan {
     _frames = 0; _type[0] = 0; _metaRead = NO; _meta = nil; _xmp = nil;
     if (_data.length) isim_imgsrc_info(_data.bytes, (long)_data.length, &_frames, &_w, &_h, _type, sizeof _type, &_orientation, &_alpha, &_loops);
+    if (_type[0] && allowed && ![allowed containsObject:@(_type)]) { _frames = 0; _type[0] = 0; }   /* CGImageSourceSetAllowableTypes */
 }
 @end
 static __CGImageSource *SRC(CGImageSourceRef s) { return (__bridge __CGImageSource *)s; }
@@ -80,7 +82,22 @@ void CGImageSourceUpdateData(CGImageSourceRef src, CFDataRef data, bool final) {
     __CGImageSource *s = SRC(src);
     for (NSArray *c in s->_cache.allValues) isim_image_free([c[0] intValue]);   /* cached frames of the old data */
     s->_data = [(__bridge NSData *)data copy]; s->_final = final; [s->_cache removeAllObjects];
-    if (final) [s scan]; else s->_frames = 0;
+    [s scan];   /* before the last data, the images that already decode */
+}
+void CGImageSourceUpdateDataProvider(CGImageSourceRef src, CGDataProviderRef provider, bool final) {
+    CFDataRef d = CGDataProviderCopyData(provider);
+    CGImageSourceUpdateData(src, d ?: (__bridge CFDataRef)[NSData data], final);
+    if (d) CFRelease(d);
+}
+void CGImageSourceRemoveCacheAtIndex(CGImageSourceRef src, size_t i) {
+    __CGImageSource *s = SRC(src);
+    NSArray *c = s->_cache[@(i)];
+    if (c) { isim_image_free([c[0] intValue]); [s->_cache removeObjectForKey:@(i)]; }
+}
+OSStatus CGImageSourceSetAllowableTypes(CFArrayRef types) {
+    if (!types) return -50;   /* paramErr */
+    allowed = [(__bridge NSArray *)types copy];
+    return 0;
 }
 CFStringRef CGImageSourceGetType(CGImageSourceRef src) {
     __CGImageSource *s = SRC(src);
@@ -106,8 +123,18 @@ CFDictionaryRef CGImageSourceCopyProperties(CGImageSourceRef src, CFDictionaryRe
     __CGImageSource *s = SRC(src);
     if (!s->_frames) return NULL;
     NSMutableDictionary *d = [NSMutableDictionary dictionaryWithObject:@(s->_data.length) forKey:S(kCGImagePropertyFileSize)];
-    if (is(s, "com.compuserve.gif")) d[S(kCGImagePropertyGIFDictionary)] = @{ S(kCGImagePropertyGIFLoopCount): @(s->_loops), S(kCGImagePropertyGIFHasGlobalColorMap): @YES };
-    if (is(s, "org.webmproject.webp") && s->_frames > 1) d[S(kCGImagePropertyWebPDictionary)] = @{ S(kCGImagePropertyWebPLoopCount): @(s->_loops) };
+    BOOL gif = is(s, "com.compuserve.gif"), webp = is(s, "org.webmproject.webp") && s->_frames > 1;
+    if (gif || webp) {   /* the loop count, the canvas and each frame's delays */
+        NSMutableArray *frames = [NSMutableArray array];
+        for (int i = 0; i < s->_frames; i++) {
+            NSDictionary *f = CFBridgingRelease(CGImageSourceCopyPropertiesAtIndex(src, (size_t)i, NULL));
+            [frames addObject:f[S(gif ? kCGImagePropertyGIFDictionary : kCGImagePropertyWebPDictionary)] ?: @{}];
+        }
+        NSMutableDictionary *a = [@{ S(kCGImagePropertyGIFLoopCount): @(s->_loops), S(kCGImagePropertyGIFFrameInfoArray): frames,
+                                     S(kCGImagePropertyGIFCanvasPixelWidth): @(s->_w), S(kCGImagePropertyGIFCanvasPixelHeight): @(s->_h) } mutableCopy];
+        if (gif) a[S(kCGImagePropertyGIFHasGlobalColorMap)] = @YES;
+        d[S(gif ? kCGImagePropertyGIFDictionary : kCGImagePropertyWebPDictionary)] = a;
+    }
     return (CFDictionaryRef)CFBridgingRetain(d);
 }
 /* the frame's host image (decoded once) and its delay */
@@ -163,7 +190,11 @@ CFDictionaryRef CGImageSourceCopyPropertiesAtIndex(CGImageSourceRef src, size_t 
         d[S(kCGImagePropertyDPIHeight)] = @([tiff[S(kCGImagePropertyTIFFYResolution)] doubleValue] * unit);
     }
     if (is(s, "public.png")) d[S(kCGImagePropertyPNGDictionary)] = @{};
-    if (is(s, "public.jpeg")) d[S(kCGImagePropertyJFIFDictionary)] = @{};
+    if (is(s, "public.jpeg")) {
+        d[S(kCGImagePropertyJFIFDictionary)] = @{};
+        NSArray *aux = isim_io_auxiliary_list(s->_data);   /* its depth, disparity or mattes */
+        if (aux.count) d[S(kCGImagePropertyAuxiliaryData)] = aux;
+    }
     if (is(s, "com.compuserve.gif")) {
         double unclamped = gif_file_delay(s->_data, i);
         d[S(kCGImagePropertyGIFDictionary)] = @{ S(kCGImagePropertyGIFUnclampedDelayTime): @(unclamped),
@@ -194,6 +225,11 @@ static CGImageRef image_of_frame(__CGImageSource *s, size_t i) {
     CGImageRef im = isim_cg_image_with_handle(copy);
     if (im) isim_cg_image_set_uttype(im, CGImageSourceGetType((__bridge CGImageSourceRef)s));
     return im;
+}
+CFDictionaryRef CGImageSourceCopyAuxiliaryDataInfoAtIndex(CGImageSourceRef src, size_t i, CFStringRef type) {
+    __CGImageSource *s = SRC(src);
+    if (i >= (size_t)s->_frames || !type || !is(s, "public.jpeg")) return NULL;
+    return (CFDictionaryRef)CFBridgingRetain(isim_io_auxiliary_info(s->_data, (__bridge NSString *)type));
 }
 CGImageRef CGImageSourceCreateImageAtIndex(CGImageSourceRef src, size_t i, CFDictionaryRef opts) {
     __CGImageSource *s = SRC(src);
@@ -250,6 +286,7 @@ CGImageRef CGImageSourceCreateThumbnailAtIndex(CGImageSourceRef src, size_t i, C
     NSMutableArray *_images; NSMutableArray<NSNumber *> *_delays; double _quality; int _loops; BOOL _done;
     NSMutableDictionary *_props;   /* metadata dictionaries (SetProperties, then the image's) */
     NSString *_xmp;                /* the image's XMP packet (AddImageAndMetadata, a source's) */
+    NSMutableArray<NSArray *> *_aux; /* [type, info] of the auxiliary data added */
 }
 @end
 @implementation __CGImageDestination
@@ -395,6 +432,12 @@ static int host_copy(CGImageRef im) {
     free(px);
     return hd;
 }
+void CGImageDestinationAddAuxiliaryDataInfo(CGImageDestinationRef dst, CFStringRef type, CFDictionaryRef info) {
+    __CGImageDestination *d = DST(dst);
+    if (!type || !info || d->_done) return;
+    if (!d->_aux) d->_aux = [NSMutableArray array];
+    [d->_aux addObject:@[ (__bridge NSString *)type, (__bridge NSDictionary *)info ]];
+}
 bool CGImageDestinationFinalize(CGImageDestinationRef dst) {
     __CGImageDestination *d = DST(dst);
     if (d->_done || !d->_images.count) return false;
@@ -417,6 +460,7 @@ bool CGImageDestinationFinalize(CGImageDestinationRef dst) {
     NSData *out = [NSData dataWithBytes:bytes length:(NSUInteger)n];
     isim_image_bytes_free(bytes);
     if (fmt == 0 || fmt == 1) out = isim_io_embed_metadata(out, d->_props, d->_xmp);   /* PNG, JPEG: the metadata */
+    if (fmt == 1 && d->_aux.count) out = isim_io_jpeg_with_auxiliary(out, d->_aux);     /* JPEG: depth, mattes */
     BOOL ok = YES;
     if (d->_data) [d->_data appendData:out];
     else if (d->_path) ok = [out writeToFile:d->_path atomically:YES];
