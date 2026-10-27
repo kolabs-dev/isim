@@ -205,6 +205,11 @@ def _(a):
     a.swift_app()
 
 
+@app("samples/HelloTranslation")
+def _(a):
+    a.swift_app()
+
+
 def vision_pictures(a, b):
     """HelloVision's (and HelloVisionObjC's) pictures: a face, text and two QR codes (the last two need ImageMagick, qrencode)"""
     a.copy("../HelloCoreImage/face.jpg", b)                  # NASA's astronaut portrait (public domain): Vision's faces
