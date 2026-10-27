@@ -2,6 +2,7 @@ import XCTest
 @testable import HelloToolchain
 import Units
 import notify
+import os
 
 /// Hosted unit tests (TEST_HOST = the app): @testable access to the app module and everything it links.
 final class ModelTests: XCTestCase {
@@ -81,6 +82,43 @@ final class ModelTests: XCTestCase {
 
     func testMeasure() {
         measure { _ = (0..<1000).reduce(0, +) }
+    }
+
+    /// clock, CPU, memory, storage and signpost metrics of the test process, three iterations
+    func testMetrics() throws {
+        let signposter = OSSignposter(subsystem: "dev.isim.samples.HelloToolchain", category: "Work")
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("metrics.bin")
+        let options = XCTMeasureOptions()
+        options.iterationCount = 3
+        measure(metrics: [XCTClockMetric(), XCTCPUMetric(limitingToCurrentThread: true), XCTMemoryMetric(), XCTStorageMetric(),
+                          XCTOSSignpostMetric(subsystem: "dev.isim.samples.HelloToolchain", category: "Work", name: "Sum")],
+                options: options) {
+            let state = signposter.beginInterval("Sum")
+            var total = 0.0
+            for i in 0..<300_000 { total += sqrt(Double(i)) }
+            signposter.endInterval("Sum", state)
+            try? Data(repeating: UInt8(Int(total) & 0xff), count: 64 * 1024).write(to: file)
+        }
+        try? FileManager.default.removeItem(at: file)
+    }
+
+    /// startMeasuring / stopMeasuring inside the block, and the older measureMetrics API
+    func testManualMeasuring() {
+        let options = XCTMeasureOptions()
+        options.iterationCount = 2
+        options.invocationOptions = [.manuallyStart, .manuallyStop]
+        measure(metrics: [XCTClockMetric()], options: options) {
+            _ = (0..<10_000).map { $0 * 2 }                  // (not measured)
+            startMeasuring()
+            _ = (0..<1000).reduce(0, +)
+            stopMeasuring()
+        }
+        XCTAssertEqual(XCTestCase.defaultPerformanceMetrics, [.wallClockTime])
+        measureMetrics([.wallClockTime], automaticallyStartMeasuring: false) {
+            startMeasuring()
+            _ = (0..<1000).reduce(0, +)
+            stopMeasuring()
+        }
     }
 
     /// prints what a test plan configured (Unit.xctestplan: its environment, arguments and language)

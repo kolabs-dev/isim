@@ -4,6 +4,7 @@
  * area (contentLayoutGuide), which sets contentSize. */
 #import "UIKitPrivate.h"
 #include <math.h>
+#include <os/signpost.h>
 
 const UIScrollViewDecelerationRate UIScrollViewDecelerationRateNormal = 0.998, UIScrollViewDecelerationRateFast = 0.99;
 
@@ -19,6 +20,22 @@ const UIScrollViewDecelerationRate UIScrollViewDecelerationRateNormal = 0.998, U
 @property (nonatomic) CGPoint alignment;
 @property (nonatomic, strong) UIGestureRecognizer *press;
 @end
+/* performance intervals as signposts (UIKitPrivate.h) */
+void isim_ui_perf_signpost(const char *name, int begin, const void *obj) {
+    static os_log_t log;
+    if (!log) log = os_log_create("com.apple.isim.UIKit", "Performance");
+    os_signpost_id_t spid = os_signpost_id_make_with_pointer(log, obj);
+    if (!strcmp(name, "NavigationTransition")) {
+        if (begin) os_signpost_interval_begin(log, spid, "NavigationTransition"); else os_signpost_interval_end(log, spid, "NavigationTransition");
+    } else if (!strcmp(name, "CustomNavigationTransition")) {
+        if (begin) os_signpost_interval_begin(log, spid, "CustomNavigationTransition"); else os_signpost_interval_end(log, spid, "CustomNavigationTransition");
+    } else if (!strcmp(name, "ScrollDragging")) {
+        if (begin) os_signpost_interval_begin(log, spid, "ScrollDragging"); else os_signpost_interval_end(log, spid, "ScrollDragging");
+    } else if (!strcmp(name, "ScrollDeceleration")) {
+        if (begin) os_signpost_interval_begin(log, spid, "ScrollDeceleration"); else os_signpost_interval_end(log, spid, "ScrollDeceleration");
+    }
+}
+
 @implementation __IsimScrollExtras @end
 static char k_extras;
 static __IsimScrollExtras *ex(UIScrollView *s) {
@@ -193,6 +210,7 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
         if (_keyboardDismissMode == UIScrollViewKeyboardDismissModeOnDrag || _keyboardDismissMode == UIScrollViewKeyboardDismissModeOnDragWithAccessory)
             [isim_ui_first_responder() resignFirstResponder];
         if ([d respondsToSelector:@selector(scrollViewWillBeginDragging:)]) [d scrollViewWillBeginDragging:self];
+        isim_ui_perf_signpost("ScrollDragging", 1, (__bridge void *)self);
         /* fall through */
     case UIGestureRecognizerStateChanged: {
         /* interactive: the keyboard goes away when the finger drags down into it (adapted: it does not follow the finger) */
@@ -237,6 +255,7 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
             [d scrollViewWillEndDragging:self withVelocity:CGPointMake(_velocity.x / 1000, _velocity.y / 1000) targetContentOffset:&target];   /* points per millisecond */
         BOOL snap = _pagingEnabled || !CGPointEqualToPoint(proposed, target) || !CGPointEqualToPoint(target, natural);
         BOOL decel = snap ? !CGPointEqualToPoint(target, o) : (hypot(_velocity.x, _velocity.y) > 30 || !CGPointEqualToPoint([self _clamped:o], o));
+        isim_ui_perf_signpost("ScrollDragging", 0, (__bridge void *)self);
         if ([d respondsToSelector:@selector(scrollViewDidEndDragging:willDecelerate:)]) [d scrollViewDidEndDragging:self willDecelerate:decel];
         if (snap && decel) [self _snapTo:target];
         else if (decel) [self _startDeceleration];
@@ -248,6 +267,7 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
     _decelerating = YES; update_tracking(self, YES);
     id<UIScrollViewDelegate> d = _delegate;
     if ([d respondsToSelector:@selector(scrollViewWillBeginDecelerating:)]) [d scrollViewWillBeginDecelerating:self];
+    isim_ui_perf_signpost("ScrollDeceleration", 1, (__bridge void *)self);
     _lastTick = isim_time();
     __weak UIScrollView *weakSelf = self;
     _anim = [NSTimer timerWithTimeInterval:1.0 / 60 repeats:YES block:^(NSTimer *t) { [weakSelf _decelStep]; }];
@@ -276,6 +296,7 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
     if (hypot(_velocity.x, _velocity.y) < 8 && CGPointEqualToPoint(nc, o)) {
         [self _stopAnimation];
         _decelerating = NO;
+        isim_ui_perf_signpost("ScrollDeceleration", 0, (__bridge void *)self);
         id<UIScrollViewDelegate> d = _delegate;
         if ([d respondsToSelector:@selector(scrollViewDidEndDecelerating:)]) [d scrollViewDidEndDecelerating:self];
     }
@@ -285,6 +306,7 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
     _decelerating = YES; update_tracking(self, YES);
     id<UIScrollViewDelegate> d = _delegate;
     if ([d respondsToSelector:@selector(scrollViewWillBeginDecelerating:)]) [d scrollViewWillBeginDecelerating:self];
+    isim_ui_perf_signpost("ScrollDeceleration", 1, (__bridge void *)self);
     CGPoint from = self.contentOffset; double start = isim_time(), dur = 0.35;
     __weak UIScrollView *weakSelf = self;
     _anim = [NSTimer timerWithTimeInterval:1.0 / 60 repeats:YES block:^(NSTimer *t) {
@@ -294,6 +316,7 @@ static double rubber(double overshoot, double dim) { double c = 0.55; return (1 
         s->_indicatorUntil = isim_time() + 0.5;
         if (k >= 1) {
             [s _stopAnimation]; s->_decelerating = NO;
+            isim_ui_perf_signpost("ScrollDeceleration", 0, (__bridge void *)s);
             id<UIScrollViewDelegate> dd = s.delegate;
             if ([dd respondsToSelector:@selector(scrollViewDidEndDecelerating:)]) [dd scrollViewDidEndDecelerating:s];
         }

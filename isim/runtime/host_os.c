@@ -17,6 +17,7 @@
  * Metrics (MetricKit): a small table of named accumulators other parts of isim add to (isim_metric_add), read
  * back by MetricKit (isim_metric_get). */
 #define _GNU_SOURCE
+#include "platform.h"
 #include <linux/futex.h>
 #include <errno.h>
 #include <libgen.h>
@@ -242,6 +243,9 @@ ISIM_GUEST_ABI int isim_log_get(long seq, double *date, int meta[3], uint64_t id
     pthread_mutex_unlock(&store_lock);
     return 1;
 }
+
+/* bytes the process has written (XCTStorageMetric) */
+ISIM_GUEST_ABI long long isim_process_bytes_written(void) { return isim_self_bytes_written(); }
 
 /* ---------------- metrics (MetricKit) ---------------- */
 struct metric { char key[48]; double v; };

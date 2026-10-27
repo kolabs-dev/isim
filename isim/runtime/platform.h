@@ -30,6 +30,10 @@ int isim_open_on_desktop(const char *url_or_path);
 /* the running runtime's executable (/proc/self/exe); returns its length, or -1 */
 int isim_self_path(char *buf, size_t cap);
 
+/* bytes this process has written through the system (files, pipes, sockets; Linux: /proc/self/io wchar), -1 if
+ * unknown (XCTStorageMetric's "Disk Logical Writes") */
+long long isim_self_bytes_written(void);
+
 /* this process's command line: its arguments into argv (pointing into buf), NULL-terminated; returns their count, or -1 */
 int isim_self_args(char *buf, size_t cap, char **argv, int max);
 /* the runtime starts again in this process's place with argv (the device restarting with other options); open handles
