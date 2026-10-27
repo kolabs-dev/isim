@@ -1,11 +1,17 @@
 // Sample: SwiftUI text on isim — Text + Text, Markdown (bold, italic, code, strikethrough, links), live date and
 // timer text, formatter text, decorations (underline, strikethrough, kerning, baseline offset), textCase,
 // truncationMode, minimumScaleFactor and SF Symbol modifiers (imageScale, symbolVariant).
+// -rendering: TextRenderer and Text.Layout, TextSelection, rich text formatting definitions (Rendering.swift).
 import SwiftUI
 
 @main
 struct HelloTextApp: App {
-    var body: some Scene { WindowGroup { TextGallery() } }
+    var body: some Scene {
+        WindowGroup {
+            if ProcessInfo.processInfo.arguments.contains("-rendering") { if #available(iOS 18.0, *) { RenderingPage() } else { Text("iOS 18") } }
+            else { TextGallery() }
+        }
+    }
 }
 
 struct TextGallery: View {
