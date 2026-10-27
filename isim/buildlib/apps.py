@@ -1065,11 +1065,17 @@ selftest("tests/swift-62", "Swift62Test")
 selftest("tests/swift-foundation", "SwiftFoundationTest")
 selftest("tests/swift-libraries", "SwiftLibrariesTest", "-enable-bare-slash-regex")
 selftest("tests/swift-compression", "SwiftCompressionTest")
+selftest("tests/swift-applearchive", "SwiftAppleArchiveTest")
 
 
 @app("tests/compression", products=["CompressionTest.app"], swift=False)
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-lcompression", "-lz"], name="CompressionTest")
+
+
+@app("tests/applearchive", products=["AppleArchiveTest.app"], swift=False)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "AppleArchive"], name="AppleArchiveTest")
 
 
 @app("tests/cgpdf", products=["CGPDFTest.app"], swift=False)
