@@ -134,8 +134,12 @@ public struct OSLogFloatFormatting: Sendable {
 }
 
 public enum OSLogBoolFormat: Sendable { case truth, answer }
-public enum OSLogPointerFormat: Sendable { case none, ipv4Address, ipv6Address, sockaddr }
-public enum OSLogInt32ExtendedFormat: Sendable { case ipv4Address, secondsSince1970, darwinErrno, darwinMode, darwinSignal, bitrate, bitrateIEC, byteCount, byteCountIEC, truncatedBitrate, truncatedBitrateIEC, truncatedByteCount, truncatedByteCountIEC }
+public enum OSLogPointerFormat: Sendable { case none, ipv4Address, ipv6Address, sockaddr, timespec, timeval, uuid }
+public enum OSLogInt32ExtendedFormat: Sendable { case ipv4Address, secondsSince1970, darwinErrno, darwinMode, darwinSignal, bitrate, bitrateIEC, byteCount, byteCountIEC, truncatedBitrate, truncatedBitrateIEC, truncatedByteCount, truncatedByteCountIEC, truth, answer, machErrno }
+/// extended formats of 64-bit integers
+public enum OSLogIntExtendedFormat: Sendable { case bitrate, bitrateIEC, byteCount, byteCountIEC, secondsSince1970 }
+/// the largest number of interpolated arguments an OSLogMessage holds
+public var maxOSLogArgumentCount: UInt8 { 48 }
 
 // MARK: - OSLogMessage
 
@@ -183,13 +187,77 @@ public struct OSLogInterpolation: StringInterpolationProtocol {
         pieces.append(.value({ format == .truth ? (boolean() ? "true" : "false") : (boolean() ? "YES" : "NO") }, privacy, true))
     }
     public mutating func appendInterpolation(_ pointer: @autoclosure @escaping () -> UnsafeRawPointer, format: OSLogPointerFormat = .none, privacy: OSLogPrivacy = .auto) {
-        pieces.append(.value({ "0x" + String(UInt(bitPattern: pointer()), radix: 16) }, privacy, true))
+        pieces.append(.value({ OSLogInterpolation.pointer(pointer(), format) }, privacy, true))
+    }
+    public mutating func appendInterpolation(_ pointer: @autoclosure @escaping () -> UnsafeRawPointer, bytes: @autoclosure @escaping () -> Int, format: OSLogPointerFormat = .none, privacy: OSLogPrivacy = .auto) {
+        pieces.append(.value({ OSLogInterpolation.pointer(pointer(), format, bytes: bytes()) }, privacy, true))
+    }
+    /// a pointer shown as its format reads the memory: an IPv4 / IPv6 address, a socket address, a timespec or timeval,
+    /// a UUID; .none shows the address
+    static func pointer(_ p: UnsafeRawPointer, _ format: OSLogPointerFormat, bytes: Int? = nil) -> String {
+        switch format {
+        case .none: return "0x" + String(UInt(bitPattern: p), radix: 16)
+        case .ipv4Address: let b = p.assumingMemoryBound(to: UInt8.self); return (0..<4).map { String(b[$0]) }.joined(separator: ".")
+        case .ipv6Address:
+            let b = p.assumingMemoryBound(to: UInt8.self)
+            return stride(from: 0, to: 16, by: 2).map { String(UInt16(b[$0]) << 8 | UInt16(b[$0 + 1]), radix: 16) }.joined(separator: ":")
+        case .sockaddr:
+            let family = p.load(fromByteOffset: 1, as: UInt8.self)
+            if family == 2 { let port = UInt16(p.load(fromByteOffset: 2, as: UInt8.self)) << 8 | UInt16(p.load(fromByteOffset: 3, as: UInt8.self))
+                             return pointer(p + 4, .ipv4Address) + ":\(port)" }
+            return pointer(p, .none)
+        case .timespec: let t = p.load(as: timespec.self); return String(format: "%ld.%09ld", t.tv_sec, t.tv_nsec)
+        case .timeval: let t = p.load(as: timeval.self); return String(format: "%ld.%06ld", t.tv_sec, Int(t.tv_usec))
+        case .uuid: return UUID(uuid: p.load(as: uuid_t.self)).uuidString
+        }
+    }
+    public mutating func appendInterpolation(_ number: @autoclosure @escaping () -> Int, format: OSLogIntExtendedFormat, privacy: OSLogPrivacy = .auto) {
+        pieces.append(.value({ OSLogInterpolation.extended(Int64(number()), format) }, privacy, true))
+    }
+    public mutating func appendInterpolation(_ number: @autoclosure @escaping () -> Int32, format: OSLogInt32ExtendedFormat, privacy: OSLogPrivacy = .auto) {
+        pieces.append(.value({ OSLogInterpolation.extended32(number(), format) }, privacy, true))
+    }
+    static func bytes(_ n: Double, iec: Bool, unit: String) -> String {
+        let k = iec ? 1024.0 : 1000.0
+        let names = iec ? ["", "Ki", "Mi", "Gi", "Ti"] : ["", "k", "M", "G", "T"]
+        var v = n, i = 0
+        while abs(v) >= k && i < names.count - 1 { v /= k; i += 1 }
+        return i == 0 ? "\(Int(n)) \(unit)" : String(format: "%.1f %@%@", v, names[i], unit)
+    }
+    static func extended(_ n: Int64, _ format: OSLogIntExtendedFormat) -> String {
+        switch format {
+        case .bitrate: return bytes(Double(n), iec: false, unit: "bps")
+        case .bitrateIEC: return bytes(Double(n), iec: true, unit: "bps")
+        case .byteCount: return bytes(Double(n), iec: false, unit: "B")
+        case .byteCountIEC: return bytes(Double(n), iec: true, unit: "B")
+        case .secondsSince1970:
+            var t = time_t(n), tm = tm(); gmtime_r(&t, &tm)
+            var buf = [CChar](repeating: 0, count: 32); strftime(&buf, 32, "%Y-%m-%d %H:%M:%S+0000", &tm)
+            return String(cString: buf)
+        }
+    }
+    static func extended32(_ n: Int32, _ format: OSLogInt32ExtendedFormat) -> String {
+        switch format {
+        case .ipv4Address: return withUnsafeBytes(of: n.bigEndian) { pointer($0.baseAddress!, .ipv4Address) }
+        case .secondsSince1970: return extended(Int64(n), .secondsSince1970)
+        case .darwinErrno, .machErrno: return "[\(n): \(String(cString: strerror(n)))]"
+        case .darwinMode: return String(n, radix: 8)
+        case .darwinSignal: return "[sig\(n)]"
+        case .bitrate, .truncatedBitrate: return extended(Int64(n), .bitrate)
+        case .bitrateIEC, .truncatedBitrateIEC: return extended(Int64(n), .bitrateIEC)
+        case .byteCount, .truncatedByteCount: return extended(Int64(n), .byteCount)
+        case .byteCountIEC, .truncatedByteCountIEC: return extended(Int64(n), .byteCountIEC)
+        case .truth: return n != 0 ? "true" : "false"
+        case .answer: return n != 0 ? "YES" : "NO"
+        }
     }
 }
 
 public struct OSLogMessage: ExpressibleByStringInterpolation, ExpressibleByStringLiteral {
     public typealias StringInterpolation = OSLogInterpolation
-    let interpolation: OSLogInterpolation
+    public let interpolation: OSLogInterpolation
+    /// the size of the message's argument buffer, in bytes (2 header bytes and a 2-byte descriptor plus 8 bytes per argument)
+    public var bufferSize: Int { 2 + interpolation.pieces.reduce(0) { n, p in if case .value = p { return n + 10 }; return n } }
     public init(stringInterpolation: OSLogInterpolation) { interpolation = stringInterpolation }
     public init(stringLiteral value: String) { var i = OSLogInterpolation(literalCapacity: value.count, interpolationCount: 0); i.appendLiteral(value); interpolation = i }
 
@@ -287,6 +355,9 @@ public struct Logger: @unchecked Sendable {
     public init(subsystem: String, category: String) { logObject = OSLog(subsystem: subsystem, category: category) }
     public init(_ logObj: OSLog) { logObject = logObj }
     public init() { logObject = .default }
+    /// a logger that logs nothing
+    public static var disabled: Logger { Logger(OSLog.disabled) }
+    public func isEnabled(type: OSLogType) -> Bool { logObject.isEnabled(type: type) }
 
     public func log(_ message: OSLogMessage) { _OSLogOutput.emit(logObject, .default, message.render(), format: message.formatString) }
     public func log(level: OSLogType, _ message: OSLogMessage) { _OSLogOutput.emit(logObject, level, message.render(), format: message.formatString) }
@@ -394,11 +465,21 @@ public func os_signpost(_ type: OSSignpostType, dso: UnsafeRawPointer = #dsohand
     _Signposts.emit(log, type, signpostID, name, _formatOSLog(format.description, arguments), format: format.description)
 }
 
-public struct OSSignpostIntervalState: Sendable {
+public struct OSSignpostIntervalState: Codable, Sendable {
     public let signpostID: OSSignpostID
     public static func beginState(id: OSSignpostID) -> OSSignpostIntervalState { OSSignpostIntervalState(signpostID: id) }
+    init(signpostID: OSSignpostID) { self.signpostID = signpostID }
+    public init(from decoder: any Decoder) throws {
+        signpostID = OSSignpostID(try decoder.singleValueContainer().decode(UInt64.self))
+    }
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.singleValueContainer()
+        try c.encode(signpostID.rawValue)
+    }
 }
 public struct OSSignposter: @unchecked Sendable {
+    /// the message of a signpost event or interval
+    public typealias SignpostMetadata = OSLogMessage
     public let logHandle: OSLog
     public init(subsystem: String, category: String) { logHandle = OSLog(subsystem: subsystem, category: category) }
     public init(subsystem: String, category: OSLog.Category) { logHandle = OSLog(subsystem: subsystem, category: category) }
@@ -459,6 +540,11 @@ public struct OSAllocatedUnfairLock<State>: @unchecked Sendable {
         defer { os_unfair_lock_unlock(&storage.lock) }
         return try body(&storage.state)
     }
+    public func withLockIfAvailableUnchecked<R>(_ body: (inout State) throws -> R) rethrows -> R? {
+        guard os_unfair_lock_trylock(&storage.lock) else { return nil }
+        defer { os_unfair_lock_unlock(&storage.lock) }
+        return try body(&storage.state)
+    }
     public func lock() { os_unfair_lock_lock(&storage.lock) }
     public func unlock() { os_unfair_lock_unlock(&storage.lock) }
     public func lockIfAvailable() -> Bool { os_unfair_lock_trylock(&storage.lock) }
@@ -477,4 +563,27 @@ extension OSAllocatedUnfairLock where State == () {
         os_unfair_lock_lock(&storage.lock); defer { os_unfair_lock_unlock(&storage.lock) }
         return try body()
     }
+    public func withLockIfAvailableUnchecked<R>(_ body: () throws -> R) rethrows -> R? {
+        guard os_unfair_lock_trylock(&storage.lock) else { return nil }
+        defer { os_unfair_lock_unlock(&storage.lock) }
+        return try body()
+    }
+}
+
+/// os_signpost's animation-interval begin type (an interval UIKit-style animations report)
+public enum OSSignpostAnimationBegin: Sendable { case animationBegin }
+/// the format of an animation interval's begin message
+public enum AnimationFormatString {
+    public struct OSLogMessage: ExpressibleByStringLiteral, Sendable {
+        let format: String
+        public init(stringLiteral value: String) { format = value }
+    }
+}
+
+/// options of an OSAllocatedUnfairLock
+public struct OSAllocatedUnfairLockFlags: OptionSet, Hashable, Sendable {
+    public let rawValue: UInt32
+    public init(rawValue: UInt32) { self.rawValue = rawValue }
+    /// spin briefly before waiting (isim: a hint only)
+    public static let adaptiveSpin = OSAllocatedUnfairLockFlags(rawValue: 0x40000)
 }

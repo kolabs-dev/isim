@@ -41,6 +41,9 @@ LOG_LINES = {
     "C os_log_error / os_log_debug, %{private}d, OS_LOG_DISABLED":
         r" E  SecurityTest.*\[dev\.isim\.test:objc\] objc error boom 7$",
     "C os_log_debug on OS_LOG_DEFAULT": r" Db SecurityTest\[[0-9]+:[0-9a-f]+\] objc default log <private>$",
+    "Logger: extended integer and pointer formats (#353)":
+        r"\] bytes 1\.5 MB errno \[2: No such file or directory\] truth true time 12\.000000005$",
+    "C os_log inside an os_activity scope": r"\] inside the inner activity$",
 }
 
 

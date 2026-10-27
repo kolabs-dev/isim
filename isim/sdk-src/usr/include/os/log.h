@@ -19,6 +19,16 @@ enum {
 };
 extern struct os_log_s _os_log_default;
 extern struct os_log_s _os_log_disabled;
+/* the deployment-target feature macros and the legacy os_trace types, as in Apple's os/log.h and os/trace_base.h */
+#define OS_LOG_TARGET_HAS_10_12_FEATURES 1
+#define OS_LOG_TARGET_HAS_10_13_FEATURES 1
+#define OS_LOG_TARGET_HAS_10_14_FEATURES 1
+#define OS_LOG_TARGET_HAS_10_15_FEATURES 1
+#define OS_LOG_STRING_SECTION "__TEXT,__oslogstring,cstring_literals"
+#define OS_ATOMIC_USES_CXX 0
+#define OS_TRACE_TYPE_RELEASE (1u << 0)
+#define OS_TRACE_TYPE_INFO (1u << 1)
+#define OS_TRACE_TYPE_DEBUG (1u << 2)
 #define OS_LOG_DEFAULT OS_OBJECT_GLOBAL_OBJECT(os_log_t, _os_log_default)
 #define OS_LOG_DISABLED OS_OBJECT_GLOBAL_OBJECT(os_log_t, _os_log_disabled)
 OS_OBJECT_RETURNS_RETAINED os_log_t os_log_create(const char *subsystem, const char *category);

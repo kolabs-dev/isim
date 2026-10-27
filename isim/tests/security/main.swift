@@ -9,6 +9,7 @@ func check(_ ok: Bool, _ what: String) {
 }
 
 @_silgen_name("isim_test_c_os_log") func cOSLogTest()
+@_silgen_name("isim_test_c_os_activity") func cOSActivityTest() -> Int32
 
 @main struct Main {
     static func main() {
