@@ -46,4 +46,15 @@ NS_INLINE id _Nullable CFBridgingRelease(CFTypeRef __attribute__((cf_consumed)) 
 NS_INLINE CF_RETURNS_RETAINED CFTypeRef _Nullable CFBridgingRetain(id _Nullable X) { return X ? (CFTypeRef)[X retain] : NULL; }
 NS_INLINE id _Nullable CFBridgingRelease(CFTypeRef __attribute__((cf_consumed)) _Nullable X) { return [(id)X autorelease]; }
 #endif
+/* objects whose memory can be discarded when nothing is using it (NSPurgeableData; NSCache evicts discarded ones) */
+@protocol NSDiscardableContent
+@required
+- (BOOL)beginContentAccess;
+- (void)endContentAccess;
+- (void)discardContentIfPossible;
+- (BOOL)isContentDiscarded;
+@end
+@interface NSObject (NSDiscardableContentProxy)
+@property (readonly, retain) id autoContentAccessingProxy;
+@end
 NS_ASSUME_NONNULL_END
