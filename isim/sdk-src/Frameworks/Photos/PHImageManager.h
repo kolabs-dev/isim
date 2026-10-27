@@ -50,6 +50,15 @@ API_AVAILABLE(ios(8))
 @property (nonatomic, assign) PHVideoRequestOptionsDeliveryMode deliveryMode;
 @property (nonatomic, copy, nullable) PHAssetVideoProgressHandler progressHandler;
 @end
+@class PHLivePhoto;
+API_AVAILABLE(ios(9.1))
+@interface PHLivePhotoRequestOptions : NSObject <NSCopying>
+@property (nonatomic, assign) PHImageRequestOptionsVersion version;
+@property (nonatomic, assign) PHImageRequestOptionsDeliveryMode deliveryMode;
+@property (nonatomic, assign, getter=isNetworkAccessAllowed) BOOL networkAccessAllowed;
+@property (nonatomic, copy, nullable) PHAssetImageProgressHandler progressHandler;
+@property (nonatomic, assign) BOOL preferHDR API_AVAILABLE(ios(18));
+@end
 /* isim: images are the library files scaled to the target size; asynchronous requests answer on the main queue, video
    requests on a background queue */
 API_AVAILABLE(ios(8))
@@ -58,6 +67,8 @@ API_AVAILABLE(ios(8))
 - (PHImageRequestID)requestImageForAsset:(PHAsset *)asset targetSize:(CGSize)targetSize contentMode:(PHImageContentMode)contentMode options:(nullable PHImageRequestOptions *)options resultHandler:(void (^)(UIImage * _Nullable result, NSDictionary * _Nullable info))resultHandler;
 - (PHImageRequestID)requestImageDataAndOrientationForAsset:(PHAsset *)asset options:(nullable PHImageRequestOptions *)options resultHandler:(void (^)(NSData * _Nullable imageData, NSString * _Nullable dataUTI, CGImagePropertyOrientation orientation, NSDictionary * _Nullable info))resultHandler API_AVAILABLE(ios(13));
 - (void)cancelImageRequest:(PHImageRequestID)requestID;
+/* a Live Photo asset's PHLivePhoto, on the main queue */
+- (PHImageRequestID)requestLivePhotoForAsset:(PHAsset *)asset targetSize:(CGSize)targetSize contentMode:(PHImageContentMode)contentMode options:(nullable PHLivePhotoRequestOptions *)options resultHandler:(void (^)(PHLivePhoto * _Nullable livePhoto, NSDictionary * _Nullable info))resultHandler API_AVAILABLE(ios(9.1));
 - (PHImageRequestID)requestPlayerItemForVideo:(PHAsset *)asset options:(nullable PHVideoRequestOptions *)options resultHandler:(void (^)(AVPlayerItem * _Nullable playerItem, NSDictionary * _Nullable info))resultHandler;
 - (PHImageRequestID)requestExportSessionForVideo:(PHAsset *)asset options:(nullable PHVideoRequestOptions *)options exportPreset:(NSString *)exportPreset resultHandler:(void (^)(AVAssetExportSession * _Nullable exportSession, NSDictionary * _Nullable info))resultHandler;
 - (PHImageRequestID)requestAVAssetForVideo:(PHAsset *)asset options:(nullable PHVideoRequestOptions *)options resultHandler:(void (^)(AVAsset * _Nullable asset, AVAudioMix * _Nullable audioMix, NSDictionary * _Nullable info))resultHandler;

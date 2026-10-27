@@ -25,7 +25,13 @@ typedef NS_OPTIONS(NSUInteger, PHAssetSourceType) {
 typedef NS_ENUM(NSInteger, PHAssetResourceType) {
     PHAssetResourceTypePhoto = 1, PHAssetResourceTypeVideo = 2, PHAssetResourceTypeAudio = 3, PHAssetResourceTypeAlternatePhoto = 4,
     PHAssetResourceTypeFullSizePhoto = 5, PHAssetResourceTypeFullSizeVideo = 6, PHAssetResourceTypeAdjustmentData = 7,
+    PHAssetResourceTypeAdjustmentBasePhoto = 8, PHAssetResourceTypePairedVideo = 9, PHAssetResourceTypeFullSizePairedVideo = 10,
+    PHAssetResourceTypeAdjustmentBasePairedVideo = 11, PHAssetResourceTypeAdjustmentBaseVideo = 12, PHAssetResourceTypePhotoProxy = 19,
 };
+typedef NS_ENUM(NSInteger, PHAssetPlaybackStyle) {
+    PHAssetPlaybackStyleUnsupported = 0, PHAssetPlaybackStyleImage = 1, PHAssetPlaybackStyleImageAnimated = 2, PHAssetPlaybackStyleLivePhoto = 3,
+    PHAssetPlaybackStyleVideo = 4, PHAssetPlaybackStyleVideoLooping = 5,
+} API_AVAILABLE(ios(11));
 typedef NS_ENUM(NSInteger, PHAssetCollectionType) { PHAssetCollectionTypeAlbum = 1, PHAssetCollectionTypeSmartAlbum = 2, PHAssetCollectionTypeMoment = 3 };
 typedef NS_ENUM(NSInteger, PHAssetCollectionSubtype) {
     PHAssetCollectionSubtypeAlbumRegular = 2, PHAssetCollectionSubtypeAlbumSyncedEvent = 3, PHAssetCollectionSubtypeAlbumSyncedFaces = 4,

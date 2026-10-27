@@ -1,7 +1,7 @@
 // isim PhotosUI (self-authored, iOS API names): PHPickerViewController (a grid of the device photo library; like iOS
 // it runs outside the app's photo permission and hands back NSItemProviders: photos as data, videos as files), and
-// SwiftUI's PhotosPicker / .photosPicker(isPresented:) with PhotosPickerItem.loadTransferable. Photos and videos
-// (adapted: no Live Photos, bursts or screenshots as kinds of their own).
+// SwiftUI's PhotosPicker / .photosPicker(isPresented:) with PhotosPickerItem.loadTransferable. Photos, Live Photos
+// and videos (adapted: no bursts or screenshots as kinds of their own); PHLivePhotoView (LivePhotoView.swift).
 @_exported import Photos
 @_exported import CoreTransferable
 @_exported import UniformTypeIdentifiers
@@ -53,23 +53,46 @@ public struct PHPickerFilter: Hashable, Sendable {
     public static func any(of subfilters: [PHPickerFilter]) -> PHPickerFilter { PHPickerFilter(.any(subfilters.map(\.rule))) }
     public static func all(of subfilters: [PHPickerFilter]) -> PHPickerFilter { PHPickerFilter(.all(subfilters.map(\.rule))) }
     public static func not(_ filter: PHPickerFilter) -> PHPickerFilter { PHPickerFilter(.not(filter.rule)) }
-    public static func playbackStyle(_ playbackStyle: Int) -> PHPickerFilter { .images }
-    /// the kinds of a library item: isim's are plain photos and videos
-    func matches(_ asset: PHAsset) -> Bool { rule.matches([asset.mediaType == .video ? "video" : "image"]) }
+    public static func playbackStyle(_ playbackStyle: PHAsset.PlaybackStyle) -> PHPickerFilter { PHPickerFilter(.kind("playback\(playbackStyle.rawValue)")) }
+    /// the kinds of a library item: isim's are photos (Live Photos too) and videos, with their playback style
+    func matches(_ asset: PHAsset) -> Bool {
+        var kinds: Set<String> = [asset.mediaType == .video ? "video" : "image", "playback\(asset.playbackStyle.rawValue)"]
+        if asset.mediaSubtypes.contains(.photoLive) { kinds.insert("livePhoto") }
+        return rule.matches(kinds)
+    }
+}
+
+/// How the picker is laid out: a full grid, or one compact row (adapted: isim shows the grid for both).
+@objc public enum PHPickerMode: Int, Sendable { case `default` = 0, compact = 1 }
+
+/// Parts of the picker an app can turn off (adapted: isim's picker has only its grid, so these change nothing).
+public struct PHPickerCapabilities: OptionSet, Sendable {
+    public let rawValue: UInt
+    public init(rawValue: UInt) { self.rawValue = rawValue }
+    public static let search = PHPickerCapabilities(rawValue: 1 << 0)
+    public static let stagingArea = PHPickerCapabilities(rawValue: 1 << 1)
+    public static let collectionNavigation = PHPickerCapabilities(rawValue: 1 << 2)
+    public static let selectionActions = PHPickerCapabilities(rawValue: 1 << 3)
+    public static let sensitivityAnalysisIntervention = PHPickerCapabilities(rawValue: 1 << 4)
 }
 
 public struct PHPickerConfiguration: Sendable {
     public enum AssetRepresentationMode: Int, Sendable { case automatic = 0, current = 1, compatible = 2 }
     public enum Selection: Int, Sendable { case `default` = 0, ordered = 1, continuous = 2, continuousAndOrdered = 3 }
-    public struct Update: Sendable {}
+    /// Changes to a shown picker (PHPickerViewController.updatePicker(using:)).
+    public struct Update: Sendable {
+        public var selectionLimit: Int?
+        public var edgesWithoutContentMargins: NSDirectionalRectEdge?
+        public init() {}
+    }
     public var preferredAssetRepresentationMode: AssetRepresentationMode = .automatic
     public var selection: Selection = .default
     public var filter: PHPickerFilter?
     public var selectionLimit = 1
     public var preselectedAssetIdentifiers: [String] = []
-    public var mode: Int = 0
-    public var edgesWithoutContentMargins: Int = 0
-    public var disabledCapabilities: Int = 0
+    public var mode: PHPickerMode = .default
+    public var edgesWithoutContentMargins: NSDirectionalRectEdge = []
+    public var disabledCapabilities: PHPickerCapabilities = []
     let identifiers: Bool
     public init() { identifiers = false }
     public init(photoLibrary: PHPhotoLibrary) { identifiers = true }
@@ -97,6 +120,12 @@ enum _PUAssets {
         let path = asset._isimFilePath
         let type = type(path)
         p.suggestedName = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
+        if let live = PHLivePhoto._isimOf(asset) {
+            // a Live Photo also loads as a PHLivePhoto (canLoadObject(ofClass: PHLivePhoto.self))
+            p.registerDataRepresentation(forTypeIdentifier: PHLivePhoto._bundleType, visibility: .all) { done in
+                done(try? NSKeyedArchiver.archivedData(withRootObject: live, requiringSecureCoding: true), nil); return nil
+            }
+        }
         if asset.mediaType == .video {
             // a movie comes as a file (loadFileRepresentation), and as data for loadDataRepresentation
             p.registerFileRepresentation(forTypeIdentifier: type, fileOptions: [], visibility: .all) { done in
@@ -137,12 +166,21 @@ enum _PUAssets {
                                             including: filter.map { f in { f.matches($0) } })
         grid.onDone = { [weak self] ids in self?.finish(ids) }
         grid.onCancel = { [weak self] in self?.finish([]) }
+        self.grid = grid
         nav.viewControllers = [grid]
         addChild(nav)
         nav.view.frame = view.bounds
         nav.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(nav.view)
         nav.didMove(toParent: self)
+    }
+    weak var grid: _ISIMPhotoGridController?
+    /// Changes the shown picker: its selection limit (the selection is trimmed to it) and margins.
+    public func updatePicker(using configuration: PHPickerConfiguration.Update) {
+        guard let limit = configuration.selectionLimit, let grid else { return }
+        grid.limit = limit
+        if limit > 0, grid.selected.count > limit { grid.selected = Array(grid.selected.prefix(limit)) }
+        grid.title = limit == 1 ? "Photos" : "Select Items"
     }
     func finish(_ ids: [String]) {
         guard !finished else { return }
@@ -307,4 +345,18 @@ extension View {
         }
     }
     public func photosPickerStyle(_ style: PhotosPickerStyle) -> some View { self }
+}
+
+// MARK: - Live Photos from item providers
+
+extension PHLivePhoto: @retroactive NSItemProviderReading {
+    static let _bundleType = "com.apple.live-photo-bundle"
+    static func _isimOf(_ asset: PHAsset) -> PHLivePhoto? { PHLivePhoto._isimLivePhoto(of: asset) }
+    public static var readableTypeIdentifiersForItemProvider: [String] { [_bundleType] }
+    public static func object(withItemProviderData data: Data, typeIdentifier: String) throws -> Self {
+        guard let l = try NSKeyedUnarchiver.unarchivedObject(ofClass: PHLivePhoto.self, from: data) as? Self else {
+            throw NSError(domain: NSItemProviderErrorDomain, code: -1200, userInfo: nil)   // NSItemProviderUnavailableCoercionError
+        }
+        return l
+    }
 }

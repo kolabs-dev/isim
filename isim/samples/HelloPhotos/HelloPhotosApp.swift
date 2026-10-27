@@ -2,7 +2,8 @@
 // NSItemProvider, UIImagePickerController (photo library; no camera, like the Simulator), the Photos permission
 // alert, PHAsset fetching, PHImageManager, saving with PHAssetChangeRequest and UIImageWriteToSavedPhotosAlbum,
 // AVCaptureDevice (no cameras; the camera permission alert), and videos and albums: saving a movie, requestAVAsset /
-// requestPlayerItem, PHAssetResourceManager, user albums with PHAssetCollectionChangeRequest, and picking videos.
+// requestPlayerItem, PHAssetResourceManager, user albums with PHAssetCollectionChangeRequest, and picking videos;
+// Live Photos and edits (LiveAndEdits.swift).
 import SwiftUI
 import PhotosUI
 import AVFoundation
@@ -27,6 +28,9 @@ final class PhotosModel: NSObject, ObservableObject, PHPickerViewControllerDeleg
         didSet { if let movie { loadMovie(movie) } }
     }
     @Published var status = "—"
+    @Published var livePhoto: PHLivePhoto?
+    let livePhotoView = PHLivePhotoView()
+    let liveDelegate = LiveViewDelegate()
     @Published var item: PhotosPickerItem? {
         didSet { if let item { load(item) } }
     }
@@ -354,6 +358,7 @@ struct ContentView: View {
                     PhotosPicker("Pick a Video", selection: $model.movie, matching: .videos).accessibilityIdentifier("videoPicker")
                     Button("PHPicker (videos)") { model.showVideoPicker() }.accessibilityIdentifier("phpickerVideo")
                 }
+                LiveAndEditsSection(model: model)
                 Section("Camera") {
                     Button("Use Camera") { model.camera() }.accessibilityIdentifier("camera")
                 }
