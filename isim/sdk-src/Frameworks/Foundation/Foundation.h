@@ -72,4 +72,8 @@
 #import <Foundation/NSItemProvider.h>
 #import <Foundation/NSExtensionContext.h>
 #import <Foundation/NSJSONSerialization.h>
+#import <Foundation/NSMapTable.h>
+#import <Foundation/NSHashTable.h>
+#import <Foundation/NSOrderedCollectionDifference.h>
+#import <Foundation/NSURLConnection.h>
 #import <Foundation/NSFileVersion.h>

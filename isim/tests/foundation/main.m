@@ -1076,6 +1076,135 @@ static void objc_networking_checks(void) {
            back.storagePolicy == NSURLCacheStorageAllowed && cache.currentMemoryUsage > 0));
 }
 
+/* the older Objective-C API (#347): NSURLConnection, NSOrderedCollectionDifference, NSPurgeableData with NSCache, the
+   NSMapTable / NSHashTable C functions */
+@interface ConnectionRecorder : NSObject <NSURLConnectionDataDelegate>
+@property NSInteger status, redirects, challenges;
+@property NSMutableData *body;
+@property BOOL finished, failed, mainThread;
+@end
+@implementation ConnectionRecorder
+- (NSURLRequest *)connection:(NSURLConnection *)c willSendRequest:(NSURLRequest *)request redirectResponse:(NSURLResponse *)response {
+    if (response) self.redirects++;
+    return request;
+}
+- (void)connection:(NSURLConnection *)c willSendRequestForAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge {
+    self.challenges++;
+    [challenge.sender useCredential:[NSURLCredential credentialWithUser:@"user" password:@"secret" persistence:NSURLCredentialPersistenceNone]
+         forAuthenticationChallenge:challenge];
+}
+- (void)connection:(NSURLConnection *)c didReceiveResponse:(NSURLResponse *)response { self.status = ((NSHTTPURLResponse *)response).statusCode; self.body = [NSMutableData data]; }
+- (void)connection:(NSURLConnection *)c didReceiveData:(NSData *)data { [self.body appendData:data]; }
+- (void)connectionDidFinishLoading:(NSURLConnection *)c { self.mainThread = NSThread.isMainThread; self.finished = YES; }
+- (void)connection:(NSURLConnection *)c didFailWithError:(NSError *)error { self.failed = YES; }
+@end
+static NSUInteger name_hash(NSMapTable *t, const void *p) { return (NSUInteger)strlen(p); }
+static BOOL name_equal(NSMapTable *t, const void *a, const void *b) { return strcmp(a, b) == 0; }
+static void legacy_checks(void) {
+    NSString *base = [NSString stringWithFormat:@"http://127.0.0.1:%s", getenv("ISIM_TEST_HTTP_PORT")];
+    ConnectionRecorder *rec = [ConnectionRecorder new];
+    NSURLRequest *req = [NSURLRequest requestWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/redirect"]]];
+    NSURLConnection *conn = [NSURLConnection connectionWithRequest:req delegate:rec];
+    CHECK((conn && [conn.originalRequest isEqual:req] && [NSURLConnection canHandleRequest:req] &&
+           ![NSURLConnection canHandleRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"gopher://x/"]]]));
+    CHECK((spin_until(^BOOL { return rec.finished || rec.failed; }, 10) && rec.finished && rec.mainThread && rec.status == 200 && rec.redirects == 1 &&
+           [[[NSString alloc] initWithData:rec.body encoding:NSUTF8StringEncoding] isEqualToString:@"hello objc"] &&
+           [conn.currentRequest.URL.path isEqualToString:@"/hello"]));
+    ConnectionRecorder *auth = [ConnectionRecorder new];
+    NSURLConnection *later = [[NSURLConnection alloc] initWithRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/auth"]]]
+                                                             delegate:auth startImmediately:NO];
+    NSOperationQueue *q = [NSOperationQueue new];
+    [later setDelegateQueue:q];
+    [later start];
+    CHECK((spin_until(^BOOL { return auth.finished || auth.failed; }, 10) && auth.finished && !auth.mainThread && auth.challenges == 1 && auth.status == 200 &&
+           [[[NSString alloc] initWithData:auth.body encoding:NSUTF8StringEncoding] isEqualToString:@"welcome"]));
+    NSURLResponse *resp = nil; NSError *err = nil;
+    NSData *sync = [NSURLConnection sendSynchronousRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/hello"]]]
+                                         returningResponse:&resp error:&err];
+    CHECK(([[[NSString alloc] initWithData:sync encoding:NSUTF8StringEncoding] isEqualToString:@"hello objc"] && err == nil &&
+           ((NSHTTPURLResponse *)resp).statusCode == 200));
+    __block NSError *asyncError = nil; __block BOOL asyncDone = NO, onQueue = NO;
+    [NSURLConnection sendAsynchronousRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"http://127.0.0.1:1/"]] queue:NSOperationQueue.mainQueue
+                           completionHandler:^(NSURLResponse *r, NSData *d, NSError *e) { asyncError = e; onQueue = NSThread.isMainThread; asyncDone = YES; }];
+    CHECK((spin_until(^BOOL { return asyncDone; }, 10) && onQueue && asyncError.code == NSURLErrorCannotConnectToHost));
+
+    NSArray *old = @[@"a", @"b", @"c", @"d"], *new = @[@"a", @"c", @"x", @"d", @"b"];
+    NSOrderedCollectionDifference *d = [new differenceFromArray:old withOptions:NSOrderedCollectionDifferenceCalculationInferMoves];
+    NSMutableArray *changes = [NSMutableArray array];
+    for (NSOrderedCollectionChange *c in d)
+        [changes addObject:[NSString stringWithFormat:@"%@%lu%@%@", c.changeType == NSCollectionChangeInsert ? @"+" : @"-", (unsigned long)c.index, c.object,
+                                                      c.associatedIndex == NSNotFound ? @"" : [NSString stringWithFormat:@">%lu", (unsigned long)c.associatedIndex]]];
+    CHECK(([[changes componentsJoinedByString:@" "] isEqualToString:@"-1b>4 +2x +4b>1"] && d.hasChanges && d.removals.count == 1 && d.insertions.count == 2));
+    CHECK(([[old arrayByApplyingDifference:d] isEqual:new] && [[new arrayByApplyingDifference:d.inverseDifference] isEqual:old] &&
+           ![[old differenceFromArray:old] hasChanges] && [old arrayByApplyingDifference:[@[@"z"] differenceFromArray:@[]]] != nil));
+    NSMutableArray *edit = [old mutableCopy];
+    [edit applyDifference:[new differenceFromArray:old]];
+    NSOrderedSet *os = [NSOrderedSet orderedSetWithArray:@[@1, @2, @3]];
+    NSOrderedCollectionDifference *od = [[NSOrderedSet orderedSetWithArray:@[@3, @1]] differenceFromOrderedSet:os];
+    CHECK(([edit isEqual:new] && [[os orderedSetByApplyingDifference:od] isEqual:[NSOrderedSet orderedSetWithArray:@[@3, @1]]]));
+    NSOrderedCollectionDifference *manual = [[NSOrderedCollectionDifference alloc] initWithInsertIndexes:[NSIndexSet indexSetWithIndex:0] insertedObjects:@[@"new"]
+                                                                                         removeIndexes:[NSIndexSet indexSet] removedObjects:nil];
+    NSOrderedCollectionDifference *upper = [manual differenceByTransformingChangesWithBlock:^NSOrderedCollectionChange *(NSOrderedCollectionChange *c) {
+        return [NSOrderedCollectionChange changeWithObject:[c.object uppercaseString] type:c.changeType index:c.index];
+    }];
+    CHECK(([[@[@"old"] arrayByApplyingDifference:upper] isEqual:(@[@"NEW", @"old"])]));
+
+    NSPurgeableData *pd = [NSPurgeableData dataWithBytes:"purge" length:5];
+    BOOL accessed = [pd beginContentAccess];
+    [pd discardContentIfPossible];
+    BOOL keptWhileAccessed = !pd.isContentDiscarded && pd.length == 5;
+    [pd endContentAccess]; [pd endContentAccess];
+    [pd discardContentIfPossible];
+    CHECK((accessed && keptWhileAccessed && pd.isContentDiscarded && pd.length == 0 && ![pd beginContentAccess] &&
+           [pd conformsToProtocol:@protocol(NSDiscardableContent)] && [pd isKindOfClass:[NSMutableData class]]));
+    NSCache *cache = [NSCache new];
+    NSPurgeableData *cached = [NSPurgeableData dataWithLength:8];
+    [cache setObject:cached forKey:@"blob"];
+    [cached endContentAccess];
+    BOOL beforeDiscard = [cache objectForKey:@"blob"] == cached;
+    [cached discardContentIfPossible];
+    CHECK((beforeDiscard && [cache objectForKey:@"blob"] == nil && cache.evictsObjectsWithDiscardedContent));
+
+    NSMapTableKeyCallBacks names = NSNonOwnedPointerMapKeyCallBacks;
+    names.hash = name_hash; names.isEqual = name_equal;
+    NSMapTable *m = NSCreateMapTable(names, NSIntegerMapValueCallBacks, 4);
+    char key[] = "two";
+    NSMapInsert(m, "one", (void *)1); NSMapInsert(m, "two", (void *)2); NSMapInsert(m, "three", (void *)3);
+    void *origKey = NULL, *value = NULL;
+    BOOL member = NSMapMember(m, key, &origKey, &value);
+    void *existing = NSMapInsertIfAbsent(m, "one", (void *)9);
+    NSMapRemove(m, "three");
+    NSMapEnumerator me = NSEnumerateMapTable(m);
+    void *k, *v; NSInteger sum = 0, pairs = 0;
+    while (NSNextMapEnumeratorPair(&me, &k, &v)) { sum += (NSInteger)v; pairs++; }
+    NSEndMapTableEnumeration(&me);
+    CHECK((NSMapGet(m, key) == (void *)2 && member && value == (void *)2 && origKey != key && strcmp(origKey, "two") == 0 &&
+           existing != NULL && NSMapGet(m, "one") == (void *)1 && NSCountMapTable(m) == 2 && pairs == 2 && sum == 3 &&
+           [NSStringFromMapTable(m) containsString:@" = 2;"] && NSAllMapTableValues(m).count == 2));
+    NSMapTable *copy = NSCopyMapTableWithZone(m, NULL);
+    CHECK((NSCompareMapTables(m, copy) && NSMapGet(copy, "two") == (void *)2));
+    NSFreeMapTable(copy); NSFreeMapTable(m);
+    NSMapTable *objects = [NSMapTable strongToStrongObjectsMapTable];
+    NSMapInsert(objects, (__bridge void *)@"k", (__bridge void *)@"v");
+    CHECK(([(__bridge id)NSMapGet(objects, (__bridge void *)@"k") isEqual:@"v"] && [objects objectForKey:@"k"] && NSCountMapTable(objects) == 1));
+
+    NSHashTable *h = NSCreateHashTable(NSIntegerHashCallBacks, 0);
+    for (intptr_t i = 1; i <= 3; i++) NSHashInsert(h, (void *)i);
+    NSHashInsert(h, (void *)2);
+    void *already = NSHashInsertIfAbsent(h, (void *)3);
+    NSHashRemove(h, (void *)1);
+    NSHashEnumerator he = NSEnumerateHashTable(h);
+    intptr_t total = 0; void *item;
+    while ((item = NSNextHashEnumeratorItem(&he))) total += (intptr_t)item;
+    NSEndHashTableEnumeration(&he);
+    CHECK((NSCountHashTable(h) == 2 && total == 5 && already == (void *)3 && NSHashGet(h, (void *)2) == (void *)2 && NSHashGet(h, (void *)1) == NULL &&
+           [NSStringFromHashTable(h) containsString:@"2;"]));
+    NSFreeHashTable(h);
+    NSHashTable *objectSet = [NSHashTable hashTableWithOptions:NSHashTableStrongMemory];
+    NSHashInsert(objectSet, (__bridge void *)@"item");
+    CHECK((NSCountHashTable(objectSet) == 1 && [NSAllHashTableObjects(objectSet).firstObject isEqual:@"item"]));
+}
+
 /* CoreFoundation over the toll-free bridged Foundation classes (issue #216) */
 static void test_corefoundation(void) {
     CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
@@ -1771,6 +1900,7 @@ int main(int argc, char *argv[]) {
         file_checks();
         url_protocol_checks();
         objc_networking_checks();
+        if (getenv("ISIM_TEST_HTTP_PORT")) legacy_checks();
         locale_checks();
 
         collection_checks();

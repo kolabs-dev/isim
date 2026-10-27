@@ -449,7 +449,15 @@ static BOOL NSEqualRanges_isim(NSRange a, NSRange b) { return a.location == b.lo
     _IsimCacheEntry *e = _map[[NSValue valueWithNonretainedObject:key]] ?: [self _entryForEqualKey:key];
     if (e) { [_lru removeObjectIdenticalTo:e]; [_lru addObject:e]; }
     id o = e.object;
+    /* an object whose content was discarded (NSDiscardableContent) is evicted */
+    BOOL discarded = o && _evictsObjectsWithDiscardedContent && [o conformsToProtocol:@protocol(NSDiscardableContent)] && [o isContentDiscarded];
+    if (discarded) { [_lru removeObjectIdenticalTo:e]; [_map removeObjectForKey:[NSValue valueWithNonretainedObject:e.key]]; _totalCost -= e.cost; }
     pthread_mutex_unlock(&_lock);
+    if (discarded) {
+        id<NSCacheDelegate> d = self.delegate;
+        if ([d respondsToSelector:@selector(cache:willEvictObject:)]) [d cache:self willEvictObject:o];
+        return nil;
+    }
     return o;
 }
 /* keys are compared with isEqual: like NSDictionary (Apple's NSCache does not copy keys) */
@@ -471,6 +479,7 @@ static BOOL NSEqualRanges_isim(NSRange a, NSRange b) { return a.location == b.lo
     pthread_mutex_unlock(&_lock);
     id<NSCacheDelegate> d = self.delegate;
     if ([d respondsToSelector:@selector(cache:willEvictObject:)]) for (id o in evicted) [d cache:self willEvictObject:o];
+    for (id o in evicted) if ([o conformsToProtocol:@protocol(NSDiscardableContent)]) [o discardContentIfPossible];   /* (evicted: its memory may go) */
 }
 - (void)removeObjectForKey:(id)key {
     if (!key) return;

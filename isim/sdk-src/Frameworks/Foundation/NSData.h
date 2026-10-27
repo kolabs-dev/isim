@@ -99,4 +99,8 @@ typedef NS_ENUM(NSInteger, NSDataCompressionAlgorithm) {
 - (nullable NSData *)dataUsingEncoding:(NSStringEncoding)encoding allowLossyConversion:(BOOL)lossy;
 - (nullable NSData *)dataUsingEncoding:(NSStringEncoding)encoding;
 @end
+/* mutable data whose bytes may be discarded while no one accesses them (beginContentAccess / endContentAccess);
+   isim (adapted): content is discarded only by discardContentIfPossible or an NSCache eviction, never by memory pressure */
+@interface NSPurgeableData : NSMutableData <NSDiscardableContent>
+@end
 NS_ASSUME_NONNULL_END
