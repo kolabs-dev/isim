@@ -479,10 +479,21 @@ def _(a):
                                           "-framework", "LocalAuthentication", "-framework", "CoreGraphics"])
 
 
+@app("samples/HelloVisionKit")
+def _(a):
+    b = a.swift_app()
+    if shutil.which("magick") and shutil.which("qrencode"):     # a page with text and a QR code on a dark desk (ISIM_CAMERA)
+        a.run("qrencode", "-o", f"{b}/qr.png", "-s", "5", "-m", "2", "isim live text")
+        a.run("magick", "-size", "640x480", "xc:#303030", "-fill", "white", "-draw", "polygon 110,50 540,40 560,440 90,450",
+              "-fill", "black", "-pointsize", "52", "-annotate", "+170+150", "HELLO ISIM", f"{b}/qr.png", "-geometry", "+255+230",
+              "-composite", f"{b}/scene.png")
+        os.remove(f"{b}/qr.png")
+
+
 @app("samples/HelloVisionObjC", extra_inputs=["samples/HelloCoreImage/face.jpg"])   # Vision.framework re-exports libswiftVision (issue #537)
 def _(a):
     b = a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Vision",
-                                              "-framework", "CoreGraphics", "-framework", "CoreVideo"])
+                                              "-framework", "VisionKit", "-framework", "CoreGraphics", "-framework", "CoreVideo"])
     vision_pictures(a, b)
 
 

@@ -2,9 +2,11 @@
 // the pictures HelloVision uses (QR codes, text, NASA's astronaut portrait, made by the build) and on shapes, a horizon
 // and a red disk drawn here: barcodes (region of interest, orientation, symbologies), text recognition, faces and
 // landmarks, rectangles, text rectangles, contours, the horizon, saliency, VNSequenceRequestHandler, an unsupported
-// request's error, Apple's class factories and VNUtils.h. Each result is logged ("HelloVisionObjC: ...").
+// request's error, Apple's class factories and VNUtils.h; VisionKit's document camera from Objective-C (issue #379). Each
+// result is logged ("HelloVisionObjC: ...").
 #import <UIKit/UIKit.h>
 #import <Vision/Vision.h>
+#import <VisionKit/VisionKit.h>
 #import <CoreVideo/CoreVideo.h>
 
 static void say(NSString *s) { NSLog(@"HelloVisionObjC: %@", s); }
@@ -37,6 +39,12 @@ static CGImageRef render(CGFloat w, CGFloat h, void (^draw)(CGContextRef c)) {
     [self.view addSubview:title];
 }
 
+/* VisionKit's document camera (issue #379): supported only with a camera (ISIM_CAMERA) */
+- (void)documentCamera {
+    VNDocumentCameraViewController *c = [[VNDocumentCameraViewController alloc] init];
+    c.delegate = (id<VNDocumentCameraViewControllerDelegate>)self;
+    say([NSString stringWithFormat:@"documentcamera supported=%d delegate=%d", VNDocumentCameraViewController.isSupported, c.delegate == (id)self]);
+}
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
     [self barcodes];
@@ -46,6 +54,7 @@ static CGImageRef render(CGFloat w, CGFloat h, void (^draw)(CGContextRef c)) {
     [self others];
     [self tracking];
     [self models];
+    [self documentCamera];
     say(@"done");
 }
 
