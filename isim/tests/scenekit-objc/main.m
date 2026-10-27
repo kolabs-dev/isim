@@ -12,7 +12,7 @@ static void say(NSString *s) { NSLog(@"SceneKitObjC: %@", s); }
 @interface TestViewController : UIViewController <SCNSceneRendererDelegate, SCNPhysicsContactDelegate>
 @property (nonatomic, strong) SCNView *scnView;
 @property (nonatomic, strong) SCNNode *box, *ball;
-@property (nonatomic) int frames;
+@property (nonatomic) int frames, resetFrame;
 @property (nonatomic) BOOL contact;
 @end
 
@@ -112,14 +112,22 @@ static void say(NSString *s) { NSLog(@"SceneKitObjC: %@", s); }
 }
 
 - (void)renderer:(id<SCNSceneRenderer>)renderer didRenderScene:(SCNScene *)scene atTime:(NSTimeInterval)time {
-    if (++self.frames != 3) return;
-    dispatch_async(dispatch_get_main_queue(), ^{ [self picking]; });
+    int frame = ++self.frames;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (frame == 3) {
+            // stop the spin and face the box forward, however far a slow machine spun it; hit tests see the transforms
+            // the renderer last drew (the presentation), so pick only once a frame drawn after the reset has rendered
+            [self.box removeActionForKey:@"spin"];
+            self.box.eulerAngles = SCNVector3Make(0, 0, 0);
+            self.resetFrame = self.frames;
+        } else if (self.resetFrame > 0 && frame == self.resetFrame + 1) {
+            [self picking];
+        }
+    });
 }
 
 - (void)picking {
     SCNView *v = self.scnView;
-    [self.box removeActionForKey:@"spin"];                  // (picks the box face-on, however far a slow machine spun it)
-    self.box.eulerAngles = SCNVector3Make(0, 0, 0);
     SCNVector3 p = [v projectPoint:SCNVector3Make(0, 0, 0)];
     NSArray<SCNHitTestResult *> *hits = [v hitTest:CGPointMake(p.x, p.y) options:@{SCNHitTestBackFaceCullingKey: @YES}];
     SCNHitTestResult *h = hits.firstObject;
