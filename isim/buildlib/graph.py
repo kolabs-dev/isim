@@ -184,6 +184,7 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
     ("SystemConfiguration", "-framework Foundation -lisim_host"),
     ("CFNetwork", "-framework Foundation -framework SystemConfiguration"),   # CFHost over the host resolver
     ("CoreTelephony", "-framework Foundation"),
+    ("AppleArchive", "-lisim_host -lcompression -lz"),   # issue #348: Apple's archive format, its streams and compression
     # the Objective-C API over JavaScriptCore's C API, which the host's JavaScriptCore (libisim_jsc) implements
     ("JavaScriptCore", "-framework Foundation -framework CoreGraphics -reexport-lisim_jsc"),
     # issue #314: frameworks for other devices, each like Apple's Simulator (none paired, nearby or connected)

@@ -915,6 +915,7 @@ Security -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 os -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 Accelerate -framework Accelerate
 Compression -lswiftObjectiveC -lswiftFoundation -framework Foundation -lcompression
+AppleArchive -lswiftSystem -lswiftCompression -lswiftObjectiveC -lswiftFoundation -framework AppleArchive   # issue #348
 OSLog -lswiftos -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 LocalAuthentication -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSecurity -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 DeviceCheck -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCryptoKit -lswiftSecurity -framework Foundation
@@ -991,7 +992,7 @@ GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Se
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport MetricKit CloudKit AuthenticationServices
 QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision NaturalLanguage FoundationModels Speech VisionKit WebKit SafariServices LinkPresentation Accessibility MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit TipKit Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit
-CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit""".split())
+CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer".split())
 # modules that also compile overlays/_AdAttribution (the conversion values SKAdNetwork and AdAttributionKit share)
