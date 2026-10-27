@@ -153,7 +153,9 @@ def sdk_headers(c):
 
 FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each links against the ones before it)
     ("CoreFoundation", []),
-    ("Accelerate", []),   # vecLib's BLAS, LAPACK, vDSP and vForce in C (frameworks/Accelerate)
+    # vecLib's BLAS, LAPACK, vDSP and vForce, and vImage, in C (frameworks/Accelerate); vImage's Core Foundation and
+    # Core Graphics calls resolve at load time (flat lookup: CoreGraphics builds after it)
+    ("Accelerate", "-U _CFRetain -U _CFRelease -U _CFEqual -U _CFDataGetBytePtr -U _CFDataGetLength -U _CGColorSpaceCreateDeviceGray -U _CGColorSpaceCreateDeviceRGB -U _CGColorSpaceGetNumberOfComponents -U _CGColorSpaceRelease -U _CGColorSpaceRetain -U _CGDataProviderCopyData -U _CGDataProviderCreateWithData -U _CGDataProviderRelease -U _CGImageCreate -U _CGImageGetBitmapInfo -U _CGImageGetBitsPerComponent -U _CGImageGetBitsPerPixel -U _CGImageGetBytesPerRow -U _CGImageGetColorSpace -U _CGImageGetDataProvider -U _CGImageGetDecode -U _CGImageGetHeight -U _CGImageGetRenderingIntent -U _CGImageGetWidth -U _isim_cg_obj_new"),
     # CoreGraphics sits below Foundation: the CF strings/data/collections it uses resolve at load time (flat lookup)
     ("CoreGraphics", "-lisim_host -U ___CFConstantStringClassReference -U _CFDataCreate -U _CFDataGetBytePtr "
                      "-U _CFDataGetLength -U _CFDataAppendBytes -U _CFArrayGetCount -U _CFArrayGetValueAtIndex "

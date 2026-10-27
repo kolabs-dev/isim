@@ -918,7 +918,7 @@ GameController -lswiftCoreHaptics -lswiftObjectiveC -lswiftFoundation -lswiftDis
 CryptoKit -lswiftObjectiveC -lswiftFoundation -lswiftSecurity -lswiftLocalAuthentication -lswiftUIKit -framework Foundation -lisim_host
 Security -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 os -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
-Accelerate -framework Accelerate
+Accelerate -lswiftCoreGraphics -framework Accelerate -framework CoreGraphics
 Compression -lswiftObjectiveC -lswiftFoundation -framework Foundation -lcompression
 AppleArchive -lswiftSystem -lswiftCompression -lswiftObjectiveC -lswiftFoundation -framework AppleArchive   # issue #348
 OSLog -lswiftos -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host

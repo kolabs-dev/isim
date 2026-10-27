@@ -1,6 +1,7 @@
 // Sample: Accelerate on isim — a signal of two tones (440 Hz and 1 kHz at 8 kHz) windowed with vDSP.window, its
 // spectrum from vDSP.FFT drawn as bars, the peaks found with vDSP.indexOfMaximum, vForce over the magnitudes, and a
 // linear system solved with LAPACK (dgesv_) and checked with BLAS (cblas_dgemv). Every result logs a line the test reads.
+// With -vimage: vImage's page instead (VImagePage.swift).
 import UIKit
 import Accelerate
 
@@ -82,6 +83,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window = UIWindow(frame: UIScreen.main.bounds)
         let vc = UIViewController()
         vc.view.backgroundColor = .systemBackground
+        if ProcessInfo.processInfo.arguments.contains("-vimage") {
+            vImagePage(vc)
+            window?.rootViewController = vc
+            window?.makeKeyAndVisible()
+            log("done")
+            return true
+        }
         let (signal, spectrum, peaks) = analyse()
         log(String(format: "peaks %.0f Hz %.0f Hz", peaks[0], peaks[1]))
         let x = solve()
