@@ -1,11 +1,17 @@
 #pragma once
 #import <PDFKit/PDFKitPlatform.h>
 #import <PDFKit/PDFPage.h>
+#import <PDFKit/PDFSelection.h>
 NS_ASSUME_NONNULL_BEGIN
 @class PDFOutline;
 @protocol PDFDocumentDelegate;
 
 PDFKIT_EXTERN NSNotificationName const PDFDocumentDidUnlockNotification PDFKIT_AVAILABLE(10_4, 11_0);
+PDFKIT_EXTERN NSNotificationName const PDFDocumentDidBeginFindNotification PDFKIT_AVAILABLE(10_4, 11_0);
+PDFKIT_EXTERN NSNotificationName const PDFDocumentDidEndFindNotification PDFKIT_AVAILABLE(10_4, 11_0);
+PDFKIT_EXTERN NSNotificationName const PDFDocumentDidBeginPageFindNotification PDFKIT_AVAILABLE(10_4, 11_0);
+PDFKIT_EXTERN NSNotificationName const PDFDocumentDidEndPageFindNotification PDFKIT_AVAILABLE(10_4, 11_0);
+PDFKIT_EXTERN NSNotificationName const PDFDocumentDidFindMatchNotification PDFKIT_AVAILABLE(10_4, 11_0);
 PDFKIT_EXTERN NSNotificationName const PDFDocumentDidBeginWriteNotification PDFKIT_AVAILABLE(10_4, 11_0);
 PDFKIT_EXTERN NSNotificationName const PDFDocumentDidEndWriteNotification PDFKIT_AVAILABLE(10_4, 11_0);
 
@@ -28,6 +34,9 @@ PDFKIT_EXTERN PDFDocumentWriteOption const PDFDocumentSaveTextFromOCROption API_
 PDFKIT_EXTERN PDFDocumentWriteOption const PDFDocumentSaveImagesAsJPEGOption API_AVAILABLE(macos(14.0), ios(17.0));
 PDFKIT_EXTERN PDFDocumentWriteOption const PDFDocumentOptimizeImagesForScreenOption API_AVAILABLE(macos(14.0), ios(17.0));
 
+PDFKIT_EXTERN NSString *const PDFDocumentFoundSelectionKey PDFKIT_AVAILABLE(10_4, 11_0);
+PDFKIT_EXTERN NSString *const PDFDocumentPageIndexKey PDFKIT_AVAILABLE(10_4, 11_0);
+
 typedef NS_ENUM(NSInteger, PDFPrintScalingMode) { kPDFPrintPageScaleNone = 0, kPDFPrintPageScaleToFit = 1, kPDFPrintPageScaleDownToFit = 2 };
 
 typedef NS_ENUM(NSInteger, PDFDocumentPermissions) {
@@ -41,8 +50,9 @@ typedef NS_OPTIONS(NSUInteger, PDFAccessPermissions) {
 } PDFKIT_AVAILABLE(10_13, 11_0);
 
 /* isim: writing redraws every page into a new PDF (vector content stays vector): a rotated page is written turned,
- * with rotation 0. The outline (page destinations) and the title, author, subject, creator and keywords are written;
- * the password and access-permission options are not (the file is written unencrypted). */
+ * with rotation 0. The outline (page destinations), the annotations (or their drawing, with
+ * PDFDocumentBurnInAnnotationsOption) and the title, author, subject, creator and keywords are written; the password
+ * and access-permission options are not (the file is written unencrypted). Finding text searches each page's string. */
 PDFKIT_CLASS_AVAILABLE(10_4, 11_0)
 @interface PDFDocument : NSObject <NSCopying>
 - (instancetype)init NS_DESIGNATED_INITIALIZER;
@@ -81,6 +91,24 @@ PDFKIT_CLASS_AVAILABLE(10_4, 11_0)
 - (void)removePageAtIndex:(NSUInteger)index;
 - (void)exchangePageAtIndex:(NSUInteger)indexA withPageAtIndex:(NSUInteger)indexB;
 @property (nonatomic, readonly) Class pageClass PDFKIT_AVAILABLE(10_4, 11_0);
+- (NSArray<PDFSelection *> *)findString:(NSString *)string withOptions:(NSStringCompareOptions)options
+    NS_SWIFT_NAME(findString(_:withOptions:));
+- (void)beginFindString:(NSString *)string withOptions:(NSStringCompareOptions)options NS_SWIFT_NAME(beginFindString(_:withOptions:));
+- (void)beginFindStrings:(NSArray<NSString *> *)strings withOptions:(NSStringCompareOptions)options PDFKIT_AVAILABLE(10_13, 11_0)
+    NS_SWIFT_NAME(beginFindStrings(_:withOptions:));
+- (nullable PDFSelection *)findString:(NSString *)string fromSelection:(nullable PDFSelection *)selection
+                          withOptions:(NSStringCompareOptions)options NS_SWIFT_NAME(findString(_:fromSelection:withOptions:));
+@property (nonatomic, readonly) BOOL isFinding;
+- (void)cancelFindString;
+@property (nonatomic, readonly, nullable) PDFSelection *selectionForEntireDocument;
+- (nullable PDFSelection *)selectionFromPage:(PDFPage *)startPage atPoint:(PDFPoint)startPoint toPage:(PDFPage *)endPage
+                                     atPoint:(PDFPoint)endPoint;
+- (nullable PDFSelection *)selectionFromPage:(PDFPage *)startPage atPoint:(PDFPoint)startPoint toPage:(PDFPage *)endPage
+                                     atPoint:(PDFPoint)endPoint withGranularity:(PDFSelectionGranularity)granularity
+    API_AVAILABLE(macos(15.0), ios(18.0));
+- (nullable PDFSelection *)selectionFromPage:(PDFPage *)startPage atCharacterIndex:(NSUInteger)startCharacter
+                                      toPage:(PDFPage *)endPage atCharacterIndex:(NSUInteger)endCharacter;
+- (nullable PDFOutline *)outlineItemForSelection:(PDFSelection *)selection PDFKIT_AVAILABLE(10_4, 11_0);
 @end
 
 @protocol PDFDocumentDelegate <NSObject>
@@ -93,6 +121,7 @@ PDFKIT_CLASS_AVAILABLE(10_4, 11_0)
 - (void)documentDidFindMatch:(NSNotification *)notification;
 - (Class)classForPage PDFKIT_AVAILABLE(10_6, 11_0);
 - (Class)classForAnnotationType:(NSString *)annotationType PDFKIT_AVAILABLE(10_13, 11_0);
+- (void)didMatchString:(PDFSelection *)instance;
 @end
 
 NS_ASSUME_NONNULL_END

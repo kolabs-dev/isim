@@ -1093,7 +1093,8 @@ def _(a):
 
 
 @app("tests/pdfkit", products=["PDFKitTest.app"], swift=False, extra_inputs=[f"tests/cgpdf/fixtures/{f}" for f in
-     ("aes128.pdf", "aes256.pdf", "damaged.pdf", "incremental.pdf", "objstm.pdf", "plain.pdf", "rc4.pdf", "text.pdf")])
+     ("aes128.pdf", "aes256.pdf", "annots.pdf", "damaged.pdf", "incremental.pdf", "objstm.pdf", "plain.pdf", "rc4.pdf",
+      "text.pdf")])
 def _(a):
     b = a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "UIKit", "-framework", "CoreGraphics",
                                               "-framework", "PDFKit"], name="PDFKitTest")

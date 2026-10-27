@@ -2,7 +2,7 @@
  *
  * One page per preview item in a horizontally paging scroll view. A page shows, by the file's kind:
  * - images (UIImage formats): zoomable (pinch, double tap);
- * - PDFs: every page rendered with CGPDFDocument (the host's poppler; without it the generic page);
+ * - PDFs: every page drawn by PDFKit, with its annotations (the host's poppler; without it the generic page);
  * - text and source files (UTF-8): a read-only text view, monospaced for code and data;
  * - HTML: rendered in a WKWebView (WebKit, through the WebKitGTK helper), with the files next to it (images, styles);
  * - RTF: rendered as rich text (UIKit's RTF reader: fonts, sizes, styles, colours, paragraphs);
@@ -16,6 +16,7 @@
  * pushed onto a navigation controller it puts Share in the navigation item. Adapted: no Markup / editing, no list of
  * items, no zoom transition from frameForPreviewItem. Quick Look Preview extensions: QLPreviewExtensions.m. */
 #import <QuickLook/QuickLook.h>
+#import <PDFKit/PDFKit.h>
 #import <isim_host.h>
 #import <dlfcn.h>
 #import <objc/runtime.h>
@@ -224,25 +225,24 @@ static long long file_size(NSURL *url) { NSData *d = [NSData dataWithContentsOfF
         _scroll.accessibilityIdentifier = @"ql-pdf";
         _scroll.backgroundColor = UIColor.secondarySystemBackgroundColor;
         _content = [UIView new];
-        CGPDFDocumentRef doc = CGPDFDocumentCreateWithURL((__bridge CFURLRef)_url);
-        size_t n = CGPDFDocumentGetNumberOfPages(doc);
-        for (size_t i = 1; i <= n; i++) {
-            CGPDFPageRef page = CGPDFDocumentGetPage(doc, i);
-            CGRect box = CGPDFPageGetBoxRect(page, kCGPDFMediaBox);
+        PDFDocument *doc = [[PDFDocument alloc] initWithURL:_url];       /* PDFKit draws the pages with their annotations */
+        for (NSUInteger i = 0; i < doc.pageCount; i++) {
+            PDFPage *page = [doc pageAtIndex:i];
+            CGRect box = [page boundsForBox:kPDFDisplayBoxMediaBox];
+            CGSize size = page.rotation % 180 ? CGSizeMake(box.size.height, box.size.width) : box.size;
             UIGraphicsImageRendererFormat *f = [UIGraphicsImageRendererFormat defaultFormat]; f.opaque = YES;
-            UIImage *img = [[[UIGraphicsImageRenderer alloc] initWithSize:box.size format:f] imageWithActions:^(UIGraphicsImageRendererContext *c) {
-                [UIColor.whiteColor setFill]; UIRectFill(CGRectMake(0, 0, box.size.width, box.size.height));
+            UIImage *img = [[[UIGraphicsImageRenderer alloc] initWithSize:size format:f] imageWithActions:^(UIGraphicsImageRendererContext *c) {
+                [UIColor.whiteColor setFill]; UIRectFill(CGRectMake(0, 0, size.width, size.height));
                 CGContextRef cg = c.CGContext;
-                CGContextTranslateCTM(cg, -box.origin.x, box.size.height + box.origin.y);
+                CGContextTranslateCTM(cg, 0, size.height);
                 CGContextScaleCTM(cg, 1, -1);
-                CGContextDrawPDFPage(cg, page);
+                [page drawWithBox:kPDFDisplayBoxMediaBox toContext:cg];
             }];
             UIImageView *iv = [[UIImageView alloc] initWithImage:img];
-            iv.accessibilityIdentifier = [NSString stringWithFormat:@"ql-pdf-page-%zu", i];
+            iv.accessibilityIdentifier = [NSString stringWithFormat:@"ql-pdf-page-%lu", (unsigned long)i + 1];
             iv.layer.shadowOpacity = 0.15; iv.layer.shadowRadius = 4; iv.layer.shadowOffset = CGSizeMake(0, 1);
             [_content addSubview:iv];
         }
-        CGPDFDocumentRelease(doc);
         [_scroll addSubview:_content];
         [self addSubview:_scroll];
         break; }

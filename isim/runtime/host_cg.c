@@ -1334,6 +1334,7 @@ static struct {
     void *(*get_page)(void *, int);
     void (*page_size)(void *, double *, double *);
     void (*render)(void *, cairo_t *);
+    void (*render_printing)(void *, cairo_t *, int);
     char *(*text)(void *);
     int (*layout)(void *, void **, unsigned *);
 } pp;
@@ -1348,6 +1349,7 @@ int isim_pdf_available(void) {
             pp.get_page = dlsym(h, "poppler_document_get_page");
             pp.page_size = dlsym(h, "poppler_page_get_size");
             pp.render = dlsym(h, "poppler_page_render");
+            pp.render_printing = dlsym(h, "poppler_page_render_for_printing_with_options");
             pp.text = dlsym(h, "poppler_page_get_text");
             pp.layout = dlsym(h, "poppler_page_get_text_layout");
             pp.ok = pp.doc_new_from_bytes && pp.n_pages && pp.get_page && pp.page_size && pp.render;
@@ -1403,7 +1405,10 @@ void isim_pdf_page_render(void *doc, int page) {
     if (!p) return;
     cairo_t *cr = isim_host_cairo();
     cairo_save(cr); cairo_new_path(cr);
-    pp.render(p, cr);
+    /* the page without its annotations, as Core Graphics draws it (PDFKit draws them); poppler's print path still draws
+     * form fields (POPPLER_PRINT_DOCUMENT) */
+    if (pp.render_printing) pp.render_printing(p, cr, 0);
+    else pp.render(p, cr);
     cairo_restore(cr);
     g_object_unref(p);
 }

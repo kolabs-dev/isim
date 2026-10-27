@@ -3,6 +3,8 @@
 // Documents and reads it back: page labels, text, boxes, rotation, the outline's destinations. Thumbnails of the
 // pages read back sit at the top; below, a PDFView shows the document built (issue #270) with a PDFThumbnailView
 // strip and Previous / Next / Back buttons; the text page's second line is a link (the delegate logs it).
+// Issue #358: the text page gets annotations (a highlight over "Hello" found by its text, a note, a stamp), written and
+// read back; Find highlights the document's matches in the PDFView; a tap on the note posts .PDFViewAnnotationHit.
 import PDFKit
 import UIKit
 
@@ -54,6 +56,13 @@ final class PDFViewController: UIViewController, PDFViewDelegate {
     @objc func showPrevious() { pdfView.goToPreviousPage(nil) }
     @objc func showNext() { pdfView.goToNextPage(nil) }
     @objc func showBack() { pdfView.goBack(nil) }
+    @objc func findPDF() {
+        let found = pdfView.document?.findString("pdf", withOptions: .caseInsensitive) ?? []
+        pdfView.highlightedSelections = found
+        pdfView.currentSelection = found.first
+        if let first = found.first { pdfView.go(to: first) }
+        print("pdfview find \(found.count) first \(found.first?.string ?? "-")")
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -86,6 +95,21 @@ final class PDFViewController: UIViewController, PDFViewDelegate {
             root.insertChild(item, at: i)
         }
         doc.outlineRoot = root
+
+        // annotations: a highlight over the title's first word (found by its text), a note and a stamp
+        if let hello = doc.findString("Hello", withOptions: []).first {
+            let highlight = PDFAnnotation(bounds: hello.bounds(for: text).insetBy(dx: -2, dy: -2), forType: .highlight, withProperties: nil)
+            highlight.color = .systemYellow
+            text.addAnnotation(highlight)
+        }
+        let note = PDFAnnotation(bounds: CGRect(x: 250, y: 360, width: 20, height: 20), forType: .text, withProperties: nil)
+        note.contents = "A note"
+        note.iconType = .comment
+        note.color = .systemYellow
+        text.addAnnotation(note)
+        let stamp = PDFAnnotation(bounds: CGRect(x: 150, y: 20, width: 130, height: 40), forType: .stamp, withProperties: nil)
+        stamp.stampName = "Approved"
+        text.addAnnotation(stamp)
         print("pdfkit built pages \(doc.pageCount) order \(doc.index(for: image)),\(doc.index(for: text)),\(doc.index(for: blank)) permissions \(doc.permissionsStatus == .owner ? "owner" : "?")")
 
         // write and read back
@@ -102,6 +126,10 @@ final class PDFViewController: UIViewController, PDFViewDelegate {
         let attrs = back.documentAttributes ?? [:]
         print("pdfkit wrote \(wrote) read pages \(back.pageCount) labels \(labels) sizes \(sizes) version \(back.majorVersion).\(back.minorVersion)")
         print("pdfkit outline \(targets) title \(attrs[PDFDocumentAttribute.titleAttribute] ?? "-") keywords \((attrs[PDFDocumentAttribute.keywordsAttribute] as? [String])?.joined(separator: "+") ?? "-")")
+        let annotations = back.page(at: 1)?.annotations.compactMap { $0.type }.sorted().joined(separator: ",") ?? "-"
+        let matches = back.findString("PDF", withOptions: .caseInsensitive)
+        print("pdfkit annotations \(annotations) note \(back.page(at: 1)?.annotations.first { $0.type == "Text" }?.contents ?? "-")")
+        print("pdfkit find \(matches.count) on pages \(matches.compactMap { $0.pages.first.map { back.index(for: $0) } })")
         print("pdfkit text \(words.prefix(2).joined(separator: " ")) characters \(back.page(at: 1)?.numberOfCharacters ?? 0) first char x \(Int(back.page(at: 1)?.characterBounds(at: 0).minX ?? -1))")
 
         // thumbnails of the pages read back
@@ -132,18 +160,24 @@ final class PDFViewController: UIViewController, PDFViewDelegate {
             guard let v = self?.pdfView else { return }
             print("pdfview scale changed \(String(format: "%.2f", v.scaleFactor / v.scaleFactorForSizeToFit)) auto \(v.autoScales)")
         }
+        NotificationCenter.default.addObserver(forName: .PDFViewAnnotationHit, object: pdfView, queue: nil) { n in
+            let hit = n.userInfo?["PDFAnnotationHit"] as? PDFAnnotation
+            print("pdfview annotation \(hit?.type ?? "-") \(hit?.contents ?? "")")
+        }
+        pdfView.isFindInteractionEnabled = true
         pdfView.document = doc
         let strip = PDFThumbnailView(frame: CGRect(x: 16, y: 700, width: view.bounds.width - 32, height: 60))
         strip.pdfView = pdfView
         strip.layoutMode = .horizontal
         strip.thumbnailSize = CGSize(width: 36, height: 48)
         view.addSubview(strip)
-        pageLabel.frame = CGRect(x: 16, y: 770, width: 120, height: 30)
+        pageLabel.frame = CGRect(x: 16, y: 770, width: 104, height: 30)
         view.addSubview(pageLabel)
-        for (i, (title, action)) in [("Previous", #selector(showPrevious)), ("Next", #selector(showNext)), ("Back", #selector(showBack))].enumerated() {
+        for (i, (title, action)) in [("Previous", #selector(showPrevious)), ("Next", #selector(showNext)), ("Back", #selector(showBack)),
+                                                ("Find", #selector(findPDF))].enumerated() {
             let b = UIButton(type: .system)
             b.setTitle(title, for: .normal)
-            b.frame = CGRect(x: 140 + CGFloat(i) * 82, y: 770, width: 78, height: 30)
+            b.frame = CGRect(x: 120 + CGFloat(i) * 66, y: 770, width: 64, height: 30)
             b.accessibilityIdentifier = title.lowercased()
             b.addTarget(self, action: action, for: .touchUpInside)
             view.addSubview(b)

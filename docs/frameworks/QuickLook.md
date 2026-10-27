@@ -8,7 +8,7 @@
 
 ## How isim implements it
 
-- **Adapted:** `QLPreviewController` (`isim/frameworks/QuickLook/QuickLook.m`) is a paging controller over UIKit: images, PDFs (poppler), HTML (WebKit), RTF, text, audio and video (ffmpeg); SwiftUI's `quickLookPreview` comes from isim's QuickLook Swift overlay (`isim/swift/overlays/QuickLook`). Quick Look Preview extensions (`isim/frameworks/QuickLook/QLPreviewExtensions.m`) are loaded into the previewing app (iOS runs them in a process of their own) and preview the types they declare. Rows: [UIKit](UIKit.md).
+- **Adapted:** `QLPreviewController` (`isim/frameworks/QuickLook/QuickLook.m`) is a paging controller over UIKit: images, PDFs (PDFKit, with their annotations), HTML (WebKit), RTF, text, audio and video (ffmpeg); SwiftUI's `quickLookPreview` comes from isim's QuickLook Swift overlay (`isim/swift/overlays/QuickLook`). Quick Look Preview extensions (`isim/frameworks/QuickLook/QLPreviewExtensions.m`) are loaded into the previewing app (iOS runs them in a process of their own) and preview the types they declare. Rows: [UIKit](UIKit.md).
 
 ## API
 

@@ -1,9 +1,12 @@
 /* isim PDFKit views (issue #270): PDFView and PDFThumbnailView in isim's UIKit (adapted). PDFView is a UIScrollView of
  * page views that isim lays out itself at the scale factor (each page view redraws at its size, so pages stay sharp
  * at every zoom): continuous or single pages, one or two up, vertical or horizontal, as a book or right to left, with
- * page breaks and shadows. Pinch zooms, a double tap zooms in or back to fit, a tap on a link annotation follows it
- * (a URL through the delegate or UIApplication, a destination inside the document). */
-#import <PDFKit/PDFKit.h>
+ * page breaks and shadows. Pinch zooms, a double tap zooms in or back to fit, a tap on an annotation performs its
+ * action (a URL through the delegate or UIApplication, a destination inside the document; issue #358) or toggles a
+ * check box or radio button, a long press selects a word. The current selection (blue) and the highlighted selections
+ * (yellow, or their color) are drawn over the pages; the find interaction searches the document. */
+#import "pdfkit_internal.h"
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
 
 NSNotificationName const PDFViewDocumentChangedNotification = @"PDFViewDocumentChanged";
 NSNotificationName const PDFViewChangedHistoryNotification = @"PDFViewChangedHistory";
@@ -18,11 +21,6 @@ NSNotificationName const PDFViewDisplayModeChangedNotification = @"PDFViewDispla
 NSNotificationName const PDFViewDisplayBoxChangedNotification = @"PDFViewDisplayBoxChanged";
 NSNotificationName const PDFViewVisiblePagesChangedNotification = @"PDFViewVisiblePagesChanged";
 NSNotificationName const PDFThumbnailViewDocumentEditedNotification = @"PDFThumbnailViewDocumentEdited";
-
-/* PDFKit.m: a document's destination for a destination object (an array, a name, a string, a GoTo dictionary) */
-@interface PDFDocument (IsimDestinations)
-- (nullable PDFDestination *)_isim_destinationForObject:(CGPDFObjectRef)object;
-@end
 
 @class PDFView;
 @interface PDFView (IsimPages)
@@ -39,6 +37,55 @@ NSNotificationName const PDFThumbnailViewDocumentEditedNotification = @"PDFThumb
 - (void)drawRect:(CGRect)rect { [_pdfView _drawPage:_page inPageView:self]; }
 @end
 
+/* ---------------- find: a session over the document's text ---------------- */
+@interface _PDFFindSession : UIFindSession
+@property (nonatomic, weak) PDFView *pdfView;
+@property (nonatomic, copy) NSArray<PDFSelection *> *results;
+@property (nonatomic) NSInteger current;
+@end
+@implementation _PDFFindSession
+- (NSInteger)resultCount { return (NSInteger)_results.count; }
+- (NSInteger)highlightedResultIndex { return _results.count ? _current : NSNotFound; }
+- (BOOL)supportsReplacement { return NO; }
+- (void)_show {
+    PDFView *v = _pdfView;
+    v.highlightedSelections = _results;
+    PDFSelection *s = _results.count ? _results[(NSUInteger)_current] : nil;
+    v.currentSelection = s;
+    if (s) [v goToSelection:s];
+}
+- (void)performSearchWithQuery:(NSString *)query options:(UITextSearchOptions *)options {
+    NSStringCompareOptions o = options ? options.stringCompareOptions : NSCaseInsensitiveSearch;
+    NSArray<PDFSelection *> *found = query.length ? [_pdfView.document findString:query withOptions:o] : @[];
+    if (options.wordMatchMethod != UITextSearchMatchMethodContains) {          /* whole words, or words that start with it */
+        NSMutableArray *kept = [NSMutableArray array];
+        for (PDFSelection *sel in found) {
+            PDFPage *p = sel.pages.firstObject;
+            NSRange r = [sel rangeAtIndex:0 onPage:p];
+            NSRange w = [p _isim_wordRangeAt:r.location];
+            BOOL starts = w.location == r.location;
+            BOOL whole = starts && NSMaxRange(w) <= NSMaxRange(r) && [p _isim_wordRangeAt:NSMaxRange(r) - 1].location == w.location;
+            if (options.wordMatchMethod == UITextSearchMatchMethodStartsWith ? starts : whole) [kept addObject:sel];
+        }
+        found = kept;
+    }
+    _results = found;
+    _current = 0;
+    [self _show];
+}
+- (void)highlightNextResultInDirection:(UITextStorageDirection)direction {
+    if (!_results.count) return;
+    NSInteger n = (NSInteger)_results.count;
+    _current = ((direction == UITextStorageDirectionBackward ? _current - 1 : _current + 1) % n + n) % n;
+    [self _show];
+}
+- (void)invalidateFoundResults {
+    _results = @[];
+    _pdfView.highlightedSelections = nil;
+    _pdfView.currentSelection = nil;
+}
+@end
+
 /* ---------------- PDFView ---------------- */
 @interface PDFView () <UIScrollViewDelegate, UIGestureRecognizerDelegate>
 @end
@@ -52,6 +99,7 @@ NSNotificationName const PDFThumbnailViewDocumentEditedNotification = @"PDFThumb
     BOOL _usingPageVC, _layingOut;
     CGFloat _pinchStart;
     UIColor *_background;
+    UIFindInteraction *_findInteraction;
 }
 @synthesize scaleFactor = _scaleFactor;
 
@@ -94,7 +142,8 @@ NSNotificationName const PDFThumbnailViewDocumentEditedNotification = @"PDFThumb
     dbl.numberOfTapsRequired = 2;
     UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(_tap:)];
     [tap requireGestureRecognizerToFail:dbl];
-    for (UIGestureRecognizer *g in @[ pinch, dbl, tap ]) { g.delegate = self; [_scroll addGestureRecognizer:g]; }
+    UILongPressGestureRecognizer *press = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(_press:)];
+    for (UIGestureRecognizer *g in @[ pinch, dbl, tap, press ]) { g.delegate = self; [_scroll addGestureRecognizer:g]; }
 }
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)g { return !_inMarkupMode; }
 
@@ -155,6 +204,19 @@ NSNotificationName const PDFThumbnailViewDocumentEditedNotification = @"PDFThumb
 }
 - (void)drawPage:(PDFPage *)page toContext:(CGContextRef)context {
     [page drawWithBox:_displayBox toContext:context];
+    if (_highlightedSelections.count || _currentSelection) {         /* the selections, over the page */
+        CGContextSaveGState(context);
+        [page transformContext:context forBox:_displayBox];
+        UIGraphicsPushContext(context);
+        for (PDFSelection *s in _highlightedSelections)
+            if ([s.pages containsObject:page]) {
+                if (s.color) [s drawForPage:page withBox:_displayBox active:NO];
+                else { PDFSelection *y = [s copy]; y.color = [UIColor colorWithRed:1 green:0.85 blue:0 alpha:0.45]; [y drawForPage:page withBox:_displayBox active:NO]; }
+            }
+        if ([_currentSelection.pages containsObject:page]) [_currentSelection drawForPage:page withBox:_displayBox active:YES];
+        UIGraphicsPopContext();
+        CGContextRestoreGState(context);
+    }
     [self drawPagePost:page toContext:context];
 }
 - (void)drawPagePost:(PDFPage *)page toContext:(CGContextRef)context {}
@@ -545,41 +607,130 @@ NSNotificationName const PDFThumbnailViewDocumentEditedNotification = @"PDFThumb
     return nearest ? best : nil;
 }
 
-/* ---- links ---- */
-/* the link annotation under a page point: its URL (a URI action) or its destination */
-- (BOOL)_link:(PDFPage *)page at:(CGPoint)pt url:(NSURL **)url destination:(PDFDestination **)dest {
-    CGPDFArrayRef annots;
-    CGPDFDictionaryRef d = CGPDFPageGetDictionary(page.pageRef);
-    if (!d || !CGPDFDictionaryGetArray(d, "Annots", &annots)) return NO;
-    for (size_t i = 0; i < CGPDFArrayGetCount(annots); i++) {
-        CGPDFDictionaryRef a, action; CGPDFArrayRef r; const char *sub, *type;
-        CGPDFReal x0, y0, x1, y1;
-        if (!CGPDFArrayGetDictionary(annots, i, &a) || !CGPDFDictionaryGetName(a, "Subtype", &sub) || strcmp(sub, "Link") ||
-            !CGPDFDictionaryGetArray(a, "Rect", &r) || !CGPDFArrayGetNumber(r, 0, &x0) || !CGPDFArrayGetNumber(r, 1, &y0) ||
-            !CGPDFArrayGetNumber(r, 2, &x1) || !CGPDFArrayGetNumber(r, 3, &y1)) continue;
-        if (!CGRectContainsPoint(CGRectStandardize(CGRectMake(x0, y0, x1 - x0, y1 - y0)), pt)) continue;
-        CGPDFObjectRef o;
-        CGPDFStringRef s;
-        if (CGPDFDictionaryGetDictionary(a, "A", &action) && CGPDFDictionaryGetName(action, "S", &type)) {
-            if (!strcmp(type, "URI") && CGPDFDictionaryGetString(action, "URI", &s)) {
-                NSString *u = [[NSString alloc] initWithBytes:CGPDFStringGetBytePtr(s) length:CGPDFStringGetLength(s) encoding:NSUTF8StringEncoding];
-                *url = u ? [NSURL URLWithString:u] : nil;
-                return *url != nil;
-            }
-            if (!strcmp(type, "GoTo") && CGPDFDictionaryGetObject(action, "D", &o)) { *dest = [_document _isim_destinationForObject:o]; return *dest != nil; }
-        }
-        if (CGPDFDictionaryGetObject(a, "Dest", &o)) { *dest = [_document _isim_destinationForObject:o]; return *dest != nil; }
-    }
-    return NO;
-}
+/* ---- annotations, actions and selections ---- */
 - (void)_tap:(UITapGestureRecognizer *)g {
     CGPoint at = [g locationInView:self];
     PDFPage *page = [self pageForPoint:at nearest:NO];
-    NSURL *url = nil; PDFDestination *dest = nil;
-    if (!page || ![self _link:page at:[self convertPoint:at toPage:page] url:&url destination:&dest]) return;
-    if (dest) { [self goToDestination:dest]; return; }
+    if (!page) return;
+    PDFAnnotation *a = [page annotationAtPoint:[self convertPoint:at toPage:page]];
+    if (!a) { if (_currentSelection) [self clearSelection]; return; }
+    NSDictionary *info = @{ @"PDFAnnotationHit": a };
+    [[NSNotificationCenter defaultCenter] postNotificationName:PDFViewAnnotationWillHitNotification object:self userInfo:info];
+    if ([a.type isEqual:@"Widget"] && [a.widgetFieldType isEqual:PDFAnnotationWidgetSubtypeButton] && !a.isReadOnly) {
+        if (a.widgetControlType == kPDFWidgetCheckBoxControl)
+            a.buttonWidgetState = a.buttonWidgetState == kPDFWidgetOnState ? kPDFWidgetOffState : kPDFWidgetOnState;
+        else if (a.widgetControlType == kPDFWidgetRadioButtonControl) {
+            for (PDFAnnotation *other in page.annotations)               /* the other buttons of the group go off */
+                if (other != a && [other.fieldName isEqual:a.fieldName] && other.widgetControlType == kPDFWidgetRadioButtonControl)
+                    other.buttonWidgetState = kPDFWidgetOffState;
+            a.buttonWidgetState = a.allowsToggleToOff && a.buttonWidgetState == kPDFWidgetOnState ? kPDFWidgetOffState : kPDFWidgetOnState;
+        }
+        [self annotationsChangedOnPage:page];
+    }
+    [[NSNotificationCenter defaultCenter] postNotificationName:PDFViewAnnotationHitNotification object:self userInfo:info];
+    if (a.action) [self performAction:a.action];
+    else if (a.destination) [self goToDestination:a.destination];
+}
+- (void)_press:(UILongPressGestureRecognizer *)g {
+    if (g.state != UIGestureRecognizerStateBegan) return;
+    CGPoint at = [g locationInView:self];
+    PDFPage *page = [self pageForPoint:at nearest:NO];
+    PDFSelection *word = page ? [page selectionForWordAtPoint:[self convertPoint:at toPage:page]] : nil;
+    if (word) self.currentSelection = word;
+}
+- (void)_openURL:(NSURL *)url {
+    if (!url) return;
     if ([_delegate respondsToSelector:@selector(PDFViewWillClickOnLink:withURL:)]) [_delegate PDFViewWillClickOnLink:self withURL:url];
     else [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
+}
+- (void)performAction:(PDFAction *)action {
+    if ([action isKindOfClass:[PDFActionGoTo class]]) { PDFDestination *d = ((PDFActionGoTo *)action).destination; if (d) [self goToDestination:d]; }
+    else if ([action isKindOfClass:[PDFActionURL class]]) [self _openURL:((PDFActionURL *)action).URL];
+    else if ([action isKindOfClass:[PDFActionRemoteGoTo class]]) {
+        if ([_delegate respondsToSelector:@selector(PDFViewOpenPDF:forRemoteGoToAction:)]) [_delegate PDFViewOpenPDF:self forRemoteGoToAction:(PDFActionRemoteGoTo *)action];
+        else [self _openURL:((PDFActionRemoteGoTo *)action).URL];
+    }
+    else if ([action isKindOfClass:[PDFActionNamed class]]) {
+        switch (((PDFActionNamed *)action).name) {
+            case kPDFActionNamedNextPage: [self goToNextPage:nil]; break;
+            case kPDFActionNamedPreviousPage: [self goToPreviousPage:nil]; break;
+            case kPDFActionNamedFirstPage: [self goToFirstPage:nil]; break;
+            case kPDFActionNamedLastPage: [self goToLastPage:nil]; break;
+            case kPDFActionNamedGoBack: [self goBack:nil]; break;
+            case kPDFActionNamedGoForward: [self goForward:nil]; break;
+            case kPDFActionNamedZoomIn: [self zoomIn:nil]; break;
+            case kPDFActionNamedZoomOut: [self zoomOut:nil]; break;
+            case kPDFActionNamedGoToPage: if ([_delegate respondsToSelector:@selector(PDFViewPerformGoToPage:)]) [_delegate PDFViewPerformGoToPage:self]; break;
+            case kPDFActionNamedFind:
+                if ([_delegate respondsToSelector:@selector(PDFViewPerformFind:)]) [_delegate PDFViewPerformFind:self];
+                else if (self.isFindInteractionEnabled) [self.findInteraction presentFindNavigatorShowingReplace:NO];
+                break;
+            case kPDFActionNamedPrint: if ([_delegate respondsToSelector:@selector(PDFViewPerformPrint:)]) [_delegate PDFViewPerformPrint:self]; break;
+            default: break;
+        }
+    } else if ([action isKindOfClass:[PDFActionResetForm class]]) {
+        PDFActionResetForm *r = (PDFActionResetForm *)action;
+        for (NSUInteger i = 0; i < _document.pageCount; i++) {
+            PDFPage *page = [_document pageAtIndex:i];
+            BOOL changed = NO;
+            for (PDFAnnotation *a in page.annotations) {
+                if (![a.type isEqual:@"Widget"]) continue;
+                BOOL listed = !r.fields.count || [r.fields containsObject:a.fieldName ?: @""];
+                if (r.fields.count && listed != r.fieldsIncludedAreCleared) continue;
+                if ([a.widgetFieldType isEqual:PDFAnnotationWidgetSubtypeButton]) a.buttonWidgetState = kPDFWidgetOffState;
+                else a.widgetStringValue = a.widgetDefaultStringValue;
+                changed = YES;
+            }
+            if (changed) [self annotationsChangedOnPage:page];
+        }
+    }
+}
+- (UIFindInteraction *)findInteraction {
+    if (!_findInteraction) _findInteraction = [[UIFindInteraction alloc] initWithSessionDelegate:self];
+    return _findInteraction;
+}
+- (void)setFindInteractionEnabled:(BOOL)enabled {
+    if (enabled == _findInteractionEnabled) return;
+    _findInteractionEnabled = enabled;
+    if (enabled) [self addInteraction:self.findInteraction];
+    else if (_findInteraction) { [_findInteraction dismissFindNavigator]; [self removeInteraction:_findInteraction]; }
+}
+- (UIFindSession *)findInteraction:(UIFindInteraction *)interaction sessionForView:(UIView *)view {
+    _PDFFindSession *s = [[_PDFFindSession alloc] init];
+    s.pdfView = self;
+    s.results = @[];
+    return s;
+}
+- (void)findInteraction:(UIFindInteraction *)interaction didEndFindSession:(UIFindSession *)session {
+    self.highlightedSelections = nil;
+}
+- (void)setCurrentSelection:(PDFSelection *)selection { [self setCurrentSelection:selection animate:NO]; }
+- (void)setCurrentSelection:(PDFSelection *)selection animate:(BOOL)animate {
+    if (selection == _currentSelection) return;
+    _currentSelection = selection;
+    [self _redraw];
+    [self _post:PDFViewSelectionChangedNotification];
+}
+- (void)clearSelection { self.currentSelection = nil; }
+- (void)selectAll:(id)sender { self.currentSelection = _document.selectionForEntireDocument; }
+- (void)setHighlightedSelections:(NSArray<PDFSelection *> *)selections {
+    _highlightedSelections = [selections copy];
+    [self _redraw];
+}
+- (void)goToSelection:(PDFSelection *)selection {
+    PDFPage *page = selection.pages.firstObject;
+    if (page) [self goToRect:[selection boundsForPage:page] onPage:page];
+}
+- (void)scrollSelectionToVisible:(id)sender { if (_currentSelection) [self goToSelection:_currentSelection]; }
+- (void)copy:(id)sender {
+    NSString *s = _currentSelection.string;
+    if (s.length && _document.allowsCopying) [UIPasteboard generalPasteboard].string = s;
+    else if (s.length) [self _post:PDFViewCopyPermissionNotification];
+}
+- (BOOL)canPerformAction:(SEL)action withSender:(id)sender {
+    if (action == @selector(copy:)) return _currentSelection.string.length > 0;
+    if (action == @selector(selectAll:)) return _document.pageCount > 0;
+    return [super canPerformAction:action withSender:sender];
 }
 - (PDFAreaOfInterest)areaOfInterestForPoint:(CGPoint)point {
     PDFPage *page = [self pageForPoint:point nearest:NO];
@@ -587,8 +738,15 @@ NSNotificationName const PDFThumbnailViewDocumentEditedNotification = @"PDFThumb
     CGPoint pt = [self convertPoint:point toPage:page];
     PDFAreaOfInterest a = kPDFPageArea;
     if ([page characterIndexAtPoint:pt] >= 0) a |= kPDFTextArea;
-    NSURL *url = nil; PDFDestination *dest = nil;
-    if ([self _link:page at:pt url:&url destination:&dest]) a |= kPDFLinkArea | kPDFAnnotationArea;
+    PDFAnnotation *an = [page annotationAtPoint:pt];
+    if (an) {
+        a |= kPDFAnnotationArea;
+        NSString *t = an.type;
+        if ([t isEqual:@"Link"]) a |= kPDFLinkArea;
+        else if ([t isEqual:@"Text"]) a |= kPDFIconArea;
+        else if ([t isEqual:@"Popup"]) a |= kPDFPopupArea;
+        else if ([t isEqual:@"Widget"]) a |= [an.widgetFieldType isEqual:PDFAnnotationWidgetSubtypeText] ? kPDFTextFieldArea : kPDFControlArea;
+    }
     return a;
 }
 - (PDFAreaOfInterest)areaOfInterestForMouse:(UIEvent *)event {

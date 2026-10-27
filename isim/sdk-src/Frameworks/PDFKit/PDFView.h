@@ -3,7 +3,7 @@
 #import <PDFKit/PDFDocument.h>
 #import <PDFKit/PDFPage.h>
 NS_ASSUME_NONNULL_BEGIN
-@class PDFDestination;
+@class PDFDestination, PDFSelection, PDFAction, PDFActionRemoteGoTo;
 @protocol PDFViewDelegate, PDFPageOverlayViewProvider;
 
 typedef NS_ENUM(NSInteger, PDFDisplayMode) {
@@ -34,10 +34,10 @@ PDFKIT_EXTERN NSNotificationName const PDFViewDisplayBoxChangedNotification PDFK
 PDFKIT_EXTERN NSNotificationName const PDFViewVisiblePagesChangedNotification PDFKIT_AVAILABLE(10_4, 11_0);
 
 /* isim: a scroll view of page views, laid out by isim at the scale factor (pages redraw at each scale, so they stay
- * sharp): pinch to zoom, double-tap to zoom in or back to fit, tap a link to follow it. Selection, find, annotations
- * and PDFAction (issue #358) are not in isim yet. */
+ * sharp): pinch to zoom, double-tap to zoom in or back to fit, tap a link (or an annotation's action) to perform it.
+ * The current selection and the highlighted selections are drawn over the pages; a long press selects a word. */
 PDFKIT_CLASS_AVAILABLE(10_4, 11_0)
-@interface PDFView : PDFKitPlatformView
+@interface PDFView : PDFKitPlatformView <UIFindInteractionDelegate>
 @property (nonatomic, strong, nullable) PDFDocument *document;
 @property (nonatomic, readonly) BOOL canGoToFirstPage;
 - (IBAction)goToFirstPage:(nullable id)sender;
@@ -56,6 +56,16 @@ PDFKIT_CLASS_AVAILABLE(10_4, 11_0)
 @property (nonatomic, readonly, nullable) PDFDestination *currentDestination;
 - (void)goToDestination:(PDFDestination *)destination;
 - (void)goToRect:(PDFRect)rect onPage:(PDFPage *)page PDFKIT_AVAILABLE(10_7, 11_0);
+- (void)goToSelection:(PDFSelection *)selection;
+- (void)performAction:(PDFAction *)action PDFKIT_AVAILABLE(10_5, 11_0);
+@property (nonatomic, strong, nullable) PDFSelection *currentSelection;
+- (void)setCurrentSelection:(nullable PDFSelection *)selection animate:(BOOL)animate PDFKIT_AVAILABLE(10_5, 11_0);
+- (void)clearSelection;
+- (IBAction)selectAll:(nullable id)sender;
+- (void)scrollSelectionToVisible:(nullable id)sender;
+@property (nonatomic, copy, nullable) NSArray<PDFSelection *> *highlightedSelections PDFKIT_AVAILABLE(10_5, 11_0);
+@property (nonatomic, getter=isFindInteractionEnabled) BOOL findInteractionEnabled API_AVAILABLE(ios(16.0)) API_UNAVAILABLE(macos);
+@property (nonatomic, readonly) UIFindInteraction *findInteraction API_AVAILABLE(ios(16.0)) API_UNAVAILABLE(macos);
 @property (nonatomic) PDFDisplayMode displayMode;
 @property (nonatomic) PDFDisplayDirection displayDirection PDFKIT_AVAILABLE(10_13, 11_0);
 @property (nonatomic) BOOL displaysPageBreaks;
@@ -110,6 +120,8 @@ PDFKIT_CLASS_AVAILABLE(10_4, 11_0)
 - (void)PDFViewPerformFind:(PDFView *)sender NS_SWIFT_NAME(pdfViewPerformFind(_:));
 - (void)PDFViewPerformGoToPage:(PDFView *)sender NS_SWIFT_NAME(pdfViewPerformGo(toPage:));
 - (void)PDFViewPerformPrint:(PDFView *)sender NS_SWIFT_NAME(pdfViewPerformPrint(_:));
+- (void)PDFViewOpenPDF:(PDFView *)sender forRemoteGoToAction:(PDFActionRemoteGoTo *)action
+    NS_SWIFT_NAME(pdfViewOpenPDF(_:forRemoteGoToAction:));
 - (PDFKitPlatformViewController *)PDFViewParentViewController PDFKIT_AVAILABLE(NA, 13_0) NS_SWIFT_NAME(pdfViewParentViewController());
 @end
 

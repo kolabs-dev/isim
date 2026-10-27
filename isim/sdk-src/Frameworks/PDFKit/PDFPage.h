@@ -1,7 +1,7 @@
 #pragma once
 #import <PDFKit/PDFKitPlatform.h>
 NS_ASSUME_NONNULL_BEGIN
-@class PDFDocument;
+@class PDFDocument, PDFAnnotation, PDFSelection;
 
 typedef NS_ENUM(NSInteger, PDFDisplayBox) {
     kPDFDisplayBoxMediaBox = 0, kPDFDisplayBoxCropBox = 1, kPDFDisplayBoxBleedBox = 2, kPDFDisplayBoxTrimBox = 3,
@@ -15,8 +15,8 @@ PDFKIT_EXTERN PDFPageImageInitializationOption const PDFPageImageInitializationO
 PDFKIT_EXTERN PDFPageImageInitializationOption const PDFPageImageInitializationOptionUpscaleIfSmaller API_AVAILABLE(macos(13.0), ios(16.0));
 PDFKIT_EXTERN PDFPageImageInitializationOption const PDFPageImageInitializationOptionCompressionQuality API_AVAILABLE(macos(13.0), ios(16.0));
 
-/* a page of a document, or a new one (blank, US Letter; or from an image). isim: no `annotations` yet (PDFAnnotation,
- * issue #358); `displaysAnnotations` only records the setting */
+/* a page of a document, or a new one (blank, US Letter; or from an image). Its annotations are read from its /Annots
+ * when first needed; drawing draws them after the content when displaysAnnotations is set */
 PDFKIT_CLASS_AVAILABLE(10_4, 11_0)
 @interface PDFPage : NSObject <NSCopying>
 - (instancetype)init NS_DESIGNATED_INITIALIZER;
@@ -30,6 +30,10 @@ PDFKIT_CLASS_AVAILABLE(10_4, 11_0)
 - (void)setBounds:(PDFRect)bounds forBox:(PDFDisplayBox)box;
 @property (nonatomic) NSInteger rotation;
 @property (nonatomic) BOOL displaysAnnotations;
+@property (nonatomic, readonly) NSArray<PDFAnnotation *> *annotations;
+- (void)addAnnotation:(PDFAnnotation *)annotation;
+- (void)removeAnnotation:(PDFAnnotation *)annotation;
+- (nullable PDFAnnotation *)annotationAtPoint:(PDFPoint)point;
 /* into the current UIKit context (UIGraphicsGetCurrentContext) */
 - (void)drawWithBox:(PDFDisplayBox)box API_DEPRECATED_WITH_REPLACEMENT("drawWithBox:toContext:", macos(10.4, 10.12));
 - (void)transformContextForBox:(PDFDisplayBox)box API_DEPRECATED_WITH_REPLACEMENT("transformContext:forBox:", macos(10.4, 10.12));
@@ -42,6 +46,11 @@ PDFKIT_CLASS_AVAILABLE(10_4, 11_0)
 @property (nonatomic, readonly, nullable) NSAttributedString *attributedString;
 - (PDFRect)characterBoundsAtIndex:(NSInteger)index;
 - (NSInteger)characterIndexAtPoint:(PDFPoint)point PDFKIT_AVAILABLE(10_7, 11_0);
+- (nullable PDFSelection *)selectionForRect:(PDFRect)rect;
+- (nullable PDFSelection *)selectionForWordAtPoint:(PDFPoint)point;
+- (nullable PDFSelection *)selectionForLineAtPoint:(PDFPoint)point;
+- (nullable PDFSelection *)selectionFromPoint:(PDFPoint)startPoint toPoint:(PDFPoint)endPoint;
+- (nullable PDFSelection *)selectionForRange:(NSRange)range;
 @property (nonatomic, readonly, nullable) NSData *dataRepresentation PDFKIT_AVAILABLE(10_4, 11_0);
 @end
 
