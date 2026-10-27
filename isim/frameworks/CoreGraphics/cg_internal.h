@@ -22,7 +22,9 @@ extern void *objc_autorelease(void *o);
 enum {
     CS_SRGB, CS_GRAY, CS_P3, CS_LINEAR_SRGB, CS_EXT_SRGB, CS_LINEAR_GRAY, CS_PATTERN, CS_CMYK,
     CS_DEVICE_RGB, CS_DEVICE_GRAY, CS_EXT_LINEAR_SRGB, CS_GENERIC_RGB_LINEAR, CS_EXT_GRAY, CS_ITUR_709,
-    CS_COUNT
+    CS_LINEAR_P3, CS_EXT_P3,
+    CS_COUNT,
+    CS_ICC = 100, CS_LAB, CS_INDEXED   /* one object each (CGExtras.c), never shared */
 };
 
 struct pel { int type; CGPoint p[3]; };
@@ -33,8 +35,10 @@ struct CGColor { void *isa; CGFloat c[4]; int refs; int space; CGFloat comp[5]; 
 struct cgobj { void *isa; void (*fin)(void *); const char *kind; };
 void *isim_cg_obj_new(const char *kind, size_t size, void (*fin)(void *));
 
-struct CGColorSpace { struct cgobj hdr; int kind; CGColorSpaceModel model; size_t ncomp; CFStringRef name; CGColorSpaceRef base; };
-struct CGDataProvider { struct cgobj hdr; CFDataRef data; const void *bytes; size_t size; void *info; CGDataProviderReleaseDataCallback release; };
+/* ext: an extended-range copy; x: an ICC, Lab or indexed space's details (CGExtras.c) */
+struct CGColorSpace { struct cgobj hdr; int kind; CGColorSpaceModel model; size_t ncomp; CFStringRef name; CGColorSpaceRef base; int ext; struct csx *x; };
+struct CGDataProvider { struct cgobj hdr; CFDataRef data; const void *bytes; size_t size; void *info; CGDataProviderReleaseDataCallback release;
+                        CGDataProviderReleaseInfoCallback releaseInfo; };
 struct CGDataConsumer { struct cgobj hdr; CFMutableDataRef data; char *path; void *info; CGDataConsumerCallbacks cb; };
 struct CGGradient { struct cgobj hdr; int n; double *locs, *rgba; };
 struct CGFunction { struct cgobj hdr; void *info; size_t din, dout; CGFloat domain[2], range[16]; CGFunctionCallbacks cb; };
@@ -58,3 +62,8 @@ CGColorSpaceRef isim_cg_space(int kind);
 void isim_cg_to_rgba(CGColorSpaceRef space, const CGFloat *comps, CGFloat out[4]);
 /* the pattern cell (host image handle, rendered once) */
 int isim_cg_pattern_cell(CGPatternRef p, const CGFloat *comps, double *cw, double *ch);
+
+/* CGExtras.c: ICC / Lab / indexed colors to sRGB, and their 8-bit images as a host image (0: not such a space) */
+void isim_cg_to_rgba_x(CGColorSpaceRef space, const CGFloat *c, CGFloat out[4]);
+int isim_cg_image_in_space(CGColorSpaceRef space, const unsigned char *bytes, size_t w, size_t h, size_t bpr, size_t bpp, CGBitmapInfo info);
+

@@ -427,5 +427,22 @@ final class QuartzViewController: UIViewController {
         let linear = CGColor(colorSpace: spaces[2], components: [0.25, 0.25, 0.25, 1])!.converted(to: spaces[0], intent: .defaultIntent, options: nil)!
         let cmyk = CGColor(colorSpace: spaces[9], components: [1, 0, 0, 0, 1])!.converted(to: spaces[0], intent: .defaultIntent, options: nil)!
         print("color conversions linear \(linear.components!.map { Int(($0 * 255).rounded()) }) cmyk \(cmyk.components!.map { Int(($0 * 255).rounded()) })")
+        // issue #363: CGFont tables, Lab and indexed spaces, linearized spaces, layers, conic gradients
+        let head = fromData.table(for: 0x6865_6164) as Data?       // 'head'
+        let tags = fromData.tableTags.map { CFArrayGetCount($0) } ?? 0
+        let lab = CGColorSpace(labWhitePoint: [0.95047, 1, 1.08883], blackPoint: nil, range: [-128, 127, -128, 127])!
+        let indexed = CGColorSpace(indexedBaseSpace: CGColorSpaceCreateDeviceRGB(), last: 1, colorTable: [255, 0, 0, 0, 0, 255])!
+        let labRed = CGColor(colorSpace: lab, components: [53.24, 80.09, 67.2, 1])!.converted(to: spaces[0], intent: .defaultIntent, options: nil)!
+        let host = rgbaContext(40, 40)
+        let layer = CGLayer(host, size: CGSize(width: 20, height: 20), auxiliaryInfo: nil)!
+        layer.context!.setFillColor(UIColor.blue.cgColor)
+        layer.context!.fill(CGRect(x: 0, y: 0, width: 20, height: 20))
+        host.draw(layer, at: CGPoint(x: 10, y: 10))
+        let conic = rgbaContext(40, 40)
+        let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [UIColor.red.cgColor, UIColor.blue.cgColor] as CFArray, locations: [0, 1])!
+        conic.drawConicGradient(gradient, center: CGPoint(x: 20, y: 20), angle: 0)
+        print("cg extras head \(head?.count ?? 0) tags \(tags > 5) lab red \(labRed.components!.map { Int(($0 * 255).rounded()) }) indexed \(indexed.colorTable!) " +
+              "linearized \(CGColorSpaceCreateLinearized(spaces[0])!.name! as String) layer \(pixel(host.data!, host.bytesPerRow, 20, 20)) " +
+              "outside \(pixel(host.data!, host.bytesPerRow, 5, 5)) conic start \(pixel(conic.data!, conic.bytesPerRow, 36, 17)) end \(pixel(conic.data!, conic.bytesPerRow, 36, 22))")
     }
 }

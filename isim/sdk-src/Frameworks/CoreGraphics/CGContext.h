@@ -125,6 +125,20 @@ CG_EXTERN void CGContextDrawLinearGradient(CGContextRef _Nullable c, CGGradientR
     CGGradientDrawingOptions options) CG_SWIFT_NAME(CGContext.drawLinearGradient(self:_:start:end:options:));
 CG_EXTERN void CGContextDrawRadialGradient(CGContextRef _Nullable c, CGGradientRef _Nullable gradient, CGPoint startCenter, CGFloat startRadius,
     CGPoint endCenter, CGFloat endRadius, CGGradientDrawingOptions options) CG_SWIFT_NAME(CGContext.drawRadialGradient(self:_:startCenter:startRadius:endCenter:endRadius:options:));
+/* the gradient's colors around center, counterclockwise from angle (radians), filling the clip */
+CG_EXTERN void CGContextDrawConicGradient(CGContextRef _Nullable c, CGGradientRef _Nullable gradient, CGPoint center, CGFloat angle)
+    API_AVAILABLE(macos(14.0), ios(17.0));
+/* layers: an offscreen bitmap at the context's scale, drawn back as an image */
+typedef struct CGLayer *CGLayerRef;
+CG_EXTERN CFTypeID CGLayerGetTypeID(void) CG_SWIFT_NAME(getter:CGLayer.typeID());
+CG_EXTERN CGLayerRef _Nullable CGLayerCreateWithContext(CGContextRef _Nullable context, CGSize size, CFDictionaryRef _Nullable auxiliaryInfo)
+    CF_RETURNS_RETAINED CG_SWIFT_NAME(CGLayer.init(_:size:auxiliaryInfo:));
+CG_EXTERN CGLayerRef _Nullable CGLayerRetain(CGLayerRef _Nullable layer);
+CG_EXTERN void CGLayerRelease(CGLayerRef _Nullable layer);
+CG_EXTERN CGSize CGLayerGetSize(CGLayerRef _Nullable layer) CG_SWIFT_NAME(getter:CGLayer.size(self:));
+CG_EXTERN CGContextRef _Nullable CGLayerGetContext(CGLayerRef _Nullable layer) CG_SWIFT_NAME(getter:CGLayer.context(self:));
+CG_EXTERN void CGContextDrawLayerInRect(CGContextRef _Nullable context, CGRect rect, CGLayerRef _Nullable layer) CG_SWIFT_NAME(CGContext.__draw(self:in:layer:));
+CG_EXTERN void CGContextDrawLayerAtPoint(CGContextRef _Nullable context, CGPoint point, CGLayerRef _Nullable layer) CG_SWIFT_NAME(CGContext.__draw(self:at:layer:));
 CG_EXTERN void CGContextDrawShading(CGContextRef _Nullable c, CGShadingRef _Nullable shading) CG_SWIFT_NAME(CGContext.drawShading(self:_:));
 /* text: Core Text lines (CTLineDraw/CTFrameDraw) draw at the text position with the text matrix, glyphs y-up */
 CG_EXTERN void CGContextSetTextMatrix(CGContextRef _Nullable c, CGAffineTransform t) CG_SWIFT_NAME(setter:CGContext.textMatrix(self:_:));

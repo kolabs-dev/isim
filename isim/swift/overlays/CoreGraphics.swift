@@ -248,6 +248,25 @@ extension CGContext {
     }
 }
 
+// MARK: - Conic gradients and indexed color spaces (issue #363)
+extension CGContext {
+    /// The gradient's colors around `center`, counterclockwise from `angle` (radians).
+    @available(iOS 17.0, *)
+    public func drawConicGradient(_ gradient: CGGradient, center: CGPoint, angle: CGFloat) { CGContextDrawConicGradient(self, gradient, center, angle) }
+    /// Draws a layer stretched into `rect`, or at its size at `point`.
+    public func draw(_ layer: CGLayer, in rect: CGRect) { __draw(in: rect, layer: layer) }
+    public func draw(_ layer: CGLayer, at point: CGPoint) { __draw(at: point, layer: layer) }
+}
+extension CGColorSpace {
+    /// An indexed space's color table (its base space's components, one byte each), nil for other spaces.
+    public var colorTable: [UInt8]? {
+        guard model == .indexed else { return nil }
+        var table = [UInt8](repeating: 0, count: __colorTableCount * (baseColorSpace?.numberOfComponents ?? 0))
+        table.withUnsafeMutableBufferPointer { __unsafeGetColorTable($0.baseAddress) }
+        return table
+    }
+}
+
 // MARK: - CGColor
 extension CGColor {
     /// The components in the color's color space (alpha last).

@@ -91,6 +91,17 @@ static CGImageRef create(size_t w, size_t h, size_t bpc, size_t bpp, size_t bpr,
     if (!prov || !w || !h) return NULL;
     size_t ncomp = mask ? 1 : space ? space->ncomp : 3;
     int fmt, B;
+    if (!mask && space && space->kind >= CS_ICC && bpc == 8) {   /* ICC, Lab and indexed images: converted to sRGB */
+        size_t size; const unsigned char *bytes = isim_cg_provider_bytes(prov, &size);
+        int hd = bytes && size >= bpr * (h - 1) + w * (bpp / 8) ? isim_cg_image_in_space(space, bytes, w, h, bpr, bpp, info) : 0;
+        CGImageRef im = hd ? isim_cg_image_adopt(hd) : NULL;
+        if (im) {
+            struct imgext *e = ext_of(im);
+            e->bpc = bpc; e->bpp = bpp; e->bpr = bpr; e->info = info; e->interp = interp; e->intent = intent;
+            objc_release(e->cs); e->cs = objc_retain(space); e->prov = objc_retain(prov);
+            return im;
+        }
+    }
     if (!isim_cg_pixfmt(info, bpc, bpp, ncomp, mask, &fmt, &B)) {
         fprintf(stderr, "isim: CGImageCreate: unsupported layout (%zu bpc, %zu bpp, info 0x%x); isim supports 8 bits per component\n", bpc, bpp, info);
         return NULL;

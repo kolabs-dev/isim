@@ -746,7 +746,7 @@ static NSMutableDictionary *error_providers;
     static const struct { const char *kind; unsigned long tid; } ids[] = {
         { "CGColorSpace", 0x4373 }, { "CGDataProvider", 0x4364 }, { "CGDataConsumer", 0x4365 }, { "CGFont", 0x4366 },
         { "CGGradient", 0x4367 }, { "CGFunction", 0x4368 }, { "CGShading", 0x436a }, { "CGPattern", 0x436b },
-        { "CGPDFDocument", 0x4370 }, { "CGPDFPage", 0x4371 } };
+        { "CGPDFDocument", 0x4370 }, { "CGPDFPage", 0x4371 }, { "CGLayer", 0x4379 } };
     for (size_t i = 0; _kind && i < sizeof ids / sizeof ids[0]; i++) if (!strcmp(_kind, ids[i].kind)) return ids[i].tid;
     return 1;
 }

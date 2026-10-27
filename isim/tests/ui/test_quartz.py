@@ -2,7 +2,7 @@
 makeImage; UIGraphicsPushContext), patterns, clip masks, CGImage from bytes / cropping / masking, gradients, shadings,
 shadows (bitmap and PDF), blend modes, transparency layers, every supported color space, context queries and
 stroked-path replacement, Core Text lines and frames, CGFont names/data providers, PDF write + read, path operations
-(issue #273).
+(issue #273), and from Swift (issue #363) CGFont tables, Lab and indexed spaces, layers and conic gradients.
 Port of tests/ui/quartz.sh."""
 import re
 
@@ -15,7 +15,7 @@ from isimtest import close, count_px, rgb
 def test_quartz(launch):
     app = launch("HelloQuartz")
     for line in ("header %PDF-", "cgpdfcontext ", "ctframe lines", "color spaces", "context ctm", "cgfont named",
-                 "pattern uncolored", "masking left", "cgpdf objects"):
+                 "pattern uncolored", "masking left", "cgpdf objects", "cg extras"):
         app.wait_log(re.escape(line))
     shot = app.wait_shot(lambda s: close(s, 116, 100, (255, 149, 0)) and close(s, 36, 370, (64, 64, 64)),
                          "drawn on screen")
@@ -84,3 +84,11 @@ def test_quartz(launch):
         close(shot, 216, 380, (255, 255, 255)), "union of circles and a bar, a hole subtracted"
     assert count_px(shot, (296, 350, 88, 60), lambda c: c[0] > 150 and c[1] < 120 and c[2] > 180) > 40, \
         "dashed outline stroked into a filled path"
+    m = re.search(r"cg extras head 54 tags true lab red \[(\d+), (\d+), (\d+), 255\] indexed \[255, 0, 0, 0, 0, 255\] "
+                  r"linearized kCGColorSpaceLinearSRGB layer \[0, 0, 255, 255\] outside \[0, 0, 0, 0\] "
+                  r"conic start \[(\d+), 0, (\d+), 255\] end \[(\d+), 0, (\d+), 255\]", log)
+    assert m, "issue #363 from Swift: font tables, Lab, indexed, linearized, layers, conic gradients"
+    v = [int(x) for x in m.groups()]
+    assert v[0] > 250 and v[1] < 5 and v[2] < 5, f"Lab red is sRGB red: {v[:3]}"
+    assert v[3] > 230 and v[4] < 30 and v[6] > 230 and v[5] < 30, f"conic: red at the start, blue at the end: {v[3:]}"
+
