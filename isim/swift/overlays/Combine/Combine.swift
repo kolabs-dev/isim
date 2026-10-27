@@ -539,6 +539,7 @@ extension Publishers {
         public typealias Failure = Error
         public let upstream: Upstream
         public let transform: (Upstream.Output) throws -> Output
+        public init(upstream: Upstream, transform: @escaping (Upstream.Output) throws -> Output) { self.upstream = upstream; self.transform = transform }
         public func receive<S: Subscriber>(subscriber: S) where S.Input == Output, S.Failure == Error {
             let t = transform
             _relay(upstream, to: subscriber, value: { v, send, finish in
@@ -553,6 +554,7 @@ extension Publishers {
         public typealias Failure = Upstream.Failure
         public let upstream: Upstream
         public let transform: (Upstream.Output) -> Output?
+        public init(upstream: Upstream, transform: @escaping (Upstream.Output) -> Output?) { self.upstream = upstream; self.transform = transform }
         public func receive<S: Subscriber>(subscriber: S) where S.Input == Output, S.Failure == Failure {
             let t = transform
             _relay(upstream, to: subscriber, value: { v, send, _ in if let o = t(v) { send(o) } }, completion: { c, finish in finish(c) })
@@ -564,6 +566,7 @@ extension Publishers {
         public typealias Failure = Upstream.Failure
         public let upstream: Upstream
         public let isIncluded: (Upstream.Output) -> Bool
+        public init(upstream: Upstream, isIncluded: @escaping (Upstream.Output) -> Bool) { self.upstream = upstream; self.isIncluded = isIncluded }
         public func receive<S: Subscriber>(subscriber: S) where S.Input == Output, S.Failure == Failure {
             let f = isIncluded
             _relay(upstream, to: subscriber, value: { v, send, _ in if f(v) { send(v) } }, completion: { c, finish in finish(c) })
@@ -575,6 +578,7 @@ extension Publishers {
         public typealias Failure = Upstream.Failure
         public let upstream: Upstream
         public let predicate: (Output, Output) -> Bool
+        public init(upstream: Upstream, predicate: @escaping (Upstream.Output, Upstream.Output) -> Bool) { self.upstream = upstream; self.predicate = predicate }
         public func receive<S: Subscriber>(subscriber: S) where S.Input == Output, S.Failure == Failure {
             let p = predicate
             let last = _Ref<Output?>(nil)
@@ -591,6 +595,7 @@ extension Publishers {
         public typealias Failure = Upstream.Failure
         public let upstream: Upstream
         public let count: Int
+        public init(upstream: Upstream, count: Int) { self.upstream = upstream; self.count = count }
         public func receive<S: Subscriber>(subscriber: S) where S.Input == Output, S.Failure == Failure {
             let c = _Ref(0), limit = count
             _relay(upstream, to: subscriber, value: { v, send, _ in
@@ -604,6 +609,7 @@ extension Publishers {
         public typealias Failure = Upstream.Failure
         public let upstream: Upstream
         public let range: Range<Int>
+        public init(upstream: Upstream, range: CountableRange<Int>) { self.upstream = upstream; self.range = range }
         public func receive<S: Subscriber>(subscriber: S) where S.Input == Upstream.Output, S.Failure == Failure {
             let c = _Ref(0), r = range
             _relay(upstream, to: subscriber, value: { v, send, finish in
@@ -632,6 +638,7 @@ extension Publishers {
     public struct SetFailureType<Upstream: Publisher, Failure: Error>: Publisher where Upstream.Failure == Never {
         public typealias Output = Upstream.Output
         public let upstream: Upstream
+        public init(upstream: Upstream) { self.upstream = upstream }
         public func receive<S: Subscriber>(subscriber: S) where S.Input == Output, S.Failure == Failure {
             _relay(upstream, to: subscriber, value: { v, send, _ in send(v) }, completion: { _, finish in finish(.finished) })
         }
@@ -643,10 +650,14 @@ extension Publishers {
         public typealias Failure = Upstream.Failure
         public let upstream: Upstream
         public let scheduler: Context
+        public let options: Context.SchedulerOptions?
+        public init(upstream: Upstream, scheduler: Context, options: Context.SchedulerOptions?) {
+            self.upstream = upstream; self.scheduler = scheduler; self.options = options
+        }
         public func receive<S: Subscriber>(subscriber: S) where S.Input == Output, S.Failure == Failure {
-            let sch = scheduler
-            _relay(upstream, to: subscriber, value: { v, send, _ in sch.schedule { send(v) } },
-                   completion: { c, finish in sch.schedule { finish(c) } })
+            let sch = scheduler, opts = options
+            _relay(upstream, to: subscriber, value: { v, send, _ in sch.schedule(options: opts) { send(v) } },
+                   completion: { c, finish in sch.schedule(options: opts) { finish(c) } })
         }
     }
 
@@ -657,12 +668,16 @@ extension Publishers {
         public let upstream: Upstream
         public let dueTime: Context.SchedulerTimeType.Stride
         public let scheduler: Context
+        public let options: Context.SchedulerOptions?
+        public init(upstream: Upstream, dueTime: Context.SchedulerTimeType.Stride, scheduler: Context, options: Context.SchedulerOptions?) {
+            self.upstream = upstream; self.dueTime = dueTime; self.scheduler = scheduler; self.options = options
+        }
         public func receive<S: Subscriber>(subscriber: S) where S.Input == Output, S.Failure == Failure {
-            let g = _Ref(0), sch = scheduler, due = dueTime
+            let g = _Ref(0), sch = scheduler, due = dueTime, opts = options
             _relay(upstream, to: subscriber, value: { v, send, _ in
                 g.value += 1
                 let mine = g.value
-                sch.schedule(after: sch.now.advanced(by: due), tolerance: sch.minimumTolerance, options: nil) {
+                sch.schedule(after: sch.now.advanced(by: due), tolerance: sch.minimumTolerance, options: opts) {
                     if g.value == mine { send(v) }
                 }
             }, completion: { c, finish in finish(c) })
@@ -713,16 +728,22 @@ extension Publishers {
         public typealias Failure = Upstream.Failure
         public let upstream: Upstream
         public let transform: (Upstream.Output) -> NewPublisher
-        /// At most this many inner publishers are subscribed at once; later upstream values wait their turn.
+        /// At most this many inner publishers are subscribed at once: FlatMap requests that many values from upstream,
+        /// and one more each time an inner publisher finishes (backpressure, like Apple's).
         public var maxPublishers: Subscribers.Demand = .unlimited
+        public init(upstream: Upstream, maxPublishers: Subscribers.Demand, transform: @escaping (Upstream.Output) -> NewPublisher) {
+            self.upstream = upstream; self.transform = transform; self.maxPublishers = maxPublishers
+        }
         public func receive<S: Subscriber>(subscriber: S) where S.Input == Output, S.Failure == Failure {
             let t = transform, limit = maxPublishers
             let lock = _CombineLock(recursive: true)
             let st = _Ref((active: 0, waiting: [Upstream.Output](), outerDone: false, inner: [ObjectIdentifier: Cancellable]()))
-            func start(_ v: Upstream.Output, _ o: _Outlet<S>) {
+            let out = _Outlet(subscriber); out.name = "FlatMap"
+            let upRef = _Ref<_ClosureSubscriber<Upstream.Output, Upstream.Failure>?>(nil)
+            func start(_ v: Upstream.Output) {
                 let idBox = _Ref<ObjectIdentifier?>(nil)
-                let inner = _ClosureSubscriber<NewPublisher.Output, NewPublisher.Failure>(value: { o.send($0) }, completion: { c in
-                    if case .failure = c { o.terminate(c); return }
+                let inner = _ClosureSubscriber<NewPublisher.Output, NewPublisher.Failure>(value: { out.send($0) }, completion: { c in
+                    if case .failure = c { out.terminate(c); return }
                     lock.lock()
                     if let id = idBox.value { st.value.inner[id] = nil }
                     st.value.active -= 1
@@ -730,23 +751,31 @@ extension Publishers {
                     if !st.value.waiting.isEmpty { next = st.value.waiting.removeFirst(); st.value.active += 1 }
                     let done = st.value.outerDone && st.value.active == 0
                     lock.unlock()
-                    if let next { start(next, o) } else if done { o.finish(.finished) }
+                    if let next { start(next) }
+                    else if done { out.finish(.finished) }
+                    else if limit != .unlimited { upRef.value?.subscription?.request(.max(1)) }   // room for one more
                 })
                 idBox.value = ObjectIdentifier(inner)
                 lock.lock(); st.value.inner[ObjectIdentifier(inner)] = inner; lock.unlock()
                 t(v).subscribe(inner)
             }
-            let out = _operator(upstream, subscriber, name: "FlatMap", value: { v, o in
+            let up = _ClosureSubscriber<Upstream.Output, Upstream.Failure>(value: { v in
                 lock.lock()
-                if limit > st.value.active { st.value.active += 1; lock.unlock(); start(v, o) }
-                else { st.value.waiting.append(v); lock.unlock() }
-            }, completion: { c, o in
-                if case .failure = c { o.terminate(c); return }
+                if limit > st.value.active { st.value.active += 1; lock.unlock(); start(v) }
+                else { st.value.waiting.append(v); lock.unlock() }        // (an upstream that sends more than requested)
+            }, completion: { c in
+                if case .failure(let e) = c { out.terminate(.failure(e)); return }
                 lock.lock(); st.value.outerDone = true; let done = st.value.active == 0; lock.unlock()
-                if done { o.finish(.finished) }
+                if done { out.finish(.finished) }
             })
-            let prev = out.onCancel
-            out.onCancel = { prev?(); lock.lock(); let all = Array(st.value.inner.values); st.value.inner = [:]; lock.unlock(); for c in all { c.cancel() } }
+            if limit != .unlimited { up.onSubscribe = { sub in sub.request(limit) } }
+            upRef.value = up
+            out.onCancel = {
+                up.cancel(); upRef.value = nil
+                lock.lock(); let all = Array(st.value.inner.values); st.value.inner = [:]; lock.unlock(); for c in all { c.cancel() }
+            }
+            subscriber.receive(subscription: out)
+            upstream.subscribe(up)
         }
     }
 
@@ -807,7 +836,7 @@ final class _CancelHook: Subscription {
 
 extension Publisher {
     public func map<T>(_ transform: @escaping (Output) -> T) -> Publishers.Map<Self, T> { Publishers.Map(upstream: self, transform: transform) }
-    public func map<T>(_ keyPath: KeyPath<Output, T>) -> Publishers.Map<Self, T> { Publishers.Map(upstream: self) { $0[keyPath: keyPath] } }
+    public func map<T>(_ keyPath: KeyPath<Output, T>) -> Publishers.MapKeyPath<Self, T> { Publishers.MapKeyPath(upstream: self, keyPath: keyPath) }
     public func tryMap<T>(_ transform: @escaping (Output) throws -> T) -> Publishers.TryMap<Self, T> { Publishers.TryMap(upstream: self, transform: transform) }
     public func compactMap<T>(_ transform: @escaping (Output) -> T?) -> Publishers.CompactMap<Self, T> { Publishers.CompactMap(upstream: self, transform: transform) }
     public func filter(_ isIncluded: @escaping (Output) -> Bool) -> Publishers.Filter<Self> { Publishers.Filter(upstream: self, isIncluded: isIncluded) }
@@ -816,7 +845,7 @@ extension Publisher {
     }
     public func dropFirst(_ count: Int = 1) -> Publishers.Drop<Self> { Publishers.Drop(upstream: self, count: count) }
     public func prefix(_ maxLength: Int) -> Publishers.Output<Self> { Publishers.Output(upstream: self, range: 0..<maxLength) }
-    public func first() -> Publishers.Output<Self> { prefix(1) }
+    public func first() -> Publishers.First<Self> { Publishers.First(upstream: self) }
     public func handleEvents(receiveSubscription: ((Subscription) -> Void)? = nil, receiveOutput: ((Output) -> Void)? = nil,
                              receiveCompletion: ((Subscribers.Completion<Failure>) -> Void)? = nil,
                              receiveCancel: (() -> Void)? = nil, receiveRequest: ((Subscribers.Demand) -> Void)? = nil) -> Publishers.HandleEvents<Self> {
@@ -824,10 +853,10 @@ extension Publisher {
                                 receiveSubscription: receiveSubscription, receiveCancel: receiveCancel, receiveRequest: receiveRequest)
     }
     public func receive<S: Scheduler>(on scheduler: S, options: S.SchedulerOptions? = nil) -> Publishers.ReceiveOn<Self, S> {
-        Publishers.ReceiveOn(upstream: self, scheduler: scheduler)
+        Publishers.ReceiveOn(upstream: self, scheduler: scheduler, options: options)
     }
     public func debounce<S: Scheduler>(for dueTime: S.SchedulerTimeType.Stride, scheduler: S, options: S.SchedulerOptions? = nil) -> Publishers.Debounce<Self, S> {
-        Publishers.Debounce(upstream: self, dueTime: dueTime, scheduler: scheduler)
+        Publishers.Debounce(upstream: self, dueTime: dueTime, scheduler: scheduler, options: options)
     }
     public func combineLatest<P: Publisher>(_ other: P) -> Publishers.CombineLatest<Self, P> where P.Failure == Failure {
         Publishers.CombineLatest(a: self, b: other)
@@ -837,10 +866,10 @@ extension Publisher {
     }
     @_disfavoredOverload   // kept for binary compatibility; the maxPublishers form below is Apple's
     public func flatMap<P: Publisher>(_ transform: @escaping (Output) -> P) -> Publishers.FlatMap<P, Self> where P.Failure == Failure {
-        Publishers.FlatMap(upstream: self, transform: transform)
+        Publishers.FlatMap(upstream: self, maxPublishers: .unlimited, transform: transform)
     }
     public func flatMap<P: Publisher>(maxPublishers: Subscribers.Demand = .unlimited, _ transform: @escaping (Output) -> P) -> Publishers.FlatMap<P, Self> where P.Failure == Failure {
-        Publishers.FlatMap(upstream: self, transform: transform, maxPublishers: maxPublishers)
+        Publishers.FlatMap(upstream: self, maxPublishers: maxPublishers, transform: transform)
     }
     public func share() -> Publishers.Share<Self> { Publishers.Share(upstream: self) }
 }
