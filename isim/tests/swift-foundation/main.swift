@@ -10,6 +10,49 @@ func check(_ ok: @autoclosure () -> Bool, _ what: String) {
 }
 
 /// CoreFoundation from Swift (CFURL, CFLocale, CFPreferences: managed like Apple's) and String.applyingTransform
+/// LengthFormatter, MassFormatter, EnergyFormatter (issue #350): the region's units, styles, person and food uses, parsing
+func physicalFormatterChecks() {
+    let us = Locale(identifier: "en_US"), de = Locale(identifier: "de_DE"), gb = Locale(identifier: "en_GB")
+    let length = LengthFormatter()
+    length.numberFormatter.locale = us
+    check(length.string(fromMeters: 5000) == "3.107 mi" && length.string(fromMeters: 100) == "109.361 yd" && length.string(fromMeters: 0.1) == "3.937 in",
+          "LengthFormatter in the US: miles, yards, inches (\(length.string(fromMeters: 5000)))")
+    length.unitStyle = .long
+    check(length.string(fromMeters: 5000) == "3.107 miles" && length.string(fromValue: 1, unit: .foot) == "1 foot", "LengthFormatter .long (\(length.string(fromValue: 1, unit: .foot)))")
+    length.unitStyle = .medium
+    var used = LengthFormatter.Unit.meter
+    check(length.unitString(fromMeters: 1, usedUnit: &used) == "yd" && used == .yard && length.unitString(fromValue: 2, unit: .kilometer) == "km",
+          "unitString(fromMeters:usedUnit:) and unitString(fromValue:unit:)")
+    length.isForPersonHeightUse = true
+    check(length.string(fromMeters: 1.80) == "5 ft, 11 in", "a person's height in feet and inches (\(length.string(fromMeters: 1.80)))")
+    let metric = LengthFormatter()
+    metric.numberFormatter.locale = de
+    check(metric.string(fromMeters: 5000) == "5 km" && metric.string(fromMeters: 0.5) == "50 cm" && metric.string(fromMeters: 0.002) == "2 mm",
+          "LengthFormatter in Germany: km, cm, mm (\(metric.string(fromMeters: 0.5)))")
+    var meters: AnyObject?
+    check(length.getObjectValue(&meters, for: "2 km", errorDescription: nil) && (meters as? NSNumber)?.doubleValue == 2000 &&
+          !length.getObjectValue(&meters, for: "two lengths", errorDescription: nil), "LengthFormatter.getObjectValue: \"2 km\" is 2000 meters")
+
+    let mass = MassFormatter()
+    mass.numberFormatter.locale = us
+    check(mass.string(fromKilograms: 2) == "4.409 lb" && mass.string(fromKilograms: 0.1) == "3.527 oz", "MassFormatter in the US: pounds, ounces (\(mass.string(fromKilograms: 2)))")
+    let uk = MassFormatter()
+    uk.numberFormatter.locale = gb
+    uk.isForPersonMassUse = true
+    check(uk.string(fromKilograms: 70) == "11 st, 0 lb", "a person's mass in the UK, in stones and pounds (\(uk.string(fromKilograms: 70)))")
+    var massUnit = MassFormatter.Unit.gram
+    _ = mass.unitString(fromKilograms: 5, usedUnit: &massUnit)
+    check(massUnit == .pound && MassFormatter.Unit.stone.rawValue == (6 << 8) + 3, "MassFormatter.Unit")
+
+    let energy = EnergyFormatter()
+    energy.numberFormatter.locale = us
+    energy.isForFoodEnergyUse = true
+    check(energy.string(fromJoules: 4184 * 250) == "250 Cal" && energy.unitString(fromValue: 2, unit: .kilocalorie) == "Cal", "EnergyFormatter for food in the US: \"250 Cal\"")
+    let joules = EnergyFormatter()
+    joules.numberFormatter.locale = de
+    check(joules.string(fromJoules: 5000) == "5 kJ" && joules.string(fromValue: 3, unit: .joule) == "3 J", "EnergyFormatter in Germany: kJ, J (\(joules.string(fromJoules: 5000)))")
+}
+
 func coreFoundationChecks() {
     let url = CFURLCreateWithString(nil, "https://example.com:81/a/b.txt?q=1" as CFString, nil)
     check(url.map { CFURLCopyHostName($0) as String? == "example.com" && CFURLGetPortNumber($0) == 81 } ?? false, "CFURL from Swift")
@@ -22,7 +65,10 @@ func coreFoundationChecks() {
     check("Ελλάδα".applyingTransform(.toLatin, reverse: false) == "Elláda", "String.applyingTransform(.toLatin)")
     check("Crème brûlée".applyingTransform(.stripDiacritics, reverse: false) == "Creme brulee", "applyingTransform(.stripDiacritics)")
     check("カタカナ".applyingTransform(.hiraganaToKatakana, reverse: true) == "かたかな", "applyingTransform(.hiraganaToKatakana, reverse:)")
-    check("中文".applyingTransform(.mandarinToLatin, reverse: false) == nil, "an unknown transform is nil")
+    check("中文".applyingTransform(.mandarinToLatin, reverse: false) == "zhōng wén", "applyingTransform(.mandarinToLatin) through ICU")
+    check("서울".applyingTransform(.latinToHangul, reverse: true) == "seoul" && "A".applyingTransform(.toUnicodeName, reverse: false) == "\\N{LATIN CAPITAL LETTER A}",
+          "applyingTransform: Hangul (reverse) and Unicode names through ICU")
+    check("abc".applyingTransform(StringTransform("Bogus-Nothing"), reverse: false) == nil, "an unknown transform is nil")
 
     // as with Apple's SDK (#523): C Boolean is Bool in parameters and results (DarwinBoolean through a pointer), and the
     // audited CF headers return managed objects, not Unmanaged (the annotated types are checked by the compiler)
@@ -1021,7 +1067,7 @@ func lockingChecks() {
         attributedStringChecks()
         fileChecks()
         localeChecks()
-        coreFoundationChecks()
+        physicalFormatterChecks(); coreFoundationChecks()
         xmlParserChecks()
         urlProtocolChecks()
         print("swift foundation test: \(checks - failures)/\(checks) passed")

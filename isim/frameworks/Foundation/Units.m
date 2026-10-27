@@ -519,3 +519,227 @@ NSString *isim_format_measurement(NSString *number, double value, NSUnit *unit, 
     return [self measurementByConvertingToUnit:isim_preferred_unit(self, locale, usage)];
 }
 @end
+
+/* ================= NSLengthFormatter, NSMassFormatter, NSEnergyFormatter (issue #350) =================
+ * Adapted: each formats a value in a unit through isim_format_measurement (ICU's unit patterns, or isim's tables);
+ * string(fromMeters: / fromKilograms: / fromJoules:) picks the region's unit by magnitude (metric, US customary; the UK's
+ * stones for a person's mass), and person heights in US customary units read "5 ft, 11 in". */
+static NSNumberFormatter *decimal_formatter(void) {
+    NSNumberFormatter *f = [NSNumberFormatter new];
+    f.numberStyle = NSNumberFormatterDecimalStyle;
+    return f;
+}
+static NSString *format_with(NSNumberFormatter *nf, NSFormattingUnitStyle style, double value, NSUnit *unit) {
+    NSLocale *locale = nf.locale ?: NSLocale.currentLocale;
+    int width = style == NSFormattingUnitStyleShort ? 0 : style == NSFormattingUnitStyleLong ? 2 : 1;
+    return isim_format_measurement([nf stringFromNumber:@(value)], value, unit, width, locale);
+}
+static NSString *unit_string(NSNumberFormatter *nf, NSFormattingUnitStyle style, double value, NSUnit *unit) {
+    if (style != NSFormattingUnitStyleLong) return unit.symbol;
+    NSLocale *locale = nf.locale ?: NSLocale.currentLocale;
+    return isim_unit_long_name(unit, isim_locale_lang(locale), fabs(value) == 1);
+}
+static BOOL is_uk(NSLocale *l) { return [l.countryCode isEqualToString:@"GB"]; }
+/* "5 km" -> the number and the unit matched by `match` (symbol, singular or plural name, any case), in the base unit */
+static BOOL parse_quantity(NSString *string, NSNumberFormatter *nf, NSDictionary<NSString *, NSUnit *> *units, NSUnit *base, double *out) {
+    NSScanner *sc = [NSScanner scannerWithString:[string stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet]];
+    double v = 0;
+    if (![sc scanDouble:&v]) return NO;
+    NSString *rest = [[sc.string substringFromIndex:sc.scanLocation] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet].lowercaseString;
+    NSUnit *u = rest.length ? units[rest] : base;
+    if (!u || ![u isKindOfClass:[NSDimension class]]) return NO;
+    *out = [((NSDimension *)u).converter baseUnitValueFromValue:v];
+    return YES;
+}
+static NSDictionary *unit_names(NSArray<NSUnit *> *units, NSLocale *locale) {
+    NSMutableDictionary *d = [NSMutableDictionary dictionary];
+    NSString *lang = isim_locale_lang(locale);
+    for (NSUnit *u in units) {
+        d[u.symbol.lowercaseString] = u;
+        d[isim_unit_long_name(u, lang, YES).lowercaseString] = u;
+        d[isim_unit_long_name(u, lang, NO).lowercaseString] = u;
+    }
+    return d;
+}
+
+@implementation NSLengthFormatter {
+    NSNumberFormatter *_nf;
+}
+@synthesize unitStyle = _unitStyle, forPersonHeightUse = _forPersonHeightUse;
+- (instancetype)init { if ((self = [super init])) { _nf = decimal_formatter(); _unitStyle = NSFormattingUnitStyleMedium; } return self; }
+- (NSNumberFormatter *)numberFormatter { return _nf; }
+- (void)setNumberFormatter:(NSNumberFormatter *)f { _nf = f ? [f copy] : decimal_formatter(); }
+- (id)copyWithZone:(NSZone *)z { NSLengthFormatter *c = [[self class] new]; c->_nf = [_nf copy]; c->_unitStyle = _unitStyle; c->_forPersonHeightUse = _forPersonHeightUse; return c; }
+static NSUnitLength *length_unit(NSLengthFormatterUnit u) {
+    switch (u) {
+    case NSLengthFormatterUnitMillimeter: return NSUnitLength.millimeters;
+    case NSLengthFormatterUnitCentimeter: return NSUnitLength.centimeters;
+    case NSLengthFormatterUnitKilometer: return NSUnitLength.kilometers;
+    case NSLengthFormatterUnitInch: return NSUnitLength.inches;
+    case NSLengthFormatterUnitFoot: return NSUnitLength.feet;
+    case NSLengthFormatterUnitYard: return NSUnitLength.yards;
+    case NSLengthFormatterUnitMile: return NSUnitLength.miles;
+    default: return NSUnitLength.meters;
+    }
+}
+- (NSLengthFormatterUnit)_unitForMeters:(double)m {
+    NSLocale *l = _nf.locale ?: NSLocale.currentLocale;
+    double a = fabs(m);
+    if (l.usesMetricSystem) {
+        if (_forPersonHeightUse) return NSLengthFormatterUnitCentimeter;
+        return a >= 1000 ? NSLengthFormatterUnitKilometer : a >= 1 ? NSLengthFormatterUnitMeter : a >= 0.01 ? NSLengthFormatterUnitCentimeter : NSLengthFormatterUnitMillimeter;
+    }
+    if (_forPersonHeightUse) return a >= 0.3048 ? NSLengthFormatterUnitFoot : NSLengthFormatterUnitInch;
+    return a >= 1609.344 ? NSLengthFormatterUnitMile : a >= 0.9144 ? NSLengthFormatterUnitYard : a >= 0.3048 ? NSLengthFormatterUnitFoot : NSLengthFormatterUnitInch;
+}
+- (NSString *)stringFromValue:(double)value unit:(NSLengthFormatterUnit)unit { return format_with(_nf, _unitStyle, value, length_unit(unit)); }
+- (NSString *)stringFromMeters:(double)meters {
+    NSLengthFormatterUnit u = [self _unitForMeters:meters];
+    double v = [length_unit(u).converter valueFromBaseUnitValue:meters];
+    if (_forPersonHeightUse && u == NSLengthFormatterUnitFoot) {          /* "5 ft, 11 in" */
+        double inches = round(meters / 0.0254);
+        double feet = floor(inches / 12), rest = inches - feet * 12;
+        NSNumberFormatter *whole = [_nf copy]; whole.maximumFractionDigits = 0;
+        if (_unitStyle == NSFormattingUnitStyleShort)
+            return [NSString stringWithFormat:@"%@′ %@″", [whole stringFromNumber:@(feet)], [whole stringFromNumber:@(rest)]];
+        return [NSString stringWithFormat:@"%@, %@", format_with(whole, _unitStyle, feet, NSUnitLength.feet), format_with(whole, _unitStyle, rest, NSUnitLength.inches)];
+    }
+    return [self stringFromValue:v unit:u];
+}
+- (NSString *)unitStringFromValue:(double)value unit:(NSLengthFormatterUnit)unit { return unit_string(_nf, _unitStyle, value, length_unit(unit)); }
+- (NSString *)unitStringFromMeters:(double)meters usedUnit:(NSLengthFormatterUnit *)unitp {
+    NSLengthFormatterUnit u = [self _unitForMeters:meters];
+    if (unitp) *unitp = u;
+    return [self unitStringFromValue:[length_unit(u).converter valueFromBaseUnitValue:meters] unit:u];
+}
+- (NSString *)stringForObjectValue:(id)obj { return [obj isKindOfClass:[NSNumber class]] ? [self stringFromMeters:[obj doubleValue]] : nil; }
+- (BOOL)getObjectValue:(id *)obj forString:(NSString *)string errorDescription:(NSString **)error {
+    double m;
+    NSArray *units = @[NSUnitLength.millimeters, NSUnitLength.centimeters, NSUnitLength.meters, NSUnitLength.kilometers,
+                       NSUnitLength.inches, NSUnitLength.feet, NSUnitLength.yards, NSUnitLength.miles];
+    if (!parse_quantity(string, _nf, unit_names(units, _nf.locale ?: NSLocale.currentLocale), NSUnitLength.meters, &m)) {
+        if (error) *error = @"Invalid length";
+        return NO;
+    }
+    if (obj) *obj = @(m);
+    return YES;
+}
+@end
+
+@implementation NSMassFormatter {
+    NSNumberFormatter *_nf;
+}
+@synthesize unitStyle = _unitStyle, forPersonMassUse = _forPersonMassUse;
+- (instancetype)init { if ((self = [super init])) { _nf = decimal_formatter(); _unitStyle = NSFormattingUnitStyleMedium; } return self; }
+- (NSNumberFormatter *)numberFormatter { return _nf; }
+- (void)setNumberFormatter:(NSNumberFormatter *)f { _nf = f ? [f copy] : decimal_formatter(); }
+- (id)copyWithZone:(NSZone *)z { NSMassFormatter *c = [[self class] new]; c->_nf = [_nf copy]; c->_unitStyle = _unitStyle; c->_forPersonMassUse = _forPersonMassUse; return c; }
+static NSUnitMass *mass_unit(NSMassFormatterUnit u) {
+    switch (u) {
+    case NSMassFormatterUnitGram: return NSUnitMass.grams;
+    case NSMassFormatterUnitOunce: return NSUnitMass.ounces;
+    case NSMassFormatterUnitPound: return NSUnitMass.pounds;
+    case NSMassFormatterUnitStone: return NSUnitMass.stones;
+    default: return NSUnitMass.kilograms;
+    }
+}
+- (NSMassFormatterUnit)_unitForKilograms:(double)kg {
+    NSLocale *l = _nf.locale ?: NSLocale.currentLocale;
+    double a = fabs(kg);
+    if (_forPersonMassUse && is_uk(l)) return NSMassFormatterUnitStone;
+    if (l.usesMetricSystem) return _forPersonMassUse || a >= 1 ? NSMassFormatterUnitKilogram : NSMassFormatterUnitGram;
+    return _forPersonMassUse || a >= 0.45359237 ? NSMassFormatterUnitPound : NSMassFormatterUnitOunce;
+}
+- (NSString *)stringFromValue:(double)value unit:(NSMassFormatterUnit)unit { return format_with(_nf, _unitStyle, value, mass_unit(unit)); }
+- (NSString *)stringFromKilograms:(double)kg {
+    NSMassFormatterUnit u = [self _unitForKilograms:kg];
+    if (u == NSMassFormatterUnitStone) {                                   /* "11 st, 2 lb" */
+        double pounds = round(kg / 0.45359237);
+        double stones = floor(pounds / 14), rest = pounds - stones * 14;
+        NSNumberFormatter *whole = [_nf copy]; whole.maximumFractionDigits = 0;
+        return [NSString stringWithFormat:@"%@, %@", format_with(whole, _unitStyle, stones, NSUnitMass.stones), format_with(whole, _unitStyle, rest, NSUnitMass.pounds)];
+    }
+    return [self stringFromValue:[mass_unit(u).converter valueFromBaseUnitValue:kg] unit:u];
+}
+- (NSString *)unitStringFromValue:(double)value unit:(NSMassFormatterUnit)unit { return unit_string(_nf, _unitStyle, value, mass_unit(unit)); }
+- (NSString *)unitStringFromKilograms:(double)kg usedUnit:(NSMassFormatterUnit *)unitp {
+    NSMassFormatterUnit u = [self _unitForKilograms:kg];
+    if (unitp) *unitp = u;
+    return [self unitStringFromValue:[mass_unit(u).converter valueFromBaseUnitValue:kg] unit:u];
+}
+- (NSString *)stringForObjectValue:(id)obj { return [obj isKindOfClass:[NSNumber class]] ? [self stringFromKilograms:[obj doubleValue]] : nil; }
+- (BOOL)getObjectValue:(id *)obj forString:(NSString *)string errorDescription:(NSString **)error {
+    double kg;
+    NSArray *units = @[NSUnitMass.grams, NSUnitMass.kilograms, NSUnitMass.ounces, NSUnitMass.pounds, NSUnitMass.stones];
+    if (!parse_quantity(string, _nf, unit_names(units, _nf.locale ?: NSLocale.currentLocale), NSUnitMass.kilograms, &kg)) {
+        if (error) *error = @"Invalid mass";
+        return NO;
+    }
+    if (obj) *obj = @(kg);
+    return YES;
+}
+@end
+
+@implementation NSEnergyFormatter {
+    NSNumberFormatter *_nf;
+}
+@synthesize unitStyle = _unitStyle, forFoodEnergyUse = _forFoodEnergyUse;
+- (instancetype)init { if ((self = [super init])) { _nf = decimal_formatter(); _unitStyle = NSFormattingUnitStyleMedium; } return self; }
+- (NSNumberFormatter *)numberFormatter { return _nf; }
+- (void)setNumberFormatter:(NSNumberFormatter *)f { _nf = f ? [f copy] : decimal_formatter(); }
+- (id)copyWithZone:(NSZone *)z { NSEnergyFormatter *c = [[self class] new]; c->_nf = [_nf copy]; c->_unitStyle = _unitStyle; c->_forFoodEnergyUse = _forFoodEnergyUse; return c; }
+static NSUnitEnergy *energy_unit(NSEnergyFormatterUnit u) {
+    switch (u) {
+    case NSEnergyFormatterUnitKilojoule: return NSUnitEnergy.kilojoules;
+    case NSEnergyFormatterUnitCalorie: return NSUnitEnergy.calories;
+    case NSEnergyFormatterUnitKilocalorie: return NSUnitEnergy.kilocalories;
+    default: return NSUnitEnergy.joules;
+    }
+}
+- (NSEnergyFormatterUnit)_unitForJoules:(double)j {
+    NSLocale *l = _nf.locale ?: NSLocale.currentLocale;
+    double a = fabs(j);
+    if (_forFoodEnergyUse) return NSEnergyFormatterUnitKilocalorie;
+    if (l.usesMetricSystem) return a >= 1000 ? NSEnergyFormatterUnitKilojoule : NSEnergyFormatterUnitJoule;
+    return a >= 4184 ? NSEnergyFormatterUnitKilocalorie : NSEnergyFormatterUnitCalorie;
+}
+/* a food calorie is a kilocalorie, written "Cal" / "Calories" in the US (as iOS does) */
+- (BOOL)_foodCalories:(NSEnergyFormatterUnit)u {
+    NSLocale *l = _nf.locale ?: NSLocale.currentLocale;
+    return _forFoodEnergyUse && u == NSEnergyFormatterUnitKilocalorie && !l.usesMetricSystem;
+}
+- (NSString *)stringFromValue:(double)value unit:(NSEnergyFormatterUnit)unit {
+    if ([self _foodCalories:unit]) {
+        NSString *num = [_nf stringFromNumber:@(value)];
+        return _unitStyle == NSFormattingUnitStyleLong ? [NSString stringWithFormat:@"%@ %@", num, fabs(value) == 1 ? @"Calorie" : @"Calories"]
+             : _unitStyle == NSFormattingUnitStyleShort ? [num stringByAppendingString:@"Cal"] : [num stringByAppendingString:@" Cal"];
+    }
+    return format_with(_nf, _unitStyle, value, energy_unit(unit));
+}
+- (NSString *)stringFromJoules:(double)j {
+    NSEnergyFormatterUnit u = [self _unitForJoules:j];
+    return [self stringFromValue:[energy_unit(u).converter valueFromBaseUnitValue:j] unit:u];
+}
+- (NSString *)unitStringFromValue:(double)value unit:(NSEnergyFormatterUnit)unit {
+    if ([self _foodCalories:unit]) return _unitStyle == NSFormattingUnitStyleLong ? (fabs(value) == 1 ? @"Calorie" : @"Calories") : @"Cal";
+    return unit_string(_nf, _unitStyle, value, energy_unit(unit));
+}
+- (NSString *)unitStringFromJoules:(double)j usedUnit:(NSEnergyFormatterUnit *)unitp {
+    NSEnergyFormatterUnit u = [self _unitForJoules:j];
+    if (unitp) *unitp = u;
+    return [self unitStringFromValue:[energy_unit(u).converter valueFromBaseUnitValue:j] unit:u];
+}
+- (NSString *)stringForObjectValue:(id)obj { return [obj isKindOfClass:[NSNumber class]] ? [self stringFromJoules:[obj doubleValue]] : nil; }
+- (BOOL)getObjectValue:(id *)obj forString:(NSString *)string errorDescription:(NSString **)error {
+    double j;
+    NSMutableDictionary *names = [unit_names(@[NSUnitEnergy.joules, NSUnitEnergy.kilojoules, NSUnitEnergy.calories, NSUnitEnergy.kilocalories],
+                                             _nf.locale ?: NSLocale.currentLocale) mutableCopy];
+    names[@"cal"] = _forFoodEnergyUse ? NSUnitEnergy.kilocalories : NSUnitEnergy.calories;   /* "Cal" on food labels */
+    if (!parse_quantity(string, _nf, names, NSUnitEnergy.joules, &j)) {
+        if (error) *error = @"Invalid energy";
+        return NO;
+    }
+    if (obj) *obj = @(j);
+    return YES;
+}
+@end
