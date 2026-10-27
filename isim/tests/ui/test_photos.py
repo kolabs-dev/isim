@@ -174,3 +174,32 @@ def test_photos_videos_albums(launch):
     assert has(r'^photosPicker movie true types \["com\.apple\.quicktime-movie"\]'), "PhotosPicker -> loadTransferable(Movie)"
     assert has(r'^video picker types \["com\.apple\.quicktime-movie"\] movie true') and \
         has(r"^video picker file true mov error none"), "PHPicker -> loadFileRepresentation of a movie"
+
+
+def test_photos_live_edits(launch):
+    """Live Photos and edits (issue #372): saving a still and a paired movie (PHAssetCreationRequest .photo +
+    .pairedVideo), reading it back (photoLive, playbackStyle, resources, requestLivePhoto, PHLivePhoto.request) and
+    playing it in a PHLivePhotoView; editing a photo with PHContentEditingInput / PHContentEditingOutput and
+    PHAdjustmentData, reading the edit and the original back, and reverting it"""
+    app = launch("HelloPhotos", env={"ISIM_PHOTOS_PERMISSION": "allow"})
+    app.wait_tap_id("saveLive")
+    app.wait_log(r"^live photo ")
+    app.wait_log(r"^live from files ")
+    app.wait_tap_id("playLive")
+    app.wait_log(r"^live did end ")
+    app.tap_id("editPhoto")
+    app.wait_log(r"^edit reverted ")
+    assert app.quit() == 0
+    log = app.log
+
+    def has(p):
+        return re.search(p, log, re.M)
+    assert has(r"^live saved supported true live true style 3 resources \[1, 9\]"), "a Live Photo asset"
+    assert has(r"^live photo 160x120 degraded false"), "requestLivePhoto"
+    assert has(r"^live from files true degraded false"), "PHLivePhoto.request(withResourceFileURLs:)"
+    assert has(r"^live will begin 1") and has(r"^live did end 1"), "PHLivePhotoView playback and its delegate"
+    assert has(r"^edit input true adjustments none type public\.(jpeg|png|heic)"), "PHContentEditingInput"
+    assert has(r"^edit saved true adjusted true resources \[1, 5, 7\]"), "PHContentEditingOutput"
+    assert has(r"^edit current bluer true"), "the edit is the current version, the original kept"
+    assert has(r"^edit again adjustments blue wash 0\.5 original true"), "adjustment data handed back"
+    assert has(r"^edit reverted true adjusted false resources 1$"), "revertAssetContentToOriginal"

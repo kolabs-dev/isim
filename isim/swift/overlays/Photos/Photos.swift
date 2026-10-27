@@ -3,7 +3,7 @@
 // photo library permission (iOS 17/18 alert: Limit Access… / Allow Full Access / Don't Allow, and the add-only
 // alert), PHAsset fetching, PHImageManager image and video requests, PHAssetChangeRequest saving (photos and videos),
 // user albums (PHAssetCollectionChangeRequest) and PHAssetResourceManager.
-// Adapted: no Live Photos, iCloud, shared albums, folders (PHCollectionList) or edits.
+// Live Photos (LivePhoto.swift) and edits (Editing.swift). Adapted: no iCloud, shared albums or folders (PHCollectionList).
 // Automation: ISIM_PHOTOS_PERMISSION=allow|limited|deny answers without the alert (limited selects nothing).
 import UIKit
 
@@ -27,7 +27,11 @@ public struct PHAssetMediaSubtype: OptionSet, Sendable {
 @objc public enum PHImageRequestOptionsDeliveryMode: Int, Sendable { case opportunistic = 0, highQualityFormat, fastFormat }
 @objc public enum PHImageRequestOptionsResizeMode: Int, Sendable { case none = 0, fast, exact }
 @objc public enum PHImageRequestOptionsVersion: Int, Sendable { case current = 0, unadjusted, original }
-@objc public enum PHAssetResourceType: Int, Sendable { case photo = 1, video, audio, alternatePhoto, fullSizePhoto, fullSizeVideo, adjustmentData }
+@objc public enum PHAssetResourceType: Int, Sendable {
+    case photo = 1, video, audio, alternatePhoto, fullSizePhoto, fullSizeVideo, adjustmentData, adjustmentBasePhoto, pairedVideo, fullSizePairedVideo
+    case adjustmentBasePairedVideo, adjustmentBaseVideo
+    case photoProxy = 19
+}
 @objc public enum PHAssetCollectionType: Int, Sendable { case album = 1, smartAlbum = 2, moment = 3 }
 @objc public enum PHCollectionEditOperation: Int, Sendable {
     case deleteContent = 1, removeContent = 2, addContent = 3, createContent = 4, rearrangeContent = 5, delete = 6, rename = 7
@@ -78,9 +82,13 @@ struct _PHRecord {
     var id: String, file: String, created: Double, width: Int, height: Int, favorite: Bool, app: String
     /// videos (UISaveVideoAtPathToSavedPhotosAlbum): kind "video", their duration and a poster frame (PNG)
     var kind = "", duration = 0.0, poster = ""
+    /// Live Photos: the paired movie; edits: the original file and the adjustments' plist (paths in Media), when modified
+    var live = "", originalFile = "", adjustment = "", modified = 0.0
     var isVideo: Bool { kind == "video" }
     init(_ d: [String: Any]) {
         kind = d["kind"] as? String ?? ""; duration = (d["duration"] as? NSNumber)?.doubleValue ?? 0; poster = d["poster"] as? String ?? ""
+        live = d["live"] as? String ?? ""; originalFile = d["original"] as? String ?? ""; adjustment = d["adjustment"] as? String ?? ""
+        modified = (d["modified"] as? NSNumber)?.doubleValue ?? 0
         id = d["id"] as? String ?? ""; file = d["file"] as? String ?? ""
         created = (d["created"] as? NSNumber)?.doubleValue ?? 0
         width = (d["width"] as? NSNumber)?.integerValue ?? 0; height = (d["height"] as? NSNumber)?.integerValue ?? 0
@@ -90,6 +98,9 @@ struct _PHRecord {
         var d: [String: Any] = ["id": id, "file": file, "created": NSNumber(value: created), "width": NSNumber(value: width), "height": NSNumber(value: height),
                                 "favorite": NSNumber(value: favorite), "app": app]
         if isVideo { d["kind"] = kind; d["duration"] = NSNumber(value: duration); d["poster"] = poster }
+        if !live.isEmpty { d["live"] = live }
+        if !originalFile.isEmpty { d["original"] = originalFile; d["adjustment"] = adjustment }
+        if modified > 0 { d["modified"] = NSNumber(value: modified) }
         return d
     }
 }
@@ -336,11 +347,19 @@ open class PHFetchResultChangeDetails<T: PHObject>: NSObject, @unchecked Sendabl
                         throw PHPhotosError(.invalidResource)
                     }
                     c.placeholder.localIdentifier = rec.id
+                    if let movie = c.pairedVideo { try _PHStore.pairVideo(rec.id, movie) }
+                    if let out = c.contentEditingOutput { try _PHStore.applyEdit(rec.id, out) }
                     if c.isFavorite { _PHStore.update { recs in if let i = recs.firstIndex(where: { $0.id == rec.id }) { recs[i].favorite = true } } }
                     if _PHAuth.status == .limited { _PHAuth.limited = _PHAuth.limited.union([rec.id]) }
                     changed.insert(rec.id)
                     NSLog("isim Photos: saved %@ to the photo library", (rec.file as NSString).lastPathComponent)
                 } else if let id = c.target {
+                    if c.reverting { _PHStore.revert(id) }
+                    if let out = c.contentEditingOutput {
+                        // rendering ran in the app; storing touches files only
+                        try _PHStore.applyEdit(id, out)
+                        NSLog("isim Photos: saved an edit of %@", id)
+                    }
                     _PHStore.update { recs in
                         if let i = recs.firstIndex(where: { $0.id == id }) {
                             recs[i].favorite = c.isFavorite
@@ -391,7 +410,11 @@ open class PHFetchResultChangeDetails<T: PHObject>: NSObject, @unchecked Sendabl
             guard allowed else { throw PHPhotosError(.userCancelled) }
             let ids = Set(deleteIDs)
             _PHStore.update { recs in
-                for r in recs where ids.contains(r.id) { try? FileManager.default.removeItem(atPath: _PHStore.path(r)) }
+                for r in recs where ids.contains(r.id) {
+                    for f in [r.file, r.live, r.originalFile, r.adjustment] where !f.isEmpty {
+                        try? FileManager.default.removeItem(atPath: (_PHStore.media as NSString).appendingPathComponent(f))
+                    }
+                }
                 recs.removeAll { ids.contains($0.id) }
             }
             _PHStore.updateAlbums { albums in for i in albums.indices { albums[i].assets.removeAll { ids.contains($0) } } }
@@ -416,13 +439,13 @@ open class PHFetchResultChangeDetails<T: PHObject>: NSObject, @unchecked Sendabl
     let rec: _PHRecord
     init(_ r: _PHRecord) { rec = r; super.init(id: r.id) }
     @objc open var mediaType: PHAssetMediaType { rec.isVideo ? .video : .image }
-    open var mediaSubtypes: PHAssetMediaSubtype { [] }
+    open var mediaSubtypes: PHAssetMediaSubtype { rec.live.isEmpty ? [] : .photoLive }
     @objc(mediaSubtypes) var _objcMediaSubtypes: UInt { mediaSubtypes.rawValue }
     @objc open var sourceType: PHAssetSourceType { .typeUserLibrary }
     @objc open var pixelWidth: Int { rec.width }
     @objc open var pixelHeight: Int { rec.height }
     @objc open var creationDate: Date? { Date(timeIntervalSince1970: rec.created) }
-    @objc open var modificationDate: Date? { creationDate }
+    @objc open var modificationDate: Date? { rec.modified > 0 ? Date(timeIntervalSince1970: rec.modified) : creationDate }
     @objc open var location: AnyObject? { nil }
     @objc open var duration: TimeInterval { rec.duration }
     @objc open var isHidden: Bool { false }
@@ -436,7 +459,9 @@ open class PHFetchResultChangeDetails<T: PHObject>: NSObject, @unchecked Sendabl
         case "localIdentifier": return localIdentifier
         case "mediaType": return NSNumber(value: mediaType.rawValue)
         case "mediaSubtypes": return NSNumber(value: mediaSubtypes.rawValue)
-        case "creationDate", "modificationDate": return creationDate
+        case "creationDate": return creationDate
+        case "modificationDate": return modificationDate
+        case "playbackStyle": return NSNumber(value: playbackStyle.rawValue)
         case "pixelWidth": return NSNumber(value: pixelWidth)
         case "pixelHeight": return NSNumber(value: pixelHeight)
         case "duration": return NSNumber(value: duration)
@@ -637,6 +662,9 @@ final class _PHDeleteRequest: NSObject { let ids: [String]; init(_ ids: [String]
     @objc var image: UIImage?, fileURL: URL?, resourceData: Data?
     /// a movie to add (creationRequestForAssetFromVideo, or a .video resource)
     @objc var videoFile: URL?
+    /// a Live Photo's movie (a .pairedVideo resource)
+    @objc var pairedVideo: URL?
+    @objc var reverting = false
     @objc var target: String?
     @objc let placeholder = PHObjectPlaceholder(id: "\(UUID().uuidString)/L0/001")   // assigned up front, like iOS
     @objc open var creationDate: Date?
@@ -644,6 +672,8 @@ final class _PHDeleteRequest: NSObject { let ids: [String]; init(_ ids: [String]
     @nonobjc open var isHidden = false
     @objc open var location: AnyObject?
     @objc open var placeholderForCreatedAsset: PHObjectPlaceholder? { creating ? placeholder : nil }
+    /// an edit to store (Editing.swift)
+    @objc open var contentEditingOutput: PHContentEditingOutput?
 
     @objc public required override init() { super.init() }
     @objc public convenience init(for asset: PHAsset) {
@@ -669,7 +699,8 @@ final class _PHDeleteRequest: NSObject { let ids: [String]; init(_ ids: [String]
         else { ids = _PHObjC.objects(assets).compactMap { ($0 as? PHAsset)?.localIdentifier } }   // [Any], Objective-C's PHFetchResult
         _PHChanges.add(_PHDeleteRequest(ids))
     }
-    @objc open func revertAssetContentToOriginal() {}
+    /// drops the asset's edit, back to the original
+    @objc open func revertAssetContentToOriginal() { reverting = true }
 
     /// data, extension and pixel size of the asset to create
     func payload() -> (Data, String, Int, Int)? {
@@ -693,20 +724,23 @@ final class _PHDeleteRequest: NSObject { let ids: [String]; init(_ ids: [String]
 }
 @objc(PHAssetCreationRequest) open class PHAssetCreationRequest: PHAssetChangeRequest, @unchecked Sendable {
     @objc(creationRequestForAsset) open class func forAsset() -> PHAssetCreationRequest { let r = PHAssetCreationRequest(); r.creating = true; _PHChanges.add(r); return r }
-    /// one photo or one video (isim has no paired resources: Live Photos, adjustment data)
+    /// one photo, one video, or a Live Photo (a photo and its paired video)
     @objc open class func supportsAssetResourceTypes(_ types: [NSNumber]) -> Bool {
-        types.count == 1 && [PHAssetResourceType.photo.rawValue, PHAssetResourceType.video.rawValue].contains(types[0].integerValue)
+        let t = Set(types.map { Int($0.intValue) })
+        guard t.count == types.count else { return false }
+        let photo = PHAssetResourceType.photo.rawValue, video = PHAssetResourceType.video.rawValue, paired = PHAssetResourceType.pairedVideo.rawValue
+        return t == [photo] || t == [video] || t == [photo, paired]
     }
     @objc(addResourceWithType:data:options:) open func addResource(with type: PHAssetResourceType, data: Data, options: PHAssetResourceCreationOptions?) {
         if type == .photo { resourceData = data }
-        else if type == .video {
+        else if type == .video || type == .pairedVideo {
             let ext = options?.originalFilename.map { ($0 as NSString).pathExtension }.flatMap { $0.isEmpty ? nil : $0 } ?? "mov"
             let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("isim-photos-\(UUID().uuidString).\(ext)")
-            if (try? data.write(to: url)) != nil { videoFile = url }
+            if (try? data.write(to: url)) != nil { if type == .video { videoFile = url } else { pairedVideo = url } }
         }
     }
     @objc(addResourceWithType:fileURL:options:) open func addResource(with type: PHAssetResourceType, fileURL: URL, options: PHAssetResourceCreationOptions?) {
-        if type == .photo { self.fileURL = fileURL } else if type == .video { videoFile = fileURL }
+        if type == .photo { self.fileURL = fileURL } else if type == .video { videoFile = fileURL } else if type == .pairedVideo { pairedVideo = fileURL }
     }
 }
 

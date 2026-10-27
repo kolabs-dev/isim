@@ -794,3 +794,22 @@ usr/lib/swift/libswiftCloudKit.dylib _$s8CloudKit7CKShareC8MetadataCMo
 usr/lib/swift/libswiftCloudKit.dylib _$s8CloudKit7CKShareC8MetadataCMu
 usr/lib/swift/libswiftCloudKit.dylib _$s8CloudKit7CKShareC8MetadataCN
 usr/lib/swift/libswiftCloudKit.dylib _$s8CloudKit7CKShareC8MetadataCfD
+
+# issue #372: PHPickerConfiguration's mode, edgesWithoutContentMargins and disabledCapabilities take Apple's types
+# (PHPickerMode, NSDirectionalRectEdge, PHPickerCapabilities; they were Int placeholders) and PHPickerFilter.playbackStyle(_:)
+# takes PHAsset.PlaybackStyle (it took Int). Rebuild Swift apps built with 0.2 to 0.30 that set those properties or use
+# that filter (Objective-C apps are not affected). _ISIMPhotoGridController.limit (isim's own, used by PhotosUI) is now settable.
+usr/lib/swift/libswiftPhotos.dylib _$s6Photos24_ISIMPhotoGridControllerC5limitSivg
+usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI14PHPickerFilterV13playbackStyleyACSiFZ
+usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV20disabledCapabilitiesSivM
+usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV20disabledCapabilitiesSivg
+usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV20disabledCapabilitiesSivpMV
+usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV20disabledCapabilitiesSivs
+usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV26edgesWithoutContentMarginsSivM
+usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV26edgesWithoutContentMarginsSivg
+usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV26edgesWithoutContentMarginsSivpMV
+usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV26edgesWithoutContentMarginsSivs
+usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV4modeSivM
+usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV4modeSivg
+usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV4modeSivpMV
+usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV4modeSivs

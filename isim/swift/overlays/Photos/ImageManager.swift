@@ -26,8 +26,10 @@ import AVFoundation
 
     @objc static func newID() -> PHImageRequestID { let i = nextID; nextID += 1; return i }
 
-    @objc static func image(_ asset: PHAsset, _ target: CGSize, _ mode: PHImageContentMode) -> UIImage? {
-        guard let img = UIImage(contentsOfFile: _PHStore.imagePath(asset.rec)) else { return nil }
+    @objc static func image(_ asset: PHAsset, _ target: CGSize, _ mode: PHImageContentMode, _ version: PHImageRequestOptionsVersion = .current) -> UIImage? {
+        // .unadjusted and .original: an edited photo's original
+        let original = version != .current && !asset.rec.originalFile.isEmpty && !asset.rec.isVideo
+        guard let img = UIImage(contentsOfFile: original ? _PHStore.originalPath(asset.rec) : _PHStore.imagePath(asset.rec)) else { return nil }
         if target.width <= 0 || target.height <= 0 { return img }
         let w = CGFloat(asset.pixelWidth > 0 ? asset.pixelWidth : Int(img.size.width)), h = CGFloat(asset.pixelHeight > 0 ? asset.pixelHeight : Int(img.size.height))
         let s = mode == .aspectFill ? max(target.width / w, target.height / h) : min(target.width / w, target.height / h)
@@ -45,7 +47,7 @@ import AVFoundation
         let id = Self.newID()
         let work = {
             if Self.cancelled.contains(id) { resultHandler(nil, [PHImageCancelledKey: true, PHImageResultRequestIDKey: id]); return }
-            let img = Self.image(asset, targetSize, contentMode)
+            let img = Self.image(asset, targetSize, contentMode, options?.version ?? .current)
             var info: [AnyHashable: Any] = [PHImageResultIsDegradedKey: false, PHImageResultRequestIDKey: id, PHImageResultIsInCloudKey: false]
             if img == nil { info[PHImageErrorKey] = PHPhotosError(.missingResource) }
             resultHandler(img, info)
@@ -58,7 +60,7 @@ import AVFoundation
                                              resultHandler: @escaping (Data?, String?, CGImagePropertyOrientation, [AnyHashable: Any]?) -> Void) -> PHImageRequestID {
         let id = Self.newID()
         let work = {
-            let path = _PHStore.path(asset.rec)
+            let path = options?.version ?? .current != .current ? _PHStore.originalPath(asset.rec) : _PHStore.path(asset.rec)
             let d = FileManager.default.contents(atPath: path)
             let uti = path.lowercased().hasSuffix(".png") ? "public.png" : "public.jpeg"
             resultHandler(d, d == nil ? nil : uti, .up, [PHImageResultRequestIDKey: id, PHImageResultIsInCloudKey: false])
@@ -151,16 +153,29 @@ public enum CGImagePropertyOrientation: UInt32, Sendable { case up = 1, upMirror
     @objc public let originalFilename: String
     @objc public let uniformTypeIdentifier: String
     @objc let path: String
-    @objc init(_ a: PHAsset) {
-        assetLocalIdentifier = a.localIdentifier; originalFilename = (a.rec.file as NSString).lastPathComponent
-        path = _PHStore.path(a.rec)
+    @objc convenience init(_ a: PHAsset) { self.init(a, a.mediaType == .video ? .video : .photo, a.rec.file) }
+    /// a resource of an asset: a file in Media
+    @objc init(_ a: PHAsset, _ type: PHAssetResourceType, _ file: String) {
+        assetLocalIdentifier = a.localIdentifier; originalFilename = (file as NSString).lastPathComponent
+        path = (_PHStore.media as NSString).appendingPathComponent(file)
         let ext = (originalFilename as NSString).pathExtension.lowercased()
-        type = a.mediaType == .video ? .video : .photo
-        uniformTypeIdentifier = ["png": "public.png", "heic": "public.heic", "mov": "com.apple.quicktime-movie", "mp4": "public.mpeg-4",
-                                 "m4v": "com.apple.m4v-video"][ext] ?? "public.jpeg"
+        self.type = type
+        uniformTypeIdentifier = type == .adjustmentData ? "com.apple.property-list" :
+            ["png": "public.png", "heic": "public.heic", "gif": "com.compuserve.gif", "mov": "com.apple.quicktime-movie", "mp4": "public.mpeg-4",
+             "m4v": "com.apple.m4v-video"][ext] ?? "public.jpeg"
     }
-    /// the asset's one resource: its photo or its video (isim keeps no paired or adjusted resources)
-    @objc(assetResourcesForAsset:) open class func assetResources(for asset: PHAsset) -> [PHAssetResource] { [PHAssetResource(asset)] }
+    /// the asset's photo or video; a Live Photo's paired movie; an edited asset's original, rendered result and adjustments
+    @objc(assetResourcesForAsset:) open class func assetResources(for asset: PHAsset) -> [PHAssetResource] {
+        let r = _PHStore.records().first { $0.id == asset.localIdentifier } ?? asset.rec
+        let main: PHAssetResourceType = r.isVideo ? .video : .photo
+        var out = [PHAssetResource(asset, main, r.originalFile.isEmpty ? r.file : r.originalFile)]
+        if !r.live.isEmpty { out.append(PHAssetResource(asset, .pairedVideo, r.live)) }
+        if !r.originalFile.isEmpty {
+            out.append(PHAssetResource(asset, r.isVideo ? .fullSizeVideo : .fullSizePhoto, r.file))
+            if !r.adjustment.isEmpty { out.append(PHAssetResource(asset, .adjustmentData, r.adjustment)) }
+        }
+        return out
+    }
 }
 
 public typealias PHAssetResourceDataRequestID = Int32
@@ -239,7 +254,7 @@ public typealias PHAssetResourceProgressHandler = (Double) -> Void
 @_spi(isim) open class _ISIMPhotoGridController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate {
     public let assets: [PHAsset]
     public var selected: [String]
-    public let limit: Int
+    public var limit: Int
     public let confirmTitle: String
     public var onDone: (([String]) -> Void)?
     public var onCancel: (() -> Void)?

@@ -13,6 +13,12 @@ NSString * const PHImageResultRequestIDKey = @"PHImageResultRequestIDKey";
 NSString * const PHImageCancelledKey = @"PHImageCancelledKey";
 NSString * const PHImageErrorKey = @"PHImageErrorKey";
 CGSize const PHImageManagerMaximumSize = { -1, -1 };
+NSString * const PHContentEditingInputResultIsInCloudKey = @"PHContentEditingInputResultIsInCloudKey";
+NSString * const PHContentEditingInputCancelledKey = @"PHContentEditingInputCancelledKey";
+NSString * const PHContentEditingInputErrorKey = @"PHContentEditingInputErrorKey";
+NSString * const PHLivePhotoInfoErrorKey = @"PHLivePhotoInfoErrorKey";
+NSString * const PHLivePhotoInfoIsDegradedKey = @"PHLivePhotoInfoIsDegradedKey";
+NSString * const PHLivePhotoInfoCancelledKey = @"PHLivePhotoInfoCancelledKey";
 
 // MARK: - PHFetchResult
 
