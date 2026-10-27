@@ -672,7 +672,9 @@ open class AVDepthData: NSObject, @unchecked Sendable {
     }
     open var depthDataType: OSType { depthDataMap._format }
     open var availableDepthDataTypes: [OSType] { [kCVPixelFormatType_DisparityFloat16, kCVPixelFormatType_DisparityFloat32, kCVPixelFormatType_DepthFloat16, kCVPixelFormatType_DepthFloat32] }
-    open var cameraCalibrationData: AnyObject? { nil }
+    var _calibration: AVCameraCalibrationData?
+    /// the simulated lens, for depth from the camera (nil for depth made by the app)
+    open var cameraCalibrationData: AVCameraCalibrationData? { _calibration }
     func _value(_ x: Int, _ y: Int) -> Float {
         let base = CVPixelBufferGetBaseAddress(depthDataMap)!, bpr = CVPixelBufferGetBytesPerRow(depthDataMap)
         switch depthDataType {
@@ -747,6 +749,7 @@ open class AVCaptureDepthDataOutput: AVCaptureOutput, @unchecked Sendable {
         let dims = fmt.formatDescription.dimensions
         guard let map = _DepthScene.map(size: CGSize(width: Int(dims.width), height: Int(dims.height)), type: fmt.formatDescription.mediaSubType, mirrored: conn.isVideoMirrored) else { return nil }
         let data = AVDepthData(map: map, filtered: isFilteringEnabled)
+        data._calibration = AVCameraCalibrationData(size: CGSize(width: Int(dims.width), height: Int(dims.height)), fov: dev.activeFormat.videoFieldOfView)
         if synchronized { return AVCaptureSynchronizedDepthData(timestamp: f.time, depthData: data, dropped: false, reason: .none) }
         guard let d = delegate else { return nil }
         _lock.lock(); let busy = _busy; if !busy { _busy = true }; _lock.unlock()

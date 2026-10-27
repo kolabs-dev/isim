@@ -1165,6 +1165,12 @@ void isim_sys_event(const char *text) {
         isim_device_volume_set(args.doubleValue, 0);
         [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSystemEvent" object:t];
     }
+    else if ([verb isEqualToString:@"cameracontrol"] || [verb isEqualToString:@"camerapressure"] || [verb isEqualToString:@"capturebutton"]) {
+        /* the Camera Control, camera system pressure and the buttons an AVCaptureEventInteraction takes (issue #382):
+           AVFoundation and AVKit observe the event */
+        if (!dlsym(RTLD_DEFAULT, "isim_av_capture_loaded")) NSLog(@"isim: %@: the app does not use AVFoundation capture", verb);
+        [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSystemEvent" object:t];
+    }
     else if ([verb isEqualToString:@"remote"]) {                   /* Now Playing controls: MPRemoteCommandCenter polls the queue */
         extern void isim_media_remote_post(const char *cmd);
         isim_media_remote_post(args.UTF8String);

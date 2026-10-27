@@ -2,9 +2,27 @@
 // depth cameras, the microphone), a session with a camera and the microphone, photos (HEIC, flash, RAW + DNG, Live
 // Photos, depth, exposure brackets), video and audio data outputs, metadata (faces, bodies, Aztec, Data Matrix),
 // movies with sound, zoom and torch, a depth data output with a data output synchronizer, a multi-cam session (back
-// and front at once) and interruptions. Each feature is a button; the results are logged.
+// and front at once) and interruptions; the Camera Control's controls (on iPhone 16 / 17 / Air), capture events from
+// the volume buttons and the Camera Control, system pressure, portrait and semantic mattes and calibration data.
+// Each feature is a button; the results are logged.
 import UIKit
 import AVFoundation
+import AVKit
+import SwiftUI
+
+/// SwiftUI's onCameraCaptureEvent (off until the "SwiftUI events" button turns it on, so the UIKit interaction gets the
+/// events first)
+final class SwiftUICapture: ObservableObject { @Published var enabled = false }
+struct SwiftUICaptureView: View {
+    @ObservedObject var model: SwiftUICapture
+    var body: some View {
+        if #available(iOS 18.0, *) {
+            Color.clear.onCameraCaptureEvent(isEnabled: model.enabled) { e in
+                log("swiftui capture event \(e.phase == .began ? "began" : e.phase == .ended ? "ended" : "cancelled")")
+            }
+        } else { Color.clear }
+    }
+}
 
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -46,7 +64,7 @@ func pixel(_ img: CGImage, _ x: Int, _ y: Int) -> (String, Double) {
 
 final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate,
                                     AVCaptureMetadataOutputObjectsDelegate, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecordingDelegate,
-                                    AVCaptureDataOutputSynchronizerDelegate {
+                                    AVCaptureDataOutputSynchronizerDelegate, AVCaptureSessionControlsDelegate {
     let session = AVCaptureSession()
     let preview = UIView(), frontPreview = UIView()
     let previewLayer = AVCaptureVideoPreviewLayer()
@@ -70,6 +88,8 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
     var multi: AVCaptureMultiCamSession?
     let backOutput = AVCaptureVideoDataOutput(), frontOutput = AVCaptureVideoDataOutput()
     var multiColors: [String: String] = [:]
+    var pressureObservation: NSKeyValueObservation?
+    let swiftUICapture = SwiftUICapture()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -85,7 +105,8 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
             ("HEIC", "photo-heic", #selector(photoHEIC)), ("Flash", "photo-flash", #selector(photoFlash)), ("RAW", "photo-raw", #selector(photoRAW)),
             ("Live", "photo-live", #selector(photoLive)), ("Depth", "photo-depth", #selector(photoDepth)), ("Bracket", "photo-bracket", #selector(photoBracket)),
             ("Record", "record", #selector(record)), ("Zoom", "zoom", #selector(zoom)), ("Torch", "torch", #selector(torch)),
-            ("Sync", "sync", #selector(sync)), ("Multi-cam", "multicam", #selector(multicam)), ("Stop", "stop", #selector(stop))]
+            ("Sync", "sync", #selector(sync)), ("Multi-cam", "multicam", #selector(multicam)), ("Stop", "stop", #selector(stop)),
+            ("Matte", "photo-matte", #selector(photoMatte)), ("SwiftUI events", "swiftui-events", #selector(swiftUIEvents))]
         for (i, (t, id, sel)) in buttons.enumerated() {
             let b = UIButton(type: .system); b.setTitle(t, for: .normal); b.accessibilityIdentifier = id
             b.frame = CGRect(x: 20 + CGFloat(i % 3) * 122, y: 310 + CGFloat(i / 3) * 44, width: 110, height: 40)
@@ -108,6 +129,22 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
             log("interrupted reason=\(n.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int ?? 0)")
         }
         nc.addObserver(forName: AVCaptureSession.interruptionEndedNotification, object: nil, queue: .main) { _ in log("interruption ended") }
+        // capture events: the volume buttons and the Camera Control take photos in camera apps
+        func phase(_ e: AVCaptureEvent) -> String { e.phase == .began ? "began" : e.phase == .ended ? "ended" : "cancelled" }
+        view.addInteraction(AVCaptureEventInteraction(primary: { e in
+            log("capture event primary \(phase(e))")
+            if #available(iOS 26.0, *), e.phase == .ended { log("capture sound played=\(e.play(.cameraShutter))") }
+        }, secondary: { e in log("capture event secondary \(phase(e))") }))
+        let host = UIHostingController(rootView: SwiftUICaptureView(model: swiftUICapture))
+        host.view.frame = CGRect(x: 0, y: 0, width: 1, height: 1); host.view.backgroundColor = .clear
+        addChild(host); view.addSubview(host.view); host.didMove(toParent: self)
+        if #available(iOS 27.1, *) {
+            let map = AVCaptureDeviceDirectionCoordinator(view: view, deviceTypes: [.builtInWideAngleCamera, .builtInTrueDepthCamera], changeHandler: nil).deviceDirections
+            log("directions forward=\(map.forwardFacingDeviceDescriptors.map(\.localizedName).joined(separator: ",")) backward=\(map.backwardFacingDeviceDescriptors.map(\.localizedName).joined(separator: ","))")
+        }
+        pressureObservation = camera?.observe(\.systemPressureState, options: [.new]) { d, _ in
+            log("pressure \(d.systemPressureState.level.rawValue) factors=\(d.systemPressureState.factors.rawValue)")
+        }
     }
     var configured = false
     override func viewDidAppear(_ animated: Bool) {
@@ -135,8 +172,11 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
         metadataOutput.metadataObjectTypes = wanted.filter { metadataOutput.availableMetadataObjectTypes.contains($0) }
         photoOutput.isLivePhotoCaptureEnabled = photoOutput.isLivePhotoCaptureSupported
         photoOutput.isDepthDataDeliveryEnabled = photoOutput.isDepthDataDeliverySupported
+        photoOutput.isPortraitEffectsMatteDeliveryEnabled = photoOutput.isPortraitEffectsMatteDeliverySupported
+        photoOutput.enabledSemanticSegmentationMatteTypes = photoOutput.availableSemanticSegmentationMatteTypes
         let settings = AVCapturePhotoSettings(); settings.flashMode = .auto
         photoOutput.photoSettingsForSceneMonitoring = settings
+        if #available(iOS 18.0, *) { setUpControls(camera) }
         session.commitConfiguration()
         let audioConn = audioOutput.connection(with: .audio)
         log("outputs=\(session.outputs.count) metadata=\(metadataOutput.metadataObjectTypes.map(\.rawValue).joined(separator: ",")) audioChannels=\(audioConn?.audioChannels.count ?? 0) live=\(photoOutput.isLivePhotoCaptureEnabled) depth=\(photoOutput.isDepthDataDeliveryEnabled) codecs=\(photoOutput.availablePhotoCodecTypes.map(\.rawValue).joined(separator: ",")) raw=\(photoOutput.availableRawPhotoPixelFormatTypes.count) flash=\(photoOutput.supportedFlashModes.count)")
@@ -144,6 +184,27 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
         log("running=\(session.isRunning)")
         DispatchQueue.main.async { self.previewLayer.session = self.session }
     }
+
+    // MARK: the Camera Control
+    @available(iOS 18.0, *)
+    nonisolated func setUpControls(_ camera: AVCaptureDevice) {
+        log("controls supported=\(session.supportsControls) max=\(session.maxControlsCount)")
+        guard session.supportsControls else { return }
+        session.setControlsDelegate(self, queue: .main)
+        let zoom = AVCaptureSystemZoomSlider(device: camera) { log("zoom slider \(f2(Double($0)))") }
+        let bias = AVCaptureSystemExposureBiasSlider(device: camera)
+        let intensity = AVCaptureSlider("Intensity", symbolName: "dial.medium", in: 0...10, step: 1)
+        intensity.setActionQueue(.main) { log("intensity \(Int($0))") }
+        let titles = ["Natural", "Vivid", "Mono"]
+        let style = AVCaptureIndexPicker("Style", symbolName: "camera.filters", localizedIndexTitles: titles)
+        style.setActionQueue(.main) { log("style \(titles[$0])") }
+        for c in [zoom, bias, intensity, style] as [AVCaptureControl] where session.canAddControl(c) { session.addControl(c) }
+        log("controls count=\(session.controls.count)")
+    }
+    nonisolated func sessionControlsDidBecomeActive(_ session: AVCaptureSession) { log("controls active") }
+    nonisolated func sessionControlsWillEnterFullscreenAppearance(_ session: AVCaptureSession) { log("controls fullscreen") }
+    nonisolated func sessionControlsWillExitFullscreenAppearance(_ session: AVCaptureSession) { log("controls exit fullscreen") }
+    nonisolated func sessionControlsDidBecomeInactive(_ session: AVCaptureSession) { log("controls inactive") }
 
     // MARK: data outputs
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
@@ -223,6 +284,13 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
         capture(s, "live")
     }
     @objc func photoDepth() { let s = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg]); s.isDepthDataDeliveryEnabled = true; capture(s, "depth") }
+    @objc func swiftUIEvents() { swiftUICapture.enabled = true; log("swiftui events on") }
+    @objc func photoMatte() {
+        let s = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
+        s.isDepthDataDeliveryEnabled = true; s.isPortraitEffectsMatteDeliveryEnabled = true; s.isCameraCalibrationDataDeliveryEnabled = true
+        s.enabledSemanticSegmentationMatteTypes = [.hair, .skin]
+        capture(s, "matte")
+    }
     @objc func photoBracket() {
         let b = [-1, 0, 1].map { AVCaptureAutoExposureBracketedStillImageSettings.autoExposureSettings(exposureTargetBias: Float($0)) }
         capture(AVCapturePhotoBracketSettings(rawPixelFormatType: 0, processedFormat: [AVVideoCodecKey: AVVideoCodecType.jpeg], bracketedSettings: b), "bracket")
@@ -259,6 +327,21 @@ final class CaptureViewController: UIViewController, AVCaptureVideoDataOutputSam
             if let d = photo.depthData {
                 log("photo depth type=\(d.depthDataType == kCVPixelFormatType_DisparityFloat16 ? "hdis" : "\(d.depthDataType)") accuracy=\(d.depthDataAccuracy == .absolute ? "absolute" : "relative") left=\(f2(Double(disparity(d, 0.25)))) right=\(f2(Double(disparity(d, 0.75))))")
             } else { log("photo depth none") }
+        case "matte":
+            func value(_ b: CVPixelBuffer, _ fx: Double) -> Int {
+                CVPixelBufferLockBaseAddress(b, .readOnly); defer { CVPixelBufferUnlockBaseAddress(b, .readOnly) }
+                let p = CVPixelBufferGetBaseAddress(b)!.assumingMemoryBound(to: UInt8.self)
+                return Int(p[CVPixelBufferGetHeight(b) / 2 * CVPixelBufferGetBytesPerRow(b) + Int(Double(CVPixelBufferGetWidth(b)) * fx)])
+            }
+            if let m = photo.portraitEffectsMatte {
+                let b = m.mattingImage
+                log("photo matte \(CVPixelBufferGetWidth(b))x\(CVPixelBufferGetHeight(b)) left=\(value(b, 0.25)) right=\(value(b, 0.75)) format=\(m.pixelFormatType == kCVPixelFormatType_OneComponent8 ? "L008" : "other")")
+            } else { log("photo matte none") }
+            let hair = photo.semanticSegmentationMatte(for: .hair), teeth = photo.semanticSegmentationMatte(for: .teeth)
+            log("photo semantic hair=\(hair.map { "\(value($0.mattingImage, 0.25))" } ?? "none") teeth=\(teeth == nil ? "none" : "some")")
+            if let c = photo.cameraCalibrationData {
+                log("photo calibration fx=\(Int(c.intrinsicMatrix.columns.0.x)) cx=\(Int(c.intrinsicMatrix.columns.2.x)) reference=\(Int(c.intrinsicMatrixReferenceDimensions.width))x\(Int(c.intrinsicMatrixReferenceDimensions.height)) depth=\(photo.depthData?.cameraCalibrationData != nil)")
+            } else { log("photo calibration none") }
         default:
             log("photo \(photoNote) \(kind) image=\(Int(img?.size.width ?? 0))x\(Int(img?.size.height ?? 0)) corner=\(corner) lum=\(f2(lum)) exifFlash=\(exif?["Flash"] as? Int ?? -1) live=\((photo.metadata["{MakerApple}"] as? [String: Any])?["17"] != nil)")
         }

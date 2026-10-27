@@ -158,3 +158,86 @@ def test_capture_interruption(launch, media):
     dev.send("launch dev.isim.samples.HelloCapture")
     dev.wait_log(r"HelloCapture: interruption ended")
     assert dev.quit() == 0
+
+
+def test_capture_camera_control_and_mattes(launch, media, tmp_path):
+    """Issue #382 on an iPhone 16 Pro: the Camera Control's controls (system zoom and exposure bias sliders, a slider,
+    an index picker) through `cameracontrol`, capture events from the Camera Control and the volume buttons (they no
+    longer change the volume), system pressure (KVO, the shutdown interruption), and a photo's portrait and hair
+    mattes (ISIM_CAMERA_MATTE*: white on the left) with calibration data."""
+    left = Image.new("L", (320, 240), 0)
+    left.paste(255, (0, 0, 160, 240))
+    left.save(tmp_path / "matte.png")
+    left.save(tmp_path / "hair.png")
+    env = dict(media, ISIM_CAMERA_MATTE=str(tmp_path / "matte.png"), ISIM_CAMERA_MATTE_HAIR=str(tmp_path / "hair.png"))
+    app = launch("HelloCapture", env=env, device="iphone16pro")
+    app.wait_log(r"controls supported=true max=6")
+    app.wait_log(r"controls count=4")
+    app.wait_log(r"running=true")
+    app.send("cameracontrol")
+    app.wait_log(r"cameracontrol controls=4 active=0 selected=0 \[0\] Zoom=0\.5x \[1\] Exposure=\+0\.0 \[2\] Intensity=0 \[3\] Style=Natural")
+    app.send("cameracontrol lightpress")
+    app.wait_log(r"controls active")
+    app.wait_log(r"controls fullscreen")
+    app.send("cameracontrol swipe 3")                    # the zoom slider: 10% a detent
+    app.wait_log(r"zoom slider 0\.67")
+    app.send("cameracontrol select 1")
+    app.send("cameracontrol swipe 3")                    # exposure bias: 1/3 EV a detent
+    app.wait_log(r"\[1\] Exposure=\+1\.0")
+    app.send("cameracontrol select 2")
+    app.send("cameracontrol swipe 2")
+    app.wait_log(r"intensity 2")
+    app.send("cameracontrol select 3")
+    app.send("cameracontrol swipe 1")
+    app.wait_log(r"style Vivid")
+    app.send("cameracontrol set 2")
+    app.wait_log(r"style Mono")
+    app.send("cameracontrol dismiss")
+    app.wait_log(r"controls exit fullscreen")
+    app.wait_log(r"controls inactive")
+    # capture events: the Camera Control and volume down are primary, volume up secondary
+    app.send("cameracontrol press")
+    app.wait_log(r"capture event primary began")
+    app.wait_log(r"capture event primary ended")
+    app.send("volume up")
+    app.wait_log(r"capture event secondary ended")
+    assert "isim: volume" not in app.log, "the volume buttons capture instead of changing the volume"
+    # system pressure
+    app.send("camerapressure serious temperature")
+    app.wait_log(r"pressure serious factors=1")
+    app.send("camerapressure shutdown power")
+    app.wait_log(r"interrupted reason=5")
+    app.send("camerapressure nominal")
+    app.wait_log(r"interruption ended")
+    app.wait_log(r"pressure nominal factors=0")
+    # mattes and calibration
+    app.tap_id("photo-matte")
+    app.wait_log(r"photo matte 320x240 left=255 right=0 format=L008", timeout=20)
+    app.wait_log(r"photo semantic hair=255 teeth=none")
+    app.wait_log(r"photo calibration fx=4\d\d cx=320 reference=640x480 depth=true")
+
+
+def test_capture_without_camera_control(launch, media):
+    """An iPhone 15 has no Camera Control: no controls, and `cameracontrol` says so."""
+    app = launch("HelloCapture", env=media, device="iphone15")
+    app.wait_log(r"controls supported=false")
+    app.wait_log(r"running=true")
+    app.send("cameracontrol lightpress")
+    app.wait_log(r"isim: cameracontrol: .* has no Camera Control")
+
+
+def test_capture_events_swiftui_and_directions(launch, media):
+    """iOS 26 / 27.1 additions (under iOS 27.1): a capture event plays the shutter sound, SwiftUI's onCameraCaptureEvent
+    takes the events once enabled, and AVCaptureDeviceDirectionCoordinator maps the back cameras forward and the front
+    ones backward."""
+    app = launch("HelloCapture", env=media, device="iphone16pro", os_version="27.1")
+    app.wait_log(r"directions forward=Back Camera backward=Front Camera,Front TrueDepth Camera")
+    app.wait_log(r"running=true")
+    app.send("cameracontrol press")
+    app.wait_log(r"capture sound played=true")
+    app.wait_log(r"isim: capture event sound cameraShutter")
+    app.tap_id("swiftui-events")
+    app.wait_log(r"swiftui events on")
+    app.send("volume down")
+    app.wait_log(r"swiftui capture event began")
+    app.wait_log(r"swiftui capture event ended")

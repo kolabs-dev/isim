@@ -221,6 +221,8 @@ open class AVCaptureDevice: NSObject, @unchecked Sendable {
         public var mediaType: AVMediaType { formatDescription.mediaType == kCMMediaType_Audio ? .audio : _isDepth ? .depthData : .video }
         var _isDepth: Bool { [kCVPixelFormatType_DepthFloat16, kCVPixelFormatType_DepthFloat32, kCVPixelFormatType_DisparityFloat16, kCVPixelFormatType_DisparityFloat32].contains(formatDescription.mediaSubType) }
         public var supportedDepthDataFormats: [Format] { _depthFormats }
+        /// mattes come with depth (CaptureMattes.swift)
+        public var isPortraitEffectsMatteStillImageDeliverySupported: Bool { !_depthFormats.isEmpty }
         public var isMultiCamSupported: Bool { formatDescription.mediaType == kCMMediaType_Video && !_isDepth }
         public var isVideoBinned: Bool { false }
         public var minISO: Float { 34 }
@@ -276,9 +278,13 @@ open class AVCaptureDevice: NSObject, @unchecked Sendable {
             public init(rawValue: UInt) { self.rawValue = rawValue }
             public static let systemTemperature = Factors(rawValue: 1), peakPower = Factors(rawValue: 2), depthModuleTemperature = Factors(rawValue: 4),
                               cameraTemperature = Factors(rawValue: 8)
+            @available(iOS 27.0, *) public static var batteryStress: Factors { Factors(rawValue: 16) }
         }
-        public var level: Level { .nominal }
-        public var factors: Factors { [] }
+        let _level: Level, _factors: Factors
+        init(level: Level = .nominal, factors: Factors = []) { _level = level; _factors = factors }
+        /// isim: set by the `camerapressure LEVEL [factors]` script command (CaptureControls.swift)
+        public var level: Level { _level }
+        public var factors: Factors { _factors }
     }
 
     public final class DiscoverySession: NSObject, @unchecked Sendable {
@@ -322,6 +328,7 @@ open class AVCaptureDevice: NSObject, @unchecked Sendable {
     static let _cacheLock = NSLock()
     /// every device of this simulated iPhone: the cameras whose source exists, and the microphone
     static var _all: [AVCaptureDevice] {
+        _AVCaptureEvents.install()
         let back = _CameraSource.available(.back), front = _CameraSource.available(.front)
         let key = "\(back)\(front)"
         _cacheLock.lock(); defer { _cacheLock.unlock() }
@@ -388,7 +395,7 @@ open class AVCaptureDevice: NSObject, @unchecked Sendable {
     open var primaryConstituentDeviceSwitchingBehavior: PrimaryConstituentDeviceSwitchingBehavior { isVirtualDevice && _type != .builtInTrueDepthCamera ? .auto : .unsupported }
     open func setPrimaryConstituentDeviceSwitchingBehavior(_ b: PrimaryConstituentDeviceSwitchingBehavior, restrictedSwitchingBehaviorConditions: UInt) {}
     open var displayVideoZoomFactorMultiplier: CGFloat { _type == .builtInDualWideCamera ? 0.5 : 1 }
-    open var systemPressureState: SystemPressureState { SystemPressureState() }
+    @objc open dynamic var systemPressureState: SystemPressureState { _isMicrophone ? SystemPressureState() : _CameraPressure.state }
     open var hasTorch: Bool { _position == .back }
     open var hasFlash: Bool { !_isMicrophone }                 // the front camera's is the Retina Flash (the screen)
     open var isTorchAvailable: Bool { hasTorch }
@@ -748,8 +755,14 @@ open class AVCaptureSession: NSObject, @unchecked Sendable {
     open override class func automaticallyNotifiesObservers(forKey key: String) -> Bool {
         !["isRunning", "running", "isInterrupted", "interrupted"].contains(key)
     }
+    /// the Camera Control's controls (CaptureControls.swift)
+    var _controls: [AVCaptureControl] = []
+    weak var _controlsDelegate: (any AVCaptureSessionControlsDelegate)?
+    var _controlsQueue: DispatchQueue?
+    var _pressureInterrupted = false
     public override init() {
         super.init()
+        _AVCaptureEvents.install(); _AVCaptureEvents.track(self)
         let nc = NotificationCenter.default
         nc.addObserver(self, selector: #selector(_isimBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
         nc.addObserver(self, selector: #selector(_isimForeground), name: UIApplication.willEnterForegroundNotification, object: nil)
@@ -871,7 +884,9 @@ open class AVCaptureSession: NSObject, @unchecked Sendable {
         isRunning = true
         didChangeValue(forKey: "running"); didChangeValue(forKey: "isRunning")
         for f in _feeds { f.start(gen) }
+        _CameraControl.started(self)
         NotificationCenter.default.post(name: AVCaptureSession.didStartRunningNotification, object: self)
+        if _CameraPressure.state.level == .shutdown { _pressureChanged() }
     }
     open func stopRunning() {
         guard isRunning else { return }
@@ -884,6 +899,7 @@ open class AVCaptureSession: NSObject, @unchecked Sendable {
         for f in feeds { f.stop() }
         _audio?.stop(); _audio = nil
         for case let o as AVCaptureFileOutput in outputs where o._isRecording { o.stopRecording() }
+        _CameraControl.stopped(self)
         NotificationCenter.default.post(name: AVCaptureSession.didStopRunningNotification, object: self)
     }
     /// the newest frame of the camera an output's connection uses (BGRA, width, height, time)
@@ -910,8 +926,27 @@ open class AVCaptureSession: NSObject, @unchecked Sendable {
                                         userInfo: [AVCaptureSessionInterruptionReasonKey: InterruptionReason.videoDeviceNotAvailableInBackground.rawValue])
         for case let o as AVCaptureFileOutput in outputs where o._isRecording { o._stop(error: _avNSError(.sessionWasInterrupted, "the app went to the background")) }
     }
+    /// system pressure at shutdown interrupts the camera until the pressure eases (like iOS)
+    func _pressureChanged() {
+        let shutdown = _CameraPressure.state.level == .shutdown
+        if shutdown, isRunning, _hasCamera, !isInterrupted {
+            _pressureInterrupted = true
+            willChangeValue(forKey: "interrupted"); willChangeValue(forKey: "isInterrupted")
+            isInterrupted = true
+            didChangeValue(forKey: "interrupted"); didChangeValue(forKey: "isInterrupted")
+            for f in _feeds { f.paused = true }
+            NSLog("isim AVFoundation: capture session interrupted (system pressure)")
+            NotificationCenter.default.post(name: AVCaptureSession.wasInterruptedNotification, object: self,
+                                            userInfo: [AVCaptureSessionInterruptionReasonKey: InterruptionReason.videoDeviceNotAvailableDueToSystemPressure.rawValue,
+                                                       AVCaptureSessionInterruptionSystemPressureStateKey: _CameraPressure.state])
+            for case let o as AVCaptureFileOutput in outputs where o._isRecording { o._stop(error: _avNSError(.sessionWasInterrupted, "system pressure")) }
+        } else if !shutdown, _pressureInterrupted {
+            _pressureInterrupted = false
+            _isimForeground()
+        }
+    }
     @objc func _isimForeground() {
-        guard isInterrupted else { return }
+        guard isInterrupted, !_pressureInterrupted else { return }
         willChangeValue(forKey: "interrupted"); willChangeValue(forKey: "isInterrupted")
         isInterrupted = false
         didChangeValue(forKey: "interrupted"); didChangeValue(forKey: "isInterrupted")
