@@ -15,4 +15,6 @@ enum : NSInteger {
     NSPropertyListReadCorruptError = 3840, NSPropertyListReadUnknownVersionError = 3841, NSPropertyListReadStreamError = 3842,
     NSPropertyListWriteStreamError = 3851, NSPropertyListWriteInvalidError = 3852,
     NSPropertyListErrorMinimum = 3840, NSPropertyListErrorMaximum = 4095,
+    NSXPCConnectionInterrupted = 4097, NSXPCConnectionInvalid = 4099, NSXPCConnectionReplyInvalid = 4101,
+    NSXPCConnectionCodeSigningRequirementFailure = 4102, NSXPCConnectionErrorMinimum = 4096, NSXPCConnectionErrorMaximum = 4224,
 };

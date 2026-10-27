@@ -1,0 +1,12 @@
+// isim SDK module map (self-authored): the C side of `import XPC` (<xpc/xpc.h>; implemented in Foundation, like
+// <notify.h>). The Swift XPC module (usr/lib/swift/XPC.swiftmodule) re-exports it and adds XPCSession, XPCListener,
+// XPCDictionary, XPCArray.
+module _XPCBase [system] [extern_c] {
+  header "base.h"
+  export *
+}
+module XPC [system] [extern_c] {
+  header "xpc.h"
+  link framework "Foundation"
+  export *
+}

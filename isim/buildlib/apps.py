@@ -966,6 +966,10 @@ def _(a):
     b = a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "GameKit"], name="GameKitObjCTest")
     a.copy("isim-GameCenter.json", b)
 
+@app("tests/xpc", products=["XPCTest.app"])
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation"], name="XPCTest")
+
 @app("tests/scenekit-objc", products=["SceneKitObjCTest.app"])   # after the overlays: SceneKit.framework re-exports the overlay (issue #330)
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "SceneKit", "-framework", "Metal"],
@@ -1068,6 +1072,7 @@ selftest("tests/swift-compression", "SwiftCompressionTest")
 selftest("tests/swift-applearchive", "SwiftAppleArchiveTest")
 selftest("tests/swift-inflection", "SwiftInflectionTest")
 selftest("tests/swift-formatstyles", "SwiftFormatStylesTest")
+selftest("tests/swift-xpc", "SwiftXPCTest")
 
 
 @app("tests/compression", products=["CompressionTest.app"], swift=False)
