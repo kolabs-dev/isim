@@ -388,6 +388,14 @@ int isim_llm_server(const char *gguf, char *out, int cap);
 int isim_sound_model_open(const char *path);
 int isim_sound_model_run(int h, const float *wave, int n, float *scores, int cap);
 const char *isim_sound_error(void);
+/* Vision's host models (issue #375): an ONNX model run with the host's ONNX Runtime. open: a handle (the same one for
+   the same path), 0 on failure; input: the input's rank, shape (-1 dynamic) and element type (1 float, 2 uint8,
+   6 int32); run: a float tensor in (converted to the input's type), the outputs as floats one after another in out,
+   each output's element count in counts (up to 8), the number of outputs or -1; error: the last failure's reason */
+int isim_onnx_open(const char *path);
+int isim_onnx_input(int h, int64_t *dims, int *type);
+int isim_onnx_run(int h, const float *in, const int64_t *dims, int rank, float *out, long cap, long *counts);
+const char *isim_onnx_error(void);
 /* RAW photos with LibRaw's tools (libraw-bin): identify returns raw-identify -v text; decode gives linear 16-bit RGB
    (sRGB primaries, as-shot white balance, unrotated; half: half size; highlight: dcraw -H mode); free with
    isim_media_free. camera_list: supported cameras, one per line (libraw.so.23) */

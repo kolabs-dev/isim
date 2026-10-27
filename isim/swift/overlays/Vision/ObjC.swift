@@ -226,3 +226,30 @@ extension VNImageHomographicAlignmentObservation {
         return [m.columns.0, m.columns.1, m.columns.2].flatMap { [NSNumber(value: $0.x), NSNumber(value: $0.y), NSNumber(value: $0.z)] }
     }
 }
+
+// MARK: - points, pose and feature prints (issue #375): joint and group names as strings
+
+extension VNPoint { @objc(zeroPoint) class var _objcZero: VNPoint { zero } }
+extension VNVector { @objc(zeroVector) class var _objcZero: VNVector { zero } }
+extension VNHumanBodyPoseObservation {
+    @objc(availableJointNames) var _objcJointNames: [String] { availableKeys.map(\.rawValue) }
+    @objc(availableJointsGroupNames) var _objcGroupNames: [String] { availableGroupKeys.map(\.rawValue) }
+    @objc(recognizedPointForJointName:error:) func _objcJoint(_ name: String) throws -> VNRecognizedPoint { try recognizedPoint(forKey: VNRecognizedPointKey(rawValue: name)) }
+    @objc(recognizedPointsForJointsGroupName:error:) func _objcGroup(_ name: String) throws -> [String: VNRecognizedPoint] { try _objcPoints(name) }
+}
+extension VNHumanHandPoseObservation {
+    @objc(availableJointNames) var _objcJointNames: [String] { availableKeys.map(\.rawValue) }
+    @objc(availableJointsGroupNames) var _objcGroupNames: [String] { availableGroupKeys.map(\.rawValue) }
+    @objc(recognizedPointForJointName:error:) func _objcJoint(_ name: String) throws -> VNRecognizedPoint { try recognizedPoint(forKey: VNRecognizedPointKey(rawValue: name)) }
+    @objc(recognizedPointsForJointsGroupName:error:) func _objcGroup(_ name: String) throws -> [String: VNRecognizedPoint] { try _objcPoints(name) }
+}
+extension VNAnimalBodyPoseObservation {
+    @objc(availableJointNames) var _objcJointNames: [String] { availableKeys.map(\.rawValue) }
+    @objc(availableJointGroupNames) var _objcGroupNames: [String] { availableGroupKeys.map(\.rawValue) }
+    @objc(recognizedPointForJointName:error:) func _objcJoint(_ name: String) throws -> VNRecognizedPoint { try recognizedPoint(forKey: VNRecognizedPointKey(rawValue: name)) }
+    @objc(recognizedPointsForJointsGroupName:error:) func _objcGroup(_ name: String) throws -> [String: VNRecognizedPoint] { try _objcPoints(name) }
+}
+extension VNDetectAnimalBodyPoseRequest {
+    @objc(supportedJointNamesAndReturnError:) func _objcJointNames() throws -> [String] { supportedJointNames.map(\.rawValue.rawValue) }
+    @objc(supportedJointsGroupNamesAndReturnError:) func _objcGroupNames() throws -> [String] { supportedJointsGroupNames.map(\.rawValue.rawValue) }
+}

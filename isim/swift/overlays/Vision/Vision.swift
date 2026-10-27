@@ -6,9 +6,9 @@
 //     confidence. Adapted: tesseract's language data, not Apple's models; .fast and .accurate run the same engine.
 //   - faces, landmarks, rectangles, text rectangles, contours, the horizon and saliency: isim's own CPU detectors
 //     (VisionDetectors.swift).
-//   - VNCoreMLRequest, VNClassifyImageRequest, VNGenerateImageFeaturePrintRequest, VNDetectHumanRectanglesRequest,
-//     VNDetectFaceCaptureQualityRequest: no backend; they fail with VNError.unsupportedRequest and a message saying
-//     so (stub).
+//   - pose, person segmentation, classification and feature prints: host ONNX models (VisionPose.swift);
+//   - VNCoreMLRequest, VNDetectHumanRectanglesRequest, VNDetectFaceCaptureQualityRequest: no backend; they fail with
+//     VNError.unsupportedRequest and a message saying so (stub).
 // Coordinates follow Vision: normalized to the image, origin at the lower left.
 import UIKit
 import CoreImage
@@ -287,12 +287,6 @@ public enum VNRequestTextRecognitionLevel: Int, Sendable { case accurate = 0, fa
     @objc open var upperBodyOnly = true
     override func _run(_ img: _VNImage) throws -> [VNObservation] { throw _vnError(.unsupportedRequest, "human detection is not available on isim (no host detector)") }
 }
-@objc(VNClassifyImageRequest) open class VNClassifyImageRequest: VNImageBasedRequest, @unchecked Sendable {
-    override func _run(_ img: _VNImage) throws -> [VNObservation] { throw _vnError(.unsupportedRequest, "image classification is not available on isim (it needs Apple's models)") }
-}
-@objc(VNGenerateImageFeaturePrintRequest) open class VNGenerateImageFeaturePrintRequest: VNImageBasedRequest, @unchecked Sendable {
-    override func _run(_ img: _VNImage) throws -> [VNObservation] { throw _vnError(.unsupportedRequest, "image feature prints are not available on isim (they need Apple's models)") }
-}
 @objc(VNCoreMLModel) open class VNCoreMLModel: NSObject, @unchecked Sendable {
     @objc let _model: MLModel
     @objc open var inputImageFeatureName: String
@@ -396,6 +390,10 @@ public typealias VNConfidence = Float
 @objc(VNClassificationObservation) open class VNClassificationObservation: VNObservation, @unchecked Sendable {
     @objc public let identifier: String
     @objc public init(identifier: String, confidence: VNConfidence) { self.identifier = identifier; super.init(); self.confidence = confidence }
+    /// isim's host classifiers have no precision-recall curves
+    @objc open var hasPrecisionRecallCurve: Bool { false }
+    @objc(hasMinimumRecall:forPrecision:) open func hasMinimumRecall(_ minimumRecall: Float, forPrecision precision: Float) -> Bool { false }
+    @objc(hasMinimumPrecision:forRecall:) open func hasMinimumPrecision(_ minimumPrecision: Float, forRecall recall: Float) -> Bool { false }
 }
 @objc(VNHumanObservation) open class VNHumanObservation: VNDetectedObjectObservation, @unchecked Sendable {}
 

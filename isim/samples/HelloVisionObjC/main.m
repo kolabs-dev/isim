@@ -45,6 +45,7 @@ static CGImageRef render(CGFloat w, CGFloat h, void (^draw)(CGContextRef c)) {
     [self detectors];
     [self others];
     [self tracking];
+    [self models];
     say(@"done");
 }
 
@@ -288,6 +289,36 @@ static CGImageRef render(CGFloat w, CGFloat h, void (^draw)(CGContextRef c)) {
          ok, rect(moved.boundingBox), track.isLastFrame, t.tx, t.ty, m.columns[2][0], m.columns[2][1], (unsigned long)firstFlow,
          pb ? CVPixelBufferGetWidth(pb) : 0, pb ? CVPixelBufferGetHeight(pb) : 0, pb && CVPixelBufferGetPixelFormatType(pb) == kCVPixelFormatType_TwoComponent32Float,
          (unsigned long)[track supportedNumberOfTrackersAndReturnError:nil]]);
+    CGImageRelease(a); CGImageRelease(b);
+}
+
+
+/// pose, classification and feature prints (issue #375): isim's own feature print; the model requests' errors
+- (void)models {
+    CGImageRef a = render(120, 90, ^(CGContextRef c) {
+        CGContextSetFillColorWithColor(c, UIColor.whiteColor.CGColor); CGContextFillRect(c, CGRectMake(0, 0, 120, 90));
+        CGContextSetFillColorWithColor(c, UIColor.redColor.CGColor); CGContextFillEllipseInRect(c, CGRectMake(30, 15, 60, 60));
+    });
+    CGImageRef b = render(120, 90, ^(CGContextRef c) {
+        CGContextSetFillColorWithColor(c, UIColor.whiteColor.CGColor); CGContextFillRect(c, CGRectMake(0, 0, 120, 90));
+        CGContextSetFillColorWithColor(c, UIColor.blueColor.CGColor); CGContextFillRect(c, CGRectMake(20, 10, 80, 70));
+    });
+    VNGenerateImageFeaturePrintRequest *pa = [[VNGenerateImageFeaturePrintRequest alloc] init], *pb = [[VNGenerateImageFeaturePrintRequest alloc] init];
+    pa.imageCropAndScaleOption = VNImageCropAndScaleOptionCenterCrop;
+    NSError *error = nil;
+    [[[VNImageRequestHandler alloc] initWithCGImage:a options:@{}] performRequests:@[ pa ] error:&error];
+    [[[VNImageRequestHandler alloc] initWithCGImage:b options:@{}] performRequests:@[ pb ] error:&error];
+    float d = -1, self0 = -1;
+    BOOL ok = [pa.results.firstObject computeDistance:&d toFeaturePrintObservation:pb.results.firstObject error:&error];
+    [pa.results.firstObject computeDistance:&self0 toFeaturePrintObservation:pa.results.firstObject error:nil];
+    VNDetectHumanBodyPoseRequest *body = [[VNDetectHumanBodyPoseRequest alloc] init];
+    NSError *bodyError = nil;
+    BOOL ran = [[[VNImageRequestHandler alloc] initWithCGImage:a options:@{}] performRequests:@[ body ] error:&bodyError];
+    NSArray<VNHumanBodyPoseObservationJointName> *joints = [body supportedJointNamesAndReturnError:nil];
+    VNVector *v = [[VNVector alloc] initWithVectorHead:[[VNPoint alloc] initWithX:1 y:1] tail:VNPoint.zeroPoint];
+    say([NSString stringWithFormat:@"models print %lu ok %d self %.2f other %.2f body ran %d code %ld joints %lu nose %@ all %@ vector %.2f",
+         (unsigned long)pa.results.firstObject.elementCount, ok, self0, d, ran, (long)bodyError.code, (unsigned long)joints.count,
+         VNHumanBodyPoseObservationJointNameNose, VNRecognizedPointGroupKeyAll, v.length]);
     CGImageRelease(a); CGImageRelease(b);
 }
 
