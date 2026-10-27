@@ -108,6 +108,7 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_GAMECENTER=DIR` | the local Game Center network the isim devices on this computer share (default `~/.local/share/isim-gamecenter`): players, friends, scores, challenges, matches ([GAMECENTER.md](GAMECENTER.md)) |
 | `ISIM_ICLOUD=noAccount` | no iCloud account (also `restricted`, `temporarilyUnavailable`): CloudKit fails with `notAuthenticated`, `url(forUbiquityContainerIdentifier:)` and `ubiquityIdentityToken` are nil, `NSUbiquitousKeyValueStore` keeps nothing |
 | `ISIM_LANGUAGES=ru,en` | preferred languages for one run (overrides Settings > Language & Region): localized strings and plural rules |
+| `ISIM_TERM_OF_ADDRESS=feminine` | the user's term of address (`feminine`, `masculine` or `neutral`; Settings > General > Language & Region > Term of Address on iOS): `TermOfAddress.currentUser` and automatic grammar agreement (`^[Bienvenido](inflect: true)`). Also read from the `AppleTermOfAddress` default |
 | `ISIM_GEOCODER=offline` | every `CLGeocoder` request fails with `CLError.network` (default: an offline gazetteer answers) |
 | `ISIM_MAP_TILES=DIR` | draw maps from a local `{z}/{x}/{y}.png` tile cache (nothing is ever downloaded) |
 | `ISIM_ROUTING_URL=URL` | `MKDirections` asks this OSRM server (`/route/v1/{driving,walking,cycling}/…`; one you run, e.g. `http://localhost:5000`) for routes and ETAs; unset: `directionsNotFound`, isim never picks a server |

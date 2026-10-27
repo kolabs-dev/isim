@@ -77,3 +77,4 @@
 #import <Foundation/NSOrderedCollectionDifference.h>
 #import <Foundation/NSURLConnection.h>
 #import <Foundation/NSFileVersion.h>
+#import <Foundation/NSMorphology.h>

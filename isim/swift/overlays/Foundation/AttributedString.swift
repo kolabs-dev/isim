@@ -83,6 +83,10 @@ extension AttributeScopes {
     public let imageURL: ImageURLAttribute
     public let languageIdentifier: LanguageIdentifierAttribute
     public let markdownSourcePosition: MarkdownSourcePositionAttribute
+    /// automatic grammar agreement (Inflection.swift)
+    public let inflect: InflectionRuleAttribute
+    public let morphology: MorphologyAttribute
+    public let inflectionAlternative: InflectionAlternativeAttribute
 
     /// where a run's text came from in the Markdown source (MarkdownParsingOptions.appliesSourcePositionAttributes)
     public enum MarkdownSourcePositionAttribute: AttributedStringKey {
@@ -160,6 +164,8 @@ nonisolated(unsafe) var _attrConverters: [String: _AttrConverter] = {
   reg(AttributeScopes.FoundationAttributes.AlternateDescriptionAttribute.self)
   reg(AttributeScopes.FoundationAttributes.ImageURLAttribute.self)
   reg(AttributeScopes.FoundationAttributes.LanguageIdentifierAttribute.self)
+  reg(AttributeScopes.FoundationAttributes.InflectionRuleAttribute.self)
+  reg(AttributeScopes.FoundationAttributes.MorphologyAttribute.self)
   return d
 }()
 /// Registers an Objective-C conversion for a framework's attribute key (UIKit / SwiftUI scopes).
@@ -768,9 +774,10 @@ extension Dictionary where Key == NSAttributedString.Key, Value == Any {
 
 // MARK: - localized
 extension AttributedString {
-  /// Looks the key up like String(localized:) and interprets inline Markdown in the result.
+  /// Looks the key up like String(localized:), interprets inline Markdown in the result (with extended attributes),
+  /// and inflects the runs marked `inflect` (automatic grammar agreement, Inflection.swift).
   public init(localized key: String.LocalizationValue, table: String? = nil, bundle: Bundle? = nil, locale: Locale = .current, comment: StaticString? = nil) {
     let s = String(localized: key, table: table, bundle: bundle, locale: locale, comment: comment)
-    self = (try? AttributedString(markdown: s, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(s)
+    self = AttributedString._localized(s, options: LocalizationOptions(), locale: locale)
   }
 }
