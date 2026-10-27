@@ -24,6 +24,7 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | `CALayer` basics (frame, bounds, position, anchorPoint, corner radius/curve, `maskedCorners`, border, background, opacity, `masksToBounds`, hidden) | 🟡 | ≤17 | standalone layer trees keep their own geometry; a view's layer reports the view's, and its `anchorPoint` is the view's (iOS 16 `UIView.anchorPoint`): the center sits at that point of the frame, so changing it moves the frame, and the view's transform applies about it (drawing, hit-testing, conversions, 3D transforms; tested by HelloQuartzCoreObjC). `cornerCurve`: circular arcs by default, `.continuous` Apple's continuous ("squircle") corners, which ease into the edges over 1.6× the radius (smoothing reduced when the side is too short, a capsule stays circular); system shapes (sheets, alerts, menus, sidebars, inset-grouped cards, glass) are continuous. Tested (HelloCoreAnimation, HelloVideo, HelloCorners) |
+| `CALayer.isGeometryFlipped` | ✅ | ≤17 | adapted: a flipped layer's sublayers are placed with y running up from its bottom edge, and their own content (contents, `draw(in:)`, background) stays upright, as on iOS; tested (VideoCompositionTest: `AVVideoCompositionCoreAnimationTool`, whose layer trees rely on it) |
 | `zPosition`, `transform`, `sublayerTransform`, `convert(_:from:/to:)`, `hitTest`, `contains` | ✅ | ≤17 | zPosition orders siblings (no depth buffer); conversions through the full 4x4 chain. Ordering/conversion unverified |
 | Layer shadows | ✅ | ≤17 | blurred, `shadowPath` (see UIKit) |
 | `mask` | ✅ | ≤17 | see UIKit |

@@ -48,7 +48,7 @@ public struct AVError: CustomNSError, LocalizedError, Sendable {
              fileFormatNotRecognized = -11828, fileFailedToParse = -11829, maximumStillImageCaptureRequestsExceeded = -11830,
              noImageAtTime = -11832, decoderNotFound = -11833, encoderNotFound = -11834, applicationIsNotAuthorizedToUseDevice = -11852,
              recordingAlreadyInProgress = -11859, unsupportedOutputSettings = -11861, operationNotAllowed = -11862,
-             formatUnsupported = -11864, malformedDepth = -11865, sessionHardwareCostOverage = -11872
+             invalidVideoComposition = -11841, videoCompositorFailed = -11845, formatUnsupported = -11864, malformedDepth = -11865, sessionHardwareCostOverage = -11872
     }
     public let code: Code
     let _info: [String: String]

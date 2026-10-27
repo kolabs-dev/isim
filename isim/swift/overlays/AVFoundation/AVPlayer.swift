@@ -17,6 +17,10 @@ import isim_host
     public let automaticallyLoadedAssetKeys: [String]
     @objc open private(set) dynamic var status: Status = .unknown
     @objc open private(set) var error: Error?
+    /// isim stub: kept for the app, but playback shows the asset's video without it (export and readers compose)
+    open var videoComposition: AVVideoComposition?
+    open var customVideoCompositor: (any AVVideoCompositing)? { nil }
+    open var seekingWaitsForVideoCompositionRendering = false
     open override class func automaticallyNotifiesObservers(forKey key: String) -> Bool { false }
     open var forwardPlaybackEndTime: CMTime = .invalid
     open var reversePlaybackEndTime: CMTime = .invalid

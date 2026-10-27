@@ -819,3 +819,10 @@ usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV4modeSi
 usr/lib/swift/libswiftCoreML.dylib _$s6CoreML7MLModelC23availableComputeDevicesSayypGvgZTj
 usr/lib/swift/libswiftCoreML.dylib _$s6CoreML7MLModelC23availableComputeDevicesSayypGvgZTq
 usr/lib/swift/libswiftCoreML.dylib _$s6CoreML7MLModelC23availableComputeDevicesSayypGvpZMV
+
+# issue #381: AVAssetReaderVideoCompositionOutput.customVideoCompositor returns Apple's (any AVVideoCompositing)? (it
+# returned an AnyObject? placeholder, always nil). Rebuild Swift apps built with 0.31 or earlier that read
+# AVAssetReaderVideoCompositionOutput.customVideoCompositor.
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation35AVAssetReaderVideoCompositionOutputC06customD10CompositoryXlSgvgTj
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation35AVAssetReaderVideoCompositionOutputC06customD10CompositoryXlSgvgTq
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation35AVAssetReaderVideoCompositionOutputC06customD10CompositoryXlSgvpMV

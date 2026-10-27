@@ -13,6 +13,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* the time layers are rendered at: now, or the video time AVVideoCompositionCoreAnimationTool renders a frame at
+   (issue #381; main thread only) */
+static double ca_fixed_time = NAN;
+static double ca_render_now(void) { return isnan(ca_fixed_time) ? CACurrentMediaTime() : ca_fixed_time; }
+/* layers under a geometry-flipped layer an odd number of times draw their own content upright (issue #381) */
+static int ca_flip_parity;
+
 /* ================= CATransform3D ================= */
 const CATransform3D CATransform3DIdentity = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
 bool CATransform3DIsIdentity(CATransform3D t) { return !memcmp(&t, &CATransform3DIdentity, sizeof t); }
@@ -561,11 +568,18 @@ static CATransform3D layer_matrix(CALayer *p) {
     return m;
 }
 static CATransform3D sublayer_matrix(CALayer *p) {
-    CATransform3D s = p.sublayerTransform;
-    if (CATransform3DIsIdentity(s)) return CATransform3DIdentity;
-    CGRect b = p.bounds; CGPoint a = p.anchorPoint;
-    double cx = b.origin.x + a.x * b.size.width, cy = b.origin.y + a.y * b.size.height;
-    return ca_mul(ca_mul(ca_translate(-cx, -cy, 0), s), ca_translate(cx, cy, 0));
+    CATransform3D s = p.sublayerTransform, m = CATransform3DIdentity;
+    CGRect b = p.bounds;
+    if (!CATransform3DIsIdentity(s)) {
+        CGPoint a = p.anchorPoint;
+        double cx = b.origin.x + a.x * b.size.width, cy = b.origin.y + a.y * b.size.height;
+        m = ca_mul(ca_mul(ca_translate(-cx, -cy, 0), s), ca_translate(cx, cy, 0));
+    }
+    if (p.geometryFlipped) {         /* sublayers' y runs the other way (origin at the bottom) */
+        CATransform3D f = CATransform3DIdentity; f.m22 = -1; f.m42 = 2 * b.origin.y + b.size.height;
+        m = ca_mul(f, m);
+    }
+    return m;
 }
 - (CALayer *)superlayer {
     if (_isimSuper) return _isimSuper;
@@ -738,7 +752,7 @@ static CATransform3D to_root(CALayer *l) {
 - (void)_isim_markRendered { _rendered = YES; }
 /* renders the layer's content and sublayers (not its own position/transform) into ctx's current state */
 - (void)renderInContext:(CGContextRef)ctx {
-    CALayer *p = [self _isim_presentationAt:CACurrentMediaTime()];
+    CALayer *p = [self _isim_presentationAt:ca_render_now()];
     CGRect b = p.bounds;
     isim_gfx_save();
     isim_gfx_translate(-b.origin.x, -b.origin.y);
@@ -752,6 +766,27 @@ static CATransform3D to_root(CALayer *l) {
     [p _isim_renderSublayersOf:self];
     if (p.masksToBounds) isim_gfx_restore();
     isim_gfx_restore();
+}
+/* AVVideoCompositionCoreAnimationTool (issue #381): the layer tree as it is `t` seconds into the video, in a context
+   whose origin is at the top left; like iOS's export, the tree's y axis points up unless the layer is geometry-flipped */
+- (void)_isimRenderInContext:(CGContextRef)ctx atTime:(double)t {
+    double saved = ca_fixed_time;
+    BOOL flipped = _geometryFlipped;
+    ca_fixed_time = t;
+    _geometryFlipped = !flipped;
+    UIGraphicsPushContext(ctx);
+    [self renderInContext:ctx];
+    UIGraphicsPopContext();
+    _geometryFlipped = flipped;
+    ca_fixed_time = saved;
+}
+/* the tool's layers run on the video's clock, not the display's: the display link leaves them alone */
+- (void)_isimSetVideoCompositionTree:(BOOL)on {
+    objc_setAssociatedObject(self, @selector(_isimSetVideoCompositionTree:), on ? @YES : nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+static BOOL ca_in_video_tree(CALayer *l) {
+    for (; l; l = l.superlayer) if (objc_getAssociatedObject(l, @selector(_isimSetVideoCompositionTree:))) return YES;
+    return NO;
 }
 
 /* ---- KVC: undeclared keys are stored (layers are key-value containers); key paths into transforms ---- */
@@ -942,6 +977,7 @@ static void entry_stop(__IsimCAEntry *e, BOOL finished) {
 - (CAAnimation *)animationForKey:(NSString *)key { for (__IsimCAEntry *e in _entries) if ([e->key isEqual:key]) return e->anim; return nil; }
 /* lifecycle: start/stop delegate callbacks, removal on completion (called once per frame) */
 - (BOOL)_isim_tickAnimations:(double)now {
+    if (ca_in_video_tree(self)) return NO;
     double t = [self _isim_localTime:now];
     for (__IsimCAEntry *e in [_entries copy]) {
         if (!e->started && t >= e->anim.beginTime) {
@@ -1027,8 +1063,10 @@ void ca_render_sublayer_list(CALayer *model, CALayer *p) {
     if (anyZ) subs = [subs sortedArrayWithOptions:NSSortStable usingComparator:^NSComparisonResult(id a, id b) { return by_z(a, b); }];
     else subs = [subs copy];
     CATransform3D sm = sublayer_matrix(p);
-    BOOL hasSub = !CATransform3DIsIdentity(sm);
+    BOOL hasSub = !CATransform3DIsIdentity(sm), flip = p.geometryFlipped;
+    ca_flip_parity ^= flip;
     for (CALayer *l in subs) ca_render_layer(l, hasSub ? &sm : NULL);
+    ca_flip_parity ^= flip;
 }
 
 /* contents (CGImage / UIImage) with gravity, contentsRect, contentsScale and contentsCenter */
@@ -1107,8 +1145,11 @@ static void render_body(CALayer *m, CALayer *p, BOOL silhouette) {
     BOOL clip = p.masksToBounds;
     if (clip) { isim_gfx_save(); ca_rounded_path(b, r, corners); isim_gfx_clip_path(); }
     ca_end_corner_curve(curve);
+    BOOL upright = ca_flip_parity;   /* in a flipped geometry: the content is drawn the right way up */
+    if (upright) { isim_gfx_save(); isim_gfx_translate(0, 2 * b.origin.y + b.size.height); isim_gfx_scale(1, -1); }
     ca_draw_contents(p, b);
     [p _isim_drawContentWithModel:m];
+    if (upright) isim_gfx_restore();
     [p _isim_renderSublayersOf:m];
     if (clip) isim_gfx_restore();
     if (p.borderWidth > 0 && p.borderColor) {
@@ -1125,7 +1166,7 @@ static CATransition *active_transition(CALayer *m, double *prog) {
     double t = -1;
     for (__IsimCAEntry *e in [m _isim_entryList]) {
         if (![e->anim isKindOfClass:[CATransition class]]) continue;
-        if (t < 0) t = [m _isim_localTime:CACurrentMediaTime()];
+        if (t < 0) t = [m _isim_localTime:ca_render_now()];
         double pr = ca_transition_progress((CATransition *)e->anim, t);
         if (pr >= 0) { *prog = pr; return (CATransition *)e->anim; }
     }
@@ -1194,7 +1235,7 @@ void ca_render_layer(CALayer *m, const CATransform3D *parentSub) {
     [m layoutIfNeeded];
     [m displayIfNeeded];
     [m _isim_markRendered];
-    CALayer *p = [m _isim_presentationAt:CACurrentMediaTime()];
+    CALayer *p = [m _isim_presentationAt:ca_render_now()];
     if (p.hidden || p.opacity <= 0.001) return;
     CATransform3D mx = layer_matrix(p);
     if (parentSub) mx = ca_mul(mx, *parentSub);
@@ -1206,7 +1247,7 @@ void ca_render_layer(CALayer *m, const CATransform3D *parentSub) {
         NSUInteger n = subs.count;
         double *depth = malloc(sizeof(double) * (n ? n : 1)); NSUInteger *order = malloc(sizeof(NSUInteger) * (n ? n : 1));
         for (NSUInteger i = 0; i < n; i++) {
-            CALayer *sp = [subs[i] _isim_presentationAt:CACurrentMediaTime()];
+            CALayer *sp = [subs[i] _isim_presentationAt:ca_render_now()];
             CATransform3D cm = ca_mul(layer_matrix(sp), t);
             CGRect sb = sp.bounds;
             double x = CGRectGetMidX(sb), y = CGRectGetMidY(sb);
@@ -1219,7 +1260,10 @@ void ca_render_layer(CALayer *m, const CATransform3D *parentSub) {
             while (j >= 0 && depth[order[j]] > depth[k]) { order[j + 1] = order[j]; j--; }
             order[j + 1] = k;
         }
+        BOOL flip = p.geometryFlipped;
+        ca_flip_parity ^= flip;
         for (NSUInteger i = 0; i < n; i++) ca_render_layer(subs[order[i]], &t);
+        ca_flip_parity ^= flip;
         free(depth); free(order);
         return;
     }
