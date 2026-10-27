@@ -26,6 +26,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, MXMetricManagerSubs
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         MXMetricManager.shared.add(self)
+        if mode.isEmpty, #available(iOS 27.0, *) { trackLaunch() }
         watchRunLoop()
         print("diag subscribed past=\(MXMetricManager.shared.pastPayloads.count) mode=\(mode.isEmpty ? "normal" : mode)")
         window = UIWindow(frame: UIScreen.main.bounds)
@@ -46,7 +47,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, MXMetricManagerSubs
         case "segv": crashSoon { cdiagCrashSegv() }
         case "exception": crashSoon { _ = (NSArray(array: [1, 2]) as NSArray).object(at: 3) }
         case "fatal": crashSoon { fatalError("diag fatal error") }
-        default: logging(); signposts(); readBack(); metricKit()
+        default: logging(); signposts(); readBack(); metricKit(); if #available(iOS 27.0, *) { reports() }
         }
     }
     func crashSoon(_ crash: @escaping () -> Void) {
@@ -137,6 +138,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, MXMetricManagerSubs
             print("diag hanging the main thread")
             Thread.sleep(forTimeInterval: 0.6)                        // a hang (250 ms or more away from the event loop)
             self.status.text = "Hung 0.6 s"
+            if #available(iOS 27.0, *) { screens.reportTransition(to: "detail", stableMetadata: ScreenInfo(name: "Detail", itemCount: 1), volatileMetadata: nil) }
         }
     }
 
@@ -153,7 +155,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate, MXMetricManagerSubs
                   "gpu=\(p.gpuMetrics?.cumulativeGPUTime.value ?? -1) cellular=\(p.cellularConditionMetrics == nil ? "nil" : "set") " +
                   "apl=\(p.displayMetrics?.averagePixelLuminance.map { $0.averageMeasurement.value >= 0 && $0.averageMeasurement.value <= 100 } ?? false) " +
                   "exits normal=\(fg?.cumulativeNormalAppExitCount ?? -1) badAccess=\(fg?.cumulativeBadAccessExitCount ?? -1) abnormal=\(fg?.cumulativeAbnormalExitCount ?? -1) " +
-                  "illegal=\(fg?.cumulativeIllegalInstructionExitCount ?? -1) signposts=\(sp) pid=\(p.metaData?.pid ?? -1) json=\(json.contains("\"cumulativeCPUTime\""))")
+                  "illegal=\(fg?.cumulativeIllegalInstructionExitCount ?? -1) signposts=\(sp) pid=\(p.metaData?.pid ?? -1) json=\(json.contains("\"cumulativeCPUTime\"")) " +
+                  "disk=\(p.diskSpaceUsageMetrics.map { $0.totalBinaryFileCount > 0 && $0.totalDiskSpaceCapacity.value > 0 } ?? false)")
         }
         print("diag past payloads \(MXMetricManager.shared.pastPayloads.count)")
     }

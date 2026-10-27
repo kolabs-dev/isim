@@ -6,6 +6,10 @@
 //     location activity by desired accuracy, animation hitches, the screen's average pixel luminance, exits (from
 //     crash reports and clean terminations), and signposts made with MXMetricManager.makeLogHandle / mxSignpost.
 //   - GPU time is 0 (isim draws on the CPU), instructions are not counted, cellular conditions are nil.
+//   - disk space usage when a payload is made: the app bundle (binary files), the data container (data files) and its
+//     Library/Caches, the file system's capacity and use; clones are 0 (isim's file systems do not clone).
+//   - the time, CPU time and logical writes spent in each state StateReporting's reporters report (MetricReport's
+//     state entries; MetricReports.swift).
 // Delivery (iOS: metrics at most once a day, diagnostics immediately):
 //   - metrics: each run's measurements are saved in the app's container; the next launch delivers them (a payload
 //     per run) to subscribers, standing in for iOS's daily report. The `metrickit deliver` script command or
@@ -20,6 +24,7 @@
 // process (Apple: "since the last allocation of the shared manager instance").
 import Foundation
 import os
+import StateReporting
 import isim_host
 
 // MARK: - Base
@@ -98,6 +103,8 @@ struct _MXPayloadData: Codable {
     var apl: Double? = nil, aplN = 0
     var signposts: [_MXSignpostData] = []
     var meta = _MXMeta()
+    var disk: _MXDisk? = nil
+    var states: [_MXStateData]? = nil
 
     /// histogram buckets from values: `width` wide, starting at multiples of it
     static func buckets(_ values: [Double], width: Double) -> [_MXBucket] {
@@ -124,8 +131,67 @@ struct _MXPayloadData: Codable {
         p.location = [20, 20, 20, 20, 20, 20]; p.hitchRatio = 1
         p.signposts = [_MXSignpostData(name: "TestSignpostName1", category: "TestSignpostCategory1", count: 30,
                                        durations: [_MXBucket(start: 0, end: 100, count: 50)], cpuMs: 100, memKB: 100000, writesKB: 600, hitchRatio: nil)]
+        p.disk = _MXDisk(binCount: 30, dataCount: 200, binKB: 50000, dataKB: 100000, cacheKB: 20000, cloneKB: 0, capacityKB: 128_000_000, usedKB: 64_000_000)
         return p
     }
+}
+
+/// disk space usage (KB, 1000 bytes)
+struct _MXDisk: Codable {
+    var binCount = 0, dataCount = 0
+    var binKB = 0.0, dataKB = 0.0, cacheKB = 0.0, cloneKB = 0.0, capacityKB = 0.0, usedKB = 0.0
+
+    static func measure() -> _MXDisk {
+        func walk(_ path: String) -> (count: Int, bytes: Double) {
+            var n = 0, b = 0.0
+            guard let e = FileManager.default.enumerator(atPath: path) else { return (0, 0) }
+            for case let rel as String in e {
+                guard let a = e.fileAttributes, a[.type] as? FileAttributeType == .typeRegular else { continue }
+                _ = rel; n += 1; b += Double((a[.size] as? NSNumber)?.int64Value ?? 0)
+            }
+            return (n, b)
+        }
+        var d = _MXDisk()
+        let bin = walk(Bundle.main.bundlePath), data = walk(NSHomeDirectory())
+        let caches = walk((NSHomeDirectory() as NSString).appendingPathComponent("Library/Caches"))
+        d.binCount = bin.count; d.binKB = bin.bytes / 1000
+        d.dataCount = data.count; d.dataKB = data.bytes / 1000; d.cacheKB = caches.bytes / 1000
+        if let fs = try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory()) {
+            let size = (fs[.systemSize] as? NSNumber)?.doubleValue ?? 0, free = (fs[.systemFreeSize] as? NSNumber)?.doubleValue ?? 0
+            d.capacityKB = size / 1000; d.usedKB = max(0, size - free) / 1000
+        }
+        return d
+    }
+}
+
+/// a StateReporting metadata value, kept with the measurements between runs
+struct _MXMetaValue: Codable, Hashable {
+    var kind: String, value: String                  // date (seconds since 1970), double, integer, string
+    @available(iOS 27.0, *)
+    init(_ v: ReportableMetadataValue) {
+        switch v {
+        case .date(let d): kind = "date"; value = String(d.timeIntervalSince1970)
+        case .floatingPoint(let f): kind = "double"; value = String(f)
+        case .integer(let i): kind = "integer"; value = String(i)
+        case .string(let s): kind = "string"; value = s
+        @unknown default: kind = "string"; value = "\(v)"
+        }
+    }
+    @available(iOS 27.0, *)
+    var reportable: ReportableMetadataValue {
+        switch kind {
+        case "date": return .date(Date(timeIntervalSince1970: Double(value) ?? 0))
+        case "double": return .floatingPoint(Double(value) ?? 0)
+        case "integer": return .integer(Int128(value) ?? 0)
+        default: return .string(value)
+        }
+    }
+}
+/// the time, CPU time and logical writes spent in one state of a domain during a payload's window
+struct _MXStateData: Codable {
+    var domain: String, label: String
+    var duration = 0.0, cpu = 0.0, writesKB = 0.0
+    var meta: [String: _MXMetaValue] = [:]
 }
 
 // MARK: - Statistics
@@ -372,6 +438,30 @@ open class MXSignpostMetric: MXMetric {
     }
 }
 
+/// iOS 26: the app's disk space usage when the payload was made
+open class MXDiskSpaceUsageMetric: MXMetric {
+    public let totalBinaryFileCount: Int
+    public let totalDataFileCount: Int
+    public let totalBinaryFileSize: Measurement<UnitInformationStorage>
+    public let totalCacheFolderSize: Measurement<UnitInformationStorage>
+    public let totalCloneSize: Measurement<UnitInformationStorage>
+    public let totalDataFileSize: Measurement<UnitInformationStorage>
+    public let totalDiskSpaceCapacity: Measurement<UnitInformationStorage>
+    public let totalDiskSpaceUsedSize: Measurement<UnitInformationStorage>
+    init(_ d: _MXDisk) {
+        totalBinaryFileCount = d.binCount; totalDataFileCount = d.dataCount
+        totalBinaryFileSize = Measurement(value: d.binKB, unit: _MX.kb); totalCacheFolderSize = Measurement(value: d.cacheKB, unit: _MX.kb)
+        totalCloneSize = Measurement(value: d.cloneKB, unit: _MX.kb); totalDataFileSize = Measurement(value: d.dataKB, unit: _MX.kb)
+        totalDiskSpaceCapacity = Measurement(value: d.capacityKB, unit: _MX.kb); totalDiskSpaceUsedSize = Measurement(value: d.usedKB, unit: _MX.kb)
+    }
+    open override func dictionaryRepresentation() -> [AnyHashable: Any] {
+        ["totalBinaryFileCount": totalBinaryFileCount, "totalDataFileCount": totalDataFileCount,
+         "totalBinaryFileSize": _MX.m(totalBinaryFileSize), "totalCacheFolderSize": _MX.m(totalCacheFolderSize),
+         "totalCloneSize": _MX.m(totalCloneSize), "totalDataFileSize": _MX.m(totalDataFileSize),
+         "totalDiskSpaceCapacity": _MX.m(totalDiskSpaceCapacity), "totalDiskSpaceUsedSize": _MX.m(totalDiskSpaceUsedSize)]
+    }
+}
+
 open class MXMetaData: NSObject {
     public let regionFormat: String
     public let osVersion: String
@@ -415,6 +505,7 @@ open class MXMetricPayload: NSObject {
     public let animationMetrics: MXAnimationMetric?
     public let applicationExitMetrics: MXAppExitMetric?
     public let signpostMetrics: [MXSignpostMetric]?
+    public let diskSpaceUsageMetrics: MXDiskSpaceUsageMetric?
     public let metaData: MXMetaData?
     let data: _MXPayloadData
     init(_ d: _MXPayloadData) {
@@ -429,6 +520,7 @@ open class MXMetricPayload: NSObject {
         displayMetrics = d.apl.map { MXDisplayMetric(apl: $0, samples: d.aplN) }
         animationMetrics = MXAnimationMetric(d); applicationExitMetrics = MXAppExitMetric(d)
         signpostMetrics = d.signposts.isEmpty ? nil : d.signposts.map { MXSignpostMetric($0) }
+        diskSpaceUsageMetrics = d.disk.map { MXDiskSpaceUsageMetric($0) }
         metaData = MXMetaData(d.meta)
     }
 
@@ -441,7 +533,7 @@ open class MXMetricPayload: NSObject {
             ("networkTransferMetrics", networkTransferMetrics), ("applicationLaunchMetrics", applicationLaunchMetrics),
             ("applicationResponsivenessMetrics", applicationResponsivenessMetrics), ("diskIOMetrics", diskIOMetrics),
             ("memoryMetrics", memoryMetrics), ("displayMetrics", displayMetrics), ("animationMetrics", animationMetrics),
-            ("applicationExitMetrics", applicationExitMetrics)]
+            ("applicationExitMetrics", applicationExitMetrics), ("diskSpaceUsageMetrics", diskSpaceUsageMetrics)]
         for (k, m) in parts { if let m { d[k] = m.dictionaryRepresentation() } }
         if let s = signpostMetrics { d["signpostMetrics"] = s.map { $0.dictionaryRepresentation() } }
         if let md = metaData { d["metaData"] = md.dictionaryRepresentation() }
@@ -637,7 +729,9 @@ open class MXDiagnosticPayload: NSObject {
     public let cpuExceptionDiagnostics: [MXCPUExceptionDiagnostic]?
     public let diskWriteExceptionDiagnostics: [MXDiskWriteExceptionDiagnostic]?
     public let appLaunchDiagnostics: [MXAppLaunchDiagnostic]?
+    let data: _MXDiagPayloadData
     init(_ p: _MXDiagPayloadData) {
+        data = p
         timeStampBegin = Date(timeIntervalSince1970: p.begin); timeStampEnd = Date(timeIntervalSince1970: p.end)
         func of(_ k: String) -> [_MXDiagData]? { let v = p.diags.filter { $0.kind == k }; return v.isEmpty ? nil : v }
         crashDiagnostics = of("crash")?.map { MXCrashDiagnostic($0) }
@@ -684,6 +778,11 @@ public func mxSignpost(_ type: OSSignpostType, dso: UnsafeRawPointer = #dsohandl
 }
 public func mxSignpostAnimationIntervalBegin(log: OSLog, name: StaticString, signpostID: OSSignpostID = .exclusive) {
     os_signpost(.begin, log: log, name: name, signpostID: signpostID)
+}
+public func mxSignpostAnimationIntervalBegin(dso: UnsafeRawPointer = #dsohandle, log: OSLog, name: StaticString, signpostID: OSSignpostID = .exclusive,
+                                             _ format: StaticString, _ arguments: CVarArg...) {
+    let plain = format.description.replacingOccurrences(of: "%\\{[a-z, ]*\\}", with: "%", options: .regularExpression)
+    _ = OSSignposter(logHandle: log).beginAnimationInterval(name, id: signpostID, OSLogMessage(stringLiteral: String(format: plain, arguments: arguments)))
 }
 
 // MARK: - Manager
@@ -818,8 +917,10 @@ final class _MXRecorder: @unchecked Sendable {
         var suspended: [Double] = []
         var signposts: [String: SignpostAgg] = [:]          // "category\u{1}name"
         var background = false
+        var states: [String: StateAgg]? = nil               // "domain\u{1}state"
     }
     struct SignpostAgg: Codable { var count = 0; var durationsMs: [Double] = [] }
+    struct StateAgg: Codable { var duration = 0.0, cpu = 0.0, writes = 0.0; var meta: [String: _MXMetaValue] = [:] }
     struct Saved: Codable { var current: Counters; var base: Counters; var diags: [_MXDiagData] }
 
     private let lock = NSLock()
@@ -836,6 +937,8 @@ final class _MXRecorder: @unchecked Sendable {
     private var cpuWindow: [(t: Double, cpu: Double)] = []
     private var enteredForeground: Double?
     private var extendedTasks: [String: Double] = [:]
+    /// the state each domain is in: since when, and the CPU time and writes then
+    private var openStates: [String: (key: String, t: Double, cpu: Double, writes: Double)] = [:]
 
     init() {
         let start = isim_diag_process_start()
@@ -879,6 +982,7 @@ final class _MXRecorder: @unchecked Sendable {
             default: kind = "abnormal"
             }
             if saved.current.background { window.exitsBG[kind, default: 0] += 1 } else { window.exitsFG[kind, default: 0] += 1 }
+            window.disk = _MXDisk.measure()                   // (when the payload is made: at this launch)
             pending.append(window)
             leftover = saved.diags
         }
@@ -898,7 +1002,44 @@ final class _MXRecorder: @unchecked Sendable {
             self.enteredForeground = nil
         }
         nc.addObserver(forName: Notification.Name("UIApplicationWillTerminateNotification"), object: nil, queue: nil) { [weak self] _ in self?.save() }
+        if #available(iOS 27.0, *) { _ISIMStateLog.observe { [weak self] t in self?.transition(t) } }   // StateReporting
         tick()
+    }
+
+    // MARK: states (StateReporting)
+    @available(iOS 27.0, *)
+    private func transition(_ t: _ISIMStateTransition) {
+        tick()
+        lock.lock(); defer { lock.unlock() }
+        if t.isUpdate { return }                              // volatile metadata: not part of the state
+        closeState(t.domain, at: t.date.timeIntervalSince1970)
+        guard let label = t.state else { return }
+        let key = t.domain + "\u{1}" + label
+        var agg = cur.states?[key] ?? StateAgg()
+        agg.meta = t.stableMetadata.mapValues { _MXMetaValue($0) }
+        if cur.states == nil { cur.states = [:] }
+        cur.states![key] = agg
+        openStates[t.domain] = (key, t.date.timeIntervalSince1970, cur.cpu, cur.writes)
+    }
+    /// the states the domains are in now, with the time, CPU time and writes since they began
+    func currentStates() -> [_MXStateData] {
+        tick()
+        lock.lock(); defer { lock.unlock() }
+        let now = Date().timeIntervalSince1970
+        return openStates.values.sorted { $0.key < $1.key }.map { o in
+            let parts = o.key.components(separatedBy: "\u{1}")
+            return _MXStateData(domain: parts.first ?? "", label: parts.dropFirst().joined(separator: "\u{1}"), duration: max(0, now - o.t),
+                                cpu: max(0, cur.cpu - o.cpu), writesKB: max(0, cur.writes - o.writes) / 1000, meta: cur.states?[o.key]?.meta ?? [:])
+        }
+    }
+    /// adds the open state's time, CPU time and writes so far (the lock held)
+    private func closeState(_ domain: String, at now: Double, reopen: Bool = false) {
+        guard let o = openStates.removeValue(forKey: domain) else { return }
+        var agg = cur.states?[o.key] ?? StateAgg()
+        agg.duration += max(0, now - o.t); agg.cpu += max(0, cur.cpu - o.cpu); agg.writes += max(0, cur.writes - o.writes)
+        if cur.states == nil { cur.states = [:] }
+        cur.states![o.key] = agg
+        if reopen { openStates[domain] = (o.key, now, cur.cpu, cur.writes) }
     }
     private func setBackground(_ bg: Bool) { tick(); lock.lock(); cur.background = bg; lock.unlock(); save() }
 
@@ -1105,8 +1246,12 @@ final class _MXRecorder: @unchecked Sendable {
     /// this run since the last delivery
     func takeWindow() -> _MXPayloadData {
         tick()
+        let disk = _MXDisk.measure()
         lock.lock(); defer { lock.unlock() }
-        let w = Self.window(cur, base)
+        let now = Date().timeIntervalSince1970
+        for d in Array(openStates.keys) { closeState(d, at: now, reopen: true) }
+        var w = Self.window(cur, base)
+        w.disk = disk
         base = cur
         return w
     }
@@ -1141,6 +1286,16 @@ final class _MXRecorder: @unchecked Sendable {
             return _MXSignpostData(name: parts.last ?? k, category: parts.first ?? "", count: n,
                                    durations: _MXPayloadData.buckets(Array(v.durationsMs.dropFirst(old.durationsMs.count)), width: 10),
                                    cpuMs: nil, memKB: nil, writesKB: nil, hitchRatio: nil)
+        }
+        if let states = c.states {
+            p.states = states.keys.sorted().compactMap { k in
+                let v = states[k]!, old = b.states?[k] ?? StateAgg()
+                let dt = v.duration - old.duration
+                guard dt > 0 else { return nil }
+                let parts = k.components(separatedBy: "\u{1}")
+                return _MXStateData(domain: parts.first ?? "", label: parts.dropFirst().joined(separator: "\u{1}"), duration: dt,
+                                    cpu: v.cpu - old.cpu, writesKB: (v.writes - old.writes) / 1000, meta: v.meta)
+            }
         }
         return p
     }
