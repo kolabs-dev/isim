@@ -10,6 +10,73 @@ func check(_ ok: Bool, _ what: String) {
     if ok { print("PASS  \(what)") } else { failures += 1; print("FAIL  \(what)") }
 }
 
+struct Point { var x: Int; var y: Int; var name: String }
+
+/// issue #355: flatMap(maxPublishers:) backpressure, Merge3...Merge8, MapKeyPath, First, Contains, Equatable operators,
+/// Codable demand, Future.value
+func combineOperatorChecks() {
+    // flatMap(maxPublishers: .max(2)) requests 2 values, then one more per finished inner publisher
+    var requests: [String] = []
+    let inners = (0..<4).map { _ in PassthroughSubject<Int, Never>() }
+    var got: [Int] = []
+    let fm = (0..<4).publisher.handleEvents(receiveRequest: { requests.append("\($0)") })
+        .flatMap(maxPublishers: .max(2)) { inners[$0] }
+        .sink { got.append($0) }
+    inners[0].send(10); inners[1].send(11); inners[2].send(12)          // 2 is not subscribed yet: lost, as on Apple
+    inners[0].send(completion: .finished)
+    inners[2].send(22)
+    check(requests == ["max(2)", "max(1)"] && got == [10, 11, 22], "flatMap(maxPublishers:) backpressure: requests \(requests), values \(got)")
+    _ = fm
+
+    var merged: [Int] = []
+    let m3 = Just(1).merge(with: Just(2), Just(3))
+    let m8 = Just(1).merge(with: Just(2), Just(3), Just(4), Just(5), Just(6), Just(7), Just(8))
+    let c1 = m3.sink { merged.append($0) }
+    let c2 = m8.sink { merged.append($0) }
+    let m4: Publishers.Merge4 = Publishers.Merge(Just(1), Just(2)).merge(with: Just(3), Just(4))
+    check(merged == [1, 2, 3, 1, 2, 3, 4, 5, 6, 7, 8] && m3 == Publishers.Merge3(Just(1), Just(2), Just(3)) && m4.d == Just(4),
+          "Merge3 / Merge8, Merge.merge(with:_:) -> Merge4, Equatable (\(merged))")
+    _ = (c1, c2)
+
+    var pts: [String] = []
+    let points = [Point(x: 1, y: 2, name: "a"), Point(x: 3, y: 4, name: "b")].publisher
+    let k1: Publishers.MapKeyPath<Publishers.Sequence<[Point], Never>, Int> = points.map(\.x)
+    let c3 = k1.sink { pts.append("\($0)") }
+    let c4 = points.map(\.x, \.y).sink { pts.append("\($0.0),\($0.1)") }
+    let c5 = points.map(\.x, \.y, \.name).sink { pts.append("\($0.0),\($0.1),\($0.2)") }
+    check(pts == ["1", "3", "1,2", "3,4", "1,2,a", "3,4,b"], "MapKeyPath / MapKeyPath2 / MapKeyPath3 (\(pts))")
+    _ = (c3, c4, c5)
+
+    var firsts: [String] = []
+    let f: Publishers.First = [5, 6, 7].publisher.first()
+    let c6 = f.sink { firsts.append("first \($0)") }
+    let has: Publishers.Contains = [5, 6, 7].publisher.contains(6)
+    let c7 = has.sink { firsts.append("contains \($0)") }
+    let c8 = [5, 7].publisher.contains(6).sink { firsts.append("contains \($0)") }
+    check(firsts == ["first 5", "contains true", "contains false"] && f == Publishers.First(upstream: [5, 6, 7].publisher)
+          && Just(3) == Just(3) && Fail<Int, URLError>(error: URLError(.badURL)) == Fail(error: URLError(.badURL))
+          && [1, 2].publisher.dropFirst() == Publishers.Drop(upstream: [1, 2].publisher, count: 1)
+          && [1].publisher.prefix(2) == Publishers.Output(upstream: [1].publisher, range: 0..<2),
+          "First, Contains, Equatable Just / Fail / Drop / Output (\(firsts))")
+    _ = (c6, c7, c8)
+
+    let demands: [Subscribers.Demand] = [.none, .max(3), .unlimited]
+    let coded = (try? JSONEncoder().encode(demands)).flatMap { try? JSONDecoder().decode([Subscribers.Demand].self, from: $0) }
+    check(coded == demands, "Subscribers.Demand is Codable (\(coded.map { "\($0)" } ?? "nil"))")
+
+    let sem = DispatchSemaphore(value: 0)
+    var futureValue = 0, failed = false
+    Task {
+        futureValue = await Future<Int, Never> { $0(.success(42)) }.value
+        do { _ = try await Future<Int, URLError> { $0(.failure(URLError(.timedOut))) }.value } catch { failed = error is URLError }
+        sem.signal()
+    }
+    sem.wait()
+    final class Box { var v = 0 }
+    let assign = Subscribers.Assign(object: Box(), keyPath: \Box.v)
+    check(futureValue == 42 && failed && assign.description.hasPrefix("Assign "), "Future.value (async, throwing), Subscribers.Assign.description")
+}
+
 final class Model: ObservableObject {
     @Published var count = 0
     @Published var name = "a"
@@ -90,6 +157,7 @@ final class Note: NSObject, NSSecureCoding {
         subject.send(8)
         check(cancelled.isEmpty, "AnyCancellable.cancel stops delivery")
         _ = (c1, c2, c3, c4)
+        combineOperatorChecks()
 
         // MARK: JSON
         let json = Data(#"{"a": 1, "b": [true, null, 2.5, "x\né"], "c": {"d": -3}}"#.utf8)

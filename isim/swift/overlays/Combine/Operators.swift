@@ -1349,12 +1349,6 @@ extension Publisher {
     public func tryRemoveDuplicates(by predicate: @escaping (Output, Output) throws -> Bool) -> Publishers.TryRemoveDuplicates<Self> {
         Publishers.TryRemoveDuplicates(upstream: self, predicate: predicate)
     }
-    public func map<T0, T1>(_ k0: KeyPath<Output, T0>, _ k1: KeyPath<Output, T1>) -> Publishers.Map<Self, (T0, T1)> {
-        Publishers.Map(upstream: self) { ($0[keyPath: k0], $0[keyPath: k1]) }
-    }
-    public func map<T0, T1, T2>(_ k0: KeyPath<Output, T0>, _ k1: KeyPath<Output, T1>, _ k2: KeyPath<Output, T2>) -> Publishers.Map<Self, (T0, T1, T2)> {
-        Publishers.Map(upstream: self) { ($0[keyPath: k0], $0[keyPath: k1], $0[keyPath: k2]) }
-    }
     public func replaceNil<T>(with output: T) -> Publishers.Map<Self, T> where Output == T? {
         Publishers.Map(upstream: self) { $0 ?? output }
     }
@@ -1395,14 +1389,6 @@ extension Publisher {
     public func combineLatest<P: Publisher, Q: Publisher, R: Publisher>(_ p: P, _ q: Q, _ r: R) -> Publishers.CombineLatest4<Self, P, Q, R>
         where P.Failure == Failure, Q.Failure == Failure, R.Failure == Failure {
         Publishers.CombineLatest4(self, p, q, r)
-    }
-    public func merge<B: Publisher, C: Publisher>(with b: B, _ c: C) -> Publishers.MergeMany<AnyPublisher<Output, Failure>>
-        where B.Output == Output, B.Failure == Failure, C.Output == Output, C.Failure == Failure {
-        Publishers.MergeMany([eraseToAnyPublisher(), b.eraseToAnyPublisher(), c.eraseToAnyPublisher()])
-    }
-    public func merge<B: Publisher, C: Publisher, D: Publisher>(with b: B, _ c: C, _ d: D) -> Publishers.MergeMany<AnyPublisher<Output, Failure>>
-        where B.Output == Output, B.Failure == Failure, C.Output == Output, C.Failure == Failure, D.Output == Output, D.Failure == Failure {
-        Publishers.MergeMany([eraseToAnyPublisher(), b.eraseToAnyPublisher(), c.eraseToAnyPublisher(), d.eraseToAnyPublisher()])
     }
     public func append(_ elements: Output...) -> Publishers.Concatenate<Self, Publishers.Sequence<[Output], Failure>> {
         Publishers.Concatenate(prefix: self, suffix: Publishers.Sequence(sequence: elements))
@@ -1482,7 +1468,6 @@ extension Publisher where Output: Comparable {
     public func max() -> Publishers.Comparison<Self> { max(by: <) }
 }
 extension Publisher where Output: Equatable {
-    public func contains(_ output: Output) -> Publishers.ContainsWhere<Self> { contains { $0 == output } }
 }
 
 extension Publisher where Output: Publisher, Output.Failure == Failure {
@@ -1504,19 +1489,19 @@ extension Publisher where Output: Publisher, Output.Failure == Never {
 
 extension Publisher where Failure == Never {
     public func flatMap<P: Publisher>(maxPublishers: Subscribers.Demand = .unlimited, _ transform: @escaping (Output) -> P) -> Publishers.FlatMap<P, Publishers.SetFailureType<Self, P.Failure>> {
-        var f = Publishers.FlatMap(upstream: setFailureType(to: P.Failure.self), transform: transform); f.maxPublishers = maxPublishers; return f
+        Publishers.FlatMap(upstream: setFailureType(to: P.Failure.self), maxPublishers: maxPublishers, transform: transform)
     }
 }
 extension Publisher {
     public func flatMap<P: Publisher>(maxPublishers: Subscribers.Demand = .unlimited, _ transform: @escaping (Output) -> P) -> Publishers.FlatMap<Publishers.SetFailureType<P, Failure>, Self>
         where P.Failure == Never {
-        var f = Publishers.FlatMap(upstream: self, transform: { transform($0).setFailureType(to: Failure.self) }); f.maxPublishers = maxPublishers; return f
+        Publishers.FlatMap(upstream: self, maxPublishers: maxPublishers, transform: { transform($0).setFailureType(to: Failure.self) })
     }
 }
 extension Publisher where Failure == Never {
     public func flatMap<P: Publisher>(maxPublishers: Subscribers.Demand = .unlimited, _ transform: @escaping (Output) -> P) -> Publishers.FlatMap<P, Self>
         where P.Failure == Never {
-        var f = Publishers.FlatMap(upstream: self, transform: transform); f.maxPublishers = maxPublishers; return f
+        Publishers.FlatMap(upstream: self, maxPublishers: maxPublishers, transform: transform)
     }
 }
 
