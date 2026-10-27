@@ -1,0 +1,548 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B5E10000000000000000002F /* HelloStickersStickers.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B5E10000000000000000000F /* HelloStickersStickers.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B5E100000000000000000033 /* HelloStickersMessages.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B5E100000000000000000019 /* HelloStickersMessages.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B5E100000000000000000037 /* HelloStickersWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = B5E100000000000000000023 /* HelloStickersWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B5E100000000000000000030 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B5E100000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B5E10000000000000000000E;
+			remoteInfo = HelloStickersStickers;
+		};
+		B5E100000000000000000034 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B5E100000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B5E100000000000000000018;
+			remoteInfo = HelloStickersMessages;
+		};
+		B5E100000000000000000038 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B5E100000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B5E100000000000000000022;
+			remoteInfo = HelloStickersWatch;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B5E10000000000000000003B /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B5E10000000000000000002F /* HelloStickersStickers.appex in Embed Foundation Extensions */,
+				B5E100000000000000000033 /* HelloStickersMessages.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B5E10000000000000000003C /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				B5E100000000000000000037 /* HelloStickersWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		B5E100000000000000000005 /* HelloStickers.app */ = {isa = PBXFileReference; explicitFileType = "wrapper.application"; includeInIndex = 0; path = HelloStickers.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B5E10000000000000000000F /* HelloStickersStickers.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HelloStickersStickers.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B5E100000000000000000019 /* HelloStickersMessages.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HelloStickersMessages.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B5E100000000000000000023 /* HelloStickersWatch.app */ = {isa = PBXFileReference; explicitFileType = "wrapper.application"; includeInIndex = 0; path = HelloStickersWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		B5E100000000000000000007 /* Exceptions for "HelloStickers" folder in "HelloStickers" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = B5E100000000000000000004 /* HelloStickers */;
+		};
+		B5E100000000000000000011 /* Exceptions for "Stickers" folder in "HelloStickersStickers" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = B5E10000000000000000000E /* HelloStickersStickers */;
+		};
+		B5E10000000000000000001B /* Exceptions for "Messages" folder in "HelloStickersMessages" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = B5E100000000000000000018 /* HelloStickersMessages */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		B5E100000000000000000006 /* HelloStickers */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (B5E100000000000000000007 /* Exceptions for "HelloStickers" folder in "HelloStickers" target */, ); path = HelloStickers; sourceTree = "<group>"; };
+		B5E100000000000000000010 /* Stickers */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (B5E100000000000000000011 /* Exceptions for "Stickers" folder in "HelloStickersStickers" target */, ); path = Stickers; sourceTree = "<group>"; };
+		B5E10000000000000000001A /* Messages */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (B5E10000000000000000001B /* Exceptions for "Messages" folder in "HelloStickersMessages" target */, ); path = Messages; sourceTree = "<group>"; };
+		B5E100000000000000000024 /* Watch */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Watch; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B5E100000000000000000009 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B5E100000000000000000013 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B5E10000000000000000001D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B5E100000000000000000027 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		B5E100000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				B5E100000000000000000006 /* HelloStickers */,
+				B5E100000000000000000010 /* Stickers */,
+				B5E10000000000000000001A /* Messages */,
+				B5E100000000000000000024 /* Watch */,
+				B5E100000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B5E100000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B5E100000000000000000005 /* HelloStickers.app */,
+				B5E10000000000000000000F /* HelloStickersStickers.appex */,
+				B5E100000000000000000019 /* HelloStickersMessages.appex */,
+				B5E100000000000000000023 /* HelloStickersWatch.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		B5E100000000000000000004 /* HelloStickers */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B5E10000000000000000000B /* Build configuration list for PBXNativeTarget "HelloStickers" */;
+			buildPhases = (
+				B5E100000000000000000008 /* Sources */,
+				B5E100000000000000000009 /* Frameworks */,
+				B5E10000000000000000000A /* Resources */,
+				B5E10000000000000000003B /* Embed Foundation Extensions */,
+				B5E10000000000000000003C /* Embed Watch Content */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B5E100000000000000000031 /* PBXTargetDependency */,
+				B5E100000000000000000035 /* PBXTargetDependency */,
+				B5E100000000000000000039 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				B5E100000000000000000006 /* HelloStickers */,
+			);
+			name = HelloStickers;
+			productName = HelloStickers;
+			productReference = B5E100000000000000000005 /* HelloStickers.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B5E10000000000000000000E /* HelloStickersStickers */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B5E100000000000000000015 /* Build configuration list for PBXNativeTarget "HelloStickersStickers" */;
+			buildPhases = (
+				B5E100000000000000000014 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				B5E100000000000000000010 /* Stickers */,
+			);
+			name = HelloStickersStickers;
+			productName = HelloStickersStickers;
+			productReference = B5E10000000000000000000F /* HelloStickersStickers.appex */;
+			productType = "com.apple.product-type.app-extension.messages-sticker-pack";
+		};
+		B5E100000000000000000018 /* HelloStickersMessages */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B5E10000000000000000001F /* Build configuration list for PBXNativeTarget "HelloStickersMessages" */;
+			buildPhases = (
+				B5E10000000000000000001C /* Sources */,
+				B5E10000000000000000001D /* Frameworks */,
+				B5E10000000000000000001E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				B5E10000000000000000001A /* Messages */,
+			);
+			name = HelloStickersMessages;
+			productName = HelloStickersMessages;
+			productReference = B5E100000000000000000019 /* HelloStickersMessages.appex */;
+			productType = "com.apple.product-type.app-extension.messages";
+		};
+		B5E100000000000000000022 /* HelloStickersWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B5E100000000000000000029 /* Build configuration list for PBXNativeTarget "HelloStickersWatch" */;
+			buildPhases = (
+				B5E100000000000000000026 /* Sources */,
+				B5E100000000000000000027 /* Frameworks */,
+				B5E100000000000000000028 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				B5E100000000000000000024 /* Watch */,
+			);
+			name = HelloStickersWatch;
+			productName = HelloStickersWatch;
+			productReference = B5E100000000000000000023 /* HelloStickersWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		B5E100000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					B5E100000000000000000004 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					B5E10000000000000000000E = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					B5E100000000000000000018 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					B5E100000000000000000022 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = B5E10000000000000000002E /* Build configuration list for PBXProject "HelloStickers" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = B5E100000000000000000002;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = B5E100000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B5E100000000000000000004 /* HelloStickers */,
+				B5E10000000000000000000E /* HelloStickersStickers */,
+				B5E100000000000000000018 /* HelloStickersMessages */,
+				B5E100000000000000000022 /* HelloStickersWatch */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		B5E10000000000000000000A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B5E100000000000000000014 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B5E10000000000000000001E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B5E100000000000000000028 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		B5E100000000000000000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B5E10000000000000000001C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B5E100000000000000000026 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B5E100000000000000000031 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B5E10000000000000000000E /* HelloStickersStickers */;
+			targetProxy = B5E100000000000000000030 /* PBXContainerItemProxy */;
+		};
+		B5E100000000000000000035 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B5E100000000000000000018 /* HelloStickersMessages */;
+			targetProxy = B5E100000000000000000034 /* PBXContainerItemProxy */;
+		};
+		B5E100000000000000000039 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B5E100000000000000000022 /* HelloStickersWatch */;
+			targetProxy = B5E100000000000000000038 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		B5E10000000000000000002C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		B5E10000000000000000002D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		B5E10000000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloStickers;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				INFOPLIST_FILE = HelloStickers/Info.plist;
+			};
+			name = Debug;
+		};
+		B5E10000000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloStickers;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				INFOPLIST_FILE = HelloStickers/Info.plist;
+			};
+			name = Release;
+		};
+		B5E100000000000000000016 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloStickers.Stickers;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				INFOPLIST_FILE = Stickers/Info.plist;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
+			};
+			name = Debug;
+		};
+		B5E100000000000000000017 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloStickers.Stickers;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				INFOPLIST_FILE = Stickers/Info.plist;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
+			};
+			name = Release;
+		};
+		B5E100000000000000000020 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloStickers.Messages;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				INFOPLIST_FILE = Messages/Info.plist;
+			};
+			name = Debug;
+		};
+		B5E100000000000000000021 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloStickers.Messages;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				INFOPLIST_FILE = Messages/Info.plist;
+			};
+			name = Release;
+		};
+		B5E10000000000000000002A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloStickers.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 4;
+				SDKROOT = watchos;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = dev.isim.samples.HelloStickers;
+				GENERATE_INFOPLIST_FILE = YES;
+			};
+			name = Debug;
+		};
+		B5E10000000000000000002B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.isim.samples.HelloStickers.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 4;
+				SDKROOT = watchos;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = dev.isim.samples.HelloStickers;
+				GENERATE_INFOPLIST_FILE = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		B5E10000000000000000002E /* Build configuration list for PBXProject "HelloStickers" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B5E10000000000000000002C /* Debug */,
+				B5E10000000000000000002D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B5E10000000000000000000B /* Build configuration list for PBXNativeTarget "HelloStickers" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B5E10000000000000000000C /* Debug */,
+				B5E10000000000000000000D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B5E100000000000000000015 /* Build configuration list for PBXNativeTarget "HelloStickersStickers" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B5E100000000000000000016 /* Debug */,
+				B5E100000000000000000017 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B5E10000000000000000001F /* Build configuration list for PBXNativeTarget "HelloStickersMessages" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B5E100000000000000000020 /* Debug */,
+				B5E100000000000000000021 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B5E100000000000000000029 /* Build configuration list for PBXNativeTarget "HelloStickersWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B5E10000000000000000002A /* Debug */,
+				B5E10000000000000000002B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = B5E100000000000000000001 /* Project object */;
+}

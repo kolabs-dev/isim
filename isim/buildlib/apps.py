@@ -676,6 +676,11 @@ def _(a):   # the full app with its App Clip embedded in AppClips/ (the App Clip
     a.xcode_project("-project", "HelloAppClip.xcodeproj", targets=["HelloAppClip"])
 
 
+@app("samples/HelloStickers")
+def _(a):   # the app with its sticker pack and Messages extension in PlugIns/ (its watch app is not built)
+    a.xcode_project("-project", "HelloStickers.xcodeproj", targets=["HelloStickers"])
+
+
 @app("samples/HelloAssetSymbols")
 def _(a):
     a.xcode_project("-project", "HelloAssetSymbols.xcodeproj", targets=["HelloAssetSymbols"])

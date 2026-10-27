@@ -94,7 +94,7 @@ def parse_openstep(text):
 
 SOURCE_EXTS = ('.swift', '.m', '.mm', '.c', '.cpp', '.cc', '.metal', '.mlmodel', '.mlpackage', '.intentdefinition')   # .metal: Core Image kernels (default.metallib); Core ML models
 HEADER_EXTS = ('.h', '.hpp', '.pch', '.modulemap')
-FOLDER_RESOURCE_EXTS = ('.xcassets', '.lproj', '.bundle', '.scnassets', '.spriteatlas', '.xcdatamodeld', '.storyboard', '.xib', '.mlpackage')
+FOLDER_RESOURCE_EXTS = ('.xcassets', '.xcstickers', '.lproj', '.bundle', '.scnassets', '.spriteatlas', '.xcdatamodeld', '.storyboard', '.xib', '.mlpackage')
 # files Xcode does not copy into the product from a synchronized folder
 NON_RESOURCE_EXTS = ('.entitlements', '.xcconfig', '.storekit', '.xctestplan', '.docc')
 
