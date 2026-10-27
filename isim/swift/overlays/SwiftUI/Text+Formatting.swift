@@ -26,6 +26,7 @@ struct _TextExtras {
     var image: Image? = nil          // Text(Image(...)): an inline image (SF Symbols scale with the font)
     var paint: AnyShapeStyle? = nil  // Text.foregroundStyle(gradient / image paint): drawn through the text's glyphs
     var axHeading: AccessibilityHeadingLevel? = nil   // Text.accessibilityHeading (Accessibility+More.swift)
+    var custom: [ObjectIdentifier: AnyHashable] = [:]   // Text.customAttribute (TextRenderer.swift)
 }
 struct _TextLine { let active: Bool; let color: Color? }
 
@@ -296,19 +297,22 @@ struct _TextRun {
     var baseline: CGFloat = 0
     var link: URL? = nil
     var code = false
+    var custom: [ObjectIdentifier: AnyHashable] = [:]
     func sameStyle(_ o: _TextRun) -> Bool {
         font == o.font && color == o.color && italic == o.italic && underline == o.underline && strike == o.strike
-            && kerning == o.kerning && baseline == o.baseline && link == o.link && code == o.code && image === o.image
+            && kerning == o.kerning && baseline == o.baseline && link == o.link && code == o.code && image === o.image && custom == o.custom
     }
-    var plain: Bool { image == nil && !italic && underline == nil && strike == nil && kerning == 0 && baseline == 0 && link == nil && !code }
+    var plain: Bool { image == nil && !italic && underline == nil && strike == nil && kerning == 0 && baseline == 0 && link == nil && !code && custom.isEmpty }
 }
 
 /// Inherited text attributes (outer Text, then the view environment).
 struct _TextInherit {
     var font: Font?, color: Color?, weight: Font.Weight?, italic = false
     var underline: _TextLine?, strike: _TextLine?, kerning: CGFloat?, baseline: CGFloat?, design: Font.Design?
+    var custom: [ObjectIdentifier: AnyHashable] = [:]
     func merged(with t: Text) -> _TextInherit {
         var m = self
+        m.custom.merge(t._x.custom) { $1 }
         if let f = t.font { m.font = f }
         if let c = t.color { m.color = c }
         if let w = t.weight { m.weight = w }
@@ -353,6 +357,7 @@ extension Text {
         var run = _TextRun(text: "", font: f.uiFont, color: color.uiColor)
         run.image = _uiImage(img, e)
         run.baseline = a.baseline ?? env._textStyle.baseline ?? 0
+        run.custom = a.custom
         return [run]
     }
     var segments: [(String, _MDStyle)]
@@ -386,6 +391,7 @@ extension Text {
         run.baseline = a.baseline ?? env._textStyle.baseline ?? 0
         run.link = link
         run.code = md.code
+        run.custom = a.custom
         return run
     }
 }
@@ -438,6 +444,11 @@ final class _PaintedTextNode: _Node {
                           alignment: env.multilineTextAlignment)
         return _RedactedTextNode(path: ctx.path, child: n)
     }
+    if let r = env._textRenderer, !runs.isEmpty {        // drawn by a TextRenderer (TextRenderer.swift)
+        let open = env.openURL
+        let rich = _RichTextNode(path: ctx.path + "/layout", runs: runs, maxLines: lines.1, minLines: lines.0, alignment: env.multilineTextAlignment, open: { open($0) })
+        return _RenderedTextNode(path: ctx.path, rich: rich, renderer: r, env: env)
+    }
     if let first = runs.first, runs.allSatisfy({ $0.plain && $0.sameStyle(first) }) {
         let n = _TextNode(path: ctx.path, text: runs.map(\.text).joined(), font: first.font, color: first.color, minLines: lines.0, maxLines: lines.1,
                           alignment: env.multilineTextAlignment)
@@ -475,10 +486,14 @@ final class _PaintedTextNode: _Node {
 
 final class _RichTextNode: _Node {
     let runs: [_TextRun], maxLines: Int?, minLines: Int?, alignment: TextAlignment, open: (URL) -> Void
-    struct Piece { let run: Int; let text: String; let width: CGFloat; let hasBreak: Bool; let trailingSpace: CGFloat }
-    struct Placed { let run: Int; let text: String; let frame: CGRect }
+    struct Piece { let run: Int; let text: String; let width: CGFloat; let hasBreak: Bool; let trailingSpace: CGFloat; var start = 0 }
+    struct Placed { let run: Int; let text: String; let frame: CGRect; var start = 0 }
+    /// a placed line: its pieces in `placed`, its baseline (y) and its ascent / descent
+    struct PlacedLine { let pieces: Range<Int>; let baseline: CGFloat; let ascent: CGFloat; let descent: CGFloat }
     var pieces: [Piece] = []
     var placed: [Placed] = []
+    var placedLines: [PlacedLine] = []
+    var truncated = false
     var plain: String { runs.map(\.text).joined() }
     init(path: String, runs: [_TextRun], maxLines: Int?, minLines: Int?, alignment: TextAlignment, open: @escaping (URL) -> Void) {
         self.runs = runs; self.maxLines = maxLines; self.minLines = minLines; self.alignment = alignment; self.open = open
@@ -494,20 +509,23 @@ final class _RichTextNode: _Node {
     func makePieces() -> [Piece] {
         // words keep their trailing spaces (measured separately so a line can end without them)
         var out: [Piece] = []
+        var offset = 0, wordStart = 0           // (character offsets in the whole text)
         for (ri, r) in runs.enumerated() {
-            if let im = r.image { out.append(Piece(run: ri, text: "\u{FFFC}", width: ceil(im.size.width), hasBreak: false, trailingSpace: 0)); continue }
+            if let im = r.image { out.append(Piece(run: ri, text: "\u{FFFC}", width: ceil(im.size.width), hasBreak: false, trailingSpace: 0, start: offset)); continue }
             var word = "", spaces = ""
+            wordStart = offset
             func flush(_ brk: Bool) {
                 if !word.isEmpty || !spaces.isEmpty || brk {
                     out.append(Piece(run: ri, text: word, width: _RichTextNode.width(word, r), hasBreak: brk,
-                                     trailingSpace: spaces.isEmpty ? 0 : _RichTextNode.width("x" + spaces, r) - _RichTextNode.width("x", r)))
+                                     trailingSpace: spaces.isEmpty ? 0 : _RichTextNode.width("x" + spaces, r) - _RichTextNode.width("x", r), start: wordStart))
                 }
                 word = ""; spaces = ""
             }
             for c in r.text {
-                if c == "\n" { flush(true) }
+                if c == "\n" { flush(true); wordStart = offset + 1 }
                 else if c == " " || c == "\t" { spaces.append(" ") }
-                else { if !spaces.isEmpty { flush(false) }; word.append(c) }
+                else { if !spaces.isEmpty { flush(false) }; if word.isEmpty { wordStart = offset }; word.append(c) }
+                offset += 1
             }
             flush(false)
         }
@@ -545,20 +563,25 @@ final class _RichTextNode: _Node {
         frame = rect
         let (lines, widths, heights) = layout(rect.width)
         placed = []
+        placedLines = []
         var y: CGFloat = 0
         for (li, line) in lines.enumerated() {
             let lw = widths[li]
             var x: CGFloat = alignment == .center ? (rect.width - lw) / 2 : alignment == .trailing ? rect.width - lw : 0
-            let asc = line.map { runs[pieces[$0].run].font.ascender }.max() ?? 0
+            let asc = line.map { runs[pieces[$0].run].font.ascender }.max() ?? (runs.first?.font.ascender ?? 0)
+            let desc = line.map { -runs[pieces[$0].run].font.descender }.max() ?? 0
+            let first = placed.count
             for (k, pi) in line.enumerated() {
                 let p = pieces[pi], r = runs[p.run]
                 let lh = lineHeight(r)
                 let top = y + (asc - r.font.ascender) - r.baseline
-                placed.append(Placed(run: p.run, text: p.text, frame: CGRect(x: x, y: top, width: ceil(p.width), height: lh)))
+                placed.append(Placed(run: p.run, text: p.text, frame: CGRect(x: x, y: top, width: ceil(p.width), height: lh), start: p.start))
                 x += p.width + (k == line.count - 1 ? 0 : p.trailingSpace)
             }
+            placedLines.append(PlacedLine(pieces: first..<placed.count, baseline: y + asc, ascent: asc, descent: desc))
             y += heights[li]
         }
+        truncated = lines.reduce(0) { $0 + $1.count } < pieces.count
     }
     override func mountView(_ g: _Graph) -> UIView {
         let v = g.view(viewKey) { _SUIRichLabel(frame: .zero) }

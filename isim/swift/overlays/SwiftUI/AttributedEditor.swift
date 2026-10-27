@@ -68,6 +68,7 @@ struct _AttributedEditor: View, _PrimitiveView {
         n.baseFont = (ctx.environment.font ?? .body).uiFont
         n.baseColor = (ctx.environment._foreground ?? .primary).uiColor
         n.keyboardDismiss = ctx.environment._scrollOptions.keyboard
+        n.constraints = ctx.environment._formattingConstraints
         return n
     }
 }
@@ -75,6 +76,7 @@ final class _AttributedEditorNode: _Node {
     let text: Binding<AttributedString>, selection: _AnySelection?
     var baseFont: UIFont = .systemFont(ofSize: 17), baseColor: UIColor = .label
     var keyboardDismiss = 0
+    var constraints: [_AnyValueConstraint]?          // attributedTextFormattingDefinition (AttributedTextFormatting.swift)
     init(path: String, text: Binding<AttributedString>, selection: _AnySelection?) {
         self.text = text; self.selection = selection; super.init(path: path, children: [])
     }
@@ -83,6 +85,11 @@ final class _AttributedEditorNode: _Node {
         let v = g.view(viewKey) { _SUIAttributedTextView(frame: .zero, textContainer: nil) }
         v.node = self
         v.keyboardDismissMode = _keyboardDismissMode(keyboardDismiss, editor: true)
+        if let c = constraints {                          // text set from outside: constrained too
+            var t = text.wrappedValue
+            _constrain(&t, c)
+            if t != text.wrappedValue { let b = text; g.postRender.append { b.wrappedValue = t } }
+        }
         let shown = _nsAttributed(text.wrappedValue, font: baseFont, color: baseColor)
         if !v.attributedText.isEqual(to: shown) {
             let sel = v.selectedRange
@@ -119,6 +126,7 @@ final class _SUIAttributedTextView: UITextView, UITextViewDelegate {
             attrs = a[at..<chars.index(after: at)].runs.first?.attributes ?? AttributeContainer()
         }
         a.replaceSubrange(lo..<hi, with: AttributedString(String(new[p..<(new.count - s)]), attributes: attrs))
+        if let c = n.constraints { _constrain(&a, c) }
         n.text.wrappedValue = a
     }
     func textViewDidChangeSelection(_ tv: UITextView) {

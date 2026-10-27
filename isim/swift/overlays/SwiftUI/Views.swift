@@ -784,6 +784,7 @@ public struct SubmitLabel: Equatable, Sendable {
 public struct TextField<Label: View>: View, _PrimitiveView {
     let placeholder: String, text: Binding<String>, axis: Axis, secure: Bool
     var _commit: _ValueText? = nil          // TextField(value:formatter:/format:) (Controls+More.swift)
+    var _selection: _AnySelection? = nil    // TextField(_:text:selection:) (TextSelection.swift)
     public var body: Never { fatalError() }
     func _makeNode(_ ctx: _Context) -> _Node {
         let env = ctx.environment
@@ -791,6 +792,7 @@ public struct TextField<Label: View>: View, _PrimitiveView {
                               font: (env.font ?? .body).uiFont, traits: env._textTraits, lines: env._lineRange,
                               focus: ctx.graph.focusLink(for: ctx.path), inList: env._inList, graph: ctx.graph)
         n.commit = _commit
+        n.selection = _selection
         return n
     }
 }
@@ -853,6 +855,7 @@ final class _TextFieldNode: _Node {
     let placeholder: String, text: Binding<String>, axis: Axis, secure: Bool, font: UIFont, traits: _TextTraits
     let lines: (Int?, Int?), focus: _FocusLink?, inList: Bool
     var commit: _ValueText?
+    var selection: _AnySelection?
     weak var graph: _Graph?
     init(path: String, placeholder: String, text: Binding<String>, axis: Axis, secure: Bool, font: UIFont, traits: _TextTraits,
          lines: (Int?, Int?), focus: _FocusLink?, inList: Bool, graph: _Graph) {
@@ -888,6 +891,7 @@ final class _TextFieldNode: _Node {
         f.textContentType = traits.contentType
         f.borderStyle = traits.roundedBorder ? .roundedRect : .none
         if axis == .vertical { f._isim_setLineLimitMin(minLines, max: maxLines) }
+        _syncFieldSelection(f, selection, text: text.wrappedValue)
         if let focus = focus {
             let want = focus.get()
             g.postRender.append { [weak f] in
@@ -900,16 +904,18 @@ final class _TextFieldNode: _Node {
     }
 }
 
-final class _SUITextField: UITextField {
+final class _SUITextField: UITextField, UITextFieldDelegate {
     var node: _TextFieldNode?
     override init(frame: CGRect) {
         super.init(frame: frame)
+        delegate = self
         addTarget(self, action: #selector(changed), for: .editingChanged)
         addTarget(self, action: #selector(began), for: .editingDidBegin)
         addTarget(self, action: #selector(ended), for: .editingDidEnd)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     @objc func changed() { node?.text.wrappedValue = text ?? "" }
+    func textFieldDidChangeSelection(_ f: UITextField) { _fieldSelectionChanged(f, node?.selection) }
     override func insertText(_ t: String) {
         if t == "\n", let n = node, n.commit != nil, n.axis != .vertical { _ = resignFirstResponder(); n.graph?.submitAction(for: n.path)?(); return }
         if t == "\n", let n = node, n.axis != .vertical, let g = n.graph, let submit = g.submitAction(for: n.path) { submit(); return }
