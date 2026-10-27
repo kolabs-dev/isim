@@ -177,6 +177,8 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
     ("Accessibility", "-framework Foundation"),
     ("PDFKit", "-framework Foundation -framework UIKit -framework CoreGraphics"),
     ("QuickLook", "-framework Foundation -framework UIKit -framework CoreGraphics -framework PDFKit -lisim_host"),   # PDF previews
+    ("QuickLookThumbnailing", "-framework Foundation -framework UIKit -framework CoreGraphics -framework ImageIO -framework PDFKit "
+                              "-framework QuickLook -lisim_host"),   # issue #359
     ("CoreData", "-framework Foundation -lsqlite3"),
     ("XCTest", "-framework Foundation -framework UIKit -framework CoreGraphics -lisim_host"),
     ("Intents", "-framework Foundation -framework UIKit -framework CoreGraphics"),

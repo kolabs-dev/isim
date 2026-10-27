@@ -197,7 +197,7 @@ static BOOL conforms(NSURL *url, NSString *identifier, NSArray<NSDictionary *> *
     id t = ((id (*)(id, SEL, id))objc_msgSend)(c, @selector(typeWithFilenameExtension:), ext), s = ut_type(identifier);
     return t && s && ((BOOL (*)(id, SEL, id))objc_msgSend)(t, @selector(conformsToType:), s);
 }
-static void add_extensions_in(NSString *app, NSMutableArray *out) {
+static void add_extensions_in(NSString *app, NSString *point, NSMutableArray *out) {
     NSDictionary *appInfo = [NSDictionary dictionaryWithContentsOfFile:[app stringByAppendingPathComponent:@"Info.plist"]];
     NSString *plugins = [app stringByAppendingPathComponent:@"PlugIns"];
     for (NSString *n in [[NSFileManager.defaultManager contentsOfDirectoryAtPath:plugins error:NULL] sortedArrayUsingSelector:@selector(compare:)]) {
@@ -205,7 +205,7 @@ static void add_extensions_in(NSString *app, NSMutableArray *out) {
         NSString *p = [plugins stringByAppendingPathComponent:n];
         NSDictionary *info = [NSDictionary dictionaryWithContentsOfFile:[p stringByAppendingPathComponent:@"Info.plist"]];
         NSDictionary *ext = info[@"NSExtension"];
-        if (![ext[@"NSExtensionPointIdentifier"] isEqual:@"com.apple.quicklook.preview"]) continue;
+        if (![ext[@"NSExtensionPointIdentifier"] isEqual:point]) continue;
         id types = ext[@"NSExtensionAttributes"][@"QLSupportedContentTypes"];
         __IsimQLExtension *x = [__IsimQLExtension new];
         x.path = p;
@@ -217,23 +217,25 @@ static void add_extensions_in(NSString *app, NSMutableArray *out) {
         [out addObject:x];
     }
 }
-static NSArray<__IsimQLExtension *> *all_extensions(void) {
+static NSArray<__IsimQLExtension *> *all_extensions(NSString *point) {
     NSMutableArray *out = [NSMutableArray array];
     NSString *me = NSBundle.mainBundle.bundlePath;
-    add_extensions_in(me, out);
+    add_extensions_in(me, point, out);
     if (isim_shell_present()) {
         NSString *apps = isim_ui_installed_apps_dir();
         for (NSString *a in [[NSFileManager.defaultManager contentsOfDirectoryAtPath:apps error:NULL] sortedArrayUsingSelector:@selector(compare:)])
-            if ([a hasSuffix:@".app"] && ![a isEqualToString:me.lastPathComponent]) add_extensions_in([apps stringByAppendingPathComponent:a], out);
+            if ([a hasSuffix:@".app"] && ![a isEqualToString:me.lastPathComponent]) add_extensions_in([apps stringByAppendingPathComponent:a], point, out);
     }
     return out;
 }
-__IsimQLExtension *isim_ql_extension_for(NSURL *url) {
+/* also QuickLookThumbnailing's, for com.apple.quicklook.thumbnail */
+__IsimQLExtension *isim_ql_extension_for_point(NSURL *url, NSString *point) {
     if (!url.isFileURL || ![NSFileManager.defaultManager fileExistsAtPath:url.path]) return nil;
-    for (__IsimQLExtension *x in all_extensions())
+    for (__IsimQLExtension *x in all_extensions(point))
         for (NSString *t in x.types) if ([t isKindOfClass:[NSString class]] && conforms(url, t, x.declarations)) return x;
     return nil;
 }
+__IsimQLExtension *isim_ql_extension_for(NSURL *url) { return isim_ql_extension_for_point(url, @"com.apple.quicklook.preview"); }
 
 /* ---------------- hosting ---------------- */
 @interface NSObject (IsimQLExtensionContext)
