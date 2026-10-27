@@ -1,6 +1,8 @@
 #pragma once
 /* isim SDK (self-authored): Mach port management (ports of the calling process). */
 #include <mach/port.h>
+#include <mach/message.h>
+#include <mach/boolean.h>
 #include <_isim_cdefs.h>
 __BEGIN_DECLS
 kern_return_t mach_port_allocate(ipc_space_t task, mach_port_right_t right, mach_port_name_t *name);
@@ -16,5 +18,10 @@ kern_return_t mach_port_set_attributes(ipc_space_t task, mach_port_name_t name, 
                                        mach_port_info_t info, mach_msg_type_number_t count);
 kern_return_t mach_port_get_attributes(ipc_space_t task, mach_port_name_t name, mach_port_flavor_t flavor,
                                        mach_port_info_t info, mach_msg_type_number_t *count);
+kern_return_t mach_port_extract_right(ipc_space_t task, mach_port_name_t name, mach_msg_type_name_t msgt_name, mach_port_t *poly,
+                                      mach_msg_type_name_t *polyPoly);
+kern_return_t mach_port_guard(ipc_space_t task, mach_port_name_t name, mach_port_context_t guard, boolean_t strict);
+kern_return_t mach_port_unguard(ipc_space_t task, mach_port_name_t name, mach_port_context_t guard);
+kern_return_t mach_port_set_mscount(ipc_space_t task, mach_port_name_t name, mach_port_mscount_t mscount);
 mach_port_t mach_reply_port(void);
 __END_DECLS

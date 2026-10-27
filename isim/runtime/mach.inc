@@ -608,6 +608,8 @@ struct mport {
     int waiters;                        /* threads blocked on cv: the port is freed by the last one to leave */
     int value, destroyed;               /* semaphores */
     int notify_fd;                      /* eventfd + 1 (0: none) signalled on each queued message and on death (dispatch) */
+    uint64_t guard; int guarded;        /* mach_port_guard: the receive right's guard */
+    uint32_t mscount;                   /* make-send count (mach_port_set_mscount) */
     pthread_cond_t cv;
     struct mport *next;
 };
@@ -800,10 +802,69 @@ ISIM_GUEST_ABI static kern_return_t d_mach_port_get_attributes(mach_port_name_t 
         else {
             memset(info, 0, 10 * sizeof *info);
             info[3] = (integer_t)p->qlimit; info[4] = (integer_t)p->count;           /* mps_qlimit, mps_msgcount */
+            info[2] = (integer_t)p->mscount;                                        /* mps_mscount */
             info[5] = p->sorefs; info[6] = p->srefs > 0;                            /* mps_sorights, mps_srights */
             *count = 10;
         }
     } else r = M_KERN_INVALID_ARGUMENT;
+    pthread_mutex_unlock(&mport_lock);
+    return r;
+}
+/* a right taken out of a name for a message (in-process: the same name; MAKE_SEND and COPY_SEND add a send right,
+   MAKE_SEND_ONCE a send-once right; MOVE_* move the right itself, which keeps its name) */
+ISIM_GUEST_ABI static kern_return_t d_mach_port_extract_right(mach_port_name_t task, mach_port_name_t name, natural_t msgt_name,
+                                                              mach_port_name_t *poly, natural_t *polyPoly) {
+    if (!is_task(task)) return M_SEND_INVALID_DEST;
+    if (!poly || !polyPoly) return M_KERN_INVALID_ARGUMENT;
+    pthread_mutex_lock(&mport_lock);
+    struct mport *p = mport_find(name);
+    kern_return_t r = M_KERN_SUCCESS;
+    natural_t type = 0;
+    if (!p || p->kind != K_PORT) r = M_KERN_INVALID_NAME;
+    else if (msgt_name == 20) { if (p->receive) { p->srefs++; p->mscount++; type = 17; } else r = M_KERN_INVALID_RIGHT; }   /* MAKE_SEND */
+    else if (msgt_name == 21) { if (p->receive) { p->sorefs++; type = 18; } else r = M_KERN_INVALID_RIGHT; }                /* MAKE_SEND_ONCE */
+    else if (msgt_name == 19) { if (p->srefs && !p->dead) { p->srefs++; type = 17; } else r = M_KERN_INVALID_RIGHT; }        /* COPY_SEND */
+    else if (msgt_name == 16) { if (p->receive) type = 16; else r = M_KERN_INVALID_RIGHT; }                                 /* MOVE_RECEIVE */
+    else if (msgt_name == 17) { if (p->srefs && !p->dead) type = 17; else r = M_KERN_INVALID_RIGHT; }                       /* MOVE_SEND */
+    else if (msgt_name == 18) { if (p->sorefs) type = 18; else r = M_KERN_INVALID_RIGHT; }                                 /* MOVE_SEND_ONCE */
+    else r = M_KERN_INVALID_VALUE;
+    if (r == M_KERN_SUCCESS) { *poly = name; *polyPoly = type; }
+    pthread_mutex_unlock(&mport_lock);
+    return r;
+}
+/* a receive right's guard (mach_port_guard / mach_port_unguard): kept and checked, not enforced against other calls */
+ISIM_GUEST_ABI static kern_return_t d_mach_port_guard(mach_port_name_t task, mach_port_name_t name, uint64_t guard, int strict) {
+    if (!is_task(task)) return M_SEND_INVALID_DEST;
+    pthread_mutex_lock(&mport_lock);
+    struct mport *p = mport_find(name);
+    kern_return_t r = M_KERN_SUCCESS;
+    if (!p || p->kind != K_PORT) r = M_KERN_INVALID_NAME;
+    else if (!p->receive) r = M_KERN_INVALID_RIGHT;
+    else if (p->guarded) r = M_KERN_INVALID_ARGUMENT;
+    else { p->guard = guard; p->guarded = 1; }
+    pthread_mutex_unlock(&mport_lock);
+    return r;
+}
+ISIM_GUEST_ABI static kern_return_t d_mach_port_unguard(mach_port_name_t task, mach_port_name_t name, uint64_t guard) {
+    if (!is_task(task)) return M_SEND_INVALID_DEST;
+    pthread_mutex_lock(&mport_lock);
+    struct mport *p = mport_find(name);
+    kern_return_t r = M_KERN_SUCCESS;
+    if (!p || p->kind != K_PORT) r = M_KERN_INVALID_NAME;
+    else if (!p->receive) r = M_KERN_INVALID_RIGHT;
+    else if (!p->guarded || p->guard != guard) r = M_KERN_INVALID_ARGUMENT;
+    else { p->guard = 0; p->guarded = 0; }
+    pthread_mutex_unlock(&mport_lock);
+    return r;
+}
+ISIM_GUEST_ABI static kern_return_t d_mach_port_set_mscount(mach_port_name_t task, mach_port_name_t name, natural_t mscount) {
+    if (!is_task(task)) return M_SEND_INVALID_DEST;
+    pthread_mutex_lock(&mport_lock);
+    struct mport *p = mport_find(name);
+    kern_return_t r = M_KERN_SUCCESS;
+    if (!p || p->kind != K_PORT) r = M_KERN_INVALID_NAME;
+    else if (!p->receive) r = M_KERN_INVALID_RIGHT;
+    else p->mscount = mscount;
     pthread_mutex_unlock(&mport_lock);
     return r;
 }
@@ -1040,6 +1101,8 @@ static void mach_init(void) {
     A("_mach_port_type", d_mach_port_type), A("_mach_port_construct", d_mach_port_construct), \
     A("_mach_port_destruct", d_mach_port_destruct), A("_mach_port_set_attributes", d_mach_port_set_attributes), \
     A("_mach_port_get_attributes", d_mach_port_get_attributes), I("_isim_mach_port_notify_fd", d_isim_mach_port_notify_fd), \
+    A("_mach_port_extract_right", d_mach_port_extract_right), A("_mach_port_guard", d_mach_port_guard), \
+    A("_mach_port_unguard", d_mach_port_unguard), A("_mach_port_set_mscount", d_mach_port_set_mscount), \
     A("_mach_reply_port", d_mach_reply_port), A("_mach_msg", d_mach_msg), A("_mach_msg_send", d_mach_msg_send), \
     A("_mach_msg_receive", d_mach_msg_receive), A("_semaphore_create", d_semaphore_create), \
     A("_semaphore_destroy", d_semaphore_destroy), A("_semaphore_signal", d_semaphore_signal), \

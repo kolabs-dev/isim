@@ -44,12 +44,50 @@ static int oflags_from_darwin(int dflags) {
     if (dflags & 0x100000) f |= O_DIRECTORY;
     if (dflags & 0x0100) f |= O_NOFOLLOW;
     if (dflags & 0x0080) f |= O_SYNC;
+    if (dflags & 0x400000) f |= O_DSYNC;
+    if (dflags & 0x20000) f |= O_NOCTTY;
+    if (dflags & 0x0040) f |= O_ASYNC;
+    if (dflags & 0x200000) f |= O_PATH | O_NOFOLLOW;      /* O_SYMLINK: the link itself (stat-able, not readable) */
+    return f;                                             /* O_EVTONLY: an ordinary descriptor; O_CLOFORK: dropped (guests do not fork) */
+}
+/* O_SHLOCK / O_EXLOCK: a flock(2) taken as the file opens (O_NONBLOCK: without waiting) */
+static int open_locks(int fd, int dflags) {
+    if (fd < 0 || !(dflags & 0x30)) return fd;
+    if (flock(fd, ((dflags & 0x20) ? LOCK_EX : LOCK_SH) | ((dflags & 0x0004) ? LOCK_NB : 0)) == 0) return fd;
+    int e = errno; close(fd); errno = e == EWOULDBLOCK ? EAGAIN : e;
+    return -1;
+}
+ISIM_GUEST_ABI static int d_open(const char *path, int dflags, int mode) { return open_locks(open(path, oflags_from_darwin(dflags), mode), dflags); }
+/* openat(2): Darwin's AT_FDCWD is -2 */
+static int dirfd_from_darwin(int dirfd) { return dirfd == -2 ? AT_FDCWD : dirfd; }
+ISIM_GUEST_ABI static int d_openat(int dirfd, const char *path, int dflags, int mode) {
+    return open_locks(openat(dirfd_from_darwin(dirfd), path, oflags_from_darwin(dflags), mode), dflags);
+}
+/* the *at() calls' Darwin AT_ flags */
+static int atflags_from_darwin(int d) {
+    int f = 0;
+    if (d & 0x0010) f |= AT_EACCESS;
+    if (d & 0x0020) f |= AT_SYMLINK_NOFOLLOW;
+    if (d & 0x0040) f |= AT_SYMLINK_FOLLOW;
+    if (d & 0x0080) f |= AT_REMOVEDIR;
     return f;
 }
-ISIM_GUEST_ABI static int d_open(const char *path, int dflags, int mode) { return open(path, oflags_from_darwin(dflags), mode); }
-/* openat(2): Darwin's AT_FDCWD is -2 */
-ISIM_GUEST_ABI static int d_openat(int dirfd, const char *path, int dflags, int mode) {
-    return openat(dirfd == -2 ? AT_FDCWD : dirfd, path, oflags_from_darwin(dflags), mode);
+/* linux-only: unlinkat(2) with Darwin's AT_FDCWD and AT_REMOVEDIR */
+ISIM_GUEST_ABI static int d_unlinkat(int dirfd, const char *path, int dflags) { return unlinkat(dirfd_from_darwin(dirfd), path, atflags_from_darwin(dflags) & AT_REMOVEDIR); }
+/* confstr: Darwin's user directories are the app container's (its tmp/ and Library/Caches/); _CS_PATH is the host's */
+ISIM_GUEST_ABI static size_t d_confstr(int name, char *buf, size_t len) {
+    const char *home = isim_container_home(), *tmp = getenv("TMPDIR");
+    if (!tmp || !*tmp) tmp = "/tmp";
+    char path[1200];
+    switch (name) {
+    case 1: return confstr(_CS_PATH, buf, len);                          /* _CS_PATH */
+    case 65536: snprintf(path, sizeof path, "%s/", *home ? home : tmp); break;                         /* _CS_DARWIN_USER_DIR */
+    case 65537: snprintf(path, sizeof path, *home ? "%s/tmp/" : "%s/", *home ? home : tmp); break;      /* ..._TEMP_DIR */
+    case 65538: snprintf(path, sizeof path, *home ? "%s/Library/Caches/" : "%s/", *home ? home : tmp); break;   /* ..._CACHE_DIR */
+    default: errno = EINVAL; return 0;
+    }
+    if (buf && len) snprintf(buf, len, "%s", path);
+    return strlen(path) + 1;
 }
 
 /* ---------------- time ---------------- */
@@ -125,6 +163,9 @@ static int d_statx(int dirfd, const char *p, int flags, struct d_stat *d) {
 ISIM_GUEST_ABI static int d_stat(const char *p, struct d_stat *d) { return d_statx(AT_FDCWD, p, 0, d); }
 ISIM_GUEST_ABI static int d_lstat(const char *p, struct d_stat *d) { return d_statx(AT_FDCWD, p, AT_SYMLINK_NOFOLLOW, d); }
 ISIM_GUEST_ABI static int d_fstat(int fd, struct d_stat *d) { return d_statx(fd, "", AT_EMPTY_PATH, d); }
+ISIM_GUEST_ABI static int d_fstatat(int dirfd, const char *p, struct d_stat *d, int dflags) {
+    return d_statx(dirfd_from_darwin(dirfd), p, atflags_from_darwin(dflags) & AT_SYMLINK_NOFOLLOW, d);
+}
 /* directories: Darwin struct dirent (64-bit, 1024-byte name) from the host's */
 #include <dirent.h>
 struct d_dirent { uint64_t d_ino, d_seekoff; uint16_t d_reclen, d_namlen; uint8_t d_type; char d_name[1024]; };
@@ -142,6 +183,11 @@ ISIM_GUEST_ABI static struct d_dirent *d_readdir(struct d_dir *d) {
     memcpy(d->ent.d_name, e->d_name, n); d->ent.d_name[n] = 0;
     d->ent.d_namlen = (uint16_t)n; d->ent.d_reclen = (uint16_t)sizeof d->ent;
     return &d->ent;
+}
+ISIM_GUEST_ABI static struct d_dir *d_fdopendir(int fd) {
+    DIR *h = fdopendir(fd);
+    if (!h) return NULL;
+    struct d_dir *d = calloc(1, sizeof *d); d->host = h; return d;
 }
 ISIM_GUEST_ABI static int d_closedir(struct d_dir *d) { int r = closedir(d->host); free(d); return r; }
 ISIM_GUEST_ABI static void d_rewinddir(struct d_dir *d) { rewinddir(d->host); }
@@ -460,13 +506,13 @@ static const struct shim libsystem_table[] = {
     A("___stdinp", &d_stdinp), A("___stdoutp", &d_stdoutp), A("___stderrp", &d_stderrp),
     /* process & environment */
     P(exit), P(_exit), P(abort), P(atexit), { "___cxa_atexit", (void *)__cxa_atexit, "passthrough" }, P(getenv), P(setenv), P(getpid), P(getuid), P(isatty), P(getpagesize), P(sleep), P(usleep), P(nanosleep),
-    A("_open", d_open), A("_openat", d_openat), A("_read", d_read), A("_write", d_write), P(close), P(lseek), P(ftruncate), P(fsync), P(access), P(unlink), P(readlink), P(symlink), P(link), P(getcwd), P(chdir), P(mkdir), P(rmdir), P(chmod), P(flock),
+    A("_open", d_open), A("_openat", d_openat), A("_read", d_read), A("_write", d_write), P(close), P(lseek), P(ftruncate), P(fsync), P(access), P(unlink), P(readlink), P(symlink), P(link), P(getcwd), P(chdir), P(mkdir), P(rmdir), P(chmod), P(flock), P(umask), A("_unlinkat", d_unlinkat), A("_confstr", d_confstr),
     A("___error", d_error), A("__NSGetArgc", d_NSGetArgc), A("__NSGetArgv", d_NSGetArgv), A("__NSGetExecutablePath", d_NSGetExecutablePath), A("__NSGetEnviron", d_NSGetEnviron), A("_sysconf", d_sysconf),
     /* time */
     P(time), P(gettimeofday), P(localtime_r), P(gmtime_r), P(mktime), P(strftime), P(tzset), P(timegm),
     A("_clock_gettime", d_clock_gettime),
-    A("_stat", d_stat), A("_lstat", d_lstat), A("_fstat", d_fstat), A("_stat$INODE64", d_stat), A("_lstat$INODE64", d_lstat), A("_fstat$INODE64", d_fstat), P(chown), P(lchown), A("_utimes", d_utimes),
-    A("_opendir", d_opendir), A("_readdir", d_readdir), A("_closedir", d_closedir), A("_rewinddir", d_rewinddir), A("_dirfd", d_dirfd),
+    A("_stat", d_stat), A("_lstat", d_lstat), A("_fstat", d_fstat), A("_fstatat", d_fstatat), A("_fstatat$INODE64", d_fstatat), A("_stat$INODE64", d_stat), A("_lstat$INODE64", d_lstat), A("_fstat$INODE64", d_fstat), P(chown), P(lchown), A("_utimes", d_utimes),
+    A("_opendir", d_opendir), A("_fdopendir", d_fdopendir), A("_fdopendir$INODE64", d_fdopendir), A("_readdir", d_readdir), A("_closedir", d_closedir), A("_rewinddir", d_rewinddir), A("_dirfd", d_dirfd),
     A("_opendir$INODE64", d_opendir), A("_readdir$INODE64", d_readdir),
     A("_iswalpha", d_iswalpha), A("_iswdigit", d_iswdigit), A("_iswalnum", d_iswalnum), A("_iswspace", d_iswspace), A("_iswpunct", d_iswpunct),
     A("_iswupper", d_iswupper), A("_iswlower", d_iswlower), A("_iswcntrl", d_iswcntrl), A("_iswprint", d_iswprint), A("_iswxdigit", d_iswxdigit),

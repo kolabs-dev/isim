@@ -9,9 +9,19 @@
 #define O_TRUNC 0x0400
 #define O_EXCL 0x0800
 #define O_CLOEXEC 0x01000000
+#define O_CLOFORK 0x08000000
 #define O_NOFOLLOW 0x0100
 #define O_SYNC 0x0080
 #define O_DIRECTORY 0x00100000
+#define O_ACCMODE 0x0003
+#define O_SHLOCK 0x0010
+#define O_EXLOCK 0x0020
+#define O_ASYNC 0x0040
+#define O_FSYNC O_SYNC
+#define O_EVTONLY 0x8000
+#define O_NOCTTY 0x20000
+#define O_DSYNC 0x400000
+#define O_SYMLINK 0x200000
 int open(const char *, int, ...);
 #define F_DUPFD 0
 #define F_GETFD 1
@@ -34,6 +44,14 @@ int fcntl(int, int, ...);
 /* isim: non-variadic forms for Swift (Foundation's open(_:_:_:) / fcntl(_:_:_:)) */
 static inline int _isim_open(const char *path, int oflag, int mode) { return open(path, oflag, mode); }
 #define AT_FDCWD -2
+#define AT_EACCESS 0x0010
+#define AT_SYMLINK_NOFOLLOW 0x0020
+#define AT_SYMLINK_FOLLOW 0x0040
+#define AT_REMOVEDIR 0x0080
+#define AT_REALDEV 0x0200
+#define AT_FDONLY 0x0400
+#define AT_SYMLINK_NOFOLLOW_ANY 0x0800
+#define AT_RESOLVE_BENEATH 0x2000
 int openat(int, const char *, int, ...);
 static inline int _isim_openat(int fd, const char *path, int oflag, int mode) { return openat(fd, path, oflag, mode); }
 static inline int _isim_fcntl(int fd, int cmd, int value) { return fcntl(fd, cmd, value); }

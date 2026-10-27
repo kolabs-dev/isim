@@ -246,6 +246,10 @@ ISIM_GUEST_ABI int isim_log_get(long seq, double *date, int meta[3], uint64_t id
 
 /* bytes the process has written (XCTStorageMetric) */
 ISIM_GUEST_ABI long long isim_process_bytes_written(void) { return isim_self_bytes_written(); }
+/* the app's container (Foundation tells it when it settles NSHomeDirectory): libSystem's confstr answers its directories */
+static char container_home[1024];
+ISIM_GUEST_ABI void isim_set_container_home(const char *path) { snprintf(container_home, sizeof container_home, "%s", path ? path : ""); }
+const char *isim_container_home(void) { return container_home; }
 
 /* ---------------- metrics (MetricKit) ---------------- */
 struct metric { char key[48]; double v; };

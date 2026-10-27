@@ -10,6 +10,7 @@ modification time alone when its content did not change, so Ninja (restat) skips
   stamp STAMP PATH...       write STAMP (a content hash of PATHs: files, directory trees or globs) only when it changes
   tbd RUNTIME INSTALL_NAME OUT   a .tbd stub listing the exports of one of isim-runtime's host libraries
   copy SRC DST              copy when the content differs (keeps the executable bit)
+  replace SRC DST OLD NEW   copy SRC to DST with every OLD replaced by NEW (a build copy of an upstream source)
 """
 import fnmatch
 import hashlib
@@ -212,9 +213,19 @@ def cmd_tbd(args):
     return 0
 
 
+def cmd_replace(args):
+    src, dst, pairs = args[0], args[1], args[2:]
+    with open(src, encoding="utf-8") as f:
+        text = f.read()
+    for old, new in zip(pairs[::2], pairs[1::2]):
+        text = text.replace(old, new)
+    write_if_changed(dst, text)
+    return 0
+
+
 def main(argv):
     actions = {"sync": cmd_sync, "keep": cmd_keep, "reldeps": cmd_reldeps, "stamp": cmd_stamp, "tbd": cmd_tbd,
-               "copy": lambda a: (copy_if_changed(a[0], a[1]), 0)[1]}
+               "copy": lambda a: (copy_if_changed(a[0], a[1]), 0)[1], "replace": cmd_replace}
     if not argv or argv[0] not in actions:
         print(__doc__)
         return 2
