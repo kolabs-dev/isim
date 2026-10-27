@@ -1,7 +1,7 @@
 # CFNetwork
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 10.0% of Apple's iOS API (34 of 339, exact) · **Rows:** 2: 1 ✅ 1 ❌ · **iOS:** 2.0+
+**Symbols:** 18.2% of Apple's iOS API (62 of 340, exact) · **Rows:** 3: 1 ✅ 1 🟡 1 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Foundation & CoreFoundation](../COVERAGE.md#foundation) · **Apple:** [CFNetwork](https://developer.apple.com/documentation/cfnetwork) · **Issues:** [`area:foundation`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Afoundation)
@@ -27,7 +27,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-305 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+278 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -227,9 +227,6 @@
 - [`func CFNetworkExecuteProxyAutoConfigurationScript(CFString, CFURL, CFProxyAutoConfigurationResultCallback, UnsafeMutablePointer<CFStreamClientContext>) -> CFRunLoopSource`](https://developer.apple.com/documentation/cfnetwork/cfnetworkexecuteproxyautoconfigurationscript(_:_:_:_:))
 - [`func CFNetworkExecuteProxyAutoConfigurationURL(CFURL, CFURL, CFProxyAutoConfigurationResultCallback, UnsafeMutablePointer<CFStreamClientContext>) -> CFRunLoopSource`](https://developer.apple.com/documentation/cfnetwork/cfnetworkexecuteproxyautoconfigurationurl(_:_:_:_:))
 - [`CFProxyAutoConfigurationResultCallback`](https://developer.apple.com/documentation/cfnetwork/cfproxyautoconfigurationresultcallback)
-- [`func CFSocketStreamSOCKSGetError(UnsafePointer<CFStreamError>) -> Int32`](https://developer.apple.com/documentation/cfnetwork/cfsocketstreamsocksgeterror(_:))
-- [`func CFSocketStreamSOCKSGetErrorSubdomain(UnsafePointer<CFStreamError>) -> Int32`](https://developer.apple.com/documentation/cfnetwork/cfsocketstreamsocksgeterrorsubdomain(_:))
-- [`func CFStreamCreatePairWithSocketToCFHost(CFAllocator?, CFHost, Int32, UnsafeMutablePointer<Unmanaged<CFReadStream>?>?, UnsafeMutablePointer<Unmanaged<CFWriteStream>?>?)`](https://developer.apple.com/documentation/cfnetwork/cfstreamcreatepairwithsockettocfhost(_:_:_:_:_:))
 - [`func CFStreamCreatePairWithSocketToNetService(CFAllocator?, CFNetService, UnsafeMutablePointer<Unmanaged<CFReadStream>?>?, UnsafeMutablePointer<Unmanaged<CFWriteStream>?>?)`](https://developer.apple.com/documentation/cfnetwork/cfstreamcreatepairwithsockettonetservice(_:_:_:_:))
 - [`CFStreamErrorHTTP`](https://developer.apple.com/documentation/cfnetwork/cfstreamerrorhttp)
 - [`case badURL`](https://developer.apple.com/documentation/cfnetwork/cfstreamerrorhttp/badurl)
@@ -285,7 +282,6 @@
 - [`let kCFStreamErrorDomainHTTP: Int32`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrordomainhttp)
 - [`let kCFStreamErrorDomainMach: Int32`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrordomainmach)
 - [`let kCFStreamErrorDomainNetServices: Int32`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrordomainnetservices)
-- [`let kCFStreamErrorDomainWinSock: CFIndex`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrordomainwinsock)
 - [`var kCFStreamErrorSOCKS4IdConflict: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks4idconflict)
 - [`var kCFStreamErrorSOCKS4IdConflict: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks4idconflict)
 - [`var kCFStreamErrorSOCKS4IdentdFailed: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocks4identdfailed)
@@ -307,31 +303,12 @@
 - [`var kCFStreamErrorSOCKSSubDomainVersionCode: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsockssubdomainversioncode)
 - [`var kCFStreamErrorSOCKSSubDomainVersionCode: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsockssubdomainversioncode)
 - [`var kCFStreamErrorSOCKSUnknownClientVersion: Int`](https://developer.apple.com/documentation/cfnetwork/kcfstreamerrorsocksunknownclientversion)
-- [`let kCFStreamNetworkServiceType: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreamnetworkservicetype)
-- [`let kCFStreamNetworkServiceTypeAVStreaming: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreamnetworkservicetypeavstreaming)
-- [`let kCFStreamNetworkServiceTypeBackground: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreamnetworkservicetypebackground)
-- [`let kCFStreamNetworkServiceTypeCallSignaling: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreamnetworkservicetypecallsignaling)
-- [`let kCFStreamNetworkServiceTypeResponsiveAV: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreamnetworkservicetyperesponsiveav)
-- [`let kCFStreamNetworkServiceTypeResponsiveData: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreamnetworkservicetyperesponsivedata)
-- [`let kCFStreamNetworkServiceTypeVideo: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreamnetworkservicetypevideo)
-- [`let kCFStreamNetworkServiceTypeVoice: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreamnetworkservicetypevoice)
-- [`let kCFStreamPropertyAllowConstrainedNetworkAccess: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreampropertyallowconstrainednetworkaccess)
-- [`let kCFStreamPropertyAllowExpensiveNetworkAccess: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreampropertyallowexpensivenetworkaccess)
-- [`let kCFStreamPropertyConnectionIsCellular: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreampropertyconnectioniscellular)
-- [`let kCFStreamPropertyConnectionIsExpensive: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreampropertyconnectionisexpensive)
-- [`let kCFStreamPropertyNoCellular: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreampropertynocellular)
-- [`let kCFStreamPropertyProxyLocalBypass: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreampropertyproxylocalbypass)
-- [`let kCFStreamPropertySocketExtendedBackgroundIdleMode: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreampropertysocketextendedbackgroundidlemode)
-- [`let kCFStreamPropertySocketRemoteHost: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreampropertysocketremotehost)
 - [`let kCFStreamPropertySocketRemoteNetService: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreampropertysocketremotenetservice)
 - [`let kCFStreamPropertySSLContext: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreampropertysslcontext)
-- [`let kCFStreamPropertySSLPeerTrust: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreampropertysslpeertrust)
-- [`let kCFStreamPropertySSLSettings: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreampropertysslsettings)
-- [`let kCFStreamSSLCertificates: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreamsslcertificates)
-- [`let kCFStreamSSLIsServer: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreamsslisserver)
-- [`let kCFStreamSSLLevel: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreamssllevel)
-- [`let kCFStreamSSLPeerName: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfstreamsslpeername)
-- … and 5 more (`isim/data/api-coverage.json.gz`)
+- [`let kCFURLErrorFailingURLErrorKey: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfurlerrorfailingurlerrorkey)
+- [`let kCFURLErrorFailingURLStringErrorKey: CFString`](https://developer.apple.com/documentation/cfnetwork/kcfurlerrorfailingurlstringerrorkey)
+- [`var kSOCKS5NoAcceptableMethod: Int`](https://developer.apple.com/documentation/cfnetwork/ksocks5noacceptablemethod)
+- [`var kSOCKS5NoAcceptableMethod: Int`](https://developer.apple.com/documentation/cfnetwork/ksocks5noacceptablemethod)
 
 </details>
 <!-- /generated:missing -->

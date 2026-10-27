@@ -1,6 +1,7 @@
 # AppleArchive
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 77.5% of Apple's iOS API (189 of 244, exact) · **Rows:** 10: 8 ✅ 1 🟡 1 ❌ · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [Foundation & CoreFoundation](../COVERAGE.md#foundation) · **Apple:** [AppleArchive](https://developer.apple.com/documentation/applearchive) · **Issues:** [`area:foundation`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Afoundation)
@@ -47,4 +48,65 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+55 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`AEAContextTraits`](https://developer.apple.com/documentation/applearchive/aeacontexttraits)
+- [`static func aaDestroy(AEAContextTraits.AAType?)`](https://developer.apple.com/documentation/applearchive/aeacontexttraits/aadestroy(_:))
+- [`AEAContextTraits.AAType`](https://developer.apple.com/documentation/applearchive/aeacontexttraits/aatype)
+- [`static func decryptionStream(readingFrom: ArchiveByteStream, encryptionContext: ArchiveEncryptionContext, flags: ArchiveFlags, threadCount: Int) -> ArchiveByteStream?`](https://developer.apple.com/documentation/applearchive/archivebytestream/decryptionstream(readingfrom:encryptioncontext:flags:threadcount:))
+- [`static func encryptionStream(appendingTo: ArchiveByteStream, encryptionContext: ArchiveEncryptionContext, flags: ArchiveFlags, threadCount: Int) -> ArchiveByteStream?`](https://developer.apple.com/documentation/applearchive/archivebytestream/encryptionstream(appendingto:encryptioncontext:flags:threadcount:))
+- [`static func encryptionStream(writingTo: ArchiveByteStream, encryptionContext: ArchiveEncryptionContext, flags: ArchiveFlags, threadCount: Int) -> ArchiveByteStream?`](https://developer.apple.com/documentation/applearchive/archivebytestream/encryptionstream(writingto:encryptioncontext:flags:threadcount:))
+- [`static func randomAccessDecryptionStream(readingFrom: ArchiveByteStream, encryptionContext: ArchiveEncryptionContext, allocationLimit: Int, flags: ArchiveFlags, threadCount: Int) -> ArchiveByteStream?`](https://developer.apple.com/documentation/applearchive/archivebytestream/randomaccessdecryptionstream(readingfrom:encryptioncontext:allocationlimit:flags:threadcount:))
+- [`ArchiveEncryptionContext`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext)
+- [`var archiveIdentifier: Data?`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/archiveidentifier)
+- [`var authData: Data?`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/authdata)
+- [`var checksumMode: ArchiveEncryptionContext.ChecksumMode`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/checksummode-swift.property)
+- [`ArchiveEncryptionContext.ChecksumMode`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/checksummode-swift.struct)
+- [`static let murmurhash64: ArchiveEncryptionContext.ChecksumMode`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/checksummode-swift.struct/murmurhash64)
+- [`static let none: ArchiveEncryptionContext.ChecksumMode`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/checksummode-swift.struct/none)
+- [`static let sha256: ArchiveEncryptionContext.ChecksumMode`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/checksummode-swift.struct/sha256)
+- [`var compressionAlgorithm: ArchiveCompression`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/compressionalgorithm)
+- [`var compressionBlockSize: Int`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/compressionblocksize)
+- [`var containerSize: Int`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/containersize)
+- [`func decryptAttributes() -> Bool`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/decryptattributes())
+- [`var encryptionMode: ArchiveEncryptionContext.EncryptionMode`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/encryptionmode-swift.property)
+- [`ArchiveEncryptionContext.EncryptionMode`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/encryptionmode-swift.struct)
+- [`static let ecdhe_p256: ArchiveEncryptionContext.EncryptionMode`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/encryptionmode-swift.struct/ecdhe_p256)
+- [`static let none: ArchiveEncryptionContext.EncryptionMode`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/encryptionmode-swift.struct/none)
+- [`static let scrypt: ArchiveEncryptionContext.EncryptionMode`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/encryptionmode-swift.struct/scrypt)
+- [`static let symmetric: ArchiveEncryptionContext.EncryptionMode`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/encryptionmode-swift.struct/symmetric)
+- [`func generatePassword() throws -> String`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/generatepassword())
+- [`func generateSymmetricKey() throws -> SymmetricKey`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/generatesymmetrickey())
+- [`init?(from: ArchiveByteStream)`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/init(from:))
+- [`init(profile: ArchiveEncryptionContext.Profile, compressionAlgorithm: ArchiveCompression, compressionBlockSize: Int)`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/init(profile:compressionalgorithm:compressionblocksize:))
+- [`var mainKey: SymmetricKey?`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/mainkey)
+- [`var paddingSize: Int`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/paddingsize)
+- [`var password: String?`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/password)
+- [`var profile: ArchiveEncryptionContext.Profile`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/profile-swift.property)
+- [`ArchiveEncryptionContext.Profile`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/profile-swift.struct)
+- [`static let hkdf_sha256_aesctr_hmac__ecdhe_p256__ecdsa_p256: ArchiveEncryptionContext.Profile`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/profile-swift.struct/hkdf_sha256_aesctr_hmac__ecdhe_p256__ecdsa_p256)
+- [`static let hkdf_sha256_aesctr_hmac__ecdhe_p256__none: ArchiveEncryptionContext.Profile`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/profile-swift.struct/hkdf_sha256_aesctr_hmac__ecdhe_p256__none)
+- [`static let hkdf_sha256_aesctr_hmac__scrypt__none: ArchiveEncryptionContext.Profile`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/profile-swift.struct/hkdf_sha256_aesctr_hmac__scrypt__none)
+- [`static let hkdf_sha256_aesctr_hmac__symmetric__ecdsa_p256: ArchiveEncryptionContext.Profile`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/profile-swift.struct/hkdf_sha256_aesctr_hmac__symmetric__ecdsa_p256)
+- [`static let hkdf_sha256_aesctr_hmac__symmetric__none: ArchiveEncryptionContext.Profile`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/profile-swift.struct/hkdf_sha256_aesctr_hmac__symmetric__none)
+- [`static let hkdf_sha256_hmac__none__ecdsa_p256: ArchiveEncryptionContext.Profile`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/profile-swift.struct/hkdf_sha256_hmac__none__ecdsa_p256)
+- [`var rawSize: Int`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/rawsize)
+- [`func setPassword(String) throws`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/setpassword(_:))
+- [`func setRecipientPrivateKey(P256.KeyAgreement.PrivateKey) throws`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/setrecipientprivatekey(_:))
+- [`func setRecipientPublicKey(P256.KeyAgreement.PublicKey) throws`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/setrecipientpublickey(_:))
+- [`func setSigningPrivateKey(P256.Signing.PrivateKey) throws`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/setsigningprivatekey(_:))
+- [`func setSigningPublicKey(P256.Signing.PublicKey) throws`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/setsigningpublickey(_:))
+- [`func setSymmetricKey(SymmetricKey) throws`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/setsymmetrickey(_:))
+- [`static func sign(encryptedStream: ArchiveByteStream, encryptionContext: ArchiveEncryptionContext) throws`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/sign(encryptedstream:encryptioncontext:))
+- [`var signatureEncryptionKey: SymmetricKey?`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/signatureencryptionkey)
+- [`var signatureMode: ArchiveEncryptionContext.SignatureMode`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/signaturemode-swift.property)
+- [`ArchiveEncryptionContext.SignatureMode`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/signaturemode-swift.struct)
+- [`static let ecdsa_p256: ArchiveEncryptionContext.SignatureMode`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/signaturemode-swift.struct/ecdsa_p256)
+- [`static let none: ArchiveEncryptionContext.SignatureMode`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/signaturemode-swift.struct/none)
+- [`var rawValue: UInt32`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/signaturemode-swift.struct/rawvalue)
+- [`var symmetricKey: SymmetricKey?`](https://developer.apple.com/documentation/applearchive/archiveencryptioncontext/symmetrickey)
+
+</details>
 <!-- /generated:missing -->

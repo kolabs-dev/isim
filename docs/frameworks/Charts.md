@@ -1,7 +1,7 @@
 # Charts
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 87.2% of Apple's iOS API (520 of 596, exact) · **Rows:** 20: 19 ✅ 1 ❌ · **iOS:** 16.0+
+**Symbols:** 89.6% of Apple's iOS API (534 of 596, exact) · **Rows:** 21: 20 ✅ 1 ❌ · **iOS:** 16.0+
 <!-- /generated:header -->
 
 **Area:** [SwiftUI & Charts](../COVERAGE.md#swiftui) · **Apple:** [Charts](https://developer.apple.com/documentation/charts) · **Issues:** [`area:swiftui`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aswiftui)
@@ -39,7 +39,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-76 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+62 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -62,22 +62,8 @@
 - [`static func label(extendPastBy: CGFloat) -> AxisTick.Length`](https://developer.apple.com/documentation/charts/axistick/length/label(extendpastby:))
 - [`static var longestLabel: AxisTick.Length`](https://developer.apple.com/documentation/charts/axistick/length/longestlabel)
 - [`static func longestLabel(extendPastBy: CGFloat) -> AxisTick.Length`](https://developer.apple.com/documentation/charts/axistick/length/longestlabel(extendpastby:))
-- [`BasicChart3DSymbolShape`](https://developer.apple.com/documentation/charts/basicchart3dsymbolshape)
 - [`func strokeBorder(lineWidth: CGFloat) -> some ChartSymbolShape`](https://developer.apple.com/documentation/charts/basicchartsymbolshape/strokeborder(linewidth:))
 - [`BuilderConditional`](https://developer.apple.com/documentation/charts/builderconditional)
-- [`func foregroundStyle(some Chart3DSurfaceStyle) -> some Chart3DContent`](https://developer.apple.com/documentation/charts/chart3dcontent/foregroundstyle(_:)-1pjaq)
-- [`func foregroundStyle(some ShapeStyle) -> some Chart3DContent`](https://developer.apple.com/documentation/charts/chart3dcontent/foregroundstyle(_:)-7skde)
-- [`func foregroundStyle<D>(by: PlottableValue<D>) -> some Chart3DContent`](https://developer.apple.com/documentation/charts/chart3dcontent/foregroundstyle(by:))
-- [`func metalness(Double) -> some Chart3DContent`](https://developer.apple.com/documentation/charts/chart3dcontent/metalness(_:))
-- [`func roughness(Double) -> some Chart3DContent`](https://developer.apple.com/documentation/charts/chart3dcontent/roughness(_:))
-- [`func symbol<S>(S) -> some Chart3DContent`](https://developer.apple.com/documentation/charts/chart3dcontent/symbol(_:))
-- [`func symbolRotation(Rotation3D) -> some Chart3DContent`](https://developer.apple.com/documentation/charts/chart3dcontent/symbolrotation(_:))
-- [`func symbolSize(CGFloat) -> some Chart3DContent`](https://developer.apple.com/documentation/charts/chart3dcontent/symbolsize(_:))
-- [`Chart3DSymbolShape`](https://developer.apple.com/documentation/charts/chart3dsymbolshape)
-- [`static var cone: BasicChart3DSymbolShape`](https://developer.apple.com/documentation/charts/chart3dsymbolshape/cone)
-- [`static var cube: BasicChart3DSymbolShape`](https://developer.apple.com/documentation/charts/chart3dsymbolshape/cube)
-- [`static var cylinder: BasicChart3DSymbolShape`](https://developer.apple.com/documentation/charts/chart3dsymbolshape/cylinder)
-- [`static var sphere: BasicChart3DSymbolShape`](https://developer.apple.com/documentation/charts/chart3dsymbolshape/sphere)
 - [`ChartAxisContent`](https://developer.apple.com/documentation/charts/chartaxiscontent)
 - [`func accessibilityIdentifier(String) -> some ChartContent`](https://developer.apple.com/documentation/charts/chartcontent/accessibilityidentifier(_:))
 - [`func alignsMarkStylesWithPlotArea(Bool) -> some ChartContent`](https://developer.apple.com/documentation/charts/chartcontent/alignsmarkstyleswithplotarea(_:))

@@ -1,6 +1,7 @@
 # MetalKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 62.9% of Apple's iOS API (73 of 116, exact) · **Rows:** 4: 2 ✅ 1 🟡 1 ❌ · **iOS:** 9.0+
 <!-- /generated:header -->
 
 **Area:** [GPU](../COVERAGE.md#gpu) · **Apple:** [MetalKit](https://developer.apple.com/documentation/metalkit) · **Issues:** [`area:gpu`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agpu)
@@ -41,4 +42,53 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+43 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`MTKMesh`](https://developer.apple.com/documentation/metalkit/mtkmesh)
+- [`init(mesh: MDLMesh, device: any MTLDevice) throws`](https://developer.apple.com/documentation/metalkit/mtkmesh/init(mesh:device:))
+- [`var name: String`](https://developer.apple.com/documentation/metalkit/mtkmesh/name)
+- [`class func newMeshes(asset: MDLAsset, device: any MTLDevice) throws -> (modelIOMeshes: [MDLMesh], metalKitMeshes: [MTKMesh])`](https://developer.apple.com/documentation/metalkit/mtkmesh/newmeshes(asset:device:))
+- [`var submeshes: [MTKSubmesh]`](https://developer.apple.com/documentation/metalkit/mtkmesh/submeshes)
+- [`var vertexBuffers: [MTKMeshBuffer]`](https://developer.apple.com/documentation/metalkit/mtkmesh/vertexbuffers)
+- [`var vertexCount: Int`](https://developer.apple.com/documentation/metalkit/mtkmesh/vertexcount)
+- [`var vertexDescriptor: MDLVertexDescriptor`](https://developer.apple.com/documentation/metalkit/mtkmesh/vertexdescriptor)
+- [`MTKMeshBuffer`](https://developer.apple.com/documentation/metalkit/mtkmeshbuffer)
+- [`var allocator: MTKMeshBufferAllocator`](https://developer.apple.com/documentation/metalkit/mtkmeshbuffer/allocator)
+- [`var buffer: any MTLBuffer`](https://developer.apple.com/documentation/metalkit/mtkmeshbuffer/buffer)
+- [`var length: Int`](https://developer.apple.com/documentation/metalkit/mtkmeshbuffer/length)
+- [`var offset: Int`](https://developer.apple.com/documentation/metalkit/mtkmeshbuffer/offset)
+- [`var type: MDLMeshBufferType`](https://developer.apple.com/documentation/metalkit/mtkmeshbuffer/type)
+- [`func zone() -> (any MDLMeshBufferZone)?`](https://developer.apple.com/documentation/metalkit/mtkmeshbuffer/zone())
+- [`MTKMeshBufferAllocator`](https://developer.apple.com/documentation/metalkit/mtkmeshbufferallocator)
+- [`var device: any MTLDevice`](https://developer.apple.com/documentation/metalkit/mtkmeshbufferallocator/device)
+- [`init(device: any MTLDevice)`](https://developer.apple.com/documentation/metalkit/mtkmeshbufferallocator/init(device:))
+- [`func MTKMetalVertexDescriptorFromModelIO(MDLVertexDescriptor) -> MTLVertexDescriptor?`](https://developer.apple.com/documentation/metalkit/mtkmetalvertexdescriptorfrommodelio(_:))
+- [`func MTKMetalVertexDescriptorFromModelIOWithError(MDLVertexDescriptor) throws -> MTLVertexDescriptor?`](https://developer.apple.com/documentation/metalkit/mtkmetalvertexdescriptorfrommodeliowitherror(_:))
+- [`func MTKMetalVertexFormatFromModelIO(MDLVertexFormat) -> MTLVertexFormat`](https://developer.apple.com/documentation/metalkit/mtkmetalvertexformatfrommodelio(_:))
+- [`MTKModelError`](https://developer.apple.com/documentation/metalkit/mtkmodelerror)
+- [`static let domain: MTKModelError`](https://developer.apple.com/documentation/metalkit/mtkmodelerror/domain)
+- [`static let domain: MTKModelError`](https://developer.apple.com/documentation/metalkit/mtkmodelerror/domain)
+- [`init(rawValue: String)`](https://developer.apple.com/documentation/metalkit/mtkmodelerror/init(rawvalue:))
+- [`static let key: MTKModelError`](https://developer.apple.com/documentation/metalkit/mtkmodelerror/key)
+- [`static let key: MTKModelError`](https://developer.apple.com/documentation/metalkit/mtkmodelerror/key)
+- [`func MTKModelIOVertexDescriptorFromMetal(MTLVertexDescriptor) -> MDLVertexDescriptor`](https://developer.apple.com/documentation/metalkit/mtkmodeliovertexdescriptorfrommetal(_:))
+- [`func MTKModelIOVertexDescriptorFromMetalWithError(MTLVertexDescriptor) throws -> MDLVertexDescriptor`](https://developer.apple.com/documentation/metalkit/mtkmodeliovertexdescriptorfrommetalwitherror(_:))
+- [`func MTKModelIOVertexFormatFromMetal(MTLVertexFormat) -> MDLVertexFormat`](https://developer.apple.com/documentation/metalkit/mtkmodeliovertexformatfrommetal(_:))
+- [`MTKSubmesh`](https://developer.apple.com/documentation/metalkit/mtksubmesh)
+- [`var indexBuffer: MTKMeshBuffer`](https://developer.apple.com/documentation/metalkit/mtksubmesh/indexbuffer)
+- [`var indexCount: Int`](https://developer.apple.com/documentation/metalkit/mtksubmesh/indexcount)
+- [`var indexType: MTLIndexType`](https://developer.apple.com/documentation/metalkit/mtksubmesh/indextype)
+- [`var mesh: MTKMesh?`](https://developer.apple.com/documentation/metalkit/mtksubmesh/mesh)
+- [`var name: String`](https://developer.apple.com/documentation/metalkit/mtksubmesh/name)
+- [`var primitiveType: MTLPrimitiveType`](https://developer.apple.com/documentation/metalkit/mtksubmesh/primitivetype)
+- [`MTKTextureLoader.Error`](https://developer.apple.com/documentation/metalkit/mtktextureloader/error)
+- [`static let domain: MTKTextureLoader.Error`](https://developer.apple.com/documentation/metalkit/mtktextureloader/error/domain)
+- [`init(rawValue: String)`](https://developer.apple.com/documentation/metalkit/mtktextureloader/error/init(rawvalue:))
+- [`static let key: MTKTextureLoader.Error`](https://developer.apple.com/documentation/metalkit/mtktextureloader/error/key)
+- [`var currentMTL4RenderPassDescriptor: MTL4RenderPassDescriptor?`](https://developer.apple.com/documentation/metalkit/mtkview/currentmtl4renderpassdescriptor)
+- [`var residencySet: any MTLResidencySet`](https://developer.apple.com/documentation/metalkit/mtkview/residencyset)
+
+</details>
 <!-- /generated:missing -->

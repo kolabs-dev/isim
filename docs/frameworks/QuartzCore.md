@@ -1,7 +1,7 @@
 # QuartzCore
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 87.7% of Apple's iOS API (616 of 702, exact) · **Rows:** 27: 24 ✅ 1 🟡 2 ❌ · **iOS:** 2.0+
+**Symbols:** 92.6% of Apple's iOS API (650 of 702, exact) · **Rows:** 29: 26 ✅ 1 🟡 2 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Graphics & text](../COVERAGE.md#graphics) · **Apple:** [QuartzCore](https://developer.apple.com/documentation/quartzcore) · **Issues:** [`area:graphics`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agraphics)
@@ -56,7 +56,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-86 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+52 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -93,43 +93,9 @@
 - [`static let automatic: CALayerContentsFormat`](https://developer.apple.com/documentation/quartzcore/calayercontentsformat/automatic)
 - [`static let gray8Uint: CALayerContentsFormat`](https://developer.apple.com/documentation/quartzcore/calayercontentsformat/gray8uint)
 - [`static let RGBA16Float: CALayerContentsFormat`](https://developer.apple.com/documentation/quartzcore/calayercontentsformat/rgba16float)
-- [`CAMetalDisplayLink`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink)
-- [`func add(to: RunLoop, forMode: RunLoop.Mode)`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink/add(to:formode:))
-- [`var delegate: (any CAMetalDisplayLinkDelegate)?`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink/delegate)
-- [`init(metalLayer: CAMetalLayer)`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink/init(metallayer:))
-- [`func invalidate()`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink/invalidate())
-- [`var isPaused: Bool`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink/ispaused)
-- [`var preferredFrameLatency: Float`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink/preferredframelatency)
-- [`var preferredFrameRateRange: CAFrameRateRange`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink/preferredframeraterange)
-- [`func remove(from: RunLoop, forMode: RunLoop.Mode)`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink/remove(from:formode:))
-- [`CAMetalDisplayLink.Update`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink/update)
-- [`CAMetalDisplayLink.Update`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink/update)
-- [`var drawable: any CAMetalDrawable`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink/update/drawable)
-- [`var drawable: any CAMetalDrawable`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink/update/drawable)
-- [`var targetPresentationTimestamp: CFTimeInterval`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink/update/targetpresentationtimestamp)
-- [`var targetPresentationTimestamp: CFTimeInterval`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink/update/targetpresentationtimestamp)
-- [`var targetTimestamp: CFTimeInterval`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink/update/targettimestamp)
-- [`var targetTimestamp: CFTimeInterval`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylink/update/targettimestamp)
-- [`CAMetalDisplayLinkDelegate`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylinkdelegate)
-- [`func metalDisplayLink(CAMetalDisplayLink, needsUpdate: CAMetalDisplayLink.Update)`](https://developer.apple.com/documentation/quartzcore/cametaldisplaylinkdelegate/metaldisplaylink(_:needsupdate:))
-- [`CAMetalDrawable`](https://developer.apple.com/documentation/quartzcore/cametaldrawable)
-- [`var layer: CAMetalLayer`](https://developer.apple.com/documentation/quartzcore/cametaldrawable/layer)
-- [`var texture: any MTLTexture`](https://developer.apple.com/documentation/quartzcore/cametaldrawable/texture)
-- [`CAMetalLayer`](https://developer.apple.com/documentation/quartzcore/cametallayer)
-- [`var allowsNextDrawableTimeout: Bool`](https://developer.apple.com/documentation/quartzcore/cametallayer/allowsnextdrawabletimeout)
-- [`var colorspace: CGColorSpace?`](https://developer.apple.com/documentation/quartzcore/cametallayer/colorspace)
 - [`var developerHUDProperties: [AnyHashable : Any]?`](https://developer.apple.com/documentation/quartzcore/cametallayer/developerhudproperties)
-- [`var device: (any MTLDevice)?`](https://developer.apple.com/documentation/quartzcore/cametallayer/device)
-- [`var drawableSize: CGSize`](https://developer.apple.com/documentation/quartzcore/cametallayer/drawablesize)
 - [`var edrMetadata: CAEDRMetadata?`](https://developer.apple.com/documentation/quartzcore/cametallayer/edrmetadata)
-- [`var framebufferOnly: Bool`](https://developer.apple.com/documentation/quartzcore/cametallayer/framebufferonly)
-- [`var maximumDrawableCount: Int`](https://developer.apple.com/documentation/quartzcore/cametallayer/maximumdrawablecount)
-- [`func nextDrawable() -> (any CAMetalDrawable)?`](https://developer.apple.com/documentation/quartzcore/cametallayer/nextdrawable())
-- [`var pixelFormat: MTLPixelFormat`](https://developer.apple.com/documentation/quartzcore/cametallayer/pixelformat)
-- [`var preferredDevice: (any MTLDevice)?`](https://developer.apple.com/documentation/quartzcore/cametallayer/preferreddevice)
-- [`var presentsWithTransaction: Bool`](https://developer.apple.com/documentation/quartzcore/cametallayer/presentswithtransaction)
 - [`var residencySet: any MTLResidencySet`](https://developer.apple.com/documentation/quartzcore/cametallayer/residencyset)
-- [`var wantsExtendedDynamicRangeContent: Bool`](https://developer.apple.com/documentation/quartzcore/cametallayer/wantsextendeddynamicrangecontent)
 - [`CARenderer`](https://developer.apple.com/documentation/quartzcore/carenderer)
 - [`func addUpdate(CGRect)`](https://developer.apple.com/documentation/quartzcore/carenderer/addupdate(_:))
 - [`func beginFrame(atTime: CFTimeInterval, timeStamp: UnsafeMutablePointer<CVTimeStamp>?)`](https://developer.apple.com/documentation/quartzcore/carenderer/beginframe(attime:timestamp:))

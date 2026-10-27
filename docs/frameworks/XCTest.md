@@ -1,7 +1,7 @@
 # XCTest
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 66.7% of Apple's iOS API (285 of 427, exact) · **Rows:** 16: 10 ✅ 4 🟡 2 ❌ · **iOS:** None+
+**Symbols:** 79.7% of Apple's iOS API (341 of 428, exact) · **Rows:** 16: 11 ✅ 3 🟡 2 ❌ · **iOS:** None+
 <!-- /generated:header -->
 
 **Area:** [Developer tools](../COVERAGE.md#devtools) · **Apple:** [XCTest](https://developer.apple.com/documentation/xctest) · **Issues:** [`area:devtools`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Adevtools)
@@ -35,7 +35,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-142 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+87 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -47,16 +47,8 @@
 - [`case low`](https://developer.apple.com/documentation/xctest/xctattachment/imagequality/low)
 - [`case medium`](https://developer.apple.com/documentation/xctest/xctattachment/imagequality/medium)
 - [`case original`](https://developer.apple.com/documentation/xctest/xctattachment/imagequality/original)
-- [`XCTCPUMetric`](https://developer.apple.com/documentation/xctest/xctcpumetric)
-- [`init()`](https://developer.apple.com/documentation/xctest/xctcpumetric/init())
-- [`init(application: XCUIApplication)`](https://developer.apple.com/documentation/xctest/xctcpumetric/init(application:))
-- [`init(limitingToCurrentThread: Bool)`](https://developer.apple.com/documentation/xctest/xctcpumetric/init(limitingtocurrentthread:))
-- [`class var defaultPerformanceMetrics: [XCTPerformanceMetric]`](https://developer.apple.com/documentation/xctest/xctestcase/defaultperformancemetrics)
 - [`var invocation: NSInvocation?`](https://developer.apple.com/documentation/xctest/xctestcase/invocation)
 - [`func invokeTest()`](https://developer.apple.com/documentation/xctest/xctestcase/invoketest())
-- [`func measureMetrics([XCTPerformanceMetric], automaticallyStartMeasuring: Bool, for: () -> Void)`](https://developer.apple.com/documentation/xctest/xctestcase/measuremetrics(_:automaticallystartmeasuring:for:))
-- [`func startMeasuring()`](https://developer.apple.com/documentation/xctest/xctestcase/startmeasuring())
-- [`func stopMeasuring()`](https://developer.apple.com/documentation/xctest/xctestcase/stopmeasuring())
 - [`class var testInvocations: [NSInvocation]`](https://developer.apple.com/documentation/xctest/xctestcase/testinvocations)
 - [`let XCTestedUnitPath: String`](https://developer.apple.com/documentation/xctest/xctestedunitpath)
 - [`XCTestError`](https://developer.apple.com/documentation/xctest/xctesterror)
@@ -114,17 +106,6 @@
 - [`XCTKeyPathExpectation.Predicate`](https://developer.apple.com/documentation/xctest/xctkeypathexpectation/predicate)
 - [`XCTKeyPathExpectation.SynchronousFilter`](https://developer.apple.com/documentation/xctest/xctkeypathexpectation/synchronousfilter)
 - [`XCTKVOExpectation.Handler`](https://developer.apple.com/documentation/xctest/xctkvoexpectation/handler-swift.typealias)
-- [`var invocationOptions: XCTMeasureOptions.InvocationOptions`](https://developer.apple.com/documentation/xctest/xctmeasureoptions/invocationoptions-swift.property)
-- [`XCTMeasureOptions.InvocationOptions`](https://developer.apple.com/documentation/xctest/xctmeasureoptions/invocationoptions-swift.struct)
-- [`init(rawValue: UInt)`](https://developer.apple.com/documentation/xctest/xctmeasureoptions/invocationoptions-swift.struct/init(rawvalue:))
-- [`static var manuallyStart: XCTMeasureOptions.InvocationOptions`](https://developer.apple.com/documentation/xctest/xctmeasureoptions/invocationoptions-swift.struct/manuallystart)
-- [`static var manuallyStop: XCTMeasureOptions.InvocationOptions`](https://developer.apple.com/documentation/xctest/xctmeasureoptions/invocationoptions-swift.struct/manuallystop)
-- [`XCTMemoryMetric`](https://developer.apple.com/documentation/xctest/xctmemorymetric)
-- [`init()`](https://developer.apple.com/documentation/xctest/xctmemorymetric/init())
-- [`init(application: XCUIApplication)`](https://developer.apple.com/documentation/xctest/xctmemorymetric/init(application:))
-- [`func didStopMeasuring()`](https://developer.apple.com/documentation/xctest/xctmetric/didstopmeasuring())
-- [`func reportMeasurements(from: XCTPerformanceMeasurementTimestamp, to: XCTPerformanceMeasurementTimestamp) throws -> [XCTPerformanceMeasurement]`](https://developer.apple.com/documentation/xctest/xctmetric/reportmeasurements(from:to:))
-- [`func willBeginMeasuring()`](https://developer.apple.com/documentation/xctest/xctmetric/willbeginmeasuring())
 - [`XCTMutableIssue`](https://developer.apple.com/documentation/xctest/xctmutableissue)
 - [`func add(XCTAttachment)`](https://developer.apple.com/documentation/xctest/xctmutableissue/add(_:))
 - [`var associatedError: (any Error)?`](https://developer.apple.com/documentation/xctest/xctmutableissue/associatederror)
@@ -136,43 +117,7 @@
 - [`var type: XCTIssueReference.IssueType`](https://developer.apple.com/documentation/xctest/xctmutableissue/type)
 - [`var notificationCenter: NotificationCenter`](https://developer.apple.com/documentation/xctest/xctnsnotificationexpectation/notificationcenter)
 - [`var observedObject: Any?`](https://developer.apple.com/documentation/xctest/xctnsnotificationexpectation/observedobject)
-- [`XCTOSSignpostMetric`](https://developer.apple.com/documentation/xctest/xctossignpostmetric)
-- [`class var customNavigationTransitionMetric: any XCTMetric`](https://developer.apple.com/documentation/xctest/xctossignpostmetric/customnavigationtransitionmetric)
-- [`init(subsystem: String, category: String, name: String)`](https://developer.apple.com/documentation/xctest/xctossignpostmetric/init(subsystem:category:name:))
-- [`class var navigationTransitionMetric: any XCTMetric`](https://developer.apple.com/documentation/xctest/xctossignpostmetric/navigationtransitionmetric)
-- [`class var scrollDecelerationMetric: any XCTMetric`](https://developer.apple.com/documentation/xctest/xctossignpostmetric/scrolldecelerationmetric)
-- [`class var scrollDraggingMetric: any XCTMetric`](https://developer.apple.com/documentation/xctest/xctossignpostmetric/scrolldraggingmetric)
-- [`class var scrollingAndDecelerationMetric: any XCTMetric`](https://developer.apple.com/documentation/xctest/xctossignpostmetric/scrollinganddecelerationmetric)
-- [`XCTPerformanceMeasurement`](https://developer.apple.com/documentation/xctest/xctperformancemeasurement)
-- [`var displayName: String`](https://developer.apple.com/documentation/xctest/xctperformancemeasurement/displayname)
-- [`var doubleValue: Double`](https://developer.apple.com/documentation/xctest/xctperformancemeasurement/doublevalue)
-- [`var identifier: String`](https://developer.apple.com/documentation/xctest/xctperformancemeasurement/identifier)
-- [`init(identifier: String, displayName: String, doubleValue: Double, unitSymbol: String)`](https://developer.apple.com/documentation/xctest/xctperformancemeasurement/init(identifier:displayname:doublevalue:unitsymbol:))
-- [`convenience init(identifier: String, displayName: String, doubleValue: Double, unitSymbol: String, polarity: XCTPerformanceMeasurement.Polarity)`](https://developer.apple.com/documentation/xctest/xctperformancemeasurement/init(identifier:displayname:doublevalue:unitsymbol:polarity:))
-- [`convenience init(identifier: String, displayName: String, value: Measurement<Unit>)`](https://developer.apple.com/documentation/xctest/xctperformancemeasurement/init(identifier:displayname:value:))
-- [`convenience init(identifier: String, displayName: String, value: Measurement<Unit>, polarity: XCTPerformanceMeasurement.Polarity)`](https://developer.apple.com/documentation/xctest/xctperformancemeasurement/init(identifier:displayname:value:polarity:))
-- [`XCTPerformanceMeasurement.Polarity`](https://developer.apple.com/documentation/xctest/xctperformancemeasurement/polarity-swift.enum)
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/xctest/xctperformancemeasurement/polarity-swift.enum/init(rawvalue:))
-- [`case prefersLarger`](https://developer.apple.com/documentation/xctest/xctperformancemeasurement/polarity-swift.enum/preferslarger)
-- [`case prefersSmaller`](https://developer.apple.com/documentation/xctest/xctperformancemeasurement/polarity-swift.enum/preferssmaller)
-- [`case unspecified`](https://developer.apple.com/documentation/xctest/xctperformancemeasurement/polarity-swift.enum/unspecified)
-- [`var polarity: XCTPerformanceMeasurement.Polarity`](https://developer.apple.com/documentation/xctest/xctperformancemeasurement/polarity-swift.property)
-- [`var unitSymbol: String`](https://developer.apple.com/documentation/xctest/xctperformancemeasurement/unitsymbol)
-- [`var value: Measurement<Unit>`](https://developer.apple.com/documentation/xctest/xctperformancemeasurement/value)
-- [`XCTPerformanceMeasurementTimestamp`](https://developer.apple.com/documentation/xctest/xctperformancemeasurementtimestamp)
-- [`var absoluteTime: UInt64`](https://developer.apple.com/documentation/xctest/xctperformancemeasurementtimestamp/absolutetime)
-- [`var absoluteTimeNanoSeconds: UInt64`](https://developer.apple.com/documentation/xctest/xctperformancemeasurementtimestamp/absolutetimenanoseconds)
-- [`var date: Date`](https://developer.apple.com/documentation/xctest/xctperformancemeasurementtimestamp/date)
-- [`convenience init()`](https://developer.apple.com/documentation/xctest/xctperformancemeasurementtimestamp/init())
-- [`init(absoluteTime: UInt64, date: Date)`](https://developer.apple.com/documentation/xctest/xctperformancemeasurementtimestamp/init(absolutetime:date:))
-- [`XCTPerformanceMetric`](https://developer.apple.com/documentation/xctest/xctperformancemetric)
-- [`init(String)`](https://developer.apple.com/documentation/xctest/xctperformancemetric/init(_:))
-- [`init(rawValue: String)`](https://developer.apple.com/documentation/xctest/xctperformancemetric/init(rawvalue:))
-- [`static let wallClockTime: XCTPerformanceMetric`](https://developer.apple.com/documentation/xctest/xctperformancemetric/wallclocktime)
 - [`func XCTSelfTestMain() -> Int32`](https://developer.apple.com/documentation/xctest/xctselftestmain())
-- [`XCTStorageMetric`](https://developer.apple.com/documentation/xctest/xctstoragemetric)
-- [`init()`](https://developer.apple.com/documentation/xctest/xctstoragemetric/init())
-- [`init(application: XCUIApplication)`](https://developer.apple.com/documentation/xctest/xctstoragemetric/init(application:))
 - [`var delegate: (any XCTWaiterDelegate)?`](https://developer.apple.com/documentation/xctest/xctwaiter/delegate)
 - [`func fulfillment(of: [XCTestExpectation], timeout: TimeInterval, enforceOrder: Bool) async -> XCTWaiter.Result`](https://developer.apple.com/documentation/xctest/xctwaiter/fulfillment(of:timeout:enforceorder:)-swift.method)
 - [`class func fulfillment(of: [XCTestExpectation], timeout: TimeInterval, enforceOrder: Bool) async -> XCTWaiter.Result`](https://developer.apple.com/documentation/xctest/xctwaiter/fulfillment(of:timeout:enforceorder:)-swift.type.method)

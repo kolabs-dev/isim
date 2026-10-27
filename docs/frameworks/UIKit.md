@@ -1,7 +1,7 @@
 # UIKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 92.8% of Apple's iOS API (13721 of 14793, exact) · **Rows:** 323: 314 ✅ 7 🟡 2 ❌ · **iOS:** 2.0+
+**Symbols:** 93.0% of Apple's iOS API (13751 of 14793, exact) · **Rows:** 325: 317 ✅ 7 🟡 1 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [UIKit](../COVERAGE.md#uikit) · **Apple:** [UIKit](https://developer.apple.com/documentation/uikit) · **Issues:** [`area:uikit`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Auikit)
@@ -409,7 +409,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1072 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1042 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -440,21 +440,10 @@
 - [`static var spacingBaselineToBaseline: NSLayoutConstraint.FormatOptions`](https://developer.apple.com/documentation/uikit/nslayoutconstraint/formatoptions/spacingbaselinetobaseline)
 - [`static var spacingMask: NSLayoutConstraint.FormatOptions`](https://developer.apple.com/documentation/uikit/nslayoutconstraint/formatoptions/spacingmask)
 - [`var NSLAYOUTCONSTRAINT_H: Int32`](https://developer.apple.com/documentation/uikit/nslayoutconstraint_h)
-- [`func attachmentSize(forGlyphAt: Int) -> CGSize`](https://developer.apple.com/documentation/uikit/nslayoutmanager/attachmentsize(forglyphat:))
-- [`func cgGlyph(at: Int) -> CGGlyph`](https://developer.apple.com/documentation/uikit/nslayoutmanager/cgglyph(at:))
-- [`func cgGlyph(at: Int, isValidIndex: UnsafeMutablePointer<ObjCBool>?) -> CGGlyph`](https://developer.apple.com/documentation/uikit/nslayoutmanager/cgglyph(at:isvalidindex:))
-- [`func drawsOutsideLineFragment(forGlyphAt: Int) -> Bool`](https://developer.apple.com/documentation/uikit/nslayoutmanager/drawsoutsidelinefragment(forglyphat:))
 - [`func getGlyphs(in: NSRange, glyphs: UnsafeMutablePointer<CGGlyph>?, properties: UnsafeMutablePointer<NSLayoutManager.GlyphProperty>?, characterIndexes: UnsafeMutablePointer<Int>?, bidiLevels: UnsafeMutablePointer<UInt8>?) -> Int`](https://developer.apple.com/documentation/uikit/nslayoutmanager/getglyphs(in:glyphs:properties:characterindexes:bidilevels:))
 - [`func getLineFragmentInsertionPoints(forCharacterAt: Int, alternatePositions: Bool, inDisplayOrder: Bool, positions: UnsafeMutablePointer<CGFloat>?, characterIndexes: UnsafeMutablePointer<Int>?) -> Int`](https://developer.apple.com/documentation/uikit/nslayoutmanager/getlinefragmentinsertionpoints(forcharacterat:alternatepositions:indisplayorder:positions:characterindexes:))
-- [`func lineFragmentRect(forGlyphAt: Int, effectiveRange: NSRangePointer?) -> CGRect`](https://developer.apple.com/documentation/uikit/nslayoutmanager/linefragmentrect(forglyphat:effectiverange:))
-- [`func lineFragmentRect(forGlyphAt: Int, effectiveRange: NSRangePointer?, withoutAdditionalLayout: Bool) -> CGRect`](https://developer.apple.com/documentation/uikit/nslayoutmanager/linefragmentrect(forglyphat:effectiverange:withoutadditionallayout:))
-- [`func lineFragmentUsedRect(forGlyphAt: Int, effectiveRange: NSRangePointer?) -> CGRect`](https://developer.apple.com/documentation/uikit/nslayoutmanager/linefragmentusedrect(forglyphat:effectiverange:))
-- [`func lineFragmentUsedRect(forGlyphAt: Int, effectiveRange: NSRangePointer?, withoutAdditionalLayout: Bool) -> CGRect`](https://developer.apple.com/documentation/uikit/nslayoutmanager/linefragmentusedrect(forglyphat:effectiverange:withoutadditionallayout:))
-- [`func location(forGlyphAt: Int) -> CGPoint`](https://developer.apple.com/documentation/uikit/nslayoutmanager/location(forglyphat:))
-- [`func notShownAttribute(forGlyphAt: Int) -> Bool`](https://developer.apple.com/documentation/uikit/nslayoutmanager/notshownattribute(forglyphat:))
-- [`func textContainer(forGlyphAt: Int, effectiveRange: NSRangePointer?) -> NSTextContainer?`](https://developer.apple.com/documentation/uikit/nslayoutmanager/textcontainer(forglyphat:effectiverange:))
-- [`func textContainer(forGlyphAt: Int, effectiveRange: NSRangePointer?, withoutAdditionalLayout: Bool) -> NSTextContainer?`](https://developer.apple.com/documentation/uikit/nslayoutmanager/textcontainer(forglyphat:effectiverange:withoutadditionallayout:))
-- [`func truncatedGlyphRange(inLineFragmentForGlyphAt: Int) -> NSRange`](https://developer.apple.com/documentation/uikit/nslayoutmanager/truncatedglyphrange(inlinefragmentforglyphat:))
+- [`func glyph(at: Int) -> CGGlyph`](https://developer.apple.com/documentation/uikit/nslayoutmanager/glyph(at:))
+- [`func glyph(at: Int, isValidIndex: UnsafeMutablePointer<ObjCBool>?) -> CGGlyph`](https://developer.apple.com/documentation/uikit/nslayoutmanager/glyph(at:isvalidindex:))
 - [`func replace(NSTextContentManager)`](https://developer.apple.com/documentation/uikit/nstextlayoutmanager/replace(_:))
 - [`class var includesTextListMarkers: Bool`](https://developer.apple.com/documentation/uikit/nstextlist/includestextlistmarkers)
 - [`func intersection(NSTextRange) -> Self?`](https://developer.apple.com/documentation/uikit/nstextrange/intersection(_:))
@@ -556,14 +545,6 @@
 - [`case secureTextInput`](https://developer.apple.com/documentation/uikit/uialertviewstyle/securetextinput)
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/uikit/uiapplication/categorydefaulterror/code/init(rawvalue:))
 - [`case rateLimited`](https://developer.apple.com/documentation/uikit/uiapplication/categorydefaulterror/code/ratelimited)
-- [`static let bluetoothCentrals: UIApplication.LaunchOptionsKey`](https://developer.apple.com/documentation/uikit/uiapplication/launchoptionskey/bluetoothcentrals)
-- [`static let bluetoothCentrals: UIApplication.LaunchOptionsKey`](https://developer.apple.com/documentation/uikit/uiapplication/launchoptionskey/bluetoothcentrals)
-- [`static let bluetoothPeripherals: UIApplication.LaunchOptionsKey`](https://developer.apple.com/documentation/uikit/uiapplication/launchoptionskey/bluetoothperipherals)
-- [`static let bluetoothPeripherals: UIApplication.LaunchOptionsKey`](https://developer.apple.com/documentation/uikit/uiapplication/launchoptionskey/bluetoothperipherals)
-- [`static let newsstandDownloads: UIApplication.LaunchOptionsKey`](https://developer.apple.com/documentation/uikit/uiapplication/launchoptionskey/newsstanddownloads)
-- [`static let newsstandDownloads: UIApplication.LaunchOptionsKey`](https://developer.apple.com/documentation/uikit/uiapplication/launchoptionskey/newsstanddownloads)
-- [`static let annotation: UIApplication.OpenURLOptionsKey`](https://developer.apple.com/documentation/uikit/uiapplication/openurloptionskey/annotation)
-- [`static let annotation: UIApplication.OpenURLOptionsKey`](https://developer.apple.com/documentation/uikit/uiapplication/openurloptionskey/annotation)
 - [`func sendEvent(UIEvent)`](https://developer.apple.com/documentation/uikit/uiapplication/sendevent(_:))
 - [`UIApplication.SystemPrefersReducedResourceUsageDidChangeMessage`](https://developer.apple.com/documentation/uikit/uiapplication/systemprefersreducedresourceusagedidchangemessage)
 - [`init()`](https://developer.apple.com/documentation/uikit/uiapplication/systemprefersreducedresourceusagedidchangemessage/init())
@@ -571,9 +552,6 @@
 - [`case anchor`](https://developer.apple.com/documentation/uikit/uiattachmentbehavior/attachmenttype/anchor)
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/uikit/uiattachmentbehavior/attachmenttype/init(rawvalue:))
 - [`case items`](https://developer.apple.com/documentation/uikit/uiattachmentbehavior/attachmenttype/items)
-- [`static func listGroupedHeaderFooter() -> UIBackgroundConfiguration`](https://developer.apple.com/documentation/uikit/uibackgroundconfiguration-swift.struct/listgroupedheaderfooter())
-- [`static func listPlainHeaderFooter() -> UIBackgroundConfiguration`](https://developer.apple.com/documentation/uikit/uibackgroundconfiguration-swift.struct/listplainheaderfooter())
-- [`static func listSidebarHeader() -> UIBackgroundConfiguration`](https://developer.apple.com/documentation/uikit/uibackgroundconfiguration-swift.struct/listsidebarheader())
 - [`func updated(for: any UIConfigurationState) -> UIBackgroundConfiguration`](https://developer.apple.com/documentation/uikit/uibackgroundconfiguration-swift.struct/updated(for:))
 - [`var overrideUserInterfaceStyle: UIUserInterfaceStyle`](https://developer.apple.com/documentation/uikit/uibarappearance/overrideuserinterfacestyle)
 - [`func addSymbolEffect(some IndefiniteSymbolEffect & SymbolEffect, options: SymbolEffectOptions, animated: Bool)`](https://developer.apple.com/documentation/uikit/uibarbuttonitem/addsymboleffect(_:options:animated:)-3iew0)
@@ -713,7 +691,29 @@
 - [`func preferredContentSizeDidChange(forChildContentContainer: any UIContentContainer)`](https://developer.apple.com/documentation/uikit/uicontentcontainer/preferredcontentsizedidchange(forchildcontentcontainer:))
 - [`func size(forChildContentContainer: any UIContentContainer, withParentContainerSize: CGSize) -> CGSize`](https://developer.apple.com/documentation/uikit/uicontentcontainer/size(forchildcontentcontainer:withparentcontainersize:))
 - [`func size(forChildContentContainer: any UIContentContainer, withParentContainerSize: CGSize) -> CGSize`](https://developer.apple.com/documentation/uikit/uicontentcontainer/size(forchildcontentcontainer:withparentcontainersize:))
-- … and 772 more (`isim/data/api-coverage.json.gz`)
+- [`func size(forChildContentContainer: any UIContentContainer, withParentContainerSize: CGSize) -> CGSize`](https://developer.apple.com/documentation/uikit/uicontentcontainer/size(forchildcontentcontainer:withparentcontainersize:))
+- [`func systemLayoutFittingSizeDidChange(forChildContentContainer: any UIContentContainer)`](https://developer.apple.com/documentation/uikit/uicontentcontainer/systemlayoutfittingsizedidchange(forchildcontentcontainer:))
+- [`func systemLayoutFittingSizeDidChange(forChildContentContainer: any UIContentContainer)`](https://developer.apple.com/documentation/uikit/uicontentcontainer/systemlayoutfittingsizedidchange(forchildcontentcontainer:))
+- [`func systemLayoutFittingSizeDidChange(forChildContentContainer: any UIContentContainer)`](https://developer.apple.com/documentation/uikit/uicontentcontainer/systemlayoutfittingsizedidchange(forchildcontentcontainer:))
+- [`UIContentUnavailableConfiguration.Alignment`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/alignment-swift.enum)
+- [`UIContentUnavailableConfiguration.Alignment`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/alignment-swift.enum)
+- [`case center`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/alignment-swift.enum/center)
+- [`case center`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/alignment-swift.enum/center)
+- [`case natural`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/alignment-swift.enum/natural)
+- [`case natural`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/alignment-swift.enum/natural)
+- [`var alignment: UIContentUnavailableConfiguration.Alignment`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/alignment-swift.property)
+- [`var alignment: UIContentUnavailableConfiguration.Alignment`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/alignment-swift.property)
+- [`var background: UIBackgroundConfiguration`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/background)
+- [`var background: UIBackgroundConfiguration`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/background)
+- [`var isEnabled: Bool`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/buttonproperties-swift.struct/isenabled)
+- [`var isEnabled: Bool`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/buttonproperties-swift.struct/isenabled)
+- [`var menu: UIMenu?`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/buttonproperties-swift.struct/menu)
+- [`var menu: UIMenu?`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/buttonproperties-swift.struct/menu)
+- [`var primaryAction: UIAction?`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/buttonproperties-swift.struct/primaryaction)
+- [`var primaryAction: UIAction?`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/buttonproperties-swift.struct/primaryaction)
+- [`var role: UIButton.Role`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/buttonproperties-swift.struct/role)
+- [`var role: UIButton.Role`](https://developer.apple.com/documentation/uikit/uicontentunavailableconfiguration-swift.struct/buttonproperties-swift.struct/role)
+- … and 742 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->
