@@ -210,6 +210,11 @@ def _(a):
     a.swift_app()
 
 
+@app("samples/HelloSoundAnalysis")
+def _(a):
+    a.swift_app()
+
+
 def vision_pictures(a, b):
     """HelloVision's (and HelloVisionObjC's) pictures: a face, text and two QR codes (the last two need ImageMagick, qrencode)"""
     a.copy("../HelloCoreImage/face.jpg", b)                  # NASA's astronaut portrait (public domain): Vision's faces
@@ -1134,6 +1139,12 @@ def _(a):
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "Metal", "-framework", "MetalPerformanceShaders",
                                                   "-framework", "MetalPerformanceShadersGraph", "-framework", "MetalFX"], name="MPSTest")
+
+
+@app("tests/soundanalysis", products=["SoundAnalysisTest.app"], swift=False)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "AVFAudio", "-framework", "CoreMedia", "-framework", "SoundAnalysis"],
+               name="SoundAnalysisTest")
 
 
 @app("tests/videotoolbox", products=["VideoToolboxTest.app"])
