@@ -2389,6 +2389,7 @@ static int sys_command(const char *text) {
     if (!strcmp(verb, "spotlight")) { if (!locked && active == 0) sys_send_text(0, "spotlight"); return 1; }
     if (ctl_command(verb, args)) return 1;                       /* focus, silent, actionbutton, lockcontrol */
     if (!strcmp(verb, "siri")) { sys_send_text(0, "siri %d %s", locked, args); return 1; }   /* the simulated Siri (SBSiri.m) */
+    if (!strcmp(verb, "visualintelligence")) { sys_send_text(0, "visualintelligence %s", args); return 1; }   /* Visual Intelligence (SBSiri.m) */
     fprintf(stderr, "isim shell: '%s' is not available\n", verb);
     return 1;
 }

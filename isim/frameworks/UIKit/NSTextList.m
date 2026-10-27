@@ -4,6 +4,7 @@
 #import "UIKitPrivate.h"
 #import <UIKit/NSTextList.h>
 #import <UIKit/NSAdaptiveImageGlyph.h>
+#import <objc/message.h>
 #import <UIKit/NSTextLayoutManager.h>
 
 CTTextAlignment NSTextAlignmentToCTTextAlignment(NSTextAlignment a) {
@@ -200,6 +201,11 @@ NSAttributedStringKey const NSAdaptiveImageGlyphAttributeName = @"CTAdaptiveImag
 - (id)copyWithZone:(NSZone *)z { return self; }
 - (BOOL)isEqual:(NSAdaptiveImageGlyph *)o { return [o isKindOfClass:[NSAdaptiveImageGlyph class]] && [o.contentIdentifier isEqualToString:_contentIdentifier]; }
 - (NSUInteger)hash { return _contentIdentifier.hash; }
++ (UTType *)contentType {                     /* UTType is UniformTypeIdentifiers' (above UIKit): found at run time */
+    Class t = NSClassFromString(@"UTType");
+    SEL s = NSSelectorFromString(@"typeWithIdentifier:");
+    return t && [t respondsToSelector:s] ? ((id (*)(id, SEL, NSString *))objc_msgSend)(t, s, @"public.heic") : nil;
+}
 @end
 
 @implementation NSTextContainer (NSTextLayoutOrientationProvider)

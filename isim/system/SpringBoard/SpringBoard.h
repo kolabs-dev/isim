@@ -157,7 +157,8 @@ BOOL HSLockEditorShown(void);                                 /* the Lock Screen
 - (BOOL)deliverLiveActivityPush:(NSDictionary *)payload app:(HSApp *)app;   /* aps.event payloads (YES: handled) */
 @end
 @interface HomeViewController (Siri)
-- (void)installSiriObservers;            /* Siri, App Shortcuts metadata, intent runs (SBSiri.m) */
+- (void)installSiriObservers;
+- (void)visualIntelligence:(NSString *)args;            /* script `visualintelligence LABEL[,LABEL...]` (iOS 26) */            /* Siri, App Shortcuts metadata, intent runs (SBSiri.m) */
 - (void)refreshAppIntents:(void (^)(void))done;
 - (NSArray<NSDictionary *> *)allAppShortcuts;                           /* { app, shortcut, phrases, meta } */
 - (NSArray<NSDictionary *> *)appShortcutsMatching:(NSString *)query;

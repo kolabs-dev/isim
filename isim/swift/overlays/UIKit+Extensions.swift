@@ -129,3 +129,9 @@ extension UIColor {
         }
     }
 }
+
+/// NSAdaptiveImageGlyph's content type in Swift (UniformTypeIdentifiers' UTType; Objective-C's is in NSTextList.m)
+@available(iOS 18.0, *)
+extension NSAdaptiveImageGlyph {
+    public class var contentType: UTType { .heic }
+}

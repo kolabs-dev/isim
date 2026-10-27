@@ -379,6 +379,7 @@ static void siri_say(NSString *text, HSApp *app, NSDictionary *extra) {
         else if ([verb isEqualToString:@"siri-answer"]) [self siriAnswer:args];
         else if ([verb isEqualToString:@"intent-run"]) [self shortcutsRun:args];
         else if ([verb isEqualToString:@"intents-refresh"]) [self refreshAppIntents:nil];
+        else if ([verb isEqualToString:@"visualintelligence"]) [self visualIntelligence:args];
         else if ([verb isEqualToString:@"ext-done"]) {
             NSRange s2 = [args rangeOfString:@" "];
             NSString *req = s2.location == NSNotFound ? args : [args substringFromIndex:s2.location + 1];
@@ -587,6 +588,54 @@ static BOOL siri_locked;
     __weak HomeViewController *weakSelf = self;
     r.timer = [NSTimer scheduledTimerWithTimeInterval:0.05 repeats:YES block:^(NSTimer *t) { [weakSelf pollRun:r]; }];
     return r;
+}
+/* ---- Visual Intelligence (iOS 26) ----
+ * "visualintelligence LABEL[,LABEL...]": what the camera or the screen shows, as labels (isim has no classifier). The
+ * apps whose IntentValueQuery takes a SemanticContentDescriptor (their metadata's valueQueries) are run in the
+ * background with { values = VisualIntelligence.SemanticContentDescriptor; labels } and their results logged:
+ * "SpringBoard: Visual Intelligence: APP: TITLE (SUBTITLE), ..." */
+static NSString *const VIInput = @"VisualIntelligence.SemanticContentDescriptor";
+- (void)visualIntelligence:(NSString *)args {
+    NSMutableArray<NSString *> *labels = [NSMutableArray array];
+    for (NSString *l in [args componentsSeparatedByString:@","]) {
+        NSString *t = [l stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+        if (t.length) [labels addObject:t];
+    }
+    if (!labels.count) { NSLog(@"SpringBoard: visualintelligence LABEL[,LABEL...]"); return; }
+    if (sb_os() < 26) { NSLog(@"SpringBoard: Visual Intelligence needs iOS 26"); return; }
+    [self refreshAppIntents:^{
+        NSMutableArray<HSApp *> *apps = [NSMutableArray array];
+        for (HSApp *a in self.apps) if ([HSAppIntentsMetadata(a)[@"valueQueries"] containsObject:VIInput]) [apps addObject:a];
+        NSString *seen = [labels componentsJoinedByString:@", "];
+        if (!apps.count) { NSLog(@"SpringBoard: Visual Intelligence: no app searches “%@”", seen); return; }
+        for (HSApp *a in apps) {
+            NSString *dir = [dir_named(@"Library/SpringBoard/Intents") stringByAppendingPathComponent:[NSString stringWithFormat:@"vi-%lu-%u", (unsigned long)++run_seq, arc4random() % 100000]];
+            [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:NULL];
+            NSString *reqPath = [dir stringByAppendingPathComponent:@"request.plist"];
+            [@{ @"kind": @"appintent", @"values": VIInput, @"labels": labels, @"dir": dir, @"app": a.bundleID, @"appName": a.name, @"source": @"visualintelligence" }
+                writeToFile:reqPath atomically:YES];
+            NSLog(@"SpringBoard: Visual Intelligence asks %@ about “%@”", a.name, seen);
+            isim_shell_request(ISIM_SHELL_SYSTEM, "launch-bg", a.path.UTF8String, [NSString stringWithFormat:@"%@\x1fisim-intent:%@", a.executable, reqPath].UTF8String);
+            [self visualIntelligenceResults:dir app:a tries:0];
+        }
+    }];
+}
+- (void)visualIntelligenceResults:(NSString *)dir app:(HSApp *)a tries:(int)tries {
+    NSDictionary *step = [NSDictionary dictionaryWithContentsOfFile:[dir stringByAppendingPathComponent:@"step-1.plist"]];
+    if (!step) {
+        if (tries > 600) { NSLog(@"SpringBoard: Visual Intelligence: %@ did not answer", a.name); return; }
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self visualIntelligenceResults:dir app:a tries:tries + 1];
+        });
+        return;
+    }
+    NSMutableArray *found = [NSMutableArray array];
+    for (NSDictionary *v in step[@"values"]) {
+        NSString *sub = v[@"subtitle"];
+        [found addObject:sub.length ? [NSString stringWithFormat:@"%@ (%@)", v[@"title"], sub] : (v[@"title"] ?: @"")];
+    }
+    if ([step[@"outcome"] isEqualToString:@"failure"]) NSLog(@"SpringBoard: Visual Intelligence: %@ failed: %@", a.name, step[@"error"] ?: @"");
+    else NSLog(@"SpringBoard: Visual Intelligence: %@: %@", a.name, found.count ? [found componentsJoinedByString:@", "] : @"no results");
 }
 static BOOL locked_out(NSString *auth) { return siri_locked && auth.length && ![auth isEqualToString:@"alwaysAllowed"]; }
 /* the entry point for App Intents: intent = Module.TypeName; shortcut = the App Shortcut's index (its own intent

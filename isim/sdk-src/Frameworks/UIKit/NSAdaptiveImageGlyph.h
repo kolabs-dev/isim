@@ -5,6 +5,7 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKitDefines.h>
 NS_ASSUME_NONNULL_BEGIN
+@class UTType;
 UIKIT_EXTERN NSAttributedStringKey const NSAdaptiveImageGlyphAttributeName API_AVAILABLE(ios(18.0));
 
 API_AVAILABLE(ios(18.0)) NS_SWIFT_SENDABLE
@@ -18,5 +19,7 @@ API_AVAILABLE(ios(18.0)) NS_SWIFT_SENDABLE
 @property (readonly, copy) NSString *contentIdentifier;
 /* the image's description (alt text) */
 @property (readonly, copy) NSString *contentDescription;
+/* the content's type: public.heic */
+@property (class, readonly, copy) UTType *contentType;
 @end
 NS_ASSUME_NONNULL_END

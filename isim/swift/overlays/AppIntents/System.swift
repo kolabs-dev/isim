@@ -383,6 +383,11 @@ enum _IsimValues {
         if let entity = req["find"] as? String {                     /* Shortcuts' "Find … where …" (EntityPropertyQuery) */
             await _IsimEntityProbe.find(entity, req, ch); return
         }
+        if let input = req["values"] as? String {                     /* an IntentValueQuery run (Visual Intelligence) */
+            if #available(iOS 26.0, *) { await _IsimValueQueries.run(input, req, ch) }
+            else { ch.write(["type": "result", "outcome": "failure", "dialog": "", "values": [] as [Any]]) }
+            return
+        }
         var intent: (any AppIntent)?
         if let i = req["shortcut"] as? Int, let s = shortcut(i) { intent = s._intent }
         else if let name = req["intent"] as? String, let t = intentType(name) { intent = t.init() }
@@ -549,6 +554,7 @@ func _isimOpenTarget<O: OpenIntent>(_ o: O) -> String { _isimTypeName(O.Value.se
         for t in _IsimConformances.entities where t != _IsimNoEntity.self { entities[_isimTypeName(t)] = await entityInfo(t) }
         var m: [String: Any] = ["linksAppIntents": true, "shortcuts": shortcuts, "intents": intents, "entities": entities, "date": Date()]
         if let color { m["tileColor"] = color }
+        if #available(iOS 26.0, *), !_IsimValueQueries.inputs.isEmpty { m["valueQueries"] = _IsimValueQueries.inputs }
         (m as NSDictionary).write(toFile: out, atomically: true)
         NSLog("isim AppIntents: %ld App Shortcut(s), %ld intent(s)", shortcuts.count, intents.count)
     }
