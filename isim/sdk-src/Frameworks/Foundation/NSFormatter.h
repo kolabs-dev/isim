@@ -269,4 +269,50 @@ typedef NS_OPTIONS(NSUInteger, NSPersonNameComponentsFormatterOptions) {
 - (NSString *)stringFromPersonNameComponents:(NSPersonNameComponents *)components;
 - (nullable NSPersonNameComponents *)personNameComponentsFromString:(NSString *)string;
 @end
+
+/* physical quantities: the region's units (isim: adapted, see PhysicalFormatters.m) */
+@class NSNumberFormatter;
+typedef NS_ENUM(NSInteger, NSLengthFormatterUnit) {
+    NSLengthFormatterUnitMillimeter = 8, NSLengthFormatterUnitCentimeter = 9, NSLengthFormatterUnitMeter = 11, NSLengthFormatterUnitKilometer = 14,
+    NSLengthFormatterUnitInch = (5 << 8) + 1, NSLengthFormatterUnitFoot = (5 << 8) + 2, NSLengthFormatterUnitYard = (5 << 8) + 3,
+    NSLengthFormatterUnitMile = (5 << 8) + 4
+} NS_SWIFT_NAME(LengthFormatter.Unit);
+@interface NSLengthFormatter : NSFormatter
+@property (null_resettable, copy) NSNumberFormatter *numberFormatter;
+@property NSFormattingUnitStyle unitStyle;
+@property (getter=isForPersonHeightUse) BOOL forPersonHeightUse;
+- (NSString *)stringFromValue:(double)value unit:(NSLengthFormatterUnit)unit;
+- (NSString *)stringFromMeters:(double)numberInMeters;
+- (NSString *)unitStringFromValue:(double)value unit:(NSLengthFormatterUnit)unit;
+- (NSString *)unitStringFromMeters:(double)numberInMeters usedUnit:(nullable NSLengthFormatterUnit *)unitp;
+- (BOOL)getObjectValue:(out id _Nullable * _Nullable)obj forString:(NSString *)string errorDescription:(out NSString * _Nullable * _Nullable)error;
+@end
+typedef NS_ENUM(NSInteger, NSMassFormatterUnit) {
+    NSMassFormatterUnitGram = 11, NSMassFormatterUnitKilogram = 14, NSMassFormatterUnitOunce = (6 << 8) + 1, NSMassFormatterUnitPound = (6 << 8) + 2,
+    NSMassFormatterUnitStone = (6 << 8) + 3
+} NS_SWIFT_NAME(MassFormatter.Unit);
+@interface NSMassFormatter : NSFormatter
+@property (null_resettable, copy) NSNumberFormatter *numberFormatter;
+@property NSFormattingUnitStyle unitStyle;
+@property (getter=isForPersonMassUse) BOOL forPersonMassUse;
+- (NSString *)stringFromValue:(double)value unit:(NSMassFormatterUnit)unit;
+- (NSString *)stringFromKilograms:(double)numberInKilograms;
+- (NSString *)unitStringFromValue:(double)value unit:(NSMassFormatterUnit)unit;
+- (NSString *)unitStringFromKilograms:(double)numberInKilograms usedUnit:(nullable NSMassFormatterUnit *)unitp;
+- (BOOL)getObjectValue:(out id _Nullable * _Nullable)obj forString:(NSString *)string errorDescription:(out NSString * _Nullable * _Nullable)error;
+@end
+typedef NS_ENUM(NSInteger, NSEnergyFormatterUnit) {
+    NSEnergyFormatterUnitJoule = 11, NSEnergyFormatterUnitKilojoule = 14, NSEnergyFormatterUnitCalorie = (7 << 8) + 1,
+    NSEnergyFormatterUnitKilocalorie = (7 << 8) + 2
+} NS_SWIFT_NAME(EnergyFormatter.Unit);
+@interface NSEnergyFormatter : NSFormatter
+@property (null_resettable, copy) NSNumberFormatter *numberFormatter;
+@property NSFormattingUnitStyle unitStyle;
+@property (getter=isForFoodEnergyUse) BOOL forFoodEnergyUse;
+- (NSString *)stringFromValue:(double)value unit:(NSEnergyFormatterUnit)unit;
+- (NSString *)stringFromJoules:(double)numberInJoules;
+- (NSString *)unitStringFromValue:(double)value unit:(NSEnergyFormatterUnit)unit;
+- (NSString *)unitStringFromJoules:(double)numberInJoules usedUnit:(nullable NSEnergyFormatterUnit *)unitp;
+- (BOOL)getObjectValue:(out id _Nullable * _Nullable)obj forString:(NSString *)string errorDescription:(out NSString * _Nullable * _Nullable)error;
+@end
 NS_ASSUME_NONNULL_END

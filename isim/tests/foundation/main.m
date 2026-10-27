@@ -618,7 +618,7 @@ static void cf_url_locale_checks(void) {
     CF_SET(ms, @"é");
     CHECK(CFStringTransform(ms, NULL, kCFStringTransformToXMLHex, false) && CFEqual(ms, CFSTR("&#xE9;")) &&
           CFStringTransform(ms, NULL, kCFStringTransformToXMLHex, true) && CFEqual(ms, CFSTR("é")));
-    CHECK(!CFStringTransform(ms, NULL, kCFStringTransformMandarinLatin, false) && CFEqual(ms, CFSTR("é")));   // not in isim: unchanged
+    CHECK(CFStringTransform(ms, NULL, kCFStringTransformMandarinLatin, false) && CFEqual(ms, CFSTR("é")));    // ICU's Han-Latin: no Han, unchanged
     CHECK([[@"Straße Œuvre" stringByApplyingTransform:@"Latin-ASCII" reverse:NO] isEqualToString:@"Strasse OEuvre"] &&
           [[@"Moskva" stringByApplyingTransform:NSStringTransformLatinToCyrillic reverse:NO] isEqualToString:@"Москва"]);
     cf_release_all(fr, en, french, current, langs, countries, canon, parts, joined, df, formatted, styled, longDate, iso, isoString, tmpl, ms, NULL);
@@ -1144,6 +1144,29 @@ completionHandler:^(NSError *error) { writeError = error; }];
 @end
 static NSUInteger name_hash(NSMapTable *t, const void *p) { return (NSUInteger)strlen(p); }
 static BOOL name_equal(NSMapTable *t, const void *a, const void *b) { return strcmp(a, b) == 0; }
+/* NSLengthFormatter, NSMassFormatter, NSEnergyFormatter (#350) and transforms through ICU */
+static void physical_formatter_checks(void) {
+    NSLocale *us = [NSLocale localeWithLocaleIdentifier:@"en_US"];
+    NSLengthFormatter *lf = [NSLengthFormatter new];
+    lf.numberFormatter.locale = us;
+    NSLengthFormatterUnit lu = NSLengthFormatterUnitMeter;
+    CHECK_STR([lf stringFromMeters:5000], @"3.107 mi");
+    CHECK([[lf unitStringFromMeters:0.5 usedUnit:&lu] isEqualToString:@"ft"] && lu == NSLengthFormatterUnitFoot);
+    lf.unitStyle = NSFormattingUnitStyleShort;
+    CHECK_STR([lf stringFromValue:3 unit:NSLengthFormatterUnitKilometer], @"3km");
+    NSMassFormatter *mf = [NSMassFormatter new];
+    mf.numberFormatter.locale = [NSLocale localeWithLocaleIdentifier:@"fr_FR"];
+    CHECK_STR([mf stringFromKilograms:0.25], @"250 g");
+    NSEnergyFormatter *ef = [NSEnergyFormatter new];
+    ef.numberFormatter.locale = us;
+    id joules = nil;
+    CHECK([ef getObjectValue:&joules forString:@"2 kcal" errorDescription:NULL] && [joules doubleValue] == 8368);
+    CHECK_STR([ef stringFromJoules:8368], @"2 kCal");   /* Apple's kilocalorie symbol */
+    CHECK_STR([@"北京" stringByApplyingTransform:NSStringTransformMandarinToLatin reverse:NO], @"běi jīng");
+    NSMutableString *m = [@"ありがとう" mutableCopy];
+    CHECK(CFStringTransform((__bridge CFMutableStringRef)m, NULL, kCFStringTransformToLatin, false) && [m isEqualToString:@"arigatou"]);
+}
+
 static void legacy_checks(void) {
     NSString *base = [NSString stringWithFormat:@"http://127.0.0.1:%s", getenv("ISIM_TEST_HTTP_PORT")];
     ConnectionRecorder *rec = [ConnectionRecorder new];
@@ -1945,6 +1968,7 @@ int main(int argc, char *argv[]) {
         url_protocol_checks();
         objc_networking_checks();
         if (getenv("ISIM_TEST_HTTP_PORT")) legacy_checks();
+        physical_formatter_checks();
         locale_checks();
 
         collection_checks();

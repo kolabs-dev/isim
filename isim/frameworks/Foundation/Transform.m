@@ -2,10 +2,14 @@
 // isim's own transliteration, not ICU's. A transform ID is one or more steps separated by ";" (ICU's syntax), each an
 // ID isim knows: normalization (NFD, NFC, NFKD, NFKC), removing combining marks, Latin-ASCII, Any-Latin (Greek,
 // Cyrillic, kana), Latin <-> Cyrillic, Greek, Hiragana, Katakana, Hiragana <-> Katakana, Fullwidth <-> Halfwidth and
-// Any-Hex/XML. Others (Mandarin, Hangul, Arabic, Hebrew, Thai, Unicode names) are unknown: the transform fails (nil,
-// or false from CFStringTransform) and the string is unchanged.
+// Any-Hex/XML. Others (Mandarin, Hangul, Arabic, Hebrew, Thai, Unicode names, any ICU transform ID) go to the host's
+// ICU transliterator (isim_icu_transliterate); without ICU, or for an ID it does not know either, the transform fails
+// (nil, or false from CFStringTransform) and the string is unchanged.
 #import <Foundation/Foundation.h>
 #import <CoreFoundation/CoreFoundation.h>
+#include <isim_host.h>
+#include <stdlib.h>
+#include <string.h>
 
 const CFStringRef kCFStringTransformStripCombiningMarks = CFSTR("NFD; [:Nonspacing Mark:] Remove; NFC");
 const CFStringRef kCFStringTransformToLatin = CFSTR("Any-Latin");
@@ -270,6 +274,7 @@ static NSString *xml_hex(NSString *s, BOOL decode) {
 }
 
 /* one step of a transform (reverse: its inverse); nil if isim does not know it */
+static NSString *isim_apply_own_transform(NSString *s, NSString *transform, BOOL reverse);
 static NSString *apply_step(NSString *s, NSString *step, BOOL reverse) {
     NSString *id_ = [step stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
     NSString *lower = id_.lowercaseString;
@@ -298,8 +303,23 @@ static NSString *apply_step(NSString *s, NSString *step, BOOL reverse) {
     if ([from isEqualToString:@"hex/xml"] && [to isEqualToString:@"any"]) return xml_hex(s, YES);
     return nil;
 }
+/* the host ICU's transliteration of the whole transform (Apple's "Mandarin-Latin" is ICU's "Han-Latin") */
+static NSString *icu_transform(NSString *s, NSString *transform, BOOL reverse) {
+    NSString *id_ = [transform stringByReplacingOccurrencesOfString:@"Mandarin-Latin" withString:@"Han-Latin"];
+    const char *in = s.UTF8String;
+    int cap = (int)strlen(in) * 8 + 256;
+    char *out = malloc((size_t)cap);
+    int n = isim_icu_transliterate(id_.UTF8String, reverse, in, out, cap);
+    NSString *r = n >= 0 ? @(out) : nil;
+    free(out);
+    return r;
+}
 NSString *isim_apply_transform(NSString *s, NSString *transform, BOOL reverse) {
     if (!s || !transform) return nil;
+    NSString *own = isim_apply_own_transform(s, transform, reverse);
+    return own ?: icu_transform(s, transform, reverse);
+}
+static NSString *isim_apply_own_transform(NSString *s, NSString *transform, BOOL reverse) {
     NSArray *steps = [transform componentsSeparatedByString:@";"];
     if (reverse) steps = steps.reverseObjectEnumerator.allObjects;
     NSString *out = s;

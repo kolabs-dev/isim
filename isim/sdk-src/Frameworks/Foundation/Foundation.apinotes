@@ -60,6 +60,12 @@ Classes:
   SwiftName: PersonNameComponentsFormatter
 - Name: NSMeasurementFormatter
   SwiftName: MeasurementFormatter
+- Name: NSLengthFormatter
+  SwiftName: LengthFormatter
+- Name: NSMassFormatter
+  SwiftName: MassFormatter
+- Name: NSEnergyFormatter
+  SwiftName: EnergyFormatter
 - Name: NSPersonNameComponents
   SwiftBridge: Foundation.PersonNameComponents
 - Name: NSCalendar

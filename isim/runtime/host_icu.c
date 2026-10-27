@@ -16,7 +16,7 @@
 
 typedef uint16_t UChar;
 typedef int UErr;
-typedef void UEnum, UCollator, UDateFormat, UDTPG, UCal, UNumFmt, UNumFormatter, UNumResult, URelFmt, UItvFmt, UListFmt, UPlural;
+typedef void UEnum, UCollator, UDateFormat, UDTPG, UCal, UNumFmt, UNumFormatter, UNumResult, URelFmt, UItvFmt, UListFmt, UPlural, UTrans;
 #define FAIL(e) ((e) > 0)
 
 static struct {
@@ -99,6 +99,9 @@ static struct {
     UPlural *(*plOpen)(const char *, int, UErr *);
     void (*plClose)(UPlural *);
     int32_t (*plSelect)(const UPlural *, double, UChar *, int32_t, UErr *);
+    UTrans *(*transOpen)(const UChar *, int32_t, int, const UChar *, int32_t, void *, UErr *);
+    void (*transClose)(UTrans *);
+    void (*transUChars)(const UTrans *, UChar *, int32_t *, int32_t, int32_t, int32_t *, UErr *);
 } U;
 
 static int icu_version;            /* major version of the loaded ICU; 0 = unavailable */
@@ -155,6 +158,7 @@ static void load(void) {
     I(itvOpen, "udtitvfmt_open"); I(itvClose, "udtitvfmt_close"); I(itvFormat, "udtitvfmt_format");
     I(listOpen, "ulistfmt_openForType"); I(listClose, "ulistfmt_close"); I(listFormat, "ulistfmt_format");
     I(plOpen, "uplrules_openForType"); I(plClose, "uplrules_close"); I(plSelect, "uplrules_select");
+    I(transOpen, "utrans_openU"); I(transClose, "utrans_close"); I(transUChars, "utrans_transUChars");
 #undef C
 #undef I
     /* the core every caller needs; the newer APIs (unumf 62, ulistfmt_openForType 67) are checked where used */
@@ -800,5 +804,33 @@ ISIM_GUEST_ABI int isim_icu_case(const char *locale, const char *s, int kind, ch
     int r = n < 0 || FAIL(e) ? -1 : from_u(buf, n, out, cap);
     free(buf);
     u_free(&in);
+    return r;
+}
+
+/* transliteration with an ICU transform ID ("Han-Latin", "Latin-Hangul", "Any-Name", compound IDs with ";"), forward
+   or (reverse != 0) in reverse; -1 when ICU or the transform is unavailable */
+ISIM_GUEST_ABI int isim_icu_transliterate(const char *id, int reverse, const char *s, char *out, int cap) {
+    if (!ready() || !U.transOpen || !U.transUChars) return -1;
+    ustr uid, in;
+    to_u(&uid, id);
+    UErr e = 0;
+    UTrans *t = U.transOpen(uid.p, uid.n, reverse ? 1 : 0, NULL, 0, NULL, &e);
+    u_free(&uid);
+    if (!t || FAIL(e)) { if (t) U.transClose(t); return -1; }
+    to_u(&in, s);
+    int32_t capU = in.n * 4 + 64, len = in.n, limit = in.n;
+    UChar *buf = malloc((size_t)capU * sizeof(UChar));
+    memcpy(buf, in.p, (size_t)in.n * sizeof(UChar));
+    U.transUChars(t, buf, &len, capU, 0, &limit, &e);
+    if (e == 15 /* U_BUFFER_OVERFLOW_ERROR */) {      /* grew past the buffer: again with the length ICU needs */
+        e = 0; capU = len + 16; len = in.n; limit = in.n;
+        buf = realloc(buf, (size_t)capU * sizeof(UChar));
+        memcpy(buf, in.p, (size_t)in.n * sizeof(UChar));
+        U.transUChars(t, buf, &len, capU, 0, &limit, &e);
+    }
+    int r = FAIL(e) ? -1 : from_u(buf, len, out, cap);
+    free(buf);
+    u_free(&in);
+    U.transClose(t);
     return r;
 }

@@ -2120,6 +2120,7 @@ ISIM_GUEST_ABI int isim_icu_list(const char *, const char *, int, int, char *, i
 ISIM_GUEST_ABI int isim_icu_plural(const char *, double, int, char *, int);
 ISIM_GUEST_ABI int isim_icu_display_name(const char *, const char *, int, char *, int);
 ISIM_GUEST_ABI int isim_icu_case(const char *, const char *, int, char *, int);
+ISIM_GUEST_ABI int isim_icu_transliterate(const char *, int, const char *, char *, int);
 ISIM_GUEST_ABI void *isim_regex_compile(const char *pattern, unsigned long len, unsigned int options, int unix_lines, int *err, unsigned long *erroffset);
 ISIM_GUEST_ABI void isim_regex_free(void *code);
 ISIM_GUEST_ABI int isim_regex_capture_count(void *code);
@@ -2341,6 +2342,6 @@ static const struct shim isim_table[] = {
     H(isim_icu_date_symbols), H(isim_icu_cal_fields), H(isim_icu_cal_date), H(isim_icu_cal_add), H(isim_icu_cal_limit),
     H(isim_icu_week_data), H(isim_icu_tz_name), H(isim_icu_number_skeleton), H(isim_icu_number_format), H(isim_icu_number_parse),
     H(isim_icu_number_pattern), H(isim_icu_number_symbol), H(isim_icu_currency), H(isim_icu_relative), H(isim_icu_interval),
-    H(isim_icu_list), H(isim_icu_plural), H(isim_icu_display_name), H(isim_icu_case), H(isim_icu_weekend), H(isim_icu_codes),
+    H(isim_icu_list), H(isim_icu_plural), H(isim_icu_display_name), H(isim_icu_case), H(isim_icu_transliterate), H(isim_icu_weekend), H(isim_icu_codes),
 };
 const struct host_lib host_isim = { "/usr/lib/libisim_host.dylib", isim_table, sizeof isim_table / sizeof *isim_table, NULL };

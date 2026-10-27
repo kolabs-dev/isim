@@ -487,6 +487,8 @@ int isim_icu_list(const char *_Nullable locale, const char *items, int type, int
 int isim_icu_plural(const char *_Nullable locale, double n, int ordinal, char *out, int cap);
 int isim_icu_display_name(const char *_Nullable displayLocale, const char *code, int kind, char *out, int cap);
 int isim_icu_case(const char *_Nullable locale, const char *s, int kind, char *out, int cap);
+/* ICU transliteration by transform ID (reverse: the inverse transform); the output's length, or -1 */
+int isim_icu_transliterate(const char *id, int reverse, const char *s, char *out, int cap);
 /* diagnostics (unified logging, signposts, MetricKit, crash reports): see runtime/host_os.c and host_diag.c */
 void isim_log_record(int kind, int type, const char *subsystem, const char *category, const char *message,
                      const char *format, int sptype, uint64_t spid, const char *name);
