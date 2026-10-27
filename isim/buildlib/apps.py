@@ -377,10 +377,12 @@ def _(a):
 
 @app("samples/HelloQuickLookExtensions")
 def _(a):
-    b = a.swift_app(srcs=["HelloQuickLookExtensions.swift"], link=["-framework", "QuickLook"])
+    b = a.swift_app(srcs=["HelloQuickLookExtensions.swift"], link=["-framework", "QuickLook", "-framework", "QuickLookThumbnailing"])
     a.appex(b, "RecipePreview", ["RecipePreview/PreviewViewController.swift"], "RecipePreview/Info.plist", link=["-framework", "QuickLook"])
     a.appex(b, "PreviewProvider", ["PreviewProvider/PreviewProvider.swift"], "PreviewProvider/Info.plist",
             link=["-framework", "QuickLook", "-framework", "PDFKit"])
+    a.appex(b, "RecipeThumbnail", ["RecipeThumbnail/ThumbnailProvider.swift"], "RecipeThumbnail/Info.plist",
+            link=["-framework", "QuickLookThumbnailing"])   # issue #359
     a.icon(f"{b}/AppIcon60x60@3x.png", "#ff9f0a", "#ff6b00", "Q")
 
 

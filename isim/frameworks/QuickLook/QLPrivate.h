@@ -13,6 +13,8 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 /* the extension that previews a file, if any */
 __IsimQLExtension *_Nullable isim_ql_extension_for(NSURL *url);
+/* the extension of an extension point (com.apple.quicklook.preview, com.apple.quicklook.thumbnail) for a file */
+__IsimQLExtension *_Nullable isim_ql_extension_for_point(NSURL *url, NSString *point);
 
 @class __IsimQLExtensionHost;
 @protocol __IsimQLExtensionHostDelegate <NSObject>
