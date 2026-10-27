@@ -5,7 +5,7 @@
    uses URLSession, URLRequest... from the overlay, so this header is hidden from Swift. */
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
-@class NSURL, NSString, NSData, NSDictionary<KeyType, ObjectType>;
+@class NSURL, NSString, NSData, NSDictionary<KeyType, ObjectType>, NSInputStream;
 typedef NS_ENUM(NSUInteger, NSURLRequestCachePolicy) {
     NSURLRequestUseProtocolCachePolicy = 0, NSURLRequestReloadIgnoringLocalCacheData = 1, NSURLRequestReloadIgnoringLocalAndRemoteCacheData = 4,
     NSURLRequestReloadIgnoringCacheData = NSURLRequestReloadIgnoringLocalCacheData, NSURLRequestReturnCacheDataElseLoad = 2,
@@ -36,6 +36,7 @@ ISIM_RUNTIME_VISIBLE
 @property (nullable, readonly, copy) NSDictionary<NSString *, NSString *> *allHTTPHeaderFields;
 - (nullable NSString *)valueForHTTPHeaderField:(NSString *)field;
 @property (nullable, readonly, copy) NSData *HTTPBody;
+@property (nullable, readonly, retain) NSInputStream *HTTPBodyStream;
 @property (readonly) BOOL HTTPShouldHandleCookies;
 @property (readonly) BOOL HTTPShouldUsePipelining;
 @end
@@ -56,6 +57,7 @@ ISIM_RUNTIME_VISIBLE
 - (void)setValue:(nullable NSString *)value forHTTPHeaderField:(NSString *)field;
 - (void)addValue:(NSString *)value forHTTPHeaderField:(NSString *)field;
 @property (nullable, copy) NSData *HTTPBody;
+@property (nullable, retain) NSInputStream *HTTPBodyStream;
 @property BOOL HTTPShouldHandleCookies;
 @property BOOL HTTPShouldUsePipelining;
 @end

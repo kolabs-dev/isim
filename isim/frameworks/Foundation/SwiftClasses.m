@@ -10,7 +10,7 @@
 static objc_hook_getClass previous_hook;
 static const char *const swift_classes[] = {
     "NSURLSession", "NSURLSessionConfiguration", "NSURLSessionTask", "NSURLSessionDataTask", "NSURLSessionUploadTask",
-    "NSURLSessionDownloadTask",
+    "NSURLSessionDownloadTask", "NSURLSessionStreamTask",
     "NSURLRequest", "NSMutableURLRequest", "NSURLResponse", "NSHTTPURLResponse", "NSURLComponents", "NSURLQueryItem",
     "NSHTTPCookie", "NSHTTPCookieStorage", "NSURLCache", "NSCachedURLResponse", "NSURLCredential", "NSURLCredentialStorage",
     "NSURLProtectionSpace", "NSURLAuthenticationChallenge",

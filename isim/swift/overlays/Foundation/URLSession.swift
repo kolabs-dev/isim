@@ -106,6 +106,14 @@ public protocol URLSessionTaskDelegate: URLSessionDelegate {
                     completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
     func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge) async -> (URLSession.AuthChallengeDisposition, URLCredential?)
     func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics)
+    /// the body stream of an upload task made with uploadTask(withStreamedRequest:); the async form is used when the
+    /// app implements that one instead
+    func urlSession(_ session: URLSession, task: URLSessionTask, needNewBodyStream completionHandler: @escaping @Sendable (InputStream?) -> Void)
+    func urlSession(_ session: URLSession, needNewBodyStreamForTask task: URLSessionTask) async -> InputStream?
+    /// iOS 17: a body stream starting at `offset` (resuming an upload)
+    func urlSession(_ session: URLSession, task: URLSessionTask, needNewBodyStreamFrom offset: Int64,
+                    completionHandler: @escaping @Sendable (InputStream?) -> Void)
+    func urlSession(_ session: URLSession, needNewBodyStreamForTask task: URLSessionTask, from offset: Int64) async -> InputStream?
 }
 extension URLSessionTaskDelegate {
     public func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge,
@@ -117,6 +125,17 @@ extension URLSessionTaskDelegate {
         (.performDefaultHandling, nil)
     }
     public func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {}
+    public func urlSession(_ session: URLSession, task: URLSessionTask, needNewBodyStream completionHandler: @escaping @Sendable (InputStream?) -> Void) {
+        let box = _URLBox<URLSessionTaskDelegate>(self)
+        Task { completionHandler(await box.value.urlSession(session, needNewBodyStreamForTask: task)) }
+    }
+    public func urlSession(_ session: URLSession, needNewBodyStreamForTask task: URLSessionTask) async -> InputStream? { nil }
+    public func urlSession(_ session: URLSession, task: URLSessionTask, needNewBodyStreamFrom offset: Int64,
+                           completionHandler: @escaping @Sendable (InputStream?) -> Void) {
+        let box = _URLBox<URLSessionTaskDelegate>(self)
+        Task { completionHandler(await box.value.urlSession(session, needNewBodyStreamForTask: task, from: offset)) }
+    }
+    public func urlSession(_ session: URLSession, needNewBodyStreamForTask task: URLSessionTask, from offset: Int64) async -> InputStream? { nil }
     public func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask) {}
     public func urlSession(_ session: URLSession, taskIsWaitingForConnectivity task: URLSessionTask) {}
     public func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
@@ -220,6 +239,11 @@ public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeD
     open func uploadTask(with request: URLRequest, fromFile fileURL: URL, completionHandler: @escaping @Sendable (Data?, URLResponse?, Error?) -> Void) -> URLSessionUploadTask {
         _refuseCompletionHandler()
         let t = URLSessionUploadTask(self, request); t._uploadFile = fileURL; t._dataCompletion = completionHandler; return _add(t)
+    }
+    /// An upload whose body the delegate gives as a stream (urlSession(_:task:needNewBodyStream:); without one, the
+    /// request's httpBodyStream).
+    open func uploadTask(withStreamedRequest request: URLRequest) -> URLSessionUploadTask {
+        let t = URLSessionUploadTask(self, request); t._streamed = true; return _add(t)
     }
     open func downloadTask(with request: URLRequest) -> URLSessionDownloadTask { _add(URLSessionDownloadTask(self, request)) }
     open func downloadTask(with url: URL) -> URLSessionDownloadTask { downloadTask(with: URLRequest(url: url)) }
@@ -915,11 +939,39 @@ final class _URLBox<T>: @unchecked Sendable { var value: T; init(_ v: T) { value
     var _uploadBody: Data?
     var _uploadFile: URL?
     override var _dataCompletionHandlerSet: Bool { _dataCompletion != nil }
+    var _streamed = false
+
+    /// the body stream: the delegate's for a streamed upload (else the request's), or the request's httpBodyStream
+    func _bodyStream() -> InputStream? {
+        if _streamed, let d = _sessionTaskDelegate {
+            let sem = DispatchSemaphore(value: 0), box = _URLBox<InputStream?>(nil)
+            _session.delegateQueue.addOperation { d.urlSession(self._session, task: self, needNewBodyStream: { box.value = $0; sem.signal() }) }
+            sem.wait()
+            if let s = box.value { return s }
+        }
+        return originalRequest?.httpBody == nil ? originalRequest?.httpBodyStream : nil
+    }
+    /// all of a body stream, or nil when it fails
+    func _readBody(_ stream: InputStream) -> Data? {
+        if stream.streamStatus == .notOpen { stream.open() }
+        defer { stream.close() }
+        var data = Data(), chunk = [UInt8](repeating: 0, count: 65536)
+        while true {
+            let n = stream.read(&chunk, maxLength: chunk.count)
+            if n < 0 { return nil }
+            if n == 0 { return data }
+            data.append(contentsOf: chunk[0..<n])
+        }
+    }
 
     override func _main() {
         var body = _uploadBody
         if let f = _uploadFile {
             guard let d = FileManager.default.contents(atPath: f.path) else { _finish(URLError._make(NSURLErrorFileDoesNotExist, url: f)); return }
+            body = d
+        }
+        if body == nil, let stream = _bodyStream() {        /* a body stream: read before sending (isim sends whole bodies) */
+            guard let d = _readBody(stream) else { _finish(URLError._make(URLError.Code.requestBodyStreamExhausted.rawValue, url: originalRequest?.url)); return }
             body = d
         }
         // collect the body for a completion handler or an internal consumer that is not streaming
