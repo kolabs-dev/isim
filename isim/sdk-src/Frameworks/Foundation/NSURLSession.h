@@ -12,7 +12,7 @@
 NS_ASSUME_NONNULL_BEGIN
 @class NSURL, NSString, NSData, NSError, NSDate, NSArray<ObjectType>, NSDictionary, NSOperationQueue, NSProgress, NSHTTPCookieStorage,
        NSURLCache, NSURLCredentialStorage, NSURLAuthenticationChallenge, NSURLSessionTask, NSURLSessionDataTask, NSURLSessionUploadTask,
-       NSURLSessionDownloadTask, NSCachedURLResponse;
+       NSURLSessionDownloadTask, NSURLSessionStreamTask, NSCachedURLResponse, NSInputStream, NSOutputStream;
 @protocol NSURLSessionDelegate;
 FOUNDATION_EXPORT const int64_t NSURLSessionTransferSizeUnknown;
 FOUNDATION_EXPORT const float NSURLSessionTaskPriorityDefault;
@@ -87,6 +87,8 @@ ISIM_RUNTIME_VISIBLE
                                 completionHandler:(void (^)(NSData *_Nullable data, NSURLResponse *_Nullable response, NSError *_Nullable error))completionHandler;
 - (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request fromData:(nullable NSData *)bodyData
                                 completionHandler:(void (^)(NSData *_Nullable data, NSURLResponse *_Nullable response, NSError *_Nullable error))completionHandler;
+- (NSURLSessionUploadTask *)uploadTaskWithStreamedRequest:(NSURLRequest *)request;
+- (NSURLSessionStreamTask *)streamTaskWithHostName:(NSString *)hostname port:(NSInteger)port;
 - (NSURLSessionDownloadTask *)downloadTaskWithRequest:(NSURLRequest *)request;
 - (NSURLSessionDownloadTask *)downloadTaskWithURL:(NSURL *)url;
 - (NSURLSessionDownloadTask *)downloadTaskWithResumeData:(NSData *)resumeData;
@@ -132,6 +134,18 @@ ISIM_RUNTIME_VISIBLE
 @interface NSURLSessionDownloadTask : NSURLSessionTask
 - (void)cancelByProducingResumeData:(void (^)(NSData *_Nullable resumeData))completionHandler;
 @end
+/* a TCP connection read and written in pieces (isim: made at the first read or write; startSecureConnection before then) */
+ISIM_RUNTIME_VISIBLE
+@interface NSURLSessionStreamTask : NSURLSessionTask
+- (void)readDataOfMinLength:(NSUInteger)minBytes maxLength:(NSUInteger)maxBytes timeout:(NSTimeInterval)timeout
+          completionHandler:(void (^)(NSData *_Nullable data, BOOL atEOF, NSError *_Nullable error))completionHandler;
+- (void)writeData:(NSData *)data timeout:(NSTimeInterval)timeout completionHandler:(void (^)(NSError *_Nullable error))completionHandler;
+- (void)captureStreams;
+- (void)closeWrite;
+- (void)closeRead;
+- (void)startSecureConnection;
+- (void)stopSecureConnection;
+@end
 
 @protocol NSURLSessionDelegate <NSObject>
 @optional
@@ -152,6 +166,9 @@ ISIM_RUNTIME_VISIBLE
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didSendBodyData:(int64_t)bytesSent totalBytesSent:(int64_t)totalBytesSent
     totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend;
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(nullable NSError *)error;
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task needNewBodyStream:(void (^)(NSInputStream *_Nullable bodyStream))completionHandler;
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task needNewBodyStreamFromOffset:(int64_t)offset
+ completionHandler:(void (^)(NSInputStream *_Nullable bodyStream))completionHandler;
 @end
 
 @protocol NSURLSessionDataDelegate <NSURLSessionTaskDelegate>
@@ -170,6 +187,15 @@ ISIM_RUNTIME_VISIBLE
     totalBytesWritten:(int64_t)totalBytesWritten totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite;
 - (void)URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didResumeAtOffset:(int64_t)fileOffset
     expectedTotalBytes:(int64_t)expectedTotalBytes;
+@end
+
+@protocol NSURLSessionStreamDelegate <NSURLSessionTaskDelegate>
+@optional
+- (void)URLSession:(NSURLSession *)session readClosedForStreamTask:(NSURLSessionStreamTask *)streamTask;
+- (void)URLSession:(NSURLSession *)session writeClosedForStreamTask:(NSURLSessionStreamTask *)streamTask;
+- (void)URLSession:(NSURLSession *)session betterRouteDiscoveredForStreamTask:(NSURLSessionStreamTask *)streamTask;
+- (void)URLSession:(NSURLSession *)session streamTask:(NSURLSessionStreamTask *)streamTask
+didBecomeInputStream:(NSInputStream *)inputStream outputStream:(NSOutputStream *)outputStream;
 @end
 NS_ASSUME_NONNULL_END
 #endif

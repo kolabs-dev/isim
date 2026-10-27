@@ -183,7 +183,14 @@ public struct URLRequest: Hashable, @unchecked Sendable, CustomStringConvertible
     public var cachePolicy: CachePolicy
     public var timeoutInterval: TimeInterval
     public var mainDocumentURL: URL?
-    public var httpBody: Data?
+    /// the body; setting it removes httpBodyStream (a request has one or the other)
+    public var httpBody: Data? { didSet { if httpBody != nil { _bodyStream = nil } } }
+    var _bodyStream: InputStream?
+    /// the body as a stream, read when the request is sent; setting it removes httpBody
+    public var httpBodyStream: InputStream? {
+        get { _bodyStream }
+        set { _bodyStream = newValue; if newValue != nil { httpBody = nil } }
+    }
     public var httpShouldHandleCookies = true
     public var httpShouldUsePipelining = false
     public var allowsCellularAccess = true

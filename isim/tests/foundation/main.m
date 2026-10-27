@@ -935,6 +935,18 @@ static void file_checks(void) {
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error { self.error = error; self.completed = YES; }
 @end
 
+/* issue #349: gives a streamed upload its body; hears a stream task's close */
+@interface StreamRecorder : NSObject <NSURLSessionStreamDelegate>
+@property NSInteger bodiesAsked, readsClosed;
+@end
+@implementation StreamRecorder
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task needNewBodyStream:(void (^)(NSInputStream *))completionHandler {
+    self.bodiesAsked++;
+    completionHandler([NSInputStream inputStreamWithData:[@"streamed from objc" dataUsingEncoding:NSUTF8StringEncoding]]);
+}
+- (void)URLSession:(NSURLSession *)session readClosedForStreamTask:(NSURLSessionStreamTask *)streamTask { self.readsClosed++; }
+@end
+
 /* an NSURLProtocol subclass written in Objective-C: serves objc-mock: URLs, registered and through protocolClasses */
 @interface ObjCMockProtocol : NSURLProtocol
 @end
@@ -1030,6 +1042,38 @@ static void objc_networking_checks(void) {
     [up resume];
     CHECK((spin_until(^BOOL { return done; }, 10) && [got isEqualToData:[@"ping" dataUsingEncoding:NSUTF8StringEncoding]] && up.state == NSURLSessionTaskStateCompleted &&
            [up.originalRequest.HTTPMethod isEqualToString:@"POST"] && up.countOfBytesSent == 4));
+
+    /* issue #349: HTTPBodyStream, a streamed upload (the delegate gives the stream), a stream task */
+    NSMutableURLRequest *streamed = [post mutableCopy];
+    streamed.HTTPBodyStream = [NSInputStream inputStreamWithData:[@"body stream" dataUsingEncoding:NSUTF8StringEncoding]];
+    CHECK(streamed.HTTPBodyStream != nil && streamed.HTTPBody == nil);
+    done = NO; got = nil;
+    [[NSURLSession.sharedSession dataTaskWithRequest:streamed completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) { got = data; done = YES; }] resume];
+    CHECK((spin_until(^BOOL { return done; }, 10) && [got isEqualToData:[@"body stream" dataUsingEncoding:NSUTF8StringEncoding]]));
+    StreamRecorder *sr = [StreamRecorder new];
+    NSURLSession *streamSession = [NSURLSession sessionWithConfiguration:NSURLSessionConfiguration.ephemeralSessionConfiguration delegate:sr delegateQueue:nil];
+    NSURLSessionUploadTask *su = [streamSession uploadTaskWithStreamedRequest:post];
+    [su resume];
+    CHECK((spin_until(^BOOL { return su.state == NSURLSessionTaskStateCompleted; }, 10) && sr.bodiesAsked == 1 && su.countOfBytesSent == 18));
+    NSURLSessionStreamTask *st = [streamSession streamTaskWithHostName:@"127.0.0.1" port:atoi(portEnv)];
+    [st resume];
+    __block NSError *writeError = (NSError *)@"pending";
+    [st writeData:[@"GET /hello HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n" dataUsingEncoding:NSUTF8StringEncoding] timeout:10
+completionHandler:^(NSError *error) { writeError = error; }];
+    NSMutableData *reply = [NSMutableData data];
+    __block BOOL eof = NO, readDone = YES;
+    while (!eof && spin_until(^BOOL { return readDone; }, 10)) {
+        readDone = NO;
+        [st readDataOfMinLength:1 maxLength:4096 timeout:10 completionHandler:^(NSData *data, BOOL atEOF, NSError *error) {
+            if (data) [reply appendData:data];
+            eof = atEOF || error != nil; readDone = YES;
+        }];
+    }
+    NSString *replyText = [[NSString alloc] initWithData:reply encoding:NSUTF8StringEncoding];
+    [st closeRead]; [st closeWrite];
+    CHECK((writeError == nil && [replyText hasPrefix:@"HTTP/1."] && [replyText hasSuffix:@"hello objc"] &&
+           spin_until(^BOOL { return sr.readsClosed == 1 && st.state == NSURLSessionTaskStateCompleted; }, 10)));
+    [streamSession invalidateAndCancel];
 
     __block NSString *downloaded = nil; done = NO;
     [[NSURLSession.sharedSession downloadTaskWithURL:[NSURL URLWithString:[base stringByAppendingString:@"/hello"]]

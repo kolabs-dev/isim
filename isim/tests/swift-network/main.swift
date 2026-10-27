@@ -277,6 +277,110 @@ func tlsChecks(env: [String: String]) async {
     }
 }
 
+/// issue #349: httpBodyStream, uploadTask(withStreamedRequest:) and URLSessionStreamTask (plain against the mini server,
+/// TLS against https_server.py)
+final class StreamDelegate: NSObject, URLSessionStreamDelegate, URLSessionDataDelegate, @unchecked Sendable {
+    var asked = 0, readClosed = 0, writeClosed = 0
+    var captured: (InputStream, OutputStream)?
+    let done = DispatchSemaphore(value: 0)
+    func urlSession(_ session: URLSession, task: URLSessionTask, needNewBodyStream completionHandler: @escaping @Sendable (InputStream?) -> Void) {
+        asked += 1
+        completionHandler(InputStream(data: Data("streamed by the delegate".utf8)))
+    }
+    func urlSession(_ session: URLSession, readClosedFor streamTask: URLSessionStreamTask) { readClosed += 1 }
+    func urlSession(_ session: URLSession, writeClosedFor streamTask: URLSessionStreamTask) { writeClosed += 1 }
+    func urlSession(_ session: URLSession, streamTask: URLSessionStreamTask, didBecome inputStream: InputStream, outputStream: OutputStream) {
+        captured = (inputStream, outputStream); done.signal()
+    }
+}
+/// reads a stream task to its end
+func readAll(_ t: URLSessionStreamTask) async throws -> Data {
+    var all = Data()
+    while true {
+        let (d, eof) = try await t.readData(ofMinLength: 1, maxLength: 1000, timeout: 10)
+        if let d { all += d }
+        if eof { return all }
+    }
+}
+func streamChecks(port: UInt16, base: String, tlsPort: String?) async {
+    do {
+        var r = URLRequest(url: URL(string: base + "/echo")!)
+        r.httpMethod = "POST"
+        r.httpBody = Data("dropped".utf8)
+        r.httpBodyStream = InputStream(data: Data("from a body stream".utf8))
+        check(r.httpBody == nil && r.httpBodyStream != nil, "setting httpBodyStream removes httpBody")
+        let (data, resp) = try await URLSession.shared.data(for: r)
+        check((resp as? HTTPURLResponse)?.statusCode == 201 && data == Data("from a body stream".utf8), "a POST with httpBodyStream (\(String(decoding: data, as: UTF8.self)))")
+    } catch { check(false, "httpBodyStream POST threw \(error)") }
+
+    let delegate = StreamDelegate()
+    let session = URLSession(configuration: .ephemeral, delegate: delegate, delegateQueue: nil)
+    var r = URLRequest(url: URL(string: base + "/echo")!)
+    r.httpMethod = "PUT"
+    let up = session.uploadTask(withStreamedRequest: r)
+    up.resume()
+    while up.state != .completed { try? await Task.sleep(nanoseconds: 20_000_000) }
+    check(delegate.asked == 1 && up.error == nil && up.countOfBytesSent == 24, "uploadTask(withStreamedRequest:): the delegate's body stream is sent (\(up.countOfBytesSent) bytes)")
+
+    // a stream task to the mini server: a raw HTTP request, the reply read to its end
+    let t = session.streamTask(withHostName: "127.0.0.1", port: Int(port))
+    t.resume()
+    do {
+        try await t.write(Data("GET /text HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n".utf8), timeout: 10)
+        let reply = String(decoding: try await readAll(t), as: UTF8.self)
+        check(reply.hasPrefix("HTTP/1.1 200 OK") && reply.hasSuffix("hello from the mini server"), "URLSessionStreamTask: write, then read to the end (\(reply.count) bytes)")
+    } catch { check(false, "stream task threw \(error)") }
+    t.closeWrite(); t.closeRead()
+    for _ in 0..<250 where t.state != .completed { try? await Task.sleep(nanoseconds: 20_000_000) }
+    check(t.state == .completed && delegate.readClosed == 1 && delegate.writeClosed == 1, "closeRead / closeWrite: the delegate hears both, the task completes")
+
+    // a read that times out: the server waits for a request that never comes
+    let quiet = session.streamTask(withHostName: "127.0.0.1", port: Int(port))
+    quiet.resume()
+    do {
+        _ = try await quiet.readData(ofMinLength: 1, maxLength: 10, timeout: 0.3)
+        check(false, "a read with nothing to read times out")
+    } catch { check((error as? URLError)?.code == .timedOut, "a read with nothing to read times out (\(error))") }
+    quiet.cancel()
+
+    // captureStreams: the connection as a pair of streams
+    let cap = session.streamTask(withHostName: "127.0.0.1", port: Int(port))
+    cap.resume()
+    cap.write(Data("GET /json HTTP/1.1\r\nHost: h\r\n\r\n".utf8), timeout: 10) { _ in }
+    cap.captureStreams()
+    if delegate.done.wait(timeout: .now() + 10) == .success, let (input, _) = delegate.captured {
+        var got = Data(), buf = [UInt8](repeating: 0, count: 1024)
+        let until = Date(timeIntervalSinceNow: 10)
+        while Date() < until {
+            if input.hasBytesAvailable { let n = input.read(&buf, maxLength: buf.count); if n <= 0 { break }; got += buf[0..<n] }
+            else if input.streamStatus == .atEnd || input.streamStatus == .error { break }
+            else { usleep(5_000) }
+        }
+        let text = String(decoding: got, as: UTF8.self)
+        check(text.contains(#""name":"isim""#) && cap.state == .completed, "captureStreams: the delegate's input stream carries the reply")
+    } else { check(false, "captureStreams: urlSession(_:streamTask:didBecome:outputStream:)") }
+
+    // a refused connection fails the first read
+    let refused = session.streamTask(withHostName: "127.0.0.1", port: 1)
+    refused.resume()
+    do { _ = try await refused.readData(ofMinLength: 1, maxLength: 10, timeout: 5); check(false, "a refused connection fails") }
+    catch { check((error as? URLError)?.code == .cannotConnectToHost, "a refused connection fails with cannotConnectToHost (\(error))") }
+
+    // TLS: startSecureConnection() before the first read or write (https_server.py, a certificate for localhost)
+    if let tlsPort, let p = Int(tlsPort) {
+        let secure = session.streamTask(withHostName: "localhost", port: p)
+        secure.resume()
+        secure.startSecureConnection()
+        do {
+            try await secure.write(Data("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n".utf8), timeout: 10)
+            let reply = String(decoding: try await readAll(secure), as: UTF8.self)
+            check(reply.hasPrefix("HTTP/1.1 200") && reply.hasSuffix("client=none"), "startSecureConnection: TLS to localhost (\(reply.suffix(20)))")
+        } catch { check(false, "TLS stream task threw \(error)") }
+        secure.cancel()
+    }
+    session.invalidateAndCancel()
+}
+
 @main struct Main {
     static func main() async {
         // MARK: URLComponents / URLQueryItem
@@ -427,6 +531,7 @@ func tlsChecks(env: [String: String]) async {
             let (data, resp) = try await URLSession.shared.data(for: r)
             check((resp as? HTTPURLResponse)?.value(forHTTPHeaderField: "X-Method") == "POST" && data == Data(#"{"a":1}"#.utf8), "POST with httpBody")
         } catch { check(false, "POST threw \(error)") }
+        await streamChecks(port: server.port, base: base, tlsPort: ProcessInfo.processInfo.environment["ISIM_TEST_HTTPS_PORT"])
         do {
             let (data, resp) = try await URLSession.shared.data(from: URL(string: base + "/missing")!)
             check((resp as? HTTPURLResponse)?.statusCode == 404 && data == Data("nope".utf8), "HTTP 404 is a response, not an error")

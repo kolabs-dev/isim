@@ -7,8 +7,8 @@
 // reaches them through the runtime (Foundation loads this library on first use, SwiftClasses.m), so Objective-C code
 // cannot subclass them or add categories to them. An Objective-C session delegate is wrapped in a Swift delegate that
 // forwards each callback it implements (_ObjCURLSessionDelegate).
-// Not exposed to Objective-C: WebSocket tasks, task metrics, stream tasks, server trusts / client identities in
-// credentials (SecTrust and SecIdentity are Swift classes here), HTTPBodyStream.
+// Not exposed to Objective-C: WebSocket tasks, task metrics, server trusts / client identities in credentials (SecTrust
+// and SecIdentity are Swift classes here).
 
 // MARK: - NSURLQueryItem, NSURLComponents
 
@@ -113,6 +113,7 @@ open class NSURLRequest: NSObject, NSCopying, NSMutableCopying, @unchecked Senda
     @objc(allHTTPHeaderFields) open var allHTTPHeaderFields: [String: String]? { _r.allHTTPHeaderFields }
     @objc(valueForHTTPHeaderField:) open func value(forHTTPHeaderField field: String) -> String? { _r.value(forHTTPHeaderField: field) }
     @objc(HTTPBody) open var httpBody: Data? { _r.httpBody }
+    @objc(HTTPBodyStream) open var httpBodyStream: InputStream? { _r.httpBodyStream }
     @objc(HTTPShouldHandleCookies) open var httpShouldHandleCookies: Bool { _r.httpShouldHandleCookies }
     @objc(HTTPShouldUsePipelining) open var httpShouldUsePipelining: Bool { _r.httpShouldUsePipelining }
     open func copy(with zone: NSZone? = nil) -> Any { NSURLRequest(_r) }
@@ -140,6 +141,7 @@ open class NSMutableURLRequest: NSURLRequest, @unchecked Sendable {
     @objc(setValue:forHTTPHeaderField:) open func setValue(_ value: String?, forHTTPHeaderField field: String) { _r.setValue(value, forHTTPHeaderField: field) }
     @objc(addValue:forHTTPHeaderField:) open func addValue(_ value: String, forHTTPHeaderField field: String) { _r.addValue(value, forHTTPHeaderField: field) }
     @objc(HTTPBody) open override var httpBody: Data? { get { _r.httpBody } set { _r.httpBody = newValue } }
+    @objc(HTTPBodyStream) open override var httpBodyStream: InputStream? { get { _r.httpBodyStream } set { _r.httpBodyStream = newValue } }
     @objc(HTTPShouldHandleCookies) open override var httpShouldHandleCookies: Bool { get { _r.httpShouldHandleCookies } set { _r.httpShouldHandleCookies = newValue } }
     @objc(HTTPShouldUsePipelining) open override var httpShouldUsePipelining: Bool { get { _r.httpShouldUsePipelining } set { _r.httpShouldUsePipelining = newValue } }
 }
@@ -393,6 +395,8 @@ extension URLSession {
     @objc(downloadTaskWithRequest:) func _objc_downloadTask(request r: URLRequest) -> URLSessionDownloadTask { downloadTask(with: r) }
     @objc(downloadTaskWithURL:) func _objc_downloadTask(url: URL) -> URLSessionDownloadTask { downloadTask(with: url) }
     @objc(downloadTaskWithResumeData:) func _objc_downloadTask(resumeData d: Data) -> URLSessionDownloadTask { downloadTask(withResumeData: d) }
+    @objc(uploadTaskWithStreamedRequest:) func _objc_uploadTask(streamedRequest r: URLRequest) -> URLSessionUploadTask { uploadTask(withStreamedRequest: r) }
+    @objc(streamTaskWithHostName:port:) func _objc_streamTask(hostName h: String, port: Int) -> URLSessionStreamTask { streamTask(withHostName: h, port: port) }
     @objc(downloadTaskWithRequest:completionHandler:)
     func _objc_downloadTask(request r: URLRequest, completionHandler h: @escaping @Sendable (URL?, URLResponse?, Error?) -> Void) -> URLSessionDownloadTask {
         downloadTask(with: r, completionHandler: h)
@@ -442,6 +446,19 @@ extension URLSessionTask {
     @objc(suspend) func _objc_suspend() { suspend() }
     @objc(cancel) func _objc_cancel() { cancel() }
 }
+extension URLSessionStreamTask {
+    @objc(readDataOfMinLength:maxLength:timeout:completionHandler:)
+    func _objc_read(min: Int, max: Int, timeout: TimeInterval, completionHandler h: @escaping @Sendable (Data?, Bool, Error?) -> Void) {
+        readData(ofMinLength: min, maxLength: max, timeout: timeout, completionHandler: h)
+    }
+    @objc(writeData:timeout:completionHandler:)
+    func _objc_write(_ d: Data, timeout: TimeInterval, completionHandler h: @escaping @Sendable (Error?) -> Void) { write(d, timeout: timeout, completionHandler: h) }
+    @objc(captureStreams) func _objc_captureStreams() { captureStreams() }
+    @objc(closeRead) func _objc_closeRead() { closeRead() }
+    @objc(closeWrite) func _objc_closeWrite() { closeWrite() }
+    @objc(startSecureConnection) func _objc_startSecureConnection() { startSecureConnection() }
+    @objc(stopSecureConnection) func _objc_stopSecureConnection() { stopSecureConnection() }
+}
 extension URLSessionDownloadTask {
     @objc(cancelByProducingResumeData:) func _objc_cancel(byProducingResumeData h: @escaping @Sendable (Data?) -> Void) { cancel(byProducingResumeData: h) }
 }
@@ -464,6 +481,14 @@ extension URLSessionDownloadTask {
     @objc(URLSession:task:didSendBodyData:totalBytesSent:totalBytesExpectedToSend:)
     optional func sent(_ s: URLSession, _ t: URLSessionTask, _ n: Int64, _ total: Int64, _ expected: Int64)
     @objc(URLSession:task:didCompleteWithError:) optional func completed(_ s: URLSession, _ t: URLSessionTask, _ e: Error?)
+    @objc(URLSession:task:needNewBodyStream:) optional func needBody(_ s: URLSession, _ t: URLSessionTask, _ h: @escaping (InputStream?) -> Void)
+    @objc(URLSession:task:needNewBodyStreamFromOffset:completionHandler:)
+    optional func needBodyFrom(_ s: URLSession, _ t: URLSessionTask, _ offset: Int64, _ h: @escaping (InputStream?) -> Void)
+    @objc(URLSession:readClosedForStreamTask:) optional func readClosed(_ s: URLSession, _ t: URLSessionStreamTask)
+    @objc(URLSession:writeClosedForStreamTask:) optional func writeClosed(_ s: URLSession, _ t: URLSessionStreamTask)
+    @objc(URLSession:betterRouteDiscoveredForStreamTask:) optional func betterRoute(_ s: URLSession, _ t: URLSessionStreamTask)
+    @objc(URLSession:streamTask:didBecomeInputStream:outputStream:)
+    optional func becameStreams(_ s: URLSession, _ t: URLSessionStreamTask, _ i: InputStream, _ o: OutputStream)
     @objc(URLSession:dataTask:didReceiveResponse:completionHandler:)
     optional func response(_ s: URLSession, _ t: URLSessionDataTask, _ r: URLResponse, _ h: @escaping (Int) -> Void)
     @objc(URLSession:dataTask:didReceiveData:) optional func data(_ s: URLSession, _ t: URLSessionDataTask, _ d: Data)
@@ -478,7 +503,7 @@ extension URLSessionDownloadTask {
 
 /// an Objective-C session delegate as a Swift one: each callback goes to the delegate when it implements the method,
 /// else does what iOS does for a missing optional method
-final class _ObjCURLSessionDelegate: NSObject, URLSessionDataDelegate, URLSessionDownloadDelegate, @unchecked Sendable {
+final class _ObjCURLSessionDelegate: NSObject, URLSessionDataDelegate, URLSessionDownloadDelegate, URLSessionStreamDelegate, @unchecked Sendable {
     let target: AnyObject
     var d: _NSURLSessionDelegateMethods { unsafeBitCast(target, to: _NSURLSessionDelegateMethods.self) }
     init(_ target: AnyObject) { self.target = target; super.init() }
@@ -513,6 +538,20 @@ final class _ObjCURLSessionDelegate: NSObject, URLSessionDataDelegate, URLSessio
         d.sent?(session, task, bytesSent, totalBytesSent, totalBytesExpectedToSend)
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) { d.completed?(session, task, error) }
+    func urlSession(_ session: URLSession, task: URLSessionTask, needNewBodyStream completionHandler: @escaping @Sendable (InputStream?) -> Void) {
+        guard let f = d.needBody else { completionHandler(nil); return }
+        f(session, task) { completionHandler($0) }
+    }
+    func urlSession(_ session: URLSession, task: URLSessionTask, needNewBodyStreamFrom offset: Int64, completionHandler: @escaping @Sendable (InputStream?) -> Void) {
+        guard let f = d.needBodyFrom else { completionHandler(nil); return }
+        f(session, task, offset) { completionHandler($0) }
+    }
+    func urlSession(_ session: URLSession, readClosedFor streamTask: URLSessionStreamTask) { d.readClosed?(session, streamTask) }
+    func urlSession(_ session: URLSession, writeClosedFor streamTask: URLSessionStreamTask) { d.writeClosed?(session, streamTask) }
+    func urlSession(_ session: URLSession, betterRouteDiscoveredFor streamTask: URLSessionStreamTask) { d.betterRoute?(session, streamTask) }
+    func urlSession(_ session: URLSession, streamTask: URLSessionStreamTask, didBecome inputStream: InputStream, outputStream: OutputStream) {
+        d.becameStreams?(session, streamTask, inputStream, outputStream)
+    }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
                     completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void) {
         guard let f = d.response else { completionHandler(.allow); return }
