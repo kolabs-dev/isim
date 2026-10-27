@@ -1157,11 +1157,15 @@ def _(a):
     a.swift_app("VideoToolboxTest", srcs=["VideoToolboxTest.swift"], plist="Info.plist")
 
 
-@app("tests/accelerate", products=["AccelerateTest.app", "AccelerateCTest.app"])
+@app("tests/accelerate", products=["AccelerateTest.app", "AccelerateCTest.app", "VImageTest.app", "VImageCTest.app"])
 def _(a):
     a.swift_app("AccelerateTest", srcs=["AccelerateTest.swift"], plist="Info.plist")
     b = a.objc_app(["main.m"], "C-Info.plist", ["-framework", "Accelerate"], name="AccelerateCTest")
     os.replace(os.path.join(b, "C-Info.plist"), os.path.join(b, "Info.plist"))
+    b = a.swift_app("VImageTest", srcs=["VImageTest.swift"], plist="VImage-Info.plist")
+    os.replace(os.path.join(b, "VImage-Info.plist"), os.path.join(b, "Info.plist"))
+    b = a.objc_app(["vimage_main.m"], "VImageC-Info.plist", ["-framework", "Accelerate", "-framework", "CoreGraphics"], name="VImageCTest")
+    os.replace(os.path.join(b, "VImageC-Info.plist"), os.path.join(b, "Info.plist"))
 
 
 @app("tests/spatial", products=["SpatialTest.app"])
