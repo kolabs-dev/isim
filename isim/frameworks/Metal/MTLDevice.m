@@ -196,6 +196,7 @@ MTL_EXTERN id<MTLDevice> MTLCreateSystemDefaultDevice(void) { return [ISIMMTLDev
     id<MTLBuffer> _buffer;
     NSUInteger _bufferOffset, _bufferBytesPerRow;
     id<MTLTexture> _parent;
+    NSUInteger _relativeLevel, _relativeSlice;
 }
 @synthesize label;
 static NSUInteger slices_of(MTLTextureDescriptor *d) {
@@ -243,12 +244,29 @@ static NSUInteger slices_of(MTLTextureDescriptor *d) {
     _desc = parent->_desc; _desc.format = (uint32_t)f; _size = parent->_size;
     return self;
 }
+/* a view of some mip levels and slices: it shares the parent's memory, from the first level and slice (issue #365) */
+- (instancetype)initViewOf:(ISIMMTLTexture *)parent format:(MTLPixelFormat)f type:(MTLTextureType)type levels:(NSRange)levels slices:(NSRange)slices {
+    if (!(self = [self initViewOf:parent format:f])) return nil;
+    _d.textureType = type;
+    _d.width = MAX(parent->_d.width >> levels.location, (NSUInteger)1); _d.height = MAX(parent->_d.height >> levels.location, (NSUInteger)1);
+    _d.arrayLength = slices.length; _d.mipmapLevelCount = levels.length;
+    _desc.type = (uint32_t)type; _desc.width = (uint32_t)_d.width; _desc.height = (uint32_t)_d.height;
+    _desc.array_length = (uint32_t)slices.length; _desc.mip_levels = (uint32_t)levels.length;
+    for (NSUInteger l = 0; l < ISIM_MTL_MAX_LEVELS; l++) {
+        NSUInteger pl = levels.location + l;
+        if (l >= levels.length || pl >= ISIM_MTL_MAX_LEVELS) { _desc.levels[l] = NULL; continue; }
+        _desc.levels[l] = parent->_desc.levels[pl] ? parent->_desc.levels[pl] + slices.location * parent->_desc.level_bpi[pl] : NULL;
+        _desc.level_bpr[l] = parent->_desc.level_bpr[pl]; _desc.level_bpi[l] = parent->_desc.level_bpi[pl];
+    }
+    _relativeLevel = levels.location; _relativeSlice = slices.location;
+    return self;
+}
 - (void)dealloc { if (_storage) { free(_storage); __atomic_sub_fetch(&allocated, _size, __ATOMIC_RELAXED); } }
 - (id<MTLDevice>)device { return [ISIMMTLDevice shared]; }
 - (id<MTLTexture>)rootResource { return _parent; }
 - (id<MTLTexture>)parentTexture { return _parent; }
-- (NSUInteger)parentRelativeLevel { return 0; }
-- (NSUInteger)parentRelativeSlice { return 0; }
+- (NSUInteger)parentRelativeLevel { return _relativeLevel; }
+- (NSUInteger)parentRelativeSlice { return _relativeSlice; }
 - (id<MTLBuffer>)buffer { return _buffer; }
 - (NSUInteger)bufferOffset { return _bufferOffset; }
 - (NSUInteger)bufferBytesPerRow { return _bufferBytesPerRow; }
@@ -316,9 +334,20 @@ static NSUInteger slices_of(MTLTextureDescriptor *d) {
     return [[ISIMMTLTexture alloc] initViewOf:self format:f];
 }
 - (id<MTLTexture>)newTextureViewWithPixelFormat:(MTLPixelFormat)f textureType:(MTLTextureType)t levels:(NSRange)levels slices:(NSRange)slices {
-    if (levels.location != 0 || slices.location != 0) return nil;
-    return [self newTextureViewWithPixelFormat:f];
+    if (!levels.length || NSMaxRange(levels) > _desc.mip_levels || !slices.length || NSMaxRange(slices) > slices_of(_d)) return nil;
+    return [[ISIMMTLTexture alloc] initViewOf:self format:f type:t levels:levels slices:slices];
 }
+@end
+
+/* ---- fences: isim's queues run their command buffers in order, so a fence has nothing to wait for ---- */
+@interface ISIMMTLFence : NSObject <MTLFence>
+@end
+@implementation ISIMMTLFence
+@synthesize label;
+- (id<MTLDevice>)device { return [ISIMMTLDevice shared]; }
+@end
+@implementation ISIMMTLDevice (Fences)
+- (id<MTLFence>)newFence { return [ISIMMTLFence new]; }
 @end
 
 /* ---- samplers ---- */

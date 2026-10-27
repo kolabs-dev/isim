@@ -1125,6 +1125,12 @@ def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "CoreGraphics", "-framework", "UIKit", "-framework", "PencilKit"], name="PencilKitTest")
 
 
+@app("tests/mps", products=["MPSTest.app"], swift=False)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "Metal", "-framework", "MetalPerformanceShaders",
+                                                  "-framework", "MetalPerformanceShadersGraph", "-framework", "MetalFX"], name="MPSTest")
+
+
 @app("tests/videotoolbox", products=["VideoToolboxTest.app"])
 def _(a):
     a.swift_app("VideoToolboxTest", srcs=["VideoToolboxTest.swift"], plist="Info.plist")

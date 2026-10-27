@@ -170,6 +170,10 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
     ("UIKit", "-framework Foundation -framework CoreGraphics -lisim_host"),
     ("ImageIO", "-framework Foundation -framework CoreGraphics -lisim_host"),
     ("Metal", "-framework Foundation -lisim_host"),   # issue #328: Metal on the CPU (kernels from tools/mslc.py)
+    # issue #365: on the CPU, after Metal: MPS kernels add blocks to isim's command buffers
+    ("MetalPerformanceShaders", "-framework Foundation -framework Metal -framework CoreGraphics -framework Accelerate"),
+    ("MetalPerformanceShadersGraph", "-framework Foundation -framework Metal -framework MetalPerformanceShaders -framework Accelerate"),
+    ("MetalFX", "-framework Foundation -framework Metal"),
     ("CoreImage", "-framework Foundation -framework CoreGraphics -framework ImageIO -framework UIKit -lisim_host"),
     ("UserNotifications", "-framework Foundation -framework UIKit -framework CoreGraphics -lisim_host"),
     ("UserNotificationsUI", "-framework Foundation -framework UIKit -framework UserNotifications"),

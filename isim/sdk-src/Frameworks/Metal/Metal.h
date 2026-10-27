@@ -5,6 +5,7 @@
 #import <Metal/MTLPixelFormat.h>
 #import <Metal/MTLResource.h>
 #import <Metal/MTLHeap.h>
+#import <Metal/MTLFence.h>
 #import <Metal/MTLBuffer.h>
 #import <Metal/MTLTexture.h>
 #import <Metal/MTLDepthStencil.h>
