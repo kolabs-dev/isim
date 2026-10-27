@@ -44,8 +44,10 @@ incompatible runtime), and when no runtime is chosen it picks a compatible one. 
 |---|---|---|
 | iPhone SE (3rd generation), iPhone 13 mini, iPhone 14, iPad mini (6th generation) | 15.4 / 15.0 / 16.0 / 15.0 | 17, 18, 26, 27 |
 | iPhone 15, 15 Plus, 15 Pro Max | 17.0 | 17, 18, 26, 27 |
-| iPad Air 11-inch (M2), iPad Pro 11-inch / 13-inch (M4) | 17.5 | 17.5, 18, 26, 27 |
-| iPhone 16 Pro, 16 Pro Max | 18.0 | 18, 26, 27 |
+| iPad Air 11-inch / 13-inch (M2), iPad Pro 11-inch / 13-inch (M4) | 17.5 | 17.5, 18, 26, 27 |
+| iPhone 16 Plus, 16 Pro, 16 Pro Max | 18.0 | 18, 26, 27 |
+| iPhone 16e | 18.3 | 18.3, 26, 27 |
+| iPad (A16) | 18.4 | 18.4, 26, 27 |
 | iPhone 17, iPhone Air, 17 Pro, 17 Pro Max | 26.0 | 26, 27 |
 
 No preset is dropped by iOS 27 (Apple's iOS 27 compatibility list still includes iPhone SE (3rd generation) and

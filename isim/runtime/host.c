@@ -135,15 +135,19 @@ static const struct { const char *id; struct isim_device d; int min_major, min_m
     { "iphone15",       { 393, 852, 3, 59, 34, 55, 1, "iPhone 15" }, 17, 0 },
     { "iphone15plus",   { 430, 932, 3, 59, 34, 55, 1, "iPhone 15 Plus" }, 17, 0 },
     { "iphone15promax", { 430, 932, 3, 59, 34, 55, 1, "iPhone 15 Pro Max" }, 17, 0 },
+    { "iphone16plus",   { 430, 932, 3, 59, 34, 55, 1, "iPhone 16 Plus" }, 18, 0 },
     { "iphone16pro",    { 402, 874, 3, 62, 34, 62, 1, "iPhone 16 Pro" }, 18, 0 },
     { "iphone16promax", { 440, 956, 3, 62, 34, 62, 1, "iPhone 16 Pro Max" }, 18, 0 },
+    { "iphone16e",      { 390, 844, 3, 47, 34, 47, 2, "iPhone 16e" }, 18, 3 },
     { "iphone17",       { 402, 874, 3, 62, 34, 62, 1, "iPhone 17" }, 26, 0 },
     { "iphoneair",      { 420, 912, 3, 62, 34, 62, 1, "iPhone Air" }, 26, 0 },
     { "iphone17pro",    { 402, 874, 3, 62, 34, 62, 1, "iPhone 17 Pro" }, 26, 0 },
     { "iphone17promax", { 440, 956, 3, 62, 34, 62, 1, "iPhone 17 Pro Max" }, 26, 0 },
     { "ipadmini",       { 744, 1133, 2, 24, 20, 21, 0, "iPad mini (6th generation)" }, 15, 0 },
+    { "ipada16",        { 820, 1180, 2, 24, 20, 18, 0, "iPad (A16)" }, 18, 4 },
     { "ipad",           { 820, 1180, 2, 24, 20, 18, 0, "iPad Air 11-inch (M2)" }, 17, 5 },
     { "ipadair11",      { 820, 1180, 2, 24, 20, 18, 0, "iPad Air 11-inch (M2)" }, 17, 5 },
+    { "ipadair13",      { 1024, 1366, 2, 24, 20, 18, 0, "iPad Air 13-inch (M2)" }, 17, 5 },
     { "ipadpro11",      { 834, 1210, 2, 24, 20, 18, 0, "iPad Pro 11-inch (M4)" }, 17, 5 },
     { "ipadpro13",      { 1032, 1376, 2, 24, 20, 18, 0, "iPad Pro 13-inch (M4)" }, 17, 5 },
 };
@@ -206,7 +210,8 @@ static const struct { const char *id, *model; } model_ids[] = {
     { "iphone15plus", "iPhone15,5" }, { "iphone15promax", "iPhone16,2" }, { "iphone16pro", "iPhone17,1" },
     { "iphone16promax", "iPhone17,2" }, { "iphone17", "iPhone18,3" }, { "iphoneair", "iPhone18,4" }, { "iphone17pro", "iPhone18,1" },
     { "iphone17promax", "iPhone18,2" }, { "ipadmini", "iPad14,1" }, { "ipad", "iPad14,8" }, { "ipadair11", "iPad14,8" },
-    { "ipadpro11", "iPad16,3" }, { "ipadpro13", "iPad16,5" },
+    { "ipadpro11", "iPad16,3" }, { "ipadpro13", "iPad16,5" }, { "iphone16plus", "iPhone17,4" }, { "iphone16e", "iPhone17,5" },
+    { "ipadair13", "iPad14,10" }, { "ipada16", "iPad15,7" },
 };
 const char *isim_sysroot(void);
 /* the device's UDID: made once and kept with its data (<isim data>/Library/isim/UDID), like a CoreSimulator device's */

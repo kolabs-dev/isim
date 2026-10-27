@@ -279,7 +279,7 @@ ISIM_GUEST_ABI static kern_return_t d_thread_policy_get(mach_port_name_t thread,
 static uint64_t device_memory(void) {                  /* as NSProcessInfo.physicalMemory: by device model */
     const char *d = getenv("ISIM_DEVICE"); if (!d) d = "iphone15";
     uint64_t gb = !strncmp(d, "iphonese", 8) || !strncmp(d, "iphone13", 8) || !strncmp(d, "iphone14", 8) ? 4 :
-                  !strcmp(d, "iphone15") || !strcmp(d, "iphone15plus") ? 6 : !strncmp(d, "ipadpro", 7) ? 16 : 8;
+                  !strcmp(d, "iphone15") || !strcmp(d, "iphone15plus") || !strcmp(d, "ipada16") ? 6 : !strncmp(d, "ipadpro", 7) ? 16 : 8;
     return gb << 30;
 }
 
