@@ -176,6 +176,7 @@ FRAMEWORKS = [  # name, link arguments (frameworks build in this order; each lin
     ("Social", "-framework Foundation -framework UIKit -framework CoreGraphics"),
     ("Accessibility", "-framework Foundation"),
     ("PDFKit", "-framework Foundation -framework UIKit -framework CoreGraphics"),
+    ("PencilKit", "-framework Foundation -framework UIKit -framework CoreGraphics"),
     ("QuickLook", "-framework Foundation -framework UIKit -framework CoreGraphics -framework PDFKit -lisim_host"),   # PDF previews
     ("QuickLookThumbnailing", "-framework Foundation -framework UIKit -framework CoreGraphics -framework ImageIO -framework PDFKit "
                               "-framework QuickLook -lisim_host"),   # issue #359
