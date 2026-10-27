@@ -1085,6 +1085,17 @@ void isim_sys_event(const char *text) {
     if ([verb isEqualToString:@"bgtask"]) run_background_task(args);
     else if ([verb isEqualToString:@"remote-notification"]) deliver_remote(read_push(args), 0);
     else if ([verb isEqualToString:@"nc-action"]) notification_action(args);
+    else if ([verb isEqualToString:@"glasstint"]) {
+        /* script "glasstint VALUE": the Liquid Glass setting (0 clear .. 0.5 default .. 1 tinted), written to the global
+           domain like Settings does; isim's glass renderer re-reads it in every process */
+        NSUserDefaults *g = [[NSUserDefaults alloc] initWithSuiteName:@".GlobalPreferences"];
+        double v = fmin(1, fmax(0, args.doubleValue));
+        unsetenv("ISIM_GLASS_TINT");
+        if (fabs(v - 0.5) < 0.005) [g removeObjectForKey:@"ISIMLiquidGlassTint"]; else [g setDouble:v forKey:@"ISIMLiquidGlassTint"];
+        [g synchronize];
+        isim_ui_set_needs_display();
+        NSLog(@"isim: glasstint %.2f", v);
+    }
     else if ([verb isEqualToString:@"appearance"] || [verb isEqualToString:@"contrast"] || [verb isEqualToString:@"boldtext"]) {
         /* script "appearance light|dark", "contrast on|off", "boldtext on|off": the device setting, written to the global
            domain like Settings does (every app re-reads it), applied live */

@@ -647,6 +647,66 @@ ISIM_GUEST_ABI void isim_gfx_backdrop_blur(double x, double y, double w, double 
  * shape (interactive highlight) or NULL. flags: 1 dark appearance, 2 clear (more transparent, used over media), 4 no
  * shadow, 8 all pressed. Rotated or skewed transforms fall back to isim_gfx_glass_path (no merging or refraction). */
 ISIM_GUEST_ABI void isim_gfx_pop_group_shadow(const double *rgba, double radius, double dx, double dy);
+/* the device's Liquid Glass settings, from the global preferences (Settings writes them; re-read when the file
+ * changes) or the environment, which wins:
+ * - tint (ISIMLiquidGlassTint, ISIM_GLASS_TINT): 0 the clearest .. 0.5 the default .. 1 the most tinted (iOS 26's
+ *   Display & Brightness › Liquid Glass: Clear 0.5 / Tinted 1; iOS 27's Appearance › Liquid Glass slider);
+ * - Reduce Transparency (ISIMReduceTransparency) makes the glass nearly opaque, Increase Contrast (ISIMIncreaseContrast)
+ *   darkens its edge;
+ * - refresh: iOS 27's look (a darkened edge, brighter specular highlights, the backdrop diffused more). */
+struct glass_style { double tint; int reduce, contrast, refresh; };
+static int glass_pref_bool(const char *xml, const char *key) {
+    char k[96]; snprintf(k, sizeof k, "<key>%s</key>", key);
+    const char *p = strstr(xml, k);
+    if (!p) return 0;
+    p += strlen(k); p += strspn(p, " \t\r\n");
+    return !strncmp(p, "<true/>", 7) || !strncmp(p, "<integer>1</integer>", 20);
+}
+static double glass_pref_number(const char *xml, const char *key, double fallback) {
+    char k[96]; snprintf(k, sizeof k, "<key>%s</key>", key);
+    const char *p = strstr(xml, k);
+    if (!p) return fallback;
+    p += strlen(k); p += strspn(p, " \t\r\n");
+    if (!strncmp(p, "<real>", 6)) return atof(p + 6);
+    if (!strncmp(p, "<integer>", 9)) return atof(p + 9);
+    return fallback;
+}
+static struct glass_style glass_style(void) {
+    static struct glass_style st = { 0.5, 0, 0, 0 };
+    static struct timespec seen; static int loaded;
+    char path[1100]; const char *data = getenv("ISIM_DATA"), *home = getenv("HOME");
+    if (data && *data) snprintf(path, sizeof path, "%s/Library/Preferences/.GlobalPreferences.plist", data);
+    else snprintf(path, sizeof path, "%s/.local/share/isim/Library/Preferences/.GlobalPreferences.plist", home ? home : "");
+    struct stat sb;
+    int have = stat(path, &sb) == 0;
+    if (!loaded || (have ? (sb.st_mtim.tv_sec != seen.tv_sec || sb.st_mtim.tv_nsec != seen.tv_nsec) : seen.tv_sec != 0)) {
+        loaded = 1;
+        seen = have ? sb.st_mtim : (struct timespec){ 0, 0 };
+        st = (struct glass_style){ 0.5, 0, 0, isim_os_version() / 10000 >= 27 };
+        FILE *f = have ? fopen(path, "r") : NULL;
+        if (f) {
+            static char buf[262144];
+            size_t n = fread(buf, 1, sizeof buf - 1, f); fclose(f); buf[n] = 0;
+            st.tint = glass_pref_number(buf, "ISIMLiquidGlassTint", 0.5);
+            st.reduce = glass_pref_bool(buf, "ISIMReduceTransparency");
+            st.contrast = glass_pref_bool(buf, "ISIMIncreaseContrast");
+        }
+    }
+    struct glass_style r = st;
+    const char *e;
+    if ((e = getenv("ISIM_GLASS_TINT")) && *e) r.tint = atof(e);
+    if ((e = getenv("ISIM_REDUCE_TRANSPARENCY")) && *e) r.reduce = atoi(e) != 0;
+    if ((e = getenv("ISIM_INCREASE_CONTRAST")) && *e) r.contrast = atoi(e) != 0;
+    r.tint = r.tint < 0 ? 0 : r.tint > 1 ? 1 : r.tint;
+    return r;
+}
+/* the body's opacity for the tint: the clearest glass is about half as opaque as the default, the most tinted a
+   frost; Reduce Transparency makes it nearly opaque */
+static double glass_body(double base, struct glass_style g) {
+    double f = g.tint <= 0.5 ? 0.45 + 0.55 * g.tint / 0.5 : 1 + 0.9 * (g.tint - 0.5) / 0.5;
+    double a = fmin(0.9, base * f);
+    return g.reduce ? fmax(a, 0.9) : a;
+}
 static void glass_path(double x, double y, double w, double h, double r, const double *tint, int flags) {
     int dark = flags & 1, clear = flags & 2;
     r = fmin(r, fmin(w, h) / 2);
@@ -656,10 +716,11 @@ static void glass_path(double x, double y, double w, double h, double r, const d
         double sh[4] = { 0, 0, 0, dark ? 0.32 : 0.14 };
         isim_gfx_pop_group_shadow(sh, 12, 0, 4);
     }
-    isim_gfx_backdrop_blur(x, y, w, h, r, clear ? 2 : 6);
+    struct glass_style gs = glass_style();
+    isim_gfx_backdrop_blur(x, y, w, h, r, (clear ? 2 : 6) * (gs.refresh ? 1.5 : 1) * (0.6 + 0.8 * gs.tint));
     cairo_save(cr);
     rounded(x, y, w, h, r); cairo_clip(cr);
-    double a = clear ? (dark ? 0.12 : 0.10) : (dark ? 0.50 : 0.46);
+    double a = glass_body(clear ? (dark ? 0.12 : 0.10) : (dark ? 0.50 : 0.46), gs);
     if (dark) cairo_set_source_rgba(cr, 0.16, 0.16, 0.17, a); else cairo_set_source_rgba(cr, 1, 1, 1, a);
     cairo_paint(cr);
     if (tint && tint[3] > 0) { cairo_set_source_rgba(cr, tint[0], tint[1], tint[2], tint[3] * (clear ? 0.55 : 0.88)); cairo_paint(cr); }
@@ -739,10 +800,14 @@ ISIM_GUEST_ABI void isim_gfx_glass_shapes(int n, const double *shapes, const dou
         }
         memcpy(blur + (size_t)y * W, px + (size_t)(y0 + y) * stride + x0, sizeof *blur * (size_t)W);
     }
-    int br = (int)lround((clear ? 2 : 6) * sc / 2);
-    for (int pass = 0; pass < 3; pass++) { box_blur_pass(blur, W, H, W, br, 1); box_blur_pass(blur, W, H, W, br, 0); }
+    struct glass_style gs = glass_style();
+    /* the tint diffuses the backdrop more (iOS 27 diffuses it more at every setting) */
+    int br = (int)lround((clear ? 2 : 6) * sc / 2 * (gs.refresh ? 1.5 : 1) * (0.6 + 0.8 * gs.tint));
+    for (int pass = 0; pass < 3 && br > 0; pass++) { box_blur_pass(blur, W, H, W, br, 1); box_blur_pass(blur, W, H, W, br, 0); }
     double band = 12 * sc, lens = clear ? 0.5 : 0.35, glow = (dark ? 0.10 : 0.28), rimw = 1.0 * sc;
-    double body = clear ? (dark ? 0.12 : 0.10) : (dark ? 0.50 : 0.46), bodyc = dark ? 0.16 : 1;
+    double body = glass_body(clear ? (dark ? 0.12 : 0.10) : (dark ? 0.50 : 0.46), gs), bodyc = dark ? 0.16 : 1;
+    /* iOS 27: a darkened edge inside the rim (darker with Increase Contrast) and brighter specular highlights */
+    double edge = gs.refresh || gs.contrast ? (gs.contrast ? 0.32 : dark ? 0.22 : 0.10) : 0, edgew = 3 * sc, spec = gs.refresh ? 1.3 : 1;
     double lx = -0.55, ly = -0.83, sa = dark ? 0.32 : 0.14;
     int soff = (int)lround(4 * sc);
     #define D(X, Y) d[(size_t)((Y) < 0 ? 0 : (Y) >= H ? H - 1 : (Y)) * W + ((X) < 0 ? 0 : (X) >= W ? W - 1 : (X))]
@@ -781,8 +846,9 @@ ISIM_GUEST_ABI void isim_gfx_glass_shapes(int n, const double *shapes, const dou
                 if (ny < 0) OVER(1, 1, 1, glow * clamp01(1 - depth / (18 * sc)) * clamp01(-ny * 1.5));
                 double dl = nx * lx + ny * ly;
                 double ring = clamp01(rimw + 0.5 - depth);
+                if (edge > 0) OVER(0, 0, 0, edge * clamp01(1 - fmax(depth - rimw, 0) / edgew));
                 double rim = dark ? 0.12 + 0.33 * fmax(dl, 0) + 0.16 * fmax(-dl, 0) : 0.35 + 0.60 * fmax(dl, 0) + 0.35 * fmax(-dl, 0);
-                OVER(1, 1, 1, ring * rim);
+                OVER(1, 1, 1, clamp01(ring * rim * spec));
                 #undef OVER
                 for (int c = 0; c < 4; c++) t[c] = t[c] * (1 - cov) + g[c] * cov;
             }
@@ -1540,8 +1606,9 @@ static int script_step(struct isim_event *ev) {
         char filter[256] = "";
         sscanf(args, " %255[^; ]", filter);
         void isim_signposts_summary(const char *); isim_signposts_summary(filter);
-    } else if ((!strcmp(cmd, "appearance") || !strcmp(cmd, "contrast") || !strcmp(cmd, "boldtext")) && sscanf(args, " %63[^; ]", arg) == 1) {
-        /* "appearance light|dark", "contrast on|off", "boldtext on|off": the device setting (like Settings or
+    } else if ((!strcmp(cmd, "appearance") || !strcmp(cmd, "contrast") || !strcmp(cmd, "boldtext") || !strcmp(cmd, "glasstint"))
+               && sscanf(args, " %63[^; ]", arg) == 1) {
+        /* "appearance light|dark", "contrast on|off", "boldtext on|off", "glasstint 0..1": the device setting (like Settings or
            Control Center), applied live; the app (or the home screen) writes it and every app follows */
         pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "%s %s", cmd, arg);
         script_resume = now() + 0.3;

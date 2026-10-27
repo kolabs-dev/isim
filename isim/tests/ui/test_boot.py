@@ -25,7 +25,7 @@ def test_boot(launch, ios, device_data):
     assert max(r, g, b) - min(r, g, b) < 16 and 60 < r < 220, f"Settings has its grey gear icon, not a placeholder ({r:.0f}, {g:.0f}, {b:.0f})"
     dev.wait_tap_id("app-dev.isim.settings")
     dev.wait_log(r"launching Settings \(dev\.isim\.settings\)")             # Settings launches from its icon
-    dev.wait_tap_id("settings-display")
+    dev.wait_tap_id("settings-appearance" if int(str(ios[0] or "18").split(".")[0]) >= 27 else "settings-display")   # iOS 27: Appearance
     dev.wait_tap_id("settings-dark")
     prefs = device_data / "Library/Preferences/.GlobalPreferences.plist"
     dev.wait_until(lambda: prefs.exists() and b"<string>Dark</string>" in prefs.read_bytes(),
