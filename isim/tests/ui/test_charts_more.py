@@ -113,7 +113,8 @@ def test_chart3d(launch):
     region = [(x, y) for x in range(40, 380, 4) for y in range(680, 820, 4)]
     hues = {(c[0] > 150, c[1] > 150, c[2] > 150) for c in (rgb(im, x, y) for x, y in region) if not white(c)}
     assert len(hues) >= 3, f"heightBased surface colors {hues}"
-    assert any(red(rgb(im, x, y)) for x in range(185, 215) for y in range(690, 725)), "3D point (red, top center)"
+    shaded_red = lambda c: c[0] > 150 and c[1] < 60 and c[2] < 60          # a sphere: shaded and lit (issue #337)
+    assert any(shaded_red(rgb(im, x, y)) for x in range(185, 215) for y in range(690, 725)), "3D point (red, top center)"
     app.drag(200, 750, 260, 720, 0.5)
     app.wait_log(r"pose [1-9]\d* ")                     # dragging rotates the bound pose
     assert app.quit() == 0
