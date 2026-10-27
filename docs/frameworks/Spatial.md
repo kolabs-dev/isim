@@ -8,16 +8,32 @@
 
 ## How isim implements it
 
-- **Adapted:** only `Angle2D` (`isim/swift/overlays/Spatial.swift`), for Charts' 3D poses.
+- **Adapted:** Spatial's double-precision geometry as pure Swift over simd (`isim/swift/overlays/Spatial/`): the same
+  math as Apple's, with these conventions where Apple's documentation leaves them open:
+  - matrices are column-major on column vectors, so `a * b` applies `b` first; rotating, scaling, shearing, flipping or
+    translating a transform (`rotated(by:)`, `scaledBy(x:y:z:)`, …) applies that change after it;
+  - Euler angles are extrinsic: `.xyz` (`pitchYawRoll`) turns about x, then y, then z; `.zxy` about z, x, then y;
+  - looking along a direction (`Rotation3D(forward:up:)`, `Pose3D(position:target:up:)`) turns +z toward it;
+  - perspective projections are right-handed (the camera looks down -z) with depth 0...1 (1...0 with `reverseZ`);
+  - a box that is rotated, sheared or transformed becomes the axis-aligned box around its transformed corners.
+- `Angle2D`, `Rotation3D` and `RotationAxis3D` first came for Charts' 3D charts; `Rotation3D` now stores a quaternion
+  and keeps its `angle` / `axis` accessors.
 
 ## API
 
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
-| `Rotation3D` (`init(angle:axis:)`, `angle`, `axis`, `identity`), `RotationAxis3D` (`init(x:y:z:)`, `x` / `y` / `z` / `xy` / `yz` / `xz` / `xyz`) | 🟡 | ≤17 | adapted: the parts Charts' `symbolRotation(_:)` uses (an angle about a normalized axis); no `quaternion`, composition or the other initializers yet. Tested (HelloCharts -3d: test_charts_3d) |
-| Types not yet in isim (iOS 17 and earlier) | ❌ | ≤17 | not implemented, found by the 2026-10 sweep: `AffineTransform3D`, `Point3D`, `Pose3D`, `Primitive3D`, `ProjectiveTransform3D`, `Ray3D`, `Rect3D`, `Rotatable3D`, `Rotation3D`, `RotationAxis3D`, `Scalable3D`, `ScaledPose3D`, `ScaledPose3DFloat`, `Shearable3D`, `Size3D`, `Translatable3D`, `Vector3D`, `Volumetric` (18 types; with their members under "Not yet in isim") |
-| Types not yet in isim (iOS 18) | ❌ | 18.0 | not implemented, found by the 2026-10 sweep: `SphericalCoordinates3D` (1 type; with its members under "Not yet in isim") |
-| Types not yet in isim (iOS 26) | ❌ | 26.0 | not implemented, found by the 2026-10 sweep: `AffineTransform3DFloat`, `Angle2DFloat`, `AxisWithFactorsFloat`, `ClampableWithinRectProtocol`, `CoordinateSpace3D`, `CoordinateSpace3DFloat`, `CoordinateSpaceValue3D`, `EulerAnglesFloat`, `Point3DFloat`, `Pose3DFloat`, `Primitive3DProtocol`, `ProjectiveTransform3DFloat`, `ProjectiveTransformable3D`, `ProjectiveTransformable3DFloat`, `Ray3DFloat`, `Rect3DFloat`, `Rotatable3DProtocol`, `Rotation3DFloat`, `RotationAxis3DFloat`, `Scalable3DProtocol`, `Shearable3DProtocol`, `Size3DFloat`, `SpatialTypeProtocol`, `SphericalCoordinates3DFloat`, `Transform3DProtocol`, `Translatable3DProtocol`, `Vector3DFloat`, `VolumetricProtocol`, `WorldReferenceCoordinateSpace` (29 types; with their members under "Not yet in isim") |
+| `Angle2D` (degrees / radians, `normalized`, the inverse trigonometric constructors, arithmetic), `sin` / `cos` / `tan` / `sinh` / `cosh` / `tanh` of an angle | ✅ | ≤17 | adapted. Tested (SpatialTest: test_spatial) |
+| `Point3D`, `Vector3D` (`dot`, `cross`, `projected`, `reflected`, `lerp`, `smoothstep`, `forward` / `right` / `up`), `Size3D` (`Volumetric`), `RotationAxis3D`, `SphericalCoordinates3D` (iOS 18) | ✅ | ≤17 | adapted: transforms apply to points whole (projective ones divide by w) and to vectors and sizes by their linear part. Tested (SpatialTest) |
+| `Rotation3D` (a quaternion: `init(angle:axis:)`, `init(quaternion:)`, `init(eulerAngles:)`, `init(forward:up:)`, `init(position:target:up:)`, `angle`, `axis`, `vector`, `inverse`, `*`, `slerp(from:to:t:along:)`, `spline(…)`, `swingTwist(twistAxis:)`, `eulerAngles(order:)`, `isApproximatelyEqual(to:tolerance:)`, `Codable`), `EulerAngles`, `EulerAngles.Order` (`__SPEulerAngleOrder`) | ✅ | ≤17 | adapted (extrinsic Euler angles; `SlerpPath.automatic` takes the shorter arc). Tested (SpatialTest) |
+| `Rect3D` (`init(points:)`, `min` / `max` / `center` / `minX` …, `cornerPoints`, `standardized`, `integral`, `contains`, `union`, `intersection`, `intersects`, `distance(to:)`, `inset(by:)`), `Ray3D` (`intersects(_:)` a box, `intersects(sphereOrigin:sphereRadius:)`) | ✅ | ≤17 | adapted: rays hit only ahead of their origin; transformed boxes are the bounding boxes of their corners. Tested (SpatialTest) |
+| `AffineTransform3D` (scale / rotation / translation / shear initializers, 4x4 conversions, `init(truncating:)`, `scale`, `rotation`, `translation`, `inverse`, `isUniform(overDimensions:)`, `changeBasis(from:to:)`, `flipped(along:)`), `ProjectiveTransform3D` (perspective initializers with `reverseZ`, the frustum tangents, `isAffine`, `is3DProjection()`, `scaleComponent`) | ✅ | ≤17 | adapted: `rotation` is nil when the transform shears, `scale` negates x for a reflection. Tested (SpatialTest) |
+| `Pose3D`, `ScaledPose3D` (iOS 18): look-at initializers, conversion from transforms (failing when they scale or shear), `inverse`, `*` / `concatenating(_:)`, `flipped(along:)`, `matrix` | ✅ | ≤17 | adapted: `a * b` and `a.concatenating(b)` apply `b` first. Tested (SpatialTest) |
+| `Primitive3D`, `Rotatable3D`, `Scalable3D`, `Shearable3D`, `Translatable3D`, `Volumetric` (with their mutating forms), `Axis3D`, `Dimension3DSet`, `AxisWithFactors` | ✅ | ≤17 | adapted. Tested (SpatialTest) |
+| The single-precision types (`Point3DFloat`, `Rotation3DFloat`, …), the `*Protocol` protocols, `SpatialTypeProtocol`, `CoordinateSpace3D` and the world reference space; `columns`, `init(simd_packed_double4)` and the iOS 26 `Float` conversions | ❌ | 26.0 | not implemented: iOS 26's generic layer over the same math |
+| `applying(_:)` a projective transform to `Rotation3D` and `Pose3D` | ❌ | 27.0 | not implemented |
+| `init(_:)` of RealityKit's `Transform` and `BoundingBox` | ❌ | 18.0 | not implemented: RealityKit's types are not Spatial's |
+| The C API (`SPPoint3D`, `SPRotation3D`, `SPAffineTransform3D…`, `SP…Make…` functions) | ❌ | ≤17 | not implemented: #692 |
 
 ## Not yet in isim
 
