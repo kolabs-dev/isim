@@ -42,7 +42,8 @@ struct isim_cg_fx {
 struct isim_ct_run { int start, len, glyphs, weight, italic, has_color; double x, width, size, rgba[4]; char family[96];
                      int stretch, rtl; double ascent, descent, leading; void *font; };
 struct isim_ct_para { double width, indent; int align, wrap, dir, single, tabs; double tab_pos[64]; int tab_align[64];
-                      char family[160]; int weight, italic; double size; };
+                      char family[160]; int weight, italic; double size;
+                      int justify_last, nshapes; const double *shapes; };
 struct isim_ct_line { double ascent, descent, leading, width, trailing, ink[4]; int start, len, rtl, para_start; };
 struct isim_ct_axis { unsigned tag; double min, def, max; int hidden; char name[64]; };
 struct isim_ct_font_info { double size, ascent, descent, leading, cap_height, x_height, underline_position, underline_thickness, slant_angle, bbox[4];
@@ -601,6 +602,19 @@ void *isim_ct_layout_create_para(const char *markup, const struct isim_ct_para *
     pango_layout_set_font_description(l, fd); pango_font_description_free(fd);
     pango_layout_set_markup(l, markup ? markup : "", -1);
     if (p->single) pango_layout_set_single_paragraph_mode(l, TRUE);
+    if (p->nshapes > 0 && p->shapes) {                       /* run delegates: a box per character */
+        PangoAttrList *al = pango_layout_get_attributes(l);
+        al = al ? pango_attr_list_copy(al) : pango_attr_list_new();
+        for (int i = 0; i < p->nshapes; i++) {
+            const double *s = p->shapes + 5 * i;
+            PangoRectangle r = { 0, (int)(-s[3] * PANGO_SCALE), (int)(s[2] * PANGO_SCALE), (int)((s[3] + s[4]) * PANGO_SCALE) };
+            PangoAttribute *a = pango_attr_shape_new(&r, &r);
+            a->start_index = (guint)s[0]; a->end_index = (guint)(s[0] + s[1]);
+            pango_attr_list_insert(al, a);
+        }
+        pango_layout_set_attributes(l, al);
+        pango_attr_list_unref(al);
+    }
     /* wrap: 0 words (characters when a word does not fit), 1 characters, 2 none (clip), 3/4/5 one line truncated
      * at the start / end / middle */
     if (p->width > 0 && p->wrap != 2) {
@@ -612,6 +626,7 @@ void *isim_ct_layout_create_para(const char *markup, const struct isim_ct_para *
     /* lines are placed by the caller (CTTextAlignment); Pango only justifies */
     pango_layout_set_alignment(l, PANGO_ALIGN_LEFT);
     if (p->align == 3) pango_layout_set_justify(l, TRUE);
+    if (p->justify_last) pango_layout_set_justify_last_line(l, TRUE);
     if (p->tabs >= 0) {
         PangoTabArray *ta = pango_tab_array_new(p->tabs ? p->tabs : 1, FALSE);
         for (int i = 0; i < p->tabs && i < (int)(sizeof p->tab_pos / sizeof *p->tab_pos); i++) {
@@ -935,6 +950,17 @@ ISIM_GUEST_ABI int isim_ct_font_table_tags(void *fp, unsigned *tags, int max) {
     unsigned total = hb_face_get_table_tags(face, 0, NULL, NULL);
     if (tags && max > 0) { unsigned n = (unsigned)max; hb_face_get_table_tags(face, 0, &n, tags); }
     return (int)total;
+}
+/* glyphs by name (the post table or CFF charset) and back */
+ISIM_GUEST_ABI int isim_ct_font_glyph_from_name(void *fp, const char *name) {
+    hb_codepoint_t g = 0;
+    if (!fp || !name || !hb_font_get_glyph_from_name(pango_font_get_hb_font(fp), name, -1, &g)) return 0;
+    return (int)g;
+}
+ISIM_GUEST_ABI int isim_ct_font_glyph_name(void *fp, unsigned short glyph, char *out, int outlen) {
+    if (!fp || !out || outlen <= 0) return 0;
+    out[0] = 0;
+    return hb_font_get_glyph_name(pango_font_get_hb_font(fp), glyph, out, (unsigned)outlen) && out[0];
 }
 /* a variable font's axes (its fvar table); returns how many */
 ISIM_GUEST_ABI int isim_ct_font_axes(void *fp, struct isim_ct_axis *out, int max) {

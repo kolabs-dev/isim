@@ -2,7 +2,8 @@
 // font file; traits, style names, matching descriptors, font features), runs (glyphs, positions, advances, string
 // indices, attributes with the fallback font, bidi status, ink bounds, drawing a line's runs glyph by glyph) and
 // paragraph styles (every specifier read back; alignment, indents, line heights and spacing, paragraph spacing, line
-// break modes, tab stops, writing direction, UIKit's NSParagraphStyle). Each check prints a line the test reads; the
+// break modes, tab stops, writing direction, UIKit's NSParagraphStyle), typesetters, run delegates, ruby, glyph
+// infos, font collections, justified lines and caret offsets. Each check prints a line the test reads; the
 // screen shows paragraph styles, a bidirectional line redrawn from its runs, and font features.
 import UIKit
 import CoreText
@@ -449,6 +450,125 @@ func paragraphChecks() {
     print("frame visible \(vis.location)+\(vis.length) lines \(frame.lines.count)")
 }
 
+// MARK: typesetters, run delegates, ruby, glyph infos, font collections, justification, carets (issue #361)
+
+final class DelegateBox { let ascent: CGFloat, descent: CGFloat, width: CGFloat
+    init(_ a: CGFloat, _ d: CGFloat, _ w: CGFloat) { ascent = a; descent = d; width = w } }
+var runDelegateDeallocs = 0
+/// the topmost row (from the top) holding dark pixels, -1 when blank
+func topInkRow(_ c: CGContext) -> Int {
+    let p = c.data!.assumingMemoryBound(to: UInt8.self)
+    for y in 0..<c.height { for x in 0..<c.width where p[y * c.bytesPerRow + x * 4] < 128 { return y } }
+    return -1
+}
+
+func layoutChecks() {
+    let dv = font("DejaVu Sans", 16)
+    // a typesetter breaks lines that fit, at the paragraph separator too; clusters break inside words
+    let text = attributed("The quick brown fox jumps over the lazy dog\nSecond paragraph here", dv)
+    let ts = CTTypesetterCreateWithAttributedString(text)
+    var start = 0, fits = true, ends: [Int] = []
+    while start < text.length {
+        let n = CTTypesetterSuggestLineBreak(ts, start, 150)
+        let line = CTTypesetterCreateLine(ts, CFRange(location: start, length: n))
+        if CTLineGetTypographicBounds(line, nil, nil, nil) - CTLineGetTrailingWhitespaceWidth(line) > 150 { fits = false }
+        start += n; ends.append(start)
+    }
+    let newline = (text.string as NSString).range(of: "\n").location + 1
+    print("typesetter lines \(ends.count) fit \(fits) covers \(ends.last == text.length) breaks at newline \(ends.contains(newline))")
+    print("typesetter cluster \(CTTypesetterSuggestClusterBreak(ts, 0, 60) > CTTypesetterSuggestLineBreak(ts, 0, 60)) past end \(CTTypesetterSuggestLineBreak(ts, text.length, 100))")
+    let fs = CTFramesetterCreateWithTypesetter(ts)
+    let frame = CTFramesetterCreateFrame(fs, CFRange(), CGPath(rect: CGRect(x: 0, y: 0, width: 150, height: 1000), transform: nil),
+                                         [kCTFrameProgressionAttributeName: CTFrameProgression.topToBottom.rawValue] as CFDictionary)
+    let frameLines = (CTFrameGetLines(frame) as! [CTLine]).count
+    let attrs = CTFrameGetFrameAttributes(frame) as? [String: Any]
+    print("framesetter typesetter same \(CTFramesetterGetTypesetter(fs) === CTFramesetterGetTypesetter(fs)) lines \(frameLines == ends.count) attributes \(attrs?[kCTFrameProgressionAttributeName as String] != nil)")
+
+    // a run delegate: its character takes the delegate's box and draws nothing; released with the last string
+    autoreleasepool {
+        var cb = CTRunDelegateCallbacks(version: kCTRunDelegateVersion1,
+                                        dealloc: { Unmanaged<DelegateBox>.fromOpaque($0).release(); runDelegateDeallocs += 1 },
+                                        getAscent: { Unmanaged<DelegateBox>.fromOpaque($0).takeUnretainedValue().ascent },
+                                        getDescent: { Unmanaged<DelegateBox>.fromOpaque($0).takeUnretainedValue().descent },
+                                        getWidth: { Unmanaged<DelegateBox>.fromOpaque($0).takeUnretainedValue().width })
+        let ref = Unmanaged.passRetained(DelegateBox(30, 10, 40)).toOpaque()
+        let delegate = CTRunDelegateCreate(&cb, ref)!
+        var bad = cb; bad.version = 7
+        let s = NSMutableAttributedString(attributedString: attributed("a\u{FFFC}b", dv))
+        s.addAttribute(NSAttributedString.Key(kCTRunDelegateAttributeName as String), value: delegate, range: NSRange(location: 1, length: 1))
+        let line = CTLineCreateWithAttributedString(s)
+        var a: CGFloat = 0, d: CGFloat = 0
+        let w = CTLineGetTypographicBounds(line, &a, &d, nil)
+        let run = (CTLineGetGlyphRuns(line) as! [CTRun]).first { CTRunGetStringRange($0).location == 1 }
+        var ra: CGFloat = 0
+        let rw = run.map { CTRunGetTypographicBounds($0, CFRange(), &ra, nil, nil) } ?? 0
+        let ctx = rgbaContext(120, 60)
+        ctx.textPosition = CGPoint(x: 0, y: 15)
+        CTLineDraw(line, ctx)
+        let (_, inkRight) = inkColumns(ctx)
+        let aw = lineWidth(attributed("a", dv))
+        // the box itself is blank: no ink between the a and the b
+        let p = ctx.data!.assumingMemoryBound(to: UInt8.self)
+        var boxInk = 0
+        for y in 0..<60 { for x in Int(aw + 3)..<Int(aw + 37) where p[y * ctx.bytesPerRow + x * 4] < 128 { boxInk += 1 } }
+        print("run delegate adds \(f2(CGFloat(w) - lineWidth(attributed("ab", dv)))) ascent \(f2(a)) descent \(f2(d)) run \(f2(CGFloat(rw))) \(f2(ra)) refcon \(CTRunDelegateGetRefCon(delegate) == ref) bad version \(CTRunDelegateCreate(&bad, nil) == nil) box blank \(boxInk == 0) b drawn \(inkRight > Int(aw + 40))")
+    }
+    print("run delegate deallocated \(runDelegateDeallocs)")
+
+    // ruby: getters, and the reading drawn over the base text
+    let ruby = CTRubyAnnotationCreateWithAttributes(.center, .auto, .before, "かんじ" as CFString, [kCTRubyAnnotationSizeFactorAttributeName: 0.4] as CFDictionary)
+    let under = "under" as CFString
+    var texts: [Unmanaged<CFString>?] = [nil, Unmanaged.passUnretained(under), nil, nil]
+    let ruby2 = withExtendedLifetime(under) { CTRubyAnnotationCreate(.start, .none, 0, &texts) }
+    let copy = CTRubyAnnotationCreateCopy(ruby)
+    print("ruby alignment \(CTRubyAnnotationGetAlignment(ruby) == .center) size \(f2(CTRubyAnnotationGetSizeFactor(ruby))) before \(CTRubyAnnotationGetTextForPosition(copy, .before) as String? ?? "-") after \(CTRubyAnnotationGetTextForPosition(ruby, .after) == nil) other \(CTRubyAnnotationGetTextForPosition(ruby2, .after) as String? ?? "-") \(CTRubyAnnotationGetOverhang(ruby2) == .none) default size \(f2(CTRubyAnnotationGetSizeFactor(ruby2)))")
+    let cjk = font("Noto Sans", 24)
+    let plain = attributed("漢字", cjk)
+    let annotated = NSMutableAttributedString(attributedString: plain)
+    annotated.addAttribute(NSAttributedString.Key(kCTRubyAnnotationAttributeName as String), value: ruby, range: NSRange(location: 0, length: 2))
+    let c1 = rgbaContext(120, 70), c2 = rgbaContext(120, 70)
+    c1.textPosition = CGPoint(x: 10, y: 15); c2.textPosition = CGPoint(x: 10, y: 15)
+    CTLineDraw(CTLineCreateWithAttributedString(plain), c1)
+    CTLineDraw(CTLineCreateWithAttributedString(annotated), c2)
+    print("ruby drawn above \(topInkRow(c2) >= 0 && topInkRow(c2) < topInkRow(c1) - 3) differs \(compare(c1, c2).diff > 20)")
+
+    // glyph infos and glyphs by name
+    let gA = CTFontGetGlyphWithName(dv, "A" as CFString)
+    let byName = CTGlyphInfoCreateWithGlyphName("A" as CFString, dv, "A" as CFString)
+    let byGlyph = CTGlyphInfoCreateWithGlyph(gA, dv, "A" as CFString)
+    let byCID = CTGlyphInfoCreateWithCharacterIdentifier(1234, .adobeJapan1, "x" as CFString)
+    print("glyph info glyph \(gA != 0 && byName.map { CTGlyphInfoGetGlyph($0) } == gA) name \(byGlyph.flatMap { CTGlyphInfoGetGlyphName($0) as String? } ?? "-") font name \(CTFontCopyNameForGlyph(dv, gA) as String? ?? "-") cid \(byCID.map { CTGlyphInfoGetCharacterIdentifier($0) } ?? 0) japan1 \(byCID.map { CTGlyphInfoGetCharacterCollection($0) == .adobeJapan1 } ?? false) unknown \(CTGlyphInfoCreateWithGlyphName("no-such-glyph" as CFString, dv, "x" as CFString) == nil)")
+
+    // font collections
+    let all = CTFontCollectionCreateFromAvailableFonts(nil)
+    let every = CTFontCollectionCreateMatchingFontDescriptors(all) as! [CTFontDescriptor]
+    let dejavu = CTFontCollectionCreateWithFontDescriptors([CTFontDescriptorCreateWithAttributes([kCTFontFamilyNameAttribute: "DejaVu Sans"] as CFDictionary)] as CFArray, nil)
+    let faces = (CTFontCollectionCreateMatchingFontDescriptors(dejavu) as? [CTFontDescriptor] ?? []).map { CTFontDescriptorCopyAttribute($0, kCTFontNameAttribute) as! String }
+    let families = CTFontCollectionCopyFontAttribute(all, kCTFontFamilyNameAttribute, [.unique, .standardSort]) as! [String]
+    let pairs = CTFontCollectionCopyFontAttributes(dejavu, NSSet(array: [kCTFontNameAttribute, kCTFontStyleNameAttribute]) as CFSet, []) as! [[String: Any]]
+    let reversed = CTFontCollectionCreateMatchingFontDescriptorsSortedWithCallback(dejavu, { a, b, _ in
+        let x = CTFontDescriptorCopyAttribute(a, kCTFontNameAttribute) as! String, y = CTFontDescriptorCopyAttribute(b, kCTFontNameAttribute) as! String
+        return x > y ? .compareLessThan : x < y ? .compareGreaterThan : .compareEqualTo
+    }, nil) as! [CTFontDescriptor]
+    let rnames = reversed.map { CTFontDescriptorCopyAttribute($0, kCTFontNameAttribute) as! String }
+    print("collection all \(every.count > 10) dejavu \(faces.contains("DejaVuSans") && faces.contains("DejaVuSans-Bold")) families unique \(Set(families).count == families.count) has \(families.contains("DejaVu Sans")) attributes \(pairs.count == faces.count && pairs.allSatisfy { $0[kCTFontStyleNameAttribute as String] != nil }) sorted \(rnames == faces.sorted(by: >))")
+
+    // justification and caret offsets
+    let short = CTLineCreateWithAttributedString(attributed("a b c", dv))
+    let natural = CGFloat(CTLineGetTypographicBounds(short, nil, nil, nil))
+    let full = CTLineCreateJustifiedLine(short, 1, 200).map { CGFloat(CTLineGetTypographicBounds($0, nil, nil, nil)) } ?? 0
+    let half = CTLineCreateJustifiedLine(short, 0.5, 200).map { CGFloat(CTLineGetTypographicBounds($0, nil, nil, nil)) } ?? 0
+    let none = CTLineCreateJustifiedLine(short, 0, 200).map { CGFloat(CTLineGetTypographicBounds($0, nil, nil, nil)) } ?? 0
+    print("justified full \(f2(full)) half \(abs(half - (natural + (200 - natural) / 2)) < 1) none \(abs(none - natural) < 0.01)")
+    var carets: [(Double, Int, Bool)] = []
+    let abc = CTLineCreateWithAttributedString(attributed("abc", dv))
+    CTLineEnumerateCaretOffsets(abc) { offset, index, leading, _ in carets.append((offset, index, leading)) }
+    let abcWidth = CTLineGetTypographicBounds(abc, nil, nil, nil)
+    var stopped = 0
+    CTLineEnumerateCaretOffsets(abc) { _, _, _, stop in stopped += 1; if stopped == 2 { stop.pointee = true } }
+    print("caret offsets \(carets.count) first \(f2(CGFloat(carets[0].0))) leading \(carets[0].2) last \(abs(carets[5].0 - abcWidth) < 0.01) indices \(carets.map { $0.1 }) increasing \(carets.map { $0.0 } == carets.map { $0.0 }.sorted()) stop \(stopped)")
+}
+
 // MARK: string attributes, tables, variations, the font manager
 
 func attributeChecks() {
@@ -585,6 +705,7 @@ final class CoreTextViewController: UIViewController {
         runChecks()
         paragraphChecks()
         attributeChecks()
+        layoutChecks()
         print("coretext checks done")
     }
 }

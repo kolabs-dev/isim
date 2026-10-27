@@ -54,6 +54,8 @@ struct isim_ct_axis;
 ISIM_GUEST_ABI int isim_font_data_faces(const void *data, long len, char *out, int outlen);
 ISIM_GUEST_ABI int isim_ct_font_table(void *f, unsigned tag, unsigned char *out, int max);
 ISIM_GUEST_ABI int isim_ct_font_table_tags(void *f, unsigned *tags, int max);
+ISIM_GUEST_ABI int isim_ct_font_glyph_from_name(void *f, const char *name);
+ISIM_GUEST_ABI int isim_ct_font_glyph_name(void *f, unsigned short glyph, char *out, int outlen);
 ISIM_GUEST_ABI int isim_ct_font_axes(void *f, struct isim_ct_axis *out, int max);
 void isim_ct_font_draw(void *f, const unsigned short *glyphs, const double *pos, int n, double x, double y, const double *tm, const double *rgba);
 int isim_ct_font_faces(const char *family, char *out, int outlen);
@@ -79,7 +81,7 @@ ISIM_GUEST_ABI void isim_cg_pdf_metadata(void *t, int key, const char *value);
     X(isim_ct_layout_create), X(isim_ct_layout_free), X(isim_ct_layout_lines), X(isim_ct_line_info), X(isim_ct_line_runs), \
     X(isim_ct_run_glyphs), X(isim_ct_line_index_at), X(isim_ct_line_x_at), X(isim_ct_line_draw), \
     X(isim_ct_layout_create_para), X(isim_ct_line_metrics), X(isim_ct_run_ink), X(isim_ct_font_load), X(isim_ct_font_retain), X(isim_ct_font_free), \
-    X(isim_ct_font_info), X(isim_ct_font_glyphs), X(isim_ct_font_glyph_metrics), X(isim_ct_font_glyph_path), X(isim_ct_font_features), X(isim_font_data_faces), X(isim_ct_font_table), X(isim_ct_font_table_tags), X(isim_ct_font_axes), \
+    X(isim_ct_font_info), X(isim_ct_font_glyphs), X(isim_ct_font_glyph_metrics), X(isim_ct_font_glyph_path), X(isim_ct_font_features), X(isim_font_data_faces), X(isim_ct_font_table), X(isim_ct_font_table_tags), X(isim_ct_font_glyph_from_name), X(isim_ct_font_glyph_name), X(isim_ct_font_axes), \
     X(isim_ct_font_draw), X(isim_ct_font_faces), X(isim_cg_font_data_info), \
     X(isim_imgsrc_info), X(isim_imgsrc_frame), X(isim_image_encode_gif), \
     X(isim_pdf_open), X(isim_pdf_page_size), X(isim_pdf_page_render), X(isim_pdf_close), X(isim_pdf_available), \

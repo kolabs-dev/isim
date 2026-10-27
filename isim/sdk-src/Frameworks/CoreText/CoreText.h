@@ -9,3 +9,8 @@
 #include <CoreText/CTRun.h>
 #include <CoreText/CTStringAttributes.h>
 #include <CoreText/CTLine.h>
+#include <CoreText/CTTypesetter.h>
+#include <CoreText/CTRunDelegate.h>
+#include <CoreText/CTRubyAnnotation.h>
+#include <CoreText/CTGlyphInfo.h>
+#include <CoreText/CTFontCollection.h>

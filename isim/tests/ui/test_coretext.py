@@ -3,8 +3,9 @@ outlines, CTFontDrawGlyphs; traits, style names and files, matching descriptors;
 fallback fonts in the attributes, bidi status, UTF-16 string indices, positions and advances, metrics and ink bounds,
 a line redrawn glyph by glyph matching CTLineDraw, CTRunDraw of a range) and paragraph styles (every specifier read
 back; alignment, writing direction, justification, indents, line heights and spacing, paragraph spacing and separators,
-line break modes and truncation, tab stops, UIKit's NSParagraphStyle, suggested frame sizes). The app computes each
-check and prints it; the test reads the lines and the screen."""
+line break modes and truncation, tab stops, UIKit's NSParagraphStyle, suggested frame sizes), and (issue #361)
+typesetters, run delegates, ruby, glyph infos, font collections, justified lines and caret offsets. The app computes
+each check and prints it; the test reads the lines and the screen."""
 import re
 
 from isimtest import count_px
@@ -159,3 +160,18 @@ def test_coretext(launch):
     assert count_px(shot, (34, 635, 14, 25), lambda c: c[0] > 240 and c[1] > 240 and c[2] > 240) > 250, "stroke only: unfilled"
     assert count_px(shot, (123, 638, 7, 20), lambda c: c[0] > 200 and c[1] > 160 and c[2] < 80) > 60, "filled and stroked"
     assert count_px(shot, (116, 625, 60, 50), lambda c: c[1] > 150 and c[1] > c[0] + 40 and c[1] > c[2] + 60) > 30, "a green stroke"
+
+    # ---- typesetters, run delegates, ruby, glyph infos, font collections, justification, carets (issue #361)
+    assert re.search(r"^typesetter lines \d+ fit true covers true breaks at newline true$", log, re.M), line("typesetter lines")
+    assert has("typesetter cluster true past end 0"), "cluster breaks fall inside words; nothing past the end"
+    assert has("framesetter typesetter same true lines true attributes true"), "CTFramesetterCreateWithTypesetter, GetTypesetter, frame attributes"
+    assert has("run delegate adds 40.00 ascent 30.00 descent 10.00 run 40.00 30.00 refcon true bad version true box blank true b drawn true"), \
+        line("run delegate adds")
+    assert has("run delegate deallocated 1"), "the delegate's dealloc callback"
+    assert has("ruby alignment true size 0.40 before かんじ after true other under true default size 0.50"), line("ruby alignment")
+    assert has("ruby drawn above true differs true"), "ruby drawn over its base text"
+    assert has("glyph info glyph true name A font name A cid 1234 japan1 true unknown true"), line("glyph info")
+    assert has("collection all true dejavu true families unique true has true attributes true sorted true"), line("collection all")
+    assert has("justified full 200.00 half true none true"), line("justified")
+    assert has("caret offsets 6 first 0.00 leading true last true indices [0, 0, 1, 1, 2, 2] increasing true stop 2"), line("caret offsets")
+
