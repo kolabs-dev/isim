@@ -11,6 +11,7 @@ NSNotificationName const NSUndoManagerCheckpointNotification = @"NSUndoManagerCh
     NSUndoManagerDidOpenUndoGroupNotification = @"NSUndoManagerDidOpenUndoGroupNotification",
     NSUndoManagerWillCloseUndoGroupNotification = @"NSUndoManagerWillCloseUndoGroupNotification",
     NSUndoManagerDidCloseUndoGroupNotification = @"NSUndoManagerDidCloseUndoGroupNotification";
+NSString * const NSUndoManagerGroupIsDiscardableKey = @"NSUndoManagerGroupIsDiscardableKey";
 
 /* ================= NSUndoManager ================= */
 @interface _IsimUndoAction : NSObject

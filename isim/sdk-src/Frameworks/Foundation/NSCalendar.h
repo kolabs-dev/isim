@@ -1,5 +1,7 @@
 #pragma once
 #import <Foundation/NSObject.h>
+#import <Foundation/NSNotification.h>
+FOUNDATION_EXPORT NSNotificationName const NSCalendarDayChangedNotification;
 NS_ASSUME_NONNULL_BEGIN
 @class NSString, NSArray<ObjectType>, NSLocale, NSTimeZone, NSDate;
 typedef NSString *NSCalendarIdentifier NS_TYPED_EXTENSIBLE_ENUM NS_SWIFT_NAME(NSCalendar.Identifier);

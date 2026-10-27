@@ -7,6 +7,7 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT NSNotificationName const NSUndoManagerCheckpointNotification, NSUndoManagerWillUndoChangeNotification,
     NSUndoManagerWillRedoChangeNotification, NSUndoManagerDidUndoChangeNotification, NSUndoManagerDidRedoChangeNotification,
     NSUndoManagerDidOpenUndoGroupNotification, NSUndoManagerWillCloseUndoGroupNotification, NSUndoManagerDidCloseUndoGroupNotification;
+FOUNDATION_EXPORT NSString * const NSUndoManagerGroupIsDiscardableKey;
 /* isim: prepareWithInvocationTarget: (NSInvocation forwarding) is not available; use the target/selector or
  * handler registrations. */
 @interface NSUndoManager : NSObject

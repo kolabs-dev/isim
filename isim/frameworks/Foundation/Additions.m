@@ -13,6 +13,11 @@ static NSCharacterSet *chars(NSString *extra) {
     static NSString *base = @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~";
     return [NSCharacterSet characterSetWithCharactersInString:[base stringByAppendingString:extra]];
 }
+/* system notifications isim does not post yet: the clock and the calendar day of the simulated device do not jump, and
+   bundles are not loaded dynamically */
+NSNotificationName const NSSystemClockDidChangeNotification = @"NSSystemClockDidChangeNotification",
+    NSCalendarDayChangedNotification = @"NSCalendarDayChangedNotification", NSBundleDidLoadNotification = @"NSBundleDidLoadNotification";
+
 @implementation NSCharacterSet (NSURLUtilities)
 + (NSCharacterSet *)URLUserAllowedCharacterSet { return chars(@"!$&'()*+,;="); }
 + (NSCharacterSet *)URLPasswordAllowedCharacterSet { return chars(@"!$&'()*+,;="); }

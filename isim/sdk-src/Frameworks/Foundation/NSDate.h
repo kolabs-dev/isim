@@ -1,5 +1,7 @@
 #pragma once
 #import <Foundation/NSObject.h>
+#import <Foundation/NSNotification.h>
+FOUNDATION_EXPORT NSNotificationName const NSSystemClockDidChangeNotification;
 NS_ASSUME_NONNULL_BEGIN
 @interface NSDate : NSObject <NSCopying, NSSecureCoding>
 @property (readonly) NSTimeInterval timeIntervalSinceReferenceDate;

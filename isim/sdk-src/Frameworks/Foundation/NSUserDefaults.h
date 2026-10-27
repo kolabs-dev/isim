@@ -25,5 +25,6 @@ FOUNDATION_EXPORT NSString *const NSGlobalDomain;
 @end
 #if !defined(__swift__)          /* Swift: UserDefaults.didChangeNotification (overlay) */
 FOUNDATION_EXPORT NSNotificationName const NSUserDefaultsDidChangeNotification;
+FOUNDATION_EXPORT NSNotificationName const NSUserDefaultsSizeLimitExceededNotification;
 #endif
 NS_ASSUME_NONNULL_END
