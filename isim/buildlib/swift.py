@@ -928,7 +928,7 @@ BackgroundTasks -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch
 UserNotifications -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftCoreLocation -framework Foundation -framework UIKit -framework UserNotifications
 Intents -lswiftObjectiveC -lswiftFoundation -lswiftCoreLocation -framework Foundation -framework Intents   # INFocusStatus.isFocused as Bool?, INMediaDestination
 CoreML -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreVideo -lswiftCoreGraphics -framework Foundation -framework CoreGraphics
-Vision -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreVideo -lswiftCoreImage -lswiftCoreMedia -lswiftAudioToolbox -lswiftCoreML -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics -framework CoreImage -framework ImageIO -lisim_host
+Vision -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftFoundationModels -lswiftCoreVideo -lswiftCoreImage -lswiftCoreMedia -lswiftAudioToolbox -lswiftCoreML -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics -framework CoreImage -framework ImageIO -lisim_host
 NaturalLanguage -lswiftObjectiveC -lswiftFoundation -lswift_Concurrency -framework Foundation
 FoundationModels -lswiftObjectiveC -lswiftFoundation -lswiftObservation -lswift_Concurrency -framework Foundation -lisim_host
 Speech -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreMedia -lswiftCoreVideo -lswiftAudioToolbox -lswiftAVFoundation -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host

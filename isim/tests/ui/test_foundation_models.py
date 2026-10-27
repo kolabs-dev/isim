@@ -69,7 +69,18 @@ class _Model(BaseHTTPRequestHandler):
         _Model.requests.append({"path": self.path, **body})
         msgs = body["messages"]
         last = msgs[-1]
-        if last["role"] == "tool":
+        image = re.search(r" in (/\S+\.png)", last.get("content") or "")
+        if body.get("tool_choice") == "none":
+            chunks = [{"content": "No tools today"}]
+        elif body.get("tool_choice") == "required":       # GenerationOptions.ToolCallingMode.required: a call every round
+            n = sum(m["role"] == "tool" for m in msgs)
+            chunks = [{"tool_calls": [{"index": 0, "id": f"call_r{n}", "type": "function",
+                                       "function": {"name": "countUp", "arguments": '{"step": 1}'}}]}]
+        elif image and last["role"] == "user":            # Vision's tools (iOS 27): the image's path as the argument
+            tool = "BarcodeReaderTool" if "codes" in last["content"] else "OCRTool"
+            chunks = [{"tool_calls": [{"index": 0, "id": "call_v", "type": "function",
+                                       "function": {"name": tool, "arguments": json.dumps({"image": image[1]})}}]}]
+        elif last["role"] == "tool":
             chunks = [{"content": "It is "}, {"content": last["content"].lower() + "."}]
         elif body.get("tools") and "weather" in (last.get("content") or ""):
             chunks = [{"tool_calls": [{"index": 0, "id": "call_1", "type": "function",
@@ -122,3 +133,48 @@ def test_foundation_models_backend(launch):
     assert [m["role"] for m in r[1]["messages"]] == ["system", "user", "assistant", "user"], "the conversation so far"
     tool_round = [q for q in r if q["messages"][-1]["role"] == "tool"]
     assert tool_round and tool_round[0]["messages"][-1] == {"role": "tool", "content": "Sunny in Paris", "tool_call_id": "call_1"}
+
+
+def test_foundation_models_ios27(launch):
+    """iOS 27 (issue #366): GenerationOptions.ToolCallingMode as tool_choice (`disallowed` answers without tools,
+    `required` calls tools every round until one throws), SamplingMode.Kind, GeneratedContent.ParsingError, and Vision's
+    OCRTool / BarcodeReaderTool reading pictures the app made (libzbar / tesseract on the host, else their errors)"""
+    import ctypes
+    import shutil
+    try:
+        ctypes.CDLL("libzbar.so.0")
+        zbar = True
+    except OSError:
+        zbar = False
+    _Model.requests = []
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _Model)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{server.server_address[1]}/v1"
+        app = launch("HelloFoundationModels", device="iphone17", os_version="27",
+                     env={"ISIM_LLM_URL": url, "ISIM_LLM_MODEL": "test-model"})
+        app.wait_log(r"HelloFoundationModels: done", timeout=60)
+        log = app.log
+        assert "ios27 sampling true greedy true mode true default true" in log
+        assert "ios27 parsing error raw '[1, 2] x' underlying true 'the string is not JSON: trailing characters after the JSON value'" in log
+        assert "ios27 tools OCRTool scanQRCode 'Scan QR codes' image parameter true" in log
+        assert "live text 'Hello from the model'" in log, "the iOS 26 checks still pass"
+        assert "live27 disallowed 'No tools today' calls 0" in log
+        assert "live27 required stops at countUp after 3 calls, outputs 2" in log
+        if zbar:
+            assert 'live27 barcodes ["BarcodeReaderTool: [{\\"payload\\": \\"isim tools\\", \\"symbology\\": \\"qr\\"}]"]' in log, \
+                re.search(r"live27 barcodes.*", log)[0]
+        else:
+            assert "live27 barcodes unavailable: BarcodeReaderTool barcode detection on isim needs" in log
+        if shutil.which("tesseract"):
+            assert re.search(r'live27 text \["OCRTool: HELLO ISIM"\]', log), re.search(r"live27 text.*", log)[0]
+        else:
+            assert "live27 text unavailable: OCRTool text recognition on isim needs the host's tesseract command" in log
+        assert app.quit() == 0
+    finally:
+        server.shutdown()
+    r = _Model.requests
+    assert [q.get("tool_choice") for q in r if q.get("tool_choice")] == ["none", "required", "required", "required"]
+    vision = [q for q in r if any(t["function"]["name"] == "BarcodeReaderTool" for t in q.get("tools", []))]
+    assert vision and vision[0]["tools"][1]["function"]["name"] == "OCRTool"
+    assert "image" in vision[0]["tools"][0]["function"]["parameters"]["properties"]

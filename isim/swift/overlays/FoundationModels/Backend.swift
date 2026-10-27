@@ -59,6 +59,12 @@ struct _OpenAICompatibleBackend: _LanguageModelBackend, @unchecked Sendable {
         }
         if !tools.isEmpty {
             b["tools"] = tools.map { ["type": "function", "function": ["name": $0.name, "description": $0.description, "parameters": $0.parameters._jsonObject]] }
+            switch o._toolCallingMode {                       // GenerationOptions.ToolCallingMode (iOS 27)
+            case "disallowed"?: b["tool_choice"] = "none"
+            case "required"?: b["tool_choice"] = "required"
+            case "allowed"?: b["tool_choice"] = "auto"
+            default: break
+            }
         }
         return b
     }
