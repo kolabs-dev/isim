@@ -14,7 +14,7 @@ typedef NS_ERROR_ENUM(GKErrorDomain, GKErrorCode) {
     GKErrorTurnBasedInvalidState = 24, GKErrorInvitationsDisabled = 25, GKErrorPlayerPhotoFailure = 26, GKErrorUbiquityContainerUnavailable = 27,
     GKErrorMatchNotConnected = 28, GKErrorGameSessionRequestInvalid = 29, GKErrorRestrictedToAutomatch = 30, GKErrorAPINotAvailable = 31,
     GKErrorNotAuthorized = 32, GKErrorConnectionTimeout = 33, GKErrorAPIObsolete = 34, GKErrorICloudUnavailable = 35, GKErrorLockdownMode = 36,
-    GKErrorAppUnlisted = 37, GKErrorFriendListDescriptionMissing = 100, GKErrorFriendListRestricted = 101, GKErrorFriendListDenied = 102,
+    GKErrorAppUnlisted = 37, GKErrorDebugMode = 38, GKErrorFriendListDescriptionMissing = 100, GKErrorFriendListRestricted = 101, GKErrorFriendListDenied = 102,
     GKErrorFriendRequestNotAvailable = 103
 };
 NS_ASSUME_NONNULL_END

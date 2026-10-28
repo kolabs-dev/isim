@@ -145,9 +145,37 @@ static NSString *const Board = @"dev.isim.gkobjc.high_score";
     [GKTurnBasedMatch findMatchForRequest:bad withCompletionHandler:^(GKTurnBasedMatch *match, NSError *error) {
         say([NSString stringWithFormat:@"bad request %@ domain %@ code %ld is invalid %d", match ? @"matched" : @"refused", error.domain, (long)error.code,
              [error.domain isEqualToString:GKErrorDomain] && error.code == GKErrorMatchRequestInvalid]);
-        say(@"ready");
+        [self more];
     }];
 }
+
+// issue #394: challenge definitions, release states, identity verification, queues, voice chat, constants (the iOS 26
+// classes are used whatever the emulated version: isim implements them on every version)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+- (void)more {
+    [GKChallengeDefinition loadChallengeDefinitionsWithCompletionHandler:^(NSArray<GKChallengeDefinition *> *defs, NSError *error) {
+        GKChallengeDefinition *c = defs.firstObject;
+        say([NSString stringWithFormat:@"challenge definitions %lu: %@ \"%@\" leaderboard %@ days %ld prereleased %d",
+             (unsigned long)defs.count, c.identifier, c.title, c.leaderboard.baseLeaderboardID, (long)c.durationOptions.firstObject.day,
+             c.releaseState == GKReleaseStatePrereleased]);
+        [GKLeaderboard loadLeaderboardsWithIDs:@[Board] completionHandler:^(NSArray<GKLeaderboard *> *boards, NSError *e2) {
+            GKLeaderboard *b = boards.firstObject;
+            say([NSString stringWithFormat:@"leaderboard description \"%@\" hidden %d released %d", b.leaderboardDescription, b.isHidden,
+                 b.releaseState == GKReleaseStateReleased]);
+            [GKLocalPlayer.localPlayer fetchItemsForIdentityVerificationSignature:^(NSURL *url, NSData *signature, NSData *salt, uint64_t timestamp, NSError *e3) {
+                say([NSString stringWithFormat:@"identity verification file %d signature %d salt %lu timestamp %d error %@", url.isFileURL,
+                     signature.length > 60, (unsigned long)salt.length, timestamp > 1700000000000ULL, e3 ? @"yes" : @"none"]);
+                [GKMatchmaker.sharedMatchmaker queryQueueActivity:@"dev.isim.queue" withCompletionHandler:^(NSInteger n, NSError *e4) {
+                    say([NSString stringWithFormat:@"queue activity %ld voip %d debug mode %ld no longer available %@ match type %ld",
+                         (long)n, [GKVoiceChat isVoIPAllowed], (long)GKErrorDebugMode, GKPlayerIDNoLongerAvailable, (long)GKMatchTypeHosted]);
+                    say(@"ready");
+                }];
+            }];
+        }];
+    }];
+}
+#pragma clang diagnostic pop
 
 // MARK: listener
 

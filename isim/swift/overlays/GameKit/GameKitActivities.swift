@@ -9,7 +9,6 @@ import UIKit
 public enum GKGameActivityPlayStyle: Int, Sendable { case unspecified = 0, synchronous = 1, asynchronous = 2 }
 
 @available(iOS 26.0, *)
-public enum GKGameActivityState: UInt, Sendable { case initialized = 0, active = 1, paused = 2, ended = 4 }
 
 /// An activity the game offers (from the configuration's `activities`).
 @available(iOS 26.0, *)
@@ -61,7 +60,7 @@ public enum GKGameActivityState: UInt, Sendable { case initialized = 0, active =
         DispatchQueue.main.async { completionHandler(img, nil) }
     }
     @nonobjc open func loadImage() async throws -> UIImage {
-        guard let i = _GCImages.bundleImage(def.image) ?? _GCImages.leaderboard("activity-\(def.id)") else { throw GKError.unsupported }
+        guard let i = _GCImages.bundleImage(def.image) ?? _GCImages.leaderboard("activity-\(def.id)") else { throw GKError._unsupported }
         return i
     }
 }
@@ -70,10 +69,12 @@ public enum GKGameActivityState: UInt, Sendable { case initialized = 0, active =
 /// when it ends.
 @available(iOS 26.0, *)
 @objc(GKGameActivity) open class GKGameActivity: NSObject {
+    /// An activity's state: initialized, active, paused or ended.
+    @objc(GKGameActivityState) public enum State: UInt, Sendable { case initialized = 0, active = 1, paused = 2, ended = 4 }
     @objc public let identifier: String
     @objc public let activityDefinition: GKGameActivityDefinition
     @objc open var properties: [String: String]
-    open private(set) var state: GKGameActivityState = .initialized
+    open private(set) var state: GKGameActivity.State = .initialized
     @objc open internal(set) var partyCode: String?
     @objc open var partyURL: URL? { partyCode.map { URL(string: "https://games.apple.com/party/\($0)")! } }
     @objc public let creationDate = Date()
@@ -201,7 +202,9 @@ enum _GCActivities {
         pending = GKLocalPlayer.local.listeners.isEmpty
         _GCEvents.deliver { l in
             pending = false
-            l.player(GKLocalPlayer.local, wantsToPlay: a) { handled in NSLog("isim GameKit: activity %@ %@", id, handled ? "handled" : "not handled") }
+            if let f = l.player(_:wantsToPlay:completionHandler:) {
+                f(GKLocalPlayer.local, a) { handled in NSLog("isim GameKit: activity %@ %@", id, handled ? "handled" : "not handled") }
+            } else { NSLog("isim GameKit: activity %@ not handled (no listener method)", id) }
         }
     }
 }

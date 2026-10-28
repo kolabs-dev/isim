@@ -25,6 +25,8 @@ API_AVAILABLE(ios(26.0))
 @property (nonatomic, readonly, nullable) NSNumber *minPlayers;
 @property (nonatomic, readonly) BOOL supportsUnlimitedPlayers;
 @property (nonatomic, readonly) GKGameActivityPlayStyle playStyle;
+@property (nonatomic, readonly) GKReleaseState releaseState;
+@property (nonatomic, readonly) NSRange playerRange;
 + (void)loadGameActivityDefinitionsWithCompletionHandler:(void (^)(NSArray<GKGameActivityDefinition *> * _Nullable activityDefinitions, NSError * _Nullable error))completionHandler;
 + (void)loadGameActivityDefinitionsWithIDs:(nullable NSArray<NSString *> *)activityDefinitionIDs
                          completionHandler:(void (^)(NSArray<GKGameActivityDefinition *> * _Nullable activityDefinitions, NSError * _Nullable error))completionHandler;
@@ -34,6 +36,7 @@ API_AVAILABLE(ios(26.0))
 @end
 API_AVAILABLE(ios(26.0))
 @interface GKGameActivity : NSObject
+- (void)findPlayersForHostedMatchWithCompletionHandler:(void (^)(NSArray<GKPlayer *> * _Nullable players, NSError * _Nullable error))completionHandler;
 @property (class, nonatomic, readonly) NSArray<NSString *> *validPartyCodeAlphabet;
 + (BOOL)isValidPartyCode:(NSString *)partyCode;
 + (nullable GKGameActivity *)startWithDefinition:(GKGameActivityDefinition *)activityDefinition error:(NSError **)error;

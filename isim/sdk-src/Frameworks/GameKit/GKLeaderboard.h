@@ -24,6 +24,11 @@ typedef NS_ENUM(NSInteger, GKLeaderboardType) { GKLeaderboardTypeClassic = 0, GK
 @property (nonatomic, readonly, nullable) NSDate *startDate;
 @property (nonatomic, readonly, nullable) NSDate *nextStartDate;
 @property (nonatomic, readonly) NSTimeInterval duration;
+@property (nonatomic, readonly) NSString *leaderboardDescription;
+@property (nonatomic, readonly) BOOL isHidden;
+@property (nonatomic, readonly) GKReleaseState releaseState;
+@property (nonatomic, readonly) NSString *activityIdentifier;
+@property (nonatomic, readonly) NSDictionary<NSString *, NSString *> *activityProperties;
 + (void)loadLeaderboardsWithIDs:(nullable NSArray<NSString *> *)leaderboardIDs
               completionHandler:(void (^)(NSArray<GKLeaderboard *> * _Nullable leaderboards, NSError * _Nullable error))completionHandler;
 - (void)loadPreviousOccurrenceWithCompletionHandler:(void (^)(GKLeaderboard * _Nullable leaderboard, NSError * _Nullable error))completionHandler;

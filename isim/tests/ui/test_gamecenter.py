@@ -15,8 +15,10 @@ friends.
 test_gamecenter_activities: game activities under iOS 26 (definitions, start / end, a request from
 `isim gamecenter ... activity` with a party code).
 
+test_gamecenter_ios26: challenge definitions, release states, activity links, identity verification (issue #394).
+
 test_gamecenter_multiplayer: two devices (Pat and Sam) on one local network: a friend request accepted with
-`isim gamecenter accept-friend`, an automatched real-time match (data, disconnect), an invite from the matchmaker
+`isim gamecenter accept-friend`, players matched in a server-hosted queue (queue activity), an automatched real-time match (data, disconnect), an invite from the matchmaker
 accepted from the banner, and a turn-based match played to the end."""
 import os
 import plistlib
@@ -210,6 +212,33 @@ def test_gamecenter_activities(launch, device_data):
     assert re.search(r"dev\.isim\.gc\.high_score: Player 3000", gamecenter(device_data, APP, "scores"))
 
 
+def test_gamecenter_ios26(launch, device_data):
+    """iOS 26 and the rest of the API (issue #394): challenge definitions and release states from isim-GameCenter.json,
+    leaderboard and achievement activity links, the default leaderboard, an identity verification signature checked
+    with its certificate, voice chat unavailable, error codes, the access point on challenges."""
+    app = launch("HelloGameCenter", animations=False, os_version="26")
+    app.wait_log(r"authenticated: true")
+    app.wait_tap_id("more")
+    app.wait_log(r'challenge definition: dev\.isim\.gc\.challenge\.weekend "Weekend Showdown" leaderboard=dev\.isim\.gc\.high_score durations=1d,3d '
+                 r"repeatable=true prereleased=false active=true")
+    app.wait_log(r'challenge definition: dev\.isim\.gc\.challenge\.speedrun "Speedrun" leaderboard=dev\.isim\.gc\.fastest durations=1d '
+                 r"repeatable=false prereleased=true active=false")
+    app.wait_log(r"leaderboard dev\.isim\.gc\.high_score hidden=false prereleased=false activity=dev\.isim\.gc\.activity\.duel "
+                 r"description=The best score of a single game\.")
+    app.wait_log(r"leaderboard dev\.isim\.gc\.fastest hidden=true prereleased=true activity=- description=-")
+    app.wait_log(r"achievement dev\.isim\.gc\.first_win activity=dev\.isim\.gc\.activity\.duel released=true")
+    app.wait_log(r"default leaderboard: dev\.isim\.gc\.fastest")
+    app.wait_log(r"identity verification: file url=true salt=32 fresh=true verified=true")
+    app.wait_log(r"voip allowed: false debugMode code: 38 friends status: 3")
+    app.wait_log(r"error code matches GKError\.notAuthenticated")
+    app.wait_log(r"achievement player is local: true")
+    app.wait_tap_id("gc-done")                                   # the access point opened Game Center; closing it
+
+    app.wait_log(r"access point: challenges closed")
+    assert (device_data / "Library/GameCenter/identity.cer").exists(), "the device's identity verification certificate"
+    assert "-----BEGIN CERTIFICATE-----" in gamecenter(device_data, "identity")
+
+
 def test_gamecenter_multiplayer(launch, tmp_path):
     pat, sam = tmp_path / "pat", tmp_path / "sam"
     nickname(pat, "Pat")
@@ -234,6 +263,15 @@ def test_gamecenter_multiplayer(launch, tmp_path):
     a.wait_view(r"Allow “Game Center” to access your Game Center friends\?")
     a.tap_text("OK")
     a.wait_log(r"friends: 1 Sam$")
+
+    # server-hosted matchmaking in a queue: Pat waits, Sam sees one player queued, then both are matched
+    a.tap_id("matched")
+    a.wait_log(r"isim GameKit: looking for 2-2 players")
+    b.wait_tap_id("queue")
+    b.wait_log(r"queue activity: 1")
+    b.tap_id("matched")
+    a.wait_log(r"matched players: 2 Pat,Sam properties=3")
+    b.wait_log(r"matched players: 2 Pat,Sam properties=3")
 
     # automatch: both look for a 2-player match, connect, exchange data; Sam leaves
     a.tap_id("automatch")

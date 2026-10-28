@@ -1,21 +1,114 @@
 {
   "leaderboards": [
-    { "id": "dev.isim.gc.high_score", "title": "High Score", "type": "classic", "sortOrder": "high" },
-    { "id": "dev.isim.gc.daily", "title": "Daily Run", "type": "recurring", "start": "2025-01-01T00:00:00Z", "duration": "PT6S" },
-    { "id": "dev.isim.gc.fastest", "title": "Fastest Clear", "type": "classic", "sortOrder": "low", "format": "elapsedTime", "image": "fastest.svg" },
-    { "id": "dev.isim.gc.distance", "title": "Longest Jump", "format": "fixedPoint", "decimals": 2, "suffix": " m" }
+    {
+      "id": "dev.isim.gc.high_score",
+      "title": "High Score",
+      "type": "classic",
+      "sortOrder": "high",
+      "description": "The best score of a single game.",
+      "activityIdentifier": "dev.isim.gc.activity.duel",
+      "activityProperties": {
+        "arena": "forest"
+      }
+    },
+    {
+      "id": "dev.isim.gc.daily",
+      "title": "Daily Run",
+      "type": "recurring",
+      "start": "2025-01-01T00:00:00Z",
+      "duration": "PT6S"
+    },
+    {
+      "id": "dev.isim.gc.fastest",
+      "title": "Fastest Clear",
+      "type": "classic",
+      "sortOrder": "low",
+      "format": "elapsedTime",
+      "image": "fastest.svg",
+      "releaseState": "prereleased",
+      "hidden": true
+    },
+    {
+      "id": "dev.isim.gc.distance",
+      "title": "Longest Jump",
+      "format": "fixedPoint",
+      "decimals": 2,
+      "suffix": " m"
+    }
   ],
   "leaderboardSets": [
-    { "id": "dev.isim.gc.set.season1", "title": "Season 1", "leaderboards": [ "dev.isim.gc.high_score", "dev.isim.gc.fastest" ] }
+    {
+      "id": "dev.isim.gc.set.season1",
+      "title": "Season 1",
+      "leaderboards": [
+        "dev.isim.gc.high_score",
+        "dev.isim.gc.fastest"
+      ]
+    }
   ],
   "achievements": [
-    { "id": "dev.isim.gc.first_win", "title": "First Win", "points": 10, "unachievedDescription": "Win a game.", "achievedDescription": "You won your first game." },
-    { "id": "dev.isim.gc.collector", "title": "Collector", "points": 25, "unachievedDescription": "Collect 100 gems.", "achievedDescription": "You collected 100 gems." },
-    { "id": "dev.isim.gc.secret", "title": "Secret Door", "points": 50, "hidden": true, "unachievedDescription": "???", "achievedDescription": "You found the secret door." }
+    {
+      "id": "dev.isim.gc.first_win",
+      "title": "First Win",
+      "points": 10,
+      "unachievedDescription": "Win a game.",
+      "achievedDescription": "You won your first game.",
+      "activityIdentifier": "dev.isim.gc.activity.duel"
+    },
+    {
+      "id": "dev.isim.gc.collector",
+      "title": "Collector",
+      "points": 25,
+      "unachievedDescription": "Collect 100 gems.",
+      "achievedDescription": "You collected 100 gems."
+    },
+    {
+      "id": "dev.isim.gc.secret",
+      "title": "Secret Door",
+      "points": 50,
+      "hidden": true,
+      "unachievedDescription": "???",
+      "achievedDescription": "You found the secret door."
+    }
   ],
   "activities": [
-    { "id": "dev.isim.gc.activity.duel", "title": "Duel", "details": "Beat a friend’s high score.", "supportsPartyCode": true,
-      "minPlayers": 2, "maxPlayers": 2, "playStyle": "synchronous", "defaultProperties": { "arena": "forest" },
-      "leaderboards": [ "dev.isim.gc.high_score" ], "achievements": [ "dev.isim.gc.first_win" ] }
+    {
+      "id": "dev.isim.gc.activity.duel",
+      "title": "Duel",
+      "details": "Beat a friend’s high score.",
+      "supportsPartyCode": true,
+      "minPlayers": 2,
+      "maxPlayers": 2,
+      "playStyle": "synchronous",
+      "defaultProperties": {
+        "arena": "forest"
+      },
+      "leaderboards": [
+        "dev.isim.gc.high_score"
+      ],
+      "achievements": [
+        "dev.isim.gc.first_win"
+      ]
+    }
+  ],
+  "challenges": [
+    {
+      "id": "dev.isim.gc.challenge.weekend",
+      "title": "Weekend Showdown",
+      "details": "Top the high score by Sunday.",
+      "leaderboard": "dev.isim.gc.high_score",
+      "durations": [
+        "P1D",
+        "P3D"
+      ],
+      "repeatable": true,
+      "active": true
+    },
+    {
+      "id": "dev.isim.gc.challenge.speedrun",
+      "title": "Speedrun",
+      "leaderboard": "dev.isim.gc.fastest",
+      "releaseState": "prereleased"
+    }
   ]
 }

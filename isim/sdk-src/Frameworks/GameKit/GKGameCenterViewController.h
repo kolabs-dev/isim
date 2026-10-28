@@ -27,6 +27,11 @@ typedef NS_ENUM(NSInteger, GKAccessPointLocation) {
 };
 @interface GKAccessPoint : NSObject
 @property (class, nonatomic, readonly) GKAccessPoint *shared;
+@property (nonatomic, weak, nullable) UIWindow *parentWindow;
+- (void)triggerForChallengesWithHandler:(void (^ _Nullable)(void))handler API_AVAILABLE(ios(26.0));
+- (void)triggerForFriendingWithHandler:(void (^ _Nullable)(void))handler API_AVAILABLE(ios(26.0));
+- (void)triggerForPlayTogetherWithHandler:(void (^ _Nullable)(void))handler API_AVAILABLE(ios(26.0));
+- (void)triggerForArcadeWithHandler:(void (^ _Nullable)(void))handler API_AVAILABLE(ios(26.0));
 @property (nonatomic, getter=isActive) BOOL active;
 @property (nonatomic, readonly, getter=isVisible) BOOL visible;
 @property (nonatomic, readonly) BOOL isPresentingGameCenter;

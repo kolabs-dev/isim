@@ -8,8 +8,8 @@ import SwiftUI
 
 enum _GCSocial {
     static let statusKey = "_ISIMGameCenterFriendsAuthorization"
-    static var status: GKLocalPlayer.FriendsAuthorizationStatus {
-        GKLocalPlayer.FriendsAuthorizationStatus(rawValue: UserDefaults.standard.integer(forKey: statusKey)) ?? .notDetermined
+    static var status: GKFriendsAuthorizationStatus {
+        GKFriendsAuthorizationStatus(rawValue: UserDefaults.standard.integer(forKey: statusKey)) ?? .notDetermined
     }
     static func friends(_ ids: [String]?) -> [GKPlayer] {
         let all = _GCNet.friendIDs()
@@ -21,13 +21,13 @@ enum _GCSocial {
     static func loadFriends(_ ids: [String]?, _ h: @escaping ([GKPlayer]?, Error?) -> Void) {
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
-                guard GKLocalPlayer.local.isAuthenticated else { h(nil, GKError.notAuthenticated); return }
+                guard GKLocalPlayer.local.isAuthenticated else { h(nil, GKError._notAuthenticated); return }
                 let usage = Bundle.main.object(forInfoDictionaryKey: "NSGKFriendListUsageDescription") as? String ?? ""
                 guard !usage.isEmpty else {
                     NSLog("isim GameKit: loadFriends needs NSGKFriendListUsageDescription in the app's Info.plist")
                     h(nil, GKError(code: .friendListDescriptionMissing)); return
                 }
-                func answer(_ s: GKLocalPlayer.FriendsAuthorizationStatus) {
+                func answer(_ s: GKFriendsAuthorizationStatus) {
                     UserDefaults.standard.set(s.rawValue, forKey: statusKey)
                     if s == .authorized { let f = friends(ids); NSLog("isim GameKit: %ld friends", f.count); h(f, nil) }
                     else { h(nil, GKError(code: .friendListDenied)) }
@@ -67,10 +67,6 @@ enum _GCSocial {
 
 // MARK: - Events from other players
 
-public typealias GKChallengeListener = GKLocalPlayerListener
-public typealias GKInviteEventListener = GKLocalPlayerListener
-public typealias GKTurnBasedEventListener = GKLocalPlayerListener
-public typealias GKSavedGameListener = GKLocalPlayerListener
 
 @MainActor enum _GCEvents {
     /// deliveries waiting for a registered listener
@@ -119,7 +115,7 @@ public enum GKChallengeState: Int, Sendable { case invalid = 0, pending = 1, com
     @objc open var message: String? { _rec["message"] as? String }
     /// The pending challenges other players sent the local player.
     @objc public class func loadReceivedChallenges(completionHandler: (([GKChallenge]?, Error?) -> Void)? = nil) {
-        guard GKLocalPlayer.local.isAuthenticated else { DispatchQueue.main.async { completionHandler?(nil, GKError.notAuthenticated) }; return }
+        guard GKLocalPlayer.local.isAuthenticated else { DispatchQueue.main.async { completionHandler?(nil, GKError._notAuthenticated) }; return }
         let list = _GCChallenges.all().filter { ($0["to"] as? String) == _GCNet.me && ($0["state"] as? Int) == GKChallengeState.pending.rawValue }
             .sorted { ($0["issued"] as? Double ?? 0) < ($1["issued"] as? Double ?? 0) }.map(GKChallenge._make)
         DispatchQueue.main.async { completionHandler?(list, nil) }
@@ -186,9 +182,9 @@ enum _GCChallenges {
             ? "Earn “\(_GCText.title(rec["achievement"] as? String ?? ""))”"
             : "Beat \(_GCConfig.board(rec["board"] as? String ?? "").formatted(rec["score"] as? Int ?? 0)) on \(_GCConfig.board(rec["board"] as? String ?? "").title)"
         NSLog("isim GameKit: challenge from %@: %@", from, what)
-        _GCEvents.deliver { l in l.player(GKLocalPlayer.local, didReceive: c) }
+        _GCEvents.deliver { l in l.player?(GKLocalPlayer.local, didReceive: c) }
         _GCBanner.show(title: "\(from) challenged you", subtitle: what, kind: .other(from)) {
-            _GCEvents.deliver { l in l.player(GKLocalPlayer.local, wantsToPlay: c) }
+            _GCEvents.deliver { l in l.player?(GKLocalPlayer.local, wantsToPlay: c) }
         }
     }
     /// the issuer's side: a friend completed a challenge we sent
@@ -197,7 +193,7 @@ enum _GCChallenges {
         let c = GKChallenge._make(rec)
         guard let friend = c.receivingPlayer else { return }
         NSLog("isim GameKit: %@ completed your challenge", friend.alias)
-        _GCEvents.deliver { l in l.player(GKLocalPlayer.local, issuedChallengeWasCompleted: c, byFriend: friend) }
+        _GCEvents.deliver { l in l.player?(GKLocalPlayer.local, issuedChallengeWasCompleted: c, byFriend: friend) }
     }
     @MainActor static func complete(_ rec: [String: Any]) {
         let id = rec["id"] as? String ?? ""
@@ -206,7 +202,7 @@ enum _GCChallenges {
         let issuer = c.issuingPlayer ?? GKLocalPlayer.local
         NSLog("isim GameKit: challenge from %@ completed", issuer.alias)
         if let from = rec["from"] as? String { _GCNet.post(from, ["kind": "challengeCompleted", "challenge": id]) }
-        _GCEvents.deliver { l in l.player(GKLocalPlayer.local, didComplete: c, issuedByFriend: issuer) }
+        _GCEvents.deliver { l in l.player?(GKLocalPlayer.local, didComplete: c, issuedByFriend: issuer) }
         _GCBanner.show(title: "Challenge Completed", subtitle: "You beat \(issuer.alias)’s challenge", kind: .other(issuer.alias))
     }
     private static func pending(_ kind: String) -> [[String: Any]] {

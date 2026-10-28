@@ -36,6 +36,10 @@ from App Store Connect. isim reads them from a JSON file instead. The format is 
     { "id": "dev.example.duel", "title": "Duel", "details": "Beat a friend’s high score.", "supportsPartyCode": true,
       "minPlayers": 2, "maxPlayers": 2, "playStyle": "synchronous", "defaultProperties": { "arena": "forest" },
       "leaderboards": ["dev.example.high_score"], "achievements": ["dev.example.first_win"] }
+  ],
+  "challenges": [
+    { "id": "dev.example.weekend", "title": "Weekend Showdown", "details": "Top the high score by Sunday.",
+      "leaderboard": "dev.example.high_score", "durations": ["P1D", "P3D"], "repeatable": true, "active": true }
   ]
 }
 ```
@@ -48,6 +52,10 @@ from App Store Connect. isim reads them from a JSON file instead. The format is 
 | `format` | how `GKLeaderboard.Entry.formattedScore` shows a score: `integer` (default, `1,500`), `fixedPoint` (`decimals`, default 2: 731 is `7.31`), `elapsedTime` (`unit`: what one point is, `seconds` (default), `minutes` or `centiseconds`: 42 seconds is `0:42`), `money` (hundredths of `currency`, default `USD`); `suffix` is appended |
 | `image` | an image file in the bundle (or asset name). Otherwise isim draws a placeholder |
 | `achievements[].hidden` | hidden achievements stay out of the dashboard until they are reported |
+| `releaseState` | leaderboards, achievements, activities and challenges: `released` (default) or `prereleased` (`GKReleaseState`) |
+| `leaderboards[].description`, `hidden` | `GKLeaderboard.leaderboardDescription` and `isHidden` |
+| `activityIdentifier`, `activityProperties` | leaderboards and achievements: the game activity they belong to (iOS 26) |
+| `challenges` | iOS 26 challenge definitions (`GKChallengeDefinition`): `title`, `details`, `groupIdentifier`, the `leaderboard` it is played on, `durations` (ISO 8601, default `P1D`), `repeatable`, `image`, and `active` (whether `hasActiveChallenges` reports players taking part) |
 | `activities` | iOS 26 game activities (`GKGameActivityDefinition`): `title`, `details`, `groupIdentifier`, `supportsPartyCode`, `minPlayers`, `maxPlayers`, `supportsUnlimitedPlayers`, `playStyle` (`synchronous`, `asynchronous`), `defaultProperties`, `fallbackURL`, `image`, and the `leaderboards` and `achievements` the activity is about |
 
 ## The local Game Center network
@@ -81,6 +89,15 @@ device shares one directory, the **local Game Center network**: `ISIM_GAMECENTER
 ISIM_DATA=/tmp/pat isim run MyGame.app &        # set each device's nickname in Settings > Game Center
 ISIM_DATA=/tmp/sam isim run MyGame.app &
 ```
+
+## Identity verification
+
+`GKLocalPlayer.fetchItems(forIdentityVerificationSignature:)` signs, as on iOS, the player's `teamPlayerID`, the
+bundle identifier, the timestamp (big-endian UInt64, milliseconds) and the salt. isim signs with an ECDSA P-256 key
+made for the device on first use and kept in its data (`Library/GameCenter/identity-key.pem`); the public key URL is a
+file URL of its self-signed certificate (`identity.cer`, DER). A game server under test verifies the signature with
+that certificate's key (ECDSA, SHA-256, X9.62) instead of Apple's RSA certificate from `static.gc.apple.com`;
+`isim gamecenter identity` prints the certificate (PEM).
 
 ## Where Game Center data lives
 

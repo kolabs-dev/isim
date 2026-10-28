@@ -3,7 +3,8 @@ and isim's local Game Center, with a test player (Alex) from `isim gamecenter`. 
 score posted and the leaderboard ranked across players, achievements reported and loaded with their descriptions, the
 player's photo, the access point, a saved game, a turn-based match saved, loaded, ended and removed, a GKErrorDomain
 error, a challenge from Alex reaching the Objective-C GKLocalPlayerListener (received, then played from its banner), and GKGameCenterViewController /
-GKMatchmakerViewController with their Objective-C delegates."""
+GKMatchmakerViewController with their Objective-C delegates; challenge definitions, release states, identity verification,
+queue activity and the voice chat and legacy constants (issue #394)."""
 import os
 import subprocess
 
@@ -39,6 +40,10 @@ def test_gamekit_objc(launch, device_data):
     app.wait_log(p + r"ended error none status 2 outcome 2")
     app.wait_log(p + r"removed error none matches left 0")
     app.wait_log(p + r"bad request refused domain GKErrorDomain code 13 is invalid 1")
+    app.wait_log(p + r'challenge definitions 1: dev\.isim\.gkobjc\.challenge "Weekly" leaderboard dev\.isim\.gkobjc\.high_score days 7 prereleased 1')
+    app.wait_log(p + r'leaderboard description "Highest score" hidden 0 released 1')
+    app.wait_log(p + r"identity verification file 1 signature 1 salt 32 timestamp 1 error none")
+    app.wait_log(p + r"queue activity 0 voip 0 debug mode 38 no longer available PlayerIDNoLongerAvailable match type 1")
     app.wait_log(p + r"ready")
 
     gamecenter(device_data, APP, "challenge", "Alex", "score", "dev.isim.gkobjc.high_score", "1300", "Beat this")
