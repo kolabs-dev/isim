@@ -48,6 +48,12 @@
   isim agerange show                               the age, declaration, parental controls
   isim permission <app> list                       PermissionKit questions the app asked a parent
   isim permission <app> approve|decline [id|all]   answer as the parent (the latest pending question by default)
+  isim autofill providers                          credential provider extensions (password managers) and whether
+                                                   AutoFill uses them, with their saved credential identities
+  isim autofill enable|disable <app>               Settings > Passwords > Password Options: turn an app's provider on/off
+  isim sso list                                    the single sign-on profiles (identity provider URLs -> SSO extension)
+  isim sso add <extension bundle id> <url>... [--realm R]   install a profile, as an MDM's Extensible SSO payload
+  isim sso remove <extension bundle id>|all        remove profiles
 
 <app> is a bundle identifier, an .app bundle or an installed app's name. Running apps notice changes
 within half a second. Data: ISIM_DATA (~/.local/share/isim)/Containers/<bundle id>/Library/isim/; Wallet: ISIM_DATA/Library/Wallet/; StoreKit purchase
@@ -848,6 +854,118 @@ def finance(cmd, args):
         die('usage: isim finance seed|list|add-transaction|clear')
 
 
+PROVIDER_POINT = 'com.apple.authentication-services-credential-provider-ui'
+PROVIDERS = os.path.join(DATA, 'Library/isim/CredentialProviders')
+GLOBAL_PREFS = os.path.join(DATA, 'Library/Preferences/.GlobalPreferences.plist')
+
+
+def global_prefs():
+    try:
+        return plistlib.load(open(GLOBAL_PREFS, 'rb'))
+    except (OSError, plistlib.InvalidFileException):
+        return {}
+
+
+def app_extensions(app_path, point):
+    """the app's extensions of an extension point: (bundle id, appex path, executable)"""
+    out = []
+    plugins = os.path.join(app_path, 'PlugIns')
+    for n in sorted(os.listdir(plugins)) if os.path.isdir(plugins) else []:
+        p = os.path.join(plugins, n)
+        try:
+            info = plistlib.load(open(os.path.join(p, 'Info.plist'), 'rb'))
+        except (OSError, plistlib.InvalidFileException):
+            continue
+        if n.endswith('.appex') and info.get('NSExtension', {}).get('NSExtensionPointIdentifier') == point:
+            out.append((info.get('CFBundleIdentifier', n[:-6]), p, os.path.join(p, info.get('CFBundleExecutable', n[:-6]))))
+    return out
+
+
+def app_path(app):
+    """an .app bundle, or an installed app by name or bundle identifier"""
+    if app.endswith('.app') and os.path.isdir(app):
+        return os.path.abspath(app)
+    apps = os.environ.get('ISIM_APPS') or os.path.join(DATA, 'Applications')
+    for n in sorted(os.listdir(apps)) if os.path.isdir(apps) else []:
+        p = os.path.join(apps, n)
+        try:
+            info = plistlib.load(open(os.path.join(p, 'Info.plist'), 'rb'))
+        except (OSError, plistlib.InvalidFileException):
+            continue
+        if app in (n, n[:-4], info.get('CFBundleIdentifier'), info.get('CFBundleDisplayName'), info.get('CFBundleName')):
+            return p
+    die(f'no app "{app}" (an .app bundle, or an installed app\'s name or bundle identifier)')
+
+
+def autofill(cmd, args):
+    """credential provider extensions (AuthenticationServices' ASCredentialIdentityStore, UIKit's AutoFill)"""
+    prefs = global_prefs()
+    on = prefs.get('AutoFillProviders', [])
+    if cmd == 'providers':
+        stores = {}
+        for f in sorted(os.listdir(PROVIDERS)) if os.path.isdir(PROVIDERS) else []:
+            if f.endswith('.json'):
+                st = json.load(open(os.path.join(PROVIDERS, f)))
+                stores[st.get('bundleID')] = st
+        if not stores:
+            print('no credential providers have been turned on or saved identities')
+        for bid, st in stores.items():
+            print(f'{st.get("name", bid)} ({bid}): {"on" if bid in on else "off"}')
+            for i in st.get('identities', []):
+                print(f'  {i.get("kind")} {i.get("user")} @ {i.get("service")}' + (f' [{i["record"]}]' if i.get('record') else ''))
+        return
+    if cmd not in ('enable', 'disable') or not args:
+        die('usage: isim autofill providers | isim autofill enable|disable <app>')
+    path = app_path(args[0])
+    exts = app_extensions(path, PROVIDER_POINT)
+    if not exts:
+        die(f'{os.path.basename(path)} has no credential provider extension ({PROVIDER_POINT})')
+    bid, appex, exe = exts[0]
+    on = [b for b in on if b != bid] + ([bid] if cmd == 'enable' else [])
+    prefs['AutoFillProviders'] = on
+    os.makedirs(os.path.dirname(GLOBAL_PREFS), exist_ok=True)
+    plistlib.dump(prefs, open(GLOBAL_PREFS, 'wb'))
+    os.makedirs(PROVIDERS, exist_ok=True)
+    f = os.path.join(PROVIDERS, bid + '.json')
+    st = json.load(open(f)) if os.path.exists(f) else {'identities': []}
+    try:
+        name = plistlib.load(open(os.path.join(path, 'Info.plist'), 'rb')).get('CFBundleDisplayName') or os.path.basename(path)[:-4]
+    except (OSError, plistlib.InvalidFileException):
+        name = os.path.basename(path)[:-4]
+    st.update({'bundleID': bid, 'name': name, 'extension': appex, 'executable': exe})
+    write_json(f, st)
+    print(f'{name} ({bid}): AutoFill {"on" if cmd == "enable" else "off"}')
+
+
+SSO_PROFILES = os.path.join(DATA, 'Library/isim/SSO/profiles.json')
+
+
+def sso(cmd, args):
+    """Extensible single sign-on profiles: identity provider URLs handled by an SSO extension"""
+    profiles = json.load(open(SSO_PROFILES)) if os.path.exists(SSO_PROFILES) else []
+    if cmd == 'list':
+        if not profiles:
+            print('no SSO profiles')
+        for p in profiles:
+            print(f'{p["extension"]}: {" ".join(p["urls"])}' + (f' realm {p["realm"]}' if p.get('realm') else ''))
+        return
+    if cmd == 'add' and len(args) >= 2:
+        ext, urls, realm, i = args[0], [], '', 1
+        while i < len(args):
+            if args[i] == '--realm' and i + 1 < len(args):
+                realm = args[i + 1]; i += 2
+            else:
+                urls.append(args[i]); i += 1
+        profiles = [p for p in profiles if p['extension'] != ext] + [{'extension': ext, 'urls': urls, 'realm': realm, 'type': 'redirect'}]
+    elif cmd == 'remove' and args:
+        profiles = [] if args[0] == 'all' else [p for p in profiles if p['extension'] != args[0]]
+    else:
+        die('usage: isim sso list | isim sso add <extension bundle id> <url>... [--realm R] | isim sso remove <extension>|all')
+    os.makedirs(os.path.dirname(SSO_PROFILES), exist_ok=True)
+    write_json(SSO_PROFILES, profiles)
+    print(f'{len(profiles)} SSO profile(s)')
+
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == 'gamecenter' and sys.argv[2] in GC_NETWORK:
         sys.argv.append('')
@@ -855,6 +973,8 @@ def main():
         sys.argv.append('')
     if len(sys.argv) >= 2 and sys.argv[1] == 'finance':
         return finance(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
+    if len(sys.argv) >= 2 and sys.argv[1] in ('autofill', 'sso'):
+        return {'autofill': autofill, 'sso': sso}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] == 'agerange':
         return agerange(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] == 'wallet':

@@ -24,6 +24,10 @@ typedef NS_ERROR_ENUM(ASAuthorizationErrorDomain, ASAuthorizationError) {
     ASAuthorizationErrorFailed = 1004,
     ASAuthorizationErrorNotInteractive = 1005,
     ASAuthorizationErrorMatchedExcludedCredential = 1006,
+    ASAuthorizationErrorCredentialImport = 1007,
+    ASAuthorizationErrorCredentialExport = 1008,
+    ASAuthorizationErrorPreferSignInWithApple = 1009,
+    ASAuthorizationErrorDeviceNotConfiguredForPasskeyCreation = 1010,
 };
 
 FOUNDATION_EXPORT NSErrorDomain const ASWebAuthenticationSessionErrorDomain;
@@ -458,6 +462,292 @@ typedef void (^ASWebAuthenticationSessionCompletionHandler)(NSURL * _Nullable ca
 - (void)cancel;
 + (instancetype)new NS_UNAVAILABLE;
 - (instancetype)init NS_UNAVAILABLE;
+@end
+
+/* ---- credential provider extensions (#400): the identity store, requests and credentials, the extension's view
+   controller and context. isim runs the extension in the app that asks (see the Swift overlay's CredentialProvider.swift). */
+
+FOUNDATION_EXPORT NSErrorDomain const ASExtensionErrorDomain;
+typedef NS_ERROR_ENUM(ASExtensionErrorDomain, ASExtensionErrorCode) {
+    ASExtensionErrorCodeFailed = 0,
+    ASExtensionErrorCodeUserCanceled = 1,
+    ASExtensionErrorCodeUserInteractionRequired = 100,
+    ASExtensionErrorCodeCredentialIdentityNotFound = 101,
+    ASExtensionErrorCodeMatchedExcludedCredential = 102,
+};
+FOUNDATION_EXPORT NSErrorUserInfoKey const ASExtensionLocalizedFailureReasonErrorKey;
+
+FOUNDATION_EXPORT NSErrorDomain const ASCredentialIdentityStoreErrorDomain;
+typedef NS_ERROR_ENUM(ASCredentialIdentityStoreErrorDomain, ASCredentialIdentityStoreErrorCode) {
+    ASCredentialIdentityStoreErrorCodeInternalError = 0,
+    ASCredentialIdentityStoreErrorCodeStoreDisabled = 1,
+    ASCredentialIdentityStoreErrorCodeStoreBusy = 2,
+};
+
+typedef NS_ENUM(NSInteger, ASCredentialServiceIdentifierType) {
+    ASCredentialServiceIdentifierTypeDomain = 0,
+    ASCredentialServiceIdentifierTypeURL = 1,
+    ASCredentialServiceIdentifierTypeApp = 2,
+};
+
+@interface ASCredentialServiceIdentifier : NSObject <NSCopying, NSSecureCoding>
+- (instancetype)initWithIdentifier:(NSString *)identifier type:(ASCredentialServiceIdentifierType)type;
+- (instancetype)initWithIdentifier:(NSString *)identifier type:(ASCredentialServiceIdentifierType)type displayName:(NSString *)displayName;
+@property (nonatomic, readonly, copy) NSString *identifier;
+@property (nonatomic, readonly) ASCredentialServiceIdentifierType type;
+@property (nonatomic, readonly, copy, nullable) NSString *displayName;
+@end
+
+@protocol ASCredentialIdentity <NSObject>
+@property (nonatomic, readonly, strong) ASCredentialServiceIdentifier *serviceIdentifier;
+@property (nonatomic, readonly, copy) NSString *user;
+@property (nonatomic, readonly, copy, nullable) NSString *recordIdentifier;
+@property (nonatomic) NSInteger rank;
+@end
+
+@interface ASPasswordCredentialIdentity : NSObject <ASCredentialIdentity, NSCopying, NSSecureCoding>
+- (instancetype)initWithServiceIdentifier:(ASCredentialServiceIdentifier *)serviceIdentifier user:(NSString *)user recordIdentifier:(nullable NSString *)recordIdentifier;
+@end
+
+@interface ASPasskeyCredentialIdentity : NSObject <ASCredentialIdentity, NSCopying, NSSecureCoding>
+- (instancetype)initWithRelyingPartyIdentifier:(NSString *)relyingPartyIdentifier userName:(NSString *)userName credentialID:(NSData *)credentialID
+                                    userHandle:(NSData *)userHandle recordIdentifier:(nullable NSString *)recordIdentifier;
+@property (nonatomic, readonly, copy) NSString *relyingPartyIdentifier;
+@property (nonatomic, readonly, copy) NSString *userName;
+@property (nonatomic, readonly, copy) NSData *credentialID;
+@property (nonatomic, readonly, copy) NSData *userHandle;
+@end
+
+@interface ASOneTimeCodeCredentialIdentity : NSObject <ASCredentialIdentity, NSCopying, NSSecureCoding>
+- (instancetype)initWithServiceIdentifier:(ASCredentialServiceIdentifier *)serviceIdentifier label:(NSString *)label recordIdentifier:(nullable NSString *)recordIdentifier;
+@property (nonatomic, readonly, copy) NSString *label;
+@end
+
+typedef NS_ENUM(NSUInteger, ASCredentialRequestType) {
+    ASCredentialRequestTypePassword = 0,
+    ASCredentialRequestTypePasskeyAssertion = 1,
+    ASCredentialRequestTypePasskeyRegistration = 2,
+    ASCredentialRequestTypeOneTimeCode = 3,
+};
+
+@protocol ASCredentialRequest <NSObject, NSCopying, NSSecureCoding>
+@property (nonatomic, readonly) ASCredentialRequestType type;
+@property (nonatomic, readonly) id<ASCredentialIdentity> credentialIdentity;
+@end
+
+@interface ASPasswordCredentialRequest : NSObject <ASCredentialRequest>
+- (instancetype)initWithCredentialIdentity:(ASPasswordCredentialIdentity *)credentialIdentity;
+@end
+
+@interface ASOneTimeCodeCredentialRequest : NSObject <ASCredentialRequest>
+- (instancetype)initWithCredentialIdentity:(ASOneTimeCodeCredentialIdentity *)credentialIdentity;
+@end
+
+@interface ASPasskeyCredentialRequest : NSObject <ASCredentialRequest>
+@property (nonatomic, readonly) NSData *clientDataHash;
+@property (nonatomic, readonly) ASAuthorizationPublicKeyCredentialUserVerificationPreference userVerificationPreference;
+@property (nonatomic, readonly) NSArray<NSNumber *> *supportedAlgorithms;
+@end
+
+@interface ASPasskeyCredentialRequestParameters : NSObject <NSCopying, NSSecureCoding>
+@property (nonatomic, readonly, copy) NSString *relyingPartyIdentifier;
+@property (nonatomic, readonly) NSData *clientDataHash;
+@property (nonatomic, readonly) NSArray<NSData *> *allowedCredentials;
+@end
+
+@interface ASPasskeyAssertionCredential : NSObject <ASAuthorizationCredential, NSCopying, NSSecureCoding>
+- (instancetype)initWithUserHandle:(NSData *)userHandle relyingParty:(NSString *)relyingParty signature:(NSData *)signature
+                    clientDataHash:(NSData *)clientDataHash authenticatorData:(NSData *)authenticatorData credentialID:(NSData *)credentialID;
+@property (nonatomic, readonly, copy) NSData *userHandle;
+@property (nonatomic, readonly, copy) NSString *relyingParty;
+@property (nonatomic, readonly, copy) NSData *signature;
+@property (nonatomic, readonly, copy) NSData *clientDataHash;
+@property (nonatomic, readonly, copy) NSData *authenticatorData;
+@property (nonatomic, readonly, copy) NSData *credentialID;
+@end
+
+@interface ASPasskeyRegistrationCredential : NSObject <ASAuthorizationCredential, NSCopying, NSSecureCoding>
+- (instancetype)initWithRelyingParty:(NSString *)relyingParty clientDataHash:(NSData *)clientDataHash credentialID:(NSData *)credentialID
+                   attestationObject:(NSData *)attestationObject;
+@property (nonatomic, readonly, copy) NSString *relyingParty;
+@property (nonatomic, readonly, copy) NSData *clientDataHash;
+@property (nonatomic, readonly, copy) NSData *credentialID;
+@property (nonatomic, readonly, copy) NSData *attestationObject;
+@end
+
+@interface ASOneTimeCodeCredential : NSObject <ASAuthorizationCredential, NSCopying, NSSecureCoding>
+- (instancetype)initWithCode:(NSString *)code;
+@property (nonatomic, readonly, copy) NSString *code;
+@end
+
+@interface ASCredentialIdentityStoreState : NSObject
+@property (nonatomic, readonly, getter=isEnabled) BOOL enabled;
+@property (nonatomic, readonly) BOOL supportsIncrementalUpdates;
+@end
+
+@interface ASCredentialIdentityStore : NSObject
+@property (class, nonatomic, readonly) ASCredentialIdentityStore *sharedStore;
+- (void)getCredentialIdentityStoreStateWithCompletion:(void (^)(ASCredentialIdentityStoreState *state))completion;
+- (void)saveCredentialIdentities:(NSArray<ASPasswordCredentialIdentity *> *)credentialIdentities completion:(void (^ _Nullable)(BOOL success, NSError * _Nullable error))completion;
+- (void)saveCredentialIdentityEntries:(NSArray<id<ASCredentialIdentity>> *)credentialIdentities completion:(void (^ _Nullable)(BOOL success, NSError * _Nullable error))completion;
+- (void)removeCredentialIdentities:(NSArray<ASPasswordCredentialIdentity *> *)credentialIdentities completion:(void (^ _Nullable)(BOOL success, NSError * _Nullable error))completion;
+- (void)removeCredentialIdentityEntries:(NSArray<id<ASCredentialIdentity>> *)credentialIdentities completion:(void (^ _Nullable)(BOOL success, NSError * _Nullable error))completion;
+- (void)removeAllCredentialIdentitiesWithCompletion:(void (^ _Nullable)(BOOL success, NSError * _Nullable error))completion;
+- (void)replaceCredentialIdentitiesWithIdentities:(NSArray<ASPasswordCredentialIdentity *> *)newCredentialIdentities completion:(void (^ _Nullable)(BOOL success, NSError * _Nullable error))completion;
+- (void)replaceCredentialIdentityEntries:(NSArray<id<ASCredentialIdentity>> *)newCredentialIdentities completion:(void (^ _Nullable)(BOOL success, NSError * _Nullable error))completion;
++ (instancetype)new NS_UNAVAILABLE;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+
+@interface ASSettingsHelper : NSObject
++ (void)openCredentialProviderAppSettingsWithCompletionHandler:(void (^ _Nullable)(NSError * _Nullable error))completionHandler;
++ (void)openVerificationCodeAppSettingsWithCompletionHandler:(void (^ _Nullable)(NSError * _Nullable error))completionHandler;
++ (void)requestToTurnOnCredentialProviderExtensionWithCompletionHandler:(void (^)(BOOL appWasEnabledForAutoFill))completionHandler;
+@end
+
+@interface ASCredentialProviderExtensionContext : NSExtensionContext
+- (void)completeRequestWithSelectedCredential:(ASPasswordCredential *)credential completionHandler:(void (^ _Nullable)(BOOL expired))completionHandler;
+- (void)completeAssertionRequestWithSelectedPasskeyCredential:(ASPasskeyAssertionCredential *)credential completionHandler:(void (^ _Nullable)(BOOL expired))completionHandler;
+- (void)completeRegistrationRequestWithSelectedPasskeyCredential:(ASPasskeyRegistrationCredential *)credential completionHandler:(void (^ _Nullable)(BOOL expired))completionHandler;
+- (void)completeOneTimeCodeRequestWithSelectedCredential:(ASOneTimeCodeCredential *)credential completionHandler:(void (^ _Nullable)(BOOL expired))completionHandler;
+- (void)completeRequestWithTextToInsert:(NSString *)text completionHandler:(void (^ _Nullable)(BOOL expired))completionHandler;
+- (void)completeExtensionConfigurationRequest;
+@end
+
+@interface ASCredentialProviderViewController : UIViewController
+@property (nonatomic, readonly, strong) ASCredentialProviderExtensionContext *extensionContext;
+- (void)prepareCredentialListForServiceIdentifiers:(NSArray<ASCredentialServiceIdentifier *> *)serviceIdentifiers;
+- (void)prepareCredentialListForServiceIdentifiers:(NSArray<ASCredentialServiceIdentifier *> *)serviceIdentifiers requestParameters:(ASPasskeyCredentialRequestParameters *)requestParameters;
+- (void)prepareOneTimeCodeCredentialListForServiceIdentifiers:(NSArray<ASCredentialServiceIdentifier *> *)serviceIdentifiers;
+- (void)provideCredentialWithoutUserInteractionForRequest:(id<ASCredentialRequest>)credentialRequest;
+- (void)provideCredentialWithoutUserInteractionForIdentity:(ASPasswordCredentialIdentity *)credentialIdentity;
+- (void)prepareInterfaceToProvideCredentialForRequest:(id<ASCredentialRequest>)credentialRequest;
+- (void)prepareInterfaceToProvideCredentialForIdentity:(ASPasswordCredentialIdentity *)credentialIdentity;
+- (void)prepareInterfaceForPasskeyRegistration:(id<ASCredentialRequest>)registrationRequest;
+- (void)performPasskeyRegistrationWithoutUserInteractionIfPossible:(ASPasskeyCredentialRequest *)registrationRequest;
+- (void)prepareInterfaceForExtensionConfiguration;
+- (void)prepareInterfaceForUserChoosingTextToInsert;
+@end
+
+/* ---- single sign-on (#400): the app's request, and the SSO extension's side */
+
+typedef NSString * ASAuthorizationProviderAuthorizationOperation NS_TYPED_EXTENSIBLE_ENUM;
+FOUNDATION_EXPORT ASAuthorizationProviderAuthorizationOperation const ASAuthorizationProviderAuthorizationOperationConfigurationRemoved;
+FOUNDATION_EXPORT ASAuthorizationProviderAuthorizationOperation const ASAuthorizationProviderAuthorizationOperationDirectRequest;
+
+@class ASAuthorizationSingleSignOnRequest;
+@interface ASAuthorizationSingleSignOnProvider : NSObject <ASAuthorizationProvider>
++ (instancetype)authorizationProviderWithIdentityProviderURL:(NSURL *)url;
+@property (nonatomic, readonly) NSURL *url;
+@property (nonatomic, readonly) BOOL canPerformAuthorization;
+- (ASAuthorizationSingleSignOnRequest *)createRequest;
++ (instancetype)new NS_UNAVAILABLE;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+
+@interface ASAuthorizationSingleSignOnRequest : ASAuthorizationOpenIDRequest
+@property (nonatomic, copy) NSArray<NSURLQueryItem *> *authorizationOptions;
+@property (nonatomic, getter=isUserInterfaceEnabled) BOOL userInterfaceEnabled;
+@end
+
+@interface ASAuthorizationSingleSignOnCredential : NSObject <ASAuthorizationCredential, NSSecureCoding>
+@property (nonatomic, readonly, copy, nullable) NSString *state;
+@property (nonatomic, readonly, copy, nullable) NSData *accessToken;
+@property (nonatomic, readonly, copy, nullable) NSData *identityToken;
+@property (nonatomic, readonly, copy) NSArray<ASAuthorizationScope> *authorizedScopes;
+@property (nonatomic, readonly, copy, nullable) NSHTTPURLResponse *authenticatedResponse;
+@end
+
+@interface ASAuthorizationProviderExtensionAuthorizationResult : NSObject
+- (instancetype)initWithHTTPAuthorizationHeaders:(NSDictionary<NSString *, NSString *> *)httpAuthorizationHeaders;
+- (instancetype)initWithHTTPResponse:(NSHTTPURLResponse *)httpResponse httpBody:(nullable NSData *)httpBody;
+@property (nonatomic, copy, nullable) NSDictionary<NSString *, NSString *> *httpAuthorizationHeaders;
+@property (nonatomic, copy, nullable) NSHTTPURLResponse *httpResponse;
+@property (nonatomic, copy, nullable) NSData *httpBody;
+@end
+
+@interface ASAuthorizationProviderExtensionAuthorizationRequest : NSObject
+@property (nonatomic, readonly) NSURL *url;
+@property (nonatomic, readonly) ASAuthorizationProviderAuthorizationOperation requestedOperation;
+@property (nonatomic, readonly) NSDictionary<NSString *, NSString *> *httpHeaders;
+@property (nonatomic, readonly) NSData *httpBody;
+@property (nonatomic, readonly) NSString *realm;
+@property (nonatomic, readonly) NSDictionary *extensionData;
+@property (nonatomic, readonly) NSString *callerBundleIdentifier;
+@property (nonatomic, readonly) NSString *callerTeamIdentifier;
+@property (nonatomic, readonly) NSString *localizedCallerDisplayName;
+@property (nonatomic, readonly) NSDictionary *authorizationOptions;
+@property (nonatomic, readonly, getter=isCallerManaged) BOOL callerManaged;
+@property (nonatomic, readonly, getter=isUserInterfaceEnabled) BOOL userInterfaceEnabled;
+- (void)doNotHandle;
+- (void)cancel;
+- (void)complete;
+- (void)completeWithHTTPAuthorizationHeaders:(NSDictionary<NSString *, NSString *> *)httpAuthorizationHeaders;
+- (void)completeWithHTTPResponse:(NSHTTPURLResponse *)httpResponse httpBody:(nullable NSData *)httpBody;
+- (void)completeWithAuthorizationResult:(ASAuthorizationProviderExtensionAuthorizationResult *)authorizationResult;
+- (void)completeWithError:(NSError *)error;
+- (void)presentAuthorizationViewControllerWithCompletion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+@end
+
+@protocol ASAuthorizationProviderExtensionAuthorizationRequestHandler <NSObject>
+- (void)beginAuthorizationWithRequest:(ASAuthorizationProviderExtensionAuthorizationRequest *)request;
+@optional
+- (void)cancelAuthorizationWithRequest:(ASAuthorizationProviderExtensionAuthorizationRequest *)request;
+@end
+
+/* ---- account modification (#400) */
+
+@interface ASAccountAuthenticationModificationRequest : NSObject
+@end
+@interface ASAccountAuthenticationModificationUpgradePasswordToStrongPasswordRequest : ASAccountAuthenticationModificationRequest
+- (instancetype)initWithUser:(NSString *)user serviceIdentifier:(ASCredentialServiceIdentifier *)serviceIdentifier userInfo:(nullable NSDictionary *)userInfo;
+@property (nonatomic, readonly, copy) NSString *user;
+@property (nonatomic, readonly, copy) ASCredentialServiceIdentifier *serviceIdentifier;
+@property (nonatomic, readonly, copy, nullable) NSDictionary *userInfo;
+@end
+@interface ASAccountAuthenticationModificationReplacePasswordWithSignInWithAppleRequest : ASAccountAuthenticationModificationRequest
+- (instancetype)initWithUser:(NSString *)user serviceIdentifier:(ASCredentialServiceIdentifier *)serviceIdentifier userInfo:(nullable NSDictionary *)userInfo;
+@property (nonatomic, readonly, copy) NSString *user;
+@property (nonatomic, readonly, copy) ASCredentialServiceIdentifier *serviceIdentifier;
+@property (nonatomic, readonly, copy, nullable) NSDictionary *userInfo;
+@end
+
+@class ASAccountAuthenticationModificationController;
+@protocol ASAccountAuthenticationModificationControllerDelegate <NSObject>
+@optional
+- (void)accountAuthenticationModificationController:(ASAccountAuthenticationModificationController *)controller
+                   didSuccessfullyCompleteRequest:(ASAccountAuthenticationModificationRequest *)request withUserInfo:(nullable NSDictionary *)userInfo;
+- (void)accountAuthenticationModificationController:(ASAccountAuthenticationModificationController *)controller
+                                   didFailRequest:(ASAccountAuthenticationModificationRequest *)request withError:(NSError *)error;
+@end
+@protocol ASAccountAuthenticationModificationControllerPresentationContextProviding <NSObject>
+- (ASPresentationAnchor)presentationAnchorForAccountAuthenticationModificationController:(ASAccountAuthenticationModificationController *)controller;
+@end
+
+@interface ASAccountAuthenticationModificationController : NSObject
+@property (nonatomic, weak, nullable) id<ASAccountAuthenticationModificationControllerDelegate> delegate;
+@property (nonatomic, weak, nullable) id<ASAccountAuthenticationModificationControllerPresentationContextProviding> presentationContextProvider;
+- (void)performRequest:(ASAccountAuthenticationModificationRequest *)request;
+@end
+
+@interface ASAccountAuthenticationModificationExtensionContext : NSExtensionContext
+- (void)getSignInWithAppleUpgradeAuthorizationWithState:(nullable NSString *)state nonce:(nullable NSString *)nonce
+                                      completionHandler:(void (^)(ASAuthorizationAppleIDCredential * _Nullable authorization, NSError * _Nullable error))completionHandler;
+- (void)completeUpgradeToSignInWithAppleWithUserInfo:(nullable NSDictionary *)userInfo;
+- (void)completeChangePasswordRequestWithUpdatedCredential:(ASPasswordCredential *)updatedCredential userInfo:(nullable NSDictionary *)userInfo;
+@end
+
+@interface ASAccountAuthenticationModificationViewController : UIViewController
+@property (nonatomic, readonly, strong) ASAccountAuthenticationModificationExtensionContext *extensionContext;
+- (void)convertAccountToSignInWithAppleWithoutUserInteractionForServiceIdentifier:(ASCredentialServiceIdentifier *)serviceIdentifier
+                                                              existingCredential:(ASPasswordCredential *)existingCredential userInfo:(nullable NSDictionary *)userInfo;
+- (void)prepareInterfaceToConvertAccountToSignInWithAppleForServiceIdentifier:(ASCredentialServiceIdentifier *)serviceIdentifier
+                                                          existingCredential:(ASPasswordCredential *)existingCredential userInfo:(nullable NSDictionary *)userInfo;
+- (void)changePasswordWithoutUserInteractionForServiceIdentifier:(ASCredentialServiceIdentifier *)serviceIdentifier existingCredential:(ASPasswordCredential *)existingCredential
+                                                     newPassword:(NSString *)newPassword userInfo:(nullable NSDictionary *)userInfo;
+- (void)prepareInterfaceToChangePasswordForServiceIdentifier:(ASCredentialServiceIdentifier *)serviceIdentifier existingCredential:(ASPasswordCredential *)existingCredential
+                                                 newPassword:(NSString *)newPassword userInfo:(nullable NSDictionary *)userInfo;
+- (void)cancelRequest;
 @end
 
 NS_ASSUME_NONNULL_END

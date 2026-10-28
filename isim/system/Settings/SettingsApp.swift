@@ -71,7 +71,7 @@ enum Route: Hashable {
     case accessibility, textSize, voiceOver
     case general, about, keyboard, keyboards, addKeyboard, keyboardDetail(String), language, region, dateTime, timeZone, display, appearance, liquidGlass, gameCenter, homeScreen
     case app(String), appKeyboards(String), appPaste(String)
-    case passwords, pencil
+    case passwords, passwordOptions, pencil
     case developer, localExperiences, registerExperience                                   // DeveloperSettings.swift
     case privacy, privacyService(String), appPermission(String, String), notifications, appNotifications(String)   // PrivacySettings.swift
     case appPane(String, String, String), appMultiValue(String, String, String)   // Settings.bundle (SettingsBundle.swift)
@@ -169,6 +169,7 @@ struct RootView: View {
                 if s.hasPrefix("app-settings:") {
                     let id = String(s.dropFirst("app-settings:".count))
                     if id == "@accessibility" { path = [.accessibility] }      // AccessibilitySettings.openSettings(for:)
+                    else if id == "@passwordoptions" { path = [.passwords, .passwordOptions] }   // ASSettingsHelper
                     else if id.hasSuffix("/notifications") { path = [.app(String(id.dropLast("/notifications".count))), .appNotifications(String(id.dropLast("/notifications".count)))] }
                     else { path = id.isEmpty ? [] : [.app(id)] }
                 }
@@ -200,6 +201,7 @@ struct RootView: View {
         case .appKeyboards(let id): AppKeyboardsView(id: id)
         case .appPaste(let id): PasteAccessView(id: id)
         case .passwords: PasswordsView()
+        case .passwordOptions: PasswordOptionsView()
         case .pencil: PencilView()
         case .developer: DeveloperView()
         case .localExperiences: LocalExperiencesView()
@@ -937,6 +939,9 @@ struct PasswordsView: View {
                                                            set: { Store.set("AutoFillPasswords", $0); bump += 1 }))
                     .accessibilityIdentifier("settings-autofill")
             } footer: { Text("Apps offer these passwords above the keyboard and ask to save new ones. They are stored on this isim device only.") }
+            Section {
+                NavigationLink("Password Options") { PasswordOptionsView() }.accessibilityIdentifier("settings-password-options")
+            }
             Section("Saved Passwords") {
                 if items.isEmpty { Text("No Saved Passwords").foregroundStyle(.secondary) }
                 ForEach(Array(items.enumerated()), id: \.offset) { i, e in
@@ -950,6 +955,72 @@ struct PasswordsView: View {
             }
         }
         .navigationTitle("Passwords").navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// Settings > Passwords > Password Options: which credential provider extensions AutoFill uses ("AutoFillProviders" in
+/// the global preferences). Turning one on writes its AuthenticationServices store file (Library/isim/CredentialProviders)
+/// with where its extension is, so apps can run it.
+struct CredentialProvider: Identifiable, Hashable { let id: String, name: String, path: String, executable: String }
+
+@MainActor func credentialProviders() -> [CredentialProvider] {
+    var out: [CredentialProvider] = []
+    for app in installedApps() {
+        let plugins = (app.path as NSString).appendingPathComponent("PlugIns")
+        for ext in ((try? FileManager.default.contentsOfDirectory(atPath: plugins)) ?? []).sorted() where ext.hasSuffix(".appex") {
+            let p = (plugins as NSString).appendingPathComponent(ext)
+            guard let info = NSDictionary(contentsOfFile: (p as NSString).appendingPathComponent("Info.plist")) as? [String: Any],
+                  (info["NSExtension"] as? [String: Any])?["NSExtensionPointIdentifier"] as? String == "com.apple.authentication-services-credential-provider-ui",
+                  let id = info["CFBundleIdentifier"] as? String else { continue }
+            let exe = (p as NSString).appendingPathComponent(info["CFBundleExecutable"] as? String ?? (ext as NSString).deletingPathExtension)
+            out.append(CredentialProvider(id: id, name: app.name, path: p, executable: exe))
+        }
+    }
+    // providers of apps run on their own (not installed) that saved identities
+    let dir = (isimDataDir() as NSString).appendingPathComponent("Library/isim/CredentialProviders")
+    for f in ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).sorted() where f.hasSuffix(".json") {
+        guard let d = FileManager.default.contents(atPath: (dir as NSString).appendingPathComponent(f)),
+              let st = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any], let id = st["bundleID"] as? String,
+              !out.contains(where: { $0.id == id }) else { continue }
+        out.append(CredentialProvider(id: id, name: st["name"] as? String ?? id, path: st["extension"] as? String ?? "", executable: st["executable"] as? String ?? ""))
+    }
+    return out
+}
+
+struct PasswordOptionsView: View {
+    @State private var bump = 0
+    var enabled: [String] { Store.global.array(forKey: "AutoFillProviders") as? [String] ?? [] }
+    func set(_ p: CredentialProvider, _ on: Bool) {
+        var l = enabled.filter { $0 != p.id }
+        if on { l.append(p.id) }
+        Store.set("AutoFillProviders", l)
+        let dir = (isimDataDir() as NSString).appendingPathComponent("Library/isim/CredentialProviders")
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let file = (dir as NSString).appendingPathComponent(p.id + ".json")
+        var st = FileManager.default.contents(atPath: file).flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] } ?? ["identities": []]
+        st["bundleID"] = p.id; st["name"] = p.name; st["extension"] = p.path; st["executable"] = p.executable
+        if let d = try? JSONSerialization.data(withJSONObject: st, options: [.prettyPrinted, .sortedKeys]) { FileManager.default.createFile(atPath: file, contents: d) }
+        bump += 1
+    }
+    var body: some View {
+        let _ = bump
+        let providers = credentialProviders()
+        List {
+            Section {
+                Toggle("AutoFill Passwords and Passkeys", isOn: Binding(get: { Store.global.object(forKey: "AutoFillPasswords") as? Bool ?? true },
+                                                                       set: { Store.set("AutoFillPasswords", $0); bump += 1 }))
+            }
+            Section {
+                HStack { Text("Passwords"); Spacer(); Image(systemName: "checkmark").foregroundStyle(.tint) }
+                ForEach(providers) { p in
+                    Toggle(p.name, isOn: Binding(get: { enabled.contains(p.id) }, set: { set(p, $0) }))
+                        .accessibilityIdentifier("settings-provider-\(p.name)")
+                }
+            } header: { Text("AutoFill From") } footer: {
+                Text(providers.isEmpty ? "Apps with a password manager extension appear here." : "Apps you turn on offer their passwords, passkeys and codes in other apps.")
+            }
+        }
+        .navigationTitle("Password Options").navigationBarTitleDisplayMode(.inline)
     }
 }
 

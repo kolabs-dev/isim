@@ -9,9 +9,18 @@ enum _ASChoice {
     case passkey(ASAuthorizationPlatformPublicKeyCredentialAssertionRequest, _ASPasskey)
     case password(ASAuthorizationPasswordRequest, _ASSavedPassword)
     case securityKey(ASAuthorizationSecurityKeyPublicKeyCredentialAssertionRequest, _ASPasskey, appID: Bool)
-    var title: String { switch self { case .passkey(_, let k), .securityKey(_, let k, _): k.name; case .password(_, let p): p.user } }
+    /// a passkey of an enabled credential provider extension
+    case providerPasskey(ASAuthorizationPlatformPublicKeyCredentialAssertionRequest, [String: Any], ASPasskeyCredentialIdentity)
+    var title: String {
+        switch self {
+        case .passkey(_, let k), .securityKey(_, let k, _): k.name
+        case .password(_, let p): p.user
+        case .providerPasskey(_, _, let i): i.userName
+        }
+    }
     var subtitle: String {
         switch self {
+        case .providerPasskey(_, let s, _): "Passkey · \(s["name"] as? String ?? "Password manager")"
         case .passkey(let r, _): "Passkey for \(r.relyingPartyIdentifier)"
         case .securityKey(let r, _, _): "Security key · \(r.relyingPartyIdentifier)"
         case .password(_, let p): p.server.isEmpty ? "Saved password" : "Saved password · \(p.server)"
@@ -93,6 +102,7 @@ final class _ASSheetDelegate: NSObject, UISheetPresentationControllerDelegate {
         NSLog("isim AuthenticationServices: sign-in sheet with %d saved credential(s)", choices.count)
         let site: String = {
             if case .passkey(let r, _) = choices[0] { return r.relyingPartyIdentifier }
+            if case .providerPasskey(let r, _, _) = choices[0] { return r.relyingPartyIdentifier }
             if case .securityKey(let r, _, _) = choices[0] { return r.relyingPartyIdentifier }
             return _ASData.appName
         }()
@@ -105,6 +115,9 @@ final class _ASSheetDelegate: NSObject, UISheetPresentationControllerDelegate {
                     catch { finish(c) { c.fail(.failed) } }
                 case .password(let r, let p):
                     finish(c) { c.complete(r.provider, ASPasswordCredential(user: p.user, password: p.password)) }
+                case .providerPasskey(let r, let store, let k):
+                    NSLog("isim AuthenticationServices: passkey %@ from %@ for %@", k.userName, store["name"] as? String ?? "?", r.relyingPartyIdentifier)
+                    finish(c) { _ASPasskeys.providerAssertion(c, r, store, k) {} }
                 case .securityKey(let r, let k, let appID):
                     NSLog("isim AuthenticationServices: virtual security key used for %@ (%@)", k.name, r.relyingPartyIdentifier)
                     do { let cred = try _ASPasskeys.assert(r, k, appID: appID); finish(c) { c.complete(r.provider, cred) } }

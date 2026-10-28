@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Vault</string>
+	<key>CFBundleExecutable</key>
+	<string>Provider</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.isim.samples.HelloVault.Provider</string>
+	<key>CFBundlePackageType</key>
+	<string>XPC!</string>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionAttributes</key>
+		<dict>
+			<key>ASCredentialProviderExtensionCapabilities</key>
+			<dict>
+				<key>ProvidesPasskeys</key>
+				<true/>
+				<key>ProvidesPasswords</key>
+				<true/>
+				<key>ProvidesOneTimeCodes</key>
+				<true/>
+			</dict>
+		</dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.authentication-services-credential-provider-ui</string>
+		<key>NSExtensionPrincipalClass</key>
+		<string>Provider.CredentialProviderViewController</string>
+	</dict>
+</dict>
+</plist>

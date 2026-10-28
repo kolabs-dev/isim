@@ -33,6 +33,31 @@ enum _ASPasswords {
         }
         return result
     }
+    static var devicePath: String { (_ASData.dataDir as NSString).appendingPathComponent("Library/Passwords/passwords.plist") }
+    static func deviceAll() -> [[String: Any]] {
+        guard let d = FileManager.default.contents(atPath: devicePath),
+              let list = try? PropertyListSerialization.propertyList(from: d, format: nil) as? [[String: Any]] else { return [] }
+        return list
+    }
+    static func writeDevice(_ list: [[String: Any]]) {
+        try? FileManager.default.createDirectory(atPath: (devicePath as NSString).deletingLastPathComponent, withIntermediateDirectories: true, attributes: nil)
+        if let d = try? PropertyListSerialization.data(fromPropertyList: list, format: .xml, options: 0) {
+            FileManager.default.createFile(atPath: devicePath, contents: d, attributes: nil); chmod(devicePath, 0o600)
+        }
+    }
+    /// a saved password of the device's Passwords store, for any app (account modification)
+    static func find(site: String, user: String) -> ASPasswordCredential? {
+        deviceAll().last { ($0["site"] as? String)?.lowercased() == site && $0["user"] as? String == user }
+            .flatMap { e in (e["password"] as? String).map { ASPasswordCredential(user: user, password: $0) } }
+    }
+    static func update(site: String, user: String, password: String) {
+        var list = deviceAll().filter { !(($0["site"] as? String)?.lowercased() == site && $0["user"] as? String == user) }
+        list.append(["site": site, "user": user, "password": password, "created": Date()])
+        writeDevice(list)
+    }
+    static func remove(site: String, user: String) {
+        writeDevice(deviceAll().filter { !(($0["site"] as? String)?.lowercased() == site && $0["user"] as? String == user) })
+    }
     /// the device Passwords store's entries for this app's sites (newest first)
     static func device() -> [_ASSavedPassword] {
         let env = getenv("ISIM_DATA").map { String(cString: $0) } ?? ""

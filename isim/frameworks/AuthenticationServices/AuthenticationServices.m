@@ -40,3 +40,9 @@ NSArray<ASAuthorizationSecurityKeyPublicKeyCredentialDescriptorTransport> *ASAut
 ASAuthorizationCustomMethod const ASAuthorizationCustomMethodVideoSubscriberAccount = @"ASAuthorizationCustomMethodVideoSubscriberAccount";
 ASAuthorizationCustomMethod const ASAuthorizationCustomMethodRestorePurchase = @"ASAuthorizationCustomMethodRestorePurchase";
 ASAuthorizationCustomMethod const ASAuthorizationCustomMethodOther = @"ASAuthorizationCustomMethodOther";
+
+NSErrorDomain const ASExtensionErrorDomain = @"ASExtensionErrorDomain";
+NSErrorUserInfoKey const ASExtensionLocalizedFailureReasonErrorKey = @"ASExtensionLocalizedFailureReasonErrorKey";
+NSErrorDomain const ASCredentialIdentityStoreErrorDomain = @"ASCredentialIdentityStoreErrorDomain";
+ASAuthorizationProviderAuthorizationOperation const ASAuthorizationProviderAuthorizationOperationConfigurationRemoved = @"configuration_removed";
+ASAuthorizationProviderAuthorizationOperation const ASAuthorizationProviderAuthorizationOperationDirectRequest = @"direct_request";

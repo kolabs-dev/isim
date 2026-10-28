@@ -338,6 +338,16 @@ def _(a):
     a.icon(f"{b}/DarkIcon60x60@3x.png", "#2c2c2e", "#000000", "S", fill="#ffd60a")
 
 
+@app("samples/HelloVault")   # issue #400: a credential provider, an SSO extension and an account modification extension
+def _(a):
+    b = a.swift_app(srcs=["HelloVault.swift"])
+    a.copy("HelloVault.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # webcredentials domain, app group
+    a.appex(b, "Provider", ["Provider/CredentialProviderViewController.swift"], "Provider/Info.plist", link=["-framework", "AuthenticationServices"])
+    a.appex(b, "SSO", ["SSO/SSOViewController.swift"], "SSO/Info.plist", link=["-framework", "AuthenticationServices"])
+    a.appex(b, "Upgrade", ["Upgrade/AccountModificationViewController.swift"], "Upgrade/Info.plist", link=["-framework", "AuthenticationServices"])
+    a.icon(f"{b}/AppIcon60x60@3x.png", "#5856d6", "#3634a3", "V")
+
+
 @app("samples/HelloTextServices")
 def _(a):
     b = a.swift_app()
