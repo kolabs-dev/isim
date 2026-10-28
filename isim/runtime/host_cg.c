@@ -150,7 +150,7 @@ struct cgt {
     int depth; cairo_t *saved; struct cgt *prev;
     GByteArray *buf; double pw, ph; int pages, page_open;
 };
-static struct cgt *cur_target;
+static _Thread_local struct cgt *cur_target;          /* this thread's bound target (isim_host_swap_cairo is per thread) */
 
 void *isim_cg_bitmap_create(void *data, int w, int h, int bpr, int fmt, int bpp) {
     if (!data || w <= 0 || h <= 0 || bpr < w * bpp) return NULL;

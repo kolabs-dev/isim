@@ -4,6 +4,7 @@
  * as a group; blend modes map to cairo operators; transparency layers are groups. */
 #include "cg_context.h"
 #include <stdio.h>
+#include <pthread.h>
 
 void isim_cg_gstate_reset(struct gstate *g) {
     memset(g, 0, sizeof *g);
@@ -50,13 +51,22 @@ static void ctx_fin(void *o) {
     if (x->consumer) objc_release(x->consumer);
 }
 
-/* ---- UIKit's current context (the screen / offscreen images) and UIGraphicsPushContext ---- */
+/* ---- UIKit's current context (the screen / offscreen images) and UIGraphicsPushContext: per thread, as on iOS, so
+   a thread drawing an image never shares graphics state (colors, the gstate stack) with the main thread's frame (#717) ---- */
+static pthread_key_t uikit_key;
+static void uikit_ctx_free(void *o) { ctx_fin(o); objc_release(o); }
+static void uikit_key_make(void) { pthread_key_create(&uikit_key, uikit_ctx_free); }
 static struct CGContext *screen_ctx(void) {
-    static struct CGContext *s;
-    if (!s) s = isim_cg_ctx_new(CTX_UIKIT);
+    static __thread struct CGContext *s;
+    if (!s) {
+        static pthread_once_t once = PTHREAD_ONCE_INIT;
+        pthread_once(&once, uikit_key_make);
+        s = isim_cg_ctx_new(CTX_UIKIT);
+        pthread_setspecific(uikit_key, s);          /* released when the thread ends */
+    }
     return s;
 }
-static struct CGContext *pushed[32]; static int npushed;
+static __thread struct CGContext *pushed[32]; static __thread int npushed;
 CGContextRef isim_cg_current_context(void) { return npushed ? pushed[npushed - 1] : screen_ctx(); }
 void isim_cg_push_current(CGContextRef c) {
     if (!c || npushed >= 32) return;

@@ -89,10 +89,10 @@ static void shell_show(int i) {
         cairo_t *cc = cairo_create(comp); paint_client(cc, i); cairo_destroy(cc); present_comp(); return;
     }
     /* the screenshot / blit source is the foreground client's surface */
-    if (cr) { cairo_destroy(cr); cr = NULL; }
+    if (screen_cr) { cairo_destroy(screen_cr); screen_cr = NULL; }
     if (surf) cairo_surface_destroy(surf);
     surf = cairo_image_surface_create_for_data(clients[i].pixels, CAIRO_FORMAT_ARGB32, surf_w, surf_h, surf_w * 4);
-    cr = cairo_create(surf);
+    screen_cr = cairo_create(surf);
     window_show(surf);
 }
 
@@ -131,10 +131,10 @@ static cairo_surface_t *client_surface(int i) {
     return cairo_image_surface_create_for_data(clients[i].pixels, CAIRO_FORMAT_ARGB32, w, h, w * 4);
 }
 static void present_comp(void) {
-    if (cr) { cairo_destroy(cr); cr = NULL; }
+    if (screen_cr) { cairo_destroy(screen_cr); screen_cr = NULL; }
     if (surf) cairo_surface_destroy(surf);
     surf = cairo_surface_reference(comp);           /* screenshots show the composited frame */
-    cr = cairo_create(surf);
+    screen_cr = cairo_create(surf);
     window_show(comp);
 }
 /* Home screen behind; the app as a rounded card in r (points). icon_alpha crossfades the icon in. */

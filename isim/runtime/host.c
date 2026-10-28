@@ -89,7 +89,12 @@ static double zoom = 1, px_scale = 1;
 static int headless;
 static SDL_Window *win;
 static cairo_surface_t *surf;
-static cairo_t *cr;
+/* The drawing target: the screen, or a thread's own target (a bitmap or PDF context, an offscreen image) while that
+   thread draws into one. Per thread, like UIKit's graphics context stack: a context drawn on another thread never
+   becomes the main thread's target mid-frame (#717). */
+static cairo_t *screen_cr;
+static _Thread_local cairo_t *thread_cr;
+#define cr (thread_cr ? thread_cr : screen_cr)
 static PangoContext *pctx;
 static int surf_w, surf_h;
 static double t0;
@@ -386,12 +391,12 @@ static void text_context(cairo_t *c) {
     cairo_font_options_destroy(fo);
 }
 static void make_surface(void) {
-    if (cr) { cairo_destroy(cr); cairo_surface_destroy(surf); }
+    if (screen_cr) { cairo_destroy(screen_cr); cairo_surface_destroy(surf); }
     surf_w = (int)lround(dev.width * px_scale); surf_h = (int)lround(dev.height * px_scale);
     /* under the shell the app draws privately and publishes whole frames (no tearing while the shell reads) */
     surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, surf_w, surf_h);
-    cr = cairo_create(surf);
-    text_context(cr);
+    screen_cr = cairo_create(surf);
+    text_context(screen_cr);
 }
 
 /* The desktop identity of isim's windows: the app id "dev.isim.Simulator" (Wayland app_id, X11 WM_CLASS; the desktop
@@ -1909,19 +1914,20 @@ ISIM_GUEST_ABI const char *isim_bundle_path(void) {
 }
 
 cairo_t *isim_host_cairo(void) { return cr; }
-/* host_cg.c: makes another cairo context the drawing target (bitmap/PDF contexts); returns the previous one */
-cairo_t *isim_host_swap_cairo(cairo_t *n) { cairo_t *o = cr; cr = n; return o; }
+/* host_cg.c: makes another cairo context this thread's drawing target (bitmap/PDF contexts; NULL: the screen);
+   returns the previous one */
+cairo_t *isim_host_swap_cairo(cairo_t *n) { cairo_t *o = thread_cr; thread_cr = n; return o; }
 
 /* ---- offscreen drawing (UIGraphicsBeginImageContext / UIGraphicsImageRenderer): a stack of image surfaces
-   that temporarily replace the screen as the drawing target ---- */
-static cairo_t *cr_stack[16]; static int cr_depth;
+   that temporarily replace the screen as the drawing target, one stack per thread ---- */
+static _Thread_local cairo_t *cr_stack[16]; static _Thread_local int cr_depth;
 int isim_image_from_surface(cairo_surface_t *src);
 ISIM_GUEST_ABI int isim_gfx_offscreen_begin(double w, double h, double scale, int opaque) {
     if (cr_depth >= 16 || w <= 0 || h <= 0) return 0;
     int pw = (int)ceil(w * scale), ph = (int)ceil(h * scale);
     cairo_surface_t *s = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, pw, ph);
-    cr_stack[cr_depth++] = cr;
-    cr = cairo_create(s); cairo_surface_destroy(s);
+    cr_stack[cr_depth++] = thread_cr;
+    thread_cr = cairo_create(s); cairo_surface_destroy(s);
     if (opaque) { cairo_set_source_rgb(cr, 0, 0, 0); cairo_paint(cr); }
     cairo_scale(cr, scale, scale);
     return 1;
@@ -1929,8 +1935,8 @@ ISIM_GUEST_ABI int isim_gfx_offscreen_begin(double w, double h, double scale, in
 ISIM_GUEST_ABI int isim_gfx_offscreen_snapshot(void) { return cr_depth ? isim_image_from_surface(cairo_get_target(cr)) : 0; }
 ISIM_GUEST_ABI void isim_gfx_offscreen_end(void) {
     if (!cr_depth) return;
-    cairo_destroy(cr);
-    cr = cr_stack[--cr_depth];
+    cairo_destroy(thread_cr);
+    thread_cr = cr_stack[--cr_depth];
 }
 ISIM_GUEST_ABI int isim_gfx_offscreen_depth(void) { return cr_depth; }
 

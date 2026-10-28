@@ -129,7 +129,7 @@ static void sys_round(cairo_t *c, double x, double y, double w, double h, double
            clock is tall glass numerals. Adapted: isim's own drawing, not Apple artwork. */
 static int sys_os(void) { return isim_os_version() / 10000; }
 static void sys_glass(cairo_t *c, double x, double y, double w, double h, double r, const double *tint, int flags) {
-    cairo_t *saved = cr; cr = c; isim_gfx_glass(x, y, w, h, r, tint, flags); cr = saved;
+    cairo_t *saved = thread_cr; thread_cr = c; isim_gfx_glass(x, y, w, h, r, tint, flags); thread_cr = saved;
 }
 /* a module / button background in the version's style */
 static void sys_platter(cairo_t *c, double x, double y, double w, double h, double r, double alpha) {
@@ -196,10 +196,10 @@ static void sys_symbol(cairo_t *c, const char *name, double cx, double cy, doubl
     if (!hd) hd = isim_image_symbol(name, &w, &h);
     if (!hd || w <= 0 || h <= 0) { cairo_set_source_rgb(c, r, g, b); cairo_arc(c, cx, cy, size * 0.3, 0, 2 * M_PI); cairo_fill(c); return; }
     double sw = w * size, sh = h * size;
-    cairo_t *saved = cr; cr = c;
+    cairo_t *saved = thread_cr; thread_cr = c;
     double tint[4] = { r, g, b, 1 };
     isim_image_draw(hd, cx - sw / 2, cy - sh / 2, sw, sh, tint, 1);
-    cr = saved;
+    thread_cr = saved;
     isim_image_free(hd);
 }
 static void sys_icon(cairo_t *c, const char *path, double x, double y, double s) {
@@ -1663,9 +1663,9 @@ static void nb_thumb(cairo_t *c, const char *path, double x, double y, double s)
     cairo_save(c);
     sys_round(c, x, y, s, s, 6); cairo_clip(c);
     double k = fmax(s / w, s / h);                                  /* aspect fill */
-    cairo_t *saved = cr; cr = c;
+    cairo_t *saved = thread_cr; thread_cr = c;
     isim_image_draw(hd, x + (s - w * k) / 2, y + (s - h * k) / 2, w * k, h * k, NULL, 1);
-    cr = saved;
+    thread_cr = saved;
     cairo_restore(c);
     isim_image_free(hd);
 }
@@ -1679,7 +1679,7 @@ static void sys_chrome(cairo_t *c, double alpha) {
     static const double white[4] = { 1, 1, 1, 1 };
     int lockish = ov == OV_LOCK || ov == OV_NC || (ov == OV_NX && locked);
     if (!pctx) text_context(c);
-    cairo_t *saved = cr; cr = c;
+    cairo_t *saved = thread_cr; thread_cr = c;
     cairo_save(c); cairo_identity_matrix(c); cairo_reset_clip(c); cairo_scale(c, px_scale, px_scale);
     cairo_push_group(c);
     draw_status_bar(ov == OV_CC ? SB_CC : lockish ? SB_LOCK : SB_APP, white);
@@ -1687,7 +1687,7 @@ static void sys_chrome(cairo_t *c, double alpha) {
     draw_hardware(lockish, white);
     apply_corner_mask();
     cairo_restore(c);
-    cr = saved;
+    thread_cr = saved;
 }
 static void sys_draw(void) {
     if (!comp) comp = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, surf_w, surf_h);
