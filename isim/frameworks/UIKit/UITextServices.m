@@ -407,6 +407,81 @@ void isim_ui_autofill_field_leaving(UIView<IsimEditableText> *field) {
     });
 }
 
+/* ================= shared web credentials (Security) =================
+ * SecAddSharedWebCredential and SecRequestSharedWebCredential reach the device's Passwords store through these (found by
+ * Security at run time): the domain must be one of the app's verified webcredentials domains
+ * (isim_ui_webcredentials_domains); saving, updating or deleting asks the user, and a request lets the user pick one
+ * of the saved accounts. Statuses: errSecSuccess, errSecItemNotFound (-25300: nothing saved), errSecUserCanceled (-128),
+ * errSecMissingEntitlement (-34018: not an associated domain). */
+extern NSArray<NSString *> *isim_ui_webcredentials_domains(NSString *fqdn);
+static void passwords_remove(NSString *site, NSString *user) {
+    NSMutableArray *a = [NSMutableArray array];
+    for (NSDictionary *e in passwords_all()) if (!([e[@"site"] isEqualToString:site] && [e[@"user"] isEqualToString:user])) [a addObject:e];
+    [a writeToFile:passwords_path() atomically:YES];
+}
+static NSString *app_name(void) {
+    return NSBundle.mainBundle.infoDictionary[@"CFBundleDisplayName"] ?: NSBundle.mainBundle.infoDictionary[@"CFBundleName"] ?: @"this app";
+}
+void isim_ui_shared_web_credential_add(NSString *fqdn, NSString *account, NSString *password, void (^done)(int status)) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSString *site = isim_ui_webcredentials_domains(fqdn).firstObject;
+        if (!site) { NSLog(@"isim: shared web credentials: %@ is not a webcredentials domain of this app", fqdn); done(-34018); return; }
+        NSDictionary *existing = nil;
+        for (NSDictionary *e in passwords_all()) if ([e[@"site"] isEqualToString:site] && [e[@"user"] isEqualToString:account]) existing = e;
+        if (!password && !existing) { done(-25300); return; }
+        if (password && [existing[@"password"] isEqualToString:password]) { done(0); return; }
+        UIViewController *top = top_controller();
+        if (!top) { done(-128); return; }
+        NSString *verb = !password ? @"Delete" : existing ? @"Update" : @"Save";
+        NSString *message = !password
+            ? [NSString stringWithFormat:@"%@ would like to delete the saved password for “%@” on %@.", app_name(), account, site]
+            : [NSString stringWithFormat:@"%@ would like to %@ the password for “%@” on %@ in your Passwords.", app_name(), verb.lowercaseString, account, site];
+        UIAlertController *a = [UIAlertController alertControllerWithTitle:[verb stringByAppendingString:@" Password?"] message:message
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+        [a addAction:[UIAlertAction actionWithTitle:@"Not Now" style:UIAlertActionStyleCancel handler:^(UIAlertAction *x) {
+            NSLog(@"isim: shared web credentials: %@ declined", verb.lowercaseString); done(-128); }]];
+        [a addAction:[UIAlertAction actionWithTitle:[verb stringByAppendingString:@" Password"]
+                                              style:password ? UIAlertActionStyleDefault : UIAlertActionStyleDestructive handler:^(UIAlertAction *x) {
+            if (password) passwords_save(site, account, password); else passwords_remove(site, account);
+            NSLog(@"isim: shared web credentials: %@ %@ for %@", !password ? @"deleted" : existing ? @"updated" : @"saved", account, site);
+            done(0);
+        }]];
+        a.view.accessibilityIdentifier = @"isim-shared-credential";
+        [top presentViewController:a animated:YES completion:nil];
+    });
+}
+void isim_ui_shared_web_credential_request(NSString *fqdn, NSString *account, void (^done)(NSArray<NSDictionary *> *credentials, int status)) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSArray *sites = isim_ui_webcredentials_domains(fqdn);
+        if (!sites.count) { done(nil, -34018); return; }
+        NSMutableArray *found = [NSMutableArray array];
+        NSMutableSet *seen = [NSMutableSet set];
+        for (NSDictionary *e in passwords_all().reverseObjectEnumerator) {
+            NSString *key = [NSString stringWithFormat:@"%@\n%@", e[@"site"], e[@"user"]];
+            if (![sites containsObject:e[@"site"]] || (account && ![e[@"user"] isEqualToString:account]) || [seen containsObject:key]) continue;
+            [seen addObject:key];
+            [found addObject:e];
+        }
+        if (!found.count) { done(nil, -25300); return; }
+        UIViewController *top = top_controller();
+        if (!top) { done(nil, -128); return; }
+        UIAlertController *a = [UIAlertController alertControllerWithTitle:[NSString stringWithFormat:@"Use a saved password with %@?", app_name()]
+            message:@"Choose an account to sign in with." preferredStyle:UIAlertControllerStyleActionSheet];
+        [found enumerateObjectsUsingBlock:^(NSDictionary *e, NSUInteger i, BOOL *stop) {
+            UIAlertAction *act = [UIAlertAction actionWithTitle:[NSString stringWithFormat:@"%@ — %@", e[@"user"], e[@"site"]] style:UIAlertActionStyleDefault
+                                                        handler:^(UIAlertAction *x) {
+                NSLog(@"isim: shared web credentials: chose %@ for %@", e[@"user"], e[@"site"]);
+                done(@[@{ @"srvr": e[@"site"], @"acct": e[@"user"], @"spwd": e[@"password"] }], 0);
+            }];
+            [a addAction:act];
+        }];
+        [a addAction:[UIAlertAction actionWithTitle:@"Not Now" style:UIAlertActionStyleCancel handler:^(UIAlertAction *x) {
+            NSLog(@"isim: shared web credentials: request declined"); done(nil, -128); }]];
+        a.view.accessibilityIdentifier = @"isim-shared-credential-picker";
+        [top presentViewController:a animated:YES completion:nil];
+    });
+}
+
 /* ================= dictation ================= */
 static NSString *spoken_to_text(NSString *spoken, NSString *before) {
     NSDictionary *marks = @{ @"period": @".", @"full stop": @".", @"comma": @",", @"question mark": @"?", @"exclamation point": @"!",

@@ -132,5 +132,14 @@ extern const CFStringRef kSecImportExportPassphrase, kSecImportItemLabel, kSecIm
 OSStatus SecPKCS12Import(CFDataRef pkcs12_data, CFDictionaryRef options, CFArrayRef *items);
 SecAccessControlRef SecAccessControlCreateWithFlags(CFAllocatorRef allocator, CFTypeRef protection, SecAccessControlCreateFlags flags,
                                                     CFErrorRef *error) CF_RETURNS_RETAINED;
+
+/* shared web credentials (SecSharedCredential.h) */
+extern const CFStringRef kSecSharedPassword;
+void SecAddSharedWebCredential(CFStringRef fqdn, CFStringRef account, CFStringRef password,
+                               void (^completionHandler)(CFErrorRef error));
+void SecRequestSharedWebCredential(CFStringRef fqdn, CFStringRef account,
+                                   void (^completionHandler)(CFArrayRef credentials, CFErrorRef error))
+    __attribute__((deprecated("use ASAuthorizationController with ASAuthorizationPasswordRequest")));
+CFStringRef SecCreateSharedWebCredentialPassword(void) CF_RETURNS_RETAINED;
 __END_DECLS
 #endif

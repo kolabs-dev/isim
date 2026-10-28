@@ -5,10 +5,12 @@
 //     passkey goes to it;
 //   - SSO (identity provider SSO extension) for https://idp.isim.dev (`isim sso add`), with and without its UI;
 //   - Upgrade (account modification) for saved passwords of vault.isim.dev: strong password, Sign in with Apple.
+// Shared web credentials (Security, issue #402) save, use and delete a vault.isim.dev password of the Passwords store.
 // On iOS 26 it also creates an account with ASAuthorizationAccountCreationProvider. Every step is printed ("vault ...").
 import UIKit
 import AuthenticationServices
 import CryptoKit
+import Security
 
 func log(_ s: String) { print("vault \(s)"); fflush(stdout) }
 let rp = "vault.isim.dev"
@@ -47,6 +49,10 @@ final class VaultViewController: UIViewController, ASAuthorizationControllerDele
         button("strong", "Strong Password", x: 20, y: 372) { self.modify(strong: true) }
         button("siwa", "Use Apple Sign In", x: 200, y: 372) { self.modify(strong: false) }
         button("create", "Create Account", x: 20, y: 416) { self.createAccount() }
+        button("share", "Share Password", x: 200, y: 416) { self.sharePassword() }
+        button("use-shared", "Use Shared", x: 20, y: 460) { self.useShared() }
+        button("unshare", "Delete Shared", x: 200, y: 460) { self.deleteShared() }
+        button("share-other", "Share Elsewhere", x: 20, y: 504) { self.shareElsewhere() }
         for f in [user, password, code] { f!.addAction(UIAction { [weak f] _ in log("\(f?.accessibilityIdentifier ?? "") = \(f?.text ?? "")") }, for: .editingChanged) }
         let store = ASCredentialIdentityStore.shared
         store.getState { s in log("store enabled=\(s.isEnabled) incremental=\(s.supportsIncrementalUpdates)") }
@@ -66,6 +72,33 @@ final class VaultViewController: UIViewController, ASAuthorizationControllerDele
         b.accessibilityIdentifier = id
         b.addAction(UIAction { [weak self] _ in self?.view.endEditing(true); action() }, for: .primaryActionTriggered)
         view.addSubview(b)
+    }
+
+    // MARK: shared web credentials (Security)
+
+    func sharePassword() {
+        let pw = SecCreateSharedWebCredentialPassword()! as String
+        log("generated \(pw.count) chars \(pw.split(separator: "-").count) groups")
+        SecAddSharedWebCredential(rp as CFString, "cam" as CFString, pw as CFString) { error in
+            log("shared add error=\(error.map { String(CFErrorGetCode($0)) } ?? "none")")
+        }
+    }
+    func useShared() {
+        SecRequestSharedWebCredential(nil, nil) { list, error in
+            let first = (list as? [[String: Any]])?.first
+            log("shared request account=\(first?[kSecAttrAccount as String] as? String ?? "-") server=\(first?[kSecAttrServer as String] as? String ?? "-") "
+                + "password=\((first?[kSecSharedPassword as String] as? String)?.count ?? 0) chars error=\(error.map { String(CFErrorGetCode($0)) } ?? "none")")
+        }
+    }
+    func deleteShared() {
+        SecAddSharedWebCredential(rp as CFString, "cam" as CFString, nil) { error in
+            log("shared delete error=\(error.map { String(CFErrorGetCode($0)) } ?? "none")")
+        }
+    }
+    func shareElsewhere() {
+        SecAddSharedWebCredential("other.isim.dev" as CFString, "cam" as CFString, "pw" as CFString) { error in
+            log("shared elsewhere error=\(error.map { String(CFErrorGetCode($0)) } ?? "none")")
+        }
     }
 
     // MARK: the credential provider

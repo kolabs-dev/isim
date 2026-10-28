@@ -144,3 +144,53 @@ def test_account_creation(launch, device_data):
     app.wait_tap_id("create")
     app.wait_log(r"vault account creation needs iOS 26")
     assert app.quit() == 0
+
+
+def test_shared_web_credentials(launch, device_data):
+    """Security's shared web credentials (issue #402) on the Passwords store, for the app's webcredentials domain:
+    saving asks (Save / Update / Delete Password?), a request lets the user choose an account, other domains and an AASA
+    that does not list the app are refused (errSecMissingEntitlement), nothing saved is errSecItemNotFound."""
+    app = launch(APP, data=device_data)
+    app.wait_tap_id("share")
+    app.wait_log(r"vault generated 15 chars 4 groups")
+    app.wait_view(r"text=Save Password\?")
+    app.tap_text("Save Password")
+    app.wait_log(r"vault shared add error=none")
+    saved = [e for e in passwords(device_data) if e["user"] == "cam"]
+    assert len(saved) == 1 and saved[0]["site"] == "vault.isim.dev" and re.fullmatch(r"(\w{3}-){3}\w{3}", saved[0]["password"]), saved
+    app.wait_tap_id("share")                                             # a new password: update, declined
+    app.wait_view(r"text=Update Password\?")
+    app.tap_text("Not Now")
+    app.wait_log(r"vault shared add error=-128")
+    app.wait_tap_id("use-shared")
+    app.wait_view(r"text=cam — vault\.isim\.dev")
+    app.wait_still()
+    app.screenshot("vault-shared-credential")
+    app.tap_text("cam — vault.isim.dev")
+    app.wait_log(r"vault shared request account=cam server=vault\.isim\.dev password=15 chars error=none")
+    app.wait_tap_id("share-other")
+    app.wait_log(r"vault shared elsewhere error=-34018")
+    app.wait_tap_id("unshare")
+    app.wait_view(r"text=Delete Password\?")
+    app.tap_text("Delete Password")
+    app.wait_log(r"vault shared delete error=none")
+    assert not [e for e in passwords(device_data) if e["user"] == "cam"]
+    app.wait_tap_id("use-shared")
+    app.wait_log(r"vault shared request account=- server=- password=0 chars error=-25300")
+    assert app.quit() == 0
+
+    # the domain's apple-app-site-association does not list the app under webcredentials
+    aasa = device_data / "Library/isim/AASA/vault.isim.dev.json"
+    aasa.parent.mkdir(parents=True, exist_ok=True)
+    aasa.write_text('{"webcredentials": {"apps": ["ABCDE12345.dev.isim.other"]}}')
+    app = launch(APP, data=device_data)
+    app.wait_tap_id("share")
+    app.wait_log(r"vault shared add error=-34018")
+    assert app.quit() == 0
+    aasa.write_text('{"webcredentials": {"apps": ["ABCDE12345.dev.isim.samples.HelloVault"]}}')
+    app = launch(APP, data=device_data)
+    app.wait_tap_id("share")
+    app.wait_view(r"text=Save Password\?")
+    app.tap_text("Save Password")
+    app.wait_log(r"vault shared add error=none")
+    assert app.quit() == 0
