@@ -2,7 +2,8 @@
 // push reports an incoming call; the provider's delegate runs on its own queue; outgoing calls through
 // CXCallController; CXCallObserver), BackgroundTasks (a refresh task launched on a dispatch queue), CoreSpotlight
 // (indexing), SafariServices (SFSafariViewController, the Reading List) and MultipeerConnectivity (an advertiser and a
-// browser in this app connect and exchange data). Each step prints a "sy ..." line the test checks.
+// browser in this app connect and exchange data) and Messages (an iMessage app's controller subclass, a message and a
+// refused sticker). Each step prints a "sy ..." line the test checks.
 #import <UIKit/UIKit.h>
 #import <PushKit/PushKit.h>
 #import <CallKit/CallKit.h>
@@ -10,6 +11,7 @@
 #import <CoreSpotlight/CoreSpotlight.h>
 #import <SafariServices/SafariServices.h>
 #import <MultipeerConnectivity/MultipeerConnectivity.h>
+#import <Messages/Messages.h>
 
 static void say(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 static void say(NSString *fmt, ...) {
@@ -221,6 +223,13 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
 @property (nonatomic, strong) Peers *peers;
 @end
 
+/* an iMessage app's view controller, subclassed in Objective-C */
+@interface GameController : MSMessagesAppViewController
+@end
+@implementation GameController
+- (void)didBecomeActiveWithConversation:(MSConversation *)conversation { say(@"messages active"); }
+@end
+
 @implementation AppDelegate
 - (void)startCall { [self.calls startCall]; }
 
@@ -279,6 +288,31 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
     }];
 }
 
+/* Messages from Objective-C (issue #406): an iMessage app's controller subclass, a message in a session with a
+   template layout (copied and archived), a sticker file iOS refuses */
+- (void)messages {
+    MSSession *session = [[MSSession alloc] init];
+    MSMessage *m = [[MSMessage alloc] initWithSession:session];
+    MSMessageTemplateLayout *layout = [[MSMessageTemplateLayout alloc] init];
+    layout.caption = @"Your move";
+    m.layout = layout;
+    m.URL = [NSURL URLWithString:@"https://example.com/ttt?board=X--------"];
+    m.summaryText = @"Your move";
+    MSMessage *copy = [m copy];
+    NSData *archive = [NSKeyedArchiver archivedDataWithRootObject:m requiringSecureCoding:YES error:NULL];
+    MSMessage *back = [NSKeyedUnarchiver unarchivedObjectOfClass:[MSMessage class] fromData:archive error:NULL];
+    NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"not-a-sticker.txt"];
+    [@"hello" writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+    NSError *e = nil;
+    MSSticker *sticker = [[MSSticker alloc] initWithContentsOfFileURL:[NSURL fileURLWithPath:path] localizedDescription:@"Text" error:&e];
+    GameController *vc = [[GameController alloc] initWithNibName:nil bundle:nil];
+    say(@"messages caption=%@ copy=%@ session=%d archived=%@ sameSession=%d pending=%d sticker=%d error=%@ style=%lu active=%d",
+        ((MSMessageTemplateLayout *)m.layout).caption, ((MSMessageTemplateLayout *)copy.layout).caption, copy.session == session,
+        back.URL.query, [back.session isEqual:session], m.isPending, sticker != nil,
+        [e.domain isEqual:MSStickersErrorDomain] && e.code == MSMessageErrorCodeStickerFileImproperFileFormat ? @"format" : errText(e),
+        (unsigned long)vc.presentationStyle, vc.activeConversation != nil);
+}
+
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     self.calls = [[Calls alloc] init];
     [self backgroundTasks];
@@ -288,6 +322,7 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
     [self.window makeKeyAndVisible];
     [self spotlight];
     [self readingList];
+    [self messages];
     [self.calls badRequest];
     self.peers = [[Peers alloc] init];
     [self.peers start];

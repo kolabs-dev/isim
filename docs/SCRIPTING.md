@@ -88,6 +88,14 @@ hold"), `call-speaker`, `call-video`, `call-mute`, `call-hold` (calls that suppo
 `call-keypad-hide`) and `call-end`. `home` hides it; the call then shows as `call-pill` (the green indicator, or the
 Dynamic Island's phone and duration), which brings it back. `dump` lists them as `IsimCallButton`.
 
+**Messages** (isim's Messages app, `launch dev.isim.messages`, hosts the iMessage apps and sticker packs): `messages-plus`
+opens the app menu (`messages-app-EXTENSION_BUNDLE_ID`), the open app has `messages-expand` / `messages-collapse` and
+`messages-close-app`; a sticker pack's stickers are `sticker-N`. The compose field is `messages-field`, content an app
+inserted is `messages-staged-N` (`messages-staged-remove-N` takes it out), `messages-send` sends; the transcript's
+bubbles are `messages-bubble-N` (tapping an app's message opens the app with it selected). `isim messages list` prints
+the conversation, `isim messages receive TEXT` (or `--app EXTENSION --url URL --caption C --session last`) delivers a
+message from the other participant.
+
 **Alarms** (AlarmKit; the shell rings the apps' alarms and timers, also in Silent Mode): an alarm going off is a
 banner while the device is in use (`alarm-banner`: tap for the full-screen alert; `alarm-secondary`, the alarm's
 secondary button such as Snooze or Repeat; `alarm-stop`) or the full-screen alert on the Lock Screen and in StandBy

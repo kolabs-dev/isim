@@ -221,6 +221,7 @@ SWIFT_FRAMEWORKS = [
     ("AppTrackingTransparency", "-framework Foundation"),
     ("CoreMotion", "-framework Foundation"),
     ("MessageUI", "-framework Foundation -framework UIKit"),
+    ("Messages", "-framework Foundation -framework UIKit"),   # issue #406: iMessage apps and sticker packs
     ("StoreKit", "-framework Foundation -framework UIKit"),
     ("MarketplaceKit", []),
     ("Security", "-framework Foundation"),

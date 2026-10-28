@@ -4,7 +4,8 @@ dispatch queue: answering from the incoming call screen, an outgoing call throug
 CXCallObserver, a refused request with CXErrorDomainRequestTransaction), BackgroundTasks (registering and submitting
 from Objective-C; `bgtask` runs the task on its dispatch queue; an identifier missing from Info.plist is refused),
 CoreSpotlight (indexing), SafariServices (SFSafariViewController with a configuration and delegate; the Reading List)
-and MultipeerConnectivity (an advertiser and a browser in the app connect and exchange data)."""
+MultipeerConnectivity (an advertiser and a browser in the app connect and exchange data) and Messages (issue #406: an
+MSMessagesAppViewController subclass, a message in a session copied and archived, a refused sticker)."""
 import os
 
 import pytest
@@ -36,6 +37,8 @@ def test_services_objc(launch):
     dev.wait_log(r"^sy spotlight indexed note-1 error=nil activity=com\.apple\.corespotlightitem$")
     dev.wait_log(r"^sy reading list ok=1 refused=1 error=SSReadingListErrorDomain/1 supports=1$")
     dev.wait_log(r"^sy content blocker state=0 error=SFErrorDomain/1 reload=SFErrorDomain/1 missing=1$")
+    dev.wait_log(r"^sy messages caption=Your move copy=Your move session=1 archived=board=X-------- sameSession=1 pending=1 "
+                 r"sticker=0 error=format style=0 active=0$")               # Messages (issue #406)
     dev.wait_log(r"^sy unknown call error=com\.apple\.CallKit\.error\.requesttransaction/4$")
 
     # MultipeerConnectivity: Ann browses, finds Ben, invites him; data both ways
