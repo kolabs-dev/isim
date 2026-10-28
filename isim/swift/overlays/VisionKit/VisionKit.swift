@@ -63,16 +63,21 @@ enum _VKRecognizer {
     static func run(_ handler: VNImageRequestHandler, codes: [VNBarcodeSymbology]?, text: (languages: [String], type: DataScannerViewController.TextContentType?)?,
                     accurate: Bool) -> [_VKFound] {
         var out: [_VKFound] = []
-        if let codes {
+        // the codes in the frame: items when asked for, and where text is not looked for (Live Text does not read a
+        // code's pattern as text)
+        var codeAreas: [CGRect] = []
+        if codes != nil || text != nil {
             let r = VNDetectBarcodesRequest()
-            if !codes.isEmpty { r.symbologies = codes }
+            if let codes, !codes.isEmpty { r.symbologies = codes }
             if (try? handler.perform([r])) != nil {
                 for case let o as VNBarcodeObservation in r.results ?? [] {
-                    guard let p = o.payloadStringValue else { continue }
+                    codeAreas.append(o.boundingBox)
+                    guard codes != nil, let p = o.payloadStringValue else { continue }
                     out.append(_VKFound(key: "b:" + p, transcript: p, isText: false, quad: [o.topLeft, o.topRight, o.bottomRight, o.bottomLeft], code: o))
                 }
             }
         }
+        func inCode(_ box: CGRect) -> Bool { codeAreas.contains { $0.contains(CGPoint(x: box.midX, y: box.midY)) } }
         if let text, textAvailable {
             let r = VNRecognizeTextRequest()
             r.recognitionLevel = accurate ? .accurate : .fast
@@ -81,7 +86,7 @@ enum _VKRecognizer {
                 for case let o as VNRecognizedTextObservation in r.results ?? [] {
                     guard let cand = o.topCandidates(1).first else { continue }
                     let s = cand.string.trimmingCharacters(in: .whitespaces)
-                    guard !s.isEmpty else { continue }
+                    guard !s.isEmpty, !inCode(o.boundingBox) else { continue }
                     if let type = text.type {
                         for m in _VKText.matches(type, in: cand.string) {
                             let piece = String(cand.string[m])
