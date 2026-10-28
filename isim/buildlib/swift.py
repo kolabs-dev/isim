@@ -816,6 +816,16 @@ OBJC_NAMES["SafariServices"] = {"SFSafariViewController": "SFSafariViewControlle
 OBJC_NAMES["CallKit"] = {c: c for c in """CXHandle CXCallUpdate CXProviderConfiguration CXAction CXCallAction CXStartCallAction CXAnswerCallAction
     CXEndCallAction CXSetHeldCallAction CXSetMutedCallAction CXSetGroupCallAction CXPlayDTMFCallAction CXTransaction CXCall CXCallObserver
     CXProvider CXCallController CXCallDirectoryManager CXCallDirectoryExtensionContext CXCallDirectoryProvider""".split()}
+OBJC_NAMES["PHASE"] = {c: c for c in """PHASEEngine PHASEAssetRegistry PHASEAsset PHASESoundAsset PHASESoundEventNodeAsset PHASEGlobalMetaParameterAsset PHASEObject PHASESource
+    PHASEListener PHASEMedium PHASEMaterial PHASEDefinition PHASEMixerDefinition PHASESpatialMixerDefinition PHASEChannelMixerDefinition
+    PHASEAmbientMixerDefinition PHASESpatialPipeline PHASESpatialPipelineEntry PHASEMixer PHASEMixerParameters PHASESoundEventNodeDefinition
+    PHASEGeneratorNodeDefinition PHASESamplerNodeDefinition PHASEPushStreamNodeDefinition PHASEPullStreamNodeDefinition PHASESwitchNodeDefinition
+    PHASERandomNodeDefinition PHASEBlendNodeDefinition PHASEContainerNodeDefinition PHASEStreamNode PHASEPushStreamNode PHASEPullStreamNode
+    PHASESoundEvent PHASENumericPair PHASEEnvelopeSegment PHASEEnvelope PHASEMetaParameterDefinition PHASENumberMetaParameterDefinition
+    PHASEStringMetaParameterDefinition PHASEMappedMetaParameterDefinition PHASEMetaParameter PHASENumberMetaParameter PHASEStringMetaParameter
+    PHASEDistanceModelFadeOutParameters PHASEDistanceModelParameters PHASEGeometricSpreadingDistanceModelParameters PHASEEnvelopeDistanceModelParameters
+    PHASEDirectivityModelParameters PHASECardioidDirectivityModelSubbandParameters PHASECardioidDirectivityModelParameters
+    PHASEConeDirectivityModelSubbandParameters PHASEConeDirectivityModelParameters PHASEGroup PHASEGroupPresetSetting PHASEGroupPreset PHASEDucker""".split()}
 OBJC_NAMES["ReplayKit"] = {c: c for c in """RPScreenRecorder RPPreviewViewController RPBroadcastController RPBroadcastActivityViewController
     RPSystemBroadcastPickerView RPBroadcastHandler RPBroadcastSampleHandler RPBroadcastMP4ClipHandler RPBroadcastConfiguration""".split()}
 OBJC_NAMES["PushKit"] = {c: c for c in "PKPushCredentials PKPushPayload PKPushRegistry".split()}
@@ -962,6 +972,7 @@ Photos -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftC
 PhotosUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftPhotos -lswiftAVFoundation -lswiftUniformTypeIdentifiers -lswiftCoreTransferable -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics
 QuickLook -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftUniformTypeIdentifiers -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework QuickLook -framework PDFKit   # SwiftUI's quickLookPreview; replies with UTType / PDFDocument
 QuickLookThumbnailing -lswiftObjectiveC -lswiftFoundation -lswiftUniformTypeIdentifiers -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework QuickLookThumbnailing   # issue #359: UTType forms
+PHASE -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftsimd -lswiftAVFoundation -lswiftCoreMedia -lswiftCoreVideo -lswiftAudioToolbox -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit   # issue #386
 ReplayKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -lswiftAVFoundation -lswiftCoreMedia -lswiftCoreVideo -lswiftAudioToolbox -framework Foundation -framework UIKit -framework CoreGraphics   # issue #385
 PencilKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics -framework PencilKit   # issue #360: value types over the reference classes
 Network Network-capi.o -lswiftObjectiveC -lswiftFoundation -lswiftSecurity -lswiftDispatch -lswift_Concurrency -framework Foundation -lisim_host
@@ -1002,7 +1013,7 @@ CallKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency 
 
 # app-facing re-implementations: library evolution keeps their ABI stable across isim updates (since 0.12 also the base
 # overlays every other module and app imports: their types can change layout without breaking apps built earlier)
-EVOLUTION = set("""ObjectiveC QuickLookThumbnailing PencilKit ReplayKit _CKShareMetadata Accelerate VideoToolbox Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI QuickLook EventKit EventKitUI Contacts ContactsUI
+EVOLUTION = set("""ObjectiveC QuickLookThumbnailing PencilKit ReplayKit PHASE _CKShareMetadata Accelerate VideoToolbox Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI QuickLook EventKit EventKitUI Contacts ContactsUI
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
 GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Security os OSLog Compression LocalAuthentication
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport XPC StateReporting MetricKit CloudKit AuthenticationServices
