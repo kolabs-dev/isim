@@ -2,7 +2,8 @@
 first row, return at the end of the second, shift on both sides of the third with , and . , the bottom row's .?123,
 emoji, mic, space, .?123 and hide-keyboard keys, no globe / mic bar under the keys), typing with taps, shift and a
 downward flick (the character above the key), the numbers plane, number pads on the numbers plane (no 3 x 4 pad), the
-hide-keyboard key ending editing, the keys in the accessibility snapshot; the status bar's date right of the time.
+hide-keyboard key ending editing, the keys in the accessibility snapshot; landscape, and turning the device while the
+keyboard is up; the status bar's date right of the time.
 The keyboard and the status bar are system UI: os_matrix."""
 import re
 
@@ -130,4 +131,46 @@ def test_ipad_status_bar_date(launch, ios):
     img = app.wait_shot(lambda s: count_px(s, (20, 4, 30, 16), ink) > 10, "the time drawn")
     assert count_px(img, (66, 4, 90, 16), ink) > 30, "the date drawn right of the time"
     assert count_px(img, (200, 2, 400, 20), ink) == 0, "nothing in the middle"
+    assert app.quit() == 0, "exits cleanly"
+
+
+
+def laid_out(app, width):
+    """The keyboard's frames once its delete key ends at the right edge of a screen `width` wide, else None."""
+    f = screen_frames(app.view_dump())
+    d = f.get("isim-kb-delete")
+    return f if d and abs(d[0] + d[2] - (width - SIDE)) <= 1 else None
+
+
+@pytest.mark.os_matrix
+def test_ipad_keyboard_landscape(launch, ios):
+    """Landscape (HelloKeyboardTypes supports every orientation on iPad): the keyboard spans the long side with the
+    same layout, its keys wider than tall, and re-lays out when the device turns while it is up."""
+    W, H = SIZES["ipadpro11"]
+    app = launch("HelloKeyboardTypes", device="ipadpro11", os_version=ipad_os(ios), env={"ISIM_LANGUAGES": "en", "ISIM_REGION": "US"})
+    dump, f = keyboard(app, "websearch")
+    assert abs(f["isim-kb-delete"][0] + f["isim-kb-delete"][2] - (W - SIDE)) <= 1, "portrait first"
+    app.send("rotate landscapeleft")                       # turned with the keyboard up
+    f = app.wait_until(lambda: laid_out(app, H), what="the keyboard laid out across the landscape width")
+    k = lambda i: f[f"isim-kb-{i}"]
+    row = lambda i: k(i)[1]
+    assert row("q") == row("p") == row("delete"), "delete ends row 1"
+    assert row("a") == row("l") == row("return") > row("q") and abs(k("return")[0] + k("return")[2] - (H - SIDE)) <= 1, "return"
+    assert row("shift") == row("z") == row(".") == row("shift-right") > row("a"), "third row"
+    assert abs(k("shift-right")[0] + k("shift-right")[2] - (H - SIDE)) <= 1 and k("shift")[0] <= SIDE + 1, "both shifts"
+    bottom = [k(i) for i in ("123", "emoji", "dictation", "space", "123-right", "dismiss")]
+    assert len({b[1] for b in bottom}) == 1 and [b[0] for b in bottom] == sorted(b[0] for b in bottom), f"bottom row: {bottom}"
+    assert k("q")[2] > k("q")[3] and k("q")[3] >= 50, f"landscape keys wider than tall: {k('q')}"
+    end = k("dismiss")[1] + k("dismiss")[3]
+    assert W - 20 - 14 <= end <= W - 20, f"keys end above the home indicator: {end} (screen height {W})"
+    assert k("q")[1] > W / 2, f"the keyboard covers less than half the landscape screen: {k('q')}"
+    img = app.wait_shot(lambda s: s.size == (H, W), "a landscape screenshot")
+    assert all(v > 245 for v in rgb(img, *center(k("q")))), "letter keys white"
+    for key in ("shift", "o", "k"):
+        app.tap_id(f"isim-kb-{key}")
+    typed(app, "websearch", "Ok")
+    app.send("rotate portrait")                            # and back
+    app.wait_until(lambda: laid_out(app, W), what="the portrait layout again")
+    app.tap_id("isim-kb-dismiss")
+    app.wait_for(type="keyboard", gone=True)
     assert app.quit() == 0, "exits cleanly"

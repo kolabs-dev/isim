@@ -1036,6 +1036,15 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
     [NSNotificationCenter.defaultCenter addObserverForName:@"_IsimSettingsChanged" object:nil queue:nil usingBlock:^(NSNotification *n) {
         [[__IsimKeyboardController shared] _settingsChanged];
     }];
+    /* the device turned: the keyboard takes the new screen width and height (its window is not full screen, so the
+       rotation does not resize it), and apps hear the frame change */
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"   /* still sent after every rotation (UIOrientation.m) */
+    [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidChangeStatusBarOrientationNotification object:nil queue:nil usingBlock:^(NSNotification *n) {
+        __IsimKeyboardController *c = [__IsimKeyboardController shared];
+        if (c->_shown) { [c _relayout]; [c->_keys setNeedsLayout]; }
+    }];
+#pragma clang diagnostic pop
 }
 /* the bar under the keys with the globe and the mic: Face ID iPhones (iPads have both keys in the bottom row) */
 - (BOOL)_barVisible { return isim_ui_device()->safe_bottom > 0 && !_inputOverride && !kb_ipad(); }
