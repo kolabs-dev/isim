@@ -1738,6 +1738,20 @@ int main(int argc, char *argv[]) {
         NSOperatingSystemVersion v15 = {15, 0, 0}, v99 = {99, 0, 0};
         CHECK([pi isOperatingSystemAtLeastVersion:v15] && ![pi isOperatingSystemAtLeastVersion:v99]);
         CHECK([pi.operatingSystemVersionString hasPrefix:@"Version "] && pi.globallyUniqueString.length > 30 && pi.environment[@"HOME"] != nil);
+        {   // the environment read while another thread evaluates another time zone (which switches TZ): every read whole
+            __block volatile BOOL stop = NO;
+            dispatch_semaphore_t done = dispatch_semaphore_create(0);
+            NSTimeZone *ny = [NSTimeZone timeZoneWithName:@"America/New_York"];
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
+                while (!stop) (void)[ny secondsFromGMTForDate:[NSDate date]];
+                dispatch_semaphore_signal(done);
+            });
+            int whole = 0;
+            for (int i = 0; i < 3000; i++) { NSDictionary *env = pi.environment; if (env[@"TZ"] && env[@"HOME"]) whole++; }
+            stop = YES;
+            dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
+            CHECK(whole == 3000);
+        }
 
         // NSAttributedString / NSMutableAttributedString
         NSMutableAttributedString *mas = [[NSMutableAttributedString alloc] initWithString:@"Hello world" attributes:@{@"k": @1}];
