@@ -58,3 +58,39 @@ def test_swiftdata_migration(launch, device_data):
     app = launch("HelloSwiftData", data=device_data, env={"HELLOSWIFTDATA_NOTES": "v1again"})
     app.wait_log(r"sd2 notes v1again: SwiftDataError\(backwardMigration\)")
     assert app.quit() == 0
+
+
+def test_swiftdata_history(launch, device_data, ios):
+    """History, custom data stores and observers (#399). Under iOS 18: each save is a history transaction (author,
+    bundle, process, the token in didSave); the transactions since a token list an update with its changed attribute,
+    a delete with the tombstone of the .preserveValueOnDeletion attribute only, and another author's insert;
+    predicates, sorts and limits filter them, deleteHistory trims them. Apple's JSON-file DataStore sample runs a
+    container: UUID identifiers replace the temporary ones on save, a relationship, an in-memory predicate and sort, and
+    an update and a delete come back from the file. Under iOS 27, a ResultsObserver follows an insert and a filter
+    change, with sections, and a HistoryObserver counts saves; @Query's sections and fetchError."""
+    app = launch("HelloSwiftData", data=device_data, env={"HELLOSWIFTDATA_HISTORY": "1"})
+    app.wait_log(r"sd2 history first: transactions=1 changes=2 author=app bundle=true process=true didSave token=true")
+    app.wait_log(r"sd2 history since: app:update done app:delete code=R1 title=- widget:insert Chore")
+    app.wait_log(r"sd2 history widget: 1 newest=widget")
+    app.wait_log(r"sd2 history after delete: 3")
+    app.wait_log(r"sd2 custom before save: temporary=true")
+    app.wait_log(r"sd2 custom saved: temporary=false store=people\.json file=true")
+    app.wait_log(r'sd2 custom fetch: \["Cy pets=\[\]", "Ana pets=\[\\"Rex\\"\]"\] count=3')
+    app.wait_log(r"sd2 custom identity: Ana rex\.owner=Ana")
+    app.wait_log(r'sd2 custom after save: \["Ana@Porto", "Bo@Oslo"\] pets=1')
+    if not (ios[0] or "").startswith("27"):
+        app.wait_log(r"sd2 observers: need iOS 27")
+    assert app.quit() == 0
+
+
+def test_swiftdata_observers(launch, device_data):
+    """ResultsObserver (sections, element(at:), indexPath(for:), a filter change), HistoryObserver and @Query's
+    sections and fetchError, under iOS 27 (test_swiftdata_history checks that iOS 18 has none of them)."""
+    app = launch("HelloSwiftData", data=device_data, env={"HELLOSWIFTDATA_HISTORY": "1"}, os_version="27.0")
+    app.wait_log(r"sd2 history after delete: 3")
+    app.wait_log(r'sd2 observer: changed=true results=\["Dust", "Vacuum", "Wash up"\] sections=\["living", "kitchen"\] '
+                 r'living=\["Dust", "Vacuum"\] at0\.1=Vacuum dust=0\.0')
+    app.wait_log(r'sd2 observer filtered: \["Wash up"\] sections=1')
+    app.wait_log(r"sd2 history observer: events=2 tracked=true")
+    app.wait_log(r'sd2 query sections: \[""\] first=2 of 2 error=none')
+    assert app.quit() == 0

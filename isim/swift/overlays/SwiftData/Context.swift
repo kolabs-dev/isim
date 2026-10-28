@@ -1,6 +1,7 @@
 // isim SwiftData: ModelContext — one instance per stored model, the inserts, changes and deletes since the last save
 // (with uniqueness upserts and delete rules), fetches from the store's rows plus pending changes, save and rollback,
-// autosave — and ModelContainer, the store of its configuration and the main context.
+// autosave — and ModelContainer, the store of its configuration (the default SQLite store, or an app's DataStore) and
+// the main context. Each save is one history transaction in the store (History.swift).
 import Foundation
 import Combine
 import Observation
@@ -19,7 +20,7 @@ open class ModelContext: ObservableObject, Observable {
     public static let didSave = Notification.Name("SwiftData.ModelContext.didSave")
 
     public let container: ModelContainer
-    nonisolated let store: _SQLStore
+    nonisolated let store: any _Store
     /// the models this context holds, by entity and primary key
     private var registered: [String: [Int64: AnyObject]] = [:]
     private var inserted: [AnyObject] = []
@@ -38,6 +39,9 @@ open class ModelContext: ObservableObject, Observable {
     public var autosaveEnabled = true
     public var author: String?
     public var undoManager: UndoManager?
+    private let editingID = UUID()
+    /// who this context's requests come from (its author), as a custom data store sees them
+    public var editingState: EditingState { EditingState(id: editingID, author: author) }
     open var hasChanges: Bool { !inserted.isEmpty || !dirty.isEmpty || !deleted.isEmpty }
 
     public init(_ container: ModelContainer) {
@@ -73,7 +77,7 @@ open class ModelContext: ObservableObject, Observable {
         let info = _ModelInfo.of(type)
         if let m = registered[info.entity]?[key] { return _store(m).isDeleted ? nil : m }
         store.ensure(info)
-        guard let row = store.row(info.entity, key) else { return nil }
+        guard let row = store.row(info, key) else { return nil }
         return materialize(type, info, key, row)
     }
     private func materialize(_ type: any PersistentModel.Type, _ info: _ModelInfo, _ key: Int64, _ row: [String: Any]) -> AnyObject {
@@ -94,7 +98,7 @@ open class ModelContext: ObservableObject, Observable {
         store.ensure(info)
         guard loaded[info.entity] != store.generation else { return }
         loaded[info.entity] = store.generation
-        let rows = store.rows(info.entity)
+        let rows = store.rows(info)
         var seen = Set<Int64>()
         for (key, row) in rows {
             seen.insert(key)
@@ -151,7 +155,7 @@ open class ModelContext: ObservableObject, Observable {
             s.pk = key; s.isDirty = true
             register(m, s)
             // relationships the new model leaves empty keep the stored model's (their inverses now point to it)
-            let row = previous == nil ? store.row(info.entity, key) : nil
+            let row = previous == nil ? store.row(info, key) : nil
             for (i, p) in info.properties.enumerated() where p.target != nil && s.objects(i).isEmpty {
                 if let old = previous, old !== m {
                     let objs = _store(old).objects(i)
@@ -194,7 +198,7 @@ open class ModelContext: ObservableObject, Observable {
         for (key, m) in registered[info.entity] ?? [:] where m !== s.model && !_store(m).isDeleted {
             if matches({ _store(m).json($0) }) { return (key, m) }
         }
-        for (key, row) in store.rows(info.entity) where registered[info.entity]?[key] == nil {
+        for (key, row) in store.rows(info) where registered[info.entity]?[key] == nil {
             if matches({ row[info.properties[$0].name] }) { return (key, nil) }
         }
         return nil
@@ -227,8 +231,41 @@ open class ModelContext: ObservableObject, Observable {
     }
 
     /// deletes the models of a type that match a predicate (all of them without one)
+    /// (a custom store that does batch deletes deletes them itself, without loading them)
     open func delete<T: PersistentModel>(model: T.Type, where predicate: Predicate<T>? = nil, includeSubclasses: Bool = true) throws {
+        let request = DataStoreBatchDeleteRequest<T>(editingState: editingState, includeSubclasses: includeSubclasses, predicate: predicate)
+        if try store.batchDelete(request) {
+            loaded[_ModelInfo.of(T.self).entity] = nil
+            objectWillChange.send(); changes += 1
+            store.committed(by: self)
+            return
+        }
         for m in try fetch(FetchDescriptor<T>(predicate: predicate)) { delete(m) }
+    }
+
+    /// a slot's value as text, to tell which properties a save changes
+    private func slotText(_ slot: _Slot?) -> String {
+        switch slot {
+        case nil: return "-"
+        case .value(_, let encode)?: return (try? encode()).map(_jsonText) ?? "?"
+        case .raw(let j)?: return _jsonText(j)
+        case .one(let o)?: return "o\(o.flatMap { _store($0).pk }.map(String.init) ?? "")"
+        case .rawOne(let k)?: return "o\(k.map(String.init) ?? "")"
+        case .many(let l)?: return "m" + l.compactMap { _store($0).pk }.map(String.init).joined(separator: ",")
+        case .rawMany(let ks)?: return "m" + ks.map(String.init).joined(separator: ",")
+        }
+    }
+    private func changedNames(_ s: _BackingStore) -> [String] {
+        guard let saved = s.saved else { return s.info.properties.map(\.name) }
+        return s.info.properties.indices.filter { slotText(saved[$0]) != slotText(s.slots[$0]) }.map { s.info.properties[$0].name }
+    }
+    /// the values a deleted model leaves in its history: attributes marked .preserveValueOnDeletion
+    private func tombstone(_ s: _BackingStore) -> [String: Any] {
+        var out: [String: Any] = [:]
+        for (i, p) in s.info.properties.enumerated() where p.attribute?.options.contains(.preserveValueOnDeletion) == true {
+            if let j = s.json(i) { out[p.name] = j }
+        }
+        return out
     }
 
     open func save() throws {
@@ -241,20 +278,21 @@ open class ModelContext: ObservableObject, Observable {
             }
         }
         let ins = inserted, upd = Array(dirty.values), del = deleted
+        let deletedIDs = del.map { _store($0).identifier }
+        var token: (any HistoryToken)?
         if container.allowsSave {
-            store.begin()
-            do {
-                for m in ins + upd { let s = _store(m); try store.put(s.info.entity, s.pk!, try s.row()) }
-                for m in del { let s = _store(m); if let k = s.pk { store.remove(s.info.entity, k) } }
-            } catch { store.abort(); throw error }
-            store.commit()
+            var set = _SaveSet()
+            set.inserted = ins.map(_store)
+            set.updated = upd.map { let s = _store($0); return (s, changedNames(s)) }
+            set.deleted = del.map { let s = _store($0); return (s, tombstone(s)) }
+            token = try store.save(set, editing: editingState)
         }
         for m in ins + upd { let s = _store(m); s.isInserted = false; s.isDirty = false; s.saved = s.slots }
         for m in del { unregister(m) }
         let ids = { (l: [AnyObject]) in l.map { _store($0).identifier } }
-        let info: [String: Any] = [NotificationKey.insertedIdentifiers.rawValue: ids(ins), NotificationKey.updatedIdentifiers.rawValue: ids(upd),
-                                   NotificationKey.deletedIdentifiers.rawValue: del.map { m -> PersistentIdentifier in
-                                       let s = _store(m); return PersistentIdentifier(entityName: s.info.entity, storeIdentifier: store.identifier, primaryKey: s.pk ?? s.temporaryKey) }]
+        var info: [String: Any] = [NotificationKey.insertedIdentifiers.rawValue: ids(ins), NotificationKey.updatedIdentifiers.rawValue: ids(upd),
+                                   NotificationKey.deletedIdentifiers.rawValue: deletedIDs]
+        if let token { info[NotificationKey.historyTokens.rawValue] = [token.storeIdentifier: token] as [String: any HistoryToken] }
         inserted = []; dirty = [:]; deleted = []; denied = []
         for k in loaded.keys { loaded[k] = store.generation }
         objectWillChange.send()
@@ -316,18 +354,24 @@ open class ModelContext: ObservableObject, Observable {
         fatalError("SwiftData: no model with identifier \(id) in this context")
     }
     open func registeredModel<T: PersistentModel>(for id: PersistentIdentifier) -> T? {
-        if id.isTemporary { return inserted.first { _store($0).identifier == id } as? T }
-        return registered[id.entityName]?[id.id.primaryKey] as? T
+        if id.isTemporary, let m = inserted.first(where: { _store($0).identifier == id }) { return m as? T }
+        guard let k = store.localKey(id) else { return nil }
+        return registered[id.entityName]?[k] as? T
     }
     func _find(_ id: PersistentIdentifier) -> (any PersistentModel)? {
-        if let m = inserted.first(where: { _store($0).temporaryKey == id.id.primaryKey }) { return m as? any PersistentModel }
-        if let m = registered[id.entityName]?[id.id.primaryKey] { return m as? any PersistentModel }
+        if let m = inserted.first(where: { _store($0).identifier == id }) { return m as? any PersistentModel }
+        guard let k = store.localKey(id) else { return nil }
+        if let m = registered[id.entityName]?[k] { return m as? any PersistentModel }
         guard let t = container.schema.types.first(where: { _ModelInfo.of($0).entity == id.entityName }) else { return nil }
-        return _model(t, id.id.primaryKey) as? any PersistentModel
+        return _model(t, k) as? any PersistentModel
     }
     public var insertedModelsArray: [any PersistentModel] { inserted.compactMap { $0 as? any PersistentModel } }
     public var changedModelsArray: [any PersistentModel] { dirty.values.compactMap { $0 as? any PersistentModel } }
     public var deletedModelsArray: [any PersistentModel] { deleted.compactMap { $0 as? any PersistentModel } }
+    public var debugDescription: String {
+        "ModelContext(store: \(store.identifier), registered: \(registered.values.reduce(0) { $0 + $1.count }), inserted: \(inserted.count), " +
+            "changed: \(dirty.count), deleted: \(deleted.count), author: \(author ?? "-"))"
+    }
 
     /// forgets every model (ModelContainer.deleteAllData)
     func reset() {
@@ -341,7 +385,7 @@ open class ModelContext: ObservableObject, Observable {
 open class ModelContainer: @unchecked Sendable {
     public let schema: Schema
     public let configurations: Set<ModelConfiguration>
-    nonisolated let store: _SQLStore
+    nonisolated let store: any _Store
     let allowsSave: Bool
     private var main: ModelContext?
     private let lock = NSLock()
@@ -365,10 +409,36 @@ open class ModelContainer: @unchecked Sendable {
         self.migrationPlan = migrationPlan
         let config = configurations.first ?? ModelConfiguration(schema: givenSchema)
         self.configurations = Set(configurations.isEmpty ? [config] : configurations)
-        store = try _SQLStore.store(for: config)
+        let sql = try _SQLStore.store(for: config)
+        store = sql
         allowsSave = config.allowsSave
-        for t in givenSchema.types { store.ensure(_ModelInfo.of(t)) }
-        try _Migration.run(store, schema: givenSchema, plan: migrationPlan, configuration: config)
+        for t in givenSchema.types { sql.ensure(_ModelInfo.of(t)) }
+        try _Migration.run(sql, schema: givenSchema, plan: migrationPlan, configuration: config)
+    }
+    /// a container over an app's data store (iOS 18): a custom DataStoreConfiguration opens its Store; a
+    /// ModelConfiguration the default store
+    public init(for givenSchema: Schema, migrationPlan: (any SchemaMigrationPlan.Type)? = nil, configurations: [any DataStoreConfiguration]) throws {
+        schema = givenSchema
+        self.migrationPlan = migrationPlan
+        let models = configurations.compactMap { $0 as? ModelConfiguration }
+        if let first = configurations.first, models.count < configurations.count || !(first is ModelConfiguration) {
+            guard let custom = configurations.first(where: { !($0 is ModelConfiguration) }) else { throw SwiftDataError.loadIssueModelContainer }
+            self.configurations = Set(models)
+            store = try _openStore(custom, schema: givenSchema, plan: migrationPlan)
+            allowsSave = true
+            for t in givenSchema.types { store.ensure(_ModelInfo.of(t)) }
+        } else {
+            let config = models.first ?? ModelConfiguration(schema: givenSchema)
+            self.configurations = Set(models.isEmpty ? [config] : models)
+            let sql = try _SQLStore.store(for: config)
+            store = sql
+            allowsSave = config.allowsSave
+            for t in givenSchema.types { sql.ensure(_ModelInfo.of(t)) }
+            try _Migration.run(sql, schema: givenSchema, plan: migrationPlan, configuration: config)
+        }
+    }
+    public convenience init(for givenSchema: Schema, configurations: [any DataStoreConfiguration]) throws {
+        try self.init(for: givenSchema, migrationPlan: nil, configurations: configurations)
     }
     public convenience init(for givenSchema: Schema, migrationPlan: (any SchemaMigrationPlan.Type)?, configurations: ModelConfiguration...) throws {
         try self.init(for: givenSchema, migrationPlan: migrationPlan, configurations: configurations)
@@ -394,12 +464,16 @@ open class ModelContainer: @unchecked Sendable {
     }
     /// removes every model from the store
     open func deleteAllData() {
-        store.eraseAll()
+        try? store.eraseAll()
         lock.lock(); let m = main; lock.unlock()
         m?.reset()
     }
     /// removes every model from the store (iOS 18)
-    open func erase() throws { deleteAllData() }
+    open func erase() throws {
+        try store.eraseAll()
+        lock.lock(); let m = main; lock.unlock()
+        m?.reset()
+    }
     open func storeIdentifier(forConfigurationNamed name: String) -> String? {
         configurations.contains { $0.name == name } ? store.identifier : nil
     }
