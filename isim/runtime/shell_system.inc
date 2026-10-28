@@ -659,8 +659,16 @@ static void lock_draw(cairo_t *c, cairo_surface_t *home, int hw, int hh) {
     lt += la_draw_lock(c, lt);
     lt += np_draw_lock(c, lt);
     nc_draw_list(c, fmax(lt, dev.height * 0.42), 1);
+    /* the hint and the quick-action buttons (issue #125): Face ID iPhones and iPads are opened by swiping up, iPhones
+       with a Home button by pressing it (the hint just above the bottom edge: no home indicator); only Face ID iPhones
+       have the flashlight and camera (or the chosen controls) in the bottom corners */
     cairo_set_source_rgba(c, 1, 1, 1, 0.9);
-    sys_text(c, "Swipe up to open", 0, dev.height - 62, dev.width, 15, PANGO_WEIGHT_NORMAL, 1, 1, 1, 1, 1, 0.85);
+    int pad = portrait_dev.width >= 700, home_button = !pad && portrait_dev.safe_bottom == 0;
+    const char *hint = home_button ? "Press home to open" : "Swipe up to open";
+    double hy = home_button ? dev.height - 34 : dev.height - 62;
+    sys_text(c, hint, 0, hy, dev.width, 15, PANGO_WEIGHT_NORMAL, 1, 1, 1, 1, 1, 0.85);
+    el_add("lock-hint", hint, (struct rectf){ 0, hy, dev.width, 20 }, EL_NONE, 0);
+    if (pad || home_button) return;
     struct rectf bl = { 46, dev.height - 108, 50, 50 }, br = { dev.width - 96, dev.height - 108, 50, 50 };
     if (sys_os() >= 26) { sys_glass(c, bl.x, bl.y, 50, 50, 25, NULL, 1 | 2); sys_glass(c, br.x, br.y, 50, 50, 25, NULL, 1 | 2); }
     else {
