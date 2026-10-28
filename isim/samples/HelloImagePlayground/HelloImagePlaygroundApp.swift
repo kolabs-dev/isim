@@ -132,6 +132,15 @@ struct StickerQuery: EntityQuery {
     }
     func suggestedEntities() async throws -> [StickerEntity] { stickers.map(StickerEntity.init) }
 }
+/// opens a sticker: what Visual Intelligence runs when its result is chosen
+struct OpenStickerIntent: OpenIntent {
+    static var title: LocalizedStringResource { "Open Sticker" }
+    @Parameter(title: "Sticker") var target: StickerEntity
+    func perform() async throws -> some IntentResult {
+        log("open sticker \(target.name)")
+        return .result()
+    }
+}
 /// the stickers whose tags match what Visual Intelligence saw
 @available(iOS 26.0, *)
 struct StickerVisualSearch: IntentValueQuery {

@@ -1,21 +1,26 @@
 /* isim shell: the Siri UI (included by shell_system.inc). Adapted: isim's drawing of iOS's compact Siri.
  *
  * The home screen decides what Siri says (system/SpringBoard/SBSiri.m) and sends "siri-ui FILE": a sidecar of
- * key=value lines (mode = listening | working | value | choice | confirm | result | hidden; source = siri |
- * shortcuts | spotlight | ...; heard, text, detail, app, appname, snippet (PNG), option = TITLE\x1eSUBTITLE (one per
- * line), action, cancel, input, placeholder). The shell draws it over whatever is on screen and sends taps and typed
+ * key=value lines (mode = listening | working | value | choice | confirm | result | visual | hidden; source = siri |
+ * shortcuts | spotlight | visualintelligence | ...; heard, text, detail, app, appname, snippet (PNG), option =
+ * TITLE\x1eSUBTITLE[\x1eTAB] (one per line), tab = NAME (visual: one per app), action, cancel, input, placeholder). The shell draws it over whatever is on screen and sends taps and typed
  * text back: "siri-answer option N | confirm | cancel | dismiss | text TEXT".
  *   iOS 17: the orb at the bottom; iOS 18+: the glowing edge around the screen. Siri's answers and questions are on a
  *   card at the top (a light material platter; Liquid Glass from iOS 26). Runs from the Shortcuts app or Spotlight show
  *   the card alone. Type to Siri: a text field at the bottom while Siri listens or asks for a value (`type TEXT;
  *   key return`, or `siri TEXT`).
  * Script ids: siri-card (text: what Siri says), siri-heard, siri-detail, siri-snippet, siri-option-N, siri-confirm,
- * siri-cancel, siri-field, siri-orb (iOS 17) / siri-glow (iOS 18+), siri-background (tap: dismiss). */
+ * siri-cancel, siri-field, siri-orb (iOS 17) / siri-glow (iOS 18+), siri-background (tap: dismiss).
+ * Visual Intelligence's results (mode visual, iOS 26): a sheet over the screen with a tab per app and the selected
+ * tab's results; choosing one sends "siri-answer option N". Script ids: vi-sheet (text: what was searched), vi-tab-N,
+ * vi-result-N (text: title and subtitle), vi-close. The sheet's sizes are estimated from Apple's "Integrating your app
+ * with visual intelligence" screenshots, not measured; there is no "More results" link. */
 
 static struct {
-    int on, input, nopt;
+    int on, input, nopt, ntab, vtab;
     char mode[16], source[24], heard[512], text[1024], detail[1024], app[512], appname[128], snippet[512], action[64], cancel[64], placeholder[64];
-    char opt[8][2][192];
+    char opt[16][2][192]; int opt_tab[16];
+    char tab[6][64];
     char typed[512];
     double t0;
     cairo_surface_t *snip;
@@ -30,7 +35,7 @@ static void siri_load(const char *file) {
     char keep_typed[512]; snprintf(keep_typed, sizeof keep_typed, "%s", siri.typed);
     if (siri.snip) { cairo_surface_destroy(siri.snip); siri.snip = NULL; }
     memset(siri.heard, 0, sizeof siri.heard); siri.text[0] = siri.detail[0] = siri.app[0] = siri.appname[0] = siri.snippet[0] = 0;
-    siri.action[0] = siri.cancel[0] = siri.placeholder[0] = 0; siri.input = 0; siri.nopt = 0;
+    siri.action[0] = siri.cancel[0] = siri.placeholder[0] = 0; siri.input = 0; siri.nopt = 0; siri.ntab = 0; siri.vtab = 0;
     char line[2048];
     while (fgets(line, sizeof line, f)) {
         line[strcspn(line, "\n")] = 0;
@@ -47,12 +52,15 @@ static void siri_load(const char *file) {
         else if (!strcmp(line, "cancel")) snprintf(siri.cancel, sizeof siri.cancel, "%s", v);
         else if (!strcmp(line, "placeholder")) snprintf(siri.placeholder, sizeof siri.placeholder, "%s", v);
         else if (!strcmp(line, "input")) siri.input = atoi(v);
-        else if (!strcmp(line, "option") && siri.nopt < 8) {
+        else if (!strcmp(line, "option") && siri.nopt < 16) {
             char *sub = strchr(v, '\x1e'); if (sub) *sub++ = 0;
+            char *tab = sub ? strchr(sub, '\x1e') : NULL; if (tab) *tab++ = 0;
             snprintf(siri.opt[siri.nopt][0], sizeof siri.opt[0][0], "%s", v);
             snprintf(siri.opt[siri.nopt][1], sizeof siri.opt[0][1], "%s", sub ? sub : "");
+            siri.opt_tab[siri.nopt] = tab ? atoi(tab) : 0;
             siri.nopt++;
         }
+        else if (!strcmp(line, "tab") && siri.ntab < 6) snprintf(siri.tab[siri.ntab++], sizeof siri.tab[0], "%s", v);
     }
     fclose(f);
     siri.on = strcmp(siri.mode, "hidden") != 0;
@@ -123,9 +131,78 @@ static void siri_el(const char *id, const char *text, struct rectf r, int kind, 
     el_add(id, t, r, kind, arg);
 }
 static double siri_measure(cairo_t *c, const char *s, double w, double size, int weight) { return s[0] ? sys_text(c, s, -10000, -10000, w, size, weight, 0, 0, 0, 0, 0, 0) : 0; }
+/* the width of one line of text */
+static double siri_text_width(cairo_t *c, const char *s, double size, int weight) {
+    PangoLayout *l = pango_cairo_create_layout(c);
+    PangoFontDescription *fd = pango_font_description_new();
+    pango_font_description_set_family(fd, SYSTEM_SANS); pango_font_description_set_absolute_size(fd, size * PANGO_SCALE);
+    pango_font_description_set_weight(fd, weight);
+    pango_layout_set_font_description(l, fd); pango_font_description_free(fd);
+    pango_layout_set_text(l, s, -1);
+    int pw, ph; pango_layout_get_pixel_size(l, &pw, &ph); g_object_unref(l);
+    return pw;
+}
 
+/* Visual Intelligence's results: a sheet over the bottom of the screen (the camera image or screenshot stays above
+   it, dimmed), a tab per app, the selected tab's results */
+static void siri_visual_draw(cairo_t *c) {
+    int os = sys_os();
+    cairo_new_path(c); cairo_rectangle(c, 0, 0, dev.width, dev.height); cairo_set_source_rgba(c, 0, 0, 0, 0.25); cairo_fill(c);
+    double h = fmin(dev.height * 0.56, 120 + 64.0 * 6), y = dev.height - h, r = os >= 26 ? 34 : 14;
+    struct rectf sheet = { 0, y, dev.width, h + r };
+    if (os >= 26) { sys_glass(c, 8, y, dev.width - 16, h - 8, r, NULL, 1 | 2 | 4); cairo_new_path(c); sys_round(c, 8, y, dev.width - 16, h - 8, r); cairo_set_source_rgba(c, 0.97, 0.97, 0.98, 0.96); cairo_fill(c); }
+    else { cairo_new_path(c); sys_round(c, 0, y, dev.width, h + r, r); cairo_set_source_rgba(c, 0.97, 0.97, 0.98, 0.98); cairo_fill(c); }
+    siri_el("vi-sheet", siri.text, sheet, EL_SIRI, -6);           /* taps inside the sheet but on no row do nothing */
+    cairo_new_path(c); sys_round(c, dev.width / 2 - 18, y + 7, 36, 5, 2.5); cairo_set_source_rgba(c, 0, 0, 0, 0.18); cairo_fill(c);   /* grabber */
+    double pad = 20, cy = y + 22;
+    sys_text(c, "Search", pad, cy, dev.width - 2 * pad - 40, 22, PANGO_WEIGHT_BOLD, 0, 1, 0.05, 0.05, 0.07, 1);
+    struct rectf close = { dev.width - pad - 30, cy - 2, 30, 30 };
+    cairo_new_path(c); cairo_arc(c, close.x + 15, close.y + 15, 15, 0, 2 * M_PI); cairo_set_source_rgba(c, 0, 0, 0, 0.07); cairo_fill(c);
+    sys_symbol(c, "xmark", close.x + 15, close.y + 15, 12, 0.4, 0.4, 0.43);
+    el_add("vi-close", "Close", close, EL_SIRI, -5);
+    cy += 30;
+    sys_text(c, siri.text, pad, cy, dev.width - 2 * pad, 14, PANGO_WEIGHT_NORMAL, 0, 1, 0.45, 0.45, 0.48, 1);
+    cy += 28;
+    /* the tabs: one capsule per app, the selected one filled */
+    double tx = pad;
+    for (int t = 0; t < siri.ntab; t++) {
+        double ww = fmin(dev.width - 2 * pad, siri_text_width(c, siri.tab[t], 15, PANGO_WEIGHT_SEMIBOLD) + 28);
+        struct rectf tr = { tx, cy, ww, 32 };
+        int on = t == siri.vtab;
+        cairo_new_path(c); sys_round(c, tr.x, tr.y, tr.w, tr.h, 16);
+        if (on) cairo_set_source_rgb(c, 0.1, 0.1, 0.12); else cairo_set_source_rgba(c, 0, 0, 0, 0.07);
+        cairo_fill(c);
+        sys_text(c, siri.tab[t], tr.x, tr.y + 7, tr.w, 15, PANGO_WEIGHT_SEMIBOLD, 1, 1, on ? 1 : 0.1, on ? 1 : 0.1, on ? 1 : 0.12, 1);
+        char id[24]; snprintf(id, sizeof id, "vi-tab-%d", t);
+        el_add(id, siri.tab[t], tr, EL_SIRI, -100 - t);
+        tx += ww + 8;
+    }
+    cy += 46;
+    /* the selected tab's results */
+    for (int k = 0; k < siri.nopt && cy + 60 < dev.height - fmax(dev.safe_bottom, 8); k++) {
+        if (siri.opt_tab[k] != siri.vtab) continue;
+        struct rectf rr = { pad - 8, cy, dev.width - 2 * pad + 16, 56 };
+        cairo_new_path(c); sys_round(c, rr.x, rr.y, rr.w, rr.h, 14); cairo_set_source_rgba(c, 0, 0, 0, 0.04); cairo_fill(c);
+        int sub = siri.opt[k][1][0] != 0;
+        sys_text(c, siri.opt[k][0], rr.x + 14, rr.y + (sub ? 8 : 17), rr.w - 28, 17, PANGO_WEIGHT_SEMIBOLD, 0, 1, 0.05, 0.05, 0.07, 1);
+        if (sub) sys_text(c, siri.opt[k][1], rr.x + 14, rr.y + 31, rr.w - 28, 13, PANGO_WEIGHT_NORMAL, 0, 1, 0.45, 0.45, 0.48, 1);
+        char id[24], text[400]; snprintf(id, sizeof id, "vi-result-%d", k);
+        snprintf(text, sizeof text, "%s%s%s", siri.opt[k][0], sub ? " — " : "", siri.opt[k][1]);
+        el_add(id, text, rr, EL_SIRI, k);
+        cy += 64;
+    }
+}
 static void siri_draw(cairo_t *c) {
     if (!siri.on) return;
+    if (!strcmp(siri.mode, "visual")) {
+        double fade = fmin(1, (now() - siri.t0) / 0.25);
+        cairo_push_group(c);
+        el_add("siri-background", "", (struct rectf){ 0, 0, dev.width, dev.height }, EL_SIRI, -1);
+        siri_visual_draw(c);
+        cairo_pop_group_to_source(c);
+        cairo_paint_with_alpha(c, fade);
+        return;
+    }
     double t = now() - siri.t0, fade = fmin(1, t / 0.25);
     int os = sys_os(), from_siri = !strcmp(siri.source, "siri");
     cairo_push_group(c);
@@ -244,6 +321,8 @@ static void siri_tap(struct sys_el *e) {
     else if (e->arg == -2) siri_answer("confirm");
     else if (e->arg == -3) siri_answer("cancel");
     else if (e->arg == -4) { fprintf(stderr, "isim shell: Type to Siri (type TEXT, then key return)\n"); }
+    else if (e->arg == -6) {}                                                  /* the Visual Intelligence sheet, off its rows */
+    else if (e->arg <= -100) { siri.vtab = -100 - e->arg; fprintf(stderr, "isim shell: Visual Intelligence tab %s\n", siri.tab[siri.vtab]); shell_show(active >= 0 ? active : 0); }
     else { siri_answer("dismiss"); siri_hide_now(); }
 }
 /* input while Siri is shown (and the key that brings it up); 1 when it was Siri's */
@@ -256,7 +335,7 @@ static int siri_input(const struct isim_event *ev) {
     if (ev->type == EV_DUMP) {
         if (ov != OV_NONE) return 0;                                  /* sys_dump lists Siri's parts with the overlay's */
         fprintf(stderr, "IsimSiri (0 0; %g x %g) mode=%s source=%s\n", dev.width, dev.height, siri.mode, siri.source);
-        for (int k = 0; k < nels; k++) if (!strncmp(els[k].id, "siri-", 5))
+        for (int k = 0; k < nels; k++) if (!strncmp(els[k].id, "siri-", 5) || !strncmp(els[k].id, "vi-", 3))
             fprintf(stderr, "  IsimSiriView (%g %g; %g x %g) id=%s%s%s\n", els[k].r.x, els[k].r.y, els[k].r.w, els[k].r.h, els[k].id, els[k].text[0] ? " text=" : "", els[k].text);
         return 0;
     }
@@ -269,7 +348,7 @@ static int siri_input(const struct isim_event *ev) {
     }
     if (ev->type == EV_KEY && ev->key == 27) { siri_answer("dismiss"); siri_hide_now(); return 1; }
     if (ev->type == EV_ID_DOWN || ev->type == EV_ID_UP) {
-        if (strncmp(ev->text, "siri-", 5)) return 0;                    /* the app's own views */
+        if (strncmp(ev->text, "siri-", 5) && strncmp(ev->text, "vi-", 3)) return 0;   /* the app's own views */
         struct sys_el *e = el_named(ev->text);
         if (!e) { fprintf(stderr, "isim shell: no Siri element '%s'\n", ev->text); return 1; }
         if (ev->type == EV_ID_UP && ev->mods != 1) siri_tap(e);

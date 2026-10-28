@@ -270,7 +270,7 @@ static BOOL refreshing; static NSMutableArray *after_refresh;
 static NSString *last_heard;
 
 static NSString *enc(NSString *s) { return [[s ?: @"" stringByReplacingOccurrencesOfString:@"\n" withString:@"\x1e"] stringByReplacingOccurrencesOfString:@"\r" withString:@""]; }
-/* what the shell shows (shell_siri.inc): mode = listening | working | value | choice | confirm | result | hidden */
+/* what the shell shows (shell_siri.inc): mode = listening | working | value | choice | confirm | result | visual | hidden */
 static void siri_ui(NSDictionary *d) {
     static NSUInteger n;
     ui_mode = d[@"mode"] ?: @"hidden";
@@ -279,7 +279,9 @@ static void siri_ui(NSDictionary *d) {
     [s appendFormat:@"mode=%@\nsource=%@\n", ui_mode, ui_source];
     for (NSString *k in @[@"heard", @"text", @"detail", @"app", @"appname", @"snippet", @"action", @"cancel", @"input", @"placeholder"])
         if ([d[k] length]) [s appendFormat:@"%@=%@\n", k, enc(d[k])];
-    for (NSDictionary *o in d[@"options"]) [s appendFormat:@"option=%@\x1e%@\n", enc(o[@"title"]), enc(o[@"subtitle"])];
+    for (NSString *t in d[@"tabs"]) [s appendFormat:@"tab=%@\n", enc(t)];
+    for (NSDictionary *o in d[@"options"]) [s appendFormat:@"option=%@\x1e%@%@\n", enc(o[@"title"]), enc(o[@"subtitle"]),
+                                            o[@"tab"] ? [NSString stringWithFormat:@"\x1e%@", o[@"tab"]] : @""];
     NSString *f = [dir_named(@"Library/SpringBoard/Siri") stringByAppendingPathComponent:[NSString stringWithFormat:@"ui-%lu.txt", (unsigned long)(++n % 8)]];
     [s writeToFile:f atomically:YES encoding:NSUTF8StringEncoding error:NULL];
     isim_shell_request(ISIM_SHELL_SYSTEM, "siri-ui", f.UTF8String, "");
@@ -593,7 +595,10 @@ static BOOL siri_locked;
  * "visualintelligence LABEL[,LABEL...]": what the camera or the screen shows, as labels (isim has no classifier). The
  * apps whose IntentValueQuery takes a SemanticContentDescriptor (their metadata's valueQueries) are run in the
  * background with { values = VisualIntelligence.SemanticContentDescriptor; labels } and their results logged:
- * "SpringBoard: Visual Intelligence: APP: TITLE (SUBTITLE), ..." */
+ * "SpringBoard: Visual Intelligence: APP: TITLE (SUBTITLE), ...". Once every app has answered, the results sheet shows
+ * over the screen (iOS 26's search results, issue #691): a tab per app that found something, its results (title,
+ * subtitle). Choosing one opens it: the app's OpenIntent for the result's entity type, with the entity as its target,
+ * or (without one) the app. Script ids: vi-sheet, vi-tab-N, vi-result-N (shell_siri.inc). */
 static NSString *const VIInput = @"VisualIntelligence.SemanticContentDescriptor";
 - (void)visualIntelligence:(NSString *)args {
     NSMutableArray<NSString *> *labels = [NSMutableArray array];
@@ -608,6 +613,7 @@ static NSString *const VIInput = @"VisualIntelligence.SemanticContentDescriptor"
         for (HSApp *a in self.apps) if ([HSAppIntentsMetadata(a)[@"valueQueries"] containsObject:VIInput]) [apps addObject:a];
         NSString *seen = [labels componentsJoinedByString:@", "];
         if (!apps.count) { NSLog(@"SpringBoard: Visual Intelligence: no app searches “%@”", seen); return; }
+        NSMutableDictionary *run = [@{ @"seen": seen, @"left": @(apps.count), @"results": [NSMutableArray array] } mutableCopy];
         for (HSApp *a in apps) {
             NSString *dir = [dir_named(@"Library/SpringBoard/Intents") stringByAppendingPathComponent:[NSString stringWithFormat:@"vi-%lu-%u", (unsigned long)++run_seq, arc4random() % 100000]];
             [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:NULL];
@@ -616,16 +622,49 @@ static NSString *const VIInput = @"VisualIntelligence.SemanticContentDescriptor"
                 writeToFile:reqPath atomically:YES];
             NSLog(@"SpringBoard: Visual Intelligence asks %@ about “%@”", a.name, seen);
             isim_shell_request(ISIM_SHELL_SYSTEM, "launch-bg", a.path.UTF8String, [NSString stringWithFormat:@"%@\x1fisim-intent:%@", a.executable, reqPath].UTF8String);
-            [self visualIntelligenceResults:dir app:a tries:0];
+            [self visualIntelligenceResults:dir app:a run:run tries:0];
         }
     }];
 }
-- (void)visualIntelligenceResults:(NSString *)dir app:(HSApp *)a tries:(int)tries {
+/* one app's answer (or its silence) is in: when the last one is, the results sheet */
+- (void)visualIntelligenceAnswered:(NSMutableDictionary *)run {
+    run[@"left"] = @([run[@"left"] integerValue] - 1);
+    if ([run[@"left"] integerValue] > 0) return;
+    NSArray<NSDictionary *> *results = run[@"results"];
+    if (!results.count) return;
+    NSMutableArray *tabs = [NSMutableArray array], *opts = [NSMutableArray array];
+    for (NSDictionary *r in results) {
+        NSString *name = [r[@"app"] name];
+        if (![tabs containsObject:name]) [tabs addObject:name];
+        [opts addObject:@{ @"title": r[@"title"] ?: @"", @"subtitle": r[@"subtitle"] ?: @"", @"tab": @([tabs indexOfObject:name]) }];
+    }
+    NSLog(@"SpringBoard: Visual Intelligence shows %lu result(s) from %@", (unsigned long)results.count, [tabs componentsJoinedByString:@", "]);
+    siri_ui(@{ @"mode": @"visual", @"source": @"visualintelligence", @"text": run[@"seen"], @"tabs": tabs, @"options": opts });
+    local_choice = ^(NSInteger idx, NSString *text) {
+        if (idx < 0 || idx >= (NSInteger)results.count) return;
+        siri_ui(@{ @"mode": @"hidden" });
+        [self openVisualIntelligenceResult:results[idx]];
+    };
+}
+/* a chosen result: the app's OpenIntent for its entity type, else the app */
+- (void)openVisualIntelligenceResult:(NSDictionary *)r {
+    HSApp *a = r[@"app"];
+    NSDictionary *intents = HSAppIntentsMetadata(a)[@"intents"];
+    for (NSString *name in [intents.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
+        if (![r[@"entity"] length] || ![intents[name][@"openTarget"] isEqual:r[@"entity"]]) continue;
+        NSLog(@"SpringBoard: Visual Intelligence opens %@ in %@ with %@", r[@"title"], a.name, name);
+        [self runAppIntent:name shortcut:nil params:@{ @"target": r[@"id"] ?: @"" } app:a source:@"visualintelligence"];
+        return;
+    }
+    NSLog(@"SpringBoard: Visual Intelligence opens %@ (%@ has no OpenIntent for it)", a.name, r[@"title"]);
+    [self launch:a];
+}
+- (void)visualIntelligenceResults:(NSString *)dir app:(HSApp *)a run:(NSMutableDictionary *)run tries:(int)tries {
     NSDictionary *step = [NSDictionary dictionaryWithContentsOfFile:[dir stringByAppendingPathComponent:@"step-1.plist"]];
     if (!step) {
-        if (tries > 600) { NSLog(@"SpringBoard: Visual Intelligence: %@ did not answer", a.name); return; }
+        if (tries > 600) { NSLog(@"SpringBoard: Visual Intelligence: %@ did not answer", a.name); [self visualIntelligenceAnswered:run]; return; }
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            [self visualIntelligenceResults:dir app:a tries:tries + 1];
+            [self visualIntelligenceResults:dir app:a run:run tries:tries + 1];
         });
         return;
     }
@@ -633,9 +672,12 @@ static NSString *const VIInput = @"VisualIntelligence.SemanticContentDescriptor"
     for (NSDictionary *v in step[@"values"]) {
         NSString *sub = v[@"subtitle"];
         [found addObject:sub.length ? [NSString stringWithFormat:@"%@ (%@)", v[@"title"], sub] : (v[@"title"] ?: @"")];
+        NSMutableDictionary *r = [v mutableCopy]; r[@"app"] = a;
+        [run[@"results"] addObject:r];
     }
     if ([step[@"outcome"] isEqualToString:@"failure"]) NSLog(@"SpringBoard: Visual Intelligence: %@ failed: %@", a.name, step[@"error"] ?: @"");
     else NSLog(@"SpringBoard: Visual Intelligence: %@: %@", a.name, found.count ? [found componentsJoinedByString:@", "] : @"no results");
+    [self visualIntelligenceAnswered:run];
 }
 static BOOL locked_out(NSString *auth) { return siri_locked && auth.length && ![auth isEqualToString:@"alwaysAllowed"]; }
 /* the entry point for App Intents: intent = Module.TypeName; shortcut = the App Shortcut's index (its own intent

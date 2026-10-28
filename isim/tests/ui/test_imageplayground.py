@@ -2,7 +2,8 @@
 model: Image Playground is unavailable (isAvailable / supportsImagePlayground false, ImageCreator throws .unavailable,
 or .notSupported on a device without Apple Intelligence), and the SwiftUI sheet and the view controller say so and end
 as a cancellation. Visual Intelligence (iOS 26): the `visualintelligence LABELS` script command runs the apps' value
-queries over SemanticContentDescriptor in the background and logs their results."""
+queries over SemanticContentDescriptor in the background, logs their results and shows them in a sheet (a tab per
+app); choosing a result opens it with the app's OpenIntent."""
 import pytest
 
 APP = "HelloImagePlayground"
@@ -59,5 +60,12 @@ def test_visual_intelligence(launch):
     dev.wait_log(r"SpringBoard: Visual Intelligence asks Sticker Shop about “cat, plant”")
     dev.wait_log(r'HelloImagePlayground: visual search \["cat", "plant"\]')
     dev.wait_log(r"SpringBoard: Visual Intelligence: Sticker Shop: Sleepy Cat \(cat, animal, pet\), Pine Tree \(tree, plant, forest\)")
+    # the results sheet (#691): a tab per app, its results; choosing one opens it with the app's OpenIntent
+    dev.wait_log(r"SpringBoard: Visual Intelligence shows 2 result\(s\) from Sticker Shop")
+    dev.wait_dump(r"id=vi-tab-0 text=Sticker Shop$")
+    dev.wait_dump(r"id=vi-result-1 text=Pine Tree — tree, plant, forest$")
+    dev.tap_id("vi-result-1")
+    dev.wait_log(r"SpringBoard: Visual Intelligence opens Pine Tree in Sticker Shop with \S*OpenStickerIntent")
+    dev.wait_log(r"HelloImagePlayground: open sticker Pine Tree")
     dev.send("visualintelligence rocket")
     dev.wait_log(r"SpringBoard: Visual Intelligence: Sticker Shop: no results")

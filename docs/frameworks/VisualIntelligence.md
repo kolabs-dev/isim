@@ -15,8 +15,12 @@
   background, like an App Intent), and logs each app's results:
   `SpringBoard: Visual Intelligence: APP: TITLE (SUBTITLE), ...` or `no results`.
 - **Objective-C / C interface:** Swift only (as on iOS).
-- **Versus Apple's Simulator:** there is no camera or screen classifier, and no results UI yet: the results are in the
-  log (the search sheet over the camera: [#691](https://github.com/kolabs-dev/isim/issues/691)). `pixelBuffer` is not there yet (CoreVideo's
+- **Results sheet:** once every app has answered, the results show in a sheet over the screen, a tab per app that found
+  something, with its results' titles and subtitles; choosing one opens it with the app's `OpenIntent` for the
+  result's entity type (the entity as its target), or opens the app when it has none (#691). The sheet's sizes are
+  estimated from Apple's documentation screenshots; there is no "More results" link. Script ids: `vi-sheet`, `vi-tab-N`,
+  `vi-result-N`, `vi-close`.
+- **Versus Apple's Simulator:** there is no camera or screen classifier: the labels are script input. `pixelBuffer` is not there yet (CoreVideo's
   `CVReadOnlyPixelBuffer`, iOS 26, is not in isim).
 
 ## API
