@@ -47,6 +47,17 @@ LOG_LINES = {
 }
 
 
+def test_security_post_quantum(device_data):
+    """CryptoKit's iOS 26 SHA-3, ML-KEM, ML-DSA, X-Wing and the enclave's post-quantum keys (PQTests.swift's known
+    answers, iOS 26 only: #available); under iOS 27 also the one-time KEM keys."""
+    need_apps("SecurityTest")
+    r = selftest("SecurityTest", data=device_data, timeout=120, os_version="26.0", env={"SECURITY_TEST_ONLY": "pq"})
+    assert "PASS  XWing shared secret (draft vector)" in r.output and "PASS  MLDSA87 deterministic signature" in r.output, r.output[-2000:]
+    assert "SKIP  one-time KEM keys (iOS 27)" in r.output
+    r = selftest("SecurityTest", data=device_data, timeout=120, os_version="27.0", env={"SECURITY_TEST_ONLY": "pq"})
+    assert "PASS  MLKEM768.OneTimePrivateKey decapsulates once" in r.output, r.output[-2000:]
+
+
 def test_security(device_data):
     need_apps("SecurityTest")
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 47821), OCSPResponder)

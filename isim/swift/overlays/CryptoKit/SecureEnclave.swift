@@ -26,8 +26,22 @@ public enum SecureEnclave {
     static func open(_ data: [UInt8]) throws -> ([UInt8], UInt8) {
         guard isAvailable else { throw CryptoKitError.underlyingCoreCryptoError(error: -25293) }
         // another device's (or a damaged) key: errSecDecode, like a blob from another enclave
-        guard let (d, f) = _SecureEnclaveStore.unwrap(data) else { throw CryptoKitError.underlyingCoreCryptoError(error: -26275) }
+        guard let (d, f) = _SecureEnclaveStore.unwrap(data), d.count == 32 else { throw CryptoKitError.underlyingCoreCryptoError(error: -26275) }
         return (d, f)
+    }
+    /// a post-quantum key (iOS 26): the enclave keeps its seed, tagged with the key's type
+    static func makeSeed(_ tag: UInt8, _ count: Int, _ ac: SecAccessControl) throws -> ([UInt8], Data) {
+        guard isAvailable else { throw CryptoKitError.underlyingCoreCryptoError(error: -25293) }
+        let seed = _randomBytes(count)
+        guard let blob = _SecureEnclaveStore.wrap([tag] + seed, flags: flags(ac)) else { throw CryptoKitError.underlyingCoreCryptoError(error: -25293) }
+        return (seed, blob)
+    }
+    static func openSeed(_ tag: UInt8, _ count: Int, _ data: [UInt8]) throws -> ([UInt8], UInt8) {
+        guard isAvailable else { throw CryptoKitError.underlyingCoreCryptoError(error: -25293) }
+        guard let (d, f) = _SecureEnclaveStore.unwrap(data), d.count == count + 1, d[0] == tag else {
+            throw CryptoKitError.underlyingCoreCryptoError(error: -26275)
+        }
+        return (Array(d[1...]), f)
     }
     static func authorize(_ flags: UInt8, _ context: LAContext?, _ what: String) throws {
         guard _SecureEnclaveStore.authenticate(flags: flags, reason: what, context: context) else {
