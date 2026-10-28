@@ -46,3 +46,9 @@ usr/lib/swift/libswiftCloudKit.dylib 0.27.0
 # or earlier that use SceneKit or ARKit must be rebuilt.
 usr/lib/swift/libswiftSceneKit.dylib 0.31.0
 usr/lib/swift/libswiftARKit.dylib 0.31.0
+# 0.32.0 (issue #379): VisionKit's data scanner, Live Text and document camera. ImageAnalyzer.analyze returns Apple's
+# ImageAnalysis (it returned an AnyObject placeholder), RecognizedItem is Apple's top-level enum and
+# DataScannerViewController.RecognizedDataType Apple's struct (both were nested or enum placeholders), the class
+# properties are class vars, and VNDocumentCameraViewControllerDelegate is Apple's Objective-C protocol. Swift apps built
+# with 0.31 or earlier that use VisionKit must be rebuilt.
+usr/lib/swift/libswiftVisionKit.dylib 0.32.0
