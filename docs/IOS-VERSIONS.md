@@ -49,6 +49,14 @@ incompatible runtime), and when no runtime is chosen it picks a compatible one. 
 | iPhone 16e | 18.3 | 18.3, 26, 27 |
 | iPad (A16) | 18.4 | 18.4, 26, 27 |
 | iPhone 17, iPhone Air, 17 Pro, 17 Pro Max | 26.0 | 26, 27 |
+| iPhone Duo | 27.1 | 27.1 |
+
+**iPhone Duo** (`--device iphoneduo`, a foldable) starts folded, on its cover display (466 x 678 pt). Script `fold
+open|closed|toggle` (or `ISIM_FOLD=open` at boot) switches to the inner display (951 x 669 pt, regular x regular) and
+back; apps resize through UIKit's size transition, and apps linked against an Apple SDK older than iOS 27.1 keep the
+cover's size, letterboxed with black borders, as on the device. Apps built with isim's SDK resize. The displays' sizes,
+scale and corner radii are the simulator device type's (read by a third party from Xcode 27.2 beta 2); the safe areas,
+the status bar strip down the cover's right edge and the inner display's status bar are estimated (issue #115).
 
 No preset is dropped by iOS 27 (Apple's iOS 27 compatibility list still includes iPhone SE (3rd generation) and
 iPhone 13 mini), so there is no maximum version.

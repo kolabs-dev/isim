@@ -385,11 +385,12 @@ static int shell_spawn_at(int slot, const char *bundle, const char *exe, const c
     if (!px) { perror("isim shell: map surface"); close(sv[0]); close(sv[1]); close(mfd); return -1; }
     memset(px, 0, surface_bytes);
     /* the app: the runtime again, with the channel and the surface (their handle numbers in its environment) */
-    char b1[48], b2[48], b3[48], ob[48], lu[1100];
+    char b1[48], b2[48], b3[48], b4[64], ob[48], lu[1100];
     snprintf(b1, sizeof b1, "ISIM_CLIENT_SOCK=%d", sv[1]); snprintf(b2, sizeof b2, "ISIM_CLIENT_SURFACE=%d", mfd);
     snprintf(b3, sizeof b3, "ISIM_CLIENT_SCALE=%g", px_scale); snprintf(ob, sizeof ob, "ISIM_DEVICE_ORIENTATION=%d", device_orient);
+    snprintf(b4, sizeof b4, "ISIM_CLIENT_SURFACE_BYTES=%zu", surface_bytes);
     snprintf(lu, sizeof lu, "ISIM_LAUNCH_URL=%s", url ? url : "");
-    const char *set[8] = { b1, b2, b3, ob }; int ns = 4;
+    const char *set[9] = { b1, b2, b3, ob, b4 }; int ns = 5;
     const char *unset[8] = { "ISIM_SCRIPT", "ISIM_HEADLESS", "ISIM_CONTROL" }; int nu = 3;
     if (url && *url) set[ns++] = lu; else unset[nu++] = "ISIM_LAUNCH_URL";
     if (spawn_background) set[ns++] = "ISIM_LAUNCH_BACKGROUND=1"; else unset[nu++] = "ISIM_LAUNCH_BACKGROUND";
@@ -474,7 +475,7 @@ static void shell_handle(int i, const struct shell_msg *m) {
         if (i == active && anim.kind == ANIM_NONE && !drag_active) shell_show(i);
         break;
     case SM_PHONE_COMPAT:
-        clients[i].phone_compat = 1; clients[i].compat_width = atof(m->a); clients[i].compat_height = atof(m->b);
+        clients[i].phone_compat = atof(m->a) > 0; clients[i].compat_width = atof(m->a); clients[i].compat_height = atof(m->b);   /* 0: no longer (a foldable folded) */
         if (anim.client == i && anim.kind == ANIM_OPEN) { anim.to = client_rect(i); anim.rto = 0; }
         break;
     case SM_NOTIFY: sys_notify(i, m); break;
@@ -523,6 +524,12 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
     if (headless && !getenv("ISIM_AUDIO")) setenv("ISIM_MUTE", "1", 1);      /* headless runs (tests) are silent */
     surf_w = (int)lround(dev.width * px_scale); surf_h = (int)lround(dev.height * px_scale);
     surface_bytes = (size_t)surf_w * surf_h * 4;
+    if (fold_inner >= 0) {                                       /* a foldable: room for either display */
+        const struct isim_device *a = &outer_dev, *b = &inner_displays[fold_inner].d;
+        size_t sa = (size_t)lround(a->width * px_scale) * (size_t)lround(a->height * px_scale) * 4;
+        size_t sb = (size_t)lround(b->width * px_scale) * (size_t)lround(b->height * px_scale) * 4;
+        surface_bytes = sa > sb ? sa : sb;
+    }
     pctx = NULL;
 
     { const char *d = getenv("ISIM_DATA"); char p[1024];        /* `isim push` checks that a device is running */

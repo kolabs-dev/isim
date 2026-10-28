@@ -75,7 +75,7 @@ isim run build/HelloWorld.app
   It sets the reported version, what `#available` answers and the look (Liquid Glass from 26). The device data
   remembers it. Like Xcode, a device needs at least the iOS it shipped with (iPhone 17 models: 26): an explicit older
   version is rejected, otherwise the nearest valid one is used. See [docs/IOS-VERSIONS.md](docs/IOS-VERSIONS.md).
-- `--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16plus|iphone16pro|iphone16promax|iphone16e|iphone17|iphoneair|iphone17pro|iphone17promax|ipadmini|ipada16|ipadair11|ipadair13|ipadpro11|ipadpro13`
+- `--device iphonese|iphone13mini|iphone14|iphone15|iphone15plus|iphone15promax|iphone16plus|iphone16pro|iphone16promax|iphone16e|iphone17|iphoneair|iphone17pro|iphone17promax|iphoneduo|ipadmini|ipada16|ipadair11|ipadair13|ipadpro11|ipadpro13`
 - `--zoom 0.8`
 - `--dark`
 - `--headless --script "…"`

@@ -202,6 +202,7 @@ activity with a push token. `start` needs the push-to-start token the app read f
 | Command | What it does |
 |---|---|
 | `rotate portrait\|upsidedown\|landscapeleft\|landscaperight\|left\|right` | turn the device |
+| `fold open\|closed\|toggle` | a foldable (`--device iphoneduo`): unfold to the inner display (951 x 669 pt) or fold to the cover (466 x 678 pt). Apps resize (`viewWillTransition(to:with:)`, regular x regular on the inner display); apps linked against an Apple SDK older than iOS 27.1 stay at the cover's size, letterboxed. Logs `isim shell: unfolded, inner display (951x669)` (`isim host: ...` under `isim run`) |
 | `shake` | Device ▸ Shake (Shake to Undo offers to undo the first responder's last change when `applicationSupportsShakeToEdit` is on) |
 | `location LAT LON` / `location none` | Features ▸ Location |
 | `beacon UUID MAJOR MINOR [immediate\|near\|far] [RSSI]` · `beacon off UUID MAJOR MINOR` · `beacon none` | an iBeacon comes into range (default `near`, RSSI from the proximity), leaves, or all leave: Core Location ranging, beacon regions and `CLMonitor` beacon conditions see it |

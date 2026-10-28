@@ -47,6 +47,7 @@ struct image {
     const char *install_name;
     uint8_t *file; size_t file_size;
     const struct mach_header_64 *mh;
+    uint32_t sdk;                             /* LC_BUILD_VERSION sdk */
     struct segment_command_64 *segs[MAX_SEGS]; int nsegs;
     uint64_t slide; uint8_t *base; uint64_t span;
     int ndeps;
@@ -91,6 +92,9 @@ void isim_fatal(const char *fmt, ...) {
 }
 
 const char *isim_main_executable_path(void) { return main_image ? main_image->path : NULL; }
+/* the SDK the main executable was linked against (LC_BUILD_VERSION, xxxx.yy.zz in nibbles; 0: isim's own SDK) */
+static uint32_t main_sdk;
+uint32_t isim_main_executable_sdk(void) { return main_sdk; }
 const char *isim_sysroot(void) { return sysroot; }   /* --root (XCUITest launches apps with the same root) */
 
 static const struct shim dyld_table[];
@@ -470,7 +474,7 @@ static struct image *map_image(const char *path, int want_type) {
         case LC_DYLD_CHAINED_FIXUPS: im->chained = (const void *)c; break;
         case LC_DYLD_EXPORTS_TRIE: im->exports = (const void *)c; break;
         case LC_MAIN: im->entry = (const void *)c; break;
-        case LC_BUILD_VERSION: platform = ((const struct build_version_command *)c)->platform; break;
+        case LC_BUILD_VERSION: platform = ((const struct build_version_command *)c)->platform; im->sdk = ((const struct build_version_command *)c)->sdk; break;
         }
         lc += c->cmdsize;
     }
@@ -506,7 +510,7 @@ static struct image *map_image(const char *path, int want_type) {
 static struct image *load_image(const char *path, int want_type) {
     struct image *im = map_image(path, want_type);
     if (!im) return NULL;
-    if (want_type == MH_EXECUTE) main_image = im;
+    if (want_type == MH_EXECUTE) { main_image = im; main_sdk = im->sdk; }
     for (int i = 0; i < im->ndeps; i++) {
         const char *name = im->dep_names[i];
         const struct host_lib *h = host_lib_for(name);

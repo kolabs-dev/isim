@@ -326,6 +326,7 @@ unsigned isim_ui_trait_generation(void) { return trait_gen; }
 
 static UIUserInterfaceSizeClass hsize_for(CGSize s, BOOL pad, CGSize screen) {
     if (pad) return s.width >= 678 ? UIUserInterfaceSizeClassRegular : UIUserInterfaceSizeClassCompact;
+    if (isim_device_fold_state() == 2) return s.width >= 600 ? UIUserInterfaceSizeClassRegular : UIUserInterfaceSizeClassCompact;   /* iPhone Duo's inner display (adapted) */
     BOOL landscape = screen.width > screen.height;
     return landscape && MIN(screen.width, screen.height) >= 414 && s.width >= 0.9 * screen.width ? UIUserInterfaceSizeClassRegular : UIUserInterfaceSizeClassCompact;
 }
@@ -338,7 +339,7 @@ UITraitCollection *isim_ui_screen_traits(void) {
     t[K_STYLE] = @(isim_ui_base_style());
     t[K_IDIOM] = @(pad ? UIUserInterfaceIdiomPad : UIUserInterfaceIdiomPhone);
     t[K_HSIZE] = @(hsize_for(screen, pad, screen));
-    t[K_VSIZE] = @(pad || !landscape ? UIUserInterfaceSizeClassRegular : UIUserInterfaceSizeClassCompact);
+    t[K_VSIZE] = @(pad || !landscape || isim_device_fold_state() == 2 ? UIUserInterfaceSizeClassRegular : UIUserInterfaceSizeClassCompact);   /* inner display: regular x regular */
     t[K_SCALE] = @(d->scale);
     t[K_DIR] = @(isim_ui_app_layout_direction() == UIUserInterfaceLayoutDirectionRightToLeft ? UITraitEnvironmentLayoutDirectionRightToLeft : UITraitEnvironmentLayoutDirectionLeftToRight);
     t[K_FORCE] = @(UIForceTouchCapabilityUnavailable);

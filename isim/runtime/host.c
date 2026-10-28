@@ -80,6 +80,7 @@ enum { SM_EVENT = 1, SM_FRAME, SM_LAUNCH, SM_SETTINGS, SM_HOME, SM_TERMINATE_OTH
        SM_SYSTEM = 40 /* a = verb, b/c = arguments (shell_system.inc) */ };
 static int client_sock = -1, client_wake[2] = { -1, -1 };
 static unsigned char *client_pixels;
+static size_t client_bytes;
 
 static struct isim_device dev;
 static struct isim_device portrait_dev;             /* the preset, upright */
@@ -157,8 +158,26 @@ static const struct { const char *id; struct isim_device d; int min_major, min_m
     { "ipadair13",      { 1024, 1366, 2, 24, 20, 18, 0, "iPad Air 13-inch (M2)" }, 17, 5 },
     { "ipadpro11",      { 834, 1210, 2, 24, 20, 18, 0, "iPad Pro 11-inch (M4)" }, 17, 5 },
     { "ipadpro13",      { 1032, 1376, 2, 24, 20, 18, 0, "iPad Pro 13-inch (M4)" }, 17, 5 },
+    /* iPhone Duo, folded: the cover display. 466 x 678 pt at 3x and the 59 pt corners are the device type's (Xcode 27.2
+       beta 2's capabilities.plist, as read by a third party; Apple's specs: 1398 x 2034 px). The safe areas are
+       estimated: no status bar band at the top, a status bar and camera strip down the right edge (84 pt) and the home
+       indicator (34 pt), as one third-party listing gives them; the hinge-side corners (8 pt) are drawn round. */
+    { "iphoneduo",      { 466, 678, 3, 0, 34, 59, 0, "iPhone Duo", 0, 84 }, 27, 1 },
+};
+/* foldable presets: the inner display, upright as the device is held open (twice the cover's width). iPhone Duo:
+   951 x 669 pt at 3x, the device type's landscape-native panel (2007 x 2853 px, native orientation 270), with 55 pt
+   corners; its safe areas (a 24 pt status bar at the top, the home indicator's 20 pt) are estimated. */
+static const struct { const char *id; struct isim_device d; } inner_displays[] = {
+    { "iphoneduo",      { 951, 669, 3, 24, 20, 55, 0, "iPhone Duo" } },
 };
 #pragma GCC diagnostic pop
+/* the fold (script `fold open|closed`, ISIM_FOLD): which display a foldable preset shows */
+static struct isim_device outer_dev;                     /* the preset folded (the cover display), upright */
+static int fold_inner = -1;                              /* its inner display (inner_displays), -1: not foldable */
+static int fold_open;                                    /* the device is unfolded */
+static int fold_letterbox;                               /* this app keeps the cover's size on the inner display */
+static int dev_is_pad(void);
+static int fold_letterboxed_app(void);
 static void device_from_env(void) {
     const char *d = getenv("ISIM_DEVICE");
     dev = devices[3].d;                                   /* iPhone 15 */
@@ -171,6 +190,12 @@ static void device_from_env(void) {
     }
     const char *z = getenv("ISIM_ZOOM"); if (z) zoom = atof(z) > 0.1 ? atof(z) : 1;
     dev.orientation = 1;
+    outer_dev = dev;
+    for (size_t i = 0; d && i < sizeof inner_displays / sizeof *inner_displays; i++) if (!strcmp(inner_displays[i].id, d)) fold_inner = (int)i;
+    const char *f = getenv("ISIM_FOLD");
+    fold_open = fold_inner >= 0 && f && !strcmp(f, "open");
+    if (fold_open && getenv("ISIM_CLIENT_SOCK") && fold_letterboxed_app()) fold_letterbox = 1;   /* launched unfolded */
+    if (fold_open && !fold_letterbox) { dev = inner_displays[fold_inner].d; dev.orientation = 1; }
     portrait_dev = dev;
     const char *o = getenv("ISIM_DEVICE_ORIENTATION");     /* set by the shell for apps launched while turned */
     if (o && atoi(o) >= 1 && atoi(o) <= 4) device_orient = atoi(o);
@@ -218,7 +243,7 @@ static const struct { const char *id, *model; } model_ids[] = {
     { "iphone16promax", "iPhone17,2" }, { "iphone17", "iPhone18,3" }, { "iphoneair", "iPhone18,4" }, { "iphone17pro", "iPhone18,1" },
     { "iphone17promax", "iPhone18,2" }, { "ipadmini", "iPad14,1" }, { "ipad", "iPad14,8" }, { "ipadair11", "iPad14,8" },
     { "ipadpro11", "iPad16,3" }, { "ipadpro13", "iPad16,5" }, { "iphone16plus", "iPhone17,4" }, { "iphone16e", "iPhone17,5" },
-    { "ipadair13", "iPad14,10" }, { "ipada16", "iPad15,7" },
+    { "ipadair13", "iPad14,10" }, { "ipada16", "iPad15,7" }, { "iphoneduo", "iPhone19,4" },
 };
 const char *isim_sysroot(void);
 /* the device's UDID: made once and kept with its data (<isim data>/Library/isim/UDID), like a CoreSimulator device's */
@@ -334,7 +359,7 @@ ISIM_GUEST_ABI void isim_device_metrics(struct isim_device *out) { if (!dev.widt
    iPad geometry and composites this smaller client surface into it. */
 ISIM_GUEST_ABI void isim_set_phone_compatibility_mode(void) {
     if (!dev.width) device_from_env();
-    if (fmin(portrait_dev.width, portrait_dev.height) < 700 || phone_compat) return;
+    if (!dev_is_pad() || phone_compat) return;
     char physical_name[sizeof portrait_dev.name]; snprintf(physical_name, sizeof physical_name, "%s", portrait_dev.name);
     portrait_dev = devices[0].d;                    /* 375 x 667 pt, scale 2: the classic compatibility size */
     snprintf(portrait_dev.name, sizeof portrait_dev.name, "%s", physical_name);
@@ -345,11 +370,20 @@ ISIM_GUEST_ABI void isim_set_phone_compatibility_mode(void) {
 /* ---- orientation. The device (portrait geometry from the preset) can be turned (Ctrl+Left/Right, script
    `rotate`); each app then picks its interface orientation and the screen takes that shape: landscape swaps
    width/height, moves the sensor housing to a side (left/right safe areas), and hides the iPhone status bar. ---- */
+static int dev_is_pad(void) { if (!portrait_dev.width) device_from_env(); return fmin(portrait_dev.width, portrait_dev.height) >= 700; }
 static struct isim_device oriented(int o) {        /* o: UIInterfaceOrientation 1 portrait, 2 upside down, 3 landscape right, 4 landscape left */
     if (!portrait_dev.width) device_from_env();
     struct isim_device d = portrait_dev;
     d.orientation = o < 1 ? 1 : o;
-    int pad = portrait_dev.width >= 700;
+    int pad = dev_is_pad();
+    if (portrait_dev.safe_right > 0) {            /* a side strip (iPhone Duo's cover): it turns with the screen */
+        double t = portrait_dev.safe_top, b = portrait_dev.safe_bottom, l = portrait_dev.safe_left, r = portrait_dev.safe_right;
+        if (o == 3 || o == 4) { d.width = portrait_dev.height; d.height = portrait_dev.width; }
+        if (o == 2) { d.safe_top = t; d.safe_bottom = b; d.safe_left = r; d.safe_right = l; }
+        else if (o == 3) { d.safe_top = r; d.safe_bottom = l; d.safe_left = t; d.safe_right = b > 21 ? 21 : b; }   /* the home indicator: 21 pt */
+        else if (o == 4) { d.safe_top = l; d.safe_bottom = r; d.safe_left = b > 21 ? 21 : b; d.safe_right = t; }
+        return d;
+    }
     if (o == 3 || o == 4) {
         d.width = portrait_dev.height; d.height = portrait_dev.width;
         if (pad) { d.safe_left = d.safe_right = 0; }
@@ -361,6 +395,40 @@ static struct isim_device oriented(int o) {        /* o: UIInterfaceOrientation 
     return d;
 }
 ISIM_GUEST_ABI int isim_device_orientation(void) { return device_orient; }
+/* the fold, as this app sees it: 0 not a foldable device, 1 folded (or letterboxed on the inner display), 2 unfolded */
+ISIM_GUEST_ABI int isim_device_fold_state(void) {
+    if (!portrait_dev.width) device_from_env();
+    return fold_inner < 0 ? 0 : fold_open && !fold_letterbox ? 2 : 1;
+}
+/* the device folds or unfolds: the screen becomes the other display, in the same orientation */
+static void fold_set(int open) {
+    if (!portrait_dev.width) device_from_env();
+    fold_open = open;
+    struct isim_device p = open && !fold_letterbox ? inner_displays[fold_inner].d : outer_dev;
+    p.orientation = 1;
+    portrait_dev = p;
+    dev = oriented(dev.orientation ? dev.orientation : 1);
+}
+/* apps linked against an Apple SDK older than iOS 27.1 keep the cover's size on the inner display, letterboxed with
+   black borders, as on iPhone Duo; isim's own SDK (version 0.0) has the 27.1 APIs, so its apps resize */
+uint32_t isim_main_executable_sdk(void);
+static void make_surface(void);
+static int fold_letterboxed_app(void) { uint32_t s = isim_main_executable_sdk(); return s && s < 0x1b0100; }
+/* under the shell: the device folded or unfolded ("fold open|closed"). Returns 1 when the app's screen changed (UIKit
+   then resizes the scenes), 0 when a letterboxed app keeps its size (the shell scales its canvas) */
+static int client_fold(int open) {
+    if (fold_inner < 0 || open == fold_open) return 0;
+    if (fold_letterboxed_app()) {
+        fold_letterbox = open; fold_set(open);
+        struct shell_msg m = { .type = SM_PHONE_COMPAT };
+        snprintf(m.a, sizeof m.a, "%g", open ? portrait_dev.width : 0); snprintf(m.b, sizeof m.b, "%g", portrait_dev.height);
+        send(client_sock, &m, sizeof m, MSG_NOSIGNAL);
+        return 0;
+    }
+    fold_set(open);
+    make_surface();
+    return 1;
+}
 static void send_orient_to_shell(int o);
 static void make_surface(void);
 /* the app's screen takes interface orientation o; returns 1 if the geometry changed */
@@ -447,11 +515,13 @@ ISIM_GUEST_ABI int isim_display_open(const char *title) {
         px_scale = atof(getenv("ISIM_CLIENT_SCALE"));
         headless = 1;
         int w = (int)lround(dev.width * px_scale), h = (int)lround(dev.height * px_scale);
-        client_pixels = isim_shm_map(atoi(getenv("ISIM_CLIENT_SURFACE")), (size_t)w * h * 4, 1);
+        const char *sb = getenv("ISIM_CLIENT_SURFACE_BYTES");   /* a foldable's surface holds either display */
+        client_bytes = sb && strtoull(sb, NULL, 10) >= (size_t)w * h * 4 ? (size_t)strtoull(sb, NULL, 10) : (size_t)w * h * 4;
+        client_pixels = isim_shm_map(atoi(getenv("ISIM_CLIENT_SURFACE")), client_bytes, 1);
         if (!client_pixels) { perror("isim client: map surface"); exit(1); }
         if (pipe2(client_wake, O_NONBLOCK | O_CLOEXEC)) perror("isim client: pipe");
         make_surface();
-        if (phone_compat) {
+        if (phone_compat || fold_letterbox) {
             struct shell_msg m = { .type = SM_PHONE_COMPAT };
             snprintf(m.a, sizeof m.a, "%g", portrait_dev.width); snprintf(m.b, sizeof m.b, "%g", portrait_dev.height);
             send(client_sock, &m, sizeof m, MSG_NOSIGNAL);
@@ -1280,18 +1350,52 @@ static void draw_classic_status_bar(int style, const double *fg) {
         isim_text_draw(pct, bx - 4 - pw, cy - ph / 2, 0, 12, 0.3, 0, 0, 1, fg);
     }
 }
+/* a status bar down the right edge (iPhone Duo's cover, the safe area's side strip): the time at the top, Wi-Fi and the
+   battery under it, centred in the strip. The layout is estimated, not from the device. */
+static void draw_strip_status_bar(int style, const double *fg) {
+    double c = fg[0], sw = dev.safe_right, cx = dev.width - sw / 2, y = 18;
+    double dim[4] = { c, c, c, 0.4 };
+    if (style != SB_LOCK) {
+        load_clock_prefs();
+        time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
+        char clock[16];
+        if (clock_prefs.hour24) snprintf(clock, sizeof clock, "%02d:%02d", tm.tm_hour, tm.tm_min);
+        else snprintf(clock, sizeof clock, "%d:%02d", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min);
+        double cw, ch; isim_text_measure(clock, 17, 0.3, 0, 0, 1, &cw, &ch);
+        isim_text_draw(clock, cx - cw / 2, y - ch / 2, 0, 17, 0.3, 0, 0, 1, fg);
+    }
+    y += 26;
+    cairo_set_source_rgba(cr, c, c, c, 1);                  /* Wi-Fi */
+    for (int i = 0; i < 3; i++) {
+        cairo_new_path(cr); cairo_arc(cr, cx, y + 5, 3 + i * 3.6, -M_PI * 0.75, -M_PI * 0.25);
+        cairo_set_line_width(cr, 2); cairo_stroke(cr);
+    }
+    y += 16;
+    double bw = 25, bh = 12, bx = cx - bw / 2 - 1, by = y;    /* the battery */
+    isim_gfx_stroke_rounded(bx, by, bw, bh, 3.5, 1, dim);
+    isim_gfx_fill_rounded(bx + 2, by + 2, (bw - 4) * sb_battery, bh - 4, 2, fg);
+    isim_gfx_fill_rounded(bx + bw + 1, by + 4, 1.5, 4, 0.75, dim);
+    if (style == SB_CC) {
+        char pct[8]; snprintf(pct, sizeof pct, "%d%%", (int)lround(sb_battery * 100));
+        double pw, ph; isim_text_measure(pct, 12, 0.3, 0, 0, 1, &pw, &ph);
+        isim_text_draw(pct, cx - pw / 2, by + bh + 6, 0, 12, 0.3, 0, 0, 1, fg);
+    }
+}
 static void draw_status_bar(int style, const double *fg) {
     double c = fg[0];
-    if ((dev.orientation == 3 || dev.orientation == 4) && portrait_dev.width < 700) return;  /* iPhones hide it in landscape */
-    if (portrait_dev.width < 700 && !dev.has_island && portrait_dev.safe_bottom == 0) { draw_classic_status_bar(style, fg); return; }
+    if ((dev.orientation == 3 || dev.orientation == 4) && !dev_is_pad()) return;  /* iPhones hide it in landscape */
+    if (dev.orientation <= 1 && dev.safe_right >= 60) { draw_strip_status_bar(style, fg); return; }
+    if (!dev_is_pad() && !dev.has_island && portrait_dev.safe_bottom == 0) { draw_classic_status_bar(style, fg); return; }
     double sb = dev.safe_top >= 44 ? 54 : dev.safe_top;   /* status bar band height */
     double cy = dev.has_island ? 18 + 11 : sb / 2;          /* text baseline centre */
     double lx = dev.has_island ? 51 + 26 : -1;               /* centre of the left ear (-1: left-aligned) */
     /* iPads (the 24 pt band): the time and the date at the leading edge, Wi-Fi and the battery at the trailing edge, no
        cellular bars (the presets are Wi-Fi models). The 20 pt edge insets and the 14 pt text are estimated from iPadOS
        screenshots, not measured. */
-    int pad = portrait_dev.width >= 700;
+    int pad = dev_is_pad();
     double rx = dev.width - (dev.has_island ? 34 : pad ? 20 : 10), left0 = pad ? 20 : 8;
+    if (!pad && !dev.has_island && dev.corner_radius > 40 && sb < 30) { left0 = 30; rx = dev.width - 30; }   /* a thin band under
+                                                                     round corners (iPhone Duo's inner display, estimated) */
     if (style == SB_CC && dev.has_island) { cy = dev.safe_top - 4; lx = -1; left0 = 30; rx = dev.width - 30; }
     char left[16] = "", date[64] = ""; double lsize = 17;
     if (style == SB_APP) {
@@ -1680,6 +1784,24 @@ static int script_step(struct isim_event *ev) {
               : !strcmp(arg, "left") ? ccw[device_orient] : !strcmp(arg, "right") ? cw[device_orient] : 0;
         if (o) { device_orient = o; pending[npending++] = (struct isim_event){ .type = EV_DEVICE_ORIENTATION, .key = o }; script_resume = now() + 0.5; }
         else fprintf(stderr, "isim host: unknown orientation '%s'\n", arg);
+    } else if (!strcmp(cmd, "fold") && !shell_mode && sscanf(args, " %63[^; ]", arg) == 1) {
+        /* the app alone (isim run): a foldable folds or unfolds (`fold open|closed|toggle`); under the shell, shell_fold */
+        int open = !strcmp(arg, "open") ? 1 : !strcmp(arg, "closed") ? 0 : !strcmp(arg, "toggle") ? !fold_open : -1;
+        if (fold_inner < 0) fprintf(stderr, "isim host: fold: %s does not fold\n", portrait_dev.name);
+        else if (open < 0) fprintf(stderr, "isim host: fold: open, closed or toggle, not '%s'\n", arg);
+        else if (open != fold_open && fold_letterboxed_app()) {   /* keeps the cover's size (no compositor to letterbox it) */
+            fold_letterbox = open; fold_set(open);
+            fprintf(stderr, "isim host: %s; the app keeps the cover display's size (linked against the iOS %u.%u SDK)\n",
+                    open ? "unfolded" : "folded", isim_main_executable_sdk() >> 16, (isim_main_executable_sdk() >> 8) & 0xff);
+        } else if (open != fold_open) {
+            fold_set(open);
+            if (screen_cr) make_surface();
+            window_resize();
+            struct isim_event e = { .type = EV_SYSTEM }; snprintf(e.text, sizeof e.text, "fold %s", open ? "open" : "closed");
+            pending[npending++] = e;
+            fprintf(stderr, "isim host: %s, %s display (%gx%g)\n", open ? "unfolded" : "folded", open ? "inner" : "cover", dev.width, dev.height);
+            script_resume = now() + 0.5;
+        }
     } else if (!strcmp(cmd, "shake")) {          /* Device > Shake (motion event) */
         pending[npending++] = (struct isim_event){ .type = EV_KEY, .key = 0x7fff0001 };
         script_resume = now() + 0.3;
@@ -1789,7 +1911,7 @@ static int script_step(struct isim_event *ev) {
     } else if (!strcmp(cmd, "lock") || !strcmp(cmd, "unlock") || !strcmp(cmd, "switcher") || !strcmp(cmd, "notifications") || !strcmp(cmd, "controlcenter")
                || !strcmp(cmd, "remote") || !strcmp(cmd, "volume") || !strcmp(cmd, "bgtask") || (!strcmp(cmd, "openurl") && shell_mode) || (!strcmp(cmd, "handoff") && shell_mode) || (!strcmp(cmd, "appclip") && shell_mode) || !strcmp(cmd, "spotlight") || !strcmp(cmd, "island") || !strcmp(cmd, "homepage") || !strcmp(cmd, "iconstyle")
                || (!strcmp(cmd, "focus") && shell_mode && args[strspn(args, " ")] && args[strspn(args, " ")] != ';')   /* `focus MODE`; bare `focus`: the window */
-               || !strcmp(cmd, "actionbutton") || !strcmp(cmd, "lockcontrol") || (!strcmp(cmd, "silent") && shell_mode)
+               || !strcmp(cmd, "actionbutton") || !strcmp(cmd, "lockcontrol") || (!strcmp(cmd, "silent") && shell_mode) || (!strcmp(cmd, "fold") && shell_mode)
                || (!strcmp(cmd, "push") && shell_mode) || (!strcmp(cmd, "terminate") && shell_mode) || (!strcmp(cmd, "siri") && shell_mode) || (!strcmp(cmd, "visualintelligence") && shell_mode)) {
         /* system UI and integration (shell_system.inc): lock/unlock, app switcher, Notification Center, Control Center,
            "bgtask BUNDLE-ID TASK-ID" (like Xcode's _simulateLaunchForTaskWithIdentifier), "island" (expand),
@@ -1911,6 +2033,9 @@ static int next_event(struct isim_event *ev, double timeout) {
         ssize_t n = recv(client_sock, &m, sizeof m, 0);
         if (n <= 0) { ev->type = EV_QUIT; return 1; }        /* the shell went away */
         *ev = m.ev; ev->timestamp = isim_time();
+        if (ev->type == EV_SYSTEM && !strncmp(ev->text, "fold ", 5) && !client_fold(!strcmp(ev->text + 5, "open"))) {
+            memset(ev, 0, sizeof *ev); ev->type = EV_REDRAW;   /* nothing changed for the app (UIKit hears of a change) */
+        }
         if (ev->type == EV_SYSTEM && !strncmp(ev->text, "statusbar-cellular ", 19)) {   /* the status bar we draw */
             sb_cell_covered = atoi(ev->text + 19) != 0;
             memset(ev, 0, sizeof *ev); ev->type = EV_REDRAW;
@@ -2421,7 +2546,7 @@ static const struct shim isim_table[] = {
     H(isim_crypto_25519_check_public), H(isim_crypto_x25519), H(isim_crypto_ed25519_sign), H(isim_crypto_ed25519_verify),
     H(isim_pki_available), H(isim_pki_error), H(isim_pki_generate), H(isim_pki_public), H(isim_pki_key_bits), H(isim_pki_sign), H(isim_pki_verify),
     H(isim_pki_encrypt), H(isim_pki_decrypt), H(isim_pki_ecdh), H(isim_pki_cert_parse), H(isim_pki_key_der), H(isim_pki_trust), H(isim_pki_trust_ex), H(isim_pki_pkcs12),
-    H(isim_set_orientation), H(isim_device_orientation),
+    H(isim_set_orientation), H(isim_device_orientation), H(isim_device_fold_state),
     H(isim_gfx_offscreen_begin), H(isim_gfx_offscreen_snapshot), H(isim_gfx_offscreen_end), H(isim_gfx_offscreen_depth),
     H(isim_image_encode), H(isim_image_bytes_free), H(isim_text_measure_markup), H(isim_text_ink_markup), H(isim_tl_create), H(isim_tl_free), H(isim_tl_size), H(isim_tl_line_count), H(isim_tl_line), H(isim_tl_index_rect), H(isim_tl_index_at), H(isim_tl_draw), H(isim_tl_set_tabs), H(isim_text_draw_markup),
     H(isim_regex_compile), H(isim_regex_free), H(isim_regex_capture_count), H(isim_regex_group_number), H(isim_regex_error_message), H(isim_regex_match),
