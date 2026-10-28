@@ -250,6 +250,8 @@ static void collect_path(void *info, const CGPathElement *e) {
     pp->n++;
 }
 static BOOL is_cgpath(id o) { static Class k; if (!k) k = objc_getClass("__NSCGPath"); return k && [o isKindOfClass:k]; }
+/* the morphed path goes into a ca_val, whose obj is unretained: it is autoreleased, so it lives until the run loop's
+   pool drains (after the layer has taken it), not just to the end of the caller's statement */
 static id morph_paths(id a, id b, double t) {
     path_pts pa = { 0 }, pb = { 0 };
     CGPathApply((__bridge CGPathRef)a, &pa, collect_path); CGPathApply((__bridge CGPathRef)b, &pb, collect_path);
@@ -267,7 +269,7 @@ static id morph_paths(id a, id b, double t) {
             case kCGPathElementCloseSubpath: CGPathCloseSubpath(p); break;
             }
         }
-        out = CFBridgingRelease(p);
+        out = (__bridge id)CFAutorelease(p);
     } else out = t < 0.5 ? a : b;
     free(pa.types); free(pa.pts); free(pb.types); free(pb.pts);
     return out;
