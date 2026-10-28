@@ -300,6 +300,7 @@ static void clientWrite(CFWriteStreamRef w, CFStreamEventType type, void *info) 
         CFWriteStreamWrite(w, (const UInt8 *)d.bytes, (CFIndex)d.length);
     }
 }
+static int refused_fd = -1;     /* the refused client's port, bound and not listening */
 static void clientRead(CFReadStreamRef r, CFStreamEventType type, void *info) {
     StreamClient *c = (__bridge StreamClient *)info;
     if (type == kCFStreamEventOpenCompleted && [c->label isEqualToString:@"tcp"]) {
@@ -320,6 +321,7 @@ static void clientRead(CFReadStreamRef r, CFStreamEventType type, void *info) {
         say([NSString stringWithFormat:@"cfstream %@ error=%@ posix=%d copied=%d", c->label, e.domain == kCFStreamErrorDomainPOSIX ? @"posix" : @"other",
              e.error == ECONNREFUSED, err != NULL]);
         if (err) CFRelease(err);
+        if ([c->label isEqualToString:@"refused"] && refused_fd >= 0) { close(refused_fd); refused_fd = -1; }
         CFReadStreamClose(r); CFWriteStreamClose(c->w);
         CFRelease(r); CFRelease(c->w);
         CFBridgingRelease((__bridge CFTypeRef)c);
@@ -437,16 +439,15 @@ static void cfstreams(void) {
     say([NSString stringWithFormat:@"cfsocket udp sent=%d", sent == kCFSocketSuccess]);
     CFSocketInvalidate(sender); CFRelease(sender); CFRelease(raddr);
 
-    /* a refused connection: a port nothing listens on */
-    CFSocketRef closed = CFSocketCreate(NULL, PF_INET, SOCK_STREAM, IPPROTO_TCP, kCFSocketNoCallBack, NULL, NULL);
-    any = loopback(0);
-    CFSocketSetAddress(closed, any);
-    CFRelease(any);
-    CFDataRef caddr = CFSocketCopyAddress(closed);
-    UInt16 dead = port_of(caddr);
-    CFRelease(caddr);
-    CFSocketInvalidate(closed); CFRelease(closed);
-    CFStreamCreatePairWithSocketToHost(NULL, CFSTR("127.0.0.1"), dead, &r, &w);
+    /* a refused connection: a port bound but not listening (CFSocketSetAddress would listen), kept bound until the
+       client reports so no other process can take it in between (#703) */
+    refused_fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    struct sockaddr_in dead = {};
+    dead.sin_len = sizeof dead; dead.sin_family = AF_INET; dead.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    socklen_t dlen = sizeof dead;
+    bind(refused_fd, (struct sockaddr *)&dead, sizeof dead);
+    getsockname(refused_fd, (struct sockaddr *)&dead, &dlen);
+    CFStreamCreatePairWithSocketToHost(NULL, CFSTR("127.0.0.1"), ntohs(dead.sin_port), &r, &w);
     start_client(@"refused", @"x", r, w);
 }
 
