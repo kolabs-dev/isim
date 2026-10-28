@@ -5,7 +5,7 @@ CXCallObserver, a refused request with CXErrorDomainRequestTransaction), Backgro
 from Objective-C; `bgtask` runs the task on its dispatch queue; an identifier missing from Info.plist is refused),
 CoreSpotlight (indexing), SafariServices (SFSafariViewController with a configuration and delegate; the Reading List)
 MultipeerConnectivity (an advertiser and a browser in the app connect and exchange data) and Messages (issue #406: an
-MSMessagesAppViewController subclass, a message in a session copied and archived, a refused sticker)."""
+MSMessagesAppViewController subclass, a message in a session copied and archived, a refused sticker) and BackgroundAssets (issue #407: an essential download from the app is refused)."""
 import os
 
 import pytest
@@ -39,6 +39,7 @@ def test_services_objc(launch):
     dev.wait_log(r"^sy content blocker state=0 error=SFErrorDomain/1 reload=SFErrorDomain/1 missing=1$")
     dev.wait_log(r"^sy messages caption=Your move copy=Your move session=1 archived=board=X-------- sameSession=1 pending=1 "
                  r"sticker=0 error=format style=0 active=0$")               # Messages (issue #406)
+    dev.wait_log(r"^sy assets scheduled=0 error=essential state=0 essential=1 plain=0 same=1 priority=50$")   # BackgroundAssets (#407)
     dev.wait_log(r"^sy unknown call error=com\.apple\.CallKit\.error\.requesttransaction/4$")
 
     # MultipeerConnectivity: Ann browses, finds Ben, invites him; data both ways

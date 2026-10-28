@@ -3,7 +3,7 @@
 // CXCallController; CXCallObserver), BackgroundTasks (a refresh task launched on a dispatch queue), CoreSpotlight
 // (indexing), SafariServices (SFSafariViewController, the Reading List) and MultipeerConnectivity (an advertiser and a
 // browser in this app connect and exchange data) and Messages (an iMessage app's controller subclass, a message and a
-// refused sticker). Each step prints a "sy ..." line the test checks.
+// refused sticker) and BackgroundAssets (an essential download refused outside the downloader extension). Each step prints a "sy ..." line the test checks.
 #import <UIKit/UIKit.h>
 #import <PushKit/PushKit.h>
 #import <CallKit/CallKit.h>
@@ -12,6 +12,7 @@
 #import <SafariServices/SafariServices.h>
 #import <MultipeerConnectivity/MultipeerConnectivity.h>
 #import <Messages/Messages.h>
+#import <BackgroundAssets/BackgroundAssets.h>
 
 static void say(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 static void say(NSString *fmt, ...) {
@@ -288,6 +289,19 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
     }];
 }
 
+/* BackgroundAssets from Objective-C (issue #407): an essential download is the downloader extension's at install */
+- (void)backgroundAssets {
+    NSURLRequest *r = [NSURLRequest requestWithURL:[NSURL URLWithString:@"https://example.com/level.bin"]];
+    BAURLDownload *d = [[BAURLDownload alloc] initWithIdentifier:@"level" request:r essential:YES fileSize:4096
+                                      applicationGroupIdentifier:@"group.dev.isim.samples.helloservicesobjc" priority:BADownloaderPriorityDefault];
+    NSError *e = nil;
+    BOOL ok = [BADownloadManager.sharedManager scheduleDownload:d error:&e];
+    BADownload *plain = [d removingEssential];
+    say(@"assets scheduled=%d error=%@ state=%ld essential=%d plain=%d same=%d priority=%ld", ok,
+        [e.domain isEqual:BAErrorDomain] && e.code == BAErrorCodeDownloadEssentialDownloadNotPermitted ? @"essential" : errText(e),
+        (long)d.state, d.isEssential, plain.isEssential, [plain.identifier isEqual:d.identifier], (long)d.priority);
+}
+
 /* Messages from Objective-C (issue #406): an iMessage app's controller subclass, a message in a session with a
    template layout (copied and archived), a sticker file iOS refuses */
 - (void)messages {
@@ -323,6 +337,7 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
     [self spotlight];
     [self readingList];
     [self messages];
+    [self backgroundAssets];
     [self.calls badRequest];
     self.peers = [[Peers alloc] init];
     [self.peers start];

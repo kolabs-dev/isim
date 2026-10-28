@@ -366,6 +366,20 @@ int NSExtensionMain(int argc, char *argv[]) {
         NSLog(@"isim: Intents extension: the %@ framework is not available", ui ? @"IntentsUI" : @"Intents");
         return 1;
     }
+    if ([point isEqualToString:@"com.apple.background-asset-downloader-extension"]) {
+        /* BackgroundAssets: a helper process the home screen starts; a Swift @main BADownloaderExtension, else the
+           Objective-C principal class (BackgroundAssets/Extension.swift) */
+        extern void *dlsym(void *, const char *);
+        extern void *dlopen(const char *, int);
+        int (*swift_main)(int, char **) = (int (*)(int, char **))dlsym((void *)-2, "main");
+        if (swift_main) return swift_main(argc, argv);
+        int (*ba_main)(int, char **) = (int (*)(int, char **))dlsym((void *)-2, "isim_ba_extension_main");
+        if (!ba_main && dlopen("/System/Library/Frameworks/BackgroundAssets.framework/BackgroundAssets", 2))
+            ba_main = (int (*)(int, char **))dlsym((void *)-2, "isim_ba_extension_main");
+        if (ba_main) return ba_main(argc, argv);
+        NSLog(@"isim: downloader extension: the BackgroundAssets framework is not available");
+        return 1;
+    }
     if ([point isEqualToString:@"com.apple.share-services"] || [point isEqualToString:@"com.apple.ui-services"]) {
         NSLog(@"isim: '%@' extensions run inside their host app (share them from an app's UIActivityViewController)", point);
         return 1;

@@ -123,6 +123,10 @@ NSString *HSCategoryName(NSString *category);
 - (void)_layoutChanged;
 - (BOOL)_isEditing;
 @end
+@interface HomeViewController (BackgroundAssets)                 /* SBBackgroundAssets.m: downloader extensions */
+- (void)installBackgroundAssetsObservers;
+- (void)discoverBackgroundAssets;                              /* from reload: the install event of new apps */
+@end
 @interface HomeViewController (Notifications)
 - (void)installNotificationObservers;    /* remote notifications (push routing), badges, expanded notifications */
 @end
