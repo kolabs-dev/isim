@@ -88,6 +88,13 @@ hold"), `call-speaker`, `call-video`, `call-mute`, `call-hold` (calls that suppo
 `call-keypad-hide`) and `call-end`. `home` hides it; the call then shows as `call-pill` (the green indicator, or the
 Dynamic Island's phone and duration), which brings it back. `dump` lists them as `IsimCallButton`.
 
+**Alarms** (AlarmKit; the shell rings the apps' alarms and timers, also in Silent Mode): an alarm going off is a
+banner while the device is in use (`alarm-banner`: tap for the full-screen alert; `alarm-secondary`, the alarm's
+secondary button such as Snooze or Repeat; `alarm-stop`) or the full-screen alert on the Lock Screen and in StandBy
+(`alarm-title`, `alarm-secondary`, `alarm-stop`). `home` turns the full-screen alert into the banner. `dump` lists
+them under `IsimAlarmBanner` / `IsimAlarmAlert` as `IsimAlarmButton`; `isim alarms list` prints every app's alarms
+(id, title, state, when it goes off).
+
 **Siri** (adapted; isim has no speech recognition, so Siri understands text): `siri PHRASE` is matched, in this
 order, against the installed apps' App Shortcut phrases (case and trailing punctuation ignored; `\(.applicationName)`
 is the app's display name or `CFBundleName`; an `AppEnum` or `AppEntity` parameter in a phrase matches one of its
