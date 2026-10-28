@@ -341,6 +341,7 @@ public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeD
     var _id = 0
     var _state: State = .suspended
     var _started = false, _cancelled = false, _invalidSession = false
+    var _finished = false       /* _finish ran (the state can turn .completed before it: captureStreams) */
     var _http: OpaquePointer?
     var _current: URLRequest?
     var _response: URLResponse?
@@ -447,7 +448,8 @@ public let NSURLSessionDownloadTaskResumeData = "NSURLSessionDownloadTaskResumeD
     /// internal consumer handles the result), then removal from the session
     func _finish(_ error: Error?) {
         _lock.lock()
-        if _state == .completed { _lock.unlock(); return }
+        if _finished { _lock.unlock(); return }
+        _finished = true
         let err: Error? = _cancelled ? URLError._make(NSURLErrorCancelled, url: originalRequest?.url) : error
         _error = err; _state = .completed; _http = nil
         _lock.unlock()
