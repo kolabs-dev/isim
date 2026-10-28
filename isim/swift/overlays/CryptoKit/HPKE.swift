@@ -1,5 +1,5 @@
 // isim CryptoKit: HPKE (RFC 9180; base, PSK, auth and auth-PSK modes) with DHKEM over P-256/P-384/P-521 and X25519,
-// HKDF-SHA256/384/512 and AES-GCM-128/256, ChaCha20-Poly1305 or export-only; AES Key Wrap (RFC 3394).
+// X-Wing (iOS 26), HKDF-SHA256/384/512 and AES-GCM-128/256, ChaCha20-Poly1305 or export-only; AES Key Wrap (RFC 3394).
 // Self-authored on isim's CryptoKit primitives (host OpenSSL). Same API shape as Apple's CryptoKit (iOS 17);
 // byte arguments are ContiguousBytes (isim's Foundation has no DataProtocol).
 import Foundation
@@ -71,8 +71,11 @@ public protocol HPKEDiffieHellmanPrivateKeyGeneration: HPKEDiffieHellmanPrivateK
     init()
 }
 
-extension P256.KeyAgreement.PublicKey: HPKEDiffieHellmanPublicKey {
+extension P256.KeyAgreement.PublicKey: HPKEDiffieHellmanPublicKey, HPKEPublicKeySerialization {
     public typealias EphemeralPrivateKey = P256.KeyAgreement.PrivateKey
+    public typealias HPKEEphemeralPrivateKey = P256.KeyAgreement.PrivateKey
+    public func hpkeRepresentation(kem: HPKE.KEM) throws -> Data { Data(try _hpkeRepresentation(kem: kem)) }
+    public init<D: ContiguousBytes>(_ serialization: D, kem: HPKE.KEM) throws { try self.init(_hpkeRepresentation: _bytes(serialization), kem: kem) }
     public func _hpkeRepresentation(kem: HPKE.KEM) throws -> [UInt8] { guard kem == .P256_HKDF_SHA256 else { throw HPKE.Errors.inconsistentParameters }; return _bytes(x963Representation) }
     public init(_hpkeRepresentation b: [UInt8], kem: HPKE.KEM) throws { guard kem == .P256_HKDF_SHA256 else { throw HPKE.Errors.inconsistentParameters }; try self.init(x963Representation: b) }
 }
@@ -80,8 +83,11 @@ extension P256.KeyAgreement.PrivateKey: HPKEDiffieHellmanPrivateKeyGeneration {
     public init() { self.init(compactRepresentable: false) }
     public func _hpkeDH(with pk: P256.KeyAgreement.PublicKey) throws -> [UInt8] { _bytes(try sharedSecretFromKeyAgreement(with: pk)) }
 }
-extension P384.KeyAgreement.PublicKey: HPKEDiffieHellmanPublicKey {
+extension P384.KeyAgreement.PublicKey: HPKEDiffieHellmanPublicKey, HPKEPublicKeySerialization {
     public typealias EphemeralPrivateKey = P384.KeyAgreement.PrivateKey
+    public typealias HPKEEphemeralPrivateKey = P384.KeyAgreement.PrivateKey
+    public func hpkeRepresentation(kem: HPKE.KEM) throws -> Data { Data(try _hpkeRepresentation(kem: kem)) }
+    public init<D: ContiguousBytes>(_ serialization: D, kem: HPKE.KEM) throws { try self.init(_hpkeRepresentation: _bytes(serialization), kem: kem) }
     public func _hpkeRepresentation(kem: HPKE.KEM) throws -> [UInt8] { guard kem == .P384_HKDF_SHA384 else { throw HPKE.Errors.inconsistentParameters }; return _bytes(x963Representation) }
     public init(_hpkeRepresentation b: [UInt8], kem: HPKE.KEM) throws { guard kem == .P384_HKDF_SHA384 else { throw HPKE.Errors.inconsistentParameters }; try self.init(x963Representation: b) }
 }
@@ -89,8 +95,11 @@ extension P384.KeyAgreement.PrivateKey: HPKEDiffieHellmanPrivateKeyGeneration {
     public init() { self.init(compactRepresentable: false) }
     public func _hpkeDH(with pk: P384.KeyAgreement.PublicKey) throws -> [UInt8] { _bytes(try sharedSecretFromKeyAgreement(with: pk)) }
 }
-extension P521.KeyAgreement.PublicKey: HPKEDiffieHellmanPublicKey {
+extension P521.KeyAgreement.PublicKey: HPKEDiffieHellmanPublicKey, HPKEPublicKeySerialization {
     public typealias EphemeralPrivateKey = P521.KeyAgreement.PrivateKey
+    public typealias HPKEEphemeralPrivateKey = P521.KeyAgreement.PrivateKey
+    public func hpkeRepresentation(kem: HPKE.KEM) throws -> Data { Data(try _hpkeRepresentation(kem: kem)) }
+    public init<D: ContiguousBytes>(_ serialization: D, kem: HPKE.KEM) throws { try self.init(_hpkeRepresentation: _bytes(serialization), kem: kem) }
     public func _hpkeRepresentation(kem: HPKE.KEM) throws -> [UInt8] { guard kem == .P521_HKDF_SHA512 else { throw HPKE.Errors.inconsistentParameters }; return _bytes(x963Representation) }
     public init(_hpkeRepresentation b: [UInt8], kem: HPKE.KEM) throws { guard kem == .P521_HKDF_SHA512 else { throw HPKE.Errors.inconsistentParameters }; try self.init(x963Representation: b) }
 }
@@ -98,13 +107,34 @@ extension P521.KeyAgreement.PrivateKey: HPKEDiffieHellmanPrivateKeyGeneration {
     public init() { self.init(compactRepresentable: false) }
     public func _hpkeDH(with pk: P521.KeyAgreement.PublicKey) throws -> [UInt8] { _bytes(try sharedSecretFromKeyAgreement(with: pk)) }
 }
-extension Curve25519.KeyAgreement.PublicKey: HPKEDiffieHellmanPublicKey {
+extension Curve25519.KeyAgreement.PublicKey: HPKEDiffieHellmanPublicKey, HPKEPublicKeySerialization {
     public typealias EphemeralPrivateKey = Curve25519.KeyAgreement.PrivateKey
+    public typealias HPKEEphemeralPrivateKey = Curve25519.KeyAgreement.PrivateKey
+    public func hpkeRepresentation(kem: HPKE.KEM) throws -> Data { Data(try _hpkeRepresentation(kem: kem)) }
+    public init<D: ContiguousBytes>(_ serialization: D, kem: HPKE.KEM) throws { try self.init(_hpkeRepresentation: _bytes(serialization), kem: kem) }
     public func _hpkeRepresentation(kem: HPKE.KEM) throws -> [UInt8] { guard kem == .Curve25519_HKDF_SHA256 else { throw HPKE.Errors.inconsistentParameters }; return _bytes(rawRepresentation) }
     public init(_hpkeRepresentation b: [UInt8], kem: HPKE.KEM) throws { guard kem == .Curve25519_HKDF_SHA256 else { throw HPKE.Errors.inconsistentParameters }; try self.init(rawRepresentation: b) }
 }
 extension Curve25519.KeyAgreement.PrivateKey: HPKEDiffieHellmanPrivateKeyGeneration {
     public func _hpkeDH(with pk: Curve25519.KeyAgreement.PublicKey) throws -> [UInt8] { _bytes(try sharedSecretFromKeyAgreement(with: pk)) }
+}
+
+/// HPKE's KEMs that are not Diffie-Hellman based (iOS 26: X-Wing): the shared secret comes from the key's encapsulation
+public protocol HPKEPublicKeySerialization {
+    init<D: ContiguousBytes>(_ serialization: D, kem: HPKE.KEM) throws
+    func hpkeRepresentation(kem: HPKE.KEM) throws -> Data
+}
+public protocol HPKEKEMPublicKey: HPKEPublicKeySerialization, Sendable {
+    associatedtype EphemeralPrivateKey: HPKEKEMPrivateKeyGeneration where EphemeralPrivateKey.PublicKey == Self
+    func _hpkeEncapsulate(kem: HPKE.KEM) throws -> (sharedSecret: [UInt8], encapsulated: [UInt8])
+}
+public protocol HPKEKEMPrivateKey: Sendable {
+    associatedtype PublicKey: HPKEKEMPublicKey
+    var publicKey: PublicKey { get }
+    func _hpkeDecapsulate(_ encapsulated: [UInt8], kem: HPKE.KEM) throws -> [UInt8]
+}
+public protocol HPKEKEMPrivateKeyGeneration: HPKEKEMPrivateKey {
+    init() throws
 }
 
 public enum HPKE {
@@ -114,11 +144,19 @@ public enum HPKE {
     }
     public enum KEM: Hashable, Sendable {
         case P256_HKDF_SHA256, P384_HKDF_SHA384, P521_HKDF_SHA512, Curve25519_HKDF_SHA256
+        /// X-Wing (iOS 26): its 32-byte shared secret goes to the key schedule as is
+        case XWingMLKEM768X25519
         var id: UInt16 {
-            switch self { case .P256_HKDF_SHA256: return 0x10; case .P384_HKDF_SHA384: return 0x11; case .P521_HKDF_SHA512: return 0x12; case .Curve25519_HKDF_SHA256: return 0x20 }
+            switch self {
+            case .P256_HKDF_SHA256: return 0x10; case .P384_HKDF_SHA384: return 0x11; case .P521_HKDF_SHA512: return 0x12; case .Curve25519_HKDF_SHA256: return 0x20
+            case .XWingMLKEM768X25519: return 0x647a
+            }
         }
         var kdf: KDF {
-            switch self { case .P256_HKDF_SHA256, .Curve25519_HKDF_SHA256: return .HKDF_SHA256; case .P384_HKDF_SHA384: return .HKDF_SHA384; case .P521_HKDF_SHA512: return .HKDF_SHA512 }
+            switch self {
+            case .P256_HKDF_SHA256, .Curve25519_HKDF_SHA256, .XWingMLKEM768X25519: return .HKDF_SHA256
+            case .P384_HKDF_SHA384: return .HKDF_SHA384; case .P521_HKDF_SHA512: return .HKDF_SHA512
+            }
         }
         var secretSize: Int { kdf.hashSize }
     }
@@ -156,6 +194,8 @@ public enum HPKE {
         public static let P384_SHA384_AES_GCM_256 = Ciphersuite(kem: .P384_HKDF_SHA384, kdf: .HKDF_SHA384, aead: .AES_GCM_256)
         public static let P521_SHA512_AES_GCM_256 = Ciphersuite(kem: .P521_HKDF_SHA512, kdf: .HKDF_SHA512, aead: .AES_GCM_256)
         public static let Curve25519_SHA256_ChachaPoly = Ciphersuite(kem: .Curve25519_HKDF_SHA256, kdf: .HKDF_SHA256, aead: .chaChaPoly)
+        @available(iOS 26.0, *)
+        public static let XWingMLKEM768X25519_SHA256_AES_GCM_256 = Ciphersuite(kem: .XWingMLKEM768X25519, kdf: .HKDF_SHA256, aead: .AES_GCM_256)
         var suiteID: [UInt8] { Array("HPKE".utf8) + _i2osp(kem.id) + _i2osp(kdf.id) + _i2osp(aead.id) }
     }
 
@@ -255,6 +295,18 @@ public enum HPKE {
             context = try Context(suite: suite, mode: mode, sharedSecret: shared, info: info, psk: psk, pskID: pskID)
             encapsulatedKey = Data(enc); ciphersuite = suite
         }
+        init<PK: HPKEKEMPublicKey>(kem pkR: PK, _ suite: Ciphersuite, info: [UInt8], mode: UInt8, psk: [UInt8], pskID: [UInt8]) throws {
+            let (shared, enc) = try pkR._hpkeEncapsulate(kem: suite.kem)
+            context = try Context(suite: suite, mode: mode, sharedSecret: shared, info: info, psk: psk, pskID: pskID)
+            encapsulatedKey = Data(enc); ciphersuite = suite
+        }
+        public init<PK: HPKEKEMPublicKey, I: ContiguousBytes>(recipientKey: PK, ciphersuite: Ciphersuite, info: I) throws {
+            try self.init(kem: recipientKey, ciphersuite, info: _bytes(info), mode: 0, psk: [], pskID: [])
+        }
+        public init<PK: HPKEKEMPublicKey, I: ContiguousBytes, ID: ContiguousBytes>(recipientKey: PK, ciphersuite: Ciphersuite, info: I,
+                                                                                presharedKey psk: SymmetricKey, presharedKeyIdentifier pskID: ID) throws {
+            try self.init(kem: recipientKey, ciphersuite, info: _bytes(info), mode: 1, psk: _bytes(psk), pskID: _bytes(pskID))
+        }
         public init<PK: HPKEDiffieHellmanPublicKey, I: ContiguousBytes>(recipientKey: PK, ciphersuite: Ciphersuite, info: I) throws {
             try self.init(recipientKey, ciphersuite, info: _bytes(info), mode: 0, psk: [], pskID: [], skS: nil)
         }
@@ -295,6 +347,18 @@ public enum HPKE {
             let shared = HPKE.kemSharedSecret(suite.kem, dh: dh, context: kemContext)
             context = try Context(suite: suite, mode: mode, sharedSecret: shared, info: info, psk: psk, pskID: pskID)
             ciphersuite = suite
+        }
+        init<SK: HPKEKEMPrivateKey>(kem skR: SK, _ suite: Ciphersuite, info: [UInt8], enc: [UInt8], mode: UInt8, psk: [UInt8], pskID: [UInt8]) throws {
+            let shared = try skR._hpkeDecapsulate(enc, kem: suite.kem)
+            context = try Context(suite: suite, mode: mode, sharedSecret: shared, info: info, psk: psk, pskID: pskID)
+            ciphersuite = suite
+        }
+        public init<SK: HPKEKEMPrivateKey, I: ContiguousBytes, E: ContiguousBytes>(privateKey: SK, ciphersuite: Ciphersuite, info: I, encapsulatedKey: E) throws {
+            try self.init(kem: privateKey, ciphersuite, info: _bytes(info), enc: _bytes(encapsulatedKey), mode: 0, psk: [], pskID: [])
+        }
+        public init<SK: HPKEKEMPrivateKey, I: ContiguousBytes, E: ContiguousBytes, ID: ContiguousBytes>(privateKey: SK, ciphersuite: Ciphersuite, info: I,
+                    encapsulatedKey: E, presharedKey psk: SymmetricKey, presharedKeyIdentifier pskID: ID) throws {
+            try self.init(kem: privateKey, ciphersuite, info: _bytes(info), enc: _bytes(encapsulatedKey), mode: 1, psk: _bytes(psk), pskID: _bytes(pskID))
         }
         public init<SK: HPKEDiffieHellmanPrivateKey, I: ContiguousBytes, E: ContiguousBytes>(privateKey: SK, ciphersuite: Ciphersuite, info: I, encapsulatedKey: E) throws {
             try self.init(privateKey, ciphersuite, info: _bytes(info), enc: _bytes(encapsulatedKey), mode: 0, psk: [], pskID: [], pkS: nil)

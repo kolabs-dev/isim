@@ -5,6 +5,8 @@ banner over the home screen). Relaunches check that keychain items, the database
 persist. Port of tests/ui/security.sh."""
 import re
 
+import pytest
+
 
 def test_security_app(launch):
     app = launch("HelloSecurity")
@@ -83,6 +85,24 @@ def test_security_app(launch):
     app.view_dump()
     app.quit()
     assert "biometry touchID" in app.log and "auth Unlocked" in app.log, "Touch ID on iPhone SE"
+
+
+@pytest.mark.os_matrix
+def test_security_post_quantum_app(launch, ios):
+    """iOS 26's post-quantum CryptoKit in the sample: SHA-3, ML-KEM-768, ML-DSA-65 and HPKE with X-Wing; before iOS 26
+    the sample's #available check says it needs iOS 26."""
+    version = ios[0] or "26.0"                       # outside the OS matrix: iOS 26
+    app = launch("HelloSecurity", os_version=version)
+    app.wait_tap_id("runPQ")
+    if int(version.split(".")[0]) < 26:
+        app.wait_log(r"^pq needs iOS 26")
+    else:
+        app.wait_log(r"^pq sha3=3338be694f50c5f338814986cdf0686453a888b84f424d792af4b9202398f392 mlkem=true ciphertext=1088 "
+                     r"mldsa=true signature=3309 xwing=quantum-safe hello$")
+        app.wait_view(r"id=pq text=sha3-256 3338be694f50c5f3")
+        app.wait_still()
+        app.screenshot("security-post-quantum")
+    assert app.quit() == 0
 
 
 def test_local_authentication(launch):

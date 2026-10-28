@@ -13,6 +13,11 @@ func check(_ ok: Bool, _ what: String) {
 
 @main struct Main {
     static func main() {
+        if ProcessInfo.processInfo.environment["SECURITY_TEST_ONLY"] == "pq" {          // test_security_post_quantum (iOS 26)
+            if #available(iOS 26.0, *) { postQuantumTests() } else { check(false, "post-quantum CryptoKit needs iOS 26") }
+            print("security test: \(checks - failures)/\(checks) passed")
+            exit(failures == 0 ? 0 : 1)
+        }
         commonCryptoTests()
         cryptoKitTests()
         sqliteTests()
@@ -20,6 +25,7 @@ func check(_ ok: Bool, _ what: String) {
         secKeyTests()
         certificateTests()
         cryptoKitExtrasTests()
+        if #available(iOS 26.0, *) { postQuantumTests() } else { print("SKIP  post-quantum CryptoKit (iOS 26)") }
         logTests()
         cOSLogTest()
         print("security test: \(checks - failures)/\(checks) passed")

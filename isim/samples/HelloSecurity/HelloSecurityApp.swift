@@ -1,4 +1,5 @@
-// Sample: security, persistence and system services on isim — CryptoKit (hash, HMAC, AES-GCM), the keychain
+// Sample: security, persistence and system services on isim — CryptoKit (hash, HMAC, AES-GCM; on iOS 26 SHA-3,
+// ML-KEM, ML-DSA and HPKE with X-Wing), the keychain
 // (SecItem*), SQLite3, os.Logger, Face ID (LocalAuthentication: also lockout, rights, LAEnvironment, access control and
 // LocalAuthenticationView) and a local notification (UserNotifications).
 import SwiftUI
@@ -39,6 +40,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, ObservableObje
 struct ContentView: View {
     @ObservedObject var notifier: Notifier
     @State private var crypto = ""
+    @State private var postQuantum = ""
     @State private var keychain = "—"
     @State private var notes: [String] = []
     @State private var unlocked = false
@@ -51,6 +53,8 @@ struct ContentView: View {
                 Section("CryptoKit") {
                     Text(crypto).font(.system(.footnote, design: .monospaced)).accessibilityIdentifier("crypto")
                     Button("Run crypto") { runCrypto() }.accessibilityIdentifier("runCrypto")
+                    if !postQuantum.isEmpty { Text(postQuantum).font(.system(.footnote, design: .monospaced)).accessibilityIdentifier("pq") }
+                    Button("Post-quantum (iOS 26)") { runPostQuantum() }.accessibilityIdentifier("runPQ")
                 }
                 Section("Keychain") {
                     Text("Token: \(keychain)").accessibilityIdentifier("token")
@@ -94,6 +98,30 @@ struct ContentView: View {
         crypto = "sha256 \(hex.prefix(16))…\nhmac \(ok ? "valid" : "invalid")\naes-gcm \(roundTrip)"
         print("crypto \(hex) hmac=\(ok) aes=\(roundTrip)")
         log.info("crypto done, digest \(hex, privacy: .public)")
+    }
+
+    /// iOS 26: SHA-3, an ML-KEM-768 key exchange, an ML-DSA-65 signature and HPKE with X-Wing
+    func runPostQuantum() {
+        guard #available(iOS 26.0, *) else { postQuantum = "needs iOS 26"; print("pq needs iOS 26"); return }
+        do {
+            let sha3 = SHA3_256.hash(data: Data("hello".utf8)).map { String(format: "%02x", $0) }.joined()
+            let kem = try MLKEM768.PrivateKey()
+            let sent = try kem.publicKey.encapsulate()
+            let kemOK = try kem.decapsulate(sent.encapsulated) == sent.sharedSecret
+            let signer = try MLDSA65.PrivateKey()
+            let signature = try signer.signature(for: Data("hello".utf8), context: Data("isim".utf8))
+            let verified = signer.publicKey.isValidSignature(signature, for: Data("hello".utf8), context: Data("isim".utf8))
+            let xwing = try XWingMLKEM768X25519.PrivateKey.generate()
+            var sender = try HPKE.Sender(recipientKey: xwing.publicKey, ciphersuite: .XWingMLKEM768X25519_SHA256_AES_GCM_256, info: Data("demo".utf8))
+            let sealed = try sender.seal(Data("quantum-safe hello".utf8))
+            var recipient = try HPKE.Recipient(privateKey: xwing, ciphersuite: .XWingMLKEM768X25519_SHA256_AES_GCM_256,
+                                               info: Data("demo".utf8), encapsulatedKey: sender.encapsulatedKey)
+            let opened = String(decoding: try recipient.open(sealed), as: UTF8.self)
+            postQuantum = "sha3-256 \(sha3.prefix(16))…\nml-kem-768 \(kemOK ? "keys match" : "mismatch")\nml-dsa-65 \(verified ? "verified" : "invalid") (\(signature.count) bytes)\nx-wing hpke \(opened)"
+            print("pq sha3=\(sha3) mlkem=\(kemOK) ciphertext=\(sent.encapsulated.count) mldsa=\(verified) signature=\(signature.count) xwing=\(opened)")
+        } catch {
+            postQuantum = "failed: \(error)"; print("pq failed \(error)")
+        }
     }
 
     let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,

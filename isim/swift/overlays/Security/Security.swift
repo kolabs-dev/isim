@@ -183,7 +183,8 @@ public final class SecAccessControl: NSObject {
         return Data(header + nonce + out + tag)
     }
     public static func unwrap(_ blob: [UInt8]) -> (d: [UInt8], flags: UInt8)? {
-        guard blob.count == magic.count + 1 + 12 + 32 + 16, Array(blob.prefix(magic.count)) == magic, let key = deviceKey else { return nil }
+        // the payload: a P-256 private key (32 bytes), or CryptoKit's tag and seed of an ML-KEM / ML-DSA key (iOS 26)
+        guard blob.count >= magic.count + 1 + 12 + 32 + 16, Array(blob.prefix(magic.count)) == magic, let key = deviceKey else { return nil }
         let header = Array(blob.prefix(magic.count + 1)), nonce = Array(blob[header.count..<header.count + 12])
         let ct = Array(blob[(header.count + 12)..<(blob.count - 16)])
         var tag = Array(blob.suffix(16)), out = [UInt8](repeating: 0, count: ct.count)
