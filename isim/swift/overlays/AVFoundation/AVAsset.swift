@@ -214,10 +214,15 @@ open class AVAssetImageGenerator: NSObject, @unchecked Sendable {
     open var requestedTimeToleranceAfter: CMTime = .positiveInfinity
     public enum Result: Int, Sendable { case succeeded = 0, failed, cancelled }
     public typealias CompletionHandler = @Sendable (CMTime, CGImage?, CMTime, Result, Error?) -> Void
+    /// frames are composed through it (one frame of AVAssetExportSession's compositor)
+    open var videoComposition: AVVideoComposition?
+    var _compositor: (any AVVideoCompositing)?
+    open var customVideoCompositor: (any AVVideoCompositing)? { _compositor }
     public init(asset: AVAsset) { self.asset = asset }
 
     open func copyCGImage(at requestedTime: CMTime, actualTime: UnsafeMutablePointer<CMTime>?) throws -> CGImage {
         let t = max(0, requestedTime.isNumeric ? requestedTime.seconds : 0)
+        if let vc = videoComposition, vc._composites { return try _composedImage(vc, at: t, actualTime: actualTime) }
         guard let (u, st) = asset._videoSource(at: t), asset.tracks(withMediaType: .video).count > 0 else { throw _avLoadError(asset) }
         let side = max(maximumSize.width, maximumSize.height)
         var out: UnsafeMutableRawPointer? = nil

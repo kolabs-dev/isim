@@ -331,22 +331,6 @@ open class AVMutableComposition: AVComposition, @unchecked Sendable {
 }
 public let kCMPersistentTrackID_Invalid: CMPersistentTrackID = 0
 
-// MARK: video composition (render size and frame duration only)
-
-open class AVVideoComposition: NSObject, @unchecked Sendable {
-    open var renderSize: CGSize = .zero
-    open var frameDuration = CMTime(value: 1, timescale: 30)
-    open var renderScale: Float = 1
-    public override init() { super.init() }
-}
-open class AVMutableVideoComposition: AVVideoComposition, @unchecked Sendable {
-    public override init() { super.init() }
-    public convenience init(propertiesOf asset: AVAsset) {
-        self.init()
-        renderSize = asset.naturalSize
-        if let f = asset.tracks(withMediaType: .video).first?.nominalFrameRate, f > 0 { frameDuration = CMTime(value: 1, timescale: Int32(f.rounded())) }
-    }
-}
 open class AVAudioMix: NSObject, @unchecked Sendable {}
 open class AVMutableAudioMix: AVAudioMix, @unchecked Sendable {
     open var inputParameters: [AVAudioMixInputParameters] = []
@@ -509,6 +493,12 @@ open class AVAssetExportSession: NSObject, @unchecked Sendable {
     var _lossless = false
     var _wantVideo = true, _wantAudio = true
     var _audioTrackIDs: [CMPersistentTrackID]?
+    /// the composition's video track to render (a compositor's source), else its first
+    var _videoTrackID: CMPersistentTrackID?
+    /// the compositor in use: an instance of the video composition's customVideoCompositorClass (made by the export,
+    /// or handed over by AVAssetReaderVideoCompositionOutput / AVAssetImageGenerator)
+    var _compositor: (any AVVideoCompositing)?
+    open var customVideoCompositor: (any AVVideoCompositing)? { _compositor }
     func _run() {
         guard status != .cancelled else { return }
         guard let out = outputURL else { _fail(_avNSError(.exportFailed, "outputURL is not set")); return }
@@ -524,9 +514,21 @@ open class AVAssetExportSession: NSObject, @unchecked Sendable {
         let video = takesVideo && !_audioOnly && _wantVideo
         var args = ["-y"]
         var maps: [String] = []
+        // a video composition with instructions, a custom compositor, Core Image filtering or the Core Animation tool:
+        // the frames are composed here (AVVideoComposition.swift) and read by ffmpeg as raw video
+        var composed: _RawVideoSink?
+        if video, let vc = videoComposition, vc._composites {
+            guard let sink = _composeFrames(vc, from: r0, to: r1, size: _outputSize(asset.naturalSize)) else {
+                if status == .exporting { status = _cancel != 0 ? .cancelled : .failed }
+                return
+            }
+            composed = sink
+        }
+        let fr = videoComposition.map { $0.frameDuration.seconds > 0 ? 1 / $0.frameDuration.seconds : 30 } ?? 30
         if let comp = asset as? AVComposition {
-            let (inputs, graph, vlabel, alabel) = _compositionGraph(comp, from: r0, to: r1, video: video, audio: _wantAudio, audioTrackIDs: _audioTrackIDs)
+            let (inputs, graph, vlabel, alabel) = _compositionGraph(comp, from: r0, to: r1, video: video && composed == nil, audio: _wantAudio, audioTrackIDs: _audioTrackIDs)
             args += inputs
+            if let composed { maps += ["-map", "\(inputs.filter { $0 == "-i" }.count):v"]; args += composed.inputArgs(fps: fr) }
             if !graph.isEmpty { args += ["-filter_complex", graph] }
             if let v = vlabel { maps += ["-map", v] }
             if let a = alabel { maps += ["-map", a] }
@@ -535,11 +537,15 @@ open class AVAssetExportSession: NSObject, @unchecked Sendable {
         } else {
             guard let u = asset._url, asset.isPlayable else { _fail(_avLoadError(asset)); return }
             args += ["-ss", String(format: "%.6f", r0), "-t", String(format: "%.6f", r1 - r0), "-i", _path(u)]
+            if let composed {
+                args += composed.inputArgs(fps: fr)
+                maps += ["-map", "1:v"]
+            }
             if !video { args += ["-vn"] }
             if !_wantAudio { args += ["-an"] }
             var vf = [_scaleFilter()].compactMap { $0 }
             if let vc = videoComposition, vc.frameDuration.seconds > 0 { vf.append("fps=\(1 / vc.frameDuration.seconds)") }
-            if !vf.isEmpty, video, presetName != AVAssetExportPresetPassthrough { args += ["-vf", vf.joined(separator: ",")] }
+            if !vf.isEmpty, video, composed == nil, presetName != AVAssetExportPresetPassthrough { args += ["-vf", vf.joined(separator: ",")] }
             // several audio tracks: each at its volume, mixed; one track: its volume curve
             let audioTracks = asset.tracks(withMediaType: .audio).filter { _audioTrackIDs == nil || _audioTrackIDs!.contains($0.trackID) }
             if _wantAudio, let mix = audioMix, presetName != AVAssetExportPresetPassthrough {
@@ -547,14 +553,16 @@ open class AVAssetExportSession: NSObject, @unchecked Sendable {
                     let chains = audioTracks.enumerated().map { i, t in "[0:a:\(i)]\(mix._params(t.trackID)?._filter(offset: r0) ?? "anull")[m\(i)]" }
                     args += ["-filter_complex", chains.joined(separator: ";") + ";" + (0..<audioTracks.count).map { "[m\($0)]" }.joined()
                              + "amix=inputs=\(audioTracks.count):normalize=0:duration=longest[amixed]", "-map", "[amixed]"]
-                    if video { args += ["-map", "0:v:0"] }
+                    if video && composed == nil { args += ["-map", "0:v:0"] }
                 } else if let f = audioTracks.first.flatMap({ mix._params($0.trackID)?._filter(offset: r0) }) { args += ["-af", f] }
             }
+            if composed != nil && _wantAudio && !args.contains("[amixed]") { maps += ["-map", "0:a:0?"] }
+            args += maps
         }
         if _lossless {
             if video { args += ["-c:v", "ffv1", "-pix_fmt", "bgra"] }
             args += ["-c:a", "pcm_f32le", "-ar", "48000"]
-        } else if presetName == AVAssetExportPresetPassthrough && !(asset is AVComposition) {
+        } else if presetName == AVAssetExportPresetPassthrough && !(asset is AVComposition) && composed == nil {
             args += ["-c", "copy"]
         } else {
             if video { args += _FFmpeg.videoCodecArgs(presetName.contains("HEVC") ? .hevc : .h264, bitrate: _bitrate) }
@@ -622,7 +630,7 @@ open class AVAssetExportSession: NSObject, @unchecked Sendable {
         let fps = Double(comp._tracks.first { $0.mediaType == .video }?.nominalFrameRate ?? 30).nonZero ?? 30
         let fr = videoComposition.map { $0.frameDuration.seconds > 0 ? 1 / $0.frameDuration.seconds : fps } ?? fps
         var jobs: [(AVMediaType, AVMutableCompositionTrack)] = []
-        if wantVideo, let v = comp._tracks.first(where: { $0.mediaType == .video && !$0._segments.isEmpty }) { jobs.append((.video, v)) }
+        if wantVideo, let v = comp._tracks.first(where: { $0.mediaType == .video && !$0._segments.isEmpty && (_videoTrackID == nil || $0.trackID == _videoTrackID) }) { jobs.append((.video, v)) }
         if wantAudio { for a in comp._tracks where a.mediaType == .audio && !a._segments.isEmpty && (audioTrackIDs == nil || audioTrackIDs!.contains(a.trackID)) { jobs.append((.audio, a)) } }
         var audioOuts: [String] = []
         for (kind, track) in jobs {
@@ -920,12 +928,15 @@ open class AVAssetReaderVideoCompositionOutput: AVAssetReaderOutput, @unchecked 
     public let videoTracks: [AVAssetTrack]
     public let videoSettings: [String: Any]?
     open var videoComposition: AVVideoComposition?
-    open var customVideoCompositor: AnyObject? { nil }
+    var _compositor: (any AVVideoCompositing)?
+    /// the instance of the video composition's customVideoCompositorClass, made when reading starts
+    open var customVideoCompositor: (any AVVideoCompositing)? { _compositor }
     open override var mediaType: AVMediaType { .video }
     public init(videoTracks: [AVAssetTrack], videoSettings: [String: Any]?) { self.videoTracks = videoTracks; self.videoSettings = videoSettings }
     override func _open(_ range: CMTimeRange) -> _ReaderStream? {
+        if _compositor == nil, let k = videoComposition?.customVideoCompositorClass { _compositor = _avMakeCompositor(k) }
         guard let asset = _reader?.asset,
-              let u = _reader?._render(video: true, audioTrackIDs: [], audioMix: nil, videoComposition: videoComposition) else { return nil }
+              let u = _reader?._render(video: true, audioTrackIDs: [], audioMix: nil, videoComposition: videoComposition, compositor: _compositor) else { return nil }
         let size = videoComposition.map { $0.renderSize.width > 0 ? $0.renderSize : asset.naturalSize } ?? asset.naturalSize
         let fps = videoComposition.map { $0.frameDuration.seconds > 0 ? 1 / $0.frameDuration.seconds : 30 } ?? Double(videoTracks.first?.nominalFrameRate ?? 30)
         return _DecodedStream(url: u, video: true, range: range, settings: videoSettings ?? [:], size: size, fps: fps)
@@ -966,14 +977,15 @@ open class AVAssetReader: NSObject, @unchecked Sendable {
         if _ended >= outputs.count, status == .reading { status = .completed; outputs.forEach { $0._stop() } }
     }
     /// the asset rendered losslessly for decoding: a composition, an audio mix or a video composition (cached)
-    func _render(video: Bool, audioTrackIDs: [CMPersistentTrackID]?, audioMix: AVAudioMix?, videoComposition: AVVideoComposition?) -> URL? {
+    func _render(video: Bool, audioTrackIDs: [CMPersistentTrackID]?, audioMix: AVAudioMix?, videoComposition: AVVideoComposition?,
+                 compositor: (any AVVideoCompositing)? = nil) -> URL? {
         let key = "\(video) \(audioTrackIDs.map { $0.map(String.init).joined(separator: ",") } ?? "all") \(audioMix.map { "\(ObjectIdentifier($0))" } ?? "") \(videoComposition.map { "\(ObjectIdentifier($0))" } ?? "")"
         if let u = _renders[key] { return u }
         guard let s = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else { return nil }
         let out = URL(fileURLWithPath: NSTemporaryDirectory() + "isim-reader-\(UUID().uuidString).mkv")
         s.outputURL = out; s.outputFileType = .mov
         s._lossless = true; s._wantVideo = video; s._wantAudio = audioTrackIDs.map { !$0.isEmpty } ?? true; s._audioTrackIDs = audioTrackIDs
-        s.audioMix = audioMix; s.videoComposition = videoComposition
+        s.audioMix = audioMix; s.videoComposition = videoComposition; s._compositor = compositor
         s._run()
         guard s.status == .completed else { error = s.error ?? _avNSError(.decodeFailed, "the asset could not be rendered"); return nil }
         _renders[key] = out
