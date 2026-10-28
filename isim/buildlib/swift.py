@@ -816,6 +816,8 @@ OBJC_NAMES["SafariServices"] = {"SFSafariViewController": "SFSafariViewControlle
 OBJC_NAMES["CallKit"] = {c: c for c in """CXHandle CXCallUpdate CXProviderConfiguration CXAction CXCallAction CXStartCallAction CXAnswerCallAction
     CXEndCallAction CXSetHeldCallAction CXSetMutedCallAction CXSetGroupCallAction CXPlayDTMFCallAction CXTransaction CXCall CXCallObserver
     CXProvider CXCallController CXCallDirectoryManager CXCallDirectoryExtensionContext CXCallDirectoryProvider""".split()}
+OBJC_NAMES["ReplayKit"] = {c: c for c in """RPScreenRecorder RPPreviewViewController RPBroadcastController RPBroadcastActivityViewController
+    RPSystemBroadcastPickerView RPBroadcastHandler RPBroadcastSampleHandler RPBroadcastMP4ClipHandler RPBroadcastConfiguration""".split()}
 OBJC_NAMES["PushKit"] = {c: c for c in "PKPushCredentials PKPushPayload PKPushRegistry".split()}
 OBJC_NAMES["BackgroundTasks"] = {c: c for c in """BGTaskRequest BGAppRefreshTaskRequest BGProcessingTaskRequest BGTask BGAppRefreshTask BGProcessingTask
     BGTaskScheduler""".split()}
@@ -960,6 +962,7 @@ Photos -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftC
 PhotosUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftPhotos -lswiftAVFoundation -lswiftUniformTypeIdentifiers -lswiftCoreTransferable -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics
 QuickLook -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftUniformTypeIdentifiers -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework QuickLook -framework PDFKit   # SwiftUI's quickLookPreview; replies with UTType / PDFDocument
 QuickLookThumbnailing -lswiftObjectiveC -lswiftFoundation -lswiftUniformTypeIdentifiers -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework QuickLookThumbnailing   # issue #359: UTType forms
+ReplayKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -lswiftAVFoundation -lswiftCoreMedia -lswiftCoreVideo -lswiftAudioToolbox -framework Foundation -framework UIKit -framework CoreGraphics   # issue #385
 PencilKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics -framework PencilKit   # issue #360: value types over the reference classes
 Network Network-capi.o -lswiftObjectiveC -lswiftFoundation -lswiftSecurity -lswiftDispatch -lswift_Concurrency -framework Foundation -lisim_host
 WebKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftObservation -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
@@ -999,7 +1002,7 @@ CallKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency 
 
 # app-facing re-implementations: library evolution keeps their ABI stable across isim updates (since 0.12 also the base
 # overlays every other module and app imports: their types can change layout without breaking apps built earlier)
-EVOLUTION = set("""ObjectiveC QuickLookThumbnailing PencilKit _CKShareMetadata Accelerate VideoToolbox Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI QuickLook EventKit EventKitUI Contacts ContactsUI
+EVOLUTION = set("""ObjectiveC QuickLookThumbnailing PencilKit ReplayKit _CKShareMetadata Accelerate VideoToolbox Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI QuickLook EventKit EventKitUI Contacts ContactsUI
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
 GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Security os OSLog Compression LocalAuthentication
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport XPC StateReporting MetricKit CloudKit AuthenticationServices
@@ -1007,7 +1010,7 @@ QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision Soun
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit TipKit Translation ImagePlayground VisualIntelligence Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit
 CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
-PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer".split())
+PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer ReplayKit".split())
 # modules that also compile overlays/_AdAttribution (the conversion values SKAdNetwork and AdAttributionKit share)
 ATTRIBUTION = set("StoreKit AdAttributionKit".split())
 # overlays that declare macros of isim's compiler plugins (host_plugins): they compile after the plugin is built

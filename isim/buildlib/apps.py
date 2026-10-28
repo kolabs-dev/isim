@@ -384,6 +384,11 @@ def _(a):
     a.icon(f"{b}/AppIcon60x60@3x.png", "#5ac8fa", "#0a84ff", "S")
 
 
+@app("samples/HelloReplayKit")
+def _(a):
+    a.swift_app(link=["-framework", "ReplayKit"])
+
+
 @app("samples/HelloPencilKit")
 def _(a):
     a.swift_app(link=["-framework", "PencilKit"])
@@ -1144,6 +1149,11 @@ def _(a):
 @app("tests/cgextras", products=["CGExtrasTest.app"], swift=False)
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "CoreGraphics", "-framework", "CoreText"], name="CGExtrasTest")
+
+
+@app("tests/replaykit", products=["ReplayKitTest.app"], swift=False)
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "UIKit", "-framework", "CoreMedia", "-framework", "ReplayKit"], name="ReplayKitTest")
 
 
 @app("tests/pencilkit", products=["PencilKitTest.app"], swift=False)

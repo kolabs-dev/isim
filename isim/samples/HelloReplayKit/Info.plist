@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Replay</string>
+	<key>CFBundleExecutable</key>
+	<string>HelloReplayKit</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.isim.samples.HelloReplayKit</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Your face is shown over the recording.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Your commentary is recorded with the screen.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Recordings are saved to your photo library.</string>
+</dict>
+</plist>
