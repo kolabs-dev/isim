@@ -3,7 +3,8 @@ first row, return at the end of the second, shift on both sides of the third wit
 emoji, mic, space, .?123 and hide-keyboard keys, no globe / mic bar under the keys), typing with taps, shift and a
 downward flick (the character above the key), the numbers plane, number pads on the numbers plane (no 3 x 4 pad), the
 hide-keyboard key ending editing, the keys in the accessibility snapshot; landscape, and turning the device while the
-keyboard is up; the status bar's date right of the time.
+keyboard is up; the 13" iPad Pro's extended layout (a number row, tab, caps lock, the shifted characters above the
+keys); the status bar's date right of the time.
 The keyboard and the status bar are system UI: os_matrix."""
 import re
 
@@ -34,7 +35,7 @@ def center(f):
 
 
 @pytest.mark.os_matrix
-@pytest.mark.parametrize("device", ["ipadmini", "ipadpro11", "ipadpro13"])
+@pytest.mark.parametrize("device", ["ipadmini", "ipadpro11"])   # the 13" has the extended layout (below)
 def test_ipad_keyboard_layout(launch, ios, device):
     W, H = SIZES[device]
     app = launch("HelloKeyboardTypes", device=device, os_version=ipad_os(ios), env={"ISIM_LANGUAGES": "en", "ISIM_REGION": "US"})
@@ -133,6 +134,54 @@ def test_ipad_status_bar_date(launch, ios):
     assert count_px(img, (200, 2, 400, 20), ink) == 0, "nothing in the middle"
     assert app.quit() == 0, "exits cleanly"
 
+
+
+@pytest.mark.os_matrix
+def test_ipad_extended_keyboard(launch, ios):
+    W, H = SIZES["ipadpro13"]
+    app = launch("HelloKeyboardTypes", device="ipadpro13", os_version=ipad_os(ios), env={"ISIM_LANGUAGES": "en", "ISIM_REGION": "US"})
+    dump, f = keyboard(app, "websearch")
+    k = lambda i: f[f"isim-kb-{i}"]
+    row = lambda i: k(i)[1]
+    edge = lambda i: abs(k(i)[0] + k(i)[2] - (W - SIDE)) <= 1
+    # five rows: ` 1 .. 0 - = delete / tab q .. p [ ] \ / caps lock a .. l ; ' return / shift z .. m , . / shift / bottom
+    assert row("`") == row("1") == row("=") == row("delete") and edge("delete"), "the number row and delete"
+    assert row("tab") == row("q") == row("[") == row("\\") > row("1") and k("tab")[0] <= SIDE + 1 and edge("\\"), "tab, q .. \\"
+    assert row("capslock") == row("a") == row("'") == row("return") > row("q") and edge("return"), "caps lock, a .. ', return"
+    assert row("shift") == row("z") == row("/") == row("shift-right") > row("a") and edge("shift-right"), "shift, z .. /, shift"
+    bottom = [k(i) for i in ("emoji", "123", "dictation", "space", "123-right", "dismiss")]
+    assert len({b[1] for b in bottom}) == 1 and bottom[0][1] > row("z"), f"bottom row: {bottom}"
+    assert [b[0] for b in bottom] == sorted(b[0] for b in bottom) and bottom[0][0] <= SIDE + 1, f"emoji first: {bottom}"
+    assert k("tab")[2] > k("q")[2] * 1.3 and k("capslock")[2] > k("q")[2] * 1.3, "wide tab and caps lock"
+    assert all(k(i)[0] < k(j)[0] for i, j in (("`", "1"), ("0", "-"), ("-", "="), ("p", "["), ("l", ";"), ("m", ","), (".", "/"))), "order"
+    end = k("dismiss")[1] + k("dismiss")[3]
+    assert H - 20 - 14 <= end <= H - 20, f"keys end above the home indicator: {end}"
+    img = app.screenshot("extended")
+    one = k("1")                                           # the shifted character, small and grey above the 1
+    assert count_px(img, (one[0] + one[2] / 3, one[1] + 3, one[2] / 3, one[3] * 0.35), lambda c: 60 < max(c) < 200) > 3, "! drawn"
+    for key in ("1", "q", "tab", "["):
+        app.tap_id(f"isim-kb-{key}")
+    typed(app, "websearch", "1q\t[")
+    x, y = center(k("2"))                                  # a downward swipe types the character above: @
+    app.drag(x, y - 8, x, y + 24, 0.2)
+    typed(app, "websearch", "1q\t[@")
+    app.tap_id("isim-kb-shift")                            # shift: a capital, or the character above
+    app.tap_id("isim-kb-3")
+    typed(app, "websearch", "1q\t[@#")
+    app.tap_id("isim-kb-capslock")
+    app.wait_log(r"isim: caps lock on")
+    for key in ("a", "b"):
+        app.tap_id(f"isim-kb-{key}")
+    typed(app, "websearch", "1q\t[@#AB")
+    app.tap_id("isim-kb-capslock")
+    app.wait_log(r"isim: caps lock off")
+    app.tap_id("isim-kb-c")
+    typed(app, "websearch", "1q\t[@#ABc")
+    app.tap_id("isim-kb-123")                              # the numbers plane is the standard layout
+    dump = app.wait_view(r"^(?!.* hidden id=).* id=isim-kb-abc-right\b")
+    f = screen_frames(dump)
+    assert "id=isim-kb-tab" not in dump and f["isim-kb-@"][1] == f["isim-kb-return"][1] > f["isim-kb-1"][1], "numbers plane"
+    assert app.quit() == 0, "exits cleanly"
 
 
 def laid_out(app, width):

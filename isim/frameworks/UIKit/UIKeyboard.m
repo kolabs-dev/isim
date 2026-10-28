@@ -81,8 +81,13 @@ static NSArray *rows_for(int layer, NSString *lang) {
  * the mic are in the bottom row), number / phone pads show the numbers plane (iPadOS has no 3 x 4 pad on iPad).
  * Row contents follow iPadOS (en_US); the symbols plane's third row, the key proportions and sizes are estimated from
  * screenshots, not measured (see ipad_metrics). Other languages use their letter rows in the same frame, with the flick
- * characters only on the punctuation keys. The 12.9" / 13" iPad Pro's extended layout (a number row, tab, caps lock)
- * and the floating / split keyboards are not implemented: the 13" gets this layout, larger. */
+ * characters only on the punctuation keys. The floating / split keyboards are not implemented.
+ * The 13" iPad Pro (screens 1000 pt and wider on the short side) has iPadOS's extended layout for English, five rows:
+ *   ` 1 2 3 4 5 6 7 8 9 0 - =  delete  /  tab  q w e r t y u i o p [ ] \  /  caps lock  a s d f g h j k l ; '  return  /
+ *   shift  z x c v b n m , . /  shift  /  globe or emoji  .?123  mic  space  .?123  hide-keyboard
+ * with the shifted character above the number-row and punctuation keys (a downward swipe or shift types it; the letters
+ * have none). Its numbers and symbols planes, and other languages, are the standard layout. The key proportions are
+ * estimated from screenshots, not measured. */
 static BOOL kb_ipad(void) { return UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad; }
 static NSArray *ipad_rows(int layer, NSString *lang) {
     switch (layer) {
@@ -100,6 +105,26 @@ static NSArray *ipad_rows(int layer, NSString *lang) {
     }
     }
 }
+/* the 13" iPad Pro's extended letters plane (English) */
+static BOOL ipad_extended_device(NSString *lang) {
+    const struct isim_device *d = isim_ui_device();
+    return [lang hasPrefix:@"en"] && MIN(d->width, d->height) >= 1000;
+}
+static BOOL ipad_extended(int layer, NSString *lang) { return layer == L_LETTERS && ipad_extended_device(lang); }
+static NSArray *ipad_extended_rows(void) {
+    return @[@[@"`", @"1", @"2", @"3", @"4", @"5", @"6", @"7", @"8", @"9", @"0", @"-", @"="],
+             @[@"q", @"w", @"e", @"r", @"t", @"y", @"u", @"i", @"o", @"p", @"[", @"]", @"\\"],
+             @[@"a", @"s", @"d", @"f", @"g", @"h", @"j", @"k", @"l", @";", @"'"],
+             @[@"z", @"x", @"c", @"v", @"b", @"n", @"m", @",", @".", @"/"]];
+}
+/* the shifted character drawn above a key of the extended layout, as on a hardware keyboard */
+static NSString *ipad_extended_flick(NSString *k) {
+    static NSDictionary *t;
+    if (!t) t = @{ @"`": @"~", @"1": @"!", @"2": @"@", @"3": @"#", @"4": @"$", @"5": @"%", @"6": @"^", @"7": @"&", @"8": @"*",
+                   @"9": @"(", @"0": @")", @"-": @"_", @"=": @"+", @"[": @"{", @"]": @"}", @"\\": @"|", @";": @":",
+                   @"'": @"\"", @",": @"<", @".": @">", @"/": @"?" };
+    return t[k];
+}
 /* the flick character above a key of the letters plane (the numbers plane at the same place, iPadOS en_US) */
 static NSString *ipad_flick(NSString *k, NSString *lang) {
     if ([k isEqualToString:@","]) return @"!";
@@ -115,10 +140,12 @@ static NSString *ipad_flick(NSString *k, NSString *lang) {
  * iPadOS screenshots: about 264 pt in portrait on the 11" class (the height iPads without the predictive bar had),
  * 352 pt in landscape; the 13" iPad Pro somewhat taller. Keys are near-square in portrait. */
 struct ipad_metrics { CGFloat height, side, gap, vgap, top; };
-static struct ipad_metrics ipad_metrics(void) {
+static struct ipad_metrics ipad_metrics(NSString *lang) {
     const struct isim_device *d = isim_ui_device();
     BOOL landscape = d->width > d->height, big = MIN(d->width, d->height) >= 1000;
     struct ipad_metrics m = { landscape ? (big ? 384 : 352) : (big ? 290 : 264), 6, landscape ? 14 : 12, 9, 7 };
+    if (ipad_extended_device(lang)) m.height = landscape ? 420 : 340;   /* the extended layout's five rows (estimated);
+                                                                       its other planes keep the height */
     return m;
 }
 
@@ -336,10 +363,11 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
 }
 /* ---- iPad (see ipad_rows) ---- */
 - (void)_rebuildIPad {
-    NSArray *rows = ipad_rows(_layer, _language);
+    BOOL ext = ipad_extended(_layer, _language);
+    NSArray *rows = ext ? ipad_extended_rows() : ipad_rows(_layer, _language);
     for (NSUInteger r = 0; r < rows.count; r++)
         for (NSString *k in rows[r]) {
-            NSString *flick = _layer == L_LETTERS ? ipad_flick(k, _language) : nil;
+            NSString *flick = ext ? ipad_extended_flick(k) : _layer == L_LETTERS ? ipad_flick(k, _language) : nil;
             UIButton *b = [self _key:[self _upper] ? k.uppercaseString : k ident:[@"isim-kb-" stringByAppendingString:k] special:NO action:@selector(_char:)
                                class:flick ? [__IsimFlickKey class] : [UIButton class]];
             b.tag = (NSInteger)r;
@@ -369,6 +397,13 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     UIButton *ret = [self _key:[self _returnTitle] ident:@"isim-kb-return" special:YES action:@selector(_return)];
     if ([self _returnIsBlue]) { ret.backgroundColor = UIColor.systemBlueColor; [ret setTitleColor:UIColor.whiteColor forState:UIControlStateNormal]; }
     ret.tag = 105;
+    if (ext) {                                                     /* tab and caps lock start rows 2 and 3 */
+        UIButton *tab = [self _key:@"tab" ident:@"isim-kb-tab" special:YES action:@selector(_tab)];
+        tab.tag = 111;
+        UIButton *caps = [self _key:@"caps lock" ident:@"isim-kb-capslock" special:!_caps action:@selector(_capsLock)];
+        if (_caps) caps.backgroundColor = dyn(1, 0.42);
+        caps.tag = 112;
+    }
     /* the bottom row */
     for (int side = 0; side < 2; side++) {
         UIButton *mode = [self _key:letters ? @".?123" : @"ABC" ident:[NSString stringWithFormat:@"isim-kb-%@%@", letters ? @"123" : @"abc", side ? @"-right" : @""]
@@ -419,23 +454,27 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
     return CGRectZero;
 }
 - (void)_dismiss { NSLog(@"isim: hide keyboard key"); if (_onDismiss) _onDismiss(); }
+- (void)_tab { [self _type:@"\t"]; }
+- (void)_capsLock { _caps = !_caps; _shift = NO; NSLog(@"isim: caps lock %@", _caps ? @"on" : @"off"); [self _rebuild]; }
 - (void)_layoutIPad {
-    struct ipad_metrics m = ipad_metrics();
+    struct ipad_metrics m = ipad_metrics(_language);
+    BOOL ext = ipad_extended(_layer, _language);
+    int nrows = ext ? 5 : 4;
     CGFloat W = self.bounds.size.width, top = m.top + [self _top], g = m.gap, side = m.side, IW = W - 2 * side;
-    CGFloat keyH = floor((m.height - 2 * m.top - 3 * m.vgap) / 4);
-    NSMutableArray *rk[3] = { [NSMutableArray array], [NSMutableArray array], [NSMutableArray array] };
-    for (UIButton *b in _keys) if (b.tag >= 0 && b.tag < 3) [rk[b.tag] addObject:b];
+    CGFloat keyH = floor((m.height - 2 * m.top - (nrows - 1) * m.vgap) / nrows);
+    NSMutableArray *rk[4] = { [NSMutableArray array], [NSMutableArray array], [NSMutableArray array], [NSMutableArray array] };
+    for (UIButton *b in _keys) if (b.tag >= 0 && b.tag < 4) [rk[b.tag] addObject:b];
     NSUInteger n1 = MAX((NSUInteger)1, [rk[0] count]), n2 = [rk[1] count], n3 = [rk[2] count];
     CGFloat u = (IW - n1 * g) / (n1 + 1.5);                      /* a letter key; delete is 1.5 keys wide */
     UIFont *letterFont = [UIFont systemFontOfSize:round(keyH * 0.42)], *specialFont = [UIFont systemFontOfSize:round(keyH * 0.31)];
     UIFont *flickFont = [UIFont systemFontOfSize:round(keyH * 0.26)], *glyphFont = [UIFont systemFontOfSize:round(keyH * 0.4)];
-    CGFloat y[4]; for (int r = 0; r < 4; r++) y[r] = top + r * (keyH + m.vgap);
+    CGFloat y[5]; for (int r = 0; r < nrows; r++) y[r] = top + r * (keyH + m.vgap);
     CGFloat right = W - side;
     void (^place)(UIButton *, CGFloat, CGFloat, CGFloat) = ^(UIButton *b, CGFloat x, CGFloat yy, CGFloat w) {
         b.frame = CGRectMake(round(x), yy, round(x + w) - round(x), keyH);
         b.layer.cornerRadius = 6;
         UILabel *l = (UILabel *)[b viewWithTag:98];
-        b.titleLabel.font = b.tag < 3 || b.tag == 106 ? ([b.currentTitle length] > 1 ? specialFont : letterFont) : specialFont;
+        b.titleLabel.font = b.tag < 4 || b.tag == 106 ? ([b.currentTitle length] > 1 ? specialFont : letterFont) : specialFont;
         if (b.tag == 101 || ((b.tag == 100 || b.tag == 107) && b.currentTitle.length == 1)) b.titleLabel.font = glyphFont;   /* ⌫ ⇧ */
         if (l) {                                                  /* the flick character above, the key's own below */
             l.font = flickFont;
@@ -444,44 +483,74 @@ static NSArray<NSArray<NSString *> *> *emoji_pages(void) {
             b.titleLabel.font = [UIFont systemFontOfSize:round(keyH * 0.36)];
         }
     };
-    /* row 1: the letters, delete to the right edge */
-    CGFloat x = side;
-    for (UIButton *b in rk[0]) { place(b, x, y[0], u); x += u + g; }
-    /* row 2: indented by half a key per key fewer than row 1, return to the right edge */
-    CGFloat x2 = side + (n1 > n2 ? (n1 - n2) * 0.5 * u : 0);
-    for (UIButton *b in rk[1]) { place(b, x2, y[1], u); x2 += u + g; }
-    /* row 3: shift, the letters and , . , shift: both shifts share what is left */
-    CGFloat shiftW = (IW - n3 * u - (n3 + 1) * g) / 2, x3 = side + shiftW + g;
-    for (UIButton *b in rk[2]) { place(b, x3, y[2], u); x3 += u + g; }
-    /* row 4: .?123, globe / emoji, mic, space (and the keyboard type's keys), .?123, hide keyboard */
-    CGFloat modeW = u * 1.6, smallW = u, hideW = shiftW;
+    CGFloat modeW = u * 1.6, smallW = u, hideW, yb = y[nrows - 1];
     CGFloat x4 = side, r4 = right;
-    for (UIButton *b in _keys) {
-        switch (b.tag) {
-        case 100: place(b, side, y[2], shiftW); break;
-        case 107: place(b, right - shiftW, y[2], shiftW); break;
-        case 101: place(b, x, y[0], right - x); break;
-        case 105: place(b, x2, y[1], right - x2); break;
-        case 110: place(b, right - hideW, y[3], hideW); r4 = right - hideW - g; break;
-        default: break;
+    if (ext) {
+        /* the number row and delete; tab, the q row and [ ] \; caps lock, the a row, ; ' and return; shift, the z row,
+           , . / and shift: the specials share what the keys leave (caps lock about 1.6 keys) */
+        CGFloat x = side;
+        for (UIButton *b in rk[0]) { place(b, x, y[0], u); x += u + g; }
+        CGFloat tabW = IW - [rk[1] count] * (u + g), capsW = round(u * 1.6);
+        CGFloat x1 = side + tabW + g;
+        for (UIButton *b in rk[1]) { place(b, x1, y[1], u); x1 += u + g; }
+        CGFloat x2 = side + capsW + g;
+        for (UIButton *b in rk[2]) { place(b, x2, y[2], u); x2 += u + g; }
+        CGFloat shiftW = (IW - [rk[3] count] * u - ([rk[3] count] + 1) * g) / 2, x3 = side + shiftW + g;
+        for (UIButton *b in rk[3]) { place(b, x3, y[3], u); x3 += u + g; }
+        hideW = round(u * 1.5);
+        for (UIButton *b in _keys) {
+            switch (b.tag) {
+            case 101: place(b, x, y[0], right - x); break;
+            case 111: place(b, side, y[1], tabW); break;
+            case 112: place(b, side, y[2], capsW); break;
+            case 105: place(b, x2, y[2], right - x2); break;
+            case 100: place(b, side, y[3], shiftW); break;
+            case 107: place(b, right - shiftW, y[3], shiftW); break;
+            case 110: place(b, right - hideW, yb, hideW); r4 = right - hideW - g; break;
+            default: break;
+            }
+        }
+        for (UIButton *b in _keys) if (b.tag == 103) { place(b, x4, yb, modeW); x4 += modeW + g; }   /* globe first */
+    } else {
+        /* row 1: the letters, delete to the right edge */
+        CGFloat x = side;
+        for (UIButton *b in rk[0]) { place(b, x, y[0], u); x += u + g; }
+        /* row 2: indented by half a key per key fewer than row 1, return to the right edge */
+        CGFloat x2 = side + (n1 > n2 ? (n1 - n2) * 0.5 * u : 0);
+        for (UIButton *b in rk[1]) { place(b, x2, y[1], u); x2 += u + g; }
+        /* row 3: shift, the letters and , . , shift: both shifts share what is left */
+        CGFloat shiftW = (IW - n3 * u - (n3 + 1) * g) / 2, x3 = side + shiftW + g;
+        for (UIButton *b in rk[2]) { place(b, x3, y[2], u); x3 += u + g; }
+        hideW = shiftW;
+        for (UIButton *b in _keys) {
+            switch (b.tag) {
+            case 100: place(b, side, y[2], shiftW); break;
+            case 107: place(b, right - shiftW, y[2], shiftW); break;
+            case 101: place(b, x, y[0], right - x); break;
+            case 105: place(b, x2, y[1], right - x2); break;
+            case 110: place(b, right - hideW, yb, hideW); r4 = right - hideW - g; break;
+            default: break;
+            }
         }
     }
-    for (UIButton *b in _keys) if (b.tag == 108) { place(b, r4 - modeW, y[3], modeW); r4 -= modeW + g; }
-    for (UIButton *b in _keys) if (b.tag == 102) { place(b, x4, y[3], modeW); x4 += modeW + g; }
-    for (UIButton *b in _keys) if (b.tag == 103) { place(b, x4, y[3], smallW); x4 += smallW + g; }
-    for (UIButton *b in _keys) if (b.tag == 109) { place(b, x4, y[3], smallW); x4 += smallW + g; }
+    /* the bottom row: .?123, globe / emoji (first on the extended layout), mic, space (and the keyboard type's keys),
+       .?123, hide keyboard */
+    for (UIButton *b in _keys) if (b.tag == 108) { place(b, r4 - modeW, yb, modeW); r4 -= modeW + g; }
+    for (UIButton *b in _keys) if (b.tag == 102) { place(b, x4, yb, modeW); x4 += modeW + g; }
+    if (!ext) for (UIButton *b in _keys) if (b.tag == 103) { place(b, x4, yb, smallW); x4 += smallW + g; }
+    for (UIButton *b in _keys) if (b.tag == 109) { place(b, x4, yb, smallW); x4 += smallW + g; }
     NSMutableArray *ex = [NSMutableArray array]; UIButton *spaceKey = nil;
     for (UIButton *b in _keys) { if (b.tag == 106) [ex addObject:b]; if (b.tag == 104) spaceKey = b; }
     CGFloat exW = 0;
     for (UIButton *b in ex) exW += ([b.currentTitle isEqualToString:@".com"] ? round(u * 1.5) : round(u)) + g;
     if (!spaceKey && ex.count) {
         CGFloat each = (r4 - x4 + g - ex.count * g) / ex.count;
-        for (UIButton *b in ex) { place(b, x4, y[3], each); x4 += each + g; }
+        for (UIButton *b in ex) { place(b, x4, yb, each); x4 += each + g; }
     } else {
         CGFloat sw = r4 - x4 - exW;
-        if (spaceKey) place(spaceKey, x4, y[3], sw);
+        if (spaceKey) place(spaceKey, x4, yb, sw);
         x4 += sw + g;
-        for (UIButton *b in ex) { CGFloat w = [b.currentTitle isEqualToString:@".com"] ? round(u * 1.5) : round(u); place(b, x4, y[3], w); x4 += w + g; }
+        for (UIButton *b in ex) { CGFloat w = [b.currentTitle isEqualToString:@".com"] ? round(u * 1.5) : round(u); place(b, x4, yb, w); x4 += w + g; }
     }
 }
 - (void)_padSymbols { _layer = _layer == L_SYMBOLS ? L_NUMBERS : L_SYMBOLS; [self _rebuild]; }
@@ -907,6 +976,10 @@ static double math_expr(const char **p, BOOL *ok) {
         [self _type:((__IsimFlickKey *)b).flick];
         return;
     }
+    if (_shift && ipad_extended(_layer, _language) && [b isKindOfClass:[__IsimFlickKey class]]) {   /* shift + 1: ! */
+        [self _type:((__IsimFlickKey *)b).flick];
+        return;
+    }
     [self _type:b.currentTitle];
 }
 /* ---- accent popup ---- */
@@ -1219,7 +1292,7 @@ static BOOL is_system(NSString *ident) { return [system_boards() containsObject:
         return (h > 0 ? h : 216) + isim_ui_device()->safe_bottom;
     }
     if (kb_ipad() && (is_system([self _ident]) || !_hostedView))      /* the keys, over the home indicator's band */
-        return ipad_metrics().height + ([_keys showsPredictions] ? 44 : 0) + isim_ui_device()->safe_bottom;
+        return ipad_metrics([self _language]).height + ([_keys showsPredictions] ? 44 : 0) + isim_ui_device()->safe_bottom;
     if (is_system([self _ident]) || !_hostedView) return 216 + ([_keys showsPredictions] ? 44 : 0);
     UIView *v = _hostedView;
     CGFloat W = isim_ui_device()->width;
