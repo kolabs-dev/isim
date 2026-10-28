@@ -126,7 +126,7 @@ static int capture_buttons;                                /* AVKit: a capture e
 /* script commands passed to the app as they are ("VERB ARGS"): its UIKit handles them (isim_sys_event) */
 static int is_app_verb(const char *cmd) {
     static const char *verbs[] = { "attributions", "fullpage", "tilt", "guidedaccess", "accessibility", "takescreenshot", "privacy", "biometry",
-                                   "cameracontrol", "camerapressure", "midi", NULL };
+                                   "cameracontrol", "camerapressure", "midi", "ar", NULL };
     for (int i = 0; verbs[i]; i++) if (!strcmp(cmd, verbs[i])) return 1;
     return 0;
 }
