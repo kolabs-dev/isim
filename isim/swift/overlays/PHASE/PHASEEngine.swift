@@ -215,11 +215,12 @@ final class _PHASEVoice {
 
     /// starts rendering: 48 kHz stereo through isim's AVAudioEngine
     @objc(startAndReturnError:) open func start() throws {
-        _lock.lock(); defer { _lock.unlock() }
-        if renderingState == .started { return }
+        // the audio engine starts outside the lock: its render thread takes the audio engine's lock, then this one
+        _lock.lock()
+        if renderingState == .started { _lock.unlock(); return }
         if _audio == nil {
             let e = AVAudioEngine()
-            guard let format = AVAudioFormat(standardFormatWithSampleRate: _PHASEDSP.rate, channels: 2) else { throw PHASEError(.initializeFailed) }
+            guard let format = AVAudioFormat(standardFormatWithSampleRate: _PHASEDSP.rate, channels: 2) else { _lock.unlock(); throw PHASEError(.initializeFailed) }
             let node = AVAudioSourceNode(format: format) { [weak self] silence, time, frames, list in
                 self?._render(Int(frames), list, silence) ?? noErr
             }
@@ -227,17 +228,28 @@ final class _PHASEVoice {
             e.connect(node, to: e.mainMixerNode, format: format)
             _audio = e; _node = node
         }
-        do { try _audio!.start() } catch { throw PHASEError(.initializeFailed) }
         _snapshot()
         renderingState = .started
+        let audio = _audio!
+        _lock.unlock()
+        do { try audio.start() } catch {
+            _lock.lock(); renderingState = .stopped; _lock.unlock()
+            throw PHASEError(.initializeFailed)
+        }
         NSLog("isim PHASE: engine started (%@ updates)", updateMode == .manual ? "manual" : "automatic")
     }
-    @objc open func pause() { _lock.lock(); if renderingState == .started { _audio?.pause(); renderingState = .paused }; _lock.unlock() }
+    // the audio engine stops outside the lock: stopping waits for a render block in flight, which takes the lock
+    @objc open func pause() {
+        _lock.lock(); let audio = renderingState == .started ? _audio : nil; if audio != nil { renderingState = .paused }; _lock.unlock()
+        audio?.pause()
+    }
     @objc open func stop() {
         _lock.lock()
-        _audio?.stop(); renderingState = .stopped
+        let audio = _audio
+        renderingState = .stopped
         let events = _events
         _lock.unlock()
+        audio?.stop()
         for e in events { _finish(e, .terminated) }
     }
     /// manual update mode: the scene changes made since the last update take effect now
