@@ -1,7 +1,7 @@
 # NearbyInteraction
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 51.4% of Apple's iOS API (89 of 173, exact) · **Rows:** 1: 1 🧩 · **iOS:** 14.0+
+**Symbols:** 49.7% of Apple's iOS API (86 of 173, exact) · **Rows:** 1: 1 🧩 · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [NearbyInteraction](https://developer.apple.com/documentation/nearbyinteraction) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -22,7 +22,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-84 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+87 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -105,10 +105,13 @@
 - [`case moving`](https://developer.apple.com/documentation/nearbyinteraction/nimotionactivitystate/moving)
 - [`case stationary`](https://developer.apple.com/documentation/nearbyinteraction/nimotionactivitystate/stationary)
 - [`case unknown`](https://developer.apple.com/documentation/nearbyinteraction/nimotionactivitystate/unknown)
+- [`init(bluetoothChannelSoundingIdentifier: UUID, previousBluetoothIdentifier: UUID?)`](https://developer.apple.com/documentation/nearbyinteraction/ninearbyaccessoryconfiguration/init(bluetoothchannelsoundingidentifier:previousbluetoothidentifier:))
 - [`var horizontalAngle: Float?`](https://developer.apple.com/documentation/nearbyinteraction/ninearbyobject/horizontalangle-hsg)
 - [`func setARSession(ARSession)`](https://developer.apple.com/documentation/nearbyinteraction/nisession/setarsession(_:))
 - [`func updateMotionState(NIMotionActivityState, forObjectWithToken: NIDiscoveryToken)`](https://developer.apple.com/documentation/nearbyinteraction/nisession/updatemotionstate(_:forobjectwithtoken:))
 - [`func worldTransform(for: NINearbyObject) -> simd_float4x4?`](https://developer.apple.com/documentation/nearbyinteraction/nisession/worldtransform(for:))
+- [`func session(NISession, didUpdateAlgorithmConvergence: NIAlgorithmConvergence, for: NINearbyObject?)`](https://developer.apple.com/documentation/nearbyinteraction/nisessiondelegate/session(_:didupdatealgorithmconvergence:for:))
+- [`func session(NISession, didUpdateDLTDOA: [NIDLTDOAMeasurement])`](https://developer.apple.com/documentation/nearbyinteraction/nisessiondelegate/session(_:didupdatedltdoa:))
 - [`func sessionDidStartRunning(NISession)`](https://developer.apple.com/documentation/nearbyinteraction/nisessiondelegate/sessiondidstartrunning(_:))
 
 </details>

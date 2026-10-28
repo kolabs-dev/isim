@@ -1,7 +1,7 @@
 # Observation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 52.8% of Apple's iOS API (19 of 36, exact) · **Rows:** 1: 1 ❌ · **iOS:** 17.0+
+**Symbols:** 50.0% of Apple's iOS API (18 of 36, exact) · **Rows:** 1: 1 ❌ · **iOS:** 17.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [Observation](https://developer.apple.com/documentation/observation) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)
@@ -19,7 +19,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-17 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+18 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -40,6 +40,7 @@
 - [`ObservationTracking.Token`](https://developer.apple.com/documentation/observation/observationtracking/token)
 - [`func cancel()`](https://developer.apple.com/documentation/observation/observationtracking/token/cancel())
 - [`func withContinuousObservation(options: ObservationTracking.Options, apply: (borrowing ObservationTracking.Event) -> Void) -> ObservationTracking.Token`](https://developer.apple.com/documentation/observation/withcontinuousobservation(options:apply:))
+- [`func withObservationTracking<Result, Failure>(options: ObservationTracking.Options, () throws(Failure) -> Result, onChange: (borrowing ObservationTracking.Event) -> Void) throws(Failure) -> Result`](https://developer.apple.com/documentation/observation/withobservationtracking(options:_:onchange:))
 
 </details>
 <!-- /generated:missing -->

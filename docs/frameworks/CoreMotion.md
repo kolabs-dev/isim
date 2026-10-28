@@ -1,7 +1,7 @@
 # CoreMotion
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 54.8% of Apple's iOS API (223 of 407, exact) · **Rows:** 5: 1 ✅ 1 🧩 3 ❌ · **iOS:** 4.0+
+**Symbols:** 53.6% of Apple's iOS API (218 of 407, exact) · **Rows:** 5: 1 ✅ 1 🧩 3 ❌ · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [CoreMotion](https://developer.apple.com/documentation/coremotion) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -25,7 +25,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-184 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+189 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -40,6 +40,7 @@
 - [`CMAmbientPressureData`](https://developer.apple.com/documentation/coremotion/cmambientpressuredata)
 - [`var pressure: Measurement<UnitPressure>`](https://developer.apple.com/documentation/coremotion/cmambientpressuredata/pressure)
 - [`var temperature: Measurement<UnitTemperature>`](https://developer.apple.com/documentation/coremotion/cmambientpressuredata/temperature)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/coremotion/cmattitude/init(coder:))
 - [`CMBatchedSensorManager`](https://developer.apple.com/documentation/coremotion/cmbatchedsensormanager)
 - [`var accelerometerBatch: [CMAccelerometerData]?`](https://developer.apple.com/documentation/coremotion/cmbatchedsensormanager/accelerometerbatch)
 - [`var accelerometerDataFrequency: Int`](https://developer.apple.com/documentation/coremotion/cmbatchedsensormanager/accelerometerdatafrequency)
@@ -69,6 +70,7 @@
 - [`var percentLikely: Float`](https://developer.apple.com/documentation/coremotion/cmdyskineticsymptomresult/percentlikely)
 - [`var percentUnlikely: Float`](https://developer.apple.com/documentation/coremotion/cmdyskineticsymptomresult/percentunlikely)
 - [`var startDate: Date`](https://developer.apple.com/documentation/coremotion/cmdyskineticsymptomresult/startdate)
+- [`init(rawValue: UInt32)`](https://developer.apple.com/documentation/coremotion/cmerror/init(rawvalue:))
 - [`var rawValue: UInt32`](https://developer.apple.com/documentation/coremotion/cmerror/rawvalue)
 - [`var CMErrorDeviceRequiresMovement: CMError`](https://developer.apple.com/documentation/coremotion/cmerrordevicerequiresmovement)
 - [`var CMErrorInvalidAction: CMError`](https://developer.apple.com/documentation/coremotion/cmerrorinvalidaction)
@@ -118,6 +120,7 @@
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/coremotion/cmhighfrequencyheartratedataconfidence/init(rawvalue:))
 - [`case low`](https://developer.apple.com/documentation/coremotion/cmhighfrequencyheartratedataconfidence/low)
 - [`case medium`](https://developer.apple.com/documentation/coremotion/cmhighfrequencyheartratedataconfidence/medium)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/coremotion/cmlogitem/init(coder:))
 - [`CMMotionActivityQueryHandler`](https://developer.apple.com/documentation/coremotion/cmmotionactivityqueryhandler)
 - [`class var authorizationStatus: CMAuthorizationStatus`](https://developer.apple.com/documentation/coremotion/cmmotionmanager/authorizationstatus)
 - [`var deviceMotionBody: (any CMBodyIdentifiable)?`](https://developer.apple.com/documentation/coremotion/cmmotionmanager/devicemotionbody)
@@ -141,6 +144,8 @@
 - [`case local`](https://developer.apple.com/documentation/coremotion/cmodometerorigindevice/local)
 - [`case remote`](https://developer.apple.com/documentation/coremotion/cmodometerorigindevice/remote)
 - [`case unknown`](https://developer.apple.com/documentation/coremotion/cmodometerorigindevice/unknown)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/coremotion/cmpedometerdata/init(coder:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/coremotion/cmpedometerevent/init(coder:))
 - [`CMPedometerEventHandler`](https://developer.apple.com/documentation/coremotion/cmpedometereventhandler)
 - [`CMRecordedAccelerometerData`](https://developer.apple.com/documentation/coremotion/cmrecordedaccelerometerdata)
 - [`var identifier: UInt64`](https://developer.apple.com/documentation/coremotion/cmrecordedaccelerometerdata/identifier)

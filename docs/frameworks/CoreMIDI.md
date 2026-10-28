@@ -1,6 +1,7 @@
 # CoreMIDI
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 98.6% of Apple's iOS API (986 of 1000, exact) · **Rows:** 19: 13 ✅ 6 🟡 · **iOS:** 4.2+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [CoreMIDI](https://developer.apple.com/documentation/coremidi) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -46,4 +47,24 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+14 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`var kMIDINoteAttributeManufacturerSpecific: Int`](https://developer.apple.com/documentation/coremidi/kmidinoteattributemanufacturerspecific)
+- [`var kMIDINoteAttributeNone: Int`](https://developer.apple.com/documentation/coremidi/kmidinoteattributenone)
+- [`var kMIDINoteAttributePitch: Int`](https://developer.apple.com/documentation/coremidi/kmidinoteattributepitch)
+- [`var kMIDINoteAttributeProfileSpecific: Int`](https://developer.apple.com/documentation/coremidi/kmidinoteattributeprofilespecific)
+- [`static let deviceObject: MIDICIDeviceManager.DictionaryKey`](https://developer.apple.com/documentation/coremidi/midicidevicemanager/dictionarykey/deviceobject)
+- [`static let deviceObject: MIDICIDeviceManager.DictionaryKey`](https://developer.apple.com/documentation/coremidi/midicidevicemanager/dictionarykey/deviceobject)
+- [`static let profileObject: MIDICIDeviceManager.DictionaryKey`](https://developer.apple.com/documentation/coremidi/midicidevicemanager/dictionarykey/profileobject)
+- [`static let profileObject: MIDICIDeviceManager.DictionaryKey`](https://developer.apple.com/documentation/coremidi/midicidevicemanager/dictionarykey/profileobject)
+- [`case midiNAK`](https://developer.apple.com/documentation/coremidi/midicimanagementmessagetype/midinak)
+- [`case invalid`](https://developer.apple.com/documentation/coremidi/midimessagetype/invalid)
+- [`init(version: UInt32, numSources: UInt32, sources: (MIDIThruConnectionEndpoint, MIDIThruConnectionEndpoint, MIDIThruConnectionEndpoint, MIDIThruConnectionEndpoint, MIDIThruConnectionEndpoint, MIDIThruConnectionEndpoint, MIDIThruConnectionEndpoint, MIDIThruConnectionEndpoint), numDestinations: UInt32, destinations: (MIDIThruConnectionEndpoint, MIDIThruConnectionEndpoint, MIDIThruConnectionEndpoint, MIDIThruConnectionEndpoint, MIDIThruConnectionEndpoint, MIDIThruConnectionEndpoint, MIDIThruConnectionEndpoint, MIDIThruConnectionEndpoint), channelMap: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8), lowVelocity: UInt8, highVelocity: UInt8, lowNote: UInt8, highNote: UInt8, noteNumber: MIDITransform, velocity: MIDITransform, keyPressure: MIDITransform, channelPressure: MIDITransform, programChange: MIDITransform, pitchBend: MIDITransform, filterOutSysEx: UInt8, filterOutMTC: UInt8, filterOutBeatClock: UInt8, filterOutTuneRequest: UInt8, reserved2: (UInt8, UInt8, UInt8), filterOutAllControls: UInt8, numControlTransforms: UInt16, numMaps: UInt16, reserved3: (UInt16, UInt16, UInt16, UInt16))`](https://developer.apple.com/documentation/coremidi/midithruconnectionparams/init(version:numsources:sources:numdestinations:destinations:channelmap:lowvelocity:highvelocity:lownote:highnote:notenumber:velocity:keypressure:channelpressure:programchange:pitchbend:filteroutsysex:filteroutmtc:filteroutbeatclock:filtero-6y1ig)
+- [`static let endpointObject: MIDIUMPEndpointManager.DictionaryKey`](https://developer.apple.com/documentation/coremidi/midiumpendpointmanager/dictionarykey/endpointobject)
+- [`static let functionBlockObject: MIDIUMPEndpointManager.DictionaryKey`](https://developer.apple.com/documentation/coremidi/midiumpendpointmanager/dictionarykey/functionblockobject)
+- [`func reconfigure(firstGroup: MIDIUMPGroupNumber, direction: MIDIUMPFunctionBlockDirection, MIDI1Info: MIDIUMPFunctionBlockMIDI1Info, UIHint: MIDIUMPFunctionBlockUIHint) throws`](https://developer.apple.com/documentation/coremidi/midiumpmutablefunctionblock/reconfigure(firstgroup:direction:midi1info:uihint:))
+
+</details>
 <!-- /generated:missing -->

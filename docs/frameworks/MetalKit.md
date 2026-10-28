@@ -1,7 +1,7 @@
 # MetalKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 62.9% of Apple's iOS API (73 of 116, exact) · **Rows:** 4: 2 ✅ 1 🟡 1 ❌ · **iOS:** 9.0+
+**Symbols:** 57.9% of Apple's iOS API (66 of 114, exact) · **Rows:** 4: 2 ✅ 1 🟡 1 ❌ · **iOS:** 9.0+
 <!-- /generated:header -->
 
 **Area:** [GPU](../COVERAGE.md#gpu) · **Apple:** [MetalKit](https://developer.apple.com/documentation/metalkit) · **Issues:** [`area:gpu`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agpu)
@@ -42,7 +42,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-43 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+48 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -87,6 +87,11 @@
 - [`static let domain: MTKTextureLoader.Error`](https://developer.apple.com/documentation/metalkit/mtktextureloader/error/domain)
 - [`init(rawValue: String)`](https://developer.apple.com/documentation/metalkit/mtktextureloader/error/init(rawvalue:))
 - [`static let key: MTKTextureLoader.Error`](https://developer.apple.com/documentation/metalkit/mtktextureloader/error/key)
+- [`func newTexture(texture: MDLTexture, options: [MTKTextureLoader.Option : Any]?) throws -> any MTLTexture`](https://developer.apple.com/documentation/metalkit/mtktextureloader/newtexture(texture:options:))
+- [`func newTexture(texture: MDLTexture, options: [MTKTextureLoader.Option : Any]?, completionHandler: ((any MTLTexture)?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/metalkit/mtktextureloader/newtexture(texture:options:completionhandler:))
+- [`func newTextures(names: [String], scaleFactor: CGFloat, bundle: Bundle?, options: [MTKTextureLoader.Option : Any]?, completionHandler: ([any MTLTexture], (any Error)?) -> Void)`](https://developer.apple.com/documentation/metalkit/mtktextureloader/newtextures(names:scalefactor:bundle:options:completionhandler:))
+- [`func newTextures(URLs: [URL], options: [MTKTextureLoader.Option : Any]?, completionHandler: ([any MTLTexture], (any Error)?) -> Void)`](https://developer.apple.com/documentation/metalkit/mtktextureloader/newtextures(urls:options:completionhandler:))
+- [`func newTextures(URLs: [URL], options: [MTKTextureLoader.Option : Any]?, error: NSErrorPointer) -> [any MTLTexture]`](https://developer.apple.com/documentation/metalkit/mtktextureloader/newtextures(urls:options:error:))
 - [`var currentMTL4RenderPassDescriptor: MTL4RenderPassDescriptor?`](https://developer.apple.com/documentation/metalkit/mtkview/currentmtl4renderpassdescriptor)
 - [`var residencySet: any MTLResidencySet`](https://developer.apple.com/documentation/metalkit/mtkview/residencyset)
 

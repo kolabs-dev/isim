@@ -1,6 +1,7 @@
 # VisualIntelligence
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 28.6% of Apple's iOS API (2 of 7, exact) · **Rows:** 2: 1 ✅ 1 ❌ · **iOS:** 26.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [VisualIntelligence](https://developer.apple.com/documentation/visualintelligence) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)
@@ -33,4 +34,15 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+5 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`static var defaultResolverSpecification: some ResolverSpecification`](https://developer.apple.com/documentation/visualintelligence/semanticcontentdescriptor/defaultresolverspecification)
+- [`var pixelBuffer: CVReadOnlyPixelBuffer?`](https://developer.apple.com/documentation/visualintelligence/semanticcontentdescriptor/pixelbuffer)
+- [`SemanticContentDescriptor.Specification`](https://developer.apple.com/documentation/visualintelligence/semanticcontentdescriptor/specification)
+- [`SemanticContentDescriptor.UnwrappedType`](https://developer.apple.com/documentation/visualintelligence/semanticcontentdescriptor/unwrappedtype)
+- [`SemanticContentDescriptor.ValueType`](https://developer.apple.com/documentation/visualintelligence/semanticcontentdescriptor/valuetype)
+
+</details>
 <!-- /generated:missing -->

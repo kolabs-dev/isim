@@ -1,7 +1,7 @@
 # HealthKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 22.0% of Apple's iOS API (589 of 2673, exact) · **Rows:** 11: 6 ✅ 1 🟡 4 ❌ · **iOS:** 8.0+
+**Symbols:** 20.4% of Apple's iOS API (546 of 2672, exact) · **Rows:** 11: 6 ✅ 1 🟡 4 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [HealthKit](https://developer.apple.com/documentation/healthkit) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -31,7 +31,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-2084 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+2126 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -83,6 +83,7 @@
 - [`HKActivitySummaryQueryDescriptor.Results.Iterator`](https://developer.apple.com/documentation/healthkit/hkactivitysummaryquerydescriptor/results/iterator)
 - [`HKActivitySummaryQueryDescriptor.Results.Iterator`](https://developer.apple.com/documentation/healthkit/hkactivitysummaryquerydescriptor/results/iterator)
 - [`HKActivitySummaryType`](https://developer.apple.com/documentation/healthkit/hkactivitysummarytype)
+- [`init(queryDescriptors: [HKQueryDescriptor], anchor: HKQueryAnchor?, limit: Int, resultsHandler: (HKAnchoredObjectQuery, [HKSample]?, [HKDeletedObject]?, HKQueryAnchor?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/healthkit/hkanchoredobjectquery/init(querydescriptors:anchor:limit:resultshandler:))
 - [`HKAppleECGAlgorithmVersion`](https://developer.apple.com/documentation/healthkit/hkappleecgalgorithmversion)
 - [`HKAppleECGAlgorithmVersion`](https://developer.apple.com/documentation/healthkit/hkappleecgalgorithmversion)
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/healthkit/hkappleecgalgorithmversion/init(rawvalue:))
@@ -197,6 +198,8 @@
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/healthkit/hkaudiogramsensitivitytestside/init(rawvalue:))
 - [`case left`](https://developer.apple.com/documentation/healthkit/hkaudiogramsensitivitytestside/left)
 - [`case right`](https://developer.apple.com/documentation/healthkit/hkaudiogramsensitivitytestside/right)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/healthkit/hkbiologicalsexobject/init(coder:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/healthkit/hkbiologicalsexobject/init(coder:))
 - [`HKBloodGlucoseMealTime`](https://developer.apple.com/documentation/healthkit/hkbloodglucosemealtime)
 - [`HKBloodGlucoseMealTime`](https://developer.apple.com/documentation/healthkit/hkbloodglucosemealtime)
 - [`HKBloodGlucoseMealTime`](https://developer.apple.com/documentation/healthkit/hkbloodglucosemealtime)
@@ -301,6 +304,10 @@
 - [`case toe`](https://developer.apple.com/documentation/healthkit/hkbodytemperaturesensorlocation/toe)
 - [`case toe`](https://developer.apple.com/documentation/healthkit/hkbodytemperaturesensorlocation/toe)
 - [`case toe`](https://developer.apple.com/documentation/healthkit/hkbodytemperaturesensorlocation/toe)
+- [`convenience init(type: HKCategoryType, value: Int, start: Date, end: Date, device: HKDevice?, metadata: [String : Any]?)`](https://developer.apple.com/documentation/healthkit/hkcategorysample/init(type:value:start:end:device:metadata:))
+- [`convenience init(type: HKCategoryType, value: Int, startDate: Date, endDate: Date)`](https://developer.apple.com/documentation/healthkit/hkcategorysample/init(type:value:startdate:enddate:))
+- [`convenience init(type: HKCategoryType, value: Int, startDate: Date, endDate: Date, device: HKDevice?, metadata: [String : Any]?)`](https://developer.apple.com/documentation/healthkit/hkcategorysample/init(type:value:startdate:enddate:device:metadata:))
+- [`convenience init(type: HKCategoryType, value: Int, startDate: Date, endDate: Date, metadata: [String : Any]?)`](https://developer.apple.com/documentation/healthkit/hkcategorysample/init(type:value:startdate:enddate:metadata:))
 - [`static let abdominalCramps: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/abdominalcramps)
 - [`static let abdominalCramps: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/abdominalcramps)
 - [`static let acne: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/acne)
@@ -328,14 +335,7 @@
 - [`static let chills: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/chills)
 - [`static let constipation: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/constipation)
 - [`static let constipation: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/constipation)
-- [`static let contraceptive: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/contraceptive)
-- [`static let contraceptive: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/contraceptive)
-- [`static let coughing: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/coughing)
-- [`static let coughing: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/coughing)
-- [`static let diarrhea: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/diarrhea)
-- [`static let diarrhea: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/diarrhea)
-- [`static let dizziness: HKCategoryTypeIdentifier`](https://developer.apple.com/documentation/healthkit/hkcategorytypeidentifier/dizziness)
-- … and 1784 more (`isim/data/api-coverage.json.gz`)
+- … and 1826 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

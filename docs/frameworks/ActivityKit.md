@@ -1,7 +1,7 @@
 # ActivityKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 56.0% of Apple's iOS API (61 of 109, exact) · **Rows:** 1: 1 ✅ · **iOS:** 16.1+
+**Symbols:** 50.0% of Apple's iOS API (53 of 106, exact) · **Rows:** 1: 1 ✅ · **iOS:** 16.1+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [ActivityKit](https://developer.apple.com/documentation/activitykit) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -19,7 +19,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-48 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+53 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -33,9 +33,14 @@
 - [`Activity.ContentUpdates.Element`](https://developer.apple.com/documentation/activitykit/activity/contentupdates-swift.struct/element)
 - [`Activity.ContentUpdates.Iterator`](https://developer.apple.com/documentation/activitykit/activity/contentupdates-swift.struct/iterator)
 - [`func makeAsyncIterator() -> Activity<Attributes>.ContentUpdates.Iterator`](https://developer.apple.com/documentation/activitykit/activity/contentupdates-swift.struct/makeasynciterator())
+- [`func end(ActivityContent<Activity<Attributes>.ContentState>?, dismissalPolicy: ActivityUIDismissalPolicy, timestamp: Date) async`](https://developer.apple.com/documentation/activitykit/activity/end(_:dismissalpolicy:timestamp:))
 - [`Activity.PushTokenUpdates.Element`](https://developer.apple.com/documentation/activitykit/activity/pushtokenupdates-swift.struct/element)
 - [`Activity.PushTokenUpdates.Iterator`](https://developer.apple.com/documentation/activitykit/activity/pushtokenupdates-swift.struct/iterator)
 - [`func makeAsyncIterator() -> Activity<Attributes>.PushTokenUpdates.Iterator`](https://developer.apple.com/documentation/activitykit/activity/pushtokenupdates-swift.struct/makeasynciterator())
+- [`static func request(attributes: Attributes, content: ActivityContent<Activity<Attributes>.ContentState>, pushType: PushType?, style: ActivityStyle) throws -> Activity<Attributes>`](https://developer.apple.com/documentation/activitykit/activity/request(attributes:content:pushtype:style:))
+- [`static func request(attributes: Attributes, content: ActivityContent<Activity<Attributes>.ContentState>, pushType: PushType?, style: ActivityStyle, alertConfiguration: AlertConfiguration, start: Date) throws -> Activity<Attributes>`](https://developer.apple.com/documentation/activitykit/activity/request(attributes:content:pushtype:style:alertconfiguration:start:))
+- [`static func request(attributes: Attributes, content: ActivityContent<Activity<Attributes>.ContentState>, pushType: PushType?, style: ActivityStyle, alertConfiguration: AlertConfiguration, startDate: Date) throws -> Activity<Attributes>`](https://developer.apple.com/documentation/activitykit/activity/request(attributes:content:pushtype:style:alertconfiguration:startdate:))
+- [`func update(ActivityContent<Activity<Attributes>.ContentState>, alertConfiguration: AlertConfiguration?, timestamp: Date) async`](https://developer.apple.com/documentation/activitykit/activity/update(_:alertconfiguration:timestamp:))
 - [`func previewContext(Self.ContentState, isStale: Bool, viewKind: ActivityPreviewViewKind) -> some View`](https://developer.apple.com/documentation/activitykit/activityattributes/previewcontext(_:isstale:viewkind:))
 - [`case attributesTooLarge`](https://developer.apple.com/documentation/activitykit/activityauthorizationerror/attributestoolarge)
 - [`case denied`](https://developer.apple.com/documentation/activitykit/activityauthorizationerror/denied)

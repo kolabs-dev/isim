@@ -1,7 +1,7 @@
 # GameController
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 68.8% of Apple's iOS API (632 of 918, exact) · **Rows:** 18: 12 ✅ 3 🟡 3 ❌ · **iOS:** 7.0+
+**Symbols:** 68.7% of Apple's iOS API (631 of 918, exact) · **Rows:** 18: 12 ✅ 3 🟡 3 ❌ · **iOS:** 7.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [GameController](https://developer.apple.com/documentation/gamecontroller) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)
@@ -38,7 +38,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-286 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+287 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -326,6 +326,7 @@
 - [`let GCProductCategorySpatialController: String`](https://developer.apple.com/documentation/gamecontroller/gcproductcategoryspatialcontroller)
 - [`let GCProductCategoryUniversalElectronicsRemote: String`](https://developer.apple.com/documentation/gamecontroller/gcproductcategoryuniversalelectronicsremote)
 - [`func setPosition(CGPoint, forDirectionPadElement: String)`](https://developer.apple.com/documentation/gamecontroller/gcvirtualcontroller/setposition(_:fordirectionpadelement:))
+- [`func setValue(CGFloat, forButtonElement: String)`](https://developer.apple.com/documentation/gamecontroller/gcvirtualcontroller/setvalue(_:forbuttonelement:))
 - [`var kIOHIDGCSyntheticDeviceKey: String`](https://developer.apple.com/documentation/gamecontroller/kiohidgcsyntheticdevicekey)
 - [`func NSStringFromGCPoint2(GCPoint2) -> String`](https://developer.apple.com/documentation/gamecontroller/nsstringfromgcpoint2(_:))
 

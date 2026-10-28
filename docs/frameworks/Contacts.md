@@ -1,7 +1,7 @@
 # Contacts
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 43.6% of Apple's iOS API (324 of 743, exact) · **Rows:** 4: 2 ✅ 1 🟡 1 ❌ · **iOS:** 9.0+
+**Symbols:** 43.1% of Apple's iOS API (320 of 743, exact) · **Rows:** 4: 2 ✅ 1 🟡 1 ❌ · **iOS:** 9.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [Contacts](https://developer.apple.com/documentation/contacts) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -22,7 +22,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-419 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+423 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -79,6 +79,7 @@
 - [`var dates: [CNLabeledValue<NSDateComponents>]`](https://developer.apple.com/documentation/contacts/cncontact/dates)
 - [`var phoneticOrganizationName: String`](https://developer.apple.com/documentation/contacts/cncontact/phoneticorganizationname)
 - [`var shortDebugDescription: String`](https://developer.apple.com/documentation/contacts/cncontact/shortdebugdescription)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/contacts/cncontactfetchrequest/init(coder:))
 - [`func attributedString(from: CNContact, defaultAttributes: [AnyHashable : Any]?) -> NSAttributedString?`](https://developer.apple.com/documentation/contacts/cncontactformatter/attributedstring(from:defaultattributes:))
 - [`class func attributedString(from: CNContact, style: CNContactFormatterStyle, defaultAttributes: [AnyHashable : Any]?) -> NSAttributedString?`](https://developer.apple.com/documentation/contacts/cncontactformatter/attributedstring(from:style:defaultattributes:))
 - [`class var descriptorForRequiredKeysForDelimiter: any CNKeyDescriptor`](https://developer.apple.com/documentation/contacts/cncontactformatter/descriptorforrequiredkeysfordelimiter)
@@ -98,6 +99,7 @@
 - [`var countryCode: String`](https://developer.apple.com/documentation/contacts/cncontactsuserdefaults/countrycode)
 - [`class func shared() -> Self`](https://developer.apple.com/documentation/contacts/cncontactsuserdefaults/shared())
 - [`var sortOrder: CNContactSortOrder`](https://developer.apple.com/documentation/contacts/cncontactsuserdefaults/sortorder)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/contacts/cncontainer/init(coder:))
 - [`class func predicateForContainerOfGroup(withIdentifier: String) -> NSPredicate`](https://developer.apple.com/documentation/contacts/cncontainer/predicateforcontainerofgroup(withidentifier:))
 - [`let CNContainerIdentifierKey: String`](https://developer.apple.com/documentation/contacts/cncontaineridentifierkey)
 - [`let CNContainerNameKey: String`](https://developer.apple.com/documentation/contacts/cncontainernamekey)
@@ -154,6 +156,7 @@
 - [`CNFetchResult`](https://developer.apple.com/documentation/contacts/cnfetchresult)
 - [`var currentHistoryToken: Data`](https://developer.apple.com/documentation/contacts/cnfetchresult/currenthistorytoken)
 - [`var value: ValueType`](https://developer.apple.com/documentation/contacts/cnfetchresult/value)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/contacts/cngroup/init(coder:))
 - [`class func predicateForGroups(withIdentifiers: [String]) -> NSPredicate`](https://developer.apple.com/documentation/contacts/cngroup/predicateforgroups(withidentifiers:))
 - [`class func predicateForGroupsInContainer(withIdentifier: String) -> NSPredicate`](https://developer.apple.com/documentation/contacts/cngroup/predicateforgroupsincontainer(withidentifier:))
 - [`let CNGroupIdentifierKey: String`](https://developer.apple.com/documentation/contacts/cngroupidentifierkey)
@@ -323,10 +326,7 @@
 - [`let CNLabelContactRelationNieceBrothersDaughter: String`](https://developer.apple.com/documentation/contacts/cnlabelcontactrelationniecebrothersdaughter)
 - [`let CNLabelContactRelationNieceBrothersDaughterOrHusbandsSiblingsDaughter: String`](https://developer.apple.com/documentation/contacts/cnlabelcontactrelationniecebrothersdaughterorhusbandssiblingsdaughter)
 - [`let CNLabelContactRelationNieceOrCousin: String`](https://developer.apple.com/documentation/contacts/cnlabelcontactrelationnieceorcousin)
-- [`let CNLabelContactRelationNieceSistersDaughter: String`](https://developer.apple.com/documentation/contacts/cnlabelcontactrelationniecesistersdaughter)
-- [`let CNLabelContactRelationNieceSistersDaughterOrWifesSiblingsDaughter: String`](https://developer.apple.com/documentation/contacts/cnlabelcontactrelationniecesistersdaughterorwifessiblingsdaughter)
-- [`let CNLabelContactRelationParent: String`](https://developer.apple.com/documentation/contacts/cnlabelcontactrelationparent)
-- … and 119 more (`isim/data/api-coverage.json.gz`)
+- … and 123 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

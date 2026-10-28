@@ -1,7 +1,7 @@
 # AVFoundation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 35.3% of Apple's iOS API (1958 of 5546, exact) · **Rows:** 46: 41 ✅ 1 🟡 4 ❌ · **iOS:** 2.2+
+**Symbols:** 41.1% of Apple's iOS API (2274 of 5537, exact) · **Rows:** 58: 51 ✅ 2 🟡 5 ❌ · **iOS:** 2.2+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [AVFoundation](https://developer.apple.com/documentation/avfoundation) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -78,7 +78,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-3588 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+3263 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -88,6 +88,9 @@
 - [`func loadChapterMetadataGroups(bestMatchingPreferredLanguages: [String], completionHandler: ([AVTimedMetadataGroup]?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/avfoundation/avasset/loadchaptermetadatagroups(bestmatchingpreferredlanguages:completionhandler:))
 - [`func loadChapterMetadataGroups(withTitleLocale: Locale, containingItemsWithCommonKeys: [AVMetadataKey]) async throws -> [AVTimedMetadataGroup]`](https://developer.apple.com/documentation/avfoundation/avasset/loadchaptermetadatagroups(withtitlelocale:containingitemswithcommonkeys:))
 - [`func loadMetadata(for: AVMetadataFormat, completionHandler: ([AVMetadataItem]?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/avfoundation/avasset/loadmetadata(for:completionhandler:))
+- [`func loadTrack(withTrackID: CMPersistentTrackID, completionHandler: (AVAssetTrack?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/avfoundation/avasset/loadtrack(withtrackid:completionhandler:))
+- [`func loadTracks(withMediaCharacteristic: AVMediaCharacteristic, completionHandler: ([AVAssetTrack]?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/avfoundation/avasset/loadtracks(withmediacharacteristic:completionhandler:))
+- [`func loadTracks(withMediaType: AVMediaType, completionHandler: ([AVAssetTrack]?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/avfoundation/avasset/loadtracks(withmediatype:completionhandler:))
 - [`var referenceRestrictions: AVAssetReferenceRestrictions`](https://developer.apple.com/documentation/avfoundation/avasset/referencerestrictions)
 - [`AVAssetCache`](https://developer.apple.com/documentation/avfoundation/avassetcache)
 - [`var isPlayableOffline: Bool`](https://developer.apple.com/documentation/avfoundation/avassetcache/isplayableoffline)
@@ -173,7 +176,6 @@
 - [`var audioTimePitchAlgorithm: AVAudioTimePitchAlgorithm`](https://developer.apple.com/documentation/avfoundation/avassetexportsession/audiotimepitchalgorithm)
 - [`var audioTrackGroupHandling: AVAssetTrackGroupOutputHandling`](https://developer.apple.com/documentation/avfoundation/avassetexportsession/audiotrackgrouphandling)
 - [`func configureForResumableExport() async -> AVAssetExportSession.ResumptionState`](https://developer.apple.com/documentation/avfoundation/avassetexportsession/configureforresumableexport())
-- [`var customVideoCompositor: (any AVVideoCompositing)?`](https://developer.apple.com/documentation/avfoundation/avassetexportsession/customvideocompositor)
 - [`var directoryForTemporaryFiles: URL?`](https://developer.apple.com/documentation/avfoundation/avassetexportsession/directoryfortemporaryfiles)
 - [`var estimatedOutputFileLength: Int64`](https://developer.apple.com/documentation/avfoundation/avassetexportsession/estimatedoutputfilelength)
 - [`func estimateMaximumDuration(completionHandler: (CMTime, (any Error)?) -> Void)`](https://developer.apple.com/documentation/avfoundation/avassetexportsession/estimatemaximumduration(completionhandler:))
@@ -201,7 +203,6 @@
 - [`static let encodedPixels: AVAssetImageGenerator.ApertureMode`](https://developer.apple.com/documentation/avfoundation/avassetimagegenerator/aperturemode-swift.struct/encodedpixels)
 - [`init(rawValue: String)`](https://developer.apple.com/documentation/avfoundation/avassetimagegenerator/aperturemode-swift.struct/init(rawvalue:))
 - [`static let productionAperture: AVAssetImageGenerator.ApertureMode`](https://developer.apple.com/documentation/avfoundation/avassetimagegenerator/aperturemode-swift.struct/productionaperture)
-- [`var customVideoCompositor: (any AVVideoCompositing)?`](https://developer.apple.com/documentation/avfoundation/avassetimagegenerator/customvideocompositor)
 - [`var dynamicRangePolicy: AVAssetImageGenerator.DynamicRangePolicy`](https://developer.apple.com/documentation/avfoundation/avassetimagegenerator/dynamicrangepolicy-swift.property)
 - [`AVAssetImageGenerator.DynamicRangePolicy`](https://developer.apple.com/documentation/avfoundation/avassetimagegenerator/dynamicrangepolicy-swift.struct)
 - [`static let forceSDR: AVAssetImageGenerator.DynamicRangePolicy`](https://developer.apple.com/documentation/avfoundation/avassetimagegenerator/dynamicrangepolicy-swift.struct/forcesdr)
@@ -227,7 +228,6 @@
 - [`func makeAsyncIterator() -> AVAssetImageGenerator.Images`](https://developer.apple.com/documentation/avfoundation/avassetimagegenerator/images/makeasynciterator())
 - [`func next() async -> AVAssetImageGenerator.Images.Element?`](https://developer.apple.com/documentation/avfoundation/avassetimagegenerator/images/next())
 - [`func next() async -> AVAssetImageGenerator.Images.Element?`](https://developer.apple.com/documentation/avfoundation/avassetimagegenerator/images/next())
-- [`var videoComposition: AVVideoComposition?`](https://developer.apple.com/documentation/avfoundation/avassetimagegenerator/videocomposition)
 - [`AVAssetImageGeneratorCompletionHandler`](https://developer.apple.com/documentation/avfoundation/avassetimagegeneratorcompletionhandler)
 - [`AVAssetImageGeneratorCompletionHandler`](https://developer.apple.com/documentation/avfoundation/avassetimagegeneratorcompletionhandler)
 - [`AVAssetImageGeneratorCompletionHandler`](https://developer.apple.com/documentation/avfoundation/avassetimagegeneratorcompletionhandler)
@@ -375,6 +375,7 @@
 - [`var delegate: (any AVAssetWriterDelegate)?`](https://developer.apple.com/documentation/avfoundation/avassetwriter/delegate)
 - [`var directoryForTemporaryFiles: URL?`](https://developer.apple.com/documentation/avfoundation/avassetwriter/directoryfortemporaryfiles)
 - [`func flushSegment()`](https://developer.apple.com/documentation/avfoundation/avassetwriter/flushsegment())
+- [`init(contentType: UTType)`](https://developer.apple.com/documentation/avfoundation/avassetwriter/init(contenttype:))
 - [`var initialMovieFragmentInterval: CMTime`](https://developer.apple.com/documentation/avfoundation/avassetwriter/initialmoviefragmentinterval)
 - [`var initialMovieFragmentSequenceNumber: Int`](https://developer.apple.com/documentation/avfoundation/avassetwriter/initialmoviefragmentsequencenumber)
 - [`var initialSegmentStartTime: CMTime`](https://developer.apple.com/documentation/avfoundation/avassetwriter/initialsegmentstarttime)
@@ -382,8 +383,7 @@
 - [`func inputCaptionReceiverRequestingMultiPass(for: AVAssetWriterInput) -> sending (AVAssetWriterInput.CaptionReceiver, AVAssetWriterInput.MultiPassController)`](https://developer.apple.com/documentation/avfoundation/avassetwriter/inputcaptionreceiverrequestingmultipass(for:))
 - [`var inputGroups: [AVAssetWriterInputGroup]`](https://developer.apple.com/documentation/avfoundation/avassetwriter/inputgroups)
 - [`func inputMetadataReceiver(for: AVAssetWriterInput) -> sending AVAssetWriterInput.MetadataReceiver`](https://developer.apple.com/documentation/avfoundation/avassetwriter/inputmetadatareceiver(for:))
-- [`func inputMetadataReceiverRequestingMultiPass(for: AVAssetWriterInput) -> sending (AVAssetWriterInput.MetadataReceiver, AVAssetWriterInput.MultiPassController)`](https://developer.apple.com/documentation/avfoundation/avassetwriter/inputmetadatareceiverrequestingmultipass(for:))
-- … and 3288 more (`isim/data/api-coverage.json.gz`)
+- … and 2963 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

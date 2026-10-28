@@ -1,7 +1,7 @@
 # CoreTelephony
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 46.4% of Apple's iOS API (78 of 168, exact) · **Rows:** 7: 1 ✅ 4 🧩 2 ❌ · **iOS:** 4.0+
+**Symbols:** 45.8% of Apple's iOS API (77 of 168, exact) · **Rows:** 7: 1 ✅ 4 🧩 2 ❌ · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [Core Telephony](https://developer.apple.com/documentation/coretelephony) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)
@@ -27,7 +27,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-90 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+91 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -44,6 +44,7 @@
 - [`var lifecycleProperties: CTCellularPlanProperties.lifecycle?`](https://developer.apple.com/documentation/coretelephony/ctcellularplanproperties/lifecycleproperties)
 - [`var simCapability: CTCellularPlanCapability`](https://developer.apple.com/documentation/coretelephony/ctcellularplanproperties/simcapability)
 - [`var supportedRegionCodes: [Locale.Region]`](https://developer.apple.com/documentation/coretelephony/ctcellularplanproperties/supportedregioncodes-yhu5)
+- [`func addPlan(request: CTCellularPlanProvisioningRequest, properties: CTCellularPlanProperties?, completionHandler: (CTCellularPlanProvisioningAddPlanResult) -> Void)`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioning/addplan(request:properties:completionhandler:))
 - [`func update(CTCellularPlanProperties, completionHandler: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/coretelephony/ctcellularplanprovisioning/update(_:completionhandler:))
 - [`CTCellularPlanStatus`](https://developer.apple.com/documentation/coretelephony/ctcellularplanstatus)
 - [`class func checkValidity(ofToken: String, completionHandler: (Bool, (any Error)?) -> Void)`](https://developer.apple.com/documentation/coretelephony/ctcellularplanstatus/checkvalidity(oftoken:completionhandler:))

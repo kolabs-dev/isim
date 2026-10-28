@@ -1,7 +1,7 @@
 # MediaPlayer
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 84.6% of Apple's iOS API (462 of 546, exact) · **Rows:** 11: 7 ✅ 1 🟡 3 ❌ · **iOS:** 2.0+
+**Symbols:** 83.2% of Apple's iOS API (454 of 546, exact) · **Rows:** 11: 7 ✅ 1 🟡 3 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [MediaPlayer](https://developer.apple.com/documentation/mediaplayer) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -30,7 +30,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-84 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+92 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -63,6 +63,7 @@
 - [`static var requestTimedOut: MPError.Code`](https://developer.apple.com/documentation/mediaplayer/mperror/requesttimedout)
 - [`static var unknown: MPError.Code`](https://developer.apple.com/documentation/mediaplayer/mperror/unknown)
 - [`let MPErrorDomain: String`](https://developer.apple.com/documentation/mediaplayer/mperrordomain)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/mediaplayer/mpmediaentity/init(coder:))
 - [`let MPMediaEntityPropertyPersistentID: String`](https://developer.apple.com/documentation/mediaplayer/mpmediaentitypropertypersistentid)
 - [`class func persistentIDProperty(forGroupingType: MPMediaGrouping) -> String`](https://developer.apple.com/documentation/mediaplayer/mpmediaitem/persistentidproperty(forgroupingtype:))
 - [`var podcastPersistentID: MPMediaEntityPersistentID`](https://developer.apple.com/documentation/mediaplayer/mpmediaitem/podcastpersistentid)
@@ -80,6 +81,7 @@
 - [`let MPMediaItemPropertyPodcastTitle: String`](https://developer.apple.com/documentation/mediaplayer/mpmediaitempropertypodcasttitle)
 - [`let MPMediaItemPropertySkipCount: String`](https://developer.apple.com/documentation/mediaplayer/mpmediaitempropertyskipcount)
 - [`let MPMediaItemPropertyUserGrouping: String`](https://developer.apple.com/documentation/mediaplayer/mpmediaitempropertyusergrouping)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/mediaplayer/mpmedialibrary/init(coder:))
 - [`MPMediaPlayback`](https://developer.apple.com/documentation/mediaplayer/mpmediaplayback)
 - [`func beginSeekingBackward()`](https://developer.apple.com/documentation/mediaplayer/mpmediaplayback/beginseekingbackward())
 - [`func beginSeekingForward()`](https://developer.apple.com/documentation/mediaplayer/mpmediaplayback/beginseekingforward())
@@ -92,17 +94,23 @@
 - [`func prepareToPlay()`](https://developer.apple.com/documentation/mediaplayer/mpmediaplayback/preparetoplay())
 - [`func stop()`](https://developer.apple.com/documentation/mediaplayer/mpmediaplayback/stop())
 - [`let MPMediaPlaylistPropertyCloudGlobalID: String`](https://developer.apple.com/documentation/mediaplayer/mpmediaplaylistpropertycloudglobalid)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/mediaplayer/mpmediapredicate/init(coder:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/mediaplayer/mpmediaquery/init(coder:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/mediaplayer/mpmediaquerysection/init(coder:))
 - [`MPMusicPlayerPlayParameters`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparameters)
 - [`MPMusicPlayerPlayParameters`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparameters)
 - [`var dictionary: [String : Any]`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparameters/dictionary)
 - [`var dictionary: [String : Any]`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparameters/dictionary)
 - [`init?(dictionary: [String : Any])`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparameters/init(dictionary:))
 - [`init?(dictionary: [String : Any])`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparameters/init(dictionary:))
+- [`init(playParametersQueue: [MPMusicPlayerPlayParameters])`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparametersqueuedescriptor/init(playparametersqueue:))
 - [`var playParametersQueue: [MPMusicPlayerPlayParameters]`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparametersqueuedescriptor/playparametersqueue)
 - [`func setEndTime(TimeInterval, forItemWith: MPMusicPlayerPlayParameters)`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparametersqueuedescriptor/setendtime(_:foritemwith:))
 - [`func setStartTime(TimeInterval, forItemWith: MPMusicPlayerPlayParameters)`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparametersqueuedescriptor/setstarttime(_:foritemwith:))
 - [`var startItemPlayParameters: MPMusicPlayerPlayParameters?`](https://developer.apple.com/documentation/mediaplayer/mpmusicplayerplayparametersqueuedescriptor/startitemplayparameters)
 - [`class var supportedAnimatedArtworkKeys: [String]`](https://developer.apple.com/documentation/mediaplayer/mpnowplayinginfocenter/supportedanimatedartworkkeys)
+- [`func isAutomaticAudibleLanguageOption() -> Bool`](https://developer.apple.com/documentation/mediaplayer/mpnowplayinginfolanguageoption/isautomaticaudiblelanguageoption())
+- [`func isAutomaticLegibleLanguageOption() -> Bool`](https://developer.apple.com/documentation/mediaplayer/mpnowplayinginfolanguageoption/isautomaticlegiblelanguageoption())
 - [`let MPNowPlayingInfoProperty1x1AnimatedArtwork: String`](https://developer.apple.com/documentation/mediaplayer/mpnowplayinginfoproperty1x1animatedartwork)
 - [`let MPNowPlayingInfoProperty3x4AnimatedArtwork: String`](https://developer.apple.com/documentation/mediaplayer/mpnowplayinginfoproperty3x4animatedartwork)
 - [`let MPNowPlayingInfoPropertyAdTimeRanges: String`](https://developer.apple.com/documentation/mediaplayer/mpnowplayinginfopropertyadtimeranges)

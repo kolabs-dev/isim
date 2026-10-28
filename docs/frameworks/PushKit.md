@@ -1,7 +1,7 @@
 # PushKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 93.3% of Apple's iOS API (28 of 30, exact) · **Rows:** 3: 2 ✅ 1 ❌ · **iOS:** 8.0+
+**Symbols:** 86.7% of Apple's iOS API (26 of 30, exact) · **Rows:** 3: 2 ✅ 1 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [PushKit](https://developer.apple.com/documentation/pushkit) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -21,10 +21,12 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-2 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+4 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
+- [`func pushRegistry(PKPushRegistry, didReceiveIncomingVoIPPushWith: PKPushPayload, metadata: PKVoIPPushMetadata, withCompletionHandler: () -> Void)`](https://developer.apple.com/documentation/pushkit/pkpushregistrydelegate/pushregistry(_:didreceiveincomingvoippushwith:metadata:withcompletionhandler:))
+- [`func pushRegistry(PKPushRegistry, didReceiveIncomingVoIPPushWith: PKPushPayload, metadata: PKVoIPPushMetadata, withCompletionHandler: () -> Void)`](https://developer.apple.com/documentation/pushkit/pkpushregistrydelegate/pushregistry(_:didreceiveincomingvoippushwith:metadata:withcompletionhandler:))
 - [`PKVoIPPushMetadata`](https://developer.apple.com/documentation/pushkit/pkvoippushmetadata)
 - [`var mustReport: Bool`](https://developer.apple.com/documentation/pushkit/pkvoippushmetadata/mustreport)
 

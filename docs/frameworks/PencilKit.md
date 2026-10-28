@@ -1,6 +1,7 @@
 # PencilKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 95.7% of Apple's iOS API (334 of 349, exact) · **Rows:** 13: 11 ✅ 2 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Graphics & text](../COVERAGE.md#graphics) · **Apple:** [PencilKit](https://developer.apple.com/documentation/pencilkit) · **Issues:** [`area:graphics`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agraphics)
@@ -57,4 +58,25 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+15 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`PKStrokeRecognizer`](https://developer.apple.com/documentation/pencilkit/pkstrokerecognizer)
+- [`var drawing: PKDrawing`](https://developer.apple.com/documentation/pencilkit/pkstrokerecognizer/drawing)
+- [`var indexableContent: String?`](https://developer.apple.com/documentation/pencilkit/pkstrokerecognizer/indexablecontent)
+- [`init(preferredLanguages: [Locale.Language]?)`](https://developer.apple.com/documentation/pencilkit/pkstrokerecognizer/init(preferredlanguages:))
+- [`var languages: [Locale.Language]`](https://developer.apple.com/documentation/pencilkit/pkstrokerecognizer/languages)
+- [`static var recognitionVersion: Int`](https://developer.apple.com/documentation/pencilkit/pkstrokerecognizer/recognitionversion)
+- [`func recognizedText(strokeIDs: Set<UUID>?) async -> String?`](https://developer.apple.com/documentation/pencilkit/pkstrokerecognizer/recognizedtext(strokeids:))
+- [`func search(String, fullWordsOnly: Bool, caseMatchingOnly: Bool) async -> [PKStrokeRecognizer.SearchResult]`](https://developer.apple.com/documentation/pencilkit/pkstrokerecognizer/search(_:fullwordsonly:casematchingonly:))
+- [`PKStrokeRecognizer.SearchResult`](https://developer.apple.com/documentation/pencilkit/pkstrokerecognizer/searchresult)
+- [`let bounds: CGRect`](https://developer.apple.com/documentation/pencilkit/pkstrokerecognizer/searchresult/bounds)
+- [`let strokes: Set<UUID>`](https://developer.apple.com/documentation/pencilkit/pkstrokerecognizer/searchresult/strokes)
+- [`static var supportedLanguages: Set<Locale.Language>`](https://developer.apple.com/documentation/pencilkit/pkstrokerecognizer/supportedlanguages)
+- [`func updateDrawing(PKDrawing) async`](https://developer.apple.com/documentation/pencilkit/pkstrokerecognizer/updatedrawing(_:))
+- [`convenience init(PKStroke.RenderState)`](https://developer.apple.com/documentation/pencilkit/pkstrokerenderstatereference/init(_:))
+- [`var delegate: (any PKToolPicker.Delegate)?`](https://developer.apple.com/documentation/pencilkit/pktoolpicker/delegate-swift.property)
+
+</details>
 <!-- /generated:missing -->

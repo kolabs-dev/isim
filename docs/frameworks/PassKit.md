@@ -1,7 +1,7 @@
 # PassKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 48.6% of Apple's iOS API (664 of 1366, exact) · **Rows:** 12: 10 ✅ 1 🟡 1 ❌ · **iOS:** 6.0+
+**Symbols:** 46.4% of Apple's iOS API (626 of 1348, exact) · **Rows:** 12: 10 ✅ 1 🟡 1 ❌ · **iOS:** 6.0+
 <!-- /generated:header -->
 
 **Area:** [Commerce & privacy](../COVERAGE.md#commerce) · **Apple:** [PassKit (Apple Pay)](https://developer.apple.com/documentation/passkit/apple-pay) · **Issues:** [`area:commerce`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Acommerce)
@@ -54,10 +54,18 @@ Apple Pay. Wallet passes (`PKPass`, `PKAddPassesViewController`) are on [WalletP
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-702 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+722 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
+- [`init(PKEncryptionScheme, cardholderName: String, passStyle: PKAddPaymentPassStyle, primaryAccountSuffix: String?, cardDetails: [PKLabeledValue]?, description: String?, filters: [AddPassToWalletButtonFilter], onRequest: (AddPassToWalletButtonResponse) async -> PKAddPaymentPassRequest, onCompletion: (Result<PKSecureElementPass, any Error>) -> Void)`](https://developer.apple.com/documentation/passkit/addpasstowalletbutton/init(_:cardholdername:passstyle:primaryaccountsuffix:carddetails:description:filters:onrequest:oncompletion:))
+- [`init(PKEncryptionScheme, cardholderName: String, passStyle: PKAddPaymentPassStyle, primaryAccountSuffix: String?, cardDetails: [PKLabeledValue]?, description: String?, filters: [AddPassToWalletButtonFilter], onRequest: (AddPassToWalletButtonResponse) async -> PKAddPaymentPassRequest, onCompletion: (Result<PKSecureElementPass, any Error>) -> Void, fallback: () -> Fallback)`](https://developer.apple.com/documentation/passkit/addpasstowalletbutton/init(_:cardholdername:passstyle:primaryaccountsuffix:carddetails:description:filters:onrequest:oncompletion:fallback:))
+- [`init(PKAddPaymentPassRequestConfiguration, onRequest: (AddPassToWalletButtonResponse) async -> PKAddPaymentPassRequest, onCompletion: (Result<PKSecureElementPass, any Error>) -> Void)`](https://developer.apple.com/documentation/passkit/addpasstowalletbutton/init(_:onrequest:oncompletion:))
+- [`init(PKAddPaymentPassRequestConfiguration, onRequest: (AddPassToWalletButtonResponse) async -> PKAddPaymentPassRequest, onCompletion: (Result<PKSecureElementPass, any Error>) -> Void, fallback: () -> Fallback)`](https://developer.apple.com/documentation/passkit/addpasstowalletbutton/init(_:onrequest:oncompletion:fallback:))
+- [`init(PKEncryptionScheme, primaryAccountSuffix: String, passStyle: PKAddPaymentPassStyle, cardDetails: [PKLabeledValue]?, description: String?, filters: [AddPassToWalletButtonFilter], onRequest: (AddPassToWalletButtonResponse) async -> PKAddPaymentPassRequest, onCompletion: (Result<PKSecureElementPass, any Error>) -> Void)`](https://developer.apple.com/documentation/passkit/addpasstowalletbutton/init(_:primaryaccountsuffix:passstyle:carddetails:description:filters:onrequest:oncompletion:))
+- [`init(PKEncryptionScheme, primaryAccountSuffix: String, passStyle: PKAddPaymentPassStyle, cardDetails: [PKLabeledValue]?, description: String?, filters: [AddPassToWalletButtonFilter], onRequest: (AddPassToWalletButtonResponse) async -> PKAddPaymentPassRequest, onCompletion: (Result<PKSecureElementPass, any Error>) -> Void, fallback: () -> Fallback)`](https://developer.apple.com/documentation/passkit/addpasstowalletbutton/init(_:primaryaccountsuffix:passstyle:carddetails:description:filters:onrequest:oncompletion:fallback:))
+- [`init(carKeyPassword: String, supportedRadioTechnologies: PKRadioTechnology, issuerIdentifier: String, onCompletion: (Result<PKSecureElementPass, any Error>) -> Void)`](https://developer.apple.com/documentation/passkit/addpasstowalletbutton/init(carkeypassword:supportedradiotechnologies:issueridentifier:oncompletion:))
+- [`init(carKeyPassword: String, supportedRadioTechnologies: PKRadioTechnology, issuerIdentifier: String, onCompletion: (Result<PKSecureElementPass, any Error>) -> Void, fallback: () -> Fallback)`](https://developer.apple.com/documentation/passkit/addpasstowalletbutton/init(carkeypassword:supportedradiotechnologies:issueridentifier:oncompletion:fallback:))
 - [`AddPassToWalletButtonFilter`](https://developer.apple.com/documentation/passkit/addpasstowalletbuttonfilter)
 - [`static func paymentNetwork(PKPaymentNetwork) -> AddPassToWalletButtonFilter`](https://developer.apple.com/documentation/passkit/addpasstowalletbuttonfilter/paymentnetwork(_:))
 - [`static func primaryAccountIdentifier(String) -> AddPassToWalletButtonFilter`](https://developer.apple.com/documentation/passkit/addpasstowalletbuttonfilter/primaryaccountidentifier(_:))
@@ -135,6 +143,8 @@ Apple Pay. Wallet passes (`PKPass`, `PKAddPassesViewController`) are on [WalletP
 - [`static let checkout: PayLaterViewDisplayStyle`](https://developer.apple.com/documentation/passkit/paylaterviewdisplaystyle/checkout)
 - [`static let price: PayLaterViewDisplayStyle`](https://developer.apple.com/documentation/passkit/paylaterviewdisplaystyle/price)
 - [`static let standard: PayLaterViewDisplayStyle`](https://developer.apple.com/documentation/passkit/paylaterviewdisplaystyle/standard)
+- [`init(PayWithApplePayButtonLabel, request: PKPaymentRequest, onPaymentAuthorizationChange: (PayWithApplePayButtonPaymentAuthorizationPhase) -> Void, onMerchantSessionRequested: () async -> PKPaymentRequestMerchantSessionUpdate)`](https://developer.apple.com/documentation/passkit/paywithapplepaybutton/init(_:request:onpaymentauthorizationchange:onmerchantsessionrequested:))
+- [`init(PayWithApplePayButtonLabel, request: PKPaymentRequest, onPaymentAuthorizationChange: (PayWithApplePayButtonPaymentAuthorizationPhase) -> Void, onMerchantSessionRequested: () async -> PKPaymentRequestMerchantSessionUpdate, fallback: () -> Fallback)`](https://developer.apple.com/documentation/passkit/paywithapplepaybutton/init(_:request:onpaymentauthorizationchange:onmerchantsessionrequested:fallback:))
 - [`PKAddCarKeyPassConfiguration`](https://developer.apple.com/documentation/passkit/pkaddcarkeypassconfiguration)
 - [`init()`](https://developer.apple.com/documentation/passkit/pkaddcarkeypassconfiguration/init())
 - [`var manufacturerIdentifier: String?`](https://developer.apple.com/documentation/passkit/pkaddcarkeypassconfiguration/manufactureridentifier)
@@ -161,6 +171,7 @@ Apple Pay. Wallet passes (`PKPass`, `PKAddPassesViewController`) are on [WalletP
 - [`case mDL`](https://developer.apple.com/documentation/passkit/pkaddidentitydocumenttype/mdl)
 - [`case photoID`](https://developer.apple.com/documentation/passkit/pkaddidentitydocumenttype/photoid)
 - [`case photoID`](https://developer.apple.com/documentation/passkit/pkaddidentitydocumenttype/photoid)
+- [`init(issuerData: Data, signature: Data) throws`](https://developer.apple.com/documentation/passkit/pkaddpassesviewcontroller/init(issuerdata:signature:))
 - [`PKAddPassMetadataPreview`](https://developer.apple.com/documentation/passkit/pkaddpassmetadatapreview)
 - [`init(passThumbnail: CGImage, localizedDescription: String)`](https://developer.apple.com/documentation/passkit/pkaddpassmetadatapreview/init(passthumbnail:localizeddescription:))
 - [`var localizedDescription: String?`](https://developer.apple.com/documentation/passkit/pkaddpassmetadatapreview/localizeddescription)
@@ -347,18 +358,7 @@ Apple Pay. Wallet passes (`PKPass`, `PKAddPassesViewController`) are on [WalletP
 - [`var descriptors: [any PKIdentityDocumentDescriptor]`](https://developer.apple.com/documentation/passkit/pkidentityanyofdescriptor/descriptors)
 - [`init(descriptors: [any PKIdentityDocumentDescriptor])`](https://developer.apple.com/documentation/passkit/pkidentityanyofdescriptor/init(descriptors:))
 - [`PKIdentityAuthorizationController`](https://developer.apple.com/documentation/passkit/pkidentityauthorizationcontroller)
-- [`func cancelRequest()`](https://developer.apple.com/documentation/passkit/pkidentityauthorizationcontroller/cancelrequest())
-- [`func checkCanRequestDocument(any PKIdentityDocumentDescriptor, completion: (Bool) -> Void)`](https://developer.apple.com/documentation/passkit/pkidentityauthorizationcontroller/checkcanrequestdocument(_:completion:))
-- [`func requestDocument(PKIdentityRequest, completion: (PKIdentityDocument?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/passkit/pkidentityauthorizationcontroller/requestdocument(_:completion:))
-- [`PKIdentityButton`](https://developer.apple.com/documentation/passkit/pkidentitybutton)
-- [`var cornerRadius: CGFloat`](https://developer.apple.com/documentation/passkit/pkidentitybutton/cornerradius)
-- [`init(label: PKIdentityButton.Label, style: PKIdentityButton.Style)`](https://developer.apple.com/documentation/passkit/pkidentitybutton/init(label:style:))
-- [`PKIdentityButton.Label`](https://developer.apple.com/documentation/passkit/pkidentitybutton/label)
-- [`case `continue``](https://developer.apple.com/documentation/passkit/pkidentitybutton/label/continue)
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/passkit/pkidentitybutton/label/init(rawvalue:))
-- [`case verify`](https://developer.apple.com/documentation/passkit/pkidentitybutton/label/verify)
-- [`case verifyAge`](https://developer.apple.com/documentation/passkit/pkidentitybutton/label/verifyage)
-- … and 402 more (`isim/data/api-coverage.json.gz`)
+- … and 422 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

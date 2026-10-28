@@ -1,7 +1,7 @@
 # XCTest
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 79.7% of Apple's iOS API (341 of 428, exact) · **Rows:** 16: 11 ✅ 3 🟡 2 ❌ · **iOS:** None+
+**Symbols:** 69.9% of Apple's iOS API (299 of 428, exact) · **Rows:** 16: 11 ✅ 3 🟡 2 ❌ · **iOS:** None+
 <!-- /generated:header -->
 
 **Area:** [Developer tools](../COVERAGE.md#devtools) · **Apple:** [XCTest](https://developer.apple.com/documentation/xctest) · **Issues:** [`area:devtools`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Adevtools)
@@ -35,7 +35,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-87 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+129 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -47,9 +47,34 @@
 - [`case low`](https://developer.apple.com/documentation/xctest/xctattachment/imagequality/low)
 - [`case medium`](https://developer.apple.com/documentation/xctest/xctattachment/imagequality/medium)
 - [`case original`](https://developer.apple.com/documentation/xctest/xctattachment/imagequality/original)
+- [`convenience init(archivableObject: any NSSecureCoding)`](https://developer.apple.com/documentation/xctest/xctattachment/init(archivableobject:))
+- [`convenience init(archivableObject: any NSSecureCoding, uniformTypeIdentifier: String)`](https://developer.apple.com/documentation/xctest/xctattachment/init(archivableobject:uniformtypeidentifier:))
+- [`convenience init(compressedContentsOfDirectory: URL)`](https://developer.apple.com/documentation/xctest/xctattachment/init(compressedcontentsofdirectory:))
+- [`convenience init(compressedContentsOfDirectoryAtURL: URL)`](https://developer.apple.com/documentation/xctest/xctattachment/init(compressedcontentsofdirectoryaturl:))
+- [`convenience init(compressedContentsOfDirectoryAtURL: URL)`](https://developer.apple.com/documentation/xctest/xctattachment/init(compressedcontentsofdirectoryaturl:))
+- [`convenience init(contentsOfFile: URL, uniformTypeIdentifier: String)`](https://developer.apple.com/documentation/xctest/xctattachment/init(contentsoffile:uniformtypeidentifier:))
+- [`convenience init(contentsOfFileAtURL: URL)`](https://developer.apple.com/documentation/xctest/xctattachment/init(contentsoffileaturl:))
+- [`convenience init(contentsOfFileAtURL: URL)`](https://developer.apple.com/documentation/xctest/xctattachment/init(contentsoffileaturl:))
+- [`convenience init(contentsOfFileAtURL: URL, uniformTypeIdentifier: String)`](https://developer.apple.com/documentation/xctest/xctattachment/init(contentsoffileaturl:uniformtypeidentifier:))
+- [`convenience init(contentsOfFileAtURL: URL, uniformTypeIdentifier: String)`](https://developer.apple.com/documentation/xctest/xctattachment/init(contentsoffileaturl:uniformtypeidentifier:))
+- [`convenience init(image: UIImage, quality: XCTAttachment.ImageQuality)`](https://developer.apple.com/documentation/xctest/xctattachment/init(image:quality:))
+- [`convenience init(plistObject: Any)`](https://developer.apple.com/documentation/xctest/xctattachment/init(plistobject:))
+- [`convenience init(screenshot: XCUIScreenshot, quality: XCTAttachment.ImageQuality)`](https://developer.apple.com/documentation/xctest/xctattachment/init(screenshot:quality:))
+- [`init(uniformTypeIdentifier: String?, name: String?, payload: Data?, userInfo: [AnyHashable : Any]?)`](https://developer.apple.com/documentation/xctest/xctattachment/init(uniformtypeidentifier:name:payload:userinfo:))
+- [`func setUp(completion: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/xctest/xctest/setup(completion:))
+- [`func tearDown(completion: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/xctest/xctest/teardown(completion:))
+- [`func expectation(forNotification: NSNotification.Name, object: Any?, notificationCenter: NotificationCenter, handler: XCTNSNotificationExpectation.Handler?) -> XCTestExpectation`](https://developer.apple.com/documentation/xctest/xctestcase/expectation(fornotification:object:notificationcenter:handler:))
+- [`func expectation<T, V>(that: KeyPath<T, V>, on: T, options: NSKeyValueObservingOptions, willEqual: V) -> XCTKeyPathExpectation<T, V>`](https://developer.apple.com/documentation/xctest/xctestcase/expectation(that:on:options:willequal:))
+- [`func expectation<T, V>(that: KeyPath<T, V>, on: T, options: NSKeyValueObservingOptions, willSatisfy: XCTKeyPathExpectation<T, V>.AsynchronousFilter?) -> XCTKeyPathExpectation<T, V>`](https://developer.apple.com/documentation/xctest/xctestcase/expectation(that:on:options:willsatisfy:)-292oj)
+- [`func expectation<T, V>(that: KeyPath<T, V>, on: T, options: NSKeyValueObservingOptions, willSatisfy: XCTKeyPathExpectation<T, V>.Predicate?) -> XCTKeyPathExpectation<T, V>`](https://developer.apple.com/documentation/xctest/xctestcase/expectation(that:on:options:willsatisfy:)-6itb)
+- [`func expectation<T, V>(that: KeyPath<T, V>, on: T, options: NSKeyValueObservingOptions, willSatisfy: XCTKeyPathExpectation<T, V>.SynchronousFilter?) -> XCTKeyPathExpectation<T, V>`](https://developer.apple.com/documentation/xctest/xctestcase/expectation(that:on:options:willsatisfy:)-85or0)
+- [`init(invocation: NSInvocation?)`](https://developer.apple.com/documentation/xctest/xctestcase/init(invocation:))
 - [`var invocation: NSInvocation?`](https://developer.apple.com/documentation/xctest/xctestcase/invocation)
 - [`func invokeTest()`](https://developer.apple.com/documentation/xctest/xctestcase/invoketest())
 - [`class var testInvocations: [NSInvocation]`](https://developer.apple.com/documentation/xctest/xctestcase/testinvocations)
+- [`func wait(for: [XCTestExpectation])`](https://developer.apple.com/documentation/xctest/xctestcase/wait(for:))
+- [`func wait(for: [XCTestExpectation], enforceOrder: Bool)`](https://developer.apple.com/documentation/xctest/xctestcase/wait(for:enforceorder:))
+- [`func recordFailure(inTest: XCTestCase, withDescription: String, inFile: String, atLine: Int, expected: Bool)`](https://developer.apple.com/documentation/xctest/xctestcaserun/recordfailure(intest:withdescription:infile:atline:expected:))
 - [`let XCTestedUnitPath: String`](https://developer.apple.com/documentation/xctest/xctestedunitpath)
 - [`XCTestError`](https://developer.apple.com/documentation/xctest/xctesterror)
 - [`XCTestError.Code`](https://developer.apple.com/documentation/xctest/xctesterror/code)
@@ -88,13 +113,18 @@
 - [`let XCTestScopeKey: String`](https://developer.apple.com/documentation/xctest/xctestscopekey)
 - [`let XCTestScopeNone: String`](https://developer.apple.com/documentation/xctest/xctestscopenone)
 - [`let XCTestScopeSelf: String`](https://developer.apple.com/documentation/xctest/xctestscopeself)
+- [`convenience init(forBundlePath: String)`](https://developer.apple.com/documentation/xctest/xctestsuite/init(forbundlepath:))
+- [`convenience init(forTestCaseWithName: String)`](https://developer.apple.com/documentation/xctest/xctestsuite/init(fortestcasewithname:))
 - [`func addTestRun(XCTestRun)`](https://developer.apple.com/documentation/xctest/xctestsuiterun/addtestrun(_:))
 - [`let XCTestToolKey: String`](https://developer.apple.com/documentation/xctest/xctesttoolkey)
 - [`XCTHitchMetric`](https://developer.apple.com/documentation/xctest/xcthitchmetric)
 - [`init(application: XCUIApplication)`](https://developer.apple.com/documentation/xctest/xcthitchmetric/init(application:))
+- [`init(type: XCTIssue.IssueType, compactDescription: String, detailedDescription: String?, sourceCodeContext: XCTSourceCodeContext, associatedError: (any Error)?, attachments: [XCTAttachment], severity: XCTIssue.Severity)`](https://developer.apple.com/documentation/xctest/xctissue-swift.struct/init(type:compactdescription:detaileddescription:sourcecodecontext:associatederror:attachments:severity:))
 - [`var isFailure: Bool`](https://developer.apple.com/documentation/xctest/xctissue-swift.struct/isfailure)
 - [`var severity: XCTIssue.Severity`](https://developer.apple.com/documentation/xctest/xctissue-swift.struct/severity-swift.property)
 - [`XCTIssue.Severity`](https://developer.apple.com/documentation/xctest/xctissue-swift.struct/severity-swift.typealias)
+- [`init(type: XCTIssueReference.IssueType, compactDescription: String, detailedDescription: String?, sourceCodeContext: XCTSourceCodeContext, associatedError: (any Error)?, attachments: [XCTAttachment], severity: XCTIssueReference.Severity)`](https://developer.apple.com/documentation/xctest/xctissuereference/init(type:compactdescription:detaileddescription:sourcecodecontext:associatederror:attachments:severity:))
+- [`convenience init(type: XCTIssueReference.IssueType, compactDescription: String, severity: XCTIssueReference.Severity)`](https://developer.apple.com/documentation/xctest/xctissuereference/init(type:compactdescription:severity:))
 - [`var isFailure: Bool`](https://developer.apple.com/documentation/xctest/xctissuereference/isfailure)
 - [`XCTIssueReference.Severity`](https://developer.apple.com/documentation/xctest/xctissuereference/severity-swift.enum)
 - [`case error`](https://developer.apple.com/documentation/xctest/xctissuereference/severity-swift.enum/error)
@@ -102,6 +132,10 @@
 - [`case warning`](https://developer.apple.com/documentation/xctest/xctissuereference/severity-swift.enum/warning)
 - [`var severity: XCTIssueReference.Severity`](https://developer.apple.com/documentation/xctest/xctissuereference/severity-swift.property)
 - [`XCTKeyPathExpectation.AsynchronousFilter`](https://developer.apple.com/documentation/xctest/xctkeypathexpectation/asynchronousfilter)
+- [`convenience init(keyPath: KeyPath<T, V>, observedObject: T, options: NSKeyValueObservingOptions, expectedValue: V)`](https://developer.apple.com/documentation/xctest/xctkeypathexpectation/init(keypath:observedobject:options:expectedvalue:))
+- [`convenience init(keyPath: KeyPath<T, V>, observedObject: T, options: NSKeyValueObservingOptions, filter: XCTKeyPathExpectation<T, V>.AsynchronousFilter?)`](https://developer.apple.com/documentation/xctest/xctkeypathexpectation/init(keypath:observedobject:options:filter:)-8noag)
+- [`convenience init(keyPath: KeyPath<T, V>, observedObject: T, options: NSKeyValueObservingOptions, filter: XCTKeyPathExpectation<T, V>.SynchronousFilter?)`](https://developer.apple.com/documentation/xctest/xctkeypathexpectation/init(keypath:observedobject:options:filter:)-plka)
+- [`convenience init(keyPath: KeyPath<T, V>, observedObject: T, options: NSKeyValueObservingOptions, predicate: XCTKeyPathExpectation<T, V>.Predicate?)`](https://developer.apple.com/documentation/xctest/xctkeypathexpectation/init(keypath:observedobject:options:predicate:))
 - [`let options: NSKeyValueObservingOptions`](https://developer.apple.com/documentation/xctest/xctkeypathexpectation/options)
 - [`XCTKeyPathExpectation.Predicate`](https://developer.apple.com/documentation/xctest/xctkeypathexpectation/predicate)
 - [`XCTKeyPathExpectation.SynchronousFilter`](https://developer.apple.com/documentation/xctest/xctkeypathexpectation/synchronousfilter)
@@ -115,12 +149,20 @@
 - [`var severity: XCTIssueReference.Severity`](https://developer.apple.com/documentation/xctest/xctmutableissue/severity)
 - [`var sourceCodeContext: XCTSourceCodeContext`](https://developer.apple.com/documentation/xctest/xctmutableissue/sourcecodecontext)
 - [`var type: XCTIssueReference.IssueType`](https://developer.apple.com/documentation/xctest/xctmutableissue/type)
+- [`init(name: NSNotification.Name, object: Any?, notificationCenter: NotificationCenter)`](https://developer.apple.com/documentation/xctest/xctnsnotificationexpectation/init(name:object:notificationcenter:))
 - [`var notificationCenter: NotificationCenter`](https://developer.apple.com/documentation/xctest/xctnsnotificationexpectation/notificationcenter)
 - [`var observedObject: Any?`](https://developer.apple.com/documentation/xctest/xctnsnotificationexpectation/observedobject)
 - [`func XCTSelfTestMain() -> Int32`](https://developer.apple.com/documentation/xctest/xctselftestmain())
+- [`convenience init(callStackAddresses: [NSNumber], location: XCTSourceCodeLocation?)`](https://developer.apple.com/documentation/xctest/xctsourcecodecontext/init(callstackaddresses:location:))
+- [`func symbolInfo() throws -> XCTSourceCodeSymbolInfo`](https://developer.apple.com/documentation/xctest/xctsourcecodeframe/symbolinfo())
 - [`var delegate: (any XCTWaiterDelegate)?`](https://developer.apple.com/documentation/xctest/xctwaiter/delegate)
 - [`func fulfillment(of: [XCTestExpectation], timeout: TimeInterval, enforceOrder: Bool) async -> XCTWaiter.Result`](https://developer.apple.com/documentation/xctest/xctwaiter/fulfillment(of:timeout:enforceorder:)-swift.method)
 - [`class func fulfillment(of: [XCTestExpectation], timeout: TimeInterval, enforceOrder: Bool) async -> XCTWaiter.Result`](https://developer.apple.com/documentation/xctest/xctwaiter/fulfillment(of:timeout:enforceorder:)-swift.type.method)
+- [`init(delegate: (any XCTWaiterDelegate)?)`](https://developer.apple.com/documentation/xctest/xctwaiter/init(delegate:))
+- [`func wait(for: [XCTestExpectation]) -> XCTWaiter.Result`](https://developer.apple.com/documentation/xctest/xctwaiter/wait(for:)-swift.method)
+- [`class func wait(for: [XCTestExpectation]) -> XCTWaiter.Result`](https://developer.apple.com/documentation/xctest/xctwaiter/wait(for:)-swift.type.method)
+- [`func wait(for: [XCTestExpectation], enforceOrder: Bool) -> XCTWaiter.Result`](https://developer.apple.com/documentation/xctest/xctwaiter/wait(for:enforceorder:)-swift.method)
+- [`class func wait(for: [XCTestExpectation], enforceOrder: Bool) -> XCTWaiter.Result`](https://developer.apple.com/documentation/xctest/xctwaiter/wait(for:enforceorder:)-swift.type.method)
 - [`XCTWaiterDelegate`](https://developer.apple.com/documentation/xctest/xctwaiterdelegate)
 - [`func nestedWaiter(XCTWaiter, wasInterruptedByTimedOutWaiter: XCTWaiter)`](https://developer.apple.com/documentation/xctest/xctwaiterdelegate/nestedwaiter(_:wasinterruptedbytimedoutwaiter:))
 - [`func waiter(XCTWaiter, didFulfillInvertedExpectation: XCTestExpectation)`](https://developer.apple.com/documentation/xctest/xctwaiterdelegate/waiter(_:didfulfillinvertedexpectation:))

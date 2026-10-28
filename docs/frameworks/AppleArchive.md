@@ -1,7 +1,7 @@
 # AppleArchive
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 77.5% of Apple's iOS API (189 of 244, exact) · **Rows:** 10: 8 ✅ 1 🟡 1 ❌ · **iOS:** 14.0+
+**Symbols:** 77.0% of Apple's iOS API (188 of 244, exact) · **Rows:** 10: 8 ✅ 1 🟡 1 ❌ · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [Foundation & CoreFoundation](../COVERAGE.md#foundation) · **Apple:** [AppleArchive](https://developer.apple.com/documentation/applearchive) · **Issues:** [`area:foundation`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Afoundation)
@@ -48,13 +48,14 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-55 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+56 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
 - [`AEAContextTraits`](https://developer.apple.com/documentation/applearchive/aeacontexttraits)
 - [`static func aaDestroy(AEAContextTraits.AAType?)`](https://developer.apple.com/documentation/applearchive/aeacontexttraits/aadestroy(_:))
 - [`AEAContextTraits.AAType`](https://developer.apple.com/documentation/applearchive/aeacontexttraits/aatype)
+- [`func close(updatingContext: ArchiveEncryptionContext) throws`](https://developer.apple.com/documentation/applearchive/archivebytestream/close(updatingcontext:))
 - [`static func decryptionStream(readingFrom: ArchiveByteStream, encryptionContext: ArchiveEncryptionContext, flags: ArchiveFlags, threadCount: Int) -> ArchiveByteStream?`](https://developer.apple.com/documentation/applearchive/archivebytestream/decryptionstream(readingfrom:encryptioncontext:flags:threadcount:))
 - [`static func encryptionStream(appendingTo: ArchiveByteStream, encryptionContext: ArchiveEncryptionContext, flags: ArchiveFlags, threadCount: Int) -> ArchiveByteStream?`](https://developer.apple.com/documentation/applearchive/archivebytestream/encryptionstream(appendingto:encryptioncontext:flags:threadcount:))
 - [`static func encryptionStream(writingTo: ArchiveByteStream, encryptionContext: ArchiveEncryptionContext, flags: ArchiveFlags, threadCount: Int) -> ArchiveByteStream?`](https://developer.apple.com/documentation/applearchive/archivebytestream/encryptionstream(writingto:encryptioncontext:flags:threadcount:))

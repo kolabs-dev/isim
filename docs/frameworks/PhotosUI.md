@@ -1,7 +1,7 @@
 # PhotosUI
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 54.1% of Apple's iOS API (139 of 257, exact) · **Rows:** 5: 2 ✅ 1 🟡 2 ❌ · **iOS:** 8.0+
+**Symbols:** 72.7% of Apple's iOS API (189 of 260, exact) · **Rows:** 6: 3 ✅ 1 🟡 2 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [PhotosUI](https://developer.apple.com/documentation/photosui) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)
@@ -25,7 +25,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-118 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+71 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -35,56 +35,16 @@
 - [`func finishContentEditing(completionHandler: (PHContentEditingOutput?) -> Void)`](https://developer.apple.com/documentation/photosui/phcontenteditingcontroller/finishcontentediting(completionhandler:))
 - [`var shouldShowCancelConfirmation: Bool`](https://developer.apple.com/documentation/photosui/phcontenteditingcontroller/shouldshowcancelconfirmation)
 - [`func startContentEditing(with: PHContentEditingInput, placeholderImage: UIImage)`](https://developer.apple.com/documentation/photosui/phcontenteditingcontroller/startcontentediting(with:placeholderimage:))
-- [`PHLivePhotoBadgeOptions`](https://developer.apple.com/documentation/photosui/phlivephotobadgeoptions)
-- [`init(rawValue: UInt)`](https://developer.apple.com/documentation/photosui/phlivephotobadgeoptions/init(rawvalue:))
-- [`static var liveOff: PHLivePhotoBadgeOptions`](https://developer.apple.com/documentation/photosui/phlivephotobadgeoptions/liveoff)
-- [`static var overContent: PHLivePhotoBadgeOptions`](https://developer.apple.com/documentation/photosui/phlivephotobadgeoptions/overcontent)
-- [`PHLivePhotoView`](https://developer.apple.com/documentation/photosui/phlivephotoview)
-- [`var contentsRect: CGRect`](https://developer.apple.com/documentation/photosui/phlivephotoview/contentsrect)
-- [`var delegate: (any PHLivePhotoViewDelegate)?`](https://developer.apple.com/documentation/photosui/phlivephotoview/delegate)
-- [`var intrinsicContentSize: CGSize`](https://developer.apple.com/documentation/photosui/phlivephotoview/intrinsiccontentsize)
-- [`var isMuted: Bool`](https://developer.apple.com/documentation/photosui/phlivephotoview/ismuted)
-- [`var livePhoto: PHLivePhoto?`](https://developer.apple.com/documentation/photosui/phlivephotoview/livephoto)
-- [`class func livePhotoBadgeImage(options: PHLivePhotoBadgeOptions) -> UIImage`](https://developer.apple.com/documentation/photosui/phlivephotoview/livephotobadgeimage(options:))
-- [`var playbackGestureRecognizer: UIGestureRecognizer`](https://developer.apple.com/documentation/photosui/phlivephotoview/playbackgesturerecognizer)
-- [`func startPlayback(with: PHLivePhotoViewPlaybackStyle)`](https://developer.apple.com/documentation/photosui/phlivephotoview/startplayback(with:))
-- [`func stopPlayback()`](https://developer.apple.com/documentation/photosui/phlivephotoview/stopplayback())
-- [`PHLivePhotoViewDelegate`](https://developer.apple.com/documentation/photosui/phlivephotoviewdelegate)
-- [`func livePhotoView(PHLivePhotoView, canBeginPlaybackWith: PHLivePhotoViewPlaybackStyle) -> Bool`](https://developer.apple.com/documentation/photosui/phlivephotoviewdelegate/livephotoview(_:canbeginplaybackwith:))
-- [`func livePhotoView(PHLivePhotoView, didEndPlaybackWith: PHLivePhotoViewPlaybackStyle)`](https://developer.apple.com/documentation/photosui/phlivephotoviewdelegate/livephotoview(_:didendplaybackwith:))
-- [`func livePhotoView(PHLivePhotoView, extraMinimumTouchDurationFor: UITouch, with: PHLivePhotoViewPlaybackStyle) -> TimeInterval`](https://developer.apple.com/documentation/photosui/phlivephotoviewdelegate/livephotoview(_:extraminimumtouchdurationfor:with:))
-- [`func livePhotoView(PHLivePhotoView, willBeginPlaybackWith: PHLivePhotoViewPlaybackStyle)`](https://developer.apple.com/documentation/photosui/phlivephotoviewdelegate/livephotoview(_:willbeginplaybackwith:))
-- [`PHLivePhotoViewPlaybackStyle`](https://developer.apple.com/documentation/photosui/phlivephotoviewplaybackstyle)
-- [`case full`](https://developer.apple.com/documentation/photosui/phlivephotoviewplaybackstyle/full)
-- [`case hint`](https://developer.apple.com/documentation/photosui/phlivephotoviewplaybackstyle/hint)
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/photosui/phlivephotoviewplaybackstyle/init(rawvalue:))
-- [`case undefined`](https://developer.apple.com/documentation/photosui/phlivephotoviewplaybackstyle/undefined)
-- [`PHPickerCapabilities`](https://developer.apple.com/documentation/photosui/phpickercapabilities)
-- [`PHPickerCapabilities`](https://developer.apple.com/documentation/photosui/phpickercapabilities)
-- [`static var collectionNavigation: PHPickerCapabilities`](https://developer.apple.com/documentation/photosui/phpickercapabilities/collectionnavigation)
-- [`static var collectionNavigation: PHPickerCapabilities`](https://developer.apple.com/documentation/photosui/phpickercapabilities/collectionnavigation)
-- [`init(rawValue: UInt)`](https://developer.apple.com/documentation/photosui/phpickercapabilities/init(rawvalue:))
-- [`init(rawValue: UInt)`](https://developer.apple.com/documentation/photosui/phpickercapabilities/init(rawvalue:))
-- [`static var search: PHPickerCapabilities`](https://developer.apple.com/documentation/photosui/phpickercapabilities/search)
-- [`static var search: PHPickerCapabilities`](https://developer.apple.com/documentation/photosui/phpickercapabilities/search)
-- [`static var selectionActions: PHPickerCapabilities`](https://developer.apple.com/documentation/photosui/phpickercapabilities/selectionactions)
-- [`static var selectionActions: PHPickerCapabilities`](https://developer.apple.com/documentation/photosui/phpickercapabilities/selectionactions)
-- [`static var sensitivityAnalysisIntervention: PHPickerCapabilities`](https://developer.apple.com/documentation/photosui/phpickercapabilities/sensitivityanalysisintervention)
-- [`static var sensitivityAnalysisIntervention: PHPickerCapabilities`](https://developer.apple.com/documentation/photosui/phpickercapabilities/sensitivityanalysisintervention)
-- [`static var stagingArea: PHPickerCapabilities`](https://developer.apple.com/documentation/photosui/phpickercapabilities/stagingarea)
-- [`static var stagingArea: PHPickerCapabilities`](https://developer.apple.com/documentation/photosui/phpickercapabilities/stagingarea)
+- [`init<S>(S, selection: Binding<PhotosPickerItem?>, matching: PHPickerFilter?, preferredItemEncoding: PhotosPickerItem.EncodingDisambiguationPolicy, photoLibrary: PHPhotoLibrary)`](https://developer.apple.com/documentation/photosui/photospicker/init(_:selection:matching:preferreditemencoding:photolibrary:)-6bm2n)
+- [`init(LocalizedStringKey, selection: Binding<PhotosPickerItem?>, matching: PHPickerFilter?, preferredItemEncoding: PhotosPickerItem.EncodingDisambiguationPolicy, photoLibrary: PHPhotoLibrary)`](https://developer.apple.com/documentation/photosui/photospicker/init(_:selection:matching:preferreditemencoding:photolibrary:)-bu7c)
+- [`init(LocalizedStringKey, selection: Binding<[PhotosPickerItem]>, maxSelectionCount: Int?, selectionBehavior: PhotosPickerSelectionBehavior, matching: PHPickerFilter?, preferredItemEncoding: PhotosPickerItem.EncodingDisambiguationPolicy, photoLibrary: PHPhotoLibrary)`](https://developer.apple.com/documentation/photosui/photospicker/init(_:selection:maxselectioncount:selectionbehavior:matching:preferreditemencoding:photolibrary:)-5tpfd)
+- [`init<S>(S, selection: Binding<[PhotosPickerItem]>, maxSelectionCount: Int?, selectionBehavior: PhotosPickerSelectionBehavior, matching: PHPickerFilter?, preferredItemEncoding: PhotosPickerItem.EncodingDisambiguationPolicy, photoLibrary: PHPhotoLibrary)`](https://developer.apple.com/documentation/photosui/photospicker/init(_:selection:maxselectioncount:selectionbehavior:matching:preferreditemencoding:photolibrary:)-6fwsc)
 - [`var metadataOptions: PHPickerMetadataOptions`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/metadataoptions)
 - [`var metadataOptions: PHPickerMetadataOptions`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/metadataoptions)
 - [`var searchText: PHPickerSearchText?`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/searchtext)
 - [`var searchText: PHPickerSearchText?`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/searchtext)
-- [`var edgesWithoutContentMargins: NSDirectionalRectEdge?`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/update/edgeswithoutcontentmargins)
-- [`var edgesWithoutContentMargins: NSDirectionalRectEdge?`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/update/edgeswithoutcontentmargins)
-- [`init()`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/update/init())
-- [`init()`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/update/init())
 - [`var searchText: PHPickerSearchText?`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/update/searchtext)
 - [`var searchText: PHPickerSearchText?`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/update/searchtext)
-- [`var selectionLimit: Int?`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/update/selectionlimit)
-- [`var selectionLimit: Int?`](https://developer.apple.com/documentation/photosui/phpickerconfiguration-swift.struct/update/selectionlimit)
 - [`PHPickerConfigurationSelection`](https://developer.apple.com/documentation/photosui/phpickerconfigurationselection)
 - [`PHPickerConfigurationSelection`](https://developer.apple.com/documentation/photosui/phpickerconfigurationselection)
 - [`case continuous`](https://developer.apple.com/documentation/photosui/phpickerconfigurationselection/continuous)
@@ -104,16 +64,9 @@
 - [`init(rawValue: UInt)`](https://developer.apple.com/documentation/photosui/phpickermetadataoptions/init(rawvalue:))
 - [`static var removeCaptions: PHPickerMetadataOptions`](https://developer.apple.com/documentation/photosui/phpickermetadataoptions/removecaptions)
 - [`static var removeLocation: PHPickerMetadataOptions`](https://developer.apple.com/documentation/photosui/phpickermetadataoptions/removelocation)
-- [`PHPickerMode`](https://developer.apple.com/documentation/photosui/phpickermode-swift.struct)
-- [`PHPickerMode`](https://developer.apple.com/documentation/photosui/phpickermode-swift.struct)
-- [`static var compact: PHPickerMode`](https://developer.apple.com/documentation/photosui/phpickermode-swift.struct/compact)
-- [`static var compact: PHPickerMode`](https://developer.apple.com/documentation/photosui/phpickermode-swift.struct/compact)
-- [`static let `default`: PHPickerMode`](https://developer.apple.com/documentation/photosui/phpickermode-swift.struct/default)
-- [`static let `default`: PHPickerMode`](https://developer.apple.com/documentation/photosui/phpickermode-swift.struct/default)
 - [`PHPickerSearchText`](https://developer.apple.com/documentation/photosui/phpickersearchtext-swift.struct)
 - [`init(String)`](https://developer.apple.com/documentation/photosui/phpickersearchtext-swift.struct/init(_:))
 - [`init(photoSearchSuggestion: UIPhotoSearchSuggestion)`](https://developer.apple.com/documentation/photosui/phpickersearchtext-swift.struct/init(photosearchsuggestion:))
-- [`func updatePicker(using: PHPickerConfiguration.Update)`](https://developer.apple.com/documentation/photosui/phpickerviewcontroller/updatepicker(using:))
 - [`func zoomIn()`](https://developer.apple.com/documentation/photosui/phpickerviewcontroller/zoomin())
 - [`func zoomOut()`](https://developer.apple.com/documentation/photosui/phpickerviewcontroller/zoomout())
 - [`PHSharedAlbumCreationConfiguration`](https://developer.apple.com/documentation/photosui/phsharedalbumcreationconfiguration-swift.struct)

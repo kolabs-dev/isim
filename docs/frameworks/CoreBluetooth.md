@@ -1,7 +1,7 @@
 # CoreBluetooth
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 89.6% of Apple's iOS API (406 of 453, exact) · **Rows:** 5: 3 🧩 2 ❌ · **iOS:** 5.0+
+**Symbols:** 87.4% of Apple's iOS API (394 of 451, exact) · **Rows:** 5: 3 🧩 2 ❌ · **iOS:** 5.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [CoreBluetooth](https://developer.apple.com/documentation/corebluetooth) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -25,12 +25,15 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-47 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+57 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
 - [`static var channelSounding: CBCentralManager.Feature`](https://developer.apple.com/documentation/corebluetooth/cbcentralmanager/feature/channelsounding)
 - [`func registerForConnectionEvents(options: [CBConnectionEventMatchingOption : Any]?)`](https://developer.apple.com/documentation/corebluetooth/cbcentralmanager/registerforconnectionevents(options:))
+- [`func centralManager(CBCentralManager, connectionEventDidOccur: CBConnectionEvent, for: CBPeripheral)`](https://developer.apple.com/documentation/corebluetooth/cbcentralmanagerdelegate/centralmanager(_:connectioneventdidoccur:for:))
+- [`func centralManager(CBCentralManager, didDisconnectPeripheral: CBPeripheral, timestamp: CFAbsoluteTime, isReconnecting: Bool, error: (any Error)?)`](https://developer.apple.com/documentation/corebluetooth/cbcentralmanagerdelegate/centralmanager(_:diddisconnectperipheral:timestamp:isreconnecting:error:))
+- [`func centralManager(CBCentralManager, didUpdateANCSAuthorizationFor: CBPeripheral)`](https://developer.apple.com/documentation/corebluetooth/cbcentralmanagerdelegate/centralmanager(_:didupdateancsauthorizationfor:))
 - [`let CBCentralManagerOptionDeviceAccessForMedia: String`](https://developer.apple.com/documentation/corebluetooth/cbcentralmanageroptiondeviceaccessformedia)
 - [`let CBCentralManagerRestoredStatePeripheralsKey: String`](https://developer.apple.com/documentation/corebluetooth/cbcentralmanagerrestoredstateperipheralskey)
 - [`let CBCentralManagerRestoredStateScanOptionsKey: String`](https://developer.apple.com/documentation/corebluetooth/cbcentralmanagerrestoredstatescanoptionskey)
@@ -75,6 +78,13 @@
 - [`var ancsAuthorized: Bool`](https://developer.apple.com/documentation/corebluetooth/cbperipheral/ancsauthorized)
 - [`func cancelChannelSoundingSession()`](https://developer.apple.com/documentation/corebluetooth/cbperipheral/cancelchannelsoundingsession())
 - [`func startChannelSoundingSession(CBChannelSoundingSessionConfiguration)`](https://developer.apple.com/documentation/corebluetooth/cbperipheral/startchannelsoundingsession(_:))
+- [`func peripheral(CBPeripheral, didCompleteChannelSoundingSession: (any Error)?)`](https://developer.apple.com/documentation/corebluetooth/cbperipheraldelegate/peripheral(_:didcompletechannelsoundingsession:))
+- [`func peripheral(CBPeripheral, didDiscoverDescriptorsFor: CBCharacteristic, error: (any Error)?)`](https://developer.apple.com/documentation/corebluetooth/cbperipheraldelegate/peripheral(_:diddiscoverdescriptorsfor:error:))
+- [`func peripheral(CBPeripheral, didDiscoverIncludedServicesFor: CBService, error: (any Error)?)`](https://developer.apple.com/documentation/corebluetooth/cbperipheraldelegate/peripheral(_:diddiscoverincludedservicesfor:error:))
+- [`func peripheral(CBPeripheral, didModifyServices: [CBService])`](https://developer.apple.com/documentation/corebluetooth/cbperipheraldelegate/peripheral(_:didmodifyservices:))
+- [`func peripheral(CBPeripheral, didReadRSSI: NSNumber, error: (any Error)?)`](https://developer.apple.com/documentation/corebluetooth/cbperipheraldelegate/peripheral(_:didreadrssi:error:))
+- [`func peripheral(CBPeripheral, didReceive: CBChannelSoundingProcedureResults?, error: (any Error)?)`](https://developer.apple.com/documentation/corebluetooth/cbperipheraldelegate/peripheral(_:didreceive:error:))
+- [`func peripheral(CBPeripheral, didUpdateNotificationStateFor: CBCharacteristic, error: (any Error)?)`](https://developer.apple.com/documentation/corebluetooth/cbperipheraldelegate/peripheral(_:didupdatenotificationstatefor:error:))
 - [`let CBUUIDCharacteristicObservationScheduleString: String`](https://developer.apple.com/documentation/corebluetooth/cbuuidcharacteristicobservationschedulestring)
 
 </details>

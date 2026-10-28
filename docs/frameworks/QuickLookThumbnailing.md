@@ -1,6 +1,7 @@
 # QuickLookThumbnailing
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 97.2% of Apple's iOS API (70 of 72, exact) · **Rows:** 5: 5 ✅ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Graphics & text](../COVERAGE.md#graphics) · **Apple:** [QuickLookThumbnailing](https://developer.apple.com/documentation/quicklookthumbnailing) · **Issues:** [`area:graphics`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agraphics)
@@ -35,4 +36,12 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+2 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`convenience init(contextSize: CGSize, currentContextDrawingBlock: () -> Bool)`](https://developer.apple.com/documentation/quicklookthumbnailing/qlthumbnailreply/init(contextsize:currentcontextdrawingblock:))
+- [`convenience init(contextSize: CGSize, drawingBlock: (CGContext) -> Bool)`](https://developer.apple.com/documentation/quicklookthumbnailing/qlthumbnailreply/init(contextsize:drawingblock:))
+
+</details>
 <!-- /generated:missing -->

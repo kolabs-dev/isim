@@ -1,7 +1,7 @@
 # Metal
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 33.8% of Apple's iOS API (1280 of 3786, exact) · **Rows:** 14: 10 ✅ 4 🟡 · **iOS:** 8.0+
+**Symbols:** 32.9% of Apple's iOS API (1243 of 3782, exact) · **Rows:** 14: 10 ✅ 4 🟡 · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [GPU](../COVERAGE.md#gpu) · **Apple:** [Metal](https://developer.apple.com/documentation/metal) · **Issues:** [`area:gpu`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agpu)
@@ -82,7 +82,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-2506 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+2539 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -386,7 +386,7 @@
 - [`init?(rawValue: Int)`](https://developer.apple.com/documentation/metal/mtl4counterheaptype/init(rawvalue:))
 - [`case invalid`](https://developer.apple.com/documentation/metal/mtl4counterheaptype/invalid)
 - [`case timestamp`](https://developer.apple.com/documentation/metal/mtl4counterheaptype/timestamp)
-- … and 2206 more (`isim/data/api-coverage.json.gz`)
+- … and 2239 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

@@ -1,7 +1,7 @@
 # QuartzCore
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 92.6% of Apple's iOS API (650 of 702, exact) · **Rows:** 29: 26 ✅ 1 🟡 2 ❌ · **iOS:** 2.0+
+**Symbols:** 92.0% of Apple's iOS API (642 of 698, exact) · **Rows:** 30: 27 ✅ 1 🟡 2 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Graphics & text](../COVERAGE.md#graphics) · **Apple:** [QuartzCore](https://developer.apple.com/documentation/quartzcore) · **Issues:** [`area:graphics`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agraphics)
@@ -57,7 +57,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-52 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+56 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -65,6 +65,8 @@
 - [`var animationEvents: [SCNAnimationEvent]?`](https://developer.apple.com/documentation/quartzcore/caanimation/animationevents)
 - [`var fadeInDuration: CGFloat`](https://developer.apple.com/documentation/quartzcore/caanimation/fadeinduration)
 - [`var fadeOutDuration: CGFloat`](https://developer.apple.com/documentation/quartzcore/caanimation/fadeoutduration)
+- [`init(SCNAnimation: SCNAnimation)`](https://developer.apple.com/documentation/quartzcore/caanimation/init(scnanimation:))
+- [`init(SCNAnimation: SCNAnimation)`](https://developer.apple.com/documentation/quartzcore/caanimation/init(scnanimation:))
 - [`var usesSceneTimeBase: Bool`](https://developer.apple.com/documentation/quartzcore/caanimation/usesscenetimebase)
 - [`CAEDRMetadata`](https://developer.apple.com/documentation/quartzcore/caedrmetadata)
 - [`class func hdr10(displayInfo: Data?, contentInfo: Data?, opticalOutputScale: Float) -> CAEDRMetadata`](https://developer.apple.com/documentation/quartzcore/caedrmetadata/hdr10(displayinfo:contentinfo:opticaloutputscale:))
@@ -84,7 +86,9 @@
 - [`static let high: CALayer.DynamicRange`](https://developer.apple.com/documentation/quartzcore/calayer/dynamicrange/high)
 - [`init(rawValue: String)`](https://developer.apple.com/documentation/quartzcore/calayer/dynamicrange/init(rawvalue:))
 - [`static let standard: CALayer.DynamicRange`](https://developer.apple.com/documentation/quartzcore/calayer/dynamicrange/standard)
+- [`init(remoteClientId: UInt32)`](https://developer.apple.com/documentation/quartzcore/calayer/init(remoteclientid:))
 - [`var preferredDynamicRange: CALayer.DynamicRange`](https://developer.apple.com/documentation/quartzcore/calayer/preferreddynamicrange)
+- [`func setNeedsDisplay(CGRect)`](https://developer.apple.com/documentation/quartzcore/calayer/setneedsdisplay(_:))
 - [`var toneMapMode: CALayer.ToneMapMode`](https://developer.apple.com/documentation/quartzcore/calayer/tonemapmode-swift.property)
 - [`CALayer.ToneMapMode`](https://developer.apple.com/documentation/quartzcore/calayer/tonemapmode-swift.struct)
 - [`static let automatic: CALayer.ToneMapMode`](https://developer.apple.com/documentation/quartzcore/calayer/tonemapmode-swift.struct/automatic)

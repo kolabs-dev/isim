@@ -1,7 +1,7 @@
 # WidgetKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 69.1% of Apple's iOS API (188 of 272, exact) · **Rows:** 9: 5 ✅ 1 🟡 3 ❌ · **iOS:** 14.0+
+**Symbols:** 66.5% of Apple's iOS API (177 of 266, exact) · **Rows:** 9: 5 ✅ 1 🟡 3 ❌ · **iOS:** 14.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [WidgetKit](https://developer.apple.com/documentation/widgetkit) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -27,7 +27,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-84 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+89 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -35,6 +35,7 @@
 - [`case compact`](https://developer.apple.com/documentation/widgetkit/activitypreviewviewkind/dynamicislandpreviewviewstate/compact)
 - [`case expanded`](https://developer.apple.com/documentation/widgetkit/activitypreviewviewkind/dynamicislandpreviewviewstate/expanded)
 - [`case minimal`](https://developer.apple.com/documentation/widgetkit/activitypreviewviewkind/dynamicislandpreviewviewstate/minimal)
+- [`init<Provider>(kind: String, provider: Provider, content: (Provider.Value) -> Content)`](https://developer.apple.com/documentation/widgetkit/appintentcontrolconfiguration/init(kind:provider:content:))
 - [`func relevance() async -> WidgetRelevance<Self.Intent>`](https://developer.apple.com/documentation/widgetkit/appintenttimelineprovider/relevance())
 - [`func relevance() async -> WidgetRelevance<Self.Intent>`](https://developer.apple.com/documentation/widgetkit/appintenttimelineprovider/relevance()-9vl5j)
 - [`func configurationIntent<Intent>(of: Intent.Type) -> Intent?`](https://developer.apple.com/documentation/widgetkit/controlinfo/configurationintent(of:))
@@ -45,6 +46,9 @@
 - [`func pushTokensDidChange(controls: [ControlInfo])`](https://developer.apple.com/documentation/widgetkit/controlpushhandler/pushtokensdidchange(controls:))
 - [`ControlPushInfo`](https://developer.apple.com/documentation/widgetkit/controlpushinfo)
 - [`let token: Data`](https://developer.apple.com/documentation/widgetkit/controlpushinfo/token)
+- [`init(LocalizedStringResource, action: Action, actionLabel: (Bool) -> ActionLabel)`](https://developer.apple.com/documentation/widgetkit/controlwidgetbutton/init(_:action:actionlabel:)-1kxch)
+- [`init(some StringProtocol, action: Action, actionLabel: (Bool) -> ActionLabel)`](https://developer.apple.com/documentation/widgetkit/controlwidgetbutton/init(_:action:actionlabel:)-4sgji)
+- [`init(LocalizedStringKey, action: Action, actionLabel: (Bool) -> ActionLabel)`](https://developer.apple.com/documentation/widgetkit/controlwidgetbutton/init(_:action:actionlabel:)-67uvw)
 - [`ControlWidgetButtonDefaultActionLabel`](https://developer.apple.com/documentation/widgetkit/controlwidgetbuttondefaultactionlabel)
 - [`ControlWidgetToggleDefaultLabel`](https://developer.apple.com/documentation/widgetkit/controlwidgettoggledefaultlabel)
 - [`DynamicIslandExpandedContent`](https://developer.apple.com/documentation/widgetkit/dynamicislandexpandedcontent)
@@ -83,6 +87,7 @@
 - [`TimelineProviderContext.EnvironmentVariants`](https://developer.apple.com/documentation/widgetkit/timelineprovidercontext/environmentvariants-swift.struct)
 - [`subscript<T>(WritableKeyPath<EnvironmentValues, T>) -> [T]?`](https://developer.apple.com/documentation/widgetkit/timelineprovidercontext/environmentvariants-swift.struct/subscript(_:))
 - [`subscript<T>(dynamicMember _: WritableKeyPath<EnvironmentValues, T>) -> [T]?`](https://developer.apple.com/documentation/widgetkit/timelineprovidercontext/environmentvariants-swift.struct/subscript(dynamicmember:))
+- [`func currentConfigurations() async throws -> [WidgetInfo]`](https://developer.apple.com/documentation/widgetkit/widgetcenter/currentconfigurations())
 - [`var currentPushInfo: WidgetPushInfo?`](https://developer.apple.com/documentation/widgetkit/widgetcenter/currentpushinfo)
 - [`func invalidateConfigurationRecommendations()`](https://developer.apple.com/documentation/widgetkit/widgetcenter/invalidateconfigurationrecommendations())
 - [`func invalidateRelevance(ofKind: String)`](https://developer.apple.com/documentation/widgetkit/widgetcenter/invalidaterelevance(ofkind:))

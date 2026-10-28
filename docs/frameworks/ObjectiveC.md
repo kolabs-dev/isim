@@ -1,7 +1,7 @@
 # Objective-C runtime
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 71.3% of Apple's iOS API (316 of 443, exact) · **Rows:** 22: 20 ✅ 1 🟡 1 ❌ · **iOS:** 2.0+
+**Symbols:** 69.6% of Apple's iOS API (305 of 438, exact) · **Rows:** 22: 20 ✅ 1 🟡 1 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [ObjectiveC](https://developer.apple.com/documentation/objectivec) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)
@@ -42,7 +42,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-127 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+133 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -54,6 +54,7 @@
 - [`func class_setVersion(AnyClass?, Int32)`](https://developer.apple.com/documentation/objectivec/class_setversion(_:_:))
 - [`func class_setWeakIvarLayout(AnyClass?, UnsafePointer<UInt8>?)`](https://developer.apple.com/documentation/objectivec/class_setweakivarlayout(_:_:))
 - [`var NS_ENFORCE_NSOBJECT_DESIGNATED_INITIALIZER: Int32`](https://developer.apple.com/documentation/objectivec/ns_enforce_nsobject_designated_initializer)
+- [`func accessibilityHitTest(CGPoint, event: UIEvent?) -> Any?`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilityhittest(_:event:))
 - [`func accessibilityLineEndPositionFromCurrentSelection() -> Int`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilitylineendpositionfromcurrentselection())
 - [`func accessibilityLineRange(forPosition: Int) -> NSRange`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilitylinerange(forposition:))
 - [`func accessibilityLineStartPositionFromCurrentSelection() -> Int`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/accessibilitylinestartpositionfromcurrentselection())
@@ -80,12 +81,15 @@
 - [`func browserAccessibilityValue(in: NSRange) -> String`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/browseraccessibilityvalue(in:))
 - [`var classForCoder: AnyClass`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/classforcoder)
 - [`class func classForKeyedUnarchiver() -> AnyClass`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/classforkeyedunarchiver())
+- [`func didChangeValue(forKey: String, withSetMutation: NSKeyValueSetMutationKind, using: Set<AnyHashable>)`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/didchangevalue(forkey:withsetmutation:using:))
 - [`func finalize()`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/finalize())
+- [`class func hash() -> Int`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/hash())
 - [`func didChange() -> Publishers.Map<NSObject.KeyValueObservingPublisher<Subject, Value>, Void>`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/keyvalueobservingpublisher/didchange())
 - [`init(object: Subject, keyPath: KeyPath<Subject, Value>, options: NSKeyValueObservingOptions)`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/keyvalueobservingpublisher/init(object:keypath:options:))
 - [`let keyPath: KeyPath<Subject, Value>`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/keyvalueobservingpublisher/keypath)
 - [`let object: Subject`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/keyvalueobservingpublisher/object)
 - [`let options: NSKeyValueObservingOptions`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/keyvalueobservingpublisher/options)
+- [`func mutableArrayValue(forKeyPath: String) -> NSMutableArray`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/mutablearrayvalue(forkeypath:))
 - [`func mutableOrderedSetValue(forKey: String) -> NSMutableOrderedSet`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/mutableorderedsetvalue(forkey:))
 - [`func mutableOrderedSetValue(forKeyPath: String) -> NSMutableOrderedSet`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/mutableorderedsetvalue(forkeypath:))
 - [`func mutableSetValue(forKey: String) -> NSMutableSet`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/mutablesetvalue(forkey:))
@@ -98,7 +102,9 @@
 - [`func setSharedObservers(NSKeyValueSharedObserversSnapshot?)`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/setsharedobservers(_:))
 - [`func setValuesForKeys([String : Any])`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/setvaluesforkeys(_:))
 - [`class func setVersion(Int)`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/setversion(_:))
+- [`func validateValue(AutoreleasingUnsafeMutablePointer<AnyObject?>, forKeyPath: String) throws`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/validatevalue(_:forkeypath:))
 - [`class func version() -> Int`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/version())
+- [`func willChangeValue(forKey: String, withSetMutation: NSKeyValueSetMutationKind, using: Set<AnyHashable>)`](https://developer.apple.com/documentation/objectivec/nsobject-swift.class/willchangevalue(forkey:withsetmutation:using:))
 - [`NSZone`](https://developer.apple.com/documentation/objectivec/nszone)
 - [`var OBJC_ADDLOADIMAGEFUNC_DEFINED: Int32`](https://developer.apple.com/documentation/objectivec/objc_addloadimagefunc_defined)
 - [`func objc_allocateProtocol(UnsafePointer<CChar>) -> Protocol?`](https://developer.apple.com/documentation/objectivec/objc_allocateprotocol(_:))

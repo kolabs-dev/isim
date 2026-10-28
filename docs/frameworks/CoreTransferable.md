@@ -1,7 +1,7 @@
 # CoreTransferable
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 87.9% of Apple's iOS API (58 of 66, exact) · **Rows:** 6: 3 ✅ 2 🟡 1 ❌ · **iOS:** 16.0+
+**Symbols:** 68.2% of Apple's iOS API (45 of 66, exact) · **Rows:** 6: 3 ✅ 2 🟡 1 ❌ · **iOS:** 16.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [Core Transferable](https://developer.apple.com/documentation/coretransferable) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)
@@ -24,17 +24,30 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-8 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+21 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
 - [`func export(to: URL, contentType: UTType?) async throws -> URL`](https://developer.apple.com/documentation/coretransferable/transferable/export(to:contenttype:))
+- [`func exportedContentTypes(TransferRepresentationVisibility) -> [UTType]`](https://developer.apple.com/documentation/coretransferable/transferable/exportedcontenttypes(_:))
+- [`static func exportedContentTypes(visibility: TransferRepresentationVisibility) -> [UTType]`](https://developer.apple.com/documentation/coretransferable/transferable/exportedcontenttypes(visibility:))
+- [`func importedContentTypes() -> [UTType]`](https://developer.apple.com/documentation/coretransferable/transferable/importedcontenttypes()-swift.method)
+- [`static func importedContentTypes() -> [UTType]`](https://developer.apple.com/documentation/coretransferable/transferable/importedcontenttypes()-swift.type.method)
 - [`init(importing: URL, contentType: UTType?) async throws`](https://developer.apple.com/documentation/coretransferable/transferable/init(importing:contenttype:)-4pfpm)
 - [`init(importing: Data, contentType: UTType?) async throws`](https://developer.apple.com/documentation/coretransferable/transferable/init(importing:contenttype:)-74t08)
 - [`var suggestedFilename: String?`](https://developer.apple.com/documentation/coretransferable/transferable/suggestedfilename)
 - [`func withExportedFile<Result>(contentType: UTType?, fileHandler: (URL) async throws -> Result) async throws -> Result`](https://developer.apple.com/documentation/coretransferable/transferable/withexportedfile(contenttype:filehandler:))
 - [`Body`](https://developer.apple.com/documentation/coretransferable/transferrepresentation/body-swift.associatedtype)
 - [`var body: Self.Body`](https://developer.apple.com/documentation/coretransferable/transferrepresentation/body-swift.property)
+- [`static func buildBlock<C1, C2>(C1, C2) -> TupleTransferRepresentation<Item, (C1, C2)>`](https://developer.apple.com/documentation/coretransferable/transferrepresentationbuilder/buildblock(_:_:))
+- [`static func buildBlock<C1, C2, C3>(C1, C2, C3) -> TupleTransferRepresentation<Item, (C1, C2, C3)>`](https://developer.apple.com/documentation/coretransferable/transferrepresentationbuilder/buildblock(_:_:_:))
+- [`static func buildBlock<C1, C2, C3, C4>(C1, C2, C3, C4) -> TupleTransferRepresentation<Item, (C1, C2, C3, C4)>`](https://developer.apple.com/documentation/coretransferable/transferrepresentationbuilder/buildblock(_:_:_:_:))
+- [`static func buildBlock<C1, C2, C3, C4, C5>(C1, C2, C3, C4, C5) -> TupleTransferRepresentation<Item, (C1, C2, C3, C4, C5)>`](https://developer.apple.com/documentation/coretransferable/transferrepresentationbuilder/buildblock(_:_:_:_:_:))
+- [`static func buildBlock<C1, C2, C3, C4, C5, C6>(C1, C2, C3, C4, C5, C6) -> TupleTransferRepresentation<Item, (C1, C2, C3, C4, C5, C6)>`](https://developer.apple.com/documentation/coretransferable/transferrepresentationbuilder/buildblock(_:_:_:_:_:_:))
+- [`static func buildBlock<C1, C2, C3, C4, C5, C6, C7>(C1, C2, C3, C4, C5, C6, C7) -> TupleTransferRepresentation<Item, (C1, C2, C3, C4, C5, C6, C7)>`](https://developer.apple.com/documentation/coretransferable/transferrepresentationbuilder/buildblock(_:_:_:_:_:_:_:))
+- [`static func buildBlock<C1, C2, C3, C4, C5, C6, C7, C8>(C1, C2, C3, C4, C5, C6, C7, C8) -> TupleTransferRepresentation<Item, (C1, C2, C3, C4, C5, C6, C7, C8)>`](https://developer.apple.com/documentation/coretransferable/transferrepresentationbuilder/buildblock(_:_:_:_:_:_:_:_:))
+- [`static func buildBlock<C1, C2, C3, C4, C5, C6, C7, C8, C9>(C1, C2, C3, C4, C5, C6, C7, C8, C9) -> TupleTransferRepresentation<Item, (C1, C2, C3, C4, C5, C6, C7, C8, C9)>`](https://developer.apple.com/documentation/coretransferable/transferrepresentationbuilder/buildblock(_:_:_:_:_:_:_:_:_:))
+- [`static func buildBlock<C1, C2, C3, C4, C5, C6, C7, C8, C9, C10>(C1, C2, C3, C4, C5, C6, C7, C8, C9, C10) -> TupleTransferRepresentation<Item, (C1, C2, C3, C4, C5, C6, C7, C8, C9, C10)>`](https://developer.apple.com/documentation/coretransferable/transferrepresentationbuilder/buildblock(_:_:_:_:_:_:_:_:_:_:))
 - [`TupleTransferRepresentation`](https://developer.apple.com/documentation/coretransferable/tupletransferrepresentation)
 
 </details>

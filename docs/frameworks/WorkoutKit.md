@@ -1,7 +1,7 @@
 # WorkoutKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 71.7% of Apple's iOS API (109 of 152, exact) · **Rows:** 2: 1 ✅ 1 🧩 · **iOS:** 17.0+
+**Symbols:** 69.1% of Apple's iOS API (105 of 152, exact) · **Rows:** 2: 1 ✅ 1 🧩 · **iOS:** 17.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [WorkoutKit](https://developer.apple.com/documentation/workoutkit) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -24,10 +24,11 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-43 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+47 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
+- [`init(target: ClosedRange<Measurement<UnitFrequency>>)`](https://developer.apple.com/documentation/workoutkit/cadencerangealert/init(target:))
 - [`var targetQuantityLowerBound: HKQuantity`](https://developer.apple.com/documentation/workoutkit/cadencerangealert/targetquantitylowerbound)
 - [`var targetQuantityUpperBound: HKQuantity`](https://developer.apple.com/documentation/workoutkit/cadencerangealert/targetquantityupperbound)
 - [`CadenceThresholdAlert`](https://developer.apple.com/documentation/workoutkit/cadencethresholdalert)
@@ -37,6 +38,7 @@
 - [`static func supportsAlert(any WorkoutAlert, activity: HKWorkoutActivityType, location: HKWorkoutSessionLocationType) -> Bool`](https://developer.apple.com/documentation/workoutkit/customworkout/supportsalert(_:activity:location:))
 - [`var targetQuantityLowerBound: HKQuantity`](https://developer.apple.com/documentation/workoutkit/heartraterangealert/targetquantitylowerbound)
 - [`var targetQuantityUpperBound: HKQuantity`](https://developer.apple.com/documentation/workoutkit/heartraterangealert/targetquantityupperbound)
+- [`init(target: ClosedRange<Measurement<UnitPower>>)`](https://developer.apple.com/documentation/workoutkit/powerrangealert/init(target:))
 - [`var targetQuantityLowerBound: HKQuantity`](https://developer.apple.com/documentation/workoutkit/powerrangealert/targetquantitylowerbound)
 - [`var targetQuantityUpperBound: HKQuantity`](https://developer.apple.com/documentation/workoutkit/powerrangealert/targetquantityupperbound)
 - [`PowerThresholdAlert`](https://developer.apple.com/documentation/workoutkit/powerthresholdalert)
@@ -70,7 +72,9 @@
 - [`func supports(activity: HKWorkoutActivityType, location: HKWorkoutSessionLocationType) -> Bool`](https://developer.apple.com/documentation/workoutkit/workoutalert/supports(activity:location:))
 - [`static var countPerMinute: UnitFrequency`](https://developer.apple.com/documentation/workoutkit/workoutalertmetric/countperminute)
 - [`var dataRepresentation: Data`](https://developer.apple.com/documentation/workoutkit/workoutplan/datarepresentation)
+- [`init(from: Data) throws`](https://developer.apple.com/documentation/workoutkit/workoutplan/init(from:))
 - [`var activity: HKWorkoutActivityType`](https://developer.apple.com/documentation/workoutkit/workoutplan/workout-swift.enum/activity)
+- [`init(goal: WorkoutGoal, alert: (any WorkoutAlert)?)`](https://developer.apple.com/documentation/workoutkit/workoutstep/init(goal:alert:))
 
 </details>
 <!-- /generated:missing -->

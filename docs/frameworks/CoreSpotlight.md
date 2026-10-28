@@ -1,7 +1,7 @@
 # CoreSpotlight
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 9.5% of Apple's iOS API (79 of 828, exact) · **Rows:** 4: 1 ✅ 1 🟡 2 ❌ · **iOS:** 9.0+
+**Symbols:** 8.3% of Apple's iOS API (69 of 828, exact) · **Rows:** 4: 1 ✅ 1 🟡 2 ❌ · **iOS:** 9.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [CoreSpotlight](https://developer.apple.com/documentation/corespotlight) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -22,7 +22,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-749 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+759 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -81,6 +81,7 @@
 - [`func endIndexBatch(expectedClientState: Data?, newClientState: Data, completionHandler: (((any Error)?) -> Void)?)`](https://developer.apple.com/documentation/corespotlight/cssearchableindex/endindexbatch(expectedclientstate:newclientstate:completionhandler:))
 - [`func fetchLastClientState(completionHandler: (Data?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/corespotlight/cssearchableindex/fetchlastclientstate(completionhandler:))
 - [`var indexDelegate: (any CSSearchableIndexDelegate)?`](https://developer.apple.com/documentation/corespotlight/cssearchableindex/indexdelegate)
+- [`init(name: String, protectionClass: FileProtectionType?)`](https://developer.apple.com/documentation/corespotlight/cssearchableindex/init(name:protectionclass:))
 - [`var protectionClass: FileProtectionType`](https://developer.apple.com/documentation/corespotlight/cssearchableindex/protectionclass)
 - [`CSSearchableIndexDelegate`](https://developer.apple.com/documentation/corespotlight/cssearchableindexdelegate)
 - [`CSSearchableIndexDelegate`](https://developer.apple.com/documentation/corespotlight/cssearchableindexdelegate)
@@ -116,6 +117,11 @@
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/corespotlight/cssearchableindexdescription/init(coder:))
 - [`var protectionClass: FileProtectionType?`](https://developer.apple.com/documentation/corespotlight/cssearchableindexdescription/protectionclass)
 - [`func compare(byRank: CSSearchableItem) -> ComparisonResult`](https://developer.apple.com/documentation/corespotlight/cssearchableitem/compare(byrank:))
+- [`convenience init(appEntity: some IndexedEntity) async`](https://developer.apple.com/documentation/corespotlight/cssearchableitem/init(appentity:)-3hv5)
+- [`convenience init(appEntity: some IndexedEntity)`](https://developer.apple.com/documentation/corespotlight/cssearchableitem/init(appentity:)-89ehq)
+- [`convenience init<Entity>(appEntity: Entity, priority: Int)`](https://developer.apple.com/documentation/corespotlight/cssearchableitem/init(appentity:priority:)-7h9s)
+- [`convenience init<Entity>(appEntity: Entity, priority: Int) async`](https://developer.apple.com/documentation/corespotlight/cssearchableitem/init(appentity:priority:)-7xlow)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/corespotlight/cssearchableitem/init(coder:))
 - [`var isUpdate: Bool`](https://developer.apple.com/documentation/corespotlight/cssearchableitem/isupdate)
 - [`var relatedAppEntityIdentifier: EntityIdentifier?`](https://developer.apple.com/documentation/corespotlight/cssearchableitem/relatedappentityidentifier)
 - [`var updateListenerOptions: CSSearchableItem.UpdateListenerOptions`](https://developer.apple.com/documentation/corespotlight/cssearchableitem/updatelisteneroptions-swift.property)
@@ -215,6 +221,7 @@
 - [`var imageDirection: NSNumber?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/imagedirection)
 - [`var importantDates: [Date]?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/importantdates)
 - [`var information: String?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/information)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/init(coder:))
 - [`var instantMessageAddresses: [String]?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/instantmessageaddresses)
 - [`var instructions: String?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/instructions)
 - [`var isoSpeed: NSNumber?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/isospeed)
@@ -275,6 +282,7 @@
 - [`var rights: String?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/rights)
 - [`var role: String?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/role)
 - [`var securityMethod: String?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/securitymethod)
+- [`func setValue((any NSSecureCoding)?, forCustomKey: CSCustomAttributeKey)`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/setvalue(_:forcustomkey:))
 - [`var sharedItemContentType: UTType?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/shareditemcontenttype)
 - [`var speed: NSNumber?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/speed)
 - [`var stateOrProvince: String?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/stateorprovince)
@@ -295,11 +303,13 @@
 - [`var userCreated: NSNumber?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/usercreated)
 - [`var userCurated: NSNumber?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/usercurated)
 - [`var userOwned: NSNumber?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/userowned)
+- [`func value(forCustomKey: CSCustomAttributeKey) -> (any NSSecureCoding)?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/value(forcustomkey:))
 - [`var version: String?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/version)
 - [`var videoBitRate: NSNumber?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/videobitrate)
 - [`var weakRelatedUniqueIdentifier: String?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/weakrelateduniqueidentifier)
 - [`var whiteBalance: NSNumber?`](https://developer.apple.com/documentation/corespotlight/cssearchableitemattributeset/whitebalance)
 - [`var foundItemCount: Int`](https://developer.apple.com/documentation/corespotlight/cssearchquery/founditemcount)
+- [`init(queryString: String, queryContext: CSSearchQueryContext?)`](https://developer.apple.com/documentation/corespotlight/cssearchquery/init(querystring:querycontext:))
 - [`var isCancelled: Bool`](https://developer.apple.com/documentation/corespotlight/cssearchquery/iscancelled)
 - [`var protectionClasses: [FileProtectionType]`](https://developer.apple.com/documentation/corespotlight/cssearchquery/protectionclasses)
 - [`var results: CSSearchQuery.Results`](https://developer.apple.com/documentation/corespotlight/cssearchquery/results-swift.property)
@@ -316,17 +326,7 @@
 - [`static var cancelled: CSSearchQueryError.Code`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/cancelled)
 - [`CSSearchQueryError.Code`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code)
 - [`CSSearchQueryError.Code`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code)
-- [`case cancelled`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/cancelled)
-- [`case cancelled`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/cancelled)
-- [`case indexUnreachable`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/indexunreachable)
-- [`case indexUnreachable`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/indexunreachable)
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/init(rawvalue:))
-- [`init?(rawValue: Int)`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/init(rawvalue:))
-- [`case invalidQuery`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/invalidquery)
-- [`case invalidQuery`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/invalidquery)
-- [`case unknown`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/unknown)
-- [`case unknown`](https://developer.apple.com/documentation/corespotlight/cssearchqueryerror/code/unknown)
-- … and 449 more (`isim/data/api-coverage.json.gz`)
+- … and 459 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

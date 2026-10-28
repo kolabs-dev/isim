@@ -1,7 +1,7 @@
 # CoreNFC
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 66.5% of Apple's iOS API (308 of 463, exact) · **Rows:** 6: 4 🧩 2 ❌ · **iOS:** 11.0+
+**Symbols:** 60.7% of Apple's iOS API (281 of 463, exact) · **Rows:** 6: 4 🧩 2 ❌ · **iOS:** 11.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [CoreNFC](https://developer.apple.com/documentation/corenfc) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -27,7 +27,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-155 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+182 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -96,6 +96,16 @@
 - [`NFCFeliCaStatusFlag`](https://developer.apple.com/documentation/corenfc/nfcfelicastatusflag)
 - [`var statusFlag1: Int`](https://developer.apple.com/documentation/corenfc/nfcfelicastatusflag/statusflag1)
 - [`var statusFlag2: Int`](https://developer.apple.com/documentation/corenfc/nfcfelicastatusflag/statusflag2)
+- [`func polling(systemCode: Data, requestCode: NFCFeliCaPollingRequestCode, timeSlot: NFCFeliCaPollingTimeSlot, resultHandler: (Result<NFCFeliCaPollingResponse, any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfcfelicatag/polling(systemcode:requestcode:timeslot:resulthandler:))
+- [`func readWithoutEncryption(serviceCodeList: [Data], blockList: [Data], resultHandler: (Result<(NFCFeliCaStatusFlag, [Data]), any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfcfelicatag/readwithoutencryption(servicecodelist:blocklist:resulthandler:))
+- [`func requestResponse(resultHandler: (Result<Int, any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfcfelicatag/requestresponse(resulthandler:))
+- [`func requestService(nodeCodeList: [Data], resultHandler: (Result<[Data], any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfcfelicatag/requestservice(nodecodelist:resulthandler:))
+- [`func requestServiceV2(nodeCodeList: [Data], resultHandler: (Result<NFCFeliCaRequsetServiceV2Response, any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfcfelicatag/requestservicev2(nodecodelist:resulthandler:))
+- [`func requestSpecificationVersion(resultHandler: (Result<NFCFeliCaRequestSpecificationVersionResponse, any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfcfelicatag/requestspecificationversion(resulthandler:))
+- [`func requestSystemCode(resultHandler: (Result<[Data], any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfcfelicatag/requestsystemcode(resulthandler:))
+- [`func resetMode(resultHandler: (Result<NFCFeliCaStatusFlag, any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfcfelicatag/resetmode(resulthandler:))
+- [`func sendFeliCaCommand(commandPacket: Data, resultHandler: (Result<Data, any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfcfelicatag/sendfelicacommand(commandpacket:resulthandler:))
+- [`func writeWithoutEncryption(serviceCodeList: [Data], blockList: [Data], blockData: [Data], resultHandler: (Result<NFCFeliCaStatusFlag, any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfcfelicatag/writewithoutencryption(servicecodelist:blocklist:blockdata:resulthandler:))
 - [`NFCISO15693CustomCommandConfiguration`](https://developer.apple.com/documentation/corenfc/nfciso15693customcommandconfiguration)
 - [`var customCommandCode: Int`](https://developer.apple.com/documentation/corenfc/nfciso15693customcommandconfiguration/customcommandcode)
 - [`init(manufacturerCode: Int, customCommandCode: Int, requestParameters: Data?)`](https://developer.apple.com/documentation/corenfc/nfciso15693customcommandconfiguration/init(manufacturercode:customcommandcode:requestparameters:))
@@ -129,6 +139,7 @@
 - [`func authenticate(requestFlags: NFCISO15693RequestFlag, cryptoSuiteIdentifier: Int, message: Data, resultHandler: (Result<(NFCISO15693ResponseFlag, Data), any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/authenticate(requestflags:cryptosuiteidentifier:message:resulthandler:))
 - [`func challenge(requestFlags: NFCISO15693RequestFlag, cryptoSuiteIdentifier: Int, message: Data) async throws`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/challenge(requestflags:cryptosuiteidentifier:message:))
 - [`func challenge(requestFlags: NFCISO15693RequestFlag, cryptoSuiteIdentifier: Int, message: Data, completionHandler: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/challenge(requestflags:cryptosuiteidentifier:message:completionhandler:))
+- [`func customCommand(requestFlags: NFCISO15693RequestFlag, customCommandCode: Int, customRequestParameters: Data, resultHandler: (Result<Data, any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/customcommand(requestflags:customcommandcode:customrequestparameters:resulthandler:))
 - [`func extendedFastReadMultipleBlocks(requestFlags: NFCISO15693RequestFlag, blockRange: NSRange) async throws -> [Data]`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/extendedfastreadmultipleblocks(requestflags:blockrange:))
 - [`func extendedFastReadMultipleBlocks(requestFlags: NFCISO15693RequestFlag, blockRange: NSRange, resultHandler: (Result<[Data], any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/extendedfastreadmultipleblocks(requestflags:blockrange:resulthandler:))
 - [`func extendedGetMultipleBlockSecurityStatus(requestFlags: NFCISO15693RequestFlag, blockRange: NSRange) async throws -> NFCISO15693MultipleBlockSecurityStatus`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/extendedgetmultipleblocksecuritystatus(requestflags:blockrange:))
@@ -142,12 +153,15 @@
 - [`func extendedWriteSingleBlock(requestFlags: NFCISO15693RequestFlag, blockNumber: Int, dataBlock: Data, completionHandler: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/extendedwritesingleblock(requestflags:blocknumber:datablock:completionhandler:))
 - [`func fastReadMultipleBlocks(requestFlags: NFCISO15693RequestFlag, blockRange: NSRange) async throws -> [Data]`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/fastreadmultipleblocks(requestflags:blockrange:))
 - [`func fastReadMultipleBlocks(requestFlags: NFCISO15693RequestFlag, blockRange: NSRange, resultHandler: (Result<[Data], any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/fastreadmultipleblocks(requestflags:blockrange:resulthandler:))
+- [`func getSystemInfo(requestFlags: NFCISO15693RequestFlag, resultHandler: (Result<NFCISO15693SystemInfo, any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/getsysteminfo(requestflags:resulthandler:))
 - [`func keyUpdate(requestFlags: NFCISO15693RequestFlag, keyIdentifier: Int, message: Data) async throws -> (NFCISO15693ResponseFlag, Data)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/keyupdate(requestflags:keyidentifier:message:))
 - [`func keyUpdate(requestFlags: NFCISO15693RequestFlag, keyIdentifier: Int, message: Data, resultHandler: (Result<(NFCISO15693ResponseFlag, Data), any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/keyupdate(requestflags:keyidentifier:message:resulthandler:))
 - [`func lockDSFID(requestFlags: NFCISO15693RequestFlag, completionHandler: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/lockdsfid(requestflags:completionhandler:))
 - [`func readBuffer(requestFlags: NFCISO15693RequestFlag) async throws -> (NFCISO15693ResponseFlag, Data)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/readbuffer(requestflags:))
 - [`func readBuffer(requestFlags: NFCISO15693RequestFlag, resultHandler: (Result<(NFCISO15693ResponseFlag, Data), any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/readbuffer(requestflags:resulthandler:))
 - [`func readMultipleBlock(readConfiguration: NFCISO15693ReadMultipleBlocksConfiguration, completionHandler: (Data, (any Error)?) -> Void)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/readmultipleblock(readconfiguration:completionhandler:))
+- [`func readMultipleBlocks(requestFlags: NFCISO15693RequestFlag, blockRange: NSRange, resultHandler: (Result<[Data], any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/readmultipleblocks(requestflags:blockrange:resulthandler:))
+- [`func readSingleBlock(requestFlags: NFCISO15693RequestFlag, blockNumber: UInt8, resultHandler: (Result<Data, any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/readsingleblock(requestflags:blocknumber:resulthandler:))
 - [`func sendCustomCommand(commandConfiguration: NFCISO15693CustomCommandConfiguration, completionHandler: (Data, (any Error)?) -> Void)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/sendcustomcommand(commandconfiguration:completionhandler:))
 - [`func sendRequest(requestFlags: Int, commandCode: Int, data: Data?) async throws -> (NFCISO15693ResponseFlag, Data?)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/sendrequest(requestflags:commandcode:data:))
 - [`func sendRequest(requestFlags: Int, commandCode: Int, data: Data?, resultHandler: (Result<(NFCISO15693ResponseFlag, Data?), any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/sendrequest(requestflags:commandcode:data:resulthandler:))
@@ -155,6 +169,15 @@
 - [`func systemInfo(requestFlags: NFCISO15693RequestFlag) async throws -> NFCISO15693SystemInfo`](https://developer.apple.com/documentation/corenfc/nfciso15693tag/systeminfo(requestflags:))
 - [`let NFCISO15693TagResponseErrorKey: String`](https://developer.apple.com/documentation/corenfc/nfciso15693tagresponseerrorkey)
 - [`var supportsPACE: Bool`](https://developer.apple.com/documentation/corenfc/nfciso7816tag/supportspace)
+- [`func sendMiFareCommand(commandPacket: Data, resultHandler: (Result<Data, any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfcmifaretag/sendmifarecommand(commandpacket:resulthandler:))
+- [`func sendMiFareISO7816Command(NFCISO7816APDU, resultHandler: (Result<NFCISO7816ResponseAPDU, any Error>) -> Void)`](https://developer.apple.com/documentation/corenfc/nfcmifaretag/sendmifareiso7816command(_:resulthandler:))
+- [`convenience init?(data: Data)`](https://developer.apple.com/documentation/corenfc/nfcndefmessage/init(data:))
+- [`init(NDEFRecords: [NFCNDEFPayload])`](https://developer.apple.com/documentation/corenfc/nfcndefmessage/init(ndefrecords:))
+- [`init(format: NFCTypeNameFormat, type: Data, identifier: Data, payload: Data, chunkSize: Int)`](https://developer.apple.com/documentation/corenfc/nfcndefpayload/init(format:type:identifier:payload:chunksize:))
+- [`func wellKnownTypeTextPayload() -> (String?, Locale?)`](https://developer.apple.com/documentation/corenfc/nfcndefpayload/wellknowntypetextpayload())
+- [`func wellKnownTypeURIPayload() -> URL?`](https://developer.apple.com/documentation/corenfc/nfcndefpayload/wellknowntypeuripayload())
+- [`class func wellKnownTypeURIPayload(url: URL) -> Self?`](https://developer.apple.com/documentation/corenfc/nfcndefpayload/wellknowntypeuripayload(url:))
+- [`func readerSession(NFCNDEFReaderSession, didDetect: [any NFCNDEFTag])`](https://developer.apple.com/documentation/corenfc/nfcndefreadersessiondelegate/readersession(_:diddetect:))
 - [`NFCPaymentTagReaderSession`](https://developer.apple.com/documentation/corenfc/nfcpaymenttagreadersession)
 - [`convenience init(delegate: any NFCTagReaderSessionDelegate, queue: DispatchQueue?)`](https://developer.apple.com/documentation/corenfc/nfcpaymenttagreadersession/init(delegate:queue:))
 - [`NFCPresentmentIntentAssertion`](https://developer.apple.com/documentation/corenfc/nfcpresentmentintentassertion)
@@ -183,6 +206,10 @@
 - [`init(pollingOption: NFCTagReaderSession.PollingOption, iso7816SelectIdentifiers: [String], feliCaSystemCodes: [String])`](https://developer.apple.com/documentation/corenfc/nfctagreadersession/configuration/init(pollingoption:iso7816selectidentifiers:felicasystemcodes:))
 - [`var iso7816SelectIdentifiers: [String]`](https://developer.apple.com/documentation/corenfc/nfctagreadersession/configuration/iso7816selectidentifiers)
 - [`var pollingOption: NFCTagReaderSession.PollingOption`](https://developer.apple.com/documentation/corenfc/nfctagreadersession/configuration/pollingoption)
+- [`init(configuration: NFCTagReaderSessionConfiguration, delegate: any __NFCTagReaderSessionDelegate, queue: dispatch_queue_t)`](https://developer.apple.com/documentation/corenfc/nfctagreadersession/init(configuration:delegate:queue:)-8g6tm)
+- [`convenience init(configuration: NFCTagReaderSession.Configuration, delegate: any NFCTagReaderSessionDelegate, queue: DispatchQueue?)`](https://developer.apple.com/documentation/corenfc/nfctagreadersession/init(configuration:delegate:queue:)-soy8)
+- [`func restartPolling(configuration: NFCTagReaderSession.Configuration)`](https://developer.apple.com/documentation/corenfc/nfctagreadersession/restartpolling(configuration:))
+- [`func restartPolling(with: NFCTagReaderSessionConfiguration)`](https://developer.apple.com/documentation/corenfc/nfctagreadersession/restartpolling(with:))
 - [`let NFCTagResponseUnexpectedLengthErrorKey: String`](https://developer.apple.com/documentation/corenfc/nfctagresponseunexpectedlengtherrorkey)
 - [`NFCWindowSceneDelegate`](https://developer.apple.com/documentation/corenfc/nfcwindowscenedelegate)
 - [`func windowScene(UIWindowScene, didReceiveNFCWindowSceneEvent: NFCWindowSceneEvent)`](https://developer.apple.com/documentation/corenfc/nfcwindowscenedelegate/windowscene(_:didreceivenfcwindowsceneevent:))

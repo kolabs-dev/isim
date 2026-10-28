@@ -1,7 +1,7 @@
 # Dispatch
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 90.8% of Apple's iOS API (397 of 437, exact) · **Rows:** 14: 13 ✅ 1 🟡 · **iOS:** 8.0+
+**Symbols:** 89.5% of Apple's iOS API (391 of 437, exact) · **Rows:** 14: 13 ✅ 1 🟡 · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [Dispatch](https://developer.apple.com/documentation/dispatch) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)
@@ -33,7 +33,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-40 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+46 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -43,6 +43,8 @@
 - [`var DISPATCH_ONCE_INLINE_FASTPATH: Int32`](https://developer.apple.com/documentation/dispatch/dispatch_once_inline_fastpath)
 - [`dispatch_source_mach_recv_flags_t`](https://developer.apple.com/documentation/dispatch/dispatch_source_mach_recv_flags_t)
 - [`var DISPATCH_SWIFT3_OVERLAY: Int32`](https://developer.apple.com/documentation/dispatch/dispatch_swift3_overlay)
+- [`func enumerateBytes(block: (UnsafeBufferPointer<UInt8>, Int, inout Bool) -> Void)`](https://developer.apple.com/documentation/dispatch/dispatchdata/enumeratebytes(block:))
+- [`init(nilLiteral: ())`](https://developer.apple.com/documentation/dispatch/dispatchio/intervalflags/init(nilliteral:))
 - [`init?(rawValue: qos_class_t)`](https://developer.apple.com/documentation/dispatch/dispatchqos/qosclass-swift.enum/init(rawvalue:))
 - [`init?(rawValue: qos_class_t)`](https://developer.apple.com/documentation/dispatch/dispatchqos/qosclass-swift.enum/init(rawvalue:))
 - [`var rawValue: qos_class_t`](https://developer.apple.com/documentation/dispatch/dispatchqos/qosclass-swift.enum/rawvalue)
@@ -75,6 +77,10 @@
 - [`func scheduleRepeating(deadline: DispatchTime, interval: Double, leeway: DispatchTimeInterval)`](https://developer.apple.com/documentation/dispatch/dispatchsourcetimer/schedulerepeating(deadline:interval:leeway:)-4wtot)
 - [`func scheduleRepeating(wallDeadline: DispatchWallTime, interval: Double, leeway: DispatchTimeInterval)`](https://developer.apple.com/documentation/dispatch/dispatchsourcetimer/schedulerepeating(walldeadline:interval:leeway:)-6fiox)
 - [`func scheduleRepeating(wallDeadline: DispatchWallTime, interval: DispatchTimeInterval, leeway: DispatchTimeInterval)`](https://developer.apple.com/documentation/dispatch/dispatchsourcetimer/schedulerepeating(walldeadline:interval:leeway:)-942p7)
+- [`init(flags: DispatchWorkItemFlags, block: () -> Void)`](https://developer.apple.com/documentation/dispatch/dispatchworkitem/init(flags:block:))
+- [`func wait(timeout: DispatchTime) -> DispatchTimeoutResult`](https://developer.apple.com/documentation/dispatch/dispatchworkitem/wait(timeout:))
+- [`func wait(wallTimeout: DispatchWallTime) -> DispatchTimeoutResult`](https://developer.apple.com/documentation/dispatch/dispatchworkitem/wait(walltimeout:))
+- [`convenience init(label: String, attributes: DispatchWorkloop.Attributes, autoreleaseFrequency: DispatchQueue.AutoreleaseFrequency, osWorkgroup: WorkGroup?)`](https://developer.apple.com/documentation/dispatch/dispatchworkloop/init(label:attributes:autoreleasefrequency:osworkgroup:))
 - [`OS_dispatch_queue_global`](https://developer.apple.com/documentation/dispatch/os_dispatch_queue_global-swift.class)
 - [`OS_dispatch_queue_main`](https://developer.apple.com/documentation/dispatch/os_dispatch_queue_main-swift.class)
 
