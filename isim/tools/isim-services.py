@@ -39,6 +39,12 @@
   isim wallet remove <pass type id> <serial>       remove a pass
   isim wallet orders                               the orders Apple Pay payments added (PKPaymentOrderDetails)
   isim wallet clear                                remove every pass and order
+  isim agerange set <age>|none [--declaration KIND] [--controls communicationLimits,...] [--regulated]
+                                                   the device account's age for DeclaredAgeRange (and a child's
+                                                   parental controls for PermissionKit)
+  isim agerange show                               the age, declaration, parental controls
+  isim permission <app> list                       PermissionKit questions the app asked a parent
+  isim permission <app> approve|decline [id|all]   answer as the parent (the latest pending question by default)
 
 <app> is a bundle identifier, an .app bundle or an installed app's name. Running apps notice changes
 within half a second. Data: ISIM_DATA (~/.local/share/isim)/Containers/<bundle id>/Library/isim/; Wallet: ISIM_DATA/Library/Wallet/; StoreKit purchase
@@ -641,11 +647,87 @@ def wallet(cmd, args):
         die(f'unknown wallet command {cmd}')
 
 
+AGERANGE = os.path.join(DATA, 'Library/isim/AgeRange.json')
+DECLARATIONS = ('selfDeclared', 'guardianDeclared', 'confirmed', 'paymentChecked', 'governmentIDChecked', 'checkedByOtherMethod',
+                'guardianPaymentChecked', 'guardianGovernmentIDChecked', 'guardianCheckedByOtherMethod')
+CONTROLS = ('communicationLimits', 'significantAppChangeApprovalRequired')
+
+
+def agerange(cmd, args):
+    """the device account's age for DeclaredAgeRange (and PermissionKit's child account)"""
+    if cmd == 'show':
+        if not os.path.exists(AGERANGE):
+            print('no age set (requestAgeRange throws notAvailable)')
+            return
+        a = json.load(open(AGERANGE))
+        print(f'age {a.get("age")} declaration {a.get("declaration") or "-"} controls {",".join(a.get("controls", [])) or "-"} '
+              f'regulated {str(a.get("regulated", False)).lower()}')
+        return
+    if cmd != 'set' or not args:
+        die('usage: isim agerange set <age>|none [--declaration KIND] [--controls a,b] [--regulated] | isim agerange show')
+    if args[0] == 'none':
+        if os.path.exists(AGERANGE):
+            os.remove(AGERANGE)
+        print('age range cleared')
+        return
+    try:
+        a = {'age': int(args[0])}
+    except ValueError:
+        die(f'not an age: {args[0]}')
+    a['declaration'] = 'selfDeclared' if a['age'] >= 18 else 'guardianDeclared'
+    a['controls'], a['regulated'] = [], False
+    i = 1
+    while i < len(args):
+        if args[i] == '--declaration' and i + 1 < len(args):
+            if args[i + 1] not in DECLARATIONS:
+                die(f'unknown declaration {args[i + 1]} (one of {", ".join(DECLARATIONS)})')
+            a['declaration'] = args[i + 1]; i += 2
+        elif args[i] == '--controls' and i + 1 < len(args):
+            a['controls'] = [c for c in args[i + 1].split(',') if c]
+            bad = [c for c in a['controls'] if c not in CONTROLS]
+            if bad:
+                die(f'unknown parental control {bad[0]} (one of {", ".join(CONTROLS)})')
+            i += 2
+        elif args[i] == '--regulated':
+            a['regulated'] = True; i += 1
+        else:
+            die(f'unknown option {args[i]}')
+    os.makedirs(os.path.dirname(AGERANGE), exist_ok=True)
+    write_json(AGERANGE, a)
+    print(f'age {a["age"]} ({a["declaration"]}{", " + ",".join(a["controls"]) if a["controls"] else ""}{", regulated" if a["regulated"] else ""})')
+
+
+def permission(app, cmd, args):
+    """PermissionKit: the simulated parent answers an app's questions"""
+    bid = bundle_id(app)
+    path = os.path.join(DATA, 'Library/isim/PermissionKit', bid + '.json')
+    o = json.load(open(path)) if os.path.exists(path) else {}
+    qs = o.get('questions', [])
+    if cmd == 'list':
+        if not qs:
+            print(f'{bid}: no questions')
+        for q in qs:
+            print(f'{q["id"]} {q.get("state")} {q.get("kind")}: {q.get("summary")} ({when(q.get("created"))})')
+        return
+    if cmd not in ('approve', 'decline'):
+        die(f'unknown permission command {cmd}')
+    pending = [q for q in qs if q.get('state') == 'pending' and (not args or args[0] in ('all', q['id']))]
+    if not pending:
+        die(f'{bid}: no pending question{" " + args[0] if args and args[0] != "all" else ""}')
+    targets = pending if args and args[0] == 'all' else pending[-1:] if not args else pending
+    for q in targets:
+        q['state'] = 'approved' if cmd == 'approve' else 'declined'
+        print(f'{q["state"]} {q["id"]}: {q.get("summary")}')
+    write_json(path, o)
+
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == 'gamecenter' and sys.argv[2] in GC_NETWORK:
         sys.argv.append('')
     if len(sys.argv) == 3 and sys.argv[1] == 'storekit' and sys.argv[2] in ('certificate', 'offer-key'):
         sys.argv.append('')
+    if len(sys.argv) >= 2 and sys.argv[1] == 'agerange':
+        return agerange(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] == 'wallet':
         return wallet(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) < 4:
@@ -654,7 +736,7 @@ def main():
     kind, app, cmd, args = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:]
     if kind == 'gamecenter' and app in GC_NETWORK and cmd == '':
         cmd, args = (args[0], args[1:]) if args else ('', [])
-    {'storekit': storekit, 'gamecenter': gamecenter, 'appleid': appleid}.get(kind, lambda *a: die(f'unknown tool {kind}'))(app, cmd, args)
+    {'storekit': storekit, 'gamecenter': gamecenter, 'appleid': appleid, 'permission': permission}.get(kind, lambda *a: die(f'unknown tool {kind}'))(app, cmd, args)
 
 
 if __name__ == '__main__':

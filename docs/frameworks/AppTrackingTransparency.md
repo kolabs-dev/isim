@@ -15,6 +15,7 @@
 | API / feature | Status | iOS | Notes |
 |---|---|---|---|
 | `ATTrackingManager.requestTrackingAuthorization`, `trackingAuthorizationStatus` | ✅ | ≤17 | iOS-style prompt; choice persists per app; missing usage string is logged. Tested: HelloSignIn, test_privacy |
+| `requestTrackingAuthorization(preferExpandedInterface:additionalInformationAction:completionHandler:)` (and its async form) | ✅ | 27.2 | adapted: isim's rendition of the expanded interface, a sheet with the purpose string, Allow / Ask App Not to Track and, when the app gives an action, Learn More (runs it; the sheet stays); `false` shows the alert. Swift only for now (the Objective-C selector is not published yet). Tested (HelloAgeRange, test_agerange) |
 
 ## Not yet in isim
 

@@ -628,6 +628,11 @@ def _(a):
     a.swift_app()
 
 
+@app("samples/HelloAgeRange")   # issue #397: DeclaredAgeRange, PermissionKit, the expanded tracking prompt
+def _(a):
+    a.swift_app()
+
+
 @app("samples/HelloSharePlay", needs=("ffmpeg",))
 def _(a):
     b = a.swift_app()
