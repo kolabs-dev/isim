@@ -225,7 +225,7 @@ SWIFT_FRAMEWORKS = [
     ("Network", []),
     ("UniformTypeIdentifiers", "-framework Foundation"),   # the UTType class (the overlay's UTTypeReference) and UTCoreTypes.h
     ("MobileCoreServices", "-framework Foundation", "UniformTypeIdentifiers"),
-    ("CoreMedia", []),
+    ("CoreMedia", "-framework Foundation"),   # issue #383: CMTimeRange.c and CMBufferQueue.m use Core Foundation and blocks
     ("AVFoundation", "-framework Foundation -framework UIKit -framework CoreMedia"),
     ("CoreVideo", "-framework Foundation -framework CoreGraphics"),
     # Core Animation's classes are UIKit's (UIKit/CALayer.h): QuartzCore re-exports UIKit as well as libswiftQuartzCore
