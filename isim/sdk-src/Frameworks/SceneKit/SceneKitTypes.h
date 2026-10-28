@@ -15,7 +15,10 @@ typedef float simd_float4 __attribute__((__ext_vector_type__(4)));
 typedef struct { simd_float3 columns[3]; } simd_float3x3;
 typedef struct { simd_float4 columns[4]; } simd_float4x4;
 #endif
+#ifndef ISIM_SIMD_QUATF   /* shared with PHASE's fallback */
+#define ISIM_SIMD_QUATF 1
 typedef struct { simd_float4 vector; } simd_quatf;
+#endif
 typedef simd_float2 vector_float2;
 typedef simd_float3 vector_float3;
 typedef simd_float4 vector_float4;
