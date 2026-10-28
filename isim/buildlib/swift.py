@@ -899,6 +899,25 @@ OBJC_NAMES["Vision"] = {c: c for c in """VNRequest VNImageBasedRequest VNDetectB
     VNContour VNContoursObservation VNDetectHorizonRequest VNHorizonObservation VNPixelBufferObservation VNSaliencyImageObservation
     VNGenerateAttentionBasedSaliencyImageRequest""".split()}
 
+OBJC_NAMES["CarPlay"] = {c: c for c in """CPImageSet CPBarButton CPMessageComposeBarButton CPButton CPTextButton CPAlertAction CPTemplate CPListItem
+    CPListImageRowItemElement CPListImageRowItemGridElement CPListImageRowItemRowElement CPListImageRowItemCardElement
+    CPListImageRowItemCondensedElement CPListImageRowItemImageGridElement CPListImageRowItem
+    CPMessageListItemLeadingConfiguration CPMessageListItemTrailingConfiguration CPMessageListItem CPListSection
+    CPAssistantCellConfiguration CPListTemplateDetailsHeader CPListTemplate CPMessageGridItemConfiguration CPGridButton
+    CPGridTemplate CPTabBarTemplate CPMapButton CPTravelEstimates CPRouteChoice CPNavigationWaypoint CPTrip
+    CPTripPreviewTextConfiguration CPLane CPLaneGuidance CPManeuver CPRouteInformation CPRouteDetail CPRouteSegment
+    CPMapTemplateWaypoint CPMultiStopCardConfiguration CPChargingStationConnection CPPanelButtonConfiguration CPPanelItem CPPanel
+    CPMapPanelItem CPMapPanelSection CPMapPanelButtonConfiguration CPMapPanel CPNavigationAlert CPNavigationSession CPMapTemplate
+    CPNowPlayingButton CPNowPlayingShuffleButton CPNowPlayingRepeatButton CPNowPlayingAddToLibraryButton CPNowPlayingMoreButton
+    CPNowPlayingPlaybackRateButton CPNowPlayingImageButton CPNowPlayingTemplate CPPlaybackConfiguration CPImageOverlay
+    CPNowPlayingSportsTeamLogo CPNowPlayingSportsTeam CPNowPlayingSportsClock CPNowPlayingSportsEventStatus CPSportsOverlay
+    CPThumbnailImage CPNowPlayingMode CPNowPlayingModeSports CPSessionConfiguration CPWindow CPTemplateApplicationScene
+    CPDashboardButton CPDashboardController CPTemplateApplicationDashboardScene CPInstrumentClusterController
+    CPTemplateApplicationInstrumentClusterScene CPInterfaceController CPAlertTemplate CPActionSheetTemplate CPInformationItem
+    CPInformationRatingItem CPInformationTemplate CPPointOfInterest CPPointOfInterestTemplate CPSearchTemplate
+    CPVoiceControlState CPVoiceControlTemplate CPContactCallButton CPContactDirectionsButton CPContactMessageButton CPContact
+    CPContactTemplate""".split()}   # issue #410
+
 def objc_aliases(module):
     out = []
     for swift, objc in OBJC_NAMES.get(module, {}).items():
@@ -1044,6 +1063,7 @@ ExtensionKit -lswiftObjectiveC -lswiftFoundation -framework Foundation   # issue
 DeviceActivity -lswiftObjectiveC -lswiftFoundation -lswiftManagedSettings -lswiftExtensionFoundation -lswiftExtensionKit -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftObservation -lswiftCoreGraphics -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit   # issue #409
 Messages -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics -framework ImageIO   # issue #406: hosted by isim's Messages app
 AlarmKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftSwiftUI -lswiftAppIntents -lswiftActivityKit -lswiftCombine -lswiftCoreGraphics -lswiftObservation -framework Foundation -framework UIKit -lisim_host   # issue #405: the shell rings the alarms
+CarPlay -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftMapKit -lswiftMediaPlayer -lswiftCoreMedia -lswiftCoreLocation -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit   # issue #410: templates on a simulated CarPlay screen
 """
 
 # app-facing re-implementations: library evolution keeps their ABI stable across isim updates (since 0.12 also the base
@@ -1051,7 +1071,7 @@ AlarmKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency
 # overlays of SWIFT_FRAMEWORKS whose header declares the value types (option sets, enums, string identifiers) for Swift
 # too, like Apple's: the overlay imports that clang module (`@_exported import FileProvider`) and does not autolink the
 # framework, which re-exports the overlay
-UNDERLYING = {"FileProvider", "FileProviderUI"}
+UNDERLYING = {"FileProvider", "FileProviderUI", "CarPlay"}
 
 EVOLUTION = set("""ObjectiveC CoreMIDI QuickLookThumbnailing PencilKit ReplayKit PHASE _CKShareMetadata Accelerate VideoToolbox Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI QuickLook EventKit EventKitUI Contacts ContactsUI
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
@@ -1059,7 +1079,7 @@ GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Se
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport XPC StateReporting MetricKit CloudKit AuthenticationServices
 QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision SoundAnalysis NaturalLanguage FoundationModels Speech VisionKit WebKit SafariServices LinkPresentation Accessibility MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit TipKit Translation ImagePlayground VisualIntelligence Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit
-CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive GroupActivities GameSave DeclaredAgeRange PermissionKit FinanceKit FinanceKitUI CryptoTokenKit IdentityDocumentServices LiveCommunicationKit AlarmKit Messages ExtensionFoundation BackgroundAssets FileProvider FileProviderUI ManagedSettings ManagedSettingsUI FamilyControls ExtensionKit DeviceActivity""".split())
+CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive GroupActivities GameSave DeclaredAgeRange PermissionKit FinanceKit FinanceKitUI CryptoTokenKit IdentityDocumentServices LiveCommunicationKit AlarmKit Messages ExtensionFoundation BackgroundAssets FileProvider FileProviderUI ManagedSettings ManagedSettingsUI FamilyControls ExtensionKit DeviceActivity CarPlay""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer ReplayKit AlarmKit FamilyControls".split())
 # modules that also compile overlays/_AdAttribution (the conversion values SKAdNetwork and AdAttributionKit share)

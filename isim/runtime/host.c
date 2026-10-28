@@ -1847,6 +1847,15 @@ static int script_step(struct isim_event *ev) {
         if (!strncmp(arg, "shot ", 5) && arg[5] != '/' && getcwd(cwd, sizeof cwd)) snprintf(pending[npending - 1].text, sizeof pending->text, "display shot %s/%s", cwd, arg + 5);
         else snprintf(pending[npending - 1].text, sizeof pending->text, "display %s", arg);
         script_resume = now() + 0.3;
+    } else if (!strcmp(cmd, "carplay") && sscanf(args, " %511[^;]", arg) == 1) {
+        /* the simulated CarPlay screen (the CarPlay overlay): "carplay connect [WxH]", "carplay tap ID", "carplay shot PATH"
+           (a relative PATH is resolved here), ... */
+        for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
+        char cwd[512];
+        pending[npending++] = (struct isim_event){ .type = EV_SYSTEM };
+        if (!strncmp(arg, "shot ", 5) && arg[5] != '/' && getcwd(cwd, sizeof cwd)) snprintf(pending[npending - 1].text, sizeof pending->text, "carplay shot %s/%s", cwd, arg + 5);
+        else snprintf(pending[npending - 1].text, sizeof pending->text, "carplay %s", arg);
+        script_resume = now() + 0.3;
     } else if (!strcmp(cmd, "mainmenu")) {       /* the app's main menu: "mainmenu" logs it, "mainmenu show|hide" the keyboard shortcuts (iPad: hold Command) */
         if (sscanf(args, " %63[^; ]", arg) != 1) arg[0] = 0;
         pending[npending++] = (struct isim_event){ .type = EV_SYSTEM }; snprintf(pending[npending - 1].text, sizeof pending->text, "mainmenu %s", arg);

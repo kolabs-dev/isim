@@ -204,7 +204,8 @@ in `dump`, and `isim alarms list` lists the scheduled ones. A BackgroundAssets d
 `isim bgassets run APP install|update|periodic [--manifest URL]`; `isim bgassets pack add|remove|list` manages the
 asset packs isim hosts for an app. A file provider's domains are locations in the document picker
 (`docs-location-NAME`); `isim fileprovider list` and `isim fileprovider files DOMAIN` show the domains and what has been
-downloaded. Screen Time's monitors run on usage and a clock scripts set: `isim screentime usage APP
+downloaded. A CarPlay app's templates show on a simulated CarPlay screen: `carplay connect`, then `carplay dump` (the elements'
+ids), `carplay tap ID` and `carplay shot PATH`. Screen Time's monitors run on usage and a clock scripts set: `isim screentime usage APP
 MINUTES` and `isim screentime clock +MINUTES`; `isim screentime status` shows authorizations, activities and shields.
 
 Each device reads these from a control FIFO of its own; `--control FIFO` names one yourself (then `echo "…" > FIFO`

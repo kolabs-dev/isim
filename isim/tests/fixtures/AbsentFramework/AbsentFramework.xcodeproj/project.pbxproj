@@ -7,11 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		AB5E70000000000000000050 /* CarPlay.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB5E70000000000000000051 /* CarPlay.framework */; };
+		AB5E70000000000000000050 /* ClassKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB5E70000000000000000051 /* ClassKit.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		AB5E70000000000000000051 /* CarPlay.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CarPlay.framework; path = System/Library/Frameworks/CarPlay.framework; sourceTree = SDKROOT; };
+		AB5E70000000000000000051 /* ClassKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ClassKit.framework; path = System/Library/Frameworks/ClassKit.framework; sourceTree = SDKROOT; };
 		AB5E7000000000000000000A /* AbsentFramework.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AbsentFramework.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -24,7 +24,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AB5E70000000000000000050 /* CarPlay.framework in Frameworks */,
+				AB5E70000000000000000050 /* ClassKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

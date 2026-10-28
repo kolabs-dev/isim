@@ -29,8 +29,8 @@ def build(src, *settings):
 def test_builds_without_the_framework(launch, src):
     rc, log = build(src)
     assert rc == 0, log
-    assert re.search(r"warning: CarPlay is an iOS framework isim does not implement yet.*" + re.escape(f"{COVERAGE}#system")
-                     + r".*\(not linked\)", log), f"linking CarPlay.framework warns with its coverage: {log[-2000:]}"
+    assert re.search(r"warning: ClassKit is an iOS framework isim does not implement yet.*" + re.escape(f"{COVERAGE}#system")
+                     + r".*\(not linked\)", log), f"linking ClassKit.framework warns with its coverage: {log[-2000:]}"
     app = launch(src / "build" / "AbsentFramework.app")
     app.wait_log(r"absent: canImport\(ModelIO\) false objc ok")
     assert app.quit() == 0
@@ -53,7 +53,7 @@ def test_out_of_scope_import(src):
 
 
 def test_objc_import(src):
-    rc, log = build(src, "GCC_PREPROCESSOR_DEFINITIONS=USE_CARPLAY=1")
+    rc, log = build(src, "GCC_PREPROCESSOR_DEFINITIONS=USE_CLASSKIT=1")
     assert rc != 0
-    assert re.search(r"isim build: error: CarPlay is an iOS framework isim does not implement yet.*" + re.escape(f"{COVERAGE}#system"),
+    assert re.search(r"isim build: error: ClassKit is an iOS framework isim does not implement yet.*" + re.escape(f"{COVERAGE}#system"),
                      log), log[-2000:]
