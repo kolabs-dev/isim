@@ -68,7 +68,7 @@ COMMON = [   # check, log regex
     ("GLM regressor prediction", r"regressor y=9\.00"),
     ("GLM classifier prediction + probabilities", r"classifier label=dog p\(dog\)=0\.88 p\(cat\)=0\.12 labels=2"),
     ("neural network: described", r'neural loaded inputs=\["image"\] type=4'),
-    ("neural network: prediction fails clearly", r"neural prediction error: isim cannot run neuralNetwork models"),
+    ("neural network: prediction fails clearly", r"neural prediction error: missing input feature .image."),
     ("Xcode-compiled .mlmodelc: clear load error",
      r"xcode-compiled model error: XcodeCompiled\.mlmodelc is a model compiled by Xcode"),
     ("NLTokenizer words (contractions, abbreviations, decimals)",

@@ -1168,6 +1168,11 @@ def _(a):
     os.replace(os.path.join(b, "VImageC-Info.plist"), os.path.join(b, "Info.plist"))
 
 
+@app("tests/coreml", products=["CoreMLTest.app"])
+def _(a):
+    a.swift_app("CoreMLTest", srcs=["CoreMLTest.swift"], plist="Info.plist")
+
+
 @app("tests/spatial", products=["SpatialTest.app"])
 def _(a):
     a.swift_app("SpatialTest", srcs=["SpatialTest.swift"], plist="Info.plist")

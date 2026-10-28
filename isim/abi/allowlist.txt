@@ -813,3 +813,9 @@ usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV4modeSi
 usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV4modeSivg
 usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV4modeSivpMV
 usr/lib/swift/libswiftPhotosUI.dylib _$s8PhotosUI21PHPickerConfigurationV4modeSivs
+
+# issue #376: MLModel.availableComputeDevices returns Apple's [MLComputeDevice] (it returned an [Any] placeholder). Rebuild
+# Swift apps built with 0.6 to 0.30 that read MLModel.availableComputeDevices.
+usr/lib/swift/libswiftCoreML.dylib _$s6CoreML7MLModelC23availableComputeDevicesSayypGvgZTj
+usr/lib/swift/libswiftCoreML.dylib _$s6CoreML7MLModelC23availableComputeDevicesSayypGvgZTq
+usr/lib/swift/libswiftCoreML.dylib _$s6CoreML7MLModelC23availableComputeDevicesSayypGvpZMV
