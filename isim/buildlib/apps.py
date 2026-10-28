@@ -628,6 +628,12 @@ def _(a):
     a.swift_app()
 
 
+@app("samples/HelloFinance")   # issue #398: FinanceKit and FinanceKitUI, with the FinanceKit entitlement
+def _(a):
+    b = a.swift_app()
+    a.copy("HelloFinance.entitlements", f"{b}/archived-expanded-entitlements.xcent")
+
+
 @app("samples/HelloAgeRange")   # issue #397: DeclaredAgeRange, PermissionKit, the expanded tracking prompt
 def _(a):
     a.swift_app()

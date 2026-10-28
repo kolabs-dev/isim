@@ -42,6 +42,9 @@
   isim agerange set <age>|none [--declaration KIND] [--controls communicationLimits,...] [--regulated]
                                                    the device account's age for DeclaredAgeRange (and a child's
                                                    parental controls for PermissionKit)
+  isim finance seed|list|clear                     FinanceKit: the device's simulated Wallet financial data (an
+                                                   Apple Card and a savings account with transactions)
+  isim finance add-transaction <account> <amount> <merchant> [--type T] [--status S] [--mcc NNNN]
   isim agerange show                               the age, declaration, parental controls
   isim permission <app> list                       PermissionKit questions the app asked a parent
   isim permission <app> approve|decline [id|all]   answer as the parent (the latest pending question by default)
@@ -721,11 +724,137 @@ def permission(app, cmd, args):
     write_json(path, o)
 
 
+FINANCE = os.path.join(DATA, 'Library/isim/FinanceKit/data.json')
+TXN_TYPES = ('adjustment', 'atm', 'billPayment', 'check', 'deposit', 'directDebit', 'directDeposit', 'dividend', 'fee',
+             'interest', 'loan', 'pointOfSale', 'refund', 'standingOrder', 'transfer', 'unknown', 'withdrawal')
+
+
+def fk_now(days=0):
+    return time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(time.time() - days * 86400))
+
+
+def fk_amount(a, code='USD'):
+    return {'amount': a, 'currencyCode': code}
+
+
+def fk_load():
+    if os.path.exists(FINANCE):
+        return json.load(open(FINANCE))
+    return {'storeID': str(uuid.uuid4()).upper(), 'sequence': 0, 'accounts': [], 'balances': [], 'transactions': [], 'log': []}
+
+
+def fk_log(d, kind, op, ident, account=None):
+    d['sequence'] += 1
+    e = {'seq': d['sequence'], 'kind': kind, 'op': op, 'id': ident}
+    if account:
+        e['accountID'] = account
+    d['log'].append(e)
+
+
+def fk_account_id(d, name):
+    for a in d['accounts']:
+        body = next(iter(a.values()))['_0']
+        if body['id'] == name or body['displayName'].lower() == name.lower():
+            return body['id']
+    die(f'no account {name} (isim finance list)')
+
+
+def fk_add_account(d, kind, name, institution, description, balance, credit=None):
+    ident = str(uuid.uuid4()).upper()
+    body = {'id': ident, 'displayName': name, 'accountDescription': description, 'institutionName': institution,
+            'currencyCode': 'USD', 'openingDate': fk_now(400)}
+    if kind == 'liability':
+        body['creditInformation'] = credit or {}
+    d['accounts'].append({kind: {'_0': body}})
+    fk_log(d, 'account', 'insert', ident)
+    bal = {'amount': fk_amount(balance), 'asOfDate': fk_now(), 'creditDebitIndicator': 'debit' if kind == 'liability' else 'credit'}
+    bid = str(uuid.uuid4()).upper()
+    d['balances'].append({'id': bid, 'accountID': ident, 'currentBalance': {'availableAndBooked': {'available': bal, 'booked': bal}}})
+    fk_log(d, 'balance', 'insert', bid, ident)
+    return ident
+
+
+def fk_add_txn(d, account, amount, merchant, ttype='pointOfSale', status='booked', mcc=None, days=0):
+    ident = str(uuid.uuid4()).upper()
+    t = {'id': ident, 'accountID': account, 'transactionAmount': fk_amount(abs(amount)),
+         'creditDebitIndicator': 'credit' if amount < 0 else 'debit', 'transactionDescription': merchant,
+         'originalTransactionDescription': merchant.upper(), 'merchantName': merchant, 'transactionDate': fk_now(days),
+         'postedDate': fk_now(days) if status == 'booked' else None, 'transactionType': ttype, 'status': status}
+    if mcc is not None:
+        t['merchantCategoryCode'] = int(mcc)
+    d['transactions'].append({k: v for k, v in t.items() if v is not None})
+    fk_log(d, 'transaction', 'insert', ident, account)
+    return ident
+
+
+def finance(cmd, args):
+    """FinanceKit: the device's simulated Wallet financial data"""
+    if cmd == 'seed':
+        d = fk_load()
+        card = fk_add_account(d, 'liability', 'Apple Card', 'Apple', 'Credit card', 1234.56,
+                              {'creditLimit': fk_amount(5000), 'minimumNextPaymentAmount': fk_amount(35),
+                               'nextPaymentDueDate': fk_now(-14)})
+        savings = fk_add_account(d, 'asset', 'Savings', 'Apple', 'High-yield savings', 8200)
+        fk_add_txn(d, card, 4.75, 'Blue Bottle Coffee', mcc=5814, days=1)
+        fk_add_txn(d, card, 62.18, 'Whole Foods Market', mcc=5411, days=2)
+        fk_add_txn(d, card, 18.00, 'City Parking', mcc=7523, status='pending')
+        fk_add_txn(d, savings, -27.40, 'Interest', ttype='interest', days=3)
+        os.makedirs(os.path.dirname(FINANCE), exist_ok=True)
+        write_json(FINANCE, d)
+        print(f'seeded 2 accounts (Apple Card {card}, Savings {savings}) and 4 transactions')
+    elif cmd == 'list':
+        d = fk_load()
+        if not d['accounts']:
+            print('no financial data (isim finance seed)')
+        for a in d['accounts']:
+            kind, body = next(iter(a.items()))
+            body = body['_0']
+            print(f'{kind} {body["displayName"]} ({body["institutionName"]}) {body["id"]}')
+            for t in d['transactions']:
+                if t['accountID'] == body['id']:
+                    sign = '-' if t['creditDebitIndicator'] == 'credit' else ''
+                    print(f'  {t["transactionDate"][:10]} {t.get("merchantName", t["transactionDescription"])} {sign}{t["transactionAmount"]["amount"]} '
+                          f'{t["transactionType"]} {t["status"]}')
+    elif cmd == 'add-transaction':
+        if len(args) < 3:
+            die('usage: isim finance add-transaction <account> <amount> <merchant> [--type T] [--status S] [--mcc NNNN]')
+        d = fk_load()
+        account = fk_account_id(d, args[0])
+        try:
+            amount = float(args[1])
+        except ValueError:
+            die(f'not an amount: {args[1]}')
+        opts = {'ttype': 'pointOfSale', 'status': 'booked', 'mcc': None}
+        i = 3
+        while i + 1 < len(args) + 1 and i < len(args):
+            k = args[i]
+            if k == '--type' and i + 1 < len(args) and args[i + 1] in TXN_TYPES:
+                opts['ttype'] = args[i + 1]
+            elif k == '--status' and i + 1 < len(args) and args[i + 1] in ('authorized', 'booked', 'memo', 'pending', 'rejected'):
+                opts['status'] = args[i + 1]
+            elif k == '--mcc' and i + 1 < len(args) and args[i + 1].isdigit():
+                opts['mcc'] = args[i + 1]
+            else:
+                die(f'bad option {k}')
+            i += 2
+        ident = fk_add_txn(d, account, amount, args[2], **opts)
+        write_json(FINANCE, d)
+        print(f'added transaction {ident}: {args[2]} {amount}')
+    elif cmd == 'clear':
+        if os.path.exists(FINANCE):
+            os.remove(FINANCE)
+        print('financial data cleared')
+    else:
+        die('usage: isim finance seed|list|add-transaction|clear')
+
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == 'gamecenter' and sys.argv[2] in GC_NETWORK:
         sys.argv.append('')
     if len(sys.argv) == 3 and sys.argv[1] == 'storekit' and sys.argv[2] in ('certificate', 'offer-key'):
         sys.argv.append('')
+    if len(sys.argv) >= 2 and sys.argv[1] == 'finance':
+        return finance(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] == 'agerange':
         return agerange(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] == 'wallet':
