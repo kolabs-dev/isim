@@ -664,7 +664,7 @@ static void lock_draw(cairo_t *c, cairo_surface_t *home, int hw, int hh) {
        with a Home button by pressing it (the hint just above the bottom edge: no home indicator); only Face ID iPhones
        have the flashlight and camera (or the chosen controls) in the bottom corners */
     cairo_set_source_rgba(c, 1, 1, 1, 0.9);
-    int pad = portrait_dev.width >= 700, home_button = !pad && portrait_dev.safe_bottom == 0;
+    int pad = dev_is_pad(), home_button = !pad && portrait_dev.safe_bottom == 0;
     const char *hint = home_button ? "Press home to open" : "Swipe up to open";
     double hy = home_button ? dev.height - 34 : dev.height - 62;
     sys_text(c, hint, 0, hy, dev.width, 15, PANGO_WEIGHT_NORMAL, 1, 1, 1, 1, 1, 0.85);
@@ -2344,6 +2344,25 @@ static void sys_local_deliver(const char *path, const char *exe, const char *sid
     sys_alert(-1, n, flags);
 }
 
+/* the device folds or unfolds (script `fold open|closed|toggle`, iPhone Duo): the shell and every app take the other
+   display, in the same orientation. Apps resize (UIKit's size transition), or keep the cover's size letterboxed when
+   they are linked against an Apple SDK older than iOS 27.1 (host.c client_fold). Apps launched later start on the
+   current display (ISIM_FOLD). */
+static void shell_fold(const char *arg) {
+    if (fold_inner < 0) { fprintf(stderr, "isim shell: fold: %s does not fold\n", portrait_dev.name); return; }
+    int open = !strncmp(arg, "open", 4) ? 1 : !strncmp(arg, "closed", 6) ? 0 : !strncmp(arg, "toggle", 6) ? !fold_open : -1;
+    if (open < 0) { fprintf(stderr, "isim shell: fold: open, closed or toggle, not '%s'\n", arg); return; }
+    if (open == fold_open) { fprintf(stderr, "isim shell: already %s\n", open ? "unfolded" : "folded"); return; }
+    setenv("ISIM_FOLD", open ? "open" : "closed", 1);
+    dev.orientation = win_orient;
+    fold_set(open);
+    surf_w = (int)lround(dev.width * px_scale); surf_h = (int)lround(dev.height * px_scale);
+    if (comp) { cairo_surface_destroy(comp); comp = NULL; }
+    window_resize();
+    for (int k = 0; k < nclients; k++) if (clients[k].alive) { clients[k].has_frame = 0; sys_send_text(k, "fold %s", open ? "open" : "closed"); }
+    fprintf(stderr, "isim shell: %s, %s display (%gx%g)\n", open ? "unfolded" : "folded", open ? "inner" : "cover", dev.width, dev.height);
+    if (active >= 0) shell_send(active, EV_REDRAW);
+}
 /* script commands for the system (EV_SHELL_CMD); returns 1 when handled */
 static int sys_command(const char *text) {
     char verb[32] = {0}; int n = 0;
@@ -2363,6 +2382,7 @@ static int sys_command(const char *text) {
         sys_send_text(0, "%s %s", verb, a); return 1;
     }
     if (!strcmp(verb, "lock")) { sys_lock(); return 1; }
+    if (!strcmp(verb, "fold")) { shell_fold(args); return 1; }
     if (!strcmp(verb, "unlock")) { sys_unlock(); return 1; }
     if (!strcmp(verb, "switcher")) { if (!locked) sys_open(OV_SWITCHER); return 1; }
     if (!strcmp(verb, "notifications")) { if (!locked) sys_open(OV_NC); return 1; }

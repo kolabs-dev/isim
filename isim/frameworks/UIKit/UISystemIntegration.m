@@ -1083,6 +1083,7 @@ void isim_sys_event(const char *text) {
     NSRange sp = [t rangeOfString:@" "];
     if (sp.location != NSNotFound) { verb = [t substringToIndex:sp.location]; args = [t substringFromIndex:sp.location + 1]; }
     if ([verb isEqualToString:@"bgtask"]) run_background_task(args);
+    else if ([verb isEqualToString:@"fold"]) { extern void isim_ui_screen_changed(void); isim_ui_screen_changed(); }   /* iPhone Duo */
     else if ([verb isEqualToString:@"remote-notification"]) deliver_remote(read_push(args), 0);
     else if ([verb isEqualToString:@"nc-action"]) notification_action(args);
     else if ([verb isEqualToString:@"glasstint"]) {

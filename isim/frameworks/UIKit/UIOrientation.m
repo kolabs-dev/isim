@@ -231,6 +231,46 @@ static void rotate_interface(UIInterfaceOrientation o, BOOL animated) {
     NSLog(@"isim: interface orientation %ld (%gx%g)", (long)o, newSize.width, newSize.height);
 }
 
+/* the screen became the other display (a foldable folded or unfolded, script `fold`): the host has the new
+   geometry already; the windows, scenes and traits follow as in a rotation, without an orientation change. On the
+   inner display iOS ignores the supported orientations, so the interface keeps its orientation. */
+void isim_ui_screen_changed(void) {
+    const struct isim_device *d = isim_ui_device();
+    CGSize oldSize = CGSizeMake(d->width, d->height);
+    isim_ui_traits_flush();
+    UITraitCollection *oldTraits = isim_ui_screen_traits();
+    isim_ui_device_refresh(); isim_ui_traits_invalidate(nil);
+    d = isim_ui_device();
+    CGSize newSize = CGSizeMake(d->width, d->height);
+    UITraitCollection *newTraits = isim_ui_screen_traits();
+    __IsimRotationCoordinator *coord = [__IsimRotationCoordinator new];
+    coord.duration = 0.35;
+    coord.transform = CGAffineTransformIdentity;
+    NSArray<UIWindow *> *windows = [UIApplication.sharedApplication.windows copy];
+    BOOL traitsChange = oldTraits.horizontalSizeClass != newTraits.horizontalSizeClass || oldTraits.verticalSizeClass != newTraits.verticalSizeClass;
+    for (UIWindow *w in windows) {
+        UIViewController *root = w.rootViewController;
+        if (!root) continue;
+        if (traitsChange) [root willTransitionToTraitCollection:newTraits withTransitionCoordinator:coord];
+        [root viewWillTransitionToSize:newSize withTransitionCoordinator:coord];
+    }
+    extern void isim_ui_scenes_rotated(UIInterfaceOrientation oldOrientation, CGSize oldScreen);
+    [UIView performWithoutAnimation:^{
+        for (UIWindow *w in windows) {
+            CGRect f = w.frame;
+            if (CGSizeEqualToSize(f.size, oldSize) && CGPointEqualToPoint(f.origin, CGPointZero)) w.frame = CGRectMake(0, 0, newSize.width, newSize.height);
+            [w setNeedsLayout];
+            [w layoutIfNeeded];
+        }
+        isim_ui_scenes_rotated(interface_orientation, oldSize);
+        for (void (^a)(id) in coord.alongside) a(coord);
+    }];
+    for (void (^c)(id) in coord.completions) c(coord);
+    isim_ui_traits_flush();
+    isim_ui_set_needs_layout();
+    NSLog(@"isim: screen %gx%g (%s)", newSize.width, newSize.height, isim_device_fold_state() == 2 ? "unfolded" : "folded");
+}
+
 /* the device was turned (o > 0), or the allowed orientations may have changed (o == 0) */
 void isim_ui_device_orientation_changed(int o) {
     if (o > 0 && (UIDeviceOrientation)o != current_device_orientation()) {

@@ -131,7 +131,7 @@ static int ch_is_pad(int di) { return devices[di].d.width >= 700; }
 struct ch_geo { double W, H, sx, sy, sw, sh, bx, by, bw, bh, outer_r; int compact, rot; double it, ir, ib, il; };
 static void ch_bezel_insets(double *t, double *r, double *b, double *l) {      /* portrait, in points */
     double z = zoom;
-    if (portrait_dev.width >= 700) { *t = *r = *b = *l = fmax(10, 22 * z); return; }       /* iPad */
+    if (dev_is_pad()) { *t = *r = *b = *l = fmax(10, 22 * z); return; }       /* iPad */
     if (portrait_dev.corner_radius <= 0) { *l = *r = fmax(8, 16 * z); *t = *b = fmax(30, 76 * z); return; }   /* Home button */
     *t = *r = *b = *l = fmax(8, 13 * z);
 }
@@ -159,7 +159,7 @@ static struct ch_geo ch_layout(void) {
     g.bw = g.il + sw + g.ir; g.bh = g.it + sh + g.ib;
     g.sx = g.bx + g.il; g.sy = g.by + g.it;
     double cr0 = dev.corner_radius * zoom;
-    g.outer_r = cr0 > 0 ? cr0 + fmin(g.il, g.it) : (portrait_dev.width >= 700 ? 0 : fmax(14, 54 * zoom));
+    g.outer_r = cr0 > 0 ? cr0 + fmin(g.il, g.it) : (dev_is_pad() ? 0 : fmax(14, 54 * zoom));
     return g;
 }
 /* a window bigger or smaller than its layout (maximized; or fitted to a small screen, window_size) shows the layout at one
