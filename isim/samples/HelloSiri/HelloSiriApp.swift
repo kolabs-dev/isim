@@ -5,8 +5,9 @@
 //   calls updateAppShortcutParameters() so Siri knows its name.
 // - CupsTodayIntent: a value and a dialog; AddNoteIntent: a required String parameter with requestValueDialog;
 //   ClearOrdersIntent: an action that is not an App Shortcut; ResetIntent: not discoverable.
-// - SiriKit: the Intents extension (messages, calls, the shopping list, music), INCreateNoteIntent handled in the app
-//   (application(_:handlerFor:)), music played in the app (application(_:handle:)), a call continued in the app
+// - SiriKit: the Intents extension (messages, calls, the shopping list, music, payments, the club car, workouts,
+//   photos: Intents/Domains.swift), INCreateNoteIntent handled in the app
+//   (application(_:handlerFor:)), music and workouts in the app (application(_:handle:)), a call and photos continued in the app
 //   (NSUserActivity with its INInteraction), Siri authorization, a donation, Add to Siri.
 // - SiriKitTypes.swift: the app's vocabulary, relevant shortcuts, INObjectCollection and INCurrencyAmount.
 // - Discovery.swift: App Intents donations, Spotlight entities, URL representations and the other intent kinds.
@@ -142,12 +143,32 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         log("handler for \(type(of: intent)) in the app")
         return intent is INCreateNoteIntent ? NoteHandler() : nil
     }
-    /// music Siri resolved in the extension (.handleInApp)
+    /// music and workouts Siri resolved in the extension (.handleInApp)
     func application(_ application: UIApplication, handle intent: INIntent, completionHandler: @escaping (INIntentResponse) -> Void) {
-        let title = (intent as? INPlayMediaIntent)?.mediaItems?.first?.title ?? "?"
-        nowPlaying = title
-        log("playing \(title)")
-        completionHandler(INPlayMediaIntentResponse(code: .success, userActivity: nil))
+        switch intent {
+        case let w as INStartWorkoutIntent:
+            let name = w.workoutName?.spokenPhrase ?? "workout"
+            workout = ["name": name, "state": "running", "goal": w.goalValue.map { "\($0)" } ?? "open"]
+            log("workout \(name) started (goal \(workout?["goal"] ?? "-"), \(w.workoutLocationType == .indoor ? "indoor" : "outdoor"))")
+            completionHandler(INStartWorkoutIntentResponse(code: .success, userActivity: nil))
+        case is INPauseWorkoutIntent:
+            workout?["state"] = "paused"; log("workout paused")
+            completionHandler(INPauseWorkoutIntentResponse(code: .success, userActivity: nil))
+        case is INResumeWorkoutIntent:
+            workout?["state"] = "running"; log("workout resumed")
+            completionHandler(INResumeWorkoutIntentResponse(code: .success, userActivity: nil))
+        case is INEndWorkoutIntent:
+            log("workout \(workout?["name"] ?? "?") ended"); workout = nil
+            completionHandler(INEndWorkoutIntentResponse(code: .success, userActivity: nil))
+        case is INCancelWorkoutIntent:
+            log("workout \(workout?["name"] ?? "?") cancelled"); workout = nil
+            completionHandler(INCancelWorkoutIntentResponse(code: .success, userActivity: nil))
+        default:
+            let title = (intent as? INPlayMediaIntent)?.mediaItems?.first?.title ?? "?"
+            nowPlaying = title
+            log("playing \(title)")
+            completionHandler(INPlayMediaIntentResponse(code: .success, userActivity: nil))
+        }
     }
 }
 final class NoteHandler: NSObject, INCreateNoteIntentHandling {
@@ -195,6 +216,20 @@ struct AddToSiri: UIViewControllerRepresentable {
 
 struct ContentView: View {
     @ObservedObject var model = AppModel.shared
+    /// Siri's photo search or slideshow, continued in the app with its intent
+    func photos(_ a: NSUserActivity) {
+        let i = a.interaction?.intent
+        let search = i as? INSearchForPhotosIntent, show = i as? INStartPhotoPlaybackIntent
+        let album: String? = search?.albumName ?? show?.albumName
+        let place: String? = (search?.locationCreated ?? show?.locationCreated)?.name
+        let people: [INPerson] = search?.peopleInPhoto ?? show?.peopleInPhoto ?? []
+        let who: String? = people.isEmpty ? nil : people.map { $0.displayName }.joined(separator: ", ")
+        let what = [album, place, who].compactMap { $0 }.joined(separator: " · ")
+        let n = (a.interaction?.intentResponse as? INSearchForPhotosIntentResponse)?.searchResultsCount
+             ?? (a.interaction?.intentResponse as? INStartPhotoPlaybackIntentResponse)?.searchResultsCount ?? 0
+        model.last = "\(show != nil ? "Slideshow" : "Photos"): \(what.isEmpty ? "all" : what) (\(n))"
+        log("continued \(a.activityType): \(model.last)")
+    }
     @State var tip = true
     @State var addToSiri = false
     @State var tick = 0
@@ -210,6 +245,9 @@ struct ContentView: View {
                     Text("Orders: \(orders)").accessibilityIdentifier("orders")
                     Text("Note: \(UserDefaults.standard.string(forKey: "note") ?? "-")").accessibilityIdentifier("note")
                     Text("Sent: \(sentMessages.last ?? "-")").accessibilityIdentifier("sent")
+                    Text("Paid: \(paymentLog.last ?? "-")").accessibilityIdentifier("paid")
+                    Text("Ride: \(currentRide.map { "\($0["option"] ?? "") to \($0["to"] ?? "")" } ?? "-")").accessibilityIdentifier("ride")
+                    Text("Workout: \(workout.map { "\($0["name"] ?? "") (\($0["state"] ?? ""))" } ?? "-")").accessibilityIdentifier("workout")
                     Text(model.last).accessibilityIdentifier("last")
                 }
                 Section("Siri") {
@@ -257,6 +295,8 @@ struct ContentView: View {
             model.last = "Calling \(call?.contacts?.first?.displayName ?? "?")"
             log("continued \(a.activityType): \(model.last)")
         }
+        .onContinueUserActivity("INSearchForPhotosIntent") { a in photos(a) }
+        .onContinueUserActivity("INStartPhotoPlaybackIntent") { a in photos(a) }
         .onOpenURL { url in log("opened \(url.absoluteString)") }
         .onAppear {
             SiriKitTypes.vocabulary()

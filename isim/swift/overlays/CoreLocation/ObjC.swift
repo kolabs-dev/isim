@@ -163,6 +163,56 @@ extension CLGeocoder {
     @objc(cancelGeocode) func _objc_cancel() { cancelGeocode() }
 }
 
+// Intents' places: CLPlacemark (INIntentsAdditions) for Objective-C, and isim-private helpers isim's Intents uses to
+// make a placemark from what was said to Siri ("a ride to Apple Park") and to pass placemarks between processes
+extension CLPlacemark {
+    @objc(placemarkWithLocation:name:postalAddress:)
+    class func _objc_placemark(location: CLLocation, name: String?, postalAddress: NSObject?) -> CLPlacemark {
+        func field(_ k: String) -> String? {
+            guard let a = postalAddress, a.responds(to: Selector(k)), let v = a.value(forKey: k) as? String, !v.isEmpty else { return nil }
+            return v
+        }
+        return CLPlacemark(_isimName: name, location: location, thoroughfare: field("street"), locality: field("city"),
+                           administrativeArea: field("state"), postalCode: field("postalCode"), country: field("country"), isoCountryCode: field("ISOCountryCode"))
+    }
+    /// a place by name: the offline gazetteer's (Apple Park, Union Square, …), else a placemark with only the name
+    @objc(_isim_placemarkNamed:) class func _isim_placemarkNamed(_ name: String) -> CLPlacemark {
+        let q = name.trimmingCharacters(in: .whitespaces)
+        if let p = _CLGazetteer.search(q).first { return CLPlacemark(p) }
+        return CLPlacemark(_isimName: q, location: nil)
+    }
+    @objc(_isim_placemarkPlist) var _isim_placemarkPlist: NSDictionary {
+        let d = NSMutableDictionary()
+        d.setObject("CLPlacemark", forKey: "$class" as NSString)
+        for (k, v) in [("name", name as String?), ("thoroughfare", [subThoroughfare, thoroughfare].compactMap { $0 }.joined(separator: " ")), ("locality", locality),
+                       ("administrativeArea", administrativeArea), ("postalCode", postalCode), ("country", country), ("isoCountryCode", isoCountryCode)] {
+            if let v, !v.isEmpty { d.setObject(v, forKey: k as NSString) }
+        }
+        if let c = location?.coordinate {
+            d.setObject(NSNumber(value: c.latitude), forKey: "latitude" as NSString); d.setObject(NSNumber(value: c.longitude), forKey: "longitude" as NSString)
+        }
+        return d
+    }
+    @objc(_isim_placemarkWithPlist:) class func _isim_placemark(plist d: NSDictionary) -> CLPlacemark {
+        let s = { (k: String) in d[k] as? String }
+        var loc: CLLocation?
+        if let lat = d["latitude"] as? Double, let lon = d["longitude"] as? Double { loc = CLLocation(latitude: lat, longitude: lon) }
+        return CLPlacemark(_isimName: s("name"), location: loc, thoroughfare: s("thoroughfare"), locality: s("locality"), administrativeArea: s("administrativeArea"),
+                           postalCode: s("postalCode"), country: s("country"), isoCountryCode: s("isoCountryCode"))
+    }
+}
+
+extension CLLocation {
+    @objc(_isim_locationPlist) var _isim_locationPlist: NSDictionary {
+        ["$class": "CLLocation", "latitude": coordinate.latitude, "longitude": coordinate.longitude, "altitude": altitude, "course": course, "speed": speed] as NSDictionary
+    }
+    @objc(_isim_locationWithPlist:) class func _isim_location(plist d: NSDictionary) -> CLLocation {
+        let n = { (k: String) in (d[k] as? Double) ?? 0 }
+        return CLLocation(coordinate: CLLocationCoordinate2D(latitude: n("latitude"), longitude: n("longitude")), altitude: n("altitude"), horizontalAccuracy: 10,
+                          verticalAccuracy: 10, course: n("course"), speed: n("speed"), timestamp: Date())
+    }
+}
+
 // isim-private: the simulated location as the app sees it (UserNotifications' location triggers read it)
 extension CLLocationManager {
     @objc(_isim_simulatedLocation) class func _isim_simulatedLocation() -> CLLocation? { _CLSim.shared.current() }

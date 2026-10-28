@@ -972,7 +972,7 @@ LocalAuthentication -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSecu
 DeviceCheck -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCryptoKit -lswiftSecurity -framework Foundation
 BackgroundTasks -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
 UserNotifications -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftCoreLocation -framework Foundation -framework UIKit -framework UserNotifications
-Intents -lswiftObjectiveC -lswiftFoundation -lswiftCoreLocation -framework Foundation -framework Intents   # INFocusStatus.isFocused as Bool?, INMediaDestination
+Intents -lswiftObjectiveC -lswiftFoundation -lswiftCoreLocation -lswiftContacts -framework Foundation -framework Intents   # INFocusStatus.isFocused as Bool?, INMediaDestination, CLPlacemark, Int?/Double?/Bool? (issue #411)
 CoreML -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreVideo -lswiftCoreGraphics -framework Foundation -framework CoreGraphics
 Vision -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftFoundationModels -lswiftCoreVideo -lswiftCoreImage -lswiftCoreMedia -lswiftAudioToolbox -lswiftCoreML -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics -framework CoreImage -framework ImageIO -lisim_host
 SoundAnalysis -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftAVFoundation -lswiftCoreMedia -lswiftCoreVideo -lswiftAudioToolbox -lswiftCoreML -lswiftUIKit -lswiftCoreGraphics -framework Foundation -lisim_host   # issue #368

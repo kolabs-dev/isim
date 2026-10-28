@@ -18,6 +18,7 @@
 // SiriKit intents run in the app's Intents extension (a helper process) or in the app. The runner writes step-N.plist
 // (value / choice / confirm questions, then the result), this file answers with answer-N.plist (see
 // frameworks/Intents/INSiriRunner.m for the keys).
+#include <time.h>
 #import "SpringBoard.h"
 #include <sys/stat.h>
 
@@ -116,6 +117,43 @@ static NSArray *people_plist(NSString *names) {
     return a;
 }
 static NSDictionary *speakable(NSString *s) { return @{ @"$class": @"INSpeakableString", @"spokenPhrase": [s stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet] }; }
+/* "$20", "20 dollars", "€4.50": an INCurrencyAmount plist (dollars when no currency is said) */
+static NSDictionary *currency_plist(NSString *text) {
+    NSString *t = text.lowercaseString, *code = @"USD";
+    NSDictionary *codes = @{ @"$": @"USD", @"dollar": @"USD", @"€": @"EUR", @"euro": @"EUR", @"£": @"GBP", @"pound": @"GBP", @"¥": @"JPY", @"yen": @"JPY" };
+    for (NSString *k in codes) if ([t containsString:k]) code = codes[k];
+    NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:@"[0-9]+(?:\\.[0-9]+)?" options:0 error:NULL];
+    NSTextCheckingResult *m = [re firstMatchInString:t options:0 range:NSMakeRange(0, t.length)];
+    if (!m) return nil;
+    return @{ @"$class": @"INCurrencyAmount", @"amount": @{ @"$class": @"NSDecimalNumber", @"value": [t substringWithRange:m.range] }, @"currencyCode": code };
+}
+/* a place Siri heard: the handler looks the name up (CoreLocation's gazetteer) */
+static NSDictionary *place_plist(NSString *name) { return @{ @"$class": @"CLPlacemark", @"name": [name stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet] }; }
+/* "2023", "this year", "last year": a year as an INDateComponentsRange plist */
+static NSDictionary *year_plist(NSString *text) {
+    NSString *t = text.lowercaseString;
+    time_t now = time(NULL); struct tm tm; localtime_r(&now, &tm);
+    NSInteger y = [t isEqualToString:@"this year"] ? tm.tm_year + 1900 : [t isEqualToString:@"last year"] ? tm.tm_year + 1899 : t.integerValue;
+    if (y < 1900 || y > 3000) return nil;
+    return @{ @"$class": @"INDateComponentsRange", @"startDateComponents": @{ @"$class": @"NSDateComponents", @"year": @(y), @"month": @1, @"day": @1 },
+              @"endDateComponents": @{ @"$class": @"NSDateComponents", @"year": @(y), @"month": @12, @"day": @31 } };
+}
+/* a workout goal: "5 miles", "10 km", "30 minutes", "300 calories" -> value, INWorkoutGoalUnitType */
+static void workout_goal(NSString *value, NSString *unit, NSMutableDictionary *p) {
+    NSString *u = unit.lowercaseString;
+    double v = value.doubleValue;
+    NSInteger type = 0;                                     /* INWorkoutGoalUnitType */
+    if ([u hasPrefix:@"k"] && ![u hasPrefix:@"kc"] && ![u hasPrefix:@"kilocal"]) { type = 2; v *= 1000; }   /* kilometers: meters */
+    else if ([u hasPrefix:@"mi"] && ![u hasPrefix:@"min"]) type = 4;
+    else if ([u hasPrefix:@"met"]) type = 2;
+    else if ([u hasPrefix:@"y"]) type = 5;
+    else if ([u hasPrefix:@"f"]) type = 3;
+    else if ([u hasPrefix:@"s"]) type = 6;
+    else if ([u hasPrefix:@"min"]) type = 7;
+    else if ([u hasPrefix:@"h"]) type = 8;
+    else if ([u containsString:@"cal"]) type = 10;
+    p[@"goalValue"] = @(v); p[@"workoutGoalUnitType"] = @(type); p[@"isOpenEnded"] = @NO;
+}
 /* an intent plist from structured values (the script form, and the phrasings below) */
 static NSDictionary *intent_plist(NSString *cls, NSDictionary<NSString *, NSString *> *v) {
     NSMutableDictionary *p = [@{ @"$class": cls, @"identifier": NSUUID.UUID.UUIDString } mutableCopy];
@@ -153,6 +191,35 @@ static NSDictionary *intent_plist(NSString *cls, NSDictionary<NSString *, NSStri
         if (v[@"title"]) p[@"title"] = speakable(v[@"title"]);
         if (v[@"content"]) p[@"content"] = @{ @"$class": @"INTextNoteContent", @"text": v[@"content"] };
         if (v[@"folder"]) p[@"groupName"] = speakable(v[@"folder"]);
+    } else if ([cls isEqualToString:@"INSendPaymentIntent"] || [cls isEqualToString:@"INRequestPaymentIntent"]) {
+        NSString *who = v[@"payee"] ?: v[@"payer"] ?: v[@"person"];
+        if (who) p[[cls isEqualToString:@"INSendPaymentIntent"] ? @"payee" : @"payer"] = person_plist(who);
+        if (v[@"amount"] && currency_plist(v[@"amount"])) p[@"currencyAmount"] = currency_plist(v[@"amount"]);
+        if (v[@"note"]) p[@"note"] = v[@"note"];
+    } else if ([cls isEqualToString:@"INRequestRideIntent"] || [cls isEqualToString:@"INListRideOptionsIntent"]) {
+        if (v[@"pickup"]) p[@"pickupLocation"] = place_plist(v[@"pickup"]);
+        if (v[@"dropOff"] ?: v[@"to"]) p[@"dropOffLocation"] = place_plist(v[@"dropOff"] ?: v[@"to"]);
+        if (v[@"option"]) p[@"rideOptionName"] = speakable(v[@"option"]);
+        if (v[@"party"]) p[@"partySize"] = @([v[@"party"] integerValue]);
+    } else if ([cls isEqualToString:@"INGetRideStatusIntent"]) {
+    } else if ([cls isEqualToString:@"INCancelRideIntent"] || [cls isEqualToString:@"INSendRideFeedbackIntent"]) {
+        if (v[@"ride"]) p[@"rideIdentifier"] = v[@"ride"];
+        if (v[@"rating"]) p[@"rating"] = @([v[@"rating"] integerValue]);
+        if (v[@"tip"] && currency_plist(v[@"tip"])) p[@"tip"] = currency_plist(v[@"tip"]);
+    } else if ([cls isEqualToString:@"INStartWorkoutIntent"]) {
+        if (v[@"name"]) p[@"workoutName"] = speakable(v[@"name"]);
+        if (v[@"goal"]) workout_goal(v[@"goal"], v[@"unit"] ?: @"", p);
+        else p[@"isOpenEnded"] = @YES;
+        NSString *loc = [v[@"location"] lowercaseString];
+        p[@"workoutLocationType"] = @([loc hasPrefix:@"in"] ? 2 : [loc hasPrefix:@"out"] ? 1 : 0);   /* INWorkoutLocationType */
+    } else if ([cls isEqualToString:@"INPauseWorkoutIntent"] || [cls isEqualToString:@"INResumeWorkoutIntent"] || [cls isEqualToString:@"INEndWorkoutIntent"] || [cls isEqualToString:@"INCancelWorkoutIntent"]) {
+        if (v[@"name"]) p[@"workoutName"] = speakable(v[@"name"]);
+    } else if ([cls isEqualToString:@"INSearchForPhotosIntent"] || [cls isEqualToString:@"INStartPhotoPlaybackIntent"]) {
+        if (v[@"album"]) p[@"albumName"] = v[@"album"];
+        if (v[@"location"]) p[@"locationCreated"] = place_plist(v[@"location"]);
+        if (v[@"people"]) p[@"peopleInPhoto"] = people_plist(v[@"people"]);
+        if (v[@"terms"]) p[@"searchTerms"] = [v[@"terms"] componentsSeparatedByString:@","];
+        if (v[@"year"] && year_plist(v[@"year"])) p[@"dateCreated"] = year_plist(v[@"year"]);
     } else if (![cls hasPrefix:@"IN"]) {                   /* a custom intent (.intentdefinition): the values as typed;
                                                               the app converts them to the parameters' types */
         for (NSString *k in v) p[k] = v[k];
@@ -172,9 +239,12 @@ static NSString *rx(NSString *pattern, NSString *text, NSArray **groups) {
    "show my messages [from Anna]", "edit my last message to say TEXT", "unsend my last message", "play NAME", "shuffle NAME",
    "add NAME to my library", "add NAME to my PLAYLIST playlist", "search for NAME", "add TASK to [my] LIST [list]", "remind me to TASK",
    "create / make / take a note [saying TEXT]", "note TEXT"; each may end with "using|with|in|on APP" */
+static NSDictionary *siri_parse_domains(NSString *t, NSString **cls);
 static NSDictionary *siri_parse(NSString *text, NSString **cls) {
     NSArray *g = nil;
     NSString *t = [text stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@" .!?"]];
+    NSDictionary *d = siri_parse_domains(t, cls);       /* payments, rides, workouts, photos (before "call", "play" and "search") */
+    if (d) return d;
     if (rx(@"^(?:send|text) (?:a )?(?:new )?(?:message|text|imessage) to (.+?)(?: (?:saying|that says|that|with|says|:) (.+))?$", t, &g) ||
         rx(@"^(?:message|text) (.+?)(?: (?:saying|that says|that|with)) (.+)$", t, &g) || rx(@"^tell (.+?) (?:that )?(.+)$", t, &g)) {
         *cls = @"INSendMessageIntent";
@@ -209,6 +279,85 @@ static NSDictionary *siri_parse(NSString *text, NSString **cls) {
         return [g[0] length] ? @{ @"title": g[0], @"content": g[0] } : @{};
     }
     if (rx(@"^note (?:that )?(.+)$", t, &g)) { *cls = @"INCreateNoteIntent"; return @{ @"title": g[0], @"content": g[0] }; }
+    return nil;
+}
+/* payments: "send|pay NAME $20 [for NOTE]", "send $20 to NAME [for NOTE]", "request $15 from NAME [for NOTE]", "ask NAME for $15";
+   rides: "get|book|call|order me a [OPTION] ride|car|taxi [from PLACE] to PLACE [for N people]", "where's my ride",
+   "cancel my ride", "rate my ride N stars", "tip my driver $5"; workouts: "start a [N UNIT] [indoor|outdoor] run|walk|…",
+   "pause|resume|end|cancel my workout"; photos: "show|find photos [of PEOPLE|THINGS] [from PLACE|YEAR]", "show my NAME album",
+   "play a slideshow [of my NAME album|of PEOPLE|from PLACE]" */
+static NSString *const kMoney = @"((?:[$€£¥] ?[0-9]+(?:\\.[0-9]+)?)|(?:[0-9]+(?:\\.[0-9]+)? ?(?:dollars?|euros?|pounds?|yen)))";
+static NSString *const kWorkouts = @"(run|walk|cycle|bike ride|ride|swim|hike|yoga|dance|elliptical|rower|rowing|stair climb|stairs|hiit|high intensity interval training|workout|exercise|cross training|crosstraining)";
+static NSDictionary *photo_query(NSString *of, NSString *from) {
+    NSMutableDictionary *v = [NSMutableDictionary dictionary];
+    of = [of stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+    if (of.length) {
+        unichar c = [of characterAtIndex:0];                /* "of Anna" (a name) or "of dogs" (search terms) */
+        if ([NSCharacterSet.uppercaseLetterCharacterSet characterIsMember:c]) v[@"people"] = of; else v[@"terms"] = [of stringByReplacingOccurrencesOfString:@" and " withString:@","];
+    }
+    if (from.length) { if (year_plist(from)) v[@"year"] = from; else v[@"location"] = from; }
+    return v;
+}
+static NSDictionary *siri_parse_domains(NSString *t, NSString **cls) {
+    NSArray *g = nil;
+    if (rx([NSString stringWithFormat:@"^(?:send|pay|venmo) %@ to (.+?)(?: for (.+))?$", kMoney], t, &g)) {
+        *cls = @"INSendPaymentIntent";
+        NSMutableDictionary *v = [@{ @"payee": g[1], @"amount": g[0] } mutableCopy]; if ([g[2] length]) v[@"note"] = g[2]; return v;
+    }
+    if (rx([NSString stringWithFormat:@"^(?:send|pay|venmo) (.+?) %@(?: for (.+))?$", kMoney], t, &g)) {
+        *cls = @"INSendPaymentIntent";
+        NSMutableDictionary *v = [@{ @"payee": g[0], @"amount": g[1] } mutableCopy]; if ([g[2] length]) v[@"note"] = g[2]; return v;
+    }
+    if (rx([NSString stringWithFormat:@"^request %@ from (.+?)(?: for (.+))?$", kMoney], t, &g) ||
+        rx([NSString stringWithFormat:@"^ask (.+?) for %@(?: for (.+))?$", kMoney], t, &g)) {
+        *cls = @"INRequestPaymentIntent";
+        BOOL ask = [t.lowercaseString hasPrefix:@"ask"];
+        NSMutableDictionary *v = [@{ @"payer": ask ? g[0] : g[1], @"amount": ask ? g[1] : g[0] } mutableCopy]; if ([g[2] length]) v[@"note"] = g[2]; return v;
+    }
+    if (rx(@"^(?:send money|make a payment|pay someone)$", t, &g)) { *cls = @"INSendPaymentIntent"; return @{}; }
+    if (rx(@"^(?:get|book|call|order|request) (?:me )?(?:a |an )?(?:(.+?) )?(?:ride|car|taxi|cab)(?: from (.+?))?(?: to (.+?))?(?: for ([0-9]+|one|two|three|four|five|six)(?: people| persons| passengers)?)?$", t, &g)) {
+        *cls = @"INRequestRideIntent";
+        NSMutableDictionary *v = [NSMutableDictionary dictionary];
+        if ([g[0] length] && ![[g[0] lowercaseString] isEqualToString:@"new"]) v[@"option"] = g[0];
+        if ([g[1] length]) v[@"pickup"] = g[1];
+        if ([g[2] length]) v[@"dropOff"] = g[2];
+        if ([g[3] length]) {
+            NSUInteger w = [@[@"zero", @"one", @"two", @"three", @"four", @"five", @"six"] indexOfObject:[g[3] lowercaseString]];
+            v[@"party"] = w != NSNotFound ? [NSString stringWithFormat:@"%lu", (unsigned long)w] : g[3];
+        }
+        return v;
+    }
+    if (rx(@"^(?:where(?:'s|’s| is) my (?:ride|car|driver|taxi|cab)|(?:what's|what’s|what is) the status of my ride|(?:check|show) (?:on )?my ride|how far (?:away )?is my (?:ride|driver))$", t, &g)) { *cls = @"INGetRideStatusIntent"; return @{}; }
+    if (rx(@"^cancel my (?:ride|car|taxi|cab)$", t, &g)) { *cls = @"INCancelRideIntent"; return @{}; }
+    if (rx(@"^(?:rate|give) my (?:last )?(?:ride|driver) ([1-5])(?: stars?)?$", t, &g)) { *cls = @"INSendRideFeedbackIntent"; return @{ @"rating": g[0] }; }
+    if (rx([NSString stringWithFormat:@"^tip my (?:last )?driver %@$", kMoney], t, &g)) { *cls = @"INSendRideFeedbackIntent"; return @{ @"tip": g[0] }; }
+    if (rx([NSString stringWithFormat:@"^(?:start|begin|go for) (?:a |an |my )?(?:([0-9]+(?:\\.[0-9]+)?) ?(miles?|mi|kilometers?|km|meters?|yards?|feet|minutes?|min|hours?|calories?|kcal) )?(indoor |outdoor )?%@(?: workout)?$", kWorkouts], t, &g)) {
+        *cls = @"INStartWorkoutIntent";
+        NSMutableDictionary *v = [NSMutableDictionary dictionary];
+        NSString *name = [g[3] lowercaseString];
+        if (![name isEqualToString:@"workout"] && ![name isEqualToString:@"exercise"]) v[@"name"] = [name isEqualToString:@"bike ride"] || [name isEqualToString:@"ride"] ? @"cycle" : name;
+        if ([g[0] length]) { v[@"goal"] = g[0]; v[@"unit"] = g[1]; }
+        if ([g[2] length]) v[@"location"] = [g[2] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+        return v;
+    }
+    if (rx([NSString stringWithFormat:@"^(pause|resume|continue|restart|end|stop|finish|cancel) (?:my |the )?(?:%@ )?workout$", kWorkouts], t, &g) ||
+        rx([NSString stringWithFormat:@"^(pause|resume|end|stop|finish) (?:my |the )?%@$", kWorkouts], t, &g)) {
+        NSString *verb = [g[0] lowercaseString];
+        *cls = [verb isEqualToString:@"pause"] ? @"INPauseWorkoutIntent" : [verb isEqualToString:@"resume"] || [verb isEqualToString:@"continue"] || [verb isEqualToString:@"restart"] ? @"INResumeWorkoutIntent"
+             : [verb isEqualToString:@"cancel"] ? @"INCancelWorkoutIntent" : @"INEndWorkoutIntent";
+        return [g[1] length] && ![[g[1] lowercaseString] isEqualToString:@"workout"] ? @{ @"name": [g[1] lowercaseString] } : @{};
+    }
+    if (rx(@"^(?:play|start|show) (?:me )?(?:a )?slide ?show(?: of (?:my )?(.+?) album)?(?: of (.+?))?(?: from (.+?))?$", t, &g)) {
+        *cls = @"INStartPhotoPlaybackIntent";
+        NSMutableDictionary *v = [photo_query(g[1], g[2]) mutableCopy];
+        if ([g[0] length]) v[@"album"] = g[0];
+        return v;
+    }
+    if (rx(@"^(?:show|open|find) (?:me )?my (.+?) (?:photo )?album$", t, &g)) { *cls = @"INSearchForPhotosIntent"; return @{ @"album": g[0] }; }
+    if (rx(@"^(?:show|find|search for|look for|get) (?:me )?(?:my |all |the )?(?:photos|pictures|pics|videos)(?: of (.+?))?(?: (?:from|in|at|taken in|taken at) (.+?))?$", t, &g)) {
+        *cls = @"INSearchForPhotosIntent";
+        return photo_query(g[0], g[1]);
+    }
     return nil;
 }
 /* `siri intent CLASS key=value key="two words" ...` */
@@ -732,11 +881,25 @@ static NSString *last_sent_message(HSApp *a) {
     }
     return nil;
 }
+/* the last ride Siri booked with the app (for "cancel my ride", "rate my ride") */
+static NSString *last_ride(HSApp *a) {
+    for (NSDictionary *e in [container_plist(a, @"Interactions.plist")[@"interactions"] reverseObjectEnumerator]) {
+        if (![e[@"intent"][@"$class"] isEqual:@"INRequestRideIntent"] && ![e[@"intent"][@"$class"] isEqual:@"INGetRideStatusIntent"]) continue;
+        NSString *ident = e[@"intentResponse"][@"rideStatus"][@"rideIdentifier"];
+        if (ident.length) return ident;
+    }
+    return nil;
+}
 - (void)runSiriKit:(NSDictionary *)intent app:(HSApp *)a source:(NSString *)source {
     NSString *cls = intent[@"$class"];
     NSMutableArray *vocab = [NSMutableArray array];
     for (NSArray *entries in [container_plist(a, @"Vocabulary.plist")[@"types"] allValues]) [vocab addObjectsFromArray:entries];
     if (vocab.count) intent = with_vocabulary(intent, vocab, a);
+    if (([cls isEqualToString:@"INCancelRideIntent"] || [cls isEqualToString:@"INSendRideFeedbackIntent"]) && ![intent[@"rideIdentifier"] length]) {
+        NSString *last = last_ride(a);
+        NSLog(@"SpringBoard: Siri's last ride with %@: %@", a.name, last ?: @"none");
+        NSMutableDictionary *m = [intent mutableCopy]; m[@"rideIdentifier"] = last ?: @""; intent = m;
+    }
     if (([cls isEqualToString:@"INEditMessageIntent"] && !intent[@"messageIdentifier"]) || ([cls isEqualToString:@"INUnsendMessagesIntent"] && !intent[@"messageIdentifiers"])) {
         NSString *last = last_sent_message(a);
         NSMutableDictionary *m = [intent mutableCopy];
@@ -755,7 +918,8 @@ static NSString *last_sent_message(HSApp *a) {
                              : [NSString stringWithFormat:@"You’ll need to open %@ and allow it to use Siri first.", a.name], a, nil);
         return;
     }
-    if (siri_locked && [@[@"INSendMessageIntent", @"INSearchForMessagesIntent", @"INEditMessageIntent", @"INUnsendMessagesIntent"] containsObject:cls]) {
+    if (siri_locked && [@[@"INSendMessageIntent", @"INSearchForMessagesIntent", @"INEditMessageIntent", @"INUnsendMessagesIntent", @"INSendPaymentIntent",
+                          @"INRequestPaymentIntent", @"INRequestRideIntent", @"INListRideOptionsIntent", @"INSearchForPhotosIntent", @"INStartPhotoPlaybackIntent"] containsObject:cls]) {
         siri_say(@"You’ll need to unlock your iPhone first.", a, nil); return;
     }
     NSDictionary *ext = extension_for_point(a, @"com.apple.intents-service", cls);
@@ -872,11 +1036,27 @@ static NSString *last_sent_message(HSApp *a) {
     if (step[@"detail"]) ui[@"detail"] = step[@"detail"];
     if (step[@"snippet"]) ui[@"snippet"] = step[@"snippet"];
     NSLog(@"SpringBoard: Siri says “%@”%@", dialog, step[@"snippet"] ? @" (with a snippet view)" : @"");
+    if ([step[@"updates"] boolValue]) [self followUpdates:r ui:ui];
     if (r.uiExtension && step[@"interaction"] && ![outcome isEqualToString:@"cancelled"]) {
         [self runUIExtension:r interaction:step[@"interaction"] confirm:NO done:^(NSString *png) { if (png) { ui[@"snippet"] = png; [ui removeObjectForKey:@"detail"]; } siri_ui(ui); }];
         return;
     }
     siri_ui(ui);
+}
+/* a ride's status: the app's updates (INGetRideStatusIntentResponseObserver) refresh Siri's answer while it is shown */
+- (void)followUpdates:(HSIntentRun *)r ui:(NSMutableDictionary *)ui {
+    __block NSInteger n = 0;
+    double start = isim_time();
+    [NSTimer scheduledTimerWithTimeInterval:0.2 repeats:YES block:^(NSTimer *t) {
+        if (isim_time() - start > 10 || ![ui_mode isEqualToString:@"result"]) { [t invalidate]; return; }
+        NSDictionary *u = [NSDictionary dictionaryWithContentsOfFile:[r.dir stringByAppendingPathComponent:[NSString stringWithFormat:@"update-%ld.plist", (long)n + 1]]];
+        if (!u) return;
+        n++;
+        ui[@"text"] = u[@"dialog"] ?: ui[@"text"];
+        if ([u[@"detail"] length]) ui[@"detail"] = u[@"detail"];
+        NSLog(@"SpringBoard: Siri updates the ride: “%@”", ui[@"text"]);
+        siri_ui(ui);
+    }];
 }
 /* like iOS, Siri donates the interactions it handled (the app's Siri Suggestions in the Shortcuts app) */
 - (void)donate:(NSDictionary *)interaction app:(HSApp *)a {

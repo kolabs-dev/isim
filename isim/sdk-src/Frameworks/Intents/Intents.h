@@ -363,6 +363,49 @@ typedef NS_OPTIONS(NSUInteger, INMessageAttributeOptions) {
 @property (readonly, copy, nullable) NSDateComponents *startDateComponents;
 @property (readonly, copy, nullable) NSDateComponents *endDateComponents;
 @end
+API_AVAILABLE(ios(10.0))
+@interface INDateComponentsRangeResolutionResult : INIntentResolutionResult
++ (instancetype)successWithResolvedDateComponentsRange:(INDateComponentsRange *)resolvedDateComponentsRange NS_SWIFT_NAME(success(with:));
++ (instancetype)disambiguationWithDateComponentsRangesToDisambiguate:(NSArray<INDateComponentsRange *> *)dateComponentsRangesToDisambiguate NS_SWIFT_NAME(disambiguation(with:));
++ (instancetype)confirmationRequiredWithDateComponentsRangeToConfirm:(nullable INDateComponentsRange *)dateComponentsRangeToConfirm NS_SWIFT_NAME(confirmationRequired(with:));
+@end
+
+/* places (CLPlacemark): the rides and photos domains. CLPlacemark is the CoreLocation Swift overlay's class, so Swift sees
+   these as objects (NS_REFINED_FOR_SWIFT) and isim's Intents overlay gives them their CLPlacemark types. */
+#if !defined(__swift__)
+#define IN_PLACEMARK CLPlacemark *
+#define IN_LOCATION CLLocation *
+#define IN_REFINED_FOR_SWIFT_CL
+#else
+#define IN_PLACEMARK id
+#define IN_LOCATION id
+#define IN_REFINED_FOR_SWIFT_CL NS_REFINED_FOR_SWIFT
+#endif
+API_AVAILABLE(ios(10.0))
+@interface INPlacemarkResolutionResult : INIntentResolutionResult
+#if !defined(__swift__)
++ (instancetype)successWithResolvedPlacemark:(CLPlacemark *)resolvedPlacemark;
++ (instancetype)disambiguationWithPlacemarksToDisambiguate:(NSArray<CLPlacemark *> *)placemarksToDisambiguate;
++ (instancetype)confirmationRequiredWithPlacemarkToConfirm:(nullable CLPlacemark *)placemarkToConfirm;
+#else   /* typed in the Intents overlay */
++ (instancetype)successWithResolvedPlacemark:(id)resolvedPlacemark NS_SWIFT_NAME(__success(with:));
++ (instancetype)disambiguationWithPlacemarksToDisambiguate:(NSArray *)placemarksToDisambiguate NS_SWIFT_NAME(__disambiguation(with:));
++ (instancetype)confirmationRequiredWithPlacemarkToConfirm:(nullable id)placemarkToConfirm NS_SWIFT_NAME(__confirmationRequired(with:));
+#endif
+@end
+#if !defined(__swift__)
+/* a place for an intent: CLPlacemark (INIntentsAdditions). isim: postalAddress is a CNPostalAddress (Contacts), read by key */
+@interface CLPlacemark (INIntentsAdditions)
++ (instancetype)placemarkWithLocation:(CLLocation *)location name:(nullable NSString *)name postalAddress:(nullable id)postalAddress API_AVAILABLE(ios(10.0));
+@end
+#endif
+
+/* how several values of a parameter combine (photos: searchTerms, peopleInPhoto) */
+typedef NS_ENUM(NSInteger, INConditionalOperator) {
+    INConditionalOperatorAll = 0,
+    INConditionalOperatorAny,
+    INConditionalOperatorNone,
+} API_AVAILABLE(ios(10.0));
 @interface INSearchForMessagesIntent : INIntent
 - (instancetype)initWithRecipients:(nullable NSArray<INPerson *> *)recipients senders:(nullable NSArray<INPerson *> *)senders searchTerms:(nullable NSArray<NSString *> *)searchTerms attributes:(INMessageAttributeOptions)attributes dateTimeRange:(nullable INDateComponentsRange *)dateTimeRange identifiers:(nullable NSArray<NSString *> *)identifiers notificationIdentifiers:(nullable NSArray<NSString *> *)notificationIdentifiers speakableGroupNames:(nullable NSArray<INSpeakableString *> *)speakableGroupNames conversationIdentifiers:(nullable NSArray<NSString *> *)conversationIdentifiers;
 @property (readonly, copy, nullable) NSArray<INPerson *> *recipients;
@@ -1060,3 +1103,9 @@ API_AVAILABLE(ios(12.0))
 @end
 
 NS_ASSUME_NONNULL_END
+
+/* ---------------- payments, rides, workouts and photos (issue #411) ---------------- */
+#import <Intents/INPaymentsDomain.h>
+#import <Intents/INRidesharingDomain.h>
+#import <Intents/INWorkoutsDomain.h>
+#import <Intents/INPhotosDomain.h>

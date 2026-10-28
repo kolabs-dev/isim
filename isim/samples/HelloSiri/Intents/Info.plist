@@ -25,12 +25,29 @@
 				<string>INUnsendMessagesIntent</string>
 				<string>INAddMediaIntent</string>
 				<string>INSearchForMediaIntent</string>
+				<string>INSendPaymentIntent</string>
+				<string>INRequestPaymentIntent</string>
+				<string>INListRideOptionsIntent</string>
+				<string>INRequestRideIntent</string>
+				<string>INGetRideStatusIntent</string>
+				<string>INCancelRideIntent</string>
+				<string>INSendRideFeedbackIntent</string>
+				<string>INStartWorkoutIntent</string>
+				<string>INPauseWorkoutIntent</string>
+				<string>INResumeWorkoutIntent</string>
+				<string>INEndWorkoutIntent</string>
+				<string>INCancelWorkoutIntent</string>
+				<string>INSearchForPhotosIntent</string>
+				<string>INStartPhotoPlaybackIntent</string>
 			</array>
 			<key>IntentsRestrictedWhileLocked</key>
 			<array>
 				<string>INSendMessageIntent</string>
 				<string>INEditMessageIntent</string>
 				<string>INUnsendMessagesIntent</string>
+				<string>INSendPaymentIntent</string>
+				<string>INRequestPaymentIntent</string>
+				<string>INRequestRideIntent</string>
 			</array>
 		</dict>
 		<key>NSExtensionPointIdentifier</key>

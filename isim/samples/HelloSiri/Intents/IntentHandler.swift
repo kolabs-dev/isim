@@ -1,6 +1,7 @@
 // HelloSiri's Intents extension: messages to club members (resolution with disambiguation, confirmation), message
 // search, editing and unsending a sent message, calls (continued in the app), the shopping list, music (played by the
-// app: .handleInApp), adding music to a playlist and searching for it.
+// app: .handleInApp), adding music to a playlist and searching for it. Payments, the club car, workouts and photos:
+// Domains.swift.
 import Intents
 
 class IntentHandler: INExtension, INSendMessageIntentHandling, INSearchForMessagesIntentHandling, INStartCallIntentHandling,

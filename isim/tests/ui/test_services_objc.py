@@ -46,6 +46,8 @@ def test_services_objc(launch):
                  r"page=37 caps=3 placeholder=\.a\.txt\.icloud wrote=1 add=not-found ui=FPUIErrorDomain$")   # FileProvider (#408)
     dev.wait_log(r"^sy carplay sections=1 enabled=0 bar=0 tabs=2 index=0 np=1 upnext=1 maneuver=(?:CPManeuverTypeRightTurn|\?) grid=8 "
                  r"role=CPTemplateApplicationSceneSessionRoleApplication domain=CarPlayErrorDomain$")   # CarPlay (#410; maneuverType: iOS 17.4, isim's 17 is 17.0)
+    dev.wait_log(r"^sy siri payee=Ben Ito amount=20 ride=Apple Park party=2 pay=8 phase=5 driver=Sam status=3 workout=run goal=5 unit=4 "
+                 r"photos=Latte Art attrs=65 people=1 back=Apple Park backPhase=5 res=INPlacemarkResolutionResult price=18-22 id=INStartWorkoutIntent$")   # SiriKit (#411)
     dev.wait_log(r"^sy unknown call error=com\.apple\.CallKit\.error\.requesttransaction/4$")
 
     # MultipeerConnectivity: Ann browses, finds Ben, invites him; data both ways

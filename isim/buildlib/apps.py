@@ -538,7 +538,7 @@ def _(a):
 @app("samples/HelloSiri")
 def _(a):   # App Intents + SiriKit: the app, its Intents extension and its Intents UI extension
     b = a.swift_app(srcs=["HelloSiriApp.swift", "Discovery.swift", "SiriKitTypes.swift", "Shared.swift"], link=["-framework", "Intents", "-framework", "IntentsUI"])
-    exts = [a.appex(b, "HelloSiriIntents", ["Intents/IntentHandler.swift", "Shared.swift"], "Intents/Info.plist", link=["-framework", "Intents"]),
+    exts = [a.appex(b, "HelloSiriIntents", ["Intents/IntentHandler.swift", "Intents/Domains.swift", "Shared.swift"], "Intents/Info.plist", link=["-framework", "Intents"]),
             a.appex(b, "HelloSiriIntentsUI", ["IntentsUI/MessageViewController.swift"], "IntentsUI/Info.plist", link=["-framework", "Intents", "-framework", "IntentsUI"])]
     for d in [b] + exts:                                       # Siri, and the app group the app and its extension share
         a.copy("HelloSiri.entitlements", f"{d}/archived-expanded-entitlements.xcent")
@@ -577,7 +577,8 @@ def _(a):
                                           "-framework", "AVFoundation", "-framework", "BackgroundTasks", "-framework", "CoreSpotlight",
                                           "-framework", "SafariServices", "-framework", "MultipeerConnectivity", "-framework", "CoreGraphics",
                                           "-framework", "Messages", "-framework", "BackgroundAssets", "-framework", "FileProvider",
-                                          "-framework", "FileProviderUI", "-framework", "UniformTypeIdentifiers", "-framework", "CarPlay"])
+                                          "-framework", "FileProviderUI", "-framework", "UniformTypeIdentifiers", "-framework", "CarPlay",
+                                          "-framework", "Intents", "-framework", "CoreLocation"])
 
 
 @app("samples/HelloAuthObjC")   # after the overlays: AuthenticationServices.framework re-exports its Swift overlay (issue #305)
