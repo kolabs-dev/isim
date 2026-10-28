@@ -488,6 +488,18 @@ def _(a):   # FileProvider: the app, its replicated file provider extension and 
     a.icon(f"{b}/icon.png", "#5ac8fa", "#0a84ff", "N")   # the location's icon in the document picker
 
 
+@app("samples/HelloScreenTime")
+def _(a):   # Screen Time: the app with its monitor, shield configuration, shield action and report extensions
+    b = a.swift_app(srcs=["HelloScreenTime.swift"])
+    xs = [a.appex(b, "HelloScreenTimeMonitor", ["Monitor/Monitor.swift"], "Monitor/Info.plist", link=["-framework", "UIKit"]),
+          a.appex(b, "HelloScreenTimeShieldConfig", ["ShieldConfig/ShieldConfig.swift"], "ShieldConfig/Info.plist", link=["-framework", "UIKit"]),
+          a.appex(b, "HelloScreenTimeShieldAction", ["ShieldAction/ShieldAction.swift"], "ShieldAction/Info.plist", link=["-framework", "UIKit"]),
+          a.appex(b, "HelloScreenTimeReport", ["Report/Report.swift"], "Report/Info.plist", link=["-framework", "UIKit"], extension=False)]
+    for d in [b] + xs:
+        a.copy("HelloScreenTime.entitlements", f"{d}/archived-expanded-entitlements.xcent")
+    a.icon(f"{b}/icon.png", "#5e5ce6", "#3634a3", "F")
+
+
 @app("samples/HelloAssetPacks")
 def _(a):   # managed asset packs (iOS 26): the managed downloader extension targets iOS 26
     b = a.swift_app(srcs=["HelloAssetPacks.swift"])

@@ -127,6 +127,10 @@ NSString *HSCategoryName(NSString *category);
 - (void)installBackgroundAssetsObservers;
 - (void)discoverBackgroundAssets;                              /* from reload: the install event of new apps */
 @end
+@interface HomeViewController (ScreenTime)                       /* SBScreenTime.m: shields, Device Activity monitors */
+- (void)installScreenTimeObservers;
+- (BOOL)screenTimeShield:(HSApp *)a;                             /* YES: a shield covers the app instead */
+@end
 @interface HomeViewController (Notifications)
 - (void)installNotificationObservers;    /* remote notifications (push routing), badges, expanded notifications */
 @end
