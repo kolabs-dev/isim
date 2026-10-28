@@ -12,6 +12,11 @@
  *    window (the form was submitted), "Save Password?" asks to keep it. oneTimeCode fields offer the code of a text
  *    message that arrived in the last three minutes (script `sms TEXT`). Settings > Passwords > AutoFill Passwords
  *    turns it off.
+ *  - Credential provider extensions (adapted): the identities enabled providers saved with AuthenticationServices'
+ *    ASCredentialIdentityStore ($ISIM_DATA/Library/isim/CredentialProviders/<extension>.json; Settings > Passwords >
+ *    Password Options turns providers on) are offered too: passwords in username / password fields, one-time codes in
+ *    oneTimeCode fields. Picking one loads the provider's extension into the app and runs it
+ *    (isim_as_provide_credential in AuthenticationServices), which fills the fields with what it returns.
  *  - Dictation (adapted): the keyboard's mic key starts listening (the key turns blue, a "Listening" pill shows
  *    above the field); `dictate TEXT` is what was said: spoken punctuation ("period", "comma", "question mark",
  *    "new line", ...) becomes characters, sentences are capitalised, and the result goes through
@@ -28,6 +33,7 @@
 #import "UITextInputImpl.h"
 #import <UIKit/UIScribbleInteraction.h>
 #import <UIKit/UITextView.h>
+#include <dlfcn.h>
 #include <math.h>
 #include <ctype.h>
 #include <sys/stat.h>
@@ -226,6 +232,48 @@ static NSString *recent_code(void) { return last_code && -last_code_at.timeInter
 
 @implementation __IsimAutoFillSuggestion
 @end
+
+/* ================= credential provider extensions ================= */
+static NSArray<NSDictionary *> *provider_stores(void) {
+    NSArray *on = global_prefs()[@"AutoFillProviders"];
+    if (![on isKindOfClass:[NSArray class]] || !on.count) return @[];
+    NSString *dir = [data_dir() stringByAppendingPathComponent:@"Library/isim/CredentialProviders"];
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *f in [[NSFileManager.defaultManager contentsOfDirectoryAtPath:dir error:NULL] sortedArrayUsingSelector:@selector(compare:)]) {
+        if (![f hasSuffix:@".json"]) continue;
+        NSData *d = [NSData dataWithContentsOfFile:[dir stringByAppendingPathComponent:f]];
+        NSDictionary *st = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:NULL] : nil;
+        if ([st isKindOfClass:[NSDictionary class]] && [on containsObject:st[@"bundleID"]]) [out addObject:st];
+    }
+    return out;
+}
+static NSString *service_host(NSDictionary *r) {
+    NSString *svc = [r[@"service"] isKindOfClass:[NSString class]] ? r[@"service"] : @"";
+    if ([r[@"serviceType"] integerValue] == 1) { NSString *h = [NSURL URLWithString:svc].host; if (h) svc = h; }
+    return svc.lowercaseString;
+}
+/* [store, identity] pairs of a kind (password / oneTimeCode) for the app's sites, highest rank first */
+static NSArray<NSArray *> *provider_identities(NSString *kind) {
+    NSMutableArray *out = [NSMutableArray array];
+    NSArray *sites = app_sites();
+    for (NSDictionary *st in provider_stores())
+        for (NSDictionary *r in st[@"identities"])
+            if ([r isKindOfClass:[NSDictionary class]] && [r[@"kind"] isEqual:kind] && [sites containsObject:service_host(r)]) [out addObject:@[ st, r ]];
+    [out sortWithOptions:NSSortStable usingComparator:^NSComparisonResult(NSArray *a, NSArray *b) {
+        NSInteger ra = [a[1][@"rank"] integerValue], rb = [b[1][@"rank"] integerValue];
+        return ra == rb ? NSOrderedSame : ra > rb ? NSOrderedAscending : NSOrderedDescending;
+    }];
+    return out;
+}
+/* loads the provider's extension (it links AuthenticationServices) and runs it for the identity */
+static void run_provider(NSDictionary *store, NSDictionary *identity, void (^done)(NSDictionary *result)) {
+    if (!dlopen([store[@"executable"] UTF8String], RTLD_NOW)) { NSLog(@"isim: AutoFill: cannot load the provider %@: %s", store[@"bundleID"], dlerror()); return; }
+    void (*provide)(NSDictionary *, NSDictionary *, void (^)(NSDictionary *)) =
+        (void (*)(NSDictionary *, NSDictionary *, void (^)(NSDictionary *)))dlsym(RTLD_DEFAULT, "isim_as_provide_credential");
+    if (!provide) { NSLog(@"isim: AutoFill: the provider %@ does not use AuthenticationServices", store[@"bundleID"]); return; }
+    NSLog(@"isim: AutoFill: %@ from %@", identity[@"user"], store[@"name"]);
+    provide(store, identity, done);
+}
 /* AuthenticationServices' AutoFill-assisted requests (performAutoFillAssistedRequests): passkeys offered in the QuickType
    bar of username fields. The provider returns dictionaries {title, subtitle, action (a block)}; nil clears it. */
 static NSArray<NSDictionary *> *(^assisted_provider)(void);
@@ -236,6 +284,20 @@ NSArray<__IsimAutoFillSuggestion *> *isim_ui_autofill_suggestions(id target) {
     NSMutableArray *out = [NSMutableArray array];
     __weak UIView *weakTarget = target;
     if ([t isEqualToString:UITextContentTypeOneTimeCode]) {
+        for (NSArray *pair in provider_identities(@"oneTimeCode")) {
+            if (out.count == 2) break;
+            __IsimAutoFillSuggestion *s = [__IsimAutoFillSuggestion new];
+            s.title = pair[1][@"user"]; s.subtitle = pair[0][@"name"]; s.symbol = @"key.fill";
+            s.action = ^{
+                run_provider(pair[0], pair[1], ^(NSDictionary *r) {
+                    UIView<IsimEditableText> *f = (UIView<IsimEditableText> *)weakTarget;
+                    if (!f || ![r[@"code"] isKindOfClass:[NSString class]]) { NSLog(@"isim: AutoFill: no code from %@", pair[0][@"name"]); return; }
+                    fill_field(f, r[@"code"]);
+                    NSLog(@"isim: AutoFill: one-time code from %@", pair[0][@"name"]);
+                });
+            };
+            [out addObject:s];
+        }
         NSString *code = recent_code();
         if (!code) return out;
         __IsimAutoFillSuggestion *s = [__IsimAutoFillSuggestion new];
@@ -278,6 +340,19 @@ NSArray<__IsimAutoFillSuggestion *> *isim_ui_autofill_suggestions(id target) {
             s.action = d[@"action"];
             [out addObject:s];
         }
+    for (NSArray *pair in provider_identities(@"password")) {
+        if (out.count == 3) break;
+        __IsimAutoFillSuggestion *s = [__IsimAutoFillSuggestion new];
+        s.title = pair[1][@"user"]; s.subtitle = pair[0][@"name"]; s.symbol = @"key.fill";
+        s.action = ^{
+            run_provider(pair[0], pair[1], ^(NSDictionary *r) {
+                UIView *v = weakTarget;
+                if (!v || ![r[@"password"] isKindOfClass:[NSString class]]) { NSLog(@"isim: AutoFill: no password from %@", pair[0][@"name"]); return; }
+                autofill_credentials(v, @{ @"user": r[@"user"] ?: @"", @"password": r[@"password"], @"site": pair[0][@"name"] ?: @"" });
+            });
+        };
+        [out addObject:s];
+    }
     for (NSDictionary *c in credentials_for_app()) {
         if (out.count == 3) break;
         __IsimAutoFillSuggestion *s = [__IsimAutoFillSuggestion new];

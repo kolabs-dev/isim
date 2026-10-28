@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Vault</string>
+	<key>CFBundleExecutable</key>
+	<string>Upgrade</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.isim.samples.HelloVault.Upgrade</string>
+	<key>CFBundlePackageType</key>
+	<string>XPC!</string>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionAttributes</key>
+		<dict>
+			<key>ASAccountAuthenticationModificationSupportsStrongPasswordChange</key>
+			<true/>
+			<key>ASAccountAuthenticationModificationSupportsUpgradeToSignInWithApple</key>
+			<true/>
+		</dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.authentication-services-account-authentication-modification-ui</string>
+		<key>NSExtensionPrincipalClass</key>
+		<string>Upgrade.AccountModificationViewController</string>
+	</dict>
+</dict>
+</plist>

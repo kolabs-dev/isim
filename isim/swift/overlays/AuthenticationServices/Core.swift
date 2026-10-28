@@ -26,6 +26,8 @@ public struct ASAuthorizationError: Error, CustomNSError, Hashable, Sendable {
     public enum Code: Int, Sendable {
         case unknown = 1000, canceled = 1001, invalidResponse = 1002, notHandled = 1003, failed = 1004, notInteractive = 1005
         case matchedExcludedCredential = 1006
+        /// iOS 26
+        case credentialImport = 1007, credentialExport = 1008, preferSignInWithApple = 1009, deviceNotConfiguredForPasskeyCreation = 1010
     }
     public let code: Code
     public init(_ code: Code) { self.code = code }
@@ -38,6 +40,11 @@ public struct ASAuthorizationError: Error, CustomNSError, Hashable, Sendable {
     public static var notHandled: Code { .notHandled }
     public static var failed: Code { .failed }
     public static var notInteractive: Code { .notInteractive }
+    public static var matchedExcludedCredential: Code { .matchedExcludedCredential }
+    public static var credentialImport: Code { .credentialImport }
+    public static var credentialExport: Code { .credentialExport }
+    public static var preferSignInWithApple: Code { .preferSignInWithApple }
+    public static var deviceNotConfiguredForPasskeyCreation: Code { .deviceNotConfiguredForPasskeyCreation }
 }
 public func ~= (code: ASAuthorizationError.Code, error: Error) -> Bool {
     (error as? ASAuthorizationError)?.code == code
@@ -199,6 +206,11 @@ public enum ASUserDetectionStatus: Int, Sendable { case unsupported = 0, unknown
         let keyRegistrations = authorizationRequests.compactMap { $0 as? ASAuthorizationSecurityKeyPublicKeyCredentialRegistrationRequest }
         let keyAssertions = authorizationRequests.compactMap { $0 as? ASAuthorizationSecurityKeyPublicKeyCredentialAssertionRequest }
         guard !authorizationRequests.isEmpty else { fail(.unknown); return }
+        if let sso = authorizationRequests.lazy.compactMap({ $0 as? ASAuthorizationSingleSignOnRequest }).first { _ASSSO.perform(self, sso); return }
+        if let create = authorizationRequests.lazy.compactMap({ $0 as? ASAuthorizationAccountCreationPlatformPublicKeyCredentialRequest }).first {
+            if options.contains(.preferImmediatelyAvailableCredentials) { fail(.notInteractive); return }
+            _ASAccountCreation.present(self, create); return
+        }
 
         if let reg = registrations.first {
             if reg._requestStyle == 1 { _ASSheets.registerConditionally(self, reg); return }
@@ -206,6 +218,12 @@ public enum ASUserDetectionStatus: Int, Sendable { case unsupported = 0, unknown
             if _ASPasskeys.excluded(reg) {
                 NSLog("isim AuthenticationServices: a passkey in excludedCredentials is already saved for %@", reg.relyingPartyIdentifier)
                 fail(.matchedExcludedCredential); return
+            }
+            // an enabled credential provider that takes passkeys saves it (its UI); else iCloud Keychain's sheet
+            if let x = _ASPasskeys.passkeyProviders().first {
+                NSLog("isim AuthenticationServices: passkey registration for %@ goes to the credential provider %@", reg.relyingPartyIdentifier, x.name)
+                _ASPasskeys.providerRegistration(self, reg, x) {}
+                return
             }
             _ASSheets.presentPasskeyRegistration(self, reg); return
         }
@@ -226,6 +244,9 @@ public enum ASUserDetectionStatus: Int, Sendable { case unsupported = 0, unknown
         for a in assertions {
             for k in _ASPasskeys.load(a.relyingPartyIdentifier) where a.allowedCredentials.isEmpty || a.allowedCredentials.contains(where: { $0.credentialID == k.credentialID }) {
                 choices.append(.passkey(a, k))
+            }
+            for (store, k) in _ASProviders.passkeys(a.relyingPartyIdentifier) where a.allowedCredentials.isEmpty || a.allowedCredentials.contains(where: { $0.credentialID == k.credentialID }) {
+                choices.append(.providerPasskey(a, store, k))
             }
         }
         for a in keyAssertions {

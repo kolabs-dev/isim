@@ -244,6 +244,8 @@ public enum ASAuthorizationResult {
     case securityKeyAssertion(ASAuthorizationSecurityKeyPublicKeyCredentialAssertion)
     case securityKeyRegistration(ASAuthorizationSecurityKeyPublicKeyCredentialRegistration)
     case customMethod(ASAuthorizationCustomMethod)
+    /// iOS 26: an account created with a passkey (ASAuthorizationAccountCreationProvider)
+    case passkeyAccountCreation(ASAuthorizationAccountCreationPlatformPublicKeyCredential)
 
     init?(_ c: ASAuthorizationCredential) {
         switch c {
@@ -253,6 +255,7 @@ public enum ASAuthorizationResult {
         case let c as ASAuthorizationPlatformPublicKeyCredentialRegistration: self = .passkeyRegistration(c)
         case let c as ASAuthorizationSecurityKeyPublicKeyCredentialAssertion: self = .securityKeyAssertion(c)
         case let c as ASAuthorizationSecurityKeyPublicKeyCredentialRegistration: self = .securityKeyRegistration(c)
+        case let c as ASAuthorizationAccountCreationPlatformPublicKeyCredential: self = .passkeyAccountCreation(c)
         default: return nil
         }
     }
