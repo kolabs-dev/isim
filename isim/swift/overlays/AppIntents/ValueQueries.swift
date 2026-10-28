@@ -47,7 +47,11 @@ enum _IsimValueQueries {
             do {
                 if let found = try await results(q, request) {
                     NSLog("isim AppIntents: %@ found %ld value(s) for %@", _isimTypeName(q), found.count, input)
-                    values += found.map { $0.plist }
+                    values += found.map {                    /* with the entity's type: the system opens it with the app's OpenIntent for it */
+                        var p = $0.plist
+                        if let e = $0.value as? any AppEntity { p["entity"] = _isimTypeName(type(of: e)) }
+                        return p
+                    }
                 }
             } catch {
                 failure = (error as? LocalizedError)?.errorDescription ?? "\(error)"
