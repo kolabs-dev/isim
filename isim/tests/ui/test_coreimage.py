@@ -35,7 +35,7 @@ def checks(launch_module):
 def test_registry(checks, ios):
     log, rc = checks
     assert rc == 0, "exits cleanly"
-    count = 236 if major(ios) >= 18 else 235
+    count = 243 if major(ios) >= 26 else 239 if major(ios) >= 18 else 235   # iOS 18 and 26 add filters (issue #380)
     assert f"ci registry count {count} blur 15 gaussian display Gaussian Blur radius default 10 min 0 max 100 " \
            "type CIAttributeTypeDistance" in log, "filterNames(inCategory:), attributes"
     assert 'ci registry localized Sepia Tone keys ["inputImage", "inputIntensity"] ["outputImage"]' in log

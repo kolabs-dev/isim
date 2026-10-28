@@ -190,6 +190,31 @@ void ci_register_geometry_filters(void) {
         float s = NUM(kCIInputScaleKey, 1), ar = NUM(kCIInputAspectRatioKey, 1);
         return resample(im, s * ar, s, 3, ^float(float x) { return fabsf(x) < 3 ? sinc(x) * sinc(x / 3) : 0; });
     });
+    /* iOS 18: each output pixel is the maximum of the source pixels it covers (no averaging; nearest when enlarging) */
+    REG(@"CIMaximumScaleTransform", {
+        CIImage *im = IMG(kCIInputImageKey); if (!im) return nil;
+        double sy = fmax(NUM(kCIInputScaleKey, 1), 1e-6), sx = sy * fmax(NUM(kCIInputAspectRatioKey, 1), 1e-6);
+        CGRect e = im.extent;
+        if (ci_infinite(e) || CGRectIsEmpty(e)) return im;
+        CGRect oe = ci_integral(CGRectMake(e.origin.x * sx, e.origin.y * sy, e.size.width * sx, e.size.height * sy));
+        return ci_op(oe, ^(CGRect r, float *out, const ci_rctx *rc) {
+            ci_buf b = ci_buf_render(im, CGRectMake(r.origin.x / sx - 1, r.origin.y / sy - 1, r.size.width / sx + 2, r.size.height / sy + 2), 0, rc);
+            int W = (int)r.size.width, H = (int)r.size.height;
+            for (int j = 0; j < H; j++) for (int i = 0; i < W; i++) {
+                double X = ci_px_x(r, i), Y = ci_px_y(r, j);
+                int xa = (int)floor((X - 0.5) / sx), xb = (int)ceil((X + 0.5) / sx) - 1, ya = (int)floor((Y - 0.5) / sy), yb = (int)ceil((Y + 0.5) / sy) - 1;
+                if (xb < xa) xb = xa; if (yb < ya) yb = ya;
+                float m[4] = { 0 }; BOOL any = NO;
+                for (int y = ya; y <= yb; y++) for (int x = xa; x <= xb; x++) {
+                    const float *p = ci_buf_at(&b, x, y); if (!p) continue;
+                    for (int k = 0; k < 4; k++) m[k] = any ? fmaxf(m[k], p[k]) : p[k];
+                    any = YES;
+                }
+                memcpy(out + ((size_t)j * W + i) * 4, m, sizeof m);
+            }
+            ci_buf_free(&b);
+        });
+    });
     REG(@"CIEdgePreserveUpsampleFilter", {
         CIImage *im = IMG(kCIInputImageKey), *small = IMG(@"inputSmallImage"); if (!im) return nil;
         if (!small || CGRectIsEmpty(small.extent) || ci_infinite(im.extent)) return im;

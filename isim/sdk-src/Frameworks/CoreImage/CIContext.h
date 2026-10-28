@@ -16,6 +16,7 @@ extern CIContextOption const kCIContextPriorityRequestLow;
 extern CIContextOption const kCIContextAllowLowPower;
 extern CIContextOption const kCIContextName;
 extern CIContextOption const kCIContextMemoryLimit;
+extern CIContextOption const kCIContextMemoryTarget API_AVAILABLE(ios(17.0));   /* isim: accepted, ignored (CPU rendering) */
 
 /* isim: every context renders on the CPU (in parallel bands); a context made with a CGContext draws into it */
 @interface CIContext : NSObject
@@ -44,6 +45,9 @@ extern CIContextOption const kCIContextMemoryLimit;
 - (void)reclaimResources;
 - (CGSize)inputImageMaximumSize;
 - (CGSize)outputImageMaximumSize;
+/* iOS 26: the image tagged with its content headroom (its brightest value over SDR white, at least 1) and its average light
+   level (the mean luminance over SDR white), measured by rendering it in extended linear sRGB */
+- (nullable CIImage *)calculateHDRStatsForImage:(CIImage *)image NS_SWIFT_NAME(calculateHDRStats(for:)) API_AVAILABLE(ios(26.0));
 @end
 
 typedef NSString *CIImageRepresentationOption NS_TYPED_ENUM;

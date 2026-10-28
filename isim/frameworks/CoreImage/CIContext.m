@@ -8,7 +8,8 @@ CIContextOption const kCIContextOutputColorSpace = @"output_color_space", kCICon
     kCIContextWorkingFormat = @"working_format", kCIContextHighQualityDownsample = @"high_quality_downsample",
     kCIContextOutputPremultiplied = @"output_premultiplied", kCIContextCacheIntermediates = @"kCIContextCacheIntermediates",
     kCIContextUseSoftwareRenderer = @"software_renderer", kCIContextPriorityRequestLow = @"priority_request_low",
-    kCIContextAllowLowPower = @"allow_low_power", kCIContextName = @"name", kCIContextMemoryLimit = @"memory_limit";
+    kCIContextAllowLowPower = @"allow_low_power", kCIContextName = @"name", kCIContextMemoryLimit = @"memory_limit",
+    kCIContextMemoryTarget = @"memory_target";
 
 @implementation CIContext {
     CGContextRef _cg;
@@ -51,6 +52,19 @@ CIContextOption const kCIContextOutputColorSpace = @"output_color_space", kCICon
 - (void)reclaimResources {}
 - (CGSize)inputImageMaximumSize { return CGSizeMake(16384, 16384); }
 - (CGSize)outputImageMaximumSize { return CGSizeMake(16384, 16384); }
+- (CIImage *)calculateHDRStatsForImage:(CIImage *)image {
+    CGRect e = image.extent;
+    if (CGRectIsEmpty(e) || ci_infinite(e)) return nil;
+    CIImage *mx = [image imageByApplyingFilter:@"CIAreaMaximum" withInputParameters:@{ kCIInputExtentKey: [CIVector vectorWithCGRect:e] }];
+    CIImage *av = [image imageByApplyingFilter:@"CIAreaAverage" withInputParameters:@{ kCIInputExtentKey: [CIVector vectorWithCGRect:e] }];
+    CGColorSpaceRef lin = CGColorSpaceCreateWithName(kCGColorSpaceExtendedLinearSRGB);
+    float m[4] = { 0 }, a[4] = { 0 };
+    [self render:mx toBitmap:m rowBytes:16 bounds:CGRectMake(0, 0, 1, 1) format:kCIFormatRGBAf colorSpace:lin];
+    [self render:av toBitmap:a rowBytes:16 bounds:CGRectMake(0, 0, 1, 1) format:kCIFormatRGBAf colorSpace:lin];
+    CGColorSpaceRelease(lin);
+    float peak = fmaxf(m[0], fmaxf(m[1], m[2])), mean = 0.2126f * a[0] + 0.7152f * a[1] + 0.0722f * a[2];
+    return [[image imageBySettingContentHeadroom:fmaxf(1, peak)] imageBySettingContentAverageLightLevel:fmaxf(0, mean)];
+}
 - (NSString *)description { return [NSString stringWithFormat:@"<CIContext: %p (CPU)%@>", self, _opts[kCIContextName] ? [@" " stringByAppendingString:_opts[kCIContextName]] : @""]; }
 - (ci_rctx)_rctx {
     ci_rctx rc = ci_rctx_default();

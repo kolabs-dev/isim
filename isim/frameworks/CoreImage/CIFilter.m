@@ -51,6 +51,7 @@ NSString *const kCIOutputImageKey = @"outputImage", *const kCIInputBackgroundIma
     *const kCIInputGradientImageKey = @"inputGradientImage", *const kCIInputMaskImageKey = @"inputMaskImage", *const kCIInputMatteImageKey = @"inputMatteImage",
     *const kCIInputShadingImageKey = @"inputShadingImage", *const kCIInputTargetImageKey = @"inputTargetImage", *const kCIInputExtentKey = @"inputExtent",
     *const kCIInputVersionKey = @"inputVersion";
+NSString *const kCIInputBacksideImageKey = @"inputBacksideImage", *const kCIInputBiasVectorKey = @"inputBiasVector", *const kCIInputColor0Key = @"inputColor0", *const kCIInputColor1Key = @"inputColor1", *const kCIInputColorSpaceKey = @"inputColorSpace", *const kCIInputCountKey = @"inputCount", *const kCIInputExtrapolateKey = @"inputExtrapolate", *const kCIInputPaletteImageKey = @"inputPaletteImage", *const kCIInputPerceptualKey = @"inputPerceptual", *const kCIInputPoint0Key = @"inputPoint0", *const kCIInputPoint1Key = @"inputPoint1", *const kCIInputRadius0Key = @"inputRadius0", *const kCIInputRadius1Key = @"inputRadius1", *const kCIInputThresholdKey = @"inputThreshold";
 NSString *const kCIApplyOptionExtent = @"extent", *const kCIApplyOptionDefinition = @"definition", *const kCIApplyOptionUserInfo = @"user_info",
     *const kCIApplyOptionColorSpace = @"color_space";
 

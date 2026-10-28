@@ -18,6 +18,7 @@ extern CIFormat kCIFormatRGBAh NS_SWIFT_NAME(CIFormat.RGBAh);
 extern CIFormat kCIFormatRGBA16 NS_SWIFT_NAME(CIFormat.RGBA16);
 extern CIFormat kCIFormatRGBAf NS_SWIFT_NAME(CIFormat.RGBAf);
 extern CIFormat kCIFormatRGBX16 NS_SWIFT_NAME(CIFormat.RGBX16);
+extern CIFormat kCIFormatRGBX8 NS_SWIFT_NAME(CIFormat.RGBX8);
 extern CIFormat kCIFormatRGBXh NS_SWIFT_NAME(CIFormat.RGBXh);
 extern CIFormat kCIFormatRGBXf NS_SWIFT_NAME(CIFormat.RGBXf);
 extern CIFormat kCIFormatA8 NS_SWIFT_NAME(CIFormat.A8);
@@ -59,6 +60,15 @@ extern CIImageOption const kCIImageAuxiliarySemanticSegmentationGlassesMatte;
 extern CIImageOption const kCIImageAuxiliarySemanticSegmentationSkyMatte;
 extern CIImageOption const kCIImageAuxiliaryHDRGainMap;
 extern CIImageOption const kCIImageContentHeadroom API_AVAILABLE(ios(18.0));
+extern CIImageOption const kCIImageContentAverageLightLevel API_AVAILABLE(ios(26.0));
+extern CIImageOption const kCIImageApplyCleanAperture API_AVAILABLE(ios(26.0));
+extern CIImageOption const kCIImageProviderTileSize;
+extern CIImageOption const kCIImageProviderUserInfo;
+/* iOS 26 HDR: the dynamic range an image is shown in (CISystemToneMap's preferredDynamicRange) */
+typedef NSString *CIDynamicRangeOption NS_TYPED_ENUM API_AVAILABLE(ios(26.0));
+extern CIDynamicRangeOption const kCIDynamicRangeStandard NS_SWIFT_NAME(CIDynamicRangeOption.standard) API_AVAILABLE(ios(26.0));
+extern CIDynamicRangeOption const kCIDynamicRangeConstrainedHigh NS_SWIFT_NAME(CIDynamicRangeOption.constrainedHigh) API_AVAILABLE(ios(26.0));
+extern CIDynamicRangeOption const kCIDynamicRangeHigh NS_SWIFT_NAME(CIDynamicRangeOption.high) API_AVAILABLE(ios(26.0));
 
 @interface CIImage : NSObject <NSSecureCoding, NSCopying>
 + (CIImage *)imageWithCGImage:(CGImageRef)image;
@@ -122,6 +132,13 @@ extern CIImageOption const kCIImageContentHeadroom API_AVAILABLE(ios(18.0));
 - (CIImage *)imageBySamplingNearest NS_SWIFT_NAME(samplingNearest());
 - (CIImage *)imageByInsertingIntermediate NS_SWIFT_NAME(insertingIntermediate());
 - (CIImage *)imageByInsertingIntermediate:(BOOL)cache NS_SWIFT_NAME(insertingIntermediate(cache:));
+- (CIImage *)imageByInsertingTiledIntermediate NS_SWIFT_NAME(insertingTiledIntermediate()) API_AVAILABLE(ios(26.0));
+/* Lab (L 0...100, a and b about -128...127) and back: CIConvertRGBtoLab / CIConvertLabToRGB */
+- (CIImage *)imageByConvertingWorkingSpaceToLab NS_SWIFT_NAME(convertingWorkingSpaceToLab()) API_AVAILABLE(ios(16.0));
+- (CIImage *)imageByConvertingLabToWorkingSpace NS_SWIFT_NAME(convertingLabToWorkingSpace()) API_AVAILABLE(ios(16.0));
+/* iOS 26 HDR metadata: the headroom (peak / SDR white) and the average light level the image is tagged with */
+- (CIImage *)imageBySettingContentHeadroom:(float)headroom NS_SWIFT_NAME(settingContentHeadroom(_:)) API_AVAILABLE(ios(26.0));
+- (CIImage *)imageBySettingContentAverageLightLevel:(float)average NS_SWIFT_NAME(settingContentAverageLightLevel(_:)) API_AVAILABLE(ios(26.0));
 - (CIImage *)imageByApplyingGainMap:(CIImage *)gainmap NS_SWIFT_NAME(applyingGainMap(_:)) API_AVAILABLE(ios(18.0));
 - (CIImage *)imageByApplyingGainMap:(CIImage *)gainmap headroom:(float)headroom NS_SWIFT_NAME(applyingGainMap(_:headroom:)) API_AVAILABLE(ios(18.0));
 - (CGRect)regionOfInterestForImage:(CIImage *)image inRect:(CGRect)rect;
@@ -134,6 +151,7 @@ extern CIImageOption const kCIImageContentHeadroom API_AVAILABLE(ios(18.0));
 @property (nullable, readonly) CGImageRef CGImage;
 @property (readonly, getter=isOpaque) BOOL opaque API_AVAILABLE(ios(17.0));
 @property (readonly) CGFloat contentHeadroom API_AVAILABLE(ios(18.0));
+@property (readonly) float contentAverageLightLevel API_AVAILABLE(ios(26.0));
 @end
 
 /* auto adjustment (CIImage+AutoAdjustment). isim (adapted): enhance (CIVibrance, CIToneCurve, CIHighlightShadowAdjust)
@@ -150,8 +168,8 @@ extern CIImageAutoAdjustmentOption const kCIImageAutoAdjustLevel NS_SWIFT_NAME(C
 - (NSArray<CIFilter *> *)autoAdjustmentFiltersWithOptions:(nullable NSDictionary<CIImageAutoAdjustmentOption, id> *)options;
 @end
 
-/* image providers: the provider's bytes are asked for once, when the image is first rendered */
-extern NSString *const kCIImageProviderTileSize, *const kCIImageProviderUserInfo;
+/* image providers: the provider's bytes are asked for once, when the image is first rendered (options: kCIImageProviderTileSize,
+   kCIImageProviderUserInfo) */
 @protocol CIImageProvider
 - (void)provideImageData:(void *)data bytesPerRow:(size_t)rowbytes origin:(size_t)x :(size_t)y size:(size_t)width :(size_t)height
     userInfo:(nullable id)info;

@@ -172,24 +172,29 @@ static const ci_input_spec ci_in_33[] = {
 };
 static const ci_input_spec ci_in_34[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputRedCoefficients", "CIVector", "", "redCoefficients", "CIVector *", 10, (const double[]){1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputGreenCoefficients", "CIVector", "", "greenCoefficients", "CIVector *", 10, (const double[]){0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBlueCoefficients", "CIVector", "", "blueCoefficients", "CIVector *", 10, (const double[]){0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputDisplayHeadroom", "NSNumber", "Scalar", "displayHeadroom", "float", 1, (const double[]){1.0}, NULL, 1.0, 16.0, 1.0, 16.0, 0 },
+    { "inputPreferredDynamicRange", "NSString", "", "preferredDynamicRange", "CIDynamicRangeOption", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
 static const ci_input_spec ci_in_35[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputCubeDimension", "NSNumber", "Count", "cubeDimension", "float", 1, (const double[]){2.0}, NULL, 2.0, 128.0, 2.0, 128.0, 0 },
-    { "inputCubeData", "NSData", "", "cubeData", "NSData *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputExtrapolate", "NSNumber", "Boolean", "extrapolate", "BOOL", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
+    { "inputRedCoefficients", "CIVector", "", "redCoefficients", "CIVector *", 10, (const double[]){1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputGreenCoefficients", "CIVector", "", "greenCoefficients", "CIVector *", 10, (const double[]){0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBlueCoefficients", "CIVector", "", "blueCoefficients", "CIVector *", 10, (const double[]){0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
 static const ci_input_spec ci_in_36[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCubeDimension", "NSNumber", "Count", "cubeDimension", "float", 1, (const double[]){2.0}, NULL, 2.0, 128.0, 2.0, 128.0, 0 },
     { "inputCubeData", "NSData", "", "cubeData", "NSData *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputExtrapolate", "NSNumber", "Boolean", "extrapolate", "BOOL", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
-    { "inputColorSpace", "CGColorSpace", "", "colorSpace", "CGColorSpaceRef", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
 static const ci_input_spec ci_in_37[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputCubeDimension", "NSNumber", "Count", "cubeDimension", "float", 1, (const double[]){2.0}, NULL, 2.0, 128.0, 2.0, 128.0, 0 },
+    { "inputCubeData", "NSData", "", "cubeData", "NSData *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputExtrapolate", "NSNumber", "Boolean", "extrapolate", "BOOL", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
+    { "inputColorSpace", "CGColorSpace", "", "colorSpace", "CGColorSpaceRef", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+};
+static const ci_input_spec ci_in_38[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputMaskImage", "CIImage", "Image", "maskImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCubeDimension", "NSNumber", "Count", "cubeDimension", "float", 1, (const double[]){2.0}, NULL, 2.0, 128.0, 2.0, 128.0, 0 },
@@ -198,31 +203,27 @@ static const ci_input_spec ci_in_37[] = {
     { "inputColorSpace", "CGColorSpace", "", "colorSpace", "CGColorSpaceRef", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputExtrapolate", "NSNumber", "Boolean", "extrapolate", "BOOL", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_38[] = {
+static const ci_input_spec ci_in_39[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCurvesData", "NSData", "", "curvesData", "NSData *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCurvesDomain", "CIVector", "", "curvesDomain", "CIVector *", 2, (const double[]){0.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColorSpace", "CGColorSpace", "", "colorSpace", "CGColorSpaceRef", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_39[] = {
+static const ci_input_spec ci_in_40[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_40[] = {
+static const ci_input_spec ci_in_41[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputGradientImage", "CIImage", "Gradient", "gradientImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_41[] = {
+static const ci_input_spec ci_in_42[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor", "CIColor", "OpaqueColor", "color", "CIColor *", 4, (const double[]){0.6, 0.45, 0.3, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputIntensity", "NSNumber", "Scalar", "intensity", "float", 1, (const double[]){1.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_42[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputLevels", "NSNumber", "Scalar", "levels", "float", 1, (const double[]){6.0}, NULL, 2.0, 30.0, 2.0, 30.0, 0 },
-};
 static const ci_input_spec ci_in_43[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputNormalize", "NSNumber", "Boolean", "normalize", "BOOL", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
+    { "inputLevels", "NSNumber", "Scalar", "levels", "float", 1, (const double[]){6.0}, NULL, 2.0, 30.0, 2.0, 30.0, 0 },
 };
 static const ci_input_spec ci_in_44[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -230,23 +231,24 @@ static const ci_input_spec ci_in_44[] = {
 };
 static const ci_input_spec ci_in_45[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputIntensity", "NSNumber", "Scalar", "intensity", "float", 1, (const double[]){0.1}, NULL, 0.0, 5.0, 0.0, 0.5, 0 },
+    { "inputNormalize", "NSNumber", "Boolean", "normalize", "BOOL", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
 static const ci_input_spec ci_in_46[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputAmount", "NSNumber", "Scalar", "amount", "float", 1, (const double[]){1.0}, NULL, 0.0, 10.0, 0.0, 10.0, 0 },
+    { "inputIntensity", "NSNumber", "Scalar", "intensity", "float", 1, (const double[]){0.1}, NULL, 0.0, 5.0, 0.0, 0.5, 0 },
 };
 static const ci_input_spec ci_in_47[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputAmount", "NSNumber", "Scalar", "amount", "float", 1, (const double[]){1.0}, NULL, 0.0, 10.0, 0.0, 10.0, 0 },
+};
+static const ci_input_spec ci_in_48[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor0", "CIColor", "Color", "color0", "CIColor *", 4, (const double[]){0.3, 0.0, 0.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor1", "CIColor", "Color", "color1", "CIColor *", 4, (const double[]){1.0, 0.9, 0.8, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_48[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputImage2", "CIImage", "Image", "image2", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-};
 static const ci_input_spec ci_in_49[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputImage2", "CIImage", "Image", "image2", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
 static const ci_input_spec ci_in_50[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -256,8 +258,6 @@ static const ci_input_spec ci_in_51[] = {
 };
 static const ci_input_spec ci_in_52[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputPaletteImage", "CIImage", "Image", "paletteImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputPerceptual", "NSNumber", "Boolean", "perceptual", "BOOL", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
 static const ci_input_spec ci_in_53[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -266,7 +266,8 @@ static const ci_input_spec ci_in_53[] = {
 };
 static const ci_input_spec ci_in_54[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputExtrapolate", "NSNumber", "Boolean", "extrapolate", "BOOL", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
+    { "inputPaletteImage", "CIImage", "Image", "paletteImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputPerceptual", "NSNumber", "Boolean", "perceptual", "BOOL", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
 static const ci_input_spec ci_in_55[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -298,29 +299,29 @@ static const ci_input_spec ci_in_61[] = {
 };
 static const ci_input_spec ci_in_62[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputIntensity", "NSNumber", "Scalar", "intensity", "float", 1, (const double[]){1.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
+    { "inputExtrapolate", "NSNumber", "Boolean", "extrapolate", "BOOL", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
 static const ci_input_spec ci_in_63[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputIntensity", "NSNumber", "Scalar", "intensity", "float", 1, (const double[]){1.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
 static const ci_input_spec ci_in_64[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+};
+static const ci_input_spec ci_in_65[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputIntensity", "NSNumber", "Scalar", "intensity", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
     { "inputRadius", "NSNumber", "Scalar", "radius", "float", 1, (const double[]){1.0}, NULL, 0.0, 2.0, 0.0, 2.0, 0 },
 };
-static const ci_input_spec ci_in_65[] = {
+static const ci_input_spec ci_in_66[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){150.0}, NULL, 0.0, 2000.0, 0.0, 1000.0, 0 },
     { "inputIntensity", "NSNumber", "Scalar", "intensity", "float", 1, (const double[]){1.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
     { "inputFalloff", "NSNumber", "Scalar", "falloff", "float", 1, (const double[]){0.5}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_66[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-};
 static const ci_input_spec ci_in_67[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBackgroundImage", "CIImage", "Image", "backgroundImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
 static const ci_input_spec ci_in_68[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -440,34 +441,38 @@ static const ci_input_spec ci_in_96[] = {
 };
 static const ci_input_spec ci_in_97[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBackgroundImage", "CIImage", "Image", "backgroundImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+};
+static const ci_input_spec ci_in_98[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){300.0}, NULL, 0.0, 600.0, 0.0, 600.0, 0 },
     { "inputScale", "NSNumber", "Scalar", "scale", "float", 1, (const double[]){0.5}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_98[] = {
+static const ci_input_spec ci_in_99[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){300.0, 300.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){300.0}, NULL, 0.0, 600.0, 0.0, 600.0, 0 },
     { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
     { "inputScale", "NSNumber", "Scalar", "scale", "float", 1, (const double[]){0.5}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_99[] = {
+static const ci_input_spec ci_in_100[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){150.0}, NULL, 0.0, 1000.0, 0.0, 1000.0, 0 },
 };
-static const ci_input_spec ci_in_100[] = {
+static const ci_input_spec ci_in_101[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){150.0}, NULL, 0.0, 600.0, 0.0, 600.0, 0 },
     { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
 };
-static const ci_input_spec ci_in_101[] = {
+static const ci_input_spec ci_in_102[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputDisplacementImage", "CIImage", "Image", "displacementImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputScale", "NSNumber", "Distance", "scale", "float", 1, (const double[]){50.0}, NULL, 0.0, 200.0, 0.0, 200.0, 0 },
 };
-static const ci_input_spec ci_in_102[] = {
+static const ci_input_spec ci_in_103[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputInsetPoint0", "CIVector", "Position", "insetPoint0", "CGPoint", 2, (const double[]){200.0, 200.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputInsetPoint1", "CIVector", "Position", "insetPoint1", "CGPoint", 2, (const double[]){400.0, 400.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -476,104 +481,104 @@ static const ci_input_spec ci_in_102[] = {
     { "inputRotation", "NSNumber", "Angle", "rotation", "float", 1, (const double[]){0.0}, NULL, 0.0, 6.283185307179586, 0.0, 6.283185307179586, 0 },
     { "inputZoom", "NSNumber", "Scalar", "zoom", "float", 1, (const double[]){1.0}, NULL, 0.01, 5.0, 0.01, 5.0, 0 },
 };
-static const ci_input_spec ci_in_103[] = {
+static const ci_input_spec ci_in_104[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTexture", "CIImage", "Image", "textureImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputScale", "NSNumber", "Distance", "scale", "float", 1, (const double[]){200.0}, NULL, 0.001, 1000.0, 0.001, 500.0, 0 },
 };
-static const ci_input_spec ci_in_104[] = {
+static const ci_input_spec ci_in_105[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputPoint0", "CIVector", "Position", "point0", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputPoint1", "CIVector", "Position", "point1", "CGPoint", 2, (const double[]){350.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){100.0}, NULL, 0.0, 1000.0, 0.0, 400.0, 0 },
     { "inputRefraction", "NSNumber", "Scalar", "refraction", "float", 1, (const double[]){1.7}, NULL, 0.0, 5.0, 0.0, 5.0, 0 },
 };
-static const ci_input_spec ci_in_105[] = {
+static const ci_input_spec ci_in_106[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){150.0}, NULL, 0.01, 1000.0, 0.01, 1000.0, 0 },
 };
-static const ci_input_spec ci_in_106[] = {
+static const ci_input_spec ci_in_107[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRotation", "NSNumber", "Angle", "rotation", "float", 1, (const double[]){0.0}, NULL, -6.283185307179586, 6.283185307179586, -6.283185307179586, 6.283185307179586, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){100.0}, NULL, 1.0, 500.0, 1.0, 500.0, 0 },
-};
-static const ci_input_spec ci_in_107[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBreakpoint0", "CIVector", "Position", "breakpoint0", "CGPoint", 2, (const double[]){50.0, 50.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBreakpoint1", "CIVector", "Position", "breakpoint1", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputGrowAmount", "CIVector", "Offset", "growAmount", "CGPoint", 2, (const double[]){100.0, 100.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
 static const ci_input_spec ci_in_108[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBreakpoint0", "CIVector", "Position", "breakpoint0", "CGPoint", 2, (const double[]){50.0, 50.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBreakpoint1", "CIVector", "Position", "breakpoint1", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputGrowAmount", "CIVector", "Offset", "growAmount", "CGPoint", 2, (const double[]){100.0, 100.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputFlipYTiles", "NSNumber", "Boolean", "flipYTiles", "BOOL", 1, (const double[]){1.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
 static const ci_input_spec ci_in_109[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBreakpoint0", "CIVector", "Position", "breakpoint0", "CGPoint", 2, (const double[]){50.0, 50.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBreakpoint1", "CIVector", "Position", "breakpoint1", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputGrowAmount", "CIVector", "Offset", "growAmount", "CGPoint", 2, (const double[]){100.0, 100.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputFlipYTiles", "NSNumber", "Boolean", "flipYTiles", "BOOL", 1, (const double[]){1.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
+};
+static const ci_input_spec ci_in_110[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){300.0}, NULL, 0.0, 1000.0, 0.0, 1000.0, 0 },
     { "inputScale", "NSNumber", "Scalar", "scale", "float", 1, (const double[]){0.5}, NULL, 0.0, 2.0, 0.0, 2.0, 0 },
 };
-static const ci_input_spec ci_in_110[] = {
+static const ci_input_spec ci_in_111[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputSize", "CIVector", "Position", "size", "CGPoint", 2, (const double[]){1280.0, 720.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCropAmount", "NSNumber", "Scalar", "cropAmount", "float", 1, (const double[]){0.25}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
     { "inputCenterStretchAmount", "NSNumber", "Scalar", "centerStretchAmount", "float", 1, (const double[]){0.25}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_111[] = {
+static const ci_input_spec ci_in_112[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){160.0}, NULL, 0.0, 1000.0, 0.0, 500.0, 0 },
     { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){80.0}, NULL, 0.0, 500.0, 0.0, 200.0, 0 },
     { "inputRefraction", "NSNumber", "Scalar", "refraction", "float", 1, (const double[]){1.7}, NULL, 0.0, 5.0, 0.0, 5.0, 0 },
 };
-static const ci_input_spec ci_in_112[] = {
+static const ci_input_spec ci_in_113[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){300.0}, NULL, 0.0, 1000.0, 0.0, 500.0, 0 },
     { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){3.141592653589793}, NULL, -12.566370614359172, 12.566370614359172, -12.566370614359172, 12.566370614359172, 0 },
 };
-static const ci_input_spec ci_in_113[] = {
+static const ci_input_spec ci_in_114[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){300.0}, NULL, 0.0, 1000.0, 0.0, 800.0, 0 },
     { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){56.55}, NULL, -94.25, 94.25, -94.25, 94.25, 0 },
 };
-static const ci_input_spec ci_in_114[] = {
+static const ci_input_spec ci_in_115[] = {
     { "inputText", "NSAttributedString", "", "text", "NSAttributedString *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputScaleFactor", "NSNumber", "Scalar", "scaleFactor", "float", 1, (const double[]){1.0}, NULL, 0.0, 50.0, 1.0, 4.0, 0 },
     { "inputPadding", "NSNumber", "Scalar", "padding", "float", 1, (const double[]){0.0}, NULL, 0.0, 200.0, 0.0, 100.0, 0 },
 };
-static const ci_input_spec ci_in_115[] = {
+static const ci_input_spec ci_in_116[] = {
     { "inputMessage", "NSData", "", "message", "NSData *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCorrectionLevel", "NSNumber", "Scalar", "correctionLevel", "float", 1, (const double[]){23.0}, NULL, 5.0, 95.0, 5.0, 95.0, 0 },
     { "inputLayers", "NSNumber", "Scalar", "layers", "float", 0, (const double[]){0.0}, NULL, 1.0, 32.0, 1.0, 32.0, 0 },
     { "inputCompactStyle", "NSNumber", "Boolean", "compactStyle", "float", 0, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_116[] = {
+static const ci_input_spec ci_in_117[] = {
     { "inputBarcodeDescriptor", "CIBarcodeDescriptor", "", "barcodeDescriptor", "CIBarcodeDescriptor *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_117[] = {
+static const ci_input_spec ci_in_118[] = {
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor0", "CIColor", "Color", "color0", "CIColor *", 4, (const double[]){1.0, 1.0, 1.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor1", "CIColor", "Color", "color1", "CIColor *", 4, (const double[]){0.0, 0.0, 0.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){80.0}, NULL, 0.0, 800.0, 0.0, 800.0, 0 },
     { "inputSharpness", "NSNumber", "Scalar", "sharpness", "float", 1, (const double[]){1.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_118[] = {
+static const ci_input_spec ci_in_119[] = {
     { "inputMessage", "NSData", "", "message", "NSData *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputQuietSpace", "NSNumber", "Scalar", "quietSpace", "float", 1, (const double[]){7.0}, NULL, 0.0, 100.0, 0.0, 20.0, 0 },
     { "inputBarcodeHeight", "NSNumber", "Scalar", "barcodeHeight", "float", 1, (const double[]){32.0}, NULL, 1.0, 500.0, 1.0, 500.0, 0 },
 };
-static const ci_input_spec ci_in_119[] = {
+static const ci_input_spec ci_in_120[] = {
     { "inputColor", "CIColor", "Color", "color", "CIColor *", 4, (const double[]){1.0, 0.0, 0.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_120[] = {
+static const ci_input_spec ci_in_121[] = {
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor", "CIColor", "Color", "color", "CIColor *", 4, (const double[]){1.0, 0.9, 0.8, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputHaloRadius", "NSNumber", "Distance", "haloRadius", "float", 1, (const double[]){70.0}, NULL, 0.0, 1000.0, 0.0, 1000.0, 0 },
@@ -583,12 +588,12 @@ static const ci_input_spec ci_in_120[] = {
     { "inputStriationContrast", "NSNumber", "Scalar", "striationContrast", "float", 1, (const double[]){1.0}, NULL, 0.0, 5.0, 0.0, 5.0, 0 },
     { "inputTime", "NSNumber", "Scalar", "time", "float", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_121[] = {
+static const ci_input_spec ci_in_122[] = {
     { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){1.5}, NULL, 0.0, 200.0, 0.0, 20.0, 0 },
     { "inputColor", "CIColor", "Color", "color", "CIColor *", 4, (const double[]){1.0, 1.0, 1.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputMesh", "NSArray", "", "mesh", "NSArray *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_122[] = {
+static const ci_input_spec ci_in_123[] = {
     { "inputMessage", "NSData", "", "message", "NSData *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputMinWidth", "NSNumber", "Scalar", "minWidth", "float", 0, (const double[]){0.0}, NULL, 56.0, 583.0, 56.0, 583.0, 0 },
     { "inputMaxWidth", "NSNumber", "Scalar", "maxWidth", "float", 0, (const double[]){0.0}, NULL, 56.0, 583.0, 56.0, 583.0, 0 },
@@ -602,30 +607,49 @@ static const ci_input_spec ci_in_122[] = {
     { "inputCorrectionLevel", "NSNumber", "Integer", "correctionLevel", "float", 0, (const double[]){0.0}, NULL, 0.0, 8.0, 0.0, 8.0, 0 },
     { "inputAlwaysSpecifyCompaction", "NSNumber", "Boolean", "alwaysSpecifyCompaction", "float", 0, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_123[] = {
+static const ci_input_spec ci_in_124[] = {
     { "inputMessage", "NSData", "", "message", "NSData *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCorrectionLevel", "NSString", "", "correctionLevel", "NSString *", 0, (const double[]){0.0}, "M", NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_124[] = {
+static const ci_input_spec ci_in_125[] = {
     { NULL }
 };
-static const ci_input_spec ci_in_125[] = {
+static const ci_input_spec ci_in_126[] = {
+    { "inputMessage", "NSData", "", "message", "NSData *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputCorrectionLevel", "NSString", "", "correctionLevel", "NSString *", 0, (const double[]){0.0}, "M", NAN, NAN, NAN, NAN, 0 },
+    { "inputScale", "NSNumber", "Scalar", "scale", "float", 1, (const double[]){10.0}, NULL, 1.0, 100.0, 1.0, 20.0, 0 },
+    { "inputColor0", "CIColor", "OpaqueColor", "color0", "CIColor *", 4, (const double[]){0.0, 0.0, 0.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputColor1", "CIColor", "OpaqueColor", "color1", "CIColor *", 4, (const double[]){1.0, 1.0, 1.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputRoundedMarkers", "NSNumber", "Integer", "roundedMarkers", "NSInteger", 1, (const double[]){0.0}, NULL, 0.0, 3.0, 0.0, 3.0, 0 },
+    { "inputRoundedData", "NSNumber", "Boolean", "roundedData", "BOOL", 1, (const double[]){1.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
+    { "inputCenterSpaceSize", "NSNumber", "Scalar", "centerSpaceSize", "float", 1, (const double[]){0.0}, NULL, 0.0, 0.5, 0.0, 0.5, 0 },
+};
+static const ci_input_spec ci_in_127[] = {
     { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 100.0, 100.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){10.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
     { "inputColor", "CIColor", "Color", "color", "CIColor *", 4, (const double[]){1.0, 1.0, 1.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputSmoothness", "NSNumber", "Scalar", "smoothness", "float", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_126[] = {
+static const ci_input_spec ci_in_128[] = {
     { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 100.0, 100.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){10.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
     { "inputColor", "CIColor", "Color", "color", "CIColor *", 4, (const double[]){1.0, 1.0, 1.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){10.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
+    { "inputSmoothness", "NSNumber", "Scalar", "smoothness", "float", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_127[] = {
+static const ci_input_spec ci_in_129[] = {
+    { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 100.0, 100.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){10.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
+    { "inputSigma", "NSNumber", "Distance", "sigma", "float", 1, (const double[]){10.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
+    { "inputColor", "CIColor", "Color", "color", "CIColor *", 4, (const double[]){1.0, 1.0, 1.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputSmoothness", "NSNumber", "Scalar", "smoothness", "float", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
+};
+static const ci_input_spec ci_in_130[] = {
     { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 100.0, 100.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputSigma", "NSNumber", "Distance", "sigma", "float", 1, (const double[]){10.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
     { "inputColor", "CIColor", "Color", "color", "CIColor *", 4, (const double[]){1.0, 1.0, 1.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_128[] = {
+static const ci_input_spec ci_in_131[] = {
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor", "CIColor", "Color", "color", "CIColor *", 4, (const double[]){1.0, 0.8, 0.6, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){50.0}, NULL, 0.0, 1000.0, 0.0, 300.0, 0 },
@@ -635,14 +659,14 @@ static const ci_input_spec ci_in_128[] = {
     { "inputCrossWidth", "NSNumber", "Distance", "crossWidth", "float", 1, (const double[]){2.5}, NULL, 0.0, 300.0, 0.0, 300.0, 0 },
     { "inputEpsilon", "NSNumber", "Scalar", "epsilon", "float", 1, (const double[]){-2.0}, NULL, -8.0, 0.0, -8.0, 0.0, 0 },
 };
-static const ci_input_spec ci_in_129[] = {
+static const ci_input_spec ci_in_132[] = {
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor0", "CIColor", "Color", "color0", "CIColor *", 4, (const double[]){1.0, 1.0, 1.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor1", "CIColor", "Color", "color1", "CIColor *", 4, (const double[]){0.0, 0.0, 0.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){80.0}, NULL, 0.0, 800.0, 0.0, 800.0, 0 },
     { "inputSharpness", "NSNumber", "Scalar", "sharpness", "float", 1, (const double[]){1.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_130[] = {
+static const ci_input_spec ci_in_133[] = {
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor", "CIColor", "Color", "color", "CIColor *", 4, (const double[]){1.0, 0.5, 0.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputSunRadius", "NSNumber", "Distance", "sunRadius", "float", 1, (const double[]){40.0}, NULL, 0.0, 800.0, 0.0, 800.0, 0 },
@@ -651,62 +675,41 @@ static const ci_input_spec ci_in_130[] = {
     { "inputStriationContrast", "NSNumber", "Scalar", "striationContrast", "float", 1, (const double[]){1.375}, NULL, 0.0, 5.0, 0.0, 5.0, 0 },
     { "inputTime", "NSNumber", "Scalar", "time", "float", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_131[] = {
+static const ci_input_spec ci_in_134[] = {
     { "inputText", "NSString", "", "text", "NSString *", 0, (const double[]){0.0}, "", NAN, NAN, NAN, NAN, 0 },
     { "inputFontName", "NSString", "", "fontName", "NSString *", 0, (const double[]){0.0}, "HelveticaNeue", NAN, NAN, NAN, NAN, 0 },
     { "inputFontSize", "NSNumber", "Scalar", "fontSize", "float", 1, (const double[]){12.0}, NULL, 0.0, 128.0, 9.0, 128.0, 0 },
     { "inputScaleFactor", "NSNumber", "Scalar", "scaleFactor", "float", 1, (const double[]){1.0}, NULL, 0.0, 50.0, 1.0, 4.0, 0 },
     { "inputPadding", "NSNumber", "Scalar", "padding", "float", 1, (const double[]){0.0}, NULL, 0.0, 200.0, 0.0, 100.0, 0 },
 };
-static const ci_input_spec ci_in_132[] = {
+static const ci_input_spec ci_in_135[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTransform", "NSValue", "Transform", "transform", "CGAffineTransform", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 1 },
 };
-static const ci_input_spec ci_in_133[] = {
+static const ci_input_spec ci_in_136[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputScale", "NSNumber", "Scalar", "scale", "float", 1, (const double[]){1.0}, NULL, 0.0, 50.0, 0.05, 1.5, 0 },
     { "inputAspectRatio", "NSNumber", "Scalar", "aspectRatio", "float", 1, (const double[]){1.0}, NULL, 0.0, 50.0, 0.05, 1.5, 0 },
     { "inputB", "NSNumber", "Scalar", "parameterB", "float", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
     { "inputC", "NSNumber", "Scalar", "parameterC", "float", 1, (const double[]){0.75}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_134[] = {
+static const ci_input_spec ci_in_137[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRectangle", "CIVector", "Rectangle", "rectangle", "CGRect", 4, (const double[]){-8.98846567431158e+307, -8.98846567431158e+307, 1.7976931348623157e+308, 1.7976931348623157e+308}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_135[] = {
+static const ci_input_spec ci_in_138[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputSmallImage", "CIImage", "Image", "smallImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputSpatialSigma", "NSNumber", "Scalar", "spatialSigma", "float", 1, (const double[]){3.0}, NULL, 0.0, 5.0, 0.0, 5.0, 0 },
     { "inputLumaSigma", "NSNumber", "Scalar", "lumaSigma", "float", 1, (const double[]){0.15}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_136[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputTopLeft", "CIVector", "Position", "topLeft", "CGPoint", 2, (const double[]){118.0, 484.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputTopRight", "CIVector", "Position", "topRight", "CGPoint", 2, (const double[]){646.0, 507.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBottomRight", "CIVector", "Position", "bottomRight", "CGPoint", 2, (const double[]){548.0, 140.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBottomLeft", "CIVector", "Position", "bottomLeft", "CGPoint", 2, (const double[]){155.0, 153.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputFocalLength", "NSNumber", "Scalar", "focalLength", "float", 1, (const double[]){28.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
-};
-static const ci_input_spec ci_in_137[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputTopLeft", "CIVector", "Position", "topLeft", "CGPoint", 2, (const double[]){118.0, 484.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputTopRight", "CIVector", "Position", "topRight", "CGPoint", 2, (const double[]){646.0, 507.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBottomRight", "CIVector", "Position", "bottomRight", "CGPoint", 2, (const double[]){548.0, 140.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBottomLeft", "CIVector", "Position", "bottomLeft", "CGPoint", 2, (const double[]){155.0, 153.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputFocalLength", "NSNumber", "Scalar", "focalLength", "float", 1, (const double[]){28.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
-};
-static const ci_input_spec ci_in_138[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputTopLeft", "CIVector", "Position", "topLeft", "CGPoint", 2, (const double[]){118.0, 484.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputTopRight", "CIVector", "Position", "topRight", "CGPoint", 2, (const double[]){646.0, 507.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBottomRight", "CIVector", "Position", "bottomRight", "CGPoint", 2, (const double[]){548.0, 140.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBottomLeft", "CIVector", "Position", "bottomLeft", "CGPoint", 2, (const double[]){155.0, 153.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputFocalLength", "NSNumber", "Scalar", "focalLength", "float", 1, (const double[]){28.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
-};
 static const ci_input_spec ci_in_139[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputScale", "NSNumber", "Scalar", "scale", "float", 1, (const double[]){1.0}, NULL, 0.0, 50.0, 0.05, 1.5, 0 },
-    { "inputAspectRatio", "NSNumber", "Scalar", "aspectRatio", "float", 1, (const double[]){1.0}, NULL, 0.0, 50.0, 0.05, 1.5, 0 },
+    { "inputTopLeft", "CIVector", "Position", "topLeft", "CGPoint", 2, (const double[]){118.0, 484.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputTopRight", "CIVector", "Position", "topRight", "CGPoint", 2, (const double[]){646.0, 507.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBottomRight", "CIVector", "Position", "bottomRight", "CGPoint", 2, (const double[]){548.0, 140.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBottomLeft", "CIVector", "Position", "bottomLeft", "CGPoint", 2, (const double[]){155.0, 153.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputFocalLength", "NSNumber", "Scalar", "focalLength", "float", 1, (const double[]){28.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
 };
 static const ci_input_spec ci_in_140[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -714,23 +717,49 @@ static const ci_input_spec ci_in_140[] = {
     { "inputTopRight", "CIVector", "Position", "topRight", "CGPoint", 2, (const double[]){646.0, 507.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBottomRight", "CIVector", "Position", "bottomRight", "CGPoint", 2, (const double[]){548.0, 140.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBottomLeft", "CIVector", "Position", "bottomLeft", "CGPoint", 2, (const double[]){155.0, 153.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputCrop", "NSNumber", "Boolean", "crop", "BOOL", 1, (const double[]){1.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
+    { "inputFocalLength", "NSNumber", "Scalar", "focalLength", "float", 1, (const double[]){28.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
 };
 static const ci_input_spec ci_in_141[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputTopLeft", "CIVector", "Position", "topLeft", "CGPoint", 2, (const double[]){118.0, 484.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputTopRight", "CIVector", "Position", "topRight", "CGPoint", 2, (const double[]){646.0, 507.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBottomRight", "CIVector", "Position", "bottomRight", "CGPoint", 2, (const double[]){548.0, 140.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBottomLeft", "CIVector", "Position", "bottomLeft", "CGPoint", 2, (const double[]){155.0, 153.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputFocalLength", "NSNumber", "Scalar", "focalLength", "float", 1, (const double[]){28.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
+};
+static const ci_input_spec ci_in_142[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputScale", "NSNumber", "Scalar", "scale", "float", 1, (const double[]){1.0}, NULL, 0.0, 50.0, 0.05, 1.5, 0 },
+    { "inputAspectRatio", "NSNumber", "Scalar", "aspectRatio", "float", 1, (const double[]){1.0}, NULL, 0.0, 50.0, 0.05, 1.5, 0 },
+};
+static const ci_input_spec ci_in_143[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputScale", "NSNumber", "Scalar", "scale", "float", 1, (const double[]){1.0}, NULL, 0.0, 50.0, 0.05, 1.5, 0 },
+    { "inputAspectRatio", "NSNumber", "Scalar", "aspectRatio", "float", 1, (const double[]){1.0}, NULL, 0.0, 50.0, 0.05, 1.5, 0 },
+};
+static const ci_input_spec ci_in_144[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputTopLeft", "CIVector", "Position", "topLeft", "CGPoint", 2, (const double[]){118.0, 484.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputTopRight", "CIVector", "Position", "topRight", "CGPoint", 2, (const double[]){646.0, 507.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBottomRight", "CIVector", "Position", "bottomRight", "CGPoint", 2, (const double[]){548.0, 140.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBottomLeft", "CIVector", "Position", "bottomLeft", "CGPoint", 2, (const double[]){155.0, 153.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputCrop", "NSNumber", "Boolean", "crop", "BOOL", 1, (const double[]){1.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
+};
+static const ci_input_spec ci_in_145[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputFocalLength", "NSNumber", "Scalar", "focalLength", "float", 1, (const double[]){28.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
     { "inputPitch", "NSNumber", "Angle", "pitch", "float", 1, (const double[]){0.0}, NULL, -1.5707963267948966, 1.5707963267948966, -1.5707963267948966, 1.5707963267948966, 0 },
     { "inputYaw", "NSNumber", "Angle", "yaw", "float", 1, (const double[]){0.0}, NULL, -1.5707963267948966, 1.5707963267948966, -1.5707963267948966, 1.5707963267948966, 0 },
     { "inputRoll", "NSNumber", "Angle", "roll", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
 };
-static const ci_input_spec ci_in_142[] = {
+static const ci_input_spec ci_in_146[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTopLeft", "CIVector", "Position", "topLeft", "CGPoint", 2, (const double[]){118.0, 484.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTopRight", "CIVector", "Position", "topRight", "CGPoint", 2, (const double[]){646.0, 507.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBottomRight", "CIVector", "Position", "bottomRight", "CGPoint", 2, (const double[]){548.0, 140.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBottomLeft", "CIVector", "Position", "bottomLeft", "CGPoint", 2, (const double[]){155.0, 153.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_143[] = {
+static const ci_input_spec ci_in_147[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 300.0, 300.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTopLeft", "CIVector", "Position", "topLeft", "CGPoint", 2, (const double[]){118.0, 484.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -738,49 +767,49 @@ static const ci_input_spec ci_in_143[] = {
     { "inputBottomRight", "CIVector", "Position", "bottomRight", "CGPoint", 2, (const double[]){548.0, 140.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBottomLeft", "CIVector", "Position", "bottomLeft", "CGPoint", 2, (const double[]){155.0, 153.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_144[] = {
+static const ci_input_spec ci_in_148[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
 };
-static const ci_input_spec ci_in_145[] = {
+static const ci_input_spec ci_in_149[] = {
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor0", "CIColor", "Color", "color0", "CIColor *", 4, (const double[]){1.0, 1.0, 1.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor1", "CIColor", "Color", "color1", "CIColor *", 4, (const double[]){0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){300.0}, NULL, 0.0, 2000.0, 0.0, 800.0, 0 },
 };
-static const ci_input_spec ci_in_146[] = {
+static const ci_input_spec ci_in_150[] = {
     { "inputValue", "NSNumber", "Scalar", "value", "float", 1, (const double[]){1.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){300.0}, NULL, 0.0, 2000.0, 0.0, 800.0, 0 },
     { "inputSoftness", "NSNumber", "Scalar", "softness", "float", 1, (const double[]){1.0}, NULL, 0.0, 10.0, 0.0, 10.0, 0 },
     { "inputDither", "NSNumber", "Scalar", "dither", "float", 1, (const double[]){1.0}, NULL, 0.0, 5.0, 0.0, 5.0, 0 },
     { "inputColorSpace", "CGColorSpace", "", "colorSpace", "CGColorSpaceRef", 0, (const double[]){0.0}, "sRGB", NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_147[] = {
+static const ci_input_spec ci_in_151[] = {
     { "inputPoint0", "CIVector", "Position", "point0", "CGPoint", 2, (const double[]){0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputPoint1", "CIVector", "Position", "point1", "CGPoint", 2, (const double[]){200.0, 200.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor0", "CIColor", "Color", "color0", "CIColor *", 4, (const double[]){1.0, 1.0, 1.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor1", "CIColor", "Color", "color1", "CIColor *", 4, (const double[]){0.0, 0.0, 0.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_148[] = {
+static const ci_input_spec ci_in_152[] = {
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius0", "NSNumber", "Distance", "radius0", "float", 1, (const double[]){5.0}, NULL, 0.0, 800.0, 0.0, 800.0, 0 },
     { "inputRadius1", "NSNumber", "Distance", "radius1", "float", 1, (const double[]){100.0}, NULL, 0.0, 800.0, 0.0, 800.0, 0 },
     { "inputColor0", "CIColor", "Color", "color0", "CIColor *", 4, (const double[]){1.0, 1.0, 1.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor1", "CIColor", "Color", "color1", "CIColor *", 4, (const double[]){0.0, 0.0, 0.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_149[] = {
+static const ci_input_spec ci_in_153[] = {
     { "inputPoint0", "CIVector", "Position", "point0", "CGPoint", 2, (const double[]){0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputPoint1", "CIVector", "Position", "point1", "CGPoint", 2, (const double[]){200.0, 200.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor0", "CIColor", "Color", "color0", "CIColor *", 4, (const double[]){1.0, 1.0, 1.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputColor1", "CIColor", "Color", "color1", "CIColor *", 4, (const double[]){0.0, 0.0, 0.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_150[] = {
+static const ci_input_spec ci_in_154[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){6.0}, NULL, 1.0, 50.0, 2.0, 50.0, 0 },
     { "inputSharpness", "NSNumber", "Scalar", "sharpness", "float", 1, (const double[]){0.7}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_151[] = {
+static const ci_input_spec ci_in_155[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){6.0}, NULL, -2.0, 100.0, 2.0, 100.0, 0 },
@@ -789,42 +818,26 @@ static const ci_input_spec ci_in_151[] = {
     { "inputGCR", "NSNumber", "Scalar", "grayComponentReplacement", "float", 1, (const double[]){1.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
     { "inputUCR", "NSNumber", "Scalar", "underColorRemoval", "float", 1, (const double[]){0.5}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_152[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
-    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){6.0}, NULL, 1.0, 50.0, 2.0, 50.0, 0 },
-    { "inputSharpness", "NSNumber", "Scalar", "sharpness", "float", 1, (const double[]){0.7}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
-};
-static const ci_input_spec ci_in_153[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
-    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){6.0}, NULL, 1.0, 50.0, 2.0, 50.0, 0 },
-    { "inputSharpness", "NSNumber", "Scalar", "sharpness", "float", 1, (const double[]){0.7}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
-};
-static const ci_input_spec ci_in_154[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
-    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){6.0}, NULL, 1.0, 50.0, 2.0, 50.0, 0 },
-    { "inputSharpness", "NSNumber", "Scalar", "sharpness", "float", 1, (const double[]){0.7}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
-};
-static const ci_input_spec ci_in_155[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 640.0, 80.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-};
 static const ci_input_spec ci_in_156[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 640.0, 80.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
+    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){6.0}, NULL, 1.0, 50.0, 2.0, 50.0, 0 },
+    { "inputSharpness", "NSNumber", "Scalar", "sharpness", "float", 1, (const double[]){0.7}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
 static const ci_input_spec ci_in_157[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 640.0, 80.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
+    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){6.0}, NULL, 1.0, 50.0, 2.0, 50.0, 0 },
+    { "inputSharpness", "NSNumber", "Scalar", "sharpness", "float", 1, (const double[]){0.7}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
 static const ci_input_spec ci_in_158[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 640.0, 80.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
+    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){6.0}, NULL, 1.0, 50.0, 2.0, 50.0, 0 },
+    { "inputSharpness", "NSNumber", "Scalar", "sharpness", "float", 1, (const double[]){0.7}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
 static const ci_input_spec ci_in_159[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -849,10 +862,40 @@ static const ci_input_spec ci_in_163[] = {
 static const ci_input_spec ci_in_164[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 640.0, 80.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+};
+static const ci_input_spec ci_in_165[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 640.0, 80.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+};
+static const ci_input_spec ci_in_166[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 640.0, 80.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+};
+static const ci_input_spec ci_in_167[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 640.0, 80.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+};
+static const ci_input_spec ci_in_168[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 640.0, 80.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+};
+static const ci_input_spec ci_in_169[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 640.0, 80.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+};
+static const ci_input_spec ci_in_170[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 640.0, 80.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputScale", "NSNumber", "Scalar", "scale", "float", 1, (const double[]){1.0}, NULL, 0.0, 100.0, 0.0, 1.0, 0 },
     { "inputCount", "NSNumber", "Count", "count", "NSInteger", 1, (const double[]){64.0}, NULL, 1.0, 2048.0, 1.0, 256.0, 0 },
 };
-static const ci_input_spec ci_in_165[] = {
+static const ci_input_spec ci_in_171[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 640.0, 80.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputScale", "NSNumber", "Scalar", "scale", "float", 1, (const double[]){1.0}, NULL, 0.0, 100.0, 0.0, 1.0, 0 },
+    { "inputCount", "NSNumber", "Count", "count", "NSInteger", 1, (const double[]){64.0}, NULL, 1.0, 2048.0, 1.0, 256.0, 0 },
+};
+static const ci_input_spec ci_in_172[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 640.0, 80.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputScale", "NSNumber", "Scalar", "scale", "float", 1, (const double[]){1.0}, NULL, 0.0, 100.0, 0.0, 1.0, 0 },
@@ -860,120 +903,120 @@ static const ci_input_spec ci_in_165[] = {
     { "inputMinimumStop", "NSNumber", "Scalar", "minimumStop", "float", 1, (const double[]){-10.0}, NULL, -30.0, 30.0, -30.0, 30.0, 0 },
     { "inputMaximumStop", "NSNumber", "Scalar", "maximumStop", "float", 1, (const double[]){4.0}, NULL, -30.0, 30.0, -30.0, 30.0, 0 },
 };
-static const ci_input_spec ci_in_166[] = {
+static const ci_input_spec ci_in_173[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputHeight", "NSNumber", "Scalar", "height", "float", 1, (const double[]){100.0}, NULL, 1.0, 200.0, 1.0, 200.0, 0 },
     { "inputHighLimit", "NSNumber", "Scalar", "highLimit", "float", 1, (const double[]){1.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
     { "inputLowLimit", "NSNumber", "Scalar", "lowLimit", "float", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_167[] = {
+static const ci_input_spec ci_in_174[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 640.0, 80.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputMeans", "CIImage", "Image", "means", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputMeans", "CIImage", "Image", "inputMeans", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCount", "NSNumber", "Count", "count", "NSInteger", 1, (const double[]){8.0}, NULL, 0.0, 128.0, 0.0, 128.0, 0 },
     { "inputPasses", "NSNumber", "Count", "passes", "float", 1, (const double[]){5.0}, NULL, 0.0, 20.0, 0.0, 20.0, 0 },
     { "inputPerceptual", "NSNumber", "Boolean", "perceptual", "BOOL", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_168[] = {
+static const ci_input_spec ci_in_175[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputSharpness", "NSNumber", "Scalar", "sharpness", "float", 1, (const double[]){0.4}, NULL, 0.0, 2.0, 0.0, 2.0, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){1.69}, NULL, 0.0, 20.0, 0.0, 20.0, 0 },
 };
-static const ci_input_spec ci_in_169[] = {
+static const ci_input_spec ci_in_176[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){2.5}, NULL, 0.0, 100.0, 0.0, 100.0, 0 },
     { "inputIntensity", "NSNumber", "Scalar", "intensity", "float", 1, (const double[]){0.5}, NULL, 0.0, 10.0, 0.0, 10.0, 0 },
 };
-static const ci_input_spec ci_in_170[] = {
+static const ci_input_spec ci_in_177[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBackgroundImage", "CIImage", "Image", "backgroundImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputMaskImage", "CIImage", "Image", "maskImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_171[] = {
+static const ci_input_spec ci_in_178[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBackgroundImage", "CIImage", "Image", "backgroundImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputMaskImage", "CIImage", "Image", "maskImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_172[] = {
+static const ci_input_spec ci_in_179[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBackgroundImage", "CIImage", "Image", "backgroundImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputMaskImage", "CIImage", "Image", "maskImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_173[] = {
+static const ci_input_spec ci_in_180[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBackgroundImage", "CIImage", "Image", "backgroundImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputMaskImage", "CIImage", "Image", "maskImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_174[] = {
+static const ci_input_spec ci_in_181[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){10.0}, NULL, 0.0, 100.0, 0.0, 100.0, 0 },
     { "inputIntensity", "NSNumber", "Scalar", "intensity", "float", 1, (const double[]){0.5}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_175[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-};
-static const ci_input_spec ci_in_176[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputWeights", "CIVector", "", "weights", "CIVector *", 9, (const double[]){0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
-};
-static const ci_input_spec ci_in_177[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputWeights", "CIVector", "", "weights", "CIVector *", 25, (const double[]){0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
-};
-static const ci_input_spec ci_in_178[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputWeights", "CIVector", "", "weights", "CIVector *", 49, (const double[]){0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
-};
-static const ci_input_spec ci_in_179[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputWeights", "CIVector", "", "weights", "CIVector *", 9, (const double[]){0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
-};
-static const ci_input_spec ci_in_180[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputWeights", "CIVector", "", "weights", "CIVector *", 9, (const double[]){0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
-};
-static const ci_input_spec ci_in_181[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputWeights", "CIVector", "", "weights", "CIVector *", 9, (const double[]){0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
-};
 static const ci_input_spec ci_in_182[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputWeights", "CIVector", "", "weights", "CIVector *", 25, (const double[]){0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
 };
 static const ci_input_spec ci_in_183[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputWeights", "CIVector", "", "weights", "CIVector *", 49, (const double[]){0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputWeights", "CIVector", "", "weights", "CIVector *", 9, (const double[]){0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
 };
 static const ci_input_spec ci_in_184[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputWeights", "CIVector", "", "weights", "CIVector *", 9, (const double[]){0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputWeights", "CIVector", "", "weights", "CIVector *", 25, (const double[]){0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
 };
 static const ci_input_spec ci_in_185[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputWeights", "CIVector", "", "weights", "CIVector *", 9, (const double[]){0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputWeights", "CIVector", "", "weights", "CIVector *", 49, (const double[]){0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
 };
 static const ci_input_spec ci_in_186[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputWeights", "CIVector", "", "weights", "CIVector *", 9, (const double[]){0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
+};
+static const ci_input_spec ci_in_187[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputWeights", "CIVector", "", "weights", "CIVector *", 9, (const double[]){0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
+};
+static const ci_input_spec ci_in_188[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputWeights", "CIVector", "", "weights", "CIVector *", 9, (const double[]){0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
+};
+static const ci_input_spec ci_in_189[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputWeights", "CIVector", "", "weights", "CIVector *", 25, (const double[]){0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
+};
+static const ci_input_spec ci_in_190[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputWeights", "CIVector", "", "weights", "CIVector *", 49, (const double[]){0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
+};
+static const ci_input_spec ci_in_191[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputWeights", "CIVector", "", "weights", "CIVector *", 9, (const double[]){0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
+};
+static const ci_input_spec ci_in_192[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputWeights", "CIVector", "", "weights", "CIVector *", 9, (const double[]){0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBias", "NSNumber", "Scalar", "bias", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
+};
+static const ci_input_spec ci_in_193[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputModel", "MLModel", "", "model", "MLModel *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputHeadIndex", "NSNumber", "Integer", "headIndex", "float", 1, (const double[]){0.0}, NULL, 0.0, 10.0, 0.0, 10.0, 0 },
     { "inputSoftmaxNormalization", "NSNumber", "Boolean", "softmaxNormalization", "BOOL", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_187[] = {
+static const ci_input_spec ci_in_194[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){20.0}, NULL, 1.0, 100.0, 1.0, 100.0, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_188[] = {
+static const ci_input_spec ci_in_195[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputPoint0", "CIVector", "Position", "point0", "CGPoint", 2, (const double[]){0.0, 300.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputPoint1", "CIVector", "Position", "point1", "CGPoint", 2, (const double[]){300.0, 300.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -982,38 +1025,38 @@ static const ci_input_spec ci_in_188[] = {
     { "inputUnsharpMaskIntensity", "NSNumber", "Scalar", "unsharpMaskIntensity", "float", 1, (const double[]){0.5}, NULL, 0.0, 10.0, 0.0, 10.0, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){6.0}, NULL, 0.0, 30.0, 0.0, 30.0, 0 },
 };
-static const ci_input_spec ci_in_189[] = {
+static const ci_input_spec ci_in_196[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputIntensity", "NSNumber", "Scalar", "intensity", "float", 1, (const double[]){1.0}, NULL, 0.0, 10.0, 0.0, 10.0, 0 },
 };
-static const ci_input_spec ci_in_190[] = {
+static const ci_input_spec ci_in_197[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){3.0}, NULL, 0.0, 20.0, 0.0, 20.0, 0 },
 };
-static const ci_input_spec ci_in_191[] = {
+static const ci_input_spec ci_in_198[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_192[] = {
+static const ci_input_spec ci_in_199[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){10.0}, NULL, 0.0, 100.0, 0.0, 100.0, 0 },
     { "inputIntensity", "NSNumber", "Scalar", "intensity", "float", 1, (const double[]){0.5}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_193[] = {
+static const ci_input_spec ci_in_200[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){10.0}, NULL, 0.0, 300.0, 0.0, 300.0, 0 },
 };
-static const ci_input_spec ci_in_194[] = {
+static const ci_input_spec ci_in_201[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputScale", "NSNumber", "Distance", "scale", "float", 1, (const double[]){8.0}, NULL, 1.0, 100.0, 1.0, 100.0, 0 },
 };
-static const ci_input_spec ci_in_195[] = {
+static const ci_input_spec ci_in_202[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Scalar", "radius", "float", 1, (const double[]){0.0}, NULL, 0.0, 10.0, 0.0, 10.0, 0 },
     { "inputShadowAmount", "NSNumber", "Scalar", "shadowAmount", "float", 1, (const double[]){0.0}, NULL, -1.0, 1.0, -1.0, 1.0, 0 },
     { "inputHighlightAmount", "NSNumber", "Scalar", "highlightAmount", "float", 1, (const double[]){1.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_196[] = {
+static const ci_input_spec ci_in_203[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputNRNoiseLevel", "NSNumber", "Scalar", "NRNoiseLevel", "float", 1, (const double[]){0.07}, NULL, 0.0, 0.1, 0.0, 0.1, 0 },
     { "inputNRSharpness", "NSNumber", "Scalar", "NRSharpness", "float", 1, (const double[]){0.71}, NULL, 0.0, 2.0, 0.0, 2.0, 0 },
@@ -1021,34 +1064,34 @@ static const ci_input_spec ci_in_196[] = {
     { "inputThreshold", "NSNumber", "Scalar", "threshold", "float", 1, (const double[]){0.1}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
     { "inputContrast", "NSNumber", "Scalar", "contrast", "float", 1, (const double[]){50.0}, NULL, 0.25, 200.0, 0.25, 200.0, 0 },
 };
-static const ci_input_spec ci_in_197[] = {
+static const ci_input_spec ci_in_204[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBackgroundImage", "CIImage", "Image", "backgroundImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputAmount", "NSNumber", "Scalar", "amount", "float", 1, (const double[]){1.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_198[] = {
+static const ci_input_spec ci_in_205[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputQualityLevel", "NSNumber", "Integer", "qualityLevel", "NSUInteger", 1, (const double[]){0.0}, NULL, 0.0, 2.0, 0.0, 2.0, 0 },
 };
-static const ci_input_spec ci_in_199[] = {
+static const ci_input_spec ci_in_206[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputScale", "NSNumber", "Distance", "scale", "float", 1, (const double[]){8.0}, NULL, 1.0, 100.0, 1.0, 100.0, 0 },
 };
-static const ci_input_spec ci_in_200[] = {
+static const ci_input_spec ci_in_207[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){20.0}, NULL, 1.0, 100.0, 1.0, 100.0, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_201[] = {
+static const ci_input_spec ci_in_208[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_202[] = {
+static const ci_input_spec ci_in_209[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputShadingImage", "CIImage", "Image", "shadingImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputScale", "NSNumber", "Distance", "scale", "float", 1, (const double[]){10.0}, NULL, 0.0, 200.0, 0.0, 200.0, 0 },
 };
-static const ci_input_spec ci_in_203[] = {
+static const ci_input_spec ci_in_210[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenterColor1", "CIColor", "Color", "centerColor1", "CIColor *", 4, (const double[]){0.0784, 0.0627, 0.0706, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputReplacementColor1", "CIColor", "Color", "replacementColor1", "CIColor *", 4, (const double[]){0.4392, 0.1922, 0.1961, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -1063,7 +1106,7 @@ static const ci_input_spec ci_in_203[] = {
     { "inputCloseness3", "NSNumber", "Scalar", "closeness3", "float", 1, (const double[]){0.5}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
     { "inputContrast3", "NSNumber", "Scalar", "contrast3", "float", 1, (const double[]){0.99}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_204[] = {
+static const ci_input_spec ci_in_211[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputLightPosition", "CIVector", "Position3", "lightPosition", "CIVector *", 3, (const double[]){400.0, 600.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputLightPointsAt", "CIVector", "Position3", "lightPointsAt", "CIVector *", 3, (const double[]){200.0, 200.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -1071,7 +1114,7 @@ static const ci_input_spec ci_in_204[] = {
     { "inputConcentration", "NSNumber", "Scalar", "concentration", "float", 1, (const double[]){0.1}, NULL, 0.001, 1.5, 0.001, 1.5, 0 },
     { "inputColor", "CIColor", "OpaqueColor", "color", "CIColor *", 4, (const double[]){1.0, 1.0, 1.0, 1.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_205[] = {
+static const ci_input_spec ci_in_212[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputGaussianSigma", "NSNumber", "Scalar", "gaussianSigma", "float", 1, (const double[]){1.6}, NULL, 0.0, 50.0, 0.0, 10.0, 0 },
     { "inputPerceptual", "NSNumber", "Boolean", "perceptual", "BOOL", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
@@ -1079,83 +1122,37 @@ static const ci_input_spec ci_in_205[] = {
     { "inputThresholdLow", "NSNumber", "Scalar", "thresholdLow", "float", 1, (const double[]){0.02}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
     { "inputHysteresisPasses", "NSNumber", "Integer", "hysteresisPasses", "NSInteger", 1, (const double[]){1.0}, NULL, 0.0, 20.0, 0.0, 20.0, 0 },
 };
-static const ci_input_spec ci_in_206[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-};
-static const ci_input_spec ci_in_207[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputMaximumDistance", "NSNumber", "Distance", "maximumDistance", "float", 1, (const double[]){10.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
-};
-static const ci_input_spec ci_in_208[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputMaximumDistance", "NSNumber", "Distance", "maximumDistance", "float", 1, (const double[]){10.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
-};
-static const ci_input_spec ci_in_209[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputTransform", "NSValue", "Transform", "transform", "CGAffineTransform", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 1 },
-};
-static const ci_input_spec ci_in_210[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputTransform", "NSValue", "Transform", "transform", "CGAffineTransform", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 1 },
-};
-static const ci_input_spec ci_in_211[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
-    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){100.0}, NULL, 0.0, 1000.0, 0.0, 200.0, 0 },
-};
-static const ci_input_spec ci_in_212[] = {
-    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
-    { "inputAcuteAngle", "NSNumber", "Angle", "acuteAngle", "float", 1, (const double[]){1.5707963267948966}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
-    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){100.0}, NULL, 0.0, 1000.0, 0.0, 200.0, 0 },
-};
 static const ci_input_spec ci_in_213[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
-    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){100.0}, NULL, 0.0, 1000.0, 0.0, 200.0, 0 },
 };
 static const ci_input_spec ci_in_214[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
-    { "inputAcuteAngle", "NSNumber", "Angle", "acuteAngle", "float", 1, (const double[]){1.5707963267948966}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
-    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){100.0}, NULL, 0.0, 1000.0, 0.0, 200.0, 0 },
+    { "inputMaximumDistance", "NSNumber", "Distance", "maximumDistance", "float", 1, (const double[]){10.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
 };
 static const ci_input_spec ci_in_215[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
-    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){100.0}, NULL, 0.0, 1000.0, 0.0, 200.0, 0 },
+    { "inputMaximumDistance", "NSNumber", "Distance", "maximumDistance", "float", 1, (const double[]){10.0}, NULL, 0.0, 1000.0, 0.0, 100.0, 0 },
 };
 static const ci_input_spec ci_in_216[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputCount", "NSNumber", "Scalar", "count", "NSInteger", 1, (const double[]){6.0}, NULL, 1.0, 64.0, 1.0, 64.0, 0 },
-    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
+    { "inputTransform", "NSValue", "Transform", "transform", "CGAffineTransform", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 1 },
 };
 static const ci_input_spec ci_in_217[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputScale", "NSNumber", "Scalar", "scale", "float", 1, (const double[]){2.8}, NULL, 0.0, 10.0, 0.0, 10.0, 0 },
-    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
-    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){65.0}, NULL, 0.0, 1000.0, 0.0, 1000.0, 0 },
+    { "inputTransform", "NSValue", "Transform", "transform", "CGAffineTransform", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 1 },
 };
 static const ci_input_spec ci_in_218[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
-    { "inputAcuteAngle", "NSNumber", "Angle", "acuteAngle", "float", 1, (const double[]){1.5707963267948966}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
     { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){100.0}, NULL, 0.0, 1000.0, 0.0, 200.0, 0 },
 };
 static const ci_input_spec ci_in_219[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputTopLeft", "CIVector", "Position", "topLeft", "CGPoint", 2, (const double[]){118.0, 484.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputTopRight", "CIVector", "Position", "topRight", "CGPoint", 2, (const double[]){646.0, 507.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBottomRight", "CIVector", "Position", "bottomRight", "CGPoint", 2, (const double[]){548.0, 140.0}, NULL, NAN, NAN, NAN, NAN, 0 },
-    { "inputBottomLeft", "CIVector", "Position", "bottomLeft", "CGPoint", 2, (const double[]){155.0, 153.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
+    { "inputAcuteAngle", "NSNumber", "Angle", "acuteAngle", "float", 1, (const double[]){1.5707963267948966}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
+    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){100.0}, NULL, 0.0, 1000.0, 0.0, 200.0, 0 },
 };
 static const ci_input_spec ci_in_220[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -1167,28 +1164,74 @@ static const ci_input_spec ci_in_221[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
+    { "inputAcuteAngle", "NSNumber", "Angle", "acuteAngle", "float", 1, (const double[]){1.5707963267948966}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
     { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){100.0}, NULL, 0.0, 1000.0, 0.0, 200.0, 0 },
 };
 static const ci_input_spec ci_in_222[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
+    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){100.0}, NULL, 0.0, 1000.0, 0.0, 200.0, 0 },
+};
+static const ci_input_spec ci_in_223[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputCount", "NSNumber", "Scalar", "count", "NSInteger", 1, (const double[]){6.0}, NULL, 1.0, 64.0, 1.0, 64.0, 0 },
+    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
+};
+static const ci_input_spec ci_in_224[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputScale", "NSNumber", "Scalar", "scale", "float", 1, (const double[]){2.8}, NULL, 0.0, 10.0, 0.0, 10.0, 0 },
+    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
+    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){65.0}, NULL, 0.0, 1000.0, 0.0, 1000.0, 0 },
+};
+static const ci_input_spec ci_in_225[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
+    { "inputAcuteAngle", "NSNumber", "Angle", "acuteAngle", "float", 1, (const double[]){1.5707963267948966}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
+    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){100.0}, NULL, 0.0, 1000.0, 0.0, 200.0, 0 },
+};
+static const ci_input_spec ci_in_226[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputTopLeft", "CIVector", "Position", "topLeft", "CGPoint", 2, (const double[]){118.0, 484.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputTopRight", "CIVector", "Position", "topRight", "CGPoint", 2, (const double[]){646.0, 507.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBottomRight", "CIVector", "Position", "bottomRight", "CGPoint", 2, (const double[]){548.0, 140.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputBottomLeft", "CIVector", "Position", "bottomLeft", "CGPoint", 2, (const double[]){155.0, 153.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+};
+static const ci_input_spec ci_in_227[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
+    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){100.0}, NULL, 0.0, 1000.0, 0.0, 200.0, 0 },
+};
+static const ci_input_spec ci_in_228[] = {
+    { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
+    { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
+    { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){100.0}, NULL, 0.0, 1000.0, 0.0, 200.0, 0 },
+};
+static const ci_input_spec ci_in_229[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputPoint", "CIVector", "Position", "point", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputSize", "NSNumber", "Distance", "size", "float", 1, (const double[]){700.0}, NULL, 0.0, 1000.0, 0.0, 1000.0, 0 },
     { "inputRotation", "NSNumber", "Angle", "rotation", "float", 1, (const double[]){5.924}, NULL, -6.283185307179586, 6.283185307179586, -6.283185307179586, 6.283185307179586, 0 },
     { "inputDecay", "NSNumber", "Scalar", "decay", "float", 1, (const double[]){0.85}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_223[] = {
+static const ci_input_spec ci_in_230[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
     { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){100.0}, NULL, 0.0, 1000.0, 0.0, 200.0, 0 },
 };
-static const ci_input_spec ci_in_224[] = {
+static const ci_input_spec ci_in_231[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
     { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){100.0}, NULL, 0.0, 1000.0, 0.0, 200.0, 0 },
 };
-static const ci_input_spec ci_in_225[] = {
+static const ci_input_spec ci_in_232[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTargetImage", "CIImage", "Image", "targetImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBottomHeight", "NSNumber", "Distance", "bottomHeight", "float", 1, (const double[]){0.0}, NULL, 0.0, 100000.0, 0.0, 100.0, 0 },
@@ -1196,7 +1239,7 @@ static const ci_input_spec ci_in_225[] = {
     { "inputFoldShadowAmount", "NSNumber", "Scalar", "foldShadowAmount", "float", 1, (const double[]){0.1}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
     { "inputTime", "NSNumber", "Time", "time", "float", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_226[] = {
+static const ci_input_spec ci_in_233[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTargetImage", "CIImage", "Image", "targetImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){3.141592653589793}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
@@ -1204,7 +1247,7 @@ static const ci_input_spec ci_in_226[] = {
     { "inputBarOffset", "NSNumber", "Scalar", "barOffset", "float", 1, (const double[]){10.0}, NULL, 1.0, 100.0, 1.0, 100.0, 0 },
     { "inputTime", "NSNumber", "Time", "time", "float", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_227[] = {
+static const ci_input_spec ci_in_234[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTargetImage", "CIImage", "Image", "targetImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 300.0, 300.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -1214,7 +1257,7 @@ static const ci_input_spec ci_in_227[] = {
     { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){200.0}, NULL, 0.1, 1000.0, 0.1, 500.0, 0 },
     { "inputOpacity", "NSNumber", "Scalar", "opacity", "float", 1, (const double[]){1.3}, NULL, 0.0, 3.0, 0.0, 3.0, 0 },
 };
-static const ci_input_spec ci_in_228[] = {
+static const ci_input_spec ci_in_235[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTargetImage", "CIImage", "Image", "targetImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputMaskImage", "CIImage", "Image", "maskImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -1223,12 +1266,12 @@ static const ci_input_spec ci_in_228[] = {
     { "inputShadowDensity", "NSNumber", "Scalar", "shadowDensity", "float", 1, (const double[]){0.65}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
     { "inputShadowOffset", "CIVector", "Offset", "shadowOffset", "CGPoint", 2, (const double[]){0.0, -10.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_229[] = {
+static const ci_input_spec ci_in_236[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTargetImage", "CIImage", "Image", "targetImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTime", "NSNumber", "Time", "time", "float", 1, (const double[]){0.0}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_230[] = {
+static const ci_input_spec ci_in_237[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTargetImage", "CIImage", "Image", "targetImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -1240,7 +1283,7 @@ static const ci_input_spec ci_in_230[] = {
     { "inputStriationContrast", "NSNumber", "Scalar", "striationContrast", "float", 1, (const double[]){1.375}, NULL, 0.0, 5.0, 0.0, 5.0, 0 },
     { "inputFadeThreshold", "NSNumber", "Scalar", "fadeThreshold", "float", 1, (const double[]){0.85}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
 };
-static const ci_input_spec ci_in_231[] = {
+static const ci_input_spec ci_in_238[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTargetImage", "CIImage", "Image", "targetImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputCenter", "CIVector", "Position", "center", "CGPoint", 2, (const double[]){150.0, 150.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -1249,7 +1292,7 @@ static const ci_input_spec ci_in_231[] = {
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){150.0}, NULL, 1.0, 1000.0, 1.0, 500.0, 0 },
     { "inputCompression", "NSNumber", "Distance", "compression", "float", 1, (const double[]){300.0}, NULL, 1.0, 1000.0, 1.0, 800.0, 0 },
 };
-static const ci_input_spec ci_in_232[] = {
+static const ci_input_spec ci_in_239[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTargetImage", "CIImage", "Image", "targetImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBacksideImage", "CIImage", "Image", "backsideImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -1259,7 +1302,7 @@ static const ci_input_spec ci_in_232[] = {
     { "inputAngle", "NSNumber", "Angle", "angle", "float", 1, (const double[]){0.0}, NULL, -3.141592653589793, 3.141592653589793, -3.141592653589793, 3.141592653589793, 0 },
     { "inputRadius", "NSNumber", "Distance", "radius", "float", 1, (const double[]){100.0}, NULL, 0.01, 1000.0, 0.01, 400.0, 0 },
 };
-static const ci_input_spec ci_in_233[] = {
+static const ci_input_spec ci_in_240[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTargetImage", "CIImage", "Image", "targetImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputBacksideImage", "CIImage", "Image", "backsideImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -1271,7 +1314,7 @@ static const ci_input_spec ci_in_233[] = {
     { "inputShadowAmount", "NSNumber", "Scalar", "shadowAmount", "float", 1, (const double[]){0.7}, NULL, 0.0, 1.0, 0.0, 1.0, 0 },
     { "inputShadowExtent", "CIVector", "Rectangle", "shadowExtent", "CGRect", 4, (const double[]){0.0, 0.0, 0.0, 0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
 };
-static const ci_input_spec ci_in_234[] = {
+static const ci_input_spec ci_in_241[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTargetImage", "CIImage", "Image", "targetImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputShadingImage", "CIImage", "Image", "shadingImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -1281,7 +1324,7 @@ static const ci_input_spec ci_in_234[] = {
     { "inputWidth", "NSNumber", "Distance", "width", "float", 1, (const double[]){100.0}, NULL, 1.0, 1000.0, 10.0, 300.0, 0 },
     { "inputScale", "NSNumber", "Scalar", "scale", "float", 1, (const double[]){50.0}, NULL, -50.0, 50.0, -50.0, 50.0, 0 },
 };
-static const ci_input_spec ci_in_235[] = {
+static const ci_input_spec ci_in_242[] = {
     { "inputImage", "CIImage", "Image", "inputImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputTargetImage", "CIImage", "Image", "targetImage", "CIImage *", 0, (const double[]){0.0}, NULL, NAN, NAN, NAN, NAN, 0 },
     { "inputExtent", "CIVector", "Rectangle", "extent", "CGRect", 4, (const double[]){0.0, 0.0, 300.0, 300.0}, NULL, NAN, NAN, NAN, NAN, 0 },
@@ -1326,207 +1369,214 @@ static const ci_filter_spec ci_filter_specs[] = {
     { "CIColorThreshold", "Color Threshold", 1400, "ColorAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 2, ci_in_31, "colorThresholdFilter" },
     { "CIColorThresholdOtsu", "Color Threshold Otsu", 1400, "ColorAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 1, ci_in_32, "colorThresholdOtsuFilter" },
     { "CIToneMapHeadroom", "Tone Map Headroom", 1800, "ColorAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_33, "toneMapHeadroomFilter" },
-    { "CIColorCrossPolynomial", "Color Cross Polynomial", 700, "ColorEffect,Video,StillImage,BuiltIn", 4, ci_in_34, "colorCrossPolynomialFilter" },
-    { "CIColorCube", "Color Cube", 500, "ColorEffect,Video,StillImage,BuiltIn", 4, ci_in_35, "colorCubeFilter" },
-    { "CIColorCubeWithColorSpace", "Color Cube With Color Space", 700, "ColorEffect,Video,StillImage,BuiltIn", 5, ci_in_36, "colorCubeWithColorSpaceFilter" },
-    { "CIColorCubesMixedWithMask", "Color Cubes Mixed With Mask", 1100, "ColorEffect,Video,StillImage,BuiltIn", 7, ci_in_37, "colorCubesMixedWithMaskFilter" },
-    { "CIColorCurves", "Color Curves", 1100, "ColorEffect,Video,StillImage,BuiltIn", 4, ci_in_38, "colorCurvesFilter" },
-    { "CIColorInvert", "Color Invert", 500, "ColorEffect,Video,StillImage,BuiltIn", 1, ci_in_39, "colorInvertFilter" },
-    { "CIColorMap", "Color Map", 600, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_40, "colorMapFilter" },
-    { "CIColorMonochrome", "Color Monochrome", 500, "ColorEffect,Video,StillImage,BuiltIn", 3, ci_in_41, "colorMonochromeFilter" },
-    { "CIColorPosterize", "Color Posterize", 600, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_42, "colorPosterizeFilter" },
-    { "CIConvertLabToRGB", "Convert Lab To RGB", 1600, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_43, "convertLabToRGBFilter" },
-    { "CIConvertRGBtoLab", "Convert RG Bto Lab", 1600, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_44, "convertRGBtoLabFilter" },
-    { "CIDither", "Dither", 1200, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_45, "ditherFilter" },
-    { "CIDocumentEnhancer", "Document Enhancer", 1200, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_46, "documentEnhancerFilter" },
-    { "CIFalseColor", "False Color", 500, "ColorEffect,Video,StillImage,BuiltIn", 3, ci_in_47, "falseColorFilter" },
-    { "CILabDeltaE", "Lab Delta E", 1200, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_48, "LabDeltaEFilter" },
-    { "CIMaskToAlpha", "Mask To Alpha", 600, "ColorEffect,Video,StillImage,BuiltIn", 1, ci_in_49, "maskToAlphaFilter" },
-    { "CIMaximumComponent", "Maximum Component", 600, "ColorEffect,Video,StillImage,BuiltIn", 1, ci_in_50, "maximumComponentFilter" },
-    { "CIMinimumComponent", "Minimum Component", 600, "ColorEffect,Video,StillImage,BuiltIn", 1, ci_in_51, "minimumComponentFilter" },
-    { "CIPaletteCentroid", "Palette Centroid", 1200, "ColorEffect,Video,StillImage,BuiltIn", 3, ci_in_52, "paletteCentroidFilter" },
-    { "CIPalettize", "Palettize", 1200, "ColorEffect,Video,StillImage,BuiltIn", 3, ci_in_53, "palettizeFilter" },
-    { "CIPhotoEffectChrome", "Photo Effect Chrome", 700, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_54, "photoEffectChromeFilter" },
-    { "CIPhotoEffectFade", "Photo Effect Fade", 700, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_55, "photoEffectFadeFilter" },
-    { "CIPhotoEffectInstant", "Photo Effect Instant", 700, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_56, "photoEffectInstantFilter" },
-    { "CIPhotoEffectMono", "Photo Effect Mono", 700, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_57, "photoEffectMonoFilter" },
-    { "CIPhotoEffectNoir", "Photo Effect Noir", 700, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_58, "photoEffectNoirFilter" },
-    { "CIPhotoEffectProcess", "Photo Effect Process", 700, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_59, "photoEffectProcessFilter" },
-    { "CIPhotoEffectTonal", "Photo Effect Tonal", 700, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_60, "photoEffectTonalFilter" },
-    { "CIPhotoEffectTransfer", "Photo Effect Transfer", 700, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_61, "photoEffectTransferFilter" },
-    { "CISepiaTone", "Sepia Tone", 500, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_62, "sepiaToneFilter" },
-    { "CIThermal", "Thermal", 1200, "ColorEffect,Video,StillImage,BuiltIn", 1, ci_in_63, "thermalFilter" },
-    { "CIVignette", "Vignette", 500, "ColorEffect,Video,StillImage,BuiltIn", 3, ci_in_64, "vignetteFilter" },
-    { "CIVignetteEffect", "Vignette Effect", 700, "ColorEffect,Video,StillImage,BuiltIn", 5, ci_in_65, "vignetteEffectFilter" },
-    { "CIXRay", "X-Ray", 1200, "ColorEffect,Video,StillImage,BuiltIn", 1, ci_in_66, "xRayFilter" },
-    { "CIAdditionCompositing", "Addition Compositing", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_67, "additionCompositingFilter" },
-    { "CIColorBlendMode", "Color Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_68, "colorBlendModeFilter" },
-    { "CIColorBurnBlendMode", "Color Burn Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_69, "colorBurnBlendModeFilter" },
-    { "CIColorDodgeBlendMode", "Color Dodge Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_70, "colorDodgeBlendModeFilter" },
-    { "CIDarkenBlendMode", "Darken Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_71, "darkenBlendModeFilter" },
-    { "CIDifferenceBlendMode", "Difference Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_72, "differenceBlendModeFilter" },
-    { "CIDivideBlendMode", "Divide Blend Mode", 800, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_73, "divideBlendModeFilter" },
-    { "CIExclusionBlendMode", "Exclusion Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_74, "exclusionBlendModeFilter" },
-    { "CIHardLightBlendMode", "Hard Light Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_75, "hardLightBlendModeFilter" },
-    { "CIHueBlendMode", "Hue Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_76, "hueBlendModeFilter" },
-    { "CILightenBlendMode", "Lighten Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_77, "lightenBlendModeFilter" },
-    { "CILinearBurnBlendMode", "Linear Burn Blend Mode", 800, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_78, "linearBurnBlendModeFilter" },
-    { "CILinearDodgeBlendMode", "Linear Dodge Blend Mode", 800, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_79, "linearDodgeBlendModeFilter" },
-    { "CILinearLightBlendMode", "Linear Light Blend Mode", 1500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_80, "linearLightBlendModeFilter" },
-    { "CILuminosityBlendMode", "Luminosity Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_81, "luminosityBlendModeFilter" },
-    { "CIMaximumCompositing", "Maximum Compositing", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_82, "maximumCompositingFilter" },
-    { "CIMinimumCompositing", "Minimum Compositing", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_83, "minimumCompositingFilter" },
-    { "CIMultiplyBlendMode", "Multiply Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_84, "multiplyBlendModeFilter" },
-    { "CIMultiplyCompositing", "Multiply Compositing", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_85, "multiplyCompositingFilter" },
-    { "CIOverlayBlendMode", "Overlay Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_86, "overlayBlendModeFilter" },
-    { "CIPinLightBlendMode", "Pin Light Blend Mode", 800, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_87, "pinLightBlendModeFilter" },
-    { "CISaturationBlendMode", "Saturation Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_88, "saturationBlendModeFilter" },
-    { "CIScreenBlendMode", "Screen Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_89, "screenBlendModeFilter" },
-    { "CISoftLightBlendMode", "Soft Light Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_90, "softLightBlendModeFilter" },
-    { "CISourceAtopCompositing", "Source Atop Compositing", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_91, "sourceAtopCompositingFilter" },
-    { "CISourceInCompositing", "Source In Compositing", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_92, "sourceInCompositingFilter" },
-    { "CISourceOutCompositing", "Source Out Compositing", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_93, "sourceOutCompositingFilter" },
-    { "CISourceOverCompositing", "Source Over Compositing", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_94, "sourceOverCompositingFilter" },
-    { "CISubtractBlendMode", "Subtract Blend Mode", 800, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_95, "subtractBlendModeFilter" },
-    { "CIVividLightBlendMode", "Vivid Light Blend Mode", 1500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_96, "vividLightBlendModeFilter" },
-    { "CIBumpDistortion", "Bump Distortion", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_97, "bumpDistortionFilter" },
-    { "CIBumpDistortionLinear", "Bump Distortion Linear", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_98, "bumpDistortionLinearFilter" },
-    { "CICircleSplashDistortion", "Circle Splash Distortion", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_99, "circleSplashDistortionFilter" },
-    { "CICircularWrap", "Circular Wrap", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_100, "circularWrapFilter" },
-    { "CIDisplacementDistortion", "Displacement Distortion", 900, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_101, "displacementDistortionFilter" },
-    { "CIDroste", "Droste", 900, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 7, ci_in_102, "drosteFilter" },
-    { "CIGlassDistortion", "Glass Distortion", 800, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_103, "glassDistortionFilter" },
-    { "CIGlassLozenge", "Glass Lozenge", 900, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_104, "glassLozengeFilter" },
-    { "CIHoleDistortion", "Hole Distortion", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_105, "holeDistortionFilter" },
-    { "CILightTunnel", "Light Tunnel", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_106, "lightTunnelFilter" },
-    { "CINinePartStretched", "Nine Part Stretched", 1000, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_107, "ninePartStretchedFilter" },
-    { "CINinePartTiled", "Nine Part Tiled", 1000, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_108, "ninePartTiledFilter" },
-    { "CIPinchDistortion", "Pinch Distortion", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_109, "pinchDistortionFilter" },
-    { "CIStretchCrop", "Stretch Crop", 900, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_110, "stretchCropFilter" },
-    { "CITorusLensDistortion", "Torus Lens Distortion", 900, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_111, "torusLensDistortionFilter" },
-    { "CITwirlDistortion", "Twirl Distortion", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_112, "twirlDistortionFilter" },
-    { "CIVortexDistortion", "Vortex Distortion", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_113, "vortexDistortionFilter" },
-    { "CIAttributedTextImageGenerator", "Attributed Text Image Generator", 1100, "Generator,Video,StillImage,BuiltIn", 3, ci_in_114, "attributedTextImageGeneratorFilter" },
-    { "CIAztecCodeGenerator", "Aztec Code Generator", 800, "Generator,StillImage,BuiltIn", 4, ci_in_115, "aztecCodeGenerator" },
-    { "CIBarcodeGenerator", "Barcode Generator", 1100, "Generator,StillImage,BuiltIn", 1, ci_in_116, "barcodeGenerator" },
-    { "CICheckerboardGenerator", "Checkerboard Generator", 500, "Generator,Video,StillImage,BuiltIn", 5, ci_in_117, "checkerboardGeneratorFilter" },
-    { "CICode128BarcodeGenerator", "Code128 Barcode Generator", 800, "Generator,StillImage,BuiltIn", 3, ci_in_118, "code128BarcodeGenerator" },
-    { "CIConstantColorGenerator", "Constant Color Generator", 500, "Generator,Video,StillImage,BuiltIn", 1, ci_in_119, "constantColorGeneratorFilter" },
-    { "CILenticularHaloGenerator", "Lenticular Halo Generator", 900, "Generator,Video,StillImage,BuiltIn", 8, ci_in_120, "lenticularHaloGeneratorFilter" },
-    { "CIMeshGenerator", "Mesh Generator", 900, "Generator,Video,StillImage,BuiltIn", 3, ci_in_121, "meshGeneratorFilter" },
-    { "CIPDF417BarcodeGenerator", "PDF417 Barcode Generator", 900, "Generator,StillImage,BuiltIn", 12, ci_in_122, "PDF417BarcodeGenerator" },
-    { "CIQRCodeGenerator", "QR Code Generator", 700, "Generator,StillImage,BuiltIn", 2, ci_in_123, "QRCodeGenerator" },
-    { "CIRandomGenerator", "Random Generator", 600, "Generator,Video,StillImage,BuiltIn", 0, ci_in_124, "randomGeneratorFilter" },
-    { "CIRoundedRectangleGenerator", "Rounded Rectangle Generator", 1300, "Generator,Video,StillImage,BuiltIn", 3, ci_in_125, "roundedRectangleGeneratorFilter" },
-    { "CIRoundedRectangleStrokeGenerator", "Rounded Rectangle Stroke Generator", 1700, "Generator,Video,StillImage,BuiltIn", 4, ci_in_126, "roundedRectangleStrokeGeneratorFilter" },
-    { "CIBlurredRectangleGenerator", "Blurred Rectangle Generator", 1700, "Generator,Video,StillImage,BuiltIn", 3, ci_in_127, "blurredRectangleGeneratorFilter" },
-    { "CIStarShineGenerator", "Star Shine Generator", 900, "Generator,Video,StillImage,BuiltIn", 8, ci_in_128, "starShineGeneratorFilter" },
-    { "CIStripesGenerator", "Stripes Generator", 500, "Generator,Video,StillImage,BuiltIn", 5, ci_in_129, "stripesGeneratorFilter" },
-    { "CISunbeamsGenerator", "Sunbeams Generator", 900, "Generator,Video,StillImage,BuiltIn", 7, ci_in_130, "sunbeamsGeneratorFilter" },
-    { "CITextImageGenerator", "Text Image Generator", 1100, "Generator,Video,StillImage,BuiltIn", 5, ci_in_131, "textImageGeneratorFilter" },
-    { "CIAffineTransform", "Affine Transform", 500, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 2, ci_in_132, NULL },
-    { "CIBicubicScaleTransform", "Bicubic Scale Transform", 1200, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_133, "bicubicScaleTransformFilter" },
-    { "CICrop", "Crop", 500, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 2, ci_in_134, NULL },
-    { "CIEdgePreserveUpsampleFilter", "Edge Preserve Upsample Filter", 1000, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_135, "edgePreserveUpsampleFilter" },
-    { "CIKeystoneCorrectionCombined", "Keystone Correction Combined", 1300, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 6, ci_in_136, "keystoneCorrectionCombinedFilter" },
-    { "CIKeystoneCorrectionHorizontal", "Keystone Correction Horizontal", 1300, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 6, ci_in_137, "keystoneCorrectionHorizontalFilter" },
-    { "CIKeystoneCorrectionVertical", "Keystone Correction Vertical", 1300, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 6, ci_in_138, "keystoneCorrectionVerticalFilter" },
-    { "CILanczosScaleTransform", "Lanczos Scale Transform", 600, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_139, "lanczosScaleTransformFilter" },
-    { "CIPerspectiveCorrection", "Perspective Correction", 800, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 6, ci_in_140, "perspectiveCorrectionFilter" },
-    { "CIPerspectiveRotate", "Perspective Rotate", 1300, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_141, "perspectiveRotateFilter" },
-    { "CIPerspectiveTransform", "Perspective Transform", 600, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_142, "perspectiveTransformFilter" },
-    { "CIPerspectiveTransformWithExtent", "Perspective Transform With Extent", 600, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 6, ci_in_143, "perspectiveTransformWithExtentFilter" },
-    { "CIStraightenFilter", "Straighten Filter", 500, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 2, ci_in_144, "straightenFilter" },
-    { "CIGaussianGradient", "Gaussian Gradient", 500, "Gradient,Video,StillImage,BuiltIn", 4, ci_in_145, "gaussianGradientFilter" },
-    { "CIHueSaturationValueGradient", "Hue Saturation Value Gradient", 1000, "Gradient,Video,StillImage,BuiltIn", 5, ci_in_146, "hueSaturationValueGradientFilter" },
-    { "CILinearGradient", "Linear Gradient", 500, "Gradient,Video,StillImage,BuiltIn", 4, ci_in_147, "linearGradientFilter" },
-    { "CIRadialGradient", "Radial Gradient", 500, "Gradient,Video,StillImage,BuiltIn", 5, ci_in_148, "radialGradientFilter" },
-    { "CISmoothLinearGradient", "Smooth Linear Gradient", 600, "Gradient,Video,StillImage,BuiltIn", 4, ci_in_149, "smoothLinearGradientFilter" },
-    { "CICircularScreen", "Circular Screen", 600, "HalftoneEffect,Video,StillImage,BuiltIn", 4, ci_in_150, "circularScreenFilter" },
-    { "CICMYKHalftone", "CMYK Halftone", 600, "HalftoneEffect,Video,StillImage,BuiltIn", 7, ci_in_151, "CMYKHalftone" },
-    { "CIDotScreen", "Dot Screen", 600, "HalftoneEffect,Video,StillImage,BuiltIn", 5, ci_in_152, "dotScreenFilter" },
-    { "CIHatchedScreen", "Hatched Screen", 600, "HalftoneEffect,Video,StillImage,BuiltIn", 5, ci_in_153, "hatchedScreenFilter" },
-    { "CILineScreen", "Line Screen", 600, "HalftoneEffect,Video,StillImage,BuiltIn", 5, ci_in_154, "lineScreenFilter" },
-    { "CIAreaAverage", "Area Average", 900, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_155, "areaAverageFilter" },
-    { "CIAreaMaximum", "Area Maximum", 900, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_156, "areaMaximumFilter" },
-    { "CIAreaMaximumAlpha", "Area Maximum Alpha", 900, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_157, "areaMaximumAlphaFilter" },
-    { "CIAreaMinimum", "Area Minimum", 900, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_158, "areaMinimumFilter" },
-    { "CIAreaMinimumAlpha", "Area Minimum Alpha", 900, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_159, "areaMinimumAlphaFilter" },
-    { "CIAreaMinMax", "Area Min Max", 1200, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_160, "areaMinMaxFilter" },
-    { "CIAreaMinMaxRed", "Area Min Max Red", 1100, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_161, "areaMinMaxRedFilter" },
-    { "CIColumnAverage", "Column Average", 900, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_162, "columnAverageFilter" },
-    { "CIRowAverage", "Row Average", 900, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_163, "rowAverageFilter" },
-    { "CIAreaHistogram", "Area Histogram", 800, "Reduction,Video,StillImage,BuiltIn", 4, ci_in_164, "areaHistogramFilter" },
-    { "CIAreaLogarithmicHistogram", "Area Logarithmic Histogram", 1600, "Reduction,Video,StillImage,BuiltIn", 6, ci_in_165, "areaLogarithmicHistogramFilter" },
-    { "CIHistogramDisplayFilter", "Histogram Display Filter", 800, "Reduction,Video,StillImage,BuiltIn", 4, ci_in_166, "histogramDisplayFilter" },
-    { "CIKMeans", "K Means", 1300, "Reduction,Video,StillImage,BuiltIn", 6, ci_in_167, "KMeansFilter" },
-    { "CISharpenLuminance", "Sharpen Luminance", 600, "Sharpen,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_168, "sharpenLuminanceFilter" },
-    { "CIUnsharpMask", "Unsharp Mask", 600, "Sharpen,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_169, "unsharpMaskFilter" },
-    { "CIBlendWithAlphaMask", "Blend With Alpha Mask", 700, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_170, "blendWithAlphaMaskFilter" },
-    { "CIBlendWithBlueMask", "Blend With Blue Mask", 1100, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_171, "blendWithBlueMaskFilter" },
-    { "CIBlendWithMask", "Blend With Mask", 600, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_172, "blendWithMaskFilter" },
-    { "CIBlendWithRedMask", "Blend With Red Mask", 1100, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_173, "blendWithRedMaskFilter" },
-    { "CIBloom", "Bloom", 600, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_174, "bloomFilter" },
-    { "CIComicEffect", "Comic Effect", 900, "Stylize,Video,StillImage,BuiltIn", 1, ci_in_175, "comicEffectFilter" },
-    { "CIConvolution3X3", "Convolution3 X3", 700, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_176, "convolution3X3Filter" },
-    { "CIConvolution5X5", "Convolution5 X5", 700, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_177, "convolution5X5Filter" },
-    { "CIConvolution7X7", "Convolution7 X7", 900, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_178, "convolution7X7Filter" },
-    { "CIConvolution9Horizontal", "Convolution9 Horizontal", 700, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_179, "convolution9HorizontalFilter" },
-    { "CIConvolution9Vertical", "Convolution9 Vertical", 700, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_180, "convolution9VerticalFilter" },
-    { "CIConvolutionRGB3X3", "Convolution RGB3 X3", 1500, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_181, "convolutionRGB3X3Filter" },
-    { "CIConvolutionRGB5X5", "Convolution RGB5 X5", 1500, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_182, "convolutionRGB5X5Filter" },
-    { "CIConvolutionRGB7X7", "Convolution RGB7 X7", 1500, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_183, "convolutionRGB7X7Filter" },
-    { "CIConvolutionRGB9Horizontal", "Convolution RGB9 Horizontal", 1500, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_184, "convolutionRGB9HorizontalFilter" },
-    { "CIConvolutionRGB9Vertical", "Convolution RGB9 Vertical", 1500, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_185, "convolutionRGB9VerticalFilter" },
-    { "CICoreMLModelFilter", "Core ML Model Filter", 1200, "Stylize,Video,StillImage,BuiltIn", 4, ci_in_186, "coreMLModelFilter" },
-    { "CICrystallize", "Crystallize", 900, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_187, "crystallizeFilter" },
-    { "CIDepthOfField", "Depth Of Field", 900, "Stylize,Video,StillImage,BuiltIn", 7, ci_in_188, "depthOfFieldFilter" },
-    { "CIEdges", "Edges", 900, "Stylize,Video,StillImage,BuiltIn", 2, ci_in_189, "edgesFilter" },
-    { "CIEdgeWork", "Edge Work", 900, "Stylize,Video,StillImage,BuiltIn", 2, ci_in_190, "edgeWorkFilter" },
-    { "CIGaborGradients", "Gabor Gradients", 1200, "Stylize,Video,StillImage,BuiltIn", 1, ci_in_191, "gaborGradientsFilter" },
-    { "CIGloom", "Gloom", 600, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_192, "gloomFilter" },
-    { "CIHeightFieldFromMask", "Height Field From Mask", 900, "Stylize,Video,StillImage,BuiltIn", 2, ci_in_193, "heightFieldFromMaskFilter" },
-    { "CIHexagonalPixellate", "Hexagonal Pixellate", 900, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_194, "hexagonalPixellateFilter" },
-    { "CIHighlightShadowAdjust", "Highlight Shadow Adjust", 500, "Stylize,Video,StillImage,BuiltIn", 4, ci_in_195, "highlightShadowAdjustFilter" },
-    { "CILineOverlay", "Line Overlay", 900, "Stylize,Video,StillImage,BuiltIn", 6, ci_in_196, "lineOverlayFilter" },
-    { "CIMix", "Mix", 1300, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_197, "mixFilter" },
-    { "CIPersonSegmentation", "Person Segmentation", 1500, "Stylize,Video,StillImage,BuiltIn", 2, ci_in_198, "personSegmentationFilter" },
-    { "CIPixellate", "Pixellate", 600, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_199, "pixellateFilter" },
-    { "CIPointillize", "Pointillize", 900, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_200, "pointillizeFilter" },
-    { "CISaliencyMapFilter", "Saliency Map Filter", 1300, "Stylize,Video,StillImage,BuiltIn", 1, ci_in_201, "saliencyMapFilter" },
-    { "CIShadedMaterial", "Shaded Material", 900, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_202, "shadedMaterialFilter" },
-    { "CISpotColor", "Spot Color", 900, "Stylize,Video,StillImage,BuiltIn", 13, ci_in_203, "spotColorFilter" },
-    { "CISpotLight", "Spot Light", 500, "Stylize,Video,StillImage,BuiltIn", 6, ci_in_204, "spotLightFilter" },
-    { "CICannyEdgeDetector", "Canny Edge Detector", 1700, "Stylize,Video,StillImage,BuiltIn", 6, ci_in_205, "cannyEdgeDetectorFilter" },
-    { "CISobelGradients", "Sobel Gradients", 1700, "Stylize,Video,StillImage,BuiltIn", 1, ci_in_206, "sobelGradientsFilter" },
-    { "CIDistanceGradientFromRedMask", "Distance Gradient From Red Mask", 1700, "Stylize,Video,StillImage,BuiltIn", 2, ci_in_207, "distanceGradientFromRedMaskFilter" },
-    { "CISignedDistanceGradientFromRedMask", "Signed Distance Gradient From Red Mask", 1700, "Stylize,Video,StillImage,BuiltIn", 2, ci_in_208, "signedDistanceGradientFromRedMaskFilter" },
-    { "CIAffineClamp", "Affine Clamp", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 2, ci_in_209, "affineClampFilter" },
-    { "CIAffineTile", "Affine Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 2, ci_in_210, "affineTileFilter" },
-    { "CIEightfoldReflectedTile", "Eightfold Reflected Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_211, "eightfoldReflectedTileFilter" },
-    { "CIFourfoldReflectedTile", "Fourfold Reflected Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_212, "fourfoldReflectedTileFilter" },
-    { "CIFourfoldRotatedTile", "Fourfold Rotated Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_213, "fourfoldRotatedTileFilter" },
-    { "CIFourfoldTranslatedTile", "Fourfold Translated Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_214, "fourfoldTranslatedTileFilter" },
-    { "CIGlideReflectedTile", "Glide Reflected Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_215, "glideReflectedTileFilter" },
-    { "CIKaleidoscope", "Kaleidoscope", 900, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_216, "kaleidoscopeFilter" },
-    { "CIOpTile", "Op Tile", 900, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_217, "opTileFilter" },
-    { "CIParallelogramTile", "Parallelogram Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_218, "parallelogramTileFilter" },
-    { "CIPerspectiveTile", "Perspective Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_219, "perspectiveTileFilter" },
-    { "CISixfoldReflectedTile", "Sixfold Reflected Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_220, "sixfoldReflectedTileFilter" },
-    { "CISixfoldRotatedTile", "Sixfold Rotated Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_221, "sixfoldRotatedTileFilter" },
-    { "CITriangleKaleidoscope", "Triangle Kaleidoscope", 900, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_222, "triangleKaleidoscopeFilter" },
-    { "CITriangleTile", "Triangle Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_223, "triangleTileFilter" },
-    { "CITwelvefoldReflectedTile", "Twelvefold Reflected Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_224, "twelvefoldReflectedTileFilter" },
-    { "CIAccordionFoldTransition", "Accordion Fold Transition", 800, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 6, ci_in_225, "accordionFoldTransitionFilter" },
-    { "CIBarsSwipeTransition", "Bars Swipe Transition", 600, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 6, ci_in_226, "barsSwipeTransitionFilter" },
-    { "CICopyMachineTransition", "Copy Machine Transition", 600, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 8, ci_in_227, "copyMachineTransitionFilter" },
-    { "CIDisintegrateWithMaskTransition", "Disintegrate With Mask Transition", 600, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 7, ci_in_228, "disintegrateWithMaskTransitionFilter" },
-    { "CIDissolveTransition", "Dissolve Transition", 600, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_229, "dissolveTransitionFilter" },
-    { "CIFlashTransition", "Flash Transition", 600, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 10, ci_in_230, "flashTransitionFilter" },
-    { "CIModTransition", "Mod Transition", 600, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 7, ci_in_231, "modTransitionFilter" },
-    { "CIPageCurlTransition", "Page Curl Transition", 900, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 8, ci_in_232, "pageCurlTransitionFilter" },
-    { "CIPageCurlWithShadowTransition", "Page Curl With Shadow Transition", 900, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 10, ci_in_233, "pageCurlWithShadowTransitionFilter" },
-    { "CIRippleTransition", "Ripple Transition", 600, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 8, ci_in_234, "rippleTransitionFilter" },
-    { "CISwipeTransition", "Swipe Transition", 600, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 8, ci_in_235, "swipeTransitionFilter" },
+    { "CISystemToneMap", "System Tone Map", 2600, "ColorAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_34, "systemToneMapFilter" },
+    { "CIColorCrossPolynomial", "Color Cross Polynomial", 700, "ColorEffect,Video,StillImage,BuiltIn", 4, ci_in_35, "colorCrossPolynomialFilter" },
+    { "CIColorCube", "Color Cube", 500, "ColorEffect,Video,StillImage,BuiltIn", 4, ci_in_36, "colorCubeFilter" },
+    { "CIColorCubeWithColorSpace", "Color Cube With Color Space", 700, "ColorEffect,Video,StillImage,BuiltIn", 5, ci_in_37, "colorCubeWithColorSpaceFilter" },
+    { "CIColorCubesMixedWithMask", "Color Cubes Mixed With Mask", 1100, "ColorEffect,Video,StillImage,BuiltIn", 7, ci_in_38, "colorCubesMixedWithMaskFilter" },
+    { "CIColorCurves", "Color Curves", 1100, "ColorEffect,Video,StillImage,BuiltIn", 4, ci_in_39, "colorCurvesFilter" },
+    { "CIColorInvert", "Color Invert", 500, "ColorEffect,Video,StillImage,BuiltIn", 1, ci_in_40, "colorInvertFilter" },
+    { "CIColorMap", "Color Map", 600, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_41, "colorMapFilter" },
+    { "CIColorMonochrome", "Color Monochrome", 500, "ColorEffect,Video,StillImage,BuiltIn", 3, ci_in_42, "colorMonochromeFilter" },
+    { "CIColorPosterize", "Color Posterize", 600, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_43, "colorPosterizeFilter" },
+    { "CIConvertLabToRGB", "Convert Lab To RGB", 1600, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_44, "convertLabToRGBFilter" },
+    { "CIConvertRGBtoLab", "Convert RG Bto Lab", 1600, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_45, "convertRGBtoLabFilter" },
+    { "CIDither", "Dither", 1200, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_46, "ditherFilter" },
+    { "CIDocumentEnhancer", "Document Enhancer", 1200, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_47, "documentEnhancerFilter" },
+    { "CIFalseColor", "False Color", 500, "ColorEffect,Video,StillImage,BuiltIn", 3, ci_in_48, "falseColorFilter" },
+    { "CILabDeltaE", "Lab Delta E", 1200, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_49, "LabDeltaEFilter" },
+    { "CIMaskToAlpha", "Mask To Alpha", 600, "ColorEffect,Video,StillImage,BuiltIn", 1, ci_in_50, "maskToAlphaFilter" },
+    { "CIMaximumComponent", "Maximum Component", 600, "ColorEffect,Video,StillImage,BuiltIn", 1, ci_in_51, "maximumComponentFilter" },
+    { "CIMinimumComponent", "Minimum Component", 600, "ColorEffect,Video,StillImage,BuiltIn", 1, ci_in_52, "minimumComponentFilter" },
+    { "CIPaletteCentroid", "Palette Centroid", 1200, "ColorEffect,Video,StillImage,BuiltIn", 3, ci_in_53, "paletteCentroidFilter" },
+    { "CIPalettize", "Palettize", 1200, "ColorEffect,Video,StillImage,BuiltIn", 3, ci_in_54, "palettizeFilter" },
+    { "CIPhotoEffectChrome", "Photo Effect Chrome", 700, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_55, "photoEffectChromeFilter" },
+    { "CIPhotoEffectFade", "Photo Effect Fade", 700, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_56, "photoEffectFadeFilter" },
+    { "CIPhotoEffectInstant", "Photo Effect Instant", 700, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_57, "photoEffectInstantFilter" },
+    { "CIPhotoEffectMono", "Photo Effect Mono", 700, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_58, "photoEffectMonoFilter" },
+    { "CIPhotoEffectNoir", "Photo Effect Noir", 700, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_59, "photoEffectNoirFilter" },
+    { "CIPhotoEffectProcess", "Photo Effect Process", 700, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_60, "photoEffectProcessFilter" },
+    { "CIPhotoEffectTonal", "Photo Effect Tonal", 700, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_61, "photoEffectTonalFilter" },
+    { "CIPhotoEffectTransfer", "Photo Effect Transfer", 700, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_62, "photoEffectTransferFilter" },
+    { "CISepiaTone", "Sepia Tone", 500, "ColorEffect,Video,StillImage,BuiltIn", 2, ci_in_63, "sepiaToneFilter" },
+    { "CIThermal", "Thermal", 1200, "ColorEffect,Video,StillImage,BuiltIn", 1, ci_in_64, "thermalFilter" },
+    { "CIVignette", "Vignette", 500, "ColorEffect,Video,StillImage,BuiltIn", 3, ci_in_65, "vignetteFilter" },
+    { "CIVignetteEffect", "Vignette Effect", 700, "ColorEffect,Video,StillImage,BuiltIn", 5, ci_in_66, "vignetteEffectFilter" },
+    { "CIXRay", "X-Ray", 1200, "ColorEffect,Video,StillImage,BuiltIn", 1, ci_in_67, "xRayFilter" },
+    { "CIAdditionCompositing", "Addition Compositing", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_68, "additionCompositingFilter" },
+    { "CIColorBlendMode", "Color Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_69, "colorBlendModeFilter" },
+    { "CIColorBurnBlendMode", "Color Burn Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_70, "colorBurnBlendModeFilter" },
+    { "CIColorDodgeBlendMode", "Color Dodge Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_71, "colorDodgeBlendModeFilter" },
+    { "CIDarkenBlendMode", "Darken Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_72, "darkenBlendModeFilter" },
+    { "CIDifferenceBlendMode", "Difference Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_73, "differenceBlendModeFilter" },
+    { "CIDivideBlendMode", "Divide Blend Mode", 800, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_74, "divideBlendModeFilter" },
+    { "CIExclusionBlendMode", "Exclusion Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_75, "exclusionBlendModeFilter" },
+    { "CIHardLightBlendMode", "Hard Light Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_76, "hardLightBlendModeFilter" },
+    { "CIHueBlendMode", "Hue Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_77, "hueBlendModeFilter" },
+    { "CILightenBlendMode", "Lighten Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_78, "lightenBlendModeFilter" },
+    { "CILinearBurnBlendMode", "Linear Burn Blend Mode", 800, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_79, "linearBurnBlendModeFilter" },
+    { "CILinearDodgeBlendMode", "Linear Dodge Blend Mode", 800, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_80, "linearDodgeBlendModeFilter" },
+    { "CILinearLightBlendMode", "Linear Light Blend Mode", 1500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_81, "linearLightBlendModeFilter" },
+    { "CILuminosityBlendMode", "Luminosity Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_82, "luminosityBlendModeFilter" },
+    { "CIMaximumCompositing", "Maximum Compositing", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_83, "maximumCompositingFilter" },
+    { "CIMinimumCompositing", "Minimum Compositing", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_84, "minimumCompositingFilter" },
+    { "CIMultiplyBlendMode", "Multiply Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_85, "multiplyBlendModeFilter" },
+    { "CIMultiplyCompositing", "Multiply Compositing", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_86, "multiplyCompositingFilter" },
+    { "CIOverlayBlendMode", "Overlay Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_87, "overlayBlendModeFilter" },
+    { "CIPinLightBlendMode", "Pin Light Blend Mode", 800, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_88, "pinLightBlendModeFilter" },
+    { "CISaturationBlendMode", "Saturation Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_89, "saturationBlendModeFilter" },
+    { "CIScreenBlendMode", "Screen Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_90, "screenBlendModeFilter" },
+    { "CISoftLightBlendMode", "Soft Light Blend Mode", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_91, "softLightBlendModeFilter" },
+    { "CISourceAtopCompositing", "Source Atop Compositing", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_92, "sourceAtopCompositingFilter" },
+    { "CISourceInCompositing", "Source In Compositing", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_93, "sourceInCompositingFilter" },
+    { "CISourceOutCompositing", "Source Out Compositing", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_94, "sourceOutCompositingFilter" },
+    { "CISourceOverCompositing", "Source Over Compositing", 500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_95, "sourceOverCompositingFilter" },
+    { "CISubtractBlendMode", "Subtract Blend Mode", 800, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_96, "subtractBlendModeFilter" },
+    { "CIVividLightBlendMode", "Vivid Light Blend Mode", 1500, "CompositeOperation,Video,StillImage,HighDynamicRange,Interlaced,NonSquarePixels,BuiltIn", 2, ci_in_97, "vividLightBlendModeFilter" },
+    { "CIBumpDistortion", "Bump Distortion", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_98, "bumpDistortionFilter" },
+    { "CIBumpDistortionLinear", "Bump Distortion Linear", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_99, "bumpDistortionLinearFilter" },
+    { "CICircleSplashDistortion", "Circle Splash Distortion", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_100, "circleSplashDistortionFilter" },
+    { "CICircularWrap", "Circular Wrap", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_101, "circularWrapFilter" },
+    { "CIDisplacementDistortion", "Displacement Distortion", 900, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_102, "displacementDistortionFilter" },
+    { "CIDroste", "Droste", 900, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 7, ci_in_103, "drosteFilter" },
+    { "CIGlassDistortion", "Glass Distortion", 800, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_104, "glassDistortionFilter" },
+    { "CIGlassLozenge", "Glass Lozenge", 900, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_105, "glassLozengeFilter" },
+    { "CIHoleDistortion", "Hole Distortion", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_106, "holeDistortionFilter" },
+    { "CILightTunnel", "Light Tunnel", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_107, "lightTunnelFilter" },
+    { "CINinePartStretched", "Nine Part Stretched", 1000, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_108, "ninePartStretchedFilter" },
+    { "CINinePartTiled", "Nine Part Tiled", 1000, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_109, "ninePartTiledFilter" },
+    { "CIPinchDistortion", "Pinch Distortion", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_110, "pinchDistortionFilter" },
+    { "CIStretchCrop", "Stretch Crop", 900, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_111, "stretchCropFilter" },
+    { "CITorusLensDistortion", "Torus Lens Distortion", 900, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_112, "torusLensDistortionFilter" },
+    { "CITwirlDistortion", "Twirl Distortion", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_113, "twirlDistortionFilter" },
+    { "CIVortexDistortion", "Vortex Distortion", 600, "DistortionEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_114, "vortexDistortionFilter" },
+    { "CIAttributedTextImageGenerator", "Attributed Text Image Generator", 1100, "Generator,Video,StillImage,BuiltIn", 3, ci_in_115, "attributedTextImageGeneratorFilter" },
+    { "CIAztecCodeGenerator", "Aztec Code Generator", 800, "Generator,StillImage,BuiltIn", 4, ci_in_116, "aztecCodeGenerator" },
+    { "CIBarcodeGenerator", "Barcode Generator", 1100, "Generator,StillImage,BuiltIn", 1, ci_in_117, "barcodeGenerator" },
+    { "CICheckerboardGenerator", "Checkerboard Generator", 500, "Generator,Video,StillImage,BuiltIn", 5, ci_in_118, "checkerboardGeneratorFilter" },
+    { "CICode128BarcodeGenerator", "Code128 Barcode Generator", 800, "Generator,StillImage,BuiltIn", 3, ci_in_119, "code128BarcodeGenerator" },
+    { "CIConstantColorGenerator", "Constant Color Generator", 500, "Generator,Video,StillImage,BuiltIn", 1, ci_in_120, "constantColorGeneratorFilter" },
+    { "CILenticularHaloGenerator", "Lenticular Halo Generator", 900, "Generator,Video,StillImage,BuiltIn", 8, ci_in_121, "lenticularHaloGeneratorFilter" },
+    { "CIMeshGenerator", "Mesh Generator", 900, "Generator,Video,StillImage,BuiltIn", 3, ci_in_122, "meshGeneratorFilter" },
+    { "CIPDF417BarcodeGenerator", "PDF417 Barcode Generator", 900, "Generator,StillImage,BuiltIn", 12, ci_in_123, "PDF417BarcodeGenerator" },
+    { "CIQRCodeGenerator", "QR Code Generator", 700, "Generator,StillImage,BuiltIn", 2, ci_in_124, "QRCodeGenerator" },
+    { "CIRandomGenerator", "Random Generator", 600, "Generator,Video,StillImage,BuiltIn", 0, ci_in_125, "randomGeneratorFilter" },
+    { "CIRoundedQRCodeGenerator", "Rounded QR Code Generator", 2600, "Generator,StillImage,BuiltIn", 8, ci_in_126, "roundedQRCodeGenerator" },
+    { "CIRoundedRectangleGenerator", "Rounded Rectangle Generator", 1300, "Generator,Video,StillImage,BuiltIn", 4, ci_in_127, "roundedRectangleGeneratorFilter" },
+    { "CIRoundedRectangleStrokeGenerator", "Rounded Rectangle Stroke Generator", 1700, "Generator,Video,StillImage,BuiltIn", 5, ci_in_128, "roundedRectangleStrokeGeneratorFilter" },
+    { "CIBlurredRoundedRectangleGenerator", "Blurred Rounded Rectangle Generator", 2600, "Generator,Video,StillImage,BuiltIn", 5, ci_in_129, "blurredRoundedRectangleGeneratorFilter" },
+    { "CIBlurredRectangleGenerator", "Blurred Rectangle Generator", 1700, "Generator,Video,StillImage,BuiltIn", 3, ci_in_130, "blurredRectangleGeneratorFilter" },
+    { "CIStarShineGenerator", "Star Shine Generator", 900, "Generator,Video,StillImage,BuiltIn", 8, ci_in_131, "starShineGeneratorFilter" },
+    { "CIStripesGenerator", "Stripes Generator", 500, "Generator,Video,StillImage,BuiltIn", 5, ci_in_132, "stripesGeneratorFilter" },
+    { "CISunbeamsGenerator", "Sunbeams Generator", 900, "Generator,Video,StillImage,BuiltIn", 7, ci_in_133, "sunbeamsGeneratorFilter" },
+    { "CITextImageGenerator", "Text Image Generator", 1100, "Generator,Video,StillImage,BuiltIn", 5, ci_in_134, "textImageGeneratorFilter" },
+    { "CIAffineTransform", "Affine Transform", 500, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 2, ci_in_135, NULL },
+    { "CIBicubicScaleTransform", "Bicubic Scale Transform", 1200, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_136, "bicubicScaleTransformFilter" },
+    { "CICrop", "Crop", 500, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 2, ci_in_137, NULL },
+    { "CIEdgePreserveUpsampleFilter", "Edge Preserve Upsample Filter", 1000, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_138, "edgePreserveUpsampleFilter" },
+    { "CIKeystoneCorrectionCombined", "Keystone Correction Combined", 1300, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 6, ci_in_139, "keystoneCorrectionCombinedFilter" },
+    { "CIKeystoneCorrectionHorizontal", "Keystone Correction Horizontal", 1300, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 6, ci_in_140, "keystoneCorrectionHorizontalFilter" },
+    { "CIKeystoneCorrectionVertical", "Keystone Correction Vertical", 1300, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 6, ci_in_141, "keystoneCorrectionVerticalFilter" },
+    { "CILanczosScaleTransform", "Lanczos Scale Transform", 600, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_142, "lanczosScaleTransformFilter" },
+    { "CIMaximumScaleTransform", "Maximum Scale Transform", 1800, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_143, "maximumScaleTransformFilter" },
+    { "CIPerspectiveCorrection", "Perspective Correction", 800, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 6, ci_in_144, "perspectiveCorrectionFilter" },
+    { "CIPerspectiveRotate", "Perspective Rotate", 1300, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_145, "perspectiveRotateFilter" },
+    { "CIPerspectiveTransform", "Perspective Transform", 600, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_146, "perspectiveTransformFilter" },
+    { "CIPerspectiveTransformWithExtent", "Perspective Transform With Extent", 600, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 6, ci_in_147, "perspectiveTransformWithExtentFilter" },
+    { "CIStraightenFilter", "Straighten Filter", 500, "GeometryAdjustment,Video,StillImage,HighDynamicRange,BuiltIn", 2, ci_in_148, "straightenFilter" },
+    { "CIGaussianGradient", "Gaussian Gradient", 500, "Gradient,Video,StillImage,BuiltIn", 4, ci_in_149, "gaussianGradientFilter" },
+    { "CIHueSaturationValueGradient", "Hue Saturation Value Gradient", 1000, "Gradient,Video,StillImage,BuiltIn", 5, ci_in_150, "hueSaturationValueGradientFilter" },
+    { "CILinearGradient", "Linear Gradient", 500, "Gradient,Video,StillImage,BuiltIn", 4, ci_in_151, "linearGradientFilter" },
+    { "CIRadialGradient", "Radial Gradient", 500, "Gradient,Video,StillImage,BuiltIn", 5, ci_in_152, "radialGradientFilter" },
+    { "CISmoothLinearGradient", "Smooth Linear Gradient", 600, "Gradient,Video,StillImage,BuiltIn", 4, ci_in_153, "smoothLinearGradientFilter" },
+    { "CICircularScreen", "Circular Screen", 600, "HalftoneEffect,Video,StillImage,BuiltIn", 4, ci_in_154, "circularScreenFilter" },
+    { "CICMYKHalftone", "CMYK Halftone", 600, "HalftoneEffect,Video,StillImage,BuiltIn", 7, ci_in_155, "CMYKHalftone" },
+    { "CIDotScreen", "Dot Screen", 600, "HalftoneEffect,Video,StillImage,BuiltIn", 5, ci_in_156, "dotScreenFilter" },
+    { "CIHatchedScreen", "Hatched Screen", 600, "HalftoneEffect,Video,StillImage,BuiltIn", 5, ci_in_157, "hatchedScreenFilter" },
+    { "CILineScreen", "Line Screen", 600, "HalftoneEffect,Video,StillImage,BuiltIn", 5, ci_in_158, "lineScreenFilter" },
+    { "CIAreaAverage", "Area Average", 900, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_159, "areaAverageFilter" },
+    { "CIAreaMaximum", "Area Maximum", 900, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_160, "areaMaximumFilter" },
+    { "CIAreaMaximumAlpha", "Area Maximum Alpha", 900, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_161, "areaMaximumAlphaFilter" },
+    { "CIAreaMinimum", "Area Minimum", 900, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_162, "areaMinimumFilter" },
+    { "CIAreaMinimumAlpha", "Area Minimum Alpha", 900, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_163, "areaMinimumAlphaFilter" },
+    { "CIAreaMinMax", "Area Min Max", 1200, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_164, "areaMinMaxFilter" },
+    { "CIAreaMinMaxRed", "Area Min Max Red", 1100, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_165, "areaMinMaxRedFilter" },
+    { "CIColumnAverage", "Column Average", 900, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_166, "columnAverageFilter" },
+    { "CIRowAverage", "Row Average", 900, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_167, "rowAverageFilter" },
+    { "CIAreaBoundsRed", "Area Bounds Red", 1800, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_168, "areaBoundsRedFilter" },
+    { "CIAreaAverageMaximumRed", "Area Average Maximum Red", 2600, "Reduction,Video,StillImage,BuiltIn", 2, ci_in_169, "areaAverageMaximumRedFilter" },
+    { "CIAreaHistogram", "Area Histogram", 800, "Reduction,Video,StillImage,BuiltIn", 4, ci_in_170, "areaHistogramFilter" },
+    { "CIAreaAlphaWeightedHistogram", "Area Alpha Weighted Histogram", 1800, "Reduction,Video,StillImage,BuiltIn", 4, ci_in_171, "areaAlphaWeightedHistogramFilter" },
+    { "CIAreaLogarithmicHistogram", "Area Logarithmic Histogram", 1600, "Reduction,Video,StillImage,BuiltIn", 6, ci_in_172, "areaLogarithmicHistogramFilter" },
+    { "CIHistogramDisplayFilter", "Histogram Display Filter", 800, "Reduction,Video,StillImage,BuiltIn", 4, ci_in_173, "histogramDisplayFilter" },
+    { "CIKMeans", "K Means", 1300, "Reduction,Video,StillImage,BuiltIn", 6, ci_in_174, "KMeansFilter" },
+    { "CISharpenLuminance", "Sharpen Luminance", 600, "Sharpen,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_175, "sharpenLuminanceFilter" },
+    { "CIUnsharpMask", "Unsharp Mask", 600, "Sharpen,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_176, "unsharpMaskFilter" },
+    { "CIBlendWithAlphaMask", "Blend With Alpha Mask", 700, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_177, "blendWithAlphaMaskFilter" },
+    { "CIBlendWithBlueMask", "Blend With Blue Mask", 1100, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_178, "blendWithBlueMaskFilter" },
+    { "CIBlendWithMask", "Blend With Mask", 600, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_179, "blendWithMaskFilter" },
+    { "CIBlendWithRedMask", "Blend With Red Mask", 1100, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_180, "blendWithRedMaskFilter" },
+    { "CIBloom", "Bloom", 600, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_181, "bloomFilter" },
+    { "CIComicEffect", "Comic Effect", 900, "Stylize,Video,StillImage,BuiltIn", 1, ci_in_182, "comicEffectFilter" },
+    { "CIConvolution3X3", "Convolution3 X3", 700, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_183, "convolution3X3Filter" },
+    { "CIConvolution5X5", "Convolution5 X5", 700, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_184, "convolution5X5Filter" },
+    { "CIConvolution7X7", "Convolution7 X7", 900, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_185, "convolution7X7Filter" },
+    { "CIConvolution9Horizontal", "Convolution9 Horizontal", 700, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_186, "convolution9HorizontalFilter" },
+    { "CIConvolution9Vertical", "Convolution9 Vertical", 700, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_187, "convolution9VerticalFilter" },
+    { "CIConvolutionRGB3X3", "Convolution RGB3 X3", 1500, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_188, "convolutionRGB3X3Filter" },
+    { "CIConvolutionRGB5X5", "Convolution RGB5 X5", 1500, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_189, "convolutionRGB5X5Filter" },
+    { "CIConvolutionRGB7X7", "Convolution RGB7 X7", 1500, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_190, "convolutionRGB7X7Filter" },
+    { "CIConvolutionRGB9Horizontal", "Convolution RGB9 Horizontal", 1500, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_191, "convolutionRGB9HorizontalFilter" },
+    { "CIConvolutionRGB9Vertical", "Convolution RGB9 Vertical", 1500, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_192, "convolutionRGB9VerticalFilter" },
+    { "CICoreMLModelFilter", "Core ML Model Filter", 1200, "Stylize,Video,StillImage,BuiltIn", 4, ci_in_193, "coreMLModelFilter" },
+    { "CICrystallize", "Crystallize", 900, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_194, "crystallizeFilter" },
+    { "CIDepthOfField", "Depth Of Field", 900, "Stylize,Video,StillImage,BuiltIn", 7, ci_in_195, "depthOfFieldFilter" },
+    { "CIEdges", "Edges", 900, "Stylize,Video,StillImage,BuiltIn", 2, ci_in_196, "edgesFilter" },
+    { "CIEdgeWork", "Edge Work", 900, "Stylize,Video,StillImage,BuiltIn", 2, ci_in_197, "edgeWorkFilter" },
+    { "CIGaborGradients", "Gabor Gradients", 1200, "Stylize,Video,StillImage,BuiltIn", 1, ci_in_198, "gaborGradientsFilter" },
+    { "CIGloom", "Gloom", 600, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_199, "gloomFilter" },
+    { "CIHeightFieldFromMask", "Height Field From Mask", 900, "Stylize,Video,StillImage,BuiltIn", 2, ci_in_200, "heightFieldFromMaskFilter" },
+    { "CIHexagonalPixellate", "Hexagonal Pixellate", 900, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_201, "hexagonalPixellateFilter" },
+    { "CIHighlightShadowAdjust", "Highlight Shadow Adjust", 500, "Stylize,Video,StillImage,BuiltIn", 4, ci_in_202, "highlightShadowAdjustFilter" },
+    { "CILineOverlay", "Line Overlay", 900, "Stylize,Video,StillImage,BuiltIn", 6, ci_in_203, "lineOverlayFilter" },
+    { "CIMix", "Mix", 1300, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_204, "mixFilter" },
+    { "CIPersonSegmentation", "Person Segmentation", 1500, "Stylize,Video,StillImage,BuiltIn", 2, ci_in_205, "personSegmentationFilter" },
+    { "CIPixellate", "Pixellate", 600, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_206, "pixellateFilter" },
+    { "CIPointillize", "Pointillize", 900, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_207, "pointillizeFilter" },
+    { "CISaliencyMapFilter", "Saliency Map Filter", 1300, "Stylize,Video,StillImage,BuiltIn", 1, ci_in_208, "saliencyMapFilter" },
+    { "CIShadedMaterial", "Shaded Material", 900, "Stylize,Video,StillImage,BuiltIn", 3, ci_in_209, "shadedMaterialFilter" },
+    { "CISpotColor", "Spot Color", 900, "Stylize,Video,StillImage,BuiltIn", 13, ci_in_210, "spotColorFilter" },
+    { "CISpotLight", "Spot Light", 500, "Stylize,Video,StillImage,BuiltIn", 6, ci_in_211, "spotLightFilter" },
+    { "CICannyEdgeDetector", "Canny Edge Detector", 1700, "Stylize,Video,StillImage,BuiltIn", 6, ci_in_212, "cannyEdgeDetectorFilter" },
+    { "CISobelGradients", "Sobel Gradients", 1700, "Stylize,Video,StillImage,BuiltIn", 1, ci_in_213, "sobelGradientsFilter" },
+    { "CIDistanceGradientFromRedMask", "Distance Gradient From Red Mask", 1700, "Stylize,Video,StillImage,BuiltIn", 2, ci_in_214, "distanceGradientFromRedMaskFilter" },
+    { "CISignedDistanceGradientFromRedMask", "Signed Distance Gradient From Red Mask", 1700, "Stylize,Video,StillImage,BuiltIn", 2, ci_in_215, "signedDistanceGradientFromRedMaskFilter" },
+    { "CIAffineClamp", "Affine Clamp", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 2, ci_in_216, "affineClampFilter" },
+    { "CIAffineTile", "Affine Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 2, ci_in_217, "affineTileFilter" },
+    { "CIEightfoldReflectedTile", "Eightfold Reflected Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_218, "eightfoldReflectedTileFilter" },
+    { "CIFourfoldReflectedTile", "Fourfold Reflected Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_219, "fourfoldReflectedTileFilter" },
+    { "CIFourfoldRotatedTile", "Fourfold Rotated Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_220, "fourfoldRotatedTileFilter" },
+    { "CIFourfoldTranslatedTile", "Fourfold Translated Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_221, "fourfoldTranslatedTileFilter" },
+    { "CIGlideReflectedTile", "Glide Reflected Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_222, "glideReflectedTileFilter" },
+    { "CIKaleidoscope", "Kaleidoscope", 900, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_223, "kaleidoscopeFilter" },
+    { "CIOpTile", "Op Tile", 900, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_224, "opTileFilter" },
+    { "CIParallelogramTile", "Parallelogram Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_225, "parallelogramTileFilter" },
+    { "CIPerspectiveTile", "Perspective Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_226, "perspectiveTileFilter" },
+    { "CISixfoldReflectedTile", "Sixfold Reflected Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_227, "sixfoldReflectedTileFilter" },
+    { "CISixfoldRotatedTile", "Sixfold Rotated Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_228, "sixfoldRotatedTileFilter" },
+    { "CITriangleKaleidoscope", "Triangle Kaleidoscope", 900, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 5, ci_in_229, "triangleKaleidoscopeFilter" },
+    { "CITriangleTile", "Triangle Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_230, "triangleTileFilter" },
+    { "CITwelvefoldReflectedTile", "Twelvefold Reflected Tile", 600, "TileEffect,Video,StillImage,HighDynamicRange,BuiltIn", 4, ci_in_231, "twelvefoldReflectedTileFilter" },
+    { "CIAccordionFoldTransition", "Accordion Fold Transition", 800, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 6, ci_in_232, "accordionFoldTransitionFilter" },
+    { "CIBarsSwipeTransition", "Bars Swipe Transition", 600, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 6, ci_in_233, "barsSwipeTransitionFilter" },
+    { "CICopyMachineTransition", "Copy Machine Transition", 600, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 8, ci_in_234, "copyMachineTransitionFilter" },
+    { "CIDisintegrateWithMaskTransition", "Disintegrate With Mask Transition", 600, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 7, ci_in_235, "disintegrateWithMaskTransitionFilter" },
+    { "CIDissolveTransition", "Dissolve Transition", 600, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 3, ci_in_236, "dissolveTransitionFilter" },
+    { "CIFlashTransition", "Flash Transition", 600, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 10, ci_in_237, "flashTransitionFilter" },
+    { "CIModTransition", "Mod Transition", 600, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 7, ci_in_238, "modTransitionFilter" },
+    { "CIPageCurlTransition", "Page Curl Transition", 900, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 8, ci_in_239, "pageCurlTransitionFilter" },
+    { "CIPageCurlWithShadowTransition", "Page Curl With Shadow Transition", 900, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 10, ci_in_240, "pageCurlWithShadowTransitionFilter" },
+    { "CIRippleTransition", "Ripple Transition", 600, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 8, ci_in_241, "rippleTransitionFilter" },
+    { "CISwipeTransition", "Swipe Transition", 600, "Transition,Video,StillImage,HighDynamicRange,BuiltIn", 8, ci_in_242, "swipeTransitionFilter" },
 };
-#define CI_FILTER_COUNT 236
+#define CI_FILTER_COUNT 243

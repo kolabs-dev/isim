@@ -288,7 +288,7 @@ void ci_blur_buf(float *px, int w, int h, double sigma) {
 
 /* ================= formats ================= */
 CIFormat kCIFormatARGB8 = 22, kCIFormatBGRA8 = 23, kCIFormatRGBA8 = 24, kCIFormatABGR8 = 25, kCIFormatRGBAf = 34;
-CIFormat kCIFormatRGBA16 = 40, kCIFormatRGBAh = 41, kCIFormatRGBX16 = 42, kCIFormatRGBXh = 43, kCIFormatRGBXf = 44;
+CIFormat kCIFormatRGBA16 = 40, kCIFormatRGBAh = 41, kCIFormatRGBX16 = 42, kCIFormatRGBXh = 43, kCIFormatRGBXf = 44, kCIFormatRGBX8 = 45;
 CIFormat kCIFormatA8 = 50, kCIFormatA16 = 51, kCIFormatAh = 52, kCIFormatAf = 53, kCIFormatR8 = 54, kCIFormatR16 = 55, kCIFormatRh = 56,
     kCIFormatRf = 57, kCIFormatRG8 = 58, kCIFormatRG16 = 59, kCIFormatRGh = 60, kCIFormatRGf = 61, kCIFormatL8 = 62, kCIFormatL16 = 63,
     kCIFormatLh = 64, kCIFormatLf = 65, kCIFormatLA8 = 66, kCIFormatLA16 = 67, kCIFormatLAh = 68, kCIFormatLAf = 69;
@@ -297,7 +297,7 @@ static BOOL fmt_desc(CIFormat f, const char **chans, char *comp) {
     struct { CIFormat *f; const char *c; char t; } tab[] = {
         { &kCIFormatARGB8, "ARGB", 1 }, { &kCIFormatBGRA8, "BGRA", 1 }, { &kCIFormatRGBA8, "RGBA", 1 }, { &kCIFormatABGR8, "ABGR", 1 },
         { &kCIFormatRGBAf, "RGBA", 'f' }, { &kCIFormatRGBA16, "RGBA", 2 }, { &kCIFormatRGBAh, "RGBA", 'h' },
-        { &kCIFormatRGBX16, "RGBX", 2 }, { &kCIFormatRGBXh, "RGBX", 'h' }, { &kCIFormatRGBXf, "RGBX", 'f' },
+        { &kCIFormatRGBX8, "RGBX", 1 }, { &kCIFormatRGBX16, "RGBX", 2 }, { &kCIFormatRGBXh, "RGBX", 'h' }, { &kCIFormatRGBXf, "RGBX", 'f' },
         { &kCIFormatA8, "A", 1 }, { &kCIFormatA16, "A", 2 }, { &kCIFormatAh, "A", 'h' }, { &kCIFormatAf, "A", 'f' },
         { &kCIFormatR8, "R", 1 }, { &kCIFormatR16, "R", 2 }, { &kCIFormatRh, "R", 'h' }, { &kCIFormatRf, "R", 'f' },
         { &kCIFormatRG8, "RG", 1 }, { &kCIFormatRG16, "RG", 2 }, { &kCIFormatRGh, "RG", 'h' }, { &kCIFormatRGf, "RG", 'f' },
@@ -638,7 +638,9 @@ CIImageOption const kCIImageColorSpace = @"kCIImageColorSpace", kCIImageToneMapH
     kCIImageAuxiliarySemanticSegmentationTeethMatte = @"kCIImageAuxiliarySemanticSegmentationTeethMatte",
     kCIImageAuxiliarySemanticSegmentationGlassesMatte = @"kCIImageAuxiliarySemanticSegmentationGlassesMatte",
     kCIImageAuxiliarySemanticSegmentationSkyMatte = @"kCIImageAuxiliarySemanticSegmentationSkyMatte",
-    kCIImageAuxiliaryHDRGainMap = @"kCIImageAuxiliaryHDRGainMap", kCIImageContentHeadroom = @"kCIImageContentHeadroom";
+    kCIImageAuxiliaryHDRGainMap = @"kCIImageAuxiliaryHDRGainMap", kCIImageContentHeadroom = @"kCIImageContentHeadroom",
+    kCIImageContentAverageLightLevel = @"kCIImageContentAverageLightLevel", kCIImageApplyCleanAperture = @"kCIImageApplyCleanAperture";
+CIDynamicRangeOption const kCIDynamicRangeStandard = @"standard", kCIDynamicRangeConstrainedHigh = @"constrainedHigh", kCIDynamicRangeHigh = @"high";
 NSString *const kCIImageProviderTileSize = @"tile_size", *const kCIImageProviderUserInfo = @"user_info";
 
 static CIImage *with_options(CIImage *im, NSDictionary *o);
@@ -780,6 +782,7 @@ static CIImage *with_options(CIImage *im, NSDictionary *o) {
     if (o[kCIImageProperties]) im.isimProperties = o[kCIImageProperties];
     if ([o[kCIImageNearestSampling] boolValue]) im.isimSampling = CI_SAMPLE_NEAREST;
     if (o[kCIImageContentHeadroom]) im.isimHeadroom = [o[kCIImageContentHeadroom] doubleValue];
+    if (o[kCIImageContentAverageLightLevel]) im.isimAverageLightLevel = [o[kCIImageContentAverageLightLevel] doubleValue];
     if ([o[kCIImageApplyOrientationProperty] boolValue]) {
         id or = im.isimProperties[(__bridge NSString *)kCGImagePropertyOrientation];
         if (or && [or intValue] > 1) im = [im imageByApplyingOrientation:[or intValue]];
@@ -792,6 +795,7 @@ static CIImage *with_options(CIImage *im, NSDictionary *o) {
     p.isimExtent = self.extent; p.isimProperties = self.isimProperties; p.isimURL = self.isimURL; p.isimSampling = self.isimSampling;
     p.isimOpaque = self.isimOpaque; p.isimCGColorSpace = self.isimCGColorSpace; p.isimCGImage = self.isimCGImage;
     p.isimPixelBuffer = self.isimPixelBuffer; p.isimAux = self.isimAux; p.isimHeadroom = self.isimHeadroom;
+    p.isimAverageLightLevel = self.isimAverageLightLevel;
     return p;
 }
 - (id)copyWithZone:(NSZone *)z { return self; }
@@ -827,6 +831,7 @@ static CIImage *with_options(CIImage *im, NSDictionary *o) {
 - (NSURL *)url { return self.isimURL; }
 - (BOOL)isOpaque { return self.isimOpaque; }
 - (CGFloat)contentHeadroom { return self.isimHeadroom; }
+- (float)contentAverageLightLevel { return (float)self.isimAverageLightLevel; }
 - (CIFilterShape *)definition { return [CIFilterShape shapeWithRect:self.extent]; }
 - (CGRect)regionOfInterestForImage:(CIImage *)image inRect:(CGRect)rect { return image == self ? rect : CGRectInfinite; }
 - (NSString *)description {
@@ -999,6 +1004,16 @@ static CIImage *with_options(CIImage *im, NSDictionary *o) {
 - (CIImage *)imageBySamplingLinear { CIImage *c = [self _copyNode]; c.isimSampling = CI_SAMPLE_LINEAR; return c; }
 - (CIImage *)imageBySamplingNearest { CIImage *c = [self _copyNode]; c.isimSampling = CI_SAMPLE_NEAREST; return c; }
 - (CIImage *)imageByInsertingIntermediate { return [self imageByInsertingIntermediate:YES]; }
+/* isim renders in bands, so a tiled intermediate is an intermediate */
+- (CIImage *)imageByInsertingTiledIntermediate { return [self imageByInsertingIntermediate:YES]; }
+- (CIImage *)imageByConvertingWorkingSpaceToLab { return [self imageByApplyingFilter:@"CIConvertRGBtoLab" withInputParameters:@{}]; }
+- (CIImage *)imageByConvertingLabToWorkingSpace { return [self imageByApplyingFilter:@"CIConvertLabToRGB" withInputParameters:@{}]; }
+- (CIImage *)imageBySettingContentHeadroom:(float)headroom {
+    CIImage *c = [self _copyNode]; c.isimHeadroom = headroom; return c;
+}
+- (CIImage *)imageBySettingContentAverageLightLevel:(float)average {
+    CIImage *c = [self _copyNode]; c.isimAverageLightLevel = average; return c;
+}
 /* an intermediate: the input rendered once per render (whole extent) and reused by the nodes above it */
 - (CIImage *)imageByInsertingIntermediate:(BOOL)cache {
     CIImage *in = self;
