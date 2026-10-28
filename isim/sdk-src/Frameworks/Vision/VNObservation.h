@@ -33,6 +33,9 @@ API_AVAILABLE(ios(11.0))
 API_AVAILABLE(ios(11.0))
 @interface VNClassificationObservation : VNObservation
 @property (readonly, nonatomic, copy) NSString *identifier;
+@property (readonly, nonatomic, assign) BOOL hasPrecisionRecallCurve API_AVAILABLE(ios(14.0));
+- (BOOL)hasMinimumRecall:(float)minimumRecall forPrecision:(float)precision API_AVAILABLE(ios(14.0));
+- (BOOL)hasMinimumPrecision:(float)minimumPrecision forRecall:(float)recall API_AVAILABLE(ios(14.0));
 @end
 API_AVAILABLE(ios(11.0))
 @interface VNCoreMLFeatureValueObservation : VNObservation
@@ -88,6 +91,14 @@ API_AVAILABLE(ios(13.0))
 @end
 API_AVAILABLE(ios(15.0))
 @interface VNHumanObservation : VNDetectedObjectObservation
+@end
+/* isim: the Euclidean distance between feature prints */
+API_AVAILABLE(ios(13.0))
+@interface VNFeaturePrintObservation : VNObservation <NSSecureCoding>
+@property (readonly, atomic, assign) VNElementType elementType;
+@property (readonly, atomic, assign) NSUInteger elementCount;
+@property (readonly, atomic, strong) NSData *data;
+- (BOOL)computeDistance:(float *)outDistance toFeaturePrintObservation:(VNFeaturePrintObservation *)featurePrint error:(NSError **)error;
 @end
 API_AVAILABLE(ios(11.0))
 @interface VNImageAlignmentObservation : VNObservation

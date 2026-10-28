@@ -50,6 +50,7 @@ final class VisionViewController: UIViewController {
         detectors()
         tracking()
         Task { await swiftAPI() }
+        models()
         coreML()
         language()
         visionKit()
@@ -129,6 +130,50 @@ final class VisionViewController: UIViewController {
     func render(_ w: CGFloat, _ h: CGFloat, _ draw: (CGContext) -> Void) -> CGImage {
         let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
         return UIGraphicsImageRenderer(size: CGSize(width: w, height: h), format: fmt).image { draw($0.cgContext) }.cgImage!
+    }
+    /// pose, segmentation, classification and feature prints (issue #375): host models when ISIM_*_MODEL names them,
+    /// isim's own feature print otherwise
+    func models() {
+        /* feature prints: a red disc, the same disc a little to the right, a blue square */
+        func card(_ draw: @escaping (CGContext) -> Void) -> CGImage {
+            render(160, 120) { c in c.setFillColor(UIColor.white.cgColor); c.fill(CGRect(x: 0, y: 0, width: 160, height: 120)); draw(c) }
+        }
+        let disc = card { c in c.setFillColor(UIColor.red.cgColor); c.fillEllipse(in: CGRect(x: 40, y: 20, width: 80, height: 80)) }
+        let moved = card { c in c.setFillColor(UIColor.red.cgColor); c.fillEllipse(in: CGRect(x: 46, y: 22, width: 80, height: 80)) }
+        let square = card { c in c.setFillColor(UIColor.blue.cgColor); c.fill(CGRect(x: 30, y: 10, width: 100, height: 100)) }
+        do {
+            let prints = try [disc, moved, square].map { img -> VNFeaturePrintObservation in
+                let r = VNGenerateImageFeaturePrintRequest()
+                try VNImageRequestHandler(cgImage: img).perform([r])
+                return r.results!.first as! VNFeaturePrintObservation
+            }
+            var near: Float = 0, far: Float = 0
+            try prints[0].computeDistance(&near, to: prints[1])
+            try prints[0].computeDistance(&far, to: prints[2])
+            let archived = try NSKeyedArchiver.archivedData(withRootObject: prints[0], requiringSecureCoding: true)
+            let back = try NSKeyedUnarchiver.unarchivedObject(ofClass: VNFeaturePrintObservation.self, from: archived)
+            log("feature prints \(prints[0].elementCount) float \(prints[0].elementType == .float) similar closer \(near < far / 2) coded \(back?.data == prints[0].data)")
+        } catch { log("feature prints error \(message(error))") }
+
+        /* the model requests: without ISIM_*_MODEL they say what to set */
+        let env = ProcessInfo.processInfo.environment
+        let body = VNDetectHumanBodyPoseRequest(), hand = VNDetectHumanHandPoseRequest(), person = VNGeneratePersonSegmentationRequest()
+        let classify = VNClassifyImageRequest(), animal = VNDetectAnimalBodyPoseRequest()
+        log("pose joints body \(body.supportedJointNames.count) groups \(body.supportedJointsGroupNames.count) hand \(hand.supportedJointNames.count) " +
+            "animal \(animal.supportedJointNames.count) person formats \((try? person.supportedOutputPixelFormats().count) ?? 0)")
+        for (name, r, variable) in [("body", body, "ISIM_BODY_POSE_MODEL"), ("hand", hand, "ISIM_HAND_POSE_MODEL"), ("person", person, "ISIM_PERSON_SEGMENTATION_MODEL"),
+                                    ("classify", classify, "ISIM_CLASSIFY_MODEL"), ("animal", animal, "-")] as [(String, VNRequest, String)] {
+            do {
+                try VNImageRequestHandler(cgImage: disc).perform([r])
+                log("model \(name) results \(r.results?.count ?? 0) (\(env[variable] ?? "no model"))")
+            } catch { log("model \(name) error \((error as NSError).code): \(message(error))") }
+        }
+
+        /* points and vectors */
+        let a = VNPoint(x: 0.25, y: 0.5), b = VNPoint(location: CGPoint(x: 0.25, y: 0.9))
+        let v = VNVector(vectorHead: b, tail: a), sum = VNVector(byAdding: v, to: VNVector(xComponent: 0.3, yComponent: 0))
+        log("points distance \(f2(a.distance(b))) vector \(f2(v.length)) theta \(f2(v.theta)) sum \(f2(sum.x)),\(f2(sum.y)) unit \(f2(VNVector.unitVector(for: sum).length)) " +
+            "moved \(f2(VNPoint.apply(v, to: a).y)) dot \(f2(VNVector.dotProduct(of: v, vector: sum)))")
     }
     /// the iOS 18 Swift API (issue #374): ImageRequestHandler, value-type requests and observations
     func swiftAPI() async {

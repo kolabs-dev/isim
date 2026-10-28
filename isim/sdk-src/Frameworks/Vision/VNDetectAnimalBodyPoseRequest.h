@@ -1,0 +1,54 @@
+#pragma once
+#import <Vision/VNRequest.h>
+#import <Vision/VNRecognizedPointsObservation.h>
+#if !defined(__swift__)
+NS_ASSUME_NONNULL_BEGIN
+typedef VNRecognizedPointKey VNAnimalBodyPoseObservationJointName NS_TYPED_ENUM;
+typedef VNRecognizedPointGroupKey VNAnimalBodyPoseObservationJointsGroupName NS_TYPED_ENUM;
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameLeftEarTop API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameLeftEarMiddle API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameLeftEarBottom API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameRightEarTop API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameRightEarMiddle API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameRightEarBottom API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameLeftEye API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameRightEye API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameNose API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameNeck API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameLeftFrontElbow API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameRightFrontElbow API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameLeftFrontKnee API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameRightFrontKnee API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameLeftFrontPaw API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameRightFrontPaw API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameLeftBackElbow API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameRightBackElbow API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameLeftBackKnee API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameRightBackKnee API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameLeftBackPaw API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameRightBackPaw API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameTailTop API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameTailMiddle API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointName const VNAnimalBodyPoseObservationJointNameTailBottom API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointsGroupName const VNAnimalBodyPoseObservationJointsGroupNameHead API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointsGroupName const VNAnimalBodyPoseObservationJointsGroupNameTrunk API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointsGroupName const VNAnimalBodyPoseObservationJointsGroupNameForelegs API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointsGroupName const VNAnimalBodyPoseObservationJointsGroupNameHindlegs API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointsGroupName const VNAnimalBodyPoseObservationJointsGroupNameTail API_AVAILABLE(ios(17.0));
+VN_EXPORT VNAnimalBodyPoseObservationJointsGroupName const VNAnimalBodyPoseObservationJointsGroupNameAll API_AVAILABLE(ios(17.0));
+API_AVAILABLE(ios(17.0))
+@interface VNAnimalBodyPoseObservation : VNRecognizedPointsObservation
+@property (readonly) NSArray<VNAnimalBodyPoseObservationJointName> *availableJointNames;
+@property (readonly) NSArray<VNAnimalBodyPoseObservationJointsGroupName> *availableJointGroupNames;
+- (nullable VNRecognizedPoint *)recognizedPointForJointName:(VNAnimalBodyPoseObservationJointName)jointName error:(NSError **)error;
+- (nullable NSDictionary<VNAnimalBodyPoseObservationJointName, VNRecognizedPoint *> *)recognizedPointsForJointsGroupName:(VNAnimalBodyPoseObservationJointsGroupName)jointsGroupName error:(NSError **)error;
+@end
+/* isim: fails with VNErrorUnsupportedRequest (it needs Apple's model) */
+API_AVAILABLE(ios(17.0))
+@interface VNDetectAnimalBodyPoseRequest : VNImageBasedRequest
+- (nullable NSArray<VNAnimalBodyPoseObservationJointName> *)supportedJointNamesAndReturnError:(NSError **)error;
+- (nullable NSArray<VNAnimalBodyPoseObservationJointsGroupName> *)supportedJointsGroupNamesAndReturnError:(NSError **)error;
+@property (readonly, nonatomic, copy, nullable) NSArray<VNAnimalBodyPoseObservation *> *results;
+@end
+NS_ASSUME_NONNULL_END
+#endif
