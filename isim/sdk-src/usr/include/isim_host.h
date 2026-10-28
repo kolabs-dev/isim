@@ -398,6 +398,10 @@ int isim_onnx_open(const char *path);
 int isim_onnx_input(int h, int64_t *dims, int *type);
 int isim_onnx_run(int h, const float *in, const int64_t *dims, int rank, float *out, long cap, long *counts);
 const char *isim_onnx_error(void);
+/* the host's MIDI ports (runtime/host_midi.c, issue #390): "ID\tNAME\tFLAGS" lines; bytes to a port; the next message */
+int isim_midi_host_ports(char *buf, int len);
+int isim_midi_host_send(int id, const unsigned char *bytes, int n);
+int isim_midi_host_receive(unsigned char *buf, int len, int *id, double timeout);
 /* RAW photos with LibRaw's tools (libraw-bin): identify returns raw-identify -v text; decode gives linear 16-bit RGB
    (sRGB primaries, as-shot white balance, unrotated; half: half size; highlight: dcraw -H mode); free with
    isim_media_free. camera_list: supported cameras, one per line (libraw.so.23) */

@@ -10,6 +10,15 @@ __BEGIN_DECLS
 #define CF_EXPORT extern __attribute__((visibility("default")))
 #endif
 #define CF_INLINE static inline
+#if defined(__cplusplus)
+#define CF_EXTERN_C_BEGIN extern "C" {
+#define CF_EXTERN_C_END }
+#else
+#define CF_EXTERN_C_BEGIN
+#define CF_EXTERN_C_END
+#endif
+#define CF_ASSUME_NONNULL_BEGIN _Pragma("clang assume_nonnull begin")
+#define CF_ASSUME_NONNULL_END _Pragma("clang assume_nonnull end")
 #ifndef CF_ENUM
 #define CF_ENUM(_type, _name) enum __attribute__((enum_extensibility(open))) _name : _type _name; enum _name : _type
 #if defined(__cplusplus)   /* like Apple's: in C++ the options are an integer typedef, so a | b stays that type */

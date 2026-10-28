@@ -932,6 +932,7 @@ Security -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 os -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 Accelerate -lswiftCoreGraphics -framework Accelerate -framework CoreGraphics
 Compression -lswiftObjectiveC -lswiftFoundation -framework Foundation -lcompression
+CoreMIDI -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation -framework CoreMIDI   # issue #390
 AppleArchive -lswiftSystem -lswiftCompression -lswiftObjectiveC -lswiftFoundation -framework AppleArchive   # issue #348
 OSLog -lswiftos -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 LocalAuthentication -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSecurity -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
@@ -1013,7 +1014,7 @@ CallKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency 
 
 # app-facing re-implementations: library evolution keeps their ABI stable across isim updates (since 0.12 also the base
 # overlays every other module and app imports: their types can change layout without breaking apps built earlier)
-EVOLUTION = set("""ObjectiveC QuickLookThumbnailing PencilKit ReplayKit PHASE _CKShareMetadata Accelerate VideoToolbox Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI QuickLook EventKit EventKitUI Contacts ContactsUI
+EVOLUTION = set("""ObjectiveC CoreMIDI QuickLookThumbnailing PencilKit ReplayKit PHASE _CKShareMetadata Accelerate VideoToolbox Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI QuickLook EventKit EventKitUI Contacts ContactsUI
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
 GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Security os OSLog Compression LocalAuthentication
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport XPC StateReporting MetricKit CloudKit AuthenticationServices

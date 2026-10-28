@@ -94,6 +94,7 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_WORD_VECTORS=dir` | NaturalLanguage's built-in word and sentence embeddings and NLContextualEmbedding: fastText vectors in `dir/<language>.vec` (or `cc.<language>.300.vec`); `ISIM_WORD_VECTORS_LIMIT=n` reads the n most frequent words (default 100000). Unset: `NLEmbedding.wordEmbedding(for:)` returns nil |
 | `ISIM_VOSK_MODEL=DIR` | speech recognition with `vosk-transcriber` and this Vosk model (when whisper.cpp is not set up) |
 | `ISIM_AUDIO=1` (headless) | open an audio device in headless runs too (tests pair it with `SDL_AUDIO_DRIVER=dummy` for a silent, real-time device) |
+| `ISIM_MIDI_HOST=0` | CoreMIDI without the host's MIDI ports. By default the host's ALSA sequencer ports (libasound, `/dev/snd/seq`) appear as MIDI devices: a source for each port that sends and a destination for each port that receives |
 | `ISIM_AUDIO_TAP=file.f32` | write a copy of the mixed audio output (raw 32-bit float, stereo, 48 kHz) for tests |
 | `$ISIM_DATA/Media/Music` | the simulated music library (`MPMediaLibrary`, MusicKit): six generated songs at first; audio files copied in join it (tags read by ffprobe) |
 | `$ISIM_DATA/Library/isim/Volume` | the device volume (0...1; default 0.6), set with the `volume` script command or Control Center |
