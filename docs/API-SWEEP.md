@@ -81,9 +81,13 @@ isim/tools/api-coverage.py updates                          # per release: what 
   - Runs `swift-symbolgraph-extract` (the Swift toolchain, like `isim swiftc`) on every module of the built SDK. That
     also gives the Swift view of the Objective-C frameworks.
   - Matches each Apple symbol by its documentation path: DocC builds the path from the same path components, lowercased,
-    with disambiguation suffixes such as `-swift.struct` or `-1a2b3` removed.
-  - A symbol whose name matches but whose signature doesn't counts as present; an overload difference is not a
-    missing API.
+    with disambiguation suffixes such as `-swift.struct`, `-1a2b3` or a hash after a signature (`flatmap(_:)-ibzs`)
+    removed.
+  - A function or initializer matches only with the same argument labels: Apple's `init(toSeekAgent:)` is missing when
+    isim has only a class function `toSeekAgent(_:)`, and `add(multiplication:_:)` is missing next to `add(_:_:)`, so the
+    report lists API that differs from Apple's ("Match Apple's API exactly", AGENTS.md). A property, case or type
+    matches by its name. Overloads with the same labels but other parameter types count as present (paths don't tell
+    them apart). Tested in `isim/tests/docs/test_api_coverage.py`.
   - Then fetches the availability of the symbols that didn't match, and keeps those in scope.
 - **`measure --names` (no build)**
   - A symbol counts as present when its base name occurs in that framework's isim sources (`SOURCES` in the tool for

@@ -264,8 +264,10 @@ def source_words(module):
 
 
 def norm_component(c):
-    """a documentation path component without DocC's disambiguation suffix (-swift.struct, -1a2b3, -6qo3n)"""
+    """a documentation path component without DocC's disambiguation suffix (-swift.struct, -1a2b3, -6qo3n; after a
+    signature any hash, -ibzs too)"""
     c = re.sub(r'-swift\.[a-z.]+$', '', c)
+    c = re.sub(r'\)-[0-9a-z]{4,6}$', ')', c)
     c = re.sub(r'-[0-9a-z]{4,6}$', '', c) if re.search(r'-[0-9a-z]{4,6}$', c) and re.search(r'\d', c.rsplit('-', 1)[1]) else c
     return c
 
@@ -282,6 +284,14 @@ def member_name(component):
     if not re.match(r'^[a-z_]', name):                     # an operator
         name = re.sub(r'[+\-*/%&|^~?]', '_', name)
     return re.split(r'<', name)[0] or name
+
+
+def member_key(component):
+    """a member as documentation paths name it: its base name (member_name) and, for functions and initializers, the
+    argument labels, so init(toseekagent:) is not toseekagent(_:) and add(_:_:) is not add(multiplication:_:) (#729)"""
+    c = component.lower().lstrip("'")
+    sig = re.search(r'\([^()]*\)', c)
+    return member_name(c) + (sig.group(0) if sig else '')
 
 
 def sdk_modules(sdk):
@@ -330,7 +340,7 @@ def extract_symbol_graphs(sdk, modules, outdir):
                     s.add(path)
                     s.add('~' + '/'.join([*pc[:-1], re.split(r'[(<]', pc[-1])[0]]).lower())   # without signature
                     if len(pc) > 1:
-                        MEMBERS_OF.setdefault('/'.join(pc[:-1]).lower(), set()).add(member_name(pc[-1]))
+                        MEMBERS_OF.setdefault('/'.join(pc[:-1]).lower(), set()).add(member_key(pc[-1]))
             for r in g.get('relationships', []):
                 if r.get('kind') in ('inheritsFrom', 'conformsTo'):
                     src = usr.get(r['source'])
@@ -341,12 +351,12 @@ def extract_symbol_graphs(sdk, modules, outdir):
     return keys
 
 
-MEMBERS_OF = {}      # type path -> member names, over every symbol graph read (for inherited members)
+MEMBERS_OF = {}      # type path -> member keys (member_key), over every symbol graph read (for inherited members)
 PARENTS = {}         # type path -> superclass and protocol paths
 
 
 def inherits(owner, name, seen=None):
-    """whether type `owner` (a lowercase path) or one of its ancestors declares a member called `name`"""
+    """whether type `owner` (a lowercase path) or one of its ancestors declares member `name` (a member_key)"""
     seen = seen or set()
     if owner in seen:
         return False
@@ -354,6 +364,21 @@ def inherits(owner, name, seen=None):
     if name in MEMBERS_OF.get(owner, ()):
         return True
     return any(inherits(p, name, seen) for p in PARENTS.get(owner, ()))
+
+
+def matches(k, keys):
+    """whether Apple's symbol with documentation key `k` (doc_key) is among isim's symbol-graph keys. A function or
+    initializer matches only with the same argument labels: init(toseekagent:) is not the class function
+    toseekagent(_:), and add(_:_:) is not add(multiplication:_:) (#729). A property, case or type matches by its name,
+    which also covers documentation paths that leave out generic parameters."""
+    if k in keys:
+        return True
+    own, _, last = k.rpartition('/')
+    if '(' not in last and ('~' + re.split(r'[(<]', k)[0]) in keys:
+        return True
+    # a member the type inherits: Apple documents protocol default implementations and superclass members on each
+    # type, the symbol graph declares them once (walk the inheritsFrom / conformsTo relationships)
+    return bool(own) and (own in keys or ('~' + own) in keys) and inherits(own, member_key(last))
 
 
 # ---------------------------------------------------------------- measure
@@ -386,14 +411,7 @@ def measure(args):
             ok = False
             if have:
                 if mode == 'exact':
-                    k = doc_key(path, m)
-                    ok = k in keys or ('~' + re.split(r'[(<]', k)[0]) in keys
-                    if not ok and '/' in k:
-                        # a member the type inherits: Apple documents protocol default implementations and
-                        # superclass members on each type, the symbol graph declares them once (walk the
-                        # inheritsFrom / conformsTo relationships)
-                        own, last = k.rsplit('/', 1)
-                        ok = (own in keys or ('~' + own) in keys) and inherits(own, member_name(last))
+                    ok = matches(doc_key(path, m), keys)
                 else:
                     b = base_name(title)
                     ok = bool(b) and b in words
