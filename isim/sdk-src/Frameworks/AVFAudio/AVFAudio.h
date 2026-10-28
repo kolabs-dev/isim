@@ -29,6 +29,11 @@
 #import <AVFAudio/AVAudioUnitDistortion.h>
 #import <AVFAudio/AVAudioUnitTimeEffect.h>
 #import <AVFAudio/AVAudioUnitGenerator.h>
+#import <AVFAudio/AVAudioUnitMIDIInstrument.h>
+#import <AVFAudio/AVAudioUnitSampler.h>
+#import <AVFAudio/AVMIDIPlayer.h>
+#import <AVFAudio/AVMusicEvents.h>
+#import <AVFAudio/AVAudioSequencer.h>
 #import <AVFAudio/AVAudioEnvironmentNode.h>
 #import <AVFAudio/AVAudioEngine.h>
 #import <AVFAudio/AVAudioPlayer.h>

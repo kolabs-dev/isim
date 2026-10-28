@@ -133,7 +133,7 @@ final class _MixSettings {
 
 func _mixSettings(_ n: AVAudioNode) -> _MixSettings? {
     (n as? AVAudioPlayerNode)?._mix ?? (n as? AVAudioMixerNode)?._mix ?? (n as? AVAudioInputNode)?._mix ?? (n as? AVAudioSourceNode)?._mix
-        ?? (n as? AVAudioEnvironmentNode)?._mix ?? (n as? AVAudioUnitGenerator)?._mix
+        ?? (n as? AVAudioEnvironmentNode)?._mix ?? (n as? AVAudioUnitGenerator)?._mix ?? (n as? AVAudioUnitMIDIInstrument)?._mix
 }
 
 /// One connection of a source node to a mixer.
@@ -980,6 +980,7 @@ struct _Conn {
 }
 
 @objc(AVAudioEngine) open class AVAudioEngine: NSObject {
+    var _musicSequence: MusicSequence?
     @objc public let outputNode = AVAudioOutputNode()
     @objc var _mainMixer: AVAudioMixerNode?
     @objc var nodes: [AVAudioNode] = []

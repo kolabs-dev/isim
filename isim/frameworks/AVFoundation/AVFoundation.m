@@ -223,3 +223,60 @@ ISIM_MIXING_POSITION(AVAudioSourceNode)
 ISIM_MIXING_POSITION(AVAudioInputNode)
 ISIM_MIXING_POSITION(AVAudioEnvironmentNode)
 ISIM_MIXING_POSITION(AVAudioUnitGenerator)
+ISIM_MIXING_POSITION(AVAudioUnitMIDIInstrument)
+
+/* AVAudioSequencer and AVMusicTrack (issue #389): the info dictionary keys (the values AVMIDI.swift uses) and the
+ * methods that take an AVBeatRange, through the overlay's `_isim_` entry points (start and length) */
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyAlbum = @"album";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyApproximateDurationInSeconds = @"approximate duration in seconds";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyArtist = @"artist";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyChannelLayout = @"channel layout";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyComments = @"comments";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyComposer = @"composer";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyCopyright = @"copyright";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyEncodingApplication = @"encoding application";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyGenre = @"genre";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyISRC = @"ISRC";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyKeySignature = @"key signature";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyLyricist = @"lyricist";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyNominalBitRate = @"nominal bit rate";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyRecordedDate = @"recorded date";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeySourceBitDepth = @"source bit depth";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeySourceEncoder = @"source encoder";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeySubTitle = @"subtitle";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyTempo = @"tempo";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyTimeSignature = @"time signature";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyTitle = @"title";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyTrackNumber = @"track number";
+AVAudioSequencerInfoDictionaryKey const AVAudioSequencerInfoDictionaryKeyYear = @"year";
+const MusicDeviceInstrumentID AVExtendedNoteOnEventDefaultInstrument = 0;
+
+@interface AVMusicTrack (ISIMBeatRanges)
+- (NSArray<NSNumber *> *)_isim_loopRange;
+- (void)set_isim_loopRange:(NSArray<NSNumber *> *)r;
+- (void)_isim_moveEventsFrom:(double)start length:(double)length byAmount:(double)amount;
+- (void)_isim_clearEventsFrom:(double)start length:(double)length;
+- (void)_isim_cutEventsFrom:(double)start length:(double)length;
+- (void)_isim_copyEventsFrom:(double)start length:(double)length fromTrack:(AVMusicTrack *)t insertAtBeat:(double)at;
+- (void)_isim_copyAndMergeEventsFrom:(double)start length:(double)length fromTrack:(AVMusicTrack *)t mergeAtBeat:(double)at;
+- (void)_isim_enumerateEventsFrom:(double)start length:(double)length usingBlock:(AVMusicEventEnumerationBlock)block;
+@end
+@implementation AVMusicTrack (ISIMBeatRangeMethods)
+- (AVBeatRange)loopRange {
+    NSArray<NSNumber *> *a = [self _isim_loopRange];
+    return AVMakeBeatRange(a[0].doubleValue, a[1].doubleValue);
+}
+- (void)setLoopRange:(AVBeatRange)r { [self set_isim_loopRange:@[@(r.start), @(r.length)]]; }
+- (void)moveEventsInRange:(AVBeatRange)r byAmount:(AVMusicTimeStamp)amount { [self _isim_moveEventsFrom:r.start length:r.length byAmount:amount]; }
+- (void)clearEventsInRange:(AVBeatRange)r { [self _isim_clearEventsFrom:r.start length:r.length]; }
+- (void)cutEventsInRange:(AVBeatRange)r { [self _isim_cutEventsFrom:r.start length:r.length]; }
+- (void)copyEventsInRange:(AVBeatRange)r fromTrack:(AVMusicTrack *)t insertAtBeat:(AVMusicTimeStamp)at {
+    [self _isim_copyEventsFrom:r.start length:r.length fromTrack:t insertAtBeat:at];
+}
+- (void)copyAndMergeEventsInRange:(AVBeatRange)r fromTrack:(AVMusicTrack *)t mergeAtBeat:(AVMusicTimeStamp)at {
+    [self _isim_copyAndMergeEventsFrom:r.start length:r.length fromTrack:t mergeAtBeat:at];
+}
+- (void)enumerateEventsInRange:(AVBeatRange)r usingBlock:(AVMusicEventEnumerationBlock)block {
+    [self _isim_enumerateEventsFrom:r.start length:r.length usingBlock:block];
+}
+@end

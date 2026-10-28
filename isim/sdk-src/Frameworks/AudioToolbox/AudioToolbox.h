@@ -11,3 +11,7 @@
 #include <AudioToolbox/AudioConverter.h>
 #include <AudioToolbox/AudioQueue.h>
 #include <AudioToolbox/AudioServices.h>
+#include <AudioToolbox/MusicDevice.h>
+#include <AudioToolbox/MusicPlayer.h>
+#include <AudioToolbox/AudioFileStream.h>
+#include <AudioToolbox/CAClock.h>

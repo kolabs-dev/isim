@@ -9,7 +9,9 @@
 // - MultiChannelMixer (per-bus volume, pan, enable; output volume; metering), AUConverter (rate, channels, sample
 //   format), Varispeed, NewTimePitch, Delay, Reverb2, NBandEQ, LowPass/HighPass/BandPass/LowShelf/HighShelf/
 //   ParametricEQ filters, Distortion and PeakLimiter.
-// No third-party (v3 extension) units, music devices (Sampler) or generators (AudioFilePlayer).
+// - Music devices: Sampler and MIDISynth over isim's sampler (Sampler.swift: SoundFont 2 banks, audio files, a sine
+//   without an instrument), played with MusicDeviceMIDIEvent and friends.
+// No third-party (v3 extension) units or generators (AudioFilePlayer).
 import Foundation
 import isim_host
 
@@ -57,6 +59,52 @@ public let kAudioUnitSubType_HighShelfFilter: UInt32 = 0x6873_6866     // 'hshf'
 public let kAudioUnitSubType_ParametricEQ: UInt32 = 0x706D_6571        // 'pmeq'
 public let kAudioUnitSubType_Distortion: UInt32 = 0x6469_7374          // 'dist'
 public let kAudioUnitSubType_PeakLimiter: UInt32 = 0x6C6D_7472         // 'lmtr'
+public let kAudioUnitSubType_Sampler: UInt32 = 0x7361_6D70             // 'samp'
+public let kAudioUnitSubType_MIDISynth: UInt32 = 0x6D73_796E           // 'msyn'
+// music devices
+public let kMusicDeviceProperty_InstrumentCount: AudioUnitPropertyID = 1000
+public let kMusicDeviceProperty_InstrumentName: AudioUnitPropertyID = 1001
+public let kMusicDeviceProperty_GroupOutputBus: AudioUnitPropertyID = 1002
+public let kMusicDeviceProperty_SoundBankFSSpec: AudioUnitPropertyID = 1003
+public let kMusicDeviceProperty_InstrumentNumber: AudioUnitPropertyID = 1004
+public let kMusicDeviceProperty_UsesInternalReverb: AudioUnitPropertyID = 1005
+public let kMusicDeviceProperty_MIDIXMLNames: AudioUnitPropertyID = 1006
+public let kMusicDeviceProperty_BankName: AudioUnitPropertyID = 1007
+public let kMusicDeviceProperty_SoundBankData: AudioUnitPropertyID = 1012
+public let kMusicDeviceProperty_PartGroup: AudioUnitPropertyID = 1010
+public let kMusicDeviceProperty_StreamFromDisk: AudioUnitPropertyID = 1011
+public let kMusicDeviceProperty_SoundBankFSRef: AudioUnitPropertyID = 1031
+public let kMusicDeviceProperty_DualSchedulingMode: AudioUnitPropertyID = 1013
+public let kMusicDeviceProperty_SupportsStartStopNote: AudioUnitPropertyID = 1014
+public let kMusicDeviceProperty_SoundBankURL: AudioUnitPropertyID = 1100
+public let kAUMIDISynthProperty_EnablePreload: AudioUnitPropertyID = 4119
+public let kAUSamplerProperty_LoadInstrument: AudioUnitPropertyID = 4102
+public let kAUSamplerProperty_LoadAudioFiles: AudioUnitPropertyID = 4101
+public let kInstrumentType_DLSPreset: UInt8 = 1
+public let kInstrumentType_SF2Preset: UInt8 = 1
+public let kInstrumentType_AUPreset: UInt8 = 2
+public let kInstrumentType_Audiofile: UInt8 = 3
+public let kInstrumentType_EXS24: UInt8 = 4
+public let kAUSampler_DefaultPercussionBankMSB: UInt8 = 0x78
+public let kAUSampler_DefaultMelodicBankMSB: UInt8 = 0x79
+public let kAUSampler_DefaultBankLSB: UInt8 = 0
+public let kMusicDeviceParam_Tuning: AudioUnitParameterID = 0
+public let kMusicDeviceParam_Volume: AudioUnitParameterID = 1
+public let kMusicDeviceParam_ReverbVolume: AudioUnitParameterID = 2
+public let kAUSamplerParam_Gain: AudioUnitParameterID = 900
+public let kAUSamplerParam_CoarseTuning: AudioUnitParameterID = 901
+public let kAUSamplerParam_FineTuning: AudioUnitParameterID = 902
+public let kAUSamplerParam_Pan: AudioUnitParameterID = 903
+public let kMusicDeviceRange: Int = 0x0100
+public let kMusicDeviceMIDIEventSelect: Int = 0x0101
+public let kMusicDeviceSysExSelect: Int = 0x0102
+public let kMusicDevicePrepareInstrumentSelect: Int = 0x0103
+public let kMusicDeviceReleaseInstrumentSelect: Int = 0x0104
+public let kMusicDeviceStartNoteSelect: Int = 0x0105
+public let kMusicDeviceStopNoteSelect: Int = 0x0106
+public let kMusicDeviceMIDIEventListSelect: Int = 0x0107
+public let kMusicDeviceSampleFrameMask_SampleOffset: Int = 0xFFFFFF
+public let kMusicDeviceSampleFrameMask_IsScheduled: Int = 0x01000000
 
 // scopes
 public let kAudioUnitScope_Global: AudioUnitScope = 0
@@ -149,6 +197,8 @@ public let kAudioUnitErr_NoConnection: OSStatus = -10876
 public let kAudioUnitErr_FailedInitialization: OSStatus = -10875
 public let kAudioUnitErr_TooManyFramesToProcess: OSStatus = -10874
 public let kAudioUnitErr_InvalidFile: OSStatus = -10871
+public let kAudioUnitErr_InstrumentTypeNotFound: OSStatus = -10872
+public let kAudioUnitErr_IllegalInstrument: OSStatus = -10873
 public let kAudioUnitErr_FormatNotSupported: OSStatus = -10868
 public let kAudioUnitErr_Uninitialized: OSStatus = -10867
 public let kAudioUnitErr_InvalidScope: OSStatus = -10866
@@ -196,6 +246,8 @@ final class _AUComponent {
         _AUComponent(kAudioUnitType_Effect, kAudioUnitSubType_ParametricEQ, "AUParametricEQ"),
         _AUComponent(kAudioUnitType_Effect, kAudioUnitSubType_Distortion, "AUDistortion"),
         _AUComponent(kAudioUnitType_Effect, kAudioUnitSubType_PeakLimiter, "AUPeakLimiter"),
+        _AUComponent(kAudioUnitType_MusicDevice, kAudioUnitSubType_Sampler, "AUSampler"),
+        _AUComponent(kAudioUnitType_MusicDevice, kAudioUnitSubType_MIDISynth, "AUMIDISynth"),
     ]
     func matches(_ d: AudioComponentDescription) -> Bool {
         (d.componentType == 0 || d.componentType == desc.componentType) && (d.componentSubType == 0 || d.componentSubType == desc.componentSubType)
@@ -285,7 +337,7 @@ public final class _IsimAudioUnit: @unchecked Sendable {
     init(_ c: _AUComponent) {
         component = c
         let io = c.desc.componentType == kAudioUnitType_Output && c.desc.componentSubType != kAudioUnitSubType_GenericOutput
-        inputBusCount = c.desc.componentSubType == kAudioUnitSubType_MultiChannelMixer ? 8 : io ? 2 : 1
+        inputBusCount = c.desc.componentSubType == kAudioUnitSubType_MultiChannelMixer ? 8 : io ? 2 : c.desc.componentType == kAudioUnitType_MusicDevice ? 0 : 1
         outputBusCount = io ? 2 : 1
         switch c.desc.componentSubType {
         case kAudioUnitSubType_Reverb2: kernel = _IsimReverbKernel()
@@ -296,6 +348,7 @@ public final class _IsimAudioUnit: @unchecked Sendable {
         case kAudioUnitSubType_Varispeed: kernel = _IsimVarispeedKernel()
         case kAudioUnitSubType_NewTimePitch: kernel = _IsimTimePitchKernel()
         case kAudioUnitSubType_PeakLimiter: kernel = _IsimLimiterKernel()
+        case kAudioUnitSubType_Sampler, kAudioUnitSubType_MIDISynth: kernel = _IsimSamplerKernel()
         default: kernel = nil
         }
         handle = AudioUnit(Unmanaged.passRetained(self).toOpaque())
@@ -372,6 +425,14 @@ public final class _IsimAudioUnit: @unchecked Sendable {
         func p(_ id: AudioUnitParameterID) -> Float { parameter(id) }
         (k as? _IsimInPlaceKernel)?.bypass = bypass
         switch subType {
+        case kAudioUnitSubType_Sampler, kAudioUnitSubType_MIDISynth:
+            let sk = k as! _IsimSamplerKernel
+            if subType == kAudioUnitSubType_Sampler {
+                sk.gainDB = Double(p(kAUSamplerParam_Gain)); sk.stereoPan = Double(p(kAUSamplerParam_Pan)) / 100
+                sk.globalTuning = Double(p(kAUSamplerParam_CoarseTuning)) * 100 + Double(p(kAUSamplerParam_FineTuning))
+            } else {
+                sk.gainDB = Double(p(kMusicDeviceParam_Volume)); sk.globalTuning = Double(p(kMusicDeviceParam_Tuning))
+            }
         case kAudioUnitSubType_Reverb2:
             let r = k as! _IsimReverbKernel
             r.wetDryMix = p(kReverb2Param_DryWetMix); r.gain = p(kReverb2Param_Gain)
@@ -719,6 +780,8 @@ extension _IsimAudioUnit {
              kAudioUnitSubType_LowShelfFilter, kAudioUnitSubType_HighShelfFilter: return [0, 1]
         case kAudioUnitSubType_ParametricEQ, kAudioUnitSubType_PeakLimiter: return [0, 1, 2]
         case kAudioUnitSubType_Distortion: return [14, 15]
+        case kAudioUnitSubType_Sampler: return [kAUSamplerParam_Gain, kAUSamplerParam_CoarseTuning, kAUSamplerParam_FineTuning, kAUSamplerParam_Pan]
+        case kAudioUnitSubType_MIDISynth: return [kMusicDeviceParam_Tuning, kMusicDeviceParam_Volume, kMusicDeviceParam_ReverbVolume]
         case kAudioUnitSubType_RemoteIO, kAudioUnitSubType_VoiceProcessingIO: return []
         default: return []
         }
@@ -837,7 +900,9 @@ extension _IsimAudioUnit {
         case kAUVoiceIOProperty_BypassVoiceProcessing, kAUVoiceIOProperty_VoiceProcessingEnableAGC, kAUVoiceIOProperty_MuteOutput:
             guard subType == kAudioUnitSubType_VoiceProcessingIO else { return kAudioUnitErr_InvalidProperty }
             return _auPut(UInt32(id == kAUVoiceIOProperty_MuteOutput ? (parameter(_VoiceIO_Mute) != 0 ? 1 : 0) : 0), size, out)
-        default: return kAudioUnitErr_InvalidProperty
+        default:
+            if let k = kernel as? _IsimSamplerKernel { return _samplerGetProperty(k, subType, id, out, size) }
+            return kAudioUnitErr_InvalidProperty
         }
     }
     func setProperty(_ id: AudioUnitPropertyID, _ scope: AudioUnitScope, _ e: AudioUnitElement, _ data: UnsafeRawPointer?, _ size: UInt32) -> OSStatus {
@@ -914,7 +979,9 @@ extension _IsimAudioUnit {
             if id == kAUVoiceIOProperty_MuteOutput { setParameter(_VoiceIO_Mute, v != 0 ? 1 : 0) }
             return noErr_
         case kAudioOutputUnitProperty_CurrentDevice, kAudioUnitProperty_ClassInfo: return noErr_
-        default: return kAudioUnitErr_InvalidProperty
+        default:
+            if let k = kernel as? _IsimSamplerKernel { return _samplerSetProperty(k, subType, id, data, size) }
+            return kAudioUnitErr_InvalidProperty
         }
     }
 }
