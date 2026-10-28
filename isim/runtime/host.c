@@ -1148,7 +1148,7 @@ ISIM_GUEST_ABI void isim_set_deferred_system_edges(int edges) { if (edges != def
 
 /* Settings > General > Date & Time for the status bar clock: 24-hour time (forced, or the region's default,
  * as isim Foundation decides) and the time zone. Re-read when the global preferences file changes. */
-static struct { int hour24; char tz[128]; int tz_set; struct timespec mtime; double checked; } clock_prefs;
+static struct { int hour24; char tz[128]; int tz_set; struct timespec mtime; double checked; char locale[32]; } clock_prefs;
 static int plist_bool(const char *xml, const char *key) {
     char k[96]; snprintf(k, sizeof k, "<key>%s</key>", key);
     const char *p = strstr(xml, k); if (!p) return -1;
@@ -1162,6 +1162,34 @@ static int plist_string(const char *xml, const char *key, char *out, size_t n) {
     p += 8; const char *e = strstr(p, "</string>"); if (!e) return 0;
     size_t l = (size_t)(e - p); if (l >= n) l = n - 1;
     memcpy(out, p, l); out[l] = 0; return 1;
+}
+static void load_clock_prefs(void);
+ISIM_GUEST_ABI int isim_icu_date_format(const char *, const char *, const char *, double, char *, int);
+ISIM_GUEST_ABI int isim_icu_date_pattern(const char *, const char *, int, int, char *, int);
+/* the date in the locale of Settings > General > Language & Region (AppleLocale): the best pattern for an ICU skeleton,
+ * without commas when nocomma (the iPad status bar's "Mon Jun 10", "Mo. 10. Juni"). The pattern choice is adapted from
+ * CLDR, not measured against iPadOS in every locale. English names when ICU is missing. */
+static void sys_date_string(const struct tm *tm, const char *skeleton, int nocomma, char *out, size_t n) {
+    load_clock_prefs();
+    char pat[64]; struct tm u = *tm;
+    double ms = ((double)timegm(&u)) * 1000;                  /* the wall time, formatted in UTC */
+    if (!strcmp(skeleton, "EEEd") && !strncmp(clock_prefs.locale, "en", 2))   /* iOS's "Mon 10", where CLDR says "10 Mon" */
+        snprintf(pat, sizeof pat, "EEE d");
+    else if (isim_icu_date_pattern(clock_prefs.locale, skeleton, 0, 0, pat, sizeof pat) <= 0) *pat = 0;
+    if (*pat) {
+        if (nocomma) {
+            char *w = pat;
+            for (const char *r = pat; *r; r++) if (*r != ',') *w++ = *r;
+            *w = 0;
+        }
+        if (isim_icu_date_format(clock_prefs.locale, "UTC", pat, ms, out, (int)n) > 0) return;
+    }
+    static const char *wd[] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+    static const char *mo[] = { "January", "February", "March", "April", "May", "June", "July", "August", "September",
+                                "October", "November", "December" };
+    if (!strcmp(skeleton, "EEEd")) snprintf(out, n, "%.3s %d", wd[tm->tm_wday % 7], tm->tm_mday);
+    else if (strlen(skeleton) > 6) snprintf(out, n, "%s, %s %d", wd[tm->tm_wday % 7], mo[tm->tm_mon % 12], tm->tm_mday);
+    else snprintf(out, n, "%.3s %.3s %d", wd[tm->tm_wday % 7], mo[tm->tm_mon % 12], tm->tm_mday);
 }
 static void load_clock_prefs(void) {
     double now = isim_time();
@@ -1179,6 +1207,7 @@ static void load_clock_prefs(void) {
     const char *hc = getenv("ISIM_HOUR_CYCLE");
     int f24 = plist_bool(xml, "AppleICUForce24HourTime"), f12 = plist_bool(xml, "AppleICUForce12HourTime");
     char locale[32] = "en_US"; plist_string(xml, "AppleLocale", locale, sizeof locale);
+    snprintf(clock_prefs.locale, sizeof clock_prefs.locale, "%s", locale);
     /* regions whose default clock is 12-hour (isim Foundation's region table) */
     static const char *twelve[] = { "en_US", "en_CA", "en_AU", "en_IN", "ar_SA" };
     int region12 = 0; for (size_t i = 0; i < sizeof twelve / sizeof *twelve; i++) if (!strcmp(locale, twelve[i])) region12 = 1;
@@ -1264,17 +1293,15 @@ static void draw_status_bar(int style, const double *fg) {
     int pad = portrait_dev.width >= 700;
     double rx = dev.width - (dev.has_island ? 34 : pad ? 20 : 10), left0 = pad ? 20 : 8;
     if (style == SB_CC && dev.has_island) { cy = dev.safe_top - 4; lx = -1; left0 = 30; rx = dev.width - 30; }
-    char left[16] = "", date[32] = ""; double lsize = 17;
+    char left[16] = "", date[64] = ""; double lsize = 17;
     if (style == SB_APP) {
         load_clock_prefs();
         time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
         if (clock_prefs.hour24) snprintf(left, sizeof left, "%02d:%02d", tm.tm_hour, tm.tm_min);
         else snprintf(left, sizeof left, "%d:%02d%s", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min,
                       pad ? (tm.tm_hour < 12 ? " AM" : " PM") : "");   /* iPadOS keeps AM / PM; iPhones drop it */
-        if (pad) {                         /* "9:41 AM  Mon Jun 10": short weekday, short month, day (English names) */
-            static const char *wd[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
-            static const char *mo[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-            snprintf(date, sizeof date, "%s %s %d", wd[tm.tm_wday % 7], mo[tm.tm_mon % 12], tm.tm_mday);
+        if (pad) {                         /* "9:41 AM  Mon Jun 10": short weekday, short month, day, in the locale */
+            sys_date_string(&tm, "EEEMMMd", 1, date, sizeof date);
             lsize = 14;
         }
     } else if (style == SB_CC || isim_os_version() / 10000 <= 18) { snprintf(left, sizeof left, SB_CARRIER); lsize = 15; }

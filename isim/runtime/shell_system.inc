@@ -240,10 +240,11 @@ static void el_add(const char *id, const char *text, struct rectf r, int kind, i
 }
 static void sys_time_strings(char *tm_s, size_t n1, char *date_s, size_t n2) {
     time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
+    load_clock_prefs();
     int h = tm.tm_hour % 12; if (!h) h = 12;
-    snprintf(tm_s, n1, "%d:%02d", h, tm.tm_min);
-    strftime(date_s, n2, "%A, %B %e", &tm);
-    char *dbl = strstr(date_s, "  "); if (dbl) memmove(dbl, dbl + 1, strlen(dbl));
+    if (clock_prefs.hour24) snprintf(tm_s, n1, "%02d:%02d", tm.tm_hour, tm.tm_min);   /* the 24-hour setting, as the status bar */
+    else snprintf(tm_s, n1, "%d:%02d", h, tm.tm_min);
+    sys_date_string(&tm, "EEEEMMMMd", 0, date_s, n2);       /* "Monday, June 10", "Montag, 10. Juni" */
 }
 
 /* ---- app switcher ---- */
@@ -986,9 +987,13 @@ static double lw_row_top(void) { double top = fmax(dev.safe_top, 20); return sys
 static void lw_draw_date(cairo_t *c, double top, const char *dstr) {
     struct lw_item *in = NULL;
     for (int i = 0; i < nlw; i++) if (lws[i].family == 0) in = &lws[i];
-    if (!in) { sys_text(c, dstr, 0, top + 30, dev.width, 19, PANGO_WEIGHT_SEMIBOLD, 1, 1, 1, 1, 1, 0.9); return; }
-    char shortd[32]; time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm); strftime(shortd, sizeof shortd, "%a %e", &tm);
-    char *dbl = strstr(shortd, "  "); if (dbl) memmove(dbl, dbl + 1, strlen(dbl));
+    if (!in) {
+        sys_text(c, dstr, 0, top + 30, dev.width, 19, PANGO_WEIGHT_SEMIBOLD, 1, 1, 1, 1, 1, 0.9);
+        el_add("lock-date", dstr, (struct rectf){ 0, top + 30, dev.width, 24 }, EL_NONE, 0);
+        return;
+    }
+    char shortd[64]; time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
+    sys_date_string(&tm, "EEEd", 0, shortd, sizeof shortd);      /* "Mon 10", "Mo., 10." */
     PangoLayout *l = pango_cairo_create_layout(c);
     PangoFontDescription *fd = pango_font_description_new();
     pango_font_description_set_family(fd, SYSTEM_SANS); pango_font_description_set_absolute_size(fd, 19 * PANGO_SCALE); pango_font_description_set_weight(fd, PANGO_WEIGHT_SEMIBOLD);
@@ -996,6 +1001,7 @@ static void lw_draw_date(cairo_t *c, double top, const char *dstr) {
     int dw, dh; pango_layout_get_pixel_size(l, &dw, &dh); g_object_unref(l);
     double iw = 234, ih = 26, cw = in->img ? (in->cx1 - in->cx0) * iw : 0, gap = 8, total = dw + (cw > 0 ? gap + cw : 0), x = (dev.width - total) / 2;
     sys_text(c, shortd, x, top + 30, 0, 19, PANGO_WEIGHT_SEMIBOLD, 0, 1, 1, 1, 1, 0.9);
+    el_add("lock-date", shortd, (struct rectf){ x, top + 30, dw, dh }, EL_NONE, 0);
     double iy = top + 30 + (dh - ih) / 2;
     if (in->img) {
         cairo_save(c); cairo_rectangle(c, x + dw + gap, iy, cw, ih); cairo_clip(c);
