@@ -930,7 +930,7 @@ Intents -lswiftObjectiveC -lswiftFoundation -lswiftCoreLocation -framework Found
 CoreML -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreVideo -lswiftCoreGraphics -framework Foundation -framework CoreGraphics
 Vision -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftFoundationModels -lswiftCoreVideo -lswiftCoreImage -lswiftCoreMedia -lswiftAudioToolbox -lswiftCoreML -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics -framework CoreImage -framework ImageIO -lisim_host
 SoundAnalysis -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftAVFoundation -lswiftCoreMedia -lswiftCoreVideo -lswiftAudioToolbox -lswiftCoreML -lswiftUIKit -lswiftCoreGraphics -framework Foundation -lisim_host   # issue #368
-NaturalLanguage -lswiftObjectiveC -lswiftFoundation -lswift_Concurrency -framework Foundation
+NaturalLanguage -lswiftObjectiveC -lswiftFoundation -lswift_Concurrency -lswiftCoreML -framework Foundation
 FoundationModels -lswiftObjectiveC -lswiftFoundation -lswiftObservation -lswift_Concurrency -framework Foundation -lisim_host
 Speech -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreMedia -lswiftCoreVideo -lswiftAudioToolbox -lswiftAVFoundation -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
 VisionKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftCoreGraphics -lswiftVision -lswiftCoreImage -lswiftCoreML -lswiftCoreVideo -lswiftCoreMedia -lswiftAudioToolbox -framework Foundation -framework UIKit -framework CoreGraphics

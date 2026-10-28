@@ -489,6 +489,8 @@ open class MLModel: NSObject, @unchecked Sendable {
     public let modelDescription: MLModelDescription
     public let configuration: MLModelConfiguration
     let _spec: _MLSpec
+    /// isim: the spec's model type ("textClassifier", "neuralNetwork", …), for frameworks that load Core ML models
+    public final var _isimModelKind: String? { _spec.kind }
 
     /// Loads an isim-compiled model (a .mlmodelc directory holding model.mlmodel, made by MLModel.compileModel(at:)).
     public init(contentsOf url: URL, configuration: MLModelConfiguration) throws {
