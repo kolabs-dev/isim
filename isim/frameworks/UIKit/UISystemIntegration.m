@@ -1179,6 +1179,25 @@ void isim_sys_event(const char *text) {
         if (!NSClassFromString(@"ARSession")) NSLog(@"isim: ar: the app does not use ARKit");
         [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSystemEvent" object:t];
     }
+    else if ([verb isEqualToString:@"shareplay"]) {                /* the simulated SharePlay call (issue #392): GroupActivities */
+        void (*cmd)(const char *) = (void (*)(const char *))dlsym(RTLD_DEFAULT, "isim_shareplay_command");
+        if (cmd) cmd(args.UTF8String);
+        else {
+            /* the app does not use GroupActivities: keep the call in the device data for the next app that does */
+            NSString *dir = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/SharePlay"];
+            NSString *data = NSProcessInfo.processInfo.environment[@"ISIM_DATA"];
+            if (data.length) dir = [data stringByAppendingPathComponent:@"Library/SharePlay"];
+            NSArray *w = [args componentsSeparatedByString:@" "];
+            NSString *callFile = [dir stringByAppendingPathComponent:@"call"];
+            if ([w.firstObject isEqualToString:@"join"]) {
+                [NSFileManager.defaultManager createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:NULL];
+                [(w.count > 1 ? w[1] : @"isim") writeToFile:callFile atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+            } else if ([w.firstObject isEqualToString:@"leave"]) {
+                [NSFileManager.defaultManager removeItemAtPath:callFile error:NULL];
+            }
+            NSLog(@"isim: shareplay: the app does not use GroupActivities");
+        }
+    }
     else if ([verb isEqualToString:@"remote"]) {                   /* Now Playing controls: MPRemoteCommandCenter polls the queue */
         extern void isim_media_remote_post(const char *cmd);
         isim_media_remote_post(args.UTF8String);
