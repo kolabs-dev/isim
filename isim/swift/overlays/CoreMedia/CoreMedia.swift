@@ -1,5 +1,5 @@
-// isim CoreMedia (subset): CMTime, CMTimeRange and their functions, NSValue(time:). Self-authored, pure Swift.
-// No sample buffers, format descriptions or clocks.
+// isim CoreMedia: CMTime, CMTimeRange, CMTimeMapping and their functions (dictionaries, descriptions), NSValue(time:).
+// Self-authored, pure Swift; sample buffers and format descriptions are in SampleBuffer.swift, queues in Queues.swift.
 @_exported import Foundation
 import ObjectiveC
 
@@ -186,11 +186,121 @@ public func CMTimeRangeGetUnion(_ r: CMTimeRange, otherRange: CMTimeRange) -> CM
 public func CMTimeRangeEqual(_ a: CMTimeRange, _ b: CMTimeRange) -> Bool { a == b }
 public func CMTimeClampToRange(_ t: CMTime, range: CMTimeRange) -> CMTime { CMTimeMinimum(CMTimeMaximum(t, range.start), range.end) }
 
+public func CMTimeRangeContainsTimeRange(_ range: CMTimeRange, otherRange: CMTimeRange) -> Bool { range.containsTimeRange(otherRange) }
+public func CMTIMERANGE_IS_VALID(_ range: CMTimeRange) -> Bool { range.isValid }
+public func CMTIMERANGE_IS_INVALID(_ range: CMTimeRange) -> Bool { !range.isValid }
+public func CMTIMERANGE_IS_INDEFINITE(_ range: CMTimeRange) -> Bool { range.isIndefinite }
+public func CMTIMERANGE_IS_EMPTY(_ range: CMTimeRange) -> Bool { range.isEmpty }
+public func CMTIME_IS_VALID(_ time: CMTime) -> Bool { time.isValid }
+public func CMTIME_IS_INVALID(_ time: CMTime) -> Bool { !time.isValid }
+public func CMTIME_IS_POSITIVEINFINITY(_ time: CMTime) -> Bool { time.isPositiveInfinity }
+public func CMTIME_IS_NEGATIVEINFINITY(_ time: CMTime) -> Bool { time.isNegativeInfinity }
+public func CMTIME_IS_INDEFINITE(_ time: CMTime) -> Bool { time.isIndefinite }
+public func CMTIME_IS_NUMERIC(_ time: CMTime) -> Bool { time.isNumeric }
+public func CMTIME_HAS_BEEN_ROUNDED(_ time: CMTime) -> Bool { time.isNumeric && time.hasBeenRounded }
+
+/// the time in toRange that is as far into it, proportionally, as t is into fromRange
+public func CMTimeMapTimeFromRangeToRange(_ t: CMTime, fromRange: CMTimeRange, toRange: CMTimeRange) -> CMTime {
+    guard t.isNumeric, fromRange.isValid, toRange.isValid else { return .invalid }
+    let offset = t - fromRange.start
+    return toRange.start + CMTimeMapDurationFromRangeToRange(offset, fromRange: fromRange, toRange: toRange)
+}
+/// a duration scaled by toRange.duration / fromRange.duration
+public func CMTimeMapDurationFromRangeToRange(_ dur: CMTime, fromRange: CMTimeRange, toRange: CMTimeRange) -> CMTime {
+    guard dur.isNumeric, fromRange.duration.isNumeric, toRange.duration.isNumeric, fromRange.duration.value != 0 else { return .invalid }
+    if CMTimeCompare(fromRange.duration, toRange.duration) == 0 { return dur }
+    let ts = max(dur.timescale, toRange.duration.timescale)
+    // dur * to / from, at the larger of the two timescales
+    let num = Double(dur.value) / Double(dur.timescale) * toRange.duration.seconds / fromRange.duration.seconds
+    return CMTime(seconds: num, preferredTimescale: ts)
+}
+/// t folded into the range: ranges of the same length before and after it repeat it
+public func CMTimeFoldIntoRange(_ time: CMTime, foldRange: CMTimeRange) -> CMTime {
+    guard time.isNumeric, foldRange.isValid, foldRange.duration.isNumeric, foldRange.duration.value > 0 else { return time.isNumeric ? .invalid : time }
+    if foldRange.containsTime(time) { return time }
+    let ts = Int64(_lcmScale(time.timescale, foldRange.start.timescale, foldRange.duration.timescale))
+    func at(_ t: CMTime) -> Int64 { t.value * (ts / Int64(t.timescale)) }
+    let d = at(foldRange.duration), off = at(time) - at(foldRange.start)
+    let m = ((off % d) + d) % d
+    return CMTime(value: at(foldRange.start) + m, timescale: Int32(ts))
+}
+private func _lcmScale(_ a: Int32, _ b: Int32, _ c: Int32) -> Int32 {
+    func lcm(_ x: Int64, _ y: Int64) -> Int64 { x / _gcd(x, y) * y }
+    let l = lcm(lcm(Int64(a), Int64(b)), Int64(c))
+    return l <= Int64(kCMTimeMaxTimescale) ? Int32(l) : max(a, b, c)
+}
+
+// MARK: - dictionaries and descriptions
+
+public let kCMTimeValueKey: CFString = "value" as CFString
+public let kCMTimeScaleKey: CFString = "timescale" as CFString
+public let kCMTimeEpochKey: CFString = "epoch" as CFString
+public let kCMTimeFlagsKey: CFString = "flags" as CFString
+public let kCMTimeRangeStartKey: CFString = "start" as CFString
+public let kCMTimeRangeDurationKey: CFString = "duration" as CFString
+public let kCMTimeMappingSourceKey: CFString = "source" as CFString
+public let kCMTimeMappingTargetKey: CFString = "target" as CFString
+
+func _timeDictionary(_ t: CMTime) -> NSDictionary {
+    [kCMTimeValueKey as String: NSNumber(value: t.value), kCMTimeScaleKey as String: NSNumber(value: t.timescale),
+     kCMTimeEpochKey as String: NSNumber(value: t.epoch), kCMTimeFlagsKey as String: NSNumber(value: t.flags.rawValue)] as NSDictionary
+}
+func _time(_ d: Any?) -> CMTime {
+    guard let d = d as? [String: Any], let v = (d[kCMTimeValueKey as String] as? NSNumber)?.int64Value,
+          let s = (d[kCMTimeScaleKey as String] as? NSNumber)?.int32Value, let f = (d[kCMTimeFlagsKey as String] as? NSNumber)?.uint32Value else { return .invalid }
+    return CMTime(value: v, timescale: s, flags: CMTimeFlags(rawValue: f), epoch: (d[kCMTimeEpochKey as String] as? NSNumber)?.int64Value ?? 0)
+}
+func _rangeDictionary(_ r: CMTimeRange) -> NSDictionary {
+    [kCMTimeRangeStartKey as String: _timeDictionary(r.start), kCMTimeRangeDurationKey as String: _timeDictionary(r.duration)] as NSDictionary
+}
+func _range(_ d: Any?) -> CMTimeRange {
+    guard let d = d as? [String: Any] else { return .invalid }
+    return CMTimeRange(start: _time(d[kCMTimeRangeStartKey as String]), duration: _time(d[kCMTimeRangeDurationKey as String]))
+}
+func _timeText(_ t: CMTime) -> String {
+    if !t.isValid { return "INVALID" }
+    if t.isIndefinite { return "INDEFINITE" }
+    if t.isPositiveInfinity { return "+INFINITY" }
+    if t.isNegativeInfinity { return "-INFINITY" }
+    return "{\(t.value)/\(t.timescale) = \(String(format: "%.3f", t.seconds))\(t.hasBeenRounded ? ", rounded" : "")}"
+}
+
+public func CMTimeCopyAsDictionary(_ time: CMTime, allocator: CFAllocator?) -> CFDictionary? { _timeDictionary(time) as CFDictionary }
+public func CMTimeMakeFromDictionary(_ dictionaryRepresentation: CFDictionary?) -> CMTime { _time(dictionaryRepresentation.map { $0 as NSDictionary }) }
+public func CMTimeRangeCopyAsDictionary(_ range: CMTimeRange, allocator: CFAllocator?) -> CFDictionary? { _rangeDictionary(range) as CFDictionary }
+public func CMTimeRangeMakeFromDictionary(_ dictionaryRepresentation: CFDictionary) -> CMTimeRange { _range(dictionaryRepresentation as NSDictionary) }
+public func CMTimeRangeCopyDescription(allocator: CFAllocator?, range: CMTimeRange) -> CFString? {
+    "{\(_timeText(range.start)), \(_timeText(range.duration))}" as CFString
+}
+public func CMTimeRangeShow(_ range: CMTimeRange) { print("{\(_timeText(range.start)), \(_timeText(range.duration))}") }
+
 public struct CMTimeMapping: Sendable, Hashable {
     public var source: CMTimeRange
     public var target: CMTimeRange
+    public init() { source = .invalid; target = .invalid }
     public init(source: CMTimeRange, target: CMTimeRange) { self.source = source; self.target = target }
+    public static let invalid = CMTimeMapping()
 }
+public func CMTimeMappingMake(source: CMTimeRange, target: CMTimeRange) -> CMTimeMapping {
+    guard source.isValid, target.isValid else { return .invalid }
+    return CMTimeMapping(source: source, target: target)
+}
+/// an empty edit: no source media (source.start invalid) for the target range
+public func CMTimeMappingMakeEmpty(target: CMTimeRange) -> CMTimeMapping {
+    guard target.isValid else { return .invalid }
+    return CMTimeMapping(source: CMTimeRange(start: .invalid, duration: target.duration), target: target)
+}
+public func CMTimeMappingCopyAsDictionary(_ mapping: CMTimeMapping, allocator: CFAllocator?) -> CFDictionary? {
+    [kCMTimeMappingSourceKey as String: _rangeDictionary(mapping.source), kCMTimeMappingTargetKey as String: _rangeDictionary(mapping.target)] as NSDictionary as CFDictionary
+}
+public func CMTimeMappingMakeFromDictionary(_ dictionaryRepresentation: CFDictionary) -> CMTimeMapping {
+    let d = dictionaryRepresentation as NSDictionary as? [String: Any] ?? [:]
+    return CMTimeMapping(source: _range(d[kCMTimeMappingSourceKey as String]), target: _range(d[kCMTimeMappingTargetKey as String]))
+}
+public func CMTimeMappingCopyDescription(allocator: CFAllocator?, mapping: CMTimeMapping) -> CFString? {
+    "{source = \(CMTimeRangeCopyDescription(allocator: nil, range: mapping.source)! as String), target = \(CMTimeRangeCopyDescription(allocator: nil, range: mapping.target)! as String)}" as CFString
+}
+public func CMTimeMappingShow(_ mapping: CMTimeMapping) { print(CMTimeMappingCopyDescription(allocator: nil, mapping: mapping)! as String) }
 
 // MARK: - NSValue boxing (AVFoundation boundary times)
 

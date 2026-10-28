@@ -24,11 +24,12 @@ CFTypeID CFGetTypeID(CFTypeRef cf) {
     if ([o isKindOfClass:[NSLocale class]]) return 41;                  /* CFLocale.m */
     if ([o isKindOfClass:[NSDateFormatter class]] || [o isKindOfClass:[NSISO8601DateFormatter class]]) return 50;
     if ([NSStringFromClass([o class]) isEqualToString:@"__NSCFUUID"]) return 44;
-    /* Security's CF types that are Swift classes (no Objective-C methods): their ...GetTypeID values (Certificates.swift,
-       SecKey.swift; SecTrust is Foundation's) */
+    /* Security's and Core Media's CF types that are Swift classes (no Objective-C methods): their ...GetTypeID values
+       (Certificates.swift, SecKey.swift; SecTrust is Foundation's; CoreMedia/Queues.swift) */
     static const struct { const char *cls; CFTypeID tid; } swift_types[] = {
         { "_TtC8Security14SecCertificate", 0x5ec0 }, { "_TtC10Foundation8SecTrust", 0x5ec1 }, { "_TtC8Security11SecIdentity", 0x5ec2 },
-        { "_TtC8Security9SecPolicy", 0x5ec3 }, { "_TtC8Security6SecKey", 0x5ec4 } };
+        { "_TtC8Security9SecPolicy", 0x5ec3 }, { "_TtC8Security6SecKey", 0x5ec4 },
+        { "_TtC9CoreMedia13CMSimpleQueue", 0x5c01 }, { "_TtC9CoreMedia13CMBufferQueue", 0x5c02 } };
     const char *cn = object_getClassName(o);
     for (size_t i = 0; cn && i < sizeof swift_types / sizeof swift_types[0]; i++) if (!strcmp(cn, swift_types[i].cls)) return swift_types[i].tid;
     /* CF types of other frameworks (Core Graphics objects, Security's SecAccessControlRef): the object knows its type ID */

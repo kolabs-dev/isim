@@ -127,15 +127,33 @@ public final class CMSampleBuffer: @unchecked Sendable {
     public init(_block block: CMBlockBuffer?, format: CMFormatDescription?, count: Int, timings: [CMSampleTimingInfo], sizes: [Int]) {
         _imageBuffer = nil; _block = block; _format = format; _numSamples = count
         _timings = timings; _sizes = sizes
+        _timing = Self._overall(timings, count: count)
+    }
+    /// the buffer's timing from its samples' entries
+    static func _overall(_ timings: [CMSampleTimingInfo], count: Int) -> CMSampleTimingInfo {
         if timings.count == 1 && count > 1, timings[0].duration.isNumeric {
             // one timing entry for several samples: each sample lasts the entry's duration
-            _timing = CMSampleTimingInfo(duration: CMTimeMultiply(timings[0].duration, multiplier: Int32(count)), presentationTimeStamp: timings[0].presentationTimeStamp,
-                                         decodeTimeStamp: timings[0].decodeTimeStamp)
+            return CMSampleTimingInfo(duration: CMTimeMultiply(timings[0].duration, multiplier: Int32(count)), presentationTimeStamp: timings[0].presentationTimeStamp,
+                                      decodeTimeStamp: timings[0].decodeTimeStamp)
         } else if let first = timings.first {
             let total = timings.reduce(CMTime.zero) { $1.duration.isNumeric ? $0 + $1.duration : $0 }
             let pts = timings.map(\.presentationTimeStamp).filter(\.isNumeric).min() ?? first.presentationTimeStamp
-            _timing = CMSampleTimingInfo(duration: total, presentationTimeStamp: pts, decodeTimeStamp: first.decodeTimeStamp)
-        } else { _timing = .invalid }
+            return CMSampleTimingInfo(duration: total, presentationTimeStamp: pts, decodeTimeStamp: first.decodeTimeStamp)
+        }
+        return .invalid
+    }
+    /// isim: a copy that shares the data (block buffer or image buffer) and copies the attachments; new timing when given
+    init(_copy s: CMSampleBuffer, timings: [CMSampleTimingInfo]?) {
+        _imageBuffer = s._imageBuffer; _block = s._block; _format = s._format; _numSamples = s._numSamples
+        _sizes = s._sizes; _ready = s._ready
+        _attachments = s._attachments
+        _sampleAttachments = s._sampleAttachments.map { $0.mutableCopy() as! NSMutableDictionary }
+        if let timings {
+            _timings = s._imageBuffer == nil && (s._block != nil || !s._timings.isEmpty) ? timings : []
+            _timing = s._imageBuffer != nil ? (timings.first ?? .invalid) : Self._overall(timings, count: s._numSamples)
+        } else {
+            _timings = s._timings; _timing = s._timing
+        }
     }
     /// the bytes of sample `i` within the block buffer
     public func _sampleRange(_ i: Int) -> Range<Int>? {
@@ -317,9 +335,13 @@ public func CMSampleBufferDataIsReady(_ sbuf: CMSampleBuffer) -> Bool { true }
     sampleBufferOut.pointee = CMSampleBuffer(_imageBuffer: imageBuffer, presentationTime: sampleTiming.pointee.presentationTimeStamp, duration: sampleTiming.pointee.duration)
     return noErr
 }
+/// the extensions are the buffer's attachments that format descriptions share with image buffers (clean aperture,
+/// pixel aspect ratio, colour)
 @discardableResult public func CMVideoFormatDescriptionCreateForImageBuffer(allocator: CFAllocator?, imageBuffer: CVImageBuffer,
                                                          formatDescriptionOut: UnsafeMutablePointer<CMVideoFormatDescription?>) -> OSStatus {
-    formatDescriptionOut.pointee = CMFormatDescription(_video: imageBuffer._width, height: imageBuffer._height, pixelFormat: imageBuffer._format)
+    let f = CMFormatDescription(_video: imageBuffer._width, height: imageBuffer._height, pixelFormat: imageBuffer._format)
+    for k in _commonImageBufferKeys { if let v = CVBufferCopyAttachment(imageBuffer, k, nil) { f._extensions[k as String] = v } }
+    formatDescriptionOut.pointee = f
     return noErr
 }
 @discardableResult public func CMAudioFormatDescriptionCreate(allocator: CFAllocator?, asbd: UnsafePointer<AudioStreamBasicDescription>, layoutSize: Int, layout: UnsafeRawPointer?,

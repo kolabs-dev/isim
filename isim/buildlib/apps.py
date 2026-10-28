@@ -1168,6 +1168,13 @@ def _(a):
     a.swift_app("VideoToolboxTest", srcs=["VideoToolboxTest.swift"], plist="Info.plist")
 
 
+@app("tests/coremedia", products=["CoreMediaTest.app", "CoreMediaCTest.app"])
+def _(a):
+    a.swift_app("CoreMediaTest", srcs=["CoreMediaTest.swift"], plist="Info.plist")
+    b = a.objc_app(["main.m"], "C-Info.plist", ["-framework", "Foundation", "-framework", "CoreMedia"], name="CoreMediaCTest")
+    os.replace(os.path.join(b, "C-Info.plist"), os.path.join(b, "Info.plist"))
+
+
 @app("tests/accelerate", products=["AccelerateTest.app", "AccelerateCTest.app", "VImageTest.app", "VImageCTest.app"])
 def _(a):
     a.swift_app("AccelerateTest", srcs=["AccelerateTest.swift"], plist="Info.plist")
