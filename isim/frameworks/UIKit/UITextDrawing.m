@@ -375,24 +375,23 @@ static NSAttributedString *attributed(NSString *s, NSDictionary *attrs) { return
 @interface UIImage (IsimHandle)
 + (UIImage *)_isim_imageWithHandle:(int)h scale:(CGFloat)scale;
 @end
-static NSMutableArray<NSNumber *> *ctx_scales;
+static __thread CGFloat ctx_scales[16]; static __thread int nscales;   /* this thread's image contexts, as on iOS (#717) */
 void UIGraphicsBeginImageContextWithOptions(CGSize size, BOOL opaque, CGFloat scale) {
     if (scale <= 0) scale = isim_ui_device()->scale;
-    if (!ctx_scales) ctx_scales = [NSMutableArray array];
     if (!isim_gfx_offscreen_begin(size.width, size.height, scale, opaque)) { NSLog(@"isim: UIGraphicsBeginImageContext: invalid size %@", NSStringFromCGSize(size)); return; }
-    [ctx_scales addObject:@(scale)];
+    ctx_scales[nscales++] = scale;            /* isim_gfx_offscreen_begin allows 16 per thread */
     CGContextSaveGState(UIGraphicsGetCurrentContext());
 }
 void UIGraphicsBeginImageContext(CGSize size) { UIGraphicsBeginImageContextWithOptions(size, NO, 1); }
 UIImage *UIGraphicsGetImageFromCurrentImageContext(void) {
-    if (!ctx_scales.count) return nil;
+    if (!nscales) return nil;
     int h = isim_gfx_offscreen_snapshot();
-    return h ? [UIImage _isim_imageWithHandle:h scale:ctx_scales.lastObject.doubleValue] : nil;
+    return h ? [UIImage _isim_imageWithHandle:h scale:ctx_scales[nscales - 1]] : nil;
 }
 void UIGraphicsEndImageContext(void) {
-    if (!ctx_scales.count) return;
+    if (!nscales) return;
     CGContextRestoreGState(UIGraphicsGetCurrentContext());
-    [ctx_scales removeLastObject];
+    nscales--;
     isim_gfx_offscreen_end();
 }
 /* a bitmap/PDF context pushed here becomes the target of UIKit drawing (UIImage/NSString/UIBezierPath) until popped */
@@ -532,7 +531,7 @@ NSData *UIImageHEICRepresentation(UIImage *img) {
     CGRect b = self.isimBounds; CGFloat scale = [f isKindOfClass:[UIGraphicsImageRendererFormat class]] && f.scale > 0 ? f.scale : isim_ui_device()->scale;
     BOOL opaque = [f isKindOfClass:[UIGraphicsImageRendererFormat class]] && f.opaque;
     UIGraphicsBeginImageContextWithOptions(b.size, opaque, scale);
-    if (!ctx_scales.count) return 0;
+    if (!nscales) return 0;
     CGContextTranslateCTM(UIGraphicsGetCurrentContext(), -b.origin.x, -b.origin.y);
     UIGraphicsImageRendererContext *ctx = [UIGraphicsImageRendererContext new]; ctx.format = f;
     if (actions) actions(ctx);

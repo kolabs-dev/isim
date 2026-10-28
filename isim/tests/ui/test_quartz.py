@@ -15,7 +15,7 @@ from isimtest import close, count_px, rgb
 def test_quartz(launch):
     app = launch("HelloQuartz")
     for line in ("header %PDF-", "cgpdfcontext ", "ctframe lines", "color spaces", "context ctm", "cgfont named",
-                 "pattern uncolored", "masking left", "cgpdf objects", "cg extras"):
+                 "pattern uncolored", "masking left", "cgpdf objects", "cg extras", "background drawing"):
         app.wait_log(re.escape(line))
     shot = app.wait_shot(lambda s: close(s, 116, 100, (255, 149, 0)) and close(s, 36, 370, (64, 64, 64)),
                          "drawn on screen")
@@ -27,6 +27,7 @@ def test_quartz(launch):
         return s in log
 
     assert has("bottom [255, 0, 0, 255] top [0, 0, 0, 0]"), "bitmap context: y-up fill lands in memory"
+    assert has("background drawing 1000/1000"), "drawing on a background thread while frames render (#717)"
     assert has("bitmap app write kept [0, 255, 0, 255] blended [0, 127, 128, 255]"), \
         "bitmap context: app writes are drawn on"
     assert has("bitmap bgra [0, 128, 255, 255]") and has("bitmap gray 128 ctm 1.0,1.0"), \

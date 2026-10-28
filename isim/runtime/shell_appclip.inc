@@ -76,9 +76,9 @@ static void ac_header(cairo_t *c, struct rectf r, int dark) {
     double w = 0, h = 0; int hd = ac.image[0] ? isim_image_load(ac.image, &w, &h) : 0;
     if (hd && w > 0 && h > 0) {
         double k = fmax(r.w / w, r.h / h);
-        cairo_t *saved = cr; cr = c;
+        cairo_t *saved = thread_cr; thread_cr = c;
         isim_image_draw(hd, r.x + (r.w - w * k) / 2, r.y + (r.h - h * k) / 2, w * k, h * k, NULL, 1);
-        cr = saved;
+        thread_cr = saved;
     } else {
         cairo_pattern_t *g = cairo_pattern_create_linear(0, r.y, 0, r.y + r.h);
         cairo_pattern_add_color_stop_rgb(g, 0, dark ? 0.20 : 0.84, dark ? 0.22 : 0.88, dark ? 0.27 : 0.95);
