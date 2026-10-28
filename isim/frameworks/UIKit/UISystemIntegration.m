@@ -1179,6 +1179,11 @@ void isim_sys_event(const char *text) {
         if (!NSClassFromString(@"ARSession")) NSLog(@"isim: ar: the app does not use ARKit");
         [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSystemEvent" object:t];
     }
+    else if ([verb isEqualToString:@"gamesave"]) {                 /* GameSave's simulated network (issue #393) */
+        void (*cmd)(const char *) = (void (*)(const char *))dlsym(RTLD_DEFAULT, "isim_gamesave_command");
+        if (cmd) cmd(args.UTF8String);
+        else NSLog(@"isim: gamesave: the app does not use GameSave");
+    }
     else if ([verb isEqualToString:@"shareplay"]) {                /* the simulated SharePlay call (issue #392): GroupActivities */
         void (*cmd)(const char *) = (void (*)(const char *))dlsym(RTLD_DEFAULT, "isim_shareplay_command");
         if (cmd) cmd(args.UTF8String);

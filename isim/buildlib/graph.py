@@ -272,6 +272,7 @@ SWIFT_FRAMEWORKS = [
     ("LocalAuthentication", "-framework Foundation -framework Security"),   # issue #307
     ("ReplayKit", "-framework Foundation -framework UIKit -framework AVFoundation -framework CoreMedia"),   # issue #385
     ("PHASE", "-framework Foundation -framework AVFoundation"),   # issue #386
+    ("GameSave", "-framework Foundation -framework UIKit"),   # issue #393
 ]
 
 GUEST_CFLAGS = ["-target", f"x86_64-apple-ios{MINOS}-simulator", "-nostdlibinc", "-isystem", f"{SDK}/usr/include",

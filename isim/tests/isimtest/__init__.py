@@ -208,11 +208,11 @@ class App:
             install_apps(self.data, *install)
         self.fifo = self.tmp / "control"
         os.mkfifo(self.fifo)
-        # the local Game Center network (players shared by isim devices) and the SharePlay bus: scratch ones next to the device data, shared
+        # the local Game Center network (players shared by isim devices) the SharePlay bus and GameSave's iCloud: scratch ones next to the device data, shared
         # by the devices of one test (their data directories are siblings)
         e = dict(os.environ, ISIM_DATA=str(self.data), ISIM_HEADLESS="1", ISIM_SHOT_SCALE="1",
                  ISIM_DEVICE=device or DEFAULT_DEVICE, ISIM_SCRIPT="wait 0", ISIM_GAMECENTER=str(self.data.parent / "gamecenter"),
-                 ISIM_SHAREPLAY=str(self.data.parent / "shareplay"))
+                 ISIM_SHAREPLAY=str(self.data.parent / "shareplay"), ISIM_GAMESAVE=str(self.data.parent / "gamesave"))
         e.setdefault("ISIM_DICTIONARIES", "none")           # the built-in word lists only, whatever the host has installed
         e.setdefault("ISIM_MDNS", "0")                      # Bonjour in the local registry only: tests running in parallel
                                                             # must not find each other's services over multicast DNS
@@ -674,6 +674,7 @@ def run_app(name: str, *, script: str | None = None, timeout: float = 120, data:
         e["ISIM_DATA"] = str(data)
         e["ISIM_GAMECENTER"] = str(Path(data).parent / "gamecenter")
         e["ISIM_SHAREPLAY"] = str(Path(data).parent / "shareplay")
+        e["ISIM_GAMESAVE"] = str(Path(data).parent / "gamesave")
     if standalone:
         e["ISIM_STANDALONE"] = "1"
     if script is not None:
