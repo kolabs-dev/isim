@@ -16,7 +16,8 @@ def test_keychain_objc(launch):
     assert 'kc delete 0 then -25300 "The specified item could not be found in the keychain."' in log
     assert "kc constants 1 1" in log, "the C constants have the Swift overlay's values"
     assert "kc shared password chars=15 groups=4 key=1" in log, "SecCreateSharedWebCredentialPassword, kSecSharedPassword"
-    app.wait_log(r"^kc shared add error=-34018$")              # no webcredentials domain: errSecMissingEntitlement
+    app.wait_log(r"^kc shared add error=-34018$")
+    assert "kc tk atr protocols=1 t1=1 records=2 tlv=5FC102/3 manager=0 domain=CryptoTokenKit" in app.log, "CryptoTokenKit from C"              # no webcredentials domain: errSecMissingEntitlement
     assert "kc protected add 0 typeid=1" in log
     assert "kc protected noui fail=-25308 skip=-25300 attributes=0" in log, \
         "kSecUseAuthenticationUIFail: errSecInteractionNotAllowed; Skip: not found; attributes without authentication"

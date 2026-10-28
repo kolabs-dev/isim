@@ -214,6 +214,7 @@ SWIFT_FRAMEWORKS = [
     # issue #315: sensors and health from Objective-C
     ("CoreBluetooth", "-framework Foundation"),
     ("CoreNFC", "-framework Foundation"),
+    ("CryptoTokenKit", "-framework Foundation"),   # issue #403: smart cards
     ("VisionKit", "-framework Foundation -framework UIKit"),   # issue #379: the document camera
     ("HealthKit", "-framework Foundation"),
     ("AdSupport", "-framework Foundation"),

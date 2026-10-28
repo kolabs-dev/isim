@@ -61,7 +61,7 @@ histories (the device's account, kept when an app is deleted), certificate and o
 The local Game Center network that isim
 devices on this computer share: ISIM_GAMECENTER (~/.local/share/isim-gamecenter).
 """
-import base64, json, os, plistlib, random, string, subprocess, sys, time, uuid, shutil
+import base64, datetime, json, os, plistlib, random, string, subprocess, sys, time, uuid, shutil
 
 DATA = os.environ.get('ISIM_DATA') or os.path.expanduser('~/.local/share/isim')
 
@@ -966,6 +966,105 @@ def sso(cmd, args):
     print(f'{len(profiles)} SSO profile(s)')
 
 
+SMARTCARD_READERS = os.path.join(DATA, 'Library/isim/SmartCards/readers.json')
+DEFAULT_READER = 'isim Virtual Reader'
+
+
+def demo_card():
+    """a PIV card (NIST SP 800-73): the PIV applet, a CHUID longer than one response, a PIN-protected certificate"""
+    def tlv(tag, value):
+        n = len(value)
+        length = bytes([n]) if n < 0x80 else bytes([0x81, n]) if n < 0x100 else bytes([0x82, n >> 8, n & 0xFF])
+        return bytes.fromhex(tag) + length + value
+    chuid = tlv('53', tlv('30', bytes(range(25))) + tlv('34', bytes(range(16, 32))) + tlv('35', b'20301231')
+                + tlv('3E', bytes(227)) + tlv('FE', b''))
+    cert = tlv('53', tlv('70', bytes(i % 251 for i in range(252))) + tlv('71', b'\x00') + tlv('FE', b''))
+    return {'atr': '3BFD1300008131FE158073C021C057597562694B657940', 'serial': '0A1B2C3D', 'token': 'dev.isim.virtual.piv',
+            'pinTries': 3,
+            'applets': [{'aid': 'A000000308000010000100', 'fci': '611179' + '074F05A000000308' + '4F06000010000100',
+                         'pin': '123456', 'pinReference': 0x80,
+                         'objects': {'5FC102': chuid.hex().upper(), '5FC105': cert.hex().upper()}, 'protected': ['5FC105']}]}
+
+
+def smartcard(cmd, args):
+    """isim's virtual smart card readers (CryptoTokenKit): list them, insert or remove a card, add or remove a reader"""
+    conf = json.load(open(SMARTCARD_READERS)) if os.path.exists(SMARTCARD_READERS) else {'readers': []}
+    readers = conf.setdefault('readers', [])
+    reader_name, pin_pad, rest = DEFAULT_READER, None, []
+    i = 0
+    while i < len(args):
+        if args[i] == '--reader' and i + 1 < len(args):
+            reader_name = args[i + 1]; i += 2; continue
+        if args[i] == '--pin-pad':
+            pin_pad = True
+        elif args[i] == '--no-pin-pad':
+            pin_pad = False
+        else:
+            rest.append(args[i])
+        i += 1
+    def find(create):
+        for r in readers:
+            if r.get('name') == reader_name:
+                return r
+        if not create:
+            die(f'no reader named {reader_name!r} (isim smartcard list)')
+        r = {'name': reader_name, 'pinPad': True, 'card': None}
+        readers.append(r)
+        return r
+    if cmd == 'list':
+        if not readers:
+            print('no readers (isim smartcard insert --demo adds one with a card)')
+        for r in readers:
+            card = r.get('card')
+            what = f"card {card.get('atr', '?')} serial {card.get('serial', '-')}" + (f" token {card['token']}" if card.get('token') else '') \
+                if card else 'empty'
+            print(f"{r['name']}{' (PIN pad)' if r.get('pinPad') else ''}: {what}")
+        return
+    if cmd == 'insert':
+        if rest == ['--demo'] or not rest:
+            card = demo_card()
+        else:
+            path = rest[0]
+            card = json.load(sys.stdin if path == '-' else open(path))
+        r = find(True)
+        r['card'] = card
+        if pin_pad is not None:
+            r['pinPad'] = pin_pad
+        print(f"inserted a card in {reader_name}")
+    elif cmd == 'remove':
+        find(False)['card'] = None
+        print(f"removed the card from {reader_name}")
+    elif cmd == 'add-reader':
+        r = find(True)
+        if pin_pad is not None:
+            r['pinPad'] = pin_pad
+        print(f"reader {reader_name}")
+    elif cmd == 'remove-reader':
+        conf['readers'] = [r for r in readers if r.get('name') != reader_name]
+        print(f"removed reader {reader_name}")
+    else:
+        die('usage: isim smartcard list | insert [--reader NAME] [--pin-pad|--no-pin-pad] [--demo | CARD.json | -] | '
+            'remove [--reader NAME] | add-reader [--reader NAME] [--pin-pad] | remove-reader [--reader NAME]')
+    os.makedirs(os.path.dirname(SMARTCARD_READERS), exist_ok=True)
+    write_json(SMARTCARD_READERS, conf)
+
+
+def iddocs(cmd, args):
+    """IdentityDocumentServices: the mobile documents provider apps registered"""
+    d = os.path.join(DATA, 'Library/isim/IdentityDocuments')
+    if cmd != 'list':
+        die('usage: isim iddocs list')
+    found = False
+    for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+        for e in json.load(open(os.path.join(d, f))):
+            found = True
+            until = e.get('invalidationDate')
+            print(f"{f[:-5]}: {e['mobileDocumentType']} {e['documentIdentifier']}"
+                  + (f" until {datetime.datetime.fromtimestamp(until, datetime.timezone.utc):%Y-%m-%d}" if until else ''))
+    if not found:
+        print('no identity documents registered')
+
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == 'gamecenter' and sys.argv[2] in GC_NETWORK:
         sys.argv.append('')
@@ -973,6 +1072,8 @@ def main():
         sys.argv.append('')
     if len(sys.argv) >= 2 and sys.argv[1] == 'finance':
         return finance(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
+    if len(sys.argv) >= 2 and sys.argv[1] in ('smartcard', 'iddocs'):
+        return {'smartcard': smartcard, 'iddocs': iddocs}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] in ('autofill', 'sso'):
         return {'autofill': autofill, 'sso': sso}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] == 'agerange':

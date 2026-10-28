@@ -72,6 +72,7 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_AUTOFILL_PROVIDER_ANSWER` | `allow`, `deny` (AuthenticationServices' "Turn On AutoFill?" alert from `ASSettingsHelper.requestToTurnOnCredentialProviderExtension`; providers are also turned on with `isim autofill enable <app>`) |
 | `ISIM_PHONE_NUMBER` | the device's phone number, offered by passkey account creation (iOS 26) when an app asks for a phone number first (default `+1 (408) 555-0123`) |
 | `ISIM_AGERANGE_ANSWER` | `share`, `decline` (DeclaredAgeRange's "Share Age Range?" sheet; the age itself is `isim agerange set <age>`) |
+| `ISIM_SMARTCARD_PIN` | the PIN, or `current,new` for a change (CryptoTokenKit's PIN sheet on a virtual reader with a PIN pad; the readers and their cards are `isim smartcard list\|insert [--demo\|CARD.json]\|remove`) |
 | `ISIM_PERMISSION_ANSWER` | `yes`, `no` (PermissionKit's Ask, approve-in-person and acknowledgment sheets; the parent's answer is `isim permission <app> approve\|decline`) |
 | `ISIM_REPLAYKIT_PERMISSION` | `allow`, `deny` (ReplayKit's screen-recording consent; `ISIM_REPLAYKIT_AVAILABLE=0` makes recording unavailable) |
 | `ISIM_CONTACTS_PERMISSION`, `ISIM_CALENDAR_PERMISSION`, `ISIM_REMINDERS_PERMISSION`, `ISIM_HEALTH_PERMISSION`, `ISIM_CAMERA_PERMISSION`, `ISIM_MICROPHONE_PERMISSION`, `ISIM_SPEECH_PERMISSION`, `ISIM_MEDIALIBRARY_PERMISSION` | `allow`, `deny` |
