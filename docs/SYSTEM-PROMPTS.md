@@ -68,6 +68,8 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_PASTE_PERMISSION` | `ask`, `allow`, `deny` (Paste from Other Apps; otherwise the app's setting in Settings, Ask by default) |
 | `ISIM_GAMECENTER_FRIENDS_PERMISSION` | `allow`, `deny` (Game Center's friends-list prompt) |
 | `ISIM_SHAREPLAY_ACTIVATION` | `preferred`, `disabled`, `cancelled` (the answer to `prepareForActivation()`'s "Do you want to SharePlay …?" alert, without asking) |
+| `ISIM_AGERANGE_ANSWER` | `share`, `decline` (DeclaredAgeRange's "Share Age Range?" sheet; the age itself is `isim agerange set <age>`) |
+| `ISIM_PERMISSION_ANSWER` | `yes`, `no` (PermissionKit's Ask, approve-in-person and acknowledgment sheets; the parent's answer is `isim permission <app> approve\|decline`) |
 | `ISIM_REPLAYKIT_PERMISSION` | `allow`, `deny` (ReplayKit's screen-recording consent; `ISIM_REPLAYKIT_AVAILABLE=0` makes recording unavailable) |
 | `ISIM_CONTACTS_PERMISSION`, `ISIM_CALENDAR_PERMISSION`, `ISIM_REMINDERS_PERMISSION`, `ISIM_HEALTH_PERMISSION`, `ISIM_CAMERA_PERMISSION`, `ISIM_MICROPHONE_PERMISSION`, `ISIM_SPEECH_PERMISSION`, `ISIM_MEDIALIBRARY_PERMISSION` | `allow`, `deny` |
 
