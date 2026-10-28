@@ -156,12 +156,14 @@ extension URLSession {
     }
 
     /// Hands the connection, after the reads and writes already asked for, to the delegate's
-    /// urlSession(_:streamTask:didBecome:outputStream:) as a pair of open streams; the task then completes.
+    /// urlSession(_:streamTask:didBecome:outputStream:) as a pair of open streams. The task has completed by then, as
+    /// on iOS (its state reads .completed in the delegate method and after); didCompleteWithError follows.
     open func captureStreams() {
         _reads.async {
             self._writes.sync {}
             guard let (i, o) = self._streams() else { return }
             self._io.lock(); self._captured = true; let left = self._buffer; self._buffer = Data(); self._io.unlock()
+            self._lock.lock(); self._state = .completed; self._lock.unlock()       /* before the streams are handed over (#689) */
             let input: InputStream = left.isEmpty ? i : _PrefixedInputStream(left, i)
             if let d = self._streamDelegate { self._onQueue { d.urlSession(self._session, streamTask: self, didBecome: input, outputStream: o) } }
             self._finish(nil)

@@ -282,6 +282,7 @@ func tlsChecks(env: [String: String]) async {
 final class StreamDelegate: NSObject, URLSessionStreamDelegate, URLSessionDataDelegate, @unchecked Sendable {
     var asked = 0, readClosed = 0, writeClosed = 0
     var captured: (InputStream, OutputStream)?
+    var capturedState: URLSessionTask.State?
     let done = DispatchSemaphore(value: 0)
     func urlSession(_ session: URLSession, task: URLSessionTask, needNewBodyStream completionHandler: @escaping @Sendable (InputStream?) -> Void) {
         asked += 1
@@ -290,7 +291,7 @@ final class StreamDelegate: NSObject, URLSessionStreamDelegate, URLSessionDataDe
     func urlSession(_ session: URLSession, readClosedFor streamTask: URLSessionStreamTask) { readClosed += 1 }
     func urlSession(_ session: URLSession, writeClosedFor streamTask: URLSessionStreamTask) { writeClosed += 1 }
     func urlSession(_ session: URLSession, streamTask: URLSessionStreamTask, didBecome inputStream: InputStream, outputStream: OutputStream) {
-        captured = (inputStream, outputStream); done.signal()
+        captured = (inputStream, outputStream); capturedState = streamTask.state; done.signal()
     }
 }
 /// reads a stream task to its end
@@ -357,6 +358,7 @@ func streamChecks(port: UInt16, base: String, tlsPort: String?) async {
             else { usleep(5_000) }
         }
         let text = String(decoding: got, as: UTF8.self)
+        check(delegate.capturedState == .completed, "captureStreams: the task has completed when the delegate gets the streams")
         check(text.contains(#""name":"isim""#) && cap.state == .completed, "captureStreams: the delegate's input stream carries the reply")
     } else { check(false, "captureStreams: urlSession(_:streamTask:didBecome:outputStream:)") }
 
