@@ -10,5 +10,12 @@
 	<string>dev.isim.samples.HelloKeyboardTypes</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
 </dict>
 </plist>
