@@ -331,7 +331,8 @@ open class GKGraphNode: NSObject {
 
 open class GKGraphNode2D: GKGraphNode {
     open var position: vector_float2
-    public init(point: vector_float2) { position = point; super.init() }
+    public required init(point: vector_float2) { position = point; super.init() }
+    public class func node(withPoint point: vector_float2) -> Self { self.init(point: point) }
     /// lets graphs create nodes of an app's subclass (GKObstacleGraph / GKMeshGraph nodeClass)
     public convenience override init() { self.init(point: .zero) }
     public required init?(coder: NSCoder) { position = .zero; super.init(coder: coder) }
@@ -344,7 +345,8 @@ open class GKGraphNode2D: GKGraphNode {
 
 open class GKGraphNode3D: GKGraphNode {
     open var position: vector_float3
-    public init(point: vector_float3) { position = point; super.init() }
+    public required init(point: vector_float3) { position = point; super.init() }
+    public class func node(withPoint point: vector_float3) -> Self { self.init(point: point) }
     public required init?(coder: NSCoder) { position = .zero; super.init(coder: coder) }
     open override func cost(to node: GKGraphNode) -> Float {
         guard let n = node as? GKGraphNode3D else { return 1 }
@@ -439,10 +441,12 @@ open class GKGraph: NSObject {
     public override init() { super.init() }
     public init(nodes: [GKGraphNode]) { self.nodes = nodes; super.init() }
     public required init?(coder: NSCoder) { super.init() }
-    open func connectNode(toLowestCostNode node: GKGraphNode, bidirectional: Bool) {
+    open func connectToLowestCostNode(node: GKGraphNode, bidirectional: Bool) {
         guard let best = (nodes ?? []).filter({ $0 !== node }).min(by: { node.cost(to: $0) < node.cost(to: $1) }) else { return }
         node.addConnections(to: [best], bidirectional: bidirectional)
     }
+    @available(*, deprecated, renamed: "connectToLowestCostNode(node:bidirectional:)")
+    open func connectNode(toLowestCostNode node: GKGraphNode, bidirectional: Bool) { connectToLowestCostNode(node: node, bidirectional: bidirectional) }
     open func remove(_ remove: [GKGraphNode]) {
         for n in remove {
             for m in nodes ?? [] { m.connectedNodes.removeAll { $0 === n } }
@@ -479,7 +483,7 @@ open class GKGridGraph<NodeType: GKGridGraphNode>: GKGraph {
             }
         }
         nodes = all
-        for n in all { connectNode(toAdjacentNodes: n as! GKGridGraphNode) }
+        for n in all { connectToAdjacentNodes(node: n as! GKGridGraphNode) }
     }
     public required init?(coder: NSCoder) {
         gridOrigin = .zero; gridWidth = 0; gridHeight = 0; diagonalsAllowed = false; nodeClass = GKGridGraphNode.self
@@ -491,7 +495,9 @@ open class GKGridGraph<NodeType: GKGridGraphNode>: GKGraph {
         return y * gridWidth + x
     }
     open func node(atGridPosition p: vector_int2) -> NodeType? { index(p).flatMap { grid[$0] } as? NodeType }
-    open func connectNode(toAdjacentNodes node: GKGridGraphNode) {
+    @available(*, deprecated, renamed: "connectToAdjacentNodes(node:)")
+    open func connectNode(toAdjacentNodes node: GKGridGraphNode) { connectToAdjacentNodes(node: node) }
+    open func connectToAdjacentNodes(node: GKGridGraphNode) {
         let p = node.gridPosition
         var neighbors: [GKGraphNode] = []
         for dy in Int32(-1)...1 {
@@ -608,9 +614,12 @@ open class GKVoronoiNoiseSource: GKNoiseSource {
     open var displacement: Double
     open var isDistanceEnabled: Bool
     open var seed: Int32
-    public init(frequency: Double, displacement: Double, distanceEnabled: Bool, seed: Int32) {
+    public required init(frequency: Double, displacement: Double, distanceEnabled: Bool, seed: Int32) {
         self.frequency = frequency; self.displacement = displacement; isDistanceEnabled = distanceEnabled; self.seed = seed
         super.init()
+    }
+    public class func voronoiNoise(withFrequency frequency: Double, displacement: Double, distanceEnabled: Bool, seed: Int32) -> Self {
+        self.init(frequency: frequency, displacement: displacement, distanceEnabled: distanceEnabled, seed: seed)
     }
     public convenience override init() { self.init(frequency: 1, displacement: 1, distanceEnabled: false, seed: 0) }
     func hash(_ x: Int, _ y: Int, _ k: Int) -> Double {
@@ -638,13 +647,15 @@ open class GKVoronoiNoiseSource: GKNoiseSource {
 
 open class GKConstantNoiseSource: GKNoiseSource {
     open var value: Double
-    public init(value: Double) { self.value = value; super.init() }
+    public required init(value: Double) { self.value = value; super.init() }
+    public class func constantNoise(withValue value: Double) -> Self { self.init(value: value) }
     override func value(_ x: Double, _ y: Double, _ z: Double) -> Double { value }
 }
 
 open class GKCylindersNoiseSource: GKNoiseSource {
     open var frequency: Double
-    public init(frequency: Double) { self.frequency = frequency; super.init() }
+    public required init(frequency: Double) { self.frequency = frequency; super.init() }
+    public class func cylindersNoise(withFrequency frequency: Double) -> Self { self.init(frequency: frequency) }
     override func value(_ x: Double, _ y: Double, _ z: Double) -> Double {
         let d = (x * x + z * z).squareRoot() * frequency
         return 1 - 4 * abs(d - d.rounded())
@@ -653,7 +664,8 @@ open class GKCylindersNoiseSource: GKNoiseSource {
 
 open class GKSpheresNoiseSource: GKNoiseSource {
     open var frequency: Double
-    public init(frequency: Double) { self.frequency = frequency; super.init() }
+    public required init(frequency: Double) { self.frequency = frequency; super.init() }
+    public class func spheresNoise(withFrequency frequency: Double) -> Self { self.init(frequency: frequency) }
     override func value(_ x: Double, _ y: Double, _ z: Double) -> Double {
         let d = (x * x + y * y + z * z).squareRoot() * frequency
         return 1 - 4 * abs(d - d.rounded())
@@ -662,7 +674,8 @@ open class GKSpheresNoiseSource: GKNoiseSource {
 
 open class GKCheckerboardNoiseSource: GKNoiseSource {
     open var squareSize: Double
-    public init(squareSize: Double) { self.squareSize = squareSize; super.init() }
+    public required init(squareSize: Double) { self.squareSize = squareSize; super.init() }
+    public class func checkerboardNoise(withSquareSize squareSize: Double) -> Self { self.init(squareSize: squareSize) }
     override func value(_ x: Double, _ y: Double, _ z: Double) -> Double {
         let s = max(squareSize, 1e-9)
         return (Int(floor(x / s)) + Int(floor(z / s)) + Int(floor(y / s))) & 1 == 0 ? 1 : -1
@@ -696,9 +709,25 @@ open class GKNoise: NSObject {
     open func minimum(_ noise: GKNoise) { let a = f, b = noise.f; f = { min(a($0, $1, $2), b($0, $1, $2)) } }
     open func maximum(_ noise: GKNoise) { let a = f, b = noise.f; f = { max(a($0, $1, $2), b($0, $1, $2)) } }
     open func raise(toPower noise: GKNoise) { let a = f, b = noise.f; f = { pow(max(0, a($0, $1, $2)), b($0, $1, $2)) } }
-    open func displaceX(with xd: GKNoise, y yd: GKNoise, z zd: GKNoise) {
+    @available(*, deprecated, renamed: "displaceWithNoises(x:y:z:)")
+    open func displaceX(with xd: GKNoise, y yd: GKNoise, z zd: GKNoise) { displaceWithNoises(x: xd, y: yd, z: zd) }
+    open func displaceWithNoises(x xd: GKNoise, y yd: GKNoise, z zd: GKNoise) {
         let a = f, dx = xd.f, dy = yd.f, dz = zd.f
         f = { x, y, z in a(x + dx(x, y, z), y + dy(x, y, z), z + dz(x, y, z)) }
+    }
+    /// moves each sample by Perlin noise of the given frequency (offset by up to `power`); `roughness` is the
+    /// turbulence's octave count
+    open func applyTurbulence(frequency: Double, power: Double, roughness: Int32, seed: Int32) {
+        func source(_ s: Int32) -> (Double, Double, Double) -> Double {
+            GKPerlinNoiseSource(frequency: frequency, octaveCount: Int(max(1, roughness)), persistence: 0.5, lacunarity: 2, seed: s).value
+        }
+        let a = f, dx = source(seed), dy = source(seed &+ 1), dz = source(seed &+ 2)
+        // offsets break up lattice alignment between the three displacement fields
+        f = { x, y, z in
+            a(x + power * dx(x + 0.1894, y + 0.9935, z + 0.4783),
+              y + power * dy(x + 0.4048, y + 0.2763, z + 0.3611),
+              z + power * dz(x + 0.8215, y + 0.1716, z + 0.6271))
+        }
     }
     open func remapValues(toTerracesWithPeaks peakInputValues: [NSNumber], terracesInverted: Bool) {
         let peaks = peakInputValues.map(\.doubleValue).sorted(), g = f
@@ -762,3 +791,6 @@ open class GKNoiseMap: NSObject {
         values[y * w + x] = value
     }
 }
+
+/// Apple's GameplayKitBase.h macro; the value is isim's own (1), not the build number of Apple's framework.
+public var GK_VERSION: Int32 { 1 }

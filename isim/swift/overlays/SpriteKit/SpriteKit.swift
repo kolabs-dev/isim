@@ -67,9 +67,25 @@ public enum SKTextureFilteringMode: Int, Sendable { case nearest, linear }
     @objc open func preload(completionHandler: @escaping () -> Void) { DispatchQueue.main.async(execute: completionHandler) }
     @objc(preloadTextures:withCompletionHandler:) open class func preload(_ textures: [SKTexture], withCompletionHandler h: @escaping () -> Void) { DispatchQueue.main.async(execute: h) }
     @objc open override var description: String { "<SKTexture> \(size())" }
+    /// a new texture: this one's image through a Core Image filter (its input image is set to the texture)
+    @objc(textureByApplyingCIFilter:) public func applying(_ filter: CIFilter) -> Self {
+        guard let cg = cgImage() else { return self }
+        let input = CIImage(cgImage: cg)
+        filter.setValue(input, forKey: kCIInputImageKey)
+        defer { filter.setValue(nil, forKey: kCIInputImageKey) }
+        guard let out = filter.outputImage, let img = _skFilterContext.createCGImage(out, from: input.extent) else { return self }
+        let t = SKTexture(cgImage: img, scale: pointScale)
+        t.filteringMode = filteringMode
+        if let r = t as? Self { return r }
+        // a subclass without stored properties of its own: the new texture takes its class
+        if class_getInstanceSize(type(of: self)) == class_getInstanceSize(SKTexture.self) { object_setClass(t, type(of: self)); return t as! Self }
+        return self
+    }
 }
 
 // MARK: - Node
+
+@objc public enum SKNodeFocusBehavior: Int, Sendable { case none = 0, occluding = 1, focusable = 2 }
 
 @objc(SKNode) open class SKNode: UIResponder, NSCopying {
     @objc open var position: CGPoint = .zero
@@ -206,6 +222,18 @@ public enum SKTextureFilteringMode: Int, Sendable { case nearest, linear }
         return r
     }
     @objc(containsPoint:) open func contains(_ p: CGPoint) -> Bool { calculateAccumulatedFrame().contains(p) }
+    /// whether the two nodes' accumulated frames overlap, compared in scene coordinates
+    @objc(intersectsNode:) open func intersects(_ node: SKNode) -> Bool {
+        func sceneFrame(_ n: SKNode) -> CGRect {
+            let f = n.calculateAccumulatedFrame()
+            guard let p = n.parent else { return f }
+            return f.applying(p.sceneTransform)
+        }
+        let a = sceneFrame(self), b = sceneFrame(node)
+        return !a.isNull && !b.isNull && a.intersects(b)
+    }
+    /// how the focus engine treats the node (stored; isim has no SpriteKit focus engine)
+    @objc open var focusBehavior: SKNodeFocusBehavior = .none
     @objc(nodeAtPoint:) open func atPoint(_ p: CGPoint) -> SKNode { nodes(at: p).first ?? self }
     @objc(nodesAtPoint:) open func nodes(at p: CGPoint) -> [SKNode] {
         var out: [SKNode] = []
@@ -240,7 +268,7 @@ public enum SKTextureFilteringMode: Int, Sendable { case nearest, linear }
     /// copies this class's state; subclasses add theirs and call super
     func _copyState(to n: SKNode) {
         n.position = position; n.zPosition = zPosition; n.zRotation = zRotation; n.xScale = xScale; n.yScale = yScale
-        n.alpha = alpha; n.isHidden = isHidden; n.isPaused = isPaused; n.speed = speed; n.name = name
+        n.alpha = alpha; n.isHidden = isHidden; n.isPaused = isPaused; n.speed = speed; n.name = name; n.focusBehavior = focusBehavior
         n.userData = userData?.mutableCopy() as? NSMutableDictionary
         n.isUserInteractionEnabled = isUserInteractionEnabled
         n.constraints = constraints; n.reachConstraints = reachConstraints; n.attributeValues = attributeValues
@@ -789,6 +817,11 @@ extension UITouch {
 }
 public enum SKTransitionDirection: Int, Sendable { case up, down, right, left }
 
+/// Paces the view's frames: a `false` from `view(_:shouldRenderAtTime:)` skips that frame (no update, no drawing).
+@objc(SKViewDelegate) public protocol SKViewDelegate: NSObjectProtocol {
+    @objc optional func view(_ view: SKView, shouldRenderAtTime time: TimeInterval) -> Bool
+}
+
 @objc(SKView) open class SKView: UIView {
     @objc open private(set) var scene: SKScene?
     @objc open var isPaused = false { didSet { if !isPaused { lastTime = nil } } }
@@ -802,7 +835,7 @@ public enum SKTransitionDirection: Int, Sendable { case up, down, right, left }
     @objc open var allowsTransparency = false
     @objc open var isAsynchronous = true
     @objc open var shouldCullNonVisibleNodes = true
-    @objc weak open var delegate: AnyObject?
+    @objc weak open var delegate: (any SKViewDelegate)?
     var timer: Timer?
     var lastTime: TimeInterval?
     var frameCount = 0, fpsStart = 0.0, fps = 0.0
@@ -862,6 +895,7 @@ public enum SKTransitionDirection: Int, Sendable { case up, down, right, left }
     func tick() {
         guard let s = scene, window != nil else { timer?.invalidate(); timer = nil; return }
         let now = ProcessInfo.processInfo.systemUptime
+        if delegate?.view?(self, shouldRenderAtTime: now) == false { return }
         var incomingPaused = false
         if let t = transitioning {
             if now - t.start >= t.transition.duration {
@@ -1251,6 +1285,10 @@ public typealias SKActionTimingFunction = (Float) -> Float
     }
     // textures
     @objc open class func setTexture(_ t: SKTexture) -> SKAction { instant { ($0 as? SKSpriteNode)?.texture = t } }
+    @objc open class func setNormalTexture(_ t: SKTexture) -> SKAction { instant { ($0 as? SKSpriteNode)?.normalTexture = t } }
+    @objc open class func setNormalTexture(_ t: SKTexture, resize: Bool) -> SKAction {
+        instant { n in guard let sp = n as? SKSpriteNode else { return }; sp.normalTexture = t; if resize { sp.size = t.size() } }
+    }
     @objc open class func setTexture(_ t: SKTexture, resize: Bool) -> SKAction {
         instant { n in guard let sp = n as? SKSpriteNode else { return }; sp.texture = t; if resize { sp.size = t.size() } }
     }

@@ -47,6 +47,8 @@ typedef float (^SKActionTimingFunction)(float time);
 + (SKAction *)unhide;
 + (SKAction *)setTexture:(SKTexture *)texture;
 + (SKAction *)setTexture:(SKTexture *)texture resize:(BOOL)resize;
++ (SKAction *)setNormalTexture:(SKTexture *)texture;
++ (SKAction *)setNormalTexture:(SKTexture *)texture resize:(BOOL)resize;
 + (SKAction *)animateWithTextures:(NSArray<SKTexture *> *)textures timePerFrame:(NSTimeInterval)sec;
 + (SKAction *)animateWithTextures:(NSArray<SKTexture *> *)textures timePerFrame:(NSTimeInterval)sec resize:(BOOL)resize restore:(BOOL)restore;
 + (SKAction *)playSoundFileNamed:(NSString *)soundFile waitForCompletion:(BOOL)wait;

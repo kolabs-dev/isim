@@ -23,3 +23,4 @@
 #import <SpriteKit/SKPhysics.h>
 #import <SpriteKit/SKConstraint.h>
 #import <SpriteKit/SKTileMapNode.h>
+#import <SpriteKit/SKRenderer.h>

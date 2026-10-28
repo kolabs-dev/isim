@@ -52,6 +52,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)removeActionForKey:(NSString *)key;
 - (void)removeAllActions;
 - (BOOL)containsPoint:(CGPoint)p;
+- (BOOL)intersectsNode:(SKNode *)node;
+@property (nonatomic) SKNodeFocusBehavior focusBehavior;
 - (SKNode *)nodeAtPoint:(CGPoint)p;
 - (NSArray<SKNode *> *)nodesAtPoint:(CGPoint)p;
 - (CGPoint)convertPoint:(CGPoint)point fromNode:(SKNode *)node;

@@ -51,9 +51,9 @@ import simd
 // MARK: - boxes
 
 /// a Swift delegate standing for an Objective-C one: the session's, ARSCNView's or ARSKView's
-final class _ARDelegateBox: ARSessionDelegate, ARSCNViewDelegate, ARSKViewDelegate {
+final class _ARDelegateBox: NSObject, ARSessionDelegate, ARSCNViewDelegate, ARSKViewDelegate {
     weak var t: _ARObjCSessionDelegate?
-    init(_ t: _ARObjCSessionDelegate) { self.t = t }
+    init(_ t: _ARObjCSessionDelegate) { self.t = t; super.init() }
     func session(_ s: ARSession, didFailWithError e: Error) { t?._didFail?(s, e) }
     func session(_ s: ARSession, cameraDidChangeTrackingState c: ARCamera) { t?._trackingChanged?(s, c) }
     func sessionWasInterrupted(_ s: ARSession) { t?._interrupted?(s) }

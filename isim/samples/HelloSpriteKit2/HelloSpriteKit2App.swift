@@ -63,8 +63,13 @@ final class LabScene: SKScene {
         buildGamepad()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             GameplayChecks.run()
+            MoreChecks.run(view: view)
         }
     }
+
+    /// frames the scene ran (MoreChecks: SKViewDelegate holds them back)
+    var updates = 0
+    override func update(_ currentTime: TimeInterval) { updates += 1 }
 
     // MARK: attributed label
 

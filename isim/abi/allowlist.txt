@@ -948,3 +948,16 @@ usr/lib/swift/libswiftGameKit.dylib _$s7GameKit14GKMatchRequestC9MatchTypeON
 usr/lib/swift/libswiftGameKit.dylib _$s7GameKit14GKMatchRequestC9MatchTypeOSHAAMc
 usr/lib/swift/libswiftGameKit.dylib _$s7GameKit14GKMatchRequestC9MatchTypeOSQAAMc
 usr/lib/swift/libswiftGameKit.dylib _$s7GameKit14GKMatchRequestC9MatchTypeOSYAAMc
+# issue #395, 0.32.0: SKView.delegate takes an SKViewDelegate (Apple's type) instead of AnyObject, and the
+# GKRTreeSplitStrategy cases have Apple's names (halve, linear, quadratic). Swift apps built with 0.31 or earlier that
+# read or set an SKView's delegate, or name an R-tree split strategy, must be rebuilt.
+usr/lib/swift/libswiftGameplayKit.dylib _$s11GameplayKit20GKRTreeSplitStrategyO04halfD0yA2CmFWC
+usr/lib/swift/libswiftGameplayKit.dylib _$s11GameplayKit20GKRTreeSplitStrategyO06linearD0yA2CmFWC
+usr/lib/swift/libswiftGameplayKit.dylib _$s11GameplayKit20GKRTreeSplitStrategyO09quadraticD0yA2CmFWC
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit6SKViewC8delegateyXlSgvMTj
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit6SKViewC8delegateyXlSgvMTq
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit6SKViewC8delegateyXlSgvgTj
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit6SKViewC8delegateyXlSgvgTq
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit6SKViewC8delegateyXlSgvpMV
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit6SKViewC8delegateyXlSgvsTj
+usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit6SKViewC8delegateyXlSgvsTq

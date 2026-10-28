@@ -657,6 +657,8 @@ static void bind_stage(__isim_mtl_args *a, NSMutableArray *keep, __strong id<MTL
         }];
     [_cb encoderEnded];
 }
+/* isim-private: a CPU step run in order with this pass's draws (SKRenderer composites a SpriteKit frame this way) */
+- (void)_isim_addCommand:(void (^)(void))command { [_cb addCommand:command]; }
 - (void)insertDebugSignpost:(NSString *)string {}
 - (void)pushDebugGroup:(NSString *)string {}
 - (void)popDebugGroup {}

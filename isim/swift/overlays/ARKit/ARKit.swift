@@ -923,7 +923,7 @@ extension ARSCNViewDelegate {
     }
 }
 
-public protocol ARSKViewDelegate: ARSessionObserver {
+public protocol ARSKViewDelegate: ARSessionObserver, SKViewDelegate {
     func view(_ view: ARSKView, nodeFor anchor: ARAnchor) -> SKNode?
     func view(_ view: ARSKView, didAdd node: SKNode, for anchor: ARAnchor)
     func view(_ view: ARSKView, willUpdate node: SKNode, for anchor: ARAnchor)

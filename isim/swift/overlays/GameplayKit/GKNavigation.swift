@@ -50,21 +50,34 @@ extension SKNode {
 
 extension GKGoal {
     /// steers away from circle obstacles and polygons the agent would reach within `maxPredictionTime`
-    public class func toAvoid(_ obstacles: [GKObstacle], maxPredictionTime: TimeInterval) -> GKGoal {
+    @available(*, deprecated, renamed: "init(toAvoid:maxPredictionTime:)")
+    public class func toAvoid(_ obstacles: [GKObstacle], maxPredictionTime: TimeInterval) -> GKGoal { _toAvoid(obstacles, maxPredictionTime: maxPredictionTime) }
+    public convenience init(toAvoid obstacles: [GKObstacle], maxPredictionTime: TimeInterval) {
+        self.init(GKGoal._toAvoid(obstacles, maxPredictionTime: maxPredictionTime).force)
+    }
+    public convenience init(toAvoidObstacles obstacles: [GKObstacle], maxPredictionTime: TimeInterval) {
+        self.init(GKGoal._toAvoid(obstacles, maxPredictionTime: maxPredictionTime).force)
+    }
+    static func _toAvoid(_ obstacles: [GKObstacle], maxPredictionTime: TimeInterval) -> GKGoal {
         GKGoal { a, _ in
-            var f = vector_float2.zero
-            let ahead = a.position + a.velocity * Float(maxPredictionTime)
+            var f = SIMD3<Float>.zero
+            let ahead = a._p + a._v * Float(maxPredictionTime)
+            let ahead2 = vector_float2(ahead.x, ahead.y)
             for o in obstacles {
                 if let c = o as? GKCircleObstacle {
-                    let d = ahead - c.position, l = simd_length(d), r = c.radius + a.radius
+                    let d = ahead - SIMD3(c.position.x, c.position.y, 0), l = simd_length(d), r = c.radius + a.radius
+                    if l < r * 1.5, l > 1e-5 { f += d / l * (r * 1.5 - l) / (r * 1.5) * a.maxAcceleration }
+                } else if let s = o as? GKSphereObstacle {
+                    let d = ahead - s.position, l = simd_length(d), r = s.radius + a.radius
                     if l < r * 1.5, l > 1e-5 { f += d / l * (r * 1.5 - l) / (r * 1.5) * a.maxAcceleration }
                 } else if let p = o as? GKPolygonObstacle, p.vertexCount > 2 {
-                    let q = _gkClosestOnPolygon(ahead, p.points)
-                    let d = ahead - q, l = simd_length(d)
-                    let inside = _gkPointInPolygon(ahead, p.points)
+                    let q = _gkClosestOnPolygon(ahead2, p.points)
+                    let d = ahead2 - q, l = simd_length(d)
+                    let inside = _gkPointInPolygon(ahead2, p.points)
                     if inside || l < a.radius * 2 {
-                        let dir = l > 1e-5 ? d / l * (inside ? -1 : 1) : -simd_normalize(a.velocity)
-                        f += dir * a.maxAcceleration
+                        let v = vector_float2(a._v.x, a._v.y)
+                        let dir = l > 1e-5 ? d / l * (inside ? -1 : 1) : (simd_length(v) > 1e-5 ? -simd_normalize(v) : .zero)
+                        f += SIMD3(dir.x, dir.y, 0) * a.maxAcceleration
                     }
                 }
             }

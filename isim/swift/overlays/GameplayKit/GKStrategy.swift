@@ -365,4 +365,56 @@ open class GKDecisionTree: NSObject {
         rootNode?.describe("", "", into: &out)
         return out
     }
+
+    /// Reads a tree written by `export(to:error:)`; `error` is unused (Apple's signature).
+    public init(url: URL, error: (any Error)?) {
+        super.init()
+        if let data = try? Data(contentsOf: url),
+           let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] {
+            rootNode = GKDecisionNode(_plist: plist, tree: self)
+        }
+    }
+
+    /// Writes the tree as a property list (attributes, branch values and predicates; attributes and values must be
+    /// property-list objects such as strings and numbers). `error` is unused (Apple's signature).
+    @discardableResult open func export(to url: URL, error: (any Error)?) -> Bool {
+        guard let root = rootNode?._plist,
+              let data = try? PropertyListSerialization.data(fromPropertyList: root, format: .xml, options: 0) else { return false }
+        return (try? data.write(to: url, options: .atomic)) != nil
+    }
+}
+
+extension GKDecisionNode {
+    var _plist: [String: Any] {
+        var d: [String: Any] = ["attribute": attribute]
+        if let fallback { d["fallback"] = fallback }
+        d["branches"] = branches.map { t, n -> [String: Any] in
+            var b: [String: Any] = ["node": n._plist]
+            switch t {
+            case .value(let v): b["value"] = v
+            case .predicate(let p): b["predicate"] = p.predicateFormat
+            case .weight(let w): b["weight"] = w
+            case .atMost(let x): b["atMost"] = x
+            case .above(let x): b["above"] = x
+            }
+            return b
+        }
+        return d
+    }
+    convenience init?(_plist d: [String: Any], tree: GKDecisionTree?) {
+        guard let attribute = d["attribute"] as? NSObject else { return nil }
+        self.init(attribute: attribute, tree: tree)
+        fallback = d["fallback"] as? NSObject
+        for b in d["branches"] as? [[String: Any]] ?? [] {
+            guard let nd = b["node"] as? [String: Any], let child = GKDecisionNode(_plist: nd, tree: tree) else { continue }
+            let test: Test
+            if let v = b["value"] as? NSObject { test = .value(v) }
+            else if let p = b["predicate"] as? String { test = .predicate(NSPredicate(format: p)) }
+            else if let w = b["weight"] as? Int { test = .weight(w) }
+            else if let x = b["atMost"] as? Double { test = .atMost(x) }
+            else if let x = b["above"] as? Double { test = .above(x) }
+            else { continue }
+            branches.append((test, child))
+        }
+    }
 }
