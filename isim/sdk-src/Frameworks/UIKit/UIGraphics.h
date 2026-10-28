@@ -21,13 +21,12 @@ UIKIT_EXTERN void UIGraphicsEndImageContext(void);
 typedef NS_ENUM(NSInteger, UIGraphicsImageRendererFormatRange) {
     UIGraphicsImageRendererFormatRangeUnspecified = -1, UIGraphicsImageRendererFormatRangeAutomatic = 0,
     UIGraphicsImageRendererFormatRangeExtended, UIGraphicsImageRendererFormatRangeStandard };
-NS_SWIFT_UI_ACTOR
 @interface UIGraphicsRendererFormat : NSObject <NSCopying>
 + (instancetype)defaultFormat;
 + (instancetype)preferredFormat;
 @property (nonatomic, readonly) CGRect bounds;
 @end
-NS_SWIFT_UI_ACTOR
+NS_SWIFT_SENDABLE
 @interface UIGraphicsImageRendererFormat : UIGraphicsRendererFormat
 @property (nonatomic) CGFloat scale;
 @property (nonatomic) BOOL opaque;
@@ -37,7 +36,6 @@ NS_SWIFT_UI_ACTOR
 /* isim renders standard dynamic range: always NO */
 @property (nonatomic, readonly) BOOL supportsHighDynamicRange API_AVAILABLE(ios(17.0));
 @end
-NS_SWIFT_UI_ACTOR
 @interface UIGraphicsRendererContext : NSObject
 @property (nonatomic, readonly) CGContextRef CGContext;
 @property (nonatomic, readonly) __kindof UIGraphicsRendererFormat *format;
@@ -45,13 +43,12 @@ NS_SWIFT_UI_ACTOR
 - (void)strokeRect:(CGRect)rect;
 - (void)clipToRect:(CGRect)rect;
 @end
-NS_SWIFT_UI_ACTOR
+NS_SWIFT_SENDABLE
 @interface UIGraphicsImageRendererContext : UIGraphicsRendererContext
 @property (nonatomic, readonly) UIImage *currentImage;
 @end
 typedef void (^UIGraphicsImageDrawingActions)(UIGraphicsImageRendererContext *rendererContext);
 typedef void (^UIGraphicsDrawingActions)(__kindof UIGraphicsRendererContext *rendererContext);
-NS_SWIFT_UI_ACTOR
 @interface UIGraphicsRenderer : NSObject
 - (instancetype)initWithBounds:(CGRect)bounds;
 - (instancetype)initWithBounds:(CGRect)bounds format:(UIGraphicsRendererFormat *)format;
@@ -67,7 +64,7 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)runDrawingActions:(NS_NOESCAPE UIGraphicsDrawingActions)drawingActions
         completionActions:(nullable NS_NOESCAPE UIGraphicsDrawingActions)completionActions error:(NSError **)error;
 @end
-NS_SWIFT_UI_ACTOR
+NS_SWIFT_SENDABLE
 @interface UIGraphicsImageRenderer : UIGraphicsRenderer
 - (instancetype)initWithSize:(CGSize)size;
 - (instancetype)initWithSize:(CGSize)size format:(UIGraphicsImageRendererFormat *)format;
@@ -87,11 +84,11 @@ UIKIT_EXTERN void UIGraphicsSetPDFContextURLForRect(NSURL *url, CGRect rect);
 /* named destinations and links to them (stub: cairo's PDF output gets no destinations) */
 UIKIT_EXTERN void UIGraphicsAddPDFContextDestinationAtPoint(NSString *name, CGPoint point);
 UIKIT_EXTERN void UIGraphicsSetPDFContextDestinationForRect(NSString *name, CGRect rect);
-NS_SWIFT_UI_ACTOR
+NS_SWIFT_SENDABLE
 @interface UIGraphicsPDFRendererFormat : UIGraphicsRendererFormat
 @property (nonatomic, copy) NSDictionary<NSString *, id> *documentInfo;
 @end
-NS_SWIFT_UI_ACTOR
+NS_SWIFT_SENDABLE
 @interface UIGraphicsPDFRendererContext : UIGraphicsRendererContext
 @property (nonatomic, readonly) CGRect pdfContextBounds;
 - (void)beginPage;
@@ -101,7 +98,7 @@ NS_SWIFT_UI_ACTOR
 - (void)setDestinationWithName:(NSString *)name forRect:(CGRect)rect;
 @end
 typedef void (^UIGraphicsPDFDrawingActions)(UIGraphicsPDFRendererContext *rendererContext);
-NS_SWIFT_UI_ACTOR
+NS_SWIFT_SENDABLE
 @interface UIGraphicsPDFRenderer : UIGraphicsRenderer
 - (instancetype)initWithBounds:(CGRect)bounds format:(UIGraphicsPDFRendererFormat *)format;
 - (BOOL)writePDFToURL:(NSURL *)url withActions:(NS_NOESCAPE UIGraphicsPDFDrawingActions)actions error:(NSError **)error NS_SWIFT_NAME(writePDF(to:withActions:));

@@ -26,19 +26,28 @@ func rgbaContext(_ w: Int, _ h: Int) -> CGContext {
               bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
 }
 
-/// Issue #717: rounds of drawing on a background thread (a bitmap context, an image context filled through UIKit's
-/// current context, the image drawn into the bitmap) while the main thread renders frames. Each thread draws into its
-/// own target, as on iOS. Returns the rounds whose pixels came out right.
+/// Issue #717: rounds of drawing on a background thread (a bitmap context, an image filled through UIKit's current
+/// context, the image drawn into the bitmap) while the main thread renders frames. Each thread draws into its own
+/// target, as on iOS. The image comes from an image context, or every other round from UIGraphicsImageRenderer, which
+/// is not main-actor isolated, as in Apple's SDK. Returns the rounds whose pixels came out right.
 nonisolated func drawOffMain(_ rounds: Int) -> Int {
     var ok = 0
     for i in 0..<rounds {
         let red = i % 2 == 0
         let c = rgbaContext(16, 16)
         c.setFillColor(red: red ? 1 : 0, green: red ? 0 : 1, blue: 0, alpha: 1); c.fill(CGRect(x: 0, y: 0, width: 16, height: 16))
-        UIGraphicsBeginImageContextWithOptions(CGSize(width: 8, height: 8), false, 1)
-        UIColor.blue.setFill(); UIRectFill(CGRect(x: 0, y: 0, width: 8, height: 8))
-        let img = UIGraphicsGetImageFromCurrentImageContext()
-        UIGraphicsEndImageContext()
+        let img: UIImage?
+        if red {
+            UIGraphicsBeginImageContextWithOptions(CGSize(width: 8, height: 8), false, 1)
+            UIColor.blue.setFill(); UIRectFill(CGRect(x: 0, y: 0, width: 8, height: 8))
+            img = UIGraphicsGetImageFromCurrentImageContext()
+            UIGraphicsEndImageContext()
+        } else {
+            let fmt = UIGraphicsImageRendererFormat(); fmt.scale = 1
+            img = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8), format: fmt).image { r in
+                UIColor.blue.setFill(); r.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+            }
+        }
         guard let cg = img?.cgImage else { continue }
         c.draw(cg, in: CGRect(x: 0, y: 0, width: 8, height: 8))        // the bottom-left quarter
         if pixel(c.data!, c.bytesPerRow, 12, 4) == (red ? [255, 0, 0, 255] : [0, 255, 0, 255]) && pixel(c.data!, c.bytesPerRow, 4, 12) == [0, 0, 255, 255] { ok += 1 }
