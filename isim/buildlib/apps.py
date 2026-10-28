@@ -467,6 +467,26 @@ def _(a):
         a.copy("HelloWidgets.entitlements", f"{d}/archived-expanded-entitlements.xcent")
 
 
+@app("samples/HelloBackgroundAssets")
+def _(a):   # BackgroundAssets: the app and its downloader extension share an app group
+    b = a.swift_app(srcs=["HelloBackgroundAssets.swift"])
+    x = a.appex(b, "HelloBackgroundAssetsDownloader", ["Downloader/Downloader.swift"], "Downloader/Info.plist", extension=False,
+                link=["-framework", "UIKit"])   # NSExtensionMain
+    for d in (b, x):
+        a.copy("HelloBackgroundAssets.entitlements", f"{d}/archived-expanded-entitlements.xcent")
+    a.copy("server.py", f"{b}/server.py")
+
+
+@app("samples/HelloAssetPacks")
+def _(a):   # managed asset packs (iOS 26): the managed downloader extension targets iOS 26
+    b = a.swift_app(srcs=["HelloAssetPacks.swift"])
+    os.makedirs(f"{b}/PlugIns", exist_ok=True)
+    x = a.swift_app("HelloAssetPacksDownloader", ["Downloader/Downloader.swift"], "Downloader/Info.plist", ext=".appex", into=f"{b}/PlugIns",
+                    swift_flags=["-target", "x86_64-apple-ios26.0-simulator"], link=["-framework", "UIKit"])
+    for d in (b, x):
+        a.copy("HelloAssetPacks.entitlements", f"{d}/archived-expanded-entitlements.xcent")
+
+
 @app("samples/HelloAlarms")
 def _(a):   # AlarmKit: the app and the widget extension that draws its timer's Live Activity
     b = a.swift_app(srcs=["HelloAlarms.swift", "Shared.swift"])
@@ -522,7 +542,7 @@ def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "PushKit", "-framework", "CallKit",
                                           "-framework", "AVFoundation", "-framework", "BackgroundTasks", "-framework", "CoreSpotlight",
                                           "-framework", "SafariServices", "-framework", "MultipeerConnectivity", "-framework", "CoreGraphics",
-                                          "-framework", "Messages"])
+                                          "-framework", "Messages", "-framework", "BackgroundAssets"])
 
 
 @app("samples/HelloAuthObjC")   # after the overlays: AuthenticationServices.framework re-exports its Swift overlay (issue #305)

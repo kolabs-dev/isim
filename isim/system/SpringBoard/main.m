@@ -305,6 +305,7 @@ static NSString *icon_state_file(void) {
     [self installNotificationObservers];
     [self installControlObservers];
     [self installSiriObservers];
+    [self installBackgroundAssetsObservers];
     [self reload];
 }
 - (void)pagerPulledDown:(HSPager *)pager { if (!_editing) [self showSpotlight]; }
@@ -324,6 +325,7 @@ static NSString *icon_state_file(void) {
     [self publishAppInfo];
     [self discoverWidgets];
     [self discoverControls];
+    [self discoverBackgroundAssets];
 }
 - (NSArray<HSApp *> *)apps { return _apps; }
 - (HSApp *)appWithIdentifier:(NSString *)ident {

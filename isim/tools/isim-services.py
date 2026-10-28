@@ -1141,6 +1141,97 @@ def messages(cmd, args):
         die('usage: isim messages list | receive ...')
 
 
+def bgassets(cmd, args):
+    """BackgroundAssets: run an app's downloader extension; the asset packs isim hosts for it (Apple's hosting)"""
+    d = os.path.join(DATA, 'Library/isim/BackgroundAssets')
+    usage = ('usage: isim bgassets run APP install|update|periodic [--manifest URL]\n'
+             '       isim bgassets pack add APP ID DIR [--version N] [--policy essential|prefetch|on-demand] [--language L]\n'
+             '       isim bgassets pack remove APP ID | isim bgassets pack list APP | isim bgassets local APP')
+    def opt(name, default=None):
+        if name in args:
+            i = args.index(name)
+            if i + 1 < len(args):
+                v = args[i + 1]
+                del args[i:i + 2]
+                return v
+        return default
+    if cmd == 'run':
+        manifest = opt('--manifest')
+        if len(args) != 2 or args[1] not in ('install', 'update', 'periodic', 'languageChange'):
+            die(usage)
+        q = os.path.join(d, 'Queue')
+        os.makedirs(q, exist_ok=True)
+        req = {'bundle': args[0], 'request': args[1]}
+        if manifest:
+            req['manifest'] = manifest
+        tmp = os.path.join(q, f'.{os.getpid()}.tmp')
+        with open(tmp, 'wb') as f:
+            plistlib.dump(req, f)
+        os.replace(tmp, os.path.join(q, f'{time.time():.6f}-{os.getpid()}.plist'))
+        print(f"queued {args[1]} for {args[0]}'s downloader extension")
+    elif cmd == 'pack':
+        sub = args.pop(0) if args else ''
+        version, policy, language = int(opt('--version', '1')), opt('--policy', 'on-demand'), opt('--language')
+        if sub == 'add' and len(args) == 3:
+            app, pid, src = args
+            if policy not in ('essential', 'prefetch', 'on-demand'):
+                die(usage)
+            if not os.path.isdir(src):
+                die(f'isim bgassets: {src} is not a directory')
+            hosted = os.path.join(d, 'Hosted', app)
+            man_path = os.path.join(hosted, 'manifest.json')
+            man = json.load(open(man_path)) if os.path.isfile(man_path) else {'assetPacks': []}
+            directory = f'{pid}-v{version}'
+            dst = os.path.join(hosted, directory)
+            shutil.rmtree(dst, ignore_errors=True)
+            shutil.copytree(src, dst)
+            size = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(dst) for f in fs)
+            old = [p for p in man['assetPacks'] if p['id'] == pid]
+            for p in old:
+                if p['directory'] != directory:
+                    shutil.rmtree(os.path.join(hosted, p['directory']), ignore_errors=True)
+            man['assetPacks'] = [p for p in man['assetPacks'] if p['id'] != pid]
+            pack = {'id': pid, 'version': version, 'downloadSize': size, 'policy': policy, 'directory': directory}
+            if language:
+                pack['language'] = language
+            man['assetPacks'].append(pack)
+            os.makedirs(hosted, exist_ok=True)
+            write_json(man_path, man)
+            print(f'{app}: asset pack {pid} v{version} ({size} bytes, {policy})')
+        elif sub == 'remove' and len(args) == 2:
+            app, pid = args
+            man_path = os.path.join(d, 'Hosted', app, 'manifest.json')
+            man = json.load(open(man_path)) if os.path.isfile(man_path) else {'assetPacks': []}
+            for p in man['assetPacks']:
+                if p['id'] == pid:
+                    shutil.rmtree(os.path.join(d, 'Hosted', app, p['directory']), ignore_errors=True)
+            man['assetPacks'] = [p for p in man['assetPacks'] if p['id'] != pid]
+            write_json(man_path, man)
+            print(f'{app}: asset pack {pid} removed from the hosted packs')
+        elif sub == 'list' and len(args) == 1:
+            man_path = os.path.join(d, 'Hosted', args[0], 'manifest.json')
+            packs = json.load(open(man_path))['assetPacks'] if os.path.isfile(man_path) else []
+            for p in sorted(packs, key=lambda p: p['id']):
+                print(f"{p['id']} v{p['version']} {p['downloadSize']} bytes {p['policy']}" + (f" {p['language']}" if p.get('language') else ''))
+            if not packs:
+                print('no hosted asset packs')
+        else:
+            die(usage)
+    elif cmd == 'local' and len(args) == 1:
+        root = os.path.join(d, 'Local', args[0])
+        found = False
+        for pid in sorted(os.listdir(root)) if os.path.isdir(root) else []:
+            rec = os.path.join(root, pid, '.isim-pack.json')
+            if os.path.isfile(rec):
+                r = json.load(open(rec))
+                found = True
+                print(f"{pid} v{r['version']}" + (f" {r['language']}" if r.get('language') else ''))
+        if not found:
+            print('no local asset packs')
+    else:
+        die(usage)
+
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == 'gamecenter' and sys.argv[2] in GC_NETWORK:
         sys.argv.append('')
@@ -1148,8 +1239,8 @@ def main():
         sys.argv.append('')
     if len(sys.argv) >= 2 and sys.argv[1] == 'finance':
         return finance(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
-    if len(sys.argv) >= 2 and sys.argv[1] in ('smartcard', 'iddocs', 'alarms', 'messages'):
-        return {'smartcard': smartcard, 'iddocs': iddocs, 'alarms': alarms, 'messages': messages}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
+    if len(sys.argv) >= 2 and sys.argv[1] in ('smartcard', 'iddocs', 'alarms', 'messages', 'bgassets'):
+        return {'smartcard': smartcard, 'iddocs': iddocs, 'alarms': alarms, 'messages': messages, 'bgassets': bgassets}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] in ('autofill', 'sso'):
         return {'autofill': autofill, 'sso': sso}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] == 'agerange':

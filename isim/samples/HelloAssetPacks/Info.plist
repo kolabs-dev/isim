@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Packs</string>
+	<key>CFBundleExecutable</key>
+	<string>HelloAssetPacks</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.isim.samples.HelloAssetPacks</string>
+	<key>CFBundleName</key>
+	<string>HelloAssetPacks</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>BAAppGroupID</key>
+	<string>group.dev.isim.samples.helloassetpacks</string>
+	<key>BAHasManagedAssetPacks</key>
+	<true/>
+	<key>BAUsesAppleHosting</key>
+	<true/>
+	<key>BAEssentialMaxInstallSize</key>
+	<integer>100000</integer>
+	<key>BAMaxInstallSize</key>
+	<integer>200000</integer>
+</dict>
+</plist>
