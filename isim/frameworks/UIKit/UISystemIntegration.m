@@ -1171,6 +1171,10 @@ void isim_sys_event(const char *text) {
         if (!dlsym(RTLD_DEFAULT, "isim_av_capture_loaded")) NSLog(@"isim: %@: the app does not use AVFoundation capture", verb);
         [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSystemEvent" object:t];
     }
+    else if ([verb isEqualToString:@"midi"]) {                     /* the simulated MIDI device (issue #390): CoreMIDI observes it */
+        if (!dlsym(RTLD_DEFAULT, "MIDIClientCreate")) NSLog(@"isim: midi: the app does not use CoreMIDI");
+        [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSystemEvent" object:t];
+    }
     else if ([verb isEqualToString:@"remote"]) {                   /* Now Playing controls: MPRemoteCommandCenter polls the queue */
         extern void isim_media_remote_post(const char *cmd);
         isim_media_remote_post(args.UTF8String);
