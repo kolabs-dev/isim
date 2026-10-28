@@ -34,6 +34,7 @@ const CFStringRef kSecAttrService = CFSTR("svce");
 const CFStringRef kSecAttrGeneric = CFSTR("gena");
 const CFStringRef kSecAttrSecurityDomain = CFSTR("sdmn");
 const CFStringRef kSecAttrServer = CFSTR("srvr");
+const CFStringRef kSecSharedPassword = CFSTR("spwd");
 const CFStringRef kSecAttrProtocol = CFSTR("ptcl");
 const CFStringRef kSecAttrAuthenticationType = CFSTR("atyp");
 const CFStringRef kSecAttrPort = CFSTR("port");

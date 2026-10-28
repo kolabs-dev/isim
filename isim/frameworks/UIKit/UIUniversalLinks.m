@@ -218,6 +218,41 @@ BOOL isim_ui_app_claims_link(NSString *appPath, NSURL *url) {
     return NO;
 }
 
+/* Shared web credentials (Security's SecAddSharedWebCredential / SecRequestSharedWebCredential): the app's
+   `webcredentials:` domains (wildcards like applinks), each confirmed by its AASA's webcredentials.apps naming the app's
+   ID; a domain whose AASA cannot be had (offline) is allowed, logged, like links. Returns the domains the app may use
+   (all of them for fqdn nil, else the one matching fqdn, or none). */
+NSArray<NSString *> *isim_ui_webcredentials_domains(NSString *fqdn) {
+    NSDictionary *ent = app_entitlements();
+    NSMutableArray *out = [NSMutableArray array];
+    id list = ent[@"com.apple.developer.associated-domains"];
+    NSString *bundle = NSBundle.mainBundle.bundleIdentifier ?: @"";
+    NSString *appID = [ent[@"application-identifier"] isKindOfClass:[NSString class]] ? ent[@"application-identifier"] : nil;
+    for (id e in [list isKindOfClass:[NSArray class]] ? list : @[]) {
+        if (![e isKindOfClass:[NSString class]] || ![e hasPrefix:@"webcredentials:"]) continue;
+        NSString *dom = [e substringFromIndex:15];
+        NSRange q = [dom rangeOfString:@"?"];
+        BOOL developer = q.location != NSNotFound && [[dom substringFromIndex:q.location] containsString:@"mode=developer"];
+        if (q.location != NSNotFound) dom = [dom substringToIndex:q.location];
+        dom = dom.lowercaseString;
+        NSString *name = fqdn ? fqdn.lowercaseString : ([dom hasPrefix:@"*."] ? [dom substringFromIndex:2] : dom);
+        if (!host_matches(name, dom)) continue;
+        id aasa = aasa_for_domain([dom hasPrefix:@"*."] ? [dom substringFromIndex:2] : dom, developer);
+        BOOL ok = NO;
+        if ([aasa isKindOfClass:[NSString class]]) {
+            NSLog(@"isim: no apple-app-site-association for %@ (offline): its shared web credentials are allowed", name);
+            ok = YES;
+        } else if ([aasa isKindOfClass:[NSDictionary class]]) {
+            NSDictionary *wc = [aasa[@"webcredentials"] isKindOfClass:[NSDictionary class]] ? aasa[@"webcredentials"] : @{};
+            for (NSString *i in [wc[@"apps"] isKindOfClass:[NSArray class]] ? wc[@"apps"] : @[])
+                if ([i isKindOfClass:[NSString class]] && (appID ? [i isEqualToString:appID] : [i hasSuffix:[@"." stringByAppendingString:bundle]])) ok = YES;
+            if (!ok) NSLog(@"isim: the apple-app-site-association of %@ does not list this app under webcredentials", name);
+        }
+        if (ok && ![out containsObject:name]) [out addObject:name];
+    }
+    return out;
+}
+
 /* ---- CloudKit share links ---- */
 /* the container a share link names (nil: not a share link) */
 NSString *isim_ui_share_link_container(NSURL *url) {

@@ -68,6 +68,17 @@ static void basics(void) {
     say(@"constants %d %d", CFEqual(kSecClassGenericPassword, CFSTR("genp")), CFEqual(kSecMatchLimitAll, CFSTR("m_LimitAll")));
 }
 
+/* shared web credentials (issue #402): this app has no webcredentials domain, so adding one is refused */
+static void sharedCredentials(void) {
+    CFStringRef pw = SecCreateSharedWebCredentialPassword();
+    say(@"shared password chars=%ld groups=%lu key=%d", (long)CFStringGetLength(pw),
+        (unsigned long)[(__bridge NSString *)pw componentsSeparatedByString:@"-"].count, CFEqual(kSecSharedPassword, CFSTR("spwd")));
+    SecAddSharedWebCredential(CFSTR("example.com"), CFSTR("kim"), pw, ^(CFErrorRef error) {
+        say(@"shared add error=%ld", error ? (long)CFErrorGetCode(error) : 0L);
+    });
+    CFRelease(pw);
+}
+
 static void addProtected(void) {
     CFErrorRef err = NULL;
     SecAccessControlRef ac = SecAccessControlCreateWithFlags(kCFAllocatorDefault, kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
@@ -162,6 +173,7 @@ static void localAuth(void) {
 @implementation AppDelegate
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)options {
     basics();
+    sharedCredentials();
     addProtected();
     self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
     self.window.rootViewController = [VaultController new];

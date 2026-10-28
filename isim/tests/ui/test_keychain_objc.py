@@ -1,7 +1,8 @@
 """The keychain from Objective-C and C (HelloKeychainObjC, issue #228): SecItemAdd / CopyMatching / Update / Delete on
 generic passwords (data, attributes, arrays, duplicates, missing items, SecCopyErrorMessageString), and an item with
 SecAccessControl (biometryCurrentSet): no user interaction refuses or skips it, its attributes need no authentication,
-and reading its data asks for Face ID (a matching face opens it, cancelling refuses with errSecUserCanceled)."""
+and reading its data asks for Face ID (a matching face opens it, cancelling refuses with errSecUserCanceled). Shared
+web credentials from C (issue #402)."""
 
 
 def test_keychain_objc(launch):
@@ -14,6 +15,8 @@ def test_keychain_objc(launch):
     assert "kc update 0 correct horse" in log
     assert 'kc delete 0 then -25300 "The specified item could not be found in the keychain."' in log
     assert "kc constants 1 1" in log, "the C constants have the Swift overlay's values"
+    assert "kc shared password chars=15 groups=4 key=1" in log, "SecCreateSharedWebCredentialPassword, kSecSharedPassword"
+    app.wait_log(r"^kc shared add error=-34018$")              # no webcredentials domain: errSecMissingEntitlement
     assert "kc protected add 0 typeid=1" in log
     assert "kc protected noui fail=-25308 skip=-25300 attributes=0" in log, \
         "kSecUseAuthenticationUIFail: errSecInteractionNotAllowed; Skip: not found; attributes without authentication"
