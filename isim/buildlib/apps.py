@@ -303,6 +303,12 @@ def _(a):
     a.copy("HelloStore.storekit", f"{b}/isim-StoreKitConfiguration.storekit")   # as `isim build` does with a scheme's
 
 
+@app("samples/HelloExternalPurchase")   # issue #396: its entitlements and Info.plist regions
+def _(a):
+    b = a.swift_app()
+    a.copy("HelloExternalPurchase.entitlements", f"{b}/archived-expanded-entitlements.xcent")
+
+
 @app("samples/HelloStoreObjC", extra_inputs=["samples/HelloStore/HelloStore.storekit"])   # HelloStore's products
 def _(a):
     b = a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "StoreKit",
