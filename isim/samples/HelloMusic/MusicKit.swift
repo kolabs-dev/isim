@@ -1,7 +1,10 @@
 // HelloMusic, -musickit: MusicKit on isim — authorization, library requests (filtered, sorted; albums, artists,
-// playlists), the catalog (search, resources, raw data requests: the Apple Music API with a developer token,
-// ISIM_MUSICKIT_*), the subscription, and ApplicationMusicPlayer playing an album from the library. Results are logged.
+// playlists) and library search, the catalog (search, resources, charts, relationships with with(_:), music videos,
+// stations, record labels, raw data requests: the Apple Music API with a developer token, ISIM_MUSICKIT_*), recently
+// played items and recommendations (the user token), the subscription and its offer sheet, ArtworkImage, and
+// ApplicationMusicPlayer playing an album from the library. Results are logged.
 import UIKit
+import SwiftUI
 import MusicKit
 
 private func log(_ s: String) { NSLog("HelloMusicKit: %@", s) }
@@ -76,7 +79,82 @@ final class MusicKitViewController: UIViewController {
             let url = URL(string: "https://api.music.apple.com/v1/catalog/us/charts?types=songs")!
             let data = try await MusicDataRequest(urlRequest: URLRequest(url: url)).response()
             log("data request status=\(data.urlResponse.statusCode) bytes=\(data.data.count)")
+            await catalogDepth()
         } catch { log("catalog error \(error)") }
-        log("done")
+        await userRequests()
+        await librarySearch()
+        showOffer()
+    }
+
+    /// charts, relationships, music videos, stations and record labels
+    func catalogDepth() async {
+        do {
+            var charts = MusicCatalogChartsRequest(kinds: [.mostPlayed], types: [Song.self, MusicVideo.self])
+            charts.limit = 10
+            let c = try await charts.response()
+            log("charts songs \(c.songCharts.map { "\($0.title) [\($0.kind)] \($0.items.map(\.title).joined(separator: "/"))" }.joined(separator: "; ")) videos \(c.musicVideoCharts.first?.items.first?.title ?? "none")")
+            if let song = c.songCharts.first?.items.first {
+                let full = try await song.with([.albums, .genres, .musicVideos])
+                log("with albums=\(full.albums?.map(\.title).joined(separator: "/") ?? "-") genres=\(full.genres?.map { "\($0.name)<\($0.parent?.name ?? "")" }.joined(separator: "/") ?? "-") videos=\(full.musicVideos?.count ?? 0)")
+            }
+            var search = MusicCatalogSearchRequest(term: "signals", types: [MusicVideo.self, Station.self, RecordLabel.self])
+            search.limit = 3
+            let r = try await search.response()
+            if let v = r.musicVideos.first { log("music video \(v.title) 4K=\(v.has4K ?? false) rating=\(v.contentRating.map { "\($0)" } ?? "-") previews=\(v.previewAssets?.count ?? 0)") }
+            if let st = r.stations.first { log("station \(st.name) live=\(st.isLive) provider=\(st.stationProviderName ?? "-")") }
+            if let label = r.recordLabels.first {
+                let full = try await label.with([.latestReleases])
+                log("record label \(full.name) latest=\(full.latestReleases?.map(\.title).joined(separator: "/") ?? "-")")
+            }
+            let genre = try await MusicCatalogResourceRequest<Genre>(matching: \.id, equalTo: MusicItemID("7")).response()
+            log("genre \(genre.items.first?.name ?? "none")")
+        } catch { log("catalog depth error \(error)") }
+    }
+
+    /// requests about the user: they need the music user token
+    func userRequests() async {
+        do {
+            var recent = MusicRecentlyPlayedRequest<Song>()
+            recent.limit = 5
+            log("recently played songs \(try await recent.response().items.map(\.title).joined(separator: ", "))")
+            let containers = try await MusicRecentlyPlayedContainerRequest().response()
+            log("recently played containers \(containers.items.map { "\($0.title)" }.joined(separator: ", "))")
+            let recs = try await MusicPersonalRecommendationsRequest().response()
+            log("recommendations \(recs.recommendations.map { "\($0.title ?? "-"): \($0.items.map(\.title).joined(separator: "/"))" }.joined(separator: "; "))")
+        } catch { log("user error \(error)") }
+    }
+
+    func librarySearch() async {
+        do {
+            var request = MusicLibrarySearchRequest(term: "loop", types: [Song.self, Album.self, Artist.self])
+            request.includeTopResults = true
+            let r = try await request.response()
+            log("library search songs \(r.songs.map(\.title).joined(separator: ", ")) top \(r.topResults.first?.title ?? "none")")
+        } catch { log("library search error \(error)") }
+    }
+
+    /// ArtworkImage of the first library song, and the subscription offer (isim's sheet)
+    @MainActor func showOffer() {
+        Task { @MainActor in
+            let songs = (try? await MusicLibraryRequest<Song>().response().items) ?? []
+            let host = UIHostingController(rootView: OfferView(artwork: songs.first?.artwork))
+            host.view.frame = CGRect(x: 0, y: 140, width: view.bounds.width, height: 300)
+            addChild(host); view.addSubview(host.view); host.didMove(toParent: self)
+        }
+    }
+}
+
+struct OfferView: View {
+    let artwork: Artwork?
+    @State var offering = true
+    var body: some View {
+        VStack {
+            if let artwork { ArtworkImage(artwork, width: 120) }
+            Text("Library artwork").font(.caption)
+        }
+        .musicSubscriptionOffer(isPresented: $offering, options: MusicSubscriptionOffer.Options(messageIdentifier: .playMusic)) { error in
+            NSLog("HelloMusicKit: %@", "offer loaded error=\(error.map { "\($0)" } ?? "none")")
+            NSLog("HelloMusicKit: %@", "done")
+        }
     }
 }

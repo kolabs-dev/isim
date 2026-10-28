@@ -1,10 +1,13 @@
-// isim MusicKit (self-authored, iOS API names): authorization, music items (Song, Album, Artist, Playlist, Track),
-// collections, library requests, catalog search / resource / data requests, the subscription and the music players.
+// isim MusicKit (self-authored, iOS API names): authorization, music items (Song, Album, Artist, Playlist, Track; the
+// other items, charts, library search, recently played and recommendations are in Catalog.swift), collections, library
+// requests, catalog search / resource / data requests, the subscription and the music players.
 // - The library is isim's simulated music library (MediaPlayer's: $ISIM_DATA/Media/Music), behind the same
 //   permission as MPMediaLibrary (NSAppleMusicUsageDescription).
 // - Catalog requests are passthrough to the Apple Music API: they need a developer token, which iOS gets for a
 //   registered app and isim cannot: set ISIM_MUSICKIT_DEVELOPER_TOKEN (and optionally ISIM_MUSICKIT_USER_TOKEN,
 //   ISIM_MUSICKIT_STOREFRONT, default "us"). Without it they throw MusicTokenRequestError.developerTokenRequestFailed.
+//   Requests about the user (recently played, recommendations) also need ISIM_MUSICKIT_USER_TOKEN, else
+//   userTokenRequestFailed. with(_:) loads catalog relationships and views (`include` / `views` of the Apple Music API).
 //   ISIM_MUSICKIT_API replaces https://api.music.apple.com (tests use a local server).
 // - There is no Apple Music subscription on isim: catalog songs cannot be played (adapted, like a device without
 //   one); library songs play through MediaPlayer's players.
@@ -63,12 +66,22 @@ public struct Artwork: Equatable, Hashable, Sendable {
     }
 }
 
-/// a property set relationships are named by in with(_:) (relationships are loaded together with the item)
+/// a property set relationships are named by in with(_:)
 public struct MusicPropertySet: Sendable {}
+/// a relationship (or view, `view: true`) of the Apple Music API, by its API name
 public final class PartialMusicProperty<Root>: Sendable {
     let name: String
-    init(_ name: String) { self.name = name }
+    let view: Bool
+    init(_ name: String, view: Bool = false) { self.name = name; self.view = view }
 }
+
+/// the relationships and views a catalog item was loaded with
+struct _Relations: Sendable {
+    var albums: [Album]?, artists: [Artist]?, genres: [Genre]?, musicVideos: [MusicVideo]?, songs: [Song]?
+    var stations: [Station]?, recordLabels: [RecordLabel]?
+    var viewAlbums: [String: [Album]] = [:], viewMusicVideos: [String: [MusicVideo]] = [:]
+}
+func _collection<T: MusicItem>(_ a: [T]?) -> MusicItemCollection<T>? { a.map { MusicItemCollection($0) } }
 
 public struct Song: MusicItem, MusicCatalogSearchable, FilterableMusicItem, MusicLibraryRequestable, PlayableMusicItem, MusicPropertyContainer, Codable {
     public typealias FilterType = Song
@@ -93,11 +106,20 @@ public struct Song: MusicItem, MusicCatalogSearchable, FilterableMusicItem, Musi
     public let artwork: Artwork?
     public let playParameters: PlayParameters?
     public static let albums = PartialMusicProperty<Song>("albums"), artists = PartialMusicProperty<Song>("artists")
+    public static let genres = PartialMusicProperty<Song>("genres"), musicVideos = PartialMusicProperty<Song>("music-videos")
+    public static let station = PartialMusicProperty<Song>("station")
     var _library: Bool { playParameters?.library ?? false }
+    var _rel = _Relations()
     /// the loaded relationships (library: the song's album and artist)
-    public var albums: MusicItemCollection<Album>? { _library ? MusicItemCollection(_Library.albums().filter { $0.title == albumTitle }) : nil }
-    public var artists: MusicItemCollection<Artist>? { _library ? MusicItemCollection(_Library.artists().filter { $0.name == artistName }) : nil }
-    public func with(_ properties: [PartialMusicProperty<Song>]) async throws -> Song { self }
+    public var albums: MusicItemCollection<Album>? { _library ? MusicItemCollection(_Library.albums().filter { $0.title == albumTitle }) : _collection(_rel.albums) }
+    public var artists: MusicItemCollection<Artist>? { _library ? MusicItemCollection(_Library.artists().filter { $0.name == artistName }) : _collection(_rel.artists) }
+    public var genres: MusicItemCollection<Genre>? { _collection(_rel.genres) }
+    public var musicVideos: MusicItemCollection<MusicVideo>? { _collection(_rel.musicVideos) }
+    public var station: Station? { _rel.stations?.first }
+    /// catalog songs: the song again, with the relationships loaded (library songs have theirs)
+    public func with(_ properties: [PartialMusicProperty<Song>]) async throws -> Song {
+        _library ? self : try await _AppleMusicAPI.reload("songs", id, properties.map { ($0.name, $0.view) }, _AppleMusicAPI.song)
+    }
     public static func == (a: Song, b: Song) -> Bool { a.id == b.id }
     public func hash(into h: inout Hasher) { h.combine(id) }
     private enum CodingKeys: String, CodingKey { case id, title, artistName, albumTitle, duration, trackNumber, genreNames, isrc, url }
@@ -146,7 +168,14 @@ public struct Album: MusicItem, MusicCatalogSearchable, FilterableMusicItem, Mus
     let _tracks: [Song]
     public var tracks: MusicItemCollection<Track>? { _tracks.isEmpty ? nil : MusicItemCollection(_tracks.map { Track.song($0) }) }
     public static let tracks = PartialMusicProperty<Album>("tracks"), artists = PartialMusicProperty<Album>("artists")
-    public func with(_ properties: [PartialMusicProperty<Album>]) async throws -> Album { self }
+    public static let genres = PartialMusicProperty<Album>("genres"), recordLabels = PartialMusicProperty<Album>("record-labels")
+    var _rel = _Relations()
+    public var artists: MusicItemCollection<Artist>? { _collection(_rel.artists) }
+    public var genres: MusicItemCollection<Genre>? { _collection(_rel.genres) }
+    public var recordLabels: MusicItemCollection<RecordLabel>? { _collection(_rel.recordLabels) }
+    public func with(_ properties: [PartialMusicProperty<Album>]) async throws -> Album {
+        playParameters?.library == true ? self : try await _AppleMusicAPI.reload("albums", id, properties.map { ($0.name, $0.view) }, _AppleMusicAPI.album)
+    }
     public static func == (a: Album, b: Album) -> Bool { a.id == b.id }
     public func hash(into h: inout Hasher) { h.combine(id) }
 }
@@ -161,9 +190,15 @@ public struct Artist: MusicItem, MusicCatalogSearchable, FilterableMusicItem, Mu
     public let url: URL?
     public let artwork: Artwork?
     let _albums: [Album]
-    public var albums: MusicItemCollection<Album>? { _albums.isEmpty ? nil : MusicItemCollection(_albums) }
-    public static let albums = PartialMusicProperty<Artist>("albums")
-    public func with(_ properties: [PartialMusicProperty<Artist>]) async throws -> Artist { self }
+    var _rel = _Relations()
+    public var albums: MusicItemCollection<Album>? { _albums.isEmpty ? _collection(_rel.albums) : MusicItemCollection(_albums) }
+    public var genres: MusicItemCollection<Genre>? { _collection(_rel.genres) }
+    public var musicVideos: MusicItemCollection<MusicVideo>? { _collection(_rel.musicVideos) }
+    public static let albums = PartialMusicProperty<Artist>("albums"), genres = PartialMusicProperty<Artist>("genres")
+    public static let musicVideos = PartialMusicProperty<Artist>("music-videos")
+    public func with(_ properties: [PartialMusicProperty<Artist>]) async throws -> Artist {
+        id.rawValue.hasPrefix("i.") ? self : try await _AppleMusicAPI.reload("artists", id, properties.map { ($0.name, $0.view) }, _AppleMusicAPI.artist)
+    }
     public static func == (a: Artist, b: Artist) -> Bool { a.id == b.id }
     public func hash(into h: inout Hasher) { h.combine(id) }
 }
@@ -185,22 +220,25 @@ public struct Playlist: MusicItem, MusicCatalogSearchable, FilterableMusicItem, 
     let _tracks: [Song]
     public var tracks: MusicItemCollection<Track>? { MusicItemCollection(_tracks.map { Track.song($0) }) }
     public static let tracks = PartialMusicProperty<Playlist>("tracks"), entries = PartialMusicProperty<Playlist>("entries")
-    public func with(_ properties: [PartialMusicProperty<Playlist>]) async throws -> Playlist { self }
+    public func with(_ properties: [PartialMusicProperty<Playlist>]) async throws -> Playlist {
+        playParameters?.library == true ? self : try await _AppleMusicAPI.reload("playlists", id, properties.map { ($0.name, $0.view) }, _AppleMusicAPI.playlist)
+    }
     public static func == (a: Playlist, b: Playlist) -> Bool { a.id == b.id }
     public func hash(into h: inout Hasher) { h.combine(id) }
 }
 
-/// A track of an album or playlist (songs; isim has no music videos).
+/// A track of an album or playlist: a song or a music video (the library has no music videos).
 public enum Track: MusicItem, PlayableMusicItem, MusicPropertyContainer {
     case song(Song)
-    public var id: MusicItemID { if case .song(let s) = self { return s.id }; return "" }
-    public var title: String { if case .song(let s) = self { return s.title }; return "" }
-    public var artistName: String { if case .song(let s) = self { return s.artistName }; return "" }
-    public var albumTitle: String? { if case .song(let s) = self { return s.albumTitle }; return nil }
-    public var duration: TimeInterval? { if case .song(let s) = self { return s.duration }; return nil }
-    public var trackNumber: Int? { if case .song(let s) = self { return s.trackNumber }; return nil }
-    public var artwork: Artwork? { if case .song(let s) = self { return s.artwork }; return nil }
-    public var playParameters: PlayParameters? { if case .song(let s) = self { return s.playParameters }; return nil }
+    case musicVideo(MusicVideo)
+    public var id: MusicItemID { switch self { case .song(let s): return s.id; case .musicVideo(let v): return v.id } }
+    public var title: String { switch self { case .song(let s): return s.title; case .musicVideo(let v): return v.title } }
+    public var artistName: String { switch self { case .song(let s): return s.artistName; case .musicVideo(let v): return v.artistName } }
+    public var albumTitle: String? { switch self { case .song(let s): return s.albumTitle; case .musicVideo(let v): return v.albumTitle } }
+    public var duration: TimeInterval? { switch self { case .song(let s): return s.duration; case .musicVideo(let v): return v.duration } }
+    public var trackNumber: Int? { switch self { case .song(let s): return s.trackNumber; case .musicVideo(let v): return v.trackNumber } }
+    public var artwork: Artwork? { switch self { case .song(let s): return s.artwork; case .musicVideo(let v): return v.artwork } }
+    public var playParameters: PlayParameters? { switch self { case .song(let s): return s.playParameters; case .musicVideo(let v): return v.playParameters } }
 }
 
 public struct MusicItemCollection<MusicItemType: MusicItem>: RandomAccessCollection, Hashable, Sendable, ExpressibleByArrayLiteral, CustomStringConvertible {
@@ -264,7 +302,14 @@ enum _Library {
         if T.self == Album.self { return albums() as! [T] }
         if T.self == Artist.self { return artists() as! [T] }
         if T.self == Playlist.self { return playlists() as! [T] }
+        if T.self == Genre.self { return genres() as! [T] }
         return []
+    }
+    static func genres() -> [Genre] {
+        (MPMediaQuery.genres().collections ?? []).compactMap { c in
+            guard let r = c.representativeItem, let name = r.genre else { return nil }
+            return Genre(id: id(r.genrePersistentID, "genre"), name: name, parent: nil, libraryAddedDate: c.items.compactMap(\.dateAdded).min())
+        }
     }
     static func mediaItem(_ s: Song) -> MPMediaItem? { items().first { id($0.persistentID, "song") == s.id } }
 }
@@ -332,23 +377,29 @@ public final class MusicLibrary: @unchecked Sendable {
 public enum MusicTokenRequestError: Error, Equatable, Sendable, CustomStringConvertible {
     case unknown, permissionDenied, privacyAcknowledgementRequired, userNotSignedIn, userTokenRevoked, developerTokenRequestFailed, userTokenRequestFailed
     public var description: String {
-        self == .developerTokenRequestFailed ? "developerTokenRequestFailed (isim cannot obtain a MusicKit developer token: set ISIM_MUSICKIT_DEVELOPER_TOKEN)" : "\(self)"
+        switch self {
+        case .developerTokenRequestFailed: return "developerTokenRequestFailed (isim cannot obtain a MusicKit developer token: set ISIM_MUSICKIT_DEVELOPER_TOKEN)"
+        case .userTokenRequestFailed: return "userTokenRequestFailed (isim has no Apple ID to obtain a music user token: set ISIM_MUSICKIT_USER_TOKEN)"
+        default: return "\(self)"
+        }
     }
 }
 enum _AppleMusicAPI {
     static var env: [String: String] { ProcessInfo.processInfo.environment }
     static var base: String { env["ISIM_MUSICKIT_API"] ?? "https://api.music.apple.com" }
     static var storefront: String { env["ISIM_MUSICKIT_STOREFRONT"] ?? "us" }
-    static func authorize(_ r: inout URLRequest) throws {
+    static func authorize(_ r: inout URLRequest, user requireUser: Bool = false) throws {
         guard let token = env["ISIM_MUSICKIT_DEVELOPER_TOKEN"], !token.isEmpty else { throw MusicTokenRequestError.developerTokenRequestFailed }
         r.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         if let user = env["ISIM_MUSICKIT_USER_TOKEN"], !user.isEmpty { r.setValue(user, forHTTPHeaderField: "Music-User-Token") }
+        else if requireUser { throw MusicTokenRequestError.userTokenRequestFailed }
     }
-    static func get(_ path: String, _ query: [URLQueryItem] = []) async throws -> [String: Any] {
+    /// user: the request is about the user (/v1/me/...) and needs the music user token
+    static func get(_ path: String, _ query: [URLQueryItem] = [], user: Bool = false) async throws -> [String: Any] {
         var c = URLComponents(string: base + path)!
         if !query.isEmpty { c.queryItems = query }
         var r = URLRequest(url: c.url!)
-        try authorize(&r)
+        try authorize(&r, user: user)
         let (data, response) = try await URLSession.shared.data(for: r)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
@@ -374,6 +425,7 @@ enum _AppleMusicAPI {
                     trackNumber: a["trackNumber"] as? Int, genreNames: a["genreNames"] as? [String] ?? [], composerName: a["composerName"] as? String,
                     releaseDate: date(a["releaseDate"]), isrc: a["isrc"] as? String, url: (a["url"] as? String).flatMap(URL.init(string:)),
                     playCount: nil, lastPlayedDate: nil, libraryAddedDate: nil, artwork: artwork(a["artwork"]), library: false)
+            .related(relations(r))
     }
     static func album(_ r: [String: Any]) -> Album {
         let a = r["attributes"] as? [String: Any] ?? [:]
@@ -382,12 +434,12 @@ enum _AppleMusicAPI {
         return Album(id: id, title: a["name"] as? String ?? "", artistName: a["artistName"] as? String ?? "", trackCount: a["trackCount"] as? Int ?? tracks.count,
                      releaseDate: date(a["releaseDate"]), genreNames: a["genreNames"] as? [String] ?? [], isCompilation: a["isCompilation"] as? Bool,
                      url: (a["url"] as? String).flatMap(URL.init(string:)), artwork: artwork(a["artwork"]),
-                     playParameters: PlayParameters(id: id, kind: "album", library: false), _tracks: tracks)
+                     playParameters: PlayParameters(id: id, kind: "album", library: false), _tracks: tracks).related(relations(r))
     }
     static func artist(_ r: [String: Any]) -> Artist {
         let a = r["attributes"] as? [String: Any] ?? [:]
         return Artist(id: MusicItemID(r["id"] as? String ?? ""), name: a["name"] as? String ?? "", genreNames: a["genreNames"] as? [String],
-                      url: (a["url"] as? String).flatMap(URL.init(string:)), artwork: artwork(a["artwork"]), _albums: [])
+                      url: (a["url"] as? String).flatMap(URL.init(string:)), artwork: artwork(a["artwork"]), _albums: []).related(relations(r))
     }
     static func playlist(_ r: [String: Any]) -> Playlist {
         let a = r["attributes"] as? [String: Any] ?? [:]
@@ -396,13 +448,19 @@ enum _AppleMusicAPI {
                         standardDescription: (a["description"] as? [String: Any])?["standard"] as? String, lastModifiedDate: date(a["lastModifiedDate"]),
                         kind: (a["playlistType"] as? String).flatMap { Playlist.Kind(rawValue: $0 == "editorial" ? "editorial" : $0) },
                         url: (a["url"] as? String).flatMap(URL.init(string:)), artwork: artwork(a["artwork"]),
-                        playParameters: PlayParameters(id: id, kind: "playlist", library: false), _tracks: [])
+                        playParameters: PlayParameters(id: id, kind: "playlist", library: false),
+                        _tracks: (((r["relationships"] as? [String: Any])?["tracks"] as? [String: Any])?["data"] as? [[String: Any]] ?? [])
+                            .filter { ($0["type"] as? String) != "music-videos" }.map(song))
     }
     static func items<T>(_ data: [[String: Any]], _ t: T.Type) -> [T] {
         if T.self == Song.self { return data.map(song) as! [T] }
         if T.self == Album.self { return data.map(album) as! [T] }
         if T.self == Artist.self { return data.map(artist) as! [T] }
         if T.self == Playlist.self { return data.map(playlist) as! [T] }
+        if T.self == MusicVideo.self { return data.map(musicVideo) as! [T] }
+        if T.self == Station.self { return data.map(station) as! [T] }
+        if T.self == RecordLabel.self { return data.map(recordLabel) as! [T] }
+        if T.self == Genre.self { return data.map(genre) as! [T] }
         return []
     }
 }
@@ -424,7 +482,10 @@ public struct MusicCatalogSearchRequest {
         return MusicCatalogSearchResponse(songs: MusicItemCollection(data("songs").map(_AppleMusicAPI.song)),
                                           albums: MusicItemCollection(data("albums").map(_AppleMusicAPI.album)),
                                           artists: MusicItemCollection(data("artists").map(_AppleMusicAPI.artist)),
-                                          playlists: MusicItemCollection(data("playlists").map(_AppleMusicAPI.playlist)))
+                                          playlists: MusicItemCollection(data("playlists").map(_AppleMusicAPI.playlist)),
+                                          musicVideos: MusicItemCollection(data("music-videos").map(_AppleMusicAPI.musicVideo)),
+                                          stations: MusicItemCollection(data("stations").map(_AppleMusicAPI.station)),
+                                          recordLabels: MusicItemCollection(data("record-labels").map(_AppleMusicAPI.recordLabel)))
     }
 }
 public struct MusicCatalogSearchResponse: Sendable {
@@ -432,6 +493,9 @@ public struct MusicCatalogSearchResponse: Sendable {
     public let albums: MusicItemCollection<Album>
     public let artists: MusicItemCollection<Artist>
     public let playlists: MusicItemCollection<Playlist>
+    public let musicVideos: MusicItemCollection<MusicVideo>
+    public let stations: MusicItemCollection<Station>
+    public let recordLabels: MusicItemCollection<RecordLabel>
 }
 public struct MusicCatalogResourceRequest<MusicItemType: FilterableMusicItem> {
     let ids: [String]
@@ -440,7 +504,7 @@ public struct MusicCatalogResourceRequest<MusicItemType: FilterableMusicItem> {
     public init<Value>(matching keyPath: KeyPath<MusicItemType.FilterType, Value>, equalTo value: Value) { ids = ["\(value)"] }
     public init<Value>(matching keyPath: KeyPath<MusicItemType.FilterType, Value>, memberOf values: [Value]) { ids = values.map { "\($0)" } }
     public func response() async throws -> MusicCatalogResourceResponse<MusicItemType> {
-        let kind = (MusicItemType.self as? any MusicCatalogSearchable.Type)?._searchType ?? "songs"
+        let kind = MusicItemType.self == Genre.self ? "genres" : (MusicItemType.self as? any MusicCatalogSearchable.Type)?._searchType ?? "songs"
         let json = try await _AppleMusicAPI.get("/v1/catalog/\(_AppleMusicAPI.storefront)/\(kind)", [URLQueryItem(name: "ids", value: ids.joined(separator: ","))])
         let items = _AppleMusicAPI.items(json["data"] as? [[String: Any]] ?? [], MusicItemType.self)
         return MusicCatalogResourceResponse(items: MusicItemCollection(limit.map { Array(items.prefix($0)) } ?? items))
