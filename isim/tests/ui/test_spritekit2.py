@@ -85,9 +85,11 @@ MORE = {
     "SKNode.intersects(_:), focusBehavior, SKTexture.applying(_:)":
         ["intersects: overlapping true apart true", "focus behavior: true copied true", "texture applying filter: 0,0,0 size 4 constants true"],
     "SKViewDelegate holds frames back": ["view delegate: asked true held updates 0 then running true"],
+    "SKAction.perform(_:onTarget:), SKEmitterNode particleAction and shader":
+        ["perform(_:onTarget:): hits 1", "emitter: particle action moved true shader pixel 0,255,0"],
 }
 MORE_KEYS = ["agent3d", "path3d", "composite", "predicate rule", "noise", "turbulence", "displace", "tile maps", "graph", "decision tree file",
-             "scn component", "renderer", "intersects", "focus", "texture applying", "view delegate"]
+             "scn component", "renderer", "intersects", "focus", "texture applying", "view delegate", "emitter", "perform"]
 
 BG = (20, 23, 36)
 def red(c): return c[0] > 180 and c[1] < 90 and c[2] < 90

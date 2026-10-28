@@ -1,6 +1,7 @@
 // isim SpriteKit particles: SKEmitterNode (simulated on the CPU, drawn through the host image functions) and
 // SKKeyframeSequence. Emitters load from Xcode .sks particle files through SKNode(fileNamed:).
 import Foundation
+import CoreImage
 import isim_host
 
 // MARK: - Keyframe sequence
@@ -118,6 +119,8 @@ struct _Particle {
     var color: [CGFloat], colorSpeed: [CGFloat]
     var blend: CGFloat, blendSpeed: CGFloat
     var z: CGFloat
+    /// runs the emitter's particleAction for this particle (its position, rotation, scale, alpha, color, texture)
+    var node: SKSpriteNode? = nil
 }
 
 @objc(SKEmitterNode) open class SKEmitterNode: SKNode {
@@ -291,6 +294,14 @@ struct _Particle {
             p.blend += p.blendSpeed * h
             p.z += particleZPositionSpeed * h
             for k in 0..<4 { p.color[k] = max(0, min(1, p.color[k] + p.colorSpeed[k] * h)) }
+            if let n = p.node {
+                // the particle's state goes through its node, the action changes it, and it comes back
+                n.position = p.pos; n.zRotation = p.rot; n.setScale(p.scale); n.alpha = p.alpha; n.colorBlendFactor = p.blend
+                n.color = UIColor(red: p.color[0], green: p.color[1], blue: p.color[2], alpha: p.color[3])
+                n.evaluateActions(dt)
+                p.pos = n.position; p.rot = n.zRotation; p.scale = n.xScale; p.alpha = n.alpha; p.blend = n.colorBlendFactor
+                p.color = _rgba(n.color).map { CGFloat($0) }
+            }
             particles[i] = p
             i += 1
         }
@@ -326,6 +337,11 @@ struct _Particle {
                                        color: color, colorSpeed: [particleColorRedSpeed, particleColorGreenSpeed, particleColorBlueSpeed, particleColorAlphaSpeed],
                                        blend: particleColorBlendFactor + r(particleColorBlendFactorRange), blendSpeed: particleColorBlendFactorSpeed,
                                        z: particleZPosition + r(particleZPositionRange)))
+            if let action = particleAction {
+                let n = SKSpriteNode(texture: particleTexture, color: particleColor, size: particleSize)
+                n.run(action.copy() as! SKAction)
+                particles[particles.count - 1].node = n
+            }
         }
         emitted += n
     }
@@ -342,8 +358,16 @@ struct _Particle {
         guard !particles.isEmpty else { return }
         // particles in the target's space are drawn back in this node's space
         let back: CGAffineTransform? = targetNode.map { t in t === self ? .identity : t.sceneTransform.concatenating(sceneTransform.inverted()) }
-        let tex = particleTexture.flatMap { $0.handle > 0 ? $0 : nil }
-        let base = particleSize != .zero ? particleSize : (tex?.size() ?? CGSize(width: 8, height: 8))
+        let tex0 = particleTexture.flatMap { $0.handle > 0 ? $0 : nil }
+        let base0 = particleSize != .zero ? particleSize : (tex0?.size() ?? CGSize(width: 8, height: 8))
+        // a shader runs once a frame over the particle texture (untinted); each particle draws its output
+        var shaded: CGImage?
+        if let shader {
+            let input = tex0.flatMap { $0._cgImage() }
+            let (w, h) = input.map { ($0.width, $0.height) } ?? _skShadePixels(base0, scale: 1)
+            shaded = _runShader(shader, base: input.map { CIImage(cgImage: $0, options: [.colorSpace: NSNull()]) }, color: [1, 1, 1, 1],
+                                blendFactor: 0, w: w, h: h, spriteSize: base0)
+        }
         isim_gfx_save()
         isim_gfx_set_blend(_hostBlend(particleBlendMode))
         if let back { isim_gfx_concat(back.a, back.b, back.c, back.d, back.tx, back.ty) }
@@ -358,11 +382,16 @@ struct _Particle {
             let blend = Double(max(0, min(1, particleColorBlendFactorSequence?.number(at: f) ?? p.blend)))
             let opacity = Double(alpha * a) * col[3]
             guard opacity > 0.002 else { continue }
+            // an action's setTexture gives the particle its own texture
+            let tex = p.node?.texture.flatMap { $0.handle > 0 ? $0 : nil } ?? tex0
+            let base = particleSize != .zero ? particleSize : (tex?.size() ?? base0)
             let w = base.width * scale, h = base.height * scale
             isim_gfx_save()
             isim_gfx_translate(p.pos.x, p.pos.y)
             if p.rot != 0 { isim_gfx_rotate(p.rot) }
-            if let t = tex {
+            if let shaded {
+                _drawImage(shaded, in: CGRect(x: -w / 2, y: -h / 2, width: w, height: h), alpha: CGFloat(opacity), blend: .alpha)
+            } else if let t = tex {
                 isim_gfx_scale(1, -1)
                 col[3] = 1
                 col.withUnsafeBufferPointer { b in

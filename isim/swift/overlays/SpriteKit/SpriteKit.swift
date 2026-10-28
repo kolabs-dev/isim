@@ -1285,6 +1285,11 @@ public typealias SKActionTimingFunction = (Float) -> Float
     }
     // textures
     @objc open class func setTexture(_ t: SKTexture) -> SKAction { instant { ($0 as? SKSpriteNode)?.texture = t } }
+    /// sends the selector to the target (no argument), as -performSelector: does
+    @objc(performSelector:onTarget:) open class func perform(_ selector: Selector, onTarget target: Any) -> SKAction {
+        let t = target as AnyObject
+        return instant { _ in _ = t.perform(selector) }
+    }
     @objc open class func setNormalTexture(_ t: SKTexture) -> SKAction { instant { ($0 as? SKSpriteNode)?.normalTexture = t } }
     @objc open class func setNormalTexture(_ t: SKTexture, resize: Bool) -> SKAction {
         instant { n in guard let sp = n as? SKSpriteNode else { return }; sp.normalTexture = t; if resize { sp.size = t.size() } }

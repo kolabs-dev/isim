@@ -47,6 +47,7 @@ typedef float (^SKActionTimingFunction)(float time);
 + (SKAction *)unhide;
 + (SKAction *)setTexture:(SKTexture *)texture;
 + (SKAction *)setTexture:(SKTexture *)texture resize:(BOOL)resize;
++ (SKAction *)performSelector:(SEL)selector onTarget:(id)target;
 + (SKAction *)setNormalTexture:(SKTexture *)texture;
 + (SKAction *)setNormalTexture:(SKTexture *)texture resize:(BOOL)resize;
 + (SKAction *)animateWithTextures:(NSArray<SKTexture *> *)textures timePerFrame:(NSTimeInterval)sec;

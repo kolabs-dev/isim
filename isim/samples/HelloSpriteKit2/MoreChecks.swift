@@ -18,6 +18,7 @@ enum MoreChecks {
         sceneKitComponent()
         renderer()
         nodes()
+        emitters(view)
         pacing(view)
     }
 
@@ -193,6 +194,33 @@ enum MoreChecks {
         log("texture applying filter: \(rgba[0]),\(rgba[1]),\(rgba[2]) size \(Int(inverted.size().width)) constants \(SK_VERSION > 0 && SKVIEW_AVAILABLE == 1 && GK_VERSION > 0)")
     }
 
+    final class Target: NSObject { var hits = 0; @objc func hit() { hits += 1 } }
+    static let target = Target()
+
+    /// SKAction.perform(_:onTarget:), an emitter's particleAction (each particle runs it) and shader (drawn through it)
+    static func emitters(_ view: SKView) {
+        let holder = SKNode()
+        view.scene?.addChild(holder)
+        holder.run(.perform(#selector(Target.hit), onTarget: target))   // runs on the scene's next frame
+        let e = SKEmitterNode()
+        e.particleBirthRate = 20; e.numParticlesToEmit = 5; e.particleLifetime = 5
+        e.particleSize = CGSize(width: 10, height: 10)
+        e.particleAction = .moveBy(x: 100, y: 0, duration: 0.1)
+        e.advanceSimulationTime(1)
+        let moved = e.calculateAccumulatedFrame().midX
+        let s = SKEmitterNode()
+        s.particleBirthRate = 50; s.numParticlesToEmit = 1; s.particleLifetime = 10
+        s.particleSize = CGSize(width: 20, height: 20); s.particleColor = .red; s.particleColorBlendFactor = 1
+        s.shader = SKShader(source: "void main() { gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0); }")
+        s.advanceSimulationTime(0.1)
+        var rgba = [UInt8](repeating: 0, count: 4)
+        if let cg = view.texture(from: s)?.cgImage(), let c = CGContext(data: &rgba, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                                                         space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
+            c.draw(cg, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        }
+        log("emitter: particle action moved \(moved > 90) shader pixel \(rgba[0]),\(rgba[1]),\(rgba[2])")
+    }
+
     /// a delegate that holds the view's frames back: the scene's update stops until it lets them through
     final class Pacer: NSObject, SKViewDelegate {
         var asked = 0, hold = true
@@ -209,6 +237,7 @@ enum MoreChecks {
             p.hold = false
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 log("view delegate: asked \(p.asked > 5) held updates \(held) then running \(scene.updates - before > held)")
+                log("perform(_:onTarget:): hits \(target.hits)")
                 view.delegate = nil
                 log("more checks done")
             }
