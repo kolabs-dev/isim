@@ -21,6 +21,7 @@ typedef NS_ENUM(NSInteger, AVAudioEngineManualRenderingMode) {
 typedef AVAudioEngineManualRenderingStatus (^AVAudioEngineManualRenderingBlock)(AVAudioFrameCount numberOfFrames, AudioBufferList *outBuffer,
                                                                                 OSStatus * _Nullable outError);
 FOUNDATION_EXPORT NSNotificationName const AVAudioEngineConfigurationChangeNotification;
+#define AVAUDIOENGINE_HAVE_MUSICPLAYER 1
 @interface AVAudioEngine : NSObject
 - (instancetype)init NS_DESIGNATED_INITIALIZER;
 - (void)attachNode:(AVAudioNode *)node;
@@ -44,6 +45,7 @@ FOUNDATION_EXPORT NSNotificationName const AVAudioEngineConfigurationChangeNotif
 @property (nonatomic, readonly) AVAudioInputNode *inputNode;
 @property (nonatomic, readonly) AVAudioMixerNode *mainMixerNode;
 @property (nonatomic, readonly, getter=isRunning) BOOL running;
+@property (nonatomic, nullable) MusicSequence musicSequence;   /* issue #389: tracks without a destination play to the first MIDI instrument */
 @property (nonatomic, getter=isAutoShutdownEnabled) BOOL autoShutdownEnabled;
 @property (nonatomic, readonly) NSSet<AVAudioNode *> *attachedNodes;
 - (BOOL)enableManualRenderingMode:(AVAudioEngineManualRenderingMode)mode format:(AVAudioFormat *)pcmFormat

@@ -389,6 +389,11 @@ def _(a):
     a.swift_app(link=["-framework", "CoreMIDI"])
 
 
+@app("samples/HelloAudio")
+def _(a):
+    a.swift_app(link=["-framework", "CoreMIDI"])   # MIDIPlayback.swift: a CoreMIDI destination
+
+
 @app("samples/HelloPHASE")
 def _(a):
     a.swift_app(link=["-framework", "PHASE"])
@@ -831,6 +836,12 @@ def _(a):
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "AVFAudio", "-framework", "AudioUnit",
                                           "-framework", "CoreAudio"], name="AudioHeadersTest")
+
+
+@app("tests/midi-playback", products=["MIDIPlaybackTest.app"])   # after the overlays: AVFAudio re-exports AVFoundation
+def _(a):
+    a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "AVFAudio", "-framework", "AudioToolbox",
+                                          "-framework", "CoreMIDI"], name="MIDIPlaybackTest")
 
 
 @app("tests/audiotoolbox-c", products=["AudioToolboxCTest.app"])   # after the overlays: AudioToolbox re-exports its overlay

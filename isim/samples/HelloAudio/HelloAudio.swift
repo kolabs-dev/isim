@@ -5,6 +5,7 @@
 //   MPNowPlayingInfoCenter / MPRemoteCommandCenter (commands from the `remote` script command) and MPVolumeView;
 // - -engine: AVAudioEngine's real-time graph and AudioToolbox's Audio Units (AudioEngine.swift).
 // - -session: an MPNowPlayingSession for an AVPlayer (NowPlayingSession below).
+// - -midi: MIDI playback: AVAudioUnitSampler, AVAudioSequencer, AVMIDIPlayer, Music Player, Audio File Stream (MIDIPlayback.swift).
 import UIKit
 import AVFoundation
 import AudioToolbox
@@ -16,7 +17,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
         let args = ProcessInfo.processInfo.arguments
-        window?.rootViewController = args.contains("-engine") ? EngineViewController() : args.contains("-session") ? SessionViewController() : AudioViewController()
+        window?.rootViewController = args.contains("-engine") ? EngineViewController() : args.contains("-session") ? SessionViewController()
+            : args.contains("-midi") ? MIDIViewController() : AudioViewController()
         window?.makeKeyAndVisible()
         return true
     }

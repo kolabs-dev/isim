@@ -45,11 +45,17 @@ struct AudioBufferList {
 typedef struct AudioBufferList AudioBufferList;
 
 typedef ISIM_CA_OPTIONS(uint32_t, SMPTETimeFlags) { kSMPTETimeUnknown = 0, kSMPTETimeValid = (1U << 0), kSMPTETimeRunning = (1U << 1) };
+typedef enum __attribute__((enum_extensibility(open))) SMPTETimeType : uint32_t SMPTETimeType;
+enum SMPTETimeType : uint32_t {
+    kSMPTETimeType24 = 0, kSMPTETimeType25 = 1, kSMPTETimeType30Drop = 2, kSMPTETimeType30 = 3, kSMPTETimeType2997 = 4,
+    kSMPTETimeType2997Drop = 5, kSMPTETimeType60 = 6, kSMPTETimeType5994 = 7, kSMPTETimeType60Drop = 8, kSMPTETimeType5994Drop = 9,
+    kSMPTETimeType50 = 10, kSMPTETimeType2398 = 11,
+};
 struct SMPTETime {
     int16_t mSubframes;
     int16_t mSubframeDivisor;
     uint32_t mCounter;
-    uint32_t mType;
+    SMPTETimeType mType;
     SMPTETimeFlags mFlags;
     int16_t mHours;
     int16_t mMinutes;
