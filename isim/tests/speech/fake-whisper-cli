@@ -1,0 +1,14 @@
+#!/bin/sh
+# A stand-in for whisper.cpp's whisper-cli (test_speech.py): one segment over the whole audio naming the language,
+# and the prompt (--prompt) as a segment without times.
+f=""; p=""; l=""
+while [ $# -gt 0 ]; do
+    case "$1" in -f) f="$2"; shift ;; --prompt) p="$2"; shift ;; -l) l="$2"; shift ;; esac
+    shift
+done
+size=$(wc -c < "$f")
+ms=$(( (size - 44) / 32 ))   # 16 kHz 16-bit mono: 32 bytes a millisecond
+s=$(( ms / 1000 ))
+printf '[00:00:00.000 --> 00:%02d:%02d.%03d]  Hello, isim world (%s).\n' $(( s / 60 )) $(( s % 60 )) $(( ms % 1000 )) "$l"
+[ -n "$p" ] && printf 'prompt: %s\n' "$p"
+exit 0

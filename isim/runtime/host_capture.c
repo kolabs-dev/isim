@@ -628,9 +628,10 @@ ISIM_GUEST_ABI int isim_speech_available(void) {
     if (vm && *vm && !access(vm, R_OK) && on_path("vosk-transcriber")) return 2;
     return 0;
 }
-/* Transcribes 16 kHz mono float PCM. lang: two-letter code ("en"). Returns malloc'd lines "START\tEND\tTEXT\n" (seconds;
- * -1 when the backend gives no times) or NULL. Free with isim_media_free. */
-ISIM_GUEST_ABI char *isim_speech_transcribe(const float *pcm, long frames, const char *lang) {
+/* Transcribes 16 kHz mono float PCM. lang: two-letter code ("en"); prompt: words and phrases that bias recognition
+ * (whisper.cpp's --prompt; Vosk ignores it), or NULL. Returns malloc'd lines "START\tEND\tTEXT\n" (seconds; -1 when the
+ * backend gives no times) or NULL. Free with isim_media_free. */
+ISIM_GUEST_ABI char *isim_speech_transcribe_prompt(const float *pcm, long frames, const char *lang, const char *prompt) {
     int kind = isim_speech_available();
     if (!kind || !pcm || frames <= 0) return NULL;
     char wav[512];
@@ -648,7 +649,8 @@ ISIM_GUEST_ABI char *isim_speech_transcribe(const float *pcm, long frames, const
     char *raw = NULL;
     char l2[8]; snprintf(l2, sizeof l2, "%.2s", lang && *lang ? lang : "en");
     if (kind == 1) {
-        char *argv[] = { (char *)whisper_tool(), "-m", getenv("ISIM_WHISPER_MODEL"), "-f", wav, "-l", l2, "-np", NULL };
+        char *argv[] = { (char *)whisper_tool(), "-m", getenv("ISIM_WHISPER_MODEL"), "-f", wav, "-l", l2, "-np",
+                         prompt && *prompt ? "--prompt" : NULL, (char *)prompt, NULL };
         raw = run_capture(argv, NULL);
     } else {
         char *argv[] = { "vosk-transcriber", "-m", getenv("ISIM_VOSK_MODEL"), "-i", wav, NULL };
@@ -673,6 +675,9 @@ ISIM_GUEST_ABI char *isim_speech_transcribe(const float *pcm, long frames, const
     }
     free(raw);
     return out;
+}
+ISIM_GUEST_ABI char *isim_speech_transcribe(const float *pcm, long frames, const char *lang) {
+    return isim_speech_transcribe_prompt(pcm, frames, lang, NULL);
 }
 
 /* ================= AVAudioSession events (the `audio` script command) ================= */

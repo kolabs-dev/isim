@@ -5,6 +5,8 @@
 // configured (adapted): whisper.cpp (`whisper-cli` + ISIM_WHISPER_MODEL=<ggml model>) or Vosk (`vosk-transcriber` +
 // ISIM_VOSK_MODEL=<model dir>). Without one, SFSpeechRecognizer.isAvailable is false and tasks fail with a clear error
 // (like a device with Siri and Dictation disabled). Results are delivered once, as final (no partial results).
+// contextualStrings and customizedLanguageModel bias whisper.cpp through its prompt. iOS 26's SpeechAnalyzer and its
+// modules are in SpeechAnalyzer.swift; custom language models and SFSpeechError in SpeechLanguageModel.swift.
 import Foundation
 import AVFoundation
 import isim_host
@@ -65,6 +67,8 @@ open class SFSpeechRecognitionRequest: NSObject, @unchecked Sendable {
     open var contextualStrings: [String] = []
     open var requiresOnDeviceRecognition = false
     open var addsPunctuation = false
+    /// a prepared custom language model (isim: its phrases bias whisper.cpp through its prompt, like contextualStrings)
+    open var customizedLanguageModel: SFSpeechLanguageModel.Configuration?
     func _pcm16k() -> [Float]? { nil }
 }
 open class SFSpeechURLRecognitionRequest: SFSpeechRecognitionRequest, @unchecked Sendable {
@@ -184,7 +188,10 @@ open class SFSpeechRecognitionTask: NSObject, @unchecked Sendable {
         _queue.addOperation { [self] in _delegate?.speechRecognitionTaskFinishedReadingAudio(self) }
         guard let pcm = _request._pcm16k(), !pcm.isEmpty else { _fail(_sfError("isim could not read the audio for speech recognition", code: 2)); return }
         let lang = _locale.language.languageCode?.identifier ?? "en"
-        guard let raw = pcm.withUnsafeBufferPointer({ isim_speech_transcribe($0.baseAddress!, $0.count, lang) }) else {
+        let prompt = _SpeechEngine.prompt(_request.contextualStrings, model: _request.customizedLanguageModel)
+        guard let raw = pcm.withUnsafeBufferPointer({ b in
+            prompt.map { isim_speech_transcribe_prompt(b.baseAddress!, b.count, lang, $0) } ?? isim_speech_transcribe(b.baseAddress!, b.count, lang)
+        }) else {
             _fail(_sfError("speech recognition failed: the host's speech-to-text engine did not run")); return
         }
         defer { isim_media_free(raw) }

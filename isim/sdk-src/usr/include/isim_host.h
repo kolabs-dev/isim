@@ -406,6 +406,8 @@ char *_Nullable isim_raw_camera_list(void);
 /* speech recognition: 1 whisper.cpp (ISIM_WHISPER_MODEL), 2 vosk (ISIM_VOSK_MODEL), 0 none; transcribe takes 16 kHz mono */
 int isim_speech_available(void);
 char *_Nullable isim_speech_transcribe(const float *pcm, long frames, const char *_Nullable lang);
+/* the same, biased toward `prompt` (whisper.cpp --prompt: contextual strings, custom language models) */
+char *_Nullable isim_speech_transcribe_prompt(const float *pcm, long frames, const char *_Nullable lang, const char *_Nullable prompt);
 /* XCUITest (isim XCTest): run the app under test as a child process driven through a control FIFO.
  * argv/envp are NULL-terminated (envp: KEY=VALUE added to the environment); snapshot returns the app's
  * accessibility snapshot text (free with isim_xcui_free) or NULL. */
