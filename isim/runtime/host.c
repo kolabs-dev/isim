@@ -1204,9 +1204,57 @@ enum { SB_APP, SB_LOCK, SB_CC };
 static const double sb_battery = 0.8;                           /* the charge the battery icon shows */
 static int la_detached_shown(void);                       /* shell_system.inc: the island reaches the cellular bars */
 static int sb_cell_covered;                               /* an app under the shell: told by "statusbar-cellular 0|1" */
+/* iPhones with a Home button (iPhone SE): the classic 20 pt bar. The cellular bars, the carrier name and Wi-Fi at the
+   left, the time centred (a padlock on the lock screen, under the big clock's own time), the battery at the right (with
+   its percentage in Control Center). The 6 pt insets, the 12 pt semibold text and the smaller icons are estimated from
+   Apple's Simulator (iPhone SE, 3rd generation), not measured. */
+static void draw_classic_status_bar(int style, const double *fg) {
+    double c = fg[0], cy = 10;
+    double dim[4] = { c, c, c, 0.4 };
+    /* left: cellular bars, carrier, Wi-Fi */
+    double x = 6;
+    for (int i = 0; i < 4; i++) isim_gfx_fill_rounded(x + i * 4, cy + 4 - (3 + i * 2.2), 2.6, 3 + i * 2.2, 0.8, fg);
+    x += 4 * 4 + 3;
+    double tw, th; isim_text_measure(SB_CARRIER, 12, 0.3, 0, 0, 1, &tw, &th);
+    isim_text_draw(SB_CARRIER, x, cy - th / 2, 0, 12, 0.3, 0, 0, 1, fg);
+    x += tw + 5;
+    double wx = x + 7, wy = cy + 4;
+    cairo_set_source_rgba(cr, c, c, c, 1);
+    for (int i = 0; i < 3; i++) {
+        cairo_new_path(cr);
+        cairo_arc(cr, wx, wy, 2.5 + i * 3, -M_PI * 0.75, -M_PI * 0.25);
+        cairo_set_line_width(cr, 1.7); cairo_stroke(cr);
+    }
+    /* centre: the time, or a padlock on the lock screen */
+    if (style == SB_LOCK) {
+        double lw = 8, lh = 6, lx = dev.width / 2 - lw / 2, ly = cy - 1;
+        isim_gfx_fill_rounded(lx, ly, lw, lh, 1.2, fg);
+        cairo_set_source_rgba(cr, c, c, c, 1);
+        cairo_new_path(cr); cairo_arc(cr, dev.width / 2, ly, 2.6, M_PI, 0); cairo_set_line_width(cr, 1.4); cairo_stroke(cr);
+    } else {
+        load_clock_prefs();
+        time_t t = time(NULL); struct tm tm; localtime_r(&t, &tm);
+        char clock[16];
+        if (clock_prefs.hour24) snprintf(clock, sizeof clock, "%02d:%02d", tm.tm_hour, tm.tm_min);
+        else snprintf(clock, sizeof clock, "%d:%02d %s", tm.tm_hour % 12 ? tm.tm_hour % 12 : 12, tm.tm_min, tm.tm_hour < 12 ? "AM" : "PM");
+        double cw, ch; isim_text_measure(clock, 12, 0.3, 0, 0, 1, &cw, &ch);
+        isim_text_draw(clock, dev.width / 2 - cw / 2, cy - ch / 2, 0, 12, 0.3, 0, 0, 1, fg);
+    }
+    /* right: the battery (and its percentage in Control Center) */
+    double bw = 22, bh = 10.5, bx = dev.width - 6 - 2.5 - bw, by = cy - bh / 2;
+    isim_gfx_stroke_rounded(bx, by, bw, bh, 3, 1, dim);
+    isim_gfx_fill_rounded(bx + 2, by + 2, (bw - 4) * sb_battery, bh - 4, 1.8, fg);
+    isim_gfx_fill_rounded(bx + bw + 1, by + 3.5, 1.5, 3.5, 0.75, dim);
+    if (style == SB_CC) {
+        char pct[8]; snprintf(pct, sizeof pct, "%d%%", (int)lround(sb_battery * 100));
+        double pw, ph; isim_text_measure(pct, 12, 0.3, 0, 0, 1, &pw, &ph);
+        isim_text_draw(pct, bx - 4 - pw, cy - ph / 2, 0, 12, 0.3, 0, 0, 1, fg);
+    }
+}
 static void draw_status_bar(int style, const double *fg) {
     double c = fg[0];
     if ((dev.orientation == 3 || dev.orientation == 4) && portrait_dev.width < 700) return;  /* iPhones hide it in landscape */
+    if (portrait_dev.width < 700 && !dev.has_island && portrait_dev.safe_bottom == 0) { draw_classic_status_bar(style, fg); return; }
     double sb = dev.safe_top >= 44 ? 54 : dev.safe_top;   /* status bar band height */
     double cy = dev.has_island ? 18 + 11 : sb / 2;          /* text baseline centre */
     double lx = dev.has_island ? 51 + 26 : -1;               /* centre of the left ear (-1: left-aligned) */
