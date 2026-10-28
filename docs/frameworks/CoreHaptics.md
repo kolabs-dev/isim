@@ -1,7 +1,7 @@
 # CoreHaptics
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 68.0% of Apple's iOS API (170 of 250, exact) · **Rows:** 6: 5 ✅ 1 🟡 · **iOS:** 13.0+
+**Symbols:** 67.2% of Apple's iOS API (168 of 250, exact) · **Rows:** 6: 5 ✅ 1 🟡 · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [Core Haptics](https://developer.apple.com/documentation/corehaptics) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -25,7 +25,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-80 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+82 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -46,6 +46,7 @@
 - [`static let hapticReleaseTimeControl: CHHapticDynamicParameter.ID`](https://developer.apple.com/documentation/corehaptics/chhapticdynamicparameter/id/hapticreleasetimecontrol)
 - [`static let hapticSharpnessControl: CHHapticDynamicParameter.ID`](https://developer.apple.com/documentation/corehaptics/chhapticdynamicparameter/id/hapticsharpnesscontrol)
 - [`init(rawValue: String)`](https://developer.apple.com/documentation/corehaptics/chhapticdynamicparameter/id/init(rawvalue:))
+- [`init(andReturnError: ()) throws`](https://developer.apple.com/documentation/corehaptics/chhapticengine/init(andreturnerror:))
 - [`static var badEventEntry: CHHapticError.Code`](https://developer.apple.com/documentation/corehaptics/chhapticerror/badevententry)
 - [`static var badParameterEntry: CHHapticError.Code`](https://developer.apple.com/documentation/corehaptics/chhapticerror/badparameterentry)
 - [`static var engineStartTimeout: CHHapticError.Code`](https://developer.apple.com/documentation/corehaptics/chhapticerror/enginestarttimeout)
@@ -92,6 +93,7 @@
 - [`static let releaseTime: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/releasetime)
 - [`static let sustained: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/sustained)
 - [`static let sustained: CHHapticEvent.ParameterID`](https://developer.apple.com/documentation/corehaptics/chhapticevent/parameterid/sustained)
+- [`init(contentsOfURL: URL) throws`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/init(contentsofurl:))
 - [`static let event: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/event)
 - [`static let eventDuration: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/eventduration)
 - [`static let eventParameters: CHHapticPattern.Key`](https://developer.apple.com/documentation/corehaptics/chhapticpattern/key/eventparameters)

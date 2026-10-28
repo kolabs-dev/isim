@@ -1,7 +1,7 @@
 # VideoToolbox
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 14.1% of Apple's iOS API (172 of 1216, exact) · **Rows:** 6: 5 ✅ 1 ❌ · **iOS:** 6.0+
+**Symbols:** 13.8% of Apple's iOS API (168 of 1216, exact) · **Rows:** 6: 5 ✅ 1 ❌ · **iOS:** 6.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [VideoToolbox](https://developer.apple.com/documentation/videotoolbox) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -30,7 +30,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1044 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1048 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -334,7 +334,7 @@
 - [`let kVTDecompressionProperty_FieldMode_BottomFieldOnly: CFString`](https://developer.apple.com/documentation/videotoolbox/kvtdecompressionproperty_fieldmode_bottomfieldonly)
 - [`let kVTDecompressionProperty_FieldMode_BottomFieldOnly: CFString`](https://developer.apple.com/documentation/videotoolbox/kvtdecompressionproperty_fieldmode_bottomfieldonly)
 - [`let kVTDecompressionProperty_FieldMode_DeinterlaceFields: CFString`](https://developer.apple.com/documentation/videotoolbox/kvtdecompressionproperty_fieldmode_deinterlacefields)
-- … and 744 more (`isim/data/api-coverage.json.gz`)
+- … and 748 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

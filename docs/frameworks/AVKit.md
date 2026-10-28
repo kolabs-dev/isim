@@ -1,7 +1,7 @@
 # AVKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 35.2% of Apple's iOS API (122 of 347, exact) · **Rows:** 7: 3 ✅ 1 🟡 3 ❌ · **iOS:** 8.0+
+**Symbols:** 41.7% of Apple's iOS API (141 of 338, exact) · **Rows:** 9: 5 ✅ 1 🟡 3 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [AVKit](https://developer.apple.com/documentation/avkit) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -27,44 +27,10 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-225 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+197 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
-- [`AVCaptureDeviceDescriptor`](https://developer.apple.com/documentation/avkit/avcapturedevicedescriptor)
-- [`var deviceType: AVCaptureDevice.DeviceType`](https://developer.apple.com/documentation/avkit/avcapturedevicedescriptor/devicetype)
-- [`var localizedName: String`](https://developer.apple.com/documentation/avkit/avcapturedevicedescriptor/localizedname)
-- [`var mediaTypes: Set<AVMediaType>`](https://developer.apple.com/documentation/avkit/avcapturedevicedescriptor/mediatypes)
-- [`var position: AVCaptureDevice.Position`](https://developer.apple.com/documentation/avkit/avcapturedevicedescriptor/position)
-- [`var uniqueID: String`](https://developer.apple.com/documentation/avkit/avcapturedevicedescriptor/uniqueid)
-- [`AVCaptureDeviceDirectionCoordinator`](https://developer.apple.com/documentation/avkit/avcapturedevicedirectioncoordinator)
-- [`var deviceDirections: AVCaptureDeviceDirectionMap`](https://developer.apple.com/documentation/avkit/avcapturedevicedirectioncoordinator/devicedirections)
-- [`init(view: UIView, deviceTypes: [AVCaptureDevice.DeviceType], changeHandler: ((AVCaptureDeviceDirectionMap) -> Void)?)`](https://developer.apple.com/documentation/avkit/avcapturedevicedirectioncoordinator/init(view:devicetypes:changehandler:))
-- [`AVCaptureDeviceDirectionMap`](https://developer.apple.com/documentation/avkit/avcapturedevicedirectionmap)
-- [`var backwardFacingDeviceDescriptors: [AVCaptureDeviceDescriptor]`](https://developer.apple.com/documentation/avkit/avcapturedevicedirectionmap/backwardfacingdevicedescriptors)
-- [`var forwardFacingDeviceDescriptors: [AVCaptureDeviceDescriptor]`](https://developer.apple.com/documentation/avkit/avcapturedevicedirectionmap/forwardfacingdevicedescriptors)
-- [`AVCaptureEvent`](https://developer.apple.com/documentation/avkit/avcaptureevent)
-- [`var phase: AVCaptureEventPhase`](https://developer.apple.com/documentation/avkit/avcaptureevent/phase)
-- [`func play(AVCaptureEventSound) -> Bool`](https://developer.apple.com/documentation/avkit/avcaptureevent/play(_:))
-- [`var shouldPlaySound: Bool`](https://developer.apple.com/documentation/avkit/avcaptureevent/shouldplaysound)
-- [`AVCaptureEventInteraction`](https://developer.apple.com/documentation/avkit/avcaptureeventinteraction)
-- [`class var defaultCaptureSoundDisabled: Bool`](https://developer.apple.com/documentation/avkit/avcaptureeventinteraction/defaultcapturesounddisabled)
-- [`init(eventHandler: (AVCaptureEvent) -> Void)`](https://developer.apple.com/documentation/avkit/avcaptureeventinteraction/init(eventhandler:))
-- [`init(handler: (AVCaptureEvent) -> Void)`](https://developer.apple.com/documentation/avkit/avcaptureeventinteraction/init(handler:))
-- [`init(primary: (AVCaptureEvent) -> Void, secondary: (AVCaptureEvent) -> Void)`](https://developer.apple.com/documentation/avkit/avcaptureeventinteraction/init(primary:secondary:))
-- [`init(primaryEventHandler: (AVCaptureEvent) -> Void, secondaryEventHandler: (AVCaptureEvent) -> Void)`](https://developer.apple.com/documentation/avkit/avcaptureeventinteraction/init(primaryeventhandler:secondaryeventhandler:))
-- [`var isEnabled: Bool`](https://developer.apple.com/documentation/avkit/avcaptureeventinteraction/isenabled)
-- [`AVCaptureEventPhase`](https://developer.apple.com/documentation/avkit/avcaptureeventphase)
-- [`case began`](https://developer.apple.com/documentation/avkit/avcaptureeventphase/began)
-- [`case cancelled`](https://developer.apple.com/documentation/avkit/avcaptureeventphase/cancelled)
-- [`case ended`](https://developer.apple.com/documentation/avkit/avcaptureeventphase/ended)
-- [`init?(rawValue: UInt)`](https://developer.apple.com/documentation/avkit/avcaptureeventphase/init(rawvalue:))
-- [`AVCaptureEventSound`](https://developer.apple.com/documentation/avkit/avcaptureeventsound)
-- [`class var beginVideoRecording: AVCaptureEventSound`](https://developer.apple.com/documentation/avkit/avcaptureeventsound/beginvideorecording)
-- [`class var cameraShutter: AVCaptureEventSound`](https://developer.apple.com/documentation/avkit/avcaptureeventsound/camerashutter)
-- [`class var endVideoRecording: AVCaptureEventSound`](https://developer.apple.com/documentation/avkit/avcaptureeventsound/endvideorecording)
-- [`init(url: URL) throws`](https://developer.apple.com/documentation/avkit/avcaptureeventsound/init(url:)-2a6o4)
-- [`init(URL: URL) throws`](https://developer.apple.com/documentation/avkit/avcaptureeventsound/init(url:)-3e9o9)
 - [`AVDisplayDynamicRange`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange)
 - [`AVDisplayDynamicRange`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange)
 - [`AVDisplayDynamicRange`](https://developer.apple.com/documentation/avkit/avdisplaydynamicrange)
@@ -145,6 +111,9 @@
 - [`var reason: AVLegibleMediaOptionsMenuController.StateChangeReason`](https://developer.apple.com/documentation/avkit/avlegiblemediaoptionsmenustate/reason)
 - [`var activeVideoCallContentViewController: AVPictureInPictureVideoCallViewController`](https://developer.apple.com/documentation/avkit/avpictureinpicturecontroller/contentsource-swift.class/activevideocallcontentviewcontroller)
 - [`var activeVideoCallSourceView: UIView?`](https://developer.apple.com/documentation/avkit/avpictureinpicturecontroller/contentsource-swift.class/activevideocallsourceview)
+- [`init(activeVideoCallSourceView: UIView, contentViewController: AVPictureInPictureVideoCallViewController)`](https://developer.apple.com/documentation/avkit/avpictureinpicturecontroller/contentsource-swift.class/init(activevideocallsourceview:contentviewcontroller:))
+- [`class func pictureInPictureButtonStartImage(compatibleWith: UITraitCollection?) -> UIImage`](https://developer.apple.com/documentation/avkit/avpictureinpicturecontroller/pictureinpicturebuttonstartimage(compatiblewith:))
+- [`class func pictureInPictureButtonStopImage(compatibleWith: UITraitCollection?) -> UIImage`](https://developer.apple.com/documentation/avkit/avpictureinpicturecontroller/pictureinpicturebuttonstopimage(compatiblewith:))
 - [`AVPictureInPictureVideoCallViewController`](https://developer.apple.com/documentation/avkit/avpictureinpicturevideocallviewcontroller)
 - [`AVPictureInPictureVideoCallViewController`](https://developer.apple.com/documentation/avkit/avpictureinpicturevideocallviewcontroller)
 - [`AVPlaybackUserInterfaceContentArtwork`](https://developer.apple.com/documentation/avkit/avplaybackuserinterfacecontentartwork)
@@ -240,6 +209,9 @@
 - [`var preferredDisplayDynamicRange: AVDisplayDynamicRange`](https://developer.apple.com/documentation/avkit/avplayerviewcontroller/preferreddisplaydynamicrange)
 - [`var toggleLookupAction: UIAction`](https://developer.apple.com/documentation/avkit/avplayerviewcontroller/togglelookupaction)
 - [`var videoFrameAnalysisTypes: AVVideoFrameAnalysisType`](https://developer.apple.com/documentation/avkit/avplayerviewcontroller/videoframeanalysistypes)
+- [`func playerViewController(AVPlayerViewController, didPresent: AVInterstitialTimeRange)`](https://developer.apple.com/documentation/avkit/avplayerviewcontrollerdelegate/playerviewcontroller(_:didpresent:))
+- [`func playerViewController(AVPlayerViewController, restoreUserInterfaceForFullScreenExitWithCompletionHandler: (Bool) -> Void)`](https://developer.apple.com/documentation/avkit/avplayerviewcontrollerdelegate/playerviewcontroller(_:restoreuserinterfaceforfullscreenexitwithcompletionhandler:))
+- [`func playerViewController(AVPlayerViewController, willPresent: AVInterstitialTimeRange)`](https://developer.apple.com/documentation/avkit/avplayerviewcontrollerdelegate/playerviewcontroller(_:willpresent:))
 - [`var customRoutingController: AVCustomRoutingController?`](https://developer.apple.com/documentation/avkit/avroutepickerview/customroutingcontroller)
 - [`AVVideoFrameAnalysisType`](https://developer.apple.com/documentation/avkit/avvideoframeanalysistype)
 - [`AVVideoFrameAnalysisType`](https://developer.apple.com/documentation/avkit/avvideoframeanalysistype)

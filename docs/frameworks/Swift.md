@@ -1,7 +1,7 @@
 # Swift (stdlib, runtime, concurrency)
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 92.5% of Apple's iOS API (21983 of 23770, exact) · **Rows:** 27: 25 ✅ 2 ❌ · **iOS:** 8.0+
+**Symbols:** 92.1% of Apple's iOS API (21888 of 23766, exact) · **Rows:** 27: 25 ✅ 2 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [Swift](https://developer.apple.com/documentation/swift) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)
@@ -46,7 +46,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1787 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1878 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -84,16 +84,20 @@
 - [`static func > (borrowing Self, borrowing Self) -> Bool`](https://developer.apple.com/documentation/swift/anyindex/_(_:_:)-66weo)
 - [`static func <= (borrowing Self, borrowing Self) -> Bool`](https://developer.apple.com/documentation/swift/anyindex/_=(_:_:)-3miw7)
 - [`static func >= (borrowing Self, borrowing Self) -> Bool`](https://developer.apple.com/documentation/swift/anyindex/_=(_:_:)-9ax9g)
-- [`var byStateReportingDomain: [StateReportingDomain : [MetricManager.ReportedState]]`](https://developer.apple.com/documentation/swift/array/bystatereportingdomain-7plu4)
-- [`var byStateReportingDomain: [StateReportingDomain : [MetricManager.ReportedState]]`](https://developer.apple.com/documentation/swift/array/bystatereportingdomain-7plu4)
-- [`var byStateReportingDomain: [StateReportingDomain : [MetricReport.StateEntry]]`](https://developer.apple.com/documentation/swift/array/bystatereportingdomain-8k1ux)
-- [`var byStateReportingDomain: [StateReportingDomain : [MetricReport.StateEntry]]`](https://developer.apple.com/documentation/swift/array/bystatereportingdomain-8k1ux)
+- [`func append<E>(addingCapacity: Int, initializingWith: (inout OutputSpan<Element>) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/swift/array/append(addingcapacity:initializingwith:))
+- [`func append<E>(addingCapacity: Int, initializingWith: (inout OutputSpan<Element>) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/swift/array/append(addingcapacity:initializingwith:))
 - [`static var defaultResolverSpecification: EmptyResolverSpecification<Array<Element>>`](https://developer.apple.com/documentation/swift/array/defaultresolverspecification)
 - [`static var defaultResolverSpecification: EmptyResolverSpecification<Array<Element>>`](https://developer.apple.com/documentation/swift/array/defaultresolverspecification)
 - [`var fullDayEntry: MetricReport.IntervalEntry`](https://developer.apple.com/documentation/swift/array/fulldayentry)
 - [`var fullDayEntry: MetricReport.IntervalEntry`](https://developer.apple.com/documentation/swift/array/fulldayentry)
 - [`func graphBuilderTensor(BNNSGraph.Builder) -> BNNSGraph.Builder.Tensor<Element>`](https://developer.apple.com/documentation/swift/array/graphbuildertensor(_:))
 - [`func graphBuilderTensor(BNNSGraph.Builder) -> BNNSGraph.Builder.Tensor<Element>`](https://developer.apple.com/documentation/swift/array/graphbuildertensor(_:))
+- [`init<E>(capacity: Int, initializingWith: (inout OutputSpan<Element>) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/swift/array/init(capacity:initializingwith:))
+- [`init<E>(capacity: Int, initializingWith: (inout OutputSpan<Element>) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/swift/array/init(capacity:initializingwith:))
+- [`init(fromSplitComplex: DSPSplitComplex, scale: Float, count: Int)`](https://developer.apple.com/documentation/swift/array/init(fromsplitcomplex:scale:count:)-5eirc)
+- [`init(fromSplitComplex: DSPSplitComplex, scale: Float, count: Int)`](https://developer.apple.com/documentation/swift/array/init(fromsplitcomplex:scale:count:)-5eirc)
+- [`init(fromSplitComplex: DSPDoubleSplitComplex, scale: Double, count: Int)`](https://developer.apple.com/documentation/swift/array/init(fromsplitcomplex:scale:count:)-5kgr3)
+- [`init(fromSplitComplex: DSPDoubleSplitComplex, scale: Double, count: Int)`](https://developer.apple.com/documentation/swift/array/init(fromsplitcomplex:scale:count:)-5kgr3)
 - [`func isTriviallyIdentical(to: Array<Element>) -> Bool`](https://developer.apple.com/documentation/swift/array/istriviallyidentical(to:))
 - [`func isTriviallyIdentical(to: Array<Element>) -> Bool`](https://developer.apple.com/documentation/swift/array/istriviallyidentical(to:))
 - [`func makeContainer(context: IntentValueContainer.ConversionContext) -> IntentValueContainer`](https://developer.apple.com/documentation/swift/array/makecontainer(context:))
@@ -179,6 +183,7 @@
 - [`static func > (borrowing Self, borrowing Self) -> Bool`](https://developer.apple.com/documentation/swift/character/_(_:_:)-3izqe)
 - [`static func <= (borrowing Self, borrowing Self) -> Bool`](https://developer.apple.com/documentation/swift/character/_=(_:_:)-5i1qb)
 - [`static func >= (borrowing Self, borrowing Self) -> Bool`](https://developer.apple.com/documentation/swift/character/_=(_:_:)-5nvyz)
+- [`init(consuming Continuation<T, E>, function: String)`](https://developer.apple.com/documentation/swift/checkedcontinuation/init(_:function:))
 - [`static func ..< (Self) -> PartialRangeUpTo<Self>`](https://developer.apple.com/documentation/swift/closedrange/index/'.._(_:))
 - [`static func ..< (Self) -> PartialRangeUpTo<Self>`](https://developer.apple.com/documentation/swift/closedrange/index/'.._(_:))
 - [`static func ..< (Self, Self) -> Range<Self>`](https://developer.apple.com/documentation/swift/closedrange/index/'.._(_:_:))
@@ -231,8 +236,12 @@
 - [`static func <= <RHS>(Self, RHS) -> Bool`](https://developer.apple.com/documentation/swift/comparable/_=(_:_:)-7yw8z)
 - [`static func >= (borrowing Self, borrowing Self) -> Bool`](https://developer.apple.com/documentation/swift/comparable/_=(_:_:)-954e4)
 - [`static func <= (borrowing Self, borrowing Self) -> Bool`](https://developer.apple.com/documentation/swift/comparable/_=(_:_:)-buc5)
+- [`func append<E>(addingCapacity: Int, initializingWith: (inout OutputSpan<Element>) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/swift/contiguousarray/append(addingcapacity:initializingwith:))
+- [`func append<E>(addingCapacity: Int, initializingWith: (inout OutputSpan<Element>) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/swift/contiguousarray/append(addingcapacity:initializingwith:))
 - [`func graphBuilderTensor(BNNSGraph.Builder) -> BNNSGraph.Builder.Tensor<Element>`](https://developer.apple.com/documentation/swift/contiguousarray/graphbuildertensor(_:))
 - [`func graphBuilderTensor(BNNSGraph.Builder) -> BNNSGraph.Builder.Tensor<Element>`](https://developer.apple.com/documentation/swift/contiguousarray/graphbuildertensor(_:))
+- [`init<E>(capacity: Int, initializingWith: (inout OutputSpan<Element>) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/swift/contiguousarray/init(capacity:initializingwith:))
+- [`init<E>(capacity: Int, initializingWith: (inout OutputSpan<Element>) throws(E) -> Void) throws(E)`](https://developer.apple.com/documentation/swift/contiguousarray/init(capacity:initializingwith:))
 - [`func isTriviallyIdentical(to: ContiguousArray<Element>) -> Bool`](https://developer.apple.com/documentation/swift/contiguousarray/istriviallyidentical(to:))
 - [`func isTriviallyIdentical(to: ContiguousArray<Element>) -> Bool`](https://developer.apple.com/documentation/swift/contiguousarray/istriviallyidentical(to:))
 - [`Continuation`](https://developer.apple.com/documentation/swift/continuation)
@@ -271,6 +280,10 @@
 - [`static func <= (borrowing Self, borrowing Self) -> Bool`](https://developer.apple.com/documentation/swift/dictionary/index/_=(_:_:)-6cxa9)
 - [`static func <= (borrowing Self, borrowing Self) -> Bool`](https://developer.apple.com/documentation/swift/dictionary/index/_=(_:_:)-6cxa9)
 - [`static func <= (borrowing Self, borrowing Self) -> Bool`](https://developer.apple.com/documentation/swift/dictionary/index/_=(_:_:)-6cxa9)
+- [`init<S>(AttributeContainer, including: S.Type) throws`](https://developer.apple.com/documentation/swift/dictionary/init(_:including:)-7afz2)
+- [`init<S>(AttributeContainer, including: S.Type) throws`](https://developer.apple.com/documentation/swift/dictionary/init(_:including:)-7afz2)
+- [`init<S>(AttributeContainer, including: KeyPath<AttributeScopes, S.Type>) throws`](https://developer.apple.com/documentation/swift/dictionary/init(_:including:)-8ls7v)
+- [`init<S>(AttributeContainer, including: KeyPath<AttributeScopes, S.Type>) throws`](https://developer.apple.com/documentation/swift/dictionary/init(_:including:)-8ls7v)
 - [`func isTriviallyIdentical(to: Dictionary<Key, Value>) -> Bool`](https://developer.apple.com/documentation/swift/dictionary/istriviallyidentical(to:))
 - [`func isTriviallyIdentical(to: Dictionary<Key, Value>) -> Bool`](https://developer.apple.com/documentation/swift/dictionary/istriviallyidentical(to:))
 - [`func hash(into: inout Hasher)`](https://developer.apple.com/documentation/swift/dictionary/keys-swift.struct/hash(into:))
@@ -316,10 +329,13 @@
 - [`func locale(Locale) -> Duration.UnitsFormatStyle.Attributed`](https://developer.apple.com/documentation/swift/duration/unitsformatstyle/attributed-swift.struct/locale(_:))
 - [`subscript<T>(dynamicMember _: KeyPath<Duration.UnitsFormatStyle, T>) -> T`](https://developer.apple.com/documentation/swift/duration/unitsformatstyle/attributed-swift.struct/subscript(dynamicmember:)-57dpz)
 - [`subscript<T>(dynamicMember _: WritableKeyPath<Duration.UnitsFormatStyle, T>) -> T`](https://developer.apple.com/documentation/swift/duration/unitsformatstyle/attributed-swift.struct/subscript(dynamicmember:)-65x7d)
+- [`static func hide(rounded: FloatingPointRoundingRule) -> Duration.UnitsFormatStyle.FractionalPartDisplayStrategy`](https://developer.apple.com/documentation/swift/duration/unitsformatstyle/fractionalpartdisplaystrategy/hide(rounded:))
+- [`init<Range>(lengthLimits: Range, roundingRule: FloatingPointRoundingRule, roundingIncrement: Double?)`](https://developer.apple.com/documentation/swift/duration/unitsformatstyle/fractionalpartdisplaystrategy/init(lengthlimits:roundingrule:roundingincrement:))
 - [`var maximumLength: Int`](https://developer.apple.com/documentation/swift/duration/unitsformatstyle/fractionalpartdisplaystrategy/maximumlength)
 - [`var minimumLength: Int`](https://developer.apple.com/documentation/swift/duration/unitsformatstyle/fractionalpartdisplaystrategy/minimumlength)
 - [`var roundingIncrement: Double?`](https://developer.apple.com/documentation/swift/duration/unitsformatstyle/fractionalpartdisplaystrategy/roundingincrement)
 - [`var roundingRule: FloatingPointRoundingRule`](https://developer.apple.com/documentation/swift/duration/unitsformatstyle/fractionalpartdisplaystrategy/roundingrule)
+- [`init<ValueRange>(allowedUnits: Set<Duration.UnitsFormatStyle.Unit>, width: Duration.UnitsFormatStyle.UnitWidth, maximumUnitCount: Int?, zeroValueUnits: Duration.UnitsFormatStyle.ZeroValueUnitsDisplayStrategy, valueLengthLimits: ValueRange, fractionalPart: Duration.UnitsFormatStyle.FractionalPartDisplayStrategy)`](https://developer.apple.com/documentation/swift/duration/unitsformatstyle/init(allowedunits:width:maximumunitcount:zerovalueunits:valuelengthlimits:fractionalpart:))
 - [`var valueLengthLimits: Range<Int>?`](https://developer.apple.com/documentation/swift/duration/unitsformatstyle/valuelengthlimits)
 - [`Duration.UnwrappedType`](https://developer.apple.com/documentation/swift/duration/unwrappedtype)
 - [`Duration.ValueType`](https://developer.apple.com/documentation/swift/duration/valuetype)
@@ -338,23 +354,7 @@
 - [`static func &>> (Self, Self) -> Self`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__(_:_:)-1sn91)
 - [`static func &<< (Self, Self) -> Self`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__(_:_:)-4j1s7)
 - [`static func &>> (Self, Self) -> Self`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__(_:_:)-6o5at)
-- [`static func &<< <Other>(Self, Other) -> Self`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__(_:_:)-6pggx)
-- [`static func &>> <Other>(Self, Other) -> Self`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__(_:_:)-9b5yu)
-- [`static func &>>= (inout Self, Self)`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__=(_:_:)-2ffyd)
-- [`static func &<<= <Other>(inout Self, Other)`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__=(_:_:)-5s3cx)
-- [`static func &>>= <Other>(inout Self, Other)`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__=(_:_:)-k22q)
-- [`static func &<<= (inout Self, Self)`](https://developer.apple.com/documentation/swift/fixedwidthinteger/&__=(_:_:)-q186)
-- [`static func ..< (Self) -> PartialRangeUpTo<Self>`](https://developer.apple.com/documentation/swift/flattensequence/index/'.._(_:))
-- [`static func ..< (Self, Self) -> Range<Self>`](https://developer.apple.com/documentation/swift/flattensequence/index/'.._(_:_:))
-- [`static func < (FlattenCollection<Base>.Index, FlattenCollection<Base>.Index) -> Bool`](https://developer.apple.com/documentation/swift/flattensequence/index/_(_:_:))
-- [`static func > (borrowing Self, borrowing Self) -> Bool`](https://developer.apple.com/documentation/swift/flattensequence/index/_(_:_:)-5rnu1)
-- [`static func <= (borrowing Self, borrowing Self) -> Bool`](https://developer.apple.com/documentation/swift/flattensequence/index/_=(_:_:)-6kb5t)
-- [`static func >= (borrowing Self, borrowing Self) -> Bool`](https://developer.apple.com/documentation/swift/flattensequence/index/_=(_:_:)-7hu2z)
-- [`static func ..< (Self) -> PartialRangeUpTo<Self>`](https://developer.apple.com/documentation/swift/float/'.._(_:))
-- [`static func ..< (Self) -> PartialRangeUpTo<Self>`](https://developer.apple.com/documentation/swift/float/'.._(_:))
-- [`static func ..< (Self) -> PartialRangeUpTo<Self>`](https://developer.apple.com/documentation/swift/float/'.._(_:))
-- [`static func ..< (Self, Self) -> Range<Self>`](https://developer.apple.com/documentation/swift/float/'.._(_:_:))
-- … and 1487 more (`isim/data/api-coverage.json.gz`)
+- … and 1578 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

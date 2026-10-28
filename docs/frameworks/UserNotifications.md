@@ -1,7 +1,7 @@
 # UserNotifications
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 84.9% of Apple's iOS API (242 of 285, exact) · **Rows:** 12: 12 ✅ · **iOS:** 10.0+
+**Symbols:** 80.7% of Apple's iOS API (230 of 285, exact) · **Rows:** 12: 12 ✅ · **iOS:** 10.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [UserNotifications](https://developer.apple.com/documentation/usernotifications) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -32,10 +32,11 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-43 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+55 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
+- [`convenience init(dateMatchingComponents: DateComponents, repeats: Bool)`](https://developer.apple.com/documentation/usernotifications/uncalendarnotificationtrigger/init(datematchingcomponents:repeats:))
 - [`UNError`](https://developer.apple.com/documentation/usernotifications/unerror)
 - [`static var attachmentCorrupt: UNError.Code`](https://developer.apple.com/documentation/usernotifications/unerror/attachmentcorrupt)
 - [`static var attachmentInvalidFileSize: UNError.Code`](https://developer.apple.com/documentation/usernotifications/unerror/attachmentinvalidfilesize)
@@ -79,6 +80,17 @@
 - [`static var notificationInvalidNoDate: UNError.Code`](https://developer.apple.com/documentation/usernotifications/unerror/notificationinvalidnodate)
 - [`static var notificationsNotAllowed: UNError.Code`](https://developer.apple.com/documentation/usernotifications/unerror/notificationsnotallowed)
 - [`var appEntityIdentifiers: [EntityIdentifier]`](https://developer.apple.com/documentation/usernotifications/unmutablenotificationcontent/appentityidentifiers)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/usernotifications/unnotification/init(coder:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/usernotifications/unnotificationaction/init(coder:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/usernotifications/unnotificationactionicon/init(coder:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/usernotifications/unnotificationattachment/init(coder:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/usernotifications/unnotificationcategory/init(coder:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/usernotifications/unnotificationcontent/init(coder:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/usernotifications/unnotificationrequest/init(coder:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/usernotifications/unnotificationresponse/init(coder:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/usernotifications/unnotificationsettings/init(coder:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/usernotifications/unnotificationsound/init(coder:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/usernotifications/unnotificationtrigger/init(coder:))
 
 </details>
 <!-- /generated:missing -->

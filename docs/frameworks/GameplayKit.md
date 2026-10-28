@@ -1,7 +1,7 @@
 # GameplayKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 91.2% of Apple's iOS API (445 of 488, exact) · **Rows:** 18: 10 ✅ 7 🟡 1 ❌ · **iOS:** 9.0+
+**Symbols:** 98.2% of Apple's iOS API (479 of 488, exact) · **Rows:** 26: 18 ✅ 7 🟡 1 ❌ · **iOS:** 9.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [GameplayKit](https://developer.apple.com/documentation/gameplaykit) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)
@@ -44,53 +44,19 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-43 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+9 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
-- [`var GK_VERSION: Int32`](https://developer.apple.com/documentation/gameplaykit/gk_version)
-- [`GKAgent3D`](https://developer.apple.com/documentation/gameplaykit/gkagent3d)
-- [`var position: vector_float3`](https://developer.apple.com/documentation/gameplaykit/gkagent3d/position)
-- [`var rightHanded: Bool`](https://developer.apple.com/documentation/gameplaykit/gkagent3d/righthanded)
-- [`var rotation: matrix_float3x3`](https://developer.apple.com/documentation/gameplaykit/gkagent3d/rotation)
-- [`func update(deltaTime: TimeInterval)`](https://developer.apple.com/documentation/gameplaykit/gkagent3d/update(deltatime:))
-- [`var velocity: vector_float3`](https://developer.apple.com/documentation/gameplaykit/gkagent3d/velocity)
-- [`class func checkerboardNoise(withSquareSize: Double) -> Self`](https://developer.apple.com/documentation/gameplaykit/gkcheckerboardnoisesource/checkerboardnoise(withsquaresize:))
-- [`GKCompositeBehavior`](https://developer.apple.com/documentation/gameplaykit/gkcompositebehavior)
-- [`var behaviorCount: Int`](https://developer.apple.com/documentation/gameplaykit/gkcompositebehavior/behaviorcount)
-- [`convenience init(behaviors: [GKBehavior])`](https://developer.apple.com/documentation/gameplaykit/gkcompositebehavior/init(behaviors:))
-- [`convenience init(behaviors: [GKBehavior], andWeights: [NSNumber])`](https://developer.apple.com/documentation/gameplaykit/gkcompositebehavior/init(behaviors:andweights:))
-- [`func remove(GKBehavior)`](https://developer.apple.com/documentation/gameplaykit/gkcompositebehavior/remove(_:))
-- [`func removeAllBehaviors()`](https://developer.apple.com/documentation/gameplaykit/gkcompositebehavior/removeallbehaviors())
-- [`func setWeight(Float, for: GKBehavior)`](https://developer.apple.com/documentation/gameplaykit/gkcompositebehavior/setweight(_:for:))
-- [`subscript(GKBehavior) -> NSNumber`](https://developer.apple.com/documentation/gameplaykit/gkcompositebehavior/subscript(_:)-6jng9)
-- [`subscript(Int) -> GKBehavior`](https://developer.apple.com/documentation/gameplaykit/gkcompositebehavior/subscript(_:)-6krdg)
-- [`func weight(for: GKBehavior) -> Float`](https://developer.apple.com/documentation/gameplaykit/gkcompositebehavior/weight(for:))
-- [`class func constantNoise(withValue: Double) -> Self`](https://developer.apple.com/documentation/gameplaykit/gkconstantnoisesource/constantnoise(withvalue:))
-- [`class func cylindersNoise(withFrequency: Double) -> Self`](https://developer.apple.com/documentation/gameplaykit/gkcylindersnoisesource/cylindersnoise(withfrequency:))
-- [`func export(to: URL, error: (any Error)?) -> Bool`](https://developer.apple.com/documentation/gameplaykit/gkdecisiontree/export(to:error:))
-- [`func connectToLowestCostNode(node: GKGraphNode, bidirectional: Bool)`](https://developer.apple.com/documentation/gameplaykit/gkgraph/connecttolowestcostnode(node:bidirectional:))
-- [`class func node(withPoint: vector_float2) -> Self`](https://developer.apple.com/documentation/gameplaykit/gkgraphnode2d/node(withpoint:))
-- [`class func node(withPoint: vector_float3) -> Self`](https://developer.apple.com/documentation/gameplaykit/gkgraphnode3d/node(withpoint:))
-- [`func connectToAdjacentNodes(node: GKGridGraphNode)`](https://developer.apple.com/documentation/gameplaykit/gkgridgraph/connecttoadjacentnodes(node:))
-- [`func applyTurbulence(frequency: Double, power: Double, roughness: Int32, seed: Int32)`](https://developer.apple.com/documentation/gameplaykit/gknoise/applyturbulence(frequency:power:roughness:seed:))
-- [`func displaceWithNoises(x: GKNoise, y: GKNoise, z: GKNoise)`](https://developer.apple.com/documentation/gameplaykit/gknoise/displacewithnoises(x:y:z:))
-- [`GKNSPredicateRule`](https://developer.apple.com/documentation/gameplaykit/gknspredicaterule)
-- [`func evaluatePredicate(in: GKRuleSystem) -> Bool`](https://developer.apple.com/documentation/gameplaykit/gknspredicaterule/evaluatepredicate(in:))
-- [`init(predicate: NSPredicate)`](https://developer.apple.com/documentation/gameplaykit/gknspredicaterule/init(predicate:))
-- [`var predicate: NSPredicate`](https://developer.apple.com/documentation/gameplaykit/gknspredicaterule/predicate)
-- [`func float3(at: Int) -> vector_float3`](https://developer.apple.com/documentation/gameplaykit/gkpath/float3(at:))
-- [`case halve`](https://developer.apple.com/documentation/gameplaykit/gkrtreesplitstrategy/halve)
-- [`case halve`](https://developer.apple.com/documentation/gameplaykit/gkrtreesplitstrategy/halve)
-- [`case linear`](https://developer.apple.com/documentation/gameplaykit/gkrtreesplitstrategy/linear)
-- [`case linear`](https://developer.apple.com/documentation/gameplaykit/gkrtreesplitstrategy/linear)
-- [`case quadratic`](https://developer.apple.com/documentation/gameplaykit/gkrtreesplitstrategy/quadratic)
-- [`case quadratic`](https://developer.apple.com/documentation/gameplaykit/gkrtreesplitstrategy/quadratic)
-- [`GKSCNNodeComponent`](https://developer.apple.com/documentation/gameplaykit/gkscnnodecomponent)
-- [`init(node: SCNNode)`](https://developer.apple.com/documentation/gameplaykit/gkscnnodecomponent/init(node:))
-- [`var node: SCNNode`](https://developer.apple.com/documentation/gameplaykit/gkscnnodecomponent/node)
-- [`class func spheresNoise(withFrequency: Double) -> Self`](https://developer.apple.com/documentation/gameplaykit/gkspheresnoisesource/spheresnoise(withfrequency:))
-- [`class func voronoiNoise(withFrequency: Double, displacement: Double, distanceEnabled: Bool, seed: Int32) -> Self`](https://developer.apple.com/documentation/gameplaykit/gkvoronoinoisesource/voronoinoise(withfrequency:displacement:distanceenabled:seed:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/gameplaykit/gkdecisiontree/init(coder:))
+- [`init([GKGraphNode])`](https://developer.apple.com/documentation/gameplaykit/gkgraph/init(_:))
+- [`init(GKNoiseSource, gradientColors: [NSNumber : UIColor])`](https://developer.apple.com/documentation/gameplaykit/gknoise/init(_:gradientcolors:))
+- [`convenience init(componentNoises: [GKNoise], selectionNoise: GKNoise)`](https://developer.apple.com/documentation/gameplaykit/gknoise/init(componentnoises:selectionnoise:))
+- [`convenience init(componentNoises: [GKNoise], selectionNoise: GKNoise, componentBoundaries: [NSNumber], boundaryBlendDistances: [NSNumber])`](https://developer.apple.com/documentation/gameplaykit/gknoise/init(componentnoises:selectionnoise:componentboundaries:boundaryblenddistances:))
+- [`func remapValues(toCurveWithControlPoints: [NSNumber : NSNumber])`](https://developer.apple.com/documentation/gameplaykit/gknoise/remapvalues(tocurvewithcontrolpoints:))
+- [`convenience init(noise: GKNoise)`](https://developer.apple.com/documentation/gameplaykit/gknoisemap/init(noise:))
+- [`func nodes(for: GKPolygonObstacle) -> [NodeType]`](https://developer.apple.com/documentation/gameplaykit/gkobstaclegraph/nodes(for:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/gameplaykit/gkpolygonobstacle/init(coder:))
 
 </details>
 <!-- /generated:missing -->

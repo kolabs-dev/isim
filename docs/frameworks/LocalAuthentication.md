@@ -1,7 +1,7 @@
 # LocalAuthentication
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 98.5% of Apple's iOS API (260 of 264, exact) · **Rows:** 8: 6 ✅ 2 ❌ · **iOS:** 8.0+
+**Symbols:** 98.1% of Apple's iOS API (259 of 264, exact) · **Rows:** 8: 6 ✅ 2 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Identity & security](../COVERAGE.md#security) · **Apple:** [LocalAuthentication](https://developer.apple.com/documentation/localauthentication) · **Issues:** [`area:security`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asecurity)
@@ -26,7 +26,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-4 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+5 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -34,6 +34,7 @@
 - [`var kLAPolicyDeviceOwnerAuthenticationWithCompanion: Int32`](https://developer.apple.com/documentation/localauthentication/klapolicydeviceownerauthenticationwithcompanion)
 - [`case smartCardPIN`](https://developer.apple.com/documentation/localauthentication/lacredentialtype/smartcardpin)
 - [`static var companionNotAvailable: LAError.Code`](https://developer.apple.com/documentation/localauthentication/laerror-swift.struct/companionnotavailable)
+- [`func authorize(localizedReason: String, in: LAPresentationContext, completion: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/localauthentication/laright/authorize(localizedreason:in:completion:))
 
 </details>
 <!-- /generated:missing -->

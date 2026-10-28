@@ -1,7 +1,7 @@
 # CoreLocation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 84.3% of Apple's iOS API (419 of 497, exact) · **Rows:** 5: 3 ✅ 2 ❌ · **iOS:** 2.0+
+**Symbols:** 82.8% of Apple's iOS API (408 of 493, exact) · **Rows:** 5: 3 ✅ 2 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [CoreLocation](https://developer.apple.com/documentation/corelocation) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -23,7 +23,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-78 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+85 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -54,9 +54,12 @@
 - [`static var rangingUnavailable: CLError.Code`](https://developer.apple.com/documentation/corelocation/clerror-swift.struct/rangingunavailable)
 - [`static var regionMonitoringResponseDelayed: CLError.Code`](https://developer.apple.com/documentation/corelocation/clerror-swift.struct/regionmonitoringresponsedelayed)
 - [`static var regionMonitoringSetupDelayed: CLError.Code`](https://developer.apple.com/documentation/corelocation/clerror-swift.struct/regionmonitoringsetupdelayed)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/corelocation/clfloor/init(coder:))
 - [`CLGeocodeCompletionHandler`](https://developer.apple.com/documentation/corelocation/clgeocodecompletionhandler)
 - [`func geocodePostalAddress(CNPostalAddress, completionHandler: ([CLPlacemark]?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/corelocation/clgeocoder/geocodepostaladdress(_:completionhandler:))
 - [`func geocodePostalAddress(CNPostalAddress, preferredLocale: Locale?, completionHandler: ([CLPlacemark]?, (any Error)?) -> Void)`](https://developer.apple.com/documentation/corelocation/clgeocoder/geocodepostaladdress(_:preferredlocale:completionhandler:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/corelocation/clheading/init(coder:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/corelocation/cllocation/init(coder:))
 - [`var headingBody: (any CLBodyIdentifiable)?`](https://developer.apple.com/documentation/corelocation/cllocationmanager/headingbody)
 - [`var headingBody: (any CLBodyIdentifiable)?`](https://developer.apple.com/documentation/corelocation/cllocationmanager/headingbody)
 - [`var headingBody: (any CLBodyIdentifiable)?`](https://developer.apple.com/documentation/corelocation/cllocationmanager/headingbody)
@@ -87,12 +90,16 @@
 - [`CLLocationPushServiceExtension`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceextension)
 - [`func didReceiveLocationPushPayload([String : Any], completion: () -> Void)`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceextension/didreceivelocationpushpayload(_:completion:))
 - [`func serviceExtensionWillTerminate()`](https://developer.apple.com/documentation/corelocation/cllocationpushserviceextension/serviceextensionwillterminate())
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/corelocation/cllocationsourceinformation/init(coder:))
 - [`case maritime`](https://developer.apple.com/documentation/corelocation/cllocationupdate/liveconfiguration/maritime)
 - [`static var defaultResolverSpecification: EmptyResolverSpecification<CLPlacemark>`](https://developer.apple.com/documentation/corelocation/clplacemark/defaultresolverspecification)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/corelocation/clplacemark/init(coder:))
+- [`convenience init(location: CLLocation, name: String?, postalAddress: CNPostalAddress?)`](https://developer.apple.com/documentation/corelocation/clplacemark/init(location:name:postaladdress:))
 - [`var postalAddress: CNPostalAddress?`](https://developer.apple.com/documentation/corelocation/clplacemark/postaladdress)
 - [`CLPlacemark.Specification`](https://developer.apple.com/documentation/corelocation/clplacemark/specification)
 - [`CLPlacemark.UnwrappedType`](https://developer.apple.com/documentation/corelocation/clplacemark/unwrappedtype)
 - [`CLPlacemark.ValueType`](https://developer.apple.com/documentation/corelocation/clplacemark/valuetype)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/corelocation/clregion/init(coder:))
 - [`CLServiceSession.Diagnostic`](https://developer.apple.com/documentation/corelocation/clservicesession-pt7n/diagnostic)
 - [`var alwaysAuthorizationDenied: Bool`](https://developer.apple.com/documentation/corelocation/clservicesession-pt7n/diagnostic/alwaysauthorizationdenied)
 - [`var authorizationDenied: Bool`](https://developer.apple.com/documentation/corelocation/clservicesession-pt7n/diagnostic/authorizationdenied)

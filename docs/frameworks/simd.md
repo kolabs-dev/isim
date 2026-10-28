@@ -1,7 +1,7 @@
 # simd
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 53.3% of Apple's iOS API (995 of 1867, exact) · **Rows:** 3: 2 ✅ 1 🟡 · **iOS:** None+
+**Symbols:** 58.9% of Apple's iOS API (1229 of 2085, exact) · **Rows:** 4: 3 ✅ 1 🟡 · **iOS:** None+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [simd](https://developer.apple.com/documentation/simd) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)
@@ -22,7 +22,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-872 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+856 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -326,7 +326,7 @@
 - [`func exp2(simd_float2) -> simd_float2`](https://developer.apple.com/documentation/simd/exp2(_:)-6sez2)
 - [`func exp2(simd_float3) -> simd_float3`](https://developer.apple.com/documentation/simd/exp2(_:)-85hb2)
 - [`func exp2(simd_float3) -> simd_float3`](https://developer.apple.com/documentation/simd/exp2(_:)-85hb2)
-- … and 572 more (`isim/data/api-coverage.json.gz`)
+- … and 556 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

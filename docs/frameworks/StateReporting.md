@@ -1,6 +1,7 @@
 # StateReporting
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 100.0% of Apple's iOS API (31 of 31, exact) · **Rows:** 3: 3 ✅ · **iOS:** 27.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [StateReporting](https://developer.apple.com/documentation/statereporting) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)
@@ -27,4 +28,5 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+Nothing (or not measured yet).
 <!-- /generated:missing -->

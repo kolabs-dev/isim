@@ -1,7 +1,7 @@
 # SceneKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 64.1% of Apple's iOS API (1069 of 1668, exact) · **Rows:** 18: 9 ✅ 8 🟡 1 ❌ · **iOS:** 8.0+
+**Symbols:** 63.5% of Apple's iOS API (1059 of 1668, exact) · **Rows:** 18: 9 ✅ 8 🟡 1 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [SceneKit](https://developer.apple.com/documentation/scenekit) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)
@@ -103,7 +103,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-599 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+609 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -121,10 +121,13 @@
 - [`func animation(forKey: String) -> CAAnimation?`](https://developer.apple.com/documentation/scenekit/scnanimatable/animation(forkey:))
 - [`func isAnimationPaused(forKey: String) -> Bool`](https://developer.apple.com/documentation/scenekit/scnanimatable/isanimationpaused(forkey:))
 - [`func pauseAnimation(forKey: String)`](https://developer.apple.com/documentation/scenekit/scnanimatable/pauseanimation(forkey:))
+- [`func removeAnimation(forKey: String, fadeOutDuration: CGFloat)`](https://developer.apple.com/documentation/scenekit/scnanimatable/removeanimation(forkey:fadeoutduration:))
 - [`func resumeAnimation(forKey: String)`](https://developer.apple.com/documentation/scenekit/scnanimatable/resumeanimation(forkey:))
 - [`func setAnimationSpeed(CGFloat, forKey: String)`](https://developer.apple.com/documentation/scenekit/scnanimatable/setanimationspeed(_:forkey:))
 - [`var animationEvents: [SCNAnimationEvent]?`](https://developer.apple.com/documentation/scenekit/scnanimation-swift.class/animationevents)
 - [`var animationEvents: [SCNAnimationEvent]?`](https://developer.apple.com/documentation/scenekit/scnanimation-swift.class/animationevents)
+- [`init(contentsOfURL: URL)`](https://developer.apple.com/documentation/scenekit/scnanimation-swift.class/init(contentsofurl:))
+- [`init(contentsOfURL: URL)`](https://developer.apple.com/documentation/scenekit/scnanimation-swift.class/init(contentsofurl:))
 - [`SCNAnimationEvent`](https://developer.apple.com/documentation/scenekit/scnanimationevent)
 - [`convenience init(keyTime: CGFloat, block: SCNAnimationEventBlock)`](https://developer.apple.com/documentation/scenekit/scnanimationevent/init(keytime:block:))
 - [`SCNAnimationEventBlock`](https://developer.apple.com/documentation/scenekit/scnanimationeventblock)
@@ -234,7 +237,11 @@
 - [`SCNFieldForceEvaluator`](https://developer.apple.com/documentation/scenekit/scnfieldforceevaluator)
 - [`SCNFloat`](https://developer.apple.com/documentation/scenekit/scnfloat)
 - [`var geometrySourceChannels: [NSNumber]?`](https://developer.apple.com/documentation/scenekit/scngeometry/geometrysourcechannels)
+- [`convenience init(sources: [SCNGeometrySource], elements: [SCNGeometryElement]?, sourceChannels: [NSNumber]?)`](https://developer.apple.com/documentation/scenekit/scngeometry/init(sources:elements:sourcechannels:))
 - [`var tessellator: SCNGeometryTessellator?`](https://developer.apple.com/documentation/scenekit/scngeometry/tessellator)
+- [`convenience init(buffer: any MTLBuffer, primitiveType: SCNGeometryPrimitiveType, primitiveCount: Int, indicesChannelCount: Int, interleavedIndicesChannels: Bool, bytesPerIndex: Int)`](https://developer.apple.com/documentation/scenekit/scngeometryelement/init(buffer:primitivetype:primitivecount:indiceschannelcount:interleavedindiceschannels:bytesperindex:))
+- [`convenience init(data: Data?, primitiveType: SCNGeometryPrimitiveType, primitiveCount: Int, indicesChannelCount: Int, interleavedIndicesChannels: Bool, bytesPerIndex: Int)`](https://developer.apple.com/documentation/scenekit/scngeometryelement/init(data:primitivetype:primitivecount:indiceschannelcount:interleavedindiceschannels:bytesperindex:))
+- [`convenience init(data: Data, semantic: SCNGeometrySource.Semantic, vectorCount: Int, floatComponents: Bool, componentsPerVector: Int, bytesPerComponent: Int, dataOffset: Int, dataStride: Int)`](https://developer.apple.com/documentation/scenekit/scngeometrysource/init(data:semantic:vectorcount:floatcomponents:componentspervector:bytespercomponent:dataoffset:datastride:))
 - [`SCNGeometryTessellator`](https://developer.apple.com/documentation/scenekit/scngeometrytessellator)
 - [`var edgeTessellationFactor: CGFloat`](https://developer.apple.com/documentation/scenekit/scngeometrytessellator/edgetessellationfactor)
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/scenekit/scngeometrytessellator/init(coder:))
@@ -312,7 +319,6 @@
 - [`func addAudioPlayer(SCNAudioPlayer)`](https://developer.apple.com/documentation/scenekit/scnnode/addaudioplayer(_:))
 - [`func addParticleSystem(SCNParticleSystem)`](https://developer.apple.com/documentation/scenekit/scnnode/addparticlesystem(_:))
 - [`var audioPlayers: [SCNAudioPlayer]`](https://developer.apple.com/documentation/scenekit/scnnode/audioplayers)
-- [`var entity: GKEntity?`](https://developer.apple.com/documentation/scenekit/scnnode/entity)
 - [`var filters: [CIFilter]?`](https://developer.apple.com/documentation/scenekit/scnnode/filters)
 - [`var morpher: SCNMorpher?`](https://developer.apple.com/documentation/scenekit/scnnode/morpher)
 - [`var particleSystems: [SCNParticleSystem]?`](https://developer.apple.com/documentation/scenekit/scnnode/particlesystems)
@@ -401,13 +407,7 @@
 - [`var dampingFactor: CGFloat`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/dampingfactor)
 - [`var emissionDuration: CGFloat`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/emissionduration)
 - [`var emissionDurationVariation: CGFloat`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/emissiondurationvariation)
-- [`var emitterShape: SCNGeometry?`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/emittershape)
-- [`var emittingDirection: SCNVector3`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/emittingdirection)
-- [`var fresnelExponent: CGFloat`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/fresnelexponent)
-- [`func handle(SCNParticleEvent, forProperties: [SCNParticleSystem.ParticleProperty], handler: SCNParticleEventBlock)`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/handle(_:forproperties:handler:))
-- [`var idleDuration: CGFloat`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/idleduration)
-- [`var idleDurationVariation: CGFloat`](https://developer.apple.com/documentation/scenekit/scnparticlesystem/idledurationvariation)
-- … and 299 more (`isim/data/api-coverage.json.gz`)
+- … and 309 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

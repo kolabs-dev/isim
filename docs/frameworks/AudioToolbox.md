@@ -1,7 +1,7 @@
 # AudioToolbox
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 17.8% of Apple's iOS API (538 of 3023, exact) · **Rows:** 10: 8 ✅ 2 ❌ · **iOS:** 2.0+
+**Symbols:** 34.1% of Apple's iOS API (1068 of 3131, exact) · **Rows:** 15: 12 ✅ 1 🟡 2 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [AudioToolbox](https://developer.apple.com/documentation/audiotoolbox) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -40,7 +40,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-2485 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+2063 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -227,20 +227,6 @@
 - [`case equalPower`](https://developer.apple.com/documentation/audiotoolbox/audiobalancefadetype/equalpower)
 - [`init?(rawValue: UInt32)`](https://developer.apple.com/documentation/audiotoolbox/audiobalancefadetype/init(rawvalue:))
 - [`case maxUnityGain`](https://developer.apple.com/documentation/audiotoolbox/audiobalancefadetype/maxunitygain)
-- [`AudioBytePacketTranslation`](https://developer.apple.com/documentation/audiotoolbox/audiobytepackettranslation)
-- [`init()`](https://developer.apple.com/documentation/audiotoolbox/audiobytepackettranslation/init())
-- [`init(mByte: Int64, mPacket: Int64, mByteOffsetInPacket: UInt32, mFlags: AudioBytePacketTranslationFlags)`](https://developer.apple.com/documentation/audiotoolbox/audiobytepackettranslation/init(mbyte:mpacket:mbyteoffsetinpacket:mflags:))
-- [`var mByte: Int64`](https://developer.apple.com/documentation/audiotoolbox/audiobytepackettranslation/mbyte)
-- [`var mByteOffsetInPacket: UInt32`](https://developer.apple.com/documentation/audiotoolbox/audiobytepackettranslation/mbyteoffsetinpacket)
-- [`var mFlags: AudioBytePacketTranslationFlags`](https://developer.apple.com/documentation/audiotoolbox/audiobytepackettranslation/mflags)
-- [`var mPacket: Int64`](https://developer.apple.com/documentation/audiotoolbox/audiobytepackettranslation/mpacket)
-- [`AudioBytePacketTranslationFlags`](https://developer.apple.com/documentation/audiotoolbox/audiobytepackettranslationflags)
-- [`AudioBytePacketTranslationFlags`](https://developer.apple.com/documentation/audiotoolbox/audiobytepackettranslationflags)
-- [`static var bytePacketTranslationFlag_IsEstimate: AudioBytePacketTranslationFlags`](https://developer.apple.com/documentation/audiotoolbox/audiobytepackettranslationflags/bytepackettranslationflag_isestimate)
-- [`static var bytePacketTranslationFlag_IsEstimate: AudioBytePacketTranslationFlags`](https://developer.apple.com/documentation/audiotoolbox/audiobytepackettranslationflags/bytepackettranslationflag_isestimate)
-- [`static var bytePacketTranslationFlag_IsEstimate: AudioBytePacketTranslationFlags`](https://developer.apple.com/documentation/audiotoolbox/audiobytepackettranslationflags/bytepackettranslationflag_isestimate)
-- [`init(rawValue: UInt32)`](https://developer.apple.com/documentation/audiotoolbox/audiobytepackettranslationflags/init(rawvalue:))
-- [`init(rawValue: UInt32)`](https://developer.apple.com/documentation/audiotoolbox/audiobytepackettranslationflags/init(rawvalue:))
 - [`AudioCodec`](https://developer.apple.com/documentation/audiotoolbox/audiocodec)
 - [`func AudioCodecAppendInputBufferList(AudioCodec, UnsafePointer<AudioBufferList>, UnsafeMutablePointer<UInt32>, UnsafePointer<AudioStreamPacketDescription>?, UnsafeMutablePointer<UInt32>) -> OSStatus`](https://developer.apple.com/documentation/audiotoolbox/audiocodecappendinputbufferlist(_:_:_:_:_:))
 - [`AudioCodecAppendInputBufferListProc`](https://developer.apple.com/documentation/audiotoolbox/audiocodecappendinputbufferlistproc)
@@ -344,7 +330,21 @@
 - [`var mName: Unmanaged<CFString>?`](https://developer.apple.com/documentation/audiotoolbox/audiofilemarker/mname)
 - [`var mReserved: UInt16`](https://developer.apple.com/documentation/audiotoolbox/audiofilemarker/mreserved)
 - [`var mSMPTETime: AudioFile_SMPTE_Time`](https://developer.apple.com/documentation/audiotoolbox/audiofilemarker/msmptetime)
-- … and 2185 more (`isim/data/api-coverage.json.gz`)
+- [`var mType: UInt32`](https://developer.apple.com/documentation/audiotoolbox/audiofilemarker/mtype)
+- [`AudioFileMarkerList`](https://developer.apple.com/documentation/audiotoolbox/audiofilemarkerlist)
+- [`init()`](https://developer.apple.com/documentation/audiotoolbox/audiofilemarkerlist/init())
+- [`init(mSMPTE_TimeType: UInt32, mNumberMarkers: UInt32, mMarkers: AudioFileMarker)`](https://developer.apple.com/documentation/audiotoolbox/audiofilemarkerlist/init(msmpte_timetype:mnumbermarkers:mmarkers:))
+- [`var mMarkers: AudioFileMarker`](https://developer.apple.com/documentation/audiotoolbox/audiofilemarkerlist/mmarkers)
+- [`var mNumberMarkers: UInt32`](https://developer.apple.com/documentation/audiotoolbox/audiofilemarkerlist/mnumbermarkers)
+- [`var mSMPTE_TimeType: UInt32`](https://developer.apple.com/documentation/audiotoolbox/audiofilemarkerlist/msmpte_timetype)
+- [`func AudioFileOpenWithCallbacks(UnsafeMutableRawPointer, AudioFile_ReadProc, AudioFile_WriteProc?, AudioFile_GetSizeProc, AudioFile_SetSizeProc?, AudioFileTypeID, UnsafeMutablePointer<AudioFileID?>) -> OSStatus`](https://developer.apple.com/documentation/audiotoolbox/audiofileopenwithcallbacks(_:_:_:_:_:_:_:))
+- [`AudioFileRegion`](https://developer.apple.com/documentation/audiotoolbox/audiofileregion)
+- [`init(mRegionID: UInt32, mName: Unmanaged<CFString>, mFlags: AudioFileRegionFlags, mNumberMarkers: UInt32, mMarkers: AudioFileMarker)`](https://developer.apple.com/documentation/audiotoolbox/audiofileregion/init(mregionid:mname:mflags:mnumbermarkers:mmarkers:))
+- [`var mFlags: AudioFileRegionFlags`](https://developer.apple.com/documentation/audiotoolbox/audiofileregion/mflags)
+- [`var mMarkers: AudioFileMarker`](https://developer.apple.com/documentation/audiotoolbox/audiofileregion/mmarkers)
+- [`var mName: Unmanaged<CFString>`](https://developer.apple.com/documentation/audiotoolbox/audiofileregion/mname)
+- [`var mNumberMarkers: UInt32`](https://developer.apple.com/documentation/audiotoolbox/audiofileregion/mnumbermarkers)
+- … and 1763 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

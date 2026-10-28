@@ -1,6 +1,7 @@
 # GroupActivities
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 95.4% of Apple's iOS API (249 of 261, exact) · **Rows:** 11: 10 ✅ 1 🟡 · **iOS:** 15.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [GroupActivities](https://developer.apple.com/documentation/groupactivities) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)
@@ -46,4 +47,22 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+12 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`GroupActivitySharingController`](https://developer.apple.com/documentation/groupactivities/groupactivitysharingcontroller-ybcy)
+- [`init<ActivityType>(ActivityType) throws`](https://developer.apple.com/documentation/groupactivities/groupactivitysharingcontroller-ybcy/init(_:))
+- [`init<ActivityType>(preparationHandler: () async throws -> ActivityType)`](https://developer.apple.com/documentation/groupactivities/groupactivitysharingcontroller-ybcy/init(preparationhandler:))
+- [`var modalPresentationStyle: UIModalPresentationStyle`](https://developer.apple.com/documentation/groupactivities/groupactivitysharingcontroller-ybcy/modalpresentationstyle)
+- [`var preferredContainerBackgroundStyle: UIContainerBackgroundStyle`](https://developer.apple.com/documentation/groupactivities/groupactivitysharingcontroller-ybcy/preferredcontainerbackgroundstyle)
+- [`var result: GroupActivitySharingResult`](https://developer.apple.com/documentation/groupactivities/groupactivitysharingcontroller-ybcy/result)
+- [`func viewDidLoad()`](https://developer.apple.com/documentation/groupactivities/groupactivitysharingcontroller-ybcy/viewdidload())
+- [`func viewWillAppear(Bool)`](https://developer.apple.com/documentation/groupactivities/groupactivitysharingcontroller-ybcy/viewwillappear(_:))
+- [`var $activeParticipants: Published<Set<Participant>>.Publisher`](https://developer.apple.com/documentation/groupactivities/groupsession/$activeparticipants)
+- [`var $activity: Published<ActivityType>.Publisher`](https://developer.apple.com/documentation/groupactivities/groupsession/$activity)
+- [`var $state: Published<GroupSession<ActivityType>.State>.Publisher`](https://developer.apple.com/documentation/groupactivities/groupsession/$state)
+- [`var $isEligibleForGroupSession: Published<Bool>.Publisher`](https://developer.apple.com/documentation/groupactivities/groupstateobserver/$iseligibleforgroupsession)
+
+</details>
 <!-- /generated:missing -->

@@ -1,7 +1,7 @@
 # RealityKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 13.6% of Apple's iOS API (960 of 7083, exact) · **Rows:** 12: 4 ✅ 8 🟡 · **iOS:** 13.0+
+**Symbols:** 11.7% of Apple's iOS API (826 of 7075, exact) · **Rows:** 12: 4 ✅ 8 🟡 · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [RealityKit](https://developer.apple.com/documentation/realitykit) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)
@@ -58,7 +58,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-6123 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+6249 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -235,12 +235,19 @@
 - [`AmbientAudioComponent`](https://developer.apple.com/documentation/realitykit/ambientaudiocomponent)
 - [`var gain: Audio.Decibel`](https://developer.apple.com/documentation/realitykit/ambientaudiocomponent/gain)
 - [`init(gain: Audio.Decibel)`](https://developer.apple.com/documentation/realitykit/ambientaudiocomponent/init(gain:))
+- [`convenience init(AnchoringComponent.Target, trackingMode: AnchoringComponent.TrackingMode)`](https://developer.apple.com/documentation/realitykit/anchorentity/init(_:trackingmode:))
+- [`convenience init(AnchoringComponent.Target, trackingMode: AnchoringComponent.TrackingMode, physicsSimulation: AnchoringComponent.PhysicsSimulation)`](https://developer.apple.com/documentation/realitykit/anchorentity/init(_:trackingmode:physicssimulation:))
+- [`convenience init(anchor: ARAnchor)`](https://developer.apple.com/documentation/realitykit/anchorentity/init(anchor:))
+- [`convenience init(plane: AnchoringComponent.Target.Alignment, classification: AnchoringComponent.Target.Classification, minimumBounds: SIMD2<Float>)`](https://developer.apple.com/documentation/realitykit/anchorentity/init(plane:classification:minimumbounds:))
+- [`convenience init(raycastResult: ARRaycastResult)`](https://developer.apple.com/documentation/realitykit/anchorentity/init(raycastresult:))
 - [`AnchoringComponent.ImageAnchoringSource`](https://developer.apple.com/documentation/realitykit/anchoringcomponent/imageanchoringsource)
 - [`AnchoringComponent.ImageAnchoringSource`](https://developer.apple.com/documentation/realitykit/anchoringcomponent/imageanchoringsource)
 - [`init(URL, physicalSize: SIMD2<Float>)`](https://developer.apple.com/documentation/realitykit/anchoringcomponent/imageanchoringsource/init(_:physicalsize:))
 - [`init(URL, physicalSize: SIMD2<Float>)`](https://developer.apple.com/documentation/realitykit/anchoringcomponent/imageanchoringsource/init(_:physicalsize:))
 - [`init(group: String, name: String)`](https://developer.apple.com/documentation/realitykit/anchoringcomponent/imageanchoringsource/init(group:name:))
 - [`init(group: String, name: String)`](https://developer.apple.com/documentation/realitykit/anchoringcomponent/imageanchoringsource/init(group:name:))
+- [`init(AnchoringComponent.Target, trackingMode: AnchoringComponent.TrackingMode)`](https://developer.apple.com/documentation/realitykit/anchoringcomponent/init(_:trackingmode:))
+- [`init(AnchoringComponent.Target, trackingMode: AnchoringComponent.TrackingMode, physicsSimulation: AnchoringComponent.PhysicsSimulation)`](https://developer.apple.com/documentation/realitykit/anchoringcomponent/init(_:trackingmode:physicssimulation:))
 - [`AnchoringComponent.ObjectAnchoringSource`](https://developer.apple.com/documentation/realitykit/anchoringcomponent/objectanchoringsource)
 - [`AnchoringComponent.ObjectAnchoringSource`](https://developer.apple.com/documentation/realitykit/anchoringcomponent/objectanchoringsource)
 - [`init(group: String, name: String)`](https://developer.apple.com/documentation/realitykit/anchoringcomponent/objectanchoringsource/init(group:name:))
@@ -355,14 +362,7 @@
 - [`func repeatingForever() -> Self`](https://developer.apple.com/documentation/realitykit/animationdefinition/repeatingforever())
 - [`var repeatMode: AnimationRepeatMode`](https://developer.apple.com/documentation/realitykit/animationdefinition/repeatmode)
 - [`var speed: Float`](https://developer.apple.com/documentation/realitykit/animationdefinition/speed)
-- [`var trimDuration: TimeInterval?`](https://developer.apple.com/documentation/realitykit/animationdefinition/trimduration)
-- [`var trimEnd: TimeInterval?`](https://developer.apple.com/documentation/realitykit/animationdefinition/trimend)
-- [`func trimmed(start: TimeInterval?, end: TimeInterval?, duration: TimeInterval?) -> Self`](https://developer.apple.com/documentation/realitykit/animationdefinition/trimmed(start:end:duration:))
-- [`var trimStart: TimeInterval?`](https://developer.apple.com/documentation/realitykit/animationdefinition/trimstart)
-- [`AnimationEvents.PlaybackLooped`](https://developer.apple.com/documentation/realitykit/animationevents/playbacklooped)
-- [`AnimationEvents.PlaybackLooped`](https://developer.apple.com/documentation/realitykit/animationevents/playbacklooped)
-- [`let playbackController: AnimationPlaybackController`](https://developer.apple.com/documentation/realitykit/animationevents/playbacklooped/playbackcontroller)
-- … and 5823 more (`isim/data/api-coverage.json.gz`)
+- … and 5949 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

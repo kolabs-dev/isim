@@ -1,7 +1,7 @@
 # AccessorySetupKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 39.5% of Apple's iOS API (79 of 200, exact) · **Rows:** 1: 1 🧩 · **iOS:** 18.0+
+**Symbols:** 39.0% of Apple's iOS API (78 of 200, exact) · **Rows:** 1: 1 🧩 · **iOS:** 18.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [AccessorySetupKit](https://developer.apple.com/documentation/accessorysetupkit) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -24,7 +24,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-121 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+122 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -66,6 +66,7 @@
 - [`func finishAuthorization(for: ASAccessory, settings: ASAccessorySettings, completionHandler: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/accessorysetupkit/asaccessorysession/finishauthorization(for:settings:completionhandler:))
 - [`func finishPickerDiscovery(completionHandler: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/accessorysetupkit/asaccessorysession/finishpickerdiscovery(completionhandler:))
 - [`var pickerDisplaySettings: ASPickerDisplaySettings?`](https://developer.apple.com/documentation/accessorysetupkit/asaccessorysession/pickerdisplaysettings)
+- [`func showPicker(completionHandler: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/accessorysetupkit/asaccessorysession/showpicker(completionhandler:))
 - [`func updateAuthorization(for: ASAccessory, descriptor: ASDiscoveryDescriptor, completionHandler: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/accessorysetupkit/asaccessorysession/updateauthorization(for:descriptor:completionhandler:))
 - [`func updatePicker(showing: [ASDiscoveredDisplayItem], completionHandler: ((any Error)?) -> Void)`](https://developer.apple.com/documentation/accessorysetupkit/asaccessorysession/updatepicker(showing:completionhandler:))
 - [`ASAccessorySettings`](https://developer.apple.com/documentation/accessorysetupkit/asaccessorysettings)

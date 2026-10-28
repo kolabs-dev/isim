@@ -1,6 +1,7 @@
 # XPC
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 97.9% of Apple's iOS API (418 of 427, exact) · **Rows:** 8: 6 ✅ 2 🟡 · **iOS:** 17.4+
 <!-- /generated:header -->
 
 **Area:** [Foundation & CoreFoundation](../COVERAGE.md#foundation) · **Apple:** [XPC](https://developer.apple.com/documentation/xpc) · **Issues:** [`area:foundation`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Afoundation)
@@ -40,4 +41,19 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+9 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`var IPHONE_SIMULATOR_HOST_MIN_VERSION_REQUIRED: Int32`](https://developer.apple.com/documentation/xpc/iphone_simulator_host_min_version_required)
+- [`OS_xpc_listener`](https://developer.apple.com/documentation/xpc/os_xpc_listener-swift.class)
+- [`OS_xpc_object`](https://developer.apple.com/documentation/xpc/os_xpc_object)
+- [`OS_xpc_session`](https://developer.apple.com/documentation/xpc/os_xpc_session-swift.class)
+- [`var XPC_API_VERSION: Int32`](https://developer.apple.com/documentation/xpc/xpc_api_version)
+- [`func xpc_dictionary_copy_mach_send(xpc_object_t, UnsafePointer<CChar>) -> mach_port_t`](https://developer.apple.com/documentation/xpc/xpc_dictionary_copy_mach_send(_:_:))
+- [`func xpc_dictionary_set_mach_send(xpc_object_t, UnsafePointer<CChar>, mach_port_t)`](https://developer.apple.com/documentation/xpc/xpc_dictionary_set_mach_send(_:_:_:))
+- [`xpc_object_t`](https://developer.apple.com/documentation/xpc/xpc_object_t)
+- [`xpc_type_t`](https://developer.apple.com/documentation/xpc/xpc_type_t)
+
+</details>
 <!-- /generated:missing -->

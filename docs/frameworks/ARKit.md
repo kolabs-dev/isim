@@ -1,7 +1,7 @@
 # ARKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 57.8% of Apple's iOS API (572 of 989, exact) · **Rows:** 8: 1 ✅ 7 🟡 · **iOS:** 11.0+
+**Symbols:** 55.8% of Apple's iOS API (551 of 987, exact) · **Rows:** 12: 5 ✅ 7 🟡 · **iOS:** 11.0+
 <!-- /generated:header -->
 
 **Area:** [Games & 3D](../COVERAGE.md#games) · **Apple:** [ARKit](https://developer.apple.com/documentation/arkit) · **Issues:** [`area:games`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agames)
@@ -57,7 +57,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-417 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+436 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -115,6 +115,10 @@
 - [`var environmentTexturing: ARWorldTrackingConfiguration.EnvironmentTexturing`](https://developer.apple.com/documentation/arkit/arbodytrackingconfiguration/environmenttexturing)
 - [`class var supportsAppClipCodeTracking: Bool`](https://developer.apple.com/documentation/arkit/arbodytrackingconfiguration/supportsappclipcodetracking)
 - [`var wantsHDREnvironmentTextures: Bool`](https://developer.apple.com/documentation/arkit/arbodytrackingconfiguration/wantshdrenvironmenttextures)
+- [`func projectionMatrix(viewRotationAngle: CGFloat, viewportSize: CGSize, zNear: CGFloat, zFar: CGFloat) -> simd_float4x4`](https://developer.apple.com/documentation/arkit/arcamera/projectionmatrix(viewrotationangle:viewportsize:znear:zfar:))
+- [`func projectPoint(simd_float3, viewRotationAngle: CGFloat, viewportSize: CGSize) -> CGPoint`](https://developer.apple.com/documentation/arkit/arcamera/projectpoint(_:viewrotationangle:viewportsize:))
+- [`func unprojectPoint(CGPoint, ontoPlane: simd_float4x4, viewRotationAngle: CGFloat, viewportSize: CGSize) -> simd_float3?`](https://developer.apple.com/documentation/arkit/arcamera/unprojectpoint(_:ontoplane:viewrotationangle:viewportsize:))
+- [`func viewMatrix(viewRotationAngle: CGFloat) -> simd_float4x4`](https://developer.apple.com/documentation/arkit/arcamera/viewmatrix(viewrotationangle:))
 - [`ARConfidenceLevel`](https://developer.apple.com/documentation/arkit/arconfidencelevel)
 - [`static func < (ARConfidenceLevel, ARConfidenceLevel) -> Bool`](https://developer.apple.com/documentation/arkit/arconfidencelevel/_(_:_:))
 - [`case high`](https://developer.apple.com/documentation/arkit/arconfidencelevel/high)
@@ -201,6 +205,9 @@
 - [`var detectedBody: ARBody2D?`](https://developer.apple.com/documentation/arkit/arframe/detectedbody)
 - [`var detectedBody: ARBody2D?`](https://developer.apple.com/documentation/arkit/arframe/detectedbody)
 - [`var detectedBody: ARBody2D?`](https://developer.apple.com/documentation/arkit/arframe/detectedbody)
+- [`func displayTransform(viewRotationAngle: CGFloat, viewportSize: CGSize) -> CGAffineTransform`](https://developer.apple.com/documentation/arkit/arframe/displaytransform(viewrotationangle:viewportsize:))
+- [`func displayTransform(viewRotationAngle: CGFloat, viewportSize: CGSize) -> CGAffineTransform`](https://developer.apple.com/documentation/arkit/arframe/displaytransform(viewrotationangle:viewportsize:))
+- [`func displayTransform(viewRotationAngle: CGFloat, viewportSize: CGSize) -> CGAffineTransform`](https://developer.apple.com/documentation/arkit/arframe/displaytransform(viewrotationangle:viewportsize:))
 - [`var geoTrackingStatus: ARGeoTrackingStatus?`](https://developer.apple.com/documentation/arkit/arframe/geotrackingstatus)
 - [`var geoTrackingStatus: ARGeoTrackingStatus?`](https://developer.apple.com/documentation/arkit/arframe/geotrackingstatus)
 - [`var geoTrackingStatus: ARGeoTrackingStatus?`](https://developer.apple.com/documentation/arkit/arframe/geotrackingstatus)
@@ -250,6 +257,7 @@
 - [`subscript(Int32) -> CUnsignedChar`](https://developer.apple.com/documentation/arkit/argeometrysource/subscript(_:)-7jf4y)
 - [`var appClipCodeTrackingEnabled: Bool`](https://developer.apple.com/documentation/arkit/argeotrackingconfiguration/appclipcodetrackingenabled)
 - [`var automaticImageScaleEstimationEnabled: Bool`](https://developer.apple.com/documentation/arkit/argeotrackingconfiguration/automaticimagescaleestimationenabled)
+- [`class func checkAvailability(at: CLLocationCoordinate2D, completionHandler: (Bool, (any Error)?) -> Void)`](https://developer.apple.com/documentation/arkit/argeotrackingconfiguration/checkavailability(at:completionhandler:))
 - [`var detectionImages: Set<ARReferenceImage>!`](https://developer.apple.com/documentation/arkit/argeotrackingconfiguration/detectionimages)
 - [`var detectionObjects: Set<ARReferenceObject>`](https://developer.apple.com/documentation/arkit/argeotrackingconfiguration/detectionobjects)
 - [`var environmentTexturing: ARWorldTrackingConfiguration.EnvironmentTexturing`](https://developer.apple.com/documentation/arkit/argeotrackingconfiguration/environmenttexturing)
@@ -353,15 +361,7 @@
 - [`case notAvailableAtLocation`](https://developer.apple.com/documentation/arkit/argeotrackingstatus/statereason-swift.enum/notavailableatlocation)
 - [`case notAvailableAtLocation`](https://developer.apple.com/documentation/arkit/argeotrackingstatus/statereason-swift.enum/notavailableatlocation)
 - [`case visualLocalizationFailed`](https://developer.apple.com/documentation/arkit/argeotrackingstatus/statereason-swift.enum/visuallocalizationfailed)
-- [`case visualLocalizationFailed`](https://developer.apple.com/documentation/arkit/argeotrackingstatus/statereason-swift.enum/visuallocalizationfailed)
-- [`case visualLocalizationFailed`](https://developer.apple.com/documentation/arkit/argeotrackingstatus/statereason-swift.enum/visuallocalizationfailed)
-- [`case visualLocalizationFailed`](https://developer.apple.com/documentation/arkit/argeotrackingstatus/statereason-swift.enum/visuallocalizationfailed)
-- [`case visualLocalizationFailed`](https://developer.apple.com/documentation/arkit/argeotrackingstatus/statereason-swift.enum/visuallocalizationfailed)
-- [`case visualLocalizationFailed`](https://developer.apple.com/documentation/arkit/argeotrackingstatus/statereason-swift.enum/visuallocalizationfailed)
-- [`case waitingForAvailabilityCheck`](https://developer.apple.com/documentation/arkit/argeotrackingstatus/statereason-swift.enum/waitingforavailabilitycheck)
-- [`case waitingForAvailabilityCheck`](https://developer.apple.com/documentation/arkit/argeotrackingstatus/statereason-swift.enum/waitingforavailabilitycheck)
-- [`case waitingForAvailabilityCheck`](https://developer.apple.com/documentation/arkit/argeotrackingstatus/statereason-swift.enum/waitingforavailabilitycheck)
-- … and 117 more (`isim/data/api-coverage.json.gz`)
+- … and 136 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

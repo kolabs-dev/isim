@@ -1,7 +1,7 @@
 # WebKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 38.6% of Apple's iOS API (598 of 1551, exact) · **Rows:** 14: 10 ✅ 4 ❌ · **iOS:** 16.0+
+**Symbols:** 35.5% of Apple's iOS API (545 of 1535, exact) · **Rows:** 14: 10 ✅ 4 ❌ · **iOS:** 16.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [WebKit](https://developer.apple.com/documentation/webkit) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)
@@ -32,7 +32,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-953 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+990 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -189,6 +189,9 @@
 - [`case inFullscreen`](https://developer.apple.com/documentation/webkit/webpage/fullscreenstate-swift.enum/infullscreen)
 - [`case notInFullscreen`](https://developer.apple.com/documentation/webkit/webpage/fullscreenstate-swift.enum/notinfullscreen)
 - [`var fullscreenState: WebPage.FullscreenState`](https://developer.apple.com/documentation/webkit/webpage/fullscreenstate-swift.property)
+- [`convenience init(configuration: WebPage.Configuration, dialogPresenter: some WebPage.DialogPresenting)`](https://developer.apple.com/documentation/webkit/webpage/init(configuration:dialogpresenter:))
+- [`convenience init(configuration: WebPage.Configuration, navigationDecider: some WebPage.NavigationDeciding)`](https://developer.apple.com/documentation/webkit/webpage/init(configuration:navigationdecider:))
+- [`convenience init(configuration: WebPage.Configuration, navigationDecider: some WebPage.NavigationDeciding, dialogPresenter: some WebPage.DialogPresenting)`](https://developer.apple.com/documentation/webkit/webpage/init(configuration:navigationdecider:dialogpresenter:))
 - [`var isBlockedByScreenTime: Bool`](https://developer.apple.com/documentation/webkit/webpage/isblockedbyscreentime)
 - [`var isWritingToolsActive: Bool`](https://developer.apple.com/documentation/webkit/webpage/iswritingtoolsactive)
 - [`WebPage.JavaScriptConfirmResult`](https://developer.apple.com/documentation/webkit/webpage/javascriptconfirmresult)
@@ -197,6 +200,10 @@
 - [`WebPage.JavaScriptPromptResult`](https://developer.apple.com/documentation/webkit/webpage/javascriptpromptresult)
 - [`case cancel`](https://developer.apple.com/documentation/webkit/webpage/javascriptpromptresult/cancel)
 - [`case ok(String)`](https://developer.apple.com/documentation/webkit/webpage/javascriptpromptresult/ok(_:))
+- [`func load(simulatedRequest: URLRequest, response: URLResponse, responseData: Data) -> some AsyncSequence<WebPage.NavigationEvent, any Error>
+`](https://developer.apple.com/documentation/webkit/webpage/load(simulatedrequest:response:responsedata:))
+- [`func load(simulatedRequest: URLRequest, responseHTML: String) -> some AsyncSequence<WebPage.NavigationEvent, any Error>
+`](https://developer.apple.com/documentation/webkit/webpage/load(simulatedrequest:responsehtml:))
 - [`func mediaPlaybackState() async -> WKMediaPlaybackState`](https://developer.apple.com/documentation/webkit/webpage/mediaplaybackstate())
 - [`var microphoneCaptureState: WKMediaCaptureState`](https://developer.apple.com/documentation/webkit/webpage/microphonecapturestate)
 - [`WebPage.NavigationAction`](https://developer.apple.com/documentation/webkit/webpage/navigationaction)
@@ -331,12 +338,7 @@
 - [`var allowAccessingClosedShadowRoots: Bool`](https://developer.apple.com/documentation/webkit/wkcontentworld/configuration/allowaccessingclosedshadowroots)
 - [`var autofillScriptingEnabled: Bool`](https://developer.apple.com/documentation/webkit/wkcontentworld/configuration/autofillscriptingenabled)
 - [`var elementUserInfoEnabled: Bool`](https://developer.apple.com/documentation/webkit/wkcontentworld/configuration/elementuserinfoenabled)
-- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/webkit/wkcontentworld/configuration/init(coder:))
-- [`var isInspectable: Bool`](https://developer.apple.com/documentation/webkit/wkcontentworld/configuration/isinspectable)
-- [`var jsHandleCreationEnabled: Bool`](https://developer.apple.com/documentation/webkit/wkcontentworld/configuration/jshandlecreationenabled)
-- [`var legacyBuiltinOverridesEnabled: Bool`](https://developer.apple.com/documentation/webkit/wkcontentworld/configuration/legacybuiltinoverridesenabled)
-- [`var nodeSnapshotCreationEnabled: Bool`](https://developer.apple.com/documentation/webkit/wkcontentworld/configuration/nodesnapshotcreationenabled)
-- … and 653 more (`isim/data/api-coverage.json.gz`)
+- … and 690 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

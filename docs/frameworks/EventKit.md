@@ -1,7 +1,7 @@
 # EventKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 78.5% of Apple's iOS API (307 of 391, exact) · **Rows:** 7: 5 ✅ 1 🟡 1 ❌ · **iOS:** 4.0+
+**Symbols:** 77.2% of Apple's iOS API (302 of 391, exact) · **Rows:** 7: 5 ✅ 1 🟡 1 ❌ · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [EventKit](https://developer.apple.com/documentation/eventkit) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -25,10 +25,11 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-84 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+89 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
+- [`init(forEntityType: EKEntityType, eventStore: EKEventStore)`](https://developer.apple.com/documentation/eventkit/ekcalendar/init(forentitytype:eventstore:))
 - [`var supportedEventAvailabilities: EKCalendarEventAvailabilityMask`](https://developer.apple.com/documentation/eventkit/ekcalendar/supportedeventavailabilities)
 - [`EKCalendarEventAvailabilityMask`](https://developer.apple.com/documentation/eventkit/ekcalendareventavailabilitymask)
 - [`static var busy: EKCalendarEventAvailabilityMask`](https://developer.apple.com/documentation/eventkit/ekcalendareventavailabilitymask/busy)
@@ -94,6 +95,10 @@
 - [`case recipientNotAllowed`](https://developer.apple.com/documentation/eventkit/ekparticipantschedulestatus/recipientnotallowed)
 - [`case recipientNotRecognized`](https://developer.apple.com/documentation/eventkit/ekparticipantschedulestatus/recipientnotrecognized)
 - [`case sent`](https://developer.apple.com/documentation/eventkit/ekparticipantschedulestatus/sent)
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/eventkit/ekrecurrenceend/init(coder:))
+- [`convenience init(endDate: Date)`](https://developer.apple.com/documentation/eventkit/ekrecurrenceend/init(enddate:))
+- [`init(recurrenceWithFrequency: EKRecurrenceFrequency, interval: Int, daysOfTheWeek: [EKRecurrenceDayOfWeek]?, daysOfTheMonth: [NSNumber]?, monthsOfTheYear: [NSNumber]?, weeksOfTheYear: [NSNumber]?, daysOfTheYear: [NSNumber]?, setPositions: [NSNumber]?, end: EKRecurrenceEnd?)`](https://developer.apple.com/documentation/eventkit/ekrecurrencerule/init(recurrencewithfrequency:interval:daysoftheweek:daysofthemonth:monthsoftheyear:weeksoftheyear:daysoftheyear:setpositions:end:))
+- [`init(recurrenceWithFrequency: EKRecurrenceFrequency, interval: Int, end: EKRecurrenceEnd?)`](https://developer.apple.com/documentation/eventkit/ekrecurrencerule/init(recurrencewithfrequency:interval:end:))
 - [`EKVirtualConferenceDescriptor`](https://developer.apple.com/documentation/eventkit/ekvirtualconferencedescriptor)
 - [`var conferenceDetails: String?`](https://developer.apple.com/documentation/eventkit/ekvirtualconferencedescriptor/conferencedetails)
 - [`init(title: String?, URLDescriptors: [EKVirtualConferenceURLDescriptor], conferenceDetails: String?)`](https://developer.apple.com/documentation/eventkit/ekvirtualconferencedescriptor/init(title:urldescriptors:conferencedetails:)-1a9zt)

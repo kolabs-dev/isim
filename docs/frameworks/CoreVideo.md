@@ -1,7 +1,7 @@
 # CoreVideo
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 11.2% of Apple's iOS API (100 of 889, exact) · **Rows:** 9: 6 ✅ 3 ❌ · **iOS:** 4.0+
+**Symbols:** 11.6% of Apple's iOS API (103 of 889, exact) · **Rows:** 9: 6 ✅ 3 ❌ · **iOS:** 4.0+
 <!-- /generated:header -->
 
 **Area:** [Graphics & text](../COVERAGE.md#graphics) · **Apple:** [Core Video](https://developer.apple.com/documentation/corevideo) · **Issues:** [`area:graphics`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Agraphics)
@@ -28,7 +28,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-789 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+786 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -332,7 +332,7 @@
 - [`CVPixelBufferAttachmentKeyDefinitions`](https://developer.apple.com/documentation/corevideo/cvpixelbufferattachmentkeydefinitions)
 - [`static let proResRawMetadata: CVAttachmentCompositeKeyDefinition<CVPixelBufferAttachmentKeyDefinitions.ShouldPropagate, CVProResRawMetadata>`](https://developer.apple.com/documentation/corevideo/cvpixelbufferattachmentkeydefinitions/proresrawmetadata)
 - [`static let senselArrayPattern: CVAttachmentKeyDefinition<CVPixelBufferAttachmentKeyDefinitions.ShouldNotPropagate, CVSenselArrayPattern>`](https://developer.apple.com/documentation/corevideo/cvpixelbufferattachmentkeydefinitions/senselarraypattern)
-- … and 489 more (`isim/data/api-coverage.json.gz`)
+- … and 486 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

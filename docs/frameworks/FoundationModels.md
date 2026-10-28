@@ -1,7 +1,7 @@
 # FoundationModels
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 41.5% of Apple's iOS API (376 of 906, exact) · **Rows:** 10: 6 ✅ 4 🟡 · **iOS:** 26.0+
+**Symbols:** 40.0% of Apple's iOS API (362 of 906, exact) · **Rows:** 12: 8 ✅ 4 🟡 · **iOS:** 26.0+
 <!-- /generated:header -->
 
 **Area:** [Imaging, photos & ML](../COVERAGE.md#ml) · **Apple:** [FoundationModels](https://developer.apple.com/documentation/foundationmodels) · **Issues:** [`area:ml`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aml)
@@ -44,7 +44,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-530 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+544 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -76,6 +76,7 @@
 - [`DataEntryRepresentable`](https://developer.apple.com/documentation/foundationmodels/dataentryrepresentable)
 - [`init(Transcript.DataEntry) throws`](https://developer.apple.com/documentation/foundationmodels/dataentryrepresentable/init(_:))
 - [`var transcriptRepresentation: Transcript.DataEntry`](https://developer.apple.com/documentation/foundationmodels/dataentryrepresentable/transcriptrepresentation)
+- [`init(name: String, description: String?, representNilExplicitlyInGeneratedContent: Bool, properties: [DynamicGenerationSchema.Property])`](https://developer.apple.com/documentation/foundationmodels/dynamicgenerationschema/init(name:description:representnilexplicitlyingeneratedcontent:properties:))
 - [`static var null: DynamicGenerationSchema`](https://developer.apple.com/documentation/foundationmodels/dynamicgenerationschema/null)
 - [`DynamicInstructions`](https://developer.apple.com/documentation/foundationmodels/dynamicinstructions)
 - [`Body`](https://developer.apple.com/documentation/foundationmodels/dynamicinstructions/body-swift.associatedtype)
@@ -95,26 +96,11 @@
 - [`init(Data, id: KeyPath<Data.Element, ID>, content: (Data.Element) -> Content)`](https://developer.apple.com/documentation/foundationmodels/dynamicinstructionsforeach/init(_:id:content:))
 - [`EmptyDynamicInstructions`](https://developer.apple.com/documentation/foundationmodels/emptydynamicinstructions)
 - [`init()`](https://developer.apple.com/documentation/foundationmodels/emptydynamicinstructions/init())
-- [`GeneratedContent.ParsingError`](https://developer.apple.com/documentation/foundationmodels/generatedcontent/parsingerror)
-- [`var debugDescription: String`](https://developer.apple.com/documentation/foundationmodels/generatedcontent/parsingerror/debugdescription)
-- [`init(rawContent: String, underlyingError: (any Error)?, debugDescription: String)`](https://developer.apple.com/documentation/foundationmodels/generatedcontent/parsingerror/init(rawcontent:underlyingerror:debugdescription:))
-- [`var rawContent: String`](https://developer.apple.com/documentation/foundationmodels/generatedcontent/parsingerror/rawcontent)
-- [`var underlyingError: (any Error)?`](https://developer.apple.com/documentation/foundationmodels/generatedcontent/parsingerror/underlyingerror)
-- [`GenerationOptions.SamplingMode.Kind`](https://developer.apple.com/documentation/foundationmodels/generationoptions/samplingmode-swift.struct/kind-swift.enum)
-- [`case greedy`](https://developer.apple.com/documentation/foundationmodels/generationoptions/samplingmode-swift.struct/kind-swift.enum/greedy)
-- [`case randomProbabilityThreshold(Double, seed: UInt64?)`](https://developer.apple.com/documentation/foundationmodels/generationoptions/samplingmode-swift.struct/kind-swift.enum/randomprobabilitythreshold(_:seed:))
-- [`case randomTopK(Int, seed: UInt64?)`](https://developer.apple.com/documentation/foundationmodels/generationoptions/samplingmode-swift.struct/kind-swift.enum/randomtopk(_:seed:))
-- [`let kind: GenerationOptions.SamplingMode.Kind`](https://developer.apple.com/documentation/foundationmodels/generationoptions/samplingmode-swift.struct/kind-swift.property)
-- [`var toolCallingMode: GenerationOptions.ToolCallingMode?`](https://developer.apple.com/documentation/foundationmodels/generationoptions/toolcallingmode-swift.property)
-- [`GenerationOptions.ToolCallingMode`](https://developer.apple.com/documentation/foundationmodels/generationoptions/toolcallingmode-swift.struct)
-- [`static let allowed: GenerationOptions.ToolCallingMode`](https://developer.apple.com/documentation/foundationmodels/generationoptions/toolcallingmode-swift.struct/allowed)
-- [`static let disallowed: GenerationOptions.ToolCallingMode`](https://developer.apple.com/documentation/foundationmodels/generationoptions/toolcallingmode-swift.struct/disallowed)
-- [`GenerationOptions.ToolCallingMode.Kind`](https://developer.apple.com/documentation/foundationmodels/generationoptions/toolcallingmode-swift.struct/kind-swift.enum)
-- [`case allowed`](https://developer.apple.com/documentation/foundationmodels/generationoptions/toolcallingmode-swift.struct/kind-swift.enum/allowed)
-- [`case disallowed`](https://developer.apple.com/documentation/foundationmodels/generationoptions/toolcallingmode-swift.struct/kind-swift.enum/disallowed)
-- [`case required`](https://developer.apple.com/documentation/foundationmodels/generationoptions/toolcallingmode-swift.struct/kind-swift.enum/required)
-- [`var kind: GenerationOptions.ToolCallingMode.Kind`](https://developer.apple.com/documentation/foundationmodels/generationoptions/toolcallingmode-swift.struct/kind-swift.property)
-- [`static let required: GenerationOptions.ToolCallingMode`](https://developer.apple.com/documentation/foundationmodels/generationoptions/toolcallingmode-swift.struct/required)
+- [`macro Generable(description: String?, representNilExplicitlyInGeneratedContent: Bool)`](https://developer.apple.com/documentation/foundationmodels/generable(description:representnilexplicitlyingeneratedcontent:))
+- [`macro Generable(name: String, description: String?, representNilExplicitlyInGeneratedContent: Bool)`](https://developer.apple.com/documentation/foundationmodels/generable(name:description:representnilexplicitlyingeneratedcontent:))
+- [`init<S>(properties: S, id: GenerationID?, uniquingKeysWith: (GeneratedContent, GeneratedContent) throws -> some ConvertibleToGeneratedContent) rethrows`](https://developer.apple.com/documentation/foundationmodels/generatedcontent/init(properties:id:uniquingkeyswith:))
+- [`init(samplingMode: GenerationOptions.SamplingMode?, temperature: Double?, maximumResponseTokens: Int?)`](https://developer.apple.com/documentation/foundationmodels/generationoptions/init(samplingmode:temperature:maximumresponsetokens:))
+- [`init(type: any Generable.Type, description: String?, representNilExplicitlyInGeneratedContent: Bool, properties: [GenerationSchema.Property])`](https://developer.apple.com/documentation/foundationmodels/generationschema/init(type:description:representnilexplicitlyingeneratedcontent:properties:))
 - [`var name: String`](https://developer.apple.com/documentation/foundationmodels/generationschema/name)
 - [`ImageAttachmentContent`](https://developer.apple.com/documentation/foundationmodels/imageattachmentcontent)
 - [`ImageReference`](https://developer.apple.com/documentation/foundationmodels/imagereference)
@@ -348,7 +334,21 @@
 - [`LanguageModelSession.DynamicProfile.Profile`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofile/profile)
 - [`LanguageModelSession.DynamicProfile.Profile`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofile/profile)
 - [`func reasoningLevel(ContextOptions.ReasoningLevel?) -> some LanguageModelSession.DynamicProfile`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofile/reasoninglevel(_:))
-- … and 230 more (`isim/data/api-coverage.json.gz`)
+- [`func reasoningLevel(ContextOptions.ReasoningLevel?) -> some LanguageModelSession.DynamicProfile`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofile/reasoninglevel(_:))
+- [`func samplingMode(GenerationOptions.SamplingMode?) -> some LanguageModelSession.DynamicProfile`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofile/samplingmode(_:))
+- [`func samplingMode(GenerationOptions.SamplingMode?) -> some LanguageModelSession.DynamicProfile`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofile/samplingmode(_:))
+- [`LanguageModelSession.DynamicProfile.SessionProperty`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofile/sessionproperty)
+- [`LanguageModelSession.DynamicProfile.SessionProperty`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofile/sessionproperty)
+- [`func temperature(Double?) -> some LanguageModelSession.DynamicProfile`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofile/temperature(_:))
+- [`func temperature(Double?) -> some LanguageModelSession.DynamicProfile`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofile/temperature(_:))
+- [`func toolCallingMode(GenerationOptions.ToolCallingMode?) -> some LanguageModelSession.DynamicProfile`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofile/toolcallingmode(_:))
+- [`func toolCallingMode(GenerationOptions.ToolCallingMode?) -> some LanguageModelSession.DynamicProfile`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofile/toolcallingmode(_:))
+- [`func transcriptErrorHandlingPolicy(TranscriptErrorHandlingPolicy?) -> some LanguageModelSession.DynamicProfile`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofile/transcripterrorhandlingpolicy(_:))
+- [`func transcriptErrorHandlingPolicy(TranscriptErrorHandlingPolicy?) -> some LanguageModelSession.DynamicProfile`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofile/transcripterrorhandlingpolicy(_:))
+- [`LanguageModelSession.DynamicProfileBuilder`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofilebuilder)
+- [`static func buildBlock<T>(T) -> T`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofilebuilder/buildblock(_:))
+- [`static func buildEither<TrueContent, FalseContent>(first: TrueContent) -> LanguageModelSession.ConditionalDynamicProfile<TrueContent, FalseContent>`](https://developer.apple.com/documentation/foundationmodels/languagemodelsession/dynamicprofilebuilder/buildeither(first:))
+- … and 244 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

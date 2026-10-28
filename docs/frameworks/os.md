@@ -1,7 +1,7 @@
 # os and OSLog (logging)
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 99.2% of Apple's iOS API (243 of 245, exact) · **Rows:** 8: 8 ✅ · **iOS:** 8.0+
+**Symbols:** 87.3% of Apple's iOS API (214 of 245, exact) · **Rows:** 8: 8 ✅ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Swift, Darwin & runtimes](../COVERAGE.md#runtime) · **Apple:** [os](https://developer.apple.com/documentation/os) · **Issues:** [`area:runtime`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aruntime)
@@ -26,11 +26,40 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-2 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+31 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
 - [`os_trace_payload_object_t`](https://developer.apple.com/documentation/os/os_trace_payload_object_t)
+- [`func lock(flags: OSAllocatedUnfairLockFlags)`](https://developer.apple.com/documentation/os/osallocatedunfairlock/lock(flags:))
+- [`func withLock<R>(flags: OSAllocatedUnfairLockFlags, (inout State) throws -> R) rethrows -> R`](https://developer.apple.com/documentation/os/osallocatedunfairlock/withlock(flags:_:)-1ub4c)
+- [`func withLock<R>(flags: OSAllocatedUnfairLockFlags, () throws -> R) rethrows -> R`](https://developer.apple.com/documentation/os/osallocatedunfairlock/withlock(flags:_:)-u2xj)
+- [`func withLockUnchecked<R>(flags: OSAllocatedUnfairLockFlags, (inout State) throws -> R) rethrows -> R`](https://developer.apple.com/documentation/os/osallocatedunfairlock/withlockunchecked(flags:_:)-8cv64)
+- [`func withLockUnchecked<R>(flags: OSAllocatedUnfairLockFlags, () throws -> R) rethrows -> R`](https://developer.apple.com/documentation/os/osallocatedunfairlock/withlockunchecked(flags:_:)-9iq8s)
+- [`static func exponential(explicitPositiveSign: Bool, uppercase: Bool) -> OSLogFloatFormatting`](https://developer.apple.com/documentation/os/oslogfloatformatting/exponential(explicitpositivesign:uppercase:))
+- [`static func hex(explicitPositiveSign: Bool, uppercase: Bool) -> OSLogFloatFormatting`](https://developer.apple.com/documentation/os/oslogfloatformatting/hex(explicitpositivesign:uppercase:))
+- [`static func hybrid(explicitPositiveSign: Bool, uppercase: Bool) -> OSLogFloatFormatting`](https://developer.apple.com/documentation/os/oslogfloatformatting/hybrid(explicitpositivesign:uppercase:))
+- [`static func hybrid(precision: @autoclosure () -> Int, explicitPositiveSign: Bool, uppercase: Bool) -> OSLogFloatFormatting`](https://developer.apple.com/documentation/os/oslogfloatformatting/hybrid(precision:explicitpositivesign:uppercase:))
+- [`static func decimal(explicitPositiveSign: Bool) -> OSLogIntegerFormatting`](https://developer.apple.com/documentation/os/oslogintegerformatting/decimal(explicitpositivesign:))
+- [`static func hex(explicitPositiveSign: Bool, includePrefix: Bool, uppercase: Bool) -> OSLogIntegerFormatting`](https://developer.apple.com/documentation/os/oslogintegerformatting/hex(explicitpositivesign:includeprefix:uppercase:))
+- [`static func octal(explicitPositiveSign: Bool, includePrefix: Bool, uppercase: Bool) -> OSLogIntegerFormatting`](https://developer.apple.com/documentation/os/oslogintegerformatting/octal(explicitpositivesign:includeprefix:uppercase:))
+- [`func appendInterpolation(@autoclosure () -> String, align: OSLogStringAlignment, privacy: OSLogPrivacy, attributes: String)`](https://developer.apple.com/documentation/os/osloginterpolation/appendinterpolation(_:align:privacy:attributes:)-7g68v)
+- [`func appendInterpolation(@autoclosure () -> any Any.Type, align: OSLogStringAlignment, privacy: OSLogPrivacy, attributes: String)`](https://developer.apple.com/documentation/os/osloginterpolation/appendinterpolation(_:align:privacy:attributes:)-9hehv)
+- [`func appendInterpolation<T>(@autoclosure () -> T, align: OSLogStringAlignment, privacy: OSLogPrivacy, attributes: String)`](https://developer.apple.com/documentation/os/osloginterpolation/appendinterpolation(_:align:privacy:attributes:)-xyum)
+- [`func appendInterpolation(@autoclosure () -> UnsafeRawPointer, bytes: @autoclosure () -> Int, format: OSLogPointerFormat, privacy: OSLogPrivacy, attributes: String)`](https://developer.apple.com/documentation/os/osloginterpolation/appendinterpolation(_:bytes:format:privacy:attributes:))
+- [`func appendInterpolation(@autoclosure () -> Float, format: OSLogFloatFormatting, align: OSLogStringAlignment, privacy: OSLogPrivacy, attributes: String)`](https://developer.apple.com/documentation/os/osloginterpolation/appendinterpolation(_:format:align:privacy:attributes:)-78sek)
+- [`func appendInterpolation<T>(@autoclosure () -> T, format: OSLogIntegerFormatting, align: OSLogStringAlignment, privacy: OSLogPrivacy, attributes: String)`](https://developer.apple.com/documentation/os/osloginterpolation/appendinterpolation(_:format:align:privacy:attributes:)-8107a)
+- [`func appendInterpolation(@autoclosure () -> Double, format: OSLogFloatFormatting, align: OSLogStringAlignment, privacy: OSLogPrivacy, attributes: String)`](https://developer.apple.com/documentation/os/osloginterpolation/appendinterpolation(_:format:align:privacy:attributes:)-8bi90)
+- [`func appendInterpolation(@autoclosure () -> Int32, format: OSLogInt32ExtendedFormat, privacy: OSLogPrivacy, attributes: String)`](https://developer.apple.com/documentation/os/osloginterpolation/appendinterpolation(_:format:privacy:attributes:)-4i2ir)
+- [`func appendInterpolation(@autoclosure () -> Int, format: OSLogIntExtendedFormat, privacy: OSLogPrivacy, attributes: String)`](https://developer.apple.com/documentation/os/osloginterpolation/appendinterpolation(_:format:privacy:attributes:)-6le5w)
+- [`func appendInterpolation(@autoclosure () -> UnsafeRawBufferPointer, format: OSLogPointerFormat, privacy: OSLogPrivacy, attributes: String)`](https://developer.apple.com/documentation/os/osloginterpolation/appendinterpolation(_:format:privacy:attributes:)-93lbs)
+- [`func appendInterpolation(@autoclosure () -> NSObject, privacy: OSLogPrivacy, attributes: String)`](https://developer.apple.com/documentation/os/osloginterpolation/appendinterpolation(_:privacy:attributes:)-3czd2)
+- [`func appendInterpolation(@autoclosure () -> any Error, privacy: OSLogPrivacy, attributes: String)`](https://developer.apple.com/documentation/os/osloginterpolation/appendinterpolation(_:privacy:attributes:)-4o74h)
+- [`func appendInterpolation(@autoclosure () -> (any Error)?, privacy: OSLogPrivacy, attributes: String)`](https://developer.apple.com/documentation/os/osloginterpolation/appendinterpolation(_:privacy:attributes:)-6vtcc)
+- [`func appendInterpolation(@autoclosure () -> NSObject?, privacy: OSLogPrivacy, attributes: String)`](https://developer.apple.com/documentation/os/osloginterpolation/appendinterpolation(_:privacy:attributes:)-9eafm)
+- [`func beginAnimationInterval(StaticString, id: OSSignpostID) -> OSSignpostIntervalState`](https://developer.apple.com/documentation/os/ossignposter/beginanimationinterval(_:id:))
+- [`init(UInt8)`](https://developer.apple.com/documentation/os/ossignposttype/init(_:))
+- [`init(UInt8)`](https://developer.apple.com/documentation/os/ossignposttype/init(_:))
 - [`SignpostMetadata`](https://developer.apple.com/documentation/os/signpostmetadata)
 
 </details>

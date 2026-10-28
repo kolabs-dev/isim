@@ -1,6 +1,7 @@
 # PHASE
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 97.5% of Apple's iOS API (505 of 518, exact) · **Rows:** 14: 12 ✅ 2 🟡 · **iOS:** 15.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [PHASE](https://developer.apple.com/documentation/phase) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -50,4 +51,23 @@
 - `PHASEShape`, `PHASEShapeElement`, `PHASEOccluder`: shapes are made from ModelIO meshes (`MDLMesh`), which isim does not implement yet, so there is no occlusion.
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+13 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`PHASEOccluder`](https://developer.apple.com/documentation/phase/phaseoccluder)
+- [`init(engine: PHASEEngine, shapes: [PHASEShape])`](https://developer.apple.com/documentation/phase/phaseoccluder/init(engine:shapes:))
+- [`var shapes: [PHASEShape]`](https://developer.apple.com/documentation/phase/phaseoccluder/shapes)
+- [`PHASEShape`](https://developer.apple.com/documentation/phase/phaseshape)
+- [`PHASEShape.Element`](https://developer.apple.com/documentation/phase/phaseshape/element)
+- [`PHASEShape.Element`](https://developer.apple.com/documentation/phase/phaseshape/element)
+- [`var material: PHASEMaterial?`](https://developer.apple.com/documentation/phase/phaseshape/element/material)
+- [`var material: PHASEMaterial?`](https://developer.apple.com/documentation/phase/phaseshape/element/material)
+- [`var elements: [PHASEShape.Element]`](https://developer.apple.com/documentation/phase/phaseshape/elements)
+- [`init(engine: PHASEEngine, mesh: MDLMesh)`](https://developer.apple.com/documentation/phase/phaseshape/init(engine:mesh:))
+- [`convenience init(engine: PHASEEngine, mesh: MDLMesh, materials: [PHASEMaterial])`](https://developer.apple.com/documentation/phase/phaseshape/init(engine:mesh:materials:))
+- [`init(engine: PHASEEngine, shapes: [PHASEShape])`](https://developer.apple.com/documentation/phase/phasesource/init(engine:shapes:))
+- [`var shapes: [PHASEShape]`](https://developer.apple.com/documentation/phase/phasesource/shapes)
+
+</details>
 <!-- /generated:missing -->

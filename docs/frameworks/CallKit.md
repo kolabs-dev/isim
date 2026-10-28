@@ -1,7 +1,7 @@
 # CallKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 80.6% of Apple's iOS API (257 of 319, exact) · **Rows:** 4: 2 ✅ 2 ❌ · **iOS:** 10.0+
+**Symbols:** 78.4% of Apple's iOS API (250 of 319, exact) · **Rows:** 4: 2 ✅ 2 ❌ · **iOS:** 10.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [CallKit](https://developer.apple.com/documentation/callkit) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -22,10 +22,11 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-62 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+69 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
+- [`init(callUUID: UUID)`](https://developer.apple.com/documentation/callkit/cxcallaction/init(calluuid:))
 - [`var CXCallDirectoryPhoneNumberMax: CXCallDirectoryPhoneNumber`](https://developer.apple.com/documentation/callkit/cxcalldirectoryphonenumbermax)
 - [`CXError`](https://developer.apple.com/documentation/callkit/cxerror)
 - [`CXError.Code`](https://developer.apple.com/documentation/callkit/cxerror/code)
@@ -74,8 +75,12 @@
 - [`static var unknown: CXErrorCodeNotificationServiceExtensionError.Code`](https://developer.apple.com/documentation/callkit/cxerrorcodenotificationserviceextensionerror-swift.struct/unknown)
 - [`static var callIsProtected: CXErrorCodeRequestTransactionError.Code`](https://developer.apple.com/documentation/callkit/cxerrorcoderequesttransactionerror-swift.struct/callisprotected)
 - [`static var unentitled: CXErrorCodeRequestTransactionError.Code`](https://developer.apple.com/documentation/callkit/cxerrorcoderequesttransactionerror-swift.struct/unentitled)
+- [`init(callUUID: UUID, digits: String, type: CXPlayDTMFCallAction.ActionType)`](https://developer.apple.com/documentation/callkit/cxplaydtmfcallaction/init(calluuid:digits:type:))
 - [`class func reportNewIncomingVoIPPushPayload([AnyHashable : Any], completion: (((any Error)?) -> Void)?)`](https://developer.apple.com/documentation/callkit/cxprovider/reportnewincomingvoippushpayload(_:completion:))
 - [`var supportsAudioTranslation: Bool`](https://developer.apple.com/documentation/callkit/cxproviderconfiguration/supportsaudiotranslation)
+- [`init(callUUID: UUID, callUUIDToGroupWith: UUID?)`](https://developer.apple.com/documentation/callkit/cxsetgroupcallaction/init(calluuid:calluuidtogroupwith:))
+- [`init(callUUID: UUID, onHold: Bool)`](https://developer.apple.com/documentation/callkit/cxsetheldcallaction/init(calluuid:onhold:))
+- [`convenience init(callUUID: UUID, muted: Bool)`](https://developer.apple.com/documentation/callkit/cxsetmutedcallaction/init(calluuid:muted:))
 - [`CXSetTranslatingCallAction`](https://developer.apple.com/documentation/callkit/cxsettranslatingcallaction)
 - [`func fulfill(using: CXTranslationEngine)`](https://developer.apple.com/documentation/callkit/cxsettranslatingcallaction/fulfill(using:))
 - [`init(call: UUID, isTranslating: Bool, localLanguage: String, remoteLanguage: String)`](https://developer.apple.com/documentation/callkit/cxsettranslatingcallaction/init(call:istranslating:locallanguage:remotelanguage:))
@@ -84,6 +89,8 @@
 - [`var isTranslating: Bool`](https://developer.apple.com/documentation/callkit/cxsettranslatingcallaction/istranslating)
 - [`var localLanguage: String`](https://developer.apple.com/documentation/callkit/cxsettranslatingcallaction/locallanguage)
 - [`var remoteLanguage: String`](https://developer.apple.com/documentation/callkit/cxsettranslatingcallaction/remotelanguage)
+- [`init(callUUID: UUID, handle: CXHandle)`](https://developer.apple.com/documentation/callkit/cxstartcallaction/init(calluuid:handle:))
+- [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/callkit/cxtransaction/init(coder:))
 - [`CXTranslationEngine`](https://developer.apple.com/documentation/callkit/cxtranslationengine)
 - [`case custom`](https://developer.apple.com/documentation/callkit/cxtranslationengine/custom)
 - [`case `default``](https://developer.apple.com/documentation/callkit/cxtranslationengine/default)

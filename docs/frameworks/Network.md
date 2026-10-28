@@ -1,7 +1,7 @@
 # Network
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 42.0% of Apple's iOS API (995 of 2371, exact) · **Rows:** 10: 6 ✅ 1 🧩 3 ❌ · **iOS:** 12.0+
+**Symbols:** 41.6% of Apple's iOS API (985 of 2368, exact) · **Rows:** 10: 6 ✅ 1 🧩 3 ❌ · **iOS:** 12.0+
 <!-- /generated:header -->
 
 **Area:** [Web, network & communication](../COVERAGE.md#web) · **Apple:** [Network](https://developer.apple.com/documentation/network) · **Issues:** [`area:web`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aweb)
@@ -28,7 +28,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1376 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1383 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -95,6 +95,7 @@
 - [`func multicastLoopbackDisabled(Bool) -> IP`](https://developer.apple.com/documentation/network/ip/multicastloopbackdisabled(_:))
 - [`func receiveTimeCalculated(Bool) -> IP`](https://developer.apple.com/documentation/network/ip/receivetimecalculated(_:))
 - [`func version(NWProtocolIP.Options.Version) -> IP`](https://developer.apple.com/documentation/network/ip/version(_:))
+- [`init?(String)`](https://developer.apple.com/documentation/network/ipaddress/init(_:))
 - [`static let allReportsGroup: IPv4Address`](https://developer.apple.com/documentation/network/ipv4address/allreportsgroup)
 - [`static let allRoutersGroup: IPv4Address`](https://developer.apple.com/documentation/network/ipv4address/allroutersgroup)
 - [`static let mdnsGroup: IPv4Address`](https://developer.apple.com/documentation/network/ipv4address/mdnsgroup)
@@ -331,8 +332,7 @@
 - [`nw_connection_group_send_completion_t`](https://developer.apple.com/documentation/network/nw_connection_group_send_completion_t)
 - [`func nw_connection_group_send_message(nw_connection_group_t, dispatch_data_t?, nw_endpoint_t?, nw_content_context_t, nw_connection_group_send_completion_t)`](https://developer.apple.com/documentation/network/nw_connection_group_send_message(_:_:_:_:_:))
 - [`func nw_connection_group_send_message(nw_connection_group_t, dispatch_data_t?, nw_endpoint_t?, nw_content_context_t, nw_connection_group_send_completion_t)`](https://developer.apple.com/documentation/network/nw_connection_group_send_message(_:_:_:_:_:))
-- [`func nw_connection_group_set_new_connection_handler(nw_connection_group_t, nw_connection_group_new_connection_handler_t?)`](https://developer.apple.com/documentation/network/nw_connection_group_set_new_connection_handler(_:_:))
-- … and 1076 more (`isim/data/api-coverage.json.gz`)
+- … and 1083 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

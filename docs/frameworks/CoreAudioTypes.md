@@ -1,7 +1,7 @@
 # CoreAudioTypes
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 24.0% of Apple's iOS API (150 of 624, exact) · **Rows:** 1: 1 ❌ · **iOS:** 13.0+
+**Symbols:** 24.8% of Apple's iOS API (155 of 624, exact) · **Rows:** 1: 1 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [Media](../COVERAGE.md#media) · **Apple:** [Core Audio Types](https://developer.apple.com/documentation/coreaudiotypes) · **Issues:** [`area:media`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Amedia)
@@ -19,7 +19,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-474 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+469 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -117,11 +117,6 @@
 - [`var mManufacturer: OSType`](https://developer.apple.com/documentation/coreaudiotypes/audioclassdescription/mmanufacturer)
 - [`var mSubType: OSType`](https://developer.apple.com/documentation/coreaudiotypes/audioclassdescription/msubtype)
 - [`var mType: OSType`](https://developer.apple.com/documentation/coreaudiotypes/audioclassdescription/mtype)
-- [`AudioFormatListItem`](https://developer.apple.com/documentation/coreaudiotypes/audioformatlistitem)
-- [`init()`](https://developer.apple.com/documentation/coreaudiotypes/audioformatlistitem/init())
-- [`init(mASBD: AudioStreamBasicDescription, mChannelLayoutTag: AudioChannelLayoutTag)`](https://developer.apple.com/documentation/coreaudiotypes/audioformatlistitem/init(masbd:mchannellayouttag:))
-- [`var mASBD: AudioStreamBasicDescription`](https://developer.apple.com/documentation/coreaudiotypes/audioformatlistitem/masbd)
-- [`var mChannelLayoutTag: AudioChannelLayoutTag`](https://developer.apple.com/documentation/coreaudiotypes/audioformatlistitem/mchannellayouttag)
 - [`AudioSampleType`](https://developer.apple.com/documentation/coreaudiotypes/audiosampletype)
 - [`AudioSessionID`](https://developer.apple.com/documentation/coreaudiotypes/audiosessionid)
 - [`AudioStreamBasicDescription`](https://developer.apple.com/documentation/coreaudiotypes/audiostreambasicdescription)
@@ -323,7 +318,12 @@
 - [`var kAudioChannelLayoutTag_DVD_12: AudioChannelLayoutTag`](https://developer.apple.com/documentation/coreaudiotypes/kaudiochannellayouttag_dvd_12)
 - [`var kAudioChannelLayoutTag_DVD_13: AudioChannelLayoutTag`](https://developer.apple.com/documentation/coreaudiotypes/kaudiochannellayouttag_dvd_13)
 - [`var kAudioChannelLayoutTag_DVD_14: AudioChannelLayoutTag`](https://developer.apple.com/documentation/coreaudiotypes/kaudiochannellayouttag_dvd_14)
-- … and 174 more (`isim/data/api-coverage.json.gz`)
+- [`var kAudioChannelLayoutTag_DVD_15: AudioChannelLayoutTag`](https://developer.apple.com/documentation/coreaudiotypes/kaudiochannellayouttag_dvd_15)
+- [`var kAudioChannelLayoutTag_DVD_16: AudioChannelLayoutTag`](https://developer.apple.com/documentation/coreaudiotypes/kaudiochannellayouttag_dvd_16)
+- [`var kAudioChannelLayoutTag_DVD_17: AudioChannelLayoutTag`](https://developer.apple.com/documentation/coreaudiotypes/kaudiochannellayouttag_dvd_17)
+- [`var kAudioChannelLayoutTag_DVD_18: AudioChannelLayoutTag`](https://developer.apple.com/documentation/coreaudiotypes/kaudiochannellayouttag_dvd_18)
+- [`var kAudioChannelLayoutTag_DVD_19: AudioChannelLayoutTag`](https://developer.apple.com/documentation/coreaudiotypes/kaudiochannellayouttag_dvd_19)
+- … and 169 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->
