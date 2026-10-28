@@ -3,7 +3,9 @@
 // CXCallController; CXCallObserver), BackgroundTasks (a refresh task launched on a dispatch queue), CoreSpotlight
 // (indexing), SafariServices (SFSafariViewController, the Reading List) and MultipeerConnectivity (an advertiser and a
 // browser in this app connect and exchange data) and Messages (an iMessage app's controller subclass, a message and a
-// refused sticker) and BackgroundAssets (an essential download refused outside the downloader extension). Each step prints a "sy ..." line the test checks.
+// refused sticker), BackgroundAssets (an essential download refused outside the downloader extension) and FileProvider
+// (an item class of its own, a domain the app cannot add without a file provider extension). Each step prints a "sy ..."
+// line the test checks.
 #import <UIKit/UIKit.h>
 #import <PushKit/PushKit.h>
 #import <CallKit/CallKit.h>
@@ -13,6 +15,9 @@
 #import <MultipeerConnectivity/MultipeerConnectivity.h>
 #import <Messages/Messages.h>
 #import <BackgroundAssets/BackgroundAssets.h>
+#import <FileProvider/FileProvider.h>
+#import <FileProviderUI/FileProviderUI.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 static void say(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 static void say(NSString *fmt, ...) {
@@ -224,6 +229,17 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
 @property (nonatomic, strong) Peers *peers;
 @end
 
+/* a file provider item in Objective-C */
+@interface NoteItem : NSObject <NSFileProviderItem>
+@end
+@implementation NoteItem
+- (NSFileProviderItemIdentifier)itemIdentifier { return @"a.txt"; }
+- (NSFileProviderItemIdentifier)parentItemIdentifier { return NSFileProviderRootContainerItemIdentifier; }
+- (NSString *)filename { return @"a.txt"; }
+- (UTType *)contentType { return UTTypePlainText; }
+- (NSFileProviderItemCapabilities)capabilities { return NSFileProviderItemCapabilitiesAllowsReading | NSFileProviderItemCapabilitiesAllowsWriting; }
+@end
+
 /* an iMessage app's view controller, subclassed in Objective-C */
 @interface GameController : MSMessagesAppViewController
 @end
@@ -302,6 +318,26 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
         (long)d.state, d.isEssential, plain.isEssential, [plain.identifier isEqual:d.identifier], (long)d.priority);
 }
 
+/* FileProvider from Objective-C (issue #408): a domain, versions, a placeholder from an item of its own; the app has no
+   file provider extension, so adding the domain fails with NSFileProviderErrorProviderNotFound */
+- (void)fileProvider {
+    NSFileProviderDomain *d = [[NSFileProviderDomain alloc] initWithIdentifier:@"objc" displayName:@"ObjC Files"];
+    NSFileProviderItemVersion *v = [[NSFileProviderItemVersion alloc] initWithContentVersion:[@"c1" dataUsingEncoding:NSUTF8StringEncoding]
+                                                                             metadataVersion:[@"m1" dataUsingEncoding:NSUTF8StringEncoding]];
+    NoteItem *item = [NoteItem new];
+    NSURL *file = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:item.filename]];
+    NSURL *placeholder = [NSFileProviderManager placeholderURLForURL:file];
+    NSError *we = nil;
+    BOOL wrote = [NSFileProviderManager writePlaceholderAtURL:placeholder withMetadata:item error:&we];
+    [NSFileProviderManager addDomain:d completionHandler:^(NSError *e) {
+        say(@"fileprovider domain=%@ name=%@ replicated=%d version=%@ root=%@ page=%lu caps=%lu placeholder=%@ wrote=%d add=%@ ui=%@",
+            d.identifier, d.displayName, d.isReplicated, [[NSString alloc] initWithData:v.contentVersion encoding:NSUTF8StringEncoding],
+            NSFileProviderRootContainerItemIdentifier, (unsigned long)NSFileProviderInitialPageSortedByName.length,
+            (unsigned long)item.capabilities, placeholder.lastPathComponent, wrote,
+            [e.domain isEqual:NSFileProviderErrorDomain] && e.code == NSFileProviderErrorProviderNotFound ? @"not-found" : errText(e), FPUIErrorDomain);
+    }];
+}
+
 /* Messages from Objective-C (issue #406): an iMessage app's controller subclass, a message in a session with a
    template layout (copied and archived), a sticker file iOS refuses */
 - (void)messages {
@@ -338,6 +374,7 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
     [self readingList];
     [self messages];
     [self backgroundAssets];
+    [self fileProvider];
     [self.calls badRequest];
     self.peers = [[Peers alloc] init];
     [self.peers start];

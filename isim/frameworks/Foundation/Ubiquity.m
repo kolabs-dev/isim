@@ -34,9 +34,17 @@ NSDictionary *isim_entitlements(void) {
     });
     return ent;
 }
+extern NSArray<NSString *> *isim_bundle_extension_paths(void);
 BOOL isim_app_group_entitled(NSString *group) {
     NSArray *groups = isim_entitlements()[@"com.apple.security.application-groups"];
     if ([groups isKindOfClass:[NSArray class]] && [groups containsObject:group]) return YES;
+    /* adapted: an app extension isim runs in the app's process (a file provider, a share extension) keeps its own
+       app groups, which on iOS its separate process has */
+    for (NSString *x in isim_bundle_extension_paths()) {
+        NSDictionary *e = [NSDictionary dictionaryWithContentsOfFile:[x stringByAppendingPathComponent:@"archived-expanded-entitlements.xcent"]];
+        NSArray *g = [e isKindOfClass:[NSDictionary class]] ? e[@"com.apple.security.application-groups"] : nil;
+        if ([g isKindOfClass:[NSArray class]] && [g containsObject:group]) return YES;
+    }
     if (![group hasPrefix:@"group."]) return NO;                 /* a suite of the app's own (UserDefaults) */
     static NSMutableSet *warned; @synchronized (NSFileManager.class) {
         if (!warned) warned = [NSMutableSet set];

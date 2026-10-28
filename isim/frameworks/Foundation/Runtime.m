@@ -313,6 +313,12 @@ void isim_bundle_register_extension(NSString *path) {
     if (!b) return;
     @synchronized ([NSBundle class]) { if (!extension_bundles) extension_bundles = [NSMutableArray array]; [extension_bundles addObject:b]; }
 }
+/* the extensions loaded into this process (their app groups are shared with it: Ubiquity.m) */
+NSArray<NSString *> *isim_bundle_extension_paths(void) {
+    NSMutableArray *out = [NSMutableArray array];
+    @synchronized ([NSBundle class]) { for (NSBundle *b in extension_bundles) [out addObject:b.bundlePath]; }
+    return out;
+}
 - (NSString *)localizedStringForKey:(NSString *)key value:(NSString *)value table:(NSString *)t {
     if (!key) return value ?: @"";
     NSString *hit = [self _isim_lookup:key table:t];
