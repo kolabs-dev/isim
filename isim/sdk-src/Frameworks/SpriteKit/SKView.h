@@ -5,7 +5,7 @@
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
 @class SKView;
-/* Declared for apps and ARSKViewDelegate; isim's frame loop does not consult it yet. */
+/* A NO from view:shouldRenderAtTime: skips that frame (no update, no drawing). */
 @protocol SKViewDelegate <NSObject>
 @optional
 - (BOOL)view:(SKView *)view shouldRenderAtTime:(NSTimeInterval)time;

@@ -210,7 +210,7 @@ enum GameplayChecks {
         log("octree: \(n) points, in (0..40)^3 \(inBox.count), remove \(oct.remove(0 as NSNumber)) then \(oct.elements(in: GKBox(boxMin: vector_float3(0, 0, 0), boxMax: vector_float3(40, 40, 40))).count)")
 
         final class Item { let id: Int; let lo: vector_float2; let hi: vector_float2; init(_ i: Int, _ l: vector_float2, _ h: vector_float2) { id = i; lo = l; hi = h } }
-        for (name, strategy) in [("half", GKRTreeSplitStrategy.halfSplit), ("linear", .linearSplit), ("quadratic", .quadraticSplit), ("reduceOverlap", .reduceOverlap)] {
+        for (name, strategy) in [("half", GKRTreeSplitStrategy.halve), ("linear", .linear), ("quadratic", .quadratic), ("reduceOverlap", .reduceOverlap)] {
             let rng = GKMersenneTwisterRandomSource(seed: 11)
             func r(_ k: Float) -> Float { rng.nextUniform() * k }
             let tree = GKRTree<Item>(maxNumberOfChildren: 4)

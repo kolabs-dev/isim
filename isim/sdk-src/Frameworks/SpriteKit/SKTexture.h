@@ -1,6 +1,7 @@
 #pragma once
 /* isim SpriteKit: textures: images, sub-rectangles, pixel data, noise and normal maps. */
 #import <SpriteKit/SpriteKitBase.h>
+#import <CoreImage/CoreImage.h>
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSInteger, SKTextureFilteringMode) { SKTextureFilteringNearest = 0, SKTextureFilteringLinear };
@@ -14,6 +15,7 @@ typedef NS_ENUM(NSInteger, SKTextureFilteringMode) { SKTextureFilteringNearest =
 + (instancetype)textureWithData:(NSData *)pixelData size:(CGSize)size rowLength:(unsigned int)rowLength alignment:(unsigned int)alignment;
 + (instancetype)textureNoiseWithSmoothness:(CGFloat)smoothness size:(CGSize)size grayscale:(BOOL)grayscale;
 + (instancetype)textureVectorNoiseWithSmoothness:(CGFloat)smoothness size:(CGSize)size;
+- (instancetype)textureByApplyingCIFilter:(CIFilter *)filter;
 - (instancetype)textureByGeneratingNormalMap;
 - (instancetype)textureByGeneratingNormalMapWithSmoothness:(CGFloat)smoothness contrast:(CGFloat)contrast;
 - (CGRect)textureRect;

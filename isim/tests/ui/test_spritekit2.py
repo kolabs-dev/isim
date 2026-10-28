@@ -65,6 +65,32 @@ LINES = {   # check: log lines (all must be present)
          "CoreHaptics: continuous on the gamepad: rumble 0.60 0.60 for 0.20 s", "isim gamepad: rumble 0.60 0.60"],
 }
 
+# issue #395: MoreChecks.swift
+MORE = {
+    "GKAgent3D seeks in 3D, its rotation follows its velocity": ["agent3d: closer true heading follows velocity true z moved true"],
+    "GKPath with 3D points, float3(at:)": ["path3d: 3 points third (10,10,5)"],
+    "GKCompositeBehavior weights, subscripts, remove": ["composite: count 1 seek weight 3.00 index 1 wander true wander weight 0.50",
+                                                        "composite after removeAll: 0"],
+    "GKNSPredicateRule evaluates its predicate with the rule system":
+        ["predicate rule: true when hungry true fact eat true", "predicate rule: false when fed true"],
+    "noise source factories, applyTurbulence, displaceWithNoises":
+        ["noise factories: checker true constant 0.25 spheres 1.0 cylinders 1.0 voronoi 7", "turbulence: changed samples true",
+         "displace: shifted by one square true"],
+    "SKTileMapNode.tileMapNodes(tileSet:...from:tileTypeNoiseMapThresholds:)": ["tile maps from noise: 2 maps tiles 8+8 one each true"],
+    "node(withPoint:), connectToLowestCostNode, connectToAdjacentNodes":
+        ["graph: node(withPoint:) keeps class true lowest cost link true", "grid graph: re-added node links 4", "graph3d: node(withPoint:) z 3"],
+    "GKDecisionTree export(to:error:) / init(url:error:)": ["decision tree file: saved true hungry -> eat fed -> play"],
+    "GKSCNNodeComponent as an agent delegate, SCNNode.entity": ["scn component: entity set true agent starts at node true node follows true"],
+    "SKRenderer blends the scene over the cleared Metal texture": ["renderer: left 0,0,255 right 255,0,0 updates true"],
+    "SKNode.intersects(_:), focusBehavior, SKTexture.applying(_:)":
+        ["intersects: overlapping true apart true", "focus behavior: true copied true", "texture applying filter: 0,0,0 size 4 constants true"],
+    "SKViewDelegate holds frames back": ["view delegate: asked true held updates 0 then running true"],
+    "SKAction.perform(_:onTarget:), SKEmitterNode particleAction and shader":
+        ["perform(_:onTarget:): hits 1", "emitter: particle action moved true shader pixel 0,255,0"],
+}
+MORE_KEYS = ["agent3d", "path3d", "composite", "predicate rule", "noise", "turbulence", "displace", "tile maps", "graph", "decision tree file",
+             "scn component", "renderer", "intersects", "focus", "texture applying", "view delegate", "emitter", "perform"]
+
 BG = (20, 23, 36)
 def red(c): return c[0] > 180 and c[1] < 90 and c[2] < 90
 def blue(c): return c[2] > 180 and c[0] < 120
@@ -147,6 +173,10 @@ def test_spritekit2(launch):
         "reversed done: position back=true rot=0.00 scale=1.00 alpha=1.00 size=40x40" in log, \
         "reversed(): sequence/group/repeat/move/rotate/scale/fade/resize undone"
     assert log.count("queries match brute force true") == 4, "GKRTree (4 split strategies) matches brute force"
+    app.wait_log(r"more checks done")
+    log = app.log
+    missing = [(what, l) for what, lines in MORE.items() for l in lines if l not in log]
+    assert not missing, f"missing: {missing}\n" + "\n".join(l for l in log.splitlines() if any(k in l for k in MORE_KEYS))
     video = (APPS / "HelloSpriteKit2.app/clip.mp4").exists()
     if video:
         assert "video node playing 160x90" in log, "SKVideoNode plays"

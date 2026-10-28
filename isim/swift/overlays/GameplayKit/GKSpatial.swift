@@ -160,7 +160,7 @@ open class GKOctree<ElementType: NSObject>: NSObject {
 
 // MARK: - R-tree
 
-public enum GKRTreeSplitStrategy: Int, Sendable { case halfSplit = 0, linearSplit = 1, quadraticSplit = 2, reduceOverlap = 3 }
+public enum GKRTreeSplitStrategy: Int, Sendable { case halve = 0, linear = 1, quadratic = 2, reduceOverlap = 3 }
 
 struct _GKRect {
     var lo: vector_float2, hi: vector_float2
@@ -225,15 +225,15 @@ open class GKRTree<ElementType: AnyObject>: NSObject {
         var groupA: [Int] = [], groupB: [Int] = []
         let minFill = max(1, maxChildren / 2 - (maxChildren % 2 == 0 ? 1 : 0))
         switch s {
-        case .halfSplit:
+        case .halve:
             // sorted along the axis where the entries spread most, cut in half
             let b = n.bounds
             let axis = (b.hi.x - b.lo.x) >= (b.hi.y - b.lo.y) ? 0 : 1
             let order = (0..<count).sorted { (n.rects[$0].lo[axis] + n.rects[$0].hi[axis]) < (n.rects[$1].lo[axis] + n.rects[$1].hi[axis]) }
             groupA = Array(order[..<(count / 2)]); groupB = Array(order[(count / 2)...])
-        case .linearSplit, .quadraticSplit, .reduceOverlap:
+        case .linear, .quadratic, .reduceOverlap:
             var seeds = (0, 1)
-            if s == .linearSplit {
+            if s == .linear {
                 // the pair with the greatest normalized separation along x or y
                 var bestSep = -Float.infinity
                 let b = n.bounds
@@ -260,7 +260,7 @@ open class GKRTree<ElementType: AnyObject>: NSObject {
                 if groupB.count + rest.count <= minFill { groupB += rest; break }
                 // quadratic: the entry with the strongest preference next; linear: in order
                 var pick = 0
-                if s != .linearSplit {
+                if s != .linear {
                     var bestDiff = -Float.infinity
                     for (k, i) in rest.enumerated() {
                         let diff = abs((ra.union(n.rects[i]).area - ra.area) - (rb.union(n.rects[i]).area - rb.area))

@@ -1092,7 +1092,7 @@ def _(a):
 @app("tests/spritekit-objc", products=["SpriteKitObjCTest.app"])   # after the overlays: SpriteKit re-exports its own (issue #618)
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "SpriteKit",
-                "-framework", "CoreGraphics"],
+                "-framework", "CoreGraphics", "-framework", "Metal", "-framework", "CoreImage"],
                name="SpriteKitObjCTest")
 
 

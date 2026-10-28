@@ -6,6 +6,8 @@
 // transition to a second scene. Results go to the log ("SpriteKitObjC: ...").
 #import <UIKit/UIKit.h>
 #import <SpriteKit/SpriteKit.h>
+#import <Metal/Metal.h>
+#import <CoreImage/CoreImage.h>
 
 static void say(NSString *s) { NSLog(@"SpriteKitObjC: %@", s); }
 
@@ -177,6 +179,47 @@ enum { BallCategory = 1, GroundCategory = 2 };
 
 @end
 
+// issue #395: SKRenderer into a Metal texture, intersectsNode:, focusBehavior, setNormalTexture:, a filtered texture
+static void moreChecks(void) {
+    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+    id<MTLCommandQueue> queue = [device newCommandQueue];
+    SKScene *scene = [SKScene sceneWithSize:CGSizeMake(16, 16)];
+    scene.backgroundColor = [UIColor greenColor];
+    SKRenderer *r = [SKRenderer rendererWithDevice:device];
+    r.scene = scene;
+    [r updateAtTime:1];
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm width:16 height:16 mipmapped:NO];
+    td.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
+    id<MTLTexture> tex = [device newTextureWithDescriptor:td];
+    MTLRenderPassDescriptor *pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = tex;
+    pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+    pass.colorAttachments[0].clearColor = MTLClearColorMake(1, 0, 0, 1);
+    id<MTLCommandBuffer> cb = [queue commandBuffer];
+    [r renderWithViewport:CGRectMake(0, 0, 16, 16) commandBuffer:cb renderPassDescriptor:pass];
+    [cb commit];
+    [cb waitUntilCompleted];
+    uint8_t px[4];
+    [tex getBytes:px bytesPerRow:16 * 4 fromRegion:MTLRegionMake2D(8, 8, 1, 1) mipmapLevel:0];
+    say([NSString stringWithFormat:@"renderer rgba %d,%d,%d", px[0], px[1], px[2]]);
+
+    SKSpriteNode *a = [SKSpriteNode spriteNodeWithColor:[UIColor redColor] size:CGSizeMake(10, 10)];
+    SKSpriteNode *b = [SKSpriteNode spriteNodeWithColor:[UIColor redColor] size:CGSizeMake(10, 10)];
+    b.position = CGPointMake(5, 5);
+    BOOL near = [a intersectsNode:b];
+    b.position = CGPointMake(50, 50);
+    a.focusBehavior = SKNodeFocusBehaviorFocusable;
+    [a runAction:[SKAction setNormalTexture:[SKTexture textureWithImage:[UIImage new]] resize:NO]];
+    say([NSString stringWithFormat:@"intersects %d apart %d focus %ld version %d", near, ![a intersectsNode:b],
+         (long)a.focusBehavior, SKVIEW_AVAILABLE + PHYSICSKIT_MINUS_GL_IMPORTS]);
+    uint8_t white[4 * 4 * 4];
+    memset(white, 255, sizeof white);
+    SKTexture *t = [SKTexture textureWithData:[NSData dataWithBytes:white length:sizeof white] size:CGSizeMake(4, 4)];
+    SKTexture *inverted = [t textureByApplyingCIFilter:[CIFilter filterWithName:@"CIColorInvert"]];
+    say([NSString stringWithFormat:@"filtered texture %.0fx%.0f class %@", inverted.size.width, inverted.size.height,
+         NSStringFromClass([inverted class])]);
+}
+
 @interface AppDelegate : UIResponder <UIApplicationDelegate>
 @property (nonatomic, strong) UIWindow *window;
 @end
@@ -195,6 +238,7 @@ enum { BallCategory = 1, GroundCategory = 2 };
     scene.delegate = scene;
     say([NSString stringWithFormat:@"scene class %@ is scene %d", NSStringFromClass([scene class]), [scene isKindOfClass:[SKScene class]]]);
     [view presentScene:scene];
+    moreChecks();
     return YES;
 }
 @end

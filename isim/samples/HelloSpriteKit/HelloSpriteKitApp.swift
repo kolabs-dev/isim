@@ -369,7 +369,7 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         if let hero = childNode(withName: "hero") { heroEntity.addComponent(GKSKNodeComponent(node: hero)) }
         chaser.maxSpeed = 200; chaser.maxAcceleration = 400
         target.position = vector_float2(300, 0)
-        chaser.behavior = GKBehavior(goal: GKGoal.toSeekAgent(target), weight: 1)
+        chaser.behavior = GKBehavior(goal: GKGoal(toSeekAgent: target), weight: 1)
         let chaserEntity = GKEntity()
         chaserEntity.addComponent(chaser)
         agents.addComponent(foundIn: chaserEntity)

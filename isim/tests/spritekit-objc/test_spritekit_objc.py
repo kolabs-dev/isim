@@ -2,7 +2,8 @@
 An SKScene subclass whose overrides run from the frame loop (sceneDidLoad, didMoveToView:, update:, didSimulatePhysics),
 an SKSceneDelegate, an SKSpriteNode subclass with its own touches, a texture from pixel data, labels and shape nodes,
 actions with a completion block and a key, physics bodies with an SKPhysicsContactDelegate, a constraint, scene touches
-with locationInNode: and nodeAtPoint:, and a transition to a second Objective-C scene."""
+with locationInNode: and nodeAtPoint:, and a transition to a second Objective-C scene. Issue #395: SKRenderer into a
+Metal texture, intersectsNode:, focusBehavior, setNormalTexture:, textureByApplyingCIFilter:."""
 from isimtest import need_apps, near, rgb
 
 
@@ -22,6 +23,10 @@ def test_spritekit_objc(launch):
     app.wait_log(p + r"contact ball\+ground")
     app.wait_log(p + r"frames ok simulated 1 delegate 1")
     app.wait_log(p + r"ready")
+    # issue #395: SKRenderer clears the rgba8 texture red, then draws the scene's green background over it
+    app.wait_log(p + r"renderer rgba 0,255,0")
+    app.wait_log(p + r"intersects 1 apart 1 focus 2 version 2")
+    app.wait_log(p + r"filtered texture 4x4 class SKTexture")
     # the scene draws: its background, the texture-made tile (orange), the green ring and the blue button
     app.wait_shot(lambda s: near(rgb(s, 200, 400), (26, 51, 102), 8) and near(rgb(s, 80, 274), (255, 128, 0), 8)
                   and near(rgb(s, 201, 774), (0, 0, 255), 8), "scene drawn")
