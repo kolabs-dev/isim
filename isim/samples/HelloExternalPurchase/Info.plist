@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Outside Shop</string>
+	<key>CFBundleExecutable</key>
+	<string>HelloExternalPurchase</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.isim.samples.HelloExternalPurchase</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>SKExternalPurchase</key>
+	<array>
+		<string>us</string>
+		<string>nl</string>
+	</array>
+	<key>SKExternalPurchaseLink</key>
+	<dict>
+		<key>us</key>
+		<string>https://shop.isim.example/buy</string>
+	</dict>
+	<key>SKExternalPurchaseMultiLink</key>
+	<dict>
+		<key>us</key>
+		<array>
+			<string>https://shop.isim.example/plans</string>
+			<string>https://shop.isim.example/gift</string>
+		</array>
+	</dict>
+	<key>SKExternalPurchaseCustomLinkRegions</key>
+	<array>
+		<string>nl</string>
+	</array>
+</dict>
+</plist>
