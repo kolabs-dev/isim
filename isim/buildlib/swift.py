@@ -845,7 +845,8 @@ OBJC_NAMES["ReplayKit"] = {c: c for c in """RPScreenRecorder RPPreviewViewContro
 OBJC_NAMES["PushKit"] = {c: c for c in "PKPushCredentials PKPushPayload PKPushRegistry".split()}
 OBJC_NAMES["BackgroundTasks"] = {c: c for c in """BGTaskRequest BGAppRefreshTaskRequest BGProcessingTaskRequest BGTask BGAppRefreshTask BGProcessingTask
     BGTaskScheduler""".split()}
-OBJC_NAMES["CoreSpotlight"] = {c: c for c in "CSSearchableItemAttributeSet CSSearchableItem CSSearchableIndex CSSearchQuery".split()}
+OBJC_NAMES["CoreSpotlight"] = {c: c for c in """CSSearchableItemAttributeSet CSSearchableItem CSSearchableIndex CSSearchQuery CSSearchQueryContext CSUserQuery
+    CSUserQueryContext CSSuggestion CSPerson CSCustomAttributeKey CSLocalizedString CSIndexExtensionRequestHandler CSImportExtension""".split()}   # issue #412
 OBJC_NAMES["CoreLocation"] = {c: c for c in "CLLocationManager CLLocation CLHeading CLPlacemark CLGeocoder CLRegion CLCircularRegion CLVisit CLFloor".split()}
 # issue #245: drag and drop, spring loading for Objective-C (UIPasteConfiguration had its Objective-C name already)
 OBJC_NAMES["UIKit"] = {c: c for c in """UIDragItem UIDragPreviewParameters UIDragPreview UITargetedDragPreview UIDropProposal UIDragInteraction

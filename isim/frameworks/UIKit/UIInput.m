@@ -383,6 +383,18 @@ int NSExtensionMain(int argc, char *argv[]) {
         NSLog(@"isim: %@ extension: the %@ framework is not available", point, fw[0]);
         return 1;
     }
+    if ([point isEqualToString:@"com.apple.spotlight.index"] || [point isEqualToString:@"com.apple.spotlight.import"]) {
+        /* Spotlight's index and import extensions: helper processes the home screen starts (SBSpotlightIndex.m); the
+           principal class answers (CoreSpotlight/Delegate.swift) */
+        extern void *dlsym(void *, const char *);
+        extern void *dlopen(const char *, int);
+        int (*cs_main)(int, char **) = (int (*)(int, char **))dlsym((void *)-2, "isim_cs_extension_main");
+        if (!cs_main && dlopen("/usr/lib/swift/libswiftCoreSpotlight.dylib", 2))
+            cs_main = (int (*)(int, char **))dlsym((void *)-2, "isim_cs_extension_main");
+        if (cs_main) return cs_main(argc, argv);
+        NSLog(@"isim: Spotlight extension: the CoreSpotlight framework is not available");
+        return 1;
+    }
     if ([point isEqualToString:@"com.apple.background-asset-downloader-extension"]) {
         /* BackgroundAssets: a helper process the home screen starts; a Swift @main BADownloaderExtension, else the
            Objective-C principal class (BackgroundAssets/Extension.swift) */

@@ -227,10 +227,11 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
 - (void)startCall { [(id)UIApplication.sharedApplication.delegate performSelector:@selector(startCall)]; }
 @end
 
-@interface AppDelegate : UIResponder <UIApplicationDelegate>
+@interface AppDelegate : UIResponder <UIApplicationDelegate, CSSearchableIndexDelegate>
 @property (nonatomic, strong) UIWindow *window;
 @property (nonatomic, strong) Calls *calls;
 @property (nonatomic, strong) Peers *peers;
+@property (nonatomic, strong) CSSearchQuery *query;
 @end
 
 /* a file provider item in Objective-C */
@@ -284,9 +285,42 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
     a.keywords = @[@"objc", @"note"];
     CSSearchableItem *item = [[CSSearchableItem alloc] initWithUniqueIdentifier:@"note-1" domainIdentifier:@"notes" attributeSet:a];
     say(@"spotlight available=%d expires=%d", [CSSearchableIndex isIndexingAvailable], item.expirationDate != nil);
-    [[CSSearchableIndex defaultSearchableIndex] indexSearchableItems:@[item] completionHandler:^(NSError *error) {
+    CSSearchableItemAttributeSet *b = [[CSSearchableItemAttributeSet alloc] initWithContentType:[UTType typeWithIdentifier:@"public.text"]];
+    b.title = @"Second note";
+    b.rating = @4;
+    b.authors = @[[[CSPerson alloc] initWithDisplayName:@"Anna Haro" handles:@[@"anna@example.com"] handleIdentifier:@"emailAddresses"]];
+    CSCustomAttributeKey *mood = [[CSCustomAttributeKey alloc] initWithKeyName:@"mood"];
+    [b setValue:@"calm" forCustomKey:mood];
+    CSSearchableItem *second = [[CSSearchableItem alloc] initWithUniqueIdentifier:@"note-2" domainIdentifier:@"notes" attributeSet:b];
+    say(@"spotlight attributes type=%@ author=%@ mood=%@ bad key=%d", b.contentType, b.authors.firstObject.displayName,
+        [b valueForCustomKey:mood], [[CSCustomAttributeKey alloc] initWithKeyName:@"com.apple.mood"] == nil);
+    CSSearchableIndex *index = [CSSearchableIndex defaultSearchableIndex];
+    index.indexDelegate = self;
+    [index indexSearchableItems:@[item, second] completionHandler:^(NSError *error) {
         say(@"spotlight indexed %@ error=%@ activity=%@", item.uniqueIdentifier, errText(error), CSSearchableItemActionType);
+        CSSearchQueryContext *ctx = [[CSSearchQueryContext alloc] init];
+        ctx.fetchAttributes = @[@"title", @"rating"];
+        CSSearchQuery *q = [[CSSearchQuery alloc] initWithQueryString:@"rating >= 3 || keywords == \"objc\"" queryContext:ctx];
+        NSMutableArray *found = [NSMutableArray array];
+        q.foundItemsHandler = ^(NSArray<CSSearchableItem *> *items) { for (CSSearchableItem *i in items) [found addObject:i.uniqueIdentifier]; };
+        __weak CSSearchQuery *wq = q;
+        q.completionHandler = ^(NSError *qerror) {
+            [found sortUsingSelector:@selector(compare:)];
+            say(@"spotlight query found %lu %@ error=%@", (unsigned long)wq.foundItemCount, [found componentsJoinedByString:@","], errText(qerror));
+        };
+        self.query = q;
+        [q start];
     }];
+}
+
+- (void)searchableIndex:(CSSearchableIndex *)searchableIndex reindexAllSearchableItemsWithAcknowledgementHandler:(void (^)(void))acknowledgementHandler {
+    say(@"spotlight delegate reindex all");
+    acknowledgementHandler();
+}
+- (void)searchableIndex:(CSSearchableIndex *)searchableIndex reindexSearchableItemsWithIdentifiers:(NSArray<NSString *> *)identifiers
+ acknowledgementHandler:(void (^)(void))acknowledgementHandler {
+    say(@"spotlight delegate reindex %@", [identifiers componentsJoinedByString:@","]);
+    acknowledgementHandler();
 }
 
 - (void)readingList {

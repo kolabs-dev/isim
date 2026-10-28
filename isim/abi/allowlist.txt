@@ -961,3 +961,10 @@ usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit6SKViewC8delegateyXlSgvgTq
 usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit6SKViewC8delegateyXlSgvpMV
 usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit6SKViewC8delegateyXlSgvsTj
 usr/lib/swift/libswiftSpriteKit.dylib _$s9SpriteKit6SKViewC8delegateyXlSgvsTq
+# issue #412, 0.33.0: CSSearchableIndex.default() returns Self and CSSearchableItemAttributeSet.contentType is a
+# settable String? (Apple's types; it was a String constant). Swift apps built with 0.32 or earlier that use
+# CoreSpotlight's default index, or read an attribute set's contentType, must be rebuilt.
+usr/lib/swift/libswiftCoreSpotlight.dylib _$s13CoreSpotlight17CSSearchableIndexC7defaultACyFZTj
+usr/lib/swift/libswiftCoreSpotlight.dylib _$s13CoreSpotlight17CSSearchableIndexC7defaultACyFZTq
+usr/lib/swift/libswiftCoreSpotlight.dylib _$s13CoreSpotlight28CSSearchableItemAttributeSetC11contentTypeSSvg
+usr/lib/swift/libswiftCoreSpotlight.dylib _$s13CoreSpotlight28CSSearchableItemAttributeSetC11contentTypeSSvpMV

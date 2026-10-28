@@ -54,6 +54,12 @@
   isim sso list                                    the single sign-on profiles (identity provider URLs -> SSO extension)
   isim sso add <extension bundle id> <url>... [--realm R]   install a profile, as an MDM's Extensible SSO payload
   isim sso remove <extension bundle id>|all        remove profiles
+  isim spotlight reindex <app> [id ...]            Spotlight asks the app to reindex all (or some) items: its index
+                                                   extension, else its CSSearchableIndexDelegate while it runs
+  isim spotlight items <app> <id> ...              Spotlight asks for items by identifier (iOS 18)
+  isim spotlight throttle <app> on|off             Spotlight throttles indexing (searchableIndexDidThrottle) or ends it
+  isim spotlight import <app> <file>               the app's Spotlight import extension imports a file
+  isim spotlight list <app>                        the app's items in the Spotlight index
 
 <app> is a bundle identifier, an .app bundle or an installed app's name. Running apps notice changes
 within half a second. Data: ISIM_DATA (~/.local/share/isim)/Containers/<bundle id>/Library/isim/; Wallet: ISIM_DATA/Library/Wallet/; StoreKit purchase
@@ -1297,6 +1303,40 @@ def bgassets(cmd, args):
         die(usage)
 
 
+def spotlight(cmd, args):
+    """CoreSpotlight: Spotlight asking an app (its index delegate or index extension), import extensions, the index"""
+    usage = ('usage: isim spotlight reindex APP [ID ...] | isim spotlight items APP ID ... | isim spotlight throttle APP on|off\n'
+             '       isim spotlight import APP FILE | isim spotlight list APP')
+    if cmd == 'list' and len(args) == 1:
+        f = os.path.join(DATA, 'Library/Spotlight', bundle_id(args[0]) + '.plist')
+        items = [e for e in (plistlib.load(open(f, 'rb')).get('items', []) if os.path.isfile(f) else []) if e.get('kind') == 'item']
+        for e in items:
+            index = e.get('index', 'default')
+            print(f"{e.get('id')}\t{e.get('title', '')}" + (f"\tdomain {e['domain']}" if e.get('domain') else '')
+                  + ('' if index == 'default' else f'\tindex {index}') + ('\timported' if e.get('imported') else ''))
+        if not items:
+            print('no indexed items')
+        return
+    if cmd == 'reindex' and args:
+        req = {'request': 'reindex', 'identifiers': args[1:]}
+    elif cmd == 'items' and len(args) >= 2:
+        req = {'request': 'items', 'identifiers': args[1:]}
+    elif cmd == 'throttle' and len(args) == 2 and args[1] in ('on', 'off'):
+        req = {'request': 'throttle' if args[1] == 'on' else 'finish-throttle'}
+    elif cmd == 'import' and len(args) == 2:
+        req = {'request': 'import', 'file': os.path.abspath(args[1]) if os.path.exists(args[1]) else args[1]}
+    else:
+        die(usage)
+    req['bundle'] = bundle_id(args[0])
+    q = os.path.join(DATA, 'Library/isim/Spotlight/Queue')
+    os.makedirs(q, exist_ok=True)
+    tmp = os.path.join(q, f'.{os.getpid()}.tmp')
+    with open(tmp, 'wb') as f:
+        plistlib.dump(req, f)
+    os.replace(tmp, os.path.join(q, f'{time.time():.6f}-{os.getpid()}.plist'))
+    print(f"queued Spotlight's {req['request']} request for {req['bundle']}")
+
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == 'gamecenter' and sys.argv[2] in GC_NETWORK:
         sys.argv.append('')
@@ -1304,9 +1344,9 @@ def main():
         sys.argv.append('')
     if len(sys.argv) >= 2 and sys.argv[1] == 'finance':
         return finance(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
-    if len(sys.argv) >= 2 and sys.argv[1] in ('smartcard', 'iddocs', 'alarms', 'messages', 'bgassets', 'fileprovider', 'screentime'):
+    if len(sys.argv) >= 2 and sys.argv[1] in ('smartcard', 'iddocs', 'alarms', 'messages', 'bgassets', 'fileprovider', 'screentime', 'spotlight'):
         return {'smartcard': smartcard, 'iddocs': iddocs, 'alarms': alarms, 'messages': messages, 'bgassets': bgassets,
-                'fileprovider': fileprovider, 'screentime': screentime}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
+                'fileprovider': fileprovider, 'screentime': screentime, 'spotlight': spotlight}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] in ('autofill', 'sso'):
         return {'autofill': autofill, 'sso': sso}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] == 'agerange':
