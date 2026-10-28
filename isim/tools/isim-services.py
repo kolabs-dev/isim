@@ -1086,6 +1086,61 @@ def alarms(cmd, args):
         print('no alarms scheduled')
 
 
+def messages(cmd, args):
+    """Messages: the conversation in isim's Messages app (list), and a message from its other participant (receive)"""
+    d = os.path.join(DATA, 'Library/isim/Messages')
+    conv = os.path.join(d, 'conversation.json')
+    entries = json.load(open(conv)).get('entries', []) if os.path.isfile(conv) else []
+    if cmd == 'list':
+        if not entries:
+            print('no messages')
+        for e in entries:
+            who = 'me' if e.get('mine', True) else 'Ana'
+            if e['kind'] == 'message':
+                parts = [p for p in (e.get('caption'), e.get('subcaption'), e.get('url')) if p]
+                print(f"{who}: [{e.get('app', '?')}] {' | '.join(parts)}" + (f" (session {e['session']})" if e.get('session') else ''))
+            elif e['kind'] == 'sticker':
+                print(f"{who}: [sticker] {e.get('text', '')}")
+            elif e['kind'] == 'attachment':
+                print(f"{who}: [attachment] {e.get('text', '')}")
+            else:
+                print(f"{who}: {e.get('text', '')}")
+    elif cmd == 'receive':
+        e = {'id': str(uuid.uuid4()).upper(), 'mine': False, 'live': False, 'date': time.time()}
+        opts, rest = {}, []
+        i = 0
+        while i < len(args):
+            if args[i] in ('--app', '--url', '--caption', '--subcaption', '--summary', '--session') and i + 1 < len(args):
+                opts[args[i][2:]] = args[i + 1]
+                i += 2
+            else:
+                rest.append(args[i])
+                i += 1
+        if 'app' in opts:
+            e.update(kind='message', app=opts['app'])
+            for k in ('url', 'caption', 'subcaption', 'summary'):
+                if k in opts:
+                    e[k] = opts[k]
+            s = opts.get('session')
+            if s == 'last':
+                s = next((x.get('session') for x in reversed(entries) if x.get('app') == opts['app'] and x.get('session')), None)
+                if not s:
+                    die(f"no message of {opts['app']} with a session")
+            if s:
+                e['session'] = s
+        elif rest:
+            e.update(kind='text', text=' '.join(rest))
+        else:
+            die('usage: isim messages receive TEXT | --app EXTENSION [--url URL] [--caption C] [--subcaption S] [--summary T] [--session last|UUID]')
+        os.makedirs(d, exist_ok=True)
+        inbox = os.path.join(d, 'inbox.json')
+        queued = json.load(open(inbox)) if os.path.isfile(inbox) else []
+        write_json(inbox, queued + [e])
+        print('queued for Messages')
+    else:
+        die('usage: isim messages list | receive ...')
+
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == 'gamecenter' and sys.argv[2] in GC_NETWORK:
         sys.argv.append('')
@@ -1093,8 +1148,8 @@ def main():
         sys.argv.append('')
     if len(sys.argv) >= 2 and sys.argv[1] == 'finance':
         return finance(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
-    if len(sys.argv) >= 2 and sys.argv[1] in ('smartcard', 'iddocs', 'alarms'):
-        return {'smartcard': smartcard, 'iddocs': iddocs, 'alarms': alarms}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
+    if len(sys.argv) >= 2 and sys.argv[1] in ('smartcard', 'iddocs', 'alarms', 'messages'):
+        return {'smartcard': smartcard, 'iddocs': iddocs, 'alarms': alarms, 'messages': messages}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] in ('autofill', 'sso'):
         return {'autofill': autofill, 'sso': sso}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] == 'agerange':

@@ -521,7 +521,8 @@ def _(a):
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "PushKit", "-framework", "CallKit",
                                           "-framework", "AVFoundation", "-framework", "BackgroundTasks", "-framework", "CoreSpotlight",
-                                          "-framework", "SafariServices", "-framework", "MultipeerConnectivity", "-framework", "CoreGraphics"])
+                                          "-framework", "SafariServices", "-framework", "MultipeerConnectivity", "-framework", "CoreGraphics",
+                                          "-framework", "Messages"])
 
 
 @app("samples/HelloAuthObjC")   # after the overlays: AuthenticationServices.framework re-exports its Swift overlay (issue #305)
@@ -1416,6 +1417,14 @@ def settings_gear():
     d += [f"fill {dark}"] + tooth(6, 60, 4, 0, 36) + ["circle 90,90 90,77"]                # spokes, the hub (r 13)
     d += [f"fill {light}", "circle 90,90 90,85"]                                           # the axle (r 5)
     return " ".join(d)
+
+
+@app("system/Messages", products=["MobileSMS.app"], dest="out/sdk/Applications")
+def _(a):   # the host of the installed apps' iMessage apps and sticker packs (the Messages framework)
+    b = a.swift_app("MobileSMS")   # Apple's name: an app module named Messages would hide the framework
+    if shutil.which("magick"):   # a white speech bubble on green
+        a.run("magick", "-size", "180x180", "gradient:#65f56b-#0bc13a", "-fill", "#ffffff", "-draw", "ellipse 90,84 58,48 0,360",
+              "-draw", "polygon 52,108 40,138 78,122", f"{b}/icon.png", check=False, quiet=True)
 
 
 @app("system/Shortcuts", products=["Shortcuts.app"], dest="out/sdk/Applications")

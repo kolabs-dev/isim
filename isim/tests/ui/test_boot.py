@@ -12,7 +12,7 @@ def screen_size(app):
 @pytest.mark.os_matrix
 def test_boot(launch, ios, device_data):
     dev = launch(None, install=["HelloSwiftUI", "HelloCounter"])
-    assert dev.has(r"SpringBoard: 5 app\(s\): Safari, Settings, Shortcuts, Hello SwiftUI, HelloCounter"), "home screen lists installed apps"
+    assert dev.has(r"SpringBoard: 6 app\(s\): Messages, Safari, Settings, Shortcuts, Hello SwiftUI, HelloCounter"), "home screen lists installed apps"
 
     dev.wait_view(r"id=app-dev\.isim\.settings")
     dev.wait_still()

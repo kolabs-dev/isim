@@ -804,6 +804,8 @@ OBJC_NAMES["SpriteKit"] = {c: c for c in """SKAction SKAttribute SKAttributeValu
 OBJC_NAMES["MessageUI"] = {c: c for c in ("MFMailComposeViewController", "MFMessageComposeViewController")}
 OBJC_NAMES["CoreBluetooth"] = {c: c for c in """CBUUID CBAttribute CBService CBMutableService CBCharacteristic CBMutableCharacteristic
     CBDescriptor CBMutableDescriptor CBPeer CBCentral CBATTRequest CBL2CAPChannel CBPeripheral CBManager CBCentralManager CBPeripheralManager""".split()}
+OBJC_NAMES["Messages"] = {c: c for c in """MSSession MSMessageLayout MSMessageTemplateLayout MSMessageLiveLayout MSMessage MSSticker MSStickerView
+    MSStickerBrowserView MSStickerBrowserViewController MSConversation MSMessagesAppViewController MSUPIRequest""".split()}   # issue #406
 OBJC_NAMES["CryptoTokenKit"] = {**{c: c for c in """TKSmartCardSlotManager TKSmartCardSlotNFCSession TKSmartCardSlot TKSmartCard
     TKSmartCardATR TKTLVRecord TKBERTLVRecord TKCompactTLVRecord TKSimpleTLVRecord TKSmartCardPINFormat TKSmartCardUserInteraction
     TKSmartCardUserInteractionForPINOperation TKSmartCardUserInteractionForSecurePINVerification TKSmartCardUserInteractionForSecurePINChange
@@ -1023,6 +1025,7 @@ PermissionKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concur
 CryptoTokenKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics   # issue #403: smart cards on virtual readers
 IdentityDocumentServices -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftSecurity -framework Foundation   # issue #403
 LiveCommunicationKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCallKit -lswiftAVFoundation -framework Foundation   # issue #404: on CallKit's engine
+Messages -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics -framework ImageIO   # issue #406: hosted by isim's Messages app
 AlarmKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftSwiftUI -lswiftAppIntents -lswiftActivityKit -lswiftCombine -lswiftCoreGraphics -lswiftObservation -framework Foundation -framework UIKit -lisim_host   # issue #405: the shell rings the alarms
 """
 
@@ -1034,7 +1037,7 @@ GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Se
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport XPC StateReporting MetricKit CloudKit AuthenticationServices
 QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision SoundAnalysis NaturalLanguage FoundationModels Speech VisionKit WebKit SafariServices LinkPresentation Accessibility MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit TipKit Translation ImagePlayground VisualIntelligence Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit
-CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive GroupActivities GameSave DeclaredAgeRange PermissionKit FinanceKit FinanceKitUI CryptoTokenKit IdentityDocumentServices LiveCommunicationKit AlarmKit""".split())
+CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive GroupActivities GameSave DeclaredAgeRange PermissionKit FinanceKit FinanceKitUI CryptoTokenKit IdentityDocumentServices LiveCommunicationKit AlarmKit Messages""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer ReplayKit AlarmKit".split())
 # modules that also compile overlays/_AdAttribution (the conversion values SKAdNetwork and AdAttributionKit share)
