@@ -6,3 +6,4 @@
 #include <CoreMedia/CMTimeRange.h>
 #include <CoreMedia/CMSimpleQueue.h>
 #include <CoreMedia/CMBufferQueue.h>
+#include <CoreMedia/CMSampleBuffer.h>
