@@ -348,7 +348,8 @@ struct _SKAskRequest: Codable, Hashable, Sendable {
 /// Thread-safe ledger: the purchase history of this app on the device's account (like the App Store keeps it), as JSON
 /// in the device data ($ISIM_DATA/Library/isim/StoreKit/<bundle id>/ledger.json). It survives deleting the app, so
 /// a reinstalled app gets its purchases back (AppStore.sync, restore). `isim storekit` edits the same file;
-/// the running app notices (it re-reads the file every half second) and emits Transaction.updates.
+/// the running app notices (it re-reads the file every half second) and emits Transaction.updates. Both hold the
+/// file lock (ledger.json.lock) from reading the file to writing it, so neither overwrites the other's change (#735).
 final class _SKLedger: @unchecked Sendable {
     static let shared = _SKLedger()
     let lock = NSLock()
@@ -367,15 +368,29 @@ final class _SKLedger: @unchecked Sendable {
             try? fm.moveItem(atPath: old, toPath: path)
             NSLog("isim StoreKit: moved the purchase history from the app container to the device's account data")
         }
-        _ = reload()
-        if lastBytes == nil { migrate(); save() }
-        if data.firstLaunch == nil {
-            data.firstLaunch = Date().timeIntervalSince1970
-            data.firstAppVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
-            data.deviceID = UUID().uuidString
-            save()
+        withFileLock {
+            _ = reload()
+            if lastBytes == nil { migrate(); save() }
+            if data.firstLaunch == nil {
+                data.firstLaunch = Date().timeIntervalSince1970
+                data.firstAppVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+                data.deviceID = UUID().uuidString
+                save()
+            }
         }
         statusKeys = currentStatusKeys(Date())
+    }
+    /// the ledger's file lock, which `isim storekit` takes too (another process writing the file); -1 without one
+    private func fileLock() -> Int32 {
+        let fd = open(path + ".lock", O_RDWR | O_CREAT | O_CLOEXEC, 0o644)
+        if fd >= 0 { _ = flock(fd, LOCK_EX) }
+        return fd
+    }
+    private func fileUnlock(_ fd: Int32) { if fd >= 0 { _ = flock(fd, LOCK_UN); close(fd) } }
+    private func withFileLock<R>(_ f: () throws -> R) rethrows -> R {
+        let fd = fileLock()
+        defer { fileUnlock(fd) }
+        return try f()
     }
     static var defaultPath: String {
         (_SKSigning.directory as NSString).appendingPathComponent("\(Bundle.main.bundleIdentifier ?? "app")/ledger.json")
@@ -409,11 +424,31 @@ final class _SKLedger: @unchecked Sendable {
     }
     func read<R>(_ f: (_SKLedgerData) -> R) -> R { lock.lock(); defer { lock.unlock() }; return f(data) }
     func mutate<R>(_ f: (inout _SKLedgerData) throws -> R) rethrows -> R {
-        lock.lock(); defer { lock.unlock() }
-        reload()
-        let r = try f(&data)
-        save()
-        return r
+        lock.lock()
+        var external: [_SKTxn] = []
+        defer {
+            lock.unlock()
+            for t in external { _SKUpdates.transactions.yield(.verified(Transaction(t))) }
+        }
+        return try withFileLock {
+            external = reloadChanges()      // a Transaction Manager change since the last tick still reaches the app (#735)
+            let r = try f(&data)
+            save()
+            return r
+        }
+    }
+    /// re-reads the file; the transactions another process (the Transaction Manager) added or refunded since the last read
+    private func reloadChanges() -> [_SKTxn] {
+        let before = data.transactions
+        guard reload() else { return [] }
+        let old = Dictionary(before.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        var events: [_SKTxn] = []
+        for t in data.transactions {
+            if let o = old[t.id] { if o.revocationDate == nil && t.revocationDate != nil { events.append(t) } }
+            else { events.append(t) }
+        }
+        NSLog("isim StoreKit: ledger changed by the Transaction Manager")
+        return events
     }
     func newID(_ d: inout _SKLedgerData) -> UInt64 { let n = d.nextID; d.nextID += 1; return n }
 
@@ -586,15 +621,8 @@ final class _SKLedger: @unchecked Sendable {
         let cfg = _SKConfig.load()
         var events: [_SKTxn] = []
         lock.lock()
-        let before = data.transactions
-        if reload() {   // changed on disk by the Transaction Manager
-            let old = Dictionary(before.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-            for t in data.transactions {
-                if let o = old[t.id] { if o.revocationDate == nil && t.revocationDate != nil { events.append(t) } }
-                else { events.append(t) }
-            }
-            NSLog("isim StoreKit: ledger changed by the Transaction Manager")
-        }
+        let fd = fileLock()             // until the changes are saved
+        events += reloadChanges()       // changed on disk by the Transaction Manager
         var changed = false
         let nowT = now.timeIntervalSince1970
         /// the next period of subscription group g, from `start` (an offer still running applies)
@@ -667,6 +695,7 @@ final class _SKLedger: @unchecked Sendable {
             if data.subscriptions[g] != s { data.subscriptions[g] = s; changed = true }
         }
         if changed { save() }
+        fileUnlock(fd)
         let keys = currentStatusKeys(now)
         let changedGroups = keys.filter { statusKeys[$0.key] != $0.value }.map { $0.key }
         statusKeys = keys

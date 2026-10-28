@@ -12,6 +12,9 @@ and expires while the app runs, promotional offers with a forged signature, a va
 win-back eligibility, offer codes for current subscribers (from the next renewal), single use, and for a one-time
 product.
 
+test_store_refund_during_purchase: a Transaction Manager refund just before the app writes the ledger still reaches
+Transaction.updates.
+
 test_store_billing: billing issues with the grace period (entitlement kept, the Billing Problem message shown by isim),
 billing retry, resolving them (Transaction Manager, the message's Update Payment Method), billing retry running out
 (expired, billing error), the automatic win-back message, signed JWS values (verified with OpenSSL) and AppTransaction
@@ -130,11 +133,13 @@ def receipt_fields(payload):
 
 
 def renewal_gaps(log):
-    """seconds between consecutive renewals of Plus Monthly before the upgrade (NSLog timestamps)"""
+    """seconds between the end dates of consecutive renewals of Plus Monthly before the upgrade: the subscription
+    period on the accelerated clock. Each renewal starts where the last one ended, so the gaps hold however late a
+    loaded machine runs the renewals (#735); the waits for the renewals check that they come in real time."""
     before = log.split("immediate upgrade")[0]
-    times = [datetime.strptime(m.group(1), "%H:%M:%S.%f")
-             for m in re.finditer(r"^\S+ (\d+:\d+:[\d.]+) .*subscription dev\.isim\.store\.plus\.monthly renewed", before, re.M)]
-    return [round((b - a).total_seconds(), 1) for a, b in zip(times, times[1:])]
+    ends = [datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
+            for m in re.finditer(r"subscription dev\.isim\.store\.plus\.monthly renewed: transaction \d+ until (\S+ \S+)", before)]
+    return [(b - a).total_seconds() for a, b in zip(ends, ends[1:])]
 
 
 def buy(app, button):
@@ -176,7 +181,7 @@ def test_store(launch, device_data, tmp_path):
     app.wait_log(r"dev\.isim\.store\.plus\.monthly -> dev\.isim\.store\.premium\.monthly \(immediate upgrade\)")
     app.wait_log(r"status: subscribed dev\.isim\.store\.premium\.monthly autoRenew=true")
     gaps = renewal_gaps(app.log)
-    assert gaps and all(3.3 <= g <= 4.9 for g in gaps), f"renewals every 4 s (accelerated clock): {gaps}"
+    assert gaps and all(g == 4 for g in gaps), f"renewals every 4 s (accelerated clock): {gaps}"
     app.wait_tap_id("close-subs")
 
     # Manage Subscriptions: a downgrade at the next renewal, then cancel; the subscription expires
@@ -352,6 +357,23 @@ def test_store(launch, device_data, tmp_path):
     assert app.quit() == 0
     list2 = storekit(device_data, "list")
     assert re.search(rf"^ *{coins} .*refunded", list2, re.M), f"ledger after run 2: {list2}"
+
+
+def test_store_refund_during_purchase(launch, device_data, tmp_path):
+    """A Transaction Manager refund made just before the app writes the ledger itself (here, the next purchase)
+    still reaches Transaction.updates (#735): the app's write takes in the change and reports it."""
+    app = launch("HelloStore", env={**ENV, **offer_env(device_data), **lookup_fixture(tmp_path), "HELLOSTORE_MESSAGES": "defer"})
+    app.wait_tap_id("open-products")
+    buy(app, "sk-buy-dev.isim.store.coins")
+    txn = app.wait_log(r"leaving coins txn (\d+) not finished").group(1)
+    for n in (2, 3, 4):
+        app.wait_tap_id("sk-buy-dev.isim.store.coins")
+        app.wait_view(r"text=Buy\b")
+        assert f"refunded transaction {txn}" in storekit(device_data, "refund", txn)
+        app.tap_text("Buy")                                 # the purchase writes the ledger right after the refund
+        app.wait_log(rf"update: txn {txn} dev\.isim\.store\.coins reason=purchase revoked")
+        txn = app.wait_log(r"leaving coins txn (\d+) not finished", count=n).group(1)
+    assert app.quit() == 0, "exits cleanly"
 
 
 def test_store_billing(launch, device_data, tmp_path):
