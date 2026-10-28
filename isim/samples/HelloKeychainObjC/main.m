@@ -4,6 +4,7 @@
 // (biometryCurrentSet) whose data asks for Face ID when it is read. Logs "kc ..." lines.
 #import <Security/Security.h>
 #import <LocalAuthentication/LocalAuthentication.h>
+#import <CryptoTokenKit/CryptoTokenKit.h>
 #import <UIKit/UIKit.h>
 #include <stdio.h>
 
@@ -69,6 +70,17 @@ static void basics(void) {
 }
 
 /* shared web credentials (issue #402): this app has no webcredentials domain, so adding one is refused */
+/* CryptoTokenKit from Objective-C (issue #403): ATR and TLV parsing; no smart card entitlement, so no slot manager */
+static void smartCards(void) {
+    unsigned char b[] = {0x3B, 0xFD, 0x13, 0x00, 0x00, 0x81, 0x31, 0xFE, 0x15, 0x80, 0x73, 0xC0, 0x21, 0xC0, 0x57, 0x59, 0x75, 0x62, 0x69,
+                         0x4B, 0x65, 0x79, 0x40};
+    TKSmartCardATR *atr = [[TKSmartCardATR alloc] initWithBytes:[NSData dataWithBytes:b length:sizeof b]];
+    TKBERTLVRecord *r = [[TKBERTLVRecord alloc] initWithTag:0x5FC102 value:[NSData dataWithBytes:b length:3]];
+    TKBERTLVRecord *back = [TKBERTLVRecord recordFromData:r.data];
+    say(@"tk atr protocols=%@ t1=%d records=%lu tlv=%llX/%lu manager=%d domain=%@", [atr.protocols componentsJoinedByString:@","],
+        [atr interfaceGroupForProtocol:TKSmartCardProtocolT1] != nil, (unsigned long)atr.historicalRecords.count, back.tag,
+        (unsigned long)back.value.length, TKSmartCardSlotManager.defaultManager != nil, TKErrorDomain);
+}
 static void sharedCredentials(void) {
     CFStringRef pw = SecCreateSharedWebCredentialPassword();
     say(@"shared password chars=%ld groups=%lu key=%d", (long)CFStringGetLength(pw),
@@ -174,6 +186,7 @@ static void localAuth(void) {
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)options {
     basics();
     sharedCredentials();
+    smartCards();
     addProtected();
     self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
     self.window.rootViewController = [VaultController new];

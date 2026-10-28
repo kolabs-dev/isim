@@ -804,6 +804,10 @@ OBJC_NAMES["SpriteKit"] = {c: c for c in """SKAction SKAttribute SKAttributeValu
 OBJC_NAMES["MessageUI"] = {c: c for c in ("MFMailComposeViewController", "MFMessageComposeViewController")}
 OBJC_NAMES["CoreBluetooth"] = {c: c for c in """CBUUID CBAttribute CBService CBMutableService CBCharacteristic CBMutableCharacteristic
     CBDescriptor CBMutableDescriptor CBPeer CBCentral CBATTRequest CBL2CAPChannel CBPeripheral CBManager CBCentralManager CBPeripheralManager""".split()}
+OBJC_NAMES["CryptoTokenKit"] = {**{c: c for c in """TKSmartCardSlotManager TKSmartCardSlotNFCSession TKSmartCardSlot TKSmartCard
+    TKSmartCardATR TKTLVRecord TKBERTLVRecord TKCompactTLVRecord TKSimpleTLVRecord TKSmartCardPINFormat TKSmartCardUserInteraction
+    TKSmartCardUserInteractionForPINOperation TKSmartCardUserInteractionForSecurePINVerification TKSmartCardUserInteractionForSecurePINChange
+    TKTokenWatcher""".split()}, "TKSmartCardATR.InterfaceGroup": "TKSmartCardATRInterfaceGroup", "TKTokenWatcher.TokenInfo": "TKTokenWatcherTokenInfo"}
 OBJC_NAMES["CoreNFC"] = {c: c for c in """NFCNDEFPayload NFCNDEFMessage NFCReaderSession NFCNDEFReaderSession NFCTagReaderSession NFCISO7816APDU
     NFCVASCommandConfiguration NFCVASResponse NFCVASReaderSession""".split()}
 OBJC_NAMES["HealthKit"] = {c: c for c in """HKObjectType HKCharacteristicType HKSampleType HKQuantityType HKCategoryType HKWorkoutType HKUnit
@@ -1016,6 +1020,8 @@ DeclaredAgeRange -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Con
 FinanceKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftCoreGraphics -lswiftCompression -framework Foundation -framework UIKit -lcompression   # issue #398
 FinanceKitUI -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftCoreGraphics -lswiftObservation -lswiftFinanceKit -framework Foundation -framework UIKit   # issue #398
 PermissionKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftCoreGraphics -lswiftObservation -framework Foundation -framework UIKit -framework CoreGraphics   # issue #397
+CryptoTokenKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics   # issue #403: smart cards on virtual readers
+IdentityDocumentServices -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftSecurity -framework Foundation   # issue #403
 """
 
 # app-facing re-implementations: library evolution keeps their ABI stable across isim updates (since 0.12 also the base
@@ -1026,7 +1032,7 @@ GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Se
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport XPC StateReporting MetricKit CloudKit AuthenticationServices
 QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision SoundAnalysis NaturalLanguage FoundationModels Speech VisionKit WebKit SafariServices LinkPresentation Accessibility MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit TipKit Translation ImagePlayground VisualIntelligence Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit
-CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive GroupActivities GameSave DeclaredAgeRange PermissionKit FinanceKit FinanceKitUI""".split())
+CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive GroupActivities GameSave DeclaredAgeRange PermissionKit FinanceKit FinanceKitUI CryptoTokenKit IdentityDocumentServices""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer ReplayKit".split())
 # modules that also compile overlays/_AdAttribution (the conversion values SKAdNetwork and AdAttributionKit share)

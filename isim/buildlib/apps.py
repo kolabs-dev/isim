@@ -338,6 +338,21 @@ def _(a):
     a.icon(f"{b}/DarkIcon60x60@3x.png", "#2c2c2e", "#000000", "S", fill="#ffd60a")
 
 
+@app("samples/HelloSmartCard", products=["HelloSmartCard.app", "HelloSmartCardNoEntitlement.app"])   # issue #403: the smart
+def _(a):                                                                                       # card entitlement; the same app without it
+    b = a.swift_app()
+    a.copy("HelloSmartCard.entitlements", f"{b}/archived-expanded-entitlements.xcent")
+    n = a.swift_app(name="HelloSmartCardNoEntitlement", plist="NoEntitlement.plist")
+    os.replace(f"{n}/NoEntitlement.plist", f"{n}/Info.plist")
+
+
+@app("samples/HelloIDDocs")   # issue #403: the document provider entitlement and a DeviceRequest
+def _(a):
+    b = a.swift_app()
+    a.copy("HelloIDDocs.entitlements", f"{b}/archived-expanded-entitlements.xcent")
+    a.copy("request.cbor", f"{b}/request.cbor")
+
+
 @app("samples/HelloVault")   # issue #400: a credential provider, an SSO extension and an account modification extension
 def _(a):
     b = a.swift_app(srcs=["HelloVault.swift"])
@@ -512,7 +527,7 @@ def _(a):
 @app("samples/HelloKeychainObjC")   # after the overlays: Security.framework re-exports libswiftSecurity
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "Security",
-                                          "-framework", "LocalAuthentication", "-framework", "CoreGraphics"])
+                                          "-framework", "LocalAuthentication", "-framework", "CoreGraphics", "-framework", "CryptoTokenKit"])
 
 
 @app("samples/HelloVisionKit")
