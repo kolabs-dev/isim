@@ -68,7 +68,7 @@ struct nc_item { char path[512], id[256], title[256], body[512], icon[512], reco
 static struct nc_item ncl[64]; static int nnc;
 
 struct sys_el { char id[128], text[192]; struct rectf r; int kind, arg; };
-enum { EL_NONE, EL_CARD, EL_NC_ITEM, EL_NC_GROUP, EL_NC_LESS, EL_NX_EXT, EL_NX_MEDIA, EL_NC_CLEAR, EL_CC_TOGGLE, EL_CC_SLIDER, EL_BG, EL_NX_CONTENT, EL_NX_ACTION, EL_NX_SEND, EL_LA, EL_LW, EL_SIRI, EL_CC_X /* shell_controls.inc */, EL_NP, EL_CALL /* shell_calls.inc */ };
+enum { EL_NONE, EL_CARD, EL_NC_ITEM, EL_NC_GROUP, EL_NC_LESS, EL_NX_EXT, EL_NX_MEDIA, EL_NC_CLEAR, EL_CC_TOGGLE, EL_CC_SLIDER, EL_BG, EL_NX_CONTENT, EL_NX_ACTION, EL_NX_SEND, EL_LA, EL_LW, EL_SIRI, EL_CC_X /* shell_controls.inc */, EL_NP, EL_CALL /* shell_calls.inc */, EL_ALARM /* shell_alarms.inc */ };
 static struct sys_el els[96]; static int nels;
 
 /* Control Center state */
@@ -103,7 +103,9 @@ static int siri_visible(void); static void siri_draw(cairo_t *c); static int sir
 static void siri_load(const char *file);                                       /* shell_siri.inc */
 static int calls_visible(void); static void calls_draw(cairo_t *c); static int calls_input(const struct isim_event *ev); static void calls_tick(void); static int calls_home(void); static int calls_fullscreen(void);
 static int calls_handle_msg(int from, const struct shell_msg *m);             /* shell_calls.inc */
-static int sys_visible(void) { return ov != OV_NONE || siri_visible() || calls_visible(); }
+static int alarms_visible(void); static void alarms_draw(cairo_t *c); static int alarms_input(const struct isim_event *ev); static void alarms_tick(void); static int alarms_home(void); static int alarms_fullscreen(void);
+static int alarms_handle_msg(int from, const struct shell_msg *m);            /* shell_alarms.inc */
+static int sys_visible(void) { return ov != OV_NONE || siri_visible() || calls_visible() || alarms_visible(); }
 static int sys_hides_banners(void) { return locked || ov != OV_NONE; }      /* Focus: focus_silences (shell_controls.inc) */
 static void shell_launch(const char *bundle, const char *exe, const char *url);
 static void sys_push_deliver(const char *path, const char *exe, const char *sidecar);
@@ -1789,6 +1791,8 @@ static void sys_draw(void) {
     if (ov != OV_NONE && !(standby && ov == OV_LOCK)) sys_chrome(c, ov == OV_CC ? e : 1);   /* StandBy: no status bar */
     if (calls_visible()) { cairo_save(c); cairo_identity_matrix(c); cairo_scale(c, px_scale, px_scale); calls_draw(c); cairo_restore(c); }
     if (calls_fullscreen() && !(standby && ov == OV_LOCK)) sys_chrome(c, 1);    /* the status bar over the call screens */
+    if (alarms_visible()) { cairo_save(c); cairo_identity_matrix(c); cairo_scale(c, px_scale, px_scale); alarms_draw(c); cairo_restore(c); }
+    if (alarms_fullscreen() && !(standby && ov == OV_LOCK)) sys_chrome(c, 1);   /* and over the alarm alert */
     if (siri_visible()) { cairo_save(c); cairo_identity_matrix(c); cairo_scale(c, px_scale, px_scale); siri_draw(c); cairo_restore(c); }
     if (cc_brightness < 0.999) { cairo_identity_matrix(c); cairo_set_source_rgba(c, 0, 0, 0, (1 - cc_brightness) * 0.7); cairo_paint(c); }
     cairo_destroy(c);
@@ -1978,7 +1982,7 @@ static void sys_dump(void) {
         fprintf(stderr, "  %s (%g %g; %g x %g) id=%s%s%s\n", els[k].kind == EL_CARD ? "IsimAppCard" : els[k].kind == EL_NC_ITEM ? "IsimNotification" : els[k].kind == EL_NC_GROUP ? "IsimNotificationStack" :
                 els[k].kind == EL_NX_ACTION ? "IsimNotificationAction" : els[k].kind == EL_NX_CONTENT ? "IsimNotificationContent" :
                 els[k].kind == EL_NX_EXT ? "IsimNotificationExtensionView" : els[k].kind == EL_NX_MEDIA ? "IsimNotificationMediaButton" :
-                els[k].kind == EL_CC_TOGGLE || (els[k].kind == EL_CC_X && els[k].arg / 1000 == X_MODULE) || els[k].kind == EL_NP ? "IsimControlButton" : els[k].kind == EL_CC_SLIDER ? "IsimControlSlider" : els[k].kind == EL_CALL ? "IsimCallButton" : els[k].kind == EL_LA ? "IsimLiveActivity" : els[k].kind == EL_LW ? "IsimLockScreenWidget" : els[k].kind >= EL_AC_OPEN ? "IsimAppClipButton" : "IsimSystemView",
+                els[k].kind == EL_CC_TOGGLE || (els[k].kind == EL_CC_X && els[k].arg / 1000 == X_MODULE) || els[k].kind == EL_NP ? "IsimControlButton" : els[k].kind == EL_CC_SLIDER ? "IsimControlSlider" : els[k].kind == EL_CALL ? "IsimCallButton" : els[k].kind == EL_ALARM ? "IsimAlarmButton" : els[k].kind == EL_LA ? "IsimLiveActivity" : els[k].kind == EL_LW ? "IsimLockScreenWidget" : els[k].kind >= EL_AC_OPEN ? "IsimAppClipButton" : "IsimSystemView",
                 els[k].r.x, els[k].r.y, els[k].r.w, els[k].r.h, els[k].id, els[k].text[0] ? " text=" : "", els[k].text);
 }
 
@@ -1987,6 +1991,7 @@ static struct { int on, sys; double x0, y0, t0; } top_drag;     /* a touch that 
 static double last_home_key;
 static int sys_input(const struct isim_event *ev) {
     if (siri_input(ev)) return 1;
+    if (alarms_input(ev)) return 1;                       /* an alarm going off is above a call */
     if (calls_input(ev)) return 1;
     if (ev->type == EV_KEY && (ev->mods & SDL_KMOD_CTRL) && !(ev->mods & SDL_KMOD_SHIFT) && (ev->key == 'l' || ev->key == 'L')) {
         if (locked) sys_unlock(); else sys_lock(); return 1;
@@ -2139,6 +2144,7 @@ static void sys_tick(void) {
     la_tick();
     siri_tick();
     calls_tick();
+    alarms_tick();
     nx_poll();
     if (ov == OV_NONE) return;
     static double last_draw;
@@ -2150,6 +2156,7 @@ static void sys_handle_msg(int from, const struct shell_msg *m) {
     const char *verb = m->a;
     if (ctl_handle_msg(from, m)) return;                         /* Focus and controls (shell_controls.inc) */
     if (calls_handle_msg(from, m)) return;                       /* CallKit calls (shell_calls.inc) */
+    if (alarms_handle_msg(from, m)) return;                      /* AlarmKit alarms (shell_alarms.inc) */
     if (!strcmp(verb, "appinfo")) {
         struct sys_appinfo *ai = sys_info(m->b);
         if (!ai) { if (nappinfo >= 128) return; ai = &appinfo[nappinfo++]; snprintf(ai->path, sizeof ai->path, "%s", m->b); }
@@ -2422,3 +2429,4 @@ static void sys_notify(int i, const struct shell_msg *m) {
 
 #include "shell_siri.inc"
 #include "shell_calls.inc"
+#include "shell_alarms.inc"

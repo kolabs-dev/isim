@@ -467,6 +467,12 @@ def _(a):
         a.copy("HelloWidgets.entitlements", f"{d}/archived-expanded-entitlements.xcent")
 
 
+@app("samples/HelloAlarms")
+def _(a):   # AlarmKit: the app and the widget extension that draws its timer's Live Activity
+    b = a.swift_app(srcs=["HelloAlarms.swift", "Shared.swift"])
+    a.appex(b, "HelloAlarmsWidgets", ["Extension/AlarmWidgets.swift", "Shared.swift"], "Extension/Info.plist", extension=False)
+
+
 @app("samples/HelloFocusControls")
 def _(a):
     b = a.swift_app(srcs=["HelloFocusControlsApp.swift", "Shared.swift"])

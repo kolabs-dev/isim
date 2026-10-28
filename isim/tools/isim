@@ -645,7 +645,7 @@ PY
     desktop_cmd "${1:-}" ;;
   test)
     exec python3 "$BIN/isim-test.py" "$@" ;;
-  storekit|gamecenter|appleid|wallet|agerange|permission|finance|autofill|sso|smartcard|iddocs)
+  storekit|gamecenter|appleid|wallet|agerange|permission|finance|autofill|sso|smartcard|iddocs|alarms)
     ISIM_DATA=$DATA exec python3 "$BIN/isim-services.py" "$cmd" "$@" ;;
   metrickit)   # Debug > Simulate MetricKit Payloads: running apps' MXMetricManager subscribers get sample payloads
     mkdir -p "$DATA/Library/isim"

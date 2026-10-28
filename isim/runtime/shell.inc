@@ -581,7 +581,7 @@ int isim_shell_main(const char *self, const char *root, const char *springboard_
         if (ev.type == EV_TOUCH_DOWN || ev.type == EV_TOUCH_MOVE || ev.type == EV_KEY || ev.type == EV_TEXT || ev.type == EV_ID_DOWN || ev.type == EV_TEXT_DOWN) sys_input_seen();
         if (ev.type == EV_QUIT) { shell_quit(); return 0; }
         if (ev.type == EV_HOME) {                     /* Home also closes Notification / Control Center, the switcher */
-            if (calls_home()) continue;
+            if (alarms_home() || calls_home()) continue;
             if (ov != OV_NONE && !locked) sys_close();
             shell_home(); continue;
         }

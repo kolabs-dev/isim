@@ -199,7 +199,8 @@ push token is in the log (`isim ActivityKit: push token for ID: HEX`) for `isim 
 [SCRIPTING.md](SCRIPTING.md), Widgets and Live Activities). Notifications and calls too: Notification Center
 (`notifications`) lists stacks as `nc-group-ID`, a VoIP app's token is in the log (`isim: PushKit: VoIP push token
 HEX`), a payload with `"apns-push-type": "voip"` rings the app's CallKit call, and the call UI's buttons are `call-…`
-ids in `dump` (`call-accept`, `call-end`, …).
+ids in `dump` (`call-accept`, `call-end`, …). Alarms (AlarmKit) ring in the shell: `alarm-stop` / `alarm-secondary`
+in `dump`, and `isim alarms list` lists the scheduled ones.
 
 Each device reads these from a control FIFO of its own; `--control FIFO` names one yourself (then `echo "…" > FIFO`
 works too). The FIFO only goes one way: commands get no reply. To read a result, write it to a file

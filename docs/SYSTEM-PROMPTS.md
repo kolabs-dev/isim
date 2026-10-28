@@ -62,6 +62,7 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | Variable | Values |
 |---|---|
 | `ISIM_NOTIFICATION_PERMISSION` | `allow`, `deny` |
+| `ISIM_ALARMKIT_PERMISSION` | `allow`, `deny` (AlarmKit: scheduling alarms and timers) |
 | `ISIM_FOCUS_STATUS_PERMISSION` | `allow`, `deny` (Intents `INFocusStatusCenter`: sharing the Focus status) |
 | `ISIM_LOCATION_PERMISSION` | `once`, `wheninuse`, `always`, `deny` |
 | `ISIM_PHOTOS_PERMISSION` | `allow`, `limited`, `deny` |

@@ -1065,6 +1065,27 @@ def iddocs(cmd, args):
         print('no identity documents registered')
 
 
+def alarms(cmd, args):
+    """AlarmKit: the alarms and timers apps scheduled (the shell rings them)"""
+    d = os.path.join(DATA, 'Library/isim/Alarms')
+    if cmd != 'list':
+        die('usage: isim alarms list')
+    found = False
+    for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+        for r in json.load(open(os.path.join(d, f))):
+            found = True
+            a = r['alarm']
+            state = next(iter(a['state'])) if isinstance(a['state'], dict) else a['state']
+            when = ''
+            if r.get('fire'):
+                when = f" at {datetime.datetime.fromtimestamp(r['fire']):%Y-%m-%d %H:%M:%S}"
+            elif state == 'paused':
+                when = f" ({max(0, r.get('total', 0) - r.get('elapsed', 0)):.0f} s left)"
+            print(f"{f[:-5]}: {r.get('kind', 'alarm')} {a['id']} \"{r.get('title', '')}\" {state}{when}")
+    if not found:
+        print('no alarms scheduled')
+
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == 'gamecenter' and sys.argv[2] in GC_NETWORK:
         sys.argv.append('')
@@ -1072,8 +1093,8 @@ def main():
         sys.argv.append('')
     if len(sys.argv) >= 2 and sys.argv[1] == 'finance':
         return finance(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
-    if len(sys.argv) >= 2 and sys.argv[1] in ('smartcard', 'iddocs'):
-        return {'smartcard': smartcard, 'iddocs': iddocs}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
+    if len(sys.argv) >= 2 and sys.argv[1] in ('smartcard', 'iddocs', 'alarms'):
+        return {'smartcard': smartcard, 'iddocs': iddocs, 'alarms': alarms}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] in ('autofill', 'sso'):
         return {'autofill': autofill, 'sso': sso}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] == 'agerange':
