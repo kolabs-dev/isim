@@ -117,6 +117,9 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_GAMECENTER=DIR` | the local Game Center network the isim devices on this computer share (default `~/.local/share/isim-gamecenter`): players, friends, scores, challenges, matches ([GAMECENTER.md](GAMECENTER.md)) |
 | `ISIM_SHAREPLAY=DIR` | the local SharePlay bus the isim devices on this computer share (default `~/.local/share/isim-shareplay`): calls, their members, shared activities, session messages and journals ([GroupActivities](frameworks/GroupActivities.md)) |
 | `ISIM_SHAREPLAY_CALL=NAME` | puts the device in the simulated call `NAME` at launch (as the `shareplay join` script command does) |
+| `ISIM_GAMESAVE=DIR` | the simulated iCloud of GameSave's synced directories, shared by the isim devices on this computer (default `~/.local/share/isim-gamesave`): each container's latest version and the device that saved it ([GameSave](frameworks/GameSave.md)) |
+| `ISIM_GAMESAVE_OFFLINE=1` | starts the device off GameSave's network (the `gamesave online` script command brings it back) |
+| `ISIM_GAMESAVE_ACCOUNT=none` | the device is signed out of iCloud: synced directories are `local` |
 | `ISIM_ICLOUD=noAccount` | no iCloud account (also `restricted`, `temporarilyUnavailable`): CloudKit fails with `notAuthenticated`, `url(forUbiquityContainerIdentifier:)` and `ubiquityIdentityToken` are nil, `NSUbiquitousKeyValueStore` keeps nothing |
 | `ISIM_LANGUAGES=ru,en` | preferred languages for one run (overrides Settings > Language & Region): localized strings and plural rules |
 | `ISIM_TERM_OF_ADDRESS=feminine` | the user's term of address (`feminine`, `masculine` or `neutral`; Settings > General > Language & Region > Term of Address on iOS): `TermOfAddress.currentUser` and automatic grammar agreement (`^[Bienvenido](inflect: true)`). Also read from the `AppleTermOfAddress` default |
