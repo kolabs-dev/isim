@@ -1,14 +1,16 @@
-// isim ARKit: Apple's ARKit API, answering like Apple's Simulator, which has no camera tracking either: every
-// configuration's isSupported is false, a session that runs one fails with ARError.unsupportedConfiguration (its
-// delegate's and its views' session(_:didFailWithError:)), and no frames arrive. Self-authored, iOS API names. Stub
-// for tracking; the value types (anchors, cameras, raycast queries, reference images, world maps) hold their data.
-// ARSCNView is SceneKit's SCNView (its scene drawn over black: there is no camera feed); ARSKView is SpriteKit's SKView.
+// isim ARKit: Apple's ARKit API. By default it answers like Apple's Simulator, which has no camera tracking either:
+// every configuration's isSupported is false, a session that runs one fails with ARError.unsupportedConfiguration (its
+// delegate's and its views' session(_:didFailWithError:)), and no frames arrive. With ISIM_AR_SCENE set, world,
+// positional and orientation tracking run in a simulated scene (Simulation.swift, issue #391). Self-authored, iOS API
+// names; the value types (anchors, cameras, raycast queries, reference images, world maps) hold their data.
+// ARSCNView is SceneKit's SCNView (its scene drawn over the camera feed, black without one); ARSKView is SpriteKit's SKView.
 import UIKit
 import SpriteKit
 import SceneKit
 import CoreVideo
 import CoreMedia
 import CoreImage
+import Metal
 import simd
 
 // MARK: - errors
@@ -88,7 +90,9 @@ public struct ARError: CustomNSError, Hashable, Sendable {
     @objc open class var recommendedVideoFormatFor4KResolution: VideoFormat? { nil }
     @objc open class var recommendedVideoFormatForHighResolutionFrameCapturing: VideoFormat? { nil }
     @objc open class var configurableCaptureDeviceForPrimaryCamera: AnyObject? { nil }
-    @objc open var videoFormat = VideoFormat(resolution: CGSize(width: 1920, height: 1440), fps: 60)
+    @objc open var videoFormat = _ARDevice.shared.simulated ? ARConfiguration._simulatedFormat : VideoFormat(resolution: CGSize(width: 1920, height: 1440), fps: 60)
+    /// the simulated device's camera (ISIM_AR_SCENE): 640x480 at 30 frames per second
+    @objc static let _simulatedFormat = VideoFormat(resolution: CGSize(width: 640, height: 480), fps: 30)
     open var worldAlignment: WorldAlignment = .gravity
     @objc open var isLightEstimationEnabled = true
     @objc open var providesAudioData = false
@@ -112,7 +116,9 @@ public struct ARError: CustomNSError, Hashable, Sendable {
     }
     public enum EnvironmentTexturing: Int, Sendable { case none = 0, manual = 1, automatic = 2 }
     @objc public override init() { super.init() }
-    @objc open override class var isSupported: Bool { false }
+    /// true only on the simulated device (ISIM_AR_SCENE)
+    @objc open override class var isSupported: Bool { _ARDevice.shared.simulated }
+    @objc open override class var supportedVideoFormats: [VideoFormat] { _ARDevice.shared.simulated ? [ARConfiguration._simulatedFormat] : [] }
     open class func supportsSceneReconstruction(_ sceneReconstruction: ARConfiguration.SceneReconstruction) -> Bool { false }
     @objc open class var supportsUserFaceTracking: Bool { false }
     @objc open class var supportsAppClipCodeTracking: Bool { false }
@@ -129,12 +135,27 @@ public struct ARError: CustomNSError, Hashable, Sendable {
     @objc open var userFaceTrackingEnabled = false
     @objc open var appClipCodeTrackingEnabled = false
     @objc open var initialWorldMap: ARWorldMap?
+    @objc open override func copy(with zone: NSZone? = nil) -> Any {
+        let c = super.copy(with: zone) as! ARWorldTrackingConfiguration
+        c.planeDetection = planeDetection; c.detectionImages = detectionImages; c.detectionObjects = detectionObjects
+        c.maximumNumberOfTrackedImages = maximumNumberOfTrackedImages; c.automaticImageScaleEstimationEnabled = automaticImageScaleEstimationEnabled
+        c.environmentTexturing = environmentTexturing; c.wantsHDREnvironmentTextures = wantsHDREnvironmentTextures
+        c.sceneReconstruction = sceneReconstruction; c.isAutoFocusEnabled = isAutoFocusEnabled; c.isCollaborationEnabled = isCollaborationEnabled
+        c.userFaceTrackingEnabled = userFaceTrackingEnabled; c.appClipCodeTrackingEnabled = appClipCodeTrackingEnabled; c.initialWorldMap = initialWorldMap
+        return c
+    }
 }
 
 @objc(AROrientationTrackingConfiguration) open class AROrientationTrackingConfiguration: ARConfiguration, @unchecked Sendable {
     @objc public override init() { super.init() }
-    @objc open override class var isSupported: Bool { false }
+    @objc open override class var isSupported: Bool { _ARDevice.shared.simulated }
+    @objc open override class var supportedVideoFormats: [VideoFormat] { _ARDevice.shared.simulated ? [ARConfiguration._simulatedFormat] : [] }
     @objc open var isAutoFocusEnabled = true
+    @objc open override func copy(with zone: NSZone? = nil) -> Any {
+        let c = super.copy(with: zone) as! AROrientationTrackingConfiguration
+        c.isAutoFocusEnabled = isAutoFocusEnabled
+        return c
+    }
 }
 
 @objc(ARFaceTrackingConfiguration) open class ARFaceTrackingConfiguration: ARConfiguration, @unchecked Sendable {
@@ -174,9 +195,15 @@ public struct ARError: CustomNSError, Hashable, Sendable {
 
 @objc(ARPositionalTrackingConfiguration) open class ARPositionalTrackingConfiguration: ARConfiguration, @unchecked Sendable {
     @objc public override init() { super.init() }
-    @objc open override class var isSupported: Bool { false }
+    @objc open override class var isSupported: Bool { _ARDevice.shared.simulated }
+    @objc open override class var supportedVideoFormats: [VideoFormat] { _ARDevice.shared.simulated ? [ARConfiguration._simulatedFormat] : [] }
     open var planeDetection: ARWorldTrackingConfiguration.PlaneDetection = []
     @objc open var initialWorldMap: ARWorldMap?
+    @objc open override func copy(with zone: NSZone? = nil) -> Any {
+        let c = super.copy(with: zone) as! ARPositionalTrackingConfiguration
+        c.planeDetection = planeDetection; c.initialWorldMap = initialWorldMap
+        return c
+    }
 }
 
 @objc(ARGeoTrackingConfiguration) open class ARGeoTrackingConfiguration: ARConfiguration, @unchecked Sendable {
@@ -222,8 +249,9 @@ extension ARSessionDelegate {
     public func session(_ session: ARSession, didRemove anchors: [ARAnchor]) {}
 }
 
-/// Runs a configuration. On isim (as in Apple's Simulator) no configuration is supported, so running one fails:
+/// Runs a configuration. By default (as in Apple's Simulator) no configuration is supported, so running one fails:
 /// the delegate and the session's views get `session(_:didFailWithError:)` with `ARError.unsupportedConfiguration`.
+/// On the simulated device (ISIM_AR_SCENE) supported configurations run in its scene (_ARSimulation).
 @objc(ARSession) open class ARSession: NSObject, @unchecked Sendable {
     public struct RunOptions: OptionSet, Sendable {
         public let rawValue: UInt
@@ -238,24 +266,61 @@ extension ARSessionDelegate {
     open weak var delegate: (any ARSessionDelegate)?
     open var delegateQueue: DispatchQueue?
     @objc open private(set) var configuration: ARConfiguration?
-    /// always nil: no frames without camera tracking
-    @objc open var currentFrame: ARFrame? { nil }
+    /// the latest frame (nil without camera tracking)
+    @objc open var currentFrame: ARFrame? { _frame }
+    @objc var _frame: ARFrame?
+    var _sim: _ARSimulation?
     @objc var _anchors: [ARAnchor] = []
     /// ARSCNView / ARSKView / ARCoachingOverlayView observing this session
     @objc var _views = NSHashTable<AnyObject>.weakObjects()
 
     open func run(_ configuration: ARConfiguration, options: RunOptions = []) {
         self.configuration = configuration.copy() as? ARConfiguration
-        if options.contains(.removeExistingAnchors) { _anchors = [] }
-        NSLog("isim ARKit: %@ is not supported on this device (no camera tracking, as in the Simulator)", configuration._kind)
-        _tell { $0.session(self, didFailWithError: ARError(.unsupportedConfiguration)) }
+        var removed: [ARAnchor] = []
+        if options.contains(.removeExistingAnchors) { removed = _anchors; _anchors = [] }
+        let device = _ARDevice.shared
+        guard let scene = device.scene, Swift.type(of: configuration).isSupported else {
+            NSLog("isim ARKit: %@ is not supported on this device (no camera tracking, as in the Simulator)", configuration._kind)
+            _tell { $0.session(self, didFailWithError: ARError(.unsupportedConfiguration)) }
+            return
+        }
+        // a new run keeps the found planes unless tracking is reset
+        let keep = options.contains(.resetTracking) ? nil : _sim?.found
+        if options.contains(.resetTracking) {
+            let planes = _anchors.filter { $0 is ARPlaneAnchor }
+            removed += planes
+            _anchors.removeAll { $0 is ARPlaneAnchor }
+        }
+        if options.contains(.stopTrackedRaycasts) { for r in _sim?.tracked ?? [] { r.stopTracking() } }
+        let tracked = options.contains(.stopTrackedRaycasts) ? [] : (_sim?.tracked ?? [])
+        _sim?.stop()
+        let sim = _ARSimulation(session: self, configuration: self.configuration!, scene: scene)
+        if let keep { sim.found = keep.filter { f in _anchors.contains { $0 === f.value.anchor } } }
+        sim.tracked = tracked
+        _sim = sim
+        device.lock.lock(); device.sessions.add(self); device.lock.unlock()
+        if !removed.isEmpty { _tellDelegate { $0.session(self, didRemove: removed) }; _tellViews { $0._session(self, didRemove: removed) } }
+        let map = (configuration as? ARWorldTrackingConfiguration)?.initialWorldMap ?? (configuration as? ARPositionalTrackingConfiguration)?.initialWorldMap
+        NSLog("isim ARKit: running %@ on the simulated device", configuration._kind)
+        sim.begin(map: map)
     }
-    @objc open func pause() {}
-    @objc open func add(anchor: ARAnchor) { _anchors.append(anchor) }
-    @objc open func remove(anchor: ARAnchor) { _anchors.removeAll { $0.identifier == anchor.identifier } }
+    @objc open func pause() { _sim?.stop() }
+    @objc open func add(anchor: ARAnchor) {
+        anchor.sessionIdentifier = identifier
+        _anchors.append(anchor)
+        if _sim != nil { _tellDelegate { $0.session(self, didAdd: [anchor]) }; _tellViews { $0._session(self, didAdd: [anchor]) } }
+    }
+    @objc open func remove(anchor: ARAnchor) {
+        let gone = _anchors.filter { $0.identifier == anchor.identifier }
+        _anchors.removeAll { $0.identifier == anchor.identifier }
+        if _sim != nil, !gone.isEmpty { _tellDelegate { $0.session(self, didRemove: gone) }; _tellViews { $0._session(self, didRemove: gone) } }
+    }
     open func setWorldOrigin(relativeTransform: simd_float4x4) {}
+    /// the found planes and the anchors (fails with insufficientFeatures before any plane is found, and without tracking)
     @objc open func getCurrentWorldMap(completionHandler: @escaping (ARWorldMap?, Error?) -> Void) {
-        _on { completionHandler(nil, ARError(.invalidWorldMap)) }
+        guard let sim = _sim else { _on { completionHandler(nil, ARError(.invalidWorldMap)) }; return }
+        let map = sim.worldMap()
+        _on { completionHandler(map, map == nil ? ARError(.insufficientFeatures) : nil) }
     }
     open func createReferenceObject(transform: simd_float4x4, center: simd_float3, extent: simd_float3,
                                     completionHandler: @escaping (ARReferenceObject?, Error?) -> Void) {
@@ -264,13 +329,27 @@ extension ARSessionDelegate {
     @objc open func captureHighResolutionFrame(completion: @escaping (ARFrame?, Error?) -> Void) {
         _on { completion(nil, ARError(.highResolutionFrameCaptureFailed)) }
     }
-    /// no tracked world: nothing to hit
-    @objc open func raycast(_ query: ARRaycastQuery) -> [ARRaycastResult] { [] }
-    @objc open func trackedRaycast(_ query: ARRaycastQuery, updateHandler: @escaping ([ARRaycastResult]) -> Void) -> ARTrackedRaycast? { nil }
+    /// the found planes (or the scene's, for estimated planes) a ray hits, nearest first; nothing without tracking
+    @objc open func raycast(_ query: ARRaycastQuery) -> [ARRaycastResult] { _sim?.raycast(query) ?? [] }
+    /// a raycast repeated on every frame; its handler gets the results when they change
+    @objc open func trackedRaycast(_ query: ARRaycastQuery, updateHandler: @escaping ([ARRaycastResult]) -> Void) -> ARTrackedRaycast? {
+        guard let sim = _sim else { return nil }
+        let r = ARTrackedRaycast(_query: query, handler: updateHandler)
+        sim.tracked.append(r)
+        return r
+    }
 
     @objc func _on(_ f: @escaping () -> Void) { (delegateQueue ?? .main).async(execute: f) }
     /// the delegate (on its queue), then the views' delegates on the main queue (ARSCNView and ARSKView forward
     /// session events to theirs)
+    func _tellDelegate(_ f: @escaping (any ARSessionDelegate) -> Void) {
+        _on { [weak self] in if let d = self?.delegate { f(d) } }
+    }
+    func _tellViews(_ f: @escaping (any _ARSessionViewing) -> Void) {
+        DispatchQueue.main.async { [weak self] in
+            for v in self?._views.allObjects ?? [] { if let v = v as? _ARSessionViewing { f(v) } }
+        }
+    }
     func _tell(_ f: @escaping (any ARSessionObserver) -> Void) {
         _on { [weak self] in
             guard let self else { return }
@@ -282,11 +361,23 @@ extension ARSessionDelegate {
     }
 }
 
-protocol _ARSessionViewing: AnyObject { var _sessionObserver: (any ARSessionObserver)? { get } }
+protocol _ARSessionViewing: AnyObject {
+    var _sessionObserver: (any ARSessionObserver)? { get }
+    func _session(_ session: ARSession, didUpdate frame: ARFrame)
+    func _session(_ session: ARSession, didAdd anchors: [ARAnchor])
+    func _session(_ session: ARSession, didUpdate anchors: [ARAnchor])
+    func _session(_ session: ARSession, didRemove anchors: [ARAnchor])
+}
+extension _ARSessionViewing {
+    func _session(_ session: ARSession, didUpdate frame: ARFrame) {}
+    func _session(_ session: ARSession, didAdd anchors: [ARAnchor]) {}
+    func _session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {}
+    func _session(_ session: ARSession, didRemove anchors: [ARAnchor]) {}
+}
 
 // MARK: - frames and cameras
 
-/// A captured video frame with its tracking state. isim's sessions produce none (no camera tracking).
+/// A captured video frame with its tracking state (only the simulated device's sessions produce them).
 @objc(ARFrame) open class ARFrame: NSObject, NSCopying, @unchecked Sendable {
     public enum WorldMappingStatus: Int, Sendable { case notAvailable = 0, limited = 1, extending = 2, mapped = 3 }
     public enum SegmentationClass: UInt8, Sendable { case none = 0, person = 255 }
@@ -297,9 +388,12 @@ protocol _ARSessionViewing: AnyObject { var _sessionObserver: (any ARSessionObse
     init(timestamp: TimeInterval, image: CVPixelBuffer, camera: ARCamera, anchors: [ARAnchor]) {
         self.timestamp = timestamp; capturedImage = image; self.camera = camera; self.anchors = anchors
     }
-    @objc open var lightEstimate: ARLightEstimate? { nil }
-    @objc open var rawFeaturePoints: ARPointCloud? { nil }
-    open var worldMappingStatus: WorldMappingStatus { .notAvailable }
+    var _light: ARLightEstimate?, _points: ARPointCloud?, _mapping: WorldMappingStatus = .notAvailable
+    /// the captured image upright for a portrait view, RGBA (ARSCNView's background)
+    var _preview: Data?
+    @objc open var lightEstimate: ARLightEstimate? { _light }
+    @objc open var rawFeaturePoints: ARPointCloud? { _points }
+    open var worldMappingStatus: WorldMappingStatus { _mapping }
     @objc open var capturedDepthData: AnyObject? { nil }
     @objc open var capturedDepthDataTimestamp: TimeInterval { 0 }
     open var segmentationBuffer: CVPixelBuffer? { nil }
@@ -308,7 +402,9 @@ protocol _ARSessionViewing: AnyObject { var _sessionObserver: (any ARSessionObse
     @objc open var exifData: [String: Any] { [:] }
     /// maps normalized image coordinates to the viewport (the image is landscape-right, as the camera captures it)
     @objc open func displayTransform(for orientation: UIInterfaceOrientation, viewportSize: CGSize) -> CGAffineTransform {
-        let img = camera.imageResolution
+        ARFrame._displayTransform(camera.imageResolution, orientation, viewportSize)
+    }
+    static func _displayTransform(_ img: CGSize, _ orientation: UIInterfaceOrientation, _ viewportSize: CGSize) -> CGAffineTransform {
         let portrait = orientation == .portrait || orientation == .portraitUpsideDown
         let w = portrait ? img.height : img.width, h = portrait ? img.width : img.height
         let s = max(viewportSize.width / max(w, 1), viewportSize.height / max(h, 1))
@@ -317,8 +413,9 @@ protocol _ARSessionViewing: AnyObject { var _sessionObserver: (any ARSessionObse
         if portrait { t = CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: 0, ty: 1) }
         return t.concatenating(CGAffineTransform(a: 1 / sx, b: 0, c: 0, d: 1 / sy, tx: (1 - 1 / sx) / 2, ty: (1 - 1 / sy) / 2))
     }
+    /// `point`: normalized image coordinates (0 to 1, the landscape-right image's top left at 0, 0)
     open func raycastQuery(from point: CGPoint, allowing target: ARRaycastQuery.Target, alignment: ARRaycastQuery.TargetAlignment) -> ARRaycastQuery {
-        let d = camera._ray(point)
+        let d = camera._ray(CGPoint(x: point.x * camera.imageResolution.width, y: point.y * camera.imageResolution.height))
         return ARRaycastQuery(origin: d.0, direction: d.1, allowing: target, alignment: alignment)
     }
     @objc open func copy(with zone: NSZone? = nil) -> Any { self }
@@ -362,17 +459,20 @@ protocol _ARSessionViewing: AnyObject { var _sessionObserver: (any ARSessionObse
         return p
     }
     open func viewMatrix(for orientation: UIInterfaceOrientation) -> simd_float4x4 { _ARMath.inverse(transform) }
-    /// a world point on the viewport (nil-free: points behind the camera land off screen)
+    /// a world point on the viewport, through the frame's display transform (points behind the camera land off screen)
     open func projectPoint(_ point: simd_float3, orientation: UIInterfaceOrientation, viewportSize: CGSize) -> CGPoint {
-        let c = viewMatrix(for: orientation) * SIMD4(point, 1)
+        let c = _ARMath.inverse(transform) * SIMD4(point, 1)
         guard c.z < 0 else { return CGPoint(x: -1, y: -1) }
         let fx = intrinsics[0, 0], cx = intrinsics[2, 0], cy = intrinsics[2, 1]
         let u = cx + fx * (c.x / -c.z), v = cy - fx * (c.y / -c.z)
-        let sx = viewportSize.width / imageResolution.width, sy = viewportSize.height / imageResolution.height
-        return CGPoint(x: CGFloat(u) * sx, y: CGFloat(v) * sy)
+        let n = CGPoint(x: CGFloat(u) / imageResolution.width, y: CGFloat(v) / imageResolution.height)
+        let p = n.applying(ARFrame._displayTransform(imageResolution, orientation, viewportSize))
+        return CGPoint(x: p.x * viewportSize.width, y: p.y * viewportSize.height)
     }
     open func unprojectPoint(_ point: CGPoint, ontoPlane planeTransform: simd_float4x4, orientation: UIInterfaceOrientation, viewportSize: CGSize) -> simd_float3? {
-        let (o, d) = _ray(CGPoint(x: point.x / viewportSize.width * imageResolution.width, y: point.y / viewportSize.height * imageResolution.height))
+        let ip = CGPoint(x: point.x / viewportSize.width, y: point.y / viewportSize.height)
+            .applying(ARFrame._displayTransform(imageResolution, orientation, viewportSize).inverted())
+        let (o, d) = _ray(CGPoint(x: ip.x * imageResolution.width, y: ip.y * imageResolution.height))
         let n = SIMD3(planeTransform.columns.1.x, planeTransform.columns.1.y, planeTransform.columns.1.z)
         let p0 = SIMD3(planeTransform.columns.3.x, planeTransform.columns.3.y, planeTransform.columns.3.z)
         let den = simd_dot(n, d)
@@ -465,7 +565,9 @@ public protocol ARTrackable: AnyObject {
         public enum Status: Int, Sendable { case notAvailable = 0, undetermined = 1, unknown = 2 }
         case none(Status), wall, floor, ceiling, table, seat, window, door
     }
-    @objc open class var isClassificationSupported: Bool { false }
+    /// true on the simulated device, whose scene planes have classes
+    @objc open class var isClassificationSupported: Bool { _ARDevice.shared.simulated }
+    init(_transform t: simd_float4x4) { super.init(transform: t) }
     open internal(set) var alignment: Alignment = .horizontal
     open internal(set) var center = simd_float3()
     @objc open internal(set) var planeExtent = ARPlaneExtent()
@@ -473,9 +575,25 @@ public protocol ARTrackable: AnyObject {
     open internal(set) var classification: Classification = .none(.notAvailable)
     @objc public required init(anchor: ARAnchor) {
         super.init(anchor: anchor)
-        if let p = anchor as? ARPlaneAnchor { alignment = p.alignment; center = p.center; planeExtent = p.planeExtent; classification = p.classification }
+        if let p = anchor as? ARPlaneAnchor {
+            alignment = p.alignment; center = p.center; planeExtent = p.planeExtent; geometry = p.geometry; classification = p.classification
+        }
     }
-    @objc public required init?(coder: NSCoder) { super.init(coder: coder) }
+    static let _classes: [Classification] = [.wall, .floor, .ceiling, .table, .seat, .window, .door]
+    @objc open override func encode(with coder: NSCoder) {
+        super.encode(with: coder)
+        coder.encode(alignment.rawValue, forKey: "alignment")
+        coder.encode([center.x, center.y, center.z, planeExtent.width, planeExtent.height, planeExtent.rotationOnYAxis].map(NSNumber.init(value:)), forKey: "plane")
+        coder.encode(ARPlaneAnchor._classes.firstIndex(of: classification).map { $0 + 1 } ?? 0, forKey: "class")
+    }
+    @objc public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        alignment = Alignment(rawValue: coder.decodeInteger(forKey: "alignment")) ?? .horizontal
+        let v = (coder.decodeObject(of: [NSArray.self, NSNumber.self], forKey: "plane") as? [NSNumber] ?? []).map { $0.floatValue }
+        if v.count == 6 { center = SIMD3(v[0], v[1], v[2]); _setExtent(v[3], v[4]); planeExtent.rotationOnYAxis = v[5] }
+        let k = coder.decodeInteger(forKey: "class")
+        classification = k > 0 && k <= ARPlaneAnchor._classes.count ? ARPlaneAnchor._classes[k - 1] : .none(.notAvailable)
+    }
 }
 
 @objc(ARPlaneExtent) open class ARPlaneExtent: NSObject, NSSecureCoding, @unchecked Sendable {
@@ -581,10 +699,16 @@ public protocol ARTrackable: AnyObject {
     init(worldTransform: simd_float4x4, target: ARRaycastQuery.Target, alignment: ARRaycastQuery.TargetAlignment, anchor: ARAnchor?) {
         self.worldTransform = worldTransform; self.target = target; targetAlignment = alignment; self.anchor = anchor
     }
+    var _position: SIMD3<Float> { SIMD3(worldTransform.columns.3.x, worldTransform.columns.3.y, worldTransform.columns.3.z) }
 }
 
 @objc(ARTrackedRaycast) open class ARTrackedRaycast: NSObject, @unchecked Sendable {
-    @objc open func stopTracking() {}
+    let _query: ARRaycastQuery
+    let _handler: ([ARRaycastResult]) -> Void
+    var _active = true
+    var _last: SIMD3<Float>?
+    init(_query q: ARRaycastQuery, handler: @escaping ([ARRaycastResult]) -> Void) { _query = q; _handler = handler }
+    @objc open func stopTracking() { _active = false }
 }
 
 // MARK: - reference images, objects and world maps
@@ -659,18 +783,27 @@ public protocol ARTrackable: AnyObject {
     }
 }
 
-/// A saved world: anchors and feature points (isim's sessions never produce one; archived maps decode).
+/// A saved world: anchors, the mapped area and feature points (the simulated device's sessions produce them).
 @objc(ARWorldMap) open class ARWorldMap: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
     @objc open var anchors: [ARAnchor] = []
     open internal(set) var center = simd_float3()
     open internal(set) var extent = simd_float3()
     @objc open internal(set) var rawFeaturePoints = ARPointCloud(points: [], identifiers: [])
     @objc override init() { super.init() }
-    @objc open func copy(with zone: NSZone? = nil) -> Any { let m = ARWorldMap(); m.anchors = anchors; m.center = center; m.extent = extent; return m }
+    @objc open func copy(with zone: NSZone? = nil) -> Any {
+        let m = ARWorldMap(); m.anchors = anchors; m.center = center; m.extent = extent; m.rawFeaturePoints = rawFeaturePoints; return m
+    }
     @objc public static var supportsSecureCoding: Bool { true }
-    @objc open func encode(with coder: NSCoder) { coder.encode(anchors, forKey: "anchors") }
+    @objc open func encode(with coder: NSCoder) {
+        coder.encode(anchors, forKey: "anchors")
+        coder.encode([center.x, center.y, center.z, extent.x, extent.y, extent.z].map(NSNumber.init(value:)), forKey: "box")
+        coder.encode(rawFeaturePoints, forKey: "points")
+    }
     @objc public required init?(coder: NSCoder) {
-        anchors = coder.decodeObject(of: [NSArray.self, ARAnchor.self], forKey: "anchors") as? [ARAnchor] ?? []
+        anchors = coder.decodeObject(of: [NSArray.self, ARAnchor.self, ARPlaneAnchor.self, ARPlaneExtent.self, ARPlaneGeometry.self], forKey: "anchors") as? [ARAnchor] ?? []
+        let v = (coder.decodeObject(of: [NSArray.self, NSNumber.self], forKey: "box") as? [NSNumber] ?? []).map { $0.floatValue }
+        if v.count == 6 { center = SIMD3(v[0], v[1], v[2]); extent = SIMD3(v[3], v[4], v[5]) }
+        rawFeaturePoints = coder.decodeObject(of: ARPointCloud.self, forKey: "points") ?? ARPointCloud(points: [], identifiers: [])
         super.init()
     }
 }
@@ -713,8 +846,77 @@ extension ARSCNViewDelegate {
         return session._anchors.first { $0.identifier == id }
     }
     @objc open func node(for anchor: ARAnchor) -> SCNNode? { _nodes[anchor.identifier] }
+    /// `point` in the view's coordinates, through the frame's display transform
     open func raycastQuery(from point: CGPoint, allowing target: ARRaycastQuery.Target, alignment: ARRaycastQuery.TargetAlignment) -> ARRaycastQuery? {
-        session.currentFrame?.raycastQuery(from: point, allowing: target, alignment: alignment)
+        guard let f = session.currentFrame, bounds.width > 0, bounds.height > 0 else { return nil }
+        let n = CGPoint(x: point.x / bounds.width, y: point.y / bounds.height)
+            .applying(f.displayTransform(for: .portrait, viewportSize: bounds.size).inverted())
+        return f.raycastQuery(from: n, allowing: target, alignment: alignment)
+    }
+    var _arDelegate: (any ARSCNViewDelegate)? { delegate as? any ARSCNViewDelegate }
+    /// the camera that looks through the frame's camera (the device's pose in portrait)
+    @objc lazy var _cameraNode: SCNNode = {
+        let n = SCNNode()
+        n.name = "ARSCNView camera"
+        n.camera = SCNCamera()
+        n.camera!.zNear = 0.001; n.camera!.zFar = 1000
+        return n
+    }()
+    nonisolated func _session(_ session: ARSession, didUpdate frame: ARFrame) {
+        MainActor.assumeIsolated {
+            guard session === self.session else { return }
+            let cam = frame.camera
+            // the image's width runs up a portrait view: its vertical field of view
+            _cameraNode.camera!.fieldOfView = Double(2 * atan(Float(cam.imageResolution.width) / 2 / cam.intrinsics[0, 0]) * 180 / .pi)
+            _cameraNode.simdTransform = cam.transform * _ARDevice.cameraToPortrait
+            if _cameraNode.parent == nil { scene?.rootNode.addChildNode(_cameraNode) }
+            if pointOfView !== _cameraNode { pointOfView = _cameraNode }
+            if let rgba = frame._preview { _showFeed(rgba, width: Int(cam.imageResolution.height), height: Int(cam.imageResolution.width)) }
+            // automaticallyUpdatesLighting: SceneKit lights the content (the light estimate is neutral)
+            if autoenablesDefaultLighting != automaticallyUpdatesLighting { autoenablesDefaultLighting = automaticallyUpdatesLighting }
+            setNeedsDisplay()
+        }
+    }
+    /// the camera image as the scene's background: one texture, refilled each frame (no mipmaps)
+    var _feed: MTLTexture?
+    func _showFeed(_ rgba: Data, width: Int, height: Int) {
+        if _feed?.width != width || _feed?.height != height {
+            let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm_srgb, width: width, height: height, mipmapped: false)
+            _feed = MTLCreateSystemDefaultDevice()?.makeTexture(descriptor: d)
+        }
+        guard let t = _feed else { return }
+        rgba.withUnsafeBytes { t.replace(region: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: width * 4) }
+        scene?.background.contents = t
+    }
+    nonisolated func _session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
+        MainActor.assumeIsolated {
+            for a in anchors where _nodes[a.identifier] == nil {
+                guard let node = _arDelegate.map({ $0.renderer(self, nodeFor: a) }) ?? SCNNode() else { continue }
+                node.simdTransform = a.transform
+                _nodes[a.identifier] = node
+                scene?.rootNode.addChildNode(node)
+                _arDelegate?.renderer(self, didAdd: node, for: a)
+            }
+        }
+    }
+    nonisolated func _session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
+        MainActor.assumeIsolated {
+            for a in anchors {
+                guard let node = _nodes[a.identifier] else { continue }
+                _arDelegate?.renderer(self, willUpdate: node, for: a)
+                node.simdTransform = a.transform
+                _arDelegate?.renderer(self, didUpdate: node, for: a)
+            }
+        }
+    }
+    nonisolated func _session(_ session: ARSession, didRemove anchors: [ARAnchor]) {
+        MainActor.assumeIsolated {
+            for a in anchors {
+                guard let node = _nodes.removeValue(forKey: a.identifier) else { continue }
+                node.removeFromParentNode()
+                _arDelegate?.renderer(self, didRemove: node, for: a)
+            }
+        }
     }
     open func unprojectPoint(_ point: CGPoint, ontoPlane planeTransform: simd_float4x4) -> simd_float3? {
         session.currentFrame?.camera.unprojectPoint(point, ontoPlane: planeTransform, orientation: .portrait, viewportSize: bounds.size)
@@ -745,8 +947,44 @@ extension ARSKViewDelegate {
         didSet { oldValue._views.remove(self); session._views.add(self) }
     }
     nonisolated var _sessionObserver: (any ARSessionObserver)? { MainActor.assumeIsolated { delegate as? any ARSessionObserver } }
-    @objc open func anchor(for node: SKNode) -> ARAnchor? { nil }
-    @objc open func node(for anchor: ARAnchor) -> SKNode? { nil }
+    @objc var _nodes: [UUID: SKNode] = [:]
+    @objc open func anchor(for node: SKNode) -> ARAnchor? {
+        guard let id = _nodes.first(where: { $0.value === node })?.key else { return nil }
+        return session._anchors.first { $0.identifier == id }
+    }
+    @objc open func node(for anchor: ARAnchor) -> SKNode? { _nodes[anchor.identifier] }
+    var _arDelegate: (any ARSKViewDelegate)? { delegate as? any ARSKViewDelegate }
+    /// anchors' nodes sit where their anchors project into the view (no camera feed is drawn behind SpriteKit's scene)
+    nonisolated func _session(_ session: ARSession, didUpdate frame: ARFrame) {
+        MainActor.assumeIsolated {
+            guard let scene, bounds.width > 0 else { return }
+            for a in session._anchors {
+                guard let node = _nodes[a.identifier] else { continue }
+                let p = frame.camera.projectPoint(SIMD3(a.transform.columns.3.x, a.transform.columns.3.y, a.transform.columns.3.z),
+                                                  orientation: .portrait, viewportSize: bounds.size)
+                node.position = scene.convertPoint(fromView: p)
+            }
+        }
+    }
+    nonisolated func _session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
+        MainActor.assumeIsolated {
+            for a in anchors where _nodes[a.identifier] == nil {
+                guard let node = _arDelegate.map({ $0.view(self, nodeFor: a) }) ?? SKNode() else { continue }
+                _nodes[a.identifier] = node
+                scene?.addChild(node)
+                _arDelegate?.view(self, didAdd: node, for: a)
+            }
+        }
+    }
+    nonisolated func _session(_ session: ARSession, didRemove anchors: [ARAnchor]) {
+        MainActor.assumeIsolated {
+            for a in anchors {
+                guard let node = _nodes.removeValue(forKey: a.identifier) else { continue }
+                node.removeFromParent()
+                _arDelegate?.view(self, didRemove: node, for: a)
+            }
+        }
+    }
 }
 
 public protocol ARCoachingOverlayViewDelegate: AnyObject {

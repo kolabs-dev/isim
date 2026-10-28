@@ -2,6 +2,7 @@
 // isSupported, runs an ARWorldTrackingConfiguration in an ARSCNView anyway and handles the session's
 // unsupportedConfiguration error, shows ARCoachingOverlayView, and exercises the value types (anchors, raycast
 // queries, reference images, world map archiving) and SceneKit's scene graph and render loop under the AR view.
+// -world: world tracking on the simulated device, ISIM_AR_SCENE (WorldTracking.swift).
 import UIKit
 import ARKit
 import SceneKit
@@ -21,7 +22,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = ARViewController()
+        window?.rootViewController = ProcessInfo.processInfo.arguments.contains("-world") ? WorldViewController() : ARViewController()
         window?.makeKeyAndVisible()
         return true
     }

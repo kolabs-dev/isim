@@ -1175,6 +1175,10 @@ void isim_sys_event(const char *text) {
         if (!dlsym(RTLD_DEFAULT, "MIDIClientCreate")) NSLog(@"isim: midi: the app does not use CoreMIDI");
         [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSystemEvent" object:t];
     }
+    else if ([verb isEqualToString:@"ar"]) {                       /* the simulated AR device (issue #391, ISIM_AR_SCENE): ARKit observes it */
+        if (!NSClassFromString(@"ARSession")) NSLog(@"isim: ar: the app does not use ARKit");
+        [NSNotificationCenter.defaultCenter postNotificationName:@"_IsimSystemEvent" object:t];
+    }
     else if ([verb isEqualToString:@"remote"]) {                   /* Now Playing controls: MPRemoteCommandCenter polls the queue */
         extern void isim_media_remote_post(const char *cmd);
         isim_media_remote_post(args.UTF8String);
