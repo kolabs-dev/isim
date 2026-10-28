@@ -826,3 +826,15 @@ usr/lib/swift/libswiftCoreML.dylib _$s6CoreML7MLModelC23availableComputeDevicesS
 usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation35AVAssetReaderVideoCompositionOutputC06customD10CompositoryXlSgvgTj
 usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation35AVAssetReaderVideoCompositionOutputC06customD10CompositoryXlSgvgTq
 usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation35AVAssetReaderVideoCompositionOutputC06customD10CompositoryXlSgvpMV
+
+# issue #382: AVCapturePhoto.cameraCalibrationData and AVDepthData.cameraCalibrationData return Apple's AVCameraCalibrationData?
+# (they returned an AnyObject? placeholder, always nil), and AVCaptureDevice.systemPressureState is @objc dynamic like
+# Apple's (KVO with key paths). Rebuild Swift apps built with 0.31 or earlier that read those properties.
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation11AVDepthDataC017cameraCalibrationC0yXlSgvgTj
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation11AVDepthDataC017cameraCalibrationC0yXlSgvgTq
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation11AVDepthDataC017cameraCalibrationC0yXlSgvpMV
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation14AVCapturePhotoC21cameraCalibrationDatayXlSgvgTj
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation14AVCapturePhotoC21cameraCalibrationDatayXlSgvgTq
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation14AVCapturePhotoC21cameraCalibrationDatayXlSgvpMV
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation15AVCaptureDeviceC19systemPressureStateAC06SystemeF0CvgTj
+usr/lib/swift/libswiftAVFoundation.dylib _$s12AVFoundation15AVCaptureDeviceC19systemPressureStateAC06SystemeF0CvgTq

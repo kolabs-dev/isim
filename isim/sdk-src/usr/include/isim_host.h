@@ -318,6 +318,8 @@ void isim_audio_stream_close(int stream);
 /* the device volume (0...1, isim's own; the host's volume never changes): what every app of the device plays at */
 double isim_device_volume(void);
 void isim_device_volume_set(double volume, int save);
+/* AVKit (issue #382): while on, the volume buttons send "capturebutton volumeup|volumedown press" events instead */
+void isim_capture_buttons(int on);
 /* queues a remote command for this app's MPRemoteCommandCenter (as the `remote` script command does) */
 void isim_media_remote_post(const char *cmd);
 struct isim_acodec;

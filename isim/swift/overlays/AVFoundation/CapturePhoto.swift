@@ -45,6 +45,9 @@ open class AVCapturePhotoSettings: NSObject, @unchecked Sendable {
     open var isPortraitEffectsMatteDeliveryEnabled = false
     open var embedsPortraitEffectsMatteInPhoto = true
     open var isCameraCalibrationDataDeliveryEnabled = false
+    open var enabledSemanticSegmentationMatteTypes: [AVSemanticSegmentationMatte.MatteType] = []
+    /// isim: mattes are delivered with the photo, not embedded in its file data
+    open var embedsSemanticSegmentationMattesInPhoto = true
     open var isAutoRedEyeReductionEnabled = true
     open var isAutoVirtualDeviceFusionEnabled = true
     open var isAutoDualCameraFusionEnabled = true
@@ -72,6 +75,9 @@ open class AVCapturePhotoSettings: NSObject, @unchecked Sendable {
         flashMode = settings.flashMode; photoQualityPrioritization = settings.photoQualityPrioritization; maxPhotoDimensions = settings.maxPhotoDimensions
         previewPhotoFormat = settings.previewPhotoFormat; embeddedThumbnailPhotoFormat = settings.embeddedThumbnailPhotoFormat
         isDepthDataDeliveryEnabled = settings.isDepthDataDeliveryEnabled; isDepthDataFiltered = settings.isDepthDataFiltered
+        isPortraitEffectsMatteDeliveryEnabled = settings.isPortraitEffectsMatteDeliveryEnabled; embedsPortraitEffectsMatteInPhoto = settings.embedsPortraitEffectsMatteInPhoto
+        enabledSemanticSegmentationMatteTypes = settings.enabledSemanticSegmentationMatteTypes
+        isCameraCalibrationDataDeliveryEnabled = settings.isCameraCalibrationDataDeliveryEnabled
         isShutterSoundSuppressionEnabled = settings.isShutterSoundSuppressionEnabled; metadata = settings.metadata
         livePhotoVideoCodecType = settings.livePhotoVideoCodecType      // the movie URL is per capture (iOS clears it)
     }
@@ -145,7 +151,12 @@ open class AVCaptureResolvedPhotoSettings: NSObject, @unchecked Sendable {
     public var isDualCameraFusionEnabled: Bool { false }
     public var isContentAwareDistortionCorrectionEnabled: Bool { false }
     public var isFastCapturePrioritizationEnabled: Bool { false }
-    public var portraitEffectsMatteDimensions: CMVideoDimensions { CMVideoDimensions(width: 0, height: 0) }
+    let _matte: CMVideoDimensions, _mattes: [AVSemanticSegmentationMatte.MatteType]
+    /// half the photo's size when the settings ask for the matte (CaptureMattes.swift)
+    public var portraitEffectsMatteDimensions: CMVideoDimensions { _matte }
+    public func dimensionsForSemanticSegmentationMatte(ofType semanticSegmentationMatteType: AVSemanticSegmentationMatte.MatteType) -> CMVideoDimensions {
+        _mattes.contains(semanticSegmentationMatteType) ? CMVideoDimensions(width: max(2, photoDimensions.width / 2), height: max(2, photoDimensions.height / 2)) : CMVideoDimensions(width: 0, height: 0)
+    }
     public var deferredPhotoProxyDimensions: CMVideoDimensions { CMVideoDimensions(width: 0, height: 0) }
     public var photoProcessingTimeRange: CMTimeRange { CMTimeRange(start: .zero, duration: CMTime(value: 1, timescale: 10)) }
     convenience init(_ s: AVCapturePhotoSettings, _ size: CGSize) {
@@ -159,6 +170,8 @@ open class AVCaptureResolvedPhotoSettings: NSObject, @unchecked Sendable {
         previewDimensions = _previewSize(s.previewPhotoFormat, size).map { CMVideoDimensions(width: Int32($0.width), height: Int32($0.height)) } ?? none
         embeddedThumbnailDimensions = _previewSize(s.embeddedThumbnailPhotoFormat, size).map { CMVideoDimensions(width: Int32($0.width), height: Int32($0.height)) } ?? none
         livePhotoMovieDimensions = CMVideoDimensions(width: Int32(live.width), height: Int32(live.height))
+        _matte = s.isPortraitEffectsMatteDeliveryEnabled && s._isProcessed ? CMVideoDimensions(width: max(2, d.width / 2), height: max(2, d.height / 2)) : none
+        _mattes = s._isProcessed ? s.enabledSemanticSegmentationMatteTypes : []
         _flash = flash
         _count = count
     }
@@ -205,7 +218,13 @@ open class AVCapturePhoto: NSObject, @unchecked Sendable {
     public var previewPixelBuffer: CVPixelBuffer? { _preview }
     public var embeddedThumbnailPhotoFormat: [String: Any]? { nil }
     public var depthData: AVDepthData? { _depth }
-    public var cameraCalibrationData: AnyObject? { nil }
+    var _matte: AVPortraitEffectsMatte?
+    var _mattes: [AVSemanticSegmentationMatte.MatteType: AVSemanticSegmentationMatte] = [:]
+    var _calibration: AVCameraCalibrationData?
+    /// the person's matte, when the settings and the output deliver it and the scene has a person (CaptureMattes.swift)
+    public var portraitEffectsMatte: AVPortraitEffectsMatte? { _matte }
+    public func semanticSegmentationMatte(for semanticSegmentationMatteType: AVSemanticSegmentationMatte.MatteType) -> AVSemanticSegmentationMatte? { _mattes[semanticSegmentationMatteType] }
+    public var cameraCalibrationData: AVCameraCalibrationData? { _calibration }
     public var sourceDeviceType: AVCaptureDevice.DeviceType? { _device }
     public var bracketSettings: AVCaptureBracketedStillImageSettings? { _bracket }
     public var lensStabilizationStatus: LensStabilizationStatus { _bracket != nil ? .off : .unsupported }
@@ -272,9 +291,12 @@ open class AVCapturePhotoOutput: AVCaptureOutput, @unchecked Sendable {
     open var availableLivePhotoVideoCodecTypes: [AVVideoCodecType] { _FFmpeg.hasHEVC ? [.hevc, .h264] : [.h264] }
     open var isDepthDataDeliverySupported: Bool { _device?._depth == true }
     open var isDepthDataDeliveryEnabled = false
-    open var isPortraitEffectsMatteDeliverySupported: Bool { false }
+    /// like iOS, mattes and calibration data come with depth (a depth-capable camera)
+    open var isPortraitEffectsMatteDeliverySupported: Bool { isDepthDataDeliverySupported }
     open var isPortraitEffectsMatteDeliveryEnabled = false
-    open var isCameraCalibrationDataDeliverySupported: Bool { false }
+    open var isCameraCalibrationDataDeliverySupported: Bool { isDepthDataDeliverySupported }
+    open var availableSemanticSegmentationMatteTypes: [AVSemanticSegmentationMatte.MatteType] { isDepthDataDeliverySupported ? AVSemanticSegmentationMatte.MatteType.all : [] }
+    open var enabledSemanticSegmentationMatteTypes: [AVSemanticSegmentationMatte.MatteType] = []
     open var isStillImageStabilizationSupported: Bool { false }
     open var isVirtualDeviceFusionSupported: Bool { false }
     open var isDualCameraFusionSupported: Bool { false }
@@ -371,8 +393,11 @@ open class AVCapturePhotoOutput: AVCaptureOutput, @unchecked Sendable {
                             let ds = turned ? CGSize(width: Int(d.height), height: Int(d.width)) : CGSize(width: Int(d.width), height: Int(d.height))
                             return _DepthScene.map(size: ds, type: f.formatDescription.mediaSubType, mirrored: mirror).map { AVDepthData(map: $0, filtered: settings.isDepthDataFiltered, accuracy: .absolute) }
                         } : nil
+                    let fov = device?.activeFormat.videoFieldOfView ?? 69.4
+                    if let depth { depth._calibration = AVCameraCalibrationData(size: CGSize(width: w, height: h), fov: fov) }
                     if settings._isProcessed {
                         let photo = _processedPhoto(shot, w, h, settings: settings, resolved: resolved, time: frame.time, depth: depth, meta: meta, sequence: i + 1, bracket: bracket, device: device)
+                        _attachMattes(photo, settings: settings, w, h, mirrored: mirror, fov: fov)
                         delegate.photoOutput(self, didFinishProcessingPhoto: photo, error: nil)
                     }
                     if settings.rawPhotoPixelFormatType != 0 {
@@ -429,6 +454,20 @@ open class AVCapturePhotoOutput: AVCaptureOutput, @unchecked Sendable {
         }
     }
 
+    /// the mattes and calibration data the settings ask for (the output and its device must deliver them, as on iOS)
+    func _attachMattes(_ photo: AVCapturePhoto, settings: AVCapturePhotoSettings, _ w: Int, _ h: Int, mirrored: Bool, fov: Float) {
+        let mw = max(2, w / 2), mh = max(2, h / 2)
+        if settings.isPortraitEffectsMatteDeliveryEnabled && isPortraitEffectsMatteDeliveryEnabled && isPortraitEffectsMatteDeliverySupported,
+           let b = _MatteScene.portrait(mw, mh, mirrored: mirrored) {
+            photo._matte = AVPortraitEffectsMatte(b)
+        }
+        for t in settings.enabledSemanticSegmentationMatteTypes where enabledSemanticSegmentationMatteTypes.contains(t) && availableSemanticSegmentationMatteTypes.contains(t) {
+            if let b = _MatteScene.semantic(t, mw, mh, mirrored: mirrored) { photo._mattes[t] = AVSemanticSegmentationMatte(t, b) }
+        }
+        if settings.isCameraCalibrationDataDeliveryEnabled && isCameraCalibrationDataDeliverySupported {
+            photo._calibration = AVCameraCalibrationData(size: CGSize(width: w, height: h), fov: fov)
+        }
+    }
     func _processedPhoto(_ px: [UInt8], _ w: Int, _ h: Int, settings: AVCapturePhotoSettings, resolved: AVCaptureResolvedPhotoSettings, time: CMTime,
                          depth: AVDepthData?, meta: [String: Any], sequence: Int, bracket: AVCaptureBracketedStillImageSettings?, device: AVCaptureDevice?) -> AVCapturePhoto {
         let cg = px.withUnsafeBytes { _cgImageFromBGRA($0.baseAddress!, width: w, height: h) }

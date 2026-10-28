@@ -534,7 +534,7 @@ static int ch_hw_list(int di, struct ch_hw *hw) {
     }
     int se = devices[di].d.corner_radius <= 0;
     int action = !strcmp(id, "iphone15promax") || !strncmp(id, "iphone16", 8) || !strncmp(id, "iphone17", 8) || !strcmp(id, "iphoneair");
-    int camctl = !strncmp(id, "iphone16", 8) || !strncmp(id, "iphone17", 8) || !strcmp(id, "iphoneair");
+    int camctl = (!strncmp(id, "iphone16", 8) && strcmp(id, "iphone16e")) || !strncmp(id, "iphone17", 8) || !strcmp(id, "iphoneair");
     if (se) {
         hw[n++] = (struct ch_hw){ "hw.silent", 0, 96, 22 };
         hw[n++] = (struct ch_hw){ "hw.volup", 0, 142, 42 }; hw[n++] = (struct ch_hw){ "hw.voldown", 0, 196, 42 };
@@ -1367,6 +1367,7 @@ static void ch_click(const char *id, int mods) {
     else if (!strcmp(id, "hw.volup")) chrome_run("volume up");
     else if (!strcmp(id, "hw.voldown")) chrome_run("volume down");
     else if (!strcmp(id, "hw.action")) chrome_run("actionbutton");
+    else if (!strcmp(id, "hw.camera")) chrome_run("cameracontrol press");
     else if (!strcmp(id, "hw.silent")) chrome_run("silent");
     else if (!strcmp(id, "toast.show")) { char d[1024]; snprintf(d, sizeof d, "%s", ch.shot_path); char *s = strrchr(d, '/'); if (s) *s = 0; ch_open_path(d); }
     /* the device menu */

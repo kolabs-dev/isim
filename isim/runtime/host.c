@@ -120,11 +120,13 @@ static int chrome_wait_ms(int ms);
 static void window_title(void);
 static void window_sdl_hints(void);                        /* after SDL_Init (video), before the first window surface */
 static int text_input_on;                                  /* the app asked for text input (isim_text_input) */
+static int capture_buttons;                                /* AVKit: a capture event interaction takes the volume buttons */
 #include "host_input.inc"             /* second finger, hover, IME composition, voiceover script commands */
 
 /* script commands passed to the app as they are ("VERB ARGS"): its UIKit handles them (isim_sys_event) */
 static int is_app_verb(const char *cmd) {
-    static const char *verbs[] = { "attributions", "fullpage", "tilt", "guidedaccess", "accessibility", "takescreenshot", "privacy", "biometry", NULL };
+    static const char *verbs[] = { "attributions", "fullpage", "tilt", "guidedaccess", "accessibility", "takescreenshot", "privacy", "biometry",
+                                   "cameracontrol", "camerapressure", NULL };
     for (int i = 0; verbs[i]; i++) if (!strcmp(cmd, verbs[i])) return 1;
     return 0;
 }
@@ -1683,6 +1685,12 @@ static int script_step(struct isim_event *ev) {
         for (char *e = arg + strlen(arg) - 1; e >= arg && *e == ' '; e--) *e = 0;
         void isim_media_remote_post(const char *cmd);
         isim_media_remote_post(arg);
+    } else if (!strcmp(cmd, "volume") && !shell_mode && sscanf(args, " %63[^;]", arg) == 1 && capture_buttons
+               && (!strncmp(arg, "up", 2) || !strncmp(arg, "down", 4))) {
+        /* an AVCaptureEventInteraction is active (isim_capture_buttons): the buttons capture instead of changing the volume */
+        pending[npending++] = (struct isim_event){ .type = EV_SYSTEM };
+        snprintf(pending[npending - 1].text, sizeof pending->text, "capturebutton %s press", !strncmp(arg, "up", 2) ? "volumeup" : "volumedown");
+        script_resume = now() + 0.2;
     } else if (!strcmp(cmd, "volume") && !shell_mode && sscanf(args, " %63[^;]", arg) == 1) {    /* the volume buttons (the app alone): up|down|0...1 */
         double isim_device_volume(void); void isim_device_volume_set(double v, int save);
         double v = isim_device_volume();
@@ -1904,6 +1912,8 @@ static int next_event(struct isim_event *ev, double timeout) {
     }
 }
 
+/* AVKit's AVCaptureEventInteraction: while on, the volume buttons send capture events to the app (`capturebutton ...`) */
+ISIM_GUEST_ABI void isim_capture_buttons(int on) { capture_buttons = on; }
 ISIM_GUEST_ABI void isim_text_input(int on) { text_input_on = on; if (win) { if (on) SDL_StartTextInput(win); else SDL_StopTextInput(win); } }
 
 /* main bundle path = directory of the main executable */
@@ -2320,7 +2330,7 @@ static const struct shim isim_table[] = {
     H(isim_path_begin), H(isim_path_move), H(isim_path_line), H(isim_path_curve), H(isim_path_arc), H(isim_path_close),
     H(isim_path_rect), H(isim_path_corners), H(isim_gfx_corner_curve), H(isim_path_fill), H(isim_path_stroke), H(isim_path_set_line_style), H(isim_path_set_fill_rule), H(isim_path_gradient),
     H(isim_text_measure), H(isim_text_end_point), H(isim_text_draw), H(isim_text_measure_f), H(isim_text_end_point_f), H(isim_text_draw_f),
-    H(isim_font_register), H(isim_font_register_listed), H(isim_font_app_face), H(isim_font_lookup), H(isim_font_has_char), H(isim_set_status_bar_style), H(isim_set_status_bar_hidden), H(isim_next_event), H(isim_text_input),
+    H(isim_font_register), H(isim_font_register_listed), H(isim_font_app_face), H(isim_font_lookup), H(isim_font_has_char), H(isim_set_status_bar_style), H(isim_set_status_bar_hidden), H(isim_next_event), H(isim_text_input), H(isim_capture_buttons),
     H(isim_bundle_path), H(isim_post_wakeup), H(isim_open_url), H(isim_shell_present), H(isim_shell_request),
     H(isim_image_load), H(isim_image_load_data), H(isim_image_symbol), H(isim_image_symbol_variable), H(isim_image_draw), H(isim_image_is_template), H(isim_image_free), H(isim_image_draw_part), H(isim_image_pixel_size), H(isim_image_draw_symbol), H(isim_image_symbol_layers), H(isim_image_draw_symbol_layered),
     H(isim_gfx_rotate), H(isim_gfx_concat), H(isim_gfx_clip_path), H(isim_gfx_get_alpha), H(isim_gfx_backdrop_blur), H(isim_gfx_set_blend), H(isim_gfx_pop_group_masked),
