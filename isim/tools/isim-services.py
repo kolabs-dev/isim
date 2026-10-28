@@ -177,6 +177,14 @@ def storekit(app, cmd, args):
         path = old             # not moved yet (the app moves it at its next launch)
     if not os.path.exists(path):
         die(f'no StoreKit transactions for {bundle_id(app)} ({path})')
+    # the ledger's file lock, which the running app takes too: held from reading the ledger until this command has
+    # written it and exits, so neither side overwrites the other's change (#735)
+    lock = open(path + '.lock', 'a')
+    try:
+        import fcntl
+        fcntl.flock(lock, fcntl.LOCK_EX)
+    except ImportError:         # no POSIX locks on this host
+        pass
     led = json.load(open(path))
     txs, subs = led.setdefault('transactions', []), led.setdefault('subscriptions', {})
     now = time.time()
