@@ -68,6 +68,7 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_PASTE_PERMISSION` | `ask`, `allow`, `deny` (Paste from Other Apps; otherwise the app's setting in Settings, Ask by default) |
 | `ISIM_GAMECENTER_FRIENDS_PERMISSION` | `allow`, `deny` (Game Center's friends-list prompt) |
 | `ISIM_SHAREPLAY_ACTIVATION` | `preferred`, `disabled`, `cancelled` (the answer to `prepareForActivation()`'s "Do you want to SharePlay …?" alert, without asking) |
+| `ISIM_FINANCEKIT_PERMISSION` | `allow`, `deny` (FinanceKit's access prompt; `ISIM_FINANCEKIT_ORDER=add\|cancel` answers "Add Order to Wallet?"; the data itself is `isim finance seed`) |
 | `ISIM_AGERANGE_ANSWER` | `share`, `decline` (DeclaredAgeRange's "Share Age Range?" sheet; the age itself is `isim agerange set <age>`) |
 | `ISIM_PERMISSION_ANSWER` | `yes`, `no` (PermissionKit's Ask, approve-in-person and acknowledgment sheets; the parent's answer is `isim permission <app> approve\|decline`) |
 | `ISIM_REPLAYKIT_PERMISSION` | `allow`, `deny` (ReplayKit's screen-recording consent; `ISIM_REPLAYKIT_AVAILABLE=0` makes recording unavailable) |
