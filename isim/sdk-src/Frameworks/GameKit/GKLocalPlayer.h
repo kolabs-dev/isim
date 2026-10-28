@@ -12,6 +12,12 @@ typedef NS_ENUM(NSInteger, GKFriendsAuthorizationStatus) {
 @property (class, nonatomic, readonly) GKLocalPlayer *local;
 + (GKLocalPlayer *)localPlayer;
 @property (nonatomic, readonly, getter=isAuthenticated) BOOL authenticated;
+@property (nonatomic, readonly) BOOL isPresentingFriendRequestViewController;
+/* identity verification (adapted: an ECDSA P-256 signature; the URL is a file URL of the device key's certificate) */
+- (void)fetchItemsForIdentityVerificationSignature:(void (^ _Nullable)(NSURL * _Nullable publicKeyURL, NSData * _Nullable signature, NSData * _Nullable salt,
+                                                                      uint64_t timestamp, NSError * _Nullable error))completionHandler;
+- (void)loadDefaultLeaderboardIdentifierWithCompletionHandler:(void (^ _Nullable)(NSString * _Nullable leaderboardIdentifier, NSError * _Nullable error))completionHandler;
+- (void)setDefaultLeaderboardIdentifier:(NSString *)leaderboardIdentifier completionHandler:(void (^ _Nullable)(NSError * _Nullable error))completionHandler;
 @property (nonatomic, readonly, getter=isUnderage) BOOL underage;
 @property (nonatomic, readonly, getter=isMultiplayerGamingRestricted) BOOL multiplayerGamingRestricted;
 @property (nonatomic, readonly, getter=isPersonalizedCommunicationRestricted) BOOL personalizedCommunicationRestricted;

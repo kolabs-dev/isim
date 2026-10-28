@@ -24,5 +24,22 @@ typedef NS_ENUM(NSInteger, GKChallengeState) {
 @interface GKAchievementChallenge : GKChallenge
 @property (nonatomic, readonly, nullable) GKAchievement *achievement;
 @end
+@class GKLeaderboard;
+/* a challenge players can start from the Games app (iOS 26; isim-GameCenter.json "challenges") */
+API_AVAILABLE(ios(26.0))
+@interface GKChallengeDefinition : NSObject
+@property (nonatomic, readonly) NSString *identifier;
+@property (nonatomic, readonly, nullable) NSString *groupIdentifier;
+@property (nonatomic, readonly) NSString *title;
+@property (nonatomic, readonly, nullable) NSString *details;
+@property (nonatomic, readonly) NSArray<NSDateComponents *> *durationOptions;
+@property (nonatomic, readonly) BOOL isRepeatable;
+@property (nonatomic, readonly, nullable) GKLeaderboard *leaderboard;
+@property (nonatomic, readonly) GKReleaseState releaseState;
++ (void)loadChallengeDefinitionsWithCompletionHandler:(void (^)(NSArray<GKChallengeDefinition *> * _Nullable definitions, NSError * _Nullable error))completionHandler;
+- (void)hasActiveChallengesWithCompletionHandler:(void (^)(BOOL hasActiveChallenges, NSError * _Nullable error))completionHandler;
+- (void)loadImageWithCompletionHandler:(void (^)(UIImage * _Nullable image, NSError * _Nullable error))completionHandler;
+- (instancetype)init NS_UNAVAILABLE;
+@end
 NS_ASSUME_NONNULL_END
 #endif

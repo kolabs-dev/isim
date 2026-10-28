@@ -14,7 +14,24 @@ typedef NS_ENUM(NSInteger, GKPlayerConnectionState) { GKPlayerStateUnknown = 0, 
 - (void)match:(GKMatch *)match didFailWithError:(nullable NSError *)error;
 - (BOOL)match:(GKMatch *)match shouldReinviteDisconnectedPlayer:(GKPlayer *)player;
 @end
+/* voice chat (unavailable on isim, as in Apple's Simulator) */
+typedef NS_ENUM(NSInteger, GKVoiceChatPlayerState) {
+    GKVoiceChatPlayerConnected = 0, GKVoiceChatPlayerDisconnected, GKVoiceChatPlayerSpeaking, GKVoiceChatPlayerSilent, GKVoiceChatPlayerConnecting
+};
+@interface GKVoiceChat : NSObject
+- (void)start;
+- (void)stop;
+- (void)setPlayer:(GKPlayer *)player muted:(BOOL)isMuted;
+@property (nonatomic, copy) void (^playerVoiceChatStateDidChangeHandler)(GKPlayer *player, GKVoiceChatPlayerState state);
+@property (nonatomic, readonly, copy) NSString *name;
+@property (nonatomic, assign, getter=isActive) BOOL active;
+@property (nonatomic, assign) float volume;
+@property (nonatomic, readonly) NSArray<GKPlayer *> *players;
++ (BOOL)isVoIPAllowed;
+- (instancetype)init NS_UNAVAILABLE;
+@end
 @interface GKMatch : NSObject
+- (nullable GKVoiceChat *)voiceChatWithName:(NSString *)name;
 @property (nonatomic, readonly) NSArray<GKPlayer *> *players;
 @property (nonatomic, weak, nullable) id<GKMatchDelegate> delegate;
 @property (nonatomic, readonly) NSUInteger expectedPlayerCount;

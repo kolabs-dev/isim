@@ -37,28 +37,6 @@ import ObjectiveC
 @objc(GKFriendRequestComposeViewControllerDelegate) protocol _GKObjCFriendRequestDelegate: NSObjectProtocol {
     @objc(friendRequestComposeViewControllerDidFinish:) optional func friendRequestComposeViewControllerDidFinish(_ vc: GKFriendRequestComposeViewController)
 }
-/// GKLocalPlayerListener with its parts (GKSavedGameListener, GKInviteEventListener, GKTurnBasedEventListener,
-/// GKChallengeListener, GKGameActivityListener): every method is optional
-@objc(GKLocalPlayerListener) protocol _GKObjCListener: NSObjectProtocol {
-    @objc(player:hasConflictingSavedGames:) optional func _savedConflict(_ p: GKPlayer, _ g: [GKSavedGame])
-    @objc(player:didModifySavedGame:) optional func _savedModified(_ p: GKPlayer, _ g: GKSavedGame)
-    @objc(player:didAcceptInvite:) optional func _acceptedInvite(_ p: GKPlayer, _ i: GKInvite)
-    @objc(player:didRequestMatchWithRecipients:) optional func _requestedWithRecipients(_ p: GKPlayer, _ r: [GKPlayer])
-    @objc(player:receivedTurnEventForMatch:didBecomeActive:) optional func _turnEvent(_ p: GKPlayer, _ m: GKTurnBasedMatch, _ active: Bool)
-    @objc(player:wantsToPlayChallenge:) optional func _wantsChallenge(_ p: GKPlayer, _ c: GKChallenge)
-    @objc(player:matchEnded:) optional func _matchEnded(_ p: GKPlayer, _ m: GKTurnBasedMatch)
-    @objc(player:wantsToQuitMatch:) optional func _wantsToQuit(_ p: GKPlayer, _ m: GKTurnBasedMatch)
-    @objc(player:receivedExchangeRequest:forMatch:) optional func _exchangeRequest(_ p: GKPlayer, _ x: GKTurnBasedExchange, _ m: GKTurnBasedMatch)
-    @objc(player:receivedExchangeCancellation:forMatch:) optional func _exchangeCancel(_ p: GKPlayer, _ x: GKTurnBasedExchange, _ m: GKTurnBasedMatch)
-    @objc(player:receivedExchangeReplies:forCompletedExchange:forMatch:)
-    optional func _exchangeReplies(_ p: GKPlayer, _ r: [GKTurnBasedExchangeReply], _ x: GKTurnBasedExchange, _ m: GKTurnBasedMatch)
-    @objc(player:didRequestMatchWithOtherPlayers:) optional func _requestedWithOthers(_ p: GKPlayer, _ o: [GKPlayer])
-    @objc(player:didReceiveChallenge:) optional func _receivedChallenge(_ p: GKPlayer, _ c: GKChallenge)
-    @objc(player:didCompleteChallenge:issuedByFriend:) optional func _completedChallenge(_ p: GKPlayer, _ c: GKChallenge, _ f: GKPlayer)
-    @objc(player:issuedChallengeWasCompleted:byFriend:) optional func _issuedCompleted(_ p: GKPlayer, _ c: GKChallenge, _ f: GKPlayer)
-    @available(iOS 26.0, *) @objc(player:wantsToPlayGameActivity:completionHandler:) optional func _wantsActivity(_ p: GKPlayer, _ a: GKGameActivity, _ h: @escaping (Bool) -> Void)
-}
-
 // MARK: - boxes
 
 final class _GKMatchDelegateBox: GKMatchDelegate {
@@ -97,35 +75,8 @@ final class _GKFriendRequestDelegateBox: GKFriendRequestComposeViewControllerDel
     init(_ t: _GKObjCFriendRequestDelegate) { self.t = t }
     func friendRequestComposeViewControllerDidFinish(_ vc: GKFriendRequestComposeViewController) { t?.friendRequestComposeViewControllerDidFinish?(vc) }
 }
-final class _GKListenerBox: GKLocalPlayerListener {
-    weak var t: _GKObjCListener?
-    init(_ t: _GKObjCListener) { self.t = t }
-    func player(_ p: GKPlayer, hasConflictingSavedGames g: [GKSavedGame]) { t?._savedConflict?(p, g) }
-    func player(_ p: GKPlayer, didModifySavedGame g: GKSavedGame) { t?._savedModified?(p, g) }
-    func player(_ p: GKPlayer, didAccept i: GKInvite) { t?._acceptedInvite?(p, i) }
-    func player(_ p: GKPlayer, didRequestMatchWithRecipients r: [GKPlayer]) { t?._requestedWithRecipients?(p, r) }
-    func player(_ p: GKPlayer, receivedTurnEventFor m: GKTurnBasedMatch, didBecomeActive a: Bool) { t?._turnEvent?(p, m, a) }
-    func player(_ p: GKPlayer, wantsToPlay c: GKChallenge) { t?._wantsChallenge?(p, c) }
-    func player(_ p: GKPlayer, matchEnded m: GKTurnBasedMatch) { t?._matchEnded?(p, m) }
-    func player(_ p: GKPlayer, wantsToQuitMatch m: GKTurnBasedMatch) { t?._wantsToQuit?(p, m) }
-    func player(_ p: GKPlayer, receivedExchangeRequest x: GKTurnBasedExchange, for m: GKTurnBasedMatch) { t?._exchangeRequest?(p, x, m) }
-    func player(_ p: GKPlayer, receivedExchangeCancellation x: GKTurnBasedExchange, for m: GKTurnBasedMatch) { t?._exchangeCancel?(p, x, m) }
-    func player(_ p: GKPlayer, receivedExchangeReplies r: [GKTurnBasedExchangeReply], forCompletedExchange x: GKTurnBasedExchange, for m: GKTurnBasedMatch) {
-        t?._exchangeReplies?(p, r, x, m)
-    }
-    func player(_ p: GKPlayer, didRequestMatchWithOtherPlayers o: [GKPlayer]) { t?._requestedWithOthers?(p, o) }
-    func player(_ p: GKPlayer, didReceive c: GKChallenge) { t?._receivedChallenge?(p, c) }
-    func player(_ p: GKPlayer, didComplete c: GKChallenge, issuedByFriend f: GKPlayer) { t?._completedChallenge?(p, c, f) }
-    func player(_ p: GKPlayer, issuedChallengeWasCompleted c: GKChallenge, byFriend f: GKPlayer) { t?._issuedCompleted?(p, c, f) }
-    @available(iOS 26.0, *)
-    func player(_ p: GKPlayer, wantsToPlay a: GKGameActivity, completionHandler h: @escaping (Bool) -> Void) {
-        if let f = t?._wantsActivity { f(p, a, h) } else { h(false) }
-    }
-}
-
 enum _GKObjC {
     nonisolated(unsafe) static var boxKey = 0
-    nonisolated(unsafe) static var listeners: [ObjectIdentifier: _GKListenerBox] = [:]
     static let lock = NSLock()
     /// keeps a delegate box alive as long as its owner (the owner's Swift property is weak)
     static func keep(_ box: AnyObject?, on owner: NSObject) {
@@ -144,15 +95,6 @@ extension GKPlayer {
 extension GKLocalPlayer {
     @objc(loadFriendsAuthorizationStatus:) func _objcLoadFriendsAuthorizationStatus(_ h: @escaping (Int, Error?) -> Void) {
         loadFriendsAuthorizationStatus { s, e in h(s.rawValue, e) }
-    }
-    @objc(registerListener:) func _objcRegister(_ listener: _GKObjCListener) {
-        let box = _GKListenerBox(listener)
-        _GKObjC.lock.lock(); _GKObjC.listeners[ObjectIdentifier(listener)] = box; _GKObjC.lock.unlock()
-        register(box)
-    }
-    @objc(unregisterListener:) func _objcUnregister(_ listener: _GKObjCListener) {
-        _GKObjC.lock.lock(); let box = _GKObjC.listeners.removeValue(forKey: ObjectIdentifier(listener)); _GKObjC.lock.unlock()
-        if let box { unregisterListener(box) }
     }
 }
 
@@ -222,7 +164,7 @@ extension GKMatchRequest {
         get { recipientResponseHandler.map { h in { p, r in h(p, GKInviteRecipientResponse(rawValue: r) ?? .failed) } } }
         set { recipientResponseHandler = newValue.map { h in { p, r in h(p, r.rawValue) } } }
     }
-    @objc(maxPlayersAllowedForMatchOfType:) class func _objcMaxPlayers(_ type: UInt) -> Int { maxPlayersAllowedForMatch(of: MatchType(rawValue: type) ?? .peerToPeer) }
+    @objc(maxPlayersAllowedForMatchOfType:) class func _objcMaxPlayers(_ type: UInt) -> Int { maxPlayersAllowedForMatch(of: GKMatchType(rawValue: type) ?? .peerToPeer) }
 }
 extension GKMatch {
     @objc(delegate) var _objcDelegate: _GKObjCMatchDelegate? {

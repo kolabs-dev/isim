@@ -30,8 +30,18 @@ typedef NS_ENUM(NSInteger, GKInviteRecipientResponse) {
 @property (nonatomic, readonly) NSUInteger playerGroup;
 @property (nonatomic, readonly) uint32_t playerAttributes;
 @end
+/* players matched for a server-hosted game */
+@interface GKMatchedPlayers : NSObject
+@property (nonatomic, readonly, nullable) NSDictionary<NSString *, id> *properties;
+@property (nonatomic, readonly) NSArray<GKPlayer *> *players;
+@property (nonatomic, readonly, nullable) NSDictionary<GKPlayer *, NSDictionary<NSString *, id> *> *playerProperties;
+@end
 @interface GKMatchmaker : NSObject
 + (GKMatchmaker *)sharedMatchmaker;
+- (void)findMatchedPlayers:(GKMatchRequest *)request withCompletionHandler:(void (^)(GKMatchedPlayers * _Nullable result, NSError * _Nullable error))completionHandler;
+- (void)queryQueueActivity:(NSString *)queueName withCompletionHandler:(void (^ _Nullable)(NSInteger activity, NSError * _Nullable error))completionHandler;
+- (void)startGroupActivityWithPlayerHandler:(void (^)(GKPlayer *player))handler;
+- (void)stopGroupActivity;
 - (void)matchForInvite:(GKInvite *)invite completionHandler:(void (^ _Nullable)(GKMatch * _Nullable match, NSError * _Nullable error))completionHandler;
 - (void)findMatchForRequest:(GKMatchRequest *)request withCompletionHandler:(void (^ _Nullable)(GKMatch * _Nullable match, NSError * _Nullable error))completionHandler;
 - (void)findPlayersForHostedRequest:(GKMatchRequest *)request

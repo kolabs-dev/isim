@@ -33,6 +33,8 @@ GK_EXTERN NSTimeInterval GKExchangeTimeoutNone;
 @property (nonatomic, readonly, nullable) NSDate *timeoutDate;
 @end
 @interface GKTurnBasedMatch : NSObject
+- (void)sendReminderToParticipants:(NSArray<GKTurnBasedParticipant *> *)participants localizableMessageKey:(NSString *)key
+                         arguments:(NSArray<NSString *> *)arguments completionHandler:(void (^ _Nullable)(NSError * _Nullable error))completionHandler;
 @property (nonatomic, readonly, nullable) NSString *matchID;
 @property (nonatomic, readonly, nullable) NSDate *creationDate;
 @property (nonatomic, readonly, nullable) NSArray<GKTurnBasedParticipant *> *participants;

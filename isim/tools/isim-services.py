@@ -23,6 +23,7 @@
   isim gamecenter befriend <nickname> [<nickname>] make two players friends (default: with this device's player)
   isim gamecenter accept-friend <nickname>         accept a friend request (Settings > Game Center does the same)
   isim gamecenter request-friend <nickname> [message]   a test player asks this device's player to be friends
+  isim gamecenter identity                         the certificate (PEM) of the device's identity verification key
   isim gamecenter <app> score <nickname> <leaderboard> <value> [context]   post a score for a player
   isim gamecenter <app> scores                     every player's scores in the game
   isim gamecenter <app> challenge <nickname> score <leaderboard> <value> [message]
@@ -275,7 +276,7 @@ def storekit(app, cmd, args):
 
 
 GC = os.environ.get('ISIM_GAMECENTER') or os.path.expanduser('~/.local/share/isim-gamecenter')
-GC_NETWORK = ('players', 'player', 'friends', 'befriend', 'accept-friend', 'request-friend')
+GC_NETWORK = ('players', 'player', 'friends', 'befriend', 'accept-friend', 'request-friend', 'identity')
 
 
 def gc_path(*parts):
@@ -406,6 +407,18 @@ def gamecenter_network(cmd, args):
                    {'from': p['id'], 'to': me, 'message': args[1] if len(args) > 1 else '', 'date': time.time()})
         gc_post(me, {'kind': 'friendRequest', 'from': p['id'], 'game': '*'})
         print(f'{p.get("alias")} asked {gc_alias(me)} to be friends')
+    elif cmd == 'identity':
+        # the certificate GKLocalPlayer.fetchItems(forIdentityVerificationSignature:) points to (made on first use)
+        cer = os.path.join(DATA, 'Library', 'GameCenter', 'identity.cer')
+        if not os.path.exists(cer):
+            die('no identity verification key yet: it is made when a game first asks for a signature')
+        der = open(cer, 'rb').read()
+        b64 = base64.b64encode(der).decode()
+        print(cer)
+        print('-----BEGIN CERTIFICATE-----')
+        for i in range(0, len(b64), 64):
+            print(b64[i:i + 64])
+        print('-----END CERTIFICATE-----')
 
 
 def gc_entries(bid, board):

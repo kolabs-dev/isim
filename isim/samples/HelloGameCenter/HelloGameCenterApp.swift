@@ -7,6 +7,7 @@
 // tests/ui/test_gamecenter.py.
 import SwiftUI
 import GameKit
+import Security
 
 final class Listener: NSObject, GKLocalPlayerListener {
     static let shared = Listener()
@@ -112,7 +113,9 @@ struct RootView: View {
          ("Quick turn", "quick-turn", { Turns.shared.take(timeout: 1) }),
          ("Automatch only", "match-automatch-only", { findMatch(.automatchOnly) }), ("Invite only", "match-invite-only", { findMatch(.inviteOnly) }),
          ("Turns: invite only", "turn-based-invite-only", { turnBased(.inviteOnly) }),
-         ("Activities", "activities", activities)]
+         ("Activities", "activities", activities),
+         ("iOS 26 + more", "more", { if #available(iOS 26.0, *) { Task { await more() } } else { print("needs iOS 26") } }), ("Matched players", "matched", { if #available(iOS 17.2, *) { matchedPlayers() } }),
+         ("Queue activity", "queue", { Task { print("queue activity: \((try? await GKMatchmaker.shared().queryQueueActivity("dev.isim.queue.ranked")) ?? -1)") } })]
     }
     var body: some View {
         NavigationStack {
@@ -272,6 +275,54 @@ struct RootView: View {
             }
         } else {
             print("game activities need iOS 26")
+        }
+    }
+    /// challenge definitions, release states, activity links, the default leaderboard, identity verification (the
+    /// signature checked with the certificate, as a game server would), voice chat, error codes, access point
+    @available(iOS 26.0, *)
+    @MainActor func more() async {
+        do {
+            let defs = (try? await GKChallengeDefinition.all) ?? []
+            for d in defs {
+                let days = d.durationOptions.map { "\($0.day ?? 0)d" }.joined(separator: ",")
+                print("challenge definition: \(d.identifier) \"\(d.title)\" leaderboard=\(d.leaderboard?.baseLeaderboardID ?? "-") durations=\(days) "
+                      + "repeatable=\(d.isRepeatable) prereleased=\(d.releaseState == .prereleased) active=\((try? await d.hasActiveChallenges) ?? false)")
+            }
+        }
+        for b in (try? await GKLeaderboard.loadLeaderboards(IDs: nil)) ?? [] {
+            print("leaderboard \(b.baseLeaderboardID) hidden=\(b.isHidden) prereleased=\(b.releaseState == .prereleased) "
+                  + "activity=\(b.activityIdentifier.isEmpty ? "-" : b.activityIdentifier) description=\(b.leaderboardDescription.isEmpty ? "-" : b.leaderboardDescription)")
+        }
+        for a in (try? await GKAchievementDescription.loadAchievementDescriptions()) ?? [] where !a.activityIdentifier.isEmpty {
+            print("achievement \(a.identifier) activity=\(a.activityIdentifier) released=\(a.releaseState == .released)")
+        }
+        try? await GKLocalPlayer.local.setDefaultLeaderboardIdentifier("dev.isim.gc.fastest")
+        print("default leaderboard: \((try? await GKLocalPlayer.local.loadDefaultLeaderboardIdentifier()) ?? "-")")
+        do {
+            let (url, signature, salt, timestamp) = try await GKLocalPlayer.local.fetchItemsForIdentityVerificationSignature()
+            var payload = Data(GKLocalPlayer.local.teamPlayerID.utf8) + Data((Bundle.main.bundleIdentifier ?? "").utf8)
+            withUnsafeBytes(of: timestamp.bigEndian) { payload.append(contentsOf: $0) }
+            payload.append(salt)
+            var verified = false
+            if let der = try? Data(contentsOf: url), let cert = SecCertificateCreateWithData(nil, der as CFData), let key = SecCertificateCopyKey(cert) {
+                verified = SecKeyVerifySignature(key, .ecdsaSignatureMessageX962SHA256, payload as CFData, signature as CFData, nil)
+            }
+            let fresh = abs(Date().timeIntervalSince1970 * 1000 - Double(timestamp)) < 60_000
+            print("identity verification: file url=\(url.isFileURL) salt=\(salt.count) fresh=\(fresh) verified=\(verified)")
+        } catch { print("identity verification failed: \(error)") }
+        print("voip allowed: \(GKVoiceChat.isVoIPAllowed()) debugMode code: \(GKError.debugMode.rawValue) friends status: \(GKFriendsAuthorizationStatus.authorized.rawValue)")
+        let e: Error = GKError(.notAuthenticated)
+        if let g = e as? GKError, g.code == GKError.notAuthenticated { print("error code matches GKError.notAuthenticated") }
+        let ach = GKAchievement(identifier: "dev.isim.gc.first_win")
+        print("achievement player is local: \(ach.player == GKLocalPlayer.local)")
+        GKAccessPoint.shared.triggerForChallenges { print("access point: challenges closed") }
+    }
+    /// server-hosted matchmaking in a queue (both devices tap it)
+    @available(iOS 17.2, *)
+    func matchedPlayers() {
+        let r = GKMatchRequest(); r.minPlayers = 2; r.maxPlayers = 2; r.queueName = "dev.isim.queue.ranked"; r.properties = ["skill": 3]
+        GKMatchmaker.shared().findMatchedPlayers(r) { m, e in
+            print("matched players: \(m?.players.count ?? 0) \(m?.players.map(\.alias).sorted().joined(separator: ",") ?? "-") properties=\(m?.properties?["skill"] as? Int ?? 0) \(e.map { "\($0)" } ?? "")")
         }
     }
     func present(_ vc: GKGameCenterViewController) { vc.gameCenterDelegate = GCDelegate.shared; top().present(vc, animated: true) }

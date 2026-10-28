@@ -18,7 +18,6 @@ import Network
 // MARK: - Requests and invites
 
 @objc(GKMatchRequest) open class GKMatchRequest: NSObject {
-    public enum MatchType: UInt, Sendable { case peerToPeer = 0, hosted = 1, turnBased = 2 }
     @objc open var minPlayers = 2
     @objc open var maxPlayers = 4
     @objc open var defaultNumberOfPlayers = 2
@@ -32,7 +31,7 @@ import Network
     @objc open var restrictToAutomatch = false
     /// how each invited player answered
     open var recipientResponseHandler: ((GKPlayer, GKInviteRecipientResponse) -> Void)?
-    public class func maxPlayersAllowedForMatch(of matchType: MatchType) -> Int { matchType == .turnBased ? 16 : 4 }
+    public class func maxPlayersAllowedForMatch(of matchType: GKMatchType) -> Int { matchType == .turnBased ? 16 : 4 }
 }
 
 public enum GKInviteRecipientResponse: Int, Sendable { case accepted = 0, declined = 1, failed = 2, incompatible = 3, unableToConnect = 4, noAnswer = 5 }
@@ -158,7 +157,7 @@ final class _GCLink: @unchecked Sendable {
         DispatchQueue.main.async { completionHandler(best) }
     }
     @nonobjc open func chooseBestHostingPlayer() async -> GKPlayer? { await withCheckedContinuation { k in chooseBestHostingPlayer { k.resume(returning: $0) } } }
-    @objc open func rematch(completionHandler: ((GKMatch?, Error?) -> Void)? = nil) { DispatchQueue.main.async { completionHandler?(nil, GKError.unsupported) } }
+    @objc open func rematch(completionHandler: ((GKMatch?, Error?) -> Void)? = nil) { DispatchQueue.main.async { completionHandler?(nil, GKError._unsupported) } }
 
     // MARK: engine
 
@@ -319,7 +318,8 @@ enum _GCRealtime {
             let group = me["group"] as? Int ?? 0, hosted = me["hosted"] as? Bool ?? false
             let tickets = _GCNet.list(dir("tickets")).filter { $0.hasSuffix(".json") }
                 .compactMap { _GCNet.readDict((dir("tickets") as NSString).appendingPathComponent($0)) }
-                .filter { $0["match"] == nil && now - ($0["seen"] as? Double ?? 0) < 3 && ($0["group"] as? Int ?? 0) == group && ($0["hosted"] as? Bool ?? false) == hosted }
+                .filter { $0["match"] == nil && now - ($0["seen"] as? Double ?? 0) < 3 && ($0["group"] as? Int ?? 0) == group && ($0["hosted"] as? Bool ?? false) == hosted
+                         && ($0["queue"] as? String ?? "") == (me["queue"] as? String ?? "") }
                 .sorted { ($0["created"] as? Double ?? 0) < ($1["created"] as? Double ?? 0) }
             var chosen: [[String: Any]] = []
             for t in tickets {
@@ -343,7 +343,7 @@ enum _GCRealtime {
         let now = Date().timeIntervalSince1970
         _GCNet.locked(dir("tickets")) {
             _GCNet.write(ticketFile(_GCNet.me), ["pid": _GCNet.me, "min": r.minPlayers, "max": r.maxPlayers, "group": r.playerGroup,
-                                                 "hosted": hosted, "created": now, "seen": now])
+                                                 "hosted": hosted, "created": now, "seen": now, "queue": r.queueName ?? ""])
         }
         NSLog("isim GameKit: looking for %ld-%ld players (group %ld)", r.minPlayers, r.maxPlayers, r.playerGroup)
         _GCNet.tickers["seek"] = { seekTick(done) }
@@ -400,7 +400,7 @@ enum _GCRealtime {
     /// Automatches (no recipients) or invites the request's recipients. The match comes back as soon as it is made;
     /// players then connect (`expectedPlayerCount`, `match(_:player:didChange:)`).
     @objc(findMatchForRequest:withCompletionHandler:) open func findMatch(for request: GKMatchRequest, withCompletionHandler h: ((GKMatch?, Error?) -> Void)? = nil) {
-        guard GKLocalPlayer.local.isAuthenticated else { DispatchQueue.main.async { h?(nil, GKError.notAuthenticated) }; return }
+        guard GKLocalPlayer.local.isAuthenticated else { DispatchQueue.main.async { h?(nil, GKError._notAuthenticated) }; return }
         guard request.minPlayers >= 2, request.maxPlayers >= request.minPlayers, request.maxPlayers <= 4 else {
             DispatchQueue.main.async { h?(nil, GKError(code: .matchRequestInvalid)) }; return
         }
@@ -422,7 +422,7 @@ enum _GCRealtime {
     }
     /// Hosted matches: the players found (the game connects them itself).
     @objc open func findPlayers(forHostedRequest request: GKMatchRequest, withCompletionHandler h: (([GKPlayer]?, Error?) -> Void)? = nil) {
-        guard GKLocalPlayer.local.isAuthenticated else { DispatchQueue.main.async { h?(nil, GKError.notAuthenticated) }; return }
+        guard GKLocalPlayer.local.isAuthenticated else { DispatchQueue.main.async { h?(nil, GKError._notAuthenticated) }; return }
         _GCRealtime.seek(request, hosted: true) { mid in
             guard let mid, let d = _GCNet.readDict(_GCRealtime.matchFile(mid)) else { return }
             let others = (d["players"] as? [String] ?? []).filter { $0 != _GCNet.me }
@@ -808,7 +808,7 @@ public let GKTurnTimeoutNone: TimeInterval = 31449600
     /// Automatches into a match waiting for a player (its next seat is open), or creates one with the local player
     /// taking the first turn; with recipients, they are invited to the new match.
     @objc(findMatchForRequest:withCompletionHandler:) public class func find(for request: GKMatchRequest, withCompletionHandler h: @escaping (GKTurnBasedMatch?, Error?) -> Void) {
-        guard GKLocalPlayer.local.isAuthenticated else { DispatchQueue.main.async { h(nil, GKError.notAuthenticated) }; return }
+        guard GKLocalPlayer.local.isAuthenticated else { DispatchQueue.main.async { h(nil, GKError._notAuthenticated) }; return }
         guard request.minPlayers >= 2, request.maxPlayers >= request.minPlayers, request.maxPlayers <= 16 else {
             DispatchQueue.main.async { h(nil, GKError(code: .matchRequestInvalid)) }; return
         }
@@ -850,7 +850,7 @@ public let GKTurnTimeoutNone: TimeInterval = 31449600
     }
     /// The local player's matches (not removed).
     @objc public class func loadMatches(completionHandler: (([GKTurnBasedMatch]?, Error?) -> Void)? = nil) {
-        guard GKLocalPlayer.local.isAuthenticated else { DispatchQueue.main.async { completionHandler?(nil, GKError.notAuthenticated) }; return }
+        guard GKLocalPlayer.local.isAuthenticated else { DispatchQueue.main.async { completionHandler?(nil, GKError._notAuthenticated) }; return }
         let list = _GCTurns.mine().map(_make)
         DispatchQueue.main.async { completionHandler?(list, nil) }
     }
@@ -1127,7 +1127,7 @@ extension GKTurnBasedMatchmakerViewControllerDelegate {
     @objc func chose(_ m: GKTurnBasedMatch) {
         NSLog("isim GameKit: turn-based matchmaker chose match %@", m.matchID)
         turnBasedMatchmakerDelegate?.turnBasedMatchmakerViewController(self, didFind: m)
-        MainActor.assumeIsolated { _GCEvents.deliver { l in l.player(GKLocalPlayer.local, receivedTurnEventFor: m, didBecomeActive: true) } }
+        MainActor.assumeIsolated { _GCEvents.deliver { l in l.player?(GKLocalPlayer.local, receivedTurnEventFor: m, didBecomeActive: true) } }
     }
 }
 
@@ -1191,7 +1191,7 @@ struct _GCTurnBasedView: View {
                 let from = inv.sender.alias
                 NSLog("isim GameKit: invite from %@", from)
                 _GCBanner.show(title: "\(from) invited you to play", subtitle: _GCApp.name, kind: .other(from)) {
-                    _GCEvents.deliver { l in l.player(GKLocalPlayer.local, didAccept: inv) }
+                    _GCEvents.deliver { l in l.player?(GKLocalPlayer.local, didAccept: inv) }
                 }
             }
         }
@@ -1202,10 +1202,10 @@ struct _GCTurnBasedView: View {
                     let m = GKTurnBasedMatch._make(rec)
                     if kind == "matchEnded" {
                         NSLog("isim GameKit: turn-based match %@ ended", m.matchID)
-                        _GCEvents.deliver { l in l.player(GKLocalPlayer.local, matchEnded: m) }
+                        _GCEvents.deliver { l in l.player?(GKLocalPlayer.local, matchEnded: m) }
                     } else {
                         NSLog("isim GameKit: turn event for match %@ (%@)", m.matchID, m.currentParticipant?.pid == _GCNet.me ? "your turn" : "updated")
-                        _GCEvents.deliver { l in l.player(GKLocalPlayer.local, receivedTurnEventFor: m, didBecomeActive: false) }
+                        _GCEvents.deliver { l in l.player?(GKLocalPlayer.local, receivedTurnEventFor: m, didBecomeActive: false) }
                     }
                 }
             }

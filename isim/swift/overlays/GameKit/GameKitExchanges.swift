@@ -204,13 +204,13 @@ enum _GCExchanges {
                 switch e["what"] as? String {
                 case "request":
                     NSLog("isim GameKit: exchange request from %@", x.sender.player?.alias ?? "?")
-                    _GCEvents.deliver { l in l.player(GKLocalPlayer.local, receivedExchangeRequest: x, for: m) }
+                    _GCEvents.deliver { l in l.player?(GKLocalPlayer.local, receivedExchangeRequest: x, for: m) }
                 case "cancel":
                     NSLog("isim GameKit: exchange cancelled by %@", x.sender.player?.alias ?? "?")
-                    _GCEvents.deliver { l in l.player(GKLocalPlayer.local, receivedExchangeCancellation: x, for: m) }
+                    _GCEvents.deliver { l in l.player?(GKLocalPlayer.local, receivedExchangeCancellation: x, for: m) }
                 case "replies":
                     NSLog("isim GameKit: exchange replies (%ld)", x.replies?.count ?? 0)
-                    _GCEvents.deliver { l in l.player(GKLocalPlayer.local, receivedExchangeReplies: x.replies ?? [], forCompletedExchange: x, for: m) }
+                    _GCEvents.deliver { l in l.player?(GKLocalPlayer.local, receivedExchangeReplies: x.replies ?? [], forCompletedExchange: x, for: m) }
                 default: break
                 }
             }

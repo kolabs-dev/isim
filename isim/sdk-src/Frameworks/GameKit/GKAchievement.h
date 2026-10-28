@@ -10,6 +10,9 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)reportAchievements:(NSArray<GKAchievement *> *)achievements withCompletionHandler:(void (^ _Nullable)(NSError * _Nullable error))completionHandler;
 @property (nonatomic, copy, nullable) NSString *identifier;
 @property (nonatomic) double percentComplete;
+@property (nonatomic, readonly) GKPlayer *player;
+- (void)selectChallengeablePlayers:(NSArray<GKPlayer *> *)players
+             withCompletionHandler:(void (^ _Nullable)(NSArray<GKPlayer *> * _Nullable challengeablePlayers, NSError * _Nullable error))completionHandler;
 @property (nonatomic, readonly, getter=isCompleted) BOOL completed;
 @property (nonatomic, copy, readonly) NSDate *lastReportedDate;
 @property (nonatomic) BOOL showsCompletionBanner;
@@ -28,6 +31,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, getter=isHidden) BOOL hidden;
 @property (nonatomic, readonly, getter=isReplayable) BOOL replayable;
 @property (nonatomic, readonly, nullable) NSNumber *rarityPercent;
+@property (nonatomic, readonly) GKReleaseState releaseState;
+@property (nonatomic, readonly) NSString *activityIdentifier;
+@property (nonatomic, readonly) NSDictionary<NSString *, NSString *> *activityProperties;
 - (void)loadImageWithCompletionHandler:(void (^ _Nullable)(UIImage * _Nullable image, NSError * _Nullable error))completionHandler;
 + (UIImage *)incompleteAchievementImage;
 + (UIImage *)placeholderCompletedAchievementImage;

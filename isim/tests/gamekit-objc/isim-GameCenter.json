@@ -1,12 +1,47 @@
 {
   "leaderboards": [
-    { "id": "dev.isim.gkobjc.high_score", "title": "High Score", "type": "classic", "sortOrder": "high" }
+    {
+      "id": "dev.isim.gkobjc.high_score",
+      "title": "High Score",
+      "type": "classic",
+      "sortOrder": "high",
+      "description": "Highest score"
+    }
   ],
   "leaderboardSets": [
-    { "id": "dev.isim.gkobjc.set", "title": "Season 1", "leaderboards": [ "dev.isim.gkobjc.high_score" ] }
+    {
+      "id": "dev.isim.gkobjc.set",
+      "title": "Season 1",
+      "leaderboards": [
+        "dev.isim.gkobjc.high_score"
+      ]
+    }
   ],
   "achievements": [
-    { "id": "dev.isim.gkobjc.first_win", "title": "First Win", "points": 10, "unachievedDescription": "Win a game.", "achievedDescription": "You won your first game." },
-    { "id": "dev.isim.gkobjc.collector", "title": "Collector", "points": 25, "unachievedDescription": "Collect 100 gems.", "achievedDescription": "You collected 100 gems." }
+    {
+      "id": "dev.isim.gkobjc.first_win",
+      "title": "First Win",
+      "points": 10,
+      "unachievedDescription": "Win a game.",
+      "achievedDescription": "You won your first game."
+    },
+    {
+      "id": "dev.isim.gkobjc.collector",
+      "title": "Collector",
+      "points": 25,
+      "unachievedDescription": "Collect 100 gems.",
+      "achievedDescription": "You collected 100 gems."
+    }
+  ],
+  "challenges": [
+    {
+      "id": "dev.isim.gkobjc.challenge",
+      "title": "Weekly",
+      "leaderboard": "dev.isim.gkobjc.high_score",
+      "durations": [
+        "P7D"
+      ],
+      "releaseState": "prereleased"
+    }
   ]
 }

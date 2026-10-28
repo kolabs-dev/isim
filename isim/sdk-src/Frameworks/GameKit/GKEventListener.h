@@ -1,6 +1,6 @@
 #pragma once
-/* isim GameKit: the local player's listener protocols (one Swift protocol, GKLocalPlayerListener, on isim; an
- * Objective-C listener is wrapped when it is registered). */
+/* isim GameKit: the local player's listener protocols (the overlay's @objc protocols: GKLocalPlayerListener is made
+ * of the others; every method is optional). */
 #import <GameKit/GKDefines.h>
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN

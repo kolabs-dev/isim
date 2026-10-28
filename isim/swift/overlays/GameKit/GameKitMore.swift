@@ -16,7 +16,8 @@ import SwiftUI
     @objc public let isHidden: Bool
     @objc public let isReplayable: Bool
     @objc public var rarityPercent: NSNumber? { nil }
-    @objc public var releaseState: Int { 1 }
+    @available(iOS 18.4, *) public var releaseState: GKReleaseState { .of(_def?.prereleased ?? false) }
+    @available(iOS 18.4, *) @objc(releaseState) var _isimReleaseState: UInt { releaseState.rawValue }
     init(_ d: _GCAchievementDef) {
         identifier = d.id; groupIdentifier = d.group; title = d.title; achievedDescription = d.achieved; unachievedDescription = d.unachieved
         maximumPoints = d.points; isHidden = d.hidden; isReplayable = d.replayable
@@ -32,7 +33,7 @@ import SwiftUI
         DispatchQueue.main.async { completionHandler?(img, nil) }
     }
     @nonobjc open func loadImage() async throws -> UIImage {
-        guard let i = _GCImages.achievement(identifier, completed: true) else { throw GKError.unsupported }
+        guard let i = _GCImages.achievement(identifier, completed: true) else { throw GKError._unsupported }
         return i
     }
     @objc public class func incompleteAchievementImage() -> UIImage { _GCImages.achievement("", completed: false) ?? UIImage() }
@@ -63,54 +64,55 @@ import SwiftUI
         DispatchQueue.main.async { completionHandler?(img, nil) }
     }
     @nonobjc open func loadImage() async throws -> UIImage {
-        guard let i = _GCImages.set(identifier ?? "") else { throw GKError.unsupported }
+        guard let i = _GCImages.set(identifier ?? "") else { throw GKError._unsupported }
         return i
     }
 }
 
-// MARK: - Listener
+// MARK: - Listeners
 
-/// Everything other players and the system tell the game: saved-game changes, invites, turn events, challenges
-/// and game activities (iOS splits it into GKSavedGameListener, GKInviteEventListener, GKTurnBasedEventListener,
-/// GKChallengeListener and GKGameActivityListener; on isim those names are aliases of this protocol).
-public protocol GKLocalPlayerListener: AnyObject {
-    func player(_ player: GKPlayer, hasConflictingSavedGames savedGames: [GKSavedGame])
-    func player(_ player: GKPlayer, didModifySavedGame savedGame: GKSavedGame)
-    func player(_ player: GKPlayer, didAccept invite: GKInvite)
-    func player(_ player: GKPlayer, didRequestMatchWithRecipients recipientPlayers: [GKPlayer])
-    func player(_ player: GKPlayer, receivedTurnEventFor match: GKTurnBasedMatch, didBecomeActive: Bool)
-    func player(_ player: GKPlayer, wantsToPlay challenge: GKChallenge)
-    func player(_ player: GKPlayer, matchEnded match: GKTurnBasedMatch)
-    func player(_ player: GKPlayer, wantsToQuitMatch match: GKTurnBasedMatch)
-    func player(_ player: GKPlayer, receivedExchangeRequest exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch)
-    func player(_ player: GKPlayer, receivedExchangeCancellation exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch)
-    func player(_ player: GKPlayer, receivedExchangeReplies replies: [GKTurnBasedExchangeReply], forCompletedExchange exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch)
-    func player(_ player: GKPlayer, didRequestMatchWithOtherPlayers playersToInvite: [GKPlayer])
-    func player(_ player: GKPlayer, didReceive challenge: GKChallenge)
-    func player(_ player: GKPlayer, didComplete challenge: GKChallenge, issuedByFriend friendPlayer: GKPlayer)
-    func player(_ player: GKPlayer, issuedChallengeWasCompleted challenge: GKChallenge, byFriend friendPlayer: GKPlayer)
-    @available(iOS 26.0, *)
-    func player(_ player: GKPlayer, wantsToPlay activity: GKGameActivity, completionHandler: @escaping (Bool) -> Void)
+/// Saved-game changes from other devices.
+@objc(GKSavedGameListener) public protocol GKSavedGameListener: NSObjectProtocol {
+    @objc(player:didModifySavedGame:) optional func player(_ player: GKPlayer, didModifySavedGame savedGame: GKSavedGame)
+    @objc(player:hasConflictingSavedGames:) optional func player(_ player: GKPlayer, hasConflictingSavedGames savedGames: [GKSavedGame])
 }
-extension GKLocalPlayerListener {
-    public func player(_ player: GKPlayer, hasConflictingSavedGames savedGames: [GKSavedGame]) {}
-    public func player(_ player: GKPlayer, didModifySavedGame savedGame: GKSavedGame) {}
-    public func player(_ player: GKPlayer, didAccept invite: GKInvite) {}
-    public func player(_ player: GKPlayer, didRequestMatchWithRecipients recipientPlayers: [GKPlayer]) {}
-    public func player(_ player: GKPlayer, receivedTurnEventFor match: GKTurnBasedMatch, didBecomeActive: Bool) {}
-    public func player(_ player: GKPlayer, wantsToPlay challenge: GKChallenge) {}
-    public func player(_ player: GKPlayer, matchEnded match: GKTurnBasedMatch) {}
-    public func player(_ player: GKPlayer, wantsToQuitMatch match: GKTurnBasedMatch) {}
-    public func player(_ player: GKPlayer, receivedExchangeRequest exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch) {}
-    public func player(_ player: GKPlayer, receivedExchangeCancellation exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch) {}
-    public func player(_ player: GKPlayer, receivedExchangeReplies replies: [GKTurnBasedExchangeReply], forCompletedExchange exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch) {}
-    public func player(_ player: GKPlayer, didRequestMatchWithOtherPlayers playersToInvite: [GKPlayer]) {}
-    public func player(_ player: GKPlayer, didReceive challenge: GKChallenge) {}
-    public func player(_ player: GKPlayer, didComplete challenge: GKChallenge, issuedByFriend friendPlayer: GKPlayer) {}
-    public func player(_ player: GKPlayer, issuedChallengeWasCompleted challenge: GKChallenge, byFriend friendPlayer: GKPlayer) {}
-    @available(iOS 26.0, *)
-    public func player(_ player: GKPlayer, wantsToPlay activity: GKGameActivity, completionHandler: @escaping (Bool) -> Void) { completionHandler(false) }
+/// Invites the player accepted, and match requests from the Games app or Contacts.
+@objc(GKInviteEventListener) public protocol GKInviteEventListener: NSObjectProtocol {
+    @objc(player:didAcceptInvite:) optional func player(_ player: GKPlayer, didAccept invite: GKInvite)
+    @objc(player:didRequestMatchWithRecipients:) optional func player(_ player: GKPlayer, didRequestMatchWithRecipients recipientPlayers: [GKPlayer])
 }
+/// Turn-based match events: turns, ended matches, quit requests and exchanges.
+@objc(GKTurnBasedEventListener) public protocol GKTurnBasedEventListener: NSObjectProtocol {
+    @objc(player:didRequestMatchWithOtherPlayers:) optional func player(_ player: GKPlayer, didRequestMatchWithOtherPlayers playersToInvite: [GKPlayer])
+    @objc(player:receivedTurnEventForMatch:didBecomeActive:)
+    optional func player(_ player: GKPlayer, receivedTurnEventFor match: GKTurnBasedMatch, didBecomeActive: Bool)
+    @objc(player:matchEnded:) optional func player(_ player: GKPlayer, matchEnded match: GKTurnBasedMatch)
+    @objc(player:receivedExchangeRequest:forMatch:)
+    optional func player(_ player: GKPlayer, receivedExchangeRequest exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch)
+    @objc(player:receivedExchangeCancellation:forMatch:)
+    optional func player(_ player: GKPlayer, receivedExchangeCancellation exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch)
+    @objc(player:receivedExchangeReplies:forCompletedExchange:forMatch:)
+    optional func player(_ player: GKPlayer, receivedExchangeReplies replies: [GKTurnBasedExchangeReply], forCompletedExchange exchange: GKTurnBasedExchange,
+                         for match: GKTurnBasedMatch)
+    @objc(player:wantsToQuitMatch:) optional func player(_ player: GKPlayer, wantsToQuitMatch match: GKTurnBasedMatch)
+}
+/// Challenges received, accepted and completed.
+@objc(GKChallengeListener) public protocol GKChallengeListener: NSObjectProtocol {
+    @objc(player:wantsToPlayChallenge:) optional func player(_ player: GKPlayer, wantsToPlay challenge: GKChallenge)
+    @objc(player:didReceiveChallenge:) optional func player(_ player: GKPlayer, didReceive challenge: GKChallenge)
+    @objc(player:didCompleteChallenge:issuedByFriend:) optional func player(_ player: GKPlayer, didComplete challenge: GKChallenge, issuedByFriend friendPlayer: GKPlayer)
+    @objc(player:issuedChallengeWasCompleted:byFriend:)
+    optional func player(_ player: GKPlayer, issuedChallengeWasCompleted challenge: GKChallenge, byFriend friendPlayer: GKPlayer)
+}
+/// Game activities the player starts from the Games app (iOS 26).
+@objc(GKGameActivityListener) public protocol GKGameActivityListener: NSObjectProtocol {
+    @available(iOS 26.0, *)
+    @objc(player:wantsToPlayGameActivity:completionHandler:)
+    optional func player(_ player: GKPlayer, wantsToPlay activity: GKGameActivity, completionHandler: @escaping (Bool) -> Void)
+}
+/// Everything other players and the system tell the game; register one with GKLocalPlayer.register(_:).
+@objc(GKLocalPlayerListener) public protocol GKLocalPlayerListener: GKChallengeListener, GKInviteEventListener, GKSavedGameListener,
+                                                                     GKTurnBasedEventListener, GKGameActivityListener {}
 
 // MARK: - Saved games
 
@@ -170,18 +172,18 @@ enum _GCSaves {
 extension GKLocalPlayer {
     /// Saves (or replaces this device's version of) a saved game.
     @objc public func saveGameData(_ data: Data, withName name: String, completionHandler handler: ((GKSavedGame?, Error?) -> Void)? = nil) {
-        guard isAuthenticated else { DispatchQueue.main.async { handler?(nil, GKError.notAuthenticated) }; return }
+        guard isAuthenticated else { DispatchQueue.main.async { handler?(nil, GKError._notAuthenticated) }; return }
         let dev = _GCSaves.deviceName
         let g = _GCSaves.store(data, name: name) { ($0["deviceName"] as? String) == dev }
         NSLog("isim GameKit: saved game \"%@\" (%ld bytes)", name, data.count)
-        DispatchQueue.main.async { MainActor.assumeIsolated { for l in self.listeners { l.player(self, didModifySavedGame: g) } }; handler?(g, nil) }
+        DispatchQueue.main.async { MainActor.assumeIsolated { for l in self.listeners { l.player?(self, didModifySavedGame: g) } }; handler?(g, nil) }
     }
     @nonobjc public func saveGameData(_ data: Data, withName name: String) async throws -> GKSavedGame {
         try await withCheckedThrowingContinuation { k in saveGameData(data, withName: name) { g, e in if let g { k.resume(returning: g) } else { k.resume(throwing: e ?? GKError(code: .unknown)) } } }
     }
     /// All saved games; a name listed more than once is a conflict (listeners are told).
     @objc public func fetchSavedGames(completionHandler handler: (([GKSavedGame]?, Error?) -> Void)? = nil) {
-        guard isAuthenticated else { DispatchQueue.main.async { handler?(nil, GKError.notAuthenticated) }; return }
+        guard isAuthenticated else { DispatchQueue.main.async { handler?(nil, GKError._notAuthenticated) }; return }
         let names = (try? FileManager.default.contentsOfDirectory(atPath: _GCSaves.root)) ?? []
         var all: [GKSavedGame] = []
         var conflicts: [[GKSavedGame]] = []
@@ -192,7 +194,7 @@ extension GKLocalPlayer {
         }
         DispatchQueue.main.async {
             handler?(all, nil)
-            MainActor.assumeIsolated { for c in conflicts { for l in self.listeners { l.player(self, hasConflictingSavedGames: c) } } }
+            MainActor.assumeIsolated { for c in conflicts { for l in self.listeners { l.player?(self, hasConflictingSavedGames: c) } } }
         }
     }
     @nonobjc public func fetchSavedGames() async throws -> [GKSavedGame] {

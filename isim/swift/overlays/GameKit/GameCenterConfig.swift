@@ -17,6 +17,8 @@ struct _GCBoardDef {
     var format = "integer"
     var decimals = 2, unit = "seconds", currency = "USD", suffix = ""
     var image: String?
+    var details = "", hidden = false, prereleased = false
+    var activity = "", activityProperties: [String: String] = [:]
     func formatted(_ v: Int) -> String {
         let text: String
         switch format.lowercased() {
@@ -54,6 +56,8 @@ struct _GCAchievementDef {
     var unachieved = "", achieved = ""
     var image: String?
     var group: String?
+    var prereleased = false
+    var activity = "", activityProperties: [String: String] = [:]
 }
 struct _GCSetDef { let id: String, title: String; var boards: [String]; var image: String? }
 /// a game activity definition (iOS 26)
@@ -65,15 +69,26 @@ struct _GCActivityDef {
     var minPlayers: Int?, maxPlayers: Int?
     var playStyle = "unspecified"
     var achievements: [String] = [], leaderboards: [String] = []
+    var prereleased = false
+}
+/// a challenge definition (iOS 26): a leaderboard players challenge each other on
+struct _GCChallengeDef {
+    let id: String, title: String
+    var details: String?, group: String?, leaderboard: String?, image: String?
+    var durations: [DateComponents] = []
+    var repeatable = false, prereleased = false, active = false
 }
 
 enum _GCConfig {
-    typealias All = (boards: [_GCBoardDef], sets: [_GCSetDef], achievements: [_GCAchievementDef], activities: [_GCActivityDef])
+    typealias All = (boards: [_GCBoardDef], sets: [_GCSetDef], achievements: [_GCAchievementDef], activities: [_GCActivityDef], challenges: [_GCChallengeDef])
     nonisolated(unsafe) static var cached: All?
     static var boards: [_GCBoardDef] { load().boards }
     static var sets: [_GCSetDef] { load().sets }
     static var achievements: [_GCAchievementDef] { load().achievements }
     static var activities: [_GCActivityDef] { load().activities }
+    static var challenges: [_GCChallengeDef] { load().challenges }
+    /// "released" (default) or "prereleased" (App Store Connect's release state)
+    static func prereleased(_ o: [String: Any]) -> Bool { (o["releaseState"] as? String)?.lowercased() == "prereleased" }
     static func board(_ id: String) -> _GCBoardDef { boards.first { $0.id == id } ?? _GCBoardDef(id: id, title: _GCText.title(id)) }
     static func achievement(_ id: String) -> _GCAchievementDef? { achievements.first { $0.id == id } }
 
@@ -117,6 +132,7 @@ enum _GCConfig {
     static func load() -> All {
         if let c = cached { return c }
         var boards: [_GCBoardDef] = [], sets: [_GCSetDef] = [], achs: [_GCAchievementDef] = [], acts: [_GCActivityDef] = []
+        var challenges: [_GCChallengeDef] = []
         let name = Bundle.main.object(forInfoDictionaryKey: "ISIMGameCenterConfiguration") as? String ?? "isim-GameCenter.json"
         let path = (Bundle.main.bundlePath as NSString).appendingPathComponent(name)
         if let data = FileManager.default.contents(atPath: path),
@@ -134,6 +150,8 @@ enum _GCConfig {
                 d.currency = b["currency"] as? String ?? "USD"
                 d.suffix = b["suffix"] as? String ?? ""
                 d.image = b["image"] as? String
+                d.details = b["description"] as? String ?? ""; d.hidden = b["hidden"] as? Bool ?? false; d.prereleased = prereleased(b)
+                d.activity = b["activityIdentifier"] as? String ?? ""; d.activityProperties = b["activityProperties"] as? [String: String] ?? [:]
                 boards.append(d)
             }
             for s in root["leaderboardSets"] as? [[String: Any]] ?? [] {
@@ -150,6 +168,8 @@ enum _GCConfig {
                 d.achieved = a["achievedDescription"] as? String ?? d.unachieved
                 d.image = a["image"] as? String
                 d.group = a["groupIdentifier"] as? String
+                d.prereleased = prereleased(a)
+                d.activity = a["activityIdentifier"] as? String ?? ""; d.activityProperties = a["activityProperties"] as? [String: String] ?? [:]
                 achs.append(d)
             }
             for a in root["activities"] as? [[String: Any]] ?? [] {
@@ -163,11 +183,24 @@ enum _GCConfig {
                 d.minPlayers = a["minPlayers"] as? Int; d.maxPlayers = a["maxPlayers"] as? Int
                 d.playStyle = a["playStyle"] as? String ?? "unspecified"
                 d.achievements = a["achievements"] as? [String] ?? []; d.leaderboards = a["leaderboards"] as? [String] ?? []
+                d.prereleased = prereleased(a)
                 acts.append(d)
             }
-            NSLog("isim GameKit: local Game Center configuration %@ (%ld leaderboards, %ld sets, %ld achievements, %ld activities)", name, boards.count, sets.count, achs.count, acts.count)
+            for c in root["challenges"] as? [[String: Any]] ?? [] {
+                guard let id = c["id"] as? String else { continue }
+                var d = _GCChallengeDef(id: id, title: c["title"] as? String ?? _GCText.title(id))
+                d.details = c["details"] as? String; d.group = c["groupIdentifier"] as? String
+                d.leaderboard = c["leaderboard"] as? String; d.image = c["image"] as? String
+                d.durations = (c["durations"] as? [String] ?? ["P1D"]).compactMap { s -> DateComponents? in
+                    guard let t = duration(s) else { return nil }
+                    return Int(t) % 86400 == 0 ? DateComponents(day: Int(t) / 86400) : DateComponents(second: Int(t))
+                }
+                d.repeatable = c["repeatable"] as? Bool ?? false; d.prereleased = prereleased(c); d.active = c["active"] as? Bool ?? false
+                challenges.append(d)
+            }
+            NSLog("isim GameKit: local Game Center configuration %@ (%ld leaderboards, %ld sets, %ld achievements, %ld activities, %ld challenges)", name, boards.count, sets.count, achs.count, acts.count, challenges.count)
         }
-        let c = (boards, sets, achs, acts)
+        let c = (boards, sets, achs, acts, challenges)
         cached = c
         return c
     }
