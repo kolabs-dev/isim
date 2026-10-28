@@ -1022,6 +1022,7 @@ FinanceKitUI -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurr
 PermissionKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftCoreGraphics -lswiftObservation -framework Foundation -framework UIKit -framework CoreGraphics   # issue #397
 CryptoTokenKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics   # issue #403: smart cards on virtual readers
 IdentityDocumentServices -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftSecurity -framework Foundation   # issue #403
+LiveCommunicationKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCallKit -lswiftAVFoundation -framework Foundation   # issue #404: on CallKit's engine
 """
 
 # app-facing re-implementations: library evolution keeps their ABI stable across isim updates (since 0.12 also the base
@@ -1032,7 +1033,7 @@ GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Se
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport XPC StateReporting MetricKit CloudKit AuthenticationServices
 QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision SoundAnalysis NaturalLanguage FoundationModels Speech VisionKit WebKit SafariServices LinkPresentation Accessibility MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit TipKit Translation ImagePlayground VisualIntelligence Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit
-CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive GroupActivities GameSave DeclaredAgeRange PermissionKit FinanceKit FinanceKitUI CryptoTokenKit IdentityDocumentServices""".split())
+CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive GroupActivities GameSave DeclaredAgeRange PermissionKit FinanceKit FinanceKitUI CryptoTokenKit IdentityDocumentServices LiveCommunicationKit""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer ReplayKit".split())
 # modules that also compile overlays/_AdAttribution (the conversion values SKAdNetwork and AdAttributionKit share)
