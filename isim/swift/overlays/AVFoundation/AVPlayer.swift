@@ -214,6 +214,7 @@ final class _AVTicker: NSObject {
             _updateState()
             _firePeriodic(force: true)
             _postRateChange(reason)
+            _coordinatedChange()
         }
     }
     var _rate: Float = 0
@@ -290,6 +291,7 @@ final class _AVTicker: NSObject {
             item._outputsTick(t, flushed: true)
         }
         _firePeriodic(force: true)
+        _coordinatedChange()
         DispatchQueue.main.async { completionHandler(true) }
     }
     open func seek(to time: CMTime, toleranceBefore: CMTime, toleranceAfter: CMTime) { seek(to: time) }

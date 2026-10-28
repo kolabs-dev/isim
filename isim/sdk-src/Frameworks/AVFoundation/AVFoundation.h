@@ -171,8 +171,110 @@ typedef NS_ENUM(NSInteger, AVPlayerActionAtItemEnd) { AVPlayerActionAtItemEndAdv
 @property (nonatomic, readonly, getter=isReadyForDisplay) BOOL readyForDisplay;
 @property (nonatomic, readonly) CGRect videoRect;
 @end
+/* coordinated playback (issue #392): AVPlaybackCoordinator.h, AVPlayerPlaybackCoordinator, AVDelegatingPlaybackCoordinator */
+#ifndef ISIM_CMTIMEBASEREF
+#define ISIM_CMTIMEBASEREF
+typedef struct OpaqueCMTimebase *CMTimebaseRef;      /* CoreMedia's timebases are not available from C yet: only Swift makes one */
+#endif
+typedef NSString *AVCoordinatedPlaybackSuspensionReason NS_TYPED_EXTENSIBLE_ENUM;
+extern AVCoordinatedPlaybackSuspensionReason const AVCoordinatedPlaybackSuspensionReasonAudioSessionInterrupted;
+extern AVCoordinatedPlaybackSuspensionReason const AVCoordinatedPlaybackSuspensionReasonStallRecovery;
+extern AVCoordinatedPlaybackSuspensionReason const AVCoordinatedPlaybackSuspensionReasonPlayingInterstitial;
+extern AVCoordinatedPlaybackSuspensionReason const AVCoordinatedPlaybackSuspensionReasonCoordinatedPlaybackNotPossible;
+extern AVCoordinatedPlaybackSuspensionReason const AVCoordinatedPlaybackSuspensionReasonUserActionRequired;
+extern AVCoordinatedPlaybackSuspensionReason const AVCoordinatedPlaybackSuspensionReasonUserIsChangingCurrentTime;
+extern NSNotificationName const AVPlaybackCoordinatorOtherParticipantsDidChangeNotification;
+extern NSNotificationName const AVPlaybackCoordinatorSuspensionReasonsDidChangeNotification;
+@class AVPlaybackCoordinator, AVPlayerPlaybackCoordinator, AVDelegatingPlaybackCoordinator, AVPlaybackCoordinationMedium;
+@interface AVCoordinatedPlaybackParticipant : NSObject
+@property (readonly) NSArray<AVCoordinatedPlaybackSuspensionReason> *suspensionReasons;
+@property (readonly, getter=isReadyToPlay) BOOL readyToPlay;
+@property (readonly) NSUUID *identifier;
+@end
+@interface AVCoordinatedPlaybackSuspension : NSObject
+@property (readonly) AVCoordinatedPlaybackSuspensionReason reason;
+@property (readonly) NSDate *beginDate;
+- (void)end;
+- (void)endProposingNewTime:(CMTime)time;
+@end
+@interface AVPlaybackCoordinator : NSObject
+@property (readonly) NSArray<AVCoordinatedPlaybackParticipant *> *otherParticipants;
+@property (readonly) NSArray<AVCoordinatedPlaybackSuspensionReason> *suspensionReasons;
+- (AVCoordinatedPlaybackSuspension *)beginSuspensionForReason:(AVCoordinatedPlaybackSuspensionReason)suspensionReason;
+@property (copy) NSArray<AVCoordinatedPlaybackSuspensionReason> *suspensionReasonsThatTriggerWaiting;
+- (void)setParticipantLimit:(NSInteger)participantLimit forWaitingOutSuspensionsWithReason:(AVCoordinatedPlaybackSuspensionReason)reason;
+- (NSInteger)participantLimitForWaitingOutSuspensionsWithReason:(AVCoordinatedPlaybackSuspensionReason)reason;
+@property BOOL pauseSnapsToMediaTimeOfOriginator;
+- (CMTime)expectedItemTimeAtHostTime:(CMTime)hostClockTime;
+@end
+@protocol AVPlayerPlaybackCoordinatorDelegate <NSObject>
+@optional
+- (NSString *)playbackCoordinator:(AVPlayerPlaybackCoordinator *)coordinator identifierForPlayerItem:(AVPlayerItem *)playerItem;
+- (NSArray<NSValue *> *)playbackCoordinator:(AVPlayerPlaybackCoordinator *)coordinator interstitialTimeRangesForPlayerItem:(AVPlayerItem *)playerItem;
+@end
+@interface AVPlayerPlaybackCoordinator : AVPlaybackCoordinator
+@property (readonly, weak) AVPlayer *player;
+@property (weak, nullable) id<AVPlayerPlaybackCoordinatorDelegate> delegate;
+@property (readonly, nullable) AVPlaybackCoordinationMedium *playbackCoordinationMedium;
+- (BOOL)coordinateUsingPlaybackCoordinationMedium:(nullable AVPlaybackCoordinationMedium *)playbackCoordinationMedium error:(NSError **)outError;
+@end
+@interface AVPlaybackCoordinationMedium : NSObject
+- (instancetype)init;
+@property (readonly) NSArray<AVPlayerPlaybackCoordinator *> *connectedPlaybackCoordinators;
+@end
+@interface AVPlayer (AVPlayerPlaybackCoordination)
+@property (readonly) AVPlayerPlaybackCoordinator *playbackCoordinator;
+@end
+@class AVDelegatingPlaybackCoordinatorPlayCommand, AVDelegatingPlaybackCoordinatorPauseCommand, AVDelegatingPlaybackCoordinatorSeekCommand,
+    AVDelegatingPlaybackCoordinatorBufferingCommand;
+@protocol AVPlaybackCoordinatorPlaybackControlDelegate <NSObject>
+- (void)playbackCoordinator:(AVDelegatingPlaybackCoordinator *)coordinator didIssuePlayCommand:(AVDelegatingPlaybackCoordinatorPlayCommand *)playCommand completionHandler:(void (^)(void))completionHandler;
+- (void)playbackCoordinator:(AVDelegatingPlaybackCoordinator *)coordinator didIssuePauseCommand:(AVDelegatingPlaybackCoordinatorPauseCommand *)pauseCommand completionHandler:(void (^)(void))completionHandler;
+- (void)playbackCoordinator:(AVDelegatingPlaybackCoordinator *)coordinator didIssueSeekCommand:(AVDelegatingPlaybackCoordinatorSeekCommand *)seekCommand completionHandler:(void (^)(void))completionHandler;
+@optional
+- (void)playbackCoordinator:(AVDelegatingPlaybackCoordinator *)coordinator didIssueBufferingCommand:(AVDelegatingPlaybackCoordinatorBufferingCommand *)bufferingCommand completionHandler:(void (^)(void))completionHandler;
+@end
+typedef NS_OPTIONS(NSUInteger, AVDelegatingPlaybackCoordinatorRateChangeOptions) {
+    AVDelegatingPlaybackCoordinatorRateChangeOptionPlayImmediately = (1UL << 0),
+};
+typedef NS_OPTIONS(NSUInteger, AVDelegatingPlaybackCoordinatorSeekOptions) {
+    AVDelegatingPlaybackCoordinatorSeekOptionResumeImmediately = (1UL << 0),
+};
+@interface AVDelegatingPlaybackCoordinator : AVPlaybackCoordinator
+- (instancetype)initWithPlaybackControlDelegate:(id<AVPlaybackCoordinatorPlaybackControlDelegate>)playbackControlDelegate;
+@property (readonly, weak) id<AVPlaybackCoordinatorPlaybackControlDelegate> playbackControlDelegate;
+- (void)coordinateRateChangeToRate:(float)rate options:(AVDelegatingPlaybackCoordinatorRateChangeOptions)options;
+- (void)coordinateSeekToTime:(CMTime)time options:(AVDelegatingPlaybackCoordinatorSeekOptions)options;
+- (void)transitionToItemWithIdentifier:(nullable NSString *)itemIdentifier proposingInitialTimingBasedOnTimebase:(nullable CMTimebaseRef)snapshotTimebase;
+@property (readonly, copy, nullable) NSString *currentItemIdentifier;
+- (void)reapplyCurrentItemStateToPlaybackControlDelegate;
+@end
+@interface AVDelegatingPlaybackCoordinatorPlaybackControlCommand : NSObject
+@property (readonly, nullable) AVCoordinatedPlaybackParticipant *originator;
+@property (readonly) NSString *expectedCurrentItemIdentifier;
+@end
+@interface AVDelegatingPlaybackCoordinatorPlayCommand : AVDelegatingPlaybackCoordinatorPlaybackControlCommand
+@property (readonly) float rate;
+@property (readonly) CMTime itemTime;
+@property (readonly) CMTime hostClockTime;
+@end
+@interface AVDelegatingPlaybackCoordinatorBufferingCommand : AVDelegatingPlaybackCoordinatorPlaybackControlCommand
+@property (readonly) float anticipatedPlaybackRate;
+@property (readonly, nullable) NSDate *completionDueDate;
+@end
+@interface AVDelegatingPlaybackCoordinatorPauseCommand : AVDelegatingPlaybackCoordinatorPlaybackControlCommand
+@property (readonly) BOOL shouldBufferInAnticipationOfPlayback;
+@property (readonly) float anticipatedPlaybackRate;
+@end
+@interface AVDelegatingPlaybackCoordinatorSeekCommand : AVDelegatingPlaybackCoordinatorPlaybackControlCommand
+@property (readonly) CMTime itemTime;
+@property (readonly) BOOL shouldBufferInAnticipationOfPlayback;
+@property (readonly) float anticipatedPlaybackRate;
+@property (readonly, nullable) NSDate *completionDueDate;
+@end
 NS_ASSUME_NONNULL_END
 #import <AVFAudio/AVFAudio.h>
 #else
-@class AVAudioSession, AVAsset, AVURLAsset, AVPlayer, AVPlayerItem, AVPlayerLayer;
+@class AVAudioSession, AVAsset, AVURLAsset, AVPlayer, AVPlayerItem, AVPlayerLayer, AVPlaybackCoordinator, AVPlayerPlaybackCoordinator,
+    AVDelegatingPlaybackCoordinator, AVCoordinatedPlaybackParticipant, AVCoordinatedPlaybackSuspension, AVPlaybackCoordinationMedium;
 #endif

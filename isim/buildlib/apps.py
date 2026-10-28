@@ -617,6 +617,14 @@ def _(a):
     a.isim_build().compile_xcassets(os.path.join(a.d, "Assets.xcassets"), b)
 
 
+@app("samples/HelloSharePlay", needs=("ffmpeg",))
+def _(a):
+    b = a.swift_app()
+    # a 20 s test pattern the participants watch together
+    a.ffmpeg("-f", "lavfi", "-i", "testsrc2=s=320x180:r=25:d=20", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+             f"{b}/movie.mp4")
+
+
 @app("samples/HelloVideo", needs=("ffmpeg",))
 def _(a):
     b = a.swift_app()
@@ -842,6 +850,13 @@ def _(a):
 def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "AVFAudio", "-framework", "AudioToolbox",
                                           "-framework", "CoreMIDI"], name="MIDIPlaybackTest")
+
+
+@app("tests/playback-coordination", products=["PlaybackCoordinationTest.app"], needs=("ffmpeg",))
+def _(a):
+    b = a.objc_app(["main.m"], "Info.plist", ["-framework", "Foundation", "-framework", "AVFoundation", "-framework", "CoreMedia"],
+                   name="PlaybackCoordinationTest")
+    a.ffmpeg("-f", "lavfi", "-i", "testsrc2=s=160x90:r=25:d=12", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", f"{b}/movie.mp4")
 
 
 @app("tests/audiotoolbox-c", products=["AudioToolboxCTest.app"])   # after the overlays: AudioToolbox re-exports its overlay

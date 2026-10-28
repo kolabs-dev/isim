@@ -67,6 +67,7 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_PHOTOS_PERMISSION` | `allow`, `limited`, `deny` |
 | `ISIM_PASTE_PERMISSION` | `ask`, `allow`, `deny` (Paste from Other Apps; otherwise the app's setting in Settings, Ask by default) |
 | `ISIM_GAMECENTER_FRIENDS_PERMISSION` | `allow`, `deny` (Game Center's friends-list prompt) |
+| `ISIM_SHAREPLAY_ACTIVATION` | `preferred`, `disabled`, `cancelled` (the answer to `prepareForActivation()`'s "Do you want to SharePlay …?" alert, without asking) |
 | `ISIM_REPLAYKIT_PERMISSION` | `allow`, `deny` (ReplayKit's screen-recording consent; `ISIM_REPLAYKIT_AVAILABLE=0` makes recording unavailable) |
 | `ISIM_CONTACTS_PERMISSION`, `ISIM_CALENDAR_PERMISSION`, `ISIM_REMINDERS_PERMISSION`, `ISIM_HEALTH_PERMISSION`, `ISIM_CAMERA_PERMISSION`, `ISIM_MICROPHONE_PERMISSION`, `ISIM_SPEECH_PERMISSION`, `ISIM_MEDIALIBRARY_PERMISSION` | `allow`, `deny` |
 
@@ -114,6 +115,8 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_CONTENTBLOCKER_PERMISSION=allow` | turn on the app's Safari content blockers (iOS: Settings > Safari > Extensions; off by default): `SFContentBlockerManager` reports them enabled and `SFSafariViewController` applies them |
 | `ISIM_APPLE_PAY=0` | leaves the device's Wallet without Apple Pay cards: `canMakePayments()` is false and payment sheets do not present (by default it has four test cards, [PassKit](frameworks/PassKit.md)) |
 | `ISIM_GAMECENTER=DIR` | the local Game Center network the isim devices on this computer share (default `~/.local/share/isim-gamecenter`): players, friends, scores, challenges, matches ([GAMECENTER.md](GAMECENTER.md)) |
+| `ISIM_SHAREPLAY=DIR` | the local SharePlay bus the isim devices on this computer share (default `~/.local/share/isim-shareplay`): calls, their members, shared activities, session messages and journals ([GroupActivities](frameworks/GroupActivities.md)) |
+| `ISIM_SHAREPLAY_CALL=NAME` | puts the device in the simulated call `NAME` at launch (as the `shareplay join` script command does) |
 | `ISIM_ICLOUD=noAccount` | no iCloud account (also `restricted`, `temporarilyUnavailable`): CloudKit fails with `notAuthenticated`, `url(forUbiquityContainerIdentifier:)` and `ubiquityIdentityToken` are nil, `NSUbiquitousKeyValueStore` keeps nothing |
 | `ISIM_LANGUAGES=ru,en` | preferred languages for one run (overrides Settings > Language & Region): localized strings and plural rules |
 | `ISIM_TERM_OF_ADDRESS=feminine` | the user's term of address (`feminine`, `masculine` or `neutral`; Settings > General > Language & Region > Term of Address on iOS): `TermOfAddress.currentUser` and automatic grammar agreement (`^[Bienvenido](inflect: true)`). Also read from the `AppleTermOfAddress` default |

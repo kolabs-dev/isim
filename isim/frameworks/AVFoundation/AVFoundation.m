@@ -50,6 +50,14 @@ AVLayerVideoGravity const AVLayerVideoGravityResize = @"AVLayerVideoGravityResiz
 NSNotificationName const AVPlayerItemDidPlayToEndTimeNotification = @"AVPlayerItemDidPlayToEndTimeNotification";
 NSNotificationName const AVPlayerItemFailedToPlayToEndTimeNotification = @"AVPlayerItemFailedToPlayToEndTimeNotification";
 NSNotificationName const AVPlayerItemPlaybackStalledNotification = @"AVPlayerItemPlaybackStalledNotification";
+AVCoordinatedPlaybackSuspensionReason const AVCoordinatedPlaybackSuspensionReasonAudioSessionInterrupted = @"AVCoordinatedPlaybackSuspensionReasonAudioSessionInterrupted";
+AVCoordinatedPlaybackSuspensionReason const AVCoordinatedPlaybackSuspensionReasonStallRecovery = @"AVCoordinatedPlaybackSuspensionReasonStallRecovery";
+AVCoordinatedPlaybackSuspensionReason const AVCoordinatedPlaybackSuspensionReasonPlayingInterstitial = @"AVCoordinatedPlaybackSuspensionReasonPlayingInterstitial";
+AVCoordinatedPlaybackSuspensionReason const AVCoordinatedPlaybackSuspensionReasonCoordinatedPlaybackNotPossible = @"AVCoordinatedPlaybackSuspensionReasonCoordinatedPlaybackNotPossible";
+AVCoordinatedPlaybackSuspensionReason const AVCoordinatedPlaybackSuspensionReasonUserActionRequired = @"AVCoordinatedPlaybackSuspensionReasonUserActionRequired";
+AVCoordinatedPlaybackSuspensionReason const AVCoordinatedPlaybackSuspensionReasonUserIsChangingCurrentTime = @"AVCoordinatedPlaybackSuspensionReasonUserIsChangingCurrentTime";
+NSNotificationName const AVPlaybackCoordinatorOtherParticipantsDidChangeNotification = @"AVPlaybackCoordinatorOtherParticipantsDidChangeNotification";
+NSNotificationName const AVPlaybackCoordinatorSuspensionReasonsDidChangeNotification = @"AVPlaybackCoordinatorSuspensionReasonsDidChangeNotification";
 
 static CMTime time_of(NSArray<NSNumber *> *p) {
     if (p.count < 4) return kCMTimeInvalid;
@@ -278,5 +286,47 @@ const MusicDeviceInstrumentID AVExtendedNoteOnEventDefaultInstrument = 0;
 }
 - (void)enumerateEventsInRange:(AVBeatRange)r usingBlock:(AVMusicEventEnumerationBlock)block {
     [self _isim_enumerateEventsFrom:r.start length:r.length usingBlock:block];
+}
+@end
+
+// coordinated playback (issue #392)
+@interface AVCoordinatedPlaybackSuspension (ISIMTime)
+- (void)_isim_endProposingNewTimeValue:(int64_t)v timescale:(int32_t)ts flags:(uint32_t)f epoch:(int64_t)e;
+@end
+@implementation AVCoordinatedPlaybackSuspension (ISIMCMTime)
+- (void)endProposingNewTime:(CMTime)t { [self _isim_endProposingNewTimeValue:t.value timescale:t.timescale flags:t.flags epoch:t.epoch]; }
+@end
+@interface AVPlaybackCoordinator (ISIMTime)
+- (NSArray<NSNumber *> *)_isim_expectedItemTimeAtHostTimeValue:(int64_t)v timescale:(int32_t)ts flags:(uint32_t)f epoch:(int64_t)e;
+@end
+@implementation AVPlaybackCoordinator (ISIMCMTime)
+- (CMTime)expectedItemTimeAtHostTime:(CMTime)t {
+    return time_of([self _isim_expectedItemTimeAtHostTimeValue:t.value timescale:t.timescale flags:t.flags epoch:t.epoch]);
+}
+@end
+@interface AVDelegatingPlaybackCoordinatorPlayCommand (ISIMTime)
+- (NSArray<NSNumber *> *)_isim_itemTime;
+- (NSArray<NSNumber *> *)_isim_hostClockTime;
+@end
+@implementation AVDelegatingPlaybackCoordinatorPlayCommand (ISIMCMTime)
+- (CMTime)itemTime { return time_of([self _isim_itemTime]); }
+- (CMTime)hostClockTime { return time_of([self _isim_hostClockTime]); }
+@end
+@interface AVDelegatingPlaybackCoordinatorSeekCommand (ISIMTime)
+- (NSArray<NSNumber *> *)_isim_itemTime;
+@end
+@implementation AVDelegatingPlaybackCoordinatorSeekCommand (ISIMCMTime)
+- (CMTime)itemTime { return time_of([self _isim_itemTime]); }
+@end
+@interface AVDelegatingPlaybackCoordinator (ISIMTime)
+- (void)_isim_coordinateSeekToTimeValue:(int64_t)v timescale:(int32_t)ts flags:(uint32_t)f epoch:(int64_t)e options:(NSUInteger)options;
+- (void)_isim_transitionToItemWithIdentifier:(NSString *)item timebase:(const void *)timebase;
+@end
+@implementation AVDelegatingPlaybackCoordinator (ISIMCMTime)
+- (void)coordinateSeekToTime:(CMTime)t options:(AVDelegatingPlaybackCoordinatorSeekOptions)options {
+    [self _isim_coordinateSeekToTimeValue:t.value timescale:t.timescale flags:t.flags epoch:t.epoch options:options];
+}
+- (void)transitionToItemWithIdentifier:(NSString *)item proposingInitialTimingBasedOnTimebase:(CMTimebaseRef)timebase {
+    [self _isim_transitionToItemWithIdentifier:item timebase:timebase];
 }
 @end

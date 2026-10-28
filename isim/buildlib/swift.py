@@ -1010,6 +1010,7 @@ SecureElementCredential -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framew
 MarketplaceKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -framework Foundation -framework UIKit
 PushKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -framework Foundation -lisim_host
 CallKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreMedia -lswiftCoreVideo -lswiftAudioToolbox -lswiftAVFoundation -lswiftUIKit -lswiftCoreGraphics -framework Foundation -framework UIKit -framework CoreGraphics -lisim_host
+GroupActivities -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCombine -lswiftUIKit -lswiftCoreGraphics -lswiftCoreTransferable -lswiftUniformTypeIdentifiers -lswiftAVFoundation -lswiftCoreMedia -lswiftSpatial -framework Foundation -framework UIKit -framework CoreGraphics   # issue #392
 """
 
 # app-facing re-implementations: library evolution keeps their ABI stable across isim updates (since 0.12 also the base
@@ -1020,7 +1021,7 @@ GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Se
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport XPC StateReporting MetricKit CloudKit AuthenticationServices
 QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision SoundAnalysis NaturalLanguage FoundationModels Speech VisionKit WebKit SafariServices LinkPresentation Accessibility MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit TipKit Translation ImagePlayground VisualIntelligence Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit
-CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive""".split())
+CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive GroupActivities""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer ReplayKit".split())
 # modules that also compile overlays/_AdAttribution (the conversion values SKAdNetwork and AdAttributionKit share)
