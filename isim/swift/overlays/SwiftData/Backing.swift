@@ -187,7 +187,8 @@ class _BackingStore: @unchecked Sendable {
     }
 
     var identifier: PersistentIdentifier {
-        PersistentIdentifier(entityName: info.entity, storeIdentifier: pk == nil ? nil : context?.store.identifier, primaryKey: pk ?? temporaryKey)
+        guard let pk else { return PersistentIdentifier(entityName: info.entity, storeIdentifier: nil, primaryKey: temporaryKey) }
+        return context?.store.publicIdentifier(info.entity, pk) ?? PersistentIdentifier(entityName: info.entity, storeIdentifier: nil, primaryKey: pk)
     }
 
     func index(_ key: AnyKeyPath) -> Int {

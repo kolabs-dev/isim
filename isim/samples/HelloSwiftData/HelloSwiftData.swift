@@ -3,7 +3,8 @@
 // (named and inferred), delete rules (cascade, nullify, deny), @Attribute(.unique) and #Unique upserts, #Index,
 // @Transient, a second ModelContext on the same store, rollback, the didSave notification, and an @Query list that
 // refreshes when a model's property changes; a model actor's saves (HelloSwiftDataNotes.swift, with the schema
-// migration). The first launch seeds the store; later launches check what it kept.
+// migration), and history, a custom data store and observers (HelloSwiftDataHistory.swift). The first launch seeds the
+// store; later launches check what it kept.
 // Every step is printed ("sd2 ..."), so tests/ui/test_swiftdata.py can check it.
 import SwiftUI
 import SwiftData
@@ -134,6 +135,11 @@ let epoch = Date(timeIntervalSince1970: 1_800_000_000)
         let c = container
         MainActor.assumeIsolated {
             if let phase = ProcessInfo.processInfo.environment["HELLOSWIFTDATA_NOTES"] { notes(phase) }
+            if ProcessInfo.processInfo.environment["HELLOSWIFTDATA_HISTORY"] != nil {
+                historyDemo()
+                customStoreDemo()
+                if #available(iOS 27.0, *) { observersDemo() } else { log("observers: need iOS 27") }
+            }
             let empty = ((try? c.mainContext.fetchCount(FetchDescriptor<Trip>())) ?? 0) == 0
             if empty { seed(c.mainContext) } else { check(c) }
             log("store file: \(FileManager.default.fileExists(atPath: c.configurations.first!.url.path))")
@@ -162,5 +168,11 @@ struct TripList: View {
             .accessibilityIdentifier("rename")
         }
         .padding()
+        .onAppear {
+            guard ProcessInfo.processInfo.environment["HELLOSWIFTDATA_HISTORY"] != nil else { return }
+            if #available(iOS 27.0, *) {
+                log("query sections: \(_trips.sections.sectionTitles) first=\(_trips.sections.first?.count ?? 0) of \(trips.count) error=\(_trips.fetchError == nil ? "none" : "?")")
+            }
+        }
     }
 }

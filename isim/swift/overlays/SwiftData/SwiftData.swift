@@ -41,27 +41,44 @@ public struct _SwiftDataNoType: Sendable { public init() {} }
 
 // MARK: - Identifiers
 
-/// A model's identity in its store: entity and primary key (temporary until the model is inserted).
+/// A model's identity in its store: entity and primary key (temporary until the model is inserted). The default store's
+/// keys are integers; a custom data store's (a UUID, a string) are kept as their text in `key`.
 public struct PersistentIdentifier: Hashable, Codable, Sendable, Comparable, CustomStringConvertible {
-    public struct ID: Hashable, Codable, Sendable { let primaryKey: Int64 }
+    public struct ID: Hashable, Codable, Sendable {
+        let primaryKey: Int64
+        var key: String? = nil
+    }
     public let id: ID
     public var entityName: String
     public var storeIdentifier: String?
-    public var isTemporary: Bool { id.primaryKey < 0 }
+    public var isTemporary: Bool { id.key == nil && id.primaryKey < 0 }
     init(entityName: String, storeIdentifier: String?, primaryKey: Int64) {
         id = ID(primaryKey: primaryKey); self.entityName = entityName; self.storeIdentifier = storeIdentifier
     }
-    /// the identifier of a stored model, from its store, entity and primary key (an integer)
+    init(entityName: String, storeIdentifier: String?, key: String) {
+        id = ID(primaryKey: 0, key: key); self.entityName = entityName; self.storeIdentifier = storeIdentifier
+    }
+    /// the identifier of a stored model, from its store, entity and primary key (an integer, or any Codable key a
+    /// custom data store uses, such as a UUID)
     public static func identifier<T>(for storeIdentifier: String, entityName: String, primaryKey: T) throws -> PersistentIdentifier
         where T: Decodable, T: Encodable, T: Hashable, T: Sendable {
-        guard let k = (primaryKey as? any BinaryInteger).map({ Int64($0) }) ?? (primaryKey as? String).flatMap({ Int64($0) }) else {
-            throw SwiftDataError.unknownSchema
+        if let k = (primaryKey as? any BinaryInteger).map({ Int64($0) }) {
+            return PersistentIdentifier(entityName: entityName, storeIdentifier: storeIdentifier, primaryKey: k)
         }
-        return PersistentIdentifier(entityName: entityName, storeIdentifier: storeIdentifier, primaryKey: k)
+        let text: String
+        if let s = primaryKey as? String { text = s }
+        else if let u = primaryKey as? UUID { text = u.uuidString }
+        else if let s = primaryKey as? any LosslessStringConvertible { text = s.description }
+        else if let d = try? JSONEncoder().encode([primaryKey]), let s = String(data: d, encoding: .utf8) { text = s }
+        else { throw SwiftDataError.unknownSchema }
+        return PersistentIdentifier(entityName: entityName, storeIdentifier: storeIdentifier, key: text)
     }
-    public var description: String { "PersistentIdentifier(\(entityName)/\(storeIdentifier ?? "-")/\(isTemporary ? "t\(-id.primaryKey)" : "p\(id.primaryKey)"))" }
+    public var description: String {
+        let k = id.key.map { "p\($0)" } ?? (isTemporary ? "t\(-id.primaryKey)" : "p\(id.primaryKey)")
+        return "PersistentIdentifier(\(entityName)/\(storeIdentifier ?? "-")/\(k))"
+    }
     public static func < (a: PersistentIdentifier, b: PersistentIdentifier) -> Bool {
-        (a.entityName, a.id.primaryKey) < (b.entityName, b.id.primaryKey)
+        (a.entityName, a.id.primaryKey, a.id.key ?? "") < (b.entityName, b.id.primaryKey, b.id.key ?? "")
     }
 }
 
@@ -401,7 +418,7 @@ public struct SwiftDataError: Error, Equatable, Hashable, Sendable, CustomString
 
 @MainActor @propertyWrapper public struct Query<Element: PersistentModel>: DynamicProperty, _IsimInstallableDynamicProperty {
     /// the view's context (from its environment, at install) and the subscription that re-renders the view
-    final class Holder { weak var context: ModelContext?; var watching: ObjectIdentifier?; var cancel: AnyCancellable? }
+    final class Holder { weak var context: ModelContext?; var watching: ObjectIdentifier?; var cancel: AnyCancellable?; var error: (any Error)? }
     private let holder = Holder()
     private var descriptor: FetchDescriptor<Element>
     public init(_ descriptor: FetchDescriptor<Element>) { self.descriptor = descriptor }
@@ -422,7 +439,15 @@ public struct SwiftDataError: Error, Equatable, Hashable, Sendable, CustomString
         watch.cancel = context.objectWillChange.sink { _ in DispatchQueue.main.async { invalidate() } }
     }
     /// the matching models, fetched from the view's context each time the view evaluates
-    public var wrappedValue: [Element] { (try? modelContext.fetch(descriptor)) ?? [] }
+    public var wrappedValue: [Element] {
+        do { let r = try modelContext.fetch(descriptor); holder.error = nil; return r } catch { holder.error = error; return [] }
+    }
+    /// the error of the last fetch (nil when it succeeded)
+    @available(iOS 27.0, *)
+    public var fetchError: (any Error)? { holder.error }
+    /// the results as one section (titled "")
+    @available(iOS 27.0, *)
+    public var sections: SectionedResults<Element, String> { SectionedResults(wrappedValue, title: { _ in "" }) }
     public var modelContext: ModelContext { holder.context ?? ModelContextKey.defaultValue }
 }
 private struct ModelContextKey: EnvironmentKey {
