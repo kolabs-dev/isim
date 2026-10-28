@@ -478,11 +478,17 @@ const char *isim_process_name(void) {
 }
 - (NSDictionary<NSString *, NSString *> *)environment {
     NSMutableDictionary *d = [NSMutableDictionary dictionary];
-    for (char **e = *_NSGetEnviron(); e && *e; e++) {
-        const char *eq = strchr(*e, '=');
+    /* each entry is loaded once: another thread's setenv of an existing variable (Locale.m switches TZ to evaluate other
+       zones) swaps the entry's pointer, and reading it twice mixed the old string with the new one, a nil key (the
+       replaced string stays valid: the C library keeps it) */
+    for (char **e = *_NSGetEnviron(); e; e++) {
+        const char *s = __atomic_load_n(e, __ATOMIC_RELAXED);
+        if (!s) break;
+        const char *eq = strchr(s, '=');
         if (!eq) continue;
-        NSString *k = [[NSString alloc] initWithBytes:*e length:(NSUInteger)(eq - *e) encoding:NSUTF8StringEncoding];
-        d[k] = @(eq + 1);
+        NSString *k = [[NSString alloc] initWithBytes:s length:(NSUInteger)(eq - s) encoding:NSUTF8StringEncoding];
+        NSString *v = [NSString stringWithUTF8String:eq + 1];
+        if (k && v) d[k] = v;                                 /* a name or value that is not UTF-8 is left out */
     }
     return d;
 }
