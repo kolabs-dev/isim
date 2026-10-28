@@ -20,6 +20,10 @@ open class AVCaptureControl: NSObject, @unchecked Sendable {
     var _symbol: String { "" }
     /// the value as the overlay shows it
     var _display: String { "" }
+    /// where the value sits on the overlay's scale, 0...1 (nil: no scale)
+    var _fraction: Double? { nil }
+    /// a picker's choices, which the overlay lists instead of a scale
+    var _choices: [String]? { nil }
     /// moves the control `n` detents (a swipe), or to `v` (nil: the detents)
     func _change(by n: Int, to v: Double?) {}
 }
@@ -67,6 +71,10 @@ open class AVCaptureSlider: AVCaptureControl, @unchecked Sendable {
     open func setActionQueue(_ actionQueue: DispatchQueue, action: @escaping @Sendable (Float) -> ()) { _queue = actionQueue; _action = action }
     override var _title: String { localizedTitle }
     override var _symbol: String { symbolName }
+    override var _fraction: Double? {
+        let span = Double(_range.upperBound - _range.lowerBound)
+        return span > 0 ? Double(_value - _range.lowerBound) / span : 0.5
+    }
     override var _display: String {
         if let f = localizedValueFormat, f.contains("%") { return String(format: f.replacingOccurrences(of: "%@", with: "%g"), Double(_value)) }
         return String(format: "%g", Double(_value))
@@ -95,6 +103,10 @@ open class AVCaptureSystemZoomSlider: AVCaptureControl, @unchecked Sendable {
     override var _title: String { "Zoom" }
     override var _symbol: String { "plus.magnifyingglass" }
     override var _display: String { String(format: "%.1fx", Double(_device.videoZoomFactor * _device.displayVideoZoomFactorMultiplier)) }
+    override var _fraction: Double? {         /* zoom moves on a logarithmic scale, as the system zoom does */
+        let lo = Double(_device.minAvailableVideoZoomFactor), hi = Double(_device.maxAvailableVideoZoomFactor), z = Double(_device.videoZoomFactor)
+        return hi > lo && lo > 0 ? log(z / lo) / log(hi / lo) : 0
+    }
     override func _change(by n: Int, to v: Double?) {
         let d = _device
         let target = v.map { CGFloat($0) / d.displayVideoZoomFactorMultiplier } ?? d.videoZoomFactor * pow(1.1, CGFloat(n))
@@ -116,6 +128,10 @@ open class AVCaptureSystemExposureBiasSlider: AVCaptureControl, @unchecked Senda
     override var _title: String { "Exposure" }
     override var _symbol: String { "plusminus.circle" }
     override var _display: String { String(format: "%+.1f", Double(_device.exposureTargetBias)) }
+    override var _fraction: Double? {
+        let lo = Double(_device.minExposureTargetBias), hi = Double(_device.maxExposureTargetBias)
+        return hi > lo ? (Double(_device.exposureTargetBias) - lo) / (hi - lo) : 0.5
+    }
     override func _change(by n: Int, to v: Double?) {
         let d = _device
         let b = max(d.minExposureTargetBias, min(d.maxExposureTargetBias, v.map { Float($0) } ?? d.exposureTargetBias + Float(n) / 3))
@@ -167,6 +183,7 @@ open class AVCaptureIndexPicker: AVCaptureControl, @unchecked Sendable {
     override var _title: String { localizedTitle }
     override var _symbol: String { symbolName }
     override var _display: String { _index < localizedIndexTitles.count ? localizedIndexTitles[_index] : "\(_index)" }
+    override var _choices: [String]? { (0..<numberOfIndexes).map { $0 < localizedIndexTitles.count ? localizedIndexTitles[$0] : "\($0)" } }
     override func _change(by n: Int, to v: Double?) {
         let old = _index
         selectedIndex = v.map { Int($0) } ?? _index + n
@@ -224,6 +241,8 @@ enum _CameraControl {
     nonisolated(unsafe) static weak var session: AVCaptureSession?
     nonisolated(unsafe) static var active = false
     nonisolated(unsafe) static var selected = 0
+    /// a second light press: the overlay lists every control to choose from
+    nonisolated(unsafe) static var choosing = false
     static func started(_ s: AVCaptureSession) { session = s }
     static func stopped(_ s: AVCaptureSession) {
         DispatchQueue.main.async {
@@ -239,6 +258,8 @@ enum _CameraControl {
     static func setActive(_ on: Bool) {
         guard let s = session, on != active else { return }
         active = on
+        if !on { choosing = false }
+        DispatchQueue.main.async { MainActor.assumeIsolated { _CameraControlOverlay.update() } }
         if on {
             notify(s) { $0.sessionControlsDidBecomeActive(s) }
             notify(s) { $0.sessionControlsWillEnterFullscreenAppearance(s) }
@@ -251,7 +272,7 @@ enum _CameraControl {
     /// the state as text: `cameracontrol controls=N active=0|1 selected=I` and each control's title and value
     static func state() -> String {
         let cs = enabled
-        var line = "isim: cameracontrol controls=\(cs.count) active=\(active ? 1 : 0) selected=\(min(selected, max(0, cs.count - 1)))"
+        var line = "isim: cameracontrol controls=\(cs.count) active=\(active ? 1 : 0) selected=\(min(selected, max(0, cs.count - 1)))" + (choosing ? " choosing=1" : "")
         for (i, c) in cs.enumerated() { line += " [\(i)] \(c._title)=\(c._display)" }
         return line
     }
@@ -268,13 +289,15 @@ enum _CameraControl {
         }
         let cs = enabled
         switch verb {
-        case "lightpress": setActive(true)
+        case "lightpress": if active { choosing = true } else { setActive(true) }      // a second light press: choose a control
         case "dismiss": setActive(false)
         case "select":
             setActive(true)
+            choosing = false
             selected = max(0, min(cs.count - 1, Int(p.count > 1 ? p[1] : "0") ?? 0))
         case "swipe", "set":
             setActive(true)
+            choosing = false
             selected = min(selected, cs.count - 1)
             let n = p.count > 1 ? Double(p[1]) : nil
             if verb == "swipe" { cs[selected]._change(by: Int(n ?? 1), to: nil) } else if let n { cs[selected]._change(by: 0, to: n) }
@@ -282,6 +305,7 @@ enum _CameraControl {
             NSLog("isim: cameracontrol [press|down|up|lightpress|select I|swipe N|set V|dismiss]"); return
         }
         NSLog("%@", state())
+        DispatchQueue.main.async { MainActor.assumeIsolated { _CameraControlOverlay.update() } }
     }
 }
 

@@ -179,8 +179,14 @@ def test_capture_camera_control_and_mattes(launch, media, tmp_path):
     app.send("cameracontrol lightpress")
     app.wait_log(r"controls active")
     app.wait_log(r"controls fullscreen")
+    app.wait_view(r"id=camera-control-overlay text=Zoom 0\.5x$")       # the overlay beside the button (#711)
     app.send("cameracontrol swipe 3")                    # the zoom slider: 10% a detent
     app.wait_log(r"zoom slider 0\.67")
+    app.wait_view(r"id=camera-control-overlay text=Zoom 0\.7x$")
+    app.send("cameracontrol lightpress")                 # a second light press: every control to choose from
+    app.wait_log(r"selected=0 choosing=1")
+    app.wait_view(r"id=camera-control-3 text=Style$")
+    app.wait_view(r"id=camera-control-0 text=Zoom, selected$")
     app.send("cameracontrol select 1")
     app.send("cameracontrol swipe 3")                    # exposure bias: 1/3 EV a detent
     app.wait_log(r"\[1\] Exposure=\+1\.0")
@@ -192,9 +198,11 @@ def test_capture_camera_control_and_mattes(launch, media, tmp_path):
     app.wait_log(r"style Vivid")
     app.send("cameracontrol set 2")
     app.wait_log(r"style Mono")
+    app.wait_view(r"id=camera-control-overlay text=Style Mono$")
     app.send("cameracontrol dismiss")
     app.wait_log(r"controls exit fullscreen")
     app.wait_log(r"controls inactive")
+    app.wait_for(id="camera-control-overlay", gone=True)
     # capture events: the Camera Control and volume down are primary, volume up secondary
     app.send("cameracontrol press")
     app.wait_log(r"capture event primary began")
