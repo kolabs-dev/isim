@@ -1213,6 +1213,10 @@ void isim_sys_event(const char *text) {
         [NSNotificationCenter.defaultCenter postNotificationName:NSProcessInfoPowerStateDidChangeNotification object:NSProcessInfo.processInfo];
     }
     else if ([verb isEqualToString:@"display"]) { extern void isim_ui_display_event(NSString *args); isim_ui_display_event(args); }   /* UISceneAccessories.m */
+    else if ([verb isEqualToString:@"carplay"]) {                 /* the CarPlay screen: the CarPlay overlay's (Screen.swift), when the app links it */
+        void (*f)(const char *) = (void (*)(const char *))dlsym(RTLD_DEFAULT, "isim_carplay_event");
+        if (f) f(args.UTF8String); else NSLog(@"isim: carplay: the app does not use CarPlay");
+    }
     else if ([verb isEqualToString:@"closescene"]) { extern void isim_ui_close_scene(NSString *ident); isim_ui_close_scene(args); }
     else if ([verb isEqualToString:@"mainmenu"]) isim_ui_main_menu_event(args);       /* UIMenuSystem.m: log the main menu, show / hide the shortcuts */
     else if ([verb isEqualToString:@"discard-scenes"]) {          /* closed in the app switcher: no state restoration next time */

@@ -44,6 +44,8 @@ def test_services_objc(launch):
     dev.wait_log(r"^sy assets scheduled=0 error=essential state=0 essential=1 plain=0 same=1 priority=50$")   # BackgroundAssets (#407)
     dev.wait_log(r"^sy fileprovider domain=objc name=ObjC Files replicated=1 version=c1 root=NSFileProviderRootContainerItemIdentifier "
                  r"page=37 caps=3 placeholder=\.a\.txt\.icloud wrote=1 add=not-found ui=FPUIErrorDomain$")   # FileProvider (#408)
+    dev.wait_log(r"^sy carplay sections=1 enabled=0 bar=0 tabs=2 index=0 np=1 upnext=1 maneuver=(?:CPManeuverTypeRightTurn|\?) grid=8 "
+                 r"role=CPTemplateApplicationSceneSessionRoleApplication domain=CarPlayErrorDomain$")   # CarPlay (#410; maneuverType: iOS 17.4, isim's 17 is 17.0)
     dev.wait_log(r"^sy unknown call error=com\.apple\.CallKit\.error\.requesttransaction/4$")
 
     # MultipeerConnectivity: Ann browses, finds Ben, invites him; data both ways

@@ -159,17 +159,23 @@ NSNotificationName const UIDeviceBatteryStateDidChangeNotification = @"UIDeviceB
     UIDeviceBatteryLevelDidChangeNotification = @"UIDeviceBatteryLevelDidChangeNotification",
     UIDeviceProximityStateDidChangeNotification = @"UIDeviceProximityStateDidChangeNotification";
 
-/* the external display (UISceneAccessories.m: script `display connect WxH`) is a UIScreen of that size at scale 1 */
-@implementation UIScreen { BOOL _isimExternal; CGSize _isimSize; }
+/* the external display (UISceneAccessories.m: script `display connect WxH`) is a UIScreen of that size at scale 1; the
+   CarPlay screen (the CarPlay overlay: `carplay connect`) one of its own size and scale. Neither is drawn on the device */
+@implementation UIScreen { BOOL _isimExternal; CGSize _isimSize; CGFloat _isimScale; }
 + (UIScreen *)mainScreen { static UIScreen *s; if (!s) s = [UIScreen new]; return s; }
 + (NSArray<UIScreen *> *)screens { extern UIScreen *isim_ui_external_screen(void); UIScreen *x = isim_ui_external_screen(); return x ? @[UIScreen.mainScreen, x] : @[UIScreen.mainScreen]; }
 + (UIScreen *)_isim_externalScreenWithSize:(CGSize)size { UIScreen *x = [UIScreen new]; x->_isimExternal = YES; x->_isimSize = size; return x; }
+UIScreen *isim_ui_make_screen(double w, double h, double scale) {
+    UIScreen *x = [UIScreen _isim_externalScreenWithSize:CGSizeMake(w, h)];
+    x->_isimScale = scale;
+    return x;
+}
 - (BOOL)isCaptured { return NO; }
 - (CADisplayLink *)displayLinkWithTarget:(id)target selector:(SEL)sel { return [CADisplayLink displayLinkWithTarget:target selector:sel]; }
 - (BOOL)_isim_isExternal { return _isimExternal; }
 - (CGRect)bounds { if (_isimExternal) return CGRectMake(0, 0, _isimSize.width, _isimSize.height); const struct isim_device *d = isim_ui_device(); return CGRectMake(0, 0, d->width, d->height); }
 - (CGRect)nativeBounds { CGRect b = self.bounds; CGFloat s = self.scale; return CGRectMake(0, 0, b.size.width * s, b.size.height * s); }
-- (CGFloat)scale { return _isimExternal ? 1 : isim_ui_device()->scale; }
+- (CGFloat)scale { return _isimExternal ? (_isimScale > 0 ? _isimScale : 1) : isim_ui_device()->scale; }
 - (CGFloat)nativeScale { return self.scale; }
 - (NSInteger)maximumFramesPerSecond { return 60; }
 - (id<UICoordinateSpace>)coordinateSpace { return (id<UICoordinateSpace>)UIApplication.sharedApplication.keyWindow; }
@@ -536,6 +542,7 @@ const UIWindowLevel UIWindowLevelNormal = 0, UIWindowLevelAlert = 2000, UIWindow
 @end
 /* a window of a scene on the external display (not drawn on the device, not touched) */
 BOOL isim_ui_window_external(UIWindow *w) {
+    if (w.screen != UIScreen.mainScreen && [w.screen _isim_isExternal]) return YES;    /* a window put on the CarPlay screen */
     UIWindowScene *s = [w valueForKey_isimScene];
     return s && ![s.session.role isEqualToString:UIWindowSceneSessionRoleApplication];
 }

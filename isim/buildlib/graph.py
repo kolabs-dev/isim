@@ -225,6 +225,7 @@ SWIFT_FRAMEWORKS = [
     ("BackgroundAssets", "-framework Foundation"),   # issue #407: background downloads and asset packs
     ("FileProvider", "-framework Foundation"),   # issue #408: replicated file provider extensions
     ("FileProviderUI", "-framework Foundation -framework UIKit -framework FileProvider"),   # issue #408: their action UI
+    ("CarPlay", "-framework Foundation -framework UIKit"),   # issue #410: CarPlay templates
     ("StoreKit", "-framework Foundation -framework UIKit"),
     ("MarketplaceKit", []),
     ("Security", "-framework Foundation"),

@@ -4,7 +4,8 @@
 // (indexing), SafariServices (SFSafariViewController, the Reading List) and MultipeerConnectivity (an advertiser and a
 // browser in this app connect and exchange data) and Messages (an iMessage app's controller subclass, a message and a
 // refused sticker), BackgroundAssets (an essential download refused outside the downloader extension) and FileProvider
-// (an item class of its own, a domain the app cannot add without a file provider extension). Each step prints a "sy ..."
+// (an item class of its own, a domain the app cannot add without a file provider extension) and CarPlay (templates
+// built with Apple's selectors). Each step prints a "sy ..."
 // line the test checks.
 #import <UIKit/UIKit.h>
 #import <PushKit/PushKit.h>
@@ -17,6 +18,7 @@
 #import <BackgroundAssets/BackgroundAssets.h>
 #import <FileProvider/FileProvider.h>
 #import <FileProviderUI/FileProviderUI.h>
+#import <CarPlay/CarPlay.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 static void say(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
@@ -338,6 +340,30 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
     }];
 }
 
+/* CarPlay from Objective-C (issue #410): templates and items with the selectors Apple's headers name (setEnabled:,
+   sharedTemplate), the constants and NSStringFromCPManeuverType */
+- (void)carPlay {
+    CPListItem *item = [[CPListItem alloc] initWithText:@"Song" detailText:@"Artist"];
+    item.enabled = NO;
+    item.handler = ^(id<CPSelectableListItem> i, dispatch_block_t done) { done(); };
+    CPListSection *sec = [[CPListSection alloc] initWithItems:@[item] header:@"Header" sectionIndexTitle:nil];
+    CPListTemplate *list = [[CPListTemplate alloc] initWithTitle:@"List" sections:@[sec]];
+    CPBarButton *bar = [[CPBarButton alloc] initWithTitle:@"Edit" handler:^(CPBarButton *b) {}];
+    bar.enabled = NO;
+    list.trailingNavigationBarButtons = @[bar];
+    CPGridButton *g = [[CPGridButton alloc] initWithTitleVariants:@[@"Star"] image:[UIImage systemImageNamed:@"star"] handler:nil];
+    CPTabBarTemplate *tabs = [[CPTabBarTemplate alloc] initWithTemplates:@[list, [[CPGridTemplate alloc] initWithTitle:@"Grid" gridButtons:@[g]]]];
+    CPManeuver *m = [CPManeuver new];
+    NSString *maneuver = @"?";
+    if (@available(iOS 17.4, *)) { m.maneuverType = CPManeuverTypeRightTurn; maneuver = NSStringFromCPManeuverType(m.maneuverType); }
+    CPNowPlayingTemplate *np = CPNowPlayingTemplate.sharedTemplate;
+    np.upNextButtonEnabled = YES;
+    say(@"carplay sections=%lu enabled=%d bar=%d tabs=%lu index=%lu np=%d upnext=%d maneuver=%@ grid=%lu role=%@ domain=%@",
+        (unsigned long)list.sectionCount, item.isEnabled, bar.isEnabled, (unsigned long)tabs.templates.count, (unsigned long)[sec indexOfItem:item],
+        np == CPNowPlayingTemplate.sharedTemplate, np.isUpNextButtonEnabled, maneuver,
+        (unsigned long)CPMaximumNumberOfGridImages, CPTemplateApplicationSceneSessionRoleApplication, CarPlayErrorDomain);
+}
+
 /* Messages from Objective-C (issue #406): an iMessage app's controller subclass, a message in a session with a
    template layout (copied and archived), a sticker file iOS refuses */
 - (void)messages {
@@ -375,6 +401,7 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
     [self messages];
     [self backgroundAssets];
     [self fileProvider];
+    [self carPlay];
     [self.calls badRequest];
     self.peers = [[Peers alloc] init];
     [self.peers start];

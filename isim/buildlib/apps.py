@@ -488,6 +488,17 @@ def _(a):   # FileProvider: the app, its replicated file provider extension and 
     a.icon(f"{b}/icon.png", "#5ac8fa", "#0a84ff", "N")   # the location's icon in the document picker
 
 
+@app("samples/HelloCarPlay", products=["HelloCarPlay.app", "HelloCarPlayMaps.app"])   # issue #410: an audio app and a
+def _(a):                                                                                  # navigation app (their entitlements)
+    b = a.swift_app(srcs=["HelloCarPlay.swift"])
+    a.copy("HelloCarPlay.entitlements", f"{b}/archived-expanded-entitlements.xcent")
+    a.icon(f"{b}/icon.png", "#ff375f", "#bf1e3f", "T")
+    m = a.swift_app(name="HelloCarPlayMaps", srcs=["Maps.swift"], plist="Maps.plist")
+    os.replace(f"{m}/Maps.plist", f"{m}/Info.plist")
+    a.copy("Maps.entitlements", f"{m}/archived-expanded-entitlements.xcent")
+    a.icon(f"{m}/icon.png", "#30d158", "#1f8a3b", "D")
+
+
 @app("samples/HelloScreenTime")
 def _(a):   # Screen Time: the app with its monitor, shield configuration, shield action and report extensions
     b = a.swift_app(srcs=["HelloScreenTime.swift"])
@@ -566,7 +577,7 @@ def _(a):
                                           "-framework", "AVFoundation", "-framework", "BackgroundTasks", "-framework", "CoreSpotlight",
                                           "-framework", "SafariServices", "-framework", "MultipeerConnectivity", "-framework", "CoreGraphics",
                                           "-framework", "Messages", "-framework", "BackgroundAssets", "-framework", "FileProvider",
-                                          "-framework", "FileProviderUI", "-framework", "UniformTypeIdentifiers"])
+                                          "-framework", "FileProviderUI", "-framework", "UniformTypeIdentifiers", "-framework", "CarPlay"])
 
 
 @app("samples/HelloAuthObjC")   # after the overlays: AuthenticationServices.framework re-exports its Swift overlay (issue #305)

@@ -105,6 +105,15 @@ docs-item-NAME 0.9` opens an item's menu, which lists the file provider's action
 list` prints the device's domains (app, domain, name, replica folder) and `isim fileprovider files DOMAIN` a domain's
 items, `(placeholder)` for those not downloaded.
 
+**CarPlay**: `carplay connect` connects a CarPlay screen to the running app (one with a CarPlay entitlement, such as
+`com.apple.developer.carplay-audio` or `-maps`). Each element of the screen has an id; `carplay dump` logs them with
+their texts (`isim CarPlay: dump cp-item-Morning-Mix “Morning Mix / 12 songs”`). Titles become ids with their spaces as
+`-` (`cp-item-TEXT`, `cp-grid-TITLE`, `cp-tab-TITLE`, `cp-bar-TITLE`; image-only bar buttons are `cp-bar-leading-N` and
+`cp-bar-trailing-N`). Other ids: `cp-back`, `cp-home`, the Now Playing buttons (`cp-np-play`, `cp-np-pause`,
+`cp-np-previous`, `cp-np-next`, `cp-np-shuffle`, `cp-np-repeat`, `cp-np-rate`, `cp-np-upnext`), the map's
+`cp-map-button-N`, `cp-route-N`, `cp-trip-start`, `cp-guidance`, `cp-trip-end`, `cp-nav-alert-N` and `cp-pan-DIRECTION`,
+and an alert's or action sheet's `cp-alert-TITLE` / `cp-action-TITLE`. `carplay shot PATH` saves the screen.
+
 **Screen Time** (FamilyControls, ManagedSettings, DeviceActivity): the activity picker's rows are
 `family-category-ID` and `family-app-BUNDLE`, its buttons `family-done` and `family-cancel`; a shield the home screen
 shows instead of a shielded app has `shield-title`, `shield-subtitle`, `shield-primary` and `shield-secondary`.
@@ -250,6 +259,10 @@ activity with a push token. `start` needs the push-to-start token the app read f
 | `gamepad connect [NAME] [as ps5\|ps4\|xbox\|switchpro]` · `gamepad button NAME 0\|1` · `gamepad axis NAME VALUE` · `gamepad touch FINGER 0\|1 X Y` · `gamepad battery PERCENT [discharging\|charging\|full\|unknown]` · `gamepad motion AX AY AZ GX GY GZ` · `gamepad disconnect` | a virtual game controller: `as …` gives it that pad's vendor and product, so it gets that product profile (`GCDualSenseGamepad`, `GCDualShockGamepad`, `GCXboxGamepad`); buttons are SDL's names, including `misc1` (share), `paddle1`…`paddle4` and `touchpad`; `touch` moves a finger (0 or 1) on its touchpad (x, y in 0…1, y down); its battery, and accelerometer m/s² / gyroscope rad/s samples; its light colour is logged as `isim gamepad: led R G B`, effect reports (DualSense adaptive triggers) as `isim gamepad: effect XX …` |
 | `mouse move DX DY` · `mouse button left\|right\|middle 0\|1` · `mouse scroll DX DY` | the host mouse as `GCMouse` sees it (points, y down; the pointer over the device window does the same) |
 | `display connect [WxH]` · `display shot PATH` · `display disconnect` | a simulated external display (default 1920x1080): the app's external display scene (a scene accessory, or the manifest's `UIWindowSceneSessionRoleExternalDisplayNonInteractive` configuration) or the mirrored device; `display shot` saves what it shows as a PNG |
+| `carplay connect [WxH[@S]]` · `carplay disconnect` · `carplay shot PATH` | a simulated CarPlay screen (default 800x480 at scale 2): the app's CarPlay scene (`CPTemplateApplicationSceneSessionRoleApplication`) gets its interface controller, and a navigation app its car window; `carplay shot` saves the screen (CarPlay's status bar, the templates, a navigation app's map) as a PNG |
+| `carplay tap ID` · `carplay tap X Y` · `carplay taptext TEXT` · `carplay back` · `carplay dump` | the CarPlay screen's elements (`carplay dump` logs their ids and texts: `cp-item-TEXT`, `cp-grid-TITLE`, `cp-tab-TITLE`, `cp-bar-TITLE`, `cp-back`, `cp-np-play`, `cp-np-next`, `cp-map-button-N`, `cp-trip-start`, `cp-guidance`, `cp-alert-TITLE`, ...) |
+| `carplay scroll down\|up` · `carplay search TEXT` · `carplay pan up\|down\|left\|right` | scroll a list, type in a search template, pan a map (the map template's delegate) |
+| `carplay style dark\|light` · `carplay limit lists\|keyboard\|all\|none` · `carplay park on\|off` | the car's content style and limited user interfaces (CPSessionConfiguration's delegate hears them), and whether it is parked |
 | `mainmenu [show\|hide]` | the app's main menu: logs its tree (`isim: main menu …` lines, shortcuts included, then `isim: main menu end`); `show` / `hide` shows or hides the keyboard shortcuts overlay (iPad: what holding Command shows) |
 | `closescene [SESSION_ID]` | the user closes a window (iPad apps with multiple scenes; the key scene by default): the scene's `closureConfirmation` is shown first when it has one |
 | `metrickit` · `metrickit deliver` | Debug ▸ Simulate MetricKit Payloads (fixed sample payloads) · the metric payload MetricKit measured in this run so far (and anything still waiting), delivered now: what iOS sends about once a day |
