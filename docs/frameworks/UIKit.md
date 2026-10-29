@@ -1,7 +1,7 @@
 # UIKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 89.8% of Apple's iOS API (13237 of 14735, exact) · **Rows:** 326: 317 ✅ 8 🟡 1 ❌ · **iOS:** 2.0+
+**Symbols:** 89.9% of Apple's iOS API (13252 of 14735, exact) · **Rows:** 326: 317 ✅ 8 🟡 1 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [UIKit](../COVERAGE.md#uikit) · **Apple:** [UIKit](https://developer.apple.com/documentation/uikit) · **Issues:** [`area:uikit`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Auikit)
@@ -410,7 +410,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-1498 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+1483 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -714,7 +714,7 @@
 - [`UICloudSharingController.PermissionOptions`](https://developer.apple.com/documentation/uikit/uicloudsharingcontroller/permissionoptions)
 - [`static var allowPrivate: UICloudSharingController.PermissionOptions`](https://developer.apple.com/documentation/uikit/uicloudsharingcontroller/permissionoptions/allowprivate)
 - [`static var allowPublic: UICloudSharingController.PermissionOptions`](https://developer.apple.com/documentation/uikit/uicloudsharingcontroller/permissionoptions/allowpublic)
-- … and 1198 more (`isim/data/api-coverage.json.gz`)
+- … and 1183 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

@@ -1,7 +1,7 @@
 # CoreLocation
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 82.8% of Apple's iOS API (408 of 493, exact) · **Rows:** 5: 3 ✅ 2 ❌ · **iOS:** 2.0+
+**Symbols:** 83.0% of Apple's iOS API (409 of 493, exact) · **Rows:** 5: 3 ✅ 2 ❌ · **iOS:** 2.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [CoreLocation](https://developer.apple.com/documentation/corelocation) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -23,7 +23,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-85 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+84 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -94,7 +94,6 @@
 - [`case maritime`](https://developer.apple.com/documentation/corelocation/cllocationupdate/liveconfiguration/maritime)
 - [`static var defaultResolverSpecification: EmptyResolverSpecification<CLPlacemark>`](https://developer.apple.com/documentation/corelocation/clplacemark/defaultresolverspecification)
 - [`init?(coder: NSCoder)`](https://developer.apple.com/documentation/corelocation/clplacemark/init(coder:))
-- [`convenience init(location: CLLocation, name: String?, postalAddress: CNPostalAddress?)`](https://developer.apple.com/documentation/corelocation/clplacemark/init(location:name:postaladdress:))
 - [`var postalAddress: CNPostalAddress?`](https://developer.apple.com/documentation/corelocation/clplacemark/postaladdress)
 - [`CLPlacemark.Specification`](https://developer.apple.com/documentation/corelocation/clplacemark/specification)
 - [`CLPlacemark.UnwrappedType`](https://developer.apple.com/documentation/corelocation/clplacemark/unwrappedtype)
