@@ -5,8 +5,9 @@
 // browser in this app connect and exchange data) and Messages (an iMessage app's controller subclass, a message and a
 // refused sticker), BackgroundAssets (an essential download refused outside the downloader extension) and FileProvider
 // (an item class of its own, a domain the app cannot add without a file provider extension), CarPlay (templates
-// built with Apple's selectors) and SiriKit's payments, rides, workouts and photos intents. Each step prints a "sy ..."
-// line the test checks.
+// built with Apple's selectors), SiriKit's payments, rides, workouts and photos intents and HomeKit (issue #416: a scene with
+// Objective-C's generic write action, an automation with its characteristic event). Each step prints a "sy ..." line the
+// test checks.
 #import <UIKit/UIKit.h>
 #import <PushKit/PushKit.h>
 #import <CallKit/CallKit.h>
@@ -22,6 +23,7 @@
 #import <Intents/Intents.h>
 #import <CoreLocation/CoreLocation.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <HomeKit/HomeKit.h>
 
 static void say(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
 static void say(NSString *fmt, ...) {
@@ -227,11 +229,70 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
 - (void)startCall { [(id)UIApplication.sharedApplication.delegate performSelector:@selector(startCall)]; }
 @end
 
+// HomeKit from Objective-C (issue #416), over the device's simulated home (`isim home seed`)
+@interface HomeCheck : NSObject <HMHomeManagerDelegate>
+@property (nonatomic, strong) HMHomeManager *manager;
+@property (nonatomic) BOOL done;
+@end
+
+@implementation HomeCheck
+- (instancetype)init {
+    if ((self = [super init])) { _manager = [[HMHomeManager alloc] init]; _manager.delegate = self; }
+    return self;
+}
+- (void)homeManagerDidUpdateHomes:(HMHomeManager *)manager {
+    if (self.done) return;
+    self.done = YES;
+    HMHome *home = manager.homes.firstObject;
+    HMAccessory *lamp = nil;
+    for (HMAccessory *a in home.accessories) if ([a.name isEqualToString:@"Living Room Lamp"]) lamp = a;
+    HMService *bulb = nil;
+    for (HMService *s in lamp.services) if ([s.serviceType isEqualToString:HMServiceTypeLightbulb]) bulb = s;
+    HMCharacteristic *brightness = nil, *power = nil;
+    for (HMCharacteristic *c in bulb.characteristics) {
+        if ([c.characteristicType isEqualToString:HMCharacteristicTypeBrightness]) brightness = c;
+        if ([c.characteristicType isEqualToString:HMCharacteristicTypePowerState]) power = c;
+    }
+    if (!brightness || !power) { say(@"home homes=%lu no lamp", (unsigned long)manager.homes.count); return; }
+    __weak HMHome *weakHome = home;
+    [brightness writeValue:@55 completionHandler:^(NSError *error) {
+        [brightness writeValue:@150 completionHandler:^(NSError *high) {
+            [weakHome addActionSetWithName:@"ObjC Scene" completionHandler:^(HMActionSet *scene, NSError *e1) {
+                __weak HMActionSet *weakScene = scene;
+                HMCharacteristicWriteAction<NSNumber *> *on = [[HMCharacteristicWriteAction alloc] initWithCharacteristic:power targetValue:@YES];
+                [scene addAction:on completionHandler:^(NSError *e2) {
+                    HMHome *home = weakHome;
+                    HMActionSet *scene = weakScene;
+                    [home executeActionSet:scene completionHandler:^(NSError *e3) {
+                        HMAction *action = scene.actions.anyObject;
+                        HMCharacteristicEvent<NSNumber *> *event = [[HMCharacteristicEvent alloc] initWithCharacteristic:power triggerValue:@YES];
+                        HMEventTrigger *trigger = [[HMEventTrigger alloc] initWithName:@"ObjC Automation" events:@[event] predicate:nil];
+                        [weakHome addTrigger:trigger completionHandler:^(NSError *e4) {
+                            HMHome *home = weakHome;
+                            id first = trigger.events.firstObject;
+                            BOOL objcEvent = [first isKindOfClass:[HMCharacteristicEvent class]] && [first characteristic] == power;
+                            say(@"home homes=%lu lamp=%@ wrote=%@ high=%@ scene=%@ action=%d power=%@ trigger=%@ event=%d lock=%ld",
+                                (unsigned long)manager.homes.count, lamp.name, brightness.value, errText(high), errText(e3),
+                                [action isKindOfClass:[HMCharacteristicWriteAction class]] && [((HMCharacteristicWriteAction *)action).targetValue isEqual:@YES],
+                                power.value, errText(e4), objcEvent, (long)HMCharacteristicValueLockMechanismStateSecured);
+                            [home removeTrigger:trigger completionHandler:^(NSError *e5) {
+                                [home removeActionSet:scene completionHandler:^(NSError *e6) {}];
+                            }];
+                        }];
+                    }];
+                }];
+            }];
+        }];
+    }];
+}
+@end
+
 @interface AppDelegate : UIResponder <UIApplicationDelegate, CSSearchableIndexDelegate>
 @property (nonatomic, strong) UIWindow *window;
 @property (nonatomic, strong) Calls *calls;
 @property (nonatomic, strong) Peers *peers;
 @property (nonatomic, strong) CSSearchQuery *query;
+@property (nonatomic, strong) HomeCheck *home;
 @end
 
 /* a file provider item in Objective-C */
@@ -484,6 +545,7 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
     [self fileProvider];
     [self carPlay];
     [self siriDomains];
+    self.home = [[HomeCheck alloc] init];
     [self.calls badRequest];
     self.peers = [[Peers alloc] init];
     [self.peers start];

@@ -1066,6 +1066,7 @@ Messages -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswif
 AlarmKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftSwiftUI -lswiftAppIntents -lswiftActivityKit -lswiftCombine -lswiftCoreGraphics -lswiftObservation -framework Foundation -framework UIKit -lisim_host   # issue #405: the shell rings the alarms
 CarPlay -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftMapKit -lswiftMediaPlayer -lswiftCoreMedia -lswiftCoreLocation -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit   # issue #410: templates on a simulated CarPlay screen
 WeatherKit -lswiftObjectiveC -lswiftFoundation -lswiftCoreLocation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit   # issue #415: a labelled simulated forecast
+HomeKit -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftObservation -lswiftCoreGraphics -lswiftCoreLocation -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit   # issue #416: simulated homes
 """
 
 # app-facing re-implementations: library evolution keeps their ABI stable across isim updates (since 0.12 also the base
@@ -1073,7 +1074,7 @@ WeatherKit -lswiftObjectiveC -lswiftFoundation -lswiftCoreLocation -lswiftUIKit 
 # overlays of SWIFT_FRAMEWORKS whose header declares the value types (option sets, enums, string identifiers) for Swift
 # too, like Apple's: the overlay imports that clang module (`@_exported import FileProvider`) and does not autolink the
 # framework, which re-exports the overlay
-UNDERLYING = {"FileProvider", "FileProviderUI", "CarPlay"}
+UNDERLYING = {"FileProvider", "FileProviderUI", "CarPlay", "HomeKit"}
 
 EVOLUTION = set("""ObjectiveC CoreMIDI QuickLookThumbnailing PencilKit ReplayKit PHASE _CKShareMetadata Accelerate VideoToolbox Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI QuickLook EventKit EventKitUI Contacts ContactsUI
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
@@ -1081,9 +1082,9 @@ GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Se
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport XPC StateReporting MetricKit CloudKit AuthenticationServices
 QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision SoundAnalysis NaturalLanguage FoundationModels Speech VisionKit WebKit SafariServices LinkPresentation Accessibility MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit TipKit Translation ImagePlayground VisualIntelligence Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit
-CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive GroupActivities GameSave DeclaredAgeRange PermissionKit FinanceKit FinanceKitUI CryptoTokenKit IdentityDocumentServices LiveCommunicationKit AlarmKit Messages ExtensionFoundation BackgroundAssets FileProvider FileProviderUI ManagedSettings ManagedSettingsUI FamilyControls ExtensionKit DeviceActivity CarPlay WeatherKit""".split())
+CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive GroupActivities GameSave DeclaredAgeRange PermissionKit FinanceKit FinanceKitUI CryptoTokenKit IdentityDocumentServices LiveCommunicationKit AlarmKit Messages ExtensionFoundation BackgroundAssets FileProvider FileProviderUI ManagedSettings ManagedSettingsUI FamilyControls ExtensionKit DeviceActivity CarPlay WeatherKit HomeKit""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
-PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer ReplayKit AlarmKit FamilyControls".split())
+PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer ReplayKit AlarmKit FamilyControls HomeKit".split())
 # modules that also compile overlays/_AdAttribution (the conversion values SKAdNetwork and AdAttributionKit share)
 ATTRIBUTION = set("StoreKit AdAttributionKit".split())
 # overlays that declare macros of isim's compiler plugins (host_plugins): they compile after the plugin is built

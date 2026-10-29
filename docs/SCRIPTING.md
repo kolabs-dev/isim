@@ -133,6 +133,16 @@ changed documents of its types in Documents, or for one file with `isim spotligh
 (`SpringBoard: Spotlight indexed FILE for APP (“TITLE”)`). `isim spotlight list APP` prints the app's indexed items
 (identifier, title, domain, index).
 
+**Homes** (HomeKit; isim's simulated homes are the device's, shared by every app): `isim home seed` makes an example
+home with a home hub (rooms; a light, a thermostat, a lock, a garage door, an outlet, a motion sensor, blinds and a
+camera doorbell) and two accessories nearby; `isim home list` prints the homes, rooms and accessories with their values.
+Accessories change from outside like real ones: `isim home set ACCESSORY CHARACTERISTIC VALUE` (`isim home set "Hallway
+Sensor" MotionDetected 1`; characteristics by the name of their HMCharacteristicType constant), `isim home reachable
+ACCESSORY on|off`, and `isim home add-accessory lightbulb|outlet|switch|fan|contact|motion|thermostat|lock [NAME]` puts
+a new one nearby (with a setup code) for HMAccessoryBrowser and the Add Accessory sheet. Running apps notice changes
+within half a second; their delegates and automations see them as iOS reports an accessory's change. `isim home clear`
+removes everything.
+
 **Alarms** (AlarmKit; the shell rings the apps' alarms and timers, also in Silent Mode): an alarm going off is a
 banner while the device is in use (`alarm-banner`: tap for the full-screen alert; `alarm-secondary`, the alarm's
 secondary button such as Snooze or Repeat; `alarm-stop`) or the full-screen alert on the Lock Screen and in StandBy

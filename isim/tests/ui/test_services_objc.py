@@ -7,7 +7,8 @@ CoreSpotlight (indexing; issue #412: attributes, a custom key, a query, the inde
 MultipeerConnectivity (an advertiser and a browser in the app connect and exchange data) and Messages (issue #406: an
 MSMessagesAppViewController subclass, a message in a session copied and archived, a refused sticker), BackgroundAssets
 (issue #407: an essential download from the app is refused) and FileProvider (issue #408: an Objective-C item, a domain
-the app cannot add without a file provider extension)."""
+the app cannot add without a file provider extension) and HomeKit (issue #416: a scene with Objective-C's generic write action,
+an automation with its characteristic event, over the device's simulated home)."""
 import os
 import subprocess
 
@@ -30,7 +31,8 @@ def keep(img, name):
 
 
 def test_services_objc(launch, device_data, ios):
-    dev = launch(None, install=["HelloServicesObjC"])
+    subprocess.run([str(ISIM), "home", "seed"], env=dict(os.environ, ISIM_DATA=str(device_data)), capture_output=True, check=True, timeout=60)
+    dev = launch(None, install=["HelloServicesObjC"], env={"ISIM_HOMEKIT_PERMISSION": "allow"})
     dev.send(f"launch {APP}")
     dev.wait_log(r"^sy voip token 32 bytes type=PKPushTypeVoIP same=1$")
     dev.wait_log(r"^sy provider began queue=1$")
@@ -58,6 +60,8 @@ def test_services_objc(launch, device_data, ios):
                  r"role=CPTemplateApplicationSceneSessionRoleApplication domain=CarPlayErrorDomain$")   # CarPlay (#410; maneuverType: iOS 17.4, isim's 17 is 17.0)
     dev.wait_log(r"^sy siri payee=Ben Ito amount=20 ride=Apple Park party=2 pay=8 phase=5 driver=Sam status=3 workout=run goal=5 unit=4 "
                  r"photos=Latte Art attrs=65 people=1 back=Apple Park backPhase=5 res=INPlacemarkResolutionResult price=18-22 id=INStartWorkoutIntent$")   # SiriKit (#411)
+    dev.wait_log(r"^sy home homes=1 lamp=Living Room Lamp wrote=55 high=HMErrorDomain/45 scene=nil action=1 power=1 trigger=nil "
+                 r"event=1 lock=1$")                                    # HomeKit (#416)
     dev.wait_log(r"^sy unknown call error=com\.apple\.CallKit\.error\.requesttransaction/4$")
 
     # MultipeerConnectivity: Ann browses, finds Ben, invites him; data both ways
