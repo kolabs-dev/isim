@@ -3,16 +3,17 @@ PushKit (the VoIP token; a VoIP push to the app reports an incoming call), CallK
 dispatch queue: answering from the incoming call screen, an outgoing call through CXCallController, ending them,
 CXCallObserver, a refused request with CXErrorDomainRequestTransaction), BackgroundTasks (registering and submitting
 from Objective-C; `bgtask` runs the task on its dispatch queue; an identifier missing from Info.plist is refused),
-CoreSpotlight (indexing), SafariServices (SFSafariViewController with a configuration and delegate; the Reading List)
+CoreSpotlight (indexing; issue #412: attributes, a custom key, a query, the index delegate), SafariServices (SFSafariViewController with a configuration and delegate; the Reading List)
 MultipeerConnectivity (an advertiser and a browser in the app connect and exchange data) and Messages (issue #406: an
 MSMessagesAppViewController subclass, a message in a session copied and archived, a refused sticker), BackgroundAssets
 (issue #407: an essential download from the app is refused) and FileProvider (issue #408: an Objective-C item, a domain
 the app cannot add without a file provider extension)."""
 import os
+import subprocess
 
 import pytest
 
-from isimtest import ROOT
+from isimtest import ISIM, ROOT
 
 APP = "dev.isim.samples.HelloServicesObjC"
 CALL = "7A2B3C4D-1E2F-4A5B-8C9D-0E1F2A3B4C5D"
@@ -28,7 +29,7 @@ def keep(img, name):
         img.save(os.path.join(d, f"{name}.png"))
 
 
-def test_services_objc(launch):
+def test_services_objc(launch, device_data):
     dev = launch(None, install=["HelloServicesObjC"])
     dev.send(f"launch {APP}")
     dev.wait_log(r"^sy voip token 32 bytes type=PKPushTypeVoIP same=1$")
@@ -37,6 +38,11 @@ def test_services_objc(launch):
     dev.wait_log(r"^sy bg pending 1 first=dev\.isim\.samples\.HelloServicesObjC\.refresh date=1$")
     dev.wait_log(r"^sy spotlight available=1 expires=1$")
     dev.wait_log(r"^sy spotlight indexed note-1 error=nil activity=com\.apple\.corespotlightitem$")
+    dev.wait_log(r"^sy spotlight attributes type=public\.text author=Anna Haro mood=calm bad key=1$")      # issue #412
+    dev.wait_log(r"^sy spotlight query found 2 note-1,note-2 error=nil$")
+    subprocess.run([str(ISIM), "spotlight", "reindex", APP, "note-2"], env=dict(os.environ, ISIM_DATA=str(device_data)),
+                   capture_output=True, check=True, timeout=60)
+    dev.wait_log(r"^sy spotlight delegate reindex note-2$")              # the Objective-C index delegate
     dev.wait_log(r"^sy reading list ok=1 refused=1 error=SSReadingListErrorDomain/1 supports=1$")
     dev.wait_log(r"^sy content blocker state=0 error=SFErrorDomain/1 reload=SFErrorDomain/1 missing=1$")
     dev.wait_log(r"^sy messages caption=Your move copy=Your move session=1 archived=board=X-------- sameSession=1 pending=1 "

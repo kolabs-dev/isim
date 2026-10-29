@@ -306,6 +306,7 @@ static NSString *icon_state_file(void) {
     [self installControlObservers];
     [self installSiriObservers];
     [self installBackgroundAssetsObservers];
+    [self installSpotlightIndexObservers];
     [self installScreenTimeObservers];
     [self reload];
 }
@@ -327,6 +328,7 @@ static NSString *icon_state_file(void) {
     [self discoverWidgets];
     [self discoverControls];
     [self discoverBackgroundAssets];
+    [self discoverSpotlightExtensions];
 }
 - (NSArray<HSApp *> *)apps { return _apps; }
 - (HSApp *)appWithIdentifier:(NSString *)ident {

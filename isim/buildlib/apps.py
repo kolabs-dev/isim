@@ -477,6 +477,14 @@ def _(a):   # BackgroundAssets: the app and its downloader extension share an ap
     a.copy("server.py", f"{b}/server.py")
 
 
+@app("samples/HelloSpotlight")
+def _(a):   # CoreSpotlight: the app, its Spotlight index extension and its import extension (issue #412)
+    b = a.swift_app(srcs=["HelloSpotlight.swift", "Shared.swift"])
+    a.appex(b, "HelloSpotlightIndex", ["IndexExtension/IndexRequestHandler.swift", "Shared.swift"], "IndexExtension/Info.plist", link=["-framework", "UIKit"])
+    a.appex(b, "HelloSpotlightImport", ["ImportExtension/ImportExtension.swift"], "ImportExtension/Info.plist", link=["-framework", "UIKit"])
+    a.icon(f"{b}/AppIcon60x60@3x.png", "#8e8e93", "#3a3a3c", "S")
+
+
 @app("samples/HelloFileProvider")
 def _(a):   # FileProvider: the app, its replicated file provider extension and its FileProviderUI extension share an app group
     b = a.swift_app(srcs=["HelloFileProvider.swift", "Shared.swift"])

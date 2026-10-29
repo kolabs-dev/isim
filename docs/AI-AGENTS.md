@@ -206,7 +206,9 @@ asset packs isim hosts for an app. A file provider's domains are locations in th
 (`docs-location-NAME`); `isim fileprovider list` and `isim fileprovider files DOMAIN` show the domains and what has been
 downloaded. A CarPlay app's templates show on a simulated CarPlay screen: `carplay connect`, then `carplay dump` (the elements'
 ids), `carplay tap ID` and `carplay shot PATH`. Screen Time's monitors run on usage and a clock scripts set: `isim screentime usage APP
-MINUTES` and `isim screentime clock +MINUTES`; `isim screentime status` shows authorizations, activities and shields.
+MINUTES` and `isim screentime clock +MINUTES`; `isim screentime status` shows authorizations, activities and shields. Spotlight asks an app's index delegate (or
+its index extension) with `isim spotlight reindex APP [ID…]`, `isim spotlight items APP ID…` and `isim spotlight throttle
+APP on|off`; `isim spotlight import APP FILE` runs its import extension, and `isim spotlight list APP` prints its indexed items.
 
 Each device reads these from a control FIFO of its own; `--control FIFO` names one yourself (then `echo "…" > FIFO`
 works too). The FIFO only goes one way: commands get no reply. To read a result, write it to a file

@@ -122,6 +122,15 @@ which Device Activity events count; `isim screentime clock +MINUTES|-MINUTES|res
 the monitor extensions' intervals follow; `isim screentime status` prints each app's authorization, its monitored
 activities and the shields in force.
 
+**Spotlight's requests** (CoreSpotlight): `isim spotlight reindex APP [ID ...]` asks the app to reindex all its items
+(or those), `isim spotlight items APP ID ...` asks for items by identifier (iOS 18) and `isim spotlight throttle APP
+on|off` throttles indexing or ends it. The running app's `CSSearchableIndexDelegate` answers (`isim CoreSpotlight: the
+app acknowledged Spotlight's reindex request`); when none takes it within a second, SpringBoard runs the app's index
+extension (`SpringBoard: Spotlight asks the index extension of NAME: ...`). An app's import extension runs for new or
+changed documents of its types in Documents, or for one file with `isim spotlight import APP FILE`
+(`SpringBoard: Spotlight indexed FILE for APP (“TITLE”)`). `isim spotlight list APP` prints the app's indexed items
+(identifier, title, domain, index).
+
 **Alarms** (AlarmKit; the shell rings the apps' alarms and timers, also in Silent Mode): an alarm going off is a
 banner while the device is in use (`alarm-banner`: tap for the full-screen alert; `alarm-secondary`, the alarm's
 secondary button such as Snooze or Repeat; `alarm-stop`) or the full-screen alert on the Lock Screen and in StandBy
