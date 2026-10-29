@@ -366,6 +366,23 @@ int NSExtensionMain(int argc, char *argv[]) {
         NSLog(@"isim: Intents extension: the %@ framework is not available", ui ? @"IntentsUI" : @"Intents");
         return 1;
     }
+    /* Screen Time's extensions: helper processes the home screen starts (SBScreenTime.m); their framework serves the
+       request (DeviceActivity/Monitoring.swift, ManagedSettings/Shield.swift, ManagedSettingsUI) */
+    NSDictionary *screenTime = @{ @"com.apple.deviceactivity.monitor-extension": @[@"DeviceActivity", @"isim_da_extension_main"],
+                                  @"com.apple.ManagedSettings.shield-action-service": @[@"ManagedSettings", @"isim_ms_extension_main"],
+                                  @"com.apple.ManagedSettingsUI.shield-configuration-service": @[@"ManagedSettingsUI", @"isim_msui_extension_main"] };
+    if (screenTime[point]) {
+        extern void *dlsym(void *, const char *);
+        extern void *dlopen(const char *, int);
+        NSArray *fw = screenTime[point];
+        const char *sym = [fw[1] UTF8String];
+        int (*st_main)(int, char **) = (int (*)(int, char **))dlsym((void *)-2, sym);
+        if (!st_main && dlopen([NSString stringWithFormat:@"/usr/lib/swift/libswift%@.dylib", fw[0]].UTF8String, 2))
+            st_main = (int (*)(int, char **))dlsym((void *)-2, sym);
+        if (st_main) return st_main(argc, argv);
+        NSLog(@"isim: %@ extension: the %@ framework is not available", point, fw[0]);
+        return 1;
+    }
     if ([point isEqualToString:@"com.apple.background-asset-downloader-extension"]) {
         /* BackgroundAssets: a helper process the home screen starts; a Swift @main BADownloaderExtension, else the
            Objective-C principal class (BackgroundAssets/Extension.swift) */

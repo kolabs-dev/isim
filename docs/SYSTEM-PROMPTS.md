@@ -63,6 +63,7 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 |---|---|
 | `ISIM_NOTIFICATION_PERMISSION` | `allow`, `deny` |
 | `ISIM_ALARMKIT_PERMISSION` | `allow`, `deny` (AlarmKit: scheduling alarms and timers) |
+| `ISIM_FAMILYCONTROLS_PERMISSION` | `allow`, `deny` (FamilyControls: Screen Time's "Would Like to Access Screen Time" alert) |
 | `ISIM_FOCUS_STATUS_PERMISSION` | `allow`, `deny` (Intents `INFocusStatusCenter`: sharing the Focus status) |
 | `ISIM_LOCATION_PERMISSION` | `once`, `wheninuse`, `always`, `deny` |
 | `ISIM_PHOTOS_PERMISSION` | `allow`, `limited`, `deny` |

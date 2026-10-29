@@ -1141,6 +1141,42 @@ def messages(cmd, args):
         die('usage: isim messages list | receive ...')
 
 
+def screentime(cmd, args):
+    """Screen Time: usage the monitors count, Screen Time's clock, what apps set (FamilyControls, ManagedSettings, DeviceActivity)"""
+    d = os.path.join(DATA, 'Library/isim/ScreenTime')
+    os.makedirs(d, exist_ok=True)
+    read = lambda n, default: json.load(open(os.path.join(d, n))) if os.path.isfile(os.path.join(d, n)) else default
+    clock = read('clock.json', {}).get('offset', 0)
+    if cmd == 'usage' and len(args) == 2:                # APP MINUTES: the app was used that long, ending now
+        usage = read('usage.json', [])
+        usage.append({'bundle': args[0], 'end': time.time() + clock, 'seconds': float(args[1]) * 60})
+        write_json(os.path.join(d, 'usage.json'), usage)
+        print(f'{args[0]}: {sum(u["seconds"] for u in usage if u["bundle"] == args[0]) / 60:g} minute(s) recorded')
+    elif cmd == 'clock' and args:                        # +MINUTES / -MINUTES / reset: Screen Time's clock
+        offset = 0 if args[0] == 'reset' else clock + float(args[0]) * 60
+        write_json(os.path.join(d, 'clock.json'), {'offset': offset})
+        print(f'Screen Time clock: {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() + offset))} ({offset / 60:+g} min)')
+    elif cmd == 'status':
+        for app, status in sorted(read('authorization.json', {}).items()):
+            print(f'{app} {status}')
+        tokens = read('tokens.json', {})
+        name = lambda kind, t: tokens.get(kind, {}).get(base64.b64decode(t).decode(), '?')
+        stores = os.path.join(d, 'Stores')
+        for app in sorted(os.listdir(stores)) if os.path.isdir(stores) else []:
+            for f in sorted(os.listdir(os.path.join(stores, app))):
+                s = json.load(open(os.path.join(stores, app, f)))
+                shielded = [name('applications', t) for t in s.get('shield', {}).get('applications', [])]
+                print(f'{app} store {f[:-5]}{"" if s.get("active", True) else " (inactive)"}: shields {",".join(shielded) or "-"}')
+        mon = os.path.join(d, 'Monitoring')
+        for f in sorted(os.listdir(mon)) if os.path.isdir(mon) else []:
+            if f.endswith('.state.json'):
+                continue
+            for act, a in sorted(json.load(open(os.path.join(mon, f))).items()):
+                print(f'{f[:-5]} monitors {act} ({len(a.get("events", {}))} event(s))')
+    else:
+        die('usage: isim screentime usage APP MINUTES | clock +MINUTES|-MINUTES|reset | status')
+
+
 def fileprovider(cmd, args):
     """FileProvider: the device's file provider domains (NSFileProviderManager.add) and their replicas' files"""
     d = os.path.join(DATA, 'Library/isim/FileProvider')
@@ -1268,9 +1304,9 @@ def main():
         sys.argv.append('')
     if len(sys.argv) >= 2 and sys.argv[1] == 'finance':
         return finance(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
-    if len(sys.argv) >= 2 and sys.argv[1] in ('smartcard', 'iddocs', 'alarms', 'messages', 'bgassets', 'fileprovider'):
+    if len(sys.argv) >= 2 and sys.argv[1] in ('smartcard', 'iddocs', 'alarms', 'messages', 'bgassets', 'fileprovider', 'screentime'):
         return {'smartcard': smartcard, 'iddocs': iddocs, 'alarms': alarms, 'messages': messages, 'bgassets': bgassets,
-                'fileprovider': fileprovider}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
+                'fileprovider': fileprovider, 'screentime': screentime}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] in ('autofill', 'sso'):
         return {'autofill': autofill, 'sso': sso}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] == 'agerange':

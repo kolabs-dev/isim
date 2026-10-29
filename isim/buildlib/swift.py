@@ -1037,6 +1037,11 @@ ExtensionFoundation -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_
 BackgroundAssets -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftExtensionFoundation -lswiftSystem -framework Foundation   # issue #407
 FileProvider -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUniformTypeIdentifiers -lswiftCoreGraphics -framework Foundation   # issue #408
 FileProviderUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftFileProvider -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework FileProvider   # issue #408
+ManagedSettings -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswiftCombine -lswift_Concurrency -framework Foundation   # issue #409: Screen Time's settings and shields
+ManagedSettingsUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftManagedSettings -lswiftDispatch -lswiftCombine -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit   # issue #409
+FamilyControls -lswiftObjectiveC -lswiftFoundation -lswiftManagedSettings -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftObservation -lswiftCoreGraphics -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit   # issue #409
+ExtensionKit -lswiftObjectiveC -lswiftFoundation -framework Foundation   # issue #409: AppExtensionScene
+DeviceActivity -lswiftObjectiveC -lswiftFoundation -lswiftManagedSettings -lswiftExtensionFoundation -lswiftExtensionKit -lswiftUIKit -lswiftSwiftUI -lswiftCombine -lswiftObservation -lswiftCoreGraphics -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit   # issue #409
 Messages -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics -framework ImageIO   # issue #406: hosted by isim's Messages app
 AlarmKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftSwiftUI -lswiftAppIntents -lswiftActivityKit -lswiftCombine -lswiftCoreGraphics -lswiftObservation -framework Foundation -framework UIKit -lisim_host   # issue #405: the shell rings the alarms
 """
@@ -1054,9 +1059,9 @@ GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Se
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport XPC StateReporting MetricKit CloudKit AuthenticationServices
 QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision SoundAnalysis NaturalLanguage FoundationModels Speech VisionKit WebKit SafariServices LinkPresentation Accessibility MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit TipKit Translation ImagePlayground VisualIntelligence Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit
-CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive GroupActivities GameSave DeclaredAgeRange PermissionKit FinanceKit FinanceKitUI CryptoTokenKit IdentityDocumentServices LiveCommunicationKit AlarmKit Messages ExtensionFoundation BackgroundAssets FileProvider FileProviderUI""".split())
+CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive GroupActivities GameSave DeclaredAgeRange PermissionKit FinanceKit FinanceKitUI CryptoTokenKit IdentityDocumentServices LiveCommunicationKit AlarmKit Messages ExtensionFoundation BackgroundAssets FileProvider FileProviderUI ManagedSettings ManagedSettingsUI FamilyControls ExtensionKit DeviceActivity""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
-PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer ReplayKit AlarmKit".split())
+PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer ReplayKit AlarmKit FamilyControls".split())
 # modules that also compile overlays/_AdAttribution (the conversion values SKAdNetwork and AdAttributionKit share)
 ATTRIBUTION = set("StoreKit AdAttributionKit".split())
 # overlays that declare macros of isim's compiler plugins (host_plugins): they compile after the plugin is built

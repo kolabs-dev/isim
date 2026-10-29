@@ -105,6 +105,14 @@ docs-item-NAME 0.9` opens an item's menu, which lists the file provider's action
 list` prints the device's domains (app, domain, name, replica folder) and `isim fileprovider files DOMAIN` a domain's
 items, `(placeholder)` for those not downloaded.
 
+**Screen Time** (FamilyControls, ManagedSettings, DeviceActivity): the activity picker's rows are
+`family-category-ID` and `family-app-BUNDLE`, its buttons `family-done` and `family-cancel`; a shield the home screen
+shows instead of a shielded app has `shield-title`, `shield-subtitle`, `shield-primary` and `shield-secondary`.
+isim does not measure app usage: `isim screentime usage APP MINUTES` records that APP was used that long (ending now),
+which Device Activity events count; `isim screentime clock +MINUTES|-MINUTES|reset` moves Screen Time's clock, which
+the monitor extensions' intervals follow; `isim screentime status` prints each app's authorization, its monitored
+activities and the shields in force.
+
 **Alarms** (AlarmKit; the shell rings the apps' alarms and timers, also in Silent Mode): an alarm going off is a
 banner while the device is in use (`alarm-banner`: tap for the full-screen alert; `alarm-secondary`, the alarm's
 secondary button such as Snooze or Repeat; `alarm-stop`) or the full-screen alert on the Lock Screen and in StandBy

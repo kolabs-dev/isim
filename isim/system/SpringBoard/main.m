@@ -306,6 +306,7 @@ static NSString *icon_state_file(void) {
     [self installControlObservers];
     [self installSiriObservers];
     [self installBackgroundAssetsObservers];
+    [self installScreenTimeObservers];
     [self reload];
 }
 - (void)pagerPulledDown:(HSPager *)pager { if (!_editing) [self showSpotlight]; }
@@ -610,6 +611,7 @@ static void item_span(id it, NSInteger cols, NSInteger *cw, NSInteger *ch) {
 - (void)launch:(HSApp *)a { [self launch:a url:nil]; }
 - (void)launch:(HSApp *)a url:(NSString *)url {
     if (a.appClip && !url) url = [self appClipRelaunchURL:a];        /* from the App Library: the last invocation */
+    if ([self screenTimeShield:a]) return;                            /* Screen Time: the app's shield instead */
     NSLog(@"SpringBoard: launching %@ (%@)%@%@", a.name, a.bundleID, url ? @" with " : @"", url ?: @"");
     isim_shell_request(ISIM_SHELL_LAUNCH, a.path.UTF8String, a.executable.UTF8String, url.UTF8String);
 }
