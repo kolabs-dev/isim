@@ -275,7 +275,18 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
     [s getPendingTaskRequestsWithCompletionHandler:^(NSArray<BGTaskRequest *> *requests) {
         say(@"bg pending %lu first=%@ date=%d", (unsigned long)requests.count, requests.firstObject.identifier,
             requests.firstObject.earliestBeginDate != nil);
-    }];
+    }];    if (@available(iOS 26.0, *)) {                    /* issue #413: continued processing, call translation */
+        BGContinuedProcessingTaskRequest *c = [[BGContinuedProcessingTaskRequest alloc] initWithIdentifier:@"dev.isim.samples.HelloServicesObjC.export.1"
+                                                                                                    title:@"Export" subtitle:@"Starting"];
+        c.strategy = BGContinuedProcessingTaskRequestSubmissionStrategyFail;
+        c.requiredResources = BGContinuedProcessingTaskRequestResourcesGPU;
+        NSError *e3 = nil;
+        BOOL cok = [s submitTaskRequest:c error:&e3];
+        CXSetTranslatingCallAction *t = [[CXSetTranslatingCallAction alloc] initWithCallUUID:[NSUUID UUID] isTranslating:YES
+                                                                               localLanguage:@"en" remoteLanguage:@"de"];
+        say(@"continued title=%@ strategy=%ld gpu=%ld submitted=%d error=%@ translate=%d %@-%@", c.title, (long)c.strategy,
+            (long)BGTaskScheduler.supportedResources, cok, errText(e3), t.isTranslating, t.localLanguage, t.remoteLanguage);
+    } else say(@"continued unavailable");
 }
 
 - (void)spotlight {

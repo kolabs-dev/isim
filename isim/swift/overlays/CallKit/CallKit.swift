@@ -114,6 +114,10 @@ public func ~= (code: CXErrorCodeCallDirectoryManagerError.Code, error: Error) -
     open var includesCallsInRecents = true
     open var supportsVideo = false
     open var supportedHandleTypes: Set<CXHandle.HandleType> = []
+    /// iOS 26: the call UI offers Live Translation (CXSetTranslatingCallAction)
+    @available(iOS 26.0, *)
+    open var supportsAudioTranslation: Bool { get { _supportsAudioTranslation } set { _supportsAudioTranslation = newValue } }
+    var _supportsAudioTranslation = false
     public override init() { localizedName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String }
     @available(*, deprecated, message: "use init() (the name is the app's)")
     public init(localizedName: String) { self.localizedName = localizedName }
@@ -122,6 +126,7 @@ public func ~= (code: CXErrorCodeCallDirectoryManagerError.Code, error: Error) -
         c.localizedName = localizedName; c.ringtoneSound = ringtoneSound; c.iconTemplateImageData = iconTemplateImageData
         c.maximumCallGroups = maximumCallGroups; c.maximumCallsPerCallGroup = maximumCallsPerCallGroup
         c.includesCallsInRecents = includesCallsInRecents; c.supportsVideo = supportsVideo; c.supportedHandleTypes = supportedHandleTypes
+        c._supportsAudioTranslation = _supportsAudioTranslation
         return c
     }
 }
@@ -202,6 +207,30 @@ public func ~= (code: CXErrorCodeCallDirectoryManagerError.Code, error: Error) -
     override var _name: String { "dtmf \(digits)" }
 }
 
+/// iOS 26: which engine translated a call
+@available(iOS 26.0, *)
+@objc public enum CXTranslationEngine: Int, Sendable { case `default` = 0, custom = 1 }
+
+/// iOS 26: start or stop translating a call (Live Translation), between the local person's language and the remote one's
+@available(iOS 26.0, *)
+@objc(CXSetTranslatingCallAction) open class CXSetTranslatingCallAction: CXCallAction, @unchecked Sendable {
+    open private(set) var isTranslating: Bool
+    open private(set) var localLanguage: String
+    open private(set) var remoteLanguage: String
+    var _engine: CXTranslationEngine?
+    public init(call callUUID: UUID, isTranslating: Bool, localLanguage: String, remoteLanguage: String) {
+        self.isTranslating = isTranslating; self.localLanguage = localLanguage; self.remoteLanguage = remoteLanguage
+        super.init(call: callUUID)
+    }
+    public convenience init(callUUID: UUID, isTranslating: Bool, localLanguage: String, remoteLanguage: String) {
+        self.init(call: callUUID, isTranslating: isTranslating, localLanguage: localLanguage, remoteLanguage: remoteLanguage)
+    }
+    public required init?(coder: NSCoder) { isTranslating = false; localLanguage = ""; remoteLanguage = ""; super.init(coder: coder) }
+    /// completes the action, saying which engine translates
+    open func fulfill(using translationEngine: CXTranslationEngine) { _engine = translationEngine; fulfill() }
+    override var _name: String { isTranslating ? "translate \(localLanguage)-\(remoteLanguage)" : "stop translating" }
+}
+
 @objc(CXTransaction) open class CXTransaction: NSObject, NSCopying, @unchecked Sendable {
     open private(set) var uuid = UUID()
     open var isComplete: Bool { actions.allSatisfy { $0.isComplete } }
@@ -222,6 +251,7 @@ public func ~= (code: CXErrorCodeCallDirectoryManagerError.Code, error: Error) -
     open internal(set) var hasEnded = false
     var update = CXCallUpdate()
     var muted = false
+    var _translation: (String, String)?                     /* Live Translation: the local and remote languages */
     var announced = false                   /* the shell knows it */
     init(uuid: UUID, outgoing: Bool) { self.uuid = uuid; isOutgoing = outgoing }
     open func isEqual(to call: CXCall) -> Bool { uuid == call.uuid }
@@ -258,6 +288,8 @@ public func ~= (code: CXErrorCodeCallDirectoryManagerError.Code, error: Error) -
     @objc(provider:performSetMutedCallAction:) optional func provider(_ provider: CXProvider, perform action: CXSetMutedCallAction)
     @objc(provider:performSetGroupCallAction:) optional func provider(_ provider: CXProvider, perform action: CXSetGroupCallAction)
     @objc(provider:performPlayDTMFCallAction:) optional func provider(_ provider: CXProvider, perform action: CXPlayDTMFCallAction)
+    @available(iOS 26.0, *)
+    @objc(provider:performSetTranslatingCallAction:) optional func provider(_ provider: CXProvider, perform action: CXSetTranslatingCallAction)
     @objc(provider:timedOutPerformingAction:) optional func provider(_ provider: CXProvider, timedOutPerforming action: CXAction)
     @objc(provider:didActivateAudioSession:) optional func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession)
     @objc(provider:didDeactivateAudioSession:) optional func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession)
@@ -356,7 +388,8 @@ public func ~= (code: CXErrorCodeCallDirectoryManagerError.Code, error: Error) -
             case let a as CXSetMutedCallAction: handled = d.provider?(self, perform: a)
             case let a as CXSetGroupCallAction: handled = d.provider?(self, perform: a)
             case let a as CXPlayDTMFCallAction: handled = d.provider?(self, perform: a)
-            default: break
+            default:
+                if #available(iOS 26.0, *), let a = action as? CXSetTranslatingCallAction { handled = d.provider?(self, perform: a) }
             }
             if handled == nil {
                 NSLog("isim: CallKit: the provider's delegate does not handle %@", String(describing: type(of: action)))
@@ -500,6 +533,7 @@ enum _CallKit {
         if u.supportsGrouping { caps += "g" }
         if u.supportsDTMF { caps += "d" }
         if conf?.supportsVideo == true { caps += "v" }
+        if conf?._supportsAudioTranslation == true { caps += "t" }
         let clean = { (s: String) in s.replacingOccurrences(of: "\u{1f}", with: " ").replacingOccurrences(of: "\n", with: " ") }
         let c = [clean(callerName(u)), clean(u.remoteHandle?.value ?? ""), u.hasVideo ? "1" : "0", extra, caps, clean(conf?.localizedName ?? "")].joined(separator: "\u{1f}")
         isim_shell_request(Int32(ISIM_SHELL_SYSTEM), verb, call.uuid.uuidString, c)
@@ -540,6 +574,10 @@ enum _CallKit {
                 if live >= p.configuration.maximumCallGroups { return CXErrorCodeRequestTransactionError(.maximumCallGroupsReached) }
             } else if existing == nil { return CXErrorCodeRequestTransactionError(.unknownCallUUID) }
             if a is CXAnswerCallAction, let c = existing, c.isOutgoing || c.hasConnected { return CXErrorCodeRequestTransactionError(.invalidAction) }
+            if #available(iOS 26.0, *), a is CXSetTranslatingCallAction, !p.configuration._supportsAudioTranslation {
+                NSLog("isim: CallKit: translating a call needs CXProviderConfiguration.supportsAudioTranslation")
+                return CXErrorCodeRequestTransactionError(.invalidAction)
+            }
         }
         return nil
     }
@@ -580,7 +618,12 @@ enum _CallKit {
             guard ok, let c = call else { return }
             c.muted = m.isMuted
             state(c, m.isMuted ? "muted" : "unmuted")
-        default: break
+        default:
+            if #available(iOS 26.0, *), let t = a as? CXSetTranslatingCallAction, ok, let c = call {
+                c._translation = t.isTranslating ? (t.localLanguage, t.remoteLanguage) : nil
+                if t.isTranslating { NSLog("isim: CallKit: translating call %@ (%@ and %@, %@ engine)", c.uuid.uuidString, t.localLanguage, t.remoteLanguage, t._engine == .custom ? "custom" : "default") }
+                state(c, t.isTranslating ? "translating \(t.localLanguage) \(t.remoteLanguage)" : "translation-off")
+            }
         }
     }
 
@@ -603,6 +646,13 @@ enum _CallKit {
         case "mute": action = CXSetMutedCallAction(call: uuid, muted: arg == "1")
         case "hold": action = CXSetHeldCallAction(call: uuid, onHold: arg == "1")
         case "dtmf": action = CXPlayDTMFCallAction(call: uuid, digits: arg, type: .singleTone)
+        case "translate":
+            guard #available(iOS 26.0, *) else { return }
+            /* the person's language, and the other's: isim's default is Spanish (iOS asks); "1 LANG" names it */
+            let words = arg.split(separator: " ").map(String.init)
+            let local = Locale.current.language.languageCode?.identifier ?? "en"
+            let remote = words.count > 1 ? words[1] : (calls[uuid]?._translation?.1 ?? (local == "es" ? "en" : "es"))
+            action = CXSetTranslatingCallAction(call: uuid, isTranslating: words.first == "1", localLanguage: local, remoteLanguage: remote)
         default: return
         }
         NSLog("isim: CallKit: the user chose %@ for call %@", (action as? CXCallAction)?._name ?? p[0], p[1])

@@ -44,6 +44,20 @@ final class _PKObjCDelegate: NSObject, PKPushRegistryDelegate {
             completion()
         }
     }
+    /// iOS 26: pushRegistry:didReceiveIncomingVoIPPushWithPayload:metadata:withCompletionHandler: when the object has it
+    @available(iOS 26.4, *)
+    func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingVoIPPushWith payload: PKPushPayload, metadata: PKVoIPPushMetadata,
+                      withCompletionHandler completion: @escaping @Sendable () -> Void) {
+        guard let t = target, t.responds(to: NSSelectorFromString("pushRegistry:didReceiveIncomingVoIPPushWithPayload:metadata:withCompletionHandler:")) else {
+            pushRegistry(registry, didReceiveIncomingPushWith: payload, for: payload.type, completion: completion)
+            return
+        }
+        on { [weak self] in
+            guard let t = self?.target else { completion(); return }
+            let block: @convention(block) () -> Void = { completion() }
+            _pkSend(t, "pushRegistry:didReceiveIncomingVoIPPushWithPayload:metadata:withCompletionHandler:", registry, payload, metadata, block as AnyObject)
+        }
+    }
     func pushRegistry(_ registry: PKPushRegistry, didInvalidatePushTokenFor type: PKPushType) {
         on { [weak self] in
             guard let t = self?.target else { return }
@@ -85,6 +99,10 @@ final class _PKQueueBox {
 extension PKPushCredentials {
     @objc(type) var _objc_type: String { type.rawValue }
     @objc(token) var _objc_token: Data { token }
+}
+@available(iOS 26.4, *)
+extension PKVoIPPushMetadata {
+    @objc(mustReport) var _objc_mustReport: Bool { mustReport }
 }
 extension PKPushPayload {
     @objc(type) var _objc_type: String { type.rawValue }

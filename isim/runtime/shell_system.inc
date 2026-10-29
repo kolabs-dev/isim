@@ -68,7 +68,7 @@ struct nc_item { char path[512], id[256], title[256], body[512], icon[512], reco
 static struct nc_item ncl[64]; static int nnc;
 
 struct sys_el { char id[128], text[192]; struct rectf r; int kind, arg; };
-enum { EL_NONE, EL_CARD, EL_NC_ITEM, EL_NC_GROUP, EL_NC_LESS, EL_NX_EXT, EL_NX_MEDIA, EL_NC_CLEAR, EL_CC_TOGGLE, EL_CC_SLIDER, EL_BG, EL_NX_CONTENT, EL_NX_ACTION, EL_NX_SEND, EL_LA, EL_LW, EL_SIRI, EL_CC_X /* shell_controls.inc */, EL_NP, EL_CALL /* shell_calls.inc */, EL_ALARM /* shell_alarms.inc */ };
+enum { EL_NONE, EL_CARD, EL_NC_ITEM, EL_NC_GROUP, EL_NC_LESS, EL_NX_EXT, EL_NX_MEDIA, EL_NC_CLEAR, EL_CC_TOGGLE, EL_CC_SLIDER, EL_BG, EL_NX_CONTENT, EL_NX_ACTION, EL_NX_SEND, EL_LA, EL_LW, EL_SIRI, EL_CC_X /* shell_controls.inc */, EL_NP, EL_CALL /* shell_calls.inc */, EL_ALARM /* shell_alarms.inc */, EL_BGTASK /* shell_bgtasks.inc */ };
 static struct sys_el els[96]; static int nels;
 
 /* Control Center state */
@@ -105,6 +105,8 @@ static int calls_visible(void); static void calls_draw(cairo_t *c); static int c
 static int calls_handle_msg(int from, const struct shell_msg *m);             /* shell_calls.inc */
 static int alarms_visible(void); static void alarms_draw(cairo_t *c); static int alarms_input(const struct isim_event *ev); static void alarms_tick(void); static int alarms_home(void); static int alarms_fullscreen(void);
 static int alarms_handle_msg(int from, const struct shell_msg *m);            /* shell_alarms.inc */
+static int bgtasks_handle_msg(int from, const struct shell_msg *m); static int bgtasks_input(const struct isim_event *ev);
+static void bgtasks_tick(void); static void bt_add_cancel(int i, double x, double y, double w, double h);   /* shell_bgtasks.inc */
 static int sys_visible(void) { return ov != OV_NONE || siri_visible() || calls_visible() || alarms_visible(); }
 static int sys_hides_banners(void) { return locked || ov != OV_NONE; }      /* Focus: focus_silences (shell_controls.inc) */
 static void shell_launch(const char *bundle, const char *exe, const char *url);
@@ -835,6 +837,7 @@ static void la_draw_island(cairo_t *c) {
         double w = fmin(370, r.w - 8);
         la_img(c, las[e].exp, r.x + (r.w - w) / 2, r.y + 10, w, w * 160 / 370);
         el_add("dynamic-island", "expanded", r, EL_NONE, e);
+        bt_add_cancel(e, r.x + (r.w - w) / 2, r.y + 10, w, w * 160 / 370);
         return;
     }
     int idx[LA_MAX], n = la_island_list(idx);
@@ -929,6 +932,7 @@ static double la_draw_lock(cairo_t *c, double top) {           /* returns the he
         }
         char eid[32]; if (k) snprintf(eid, sizeof eid, "live-activity-%d", k + 1); else snprintf(eid, sizeof eid, "live-activity");
         el_add(eid, it->id, (struct rectf){ x, y, w, h }, EL_LA, order[k]);
+        bt_add_cancel(order[k], x, y, w, h);                    /* a continued processing task's cancel button */
         y += h + 10;
     }
     return y - top;
@@ -1992,6 +1996,7 @@ static double last_home_key;
 static int sys_input(const struct isim_event *ev) {
     if (siri_input(ev)) return 1;
     if (alarms_input(ev)) return 1;                       /* an alarm going off is above a call */
+    if (bgtasks_input(ev)) return 1;                      /* a continued processing task's cancel button */
     if (calls_input(ev)) return 1;
     if (ev->type == EV_KEY && (ev->mods & SDL_KMOD_CTRL) && !(ev->mods & SDL_KMOD_SHIFT) && (ev->key == 'l' || ev->key == 'L')) {
         if (locked) sys_unlock(); else sys_lock(); return 1;
@@ -2145,6 +2150,7 @@ static void sys_tick(void) {
     siri_tick();
     calls_tick();
     alarms_tick();
+    bgtasks_tick();
     nx_poll();
     if (ov == OV_NONE) return;
     static double last_draw;
@@ -2157,6 +2163,7 @@ static void sys_handle_msg(int from, const struct shell_msg *m) {
     if (ctl_handle_msg(from, m)) return;                         /* Focus and controls (shell_controls.inc) */
     if (calls_handle_msg(from, m)) return;                       /* CallKit calls (shell_calls.inc) */
     if (alarms_handle_msg(from, m)) return;                      /* AlarmKit alarms (shell_alarms.inc) */
+    if (bgtasks_handle_msg(from, m)) return;                     /* continued processing tasks (shell_bgtasks.inc) */
     if (!strcmp(verb, "appinfo")) {
         struct sys_appinfo *ai = sys_info(m->b);
         if (!ai) { if (nappinfo >= 128) return; ai = &appinfo[nappinfo++]; snprintf(ai->path, sizeof ai->path, "%s", m->b); }
@@ -2450,3 +2457,4 @@ static void sys_notify(int i, const struct shell_msg *m) {
 #include "shell_siri.inc"
 #include "shell_calls.inc"
 #include "shell_alarms.inc"
+#include "shell_bgtasks.inc"

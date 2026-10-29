@@ -29,13 +29,17 @@ def keep(img, name):
         img.save(os.path.join(d, f"{name}.png"))
 
 
-def test_services_objc(launch, device_data):
+def test_services_objc(launch, device_data, ios):
     dev = launch(None, install=["HelloServicesObjC"])
     dev.send(f"launch {APP}")
     dev.wait_log(r"^sy voip token 32 bytes type=PKPushTypeVoIP same=1$")
     dev.wait_log(r"^sy provider began queue=1$")
     dev.wait_log(r"^sy bg registered=1 other=0 submitted=1 error=nil refused=1 error=BGTaskSchedulerErrorDomain/3$")
     dev.wait_log(r"^sy bg pending 1 first=dev\.isim\.samples\.HelloServicesObjC\.refresh date=1$")
+    if int(ios[0] or os.environ.get("ISIM_OS_VERSION", "18")) >= 26:                      # issue #413
+        dev.wait_log(r"^sy continued title=Export strategy=0 gpu=0 submitted=0 error=BGTaskSchedulerErrorDomain/3 translate=1 en-de$")
+    else:
+        dev.wait_log(r"^sy continued unavailable$")
     dev.wait_log(r"^sy spotlight available=1 expires=1$")
     dev.wait_log(r"^sy spotlight indexed note-1 error=nil activity=com\.apple\.corespotlightitem$")
     dev.wait_log(r"^sy spotlight attributes type=public\.text author=Anna Haro mood=calm bad key=1$")      # issue #412

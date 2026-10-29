@@ -41,3 +41,26 @@ extension BGTaskScheduler {
         getPendingTaskRequests { completionHandler($0) }
     }
 }
+
+@available(iOS 26.0, *)
+extension BGContinuedProcessingTaskRequest {
+    @objc(initWithIdentifier:title:subtitle:) convenience init(_objcIdentifier identifier: String, title: String, subtitle: String) {
+        self.init(identifier: identifier, title: title, subtitle: subtitle)
+    }
+    @objc(title) var _objc_title: String { get { title } set { title = newValue } }
+    @objc(subtitle) var _objc_subtitle: String { get { subtitle } set { subtitle = newValue } }
+    @objc(strategy) var _objc_strategy: Int { get { strategy.rawValue } set { strategy = SubmissionStrategy(rawValue: newValue) ?? .queue } }
+    @objc(requiredResources) var _objc_requiredResources: Int {
+        get { requiredResources.rawValue } set { requiredResources = Resources(rawValue: newValue) }
+    }
+}
+@available(iOS 26.0, *)
+extension BGContinuedProcessingTask {
+    @objc(title) var _objc_title: String { title }
+    @objc(subtitle) var _objc_subtitle: String { subtitle }
+    @objc(updateTitle:subtitle:) func _objc_updateTitle(_ title: String, subtitle: String) { updateTitle(title, subtitle: subtitle) }
+}
+@available(iOS 26.0, *)
+extension BGTaskScheduler {
+    @objc(supportedResources) class var _objc_supportedResources: Int { supportedResources.rawValue }
+}

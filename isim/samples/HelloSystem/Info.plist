@@ -72,6 +72,7 @@
 	<array>
 		<string>dev.isim.samples.HelloSystem.refresh</string>
 		<string>dev.isim.samples.HelloSystem.cleanup</string>
+		<string>dev.isim.samples.HelloSystem.export.*</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>

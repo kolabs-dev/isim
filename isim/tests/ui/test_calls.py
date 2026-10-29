@@ -3,8 +3,10 @@ that is not running, which is launched in the background; an app that reports no
 and CallKit (the incoming call banner and the full-screen incoming call on the Lock Screen, the ringtone, answering
 and declining, the call screen's mute / keypad (DTMF) / hold / speaker / app buttons, Home hiding it behind the green
 call indicator, ending from the call screen, from the app and from the other side; outgoing calls placed with
-CXCallController; CXCallObserver; the request checks; Call Directory status). System UI: os_matrix. Screenshots also
-go to ISIM_SHOTS_DIR when it is set."""
+CXCallController; CXCallObserver; the request checks; Call Directory status). iOS 26: Live Translation (issue #413:
+CXSetTranslatingCallAction from the call screen's button and from CXCallController); iOS 26.4 (isim: 27): VoIP pushes
+with PKVoIPPushMetadata, mustReport false in the foreground. System UI: os_matrix. Screenshots also go to
+ISIM_SHOTS_DIR when it is set."""
 import os
 
 import pytest
@@ -24,6 +26,10 @@ def keep(img, name):
         os.makedirs(d, exist_ok=True)
         img.save(os.path.join(d, f"{name}.png"))
     return img
+
+
+def os_major(ios):
+    return int(ios[0] or os.environ.get("ISIM_OS_VERSION", "18"))
 
 
 def push(dev, payload):
@@ -159,9 +165,49 @@ def test_not_running_and_locked(launch):
     dev.wait_log(r"HelloCalls: audio session deactivated")
 
 
-def test_voip_push_without_a_call(launch):
-    """iOS 13+: an app that reports no incoming call for a VoIP push is terminated"""
+def test_voip_push_without_a_call(launch, ios):
+    """iOS 13+: an app that reports no incoming call for a VoIP push is terminated; iOS 26.4: not while it is in the
+    foreground (PKVoIPPushMetadata.mustReport is false)"""
     dev = started(launch)
+    if os_major(ios) >= 27:
+        push(dev, "noreport.apns")                                # in the foreground: no report needed
+        dev.wait_log(r"HelloCalls: voip push metadata mustReport=false")
+        dev.wait_log(r"HelloCalls: not reporting a call")
+        dev.send("home")
+        dev.wait_log(r"isim shell: home")
     push(dev, "noreport.apns")
-    dev.wait_log(r"HelloCalls: not reporting a call")
+    if os_major(ios) >= 27:
+        dev.wait_log(r"HelloCalls: voip push metadata mustReport=true")
+    dev.wait_log(r"HelloCalls: not reporting a call", count=2 if os_major(ios) >= 27 else 1)
     dev.wait_log(r"isim: PushKit: terminating the app: it never posted an incoming call")
+
+
+def test_live_translation(launch, ios):
+    """iOS 26: the call screen's Live Translation button and an app's CXSetTranslatingCallAction"""
+    dev = started(launch)
+    push(dev, "incoming.apns")
+    dev.wait_dump(r"id=call-banner")
+    dev.tap_id("call-accept")
+    dev.wait_log(r"isim shell: call with Alice Appleseed connected")
+    if os_major(ios) < 26:                                        # no translation before iOS 26
+        dev.wait_dump(r"id=call-end text=End")
+        assert "id=call-translate" not in dev.log, "no Live Translation button before iOS 26"
+        dev.tap_id("call-end")
+        return
+    dev.wait_dump(r"id=call-translate text=Live Translation")
+    dev.tap_id("call-translate")
+    dev.wait_log(r"HelloCalls: translate en and es")
+    dev.wait_log(r"isim: CallKit: translating call \S+ \(en and es, default engine\)")
+    dev.wait_dump(r"id=call-translate text=English ↔ Spanish")
+    keep(dev.wait_shot_still(), "call-translation")
+    dev.tap_id("call-translate")                                  # off again
+    dev.wait_log(r"HelloCalls: stop translating")
+    dev.wait_dump(r"id=call-translate text=Live Translation")
+    dev.send("home")
+    dev.send(f"launch {APP}")
+    dev.wait_tap_id("translate")                                  # the app asks for French
+    dev.wait_log(r"HelloCalls: request translate error=nil")
+    dev.wait_log(r"HelloCalls: translate en and fr")
+    dev.wait_log(r"isim shell: Live Translation on for the call with Alice Appleseed \(en, fr\)")
+    dev.tap_id("end-call")
+    dev.wait_log(r"HelloCalls: audio session deactivated")

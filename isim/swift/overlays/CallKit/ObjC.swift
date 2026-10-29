@@ -52,6 +52,8 @@ final class _CXObjCProviderDelegate: NSObject, CXProviderDelegate {
     func provider(_ provider: CXProvider, perform action: CXSetMutedCallAction) { on(NSSelectorFromString("provider:performSetMutedCallAction:"), provider, action) }
     func provider(_ provider: CXProvider, perform action: CXSetGroupCallAction) { on(NSSelectorFromString("provider:performSetGroupCallAction:"), provider, action) }
     func provider(_ provider: CXProvider, perform action: CXPlayDTMFCallAction) { on(NSSelectorFromString("provider:performPlayDTMFCallAction:"), provider, action) }
+    @available(iOS 26.0, *)
+    func provider(_ provider: CXProvider, perform action: CXSetTranslatingCallAction) { on(NSSelectorFromString("provider:performSetTranslatingCallAction:"), provider, action) }
     func provider(_ provider: CXProvider, timedOutPerforming action: CXAction) { on(NSSelectorFromString("provider:timedOutPerformingAction:"), provider, action) }
     func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) { on(NSSelectorFromString("provider:didActivateAudioSession:"), provider, audioSession) }
     func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) { on(NSSelectorFromString("provider:didDeactivateAudioSession:"), provider, audioSession) }
@@ -103,6 +105,7 @@ extension CXProviderConfiguration {
     @objc(maximumCallsPerCallGroup) var _objc_maximumCallsPerCallGroup: Int { get { maximumCallsPerCallGroup } set { maximumCallsPerCallGroup = newValue } }
     @objc(includesCallsInRecents) var _objc_includesCallsInRecents: Bool { get { includesCallsInRecents } set { includesCallsInRecents = newValue } }
     @objc(supportsVideo) var _objc_supportsVideo: Bool { get { supportsVideo } set { supportsVideo = newValue } }
+    @objc(supportsAudioTranslation) var _objc_supportsAudioTranslation: Bool { get { _supportsAudioTranslation } set { _supportsAudioTranslation = newValue } }
     @objc(supportedHandleTypes) var _objc_supportedHandleTypes: Set<NSNumber> {
         get { Set(supportedHandleTypes.map { NSNumber(value: $0.rawValue) }) }
         set { supportedHandleTypes = Set(newValue.compactMap { CXHandle.HandleType(rawValue: Int(truncating: $0)) }) }
@@ -158,6 +161,17 @@ extension CXPlayDTMFCallAction {
     }
     @objc(digits) var _objc_digits: String { get { digits } set { digits = newValue } }
     @objc(type) var _objc_type: ActionType { get { type } set { type = newValue } }
+}
+@available(iOS 26.0, *)
+extension CXSetTranslatingCallAction {
+    @objc(initWithCallUUID:isTranslating:localLanguage:remoteLanguage:)
+    convenience init(_objcCallUUID uuid: UUID, isTranslating: Bool, localLanguage: String, remoteLanguage: String) {
+        self.init(call: uuid, isTranslating: isTranslating, localLanguage: localLanguage, remoteLanguage: remoteLanguage)
+    }
+    @objc(isTranslating) var _objc_isTranslating: Bool { isTranslating }
+    @objc(localLanguage) var _objc_localLanguage: String { localLanguage }
+    @objc(remoteLanguage) var _objc_remoteLanguage: String { remoteLanguage }
+    @objc(fulfillUsingTranslationEngine:) func _objc_fulfill(using engine: CXTranslationEngine) { fulfill(using: engine) }
 }
 extension CXTransaction {
     @objc(initWithActions:) convenience init(_objcActions actions: [CXAction]) { self.init(actions: actions) }

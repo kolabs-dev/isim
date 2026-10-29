@@ -6,7 +6,10 @@
 // PushKit (the _IsimPushKitPayload notification, queued until a registry wants VoIP pushes) and the registry's
 // delegate gets pushRegistry(_:didReceiveIncomingPushWith:for:completion:). Like iOS 13+, an app that does not report
 // a new incoming call to CallKit before it calls the completion handler (or returns from the older method) is
-// terminated. Not on isim: file provider pushes are never delivered; complication pushes (watchOS) neither.
+// terminated. iOS 26.4: a delegate that implements pushRegistry(_:didReceiveIncomingVoIPPushWith:metadata:...) gets it
+// instead, with PKVoIPPushMetadata: mustReport is false while the app is in the foreground (the case Apple names; it
+// does not document the others), and then not reporting a call does not terminate the app; true otherwise.
+// Not on isim: file provider pushes are never delivered; complication pushes (watchOS) neither.
 @_exported import Foundation
 import isim_host
 
@@ -33,6 +36,15 @@ public let PKPushTypeFileProvider = PKPushType.fileProvider
     init(type: PKPushType, payload: [AnyHashable: Any]) { self.type = type; dictionaryPayload = payload }
 }
 
+/// iOS 26: what the system says about a VoIP push
+@available(iOS 26.4, *)
+@objc(PKVoIPPushMetadata) public final class PKVoIPPushMetadata: NSObject, @unchecked Sendable {
+    /// the app must report a call (CallKit) or conversation (LiveCommunicationKit) for this push, or it is terminated
+    public let mustReport: Bool
+    init(mustReport: Bool) { self.mustReport = mustReport }
+    public override var description: String { "<PKVoIPPushMetadata: mustReport=\(mustReport)>" }
+}
+
 /// a Swift protocol (PKPushType is a Swift struct here, not an NSString): the optional methods have default implementations
 public protocol PKPushRegistryDelegate: NSObjectProtocol {
     func pushRegistry(_ registry: PKPushRegistry, didUpdate pushCredentials: PKPushCredentials, for type: PKPushType)
@@ -40,8 +52,27 @@ public protocol PKPushRegistryDelegate: NSObjectProtocol {
     @available(*, deprecated, message: "use pushRegistry(_:didReceiveIncomingPushWith:for:completion:)")
     func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingPushWith payload: PKPushPayload, for type: PKPushType)
     func pushRegistry(_ registry: PKPushRegistry, didInvalidatePushTokenFor type: PKPushType)
+    @available(iOS 26.4, *)
+    func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingVoIPPushWith payload: PKPushPayload, metadata: PKVoIPPushMetadata,
+                      withCompletionHandler completion: @escaping @Sendable () -> Void)
+    @available(iOS 26.4, *)
+    func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingVoIPPushWith payload: PKPushPayload, metadata: PKVoIPPushMetadata) async
 }
 extension PKPushRegistryDelegate {
+    /// iOS 26 delegates implement one of the two VoIP methods; the defaults lead to the async one, then the older method
+    @available(iOS 26.4, *)
+    public func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingVoIPPushWith payload: PKPushPayload, metadata: PKVoIPPushMetadata,
+                             withCompletionHandler completion: @escaping @Sendable () -> Void) {
+        nonisolated(unsafe) let me = self
+        Task { await me.pushRegistry(registry, didReceiveIncomingVoIPPushWith: payload, metadata: metadata); completion() }
+    }
+    @available(iOS 26.4, *)
+    public func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingVoIPPushWith payload: PKPushPayload, metadata: PKVoIPPushMetadata) async {
+        nonisolated(unsafe) let me = self
+        await withCheckedContinuation { (k: CheckedContinuation<Void, Never>) in
+            _PKVoIPDefaults.older(me, registry, payload) { k.resume() }
+        }
+    }
     /// apps that only implement the older method get it
     public func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingPushWith payload: PKPushPayload, for type: PKPushType, completion: @escaping () -> Void) {
         (_PKOlderIncoming() as any _PKOlderIncomingCall).call(self, registry, payload, type)
@@ -53,6 +84,14 @@ extension PKPushRegistryDelegate {
     }
     public func pushRegistry(_ registry: PKPushRegistry, didInvalidatePushTokenFor type: PKPushType) {}
 }
+/// the delegate's older VoIP method, on the registry's queue (where the delegate expects it)
+enum _PKVoIPDefaults {
+    static func older(_ d: any PKPushRegistryDelegate, _ r: PKPushRegistry, _ p: PKPushPayload, _ done: @escaping @Sendable () -> Void) {
+        nonisolated(unsafe) let d = d
+        r.queue.async { d.pushRegistry(r, didReceiveIncomingPushWith: p, for: p.type) { done() } }
+    }
+}
+
 /// the deprecated delegate method, called from a deprecated witness through this protocol (no deprecation warning in
 /// the overlay's own build)
 private protocol _PKOlderIncomingCall {
@@ -165,6 +204,14 @@ enum _PushKitStore {
         }
     }
 
+    /// UIApplication.shared.applicationState == .active (PushKit does not link UIKit)
+    static var appInForeground: Bool {
+        let read = { () -> Bool in
+            guard let app = (NSClassFromString("UIApplication") as? NSObject.Type)?.value(forKey: "sharedApplication") as? NSObject else { return false }
+            return (app.value(forKey: "applicationState") as? Int) == 0
+        }
+        return Thread.isMainThread ? read() : DispatchQueue.main.sync(execute: read)
+    }
     func deliver(_ payload: PKPushPayload, id: String) {
         queue.async { [weak self] in
             guard let self, let d = self.delegate else { return }
@@ -183,6 +230,18 @@ enum _PushKitStore {
                     NSLog("isim: PushKit: terminating the app: it never posted an incoming call to the system after receiving a PushKit VoIP push")
                     exit(1)
                 }
+            }
+            if #available(iOS 26.4, *), payload.type == .voIP {
+                let foreground = PKPushRegistry.appInForeground
+                let metadata = PKVoIPPushMetadata(mustReport: !foreground)
+                NSLog("isim: PushKit: VoIP push metadata mustReport=%@", metadata.mustReport ? "true" : "false")
+                d.pushRegistry(self, didReceiveIncomingVoIPPushWith: payload, metadata: metadata) {
+                    DispatchQueue.main.async {
+                        if metadata.mustReport { check(); return }
+                        NSLog("isim: PushKit: VoIP push %@ handled (%@)", id, PKPushRegistry.reportedCalls > before ? "an incoming call was reported to CallKit" : "no call needed: the app is in the foreground")
+                    }
+                }
+                return
             }
             d.pushRegistry(self, didReceiveIncomingPushWith: payload, for: payload.type) { check() }
         }

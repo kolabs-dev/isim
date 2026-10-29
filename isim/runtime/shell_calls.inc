@@ -2,8 +2,10 @@
  * screens; isim has no telephony, so the calls are the apps' VoIP calls (CallKit, swift/overlays/CallKit).
  *
  * The app reports calls ("call-incoming UUID caller\x1fhandle\x1fvideo\x1fringtone\x1fcaps\x1fapp name", "call-outgoing",
- * "call-update", "call-state UUID connecting|connected|held|unheld|muted|unmuted", "call-end UUID REASON") and gets
- * what the user does as "call-action answer|end|mute|hold|dtmf|speaker UUID [ARG]".
+ * "call-update", "call-state UUID connecting|connected|held|unheld|muted|unmuted|translating LOCAL REMOTE|translation-off",
+ * "call-end UUID REASON") and gets what the user does as "call-action answer|end|mute|hold|dtmf|speaker|translate UUID
+ * [ARG]". A provider that supports audio translation (caps "t", iOS 26) gets a Live Translation button under the caller
+ * on the call screen, which shows the two languages while the call is translated.
  *   Incoming: while the device is in use, a banner at the top (in the Dynamic Island's black on iPhones that have one)
  *   with Decline and Accept; tapping it opens the full-screen call; on the Lock Screen the full-screen call with
  *   "slide to answer". The ringtone repeats (the provider's ringtoneSound, else isim's own), silent in Silent Mode.
@@ -11,13 +13,14 @@
  *   swiping up hides it; then the call shows as the green indicator around the clock (in the Dynamic Island: a phone
  *   and the duration in green), which brings the call screen back. Calls the app placed itself show only the indicator.
  * Script ids: call-banner, call-accept, call-decline, call-mute, call-speaker, call-video, call-hold, call-add, call-app,
- * call-keypad, call-key-0..9 / call-key-star / call-key-hash, call-keypad-hide, call-end, call-pill. */
+ * call-keypad, call-key-0..9 / call-key-star / call-key-hash, call-keypad-hide, call-end, call-pill, call-translate. */
 
 #define CALL_MAX 4
 static struct call {
     char uuid[64], path[512], name[128], handle[128], appname[96], ringtone[512], caps[8];
     int client, video, incoming, state;            /* state: 0 ringing / dialing, 1 connecting, 2 connected */
-    int muted, held, speaker, ring_buf;
+    int muted, held, speaker, ring_buf, translating;
+    char trans_local[16], trans_remote[16];
     double t0, t_conn, last_ring;
 } calls[CALL_MAX];
 static int ncalls;
@@ -135,6 +138,11 @@ static int calls_handle_msg(int from, const struct shell_msg *m) {
         else if (!strcmp(m->c, "connected")) { if (c->state < 2) c->t_conn = now(); c->state = 2; fprintf(stderr, "isim shell: call with %s connected\n", c->name); }
         else if (!strcmp(m->c, "held") || !strcmp(m->c, "unheld")) c->held = m->c[0] == 'h';
         else if (!strcmp(m->c, "muted") || !strcmp(m->c, "unmuted")) c->muted = m->c[0] == 'm';
+        else if (!strncmp(m->c, "translating ", 12)) {
+            c->translating = 1;
+            if (sscanf(m->c + 12, "%15s %15s", c->trans_local, c->trans_remote) != 2) c->trans_remote[0] = 0;
+            fprintf(stderr, "isim shell: Live Translation on for the call with %s (%s, %s)\n", c->name, c->trans_local, c->trans_remote);
+        } else if (!strcmp(m->c, "translation-off")) { c->translating = 0; fprintf(stderr, "isim shell: Live Translation off for the call with %s\n", c->name); }
         call_redraw();
     } else if (!strcmp(verb, "call-end")) {
         call_remove(c, m->c[0] ? m->c : "ended");
@@ -225,10 +233,33 @@ static void call_draw_banner(cairo_t *c, struct call *k) {
 }
 static const char *const call_keys[12] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#" };
 static const char *const call_key_letters[12] = { "", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ", "", "+", "" };
+/* a language code as a name (the languages Live Translation offers; others as their code) */
+static const char *call_language(const char *code) {
+    static const char *names[][2] = { { "en", "English" }, { "es", "Spanish" }, { "fr", "French" }, { "de", "German" }, { "it", "Italian" },
+                                      { "pt", "Portuguese" }, { "ja", "Japanese" }, { "ko", "Korean" }, { "zh", "Chinese" } };
+    for (size_t i = 0; i < sizeof names / sizeof *names; i++) if (!strncmp(code, names[i][0], 2) && (!code[2] || code[2] == '-' || code[2] == '_')) return names[i][1];
+    return code;
+}
+/* Live Translation (iOS 26): a capsule under the caller; on, it names the two languages */
+static void call_draw_translate(cairo_t *c, struct call *k) {
+    if (!strchr(k->caps, 't') || call_keypad) return;
+    char label[96];
+    if (k->translating) snprintf(label, sizeof label, "%s ↔ %s", call_language(k->trans_local), call_language(k->trans_remote));
+    else snprintf(label, sizeof label, "Live Translation");
+    double w = 230, h = 36, x = (dev.width - w) / 2, y = fmax(dev.safe_top, 20) + 150;
+    if (sys_os() >= 26 && !k->translating) sys_glass(c, x, y, w, h, h / 2, NULL, 1 | 2 | 4);
+    cairo_new_path(c); sys_round(c, x, y, w, h, h / 2);
+    cairo_set_source_rgba(c, 1, 1, 1, k->translating ? 1 : 0.22); cairo_fill(c);
+    double fg = k->translating ? 0.1 : 1;
+    sys_symbol(c, "globe", x + 22, y + h / 2, 16, fg, fg, fg);
+    sys_text(c, label, x + 38, y + 9, w - 50, 15, PANGO_WEIGHT_SEMIBOLD, 1, 1, fg, fg, fg, 1);
+    el_add("call-translate", label, (struct rectf){ x, y, w, h }, EL_CALL, k->translating);
+}
 static void call_draw_screen(cairo_t *c, struct call *k) {
     call_background(c);
     char st[64]; call_duration(k, st, sizeof st);
     if (call_keypad && call_digits[0]) call_title(c, k, NULL, call_digits); else call_title(c, k, NULL, st);
+    call_draw_translate(c, k);
     double colx[3] = { dev.width / 2 - 100, dev.width / 2, dev.width / 2 + 100 };
     double endy = dev.height - fmax(dev.safe_bottom, 20) - 70;
     if (call_keypad) {
@@ -326,6 +357,7 @@ static void call_tap(struct sys_el *e) {
     else if (!strcmp(id, "call-mute")) { k->muted = !k->muted; call_send(k, "mute %s %d", k->uuid, k->muted); fprintf(stderr, "isim shell: call %s\n", k->muted ? "muted" : "unmuted"); }
     else if (!strcmp(id, "call-hold")) { k->held = !k->held; call_send(k, "hold %s %d", k->uuid, k->held); fprintf(stderr, "isim shell: call %s\n", k->held ? "on hold" : "resumed"); }
     else if (!strcmp(id, "call-speaker")) { k->speaker = !k->speaker; call_send(k, "speaker %s %d", k->uuid, k->speaker); fprintf(stderr, "isim shell: speaker %s\n", k->speaker ? "on" : "off"); }
+    else if (!strcmp(id, "call-translate")) { call_send(k, "translate %s %d", k->uuid, !k->translating); fprintf(stderr, "isim shell: Live Translation %s requested\n", k->translating ? "off" : "on"); }
     else if (!strcmp(id, "call-keypad")) { call_keypad = 1; call_digits[0] = 0; }
     else if (!strcmp(id, "call-keypad-hide")) call_keypad = 0;
     else if (!strncmp(id, "call-key-", 9)) {
