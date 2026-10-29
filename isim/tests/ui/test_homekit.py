@@ -4,8 +4,10 @@ service groups, scenes and automations; finding accessories nearby and adding th
 camera's stream and snapshot. Then the accessories change from outside (`isim home set|reachable`): the delegate hears
 it and an automation runs its scene. HOMEKIT_SHOTS=DIR keeps the screenshot."""
 import os
+import re
 import subprocess
 
+import pytest
 from isimtest import ISIM, need_apps
 
 APP = "HelloHome"
@@ -74,6 +76,32 @@ def test_homekit(launch, device_data):
     listed = home(device_data, "list")
     assert "Kitchen Outlet [Kitchen]: PowerState=True OutletInUse=True" in listed, listed
     assert "Movie Night: 2 actions" in listed and "automation Hallway Motion (event, enabled)" in listed, listed
+    assert app.quit() == 0
+
+
+def inline_title(app):
+    """The navigation bar's inline title line in the view dump (the large title is a label in the list)."""
+    dump = app.view_dump()
+    bar = dump[dump.index("_SUINavBar"):]
+    return re.search(r"^.*UILabel .* text=My Home$", bar, re.M).group(0)
+
+
+@pytest.mark.os_matrix
+def test_homekit_list_title(launch, device_data):
+    """The list is rebuilt (`.id(model.tick)`) when the home changes. Scrolled down, the bar shows the inline title;
+    the rebuilt list starts at its top, where only the large title shows (#776: the bar kept the inline one)."""
+    need_apps(APP)
+    home(device_data, "seed")
+    app = launch(APP, env={"ISIM_HOMEKIT_PERMISSION": "allow"})
+    app.wait_view("Living Room Lamp")
+    assert "alpha<1" in inline_title(app), "at the top: no inline title"
+    app.drag(200, 700, 200, 300, 0.4)
+    app.wait_until(lambda: "alpha<1" not in inline_title(app), what="the inline title once the large one scrolled away")
+    home(device_data, "reachable", "Bedroom Blinds", "off")
+    app.wait_log(r"home: reachability Bedroom Blinds false")
+    app.wait_view("No Response")
+    app.wait_until(lambda: "alpha<1" in inline_title(app), what="the rebuilt list at its top: no inline title")
+    assert re.search(r"_SUIListScroll .* text=offset 0,", app.view_dump()), "the rebuilt list is at its top"
     assert app.quit() == 0
 
 
