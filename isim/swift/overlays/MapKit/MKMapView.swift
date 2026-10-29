@@ -115,6 +115,7 @@ open class MKMapCameraBoundary: NSObject, @unchecked Sendable {
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer
     func mapView(_ mapView: MKMapView, didAdd renderers: [MKOverlayRenderer])
     func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, didChange newState: MKAnnotationView.DragState, fromOldState oldState: MKAnnotationView.DragState)
+    func mapView(_ mapView: MKMapView, clusterAnnotationForMemberAnnotations memberAnnotations: [MKAnnotation]) -> MKClusterAnnotation
 }
 extension MKMapViewDelegate {
     public func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {}
@@ -138,6 +139,9 @@ extension MKMapViewDelegate {
     public func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer { MKOverlayRenderer(overlay: overlay) }
     public func mapView(_ mapView: MKMapView, didAdd renderers: [MKOverlayRenderer]) {}
     public func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, didChange newState: MKAnnotationView.DragState, fromOldState oldState: MKAnnotationView.DragState) {}
+    public func mapView(_ mapView: MKMapView, clusterAnnotationForMemberAnnotations memberAnnotations: [MKAnnotation]) -> MKClusterAnnotation {
+        MKClusterAnnotation(memberAnnotations: memberAnnotations)
+    }
 }
 
 /// the basemap layer: the map plane, drawn unrotated around `MKMapView._baseAnchor` (the view's centre) and turned
@@ -253,6 +257,12 @@ final class _MKAttributionView: UIView {
     var _reuse: [String: [MKAnnotationView]] = [:]
     var _registered: [String: MKAnnotationView.Type] = [:]
     var _selected: MKAnnotation?
+    /// the cluster annotations shown now (not in `annotations`, as on iOS)
+    var _clusters: [MKClusterAnnotation] = []
+    var _clustering = false
+    /// the annotation view being dragged, where it was grabbed (from its anchor) and where its anchor is now
+    var _drag: (view: MKAnnotationView, annotation: MKAnnotation, grab: CGPoint)?
+    var _dragPoint = CGPoint.zero
     var _callout: _MKCalloutView?
     var _location: CLLocationManager?
     lazy var _compass: MKCompassButton = MKCompassButton(mapView: self)
@@ -292,6 +302,9 @@ final class _MKAttributionView: UIView {
         addGestureRecognizer(dbl)
         let tap = UITapGestureRecognizer(target: self, action: #selector(_tap(_:)))
         addGestureRecognizer(tap)
+        let hold = UILongPressGestureRecognizer(target: self, action: #selector(_hold(_:)))   /* dragging a draggable annotation view */
+        hold.delegate = _MKDragStarter.shared
+        addGestureRecognizer(hold)
     }
 
     // MARK: geometry
@@ -561,18 +574,25 @@ final class _MKAttributionView: UIView {
             if rects != _placedRects { _placedRects = rects; _base.setNeedsDisplay() }
         }
         let toView = _toView
-        let all = (showsUserLocation && userLocation.location != nil ? [userLocation as MKAnnotation] : []) + _annotations
-        for a in all {
-            guard let v = _views[ObjectIdentifier(a)] else { continue }
-            let p = toView(MKMapPoint(a.coordinate))
+        func place(_ a: MKAnnotation, _ v: MKAnnotationView) {
+            var p = toView(MKMapPoint(a.coordinate))
+            let dragged = _drag?.view === v
+            if dragged { p = CGPoint(x: _dragPoint.x, y: _dragPoint.y - _MKDragStarter.lift) }   /* lifted above the finger */
             let anchor = v._anchor
             v.frame.origin = CGPoint(x: p.x - anchor.x, y: p.y - anchor.y)
-            v.isHidden = !bounds.insetBy(dx: -120, dy: -120).contains(p) || (_pitch != 0 && _behindHorizon(a.coordinate))
+            v.isHidden = !dragged && (!bounds.insetBy(dx: -120, dy: -120).contains(p) || (_pitch != 0 && _behindHorizon(a.coordinate)))
             if let m = v as? MKMarkerAnnotationView {   /* titles: dark on the map, light on imagery */
                 let imagery = [.satellite, .hybrid, .satelliteFlyover, .hybridFlyover].contains(_effectiveType)
                 m.titleLabel.textColor = imagery ? .white : .label
             }
         }
+        let all = (showsUserLocation && userLocation.location != nil ? [userLocation as MKAnnotation] : []) + _annotations
+        for a in all {
+            guard let v = _views[ObjectIdentifier(a)] else { continue }
+            place(a, v)
+        }
+        _updateClusters()
+        for c in _clusters { if let v = _views[ObjectIdentifier(c)] { place(c, v) } }
         // selected on top, user location above markers
         if let s = _selected, let v = _views[ObjectIdentifier(s)] { _annotationLayer.bringSubviewToFront(v) }
         if let c = _callout, let v = c.owner {
@@ -582,6 +602,115 @@ final class _MKAttributionView: UIView {
             c.tailX = v.frame.midX + v.calloutOffset.x - x
             _annotationLayer.bringSubviewToFront(c)
         }
+    }
+
+    // MARK: clustering
+    /// adapted from MapKit: annotation views that share a clustering identifier and overlap the frame of the group's
+    /// first view (the highest display priority) become one cluster annotation, drawn instead of them. The selected and
+    /// the dragged annotation stay apart. A group that keeps its members keeps its cluster annotation.
+    func _updateClusters() {
+        guard !_clustering else { return }
+        _clustering = true
+        defer { _clustering = false }
+        var candidates: [(a: MKAnnotation, v: MKAnnotationView, id: String)] = []
+        for a in _annotations {
+            guard let v = _views[ObjectIdentifier(a)] else { continue }
+            v.cluster = nil
+            guard let id = v.clusteringIdentifier, !v.isHidden, v.dragState == .none, _drag?.view !== v, a !== _selected,
+                  !(a is MKMapFeatureAnnotation) else { continue }
+            candidates.append((a, v, id))
+        }
+        // higher display priority leads a group (the order they were added breaks ties)
+        let ordered = candidates.enumerated().sorted {
+            $0.element.v.displayPriority.rawValue != $1.element.v.displayPriority.rawValue
+                ? $0.element.v.displayPriority.rawValue > $1.element.v.displayPriority.rawValue : $0.offset < $1.offset
+        }.map(\.element)
+        var groups: [(id: String, lead: CGRect, members: [(a: MKAnnotation, v: MKAnnotationView)])] = []
+        for c in ordered {
+            if let i = groups.firstIndex(where: { $0.id == c.id && $0.lead.intersects(c.v.frame) }) { groups[i].members.append((c.a, c.v)) }
+            else { groups.append((c.id, c.v.frame, [(c.a, c.v)])) }
+        }
+        var keep: [MKClusterAnnotation] = [], added: [MKAnnotationView] = []
+        for g in groups where g.members.count > 1 {
+            let ids = Set(g.members.map { ObjectIdentifier($0.a) })
+            var cluster = _clusters.first { Set($0.memberAnnotations.map { ObjectIdentifier($0) }) == ids }
+            if cluster == nil {
+                let members = g.members.map(\.a)
+                let c = delegate?.mapView(self, clusterAnnotationForMemberAnnotations: members) ?? MKClusterAnnotation(memberAnnotations: members)
+                if c.title == nil { c.title = members.lazy.compactMap { $0.title.flatMap { $0 } }.first }
+                if c.subtitle == nil { c.subtitle = "+\(members.count - 1) more" }
+                cluster = c
+            }
+            guard let c = cluster else { continue }
+            keep.append(c)
+            var view = _views[ObjectIdentifier(c)]
+            if view == nil, let v = _makeView(for: c) { view = v; added.append(v) }
+            for m in g.members { m.v.isHidden = true; m.v.cluster = view }
+        }
+        for old in _clusters where !keep.contains(where: { $0 === old }) {
+            if old === _selected { deselectAnnotation(old, animated: false) }
+            if let v = _views.removeValue(forKey: ObjectIdentifier(old)) {
+                v.removeFromSuperview()
+                if let id = v.reuseIdentifier { v.prepareForReuse(); _reuse[id, default: []].append(v) }
+            }
+        }
+        _clusters = keep
+        if !added.isEmpty { delegate?.mapView(self, didAdd: added) }
+    }
+
+    // MARK: dragging
+    /// the draggable annotation view under a point (map view coordinates)
+    func _draggableView(at p: CGPoint) -> MKAnnotationView? {
+        for case let av as MKAnnotationView in _annotationLayer.subviews.reversed() {
+            guard !av.isHidden, av.isEnabled, let a = av.annotation, av._hitFrame.insetBy(dx: -6, dy: -6).contains(p) else { continue }
+            return av.isDraggable && !(a is MKClusterAnnotation) && !(a is MKUserLocation) ? av : nil
+        }
+        return nil
+    }
+    /// adapted from MapKit: a long press on a draggable annotation view lifts it (starting, then dragging), it follows
+    /// the finger, and lifting the finger drops it: the annotation's coordinate is set (MKPointAnnotation, or an
+    /// Objective-C annotation's setCoordinate:) before the view goes through ending to none
+    @objc func _hold(_ g: UILongPressGestureRecognizer) {
+        let p = g.location(in: self)
+        switch g.state {
+        case .began:
+            guard _drag == nil, let v = _draggableView(at: p), let a = v.annotation else { return }
+            let anchor = _toView(MKMapPoint(a.coordinate))
+            _drag = (v, a, CGPoint(x: p.x - anchor.x, y: p.y - anchor.y))
+            _dragPoint = anchor
+            _annotationLayer.bringSubviewToFront(v)
+            v.setDragState(.starting, animated: true)
+            _layoutAnnotations()
+        case .changed:
+            guard let d = _drag else { return }
+            _dragPoint = CGPoint(x: p.x - d.grab.x, y: p.y - d.grab.y)
+            _layoutAnnotations()
+        case .ended:
+            guard let d = _drag else { return }
+            _dragPoint = CGPoint(x: p.x - d.grab.x, y: p.y - d.grab.y)
+            let moved = _setCoordinate(_toMap(_dragPoint).coordinate, of: d.annotation)
+            _drag = nil
+            d.view.setDragState(moved ? .ending : .canceling, animated: true)
+            _layoutAnnotations()
+        default:
+            guard let d = _drag else { return }
+            _drag = nil
+            d.view.setDragState(.canceling, animated: true)
+            _layoutAnnotations()
+        }
+    }
+    func _setCoordinate(_ c: CLLocationCoordinate2D, of a: MKAnnotation) -> Bool {
+        if let p = a as? MKPointAnnotation { p.coordinate = c; return true }
+        guard let o = (a as? _MKObjCAnnotation)?.target ?? (a as? NSObject) else { return false }
+        let s = NSSelectorFromString("setCoordinate:")
+        guard o.responds(to: s) else { return false }
+        // CLLocationCoordinate2D is two doubles, passed like a CGPoint
+        typealias Set = @convention(c) (AnyObject, Selector, CGPoint) -> Void
+        unsafeBitCast(o.method(for: s), to: Set.self)(o, s, CGPoint(x: c.latitude, y: c.longitude))
+        return true
+    }
+    func _dragStateChanged(_ v: MKAnnotationView, from old: MKAnnotationView.DragState) {
+        delegate?.mapView(self, annotationView: v, didChange: v.dragState, fromOldState: old)
     }
 
     // MARK: annotations
@@ -606,6 +735,7 @@ final class _MKAttributionView: UIView {
                 if let id = v.reuseIdentifier { v.prepareForReuse(); _reuse[id, default: []].append(v) }
             }
         }
+        _layoutAnnotations()
     }
     open func annotations(in mapRect: MKMapRect) -> Set<AnyHashable> {
         Set(_annotations.filter { mapRect.contains(MKMapPoint($0.coordinate)) }.compactMap { $0 as? NSObject })
@@ -630,6 +760,9 @@ final class _MKAttributionView: UIView {
         var v = delegate?.mapView(self, viewFor: a)
         if v == nil {
             if a is MKUserLocation { v = MKUserLocationView(annotation: a, reuseIdentifier: nil) }
+            else if a is MKClusterAnnotation, let cls = _registered[MKMapViewDefaultClusterAnnotationViewReuseIdentifier] {
+                v = cls.init(annotation: a, reuseIdentifier: MKMapViewDefaultClusterAnnotationViewReuseIdentifier)
+            }
             else if let cls = _registered[MKMapViewDefaultAnnotationViewReuseIdentifier] { v = cls.init(annotation: a, reuseIdentifier: MKMapViewDefaultAnnotationViewReuseIdentifier) }
             else { v = MKMarkerAnnotationView(annotation: a, reuseIdentifier: nil) }
         }
@@ -774,7 +907,7 @@ final class _MKAttributionView: UIView {
     // MARK: gestures
     var _panStart = MKMapPoint()
     @objc func _pan(_ g: UIPanGestureRecognizer) {
-        guard isScrollEnabled else { return }
+        guard isScrollEnabled, _drag == nil else { return }
         switch g.state {
         case .began: _panStart = _center; _gestureBegan()
         case .changed, .ended:
@@ -882,6 +1015,17 @@ final class _MKAttributionView: UIView {
                       r.span.latitudeDelta, r.span.longitudeDelta, _annotations.count, _overlays.count, "\(_effectiveType)")
             + (_heading != 0 || _pitch != 0 ? String(format: " heading %.0f pitch %.0f", _heading, Double(_pitch)) : "")
             + (_base.labels.isEmpty ? "" : " labels " + _base.labels.joined(separator: "|"))
+    }
+}
+
+/// the long press that drags an annotation view begins only on a draggable one
+final class _MKDragStarter: NSObject, UIGestureRecognizerDelegate {
+    @MainActor static let shared = _MKDragStarter()
+    /// how far a dragged view is lifted above its anchor point
+    static let lift: CGFloat = 12
+    func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+        guard let m = g.view as? MKMapView else { return false }
+        return MainActor.assumeIsolated { m._draggableView(at: g.location(in: m)) != nil }
     }
 }
 

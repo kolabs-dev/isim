@@ -852,7 +852,7 @@ OBJC_NAMES["CoreLocation"] = {c: c for c in "CLLocationManager CLLocation CLHead
 OBJC_NAMES["UIKit"] = {c: c for c in """UIDragItem UIDragPreviewParameters UIDragPreview UITargetedDragPreview UIDropProposal UIDragInteraction
     UIDropInteraction UITableViewDropProposal UICollectionViewDropProposal UITextDropProposal UISpringLoadedInteraction""".split()}
 OBJC_NAMES["MapKit"] = {**{c: c for c in """MKMapView MKAnnotationView MKMarkerAnnotationView MKPinAnnotationView MKShape MKPointAnnotation
-                             MKUserLocation MKPlacemark MKMapItem MKLocalSearch MKMultiPoint MKPolyline MKPolygon MKCircle MKOverlayRenderer
+                             MKUserLocation MKClusterAnnotation MKPlacemark MKMapItem MKLocalSearch MKMultiPoint MKPolyline MKPolygon MKCircle MKOverlayRenderer
                              MKOverlayPathRenderer MKPolylineRenderer MKPolygonRenderer MKCircleRenderer""".split()},
                        "MKLocalSearch.Request": "MKLocalSearchRequest", "MKLocalSearch.Response": "MKLocalSearchResponse",
                        "MKDirections.Request": "MKDirectionsRequest", "MKDirections.Response": "MKDirectionsResponse"}

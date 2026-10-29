@@ -25,7 +25,8 @@ import UIKit
     open var rightCalloutAccessoryView: UIView?
     open var detailCalloutAccessoryView: UIView?
     open var isDraggable = false
-    open var dragState: DragState = .none
+    /// changes go to the map's delegate (`mapView(_:annotationView:didChange:fromOldState:)`), as MapKit observes it
+    open var dragState: DragState = .none { didSet { if dragState != oldValue { _map?._dragStateChanged(self, from: oldValue) } } }
     open var clusteringIdentifier: String?
     open var displayPriority: MKFeatureDisplayPriority = .required
     open var zPriority: ZPriority = .defaultUnselected
@@ -45,7 +46,22 @@ import UIKit
     open func prepareForReuse() {}
     open func prepareForDisplay() {}
     open func setSelected(_ selected: Bool, animated: Bool) { _selected = selected; setNeedsDisplay(); setNeedsLayout() }
-    open func setDragState(_ newDragState: DragState, animated: Bool) { dragState = newDragState }
+    /// adapted from MapKit: starting goes on to dragging, ending and canceling go back to none (the map lifts the view
+    /// while it is dragged; a subclass that overrides this moves through the states itself)
+    open func setDragState(_ newDragState: DragState, animated: Bool) {
+        switch newDragState {
+        case .starting:
+            dragState = .starting
+            if dragState == .starting { dragState = .dragging }
+        case .ending, .canceling:
+            dragState = newDragState
+            if dragState == newDragState { dragState = .none }
+        default:
+            dragState = newDragState
+        }
+    }
+    /// the map view showing this view (its annotation layer's superview)
+    var _map: MKMapView? { superview?.superview as? MKMapView }
     func annotationChanged() { setNeedsDisplay() }
     open override func draw(_ rect: CGRect) { image?.draw(in: bounds) }
     /// the point of the view that sits on the annotation's coordinate (view coordinates)
@@ -57,6 +73,8 @@ import UIKit
         var s = "\(type(of: self)) \(a?.title.flatMap { $0 } ?? "")"
         if let c = a?.coordinate { s += String(format: " @ %.5f,%.5f", c.latitude, c.longitude) }
         if _selected { s += " selected" }
+        if let c = a as? MKClusterAnnotation { s += " cluster \(c.memberAnnotations.count)" }
+        if dragState != .none { s += " drag \(dragState)" }
         return s
     }
 }
@@ -137,7 +155,7 @@ public enum MKFeatureVisibility: Int, Sendable { case adaptive = 0, hidden, visi
         let gr = CGRect(x: c.x - gs / 2, y: c.y - gs / 2, width: gs, height: gs)
         if let img = (_selected ? selectedGlyphImage : nil) ?? glyphImage {
             img.withTintColor(g).draw(in: gr)
-        } else if let t = glyphText, !t.isEmpty {
+        } else if let t = glyphText ?? (annotation as? MKClusterAnnotation).map({ "\($0.memberAnnotations.count)" }), !t.isEmpty {
             let f = UIFont.systemFont(ofSize: r * 0.9, weight: .bold)
             let s = (t as NSString).size(withAttributes: [.font: f])
             (t as NSString).draw(at: CGPoint(x: c.x - s.width / 2, y: c.y - s.height / 2), withAttributes: [.font: f, .foregroundColor: g])

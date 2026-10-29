@@ -104,6 +104,21 @@ func _mkSend(_ target: NSObject?, _ sel: String, _ a: AnyObject?, _ b: AnyObject
         return MKOverlayRenderer(overlay: overlay)
     }
     func mapView(_ mapView: MKMapView, didAdd renderers: [MKOverlayRenderer]) { _mkSend(target, "mapView:didAddOverlayRenderers:", mapView, renderers as NSArray) }
+    func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, didChange newState: MKAnnotationView.DragState, fromOldState oldState: MKAnnotationView.DragState) {
+        let s = NSSelectorFromString("mapView:annotationView:didChangeDragState:fromOldState:")
+        guard let t = target, t.responds(to: s) else { return }
+        typealias Send = @convention(c) (AnyObject, Selector, AnyObject, AnyObject, UInt, UInt) -> Void
+        unsafeBitCast(t.method(for: s), to: Send.self)(t, s, mapView, view, newState.rawValue, oldState.rawValue)
+    }
+    func mapView(_ mapView: MKMapView, clusterAnnotationForMemberAnnotations memberAnnotations: [MKAnnotation]) -> MKClusterAnnotation {
+        let s = NSSelectorFromString("mapView:clusterAnnotationForMemberAnnotations:")
+        if let t = target, t.responds(to: s) {
+            typealias Send = @convention(c) (AnyObject, Selector, AnyObject, AnyObject) -> Unmanaged<AnyObject>?
+            let members = memberAnnotations.map(_mkObject) as NSArray
+            if let c = unsafeBitCast(t.method(for: s), to: Send.self)(t, s, mapView, members)?.takeUnretainedValue() as? MKClusterAnnotation { return c }
+        }
+        return MKClusterAnnotation(memberAnnotations: memberAnnotations)
+    }
 }
 
 // MARK: - the map view
@@ -213,6 +228,14 @@ extension MKPointAnnotation {
         coordinate = CLLocationCoordinate2D(latitude: lat, longitude: longitude)
     }
 }
+extension MKClusterAnnotation {
+    @objc(initWithMemberAnnotations:) convenience init(_objcMemberAnnotations members: [NSObject]) {
+        self.init(memberAnnotations: members.map(_mkAnnotation))
+    }
+    @objc(memberAnnotations) var _objc_memberAnnotations: [NSObject] { memberAnnotations.map(_mkObject) }
+    @objc(_isim_latitude) var _isim_latitude: Double { coordinate.latitude }
+    @objc(_isim_longitude) var _isim_longitude: Double { coordinate.longitude }
+}
 extension MKUserLocation {
     @objc(_isim_latitude) var _isim_latitude: Double { coordinate.latitude }
     @objc(_isim_longitude) var _isim_longitude: Double { coordinate.longitude }
@@ -252,6 +275,9 @@ extension MKAnnotationView {
     @objc(isDraggable) var _objc_isDraggable: Bool { get { isDraggable } set { isDraggable = newValue } }
     @objc(setDraggable:) func _objc_setDraggable(_ v: Bool) { isDraggable = v }
     @objc(clusteringIdentifier) var _objc_clusteringIdentifier: String? { get { clusteringIdentifier } set { clusteringIdentifier = newValue } }
+    @objc(clusterAnnotationView) var _objc_cluster: MKAnnotationView? { cluster }
+    @objc(dragState) var _objc_dragState: UInt { get { dragState.rawValue } set { dragState = DragState(rawValue: newValue) ?? .none } }
+    @objc(setDragState:animated:) func _objc_setDragState(_ v: UInt, animated: Bool) { setDragState(DragState(rawValue: v) ?? .none, animated: animated) }
     @objc(displayPriority) var _objc_displayPriority: Float {
         get { displayPriority.rawValue } set { displayPriority = MKFeatureDisplayPriority(rawValue: newValue) }
     }

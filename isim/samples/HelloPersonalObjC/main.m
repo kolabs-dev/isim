@@ -112,6 +112,21 @@ static NSString *errText(NSError *e) { return e ? [NSString stringWithFormat:@"%
     self.cafe.title = @"Caffè Macs";
     [self.map addAnnotations:@[pin, self.cafe]];
     say(@"annotations %lu cafe=%d", (unsigned long)self.map.annotations.count, [self.map.annotations containsObject:self.cafe]);
+    // clustering and dragging (issue #417): a cluster annotation of both, and the café's marker can be dragged (a long
+    // press, then move): the map sets its coordinate through the Cafe class's setCoordinate:
+    MKClusterAnnotation *cluster = [[MKClusterAnnotation alloc] initWithMemberAnnotations:@[pin, self.cafe]];
+    CLLocationCoordinate2D mid = cluster.coordinate;
+    say(@"cluster members=%lu cafe=%d title=%@ middle=%d", (unsigned long)cluster.memberAnnotations.count,
+        cluster.memberAnnotations[1] == self.cafe, cluster.title ?: @"nil",
+        mid.latitude < park.latitude && mid.latitude > self.cafe.coordinate.latitude);
+    MKAnnotationView *cafeView = [self.map viewForAnnotation:self.cafe];
+    cafeView.draggable = YES;
+    say(@"cafe draggable=%d state=%lu cluster view=%@", cafeView.isDraggable, (unsigned long)cafeView.dragState,
+        cafeView.clusterAnnotationView ? @"set" : @"nil");
+    dispatch_async(dispatch_get_main_queue(), ^{
+        CGPoint p = [self.map convertCoordinate:self.cafe.coordinate toPointToView:self.view];
+        say(@"cafe marker at %.0f,%.0f", p.x, p.y);
+    });
     CLLocationCoordinate2D path[3] = { park, CLLocationCoordinate2DMake(37.3320, -122.0060), self.cafe.coordinate };
     MKPolyline *line = [MKPolyline polylineWithCoordinates:path count:3];
     [self.map addOverlay:line];
@@ -140,6 +155,11 @@ static NSString *errText(NSError *e) { return e ? [NSString stringWithFormat:@"%
     return r;
 }
 - (void)mapView:(MKMapView *)mapView didSelectAnnotation:(id<MKAnnotation>)annotation { say(@"selected %@", annotation.title); }
+- (void)mapView:(MKMapView *)mapView annotationView:(MKAnnotationView *)view didChangeDragState:(MKAnnotationViewDragState)newState
+   fromOldState:(MKAnnotationViewDragState)oldState {
+    CLLocationCoordinate2D c = view.annotation.coordinate;
+    say(@"drag %@ %lu from %lu at %.4f,%.4f", view.annotation.title, (unsigned long)newState, (unsigned long)oldState, c.latitude, c.longitude);
+}
 
 #pragma mark Contacts
 - (void)contacts {

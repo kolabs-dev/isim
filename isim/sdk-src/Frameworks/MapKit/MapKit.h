@@ -68,7 +68,20 @@ __attribute__((objc_class_stub)) __attribute__((objc_subclassing_restricted))
 @property (nonatomic, readonly, nullable) NSString *countryCode;
 @end
 
+@interface MKClusterAnnotation : NSObject <MKAnnotation>
+- (instancetype)initWithMemberAnnotations:(NSArray<id<MKAnnotation>> *)memberAnnotations NS_DESIGNATED_INITIALIZER;
+@property (nonatomic, copy, nullable) NSString *title;
+@property (nonatomic, copy, nullable) NSString *subtitle;
+@property (nonatomic, readonly) NSArray<id<MKAnnotation>> *memberAnnotations;
+@end
+
 /* annotation views */
+typedef NS_ENUM(NSUInteger, MKAnnotationViewDragState) {
+    MKAnnotationViewDragStateNone = 0, MKAnnotationViewDragStateStarting, MKAnnotationViewDragStateDragging,
+    MKAnnotationViewDragStateCanceling, MKAnnotationViewDragStateEnding,
+};
+FOUNDATION_EXPORT NSString * const MKMapViewDefaultAnnotationViewReuseIdentifier;
+FOUNDATION_EXPORT NSString * const MKMapViewDefaultClusterAnnotationViewReuseIdentifier;
 @interface MKAnnotationView : UIView
 - (instancetype)initWithAnnotation:(nullable id<MKAnnotation>)annotation reuseIdentifier:(nullable NSString *)reuseIdentifier NS_DESIGNATED_INITIALIZER;
 @property (nonatomic, readonly, nullable) NSString *reuseIdentifier;
@@ -86,7 +99,10 @@ __attribute__((objc_class_stub)) __attribute__((objc_subclassing_restricted))
 @property (strong, nonatomic, nullable) UIView *rightCalloutAccessoryView;
 @property (nonatomic, strong, nullable) UIView *detailCalloutAccessoryView;
 @property (nonatomic, getter=isDraggable) BOOL draggable;
+@property (nonatomic) MKAnnotationViewDragState dragState;
+- (void)setDragState:(MKAnnotationViewDragState)newDragState animated:(BOOL)animated;
 @property (nonatomic, copy, nullable) NSString *clusteringIdentifier;
+@property (nonatomic, readonly, weak, nullable) MKAnnotationView *clusterAnnotationView;
 @property (nonatomic) MKFeatureDisplayPriority displayPriority;
 @end
 @interface MKMarkerAnnotationView : MKAnnotationView
@@ -170,6 +186,9 @@ __attribute__((objc_class_stub)) __attribute__((objc_subclassing_restricted))
 - (void)mapView:(MKMapView *)mapView didChangeUserTrackingMode:(MKUserTrackingMode)mode animated:(BOOL)animated;
 - (MKOverlayRenderer *)mapView:(MKMapView *)mapView rendererForOverlay:(id<MKOverlay>)overlay;
 - (void)mapView:(MKMapView *)mapView didAddOverlayRenderers:(NSArray<MKOverlayRenderer *> *)renderers;
+- (void)mapView:(MKMapView *)mapView annotationView:(MKAnnotationView *)view didChangeDragState:(MKAnnotationViewDragState)newState
+   fromOldState:(MKAnnotationViewDragState)oldState;
+- (MKClusterAnnotation *)mapView:(MKMapView *)mapView clusterAnnotationForMemberAnnotations:(NSArray<id<MKAnnotation>> *)memberAnnotations;
 @end
 
 @interface MKMapView : UIView
