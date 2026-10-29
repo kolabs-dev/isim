@@ -20,6 +20,13 @@ def test_sensors_and_health(launch):
     app.wait_log(r"^pedometer query error 104")                                     # pedometer/activity/altimeter n/a
     app.wait_log(r"^activity query error 104")
     app.wait_log(r"^altimeter update error 109")
+    # issue #414: headphone motion, batched sensors, the sensor recorder, absolute altitude, water submersion
+    app.wait_log(r"^absolute altitude nil error 109 available false$")
+    app.wait_log(r"^headphones motion false connection true status 0$")
+    app.wait_log(r"^batched accelerometer false deviceMotion false recorder false data nil water false depth nil$")
+    app.wait_log(r"^batched device motion nil error 109$")
+    app.wait_log(r"^batched accelerometer updates error 109$")
+    app.wait_log(r"^water submersion error 109$")
     app.tap_id("bluetooth")
     app.wait_log(r"^bluetooth state unsupported")
     app.wait_log(r"API MISUSE: <CBCentralManager")

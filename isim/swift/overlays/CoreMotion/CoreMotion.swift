@@ -303,6 +303,11 @@ public typealias CMMotionActivityHandler = (CMMotionActivity?) -> Void
     open func startDeviceMotionUpdates() {}
     open func startDeviceMotionUpdates(to queue: OperationQueue, withHandler handler: @escaping CMDeviceMotionHandler) {}
     open func stopDeviceMotionUpdates() {}
+    /// iOS 17: connection status (isim connects no headphones: the delegate never hears of one)
+    open weak var delegate: (any CMHeadphoneMotionManagerDelegate)?
+    open private(set) var isConnectionStatusActive = false
+    open func startConnectionStatusUpdates() { isConnectionStatusActive = true }
+    open func stopConnectionStatusUpdates() { isConnectionStatusActive = false }
 }
 
 // Objective-C entry points whose Swift signature uses an option set (CMAttitudeReferenceFrame)
