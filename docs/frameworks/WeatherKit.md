@@ -1,6 +1,7 @@
 # WeatherKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 100.0% of Apple's iOS API (427 of 427, exact) · **Rows:** 9: 2 ✅ 7 🟡 · **iOS:** 16.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [WeatherKit](https://developer.apple.com/documentation/weatherkit) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -51,4 +52,5 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+Nothing (or not measured yet).
 <!-- /generated:missing -->

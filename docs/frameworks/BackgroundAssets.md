@@ -1,6 +1,7 @@
 # BackgroundAssets
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 92.0% of Apple's iOS API (184 of 200, exact) · **Rows:** 9: 6 ✅ 3 🟡 · **iOS:** 16.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [BackgroundAssets](https://developer.apple.com/documentation/backgroundassets) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -41,4 +42,26 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+16 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`BADownloaderExtension`](https://developer.apple.com/documentation/backgroundassets/badownloaderextension-qwaw)
+- [`func backgroundDownload(BADownload, didReceive: URLAuthenticationChallenge) async -> (URLSession.AuthChallengeDisposition, URLCredential?)`](https://developer.apple.com/documentation/backgroundassets/badownloaderextension-qwaw/backgrounddownload(_:didreceive:))
+- [`func backgroundDownload(BADownload, didReceive: URLAuthenticationChallenge) async -> (URLSession.AuthChallengeDisposition, URLCredential?)`](https://developer.apple.com/documentation/backgroundassets/badownloaderextension-qwaw/backgrounddownload(_:didreceive:)-5vjx7)
+- [`func backgroundDownload(BADownload, didReceive: URLAuthenticationChallenge) async -> (URLSession.AuthChallengeDisposition, URLCredential?)`](https://developer.apple.com/documentation/backgroundassets/badownloaderextension-qwaw/backgrounddownload(_:didreceive:)-7qfcp)
+- [`func backgroundDownload(BADownload, failedWithError: any Error)`](https://developer.apple.com/documentation/backgroundassets/badownloaderextension-qwaw/backgrounddownload(_:failedwitherror:))
+- [`func backgroundDownload(BADownload, failedWithError: any Error)`](https://developer.apple.com/documentation/backgroundassets/badownloaderextension-qwaw/backgrounddownload(_:failedwitherror:)-5geag)
+- [`func backgroundDownload(BADownload, failedWithError: any Error)`](https://developer.apple.com/documentation/backgroundassets/badownloaderextension-qwaw/backgrounddownload(_:failedwitherror:)-9erie)
+- [`func backgroundDownload(BADownload, finishedWithFileURL: URL)`](https://developer.apple.com/documentation/backgroundassets/badownloaderextension-qwaw/backgrounddownload(_:finishedwithfileurl:))
+- [`func backgroundDownload(BADownload, finishedWithFileURL: URL)`](https://developer.apple.com/documentation/backgroundassets/badownloaderextension-qwaw/backgrounddownload(_:finishedwithfileurl:)-4s70i)
+- [`func backgroundDownload(BADownload, finishedWithFileURL: URL)`](https://developer.apple.com/documentation/backgroundassets/badownloaderextension-qwaw/backgrounddownload(_:finishedwithfileurl:)-5cjqw)
+- [`func downloads(for: BAContentRequest, manifestURL: URL, extensionInfo: BAAppExtensionInfo) -> Set<BADownload>`](https://developer.apple.com/documentation/backgroundassets/badownloaderextension-qwaw/downloads(for:manifesturl:extensioninfo:))
+- [`func downloads(for: BAContentRequest, manifestURL: URL, extensionInfo: BAAppExtensionInfo) -> Set<BADownload>`](https://developer.apple.com/documentation/backgroundassets/badownloaderextension-qwaw/downloads(for:manifesturl:extensioninfo:)-60zuh)
+- [`func downloads(for: BAContentRequest, manifestURL: URL, extensionInfo: BAAppExtensionInfo) -> Set<BADownload>`](https://developer.apple.com/documentation/backgroundassets/badownloaderextension-qwaw/downloads(for:manifesturl:extensioninfo:)-7zv3a)
+- [`func extensionWillTerminate()`](https://developer.apple.com/documentation/backgroundassets/badownloaderextension-qwaw/extensionwillterminate()-236ac)
+- [`func extensionWillTerminate()`](https://developer.apple.com/documentation/backgroundassets/badownloaderextension-qwaw/extensionwillterminate()-236ac)
+- [`func extensionWillTerminate()`](https://developer.apple.com/documentation/backgroundassets/badownloaderextension-qwaw/extensionwillterminate()-236ac)
+
+</details>
 <!-- /generated:missing -->

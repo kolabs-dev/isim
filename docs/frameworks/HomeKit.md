@@ -1,6 +1,7 @@
 # HomeKit
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 99.9% of Apple's iOS API (3655 of 3660, exact) · **Rows:** 16: 6 ✅ 5 🟡 4 🧩 1 ❌ · **iOS:** 8.0+
 <!-- /generated:header -->
 
 **Area:** [Location, personal data & sensors](../COVERAGE.md#location) · **Apple:** [HomeKit](https://developer.apple.com/documentation/homekit) · **Issues:** [`area:location`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Alocation)
@@ -70,4 +71,15 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+5 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+
+<details><summary>List</summary>
+
+- [`var matterPayload: MTRSetupPayload?`](https://developer.apple.com/documentation/homekit/hmaccessorysetuprequest/matterpayload)
+- [`HMErrorBlock`](https://developer.apple.com/documentation/homekit/hmerrorblock)
+- [`var uniqueIdentifier: UUID`](https://developer.apple.com/documentation/homekit/hmservice/uniqueidentifier)
+- [`var uniqueIdentifier: UUID`](https://developer.apple.com/documentation/homekit/hmservice/uniqueidentifier)
+- [`var uniqueIdentifier: UUID`](https://developer.apple.com/documentation/homekit/hmservice/uniqueidentifier)
+
+</details>
 <!-- /generated:missing -->

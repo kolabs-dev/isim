@@ -1,7 +1,7 @@
 # SwiftUI
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
-**Symbols:** 69.6% of Apple's iOS API (4722 of 6783, exact) · **Rows:** 304: 293 ✅ 7 🟡 4 ❌ · **iOS:** 13.0+
+**Symbols:** 69.7% of Apple's iOS API (4729 of 6783, exact) · **Rows:** 304: 293 ✅ 7 🟡 4 ❌ · **iOS:** 13.0+
 <!-- /generated:header -->
 
 **Area:** [SwiftUI & Charts](../COVERAGE.md#swiftui) · **Apple:** [SwiftUI](https://developer.apple.com/documentation/swiftui) · **Issues:** [`area:swiftui`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Aswiftui)
@@ -394,7 +394,7 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
-2061 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
+2054 symbols Apple documents for iOS that isim does not have (exact; Apple snapshot 2026-10-14). Each links to Apple's documentation.
 
 <details><summary>List</summary>
 
@@ -698,7 +698,7 @@
 - [`var draggedItemIndex: Int`](https://developer.apple.com/documentation/swiftui/dragsession/draggeditemindex)
 - [`var id: DragSession.ID`](https://developer.apple.com/documentation/swiftui/dragsession/id-swift.property)
 - [`DragSession.ID`](https://developer.apple.com/documentation/swiftui/dragsession/id-swift.struct)
-- … and 1761 more (`isim/data/api-coverage.json.gz`)
+- … and 1754 more (`isim/data/api-coverage.json.gz`)
 
 </details>
 <!-- /generated:missing -->

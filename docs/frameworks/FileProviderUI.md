@@ -1,6 +1,7 @@
 # FileProviderUI
 
 <!-- generated:header (isim/tools/coverage-summary.py; do not edit by hand) -->
+**Symbols:** 100.0% of Apple's iOS API (16 of 16, exact) · **Rows:** 4: 4 ✅ · **iOS:** 11.0+
 <!-- /generated:header -->
 
 **Area:** [App extensions & system integration](../COVERAGE.md#system) · **Apple:** [FileProviderUI](https://developer.apple.com/documentation/fileproviderui) · **Issues:** [`area:system`](https://github.com/kolabs-dev/isim/issues?q=is%3Aissue+is%3Aopen+label%3Aarea%3Asystem)
@@ -30,4 +31,5 @@
 ## Not yet in isim
 
 <!-- generated:missing (isim/tools/api-coverage.py, coverage-summary.py; do not edit by hand) -->
+Nothing (or not measured yet).
 <!-- /generated:missing -->
