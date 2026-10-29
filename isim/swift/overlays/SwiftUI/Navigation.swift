@@ -251,6 +251,7 @@ final class _ListNode: _Node {
             l.frame = lt
             sv.largeTitleBottom = lt.maxY
         } else { sv.largeTitleBottom = 0 }
+        sv.syncTitle()
         let subKey = path + "|largeSubtitle"
         if let lt = largeTitleRect, let sub = level?.subtitle {
             let l = g.view(subKey) { UILabel() }
@@ -444,10 +445,16 @@ final class _SUIListScroll: UIScrollView, UIScrollViewDelegate {
     func scrollViewDidScroll(_ s: UIScrollView) {
         refresher?.scrolled(s)
         _applyPins(pins, in: s, horizontal: false)
-        let offset = s.contentOffset.y + s.adjustedContentInset.top
+        syncTitle()
+    }
+    /// the bar's inline title (and its background) follow this list's offset: shown once the large title is under the
+    /// bar. Also on mounting, so a list that replaced another (rebuilt by `.id`, at its top) does not keep the old
+    /// one's scrolled state (#776)
+    func syncTitle() {
+        let offset = contentOffset.y + adjustedContentInset.top
         let past = largeTitleBottom > 0 ? offset > largeTitleBottom - 8 : offset > 1
         level?.scrolledPastTitle = past
-        if let bar = level?.bar { bar.scrolled = past; bar.update() }
+        if let bar = level?.bar, bar.scrolled != past { bar.scrolled = past; bar.update() }
     }
 }
 
@@ -770,6 +777,7 @@ final class _NavStackNode: _Node {
         bar.isHidden = top.barHidden                                 // .toolbar(.hidden, for: .navigationBar)
         top.bar = bar
         if bar.levelIndex != top.index { bar.scrolled = false; bar.levelIndex = top.index }
+        else if top.contentIsList { bar.scrolled = top.scrolledPastTitle }   /* the list, just mounted, knows its offset (#776) */
         mountToolbars(g, view, bar)
         bar.update()
         guard let sv else { return }
