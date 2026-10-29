@@ -462,10 +462,20 @@ final class TransfersViewController: UIViewController, WKNavigationDelegate, WKU
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard step <= 2 else { return }
-        webView.evaluateJavaScript("document.body.innerText") { r, _ in
-            log("page \(webView.url?.path ?? "-"): \((r as? String ?? "-").trimmingCharacters(in: .whitespacesAndNewlines))")
+        webView.evaluateJavaScript("document.body.innerText") { r, error in
+            let text = r as? String ?? "- (\(error.map { String(describing: $0) } ?? "not a string"))"
+            log("page \(webView.url?.path ?? "-"): \(text.trimmingCharacters(in: .whitespacesAndNewlines))")
             self.next()
         }
+    }
+    // a navigation that fails says so (the attachment's is expected: it becomes a download)
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        let e = error as NSError
+        log("navigation failed step \(step) \(webView.url?.path ?? "-"): \(e.domain) \(e.code) \(e.localizedDescription)")
+    }
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        let e = error as NSError
+        log("navigation failed step \(step) \(webView.url?.path ?? "-"): \(e.domain) \(e.code) \(e.localizedDescription)")
     }
     // downloads
     func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
