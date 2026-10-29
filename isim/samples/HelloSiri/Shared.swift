@@ -52,3 +52,28 @@ var tasks: [String] {
     get { shared.array(forKey: "tasks") as? [String] ?? [] }
     set { shared.set(newValue, forKey: "tasks") }
 }
+
+// MARK: payments, rides, workouts and photos (issue #411)
+
+/// payments between members ("pay Anna $20 for coffee"), newest last
+var paymentLog: [String] {
+    get { shared.array(forKey: "payments") as? [String] ?? [] }
+    set { shared.set(newValue, forKey: "payments") }
+}
+/// the club car: the ride Siri booked (its identifier, option, destination and phase), or nil
+var currentRide: [String: String]? {
+    get { shared.dictionary(forKey: "ride") as? [String: String] }
+    set { shared.set(newValue, forKey: "ride") }
+}
+/// the workout in progress ("run", "running" | "paused"), or nil
+var workout: [String: String]? {
+    get { shared.dictionary(forKey: "workout") as? [String: String] }
+    set { shared.set(newValue, forKey: "workout") }
+}
+/// the club's photos: album, where, who, what and when
+struct ClubPhoto { let album: String, place: String, people: [String], tags: [String], year: Int }
+let clubPhotos = [ClubPhoto(album: "Latte Art", place: "Union Square", people: ["Anna Haro"], tags: ["latte", "art"], year: 2025),
+                  ClubPhoto(album: "Latte Art", place: "Union Square", people: ["Ben Ito"], tags: ["latte"], year: 2025),
+                  ClubPhoto(album: "Cafe Openings", place: "Apple Park", people: ["Anna Lee", "Ben Ito"], tags: ["cafe", "opening"], year: 2024),
+                  ClubPhoto(album: "Cafe Openings", place: "Apple Park", people: ["Anna Haro"], tags: ["cafe"], year: 2024),
+                  ClubPhoto(album: "Cafe Openings", place: "Times Square", people: ["Ben Ito"], tags: ["cafe", "crowd"], year: 2023)]

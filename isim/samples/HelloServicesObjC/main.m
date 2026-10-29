@@ -4,8 +4,8 @@
 // (indexing), SafariServices (SFSafariViewController, the Reading List) and MultipeerConnectivity (an advertiser and a
 // browser in this app connect and exchange data) and Messages (an iMessage app's controller subclass, a message and a
 // refused sticker), BackgroundAssets (an essential download refused outside the downloader extension) and FileProvider
-// (an item class of its own, a domain the app cannot add without a file provider extension) and CarPlay (templates
-// built with Apple's selectors). Each step prints a "sy ..."
+// (an item class of its own, a domain the app cannot add without a file provider extension), CarPlay (templates
+// built with Apple's selectors) and SiriKit's payments, rides, workouts and photos intents. Each step prints a "sy ..."
 // line the test checks.
 #import <UIKit/UIKit.h>
 #import <PushKit/PushKit.h>
@@ -19,6 +19,8 @@
 #import <FileProvider/FileProvider.h>
 #import <FileProviderUI/FileProviderUI.h>
 #import <CarPlay/CarPlay.h>
+#import <Intents/Intents.h>
+#import <CoreLocation/CoreLocation.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 static void say(NSString *fmt, ...) NS_FORMAT_FUNCTION(1, 2);
@@ -364,6 +366,40 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
         (unsigned long)CPMaximumNumberOfGridImages, CPTemplateApplicationSceneSessionRoleApplication, CarPlayErrorDomain);
 }
 
+/* SiriKit's payments, rides, workouts and photos from Objective-C (issue #411): intents with CLPlacemarks
+   (placemarkWithLocation:name:postalAddress:), responses with a ride status, resolution results and secure coding */
+- (void)siriDomains {
+    INPerson *ben = [[INPerson alloc] initWithPersonHandle:[[INPersonHandle alloc] initWithValue:@"ben@coffee.club" type:INPersonHandleTypeEmailAddress]
+                                             nameComponents:nil displayName:@"Ben Ito" image:nil contactIdentifier:nil customIdentifier:nil];
+    INCurrencyAmount *usd = [[INCurrencyAmount alloc] initWithAmount:[NSDecimalNumber decimalNumberWithString:@"20"] currencyCode:@"USD"];
+    INSendPaymentIntent *pay = [[INSendPaymentIntent alloc] initWithPayee:ben currencyAmount:usd note:@"coffee"];
+    CLPlacemark *park = [CLPlacemark placemarkWithLocation:[[CLLocation alloc] initWithLatitude:37.3349 longitude:-122.009] name:@"Apple Park" postalAddress:nil];
+    INRequestRideIntent *ride = [[INRequestRideIntent alloc] initWithPickupLocation:nil dropOffLocation:park rideOptionName:nil partySize:@2
+                                                                     paymentMethod:INPaymentMethod.applePayPaymentMethod scheduledPickupTime:nil];
+    INRideStatus *st = [INRideStatus new];
+    st.phase = INRidePhaseApproachingPickup;
+    st.dropOffLocation = park;
+    st.driver = [[INRideDriver alloc] initWithPhoneNumber:@"+1 555 0100" nameComponents:nil displayName:@"Sam" image:nil rating:@"4.9"];
+    INRequestRideIntentResponse *rr = [[INRequestRideIntentResponse alloc] initWithCode:INRequestRideIntentResponseCodeSuccess userActivity:nil];
+    rr.rideStatus = st;
+    INStartWorkoutIntent *run = [[INStartWorkoutIntent alloc] initWithWorkoutName:[[INSpeakableString alloc] initWithSpokenPhrase:@"run"] goalValue:@5
+                                                              workoutGoalUnitType:INWorkoutGoalUnitTypeMile workoutLocationType:INWorkoutLocationTypeOutdoor isOpenEnded:@NO];
+    INSearchForPhotosIntent *photos = [[INSearchForPhotosIntent alloc] initWithDateCreated:nil locationCreated:park albumName:@"Latte Art" searchTerms:nil
+                                                                        includedAttributes:INPhotoAttributeOptionPhoto | INPhotoAttributeOptionFavorite excludedAttributes:0 peopleInPhoto:@[ben]];
+    INInteraction *it = [[INInteraction alloc] initWithIntent:ride response:rr];
+    NSData *d = [NSKeyedArchiver archivedDataWithRootObject:it requiringSecureCoding:YES error:NULL];
+    INInteraction *back = [NSKeyedUnarchiver unarchivedObjectOfClass:[INInteraction class] fromData:d error:NULL];
+    INRequestRideIntent *ride2 = (INRequestRideIntent *)back.intent;
+    INPlacemarkResolutionResult *res = [INPlacemarkResolutionResult successWithResolvedPlacemark:park];
+    INPriceRange *price = [[INPriceRange alloc] initWithRangeBetweenPrice:[NSDecimalNumber decimalNumberWithString:@"22"] andPrice:[NSDecimalNumber decimalNumberWithString:@"18"] currencyCode:@"USD"];
+    say(@"siri payee=%@ amount=%@ ride=%@ party=%@ pay=%ld phase=%ld driver=%@ status=%ld workout=%@ goal=%@ unit=%ld photos=%@ attrs=%lu people=%lu back=%@ backPhase=%ld res=%@ price=%@-%@ id=%@",
+        pay.payee.displayName, pay.currencyAmount.amount, ride.dropOffLocation.name, ride.partySize, (long)ride.paymentMethod.type, (long)rr.rideStatus.phase,
+        rr.rideStatus.driver.displayName, (long)it.intentHandlingStatus, run.workoutName.spokenPhrase, run.goalValue, (long)run.workoutGoalUnitType,
+        photos.albumName, (unsigned long)photos.includedAttributes, (unsigned long)photos.peopleInPhoto.count, ride2.dropOffLocation.name,
+        (long)[(INRequestRideIntentResponse *)back.intentResponse rideStatus].phase, NSStringFromClass([res class]), price.minimumPrice, price.maximumPrice,
+        INStartWorkoutIntentIdentifier);
+}
+
 /* Messages from Objective-C (issue #406): an iMessage app's controller subclass, a message in a session with a
    template layout (copied and archived), a sticker file iOS refuses */
 - (void)messages {
@@ -402,6 +438,7 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
     [self backgroundAssets];
     [self fileProvider];
     [self carPlay];
+    [self siriDomains];
     [self.calls badRequest];
     self.peers = [[Peers alloc] init];
     [self.peers start];

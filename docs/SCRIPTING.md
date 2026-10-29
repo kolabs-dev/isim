@@ -148,11 +148,23 @@ optionally ending with `using|with|in|on|via APP` (or starting with `APP,`):
 | `search for NAME`, `find NAME`, `look up NAME` | `INSearchForMediaIntent` |
 | `add TASK to [my] LIST [list]`, `remind me to TASK` | `INAddTasksIntent` |
 | `create a note [saying TEXT]`, `note TEXT` | `INCreateNoteIntent` |
+| `send\|pay NAME $20 [for NOTE]`, `send $20 to NAME [for NOTE]` | `INSendPaymentIntent` (`$`, `€`, `£`, `¥` or "dollars", "euros", …; dollars by default) |
+| `request $15 from NAME [for NOTE]`, `ask NAME for $15` | `INRequestPaymentIntent` |
+| `get\|book\|call\|order me a [OPTION] ride\|car\|taxi [from PLACE] [to PLACE] [for N people]` | `INRequestRideIntent` (places from CoreLocation's gazetteer; the pickup is the device's location; Siri lists the app's `INListRideOptionsIntent` options first) |
+| `where's my ride`, `how far is my driver` | `INGetRideStatusIntent` (with the app's live updates) |
+| `cancel my ride`, `rate my ride N stars`, `tip my driver $5` | `INCancelRideIntent`, `INSendRideFeedbackIntent` (the ride Siri booked last) |
+| `start a [5 mile\|10 km\|30 minute] [indoor\|outdoor] run\|walk\|cycle\|swim\|hike\|yoga\|…` | `INStartWorkoutIntent` |
+| `pause\|resume\|end\|cancel my workout` | `INPauseWorkoutIntent`, `INResumeWorkoutIntent`, `INEndWorkoutIntent`, `INCancelWorkoutIntent` |
+| `show\|find photos [of NAME\|THINGS] [from PLACE\|YEAR]`, `show my NAME album` | `INSearchForPhotosIntent` (a capitalized name is a person, other words search terms) |
+| `play a slideshow [of my NAME album] [of NAME] [from PLACE]` | `INStartPhotoPlaybackIntent` |
 
 `siri intent CLASS KEY=VALUE …` (`CLASS`: `INSendMessageIntent` or `SendMessage`; quote values with spaces) takes
 `recipients=A,B content=TEXT` (messages), `contacts=A video=1` (calls), `senders=A terms=X,Y` (message search),
 `message=ID content=TEXT` (editing), `messages=ID,ID` (unsending), `media=NAME shuffle=1` (playing),
-`media=NAME playlist=NAME|library=1` (adding media), `media=NAME` (media search), `tasks=A,B list=NAME`, `title=… content=… folder=…` (notes) and `app=BUNDLE_ID`. A custom intent
+`media=NAME playlist=NAME|library=1` (adding media), `media=NAME` (media search), `tasks=A,B list=NAME`, `title=… content=… folder=…` (notes),
+`payee=NAME|payer=NAME amount=$20 note=TEXT` (payments), `pickup=PLACE dropOff=PLACE option=NAME party=N` (rides; `ride=ID rating=N tip=$5`
+for cancelling and feedback), `name=run goal=5 unit=mile location=indoor|outdoor` (workouts), `album=NAME location=PLACE people=A,B
+terms=X,Y year=2023` (photos) and `app=BUNDLE_ID`. A custom intent
 (from an `.intentdefinition`) is named by its class, `siri intent OrderSoupIntent soup=Tomato quantity=2 size=bowl`:
 each value is converted to its parameter's type (numbers, booleans, enum cases by name, custom types by display
 string, people), Siri asks for missing values with the definition's prompts (listing the handler's dynamic options,

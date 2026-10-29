@@ -6,6 +6,7 @@
  * and apps. */
 #import <Intents/Intents.h>
 #import <objc/runtime.h>
+#import <objc/message.h>
 #include <stdlib.h>
 
 NSString *isim_data_dir(void);
@@ -72,6 +73,9 @@ static NSSet *in_plist_classes(void) {
 static id in_encode(id v) {
     if (!v || v == NSNull.null) return nil;
     if ([v isKindOfClass:[NSDecimalNumber class]]) return @{ @"$class": @"NSDecimalNumber", @"value": [v stringValue] };
+    /* CoreLocation's places and locations (the rides and photos domains): their plist forms (CoreLocation/ObjC.swift) */
+    if ([v respondsToSelector:NSSelectorFromString(@"_isim_placemarkPlist")]) return ((id (*)(id, SEL))objc_msgSend)(v, NSSelectorFromString(@"_isim_placemarkPlist"));
+    if ([v respondsToSelector:NSSelectorFromString(@"_isim_locationPlist")]) return ((id (*)(id, SEL))objc_msgSend)(v, NSSelectorFromString(@"_isim_locationPlist"));
     if ([NSStringFromClass([v class]) hasPrefix:@"CL"] && [v respondsToSelector:NSSelectorFromString(@"identifier")]) {   /* a CLRegion: kept for the record */
         NSMutableDictionary *d = [@{ @"$class": @"CLRegion", @"identifier": [v valueForKey:@"identifier"] ?: @"" } mutableCopy];
         if ([v respondsToSelector:NSSelectorFromString(@"radius")]) d[@"radius"] = [v valueForKey:@"radius"];
@@ -112,6 +116,13 @@ static id in_decode(id v) {
     if ([cls isEqualToString:@"NSUUID"]) return [[NSUUID alloc] initWithUUIDString:v[@"uuid"]];
     if ([cls isEqualToString:@"NSDecimalNumber"]) return [NSDecimalNumber decimalNumberWithString:v[@"value"] ?: @"0"];
     if ([cls isEqualToString:@"NSURL"]) return [NSURL URLWithString:v[@"url"]];
+    if ([cls isEqualToString:@"CLPlacemark"] || [cls isEqualToString:@"CLLocation"]) {     /* nil without CoreLocation */
+        Class c = NSClassFromString(cls);
+        SEL named = NSSelectorFromString(@"_isim_placemarkNamed:"), withPlist = NSSelectorFromString([cls isEqualToString:@"CLPlacemark"] ? @"_isim_placemarkWithPlist:" : @"_isim_locationWithPlist:");
+        if ([cls isEqualToString:@"CLPlacemark"] && !v[@"latitude"] && [v[@"name"] length] && [c respondsToSelector:named])   /* a place Siri heard: looked up */
+            return ((id (*)(id, SEL, id))objc_msgSend)(c, named, v[@"name"]);
+        return [c respondsToSelector:withPlist] ? ((id (*)(id, SEL, id))objc_msgSend)(c, withPlist, v) : nil;
+    }
     if ([cls isEqualToString:@"NSUserActivity"]) return [NSUserActivity _isim_activityWithPlist:v[@"activity"]];
     if ([cls isEqualToString:@"NSPersonNameComponents"]) {
         NSPersonNameComponents *n = [NSPersonNameComponents new];
@@ -729,6 +740,352 @@ OBJ(INSpeakableString *, title) OBJ(INNoteContent *, content) OBJ(INSpeakableStr
 - (NSString *)intentDescription { return @"Create a note"; }
 @end
 
+/* ---------------- payments, rides, workouts and photos (issue #411) ---------------- */
+/* a read-write property kept with the values: copied objects, retained objects, scalars */
+#define PROP(type, name, Name) OBJ(type, name) - (void)set##Name:(type)v { SET(#name, [(id)v copy]); }
+#define PROPS(type, name, Name) OBJ(type, name) - (void)set##Name:(type)v { SET(#name, v); }
+#define PROPI(type, name, Name) INT(type, name) - (void)set##Name:(type)v { SETI(#name, v); }
+#define INTENT_ID(cls) NSString *const cls##Identifier = @#cls;
+INTENT_ID(INSendPaymentIntent) INTENT_ID(INRequestPaymentIntent)
+INTENT_ID(INListRideOptionsIntent) INTENT_ID(INRequestRideIntent) INTENT_ID(INGetRideStatusIntent)
+INTENT_ID(INStartWorkoutIntent) INTENT_ID(INPauseWorkoutIntent) INTENT_ID(INResumeWorkoutIntent) INTENT_ID(INEndWorkoutIntent) INTENT_ID(INCancelWorkoutIntent)
+INTENT_ID(INSearchForPhotosIntent) INTENT_ID(INStartPhotoPlaybackIntent)
+#define WORKOUT_NAME(n, v) INWorkoutNameIdentifier const INWorkoutNameIdentifier##n = @v;
+WORKOUT_NAME(Run, "Run") WORKOUT_NAME(Sit, "Sit") WORKOUT_NAME(Steps, "Steps") WORKOUT_NAME(Stand, "Stand") WORKOUT_NAME(Move, "Move")
+WORKOUT_NAME(Walk, "Walk") WORKOUT_NAME(Yoga, "Yoga") WORKOUT_NAME(Dance, "Dance") WORKOUT_NAME(Crosstraining, "Crosstraining")
+WORKOUT_NAME(Elliptical, "Elliptical") WORKOUT_NAME(Rower, "Rower") WORKOUT_NAME(Cycle, "Cycle") WORKOUT_NAME(Stairs, "Stairs")
+WORKOUT_NAME(Other, "Other") WORKOUT_NAME(Indoorrun, "Indoorrun") WORKOUT_NAME(Indoorcycle, "Indoorcycle") WORKOUT_NAME(Indoorwalk, "Indoorwalk")
+WORKOUT_NAME(Exercise, "Exercise") WORKOUT_NAME(Hike, "Hike") WORKOUT_NAME(HighIntensityIntervalTraining, "HighIntensityIntervalTraining") WORKOUT_NAME(Swim, "Swim")
+
+/* what a response code means in each of these domains (the runner's outcomes, INInteraction.intentHandlingStatus):
+   success | ready | inProgress | continueInApp | handleInApp | appLaunch | failure | unspecified; nil for other classes */
+NSString *isim_in_code_meaning(NSString *cls, NSInteger code) {
+    static NSDictionary *t;
+    if (!t) {
+        NSArray *pay = @[@"unspecified", @"ready", @"inProgress", @"success", @"failure", @"appLaunch"];           /* then failures */
+        NSArray *ride = @[@"unspecified", @"ready", @"inProgress", @"success", @"failure", @"appLaunch", @"appLaunch", @"appLaunch", @"appLaunch", @"appLaunch", @"appLaunch"];
+        NSArray *list = @[@"unspecified", @"ready", @"inProgress", @"success", @"failure", @"appLaunch", @"appLaunch", @"appLaunch", @"appLaunch", @"appLaunch", @"failure"];
+        NSArray *cancel = @[@"unspecified", @"ready", @"success", @"failure"];
+        NSArray *control = @[@"unspecified", @"ready", @"continueInApp", @"failure", @"appLaunch", @"failure", @"handleInApp", @"success"];
+        NSArray *photos = @[@"unspecified", @"ready", @"continueInApp", @"failure", @"appLaunch", @"failure"];
+        t = @{ @"INSendPaymentIntent": pay, @"INRequestPaymentIntent": pay,
+               @"INRequestRideIntent": ride, @"INGetRideStatusIntent": ride, @"INListRideOptionsIntent": list,
+               @"INCancelRideIntent": cancel, @"INSendRideFeedbackIntent": cancel,
+               @"INStartWorkoutIntent": @[@"unspecified", @"ready", @"continueInApp", @"failure", @"appLaunch", @"failure", @"failure", @"success", @"handleInApp"],
+               @"INPauseWorkoutIntent": control, @"INResumeWorkoutIntent": control, @"INEndWorkoutIntent": control, @"INCancelWorkoutIntent": control,
+               @"INSearchForPhotosIntent": photos, @"INStartPhotoPlaybackIntent": photos };
+    }
+    NSArray *codes = t[cls];
+    if (!codes) return nil;
+    return code >= 0 && code < (NSInteger)codes.count ? codes[code] : @"failure";
+}
+
+/* payments */
+@implementation INPaymentMethod
+VALUE_CLASS
+- (instancetype)initWithType:(INPaymentMethodType)type name:(NSString *)name identificationHint:(NSString *)hint icon:(INImage *)icon {
+    if ((self = [super init])) { SETI("type", type); SET("name", [name copy]); SET("identificationHint", [hint copy]); SET("icon", [icon copy]); }
+    return self;
+}
++ (instancetype)applePayPaymentMethod { return [[self alloc] initWithType:INPaymentMethodTypeApplePay name:@"Apple Pay" identificationHint:nil icon:nil]; }
+INT(INPaymentMethodType, type) OBJ(NSString *, name) OBJ(INImage *, icon) OBJ(NSString *, identificationHint)
+@end
+@implementation INPaymentRecord
+VALUE_CLASS
+- (instancetype)initWithPayee:(INPerson *)payee payer:(INPerson *)payer currencyAmount:(INCurrencyAmount *)amount paymentMethod:(INPaymentMethod *)method note:(NSString *)note status:(INPaymentStatus)status feeAmount:(INCurrencyAmount *)fee {
+    if ((self = [super init])) {
+        SET("payee", [payee copy]); SET("payer", [payer copy]); SET("currencyAmount", [amount copy]); SET("paymentMethod", [method copy]);
+        SET("note", [note copy]); SETI("status", status); SET("feeAmount", [fee copy]);
+    }
+    return self;
+}
+- (instancetype)initWithPayee:(INPerson *)payee payer:(INPerson *)payer currencyAmount:(INCurrencyAmount *)amount paymentMethod:(INPaymentMethod *)method note:(NSString *)note status:(INPaymentStatus)status {
+    return [self initWithPayee:payee payer:payer currencyAmount:amount paymentMethod:method note:note status:status feeAmount:nil];
+}
+OBJ(INPerson *, payee) OBJ(INPerson *, payer) OBJ(INCurrencyAmount *, currencyAmount) OBJ(NSString *, note) INT(INPaymentStatus, status)
+OBJ(INPaymentMethod *, paymentMethod) OBJ(INCurrencyAmount *, feeAmount)
+@end
+@implementation INBalanceAmount
+VALUE_CLASS
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount balanceType:(INBalanceType)type { if ((self = [super init])) { SET("amount", amount); SETI("balanceType", type); } return self; }
+- (instancetype)initWithAmount:(NSDecimalNumber *)amount currencyCode:(NSString *)code {
+    if ((self = [super init])) { SET("amount", amount); SETI("balanceType", INBalanceTypeMoney); SET("currencyCode", [code copy]); }
+    return self;
+}
+OBJ(NSDecimalNumber *, amount) INT(INBalanceType, balanceType) OBJ(NSString *, currencyCode)
+@end
+@implementation INPaymentAmount
+VALUE_CLASS
+- (instancetype)initWithAmountType:(INAmountType)type amount:(INCurrencyAmount *)amount { if ((self = [super init])) { SETI("amountType", type); SET("amount", [amount copy]); } return self; }
+OBJ(INCurrencyAmount *, amount) INT(INAmountType, amountType)
+@end
+@implementation INPaymentAccount
+VALUE_CLASS
+- (instancetype)initWithNickname:(INSpeakableString *)nickname number:(NSString *)number accountType:(INAccountType)type organizationName:(INSpeakableString *)org balance:(INBalanceAmount *)balance secondaryBalance:(INBalanceAmount *)secondary {
+    if ((self = [super init])) {
+        SET("nickname", [nickname copy]); SET("accountNumber", [number copy]); SETI("accountType", type); SET("organizationName", [org copy]);
+        SET("balance", [balance copy]); SET("secondaryBalance", [secondary copy]);
+    }
+    return self;
+}
+- (instancetype)initWithNickname:(INSpeakableString *)nickname number:(NSString *)number accountType:(INAccountType)type organizationName:(INSpeakableString *)org {
+    return [self initWithNickname:nickname number:number accountType:type organizationName:org balance:nil secondaryBalance:nil];
+}
+OBJ(INSpeakableString *, nickname) OBJ(NSString *, accountNumber) INT(INAccountType, accountType) OBJ(INSpeakableString *, organizationName)
+OBJ(INBalanceAmount *, balance) OBJ(INBalanceAmount *, secondaryBalance)
+@end
+@implementation INSendPaymentIntent
+- (instancetype)initWithPayee:(INPerson *)payee currencyAmount:(INCurrencyAmount *)amount note:(NSString *)note {
+    if ((self = [self init])) { SET("payee", [payee copy]); SET("currencyAmount", [amount copy]); SET("note", [note copy]); }
+    return self;
+}
+OBJ(INPerson *, payee) OBJ(INCurrencyAmount *, currencyAmount) OBJ(NSString *, note)
+- (NSString *)intentDescription { return [NSString stringWithFormat:@"Send money%@", self.payee ? [@" to " stringByAppendingString:self.payee.displayName] : @""]; }
+@end
+@implementation INRequestPaymentIntent
+- (instancetype)initWithPayer:(INPerson *)payer currencyAmount:(INCurrencyAmount *)amount note:(NSString *)note {
+    if ((self = [self init])) { SET("payer", [payer copy]); SET("currencyAmount", [amount copy]); SET("note", [note copy]); }
+    return self;
+}
+OBJ(INPerson *, payer) OBJ(INCurrencyAmount *, currencyAmount) OBJ(NSString *, note)
+- (NSString *)intentDescription { return [NSString stringWithFormat:@"Request money%@", self.payer ? [@" from " stringByAppendingString:self.payer.displayName] : @""]; }
+@end
+RESPONSE(INSendPaymentIntentResponse, INSendPaymentIntentResponseCode)
+PROP(INPaymentRecord *, paymentRecord, PaymentRecord)
+@end
+RESPONSE(INRequestPaymentIntentResponse, INRequestPaymentIntentResponseCode)
+PROP(INPaymentRecord *, paymentRecord, PaymentRecord)
+@end
+
+/* rides */
+@implementation INPriceRange
+VALUE_CLASS
+- (instancetype)initWithRangeBetweenPrice:(NSDecimalNumber *)first andPrice:(NSDecimalNumber *)second currencyCode:(NSString *)code {
+    if ((self = [super init])) {
+        BOOL asc = [first compare:second] != NSOrderedDescending;
+        SET("minimumPrice", asc ? first : second); SET("maximumPrice", asc ? second : first); SET("currencyCode", [code copy]);
+    }
+    return self;
+}
+- (instancetype)initWithMaximumPrice:(NSDecimalNumber *)max currencyCode:(NSString *)code { if ((self = [super init])) { SET("maximumPrice", max); SET("currencyCode", [code copy]); } return self; }
+- (instancetype)initWithMinimumPrice:(NSDecimalNumber *)min currencyCode:(NSString *)code { if ((self = [super init])) { SET("minimumPrice", min); SET("currencyCode", [code copy]); } return self; }
+- (instancetype)initWithPrice:(NSDecimalNumber *)price currencyCode:(NSString *)code { return [self initWithRangeBetweenPrice:price andPrice:price currencyCode:code]; }
+OBJ(NSDecimalNumber *, minimumPrice) OBJ(NSDecimalNumber *, maximumPrice)
+- (NSString *)currencyCode { return [self _get:@"currencyCode"] ?: @""; }
+@end
+@implementation INRideFareLineItem
+VALUE_CLASS
+- (instancetype)initWithTitle:(NSString *)title price:(NSDecimalNumber *)price currencyCode:(NSString *)code {
+    if ((self = [super init])) { SET("title", [title copy]); SET("price", price); SET("currencyCode", [code copy]); }
+    return self;
+}
+OBJ(NSString *, title) OBJ(NSDecimalNumber *, price) OBJ(NSString *, currencyCode)
+@end
+@implementation INRidePartySizeOption
+VALUE_CLASS
+- (instancetype)initWithPartySizeRange:(NSRange)range sizeDescription:(NSString *)d priceRange:(INPriceRange *)price {
+    if ((self = [super init])) { SETI("partySizeLocation", range.location); SETI("partySizeLength", range.length); SET("sizeDescription", [d copy]); SET("priceRange", [price copy]); }
+    return self;
+}
+- (NSRange)partySizeRange { return NSMakeRange((NSUInteger)[self _int:@"partySizeLocation"], (NSUInteger)[self _int:@"partySizeLength"]); }
+- (NSString *)sizeDescription { return [self _get:@"sizeDescription"] ?: @""; }
+OBJ(INPriceRange *, priceRange)
+@end
+@implementation INRideOption
+VALUE_CLASS
+- (instancetype)initWithName:(NSString *)name estimatedPickupDate:(NSDate *)date { if ((self = [super init])) { SET("name", [name copy] ?: @""); SET("estimatedPickupDate", [date copy] ?: [NSDate date]); } return self; }
+- (NSString *)name { return [self _get:@"name"] ?: @""; }
+- (void)setName:(NSString *)n { SET("name", [n copy] ?: @""); }
+- (NSDate *)estimatedPickupDate { return [self _get:@"estimatedPickupDate"] ?: [NSDate date]; }
+- (void)setEstimatedPickupDate:(NSDate *)d { SET("estimatedPickupDate", [d copy]); }
+PROP(INPriceRange *, priceRange, PriceRange) PROP(NSNumber *, usesMeteredFare, UsesMeteredFare) PROP(NSString *, disclaimerMessage, DisclaimerMessage)
+PROP(NSArray *, availablePartySizeOptions, AvailablePartySizeOptions) PROP(NSString *, availablePartySizeOptionsSelectionPrompt, AvailablePartySizeOptionsSelectionPrompt)
+PROP(NSString *, specialPricing, SpecialPricing) PROP(INImage *, specialPricingBadgeImage, SpecialPricingBadgeImage) PROP(NSArray *, fareLineItems, FareLineItems)
+PROPS(NSUserActivity *, userActivityForBookingInApplication, UserActivityForBookingInApplication) PROP(NSString *, identifier, Identifier)
+@end
+@implementation INRideDriver
+- (instancetype)initWithPhoneNumber:(NSString *)phone nameComponents:(NSPersonNameComponents *)n displayName:(NSString *)d image:(INImage *)i rating:(NSString *)rating {
+    if ((self = [super initWithPersonHandle:[[INPersonHandle alloc] initWithValue:phone type:INPersonHandleTypePhoneNumber] nameComponents:n displayName:d image:i contactIdentifier:nil customIdentifier:nil])) {
+        SET("phoneNumber", [phone copy]); SET("rating", [rating copy]);
+    }
+    return self;
+}
+- (instancetype)initWithHandle:(NSString *)h displayName:(NSString *)d image:(INImage *)i rating:(NSString *)rating phoneNumber:(NSString *)phone {
+    return [self initWithPersonHandle:[[INPersonHandle alloc] initWithValue:h type:INPersonHandleTypeUnknown] nameComponents:nil displayName:d image:i rating:rating phoneNumber:phone];
+}
+- (instancetype)initWithHandle:(NSString *)h nameComponents:(NSPersonNameComponents *)n image:(INImage *)i rating:(NSString *)rating phoneNumber:(NSString *)phone {
+    return [self initWithPersonHandle:[[INPersonHandle alloc] initWithValue:h type:INPersonHandleTypeUnknown] nameComponents:n displayName:nil image:i rating:rating phoneNumber:phone];
+}
+- (instancetype)initWithPersonHandle:(INPersonHandle *)h nameComponents:(NSPersonNameComponents *)n displayName:(NSString *)d image:(INImage *)i rating:(NSString *)rating phoneNumber:(NSString *)phone {
+    if ((self = [self initWithPhoneNumber:phone ?: @"" nameComponents:n displayName:d image:i rating:rating])) SET("personHandle", h);
+    return self;
+}
+OBJ(NSString *, rating) OBJ(NSString *, phoneNumber)
+@end
+@implementation INRideVehicle
+VALUE_CLASS
+PROP(id, location, Location) PROP(NSString *, registrationPlate, RegistrationPlate) PROP(NSString *, manufacturer, Manufacturer) PROP(NSString *, model, Model)
+PROP(INImage *, mapAnnotationImage, MapAnnotationImage)
+@end
+@implementation INRideCompletionStatus
+VALUE_CLASS
++ (instancetype)_kind:(NSString *)k amount:(INCurrencyAmount *)a {
+    INRideCompletionStatus *s = [self new];
+    [s _set:k forKey:@"kind"]; [s _set:[a copy] forKey:@"paymentAmount"];
+    return s;
+}
++ (instancetype)completed { return [self _kind:@"completed" amount:nil]; }
++ (instancetype)completedWithSettledPaymentAmount:(INCurrencyAmount *)a { return [self _kind:@"completed" amount:a]; }
++ (instancetype)completedWithOutstandingPaymentAmount:(INCurrencyAmount *)a { INRideCompletionStatus *s = [self _kind:@"completed" amount:a]; [s _set:@YES forKey:@"outstanding"]; return s; }
++ (instancetype)completedWithFeedbackType:(INRideFeedbackTypeOptions)f { INRideCompletionStatus *s = [self _kind:@"completed" amount:nil]; [s _set:@(f) forKey:@"feedbackType"]; return s; }
++ (instancetype)canceledByService { return [self _kind:@"canceled" amount:nil]; }
++ (instancetype)canceledByUser { return [self _kind:@"canceled" amount:nil]; }
++ (instancetype)canceledMissedPickup { INRideCompletionStatus *s = [self _kind:@"canceled" amount:nil]; [s _set:@YES forKey:@"missedPickup"]; return s; }
+- (BOOL)isCompleted { return [[self _get:@"kind"] isEqual:@"completed"]; }
+- (BOOL)isCanceled { return [[self _get:@"kind"] isEqual:@"canceled"]; }
+- (BOOL)isMissedPickup { return [[self _get:@"missedPickup"] boolValue]; }
+- (BOOL)isOutstanding { return [[self _get:@"outstanding"] boolValue]; }
+OBJ(INCurrencyAmount *, paymentAmount) INT(INRideFeedbackTypeOptions, feedbackType)
+PROPS(NSUserActivity *, completionUserActivity, CompletionUserActivity) PROP(NSSet *, defaultTippingOptions, DefaultTippingOptions)
+@end
+@implementation INRideStatus
+VALUE_CLASS
+PROP(NSString *, rideIdentifier, RideIdentifier) PROPI(INRidePhase, phase, Phase) PROP(INRideCompletionStatus *, completionStatus, CompletionStatus)
+PROP(INRideVehicle *, vehicle, Vehicle) PROP(INRideDriver *, driver, Driver) PROP(NSDate *, estimatedPickupDate, EstimatedPickupDate)
+PROP(NSDate *, estimatedDropOffDate, EstimatedDropOffDate) PROP(NSDate *, estimatedPickupEndDate, EstimatedPickupEndDate)
+PROP(INDateComponentsRange *, scheduledPickupTime, ScheduledPickupTime) PROP(id, pickupLocation, PickupLocation) PROP(NSArray *, waypoints, Waypoints)
+PROP(id, dropOffLocation, DropOffLocation) PROP(INRideOption *, rideOption, RideOption)
+PROPS(NSUserActivity *, userActivityForCancelingInApplication, UserActivityForCancelingInApplication) PROP(NSArray *, additionalActionActivities, AdditionalActionActivities)
+@end
+@implementation INListRideOptionsIntent
+- (instancetype)initWithPickupLocation:(id)pickup dropOffLocation:(id)dropOff { if ((self = [self init])) { SET("pickupLocation", [pickup copy]); SET("dropOffLocation", [dropOff copy]); } return self; }
+OBJ(id, pickupLocation) OBJ(id, dropOffLocation)
+- (NSString *)intentDescription { return @"List ride options"; }
+@end
+@implementation INRequestRideIntent
+- (instancetype)initWithPickupLocation:(id)pickup dropOffLocation:(id)dropOff rideOptionName:(INSpeakableString *)option partySize:(NSNumber *)size paymentMethod:(INPaymentMethod *)method scheduledPickupTime:(INDateComponentsRange *)time {
+    if ((self = [self init])) {
+        SET("pickupLocation", [pickup copy]); SET("dropOffLocation", [dropOff copy]); SET("rideOptionName", [option copy]); SET("partySize", size);
+        SET("paymentMethod", [method copy]); SET("scheduledPickupTime", [time copy]);
+    }
+    return self;
+}
+OBJ(id, pickupLocation) OBJ(id, dropOffLocation) OBJ(INSpeakableString *, rideOptionName) OBJ(NSNumber *, partySize) OBJ(INPaymentMethod *, paymentMethod)
+OBJ(INDateComponentsRange *, scheduledPickupTime)
+- (NSString *)intentDescription {
+    id d = self.dropOffLocation;
+    NSString *to = [d respondsToSelector:@selector(name)] ? [d valueForKey:@"name"] : nil;
+    return to.length ? [@"Request a ride to " stringByAppendingString:to] : @"Request a ride";
+}
+@end
+@implementation INGetRideStatusIntent
+- (instancetype)init { return [super init]; }
+- (NSString *)intentDescription { return @"Get ride status"; }
+@end
+@implementation INCancelRideIntent
+- (instancetype)initWithRideIdentifier:(NSString *)ride { if ((self = [self init])) SET("rideIdentifier", [ride copy] ?: @""); return self; }
+- (NSString *)rideIdentifier { return [self _get:@"rideIdentifier"] ?: @""; }
+- (NSString *)intentDescription { return @"Cancel ride"; }
+@end
+@implementation INSendRideFeedbackIntent
+- (instancetype)initWithRideIdentifier:(NSString *)ride { if ((self = [self init])) SET("rideIdentifier", [ride copy] ?: @""); return self; }
+- (NSString *)rideIdentifier { return [self _get:@"rideIdentifier"] ?: @""; }
+PROP(NSNumber *, rating, Rating) PROP(INCurrencyAmount *, tip, Tip)
+- (NSString *)intentDescription { return @"Send ride feedback"; }
+@end
+RESPONSE(INListRideOptionsIntentResponse, INListRideOptionsIntentResponseCode)
+PROP(NSArray *, rideOptions, RideOptions) PROP(NSArray *, paymentMethods, PaymentMethods) PROP(NSDate *, expirationDate, ExpirationDate)
+@end
+RESPONSE(INRequestRideIntentResponse, INRequestRideIntentResponseCode)
+PROP(INRideStatus *, rideStatus, RideStatus)
+@end
+RESPONSE(INGetRideStatusIntentResponse, INGetRideStatusIntentResponseCode)
+PROP(INRideStatus *, rideStatus, RideStatus)
+@end
+RESPONSE(INCancelRideIntentResponse, INCancelRideIntentResponseCode)
+PROP(INCurrencyAmount *, cancellationFee, CancellationFee) PROP(NSDateComponents *, cancellationFeeThreshold, CancellationFeeThreshold)
+@end
+RESPONSE(INSendRideFeedbackIntentResponse, INSendRideFeedbackIntentResponseCode)
+@end
+
+/* workouts */
+@implementation INStartWorkoutIntent
+- (instancetype)initWithWorkoutName:(INSpeakableString *)name goalValue:(NSNumber *)goal workoutGoalUnitType:(INWorkoutGoalUnitType)unit workoutLocationType:(INWorkoutLocationType)loc isOpenEnded:(NSNumber *)open {
+    if ((self = [self init])) { SET("workoutName", [name copy]); SET("goalValue", goal); SETI("workoutGoalUnitType", unit); SETI("workoutLocationType", loc); SET("isOpenEnded", open); }
+    return self;
+}
+OBJ(INSpeakableString *, workoutName) OBJ(NSNumber *, goalValue) INT(INWorkoutGoalUnitType, workoutGoalUnitType) INT(INWorkoutLocationType, workoutLocationType) OBJ(NSNumber *, isOpenEnded)
+- (NSString *)intentDescription { return self.workoutName.spokenPhrase.length ? [@"Start " stringByAppendingString:self.workoutName.spokenPhrase] : @"Start a workout"; }
+@end
+#define WORKOUT_CONTROL(Verb, verb) \
+@implementation IN##Verb##WorkoutIntent \
+- (instancetype)initWithWorkoutName:(INSpeakableString *)name { if ((self = [self init])) SET("workoutName", [name copy]); return self; } \
+OBJ(INSpeakableString *, workoutName) \
+- (NSString *)intentDescription { return @verb " workout"; } \
+@end \
+RESPONSE(IN##Verb##WorkoutIntentResponse, IN##Verb##WorkoutIntentResponseCode) \
+@end
+WORKOUT_CONTROL(Pause, "Pause") WORKOUT_CONTROL(Resume, "Resume") WORKOUT_CONTROL(End, "End") WORKOUT_CONTROL(Cancel, "Cancel")
+RESPONSE(INStartWorkoutIntentResponse, INStartWorkoutIntentResponseCode)
+@end
+
+/* photos */
+#define PHOTOS_INTENT(cls, desc) \
+@implementation cls \
+- (instancetype)initWithDateCreated:(INDateComponentsRange *)date locationCreated:(id)place albumName:(NSString *)album searchTerms:(NSArray *)terms includedAttributes:(INPhotoAttributeOptions)inc excludedAttributes:(INPhotoAttributeOptions)exc peopleInPhoto:(NSArray *)people { \
+    if ((self = [self init])) { \
+        SET("dateCreated", [date copy]); SET("locationCreated", [place copy]); SET("albumName", [album copy]); SET("searchTerms", [terms copy]); \
+        SETI("includedAttributes", inc); SETI("excludedAttributes", exc); SET("peopleInPhoto", [people copy]); \
+    } \
+    return self; \
+} \
+OBJ(INDateComponentsRange *, dateCreated) OBJ(id, locationCreated) OBJ(NSString *, albumName) OBJ(NSArray *, searchTerms) INT(INConditionalOperator, searchTermsOperator) \
+INT(INPhotoAttributeOptions, includedAttributes) INT(INPhotoAttributeOptions, excludedAttributes) OBJ(NSArray *, peopleInPhoto) INT(INConditionalOperator, peopleInPhotoOperator) \
+- (NSString *)intentDescription { return @desc; } \
+@end
+PHOTOS_INTENT(INSearchForPhotosIntent, "Search for photos")
+PHOTOS_INTENT(INStartPhotoPlaybackIntent, "Play a slideshow")
+RESPONSE(INSearchForPhotosIntentResponse, INSearchForPhotosIntentResponseCode)
+PROP(NSNumber *, searchResultsCount, SearchResultsCount)
+@end
+RESPONSE(INStartPhotoPlaybackIntentResponse, INStartPhotoPlaybackIntentResponseCode)
+PROP(NSNumber *, searchResultsCount, SearchResultsCount)
+@end
+
+/* their resolution results */
+@implementation INDateComponentsRangeResolutionResult
+RESULT_SUCCESS(successWithResolvedDateComponentsRange:, INDateComponentsRange *) RESULT_DISAMBIG(disambiguationWithDateComponentsRangesToDisambiguate:) RESULT_CONFIRM(confirmationRequiredWithDateComponentsRangeToConfirm:, INDateComponentsRange *)
+@end
+@implementation INPlacemarkResolutionResult
+RESULT_SUCCESS(successWithResolvedPlacemark:, id) RESULT_DISAMBIG(disambiguationWithPlacemarksToDisambiguate:) RESULT_CONFIRM(confirmationRequiredWithPlacemarkToConfirm:, id)
+@end
+@implementation INPaymentMethodResolutionResult
+RESULT_SUCCESS(successWithResolvedPaymentMethod:, INPaymentMethod *) RESULT_DISAMBIG(disambiguationWithPaymentMethodsToDisambiguate:) RESULT_CONFIRM(confirmationRequiredWithPaymentMethodToConfirm:, INPaymentMethod *)
+@end
+@implementation INPaymentAmountResolutionResult
+RESULT_SUCCESS(successWithResolvedPaymentAmount:, INPaymentAmount *) RESULT_DISAMBIG(disambiguationWithPaymentAmountsToDisambiguate:) RESULT_CONFIRM(confirmationRequiredWithPaymentAmountToConfirm:, INPaymentAmount *)
+@end
+@implementation INPaymentAccountResolutionResult
+RESULT_SUCCESS(successWithResolvedPaymentAccount:, INPaymentAccount *) RESULT_DISAMBIG(disambiguationWithPaymentAccountsToDisambiguate:) RESULT_CONFIRM(confirmationRequiredWithPaymentAccountToConfirm:, INPaymentAccount *)
+@end
+#define RESULT_ENUM(cls, type, success, confirm) \
+@implementation cls \
++ (instancetype)success:(type)v { return [self _kind:@"success" value:@(v) options:nil]; } \
++ (instancetype)confirm:(type)v { return [self _kind:@"confirmationRequired" value:@(v) options:nil]; } \
+@end
+RESULT_ENUM(INPaymentStatusResolutionResult, INPaymentStatus, successWithResolvedPaymentStatus, confirmationRequiredWithPaymentStatusToConfirm)
+RESULT_ENUM(INWorkoutGoalUnitTypeResolutionResult, INWorkoutGoalUnitType, successWithResolvedWorkoutGoalUnitType, confirmationRequiredWithWorkoutGoalUnitTypeToConfirm)
+RESULT_ENUM(INWorkoutLocationTypeResolutionResult, INWorkoutLocationType, successWithResolvedWorkoutLocationType, confirmationRequiredWithWorkoutLocationTypeToConfirm)
+#define RESULT_REASONS(cls, reasonType, base, baseInit) \
+@implementation cls \
++ (instancetype)unsupportedForReason:(reasonType)reason { return [self unsupportedWithReason:reason]; } \
+- (instancetype)baseInit(base *)r { if ((self = [super init])) copy_result(self, r); return self; } \
+@end
+RESULT_REASONS(INSendPaymentPayeeResolutionResult, INSendPaymentPayeeUnsupportedReason, INPersonResolutionResult, initWithPersonResolutionResult:)
+RESULT_REASONS(INRequestPaymentPayerResolutionResult, INRequestPaymentPayerUnsupportedReason, INPersonResolutionResult, initWithPersonResolutionResult:)
+RESULT_REASONS(INSendPaymentCurrencyAmountResolutionResult, INSendPaymentCurrencyAmountUnsupportedReason, INCurrencyAmountResolutionResult, initWithCurrencyAmountResolutionResult:)
+RESULT_REASONS(INRequestPaymentCurrencyAmountResolutionResult, INRequestPaymentCurrencyAmountUnsupportedReason, INCurrencyAmountResolutionResult, initWithCurrencyAmountResolutionResult:)
+
 /* ---------------- interactions ---------------- */
 static NSString *library_isim(NSString *file) {
     NSString *d = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/isim"];
@@ -759,6 +1116,15 @@ INT(INInteractionDirection, direction)
     if (!r || ![r respondsToSelector:@selector(code)]) return INIntentHandlingStatusUnspecified;
     NSInteger code = [(id)r code];
     NSString *cls = NSStringFromClass(r.class);
+    NSString *meaning = isim_in_code_meaning(NSStringFromClass(self.intent.class), code);
+    if (meaning) {
+        if ([meaning isEqualToString:@"success"]) return INIntentHandlingStatusSuccess;
+        if ([meaning isEqualToString:@"ready"]) return INIntentHandlingStatusReady;
+        if ([meaning isEqualToString:@"inProgress"]) return INIntentHandlingStatusInProgress;
+        if ([meaning isEqualToString:@"continueInApp"] || [meaning isEqualToString:@"handleInApp"]) return INIntentHandlingStatusDeferredToApplication;
+        if ([meaning isEqualToString:@"unspecified"]) return INIntentHandlingStatusUnspecified;
+        return INIntentHandlingStatusFailure;
+    }
     /* each domain's success code */
     NSInteger success = [cls isEqualToString:@"INPlayMediaIntentResponse"] || [cls isEqualToString:@"INSearchForMediaIntentResponse"] ? 4 : 3;
     if ([cls isEqualToString:@"INAddMediaIntentResponse"] && code == INAddMediaIntentResponseCodeHandleInApp) return INIntentHandlingStatusDeferredToApplication;
