@@ -1,5 +1,6 @@
 // Sample: device sensors and health data on isim — Core Motion (a simulated iPhone held upright at rest; no
-// pedometer, like the Simulator), Core Bluetooth (unsupported, like the Simulator), Core NFC (no reader) and
+// pedometer, headphone motion, batched sensors, sensor recorder, absolute altitude or water submersion, like the
+// Simulator), Core Bluetooth (unsupported, like the Simulator), Core NFC (no reader) and
 // HealthKit (the Health Access sheet, saving samples, statistics and sample queries, anchored object queries and
 // their descriptors, source queries, background delivery).
 import SwiftUI
@@ -15,8 +16,12 @@ struct HelloSensorsApp: App {
 }
 
 final class SensorModel: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralManagerDelegate, NFCNDEFReaderSessionDelegate,
-                         NFCTagReaderSessionDelegate, NFCVASReaderSessionDelegate {
+                         NFCTagReaderSessionDelegate, NFCVASReaderSessionDelegate, CMHeadphoneMotionManagerDelegate,
+                         CMWaterSubmersionManagerDelegate {
     let motion = CMMotionManager()
+    let headphones = CMHeadphoneMotionManager()
+    let water = CMWaterSubmersionManager()
+    let recorder = CMSensorRecorder()
     let health = HKHealthStore()
     var central: CBCentralManager?
     var nfc: NFCNDEFReaderSession?
@@ -73,6 +78,34 @@ final class SensorModel: NSObject, ObservableObject, CBCentralManagerDelegate, C
         CMAltimeter().startRelativeAltitudeUpdates(to: .main) { _, error in
             print("altimeter update error \((error as? CMError)?.code.rawValue ?? 0)")
         }
+        motionExtras()
+    }
+
+    /// issue #414: the sensors the Simulator lacks answer "not available"
+    func motionExtras() {
+        CMAltimeter().startAbsoluteAltitudeUpdates(to: .main) { data, error in
+            print("absolute altitude \(data.map { "\($0.altitude)" } ?? "nil") error \((error as? CMError)?.code.rawValue ?? 0) available \(CMAltimeter.isAbsoluteAltitudeAvailable())")
+        }
+        headphones.delegate = self
+        headphones.startConnectionStatusUpdates()
+        print("headphones motion \(headphones.isDeviceMotionAvailable) connection \(headphones.isConnectionStatusActive) status \(CMHeadphoneMotionManager.authorizationStatus().rawValue)")
+        let list = recorder.accelerometerData(from: Date().addingTimeInterval(-60), to: Date())
+        print("batched accelerometer \(CMBatchedSensorManager.isAccelerometerSupported) deviceMotion \(CMBatchedSensorManager.isDeviceMotionSupported) recorder \(CMSensorRecorder.isAccelerometerRecordingAvailable()) data \(list.map { "\(Array($0).count)" } ?? "nil") water \(CMWaterSubmersionManager.waterSubmersionAvailable) depth \(water.maximumDepth.map { "\($0)" } ?? "nil")")
+        CMBatchedSensorManager().startDeviceMotionUpdates { batch, error in
+            print("batched device motion \(batch.map { "\($0.count)" } ?? "nil") error \((error as? CMError)?.code.rawValue ?? 0)")
+        }
+        Task {
+            do { for try await batch in CMBatchedSensorManager().accelerometerUpdates() { print("batched accelerometer batch \(batch.count)") } }
+            catch { print("batched accelerometer updates error \((error as? CMError)?.code.rawValue ?? 0)") }
+        }
+        water.delegate = self
+    }
+    func headphoneMotionManagerDidConnect(_ manager: CMHeadphoneMotionManager) { print("headphones connected") }
+    func manager(_ manager: CMWaterSubmersionManager, didUpdate event: CMWaterSubmersionEvent) { print("water event \(event.state.rawValue)") }
+    func manager(_ manager: CMWaterSubmersionManager, didUpdate measurement: CMWaterSubmersionMeasurement) { print("water depth") }
+    func manager(_ manager: CMWaterSubmersionManager, didUpdate measurement: CMWaterTemperature) { print("water temperature") }
+    func manager(_ manager: CMWaterSubmersionManager, errorOccurred error: any Error) {
+        print("water submersion error \((error as? CMError)?.code.rawValue ?? 0)")
     }
 
     // MARK: Bluetooth

@@ -17,10 +17,13 @@ static void say(NSString *fmt, ...) {
 }
 static NSString *errText(NSError *e) { return e ? [NSString stringWithFormat:@"%@/%ld", e.domain, (long)e.code] : @"nil"; }
 
-@interface ViewController : UIViewController <CBCentralManagerDelegate, CBPeripheralManagerDelegate, NFCNDEFReaderSessionDelegate>
+@interface ViewController : UIViewController <CBCentralManagerDelegate, CBPeripheralManagerDelegate, NFCNDEFReaderSessionDelegate,
+                                              CMWaterSubmersionManagerDelegate>
 @property (nonatomic, strong) HKHealthStore *health;
 @property (nonatomic, strong) CMPedometer *pedometer;
 @property (nonatomic, strong) CMAltimeter *altimeter;
+@property (nonatomic, strong) CMWaterSubmersionManager *water;
+@property (nonatomic, strong) CMBatchedSensorManager *batched;
 @property (nonatomic, strong) CBCentralManager *central;
 @property (nonatomic, strong) CBPeripheralManager *peripheral;
 @property (nonatomic, strong) NFCNDEFReaderSession *nfc;
@@ -101,11 +104,35 @@ static NSString *errText(NSError *e) { return e ? [NSString stringWithFormat:@"%
             self.altimeter = [CMAltimeter new];
             [self.altimeter startRelativeAltitudeUpdatesToQueue:NSOperationQueue.mainQueue withHandler:^(CMAltitudeData *a, NSError *ae) {
                 say(@"motion altimeter %@ error %@", a.relativeAltitude, errText(ae));
+                [self motionExtras];
                 [self bluetooth];
             }];
         });
     }];
 }
+
+// issue #414: the sensors the Simulator lacks answer "not available"
+- (void)motionExtras {
+    CMHeadphoneMotionManager *h = [CMHeadphoneMotionManager new];
+    [h startConnectionStatusUpdates];
+    CMSensorRecorder *r = [CMSensorRecorder new];
+    say(@"motion extras headphones %d connection %d batched %d %d recorder %d data %@ water %d", h.deviceMotionAvailable, h.connectionStatusActive,
+        CMBatchedSensorManager.accelerometerSupported, CMBatchedSensorManager.deviceMotionSupported, CMSensorRecorder.isAccelerometerRecordingAvailable,
+        [r accelerometerDataFromDate:[NSDate dateWithTimeIntervalSinceNow:-60] toDate:NSDate.date], CMWaterSubmersionManager.waterSubmersionAvailable);
+    self.batched = [CMBatchedSensorManager new];
+    [self.batched startAccelerometerUpdatesWithHandler:^(NSArray<CMAccelerometerData *> *batch, NSError *e) {
+        say(@"motion batched %@ error %@", batch, errText(e));
+    }];
+    [self.altimeter startAbsoluteAltitudeUpdatesToQueue:NSOperationQueue.mainQueue withHandler:^(CMAbsoluteAltitudeData *a, NSError *e) {
+        say(@"motion absolute altitude %@ error %@", a, errText(e));
+    }];
+    self.water = [CMWaterSubmersionManager new];
+    self.water.delegate = self;
+}
+- (void)manager:(CMWaterSubmersionManager *)manager didUpdateEvent:(CMWaterSubmersionEvent *)event { say(@"motion water event"); }
+- (void)manager:(CMWaterSubmersionManager *)manager didUpdateMeasurement:(CMWaterSubmersionMeasurement *)measurement { say(@"motion water depth"); }
+- (void)manager:(CMWaterSubmersionManager *)manager didUpdateTemperature:(CMWaterTemperature *)measurement { say(@"motion water temperature"); }
+- (void)manager:(CMWaterSubmersionManager *)manager errorOccurred:(NSError *)error { say(@"motion water error %@", errText(error)); }
 
 // MARK: Core Bluetooth
 - (void)bluetooth {

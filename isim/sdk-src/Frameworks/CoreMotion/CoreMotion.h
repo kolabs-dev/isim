@@ -171,7 +171,26 @@ typedef void (^CMAltitudeHandler)(CMAltitudeData * _Nullable altitudeData, NSErr
 - (void)stopRelativeAltitudeUpdates;
 @end
 
+/* absolute altitude (iOS 15): unavailable, like the Simulator; the handler gets CMErrorNotAvailable */
+API_AVAILABLE(ios(15.0))
+@interface CMAbsoluteAltitudeData : CMLogItem
+@property (readonly, nonatomic) double altitude;
+@property (readonly, nonatomic) double accuracy;
+@property (readonly, nonatomic) double precision;
+@end
+typedef void (^CMAbsoluteAltitudeHandler)(CMAbsoluteAltitudeData * _Nullable altitudeData, NSError * _Nullable error) API_AVAILABLE(ios(15.0));
+@interface CMAltimeter (AbsoluteAltitude)
+- (void)startAbsoluteAltitudeUpdatesToQueue:(NSOperationQueue *)queue withHandler:(CMAbsoluteAltitudeHandler)handler API_AVAILABLE(ios(15.0));
+- (void)stopAbsoluteAltitudeUpdates API_AVAILABLE(ios(15.0));
+@end
+
 /* AirPods head tracking: no headphones are connected */
+@class CMHeadphoneMotionManager;
+@protocol CMHeadphoneMotionManagerDelegate <NSObject>
+@optional
+- (void)headphoneMotionManagerDidConnect:(CMHeadphoneMotionManager *)manager;
+- (void)headphoneMotionManagerDidDisconnect:(CMHeadphoneMotionManager *)manager;
+@end
 @interface CMHeadphoneMotionManager : NSObject
 + (CMAuthorizationStatus)authorizationStatus;
 @property (readonly, nonatomic, getter=isDeviceMotionAvailable) BOOL deviceMotionAvailable;
@@ -180,6 +199,88 @@ typedef void (^CMAltitudeHandler)(CMAltitudeData * _Nullable altitudeData, NSErr
 - (void)startDeviceMotionUpdates;
 - (void)startDeviceMotionUpdatesToQueue:(NSOperationQueue *)queue withHandler:(CMDeviceMotionHandler)handler;
 - (void)stopDeviceMotionUpdates;
+@property (weak, nonatomic, nullable) id<CMHeadphoneMotionManagerDelegate> delegate;
+@property (readonly, nonatomic, getter=isConnectionStatusActive) BOOL connectionStatusActive API_AVAILABLE(ios(17.0));
+- (void)startConnectionStatusUpdates API_AVAILABLE(ios(17.0));
+- (void)stopConnectionStatusUpdates API_AVAILABLE(ios(17.0));
+@end
+
+/* batched sensor data (iOS 17): not supported, like the Simulator; the handlers get CMErrorNotAvailable */
+API_AVAILABLE(ios(17.0))
+@interface CMBatchedSensorManager : NSObject
+@property (class, readonly, nonatomic) CMAuthorizationStatus authorizationStatus;
+@property (class, readonly, nonatomic, getter=isAccelerometerSupported) BOOL accelerometerSupported;
+@property (class, readonly, nonatomic, getter=isDeviceMotionSupported) BOOL deviceMotionSupported;
+@property (readonly) NSInteger accelerometerDataFrequency;
+@property (readonly) NSInteger deviceMotionDataFrequency;
+@property (readonly, getter=isAccelerometerActive) BOOL accelerometerActive;
+@property (readonly, getter=isDeviceMotionActive) BOOL deviceMotionActive;
+@property (readonly, nullable) NSArray<CMAccelerometerData *> *accelerometerBatch;
+@property (readonly, nullable) NSArray<CMDeviceMotion *> *deviceMotionBatch;
+- (void)startAccelerometerUpdates;
+- (void)startAccelerometerUpdatesWithHandler:(void (^)(NSArray<CMAccelerometerData *> * _Nullable batchedData, NSError * _Nullable error))handler;
+- (void)stopAccelerometerUpdates;
+- (void)startDeviceMotionUpdates;
+- (void)startDeviceMotionUpdatesWithHandler:(void (^)(NSArray<CMDeviceMotion *> * _Nullable batchedData, NSError * _Nullable error))handler;
+- (void)stopDeviceMotionUpdates;
+@end
+
+/* the sensor recorder: recording is not available, like the Simulator */
+@interface CMRecordedAccelerometerData : CMAccelerometerData
+@property (readonly, nonatomic) uint64_t identifier;
+@property (readonly, nonatomic) NSDate *startDate;
+@end
+@interface CMSensorDataList : NSObject <NSFastEnumeration>
+@end
+@interface CMSensorRecorder : NSObject
++ (BOOL)isAccelerometerRecordingAvailable;
++ (CMAuthorizationStatus)authorizationStatus;
+- (void)recordAccelerometerForDuration:(NSTimeInterval)duration;
+- (nullable CMSensorDataList *)accelerometerDataFromDate:(NSDate *)fromDate toDate:(NSDate *)toDate;
+@end
+
+/* water submersion (iOS 16): no depth gauge; the delegate gets manager:errorOccurred: (CMErrorNotAvailable) */
+typedef NS_ENUM(NSInteger, CMWaterSubmersionState) {
+    CMWaterSubmersionStateUnknown = 0, CMWaterSubmersionStateNotSubmerged = 1, CMWaterSubmersionStateSubmerged = 2,
+} API_AVAILABLE(ios(16.0));
+typedef NS_ENUM(NSInteger, CMWaterSubmersionDepthState) {
+    CMWaterSubmersionDepthStateUnknown = 0, CMWaterSubmersionDepthStateNotSubmerged = 100, CMWaterSubmersionDepthStateSubmergedShallow = 200,
+    CMWaterSubmersionDepthStateSubmergedDeep = 300, CMWaterSubmersionDepthStateApproachingMaxDepth = 400,
+    CMWaterSubmersionDepthStatePastMaxDepth = 500, CMWaterSubmersionDepthStateSensorDepthError = 600,
+} API_AVAILABLE(ios(16.0));
+API_AVAILABLE(ios(16.0))
+@interface CMWaterSubmersionEvent : NSObject <NSSecureCoding, NSCopying>
+@property (readonly, nonatomic) NSDate *date;
+@property (readonly, nonatomic) CMWaterSubmersionState state;
+@end
+API_AVAILABLE(ios(16.0))
+@interface CMWaterSubmersionMeasurement : NSObject <NSSecureCoding, NSCopying>
+@property (readonly, nonatomic) NSDate *date;
+@property (readonly, nonatomic, nullable) NSMeasurement<NSUnitLength *> *depth;
+@property (readonly, nonatomic, nullable) NSMeasurement<NSUnitPressure *> *pressure;
+@property (readonly, nonatomic) NSMeasurement<NSUnitPressure *> *surfacePressure;
+@property (readonly, nonatomic) CMWaterSubmersionDepthState submersionState;
+@end
+API_AVAILABLE(ios(16.0))
+@interface CMWaterTemperature : NSObject <NSSecureCoding, NSCopying>
+@property (readonly, nonatomic) NSDate *date;
+@property (readonly, nonatomic) NSMeasurement<NSUnitTemperature *> *temperature;
+@property (readonly, nonatomic) NSMeasurement<NSUnitTemperature *> *temperatureUncertainty;
+@end
+@class CMWaterSubmersionManager;
+API_AVAILABLE(ios(16.0))
+@protocol CMWaterSubmersionManagerDelegate <NSObject>
+- (void)manager:(CMWaterSubmersionManager *)manager didUpdateEvent:(CMWaterSubmersionEvent *)event;
+- (void)manager:(CMWaterSubmersionManager *)manager didUpdateMeasurement:(CMWaterSubmersionMeasurement *)measurement;
+- (void)manager:(CMWaterSubmersionManager *)manager didUpdateTemperature:(CMWaterTemperature *)measurement;
+- (void)manager:(CMWaterSubmersionManager *)manager errorOccurred:(NSError *)error;
+@end
+API_AVAILABLE(ios(16.0))
+@interface CMWaterSubmersionManager : NSObject
+@property (nullable, weak) id<CMWaterSubmersionManagerDelegate> delegate;
+@property (class, nonatomic, readonly) BOOL waterSubmersionAvailable;
+@property (class, nonatomic, readonly) CMAuthorizationStatus authorizationStatus;
+@property (readonly, nonatomic, nullable) NSMeasurement<NSUnitLength *> *maximumDepth;
 @end
 NS_ASSUME_NONNULL_END
 #else

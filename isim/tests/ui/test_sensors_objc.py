@@ -21,6 +21,10 @@ def test_sensors_objc(launch):
     app.wait_log(r"^po motion steps 0 floors 0 activity 0 altimeter 0 status 0")
     app.wait_log(r"^po motion pedometer \(null\) error CMErrorDomain/104")
     app.wait_log(r"^po motion altimeter \(null\) error CMErrorDomain/109")
+    app.wait_log(r"^po motion extras headphones 0 connection 1 batched 0 0 recorder 0 data \(null\) water 0$")   # issue #414
+    app.wait_log(r"^po motion batched \(null\) error CMErrorDomain/109$")
+    app.wait_log(r"^po motion absolute altitude \(null\) error CMErrorDomain/109$")
+    app.wait_log(r"^po motion water error CMErrorDomain/109$")
     app.wait_log(r"^po bluetooth service 180D primary 1 characteristic 2A37 properties 18 linked 1")
     app.wait_log(r"^po bluetooth central state 2 authorization 3")
     app.wait_log(r"API MISUSE: <CBCentralManager")
