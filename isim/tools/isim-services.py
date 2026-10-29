@@ -60,6 +60,14 @@
   isim spotlight throttle <app> on|off             Spotlight throttles indexing (searchableIndexDidThrottle) or ends it
   isim spotlight import <app> <file>               the app's Spotlight import extension imports a file
   isim spotlight list <app>                        the app's items in the Spotlight index
+  isim home seed                                   HomeKit: an example home (rooms, lights, a thermostat, a lock, a garage
+                                                   door, a camera doorbell...) with a home hub, and two accessories nearby
+  isim home list                                   the device's homes, rooms and accessories with their values
+  isim home set <accessory> <characteristic> <value>   an accessory changes a value (MotionDetected 1, PowerState 0)
+  isim home reachable <accessory> on|off           an accessory goes out of reach (or comes back)
+  isim home add-accessory <kind> [name]            a new accessory nearby, for HMAccessoryBrowser and the Add Accessory
+                                                   sheet (lightbulb, outlet, switch, fan, contact, motion, thermostat, lock)
+  isim home clear                                  remove every home
 
 <app> is a bundle identifier, an .app bundle or an installed app's name. Running apps notice changes
 within half a second. Data: ISIM_DATA (~/.local/share/isim)/Containers/<bundle id>/Library/isim/; Wallet: ISIM_DATA/Library/Wallet/; StoreKit purchase
@@ -1336,6 +1344,217 @@ def spotlight(cmd, args):
     os.replace(tmp, os.path.join(q, f'{time.time():.6f}-{os.getpid()}.plist'))
     print(f"queued Spotlight's {req['request']} request for {req['bundle']}")
 
+HOMEKIT = os.path.join(DATA, 'Library/isim/HomeKit/homes.json')
+
+
+def hk_types():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('homekit_types', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'homekit-types.py'))
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def hk_load():
+    if os.path.exists(HOMEKIT):
+        return json.load(open(HOMEKIT))
+    return {'seq': 0, 'homes': [], 'available': []}
+
+
+def hk_save(d):
+    d['seq'] = d.get('seq', 0) + 1
+    os.makedirs(os.path.dirname(HOMEKIT), exist_ok=True)
+    write_json(HOMEKIT, d)
+
+
+def hk_char(t, name, value):
+    c = next(c for c in t.CHARACTERISTICS if c[0] == name)
+    props = {'r': 'HMCharacteristicPropertyReadable', 'w': 'HMCharacteristicPropertyWritable',
+             'n': 'HMCharacteristicPropertySupportsEventNotification'}
+    rec = {'id': str(uuid.uuid4()).upper(), 'type': t.hap(c[1]), 'format': c[2], 'properties': [props[p] for p in c[5]]}
+    if c[3]:
+        rec['units'] = c[3]
+    if c[4]:
+        for k, v in zip(('min', 'max', 'step'), c[4]):
+            if v is not None:
+                rec[k] = v
+    if value is not None:
+        rec['value'] = value
+    return rec
+
+
+def hk_service(t, kind, name, chars, primary=False):
+    s = next(s for s in t.SERVICES if s[0] == kind)
+    rec = {'id': str(uuid.uuid4()).upper(), 'type': t.hap(s[1]), 'name': name, 'characteristics': [hk_char(t, n, v) for n, v in chars]}
+    if primary:
+        rec['primary'] = True
+    return rec
+
+
+def hk_accessory(t, name, category, room, services, model='Simulated', setup=None):
+    cat = next(c for c in t.CATEGORIES if c[0] == category)
+    info = hk_service(t, 'AccessoryInformation', name, [('Name', name), ('Manufacturer', 'isim'), ('Model', model),
+                                                        ('SerialNumber', str(uuid.uuid4().int)[:10]), ('FirmwareVersion', '1.0.0'),
+                                                        ('Identify', None)])
+    rec = {'id': str(uuid.uuid4()).upper(), 'name': name, 'category': f'{cat[1]:08X}-0000-1000-8000-0A0F1F0E0000',
+           'manufacturer': 'isim', 'model': model, 'firmware': '1.0.0', 'services': [info] + services}
+    if room:
+        rec['room'] = room
+    if setup:
+        rec['setupURL'] = setup
+    return rec
+
+
+HK_KINDS = {
+    'lightbulb': ('Lightbulb', 'Lightbulb', [('PowerState', False), ('Brightness', 100)]),
+    'outlet': ('Outlet', 'Outlet', [('PowerState', False), ('OutletInUse', False)]),
+    'switch': ('Switch', 'Switch', [('PowerState', False)]),
+    'fan': ('Fan', 'Fan', [('PowerState', False), ('RotationSpeed', 50), ('RotationDirection', 0)]),
+    'contact': ('Sensor', 'ContactSensor', [('ContactState', 1)]),
+    'motion': ('Sensor', 'MotionSensor', [('MotionDetected', False)]),
+    'thermostat': ('Thermostat', 'Thermostat', [('CurrentTemperature', 20.0), ('TargetTemperature', 21.0), ('CurrentHeatingCooling', 0),
+                                                ('TargetHeatingCooling', 0), ('TemperatureUnits', 0)]),
+    'lock': ('DoorLock', 'LockMechanism', [('CurrentLockMechanismState', 1), ('TargetLockMechanismState', 1)]),
+}
+
+
+def hk_find_accessory(d, name):
+    for h in d['homes']:
+        for a in h['accessories']:
+            if a['id'] == name or a['name'].lower() == name.lower():
+                return a
+    for a in d.get('available', []):
+        if a['id'] == name or a['name'].lower() == name.lower():
+            return a
+    die(f'no accessory {name} (isim home list)')
+
+
+def hk_value(fmt, text):
+    if fmt == 'bool':
+        return text.lower() in ('1', 'true', 'yes', 'on')
+    if fmt in ('int', 'uint8', 'uint16', 'uint32', 'uint64'):
+        return int(float(text))
+    if fmt == 'float':
+        return float(text)
+    return text
+
+
+def home(cmd, args):
+    """HomeKit: the device's simulated homes"""
+    t = hk_types()
+    names = {t.hap(c[1]): c[0] for c in t.CHARACTERISTICS}
+    if cmd == 'seed':
+        rooms = {n: str(uuid.uuid4()).upper() for n in ('Living Room', 'Kitchen', 'Bedroom', 'Garage', 'Entrance')}
+        acc = lambda *a, **k: hk_accessory(t, *a, **k)
+        svc = lambda *a, **k: hk_service(t, *a, **k)
+        accessories = [
+            acc('Living Room Lamp', 'Lightbulb', rooms['Living Room'], [svc('Lightbulb', 'Living Room Lamp', [
+                ('PowerState', False), ('Brightness', 80), ('Hue', 35.0), ('Saturation', 40.0), ('ColorTemperature', 300)], primary=True)]),
+            acc('Thermostat', 'Thermostat', rooms['Living Room'], [svc('Thermostat', 'Thermostat', [
+                ('CurrentTemperature', 20.5), ('TargetTemperature', 21.0), ('CurrentHeatingCooling', 0), ('TargetHeatingCooling', 0),
+                ('TemperatureUnits', 0), ('CurrentRelativeHumidity', 45.0)], primary=True)]),
+            acc('Front Door', 'DoorLock', rooms['Entrance'], [svc('LockMechanism', 'Front Door', [
+                ('CurrentLockMechanismState', 1), ('TargetLockMechanismState', 1)], primary=True),
+                svc('LockManagement', 'Lock Management', [('LockManagementControlPoint', None), ('Version', '1.0'),
+                                                          ('LockMechanismLastKnownAction', 6)])]),
+            acc('Garage Door', 'GarageDoorOpener', rooms['Garage'], [svc('GarageDoorOpener', 'Garage Door', [
+                ('CurrentDoorState', 1), ('TargetDoorState', 1), ('ObstructionDetected', False)], primary=True)]),
+            acc('Kitchen Outlet', 'Outlet', rooms['Kitchen'], [svc('Outlet', 'Kitchen Outlet', [
+                ('PowerState', False), ('OutletInUse', False)], primary=True)]),
+            acc('Hallway Sensor', 'Sensor', rooms['Entrance'], [svc('MotionSensor', 'Hallway Motion', [('MotionDetected', False)], primary=True),
+                svc('Battery', 'Battery', [('BatteryLevel', 87), ('ChargingState', 2), ('StatusLowBattery', 0)])]),
+            acc('Bedroom Blinds', 'WindowCovering', rooms['Bedroom'], [svc('WindowCovering', 'Bedroom Blinds', [
+                ('CurrentPosition', 0), ('TargetPosition', 0), ('PositionState', 2)], primary=True)]),
+            acc('Doorbell Camera', 'VideoDoorbell', rooms['Entrance'], [
+                svc('CameraRTPStreamManagement', 'Camera', [('SupportedVideoStreamConfiguration', None), ('SupportedAudioStreamConfiguration', None),
+                                                           ('SupportedRTPConfiguration', None), ('SelectedStreamConfiguration', None),
+                                                           ('StreamingStatus', None), ('SetupStreamEndpoint', None)], primary=True),
+                svc('Microphone', 'Microphone', [('Mute', False), ('Volume', 70)]),
+                svc('Speaker', 'Speaker', [('Mute', False), ('Volume', 60)]),
+                svc('Doorbell', 'Doorbell', [('InputEvent', None)])], model='Doorbell'),
+        ]
+        hid = str(uuid.uuid4()).upper()
+        d = hk_load()
+        d['homes'] = [{
+            'id': hid, 'name': 'My Home', 'hub': True,
+            'rooms': [{'id': i, 'name': n} for n, i in rooms.items()],
+            'zones': [{'id': str(uuid.uuid4()).upper(), 'name': 'Downstairs', 'rooms': [rooms['Living Room'], rooms['Kitchen']]}],
+            'accessories': accessories, 'serviceGroups': [],
+            'actionSets': [{'id': str(uuid.uuid4()).upper(), 'name': n, 'type': ty, 'actions': []} for ty, n in (
+                ('HMActionSetTypeWakeUp', 'Good Morning'), ('HMActionSetTypeSleep', 'Good Night'),
+                ('HMActionSetTypeHomeDeparture', 'Leave Home'), ('HMActionSetTypeHomeArrival', 'Arrive Home'))],
+            'triggers': [], 'users': [{'id': str(uuid.uuid4()).upper(), 'name': 'Anna Haro', 'admin': True}],
+        }]
+        d['primary'] = hid
+        d['available'] = [
+            hk_accessory(t, 'Ceiling Fan', 'Fan', None, [hk_service(t, 'Fan', 'Ceiling Fan', HK_KINDS['fan'][2], primary=True)],
+                         setup='X-HM://0026ACFAN'),
+            hk_accessory(t, 'Window Sensor', 'Sensor', None, [hk_service(t, 'ContactSensor', 'Window Sensor', HK_KINDS['contact'][2], primary=True)],
+                         setup='X-HM://0026ACWIN'),
+        ]
+        hk_save(d)
+        print(f'seeded My Home ({len(rooms)} rooms, {len(accessories)} accessories, a home hub) and 2 accessories nearby')
+    elif cmd == 'list':
+        d = hk_load()
+        if not d['homes'] and not d.get('available'):
+            print('no homes (isim home seed)')
+        for h in d['homes']:
+            print(f"home {h['name']}{' (primary)' if d.get('primary') == h['id'] else ''}{', home hub' if h.get('hub') else ''}")
+            rooms = {r['id']: r['name'] for r in h['rooms']}
+            for a in h['accessories']:
+                vals = []
+                for s in a['services']:
+                    if s['type'] == t.hap('3E'):
+                        continue
+                    vals += [f"{names.get(c['type'], c['type'])}={c['value']}" for c in s['characteristics'] if 'value' in c]
+                state = '' if a.get('reachable', True) else ' (not reachable)'
+                print(f"  {a['name']} [{rooms.get(a.get('room'), 'Default Room')}]{state}: {' '.join(vals)}")
+            for s in h['actionSets']:
+                if s['actions']:
+                    print(f"  scene {s['name']}: {len(s['actions'])} actions")
+            for tr in h['triggers']:
+                print(f"  automation {tr['name']} ({tr['kind']}, {'enabled' if tr['enabled'] else 'disabled'})")
+        for a in d.get('available', []):
+            print(f"nearby {a['name']}" + (f" {a['setupURL']}" if a.get('setupURL') else ''))
+    elif cmd == 'set':
+        if len(args) != 3:
+            die('usage: isim home set <accessory> <characteristic> <value>')
+        d = hk_load()
+        a = hk_find_accessory(d, args[0])
+        for s in a['services']:
+            for c in s['characteristics']:
+                if names.get(c['type'], '').lower() == args[1].lower() or c['type'] == args[1]:
+                    c['value'] = hk_value(c['format'], args[2])
+                    hk_save(d)
+                    print(f"{a['name']} {names.get(c['type'])} = {c['value']}")
+                    return
+        die(f"{a['name']} has no characteristic {args[1]}")
+    elif cmd == 'reachable':
+        if len(args) != 2 or args[1] not in ('on', 'off'):
+            die('usage: isim home reachable <accessory> on|off')
+        d = hk_load()
+        a = hk_find_accessory(d, args[0])
+        a['reachable'] = args[1] == 'on'
+        hk_save(d)
+        print(f"{a['name']} is {'reachable' if a['reachable'] else 'not reachable'}")
+    elif cmd == 'add-accessory':
+        if not args or args[0] not in HK_KINDS:
+            die('usage: isim home add-accessory ' + '|'.join(HK_KINDS) + ' [name]')
+        category, kind, chars = HK_KINDS[args[0]]
+        name = args[1] if len(args) > 1 else f'New {kind}'
+        d = hk_load()
+        code = 'X-HM://' + uuid.uuid4().hex[:9].upper()
+        d.setdefault('available', []).append(hk_accessory(t, name, category, None, [hk_service(t, kind, name, chars, primary=True)], setup=code))
+        hk_save(d)
+        print(f'{name} is nearby (setup code {code})')
+    elif cmd == 'clear':
+        if os.path.exists(HOMEKIT):
+            os.remove(HOMEKIT)
+        print('homes cleared')
+    else:
+        die('usage: isim home seed|list|set|reachable|add-accessory|clear')
+
+
 
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == 'gamecenter' and sys.argv[2] in GC_NETWORK:
@@ -1344,6 +1563,8 @@ def main():
         sys.argv.append('')
     if len(sys.argv) >= 2 and sys.argv[1] == 'finance':
         return finance(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
+    if len(sys.argv) >= 2 and sys.argv[1] == 'home':
+        return home(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] in ('smartcard', 'iddocs', 'alarms', 'messages', 'bgassets', 'fileprovider', 'screentime', 'spotlight'):
         return {'smartcard': smartcard, 'iddocs': iddocs, 'alarms': alarms, 'messages': messages, 'bgassets': bgassets,
                 'fileprovider': fileprovider, 'screentime': screentime, 'spotlight': spotlight}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])

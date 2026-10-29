@@ -581,12 +581,13 @@ def _(a):
 
 @app("samples/HelloServicesObjC")   # after the overlays: the frameworks re-export their Swift overlays (issue #231)
 def _(a):
-    a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "PushKit", "-framework", "CallKit",
+    b = a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "PushKit", "-framework", "CallKit",
                                           "-framework", "AVFoundation", "-framework", "BackgroundTasks", "-framework", "CoreSpotlight",
                                           "-framework", "SafariServices", "-framework", "MultipeerConnectivity", "-framework", "CoreGraphics",
                                           "-framework", "Messages", "-framework", "BackgroundAssets", "-framework", "FileProvider",
                                           "-framework", "FileProviderUI", "-framework", "UniformTypeIdentifiers", "-framework", "CarPlay",
-                                          "-framework", "Intents", "-framework", "CoreLocation"])
+                                          "-framework", "Intents", "-framework", "CoreLocation", "-framework", "HomeKit"])
+    a.copy("HelloServicesObjC.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # HomeKit (issue #416)
 
 
 @app("samples/HelloAuthObjC")   # after the overlays: AuthenticationServices.framework re-exports its Swift overlay (issue #305)
@@ -734,6 +735,12 @@ def _(a):
 def _(a):
     b = a.swift_app()
     a.copy("HelloWeather.entitlements", f"{b}/archived-expanded-entitlements.xcent")
+
+
+@app("samples/HelloHome")   # issue #416: HomeKit's simulated homes, with the HomeKit entitlement
+def _(a):
+    b = a.swift_app()
+    a.copy("HelloHome.entitlements", f"{b}/archived-expanded-entitlements.xcent")
 
 
 @app("samples/HelloAgeRange")   # issue #397: DeclaredAgeRange, PermissionKit, the expanded tracking prompt

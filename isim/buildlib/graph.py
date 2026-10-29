@@ -279,6 +279,7 @@ SWIFT_FRAMEWORKS = [
     ("ReplayKit", "-framework Foundation -framework UIKit -framework AVFoundation -framework CoreMedia"),   # issue #385
     ("PHASE", "-framework Foundation -framework AVFoundation"),   # issue #386
     ("GameSave", "-framework Foundation -framework UIKit"),   # issue #393
+    ("HomeKit", "-framework Foundation -framework UIKit -framework CoreLocation"),   # issue #416: simulated homes
 ]
 
 GUEST_CFLAGS = ["-target", f"x86_64-apple-ios{MINOS}-simulator", "-nostdlibinc", "-isystem", f"{SDK}/usr/include",
@@ -355,7 +356,7 @@ def frameworks(c):
 TOOLS = [("isim", True), ("isim-build.py", True), ("isim-services.py", True), ("xcodeproj.py", False), ("momc.py", True),
          ("ibtool.py", True), ("isim-test.py", True), ("isim-preview.py", True), ("isim-crashlog.py", True),
          ("isim-privacy.py", True), ("isim-adattribution.py", True), ("isim-devicecheck.py", True), ("isim-new.py", True),
-         ("mslc.py", True)]
+         ("mslc.py", True), ("homekit-types.py", False)]
 
 
 def tools(c):

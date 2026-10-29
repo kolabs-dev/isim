@@ -208,7 +208,9 @@ downloaded. A CarPlay app's templates show on a simulated CarPlay screen: `carpl
 ids), `carplay tap ID` and `carplay shot PATH`. Screen Time's monitors run on usage and a clock scripts set: `isim screentime usage APP
 MINUTES` and `isim screentime clock +MINUTES`; `isim screentime status` shows authorizations, activities and shields. Spotlight asks an app's index delegate (or
 its index extension) with `isim spotlight reindex APP [ID…]`, `isim spotlight items APP ID…` and `isim spotlight throttle
-APP on|off`; `isim spotlight import APP FILE` runs its import extension, and `isim spotlight list APP` prints its indexed items.
+APP on|off`; `isim spotlight import APP FILE` runs its import extension, and `isim spotlight list APP` prints its indexed items. A HomeKit
+app works with the device's simulated home: `isim home seed` makes one, `isim home set ACCESSORY CHARACTERISTIC VALUE` and
+`isim home reachable ACCESSORY on|off` change it as an accessory would, and `isim home list` prints it.
 
 Each device reads these from a control FIFO of its own; `--control FIFO` names one yourself (then `echo "…" > FIFO`
 works too). The FIFO only goes one way: commands get no reply. To read a result, write it to a file
