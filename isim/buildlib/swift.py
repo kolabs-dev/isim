@@ -605,6 +605,9 @@ class Swift:
             flags = ["-Xfrontend", "-disable-objc-attr-requires-foundation-module", *WERROR] + (["-enable-library-evolution"] if m in EVOLUTION else [])
             implicit = [mod(d) for d in deps if not d.startswith("_")] + [mod(d) for d in deps if d.startswith("_")]
             implicit += [c.fw_header_stamp[f] for f in fws if f in c.fw_header_stamp] + [c.header_stamps[0]]
+            if m in UNDERLYING:                                  # imports its own framework's header (built after it)
+                flags += ["-Xfrontend", "-disable-autolink-framework", "-Xfrontend", m]
+                implicit.append(c.fw_header_stamp[m])
             implicit += [f"{SW}/host/plugins/lib{p}.so" for p in MACRO_PLUGINS.get(m, [])]      # macros it declares
             obj = f"{objdir}/{m}.o"
             os.makedirs(os.path.join(c.root, LIB, f"{m}.swiftmodule"), exist_ok=True)
@@ -804,6 +807,10 @@ OBJC_NAMES["SpriteKit"] = {c: c for c in """SKAction SKAttribute SKAttributeValu
 OBJC_NAMES["MessageUI"] = {c: c for c in ("MFMailComposeViewController", "MFMessageComposeViewController")}
 OBJC_NAMES["CoreBluetooth"] = {c: c for c in """CBUUID CBAttribute CBService CBMutableService CBCharacteristic CBMutableCharacteristic
     CBDescriptor CBMutableDescriptor CBPeer CBCentral CBATTRequest CBL2CAPChannel CBPeripheral CBManager CBCentralManager CBPeripheralManager""".split()}
+OBJC_NAMES["FileProvider"] = {**{c: c for c in """NSFileProviderDomainVersion NSFileProviderItemVersion NSFileProviderDomain NSFileProviderRequest
+    NSFileProviderStringSearchRequest NSFileProviderKnownFolderLocations NSFileProviderService NSFileProviderManager NSFileProviderExtension""".split()},
+                              "NSFileProviderKnownFolderLocations.Location": "NSFileProviderKnownFolderLocation"}   # issue #408
+OBJC_NAMES["FileProviderUI"] = {c: c for c in ("FPUIActionExtensionContext", "FPUIActionExtensionViewController")}   # issue #408
 OBJC_NAMES["BackgroundAssets"] = {c: c for c in "BAAppExtensionInfo BADownload BAURLDownload BADownloadManager".split()}   # issue #407
 OBJC_NAMES["Messages"] = {c: c for c in """MSSession MSMessageLayout MSMessageTemplateLayout MSMessageLiveLayout MSMessage MSSticker MSStickerView
     MSStickerBrowserView MSStickerBrowserViewController MSConversation MSMessagesAppViewController MSUPIRequest""".split()}   # issue #406
@@ -1028,19 +1035,26 @@ IdentityDocumentServices -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -ls
 LiveCommunicationKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCallKit -lswiftAVFoundation -framework Foundation   # issue #404: on CallKit's engine
 ExtensionFoundation -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -framework Foundation   # issue #407: the AppExtension protocols
 BackgroundAssets -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftExtensionFoundation -lswiftSystem -framework Foundation   # issue #407
+FileProvider -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUniformTypeIdentifiers -lswiftCoreGraphics -framework Foundation   # issue #408
+FileProviderUI -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftFileProvider -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework FileProvider   # issue #408
 Messages -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswiftCoreGraphics -lswift_Concurrency -framework Foundation -framework UIKit -framework CoreGraphics -framework ImageIO   # issue #406: hosted by isim's Messages app
 AlarmKit -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftUIKit -lswiftSwiftUI -lswiftAppIntents -lswiftActivityKit -lswiftCombine -lswiftCoreGraphics -lswiftObservation -framework Foundation -framework UIKit -lisim_host   # issue #405: the shell rings the alarms
 """
 
 # app-facing re-implementations: library evolution keeps their ABI stable across isim updates (since 0.12 also the base
 # overlays every other module and app imports: their types can change layout without breaking apps built earlier)
+# overlays of SWIFT_FRAMEWORKS whose header declares the value types (option sets, enums, string identifiers) for Swift
+# too, like Apple's: the overlay imports that clang module (`@_exported import FileProvider`) and does not autolink the
+# framework, which re-exports the overlay
+UNDERLYING = {"FileProvider", "FileProviderUI"}
+
 EVOLUTION = set("""ObjectiveC CoreMIDI QuickLookThumbnailing PencilKit ReplayKit PHASE _CKShareMetadata Accelerate VideoToolbox Dispatch Spatial DeveloperToolsSupport FoundationEssentials Foundation UIKit CoreGraphics CoreLocation UniformTypeIdentifiers CoreTransferable Photos PhotosUI QuickLook EventKit EventKitUI Contacts ContactsUI
 HealthKit CoreMotion CoreBluetooth CoreNFC AVFoundation simd SpriteKit GameplayKit GameController Combine SwiftUI Charts StoreKit
 GameKit AppTrackingTransparency AdServices AdAttributionKit Network CryptoKit Security os OSLog Compression LocalAuthentication
 DeviceCheck UserNotifications AVKit AudioToolbox CoreData SwiftData CoreMedia MediaPlayer AdSupport XPC StateReporting MetricKit CloudKit AuthenticationServices
 QuartzCore AVFAudio AudioUnit CoreAudio CoreHaptics CoreVideo CoreML Vision SoundAnalysis NaturalLanguage FoundationModels Speech VisionKit WebKit SafariServices LinkPresentation Accessibility MessageUI MapKit
 MultipeerConnectivity BackgroundTasks CoreSpotlight AppIntents ActivityKit WidgetKit TipKit Translation ImagePlayground VisualIntelligence Symbols AppClip Intents CoreImage SecureElementCredential MarketplaceKit PushKit CallKit PassKit
-CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive GroupActivities GameSave DeclaredAgeRange PermissionKit FinanceKit FinanceKitUI CryptoTokenKit IdentityDocumentServices LiveCommunicationKit AlarmKit Messages ExtensionFoundation BackgroundAssets""".split())
+CoreLocationUI AccessorySetupKit NearbyInteraction WorkoutKit Metal MetalKit SceneKit ARKit RealityKit AppleArchive GroupActivities GameSave DeclaredAgeRange PermissionKit FinanceKit FinanceKitUI CryptoTokenKit IdentityDocumentServices LiveCommunicationKit AlarmKit Messages ExtensionFoundation BackgroundAssets FileProvider FileProviderUI""".split())
 # modules that also compile overlays/_Privacy (permission alerts, device data)
 PRIVACY = set("CoreLocation HealthKit Contacts EventKit Photos PhotosUI AVFoundation Speech MediaPlayer ReplayKit AlarmKit".split())
 # modules that also compile overlays/_AdAttribution (the conversion values SKAdNetwork and AdAttributionKit share)

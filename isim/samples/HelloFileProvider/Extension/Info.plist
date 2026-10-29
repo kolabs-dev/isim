@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Cloud Notes Files</string>
+	<key>CFBundleExecutable</key>
+	<string>HelloFileProviderExtension</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.isim.samples.HelloFileProvider.Files</string>
+	<key>CFBundlePackageType</key>
+	<string>XPC!</string>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.fileprovider-nonui</string>
+		<key>NSExtensionPrincipalClass</key>
+		<string>HelloFileProviderExtension.FileProviderExtension</string>
+		<key>NSExtensionFileProviderSupportsEnumeration</key>
+		<true/>
+		<key>NSExtensionFileProviderDocumentGroup</key>
+		<string>group.dev.isim.samples.hellofileprovider</string>
+		<key>NSExtensionFileProviderActions</key>
+		<array>
+			<dict>
+				<key>NSExtensionFileProviderActionIdentifier</key>
+				<string>dev.isim.samples.fileprovider.star</string>
+				<key>NSExtensionFileProviderActionName</key>
+				<string>Star</string>
+				<key>NSExtensionFileProviderActionActivationRule</key>
+				<string>SUBQUERY ( fileproviderItems, $fileproviderItem, $fileproviderItem.contentType.identifier != "public.folder" ).@count &gt; 0</string>
+			</dict>
+		</array>
+	</dict>
+</dict>
+</plist>

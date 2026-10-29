@@ -223,6 +223,8 @@ SWIFT_FRAMEWORKS = [
     ("MessageUI", "-framework Foundation -framework UIKit"),
     ("Messages", "-framework Foundation -framework UIKit"),   # issue #406
     ("BackgroundAssets", "-framework Foundation"),   # issue #407: background downloads and asset packs
+    ("FileProvider", "-framework Foundation"),   # issue #408: replicated file provider extensions
+    ("FileProviderUI", "-framework Foundation -framework UIKit -framework FileProvider"),   # issue #408: their action UI
     ("StoreKit", "-framework Foundation -framework UIKit"),
     ("MarketplaceKit", []),
     ("Security", "-framework Foundation"),

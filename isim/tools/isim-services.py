@@ -1141,6 +1141,35 @@ def messages(cmd, args):
         die('usage: isim messages list | receive ...')
 
 
+def fileprovider(cmd, args):
+    """FileProvider: the device's file provider domains (NSFileProviderManager.add) and their replicas' files"""
+    d = os.path.join(DATA, 'Library/isim/FileProvider')
+    domains = json.load(open(os.path.join(d, 'domains.json'))) if os.path.isfile(os.path.join(d, 'domains.json')) else []
+    safe = lambda s: s.replace('/', '_')
+    if cmd == 'list':                                   # one line per domain: app, domain, name, replica
+        for r in domains:
+            flags = ''.join([' hidden' if r.get('hidden') else '', ' disconnected' if r.get('disconnected') else ''])
+            print(f"{r['app']} {r['identifier']} \"{r['displayName']}\"{flags} {os.path.join(d, 'Domains', safe(r['provider']), safe(r['identifier']))}")
+    elif cmd == 'files' and args:                       # a domain's replica: each item, (placeholder) until downloaded
+        r = next((r for r in domains if r['identifier'] == args[0] or r['displayName'] == args[0]), None)
+        if not r:
+            die(f'isim fileprovider: no domain {args[0]}')
+        st_path = os.path.join(d, 'State', safe(r['provider']), safe(r['identifier']) + '.json')
+        entries = json.load(open(st_path)).get('entries', {}) if os.path.isfile(st_path) else {}
+        root = 'NSFileProviderRootContainerItemIdentifier'
+
+        def path(e):
+            parts, cur = [], e
+            while cur:
+                parts.append(cur['name'])
+                cur = entries.get(cur['parent']) if cur['parent'] != root else None
+            return '/'.join(reversed(parts))
+        for e in sorted(entries.values(), key=path):
+            print(f"{path(e)}{'/' if e['folder'] else ''}{' (placeholder)' if e['dataless'] and not e['folder'] else ''}")
+    else:
+        die('usage: isim fileprovider list | isim fileprovider files DOMAIN')
+
+
 def bgassets(cmd, args):
     """BackgroundAssets: run an app's downloader extension; the asset packs isim hosts for it (Apple's hosting)"""
     d = os.path.join(DATA, 'Library/isim/BackgroundAssets')
@@ -1239,8 +1268,9 @@ def main():
         sys.argv.append('')
     if len(sys.argv) >= 2 and sys.argv[1] == 'finance':
         return finance(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
-    if len(sys.argv) >= 2 and sys.argv[1] in ('smartcard', 'iddocs', 'alarms', 'messages', 'bgassets'):
-        return {'smartcard': smartcard, 'iddocs': iddocs, 'alarms': alarms, 'messages': messages, 'bgassets': bgassets}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
+    if len(sys.argv) >= 2 and sys.argv[1] in ('smartcard', 'iddocs', 'alarms', 'messages', 'bgassets', 'fileprovider'):
+        return {'smartcard': smartcard, 'iddocs': iddocs, 'alarms': alarms, 'messages': messages, 'bgassets': bgassets,
+                'fileprovider': fileprovider}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] in ('autofill', 'sso'):
         return {'autofill': autofill, 'sso': sso}[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] == 'agerange':

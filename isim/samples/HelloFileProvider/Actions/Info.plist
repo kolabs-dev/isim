@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Cloud Notes Actions</string>
+	<key>CFBundleExecutable</key>
+	<string>HelloFileProviderActions</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.isim.samples.HelloFileProvider.Actions</string>
+	<key>CFBundlePackageType</key>
+	<string>XPC!</string>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.fileprovider-actionsui</string>
+		<key>NSExtensionPrincipalClass</key>
+		<string>HelloFileProviderActions.ActionViewController</string>
+		<key>NSExtensionFileProviderActions</key>
+		<array>
+			<dict>
+				<key>NSExtensionFileProviderActionIdentifier</key>
+				<string>dev.isim.samples.fileprovider.share</string>
+				<key>NSExtensionFileProviderActionName</key>
+				<string>Share</string>
+				<key>NSExtensionFileProviderActionActivationRule</key>
+				<string>TRUEPREDICATE</string>
+			</dict>
+		</array>
+	</dict>
+</dict>
+</plist>

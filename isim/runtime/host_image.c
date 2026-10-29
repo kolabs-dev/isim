@@ -182,6 +182,8 @@ static const struct { const char *sf, *adw; } symbol_map[] = {
     { "tray.and.arrow.down", "places/folder-download-symbolic" }, { "film", "mimetypes/video-x-generic-symbolic" },
     { "music.note.list", "places/folder-music-symbolic" }, { "photo.on.rectangle", "places/folder-pictures-symbolic" },
     { "photo.stack", "places/folder-pictures-symbolic" }, { "rectangle.portrait.and.arrow.right", "actions/system-log-out-symbolic" },
+    { "cloud", "status/weather-overcast-symbolic" }, { "icloud", "status/weather-overcast-symbolic" },
+    { "icloud.and.arrow.down", "status/weather-overcast-symbolic" },   /* the document picker's not-downloaded badge */
     { "cloud.rain", "status/weather-showers-symbolic" }, { "cloud.drizzle", "status/weather-showers-scattered-symbolic" },
     { "cloud.sun", "status/weather-few-clouds-symbolic" }, { "cloud.moon", "status/weather-few-clouds-night-symbolic" },
     { "cloud.bolt", "status/weather-storm-symbolic" }, { "cloud.bolt.rain", "status/weather-storm-symbolic" },

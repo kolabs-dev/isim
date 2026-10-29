@@ -202,7 +202,9 @@ HEX`), a payload with `"apns-push-type": "voip"` rings the app's CallKit call, a
 ids in `dump` (`call-accept`, `call-end`, …). Alarms (AlarmKit) ring in the shell: `alarm-stop` / `alarm-secondary`
 in `dump`, and `isim alarms list` lists the scheduled ones. A BackgroundAssets downloader extension runs with
 `isim bgassets run APP install|update|periodic [--manifest URL]`; `isim bgassets pack add|remove|list` manages the
-asset packs isim hosts for an app.
+asset packs isim hosts for an app. A file provider's domains are locations in the document picker
+(`docs-location-NAME`); `isim fileprovider list` and `isim fileprovider files DOMAIN` show the domains and what has been
+downloaded.
 
 Each device reads these from a control FIFO of its own; `--control FIFO` names one yourself (then `echo "…" > FIFO`
 works too). The FIFO only goes one way: commands get no reply. To read a result, write it to a file

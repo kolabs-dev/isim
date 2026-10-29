@@ -96,6 +96,15 @@ bubbles are `messages-bubble-N` (tapping an app's message opens the app with it 
 the conversation, `isim messages receive TEXT` (or `--app EXTENSION --url URL --caption C --session last`) delivers a
 message from the other participant.
 
+**Files** (the document picker and browser, UIDocumentPickerViewController / UIDocumentBrowserViewController): the
+Browse list's locations are `docs-location-on-my-iphone` and, for each file provider domain an app added,
+`docs-location-NAME` (the domain's display name, lowercase, spaces as `-`: `docs-location-sample-notes`); a folder's
+items are `docs-item-NAME` (spaces as `-`), a file provider's file that is not downloaded yet has a `docs-cloud-NAME`
+badge; `docs-open`, `docs-export` and `docs-cancel` are the bar buttons, `nav-back` goes back to Browse. `holdid
+docs-item-NAME 0.9` opens an item's menu, which lists the file provider's actions (`menu-TITLE`). `isim fileprovider
+list` prints the device's domains (app, domain, name, replica folder) and `isim fileprovider files DOMAIN` a domain's
+items, `(placeholder)` for those not downloaded.
+
 **Alarms** (AlarmKit; the shell rings the apps' alarms and timers, also in Silent Mode): an alarm going off is a
 banner while the device is in use (`alarm-banner`: tap for the full-screen alert; `alarm-secondary`, the alarm's
 secondary button such as Snooze or Repeat; `alarm-stop`) or the full-screen alert on the Lock Screen and in StandBy

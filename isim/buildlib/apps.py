@@ -477,6 +477,17 @@ def _(a):   # BackgroundAssets: the app and its downloader extension share an ap
     a.copy("server.py", f"{b}/server.py")
 
 
+@app("samples/HelloFileProvider")
+def _(a):   # FileProvider: the app, its replicated file provider extension and its FileProviderUI extension share an app group
+    b = a.swift_app(srcs=["HelloFileProvider.swift", "Shared.swift"])
+    x = a.appex(b, "HelloFileProviderExtension", ["Extension/FileProviderExtension.swift", "Shared.swift"], "Extension/Info.plist",
+                link=["-framework", "UIKit"])   # NSExtensionMain
+    u = a.appex(b, "HelloFileProviderActions", ["Actions/ActionViewController.swift", "Shared.swift"], "Actions/Info.plist", link=["-framework", "UIKit"])
+    for d in (b, x, u):
+        a.copy("HelloFileProvider.entitlements", f"{d}/archived-expanded-entitlements.xcent")
+    a.icon(f"{b}/icon.png", "#5ac8fa", "#0a84ff", "N")   # the location's icon in the document picker
+
+
 @app("samples/HelloAssetPacks")
 def _(a):   # managed asset packs (iOS 26): the managed downloader extension targets iOS 26
     b = a.swift_app(srcs=["HelloAssetPacks.swift"])
@@ -542,7 +553,8 @@ def _(a):
     a.objc_app(["main.m"], "Info.plist", ["-framework", "UIKit", "-framework", "Foundation", "-framework", "PushKit", "-framework", "CallKit",
                                           "-framework", "AVFoundation", "-framework", "BackgroundTasks", "-framework", "CoreSpotlight",
                                           "-framework", "SafariServices", "-framework", "MultipeerConnectivity", "-framework", "CoreGraphics",
-                                          "-framework", "Messages", "-framework", "BackgroundAssets"])
+                                          "-framework", "Messages", "-framework", "BackgroundAssets", "-framework", "FileProvider",
+                                          "-framework", "FileProviderUI", "-framework", "UniformTypeIdentifiers"])
 
 
 @app("samples/HelloAuthObjC")   # after the overlays: AuthenticationServices.framework re-exports its Swift overlay (issue #305)

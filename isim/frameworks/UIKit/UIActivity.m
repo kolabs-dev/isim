@@ -100,8 +100,8 @@ static char kExtensionContext;
 @end
 
 NSString *isim_ui_installed_apps_dir(void);
-/* the containing app's icon (asset-catalog app icon, largest; else icon.png) */
-static NSString *app_icon_file(NSString *app, NSDictionary *info) {
+/* the containing app's icon (asset-catalog app icon, largest; else icon.png); also the document picker's */
+NSString *isim_ui_app_icon_file(NSString *app, NSDictionary *info) {
     NSDictionary *icons = [NSDictionary dictionaryWithContentsOfFile:[app stringByAppendingPathComponent:@"isim-assets.plist"]][@"appIcons"];
     NSArray *files = icons[info[@"CFBundleIcons"][@"CFBundlePrimaryIcon"][@"CFBundleIconName"] ?: @"AppIcon"] ?: icons.allValues.firstObject;
     NSString *best = nil; double bestPx = -1;
@@ -142,7 +142,7 @@ static void add_extensions_in(NSString *app, NSMutableArray *out) {
         x.name = info[@"CFBundleDisplayName"] ?: info[@"CFBundleName"] ?: n.stringByDeletingPathExtension;
         x.principal = ext[@"NSExtensionPrincipalClass"]; x.storyboard = ext[@"NSExtensionMainStoryboard"];
         x.rule = ext[@"NSExtensionAttributes"][@"NSExtensionActivationRule"];
-        x.appIcon = app_icon_file(app, appInfo);
+        x.appIcon = isim_ui_app_icon_file(app, appInfo);
         x.appName = appInfo[@"CFBundleDisplayName"] ?: appInfo[@"CFBundleName"] ?: app.lastPathComponent.stringByDeletingPathExtension;
         [out addObject:x];
     }

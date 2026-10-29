@@ -2,9 +2,12 @@
  *
  * Adapted: "On My iPhone" is $ISIM_DATA/Files, shared by the device's apps (the Simulator keeps it in a shared app
  * group of the File Provider), plus one folder per installed app that shares its Documents (UIFileSharingEnabled and
- * LSSupportsOpeningDocumentsInPlace in its Info.plist; its folder is the app container's Documents). There is no
- * iCloud Drive or other file provider, and no Recents / Tags. The screens follow iOS's: a Browse list with the
- * location, folder listings (folders first open, files that do not match the allowed types are dimmed), single or
+ * LSSupportsOpeningDocumentsInPlace in its Info.plist; its folder is the app container's Documents). The file provider
+ * domains apps added (FileProvider.framework: NSFileProviderManager.add) are further locations: opening one syncs its
+ * replica with the provider's extension, picking a file there downloads it (a placeholder until then, with a cloud
+ * badge), exporting or moving into it creates the items in the provider, and an item's menu has the provider's
+ * actions. There is no iCloud Drive, and no Recents / Tags. The screens follow iOS's: a Browse list with the
+ * locations, folder listings (folders first open, files that do not match the allowed types are dimmed), single or
  * multiple selection, folder selection for exports and folder pickers. Picking with asCopy (or the Import mode) copies
  * the files into tmp/<bundle id>-Inbox like iOS; Open mode returns the files themselves. File types come from the
  * UniformTypeIdentifiers module (isim_uti_file_conforms, looked up at run time). */
@@ -105,6 +108,42 @@ static NSString *inbox_dir(void) {
     return d;
 }
 
+/* ---------------- file provider domains (FileProvider.framework, loaded once the device has domains) ---------------- */
+extern NSString *isim_ui_app_icon_file(NSString *app, NSDictionary *info);
+static NSString *fp_root(void) { return [isim_data_dir() stringByAppendingPathComponent:@"Library/isim/FileProvider"]; }
+static void *fp_sym(const char *name) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ dlopen("/System/Library/Frameworks/FileProvider.framework/FileProvider", RTLD_NOW); });
+    return dlsym(RTLD_DEFAULT, name);
+}
+/* the visible domains: [{ name, path, domain, provider, appPath }] */
+static NSArray<NSDictionary *> *fp_locations(void) {
+    if (![NSFileManager.defaultManager fileExistsAtPath:[fp_root() stringByAppendingPathComponent:@"domains.json"]]) return @[];
+    NSArray *(*f)(void) = (NSArray *(*)(void))fp_sym("isim_fp_locations");
+    return f ? f() : @[];
+}
+static BOOL fp_inside(NSString *path) { return [path.stringByStandardizingPath hasPrefix:[fp_root() stringByAppendingString:@"/Domains/"]]; }
+/* isim_fp_open (sync a domain), isim_fp_commit (send local changes) on a path, isim_fp_materialize on paths */
+static void fp_call(const char *name, id arg, void (^done)(NSError *)) {
+    void (*f)(id, void (^)(NSError *)) = (void (*)(id, void (^)(NSError *)))fp_sym(name);
+    if (f) f(arg, done); else done(nil);
+}
+/* a placeholder: a file of the item's size that has no data yet */
+static BOOL fp_placeholder(NSString *path) {
+    struct stat st;
+    return fp_inside(path) && stat(path.UTF8String, &st) == 0 && S_ISREG(st.st_mode) && st.st_size > 0 && st.st_blocks == 0;
+}
+/* the item's menu: the provider's actions ([{ identifier, title, kind, extensionPath }]) */
+static NSArray<NSDictionary *> *fp_actions(NSString *path) {
+    NSArray *(*f)(NSString *) = (NSArray *(*)(NSString *))fp_sym("isim_fp_actions");
+    return f ? f(path) : @[];
+}
+static void fp_perform(NSDictionary *action, NSString *path, UIViewController *presenter, void (^done)(NSError *)) {
+    void (*f)(NSDictionary *, NSArray *, UIViewController *, void (^)(NSError *)) =
+        (void (*)(NSDictionary *, NSArray *, UIViewController *, void (^)(NSError *)))fp_sym("isim_fp_run_action");
+    if (f) f(action, @[path], presenter, done); else done(nil);
+}
+
 /* ---------------- a folder listing ---------------- */
 typedef NS_ENUM(int, IsimFilesMode) { IsimFilesPick, IsimFilesPickFolder, IsimFilesExport, IsimFilesBrowse };
 @interface __IsimFilesList : UITableViewController
@@ -130,8 +169,15 @@ typedef NS_ENUM(int, IsimFilesMode) { IsimFilesPick, IsimFilesPickFolder, IsimFi
     [self.tableView registerClass:[UITableViewCell class] forCellReuseIdentifier:@"f"];
     [self _bar];
     [self reload];
+    if (fp_inside(self.folder)) [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(_isimProviderChanged:) name:@"_IsimFileProviderChanged" object:nil];
 }
 - (void)viewWillAppear:(BOOL)animated { [super viewWillAppear:animated]; [self reload]; }
+- (void)dealloc { [NSNotificationCenter.defaultCenter removeObserver:self]; }
+/* the replica was synced: list it again */
+- (void)_isimProviderChanged:(NSNotification *)n {
+    NSString *root = n.object;
+    if ([root isKindOfClass:[NSString class]] && ([self.folder isEqualToString:root] || [self.folder hasPrefix:[root stringByAppendingString:@"/"]])) [self reload];
+}
 - (void)_bar {
     if (_mode == IsimFilesBrowse) { if (self.decorate) self.decorate(self); return; }
     UIBarButtonItem *cancel = [[UIBarButtonItem alloc] initWithTitle:@"Cancel" style:UIBarButtonItemStylePlain target:self action:@selector(isimCancel)];
@@ -186,6 +232,12 @@ typedef NS_ENUM(int, IsimFilesMode) { IsimFilesPick, IsimFilesPickFolder, IsimFi
                      : [NSString stringWithFormat:@"%.1f MB", size / 1e6];
         c.detailTextLabel.text = [NSString stringWithFormat:@"%@ – %@", when, sz];
         c.accessoryType = [_chosen containsObject:it[@"path"]] ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
+        if (c.accessoryType == UITableViewCellAccessoryNone && fp_placeholder(it[@"path"])) {      /* in the provider, not downloaded */
+            UIImageView *cloud = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"icloud.and.arrow.down"]];
+            cloud.tintColor = UIColor.secondaryLabelColor;
+            cloud.accessibilityIdentifier = [@"docs-cloud-" stringByAppendingString:[name stringByReplacingOccurrencesOfString:@" " withString:@"-"]];
+            c.accessoryView = cloud;
+        }
     }
     c.detailTextLabel.textColor = UIColor.secondaryLabelColor;
     c.selectionStyle = on ? UITableViewCellSelectionStyleDefault : UITableViewCellSelectionStyleNone;
@@ -215,8 +267,21 @@ typedef NS_ENUM(int, IsimFilesMode) { IsimFilesPick, IsimFilesPickFolder, IsimFi
 /* a document's menu: the browser's custom actions for it */
 - (UIContextMenuConfiguration *)tableView:(UITableView *)tv contextMenuConfigurationForRowAtIndexPath:(NSIndexPath *)ip point:(CGPoint)p {
     NSDictionary *it = (NSUInteger)ip.row < _items.count ? _items[ip.row] : nil;
-    if (!it || [it[@"dir"] boolValue] || !_menuElements) return nil;
-    NSArray *els = _menuElements(it[@"path"]);
+    if (!it) return nil;
+    NSMutableArray *els = [NSMutableArray array];
+    if (![it[@"dir"] boolValue] && _menuElements) [els addObjectsFromArray:_menuElements(it[@"path"])];
+    if (fp_inside(it[@"path"])) {                                   /* the file provider's actions on the item */
+        __weak __IsimFilesList *w = self;
+        NSString *path = it[@"path"];
+        for (NSDictionary *a in fp_actions(path))
+            [els addObject:[UIAction actionWithTitle:a[@"title"] image:nil identifier:a[@"identifier"] handler:^(UIAction *u) {
+                NSLog(@"isim UIKit: file provider action %@ on %@", a[@"identifier"], path.lastPathComponent);
+                fp_perform(a, path, w, ^(NSError *e) {
+                    if (e) NSLog(@"isim UIKit: file provider action %@ failed: %@", a[@"identifier"], e.localizedDescription);
+                    [w reload];
+                });
+            }]];
+    }
     if (!els.count) return nil;
     return [UIContextMenuConfiguration configurationWithIdentifier:nil previewProvider:nil actionProvider:^UIMenu *(NSArray *suggested) { return [UIMenu menuWithChildren:els]; }];
 }
@@ -233,26 +298,67 @@ typedef NS_ENUM(int, IsimFilesMode) { IsimFilesPick, IsimFilesPickFolder, IsimFi
 - (__IsimFilesList *)copyForRoot;     /* a list with the same settings, for another folder */
 @end
 
-/* the Browse list: the locations (only On My iPhone on isim) */
+/* the Browse list: the locations (On My iPhone, then the file provider domains) */
 @interface __IsimFilesBrowse : UITableViewController
 @property (nonatomic, copy) void (^open)(void);
+@property (nonatomic, copy, nullable) void (^openDomain)(NSDictionary *location);
 @property (nonatomic, copy, nullable) void (^decorate)(UIViewController *vc);
 @end
-@implementation __IsimFilesBrowse
+@implementation __IsimFilesBrowse { NSArray<NSDictionary *> *_domains; }
 - (void)viewDidLoad { [super viewDidLoad]; self.title = @"Browse"; if (self.decorate) self.decorate(self); }
+- (void)viewWillAppear:(BOOL)animated { [super viewWillAppear:animated]; _domains = fp_locations(); [self.tableView reloadData]; }
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tv { return 1; }
 - (NSString *)tableView:(UITableView *)tv titleForHeaderInSection:(NSInteger)s { return @"Locations"; }
-- (NSInteger)tableView:(UITableView *)tv numberOfRowsInSection:(NSInteger)s { return 1; }
+- (NSInteger)tableView:(UITableView *)tv numberOfRowsInSection:(NSInteger)s { if (!_domains) _domains = fp_locations(); return 1 + (NSInteger)_domains.count; }
 - (UITableViewCell *)tableView:(UITableView *)tv cellForRowAtIndexPath:(NSIndexPath *)ip {
     UITableViewCell *c = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:nil];
-    c.textLabel.text = @"On My iPhone";
-    c.imageView.image = [UIImage systemImageNamed:@"iphone"];
     c.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-    c.accessibilityIdentifier = @"docs-location-on-my-iphone";
+    if (ip.row == 0) {
+        c.textLabel.text = @"On My iPhone";
+        c.imageView.image = [UIImage systemImageNamed:@"iphone"];
+        c.accessibilityIdentifier = @"docs-location-on-my-iphone";
+        return c;
+    }
+    NSDictionary *d = _domains[ip.row - 1];
+    c.textLabel.text = d[@"name"];
+    /* the provider app's icon, like Files (a folder without one) */
+    NSString *app = d[@"appPath"];
+    NSString *icon = app ? isim_ui_app_icon_file(app, [NSDictionary dictionaryWithContentsOfFile:[app stringByAppendingPathComponent:@"Info.plist"]]) : nil;
+    UIImage *img = icon ? [UIImage imageWithContentsOfFile:icon] : nil;
+    if (img) {
+        UIGraphicsImageRenderer *r = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(29, 29)];
+        img = [r imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
+            [[UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 0, 29, 29) cornerRadius:6.5] addClip];
+            [img drawInRect:CGRectMake(0, 0, 29, 29)];
+        }];
+    }
+    c.imageView.image = img ?: [UIImage systemImageNamed:@"folder"];
+    c.accessibilityIdentifier = [@"docs-location-" stringByAppendingString:[[d[@"name"] lowercaseString] stringByReplacingOccurrencesOfString:@" " withString:@"-"]];
     return c;
 }
-- (void)tableView:(UITableView *)tv didSelectRowAtIndexPath:(NSIndexPath *)ip { [tv deselectRowAtIndexPath:ip animated:YES]; if (self.open) self.open(); }
+- (void)tableView:(UITableView *)tv didSelectRowAtIndexPath:(NSIndexPath *)ip {
+    [tv deselectRowAtIndexPath:ip animated:YES];
+    if (ip.row == 0) { if (self.open) self.open(); }
+    else if (self.openDomain) self.openDomain(_domains[ip.row - 1]);
+}
 @end
+
+/* a domain's top folder: shown at once, listed again when its replica has synced */
+static __IsimFilesList *open_domain(__IsimFilesList *list, NSDictionary *location) {
+    list.path = location[@"path"]; list.title = location[@"name"];
+    NSLog(@"isim UIKit: document picker opens %@", location[@"name"]);
+    __weak __IsimFilesList *w = list;
+    fp_call("isim_fp_open", location[@"path"], ^(NSError *e) {
+        if (e) NSLog(@"isim UIKit: %@ could not sync: %@", location[@"name"], e.localizedDescription);
+        [w reload];
+        void (*show)(NSString *, NSError *, id, void (^)(NSError *)) = (void (*)(NSString *, NSError *, id, void (^)(NSError *)))fp_sym("isim_fp_show_error");
+        if (w && show && [e.domain isEqual:@"NSFileProviderErrorDomain"] && e.code == -1000)   /* notAuthenticated: the provider's sign-in UI */
+            show(location[@"path"], e, w, ^(NSError *again) {
+                if (!again) fp_call("isim_fp_open", location[@"path"], ^(NSError *e2) { [w reload]; });
+            });
+    });
+    return list;
+}
 
 /* the lists from On My iPhone down to a folder inside it (for directoryURL / reveal) */
 static NSArray<NSString *> *folder_chain(NSString *target) {
@@ -322,6 +428,7 @@ static NSArray<NSString *> *folder_chain(NSString *target) {
     __IsimFilesBrowse *browse = [__IsimFilesBrowse new];
     _nav = [[UINavigationController alloc] initWithRootViewController:browse];
     browse.open = ^{ UIDocumentPickerViewController *s = w; __IsimFilesList *l = [list copyForRoot]; [s->_nav pushViewController:l animated:YES]; };
+    browse.openDomain = ^(NSDictionary *loc) { UIDocumentPickerViewController *s = w; [s->_nav pushViewController:open_domain([list copyForRoot], loc) animated:YES]; };
     browse.decorate = ^(UIViewController *vc) {
         UIBarButtonItem *cancel = [[UIBarButtonItem alloc] initWithTitle:@"Cancel" style:UIBarButtonItemStylePlain target:w action:@selector(_isimCancel)];
         cancel.accessibilityIdentifier = @"docs-cancel";
@@ -361,6 +468,17 @@ static NSArray<NSString *> *folder_chain(NSString *target) {
     if (presenter) [presenter dismissViewControllerAnimated:YES completion:tell]; else tell();     /* the picker dismisses itself, like iOS */
 }
 - (void)_isimPicked:(NSArray<NSString *> *)paths {
+    if ([paths indexOfObjectPassingTest:^BOOL(NSString *p, NSUInteger i, BOOL *stop) { return fp_inside(p); }] != NSNotFound) {
+        __weak UIDocumentPickerViewController *w = self;                 /* in a file provider: download them first */
+        fp_call("isim_fp_materialize", paths, ^(NSError *e) {
+            if (e) NSLog(@"isim UIKit: document picker could not download: %@", e.localizedDescription);
+            [w _isimPickedLocal:paths];
+        });
+        return;
+    }
+    [self _isimPickedLocal:paths];
+}
+- (void)_isimPickedLocal:(NSArray<NSString *> *)paths {
     NSMutableArray *urls = [NSMutableArray array];
     for (NSString *p in paths) {
         if (_asCopy) {
@@ -376,6 +494,14 @@ static NSArray<NSString *> *folder_chain(NSString *target) {
         NSString *dst = unique_path(folder, u.lastPathComponent);
         if (_asCopy ? copy_item(u.path, dst) : move_item(u.path, dst)) [urls addObject:[NSURL fileURLWithPath:dst]];
         else NSLog(@"isim UIKit: document picker could not %@ %@", _asCopy ? @"copy" : @"move", u.path);
+    }
+    if (fp_inside(folder)) {                                              /* the file provider creates the items */
+        __weak UIDocumentPickerViewController *w = self;
+        fp_call("isim_fp_commit", folder, ^(NSError *e) {
+            if (e) NSLog(@"isim UIKit: document picker: the file provider did not take the files: %@", e.localizedDescription);
+            [w _isimFinish:urls];
+        });
+        return;
     }
     [self _isimFinish:urls];
 }
@@ -429,6 +555,7 @@ static NSArray<NSString *> *folder_chain(NSString *target) {
     _template.menuElements = ^NSArray *(NSString *path) { return [w _isim_menuForPath:path]; };
     __IsimFilesBrowse *browse = [__IsimFilesBrowse new];
     browse.open = ^{ UIDocumentBrowserViewController *s = w; [s->_nav pushViewController:[s->_template copyForRoot] animated:YES]; };
+    browse.openDomain = ^(NSDictionary *loc) { UIDocumentBrowserViewController *s = w; [s->_nav pushViewController:open_domain([s->_template copyForRoot], loc) animated:YES]; };
     browse.decorate = ^(UIViewController *vc) { [w _isimDecorate:vc]; };
     _nav = [[UINavigationController alloc] initWithRootViewController:browse];
     _nav.viewControllers = @[browse, [_template copyForRoot]];
@@ -481,6 +608,14 @@ static NSArray<NSString *> *folder_chain(NSString *target) {
     [self _isimDecorate:l];
 }
 - (void)_isimPicked:(NSArray<NSString *> *)paths {
+    if ([paths indexOfObjectPassingTest:^BOOL(NSString *p, NSUInteger i, BOOL *stop) { return fp_inside(p); }] != NSNotFound) {
+        __weak UIDocumentBrowserViewController *w = self;                /* in a file provider: download them first */
+        fp_call("isim_fp_materialize", paths, ^(NSError *e) { [w _isimPickedLocal:paths]; });
+        return;
+    }
+    [self _isimPickedLocal:paths];
+}
+- (void)_isimPickedLocal:(NSArray<NSString *> *)paths {
     NSMutableArray *urls = [NSMutableArray array];
     for (NSString *p in paths) [urls addObject:[NSURL fileURLWithPath:p]];
     NSLog(@"isim UIKit: document browser picked %@", [[urls valueForKey:@"lastPathComponent"] componentsJoinedByString:@", "]);
