@@ -8,7 +8,7 @@ a server cookie seen by WKHTTPCookieStore, takeSnapshot. Port of tests/ui/web.sh
 import re
 
 import pytest
-from isimtest import ROOT, count_px, local_server, rgb
+from isimtest import ROOT, WaitTimeout, count_px, local_server, rgb
 
 TOP = 108                                   # the web view's top below the navigation bar: page y + 108
 
@@ -221,10 +221,15 @@ def test_web_transfers(launch, web):
     downloads (a navigation response made a download, startDownload with progress, cancel with resume data and resume),
     and a camera permission request (getUserMedia: the delegate's .prompt shows iOS's alert, Allow grants WebKit's mock
     camera)."""
-    port, _ = web
+    port, server_log = web
     app = launch("HelloWeb", args=["-transfers", "-server", f"http://127.0.0.1:{port}"])
     app.wait_log(r"^HelloWeb: challenge 127\.0\.0\.1 realm=isim method=NSURLAuthenticationMethodHTTPBasic failures=0", timeout=30)
-    app.wait_log(r"^HelloWeb: page /basic: auth required", timeout=30)
+    # the 401 page, or why it did not come (#769: once, under load, neither line arrived within 30 s)
+    try:
+        m = app.wait_log(r"^HelloWeb: (page /basic: .*|navigation failed step 1 .*)$", timeout=30)
+    except WaitTimeout as e:
+        raise WaitTimeout(f"{e}\n---- server log ----\n{server_log.read_text()}") from None
+    assert m.group(1) == "page /basic: auth required", f"{m.group(0)}\n---- server log ----\n{server_log.read_text()}"
     app.wait_log(r"^HelloWeb: challenge 127\.0\.0\.1 realm=isim-digest method=NSURLAuthenticationMethodHTTPDigest failures=0", timeout=30)
     app.wait_log(r"^HelloWeb: page /digest: digest ok: welcome ada", timeout=30)
     app.wait_log(r"^HelloWeb: navigationResponse became a download /attachment", timeout=30)
