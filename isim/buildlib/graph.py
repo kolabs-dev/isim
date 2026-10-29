@@ -216,7 +216,7 @@ SWIFT_FRAMEWORKS = [
     ("CoreNFC", "-framework Foundation"),
     ("CryptoTokenKit", "-framework Foundation"),   # issue #403: smart cards
     ("VisionKit", "-framework Foundation -framework UIKit"),   # issue #379: the document camera
-    ("HealthKit", "-framework Foundation"),
+    ("HealthKit", "-framework Foundation -framework CoreLocation"),
     ("AdSupport", "-framework Foundation"),
     ("AppTrackingTransparency", "-framework Foundation"),
     ("CoreMotion", "-framework Foundation"),

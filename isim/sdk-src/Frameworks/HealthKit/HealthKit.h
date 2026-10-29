@@ -2,9 +2,10 @@
 /* isim HealthKit for Objective-C: the classes are the HealthKit Swift overlay's (HealthKit.framework re-exports
    libswiftHealthKit.dylib): a local Health store like the Simulator's, the Health Access sheet, samples kept in the device
    data and shared by all apps. Swift uses the overlay; these declarations are hidden from Swift. Not from Objective-C
-   yet: HKStatisticsCollectionQuery and dateOfBirthComponents (isim's Foundation has no NSDateComponents), workouts. The
-   classes are not subclassable from Objective-C. */
+   yet: HKStatisticsCollectionQuery and dateOfBirthComponents (isim's Foundation has no NSDateComponents). The classes
+   are not subclassable from Objective-C. */
 #import <Foundation/Foundation.h>
+#import <CoreLocation/CoreLocation.h>
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
 
@@ -13,7 +14,7 @@ typedef NS_ENUM(NSInteger, HKErrorCode) {
     HKNoError = 0, HKErrorHealthDataUnavailable, HKErrorHealthDataRestricted, HKErrorInvalidArgument, HKErrorAuthorizationDenied,
     HKErrorAuthorizationNotDetermined, HKErrorDatabaseInaccessible, HKErrorUserCanceled, HKErrorAnotherWorkoutSessionStarted,
     HKErrorUserExitedWorkoutSession, HKErrorRequiredAuthorizationDenied, HKErrorNoData, HKErrorWorkoutActivityNotAllowed,
-    HKErrorDataSizeExceeded,
+    HKErrorDataSizeExceeded, HKErrorBackgroundWorkoutSessionNotAllowed,
 };
 typedef NS_ENUM(NSInteger, HKAuthorizationStatus) { HKAuthorizationStatusNotDetermined = 0, HKAuthorizationStatusSharingDenied, HKAuthorizationStatusSharingAuthorized };
 typedef NS_ENUM(NSInteger, HKAuthorizationRequestStatus) { HKAuthorizationRequestStatusUnknown = 0, HKAuthorizationRequestStatusShouldRequest, HKAuthorizationRequestStatusUnnecessary };
@@ -290,6 +291,265 @@ typedef NS_ENUM(NSInteger, HKUpdateFrequency) { HKUpdateFrequencyImmediate = 1, 
                          withCompletion:(void (^)(BOOL success, NSError * _Nullable error))completion;
 - (void)disableBackgroundDeliveryForType:(HKObjectType *)type withCompletion:(void (^)(BOOL success, NSError * _Nullable error))completion;
 - (void)disableAllBackgroundDeliveryWithCompletion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+@end
+
+/* workouts (issue #418): kept in the device's Health database; a live workout's data on iPhone (iOS 26) is isim's simulation */
+typedef NS_ENUM(NSUInteger, HKWorkoutActivityType) {
+    HKWorkoutActivityTypeAmericanFootball = 1, HKWorkoutActivityTypeArchery = 2,
+    HKWorkoutActivityTypeAustralianFootball = 3, HKWorkoutActivityTypeBadminton = 4, HKWorkoutActivityTypeBaseball = 5,
+    HKWorkoutActivityTypeBasketball = 6, HKWorkoutActivityTypeBowling = 7, HKWorkoutActivityTypeBoxing = 8,
+    HKWorkoutActivityTypeClimbing = 9, HKWorkoutActivityTypeCricket = 10, HKWorkoutActivityTypeCrossTraining = 11,
+    HKWorkoutActivityTypeCurling = 12, HKWorkoutActivityTypeCycling = 13, HKWorkoutActivityTypeElliptical = 16,
+    HKWorkoutActivityTypeEquestrianSports = 17, HKWorkoutActivityTypeFencing = 18, HKWorkoutActivityTypeFishing = 19,
+    HKWorkoutActivityTypeFunctionalStrengthTraining = 20, HKWorkoutActivityTypeGolf = 21,
+    HKWorkoutActivityTypeGymnastics = 22, HKWorkoutActivityTypeHandball = 23, HKWorkoutActivityTypeHiking = 24,
+    HKWorkoutActivityTypeHockey = 25, HKWorkoutActivityTypeHunting = 26, HKWorkoutActivityTypeLacrosse = 27,
+    HKWorkoutActivityTypeMartialArts = 28, HKWorkoutActivityTypeMindAndBody = 29,
+    HKWorkoutActivityTypePaddleSports = 31, HKWorkoutActivityTypePlay = 32,
+    HKWorkoutActivityTypePreparationAndRecovery = 33, HKWorkoutActivityTypeRacquetball = 34,
+    HKWorkoutActivityTypeRowing = 35, HKWorkoutActivityTypeRugby = 36, HKWorkoutActivityTypeRunning = 37,
+    HKWorkoutActivityTypeSailing = 38, HKWorkoutActivityTypeSkatingSports = 39, HKWorkoutActivityTypeSnowSports = 40,
+    HKWorkoutActivityTypeSoccer = 41, HKWorkoutActivityTypeSoftball = 42, HKWorkoutActivityTypeSquash = 43,
+    HKWorkoutActivityTypeStairClimbing = 44, HKWorkoutActivityTypeSurfingSports = 45,
+    HKWorkoutActivityTypeSwimming = 46, HKWorkoutActivityTypeTableTennis = 47, HKWorkoutActivityTypeTennis = 48,
+    HKWorkoutActivityTypeTrackAndField = 49, HKWorkoutActivityTypeTraditionalStrengthTraining = 50,
+    HKWorkoutActivityTypeVolleyball = 51, HKWorkoutActivityTypeWalking = 52, HKWorkoutActivityTypeWaterFitness = 53,
+    HKWorkoutActivityTypeWaterPolo = 54, HKWorkoutActivityTypeWaterSports = 55, HKWorkoutActivityTypeWrestling = 56,
+    HKWorkoutActivityTypeYoga = 57, HKWorkoutActivityTypeBarre = 58, HKWorkoutActivityTypeCoreTraining = 59,
+    HKWorkoutActivityTypeCrossCountrySkiing = 60, HKWorkoutActivityTypeDownhillSkiing = 61,
+    HKWorkoutActivityTypeFlexibility = 62, HKWorkoutActivityTypeHighIntensityIntervalTraining = 63,
+    HKWorkoutActivityTypeJumpRope = 64, HKWorkoutActivityTypeKickboxing = 65, HKWorkoutActivityTypePilates = 66,
+    HKWorkoutActivityTypeSnowboarding = 67, HKWorkoutActivityTypeStairs = 68, HKWorkoutActivityTypeStepTraining = 69,
+    HKWorkoutActivityTypeWheelchairWalkPace = 70, HKWorkoutActivityTypeWheelchairRunPace = 71,
+    HKWorkoutActivityTypeTaiChi = 72, HKWorkoutActivityTypeMixedCardio = 73, HKWorkoutActivityTypeHandCycling = 74,
+    HKWorkoutActivityTypeDiscSports = 75, HKWorkoutActivityTypeFitnessGaming = 76,
+    HKWorkoutActivityTypeCardioDance = 77, HKWorkoutActivityTypeSocialDance = 78, HKWorkoutActivityTypePickleball = 79,
+    HKWorkoutActivityTypeCooldown = 80, HKWorkoutActivityTypeSwimBikeRun = 82, HKWorkoutActivityTypeTransition = 83,
+    HKWorkoutActivityTypeUnderwaterDiving = 84, HKWorkoutActivityTypeOther = 3000,
+};
+typedef NS_ENUM(NSInteger, HKWorkoutSessionLocationType) { HKWorkoutSessionLocationTypeUnknown = 1, HKWorkoutSessionLocationTypeIndoor, HKWorkoutSessionLocationTypeOutdoor };
+typedef NS_ENUM(NSInteger, HKWorkoutSwimmingLocationType) { HKWorkoutSwimmingLocationTypeUnknown = 0, HKWorkoutSwimmingLocationTypePool, HKWorkoutSwimmingLocationTypeOpenWater };
+typedef NS_ENUM(NSInteger, HKWorkoutEventType) {
+    HKWorkoutEventTypePause = 1, HKWorkoutEventTypeResume, HKWorkoutEventTypeLap, HKWorkoutEventTypeMarker, HKWorkoutEventTypeMotionPaused,
+    HKWorkoutEventTypeMotionResumed, HKWorkoutEventTypeSegment, HKWorkoutEventTypePauseOrResumeRequest,
+};
+typedef NS_ENUM(NSInteger, HKWorkoutSessionState) {
+    HKWorkoutSessionStateNotStarted = 1, HKWorkoutSessionStateRunning, HKWorkoutSessionStateEnded, HKWorkoutSessionStatePaused,
+    HKWorkoutSessionStatePrepared, HKWorkoutSessionStateStopped,
+} API_AVAILABLE(ios(17.0));
+typedef NS_ENUM(NSInteger, HKWorkoutSessionType) { HKWorkoutSessionTypePrimary = 0, HKWorkoutSessionTypeMirrored } API_AVAILABLE(ios(17.0));
+FOUNDATION_EXPORT NSString * const HKWorkoutTypeIdentifier;
+FOUNDATION_EXPORT NSString * const HKWorkoutRouteTypeIdentifier;
+FOUNDATION_EXPORT NSString * const HKDataTypeIdentifierHeartbeatSeries;
+FOUNDATION_EXPORT HKQuantityTypeIdentifier const HKQuantityTypeIdentifierDistanceSwimming;
+FOUNDATION_EXPORT HKQuantityTypeIdentifier const HKQuantityTypeIdentifierSwimmingStrokeCount;
+FOUNDATION_EXPORT HKQuantityTypeIdentifier const HKQuantityTypeIdentifierDistanceWheelchair;
+FOUNDATION_EXPORT HKQuantityTypeIdentifier const HKQuantityTypeIdentifierDistanceDownhillSnowSports;
+FOUNDATION_EXPORT NSString * const HKMetadataKeyIndoorWorkout;
+FOUNDATION_EXPORT NSString * const HKMetadataKeyCoachedWorkout;
+FOUNDATION_EXPORT NSString * const HKMetadataKeyWorkoutBrandName;
+FOUNDATION_EXPORT NSString * const HKWorkoutSortIdentifierDuration;
+FOUNDATION_EXPORT NSString * const HKWorkoutSortIdentifierTotalDistance;
+FOUNDATION_EXPORT NSString * const HKWorkoutSortIdentifierTotalEnergyBurned;
+FOUNDATION_EXPORT NSString * const HKWorkoutSortIdentifierTotalSwimmingStrokeCount;
+FOUNDATION_EXPORT NSString * const HKWorkoutSortIdentifierTotalFlightsClimbed;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkout;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutType;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutDuration;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutTotalDistance;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutTotalEnergyBurned;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutTotalSwimmingStrokeCount;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutTotalFlightsClimbed;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutSumQuantity;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutMinimumQuantity;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutMaximumQuantity;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutAverageQuantity;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutActivity;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutActivityType;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutActivityStartDate;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutActivityEndDate;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutActivityDuration;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutActivitySumQuantity;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutActivityMinimumQuantity;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutActivityMaximumQuantity;
+FOUNDATION_EXPORT NSString * const HKPredicateKeyPathWorkoutActivityAverageQuantity;
+
+@interface HKWorkoutConfiguration : NSObject <NSCopying, NSSecureCoding>
+@property (assign) HKWorkoutActivityType activityType;
+@property (assign) HKWorkoutSessionLocationType locationType;
+@property (assign) HKWorkoutSwimmingLocationType swimmingLocationType;
+@property (copy, nullable) HKQuantity *lapLength;
+@end
+@interface HKWorkoutEvent : NSObject <NSSecureCoding, NSCopying>
+@property (readonly, assign) HKWorkoutEventType type;
+@property (readonly, copy) NSDateInterval *dateInterval;
+@property (readonly, copy, nullable) NSDictionary<NSString *, id> *metadata;
++ (instancetype)workoutEventWithType:(HKWorkoutEventType)type dateInterval:(NSDateInterval *)dateInterval metadata:(nullable NSDictionary<NSString *, id> *)metadata;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+@interface HKWorkoutActivity : NSObject <NSSecureCoding, NSCopying>
+@property (readonly, strong) NSUUID *UUID;
+@property (readonly, copy) HKWorkoutConfiguration *workoutConfiguration;
+@property (readonly, strong) NSDate *startDate;
+@property (readonly, strong, nullable) NSDate *endDate;
+@property (readonly, copy, nullable) NSDictionary<NSString *, id> *metadata;
+@property (readonly, assign) NSTimeInterval duration;
+@property (readonly, copy) NSArray<HKWorkoutEvent *> *workoutEvents;
+@property (readonly, copy) NSDictionary<HKQuantityType *, HKStatistics *> *allStatistics;
+- (instancetype)initWithWorkoutConfiguration:(HKWorkoutConfiguration *)workoutConfiguration startDate:(NSDate *)startDate
+                                     endDate:(nullable NSDate *)endDate metadata:(nullable NSDictionary<NSString *, id> *)metadata;
+- (nullable HKStatistics *)statisticsForType:(HKQuantityType *)quantityType;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+@interface HKWorkout : HKSample
+@property (readonly, assign) HKWorkoutActivityType workoutActivityType;
+@property (readonly, assign) NSTimeInterval duration;
+@property (readonly, copy, nullable) NSArray<HKWorkoutEvent *> *workoutEvents;
+@property (readonly, copy) NSArray<HKWorkoutActivity *> *workoutActivities;
+@property (readonly, copy) NSDictionary<HKQuantityType *, HKStatistics *> *allStatistics;
+@property (readonly, strong, nullable) HKQuantity *totalEnergyBurned API_DEPRECATED("Use statisticsForType:", ios(8.0, 18.0));
+@property (readonly, strong, nullable) HKQuantity *totalDistance API_DEPRECATED("Use statisticsForType:", ios(8.0, 27.2));
+@property (readonly, strong, nullable) HKQuantity *totalSwimmingStrokeCount API_DEPRECATED("Use statisticsForType:", ios(10.0, 18.0));
+@property (readonly, strong, nullable) HKQuantity *totalFlightsClimbed API_DEPRECATED("Use statisticsForType:", ios(11.0, 18.0));
+- (nullable HKStatistics *)statisticsForType:(HKQuantityType *)quantityType;
+@end
+@interface HKSeriesType : HKSampleType
++ (instancetype)workoutRouteType;
++ (instancetype)heartbeatSeriesType;
+@end
+@interface HKObjectType (HKSeriesType)
++ (nullable HKSeriesType *)seriesTypeForIdentifier:(NSString *)identifier;
+@end
+@interface HKSeriesSample : HKSample
+@property (readonly) NSUInteger count;
+@end
+@interface HKWorkoutRoute : HKSeriesSample
+@end
+@interface HKWorkoutRouteQuery : HKQuery
+- (instancetype)initWithRoute:(HKWorkoutRoute *)workoutRoute
+                  dataHandler:(void (^)(HKWorkoutRouteQuery *query, NSArray<CLLocation *> * _Nullable routeData, BOOL done, NSError * _Nullable error))dataHandler;
+- (instancetype)initWithRoute:(HKWorkoutRoute *)workoutRoute dateInterval:(NSDateInterval *)dateInterval
+                  dataHandler:(void (^)(HKWorkoutRouteQuery *query, NSArray<CLLocation *> * _Nullable routeData, BOOL done, NSError * _Nullable error))dataHandler;
+@end
+@interface HKQuery (HKWorkoutPredicates)
++ (NSPredicate *)predicateForWorkoutsWithWorkoutActivityType:(HKWorkoutActivityType)workoutActivityType;
++ (NSPredicate *)predicateForWorkoutsWithOperatorType:(NSPredicateOperatorType)operatorType duration:(NSTimeInterval)duration;
++ (NSPredicate *)predicateForWorkoutsWithOperatorType:(NSPredicateOperatorType)operatorType quantityType:(HKQuantityType *)quantityType sumQuantity:(HKQuantity *)sumQuantity;
++ (NSPredicate *)predicateForWorkoutsWithOperatorType:(NSPredicateOperatorType)operatorType quantityType:(HKQuantityType *)quantityType minimumQuantity:(HKQuantity *)minimumQuantity;
++ (NSPredicate *)predicateForWorkoutsWithOperatorType:(NSPredicateOperatorType)operatorType quantityType:(HKQuantityType *)quantityType maximumQuantity:(HKQuantity *)maximumQuantity;
++ (NSPredicate *)predicateForWorkoutsWithOperatorType:(NSPredicateOperatorType)operatorType quantityType:(HKQuantityType *)quantityType averageQuantity:(HKQuantity *)averageQuantity;
++ (NSPredicate *)predicateForWorkoutsWithActivityPredicate:(NSPredicate *)activityPredicate;
++ (NSPredicate *)predicateForWorkoutActivitiesWithWorkoutActivityType:(HKWorkoutActivityType)workoutActivityType;
++ (NSPredicate *)predicateForWorkoutActivitiesWithOperatorType:(NSPredicateOperatorType)operatorType duration:(NSTimeInterval)duration;
++ (NSPredicate *)predicateForWorkoutActivitiesWithStartDate:(nullable NSDate *)startDate endDate:(nullable NSDate *)endDate options:(HKQueryOptions)options;
++ (NSPredicate *)predicateForObjectsFromWorkout:(HKWorkout *)workout;
+@end
+
+@class HKWorkoutSession, HKLiveWorkoutBuilder;
+@interface HKSeriesBuilder : NSObject
+- (void)discard;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+@interface HKWorkoutRouteBuilder : HKSeriesBuilder
+- (instancetype)initWithHealthStore:(HKHealthStore *)healthStore device:(nullable HKDevice *)device;
+- (void)insertRouteData:(NSArray<CLLocation *> *)routeData completion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+- (void)addMetadata:(NSDictionary<NSString *, id> *)metadata completion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+- (void)finishRouteWithWorkout:(HKWorkout *)workout metadata:(nullable NSDictionary<NSString *, id> *)metadata
+                    completion:(void (^)(HKWorkoutRoute * _Nullable workoutRoute, NSError * _Nullable error))completion;
+@end
+@interface HKWorkoutBuilder : NSObject
+@property (readonly, copy, nullable) HKDevice *device;
+@property (readonly, copy, nullable) NSDate *startDate;
+@property (readonly, copy, nullable) NSDate *endDate;
+@property (readonly, copy) HKWorkoutConfiguration *workoutConfiguration;
+@property (readonly, copy) NSDictionary<NSString *, id> *metadata;
+@property (readonly, copy) NSArray<HKWorkoutEvent *> *workoutEvents;
+@property (readonly, copy) NSArray<HKWorkoutActivity *> *workoutActivities;
+@property (readonly, copy) NSDictionary<HKQuantityType *, HKStatistics *> *allStatistics;
+- (instancetype)initWithHealthStore:(HKHealthStore *)healthStore configuration:(HKWorkoutConfiguration *)configuration device:(nullable HKDevice *)device;
+- (void)beginCollectionWithStartDate:(NSDate *)startDate completion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+- (void)addSamples:(NSArray<HKSample *> *)samples completion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+- (void)addWorkoutEvents:(NSArray<HKWorkoutEvent *> *)workoutEvents completion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+- (void)addMetadata:(NSDictionary<NSString *, id> *)metadata completion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+- (void)addWorkoutActivity:(HKWorkoutActivity *)workoutActivity completion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+- (void)updateActivityWithUUID:(NSUUID *)UUID endDate:(NSDate *)endDate completion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+- (void)updateActivityWithUUID:(NSUUID *)UUID addMedatata:(NSDictionary<NSString *, id> *)metadata completion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+- (void)endCollectionWithEndDate:(NSDate *)endDate completion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+- (void)finishWorkoutWithCompletion:(void (^)(HKWorkout * _Nullable workout, NSError * _Nullable error))completion;
+- (void)discardWorkout;
+- (NSTimeInterval)elapsedTimeAtDate:(NSDate *)date;
+- (nullable HKStatistics *)statisticsForType:(HKQuantityType *)quantityType;
+- (nullable __kindof HKSeriesBuilder *)seriesBuilderForType:(HKSeriesType *)seriesType;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+
+API_AVAILABLE(ios(17.0))
+@protocol HKWorkoutSessionDelegate <NSObject>
+- (void)workoutSession:(HKWorkoutSession *)workoutSession didChangeToState:(HKWorkoutSessionState)toState fromState:(HKWorkoutSessionState)fromState date:(NSDate *)date;
+- (void)workoutSession:(HKWorkoutSession *)workoutSession didFailWithError:(NSError *)error;
+@optional
+- (void)workoutSession:(HKWorkoutSession *)workoutSession didGenerateEvent:(HKWorkoutEvent *)event;
+- (void)workoutSession:(HKWorkoutSession *)workoutSession didBeginActivityWithConfiguration:(HKWorkoutConfiguration *)workoutConfiguration date:(NSDate *)date;
+- (void)workoutSession:(HKWorkoutSession *)workoutSession didEndActivityWithConfiguration:(HKWorkoutConfiguration *)workoutConfiguration date:(NSDate *)date;
+- (void)workoutSession:(HKWorkoutSession *)workoutSession didReceiveDataFromRemoteWorkoutSession:(NSArray<NSData *> *)data;
+- (void)workoutSession:(HKWorkoutSession *)workoutSession didDisconnectFromRemoteDeviceWithError:(nullable NSError *)error;
+@end
+API_AVAILABLE(ios(17.0))
+@interface HKWorkoutSession : NSObject <NSSecureCoding>
+@property (weak, nullable) id<HKWorkoutSessionDelegate> delegate;
+@property (readonly) HKWorkoutSessionType type;
+@property (readonly) HKWorkoutSessionState state;
+@property (readonly, copy) HKWorkoutConfiguration *workoutConfiguration;
+@property (readonly, nullable) NSDate *startDate;
+@property (readonly, nullable) NSDate *endDate;
+@property (readonly, copy) HKWorkoutActivity *currentActivity;
+@property (readonly) HKWorkoutActivityType activityType;
+@property (readonly) HKWorkoutSessionLocationType locationType;
+- (nullable instancetype)initWithHealthStore:(HKHealthStore *)healthStore configuration:(HKWorkoutConfiguration *)workoutConfiguration
+                                       error:(NSError **)error API_AVAILABLE(ios(26.0));
+- (HKLiveWorkoutBuilder *)associatedWorkoutBuilder API_AVAILABLE(ios(26.0));
+- (void)prepare;
+- (void)startActivityWithDate:(nullable NSDate *)date;
+- (void)pause;
+- (void)resume;
+- (void)stopActivityWithDate:(nullable NSDate *)date;
+- (void)end;
+- (void)beginNewActivityWithConfiguration:(HKWorkoutConfiguration *)workoutConfiguration date:(NSDate *)date metadata:(nullable NSDictionary<NSString *, id> *)metadata;
+- (void)endCurrentActivityOnDate:(NSDate *)date;
+- (void)sendDataToRemoteWorkoutSession:(NSData *)data completion:(void (^)(BOOL success, NSError * _Nullable error))completion;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+
+API_AVAILABLE(ios(26.0))
+@interface HKLiveWorkoutDataSource : NSObject
+@property (readonly, copy) NSSet<HKQuantityType *> *typesToCollect;
+- (instancetype)initWithHealthStore:(HKHealthStore *)healthStore workoutConfiguration:(nullable HKWorkoutConfiguration *)configuration;
+- (void)enableCollectionForType:(HKQuantityType *)quantityType predicate:(nullable NSPredicate *)predicate;
+- (void)disableCollectionForType:(HKQuantityType *)quantityType;
+- (instancetype)init NS_UNAVAILABLE;
+@end
+API_AVAILABLE(ios(26.0))
+@protocol HKLiveWorkoutBuilderDelegate <NSObject>
+- (void)workoutBuilder:(HKLiveWorkoutBuilder *)workoutBuilder didCollectDataOfTypes:(NSSet<HKSampleType *> *)collectedTypes;
+- (void)workoutBuilderDidCollectEvent:(HKLiveWorkoutBuilder *)workoutBuilder;
+@optional
+- (void)workoutBuilder:(HKLiveWorkoutBuilder *)workoutBuilder didBeginActivity:(HKWorkoutActivity *)workoutActivity;
+- (void)workoutBuilder:(HKLiveWorkoutBuilder *)workoutBuilder didEndActivity:(HKWorkoutActivity *)workoutActivity;
+@end
+API_AVAILABLE(ios(26.0))
+@interface HKLiveWorkoutBuilder : HKWorkoutBuilder
+@property (weak, nullable) id<HKLiveWorkoutBuilderDelegate> delegate;
+@property (readonly, weak, nullable) HKWorkoutSession *workoutSession;
+@property (assign) BOOL shouldCollectWorkoutEvents;
+@property (strong, nullable) HKLiveWorkoutDataSource *dataSource;
+@property (readonly, copy, nullable) HKWorkoutActivity *currentWorkoutActivity;
+@property (readonly) NSTimeInterval elapsedTime;
+@end
+
+@interface HKHealthStore (HKWorkout)
+@property (copy, nullable) void (^workoutSessionMirroringStartHandler)(HKWorkoutSession *mirroredSession) API_AVAILABLE(ios(17.0));
+- (void)recoverActiveWorkoutSessionWithCompletion:(void (^)(HKWorkoutSession * _Nullable session, NSError * _Nullable error))completion API_AVAILABLE(ios(26.0));
+- (void)startWatchAppWithWorkoutConfiguration:(HKWorkoutConfiguration *)workoutConfiguration completion:(void (^)(BOOL success, NSError * _Nullable error))completion;
 @end
 
 NS_ASSUME_NONNULL_END
