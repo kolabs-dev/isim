@@ -3,7 +3,7 @@
 // selection, map types, coordinate conversion, a 3D camera with heading and pitch (animated), pinch / rotate /
 // two-finger tilt), MKLocalSearch, MKDirections (offline: not available), MKMapSnapshotter, and the SwiftUI Map
 // (iOS 17: Marker, Annotation, MapPolyline, MapCircle, UserAnnotation, MapCameraPosition, selection, mapStyle,
-// onMapCameraChange). Launch with -swiftui for the SwiftUI screen.
+// onMapCameraChange). Launch with -swiftui for the SwiftUI screen, -cluster for clustering and dragging (issue #417).
 import UIKit
 import MapKit
 import SwiftUI
@@ -83,6 +83,7 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
         if ProcessInfo.processInfo.arguments.contains("-lookaround") { lookAround(); return }
         if ProcessInfo.processInfo.arguments.contains("-geocode") { geocodeDemo(); return }
         if ProcessInfo.processInfo.arguments.contains("-features") { featuresDemo(); return }
+        if ProcessInfo.processInfo.arguments.contains("-cluster") { clusterDemo(); return }
         let park = MKPointAnnotation(coordinate: applePark, title: "Apple Park", subtitle: "Cupertino")
         let loop = MKPointAnnotation(coordinate: infiniteLoop, title: "Infinite Loop", subtitle: "1 Infinite Loop")
         map.addAnnotations([park, loop, Landmark(visitorCenter, "Visitor Center", "Apple Park Visitor Center")])
@@ -98,9 +99,64 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
         log("convert roundtrip \(fmt(back))")
     }
 
+    // MARK: clustering and dragging (-cluster)
+    var cafes: [MKPointAnnotation] = []
+    let library = MKPointAnnotation()
+    /// five cafés 150 m apart around Apple Park share a clustering identifier: at 4 km their markers overlap and show
+    /// as one cluster; Zoom (1.2 km) splits them. The library's marker is draggable.
+    func clusterDemo() {
+        map.setRegion(MKCoordinateRegion(center: applePark, latitudinalMeters: 4000, longitudinalMeters: 4000), animated: false)
+        for (i, (dy, dx)) in [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)].enumerated() {
+            cafes.append(MKPointAnnotation(coordinate: CLLocationCoordinate2D(latitude: applePark.latitude + Double(dy) * 0.00135,
+                                                                              longitude: applePark.longitude + Double(dx) * 0.0017),
+                                           title: "Cafe \(i + 1)", subtitle: nil))
+        }
+        library.coordinate = CLLocationCoordinate2D(latitude: applePark.latitude - 0.006, longitude: applePark.longitude)
+        library.title = "Library"
+        map.addAnnotations(cafes + [library])
+        DispatchQueue.main.async { [self] in
+            view.layoutIfNeeded()                       /* the map groups the markers once it has a size */
+            reportClusters()
+            let p = map.convert(library.coordinate, toPointTo: view)
+            log(String(format: "library marker at %.0f,%.0f", p.x, p.y))
+        }
+    }
+    func reportClusters() {
+        let clusters = Set(cafes.compactMap { map.view(for: $0)?.cluster }.map(ObjectIdentifier.init))
+        let shown = cafes.filter { map.view(for: $0)?.isHidden == false }.count
+        log("clusters \(clusters.count) cafes shown \(shown)")
+    }
+    func mapView(_ mapView: MKMapView, clusterAnnotationForMemberAnnotations memberAnnotations: [MKAnnotation]) -> MKClusterAnnotation {
+        log("cluster for \(memberAnnotations.count) members")
+        return MKClusterAnnotation(memberAnnotations: memberAnnotations)
+    }
+    func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, didChange newState: MKAnnotationView.DragState,
+                 fromOldState oldState: MKAnnotationView.DragState) {
+        let names: [MKAnnotationView.DragState: String] = [.none: "none", .starting: "starting", .dragging: "dragging", .canceling: "canceling", .ending: "ending"]
+        let t = view.annotation?.title.flatMap { $0 } ?? "-"
+        log("drag \(t) \(names[oldState]!) -> \(names[newState]!) at \(view.annotation.map { fmt($0.coordinate) } ?? "-")")
+        if newState == .none { status.text = "dropped \(t)" }
+    }
+
     // MARK: delegate
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
         if annotation is MKUserLocation { return nil }
+        if let c = annotation as? MKClusterAnnotation {
+            let v = mapView.dequeueReusableAnnotationView(withIdentifier: "marker", for: c) as! MKMarkerAnnotationView
+            v.markerTintColor = .systemBrown; v.glyphText = nil; v.glyphImage = nil; v.clusteringIdentifier = nil; v.isDraggable = false
+            v.accessibilityIdentifier = "cluster"
+            log("cluster view \(c.memberAnnotations.count) title=\(c.title ?? "nil") subtitle=\(c.subtitle ?? "nil")")
+            return v
+        }
+        if cafes.contains(where: { $0 === annotation }) || annotation === library {
+            let v = mapView.dequeueReusableAnnotationView(withIdentifier: "marker", for: annotation) as! MKMarkerAnnotationView
+            let cafe = annotation !== library
+            v.markerTintColor = cafe ? .systemOrange : .systemGreen; v.glyphText = nil; v.glyphImage = nil
+            v.clusteringIdentifier = cafe ? "cafe" : nil
+            v.isDraggable = !cafe
+            v.accessibilityIdentifier = "marker-" + (annotation.title.flatMap { $0 } ?? "")
+            return v
+        }
         if let l = annotation as? Landmark {
             let v = mapView.dequeueReusableAnnotationView(withIdentifier: "landmark") ?? MKAnnotationView(annotation: l, reuseIdentifier: "landmark")
             v.annotation = l
@@ -222,6 +278,7 @@ final class MapViewController: UIViewController, MKMapViewDelegate, CLLocationMa
                    c.centerCoordinateDistance, animated ? "yes" : "no", visibleChanges))
         let r = mapView.region
         log(String(format: "region center %.4f,%.4f span %.4f", r.center.latitude, r.center.longitude, r.span.latitudeDelta))
+        if !cafes.isEmpty { DispatchQueue.main.async { self.reportClusters() } }
     }
     func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
         let t = view.annotation?.title.flatMap { $0 } ?? "-"

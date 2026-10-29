@@ -383,3 +383,38 @@ def test_swiftui_map_features(launch, tmp_path):
     app.wait_log(r"HelloMaps: swiftui (selection|feature) nil")
     app.wait_view(r"text=★ Apple Park", gone=True)
     assert app.quit() == 0
+
+
+def test_map_clustering_dragging(launch, tmp_path):
+    """issue #417: five cafés' markers share a clustering identifier and overlap at 4 km, so the map shows one cluster
+    annotation (from the delegate, with MapKit's default title and subtitle, the count as its glyph); zooming in splits
+    it. The library's draggable marker: a long press lifts it, it follows the finger, and the drop sets its coordinate,
+    with the delegate told of each drag state. MAP_SHOTS=DIR keeps the screenshots."""
+    app = maps(launch, tmp_path, "cluster", args=["-cluster"])
+    app.wait_log(r"HelloMaps: cluster for 5 members")
+    app.wait_log(r"HelloMaps: cluster view 5 title=Cafe 1 subtitle=\+4 more")
+    app.wait_log(r"HelloMaps: clusters 1 cafes shown 0")
+    app.wait_view(r"id=cluster [^\n]*text=MKMarkerAnnotationView Cafe 1 @ 37\.3349\d,-122\.0090\d cluster 5")
+    m = app.wait_log(r"HelloMaps: library marker at (\d+),(\d+)")
+    x, y = int(m.group(1)), int(m.group(2))
+    shots = os.environ.get("MAP_SHOTS")
+    if shots:
+        app.wait_shot_still().save(os.path.join(shots, "map-cluster.png"))
+
+    app.tap_id("cluster")                                  # a cluster is selected like any annotation
+    app.wait_log(r"HelloMaps: selected Cafe 1")
+
+    app.send(f"longdrag {x} {y - 20} {x + 40} {y - 20} 0.8 0.5")
+    app.wait_log(r"HelloMaps: drag Library none -> starting at 37\.3289,-122\.0090")
+    app.wait_log(r"HelloMaps: drag Library starting -> dragging at 37\.3289,-122\.0090")
+    app.wait_log(r"HelloMaps: drag Library dragging -> ending at 37\.3289,-122\.00[1-6]\d")   # moved east, set before ending
+    app.wait_log(r"HelloMaps: drag Library ending -> none at 37\.3289,-122\.00[1-6]\d")
+    app.wait_view(r"text=dropped Library")
+
+    app.tap_id("zoom")                                     # at 1.2 km the cafés' markers no longer overlap
+    app.wait_log(r"HelloMaps: clusters 0 cafes shown 5")
+    app.wait_view(r"id=marker-Cafe 5")
+    app.wait_view(r"id=cluster", gone=True)
+    if shots:
+        app.wait_shot_still().save(os.path.join(shots, "map-cluster-zoomed.png"))
+    assert app.quit() == 0

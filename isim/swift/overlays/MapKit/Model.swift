@@ -47,6 +47,28 @@ extension MKOverlay {
 }
 
 /// The user's location as an annotation (MKMapView.userLocation).
+/// Annotations whose views overlap on the map, shown as one (iOS 11). The map makes one for each group of
+/// annotation views that share a `clusteringIdentifier` and overlap; `MKMapViewDelegate`'s
+/// `mapView(_:clusterAnnotationForMemberAnnotations:)` can make it instead.
+@objc(MKClusterAnnotation) open class MKClusterAnnotation: NSObject, MKAnnotation, @unchecked Sendable {
+    /// adapted: when nil, the map shows the first member's title and "+N more" as the subtitle, as MapKit does
+    @objc open var title: String?
+    @objc open var subtitle: String?
+    open private(set) var memberAnnotations: [MKAnnotation]
+    /// isim: the middle of the members' coordinates
+    open var coordinate: CLLocationCoordinate2D
+    public init(memberAnnotations: [MKAnnotation]) {
+        self.memberAnnotations = memberAnnotations
+        coordinate = MKClusterAnnotation._middle(memberAnnotations)
+        super.init()
+    }
+    static func _middle(_ members: [MKAnnotation]) -> CLLocationCoordinate2D {
+        guard !members.isEmpty else { return kCLLocationCoordinate2DInvalid }
+        let ps = members.map { MKMapPoint($0.coordinate) }
+        return MKMapPoint(x: ps.map(\.x).reduce(0, +) / Double(ps.count), y: ps.map(\.y).reduce(0, +) / Double(ps.count)).coordinate
+    }
+}
+
 @objc(MKUserLocation) open class MKUserLocation: NSObject, MKAnnotation, @unchecked Sendable {
     @objc dynamic open internal(set) var location: CLLocation?
     open internal(set) var heading: CLHeading?

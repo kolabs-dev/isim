@@ -60,6 +60,13 @@ MKCoordinateRegion MKCoordinateRegionMakeWithDistance(CLLocationCoordinate2D c, 
 @implementation MKPointAnnotation (ISIMStructs)
 - (void)setCoordinate:(CLLocationCoordinate2D)c { [self _isim_setLatitude:c.latitude longitude:c.longitude]; }
 @end
+@interface MKClusterAnnotation (ISIMComponents)
+- (double)_isim_latitude;
+- (double)_isim_longitude;
+@end
+@implementation MKClusterAnnotation (ISIMStructs)
+- (CLLocationCoordinate2D)coordinate { return (CLLocationCoordinate2D){ [self _isim_latitude], [self _isim_longitude] }; }
+@end
 @interface MKUserLocation (ISIMComponents)
 - (double)_isim_latitude;
 - (double)_isim_longitude;
@@ -137,6 +144,9 @@ static NSArray<NSNumber *> *pairs(const CLLocationCoordinate2D *coords, NSUInteg
 @implementation MKLocalSearchResponse (ISIMStructs)
 - (MKCoordinateRegion)boundingRegion { return regionFrom([self _isim_boundingRegion]); }
 @end
+
+NSString * const MKMapViewDefaultAnnotationViewReuseIdentifier = @"MKMapViewDefaultAnnotationViewReuseIdentifier";
+NSString * const MKMapViewDefaultClusterAnnotationViewReuseIdentifier = @"MKMapViewDefaultClusterAnnotationViewReuseIdentifier";
 
 /* the launch option keys and directions modes (MKMapItem.openInMaps) */
 NSString * const MKLaunchOptionsDirectionsModeKey = @"MKLaunchOptionsDirectionsMode";
