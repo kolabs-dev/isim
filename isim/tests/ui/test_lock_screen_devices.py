@@ -10,6 +10,16 @@ CASES = [("iphone16pro", "Swipe up to open", True), ("iphonese", "Press home to 
          ("ipadmini", "Swipe up to open", False)]
 
 
+def whole_dump(dev):
+    """The lock screen's elements from a dump known to be complete: one a later dump's header follows (a dump's lines
+    may still be arriving when the log is read, #766). Asks for another dump when there is none yet."""
+    heads = [m.start() for m in re.finditer(r"^IsimLockScreen \(", dev.log, re.M)]
+    if len(heads) >= 2:
+        return dev.log[heads[-2]:heads[-1]]
+    dev.send("dump")
+    return None
+
+
 @pytest.mark.os_matrix
 @pytest.mark.parametrize("device,hint,buttons", CASES, ids=[c[0] for c in CASES])
 def test_lock_screen_devices(launch, ios, device, hint, buttons):
@@ -21,8 +31,7 @@ def test_lock_screen_devices(launch, ios, device, hint, buttons):
     dev.send("lock")
     dev.wait_log(r"isim shell: locked")
     dev.wait_dump(rf"id=lock-hint text={re.escape(hint)}\b")
-    dev.wait_dump(r"id=lock-clock\b")                       # a second, whole dump of the lock screen
-    dump = dev.log[dev.log.rindex("id=lock-clock"):]
+    dump = dev.wait_until(lambda: whole_dump(dev), what="a whole dump of the lock screen", poll=0.3)
     assert ("id=lock-control-left" in dump) == buttons and ("id=lock-control-right" in dump) == buttons, \
         f"{device}: the bottom corner buttons {'shown' if buttons else 'absent'}"
     assert dev.quit() == 0, "exits cleanly"
