@@ -9,7 +9,7 @@
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
 @class CXProvider, CXCall, CXCallObserver, CXAction, CXTransaction, CXCallDirectoryExtensionContext;
-@class CXStartCallAction, CXAnswerCallAction, CXEndCallAction, CXSetHeldCallAction, CXSetMutedCallAction, CXSetGroupCallAction, CXPlayDTMFCallAction;
+@class CXStartCallAction, CXAnswerCallAction, CXEndCallAction, CXSetHeldCallAction, CXSetMutedCallAction, CXSetGroupCallAction, CXPlayDTMFCallAction, CXSetTranslatingCallAction;
 
 /* errors */
 FOUNDATION_EXPORT NSErrorDomain const CXErrorDomain;
@@ -69,6 +69,8 @@ typedef NS_ENUM(NSInteger, CXHandleType) { CXHandleTypeGeneric = 1, CXHandleType
 @property (nonatomic) BOOL includesCallsInRecents;
 @property (nonatomic) BOOL supportsVideo;
 @property (nonatomic, copy) NSSet<NSNumber *> *supportedHandleTypes;
+/* iOS 26: the call screen offers Live Translation (CXSetTranslatingCallAction) */
+@property (nonatomic) BOOL supportsAudioTranslation API_AVAILABLE(ios(26.0));
 - (instancetype)init;
 - (instancetype)initWithLocalizedName:(NSString *)localizedName API_DEPRECATED("use -init (the name is the app's)", ios(10.0, 14.0));
 @end
@@ -124,6 +126,21 @@ typedef NS_ENUM(NSInteger, CXPlayDTMFCallActionType) {
 @property (nonatomic) CXPlayDTMFCallActionType type;
 @end
 
+/* iOS 26: start or stop translating a call; from the call screen's Live Translation button or a CXCallController */
+typedef NS_ENUM(NSInteger, CXTranslationEngine) {
+    CXTranslationEngineDefault = 0,
+    CXTranslationEngineCustom = 1,
+} API_AVAILABLE(ios(26.0));
+API_AVAILABLE(ios(26.0))
+@interface CXSetTranslatingCallAction : CXCallAction
+- (instancetype)initWithCallUUID:(NSUUID *)callUUID isTranslating:(BOOL)isTranslating localLanguage:(NSString *)localLanguage
+                  remoteLanguage:(NSString *)remoteLanguage;
+@property (nonatomic, readonly) BOOL isTranslating;
+@property (nonatomic, readonly, copy) NSString *localLanguage;
+@property (nonatomic, readonly, copy) NSString *remoteLanguage;
+- (void)fulfillUsingTranslationEngine:(CXTranslationEngine)translationEngine;
+@end
+
 @interface CXTransaction : NSObject <NSCopying>
 @property (nonatomic, readonly, copy) NSUUID *UUID;
 @property (nonatomic, readonly, getter=isComplete) BOOL complete;
@@ -165,6 +182,7 @@ typedef NS_ENUM(NSInteger, CXPlayDTMFCallActionType) {
 - (void)provider:(CXProvider *)provider performSetMutedCallAction:(CXSetMutedCallAction *)action;
 - (void)provider:(CXProvider *)provider performSetGroupCallAction:(CXSetGroupCallAction *)action;
 - (void)provider:(CXProvider *)provider performPlayDTMFCallAction:(CXPlayDTMFCallAction *)action;
+- (void)provider:(CXProvider *)provider performSetTranslatingCallAction:(CXSetTranslatingCallAction *)action API_AVAILABLE(ios(26.0));
 - (void)provider:(CXProvider *)provider timedOutPerformingAction:(CXAction *)action;
 - (void)provider:(CXProvider *)provider didActivateAudioSession:(AVAudioSession *)audioSession;
 - (void)provider:(CXProvider *)provider didDeactivateAudioSession:(AVAudioSession *)audioSession;

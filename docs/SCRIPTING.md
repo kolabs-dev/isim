@@ -86,7 +86,9 @@ on the Lock Screen (`call-accept`: slide to answer). The call screen has `call-c
 hold"), `call-speaker`, `call-video`, `call-mute`, `call-hold` (calls that support holding; else `call-add`),
 `call-app` (opens the app), `call-keypad` (then `call-key-0` … `call-key-9`, `call-key-star`, `call-key-hash`,
 `call-keypad-hide`) and `call-end`. `home` hides it; the call then shows as `call-pill` (the green indicator, or the
-Dynamic Island's phone and duration), which brings it back. `dump` lists them as `IsimCallButton`.
+Dynamic Island's phone and duration), which brings it back. `dump` lists them as `IsimCallButton`. iOS 26: a provider
+with `supportsAudioTranslation` gets `call-translate` under the caller (text "Live Translation", or the two languages
+while the call is translated); tapping it turns Live Translation on or off.
 
 **Messages** (isim's Messages app, `launch dev.isim.messages`, hosts the iMessage apps and sticker packs): `messages-plus`
 opens the app menu (`messages-app-EXTENSION_BUNDLE_ID`), the open app has `messages-expand` / `messages-collapse` and
@@ -222,6 +224,10 @@ without a Dynamic Island while an alert shows, `id=live-activity-banner`. Push u
 "content-state", "stale-date", "dismissal-date", "relevance-score", "alert", "attributes-type", "attributes" }`; a
 top-level `"apns-push-token"` (the token the app logs from `pushTokenUpdates`) picks the activity, else the app's newest
 activity with a push token. `start` needs the push-to-start token the app read from `pushToStartTokenUpdates`.
+A BackgroundTasks continued processing task (iOS 26) is a Live Activity the shell draws (its text: `bgtask:TASK-ID`);
+`dump` lists each running task as `IsimBackgroundTask … id=bgtask-TASK-ID text=TITLE — SUBTITLE (N%)`, and the Lock
+Screen and expanded Dynamic Island views have its cancel button, `bgtask-cancel` (`IsimBackgroundTaskButton`), which
+expires the task.
 
 **Location indicator**: while an app uses location in the background, the status bar's time sits on a blue capsule
 (`dump`: `IsimLocationIndicator … id=location-indicator`); `tapid location-indicator` opens that app.

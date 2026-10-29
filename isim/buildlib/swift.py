@@ -971,7 +971,7 @@ AppleArchive -lswiftSystem -lswiftCompression -lswiftObjectiveC -lswiftFoundatio
 OSLog -lswiftos -lswiftObjectiveC -lswiftFoundation -framework Foundation -lisim_host
 LocalAuthentication -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftSecurity -lswiftSwiftUI -lswiftCombine -lswiftDispatch -lswiftCoreGraphics -lswiftObservation -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 DeviceCheck -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCryptoKit -lswiftSecurity -framework Foundation
-BackgroundTasks -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit
+BackgroundTasks -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftDispatch -lswift_Concurrency -framework Foundation -framework UIKit -lisim_host
 UserNotifications -lswiftObjectiveC -lswiftFoundation -lswiftUIKit -lswiftCoreLocation -framework Foundation -framework UIKit -framework UserNotifications
 Intents -lswiftObjectiveC -lswiftFoundation -lswiftCoreLocation -lswiftContacts -framework Foundation -framework Intents   # INFocusStatus.isFocused as Bool?, INMediaDestination, CLPlacemark, Int?/Double?/Bool? (issue #411)
 CoreML -lswiftObjectiveC -lswiftFoundation -lswiftDispatch -lswift_Concurrency -lswiftCoreVideo -lswiftCoreGraphics -framework Foundation -framework CoreGraphics

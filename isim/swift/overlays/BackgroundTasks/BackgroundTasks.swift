@@ -63,7 +63,7 @@ public func ~= (code: BGTaskScheduler.Error.Code, error: Swift.Error) -> Bool { 
 @objc(BGTaskScheduler) public final class BGTaskScheduler: NSObject, @unchecked Sendable {
     public static let shared = BGTaskScheduler()
     public struct Error: Swift.Error, CustomNSError, Equatable, Sendable {
-        public enum Code: Int, Sendable { case unavailable = 1, tooManyPendingTaskRequests = 2, notPermitted = 3 }
+        public enum Code: Int, Sendable { case unavailable = 1, tooManyPendingTaskRequests = 2, notPermitted = 3, immediateRunIneligible = 4 }
         public let code: Code
         public init(_ code: Code) { self.code = code }
         public static var errorDomain: String { "BGTaskSchedulerErrorDomain" }
@@ -71,10 +71,11 @@ public func ~= (code: BGTaskScheduler.Error.Code, error: Swift.Error) -> Bool { 
         public static var unavailable: Code { .unavailable }
         public static var tooManyPendingTaskRequests: Code { .tooManyPendingTaskRequests }
         public static var notPermitted: Code { .notPermitted }
+        @available(iOS 26.0, *) public static var immediateRunIneligible: Code { .immediateRunIneligible }
     }
     struct Handler { let queue: DispatchQueue?; let launch: (BGTask) -> Void }
     private var handlers: [String: Handler] = [:]
-    private let lock = NSLock()
+    let lock = NSLock()
     private var observer: NSObjectProtocol?
 
     override init() {
@@ -116,6 +117,7 @@ public func ~= (code: BGTaskScheduler.Error.Code, error: Swift.Error) -> Bool { 
     public func submit(_ taskRequest: BGTaskRequest) throws {
         let ident = taskRequest.identifier
         guard BGTaskScheduler.permits(ident) else { throw Error(.notPermitted) }
+        if #available(iOS 26.0, *), let c = taskRequest as? BGContinuedProcessingTaskRequest { try _ContinuedTasks.submit(c, handler: handler(for: c.identifier)); return }
         let mode = taskRequest is BGProcessingTaskRequest ? "processing" : "fetch"
         guard BGTaskScheduler.modes.contains(mode) else {
             NSLog("isim: BGTaskScheduler: submitting %@ needs '%@' in Info.plist UIBackgroundModes", ident, mode)
@@ -146,10 +148,20 @@ public func ~= (code: BGTaskScheduler.Error.Code, error: Swift.Error) -> Bool { 
             r.earliestBeginDate = d["earliestBeginDate"] as? Date
             return r
         }
-        DispatchQueue.global().async { completionHandler(reqs) }
+        var all = reqs
+        if #available(iOS 26.0, *) { all += _ContinuedTasks.pending() }    /* queued continued processing tasks */
+        DispatchQueue.global().async { completionHandler(all) }
     }
     public func pendingTaskRequests() async -> [BGTaskRequest] {
         await withCheckedContinuation { (k: CheckedContinuation<[BGTaskRequest], Never>) in getPendingTaskRequests { k.resume(returning: $0) } }
+    }
+
+    /// the launch handler for an identifier: its own, else the one registered for the wildcard it matches
+    func handler(for ident: String) -> ((BGTask) -> Void)? {
+        lock.lock(); defer { lock.unlock() }
+        let h = handlers[ident] ?? handlers.first { $0.key.hasSuffix("*") && ident.hasPrefix(String($0.key.dropLast())) }?.value
+        guard let h else { return nil }
+        return { task in (h.queue ?? DispatchQueue.global()).async { h.launch(task) } }
     }
 
     func launch(_ ident: String, kind: String) {

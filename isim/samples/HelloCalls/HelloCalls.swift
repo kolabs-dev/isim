@@ -6,6 +6,8 @@
 // call through CXCallController (connecting, then connected), end it, mute it, "hang up from the other side"
 // (reportCall(with:endedAt:reason:)), make invalid requests, and ask for the Call Directory extension's state.
 // payloads/noreport.apns is a VoIP push the app does not report a call for: like iOS, the system terminates it.
+// iOS 26.4: VoIP pushes come with PKVoIPPushMetadata (mustReport); iOS 26: the provider supports Live Translation, from the call
+// screen's button or the "Translate to French" button (CXSetTranslatingCallAction through CXCallController).
 import UIKit
 import PushKit
 import CallKit
@@ -23,6 +25,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, PKPushRegistryDelegate, C
         c.supportsVideo = true
         c.maximumCallGroups = 2
         c.supportedHandleTypes = [.generic, .phoneNumber, .emailAddress]
+        if #available(iOS 26.0, *) { c.supportsAudioTranslation = true }
         return CXProvider(configuration: c)
     }()
     let controller = CXCallController()
@@ -46,6 +49,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate, PKPushRegistryDelegate, C
         let hex = pushCredentials.token.map { String(format: "%02x", $0) }.joined()
         log("voip token \(hex) (\(pushCredentials.token.count) bytes) same=\(registry.pushToken(for: .voIP) == pushCredentials.token)")
     }
+    @available(iOS 26.4, *)
+    func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingVoIPPushWith payload: PKPushPayload, metadata: PKVoIPPushMetadata,
+                      withCompletionHandler completion: @escaping @Sendable () -> Void) {
+        log("voip push metadata mustReport=\(metadata.mustReport)")
+        pushRegistry(registry, didReceiveIncomingPushWith: payload, for: .voIP) { completion() }
+    }
     func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingPushWith payload: PKPushPayload, for type: PKPushType, completion: @escaping () -> Void) {
         let p = payload.dictionaryPayload
         log("voip push type=\(type == .voIP ? "voip" : type.rawValue) caller=\(p["caller"] as? String ?? "-")")
@@ -65,6 +74,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate, PKPushRegistryDelegate, C
     }
 
     // MARK: CallKit provider
+    @available(iOS 26.0, *)
+    func provider(_ provider: CXProvider, perform action: CXSetTranslatingCallAction) {
+        log(action.isTranslating ? "translate \(action.localLanguage) and \(action.remoteLanguage)" : "stop translating")
+        action.fulfill(using: .default)
+    }
     func providerDidReset(_ provider: CXProvider) { log("provider reset") }
     func providerDidBegin(_ provider: CXProvider) { log("provider began") }
     func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
@@ -130,6 +144,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate, PKPushRegistryDelegate, C
         provider.reportCall(with: u, endedAt: Date(), reason: .remoteEnded)
         current = nil
     }
+    func translate() {
+        guard #available(iOS 26.0, *) else { log("Live Translation needs iOS 26"); return }
+        guard let u = current else { log("no call to translate"); return }
+        request([CXSetTranslatingCallAction(call: u, isTranslating: true, localLanguage: "en", remoteLanguage: "fr")], "translate")
+    }
     func badRequests() {
         request([], "empty")
         request([CXEndCallAction(call: UUID())], "unknown")
@@ -158,7 +177,7 @@ class ViewController: UIViewController {
         stack.alignment = .leading
         for (label, id, action) in [("Call Bob", "call-out", #selector(callOut)), ("End Call", "end-call", #selector(endCall)),
                                     ("Mute", "mute", #selector(mute)), ("Other Side Hangs Up", "remote-end", #selector(remoteEnd)),
-                                    ("Invalid Requests", "bad-requests", #selector(badRequests))] {
+                                    ("Invalid Requests", "bad-requests", #selector(badRequests)), ("Translate to French", "translate", #selector(translate))] {
             let b = UIButton(type: .system)
             b.setTitle(label, for: .normal)
             b.setTitleColor(.white, for: .normal)
@@ -181,4 +200,5 @@ class ViewController: UIViewController {
     @objc func mute() { app?.mute() }
     @objc func remoteEnd() { app?.remoteEnd() }
     @objc func badRequests() { app?.badRequests() }
+    @objc func translate() { app?.translate() }
 }

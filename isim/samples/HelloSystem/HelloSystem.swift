@@ -1,6 +1,8 @@
 // HelloSystem: an app's integration with the system around it (UIKit, scene-based).
 // Home-screen quick actions (static + dynamic), alternate app icons, URL schemes and universal links,
-// NSUserActivity (Spotlight), scene state restoration, beginBackgroundTask and BackgroundTasks.
+// NSUserActivity (Spotlight), scene state restoration, beginBackgroundTask and BackgroundTasks; on iOS 26, continued
+// processing tasks ("Export photos": 20 steps of half a second, shown in the system's Live Activity, cancellable;
+// two run at a time, a third is queued, and one submitted with the .fail strategy is refused).
 import UIKit
 import BackgroundTasks
 import Network
@@ -9,6 +11,7 @@ import UniformTypeIdentifiers
 
 let refreshTaskID = "dev.isim.samples.HelloSystem.refresh"
 let processingTaskID = "dev.isim.samples.HelloSystem.cleanup"
+nonisolated(unsafe) var exports = 0
 
 func log(_ s: String) { NSLog("HelloSystem: %@", s) }
 
@@ -112,7 +115,8 @@ class ViewController: UIViewController {
                              ("Use dark icon", "altIcon", #selector(darkIcon)), ("Use default icon", "primaryIcon", #selector(primaryIcon)),
                              ("Begin background task", "bgTask", #selector(beginTask)), ("Schedule refresh + processing", "schedule", #selector(schedule)),
                              ("Index activity for Spotlight", "indexActivity", #selector(indexActivity)), ("Open hellosystem://self", "openURL", #selector(openSelf)),
-                             ("Index items (CoreSpotlight)", "indexItems", #selector(indexItems)), ("Open a web page", "openWeb", #selector(openWeb))] {
+                             ("Index items (CoreSpotlight)", "indexItems", #selector(indexItems)), ("Open a web page", "openWeb", #selector(openWeb)),
+                             ("Export photos (continued)", "continued", #selector(continued)), ("Export now or fail", "continuedFail", #selector(continuedFail))] {
             let b = UIButton(type: .system)
             b.setTitle(t, for: .normal); b.accessibilityIdentifier = id
             b.titleLabel?.font = .systemFont(ofSize: 17)
@@ -170,6 +174,37 @@ class ViewController: UIViewController {
         do { try BGTaskScheduler.shared.submit(BGAppRefreshTaskRequest(identifier: "not.permitted")) }
         catch let e as BGTaskScheduler.Error { log("unpermitted submit error code \(e.code.rawValue)") } catch {}
         BGTaskScheduler.shared.getPendingTaskRequests { reqs in log("pending \(reqs.map { $0.identifier }.sorted())") }
+    }
+    @objc func continued() { exportPhotos(fail: false) }
+    @objc func continuedFail() { exportPhotos(fail: true) }
+    func exportPhotos(fail: Bool) {
+        guard #available(iOS 26.0, *) else { log("continued processing tasks need iOS 26"); return }
+        exports += 1
+        let id = "dev.isim.samples.HelloSystem.export.\(exports)", n = exports
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: id, using: nil) { task in
+            guard let task = task as? BGContinuedProcessingTask else { return }
+            var cancelled = false
+            task.expirationHandler = { cancelled = true; log("export \(n) expired") }
+            task.progress.totalUnitCount = 20
+            log("export \(n) started: \(task.title)")
+            for step in 1...20 {
+                if cancelled { break }
+                Thread.sleep(forTimeInterval: 0.5)
+                task.progress.completedUnitCount = Int64(step)
+                task.updateTitle(task.title, subtitle: "\(step) of 20 photos")
+            }
+            log("export \(n) \(cancelled ? "cancelled" : "completed")")
+            task.setTaskCompleted(success: !cancelled)
+        }
+        let r = BGContinuedProcessingTaskRequest(identifier: id, title: "Exporting Photos", subtitle: "0 of 20 photos")
+        r.strategy = fail ? .fail : .queue
+        do {
+            try BGTaskScheduler.shared.submit(r)
+            log("export \(n) submitted (gpu supported: \(BGTaskScheduler.supportedResources.contains(.gpu)))")
+        } catch let e as BGTaskScheduler.Error {
+            log("export \(n) refused \(BGTaskScheduler.Error.errorDomain) \(e.code.rawValue)")
+        } catch {}
+        BGTaskScheduler.shared.getPendingTaskRequests { reqs in log("pending continued \(reqs.filter { $0 is BGContinuedProcessingTaskRequest }.map(\.identifier))") }
     }
     @objc func indexItems() {
         let attrs = CSSearchableItemAttributeSet(contentType: .text)
