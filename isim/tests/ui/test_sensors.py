@@ -3,6 +3,9 @@ motion / gyro updates; pedometer, activity and altimeter unavailable like the Si
 Core Bluetooth (.unsupported + API MISUSE log), Core NFC (no reader), HealthKit (the Health Access sheet: Turn On All +
 Allow, saving with unit conversion, statistics sum, sample query, answers remembered after a relaunch,
 ISIM_HEALTH_PERMISSION=deny makes saving fail with errorAuthorizationDenied). Port of tests/ui/sensors.sh."""
+import os
+import subprocess
+
 import pytest
 
 
@@ -99,3 +102,35 @@ def test_health_denied(launch):
     app.tap_id("healthQuery")
     app.wait_log(r"^health steps sum -1")
     app.quit()
+
+
+def health(device_data, *args):
+    from isimtest import ISIM
+    return subprocess.run([str(ISIM), "health", *args], env=dict(os.environ, ISIM_DATA=str(device_data)),
+                          capture_output=True, text=True, check=True, timeout=60).stdout
+
+
+@pytest.mark.os_matrix                       # states of mind are iOS 18
+def test_health_profile(launch, device_data, ios):
+    """issue #419: the device's Health profile (`isim health profile|goals|add`) read as characteristics, today's
+    activity rings computed from the day's samples (and updated as they change), blood pressure and food correlations
+    saved and deleted with their objects, and from iOS 18 states of mind with their predicates"""
+    assert "profile: born 1990-04-12, sex female, blood O+, skin III, wheelchair no, move mode energy" in health(
+        device_data, "profile", "dob=1990-04-12", "sex=female", "blood=O+", "skin=III", "wheelchair=no", "move=energy")
+    assert "goals: move 400 kcal, move time 30 min, exercise 30 min, stand 10 h" in health(device_data, "goals", "move=400", "stand=10")
+    assert "added HKQuantityTypeIdentifierActiveEnergyBurned 120" in health(device_data, "add", "activeEnergyBurned", "120")
+    app = launch("HelloSensors", args=["-profile"], env={"ISIM_HEALTH_PERMISSION": "allow"})
+    app.wait_log(r"^profile correlation authorization disallowed$")
+    app.wait_log(r"^profile born 1990-04-12 sex 1 blood O\+ skin III wheelchair no move energy$")
+    app.wait_log(r"^profile rings move 300/400 kcal exercise 25/30 min stand 1/10 h mode 1$")    # 120 from Health + 180
+    app.wait_log(r"^profile rings update move 370$")
+    app.wait_log(r"^profile blood pressure 118/76 objects 2$")
+    app.wait_log(r"^profile meals 1 Lunch systolic readings 1$")
+    app.wait_log(r"^profile deleted blood pressure: systolic readings 0$")     # a correlation's objects go with it
+    if int(float(ios[0] or 18)) >= 18:
+        app.wait_log(r"^profile states of mind 2 classes 3,6 pleasant-with-family 1 labels 2 kind daily$")
+    else:
+        app.wait_log(r"^profile states of mind need iOS 18$")
+    listed = health(device_data, "list")
+    assert "HKCorrelationTypeIdentifierFood: 1" in listed and "HKQuantityTypeIdentifierDietaryProtein: 1" in listed, listed
+    assert app.quit() == 0

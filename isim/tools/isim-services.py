@@ -68,6 +68,11 @@
   isim home add-accessory <kind> [name]            a new accessory nearby, for HMAccessoryBrowser and the Add Accessory
                                                    sheet (lightbulb, outlet, switch, fan, contact, motion, thermostat, lock)
   isim home clear                                  remove every home
+  isim health profile [dob=… sex=… blood=… skin=… wheelchair=… move=…]   HealthKit: the device's Health profile (characteristics)
+  isim health goals [move=KCAL movetime=MIN exercise=MIN stand=HOURS]     the activity rings' goals
+  isim health add <type> <value> [minutes ago]     a sample from the Health app (activeEnergyBurned 120, appleExerciseTime 15,
+                                                   standHour 1, heartRate 72; quantities in their stored unit)
+  isim health list                                 the profile, the goals and how many samples of each type
 
 <app> is a bundle identifier, an .app bundle or an installed app's name. Running apps notice changes
 within half a second. Data: ISIM_DATA (~/.local/share/isim)/Containers/<bundle id>/Library/isim/; Wallet: ISIM_DATA/Library/Wallet/; StoreKit purchase
@@ -1556,6 +1561,89 @@ def home(cmd, args):
 
 
 
+HK_SEX = {'none': 0, 'female': 1, 'male': 2, 'other': 3}
+HK_BLOOD = {'none': 0, 'A+': 1, 'A-': 2, 'B+': 3, 'B-': 4, 'AB+': 5, 'AB-': 6, 'O+': 7, 'O-': 8}
+HK_SKIN = {'none': 0, 'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6}
+HK_WHEELCHAIR = {'none': 0, 'no': 1, 'yes': 2}
+HK_MOVE = {'energy': 1, 'time': 2}
+
+
+def health(cmd, args):
+    """HealthKit (issue #419): the device's Health profile (characteristics), the activity rings' goals, samples from the
+    Health app; the same files as the HealthKit overlay (Library/Health)."""
+    d = os.path.join(DATA, 'Library/Health')
+    os.makedirs(d, exist_ok=True)
+    pf = os.path.join(d, 'profile.json')
+    prof = {'sex': 0, 'blood': 0, 'skin': 0, 'wheelchair': 0, 'move': 1, 'moveGoal': 500.0, 'moveTimeGoal': 30.0, 'exerciseGoal': 30.0, 'standGoal': 12.0}
+    if os.path.isfile(pf):
+        prof.update(json.load(open(pf)))
+    name = lambda table, v: next((k for k, x in table.items() if x == v), '?')
+    kv = {}
+    for a in args if cmd in ('profile', 'goals') else []:
+        if '=' not in a:
+            die(f'isim health {cmd}: expected KEY=VALUE, got {a}')
+        k, v = a.split('=', 1)
+        kv[k] = v
+    if cmd == 'profile':
+        for k, v in kv.items():
+            if k == 'dob':
+                if v == 'none':
+                    prof.pop('dateOfBirth', None)
+                else:
+                    time.strptime(v, '%Y-%m-%d')
+                    prof['dateOfBirth'] = v
+            elif k in ('sex', 'blood', 'skin', 'wheelchair', 'move'):
+                table = {'sex': HK_SEX, 'blood': HK_BLOOD, 'skin': HK_SKIN, 'wheelchair': HK_WHEELCHAIR, 'move': HK_MOVE}[k]
+                if v not in table:
+                    die(f'isim health profile: {k} is one of {", ".join(table)}')
+                prof[k] = table[v]
+            else:
+                die(f'isim health profile: unknown {k} (dob, sex, blood, skin, wheelchair, move)')
+        write_json(pf, prof)
+        print(f'profile: born {prof.get("dateOfBirth", "-")}, sex {name(HK_SEX, prof["sex"])}, blood {name(HK_BLOOD, prof["blood"])}, '
+              f'skin {name(HK_SKIN, prof["skin"])}, wheelchair {name(HK_WHEELCHAIR, prof["wheelchair"])}, move mode {name(HK_MOVE, prof["move"])}')
+    elif cmd == 'goals':
+        keys = {'move': 'moveGoal', 'movetime': 'moveTimeGoal', 'exercise': 'exerciseGoal', 'stand': 'standGoal'}
+        for k, v in kv.items():
+            if k not in keys:
+                die(f'isim health goals: unknown {k} (move, movetime, exercise, stand)')
+            prof[keys[k]] = float(v)
+        write_json(pf, prof)
+        print(f'goals: move {prof["moveGoal"]:g} kcal, move time {prof["moveTimeGoal"]:g} min, exercise {prof["exerciseGoal"]:g} min, stand {prof["standGoal"]:g} h')
+    elif cmd == 'add' and len(args) in (2, 3):
+        # TYPE VALUE [MINUTES_AGO]: a sample from the Health app (quantities in their stored unit; standHour: stood that hour)
+        t, value = args[0], float(args[1])
+        ago = float(args[2]) * 60 if len(args) == 3 else 0
+        end = time.time() - ago
+        if t == 'standHour':
+            ident, kind, start, value = 'HKCategoryTypeIdentifierAppleStandHour', 'c', end - 3600, 0.0
+        else:
+            ident, kind = 'HKQuantityTypeIdentifier' + t[0].upper() + t[1:], 'q'
+            start = end - 60 if t in ('activeEnergyBurned', 'appleExerciseTime', 'appleMoveTime', 'stepCount', 'distanceWalkingRunning') else end
+        db = os.path.join(d, 'healthdb.json')
+        recs = json.load(open(db)) if os.path.isfile(db) else []
+        gone = json.load(open(os.path.join(d, 'healthdeleted.json'))) if os.path.isfile(os.path.join(d, 'healthdeleted.json')) else []
+        seq = max([r.get('seq') or 0 for r in recs] + [g['seq'] for g in gone] + [0]) + 1
+        recs.append({'uuid': str(uuid.uuid4()).upper(), 'kind': kind, 'type': ident, 'start': start, 'end': end, 'value': value,
+                     'bundle': 'com.apple.Health', 'source': 'Health', 'seq': seq})
+        write_json(db, recs)
+        print(f'added {ident} {value:g}')
+    elif cmd == 'list':
+        print(f'profile: born {prof.get("dateOfBirth", "-")}, sex {name(HK_SEX, prof["sex"])}, blood {name(HK_BLOOD, prof["blood"])}, '
+              f'skin {name(HK_SKIN, prof["skin"])}, wheelchair {name(HK_WHEELCHAIR, prof["wheelchair"])}, move mode {name(HK_MOVE, prof["move"])}')
+        print(f'goals: move {prof["moveGoal"]:g} kcal, move time {prof["moveTimeGoal"]:g} min, exercise {prof["exerciseGoal"]:g} min, stand {prof["standGoal"]:g} h')
+        db = os.path.join(d, 'healthdb.json')
+        counts = {}
+        for r in json.load(open(db)) if os.path.isfile(db) else []:
+            counts[r['type']] = counts.get(r['type'], 0) + 1
+        for t, n in sorted(counts.items()):
+            print(f'{t}: {n}')
+    else:
+        die('usage: isim health profile [dob=YYYY-MM-DD] [sex=female|male|other|none] [blood=A+|A-|B+|B-|AB+|AB-|O+|O-|none] '
+            '[skin=I..VI|none] [wheelchair=yes|no|none] [move=energy|time] | goals [move=KCAL] [movetime=MIN] [exercise=MIN] [stand=HOURS] '
+            '| add TYPE VALUE [MINUTES_AGO] | list')
+
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == 'gamecenter' and sys.argv[2] in GC_NETWORK:
         sys.argv.append('')
@@ -1563,6 +1651,8 @@ def main():
         sys.argv.append('')
     if len(sys.argv) >= 2 and sys.argv[1] == 'finance':
         return finance(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
+    if len(sys.argv) >= 2 and sys.argv[1] == 'health':
+        return health(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] == 'home':
         return home(sys.argv[2] if len(sys.argv) > 2 else '', sys.argv[3:])
     if len(sys.argv) >= 2 and sys.argv[1] in ('smartcard', 'iddocs', 'alarms', 'messages', 'bgassets', 'fileprovider', 'screentime', 'spotlight'):

@@ -148,13 +148,71 @@ static NSString *errText(NSError *e) { return e ? [NSString stringWithFormat:@"%
                     HKSampleQuery *wq = [[HKSampleQuery alloc] initWithSampleType:HKObjectType.workoutType predicate:rides limit:HKObjectQueryNoLimit
                         sortDescriptors:nil resultsHandler:^(HKSampleQuery *wquery, NSArray *found, NSError *we) {
                             say(@"workout rides %lu", (unsigned long)found.count);
-                            dispatch_async(dispatch_get_main_queue(), ^{ [self motion]; });
+                            [self profile];
                         }];
                     [self.health executeQuery:wq];
                 }];
             [self.health executeQuery:rq];
         }];
     [self.health executeQuery:q];
+}
+
+// MARK: the Health profile, correlations, activity summaries and states of mind (issue #419)
+- (void)profile {
+    HKQuantityType *sys = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierBloodPressureSystolic];
+    HKQuantityType *dia = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierBloodPressureDiastolic];
+    NSMutableSet *types = [NSMutableSet setWithObjects:sys, dia, nil];
+    NSMutableSet *read = [NSMutableSet setWithObjects:sys, dia, HKObjectType.activitySummaryType,
+                          [HKObjectType characteristicTypeForIdentifier:HKCharacteristicTypeIdentifierBloodType], nil];
+    if (@available(iOS 18.0, *)) { [types addObject:HKObjectType.stateOfMindType]; [read addObject:HKObjectType.stateOfMindType]; }
+    [self.health requestAuthorizationToShareTypes:types readTypes:read completion:^(BOOL ok, NSError *e) {
+        NSError *be = nil;
+        HKBloodTypeObject *blood = [self.health bloodTypeWithError:&be];
+        say(@"profile blood %ld error %@", (long)blood.bloodType, errText(be));
+        NSDate *now = [NSDate date];
+        HKCorrelation *bp = [HKCorrelation correlationWithType:[HKObjectType correlationTypeForIdentifier:HKCorrelationTypeIdentifierBloodPressure]
+            startDate:now endDate:now objects:[NSSet setWithObjects:
+                [HKQuantitySample quantitySampleWithType:sys quantity:[HKQuantity quantityWithUnit:HKUnit.millimeterOfMercuryUnit doubleValue:121] startDate:now endDate:now],
+                [HKQuantitySample quantitySampleWithType:dia quantity:[HKQuantity quantityWithUnit:HKUnit.millimeterOfMercuryUnit doubleValue:79] startDate:now endDate:now], nil]];
+        [self.health saveObject:bp withCompletion:^(BOOL saved, NSError *se) {
+            NSPredicate *high = [HKQuery predicateForQuantitySamplesWithOperatorType:NSGreaterThanPredicateOperatorType
+                                                                           quantity:[HKQuantity quantityWithUnit:HKUnit.millimeterOfMercuryUnit doubleValue:120]];
+            HKCorrelationQuery *cq = [[HKCorrelationQuery alloc] initWithType:bp.correlationType predicate:nil samplePredicates:@{sys: high}
+                completion:^(HKCorrelationQuery *query, NSArray<HKCorrelation *> *found, NSError *qe) {
+                    HKQuantitySample *d = [found.firstObject objectsForType:dia].anyObject;
+                    say(@"profile correlation saved %d found %lu objects %lu diastolic %.0f", saved, (unsigned long)found.count,
+                        (unsigned long)found.firstObject.objects.count, [d.quantity doubleValueForUnit:HKUnit.millimeterOfMercuryUnit]);
+                    HKActivitySummaryQuery *aq = [[HKActivitySummaryQuery alloc] initWithPredicate:nil
+                        resultsHandler:^(HKActivitySummaryQuery *q, NSArray<HKActivitySummary *> *summaries, NSError *ae) {
+                            HKActivitySummary *today = summaries.lastObject;
+                            say(@"profile summaries %d goal %.0f error %@", summaries.count > 0,
+                                [today.activeEnergyBurnedGoal doubleValueForUnit:HKUnit.kilocalorieUnit], errText(ae));
+                            [self stateOfMind];
+                        }];
+                    [self.health executeQuery:aq];
+                }];
+            [self.health executeQuery:cq];
+        }];
+    }];
+}
+- (void)stateOfMind {
+    if (@available(iOS 18.0, *)) {
+        HKStateOfMind *m = [HKStateOfMind stateOfMindWithDate:[NSDate date] kind:HKStateOfMindKindMomentaryEmotion valence:0.9
+                                                       labels:@[@(HKStateOfMindLabelJoyful)] associations:@[@(HKStateOfMindAssociationFriends)]];
+        [self.health saveObject:m withCompletion:^(BOOL ok, NSError *e) {
+            NSPredicate *joy = [HKQuery predicateForStatesOfMindWithLabel:HKStateOfMindLabelJoyful];
+            HKSampleQuery *q = [[HKSampleQuery alloc] initWithSampleType:HKObjectType.stateOfMindType predicate:joy limit:HKObjectQueryNoLimit
+                sortDescriptors:nil resultsHandler:^(HKSampleQuery *query, NSArray *results, NSError *qe) {
+                    HKStateOfMind *first = results.firstObject;
+                    say(@"profile state of mind saved %d found %lu class %ld labels %@", ok, (unsigned long)results.count,
+                        (long)first.valenceClassification, [first.labels componentsJoinedByString:@","]);
+                    dispatch_async(dispatch_get_main_queue(), ^{ [self motion]; });
+                }];
+            [self.health executeQuery:q];
+        }];
+    } else {
+        dispatch_async(dispatch_get_main_queue(), ^{ [self motion]; });
+    }
 }
 
 // MARK: Core Motion

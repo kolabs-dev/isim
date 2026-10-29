@@ -145,7 +145,10 @@ enum _HKNames {
             "HKCharacteristicTypeIdentifierBloodType": "Blood Type", "HKWorkoutTypeIdentifier": "Workouts",
             "HKWorkoutRouteTypeIdentifier": "Workout Routes", "HKDataTypeIdentifierHeartbeatSeries": "Heartbeat Series",
             "HKQuantityTypeIdentifierDistanceSwimming": "Swimming Distance", "HKQuantityTypeIdentifierSwimmingStrokeCount": "Swimming Strokes",
-            "HKQuantityTypeIdentifierDistanceWheelchair": "Wheelchair Distance", "HKQuantityTypeIdentifierDistanceDownhillSnowSports": "Downhill Snow Sports Distance",
+            "HKQuantityTypeIdentifierDistanceWheelchair": "Wheelchair Distance", "HKQuantityTypeIdentifierAppleMoveTime": "Move Minutes",
+            "HKQuantityTypeIdentifierAppleStandTime": "Stand Minutes", "HKCharacteristicTypeIdentifierFitzpatrickSkinType": "Fitzpatrick Skin Type",
+            "HKCharacteristicTypeIdentifierWheelchairUse": "Wheelchair Use", "HKCharacteristicTypeIdentifierActivityMoveMode": "Move Mode",
+            "HKActivitySummaryTypeIdentifier": "Activity Summaries", "HKDataTypeStateOfMind": "State of Mind", "HKQuantityTypeIdentifierDistanceDownhillSnowSports": "Downhill Snow Sports Distance",
         ]
         if let s = n[id] { return s }
         return id.replacingOccurrences(of: "HKQuantityTypeIdentifier", with: "").replacingOccurrences(of: "HKCategoryTypeIdentifier", with: "")
@@ -209,7 +212,8 @@ enum _HKUnits {
         "HKQuantityTypeIdentifierActiveEnergyBurned", "HKQuantityTypeIdentifierBasalEnergyBurned", "HKQuantityTypeIdentifierFlightsClimbed",
         "HKQuantityTypeIdentifierAppleExerciseTime", "HKQuantityTypeIdentifierDietaryWater", "HKQuantityTypeIdentifierDietaryEnergyConsumed",
         "HKQuantityTypeIdentifierDietaryProtein", "HKQuantityTypeIdentifierDietaryCaffeine", "HKQuantityTypeIdentifierDistanceSwimming",
-        "HKQuantityTypeIdentifierSwimmingStrokeCount", "HKQuantityTypeIdentifierDistanceWheelchair", "HKQuantityTypeIdentifierDistanceDownhillSnowSports"]
+        "HKQuantityTypeIdentifierSwimmingStrokeCount", "HKQuantityTypeIdentifierDistanceWheelchair", "HKQuantityTypeIdentifierDistanceDownhillSnowSports",
+        "HKQuantityTypeIdentifierAppleMoveTime", "HKQuantityTypeIdentifierAppleStandTime"]
     static func prefixString(_ p: HKMetricPrefix) -> String {
         switch p {
         case .none: return ""; case .femto: return "f"; case .pico: return "p"; case .nano: return "n"; case .micro: return "mc"; case .milli: return "m"
@@ -250,7 +254,7 @@ enum _HKUnits {
         case "HKQuantityTypeIdentifierBodyMass", "HKQuantityTypeIdentifierLeanBodyMass": return .gramUnit(with: .kilo)
         case "HKQuantityTypeIdentifierDietaryProtein", "HKQuantityTypeIdentifierDietaryCaffeine": return .gram()
         case "HKQuantityTypeIdentifierDietaryWater": return .liter()
-        case "HKQuantityTypeIdentifierAppleExerciseTime": return .minute()
+        case "HKQuantityTypeIdentifierAppleExerciseTime", "HKQuantityTypeIdentifierAppleMoveTime", "HKQuantityTypeIdentifierAppleStandTime": return .minute()
         case "HKQuantityTypeIdentifierOxygenSaturation", "HKQuantityTypeIdentifierBodyFatPercentage": return .percent()
         case "HKQuantityTypeIdentifierBodyTemperature": return .degreeCelsius()
         case "HKQuantityTypeIdentifierBloodPressureSystolic", "HKQuantityTypeIdentifierBloodPressureDiastolic": return .millimeterOfMercury()
