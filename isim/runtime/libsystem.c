@@ -445,6 +445,24 @@ ISIM_GUEST_ABI static int *d_NSGetArgc(void) { return &guest_argc; }
 ISIM_GUEST_ABI static char ***d_NSGetArgv(void) { return &guest_argv; }
 extern char **environ;
 ISIM_GUEST_ABI static char ***d_NSGetEnviron(void) { return &environ; }
+/* the environment: glibc's setenv of a new variable (and putenv) reallocates environ and frees the old array, under
+   any thread walking it (getenv, ProcessInfo.environment), which then reads freed memory (#783). The guests' writers
+   take this lock exclusively, its readers shared; isim_environ_lock lets Foundation walk environ under it.
+   linux-only: Darwin's libc keeps environ behind its own lock */
+static pthread_rwlock_t env_lock = PTHREAD_RWLOCK_INITIALIZER;
+ISIM_GUEST_ABI static int d_setenv(const char *n, const char *v, int over) {
+    pthread_rwlock_wrlock(&env_lock); int r = setenv(n, v, over); pthread_rwlock_unlock(&env_lock); return r;
+}
+ISIM_GUEST_ABI static int d_unsetenv(const char *n) {
+    pthread_rwlock_wrlock(&env_lock); int r = unsetenv(n); pthread_rwlock_unlock(&env_lock); return r;
+}
+ISIM_GUEST_ABI static int d_putenv(char *s) {
+    pthread_rwlock_wrlock(&env_lock); int r = putenv(s); pthread_rwlock_unlock(&env_lock); return r;
+}
+ISIM_GUEST_ABI static char *d_getenv(const char *n) {        /* the value itself stays valid: glibc never frees it */
+    pthread_rwlock_rdlock(&env_lock); char *r = getenv(n); pthread_rwlock_unlock(&env_lock); return r;
+}
+ISIM_GUEST_ABI static void isim_environ_lock(int on) { if (on) pthread_rwlock_rdlock(&env_lock); else pthread_rwlock_unlock(&env_lock); }
 ISIM_GUEST_ABI static long d_sysconf(int name) {
     static const struct { int d, h; } names[] = {        /* Darwin _SC_* numbering -> the host's */
         { 1, _SC_ARG_MAX }, { 2, _SC_CHILD_MAX }, { 3, _SC_CLK_TCK }, { 4, _SC_NGROUPS_MAX }, { 5, _SC_OPEN_MAX },
@@ -505,7 +523,7 @@ static const struct shim libsystem_table[] = {
     P(puts), P(fputs), P(fputc), P(putchar), P(fwrite), P(fread), P(fflush), P(fopen), P(fclose), P(fgets), P(fseek), P(ftell), P(perror),
     A("___stdinp", &d_stdinp), A("___stdoutp", &d_stdoutp), A("___stderrp", &d_stderrp),
     /* process & environment */
-    P(exit), P(_exit), P(abort), P(atexit), { "___cxa_atexit", (void *)__cxa_atexit, "passthrough" }, P(getenv), P(setenv), P(getpid), P(getuid), P(isatty), P(getpagesize), P(sleep), P(usleep), P(nanosleep),
+    P(exit), P(_exit), P(abort), P(atexit), { "___cxa_atexit", (void *)__cxa_atexit, "passthrough" }, A("_getenv", d_getenv), A("_setenv", d_setenv), I("_isim_environ_lock", isim_environ_lock), P(getpid), P(getuid), P(isatty), P(getpagesize), P(sleep), P(usleep), P(nanosleep),
     A("_open", d_open), A("_openat", d_openat), A("_read", d_read), A("_write", d_write), P(close), P(lseek), P(ftruncate), P(fsync), P(access), P(unlink), P(readlink), P(symlink), P(link), P(getcwd), P(chdir), P(mkdir), P(rmdir), P(chmod), P(flock), P(umask), A("_unlinkat", d_unlinkat), A("_confstr", d_confstr),
     A("___error", d_error), A("__NSGetArgc", d_NSGetArgc), A("__NSGetArgv", d_NSGetArgv), A("__NSGetExecutablePath", d_NSGetExecutablePath), A("__NSGetEnviron", d_NSGetEnviron), A("_sysconf", d_sysconf),
     /* time */
@@ -694,7 +712,7 @@ static const struct shim libsystem_table[] = {
     A("___sincos_stret", d_sincos_stret), A("___sincosf_stret", d_sincosf_stret), A("___exp10", d_exp10), A("___exp10f", d_exp10f),
     /* more C11 / POSIX */
     P(rand), P(srand), P(random), P(srandom), P(div), P(ldiv), P(lldiv), P(strtold), P(atoll), P(aligned_alloc),
-    P(_Exit), P(quick_exit), P(at_quick_exit), P(unsetenv), P(mblen), P(realpath), A("___mb_cur_max", &mb_cur_max_value),
+    P(_Exit), P(quick_exit), P(at_quick_exit), A("_unsetenv", d_unsetenv), P(mblen), P(realpath), A("___mb_cur_max", &mb_cur_max_value),
     S("_system", d_system), P(scanf), P(fscanf), P(vscanf), P(vfscanf), P(vsscanf), P(getc), P(getchar), P(fgetc), P(putc), P(ungetc),
     P(freopen), P(fdopen), P(fileno), P(setbuf), P(setvbuf), P(remove), P(rename), P(tmpfile), P(rewind), P(fgetpos), P(fsetpos),
     P(clearerr), P(feof), P(ferror), P(strcoll), P(strxfrm), P(strpbrk), P(strspn), P(strcspn), P(strtok), P(strtok_r),

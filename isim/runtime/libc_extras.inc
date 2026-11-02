@@ -809,7 +809,7 @@ ISIM_GUEST_ABI static int d_sysctlnametomib(const char *name, int *mib, size_t *
     A("_mktemp", d_mktemp), A("_getentropy", d_getentropy), P(swab), A("_pathconf", d_pathconf), A("_fpathconf", d_fpathconf), \
     A("_getopt", d_getopt), I("_optarg", &optarg), I("_optind", &optind), I("_opterr", &opterr), I("_optopt", &optopt), \
     I("_optreset", &d_optreset), \
-    I("_reallocf", d_reallocf), P(valloc), P(putenv), A("_qsort_r", d_qsort_r), I("_heapsort", d_heapsort), I("_mergesort", d_mergesort), \
+    I("_reallocf", d_reallocf), P(valloc), A("_putenv", d_putenv), A("_qsort_r", d_qsort_r), I("_heapsort", d_heapsort), I("_mergesort", d_mergesort), \
     P(rand_r), P(drand48), P(erand48), P(lrand48), P(nrand48), P(mrand48), P(jrand48), P(srand48), P(seed48), \
     I("_getprogname", d_getprogname), I("_setprogname", d_setprogname), I("_strtonum", d_strtonum), I("_strtoq", strtoll), \
     I("_strtouq", strtoull), A("_getloadavg", d_getloadavg), \
