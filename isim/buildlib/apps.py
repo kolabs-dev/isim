@@ -587,7 +587,7 @@ def _(a):
                                           "-framework", "Messages", "-framework", "BackgroundAssets", "-framework", "FileProvider",
                                           "-framework", "FileProviderUI", "-framework", "UniformTypeIdentifiers", "-framework", "CarPlay",
                                           "-framework", "Intents", "-framework", "CoreLocation", "-framework", "HomeKit",
-                                          "-framework", "Social"])
+                                          "-framework", "Social", "-framework", "NetworkExtension"])
     a.copy("HelloServicesObjC.entitlements", f"{b}/archived-expanded-entitlements.xcent")   # HomeKit (issue #416)
 
 
@@ -742,6 +742,12 @@ def _(a):
 def _(a):
     b = a.swift_app()
     a.copy("HelloHome.entitlements", f"{b}/archived-expanded-entitlements.xcent")
+
+
+@app("samples/HelloNetworkExtension")   # issue #424: NetworkExtension's managers, with the VPN and hotspot entitlements
+def _(a):
+    b = a.swift_app()
+    a.copy("HelloNetworkExtension.entitlements", f"{b}/archived-expanded-entitlements.xcent")
 
 
 @app("samples/HelloAgeRange")   # issue #397: DeclaredAgeRange, PermissionKit, the expanded tracking prompt

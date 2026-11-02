@@ -4,7 +4,8 @@ dispatch queue: answering from the incoming call screen, an outgoing call throug
 CXCallObserver, a refused request with CXErrorDomainRequestTransaction), BackgroundTasks (registering and submitting
 from Objective-C; `bgtask` runs the task on its dispatch queue; an identifier missing from Info.plist is refused),
 CoreSpotlight (indexing; issue #412: attributes, a custom key, a query, the index delegate), SafariServices (SFSafariViewController with a configuration and delegate; the Reading List; issue #423: an
-ActivityButton, SFSafariSettings), Social (no accounts: SLComposeViewController unavailable, SLRequest's prepared request)
+ActivityButton, SFSafariSettings), Social (no accounts: SLComposeViewController unavailable, SLRequest's prepared request), NetworkExtension (issue #424:
+an IKEv2 VPN configuration, an on-demand rule, a hotspot configuration),
 MultipeerConnectivity (an advertiser and a browser in the app connect and exchange data) and Messages (issue #406: an
 MSMessagesAppViewController subclass, a message in a session copied and archived, a refused sticker), BackgroundAssets
 (issue #407: an essential download from the app is refused) and FileProvider (issue #408: an Objective-C item, a domain
@@ -51,6 +52,7 @@ def test_services_objc(launch, device_data, ios):
                    capture_output=True, check=True, timeout=60)
     dev.wait_log(r"^sy spotlight delegate reindex note-2$")              # the Objective-C index delegate
     dev.wait_log(r"^sy reading list ok=1 refused=1 error=SSReadingListErrorDomain/1 supports=1$")
+    dev.wait_log(r"^sy ne vpn status 0 server vpn\.example\.com dh 19 rule 1 enabled 1 hotspot Lobby NEVPNErrorDomain$")
     settings = "1 domain SFSafariSettingsErrorDomain" if float(ios[0] or 18) >= 26 else "0 domain -"   # SFSafariSettings: iOS 26
     dev.wait_log(rf"^sy activity button dev\.isim\.samples\.Action settings {settings} social 0 "
                  r"request GET https://graph\.example\.com/me\?fields=name$")

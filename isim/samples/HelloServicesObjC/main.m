@@ -15,6 +15,7 @@
 #import <CoreSpotlight/CoreSpotlight.h>
 #import <SafariServices/SafariServices.h>
 #import <Social/Social.h>
+#import <NetworkExtension/NetworkExtension.h>
 #import <MultipeerConnectivity/MultipeerConnectivity.h>
 #import <Messages/Messages.h>
 #import <BackgroundAssets/BackgroundAssets.h>
@@ -411,6 +412,18 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
                                                                         extensionIdentifier:@"dev.isim.samples.Action"];
     SLRequest *r = [SLRequest requestForServiceType:SLServiceTypeFacebook requestMethod:SLRequestMethodGET
                                                 URL:[NSURL URLWithString:@"https://graph.example.com/me"] parameters:@{ @"fields": @"name" }];
+    // issue #424: NetworkExtension's classes from Objective-C (not saved: no alert)
+    NEVPNProtocolIKEv2 *ike = [[NEVPNProtocolIKEv2 alloc] init];
+    ike.serverAddress = @"vpn.example.com";
+    ike.IKESecurityAssociationParameters.diffieHellmanGroup = NEVPNIKEv2DiffieHellmanGroup19;
+    NEOnDemandRuleConnect *rule = [[NEOnDemandRuleConnect alloc] init];
+    rule.interfaceTypeMatch = NEOnDemandRuleInterfaceTypeWiFi;
+    NEVPNManager *vpn = [NEVPNManager sharedManager];
+    vpn.protocolConfiguration = ike; vpn.onDemandRules = @[rule]; vpn.enabled = YES;
+    NEHotspotConfiguration *hotspot = [[NEHotspotConfiguration alloc] initWithSSID:@"Lobby" passphrase:@"espresso-42" isWEP:NO];
+    say(@"ne vpn status %ld server %@ dh %ld rule %ld enabled %d hotspot %@ %@", (long)vpn.connection.status,
+        vpn.protocolConfiguration.serverAddress, (long)ike.IKESecurityAssociationParameters.diffieHellmanGroup, (long)rule.action,
+        vpn.isEnabled, hotspot.SSID, NEVPNErrorDomain);
     BOOL settings = NO; NSString *domain = @"-";
     if (@available(iOS 26.0, *)) {
         settings = [SFSafariSettings respondsToSelector:@selector(openExportBrowsingDataSettingsWithCompletionHandler:)];
