@@ -1752,6 +1752,23 @@ int main(int argc, char *argv[]) {
             dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
             CHECK(whole == 3000);
         }
+        {   // and while another thread adds and removes variables: glibc reallocates environ for a new one (#783)
+            __block volatile BOOL stop = NO;
+            dispatch_semaphore_t done = dispatch_semaphore_create(0);
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
+                for (int n = 0; !stop; n++) {
+                    char name[32]; snprintf(name, sizeof name, "ISIM_ENV_CHURN_%d", n % 64);
+                    if (n % 128 < 64) setenv(name, "1", 1); else unsetenv(name);
+                }
+                for (int n = 0; n < 64; n++) { char name[32]; snprintf(name, sizeof name, "ISIM_ENV_CHURN_%d", n); unsetenv(name); }
+                dispatch_semaphore_signal(done);
+            });
+            int whole = 0;
+            for (int i = 0; i < 3000; i++) { NSDictionary *env = pi.environment; if (env[@"TZ"] && env[@"HOME"] && getenv("HOME")) whole++; }
+            stop = YES;
+            dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
+            CHECK(whole == 3000 && !getenv("ISIM_ENV_CHURN_0"));
+        }
 
         // NSAttributedString / NSMutableAttributedString
         NSMutableAttributedString *mas = [[NSMutableAttributedString alloc] initWithString:@"Hello world" attributes:@{@"k": @1}];

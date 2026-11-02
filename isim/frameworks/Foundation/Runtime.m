@@ -19,6 +19,7 @@
 extern int *_NSGetArgc(void);
 extern char ***_NSGetArgv(void);
 extern char ***_NSGetEnviron(void);
+extern void isim_environ_lock(int on);   /* libSystem: the environment's readers' lock */
 extern int _NSGetExecutablePath(char *buf, uint32_t *size);
 extern long sysconf(int name);
 
@@ -484,18 +485,29 @@ const char *isim_process_name(void) {
 }
 - (NSDictionary<NSString *, NSString *> *)environment {
     NSMutableDictionary *d = [NSMutableDictionary dictionary];
-    /* each entry is loaded once: another thread's setenv of an existing variable (Locale.m switches TZ to evaluate other
-       zones) swaps the entry's pointer, and reading it twice mixed the old string with the new one, a nil key (the
-       replaced string stays valid: the C library keeps it) */
-    for (char **e = *_NSGetEnviron(); e; e++) {
+    /* under the environment's lock (libSystem): another thread's setenv of a new variable reallocates environ (#783).
+       Each entry is loaded once: host code changing an existing variable without the lock swaps the entry's pointer,
+       and reading it twice mixed the old string with the new one, a nil key (the replaced string stays valid: the C
+       library keeps it) */
+    isim_environ_lock(1);                                     /* the entries are copied under it, decoded after */
+    size_t n = 0, cap = 64; char **copy = malloc(cap * sizeof *copy);
+    for (char **e = *_NSGetEnviron(); copy; e++) {
         const char *s = __atomic_load_n(e, __ATOMIC_RELAXED);
         if (!s) break;
-        const char *eq = strchr(s, '=');
-        if (!eq) continue;
-        NSString *k = [[NSString alloc] initWithBytes:s length:(NSUInteger)(eq - s) encoding:NSUTF8StringEncoding];
-        NSString *v = [NSString stringWithUTF8String:eq + 1];
-        if (k && v) d[k] = v;                                 /* a name or value that is not UTF-8 is left out */
+        if (n == cap) { char **c = realloc(copy, (cap *= 2) * sizeof *copy); if (!c) break; copy = c; }
+        copy[n++] = strdup(s);
     }
+    isim_environ_lock(0);
+    for (size_t i = 0; i < n; i++) {
+        const char *s = copy[i], *eq = s ? strchr(s, '=') : NULL;
+        if (eq) {
+            NSString *k = [[NSString alloc] initWithBytes:s length:(NSUInteger)(eq - s) encoding:NSUTF8StringEncoding];
+            NSString *v = [NSString stringWithUTF8String:eq + 1];
+            if (k && v) d[k] = v;                             /* a name or value that is not UTF-8 is left out */
+        }
+        free(copy[i]);
+    }
+    free(copy);
     return d;
 }
 - (int)processIdentifier { return getpid(); }
