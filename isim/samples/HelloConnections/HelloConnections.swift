@@ -2,7 +2,9 @@
 // UDP echo, TLS client to a local server with a self-signed certificate: default trust fails, an app verify
 // block accepts it; refused connections, DNS failures, Bonjour advertising + NWBrowser + connecting to a
 // service), MultipeerConnectivity between two sessions of this app, and URLSession authentication challenges
-// (Basic, Digest, credential storage), server-trust challenge, task metrics, progress and resumable downloads.
+// (Basic, Digest, credential storage), server-trust challenge, task metrics, progress and resumable downloads. With
+// -structured (iOS 26): NetworkListener, NetworkConnection, withNetworkConnection and NetworkBrowser over TCP, UDP,
+// WebSocket, TLV and Coder stacks, and a Bonjour service found by a NetworkBrowser.
 //   isim run out/apps/HelloConnections.app -server http://127.0.0.1:P -tls PORT   (samples/HelloWeb/server.py, tls_echo.py)
 import UIKit
 import Network
@@ -89,6 +91,10 @@ final class Runner: NSObject, URLSessionTaskDelegate, URLSessionDownloadDelegate
 
     func runAll() async {
         if ProcessInfo.processInfo.arguments.contains("-mdns") { await mdns(); report("done", "mdns"); return }
+        if ProcessInfo.processInfo.arguments.contains("-structured") {
+            if #available(iOS 26.0, *) { await structured() } else { report("structured", "needs iOS 26") }
+            report("done", "structured"); return
+        }
         await tcpEcho()
         await cAPI()
         await udpEcho()
@@ -594,4 +600,138 @@ final class MCUIViewController: UIViewController, MCBrowserViewControllerDelegat
     func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {}
     func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) {}
     func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {}
+}
+
+// MARK: - -structured: the iOS 26 Network API
+
+final class StateLog: @unchecked Sendable {
+    let lock = NSLock(); var items: [String] = []
+    func add(_ s: String) { lock.lock(); items.append(s); lock.unlock() }
+    var joined: String { lock.lock(); defer { lock.unlock() }; return items.joined(separator: ",") }
+}
+
+/// a game's messages, sent with Coder
+struct GameMessage: Codable, Sendable, Equatable {
+    var move: String
+    var score: Int
+}
+
+@available(iOS 26.0, *)
+extension Runner {
+    /// starts a listener, returns its port once it is ready (the listener runs until the task is cancelled)
+    func serve<P: NetworkProtocolOptions>(_ listener: NetworkListener<P>, _ handler: @escaping @Sendable (NetworkConnection<P>) async throws -> Void) async -> (UInt16, Task<Void, Never>) {
+        let (ready, sink) = AsyncStream<UInt16>.makeStream()
+        listener.onStateUpdate { l, state in
+            switch state {
+            case .ready: sink.yield(l.port?.rawValue ?? 0); sink.finish()
+            case .failed, .cancelled: sink.finish()
+            default: break
+            }
+        }
+        let task = Task { do { try await listener.run(handler) } catch {} }
+        var port: UInt16 = 0
+        for await p in ready { port = p }
+        return (port, task)
+    }
+    func endpoint(_ port: UInt16) -> NWEndpoint { .hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: port)!) }
+
+    func structured() async {
+        // a byte stream: TCP echo, with the connection's state updates
+        do {
+            let (port, task) = await serve(try NetworkListener { TCP().noDelay(true) }) { c in
+                let (data, _) = try await c.receive(atLeast: 1, atMost: 100)
+                try await c.send(Data("echo:".utf8) + data)
+            }
+            let states = StateLog()
+            let c = NetworkConnection(to: endpoint(port)) { TCP() }
+                .onStateUpdate { _, s in states.add("\(s)") }
+            try await c.send(Data("hello".utf8))
+            let (reply, _) = try await c.receive(exactly: 10)
+            report("structured tcp", "\(String(decoding: reply, as: UTF8.self)) state=\(c.state == .ready ? "ready" : "-") states=\(states.joined) remote=\(c.remoteEndpoint != nil)")
+            task.cancel()
+        } catch { report("structured tcp", "error \(error)") }
+
+        // TLV: typed messages; the server answers type + 1 with the bytes reversed
+        do {
+            let (port, task) = await serve(try NetworkListener { TLV { TCP() } }) { c in
+                for try await (data, metadata) in c.messages {
+                    try await c.send(Data(data.reversed()), type: metadata.type + 1)
+                }
+            }
+            let reply = try await withNetworkConnection(to: endpoint(port), using: { TLV { TCP() } }) { c in
+                try await c.send(Data("ping".utf8), type: 7)
+                return try await c.receive()
+            }
+            report("structured tlv", "type=\(reply.metadata.type) \(String(decoding: reply.content, as: UTF8.self))")
+            task.cancel()
+        } catch { report("structured tlv", "error \(error)") }
+
+        // Coder: Codable messages as JSON
+        do {
+            let (port, task) = await serve(try NetworkListener { Coder(GameMessage.self, using: .json) { TCP() } }) { c in
+                for try await (message, _) in c.messages { try await c.send(GameMessage(move: message.move.uppercased(), score: message.score * 2)) }
+            }
+            let c = NetworkConnection(to: endpoint(port)) { Coder(GameMessage.self, using: .json) { TCP() } }
+            try await c.send(GameMessage(move: "e4", score: 21))
+            let first = try await c.receive().content
+            try await c.send(GameMessage(move: "d4", score: 5))
+            let second = try await c.receive().content
+            report("structured coder", "\(first.move) \(first.score), \(second.move) \(second.score)")
+            task.cancel()
+        } catch { report("structured coder", "error \(error)") }
+
+        // UDP datagrams
+        do {
+            let (port, task) = await serve(try NetworkListener { UDP() }) { c in
+                let (d, _) = try await c.receive()
+                try await c.send(Data("echo:".utf8) + d)
+            }
+            let c = NetworkConnection(to: endpoint(port)) { UDP() }
+            try await c.send(Data("datagram".utf8))
+            let (reply, _) = try await c.receive()
+            report("structured udp", String(decoding: reply, as: UTF8.self))
+            task.cancel()
+        } catch { report("structured udp", "error \(error)") }
+
+        // WebSocket text messages
+        do {
+            let (port, task) = await serve(try NetworkListener { WebSocket { TCP() } }) { c in
+                for try await (d, metadata) in c.messages where metadata.opcode == .text {
+                    try await c.send("echo:" + String(decoding: d, as: UTF8.self))
+                }
+            }
+            let c = NetworkConnection(to: endpoint(port)) { WebSocket { TCP() } }
+            try await c.send("over websocket")
+            let (reply, metadata) = try await c.receive()
+            report("structured websocket", "\(String(decoding: reply, as: UTF8.self)) opcode=\(metadata.opcode == .text ? "text" : "other")")
+            task.cancel()
+        } catch { report("structured websocket", "error \(error)") }
+
+        // Bonjour: a listener advertises a service, a NetworkBrowser finds it, a connection goes to what it found
+        do {
+            let listener = try NetworkListener(for: .bonjour(name: "Chess Board", type: "_isimchess._tcp", txtRecord: NWTXTRecord(["variant": "blitz"]))) {
+                Coder(GameMessage.self, using: .json) { TCP() }
+            }
+            let (_, task) = await serve(listener) { c in
+                for try await (message, _) in c.messages { try await c.send(GameMessage(move: "reply to " + message.move, score: 1)) }
+            }
+            let found = try await NetworkBrowser(for: .bonjour("_isimchess._tcp", includeTxtRecord: true)).run { endpoints -> NetworkBrowser<Bonjour>.RunResult<Bonjour.Endpoint> in
+                endpoints.first.map { .finish($0) } ?? .continue
+            }
+            let c = NetworkConnection(to: found) { Coder(GameMessage.self, using: .json) { TCP() } }
+            try await c.send(GameMessage(move: "Nf3", score: 0))
+            let reply = try await c.receive().content
+            report("structured bonjour", "found \(found.name) \(found.type) variant=\(found.txtRecord["variant"] ?? "-") reply=\(reply.move) service=\(listener.service?.name ?? "-")")
+            task.cancel()
+        } catch { report("structured bonjour", "error \(error)") }
+
+        // a connection refused: it waits (.waiting(ECONNREFUSED)), as NWConnection does, until the task is cancelled
+        let seen = StateLog()
+        let refused = NetworkConnection(to: endpoint(1)) { TCP() }
+            .onStateUpdate { _, s in if case .waiting(let e) = s { seen.add("\(e)") } }
+        let send = Task { do { try await refused.send(Data("x".utf8)); return "sent" } catch { return error is CancellationError ? "cancelled" : "\(error)" } }
+        for _ in 0..<100 where seen.joined.isEmpty { try? await Task.sleep(nanoseconds: 50_000_000) }
+        send.cancel()
+        report("structured refused", "waiting \(seen.joined.isEmpty ? "-" : "ECONNREFUSED") send \(await send.value) state \(refused.state == .waiting(.posix(.ECONNREFUSED)) ? "waiting" : "\(refused.state)")")
+    }
 }

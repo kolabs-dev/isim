@@ -15,6 +15,7 @@
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_isimecho._tcp</string>
+		<string>_isimchess._tcp</string>
 		<string>_isimapp._tcp</string>
 		<string>_isimpy._tcp</string>
 		<string>_isim-chat._tcp</string>
