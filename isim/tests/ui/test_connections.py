@@ -117,3 +117,25 @@ def test_connections_mcui(launch):
     app.wait_tap_id("mc-done")
     app.wait_log(r"HelloConnections: mcui: browser finished peers=Bob")
     assert app.quit() == 0
+
+
+@pytest.mark.os_matrix
+def test_connections_structured(launch, ios):
+    """The iOS 26 Network API (#422): NetworkListener and NetworkConnection over TCP (state updates), TLV (typed
+    messages), Coder (Codable JSON messages), UDP and WebSocket; withNetworkConnection; a Bonjour service advertised by a
+    NetworkListener and found by a NetworkBrowser; a refused connection waits until its task is cancelled. Before iOS 26 the API is unavailable."""
+    app = launch("HelloConnections", args=["-structured"])
+    if float(ios[0] or 18) < 26:
+        app.wait_log(r"^HelloConnections: structured: needs iOS 26")
+        assert app.quit() == 0
+        return
+    for line in (r"structured tcp: echo:hello state=ready states=.*ready.* remote=true",
+                 r"structured tlv: type=8 gnip",
+                 r"structured coder: E4 42, D4 10",
+                 r"structured udp: echo:datagram",
+                 r"structured websocket: echo:over websocket opcode=text",
+                 r"structured bonjour: found Chess Board _isimchess\._tcp variant=blitz reply=reply to Nf3 service=Chess Board",
+                 r"structured refused: waiting ECONNREFUSED send cancelled state waiting",
+                 r"done: structured"):
+        app.wait_log(r"^HelloConnections: " + line, timeout=20)
+    assert app.quit() == 0
