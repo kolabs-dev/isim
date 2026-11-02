@@ -64,6 +64,8 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_NOTIFICATION_PERMISSION` | `allow`, `deny` |
 | `ISIM_ALARMKIT_PERMISSION` | `allow`, `deny` (AlarmKit: scheduling alarms and timers) |
 | `ISIM_HOMEKIT_PERMISSION` | `allow`, `deny` (HomeKit's "Would Like to Access Your Home Data"; `ISIM_HOMEKIT_ADD_ACCESSORY=NAME` picks the accessory in the Add Accessory sheet, any other value cancels it; the homes themselves are `isim home seed`) |
+| `ISIM_VPN_PERMISSION` | `allow`, `deny` (NetworkExtension's "Would Like to Add VPN Configurations" and "Would Like to Filter Network Content", remembered per app) |
+| `ISIM_HOTSPOT_PERMISSION` | `allow`, `deny` (NetworkExtension's "Wants to Join Wi-Fi Network", each time an app applies a hotspot configuration) |
 | `ISIM_FAMILYCONTROLS_PERMISSION` | `allow`, `deny` (FamilyControls: Screen Time's "Would Like to Access Screen Time" alert) |
 | `ISIM_FOCUS_STATUS_PERMISSION` | `allow`, `deny` (Intents `INFocusStatusCenter`: sharing the Focus status) |
 | `ISIM_LOCATION_PERMISSION` | `once`, `wheninuse`, `always`, `deny` |
@@ -87,6 +89,7 @@ Each variable answers its prompt automatically; without it, the alert is shown a
 | `ISIM_LOCATION=lat,lon` | simulated location (default: Apple Park); `lat,lon;lat,lon;...@speed` follows a route, `none` has no fix |
 | `ISIM_BEACONS=UUID:MAJOR:MINOR[:PROX[:RSSI]];…` | iBeacons in range at launch (proximity `immediate`, `near`, `far`; the `beacon` script command changes them while running) |
 | `ISIM_VISIT_SECONDS=N` | how long a stay within 50 m must last to be a `CLVisit` arrival (default 120) |
+| `ISIM_WIFI_SSID=NAME` | the simulated Wi-Fi network the device is on (default `isim`): NetworkExtension's `NEAppPushManager` is active when its `matchSSIDs` contain it ([NetworkExtension](frameworks/NetworkExtension.md)) |
 | `ISIM_WEATHER=condition=rain,temperature=12,alert=severe` / `=unavailable` | WeatherKit's simulated forecast ([WeatherKit](frameworks/WeatherKit.md)): the current weather's condition (a `WeatherCondition` name) and temperature (°C, spread over the day), and an alert of that `WeatherSeverity`; `unavailable` fails every request with `WeatherError.unknown`. Unset: isim's model alone |
 | `ISIM_AUDIO_INPUT=file.wav` / `=mic` | microphone input for `AVAudioRecorder` / `inputNode` / input `AudioQueue`s: a file played in real time, or the host microphone |
 | `ISIM_CAMERA=picture.png` / `=video.mp4` / `=webcam[:/dev/videoN]` | the simulated camera: a still image as a live feed, a video looped in real time, or the host webcam through ffmpeg (opened only when this is set). The device then has a dual-camera iPhone's cameras (back wide, ultra wide, dual wide with depth; front wide, TrueDepth); zoom, torch and exposure change the picture. Unset: no camera, like the Simulator |
