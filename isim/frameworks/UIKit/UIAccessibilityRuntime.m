@@ -93,8 +93,11 @@ BOOL UIAccessibilityIsBoldTextEnabled(void) { return pref(@"ISIMBoldText", "ISIM
 BOOL UIAccessibilityIsReduceTransparencyEnabled(void) { return pref(@"ISIMReduceTransparency", "ISIM_REDUCE_TRANSPARENCY"); }
 BOOL UIAccessibilityIsDarkerSystemColorsEnabled(void) { return pref(@"ISIMIncreaseContrast", "ISIM_INCREASE_CONTRAST"); }
 BOOL UIAccessibilityShouldDifferentiateWithoutColor(void) { return pref(@"ISIMDifferentiateWithoutColor", NULL); }
-BOOL UIAccessibilityIsInvertColorsEnabled(void) { return NO; }
-BOOL UIAccessibilityIsGrayscaleEnabled(void) { return NO; }
+/* Accessibility's feature override sessions (AXFeatureOverrideSession.m): -1 follows Settings, 0 off, 1 on */
+static int override_grayscale = -1, override_invert = -1;
+BOOL UIAccessibilityIsInvertColorsEnabled(void) { return override_invert == 1; }
+BOOL UIAccessibilityIsGrayscaleEnabled(void) { return override_grayscale == 1; }
+void isim_ui_feature_override(NSString *feature, int state);
 static BOOL sc_script_override, sc_script_on;               /* `switchcontrol on|off` in this app */
 BOOL UIAccessibilityIsSwitchControlRunning(void) { return sc_script_override ? sc_script_on : pref(@"ISIMSwitchControl", NULL); }
 BOOL UIAccessibilityIsClosedCaptioningEnabled(void) { return NO; }
@@ -479,6 +482,12 @@ NSString *isim_ui_accessibility_description(id e, BOOL withHint) {
     NSMutableArray *parts = [NSMutableArray array];
     NSString *l = label_of(e), *v = [e accessibilityValue] ?: default_value(e);
     if (l.length) [parts addObject:l];
+    /* Accessibility's AXMathExpressionProvider: the expression, read as speech (AXMathExpression.m) */
+    if ([e respondsToSelector:@selector(accessibilityMathExpression)]) {
+        id m = ((id (*)(id, SEL))objc_msgSend)(e, @selector(accessibilityMathExpression));
+        NSString *said = m ? ((id (*)(id, SEL))objc_msgSend)(m, NSSelectorFromString(@"_isim_spoken")) : nil;
+        if (said.length) [parts addObject:said];
+    }
     if (t & UIAccessibilityTraitToggleButton) { if (v.length) v = [v isEqualToString:@"1"] ? @"On" : [v isEqualToString:@"0"] ? @"Off" : v; }
     NSString *tw = trait_words(e, t);
     if (t & UIAccessibilityTraitToggleButton) { if (tw.length) [parts addObject:tw]; if (v.length) [parts addObject:v]; }
@@ -941,6 +950,20 @@ static void scroll_command(NSString *d) {
     }
     NSLog(@"isim: VoiceOver scrolled %@: %@", d, status);
     speak(status);
+}
+/* a feature override session's state for a feature (voiceover, grayscale, invert): 1 on, 0 off, -1 back to Settings */
+void isim_ui_feature_override(NSString *feature, int state) {
+    if ([feature isEqualToString:@"voiceover"]) {
+        BOOL was = UIAccessibilityIsVoiceOverRunning();
+        vo_script_override = state >= 0; vo_script_on = state == 1;
+        if (UIAccessibilityIsVoiceOverRunning() != was) set_running(UIAccessibilityIsVoiceOverRunning());
+    } else if ([feature isEqualToString:@"grayscale"] || [feature isEqualToString:@"invert"]) {
+        BOOL gray = [feature isEqualToString:@"grayscale"];
+        if (gray) override_grayscale = state; else override_invert = state;
+        NSLog(@"isim: %@ %@", gray ? @"grayscale" : @"invert colors", state == 1 ? @"on" : @"off");
+        [NSNotificationCenter.defaultCenter postNotificationName:gray ? UIAccessibilityGrayscaleStatusDidChangeNotification
+                                                                      : UIAccessibilityInvertColorsStatusDidChangeNotification object:nil];
+    }
 }
 void isim_ui_voiceover_command(NSString *c) {
     if ([c hasPrefix:@"switch:"]) { switch_command([c substringFromIndex:7]); return; }

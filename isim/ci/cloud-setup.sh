@@ -15,7 +15,7 @@ apt-get install -y --no-install-recommends \
   libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxfixes-dev xvfb weston \
   libpulse-dev libasound2-dev libdbus-1-dev libudev-dev \
   fontconfig fonts-noto-core fonts-noto-color-emoji fonts-dejavu-core adwaita-icon-theme imagemagick \
-  ffmpeg espeak-ng libzbar0 zbar-tools zxing-cpp-tools qrencode tesseract-ocr tesseract-ocr-eng opencv-data libraw-bin libssl3 libcurl4 libpcre2-8-0 libsqlite3-0 libicu74 \
+  ffmpeg espeak-ng liblouis20 liblouis-data libzbar0 zbar-tools zxing-cpp-tools qrencode tesseract-ocr tesseract-ocr-eng opencv-data libraw-bin libssl3 libcurl4 libpcre2-8-0 libsqlite3-0 libicu74 \
   libwebkitgtk-6.0-dev libgtk-4-dev libgtk-4-bin libpoppler-glib8 \
   libreoffice-writer-nogui libreoffice-calc-nogui libreoffice-impress-nogui
 

@@ -279,6 +279,12 @@ int isim_media_transcode(const char *in, const char *out);
 void isim_media_free(void *_Nullable p);
 /* text to speech with espeak-ng/espeak: mono float PCM (free with isim_media_free); 0 if no TTS on the host */
 int isim_tts_synthesize(const char *text, const char *voice, double wpm, double pitch, float *_Nullable *_Nonnull out, long *frames, double *rate);
+/* braille over the host's liblouis (Accessibility's AXBrailleTranslator, issue #426): the tables (one line each: file,
+   language, display name, dots, contraction, grade, direction, region, system; tab-separated) and translation to / from Unicode braille
+   with the input index of each output character; free the results with isim_media_free */
+int isim_braille_available(void);
+char *_Nullable isim_braille_tables(void);
+char *_Nullable isim_braille_translate(const char *table, const char *text, int back, int *_Nullable *_Nullable positions, int *_Nullable count);
 /* speech with events through the host's libespeak-ng (host_tts.c): kind 1 word, 2 sentence, 3 SSML mark, 5 end,
    7 phoneme; text positions in characters of the input text; 0 when libespeak-ng is unavailable */
 struct isim_tts_event { int kind, text_pos, text_len; long frame; char name[64]; };

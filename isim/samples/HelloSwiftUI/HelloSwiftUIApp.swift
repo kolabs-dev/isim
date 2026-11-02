@@ -14,7 +14,7 @@ struct HelloSwiftUIApp: App {
         let args = ProcessInfo.processInfo.arguments
         if args.contains("-gestures") { GesturesPage() }
         else if args.contains("-arrangements") { ArrangementsPage() }
-        else if args.contains("-accessibility") { AXDemo() } else if args.contains("-audiograph") { AudioGraphDemo() }
+        else if args.contains("-accessibility") { AXDemo() } else if args.contains("-audiograph") { AudioGraphDemo() } else if args.contains("-axmath") { MathBrailleDemo() }
         else if let a = args.first(where: { $0.hasPrefix("-bars") }) { BarsDemo(page: String(a.dropFirst(6))) }
         else { ContentView() }
     }
