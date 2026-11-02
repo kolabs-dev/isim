@@ -283,6 +283,7 @@ SWIFT_FRAMEWORKS = [
     ("NetworkExtension", "-framework Foundation -framework UIKit"),   # issue #424: VPN, hotspot and app push managers
     ("Speech", "-framework Foundation -framework UIKit -framework AVFAudio -framework CoreMedia"),   # issue #700: recognizers, requests, tasks
     ("NaturalLanguage", "-framework Foundation"),   # issue #701: tokenizer, tagger, recognizer, gazetteers, embeddings
+    ("Spatial", ""),   # issue #692: the SP* types and functions, header-only over <simd/simd.h>
 ]
 
 GUEST_CFLAGS = ["-target", f"x86_64-apple-ios{MINOS}-simulator", "-nostdlibinc", "-isystem", f"{SDK}/usr/include",
