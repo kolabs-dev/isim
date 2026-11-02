@@ -916,9 +916,14 @@ final class _SUITextField: UITextField, UITextFieldDelegate {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
     @objc func changed() { node?.text.wrappedValue = text ?? "" }
     func textFieldDidChangeSelection(_ f: UITextField) { _fieldSelectionChanged(f, node?.selection) }
+    /// Return in a single-line field ends editing, as on iOS (with or without `.onSubmit`), then submits: a formatted
+    /// value commits first. A vertical field takes the newline.
     override func insertText(_ t: String) {
-        if t == "\n", let n = node, n.commit != nil, n.axis != .vertical { _ = resignFirstResponder(); n.graph?.submitAction(for: n.path)?(); return }
-        if t == "\n", let n = node, n.axis != .vertical, let g = n.graph, let submit = g.submitAction(for: n.path) { submit(); return }
+        if t == "\n", let n = node, n.axis != .vertical {
+            _ = resignFirstResponder()
+            n.graph?.submitAction(for: n.path)?()
+            return
+        }
         super.insertText(t)
     }
     @objc func began() { if let f = node?.focus, !f.get() { f.set(true) }; _FocusEngine.changed() }

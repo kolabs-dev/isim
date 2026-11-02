@@ -87,6 +87,13 @@ def test_views(launch):
     app.wait_still()
     first = app.view_dump()
     app.screenshot("views")
+    app.tap_id("rounded")                                              # a plain TextField, no .onSubmit
+    app.wait_log(r"isim: keyboard shown")
+    app.type("hi")
+    app.send("key return")                                             # Return ends editing, as on iOS (#787)
+    app.wait_log(r"isim: keyboard hidden")
+    app.wait_for(type="keyboard", gone=True)
+    assert 'id=rounded text="hi"' in app.view_dump(), "the text stays; no newline in a single-line field"
     app.tap_id("bold-toggle")
     app.wait_log(r"^bold true")                                        # toggleStyle(.button) toggles
     app.tap_id("advanced")
