@@ -435,6 +435,20 @@ static BOOL onCallsQueue(void) { return dispatch_get_specific(QueueKey) == Queue
     AXChartDescriptor *chart = [[AXChartDescriptor alloc] initWithTitle:@"Steps" summary:nil xAxisDescriptor:days yAxisDescriptor:ax series:@[steps]];
     say(@"ax chart %@ %lu points y %@ dir %ld", chart.title, (unsigned long)chart.series.firstObject.dataPoints.count,
         chart.yAxis.valueDescriptionProvider(chart.yAxis.upperBound), (long)chart.contentDirection);
+    // issue #426: a feature override session (the app has the entitlement): grayscale on while it runs
+    if (@available(iOS 18.2, *)) {
+        NSError *oe = nil, *again = nil, *gone = nil;
+        AXFeatureOverrideSessionManager *om = AXFeatureOverrideSessionManager.sharedInstance;
+        AXFeatureOverrideSession *os = [om beginOverrideSessionEnablingOptions:AXFeatureOverrideSessionOptionGrayscale disablingOptions:0 error:&oe];
+        BOOL during = UIAccessibilityIsGrayscaleEnabled();
+        AXFeatureOverrideSession *second = [om beginOverrideSessionEnablingOptions:AXFeatureOverrideSessionOptionInvertColors disablingOptions:0 error:&again];
+        BOOL ended = [om endOverrideSession:os error:NULL];
+        BOOL twice = [om endOverrideSession:os error:&gone];
+        say(@"ax override began %d grayscale %d second %d %ld ended %d grayscale %d again %d %ld", os != nil, during, second != nil,
+            (long)again.code, ended, UIAccessibilityIsGrayscaleEnabled(), twice, (long)gone.code);
+    } else {
+        say(@"ax override needs iOS 18.2");
+    }
     BOOL settings = NO; NSString *domain = @"-";
     if (@available(iOS 26.0, *)) {
         settings = [SFSafariSettings respondsToSelector:@selector(openExportBrowsingDataSettingsWithCompletionHandler:)];
