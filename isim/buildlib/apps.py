@@ -1409,9 +1409,12 @@ def _(a):
     os.replace(os.path.join(b, "C-Info.plist"), os.path.join(b, "Info.plist"))
 
 
-@app("tests/naturallanguage", products=["NaturalLanguageTest.app"])
+@app("tests/naturallanguage", products=["NaturalLanguageTest.app", "NaturalLanguageCTest.app"])
 def _(a):
     a.swift_app("NaturalLanguageTest", srcs=["NaturalLanguageTest.swift"], plist="Info.plist")
+    b = a.objc_app(["main.m"], "C-Info.plist", ["-framework", "Foundation", "-framework", "NaturalLanguage"],
+                   name="NaturalLanguageCTest")   # issue #701: NaturalLanguage from Objective-C
+    os.replace(os.path.join(b, "C-Info.plist"), os.path.join(b, "Info.plist"))
 
 
 @app("tests/spatial", products=["SpatialTest.app"])
