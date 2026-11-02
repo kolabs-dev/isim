@@ -129,7 +129,17 @@ public typealias matrix_float2x2 = simd_float2x2
 public let matrix_identity_float2x2 = simd_float2x2(diagonal: SIMD2<Float>(1, 1))
 extension simd_float3x3 {
     public init(_ scalar: Float) { self.init(diagonal: SIMD3(scalar, scalar, scalar)) }
+    public var determinant: Float { simd_dot(columns.0, simd_cross(columns.1, columns.2)) }
+    /// the inverse (a singular matrix stays as it is)
+    public var inverse: simd_float3x3 {
+        let det = determinant
+        guard det != 0 else { return self }
+        let r0 = simd_cross(columns.1, columns.2), r1 = simd_cross(columns.2, columns.0), r2 = simd_cross(columns.0, columns.1)
+        return simd_float3x3(rows: [r0 / det, r1 / det, r2 / det])
+    }
 }
+public func simd_determinant(_ m: simd_float3x3) -> Float { m.determinant }
+public func simd_inverse(_ m: simd_float3x3) -> simd_float3x3 { m.inverse }
 
 /// A 4x4 matrix of Floats, stored as four columns.
 @frozen public struct simd_float4x4: Equatable, Sendable, BitwiseCopyable {

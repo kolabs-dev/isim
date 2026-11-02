@@ -5,23 +5,7 @@
    declarations are hidden from Swift. The classes are not subclassable from Objective-C. */
 #import <AVFAudio/AVFAudio.h>
 #if !defined(__swift__)
-/* the simd types from <simd/simd.h> when the SDK has it, else Apple's layout (shared with SceneKit's fallbacks) */
-#if __has_include(<simd/simd.h>)
 #include <simd/simd.h>
-#else
-typedef float simd_float3 __attribute__((__ext_vector_type__(3)));
-typedef float simd_float4 __attribute__((__ext_vector_type__(4)));
-typedef double simd_double2 __attribute__((__ext_vector_type__(2)));
-#ifndef ISIM_SIMD_MATRIX_TYPES
-#define ISIM_SIMD_MATRIX_TYPES 1
-typedef struct { simd_float3 columns[3]; } simd_float3x3;
-typedef struct { simd_float4 columns[4]; } simd_float4x4;
-#endif
-#ifndef ISIM_SIMD_QUATF
-#define ISIM_SIMD_QUATF 1
-typedef struct { simd_float4 vector; } simd_quatf;
-#endif
-#endif
 NS_ASSUME_NONNULL_BEGIN
 @class PHASEEngine, PHASEObject, PHASESource, PHASEListener, PHASEMixer, PHASEGroup, PHASEMetaParameter, PHASENumberMetaParameter;
 

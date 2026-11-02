@@ -1419,6 +1419,13 @@ def _(a):
     os.replace(os.path.join(b, "C-Info.plist"), os.path.join(b, "Info.plist"))
 
 
+@app("tests/simd", products=["SimdSwiftTest.app", "SimdCTest.app"])   # issue #800: <simd/simd.h> against Swift's simd
+def _(a):
+    a.swift_app("SimdSwiftTest", srcs=["SimdSwiftTest.swift"], plist="Info.plist")
+    b = a.objc_app(["main.m"], "C-Info.plist", ["-framework", "Foundation"], name="SimdCTest")
+    os.replace(os.path.join(b, "C-Info.plist"), os.path.join(b, "Info.plist"))
+
+
 @app("tests/naturallanguage", products=["NaturalLanguageTest.app", "NaturalLanguageCTest.app"])
 def _(a):
     a.swift_app("NaturalLanguageTest", srcs=["NaturalLanguageTest.swift"], plist="Info.plist")
