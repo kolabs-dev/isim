@@ -11,7 +11,10 @@
 - **Adapted:** rule-based tokenizer, language recognizer and tagger, with no Apple statistical models.
 - **Passthrough** to fastText word vectors on the host (`ISIM_WORD_VECTORS`) for the built-in and contextual embeddings;
   gazetteers and custom embeddings are isim's own. NLModel is blocked (Create ML's model data is undocumented).
-- **Swift only:** the Objective-C interface (`<NaturalLanguage/NaturalLanguage.h>`) is not there yet (#701).
+- **Objective-C:** `<NaturalLanguage/NaturalLanguage.h>` declares Apple's interface over the Swift classes, with the
+  `NSRange`-based methods (UTF-16 offsets) and the `NLLanguage`, `NLScript`, `NLTag`, `NLTagScheme` and
+  `NLContextualEmbeddingKey` constants. Renaming the classes for Objective-C changed the Swift overlay's ABI: Swift apps
+  that use NaturalLanguage and were built with isim 0.33 or earlier must be rebuilt (0.34.0).
 
 ## API
 
@@ -22,6 +25,8 @@
 | `NLGazetteer`, `NLTagger.setGazetteers(_:for:)` / `gazetteers(for:)` | ✅ | ≤17 | adapted: labels by case-, diacritic- and width-insensitive lookup, phrases of several words included; a tagger's gazetteers label the words they list ahead of the scheme's own tags (any scheme: nameType, lexicalClass, …), and with `.joinNames` a matched phrase is one token; `write` / `data` / `init(data:)` / `init(contentsOf:)` use isim's JSON format (Create ML gazetteer models are undocumented and throw). Tested (NaturalLanguageTest: test_naturallanguage_with_vectors) |
 | `NLEmbedding` (custom embeddings, neighbours, distances, word and sentence embeddings) | 🟡 | ≤17 | adapted: `write` / `init(contentsOf:)` use isim's JSON format or fastText's `.vec` text; cosine distances (2 for unknown words) and neighbours. The built-in embeddings are passthrough to fastText vectors on the host (`ISIM_WORD_VECTORS=<dir>` with `<language>.vec`, the first `ISIM_WORD_VECTORS_LIMIT` words, default 100000); the sentence embedding is the mean of its words' vectors; revision 1. Without vectors `wordEmbedding(for:)` / `sentenceEmbedding(for:)` return nil (tested: test_naturallanguage_without_vectors). Tested (NaturalLanguageTest) |
 | `NLContextualEmbedding`, `NLContextualEmbeddingResult`, `NLContextualEmbeddingKey`, `NLScript` | 🟡 | ≤17 | adapted: one model per script (Latin, Cyrillic, Chinese, Japanese, Korean, Arabic, Hebrew, Devanagari, Greek, Thai) over the host's fastText vectors; each word's vector is mixed with its neighbours' (60% its own, 40% the mean of two tokens either side), so the vectors are not a transformer's and do not match Apple's; assets are available when the host has vectors for one of its languages, otherwise `load()` throws naming `ISIM_WORD_VECTORS`. Tested (NaturalLanguageTest) |
+| Objective-C interface `<NaturalLanguage/NaturalLanguage.h>`: `NLTokenizer`, `NLLanguageRecognizer`, `NLTagger` (NSRange methods, `tokenRanges:`), `NLGazetteer`, `NLEmbedding`, `NLContextualEmbedding`, `NLContextualEmbeddingResult`, `NLModel`, `NLModelConfiguration`, the string constants | 🟡 | ≤17 | adapted: the Swift classes exported under Apple's Objective-C names and selectors; NSRange ↔ `String.Index` conversion in whole characters; `tagsInRange:` leaves out tokens without a tag. Same behaviour as Swift. Tested (NaturalLanguageCTest, `test_naturallanguage_objc`) |
+| `NLEmbedding` `maximumDistance:` variants, `NLTagger.setModels(_:forTagScheme:)` / `models(forTagScheme:)`, `tokenRange(for:unit:)` | 🟡 | ≤17 | adapted: neighbours filtered by distance; a tagger keeps its models but does not use them (NLModel is blocked). Tested (NaturalLanguageCTest) |
 | `NLModel`, `NLModelConfiguration` | ❌ | ≤17 | blocked: Create ML's text classifiers and word taggers keep their parameters in Apple's undocumented model data, so `init(contentsOf:)` and `init(mlModel:)` throw a clear error (tested) |
 
 ## Not yet in isim

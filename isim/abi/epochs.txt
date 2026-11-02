@@ -56,3 +56,6 @@ usr/lib/swift/libswiftVisionKit.dylib 0.32.0
 # Apple's @objc protocols with optional methods (they were Swift protocols with default implementations), and the
 # classes have Apple's Objective-C names. Swift apps built with 0.33 or earlier that use Speech must be rebuilt.
 usr/lib/swift/libswiftSpeech.dylib 0.34.0
+# 0.34.0 (issue #701): NaturalLanguage's Objective-C interface. The classes have Apple's Objective-C names and NLTokenUnit
+# is an @objc enum. Swift apps built with 0.33 or earlier that use NaturalLanguage must be rebuilt.
+usr/lib/swift/libswiftNaturalLanguage.dylib 0.34.0

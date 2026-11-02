@@ -19,7 +19,7 @@ public typealias NLDistance = Double
 
 // MARK: - NLGazetteer
 
-open class NLGazetteer: NSObject, @unchecked Sendable {
+@objc(NLGazetteer) open class NLGazetteer: NSObject, @unchecked Sendable {
     public let language: NLLanguage?
     let _labels: [String: [String]]
     var _lookup: [String: String] = [:]
@@ -37,24 +37,24 @@ open class NLGazetteer: NSObject, @unchecked Sendable {
             }
         }
     }
-    public convenience init(data: Data) throws {
+    @objc(initWithData:error:) public convenience init(data: Data) throws {
         guard let doc = try? JSONDecoder().decode(_Doc.self, from: data), doc.format == "isim.gazetteer" else {
             throw NLGazetteer._error("the data is not a gazetteer written by NLGazetteer.write (isim cannot read Create ML gazetteers: Apple's model data is undocumented)")
         }
         try self.init(dictionary: doc.labels, language: doc.language.map { NLLanguage($0) })
     }
-    public convenience init(contentsOf url: URL) throws {
+    @objc(initWithContentsOfURL:error:) public convenience init(contentsOf url: URL) throws {
         let data: Data
         do { data = try Data(contentsOf: url) } catch { throw NLGazetteer._error("isim could not read the gazetteer at \(url.path)") }
         try self.init(data: data)
     }
     /// the gazetteer's data (isim's JSON format)
-    open var data: Data { (try? NLGazetteer._encode(_labels, language)) ?? Data() }
+    @objc open var data: Data { (try? NLGazetteer._encode(_labels, language)) ?? Data() }
     open class func write(_ dictionary: [String: [String]], language: NLLanguage?, to url: URL) throws {
         try _encode(dictionary, language).write(to: url)
     }
     /// the label of a term (case- and diacritic-insensitive), or nil
-    open func label(for string: String) -> String? { _lookup[NLGazetteer._key(string)] }
+    @objc(labelForString:) open func label(for string: String) -> String? { _lookup[NLGazetteer._key(string)] }
 
     struct _Doc: Codable { var format: String; var language: String?; var labels: [String: [String]] }
     static func _encode(_ labels: [String: [String]], _ language: NLLanguage?) throws -> Data {
@@ -92,10 +92,10 @@ extension NLTagger {
 
 // MARK: - NLEmbedding
 
-open class NLEmbedding: NSObject, @unchecked Sendable {
-    public let dimension: Int
+@objc(NLEmbedding) open class NLEmbedding: NSObject, @unchecked Sendable {
+    @objc public let dimension: Int
     public let language: NLLanguage?
-    public let revision: Int
+    @objc public let revision: Int
     let _words: [String]
     let _vectors: [[Double]]          // unit length, for cosine distance
     let _raw: [[Double]]
@@ -147,8 +147,8 @@ open class NLEmbedding: NSObject, @unchecked Sendable {
     open class func supportedSentenceEmbeddingRevisions(for language: NLLanguage) -> IndexSet { supportedRevisions(for: language) }
 
     // MARK: vectors and distances
-    open var vocabularySize: Int { _words.count }
-    open func contains(_ string: String) -> Bool { _rawVector(string) != nil }
+    @objc open var vocabularySize: Int { _words.count }
+    @objc(containsString:) open func contains(_ string: String) -> Bool { _rawVector(string) != nil }
     open func vector(for string: String) -> [Double]? { _rawVector(string) }
     func _rawVector(_ s: String) -> [Double]? {
         if let sw = _sentence {   // the mean of the known words' vectors
@@ -159,7 +159,7 @@ open class NLEmbedding: NSObject, @unchecked Sendable {
         if let i = _index[s] ?? _index[s.lowercased()] { return _raw[i] }
         return nil
     }
-    open func distance(between firstString: String, and secondString: String, distanceType: NLDistanceType = .cosine) -> NLDistance {
+    @objc(distanceBetweenString:andString:distanceType:) open func distance(between firstString: String, and secondString: String, distanceType: NLDistanceType = .cosine) -> NLDistance {
         guard let a = _rawVector(firstString), let b = _rawVector(secondString) else { return 2 }
         return NLEmbedding._cosineDistance(NLEmbedding._unit(a), NLEmbedding._unit(b))
     }
@@ -177,6 +177,21 @@ open class NLEmbedding: NSObject, @unchecked Sendable {
     }
     open func enumerateNeighbors(for vector: [Double], maximumCount: Int, distanceType: NLDistanceType = .cosine, using block: (String, NLDistance) -> Bool) {
         for (w, d) in neighbors(for: vector, maximumCount: maximumCount, distanceType: distanceType) where !block(w, d) { return }
+    }
+    /// the neighbors no farther than maximumDistance
+    open func neighbors(for string: String, maximumCount: Int, maximumDistance: NLDistance, distanceType: NLDistanceType = .cosine) -> [(String, NLDistance)] {
+        neighbors(for: string, maximumCount: maximumCount, distanceType: distanceType).filter { $0.1 <= maximumDistance }
+    }
+    open func neighbors(for vector: [Double], maximumCount: Int, maximumDistance: NLDistance, distanceType: NLDistanceType = .cosine) -> [(String, NLDistance)] {
+        neighbors(for: vector, maximumCount: maximumCount, distanceType: distanceType).filter { $0.1 <= maximumDistance }
+    }
+    open func enumerateNeighbors(for string: String, maximumCount: Int, maximumDistance: NLDistance, distanceType: NLDistanceType = .cosine,
+                                 using block: (String, NLDistance) -> Bool) {
+        for (w, d) in neighbors(for: string, maximumCount: maximumCount, maximumDistance: maximumDistance, distanceType: distanceType) where !block(w, d) { return }
+    }
+    open func enumerateNeighbors(for vector: [Double], maximumCount: Int, maximumDistance: NLDistance, distanceType: NLDistanceType = .cosine,
+                                 using block: (String, NLDistance) -> Bool) {
+        for (w, d) in neighbors(for: vector, maximumCount: maximumCount, maximumDistance: maximumDistance, distanceType: distanceType) where !block(w, d) { return }
     }
     func _nearest(_ u: [Double], _ k: Int, excluding: Int?) -> [(String, NLDistance)] {
         guard k > 0 else { return [] }
@@ -272,8 +287,8 @@ public struct NLContextualEmbeddingKey: RawRepresentable, Hashable, Sendable {
     public static let revision = NLContextualEmbeddingKey("Revision")
 }
 
-open class NLContextualEmbedding: NSObject, @unchecked Sendable {
-    @objc public enum AssetsResult: Int, Sendable { case available = 0, notAvailable = 1, error = 2 }
+@objc(NLContextualEmbedding) open class NLContextualEmbedding: NSObject, @unchecked Sendable {
+    @objc(NLContextualEmbeddingAssetsResult) public enum AssetsResult: Int, Sendable { case available = 0, notAvailable = 1, error = 2 }
 
     /// isim's models: one per script, over the languages written in it
     static let models: [(NLScript, [NLLanguage])] = [
@@ -283,11 +298,11 @@ open class NLContextualEmbedding: NSObject, @unchecked Sendable {
         (.traditionalChinese, [.traditionalChinese]), (.japanese, [.japanese]), (.korean, [.korean]), (.arabic, [.arabic, .persian, .urdu]),
         (.hebrew, [.hebrew]), (.devanagari, [.hindi, .marathi]), (.greek, [.greek]), (.thai, [.thai]),
     ]
-    public let modelIdentifier: String
+    @objc public let modelIdentifier: String
     public let languages: [NLLanguage]
     public let scripts: [NLScript]
-    public let revision: Int
-    public let maximumSequenceLength = 256
+    @objc public let revision: Int
+    @objc public let maximumSequenceLength = 256
     var _loaded: [NLLanguage: NLEmbedding] = [:]
     let _lock = NSLock()
 
@@ -316,22 +331,22 @@ open class NLContextualEmbedding: NSObject, @unchecked Sendable {
         }.map { NLContextualEmbedding($0.0, $0.1) }
     }
     /// the vectors' dimension (isim: the host's fastText vectors; 300 when there are none)
-    open var dimension: Int { languages.lazy.compactMap { _Vectors.embedding($0)?.dimension }.first ?? 300 }
+    @objc open var dimension: Int { languages.lazy.compactMap { _Vectors.embedding($0)?.dimension }.first ?? 300 }
     /// isim: true when the host has fastText vectors (ISIM_WORD_VECTORS) for one of its languages
-    open var hasAvailableAssets: Bool { languages.contains { _Vectors.file($0) != nil } }
-    open func requestAssets(completionHandler: @escaping @Sendable (AssetsResult, Error?) -> Void) {
+    @objc open var hasAvailableAssets: Bool { languages.contains { _Vectors.file($0) != nil } }
+    @objc(requestEmbeddingAssetsWithCompletionHandler:) open func requestAssets(completionHandler: @escaping @Sendable (AssetsResult, Error?) -> Void) {
         let ok = hasAvailableAssets
         DispatchQueue.global().async { completionHandler(ok ? .available : .notAvailable, nil) }
     }
     open func requestAssets() async throws -> AssetsResult { hasAvailableAssets ? .available : .notAvailable }
-    open func load() throws {
+    @objc(loadWithError:) open func load() throws {
         let found = languages.compactMap { l in _Vectors.embedding(l).map { (l, $0) } }
         guard !found.isEmpty else {
             throw NLGazetteer._error("the contextual embedding's assets are not available: isim needs fastText vectors (ISIM_WORD_VECTORS=<directory> with <language>.vec)")
         }
         _lock.lock(); _loaded = Dictionary(found, uniquingKeysWith: { a, _ in a }); _lock.unlock()
     }
-    open func unload() { _lock.lock(); _loaded = [:]; _lock.unlock() }
+    @objc open func unload() { _lock.lock(); _loaded = [:]; _lock.unlock() }
     open func embeddingResult(for string: String, language: NLLanguage?) throws -> NLContextualEmbeddingResult {
         _lock.lock(); let loaded = _loaded; _lock.unlock()
         guard !loaded.isEmpty else { throw NLGazetteer._error("load() the contextual embedding before using it") }
@@ -359,15 +374,15 @@ open class NLContextualEmbedding: NSObject, @unchecked Sendable {
     }
 }
 
-open class NLContextualEmbeddingResult: NSObject, @unchecked Sendable {
-    public let string: String
+@objc(NLContextualEmbeddingResult) open class NLContextualEmbeddingResult: NSObject, @unchecked Sendable {
+    @objc public let string: String
     public let language: NLLanguage
     let _tokens: [Range<String.Index>]
     let _vectors: [[Double]]
     init(string: String, language: NLLanguage, tokens: [Range<String.Index>], vectors: [[Double]]) {
         self.string = string; self.language = language; _tokens = tokens; _vectors = vectors
     }
-    open var sequenceLength: Int { _tokens.count }
+    @objc open var sequenceLength: Int { _tokens.count }
     open func enumerateTokenVectors(in range: Range<String.Index>, using block: ([Double], Range<String.Index>) -> Bool) {
         for (t, v) in zip(_tokens, _vectors) where t.overlaps(range) { if !block(v, t) { return } }
     }
@@ -378,13 +393,13 @@ open class NLContextualEmbeddingResult: NSObject, @unchecked Sendable {
 
 // MARK: - NLModel
 
-open class NLModelConfiguration: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
-    public internal(set) var type: NLModel.ModelType = .classifier
+@objc(NLModelConfiguration) open class NLModelConfiguration: NSObject, NSCopying, NSSecureCoding, @unchecked Sendable {
+    @objc public internal(set) var type: NLModel.ModelType = .classifier
     public internal(set) var language: NLLanguage?
-    public internal(set) var revision: Int = 1
+    @objc public internal(set) var revision: Int = 1
     public override init() { super.init() }
-    open class func supportedRevisions(for type: NLModel.ModelType) -> IndexSet { [] }
-    open class func currentRevision(for type: NLModel.ModelType) -> Int { 0 }
+    @objc(supportedRevisionsForType:) open class func supportedRevisions(for type: NLModel.ModelType) -> IndexSet { [] }
+    @objc(currentRevisionForType:) open class func currentRevision(for type: NLModel.ModelType) -> Int { 0 }
     public func copy(with zone: NSZone? = nil) -> Any { self }
     public static var supportsSecureCoding: Bool { true }
     public func encode(with coder: NSCoder) {
@@ -398,9 +413,9 @@ open class NLModelConfiguration: NSObject, NSCopying, NSSecureCoding, @unchecked
 }
 
 /// Blocked: Create ML's text classifiers and word taggers keep their parameters in undocumented data.
-open class NLModel: NSObject, @unchecked Sendable {
-    @objc public enum ModelType: Int, Sendable { case classifier = 0, sequence = 1 }
-    public let configuration = NLModelConfiguration()
+@objc(NLModel) open class NLModel: NSObject, @unchecked Sendable {
+    @objc(NLModelType) public enum ModelType: Int, Sendable { case classifier = 0, sequence = 1 }
+    @objc public let configuration = NLModelConfiguration()
     public init(contentsOf url: URL) throws {
         throw NLModel._error("isim cannot run Create ML text models (\(url.lastPathComponent)): their parameters are in Apple's undocumented model data")
     }
@@ -411,10 +426,10 @@ open class NLModel: NSObject, @unchecked Sendable {
         }
         throw NLModel._error("isim cannot run Create ML text models (a \(kind)): their parameters are in Apple's undocumented model data")
     }
-    open func predictedLabel(for string: String) -> String? { nil }
-    open func predictedLabels(forTokens tokens: [String]) -> [String] { [] }
-    open func predictedLabelHypotheses(for string: String, maximumCount: Int) -> [String: Double] { [:] }
-    open func predictedLabelHypotheses(forTokens tokens: [String], maximumCount: Int) -> [[String: Double]] { [] }
+    @objc(predictedLabelForString:) open func predictedLabel(for string: String) -> String? { nil }
+    @objc open func predictedLabels(forTokens tokens: [String]) -> [String] { [] }
+    @objc(predictedLabelHypothesesForString:maximumCount:) open func predictedLabelHypotheses(for string: String, maximumCount: Int) -> [String: Double] { [:] }
+    @objc open func predictedLabelHypotheses(forTokens tokens: [String], maximumCount: Int) -> [[String: Double]] { [] }
     static func _error(_ msg: String) -> NSError {
         NSLog("isim NaturalLanguage: %@", msg)
         return NSError(domain: "NLNaturalLanguageErrorDomain", code: 1, userInfo: [NSLocalizedDescriptionKey: msg])

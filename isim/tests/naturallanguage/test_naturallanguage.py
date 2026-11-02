@@ -26,3 +26,15 @@ def test_naturallanguage_without_vectors(device_data):
     need_apps("NaturalLanguageTest")
     r = selftest("NaturalLanguageTest", data=device_data, env={"ISIM_WORD_VECTORS": ""})
     assert "vectors: none" in r.output
+
+
+def test_naturallanguage_objc(device_data, tmp_path):
+    """NaturalLanguage from Objective-C (issue #701): NaturalLanguageCTest.app tokenizes, recognizes languages, tags (with a
+    gazetteer), and uses custom, host and contextual embeddings through <NaturalLanguage/NaturalLanguage.h>"""
+    need_apps("NaturalLanguageCTest")
+    (tmp_path / "vectors").mkdir()
+    (tmp_path / "vectors" / "en.vec").write_text(VECTORS)
+    r = selftest("NaturalLanguageCTest", data=device_data, env={"ISIM_WORD_VECTORS": str(tmp_path / "vectors")})
+    assert "vectors: available" in r.output
+    r = selftest("NaturalLanguageCTest", data=device_data, env={"ISIM_WORD_VECTORS": ""})
+    assert "vectors: none" in r.output

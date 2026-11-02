@@ -34,7 +34,7 @@ public struct NLLanguage: RawRepresentable, Hashable, Sendable, ExpressibleByStr
     public static let slovenian = NLLanguage("sl"), estonian = NLLanguage("et"), serbian = NLLanguage("sr"), tagalog = NLLanguage("tl")
 }
 
-public enum NLTokenUnit: Int, Sendable { case word = 0, sentence = 1, paragraph = 2, document = 3 }
+@objc public enum NLTokenUnit: Int, Sendable { case word = 0, sentence = 1, paragraph = 2, document = 3 }
 
 public struct NLTag: RawRepresentable, Hashable, Sendable {
     public let rawValue: String
@@ -304,15 +304,15 @@ enum _NL {
 
 // MARK: - NLTokenizer
 
-open class NLTokenizer: NSObject, @unchecked Sendable {
+@objc(NLTokenizer) open class NLTokenizer: NSObject, @unchecked Sendable {
     public struct Attributes: OptionSet, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
         public static let numeric = Attributes(rawValue: 1), symbolic = Attributes(rawValue: 2), emoji = Attributes(rawValue: 4)
     }
-    public let unit: NLTokenUnit
-    open var string: String?
-    public init(unit: NLTokenUnit) { self.unit = unit }
+    @objc public let unit: NLTokenUnit
+    @objc open var string: String?
+    @objc(initWithUnit:) public init(unit: NLTokenUnit) { self.unit = unit }
     open func setLanguage(_ language: NLLanguage) {}
     open func tokenRange(at characterIndex: String.Index) -> Range<String.Index> {
         guard let s = string else { return characterIndex..<characterIndex }
@@ -341,23 +341,23 @@ open class NLTokenizer: NSObject, @unchecked Sendable {
 
 // MARK: - NLLanguageRecognizer
 
-open class NLLanguageRecognizer: NSObject, @unchecked Sendable {
+@objc(NLLanguageRecognizer) open class NLLanguageRecognizer: NSObject, @unchecked Sendable {
     var _text = ""
     open var languageConstraints: [NLLanguage] = []
     open var languageHints: [NLLanguage: Double] = [:]
     public override init() { super.init() }
     open class func dominantLanguage(for string: String) -> NLLanguage? { _NL.hypotheses(string, constraints: [], hints: [:]).first?.0 }
-    open func processString(_ string: String) { _text += string }
+    @objc open func processString(_ string: String) { _text += string }
     open var dominantLanguage: NLLanguage? { _NL.hypotheses(_text, constraints: languageConstraints, hints: languageHints).first?.0 }
     open func languageHypotheses(withMaximum maxHypotheses: Int) -> [NLLanguage: Double] {
         Dictionary(_NL.hypotheses(_text, constraints: languageConstraints, hints: languageHints).prefix(max(0, maxHypotheses)).map { ($0.0, $0.1) }, uniquingKeysWith: { a, _ in a })
     }
-    open func reset() { _text = "" }
+    @objc open func reset() { _text = "" }
 }
 
 // MARK: - NLTagger
 
-open class NLTagger: NSObject, @unchecked Sendable {
+@objc(NLTagger) open class NLTagger: NSObject, @unchecked Sendable {
     public struct Options: OptionSet, Sendable {
         public let rawValue: UInt
         public init(rawValue: UInt) { self.rawValue = rawValue }
@@ -365,9 +365,13 @@ open class NLTagger: NSObject, @unchecked Sendable {
         public static let omitOther = Options(rawValue: 1 << 3), joinNames = Options(rawValue: 1 << 4), joinContractions = Options(rawValue: 1 << 5)
     }
     public let tagSchemes: [NLTagScheme]
-    open var string: String?
+    @objc open var string: String?
     var _language: NLLanguage?
     var _gazetteers: [NLTagScheme: [NLGazetteer]] = [:]
+    var _models: [NLTagScheme: [NLModel]] = [:]
+    /// models are kept for the scheme (isim cannot run Create ML models, so they do not change its tags)
+    open func setModels(_ models: [NLModel], forTagScheme tagScheme: NLTagScheme) { _models[tagScheme] = models }
+    open func models(forTagScheme tagScheme: NLTagScheme) -> [NLModel] { _models[tagScheme] ?? [] }
     /// gazetteers label the words (and phrases) they list, ahead of the scheme's own tags
     open func setGazetteers(_ gazetteers: [NLGazetteer], for tagScheme: NLTagScheme) { _gazetteers[tagScheme] = gazetteers }
     open func gazetteers(for tagScheme: NLTagScheme) -> [NLGazetteer] { _gazetteers[tagScheme] ?? [] }
@@ -383,6 +387,12 @@ open class NLTagger: NSObject, @unchecked Sendable {
     open func tokenRange(at index: String.Index, unit: NLTokenUnit) -> Range<String.Index> {
         guard let s = string else { return index..<index }
         return _NL.tokens(s, s.startIndex..<s.endIndex, unit).first { $0.contains(index) } ?? index..<index
+    }
+    open func tokenRange(for range: Range<String.Index>, unit: NLTokenUnit) -> Range<String.Index> {
+        guard let s = string else { return range }
+        let ts = _NL.tokens(s, s.startIndex..<s.endIndex, unit).filter { $0.overlaps(range) || $0.contains(range.lowerBound) }
+        guard let a = ts.first, let b = ts.last else { return range }
+        return a.lowerBound..<b.upperBound
     }
 
     /// word-unit segments: words, punctuation and whitespace runs
