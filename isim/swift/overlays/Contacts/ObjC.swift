@@ -122,6 +122,20 @@ extension CNSaveRequest {
     @objc(updateContact:) func _objc_update(_ c: CNMutableContact) { update(c) }
     @objc(deleteContact:) func _objc_delete(_ c: CNMutableContact) { delete(c) }
     @objc(transactionAuthor) var _objc_transactionAuthor: String? { get { transactionAuthor } set { transactionAuthor = newValue } }
+    @objc(addGroup:toContainerWithIdentifier:) func _objc_addGroup(_ g: CNMutableGroup, toContainerWithIdentifier id: String?) {
+        add(g, toContainerWithIdentifier: id)
+    }
+    @objc(deleteGroup:) func _objc_deleteGroup(_ g: CNMutableGroup) { delete(g) }
+    @objc(addMember:toGroup:) func _objc_addMember(_ c: CNContact, toGroup g: CNGroup) { addMember(c, to: g) }
+    @objc(removeMember:fromGroup:) func _objc_removeMember(_ c: CNContact, fromGroup g: CNGroup) { removeMember(c, from: g) }
+}
+
+extension CNGroup {
+    @objc(identifier) var _objc_identifier: String { identifier }
+    @objc(name) var _objc_name: String { name }
+}
+extension CNMutableGroup {
+    @objc(setName:) func _objc_setName(_ n: String) { name = n }
 }
 
 extension CNContactStore {
@@ -146,4 +160,6 @@ extension CNContactStore {
     }
     @objc(executeSaveRequest:error:) func _objc_execute(_ r: CNSaveRequest) throws { try execute(r) }
     @objc(defaultContainerIdentifier) func _objc_defaultContainerIdentifier() -> String { defaultContainerIdentifier() }
+    @objc(groupsMatchingPredicate:error:) func _objc_groups(_ p: NSPredicate?) throws -> [CNGroup] { try groups(matching: p) }
+    @objc(currentHistoryToken) var _objc_currentHistoryToken: Data? { currentHistoryToken }
 }

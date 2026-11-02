@@ -2,7 +2,7 @@
 updates through both authorization callbacks, CLLocation and CLCircularRegion with CLLocationCoordinate2D, CLGeocoder),
 MapKit (MKMapView's region, MKPointAnnotation and the app's own <MKAnnotation> class, an MKMarkerAnnotationView from
 the delegate, an MKPolyline and its renderer, MKLocalSearch, MKClusterAnnotation, dragging the café's marker), Contacts (saving and finding a contact with
-CNLabeledValue phone numbers and emails), ContactsUI (the contact picker and its delegate) and EventKit / EventKitUI
+CNLabeledValue phone numbers and emails, a group, the change history and its visitor), ContactsUI (the contact picker and its delegate) and EventKit / EventKitUI
 (saving and finding an event, the event editor's delegate)."""
 import os
 import re
@@ -51,6 +51,11 @@ def test_personal_objc(launch):
     app.wait_log(r"^po drag Caffè Macs 0 from 4 at 37\.3310,-122\.00[0-3]\d$")
 
     app.wait_log(r"^po contacts granted=1 saved=1 found=1 name=Dana Objc phone=\+1 555 0100 label=mobile email=dana@example\.com error=nil$")
+    # issue #420: the change history from nothing (drop everything, then every contact), then since that token: group
+    # changes with the sync author's update left out, and contact changes only; the Contacts settings
+    app.wait_log(r"^po history first=drop,add:Kate,add:Daniel,add:John,add:Anna,add:Hank,add:David,add:Dana "
+                 r"since=group:Friends,member:Dana>Friends contacts=update:Dana groups=Friends current=1 error=nil$")
+    app.wait_log(r"^po contacts defaults sortOrder=3 country=[a-z]{2}$")
     app.wait_log(r"^po calendar granted=1 status=3 saved=1 found=1 title=Objective-C sync alarms=1 error=nil$")
     app.wait_log(r"^po recurring saved=1 occurrences=2 weekdays=2 days=5 positions=-1 location=Office radius=100 proximity=1$")
 

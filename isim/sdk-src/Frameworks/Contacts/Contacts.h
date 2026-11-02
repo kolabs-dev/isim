@@ -3,11 +3,11 @@
    libswiftContacts.dylib), on the same device address book as Swift, with the same permission prompt. CNLabeledValue is
    an Objective-C class here (the overlay's is a generic Swift class): a contact's labeled values convert between them.
    Swift uses the overlay; these declarations are hidden from Swift. The classes are not subclassable from Objective-C.
-   Not from Objective-C yet: groups, containers, vCards, change history. */
+   CNFetchResult is an Objective-C class here too (the overlay's is generic). Not from Objective-C yet: containers, vCards. */
 #import <Foundation/Foundation.h>
 #if !defined(__swift__)
 NS_ASSUME_NONNULL_BEGIN
-@class CNContact, CNMutableContact;
+@class CNContact, CNMutableContact, CNGroup;
 
 FOUNDATION_EXPORT NSErrorDomain const CNErrorDomain;
 typedef NS_ENUM(NSInteger, CNErrorCode) {
@@ -17,7 +17,10 @@ typedef NS_ENUM(NSInteger, CNErrorCode) {
     CNErrorCodeContainmentCycle = 202, CNErrorCodeContainmentScope = 203, CNErrorCodeParentRecordDoesNotExist = 204,
     CNErrorCodeRecordIdentifierInvalid = 205, CNErrorCodeRecordNotWritable = 206, CNErrorCodeParentContainerNotWritable = 207,
     CNErrorCodeValidationMultipleErrors = 300, CNErrorCodeValidationTypeMismatch = 301, CNErrorCodeValidationConfigurationError = 302,
-    CNErrorCodePredicateInvalid = 400, CNErrorCodePolicyViolation = 500, CNErrorCodeVCardMalformed = 700, CNErrorCodeVCardSummarizationError = 701,
+    CNErrorCodePredicateInvalid = 400, CNErrorCodePolicyViolation = 500, CNErrorCodeClientIdentifierInvalid = 600,
+    CNErrorCodeClientIdentifierDoesNotExist = 601, CNErrorCodeClientIdentifierCollision = 602, CNErrorCodeChangeHistoryExpired = 603,
+    CNErrorCodeChangeHistoryInvalidAnchor = 604, CNErrorCodeChangeHistoryInvalidFetchRequest = 605,
+    CNErrorCodeVCardMalformed = 700, CNErrorCodeVCardSummarizationError = 701,
 };
 
 FOUNDATION_EXPORT NSString * const CNContactIdentifierKey;
@@ -179,8 +182,22 @@ typedef NS_ENUM(NSInteger, CNContactFormatterStyle) { CNContactFormatterStyleFul
 + (id<CNKeyDescriptor>)descriptorForRequiredKeysForStyle:(CNContactFormatterStyle)style;
 @end
 
+/* groups */
+@interface CNGroup : NSObject <NSCopying, NSMutableCopying>
+@property (readonly, copy, nonatomic) NSString *identifier;
+@property (readonly, copy, nonatomic) NSString *name;
+@end
+@interface CNMutableGroup : CNGroup
+@property (copy, nonatomic) NSString *name;
+@end
+
 /* the store */
 @interface CNFetchRequest : NSObject
+@end
+@interface CNFetchResult<ValueType> : NSObject
+- (instancetype)init NS_UNAVAILABLE;
+@property (readonly, strong, nonatomic) ValueType value;
+@property (readonly, copy, nonatomic) NSData *currentHistoryToken;
 @end
 @interface CNContactFetchRequest : CNFetchRequest
 - (instancetype)initWithKeysToFetch:(NSArray<id<CNKeyDescriptor>> *)keysToFetch;
@@ -194,7 +211,85 @@ typedef NS_ENUM(NSInteger, CNContactFormatterStyle) { CNContactFormatterStyleFul
 - (void)addContact:(CNMutableContact *)contact toContainerWithIdentifier:(nullable NSString *)identifier;
 - (void)updateContact:(CNMutableContact *)contact;
 - (void)deleteContact:(CNMutableContact *)contact;
+- (void)addGroup:(CNMutableGroup *)group toContainerWithIdentifier:(nullable NSString *)identifier;
+- (void)deleteGroup:(CNMutableGroup *)group;
+- (void)addMember:(CNContact *)contact toGroup:(CNGroup *)group;
+- (void)removeMember:(CNContact *)contact fromGroup:(CNGroup *)group;
 @property (nonatomic, strong, nullable) NSString *transactionAuthor;
+@end
+
+/* change history */
+@interface CNChangeHistoryFetchRequest : CNFetchRequest <NSSecureCoding>
+@property (copy, nullable, nonatomic) NSData *startingToken;
+@property (copy, nullable, nonatomic) NSArray<id<CNKeyDescriptor>> *additionalContactKeyDescriptors;
+@property (assign, nonatomic) BOOL shouldUnifyResults;
+@property (assign, nonatomic) BOOL mutableObjects;
+@property (assign, nonatomic) BOOL includeGroupChanges;
+@property (copy, nullable, nonatomic) NSArray<NSString *> *excludedTransactionAuthors;
+@end
+@class CNChangeHistoryDropEverythingEvent, CNChangeHistoryAddContactEvent, CNChangeHistoryUpdateContactEvent, CNChangeHistoryDeleteContactEvent,
+    CNChangeHistoryAddGroupEvent, CNChangeHistoryUpdateGroupEvent, CNChangeHistoryDeleteGroupEvent, CNChangeHistoryAddMemberToGroupEvent,
+    CNChangeHistoryRemoveMemberFromGroupEvent, CNChangeHistoryAddSubgroupToGroupEvent, CNChangeHistoryRemoveSubgroupFromGroupEvent;
+@protocol CNChangeHistoryEventVisitor <NSObject>
+- (void)visitDropEverythingEvent:(CNChangeHistoryDropEverythingEvent *)event;
+- (void)visitAddContactEvent:(CNChangeHistoryAddContactEvent *)event;
+- (void)visitUpdateContactEvent:(CNChangeHistoryUpdateContactEvent *)event;
+- (void)visitDeleteContactEvent:(CNChangeHistoryDeleteContactEvent *)event;
+@optional
+- (void)visitAddGroupEvent:(CNChangeHistoryAddGroupEvent *)event;
+- (void)visitUpdateGroupEvent:(CNChangeHistoryUpdateGroupEvent *)event;
+- (void)visitDeleteGroupEvent:(CNChangeHistoryDeleteGroupEvent *)event;
+- (void)visitAddMemberToGroupEvent:(CNChangeHistoryAddMemberToGroupEvent *)event;
+- (void)visitRemoveMemberFromGroupEvent:(CNChangeHistoryRemoveMemberFromGroupEvent *)event;
+- (void)visitAddSubgroupToGroupEvent:(CNChangeHistoryAddSubgroupToGroupEvent *)event;
+- (void)visitRemoveSubgroupFromGroupEvent:(CNChangeHistoryRemoveSubgroupFromGroupEvent *)event;
+@end
+@interface CNChangeHistoryEvent : NSObject <NSCopying, NSSecureCoding>
+- (void)acceptEventVisitor:(id<CNChangeHistoryEventVisitor>)visitor;
+@end
+@interface CNChangeHistoryDropEverythingEvent : CNChangeHistoryEvent
+@end
+@interface CNChangeHistoryAddContactEvent : CNChangeHistoryEvent
+@property (readonly, strong, nonatomic) CNContact *contact;
+@property (readonly, strong, nullable, nonatomic) NSString *containerIdentifier;
+@end
+@interface CNChangeHistoryUpdateContactEvent : CNChangeHistoryEvent
+@property (readonly, strong, nonatomic) CNContact *contact;
+@end
+@interface CNChangeHistoryDeleteContactEvent : CNChangeHistoryEvent
+@property (readonly, strong, nonatomic) NSString *contactIdentifier;
+@end
+@interface CNChangeHistoryAddGroupEvent : CNChangeHistoryEvent
+@property (readonly, strong, nonatomic) CNGroup *group;
+@property (readonly, strong, nonatomic) NSString *containerIdentifier;
+@end
+@interface CNChangeHistoryUpdateGroupEvent : CNChangeHistoryEvent
+@property (readonly, strong, nonatomic) CNGroup *group;
+@end
+@interface CNChangeHistoryDeleteGroupEvent : CNChangeHistoryEvent
+@property (readonly, strong, nonatomic) NSString *groupIdentifier;
+@end
+@interface CNChangeHistoryAddMemberToGroupEvent : CNChangeHistoryEvent
+@property (readonly, strong, nonatomic) CNContact *member;
+@property (readonly, strong, nonatomic) CNGroup *group;
+@end
+@interface CNChangeHistoryRemoveMemberFromGroupEvent : CNChangeHistoryEvent
+@property (readonly, strong, nonatomic) CNContact *member;
+@property (readonly, strong, nonatomic) CNGroup *group;
+@end
+@interface CNChangeHistoryAddSubgroupToGroupEvent : CNChangeHistoryEvent
+@property (readonly, strong, nonatomic) CNGroup *subgroup;
+@property (readonly, strong, nonatomic) CNGroup *group;
+@end
+@interface CNChangeHistoryRemoveSubgroupFromGroupEvent : CNChangeHistoryEvent
+@property (readonly, strong, nonatomic) CNGroup *subgroup;
+@property (readonly, strong, nonatomic) CNGroup *group;
+@end
+
+@interface CNContactsUserDefaults : NSObject
++ (instancetype)sharedDefaults;
+@property (readonly, nonatomic) CNContactSortOrder sortOrder;
+@property (readonly, copy, nonatomic) NSString *countryCode;
 @end
 @interface CNContactStore : NSObject
 + (CNAuthorizationStatus)authorizationStatusForEntityType:(CNEntityType)entityType;
@@ -206,6 +301,10 @@ typedef NS_ENUM(NSInteger, CNContactFormatterStyle) { CNContactFormatterStyleFul
                                usingBlock:(void (^)(CNContact *contact, BOOL *stop))block;
 - (BOOL)executeSaveRequest:(CNSaveRequest *)saveRequest error:(NSError **)error;
 - (NSString *)defaultContainerIdentifier;
+- (nullable NSArray<CNGroup *> *)groupsMatchingPredicate:(nullable NSPredicate *)predicate error:(NSError **)error;
+@property (readonly, copy, nullable, nonatomic) NSData *currentHistoryToken;
+- (CNFetchResult<NSEnumerator<CNChangeHistoryEvent *> *> *)enumeratorForChangeHistoryFetchRequest:(CNChangeHistoryFetchRequest *)request
+                                                                                             error:(NSError **)error;
 @end
 
 NS_ASSUME_NONNULL_END

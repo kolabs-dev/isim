@@ -129,3 +129,29 @@ static NSArray *pairs(NSArray<CNLabeledValue *> *values) {
 - (void)setUrlAddresses:(NSArray *)v { [self _isim_setUrlAddresses:pairs(v)]; }
 - (void)setPostalAddresses:(NSArray *)v { [self _isim_setPostalAddresses:pairs(v)]; }
 @end
+
+// change history (issue #420): CNFetchResult is a generic Swift class in the overlay, so Objective-C's is here; the
+// enumerator reads the overlay's events through _isim_changeHistoryEvents:error: ([events, token])
+@implementation CNFetchResult {
+    id _value;
+    NSData *_token;
+}
+- (instancetype)_initWithValue:(id)value currentHistoryToken:(NSData *)token {
+    if ((self = [super init])) { _value = value; _token = [token copy]; }
+    return self;
+}
+- (id)value { return _value; }
+- (NSData *)currentHistoryToken { return _token; }
+@end
+
+@interface CNContactStore (ISIMHistory)
+- (nullable NSArray *)_isim_changeHistoryEvents:(CNChangeHistoryFetchRequest *)request error:(NSError **)error;
+@end
+@implementation CNContactStore (ISIMObjCHistory)
+- (CNFetchResult<NSEnumerator<CNChangeHistoryEvent *> *> *)enumeratorForChangeHistoryFetchRequest:(CNChangeHistoryFetchRequest *)request
+                                                                                             error:(NSError **)error {
+    NSArray *r = [self _isim_changeHistoryEvents:request error:error];
+    if (!r) return nil;
+    return [[CNFetchResult alloc] _initWithValue:[(NSArray *)r[0] objectEnumerator] currentHistoryToken:r[1]];
+}
+@end

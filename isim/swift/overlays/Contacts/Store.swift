@@ -20,7 +20,7 @@ open class CNContainer: NSObject, @unchecked Sendable {
     }
     open class func predicateForContainerOfContact(withIdentifier contactIdentifier: String) -> NSPredicate { NSPredicate(value: true) }
 }
-open class CNGroup: NSObject, NSCopying, NSMutableCopying, @unchecked Sendable {
+@objc(CNGroup) open class CNGroup: NSObject, NSCopying, NSMutableCopying, @unchecked Sendable {
     public internal(set) var identifier: String
     var _name: String
     open var name: String { _name }
@@ -29,7 +29,7 @@ open class CNGroup: NSObject, NSCopying, NSMutableCopying, @unchecked Sendable {
     public func copy(with zone: OpaquePointer? = nil) -> Any { CNGroup(identifier: identifier, name: _name) }
     public func mutableCopy(with zone: OpaquePointer? = nil) -> Any { let g = CNMutableGroup(); g.identifier = identifier; g._name = _name; return g }
 }
-open class CNMutableGroup: CNGroup, @unchecked Sendable {
+@objc(CNMutableGroup) open class CNMutableGroup: CNGroup, @unchecked Sendable {
     open override var name: String { get { _name } set { _name = newValue } }
 }
 
@@ -163,7 +163,7 @@ enum _CNAuth {
                     switch i {
                     case 0:
                         _CNSelection.present(all: _CNDB.load().contacts, selected: []) { ids in
-                            _CNAuth.limitedIDs = ids
+                            _CNAuth.limitedIDs = ids ?? []
                             answer(.limited)
                         }
                     case 1: answer(.authorized)
@@ -219,16 +219,19 @@ enum _CNAuth {
     }
     open func groups(matching predicate: NSPredicate?) throws -> [CNGroup] {
         guard _CNAuth.authorized else { throw CNError(.authorizationDenied) }
-        return _CNDB.load().groups.map { CNGroup(identifier: $0.key, name: $0.value) }.sorted { $0.name < $1.name }
+        let all = _CNDB.load().groups.map { CNGroup(identifier: $0.key, name: $0.value) }.sorted { $0.name < $1.name }
+        return predicate.map { p in all.filter { p.evaluate(with: $0) } } ?? all
     }
     open func defaultContainerIdentifier() -> String { "isim-local" }
-    open var currentHistoryToken: Data? { Data("\(_CNDB.load().contacts.count)".utf8) }
+    /// the token of the address book's last change (CNChangeHistoryFetchRequest.startingToken reads from it)
+    open var currentHistoryToken: Data? { _CNHistory.token(_CNHistory.last(_CNHistory.load())) }
 
     // MARK: saving
     open func execute(_ saveRequest: CNSaveRequest) throws {
         guard _CNAuth.authorized else { throw CNError(.authorizationDenied) }
         var book = _CNDB.load()
         var limited = _CNAuth.limitedIDs
+        var changes: [(String, String, String?)] = []          // for the change history
         for op in saveRequest.ops {
             switch op {
             case .add(let c, let container):
@@ -236,6 +239,7 @@ enum _CNAuth {
                 var d = c.d; d.container = container ?? "isim-local"; d.modified = Date().timeIntervalSince1970
                 book.contacts.append(d)
                 limited.insert(d.id)                 // apps with limited access see what they add
+                changes.append(("addContact", d.id, nil))
             case .update(let c):
                 guard let i = book.contacts.firstIndex(where: { $0.id == c.d.id }) else { throw CNError(.recordDoesNotExist) }
                 if _CNAuth.status == .limited && !limited.contains(c.d.id) { throw CNError(.recordDoesNotExist) }
@@ -243,19 +247,28 @@ enum _CNAuth {
                 // keys that were not fetched keep their stored values
                 if let f = c.fetched { d = _CNMerge.merge(stored: book.contacts[i], changed: d, keys: f) }
                 book.contacts[i] = d
+                changes.append(("updateContact", d.id, nil))
             case .delete(let c):
                 guard book.contacts.contains(where: { $0.id == c.d.id }) else { throw CNError(.recordDoesNotExist) }
                 book.contacts.removeAll { $0.id == c.d.id }
                 limited.remove(c.d.id)
-            case .addGroup(let g): book.groups[g.identifier] = g.name
-            case .deleteGroup(let g): book.groups[g.identifier] = nil
+                changes.append(("deleteContact", c.d.id, nil))
+            case .addGroup(let g): book.groups[g.identifier] = g.name; changes.append(("addGroup", g.identifier, nil))
+            case .deleteGroup(let g): book.groups[g.identifier] = nil; changes.append(("deleteGroup", g.identifier, nil))
             case .addMember(let c, let g):
-                if let i = book.contacts.firstIndex(where: { $0.id == c.d.id }), !book.contacts[i].groups.contains(g.identifier) { book.contacts[i].groups.append(g.identifier) }
+                if let i = book.contacts.firstIndex(where: { $0.id == c.d.id }), !book.contacts[i].groups.contains(g.identifier) {
+                    book.contacts[i].groups.append(g.identifier)
+                    changes.append(("addMember", c.d.id, g.identifier))
+                }
             case .removeMember(let c, let g):
-                if let i = book.contacts.firstIndex(where: { $0.id == c.d.id }) { book.contacts[i].groups.removeAll { $0 == g.identifier } }
+                if let i = book.contacts.firstIndex(where: { $0.id == c.d.id }), book.contacts[i].groups.contains(g.identifier) {
+                    book.contacts[i].groups.removeAll { $0 == g.identifier }
+                    changes.append(("removeMember", c.d.id, g.identifier))
+                }
             }
         }
         _CNDB.save(book)
+        _CNHistory.record(changes, author: saveRequest.transactionAuthor)
         if _CNAuth.status == .limited { _CNAuth.limitedIDs = limited }
         NotificationCenter.default.post(name: .CNContactStoreDidChange, object: self)
     }
@@ -267,9 +280,37 @@ enum _CNAuth {
     @_spi(isim) public static func _isimSave(_ contact: CNContact) {
         var book = _CNDB.load()
         var d = contact.d; d.modified = Date().timeIntervalSince1970
-        if let i = book.contacts.firstIndex(where: { $0.id == d.id }) { book.contacts[i] = d } else { book.contacts.append(d) }
+        let existing = book.contacts.firstIndex(where: { $0.id == d.id })
+        if let i = existing { book.contacts[i] = d } else { book.contacts.append(d) }
         _CNDB.save(book)
+        _CNHistory.record([(existing == nil ? "addContact" : "updateContact", d.id, nil)], author: nil)
         NotificationCenter.default.post(name: .CNContactStoreDidChange, object: nil)
+    }
+    /// for ContactsUI's ContactAccessButton and contactAccessPicker (iOS 18): the contacts an app with limited access
+    /// may read; nil when its access is not limited
+    @_spi(isim) public static var _isimLimitedIDs: Set<String>? { _CNAuth.status == .limited ? _CNAuth.limitedIDs : nil }
+    /// shares more contacts with an app (ContactAccessButton): an app that has not asked yet gets limited access to them,
+    /// as on iOS; false when the app has no limited access to add to (denied, or full access)
+    @_spi(isim) public static func _isimShare(_ ids: Set<String>) -> Bool {
+        switch _CNAuth.status {
+        case .notDetermined where _Privacy.osMajor >= 18: _CNAuth.limitedIDs = ids; _Privacy.store("contacts", CNAuthorizationStatus.limited.rawValue)
+        case .limited: _CNAuth.limitedIDs.formUnion(ids)
+        default: return false
+        }
+        NSLog("isim Contacts: shared %d contact(s) with %@", ids.count, _Privacy.appName)
+        NotificationCenter.default.post(name: .CNContactStoreDidChange, object: nil)
+        return true
+    }
+    /// contactAccessPicker: picks among the contacts the app cannot read yet; the contacts added (none when cancelled)
+    @_spi(isim) @MainActor public static func _isimPresentLimitedSelection(_ done: @escaping ([String]) -> Void) {
+        guard _CNAuth.status == .limited else { done([]); return }
+        let shared = _CNAuth.limitedIDs
+        _CNSelection.present(all: _CNDB.load().contacts.filter { !shared.contains($0.id) }, selected: []) { ids in
+            guard let ids, !ids.isEmpty else { done([]); return }
+            _CNAuth.limitedIDs = shared.union(ids)
+            NotificationCenter.default.post(name: .CNContactStoreDidChange, object: nil)
+            done(ids.sorted())
+        }
     }
     @_spi(isim) public static func _isimFullName(_ c: CNContact) -> String { CNContactFormatter.string(from: CNContact(c.d, keys: nil), style: .fullName) ?? "No Name" }
     @_spi(isim) public static func _isimSortKey(_ c: CNContact) -> String { _CNSort.key(c.d, .familyName) }
@@ -366,13 +407,13 @@ open class CNContactVCardSerialization: NSObject {
 @MainActor final class _CNSelection: UITableViewController {
     let all: [_CNData]
     var selected: Set<String>
-    let done: (Set<String>) -> Void
-    init(all: [_CNData], selected: Set<String>, done: @escaping (Set<String>) -> Void) {
+    let done: (Set<String>?) -> Void       // nil: cancelled
+    init(all: [_CNData], selected: Set<String>, done: @escaping (Set<String>?) -> Void) {
         self.all = all.sorted { _CNSort.key($0, .familyName) < _CNSort.key($1, .familyName) }; self.selected = selected; self.done = done
         super.init(style: .insetGrouped)
     }
     required init?(coder: NSCoder) { fatalError() }
-    static func present(all: [_CNData], selected: Set<String>, done: @escaping (Set<String>) -> Void) {
+    static func present(all: [_CNData], selected: Set<String>, done: @escaping (Set<String>?) -> Void) {
         guard let top = _Privacy.topController() else { done(selected); return }
         let nav = UINavigationController(rootViewController: _CNSelection(all: all, selected: selected, done: done))
         nav.isModalInPresentation = true
@@ -384,7 +425,7 @@ open class CNContactVCardSerialization: NSObject {
         navigationItem.leftBarButtonItem = _Privacy.barButton("Cancel", id: "contacts-select-cancel", self, #selector(isimCNCancel))
         navigationItem.rightBarButtonItem = _Privacy.barButton("Continue", bold: true, id: "contacts-select-done", self, #selector(isimCNDone))
     }
-    @objc func isimCNCancel() { let d = done; _Privacy.dismiss(self) { d([]) } }
+    @objc func isimCNCancel() { let d = done; _Privacy.dismiss(self) { d(nil) } }
     @objc func isimCNDone() { let d = done, s = selected; _Privacy.dismiss(self) { d(s) } }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { all.count }
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? { "Share contacts with “\(_Privacy.appName)”" }
