@@ -4,14 +4,14 @@
 @_exported import Accelerate
 
 /// A contiguous buffer that Accelerate's Swift functions read.
-public protocol AccelerateBuffer {
+public protocol AccelerateBuffer<Element> {
     associatedtype Element
     var count: Int { get }
     func withUnsafeBufferPointer<R>(_ body: (UnsafeBufferPointer<Element>) throws -> R) rethrows -> R
 }
 
 /// A contiguous buffer that Accelerate's Swift functions write.
-public protocol AccelerateMutableBuffer: AccelerateBuffer {
+public protocol AccelerateMutableBuffer<Element>: AccelerateBuffer {
     mutating func withUnsafeMutableBufferPointer<R>(_ body: (inout UnsafeMutableBufferPointer<Element>) throws -> R) rethrows -> R
 }
 

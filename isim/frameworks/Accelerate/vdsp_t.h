@@ -204,10 +204,10 @@ void V(zvconj)(const SCT *A, vDSP_Stride IA, const SCT *C, vDSP_Stride IC, vDSP_
     for (vDSP_Length i = 0; i < N; i++) { AT(C->realp, i, IC) = AT(A->realp, i, IA); AT(C->imagp, i, IC) = -AT(A->imagp, i, IA); }
 }
 
-/* FFTs: computed in double (fft.c), whatever the setup's size, for lengths up to 2^Log2n */
+/* FFTs: computed in double (isim_cfft), whatever the setup's size or radix (radix 3 and 5 setups serve fft3 / fft5) */
 struct V(_setup) { vDSP_Length log2n; };
 FT V(create_fftsetup)(vDSP_Length Log2n, FFTRadix Radix) {
-    if (Radix != kFFTRadix2 || Log2n > 24) return NULL;      /* isim: radix 2 only */
+    if ((Radix != kFFTRadix2 && Radix != kFFTRadix3 && Radix != kFFTRadix5) || Log2n > 24) return NULL;
     struct V(_setup) *s = malloc(sizeof *s);
     if (s) s->log2n = Log2n;
     return (FT)s;
